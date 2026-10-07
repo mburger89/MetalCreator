@@ -14,9 +14,9 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 | M0 | OCCT probe: shim, box, fillet, STEP/STL | ✅ | — |
 | M1 | Graph engine: values, broadcasting, evaluator, undo, `.mcgraph`, `DocumentModel` | ✅ | — |
 | M2 | OCCT kernel: all operations, tags through history, conformance + naming stability | ✅ | M0, M1 |
-| M3 | The 26 nodes (values, profiles, solids, selection rules, fillet/chamfer, output) | 🔄 plan | M2 |
-| M4 | Viewport on MetalUI `MetalView`: shaded/edge/ID passes, camera, view cube, picking, context menu, handles | 🔄 plan | M2; MetalUI C7 for final input bindings (stopgaps until then) |
-| M5 | Graph panel on MetalUI: canvas, both docks, palette, context inspector | 🔄 plan | M1; node inspector specs from M3 |
+| M3 | The 26 nodes (values, profiles, solids, selection rules, fillet/chamfer, output) | 📝 plan ready for review (docs/superpowers/plans/2026-10-08-m3-nodes.md) | M2 |
+| M4 | Viewport on MetalUI `MetalView`: shaded/edge/ID passes, camera, view cube, picking, context menu, handles | 📝 plan ready for review (…-m4-viewport.md); runs after M3 | M2; MetalUI C7 for final input bindings (stopgaps until then) |
+| M5 | Graph panel on MetalUI: canvas, both docks, palette, context inspector | 📝 plan ready for review (…-m5-graph-panel.md); runs after M4 | M1; node inspector specs from M3 |
 | M6 | App shell + acceptance demo (§7.2 bracket, STEP/STL export) | ⏳ after M3–M5 | M3, M4, M5 |
 | M7 | Measure §7.3 targets, finish `docs/metalui-gaps.md`, CLAUDE.md | ⏳ after M6 | M6 |
 
@@ -33,7 +33,7 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 
 | Item | Owner | Status |
 |---|---|---|
-| MetalUI C7 "Input API gaps for MetalCreator" (scroll, pinch/rotate, middle/right drag, tap location, cursor + drag modifiers) | MetalUI session | 🔒 queued behind C6/C4 at last report — check before M4 execution |
+| MetalUI C7 "Input API gaps for MetalCreator" (scroll, pinch/rotate, middle/right drag, tap location, cursor + drag modifiers) | MetalUI session | 🔒 not designed yet; next after MetalUI C4 (2026-10-08). Provisional API names recorded in docs/metalui-gaps.md |
 
 ## Carry-over items with a milestone
 
