@@ -50,7 +50,24 @@ struct FileTests {
         #expect(file.viewState.dock == .left)
     }
 
+    @Test func newerFormatWithChangedShapeIsStillRecognised() throws {
+        let json = #"{"formatVersion": 99, "graph": "future shape"}"#
+        #expect(throws: GraphFileError.newerFormat(99)) {
+            try GraphFileIO.decode(Data(json.utf8), registry: testRegistry)
+        }
+    }
+
+    @Test func newerNodeVersionIsNotMigrated() throws {
+        var newer = makeNode(VersionedNode.self, ["old": .number(3)])
+        newer.typeVersion = 3
+        let file = GraphFile(graph: graph([newer]))
+        let decoded = try GraphFileIO.decode(try GraphFileIO.encode(file), registry: testRegistry)
+        let preserved = try #require(decoded.graph.nodes[newer.id])
+        #expect(preserved.typeVersion == 3)
+        #expect(preserved.inputValues == ["old": .number(3)])
+    }
+
     @Test func malformedJSONThrowsInsteadOfCrashing() {
-        #expect(throws: (any Error).self) { try GraphFileIO.decode(Data("{ not json".utf8), registry: testRegistry) }
+        #expect(throws: DecodingError.self) { try GraphFileIO.decode(Data("{ not json".utf8), registry: testRegistry) }
     }
 }
