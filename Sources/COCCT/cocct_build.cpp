@@ -4,6 +4,8 @@
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepGProp.hxx>
+#include <BRepLib.hxx>
+#include <BRep_Builder.hxx>
 #include <BRepOffsetAPI_ThruSections.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRepPrimAPI_MakeRevol.hxx>
@@ -12,7 +14,9 @@
 #include <GProp_GProps.hxx>
 #include <Standard_DomainError.hxx>
 #include <TopoDS_Edge.hxx>
+#include <TopoDS_Compound.hxx>
 #include <TopoDS_Face.hxx>
+#include <TopoDS_Solid.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Ax1.hxx>
 #include <gp_Circ.hxx>
@@ -100,11 +104,37 @@ built_profile build_profile(const occt_profile &profile) {
     return result;
 }
 
-/// OCCT may return an inside-out solid depending on profile winding; flip it if so.
-TopoDS_Shape oriented(const TopoDS_Shape &shape) {
+double volume_of(const TopoDS_Shape &shape) {
     GProp_GProps properties;
     BRepGProp::VolumeProperties(shape, properties);
-    return properties.Mass() < 0 ? shape.Reversed() : shape;
+    return properties.Mass();
+}
+
+/// Orients one solid so its shell bounds matter (OCCT may build it inside out depending on
+/// profile winding). Throws if it still has negative volume.
+TopoDS_Solid oriented_solid(TopoDS_Solid solid) {
+    BRepLib::OrientClosedSolid(solid);
+    if (volume_of(solid) < 0) {
+        throw user_error("the profile produced an inside-out solid");
+    }
+    return solid;
+}
+
+/// Orients every solid in `shape` (a solid, or a compound of solids). Face identities are kept,
+/// so history recorded against the builder still matches the result.
+TopoDS_Shape oriented(const TopoDS_Shape &shape) {
+    if (shape.ShapeType() == TopAbs_SOLID) {
+        return oriented_solid(TopoDS::Solid(shape));
+    }
+    BRep_Builder builder;
+    TopoDS_Compound compound;
+    builder.MakeCompound(compound);
+    bool any = false;
+    for (TopExp_Explorer it(shape, TopAbs_SOLID); it.More(); it.Next()) {
+        builder.Add(compound, oriented_solid(TopoDS::Solid(it.Current())));
+        any = true;
+    }
+    return any ? TopoDS_Shape(compound) : shape;
 }
 
 } // namespace

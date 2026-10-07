@@ -119,4 +119,37 @@ struct FeatureConformanceTests {
         #expect(blends.count == 1)
         #expect(blends.first?.kind == .plane)
     }
+    /// Blends all 12 edges of a 10 × 20 × 30 box and checks that every face is named, including
+    /// the corner faces OCCT generates from vertices where three blended edges meet.
+    func blendingEveryEdgeNamesEveryFace(_ kernel: any Kernel, chamfer: Bool) async throws {
+        let solid = try await box(kernel, 10, 20, 30)
+        let blendTag = newTag()
+        let all = solid.topology.edges.map(\.id)
+        #expect(all.count == 12)
+        let result = chamfer
+            ? try await kernel.chamfer(solid, edges: all, distance: 0.5, tag: blendTag)
+            : try await kernel.fillet(solid, edges: all, radius: 1, tag: blendTag)
+        #expect(result.topology.faces.allSatisfy { face in !face.tags.contains { if case .unnamed = $0.role { true } else { false } } })
+        func blendTags(_ face: FaceInfo) -> Int {
+            face.tags.filter { tag in
+                guard tag.node == blendTag.node, case .blend = tag.role else { return false }
+                return true
+            }.count
+        }
+        let corners = result.topology.faces.filter { $0.tags.count >= 2 }
+        #expect(!corners.isEmpty)
+        for corner in corners {
+            #expect(blendTags(corner) >= 2)
+        }
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func filletingEveryEdgeOfABoxNamesEveryFace(_ under: KernelUnderTest) async throws {
+        try await blendingEveryEdgeNamesEveryFace(under.make(), chamfer: false)
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func chamferingEveryEdgeOfABoxNamesEveryFace(_ under: KernelUnderTest) async throws {
+        try await blendingEveryEdgeNamesEveryFace(under.make(), chamfer: true)
+    }
 }

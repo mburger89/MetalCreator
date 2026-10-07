@@ -37,6 +37,25 @@ struct BooleanConformanceTests {
     }
 
     @Test(arguments: KernelUnderTest.allCases)
+    func subtractLeavesItsInputsUntouched(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let (plate, tools) = try await plateAndHoles(kernel, plate: newTag(), holes: NodeID())
+        let before = try await kernel.properties(of: plate)
+        let beforeMesh = try await kernel.tessellate(plate, tolerance: 0.1)
+        let first = try await kernel.boolean(.subtract, plate, tools, tag: newTag())
+        let after = try await kernel.properties(of: plate)
+        #expect(isClose(after.volume, before.volume) && isClose(after.surfaceArea, before.surfaceArea))
+        let afterMesh = try await kernel.tessellate(plate, tolerance: 0.1)
+        #expect(Set(afterMesh.triangleFaces) == Set(beforeMesh.triangleFaces))
+        #expect(Set(afterMesh.triangleFaces).count == 6)
+        #expect(afterMesh.edgePolylines.count == beforeMesh.edgePolylines.count)
+        let second = try await kernel.boolean(.subtract, plate, tools, tag: newTag())
+        #expect(isClose(try await kernel.properties(of: second).volume, try await kernel.properties(of: first).volume))
+        #expect(second.topology.faces.count == first.topology.faces.count)
+        #expect(second.topology.edges.count == first.topology.edges.count)
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
     func subtractingAMissingToolKeepsThePlate(_ under: KernelUnderTest) async throws {
         let kernel = under.make()
         let plateTag = newTag()

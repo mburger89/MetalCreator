@@ -9,6 +9,7 @@
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <TopoDS_Edge.hxx>
+#include <TopoDS_Vertex.hxx>
 #include <gp_Ax1.hxx>
 #include <gp_Trsf.hxx>
 #include <gp_Vec.hxx>
@@ -65,7 +66,19 @@ occt_shape *blend(const occt_shape *shape, const int *edge_indices, int count, d
     history_builder records(result);
     add_face_history(records, algo, shape->shape, 0);
     for (int i = 0; i < count; ++i) {
-        records.add_all(algo.Generated(edges(edge_indices[i])), OCCT_FROM_EDGE, 0, edge_indices[i]);
+        const TopoDS_Edge edge = TopoDS::Edge(edges(edge_indices[i]));
+        records.add_all(algo.Generated(edge), OCCT_FROM_EDGE, 0, edge_indices[i]);
+        // Corner faces are generated from the vertices where blended edges meet. Naming them after
+        // every selected edge at that vertex gives each corner a stable set of `.blend` tags.
+        // Generated() returns a reference to a list the next call overwrites, so each list is
+        // consumed before the next call.
+        TopoDS_Vertex first, last;
+        TopExp::Vertices(edge, first, last);
+        for (const TopoDS_Vertex &vertex : {first, last}) {
+            if (!vertex.IsNull()) {
+                records.add_all(algo.Generated(vertex), OCCT_FROM_EDGE, 0, edge_indices[i]);
+            }
+        }
     }
     records.move_into(history);
     return new occt_shape{result};
@@ -102,6 +115,8 @@ occt_shape *occt_boolean(int op, const occt_shape *a, const occt_shape *const *t
         }
         algo->SetArguments(arguments);
         algo->SetTools(toolList);
+        // Solids share geometry with other results in the graph; never let the boolean modify its inputs.
+        algo->SetNonDestructive(Standard_True);
         algo->Build();
         if (!algo->IsDone() || algo->HasErrors()) {
             set_error(status, "the boolean could not be computed");
