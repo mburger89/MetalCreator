@@ -9,7 +9,7 @@ extension KernelError {
     /// OCCT's own messages are terse ("BRep_API: command not done"); make them readable.
     static func plainReason(_ message: String) -> String {
         let lower = message.lowercased()
-        if lower.hasPrefix("occt:") || lower.contains("not done") || lower.contains("notdone") {
+        if lower.hasPrefix("occt:") || lower.contains("unknown occt") || lower.contains("not done") || lower.contains("notdone") {
             return "the geometry could not be built with these inputs."
         }
         return message.hasSuffix(".") ? message : message + "."

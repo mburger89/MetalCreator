@@ -67,6 +67,9 @@ public actor FakeKernel: Kernel {
     public func transform(_ solid: Solid, by transform: Transform, tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
         operationLog.append("transform")
+        if transform.rotation.radians != 0, transform.rotationAxis == nil {
+            throw KernelError.invalidInput("A rotation needs an axis.")
+        }
         return Solid(topology: solid.topology, bounds: solid.bounds.translated(by: transform.translation), storage: FakeStorage())
     }
 

@@ -70,6 +70,8 @@ typedef struct {
 } occt_properties;
 
 int occt_read_properties(const occt_shape *shape, occt_properties *out, occt_status *status);
+/// The shape's tight axis-aligned bounds, without computing mass properties. Returns 1 on success.
+int occt_read_bounds(const occt_shape *shape, double min[3], double max[3], occt_status *status);
 
 /// Surface kinds: 0 plane, 1 cylinder, 2 cone, 3 sphere, 4 torus, 5 bspline, 6 other.
 typedef struct {

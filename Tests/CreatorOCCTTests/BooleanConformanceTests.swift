@@ -136,4 +136,12 @@ struct BooleanConformanceTests {
         #expect(isClose(turned.bounds.size.y, 10, relative: 1e-3))
         #expect(isClose(turned.bounds.size.x, 2, relative: 1e-3))
     }
+    @Test(arguments: KernelUnderTest.allCases)
+    func rotationWithoutAnAxisIsRejected(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let slab = try await box(kernel, 10, 2, 2)
+        await #expect(throws: KernelError.invalidInput("A rotation needs an axis.")) {
+            try await kernel.transform(slab, by: Transform(rotation: .degrees(90)), tag: newTag())
+        }
+    }
 }

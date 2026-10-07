@@ -14,6 +14,14 @@ struct RawTopologyTests {
         #expect(isClose(properties.bounds.min.x, 0, relative: 1e-4) && isClose(properties.bounds.max.z, 30, relative: 1e-4))
     }
 
+    @Test func boxBoundsAreTight() throws {
+        let bounds = try OCCTKernel.serialized { try OCCTShape.box(10, 20, 30).bounds() }
+        #expect(isClose(bounds.min.x, 0, relative: 1e-4) && isClose(bounds.min.y, 0, relative: 1e-4))
+        #expect(isClose(bounds.min.z, 0, relative: 1e-4))
+        #expect(isClose(bounds.max.x, 10, relative: 1e-4) && isClose(bounds.max.y, 20, relative: 1e-4))
+        #expect(isClose(bounds.max.z, 30, relative: 1e-4))
+    }
+
     @Test func boxFacesArePlanarWithOutwardNormals() throws {
         let topology = try OCCTKernel.serialized { try OCCTRawTopology.read(OCCTShape.box(10, 20, 30)) }
         #expect(topology.faces.count == 6)

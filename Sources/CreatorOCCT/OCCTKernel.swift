@@ -83,6 +83,9 @@ public actor OCCTKernel: Kernel {
         guard transform.translation.isFinite, transform.rotation.radians.isFinite else {
             throw KernelError.invalidInput("The move or rotation must be a finite number.")
         }
+        if transform.rotation.radians != 0, transform.rotationAxis == nil {
+            throw KernelError.invalidInput("A rotation needs an axis.")
+        }
         if let axis = transform.rotationAxis, axis.direction.normalized == nil {
             throw KernelError.invalidInput("The rotation axis needs a direction.")
         }
@@ -176,7 +179,7 @@ public actor OCCTKernel: Kernel {
         return storage.shape
     }
 
-    /// Runs a shim builder, then reads topology and bounds and applies tags.
+    /// Runs a shim builder, then reads topology and bounds (no mass properties) and applies tags.
     func build(_ operation: String, inputs: [Topology], tag: NodeTag,
                _ body: () throws -> (OCCTShape, [OCCTHistoryRecord])) throws -> Solid {
         let built: (OCCTShape, [OCCTHistoryRecord])
@@ -192,14 +195,14 @@ public actor OCCTKernel: Kernel {
                operation: String) throws -> Solid {
         do {
             // Untyped throws on purpose: Swift 6.4 crashes ("unsupported collection upcast kind") with typed throws returning a tuple. Revert once fixed.
-            let (raw, properties) = try Self.serialized { () throws -> (OCCTRawTopology, OCCTProperties) in
-                (try OCCTRawTopology.read(shape), try shape.properties())
+            let (raw, bounds) = try Self.serialized { () throws -> (OCCTRawTopology, BoundingBox) in
+                (try OCCTRawTopology.read(shape), try shape.bounds())
             }
             guard !raw.faces.isEmpty else {
                 throw KernelError.operationFailed(operation: operation, reason: "the result is empty.")
             }
             let topology = OCCTTagger.topology(raw: raw, history: history, inputs: inputs, tag: tag)
-            return Solid(topology: topology, bounds: properties.bounds,
+            return Solid(topology: topology, bounds: bounds,
                          storage: OCCTSolidStorage(shape: shape, faceCount: raw.faces.count))
         } catch let error as OCCTError {
             throw KernelError.occt(operation, error)

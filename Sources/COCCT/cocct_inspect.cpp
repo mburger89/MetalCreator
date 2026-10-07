@@ -177,6 +177,23 @@ int occt_read_properties(const occt_shape *shape, occt_properties *out, occt_sta
     });
 }
 
+int occt_read_bounds(const occt_shape *shape, double min[3], double max[3], occt_status *status) {
+    return guarded(status, [&]() -> int {
+        if (!shape || !min || !max) {
+            set_error(status, "the shape is empty");
+            return 0;
+        }
+        Bnd_Box box;
+        BRepBndLib::AddOptimal(shape->shape, box, Standard_False, Standard_False);
+        if (box.IsVoid()) {
+            set_error(status, "the shape is empty");
+            return 0;
+        }
+        box.Get(min[0], min[1], min[2], max[0], max[1], max[2]);
+        return 1;
+    });
+}
+
 int occt_read_topology(const occt_shape *shape, occt_topology *out, occt_status *status) {
     return guarded(status, [&]() -> int {
         *out = occt_topology{};

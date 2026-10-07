@@ -9,6 +9,13 @@ struct KernelErrorMappingTests {
         #expect(KernelError.plainReason("occt: Standard_ConstructionError") == generic)
     }
 
+    @Test func unknownOCCTErrorBecomesAGenericSentence() {
+        let generic = "the geometry could not be built with these inputs."
+        // The shim's and Swift's fallback text when OCCT gave no message.
+        #expect(KernelError.plainReason("unknown OCCT error") == generic)
+        #expect(KernelError.plainReason("Unknown occt error.") == generic)
+    }
+
     @Test func shimMessagesKeepTheirText() {
         #expect(KernelError.plainReason("a line in the profile has zero length") == "a line in the profile has zero length.")
     }

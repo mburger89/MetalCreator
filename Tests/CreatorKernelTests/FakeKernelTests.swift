@@ -60,6 +60,16 @@ struct FakeKernelTests {
         }
     }
 
+    @Test func rotationWithoutAnAxisIsRejected() async throws {
+        let kernel = FakeKernel()
+        let box = try await kernel.extrude(.rectangle(width: 2, height: 2, plane: .xy), distance: 2, mode: .oneSided, tag: tag)
+        await #expect(throws: KernelError.invalidInput("A rotation needs an axis.")) {
+            try await kernel.transform(box, by: Transform(rotation: .degrees(90)), tag: tag)
+        }
+        // A zero rotation needs no axis.
+        _ = try await kernel.transform(box, by: Transform(translation: Vector3(1, 0, 0)), tag: tag)
+    }
+
     @Test func subtractKeepsToolFacesForTagging() async throws {
         let kernel = FakeKernel()
         let plate = try await kernel.extrude(.rectangle(width: 60, height: 40, plane: .xy), distance: 6, mode: .oneSided, tag: tag)
