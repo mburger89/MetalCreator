@@ -153,6 +153,28 @@ occt_shape *occt_fillet(const occt_shape *shape, const int *edge_indices, int co
 occt_shape *occt_chamfer(const occt_shape *shape, const int *edge_indices, int count, double distance,
                          occt_history *history, occt_status *status);
 
+/// Triangles per face plus B-rep edge polylines. Free with occt_mesh_free.
+/// edge_offsets has edge_count + 1 entries: points of edge e (0-based) are
+/// edge_points[3*edge_offsets[e] ..< 3*edge_offsets[e+1]]; seams and degenerate edges are empty.
+typedef struct {
+    double *positions;
+    double *normals;
+    int vertex_count;
+    unsigned int *indices;
+    int *triangle_faces;
+    int triangle_count;
+    double *edge_points;
+    int *edge_offsets;
+    int edge_count;
+} occt_mesh;
+
+int occt_tessellate(const occt_shape *shape, double tolerance, occt_mesh *out, occt_status *status);
+void occt_mesh_free(occt_mesh *mesh);
+/// A compound of copies-by-reference of the given shapes.
+occt_shape *occt_make_compound(const occt_shape *const *shapes, int count, occt_status *status);
+/// Reads a STEP file into one shape (a compound for several bodies).
+occt_shape *occt_read_step(const char *path, occt_status *status);
+
 #ifdef __cplusplus
 }
 #endif

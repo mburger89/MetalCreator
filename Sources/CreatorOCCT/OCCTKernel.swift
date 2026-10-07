@@ -125,12 +125,32 @@ public actor OCCTKernel: Kernel {
 
     public func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh {
         try Task.checkCancellation()
-        throw KernelError.unsupported("tessellate")
+        guard tolerance.isFinite, tolerance > 0 else {
+            throw KernelError.invalidInput("The display tolerance must be greater than 0 mm.")
+        }
+        let source = try shape(of: solid)
+        do {
+            return try Self.serialized { () throws -> DisplayMesh in try source.mesh(tolerance: tolerance) }
+        } catch let error as OCCTError {
+            throw KernelError.occt("tessellate", error)
+        }
     }
 
     public func export(_ solids: [Solid], format: ExportFormat, to url: URL) throws {
         try Task.checkCancellation()
-        throw KernelError.unsupported("export")
+        guard !solids.isEmpty else { throw KernelError.invalidInput("There is nothing to export.") }
+        let shapes = try solids.map { try shape(of: $0) }
+        do {
+            try Self.serialized { () throws in
+                let combined = try shapes.count == 1 ? shapes[0] : OCCTShape.compound(shapes)
+                switch format {
+                case .step: try combined.writeSTEP(to: url)
+                case .stl: try combined.writeSTL(to: url, deflection: 0.05)
+                }
+            }
+        } catch let error as OCCTError {
+            throw KernelError.exportFailed(KernelError.plainReason(error.message))
+        }
     }
 
     public func properties(of solid: Solid) throws -> SolidProperties {
