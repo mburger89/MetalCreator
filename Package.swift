@@ -21,11 +21,11 @@ let package = Package(
                 .unsafeFlags(["-L\(occtPrefix)/lib", "-Xlinker", "-rpath", "-Xlinker", "\(occtPrefix)/lib"]),
             ] + occtLibraries.map { .linkedLibrary($0) }
         ),
-        .target(name: "CreatorOCCT", dependencies: ["COCCT"]),
+        .target(name: "CreatorOCCT", dependencies: ["COCCT", "CreatorKernel", "CreatorGeometry"]),
         .target(name: "CreatorGeometry"),
         .target(name: "CreatorKernel", dependencies: ["CreatorGeometry"]),
         .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry"]),
-        .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT"]),
+        .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT", "CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
         .testTarget(name: "CreatorKernelTests", dependencies: ["CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorGraphTests", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),

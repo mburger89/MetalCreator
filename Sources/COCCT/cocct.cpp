@@ -1,4 +1,4 @@
-#include "cocct.h"
+#include "cocct_internal.hpp"
 
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepGProp.hxx>
@@ -19,62 +19,7 @@
 #include <cstring>
 #include <exception>
 
-struct occt_shape {
-    TopoDS_Shape shape;
-};
-
-namespace {
-
-void set_ok(occt_status *status) {
-    if (status) {
-        status->ok = 1;
-        status->message[0] = '\0';
-    }
-}
-
-void set_error(occt_status *status, const char *message) {
-    if (status) {
-        status->ok = 0;
-        std::strncpy(status->message, message ? message : "unknown OCCT error", sizeof(status->message) - 1);
-        status->message[sizeof(status->message) - 1] = '\0';
-    }
-}
-
-/// Runs `body`, converting every C++ exception into an error status. No exception may
-/// cross into Swift.
-template <typename Body>
-auto guarded(occt_status *status, Body body) -> decltype(body()) {
-    try {
-        set_ok(status);
-        return body();
-    } catch (const Standard_Failure &failure) {
-        const char *message = failure.GetMessageString();
-        set_error(status, (message && *message) ? message : failure.DynamicType()->Name());
-    } catch (const std::exception &error) {
-        set_error(status, error.what());
-    } catch (...) {
-        set_error(status, "unknown OCCT exception");
-    }
-    return decltype(body()){};
-}
-
-TopTools_IndexedMapOfShape map_of(const TopoDS_Shape &shape, TopAbs_ShapeEnum kind) {
-    TopTools_IndexedMapOfShape map;
-    TopExp::MapShapes(shape, kind, map);
-    return map;
-}
-
-/// Runs a query, returning -1 if anything throws. No exception may cross into Swift.
-template <typename Body>
-auto queried(Body body) -> decltype(body()) {
-    try {
-        return body();
-    } catch (...) {
-        return static_cast<decltype(body())>(-1);
-    }
-}
-
-} // namespace
+using namespace cocct;
 
 extern "C" {
 
@@ -148,7 +93,7 @@ int occt_write_step(const occt_shape *shape, const char *path, occt_status *stat
             return 0;
         }
         STEPControl_Writer writer;
-        Interface_Static::SetCVal("write.step.unit", "MM");
+        occt_initialize();
         if (writer.Transfer(shape->shape, STEPControl_AsIs) != IFSelect_RetDone) {
             set_error(status, "STEP transfer failed");
             return 0;
