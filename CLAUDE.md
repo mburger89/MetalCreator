@@ -6,17 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MetalCreator is a node-based parametric CAD app for macOS built on MetalUI (`../MetalUI`, joined in M4).
 The binding spec is `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md`; milestone
-plans live in `docs/superpowers/plans/`. M0 (OCCT probe) and M1 (graph engine) are done.
+plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine) and M2 (OCCT kernel) are done.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
 - `CreatorKernel`: the `Kernel` protocol, `Solid`, tagged topology tables, `FakeKernel` for tests.
-- `COCCT` + `CreatorOCCT`: the OpenCascade C shim and its Swift wrapper. **The only code that may touch OCCT.**
+- `COCCT` + `CreatorOCCT`: the OpenCascade C shim and `OCCTKernel: Kernel` (topology tables, face tags carried through
+  OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
+  `*_free`; no C++ exception crosses into Swift.
 - `CreatorGraph`: graph model, sockets, broadcasting, `Evaluator` (cached, cancellable), commands and undo,
   `.mcgraph` files, `DocumentModel`.
 
 Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.md` and fixed in MetalUI,
 never worked around here. Graph links are kept canonically sorted by destination; result caching is keyed by node identity.
+Edge/face IDs are OCCT map order. A circle edge's `direction` is its axis, so direction rules must also check `kind == .line`.
 
 ## Commands
 
@@ -25,6 +28,7 @@ swift build                                  # build the library
 swift build -c release
 swift test                                   # run all tests
 swift test --filter CreatorGraphTests        # one test target (also CreatorOCCTTests, CreatorGeometryTests, CreatorKernelTests)
+swift test --filter CreatorOCCTTests         # kernel conformance + naming stability (needs OCCT)
 swift test --filter 'CreatorGraphTests.EvaluatorTests/wiredValuesFlowDownstream'   # one test
 ```
 

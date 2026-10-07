@@ -4,17 +4,23 @@ Deferred review findings from the M0–M1 subagent-driven run (final review tria
 Read this before writing the M2 and M3 plans.
 
 ## Before the first M2 OCCT operation
-- STEP export sets the process-global `Interface_Static` unit; meshing writes triangulation into the shared TShape. Keep all OCCT access serialized inside `OCCTKernel` (dedicated serial executor recommended).
-- Map `OCCTError` to `KernelError` so raw OCCT text never reaches users.
-- Query sentinel `-1` is ambiguous for `occt_volume` (negative volumes exist): expose throwing/optional queries in `OCCTKernel`.
-- Silence OCCT's STEP statistics on stdout (Message messenger level); add an unwritable-path STL test.
+- ✅ (M2) STEP export sets the process-global `Interface_Static` unit; meshing writes triangulation into the shared TShape. Keep all OCCT access serialized inside `OCCTKernel` (dedicated serial executor recommended).
+- ✅ (M2) Map `OCCTError` to `KernelError` so raw OCCT text never reaches users.
+- ✅ (M2) Query sentinel `-1` is ambiguous for `occt_volume` (negative volumes exist): expose throwing/optional queries in `OCCTKernel`.
+- ✅ (M2) Silence OCCT's STEP statistics on stdout (Message messenger level); add an unwritable-path STL test.
 - `occt_edge_length` rebuilds the edge map per call (O(n²) loops).
-- Implement `try Task.checkCancellation()` on entry to every `OCCTKernel` operation (protocol contract).
-- Define a fallback tag for faces OCCT history leaves untagged; make `TopoTag`, `TopoRole`, `EdgeKey` Codable (needed by Edges by Tag) — remember: a new `ConstantValue` kind needs a `formatVersion` bump.
+- ✅ (M2) Implement `try Task.checkCancellation()` on entry to every `OCCTKernel` operation (protocol contract).
+- ✅ (M2) Define a fallback tag for faces OCCT history leaves untagged; make `TopoTag`, `TopoRole`, `EdgeKey` Codable (needed by Edges by Tag) — remember: a new `ConstantValue` kind needs a `formatVersion` bump.
 
 ## Before M3 selection-rule and profile nodes
-- FakeKernel: circle rim edges get `direction = normal` (collides with "parallel to Z" rules); 2-segment profiles give vertical edges a shared `EdgeKey`; blend doesn't dedupe edges; centroid/area are zero placeholders; coverage gaps (chamfer, transform, union, intersect, tessellate).
+- FakeKernel and OCCTKernel both report a circle's axis as `direction` (by design); 'Edges by Direction' must require `kind == .line`. 2-segment profiles give vertical edges a shared `EdgeKey`; blend doesn't dedupe edges; centroid/area are zero placeholders; coverage gaps (chamfer, transform, union, intersect, tessellate).
 - `Segment2D` arcs assume a CCW normalized sweep (reversed arc → negative length); `Profile2D.bounds` is conservative for partial arcs; `Plane.init` does not normalize.
+
+## From M2
+- `OCCTKernel` runs on the default actor executor; long OCCT calls occupy a cooperative-pool thread. Measure in M7.
+- Fillet failures report `maxRadius: nil` (OCCT gives no limit); a search for the max radius is a later nicety.
+- Fuse/cut call `SimplifyResult()`; if that ever drops history for a face it shows up as `.unnamed` (pinned by
+  `noFaceIsUntaggedOrUnnamedInTheBracket`).
 
 ## Can wait
 - `NodeID` init overlap; `EdgeKey` separators unescaped; linear topology lookups; 128-byte estimate constant.
