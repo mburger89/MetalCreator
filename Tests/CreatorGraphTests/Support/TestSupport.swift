@@ -9,6 +9,14 @@ func makeNode(_ definition: any NodeDefinition.Type, _ values: [SocketName: Cons
     return node
 }
 
+func link(_ from: Node, _ fromSocket: SocketName, _ to: Node, _ toSocket: SocketName) -> Link {
+    Link(from: Endpoint(node: from.id, socket: fromSocket), to: Endpoint(node: to.id, socket: toSocket))
+}
+
+func graph(_ nodes: [Node], _ links: [Link] = [], parameters: [GraphParameter] = []) -> Graph {
+    Graph(nodes: Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) }), links: links, parameters: parameters)
+}
+
 extension Value {
     /// The numbers carried, or `nil` if any item isn't a number.
     var numbers: [Double]? {
