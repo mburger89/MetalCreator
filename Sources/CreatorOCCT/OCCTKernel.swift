@@ -78,12 +78,29 @@ public actor OCCTKernel: Kernel {
 
     public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
-        throw KernelError.unsupported("fillet")
+        return try blend(solid, edges: edges, size: radius, chamfer: false, tag: tag)
     }
 
     public func chamfer(_ solid: Solid, edges: [EdgeID], distance: Double, tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
-        throw KernelError.unsupported("chamfer")
+        return try blend(solid, edges: edges, size: distance, chamfer: true, tag: tag)
+    }
+
+    private func blend(_ solid: Solid, edges: [EdgeID], size: Double, chamfer: Bool, tag: NodeTag) throws -> Solid {
+        guard size.isFinite, size > 0 else { throw KernelError.invalidInput("The size must be greater than 0 mm.") }
+        guard !edges.isEmpty else { throw KernelError.invalidInput("No edges are selected.") }
+        if let missing = edges.first(where: { solid.topology.edge($0) == nil }) {
+            throw KernelError.invalidInput("Edge \(missing.rawValue) doesn't exist on the input solid.")
+        }
+        let source = try shape(of: solid)
+        let operation = chamfer ? "chamfer" : "fillet"
+        do {
+            return try build(operation, inputs: [solid.topology], tag: tag) {
+                try source.blended(edges: edges, size: size, chamfer: chamfer)
+            }
+        } catch KernelError.operationFailed(_, let reason) where !chamfer {
+            throw KernelError.filletFailed(radius: size, maxRadius: nil, reason: reason)
+        }
     }
 
     public func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh {

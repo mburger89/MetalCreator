@@ -6,6 +6,9 @@
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepBuilderAPI_MakeShape.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
+#include <BRepFilletAPI_MakeChamfer.hxx>
+#include <BRepFilletAPI_MakeFillet.hxx>
+#include <TopoDS_Edge.hxx>
 #include <gp_Ax1.hxx>
 #include <gp_Trsf.hxx>
 #include <gp_Vec.hxx>
@@ -33,6 +36,39 @@ void add_face_history(history_builder &records, BRepBuilderAPI_MakeShape &algo, 
             records.add_all(modified, OCCT_FROM_FACE, operand, j);
         }
     }
+}
+
+/// Shared body of fillet and chamfer: `Algo` is BRepFilletAPI_MakeFillet or _MakeChamfer.
+template <typename Algo>
+occt_shape *blend(const occt_shape *shape, const int *edge_indices, int count, double size,
+                  occt_history *history, occt_status *status, const char *failure) {
+    *history = occt_history{};
+    if (!shape || !edge_indices || count <= 0 || !std::isfinite(size) || size <= 0) {
+        set_error(status, "a blend needs edges and a size greater than 0");
+        return nullptr;
+    }
+    const TopTools_IndexedMapOfShape edges = map_of(shape->shape, TopAbs_EDGE);
+    Algo algo(shape->shape);
+    for (int i = 0; i < count; ++i) {
+        if (edge_indices[i] < 1 || edge_indices[i] > edges.Extent()) {
+            set_error(status, "edge index out of range");
+            return nullptr;
+        }
+        algo.Add(size, TopoDS::Edge(edges(edge_indices[i])));
+    }
+    algo.Build();
+    if (!algo.IsDone()) {
+        set_error(status, failure);
+        return nullptr;
+    }
+    const TopoDS_Shape result = algo.Shape();
+    history_builder records(result);
+    add_face_history(records, algo, shape->shape, 0);
+    for (int i = 0; i < count; ++i) {
+        records.add_all(algo.Generated(edges(edge_indices[i])), OCCT_FROM_EDGE, 0, edge_indices[i]);
+    }
+    records.move_into(history);
+    return new occt_shape{result};
 }
 
 bool has_solid(const TopoDS_Shape &shape) {
@@ -113,6 +149,22 @@ occt_shape *occt_transform(const occt_shape *shape, const double translation[3],
         add_face_history(records, transform, shape->shape, 0);
         records.move_into(history);
         return new occt_shape{result};
+    });
+}
+
+occt_shape *occt_fillet(const occt_shape *shape, const int *edge_indices, int count, double radius,
+                        occt_history *history, occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * {
+        return blend<BRepFilletAPI_MakeFillet>(shape, edge_indices, count, radius, history, status,
+                                               "the fillet could not be built for this radius");
+    });
+}
+
+occt_shape *occt_chamfer(const occt_shape *shape, const int *edge_indices, int count, double distance,
+                         occt_history *history, occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * {
+        return blend<BRepFilletAPI_MakeChamfer>(shape, edge_indices, count, distance, history, status,
+                                                "the chamfer could not be built for this distance");
     });
 }
 

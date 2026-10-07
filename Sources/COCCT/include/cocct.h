@@ -137,6 +137,14 @@ occt_shape *occt_transform(const occt_shape *shape, const double translation[3],
                            const double axis_origin[3], const double axis_direction[3], double angle,
                            occt_history *history, occt_status *status);
 
+/// Fillets the edges (1-based indices) with `radius`. History operand 0 = shape:
+/// OCCT_FROM_FACE for kept/modified faces, OCCT_FROM_EDGE (index = input edge) for blend faces.
+occt_shape *occt_fillet(const occt_shape *shape, const int *edge_indices, int count, double radius,
+                        occt_history *history, occt_status *status);
+/// Equal-distance chamfer of the edges; same history contract as occt_fillet.
+occt_shape *occt_chamfer(const occt_shape *shape, const int *edge_indices, int count, double distance,
+                         occt_history *history, occt_status *status);
+
 #ifdef __cplusplus
 }
 #endif
