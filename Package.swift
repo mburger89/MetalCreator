@@ -22,7 +22,13 @@ let package = Package(
             ] + occtLibraries.map { .linkedLibrary($0) }
         ),
         .target(name: "CreatorOCCT", dependencies: ["COCCT"]),
+        .target(name: "CreatorGeometry"),
+        .target(name: "CreatorKernel", dependencies: ["CreatorGeometry"]),
+        .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT"]),
+        .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
+        .testTarget(name: "CreatorKernelTests", dependencies: ["CreatorKernel", "CreatorGeometry"]),
+        .testTarget(name: "CreatorGraphTests", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
     ],
     swiftLanguageModes: [.v6],
     cxxLanguageStandard: .cxx17
