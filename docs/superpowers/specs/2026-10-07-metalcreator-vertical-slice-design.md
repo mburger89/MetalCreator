@@ -358,3 +358,11 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
 - Interruptible long OCCT operations, parallel kernel evaluation
 - Bundling OCCT into a signed, distributable `.app`
 - Multiple documents and windows, localisation (strings are written to be catalog-ready)
+
+## Errata (M0–M1)
+
+- Platforms are `.macOS(.v26)`, not v14.
+- `Profile2D` carries its plane, so kernel methods take no `on plane:` parameter.
+- OCCT is linked via explicit Homebrew paths (no pkg-config).
+- The result cache key includes node identity (the kernel tags created faces with it).
+- Graph links are kept in canonical order (by destination), on commands and on load.

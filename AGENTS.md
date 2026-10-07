@@ -37,3 +37,4 @@ There is no linter or formatter configured.
 - Local toolchain: Apple Swift 6.4, arm64 macOS.
 - OpenCascade 7.9 comes from Homebrew (`brew install opencascade`) and is linked from `/opt/homebrew/opt/opencascade`.
   Linker warnings about dylibs built for a newer macOS are expected.
+- Adding a `ConstantValue` kind, or any change older readers can't decode, requires bumping `GraphFile.currentFormatVersion`.
