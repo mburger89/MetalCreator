@@ -20,10 +20,13 @@ public indirect enum GraphCommand: Sendable, Equatable {
     case setParameter(ParameterID, ConstantValue)
     case batch([GraphCommand])
 
-    /// Nodes whose results this command can change (for marking them `.evaluating`).
+    /// Nodes whose own inputs or existence change. Callers that mark results stale must take
+    /// `downstreamClosure` on the graph *before* applying the command, so dependents of removed
+    /// nodes and links are included.
     public var touchedNodes: Set<NodeID> {
         switch self {
-        case .addNode(let node), .restoreNode(let node, _): [node.id]
+        case .addNode(let node): [node.id]
+        case .restoreNode(let node, let links): Set(links.map(\.to.node)).union([node.id])
         case .removeNode(let id), .setInput(let id, _, _), .setOutput(let id, _): [id]
         case .connect(let link), .disconnect(let link): [link.to.node]
         case .move, .rename, .addParameter, .removeParameter, .setParameter: []

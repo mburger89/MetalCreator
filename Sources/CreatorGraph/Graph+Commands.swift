@@ -15,12 +15,14 @@ extension Graph {
             let removed = links.filter { $0.from.node == id || $0.to.node == id }
             links.removeAll { $0.from.node == id || $0.to.node == id }
             nodes[id] = nil
+            sortLinks()
             return .restoreNode(node, links: removed)
 
         case .restoreNode(let node, let restoredLinks):
             guard nodes[node.id] == nil else { throw .duplicateNode(node.id) }
             nodes[node.id] = node
             links += restoredLinks
+            sortLinks()
             return .removeNode(node.id)
 
         case .connect(let link):
@@ -30,6 +32,7 @@ extension Graph {
             let replaced = incomingLink(to: link.to)
             links.removeAll { $0.to == link.to }
             links.append(link)
+            sortLinks()
             if let replaced {
                 return .batch([.disconnect(link), .connect(replaced)])
             }
@@ -38,6 +41,7 @@ extension Graph {
         case .disconnect(let link):
             guard links.contains(link) else { throw .linkNotFound }
             links.removeAll { $0 == link }
+            sortLinks()
             return .connect(link)
 
         case .setInput(let id, let socket, let value):
@@ -70,6 +74,10 @@ extension Graph {
             return .setOutput(id, old)
 
         case .addParameter(let parameter):
+            guard parameter.value.isFinite else { throw .invalidValue("Enter a finite number.") }
+            guard !parameters.contains(where: { $0.id == parameter.id }) else {
+                throw .invalidValue("A parameter with this ID already exists.")
+            }
             parameters.append(parameter)
             return .removeParameter(parameter.id)
 
@@ -81,6 +89,11 @@ extension Graph {
         case .setParameter(let id, let value):
             guard let index = parameters.firstIndex(where: { $0.id == id }) else { throw .parameterNotFound(id) }
             guard value.isFinite else { throw .invalidValue("Enter a finite number.") }
+            let parameter = parameters[index]
+            let valueType = Scalar(value)?.type
+            guard valueType == parameter.type || (valueType == .integer && parameter.type == .number) else {
+                throw .invalidValue("“\(parameter.name)” needs a \(parameter.type.rawValue).")
+            }
             let old = parameters[index].value
             parameters[index].value = value
             return .setParameter(id, old)
@@ -98,5 +111,11 @@ extension Graph {
             }
             return .batch(Array(inverses.reversed()))
         }
+    }
+
+    /// Keeps `links` in canonical order (by destination; each input has at most one link),
+    /// so that undoing a command restores an equal graph.
+    private mutating func sortLinks() {
+        links.sort { ($0.to.node, $0.to.socket) < ($1.to.node, $1.to.socket) }
     }
 }
