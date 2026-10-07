@@ -129,6 +129,14 @@ typedef struct {
 /// one OCCT_FROM_SEGMENT record per side face (index = segment).
 occt_shape *occt_extrude(const occt_profile *profile, double distance, occt_history *history, occt_status *status);
 
+/// Boolean of `a` with `tools` (op 0 fuse, 1 cut, 2 common). History operands: 0 = a, i+1 = tools[i].
+occt_shape *occt_boolean(int op, const occt_shape *a, const occt_shape *const *tools, int tool_count,
+                         occt_history *history, occt_status *status);
+/// Rotates about the axis (if has_rotation) and then translates. History operand 0 = shape.
+occt_shape *occt_transform(const occt_shape *shape, const double translation[3], int has_rotation,
+                           const double axis_origin[3], const double axis_direction[3], double angle,
+                           occt_history *history, occt_status *status);
+
 #ifdef __cplusplus
 }
 #endif

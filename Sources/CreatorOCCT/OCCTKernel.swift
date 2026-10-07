@@ -51,12 +51,29 @@ public actor OCCTKernel: Kernel {
 
     public func boolean(_ op: BooleanOp, _ a: Solid, _ b: [Solid], tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
-        throw KernelError.unsupported("boolean")
+        guard !b.isEmpty else { throw KernelError.invalidInput("Connect at least one tool solid.") }
+        let operation = switch op {
+        case .union: "union"
+        case .subtract: "subtract"
+        case .intersect: "intersect"
+        }
+        let target = try shape(of: a)
+        let tools = try b.map { try shape(of: $0) }
+        return try build(operation, inputs: [a.topology] + b.map(\.topology), tag: tag) {
+            try OCCTShape.boolean(op, target, tools)
+        }
     }
 
     public func transform(_ solid: Solid, by transform: Transform, tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
-        throw KernelError.unsupported("transform")
+        guard transform.translation.isFinite, transform.rotation.radians.isFinite else {
+            throw KernelError.invalidInput("The move or rotation must be a finite number.")
+        }
+        if let axis = transform.rotationAxis, axis.direction.normalized == nil {
+            throw KernelError.invalidInput("The rotation axis needs a direction.")
+        }
+        let source = try shape(of: solid)
+        return try build("transform", inputs: [solid.topology], tag: tag) { try source.transformed(by: transform) }
     }
 
     public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid {
