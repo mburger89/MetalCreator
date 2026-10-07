@@ -19,6 +19,7 @@
 #include <cstring>
 #include <exception>
 #include <new>
+#include <stdexcept>
 #include <vector>
 
 struct occt_shape {
@@ -42,6 +43,11 @@ inline void set_error(occt_status *status, const char *message) {
     }
 }
 
+/// A problem the shim itself diagnosed (bad input), worded for people. Reported without the "occt: " prefix.
+struct user_error : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
 /// Reports a caught exception, marking the text as raw OCCT output with an "occt: " prefix.
 inline void set_caught_error(occt_status *status, const char *message) {
     std::string text = "occt: ";
@@ -56,6 +62,8 @@ auto guarded(occt_status *status, Body body) -> decltype(body()) {
     try {
         set_ok(status);
         return body();
+    } catch (const user_error &error) {
+        set_error(status, error.what());
     } catch (const Standard_Failure &failure) {
         const char *message = failure.GetMessageString();
         set_caught_error(status, (message && *message) ? message : failure.DynamicType()->Name());

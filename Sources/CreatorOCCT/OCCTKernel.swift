@@ -115,6 +115,7 @@ public actor OCCTKernel: Kernel {
     func solid(from shape: OCCTShape, history: [OCCTHistoryRecord], inputs: [Topology], tag: NodeTag,
                operation: String) throws -> Solid {
         do {
+            // Untyped throws on purpose: Swift 6.4 crashes ("unsupported collection upcast kind") with typed throws returning a tuple. Revert once fixed.
             let (raw, properties) = try Self.serialized { () throws -> (OCCTRawTopology, OCCTProperties) in
                 (try OCCTRawTopology.read(shape), try shape.properties())
             }

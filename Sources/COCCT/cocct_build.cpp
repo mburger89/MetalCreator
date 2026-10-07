@@ -20,11 +20,6 @@ using namespace cocct;
 
 namespace {
 
-/// A problem with the profile itself, described in the shim's own words (reported without the "occt:" prefix).
-struct profile_error : std::runtime_error {
-    using std::runtime_error::runtime_error;
-};
-
 /// A profile turned into a planar face, with its edges in segment order.
 struct built_profile {
     TopoDS_Face face;
@@ -43,7 +38,7 @@ gp_Pnt point_on(const gp_Ax2 &frame, double x, double y) {
 
 built_profile build_profile(const occt_profile &profile) {
     if (!profile.segments || profile.segment_count <= 0) {
-        throw profile_error("the profile has no segments");
+        throw user_error("the profile has no segments");
     }
     const gp_Ax2 frame = frame_of(profile.plane);
     BRepBuilderAPI_MakeWire wire;
@@ -55,42 +50,45 @@ built_profile build_profile(const occt_profile &profile) {
             const gp_Pnt a = point_on(frame, segment.x0, segment.y0);
             const gp_Pnt b = point_on(frame, segment.x1, segment.y1);
             if (a.Distance(b) <= 1e-9) {
-                throw profile_error("a line in the profile has zero length");
+                throw user_error("a line in the profile has zero length");
             }
             BRepBuilderAPI_MakeEdge make(a, b);
             if (!make.IsDone()) {
-                throw profile_error("a line in the profile could not be built");
+                throw user_error("a line in the profile could not be built");
             }
             edge = make.Edge();
         } else {
             if (segment.kind != 1) {
-                throw profile_error("unknown profile segment kind");
+                throw user_error("unknown profile segment kind");
             }
             if (!std::isfinite(segment.start) || !std::isfinite(segment.end)) {
-                throw profile_error("an arc in the profile has a non-finite angle");
+                throw user_error("an arc in the profile has a non-finite angle");
             }
             if (!(segment.end - segment.start > 1e-12)) {
-                throw profile_error("an arc in the profile has no sweep");
+                throw user_error("an arc in the profile has no sweep");
             }
             if (!(segment.radius > 1e-9) || !std::isfinite(segment.radius)) {
-                throw profile_error("an arc in the profile has no radius");
+                throw user_error("an arc in the profile has no radius");
+            }
+            if (!std::isfinite(segment.cx) || !std::isfinite(segment.cy)) {
+                throw user_error("an arc in the profile has an invalid centre");
             }
             const gp_Ax2 axes(point_on(frame, segment.cx, segment.cy), frame.Direction(), frame.XDirection());
             BRepBuilderAPI_MakeEdge make(gp_Circ(axes, segment.radius), segment.start, segment.end);
             if (!make.IsDone()) {
-                throw profile_error("an arc in the profile could not be built");
+                throw user_error("an arc in the profile could not be built");
             }
             edge = make.Edge();
         }
         wire.Add(edge);
         if (!wire.IsDone()) {
-            throw profile_error("the profile segments do not connect");
+            throw user_error("the profile segments do not connect");
         }
         result.edges.push_back(wire.Edge());
     }
     BRepBuilderAPI_MakeFace face(wire.Wire(), Standard_True);
     if (!face.IsDone()) {
-        throw profile_error("the profile is not a closed, flat loop");
+        throw user_error("the profile is not a closed, flat loop");
     }
     result.face = face.Face();
     return result;
@@ -114,13 +112,7 @@ occt_shape *occt_extrude(const occt_profile *profile, double distance, occt_hist
             set_error(status, "extrude distance must be greater than 0");
             return nullptr;
         }
-        built_profile built;
-        try {
-            built = build_profile(*profile);
-        } catch (const profile_error &error) {
-            set_error(status, error.what());
-            return nullptr;
-        }
+        const built_profile built = build_profile(*profile);
         const gp_Vec vector(gp_Dir(profile->plane.normal[0], profile->plane.normal[1], profile->plane.normal[2]));
         BRepPrimAPI_MakePrism prism(built.face, vector * distance);
         prism.Build();
