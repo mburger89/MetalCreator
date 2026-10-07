@@ -17,8 +17,17 @@ Read this before writing the M2 and M3 plans.
 - `Segment2D` arcs assume a CCW normalized sweep (reversed arc → negative length); `Profile2D.bounds` is conservative for partial arcs; `Plane.init` does not normalize.
 
 ## From M2
+- All OCCT work runs under `OCCTKernel.serialized` (process-wide lock) because OCCT shapes share geometry across solids
+  and meshing mutates it; never call the shim outside it (tests included).
+- Shim errors: `cocct::user_error` / `set_error` messages are user-facing and unprefixed; any other OCCT exception is
+  prefixed "occt: " by `guarded` and mapped to a generic sentence by `KernelError.plainReason`.
+- Full revolves: OCCT's `Generated(edge)` is empty for planar swept faces; `BRepSweep_Revol::Shape(edge)` names them
+  (cocct_build.cpp).
+- Swift 6.4 crashes compiling typed-throws closures that return tuples or are passed to `serialized`; a few OCCTKernel
+  closures use untyped `throws` with a comment — revert when the compiler is fixed.
+- Deferred kernel items: multi-solid boolean results pass as one Solid (multi-body deferred, spec §11); a history
+  array leaks if `new occt_shape` throws (bad_alloc only); fillet `maxRadius` is always nil.
 - `OCCTKernel` runs on the default actor executor; long OCCT calls occupy a cooperative-pool thread. Measure in M7.
-- Fillet failures report `maxRadius: nil` (OCCT gives no limit); a search for the max radius is a later nicety.
 - Fuse/cut call `SimplifyResult()`; if that ever drops history for a face it shows up as `.unnamed` (pinned by
   `noFaceIsUntaggedOrUnnamedInTheBracket`).
 
