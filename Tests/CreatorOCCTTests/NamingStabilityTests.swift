@@ -65,6 +65,35 @@ struct NamingStabilityTests {
         Set(edges.compactMap { solid.topology.key(of: $0) })
     }
 
+    /// True when every edge has a key and no two edges share one, so a key-set comparison is not vacuous.
+    func keysAreDistinctAndNamed(_ edges: [EdgeInfo], in solid: Solid) -> Bool {
+        keys(edges, in: solid).count == edges.count
+    }
+
+    /// The plate side segment index of a key side that is exactly one plate `.side` tag, else nil.
+    func plateSideSegment(_ side: Set<TopoTag>, plate: NodeID) -> Int? {
+        guard side.count == 1, let tag = side.first, tag.node == plate, case .side(let segment) = tag.role else { return nil }
+        return segment
+    }
+
+    func isPlateSideOrFilletBlend(_ tag: TopoTag, nodes: Nodes) -> Bool {
+        switch tag.role {
+        case .side: tag.node == nodes.plate
+        case .blend: tag.node == nodes.fillet
+        default: false
+        }
+    }
+
+    /// Every face of the cut, filleted and chamfered solids carries at least one tag, and none is `.unnamed`.
+    func assertFullyNamed(_ built: Built, sourceLocation: SourceLocation = #_sourceLocation) {
+        for solid in [built.cut, built.filleted, built.chamfered] {
+            #expect(solid.topology.faces.allSatisfy { !$0.tags.isEmpty }, sourceLocation: sourceLocation)
+            #expect(solid.topology.faces.allSatisfy { face in
+                !face.tags.contains { if case .unnamed = $0.role { true } else { false } }
+            }, sourceLocation: sourceLocation)
+        }
+    }
+
     @Test(arguments: KernelUnderTest.allCases)
     func widthChangeKeepsFilletAndChamferEdgeMeanings(_ under: KernelUnderTest) async throws {
         let kernel = under.make()
@@ -78,6 +107,30 @@ struct NamingStabilityTests {
         #expect(narrow.chamferEdges.count == 8)
         #expect(wide.chamferEdges.count == 8)
         #expect(keys(narrow.chamferEdges, in: narrow.filleted) == keys(wide.chamferEdges, in: wide.filleted))
+        #expect(keysAreDistinctAndNamed(narrow.filletEdges, in: narrow.cut))
+        #expect(keysAreDistinctAndNamed(wide.filletEdges, in: wide.cut))
+        #expect(keysAreDistinctAndNamed(narrow.chamferEdges, in: narrow.filleted))
+        #expect(keysAreDistinctAndNamed(wide.chamferEdges, in: wide.filleted))
+
+        // Absolute anchor: each fillet edge joins two adjacent plate sides of the rectangle.
+        for key in keys(narrow.filletEdges, in: narrow.cut) {
+            let first = plateSideSegment(key.first, plate: nodes.plate)
+            let second = plateSideSegment(key.second, plate: nodes.plate)
+            #expect(first != nil && second != nil, "fillet key \(key) is not two plate sides")
+            if let first, let second {
+                let gap = (first - second + 4) % 4
+                #expect(gap == 1 || gap == 3, "plate sides \(first) and \(second) are not adjacent")
+            }
+        }
+        // Each chamfer edge joins the plate's top cap to a plate side or a fillet blend.
+        let topCap: Set<TopoTag> = [TopoTag(NodeTag(node: nodes.plate, item: 0), .endCap)]
+        for key in keys(narrow.chamferEdges, in: narrow.filleted) {
+            let other = key.first == topCap ? key.second : (key.second == topCap ? key.first : nil)
+            #expect(other != nil, "chamfer key \(key) has no plate end-cap side")
+            if let other {
+                #expect(other.contains { isPlateSideOrFilletBlend($0, nodes: nodes) }, "chamfer key \(key) has no outer side")
+            }
+        }
     }
 
     @Test(arguments: KernelUnderTest.allCases)
@@ -87,11 +140,20 @@ struct NamingStabilityTests {
         let outline = Profile2D.rectangle(width: 90, height: 40, plane: .xy)
         let four = try await build(kernel, nodes: nodes, outline: outline, holeCenters: grid(columns: 2, rows: 2, spacingX: 40, spacingY: 20))
         let six = try await build(kernel, nodes: nodes, outline: outline, holeCenters: grid(columns: 3, rows: 2, spacingX: 30, spacingY: 20))
+        #expect(four.filletEdges.count == 4)
+        #expect(six.filletEdges.count == 4)
+        #expect(four.chamferEdges.count == 8)
+        #expect(six.chamferEdges.count == 8)
+        #expect(keysAreDistinctAndNamed(four.filletEdges, in: four.cut))
+        #expect(keysAreDistinctAndNamed(six.filletEdges, in: six.cut))
+        #expect(keysAreDistinctAndNamed(four.chamferEdges, in: four.filleted))
+        #expect(keysAreDistinctAndNamed(six.chamferEdges, in: six.filleted))
         #expect(keys(four.filletEdges, in: four.cut) == keys(six.filletEdges, in: six.cut))
         #expect(keys(four.chamferEdges, in: four.filleted) == keys(six.chamferEdges, in: six.filleted))
         for item in 0..<6 {
             #expect(faces(six.cut, role: .side(segment: 0), of: NodeTag(node: nodes.holes, item: item)).count == 1)
         }
+        assertFullyNamed(six)
     }
 
     @Test(arguments: KernelUnderTest.allCases)
@@ -102,8 +164,11 @@ struct NamingStabilityTests {
         let built = try await build(kernel, nodes: Nodes(), outline: hexagon, holeCenters: grid(columns: 2, rows: 2, spacingX: 30, spacingY: 20))
         #expect(built.filletEdges.count == 6)
         #expect(built.chamferEdges.count == 12)
-        let plateSides = built.filletEdges.compactMap { built.cut.topology.key(of: $0) }
-        #expect(plateSides.count == 6)
+        let filletKeys = built.filletEdges.compactMap { built.cut.topology.key(of: $0) }
+        #expect(filletKeys.count == 6)
+        #expect(Set(filletKeys).count == 6)
+        #expect(keysAreDistinctAndNamed(built.chamferEdges, in: built.filleted))
+        assertFullyNamed(built)
     }
 
     @Test(arguments: KernelUnderTest.allCases)
@@ -111,12 +176,7 @@ struct NamingStabilityTests {
         let kernel = under.make()
         let built = try await build(kernel, nodes: Nodes(), outline: .rectangle(width: 60, height: 40, plane: .xy),
                                     holeCenters: grid(columns: 2, rows: 2, spacingX: 40, spacingY: 20))
-        for solid in [built.cut, built.filleted, built.chamfered] {
-            #expect(solid.topology.faces.allSatisfy { !$0.tags.isEmpty })
-            #expect(solid.topology.faces.allSatisfy { face in
-                !face.tags.contains { if case .unnamed = $0.role { true } else { false } }
-            })
-        }
+        assertFullyNamed(built)
         #expect(try await kernel.properties(of: built.chamfered).volume < (try await kernel.properties(of: built.cut).volume))
     }
 }
