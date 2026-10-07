@@ -17,6 +17,8 @@ typedef struct {
 occt_shape *occt_make_box(double dx, double dy, double dz, occt_status *status);
 void occt_shape_free(occt_shape *shape);
 
+/// The query functions below (volume, face/edge count, edge length) never throw; they
+/// return the sentinel -1 if OCCT fails internally.
 double occt_volume(const occt_shape *shape);
 int occt_face_count(const occt_shape *shape);
 int occt_edge_count(const occt_shape *shape);

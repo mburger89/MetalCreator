@@ -22,6 +22,20 @@ struct OCCTProbeTests {
         #expect(throws: OCCTError.self) { try OCCTShape.box(0, 20, 30) }
     }
 
+    @Test func nonFiniteBoxSizeThrows() {
+        #expect(throws: OCCTError.self) { try OCCTShape.box(.infinity, 1, 1) }
+        #expect(throws: OCCTError.self) { try OCCTShape.box(1, .nan, 1) }
+    }
+
+    @Test func invalidFilletRadiusAndStlDeflectionThrow() throws {
+        let box = try OCCTShape.box(10, 20, 30)
+        #expect(throws: OCCTError.self) { try box.filleting(edge: 1, radius: 0) }
+        #expect(throws: OCCTError.self) { try box.filleting(edge: 1, radius: .infinity) }
+        let url = URL.temporaryDirectory.appending(path: "bad-deflection-\(UUID().uuidString).stl")
+        #expect(throws: OCCTError.self) { try box.writeSTL(to: url, deflection: 0) }
+        #expect(throws: OCCTError.self) { try box.writeSTL(to: url, deflection: .nan) }
+    }
+
     /// Index of the first edge whose length is `length`.
     func edgeIndex(of shape: OCCTShape, length: Double) throws -> Int {
         try #require((1...shape.edgeCount).first { isClose(shape.edgeLength(at: $0), length) })

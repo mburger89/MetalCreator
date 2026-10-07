@@ -15,6 +15,7 @@
 #include <TopoDS.hxx>
 #include <TopoDS_Shape.hxx>
 
+#include <cmath>
 #include <cstring>
 #include <exception>
 
@@ -63,13 +64,23 @@ TopTools_IndexedMapOfShape map_of(const TopoDS_Shape &shape, TopAbs_ShapeEnum ki
     return map;
 }
 
+/// Runs a query, returning -1 if anything throws. No exception may cross into Swift.
+template <typename Body>
+auto queried(Body body) -> decltype(body()) {
+    try {
+        return body();
+    } catch (...) {
+        return static_cast<decltype(body())>(-1);
+    }
+}
+
 } // namespace
 
 extern "C" {
 
 occt_shape *occt_make_box(double dx, double dy, double dz, occt_status *status) {
     return guarded(status, [&]() -> occt_shape * {
-        if (!(dx > 0 && dy > 0 && dz > 0)) {
+        if (!(std::isfinite(dx) && std::isfinite(dy) && std::isfinite(dz) && dx > 0 && dy > 0 && dz > 0)) {
             set_error(status, "box sides must be greater than 0");
             return nullptr;
         }
@@ -81,27 +92,39 @@ occt_shape *occt_make_box(double dx, double dy, double dz, occt_status *status) 
 void occt_shape_free(occt_shape *shape) { delete shape; }
 
 double occt_volume(const occt_shape *shape) {
-    GProp_GProps props;
-    BRepGProp::VolumeProperties(shape->shape, props);
-    return props.Mass();
+    return queried([&]() -> double {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(shape->shape, props);
+        return props.Mass();
+    });
 }
 
-int occt_face_count(const occt_shape *shape) { return map_of(shape->shape, TopAbs_FACE).Extent(); }
+int occt_face_count(const occt_shape *shape) {
+    return queried([&]() -> int { return map_of(shape->shape, TopAbs_FACE).Extent(); });
+}
 
-int occt_edge_count(const occt_shape *shape) { return map_of(shape->shape, TopAbs_EDGE).Extent(); }
+int occt_edge_count(const occt_shape *shape) {
+    return queried([&]() -> int { return map_of(shape->shape, TopAbs_EDGE).Extent(); });
+}
 
 double occt_edge_length(const occt_shape *shape, int index) {
-    TopTools_IndexedMapOfShape edges = map_of(shape->shape, TopAbs_EDGE);
-    if (index < 1 || index > edges.Extent()) {
-        return -1;
-    }
-    GProp_GProps props;
-    BRepGProp::LinearProperties(edges(index), props);
-    return props.Mass();
+    return queried([&]() -> double {
+        TopTools_IndexedMapOfShape edges = map_of(shape->shape, TopAbs_EDGE);
+        if (index < 1 || index > edges.Extent()) {
+            return -1;
+        }
+        GProp_GProps props;
+        BRepGProp::LinearProperties(edges(index), props);
+        return props.Mass();
+    });
 }
 
 occt_shape *occt_fillet_edge(const occt_shape *shape, int edge_index, double radius, occt_status *status) {
     return guarded(status, [&]() -> occt_shape * {
+        if (!(std::isfinite(radius) && radius > 0)) {
+            set_error(status, "fillet radius must be greater than 0");
+            return nullptr;
+        }
         TopTools_IndexedMapOfShape edges = map_of(shape->shape, TopAbs_EDGE);
         if (edge_index < 1 || edge_index > edges.Extent()) {
             set_error(status, "edge index out of range");
@@ -120,6 +143,10 @@ occt_shape *occt_fillet_edge(const occt_shape *shape, int edge_index, double rad
 
 int occt_write_step(const occt_shape *shape, const char *path, occt_status *status) {
     return guarded(status, [&]() -> int {
+        if (!path) {
+            set_error(status, "no output path");
+            return 0;
+        }
         STEPControl_Writer writer;
         Interface_Static::SetCVal("write.step.unit", "MM");
         if (writer.Transfer(shape->shape, STEPControl_AsIs) != IFSelect_RetDone) {
@@ -136,6 +163,14 @@ int occt_write_step(const occt_shape *shape, const char *path, occt_status *stat
 
 int occt_write_stl(const occt_shape *shape, const char *path, double linear_deflection, occt_status *status) {
     return guarded(status, [&]() -> int {
+        if (!path) {
+            set_error(status, "no output path");
+            return 0;
+        }
+        if (!(std::isfinite(linear_deflection) && linear_deflection > 0)) {
+            set_error(status, "STL deflection must be greater than 0");
+            return 0;
+        }
         BRepMesh_IncrementalMesh mesher(shape->shape, linear_deflection);
         StlAPI_Writer writer;
         if (!writer.Write(shape->shape, path)) {

@@ -1,11 +1,15 @@
 import COCCT
 import Foundation
 
-/// Owns one OCCT shape. OCCT shapes are immutable once built, so sharing one across
-/// concurrency domains is safe; the pointer is freed exactly once, in `deinit`.
+/// Owns one OCCT shape. A built shape's geometry is not mutated, but OCCT operations are
+/// not read-only: meshing (BRepMesh) writes triangulation into the shared TShape. So all
+/// OCCT access that can mutate must stay serialized inside the kernel actor (M2). Freeing
+/// from any thread in `deinit` is safe (OCCT reference counts are atomic); the pointer is
+/// freed exactly once.
 final class OCCTShape: Sendable {
-    // `OpaquePointer` is not Sendable. This is sound because the pointer is a `let`, is
-    // never mutated through, and points at an immutable TopoDS_Shape.
+    // `OpaquePointer` is not Sendable. The pointer is a `let` and is only freed in `deinit`
+    // (atomic refcounts). Soundness of concurrent use relies on callers serializing every
+    // mutating OCCT call (e.g. meshing) in the kernel actor, as described above.
     nonisolated(unsafe) let raw: OpaquePointer
 
     init(raw: OpaquePointer) {
