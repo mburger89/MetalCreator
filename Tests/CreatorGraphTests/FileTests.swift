@@ -70,4 +70,19 @@ struct FileTests {
     @Test func malformedJSONThrowsInsteadOfCrashing() {
         #expect(throws: DecodingError.self) { try GraphFileIO.decode(Data("{ not json".utf8), registry: testRegistry) }
     }
+
+    @Test func linksAreSortedCanonicallyOnLoad() throws {
+        let a = makeNode(ConstantNode.self), b = makeNode(AddNode.self), c = makeNode(AddNode.self)
+        let raw = [link(a, "value", c, "b"), link(a, "value", b, "b"), link(a, "value", c, "a"), link(a, "value", b, "a")]
+        let file = GraphFile(graph: graph([a, b, c], raw))
+        let decoded = try GraphFileIO.decode(try GraphFileIO.encode(file), registry: testRegistry)
+        var expected = raw
+        expected.sort { ($0.to.node, $0.to.socket) < ($1.to.node, $1.to.socket) }
+        #expect(decoded.graph.links == expected)
+        // Command + undo on a loaded graph yields an equal graph.
+        var g = decoded.graph
+        let inverse = try g.apply(.removeNode(a.id), registry: testRegistry)
+        try g.apply(inverse, registry: testRegistry)
+        #expect(g == decoded.graph)
+    }
 }

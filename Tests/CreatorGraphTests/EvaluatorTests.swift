@@ -121,4 +121,14 @@ struct EvaluatorTests {
             #expect(tags.allSatisfy { $0.node == id })
         }
     }
+
+    @Test func nodesSavedByANewerVersionAreFlaggedAndBlockDownstream() async throws {
+        var newer = makeNode(ConstantNode.self, ["value": .number(2)])
+        newer.typeVersion = ConstantNode.typeVersion + 1
+        let add = makeNode(AddNode.self, output: true)
+        let report = try await evaluator().evaluate(graph([newer, add], [link(newer, "value", add, "a")]), demand: [add.id])
+        #expect(report.results[newer.id]?.state == .error("This node was saved by a newer MetalCreator (version 2). It's kept unchanged."))
+        #expect(report.results[add.id]?.state.isSuccess == false)
+        #expect(report.evaluatedNodes.isEmpty)
+    }
 }

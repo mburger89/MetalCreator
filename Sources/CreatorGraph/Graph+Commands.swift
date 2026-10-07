@@ -7,6 +7,7 @@ extension Graph {
         switch command {
         case .addNode(let node):
             guard nodes[node.id] == nil else { throw .duplicateNode(node.id) }
+            try Self.requireFinite(node)
             nodes[node.id] = node
             return .removeNode(node.id)
 
@@ -20,6 +21,7 @@ extension Graph {
 
         case .restoreNode(let node, let restoredLinks):
             guard nodes[node.id] == nil else { throw .duplicateNode(node.id) }
+            try Self.requireFinite(node)
             nodes[node.id] = node
             links += restoredLinks
             sortLinks()
@@ -34,7 +36,7 @@ extension Graph {
             links.append(link)
             sortLinks()
             if let replaced {
-                return .batch([.disconnect(link), .connect(replaced)])
+                return .batch([.disconnect(link), .restoreLinks([replaced])])
             }
             return .disconnect(link)
 
@@ -42,7 +44,13 @@ extension Graph {
             guard links.contains(link) else { throw .linkNotFound }
             links.removeAll { $0 == link }
             sortLinks()
-            return .connect(link)
+            return .restoreLinks([link])
+
+        case .restoreLinks(let restored):
+            guard restored.allSatisfy({ !links.contains($0) }) else { throw .invalidValue("This wire already exists.") }
+            links += restored
+            sortLinks()
+            return .batch(restored.map { .disconnect($0) })
 
         case .setInput(let id, let socket, let value):
             guard var node = nodes[id] else { throw .nodeNotFound(id) }
@@ -54,6 +62,7 @@ extension Graph {
 
         case .move(let id, let position):
             guard var node = nodes[id] else { throw .nodeNotFound(id) }
+            guard position.isFinite else { throw .invalidValue("Enter a finite number.") }
             let old = node.position
             node.position = position
             nodes[id] = node
@@ -113,9 +122,15 @@ extension Graph {
         }
     }
 
+    private static func requireFinite(_ node: Node) throws(GraphError) {
+        guard node.position.isFinite, node.inputValues.values.allSatisfy(\.isFinite) else {
+            throw .invalidValue("Enter a finite number.")
+        }
+    }
+
     /// Keeps `links` in canonical order (by destination; each input has at most one link),
-    /// so that undoing a command restores an equal graph.
-    private mutating func sortLinks() {
+    /// so that undoing a command restores an equal graph. Also applied when a graph is decoded.
+    mutating func sortLinks() {
         links.sort { ($0.to.node, $0.to.socket) < ($1.to.node, $1.to.socket) }
     }
 }

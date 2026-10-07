@@ -202,4 +202,57 @@ struct CommandTests {
         let command = GraphCommand.restoreNode(a, links: [link(a, "value", b, "a")])
         #expect(command.touchedNodes == [a.id, b.id])
     }
+
+    /// A node whose type isn't registered, standing in for one saved by a newer app.
+    func futureNode() -> Node {
+        var node = makeNode(AddNode.self)
+        node.typeID = "future.node"
+        return node
+    }
+
+    @Test func undoingDisconnectRestoresAWireWhoseEndIsUnregistered() throws {
+        let a = makeNode(ConstantNode.self), future = futureNode()
+        let start = graph([a, future], [link(a, "value", future, "a")])
+        try expectRoundTrip(.disconnect(link(a, "value", future, "a")), on: start)
+    }
+
+    @Test func undoingDisconnectRestoresAWireInAHandBuiltCycle() throws {
+        let a = makeNode(AddNode.self), b = makeNode(AddNode.self), c = makeNode(AddNode.self)
+        var start = graph([a, b, c], [link(a, "sum", b, "a"), link(b, "sum", c, "a"), link(c, "sum", a, "a")])
+        start.sortLinks()
+        try expectRoundTrip(.disconnect(link(b, "sum", c, "a")), on: start)
+    }
+
+    @Test func undoingAReplacingConnectRestoresAnUnregisteredSource() throws {
+        let future = futureNode(), c = makeNode(ConstantNode.self), b = makeNode(AddNode.self)
+        let start = graph([future, c, b], [link(future, "sum", b, "a")])
+        try expectRoundTrip(.connect(link(c, "value", b, "a")), on: start)
+    }
+
+    @Test func restoreLinksRefusesAWireThatIsAlreadyThere() {
+        let a = makeNode(ConstantNode.self), b = makeNode(AddNode.self)
+        var g = graph([a, b], [link(a, "value", b, "a")])
+        #expect(throws: GraphError.invalidValue("This wire already exists.")) {
+            try g.apply(.restoreLinks([link(a, "value", b, "a")]), registry: testRegistry)
+        }
+    }
+
+    @Test func nonFinitePositionsAreRejected() throws {
+        let a = makeNode(ConstantNode.self)
+        var g = graph([a])
+        #expect(throws: GraphError.invalidValue("Enter a finite number.")) {
+            try g.apply(.move(a.id, to: Vector2(.nan, 0)), registry: testRegistry)
+        }
+        var bad = makeNode(ConstantNode.self)
+        bad.position = Vector2(0, .infinity)
+        #expect(throws: GraphError.invalidValue("Enter a finite number.")) {
+            try g.apply(.addNode(bad), registry: testRegistry)
+        }
+        var badInput = makeNode(ConstantNode.self)
+        badInput.inputValues = ["value": .number(.nan)]
+        #expect(throws: GraphError.invalidValue("Enter a finite number.")) {
+            try g.apply(.restoreNode(badInput, links: []), registry: testRegistry)
+        }
+        #expect(g == graph([a]))
+    }
 }

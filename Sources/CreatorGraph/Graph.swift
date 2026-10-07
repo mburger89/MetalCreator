@@ -22,6 +22,7 @@ extension Graph: Codable {
         nodes = Dictionary(list.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         links = try container.decodeIfPresent([Link].self, forKey: .links) ?? []
         parameters = try container.decodeIfPresent([GraphParameter].self, forKey: .parameters) ?? []
+        sortLinks()  // Canonical order, so command + undo yields an equal graph.
     }
 
     /// Nodes are written as an array sorted by ID, so saved files diff cleanly.

@@ -3,6 +3,9 @@ import Foundation
 
 /// The geometry kernel boundary. Everything above this protocol is pure Swift. OCCT, and
 /// any future Swift kernel, live behind it (spec §5.1). Calls are serialized by the actor.
+///
+/// Conformers must call `try Task.checkCancellation()` on entry to every operation, so calls
+/// queued by a superseded evaluation are skipped.
 public protocol Kernel: Actor {
     func extrude(_ profile: Profile2D, distance: Double, mode: ExtrudeMode, tag: NodeTag) throws -> Solid
     func revolve(_ profile: Profile2D, axis: Axis, angle: Angle, tag: NodeTag) throws -> Solid

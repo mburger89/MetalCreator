@@ -14,6 +14,7 @@ public actor FakeKernel: Kernel {
     }
 
     public func extrude(_ profile: Profile2D, distance: Double, mode: ExtrudeMode, tag: NodeTag) throws -> Solid {
+        try Task.checkCancellation()
         operationLog.append("extrude")
         guard distance.isFinite, distance > 0 else {
             throw KernelError.invalidInput("Extrude distance must be greater than 0 mm.")
@@ -31,16 +32,19 @@ public actor FakeKernel: Kernel {
     }
 
     public func revolve(_ profile: Profile2D, axis: Axis, angle: Angle, tag: NodeTag) throws -> Solid {
+        try Task.checkCancellation()
         operationLog.append("revolve")
         throw KernelError.unsupported("revolve")
     }
 
     public func loft(_ sections: [Profile2D], ruled: Bool, tag: NodeTag) throws -> Solid {
+        try Task.checkCancellation()
         operationLog.append("loft")
         throw KernelError.unsupported("loft")
     }
 
     public func boolean(_ op: BooleanOp, _ a: Solid, _ b: [Solid], tag: NodeTag) throws -> Solid {
+        try Task.checkCancellation()
         operationLog.append("boolean")
         var bounds = a.bounds
         switch op {
@@ -61,21 +65,25 @@ public actor FakeKernel: Kernel {
     }
 
     public func transform(_ solid: Solid, by transform: Transform, tag: NodeTag) throws -> Solid {
+        try Task.checkCancellation()
         operationLog.append("transform")
         return Solid(topology: solid.topology, bounds: solid.bounds.translated(by: transform.translation), storage: FakeStorage())
     }
 
     public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid {
+        try Task.checkCancellation()
         operationLog.append("fillet")
         return try blend(solid, edges: edges, size: radius, tag: tag)
     }
 
     public func chamfer(_ solid: Solid, edges: [EdgeID], distance: Double, tag: NodeTag) throws -> Solid {
+        try Task.checkCancellation()
         operationLog.append("chamfer")
         return try blend(solid, edges: edges, size: distance, tag: tag)
     }
 
     public func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh {
+        try Task.checkCancellation()
         operationLog.append("tessellate")
         let (lo, hi) = (solid.bounds.min, solid.bounds.max)
         let positions = (0..<8).map { i in
@@ -94,6 +102,7 @@ public actor FakeKernel: Kernel {
     }
 
     public func export(_ solids: [Solid], format: ExportFormat, to url: URL) throws {
+        try Task.checkCancellation()
         operationLog.append("export")
         throw KernelError.unsupported("export")
     }

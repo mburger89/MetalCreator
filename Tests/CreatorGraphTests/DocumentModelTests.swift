@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CreatorGeometry
 @testable import CreatorGraph
 @testable import CreatorKernel
 
@@ -151,5 +152,53 @@ struct DocumentModelTests {
         #expect(reopened.viewState.dock == .bottom)
         await reopened.waitForEvaluation()
         #expect(reopened.results[a.id]?.outputs?["value"]?.numbers == [3])
+    }
+
+    @Test func undoAndRedoOfADisconnectWorkWithAnUnregisteredNode() throws {
+        let a = makeNode(ConstantNode.self)
+        var future = makeNode(AddNode.self)
+        future.typeID = "future.node"
+        let wire = link(a, "value", future, "a")
+        let document = model([a, future], [wire])
+        try document.perform(.disconnect(wire))
+        #expect(document.graph.links.isEmpty)
+        document.undo()
+        #expect(document.graph.links == [wire])
+        #expect(!document.canUndo && document.canRedo)
+        document.redo()
+        #expect(document.graph.links.isEmpty)
+        #expect(document.canUndo && !document.canRedo)
+        document.undo()
+        #expect(document.graph.links == [wire])
+    }
+
+    @Test func movingAndRenamingDoNotReevaluate() async throws {
+        let box = makeNode(BoxNode.self, output: true)
+        let kernel = FakeKernel()
+        let document = DocumentModel(file: GraphFile(graph: graph([box])), registry: testRegistry, kernel: kernel)
+        await document.waitForEvaluation()
+        #expect(await kernel.operationLog == ["extrude"])
+        await kernel.clearLog()
+        try document.perform(.move(box.id, to: Vector2(1, 1)), coalescingKey: "drag")
+        try document.perform(.move(box.id, to: Vector2(2, 2)), coalescingKey: "drag")
+        try document.perform(.batch([.rename(box.id, "Renamed"), .move(box.id, to: Vector2(3, 3))]))
+        document.undo()
+        document.redo()
+        #expect(document.results[box.id]?.state.isSuccess == true)
+        await document.waitForEvaluation()
+        #expect(await kernel.operationLog.isEmpty)
+        #expect(document.results[box.id]?.state.isSuccess == true)
+        #expect(document.graph.nodes[box.id]?.name == "Renamed")
+    }
+
+    @Test func nonFiniteViewStateIsRefusedSoTheDocumentStillSaves() throws {
+        let document = model([makeNode(ConstantNode.self)])
+        document.viewState.canvasZoom = 2
+        document.viewState.canvasZoom = .nan
+        document.viewState.canvasOffset = Vector2(.infinity, 0)
+        #expect(document.viewState.canvasZoom == 2)
+        #expect(document.viewState.canvasOffset == .zero)
+        let reopened = try DocumentModel(data: try document.fileData(), registry: testRegistry, kernel: FakeKernel())
+        #expect(reopened.viewState.canvasZoom == 2)
     }
 }

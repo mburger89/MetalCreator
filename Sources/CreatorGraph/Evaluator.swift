@@ -35,6 +35,10 @@ public actor Evaluator {
                 results[id] = NodeResult(state: .error("Unknown node type “\(node.typeID)”. It's kept so the file isn't damaged."))
                 continue
             }
+            if node.typeVersion > definition.typeVersion {
+                results[id] = NodeResult(state: .error("This node was saved by a newer MetalCreator (version \(node.typeVersion)). It's kept unchanged."))
+                continue
+            }
             switch gather(node, definition, graph: graph, results: results, keys: keys, parameters: parameters) {
             case .blocked(let reason):
                 results[id] = NodeResult(state: .idle(reason))

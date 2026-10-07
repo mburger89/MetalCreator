@@ -12,7 +12,14 @@ public final class DocumentModel {
     /// The last successful outputs of each node. The viewport ghosts these when a node errors (spec §4.4).
     public private(set) var lastGoodOutputs: [NodeID: [SocketName: Value]] = [:]
     public private(set) var isEvaluating = false
-    public var viewState: ViewState
+    /// Editor state saved with the file. A non-finite zoom or offset is refused (the previous
+    /// value is kept), so the document can always be saved.
+    public var viewState: ViewState {
+        didSet {
+            if !viewState.canvasZoom.isFinite { viewState.canvasZoom = oldValue.canvasZoom }
+            if !viewState.canvasOffset.isFinite { viewState.canvasOffset = oldValue.canvasOffset }
+        }
+    }
 
     /// The node shown in "Selected node" preview mode. It joins the evaluation demand.
     public var previewNode: NodeID? = nil {
@@ -50,6 +57,7 @@ public final class DocumentModel {
         let stale = graph.downstreamClosure(of: command.touchedNodes)
         let inverse = try graph.apply(command, registry: registry)
         undoStack.record(forward: command, inverse: inverse, coalescingKey: coalescingKey)
+        guard command.affectsResults else { return }
         didChange(markingStale: stale)
     }
 
@@ -96,6 +104,7 @@ public final class DocumentModel {
             // the history is out of step with the graph.
             assertionFailure("Undo history could not be replayed: \(error)")
         }
+        guard command.affectsResults else { return }
         didChange(markingStale: stale)
     }
 

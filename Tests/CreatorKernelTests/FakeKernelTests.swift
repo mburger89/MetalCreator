@@ -75,4 +75,15 @@ struct FakeKernelTests {
             try await FakeKernel().revolve(.rectangle(width: 1, height: 1, plane: .xz), axis: .z, angle: .degrees(360), tag: tag)
         }
     }
+
+    @Test func callsFromACancelledTaskThrowAndAreNotLogged() async {
+        let kernel = FakeKernel()
+        let task = Task {
+            while !Task.isCancelled { await Task.yield() }
+            return try await kernel.extrude(.rectangle(width: 2, height: 2, plane: .xy), distance: 1, mode: .oneSided, tag: tag)
+        }
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(await kernel.operationLog.isEmpty)
+    }
 }
