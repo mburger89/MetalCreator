@@ -48,7 +48,21 @@ struct TopologyTests {
 
     @Test func plainLanguageFilletMessageIncludesTheLimit() {
         let error = KernelError.filletFailed(radius: 8, maxRadius: 5.9, reason: "too large")
-        #expect(error.userMessage.contains("8"))
-        #expect(error.userMessage.contains("5.9"))
+        let expectedRadius = 8.0.formatted(.number.precision(.fractionLength(0...2)))
+        let expectedMax = 5.9.formatted(.number.precision(.fractionLength(0...2)))
+        #expect(error.userMessage.contains(expectedRadius))
+        #expect(error.userMessage.contains(expectedMax))
+    }
+
+    @Test func filletMessageRoundsLongDecimals() {
+        let error = KernelError.filletFailed(radius: 8, maxRadius: 5.8999999, reason: "too large")
+        let expected = 5.8999999.formatted(.number.precision(.fractionLength(0...2)))
+        #expect(error.userMessage.contains(expected))
+        #expect(!error.userMessage.contains("5.8999999"))
+    }
+
+    @Test func unsupportedMessagePreservesOperation() {
+        let error = KernelError.unsupported("STEP export")
+        #expect(error.userMessage.hasPrefix("STEP export"))
     }
 }

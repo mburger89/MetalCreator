@@ -13,15 +13,19 @@ public enum KernelError: Error, Equatable, Sendable {
         case .invalidInput(let message):
             message
         case .operationFailed(let operation, let reason):
-            "\(operation.capitalized) failed: \(reason)"
+            "\(operation.sentenceCased) failed: \(reason)"
         case .filletFailed(let radius, let maxRadius?, _):
-            "Radius \(radius.formatted()) mm is too large for the selected edges (max ≈ \(maxRadius.formatted()) mm)."
+            "Radius \(radius.formatted(.number.precision(.fractionLength(0...2)))) mm is too large for the selected edges (max ≈ \(maxRadius.formatted(.number.precision(.fractionLength(0...2)))) mm)."
         case .filletFailed(let radius, nil, let reason):
-            "Radius \(radius.formatted()) mm could not be applied: \(reason)"
+            "Radius \(radius.formatted(.number.precision(.fractionLength(0...2)))) mm could not be applied: \(reason)"
         case .unsupported(let operation):
-            "\(operation.capitalized) isn't supported by this kernel yet."
+            "\(operation.sentenceCased) isn't supported by this kernel yet."
         case .exportFailed(let reason):
             "Export failed: \(reason)"
         }
     }
+}
+
+private extension String {
+    var sentenceCased: String { prefix(1).uppercased() + dropFirst() }
 }
