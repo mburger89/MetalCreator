@@ -1,0 +1,51 @@
+import COCCT
+import Foundation
+
+/// Owns one OCCT shape. OCCT shapes are immutable once built, so sharing one across
+/// concurrency domains is safe; the pointer is freed exactly once, in `deinit`.
+final class OCCTShape: Sendable {
+    // `OpaquePointer` is not Sendable. This is sound because the pointer is a `let`, is
+    // never mutated through, and points at an immutable TopoDS_Shape.
+    nonisolated(unsafe) let raw: OpaquePointer
+
+    init(raw: OpaquePointer) {
+        self.raw = raw
+    }
+
+    deinit {
+        occt_shape_free(raw)
+    }
+
+    static func box(_ dx: Double, _ dy: Double, _ dz: Double) throws(OCCTError) -> OCCTShape {
+        try make { status in occt_make_box(dx, dy, dz, status) }
+    }
+
+    var volume: Double { occt_volume(raw) }
+    var faceCount: Int { Int(occt_face_count(raw)) }
+    var edgeCount: Int { Int(occt_edge_count(raw)) }
+
+    /// Length of the edge at 1-based `index`, or -1 when out of range.
+    func edgeLength(at index: Int) -> Double {
+        occt_edge_length(raw, Int32(index))
+    }
+
+    /// Calls a shim constructor and turns a null result or error status into `OCCTError`.
+    static func make(_ body: (UnsafeMutablePointer<occt_status>) -> OpaquePointer?) throws(OCCTError) -> OCCTShape {
+        var status = occt_status()
+        let result = body(&status)
+        guard status.ok != 0, let result else {
+            throw OCCTError(message: status.messageText)
+        }
+        return OCCTShape(raw: result)
+    }
+}
+
+extension occt_status {
+    /// The NUL-terminated `message` buffer as a Swift string.
+    var messageText: String {
+        withUnsafeBytes(of: message) { bytes in
+            let text = String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
+            return text.isEmpty ? "unknown OCCT error" : text
+        }
+    }
+}
