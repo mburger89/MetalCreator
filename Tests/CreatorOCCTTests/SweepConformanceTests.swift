@@ -59,6 +59,22 @@ struct SweepConformanceTests {
     }
 
     @Test(arguments: KernelUnderTest.allCases)
+    func smoothLoftBetweenSquaresNamesEveryFaceOnce(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let tag = newTag()
+        let bottom = Profile2D.rectangle(width: 10, height: 10, plane: .xy)
+        let top = Profile2D.rectangle(width: 6, height: 6, plane: Plane.xy.offset(by: 10))
+        let loft = try await kernel.loft([bottom, top], ruled: false, tag: tag)
+        #expect(loft.topology.faces.count == 6)
+        #expect(faces(loft, role: .startCap, of: tag).count == 1)
+        #expect(faces(loft, role: .endCap, of: tag).count == 1)
+        for k in 0..<4 {
+            #expect(faces(loft, role: .side(segment: k), of: tag).count == 1)
+        }
+        #expect(!hasUnnamedFace(loft))
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
     func loftInputsAreValidated(_ under: KernelUnderTest) async {
         let kernel = under.make()
         let square = Profile2D.rectangle(width: 1, height: 1, plane: .xy)

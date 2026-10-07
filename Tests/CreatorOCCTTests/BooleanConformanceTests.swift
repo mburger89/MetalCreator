@@ -70,12 +70,18 @@ struct BooleanConformanceTests {
     @Test(arguments: KernelUnderTest.allCases)
     func unionOfOverlappingBoxesMergesTags(_ under: KernelUnderTest) async throws {
         let kernel = under.make()
-        let a = try await box(kernel, 10, 10, 10)
-        let b = try await kernel.transform(try await box(kernel, 10, 10, 10), by: Transform(translation: Vector3(5, 0, 0)), tag: newTag())
+        let aTag = newTag()
+        let bTag = newTag()
+        let a = try await box(kernel, 10, 10, 10, tag: aTag)
+        let b = try await kernel.transform(try await box(kernel, 10, 10, 10, tag: bTag), by: Transform(translation: Vector3(5, 0, 0)), tag: newTag())
         let result = try await kernel.boolean(.union, a, [b], tag: newTag())
         #expect(isClose(try await kernel.properties(of: result).volume, 1500))
-        // SimplifyResult merges the coplanar top faces into one face carrying both tags.
-        #expect(result.topology.faces.contains { $0.tags.count >= 2 })
+        // SimplifyResult merges the coplanar top faces into one face carrying both operands' end caps.
+        let tops = result.topology.faces.filter { hasTag($0, .endCap, of: aTag) && hasTag($0, .endCap, of: bTag) }
+        #expect(tops.count == 1)
+        #expect(tops.first.map { isClose($0.area, 150) } == true)
+        let bottoms = result.topology.faces.filter { hasTag($0, .startCap, of: aTag) && hasTag($0, .startCap, of: bTag) }
+        #expect(bottoms.count == 1)
     }
 
     @Test(arguments: KernelUnderTest.allCases)
@@ -143,5 +149,25 @@ struct BooleanConformanceTests {
         await #expect(throws: KernelError.invalidInput("A rotation needs an axis.")) {
             try await kernel.transform(slab, by: Transform(rotation: .degrees(90)), tag: newTag())
         }
+    }
+    @Test(arguments: KernelUnderTest.allCases)
+    func rotationHappensBeforeTranslation(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let slab = try await box(kernel, 10, 2, 2)
+        let moved = try await kernel.transform(slab, by: Transform(translation: Vector3(5, 0, 0), rotationAxis: .z, rotation: .degrees(90)),
+                                               tag: newTag())
+        #expect(abs(moved.bounds.min.x - 4) < 1e-3 && abs(moved.bounds.max.x - 6) < 1e-3)
+        #expect(abs(moved.bounds.min.y + 5) < 1e-3 && abs(moved.bounds.max.y - 5) < 1e-3)
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func rotationAboutAnOffOriginAxis(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let cube = try await box(kernel, 2, 2, 2)
+        let axis = Axis(origin: Vector3(10, 0, 0), direction: .unitZ)
+        let turned = try await kernel.transform(cube, by: Transform(rotationAxis: axis, rotation: .degrees(180)), tag: newTag())
+        #expect(abs(turned.bounds.center.x - 20) < 1e-3)
+        #expect(abs(turned.bounds.center.y) < 1e-3)
+        #expect(abs(turned.bounds.size.x - 2) < 1e-3)
     }
 }

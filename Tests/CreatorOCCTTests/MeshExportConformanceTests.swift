@@ -66,6 +66,45 @@ struct MeshExportConformanceTests {
     }
 
     @Test(arguments: KernelUnderTest.allCases)
+    func meshIDsMatchTopology(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let block = try await box(kernel, 10, 20, 30)
+        let vertical = block.topology.edges.filter { $0.kind == .line && isClose($0.length, 30) }
+        let solid = try await kernel.fillet(block, edges: vertical.map(\.id), radius: 2, tag: newTag())
+        let mesh = try await kernel.tessellate(solid, tolerance: 0.05)
+
+        // Every triangle on a planar face lies in that face's plane.
+        var planarTriangles = 0
+        for (triangle, faceID) in mesh.triangleFaces.enumerated() {
+            let face = try #require(solid.topology.face(faceID))
+            guard face.kind == .plane, let normal = face.normal else { continue }
+            let corners = (0..<3).map { mesh.positions[Int(mesh.indices[3 * triangle + $0])] }
+            let centroid = (corners[0] + corners[1] + corners[2]) * (1.0 / 3.0)
+            #expect(abs((centroid - face.centroid).dot(normal)) < 0.05, "triangle \(triangle) is off face \(faceID.rawValue)")
+            planarTriangles += 1
+        }
+        #expect(planarTriangles > 0)
+
+        // Every edge polyline passes through its edge's midpoint.
+        #expect(!mesh.edgePolylines.isEmpty)
+        for (edgeID, points) in mesh.edgePolylines {
+            let edge = try #require(solid.topology.edge(edgeID))
+            let distance = zip(points, points.dropFirst()).map { distanceToSegment(edge.midpoint, $0, $1) }.min()
+                ?? points.map { ($0 - edge.midpoint).length }.min() ?? .infinity
+            #expect(distance < 0.05, "edge \(edgeID.rawValue)'s polyline misses its midpoint by \(distance) mm")
+        }
+    }
+
+    /// Distance from `point` to the segment `a`–`b`.
+    func distanceToSegment(_ point: Vector3, _ a: Vector3, _ b: Vector3) -> Double {
+        let span = b - a
+        let lengthSquared = span.dot(span)
+        guard lengthSquared > 0 else { return (point - a).length }
+        let t = min(1, max(0, (point - a).dot(span) / lengthSquared))
+        return (point - (a + span * t)).length
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
     func seamEdgesHaveNoPolyline(_ under: KernelUnderTest) async throws {
         let kernel = under.make()
         let rod = try await kernel.extrude(.circle(radius: 2, center: .zero, plane: .xy), distance: 5, mode: .oneSided, tag: newTag())

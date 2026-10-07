@@ -66,6 +66,33 @@ struct ExtrudeConformanceTests {
         #expect(isClose(try await kernel.properties(of: solid).volume, 16))
     }
 
+    /// Exactly one start cap and one end cap, with the end cap facing +Z (the XY plane's normal)
+    /// and the start cap facing −Z.
+    func expectOneCapEach(_ solid: Solid, tag: NodeTag) throws {
+        let starts = faces(solid, role: .startCap, of: tag)
+        let ends = faces(solid, role: .endCap, of: tag)
+        #expect(starts.count == 1)
+        #expect(ends.count == 1)
+        let endNormal = try #require(ends.first?.normal)
+        let startNormal = try #require(starts.first?.normal)
+        #expect(endNormal.dot(.unitZ) > 0.999, "end cap normal \(endNormal) should be +Z")
+        #expect(startNormal.dot(.unitZ) < -0.999, "start cap normal \(startNormal) should be −Z")
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func clockwiseAndSymmetricExtrudesHaveOneCapEach(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let ccw = Profile2D.rectangle(width: 4, height: 4, plane: .xy)
+        let cw = Profile2D(plane: .xy, segments: ccw.segments.reversed().map { segment in
+            guard case .line(let a, let b) = segment else { return segment }
+            return .line(b, a)
+        })
+        let cwTag = newTag()
+        try expectOneCapEach(try await kernel.extrude(cw, distance: 1, mode: .oneSided, tag: cwTag), tag: cwTag)
+        let symmetricTag = newTag()
+        try expectOneCapEach(try await kernel.extrude(ccw, distance: 6, mode: .symmetric, tag: symmetricTag), tag: symmetricTag)
+    }
+
     @Test(arguments: KernelUnderTest.allCases)
     func openProfileIsRejected(_ under: KernelUnderTest) async {
         let open = Profile2D(plane: .xy, segments: [.line(Vector2(0, 0), Vector2(1, 0)), .line(Vector2(1, 0), Vector2(1, 1))])
