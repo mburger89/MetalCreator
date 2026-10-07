@@ -104,6 +104,31 @@ typedef struct {
 int occt_read_topology(const occt_shape *shape, occt_topology *out, occt_status *status);
 void occt_topology_free(occt_topology *topology);
 
+/// A plane: origin, unit normal, unit in-plane x axis (y = normal × x).
+typedef struct {
+    double origin[3];
+    double normal[3];
+    double x_axis[3];
+} occt_plane;
+
+/// One profile segment in plane coordinates. kind 0 = line (x0,y0)→(x1,y1);
+/// kind 1 = counter-clockwise arc around (cx,cy) with `radius` from angle `start` to `end` (radians).
+typedef struct {
+    int kind;
+    double x0, y0, x1, y1;
+    double cx, cy, radius, start, end;
+} occt_segment;
+
+typedef struct {
+    occt_plane plane;
+    const occt_segment *segments;
+    int segment_count;
+} occt_profile;
+
+/// Extrudes the profile along its plane normal by `distance`. History: start/end caps and
+/// one OCCT_FROM_SEGMENT record per side face (index = segment).
+occt_shape *occt_extrude(const occt_profile *profile, double distance, occt_history *history, occt_status *status);
+
 #ifdef __cplusplus
 }
 #endif
