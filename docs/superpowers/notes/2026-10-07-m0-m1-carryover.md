@@ -25,8 +25,10 @@ Read this before writing the M2 and M3 plans.
   (cocct_build.cpp).
 - Swift 6.4 crashes compiling typed-throws closures that return tuples or are passed to `serialized`; a few OCCTKernel
   closures use untyped `throws` with a comment — revert when the compiler is fixed.
-- Deferred kernel items: multi-solid boolean results pass as one Solid (multi-body deferred, spec §11); a history
-  array leaks if `new occt_shape` throws (bad_alloc only); fillet `maxRadius` is always nil.
+- Deferred kernel items: multi-solid boolean results pass as one Solid (multi-body deferred, spec §11; see the
+  `Kernel.boolean` doc comment); fillet `maxRadius` is always nil.
+- Fillet/chamfer corner faces (generated from vertices) carry the `.blend` tags of every selected edge at that vertex.
+  Booleans run non-destructively; inside-out solids are fixed with `BRepLib::OrientClosedSolid`, never `Reversed()`.
 - `OCCTKernel` runs on the default actor executor; long OCCT calls occupy a cooperative-pool thread. Measure in M7.
 - Fuse/cut call `SimplifyResult()`; if that ever drops history for a face it shows up as `.unnamed` (pinned by
   `noFaceIsUntaggedOrUnnamedInTheBracket`).

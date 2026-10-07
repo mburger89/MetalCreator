@@ -3,13 +3,14 @@ import Foundation
 
 /// Owns one OCCT shape. A built shape's geometry is not mutated, but OCCT operations are
 /// not read-only: meshing (BRepMesh) writes triangulation into the shared TShape. So all
-/// OCCT access that can mutate must stay serialized inside the kernel actor (M2). Freeing
-/// from any thread in `deinit` is safe (OCCT reference counts are atomic); the pointer is
-/// freed exactly once.
+/// OCCT access runs under `OCCTKernel.serialized`, a process-wide lock (shapes share geometry
+/// across solids and kernels, so per-actor isolation is not enough). Freeing from any thread
+/// in `deinit` is safe (OCCT reference counts are atomic); the pointer is freed exactly once.
 final class OCCTShape: Sendable {
     // `OpaquePointer` is not Sendable. The pointer is a `let` and is only freed in `deinit`
-    // (atomic refcounts). Soundness of concurrent use relies on callers serializing every
-    // mutating OCCT call (e.g. meshing) in the kernel actor, as described above.
+    // (atomic refcounts). Soundness of concurrent use relies on every OCCT call that reads or
+    // mutates the shape (e.g. meshing) running under the process-wide `OCCTKernel.serialized`
+    // lock, as described above.
     nonisolated(unsafe) let raw: OpaquePointer
 
     init(raw: OpaquePointer) {
