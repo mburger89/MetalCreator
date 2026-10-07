@@ -7,10 +7,8 @@
 #include <BRepOffsetAPI_ThruSections.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRepPrimAPI_MakeRevol.hxx>
+#include <BRepSweep_Revol.hxx>
 #include <BRepTools.hxx>
-#include <TopExp.hxx>
-#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
-#include <TopoDS_Vertex.hxx>
 #include <GProp_GProps.hxx>
 #include <Standard_DomainError.hxx>
 #include <TopoDS_Edge.hxx>
@@ -109,39 +107,6 @@ TopoDS_Shape oriented(const TopoDS_Shape &shape) {
     return properties.Mass() < 0 ? shape.Reversed() : shape;
 }
 
-/// The face of `solid` shared by the circles that `revol` sweeps from `edge`'s two end vertices
-/// (null if there is none). Used where OCCT's Generated() is empty.
-TopoDS_Shape shared_face(const TopoDS_Shape &solid, BRepPrimAPI_MakeRevol &revol, const TopoDS_Edge &edge) {
-    TopoDS_Vertex first, last;
-    TopExp::Vertices(edge, first, last);
-    TopTools_IndexedDataMapOfShapeListOfShape ancestors;
-    TopExp::MapShapesAndAncestors(solid, TopAbs_EDGE, TopAbs_FACE, ancestors);
-    std::vector<TopoDS_Shape> candidates;
-    bool seeded = false;
-    for (const TopoDS_Vertex &vertex : {first, last}) {
-        std::vector<TopoDS_Shape> faces;
-        for (TopTools_ListOfShape::Iterator circle(revol.Generated(vertex)); circle.More(); circle.Next()) {
-            const int index = ancestors.FindIndex(circle.Value());
-            if (index == 0) {
-                continue;
-            }
-            for (TopTools_ListOfShape::Iterator face(ancestors.FindFromIndex(index)); face.More(); face.Next()) {
-                faces.push_back(face.Value());
-            }
-        }
-        std::vector<TopoDS_Shape> kept;
-        for (const TopoDS_Shape &face : faces) {
-            if (!seeded || std::any_of(candidates.begin(), candidates.end(),
-                                       [&](const TopoDS_Shape &other) { return other.IsSame(face); })) {
-                kept.push_back(face);
-            }
-        }
-        candidates = kept;
-        seeded = true;
-    }
-    return candidates.size() == 1 ? candidates.front() : TopoDS_Shape();
-}
-
 } // namespace
 
 extern "C" {
@@ -192,16 +157,16 @@ occt_shape *occt_revolve(const occt_profile *profile, const double axis_origin[3
         }
         const TopoDS_Shape solid = oriented(revol.Shape());
         history_builder records(solid);
-        records.add(revol.FirstShape(), OCCT_FROM_START_CAP, 0, 0); // absent from a full revolve
+        records.add(revol.FirstShape(), OCCT_FROM_START_CAP, 0, 0); // not part of a full revolve's result; filtered out by history_builder
         records.add(revol.LastShape(), OCCT_FROM_END_CAP, 0, 0);
         for (int k = 0; k < static_cast<int>(built.edges.size()); ++k) {
-            const TopTools_ListOfShape &generated = revol.Generated(built.edges[k]);
-            if (!generated.IsEmpty()) {
-                records.add_all(generated, OCCT_FROM_SEGMENT, 0, k);
+            if (revol.Generated(built.edges[k]).IsEmpty()) {
+                // A full revolution leaves Generated() empty for edges that sweep a planar face. The
+                // underlying sweep still knows them. The const_cast is sound: Revol() returns a const
+                // reference to MakeRevol's non-const member, and Shape(edge) does not mutate it.
+                records.add(const_cast<BRepSweep_Revol &>(revol.Revol()).Shape(built.edges[k]), OCCT_FROM_SEGMENT, 0, k);
             } else {
-                // A full revolution reports no face for an edge perpendicular to the axis (the planar
-                // annulus). Find it as the one face bounded by both circles its end vertices sweep.
-                records.add(shared_face(solid, revol, built.edges[k]), OCCT_FROM_SEGMENT, 0, k);
+                records.add_all(revol.Generated(built.edges[k]), OCCT_FROM_SEGMENT, 0, k);
             }
         }
         records.move_into(history);

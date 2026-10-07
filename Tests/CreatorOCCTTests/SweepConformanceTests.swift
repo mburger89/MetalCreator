@@ -70,4 +70,44 @@ struct SweepConformanceTests {
             try await kernel.loft([square, circle], ruled: true, tag: newTag())
         }
     }
+
+    private static let axisPlane = Plane(origin: .zero, normal: -.unitY, xAxis: .unitX)
+
+    private func hasUnnamedFace(_ solid: Solid) -> Bool {
+        solid.topology.faces.contains { face in
+            face.tags.contains { if case .unnamed = $0.role { true } else { false } }
+        }
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func fullRevolveTouchingTheAxisNamesItsEndFaces(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let tag = newTag()
+        let profile = Profile2D(plane: Self.axisPlane, segments: [
+            .line(Vector2(0, 0), Vector2(5, 0)), .line(Vector2(5, 0), Vector2(5, 4)),
+            .line(Vector2(5, 4), Vector2(0, 4)), .line(Vector2(0, 4), Vector2(0, 0)),
+        ])
+        let shaft = try await kernel.revolve(profile, axis: .z, angle: .degrees(360), tag: tag)
+        #expect(isClose(try await kernel.properties(of: shaft).volume, Double.pi * 25 * 4, relative: 1e-5))
+        #expect(shaft.topology.faces.count == 3)
+        for k in 0..<3 {
+            #expect(faces(shaft, role: .side(segment: k), of: tag).count == 1)
+        }
+        #expect(faces(shaft, role: .side(segment: 3), of: tag).isEmpty)
+        #expect(!hasUnnamedFace(shaft))
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func fullRevolveOfATriangleNamesTheConeBase(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let tag = newTag()
+        let profile = Profile2D(plane: Self.axisPlane, segments: [
+            .line(Vector2(0, 0), Vector2(4, 0)), .line(Vector2(4, 0), Vector2(0, 6)),
+            .line(Vector2(0, 6), Vector2(0, 0)),
+        ])
+        let cone = try await kernel.revolve(profile, axis: .z, angle: .degrees(360), tag: tag)
+        #expect(isClose(try await kernel.properties(of: cone).volume, Double.pi * 16 * 6 / 3, relative: 1e-5))
+        #expect(faces(cone, role: .side(segment: 0), of: tag).count == 1)
+        #expect(!hasUnnamedFace(cone))
+    }
 }
