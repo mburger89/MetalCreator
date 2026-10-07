@@ -113,6 +113,32 @@ enum SlowNode: NodeDefinition {
     }
 }
 
+/// Sleeps 60 s, so a test can only finish it by cancelling.
+enum HangingNode: NodeDefinition {
+    static let typeID = "test.hanging"
+    static let displayName = "Hanging"
+    static let category = NodeCategory.value
+    static let inputs = [SocketSpec("value", .number, defaultValue: .number(0))]
+    static let outputs = [SocketSpec("value", .number)]
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        try await Task.sleep(for: .seconds(60))
+        return NodeOutputs(["value": .number(try inputs.number("value"))])
+    }
+}
+
+/// Cancels the evaluating task, then returns normally, so cancellation is observed only between nodes.
+enum CancelsTaskNode: NodeDefinition {
+    static let typeID = "test.cancelsTask"
+    static let displayName = "Cancels Task"
+    static let category = NodeCategory.value
+    static let inputs = [SocketSpec("value", .number, defaultValue: .number(0))]
+    static let outputs = [SocketSpec("value", .number)]
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        withUnsafeCurrentTask { $0?.cancel() }
+        return NodeOutputs(["value": .number(try inputs.number("value"))])
+    }
+}
+
 /// Reads the graph parameter named by its `parameter` text setting.
 enum ParameterNode: NodeDefinition {
     static let typeID = "test.parameter"
@@ -171,5 +197,5 @@ enum VersionedNode: NodeDefinition {
 
 let testRegistry = NodeRegistry([
     ConstantNode.self, IntegerNode.self, AddNode.self, RequiredNode.self, SumListNode.self, ListSourceNode.self,
-    FailNode.self, WarnNode.self, SlowNode.self, ParameterNode.self, BoxNode.self, VersionedNode.self,
+    FailNode.self, WarnNode.self, SlowNode.self, HangingNode.self, CancelsTaskNode.self, ParameterNode.self, BoxNode.self, VersionedNode.self,
 ])
