@@ -42,3 +42,6 @@ Read this before writing the M2 and M3 plans.
 - `restoreLinks` doesn't guard duplicates within one call or occupied inputs (only reachable via hand-built commands).
 - `CancelsTaskNode` test assumes nodes run in the caller's task — revisit with parallel evaluation.
 - Hard-coded `/opt/homebrew` OCCT prefix (packaging deferred, spec §11).
+- M2 final review residuals: `oriented()` runs `BRepLib::OrientClosedSolid` on every extrude/revolve/loft even when the volume is already positive (only call it when negative — measure in M7); its boolean return is ignored; note that it works by reversing the solid, like the old code. The non-destructive-boolean test is a regression guard only — a stronger test would read max vertex/edge tolerance of a near-touching tool input (rises from 1e-7 in destructive mode).
+- Before M4: build edge polylines from `BRep_Tool::PolygonOnTriangulation` so lines sit on the face mesh; meshes depend on earlier tessellations (BRepMesh reuses finer triangulation in shared TShapes).
+- M3 notes from the M2 review: Edges by Tag should match "picked tags ⊆ face tags" per side (unions merge tag sets); Edges by Direction uses `abs(dot)` and `kind == .line`; Edge Set Op dedupes; Loft rejects sections with different segment counts (Rectangle → Circle) — show a clear message or plan resampling; warn when a picked key contains `.unnamed`.
