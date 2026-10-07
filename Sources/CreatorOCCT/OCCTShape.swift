@@ -29,6 +29,29 @@ final class OCCTShape: Sendable {
         occt_edge_length(raw, Int32(index))
     }
 
+    func filleting(edge index: Int, radius: Double) throws(OCCTError) -> OCCTShape {
+        try Self.make { status in occt_fillet_edge(raw, Int32(index), radius, status) }
+    }
+
+    func writeSTEP(to url: URL) throws(OCCTError) {
+        try Self.check { status in url.withUnsafeFileSystemRepresentation { occt_write_step(raw, $0, status) } }
+    }
+
+    func writeSTL(to url: URL, deflection: Double) throws(OCCTError) {
+        try Self.check { status in
+            url.withUnsafeFileSystemRepresentation { occt_write_stl(raw, $0, deflection, status) }
+        }
+    }
+
+    /// Calls a shim function returning 1/0 and turns failure into `OCCTError`.
+    static func check(_ body: (UnsafeMutablePointer<occt_status>) -> Int32) throws(OCCTError) {
+        var status = occt_status()
+        let result = body(&status)
+        guard status.ok != 0, result == 1 else {
+            throw OCCTError(message: status.messageText)
+        }
+    }
+
     /// Calls a shim constructor and turns a null result or error status into `OCCTError`.
     static func make(_ body: (UnsafeMutablePointer<occt_status>) -> OpaquePointer?) throws(OCCTError) -> OCCTShape {
         var status = occt_status()

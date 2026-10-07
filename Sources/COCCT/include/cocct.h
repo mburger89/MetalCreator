@@ -23,6 +23,13 @@ int occt_edge_count(const occt_shape *shape);
 /// Length of the edge at 1-based `index` in OCCT's indexed edge map, or -1 if out of range.
 double occt_edge_length(const occt_shape *shape, int index);
 
+/// Fillets the edge at 1-based `edge_index` with `radius`. Returns NULL on failure.
+occt_shape *occt_fillet_edge(const occt_shape *shape, int edge_index, double radius, occt_status *status);
+/// Writes `shape` as AP214 STEP in millimetres. Returns 1 on success.
+int occt_write_step(const occt_shape *shape, const char *path, occt_status *status);
+/// Meshes `shape` with `linear_deflection` (mm) and writes ASCII STL. Returns 1 on success.
+int occt_write_stl(const occt_shape *shape, const char *path, double linear_deflection, occt_status *status);
+
 #ifdef __cplusplus
 }
 #endif

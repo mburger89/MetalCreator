@@ -1,8 +1,14 @@
 #include "cocct.h"
 
+#include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepGProp.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <GProp_GProps.hxx>
+#include <IFSelect_ReturnStatus.hxx>
+#include <Interface_Static.hxx>
+#include <STEPControl_Writer.hxx>
+#include <StlAPI_Writer.hxx>
 #include <Standard_Failure.hxx>
 #include <TopExp.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
@@ -92,6 +98,52 @@ double occt_edge_length(const occt_shape *shape, int index) {
     GProp_GProps props;
     BRepGProp::LinearProperties(edges(index), props);
     return props.Mass();
+}
+
+occt_shape *occt_fillet_edge(const occt_shape *shape, int edge_index, double radius, occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * {
+        TopTools_IndexedMapOfShape edges = map_of(shape->shape, TopAbs_EDGE);
+        if (edge_index < 1 || edge_index > edges.Extent()) {
+            set_error(status, "edge index out of range");
+            return nullptr;
+        }
+        BRepFilletAPI_MakeFillet fillet(shape->shape);
+        fillet.Add(radius, TopoDS::Edge(edges(edge_index)));
+        fillet.Build();
+        if (!fillet.IsDone()) {
+            set_error(status, "fillet could not be built for this radius");
+            return nullptr;
+        }
+        return new occt_shape{fillet.Shape()};
+    });
+}
+
+int occt_write_step(const occt_shape *shape, const char *path, occt_status *status) {
+    return guarded(status, [&]() -> int {
+        STEPControl_Writer writer;
+        Interface_Static::SetCVal("write.step.unit", "MM");
+        if (writer.Transfer(shape->shape, STEPControl_AsIs) != IFSelect_RetDone) {
+            set_error(status, "STEP transfer failed");
+            return 0;
+        }
+        if (writer.Write(path) != IFSelect_RetDone) {
+            set_error(status, "STEP file could not be written");
+            return 0;
+        }
+        return 1;
+    });
+}
+
+int occt_write_stl(const occt_shape *shape, const char *path, double linear_deflection, occt_status *status) {
+    return guarded(status, [&]() -> int {
+        BRepMesh_IncrementalMesh mesher(shape->shape, linear_deflection);
+        StlAPI_Writer writer;
+        if (!writer.Write(shape->shape, path)) {
+            set_error(status, "STL file could not be written");
+            return 0;
+        }
+        return 1;
+    });
 }
 
 } // extern "C"
