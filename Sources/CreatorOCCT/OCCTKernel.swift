@@ -1,10 +1,27 @@
 import CreatorGeometry
 import CreatorKernel
 import Foundation
+import Synchronization
 
-/// The OpenCascade-backed kernel (spec §5.2). Every OCCT call is serialized by this actor,
-/// which also keeps OCCT's few mutating operations (meshing) safe.
+/// The OpenCascade-backed kernel (spec §5.2). Calls are serialized per kernel by the actor and
+/// process-wide by a lock, because OCCT shapes share geometry across solids and some OCCT
+/// operations (meshing) mutate it.
 public actor OCCTKernel: Kernel {
+    private static let occt = Mutex(())
+
+    /// Runs `body` under the process-wide OCCT lock. `body` must not suspend.
+    static func serialized<T>(_ body: () throws -> T) rethrows -> T {
+        try occt.withLock { _ in try body() }
+    }
+
+    /// Rejects planes OCCT cannot build a frame from.
+    static func validate(_ plane: Plane) throws {
+        let invalid = KernelError.invalidInput("The profile's plane is not valid.")
+        guard plane.origin.isFinite, plane.normal.isFinite, plane.xAxis.isFinite,
+              let normal = plane.normal.normalized, let xAxis = plane.xAxis.normalized,
+              abs(normal.dot(xAxis)) <= 1 - 1e-9 else { throw invalid }
+    }
+
     public init() {
         occtInitialize()
     }
@@ -14,6 +31,7 @@ public actor OCCTKernel: Kernel {
         guard distance.isFinite, distance > 0 else {
             throw KernelError.invalidInput("Extrude distance must be greater than 0 mm.")
         }
+        try Self.validate(profile.plane)
         guard profile.isClosed else { throw KernelError.invalidInput("The profile is not a closed loop.") }
         let base = mode == .symmetric
             ? Profile2D(plane: profile.plane.offset(by: -distance / 2), segments: profile.segments)
@@ -64,7 +82,8 @@ public actor OCCTKernel: Kernel {
     public func properties(of solid: Solid) throws -> SolidProperties {
         try Task.checkCancellation()
         do {
-            let properties = try shape(of: solid).properties()
+            let shape = try shape(of: solid)
+            let properties = try Self.serialized { () throws(OCCTError) in try shape.properties() }
             return SolidProperties(volume: properties.volume, surfaceArea: properties.surfaceArea, centroid: properties.centroid)
         } catch let error as OCCTError {
             throw KernelError.occt("measure", error)
@@ -86,7 +105,7 @@ public actor OCCTKernel: Kernel {
                _ body: () throws -> (OCCTShape, [OCCTHistoryRecord])) throws -> Solid {
         let built: (OCCTShape, [OCCTHistoryRecord])
         do {
-            built = try body()
+            built = try Self.serialized(body)
         } catch let error as OCCTError {
             throw KernelError.occt(operation, error)
         }
@@ -96,11 +115,12 @@ public actor OCCTKernel: Kernel {
     func solid(from shape: OCCTShape, history: [OCCTHistoryRecord], inputs: [Topology], tag: NodeTag,
                operation: String) throws -> Solid {
         do {
-            let raw = try OCCTRawTopology.read(shape)
+            let (raw, properties) = try Self.serialized { () throws -> (OCCTRawTopology, OCCTProperties) in
+                (try OCCTRawTopology.read(shape), try shape.properties())
+            }
             guard !raw.faces.isEmpty else {
                 throw KernelError.operationFailed(operation: operation, reason: "the result is empty.")
             }
-            let properties = try shape.properties()
             let topology = OCCTTagger.topology(raw: raw, history: history, inputs: inputs, tag: tag)
             return Solid(topology: topology, bounds: properties.bounds,
                          storage: OCCTSolidStorage(shape: shape, faceCount: raw.faces.count))

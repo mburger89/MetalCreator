@@ -85,7 +85,52 @@ struct ExtrudeConformanceTests {
         }
         guard case .operationFailed(let operation, let reason)? = error else { Issue.record("expected operationFailed"); return }
         #expect(operation == "extrude")
-        #expect(!reason.isEmpty)
+        #expect(reason == "a line in the profile has zero length.")
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func invalidPlaneIsRejected(_ under: KernelUnderTest) async {
+        let plane = Plane(origin: .zero, normal: .unitZ, xAxis: .unitZ)
+        let profile = Profile2D(plane: plane, segments: Profile2D.rectangle(width: 1, height: 1, plane: .xy).segments)
+        await #expect(throws: KernelError.invalidInput("The profile's plane is not valid.")) {
+            try await under.make().extrude(profile, distance: 1, mode: .oneSided, tag: newTag())
+        }
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func halfDiscArcRunsCounterClockwiseFromXAxis(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let profile = Profile2D(plane: .xy, segments: [
+            .arc(center: Vector2(0, 0), radius: 2, start: Angle(radians: 0), end: Angle(radians: .pi)),
+            .line(Vector2(-2, 0), Vector2(2, 0)),
+        ])
+        let solid = try await kernel.extrude(profile, distance: 1, mode: .oneSided, tag: newTag())
+        #expect(isClose(try await kernel.properties(of: solid).volume, 2 * Double.pi))
+        #expect(isClose(solid.bounds.min.y, 0, relative: 1e-4) && isClose(solid.bounds.max.y, 2, relative: 1e-4))
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func sideFacesFollowSegmentOrder(_ under: KernelUnderTest) async throws {
+        let tag = newTag()
+        let solid = try await under.make().extrude(.rectangle(width: 10, height: 20, plane: .xy), distance: 1, mode: .oneSided, tag: tag)
+        let first = try #require(faces(solid, role: .side(segment: 0), of: tag).first?.normal)
+        let second = try #require(faces(solid, role: .side(segment: 1), of: tag).first?.normal)
+        #expect(first.dot(Vector3(0, -1, 0)) > 0.999)
+        #expect(second.dot(.unitX) > 0.999)
+    }
+
+    @Test func concurrentKernelsDoNotInterfere() async throws {
+        let kernels = (0..<4).map { _ in OCCTKernel() }
+        try await withThrowingTaskGroup(of: Double.self) { group in
+            for index in 0..<8 {
+                let kernel = kernels[index % 4]
+                group.addTask {
+                    let solid = try await box(kernel, 2, 3, 4)
+                    return try await kernel.properties(of: solid).volume
+                }
+            }
+            for try await volume in group { #expect(isClose(volume, 24)) }
+        }
     }
 
     @Test(arguments: KernelUnderTest.allCases)

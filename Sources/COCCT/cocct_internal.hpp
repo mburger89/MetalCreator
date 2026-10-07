@@ -2,6 +2,7 @@
 #ifndef COCCT_INTERNAL_HPP
 #define COCCT_INTERNAL_HPP
 
+#include <string>
 #include "cocct.h"
 
 #include <Standard_Failure.hxx>
@@ -41,6 +42,13 @@ inline void set_error(occt_status *status, const char *message) {
     }
 }
 
+/// Reports a caught exception, marking the text as raw OCCT output with an "occt: " prefix.
+inline void set_caught_error(occt_status *status, const char *message) {
+    std::string text = "occt: ";
+    text += (message && *message) ? message : "unknown exception";
+    set_error(status, text.c_str());
+}
+
 /// Runs `body`, converting every C++ exception into an error status. No exception may
 /// cross into Swift.
 template <typename Body>
@@ -50,11 +58,11 @@ auto guarded(occt_status *status, Body body) -> decltype(body()) {
         return body();
     } catch (const Standard_Failure &failure) {
         const char *message = failure.GetMessageString();
-        set_error(status, (message && *message) ? message : failure.DynamicType()->Name());
+        set_caught_error(status, (message && *message) ? message : failure.DynamicType()->Name());
     } catch (const std::exception &error) {
-        set_error(status, error.what());
+        set_caught_error(status, error.what());
     } catch (...) {
-        set_error(status, "unknown OCCT exception");
+        set_caught_error(status, nullptr);
     }
     return decltype(body()){};
 }
