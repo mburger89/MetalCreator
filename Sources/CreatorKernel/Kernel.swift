@@ -16,4 +16,6 @@ public protocol Kernel: Actor {
     func chamfer(_ solid: Solid, edges: [EdgeID], distance: Double, tag: NodeTag) throws -> Solid
     func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh
     func export(_ solids: [Solid], format: ExportFormat, to url: URL) throws
+    /// Volume, surface area and centroid. Used by inspectors and the conformance suite.
+    func properties(of solid: Solid) throws -> SolidProperties
 }

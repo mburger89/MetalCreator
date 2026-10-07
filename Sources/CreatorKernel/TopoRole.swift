@@ -6,6 +6,9 @@ public indirect enum TopoRole: Hashable, Sendable {
     case side(segment: Int)
     /// The blend face a fillet or chamfer made from the edge `sourceEdge`.
     case blend(sourceEdge: EdgeKey)
+    /// A face the operation's history does not explain. Unstable across rebuilds by design;
+    /// it exists so that no face ever has an empty tag set (M2 plan decision).
+    case unnamed(face: Int)
 
     /// A deterministic text form, used to order tags canonically.
     public var sortKey: String {
@@ -14,6 +17,7 @@ public indirect enum TopoRole: Hashable, Sendable {
         case .endCap: "endCap"
         case .side(let segment): "side(\(segment))"
         case .blend(let edge): "blend(\(edge.sortKey))"
+        case .unnamed(let face): "unnamed(\(face))"
         }
     }
 }

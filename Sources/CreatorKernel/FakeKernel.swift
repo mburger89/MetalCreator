@@ -107,6 +107,17 @@ public actor FakeKernel: Kernel {
         throw KernelError.unsupported("export")
     }
 
+    public func properties(of solid: Solid) throws -> SolidProperties {
+        try Task.checkCancellation()
+        operationLog.append("properties")
+        let size = solid.bounds.size
+        return SolidProperties(
+            volume: size.x * size.y * size.z,
+            surfaceArea: 2 * (size.x * size.y + size.y * size.z + size.z * size.x),
+            centroid: solid.bounds.center
+        )
+    }
+
     // MARK: - Fake construction
 
     private func blend(_ solid: Solid, edges: [EdgeID], size: Double, tag: NodeTag) throws -> Solid {

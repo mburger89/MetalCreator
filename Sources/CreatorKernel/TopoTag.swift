@@ -1,5 +1,5 @@
 /// A face's name: the node that made it, the broadcast item, and its role.
-public struct TopoTag: Hashable, Sendable {
+public struct TopoTag: Hashable, Sendable, Codable {
     public var node: NodeID
     public var item: Int
     public var role: TopoRole
