@@ -130,6 +130,7 @@ public actor OCCTKernel: Kernel {
         }
         let source = try shape(of: solid)
         do {
+            // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure. Revert once fixed.
             return try Self.serialized { () throws -> DisplayMesh in try source.mesh(tolerance: tolerance) }
         } catch let error as OCCTError {
             throw KernelError.occt("tessellate", error)
@@ -141,6 +142,7 @@ public actor OCCTKernel: Kernel {
         guard !solids.isEmpty else { throw KernelError.invalidInput("There is nothing to export.") }
         let shapes = try solids.map { try shape(of: $0) }
         do {
+            // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure. Revert once fixed.
             try Self.serialized { () throws in
                 let combined = try shapes.count == 1 ? shapes[0] : OCCTShape.compound(shapes)
                 switch format {
