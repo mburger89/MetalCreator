@@ -41,12 +41,26 @@ public actor OCCTKernel: Kernel {
 
     public func revolve(_ profile: Profile2D, axis: Axis, angle: Angle, tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
-        throw KernelError.unsupported("revolve")
+        guard angle.radians.isFinite, angle.radians > 0, angle.radians <= 2 * .pi + 1e-9 else {
+            throw KernelError.invalidInput("The revolve angle must be between 0° and 360°.")
+        }
+        guard axis.direction.normalized != nil, axis.origin.isFinite else {
+            throw KernelError.invalidInput("The revolve axis needs a direction.")
+        }
+        try Self.validate(profile.plane)
+        guard profile.isClosed else { throw KernelError.invalidInput("The profile is not a closed loop.") }
+        return try build("revolve", inputs: [], tag: tag) { try OCCTShape.revolve(profile, axis: axis, angle: angle) }
     }
 
     public func loft(_ sections: [Profile2D], ruled: Bool, tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
-        throw KernelError.unsupported("loft")
+        guard sections.count >= 2 else { throw KernelError.invalidInput("A loft needs at least two sections.") }
+        guard Set(sections.map(\.segments.count)).count == 1 else {
+            throw KernelError.invalidInput("Every loft section needs the same number of segments.")
+        }
+        for section in sections { try Self.validate(section.plane) }
+        guard sections.allSatisfy(\.isClosed) else { throw KernelError.invalidInput("The profile is not a closed loop.") }
+        return try build("loft", inputs: [], tag: tag) { try OCCTShape.loft(sections, ruled: ruled) }
     }
 
     public func boolean(_ op: BooleanOp, _ a: Solid, _ b: [Solid], tag: NodeTag) throws -> Solid {

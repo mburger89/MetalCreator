@@ -16,4 +16,18 @@ extension OCCTShape {
             try building { history, status in occt_extrude(cProfile, distance, history, status) }
         }
     }
+
+    static func revolve(_ profile: Profile2D, axis: Axis, angle: Angle) throws(OCCTError) -> (OCCTShape, [OCCTHistoryRecord]) {
+        let origin = [axis.origin.x, axis.origin.y, axis.origin.z]
+        let direction = [axis.direction.x, axis.direction.y, axis.direction.z]
+        return try OCCTProfile.with(profile) { cProfile throws(OCCTError) in
+            try building { history, status in occt_revolve(cProfile, origin, direction, angle.radians, history, status) }
+        }
+    }
+
+    static func loft(_ sections: [Profile2D], ruled: Bool) throws(OCCTError) -> (OCCTShape, [OCCTHistoryRecord]) {
+        try OCCTProfile.withAll(sections) { profiles, count throws(OCCTError) in
+            try building { history, status in occt_loft(profiles, Int32(count), ruled ? 1 : 0, history, status) }
+        }
+    }
 }

@@ -129,6 +129,14 @@ typedef struct {
 /// one OCCT_FROM_SEGMENT record per side face (index = segment).
 occt_shape *occt_extrude(const occt_profile *profile, double distance, occt_history *history, occt_status *status);
 
+/// Revolves the profile about the axis by `angle` (radians, 0 < angle <= 2π). Caps
+/// (OCCT_FROM_START_CAP/END_CAP) exist only for a partial revolve; sides are OCCT_FROM_SEGMENT.
+occt_shape *occt_revolve(const occt_profile *profile, const double axis_origin[3], const double axis_direction[3],
+                         double angle, occt_history *history, occt_status *status);
+/// Lofts through `count` profiles (ruled = straight sides). Sides are OCCT_FROM_SEGMENT with the
+/// index of the first section's segment; caps are the first and last sections.
+occt_shape *occt_loft(const occt_profile *profiles, int count, int ruled, occt_history *history, occt_status *status);
+
 /// Boolean of `a` with `tools` (op 0 fuse, 1 cut, 2 common). History operands: 0 = a, i+1 = tools[i].
 occt_shape *occt_boolean(int op, const occt_shape *a, const occt_shape *const *tools, int tool_count,
                          occt_history *history, occt_status *status);

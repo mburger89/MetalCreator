@@ -4,15 +4,23 @@
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepGProp.hxx>
+#include <BRepOffsetAPI_ThruSections.hxx>
 #include <BRepPrimAPI_MakePrism.hxx>
+#include <BRepPrimAPI_MakeRevol.hxx>
+#include <BRepTools.hxx>
+#include <TopExp.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include <TopoDS_Vertex.hxx>
 #include <GProp_GProps.hxx>
 #include <Standard_DomainError.hxx>
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <gp_Ax2.hxx>
+#include <gp_Ax1.hxx>
 #include <gp_Circ.hxx>
 #include <gp_Vec.hxx>
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 
@@ -101,6 +109,39 @@ TopoDS_Shape oriented(const TopoDS_Shape &shape) {
     return properties.Mass() < 0 ? shape.Reversed() : shape;
 }
 
+/// The face of `solid` shared by the circles that `revol` sweeps from `edge`'s two end vertices
+/// (null if there is none). Used where OCCT's Generated() is empty.
+TopoDS_Shape shared_face(const TopoDS_Shape &solid, BRepPrimAPI_MakeRevol &revol, const TopoDS_Edge &edge) {
+    TopoDS_Vertex first, last;
+    TopExp::Vertices(edge, first, last);
+    TopTools_IndexedDataMapOfShapeListOfShape ancestors;
+    TopExp::MapShapesAndAncestors(solid, TopAbs_EDGE, TopAbs_FACE, ancestors);
+    std::vector<TopoDS_Shape> candidates;
+    bool seeded = false;
+    for (const TopoDS_Vertex &vertex : {first, last}) {
+        std::vector<TopoDS_Shape> faces;
+        for (TopTools_ListOfShape::Iterator circle(revol.Generated(vertex)); circle.More(); circle.Next()) {
+            const int index = ancestors.FindIndex(circle.Value());
+            if (index == 0) {
+                continue;
+            }
+            for (TopTools_ListOfShape::Iterator face(ancestors.FindFromIndex(index)); face.More(); face.Next()) {
+                faces.push_back(face.Value());
+            }
+        }
+        std::vector<TopoDS_Shape> kept;
+        for (const TopoDS_Shape &face : faces) {
+            if (!seeded || std::any_of(candidates.begin(), candidates.end(),
+                                       [&](const TopoDS_Shape &other) { return other.IsSame(face); })) {
+                kept.push_back(face);
+            }
+        }
+        candidates = kept;
+        seeded = true;
+    }
+    return candidates.size() == 1 ? candidates.front() : TopoDS_Shape();
+}
+
 } // namespace
 
 extern "C" {
@@ -126,6 +167,73 @@ occt_shape *occt_extrude(const occt_profile *profile, double distance, occt_hist
         records.add(prism.LastShape(), OCCT_FROM_END_CAP, 0, 0);
         for (int k = 0; k < static_cast<int>(built.edges.size()); ++k) {
             records.add_all(prism.Generated(built.edges[k]), OCCT_FROM_SEGMENT, 0, k);
+        }
+        records.move_into(history);
+        return new occt_shape{solid};
+    });
+}
+
+occt_shape *occt_revolve(const occt_profile *profile, const double axis_origin[3], const double axis_direction[3],
+                         double angle, occt_history *history, occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * {
+        *history = occt_history{};
+        if (!profile || !std::isfinite(angle) || angle <= 0 || angle > 2 * M_PI + 1e-9) {
+            set_error(status, "the revolve angle must be between 0 and 360 degrees");
+            return nullptr;
+        }
+        const built_profile built = build_profile(*profile);
+        const gp_Ax1 axis(gp_Pnt(axis_origin[0], axis_origin[1], axis_origin[2]),
+                          gp_Dir(axis_direction[0], axis_direction[1], axis_direction[2]));
+        BRepPrimAPI_MakeRevol revol(built.face, axis, std::min(angle, 2 * M_PI));
+        revol.Build();
+        if (!revol.IsDone()) {
+            set_error(status, "the revolve could not be built");
+            return nullptr;
+        }
+        const TopoDS_Shape solid = oriented(revol.Shape());
+        history_builder records(solid);
+        records.add(revol.FirstShape(), OCCT_FROM_START_CAP, 0, 0); // absent from a full revolve
+        records.add(revol.LastShape(), OCCT_FROM_END_CAP, 0, 0);
+        for (int k = 0; k < static_cast<int>(built.edges.size()); ++k) {
+            const TopTools_ListOfShape &generated = revol.Generated(built.edges[k]);
+            if (!generated.IsEmpty()) {
+                records.add_all(generated, OCCT_FROM_SEGMENT, 0, k);
+            } else {
+                // A full revolution reports no face for an edge perpendicular to the axis (the planar
+                // annulus). Find it as the one face bounded by both circles its end vertices sweep.
+                records.add(shared_face(solid, revol, built.edges[k]), OCCT_FROM_SEGMENT, 0, k);
+            }
+        }
+        records.move_into(history);
+        return new occt_shape{solid};
+    });
+}
+
+occt_shape *occt_loft(const occt_profile *profiles, int count, int ruled, occt_history *history, occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * {
+        *history = occt_history{};
+        if (!profiles || count < 2) {
+            set_error(status, "a loft needs at least two sections");
+            return nullptr;
+        }
+        std::vector<built_profile> sections;
+        BRepOffsetAPI_ThruSections loft(Standard_True, ruled ? Standard_True : Standard_False);
+        for (int i = 0; i < count; ++i) {
+            sections.push_back(build_profile(profiles[i]));
+            loft.AddWire(BRepTools::OuterWire(sections.back().face));
+        }
+        loft.Build();
+        if (!loft.IsDone()) {
+            set_error(status, "the loft could not be built");
+            return nullptr;
+        }
+        const TopoDS_Shape solid = oriented(loft.Shape());
+        history_builder records(solid);
+        records.add(loft.FirstShape(), OCCT_FROM_START_CAP, 0, 0);
+        records.add(loft.LastShape(), OCCT_FROM_END_CAP, 0, 0);
+        const std::vector<TopoDS_Edge> &first = sections.front().edges;
+        for (int k = 0; k < static_cast<int>(first.size()); ++k) {
+            records.add(loft.GeneratedFace(first[k]), OCCT_FROM_SEGMENT, 0, k);
         }
         records.move_into(history);
         return new occt_shape{solid};
