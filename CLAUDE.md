@@ -24,8 +24,8 @@ never worked around here. Graph links are kept canonically sorted by destination
 swift build                                  # build the library
 swift build -c release
 swift test                                   # run all tests
-swift test --filter MetalCreatorTests        # one suite
-swift test --filter 'MetalCreatorTests/example'   # one test
+swift test --filter CreatorGraphTests        # one test target (also CreatorOCCTTests, CreatorGeometryTests, CreatorKernelTests)
+swift test --filter 'CreatorGraphTests.EvaluatorTests/wiredValuesFlowDownstream'   # one test
 ```
 
 There is no linter or formatter configured.
