@@ -74,10 +74,42 @@ struct DocumentModelTests {
         let a = makeNode(ConstantNode.self)
         let document = model([a])
         document.previewNode = a.id
+        await document.waitForEvaluation()
+        #expect(document.results[a.id] != nil)
         try document.perform(.removeNode(a.id))
         #expect(document.previewNode == nil)
         await document.waitForEvaluation()
         #expect(document.results[a.id] == nil)
+        #expect(document.lastGoodOutputs[a.id] == nil)
+    }
+
+    @Test func deletingAnOutputNodeDropsItsLastGoodOutputs() async throws {
+        let a = makeNode(ConstantNode.self, output: true)
+        let document = model([a])
+        await document.waitForEvaluation()
+        #expect(document.lastGoodOutputs[a.id] != nil)
+        try document.perform(.removeNode(a.id))
+        #expect(document.lastGoodOutputs[a.id] == nil)
+        #expect(document.results[a.id] == nil)
+    }
+
+    @Test func nodeLeavingTheDemandHasNoStaleState() async throws {
+        let a = makeNode(ConstantNode.self, output: true)
+        let document = model([a])
+        await document.waitForEvaluation()
+        try document.perform(.setOutput(a.id, false))
+        await document.waitForEvaluation()
+        #expect(document.results[a.id] == nil)
+    }
+
+    @Test func supersededEvaluationThatIgnoresCancellationIsDiscarded() async throws {
+        let node = makeNode(StubbornNode.self, ["value": .number(1)], output: true)
+        let document = model([node])
+        try document.perform(.setInput(node.id, "value", .number(2)))
+        try await Task.sleep(for: .milliseconds(20))
+        try document.perform(.setInput(node.id, "value", .number(3)))
+        await document.waitForEvaluation()
+        #expect(document.results[node.id]?.outputs?["value"]?.numbers == [3])
     }
 
     @Test func editsMarkAffectedNodesAsEvaluating() async throws {

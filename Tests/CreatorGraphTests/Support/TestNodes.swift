@@ -113,6 +113,19 @@ enum SlowNode: NodeDefinition {
     }
 }
 
+/// Sleeps 300 ms swallowing cancellation, so a superseded evaluation still finishes.
+enum StubbornNode: NodeDefinition {
+    static let typeID = "test.stubborn"
+    static let displayName = "Stubborn"
+    static let category = NodeCategory.value
+    static let inputs = [SocketSpec("value", .number, defaultValue: .number(0))]
+    static let outputs = [SocketSpec("value", .number)]
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        try? await Task.sleep(for: .milliseconds(300))
+        return NodeOutputs(["value": .number(try inputs.number("value"))])
+    }
+}
+
 /// Sleeps 60 s, so a test can only finish it by cancelling.
 enum HangingNode: NodeDefinition {
     static let typeID = "test.hanging"
@@ -197,5 +210,5 @@ enum VersionedNode: NodeDefinition {
 
 let testRegistry = NodeRegistry([
     ConstantNode.self, IntegerNode.self, AddNode.self, RequiredNode.self, SumListNode.self, ListSourceNode.self,
-    FailNode.self, WarnNode.self, SlowNode.self, HangingNode.self, CancelsTaskNode.self, ParameterNode.self, BoxNode.self, VersionedNode.self,
+    FailNode.self, WarnNode.self, SlowNode.self, StubbornNode.self, HangingNode.self, CancelsTaskNode.self, ParameterNode.self, BoxNode.self, VersionedNode.self,
 ])

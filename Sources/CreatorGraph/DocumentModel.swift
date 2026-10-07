@@ -134,8 +134,9 @@ public final class DocumentModel {
     }
 
     private func apply(_ report: EvaluationReport) {
+        // Replace, not merge: a node that left the demand must not keep a stale `.evaluating` state.
+        results = report.results
         for (id, result) in report.results {
-            results[id] = result
             if result.state.isSuccess, let outputs = result.outputs {
                 lastGoodOutputs[id] = outputs
             }
