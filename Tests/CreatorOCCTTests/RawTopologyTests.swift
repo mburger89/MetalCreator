@@ -4,8 +4,10 @@ import Testing
 @testable import CreatorOCCT
 
 struct RawTopologyTests {
+    // Shim calls run under `OCCTKernel.serialized`, like the kernel's own calls.
+
     @Test func boxPropertiesAreAnalytic() throws {
-        let properties = try OCCTShape.box(10, 20, 30).properties()
+        let properties = try OCCTKernel.serialized { try OCCTShape.box(10, 20, 30).properties() }
         #expect(isClose(properties.volume, 6000))
         #expect(isClose(properties.surfaceArea, 2 * (200 + 600 + 300)))
         #expect(isClose(properties.centroid.x, 5) && isClose(properties.centroid.y, 10) && isClose(properties.centroid.z, 15))
@@ -13,7 +15,7 @@ struct RawTopologyTests {
     }
 
     @Test func boxFacesArePlanarWithOutwardNormals() throws {
-        let topology = try OCCTRawTopology.read(OCCTShape.box(10, 20, 30))
+        let topology = try OCCTKernel.serialized { try OCCTRawTopology.read(OCCTShape.box(10, 20, 30)) }
         #expect(topology.faces.count == 6)
         #expect(topology.faces.allSatisfy { $0.kind == .plane })
         for face in topology.faces {
@@ -26,7 +28,7 @@ struct RawTopologyTests {
     }
 
     @Test func boxEdgesAreConvexLinesBetweenTwoFaces() throws {
-        let topology = try OCCTRawTopology.read(OCCTShape.box(10, 20, 30))
+        let topology = try OCCTKernel.serialized { try OCCTRawTopology.read(OCCTShape.box(10, 20, 30)) }
         #expect(topology.edges.count == 12)
         #expect(topology.edges.allSatisfy { $0.kind == .line && $0.convexity == .convex })
         #expect(topology.edges.allSatisfy { $0.faces.count == 2 && $0.faces[0] != $0.faces[1] })
@@ -36,7 +38,9 @@ struct RawTopologyTests {
     }
 
     @Test func initializeIsIdempotent() {
-        occtInitialize()
-        occtInitialize()
+        OCCTKernel.serialized {
+            occtInitialize()
+            occtInitialize()
+        }
     }
 }
