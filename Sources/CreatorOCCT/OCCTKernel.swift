@@ -94,12 +94,18 @@ public actor OCCTKernel: Kernel {
         }
         let source = try shape(of: solid)
         let operation = chamfer ? "chamfer" : "fillet"
-        do {
-            return try build(operation, inputs: [solid.topology], tag: tag) {
-                try source.blended(edges: edges, size: size, chamfer: chamfer)
+        return try build(operation, inputs: [solid.topology], tag: tag) {
+            do {
+                return try source.blended(edges: edges, size: size, chamfer: chamfer)
+            } catch is OCCTError {
+                if chamfer {
+                    let amount = size.formatted(.number.precision(.fractionLength(0...2)))
+                    throw KernelError.operationFailed(operation: "chamfer",
+                                                      reason: "the selected edges can't be chamfered by \(amount) mm.")
+                }
+                throw KernelError.filletFailed(radius: size, maxRadius: nil,
+                                               reason: "the selected edges can't be rounded this much.")
             }
-        } catch KernelError.operationFailed(_, let reason) where !chamfer {
-            throw KernelError.filletFailed(radius: size, maxRadius: nil, reason: reason)
         }
     }
 

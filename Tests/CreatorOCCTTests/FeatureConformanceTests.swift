@@ -56,7 +56,7 @@ struct FeatureConformanceTests {
         }
         guard case .filletFailed(let radius, _, let reason)? = error else { Issue.record("expected filletFailed"); return }
         #expect(radius == 40)
-        #expect(!reason.isEmpty)
+        #expect(reason == "the selected edges can't be rounded this much.")
         #expect(error?.userMessage.contains("40") == true)
         // The kernel is still usable.
         let ok = try await kernel.fillet(solid, edges: [edge.id], radius: 1, tag: newTag())
@@ -76,5 +76,47 @@ struct FeatureConformanceTests {
         await #expect(throws: KernelError.invalidInput("The size must be greater than 0 mm.")) {
             try await kernel.chamfer(solid, edges: [EdgeID(0)], distance: .nan, tag: newTag())
         }
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func impossibleChamferIsAPlainError(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let solid = try await box(kernel, 10, 20, 30)
+        let edge = try #require(verticalEdges(solid).first)
+        let error = await #expect(throws: KernelError.self) {
+            try await kernel.chamfer(solid, edges: [edge.id], distance: 40, tag: newTag())
+        }
+        guard case .operationFailed(let operation, let reason)? = error else { Issue.record("expected operationFailed"); return }
+        #expect(operation == "chamfer")
+        #expect(reason.contains("40"))
+        let ok = try await kernel.chamfer(solid, edges: [edge.id], distance: 1, tag: newTag())
+        #expect(ok.topology.faces.count == 7)
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func eachFilletedEdgeGetsItsOwnBlendName(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let solid = try await box(kernel, 10, 20, 30)
+        let edges = verticalEdges(solid)
+        let keys = edges.compactMap { solid.topology.key(of: $0) }
+        #expect(keys.count == 4)
+        let filletTag = newTag()
+        let result = try await kernel.fillet(solid, edges: edges.map(\.id), radius: 1, tag: filletTag)
+        for key in keys {
+            #expect(faces(result, role: .blend(sourceEdge: key), of: filletTag).count == 1)
+        }
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func chamferFacesAreNamedBySourceEdge(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let solid = try await box(kernel, 10, 20, 30)
+        let edge = try #require(verticalEdges(solid).first)
+        let key = try #require(solid.topology.key(of: edge))
+        let chamferTag = newTag()
+        let result = try await kernel.chamfer(solid, edges: [edge.id], distance: 1, tag: chamferTag)
+        let blends = faces(result, role: .blend(sourceEdge: key), of: chamferTag)
+        #expect(blends.count == 1)
+        #expect(blends.first?.kind == .plane)
     }
 }
