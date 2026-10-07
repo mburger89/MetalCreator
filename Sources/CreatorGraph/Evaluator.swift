@@ -70,6 +70,8 @@ public actor Evaluator {
                         parameters: [ParameterID: ConstantValue]) -> Gathered {
         var inputs: [SocketName: Value] = [:]
         var hasher = Hasher()
+        // Output depends on node identity: the kernel tags created faces with it.
+        hasher.combine(node.id)
         hasher.combine(node.typeID)
         hasher.combine(node.typeVersion)
         // Every stored constant, including non-socket settings, sorted for determinism.
@@ -140,6 +142,8 @@ public actor Evaluator {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
+            // A node aborted by cancellation may throw something else; don't record that as an error.
+            try Task.checkCancellation()
             return NodeResult(state: .error(Self.message(for: error)))
         }
 

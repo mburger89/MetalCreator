@@ -42,7 +42,7 @@ struct EvaluatorTests {
         let report = try await evaluator().evaluate(graph([fail, add], [link(fail, "value", add, "a")]), demand: [add.id])
         #expect(report.results[fail.id]?.state == .error("Boom"))
         guard case .idle(let reason?)? = report.results[add.id]?.state else { Issue.record("expected idle"); return }
-        #expect(reason.contains("a"))
+        #expect(reason.contains("“a”"))
     }
 
     @Test func requiredUnwiredInputBlocksWithAPrompt() async throws {
@@ -106,5 +106,19 @@ struct EvaluatorTests {
         let list = makeNode(ListSourceNode.self, ["count": .integer(1)])
         let report = try await evaluator().evaluate(graph([list]), demand: [list.id])
         #expect(report.results[list.id]?.outputs?["values"]?.isList == true)
+    }
+
+    @Test func identicalNodesDoNotShareCachedTags() async throws {
+        let first = makeNode(BoxNode.self), second = makeNode(BoxNode.self)
+        let report = try await evaluator().evaluate(graph([first, second]), demand: [first.id, second.id])
+        #expect(Set(report.evaluatedNodes) == [first.id, second.id])
+        for id in [first.id, second.id] {
+            guard case .solid(let solid)? = report.results[id]?.outputs?["solid"]?.items.first else {
+                Issue.record("expected a solid"); return
+            }
+            let tags = solid.topology.faces.flatMap(\.tags)
+            #expect(!tags.isEmpty)
+            #expect(tags.allSatisfy { $0.node == id })
+        }
     }
 }
