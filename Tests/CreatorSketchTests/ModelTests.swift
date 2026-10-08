@@ -93,6 +93,23 @@ struct ModelTests {
         #expect(sketch.dimensions[sketch.addDimension(.length(line), value: 10)]?.name == "d3")
     }
 
+    /// Renaming to an auto-style name "d7" claims it like an auto name: once renamed away it is
+    /// never handed out, and the counter already matches what decoding would clamp it to.
+    @Test func renamingToAnAutoNameAdvancesTheCounter() throws {
+        var sketch = Sketch()
+        let line = sketch.addLine(.zero, Vector2(10, 0))
+        let first = sketch.addDimension(.length(line), value: 10)
+        let claimed = sketch.renameDimension(first, to: "d7")
+        #expect(claimed)
+        #expect(sketch.nextDimensionNumber == 8)
+        let decoded = try JSONDecoder().decode(Sketch.self, from: try JSONEncoder().encode(sketch))
+        #expect(decoded == sketch)
+        sketch.renameDimension(first, to: "width")
+        let names = (0..<7).compactMap { _ in sketch.dimensions[sketch.addDimension(.length(line), value: 1)]?.name }
+        #expect(!names.contains("d7"))
+        #expect(names.first == "d8")
+    }
+
     /// Files from before the name counter, or edited by hand, decode with counters past every ID
     /// and auto name already used.
     @Test func decodingClampsTheCountersPastWhatIsInUse() throws {

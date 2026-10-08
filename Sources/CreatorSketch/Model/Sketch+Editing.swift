@@ -88,13 +88,15 @@ extension Sketch {
     }
 
     /// Renames a dimension. Returns false, changing nothing, when `name` is empty after trimming
-    /// spaces or another dimension already uses it.
+    /// spaces or another dimension already uses it. An auto-style name `dN` advances
+    /// `nextDimensionNumber` past N, as decoding would, so `dN` is never handed out later.
     @discardableResult
     public mutating func renameDimension(_ id: DimensionID, to name: String) -> Bool {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, dimensions[id] != nil,
               !dimensions.contains(where: { $0.key != id && $0.value.name == trimmed }) else { return false }
         dimensions[id]?.name = trimmed
+        if let number = Self.autoNameNumber(trimmed) { nextDimensionNumber = max(nextDimensionNumber, number + 1) }
         return true
     }
 
