@@ -30,7 +30,7 @@ public enum GridPointsNode: NodeDefinition {
         let rows = try inputs.integer("countY")
         try GeneratorLimit.check(rows, "countY")
         var columns = try inputs.integer("countX")
-        var limit: Int? = nil
+        var limit: Int?
         if inputs.has("total") {
             let total = try inputs.integer("total")
             try GeneratorLimit.check(total, "total")

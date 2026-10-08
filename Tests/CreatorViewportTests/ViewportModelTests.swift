@@ -104,7 +104,8 @@ struct ViewportModelTests {
         // `show` and the meshes arriving. A handle drag changes `handles` (and so `renderKey`) in that window.
         model.show([ViewportItem(solid: second)])
         model.showHandles([ViewportHandle(id: "h", anchor: .zero, direction: .unitZ, value: 5, range: 0...10,
-                                          style: .linear, tint: .solid)])
+                                          style: .linear, tint: .solid),
+        ])
         #expect(model.frame(at: 0).items.map(\.meshSerial) == [shownSerial], "the old part stays drawn")
         #expect(model.items.map { ObjectIdentifier($0.solid) } == [ObjectIdentifier(first)])
         #expect(model.sceneBounds == first.bounds)
@@ -248,7 +249,8 @@ struct ViewportModelTests {
         let (model, _, _) = makeModel(pose: CameraPose())
         await show(model, [ViewportItem(solid: try await fakeBox()),
                            ViewportItem(solid: try await fakeBox(width: 3), isGhost: true, selectedFaces: [FaceID(2)],
-                                        selectedEdges: [EdgeID(1)])])
+                                        selectedEdges: [EdgeID(1)]),
+        ])
         model.pick = { _ in .face(solid: 1, FaceID(4)) }
         model.pointerHovered(at: ScreenPoint(300, 200))
         let frame = model.frame(at: 0)

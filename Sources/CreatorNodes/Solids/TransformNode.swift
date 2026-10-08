@@ -24,7 +24,7 @@ public enum TransformNode: NodeDefinition {
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let angle = try inputs.number("angle")
-        var axis: Axis? = nil
+        var axis: Axis?
         if inputs.has("axisDirection") {
             let direction = try inputs.vector("axisDirection")
             guard direction.normalized != nil else { throw NodeError.invalidValue("The rotation axis direction can't be zero.") }

@@ -88,7 +88,8 @@ struct EdgePickTests {
 
     @Test func picksRoundTripThroughJSON() throws {
         let picks = [EdgePick(key: EdgeKey([top], [front]), matchCount: 2, ordinals: [1]),
-                     EdgePick(key: EdgeKey([top], [right, flange]), matchCount: 1)]
+                     EdgePick(key: EdgeKey([top], [right, flange]), matchCount: 1),
+        ]
         let decoded = try JSONDecoder().decode([EdgePick].self, from: try JSONEncoder().encode(picks))
         #expect(decoded == picks)
     }

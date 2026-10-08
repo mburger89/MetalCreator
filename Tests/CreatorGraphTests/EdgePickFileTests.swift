@@ -13,7 +13,8 @@ struct EdgePickFileTests {
         let side = TopoTag(node: plate, item: 0, role: .side(segment: 2))
         let flange = TopoTag(node: flangeNode, item: 0, role: .side(segment: 1))
         return [EdgePick(key: EdgeKey([top], [side, flange]), matchCount: 2, ordinals: [1]),
-                EdgePick(key: EdgeKey([top], [side]), matchCount: 1)]
+                EdgePick(key: EdgeKey([top], [side]), matchCount: 1),
+        ]
     }
 
     @Test func edgePicksRoundTripThroughAFile() throws {
@@ -26,7 +27,7 @@ struct EdgePickFileTests {
 
     @Test func savedFilesCarryFormatVersionTwo() throws {
         #expect(GraphFile.currentFormatVersion == 2)
-        let text = String(decoding: try GraphFileIO.encode(GraphFile()), as: UTF8.self)
+        let text = try #require(String(bytes: try GraphFileIO.encode(GraphFile()), encoding: .utf8))
         #expect(text.contains(#""formatVersion" : 2"#))
     }
 

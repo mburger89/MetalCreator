@@ -25,7 +25,7 @@ enum MeshQueries {
         var first: Vector3?
         forEachTriangle(of: face, in: mesh) { a, b, c in
             let normal = (b - a).cross(c - a)
-            sum = sum + normal
+            sum += normal
             if first == nil { first = normal.normalized }
         }
         return sum.normalized ?? first

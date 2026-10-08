@@ -24,7 +24,7 @@ public final class DocumentModel {
     }
 
     /// The node shown in "Selected node" preview mode. It joins the evaluation demand.
-    public var previewNode: NodeID? = nil {
+    public var previewNode: NodeID? {
         didSet {
             if oldValue != previewNode { scheduleEvaluation() }
         }

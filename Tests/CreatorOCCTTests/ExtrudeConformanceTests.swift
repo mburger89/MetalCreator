@@ -27,7 +27,8 @@ struct ExtrudeConformanceTests {
 
     @Test(arguments: KernelUnderTest.allCases)
     func symmetricExtrudeStraddlesThePlane(_ under: KernelUnderTest) async throws {
-        let solid = try await under.make().extrude(.rectangle(width: 2, height: 2, plane: .xy), distance: 6, mode: .symmetric, tag: newTag())
+        let solid = try await under.make().extrude(.rectangle(width: 2, height: 2, plane: .xy), distance: 6,
+                                                   mode: .symmetric, tag: newTag())
         #expect(isClose(solid.bounds.min.z, -3, relative: 1e-4))
         #expect(isClose(solid.bounds.max.z, 3, relative: 1e-4))
     }

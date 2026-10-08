@@ -29,7 +29,8 @@ public enum RoundedRectangleNode: NodeDefinition {
         guard radius.isFinite, radius >= 0 else { throw NodeError.invalidValue("“cornerRadius” can't be negative.") }
         let limit = min(width, height) / 2
         guard radius < limit else {
-            throw NodeError.invalidValue("Corner radius \(radius.display) mm is too large for a \(width.display) × \(height.display) mm rectangle (it must be less than \(limit.display) mm).")
+            throw NodeError.invalidValue("Corner radius \(radius.display) mm is too large for a "
+                + "\(width.display) × \(height.display) mm rectangle (it must be less than \(limit.display) mm).")
         }
         let plane = try inputs.plane("plane")
         let offset = try Anchor.offset(try inputs.integer("anchor"), width: width, height: height)

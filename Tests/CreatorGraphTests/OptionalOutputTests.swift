@@ -24,6 +24,7 @@ struct OptionalOutputTests {
         let node = makeNode(OptionalOutputNode.self)
         let add = makeNode(AddNode.self)
         let report = try await evaluator().evaluate(graph([node, add], [link(node, "sometimes", add, "a")]), demand: [add.id])
-        #expect(report.results[add.id]?.state == .error("“a” is wired to “sometimes”, which that node doesn't produce with its current settings."))
+        #expect(report.results[add.id]?.state == .error("“a” is wired to “sometimes”, "
+                + "which that node doesn't produce with its current settings."))
     }
 }

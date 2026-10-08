@@ -73,7 +73,8 @@ struct FakeKernelTests {
     @Test func subtractKeepsToolFacesForTagging() async throws {
         let kernel = FakeKernel()
         let plate = try await kernel.extrude(.rectangle(width: 60, height: 40, plane: .xy), distance: 6, mode: .oneSided, tag: tag)
-        let hole = try await kernel.extrude(.circle(radius: 2.5, center: .zero, plane: .xy), distance: 6, mode: .oneSided, tag: NodeTag(node: NodeID(), item: 0))
+        let hole = try await kernel.extrude(.circle(radius: 2.5, center: .zero, plane: .xy), distance: 6, mode: .oneSided,
+                                            tag: NodeTag(node: NodeID(), item: 0))
         let result = try await kernel.boolean(.subtract, plate, [hole], tag: tag)
         #expect(result.bounds == plate.bounds)
         #expect(result.topology.faces.count == plate.topology.faces.count + hole.topology.faces.count)

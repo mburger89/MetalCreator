@@ -133,6 +133,7 @@ struct SelectionNodeTests {
         let union = h.add(EdgeSetOpNode.self)
         h.wire(ruleA, "edges", to: union, "a")
         h.wire(ruleB, "edges", to: union, "b")
-        #expect(try await h.run([union]).error(union) == "Both edge sets must select edges of the same solid. Wire both rules from the same node.")
+        #expect(try await h.run([union]).error(union)
+                == "Both edge sets must select edges of the same solid. Wire both rules from the same node.")
     }
 }

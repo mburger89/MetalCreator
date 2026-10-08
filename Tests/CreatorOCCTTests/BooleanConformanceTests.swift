@@ -73,7 +73,8 @@ struct BooleanConformanceTests {
         let aTag = newTag()
         let bTag = newTag()
         let a = try await box(kernel, 10, 10, 10, tag: aTag)
-        let b = try await kernel.transform(try await box(kernel, 10, 10, 10, tag: bTag), by: Transform(translation: Vector3(5, 0, 0)), tag: newTag())
+        let b = try await kernel.transform(try await box(kernel, 10, 10, 10, tag: bTag),
+                                           by: Transform(translation: Vector3(5, 0, 0)), tag: newTag())
         let result = try await kernel.boolean(.union, a, [b], tag: newTag())
         #expect(isClose(try await kernel.properties(of: result).volume, 1500))
         // SimplifyResult merges the coplanar top faces into one face carrying both operands' end caps.

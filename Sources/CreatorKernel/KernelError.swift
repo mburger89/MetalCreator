@@ -15,7 +15,8 @@ public enum KernelError: Error, Equatable, Sendable {
         case .operationFailed(let operation, let reason):
             "\(operation.sentenceCased) failed: \(reason)"
         case .filletFailed(let radius, let maxRadius?, _):
-            "Radius \(radius.formatted(.number.precision(.fractionLength(0...2)))) mm is too large for the selected edges (max ≈ \(maxRadius.formatted(.number.precision(.fractionLength(0...2)))) mm)."
+            "Radius \(radius.formatted(.number.precision(.fractionLength(0...2)))) mm is too large for the selected edges "
+                + "(max ≈ \(maxRadius.formatted(.number.precision(.fractionLength(0...2)))) mm)."
         case .filletFailed(let radius, nil, let reason):
             "Radius \(radius.formatted(.number.precision(.fractionLength(0...2)))) mm could not be applied: \(reason)"
         case .unsupported(let operation):

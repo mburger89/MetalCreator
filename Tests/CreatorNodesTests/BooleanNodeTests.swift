@@ -52,7 +52,8 @@ struct BooleanNodeTests {
         h.wire(bar, "solid", to: cut, "target")
         h.wire(slot, "solid", to: cut, "tools")
         let report = try await h.run([cut], kernel: kernel)
-        #expect(report.warning(cut) == "The result is 2 separate pieces. They stay together as one solid, because parts with several bodies aren't supported yet.")
+        #expect(report.warning(cut) == "The result is 2 separate pieces. They stay together as one solid, "
+                + "because parts with several bodies aren't supported yet.")
         #expect(isClose(try await volume(try onlySolid(report, cut), kernel), 2800))
     }
 

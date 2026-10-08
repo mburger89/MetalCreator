@@ -16,7 +16,8 @@ public enum PlaneNode: NodeDefinition {
     public static let outputs = [SocketSpec("plane", .plane)]
     public static let inspector = [InspectorSection(title: "Plane", controls: [
         .segmented("orientation", options: orientations), .slider("offset"),
-    ])]
+    ]),
+    ]
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let base = [Plane.xy, .xz, .yz][try inputs.choice("orientation", options: orientations)]

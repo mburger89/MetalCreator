@@ -28,7 +28,10 @@ public enum BooleanNode: NodeDefinition {
         let result = try await kernel.boolean(op, target, tools, tag: context.tag)
         let pieces = result.topology.pieceCount
         let warnings = pieces > 1
-            ? ["The result is \(pieces) separate pieces. They stay together as one solid, because parts with several bodies aren't supported yet."]
+            ? [
+                "The result is \(pieces) separate pieces. They stay together as one solid, "
+                    + "because parts with several bodies aren't supported yet.",
+            ]
             : []
         return NodeOutputs(["solid": .solid(result)], warnings: warnings)
     }

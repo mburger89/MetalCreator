@@ -16,7 +16,9 @@ public enum FilletNode: NodeDefinition {
     public static let defaultSettings: [SocketName: ConstantValue] = [NodeSetting.showHandle: .bool(true)]
     public static let inspector = [
         InspectorSection(title: "Fillet", controls: [.slider("radius"), .toggle(NodeSetting.showHandle, label: "Show handle in view")]),
-        InspectorSection(title: "Edges", controls: [.ruleSummary("edges"), .button(title: "Pick edges in view…", action: .pickEdgesInView)]),
+        InspectorSection(title: "Edges", controls: [
+            .ruleSummary("edges"), .button(title: "Pick edges in view…", action: .pickEdgesInView),
+        ]),
     ]
     public static let handles = [HandleSpec.radial("radius")]
 

@@ -20,7 +20,8 @@ public enum EdgeSetOpNode: NodeDefinition {
     public static let outputs = [SocketSpec("edges", .edgeSet)]
     public static let inspector = [InspectorSection(title: "Combine", controls: [
         .segmented("operation", options: operations), .ruleSummary("edges"),
-    ])]
+    ]),
+    ]
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let (a, b) = (try inputs.edgeSet("a"), try inputs.edgeSet("b"))

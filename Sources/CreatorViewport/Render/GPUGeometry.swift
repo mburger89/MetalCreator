@@ -47,7 +47,8 @@ enum GPUGeometry {
             let anchor = float3(handle.anchor)
             let knob = float3(handle.knob)
             return [LineInstance(a: anchor, b: knob, color: color, width: 2 * scale, id: 0),
-                    LineInstance(a: knob, b: knob, color: color, width: 10 * scale, id: 0)]
+                    LineInstance(a: knob, b: knob, color: color, width: 10 * scale, id: 0),
+            ]
         }
     }
 

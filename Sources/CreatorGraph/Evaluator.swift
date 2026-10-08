@@ -36,7 +36,8 @@ public actor Evaluator {
                 continue
             }
             if node.typeVersion > definition.typeVersion {
-                results[id] = NodeResult(state: .error("This node was saved by a newer MetalCreator (version \(node.typeVersion)). It's kept unchanged."))
+                results[id] = NodeResult(state: .error(
+                    "This node was saved by a newer MetalCreator (version \(node.typeVersion)). It's kept unchanged."))
                 continue
             }
             switch gather(node, definition, graph: graph, results: results, keys: keys, parameters: parameters) {
@@ -69,6 +70,8 @@ public actor Evaluator {
         case failed(String)
     }
 
+    // One pass over the inputs that also builds the cache key; one branch over the limit.
+    // swiftlint:disable:next cyclomatic_complexity
     private func gather(_ node: Node, _ definition: any NodeDefinition.Type, graph: Graph,
                         results: [NodeID: NodeResult], keys: [NodeID: CacheKey],
                         parameters: [ParameterID: ConstantValue]) -> Gathered {
@@ -96,7 +99,8 @@ public actor Evaluator {
                     return .blocked("Waiting on “\(spec.name)”: the node wired into it has no result.")
                 }
                 guard let value = outputs[link.from.socket] else {
-                    return .failed("“\(spec.name)” is wired to “\(link.from.socket)”, which that node doesn't produce with its current settings.")
+                    return .failed("“\(spec.name)” is wired to “\(link.from.socket)”, "
+                        + "which that node doesn't produce with its current settings.")
                 }
                 guard let converted = value.converted(to: spec.type) else {
                     return .failed("“\(spec.name)” needs a \(spec.type.rawValue).")

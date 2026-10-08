@@ -117,7 +117,8 @@ struct GPUDataTests {
     }
 
     @Test func theGridIsCentredOnTheTargetSnappedToMajorLines() {
-        var frame = ViewportFrame(pose: CameraPose(target: Vector3(123, -47, 9), distance: 100), size: ViewportSize(width: 400, height: 300),
+        var frame = ViewportFrame(pose: CameraPose(target: Vector3(123, -47, 9), distance: 100),
+                                  size: ViewportSize(width: 400, height: 300),
                                   sceneBounds: nil, items: [], shading: .shadedEdges, gridSpacing: 1, handles: [],
                                   cube: ViewCubeLayout(), hoveredCubeRegion: nil, triad: TriadLayout())
         #expect(GPUGeometry.gridUniforms(frame).center == SIMD2(120, -50))

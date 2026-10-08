@@ -13,7 +13,8 @@ public enum EdgesByTagNode: NodeDefinition {
     public static let outputs = [SocketSpec("edges", .edgeSet)]
     public static let inspector = [InspectorSection(title: "Edges", controls: [
         .ruleSummary("edges"), .button(title: "Pick edges in view…", action: .pickEdgesInView),
-    ])]
+    ]),
+    ]
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let solid = try inputs.solid("solid")

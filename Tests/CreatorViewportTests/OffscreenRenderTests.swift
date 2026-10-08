@@ -59,7 +59,8 @@ struct OffscreenRenderTests {
         let (frame, _) = try await box()
         let picker = try makePicker()
         for point in [ScreenPoint(-1, 100), ScreenPoint(100, -0.5), ScreenPoint(200, 100), ScreenPoint(100, 200),
-                      ScreenPoint(.nan, 3), ScreenPoint(.infinity, 3)] {
+                      ScreenPoint(.nan, 3), ScreenPoint(.infinity, 3),
+        ] {
             #expect(picker.pick(at: point, in: frame) == nil, "\(point)")
         }
         var empty = frame
@@ -88,7 +89,8 @@ struct OffscreenRenderTests {
         frame.items.append(FrameItem(meshSerial: 2, mesh: base.items[0].mesh, solidIndex: 1, isGhost: true,
                                      hoveredFace: nil, selectedFaces: [], selectedEdges: []))
         frame.handles = [ViewportHandle(id: "h", anchor: .zero, direction: .unitZ, value: 30, range: 0...100,
-                                        style: .linear, tint: .solid)]
+                                        style: .linear, tint: .solid),
+        ]
         frame.hoveredCubeRegion = .top
         let device = try #require(MTLCreateSystemDefaultDevice())
         let renderer = try ViewportRenderer(device: device)

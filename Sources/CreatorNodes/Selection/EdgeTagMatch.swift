@@ -7,7 +7,8 @@ struct EdgeTagMatch: Equatable {
     var warnings: [String]
 
     static let nothingPicked = "Pick edges in view to fill this rule."
-    static let unnamedPick = "A picked edge borders a face with no stable name, so the pick may move to a different edge when the model changes. Pick it again after the change."
+    static let unnamedPick = "A picked edge borders a face with no stable name, so the pick may move to a different edge "
+        + "when the model changes. Pick it again after the change."
 
     /// Drift is reported per drifted pick, so two picks drifting in opposite directions
     /// (1 → 2 and 1 → 0) never cancel out into "Matched 2 edges, expected 2.".

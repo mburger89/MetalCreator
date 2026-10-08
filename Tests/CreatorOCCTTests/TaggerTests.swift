@@ -48,9 +48,11 @@ struct TaggerTests {
         let side = TopoTag(node: NodeID(), item: 0, role: .side(segment: 1))
         let input = Topology(
             faces: [FaceInfo(id: FaceID(0), kind: .plane, normal: nil, area: 1, centroid: .zero, tags: [top]),
-                    FaceInfo(id: FaceID(1), kind: .plane, normal: nil, area: 1, centroid: .zero, tags: [side])],
+                    FaceInfo(id: FaceID(1), kind: .plane, normal: nil, area: 1, centroid: .zero, tags: [side]),
+            ],
             edges: [EdgeInfo(id: EdgeID(0), kind: .line, direction: nil, length: 1, midpoint: .zero, convexity: .convex,
-                             faces: [FaceID(0), FaceID(1)])]
+                             faces: [FaceID(0), FaceID(1)]),
+            ]
         )
         let history = [OCCTHistoryRecord(outFace: 0, kind: .edge, operand: 0, index: 0)]
         let topology = OCCTTagger.topology(raw: raw(faces: 1), history: history, inputs: [input], tag: tag)
@@ -67,7 +69,8 @@ struct TaggerTests {
 
     @Test func outOfRangeRecordsAreIgnored() {
         let history = [OCCTHistoryRecord(outFace: 9, kind: .startCap, operand: 0, index: 0),
-                       OCCTHistoryRecord(outFace: 0, kind: .face, operand: 5, index: 0)]
+                       OCCTHistoryRecord(outFace: 0, kind: .face, operand: 5, index: 0),
+        ]
         let topology = OCCTTagger.topology(raw: raw(faces: 1), history: history, inputs: [], tag: tag)
         #expect(topology.faces[0].tags == [TopoTag(tag, .unnamed(face: 0))])
     }

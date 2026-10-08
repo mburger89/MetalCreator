@@ -1,8 +1,10 @@
 import CreatorKernel
 
 extension Graph {
+    // One exhaustive switch with a case per undoable command; splitting it would scatter the command table.
     /// Applies `command` and returns the command that undoes it. On error the graph is unchanged.
     @discardableResult
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     public mutating func apply(_ command: GraphCommand, registry: NodeRegistry) throws(GraphError) -> GraphCommand {
         switch command {
         case .addNode(let node):

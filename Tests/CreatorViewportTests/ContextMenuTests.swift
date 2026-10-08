@@ -26,7 +26,8 @@ struct ContextMenuTests {
         model.pointerHovered(at: ScreenPoint(300, 200))
         let ref = ViewportFaceRef(solidIndex: 0, face: FaceID(2))
         #expect(model.contextMenuItems() == [.lookAt(ref), .selectEdgesOfFace(ref),
-                                             .showProducingNode(node, title: "Show Producing Node")])
+                                             .showProducingNode(node, title: "Show Producing Node"),
+        ])
         #expect(model.contextMenuItems().map(\.title) == ["Look At", "Select Edges of Face", "Show Producing Node"])
     }
 
@@ -112,7 +113,8 @@ struct ContextMenuTests {
         let nodeB = NodeID()
         let merged = FaceInfo(id: FaceID(0), kind: .plane, normal: .unitZ, area: 1, centroid: .zero,
                               tags: [TopoTag(node: nodeA, item: 0, role: .endCap),
-                                     TopoTag(node: nodeB, item: 0, role: .startCap)])
+                                     TopoTag(node: nodeB, item: 0, role: .startCap),
+                              ])
         let solid = Solid(topology: Topology(faces: [merged], edges: []),
                           bounds: BoundingBox(min: .zero, max: Vector3(1, 1, 1)), storage: TestStorage())
         let model = await model(showing: [solid])
@@ -159,7 +161,8 @@ struct ContextMenuTests {
         model.showHandles([ViewportHandle(id: "r", anchor: .zero, direction: .unitZ, value: 3, range: 0...10,
                                           style: .radial, tint: .feature),
                            ViewportHandle(id: "d", anchor: .zero, direction: .unitZ, value: 12.5, range: 0...50,
-                                          style: .linear, tint: .solid)])
+                                          style: .linear, tint: .solid),
+        ])
         let labels = model.handleLabels()
         #expect(labels.map(\.text) == ["R 3 mm", "12.5 mm"])
         // The 3 mm knob is 22.5 points above the centre of a 300-point-tall, 40 mm view.

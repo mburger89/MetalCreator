@@ -79,7 +79,8 @@ struct SceneQueryTests {
         let b = NodeID()
         let merged = FaceInfo(id: FaceID(0), kind: .plane, normal: .unitZ, area: 1, centroid: .zero,
                               tags: [TopoTag(node: b, item: 0, role: .endCap), TopoTag(node: a, item: 1, role: .endCap),
-                                     TopoTag(node: a, item: 0, role: .endCap)])
+                                     TopoTag(node: a, item: 0, role: .endCap),
+                              ])
         #expect(MeshQueries.producingNodes(of: merged) == [a, b].sorted())
     }
 

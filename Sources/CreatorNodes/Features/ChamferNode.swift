@@ -14,7 +14,9 @@ public enum ChamferNode: NodeDefinition {
     public static let defaultSettings: [SocketName: ConstantValue] = [NodeSetting.showHandle: .bool(true)]
     public static let inspector = [
         InspectorSection(title: "Chamfer", controls: [.slider("distance"), .toggle(NodeSetting.showHandle, label: "Show handle in view")]),
-        InspectorSection(title: "Edges", controls: [.ruleSummary("edges"), .button(title: "Pick edges in view…", action: .pickEdgesInView)]),
+        InspectorSection(title: "Edges", controls: [
+            .ruleSummary("edges"), .button(title: "Pick edges in view…", action: .pickEdgesInView),
+        ]),
     ]
     public static let handles = [HandleSpec.radial("distance")]
 

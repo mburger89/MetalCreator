@@ -40,7 +40,8 @@ struct TopologyTests {
                 FaceInfo(id: FaceID(1), kind: .plane, normal: .unitX, area: 1, centroid: .zero, tags: [side]),
             ],
             edges: [EdgeInfo(id: EdgeID(0), kind: .line, direction: .unitY, length: 1, midpoint: .zero,
-                             convexity: .convex, faces: [FaceID(0), FaceID(1)])]
+                             convexity: .convex, faces: [FaceID(0), FaceID(1)]),
+            ]
         )
         let edge = try #require(topology.edge(EdgeID(0)))
         #expect(topology.key(of: edge) == EdgeKey([top], [side]))

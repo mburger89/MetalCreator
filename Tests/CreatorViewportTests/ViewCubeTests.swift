@@ -65,7 +65,11 @@ struct ViewCubeTests {
         for cell in ViewCubeCell.all { counts[cell.region, default: 0] += 1 }
         #expect(counts.count == 26)
         for (region, count) in counts {
-            let expected = switch region.kind { case .face: 1; case .edge: 2; case .corner: 3 }
+            let expected = switch region.kind {
+            case .face: 1
+            case .edge: 2
+            case .corner: 3
+            }
             #expect(count == expected, "region \(region) has \(count) tiles")
         }
         for cell in ViewCubeCell.all {

@@ -32,7 +32,8 @@ struct KernelAdditionsTests {
 
     @Test(arguments: [
         TopoRole.startCap, .endCap, .side(segment: 2), .unnamed(face: 7),
-        .blend(sourceEdge: EdgeKey([TopoTag(node: NodeID(), item: 0, role: .endCap)], [TopoTag(node: NodeID(), item: 1, role: .side(segment: 0))])),
+        .blend(sourceEdge: EdgeKey([TopoTag(node: NodeID(), item: 0, role: .endCap)],
+                                    [TopoTag(node: NodeID(), item: 1, role: .side(segment: 0))])),
     ])
     func rolesRoundTripThroughJSON(_ role: TopoRole) throws {
         let data = try JSONEncoder().encode(role)
@@ -54,7 +55,7 @@ struct KernelAdditionsTests {
     }
     /// JSON text for `tags` in the given order, built from each tag's own encoding.
     func jsonArray(_ tags: [TopoTag]) throws -> String {
-        "[" + (try tags.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) }).joined(separator: ",") + "]"
+        "[" + (try tags.map { try #require(String(bytes: try JSONEncoder().encode($0), encoding: .utf8)) }).joined(separator: ",") + "]"
     }
 
     @Test func handWrittenEdgeKeyIsCanonicalisedOnDecode() throws {

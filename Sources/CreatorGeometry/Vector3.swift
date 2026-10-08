@@ -16,6 +16,7 @@ public struct Vector3: Hashable, Sendable, Codable {
     public static let unitZ = Vector3(0, 0, 1)
 
     public static func + (a: Vector3, b: Vector3) -> Vector3 { Vector3(a.x + b.x, a.y + b.y, a.z + b.z) }
+    public static func += (a: inout Vector3, b: Vector3) { a = a + b }
     public static func - (a: Vector3, b: Vector3) -> Vector3 { Vector3(a.x - b.x, a.y - b.y, a.z - b.z) }
     public static func * (v: Vector3, s: Double) -> Vector3 { Vector3(v.x * s, v.y * s, v.z * s) }
     public static prefix func - (v: Vector3) -> Vector3 { Vector3(-v.x, -v.y, -v.z) }

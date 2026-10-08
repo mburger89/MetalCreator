@@ -41,12 +41,13 @@ struct ValueTests {
     }
 
     @Test func constantJSONIsReadable() throws {
-        let json = String(decoding: try JSONEncoder().encode(ConstantValue.number(6)), as: UTF8.self)
+        let json = try #require(String(bytes: try JSONEncoder().encode(ConstantValue.number(6)), encoding: .utf8))
         #expect(json.contains("\"type\":\"number\""))
     }
 
     @Test func socketNameKeyedDictionariesEncodeAsObjects() throws {
-        let json = String(decoding: try JSONEncoder().encode([SocketName("width"): ConstantValue.number(60)]), as: UTF8.self)
+        let data = try JSONEncoder().encode([SocketName("width"): ConstantValue.number(60)])
+        let json = try #require(String(bytes: data, encoding: .utf8))
         #expect(json.hasPrefix("{\"width\""))
     }
 

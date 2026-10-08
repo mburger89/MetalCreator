@@ -235,6 +235,7 @@ enum OptionalOutputNode: NodeDefinition {
 
 let testRegistry = NodeRegistry([
     ConstantNode.self, IntegerNode.self, AddNode.self, RequiredNode.self, SumListNode.self, ListSourceNode.self,
-    FailNode.self, WarnNode.self, SlowNode.self, StubbornNode.self, HangingNode.self, CancelsTaskNode.self, ParameterNode.self, BoxNode.self, VersionedNode.self,
+    FailNode.self, WarnNode.self, SlowNode.self, StubbornNode.self, HangingNode.self, CancelsTaskNode.self,
+    ParameterNode.self, BoxNode.self, VersionedNode.self,
     SinkNode.self, OptionalOutputNode.self,
 ])

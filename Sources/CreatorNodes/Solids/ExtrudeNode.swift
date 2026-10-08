@@ -19,7 +19,8 @@ public enum ExtrudeNode: NodeDefinition {
     public static let outputs = [SocketSpec("solid", .solid)]
     public static let inspector = [InspectorSection(title: "Extrude", controls: [
         .segmented("mode", options: modes), .slider("distance"), .toggle("reversed", label: "Reverse direction"),
-    ])]
+    ]),
+    ]
     public static let handles = [HandleSpec.linear("distance")]
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {

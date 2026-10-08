@@ -104,7 +104,8 @@ struct ViewportInputTests {
                               projection: .orthographic)
         let model = makeModel(pose: pose)
         model.showHandles([ViewportHandle(id: "extrude", anchor: .zero, direction: .unitZ, value: 10, range: 0...100,
-                                          style: .linear, tint: .solid)])
+                                          style: .linear, tint: .solid),
+        ])
         var reports: [(id: String, value: Double, phase: HandleDragPhase)] = []
         model.events.handleChanged = { reports.append(($0, $1, $2)) }
         // 40 mm tall in 300 points: the knob at z = 10 is 75 points above the centre.
@@ -122,7 +123,8 @@ struct ViewportInputTests {
         let model = makeModel(pose: start)
         model.viewSize = ViewportSize(width: 0, height: 0)
         model.showHandles([ViewportHandle(id: "h", anchor: .zero, direction: .unitZ, value: 5, range: 0...10,
-                                          style: .linear, tint: .solid)])
+                                          style: .linear, tint: .solid),
+        ])
         model.pointerHovered(at: ScreenPoint(200, 200))
         model.pointerDown(at: ScreenPoint(200, 200), modifiers: .shift)
         model.pointerDragged(to: ScreenPoint(260, 240))

@@ -72,6 +72,8 @@ extension occt_status {
     /// The NUL-terminated `message` buffer as a Swift string.
     var messageText: String {
         withUnsafeBytes(of: message) { bytes in
+            // `bytes` is a raw C buffer, not `Data`; the lossy non-failable decode is intended here.
+            // swiftlint:disable:next optional_data_string_conversion
             let text = String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
             return text.isEmpty ? "unknown OCCT error" : text
         }

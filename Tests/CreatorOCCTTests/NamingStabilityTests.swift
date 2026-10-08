@@ -138,8 +138,10 @@ struct NamingStabilityTests {
         let kernel = under.make()
         let nodes = Nodes()
         let outline = Profile2D.rectangle(width: 90, height: 40, plane: .xy)
-        let four = try await build(kernel, nodes: nodes, outline: outline, holeCenters: grid(columns: 2, rows: 2, spacingX: 40, spacingY: 20))
-        let six = try await build(kernel, nodes: nodes, outline: outline, holeCenters: grid(columns: 3, rows: 2, spacingX: 30, spacingY: 20))
+        let four = try await build(kernel, nodes: nodes, outline: outline,
+                         holeCenters: grid(columns: 2, rows: 2, spacingX: 40, spacingY: 20))
+        let six = try await build(kernel, nodes: nodes, outline: outline,
+                         holeCenters: grid(columns: 3, rows: 2, spacingX: 30, spacingY: 20))
         #expect(four.filletEdges.count == 4)
         #expect(six.filletEdges.count == 4)
         #expect(four.chamferEdges.count == 8)
@@ -161,7 +163,8 @@ struct NamingStabilityTests {
         let kernel = under.make()
         let corners = (0..<6).map { k in Vector2(40 * cos(Double(k) * .pi / 3), 40 * sin(Double(k) * .pi / 3)) }
         let hexagon = Profile2D(plane: .xy, segments: corners.indices.map { .line(corners[$0], corners[($0 + 1) % 6]) })
-        let built = try await build(kernel, nodes: Nodes(), outline: hexagon, holeCenters: grid(columns: 2, rows: 2, spacingX: 30, spacingY: 20))
+        let built = try await build(kernel, nodes: Nodes(), outline: hexagon,
+                         holeCenters: grid(columns: 2, rows: 2, spacingX: 30, spacingY: 20))
         #expect(built.filletEdges.count == 6)
         #expect(built.chamferEdges.count == 12)
         let filletKeys = built.filletEdges.compactMap { built.cut.topology.key(of: $0) }

@@ -19,11 +19,16 @@ public enum LoftNode: NodeDefinition {
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let sections = try inputs.profiles("sections")
         guard sections.count >= 2 else {
-            throw NodeError.invalidValue("A loft needs at least two sections. Wire in a list of profiles, such as a Circle broadcast over several planes.")
+            throw NodeError.invalidValue("A loft needs at least two sections. "
+                + "Wire in a list of profiles, such as a Circle broadcast over several planes.")
         }
         let counts = sections.map(\.segments.count)
         if let mismatch = counts.indices.first(where: { counts[$0] != counts[0] }) {
-            throw NodeError.invalidValue("Loft sections need the same number of segments, but section 1 has \(counts[0]) and section \(mismatch + 1) has \(counts[mismatch]). Loft between profiles of the same kind, such as two rectangles, two circles, or polygons with the same number of sides.")
+            throw NodeError.invalidValue(
+                "Loft sections need the same number of segments, "
+                    + "but section 1 has \(counts[0]) and section \(mismatch + 1) has \(counts[mismatch]). "
+                    + "Loft between profiles of the same kind, such as two rectangles, two circles, "
+                    + "or polygons with the same number of sides.")
         }
         let solid = try await kernel.loft(sections, ruled: try inputs.bool("ruled"), tag: context.tag)
         return NodeOutputs(["solid": .solid(solid)])

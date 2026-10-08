@@ -94,7 +94,8 @@ public actor FakeKernel: Kernel {
         }
         let center = solid.bounds.center
         let indices: [UInt32] = [0, 2, 1, 1, 2, 3, 4, 5, 6, 5, 7, 6, 0, 1, 4, 1, 5, 4,
-                                 2, 6, 3, 3, 6, 7, 0, 4, 2, 2, 4, 6, 1, 3, 5, 3, 7, 5]
+                                 2, 6, 3, 3, 6, 7, 0, 4, 2, 2, 4, 6, 1, 3, 5, 3, 7, 5,
+        ]
         return DisplayMesh(
             positions: positions,
             normals: positions.map { ($0 - center).normalized ?? .unitZ },
@@ -167,7 +168,9 @@ public actor FakeKernel: Kernel {
             if case .line = segment { isLine = true } else { isLine = false }
             faces.append(FaceInfo(id: FaceID(side), kind: isLine ? .plane : .cylinder, normal: nil, area: 0,
                                   centroid: .zero, tags: [TopoTag(tag, .side(segment: k))]))
-            let along: Vector3? = isLine ? (profile.plane.point(segment.endPoint) - profile.plane.point(segment.startPoint)).normalized : normal
+            let along: Vector3? = isLine
+                ? (profile.plane.point(segment.endPoint) - profile.plane.point(segment.startPoint)).normalized
+                : normal
             addEdge(isLine ? .line : .circle, along, segment.length, .convex, 0, side)
             addEdge(isLine ? .line : .circle, along, segment.length, .convex, 1, side)
         }

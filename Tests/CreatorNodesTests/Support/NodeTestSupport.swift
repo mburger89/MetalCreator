@@ -42,7 +42,8 @@ struct Harness {
     /// extruded up. Returns the Extrude node (output "solid"); its Rectangle is wired in.
     mutating func box(_ width: Double, _ depth: Double, _ height: Double, at base: Vector3 = .zero) -> Node {
         let rectangle = add(RectangleNode.self, ["width": .number(width), "height": .number(depth),
-                                                 "plane": .plane(.through(base))])
+                                                 "plane": .plane(.through(base)),
+        ])
         let extrude = add(ExtrudeNode.self, ["distance": .number(height)])
         wire(rectangle, "profile", to: extrude, "profile")
         return extrude
@@ -92,7 +93,8 @@ extension Value {
 /// The single solid on `socket`, for tests that expect exactly one.
 func onlySolid(_ report: EvaluationReport, _ node: Node, _ socket: SocketName = "solid",
                sourceLocation: SourceLocation = #_sourceLocation) throws -> Solid {
-    let solids = try #require(report.value(node, socket)?.solids, "no solids on \(node.name).\(socket): \(String(describing: report.state(node)))",
+    let solids = try #require(report.value(node, socket)?.solids,
+                              "no solids on \(node.name).\(socket): \(String(describing: report.state(node)))",
                               sourceLocation: sourceLocation)
     #expect(solids.count == 1, sourceLocation: sourceLocation)
     return try #require(solids.first, sourceLocation: sourceLocation)
