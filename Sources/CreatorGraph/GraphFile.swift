@@ -1,6 +1,7 @@
 /// The contents of a `.mcgraph` file: the recipe and the editor's view, no geometry (spec §4.5).
 public struct GraphFile: Sendable, Codable, Equatable {
-    public static let currentFormatVersion = 1
+    /// 2: adds the `edgePicks` constant kind (M3). Version-1 files still load unchanged.
+    public static let currentFormatVersion = 2
 
     public var formatVersion: Int
     public var graph: Graph
