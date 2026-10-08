@@ -38,7 +38,11 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 
 | Item | Owner | Status |
 |---|---|---|
-| MetalUI C7 "Input API gaps for MetalCreator" (scroll, pinch/rotate, middle/right drag, tap location, cursor + drag modifiers) | MetalUI session | 🔄 started 2026-10-08 on MetalUI branch feat/input-apis; renames of the provisional names (docs/metalui-gaps.md) will be flagged in MetalUI docs/superpowers/2026-10-08-input-apis-decisions.md (prefix CI-). MetalUI now also has `.task`/`.task(id:)` |
+| MetalUI C7 "Input API gaps for MetalCreator" (scroll, pinch/rotate, middle/right drag, tap location, cursor + drag modifiers) | MetalUI session | 🔄 in verification (2026-10-08); started 2026-10-08 on MetalUI branch feat/input-apis; renames of the provisional names (docs/metalui-gaps.md) will be flagged in MetalUI docs/superpowers/2026-10-08-input-apis-decisions.md (prefix CI-). MetalUI now also has `.task`/`.task(id:)` |
+| MetalUI C8 app shell: M6-b close/quit veto (first), M6-a title + edited marker, M6-c hidden title bar, M6-d open-document events | MetalUI session | ⏳ queued 2026-10-08, after C7 |
+| MetalUI C9 key and focus scoping: M4-a/M5-b hover- or region-scoped keys + element size, M5-g press ends editing, M5-h ↑/↓ in fields, M4-b redraw during animation | MetalUI session | ⏳ queued 2026-10-08, after C7 |
+| MetalUI C10 controls and looks: M6-f ColorPicker (needed by Themes), M5-a Slider onEditingChanged, M5-c blur, M5-d gradients, M5-i keyframes, M5-j ProgressView | MetalUI session | ⏳ queued 2026-10-08 |
+| MetalUI public test harness (item 8): M6-e headless Window + simulateInput | MetalUI session | ⏳ queued 2026-10-08, after C7 |
 
 ## Carry-over items with a milestone
 
