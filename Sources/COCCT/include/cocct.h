@@ -131,6 +131,7 @@ typedef struct {
 /// A planar region. loops[0] is the outer boundary; loops[1 ..< loop_count] are holes, which must
 /// lie inside it without touching it or each other. Holes may wind either way: the shim reverses a
 /// hole wire that winds the same way as the outer loop, which is what OCCT needs.
+/// Arc segments are counter-clockwise only, so a loop containing an arc arrives counter-clockwise.
 typedef struct {
     occt_plane plane;
     const occt_loop *loops;

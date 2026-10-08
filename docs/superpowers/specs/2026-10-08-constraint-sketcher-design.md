@@ -132,6 +132,7 @@ Lines and arcs **share endpoint points**, so coincidence at a shared endpoint is
 4. **Nest:** a face contained in another becomes a hole of it. Islands inside holes are separate regions (even–odd nesting).
 5. Each region becomes `Profile2D(plane:, outer:, holes:)`. Regions are **sorted deterministically** by area descending, then centroid x, then y, so broadcast order is stable.
    - Each region's **holes are sorted the same way** (area descending, then centroid x, then y). A hole's loop index is its position after sorting plus one (`TopoRole.side(loop:segment:)`, loop 0 = outer), so an unordered hole list would rename hole walls and drift picks on every edit.
+   - **Every loop is emitted counter-clockwise**, holes included. The face walk traverses some boundaries clockwise; reverse those loops (order and each segment) before emitting. `Segment2D.arc` is counter-clockwise only, so a clockwise loop through an arc can't be written as a closed `Profile2D` loop. The kernel re-orients wires (a hole is reversed against the outer), so counter-clockwise everywhere is always valid.
 6. Open or dangling curves are ignored, with a node `.warning` such as "2 curves don't form a closed region."
 
 ## 6. Kernel and graph changes
@@ -142,7 +143,7 @@ Lines and arcs **share endpoint points**, so coincidence at a shared endpoint is
 - `isClosed` checks every loop.
 
 **Shim:**
-- `occt_profile` gains `loops` and `loop_count`. `build_profile` builds the outer wire plus inner wires: `BRepBuilderAPI_MakeFace(outer)`, then `.Add(innerWire)` for each hole. Hole wires are oriented against the outer wire (S3 probe: OCCT needs opposite windings, and the outer loop may wind either way, so "clockwise relative to the plane normal" holds only for a counter-clockwise outline). The loop index travels in the history record's `operand`.
+- `occt_profile` gains `loops` and `loop_count`. `build_profile` builds the outer wire plus inner wires: `BRepBuilderAPI_MakeFace(outer)`, then `.Add(innerWire)` for each hole. Hole wires are oriented against the outer wire (S3 probe: OCCT needs opposite windings, and the outer loop may wind either way, so "clockwise relative to the plane normal" holds only for a counter-clockwise outline). The loop index travels in the history record's `operand`. "Either way" is fully usable only for line-only loops: `Segment2D.arc` is counter-clockwise, so a loop containing an arc must be written counter-clockwise (§5 step 5). A clockwise-arc segment case is deferred unless S4 needs it.
 - History records for hole walls use `OCCT_FROM_SEGMENT` with an added loop index.
 
 **Tags:** `TopoRole.side(segment:)` becomes `side(loop: Int = 0, segment: Int)`, where `loop == 0` is the outer loop, so `.side(segment:)` still compiles and means the outer loop. `sortKey` and `Codable` stay compatible: `loop` is written only when non-zero, and a missing `loop` decodes as 0.

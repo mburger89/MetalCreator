@@ -1,5 +1,6 @@
 /// A closed region on `plane`: one outer loop of segments and any number of hole loops inside it.
-/// Holes may wind either way; the kernel orients them. Loop 0 is `outer`, loop `n` is `holes[n - 1]`,
+/// Holes may wind either way; the kernel orients them. `Segment2D.arc` is counter-clockwise only, so a loop
+/// containing an arc must be written counter-clockwise (reverse a clockwise-walked loop). Loop 0 is `outer`, loop `n` is `holes[n - 1]`,
 /// which is the numbering `TopoRole.side(loop:segment:)` uses.
 public struct Profile2D: Hashable, Sendable {
     public var plane: Plane
