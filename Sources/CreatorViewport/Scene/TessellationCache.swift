@@ -16,8 +16,8 @@ final class TessellationCache {
     private(set) var tessellationCount = 0
 
     /// Meshes every solid in `solids` at `tolerance`, reusing cached meshes, then drops the entries of solids not
-    /// listed. A cancelled load (superseded by a newer scene) stops before changing anything else, so it never
-    /// prunes the newer scene's meshes.
+    /// listed. A cancelled load never prunes (it stops before changing anything else), so a superseded
+    /// load can't drop the newer scene's meshes.
     func load(_ solids: [Solid], tolerance: Double, kernel: any Kernel) async throws {
         for solid in solids {
             let key = ObjectIdentifier(solid)

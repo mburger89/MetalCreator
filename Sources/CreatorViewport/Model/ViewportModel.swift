@@ -14,7 +14,12 @@ public final class ViewportModel {
     /// The committed camera. During an animation it's already the destination. `presentedPose(at:)` is what's drawn.
     public var pose: CameraPose
     /// The document's home view. `nil` means isometric, framed on everything.
-    public var homePose: CameraPose?
+    /// A non-finite (or zero-distance) value is refused and the old one kept.
+    public var homePose: CameraPose? {
+        didSet {
+            if let home = homePose, !home.isFinite { homePose = oldValue }
+        }
+    }
     public var shading: ShadingMode = .shadedEdges
     public var cubeLayout = ViewCubeLayout()
     public var triadLayout = TriadLayout()
@@ -56,8 +61,10 @@ public final class ViewportModel {
     public init(kernel: any Kernel, pose: CameraPose? = nil, clock: any ViewportClock = SystemViewportClock()) {
         self.kernel = kernel
         self.clock = clock
-        self.pose = pose ?? CameraPose()
-        needsFirstFraming = pose == nil
+        // A saved camera that can't be drawn (a hand-edited or corrupt file) is dropped for the default framing.
+        let saved = pose.flatMap { $0.isFinite ? $0 : nil }
+        self.pose = saved ?? CameraPose()
+        needsFirstFraming = saved == nil
     }
 
     public var isAnimating: Bool { animation != nil }
@@ -93,6 +100,8 @@ public final class ViewportModel {
             } catch is CancellationError {
                 return
             } catch {
+                // A cancelled load can surface as another error; a newer scene owns the state now.
+                guard !Task.isCancelled else { return }
                 meshError = (error as? KernelError)?.userMessage ?? "The part could not be displayed."
                 pendingItems = nil
                 return

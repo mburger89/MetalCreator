@@ -20,6 +20,34 @@ struct ViewportModelTests {
         await model.waitForMeshes()
     }
 
+    @Test func anUnusableSavedCameraIsReplacedByTheFirstFraming() async throws {
+        let box = try await fakeBox()
+        let (model, _, _) = makeModel(pose: CameraPose(distance: 0))
+        #expect(model.pose.isFinite, "the dead pose is not kept")
+        await show(model, [ViewportItem(solid: box)])
+        #expect(isClose(model.pose.target, box.bounds.center), "the first scene is framed")
+        #expect(model.pose.isFinite)
+        let framed = model.pose
+        model.pointerDown(at: ScreenPoint(200, 150), modifiers: [])
+        model.pointerDragged(to: ScreenPoint(240, 170))
+        #expect(model.pose != framed, "orbit still moves the camera")
+        let orbited = model.pose
+        model.zoom(by: 2)
+        #expect(model.pose != orbited, "zoom still moves the camera")
+    }
+
+    @Test func aNonFiniteHomePoseIsRefused() {
+        let (model, _, _) = makeModel()
+        let good = CameraPose(distance: 50, yaw: 1)
+        model.homePose = good
+        model.homePose = CameraPose(distance: .nan)
+        #expect(model.homePose == good)
+        model.homePose = CameraPose(distance: 0)
+        #expect(model.homePose == good)
+        model.homePose = nil
+        #expect(model.homePose == nil)
+    }
+
     @Test func showingASceneMeshesItAndFramesItOnce() async throws {
         let (model, kernel, _) = makeModel()
         let box = try await fakeBox()

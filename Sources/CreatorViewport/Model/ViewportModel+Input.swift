@@ -77,10 +77,11 @@ extension ViewportModel {
     }
 
     /// The pointer moved over the viewport (`nil` when it left). Over the cube, its region is hit-tested on the CPU.
-    /// Elsewhere the ID pass is asked what's under the pointer. Nothing is picked during a drag.
+    /// Elsewhere the ID pass is asked what's under the pointer. Nothing is picked during a drag, or while the camera
+    /// animates (the end of the animation picks once, `refreshHover()`).
     public func pointerHovered(at point: ScreenPoint?) {
         lastHoverPoint = point
-        guard drag == nil else { return }
+        guard drag == nil, animation == nil else { return }
         var newHovered: PickTarget?
         var newCubeRegion: ViewCubeRegion?
         if let point {

@@ -64,9 +64,17 @@ struct ContextMenuTests {
         #expect(model.hovered == .face(solid: 0, FaceID(1)))
 
         // An animation re-picks when it ends.
+        var picks = 0
+        model.pick = { _ in picks += 1; return underPointer }
         underPointer = .face(solid: 0, FaceID(4))
         model.perform(.view(.top))
+        #expect(model.isAnimating)
+        model.pointerHovered(at: ScreenPoint(300, 200))
+        model.pointerHovered(at: ScreenPoint(301, 200))
+        #expect(picks == 0, "no GPU pick while the camera animates")
+        #expect(model.hovered == .face(solid: 0, FaceID(1)), "the hover is left as it was")
         await model.waitForAnimation()
+        #expect(picks == 1, "exactly one pick when the animation ends")
         #expect(model.hovered == .face(solid: 0, FaceID(4)))
         #expect(model.contextMenuItems().first == .lookAt(ViewportFaceRef(solidIndex: 0, face: FaceID(4))))
     }
