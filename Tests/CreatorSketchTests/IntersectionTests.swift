@@ -69,6 +69,23 @@ struct IntersectionTests {
         #expect(CurveIntersection.points(circle(.zero, 5), circle(.zero, 3)).isEmpty)
     }
 
+    @Test func tangentCirclesWithInexactRadiiMeetOnce() {
+        let (r1, r2) = (0.33655, 0.775)
+        let external = CurveIntersection.points(circle(.zero, r1), circle(Vector2(r1 + r2, 0), r2))
+        #expect(external.count == 1)
+        #expect(isClose(external[0], Vector2(r1, 0), tolerance: 1e-9))
+        let nested = CurveIntersection.points(circle(.zero, r2), circle(Vector2(r2 - r1, 0), r1))
+        #expect(nested.count == 1)
+        #expect(isClose(nested[0], Vector2(r2, 0), tolerance: 1e-9))
+        let innerFirst = CurveIntersection.points(circle(Vector2(r2 - r1, 0), r1), circle(.zero, r2))
+        #expect(innerFirst.count == 1)
+        for k in 1...200 {
+            let a = 0.1 + Double(k) * 0.0737
+            let b = 0.2 + Double(k) * 0.0211
+            #expect(CurveIntersection.points(circle(.zero, a), circle(Vector2(a + b, 0), b)).count == 1)
+        }
+    }
+
     @Test func coCircularArcsMeetAtTheirOverlapEnds() {
         let first = CurveShape.arc(center: .zero, radius: 5, start: 0, sweep: .pi)
         let second = CurveShape.arc(center: .zero, radius: 5, start: .pi / 2, sweep: .pi)

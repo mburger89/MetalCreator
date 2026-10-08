@@ -58,9 +58,10 @@ enum CurveIntersection {
         let unit = (c2 - c1) * (1 / d)
         let a = (d * d + r1 * r1 - r2 * r2) / (2 * d)
         let base = c1 + unit * a
-        let hSquared = r1 * r1 - a * a
-        if hSquared <= tolerance * tolerance { return [base] }
-        let h = hSquared.squareRoot()
+        // Tangency is judged on distances, linearly: `r1 * r1 - a * a` cancels to ~1e-16 noise
+        // at ordinary radii, which would turn a touch into two points ~1e-8 apart.
+        if abs(d - (r1 + r2)) <= tolerance || abs(d - abs(r1 - r2)) <= tolerance { return [base] }
+        let h = ((r1 - a) * (r1 + a)).squareRoot()
         let normal = SketchMath.perpendicular(unit)
         return [base + normal * h, base - normal * h]
     }
