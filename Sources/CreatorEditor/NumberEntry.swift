@@ -35,7 +35,10 @@ struct NumberEntry: Component {
             model.discardPendingEntry(ownedBy: owner)
         }
         .onChange(of: isFocused) { wasFocused, focused in
-            if wasFocused, !focused { model.commitPendingEntry() }
+            if wasFocused, !focused {
+                model.commitPendingEntry()
+                draft = nil
+            }
         }
     }
 }

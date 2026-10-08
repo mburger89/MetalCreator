@@ -175,7 +175,9 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   50, the second is unchanged. Type a value and press Tab: it's committed. Type 80 into Width without Return and
   press ⌘Z (and, separately, the top bar's Undo): Width goes back to its previous value, ⇧⌘Z brings 80 back, and
   clicking elsewhere afterwards changes nothing. Pinned: `PendingEntryTests`, `aViewportPressCommitsATypedInspectorValue`,
-  `undoAndRedoCommitATypedValueFirst`; the focus-loss path is this check only. **Observed:**
+  `undoAndRedoCommitATypedValueFirst`; the focus-loss path is this check only (`NumberEntry`'s `@State` draft
+  isn't reachable from a test). Type "abc" into Width and press Tab: the field shows Width's value again, not
+  "abc"; type Width's current value and press Tab: the field shows it formatted as before. **Observed:**
 - [ ] **M6-7 Layout.** The viewport fills the window; the top bar, graph panel and inspector float over it as glass
   (no blur, gap M5-c). The view cube sits at the top-left of the uncovered area, right of the panel; the triad at its
   bottom-left and "mm · grid" at its bottom-right, clear of the panels. Press Bottom, then Hide, then "Show graph":
