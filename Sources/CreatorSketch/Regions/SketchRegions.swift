@@ -39,7 +39,10 @@ public enum SketchRegions {
             let loops = [face.loop] + holes
             let area = loops.reduce(0) { $0 + LoopMeasure.area($1) }
             let moments = loops.reduce(Vector2.zero) { $0 + LoopMeasure.moments($1) }
-            regions.append(SketchRegion(outer: face.loop.map(\.segment), holes: holes.map { $0.map(\.segment) },
+            let sortedHoles = holes.map { ($0, LoopMeasure.area($0), LoopMeasure.moments($0)) }
+                .map { loop, area, moments in (loop: loop, area: abs(area), centroid: moments * (1 / area)) }
+                .sorted { isOrderedBefore(area: $0.area, $0.centroid, before: $1.area, $1.centroid) }
+            regions.append(SketchRegion(outer: emitted(face.loop), holes: sortedHoles.map { emitted($0.loop) },
                                         area: area, centroid: moments * (1 / area)))
         }
         regions.sort(by: isOrderedBefore)
@@ -57,9 +60,42 @@ public enum SketchRegions {
     /// Area descending, then centroid x, then y, each compared with a tolerance so rounding
     /// noise can't reorder equal regions.
     static func isOrderedBefore(_ a: SketchRegion, _ b: SketchRegion) -> Bool {
-        let areaTolerance = 1e-9 * max(1, abs(a.area), abs(b.area))
-        if abs(a.area - b.area) > areaTolerance { return a.area > b.area }
-        if abs(a.centroid.x - b.centroid.x) > 1e-9 { return a.centroid.x < b.centroid.x }
-        return a.centroid.y < b.centroid.y
+        isOrderedBefore(area: a.area, a.centroid, before: b.area, b.centroid)
+    }
+
+    /// The region order for any area and centroid: also orders a region's holes (spec §5 step 5).
+    static func isOrderedBefore(area a: Double, _ aCentroid: Vector2, before b: Double, _ bCentroid: Vector2) -> Bool {
+        let areaTolerance = 1e-9 * max(1, abs(a), abs(b))
+        if abs(a - b) > areaTolerance { return a > b }
+        if abs(aCentroid.x - bCentroid.x) > pointTolerance { return aCentroid.x < bCentroid.x }
+        return aCentroid.y < bCentroid.y
+    }
+
+    /// Points closer than this (mm) on an axis compare equal on it.
+    static let pointTolerance = 1e-9
+
+    /// A walked loop as it is emitted (spec §5 step 5): counter-clockwise, so a loop the face
+    /// walk ran clockwise (a hole's outline) is reversed with each arc turned into its
+    /// counter-clockwise form, then rotated to start at the segment whose start point is
+    /// lexicographically smallest (x, then y). Hole loop indices and segment indices name walls
+    /// (`TopoRole.side(loop:segment:)`), so neither may depend on where the walk began.
+    ///
+    /// An arc a counter-clockwise loop runs along clockwise (a notch cut into an outline) keeps
+    /// its traversal sense, stored with `end < start`, so the loop stays continuous; the shim
+    /// does not build such arcs yet (S4 handoff).
+    static func emitted(_ loop: [LoopSegment]) -> [Segment2D] {
+        let counterClockwise = LoopMeasure.area(loop) < 0 ? loop.reversed().map(\.reversed) : loop
+        guard var first = counterClockwise.indices.first else { return [] }
+        for index in counterClockwise.indices.dropFirst()
+        where precedes(counterClockwise[index].start, counterClockwise[first].start) {
+            first = index
+        }
+        return (counterClockwise[first...] + counterClockwise[..<first]).map(\.segment)
+    }
+
+    /// Lexicographic order on points, x then y, with `pointTolerance`.
+    static func precedes(_ a: Vector2, _ b: Vector2) -> Bool {
+        if abs(a.x - b.x) > pointTolerance { return a.x < b.x }
+        return abs(a.y - b.y) > pointTolerance && a.y < b.y
     }
 }

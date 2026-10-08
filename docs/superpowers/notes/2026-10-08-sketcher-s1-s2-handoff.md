@@ -1,17 +1,21 @@
 # Sketcher S1 + S2 handoff (for S3, S4 and S5)
 
 S1 and S2 live in `CreatorSketch` (plan: `docs/superpowers/plans/2026-10-08-s1-s2-sketch-solver-regions.md`).
-These are the items later milestones must pick up.
+These are the items later milestones must pick up (S3 has merged; its items are done).
 
-## S3 (Profile2D holes, after M3)
-- Switch `SketchRegion.profile(on:)` to `Profile2D(plane:outer:holes:)`; until then holes are not cut.
-- Regions store an arc traversed clockwise as `Segment2D.arc` with `end < start`, which keeps loops continuous
-  (`Profile2D.isClosed` holds). Today `build_profile` throws "an arc in the profile has no sweep" for these, so a
-  region with a concave arc (a notch) does not extrude. Teach the shim to build such an arc from `end` to `start`
-  (`BRepBuilderAPI_MakeWire` orients the edge), and make `Segment2D.length` use `abs`.
-- Outer loops run counter-clockwise and holes clockwise, matching spec §6's "hole wires clockwise".
+## S3 (Profile2D holes) — merged; picked up here
+- `SketchRegion.profile(on:)` now returns `Profile2D(plane:outer:holes:)`, so holes are cut.
+- Regions follow spec §5 step 5: every loop (holes included) is counter-clockwise and starts at the segment whose
+  start point is lexicographically smallest (x, then y, 1e-9 mm); holes are sorted by area descending, then
+  centroid x, then y. A hole's loop index (`TopoRole.side(loop:segment:)`) is its position plus one.
 
 ## S4 (Sketch node)
+- Concave arcs: an arc a counter-clockwise loop runs along clockwise (a notch cut into an outline) is still stored as
+  `Segment2D.arc` with `end < start`, which keeps the loop continuous (`Profile2D.isClosed` holds). `build_profile`
+  throws "an arc in the profile has no sweep" for it, so a notched region does not extrude yet. Spec §6 defers this
+  clockwise-arc case "unless S4 needs it": S4 should teach the shim to build such an arc from `end` to `start`
+  (`BRepBuilderAPI_MakeWire` orients the edge) and make `Segment2D.length` use `abs`, or add an explicit clockwise
+  arc segment. Convex arcs, full-circle holes and every hole loop are already counter-clockwise.
 - `ProjectionSource.reference` is the key under which the node stores the projection's `EdgePick`. Refresh `curve`
   and set `isSuspended` on each evaluate before solving; suspended constraints come back in `SketchSolution.suspended`.
 - Map statuses to node states. `.underConstrained` is `.warning`; `.overConstrained` (use `conflictMessages`) and
@@ -25,7 +29,8 @@ These are the items later milestones must pick up.
 - Auto dimension names come from the monotonic `Sketch.nextDimensionNumber` and are never reused, so a socket named
   `d1` keeps meaning the same dimension.
 - `.failed(reason:)` also covers a solve that could only meet its constraints by collapsing or inverting a curve
-  ("Circle 1 would shrink to nothing."); that component keeps its warm start.
+  ("Circle 1 would shrink to nothing."); that component keeps its warm start. An arc counts as inside out only when
+  its end lands on its start; a typed edit may carry the end past the start (30° to a 330° sweep).
 - Wired values for exposed dimensions go into `SketchDimension.value`. NaN, ±∞ and non-positive lengths come back as
   plain `.failed` reasons. `measurements` holds reference dimensions; output them in name order.
 - Call `Sketch.remember(_:)` after a usable solve so the next one warm-starts; re-solving a solved sketch is exact.

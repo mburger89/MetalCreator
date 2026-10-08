@@ -21,13 +21,13 @@ struct RegionTests {
         #expect(region.holes.count == 1)
         #expect(isClose(region.area, 100 - 4 * .pi))
         #expect(isClose(region.centroid, Vector2(5, 5)))
-        // The hole is the whole circle in one clockwise arc.
+        // The hole is the whole circle in one arc, emitted counter-clockwise like every loop.
         let hole = try #require(region.holes.first)
         #expect(hole.count == 1)
         guard case .arc(let center, let radius, let start, let end) = hole[0] else { Issue.record("hole is not an arc"); return }
         #expect(isClose(center, Vector2(5, 5)))
         #expect(radius == 2)
-        #expect(isClose(end.radians - start.radians, -2 * .pi))
+        #expect(isClose(end.radians - start.radians, 2 * .pi))
         #expect(result.warning == nil)
     }
 
@@ -184,15 +184,60 @@ struct RegionTests {
         }
     }
 
-    @Test func profileConversionUsesTheOuterLoop() throws {
+    @Test func profileConversionCarriesTheHoles() throws {
         var sketch = Sketch()
         square(&sketch, side: 10)
         sketch.addCircle(center: Vector2(5, 5), radius: 2)
         let region = try #require(SketchRegions.find(in: sketch).regions.first)
         let profile = region.profile(on: .xz)
         #expect(profile.plane == .xz)
-        #expect(profile.segments == region.outer)
+        #expect(profile.outer == region.outer)
+        #expect(profile.holes == region.holes)
+        #expect(profile.holes.count == 1)
         #expect(profile.isClosed)
+    }
+
+    /// Spec §5 step 5: holes sort by area descending, then centroid x, then y, whatever order
+    /// they were drawn in, so a hole's loop index names the same wall after every edit.
+    @Test func holesAreSortedByAreaThenCentroid() throws {
+        let centres = [Vector2(30, 10), Vector2(10, 30), Vector2(10, 10), Vector2(30, 30)]
+        let radii = [2.0, 3, 2, 2]
+        let expected = [Vector2(10, 30), Vector2(10, 10), Vector2(30, 10), Vector2(30, 30)]
+        for order in [[0, 1, 2, 3], [3, 2, 1, 0], [2, 0, 3, 1]] {
+            var sketch = Sketch()
+            square(&sketch, side: 40)
+            for i in order { sketch.addCircle(center: centres[i], radius: radii[i]) }
+            let region = try #require(SketchRegions.find(in: sketch).regions.first)
+            let holeCentres = region.holes.compactMap { hole -> Vector2? in
+                if case .arc(let center, _, _, _)? = hole.first { return center }
+                return nil
+            }
+            #expect(holeCentres == expected, "order \(order)")
+        }
+    }
+
+    /// Spec §5 step 5: every loop, holes included, runs counter-clockwise and starts at its
+    /// lexicographically smallest start point, wherever the drawing started.
+    @Test func everyLoopIsCounterClockwiseFromItsSmallestPoint() throws {
+        var sketch = Sketch()
+        // Outline drawn clockwise from its top-right corner; square hole drawn from its top-left.
+        addPolygon(&sketch, [Vector2(20, 20), Vector2(20, 0), Vector2(0, 0), Vector2(0, 20)])
+        addPolygon(&sketch, [Vector2(5, 15), Vector2(15, 15), Vector2(15, 5), Vector2(5, 5)])
+        let region = try #require(SketchRegions.find(in: sketch).regions.first)
+        try #require(region.holes.count == 1)
+        for (loop, smallest) in [(region.outer, Vector2(0, 0)), (region.holes[0], Vector2(5, 5))] {
+            #expect(isClose(try #require(loop.first).startPoint, smallest))
+            #expect(signedArea(loop) > 0)
+        }
+        #expect(region.profile(on: .xy).isClosed)
+    }
+
+    /// The shoelace area of a line-only loop.
+    func signedArea(_ loop: [Segment2D]) -> Double {
+        loop.reduce(0) { total, segment in
+            let (p, q) = (segment.startPoint, segment.endPoint)
+            return total + 0.5 * (p.x * q.y - q.x * p.y)
+        }
     }
 
     @Test func cornersJoinedByCoincidentConstraintsCloseARegionOnceSolved() throws {

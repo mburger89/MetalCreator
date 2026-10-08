@@ -48,6 +48,15 @@ struct LoopSegment: Hashable, Sendable {
         }
     }
 
+    /// The same span walked the other way.
+    var reversed: LoopSegment {
+        let flipped: Geometry = switch geometry {
+        case .line(let a, let b): .line(b, a)
+        case .arc(let c, let r, let from, let to): .arc(center: c, radius: r, from: to, to: from)
+        }
+        return LoopSegment(geometry: flipped, source: source, start: end, end: start)
+    }
+
     /// `next` continued into this segment, when both come from the same curve in the same sense.
     func merged(with next: LoopSegment) -> LoopSegment? {
         guard source == next.source else { return nil }
