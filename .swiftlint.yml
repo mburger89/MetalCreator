@@ -1,0 +1,43 @@
+# SwiftLint configuration for MetalCreator.
+# Run `swiftlint lint --strict`; it must report zero violations before committing.
+
+# Build products and scratch directories are not project source.
+excluded:
+  - .build
+  - .superpowers
+  - .swiftpm
+
+# The geometry/maths code uses conventional short names (a, b, x, y, z, dx, h, t, to, ...)
+# pervasively. A curated allow-list would be ~60 entries, so lower the minimum to 1 instead.
+# The 40-character maximum and naming-style checks stay at their defaults.
+identifier_name:
+  min_length:
+    warning: 1
+
+# The codebase consistently wraps at ~140 columns; the default of 120 flags many
+# formulas, test fixtures and signatures that read better on one line.
+line_length:
+  warning: 140
+  error: 200
+  ignores_comments: true
+  ignores_urls: true
+
+# The project's multi-line collection literals already use trailing commas (Swift/Apple
+# style, cleaner diffs). The default rule forbids them; require them instead.
+# Multi-line collection literals in the project use trailing commas (Swift/Apple style,
+# cleaner diffs). The default rule forbids them; require them instead.
+trailing_comma:
+  mandatory_comma: true
+
+# Private single-slot caches in the Metal renderer (view/mesh/flag buffers) and the
+# C-bridged (Double, Double, Double) vector hold 3-4 labelled members. Splitting each into a
+# named struct adds types that exist only to appease the linter; 5+ members still errors.
+large_tuple:
+  warning: 4
+  error: 5
+
+# Geometry/maths helpers and the evaluator pass 6 explicit values (pose + size + start/end, ...).
+# Bundling them in one-off parameter structs hurts call-site readability.
+function_parameter_count:
+  warning: 6
+  error: 8

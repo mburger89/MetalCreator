@@ -51,7 +51,9 @@ swift test --filter CreatorViewportTests   # viewport model, maths and the offsc
 swift run ViewportHarness                  # dev window for docs/verification/human-checks.md group V
 ```
 
-There is no linter or formatter configured.
+## Linting
+
+SwiftLint is configured in `.swiftlint.yml` (each non-default setting is documented there). Run `swiftlint lint --strict` before committing; it must report zero violations. Prefer fixing the code over adding `swiftlint:disable` comments, and give any disable a reason.
 
 ## Toolchain constraints
 
