@@ -13,7 +13,7 @@ Read this before writing the M2 and M3 plans.
 - ✅ (M2) Define a fallback tag for faces OCCT history leaves untagged; make `TopoTag`, `TopoRole`, `EdgeKey` Codable (needed by Edges by Tag) — remember: a new `ConstantValue` kind needs a `formatVersion` bump.
 
 ## Before M3 selection-rule and profile nodes
-- FakeKernel and OCCTKernel both report a circle's axis as `direction` (by design); 'Edges by Direction' must require `kind == .line`. 2-segment profiles give vertical edges a shared `EdgeKey`; blend doesn't dedupe edges; centroid/area are zero placeholders; coverage gaps (chamfer, transform, union, intersect, tessellate).
+- ✅ (M3) FakeKernel and OCCTKernel both report a circle's axis as `direction` (by design); 'Edges by Direction' must require `kind == .line`. 2-segment profiles give vertical edges a shared `EdgeKey`; blend doesn't dedupe edges; centroid/area are zero placeholders; coverage gaps (chamfer, transform, union, intersect, tessellate). (Edges by Direction requires `kind == .line`; Edge Set Op dedupes; FakeKernel's zero centroids remain.)
 - `Segment2D` arcs assume a CCW normalized sweep (reversed arc → negative length); `Profile2D.bounds` is conservative for partial arcs; `Plane.init` does not normalize.
 
 ## From M2
@@ -37,11 +37,26 @@ Read this before writing the M2 and M3 plans.
 - `NodeID` init overlap; `EdgeKey` separators unescaped; linear topology lookups; 128-byte estimate constant.
 - `NodeRegistry.all` tiebreak; `BroadcastPlan.inputs(at:)` precondition; NodeError strings not yet localised.
 - Duplicate node IDs in a file collapse first-wins; O(N·L) link scans.
-- Parameter commands don't mark parameter-reading nodes `.evaluating`; `setInput` doesn't check the socket exists; undo coalescing is key-only; removing a parameter and undoing re-appends it at the end.
+- Parameter commands don't mark parameter-reading nodes `.evaluating`; `setInput` doesn't check the socket exists (and must keep accepting `NodeSetting` names: a socket-only check would silently break every setting); undo coalescing is key-only; removing a parameter and undoing re-appends it at the end.
 - `formatVersion` ≤ 0 accepted; partial `ViewState` untested; `GraphFileError` has no user-facing message (M6).
 - `restoreLinks` doesn't guard duplicates within one call or occupied inputs (only reachable via hand-built commands).
 - `CancelsTaskNode` test assumes nodes run in the caller's task — revisit with parallel evaluation.
 - Hard-coded `/opt/homebrew` OCCT prefix (packaging deferred, spec §11).
 - M2 final review residuals: `oriented()` runs `BRepLib::OrientClosedSolid` on every extrude/revolve/loft even when the volume is already positive (only call it when negative — measure in M7); its boolean return is ignored; note that it works by reversing the solid, like the old code. The non-destructive-boolean test is a regression guard only — a stronger test would read max vertex/edge tolerance of a near-touching tool input (rises from 1e-7 in destructive mode).
 - Before M4: build edge polylines from `BRep_Tool::PolygonOnTriangulation` so lines sit on the face mesh; meshes depend on earlier tessellations (BRepMesh reuses finer triangulation in shared TShapes).
-- M3 notes from the M2 review: Edges by Tag should match "picked tags ⊆ face tags" per side (unions merge tag sets); Edges by Direction uses `abs(dot)` and `kind == .line`; Edge Set Op dedupes; Loft rejects sections with different segment counts (Rectangle → Circle) — show a clear message or plan resampling; warn when a picked key contains `.unnamed`.
+- ✅ (M3) M3 notes from the M2 review: Edges by Tag should match "picked tags ⊆ face tags" per side (unions merge tag sets); Edges by Direction uses `abs(dot)` and `kind == .line`; Edge Set Op dedupes; Loft rejects sections with different segment counts (Rectangle → Circle) — show a clear message or plan resampling; warn when a picked key contains `.unnamed`.
+
+## From M3
+- `InspectorControl` gained `.vector(socket)` and `.parameterPicker(setting)` (spec §6.4's closed set + 2); M5 renders both.
+- Graph Parameter uses optional outputs (`number`, `integer`, `bool`, `vector`); an integer parameter fills `integer` and `number`.
+- `Grid Points.total` drives a fixed-row grid (Hole count 4 → 2×2, 6 → 3×2). Generators cap lists at 10,000 items.
+- Fillet has no "Tangent chain" toggle (OCCT always follows tangent chains). "Show handle in view" is the `showHandle` setting, seeded `.bool(true)` by `NodeDefinition.defaultSettings` at creation; the M6 app shell reads it for the viewport.
+- The settings contract is in CreatorGraph so M5 (no `CreatorNodes` import) can use it: `NodeSetting`, `ConstantValue.parameter(_:)` / `.parameterID`. Picks are `.edgePicks(topology.picks(for:))`; the M6 app shell wraps M4's picked `EdgeID`s (M4 never imports CreatorGraph).
+- `NodeRegistry.makeNode` sets `isOutput` for `.output`-category nodes, so M5's palette and preview need no special case (the reconciled M5 plan sets no `isOutput` by hand).
+- `setInput` must keep accepting non-socket names (`NodeSetting`); don't "fix" the "socket exists" item under Can wait by rejecting them.
+- Edge Set Op accepts the same `Solid` instance or one with equal topology and bounds (covers an LRU eviction recomputing one side); solids from different nodes differ by their tags.
+- `EdgePick.touchesUnnamedFace` looks inside `.blend(sourceEdge:)` keys recursively.
+- Boolean passes the target through for a wired empty `tools` list (union, subtract); intersect keeps the kernel error.
+- Node messages format numbers with `Locale.messages` (en_US). Switch to the user's locale when the string catalog arrives.
+- `Topology.midpointOrder` uses a 1e-6 mm tolerance compare, which is not a strict weak ordering for pathological midpoints.
+- M6 exports the solids of `isOutput` nodes; the Output node's `name` is the export name.

@@ -366,3 +366,12 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
 - OCCT is linked via explicit Homebrew paths (no pkg-config).
 - The result cache key includes node identity (the kernel tags created faces with it).
 - Graph links are kept in canonical order (by destination), on commands and on load.
+
+## Errata (M3)
+
+- §6.4's closed set of inspector controls gains `vector(socket)` (three number fields) and `parameterPicker(setting)` (Graph Parameter's menu of document parameters).
+- §6.4's Fillet "Tangent chain" toggle is dropped: OCCT always follows tangent chains, so the toggle would have no effect.
+- §6.4's Extrude "Direction" menu (plane normal or reversed) is a "Reverse direction" toggle (`reversed`).
+- §7.1/§7.2 Circle takes a `diameter` (§7.2 says Ø5), not a radius.
+- Non-socket node settings (`parameter`, `picks`, `showHandle`) are stored in `Node.inputValues` under `NodeSetting` names, and new nodes are seeded with their `defaultSettings`.
+- §4.5's `formatVersion` is 2 from M3 on: `ConstantValue` gained `.edgePicks`. Files from M3 or later are refused by older builds.

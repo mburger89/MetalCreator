@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MetalCreator is a node-based parametric CAD app for macOS built on MetalUI (`../MetalUI`, joined in M4).
 The binding spec is `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md`; milestone
-plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine) and M2 (OCCT kernel) are done.
+plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 (OCCT kernel) and M3 (the 26 nodes) are done.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -16,11 +16,15 @@ Module boundaries (dependency order):
   `*_free`; no C++ exception crosses into Swift.
 - `CreatorGraph`: graph model, sockets, broadcasting, `Evaluator` (cached, cancellable), commands and undo,
   `.mcgraph` files, `DocumentModel`.
+- `CreatorNodes`: the 26 built-in node definitions (`BuiltInNodes.registry`), UI-free: inspector sections and handles
+  are data. Non-socket settings (`NodeSetting` in CreatorGraph: parameter, picks, showHandle) live in `Node.inputValues`;
+  `NodeRegistry.makeNode` seeds `defaultSettings` and sets `isOutput` for `.output`-category nodes.
 
 Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.md` and fixed in MetalUI,
 never worked around here. Graph links are kept canonically sorted by destination; result caching is keyed by node identity.
 Edge/face IDs are OCCT map order. A circle edge's `direction` is its axis, so direction rules must also check `kind == .line`.
 All OCCT work runs under `OCCTKernel.serialized` (process-wide lock) because OCCT shapes share geometry across solids and meshing mutates it; never call the shim outside it (tests included).
+Edge picks (`EdgePick`) match by tag subsets per side and warn on count drift; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 2 (`.edgePicks`). Create nodes only with `NodeRegistry.makeNode`. Numbers in node messages use `Locale.messages` (`Double.display`, `Int.display`).
 Shim errors: `cocct::user_error` / `set_error` messages are user-facing and unprefixed; any other OCCT exception is prefixed "occt: " by `guarded` and mapped to a generic sentence by `KernelError.plainReason`.
 
 ## Commands
@@ -32,6 +36,8 @@ swift test                                   # run all tests
 swift test --filter CreatorGraphTests        # one test target (also CreatorOCCTTests, CreatorGeometryTests, CreatorKernelTests)
 swift test --filter CreatorOCCTTests         # kernel conformance + naming stability (needs OCCT)
 swift test --filter 'CreatorGraphTests.EvaluatorTests/wiredValuesFlowDownstream'   # one test
+swift test --filter CreatorNodesTests        # node definitions through the real Evaluator (OCCT where geometry matters)
+swift test --filter BracketAcceptanceTests   # the §7.2 bracket, headless
 ```
 
 There is no linter or formatter configured.
@@ -41,6 +47,7 @@ There is no linter or formatter configured.
 - `swift-tools-version: 6.4`, `swiftLanguageModes: [.v6]` — full Swift 6 strict concurrency checking is on. Data-race violations are compile **errors**, not warnings. Shared mutable state needs an actor, `Sendable` conformance, or an explicit global-actor annotation; do not reach for `@unchecked Sendable` or `nonisolated(unsafe)` to silence a diagnostic without understanding it.
 - Tests use **Swift Testing** (`import Testing`, `@Test`, `#expect`), not XCTest. Keep new tests on Swift Testing.
 - Local toolchain: Apple Swift 6.4, arm64 macOS.
+- Swift 6.4 crashes in SILGen on a key path applied to an existential metatype (`BuiltInNodes.all.map(\.typeID)`); use a closure.
 - OpenCascade 7.9 comes from Homebrew (`brew install opencascade`) and is linked from `/opt/homebrew/opt/opencascade`.
   Linker warnings about dylibs built for a newer macOS are expected.
 - Adding a `ConstantValue` kind, or any change older readers can't decode, requires bumping `GraphFile.currentFormatVersion`.
