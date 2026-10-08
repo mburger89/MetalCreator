@@ -22,7 +22,7 @@ drags print to the terminal.
   space rotates about the part's centre. Dragging far up or down stops at straight-down or straight-up, with no flip
   and no spin. Pinned: `orbitKeepsThePivotWhereItWasOnScreen`, `orbitClampsPitchAtThePoles`. Observed:
 - [ ] **V3 Pan, zoom and frame.**
-  - Shift-drag pans with the pointer (the stopgap modifier tracker).
+  - Shift-drag pans with the pointer (the stopgap modifier tracker). Known limit (gap 5): `held` modifiers can go stale if Shift is released while the window is inactive.
   - ⌥-drag up zooms in toward where the drag began.
   - + and − zoom toward the pointer.
   - F frames the part (with `HARNESS_SELECT=1`, the selected top face).
@@ -59,9 +59,9 @@ drags print to the terminal.
   pink in Shaded mode. Pinned: `edgeInstancesAreOnePerSegmentWithTheirPickID`. Observed:
 - [ ] **V9 Handles.** A purple arrow handle at the plate top labelled "6 mm", and an orange radial handle at a fillet
   labelled "R 3 mm". Dragging a knob moves it along its axis, the label follows, and the terminal prints `changed`
-  values and one `ended`. The camera doesn't move. Pinned: `draggingAHandleEditsItsValueAndNotTheCamera`. Observed:
+  values and one `ended`. The camera doesn't move. Known symptom (gap M4-a): handle labels are missing on the first build of a document with a saved camera, and misplaced during a live resize, until the next rebuild. Pinned: `draggingAHandleEditsItsValueAndNotTheCamera`. Observed:
 - [ ] **V10 Resize and displays.** Resizing the window live shows no stretched or blank frames, and picking stays
-  accurate after a resize. Moving between a Retina and a 1× display keeps lines crisp. Starting the harness in a
+  accurate after a resize (known symptom, gap M4-a: handle labels are missing on the first build of a document with a saved camera, and misplaced during a live resize, until the next rebuild). Moving between a Retina and a 1× display keeps lines crisp. Starting the harness in a
   narrow window (drag it narrow, quit, relaunch) frames the whole bracket, not clipped at the sides. Pinned:
   `aSceneShownBeforeTheFirstDrawIsFramedOnceTheViewHasASize`. Observed:
 - [ ] **V11 Grid steps.** Zooming in and out switches the grid between 1, 10 and 100 mm, and the label follows. Pinned:

@@ -42,6 +42,7 @@ Gap numbers 1–5 are the C7 items above. New gaps are labelled M4-a… (M5 uses
 - **Gap 5 (C7 item 5, now concrete): modifiers during a drag.** Shift-drag pans and ⌥-drag zooms the viewport (spec §9).
    `DragGesture.Value` has no modifiers. Stopgap: `ViewportModifierTracker` follows `.modifiersChanged` through a
    chained `Window.onInput`. Wanted: `DragGesture.Value.modifiers` (the modifiers held at each change, including at the press).
+   Known limit: `held` modifiers can go stale if Shift is released while the window is inactive.
 - **Gap 4 (C7 item 4, now concrete): context-menu location.** The face menu must know which face was under the
    secondary press: the press point in the element's local points. Stopgap: the last `onContinuousHover` point
    (`ViewportModel.contextMenuItems()` reads the hovered pick). The model re-picks at the last pointer point whenever
@@ -53,6 +54,7 @@ Gap numbers 1–5 are the C7 items above. New gaps are labelled M4-a… (M5 uses
 - **M4-a (new): an element's size, and keyboard focus.**
    - No `GeometryReader` or `onGeometryChange`: the viewport learns its size from `MetalDrawContext.pixelSize / scaleFactor`
      inside its draw, into untracked state (`ViewportModel.viewSize`). Input before the first draw sees a zero size and is ignored.
+     Symptom: handle labels are missing on the first build of a document with a saved camera, and misplaced during a live resize, until the next rebuild (handle labels are laid out from the recorded size).
      Wanted: `onGeometryChange(for:of:action:)` or a size in the draw's `value:` round trip.
    - A click doesn't focus a `.focusable()` element (divergence 94), so the viewport's F, + and − keys are bound window-wide
      (`ViewportKeyBindings`). The app shell will collide with text fields. Wanted: focus-on-click for a focusable

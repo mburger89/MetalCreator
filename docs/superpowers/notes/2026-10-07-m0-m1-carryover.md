@@ -76,6 +76,9 @@ Read this before writing the M2 and M3 plans.
     animation end and save, **not on every pose change**: writing `DocumentModel.viewState` invalidates every
     observer of it (M5's editor reads the dock and canvas transform from it), which would rebuild the graph panel at
     60 Hz during an orbit and threaten §7.3.
+    To make that possible, M6 adds two events to `ViewportEvents`: `cameraSettled(pose)` (fired from `pointerUp`,
+    the end of an animation, `zoom(by:)` and `.projection`) and `homeChanged(homePose)` (from `.setHome`), so
+    `ViewState` is synced without observing `pose` at 60 Hz.
   - Both input stopgaps take over `Window.onInput`: M4's `ViewportModifierTracker` and M5's `GraphPanelInput`.
     `ViewportModifierTracker.install(on:)` chains to the previous handler. Whichever is installed second must chain
     too (or share one modifier tracker), or the other silently stops seeing events.
