@@ -26,7 +26,45 @@ struct MirrorPatternTests {
         let mirrored = try SketchCommands.mirror(sketch, entities: [line, axis], about: axis).sketch
         let copy = try #require(mirrored.ids(ofKind: "Line").last)
         #expect(mirrored.ends(copy).0 == sketch.ends(line).0)
-        #expect(mirrored.constraints.count == 1)
+        // One symmetric pair, and the shared point held on the axis.
+        #expect(mirrored.constraintList == [.pointOn(point: sketch.ends(line).0, curve: axis),
+                                            .symmetric(sketch.ends(line).1, mirrored.ends(copy).1, about: axis)])
+        try requireSolvesInPlace(mirrored)
+    }
+
+    /// The shared point stays on the axis when dragged, so the mirror stays symmetric.
+    @Test func dragsKeepAMirrorSymmetric() throws {
+        var sketch = Sketch()
+        let bottom = sketch.addPoint(Vector2(0, -10))
+        sketch.add(.fix(bottom, at: Vector2(0, -10)))
+        let top = sketch.addPoint(Vector2(0, 10))
+        sketch.add(.fix(top, at: Vector2(0, 10)))
+        let axis = sketch.addLine(from: bottom, to: top)
+        let line = sketch.addLine(.zero, Vector2(5, 5))
+        let mirrored = try SketchCommands.mirror(sketch, entities: [line], about: axis).sketch
+        let copy = try #require(mirrored.ids(ofKind: "Line").last)
+        let (shared, end) = mirrored.ends(line)
+        let solution = SketchSolver.solve(mirrored, dragging: [shared: Vector2(3, 0)])
+        try #require(solution.status.isUsable, "status \(solution.status)")
+        let sharedPosition = try #require(solution.points[shared])
+        #expect(abs(sharedPosition.x) <= 1e-7)
+        let original = try #require(solution.points[end])
+        let reflected = try #require(solution.points[mirrored.ends(copy).1])
+        #expect(isClose(reflected, Vector2(-original.x, original.y)))
+    }
+
+    /// A point already held on the axis gets no second, redundant point-on.
+    @Test func pointsAlreadyOnTheAxisAddNothing() throws {
+        var sketch = Sketch()
+        let axis = sketch.addLine(Vector2(0, -10), Vector2(0, 10))
+        let (axisStart, _) = sketch.ends(axis)
+        let line = sketch.addLine(from: axisStart, to: sketch.addPoint(Vector2(5, 5)))
+        let onAxis = sketch.addPoint(.zero)
+        sketch.add(.pointOn(point: onAxis, curve: axis))
+        let other = sketch.addLine(from: onAxis, to: sketch.addPoint(Vector2(4, 1)))
+        let mirrored = try SketchCommands.mirror(sketch, entities: [line, other], about: axis).sketch
+        #expect(mirrored.constraintList.filter { if case .pointOn = $0 { true } else { false } }.count == 1)
+        #expect(SketchSolver.solve(mirrored).status.isUsable)
     }
 
     @Test func aMirroredArcRunsCounterClockwiseAndStaysFullyConstrained() throws {
