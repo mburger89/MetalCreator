@@ -3,8 +3,8 @@ import CreatorKernel
 import CreatorViewport
 
 /// A bracket-like part made straight from kernel calls, so the viewport can be seen before the M3 nodes exist:
-/// a 60 × 40 × 6 plate with four Ø5 holes, a 30 mm flange along the back, and R3 fillets on the vertical convex
-/// edges. Also two handles: a linear one at the plate top and a radial one at a fillet.
+/// a 60 × 40 × 6 plate with four Ø5 holes, a 30 mm flange along the back, and R3 fillets on the outer vertical
+/// corners. Also two handles: a linear one at the plate top and a radial one at a fillet.
 enum HarnessScene {
     static func build(_ kernel: any Kernel, ghost: Bool, selectTop: Bool) async throws
         -> (items: [ViewportItem], handles: [ViewportHandle]) {
@@ -24,6 +24,9 @@ enum HarnessScene {
         let vertical = bracket.topology.edges.filter { edge in
             edge.kind == .line && !edge.isSeam && edge.convexity == .convex
                 && abs((edge.direction ?? .zero).dot(.unitZ)) > 0.999
+                // The outer corners only: the flange's front corners stop on the plate's top face, where OCCT
+                // can't run an R3 blend out, so filleting them fails the whole operation.
+                && abs(edge.midpoint.y) > 19
         }
         let part: Solid
         do {
