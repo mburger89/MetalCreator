@@ -57,4 +57,37 @@ struct DegenerateGeometryTests {
         // The last good geometry stays.
         #expect(solution.radii[fixture.circle] == 10)
     }
+
+    /// An arc from 0° whose end, at 30°, is typed to a distance that puts it at −30°: the sweep
+    /// crosses 0/2π to 330°, a valid arc, not an inside-out one (final re-review ruling).
+    @Test func aTypedEditMayCarryAnArcEndPastItsStart() throws {
+        var sketch = Sketch()
+        let center = sketch.addPoint(.zero)
+        sketch.add(.fix(center, at: .zero))
+        let start = sketch.addPoint(Vector2(10, 0))
+        sketch.add(.fix(start, at: Vector2(10, 0)))
+        let end = sketch.addPoint(Vector2(10 * cos(Double.pi / 6), 10 * sin(Double.pi / 6)))
+        sketch.addArc(center: center, start: start, end: end)
+        let anchor = sketch.addPoint(Vector2(0, -20))
+        sketch.add(.fix(anchor, at: Vector2(0, -20)))
+        let below = Vector2(10 * cos(Double.pi / 6), -10 * sin(Double.pi / 6))
+        sketch.addDimension(.distance(anchor, end), value: (below - Vector2(0, -20)).length)
+        let solution = SketchSolver.solve(sketch)
+        #expect(solution.status == .solved, "status \(solution.status)")
+        #expect(isClose(try #require(solution.points[end]), below, tolerance: 1e-6))
+    }
+
+    /// An arc whose end is held on its start has no sweep left: that is inside out.
+    @Test func anArcWhoseEndMeetsItsStartIsAnError() throws {
+        var sketch = Sketch()
+        let center = sketch.addPoint(.zero)
+        sketch.add(.fix(center, at: .zero))
+        let start = sketch.addPoint(Vector2(10, 0))
+        sketch.add(.fix(start, at: Vector2(10, 0)))
+        let end = sketch.addPoint(Vector2(0, 10))
+        let arc = sketch.addArc(center: center, start: start, end: end)
+        sketch.add(.coincident(start, end))
+        let solution = SketchSolver.solve(sketch)
+        #expect(solution.status == .failed(reason: "\(sketch.label(of: arc)) would turn inside out."))
+    }
 }

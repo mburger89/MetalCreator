@@ -25,7 +25,7 @@ public enum SketchSolver {
         var freeColumns = Set<Int>()
         var dof = 0
         var degenerateReason: String?
-        let degeneracy = DegenerateGeometry(sketch: sketch, layout: layout, x0: x0)
+        let degeneracy = DegenerateGeometry(sketch: sketch, layout: layout)
         for component in partition.components {
             let columns = Set(component.columns)
             let outcome = ComponentSolver.solve(component, base: x0) { degeneracy.reason(at: $0, columns: columns) }
