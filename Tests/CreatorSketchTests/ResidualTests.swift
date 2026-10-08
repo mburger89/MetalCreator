@@ -61,16 +61,39 @@ struct ResidualTests {
         #expect(Equation.fix(Self.p1, Vector2(1, 1)).rows(x).map(\.value) == [6, 2])
     }
 
-    @Test func parallelAndPerpendicularResidualsAreScaledSineAndCosine() {
+    @Test func angleTypeResidualsAreScaledWrappedAngles() {
         let x: [Double] = [0, 0, 10, 0, 0, 5, 10, 15]
         let first = LineOperand(start: .unknown(column: 0), end: .unknown(column: 2))
         let second = LineOperand(start: .unknown(column: 4), end: .unknown(column: 6))
+        let quarter = Double.pi / 4
         // The second line is at 45°.
-        #expect(isClose(Equation.parallel(first, second, scale: 10).rows(x)[0].value, 10 * 0.5.squareRoot(), tolerance: 1e-12))
-        #expect(isClose(Equation.perpendicular(first, second, scale: 10).rows(x)[0].value, 10 * 0.5.squareRoot(), tolerance: 1e-12))
-        #expect(isClose(Equation.angle(first, second, target: .pi / 4, scale: 10).rows(x)[0].value, 0, tolerance: 1e-12))
-        #expect(isClose(Equation.horizontalLine(second, scale: 10).rows(x)[0].value, 10 * 0.5.squareRoot(), tolerance: 1e-12))
-        #expect(isClose(Equation.verticalLine(first, scale: 10).rows(x)[0].value, 10, tolerance: 1e-12))
+        #expect(isClose(Equation.parallel(first, second, scale: 10).rows(x)[0].value, 10 * quarter, tolerance: 1e-12))
+        #expect(isClose(Equation.perpendicular(first, second, scale: 10).rows(x)[0].value, -10 * quarter, tolerance: 1e-12))
+        #expect(isClose(Equation.angle(first, second, target: quarter, scale: 10).rows(x)[0].value, 0, tolerance: 1e-12))
+        #expect(isClose(Equation.horizontalLine(second, scale: 10).rows(x)[0].value, 10 * quarter, tolerance: 1e-12))
+        #expect(isClose(abs(Equation.verticalLine(first, scale: 10).rows(x)[0].value), 10 * 2 * quarter, tolerance: 1e-12))
+        // Directed: 45° + 180° is as far from a 45° target as an angle can be, not a second zero.
+        #expect(isClose(abs(Equation.angle(first, second, target: quarter - .pi, scale: 10).rows(x)[0].value), 10 * .pi,
+                        tolerance: 1e-12))
+    }
+
+    /// At the point furthest from met, the angle-type residuals still have a gradient (a sine or
+    /// cosine form is stationary there and LM stalls).
+    @Test func angleTypeResidualsKeepAGradientWhereFurthestFromMet() {
+        let x: [Double] = [0, 0, 10, 0, 0, 0, 0, 10, 0, 5, 10, 5]
+        let flat = LineOperand(start: .unknown(column: 0), end: .unknown(column: 2))
+        let upright = LineOperand(start: .unknown(column: 4), end: .unknown(column: 6))
+        let alsoFlat = LineOperand(start: .unknown(column: 8), end: .unknown(column: 10))
+        let equations: [Equation] = [.horizontalLine(upright, scale: 1), .verticalLine(flat, scale: 1),
+                                     .parallel(flat, upright, scale: 1), .perpendicular(flat, alsoFlat, scale: 1),
+                                     .angle(flat, upright, target: -.pi / 2, scale: 1)]
+        for equation in equations {
+            let row = equation.rows(x)[0]
+            #expect(abs(row.value) > 1, "\(equation)")
+            var gradient = Array(repeating: 0.0, count: x.count)
+            for entry in row.entries { gradient[entry.column] += entry.value }
+            #expect(gradient.contains { abs($0) > 1e-3 }, "\(equation) has no gradient")
+        }
     }
 
     @Test func zeroLengthLinesNeverLookSatisfied() {

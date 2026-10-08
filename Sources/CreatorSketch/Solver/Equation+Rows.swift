@@ -25,34 +25,15 @@ extension Equation {
             row.add(b, Vector2(-1, 0))
             return [row]
         case .horizontalLine(let line, let scale):
-            var row = Self.unitComponent(line, vertical: false, x)
-            row.scale(by: scale)
-            return [row]
+            return [Self.angleRow(Self.directionAngle(line, x), offset: 0, period: .pi, scale: scale)]
         case .verticalLine(let line, let scale):
-            var row = Self.unitComponent(line, vertical: true, x)
-            row.scale(by: scale)
-            return [row]
+            return [Self.angleRow(Self.directionAngle(line, x), offset: .pi / 2, period: .pi, scale: scale)]
         case .parallel(let first, let second, let scale):
-            var row = Self.unitCross(first, second, x)
-            row.scale(by: scale)
-            return [row]
+            return [Self.angleRow(Self.angleBetween(first, second, x), offset: 0, period: .pi, scale: scale)]
         case .perpendicular(let first, let second, let scale):
-            var row = Self.unitDot(first, second, x)
-            row.scale(by: scale)
-            return [row]
+            return [Self.angleRow(Self.angleBetween(first, second, x), offset: .pi / 2, period: .pi, scale: scale)]
         case .angle(let first, let second, let target, let scale):
-            // cos(t) − sin(t) vanishes at 45°, so the per-row fallback would read as satisfied.
-            guard first.direction(x).length > 0, second.direction(x).length > 0 else {
-                return [RowBuilder(value: scale)]
-            }
-            let crossRow = Self.unitCross(first, second, x)
-            let dotRow = Self.unitDot(first, second, x)
-            let (c, s) = (cos(target), sin(target))
-            var row = RowBuilder(value: crossRow.value * c - dotRow.value * s)
-            for entry in crossRow.entries { row.add(column: entry.column, entry.value * c) }
-            for entry in dotRow.entries { row.add(column: entry.column, -entry.value * s) }
-            row.scale(by: scale)
-            return [row]
+            return [Self.angleRow(Self.angleBetween(first, second, x), offset: target, period: 2 * .pi, scale: scale)]
         case .tangentAtPoint(let p, let center, let line):
             return [Self.projection(from: center, to: p, along: line, x)]
         case .lineTangent(let line, let circle, let side):
@@ -214,47 +195,49 @@ extension Equation {
     }
 
     /// The value of an angle-type residual on a zero-length line: as far from satisfied as a
-    /// unit sine or cosine can be, so a solve never "meets" an angle by collapsing a line.
+    /// unit angle, so a solve never "meets" an angle by collapsing a line.
     static let degenerateLine = RowBuilder(value: 1)
 
-    /// d.y / |d| (or d.x / |d| when `vertical`): the sine (cosine) of the line's angle to the x axis.
-    static func unitComponent(_ line: LineOperand, vertical: Bool, _ x: [Double]) -> RowBuilder {
+    /// scale · (angle − offset), wrapped into [−period/2, period/2]: the angle-type residual.
+    ///
+    /// The residual is the angle itself, not its sine or cosine, so its gradient never vanishes:
+    /// a sine or cosine is stationary where the constraint is furthest from met (horizontal on
+    /// an exactly vertical line, perpendicular on exactly parallel lines), and LM would stall
+    /// there and report a false conflict. Near zero it equals the old sine form to first order.
+    /// The wrap's jump sits at the far point, where the residual is largest. A zero-length line
+    /// gives `degenerateLine`.
+    static func angleRow(_ angle: RowBuilder?, offset: Double, period: Double, scale: Double) -> RowBuilder {
+        guard var row = angle else {
+            var degenerate = degenerateLine
+            degenerate.scale(by: scale)
+            return degenerate
+        }
+        row.value = (row.value - offset).remainder(dividingBy: period)
+        row.scale(by: scale)
+        return row
+    }
+
+    /// atan2(d.y, d.x), the polar angle of the line's direction, or `nil` for a zero-length line.
+    static func directionAngle(_ line: LineOperand, _ x: [Double]) -> RowBuilder? {
         let d = line.direction(x)
-        let n = d.length
-        guard n > 0 else { return degenerateLine }
-        let cube = n * n * n
-        var row = RowBuilder(value: (vertical ? d.x : d.y) / n)
-        let byD = vertical ? Vector2(d.y * d.y, -d.x * d.y) * (1 / cube) : Vector2(-d.x * d.y, d.x * d.x) * (1 / cube)
+        let squared = SketchMath.dot(d, d)
+        guard squared > 0 else { return nil }
+        var row = RowBuilder(value: atan2(d.y, d.x))
+        let byD = Vector2(-d.y, d.x) * (1 / squared)
         row.add(line.end, byD)
         row.add(line.start, byD * -1)
         return row
     }
 
-    /// cross(d₁, d₂) / (|d₁| |d₂|): the sine of the angle from the first line to the second.
-    static func unitCross(_ first: LineOperand, _ second: LineOperand, _ x: [Double]) -> RowBuilder {
+    /// The signed angle from the first line's direction to the second's, in (−π, π], or `nil`
+    /// when either line has zero length.
+    static func angleBetween(_ first: LineOperand, _ second: LineOperand, _ x: [Double]) -> RowBuilder? {
         let (d1, d2) = (first.direction(x), second.direction(x))
-        let (n1, n2) = (d1.length, d2.length)
-        guard n1 > 0, n2 > 0 else { return degenerateLine }
-        let value = SketchMath.cross(d1, d2) / (n1 * n2)
-        var row = RowBuilder(value: value)
-        let byD1 = Vector2(d2.y, -d2.x) * (1 / (n1 * n2)) - d1 * (value / (n1 * n1))
-        let byD2 = Vector2(-d1.y, d1.x) * (1 / (n1 * n2)) - d2 * (value / (n2 * n2))
-        row.add(first.end, byD1)
-        row.add(first.start, byD1 * -1)
-        row.add(second.end, byD2)
-        row.add(second.start, byD2 * -1)
-        return row
-    }
-
-    /// d₁ · d₂ / (|d₁| |d₂|): the cosine of the angle between the lines.
-    static func unitDot(_ first: LineOperand, _ second: LineOperand, _ x: [Double]) -> RowBuilder {
-        let (d1, d2) = (first.direction(x), second.direction(x))
-        let (n1, n2) = (d1.length, d2.length)
-        guard n1 > 0, n2 > 0 else { return degenerateLine }
-        let value = SketchMath.dot(d1, d2) / (n1 * n2)
-        var row = RowBuilder(value: value)
-        let byD1 = d2 * (1 / (n1 * n2)) - d1 * (value / (n1 * n1))
-        let byD2 = d1 * (1 / (n1 * n2)) - d2 * (value / (n2 * n2))
+        let (s1, s2) = (SketchMath.dot(d1, d1), SketchMath.dot(d2, d2))
+        guard s1 > 0, s2 > 0 else { return nil }
+        var row = RowBuilder(value: atan2(SketchMath.cross(d1, d2), SketchMath.dot(d1, d2)))
+        let byD1 = Vector2(d1.y, -d1.x) * (1 / s1)
+        let byD2 = Vector2(-d2.y, d2.x) * (1 / s2)
         row.add(first.end, byD1)
         row.add(first.start, byD1 * -1)
         row.add(second.end, byD2)

@@ -61,11 +61,14 @@ extension Sketch {
         return id
     }
 
-    /// Adds a dimension named with the first free `d1`, `d2`, … name.
+    /// Adds a dimension named with the first free `d1`, `d2`, … name. An angle takes the sense
+    /// nearest the lines' current positions.
     @discardableResult
     public mutating func addDimension(_ kind: DimensionKind, value: Double, isDriving: Bool = true) -> DimensionID {
         let id = DimensionID(takeNextID())
-        dimensions[id] = SketchDimension(kind: kind, name: nextDimensionName(), value: value, isDriving: isDriving)
+        let sense = nearestAngleSense(for: kind, degrees: value) { position(of: $0) }
+        dimensions[id] = SketchDimension(kind: kind, name: nextDimensionName(), value: value, isDriving: isDriving,
+                                         angleSense: sense)
         return id
     }
 

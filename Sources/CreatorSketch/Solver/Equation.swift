@@ -14,16 +14,18 @@ enum Equation: Hashable, Sendable {
     case horizontal(PointOperand, PointOperand)
     /// a.x − b.x, for two points.
     case vertical(PointOperand, PointOperand)
-    /// scale · d.y / |d|: the sine of the line's angle to the x axis. Angle-based, not a.y − b.y,
-    /// so a line can't meet it (and a conflicting angle) by shrinking to nothing.
+    /// scale · the line's angle to the x axis, wrapped into [−90°, 90°]. Angle-based, not
+    /// a.y − b.y, so a line can't meet it (and a conflicting angle) by shrinking to nothing; the
+    /// angle itself rather than its sine, so the gradient never vanishes (`Equation.angleRow`).
     case horizontalLine(LineOperand, scale: Double)
-    /// scale · d.x / |d|.
+    /// scale · the line's angle to the y axis, wrapped into [−90°, 90°].
     case verticalLine(LineOperand, scale: Double)
-    /// scale · sin of the angle between the lines.
+    /// scale · the angle between the lines, wrapped into [−90°, 90°].
     case parallel(LineOperand, LineOperand, scale: Double)
-    /// scale · cos of the angle between the lines.
+    /// scale · (the angle between the lines − 90°), wrapped into [−90°, 90°].
     case perpendicular(LineOperand, LineOperand, scale: Double)
-    /// scale · sin(φ − target), φ the signed angle from the first line to the second.
+    /// scale · (φ − target) wrapped into [−180°, 180°], φ the signed angle from the first line's
+    /// direction to the second's. Directed: its only zero is φ = target (see `AngleSense`).
     case angle(LineOperand, LineOperand, target: Double, scale: Double)
     /// Tangency at a shared endpoint p: (p − centre) · direction / |direction| (radius ⟂ line).
     case tangentAtPoint(PointOperand, center: PointOperand, LineOperand)

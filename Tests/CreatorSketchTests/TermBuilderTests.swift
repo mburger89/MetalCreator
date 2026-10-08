@@ -67,9 +67,9 @@ struct TermBuilderTests {
         let horizontal = sketch.add(.horizontal(line))
         let term = try #require(try build(sketch).terms.first)
         #expect(term.role == .user(.constraint(horizontal)))
-        // Length 10 at the warm start; the residual is 10 · sin(angle to x) = 6.
+        // Length 10 at the warm start; the residual is 10 · (angle to x) = 10 · atan2(6, 8).
         #expect(term.equation == .horizontalLine(LineOperand(start: .unknown(column: 0), end: .unknown(column: 2)), scale: 10))
-        #expect(isClose(term.equation.rows([0, 0, 8, 6])[0].value, 6, tolerance: 1e-12))
+        #expect(isClose(term.equation.rows([0, 0, 8, 6])[0].value, 10 * atan2(6, 8), tolerance: 1e-12))
     }
 
     @Test func pointToLineDistanceKeepsTheDrawnSide() throws {

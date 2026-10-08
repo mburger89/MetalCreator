@@ -2,9 +2,10 @@ import CreatorGeometry
 import Foundation
 
 /// Turns a sketch's constraints, driving dimensions and arcs into equations over the global
-/// unknowns. Choices that pick a solution branch (which side of a line, which way an angle
-/// opens, internal or external tangency) are read from the warm start `x0`, which is what keeps
-/// solves branch-stable (spec §4).
+/// unknowns. Choices that pick a solution branch (which side of a line, internal or external
+/// tangency) are read from the warm start `x0`, which is what keeps solves branch-stable
+/// (spec §4). An angle's sense is stored on its dimension (`AngleSense`), falling back to the
+/// warm start only for a dimension that has none yet.
 struct TermBuilder {
     let sketch: Sketch
     let layout: UnknownLayout
@@ -74,7 +75,8 @@ struct TermBuilder {
         case .equalRadius(let a, let b):
             if a == b { return true }
         case .angle(let a, let b, let target, _):
-            if a == b, abs(sin(target)) <= 1e-12 { return true }
+            // The same line twice is always at 0°, met only by a directed target of 0.
+            if a == b, abs(AngleSense.wrappedToHalfTurn(target)) <= 1e-12 { return true }
         default:
             break
         }
@@ -334,21 +336,9 @@ struct TermBuilder {
             return .radius(try circle(id, ref: ref, needs: "an arc or circle"), dimension.value / 2)
         case .angle(let a, let b):
             let (first, second) = (try line(a, ref: ref, needs: "two lines"), try line(b, ref: ref, needs: "two lines"))
-            return .angle(first, second, target: angleTarget(first, second, degrees: dimension.value), scale: scale(first, second))
+            let sense = dimension.angleSense
+                ?? AngleSense.nearest(from: first.direction(x0), to: second.direction(x0), degrees: dimension.value)
+            return .angle(first, second, target: sense.directedTarget(degrees: dimension.value), scale: scale(first, second))
         }
-    }
-
-    /// ±θ, whichever has a zero of sin(φ − target) nearest the warm-start angle φ₀ (lines are
-    /// undirected, so θ + π also satisfies the residual). Ties go to +θ.
-    func angleTarget(_ first: LineOperand, _ second: LineOperand, degrees: Double) -> Double {
-        let (d1, d2) = (first.direction(x0), second.direction(x0))
-        let phi = atan2(SketchMath.cross(d1, d2), SketchMath.dot(d1, d2))
-        let theta = degrees * .pi / 180
-        func gap(_ target: Double) -> Double {
-            let a = SketchMath.wrapped(phi - target)
-            let b = SketchMath.wrapped(phi - target - .pi)
-            return min(min(a, 2 * .pi - a), min(b, 2 * .pi - b))
-        }
-        return gap(theta) <= gap(-theta) ? theta : -theta
     }
 }
