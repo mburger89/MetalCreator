@@ -16,7 +16,7 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 | M2 | OCCT kernel: all operations, tags through history, conformance + naming stability | ✅ | M0, M1 |
 | M3 | The 26 nodes (values, profiles, solids, selection rules, fillet/chamfer, output) | ✅ | M2 |
 | M4 | Viewport on MetalUI `MetalView`: shaded/edge/ID passes, camera, view cube, picking, context menu, handles | 🔄 code done; human checks V pending | M2; MetalUI C7 for final input bindings (stopgaps until then) |
-| M5 | Graph panel on MetalUI: canvas, both docks, palette, context inspector | 📝 plan ready for review (…-m5-graph-panel.md); runs after M4 | M1; node inspector specs from M3 |
+| M5 | Graph panel on MetalUI: canvas, both docks, palette, context inspector | 🔄 code done; human checks M5 pending | M1; node inspector specs from M3 |
 | M6 | App shell + acceptance demo (§7.2 bracket, STEP/STL export) | ⏳ after M3–M5 | M3, M4, M5 |
 | M7 | Measure §7.3 targets, finish `docs/metalui-gaps.md`, CLAUDE.md | ⏳ after M6 | M6 |
 
@@ -39,4 +39,16 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 
 - ✅ Before M3: Edges-by-Tag subset matching; Edges by Direction `abs(dot)` + `kind == .line`; Edge Set Op dedupe; Loft segment-count message; warn on `.unnamed` picks; multi-solid boolean warning.
 - ✅ Before M4: edge polylines from `BRep_Tool::PolygonOnTriangulation`; mesh determinism across calls.
+- M6: install the graph's input with `GraphPanelInput.install(on:)` (it chains `onInput`/`onAction` and appends its
+  keymap). Only its `onInput` side composes with M4's `ViewportModifierTracker.install(on:)` in either order: set the
+  viewport's keymap and `onAction` (which M4's harness assigns directly) before `install(on:)`, or append and chain
+  them the same way, or the palette's ↑/↓ bindings and `handleAction` are dropped. Call `releaseTextFocus` on viewport
+  presses too; give M4's viewport keymap bindings a key context (gap M4-a), because window-wide `=`/`+`/`-` bindings run
+  before `onInput` and take the graph's zoom keys; place `GraphPanel` per `EditorModel.dock`,
+  `GraphShowButton` while hidden, and `InspectorPanel` on the right over the viewport; consume
+  `EditorModel.inspectorRequest` for "Pick edges in view…" (write the picks as `.edgePicks(…)` under `NodeSetting.picks`);
+  pass the real `BuiltInNodes.registry`. Deferred to M6 from spec §6.1/§6.2:
+  resizing the docked panel along its inner edge, and the Preview menu (Final / Selected node →
+  `document.previewNode`). M7: measure 50-node pan/zoom (CanvasLayers is the hot path; add viewport culling there if
+  it misses 60 fps).
 - M7: `oriented()` cost; OCCTKernel on the default executor; per-item calls under the global lock.

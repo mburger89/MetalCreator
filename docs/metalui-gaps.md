@@ -66,3 +66,40 @@ Gap numbers 1–5 are the C7 items above. New gaps are labelled M4-a… (M5 uses
    - A `.continuous` `MetalView` redraws its surface every frame, but the element tree isn't rebuilt, so overlay labels
      can't follow a camera animation. They're hidden while one runs. Wanted: `TimelineView(.animation)`, or a per-frame
      rebuild hook for elements above a continuous surface.
+
+## Reported 2026-10-08 (M5 graph panel)
+
+These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M4-a… entries in the section above.
+
+- **M5-a. `Slider` has no editing-ended callback** (SwiftUI's `Slider(value:in:onEditingChanged:)`). The inspector
+  coalesces a slider drag into one undo step and needs to know when the drag ends. Stopgap: steps share a coalescing
+  key; it ends on the next selection change, canvas press, other edit, undo or redo
+  (`EditorModel.setInput(_:to:continuous:)`). Two drags of the same slider with nothing between them merge.
+- **M5-b. Tab is taken by focus traversal** whenever any focusable control exists, before `Window.onInput` sees it,
+  and a `Button` shortcut is the only earlier stage. The graph panel wants Tab to open the add-node palette over the
+  canvas and to toggle the hidden panel (spec §6.1, §6.2). Stopgap: Space opens the palette; while hidden,
+  `GraphShowButton` carries `.keyboardShortcut(.tab, modifiers: [])`; Tab reaches `GraphKeyBindings` only when nothing
+  focusable is on screen. A focus-scoped key binding, or `onKeyPress` on a focus region, would fix it.
+- **M5-c. No materials or blur** (`.background(.ultraThinMaterial)`, `.blur(radius:)`). Glass panels over the viewport
+  need a backdrop blur (spec §6.1). Stopgap: `#21222c` at 86% opacity with the hairline (`GlassPanel`).
+- **M5-d. No gradients.** The window background is a `#3a3d4e` → `#191a21` vertical gradient (spec §6.6). Stopgap:
+  solid `#191a21`.
+- **M5-e. Modifiers on a press** (adds to gap 5, which M4's entry made concrete). Shift-click and ⇧/⌥-drag on the
+  canvas need the modifiers at the press, in the gesture's value. Stopgap: `GraphPanelInput.dragValueModifiers(_:)`
+  returns the set `GraphPanelInput.handle(_:)` tracks from `.modifiersChanged`; C7's `DragGesture.Value.modifiers`
+  replaces its body. A click's location is `GraphPanelInput.spatialTapGesture()`, a zero-distance drag (gap 4).
+- **M5-f. Canvas scroll and pinch** (adds to items 1 and 2). Two-finger scroll should pan the graph canvas and
+  ⌘-scroll or pinch should zoom about the pointer (the `location` in the canvas's local points). Stopgap: drag on empty
+  canvas pans; +/− keys and the header buttons zoom about the pointer (`EditorModel.zoom(in:)`). With M4's viewport
+  in the same window, M4's window-wide keymap takes `=`/`+`/`-` before `onInput` (gap M4-a), so M6 needs a key context.
+- **M5-g. A press elsewhere never clears text focus** (focus-by-click is deliberately not MetalUI policy,
+  `Window.focus(_:)` docs). After editing an inspector field, the field keeps Delete, ⌘C/⌘V/⌘Z and Space while the
+  user clicks nodes, so the graph's keys stop working with no visible cause. Stopgap: the canvas gesture calls
+  `GraphPanelInput.releaseTextFocus` (`window.focus(nil)`) at the start of each press. A SwiftUI-like rule (a press on
+  non-focusable content resigns the field), or a `.focusable(false)`-style "clears focus" modifier, would fix it.
+- **M5-h. A focused single-line field claims ↑/↓** (mac: caret to start/end, `TextEditing.key`) before the raw key
+  bubble and `onInput`. The add-node palette needs ↑/↓ to move its highlight while its search field is focused.
+  Stopgap: `GraphPanelInput.keymap` binds `up`/`down` to `PaletteMove`, and `handleAction` runs it only while the
+  palette is open (the keymap stage precedes field keys). SwiftUI's `onKeyPress` on the field would fix it.
+- **M5-i. No keyframe animation.** The refused-wire "brief shake" (spec §6.2) wants a back-and-forth keyframe
+  animation. Stopgap: the node's offset jumps 6 pt and springs back (`.animation(.spring(duration:bounce:), value:)`).

@@ -376,3 +376,16 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
 - Non-socket node settings (`parameter`, `picks`, `showHandle`) are stored in `Node.inputValues` under `NodeSetting` names, and new nodes are seeded with their `defaultSettings`.
 - §4.5's `formatVersion` is 2 from M3 on: `ConstantValue` gained `.edgePicks`. Files from M3 or later are refused by older builds.
 - §8's naming-stability bullet: the rectangle that is swapped for a polygon is the L-flange's Rectangle (the only plain Rectangle in §7.2), replaced by a Regular Polygon on the same plane. As written, the swap cannot keep the fillet's meaning. Regular Polygon puts its first corner on +x and has no rotation input, so on the XZ plane none of its sides is parallel to Z. A probe in M3 swapped the flange for 4-, 6- and 8-sided polygons (r 15). In every case `Edges by Direction(Z) ∩ Edge Filter(convex)` was empty, Fillet reported “No edges are selected.”, and Chamfer never ran. Today the four fillet edges are the flange's vertical corners (`side(segment: 1/3)` against the flange's `startCap`/`endCap`). The test is owned by M6, and it does not block M3. It means: the chamfer's picked plate top-cap keys still resolve (subset matching) with no node warning. The fillet set is re-derived by its rule, and its flange keys are expected to change, but its count is pinned. For that, the polygon needs sides parallel to Z, for example a hexagon rotated 30°. M6 either gives Regular Polygon a `rotation` input (a `typeVersion` bump) or uses a Polyline that has vertical sides, and records the counts it pins in the test.
+
+## Errata (M5)
+
+- §6.2's "inline value fields" are read-only text on the node's row. Values are edited in the inspector, because a
+  `TextField` on the canvas would compete with the canvas-wide gesture and split keyboard focus (§9's risk list).
+  Revisit when MetalUI C7 lands.
+- §6.1/§6.2's ⇥ is contextual: Tab opens the add-node palette while the pointer is over a visible canvas, and
+  otherwise toggles the hidden panel. Space always opens the palette. While the panel is hidden, a "Show graph"
+  button carries Tab as its shortcut, so hiding is never a one-way trip.
+- §6.4's inspector also clears an optional input: emptying its field unsets it (for example Grid Points `total`).
+- §6.1/§6.6's glass blur and the window gradient wait for MetalUI. Panels are `#21222c` at 86% with the hairline,
+  and the preview's background is solid `#191a21` (docs/metalui-gaps.md M5-c, M5-d).
+- §6.2's refusal shake is a spring back from a 6-pt offset (no keyframe animation yet, M5-i).

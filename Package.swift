@@ -37,6 +37,10 @@ let package = Package(
         .executableTarget(name: "ViewportHarness",
                           dependencies: ["CreatorViewport", "CreatorOCCT", "CreatorKernel", "CreatorGeometry", metalUI]),
         .target(name: "CreatorEditor", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUI]),
+        .executableTarget(
+            name: "GraphPanelPreview",
+            dependencies: ["CreatorEditor", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUI]
+        ),
         .testTarget(
             name: "CreatorEditorTests",
             dependencies: ["CreatorEditor", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUI]

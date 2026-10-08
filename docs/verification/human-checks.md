@@ -66,3 +66,62 @@ drags print to the terminal.
   `aSceneShownBeforeTheFirstDrawIsFramedOnceTheViewHasASize`. Observed:
 - [ ] **V11 Grid steps.** Zooming in and out switches the grid between 1, 10 and 100 mm, and the label follows. Pinned:
   `gridSpacingStepsWithZoom`. Observed:
+
+## Group M5 — the graph panel and inspector (M5)
+
+**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
+
+Run `swift run GraphPanelPreview`.
+
+- [ ] **M5-1 Dracula colours.** Headers are comment-blue (Number), green (Rectangle), purple (Extrude), pink
+  (All Edges), orange (Fillet), cyan (Output). Header text is dark (`#282a36`). Body text is near-white, hint text
+  blue-grey. Pinned: `PaletteTests`. **Observed:**
+- [ ] **M5-2 Selection glow.** Click Extrude: it gets a 2-pt outline and a soft glow in *purple*, its own header
+  colour. Click Fillet: the glow is orange. Pinned: `selectionGlowIsTheNodesOwnHeaderColour`. **Observed:**
+- [ ] **M5-3 Glass panels.** The panel and inspector are translucent dark with a faint 1-pt light hairline and rounded
+  corners (no blur yet, gap M5-c). **Observed:**
+- [ ] **M5-4 Wires.** Wires are smooth curves leaving outputs forwards and entering inputs forwards, coloured by the
+  source socket (green from Rectangle, purple from Extrude, pink from All Edges). Socket dots use the same colours.
+  Pinned: `WireGeometryTests`, `wiresRunBetweenTheirSocketAnchors`. **Observed:**
+- [ ] **M5-5 Docks.** Press Left: the graph becomes a column flowing top to bottom, inputs on top edges and outputs
+  on bottom edges, the layout a mirror (x↔y) of the bottom dock. Press Bottom: it flows left to right again with
+  every node back where it was. Press Hide: the panel goes and a "Show graph" button appears at the bottom left.
+  Press Tab (even with an inspector field focused): the panel returns to the last side. Hide again and click "Show
+  graph": same. Pinned: `DockTests`, `theHiddenPanelLeavesAShowButton`; the Tab shortcut is this check only.
+  **Observed:**
+- [ ] **M5-6 Pan, zoom, hit testing.** Drag empty canvas: it pans. Press + three times with the pointer over a node:
+  the node stays under the pointer. Click a socket's edge at that zoom and drag: a cyan wire follows the pointer.
+  Pinned: `HitTestTests`. **Observed:**
+- [ ] **M5-7 Wiring.** Drag Rectangle's output onto Extrude's profile input: a wire is made (it replaces the old one).
+  Drag Number's output onto Extrude's profile: nothing connects, Extrude jumps sideways and springs back (a brief
+  wobble, gap M5-i), and "A number can't connect to a profile input." shows under the canvas for about two seconds.
+  Drag from Extrude's wired profile input onto empty canvas: the wire is removed; ⌘Z brings it back.
+  Pinned: `WiringTests`. **Observed:**
+- [ ] **M5-8 Box select and ⌥-drag.** Hold ⇧ and drag on empty canvas: a cyan box selects what it touches. Hold ⌥
+  and drag a selected node: translucent ghosts follow, and on release copies appear there with their wires; ⌘Z
+  removes them in one step. Pinned: `PointerTests`. **Observed:**
+- [ ] **M5-9 Palette.** With the pointer over the canvas press Space: a glass palette opens at the pointer with the
+  field focused. Type "t", press ↓ twice and ↑ once: the highlight moves down two rows and back one, while the field
+  keeps focus (the arrows are window keymap actions, gap M5-h). Press Return: the highlighted node is added there
+  and selected. Open it again and type a space: it goes into the field (no second palette). Escape closes it.
+  Pinned: `SearchPaletteTests`, `KeyCommandTests`, `paletteArrowsAreKeymapActionsOnlyWhileThePaletteIsOpen`; the
+  routing through a focused field is this check only. **Observed:**
+- [ ] **M5-10 Inspector.** Select Rectangle: header in green with "Rectangle", Size sliders, a segmented XY/XZ/YZ
+  plane picker and a 3×3 anchor grid; Document Parameters below. Drag the Width slider, release, then press ⌘Z
+  once: width returns to where the drag started. Select Fillet: an EDGES section reads "All Edges · 12 edges" in
+  pink, a "Show handle in view" toggle that starts On, and a "Pick edges in view…" button. Select All Edges: its
+  EDGES row reads "12 edges". Drag Radius above 10: Fillet's badge turns to a red ✕ and hovering it shows the message.
+  Select Extrude: a Distance/Symmetric segmented control, the Distance slider and a "Reverse direction" toggle that
+  starts Off (no Direction menu, spec Errata (M3)).
+  Add a Transform (palette): its Move row has three fields; type 5 into the middle one and the node row reads
+  "0 mm, 5 mm, 0 mm". Add a Graph Parameter: its menu lists Width; choose it and the menu shows Width.
+  Add a Grid Points: its Total field is empty, showing "Not set", and the node row reads "—". Type 6 and press
+  Return: the row reads "6". Empty the field and press Return: it's "Not set" again. Click empty canvas and press ⌘Z: 6 comes back.
+  Pinned: `InspectorTests` (`anOptionalInputStartsUnsetAndCanBeCleared`), `CoalescingTests`. **Observed:**
+- [ ] **M5-11 Keys stay with fields.** Click into the Width number field, type "75" and press Delete: the digit is
+  deleted, not the node. Press Return: Width becomes 75 mm. Pinned: design (`Window.onInput` fallback),
+  `mappedKeysAreRunAndClaimed`. **Observed:**
+- [ ] **M5-12 A canvas press gives the keys back.** Edit the Width number field (type "70", Return), then click the
+  Extrude node on the canvas and press Delete: Extrude is deleted (not a character in the field). Press ⌘Z: Extrude
+  comes back (the graph's undo, not the field's). Press Space over the canvas: the palette opens. Pinned:
+  `aCanvasPressReleasesTextFocusOncePerPress`; the focus release itself is this check only (gap M5-g). **Observed:**

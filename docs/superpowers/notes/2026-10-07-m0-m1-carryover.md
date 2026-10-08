@@ -90,3 +90,27 @@ Read this before writing the M2 and M3 plans.
 - `ViewportPalette` (GPU colours) duplicates spec §6.6 hex values that M5's `Palette` will also hold. M5 can't unify
   them (neither target may import the other); M6 decides on a shared home.
 - Faces above 2²² − 1 and solids beyond 256 aren't pickable (`PickID`).
+
+## From M5
+- Inline node values are read-only text (spec §6.2 says "inline value fields"); editing is in the inspector, because
+  a canvas `TextField` would fight the canvas-wide gesture and split keyboard focus. Revisit when MetalUI C7 lands.
+- Inspector settings rule: a control naming a non-socket is a setting (`NodeSetting`); new nodes carry their seeded
+  `defaultSettings`, and a setting toggle with nothing stored reads On; `.parameterPicker` writes M3's
+  `ConstantValue.parameter(id)` and reads `.parameterID` (one encoding, in CreatorGraph).
+- `Palette` (CreatorEditor) and M4's `ViewportPalette` (CreatorViewport) hold the same spec §6.6 hex values; neither
+  target may import the other, so M6 picks a shared home.
+- CreatorGraph messages read `needs a \(type.rawValue)` ("needs a integer", "needs a edgeSet") in `Graph+Commands`,
+  `NodeError` and `Evaluator`; give them the editor's `SocketType.indefiniteName` wording in one pass.
+- Numbers are shown and parsed in `en_US_POSIX`; localised number entry is deferred with string localisation.
+- Only the key mapping is unit-tested (MetalUI's `Window` init is internal); real-window routing is human checks
+  M5-5, M5-9, M5-11, M5-12, and `GraphPanelInput.install(on:)` is untested glue. If MetalUI exposes a test window, add
+  dispatch tests.
+- Optional inputs with no default (Grid Points `total`, Edge Filter `maxLength`, Transform `axisDirection`) start
+  unset ("Not set" in the inspector, "—" on the node row); emptying the field clears them (`EditorModel.clearInput`).
+  Required inputs are never cleared.
+- C7 swap points in `GraphPanelInput`: `spatialTapGesture()` → `SpatialTapGesture` (a return-type change, so
+  `canvasGesture()` becomes a tap plus a nonzero-distance drag and its stand-in test is rewritten), `dragValueModifiers(_:)` →
+  `DragGesture.Value.modifiers` (body-only; then `handle(_:)` stops tracking `.modifiersChanged`), and scroll/pinch get new
+  handlers (`.onScrollWheel`, `MagnifyGesture`); the +/− keys and header buttons stay.
+- With M4's viewport in the same window, M4's window-wide `=`/`+`/`-` keymap bindings win over the graph's zoom keys
+  (keymap runs before `onInput`); M6 scopes the viewport's with a key context (gap M4-a).
