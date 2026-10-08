@@ -16,8 +16,9 @@ import MetalUI
 ///
 /// Two more stopgaps are for MetalUI gaps outside C7:
 /// - keys: read from the window's `onInput` fallback, so a focused text field keeps its keys;
-///   the palette's ↑/↓ alone go through the window keymap (`keymap`, `handleAction`), because a
-///   focused field claims arrows before `onInput` (gap M5-h);
+///   the palette's ↑/↓ and Tab over the canvas alone go through the window keymap (`keymap`,
+///   `handleAction`), because a focused field claims arrows and focus traversal claims Tab before
+///   `onInput` (gaps M5-h, M5-b);
 /// - focus: a canvas press clears text focus through `releaseTextFocus`, because MetalUI never
 ///   unfocuses a field on an outside press (gap M5-g).
 @MainActor
@@ -63,15 +64,27 @@ public final class GraphPanelInput {
         Keymap {
             KeyBinding("up", PaletteMove(step: -1))
             KeyBinding("down", PaletteMove(step: 1))
+            KeyBinding("tab", GraphTab())
         }
     }
 
-    /// Install from `Window.onAction`. Runs a palette move while the palette is open. Otherwise it
-    /// returns false, and MetalUI passes the key on (to a focused field) as if it were unbound.
+    /// Install from `Window.onAction`. Runs a palette move while the palette is open, and opens the
+    /// palette on Tab while the pointer is over the visible canvas and no palette is open. Otherwise
+    /// it returns false, and MetalUI passes the key on (to a focused field, Tab focus traversal, a
+    /// `GraphShowButton` shortcut or `onInput`) as if it were unbound.
     public func handleAction(_ action: any Action) -> Bool {
-        guard let move = action as? PaletteMove, model.palette != nil else { return false }
-        model.movePaletteHighlight(by: move.step)
-        return true
+        switch action {
+        case let move as PaletteMove:
+            guard model.palette != nil else { return false }
+            model.movePaletteHighlight(by: move.step)
+            return true
+        case is GraphTab:
+            guard model.isPanelVisible, model.pointerLocation != nil, model.palette == nil else { return false }
+            model.openPalette()
+            return true
+        default:
+            return false
+        }
     }
 
     /// Install from `Window.onInput` (`install(on:)` does). Returns true when the event was used.

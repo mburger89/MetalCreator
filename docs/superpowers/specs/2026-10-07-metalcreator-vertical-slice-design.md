@@ -382,9 +382,11 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
 - §6.2's "inline value fields" are read-only text on the node's row. Values are edited in the inspector, because a
   `TextField` on the canvas would compete with the canvas-wide gesture and split keyboard focus (§9's risk list).
   Revisit when MetalUI C7 lands.
-- §6.1/§6.2's ⇥ is contextual: Tab opens the add-node palette while the pointer is over a visible canvas, and
-  otherwise toggles the hidden panel. Space always opens the palette. While the panel is hidden, a "Show graph"
-  button carries Tab as its shortcut, so hiding is never a one-way trip.
+- §6.1/§6.2's ⇥ is contextual: Tab opens the add-node palette while the panel is visible, the pointer is over the
+  canvas and no palette is open; otherwise it moves keyboard focus as usual. Space always opens the palette. Tab
+  hides the panel only when nothing focusable is on screen (in practice never, since the inspector is). While the
+  panel is hidden, a "Show graph" button carries Tab as its shortcut, so hiding is never a one-way trip. With the
+  pointer over the canvas, Tab opens the palette even from a focused inspector field (docs/metalui-gaps.md M5-b).
 - §6.4's inspector also clears an optional input: emptying its field unsets it (for example Grid Points `total`).
 - §6.1/§6.6's glass blur and the window gradient wait for MetalUI. Panels are `#21222c` at 86% with the hairline,
   and the preview's background is solid `#191a21` (docs/metalui-gaps.md M5-c, M5-d).

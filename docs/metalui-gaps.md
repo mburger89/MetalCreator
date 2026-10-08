@@ -75,11 +75,16 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
   coalesces a slider drag into one undo step and needs to know when the drag ends. Stopgap: steps share a coalescing
   key; it ends on the next selection change, canvas press, other edit, undo or redo
   (`EditorModel.setInput(_:to:continuous:)`). Two drags of the same slider with nothing between them merge.
-- **M5-b. Tab is taken by focus traversal** whenever any focusable control exists, before `Window.onInput` sees it,
-  and a `Button` shortcut is the only earlier stage. The graph panel wants Tab to open the add-node palette over the
-  canvas and to toggle the hidden panel (spec §6.1, §6.2). Stopgap: Space opens the palette; while hidden,
-  `GraphShowButton` carries `.keyboardShortcut(.tab, modifiers: [])`; Tab reaches `GraphKeyBindings` only when nothing
-  focusable is on screen. A focus-scoped key binding, or `onKeyPress` on a focus region, would fix it.
+- **M5-b. No focus-scoped or hover-scoped key binding.** Tab focus traversal claims Tab before `Window.onInput`
+  whenever anything focusable is on screen (the inspector always is). The window keymap runs earlier, and a binding
+  whose `onAction` returns false falls through to the later stages, traversal included, so the graph binds Tab
+  there: `GraphPanelInput.keymap` maps `tab` to `GraphTab`, and `handleAction` opens the add-node palette only while
+  the panel is visible, the pointer is over the canvas and no palette is open (spec §6.2). Otherwise Tab moves focus.
+  While hidden, `GraphShowButton` carries `.keyboardShortcut(.tab, modifiers: [])` (the shortcut stage also precedes
+  traversal). What is missing: the binding is window-wide and decides by reading the model's hover state, so with
+  the pointer over the canvas Tab opens the palette even from a focused inspector field instead of moving focus.
+  Wanted: a key context an element contributes while hovered (as M4-a asks for the viewport), or `onKeyPress` on a
+  focus region.
 - **M5-c. No materials or blur** (`.background(.ultraThinMaterial)`, `.blur(radius:)`). Glass panels over the viewport
   need a backdrop blur (spec §6.1). Stopgap: `#21222c` at 86% opacity with the hairline (`GlassPanel`).
 - **M5-d. No gradients.** The window background is a `#3a3d4e` → `#191a21` vertical gradient (spec §6.6). Stopgap:

@@ -42,8 +42,8 @@ struct GraphPanelInputTests {
     @Test func paletteArrowsAreKeymapActionsOnlyWhileThePaletteIsOpen() {
         let editor = makeEditor([])
         let input = GraphPanelInput(model: editor)
-        #expect(GraphPanelInput.keymap.bindings.map(\.spelling) == ["up", "down"])
-        #expect(GraphPanelInput.keymap.bindings.allSatisfy { $0.action is PaletteMove })
+        #expect(GraphPanelInput.keymap.bindings.map(\.spelling) == ["up", "down", "tab"])
+        #expect(GraphPanelInput.keymap.bindings.prefix(2).allSatisfy { $0.action is PaletteMove })
         // Closed: unhandled, so MetalUI passes the arrow on to a focused field.
         #expect(!input.handleAction(PaletteMove(step: 1)))
         editor.openPalette()
@@ -51,6 +51,31 @@ struct GraphPanelInputTests {
         #expect(editor.palette?.highlighted == 1)
         #expect(input.handleAction(PaletteMove(step: -1)))
         #expect(editor.palette?.highlighted == 0)
+    }
+
+    /// Tab is a keymap action because Tab focus traversal runs before `onInput` whenever anything
+    /// focusable is on screen (the inspector always is). Unclaimed, it falls through to traversal
+    /// or, while hidden, to `GraphShowButton`'s shortcut. Only the mapping is pinned here.
+    @Test func tabIsAKeymapActionThatOpensThePaletteOnlyOverTheVisibleCanvas() throws {
+        let editor = makeEditor([])
+        let input = GraphPanelInput(model: editor)
+        let binding = try #require(GraphPanelInput.keymap.bindings.last)
+        #expect(binding.spelling == "tab")
+        #expect(binding.action is GraphTab)
+        // Pointer off the canvas: unclaimed, so focus traversal gets Tab.
+        #expect(!input.handleAction(GraphTab()))
+        #expect(editor.palette == nil)
+        input.hover(.active(Point(x: Pixels(40), y: Pixels(30))))
+        #expect(input.handleAction(GraphTab()))
+        #expect(editor.palette?.screenPosition == Vector2(40, 30))
+        // Palette already open: unclaimed (no second palette).
+        #expect(!input.handleAction(GraphTab()))
+        editor.closePalette()
+        // Hidden: unclaimed, so `GraphShowButton`'s Tab shortcut shows the panel.
+        editor.toggleHidden()
+        #expect(!editor.isPanelVisible)
+        #expect(!input.handleAction(GraphTab()))
+        #expect(editor.palette == nil)
     }
 
     @Test func aCanvasPressReleasesTextFocusOncePerPress() {

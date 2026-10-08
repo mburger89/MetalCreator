@@ -125,3 +125,8 @@ Run `swift run GraphPanelPreview`.
   Extrude node on the canvas and press Delete: Extrude is deleted (not a character in the field). Press ⌘Z: Extrude
   comes back (the graph's undo, not the field's). Press Space over the canvas: the palette opens. Pinned:
   `aCanvasPressReleasesTextFocusOncePerPress`; the focus release itself is this check only (gap M5-g). **Observed:**
+- [ ] **M5-13 Tab over the canvas.** With the inspector showing its fields (any node selected, or none: Document
+  Parameters is always there), move the pointer over empty canvas and press Tab: the add-node palette opens at the
+  pointer with its field focused. Escape, move the pointer onto the inspector and press Tab: focus moves to the next
+  inspector field and no palette opens. Pinned: `tabIsAKeymapActionThatOpensThePaletteOnlyOverTheVisibleCanvas`; the
+  routing ahead of focus traversal is this check only (gap M5-b). **Observed:**
