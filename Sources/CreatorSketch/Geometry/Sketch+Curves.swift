@@ -19,19 +19,23 @@ extension Sketch {
             guard let c = position(of: center), let radius = radius(of: id), radius > CurveIntersection.tolerance else { return nil }
             return .arc(center: c, radius: radius, start: 0, sweep: CurveShape.fullTurn)
         case .projected(let source):
-            guard !source.isSuspended else { return nil }
-            switch source.curve {
-            case .line(let a, let b):
-                return (b - a).length > CurveIntersection.tolerance ? .line(a, b) : nil
-            case .arc(let center, let radius, let start, let end):
-                let sweep = end.radians - start.radians
-                guard radius > 0, sweep > 0 else { return nil }
-                return .arc(center: center, radius: radius, start: start.radians, sweep: min(sweep, CurveShape.fullTurn))
-            case .circle(let center, let radius):
-                return radius > 0 ? .arc(center: center, radius: radius, start: 0, sweep: CurveShape.fullTurn) : nil
-            }
+            return source.isSuspended ? nil : Self.shape(of: source.curve)
         default:
             return nil
+        }
+    }
+
+    /// The shape of a projected edge's curve, or `nil` when it is degenerate.
+    static func shape(of curve: ProjectedCurve) -> CurveShape? {
+        switch curve {
+        case .line(let a, let b):
+            return (b - a).length > CurveIntersection.tolerance ? .line(a, b) : nil
+        case .arc(let center, let radius, let start, let end):
+            let sweep = end.radians - start.radians
+            guard radius > 0, sweep > 0 else { return nil }
+            return .arc(center: center, radius: radius, start: start.radians, sweep: min(sweep, CurveShape.fullTurn))
+        case .circle(let center, let radius):
+            return radius > 0 ? .arc(center: center, radius: radius, start: 0, sweep: CurveShape.fullTurn) : nil
         }
     }
 

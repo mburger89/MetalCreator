@@ -21,6 +21,8 @@ extension Sketch {
         }
     }
 
+    // One exhaustive case per constraint kind for its title.
+    // swiftlint:disable:next cyclomatic_complexity
     func label(of constraint: SketchConstraint) -> String {
         let names = constraint.entities.map { label(of: $0) }
         let title = switch constraint {

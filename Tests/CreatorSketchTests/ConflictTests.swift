@@ -60,9 +60,11 @@ struct ConflictTests {
         let tall = rectangle.sketch.addDimension(.length(rectangle.lines[3]), value: 30)
         let solution = SketchSolver.solve(rectangle.sketch)
         #expect(solution.status == .overConstrained(conflicts: [.dimension(rectangle.width), .dimension(wide),
-                                                               .dimension(rectangle.height), .dimension(tall)]))
+                                                               .dimension(rectangle.height), .dimension(tall),
+        ]))
         #expect(solution.conflictMessages == ["Length d1 (60 mm) conflicts with Length d3 (50 mm).",
-                                              "Length d2 (40 mm) conflicts with Length d4 (30 mm)."])
+                                              "Length d2 (40 mm) conflicts with Length d4 (30 mm).",
+        ])
     }
 
     @Test func independentRedundanciesInOneComponentAreEachReported() {

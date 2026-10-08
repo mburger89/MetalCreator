@@ -2,8 +2,10 @@ import CreatorGeometry
 import Foundation
 
 extension Equation {
+    // One exhaustive case per equation, each its residual and gradient; splitting it would scatter
+    // the equation table that Equation+Columns and the residual tests mirror.
     /// The residual rows at `x`, each with its analytic gradient.
-    func rows(_ x: [Double]) -> [RowBuilder] {
+    func rows(_ x: [Double]) -> [RowBuilder] { // swiftlint:disable:this cyclomatic_complexity function_body_length
         switch self {
         case .coincident(let p, let q):
             return Self.difference(p, q, x)

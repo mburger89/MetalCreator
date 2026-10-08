@@ -30,11 +30,17 @@ struct HalfEdge: Hashable, Sendable {
         let edge = graph.edges[edge]
         let geometry: LoopSegment.Geometry = switch edge.shape {
         case .line:
-            isForward ? .line(graph.vertices[edge.from], graph.vertices[edge.to])
-                : .line(graph.vertices[edge.to], graph.vertices[edge.from])
+            if isForward {
+                .line(graph.vertices[edge.from], graph.vertices[edge.to])
+            } else {
+                .line(graph.vertices[edge.to], graph.vertices[edge.from])
+            }
         case .arc(let center, let radius, let start, let sweep):
-            isForward ? .arc(center: center, radius: radius, from: start, to: start + sweep)
-                : .arc(center: center, radius: radius, from: start + sweep, to: start)
+            if isForward {
+                .arc(center: center, radius: radius, from: start, to: start + sweep)
+            } else {
+                .arc(center: center, radius: radius, from: start + sweep, to: start)
+            }
         }
         let (from, to) = isForward ? (edge.from, edge.to) : (edge.to, edge.from)
         return LoopSegment(geometry: geometry, source: edge.source, start: graph.vertices[from], end: graph.vertices[to])

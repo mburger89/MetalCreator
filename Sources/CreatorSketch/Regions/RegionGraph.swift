@@ -43,6 +43,25 @@ struct RegionGraph: Sendable {
 
     /// Splits one curve at its intersections with every other curve and adds the pieces.
     mutating func addPieces(of shape: CurveShape, source: Int) {
+        let distinct = splitParameters(of: shape, source: source)
+        for (t0, t1) in zip(distinct, distinct.dropFirst()) where shape.length(from: t0, to: t1) > CurveIntersection.tolerance {
+            let piece = shape.piece(from: t0, to: t1)
+            let from = vertex(piece.startPoint)
+            let to = vertex(piece.endPoint)
+            guard from != to else { continue }
+            let edge = Edge(from: from, to: to, shape: piece, source: source)
+            if let existing = edges.firstIndex(where: { Self.isSameGeometry($0, edge) }) {
+                if edges[existing].source != source { edges[existing].overlappingSources.insert(source) }
+            } else {
+                edges.append(edge)
+            }
+        }
+    }
+
+    /// The sorted parameters, one per distinct place, where `shape` is split: its intersections
+    /// with every other curve plus its ends. A full circle gets at least two, and its first
+    /// again a full turn on, so each piece has distinct ends.
+    func splitParameters(of shape: CurveShape, source: Int) -> [Double] {
         var parameters: [Double] = []
         for (other, curve) in curves.enumerated() where other != source {
             for point in CurveIntersection.points(shape, curve.shape) {
@@ -69,18 +88,7 @@ struct RegionGraph: Sendable {
             if distinct.count == 1 { distinct.append(distinct[0] + .pi) }
             distinct.append(distinct[0] + CurveShape.fullTurn)
         }
-        for (t0, t1) in zip(distinct, distinct.dropFirst()) where shape.length(from: t0, to: t1) > CurveIntersection.tolerance {
-            let piece = shape.piece(from: t0, to: t1)
-            let from = vertex(piece.startPoint)
-            let to = vertex(piece.endPoint)
-            guard from != to else { continue }
-            let edge = Edge(from: from, to: to, shape: piece, source: source)
-            if let existing = edges.firstIndex(where: { Self.isSameGeometry($0, edge) }) {
-                if edges[existing].source != source { edges[existing].overlappingSources.insert(source) }
-            } else {
-                edges.append(edge)
-            }
-        }
+        return distinct
     }
 
     /// Two pieces joining the same vertices along the same line or circle (an overlap).

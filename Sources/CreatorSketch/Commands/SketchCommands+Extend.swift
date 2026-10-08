@@ -12,30 +12,12 @@ extension SketchCommands {
         }
         let atEnd = (shape.endPoint - pick).length < (shape.startPoint - pick).length
         let moving = atEnd ? end : start
-        let isHeld = sketch.constraints.values.contains { constraint in
-            switch constraint {
-            case .coincident(let a, let b): a == moving || b == moving
-            case .fix(let point, _): point == moving
-            default: false
-            }
-        }
-        guard users(of: moving, besides: curve, in: sketch).isEmpty, !isHeld else {
+        guard users(of: moving, besides: curve, in: sketch).isEmpty, !isPinned(moving, in: sketch) else {
             throw SketchCommandError("That end of \(sketch.label(of: curve)) is connected to other geometry.")
         }
         let probe = extensionProbe(of: shape, atEnd: atEnd, reach: reach(of: sketch))
-        var best: (distance: Double, position: Vector2, cutter: SketchEntityID)?
-        for other in sketch.curves(includingConstruction: true) where other.source != curve {
-            for position in CurveIntersection.points(probe, other.shape) {
-                // Arc probes that extend the start run backwards from it.
-                let t = probe.nearestParameter(to: position)
-                let distance = probe.length(from: 0, to: (atEnd || !isArc(shape)) ? t : probe.parameterEnd - t)
-                guard distance > CurveIntersection.tolerance else { continue }
-                if best.map({ distance < $0.distance - CurveIntersection.tolerance }) ?? true {
-                    best = (distance, position, other.source)
-                }
-            }
-        }
-        guard let hit = best else {
+        // Arc probes that extend the start run backwards from it.
+        guard let hit = nearestHit(along: probe, runsBackwards: !atEnd && isArc(shape), from: curve, in: sketch) else {
             throw SketchCommandError("There is nothing to extend \(sketch.label(of: curve)) to.")
         }
         var edited = sketch
@@ -51,6 +33,35 @@ extension SketchCommands {
             edited.add(.pointOn(point: moving, curve: hit.cutter))
         }
         return try edit(from: sketch, to: edited, description: "Extend \(sketch.label(of: curve))")
+    }
+
+    /// True when `point` is coincident with or fixed to something.
+    static func isPinned(_ point: SketchEntityID, in sketch: Sketch) -> Bool {
+        sketch.constraints.values.contains { constraint in
+            switch constraint {
+            case .coincident(let a, let b): a == point || b == point
+            case .fix(let fixed, _): fixed == point
+            default: false
+            }
+        }
+    }
+
+    /// The first place along `probe` (from its start, or from its end when it `runsBackwards`)
+    /// where another curve than `curve` crosses it.
+    static func nearestHit(along probe: CurveShape, runsBackwards: Bool, from curve: SketchEntityID,
+                           in sketch: Sketch) -> (distance: Double, position: Vector2, cutter: SketchEntityID)? {
+        var best: (distance: Double, position: Vector2, cutter: SketchEntityID)?
+        for other in sketch.curves(includingConstruction: true) where other.source != curve {
+            for position in CurveIntersection.points(probe, other.shape) {
+                let t = probe.nearestParameter(to: position)
+                let distance = probe.length(from: 0, to: runsBackwards ? probe.parameterEnd - t : t)
+                guard distance > CurveIntersection.tolerance else { continue }
+                if best.map({ distance < $0.distance - CurveIntersection.tolerance }) ?? true {
+                    best = (distance, position, other.source)
+                }
+            }
+        }
+        return best
     }
 
     static func isArc(_ shape: CurveShape) -> Bool {

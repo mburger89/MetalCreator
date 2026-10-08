@@ -10,13 +10,7 @@ enum HouseholderQR {
         var y = b
         let (m, n) = (a.rows, a.columns)
         guard m >= n, b.count == m else { return nil }
-        var scale = 0.0
-        for j in 0..<n {
-            var s = 0.0
-            for i in 0..<m { s += a[i, j] * a[i, j] }
-            scale = max(scale, s.squareRoot())
-        }
-        let tolerance = relativeTolerance * scale
+        let tolerance = relativeTolerance * largestColumnNorm(a)
         for k in 0..<n {
             var norm = 0.0
             for i in k..<m { norm += r[i, k] * r[i, k] }
@@ -36,6 +30,23 @@ enum HouseholderQR {
                 for i in k..<m { y[i] -= f * v[i - k] }
             }
         }
+        return backSubstitute(r, y, tolerance: tolerance)
+    }
+
+    static func largestColumnNorm(_ a: DenseMatrix) -> Double {
+        var scale = 0.0
+        for j in 0..<a.columns {
+            var s = 0.0
+            for i in 0..<a.rows { s += a[i, j] * a[i, j] }
+            scale = max(scale, s.squareRoot())
+        }
+        return scale
+    }
+
+    /// Solves R x = y for the upper triangle of `r`'s first `r.columns` rows, or `nil` on a
+    /// pivot at or below `tolerance`.
+    static func backSubstitute(_ r: DenseMatrix, _ y: [Double], tolerance: Double) -> [Double]? {
+        let n = r.columns
         var x = Array(repeating: 0.0, count: n)
         for k in stride(from: n - 1, through: 0, by: -1) {
             var s = y[k]

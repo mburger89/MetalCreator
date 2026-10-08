@@ -15,18 +15,7 @@ extension SketchCommands {
         guard case let kind? = sketch.entities[curve]?.kind else { throw SketchCommandError("That curve no longer exists.") }
 
         if shape.isFullCircle {
-            guard cuts.count >= 2, case .circle(let center, _) = kind else {
-                edited.removeEntity(curve)
-                edited.removeOrphanPoints(kind.referencedPoints)
-                return try edit(from: sketch, to: edited, description: description)
-            }
-            // The removed span runs counter-clockwise from the last cut at or before the pick to the next.
-            let index = cuts.lastIndex { $0.t <= pickT } ?? cuts.count - 1
-            let (removedFrom, removedTo) = (cuts[index], cuts[(index + 1) % cuts.count])
-            let start = point(at: removedTo.position, on: removedTo.cutter, in: &edited)
-            let end = point(at: removedFrom.position, on: removedFrom.cutter, in: &edited)
-            edited.entities[curve]?.kind = .arc(center: center, start: start, end: end)
-            edited.solved[curve] = nil
+            trimCircle(curve, kind, cuts: cuts, at: pickT, in: &edited)
             return try edit(from: sketch, to: edited, description: description)
         }
 
@@ -66,6 +55,24 @@ extension SketchCommands {
             }
         }
         return try edit(from: sketch, to: edited, description: description)
+    }
+
+    /// A circle with fewer than two cuts is deleted; otherwise it becomes the arc that is left
+    /// once the span around parameter `pickT` is removed.
+    static func trimCircle(_ curve: SketchEntityID, _ kind: SketchEntityKind, cuts: [Cut], at pickT: Double,
+                           in edited: inout Sketch) {
+        guard cuts.count >= 2, case .circle(let center, _) = kind else {
+            edited.removeEntity(curve)
+            edited.removeOrphanPoints(kind.referencedPoints)
+            return
+        }
+        // The removed span runs counter-clockwise from the last cut at or before the pick to the next.
+        let index = cuts.lastIndex { $0.t <= pickT } ?? cuts.count - 1
+        let (removedFrom, removedTo) = (cuts[index], cuts[(index + 1) % cuts.count])
+        let start = point(at: removedTo.position, on: removedTo.cutter, in: &edited)
+        let end = point(at: removedFrom.position, on: removedFrom.cutter, in: &edited)
+        edited.entities[curve]?.kind = .arc(center: center, start: start, end: end)
+        edited.solved[curve] = nil
     }
 
     struct Cut {

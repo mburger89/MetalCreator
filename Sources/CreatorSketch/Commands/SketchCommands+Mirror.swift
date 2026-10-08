@@ -6,7 +6,8 @@ extension SketchCommands {
     /// with a point-on constraint unless the sketch already holds them there
     /// (`SketchSolver.isImplied`), so the copy stays symmetric when they move. Mirrored circles also get an equal-radius constraint; arcs are
     /// fully held by their three symmetric points.
-    public static func mirror(_ sketch: Sketch, entities ids: [SketchEntityID], about axis: SketchEntityID) throws(SketchCommandError) -> SketchEdit {
+    public static func mirror(_ sketch: Sketch, entities ids: [SketchEntityID],
+                              about axis: SketchEntityID) throws(SketchCommandError) -> SketchEdit {
         guard case .line(let a, let b)? = sketch.shape(of: axis) else {
             throw SketchCommandError("Mirror needs a line to mirror about.")
         }

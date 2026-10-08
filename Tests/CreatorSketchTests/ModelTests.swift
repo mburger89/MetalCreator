@@ -34,7 +34,7 @@ struct ModelTests {
 
     @Test func idsEncodeAsBareIntegers() throws {
         let data = try JSONEncoder().encode(SketchEntityID(7))
-        #expect(String(decoding: data, as: UTF8.self) == "7")
+        #expect(String(bytes: data, encoding: .utf8) == "7")
     }
 
     @Test func sketchesEncodeDeterministicallyAsKeyedObjects() throws {

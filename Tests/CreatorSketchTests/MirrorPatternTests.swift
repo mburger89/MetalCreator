@@ -28,7 +28,8 @@ struct MirrorPatternTests {
         #expect(mirrored.ends(copy).0 == sketch.ends(line).0)
         // One symmetric pair, and the shared point held on the axis.
         #expect(mirrored.constraintList == [.symmetric(sketch.ends(line).1, mirrored.ends(copy).1, about: axis),
-                                            .pointOn(point: sketch.ends(line).0, curve: axis)])
+                                            .pointOn(point: sketch.ends(line).0, curve: axis),
+        ])
         try requireSolvesInPlace(mirrored)
     }
 

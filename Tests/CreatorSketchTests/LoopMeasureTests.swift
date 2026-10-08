@@ -13,7 +13,8 @@ struct LoopMeasureTests {
     /// The upper half disk of radius 3, with the arc's ends at the exact vertices (±3, 0).
     var halfDisk: [LoopSegment] {
         [LoopSegment(geometry: .arc(center: .zero, radius: 3, from: 0, to: .pi), source: 0, start: Vector2(3, 0), end: Vector2(-3, 0)),
-         line(Vector2(-3, 0), Vector2(3, 0))]
+         line(Vector2(-3, 0), Vector2(3, 0)),
+        ]
     }
 
     var square: [LoopSegment] {

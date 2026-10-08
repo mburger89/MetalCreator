@@ -38,16 +38,7 @@ enum LevenbergMarquardt {
         var nu = 2.0
         while iterations < iterationLimit, maxAbs(r) > residualTolerance {
             iterations += 1
-            // Solve [J; √μ I] δ = [−r; 0].
-            let m = jacobian.rows
-            var augmented = DenseMatrix(rows: m + n, columns: n)
-            for i in 0..<m {
-                for j in 0..<n { augmented[i, j] = jacobian[i, j] }
-            }
-            let damping = mu.squareRoot()
-            for j in 0..<n { augmented[m + j, j] = damping }
-            let rhs = r.map { -$0 } + Array(repeating: 0, count: n)
-            guard let step = HouseholderQR.leastSquares(augmented, rhs) else { break }
+            guard let step = dampedStep(jacobian, r, damping: mu.squareRoot()) else { break }
             let stepLength = step.reduce(0) { $0 + $1 * $1 }.squareRoot()
             if stepLength <= stepTolerance { break }
             let candidate = zip(x, step).map(+)
@@ -77,18 +68,22 @@ enum LevenbergMarquardt {
         return Outcome(x: x, maxResidual: maxAbs(r), iterations: iterations)
     }
 
+    /// The step δ solving [J; `damping` I] δ = [−r; 0] in the least-squares sense (`damping` is √μ).
+    static func dampedStep(_ jacobian: DenseMatrix, _ r: [Double], damping: Double) -> [Double]? {
+        let (m, n) = (jacobian.rows, jacobian.columns)
+        var augmented = DenseMatrix(rows: m + n, columns: n)
+        for i in 0..<m {
+            for j in 0..<n { augmented[i, j] = jacobian[i, j] }
+        }
+        for j in 0..<n { augmented[m + j, j] = damping }
+        let rhs = r.map { -$0 } + Array(repeating: 0, count: n)
+        return HouseholderQR.leastSquares(augmented, rhs)
+    }
+
     /// Lightly damped steps from a converged solution, each kept only if it lowers the residual.
     static func polish(_ system: ComponentSystem, _ x: inout [Double], _ r: inout [Double], _ jacobian: inout DenseMatrix) {
-        let n = system.columnCount
         for _ in 0..<polishSteps where maxAbs(r) > polishedTolerance {
-            let m = jacobian.rows
-            var augmented = DenseMatrix(rows: m + n, columns: n)
-            for i in 0..<m {
-                for j in 0..<n { augmented[i, j] = jacobian[i, j] }
-            }
-            for j in 0..<n { augmented[m + j, j] = 1e-9 }
-            let rhs = r.map { -$0 } + Array(repeating: 0, count: n)
-            guard let step = HouseholderQR.leastSquares(augmented, rhs) else { return }
+            guard let step = dampedStep(jacobian, r, damping: 1e-9) else { return }
             let candidate = zip(x, step).map(+)
             let candidateResiduals = system.residuals(candidate)
             guard sumOfSquares(candidateResiduals) < sumOfSquares(r) else { return }

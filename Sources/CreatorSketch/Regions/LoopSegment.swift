@@ -28,7 +28,8 @@ struct LoopSegment: Hashable, Sendable {
     init(geometry: Geometry, source: Int) {
         let (start, end) = switch geometry {
         case .line(let a, let b): (a, b)
-        case .arc(let c, let r, let from, let to): (SketchMath.point(on: c, radius: r, at: from), SketchMath.point(on: c, radius: r, at: to))
+        case .arc(let c, let r, let from, let to):
+            (SketchMath.point(on: c, radius: r, at: from), SketchMath.point(on: c, radius: r, at: to))
         }
         self.init(geometry: geometry, source: source, start: start, end: end)
     }

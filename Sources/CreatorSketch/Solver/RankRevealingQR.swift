@@ -16,17 +16,7 @@ struct RankRevealingQR {
         var threshold = 0.0
         var rank = 0
         for k in 0..<min(m, n) {
-            // Pick the remaining column with the largest norm below row k (first wins on ties).
-            var norms = Array(repeating: 0.0, count: n - k)
-            for i in k..<m {
-                for j in k..<n { norms[j - k] += r[i, j] * r[i, j] }
-            }
-            var best = k
-            var bestNorm = -1.0
-            for j in k..<n where norms[j - k] > bestNorm {
-                bestNorm = norms[j - k]
-                best = j
-            }
+            let (best, bestNorm) = Self.pivot(r, from: k)
             let norm = bestNorm.squareRoot()
             if k == 0 { threshold = Self.relativeTolerance * max(1, norm) }
             if norm <= threshold { break }
@@ -48,7 +38,27 @@ struct RankRevealingQR {
             rank += 1
         }
         self.rank = rank
-        // Q's first `rank` columns: apply the reflectors in reverse to the unit vectors.
+        rangeBasis = Self.basis(rows: m, rank: rank, reflectors: reflectors)
+    }
+
+    /// The remaining column with the largest squared norm below row `k`, and that norm (first
+    /// wins on ties).
+    static func pivot(_ r: DenseMatrix, from k: Int) -> (column: Int, squaredNorm: Double) {
+        var norms = Array(repeating: 0.0, count: r.columns - k)
+        for i in k..<r.rows {
+            for j in k..<r.columns { norms[j - k] += r[i, j] * r[i, j] }
+        }
+        var best = k
+        var bestNorm = -1.0
+        for j in k..<r.columns where norms[j - k] > bestNorm {
+            bestNorm = norms[j - k]
+            best = j
+        }
+        return (best, bestNorm)
+    }
+
+    /// Q's first `rank` columns: the reflectors applied in reverse to the unit vectors.
+    static func basis(rows m: Int, rank: Int, reflectors: [(start: Int, v: [Double], vNorm: Double)]) -> DenseMatrix {
         var basis = DenseMatrix(rows: m, columns: rank)
         for column in 0..<rank {
             var e = Array(repeating: 0.0, count: m)
@@ -61,7 +71,7 @@ struct RankRevealingQR {
             }
             for i in 0..<m { basis[i, column] = e[i] }
         }
-        rangeBasis = basis
+        return basis
     }
 
     /// The squared length of unit vector `e_row`'s component outside the column space.

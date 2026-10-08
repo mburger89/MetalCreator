@@ -61,6 +61,16 @@ public enum SketchSolver {
         for (id, column) in layout.pointColumns { points[id] = Vector2(x[column], x[column + 1]) }
         var radii: [SketchEntityID: Double] = [:]
         for (id, column) in layout.radiusColumns { radii[id] = x[column] }
+        let freedom = freedom(of: sketch, layout: layout, freeColumns: freeColumns, conflicts: conflicts)
+        let measurements = SketchMeasure.referenceValues(sketch, points: points, radii: radii)
+        return SketchSolution(status: status, points: points, radii: radii, freedom: freedom, conflictMessages: [],
+                              suspended: [], measurements: measurements)
+    }
+
+    /// Each entity's colour (spec §8): conflicting when a conflict names it, else free when any
+    /// unknown it is built on can still move, else fixed.
+    static func freedom(of sketch: Sketch, layout: UnknownLayout, freeColumns: Set<Int>,
+                        conflicts: [SketchConstraintRef]) -> [SketchEntityID: EntityFreedom] {
         var conflicting = Set<SketchEntityID>()
         for ref in conflicts {
             switch ref {
@@ -83,8 +93,6 @@ public enum SketchSolver {
             }
             freedom[id] = conflicting.contains(id) ? .conflicting : moves ? .free : .fixed
         }
-        let measurements = SketchMeasure.referenceValues(sketch, points: points, radii: radii)
-        return SketchSolution(status: status, points: points, radii: radii, freedom: freedom, conflictMessages: [],
-                              suspended: [], measurements: measurements)
+        return freedom
     }
 }

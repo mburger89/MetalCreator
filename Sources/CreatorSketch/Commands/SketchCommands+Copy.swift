@@ -44,8 +44,11 @@ extension SketchCommands {
             let kind: SketchEntityKind = switch entity.kind {
             case .line(let start, let end): .line(start: mapped(start), end: mapped(end))
             case .arc(let center, let start, let end):
-                reversesArcs ? .arc(center: mapped(center), start: mapped(end), end: mapped(start))
-                    : .arc(center: mapped(center), start: mapped(start), end: mapped(end))
+                if reversesArcs {
+                    .arc(center: mapped(center), start: mapped(end), end: mapped(start))
+                } else {
+                    .arc(center: mapped(center), start: mapped(start), end: mapped(end))
+                }
             case .circle(let center, _): .circle(center: mapped(center), radius: sketch.radius(of: id) ?? 1)
             case .point, .projected: entity.kind
             }

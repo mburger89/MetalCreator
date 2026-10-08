@@ -29,7 +29,7 @@ enum ComponentSolver {
         var freeColumns: [Int]
         /// Why the solution was refused when it met every constraint only with degenerate
         /// geometry (`DegenerateGeometry`); the component then keeps its warm start.
-        var degenerateReason: String? = nil
+        var degenerateReason: String?
     }
 
     /// `degeneracy` reads a global unknown vector and names a collapsed or inverted curve, if any.

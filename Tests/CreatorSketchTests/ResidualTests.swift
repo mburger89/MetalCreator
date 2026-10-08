@@ -19,7 +19,8 @@ struct ResidualTests {
 
     static let equations: [Equation] = [
         .coincident(p0, p1), .pointOnLine(p2, lineA), .pointOnCircle(p1, circle), .pointOnCircle(p1, arc),
-        .horizontal(p0, p1), .vertical(p2, p3), .horizontalLine(lineA, scale: 3), .verticalLine(lineB, scale: 3), .parallel(lineA, lineB, scale: 7), .perpendicular(lineA, lineB, scale: 7),
+        .horizontal(p0, p1), .vertical(p2, p3), .horizontalLine(lineA, scale: 3), .verticalLine(lineB, scale: 3),
+        .parallel(lineA, lineB, scale: 7), .perpendicular(lineA, lineB, scale: 7),
         .angle(lineA, lineB, target: 0.6, scale: 7), .tangentAtPoint(p1, center: p0, lineB),
         .lineTangent(lineA, circle, side: -1), .circleTangent(circle, arc, isInternal: false, sign: 1),
         .circleTangent(circle, arc, isInternal: true, sign: -1), .equalLength(lineA, lineB), .equalRadius(circle, arc),
@@ -86,7 +87,8 @@ struct ResidualTests {
         let alsoFlat = LineOperand(start: .unknown(column: 8), end: .unknown(column: 10))
         let equations: [Equation] = [.horizontalLine(upright, scale: 1), .verticalLine(flat, scale: 1),
                                      .parallel(flat, upright, scale: 1), .perpendicular(flat, alsoFlat, scale: 1),
-                                     .angle(flat, upright, target: -.pi / 2, scale: 1)]
+                                     .angle(flat, upright, target: -.pi / 2, scale: 1),
+        ]
         for equation in equations {
             let row = equation.rows(x)[0]
             #expect(abs(row.value) > 1, "\(equation)")

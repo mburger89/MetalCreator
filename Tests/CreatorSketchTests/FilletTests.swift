@@ -103,7 +103,9 @@ struct FilletTests {
         let solution = try requireSolvesInPlace(filleted)
         #expect(solution.status == .underConstrained(dof: 4))
         // The edit says what it removed, and the radius never takes a removed dimension's name.
-        let fix = try #require(rectangle.sketch.constraintIDs.first { if case .fix = rectangle.sketch.constraints[$0] { true } else { false } })
+        let fix = try #require(rectangle.sketch.constraintIDs.first {
+            if case .fix = rectangle.sketch.constraints[$0] { true } else { false }
+        })
         #expect(edit.removed == [.constraint(fix), .dimension(rectangle.width), .dimension(rectangle.height)])
         let radius = try #require(filleted.dimensions.values.first { if case .radius = $0.kind { true } else { false } })
         #expect(radius.name == "d3")
