@@ -95,6 +95,44 @@ struct MeshExportConformanceTests {
         }
     }
 
+    /// Edge lines must sit on the displayed mesh (spec §6.3 edge pass): every polyline point is one of the
+    /// mesh's own vertices, bit for bit, on boxes, fillets and a hole.
+    @Test(arguments: KernelUnderTest.allCases)
+    func edgePolylinesLieOnTheMesh(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let block = try await box(kernel, 10, 20, 30)
+        let vertical = block.topology.edges.filter { $0.kind == .line && isClose($0.length, 30) }
+        let rounded = try await kernel.fillet(block, edges: vertical.map(\.id), radius: 2, tag: newTag())
+        let drill = try await kernel.extrude(.circle(radius: 2, center: .zero, plane: Plane.xy.offset(by: -1)),
+                                             distance: 40, mode: .oneSided, tag: newTag())
+        let holed = try await kernel.boolean(.subtract, rounded, [drill], tag: newTag())
+        let mesh = try await kernel.tessellate(holed, tolerance: 0.05)
+        let vertices = Set(mesh.positions)
+        #expect(mesh.edgePolylines.count >= 12)
+        for (edge, points) in mesh.edgePolylines {
+            #expect(points.count >= 2)
+            #expect(points.allSatisfy { vertices.contains($0) }, "edge \(edge.rawValue) leaves the mesh")
+        }
+    }
+
+    /// A mesh depends only on the solid and the tolerance. A finer mesh or an STL export left in OCCT's shared
+    /// shape must not change what the viewport shows next (carry-over: "meshes depend on earlier tessellations").
+    @Test(arguments: KernelUnderTest.allCases)
+    func tessellationIgnoresEarlierMeshing(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let rod = try await kernel.extrude(.circle(radius: 5, center: .zero, plane: .xy), distance: 10, mode: .oneSided, tag: newTag())
+        let first = try await kernel.tessellate(rod, tolerance: 0.2)
+        _ = try await kernel.tessellate(rod, tolerance: 0.01)
+        let url = URL.temporaryDirectory.appending(path: "determinism-\(UUID().uuidString).stl")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try await kernel.export([rod], format: .stl, to: url)
+        let again = try await kernel.tessellate(rod, tolerance: 0.2)
+        #expect(again.positions == first.positions)
+        #expect(again.indices == first.indices)
+        #expect(again.triangleFaces == first.triangleFaces)
+        #expect(again.edgePolylines == first.edgePolylines)
+    }
+
     /// Distance from `point` to the segment `a`–`b`.
     func distanceToSegment(_ point: Vector3, _ a: Vector3, _ b: Vector3) -> Double {
         let span = b - a
