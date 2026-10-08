@@ -12,12 +12,14 @@ public final class DocumentModel {
     /// The last successful outputs of each node. The viewport ghosts these when a node errors (spec §4.4).
     public private(set) var lastGoodOutputs: [NodeID: [SocketName: Value]] = [:]
     public private(set) var isEvaluating = false
-    /// Editor state saved with the file. A non-finite zoom or offset is refused (the previous
-    /// value is kept), so the document can always be saved.
+    /// Editor state saved with the file. A non-finite zoom, offset or camera is refused (the previous
+    /// value is kept), so the document can always be saved (JSON has no NaN).
     public var viewState: ViewState {
         didSet {
             if !viewState.canvasZoom.isFinite { viewState.canvasZoom = oldValue.canvasZoom }
             if !viewState.canvasOffset.isFinite { viewState.canvasOffset = oldValue.canvasOffset }
+            if let camera = viewState.camera, !camera.isFinite { viewState.camera = oldValue.camera }
+            if let home = viewState.homeCamera, !home.isFinite { viewState.homeCamera = oldValue.homeCamera }
         }
     }
 
