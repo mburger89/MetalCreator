@@ -1,20 +1,13 @@
 import MetalUI
 
 extension ViewportView {
-    /// The surface, its labels and the view cube's controls. The label loops are written inline: MetalUI's builder
-    /// can't infer an opaque element returned by a helper inside a `for` (docs/metalui-gaps.md gap M4-b).
+    /// The surface, the handle labels and the view cube's controls (the renderer paints the cube's face names on
+    /// it). The label loop is written inline: MetalUI's builder can't infer an opaque element returned by a helper
+    /// inside a `for` (docs/metalui-gaps.md gap M4-b).
     @MainActor
     static func stack(model: ViewportModel, modifiers: ViewportModifierTracker) -> some Element {
         ZStack(alignment: .topLeading) {
             surface(model: model, modifiers: modifiers)
-            for label in model.cubeLabels() {
-                ProposalText(label.text)
-                    .foregroundStyle(ViewportPalette.labelColor)
-                    .font(.caption)
-                    .frame(width: Pixels(64), height: Pixels(18))
-                    .offset(x: Pixels(Float(label.position.x - 32)), y: Pixels(Float(label.position.y - 9)))
-                    .allowsHitTesting(false)
-            }
             for label in model.handleLabels() {
                 ProposalText(label.text)
                     .foregroundStyle(ViewportPalette.labelColor)

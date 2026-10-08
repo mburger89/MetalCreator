@@ -3,12 +3,9 @@ import Foundation
 
 /// Text the view overlays on the GPU surface. Labels are rebuilt when the element tree is, which a running
 /// camera animation doesn't trigger (docs/metalui-gaps.md), so the moving ones are hidden while it runs.
+/// The view cube's face names aren't overlays: the renderer paints them on the faces (`CubeLabelAtlas`), so they
+/// turn with the cube and stay during animations.
 extension ViewportModel {
-    /// View-cube face names, in viewport points.
-    public func cubeLabels() -> [ViewportLabel] {
-        isAnimating ? [] : cubeLayout.labels(pose: pose)
-    }
-
     /// Triad axis names, relative to the triad widget's top-left (it sits at the bottom-left of the viewport).
     public func triadLabels() -> [ViewportLabel] {
         isAnimating ? [] : triadLayout.labels(pose: pose)

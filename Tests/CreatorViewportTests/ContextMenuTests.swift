@@ -154,7 +154,7 @@ struct ContextMenuTests {
         #expect(!model.isAnimating)
     }
 
-    @Test func labelsForHandlesCubeTriadAndGrid() async throws {
+    @Test func labelsForHandlesTriadAndGrid() async throws {
         let front = CameraPose(target: .zero, distance: 20 / tan(CameraPose.fieldOfView / 2), yaw: 0, pitch: 0,
                                projection: .orthographic)
         let model = await model(showing: [], pose: front)
@@ -167,11 +167,10 @@ struct ContextMenuTests {
         #expect(labels.map(\.text) == ["R 3 mm", "12.5 mm"])
         // The 3 mm knob is 22.5 points above the centre of a 300-point-tall, 40 mm view.
         #expect(isClose(labels[0].position, ScreenPoint(200 + 14, 150 - 22.5 - 14)))
-        #expect(model.cubeLabels().map(\.text) == ["FRONT"])
         #expect(model.triadLabels().map(\.text) == ["X", "Z"])
         #expect(model.gridLabel == "mm · grid 10 mm", "0.13 mm per point: 1 mm lines would be 7.5 points apart")
         model.perform(.view(.top))
-        #expect(model.cubeLabels().isEmpty && model.triadLabels().isEmpty && model.handleLabels().isEmpty,
-                "labels can't follow a running animation, so they're hidden")
+        #expect(model.triadLabels().isEmpty && model.handleLabels().isEmpty,
+                "overlay labels can't follow a running animation, so they're hidden (the cube's are painted on it)")
     }
 }

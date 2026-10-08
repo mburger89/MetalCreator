@@ -52,13 +52,6 @@ struct ViewCubeTests {
         #expect(layout.region(at: c, pose: iso) == .isometric)
     }
 
-    @Test func labelsShowOnlyFacesTurnedToTheCamera() {
-        let frontLabels = layout.labels(pose: front)
-        #expect(frontLabels.map(\.text) == ["FRONT"])
-        #expect(isClose(frontLabels[0].position, layout.center, tolerance: 1e-9))
-        #expect(Set(layout.labels(pose: iso).map(\.text)) == ["TOP", "FRONT", "RIGHT"])
-    }
-
     @Test func tilesCoverTheCubeOncePerRegionCell() {
         #expect(ViewCubeCell.all.count == 54)
         var counts: [ViewCubeRegion: Int] = [:]

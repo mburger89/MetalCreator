@@ -2,8 +2,8 @@ import CreatorGeometry
 import Foundation
 
 /// The view cube widget (spec §6.3): where it sits (the top-left of the model area), how big it is, and the
-/// maths for hit-testing and labelling it. Positions are viewport points. The cube spans −1…1 in its own units
-/// and turns with the camera.
+/// maths for hit-testing it. Positions are viewport points. The cube spans −1…1 in its own units and turns with
+/// the camera. Its face names are painted on by the renderer (`CubeLabelAtlas`, `CubeLabelMapping`).
 public struct ViewCubeLayout: Hashable, Sendable {
     public var origin: ScreenPoint
     public var side: Double
@@ -35,16 +35,6 @@ public struct ViewCubeLayout: Hashable, Sendable {
         guard contains(point) else { return nil }
         let local = ScreenPoint(point.x - origin.x, point.y - origin.y)
         return Self.region(hitBy: CameraMath.ray(through: local, widgetPose(pose), size: widgetSize))
-    }
-
-    /// Face names for the faces turned towards the camera, at their projected centres.
-    public func labels(pose: CameraPose) -> [ViewportLabel] {
-        let widget = widgetPose(pose)
-        return ViewCubeRegion.faces.compactMap { face in
-            guard let text = face.label, face.direction.dot(pose.toEye) > 0.2,
-                  let projected = CameraMath.project(face.direction, widget, size: widgetSize, sceneRadius: 2) else { return nil }
-            return ViewportLabel(text: text, position: ScreenPoint(origin.x + projected.point.x, origin.y + projected.point.y))
-        }
     }
 
     /// The region where `ray` first enters the cube −1…1 (the slab method), or `nil` if it misses.
