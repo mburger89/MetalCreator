@@ -15,16 +15,16 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 | M1 | Graph engine: values, broadcasting, evaluator, undo, `.mcgraph`, `DocumentModel` | ✅ | — |
 | M2 | OCCT kernel: all operations, tags through history, conformance + naming stability | ✅ | M0, M1 |
 | M3 | The 26 nodes (values, profiles, solids, selection rules, fillet/chamfer, output) | ✅ | M2 |
-| M4 | Viewport on MetalUI `MetalView`: shaded/edge/ID passes, camera, view cube, picking, context menu, handles | 🔄 code done; human checks V pending | M2; MetalUI C7 for final input bindings (stopgaps until then) |
-| M5 | Graph panel on MetalUI: canvas, both docks, palette, context inspector | 🔄 code done; human checks M5 pending | M1; node inspector specs from M3 |
-| M6 | App shell + acceptance demo (§7.2 bracket, STEP/STL export) | ⏳ after M3–M5 | M3, M4, M5 |
+| M4 | Viewport on MetalUI `MetalView`: shaded/edge/ID passes, camera, view cube, picking, context menu, handles | ✅ code merged; human checks V pending | M2; MetalUI C7 for final input bindings (stopgaps until then) |
+| M5 | Graph panel on MetalUI: canvas, both docks, palette, context inspector | ✅ code merged; human checks M5 pending | M1; node inspector specs from M3 |
+| M6 | App shell + acceptance demo (§7.2 bracket, STEP/STL export) | ⏳ ready to plan | M3, M4, M5 |
 | M7 | Measure §7.3 targets, finish `docs/metalui-gaps.md`, CLAUDE.md | ⏳ after M6 | M6 |
 
 ## Later sub-projects
 
 | # | Item | Status | Notes |
 |---|---|---|---|
-| 6 | Constraint sketcher: Sketch node, 2D editor, pure-Swift constraint solver | 💬 | Needs its own brainstorm → spec with the user ("both from the start"); solver can be built in parallel with M3–M6 |
+| 6 | Constraint sketcher: Sketch node, 2D editor, pure-Swift constraint solver | 🔄 spec `2026-10-08-constraint-sketcher-design.md`; S3 ✅ merged; S1+S2 building on `spec/sketcher`; S4 after S1+S2; S5 after S4 | Rules for S4 regions: holes sorted, loops counter-clockwise, deterministic start segment (spec §5) |
 | 7 | Patterns, fields, nested data trees, surface textures, lattices | 💬 | After the slice |
 | 8 | Variants and versions UI | 💬 | Graph parameters already model variants |
 | — | Packaging: bundle OCCT dylibs into a signed `.app` | ⏳ after M6 | Spec §11 |
