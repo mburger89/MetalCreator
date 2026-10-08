@@ -6,7 +6,11 @@ public enum InspectorControl: Sendable, Equatable {
     case toggle(SocketName, label: String)
     case segmented(SocketName, options: [String])
     case planePicker(SocketName)
+    /// Three number fields (x, y, z) for a vector socket.
+    case vector(SocketName)
     case anchorGrid(SocketName)
     case ruleSummary(SocketName)
+    /// A menu of the document's graph parameters, stored as `.text(uuidString)` in a setting.
+    case parameterPicker(SocketName)
     case button(title: String, action: InspectorAction)
 }

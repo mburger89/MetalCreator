@@ -19,11 +19,14 @@ public struct NodeRegistry: Sendable {
     /// Every registered definition, sorted by display name.
     public var all: [any NodeDefinition.Type] { definitions.values.sorted { $0.displayName < $1.displayName } }
 
-    /// A fresh node of a registered type. An unregistered type gives a node with version 1
-    /// whose name is the type ID.
+    /// A fresh node of a registered type: named after it, seeded with its `defaultSettings`, and
+    /// flagged `isOutput` when its category is `.output`, so Output nodes join the evaluation
+    /// demand on every creation path (palette, app, tests). An unregistered type gives a plain
+    /// node with version 1 whose name is the type ID.
     public func makeNode(_ typeID: String, at position: Vector2 = .zero) -> Node {
         let definition = definitions[typeID]
         return Node(typeID: typeID, typeVersion: definition?.typeVersion ?? 1,
-                    name: definition?.displayName ?? typeID, position: position)
+                    name: definition?.displayName ?? typeID, inputValues: definition?.defaultSettings ?? [:],
+                    position: position, isOutput: definition?.category == .output)
     }
 }

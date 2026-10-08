@@ -25,10 +25,13 @@ let package = Package(
         .target(name: "CreatorGeometry"),
         .target(name: "CreatorKernel", dependencies: ["CreatorGeometry"]),
         .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry"]),
+        .target(name: "CreatorNodes", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT", "CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
         .testTarget(name: "CreatorKernelTests", dependencies: ["CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorGraphTests", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
+        .testTarget(name: "CreatorNodesTests",
+                    dependencies: ["CreatorNodes", "CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorOCCT"]),
     ],
     swiftLanguageModes: [.v6],
     cxxLanguageStandard: .cxx17
