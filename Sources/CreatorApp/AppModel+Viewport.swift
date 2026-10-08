@@ -7,6 +7,8 @@ import CreatorViewport
 extension AppModel {
     /// The viewport's events, turned into graph commands and document state.
     func connectViewportEvents() {
+        viewport.events.clicked = { [weak self] in self?.viewportClicked($0) }
+        viewport.events.selectEdgesOfFace = { [weak self] face, picks, edges in self?.selectEdgesOfFace(face, picks, edges) }
         viewport.events.showProducingNode = { [weak self] in self?.showProducingNode($0) }
         viewport.events.handleChanged = { [weak self] id, value, phase in self?.handleChanged(id, value, phase) }
         viewport.events.nodeName = { [weak self] in self?.document.graph.nodes[$0]?.name }

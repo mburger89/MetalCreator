@@ -64,4 +64,16 @@ struct HandleTests {
         await app.settle()
         #expect(app.viewport.handles.isEmpty, "“Show handle in view” off")
     }
+
+    @Test func noHandlesWhilePicking() async throws {
+        var builder = GraphBuilder()
+        let box = builder.box()
+        let rule = builder.add(EdgesByTagNode.self)
+        builder.wire(box.extrude, "solid", to: rule, "solid")
+        let app = await makeApp(builder.graph)
+        app.editor.selection = [box.extrude.id]
+        app.beginPick(for: rule.id)
+        await app.settle()
+        #expect(app.viewport.handles.isEmpty)
+    }
 }
