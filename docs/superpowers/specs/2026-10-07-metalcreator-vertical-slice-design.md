@@ -231,7 +231,20 @@ A header bar in the node's category colour shows the node name and its status. B
 
 Each `NodeDefinition` declares `handles: [HandleSpec]`: `linear(socket, origin, axis)` or `radial(socket, edgeRef)`. Each is resolved against the node's output and drawn in the viewport in the node's category colour, with a value label. Dragging a handle edits the socket, coalesced into one undo step. In the slice: the **Extrude distance arrow** and the **Fillet and Chamfer radius or distance handle**. Rectangle edge handles are deferred.
 
-### 6.6 Visual language — Dracula palette
+### 6.6 Visual language — themes, Dracula by default
+
+Colours are a **theme**: a colour for every *role*, never a hue (user decision, 2026-10-07; M6). The table below is
+the default theme, **Dracula**. The built-in themes are Dracula, **Alucard** (Dracula's official light variant) and
+**Nord**, read-only and chosen from View ▸ Theme; switching applies at once, to the panels and the viewport. The roles
+(`ThemeColors` in `CreatorStyle`): the background gradient's top and bottom; the glass fill and hairline; panel base;
+node body; field; foreground (primary text); comment (secondary, hint and dimmed text); text on accents; accent
+(primary buttons, slider fill); focus (hover and focus outside the graph); selection (what a rule selects); a header
+colour for each node category (value, profile, solid, selection rule, feature, output), which also colours its
+sockets, wires, selection glow and in-view handles; status success, warning and error; the part shading ramp (light
+and dark); B-rep edges; the grid's minor and major lines; the view cube's face, rim and label ink; the X, Y and Z axes;
+and the sketcher's under-constrained, fully constrained, conflicting, construction and projected geometry (sketcher
+spec §8). Themes are app-level and never stored in a `.mcgraph` file. Custom themes and `.mctheme` files are the
+Themes milestone after M6 (roadmap).
 
 | Role | Colour |
 |---|---|
@@ -252,8 +265,10 @@ Each `NodeDefinition` declares `handles: [HandleSpec]`: `linear(socket, origin, 
 
 Rules:
 - A node's selection outline and glow always use **its own header colour**.
-- Text on Dracula accent fills (headers, primary buttons, badges) is `#282a36` for contrast.
-- Colours are defined once as named tokens in `CreatorEditor` (a `Palette` type) and used everywhere by token.
+- Text on accent fills (headers, primary buttons, badges) is the theme's text-on-accent colour, chosen for contrast:
+  `#282a36` in Dracula.
+- Colours are defined once, as the roles of the built-in themes in `CreatorStyle`, and used everywhere by role: views
+  through `Palette` (`CreatorEditor`), the GPU through `ViewportPalette` (`CreatorViewport`).
 - Fonts use MetalUI's semantic text styles. No sizes are hard-coded.
 
 ## 7. Scope of the vertical slice
@@ -397,3 +412,45 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
 - §6.2's refusal shake is a spring back from a 6-pt offset (no keyframe animation yet, M5-i).
 - §6.2's status-badge spinner is a static `◌` glyph while a node evaluates: MetalUI has no `ProgressView` or
   activity indicator yet (docs/metalui-gaps.md M5-j).
+
+## Errata (M6)
+
+- §3.1's `MetalCreatorApp` target is two: the `CreatorApp` library (the `@MainActor @Observable AppModel`, the
+  scene and handle builders, the views and the menu bar; the only target joining Graph, Nodes, Viewport and Editor)
+  and the `MetalCreatorApp` executable, which opens the window over `OCCTKernel`. The split keeps the model testable
+  (§3.2). A new `CreatorStyle` target holds the colour themes (below), which the editor's `Palette` and the viewport's
+  GPU colours read.
+- §6.6 is themeable, Dracula by default (user decision, 2026-10-07): colours are the roles of a `ColorTheme`
+  (`CreatorStyle`: `ThemeColors`, `ThemeStore`), with Dracula, Alucard and Nord built in and chosen from View ▸ Theme.
+  §6.6's table is the Dracula theme, and its rule "defined once as named tokens in `CreatorEditor`" now reads "defined
+  once, as theme roles in `CreatorStyle`". The theme is the app's and is never saved in a `.mcgraph` file; until the
+  Themes milestone it isn't remembered between launches either. Custom themes and `.mctheme` files: roadmap row
+  "Themes".
+- §6.1's window title, close prompt and full-size glass top bar wait for MetalUI (docs/metalui-gaps.md M6-a, M6-b,
+  M6-c): the document's name and "— Edited" are shown in the top bar, New and Open ask before discarding changes, but
+  closing or quitting doesn't ask.
+- §6.1's "Selected node" preview shows exactly one selected node's outputs; with none or several selected the viewport
+  is empty. An edge set previews as its solid with the set's edges selected.
+- §6.5's handles are shown for the selected nodes, for unwired number inputs only.
+- §7.1 Regular Polygon gains `rotation` (degrees, default 0; `typeVersion` 2). The file format version is unchanged.
+- §8's polygon swap (Errata (M3)), ruled by M6 plan Decision 9, signed off by the user (2026-10-07): with the flange's
+  Rectangle swapped for a hexagon turned 30° (r 15, lifted 15 mm so it stands on the plate), the fillet's rule
+  re-derives 4 edges on the hexagon's vertical sides, but Errata (M3)'s promise for the chamfer does not hold. The union
+  had merged the plate's left and right faces with the rectangle flange's coplanar sides, so two of the five picks
+  recorded on the rectangle bracket name the flange's side tags. After the swap those two match nothing and Edges by
+  Tag warns ("Matched 0 edges, expected 2; 0 edges, expected 2.", §5.3 rule 6); the three plate-only picks resolve
+  unchanged, but OCCT refuses to chamfer that partial chain, so the Chamfer is in error ("Chamfer failed: …") and the
+  Output has no result: the part is gone (the last good one shows as a ghost, and Export refuses) until the user
+  re-picks. Recording each side's minimal identifying tag subset doesn't rescue it: the two picks then resolve, but
+  match 1 edge each where they matched 2 (the rectangle flange had split the plate's top edges), so the warning and
+  the error stay. `BracketAcceptanceTests.swappingTheFlangeRectangleForAPolygonRederivesTheFilletAndFlagsTheChamferDrift`
+  pins all of it. Owner of the fix: roadmap row "Naming: picks on merged faces".
+- §6.3's "edges selected by the active rule glow pink" holds in Selected-node preview and in pick mode, and in Final
+  only when the rule's own solid is shown. A rule feeding a Fillet or Chamfer is on the solid before the feature,
+  which Final doesn't show, so selecting it glows nothing (the viewport draws no edges on ghosts or on solids it
+  doesn't show). Pinned: `SceneTests.aRuleSelectedInFinalPreviewGlowsOnlyOnItsOwnSolid`. Owner: roadmap row
+  "Viewport: a selected rule's edges over the Final part".
+- §6.3's Look At is framed on the face, but in the whole viewport, not the model area the panels leave; so are the
+  first framing and F. Owner: roadmap row "Viewport: frame in the model area".
+- §6.2 "inline value fields" (Errata (M5)) gained a commit rule: a typed value is committed on Return, when its field
+  loses focus, and on the next canvas or viewport press, selection change, pick, Undo or Redo, save or export.

@@ -114,3 +114,31 @@ Read this before writing the M2 and M3 plans.
   handlers (`.onScrollWheel`, `MagnifyGesture`); the +/− keys and header buttons stay.
 - With M4's viewport in the same window, M4's window-wide `=`/`+`/`-` keymap bindings win over the graph's zoom keys
   (keymap runs before `onInput`); M6 scopes the viewport's with a key context (gap M4-a).
+
+## From M6
+- Regular Polygon is `typeVersion` 2 (`rotation`). The §8 polygon swap keeps the fillet (re-derived) but not the
+  chamfer: picks on faces a union merged name both operands' tags and drift when one operand changes, the Chamfer
+  then fails and the Output has no result (spec Errata (M6)). A minimal-tag-subset pick isn't enough (the edge counts
+  change too). Owner: roadmap row "Naming: picks on merged faces".
+- `AppModel` replaces the document's parts on New and Open; `AppInput` is installed once and forwards. Nothing may
+  capture a `GraphPanelInput`, `EditorModel` or `ViewportModel` for the window's lifetime.
+- The first framing, F and Look At frame the part in the whole viewport, not the model area the panels leave, so a
+  part can sit partly under the graph panel. Owner: roadmap row "Viewport: frame in the model area" (teach
+  `CameraNavigation.frame` `ViewportModel.modelArea`; the insets already exist).
+- In Final preview a selected rule that feeds a feature glows nothing (spec Errata (M6)). Owner: roadmap row
+  "Viewport: a selected rule's edges over the Final part".
+- `AppModel.refreshScene()` re-shows only a changed scene or changed handles; the observation itself still wakes for
+  every `viewState` change (it reads `editor.dock`). Narrow it if M7's 50-node pan measurement shows the wake-ups.
+- The panel's size isn't saved with the file (add `ViewState` fields if wanted; optional keys, no format bump).
+- Handles show only for the selected nodes; nodes not upstream of an Output (and not previewed) have no result, so they
+  show no handle and no rule summary count.
+- Stopgaps to delete when C7 merges, beyond M4's and M5's lists: the canvas hover veto in `AppInput.handleAction`
+  (only if MetalUI also gains hover-scoped key contexts), and the resize edge's missing cursor (adopt
+  `.pointerStyle(.columnResize)` / `.rowResize`, C7 `CI-H`). Key-routing dispatch tests wait for gap M6-e.
+- `ViewportHarness` and `GraphPanelPreview` stay until human-check groups V and M5 have been run; delete them then.
+- Themes (spec §6.6): the theme type is `ColorTheme` because MetalUI exports `Theme`. A view that draws a colour reads
+  `@Environment(ThemeStore.self) var themes: ThemeStore?` and draws `Palette(themes)`; `Palette.dracula` in a view is a
+  bug (only `GraphPanelPreview`, which has no store, uses it). The choice isn't remembered between launches
+  (`InMemoryThemePreferences`). MetalUI's own controls follow only the theme's light or dark
+  (`.preferredColorScheme`), not its colours: the Themes milestone can map roles onto MetalUI's scoped `.theme(_:)`
+  tokens. Owner: roadmap row "Themes".

@@ -17,7 +17,8 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 | M3 | The 26 nodes (values, profiles, solids, selection rules, fillet/chamfer, output) | ✅ | M2 |
 | M4 | Viewport on MetalUI `MetalView`: shaded/edge/ID passes, camera, view cube, picking, context menu, handles | ✅ code merged; human checks V pending | M2; MetalUI C7 for final input bindings (stopgaps until then) |
 | M5 | Graph panel on MetalUI: canvas, both docks, palette, context inspector | ✅ code merged; human checks M5 pending | M1; node inspector specs from M3 |
-| M6 | App shell + acceptance demo (§7.2 bracket, STEP/STL export) | ⏳ ready to plan | M3, M4, M5 |
+| M6 | App shell + acceptance demo (§7.2 bracket, STEP/STL export) | ✅ code merged; human checks M6 pending | M3, M4, M5 |
+| Themes | Custom colour themes (spec §6.6, Errata (M6)): duplicate, edit, rename and delete them (the built-ins stay read-only); export and import `.mctheme` files, a small versioned JSON of hex colours by role (missing roles fall back to Dracula, unknown roles are ignored, a bad hex is refused plainly, e.g. "‘selection’ isn’t a colour like #ff79c6."), stored in `~/Library/Application Support/MetalCreator/Themes/`; the selected theme remembered in preferences (a `ThemePreferences` over the user's defaults). Themes stay app-level, never in `.mcgraph`. Also map roles onto MetalUI's control tokens (`.theme(_:)`) | ⏳ after M6 | M6's `CreatorStyle` (`ColorTheme`, `ThemeColors`, `ThemeStore`); MetalUI gap M6-f (no colour picker) |
 | M7 | Measure §7.3 targets, finish `docs/metalui-gaps.md`, CLAUDE.md | ⏳ after M6 | M6 |
 
 ## Later sub-projects
@@ -28,6 +29,10 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 | 7 | Patterns, fields, nested data trees, surface textures, lattices | 💬 | After the slice |
 | 8 | Variants and versions UI | 💬 | Graph parameters already model variants |
 | — | Packaging: bundle OCCT dylibs into a signed `.app` | ⏳ after M6 | Spec §11 |
+| — | C7 adoption: swap the viewport's, the graph panel's and the app's input stopgaps for MetalUI C7's APIs once `feat/input-apis` merges (lists in the carry-over note, From M4, From M5, From M6) | 🔒 MetalUI C7 | MetalUI decisions file `docs/superpowers/2026-10-08-input-apis-decisions.md` |
+| — | Naming: picks on merged faces — an Edges by Tag pick on a face a union merged must survive one operand changing (spec §8's polygon swap, Errata (M6)); needs the split-edge count handled too, not only a minimal tag subset | ⏳ after M6 | `BracketAcceptanceTests+PolygonSwap` (flip its expectations when fixed) |
+| — | Viewport: a selected rule's edges over the Final part — in Final preview, show the edges of a selected rule whose solid isn't shown (spec §6.3, Errata (M6)) | ⏳ after M6 | `SceneTests.aRuleSelectedInFinalPreviewGlowsOnlyOnItsOwnSolid` |
+| — | Viewport: frame in the model area — first framing, F and Look At centre the part in `ViewportModel.modelArea`, not the whole view (spec §6.3) | ⏳ after M6 | carry-over From M6 |
 
 ## Cross-project dependencies
 
@@ -39,7 +44,7 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 
 - ✅ Before M3: Edges-by-Tag subset matching; Edges by Direction `abs(dot)` + `kind == .line`; Edge Set Op dedupe; Loft segment-count message; warn on `.unnamed` picks; multi-solid boolean warning.
 - ✅ Before M4: edge polylines from `BRep_Tool::PolygonOnTriangulation`; mesh determinism across calls.
-- M6: install the graph's input with `GraphPanelInput.install(on:)` (it chains `onInput`/`onAction` and appends its
+- ✅ (M6) M6: install the graph's input with `GraphPanelInput.install(on:)` (it chains `onInput`/`onAction` and appends its
   keymap). Only its `onInput` side composes with M4's `ViewportModifierTracker.install(on:)` in either order: set the
   viewport's keymap and `onAction` (which M4's harness assigns directly) before `install(on:)`, or append and chain
   them the same way, or the palette's ↑/↓ bindings and `handleAction` are dropped. Call `releaseTextFocus` on viewport
@@ -49,6 +54,6 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
   `EditorModel.inspectorRequest` for "Pick edges in view…" (write the picks as `.edgePicks(…)` under `NodeSetting.picks`);
   pass the real `BuiltInNodes.registry`. Deferred to M6 from spec §6.1/§6.2:
   resizing the docked panel along its inner edge, and the Preview menu (Final / Selected node →
-  `document.previewNode`). M7: measure 50-node pan/zoom (CanvasLayers is the hot path; add viewport culling there if
-  it misses 60 fps).
-- M7: `oriented()` cost; OCCTKernel on the default executor; per-item calls under the global lock.
+  `document.previewNode`).
+- M7: measure 50-node pan/zoom (CanvasLayers is the hot path; add viewport culling there if
+  it misses 60 fps). `oriented()` cost; OCCTKernel on the default executor; per-item calls under the global lock.

@@ -112,3 +112,43 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
 - **M5-j. No `ProgressView` or indeterminate spinner.** The node status badge shows a spinner while the node evaluates
   (spec §6.2). MetalUI has no activity indicator. Stopgap: a static `◌` glyph (`StatusBadge.text(for:)`). Wanted:
   `ProgressView()` (indeterminate, small control size) or a `TimelineView(.animation)` to rotate a glyph.
+
+## Hit by M6 (app shell), 2026-10-09
+
+Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
+
+- **M6-a. No window title API.** The title is fixed by `App.openWindow(title:…)`. `PlatformWindow.title` is settable,
+  but `Window` doesn't expose it, and there's no represented file or edited marker (AppKit's `representedURL` and
+  `isDocumentEdited`). The app wants "bracket.mcgraph — Edited" in the title bar. Stopgap: the glass top bar shows the
+  name and "— Edited"; the native title stays "MetalCreator". Wanted: a settable `Window.title` and an edited marker,
+  or SwiftUI's `.navigationTitle` / `.navigationDocument(_:)`.
+- **M6-b. No close or quit interception.** Closing the window, or ⌘Q, ends the app at once, so it can't ask whether
+  to save (AppKit: `windowShouldClose(_:)`, `applicationShouldTerminate(_:)`; SwiftUI document apps get it from
+  `DocumentGroup`). Stopgap: none. New and Open ask before discarding unsaved changes; close and quit don't. Wanted: a
+  window-close veto and an app terminate hook that can show an alert first.
+- **M6-c. No full-size content view.** Spec §6.1 draws the glass top bar under the traffic lights (AppKit
+  `.fullSizeContentView` with a transparent title bar; SwiftUI `.windowStyle(.hiddenTitleBar)`). Stopgap: the top bar
+  sits below the standard title bar.
+- **M6-d. No open-document events.** Finder double-click, `open -a`, dropping a file on the Dock icon and Open Recent
+  all need the app to receive file URLs (AppKit `application(_:open:)`, SwiftUI `.onOpenURL`). This matters once the
+  app is packaged. Stopgap: a path argument (`swift run MetalCreatorApp bracket.mcgraph`).
+- **M6-e. No public test window or headless platform.** `Window`'s initializer is internal and `FakePlatformWindow`
+  lives in MetalUI's own test target (C7's `CI-N` keeps it there), so a client can't dispatch keys and clicks through
+  a real `Window` in its tests. M6's riskiest routing (the `Panel` / `!Panel` key contexts on the focus chain, the
+  canvas hover veto, menu commands running before `onInput`, button shortcuts ahead of the palette) is pinned only
+  as mapping (`AppInputTests`) plus human checks M6-4, M6-5 and M6-11. Stopgap: none. Wanted: a public headless
+  `Window` (or `FakePlatformWindow` in a test-support product) with `simulateInput` and a rendered frame.
+- **M6-f. No colour picker.** The Themes milestone after M6 (roadmap) edits a custom theme's colours role by role,
+  which wants SwiftUI's `ColorPicker(_:selection:supportsOpacity:)`: a colour well that opens the system colour panel
+  (AppKit `NSColorWell`/`NSColorPanel`), with opacity. MetalUI has none. M6 doesn't need it: its three built-in themes
+  are read-only and chosen from View ▸ Theme. Stopgap, if the Themes milestone comes first: a hex `TextField` per role,
+  refused plainly when it isn't a colour. Wanted: `ColorPicker` over MetalUI's `Color`.
+- **M4-a and M5-b, used again by M6.** The viewport's F, + and − carry the `!Panel` key context, and the graph panel
+  and the inspector contribute `Panel` from a MetalUI `Stack` wrapper, so a focused field types them. With nothing
+  focused they are window-wide. Over the graph canvas `AppInput.handleAction` declines + and − by reading the
+  canvas's hover state, so the graph's own + and − zoom it (as M5-b does for Tab); F has no graph binding and still
+  frames the viewport. A key context contributed while an element
+  is hovered, or `onKeyPress` on a region, would replace both vetoes. C7 (`feat/input-apis`) doesn't include it.
+- **Cursor for the dock's resize edge** (adds to C7 item 5). The graph panel's inner edge is a drag handle and should
+  show a column or row resize cursor. C7's `PointerStyle` has `.columnResize` and `.rowResize` (decision `CI-H`).
+  Adopt them when C7 merges.

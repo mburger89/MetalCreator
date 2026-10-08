@@ -137,3 +137,83 @@ Run `swift run GraphPanelPreview`.
   pointer with its field focused. Escape, move the pointer onto the inspector and press Tab: focus moves to the next
   inspector field and no palette opens. Pinned: `tabIsAKeymapActionThatOpensThePaletteOnlyOverTheVisibleCanvas`; the
   routing ahead of focus traversal is this check only (gap M5-b). **Observed:**
+
+## Group M6 — the app (M6)
+
+**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
+
+Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgraph`).
+
+- [ ] **M6-1 The bracket from scratch (spec §7.2 steps 1–4).** In an empty window, using only the palette (Space or
+  Tab over the canvas), the inspector and the Document Parameters: add `Width` = 60, `Wall` = 6 and `Hole count` = 4
+  (integer); build the rounded plate, the Grid Points → Circle Ø5 → Extrude → one subtract Boolean, the L-flange
+  (Rectangle on XZ, extruded, unioned), the Fillet R3 on Edges by Direction(Z) ∩ Edge Filter(convex), and an Edges by
+  Tag rule on the fillet's solid feeding a Chamfer 0.5 into an Output. Select the Chamfer, press "Pick edges in view…":
+  only the filleted solid shows, with a pink banner. Click the plate's top outline edges (they turn pink), press Return.
+  Every node's badge is green. Pinned headless: `theBracketIsBuiltPickedSavedReopenedReparameterisedAndExported`.
+  **Observed:**
+- [ ] **M6-2 Exports (spec §7.2 steps 5–6).** File ▸ Export STEP… and Export STL… offer "<Output name>.step/.stl".
+  Open the STEP in FreeCAD or Fusion: the geometry matches (holes, flange, fillets, chamfer). Load the STL in a slicer:
+  it's accepted as manifold. Set Width to 90 and Hole count to 6: the fillet and chamfer stay on the intended edges, no
+  badge turns yellow or red, and both exports work again. Pinned: `expectExports`. **Observed:**
+- [ ] **M6-3 Files.** Save (⌘S) asks where for a new document, then the top bar reads the file's name. Change a value:
+  "— Edited" appears; Save clears it. Orbit and press ⌂ ▸ Set Home View, save, quit, and reopen the file
+  (`swift run MetalCreatorApp file.mcgraph` and File ▸ Open…): the same graph, camera and home view come back. With
+  unsaved changes, New and Open ask "Discard unsaved changes?"; Cancel keeps the document, and a later New asks again.
+  Pinned: `AppModelFileTests`.
+  **Observed:**
+- [ ] **M6-4 Keys and focus.** Click into an inspector number field and type "f", "+" and "-": they go into the field;
+  the viewport doesn't frame or zoom. Open the palette and type "f+": they go into the search field. Click empty
+  viewport space (the field loses focus), then press F, + and −: the viewport frames and zooms. Move the pointer over
+  the graph canvas and press + and −: the graph zooms, not the viewport; press F there: the viewport frames. Pinned:
+  `AppInputTests`; the dispatch through a window is this check only (gap M6-e). **Observed:**
+- [ ] **M6-5 Menu bar and chords.** ⌘Z and ⇧⌘Z undo and redo graph edits (Edit menu). With a node selected and the
+  pointer over the canvas, ⌘C, ⌘V and ⌘D copy, paste and duplicate it (the standard Copy and Paste items don't swallow
+  the keys). ⌘N, ⌘O, ⌘S, ⇧⌘S, ⌘E and ⇧⌘E run New, Open…, Save, Save As…, Export STEP… and Export STL…. **Observed:**
+- [ ] **M6-6 A typed value isn't lost.** Type 75 into Width without pressing Return, then click the viewport: Width
+  becomes 75 (one ⌘Z undoes it). Type 50 into a node's field and click another node on the canvas: the first node gets
+  50, the second is unchanged. Type a value and press Tab: it's committed. Type 80 into Width without Return and
+  press ⌘Z (and, separately, the top bar's Undo): Width goes back to its previous value, ⇧⌘Z brings 80 back, and
+  clicking elsewhere afterwards changes nothing. Pinned: `PendingEntryTests`, `aViewportPressCommitsATypedInspectorValue`,
+  `undoAndRedoCommitATypedValueFirst`; the focus-loss path is this check only. **Observed:**
+- [ ] **M6-7 Layout.** The viewport fills the window; the top bar, graph panel and inspector float over it as glass
+  (no blur, gap M5-c). The view cube sits at the top-left of the uncovered area, right of the panel; the triad at its
+  bottom-left and "mm · grid" at its bottom-right, clear of the panels. Press Bottom, then Hide, then "Show graph":
+  the cube, triad and label move with the panels. Drag the panel's inner edge (the faint strip): it resizes, within
+  limits, and the cube follows. Pinned: `theViewportOverlaysMoveOutFromUnderThePanels`,
+  `theDockedPanelIsLaidOutToTheModelsWidth`. **Observed:**
+- [ ] **M6-8 Preview.** Preview ▸ Selected node, select the Extrude of the holes: only the four hole cylinders show.
+  Select the Edge Set Op: the bracket before filleting shows with the four fillet edges pink. Select nothing: the
+  viewport is empty. Preview ▸ Final: the whole bracket again. Still in Final, select the fillet's Edge Set Op and the
+  chamfer's Edges by Tag: nothing glows on the finished part (known, Errata (M6); the rule's solid isn't shown).
+  Orbit, pan the graph canvas and drag the panel edge: the part doesn't flicker or reload. Pinned: `SceneTests`,
+  `aRuleSelectedInFinalPreviewGlowsOnlyOnItsOwnSolid`, `panningTheCanvasOrSettlingTheCameraDoesntRebuildTheScene`.
+  **Observed:**
+- [ ] **M6-9 Handles.** Select the flange's Extrude: a purple arrow with "8 mm" starts on the flange profile; drag it
+  and the flange thickens live; release and ⌘Z undoes the whole drag in one step. Select the Fillet: an orange radial
+  handle "R 3 mm" sits at a fillet edge; turn "Show handle in view" off and it goes. The plate's Extrude (distance wired
+  from Wall) shows no handle. Pinned: `HandleTests`, `draggingAHandleEditsItsInputAsOneUndoStep`. **Observed:**
+- [ ] **M6-10 Face menu.** Right-click a face: Look At animates to face it. Select Edges of Face adds a selected
+  Edges by Tag node wired from the part's last feature (⌘Z removes it). Show Producing Node selects the node that made
+  the face and scrolls the graph to it, showing the panel if it was hidden. Pinned: `PickingTests`,
+  `showProducingNodeSelectsItAndScrollsTheGraphToIt`. **Observed:**
+- [ ] **M6-11 Pick mode.** On the Chamfer, press "Pick edges in view…": clicking a picked edge again unpicks it,
+  Escape cancels with nothing changed, and Done writes the picks as one undo step. Right-click a face while picking:
+  Select Edges of Face adds its edges to the pick. Open the palette (Space over the canvas) and press "Pick edges in
+  view…": the palette closes. Known: if the palette is opened *during* a pick, Escape and Return go to the banner's
+  Cancel and Done (button shortcuts run before the palette's keys). Pinned: `PickingTests`. **Observed:**
+- [ ] **M6-12 A broken part.** Set the Fillet radius to 30: the Fillet's badge turns red, the bracket is drawn ghosted
+  (its last good shape), and Export STEP… says "“<Output name>” can't be exported" with the reason, without opening a
+  save panel. Set it back to 3: the part is solid again. Pinned: `anErrorUpstreamShowsTheLastGoodResultAsAGhost`,
+  `anOutputWithoutAResultSaysWhy`. **Observed:**
+- [ ] **M6-13 Themes (spec §6.6).** The app opens in Dracula, matching the §6.6 table as M4 and M5 drew it. View ▸
+  Theme lists Dracula (checked), Alucard and Nord. Choose Alucard: at once, with no reload or flicker of the part, the
+  background turns cream; the glass panels, node bodies, headers, sockets, wires, badges and inspector text take
+  Alucard's colours; MetalUI's own controls (buttons, sliders, fields, menus) turn light; and the viewport repaints
+  the part's shading, its edges, the grid, the handles, the triad and the view cube with its face names. The checkmark
+  moves to Alucard. Hover a cube face (the focus colour), pick edges (the selection colour) and break the fillet (the
+  error badge): every role has its Alucard colour and all text reads. Choose Nord, then Dracula: Dracula looks exactly
+  as at launch. Save, choose New and reopen the file: the theme stays (it is the app's, not the document's), and the
+  `.mcgraph` file holds no theme. Quitting forgets the choice until the Themes milestone. Pinned: `ThemeTests`,
+  `ThemeStoreTests`, `ThemeRenderTests`, `ViewportPaletteTests`, `theViewportDrawsTheChosenThemeAcrossDocuments`,
+  `theWindowRepaintsInTheChosenTheme`. **Observed:**

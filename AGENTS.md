@@ -7,6 +7,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 MetalCreator is a node-based parametric CAD app for macOS built on MetalUI (`../MetalUI`, joined in M4).
 The binding spec is `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md`; milestone
 plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 (OCCT kernel), M3 (the 26 nodes) and S3 (profile holes) are done. M4 (viewport) code is done; its human checks (group V in `docs/verification/human-checks.md`) are pending. M5 (graph panel and inspector) code is done; its human checks (group M5 in `docs/verification/human-checks.md`) are pending.
+M6 (app shell) code is done; its human checks (group M6) are pending.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -22,16 +23,29 @@ Module boundaries (dependency order):
 - `CreatorNodes`: the 26 built-in node definitions (`BuiltInNodes.registry`), UI-free: inspector sections and handles
   are data. Non-socket settings (`NodeSetting` in CreatorGraph: parameter, picks, showHandle) live in `Node.inputValues`;
   `NodeRegistry.makeNode` seeds `defaultSettings` and sets `isOutput` for `.output`-category nodes.
+- `CreatorStyle`: colour themes (spec §6.6, Dracula by default), the only place colour hex values are written.
+  `ThemeColors` is a colour per role (never a hue); `ColorTheme` (not `Theme`: MetalUI exports one) has the built-ins
+  `.dracula`, `.alucard` and `.nord`; `@MainActor @Observable ThemeStore` holds `current` and `select(_:)`, with injected
+  `ThemePreferences`. Editor and app views read `@Environment(ThemeStore.self) var themes: ThemeStore?` and draw
+  `Palette(themes)` (Dracula without a store); the viewport draws `ViewportModel.theme`, which the app shell sets.
+  Themes are app-level, never in `.mcgraph`. Tests: `swift test --filter CreatorStyleTests`.
 - `CreatorViewport`: the 3D viewport on MetalUI's `MetalView`.
   - `ViewportModel` (`@MainActor @Observable`, testable without a GPU) owns the camera, picking, the view cube,
     the context menu and handles. `ViewportRenderer`/`ViewportPicker` are the Metal side. `ViewportView` is the
     MetalUI glue.
-  - It depends on Kernel, Geometry and MetalUI only, never CreatorGraph. The app shell turns graph outputs into
+  - It depends on Kernel, Geometry, CreatorStyle and MetalUI only, never CreatorGraph. The app shell turns graph outputs into
     `ViewportItem`s and `HandleSpec`s into `ViewportHandle`s.
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
   behaviour (selection, canvas transform, dock transpose, hit testing, wiring, clipboard, palette, inspector edits);
-  views are thin MetalUI `Component`s. Depends on Graph/Kernel/Geometry and MetalUI — **not** on `CreatorNodes`.
+  views are thin MetalUI `Component`s. Depends on Graph/Kernel/Geometry, CreatorStyle and MetalUI — **not** on `CreatorNodes`.
   Stopgap input (pending MetalUI C7) lives only in `GraphPanelInput`.
+- `CreatorApp` + `MetalCreatorApp`: the app shell, the only target joining Graph, Nodes, Viewport and Editor.
+  `@MainActor @Observable AppModel` owns the open document's parts (document, editor, graph input, viewport; replaced
+  together on New and Open), turns results into `ViewportItem`s (`SceneBuilder`) and `HandleSpec`s into
+  `ViewportHandle`s (`HandleBuilder`), turns viewport events into graph commands (picking writes Edges by Tag rules),
+  and opens, saves and exports. `AppInput` installs the window's input once and forwards to the current document.
+  `MetalCreatorApp` is the executable (`OCCTKernel`). It owns the app's `ThemeStore` (View ▸ Theme) and provides it
+  to every view with `.environment(model.themes)`.
 
 Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.md` and fixed in MetalUI,
 never worked around here. Graph links are kept canonically sorted by destination; result caching is keyed by node identity.
@@ -52,6 +66,12 @@ drawing and hit testing agree. Node positions are stored left-to-right; the left
 Graph panel input stopgaps live only in `GraphPanelInput`. Each C7 stand-in is one function named after its
 provisional C7 API (`spatialTapGesture()`, `dragValueModifiers(_:)`), and `install(on:)` chains onto the window's
 existing handlers.
+The app installs the window's input through `AppInput`, never `GraphPanelInput.install(on:)` (only
+`GraphPanelPreview` still uses it), because New and Open replace the document's `GraphPanelInput`.
+App-shell input stopgaps live only in `AppInput`: the viewport's keys carry the `!Panel` key context (the graph panel
+and the inspector contribute `Panel`), and over the graph canvas + and − are declined so the graph's zoom keys work. The
+camera reaches `ViewState` only through `cameraSettled`/`homeChanged`, never per frame. Regular Polygon is
+`typeVersion` 2 (`rotation`).
 
 ## Commands
 
@@ -68,6 +88,9 @@ swift test --filter CreatorViewportTests   # viewport model, maths and the offsc
 swift run ViewportHarness                  # dev window for docs/verification/human-checks.md group V
 swift test --filter CreatorEditorTests       # editor model + headless render tests
 swift run GraphPanelPreview                   # graph panel + inspector, for docs/verification/human-checks.md (M5)
+swift run MetalCreatorApp [file.mcgraph]   # the app (docs/verification/human-checks.md, group M6)
+swift test --filter CreatorAppTests        # app model, scene, handles, picking, files, export, input; AppAcceptanceTests runs §7.2 on OCCT
+swift test --filter CreatorStyleTests      # colour themes: the built-ins, legibility, ThemeStore
 ```
 
 ## Linting
