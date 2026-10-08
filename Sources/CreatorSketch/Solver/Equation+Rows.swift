@@ -118,13 +118,14 @@ extension Equation {
         return [rowX, rowY]
     }
 
-    /// |p − q|. The gradient is zero where p = q (deterministic, and LM's damping moves on).
+    /// |p − q|. Where p = q the length has no gradient, only a subgradient; this takes the one
+    /// along +x (deterministic), so a distance or point-on-circle that starts with its points
+    /// together still pulls them apart rather than stalling there.
     static func distanceRow(_ p: PointOperand, _ q: PointOperand, _ x: [Double]) -> RowBuilder {
         let delta = p.value(x) - q.value(x)
         let length = delta.length
         var row = RowBuilder(value: length)
-        guard length > 0 else { return row }
-        let unit = delta * (1 / length)
+        let unit = length > 0 ? delta * (1 / length) : Vector2(1, 0)
         row.add(p, unit)
         row.add(q, unit * -1)
         return row

@@ -1,5 +1,7 @@
 /// Levenberg–Marquardt with a dense QR solve of the damped system (spec §4). Deterministic: no
-/// randomness, fixed iteration order, and the same input gives bit-identical output.
+/// randomness, fixed iteration order, and the same input gives bit-identical output. A start on
+/// a stationary point (an unmet row with no gradient) is first nudged off it
+/// (`ComponentSystem.unstuck`); that covers every solve, drag phase and conflict-search trial.
 enum LevenbergMarquardt {
     /// Stop when every residual is at most this (mm).
     static let residualTolerance = 1e-9
@@ -21,7 +23,7 @@ enum LevenbergMarquardt {
     }
 
     static func minimize(_ system: ComponentSystem, from start: [Double]) -> Outcome {
-        var x = start
+        var x = system.unstuck(start, tolerance: residualTolerance)
         var (r, jacobian) = system.evaluate(x)
         var iterations = 0
         guard system.columnCount > 0, !r.isEmpty else {

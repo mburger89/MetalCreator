@@ -20,6 +20,12 @@ struct ComponentSystem: Sendable {
 
     var columnCount: Int { columns.count }
 
+    /// The local index of a global column, or `nil` when the component doesn't vary it.
+    func localColumn(_ global: Int) -> Int? {
+        let local = localIndex[global]
+        return local >= 0 ? local : nil
+    }
+
     /// The component's unknowns read from a global vector.
     func local(_ global: [Double]) -> [Double] { columns.map { global[$0] } }
 
