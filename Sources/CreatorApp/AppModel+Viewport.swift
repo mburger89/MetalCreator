@@ -5,33 +5,55 @@ import CreatorKernel
 import CreatorViewport
 
 extension AppModel {
-    /// The viewport's events, turned into graph commands and document state.
+    /// The viewport's events, turned into graph commands and document state. Each one acts only while this
+    /// viewport is still the current one: after New or Open the old one may outlive its replacement (a settling
+    /// camera, a last draw), and its events must not reach the new document.
     func connectViewportEvents() {
-        viewport.events.clicked = { [weak self] in self?.viewportClicked($0) }
-        viewport.events.selectEdgesOfFace = { [weak self] face, picks, edges in self?.selectEdgesOfFace(face, picks, edges) }
-        viewport.events.showProducingNode = { [weak self] in self?.showProducingNode($0) }
-        viewport.events.handleChanged = { [weak self] id, value, phase in self?.handleChanged(id, value, phase) }
-        viewport.events.nodeName = { [weak self] in self?.document.graph.nodes[$0]?.name }
+        let viewport = self.viewport
+        let events = { [weak self, weak viewport] in self?.ifCurrent(viewport) }
+        viewport.events.clicked = { events()?.viewportClicked($0) }
+        viewport.events.selectEdgesOfFace = { face, picks, edges in events()?.selectEdgesOfFace(face, picks, edges) }
+        viewport.events.showProducingNode = { events()?.showProducingNode($0) }
+        viewport.events.handleChanged = { id, value, phase in events()?.handleChanged(id, value, phase) }
+        viewport.events.nodeName = { events()?.document.graph.nodes[$0]?.name }
         // The camera reaches the file only when it comes to rest, never per frame: writing `viewState` invalidates
         // the editor, which reads its dock and canvas transform from it (M4 carry-over, spec §7.3).
-        viewport.events.cameraSettled = { [weak self] in self?.document.viewState.camera = $0 }
-        viewport.events.homeChanged = { [weak self] in self?.document.viewState.homeCamera = $0 }
+        viewport.events.cameraSettled = { events()?.document.viewState.camera = $0 }
+        viewport.events.homeChanged = { events()?.document.viewState.homeCamera = $0 }
         // A viewport press gives the keys back, as a canvas press does (gap M5-g), and commits a typed value.
-        viewport.events.pressed = { [weak self] in
-            self?.editor.commitPendingEntry()
-            self?.releaseTextFocus?()
+        viewport.events.pressed = {
+            guard let model = events() else { return }
+            model.editor.commitPendingEntry()
+            model.releaseTextFocus?()
         }
     }
 
-    /// A handle drag edits its input: every step of one drag is one undo step (spec §6.5, §4.5).
+    /// This model while `viewport` is its current viewport, else nil.
+    private func ifCurrent(_ viewport: ViewportModel?) -> AppModel? {
+        self.viewport === viewport ? self : nil
+    }
+
+    /// A handle drag edits its input: every step of one drag is one undo step (spec §6.5, §4.5). A step that
+    /// leaves the value as it is (a click on the knob without moving) records nothing, so it neither adds an undo
+    /// step nor clears redo.
     func handleChanged(_ id: String, _ value: Double, _ phase: HandleDragPhase) {
         guard let target = handleTargets[id] else { return }
-        do {
-            try document.perform(.setInput(target.node, target.socket, .number(value)), coalescingKey: "handle-\(id)")
-        } catch {
-            alert = .problem(AppProblem("The value couldn't be changed", error.message))
+        if value != currentNumber(target) {
+            do {
+                try document.perform(.setInput(target.node, target.socket, .number(value)), coalescingKey: "handle-\(id)")
+            } catch {
+                alert = .problem(AppProblem("The value couldn't be changed", error.message))
+            }
         }
         if phase == .ended { document.endCoalescing() }
+    }
+
+    /// The number `target` currently reads: its stored input, or its socket's default.
+    private func currentNumber(_ target: HandleTarget) -> Double? {
+        guard let node = document.graph.nodes[target.node] else { return nil }
+        let stored = node.inputValues[target.socket]
+            ?? registry[node.typeID]?.inputs.first { $0.name == target.socket }?.defaultValue
+        return HandleBuilder.number(stored)
     }
 
     /// "Show Producing Node": selects the node and scrolls the graph to it, showing a hidden panel first.

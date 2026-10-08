@@ -33,6 +33,57 @@ struct ViewportGlueTests {
                 "the next drag is its own step")
     }
 
+    /// A click on a knob without moving reports the value it already has: no undo step, and redo survives.
+    @Test func aHandleClickWithoutMovingRecordsNothing() async throws {
+        var builder = GraphBuilder()
+        let box = builder.box(distance: 10)
+        let app = await makeApp(builder.graph)
+        app.editor.selection = [box.extrude.id]
+        await app.settle()
+        let id = try #require(app.viewport.handles.first?.id)
+        app.handleChanged(id, 10, .ended)
+        #expect(!app.document.canUndo, "the value didn't change")
+        try app.document.perform(.setInput(box.extrude.id, "distance", .number(12)))
+        app.document.undo()
+        app.handleChanged(id, 10, .changed)
+        app.handleChanged(id, 10, .ended)
+        #expect(app.document.canRedo, "a still click doesn't clear redo")
+        #expect(!app.document.canUndo)
+        app.handleChanged(id, 13, .changed)
+        app.handleChanged(id, 10, .ended)
+        app.handleChanged(id, 11, .ended)
+        app.document.undo()
+        #expect(app.document.graph.nodes[box.extrude.id]?.inputValues["distance"] == .number(10),
+                "a drag that returns to its start still ends its step")
+    }
+
+    /// After New or Open the old viewport may still be drawn or report a settling camera; its events must not
+    /// reach the new document.
+    @Test func aReplacedViewportsEventsDontReachTheNewDocument() async throws {
+        var builder = GraphBuilder()
+        let box = builder.box(distance: 10)
+        let app = await makeApp(builder.graph)
+        app.editor.selection = [box.extrude.id]
+        await app.settle()
+        let old = app.viewport
+        let id = try #require(old.handles.first?.id)
+        app.newDocument()
+        var released = 0
+        app.releaseTextFocus = { released += 1 }
+        old.events.cameraSettled(CameraPose(target: Vector3(1, 2, 3), distance: 50))
+        old.events.homeChanged(CameraPose(target: Vector3(1, 2, 3), distance: 50))
+        old.events.handleChanged(id, 30, .ended)
+        old.events.pressed()
+        old.events.showProducingNode(box.extrude.id)
+        #expect(old.events.nodeName(box.extrude.id) == nil)
+        #expect(app.document.viewState.camera == nil && app.document.viewState.homeCamera == nil)
+        #expect(!app.document.canUndo && !app.isEdited)
+        #expect(released == 0)
+        #expect(app.editor.selection.isEmpty)
+        app.viewport.events.pressed()
+        #expect(released == 1, "the new viewport's events still arrive")
+    }
+
     @Test func showProducingNodeSelectsItAndScrollsTheGraphToIt() async throws {
         var builder = GraphBuilder()
         let box = builder.box(at: Vector2(600, 400))
