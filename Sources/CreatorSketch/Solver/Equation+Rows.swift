@@ -41,6 +41,10 @@ extension Equation {
             row.scale(by: scale)
             return [row]
         case .angle(let first, let second, let target, let scale):
+            // cos(t) − sin(t) vanishes at 45°, so the per-row fallback would read as satisfied.
+            guard first.direction(x).length > 0, second.direction(x).length > 0 else {
+                return [RowBuilder(value: scale)]
+            }
             let crossRow = Self.unitCross(first, second, x)
             let dotRow = Self.unitDot(first, second, x)
             let (c, s) = (cos(target), sin(target))
@@ -169,7 +173,7 @@ extension Equation {
         let d = line.direction(x)
         let e = q.value(x) - p.value(x)
         let n = d.length
-        guard n > 0 else { return RowBuilder() }
+        guard n > 0 else { return degenerateLine }
         let value = SketchMath.dot(e, d) / n
         var row = RowBuilder(value: value)
         let byE = d * (1 / n)
@@ -188,7 +192,16 @@ extension Equation {
         let m = (p.value(x) + q.value(x)) * 0.5
         let w = m - a
         let n = d.length
-        guard n > 0 else { return RowBuilder() }
+        guard n > 0 else {
+            // Like signedDistance: a collapsed line is the point it became.
+            var row = RowBuilder(value: w.length)
+            guard w.length > 0 else { return row }
+            let unit = w * (1 / w.length)
+            row.add(p, unit * 0.5)
+            row.add(q, unit * 0.5)
+            row.add(line.start, unit * -1)
+            return row
+        }
         let value = SketchMath.cross(d, w) / n
         var row = RowBuilder(value: value)
         let byD = Vector2(w.y, -w.x) * (1 / n) - d * (value / (n * n))

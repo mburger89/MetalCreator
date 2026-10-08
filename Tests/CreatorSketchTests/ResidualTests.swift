@@ -81,5 +81,16 @@ struct ResidualTests {
         #expect(Equation.parallel(collapsed, other, scale: 5).rows(x)[0].value == 5)
         // A point's distance to a collapsed line is its distance to the point the line became.
         #expect(Equation.pointOnLine(.unknown(column: 4), collapsed).rows(x)[0].value == 18.0.squareRoot())
+        // Angle: cos(t) - sin(t) is 0 at 45 degrees, which must not read as satisfied.
+        #expect(Equation.angle(collapsed, other, target: .pi / 4, scale: 5).rows(x)[0].value == 5)
+        #expect(Equation.angle(other, collapsed, target: 5 * .pi / 4, scale: 5).rows(x)[0].value == 5)
+        #expect(Equation.perpendicular(collapsed, other, scale: 5).rows(x)[0].value == 5)
+        // Tangent-at-point and symmetric have no length to project along.
+        let tangent = Equation.tangentAtPoint(.unknown(column: 4), center: .unknown(column: 6), collapsed)
+        #expect(tangent.rows(x)[0].value == 1)
+        let symmetric = Equation.symmetric(.unknown(column: 4), .unknown(column: 6), collapsed).rows(x)
+        // Midpoint (5, 0) is sqrt(4 + 9) from the collapsed line's point (3, 3).
+        #expect(isClose(symmetric[0].value, 13.0.squareRoot(), tolerance: 1e-12))
+        #expect(symmetric[1].value == 1)
     }
 }
