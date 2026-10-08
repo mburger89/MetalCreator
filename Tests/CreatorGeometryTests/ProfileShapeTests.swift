@@ -1,0 +1,39 @@
+import Testing
+@testable import CreatorGeometry
+
+struct ProfileShapeTests {
+    @Test func translatingMovesEverySegment() {
+        let moved = Profile2D.circle(radius: 2, center: .zero, plane: .xy).translated(by: Vector2(3, 4))
+        guard case .arc(let center, let radius, _, _) = moved.segments[0] else { Issue.record("expected an arc"); return }
+        #expect(center == Vector2(3, 4))
+        #expect(radius == 2)
+        let line = Segment2D.line(Vector2(0, 0), Vector2(1, 0)).translated(by: Vector2(1, 1))
+        #expect(line == .line(Vector2(1, 1), Vector2(2, 1)))
+    }
+
+    @Test func roundedRectangleIsAClosedEightSegmentLoop() {
+        let profile = Profile2D.roundedRectangle(width: 60, height: 40, radius: 4, plane: .xy)
+        #expect(profile.segments.count == 8)
+        #expect(profile.isClosed)
+        let perimeter = profile.segments.reduce(0) { $0 + $1.length }
+        #expect(isClose(perimeter, 2 * (52 + 32) + 2 * Double.pi * 4, tolerance: 1e-9))
+        guard case .line(let a, let b) = profile.segments[2] else { Issue.record("segment 2 is the right edge"); return }
+        #expect(a.x == 30 && b.x == 30)
+    }
+
+    @Test func regularPolygonCornersLieOnTheCircle() {
+        let hexagon = Profile2D.regularPolygon(sides: 6, radius: 10, plane: .xy)
+        #expect(hexagon.segments.count == 6)
+        #expect(hexagon.isClosed)
+        #expect(hexagon.segments.allSatisfy { isClose($0.startPoint.length, 10) })
+        #expect(isClose(hexagon.segments[0].startPoint.x, 10))
+    }
+
+    @Test func polylineClosesOnlyWhenAsked() {
+        let points = [Vector2(0, 0), Vector2(10, 0), Vector2(0, 10)]
+        #expect(Profile2D.polyline(points, closed: true, plane: .xy).isClosed)
+        #expect(Profile2D.polyline(points, closed: true, plane: .xy).segments.count == 3)
+        #expect(!Profile2D.polyline(points, closed: false, plane: .xy).isClosed)
+        #expect(Profile2D.polyline(points, closed: false, plane: .xy).segments.count == 2)
+    }
+}
