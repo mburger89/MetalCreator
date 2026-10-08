@@ -24,7 +24,7 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 
 | # | Item | Status | Notes |
 |---|---|---|---|
-| 6 | Constraint sketcher: Sketch node, 2D editor, pure-Swift constraint solver | 🔄 spec `2026-10-08-constraint-sketcher-design.md`; S3 ✅ merged; S1+S2 building on `spec/sketcher`; S4 after S1+S2; S5 after S4 | Rules for S4 regions: holes sorted, loops counter-clockwise, deterministic start segment (spec §5) |
+| 6 | Constraint sketcher: Sketch node, 2D editor, pure-Swift constraint solver | 🔄 spec `2026-10-08-constraint-sketcher-design.md`; S3 ✅ merged; S1+S2 (CreatorSketch: solver, regions, commands) done on `spec/sketcher`; S4 after S1+S2; S5 after S4 | Rules for S4 regions: holes sorted, loops counter-clockwise, deterministic start segment (spec §5) |
 | 7 | Patterns, fields, nested data trees, surface textures, lattices | 💬 | After the slice |
 | 8 | Variants and versions UI | 💬 | Graph parameters already model variants |
 | — | Packaging: bundle OCCT dylibs into a signed `.app` | ⏳ after M6 | Spec §11 |
