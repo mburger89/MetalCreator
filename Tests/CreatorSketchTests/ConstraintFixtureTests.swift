@@ -259,8 +259,8 @@ struct ConstraintFixtureTests {
         #expect(isClose(try #require(solution.measurements[measured]), 5))
     }
 
-    /// A driving angle is met by θ or 180° − θ, depending on which way each line runs. A
-    /// reference angle on the same lines reads in that same sense, nearest its stored value.
+    /// Each angle dimension keeps the sense it was created in (`AngleSense`), so on a line drawn
+    /// backwards a reference angle reads in the same sense as the driving one beside it.
     @Test func referenceAnglesAgreeWithDrivingAnglesOnLinesDrawnBackwards() throws {
         var sketch = Sketch()
         let reference = fixedLine(&sketch, .zero, Vector2(10, 0))
