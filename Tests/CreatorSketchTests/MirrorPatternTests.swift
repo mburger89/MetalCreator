@@ -27,8 +27,8 @@ struct MirrorPatternTests {
         let copy = try #require(mirrored.ids(ofKind: "Line").last)
         #expect(mirrored.ends(copy).0 == sketch.ends(line).0)
         // One symmetric pair, and the shared point held on the axis.
-        #expect(mirrored.constraintList == [.pointOn(point: sketch.ends(line).0, curve: axis),
-                                            .symmetric(sketch.ends(line).1, mirrored.ends(copy).1, about: axis)])
+        #expect(mirrored.constraintList == [.symmetric(sketch.ends(line).1, mirrored.ends(copy).1, about: axis),
+                                            .pointOn(point: sketch.ends(line).0, curve: axis)])
         try requireSolvesInPlace(mirrored)
     }
 
@@ -65,6 +65,37 @@ struct MirrorPatternTests {
         let mirrored = try SketchCommands.mirror(sketch, entities: [line, other], about: axis).sketch
         #expect(mirrored.constraintList.filter { if case .pointOn = $0 { true } else { false } }.count == 1)
         #expect(SketchSolver.solve(mirrored).status.isUsable)
+    }
+
+    /// A shared point already held on the axis by other constraints (here a fix, with the axis
+    /// fixed too) gets no point-on: it would be dependent and turn the sketch over-constrained.
+    @Test func aFixedSharedPointOnAFixedAxisAddsNoPointOn() throws {
+        var sketch = Sketch()
+        let bottom = sketch.addPoint(Vector2(0, -10))
+        sketch.add(.fix(bottom, at: Vector2(0, -10)))
+        let top = sketch.addPoint(Vector2(0, 10))
+        sketch.add(.fix(top, at: Vector2(0, 10)))
+        let axis = sketch.addLine(from: bottom, to: top)
+        let line = sketch.addLine(.zero, Vector2(5, 5))
+        sketch.add(.fix(sketch.ends(line).0, at: .zero))
+        #expect(SketchSolver.solve(sketch).status == .underConstrained(dof: 2))
+        let mirrored = try SketchCommands.mirror(sketch, entities: [line], about: axis).sketch
+        #expect(!mirrored.constraintList.contains { if case .pointOn = $0 { true } else { false } })
+        #expect(SketchSolver.solve(mirrored).status == .underConstrained(dof: 2))
+    }
+
+    /// A shared point coincident with a point held on the axis is held there already.
+    @Test func aSharedPointCoincidentWithAPointOnTheAxisAddsNoPointOn() throws {
+        var sketch = Sketch()
+        let axis = sketch.addLine(Vector2(0, -10), Vector2(0, 10))
+        let onAxis = sketch.addPoint(.zero)
+        sketch.add(.pointOn(point: onAxis, curve: axis))
+        let line = sketch.addLine(.zero, Vector2(5, 5))
+        sketch.add(.coincident(onAxis, sketch.ends(line).0))
+        let mirrored = try SketchCommands.mirror(sketch, entities: [line], about: axis).sketch
+        #expect(mirrored.constraintList.filter { if case .pointOn = $0 { true } else { false } }.count == 1)
+        let status = SketchSolver.solve(mirrored).status
+        #expect(status.isUsable, "status \(status)")
     }
 
     @Test func aMirroredArcRunsCounterClockwiseAndStaysFullyConstrained() throws {
