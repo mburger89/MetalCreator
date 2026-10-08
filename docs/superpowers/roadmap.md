@@ -33,7 +33,7 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 
 | Item | Owner | Status |
 |---|---|---|
-| MetalUI C7 "Input API gaps for MetalCreator" (scroll, pinch/rotate, middle/right drag, tap location, cursor + drag modifiers) | MetalUI session | 🔒 not designed yet; next after MetalUI C4 (2026-10-08). Provisional API names recorded in docs/metalui-gaps.md |
+| MetalUI C7 "Input API gaps for MetalCreator" (scroll, pinch/rotate, middle/right drag, tap location, cursor + drag modifiers) | MetalUI session | 🔄 started 2026-10-08 on MetalUI branch feat/input-apis; renames of the provisional names (docs/metalui-gaps.md) will be flagged in MetalUI docs/superpowers/2026-10-08-input-apis-decisions.md (prefix CI-). MetalUI now also has `.task`/`.task(id:)` |
 
 ## Carry-over items with a milestone
 
