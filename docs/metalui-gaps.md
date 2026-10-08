@@ -64,8 +64,9 @@ Gap numbers 1–5 are the C7 items above. New gaps are labelled M4-a… (M5 uses
      result type could not be inferred" (the same chain written inline compiles). The viewport writes its label
      loops inline.
    - A `.continuous` `MetalView` redraws its surface every frame, but the element tree isn't rebuilt, so overlay labels
-     can't follow a camera animation. They're hidden while one runs. Wanted: `TimelineView(.animation)`, or a per-frame
-     rebuild hook for elements above a continuous surface.
+     can't follow a camera animation. The triad's axis names and the handle values are hidden while one runs. (The
+     view cube's face names no longer depend on this: they're painted on the cube in its Metal pass.) Wanted:
+     `TimelineView(.animation)`, or a per-frame rebuild hook for elements above a continuous surface.
 
 ## Reported 2026-10-08 (M5 graph panel)
 

@@ -34,7 +34,13 @@ drags print to the terminal.
   Pinned: `hoverAsksThePickerOrTheCube`, `movingTheCameraUnderAStillPointerRepicks`,
   `idPassReportsTheFaceAndEdgeUnderChosenPixels`. Observed:
 - [ ] **V5 View cube.**
-  - TOP, FRONT, RIGHT and the other labels are readable on the faces turned toward you.
+  - TOP, FRONT, RIGHT and the other names are painted on the faces: they tilt and turn with the cube, and a face
+    turned away hides its name. Each reads upright and unmirrored seen from outside (side faces with +Z up, TOP
+    with +Y up as the TOP view shows it, BOTTOM with −Y up so it reads upright after rolling under from FRONT;
+    TOP seen from the back is upside down, as in Fusion). They stay visible through the 250 ms animation, and are
+    crisp on a Retina screen and smooth at steep angles (no shimmer or jaggies while orbiting). The text runs
+    across the face's edge tiles; hovering an edge or corner tints the tile under the text, and the name stays
+    on top. Pinned: `CubeLabelTests`, `theFrontLabelIsPaintedOnTheFrontFace`.
   - The region under the pointer turns cyan, and so does the region the camera looks straight from (FRONT after
     clicking FRONT). Pinned: `theCubeTintsTheRegionTheCameraLooksFrom`.
   - Clicking FRONT animates (about 250 ms, smooth) to a straight-on orthographic view.
