@@ -19,8 +19,13 @@ These are the items later milestones must pick up.
 - `conflictMessages` has one sentence per minimal conflict set, and a component reports every independent conflict
   (up to `ConflictSearch.setLimit`), so show them all: removing every listed set restores consistency.
 - `Sketch` encodes deterministically (ID-keyed dictionaries are JSON objects); embed it with `.sortedKeys`.
-- Reference angles are measured between undirected lines, nearest their stored value (30° and 150° name the same
-  pair of lines), so switching a driving angle to reference keeps its number.
+- Angle dimensions are directed: `SketchDimension.angleSense` (chosen by `addDimension` from the geometry, or by
+  `remember` after the first solve) says which of the four angles between the lines the value measures. Driving and
+  reference angles both read in it, so switching one to reference keeps its number, and 120 on a 60° vee opens it.
+- Auto dimension names come from the monotonic `Sketch.nextDimensionNumber` and are never reused, so a socket named
+  `d1` keeps meaning the same dimension.
+- `.failed(reason:)` also covers a solve that could only meet its constraints by collapsing or inverting a curve
+  ("Circle 1 would shrink to nothing."); that component keeps its warm start.
 - Wired values for exposed dimensions go into `SketchDimension.value`. NaN, ±∞ and non-positive lengths come back as
   plain `.failed` reasons. `measurements` holds reference dimensions; output them in name order.
 - Call `Sketch.remember(_:)` after a usable solve so the next one warm-starts; re-solving a solved sketch is exact.
@@ -29,7 +34,12 @@ These are the items later milestones must pick up.
 ## S5 (editor)
 - Drag with `SketchSolver.solve(_:dragging:)` each frame, then `remember` the result.
 - Freedom colours come from `SketchSolution.freedom`. Labels ("Line 3", "Angle d4 (30°)") come from `Sketch.label(of:)`.
-- Commands return `SketchEdit` (sketch + undo description) or throw `SketchCommandError` with a plain message.
+- Commands return `SketchEdit` (sketch + undo description + `removed`, the constraints and dimensions the command
+  deleted, for example a fillet's lengths and the corner's fix) or throw `SketchCommandError` with a plain message.
+  A command that would remove an exposed dimension throws instead of removing it.
+- Drag solves bound their pull (`ComponentSolver.pullIterationLimit`), but the solver is dense: a release drag solve
+  of a fully constrained rectangle patterned 30 times takes about 0.3 s. Budget frames, or coalesce drags, for
+  sketches of several hundred unknowns; `patternLimit` is 100. A sparse solver is future work.
 - Patterns add construction connectors (linear) or spokes (circular) and their dimensions: one distance for a
   linear pattern, one angle per copied point for a circular one. Show them as pattern construction, not as user
   geometry, if the editor can tell them apart.
