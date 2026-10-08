@@ -146,4 +146,97 @@ struct HoleConformanceTests {
             try await under.make().loft([plate, top], ruled: true, tag: newTag())
         }
     }
+
+    // MARK: - Naming (Task 2)
+
+    func isUnnamed(_ face: FaceInfo) -> Bool {
+        face.tags.contains { if case .unnamed = $0.role { true } else { false } }
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func holeWallsAreTaggedWithTheirLoop(_ under: KernelUnderTest) async throws {
+        let tag = newTag()
+        let solid = try await under.make().extrude(plate, distance: 3, mode: .oneSided, tag: tag)
+        let wall = try #require(faces(solid, role: .side(loop: 1, segment: 0), of: tag).first)
+        #expect(wall.kind == .cylinder)
+        #expect(faces(solid, role: .side(loop: 1, segment: 0), of: tag).count == 1)
+        for k in 0..<4 {
+            #expect(faces(solid, role: .side(segment: k), of: tag).count == 1)
+        }
+        #expect(faces(solid, role: .startCap, of: tag).count == 1)
+        #expect(faces(solid, role: .endCap, of: tag).count == 1)
+        #expect(solid.topology.faces.allSatisfy { $0.tags.count == 1 && !isUnnamed($0) })
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func outerWallsAreNamedAsWithoutTheHole(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let (plainTag, holedTag) = (newTag(), newTag())
+        let plain = try await kernel.extrude(Profile2D(plane: .xy, segments: plate.outer), distance: 3, mode: .oneSided, tag: plainTag)
+        let holed = try await kernel.extrude(plate, distance: 3, mode: .oneSided, tag: holedTag)
+        for k in 0..<4 {
+            let before = try #require(faces(plain, role: .side(segment: k), of: plainTag).first?.normal)
+            let after = try #require(faces(holed, role: .side(segment: k), of: holedTag).first?.normal)
+            #expect(before.dot(after) > 0.999)
+        }
+    }
+
+    @Test(arguments: KernelUnderTest.allCases, [false, true])
+    func holeWallsFollowSegmentOrderWhicheverWayTheHoleWinds(_ under: KernelUnderTest, clockwise: Bool) async throws {
+        let tag = newTag()
+        let hole = squareHole(clockwise: clockwise)
+        let profile = Profile2D(plane: .xy, outer: plate.outer, holes: [hole])
+        let solid = try await under.make().extrude(profile, distance: 2, mode: .oneSided, tag: tag)
+        for (k, segment) in hole.enumerated() {
+            let wall = try #require(faces(solid, role: .side(loop: 1, segment: k), of: tag).first)
+            // A hole wall faces into the hole: towards the hole's centre, the origin.
+            let midpoint = (segment.startPoint + segment.endPoint) * 0.5
+            let inward = try #require(Vector3(-midpoint.x, -midpoint.y, 0).normalized)
+            #expect((wall.normal ?? .zero).dot(inward) > 0.999, "hole wall \(k) normal \(String(describing: wall.normal))")
+        }
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func eachHoleGetsItsOwnLoopIndex(_ under: KernelUnderTest) async throws {
+        let tag = newTag()
+        let holes = [Vector2(-2.5, 0), Vector2(2.5, 0)].map { Profile2D.circle(radius: 1, center: $0, plane: .xy).segments }
+        let solid = try await under.make().extrude(Profile2D(plane: .xy, outer: plate.outer, holes: holes), distance: 1,
+                                                   mode: .oneSided, tag: tag)
+        let left = try #require(faces(solid, role: .side(loop: 1, segment: 0), of: tag).first)
+        let right = try #require(faces(solid, role: .side(loop: 2, segment: 0), of: tag).first)
+        #expect(left.centroid.x < 0 && right.centroid.x > 0)
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func aRevolvedHoleWallIsTagged(_ under: KernelUnderTest) async throws {
+        let tag = newTag()
+        let solid = try await under.make().revolve(tubeSection, axis: .z, angle: .degrees(360), tag: tag)
+        let cavity = try #require(faces(solid, role: .side(loop: 1, segment: 0), of: tag).first)
+        #expect(cavity.kind == .torus)
+        #expect(!solid.topology.faces.contains(where: isUnnamed))
+    }
+
+    /// A `width` x 40 plate on XY with a D5 hole at the origin, 6 thick.
+    func holedPlate(width: Double) -> Profile2D {
+        Profile2D(plane: .xy, outer: Profile2D.rectangle(width: width, height: 40, plane: .xy).segments,
+                  holes: [Profile2D.circle(radius: 2.5, center: .zero, plane: .xy).segments])
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func aHoleRimKeepsItsKeyWhenTheOutlineChanges(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let plateTag = newTag()
+        var rims: [Set<EdgeKey>] = []
+        for width in [60.0, 90.0] {
+            let solid = try await kernel.extrude(holedPlate(width: width), distance: 6, mode: .oneSided, tag: plateTag)
+            let rim = edges(solid, between: { hasTag($0, .endCap, of: plateTag) },
+                            and: { hasTag($0, .side(loop: 1, segment: 0), of: plateTag) })
+            #expect(rim.count == 1)
+            rims.append(Set(rim.compactMap { solid.topology.key(of: $0) }))
+            let chamfered = try await kernel.chamfer(solid, edges: rim.map(\.id), distance: 0.5, tag: newTag())
+            #expect(chamfered.topology.faces.count == solid.topology.faces.count + 1)
+        }
+        #expect(rims[0].count == 1)
+        #expect(rims[0] == rims[1])
+    }
 }

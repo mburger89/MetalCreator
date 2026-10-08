@@ -30,6 +30,16 @@ struct TaggerTests {
         #expect(topology.faces[2].tags == [TopoTag(tag, .side(segment: 3))])
     }
 
+    @Test func segmentRecordOperandsAreProfileLoops() {
+        let history = [
+            OCCTHistoryRecord(outFace: 0, kind: .segment, operand: 0, index: 1),
+            OCCTHistoryRecord(outFace: 1, kind: .segment, operand: 2, index: 1),
+        ]
+        let topology = OCCTTagger.topology(raw: raw(faces: 2), history: history, inputs: [], tag: tag)
+        #expect(topology.faces[0].tags == [TopoTag(tag, .side(segment: 1))])
+        #expect(topology.faces[1].tags == [TopoTag(tag, .side(loop: 2, segment: 1))])
+    }
+
     @Test func faceRecordsCarryInputTagsAndMergeUnions() {
         let a = TopoTag(node: NodeID(), item: 0, role: .endCap)
         let b = TopoTag(node: NodeID(), item: 1, role: .side(segment: 0))

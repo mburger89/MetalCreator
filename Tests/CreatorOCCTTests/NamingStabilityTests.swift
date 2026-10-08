@@ -70,9 +70,9 @@ struct NamingStabilityTests {
         keys(edges, in: solid).count == edges.count
     }
 
-    /// The plate side segment index of a key side that is exactly one plate `.side` tag, else nil.
+    /// The plate outer-wall segment index of a key side that is exactly one plate `.side` tag, else nil.
     func plateSideSegment(_ side: Set<TopoTag>, plate: NodeID) -> Int? {
-        guard side.count == 1, let tag = side.first, tag.node == plate, case .side(let segment) = tag.role else { return nil }
+        guard side.count == 1, let tag = side.first, tag.node == plate, case .side(loop: 0, let segment) = tag.role else { return nil }
         return segment
     }
 

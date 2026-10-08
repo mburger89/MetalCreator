@@ -10,10 +10,9 @@ enum OCCTTagger {
                 tags[record.outFace, default: []].insert(TopoTag(tag, .startCap))
             case .endCap:
                 tags[record.outFace, default: []].insert(TopoTag(tag, .endCap))
-            case .segment where record.operand != 0:
-                continue // hole walls are named in Task 2
             case .segment:
-                tags[record.outFace, default: []].insert(TopoTag(tag, .side(segment: record.index)))
+                // A segment record's operand is the profile loop (0 = outer), see cocct.h.
+                tags[record.outFace, default: []].insert(TopoTag(tag, .side(loop: record.operand, segment: record.index)))
             case .face:
                 guard inputs.indices.contains(record.operand),
                       inputs[record.operand].faces.indices.contains(record.index) else { continue }
