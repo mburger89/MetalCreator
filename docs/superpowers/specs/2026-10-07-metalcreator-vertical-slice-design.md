@@ -387,6 +387,10 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
   hides the panel only when nothing focusable is on screen (in practice never, since the inspector is). While the
   panel is hidden, a "Show graph" button carries Tab as its shortcut, so hiding is never a one-way trip. With the
   pointer over the canvas, Tab opens the palette even from a focused inspector field (docs/metalui-gaps.md M5-b).
+- §3.1's `CreatorEditor` row: the library depends on Graph, Kernel, Geometry and MetalUI, not Nodes. It renders
+  any `NodeRegistry` it is given, so its tests and the preview use hand-written fixture nodes, and the app shell (M6)
+  passes `BuiltInNodes.registry`. `CreatorNodes` is a test-only dependency of `CreatorEditorTests`, where
+  `BuiltInNodesInspectorTests` runs every built-in definition through `InspectorBuilder` and `NodeShape`.
 - §6.4's inspector also clears an optional input: emptying its field unsets it (for example Grid Points `total`).
 - §6.1/§6.6's glass blur and the window gradient wait for MetalUI. Panels are `#21222c` at 86% with the hairline,
   and the preview's background is solid `#191a21` (docs/metalui-gaps.md M5-c, M5-d).

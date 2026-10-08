@@ -41,9 +41,11 @@ let package = Package(
             name: "GraphPanelPreview",
             dependencies: ["CreatorEditor", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUI]
         ),
+        // CreatorNodes is a test-only dependency: BuiltInNodesInspectorTests runs the real M3
+        // definitions through the inspector; the CreatorEditor library never imports it.
         .testTarget(
             name: "CreatorEditorTests",
-            dependencies: ["CreatorEditor", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUI]
+            dependencies: ["CreatorEditor", "CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorNodes", metalUI]
         ),
         .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT", "CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
