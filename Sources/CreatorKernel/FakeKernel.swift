@@ -40,6 +40,9 @@ public actor FakeKernel: Kernel {
     public func loft(_ sections: [Profile2D], ruled: Bool, tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
         operationLog.append("loft")
+        guard sections.allSatisfy(\.holes.isEmpty) else {
+            throw KernelError.invalidInput("A loft can't use profiles with holes yet.")
+        }
         throw KernelError.unsupported("loft")
     }
 
@@ -148,11 +151,12 @@ public actor FakeKernel: Kernel {
         return Solid(topology: topology, bounds: solid.bounds, storage: FakeStorage())
     }
 
-    /// Caps, one side per segment, and bottom, top and between-side edges. A single-segment
-    /// loop (a circle) gets a seam instead of between-side edges.
+    /// Caps, then for each loop (outer first, then holes): one side face per segment tagged
+    /// `.side(loop:segment:)`, bottom and top edges per segment, and between-side edges. A
+    /// single-segment loop (a circle) gets a seam instead of between-side edges. Hole corners are
+    /// concave. The outer loop's faces and edges are numbered exactly as for a profile without holes.
     private static func prism(_ profile: Profile2D, distance: Double, tag: NodeTag) -> Topology {
         let normal = profile.plane.normal
-        let count = profile.segments.count
         var faces = [
             FaceInfo(id: FaceID(0), kind: .plane, normal: -normal, area: 0, centroid: .zero, tags: [TopoTag(tag, .startCap)]),
             FaceInfo(id: FaceID(1), kind: .plane, normal: normal, area: 0, centroid: .zero, tags: [TopoTag(tag, .endCap)]),
@@ -162,23 +166,26 @@ public actor FakeKernel: Kernel {
             edges.append(EdgeInfo(id: EdgeID(edges.count), kind: kind, direction: direction, length: length,
                                   midpoint: .zero, convexity: convexity, faces: [FaceID(a), FaceID(b)]))
         }
-        for (k, segment) in profile.segments.enumerated() {
-            let side = 2 + k
-            let isLine: Bool
-            if case .line = segment { isLine = true } else { isLine = false }
-            faces.append(FaceInfo(id: FaceID(side), kind: isLine ? .plane : .cylinder, normal: nil, area: 0,
-                                  centroid: .zero, tags: [TopoTag(tag, .side(segment: k))]))
-            let along: Vector3? = isLine
-                ? (profile.plane.point(segment.endPoint) - profile.plane.point(segment.startPoint)).normalized
-                : normal
-            addEdge(isLine ? .line : .circle, along, segment.length, .convex, 0, side)
-            addEdge(isLine ? .line : .circle, along, segment.length, .convex, 1, side)
-        }
-        if count == 1 {
-            addEdge(.line, normal, distance, .smooth, 2, 2)
-        } else {
-            for k in 0..<count {
-                addEdge(.line, normal, distance, .convex, 2 + k, 2 + (k + 1) % count)
+        for (loop, segments) in profile.loops.enumerated() {
+            let first = faces.count
+            for (k, segment) in segments.enumerated() {
+                let side = first + k
+                let isLine: Bool
+                if case .line = segment { isLine = true } else { isLine = false }
+                faces.append(FaceInfo(id: FaceID(side), kind: isLine ? .plane : .cylinder, normal: nil, area: 0,
+                                      centroid: .zero, tags: [TopoTag(tag, .side(loop: loop, segment: k))]))
+                let along: Vector3? = isLine
+                    ? (profile.plane.point(segment.endPoint) - profile.plane.point(segment.startPoint)).normalized
+                    : normal
+                addEdge(isLine ? .line : .circle, along, segment.length, .convex, 0, side)
+                addEdge(isLine ? .line : .circle, along, segment.length, .convex, 1, side)
+            }
+            if segments.count == 1 {
+                addEdge(.line, normal, distance, .smooth, first, first)
+            } else {
+                for k in segments.indices {
+                    addEdge(.line, normal, distance, loop == 0 ? .convex : .concave, first + k, first + (k + 1) % segments.count)
+                }
             }
         }
         return Topology(faces: faces, edges: edges)

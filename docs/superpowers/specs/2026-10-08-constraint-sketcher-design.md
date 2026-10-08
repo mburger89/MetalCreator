@@ -141,12 +141,12 @@ Lines and arcs **share endpoint points**, so coincidence at a shared endpoint is
 - `isClosed` checks every loop.
 
 **Shim:**
-- `occt_profile` gains `loops` and `loop_count`. `build_profile` builds the outer wire plus inner wires: `BRepBuilderAPI_MakeFace(outer)`, then `.Add(innerWire)` for each hole. Hole wires are oriented clockwise relative to the plane normal.
+- `occt_profile` gains `loops` and `loop_count`. `build_profile` builds the outer wire plus inner wires: `BRepBuilderAPI_MakeFace(outer)`, then `.Add(innerWire)` for each hole. Hole wires are oriented against the outer wire (S3 probe: OCCT needs opposite windings, and the outer loop may wind either way, so "clockwise relative to the plane normal" holds only for a counter-clockwise outline). The loop index travels in the history record's `operand`.
 - History records for hole walls use `OCCT_FROM_SEGMENT` with an added loop index.
 
-**Tags:** `TopoRole.side(segment:)` becomes `side(loop: Int, segment: Int)`, where `loop == 0` is the outer loop. `sortKey` and `Codable` stay compatible: a missing `loop` decodes as 0.
+**Tags:** `TopoRole.side(segment:)` becomes `side(loop: Int = 0, segment: Int)`, where `loop == 0` is the outer loop, so `.side(segment:)` still compiles and means the outer loop. `sortKey` and `Codable` stay compatible: `loop` is written only when non-zero, and a missing `loop` decodes as 0.
 
-**Graph:** `ConstantValue.sketch(Sketch)` is added and `GraphFile.currentFormatVersion` is bumped (parent spec rule: a new `ConstantValue` kind means a version bump).
+**Graph:** S3 bumps `GraphFile.currentFormatVersion` to 3, because files with hole-wall picks carry a `loop` that older readers can't decode. S4 adds `ConstantValue.sketch(Sketch)` and bumps it again, to 4 (parent spec rule: a new `ConstantValue` kind means a version bump).
 
 ## 7. Nodes
 

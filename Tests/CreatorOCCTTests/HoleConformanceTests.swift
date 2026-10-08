@@ -239,4 +239,28 @@ struct HoleConformanceTests {
         #expect(rims[0].count == 1)
         #expect(rims[0] == rims[1])
     }
+
+    /// Each edge as "face roles | kind | convexity | seam", sorted, so two kernels' numbering doesn't matter.
+    func edgeSummary(_ solid: Solid) -> [String] {
+        solid.topology.edges.map { edge in
+            let roles = edge.faces.compactMap { solid.topology.face($0) }
+                .map { $0.tags.map(\.role.sortKey).sorted().joined(separator: "+") }.sorted()
+            return "\(roles.joined(separator: "|")) \(edge.kind) \(edge.convexity) \(edge.isSeam)"
+        }.sorted()
+    }
+
+    @Test func fakeKernelHoleTopologyMatchesOCCT() async throws {
+        let squareHole = Profile2D.rectangle(width: 2, height: 2, plane: .xy).translated(by: Vector2(-2.5, 0)).segments
+        let roundHole = Profile2D.circle(radius: 1, center: Vector2(2.5, 0), plane: .xy).segments
+        let holes = [squareHole, roundHole]
+        let profile = Profile2D(plane: .xy, outer: plate.outer, holes: holes)
+        let tag = newTag()
+        let fake = try await FakeKernel().extrude(profile, distance: 2, mode: .oneSided, tag: tag)
+        let occt = try await OCCTKernel().extrude(profile, distance: 2, mode: .oneSided, tag: tag)
+        #expect(occt.topology.edges.count == 27)
+        #expect(edgeSummary(fake) == edgeSummary(occt))
+        let fakeFaces = fake.topology.faces.map(\.kind.rawValue).sorted()
+        let occtFaces = occt.topology.faces.map(\.kind.rawValue).sorted()
+        #expect(fakeFaces == occtFaces)
+    }
 }

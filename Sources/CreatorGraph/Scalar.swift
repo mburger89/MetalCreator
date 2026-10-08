@@ -52,7 +52,7 @@ public enum Scalar: Sendable {
     public var estimatedBytes: Int {
         switch self {
         case .solid(let solid): solid.estimatedBytes
-        case .profile(let profile): 64 + profile.segments.count * 48
+        case .profile(let profile): 64 + profile.segmentCount * 48
         case .edgeSet(let set): 32 + set.edges.count * 8
         case .faceSet(let set): 32 + set.faces.count * 8
         case .number, .integer, .bool, .vector, .plane: 32
