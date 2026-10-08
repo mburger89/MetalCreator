@@ -142,3 +142,20 @@ Read this before writing the M2 and M3 plans.
   (`InMemoryThemePreferences`). MetalUI's own controls follow only the theme's light or dark
   (`.preferredColorScheme`), not its colours: the Themes milestone can map roles onto MetalUI's scoped `.theme(_:)`
   tokens. Owner: roadmap row "Themes".
+- Later items from the M6 final review:
+  - `AppModel.load()` leaves the old parts' scene refresh task running; bump `observationGeneration` before writing
+    the new parts so the orphaned task can't write them. Owner: M7.
+  - A pick session isn't cancelled on undo or redo, or when its rule or its source node is deleted. Owner: M7.
+  - `discardChanges()` should set `alert = nil` itself rather than rely on the caller. Owner: M7.
+  - `AppAcceptanceTests` should also assert the fillet's edge-set count (4) and the chamfer's match count (7) after
+    Width 90 / Hole count 6. Owner: M7.
+  - Radial handles: the bisector has no fallback when the two face normals cancel, the normals are right only for
+    planar faces, and the `0...1_000` fallback range in `HandleBuilder` wants a named constant. Owner: M7.
+  - `ThemeRenderTests` should check each view's roles (not only that something changed), and a grep test should pin
+    `Palette.dracula` to the places allowed to use it. Owner: Themes.
+  - `ThemeStore`'s fallback `builtIns.first ?? .dracula` repeats the default; name it once. Owner: Themes.
+  - `cameraSettled` can fire twice when a new camera animation starts mid-animation. Owner: M7.
+  - `ViewportModel.setModelArea` doesn't validate its insets (negative, or larger than the view). Owner: M7.
+  - `ViewportGlueTests` should assert that two separate drags are two undo steps (undo twice). Owner: M7.
+  - No test pins that docking or resizing the panel doesn't re-show the scene (`ViewportItem.drawsTheSame`), as
+    `panningTheCanvasOrSettlingTheCameraDoesntRebuildTheScene` does for a pan. Owner: M7.
