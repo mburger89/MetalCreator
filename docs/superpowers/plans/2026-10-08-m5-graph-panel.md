@@ -2,35 +2,47 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+**Updated against merged M3 (4efa07d), 2026-10-07; re-checked against merged M4 (`e31ba17`) and master `fbb23d7`, 2026-10-07.** Every M1–M3 symbol the plan uses was checked against the merged `Sources/` and `Tests/`, and every M4 symbol against M4's merged code. The changes: the test and preview node mirrors now match M3's merged nodes (Extrude's "Reverse direction" toggle, Output's `.list` input and pass-through output, Graph Parameter's four optional outputs). M3's optional inputs with no default (Grid Points `total`, Edge Filter `maxLength`, Transform `axisDirection`) start unset and can be cleared (`InputField.isOptional`, `EditorModel.clearInput`). The C7 stand-ins are functions named after C7's provisional APIs (`GraphPanelInput.spatialTapGesture()`, `dragValueModifiers(_:)`). `GraphPanelInput.install(on:)` composes with M4's handlers. Task 1 starts with pre-flight checks that stop the run if M3 or M4 isn't in place. Task 11 adds a spec "Errata (M5)" entry. Test counts now end at 123. The re-check against `fbb23d7` added the SwiftLint gate (master's `.swiftlint.yml`, CLAUDE.md "Linting"): every commit step runs `swiftlint lint --strict`, and the plan's code was reworked to report zero violations (`GraphKeyBindings.command` and `EditorModel.perform` split by key group, `InspectorBuilder.row` split into `ruleSummary` and `valueRow`). It also narrowed the `install(on:)` decision (only `onInput` composes in either order; see Decisions) and said which C7 swap is body-only.
+
 **Goal:** Build `CreatorEditor`, the graph panel and context inspector on MetalUI: a `@MainActor @Observable EditorModel` that owns selection, box-select, the canvas transform, the dock (with the left-dock transpose), hit testing, wire dragging with connect/refuse/replace, delete/copy/paste/duplicate/⌥-drag, the add-node palette and inspector editing with drag coalescing — all unit-tested — plus the MetalUI views that draw it in the Dracula palette, and a preview executable for the human visual check.
 
 **Architecture:**
 - **Model first, views thin** (spec §3.2). Everything a test needs lives in `EditorModel` and pure value types (`CanvasTransform`, `CanvasFlow`, `NodeLayout`, `WireGeometry`, `InspectorBuilder`, `PaletteSearch`, `GraphKeyBindings`). Every edit goes through `DocumentModel.perform`, so undo, evaluation and saving come for free.
 - **Geometry is computed, not measured** (the concept ported from MetalNodes' `NodeGeometry`). `NodeLayout` gives node sizes and socket anchors; views are framed to those numbers, and hit testing uses the same numbers under the canvas transform. So drawing, wiring and hit testing cannot disagree.
 - **One gesture for the whole canvas.** The canvas carries a single `DragGesture(minimumDistance: 0)`. Node and wire layers draw with hit testing off, and `EditorModel.hitTest` decides what a press landed on. This is the spec §9 stopgap for tap location (C7 gap 4), and it keeps every interaction rule in the testable model.
-- **Stopgap input lives in one type**, `GraphPanelInput`. It builds the canvas gesture, tracks modifiers from the window's `.modifiersChanged` events (C7 gap 5), and maps keys from `Window.onInput` (the fallback that only sees keys no focused field claimed). When C7 lands, only this file changes.
+- **Stopgap input lives in one type**, `GraphPanelInput`. Each C7 stand-in is one function named after the provisional C7 API it waits for (docs/metalui-gaps.md): `spatialTapGesture()` (C7 `SpatialTapGesture`, gap 4) and `dragValueModifiers(_:)` (C7 `DragGesture.Value.modifiers`, gap 5, fed meanwhile by the window's `.modifiersChanged` events). It also maps keys from `Window.onInput` (the fallback that only sees keys no focused field claimed), and `install(on:)` chains onto the window's existing handlers, as M4's `ViewportModifierTracker.install(on:)` does for `onInput`. When C7 lands, only this file and its test change.
 - **Views** are MetalUI `Component`s in the SwiftUI vocabulary (`ZStack`/`VStack`/`HStack`, `.offset`, `.scaleEffect`, `Path`). The canvas content sits under `.scaleEffect(zoom, anchor: .topLeading).offset(pan)`, so zoom and pan are render effects, not relayouts. That structure is what M7 will measure for "50 nodes pan at 60 fps".
 
 **Tech Stack:** Swift 6.4 toolchain, Swift 6 language mode, SwiftPM, Swift Testing, MetalUI (`../MetalUI`, by path).
 
-**Execution order: M3 → M4 → M5; this plan assumes M3 and M4 are merged.** M5 runs last, on M4's merged tree: `Package.swift` already has M3's `CreatorNodes` targets and M4's MetalUI dependency, `metalUI` constant, `CreatorViewport` targets and `ViewportHarness`; `CreatorGraph` has M3's settings contract (`NodeSetting`, `ConstantValue.parameter(_:)` / `.parameterID`, `.edgePicks`, `NodeDefinition.defaultSettings`, `NodeRegistry.makeNode` seeding them and flagging `.output` nodes) and M4's `ViewState.camera`; `docs/verification/human-checks.md` exists with M4's group V; `docs/metalui-gaps.md` has M4's section.
+**Execution order: M3 → M4 → M5; M3 and M4 are merged.** M5 runs last, on M4's merged tree. M3 merged at `4efa07d` and M4 at `e31ba17`. Master is now `fbb23d7`: on top of M4 it adds the SwiftLint configuration (`bfa027e`, `.swiftlint.yml` and CLAUDE.md/AGENTS.md "Linting") and the lint fixes for the existing modules (`fbb23d7`). **M5 must start from master `fbb23d7` or later.** This plan's branch (`plans/m5-update`) was cut from `4efa07d`, so the controller either rebases it onto master before M5 starts or runs M5 on a fresh branch from master. Task 1 Step 1's pre-flight checks stop the run if any of these is missing (all of them pass on `fbb23d7`):
+- **In M4's merged code:**
+  - `Package.swift` has the `../MetalUI` dependency, `let metalUI: Target.Dependency`, `CreatorViewport`, `CreatorViewportTests` (which also depends on `CreatorOCCT`) and `ViewportHarness`.
+  - `ViewState` has `camera` and `homeCamera: CameraPose?`, with `CameraPose` in `CreatorGeometry`. `DocumentModel` refuses a non-finite camera. Both fields are optional keys, so `GraphFile.currentFormatVersion` stays `2`.
+  - `ViewportPalette` (`Sources/CreatorViewport/Render/`, internal tokens) holds the spec §6.6 hex values.
+  - `ViewportModifierTracker.install(on:)` chains onto `Window.onInput`.
+  - `ViewportKeyBindings.bindings()` are window-wide keymap bindings for `f`, `=`, `shift-+`, `+` and `-`. M4 has no installer for them: `ViewportHarness` assigns `window.keymap` and `window.onAction` directly.
+  - `docs/verification/human-checks.md` with its header and "Group V".
+  - `docs/metalui-gaps.md`'s "Hit by M4 (viewport), 2026-10-08" section, with gaps M4-a and M4-b.
+  - The `CreatorViewport` bullet and the "M4 (viewport) code is done; …" sentence in `CLAUDE.md`/`AGENTS.md`.
+- **In master after M4:** a tracked `.swiftlint.yml`, the "Linting" section in `CLAUDE.md`/`AGENTS.md`, and a clean `swiftlint lint --strict`.
+
+`CreatorGraph` has M3's settings contract: `NodeSetting`, `ConstantValue.parameter(_:)` / `.parameterID`, `.edgePicks`, `NodeDefinition.defaultSettings`, `SocketSpec.isOptional`, and `NodeRegistry.makeNode`, which seeds the defaults and flags `.output` nodes. M5 adds no `ConstantValue` kind, so it doesn't bump the file format.
 
 **Spec:** `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md` — §3.1–3.2, §4.5 (coalescing), §6.1, §6.2, §6.4, §6.6, §8 (editor model tests), §9 (MetalUI gaps and stopgaps), the Errata. Also read `docs/metalui-gaps.md` (C7 provisional names) and `../MetalUI/docs/api-overview.md`.
 
-**Verified before writing.** Every file in this plan was built and tested in a scratch copy of the repository against `../MetalUI` at `359444e`, with M3 Task 3's `InspectorControl.swift` applied (see Prerequisites). Each task, applied cumulatively in order, builds with no warnings and passes the test counts quoted in its steps. The preview executable was launched and ran without trapping. **Reconciled with M3's final contracts afterwards, not re-run:** the parameter picker uses `ConstantValue.parameter(_:)` / `.parameterID` and `NodeSetting` names from `CreatorGraph` (Task 8), the Fillet fixtures seed `showHandle` through `defaultSettings` and `testNode` keeps seeded settings (Tasks 2, 8, 11), `ValueText` formats `.edgePicks` (Task 7), the preview's Output relies on `makeNode`'s `isOutput` (Task 11), and the manifest reuses M4's `metalUI` (Tasks 1, 11). Test counts are unchanged (the edits are inside existing tests). Treat a compile error there as a plan bug to fix in place.
+**Verified against merged M3 (2026-10-07).** All 99 code files in this plan were extracted into a scratch copy of master `4efa07d` (merged M3). The scratch copy had M4's manifest lines (the `../MetalUI` dependency and `metalUI`) and M5's targets added, and was built against `../MetalUI` master `70ed000`, which has `.task` but not C7. The plan as first written built with no warnings, and all 120 of its tests passed against the real M3 sources. After this update's edits, `CreatorEditorTests` reports `Test run with 123 tests in 18 suites passed`, and every other target still passes. The preview builds, and it ran for five seconds without trapping. The per-task counts below are the cumulative `@Test` counts of each task's files, not separate per-task runs. M4's `CreatorViewport` wasn't in that first scratch copy (M5 doesn't import it).
 
-**Prerequisites (check before Task 1):**
-- **M3 and M4 are merged** (see the execution order above). Check:
-  - `grep -c "case vector\|case parameterPicker" Sources/CreatorGraph/InspectorControl.swift` prints `2`. M5's inspector switches over every control kind, so it doesn't compile without them.
-  - `grep -c "static let showHandle\|static let parameter" Sources/CreatorGraph/NodeSetting.swift` prints `2`, and `grep -c "func parameter(" Sources/CreatorGraph/ConstantValue+Settings.swift` prints `1` (M3 Task 3).
-  - `grep -c "case edgePicks" Sources/CreatorGraph/ConstantValue.swift` prints `1` (M3 Task 2).
-  - `grep -c 'let metalUI: Target.Dependency' Package.swift` and `grep -c '.package(path: "../MetalUI")' Package.swift` each print `1` (M4 Task 1).
-  - `test -f docs/verification/human-checks.md` succeeds (M4 Task 11).
+**Re-verified against merged M4 (2026-10-07).** The verification was repeated on a clone of master `fbb23d7` (M4's `e31ba17` plus the SwiftLint commits), with `CreatorViewport`, `CreatorViewportTests` and `ViewportHarness` present and M5's three targets added in place, against `../MetalUI` master `70ed000`. An independent review had already applied all 99 files task by task on `e31ba17`: every task built with no warnings, and the cumulative counts were 8/20/29/40/60/80/87/114/121/123. After this revision's lint rework, the build has no Swift warnings (only the expected OCCT dylib linker warnings), the full `swift test` passes (`CreatorEditorTests`: `Test run with 123 tests in 18 suites passed`), `swiftlint lint --strict` over the whole tree reports no violations, and `GraphPanelPreview` stays up past five seconds. All the Task 1 pre-flight greps print their expected values on `fbb23d7`. Treat a compile error or a lint violation as a plan bug to fix in place.
+
+**Prerequisites:**
+- **M3 and M4 are merged, and M5 starts from master `fbb23d7` or later** (M4 plus the SwiftLint configuration). Task 1 Step 1 checks this with greps and stops the run if any check fails.
+- **SwiftLint is installed** (`swiftlint version` prints a version; Homebrew's is `/opt/homebrew/bin/swiftlint`).
 - **The working tree is clean.** `git status --short` lists nothing. The planning edits to `docs/metalui-gaps.md` and `docs/superpowers/roadmap.md` (the C7 provisional-names section, the C7 roadmap status) were committed by the controller before M3 started, so Task 11's `git add` sweeps in only M5's edits.
 
 **Decisions made in this plan:**
 - **`CreatorEditor` depends on `CreatorGraph`, `CreatorKernel`, `CreatorGeometry` and MetalUI, not `CreatorNodes`.** Spec §3.1 lists Nodes as a dependency, but the editor only needs `NodeRegistry` and `NodeDefinition` data. Tests and the preview use their own small node definitions. The app (M6) passes in the real registry.
-- **Inline node values are read-only text.** Unwired inputs show their value on the node's row (spec §6.2). Editing happens in the inspector. A `TextField` inside the canvas would compete with the canvas-wide gesture and split keyboard focus (spec §9 lists that as a risk). This is a deliberate narrowing of "inline value fields", recorded in the carry-over note (Task 11). Revisit when C7 lands.
+- **Inline node values are read-only text.** Unwired inputs show their value on the node's row (spec §6.2). Editing happens in the inspector. A `TextField` inside the canvas would compete with the canvas-wide gesture and split keyboard focus (spec §9 lists that as a risk). This is a deliberate narrowing of "inline value fields". Task 11 records it in the spec's "Errata (M5)" and in the carry-over note. Revisit when C7 lands. Rows show only input sockets, never settings. An unset optional input shows "—".
 - **⌥-drag shows ghosts and adds the copies on release.** `UndoStack` coalescing keeps only the *latest* forward command, so "add copies, then coalesce moves" would redo wrongly. Instead the originals never move, ghosts follow the pointer, and one `batch` of `addNode` plus `restoreLinks` lands on release. That is one undo step.
 - **Paste uses `restoreLinks` for copied wires.** They join only freshly added nodes, so they are valid by construction. That also lets wires between missing (unregistered) nodes survive copying.
 - **The clipboard is in-memory.** The slice has one document, and MetalUI's pasteboard carries text only.
@@ -46,13 +58,26 @@
   - **`.parameterPicker(setting)`** is a menu over `graph.parameters`. It writes `ConstantValue.parameter(id)` into the node's setting (`NodeSetting.parameter`) and reads the choice back with `ConstantValue.parameterID`. Both live in `CreatorGraph` (M3 Task 3), so the editor and `GraphParameterNode` share one encoding and no agreement test is needed.
   - **Settings are names a control binds that aren't input sockets** (M3's `NodeSetting` in `CreatorGraph`: `parameter`, `picks`, `showHandle`). They are read from and written to `Node.inputValues` like constants. New nodes come from `NodeRegistry.makeNode`, which writes each definition's `defaultSettings`, so a fresh Fillet's `showHandle` toggle reads its stored `.bool(true)`. **A setting toggle with no stored value still reads On** (a node from a hand-edited file; M3 Open risks, "Seeded settings only reach new nodes").
   - **Nodes are created only with `registry.makeNode(typeID, at:)`.** It sets `isOutput` for `.output`-category nodes (M3), so the palette, paste and the preview need no special case for Output.
-  - **`.ruleSummary(name)`** counts edges from an incoming wire when `name` is an input (Fillet's `edges`: "All Edges · 12 edges"). When `name` is one of the node's own outputs, as on every M3 selection-rule node, it counts the node's own result ("12 edges", or "Not evaluated yet").
-  - The editor's test definitions mirror these shapes: `FilletTestNode` has M3's `showHandle` setting toggle and seeds it through `defaultSettings`, `AllEdgesTestNode` has an own-output `ruleSummary`, and `TransformTestNode` and `GraphParameterTestNode` (in `inspectorTestRegistry`) carry `.vector` and `.parameterPicker`.
+  - **`.ruleSummary(name)`** counts edges from an incoming wire when `name` is an input (Fillet's `edges`: "All Edges · 12 edges"). When `name` is one of the node's own outputs, as on every M3 selection-rule node, it counts the node's own result ("12 edges", or "No result yet").
+  - **Optional inputs with no default start unset and can be cleared.** M3 has three: Grid Points `total` (when set, it overrides `countX`), Edge Filter `maxLength` and Transform `axisDirection`. Their row's `InputField` has `isOptional` and `value == nil`. The field shows "Not set" (a vector's three fields show "–"). Typing sets the input, and emptying the field and pressing Return calls `EditorModel.clearInput`, which is one `.setInput(node, socket, nil)` undo step. A required input is never cleared: it would fall back to its default with no sign.
+  - The editor's test definitions mirror M3's merged nodes:
+    - `FilletTestNode` has M3's `showHandle` setting toggle, seeded through `defaultSettings`, and no "Tangent chain" toggle (spec Errata (M3)).
+    - `ExtrudeTestNode` has the "Reverse direction" toggle on its `reversed` bool socket (spec Errata (M3): the Direction menu became a toggle).
+    - `AllEdgesTestNode` has an own-output `ruleSummary`.
+    - `OutputTestNode` has M3's `.list` input and pass-through output.
+    - In `inspectorTestRegistry`: `TransformTestNode` carries `.vector`, `GraphParameterTestNode` carries `.parameterPicker` and M3's four optional outputs, and `GridPointsTestNode` has the optional `total`.
 - **The anchor grid binds an integer socket, 0…8 row-major from the top-left, with 4 as the centre.** Segmented controls bind an integer index, a two-option bool, or the option's text, following the socket's declared type. M3's node definitions match these encodings (M3 "Segmented controls bind integer sockets").
 - **Typed whole numbers never trap.** An integer field or parameter rounds the typed number and converts it with `Int(exactly:)`. A number outside `Int`'s range (for example "1e300") is refused with "Enter a whole number." (`EditorModel.setNumber`, `setParameterNumber`).
-- **Numbers are shown and parsed in one fixed locale (`en_US_POSIX`)**, so "0.25" never shows as "0,25", which `ValueText.parse` would then refuse. Localised number entry is deferred along with string localisation.
+- **Numbers are shown and parsed in one fixed locale (`en_US_POSIX`)**, so "0.25" never shows as "0,25", which `ValueText.parse` would then refuse. Localised number entry is deferred along with string localisation. This is separate from M3's `Locale.messages` (`en_US`) and `Double.display`, which format numbers inside node messages: they are internal to `CreatorNodes`, which the editor doesn't import. The editor shows those messages as they come.
 - **Wires are removed by dragging them off their input.** A drag that starts on a wired input and is dropped on empty canvas disconnects that wire, as one undo step. Dropped on another output, it reconnects (replacing), as before.
 - **The refusal shake is a spring.** A refused node's offset jumps 6 pt and springs back with `.animation(.spring(duration: 0.35, bounce: 0.7), value:)`, so it wobbles briefly (spec §6.2's "brief shake"). MetalUI has no keyframe animation for a true back-and-forth shake.
+- **C7 stand-ins are named after C7's provisional APIs** (docs/metalui-gaps.md, "C7 status and provisional API names"). Each is one function in `GraphPanelInput`, so the swap stays inside `GraphPanelInput` and `GraphPanelInputTests`:
+  - `dragValueModifiers(_:)` stands in for `DragGesture.Value.modifiers`: it returns the modifiers `handle(_:)` tracked from `.modifiersChanged`. **This swap is body-only.** C7's `DragGesture.Value.modifiers` is `EventModifiers`, a typealias of MetalUI's `Modifiers` (`feat/input-apis`, `KeyboardShortcut.swift`), so the body becomes `Self.canvasModifiers(value.modifiers)` and the signature stays.
+  - `spatialTapGesture()` stands in for `SpatialTapGesture`: a zero-distance `DragGesture` reports a click's location. **This swap is not body-only.** Its return type changes from `DragGesture` to `SpatialTapGesture`, so `canvasGesture()`, which is built on it today, splits into a tap gesture for clicks plus a `DragGesture` with a nonzero minimum distance for drags. The `spatialTapGesture().minimumDistance == Pixels(0)` check in `theC7StandInsAreTheirOwnFunctions` stops compiling and is rewritten in the same change.
+  - Scroll and pinch (`.onScrollWheel`, `MagnifyGesture`) have no stand-in: the +/− keys and header zoom buttons are the stopgap, and they stay after C7.
+
+  MetalUI's C7 design is drafted on its unmerged branch `feat/input-apis` (`docs/superpowers/specs/2026-10-08-input-apis-design.md`, decisions prefixed CI-). It spells these `SpatialTapGesture(count:coordinateSpace:)`, `DragGesture.Value.modifiers` and `.onScrollWheel(perform:)`. Re-check the names in its decisions file when it merges.
+- **`GraphPanelInput.install(on:)` composes with M4, with one ordering rule.** It chains `onInput` and `onAction` to the handlers already there, appends its keymap bindings, and sets `releaseTextFocus` to `window.focus(nil)`. Only the `onInput` side composes in either order: M4's `ViewportModifierTracker.install(on:)` chains `onInput` the same way (M4 carry-over, "Both input stopgaps take over `Window.onInput`"). M4 has no installer for its keymap or `onAction`. `ViewportHarness` assigns them directly (`window.keymap = Keymap(ViewportKeyBindings.bindings())`, `window.onAction = { … }`). **The viewport's keymap and `onAction` must therefore be set before `GraphPanelInput.install(on:)`, or appended and chained the same way.** If M6 assigns them afterwards, as the harness does, the assignment drops the graph's `PaletteMove` bindings and `handleAction`, and the palette's ↑/↓ stop working while its search field is focused. `install(on:)` is not unit-tested, because MetalUI's `Window` can't be built in tests. One conflict stays for M6: M4's window-wide keymap binds `=`, `+`, `shift-+` and `-`, and the keymap stage runs before `onInput`, so with both installed those keys zoom the viewport, not the graph. M6 gives the viewport's bindings a key context (gap M4-a).
 - **Glass without blur.** MetalUI offers no materials and no `.blur`. Panels are `#21222c` at 86% with the hairline border, and the blur is logged as a gap. MetalUI has no gradients either, so the preview's background is the solid `#191a21`.
 
 ## Global Constraints
@@ -62,10 +87,11 @@
 - `@Observable` classes are `@MainActor`.
 - One type per Swift file, named after the type. Extensions go in `Type+Purpose.swift`. Test and preview fixture files may hold several helpers and must say so in a header comment.
 - Avoid force unwraps and force `try`. No GCD. No third-party packages. MetalUI is a local path dependency.
-- MetalUI gaps are logged in `docs/metalui-gaps.md` and are never worked around in a way that would have to be undone. Stopgaps live only in `GraphPanelInput` and are named after the C7 provisional APIs.
+- MetalUI gaps are logged in `docs/metalui-gaps.md` and are never worked around in a way that would have to be undone. Stopgaps live only in `GraphPanelInput`, and each C7 stand-in is one function named after its provisional C7 API (`spatialTapGesture()`, `dragValueModifiers(_:)`). The non-C7 exceptions are `GraphShowButton`'s Tab shortcut (M5-b) and `PaletteMove` (M5-h).
 - Colours come only from `Palette` tokens (spec §6.6). Text uses MetalUI's semantic text styles (`.caption`, `.callout`, `.headline`, …); no font sizes are hard-coded.
 - Every graph edit goes through `DocumentModel.perform(_:coalescingKey:)`. Views hold no logic that a test needs.
 - `CreatorEditor` must not import `CreatorNodes` or `CreatorOCCT`.
+- **SwiftLint gates every commit** (CLAUDE.md "Linting", `.swiftlint.yml`). Each commit step runs `swiftlint lint --strict` over the whole tree first, and it must report zero violations. The plan's code is lint-clean as written. If a deviation trips a rule, fix the code (split a long `switch` by key group, as `GraphKeyBindings` and `EditorModel.perform` do). Use a `// swiftlint:disable:next <rule>` only with a reason on the same line.
 - Every commit message ends with a blank line, then the implementing model's harness-provided `Co-Authored-By:` and `Claude-Session:` lines.
 - Expected noise: linker warnings that OCCT dylibs were "built for newer macOS version" (from other targets).
 
@@ -73,8 +99,8 @@
 
 These are inputs and conditions that the spec implies, that a person will meet in the first minutes of use, and that fail quietly if nobody pins them. Each has a test in the named task, except where it says the real-window routing is a human check. The first two are the riskiest, because they depend on another plan and on MetalUI's input dispatch, which the model tests can't see.
 
-1. **The inspector contract with M3.** Every control M3's node definitions declare must draw and write in M3's encoding. That means `.vector` (Transform, Revolve, Edges by Direction), `.parameterPicker` writing `ConstantValue.parameter(id)` (Graph Parameter, which the bracket demo needs), a `showHandle` setting toggle that reads its seeded `.bool(true)` (and On when absent), and an own-output `.ruleSummary("edges")` on the selection-rule nodes that shows the node's match count. *Task 8: `aVectorControlEditsOneComponent`, `aParameterPickerListsTheDocumentParametersAndWritesTheID`, `aSettingToggleReadsOnWhenAbsent`, `aRuleNodeSummarisesItsOwnOutput`, `ruleSummaryCountsTheEdgesItsRuleMatched`; Task 10: `vectorAndParameterRowsDraw`.*
-2. **Key and focus routing through a real `Window`.** MetalUI hands a keystroke to the window keymap, then a focused field's editing keys, then `Button` shortcuts, then Tab traversal, and only then `onInput`. A focused field keeps its keys even after a press elsewhere. So: palette ↑/↓ must go through `GraphPanelInput.keymap`/`handleAction` (a focused field takes them otherwise). A canvas press must release text focus, or Delete and ⌘Z keep editing the last inspector field. Hidden must be undone by "Show graph" or its Tab shortcut. *Task 6: `paletteArrowsAreKeymapActionsOnlyWhileThePaletteIsOpen`, `aCanvasPressReleasesTextFocusOncePerPress`; Task 9: `theHiddenPanelLeavesAShowButton`. These pin only the mapping. The real-window routing is human checks M5-5, M5-9, M5-11 and M5-12.*
+1. **The inspector contract with M3.** Every control M3's node definitions declare must draw and write in M3's encoding. That means `.vector` (Transform, Revolve, Edges by Direction), `.parameterPicker` writing `ConstantValue.parameter(id)` (Graph Parameter, which the bracket demo needs), a `showHandle` setting toggle that reads its seeded `.bool(true)` (and On when absent), and an own-output `.ruleSummary("edges")` on the selection-rule nodes that shows the node's match count, Extrude's "Reverse direction" toggle on a bool socket, and M3's optional inputs (Grid Points `total`), which start unset and can be cleared. *Task 8: `aVectorControlEditsOneComponent`, `aParameterPickerListsTheDocumentParametersAndWritesTheID`, `aSettingToggleReadsOnWhenAbsent`, `aSocketToggleReadsItsDefaultAndWritesABool`, `anOptionalInputStartsUnsetAndCanBeCleared`, `aRuleNodeSummarisesItsOwnOutput`, `ruleSummaryCountsTheEdgesItsRuleMatched`; Task 10: `vectorParameterAndOptionalRowsDraw`.*
+2. **Key and focus routing through a real `Window`.** MetalUI hands a keystroke to the window keymap, then a focused field's editing keys, then `Button` shortcuts, then Tab traversal, and only then `onInput`. A focused field keeps its keys even after a press elsewhere. So: palette ↑/↓ must go through `GraphPanelInput.keymap`/`handleAction` (a focused field takes them otherwise). A canvas press must release text focus, or Delete and ⌘Z keep editing the last inspector field. Hidden must be undone by "Show graph" or its Tab shortcut. *Task 6: `paletteArrowsAreKeymapActionsOnlyWhileThePaletteIsOpen`, `aCanvasPressReleasesTextFocusOncePerPress`, `theC7StandInsAreTheirOwnFunctions`; Task 9: `theHiddenPanelLeavesAShowButton`. These pin only the mapping. The real-window routing is human checks M5-5, M5-9, M5-11 and M5-12.*
 3. **Clicking under zoom, pan and the left-dock transpose.** A click must land on the node or socket drawn under the pointer at any zoom, after panning, and in the transposed vertical flow. The socket grab radius must stay a constant size on screen. *Task 3: `hitsANodeUnderAZoomedAndPannedCanvas`, `socketHitRadiusIsInScreenPoints`, `leftDockHitsTheTransposedPosition`; Task 5: `leftDockMovesInStoredCoordinates`.*
 4. **A click that jitters by a pixel or two.** It must select, not move the node, and must add no undo step. An ⌥-click must not duplicate. A gesture that never ended must not leak into the next press. *Task 5: `aTinyMoveIsStillAClick`, `anOptionClickDoesNotDuplicate`, `aPressThatNeverEndedDoesNotLeakIntoTheNext`.*
 5. **A refused, replacing or removed wire.** A wrong-type, output-to-output or cyclic drop leaves the graph untouched and says why in plain words. Dropping on an occupied input replaces the old wire, and one undo brings it back. Dragging a wired input onto empty canvas removes its wire. *Task 4: `aRefusedConnectionChangesNothingAndSaysWhy`, `connectReplacesTheOccupiedInputInOneUndoStep`; Task 5: `aTypeMismatchIsRefusedWithAPlainMessage`, `outputToOutputIsRefused`, `aCycleIsRefused`, `droppingOnAnOccupiedInputReplacesItsWireInOneUndoStep`, `draggingAWiredInputOntoEmptyCanvasDisconnectsIt`.*
@@ -135,7 +161,7 @@ Tests/CreatorEditorTests/
   CanvasLayersTests, GraphPanelRenderTests     (Task 9)
   InspectorRenderTests                         (Task 10)
 docs/metalui-gaps.md, docs/verification/human-checks.md, CLAUDE.md, AGENTS.md, docs/superpowers/roadmap.md,
-docs/superpowers/notes/2026-10-07-m0-m1-carryover.md   (Task 11)
+docs/superpowers/notes/2026-10-07-m0-m1-carryover.md, the spec's Errata (M5)   (Task 11)
 ```
 
 ---
@@ -158,9 +184,42 @@ This is the riskiest join, so it goes first. It proves the package links MetalUI
   - `struct GlassPanel<Body: ElementGroup>: Component` with `init(@ElementBuilder _ body: () -> Body)` (internal).
   - Test helper `renderHeadless(_ panel: () -> some ElementGroup) -> Scene`.
 
-- [ ] **Step 1: Add the target to `Package.swift`**
+- [ ] **Step 1: Pre-flight checks. Stop if any fails.**
 
-Edit `Package.swift` in place; don't replace it. M3 (`CreatorNodes`, `CreatorNodesTests`) and M4 (the `../MetalUI` package dependency, `let metalUI: Target.Dependency`, `CreatorViewport`, `CreatorViewportTests`, `ViewportHarness`) have merged, and every one of their targets stays. M4 already added the MetalUI dependency and the `metalUI` constant, so don't add either again (`grep -c '.package(path: "../MetalUI")' Package.swift` stays `1`). Only if a check in the Prerequisites failed and they are missing, add them exactly as M4 Task 1 Step 3 items 1 and 2 do.
+Run each check from the repository root and compare its output with the expected value. **If any check differs, stop and report it to the controller. Don't add the missing piece yourself:** it belongs to M3 or M4, and M5's later steps edit those files in place.
+
+M3 (merged at `4efa07d`; these pass on master):
+- `grep -c "case vector\|case parameterPicker" Sources/CreatorGraph/InspectorControl.swift` → `2`. The inspector switches over every control kind, so it doesn't compile without them.
+- `grep -c "static let showHandle\|static let parameter" Sources/CreatorGraph/NodeSetting.swift` → `2`
+- `grep -c "func parameter(" Sources/CreatorGraph/ConstantValue+Settings.swift` → `1`
+- `grep -c "case edgePicks" Sources/CreatorGraph/ConstantValue.swift` → `1`
+- `grep -c "currentFormatVersion = 2" Sources/CreatorGraph/GraphFile.swift` → `1`
+- `grep -c "isOutput: definition?.category == .output" Sources/CreatorGraph/NodeRegistry.swift` → `1`
+- `grep -c "public var isOptional" Sources/CreatorGraph/SocketSpec.swift` → `1`
+- `grep -c "public func list(" Sources/CreatorGraph/NodeInputs.swift` → `1`
+
+M4 (merged at `e31ba17`; these pass on master):
+- `grep -c 'let metalUI: Target.Dependency' Package.swift` → `1`
+- `grep -c '.package(path: "../MetalUI")' Package.swift` → `1`
+- `grep -c 'name: "ViewportHarness"' Package.swift` → `1`
+- `grep -c "public var camera: CameraPose?" Sources/CreatorGraph/ViewState.swift` → `1`
+- `grep -c "public func install(on window: Window)" Sources/CreatorViewport/View/ViewportModifierTracker.swift` → `1`
+
+M4's docs (merged with M4, from M4 plan Task 11). Task 11 here appends after these, so they must exist:
+- `grep -c "^## Group V" docs/verification/human-checks.md` → `1`
+- `grep -c "^## Hit by M4 (viewport)" docs/metalui-gaps.md` → `1`
+- `grep -c '^- \*\*M4-[ab] (new)' docs/metalui-gaps.md` → `2`
+- `grep -c "M4 (viewport) code is done" CLAUDE.md AGENTS.md` → `CLAUDE.md:1` and `AGENTS.md:1`
+- ``grep -c '^- `CreatorViewport`' CLAUDE.md`` → `1`
+
+SwiftLint (master `bfa027e`/`fbb23d7`, after M4). Every commit step below runs the linter, so it must be in place and clean before M5 adds code:
+- `git ls-files .swiftlint.yml` → `.swiftlint.yml`
+- `grep -c '^## Linting' CLAUDE.md AGENTS.md` → `CLAUDE.md:1` and `AGENTS.md:1`
+- `swiftlint lint --strict --quiet` → prints nothing and exits 0
+
+- [ ] **Step 2: Add the target to `Package.swift`**
+
+Edit `Package.swift` in place; don't replace it. M3's targets (`CreatorNodes`, `CreatorNodesTests`) and M4's (`CreatorViewport`, `CreatorViewportTests`, `ViewportHarness`) all stay. M4 already added the MetalUI dependency and the `metalUI` constant, so don't add either again (`grep -c '.package(path: "../MetalUI")' Package.swift` stays `1`).
 
 Add these two targets to the `targets:` array, just before `.testTarget(name: "CreatorOCCTTests", …)`:
 ```swift
@@ -172,7 +231,7 @@ Add these two targets to the `targets:` array, just before `.testTarget(name: "C
 ```
 Check: `grep -c 'name: "CreatorEditor"' Package.swift` prints `1`, and `git diff Package.swift` shows only additions.
 
-- [ ] **Step 2: Write the failing tests**
+- [ ] **Step 3: Write the failing tests**
 
 `Tests/CreatorEditorTests/Support/RenderSupport.swift`:
 ```swift
@@ -260,12 +319,12 @@ struct GlassPanelRenderTests {
 }
 ```
 
-- [ ] **Step 3: Run them and confirm they fail**
+- [ ] **Step 4: Run them and confirm they fail**
 
 Run: `swift build --build-tests 2>&1 | grep error: | head`
 Expected: the build fails because `Sources/CreatorEditor` is empty or missing, or with errors such as "cannot find 'Palette' in scope" and "cannot find 'GlassPanel' in scope". (The first build also fetches and compiles MetalUI, which takes a few minutes.)
 
-- [ ] **Step 4: Implement**
+- [ ] **Step 5: Implement**
 
 `Sources/CreatorEditor/HexColor.swift`:
 ```swift
@@ -408,14 +467,15 @@ struct GlassPanel<Body: ElementGroup>: Component {
 }
 ```
 
-- [ ] **Step 5: Run the tests**
+- [ ] **Step 6: Run the tests**
 
 Run: `swift test --filter CreatorEditorTests`
 Expected: PASS — `Test run with 8 tests in 2 suites passed`. The parameterised header test counts as one test with 6 cases.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
+swiftlint lint --strict   # must report 0 violations before committing (CLAUDE.md "Linting")
 git add Package.swift Sources/CreatorEditor Tests/CreatorEditorTests
 git commit -m "feat(editor): add CreatorEditor on MetalUI with the Dracula palette and glass chrome"
 ```
@@ -437,7 +497,7 @@ git commit -m "feat(editor): add CreatorEditor on MetalUI with the Dracula palet
   - `public struct NodeShape { struct Socket { name: SocketName; type: SocketType? }; title; category; inputs; outputs; isMissing; init(title:category:inputs:outputs:isMissing:); init(_ node: Node, in: Graph, registry: NodeRegistry) }`
   - `public enum NodeLayout { width = 168, headerHeight = 24, rowHeight = 20, bodyPadding = 6, socketRadius = 5, socketHitRadius = 9; rowCount(_:); size(_:) -> Vector2; rowCentre(_:); socketOffset(_:isInput:in:flow:) -> Vector2? }`
   - `public struct WireGeometry { start, control1, control2, end: Vector2; init(from:to:flow:); bounds(padding:) -> CanvasRect }`
-  - Test fixtures: `editorTestRegistry` (`NumberTestNode`, `RectangleTestNode`, `ExtrudeTestNode`, `AllEdgesTestNode`, `FilletTestNode`, `OutputTestNode`), `inspectorTestRegistry` (those plus `TransformTestNode` and `GraphParameterTestNode`, which mirror M3's `.vector` and `.parameterPicker` nodes), `nodeID(_:)`, `testNode(_:id:at:values:registry:)`, `wire(_:_:_:_:)`.
+  - Test fixtures: `editorTestRegistry` (`NumberTestNode`, `RectangleTestNode`, `ExtrudeTestNode`, `AllEdgesTestNode`, `FilletTestNode`, `OutputTestNode`), `inspectorTestRegistry` (those plus `TransformTestNode`, `GraphParameterTestNode` and `GridPointsTestNode`, which mirror M3's `.vector`, `.parameterPicker` and optional-input nodes). The mirrors follow M3's merged definitions: `ExtrudeTestNode` has the `reversed` toggle, and `OutputTestNode` has a `.list` input and a pass-through output, `nodeID(_:)`, `testNode(_:id:at:values:registry:)`, `wire(_:_:_:_:)`.
 
 - [ ] **Step 1: Write the test fixtures and failing tests**
 
@@ -477,11 +537,13 @@ enum RectangleTestNode: NodeDefinition {
     ]
     static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let profile = Profile2D.rectangle(width: try inputs.number("width"), height: try inputs.number("height"),
-                                          plane: try inputs.plane("plane"))
+                                            plane: try inputs.plane("plane"))
         return NodeOutputs(["profile": .profile(profile)])
     }
 }
 
+/// Mirrors M3's Extrude: a segmented mode (integer index), the distance slider and the
+/// "Reverse direction" toggle on a bool socket (spec Errata (M3): the Direction menu is a toggle).
 enum ExtrudeTestNode: NodeDefinition {
     static let typeID = "editortest.extrude"
     static let displayName = "Extrude"
@@ -490,10 +552,14 @@ enum ExtrudeTestNode: NodeDefinition {
         SocketSpec("profile", .profile),
         SocketSpec("distance", .number, defaultValue: .number(10), unit: .millimetres, range: 0...100),
         SocketSpec("mode", .integer, defaultValue: .integer(0)),
+        SocketSpec("reversed", .bool, defaultValue: .bool(false)),
     ]
     static let outputs = [SocketSpec("solid", .solid)]
     static let inspector = [
-        InspectorSection(title: "Extrude", controls: [.segmented("mode", options: ["Distance", "Symmetric"]), .slider("distance")]),
+        InspectorSection(title: "Extrude", controls: [
+            .segmented("mode", options: ["Distance", "Symmetric"]), .slider("distance"),
+            .toggle("reversed", label: "Reverse direction"),
+        ]),
     ]
     static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let mode: ExtrudeMode = try inputs.integer("mode") == 1 ? .symmetric : .oneSided
@@ -518,7 +584,8 @@ enum AllEdgesTestNode: NodeDefinition {
 }
 
 /// Mirrors M3's Fillet: `ruleSummary` names an *input*, and the toggle binds the `showHandle`
-/// setting (not a socket), seeded `.bool(true)` by `defaultSettings` as M3 does.
+/// setting (not a socket), seeded `.bool(true)` by `defaultSettings` as M3 does. M3 has no
+/// "Tangent chain" toggle (spec Errata (M3)), so neither does this.
 enum FilletTestNode: NodeDefinition {
     static let typeID = "editortest.fillet"
     static let displayName = "Fillet"
@@ -532,21 +599,23 @@ enum FilletTestNode: NodeDefinition {
     static let defaultSettings: [SocketName: ConstantValue] = [NodeSetting.showHandle: .bool(true)]
     static let inspector = [
         InspectorSection(title: "Fillet", controls: [.slider("radius"), .toggle(NodeSetting.showHandle, label: "Show handle in view")]),
-        InspectorSection(title: "Edges", controls: [.ruleSummary("edges"), .button(title: "Pick edges in view…", action: .pickEdgesInView)]),
+        InspectorSection(title: "Edges",
+                         controls: [.ruleSummary("edges"), .button(title: "Pick edges in view…", action: .pickEdgesInView)]),
     ]
     static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         NodeOutputs(["solid": .solid(try inputs.solid("solid"))])
     }
 }
 
+/// Mirrors M3's Output: one `.list` input (one wire carrying every solid) passed through as one list.
 enum OutputTestNode: NodeDefinition {
     static let typeID = "editortest.output"
     static let displayName = "Output"
     static let category = NodeCategory.output
-    static let inputs = [SocketSpec("solid", .solid)]
-    static let outputs: [SocketSpec] = []
+    static let inputs = [SocketSpec("solid", .solid, access: .list)]
+    static let outputs = [SocketSpec("solid", .solid)]
     static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
-        NodeOutputs()
+        NodeOutputs(lists: ["solid": try inputs.list("solid")])
     }
 }
 
@@ -566,16 +635,37 @@ enum TransformTestNode: NodeDefinition {
     }
 }
 
-/// Mirrors M3's Graph Parameter: a `.parameterPicker` bound to the `parameter` setting.
+/// Mirrors M3's Graph Parameter: a `.parameterPicker` bound to the `parameter` setting, and one
+/// optional output per parameter type.
 enum GraphParameterTestNode: NodeDefinition {
     static let typeID = "editortest.graphParameter"
     static let displayName = "Graph Parameter"
     static let category = NodeCategory.value
     static let inputs: [SocketSpec] = []
-    static let outputs = [SocketSpec("number", .number)]
+    static let outputs = [
+        SocketSpec("number", .number, optional: true), SocketSpec("integer", .integer, optional: true),
+        SocketSpec("bool", .bool, optional: true), SocketSpec("vector", .vector, optional: true),
+    ]
     static let inspector = [InspectorSection(title: "Parameter", controls: [.parameterPicker(NodeSetting.parameter)])]
     static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         NodeOutputs(["number": .number(0)])
+    }
+}
+
+/// Mirrors M3's Grid Points: `total` is an optional integer input with no default. Unset, the
+/// grid is `countX` × `countY`; set, it overrides `countX` (M3 carry-over).
+enum GridPointsTestNode: NodeDefinition {
+    static let typeID = "editortest.gridPoints"
+    static let displayName = "Grid Points"
+    static let category = NodeCategory.value
+    static let inputs = [
+        SocketSpec("countX", .integer, defaultValue: .integer(2), unit: .count),
+        SocketSpec("total", .integer, unit: .count, optional: true),
+    ]
+    static let outputs = [SocketSpec("points", .vector)]
+    static let inspector = [InspectorSection(title: "Grid", controls: [.integer("countX"), .integer("total")])]
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        NodeOutputs(lists: ["points": []])
     }
 }
 
@@ -584,11 +674,12 @@ let editorTestRegistry = NodeRegistry([
     FilletTestNode.self, OutputTestNode.self,
 ])
 
-/// The editor registry plus the definitions that carry M3's newer controls, for the inspector
-/// tests. Kept separate so the palette tests' type lists stay as they are.
+/// The editor registry plus the definitions that carry M3's newer controls and an optional input,
+/// for the inspector tests. Kept separate so the palette tests' type lists stay as they are.
 let inspectorTestRegistry = NodeRegistry([
     NumberTestNode.self, RectangleTestNode.self, ExtrudeTestNode.self, AllEdgesTestNode.self,
     FilletTestNode.self, OutputTestNode.self, TransformTestNode.self, GraphParameterTestNode.self,
+    GridPointsTestNode.self,
 ])
 ```
 
@@ -996,6 +1087,7 @@ Expected: PASS — `Test run with 20 tests in 4 suites passed`.
 - [ ] **Step 5: Commit**
 
 ```bash
+swiftlint lint --strict   # must report 0 violations before committing (CLAUDE.md "Linting")
 git add Sources/CreatorEditor Tests/CreatorEditorTests
 git commit -m "feat(editor): canvas transform, dock transpose, computed node layout and wire curves"
 ```
@@ -1316,7 +1408,7 @@ public struct SearchPaletteState: Equatable, Sendable {
 
 - [ ] **Step 4: Implement `EditorModel`**
 
-The refusal timer is a plain main-actor `Task`, not `.task`. MetalUI doesn't offer `.task`, and the model owns the timing anyway. Tests never wait on it.
+The refusal timer is a plain main-actor `Task` that the model owns. MetalUI master now has `.task` and `.task(id:)`, but a view-bound task would put the timing in a view, and the model tests couldn't see it. Tests never wait on the timer.
 
 `Sources/CreatorEditor/EditorModel.swift`:
 ```swift
@@ -1512,6 +1604,7 @@ Expected: PASS — `Test run with 29 tests in 6 suites passed`.
 - [ ] **Step 6: Commit**
 
 ```bash
+swiftlint lint --strict   # must report 0 violations before committing (CLAUDE.md "Linting")
 git add Sources/CreatorEditor Tests/CreatorEditorTests
 git commit -m "feat(editor): EditorModel with dock, canvas transform and hit testing"
 ```
@@ -1841,6 +1934,7 @@ Expected: PASS — `Test run with 40 tests in 7 suites passed`.
 - [ ] **Step 5: Commit**
 
 ```bash
+swiftlint lint --strict   # must report 0 violations before committing (CLAUDE.md "Linting")
 git add Sources/CreatorEditor Tests/CreatorEditorTests
 git commit -m "feat(editor): connect with refusal and replace, delete, copy, paste, duplicate, add"
 ```
@@ -2318,6 +2412,7 @@ Expected: PASS — `Test run with 60 tests in 9 suites passed`.
 - [ ] **Step 5: Commit**
 
 ```bash
+swiftlint lint --strict   # must report 0 violations before committing (CLAUDE.md "Linting")
 git add Sources/CreatorEditor Tests/CreatorEditorTests
 git commit -m "feat(editor): canvas pointer interactions with drag threshold, box select, ⌥-drag and wiring"
 ```
@@ -2331,7 +2426,7 @@ git commit -m "feat(editor): canvas pointer interactions with drag threshold, bo
 - Test: `Tests/CreatorEditorTests/SearchPaletteTests.swift`, `Tests/CreatorEditorTests/KeyCommandTests.swift`, `Tests/CreatorEditorTests/GraphPanelInputTests.swift`
 
 **Interfaces:**
-- Consumes: Tasks 3–5. From MetalUI: `KeyEvent(charactersIgnoringModifiers:characters:modifiers:isRepeat:timestamp:)`, `Modifiers` (`.shift`, `.option`, `.command`), `InputEvent` (`.modifiersChanged`, `.keyDown`), `DragGesture(minimumDistance:)` with `.onChanged`/`.onEnded` (`Value.startLocation`, `.location`), `HoverPhase` (`.active(Point<Pixels>)`, `.ended`), and `Action`, `Keymap`, `KeyBinding(_:_:)` (the window keymap, which runs before a focused field's editing keys).
+- Consumes: Tasks 3–5. From MetalUI: `KeyEvent(charactersIgnoringModifiers:characters:modifiers:isRepeat:timestamp:)`, `Modifiers` (`.shift`, `.option`, `.command`), `InputEvent` (`.modifiersChanged`, `.keyDown`), `DragGesture(minimumDistance:)` with `.onChanged`/`.onEnded` (`Value.startLocation`, `.location`, and the public `Value(startLocation:location:)` for the test), `Window` (`onInput`, `keymap`, `onAction`, `focus(_:)`), `HoverPhase` (`.active(Point<Pixels>)`, `.ended`), and `Action`, `Keymap`, `KeyBinding(_:_:)` (the window keymap, which runs before a focused field's editing keys).
 - Produces:
   - `public struct PaletteEntry: Identifiable { typeID; displayName; category }`
   - `public enum PaletteSearch { static func entries(in: NodeRegistry, matching: String) -> [PaletteEntry] }`. It uses `localizedStandardContains`, puts prefix matches first, then sorts by category and name.
@@ -2340,7 +2435,11 @@ git commit -m "feat(editor): canvas pointer interactions with drag threshold, bo
   - `EditorModel.perform(_: GraphKeyCommand) -> Bool` (`@discardableResult`)
   - `public enum GraphKeyBindings { static func command(for: KeyEvent, paletteOpen: Bool) -> GraphKeyCommand? }`
   - `public struct PaletteMove: Action { step: Int }`
-  - `@MainActor public final class GraphPanelInput { init(model:); var releaseTextFocus: (@MainActor () -> Void)?; static var keymap: Keymap; handle(_ event: InputEvent) -> Bool; handleAction(_ action: any Action) -> Bool; canvasGesture() -> DragGesture; hover(_ phase: HoverPhase); static canvasModifiers(_:) }`. Internal: `canvasChanged(from:to:)`, `canvasEnded(from:at:)` (the gesture's two callbacks, which release text focus at the start of each press).
+  - `@MainActor public final class GraphPanelInput { init(model:); var releaseTextFocus: (@MainActor () -> Void)?; install(on: Window); static var keymap: Keymap; handle(_ event: InputEvent) -> Bool; handleAction(_ action: any Action) -> Bool; canvasGesture() -> DragGesture; hover(_ phase: HoverPhase); static canvasModifiers(_:) }`.
+  - Internal:
+    - the C7 stand-ins `static spatialTapGesture() -> DragGesture` (C7 `SpatialTapGesture`) and `dragValueModifiers(_: DragGesture.Value) -> CanvasModifiers` (C7 `DragGesture.Value.modifiers`), each named after its provisional C7 API (docs/metalui-gaps.md);
+    - `canvasChanged(from:to:)` and `canvasEnded(from:at:)`, the gesture's two callbacks, which release text focus at the start of each press.
+  - `install(on:)` chains `onInput`/`onAction` onto the window's existing handlers and appends `keymap`. Its `onInput` side composes with M4's `ViewportModifierTracker.install(on:)` in either order. M4 assigns its keymap and `onAction` directly, so those must be set before `install(on:)` (see Decisions).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2578,6 +2677,16 @@ struct GraphPanelInputTests {
         #expect(releases == 2)
         #expect(editor.transform.offset == Vector2(30, 0))
     }
+
+    /// The C7 stand-ins are single functions named after C7's provisional APIs, so the swap is local.
+    @Test func theC7StandInsAreTheirOwnFunctions() {
+        let editor = makeEditor([])
+        let input = GraphPanelInput(model: editor)
+        #expect(GraphPanelInput.spatialTapGesture().minimumDistance == Pixels(0))
+        _ = input.handle(.modifiersChanged([.option]))
+        let value = DragGesture.Value(startLocation: Point(x: Pixels(1), y: Pixels(2)), location: Point(x: Pixels(3), y: Pixels(4)))
+        #expect(input.dragValueModifiers(value) == .option)
+    }
 }
 ```
 
@@ -2712,6 +2821,17 @@ extension EditorModel {
         case .deleteSelection:
             guard !selection.isEmpty else { return false }
             deleteSelection()
+        case .copy, .paste, .duplicate, .zoomIn, .zoomOut, .undo, .redo:
+            performEdit(command)
+        case .cancel, .paletteUp, .paletteDown, .paletteConfirm:
+            return performPaletteCommand(command)
+        }
+        return true
+    }
+
+    /// The commands that always apply: clipboard, zoom and undo.
+    private func performEdit(_ command: GraphKeyCommand) {
+        switch command {
         case .copy: copySelection()
         case .paste: paste()
         case .duplicate: duplicateSelection()
@@ -2719,12 +2839,20 @@ extension EditorModel {
         case .zoomOut: zoom(in: false)
         case .undo: document.undo()
         case .redo: document.redo()
+        default: break // `perform(_:)` routes every other command elsewhere.
+        }
+    }
+
+    /// The palette's keys. Escape does nothing (and goes on) while no palette is open.
+    private func performPaletteCommand(_ command: GraphKeyCommand) -> Bool {
+        switch command {
         case .cancel:
             guard palette != nil else { return false }
             closePalette()
         case .paletteUp: movePaletteHighlight(by: -1)
         case .paletteDown: movePaletteHighlight(by: 1)
         case .paletteConfirm: confirmPalette()
+        default: return false // `perform(_:)` routes every other command elsewhere.
         }
         return true
     }
@@ -2742,34 +2870,48 @@ public enum GraphKeyBindings {
     public static func command(for key: KeyEvent, paletteOpen: Bool) -> GraphKeyCommand? {
         let modifiers = key.modifiers.subtracting(.shift)
         let character = key.charactersIgnoringModifiers
+        let shifted = key.modifiers.contains(.shift)
         if paletteOpen {
-            guard modifiers.isEmpty else { return nil }
-            switch character {
-            case "\u{1b}": return .cancel
-            case "\u{f700}": return .paletteUp
-            case "\u{f701}": return .paletteDown
-            case "\r": return .paletteConfirm
-            default: return nil
-            }
+            return modifiers.isEmpty ? paletteCommand(for: character) : nil
         }
         if modifiers == .command {
-            switch character.lowercased() {
-            case "c": return .copy
-            case "v": return .paste
-            case "d": return .duplicate
-            case "z": return key.modifiers.contains(.shift) ? .redo : .undo
-            default: return nil
-            }
+            return commandChord(for: character.lowercased(), shifted: shifted)
         }
-        guard modifiers.isEmpty else { return nil }
+        return modifiers.isEmpty ? plainCommand(for: character, shifted: shifted) : nil
+    }
+
+    /// The palette's navigation keys (no modifiers but Shift).
+    static func paletteCommand(for character: String) -> GraphKeyCommand? {
         switch character {
-        case "\t": return key.modifiers.isEmpty ? .tab : nil
-        case " ": return .openPalette
-        case "\u{7f}", "\u{f728}": return .deleteSelection
-        case "=", "+": return .zoomIn
-        case "-": return .zoomOut
-        case "\u{1b}": return .cancel
-        default: return nil
+        case "\u{1b}": .cancel
+        case "\u{f700}": .paletteUp
+        case "\u{f701}": .paletteDown
+        case "\r": .paletteConfirm
+        default: nil
+        }
+    }
+
+    /// ⌘ chords; `character` is already lowercased, and ⇧ turns ⌘Z into redo.
+    static func commandChord(for character: String, shifted: Bool) -> GraphKeyCommand? {
+        switch character {
+        case "c": .copy
+        case "v": .paste
+        case "d": .duplicate
+        case "z": shifted ? .redo : .undo
+        default: nil
+        }
+    }
+
+    /// Keys with no modifier but Shift. ⇧⇥ isn't Tab's job (it's reverse focus traversal).
+    static func plainCommand(for character: String, shifted: Bool) -> GraphKeyCommand? {
+        switch character {
+        case "\t": shifted ? nil : .tab
+        case " ": .openPalette
+        case "\u{7f}", "\u{f728}": .deleteSelection
+        case "=", "+": .zoomIn
+        case "-": .zoomOut
+        case "\u{1b}": .cancel
+        default: nil
         }
     }
 }
@@ -2796,17 +2938,24 @@ import CreatorGeometry
 import MetalUI
 
 /// The graph panel's stopgap input bindings (spec §9), in one place so MetalUI's C7 APIs can
-/// replace them locally (docs/metalui-gaps.md):
-/// - press location and drags: a `DragGesture(minimumDistance: 0)` on the canvas, standing in
-///   for `SpatialTapGesture` (gap 4);
-/// - modifiers during a press: tracked from the window's `.modifiersChanged` and key events,
-///   standing in for modifiers on `DragGesture.Value` (gap 5);
+/// replace them locally (docs/metalui-gaps.md). Each C7 stand-in is one function named after the
+/// provisional C7 API it waits for, so the swap stays in this file (and its test):
+/// - `spatialTapGesture()` (C7 `SpatialTapGesture`, gap 4): a click's location comes from a
+///   `DragGesture(minimumDistance: 0)` that ends where it began. Its swap changes the return type,
+///   so `canvasGesture()` then splits into a tap plus a drag with a nonzero minimum distance.
+/// - `dragValueModifiers(_:)` (C7 `DragGesture.Value.modifiers`, gap 5): the modifiers held during
+///   a press, tracked meanwhile from the window's `.modifiersChanged` and key events in `handle(_:)`.
+///   Its swap is body-only.
+/// - Scroll and pinch (C7 `.onScrollWheel`, `MagnifyGesture`, gaps 1, 2) have no stand-in: the
+///   +/− keys and header zoom buttons (`EditorModel.zoom(in:)`) are the stopgap, and they stay.
+///   The canvas sets no cursor yet (C7 `.pointerStyle(_:)`).
+///
+/// Two more stopgaps are for MetalUI gaps outside C7:
 /// - keys: read from the window's `onInput` fallback, so a focused text field keeps its keys;
 ///   the palette's ↑/↓ alone go through the window keymap (`keymap`, `handleAction`), because a
 ///   focused field claims arrows before `onInput` (gap M5-h);
 /// - focus: a canvas press clears text focus through `releaseTextFocus`, because MetalUI never
-///   unfocuses a field on an outside press (gap M5-g);
-/// - zoom: +/− keys and the header buttons, standing in for scroll and pinch (gaps 1, 2).
+///   unfocuses a field on an outside press (gap M5-g).
 @MainActor
 public final class GraphPanelInput {
     public let model: EditorModel
@@ -2817,6 +2966,32 @@ public final class GraphPanelInput {
 
     public init(model: EditorModel) {
         self.model = model
+    }
+
+    /// Installs every hook on `window`, composing with the handlers already there. Its `onInput`
+    /// side can go on before or after M4's `ViewportModifierTracker.install(on:)`, which chains the
+    /// same way. A keymap or `onAction` *assigned* after this call replaces the graph's (M4's
+    /// harness assigns both), so the host sets those first, or appends and chains them like this:
+    /// - `onInput`: this panel's `handle(_:)` first, then the previous handler. `.modifiersChanged`
+    ///   is never claimed, so both trackers see it.
+    /// - `keymap`: `keymap`'s bindings are appended to the window's.
+    /// - `onAction`: `handleAction(_:)` first, then the previous handler.
+    /// - `releaseTextFocus`: `window.focus(nil)`, unless the shell set its own.
+    public func install(on window: Window) {
+        let previousInput = window.onInput
+        window.onInput = { [weak self] event in
+            if self?.handle(event) == true { return true }
+            return previousInput?(event) ?? false
+        }
+        window.keymap = Keymap(window.keymap.bindings + Self.keymap.bindings)
+        let previousAction = window.onAction
+        window.onAction = { [weak self] action in
+            if self?.handleAction(action) == true { return true }
+            return previousAction?(action) ?? false
+        }
+        if releaseTextFocus == nil {
+            releaseTextFocus = { [weak window] in window?.focus(nil) }
+        }
     }
 
     /// Install as (or merge into) `Window.keymap`, with `handleAction(_:)` in `Window.onAction`.
@@ -2835,7 +3010,8 @@ public final class GraphPanelInput {
         return true
     }
 
-    /// Install from `Window.onInput` (the app shell, M6). Returns true when the event was used.
+    /// Install from `Window.onInput` (`install(on:)` does). Returns true when the event was used.
+    /// Tracking modifiers here is part of the `dragValueModifiers(_:)` stopgap.
     public func handle(_ event: InputEvent) -> Bool {
         switch event {
         case .modifiersChanged(let modifiers):
@@ -2850,15 +3026,39 @@ public final class GraphPanelInput {
         }
     }
 
-    /// The canvas's press-and-drag gesture.
+    /// The canvas's one press-and-drag gesture: clicks, pans, moves, box selection and wiring.
     public func canvasGesture() -> DragGesture {
-        DragGesture(minimumDistance: Pixels(0))
+        Self.spatialTapGesture()
             .onChanged { [self] value in
+                adoptModifiers(of: value)
                 canvasChanged(from: Self.vector(value.startLocation), to: Self.vector(value.location))
             }
             .onEnded { [self] value in
+                adoptModifiers(of: value)
                 canvasEnded(from: Self.vector(value.startLocation), at: Self.vector(value.location))
             }
+    }
+
+    /// Stand-in for C7's `SpatialTapGesture` (gap 4). MetalUI reports no tap location, so a click
+    /// is a zero-distance drag: it reports a change and an end at the press point. When C7 lands,
+    /// a `SpatialTapGesture` carries the clicks and this drag keeps its minimum distance.
+    static func spatialTapGesture() -> DragGesture {
+        DragGesture(minimumDistance: Pixels(0))
+    }
+
+    /// Stand-in for C7's `DragGesture.Value.modifiers` (gap 5): the modifiers held at this change
+    /// of the press. Today they are the ones `handle(_:)` tracked from `.modifiersChanged` and key
+    /// events. When C7 lands this returns `Self.canvasModifiers(value.modifiers)`, and `handle(_:)`
+    /// stops tracking.
+    func dragValueModifiers(_ value: DragGesture.Value) -> CanvasModifiers {
+        model.modifiers
+    }
+
+    /// Writes the press's modifiers into the model only when they changed, so an unchanged set
+    /// doesn't invalidate the model's observers on every drag step.
+    private func adoptModifiers(of value: DragGesture.Value) {
+        let held = dragValueModifiers(value)
+        if held != model.modifiers { model.modifiers = held }
     }
 
     /// The gesture moved. The first call of a press releases text focus.
@@ -2898,11 +3098,12 @@ public final class GraphPanelInput {
 - [ ] **Step 4: Run the tests**
 
 Run: `swift test --filter CreatorEditorTests`
-Expected: PASS — `Test run with 79 tests in 12 suites passed`.
+Expected: PASS — `Test run with 80 tests in 12 suites passed`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
+swiftlint lint --strict   # must report 0 violations before committing (CLAUDE.md "Linting")
 git add Sources/CreatorEditor Tests/CreatorEditorTests
 git commit -m "feat(editor): add-node palette, keyboard commands and the stopgap input mapping"
 ```
@@ -3143,11 +3344,12 @@ public enum InspectorLabel {
 - [ ] **Step 4: Run the tests**
 
 Run: `swift test --filter CreatorEditorTests`
-Expected: PASS — `Test run with 86 tests in 13 suites passed`.
+Expected: PASS — `Test run with 87 tests in 13 suites passed`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
+swiftlint lint --strict   # must report 0 violations before committing (CLAUDE.md "Linting")
 git add Sources/CreatorEditor Tests/CreatorEditorTests
 git commit -m "feat(editor): value text, status badges, socket labels and plane choices"
 ```
@@ -3161,14 +3363,14 @@ git commit -m "feat(editor): value text, status badges, socket labels and plane 
 - Test: `Tests/CreatorEditorTests/InspectorTests.swift`, `Tests/CreatorEditorTests/CoalescingTests.swift`
 
 **Interfaces:**
-- Consumes: `InspectorControl` with M3 Task 3's `.vector` and `.parameterPicker` (see Prerequisites), M3's `NodeSetting` and `ConstantValue.parameter(_:)` / `.parameterID` (all `CreatorGraph`), `InspectorSection`, `SocketSpec` (`range`, `unit`, `defaultValue`), `NodeResult.outputs`, `Value.items`, `Scalar.edgeSet`, `EdgeSet.edges`, `Graph.incomingLink(to:)`, `GraphParameter`, and Task 7 (`ValueText.wholeNumber`).
+- Consumes: `InspectorControl` with M3's `.vector` and `.parameterPicker` (merged; Task 1's pre-flight checks them), `SocketSpec.isOptional`, M3's `NodeSetting` and `ConstantValue.parameter(_:)` / `.parameterID` (all `CreatorGraph`), `InspectorSection`, `SocketSpec` (`range`, `unit`, `defaultValue`), `NodeResult.outputs`, `Value.items`, `Scalar.edgeSet`, `EdgeSet.edges`, `Graph.incomingLink(to:)`, `GraphParameter`, and Task 7 (`ValueText.wholeNumber`).
 - Produces:
-  - `public struct InputField: Equatable { node; socket; label; type: SocketType?; unit; value: ConstantValue?; var number: Double? }`
+  - `public struct InputField: Equatable { node; socket; label; type: SocketType?; unit; value: ConstantValue?; isOptional: Bool (init default false); var number: Double? }`. `isOptional` comes from `SocketSpec.isOptional` (M3's Grid Points `total`, Edge Filter `maxLength`, Transform `axisDirection`).
   - `public enum InspectorRow: Equatable { slider(InputField, range:), number, integer, toggle(InputField, label:), segmented(InputField, options:, selected:), planePicker(InputField, selected:), vector(InputField), anchorGrid(InputField, selected:), ruleSummary(label:summary:), parameterPicker(InputField, options: [GraphParameter], selected: ParameterID?), button(title:action:), wired(label:source:), readOnly(label:text:) }`. An `InputField` may name a setting rather than a socket; its `type` is then `nil` (or `.bool` for a toggle).
   - `InspectorHeader { node; title; category; state }`, `InspectorSectionRows { title; rows }`, `ParameterRow { parameter; range }`, `InspectorPage { header?; sections; parameters }`
   - `InspectorControl.socket: SocketName?` (an exhaustive `switch`; `nil` only for `.button`)
   - `public enum InspectorBuilder { page(graph:selection:registry:results:); segmentValue(_:options:type:); vectorValue(_:axis:to:) }`. The parameter setting is encoded only by M3's `ConstantValue.parameter(_:)` and decoded by `.parameterID`; the builder has no encoder of its own. Internal helpers: `segmentIndex`, `sliderRange`, `parameterRange`, `edgeCount`, `edgesText`, `fallbackSections`, `row(for:…)`.
-  - `EditorModel.inspectorPage`, `setInput(_ field: InputField, to: ConstantValue, continuous: Bool = false)`, `setNumber(_ field: InputField, to: Double, continuous:)` (integer sockets get a whole number, or a refusal), `setVectorComponent(_:axis:to:)`, `chooseParameter(_: ParameterID, for: InputField)`, `setParameter(_: ParameterID, to:continuous:)`, `setParameterNumber(_:to:continuous:)`, `press(_ action: InspectorAction, on: NodeID)`.
+  - `EditorModel.inspectorPage`, `setInput(_ field: InputField, to: ConstantValue, continuous: Bool = false)`, `setNumber(_ field: InputField, to: Double, continuous:)` (integer sockets get a whole number, or a refusal), `setVectorComponent(_:axis:to:)`, `clearInput(_:)` (unsets an optional input as one undo step; no-op for a required one or one already unset), `chooseParameter(_: ParameterID, for: InputField)`, `setParameter(_: ParameterID, to:continuous:)`, `setParameterNumber(_:to:continuous:)`, `press(_ action: InspectorAction, on: NodeID)`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -3228,8 +3430,54 @@ struct InspectorTests {
     @Test func sliderRangesComeFromTheSocketAndWidenToTheValue() {
         let editor = makeEditor([testNode(ExtrudeTestNode.self, id: 4, at: .zero, values: ["distance": .number(250)])])
         editor.selection = [nodeID(4)]
-        guard case .slider(_, let range)? = editor.inspectorPage.sections[0].rows.last else { Issue.record("no slider"); return }
+        guard case .slider(_, let range)? = editor.inspectorPage.sections[0].rows.dropFirst().first else {
+            Issue.record("no slider"); return
+        }
         #expect(range == 0...250)
+    }
+
+    /// M3's Extrude "Reverse direction" is a toggle on a bool *socket* (spec Errata (M3)), unlike
+    /// Fillet's `showHandle` setting: it reads the socket default and writes a stored `.bool`.
+    @Test func aSocketToggleReadsItsDefaultAndWritesABool() {
+        let editor = makeEditor([extrude])
+        editor.selection = [extrude.id]
+        guard case .toggle(let field, let label)? = editor.inspectorPage.sections[0].rows.last else {
+            Issue.record("no toggle"); return
+        }
+        #expect(label == "Reverse direction")
+        #expect(field.socket == "reversed" && field.type == .bool && field.value == .bool(false) && !field.isOptional)
+        editor.setInput(field, to: .bool(true))
+        #expect(editor.graph.nodes[extrude.id]?.inputValues["reversed"] == .bool(true))
+    }
+
+    /// M3's Grid Points `total` (also Edge Filter `maxLength`, Transform `axisDirection`) is an
+    /// optional input with no default: it starts unset, can be set, and can be cleared again.
+    @Test func anOptionalInputStartsUnsetAndCanBeCleared() throws {
+        let grid = testNode(GridPointsTestNode.self, id: 8, at: .zero)
+        let editor = makeEditor([grid], registry: inspectorTestRegistry)
+        editor.selection = [grid.id]
+        func totalField() -> InputField? {
+            guard case .integer(let field)? = editor.inspectorPage.sections.first?.rows.last else { return nil }
+            return field
+        }
+        let unset = try #require(totalField())
+        #expect(unset.socket == "total" && unset.isOptional && unset.value == nil)
+        editor.clearInput(unset)
+        #expect(!editor.document.canUndo)
+        editor.setNumber(unset, to: 6)
+        #expect(editor.graph.nodes[grid.id]?.inputValues["total"] == .integer(6))
+        editor.clearInput(try #require(totalField()))
+        #expect(editor.graph.nodes[grid.id]?.inputValues["total"] == nil)
+        editor.document.undo()
+        #expect(editor.graph.nodes[grid.id]?.inputValues["total"] == .integer(6))
+        // A required input is never cleared: it would only fall back to its default silently.
+        guard case .integer(let countX)? = editor.inspectorPage.sections.first?.rows.first else {
+            Issue.record("no countX row"); return
+        }
+        #expect(!countX.isOptional)
+        editor.setNumber(countX, to: 3)
+        editor.clearInput(countX)
+        #expect(editor.graph.nodes[grid.id]?.inputValues["countX"] == .integer(3))
     }
 
     @Test func segmentedControlsReadAndWriteTheSocketsOwnType() {
@@ -3285,9 +3533,8 @@ struct InspectorTests {
         let editor = makeEditor([profile, solid, edges],
                                 [wire(profile, "profile", solid, "profile"), wire(solid, "solid", edges, "solid")])
         editor.selection = [edges.id]
-        #expect(editor.inspectorPage.sections == [InspectorSectionRows(title: "Edges", rows: [
-            .ruleSummary(label: "Edges", summary: "No result yet"),
-        ])])
+        let unevaluated = InspectorSectionRows(title: "Edges", rows: [.ruleSummary(label: "Edges", summary: "No result yet")])
+        #expect(editor.inspectorPage.sections == [unevaluated])
         await editor.document.waitForEvaluation()
         #expect(editor.inspectorPage.sections[0].rows == [.ruleSummary(label: "Edges", summary: "12 edges")])
     }
@@ -3362,8 +3609,9 @@ struct InspectorTests {
         let missing = Node(id: nodeID(7), typeID: "plugin.gone", name: "Gone")
         let editor = makeEditor([missing])
         editor.selection = [missing.id]
-        #expect(editor.inspectorPage.sections == [InspectorSectionRows(title: "Missing node",
-                                                                      rows: [.readOnly(label: "Type", text: "“plugin.gone” isn't available")])])
+        let note = InspectorSectionRows(title: "Missing node",
+                                        rows: [.readOnly(label: "Type", text: "“plugin.gone” isn't available")])
+        #expect(editor.inspectorPage.sections == [note])
     }
 
     @Test func pressingAnInspectorButtonRecordsARequestForTheViewport() {
@@ -3518,14 +3766,19 @@ public struct InputField: Equatable, Sendable {
     public var type: SocketType?
     public var unit: ValueUnit
     public var value: ConstantValue?
+    /// An optional input socket (`SocketSpec.isOptional`, such as M3's Grid Points `total`). With no
+    /// default it starts unset (`value == nil`), and the inspector can clear it again.
+    public var isOptional: Bool
 
-    public init(node: NodeID, socket: SocketName, label: String, type: SocketType?, unit: ValueUnit, value: ConstantValue?) {
+    public init(node: NodeID, socket: SocketName, label: String, type: SocketType?, unit: ValueUnit,
+                value: ConstantValue?, isOptional: Bool = false) {
         self.node = node
         self.socket = socket
         self.label = label
         self.type = type
         self.unit = unit
         self.value = value
+        self.isOptional = isOptional
     }
 
     /// The value as a number, for sliders and number fields.
@@ -3680,7 +3933,8 @@ public enum InspectorBuilder {
     static func fallbackSections(_ inputs: [SocketSpec]) -> [InspectorSection] {
         let controls: [InspectorControl] = inputs.compactMap { spec in
             switch spec.type {
-            case .number: spec.range == nil ? .number(spec.name) : .slider(spec.name)
+            case .number where spec.range == nil: .number(spec.name)
+            case .number: .slider(spec.name)
             case .integer: .integer(spec.name)
             case .bool: .toggle(spec.name, label: InspectorLabel.text(for: spec.name))
             case .vector: .vector(spec.name)
@@ -3700,21 +3954,9 @@ public enum InspectorBuilder {
         let spec = inputs.first { $0.name == socket }
 
         if case .ruleSummary = control {
-            if spec == nil, outputs.contains(where: { $0.name == socket }) {
-                // M3's selection rules summarise their own output.
-                guard let count = edgeCount(results[node.id]?.outputs?[socket]) else {
-                    return .ruleSummary(label: label, summary: "No result yet")
-                }
-                return .ruleSummary(label: label, summary: edgesText(count))
-            }
-            guard let link = graph.incomingLink(to: Endpoint(node: node.id, socket: socket)),
-                  let source = graph.nodes[link.from.node] else {
-                return .ruleSummary(label: label, summary: "No rule connected")
-            }
-            guard let count = edgeCount(results[source.id]?.outputs?[link.from.socket]) else {
-                return .ruleSummary(label: label, summary: source.name)
-            }
-            return .ruleSummary(label: label, summary: "\(source.name) · \(edgesText(count))")
+            let ownOutput = spec == nil && outputs.contains { $0.name == socket }
+            return .ruleSummary(label: label, summary: ruleSummary(socket, ownOutput: ownOutput, node: node, graph: graph,
+                                                                   results: results))
         }
         if let link = graph.incomingLink(to: Endpoint(node: node.id, socket: socket)), let source = graph.nodes[link.from.node] {
             return .wired(label: label, source: "wired from \(source.name)")
@@ -3728,7 +3970,29 @@ public enum InspectorBuilder {
             type = .bool
             if value == nil { value = .bool(true) }
         }
-        let field = InputField(node: node.id, socket: socket, label: label, type: type, unit: spec?.unit ?? .none, value: value)
+        let field = InputField(node: node.id, socket: socket, label: label, type: type, unit: spec?.unit ?? .none,
+                               value: value, isOptional: spec?.isOptional ?? false)
+        return valueRow(for: control, field: field, spec: spec, graph: graph)
+    }
+
+    /// The summary text of a `.ruleSummary` row. With `ownOutput` (M3's selection rules), it counts
+    /// the node's own result; otherwise the rule wired into the input.
+    static func ruleSummary(_ socket: SocketName, ownOutput: Bool, node: Node, graph: Graph,
+                            results: [NodeID: NodeResult]) -> String {
+        if ownOutput {
+            guard let count = edgeCount(results[node.id]?.outputs?[socket]) else { return "No result yet" }
+            return edgesText(count)
+        }
+        guard let link = graph.incomingLink(to: Endpoint(node: node.id, socket: socket)),
+              let source = graph.nodes[link.from.node] else {
+            return "No rule connected"
+        }
+        guard let count = edgeCount(results[source.id]?.outputs?[link.from.socket]) else { return source.name }
+        return "\(source.name) · \(edgesText(count))"
+    }
+
+    /// The row for a control bound to an unwired input or a setting.
+    static func valueRow(for control: InspectorControl, field: InputField, spec: SocketSpec?, graph: Graph) -> InspectorRow {
         if case .slider = control { return .slider(field, range: sliderRange(spec: spec, value: field.number)) }
         if case .number = control { return .number(field) }
         if case .integer = control { return .integer(field) }
@@ -3736,21 +4000,27 @@ public enum InspectorBuilder {
         if case .segmented(_, let options) = control {
             return .segmented(field, options: options, selected: segmentIndex(field.value, options: options))
         }
-        if case .planePicker = control {
-            if case .plane(let plane)? = field.value { return .planePicker(field, selected: PlaneChoice(plane)) }
-            return .planePicker(field, selected: nil)
-        }
-        if case .anchorGrid = control {
-            if case .integer(let index)? = field.value, (0...8).contains(index) { return .anchorGrid(field, selected: index) }
-            return .anchorGrid(field, selected: nil)
-        }
+        if case .planePicker = control { return .planePicker(field, selected: planeChoice(field.value)) }
+        if case .anchorGrid = control { return .anchorGrid(field, selected: anchorIndex(field.value)) }
         if case .vector = control { return .vector(field) }
         if case .parameterPicker = control {
             let id = field.value?.parameterID
             let selected = graph.parameters.contains { $0.id == id } ? id : nil
             return .parameterPicker(field, options: graph.parameters, selected: selected)
         }
-        return .readOnly(label: label, text: ValueText.format(field.value, unit: field.unit))
+        return .readOnly(label: field.label, text: ValueText.format(field.value, unit: field.unit))
+    }
+
+    /// The plane picker's choice for a stored plane, or `nil` when none is stored.
+    static func planeChoice(_ value: ConstantValue?) -> PlaneChoice? {
+        if case .plane(let plane)? = value { return PlaneChoice(plane) }
+        return nil
+    }
+
+    /// The anchor grid's cell (0…8, row-major from the top-left), or `nil` for anything else.
+    static func anchorIndex(_ value: ConstantValue?) -> Int? {
+        if case .integer(let index)? = value, (0...8).contains(index) { return index }
+        return nil
     }
 
     static func edgesText(_ count: Int) -> String { "\(count) \(count == 1 ? "edge" : "edges")" }
@@ -3849,6 +4119,17 @@ extension EditorModel {
         }
     }
 
+    /// Unsets an optional input (an empty field), so the node treats it as not given, as one undo
+    /// step. A required input is left alone: clearing it would silently fall back to its default.
+    public func clearInput(_ field: InputField) {
+        guard field.isOptional, graph.nodes[field.node]?.inputValues[field.socket] != nil else { return }
+        do {
+            try document.perform(.setInput(field.node, field.socket, nil))
+        } catch {
+            refuse(error.message, node: field.node)
+        }
+    }
+
     /// A number from a slider or a typed field. Integer sockets get it rounded to a whole number;
     /// one no `Int` holds ("1e300") is refused rather than trapping.
     public func setNumber(_ field: InputField, to number: Double, continuous: Bool = false) {
@@ -3909,11 +4190,12 @@ extension EditorModel {
 - [ ] **Step 5: Run the tests**
 
 Run: `swift test --filter CreatorEditorTests`
-Expected: PASS — `Test run with 111 tests in 15 suites passed`.
+Expected: PASS — `Test run with 114 tests in 15 suites passed`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
+swiftlint lint --strict   # must report 0 violations before committing (CLAUDE.md "Linting")
 git add Sources/CreatorEditor Tests/CreatorEditorTests
 git commit -m "feat(editor): inspector rows bound to unwired inputs, parameters and slider coalescing"
 ```
@@ -4588,7 +4870,7 @@ import MetalUI
 
 /// The graph panel (spec §6.2): glass chrome, the header and the canvas, with a refusal message
 /// along the bottom while one is showing. The app shell (M6) sizes and places it per dock and
-/// installs `input.handle(_:)` in the window's `onInput`.
+/// installs the input with `input.install(on:)`.
 public struct GraphPanel: Component {
     public let model: EditorModel
     public let input: GraphPanelInput
@@ -4616,11 +4898,12 @@ public struct GraphPanel: Component {
 - [ ] **Step 5: Run the tests**
 
 Run: `swift test --filter CreatorEditorTests`
-Expected: PASS — `Test run with 118 tests in 17 suites passed`. The render tests take about a second, because the first CoreText shaping is slow.
+Expected: PASS — `Test run with 121 tests in 17 suites passed`. The render tests take about a second, because the first CoreText shaping is slow.
 
 - [ ] **Step 6: Commit**
 
 ```bash
+swiftlint lint --strict   # must report 0 violations before committing (CLAUDE.md "Linting")
 git add Sources/CreatorEditor Tests/CreatorEditorTests
 git commit -m "feat(editor): graph panel views — nodes, sockets, bezier wires, canvas, palette"
 ```
@@ -4634,7 +4917,7 @@ git commit -m "feat(editor): graph panel views — nodes, sockets, bezier wires,
 - Test: `Tests/CreatorEditorTests/InspectorRenderTests.swift`
 
 **Interfaces:**
-- Consumes: Task 8's `InspectorPage`/`InspectorRow` and the `EditorModel` editing methods (`setNumber`, `setVectorComponent`, `chooseParameter`, `setParameterNumber`). From MetalUI: `Slider(value:in:)`, `Toggle(_:isOn:)`, `Picker(_:selection:content:)` with `.tag` and `.pickerStyle(.segmented)` / `.pickerStyle(.menu)`, `Grid(horizontalSpacing:verticalSpacing:)`/`GridRow`, `Binding(get:set:)`, `@State`, `.onChange(of:)` (zero-parameter closure form), `TextField(_:text:onChange:)`, `.onSubmit`.
+- Consumes: Task 8's `InspectorPage`/`InspectorRow` and the `EditorModel` editing methods (`setNumber`, `setVectorComponent`, `clearInput`, `chooseParameter`, `setParameterNumber`). From MetalUI: `Slider(value:in:)`, `Toggle(_:isOn:)`, `Picker(_:selection:content:)` with `.tag` and `.pickerStyle(.segmented)` / `.pickerStyle(.menu)`, `Grid(horizontalSpacing:verticalSpacing:)`/`GridRow`, `Binding(get:set:)`, `@State`, `.onChange(of:)` (zero-parameter closure form), `TextField(_:text:onChange:)`, `.onSubmit`.
 - Produces: `public struct InspectorPanel: Component { init(model: EditorModel) }`, which M6 docks on the right.
 
 - [ ] **Step 1: Write the failing test**
@@ -4659,13 +4942,15 @@ struct InspectorRenderTests {
         #expect(!renderHeadless { InspectorPanel(model: editor) }.glyphs.isEmpty)
     }
 
-    /// M3's `.vector` and `.parameterPicker` rows, the picker with and without parameters.
-    @Test func vectorAndParameterRowsDraw() {
+    /// M3's `.vector` and `.parameterPicker` rows, the picker with and without parameters, and an
+    /// unset optional input.
+    @Test func vectorParameterAndOptionalRowsDraw() {
         let transform = testNode(TransformTestNode.self, id: 5, at: .zero)
         let picker = testNode(GraphParameterTestNode.self, id: 6, at: Vector2(0, 200))
+        let grid = testNode(GridPointsTestNode.self, id: 7, at: Vector2(0, 400))
         let width = GraphParameter(name: "Width", type: .number, value: .number(60))
-        let editor = makeEditor([transform, picker], parameters: [width], registry: inspectorTestRegistry)
-        for id in [transform.id, picker.id] {
+        let editor = makeEditor([transform, picker, grid], parameters: [width], registry: inspectorTestRegistry)
+        for id in [transform.id, picker.id, grid.id] {
             editor.selection = [id]
             #expect(!renderHeadless { InspectorPanel(model: editor) }.glyphs.isEmpty)
         }
@@ -4683,7 +4968,7 @@ Expected: "cannot find 'InspectorPanel' in scope".
 
 - [ ] **Step 3: Implement the controls**
 
-`NumberEntry` keeps a local draft while typing, so "6" on the way to "60" never reaches the graph. Sliders write with `continuous: true` (one undo step per drag, Task 8). Typed values and toggles write with `continuous: false`.
+`NumberEntry` keeps a local draft while typing, so "6" on the way to "60" never reaches the graph. Sliders write with `continuous: true` (one undo step per drag, Task 8). Typed values and toggles write with `continuous: false`. For an optional input, the field is empty with the placeholder "Not set" while unset, and submitting it empty calls `clearInput`.
 
 `Sources/CreatorEditor/NumberEntry.swift`:
 ```swift
@@ -4691,17 +4976,26 @@ import MetalUI
 
 /// A number field that commits on Return. While typing, the draft is kept locally so a partial
 /// value ("6" on the way to "60") never reaches the graph; an unreadable entry is discarded.
+/// With `clear`, an emptied field submits a clear instead (an optional input).
 struct NumberEntry: Component {
     let text: String
+    var placeholder = "Value"
     var width = 72.0
+    var clear: (@MainActor () -> Void)?
     let commit: @MainActor (Double) -> Void
-    @State var draft: String? = nil
+    @State var draft: String?
 
     var content: some ElementGroup {
         HStack(spacing: Pixels(0)) {
-            TextField("Value", text: draft ?? text, onChange: { draft = $0 })
+            TextField(placeholder, text: draft ?? text, onChange: { draft = $0 })
                 .onSubmit {
-                    if let draft, let value = ValueText.parse(draft) { commit(value) }
+                    if let draft {
+                        if let clear, draft.trimmingCharacters(in: .whitespaces).isEmpty {
+                            clear()
+                        } else if let value = ValueText.parse(draft) {
+                            commit(value)
+                        }
+                    }
                     draft = nil
                 }
         }
@@ -4803,9 +5097,11 @@ struct InspectorRowView: Component {
             }
         case .number(let field), .integer(let field):
             // `setNumber` writes a whole number for an integer socket, or refuses one no `Int` holds.
+            // An optional input shows "Not set" while unset, and emptying the field clears it.
             LabeledRow(label: field.label) {
                 Spacer()
-                NumberEntry(text: ValueText.format(field.value, unit: field.unit)) {
+                NumberEntry(text: Self.text(field), placeholder: field.isOptional ? "Not set" : "Value",
+                            clear: Self.clear(field, model)) {
                     model.setNumber(field, to: $0)
                 }
             }
@@ -4837,10 +5133,13 @@ struct InspectorRowView: Component {
             .pickerStyle(.segmented)
         case .vector(let field):
             // Three compact fields, x y z; each writes the whole vector with one component replaced.
+            // An unset optional vector (M3's Transform `axisDirection`) shows empty fields, and
+            // emptying any field clears it.
             LabeledRow(label: field.label) {
                 Spacer()
                 ForEach(0..<3) { axis in
-                    NumberEntry(text: ValueText.format(field.vectorComponents[axis], unit: .none), width: 52) {
+                    NumberEntry(text: Self.text(field, axis: axis), placeholder: field.isOptional ? "–" : "Value", width: 52,
+                                clear: Self.clear(field, model)) {
                         model.setVectorComponent(field, axis: axis, to: $0)
                     }
                 }
@@ -4884,6 +5183,19 @@ struct InspectorRowView: Component {
                 Text(text).font(.callout).foregroundStyle(Palette.secondaryText.color)
             }
         }
+    }
+
+    /// A field's text: empty while an optional input is unset, else its value (one component of a vector).
+    static func text(_ field: InputField, axis: Int? = nil) -> String {
+        guard field.value != nil else { return "" }
+        guard let axis else { return ValueText.format(field.value, unit: field.unit) }
+        return ValueText.format(field.vectorComponents[axis], unit: .none)
+    }
+
+    /// What emptying the field does: clears an optional input, nothing for a required one.
+    static func clear(_ field: InputField, _ model: EditorModel) -> (@MainActor () -> Void)? {
+        guard field.isOptional else { return nil }
+        return { model.clearInput(field) }
     }
 }
 ```
@@ -4946,8 +5258,13 @@ struct ParameterRowView: Component {
 
     var content: some ElementGroup {
         let parameter = row.parameter
-        let number: Double = if case .integer(let value) = parameter.value { Double(value) }
-            else if case .number(let value) = parameter.value { value } else { row.range.lowerBound }
+        let number: Double = if case .integer(let value) = parameter.value {
+            Double(value)
+        } else if case .number(let value) = parameter.value {
+            value
+        } else {
+            row.range.lowerBound
+        }
         // `setParameterNumber` rounds for an integer parameter and refuses what no `Int` holds.
         let write: @MainActor (Double, Bool) -> Void = { value, continuous in
             model.setParameterNumber(parameter.id, to: value, continuous: continuous)
@@ -5006,11 +5323,12 @@ public struct InspectorPanel: Component {
 - [ ] **Step 5: Run the tests**
 
 Run: `swift test --filter CreatorEditorTests`
-Expected: PASS — `Test run with 120 tests in 18 suites passed`.
+Expected: PASS — `Test run with 123 tests in 18 suites passed`.
 
 - [ ] **Step 6: Commit**
 
 ```bash
+swiftlint lint --strict   # must report 0 violations before committing (CLAUDE.md "Linting")
 git add Sources/CreatorEditor Tests/CreatorEditorTests
 git commit -m "feat(editor): context inspector with node sections and document parameters"
 ```
@@ -5020,12 +5338,12 @@ git commit -m "feat(editor): context inspector with node sections and document p
 ### Task 11: Preview executable, MetalUI gaps, human checks and docs
 
 **Files:**
-- Modify: `Package.swift`, `docs/metalui-gaps.md`, `CLAUDE.md`, `AGENTS.md`, `docs/superpowers/roadmap.md`, `docs/superpowers/notes/2026-10-07-m0-m1-carryover.md`
+- Modify: `Package.swift`, `docs/metalui-gaps.md`, `CLAUDE.md`, `AGENTS.md`, `docs/superpowers/roadmap.md`, `docs/superpowers/notes/2026-10-07-m0-m1-carryover.md`, `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md` (Errata (M5))
 - Create: `Sources/GraphPanelPreview/main.swift`, `PreviewRoot.swift`, `PreviewDocument.swift`, `PreviewNodes.swift`
-- Append to: `docs/verification/human-checks.md` (M4 created it, with group V)
+- Append to: `docs/verification/human-checks.md` (M4 created it, with group V; Task 1's pre-flight checked it)
 
 **Interfaces:**
-- Consumes: `GraphPanel`, `GraphShowButton`, `InspectorPanel`, `GraphPanelInput` (`handle`, `keymap`, `handleAction`, `releaseTextFocus`), `EditorModel`, `Palette`. From MetalUI: `App()`, `App.openWindow(title:size:content:)`, `Window.onInput`, `Window.keymap`, `Window.onAction`, `Window.focus(_:)`, `app.run()`.
+- Consumes: `GraphPanel`, `GraphShowButton`, `InspectorPanel`, `GraphPanelInput.install(on:)` (which sets `onInput`, `keymap`, `onAction` and `releaseTextFocus`), `EditorModel`, `Palette`. From MetalUI: `App()`, `App.openWindow(title:size:content:)`, `app.run()`.
 - Produces: `swift run GraphPanelPreview`, the human-check target. M6 replaces it with the real app shell and can then delete it.
 
 - [ ] **Step 1: Add the preview target**
@@ -5075,8 +5393,9 @@ enum PreviewRectangle: NodeDefinition {
         InspectorSection(title: "Placement", controls: [.planePicker("plane"), .anchorGrid("anchor")]),
     ]
     static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
-        NodeOutputs(["profile": .profile(.rectangle(width: try inputs.number("width"), height: try inputs.number("height"),
-                                                   plane: try inputs.plane("plane")))])
+        let profile = Profile2D.rectangle(width: try inputs.number("width"), height: try inputs.number("height"),
+                                          plane: try inputs.plane("plane"))
+        return NodeOutputs(["profile": .profile(profile)])
     }
 }
 
@@ -5088,16 +5407,20 @@ enum PreviewExtrude: NodeDefinition {
         SocketSpec("profile", .profile),
         SocketSpec("distance", .number, defaultValue: .number(6), unit: .millimetres, range: 0...100),
         SocketSpec("mode", .integer, defaultValue: .integer(0)),
+        SocketSpec("reversed", .bool, defaultValue: .bool(false)),
     ]
     static let outputs = [SocketSpec("solid", .solid)]
     static let inspector = [
-        InspectorSection(title: "Extrude", controls: [.segmented("mode", options: ["Distance", "Symmetric"]), .slider("distance")]),
+        InspectorSection(title: "Extrude", controls: [
+            .segmented("mode", options: ["Distance", "Symmetric"]), .slider("distance"),
+            .toggle("reversed", label: "Reverse direction"),
+        ]),
     ]
     static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let mode: ExtrudeMode = try inputs.integer("mode") == 1 ? .symmetric : .oneSided
-        return NodeOutputs(["solid": .solid(try await kernel.extrude(try inputs.profile("profile"),
-                                                                    distance: try inputs.number("distance"),
-                                                                    mode: mode, tag: context.tag))])
+        let solid = try await kernel.extrude(try inputs.profile("profile"), distance: try inputs.number("distance"),
+                                             mode: mode, tag: context.tag)
+        return NodeOutputs(["solid": .solid(solid)])
     }
 }
 
@@ -5126,7 +5449,8 @@ enum PreviewFillet: NodeDefinition {
     static let defaultSettings: [SocketName: ConstantValue] = [NodeSetting.showHandle: .bool(true)]
     static let inspector = [
         InspectorSection(title: "Fillet", controls: [.slider("radius"), .toggle(NodeSetting.showHandle, label: "Show handle in view")]),
-        InspectorSection(title: "Edges", controls: [.ruleSummary("edges"), .button(title: "Pick edges in view…", action: .pickEdgesInView)]),
+        InspectorSection(title: "Edges",
+                         controls: [.ruleSummary("edges"), .button(title: "Pick edges in view…", action: .pickEdgesInView)]),
     ]
     static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let radius = try inputs.number("radius")
@@ -5155,21 +5479,42 @@ enum PreviewGraphParameter: NodeDefinition {
     static let displayName = "Graph Parameter"
     static let category = NodeCategory.value
     static let inputs: [SocketSpec] = []
-    static let outputs = [SocketSpec("number", .number)]
+    static let outputs = [
+        SocketSpec("number", .number, optional: true), SocketSpec("integer", .integer, optional: true),
+        SocketSpec("bool", .bool, optional: true), SocketSpec("vector", .vector, optional: true),
+    ]
     static let inspector = [InspectorSection(title: "Parameter", controls: [.parameterPicker(NodeSetting.parameter)])]
     static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         NodeOutputs(["number": .number(0)])
     }
 }
 
+/// Like M3's Grid Points: `total` is optional with no default, so its field starts empty ("Not set").
+enum PreviewGridPoints: NodeDefinition {
+    static let typeID = "preview.gridPoints"
+    static let displayName = "Grid Points"
+    static let category = NodeCategory.value
+    static let inputs = [
+        SocketSpec("countX", .integer, defaultValue: .integer(2), unit: .count),
+        SocketSpec("countY", .integer, defaultValue: .integer(2), unit: .count),
+        SocketSpec("total", .integer, unit: .count, optional: true),
+    ]
+    static let outputs = [SocketSpec("points", .vector)]
+    static let inspector = [InspectorSection(title: "Grid", controls: [.integer("countX"), .integer("countY"), .integer("total")])]
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        NodeOutputs(lists: ["points": []])
+    }
+}
+
+/// Like M3's Output: one `.list` input, passed through.
 enum PreviewOutput: NodeDefinition {
     static let typeID = "preview.output"
     static let displayName = "Output"
     static let category = NodeCategory.output
-    static let inputs = [SocketSpec("solid", .solid)]
-    static let outputs: [SocketSpec] = []
+    static let inputs = [SocketSpec("solid", .solid, access: .list)]
+    static let outputs = [SocketSpec("solid", .solid)]
     static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
-        NodeOutputs()
+        NodeOutputs(lists: ["solid": try inputs.list("solid")])
     }
 }
 ```
@@ -5185,7 +5530,8 @@ import CreatorKernel
 enum PreviewDocument {
     static let registry = NodeRegistry([
         PreviewNumber.self, PreviewRectangle.self, PreviewExtrude.self, PreviewAllEdges.self,
-        PreviewFillet.self, PreviewTransform.self, PreviewGraphParameter.self, PreviewOutput.self,
+        PreviewFillet.self, PreviewTransform.self, PreviewGraphParameter.self, PreviewGridPoints.self,
+        PreviewOutput.self,
     ])
 
     @MainActor
@@ -5204,9 +5550,11 @@ enum PreviewDocument {
         }
         let graph = Graph(
             nodes: Dictionary(uniqueKeysWithValues: [rect, extrude, edges, fillet, output, number].map { ($0.id, $0) }),
-            links: [link(rect, "profile", extrude, "profile"), link(extrude, "solid", edges, "solid"),
-                    link(extrude, "solid", fillet, "solid"), link(edges, "edges", fillet, "edges"),
-                    link(fillet, "solid", output, "solid")],
+            links: [
+                link(rect, "profile", extrude, "profile"), link(extrude, "solid", edges, "solid"),
+                link(extrude, "solid", fillet, "solid"), link(edges, "edges", fillet, "edges"),
+                link(fillet, "solid", output, "solid"),
+            ],
             parameters: [GraphParameter(name: "Width", type: .number, value: .number(60), min: 10, max: 200)])
         return DocumentModel(file: GraphFile(graph: graph, viewState: ViewState(dock: .bottom)),
                              registry: registry, kernel: FakeKernel())
@@ -5265,7 +5613,7 @@ import CreatorEditor
 import MetalUI
 
 // `swift run GraphPanelPreview`: the graph panel and inspector over a stand-in document, for the
-// human checks in docs/verification/human-checks.md (section M5). `app.run()` is called from
+// human checks in docs/verification/human-checks.md (group M5). `app.run()` is called from
 // synchronous top-level code, as MetalUI requires.
 @MainActor
 func runPreview() throws {
@@ -5276,12 +5624,10 @@ func runPreview() throws {
                                     size: Size(width: Pixels(1280), height: Pixels(800))) {
         ZStack { PreviewRoot(model: model, input: input) }
     }
-    window.onInput = { event in input.handle(event) }
-    // The palette's ↑/↓ are keymap actions, which run before a focused search field claims them.
-    window.keymap = GraphPanelInput.keymap
-    window.onAction = { action in input.handleAction(action) }
-    // A canvas press clears text focus, so Delete and ⌘Z go back to the graph (gap M5-g).
-    input.releaseTextFocus = { [weak window] in window?.focus(nil) }
+    // Keys through `onInput`, the palette's ↑/↓ as keymap actions (they run before a focused search
+    // field claims them), and a canvas press clearing text focus (gap M5-g). `install(on:)` chains
+    // onto any handlers already there, as the app shell (M6) needs with the viewport's.
+    input.install(on: window)
     app.run()
 }
 
@@ -5298,7 +5644,7 @@ Expected: `still-running`, meaning the window opened and the first frames drew w
 
 - [ ] **Step 4: Log the MetalUI gaps this milestone hit**
 
-Append to the end of `docs/metalui-gaps.md`, after M4's "Hit by M4 (viewport)" section (leave it as it is):
+Append to the end of `docs/metalui-gaps.md`, after M4's "Hit by M4 (viewport), 2026-10-08" section (Task 1's pre-flight checked it is there; leave it as it is):
 ```markdown
 
 ## Reported 2026-10-08 (M5 graph panel)
@@ -5318,11 +5664,14 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
   need a backdrop blur (spec §6.1). Stopgap: `#21222c` at 86% opacity with the hairline (`GlassPanel`).
 - **M5-d. No gradients.** The window background is a `#3a3d4e` → `#191a21` vertical gradient (spec §6.6). Stopgap:
   solid `#191a21`.
-- **M5-e. Modifiers on a press** (adds to item 5). Shift-click and ⇧/⌥-drag on the canvas need the modifiers at the
-  press, in the gesture's value. Stopgap: `GraphPanelInput` tracks `.modifiersChanged` from `Window.onInput`.
+- **M5-e. Modifiers on a press** (adds to gap 5, which M4's entry made concrete). Shift-click and ⇧/⌥-drag on the
+  canvas need the modifiers at the press, in the gesture's value. Stopgap: `GraphPanelInput.dragValueModifiers(_:)`
+  returns the set `GraphPanelInput.handle(_:)` tracks from `.modifiersChanged`; C7's `DragGesture.Value.modifiers`
+  replaces its body. A click's location is `GraphPanelInput.spatialTapGesture()`, a zero-distance drag (gap 4).
 - **M5-f. Canvas scroll and pinch** (adds to items 1 and 2). Two-finger scroll should pan the graph canvas and
   ⌘-scroll or pinch should zoom about the pointer (the `location` in the canvas's local points). Stopgap: drag on empty
-  canvas pans; +/− keys and the header buttons zoom about the pointer (`EditorModel.zoom(in:)`).
+  canvas pans; +/− keys and the header buttons zoom about the pointer (`EditorModel.zoom(in:)`). With M4's viewport
+  in the same window, M4's window-wide keymap takes `=`/`+`/`-` before `onInput` (gap M4-a), so M6 needs a key context.
 - **M5-g. A press elsewhere never clears text focus** (focus-by-click is deliberately not MetalUI policy,
   `Window.focus(_:)` docs). After editing an inspector field, the field keeps Delete, ⌘C/⌘V/⌘Z and Space while the
   user clicks nodes, so the graph's keys stop working with no visible cause. Stopgap: the canvas gesture calls
@@ -5338,19 +5687,15 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
 
 - [ ] **Step 5: Write the human checks**
 
-M4 created `docs/verification/human-checks.md` with this header and group V; keep both and only append. (Only if the
-file is somehow missing, create it with this header first.)
-```markdown
-# Human checks
-
-Checks an agent can't perform: each needs a person at an unlocked Mac with a real pointer. Tick the box and write
-one line under **Observed** ("as expected", or what you saw). Each item names the test that pins the behaviour
-headless, so a "looks wrong" report can become a failing test.
-```
-Then append, after group V and without touching it:
+M4 created `docs/verification/human-checks.md` with its header and group V (Task 1's pre-flight checked them). Keep
+both and only append, after group V and without touching it. The heading and status line follow group V's style:
 ```markdown
 
-## M5 — graph panel and inspector (`swift run GraphPanelPreview`)
+## Group M5 — the graph panel and inspector (M5)
+
+**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
+
+Run `swift run GraphPanelPreview`.
 
 - [ ] **M5-1 Dracula colours.** Headers are comment-blue (Number), green (Rectangle), purple (Extrude), pink
   (All Edges), orange (Fillet), cyan (Output). Header text is dark (`#282a36`). Body text is near-white, hint text
@@ -5390,9 +5735,13 @@ Then append, after group V and without touching it:
   once: width returns to where the drag started. Select Fillet: an EDGES section reads "All Edges · 12 edges" in
   pink, a "Show handle in view" toggle that starts On, and a "Pick edges in view…" button. Select All Edges: its
   EDGES row reads "12 edges". Drag Radius above 10: Fillet's badge turns to a red ✕ and hovering it shows the message.
+  Select Extrude: a Distance/Symmetric segmented control, the Distance slider and a "Reverse direction" toggle that
+  starts Off (no Direction menu, spec Errata (M3)).
   Add a Transform (palette): its Move row has three fields; type 5 into the middle one and the node row reads
   "0 mm, 5 mm, 0 mm". Add a Graph Parameter: its menu lists Width; choose it and the menu shows Width.
-  Pinned: `InspectorTests`, `CoalescingTests`. **Observed:**
+  Add a Grid Points: its Total field is empty, showing "Not set", and the node row reads "—". Type 6 and press
+  Return: the row reads "6". Empty the field and press Return: it's "Not set" again. Click empty canvas and press ⌘Z: 6 comes back.
+  Pinned: `InspectorTests` (`anOptionalInputStartsUnsetAndCanBeCleared`), `CoalescingTests`. **Observed:**
 - [ ] **M5-11 Keys stay with fields.** Click into the Width number field, type "75" and press Delete: the digit is
   deleted, not the node. Press Return: Width becomes 75 mm. Pinned: design (`Window.onInput` fallback),
   `mappedKeysAreRunAndClaimed`. **Observed:**
@@ -5402,7 +5751,26 @@ Then append, after group V and without touching it:
   `aCanvasPressReleasesTextFocusOncePerPress`; the focus release itself is this check only (gap M5-g). **Observed:**
 ```
 
-- [ ] **Step 6: Update `CLAUDE.md` and `AGENTS.md` (both, same edits)**
+- [ ] **Step 6: Record the spec errata**
+
+Append to the end of `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md`, after "Errata (M3)" (leave it as it is):
+```markdown
+
+## Errata (M5)
+
+- §6.2's "inline value fields" are read-only text on the node's row. Values are edited in the inspector, because a
+  `TextField` on the canvas would compete with the canvas-wide gesture and split keyboard focus (§9's risk list).
+  Revisit when MetalUI C7 lands.
+- §6.1/§6.2's ⇥ is contextual: Tab opens the add-node palette while the pointer is over a visible canvas, and
+  otherwise toggles the hidden panel. Space always opens the palette. While the panel is hidden, a "Show graph"
+  button carries Tab as its shortcut, so hiding is never a one-way trip.
+- §6.4's inspector also clears an optional input: emptying its field unsets it (for example Grid Points `total`).
+- §6.1/§6.6's glass blur and the window gradient wait for MetalUI. Panels are `#21222c` at 86% with the hairline,
+  and the preview's background is solid `#191a21` (docs/metalui-gaps.md M5-c, M5-d).
+- §6.2's refusal shake is a spring back from a 6-pt offset (no keyframe animation yet, M5-i).
+```
+
+- [ ] **Step 7: Update `CLAUDE.md` and `AGENTS.md` (both, same edits)**
 
 In the "Module boundaries (dependency order)" list, add this after M4's `CreatorViewport` bullet (which follows M3's `CreatorNodes`). Edit in place; don't rewrite the section:
 ```markdown
@@ -5412,9 +5780,12 @@ In the "Module boundaries (dependency order)" list, add this after M4's `Creator
   Stopgap input (pending MetalUI C7) lives only in `GraphPanelInput`.
 ```
 Add to the rules paragraph: "Editor geometry is computed by `NodeLayout`, never measured; views are framed to it so
-drawing and hit testing agree. Node positions are stored left-to-right; the left dock draws their transpose."
+drawing and hit testing agree. Node positions are stored left-to-right; the left dock draws their transpose.
+Graph panel input stopgaps live only in `GraphPanelInput`. Each C7 stand-in is one function named after its
+provisional C7 API (`spatialTapGesture()`, `dragValueModifiers(_:)`), and `install(on:)` chains onto the window's
+existing handlers."
 
-In "Project state", after M4's sentence ("M4 (viewport) code is done; its human checks … are pending."), add "M5 (graph panel and inspector) code is done; its human checks (section M5 in `docs/verification/human-checks.md`) are pending." Don't add M5 to the done list: spec §7.4's M5 exit includes the human visual check, as M4's does. The controller moves it once section M5 is ticked.
+In "Project state", after M4's sentence ("M4 (viewport) code is done; its human checks … are pending."), add "M5 (graph panel and inspector) code is done; its human checks (group M5 in `docs/verification/human-checks.md`) are pending." Don't add M5 to the done list: spec §7.4's M5 exit includes the human visual check, as M4's does. The controller moves it once group M5 is ticked.
 
 Under "Commands", add:
 ```sh
@@ -5422,13 +5793,16 @@ swift test --filter CreatorEditorTests       # editor model + headless render te
 swift run GraphPanelPreview                   # graph panel + inspector, for docs/verification/human-checks.md (M5)
 ```
 
-- [ ] **Step 7: Update the roadmap**
+- [ ] **Step 8: Update the roadmap and the carry-over note**
 
-In `docs/superpowers/roadmap.md`, edit the M5 row's status cell in place to `🔄 code done; human checks M5 pending` (the controller sets ✅ once section M5 is ticked, as for M4). Add this line under "Carry-over items with a milestone", after the `Before M4:` line and before the existing `- M7:` line:
+In `docs/superpowers/roadmap.md`, edit the M5 row's status cell in place to `🔄 code done; human checks M5 pending` (the controller sets ✅ once group M5 is ticked, as for M4). Add this line under "Carry-over items with a milestone", after the `Before M4:` line and before the existing `- M7:` line:
 ```markdown
-- M6: install `GraphPanelInput.handle(_:)` (composed with the viewport's handler) in `Window.onInput`, merge
-  `GraphPanelInput.keymap` into `Window.keymap` with `handleAction` in `Window.onAction`, and set
-  `releaseTextFocus` to `window.focus(nil)` (call it on viewport presses too); place `GraphPanel` per `EditorModel.dock`,
+- M6: install the graph's input with `GraphPanelInput.install(on:)` (it chains `onInput`/`onAction` and appends its
+  keymap). Only its `onInput` side composes with M4's `ViewportModifierTracker.install(on:)` in either order: set the
+  viewport's keymap and `onAction` (which M4's harness assigns directly) before `install(on:)`, or append and chain
+  them the same way, or the palette's ↑/↓ bindings and `handleAction` are dropped. Call `releaseTextFocus` on viewport
+  presses too; give M4's viewport keymap bindings a key context (gap M4-a), because window-wide `=`/`+`/`-` bindings run
+  before `onInput` and take the graph's zoom keys; place `GraphPanel` per `EditorModel.dock`,
   `GraphShowButton` while hidden, and `InspectorPanel` on the right over the viewport; consume
   `EditorModel.inspectorRequest` for "Pick edges in view…" (write the picks as `.edgePicks(…)` under `NodeSetting.picks`);
   pass the real `BuiltInNodes.registry`. Deferred to M6 from spec §6.1/§6.2:
@@ -5452,23 +5826,40 @@ Then append to `docs/superpowers/notes/2026-10-07-m0-m1-carryover.md`:
   `NodeError` and `Evaluator`; give them the editor's `SocketType.indefiniteName` wording in one pass.
 - Numbers are shown and parsed in `en_US_POSIX`; localised number entry is deferred with string localisation.
 - Only the key mapping is unit-tested (MetalUI's `Window` init is internal); real-window routing is human checks
-  M5-5, M5-9, M5-11, M5-12. If MetalUI exposes a test window, add dispatch tests.
+  M5-5, M5-9, M5-11, M5-12, and `GraphPanelInput.install(on:)` is untested glue. If MetalUI exposes a test window, add
+  dispatch tests.
+- Optional inputs with no default (Grid Points `total`, Edge Filter `maxLength`, Transform `axisDirection`) start
+  unset ("Not set" in the inspector, "—" on the node row); emptying the field clears them (`EditorModel.clearInput`).
+  Required inputs are never cleared.
+- C7 swap points in `GraphPanelInput`: `spatialTapGesture()` → `SpatialTapGesture` (a return-type change, so
+  `canvasGesture()` becomes a tap plus a nonzero-distance drag and its stand-in test is rewritten), `dragValueModifiers(_:)` →
+  `DragGesture.Value.modifiers` (body-only; then `handle(_:)` stops tracking `.modifiersChanged`), and scroll/pinch get new
+  handlers (`.onScrollWheel`, `MagnifyGesture`); the +/− keys and header buttons stay.
+- With M4's viewport in the same window, M4's window-wide `=`/`+`/`-` keymap bindings win over the graph's zoom keys
+  (keymap runs before `onInput`); M6 scopes the viewport's with a key context (gap M4-a).
 ```
 
-- [ ] **Step 8: Run everything and commit**
+- [ ] **Step 9: Run everything and commit**
 
 Run: `swift test`
-Expected: every target PASSES (including M3's `CreatorNodesTests` and M4's `CreatorViewportTests`). `CreatorEditorTests` reports `Test run with 120 tests in 18 suites passed`.
+Expected: every target PASSES (including M3's `CreatorNodesTests` and M4's `CreatorViewportTests`). `CreatorEditorTests` reports `Test run with 123 tests in 18 suites passed`.
 
 ```bash
-git add Package.swift Sources/GraphPanelPreview docs/metalui-gaps.md docs/verification/human-checks.md CLAUDE.md AGENTS.md docs/superpowers/roadmap.md docs/superpowers/notes/2026-10-07-m0-m1-carryover.md
-git commit -m "feat(editor): graph panel preview, M5 MetalUI gaps and human checks"
+swiftlint lint --strict   # must report 0 violations before committing (CLAUDE.md "Linting")
+git add Package.swift Sources/GraphPanelPreview docs/metalui-gaps.md docs/verification/human-checks.md CLAUDE.md AGENTS.md \
+        docs/superpowers/roadmap.md docs/superpowers/notes/2026-10-07-m0-m1-carryover.md \
+        docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md
+git commit -m "feat(editor): graph panel preview, M5 MetalUI gaps, errata and human checks"
 ```
 
 ---
 
 ## What comes next
 
-- **M6, the app shell:** float `GraphPanel` (left column or bottom strip, per `EditorModel.dock`), `GraphShowButton` (while hidden) and `InspectorPanel` (right) over the viewport. Compose `GraphPanelInput.handle` with the viewport's input in `Window.onInput`, merge `GraphPanelInput.keymap` into the window keymap with `handleAction` in `Window.onAction`, and set `releaseTextFocus`. Wire undo, redo and export to the top bar. Route `EditorModel.inspectorRequest` into the viewport's pick mode. Two spec §6.1/§6.2 items belong to the shell and are deliberately not in M5: resizing the docked panel along its inner edge (a drag handle that sets the panel's width or height), and the Preview menu (Final / Selected node), which in Selected-node mode sets `document.previewNode` from `EditorModel.selection`.
-- **When MetalUI C7 lands:** replace the stopgaps inside `GraphPanelInput` only (plus `GraphShowButton`'s Tab shortcut and `PaletteMove` if MetalUI gains focus-scoped key handling, gaps M5-b and M5-h). Use `SpatialTapGesture` or `DragGesture.Value` modifiers in place of the tracked modifiers, `.onScrollWheel` for canvas pan and ⌘-zoom, and `MagnifyGesture` for pinch.
+- **M6, the app shell:** float `GraphPanel` (left column or bottom strip, per `EditorModel.dock`), `GraphShowButton` (while hidden) and `InspectorPanel` (right) over the viewport. Install the graph's input with `GraphPanelInput.install(on:)` after setting the viewport's keymap and `onAction` (only the `onInput` chaining is order-free; assigning a keymap or `onAction` afterwards drops the graph's palette arrows), and give the viewport's keymap bindings a key context so `=`/`+`/`-` reach the graph when it has the pointer (gap M4-a). Wire undo, redo and export to the top bar. Route `EditorModel.inspectorRequest` into the viewport's pick mode. Two spec §6.1/§6.2 items belong to the shell and are deliberately not in M5: resizing the docked panel along its inner edge (a drag handle that sets the panel's width or height), and the Preview menu (Final / Selected node), which in Selected-node mode sets `document.previewNode` from `EditorModel.selection`.
+- **When MetalUI C7 lands:** replace the stopgaps inside `GraphPanelInput` only (plus `GraphShowButton`'s Tab shortcut and `PaletteMove` if MetalUI gains focus-scoped key handling, gaps M5-b and M5-h). First check the final spellings in MetalUI's C7 decisions file (`docs/superpowers/2026-10-08-input-apis-decisions.md`, prefix CI-). Each swap is local:
+  - Make `spatialTapGesture()` return a `SpatialTapGesture` for clicks. This changes its return type, so `canvasGesture()` splits into that tap plus a `DragGesture` with a nonzero minimum distance, and `theC7StandInsAreTheirOwnFunctions` drops its `minimumDistance == Pixels(0)` check.
+  - Make `dragValueModifiers(_:)` return `Self.canvasModifiers(value.modifiers)` (a body-only change: C7's `EventModifiers` is a typealias of `Modifiers`), and drop the `.modifiersChanged` tracking in `handle(_:)`.
+  - Add `.onScrollWheel` for canvas pan and ⌘-zoom, and `MagnifyGesture` for pinch, about the event's local location.
+  - Optionally set `.pointerStyle(_:)` (grab while panning).
 - **M7:** measure 50-node pan and zoom at 60 fps (spec §7.3).
