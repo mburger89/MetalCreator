@@ -1,9 +1,10 @@
 import Foundation
 
 extension Profile2D {
-    /// The same loop moved by `offset` in plane coordinates.
+    /// The same profile, holes included, moved by `offset` in plane coordinates.
     public func translated(by offset: Vector2) -> Profile2D {
-        Profile2D(plane: plane, segments: segments.map { $0.translated(by: offset) })
+        Profile2D(plane: plane, outer: outer.map { $0.translated(by: offset) },
+                  holes: holes.map { hole in hole.map { $0.translated(by: offset) } })
     }
 
     /// A `width` × `height` rectangle with quarter-circle corners of `radius`, centred on the plane

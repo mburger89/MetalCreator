@@ -33,9 +33,10 @@ public actor OCCTKernel: Kernel {
         }
         try Self.validate(profile.plane)
         guard profile.isClosed else { throw KernelError.invalidInput("The profile is not a closed loop.") }
-        let base = mode == .symmetric
-            ? Profile2D(plane: profile.plane.offset(by: -distance / 2), segments: profile.segments)
-            : profile
+        var base = profile
+        if mode == .symmetric {
+            base.plane = profile.plane.offset(by: -distance / 2)
+        }
         return try build("extrude", inputs: [], tag: tag) { try OCCTShape.extrude(base, distance: distance) }
     }
 
@@ -55,6 +56,9 @@ public actor OCCTKernel: Kernel {
     public func loft(_ sections: [Profile2D], ruled: Bool, tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
         guard sections.count >= 2 else { throw KernelError.invalidInput("A loft needs at least two sections.") }
+        guard sections.allSatisfy(\.holes.isEmpty) else {
+            throw KernelError.invalidInput("A loft can't use profiles with holes yet.")
+        }
         guard Set(sections.map(\.segments.count)).count == 1 else {
             throw KernelError.invalidInput("Every loft section needs the same number of segments.")
         }

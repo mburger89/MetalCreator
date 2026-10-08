@@ -10,6 +10,8 @@ enum OCCTTagger {
                 tags[record.outFace, default: []].insert(TopoTag(tag, .startCap))
             case .endCap:
                 tags[record.outFace, default: []].insert(TopoTag(tag, .endCap))
+            case .segment where record.operand != 0:
+                continue // hole walls are named in Task 2
             case .segment:
                 tags[record.outFace, default: []].insert(TopoTag(tag, .side(segment: record.index)))
             case .face:

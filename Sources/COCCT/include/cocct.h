@@ -38,7 +38,8 @@ void occt_initialize(void);
 
 /// History: where an output face came from. `out_face` is the 1-based index in the output's
 /// face map; `operand`/`index` refer to the operation's inputs (index is 1-based for faces and
-/// edges, 0-based for profile segments).
+/// edges, 0-based for profile segments). For OCCT_FROM_SEGMENT, `operand` is the profile loop
+/// (0 = outer boundary, n = hole n, as in occt_profile.loops) and `index` the segment in that loop.
 typedef enum {
     OCCT_FROM_START_CAP = 0,
     OCCT_FROM_END_CAP = 1,
@@ -121,22 +122,33 @@ typedef struct {
     double cx, cy, radius, start, end;
 } occt_segment;
 
+/// One closed loop of segments, in order.
 typedef struct {
-    occt_plane plane;
     const occt_segment *segments;
     int segment_count;
+} occt_loop;
+
+/// A planar region. loops[0] is the outer boundary; loops[1 ..< loop_count] are holes, which must
+/// lie inside it without touching it or each other. Holes may wind either way: the shim reverses a
+/// hole wire that winds the same way as the outer loop, which is what OCCT needs.
+typedef struct {
+    occt_plane plane;
+    const occt_loop *loops;
+    int loop_count;
 } occt_profile;
 
 /// Extrudes the profile along its plane normal by `distance`. History: start/end caps and
-/// one OCCT_FROM_SEGMENT record per side face (index = segment).
+/// one OCCT_FROM_SEGMENT record per side face (operand = loop, index = segment), hole walls included.
 occt_shape *occt_extrude(const occt_profile *profile, double distance, occt_history *history, occt_status *status);
 
 /// Revolves the profile about the axis by `angle` (radians, 0 < angle <= 2π). Caps
-/// (OCCT_FROM_START_CAP/END_CAP) exist only for a partial revolve; sides are OCCT_FROM_SEGMENT.
+/// (OCCT_FROM_START_CAP/END_CAP) exist only for a partial revolve; sides are OCCT_FROM_SEGMENT
+/// (operand = loop, index = segment), hole walls included.
 occt_shape *occt_revolve(const occt_profile *profile, const double axis_origin[3], const double axis_direction[3],
                          double angle, occt_history *history, occt_status *status);
-/// Lofts through `count` profiles (ruled = straight sides). Sides are OCCT_FROM_SEGMENT with the
-/// index of the first section's segment; caps are the first and last sections.
+/// Lofts through `count` profiles (ruled = straight sides). Sides are OCCT_FROM_SEGMENT (operand 0)
+/// with the index of the first section's segment; caps are the first and last sections. Every
+/// section must be a single loop: a profile with holes is refused.
 occt_shape *occt_loft(const occt_profile *profiles, int count, int ruled, occt_history *history, occt_status *status);
 
 /// Boolean of `a` with `tools` (op 0 fuse, 1 cut, 2 common). History operands: 0 = a, i+1 = tools[i].

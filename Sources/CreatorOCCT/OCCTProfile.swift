@@ -26,21 +26,32 @@ enum OCCTProfile {
         try withAll([profile]) { profiles, _ throws(E) in try body(profiles) }
     }
 
-    /// Calls `body` with C views of every profile (contiguous), valid only inside the call.
+    /// Calls `body` with C views of every profile (contiguous), valid only inside the call. Each
+    /// view's loops are the profile's `loops`: outer first, then the holes in order.
     static func withAll<T, E: Error>(_ profiles: [Profile2D], _ body: (UnsafePointer<occt_profile>, Int) throws(E) -> T)
         throws(E) -> T {
-        let segments = profiles.flatMap { $0.segments.map(segment) }
-        return try segments.withUnsafeBufferPointer { buffer throws(E) in
+        let loops = profiles.flatMap(\.loops)
+        let segments = loops.flatMap { $0.map(segment) }
+        return try segments.withUnsafeBufferPointer { segmentBuffer throws(E) in
             var offset = 0
-            var views: [occt_profile] = []
-            for profile in profiles {
-                views.append(occt_profile(plane: plane(profile.plane), segments: buffer.baseAddress.map { $0 + offset },
-                                          segment_count: Int32(profile.segments.count)))
-                offset += profile.segments.count
+            var loopViews: [occt_loop] = []
+            for loop in loops {
+                loopViews.append(occt_loop(segments: segmentBuffer.baseAddress.map { $0 + offset },
+                                           segment_count: Int32(loop.count)))
+                offset += loop.count
             }
-            return try views.withUnsafeBufferPointer { viewBuffer throws(E) in
-                guard let base = viewBuffer.baseAddress else { preconditionFailure("withAll needs at least one profile") }
-                return try body(base, viewBuffer.count)
+            return try loopViews.withUnsafeBufferPointer { loopBuffer throws(E) in
+                var first = 0
+                var views: [occt_profile] = []
+                for profile in profiles {
+                    views.append(occt_profile(plane: plane(profile.plane), loops: loopBuffer.baseAddress.map { $0 + first },
+                                              loop_count: Int32(profile.loops.count)))
+                    first += profile.loops.count
+                }
+                return try views.withUnsafeBufferPointer { viewBuffer throws(E) in
+                    guard let base = viewBuffer.baseAddress else { preconditionFailure("withAll needs at least one profile") }
+                    return try body(base, viewBuffer.count)
+                }
             }
         }
     }

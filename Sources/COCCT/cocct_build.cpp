@@ -3,6 +3,7 @@
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepCheck_Analyzer.hxx>
 #include <BRepGProp.hxx>
 #include <BRepLib.hxx>
 #include <BRep_Builder.hxx>
@@ -17,6 +18,7 @@
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Solid.hxx>
+#include <TopoDS_Wire.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Ax1.hxx>
 #include <gp_Circ.hxx>
@@ -30,9 +32,15 @@ using namespace cocct;
 
 namespace {
 
-/// A profile turned into a planar face, with its edges in segment order.
+/// A profile turned into a planar face, with each loop's edges in segment order (loop 0 = outer).
 struct built_profile {
     TopoDS_Face face;
+    std::vector<std::vector<TopoDS_Edge>> loops;
+};
+
+/// One loop turned into a wire, with its edges in segment order.
+struct built_loop {
+    TopoDS_Wire wire;
     std::vector<TopoDS_Edge> edges;
 };
 
@@ -46,61 +54,112 @@ gp_Pnt point_on(const gp_Ax2 &frame, double x, double y) {
     return gp_Pnt(frame.Location().XYZ() + frame.XDirection().XYZ() * x + frame.YDirection().XYZ() * y);
 }
 
-built_profile build_profile(const occt_profile &profile) {
-    if (!profile.segments || profile.segment_count <= 0) {
-        throw user_error("the profile has no segments");
-    }
-    const gp_Ax2 frame = frame_of(profile.plane);
-    BRepBuilderAPI_MakeWire wire;
-    built_profile result;
-    for (int k = 0; k < profile.segment_count; ++k) {
-        const occt_segment &segment = profile.segments[k];
-        TopoDS_Edge edge;
-        if (segment.kind == 0) {
-            const gp_Pnt a = point_on(frame, segment.x0, segment.y0);
-            const gp_Pnt b = point_on(frame, segment.x1, segment.y1);
-            if (a.Distance(b) <= 1e-9) {
-                throw user_error("a line in the profile has zero length");
-            }
-            BRepBuilderAPI_MakeEdge make(a, b);
-            if (!make.IsDone()) {
-                throw user_error("a line in the profile could not be built");
-            }
-            edge = make.Edge();
-        } else {
-            if (segment.kind != 1) {
-                throw user_error("unknown profile segment kind");
-            }
-            if (!std::isfinite(segment.start) || !std::isfinite(segment.end)) {
-                throw user_error("an arc in the profile has a non-finite angle");
-            }
-            if (!(segment.end - segment.start > 1e-12)) {
-                throw user_error("an arc in the profile has no sweep");
-            }
-            if (!(segment.radius > 1e-9) || !std::isfinite(segment.radius)) {
-                throw user_error("an arc in the profile has no radius");
-            }
-            if (!std::isfinite(segment.cx) || !std::isfinite(segment.cy)) {
-                throw user_error("an arc in the profile has an invalid centre");
-            }
-            const gp_Ax2 axes(point_on(frame, segment.cx, segment.cy), frame.Direction(), frame.XDirection());
-            BRepBuilderAPI_MakeEdge make(gp_Circ(axes, segment.radius), segment.start, segment.end);
-            if (!make.IsDone()) {
-                throw user_error("an arc in the profile could not be built");
-            }
-            edge = make.Edge();
+TopoDS_Edge build_edge(const gp_Ax2 &frame, const occt_segment &segment) {
+    if (segment.kind == 0) {
+        const gp_Pnt a = point_on(frame, segment.x0, segment.y0);
+        const gp_Pnt b = point_on(frame, segment.x1, segment.y1);
+        if (a.Distance(b) <= 1e-9) {
+            throw user_error("a line in the profile has zero length");
         }
-        wire.Add(edge);
+        BRepBuilderAPI_MakeEdge make(a, b);
+        if (!make.IsDone()) {
+            throw user_error("a line in the profile could not be built");
+        }
+        return make.Edge();
+    }
+    if (segment.kind != 1) {
+        throw user_error("unknown profile segment kind");
+    }
+    if (!std::isfinite(segment.start) || !std::isfinite(segment.end)) {
+        throw user_error("an arc in the profile has a non-finite angle");
+    }
+    if (!(segment.end - segment.start > 1e-12)) {
+        throw user_error("an arc in the profile has no sweep");
+    }
+    if (!(segment.radius > 1e-9) || !std::isfinite(segment.radius)) {
+        throw user_error("an arc in the profile has no radius");
+    }
+    if (!std::isfinite(segment.cx) || !std::isfinite(segment.cy)) {
+        throw user_error("an arc in the profile has an invalid centre");
+    }
+    const gp_Ax2 axes(point_on(frame, segment.cx, segment.cy), frame.Direction(), frame.XDirection());
+    BRepBuilderAPI_MakeEdge make(gp_Circ(axes, segment.radius), segment.start, segment.end);
+    if (!make.IsDone()) {
+        throw user_error("an arc in the profile could not be built");
+    }
+    return make.Edge();
+}
+
+built_loop build_loop(const gp_Ax2 &frame, const occt_loop &loop, bool hole) {
+    if (!loop.segments || loop.segment_count <= 0) {
+        throw user_error(hole ? "a hole in the profile has no segments" : "the profile has no segments");
+    }
+    BRepBuilderAPI_MakeWire wire;
+    built_loop result;
+    for (int k = 0; k < loop.segment_count; ++k) {
+        wire.Add(build_edge(frame, loop.segments[k]));
         if (!wire.IsDone()) {
-            throw user_error("the profile segments do not connect");
+            throw user_error(hole ? "the segments of a hole in the profile do not connect" : "the profile segments do not connect");
         }
         result.edges.push_back(wire.Edge());
     }
-    BRepBuilderAPI_MakeFace face(wire.Wire(), Standard_True);
+    result.wire = wire.Wire();
+    return result;
+}
+
+/// The loop's signed area in plane coordinates, positive when it winds counter-clockwise.
+/// Exact for lines and arcs (Green's theorem, ½∮ x dy − y dx).
+double signed_area(const occt_loop &loop) {
+    double twice = 0;
+    for (int k = 0; k < loop.segment_count; ++k) {
+        const occt_segment &s = loop.segments[k];
+        if (s.kind == 0) {
+            twice += s.x0 * s.y1 - s.x1 * s.y0;
+        } else {
+            twice += s.radius * s.cx * (std::sin(s.end) - std::sin(s.start))
+                - s.radius * s.cy * (std::cos(s.end) - std::cos(s.start))
+                + s.radius * s.radius * (s.end - s.start);
+        }
+    }
+    return twice / 2;
+}
+
+built_profile build_profile(const occt_profile &profile) {
+    if (!profile.loops || profile.loop_count <= 0) {
+        throw user_error("the profile has no segments");
+    }
+    const gp_Ax2 frame = frame_of(profile.plane);
+    const built_loop outer = build_loop(frame, profile.loops[0], false);
+    built_profile result;
+    result.loops.push_back(outer.edges);
+    BRepBuilderAPI_MakeFace face(outer.wire, Standard_True);
     if (!face.IsDone()) {
         throw user_error("the profile is not a closed, flat loop");
     }
+    if (profile.loop_count == 1) {
+        result.face = face.Face();
+        return result;
+    }
+    const bool outer_counter_clockwise = signed_area(profile.loops[0]) > 0;
+    for (int n = 1; n < profile.loop_count; ++n) {
+        const built_loop hole = build_loop(frame, profile.loops[n], true);
+        const double area = signed_area(profile.loops[n]);
+        if (!(std::abs(area) > 1e-12)) {
+            throw user_error("a hole in the profile has no area");
+        }
+        // OCCT needs each hole wire to wind against the outer one (S3 probe). Reversing the wire
+        // keeps its edges, so Generated() still finds the hole walls.
+        const bool same_way = (area > 0) == outer_counter_clockwise;
+        face.Add(same_way ? TopoDS::Wire(hole.wire.Reversed()) : hole.wire);
+        if (!face.IsDone()) {
+            throw user_error("a hole could not be added to the profile");
+        }
+        result.loops.push_back(hole.edges);
+    }
     result.face = face.Face();
+    if (!BRepCheck_Analyzer(result.face).IsValid()) {
+        throw user_error("a hole in the profile is outside the outline or overlaps another loop");
+    }
     return result;
 }
 
@@ -160,8 +219,11 @@ occt_shape *occt_extrude(const occt_profile *profile, double distance, occt_hist
         history_builder records(solid);
         records.add(prism.FirstShape(), OCCT_FROM_START_CAP, 0, 0);
         records.add(prism.LastShape(), OCCT_FROM_END_CAP, 0, 0);
-        for (int k = 0; k < static_cast<int>(built.edges.size()); ++k) {
-            records.add_all(prism.Generated(built.edges[k]), OCCT_FROM_SEGMENT, 0, k);
+        for (int loop = 0; loop < static_cast<int>(built.loops.size()); ++loop) {
+            const std::vector<TopoDS_Edge> &edges = built.loops[loop];
+            for (int k = 0; k < static_cast<int>(edges.size()); ++k) {
+                records.add_all(prism.Generated(edges[k]), OCCT_FROM_SEGMENT, loop, k);
+            }
         }
         records.move_into(history);
         return new occt_shape{solid};
@@ -189,14 +251,17 @@ occt_shape *occt_revolve(const occt_profile *profile, const double axis_origin[3
         history_builder records(solid);
         records.add(revol.FirstShape(), OCCT_FROM_START_CAP, 0, 0); // not part of a full revolve's result; filtered out by history_builder
         records.add(revol.LastShape(), OCCT_FROM_END_CAP, 0, 0);
-        for (int k = 0; k < static_cast<int>(built.edges.size()); ++k) {
-            if (revol.Generated(built.edges[k]).IsEmpty()) {
-                // A full revolution leaves Generated() empty for edges that sweep a planar face. The
-                // underlying sweep still knows them. The const_cast is sound: Revol() returns a const
-                // reference to MakeRevol's non-const member, and Shape(edge) does not mutate it.
-                records.add(const_cast<BRepSweep_Revol &>(revol.Revol()).Shape(built.edges[k]), OCCT_FROM_SEGMENT, 0, k);
-            } else {
-                records.add_all(revol.Generated(built.edges[k]), OCCT_FROM_SEGMENT, 0, k);
+        for (int loop = 0; loop < static_cast<int>(built.loops.size()); ++loop) {
+            const std::vector<TopoDS_Edge> &edges = built.loops[loop];
+            for (int k = 0; k < static_cast<int>(edges.size()); ++k) {
+                if (revol.Generated(edges[k]).IsEmpty()) {
+                    // A full revolution leaves Generated() empty for edges that sweep a planar face. The
+                    // underlying sweep still knows them. The const_cast is sound: Revol() returns a const
+                    // reference to MakeRevol's non-const member, and Shape(edge) does not mutate it.
+                    records.add(const_cast<BRepSweep_Revol &>(revol.Revol()).Shape(edges[k]), OCCT_FROM_SEGMENT, loop, k);
+                } else {
+                    records.add_all(revol.Generated(edges[k]), OCCT_FROM_SEGMENT, loop, k);
+                }
             }
         }
         records.move_into(history);
@@ -214,6 +279,9 @@ occt_shape *occt_loft(const occt_profile *profiles, int count, int ruled, occt_h
         std::vector<built_profile> sections;
         BRepOffsetAPI_ThruSections loft(Standard_True, ruled ? Standard_True : Standard_False);
         for (int i = 0; i < count; ++i) {
+            if (profiles[i].loop_count != 1) {
+                throw user_error("a loft can't use a profile with holes");
+            }
             sections.push_back(build_profile(profiles[i]));
             loft.AddWire(BRepTools::OuterWire(sections.back().face));
         }
@@ -226,7 +294,7 @@ occt_shape *occt_loft(const occt_profile *profiles, int count, int ruled, occt_h
         history_builder records(solid);
         records.add(loft.FirstShape(), OCCT_FROM_START_CAP, 0, 0);
         records.add(loft.LastShape(), OCCT_FROM_END_CAP, 0, 0);
-        const std::vector<TopoDS_Edge> &first = sections.front().edges;
+        const std::vector<TopoDS_Edge> &first = sections.front().loops.front();
         for (int k = 0; k < static_cast<int>(first.size()); ++k) {
             records.add(loft.GeneratedFace(first[k]), OCCT_FROM_SEGMENT, 0, k);
         }
