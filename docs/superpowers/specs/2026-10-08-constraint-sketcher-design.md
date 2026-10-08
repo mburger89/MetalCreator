@@ -131,6 +131,7 @@ Lines and arcs **share endpoint points**, so coincidence at a shared endpoint is
 3. Build a planar graph and walk its faces using the "next edge counter-clockwise" rule, which yields every bounded face.
 4. **Nest:** a face contained in another becomes a hole of it. Islands inside holes are separate regions (even–odd nesting).
 5. Each region becomes `Profile2D(plane:, outer:, holes:)`. Regions are **sorted deterministically** by area descending, then centroid x, then y, so broadcast order is stable.
+   - Each region's **holes are sorted the same way** (area descending, then centroid x, then y). A hole's loop index is its position after sorting plus one (`TopoRole.side(loop:segment:)`, loop 0 = outer), so an unordered hole list would rename hole walls and drift picks on every edit.
 6. Open or dangling curves are ignored, with a node `.warning` such as "2 curves don't form a closed region."
 
 ## 6. Kernel and graph changes
