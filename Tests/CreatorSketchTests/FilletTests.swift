@@ -35,6 +35,75 @@ struct FilletTests {
         #expect(isClose(region.area, 2400 - (25 - 25 * .pi / 4), tolerance: 1e-6))
     }
 
+    @Test(arguments: [60.0, 120.0, 30.0, 150.0])
+    func filletGeometryAtNonRightAnglesMatchesTheClosedForm(degrees: Double) throws {
+        let radius = 2.0
+        let angle = degrees * .pi / 180
+        let direction = Vector2(cos(angle), sin(angle))
+        var sketch = Sketch()
+        let corner = sketch.addPoint(.zero)
+        let firstLine = sketch.addLine(from: corner, to: sketch.addPoint(Vector2(10, 0)))
+        sketch.addLine(from: corner, to: sketch.addPoint(direction * 10))
+        let filleted = try SketchCommands.fillet(sketch, corner: corner, radius: radius).sketch
+        let arc = try #require(filleted.ids(ofKind: "Arc").first)
+        let (center, start, end) = filleted.arcPoints(arc)
+        let centerPosition = try #require(filleted.position(of: center))
+        let startPosition = try #require(filleted.position(of: start))
+        let endPosition = try #require(filleted.position(of: end))
+        let half = angle / 2
+        let setback = radius / tan(half)
+        let bisector = Vector2(cos(half), sin(half))
+        #expect(isClose(centerPosition, bisector * (radius / sin(half))))
+        #expect(isClose(startPosition.length, setback) && isClose(endPosition.length, setback))
+        #expect(isClose(startPosition, Vector2(setback, 0)) || isClose(endPosition, Vector2(setback, 0)))
+        #expect(isClose(startPosition, direction * setback) || isClose(endPosition, direction * setback))
+        // The center is one radius from both lines and from both tangent points.
+        #expect(isClose(abs(centerPosition.y), radius))
+        #expect(isClose(abs(SketchMath.cross(direction, centerPosition)), radius))
+        #expect(isClose((startPosition - centerPosition).length, radius))
+        #expect(isClose((endPosition - centerPosition).length, radius))
+        // The tangent points sit on the (trimmed) lines, which now end there.
+        let trimmedEnd = filleted.ends(firstLine).0
+        #expect(trimmedEnd == start || trimmedEnd == end)
+        // Two lines and a free polyline carry no dimensions, so the solve is usable but not fully constrained.
+        _ = try requireSolvesInPlace(filleted)
+    }
+
+    @Test(arguments: [(60.0, "5.8"), (120.0, "17.3"), (30.0, "2.7")])
+    func tooLargeARadiusAtNonRightAnglesReportsTheAngleDependentMaximum(degrees: Double, largest: String) {
+        let angle = degrees * .pi / 180
+        var sketch = Sketch()
+        let corner = sketch.addPoint(.zero)
+        sketch.addLine(from: corner, to: sketch.addPoint(Vector2(10, 0)))
+        sketch.addLine(from: corner, to: sketch.addPoint(Vector2(cos(angle), sin(angle)) * 10))
+        #expect(throws: SketchCommandError("Radius 30 mm is too large for this corner (max ≈ \(largest) mm).")) {
+            try SketchCommands.fillet(sketch, corner: corner, radius: 30)
+        }
+    }
+
+    @Test func filletingAClockwiseCornerPicksTheShortArc() throws {
+        let rectangle = ConstrainedRectangle(drawnOffset: 0)
+        // Corner 0 (the origin): line 0 then line 3 gives a clockwise short arc.
+        let corner = rectangle.sketch.ends(rectangle.lines[0]).0
+        let edit = try SketchCommands.fillet(rectangle.sketch, corner: corner, radius: 5)
+        let filleted = edit.sketch
+        let arc = try #require(filleted.ids(ofKind: "Arc").first)
+        let (center, start, end) = filleted.arcPoints(arc)
+        let centerPosition = try #require(filleted.position(of: center))
+        let startPosition = try #require(filleted.position(of: start))
+        let endPosition = try #require(filleted.position(of: end))
+        #expect(isClose(centerPosition, Vector2(5, 5)))
+        // Arcs run counter-clockwise from start to end, so the short arc starts on the left edge.
+        #expect(isClose(startPosition, Vector2(0, 5)))
+        #expect(isClose(endPosition, Vector2(5, 0)))
+        #expect(isClose(SketchMath.cross(startPosition - centerPosition, endPosition - centerPosition), 25))
+        let region = try #require(SketchRegions.find(in: filleted).regions.first)
+        #expect(isClose(region.area, 2400 - (25 - 25 * .pi / 4), tolerance: 1e-6))
+        // The fillet removed the origin's fix and both lines' lengths, so the sketch is usable but no longer fully constrained.
+        let solution = try requireSolvesInPlace(filleted)
+        #expect(solution.status == .underConstrained(dof: 4))
+    }
+
     @Test func tooLargeARadiusNamesTheLargestThatFits() {
         var sketch = Sketch()
         let corner = sketch.addPoint(.zero)
