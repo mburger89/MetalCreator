@@ -46,7 +46,7 @@ let package = Package(
             dependencies: ["CreatorEditor", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUI]
         ),
         // The app shell (M6): the one target that joins the graph, the nodes, the viewport and the editor. A library,
-        // so its model is tested.
+        // so its model is tested; the executable below only opens the window.
         .target(
             name: "CreatorApp",
             dependencies: [
@@ -54,6 +54,7 @@ let package = Package(
                 "CreatorStyle", metalUI,
             ]
         ),
+        .executableTarget(name: "MetalCreatorApp", dependencies: ["CreatorApp", "CreatorOCCT", metalUI]),
         // CreatorOCCT is a test-only dependency: the app-level acceptance test runs the §7.2 bracket on OCCT.
         .testTarget(
             name: "CreatorAppTests",
