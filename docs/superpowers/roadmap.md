@@ -44,12 +44,9 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 
 - ✅ Before M3: Edges-by-Tag subset matching; Edges by Direction `abs(dot)` + `kind == .line`; Edge Set Op dedupe; Loft segment-count message; warn on `.unnamed` picks; multi-solid boolean warning.
 - ✅ Before M4: edge polylines from `BRep_Tool::PolygonOnTriangulation`; mesh determinism across calls.
-- ✅ (M6) M6: install the graph's input with `GraphPanelInput.install(on:)` (it chains `onInput`/`onAction` and appends its
-  keymap). Only its `onInput` side composes with M4's `ViewportModifierTracker.install(on:)` in either order: set the
-  viewport's keymap and `onAction` (which M4's harness assigns directly) before `install(on:)`, or append and chain
-  them the same way, or the palette's ↑/↓ bindings and `handleAction` are dropped. Call `releaseTextFocus` on viewport
-  presses too; give M4's viewport keymap bindings a key context (gap M4-a), because window-wide `=`/`+`/`-` bindings run
-  before `onInput` and take the graph's zoom keys; place `GraphPanel` per `EditorModel.dock`,
+- ✅ M6: window input is installed once through `AppInput` (forwarding to the current document);
+  `GraphPanelInput.install(on:)` is only for GraphPanelPreview. Also done: `releaseTextFocus` on viewport presses; give M4's viewport
+  keymap bindings a key context (gap M4-a), because window-wide `=`/`+`/`-` bindings run before `onInput` and take the graph's zoom keys; place `GraphPanel` per `EditorModel.dock`,
   `GraphShowButton` while hidden, and `InspectorPanel` on the right over the viewport; consume
   `EditorModel.inspectorRequest` for "Pick edges in view…" (write the picks as `.edgePicks(…)` under `NodeSetting.picks`);
   pass the real `BuiltInNodes.registry`. Deferred to M6 from spec §6.1/§6.2:
