@@ -13,6 +13,8 @@ struct ViewportFrame {
     var cube: ViewCubeLayout
     var hoveredCubeRegion: ViewCubeRegion?
     var triad: TriadLayout
+    /// The colours to draw in: the model's theme (`ViewportModel.palette`).
+    var palette: ViewportPalette = .dracula
 
     /// Half the scene's diagonal (at least 1 mm), used for depth ranges.
     var sceneRadius: Double { sceneBounds.map { max($0.size.length / 2, 1) } ?? 1 }

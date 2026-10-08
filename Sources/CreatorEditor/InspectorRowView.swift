@@ -1,6 +1,7 @@
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
+import CreatorStyle
 import MetalUI
 
 /// Draws one `InspectorRow` with MetalUI controls bound to the model (spec §6.4).
@@ -8,8 +9,10 @@ struct InspectorRowView: Component {
     let row: InspectorRow
     let model: EditorModel
     let node: NodeID?
+    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
+        let palette = Palette(themes)
         switch row {
         case .slider(let field, let range):
             LabeledRow(label: field.label) {
@@ -78,7 +81,7 @@ struct InspectorRowView: Component {
             if options.isEmpty {
                 LabeledRow(label: field.label) {
                     Spacer()
-                    Text("No parameters").font(.callout).foregroundStyle(Palette.secondaryText.color)
+                    Text("No parameters").font(.callout).foregroundStyle(palette.secondaryText.color)
                 }
             } else {
                 Picker(field.label, selection: Binding(get: { selected }, set: { id in
@@ -93,19 +96,19 @@ struct InspectorRowView: Component {
         case .ruleSummary(let label, let summary):
             LabeledRow(label: label) {
                 Spacer()
-                Text(summary).font(.callout).foregroundStyle(Palette.pink.color)
+                Text(summary).font(.callout).foregroundStyle(palette.selection.color)
             }
         case .button(let title, let action):
             Button(title) { if let node { model.press(action, on: node) } }
         case .wired(let label, let source):
             LabeledRow(label: label) {
                 Spacer()
-                Text(source).font(.callout).foregroundStyle(Palette.secondaryText.color)
+                Text(source).font(.callout).foregroundStyle(palette.secondaryText.color)
             }
         case .readOnly(let label, let text):
             LabeledRow(label: label) {
                 Spacer()
-                Text(text).font(.callout).foregroundStyle(Palette.secondaryText.color)
+                Text(text).font(.callout).foregroundStyle(palette.secondaryText.color)
             }
         }
     }

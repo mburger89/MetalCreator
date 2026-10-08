@@ -11,6 +11,8 @@ final class GPUMesh {
     let faceCount: Int
     private let polylines: [EdgeID: [Vector3]]
     private var edgeBuffers: [EdgeInstanceKey: (buffer: any MTLBuffer, count: Int)] = [:]
+    /// The palette `edgeBuffers` were built in; another one (the theme changed) drops them.
+    private var edgePalette = ViewportPalette.dracula
     private var flagBuffer: (hovered: FaceID?, selected: Set<FaceID>, buffer: any MTLBuffer)?
 
     init(device: any MTLDevice, mesh: DisplayMesh) {
@@ -21,12 +23,16 @@ final class GPUMesh {
         polylines = mesh.edgePolylines
     }
 
-    /// The edge instances for `key`. They're built once and kept: there are only a few keys in use (the main
-    /// pass at one scale, and the ID pass), so a fifth key clears the lot.
-    func edges(_ key: EdgeInstanceKey, device: any MTLDevice) -> (buffer: any MTLBuffer, count: Int)? {
+    /// The edge instances for `key`, in `palette`'s colours. They're built once and kept: there are only a few keys
+    /// in use (the main pass at one scale, and the ID pass), so a fifth key clears the lot, and so does a new palette.
+    func edges(_ key: EdgeInstanceKey, palette: ViewportPalette, device: any MTLDevice) -> (buffer: any MTLBuffer, count: Int)? {
+        if palette != edgePalette {
+            edgeBuffers.removeAll()
+            edgePalette = palette
+        }
         if let cached = edgeBuffers[key] { return cached }
         let instances = GPUGeometry.edgeInstances(polylines, solid: key.solid, selected: key.selected,
-                                                  selectedOnly: key.selectedOnly, scale: key.scale)
+                                                  selectedOnly: key.selectedOnly, scale: key.scale, palette: palette)
         guard let buffer = GPUBuffers.make(device, instances) else { return nil }
         if edgeBuffers.count >= 4 { edgeBuffers.removeAll() }
         edgeBuffers[key] = (buffer, instances.count)

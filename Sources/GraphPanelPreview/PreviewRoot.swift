@@ -9,7 +9,7 @@ struct PreviewRoot: Component {
 
     var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
-            Palette.backgroundBottom.color
+            Palette.dracula.backgroundBottom.color
             switch model.dock {
             case .left:
                 HStack(alignment: .top, spacing: Pixels(12)) {

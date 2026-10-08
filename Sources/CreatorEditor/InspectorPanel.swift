@@ -1,10 +1,12 @@
 import CreatorGraph
+import CreatorStyle
 import MetalUI
 
 /// The context inspector (spec §6.4): the selected node's header and sections, then the document
 /// parameters, which are always listed. The app shell (M6) docks it on the right.
 public struct InspectorPanel: Component {
     public let model: EditorModel
+    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     public init(model: EditorModel) {
         self.model = model
@@ -26,7 +28,7 @@ public struct InspectorPanel: Component {
                 }
                 InspectorSectionView(title: "Document Parameters") {
                     if page.parameters.isEmpty {
-                        Text("No parameters").font(.caption).foregroundStyle(Palette.secondaryText.color)
+                        Text("No parameters").font(.caption).foregroundStyle(Palette(themes).secondaryText.color)
                     }
                     ForEach(page.parameters, id: \.id) { row in
                         ParameterRowView(row: row, model: model)

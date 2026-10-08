@@ -33,11 +33,14 @@ let package = Package(
         .target(name: "CreatorKernel", dependencies: ["CreatorGeometry"]),
         .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry"]),
         .target(name: "CreatorNodes", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
-        .target(name: "CreatorViewport", dependencies: ["CreatorKernel", "CreatorGeometry", metalUI]),
+        // Colour themes (spec §6.6, Dracula by default): the roles, the built-in themes and the `ThemeStore` that
+        // the editor's views and the viewport's GPU colours read.
+        .target(name: "CreatorStyle", dependencies: [metalUI]),
+        .target(name: "CreatorViewport", dependencies: ["CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI]),
         // A dev window for the viewport's human checks (docs/verification/human-checks.md, group V). Not the app (M6).
         .executableTarget(name: "ViewportHarness",
                           dependencies: ["CreatorViewport", "CreatorOCCT", "CreatorKernel", "CreatorGeometry", metalUI]),
-        .target(name: "CreatorEditor", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUI]),
+        .target(name: "CreatorEditor", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI]),
         .executableTarget(
             name: "GraphPanelPreview",
             dependencies: ["CreatorEditor", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUI]
@@ -46,8 +49,11 @@ let package = Package(
         // definitions through the inspector; the CreatorEditor library never imports it.
         .testTarget(
             name: "CreatorEditorTests",
-            dependencies: ["CreatorEditor", "CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorNodes", metalUI]
+            dependencies: [
+                "CreatorEditor", "CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorNodes", "CreatorStyle", metalUI,
+            ]
         ),
+        .testTarget(name: "CreatorStyleTests", dependencies: ["CreatorStyle", metalUI]),
         .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT", "CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
         .testTarget(name: "CreatorSketchTests", dependencies: ["CreatorSketch", "CreatorGeometry"]),
@@ -57,7 +63,7 @@ let package = Package(
                     dependencies: ["CreatorNodes", "CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorOCCT"]),
         // CreatorOCCT is a test-only dependency: the offscreen ID-pass test renders a real OCCT box (spec §8).
         .testTarget(name: "CreatorViewportTests",
-                    dependencies: ["CreatorViewport", "CreatorKernel", "CreatorGeometry", "CreatorOCCT", metalUI]),
+                    dependencies: ["CreatorViewport", "CreatorKernel", "CreatorGeometry", "CreatorOCCT", "CreatorStyle", metalUI]),
     ],
     swiftLanguageModes: [.v6],
     cxxLanguageStandard: .cxx17

@@ -1,4 +1,5 @@
 import CreatorGraph
+import CreatorStyle
 import MetalUI
 
 /// The graph panel (spec §6.2): glass chrome, the header and the canvas, with a refusal message
@@ -7,6 +8,7 @@ import MetalUI
 public struct GraphPanel: Component {
     public let model: EditorModel
     public let input: GraphPanelInput
+    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     public init(model: EditorModel, input: GraphPanelInput) {
         self.model = model
@@ -20,7 +22,7 @@ public struct GraphPanel: Component {
                 GraphCanvas(model: model, input: input)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if let refusal = model.refusal {
-                    Text(refusal.message).font(.caption).foregroundStyle(Palette.statusError.color)
+                    Text(refusal.message).font(.caption).foregroundStyle(Palette(themes).statusError.color)
                 }
             }
         }

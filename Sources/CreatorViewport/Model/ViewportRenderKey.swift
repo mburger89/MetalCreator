@@ -11,4 +11,6 @@ public struct ViewportRenderKey: Hashable, Sendable {
     var sceneGeneration: Int
     var handles: [ViewportHandle]
     var cube: ViewCubeLayout
+    /// The theme's GPU colours: switching themes redraws.
+    var palette: ViewportPalette
 }

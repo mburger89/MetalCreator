@@ -7,8 +7,9 @@ import Metal
 ///   ghosts, handles, the view cube (its face names painted on from a label atlas) and the triad. It renders
 ///   into its own 4× MSAA colour and depth targets, resolved into the MetalView's target.
 /// - The ID pass writes `PickID`s into an `r32Uint` target (edges 6 points wide).
-/// GPU meshes are cached by mesh serial and dropped once a frame no longer shows them. It encodes into the
-/// buffer it's given and never commits it.
+/// GPU meshes are cached by mesh serial and dropped once a frame no longer shows them. Every colour comes from the
+/// frame's palette (the viewport's theme); the buffers that bake colours in are rebuilt when it changes.
+/// It encodes into the buffer it's given and never commits it.
 @MainActor
 final class ViewportRenderer {
     let device: any MTLDevice
@@ -20,6 +21,8 @@ final class ViewportRenderer {
     /// buffers (spec §7.3's 60 fps). The view cube keeps its own.
     private var handleBuffer: (handles: [ViewportHandle], scale: Float, buffer: any MTLBuffer, count: Int)?
     private let cube: ViewCubeResources
+    /// The palette `handleBuffer` was built in.
+    private var handlePalette = ViewportPalette.dracula
     /// Main passes encoded so far. Tests use it to tell "drew" from "bailed out".
     private(set) var encodedPasses = 0
 
@@ -57,12 +60,12 @@ final class ViewportRenderer {
         let pixelScale = Float(scale)
         let uniforms = GPUGeometry.frameUniforms(frame.pose, size: frame.size, sceneRadius: frame.sceneRadius,
                                                  pixelWidth: width, pixelHeight: height)
-        drawBackground(encoder)
+        drawBackground(frame.palette, encoder)
         drawSolids(frame, ghosts: false, uniforms, encoder)
         drawGrid(frame, uniforms, encoder)
         drawEdges(frame, uniforms, scale: pixelScale, encoder)
         drawSolids(frame, ghosts: true, uniforms, encoder)
-        if let handles = handleInstances(frame.handles, scale: pixelScale) {
+        if let handles = handleInstances(for: frame, scale: pixelScale) {
             drawLines(handles.buffer, count: handles.count, uniforms, depth: pipelines.depthAlways, style: Self.plainLines,
                       encoder)
         }
@@ -102,7 +105,7 @@ final class ViewportRenderer {
         let style = LineUniforms(widthOverride: 6, depthBias: Float(edgeDepthBias(frame)), padding0: 0, padding1: 0)
         for item in frame.items {
             let key = EdgeInstanceKey(solid: item.solidIndex, selected: [], selectedOnly: false, scale: 1)
-            guard let edges = meshes[item.meshSerial]?.edges(key, device: device) else { continue }
+            guard let edges = meshes[item.meshSerial]?.edges(key, palette: frame.palette, device: device) else { continue }
             drawLines(edges.buffer, count: edges.count, uniforms, depth: pipelines.depthTest, style: style,
                       pipeline: pipelines.idLine, encoder)
         }
@@ -121,8 +124,8 @@ final class ViewportRenderer {
         encoder.setVertexBytes(&copy, length: MemoryLayout<FrameUniforms>.stride, index: 1)
     }
 
-    private func drawBackground(_ encoder: any MTLRenderCommandEncoder) {
-        var colors = BackgroundUniforms(top: ViewportPalette.backgroundTop, bottom: ViewportPalette.backgroundBottom)
+    private func drawBackground(_ palette: ViewportPalette, _ encoder: any MTLRenderCommandEncoder) {
+        var colors = BackgroundUniforms(top: palette.backgroundTop, bottom: palette.backgroundBottom)
         encoder.setRenderPipelineState(pipelines.background)
         encoder.setDepthStencilState(pipelines.depthAlways)
         encoder.setFragmentBytes(&colors, length: MemoryLayout<BackgroundUniforms>.stride, index: 0)
@@ -137,7 +140,7 @@ final class ViewportRenderer {
         let items = frame.items.filter { $0.isGhost == ghosts }
         guard !items.isEmpty else { return }
         bind(uniforms, encoder)
-        var shade = ShadeUniforms.palette
+        var shade = ShadeUniforms(frame.palette)
         encoder.setFragmentBytes(&shade, length: MemoryLayout<ShadeUniforms>.stride, index: 2)
         if ghosts {
             encoder.setRenderPipelineState(pipelines.ghostDepth)
@@ -178,14 +181,18 @@ final class ViewportRenderer {
         }
     }
 
-    private func handleInstances(_ handles: [ViewportHandle], scale: Float) -> (buffer: any MTLBuffer, count: Int)? {
-        if let cached = handleBuffer, cached.handles == handles, cached.scale == scale { return (cached.buffer, cached.count) }
-        let instances = GPUGeometry.handleInstances(handles, scale: scale)
+    /// The frame's handles in its palette, kept until the handles, the scale or the palette change.
+    private func handleInstances(for frame: ViewportFrame, scale: Float) -> (buffer: any MTLBuffer, count: Int)? {
+        if let cached = handleBuffer, cached.handles == frame.handles, cached.scale == scale, handlePalette == frame.palette {
+            return (cached.buffer, cached.count)
+        }
+        handlePalette = frame.palette
+        let instances = GPUGeometry.handleInstances(frame.handles, scale: scale, palette: frame.palette)
         guard let buffer = GPUBuffers.make(device, instances) else {
             handleBuffer = nil
             return nil
         }
-        handleBuffer = (handles, scale, buffer, instances.count)
+        handleBuffer = (frame.handles, scale, buffer, instances.count)
         return (buffer, instances.count)
     }
 
@@ -207,7 +214,7 @@ final class ViewportRenderer {
         for item in frame.items where !item.isGhost && (!selectedOnly || !item.selectedEdges.isEmpty) {
             let key = EdgeInstanceKey(solid: item.solidIndex, selected: item.selectedEdges, selectedOnly: selectedOnly,
                                       scale: scale)
-            guard let edges = meshes[item.meshSerial]?.edges(key, device: device) else { continue }
+            guard let edges = meshes[item.meshSerial]?.edges(key, palette: frame.palette, device: device) else { continue }
             drawLines(edges.buffer, count: edges.count, uniforms, depth: pipelines.depthTest, style: style, encoder)
         }
     }
@@ -234,7 +241,7 @@ final class ViewportRenderer {
         let y = layout.origin.y * scale
         let side = layout.side * scale
         guard x >= 0, y >= 0, x + side <= Double(width), y + side <= Double(height),
-              let tiles = cube.vertices(hovered: frame.hoveredCubeRegion, pose: frame.pose) else { return }
+              let tiles = cube.vertices(hovered: frame.hoveredCubeRegion, pose: frame.pose, palette: frame.palette) else { return }
         encoder.setViewport(MTLViewport(originX: x, originY: y, width: side, height: side, znear: 0, zfar: 1))
         let uniforms = GPUGeometry.frameUniforms(layout.widgetPose(frame.pose), size: layout.widgetSize, sceneRadius: 2,
                                                  pixelWidth: Int(side), pixelHeight: Int(side))
@@ -244,7 +251,7 @@ final class ViewportRenderer {
         encoder.setCullMode(.back)
         encoder.setVertexBuffer(tiles.buffer, offset: 0, index: 0)
         bind(uniforms, encoder)
-        var ink = ViewportPalette.cubeLabel
+        var ink = frame.palette.cubeLabel
         encoder.setFragmentBytes(&ink, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
         encoder.setFragmentTexture(labels, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tiles.count)
@@ -259,7 +266,7 @@ final class ViewportRenderer {
         let x = origin.x * scale
         let y = origin.y * scale
         let side = triad.side * scale
-        let instances = GPUGeometry.triadInstances(scale: Float(scale))
+        let instances = GPUGeometry.triadInstances(scale: Float(scale), palette: frame.palette)
         guard x >= 0, y >= 0, x + side <= Double(width), y + side <= Double(height),
               let buffer = GPUBuffers.make(device, instances) else { return }
         encoder.setViewport(MTLViewport(originX: x, originY: y, width: side, height: side, znear: 0, zfar: 1))

@@ -8,16 +8,20 @@ final class ViewCubeResources {
     private let device: any MTLDevice
     private var tiles: (hovered: ViewCubeRegion?, pose: CameraPose, buffer: any MTLBuffer, count: Int)?
     private var labels: (any MTLTexture)?
+    /// The palette `tiles` were built in.
+    private var tilesPalette = ViewportPalette.dracula
 
     init(device: any MTLDevice) {
         self.device = device
     }
 
-    func vertices(hovered: ViewCubeRegion?, pose: CameraPose) -> (buffer: any MTLBuffer, count: Int)? {
-        if let tiles, tiles.hovered == hovered, tiles.pose == pose { return (tiles.buffer, tiles.count) }
-        let vertices = GPUGeometry.cubeVertices(hovered: hovered, pose: pose)
+    /// The tiles in `palette`'s colours, rebuilt when the hover, the camera or the palette (the theme) changes.
+    func vertices(hovered: ViewCubeRegion?, pose: CameraPose, palette: ViewportPalette) -> (buffer: any MTLBuffer, count: Int)? {
+        if let tiles, tiles.hovered == hovered, tiles.pose == pose, tilesPalette == palette { return (tiles.buffer, tiles.count) }
+        let vertices = GPUGeometry.cubeVertices(hovered: hovered, pose: pose, palette: palette)
         guard let buffer = GPUBuffers.make(device, vertices) else { return nil }
         tiles = (hovered, pose, buffer, vertices.count)
+        tilesPalette = palette
         return (buffer, vertices.count)
     }
 

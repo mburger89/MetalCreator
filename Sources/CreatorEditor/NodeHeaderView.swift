@@ -1,4 +1,5 @@
 import CreatorGraph
+import CreatorStyle
 import MetalUI
 
 /// A node's header strip: dark text on the category colour, the status badge at the right.
@@ -6,12 +7,13 @@ struct NodeHeaderView: Component {
     let title: String
     let accent: HexColor
     let state: NodeState?
+    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
         HStack(spacing: Pixels(6)) {
             Text(title)
                 .font(.system(.caption, weight: .semibold))
-                .foregroundStyle(Palette.textOnAccent.color)
+                .foregroundStyle(Palette(themes).textOnAccent.color)
             Spacer()
             StatusBadgeView(state: state)
         }

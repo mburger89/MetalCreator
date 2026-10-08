@@ -1,5 +1,6 @@
 import CreatorGeometry
 import CreatorKernel
+import CreatorStyle
 import Foundation
 import Observation
 
@@ -21,6 +22,9 @@ public final class ViewportModel {
         }
     }
     public var shading: ShadingMode = .shadedEdges
+    /// The colour theme the viewport draws in (spec §6.6). The app shell sets it from its `ThemeStore`; a change is
+    /// drawn on the next frame, because the GPU colours (`palette`) are part of `renderKey`.
+    public var theme: ColorTheme = .dracula
     public var cubeLayout = ViewCubeLayout()
     public var triadLayout = TriadLayout()
     /// Display tolerance in mm. Meshes are cached per solid and tolerance. A change applies at the next `show(_:)`.
@@ -69,11 +73,14 @@ public final class ViewportModel {
 
     public var isAnimating: Bool { animation != nil }
 
+    /// `theme`'s colours as the GPU takes them.
+    var palette: ViewportPalette { ViewportPalette(theme) }
+
     /// What the drawing depends on. `ViewportView` passes it as the `MetalView`'s `value:`.
     public var renderKey: ViewportRenderKey {
         ViewportRenderKey(pose: pose, isAnimating: isAnimating, shading: shading, hovered: hovered,
                           hoveredCubeRegion: hoveredCubeRegion, sceneGeneration: sceneGeneration, handles: handles,
-                          cube: cubeLayout)
+                          cube: cubeLayout, palette: palette)
     }
 
     /// The union of every shown solid's bounds, ghosts included.

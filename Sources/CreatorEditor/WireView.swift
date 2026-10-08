@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorStyle
 import MetalUI
 
 /// One wire: a stroked `WireShape` in a frame just big enough for the curve, offset to its

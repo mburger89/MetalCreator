@@ -1,5 +1,6 @@
 import CreatorGeometry
 import CreatorGraph
+import CreatorStyle
 import MetalUI
 
 /// One node on the canvas (spec §6.2): a header in its category colour with the name and status
@@ -16,10 +17,12 @@ struct NodeView: Component {
     let shake: Double
     /// Drawn at reduced opacity: an ⌥-drag ghost.
     var isGhost = false
+    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
         let size = NodeLayout.size(shape)
-        let accent = Palette.header(for: shape.category)
+        let palette = Palette(themes)
+        let accent = palette.header(for: shape.category)
         let corner = RoundedRectangle(cornerRadius: Pixels(6))
         return VStack(alignment: .leading, spacing: Pixels(0)) {
             NodeHeaderView(title: shape.isMissing ? "Missing: \(shape.title)" : shape.title, accent: accent, state: state)
@@ -32,10 +35,10 @@ struct NodeView: Component {
                            bottom: NodeLayout.bodyPadding.px, left: Pixels(10)))
         }
         .frame(width: size.x.px, height: size.y.px, alignment: .topLeading)
-        .background(Palette.nodeBody.color, in: corner)
+        .background(palette.nodeBody.color, in: corner)
         .clipShape(corner)
         .overlay {
-            corner.strokeBorder(isSelected ? accent.color : Palette.hairline.color,
+            corner.strokeBorder(isSelected ? accent.color : palette.hairline.color,
                                 lineWidth: Pixels(isSelected ? 2 : 1))
         }
         .shadow(color: accent.opacity(isSelected ? 0.7 : 0).color, radius: Pixels(isSelected ? 10 : 0))

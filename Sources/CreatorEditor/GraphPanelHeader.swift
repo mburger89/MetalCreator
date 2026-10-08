@@ -1,14 +1,16 @@
 import CreatorGraph
+import CreatorStyle
 import MetalUI
 
 /// The graph panel's header: the title, dock buttons (Left, Bottom, Hide), zoom buttons (the
 /// stopgap for pinch and ⌘-scroll, docs/metalui-gaps.md) and Add, which opens the palette.
 struct GraphPanelHeader: Component {
     let model: EditorModel
+    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
         HStack(spacing: Pixels(6)) {
-            Text("Graph").font(.headline).foregroundStyle(Palette.primaryText.color)
+            Text("Graph").font(.headline).foregroundStyle(Palette(themes).primaryText.color)
             Spacer()
             Button("Add") { model.openPalette() }
                 .help("Add a node (Space)")

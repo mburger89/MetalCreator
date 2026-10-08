@@ -10,7 +10,7 @@ extension ViewportView {
             surface(model: model, modifiers: modifiers)
             for label in model.handleLabels() {
                 ProposalText(label.text)
-                    .foregroundStyle(ViewportPalette.labelColor)
+                    .foregroundStyle(model.labelColor)
                     .font(.caption)
                     .frame(width: Pixels(96), height: Pixels(18), alignment: .leading)
                     .offset(x: Pixels(Float(label.position.x)), y: Pixels(Float(label.position.y - 9)))
@@ -23,7 +23,7 @@ extension ViewportView {
         }
         .overlay(alignment: .bottomTrailing) {
             ProposalText(model.gridLabel)
-                .foregroundStyle(ViewportPalette.hintColor)
+                .foregroundStyle(model.hintColor)
                 .font(.caption)
                 .padding(Edges(all: Pixels(12)))
                 .allowsHitTesting(false)
@@ -72,7 +72,7 @@ extension ViewportView {
         ZStack(alignment: .topLeading) {
             for label in model.triadLabels() {
                 ProposalText(label.text)
-                    .foregroundStyle(ViewportPalette.labelColor)
+                    .foregroundStyle(model.labelColor)
                     .font(.caption)
                     .frame(width: Pixels(16), height: Pixels(18))
                     .offset(x: Pixels(Float(label.position.x - 8)), y: Pixels(Float(label.position.y - 9)))

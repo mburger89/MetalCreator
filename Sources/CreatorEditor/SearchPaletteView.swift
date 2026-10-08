@@ -1,3 +1,4 @@
+import CreatorStyle
 import MetalUI
 
 /// The add-node palette: a search field (focused when it opens) and the matching types, the
@@ -5,6 +6,7 @@ import MetalUI
 struct SearchPaletteView: Component {
     let model: EditorModel
     @FocusState var searchFocused: Bool
+    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
         let entries = model.paletteEntries
@@ -22,7 +24,7 @@ struct SearchPaletteView: Component {
                     }
                 }
                 if entries.isEmpty {
-                    Text("No matching nodes").font(.caption).foregroundStyle(Palette.secondaryText.color)
+                    Text("No matching nodes").font(.caption).foregroundStyle(Palette(themes).secondaryText.color)
                 }
             }
             .frame(width: Pixels(220), alignment: .topLeading)

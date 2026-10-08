@@ -57,9 +57,9 @@ struct GPUDataTests {
         #expect(instances.count == 12)
         #expect(instances.map(\.id).compactMap(PickID.decode).count == 12)
         #expect(PickID.decode(instances[1].id) == .edge(solid: 2, EdgeID(1)))
-        #expect(instances[1].color == ViewportPalette.selection)
+        #expect(instances[1].color == ViewportPalette.dracula.selection)
         #expect(instances[1].width == 5)
-        #expect(instances[0].color == ViewportPalette.edge)
+        #expect(instances[0].color == ViewportPalette.dracula.edge)
         #expect(instances[0].width == 2.5)
         let selectedOnly = GPUGeometry.edgeInstances(mesh.edgePolylines, solid: 0, selected: [EdgeID(1)], selectedOnly: true, scale: 1)
         #expect(selectedOnly.count == 1)
@@ -77,12 +77,12 @@ struct GPUDataTests {
         let lines = GPUGeometry.handleInstances([handle], scale: 1)
         #expect(lines.count == 2)
         #expect(lines[1].a == lines[1].b, "the knob is a square drawn from a zero-length line")
-        #expect(lines.allSatisfy { $0.color == ViewportPalette.feature })
+        #expect(lines.allSatisfy { $0.color == ViewportPalette.dracula.feature })
     }
 
     @Test func theCubeIsSixVerticesPerTileAndHighlightsTheHoveredRegion() {
         func isCyan(_ vertex: CubeVertex) -> Bool {
-            vertex.color.x == ViewportPalette.hover.x && vertex.color.z == ViewportPalette.hover.z
+            vertex.color.x == ViewportPalette.dracula.hover.x && vertex.color.z == ViewportPalette.dracula.hover.z
         }
         func firstVertex(of region: ViewCubeRegion, in vertices: [CubeVertex]) -> CubeVertex {
             vertices[(ViewCubeCell.all.firstIndex { $0.region == region } ?? 0) * 6]
@@ -99,7 +99,7 @@ struct GPUDataTests {
 
     @Test func theCubeTintsTheRegionTheCameraLooksFrom() {
         func isCyan(_ vertex: CubeVertex) -> Bool {
-            vertex.color.x == ViewportPalette.hover.x && vertex.color.z == ViewportPalette.hover.z
+            vertex.color.x == ViewportPalette.dracula.hover.x && vertex.color.z == ViewportPalette.dracula.hover.z
         }
         let tile = (ViewCubeCell.all.firstIndex { $0.region == .front } ?? 0) * 6
         let front = GPUGeometry.cubeVertices(hovered: nil, pose: CameraPose(target: .zero, distance: 10, yaw: 0, pitch: 0))

@@ -22,16 +22,17 @@ enum GPUGeometry {
         return vertices
     }
 
-    /// One instance per polyline segment, in edge-ID order. Selected edges are pink and twice as wide (spec §6.3).
-    /// With `selectedOnly`, only selected edges are kept ("Shaded" mode still shows the rule's edges).
+    /// One instance per polyline segment, in edge-ID order. Selected edges are in the selection colour (pink in
+    /// Dracula) and twice as wide (spec §6.3). With `selectedOnly`, only selected edges are kept ("Shaded" mode
+    /// still shows the rule's edges).
     static func edgeInstances(_ polylines: [EdgeID: [Vector3]], solid: Int, selected: Set<EdgeID>,
-                              selectedOnly: Bool, scale: Float) -> [LineInstance] {
+                              selectedOnly: Bool, scale: Float, palette: ViewportPalette = .dracula) -> [LineInstance] {
         var instances: [LineInstance] = []
         for edge in polylines.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             let isSelected = selected.contains(edge)
             guard isSelected || !selectedOnly, let points = polylines[edge], points.count >= 2 else { continue }
             let id = PickID.encode(.edge(solid: solid, edge)) ?? 0
-            let color = isSelected ? ViewportPalette.selection : ViewportPalette.edge
+            let color = isSelected ? palette.selection : palette.edge
             let width = (isSelected ? 2.5 : 1.25) * scale
             for (a, b) in zip(points, points.dropFirst()) {
                 instances.append(LineInstance(a: float3(a), b: float3(b), color: color, width: width, id: id))
@@ -41,9 +42,9 @@ enum GPUGeometry {
     }
 
     /// A shaft from the anchor to the knob, and a square knob, in the handle's category colour.
-    static func handleInstances(_ handles: [ViewportHandle], scale: Float) -> [LineInstance] {
+    static func handleInstances(_ handles: [ViewportHandle], scale: Float, palette: ViewportPalette = .dracula) -> [LineInstance] {
         handles.flatMap { handle -> [LineInstance] in
-            let color = handle.tint == .feature ? ViewportPalette.feature : ViewportPalette.solid
+            let color = handle.tint == .feature ? palette.feature : palette.solid
             let anchor = float3(handle.anchor)
             let knob = float3(handle.knob)
             return [LineInstance(a: anchor, b: knob, color: color, width: 2 * scale, id: 0),
@@ -53,23 +54,22 @@ enum GPUGeometry {
     }
 
     /// The triad's three axes in widget units.
-    static func triadInstances(scale: Float) -> [LineInstance] {
+    static func triadInstances(scale: Float, palette: ViewportPalette = .dracula) -> [LineInstance] {
         let length = Float(TriadLayout.axisLength)
         let axes: [(SIMD3<Float>, SIMD4<Float>)] = [
-            (SIMD3(length, 0, 0), ViewportPalette.axisX), (SIMD3(0, length, 0), ViewportPalette.axisY),
-            (SIMD3(0, 0, length), ViewportPalette.axisZ),
+            (SIMD3(length, 0, 0), palette.axisX), (SIMD3(0, length, 0), palette.axisY), (SIMD3(0, 0, length), palette.axisZ),
         ]
         return axes.map { LineInstance(a: .zero, b: $0.0, color: $0.1, width: 2 * scale, id: 0) }
     }
 
     /// Two triangles per tile. Face centres are lighter than edges and corners, and tiles facing the camera are
-    /// brighter. Cyan marks the hovered region and the active one, the region the camera looks straight from
+    /// brighter. The focus colour (cyan in Dracula) marks the hovered region and the active one, the region the camera looks straight from
     /// (spec §6.6: "view-cube hover and active face").
     ///
     /// Every tile also carries its face's name: the name's atlas rect and each corner's place in the face's text
     /// box (`CubeLabelMapping`). The text box spans most of the face, so it runs across the face's edge and corner
     /// tiles too; a name confined to the centre tile (a third of the face) would be too small to read.
-    static func cubeVertices(hovered: ViewCubeRegion?, pose: CameraPose) -> [CubeVertex] {
+    static func cubeVertices(hovered: ViewCubeRegion?, pose: CameraPose, palette: ViewportPalette = .dracula) -> [CubeVertex] {
         var vertices: [CubeVertex] = []
         vertices.reserveCapacity(ViewCubeCell.all.count * 6)
         let toEye = pose.toEye
@@ -77,10 +77,10 @@ enum GPUGeometry {
             let base: SIMD4<Float>
             let light: Float
             if cell.region == hovered || cell.region.direction.dot(toEye) > activeRegionCosine {
-                base = ViewportPalette.hover
+                base = palette.hover
                 light = 1
             } else {
-                base = cell.region.kind == .face ? ViewportPalette.cubeFace : ViewportPalette.cubeRim
+                base = cell.region.kind == .face ? palette.cubeFace : palette.cubeRim
                 light = Float(0.7 + 0.3 * max(0, cell.normal.dot(pose.toEye)))
             }
             let color = SIMD4<Float>(base.x * light, base.y * light, base.z * light, 1)
@@ -124,6 +124,6 @@ enum GPUGeometry {
                                   Float((frame.pose.target.y / major).rounded() * major))
         let extent = max(frame.pose.visibleHeight * 6, frame.sceneRadius * 6, major * 2)
         return GridUniforms(center: center, extent: Float(extent), spacing: Float(spacing),
-                            minorColor: ViewportPalette.gridMinor, majorColor: ViewportPalette.gridMajor)
+                            minorColor: frame.palette.gridMinor, majorColor: frame.palette.gridMajor)
     }
 }

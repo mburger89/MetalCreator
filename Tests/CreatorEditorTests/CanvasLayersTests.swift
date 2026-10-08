@@ -14,7 +14,7 @@ struct CanvasLayersTests {
         #expect(wires.count == 1)
         #expect(wires.first?.geometry.start == Vector2(168, 120))
         #expect(wires.first?.geometry.end == Vector2(300, 40))
-        #expect(wires.first?.color == Palette.socket(.profile))
+        #expect(wires.first?.color == Palette.dracula.socket(.profile))
     }
 
     @Test func nodeRowsShowUnwiredValuesOnly() {

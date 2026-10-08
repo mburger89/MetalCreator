@@ -1,5 +1,6 @@
 import CreatorGeometry
 import CreatorGraph
+import CreatorStyle
 import MetalUI
 
 /// Everything drawn under the canvas transform, back to front: wires, nodes, ⌥-drag ghosts, the
@@ -7,11 +8,13 @@ import MetalUI
 /// applies zoom and pan as render effects.
 struct CanvasLayers: Component {
     let model: EditorModel
+    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
         let flow = model.flow
+        let palette = Palette(themes)
         return ZStack(alignment: .topLeading) {
-            ForEach(Self.wires(model), id: \.id) { wire in
+            ForEach(Self.wires(model, palette: palette), id: \.id) { wire in
                 WireView(geometry: wire.geometry, color: wire.color)
             }
             ForEach(model.drawOrder, id: \.id) { node in
@@ -32,7 +35,7 @@ struct CanvasLayers: Component {
                 let geometry = drag.from.isInput
                     ? WireGeometry(from: drag.current, to: anchor, flow: flow)
                     : WireGeometry(from: anchor, to: drag.current, flow: flow)
-                WireView(geometry: geometry, color: Palette.focus)
+                WireView(geometry: geometry, color: palette.focus)
             }
             if case .boxSelecting(let start, let current, _)? = model.interaction {
                 BoxSelectionView(rect: CanvasRect(corner: start, current))
@@ -46,8 +49,8 @@ struct CanvasLayers: Component {
         var color: HexColor
     }
 
-    /// Every wire whose two sockets are on the canvas, coloured by its source socket's type.
-    static func wires(_ model: EditorModel) -> [Wire] {
+    /// Every wire whose two sockets are on the canvas, coloured by its source socket's type in `palette`.
+    static func wires(_ model: EditorModel, palette: Palette = .dracula) -> [Wire] {
         model.graph.links.compactMap { link in
             let from = SocketRef(link.from, isInput: false), to = SocketRef(link.to, isInput: true)
             guard let start = model.anchor(of: from), let end = model.anchor(of: to),
@@ -55,7 +58,7 @@ struct CanvasLayers: Component {
             let type = model.shape(of: source).outputs.first { $0.name == link.from.socket }?.type
             return Wire(id: "\(link.to.node.rawValue.uuidString).\(link.to.socket.rawValue)",
                         geometry: WireGeometry(from: start, to: end, flow: model.flow),
-                        color: type.map(Palette.socket) ?? Palette.secondaryText)
+                        color: type.map(palette.socket) ?? palette.secondaryText)
         }
     }
 

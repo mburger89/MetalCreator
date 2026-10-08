@@ -16,7 +16,7 @@ extension ViewportModel {
         }
         return ViewportFrame(pose: shown, size: viewSize, sceneBounds: sceneBounds, items: frameItems, shading: shading,
                              gridSpacing: gridSpacing(for: shown), handles: handles, cube: cubeLayout,
-                             hoveredCubeRegion: hoveredCubeRegion, triad: triadLayout)
+                             hoveredCubeRegion: hoveredCubeRegion, triad: triadLayout, palette: palette)
     }
 
     /// 1, 10 or 100 mm for this pose in this view.

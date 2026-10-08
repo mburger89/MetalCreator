@@ -1,20 +1,24 @@
+import CreatorStyle
 import MetalUI
 
-/// Glass chrome for floating panels (spec §6.1, §6.6): `#21222c` at 86%, a 1-pt `#ffffff1f`
-/// hairline and rounded corners. The background blur is a MetalUI gap (materials and `.blur`
-/// are not offered; docs/metalui-gaps.md), so the panel is translucent without blur.
+/// Glass chrome for floating panels (spec §6.1, §6.6): the theme's glass fill (`#21222c` at 86% in
+/// Dracula), its 1-pt hairline (`#ffffff1f`) and rounded corners. The background blur is a MetalUI
+/// gap (materials and `.blur` are not offered; docs/metalui-gaps.md), so the panel is translucent
+/// without blur.
 struct GlassPanel<Body: ElementGroup>: Component {
     let body: Body
+    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     init(@ElementBuilder _ body: () -> Body) {
         self.body = body()
     }
 
     var content: some ElementGroup {
+        let palette = Palette(themes)
         let shape = RoundedRectangle(cornerRadius: Pixels(10))
         return ZStack(alignment: .topLeading) { body }
             .padding(Edges(all: Pixels(10)))
-            .background(Palette.glass.color, in: shape)
-            .overlay { shape.strokeBorder(Palette.hairline.color, lineWidth: Pixels(1)) }
+            .background(palette.glass.color, in: shape)
+            .overlay { shape.strokeBorder(palette.hairline.color, lineWidth: Pixels(1)) }
     }
 }
