@@ -55,6 +55,8 @@ public final class EditorModel {
 
     public func setDock(_ dock: DockSide) {
         if dock != .hidden { lastVisibleDock = dock }
+        // The canvas moves or unmounts, so its last hover location no longer says where the pointer is.
+        if dock != document.viewState.dock { pointerLocation = nil }
         document.viewState.dock = dock
     }
 

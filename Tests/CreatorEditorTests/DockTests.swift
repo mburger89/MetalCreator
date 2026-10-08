@@ -24,6 +24,16 @@ struct DockTests {
         #expect(editor.dock == .bottom)
     }
 
+    @Test func changingTheDockForgetsTheHoverLocation() {
+        let editor = makeEditor([], dock: .bottom)
+        editor.pointerLocation = Vector2(10, 10)
+        editor.toggleHidden()
+        #expect(editor.pointerLocation == nil)
+        editor.pointerLocation = Vector2(10, 10)
+        editor.setDock(.hidden)
+        #expect(editor.pointerLocation == Vector2(10, 10))
+    }
+
     @Test func aDocumentSavedHiddenShowsOnTheLeft() {
         let editor = makeEditor([], dock: .hidden)
         editor.toggleHidden()
