@@ -221,8 +221,20 @@ enum SinkNode: NodeDefinition {
     }
 }
 
+/// Produces `sometimes` only when `flag` is true; `sometimes` is an optional output.
+enum OptionalOutputNode: NodeDefinition {
+    static let typeID = "test.optionalOutput"
+    static let displayName = "Optional Output"
+    static let category = NodeCategory.value
+    static let inputs = [SocketSpec("flag", .bool, defaultValue: .bool(false))]
+    static let outputs = [SocketSpec("always", .number), SocketSpec("sometimes", .number, optional: true)]
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        try inputs.bool("flag") ? NodeOutputs(["always": .number(1), "sometimes": .number(2)]) : NodeOutputs(["always": .number(1)])
+    }
+}
+
 let testRegistry = NodeRegistry([
     ConstantNode.self, IntegerNode.self, AddNode.self, RequiredNode.self, SumListNode.self, ListSourceNode.self,
     FailNode.self, WarnNode.self, SlowNode.self, StubbornNode.self, HangingNode.self, CancelsTaskNode.self, ParameterNode.self, BoxNode.self, VersionedNode.self,
-    SinkNode.self,
+    SinkNode.self, OptionalOutputNode.self,
 ])

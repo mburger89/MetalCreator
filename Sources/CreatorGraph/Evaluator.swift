@@ -92,9 +92,11 @@ public actor Evaluator {
 
         for spec in definition.inputs {
             if let link = graph.incomingLink(to: Endpoint(node: node.id, socket: spec.name)) {
-                guard let upstream = results[link.from.node], upstream.state.isSuccess,
-                      let value = upstream.outputs?[link.from.socket] else {
+                guard let upstream = results[link.from.node], upstream.state.isSuccess, let outputs = upstream.outputs else {
                     return .blocked("Waiting on “\(spec.name)”: the node wired into it has no result.")
+                }
+                guard let value = outputs[link.from.socket] else {
+                    return .failed("“\(spec.name)” is wired to “\(link.from.socket)”, which that node doesn't produce with its current settings.")
                 }
                 guard let converted = value.converted(to: spec.type) else {
                     return .failed("“\(spec.name)” needs a \(spec.type.rawValue).")
@@ -125,6 +127,7 @@ public actor Evaluator {
         let start = clock.now
         var collected: [SocketName: [Scalar]] = [:]
         var producedList: Set<SocketName> = []
+        var absent: Set<SocketName> = []
         var warnings: [String] = []
         do {
             for item in 0..<plan.iterations {
@@ -137,6 +140,8 @@ public actor Evaluator {
                         producedList.insert(spec.name)
                     } else if let scalar = outputs.values[spec.name] {
                         collected[spec.name, default: []].append(scalar)
+                    } else if spec.isOptional {
+                        absent.insert(spec.name)
                     } else {
                         throw NodeError.invalidValue("The node didn't produce its “\(spec.name)” output.")
                     }
@@ -152,7 +157,8 @@ public actor Evaluator {
         }
 
         var outputs: [SocketName: Value] = [:]
-        for spec in definition.outputs {
+        // An optional output that any iteration left out is absent from the result.
+        for spec in definition.outputs where !absent.contains(spec.name) {
             let scalars = collected[spec.name] ?? []
             if plan.isSingle, !producedList.contains(spec.name), let only = scalars.first, scalars.count == 1 {
                 outputs[spec.name] = .one(only)

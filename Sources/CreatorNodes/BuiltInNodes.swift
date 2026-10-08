@@ -3,7 +3,7 @@ import CreatorGraph
 /// The node types of the vertical slice (spec §7.1), in palette order.
 public enum BuiltInNodes {
     public static let all: [any NodeDefinition.Type] = [
-        NumberNode.self, IntegerNode.self, VectorNode.self, PlaneNode.self,
+        NumberNode.self, IntegerNode.self, VectorNode.self, PlaneNode.self, GraphParameterNode.self,
     ]
 
     /// Create nodes with `registry.makeNode(_:at:)`: it seeds `defaultSettings` and flags
