@@ -33,8 +33,9 @@ extension EditorModel {
         endPress()
     }
 
-    /// A press began. Ends any slider drag's undo step and closes the palette.
+    /// A press began. Commits a typed inspector value, ends any slider drag's undo step and closes the palette.
     public func pointerPressed(at screen: Vector2) {
+        commitPendingEntry()
         document.endCoalescing()
         palette = nil
         beginPress(at: screen)

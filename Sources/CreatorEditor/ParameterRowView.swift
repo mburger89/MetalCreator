@@ -21,7 +21,7 @@ struct ParameterRowView: Component {
         }
         return LabeledRow(label: parameter.name) {
             Slider(value: Binding(get: { number }, set: { write($0, true) }), in: row.range)
-            NumberEntry(text: ValueText.format(number, unit: .none)) { write($0, false) }
+            NumberEntry(model: model, text: ValueText.format(number, unit: .none)) { write($0, false) }
         }
     }
 }

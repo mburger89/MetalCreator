@@ -19,7 +19,7 @@ struct InspectorRowView: Component {
                 Slider(value: Binding(get: { field.number ?? range.lowerBound },
                                       set: { model.setNumber(field, to: $0, continuous: true) }),
                        in: range)
-                NumberEntry(text: ValueText.format(field.value, unit: field.unit)) {
+                NumberEntry(model: model, text: ValueText.format(field.value, unit: field.unit)) {
                     model.setNumber(field, to: $0)
                 }
             }
@@ -28,7 +28,7 @@ struct InspectorRowView: Component {
             // An optional input shows "Not set" while unset, and emptying the field clears it.
             LabeledRow(label: field.label) {
                 Spacer()
-                NumberEntry(text: Self.text(field), placeholder: field.isOptional ? "Not set" : "Value",
+                NumberEntry(model: model, text: Self.text(field), placeholder: field.isOptional ? "Not set" : "Value",
                             clear: Self.clear(field, model)) {
                     model.setNumber(field, to: $0)
                 }
@@ -66,8 +66,8 @@ struct InspectorRowView: Component {
             LabeledRow(label: field.label) {
                 Spacer()
                 ForEach(0..<3) { axis in
-                    NumberEntry(text: Self.text(field, axis: axis), placeholder: field.isOptional ? "–" : "Value", width: 52,
-                                clear: Self.clear(field, model)) {
+                    NumberEntry(model: model, text: Self.text(field, axis: axis), placeholder: field.isOptional ? "–" : "Value",
+                                width: 52, clear: Self.clear(field, model)) {
                         model.setVectorComponent(field, axis: axis, to: $0)
                     }
                 }

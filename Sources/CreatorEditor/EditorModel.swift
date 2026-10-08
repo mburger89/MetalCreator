@@ -11,10 +11,13 @@ import Observation
 public final class EditorModel {
     public let document: DocumentModel
 
-    /// Selected nodes. Changing it ends any slider drag's undo coalescing.
+    /// Selected nodes. Changing it commits a typed but uncommitted inspector value (to the node it was typed
+    /// for) and ends any slider drag's undo coalescing.
     public var selection: Set<NodeID> = [] {
         didSet {
-            if selection != oldValue { document.endCoalescing() }
+            guard selection != oldValue else { return }
+            commitPendingEntry()
+            document.endCoalescing()
         }
     }
 
@@ -38,6 +41,8 @@ public final class EditorModel {
     @ObservationIgnored private var pasteCount = 0
     @ObservationIgnored private var refusalSerial = 0
     @ObservationIgnored var requestSerial = 0
+    /// What an inspector field holds but hasn't committed (`EditorModel+PendingEntry`).
+    @ObservationIgnored var pendingEntry: PendingEntry?
 
     public init(document: DocumentModel) {
         self.document = document
