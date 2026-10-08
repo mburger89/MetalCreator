@@ -111,6 +111,45 @@ struct OffscreenRenderTests {
         #expect(renderer.encodedPasses == 2)
     }
 
+    /// The one test that reads colours back: the view cube's FRONT label is painted on the FRONT face. Looking
+    /// from the front, the face is the cyan active region, and the #f8f8f2 ink (red ≈ 248, against cyan's 139)
+    /// shows across the middle of the face and nowhere near its rim. Seen from behind, FRONT is culled.
+    @Test func theFrontLabelIsPaintedOnTheFrontFace() throws {
+        let device = try #require(MTLCreateSystemDefaultDevice())
+        let renderer = try ViewportRenderer(device: device)
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: 400, height: 400,
+                                                                  mipmapped: false)
+        descriptor.usage = .renderTarget
+        descriptor.storageMode = .shared
+        let target = try #require(device.makeTexture(descriptor: descriptor))
+        let queue = try #require(device.makeCommandQueue())
+        func redChannel(from pose: CameraPose) throws -> [UInt8] {
+            let frame = ViewportFrame(pose: pose, size: Self.size, sceneBounds: nil, items: [], shading: .shadedEdges,
+                                      gridSpacing: 10, handles: [], cube: ViewCubeLayout(), hoveredCubeRegion: nil,
+                                      triad: TriadLayout())
+            let commandBuffer = try #require(queue.makeCommandBuffer())
+            renderer.encode(frame, into: target, scale: 2, commandBuffer: commandBuffer)
+            commitAndWait(commandBuffer)
+            var bytes = [UInt8](repeating: 0, count: 400 * 400 * 4)
+            target.getBytes(&bytes, bytesPerRow: 400 * 4, from: MTLRegionMake2D(0, 0, 400, 400), mipmapLevel: 0)
+            return stride(from: 2, to: bytes.count, by: 4).map { bytes[$0] }   // bgra: red is byte 2
+        }
+        // The cube is 96 points at (16, 16), 2 pixels per point: centred on pixel (128, 128), with a face spanning
+        // ±96 / 1.8 ≈ ±53 pixels. The text box is ±0.8 of the face across and ±0.3 of it up and down.
+        func inked(_ red: [UInt8], xs: ClosedRange<Int>, ys: ClosedRange<Int>) -> Int {
+            ys.reduce(0) { count, y in count + xs.count { red[y * 400 + $0] > 195 } }
+        }
+        let fromFront = try redChannel(from: Self.front)
+        let text = inked(fromFront, xs: 88...168, ys: 116...140)
+        #expect(text > 150, "label ink across the middle of FRONT (\(text) pixels)")
+        #expect(inked(fromFront, xs: 80...176, ys: 154...172) == 0, "no ink between the text and the face's rim")
+        var behind = Self.front
+        behind.yaw = .pi
+        let fromBehind = try redChannel(from: behind)
+        #expect(inked(fromBehind, xs: 88...168, ys: 116...140) > 150, "BACK's own label shows from behind")
+        #expect(fromBehind != fromFront, "and FRONT's doesn't show through it")
+    }
+
     @Test func aTargetOfTheWrongFormatIsLeftAlone() throws {
         let device = try #require(MTLCreateSystemDefaultDevice())
         let renderer = try ViewportRenderer(device: device)

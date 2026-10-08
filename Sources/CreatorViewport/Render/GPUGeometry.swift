@@ -65,6 +65,10 @@ enum GPUGeometry {
     /// Two triangles per tile. Face centres are lighter than edges and corners, and tiles facing the camera are
     /// brighter. Cyan marks the hovered region and the active one, the region the camera looks straight from
     /// (spec §6.6: "view-cube hover and active face").
+    ///
+    /// Every tile also carries its face's name: the name's atlas rect and each corner's place in the face's text
+    /// box (`CubeLabelMapping`). The text box spans most of the face, so it runs across the face's edge and corner
+    /// tiles too; a name confined to the centre tile (a third of the face) would be too small to read.
     static func cubeVertices(hovered: ViewCubeRegion?, pose: CameraPose) -> [CubeVertex] {
         var vertices: [CubeVertex] = []
         vertices.reserveCapacity(ViewCubeCell.all.count * 6)
@@ -80,9 +84,12 @@ enum GPUGeometry {
                 light = Float(0.7 + 0.3 * max(0, cell.normal.dot(pose.toEye)))
             }
             let color = SIMD4<Float>(base.x * light, base.y * light, base.z * light, 1)
-            let corners = cell.corners.map(float3)
+            let face = ViewCubeRegion.faces.first { $0.direction.dot(cell.normal) > 0.999 }
+            let labelRect = face.flatMap(CubeLabelAtlas.rect(for:))?.simd ?? .zero
             for index in [0, 1, 2, 0, 2, 3] {
-                vertices.append(CubeVertex(position: corners[index], color: color))
+                let corner = cell.corners[index]
+                let uv = face.flatMap { CubeLabelMapping.uv(of: corner, on: $0) } ?? .zero
+                vertices.append(CubeVertex(position: float3(corner), color: color, uv: uv, labelRect: labelRect))
             }
         }
         return vertices

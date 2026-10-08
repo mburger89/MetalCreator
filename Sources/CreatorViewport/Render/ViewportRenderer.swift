@@ -4,8 +4,8 @@ import Metal
 
 /// Draws a `ViewportFrame` with Metal (spec §6.3).
 /// - The main pass draws, in order: the background gradient, opaque solids, the ground grid, B-rep edges,
-///   ghosts, handles, the view cube and the triad. It renders into its own 4× MSAA colour and depth targets,
-///   resolved into the MetalView's target.
+///   ghosts, handles, the view cube (its face names painted on from a label atlas) and the triad. It renders
+///   into its own 4× MSAA colour and depth targets, resolved into the MetalView's target.
 /// - The ID pass writes `PickID`s into an `r32Uint` target (edges 6 points wide).
 /// GPU meshes are cached by mesh serial and dropped once a frame no longer shows them. It encodes into the
 /// buffer it's given and never commits it.
@@ -16,10 +16,10 @@ final class ViewportRenderer {
     private let placeholder: any MTLBuffer
     private var meshes: [Int: GPUMesh] = [:]
     private var multisample: (width: Int, height: Int, color: any MTLTexture, depth: any MTLTexture)?
-    /// The view cube's tiles and the handles' instances, kept until what they're built from changes, so a frame
-    /// of a continuous orbit allocates no buffers (spec §7.3's 60 fps).
-    private var cubeBuffer: (hovered: ViewCubeRegion?, pose: CameraPose, buffer: any MTLBuffer, count: Int)?
+    /// The handles' instances, kept until the handles change, so a frame of a continuous orbit allocates no
+    /// buffers (spec §7.3's 60 fps). The view cube keeps its own.
     private var handleBuffer: (handles: [ViewportHandle], scale: Float, buffer: any MTLBuffer, count: Int)?
+    private let cube: ViewCubeResources
     /// Main passes encoded so far. Tests use it to tell "drew" from "bailed out".
     private(set) var encodedPasses = 0
 
@@ -30,6 +30,7 @@ final class ViewportRenderer {
             throw ViewportRenderError.deviceRefused("a placeholder buffer")
         }
         self.placeholder = placeholder
+        cube = ViewCubeResources(device: device)
     }
 
     /// The main pass into `target` (`bgra8Unorm`, `scale` pixels per point). It does nothing for an empty view or
@@ -41,6 +42,7 @@ final class ViewportRenderer {
               target.pixelFormat == ViewportPipelines.colorFormat,
               let targets = multisampleTargets(width: width, height: height) else { return }
         prepareMeshes(for: frame)
+        let labels = cube.labelTexture(commandBuffer)
         let pass = MTLRenderPassDescriptor()
         pass.colorAttachments[0].texture = targets.color
         pass.colorAttachments[0].resolveTexture = target
@@ -64,7 +66,7 @@ final class ViewportRenderer {
             drawLines(handles.buffer, count: handles.count, uniforms, depth: pipelines.depthAlways, style: Self.plainLines,
                       encoder)
         }
-        drawCube(frame, scale: scale, width: width, height: height, encoder)
+        if let labels { drawCube(frame, labels: labels, scale: scale, width: width, height: height, encoder) }
         drawTriad(frame, scale: scale, width: width, height: height, encoder)
         encoder.endEncoding()
         encodedPasses += 1
@@ -187,14 +189,6 @@ final class ViewportRenderer {
         return (buffer, instances.count)
     }
 
-    private func cubeVertices(hovered: ViewCubeRegion?, pose: CameraPose) -> (buffer: any MTLBuffer, count: Int)? {
-        if let cached = cubeBuffer, cached.hovered == hovered, cached.pose == pose { return (cached.buffer, cached.count) }
-        let vertices = GPUGeometry.cubeVertices(hovered: hovered, pose: pose)
-        guard let buffer = GPUBuffers.make(device, vertices) else { return nil }
-        cubeBuffer = (hovered, pose, buffer, vertices.count)
-        return (buffer, vertices.count)
-    }
-
     private func drawGrid(_ frame: ViewportFrame, _ uniforms: FrameUniforms, _ encoder: any MTLRenderCommandEncoder) {
         var grid = GPUGeometry.gridUniforms(frame)
         encoder.setRenderPipelineState(pipelines.grid)
@@ -231,16 +225,16 @@ final class ViewportRenderer {
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4, instanceCount: count)
     }
 
-    /// The view cube in its own viewport at the top-left. A cube is convex, so back-face culling replaces a
-    /// depth test.
-    private func drawCube(_ frame: ViewportFrame, scale: Double, width: Int, height: Int,
+    /// The view cube in its own viewport at the top-left, its face names painted on from `labels`. A cube is
+    /// convex, so back-face culling replaces a depth test, and a face turned away hides its name with it.
+    private func drawCube(_ frame: ViewportFrame, labels: any MTLTexture, scale: Double, width: Int, height: Int,
                           _ encoder: any MTLRenderCommandEncoder) {
         let layout = frame.cube
         let x = layout.origin.x * scale
         let y = layout.origin.y * scale
         let side = layout.side * scale
         guard x >= 0, y >= 0, x + side <= Double(width), y + side <= Double(height),
-              let cube = cubeVertices(hovered: frame.hoveredCubeRegion, pose: frame.pose) else { return }
+              let tiles = cube.vertices(hovered: frame.hoveredCubeRegion, pose: frame.pose) else { return }
         encoder.setViewport(MTLViewport(originX: x, originY: y, width: side, height: side, znear: 0, zfar: 1))
         let uniforms = GPUGeometry.frameUniforms(layout.widgetPose(frame.pose), size: layout.widgetSize, sceneRadius: 2,
                                                  pixelWidth: Int(side), pixelHeight: Int(side))
@@ -248,9 +242,12 @@ final class ViewportRenderer {
         encoder.setDepthStencilState(pipelines.depthAlways)
         encoder.setFrontFacing(.counterClockwise)
         encoder.setCullMode(.back)
-        encoder.setVertexBuffer(cube.buffer, offset: 0, index: 0)
+        encoder.setVertexBuffer(tiles.buffer, offset: 0, index: 0)
         bind(uniforms, encoder)
-        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: cube.count)
+        var ink = ViewportPalette.cubeLabel
+        encoder.setFragmentBytes(&ink, length: MemoryLayout<SIMD4<Float>>.stride, index: 0)
+        encoder.setFragmentTexture(labels, index: 0)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: tiles.count)
         encoder.setCullMode(.none)
     }
 

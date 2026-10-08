@@ -18,6 +18,8 @@ public enum ViewportPalette {
     static let gridMajor = color(0x6272A4)
     static let cubeFace = color(0x44475A)
     static let cubeRim = color(0x343746)
+    /// The face names painted on the view cube: the viewport's label colour (`labelColor`, #f8f8f2).
+    static let cubeLabel = color(0xF8F8F2)
     static let axisX = color(0xFF5555)
     static let axisY = color(0x50FA7B)
     static let axisZ = color(0x8BE9FD)

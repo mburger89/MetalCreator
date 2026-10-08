@@ -22,7 +22,7 @@ struct BackgroundUniforms { float4 top; float4 bottom; };
 struct LineInstance { float3 a; float3 b; float4 color; float width; uint id; };
 struct LineUniforms { float widthOverride; float depthBias; float padding0; float padding1; };
 struct GridUniforms { float2 center; float extent; float spacing; float4 minorColor; float4 majorColor; };
-struct CubeVertex { float3 position; float4 color; };
+struct CubeVertex { float3 position; float4 color; float2 uv; float4 labelRect; };
 
 // MARK: Background
 
@@ -184,19 +184,38 @@ fragment float4 grid_fragment(GridOut in [[stage_in]], constant GridUniforms &gr
 
 // MARK: View cube
 
-struct CubeOut { float4 position [[position]]; float4 color; };
+struct CubeOut {
+    float4 position [[position]];
+    float4 color;
+    float2 uv;
+    float4 labelRect [[flat]];
+};
 
 vertex CubeOut cube_vertex(uint vid [[vertex_id]],
                            device const CubeVertex *vertices [[buffer(0)]],
                            constant FrameUniforms &uniforms [[buffer(1)]]) {
+    CubeVertex v = vertices[vid];
     CubeOut out;
-    out.position = uniforms.viewProjection * float4(vertices[vid].position, 1.0);
-    out.color = vertices[vid].color;
+    out.position = uniforms.viewProjection * float4(v.position, 1.0);
+    out.color = v.color;
+    out.uv = v.uv;
+    out.labelRect = v.labelRect;
     return out;
 }
 
-fragment float4 cube_fragment(CubeOut in [[stage_in]]) {
-    return float4(in.color.rgb * in.color.a, in.color.a);
+// The face's name, from the label atlas (r8 coverage, mipmapped), blended in `ink` over the tile's colour (hover
+// and active cyan included). uv 0...1 is the text box. Outside it, or with an empty rect, there is no ink. The
+// gradient is taken before clamping to the rect, so the mip level stays smooth up to the box's edge.
+fragment float4 cube_fragment(CubeOut in [[stage_in]],
+                              constant float4 &ink [[buffer(0)]],
+                              texture2d<float> labels [[texture(0)]]) {
+    constexpr sampler atlas(filter::linear, mip_filter::linear, address::clamp_to_edge, max_anisotropy(8));
+    float2 atlasUV = mix(in.labelRect.xy, in.labelRect.zw, in.uv);
+    float2 inRect = clamp(atlasUV, in.labelRect.xy, in.labelRect.zw);
+    float coverage = labels.sample(atlas, inRect, gradient2d(dfdx(atlasUV), dfdy(atlasUV))).r;
+    bool inside = all(in.uv >= 0.0) && all(in.uv <= 1.0) && in.labelRect.z > in.labelRect.x;
+    float3 rgb = mix(in.color.rgb, ink.rgb, inside ? coverage * ink.a : 0.0);
+    return float4(rgb * in.color.a, in.color.a);
 }
 """
 }
