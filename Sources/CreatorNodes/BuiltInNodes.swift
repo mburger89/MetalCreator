@@ -6,6 +6,7 @@ public enum BuiltInNodes {
         NumberNode.self, IntegerNode.self, VectorNode.self, PlaneNode.self, GraphParameterNode.self,
         SeriesNode.self, RangeNode.self, GridPointsNode.self,
         RectangleNode.self, RoundedRectangleNode.self, CircleNode.self, RegularPolygonNode.self, PolylineNode.self,
+        ExtrudeNode.self, RevolveNode.self,
     ]
 
     /// Create nodes with `registry.makeNode(_:at:)`: it seeds `defaultSettings` and flags

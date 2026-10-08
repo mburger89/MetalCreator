@@ -38,6 +38,16 @@ struct Harness {
         nodes[node.id]?.inputValues[socket] = value
     }
 
+    /// A `width` × `depth` × `height` box: a centred Rectangle on the XY plane through `base`,
+    /// extruded up. Returns the Extrude node (output "solid"); its Rectangle is wired in.
+    mutating func box(_ width: Double, _ depth: Double, _ height: Double, at base: Vector3 = .zero) -> Node {
+        let rectangle = add(RectangleNode.self, ["width": .number(width), "height": .number(depth),
+                                                 "plane": .plane(.through(base))])
+        let extrude = add(ExtrudeNode.self, ["distance": .number(height)])
+        wire(rectangle, "profile", to: extrude, "profile")
+        return extrude
+    }
+
     func run(_ demand: [Node], kernel: any Kernel = FakeKernel()) async throws -> EvaluationReport {
         try await Evaluator(registry: BuiltInNodes.registry, kernel: kernel).evaluate(graph, demand: Set(demand.map(\.id)))
     }
@@ -77,6 +87,19 @@ extension Value {
     var profiles: [Profile2D]? { typed { if case .profile(let v) = $0 { v } else { nil } } }
     var solids: [Solid]? { typed { if case .solid(let v) = $0 { v } else { nil } } }
     var edgeSets: [EdgeSet]? { typed { if case .edgeSet(let v) = $0 { v } else { nil } } }
+}
+
+/// The single solid on `socket`, for tests that expect exactly one.
+func onlySolid(_ report: EvaluationReport, _ node: Node, _ socket: SocketName = "solid",
+               sourceLocation: SourceLocation = #_sourceLocation) throws -> Solid {
+    let solids = try #require(report.value(node, socket)?.solids, "no solids on \(node.name).\(socket): \(String(describing: report.state(node)))",
+                              sourceLocation: sourceLocation)
+    #expect(solids.count == 1, sourceLocation: sourceLocation)
+    return try #require(solids.first, sourceLocation: sourceLocation)
+}
+
+func volume(_ solid: Solid, _ kernel: any Kernel) async throws -> Double {
+    try await kernel.properties(of: solid).volume
 }
 
 func isClose(_ a: Double, _ b: Double, relative: Double = 1e-6) -> Bool {
