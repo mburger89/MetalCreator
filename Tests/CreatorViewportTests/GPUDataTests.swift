@@ -79,12 +79,20 @@ struct GPUDataTests {
     }
 
     @Test func theCubeIsSixVerticesPerTileAndHighlightsTheHoveredRegion() {
+        func isCyan(_ vertex: CubeVertex) -> Bool {
+            vertex.color.x == ViewportPalette.hover.x && vertex.color.z == ViewportPalette.hover.z
+        }
+        func firstVertex(of region: ViewCubeRegion, in vertices: [CubeVertex]) -> CubeVertex {
+            vertices[(ViewCubeCell.all.firstIndex { $0.region == region } ?? 0) * 6]
+        }
+        // Looking from the front makes FRONT the active region, so hover a different one (RIGHT) to isolate the hover branch.
         let pose = CameraPose(target: .zero, distance: 10, yaw: 0, pitch: 0)
-        let vertices = GPUGeometry.cubeVertices(hovered: .front, pose: pose)
+        let vertices = GPUGeometry.cubeVertices(hovered: .right, pose: pose)
         #expect(vertices.count == 54 * 6)
-        let hovered = ViewCubeCell.all.firstIndex { $0.region == .front } ?? 0
-        let colour = vertices[hovered * 6].color
-        #expect(colour.x == ViewportPalette.hover.x && colour.z == ViewportPalette.hover.z)
+        #expect(isCyan(firstVertex(of: .right, in: vertices)), "the hovered, non-active region is cyan")
+        #expect(!isCyan(firstVertex(of: .back, in: vertices)), "a region that is neither hovered nor active is not cyan")
+        let unhovered = GPUGeometry.cubeVertices(hovered: nil, pose: pose)
+        #expect(!isCyan(firstVertex(of: .right, in: unhovered)), "without hover RIGHT is not cyan")
     }
 
     @Test func theCubeTintsTheRegionTheCameraLooksFrom() {
