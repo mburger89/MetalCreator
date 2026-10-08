@@ -93,6 +93,7 @@ public final class AppModel {
     /// Wires the current parts to this model, then shows their first scene and starts following them.
     private func connectParts() {
         graphInput.releaseTextFocus = { [weak self] in self?.releaseTextFocus?() }
+        connectViewportEvents()
         sceneInputsChanged()
     }
 
