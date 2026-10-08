@@ -4,6 +4,7 @@ import CreatorGraph
 public enum BuiltInNodes {
     public static let all: [any NodeDefinition.Type] = [
         NumberNode.self, IntegerNode.self, VectorNode.self, PlaneNode.self, GraphParameterNode.self,
+        SeriesNode.self, RangeNode.self, GridPointsNode.self,
     ]
 
     /// Create nodes with `registry.makeNode(_:at:)`: it seeds `defaultSettings` and flags
