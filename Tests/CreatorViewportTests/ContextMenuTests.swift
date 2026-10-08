@@ -8,7 +8,10 @@ import Testing
 struct ContextMenuTests {
     let size = ViewportSize(width: 400, height: 300)
 
-    func model(showing solids: [Solid], pose: CameraPose = CameraPose(target: .zero, distance: 100, yaw: 0.6, pitch: 0.4)) async -> ViewportModel {
+    func model(
+        showing solids: [Solid],
+        pose: CameraPose = CameraPose(target: .zero, distance: 100, yaw: 0.6, pitch: 0.4)
+    ) async -> ViewportModel {
         let model = ViewportModel(kernel: StubMeshKernel(), pose: pose, clock: ManualClock())
         model.viewSize = size
         model.show(solids.map { ViewportItem(solid: $0) })
@@ -78,11 +81,15 @@ struct ContextMenuTests {
     @Test func selectEdgesOfFaceReportsTheBoundaryKeys() async throws {
         let box = try await fakeBox()
         let model = await model(showing: [box])
-        var reported: (ViewportFaceRef, [EdgePick], [EdgeID])?
-        model.events.selectEdgesOfFace = { reported = ($0, $1, $2) }
+        var reportedFace: ViewportFaceRef?
+        var reportedPicks: [EdgePick]?
+        var reportedEdges: [EdgeID]?
+        model.events.selectEdgesOfFace = { reportedFace = $0; reportedPicks = $1; reportedEdges = $2 }
         let ref = ViewportFaceRef(solidIndex: 0, face: FaceID(2))
         model.choose(.selectEdgesOfFace(ref))
-        let (face, picks, edges) = try #require(reported)
+        let face = try #require(reportedFace)
+        let picks = try #require(reportedPicks)
+        let edges = try #require(reportedEdges)
         #expect(face == ref)
         #expect(edges.map(\.rawValue) == [0, 1, 8, 11])
         // The picks are M3's encoding (`Topology.picks(for:)`), one per distinct boundary key.
@@ -93,19 +100,22 @@ struct ContextMenuTests {
     }
 
     @Test func showProducingNodeNamesEveryNodeOnAMergedFace() async throws {
-        let a = NodeID()
-        let b = NodeID()
+        let nodeA = NodeID()
+        let nodeB = NodeID()
         let merged = FaceInfo(id: FaceID(0), kind: .plane, normal: .unitZ, area: 1, centroid: .zero,
-                              tags: [TopoTag(node: a, item: 0, role: .endCap), TopoTag(node: b, item: 0, role: .startCap)])
+                              tags: [TopoTag(node: nodeA, item: 0, role: .endCap),
+                                     TopoTag(node: nodeB, item: 0, role: .startCap)])
         let solid = Solid(topology: Topology(faces: [merged], edges: []),
                           bounds: BoundingBox(min: .zero, max: Vector3(1, 1, 1)), storage: TestStorage())
         let model = await model(showing: [solid])
-        model.events.nodeName = { $0 == a ? "Extrude" : nil }
+        model.events.nodeName = { $0 == nodeA ? "Extrude" : nil }
         model.pick = { _ in .face(solid: 0, FaceID(0)) }
         model.pointerHovered(at: ScreenPoint(300, 200))
         let titles = model.contextMenuItems().map(\.title)
-        let sorted = [a, b].sorted()
-        let expected = sorted.map { $0 == a ? "Show Producing Node (Extrude)" : "Show Producing Node (\(b.description))" }
+        let sorted = [nodeA, nodeB].sorted()
+        let expected = sorted.map {
+            $0 == nodeA ? "Show Producing Node (Extrude)" : "Show Producing Node (\(nodeB.description))"
+        }
         #expect(Array(titles.dropFirst(2)) == expected)
         var shown: [NodeID] = []
         model.events.showProducingNode = { shown.append($0) }

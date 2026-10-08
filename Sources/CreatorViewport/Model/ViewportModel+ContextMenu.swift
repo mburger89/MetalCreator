@@ -9,7 +9,8 @@ extension ViewportModel {
     /// pointer" is the last hover pick. The model redoes that pick whenever the camera or the scene moves under a
     /// still pointer (`refreshHover()`), so it can't name a face that has moved away.
     public func contextMenuItems() -> [ViewportMenuItem] {
-        guard let ref = hoveredFaceRef(), let face = items[ref.solidIndex].solid.topology.face(ref.face) else { return [] }
+        guard let ref = hoveredFaceRef(),
+              let face = items[ref.solidIndex].solid.topology.face(ref.face) else { return [] }
         var menu: [ViewportMenuItem] = [.lookAt(ref), .selectEdgesOfFace(ref)]
         let nodes = MeshQueries.producingNodes(of: face)
         for node in nodes {
@@ -42,7 +43,8 @@ extension ViewportModel {
               let direction = MeshQueries.faceDirection(mesh, ref.face),
               let bounds = MeshQueries.faceBounds(mesh, ref.face) else { return }
         var target = currentPose()
-        guard let orientation = CameraNavigation.orientation(lookingFrom: direction, fallbackYaw: target.yaw) else { return }
+        guard let orientation = CameraNavigation.orientation(lookingFrom: direction,
+                                                             fallbackYaw: target.yaw) else { return }
         target.yaw = orientation.yaw
         target.pitch = orientation.pitch
         target.projection = .orthographic
