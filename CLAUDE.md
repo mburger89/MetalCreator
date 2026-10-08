@@ -10,6 +10,9 @@ plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
+- `CreatorSketch`: the constraint sketch model, `SketchSolver` (numeric Levenberg–Marquardt with analytic Jacobians,
+  DOF and minimal conflicts), `SketchRegions` and `SketchCommands`. Imports only `CreatorGeometry` and Foundation;
+  never iterate a dictionary where order reaches output. Tests: `swift test --filter CreatorSketchTests`.
 - `CreatorKernel`: the `Kernel` protocol, `Solid`, tagged topology tables, `FakeKernel` for tests.
 - `COCCT` + `CreatorOCCT`: the OpenCascade C shim and `OCCTKernel: Kernel` (topology tables, face tags carried through
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
