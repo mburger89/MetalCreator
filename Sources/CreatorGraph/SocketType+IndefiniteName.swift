@@ -1,7 +1,6 @@
-import CreatorGraph
-
 extension SocketType {
-    /// The type's name with its article, for messages: "a number", "an edge set".
+    /// The type's name with its article, for messages: "a number", "an edge set". Every message that names a
+    /// socket type uses it, so none reads "needs a integer" (moved here from CreatorEditor in M6).
     public var indefiniteName: String {
         switch self {
         case .number: "a number"

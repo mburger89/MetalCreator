@@ -103,7 +103,7 @@ public actor Evaluator {
                         + "which that node doesn't produce with its current settings.")
                 }
                 guard let converted = value.converted(to: spec.type) else {
-                    return .failed("“\(spec.name)” needs a \(spec.type.rawValue).")
+                    return .failed("“\(spec.name)” needs \(spec.type.indefiniteName).")
                 }
                 inputs[spec.name] = converted
                 hasher.combine(spec.name)

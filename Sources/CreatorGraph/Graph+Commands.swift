@@ -103,7 +103,7 @@ extension Graph {
             let parameter = parameters[index]
             let valueType = Scalar(value)?.type
             guard valueType == parameter.type || (valueType == .integer && parameter.type == .number) else {
-                throw .invalidValue("“\(parameter.name)” needs a \(parameter.type.rawValue).")
+                throw .invalidValue("“\(parameter.name)” needs \(parameter.type.indefiniteName).")
             }
             let old = parameters[index].value
             parameters[index].value = value

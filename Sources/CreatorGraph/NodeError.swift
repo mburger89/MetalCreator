@@ -7,7 +7,7 @@ public enum NodeError: Error, Equatable, Sendable {
     public var message: String {
         switch self {
         case .missingInput(let socket): "Connect or set “\(socket)”."
-        case .typeMismatch(let socket, let expected): "“\(socket)” needs a \(expected.rawValue)."
+        case .typeMismatch(let socket, let expected): "“\(socket)” needs \(expected.indefiniteName)."
         case .invalidValue(let message): message
         }
     }
