@@ -27,8 +27,10 @@ struct HandleTests {
         #expect(app.viewport.handles.first?.direction == -.unitZ)
         try app.document.perform(.setInput(box.extrude.id, "mode", .integer(1)))
         await app.settle()
-        #expect(app.viewport.handles.first?.anchor == Vector3(0, 0, -5), "symmetric: the knob sits on the far cap")
-        #expect(app.viewport.handles.first?.direction == .unitZ)
+        let symmetric = try #require(app.viewport.handles.first)
+        #expect(symmetric.anchor == .zero && symmetric.direction == .unitZ && symmetric.scale == 0.5,
+                "symmetric: from the profile, at half scale")
+        #expect(symmetric.knob == Vector3(0, 0, 5), "the knob sits on the far cap")
     }
 
     @Test func aWiredDistanceHasNoHandle() async throws {

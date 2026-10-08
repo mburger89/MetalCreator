@@ -118,6 +118,24 @@ struct ViewportInputTests {
         #expect(reports.allSatisfy { $0.id == "extrude" && isClose($0.value, 14) })
     }
 
+    /// A symmetric Extrude's handle starts at the profile and its knob sits on the far cap, half the distance out
+    /// (`scale` 0.5): the knob follows the pointer, so the distance changes twice as fast.
+    @Test func aHalfScaleHandlesKnobTracksThePointer() {
+        let pose = CameraPose(target: .zero, distance: 20 / tan(CameraPose.fieldOfView / 2), yaw: 0, pitch: 0,
+                              projection: .orthographic)
+        let model = makeModel(pose: pose)
+        model.showHandles([ViewportHandle(id: "symmetric", anchor: .zero, direction: .unitZ, value: 10, range: 0...100,
+                                          style: .linear, tint: .solid, scale: 0.5),
+        ])
+        #expect(model.handles[0].knob == Vector3(0, 0, 5))
+        // 7.5 points per mm: the knob at z = 5 is 37.5 points above the centre; 30 points up is 4 mm.
+        model.pointerDown(at: ScreenPoint(200, 112.5), modifiers: [])
+        model.pointerDragged(to: ScreenPoint(200, 82.5))
+        model.pointerUp(at: ScreenPoint(200, 82.5))
+        #expect(isClose(model.handles[0].value, 18), "the distance changes by 2 × 4 mm")
+        #expect(isClose(model.handles[0].knob.z, 9), "the knob moved the pointer's 4 mm")
+    }
+
     @Test func aZeroSizeViewIgnoresPointerInput() {
         let start = CameraPose(target: Vector3(1, 2, 3), distance: 50)
         let model = makeModel(pose: start)

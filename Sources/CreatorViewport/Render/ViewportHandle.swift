@@ -11,9 +11,13 @@ public struct ViewportHandle: Hashable, Sendable {
     public var range: ClosedRange<Double>
     public var style: HandleStyle
     public var tint: HandleTint
+    /// Millimetres the knob sits from the anchor per unit of `value`: 0.5 for a symmetric Extrude, whose knob is on
+    /// the far cap, half the distance out. Dragging moves the knob with the pointer, so the value changes `1 / scale`
+    /// times as fast.
+    public var scale: Double
 
     public init(id: String, anchor: Vector3, direction: Vector3, value: Double, range: ClosedRange<Double>,
-                style: HandleStyle, tint: HandleTint) {
+                style: HandleStyle, tint: HandleTint, scale: Double = 1) {
         self.id = id
         self.anchor = anchor
         self.direction = direction
@@ -21,7 +25,8 @@ public struct ViewportHandle: Hashable, Sendable {
         self.range = range
         self.style = style
         self.tint = tint
+        self.scale = scale
     }
 
-    public var knob: Vector3 { anchor + (direction.normalized ?? .unitZ) * value }
+    public var knob: Vector3 { anchor + (direction.normalized ?? .unitZ) * (value * scale) }
 }

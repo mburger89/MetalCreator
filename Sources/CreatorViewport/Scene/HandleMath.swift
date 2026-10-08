@@ -21,6 +21,7 @@ enum HandleMath {
     /// axis on screen, and the result is clamped to the handle's range. A handle pointing within about 8.5° of the
     /// view axis can't be dragged: on screen it's too short for pointer motion to mean anything, and dividing by its
     /// length would jump the value.
+    /// The knob follows the pointer: the motion along the axis, in millimetres, is divided by the handle's `scale`.
     static func value(for handle: ViewportHandle, startValue: Double, from start: ScreenPoint, to current: ScreenPoint,
                       pose: CameraPose, size: ViewportSize) -> Double {
         guard !size.isEmpty, let axis = handle.direction.normalized,
@@ -29,9 +30,9 @@ enum HandleMath {
         let screenAxis = b - a
         let lengthSquared = screenAxis.x * screenAxis.x + screenAxis.y * screenAxis.y
         let fullScale = 1 / CameraMath.millimetresPerPoint(pose, size: size)
-        guard lengthSquared >= (0.15 * fullScale) * (0.15 * fullScale) else { return startValue }
+        guard lengthSquared >= (0.15 * fullScale) * (0.15 * fullScale), handle.scale != 0 else { return startValue }
         let delta = current - start
-        let value = startValue + (delta.x * screenAxis.x + delta.y * screenAxis.y) / lengthSquared
+        let value = startValue + (delta.x * screenAxis.x + delta.y * screenAxis.y) / lengthSquared / handle.scale
         guard value.isFinite else { return startValue }
         return min(max(value, handle.range.lowerBound), handle.range.upperBound)
     }

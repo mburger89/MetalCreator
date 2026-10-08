@@ -194,7 +194,10 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
 - [ ] **M6-9 Handles.** Select the flange's Extrude: a purple arrow with "8 mm" starts on the flange profile; drag it
   and the flange thickens live; release and ⌘Z undoes the whole drag in one step. Select the Fillet: an orange radial
   handle "R 3 mm" sits at a fillet edge; turn "Show handle in view" off and it goes. The plate's Extrude (distance wired
-  from Wall) shows no handle. Pinned: `HandleTests`, `draggingAHandleEditsItsInputAsOneUndoStep`. **Observed:**
+  from Wall) shows no handle. Select the holes' Extrude (Symmetric, 20 mm): its arrow starts at the hole profile's
+  centre and the knob sits on the far cap, 10 mm out; drag it and the knob stays under the pointer while the distance
+  grows twice as fast. Pinned: `HandleTests`, `draggingAHandleEditsItsInputAsOneUndoStep`,
+  `aHalfScaleHandlesKnobTracksThePointer`. **Observed:**
 - [ ] **M6-10 Face menu.** Right-click a face: Look At animates to face it. Select Edges of Face adds a selected
   Edges by Tag node wired from the part's last feature (⌘Z removes it). Show Producing Node selects the node that made
   the face and scrolls the graph to it, showing the panel if it was hidden. Pinned: `PickingTests`,
