@@ -80,6 +80,37 @@ struct ProfileNodeTests {
         #expect(report.error(line) == "A polygon needs 3 to 1,000 sides.")
     }
 
+    /// M6: `rotation` turns the first corner counter-clockwise from +x, so a hexagon turned 30° has sides
+    /// parallel to the plane's y axis (spec §8's polygon swap needs them).
+    @Test func aPolygonTurnsByItsRotation() async throws {
+        var h = Harness()
+        let turned = h.add(RegularPolygonNode.self, ["rotation": .number(30)])
+        let plain = h.add(RegularPolygonNode.self)
+        let report = try await h.run([turned, plain])
+        let corner = try profile(report, turned).segments[0].startPoint
+        #expect(isClose(corner.x, 10 * 3.0.squareRoot() / 2) && isClose(corner.y, 5))
+        guard case .line(let a, let b) = try profile(report, turned).segments[5] else {
+            Issue.record("a polygon's sides are lines"); return
+        }
+        #expect(isClose(a.x, b.x) && isClose(a.x, 10 * 3.0.squareRoot() / 2), "the last side is vertical")
+        #expect(isClose(try profile(report, plain).segments[0].startPoint.x, 10), "0° keeps the first corner on +x")
+    }
+
+    /// A Regular Polygon saved before M6 (version 1, no rotation) loads as version 2 and reads the default 0°.
+    @Test func aVersionOnePolygonLoadsUnrotated() async throws {
+        var old = BuiltInNodes.registry.makeNode(RegularPolygonNode.typeID)
+        old.typeVersion = 1
+        let data = try GraphFileIO.encode(GraphFile(graph: Graph(nodes: [old.id: old])))
+        let loaded = try #require(try GraphFileIO.decode(data, registry: BuiltInNodes.registry).graph.nodes[old.id])
+        #expect(RegularPolygonNode.typeVersion == 2)
+        #expect(loaded.typeVersion == 2)
+        #expect(loaded.inputValues["rotation"] == nil)
+        let report = try await Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel())
+            .evaluate(Graph(nodes: [loaded.id: loaded]), demand: [loaded.id])
+        let first = try #require(report.value(loaded, "profile")?.profiles?.first?.segments.first?.startPoint)
+        #expect(isClose(first.x, 10) && isClose(first.y, 0))
+    }
+
     @Test func polylineFromWiredPoints() async throws {
         var h = Harness()
         let grid = h.add(GridPointsNode.self, ["countX": .integer(3), "countY": .integer(1), "centred": .bool(false)])

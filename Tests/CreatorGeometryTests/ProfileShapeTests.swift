@@ -29,6 +29,15 @@ struct ProfileShapeTests {
         #expect(isClose(hexagon.segments[0].startPoint.x, 10))
     }
 
+    @Test func regularPolygonTurnsByItsRotation() {
+        let hexagon = Profile2D.regularPolygon(sides: 6, radius: 10, rotation: .degrees(30), plane: .xy)
+        #expect(hexagon.isClosed)
+        #expect(isClose(hexagon.segments[0].startPoint.x, 10 * 3.0.squareRoot() / 2))
+        #expect(isClose(hexagon.segments[0].startPoint.y, 5))
+        let vertical = hexagon.segments.filter { abs($0.endPoint.x - $0.startPoint.x) < 1e-9 }
+        #expect(vertical.count == 2, "a hexagon turned 30° has two sides parallel to y")
+    }
+
     @Test func polylineClosesOnlyWhenAsked() {
         let points = [Vector2(0, 0), Vector2(10, 0), Vector2(0, 10)]
         #expect(Profile2D.polyline(points, closed: true, plane: .xy).isClosed)

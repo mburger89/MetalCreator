@@ -25,10 +25,12 @@ extension Profile2D {
     }
 
     /// A regular polygon with `sides` corners on a circle of `radius` (circumradius) about the plane
-    /// origin, the first corner on +x, counter-clockwise. Callers check `sides >= 3`.
-    public static func regularPolygon(sides: Int, radius: Double, plane: Plane) -> Profile2D {
+    /// origin, counter-clockwise. The first corner is on +x turned by `rotation` (counter-clockwise), so a
+    /// hexagon turned 30° has two sides parallel to the plane's y axis. Callers check `sides >= 3`.
+    public static func regularPolygon(sides: Int, radius: Double, rotation: Angle = Angle(radians: 0),
+                                      plane: Plane) -> Profile2D {
         let corners = (0..<sides).map { k in
-            let angle = 2 * Double.pi * Double(k) / Double(sides)
+            let angle = rotation.radians + 2 * Double.pi * Double(k) / Double(sides)
             return Vector2(radius * cos(angle), radius * sin(angle))
         }
         return polyline(corners, closed: true, plane: plane)

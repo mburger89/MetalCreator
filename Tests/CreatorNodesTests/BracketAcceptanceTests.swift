@@ -18,6 +18,11 @@ struct BracketAcceptanceTests {
         let plate: Node
         let cut: Node
         let holes: Node
+        /// The L-flange: its plane, its Rectangle profile, its Extrude and the union that joins it to the plate.
+        let flangePlane: Node
+        let flangeProfile: Node
+        let flange: Node
+        let union: Node
         let filletEdges: Node
         let fillet: Node
         let chamferEdges: Node
@@ -83,6 +88,7 @@ struct BracketAcceptanceTests {
         h.wire(chamfer, "solid", to: output, "solid")
 
         return Bracket(graph: h.graph, width: width, holeCount: holeCount, plate: plate, cut: cut, holes: holes,
+                       flangePlane: flangePlane, flangeProfile: flangeProfile, flange: flange, union: bracket,
                        filletEdges: filletEdges, fillet: fillet, chamferEdges: chamferEdges, output: output)
     }
 
