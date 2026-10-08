@@ -24,16 +24,22 @@ public enum SketchSolver {
         var conflictSets: [[SketchConstraintRef]] = []
         var freeColumns = Set<Int>()
         var dof = 0
+        var degenerateReason: String?
+        let degeneracy = DegenerateGeometry(sketch: sketch, layout: layout, x0: x0)
         for component in partition.components {
-            let outcome = ComponentSolver.solve(component, base: x0)
+            let columns = Set(component.columns)
+            let outcome = ComponentSolver.solve(component, base: x0) { degeneracy.reason(at: $0, columns: columns) }
             for (local, column) in component.columns.enumerated() { x[column] = outcome.x[local] }
             conflictSets += outcome.conflictSets
             freeColumns.formUnion(outcome.freeColumns)
             dof += outcome.degreesOfFreedom
+            degenerateReason = degenerateReason ?? outcome.degenerateReason
         }
         let conflicts = conflictSets.flatMap { $0 }
         let status: SketchSolveStatus = if !conflicts.isEmpty {
             .overConstrained(conflicts: conflicts)
+        } else if let degenerateReason {
+            .failed(reason: degenerateReason)
         } else if dof > 0 {
             .underConstrained(dof: dof)
         } else {

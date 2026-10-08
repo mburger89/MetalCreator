@@ -20,9 +20,14 @@ enum ComponentSolver {
         var degreesOfFreedom: Int
         /// Global columns that can still move.
         var freeColumns: [Int]
+        /// Why the solution was refused when it met every constraint only with degenerate
+        /// geometry (`DegenerateGeometry`); the component then keeps its warm start.
+        var degenerateReason: String? = nil
     }
 
-    static func solve(_ component: ComponentPartition.Component, base: [Double]) -> Outcome {
+    /// `degeneracy` reads a global unknown vector and names a collapsed or inverted curve, if any.
+    static func solve(_ component: ComponentPartition.Component, base: [Double],
+                      degeneracy: ([Double]) -> String? = { _ in nil }) -> Outcome {
         let full = ComponentSystem(terms: component.terms, columns: component.columns, base: base)
         let system = full.filtered { $0.role != .drag }
         let drags = full.terms.filter { $0.role == .drag }
@@ -31,22 +36,29 @@ enum ComponentSolver {
         if !drags.isEmpty {
             // Drag mode (spec §4 step 4): pull towards the targets as soft rows, then restore every
             // hard constraint exactly from there, so geometry slides along its remaining freedom.
+            // A result that only holds by collapsing or inverting a curve is dropped, and the
+            // component solves as if not dragged.
             let pulled = LevenbergMarquardt.minimize(system.adding(drags), from: start)
             let projected = LevenbergMarquardt.minimize(system, from: pulled.x)
-            if projected.maxResidual <= satisfiedTolerance { result = projected }
+            if projected.maxResidual <= satisfiedTolerance, degeneracy(system.global(projected.x)) == nil {
+                result = projected
+            }
         }
         let solved = result ?? LevenbergMarquardt.minimize(system, from: start)
-        let isSatisfied = solved.maxResidual <= satisfiedTolerance
+        var isSatisfied = solved.maxResidual <= satisfiedTolerance
+        let degenerateReason = isSatisfied ? degeneracy(system.global(solved.x)) : nil
+        if degenerateReason != nil { isSatisfied = false }
         let x = isSatisfied ? solved.x : start
         let analysis = analyse(system, at: x)
         var conflictSets: [[SketchConstraintRef]] = []
-        if !isSatisfied {
+        if !isSatisfied, degenerateReason == nil {
             conflictSets = ConflictSearch.unsatisfiableSets(system, from: start, stalled: solved.x).sets
         } else if analysis.isRedundant {
             conflictSets = ConflictSearch.dependentSets(system, at: x)
         }
         return Outcome(x: x, isSatisfied: isSatisfied, conflictSets: conflictSets,
-                       degreesOfFreedom: analysis.degreesOfFreedom, freeColumns: analysis.freeColumns)
+                       degreesOfFreedom: analysis.degreesOfFreedom, freeColumns: analysis.freeColumns,
+                       degenerateReason: degenerateReason)
     }
 
     struct Analysis {

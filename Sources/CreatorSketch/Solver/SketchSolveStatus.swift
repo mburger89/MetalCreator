@@ -8,7 +8,8 @@ public enum SketchSolveStatus: Hashable, Sendable {
     /// minimal conflicting set found (one per independent conflict, `ConflictSearch.setLimit`
     /// at most per component), flattened, components in order.
     case overConstrained(conflicts: [SketchConstraintRef])
-    /// The sketch was refused before solving (bad value or reference).
+    /// The sketch was refused before solving (bad value or reference), or its constraints can
+    /// only be met by collapsing or inverting a curve. Unsatisfied components keep their warm start.
     case failed(reason: String)
 
     /// True for `.solved` and `.underConstrained`, whose geometry is good to output.
