@@ -6,7 +6,7 @@ headless, so a "looks wrong" report can become a failing test.
 
 ## Group V — the 3D viewport (M4)
 
-**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
+**Status: IN PROGRESS** (2026-10-07: V7, V9 pass; V5 labels confirmed). Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
 
 Run `swift run ViewportHarness` (variants: `HARNESS_GHOST=1`, `HARNESS_SELECT=1`). Clicks, menu choices and handle
 drags print to the terminal.
@@ -49,24 +49,24 @@ drags print to the terminal.
   - ◀ ▲ ▼ ▶ rotate 90° to the adjacent face, and ⌂ goes home.
   - The View menu switches Perspective and Orthographic, Shaded and Shaded + Edges, and Set Home View makes ⌂ return there.
 
-  Pinned: `ViewCubeTests`, `clickingTheCubeLooksAtTheRegionUnderThePointer`, `arrowsAndHomeAnimate`. Observed:
+  Pinned: `ViewCubeTests`, `clickingTheCubeLooksAtTheRegionUnderThePointer`, `arrowsAndHomeAnimate`. Observed: 2026-10-07: the painted face labels sit on the faces, turn with the cube and read well (user). Animation, edge/corner views, cube drag, arrows, ⌂ and the View menu not yet confirmed.
 - [ ] **V6 Face menu.** Right-click a face: Look At, Select Edges of Face and Show Producing Node.
   - Look At animates to face that face, orthographic, framed on it.
   - The other two print the face's edges and the producing node.
   - Right-click empty space: no menu.
 
   Pinned: `ContextMenuTests`. Observed:
-- [ ] **V7 Ghost.** `HARNESS_GHOST=1` draws the part desaturated at about 40% opacity, with the grid visible through it.
+- [x] **V7 Ghost.** `HARNESS_GHOST=1` draws the part desaturated at about 40% opacity, with the grid visible through it.
   It's one even layer: the far side, the hole walls and the back faces don't show through or darken it (the depth
   prepass). Speckles on the ghost would mean the prepass and colour pass disagree on depth: add `[[invariant]]` to
   the vertex position in `ViewportShaders` and compile with `MTLCompileOptions.preserveInvariance = true`.
-  Pinned: ghost flags in `ghostsSelectionAndHoverReachTheFrame`. Observed:
+  Pinned: ghost flags in `ghostsSelectionAndHoverReachTheFrame`. Observed: 2026-10-07 PASS: desaturated, see-through and even; grid visible through it; no speckles (user screenshot).
 - [ ] **V8 Selection.** `HARNESS_SELECT=1` shows the flange's top face and its edges glowing pink (#ff79c6). Edges stay
   pink in Shaded mode. In any mode, clicking a face selects it and its edges, clicking an edge selects that edge,
   and clicking empty space clears (the harness applies clicks itself; in the app, selection belongs to the shell). Pinned: `edgeInstancesAreOnePerSegmentWithTheirPickID`. Observed:
-- [ ] **V9 Handles.** A purple arrow handle at the plate top labelled "6 mm", and an orange radial handle at a fillet
+- [x] **V9 Handles.** A purple arrow handle at the plate top labelled "6 mm", and an orange radial handle at a fillet
   labelled "R 3 mm". Dragging a knob moves it along its axis, the label follows, and the terminal prints `changed`
-  values and one `ended`. The camera doesn't move. Known symptom (gap M4-a): handle labels are missing on the first build of a document with a saved camera, and misplaced during a live resize, until the next rebuild. Pinned: `draggingAHandleEditsItsValueAndNotTheCamera`. Observed:
+  values and one `ended`. The camera doesn't move. Known symptom (gap M4-a): handle labels are missing on the first build of a document with a saved camera, and misplaced during a live resize, until the next rebuild. Pinned: `draggingAHandleEditsItsValueAndNotTheCamera`. Observed: 2026-10-07 PASS: both handles dragged (plate 5→10.7 mm, fillet 4.4 mm); each drag printed `changed` values and exactly one `ended` (harness log).
 - [ ] **V10 Resize and displays.** Resizing the window live shows no stretched or blank frames, and picking stays
   accurate after a resize (known symptom, gap M4-a: handle labels are missing on the first build of a document with a saved camera, and misplaced during a live resize, until the next rebuild). Moving between a Retina and a 1× display keeps lines crisp. Starting the harness in a
   narrow window (drag it narrow, quit, relaunch) frames the whole bracket, not clipped at the sides. Pinned:
@@ -76,7 +76,7 @@ drags print to the terminal.
 
 ## Group M5 — the graph panel and inspector (M5)
 
-**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
+**Status: IN PROGRESS** (2026-10-07: V7, V9 pass; V5 labels confirmed). Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
 
 Run `swift run GraphPanelPreview`.
 
