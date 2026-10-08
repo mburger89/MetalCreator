@@ -60,10 +60,23 @@ struct RegionTests {
         var sketch = Sketch()
         square(&sketch, side: 10)
         addPolygon(&sketch, [Vector2(10, 0), Vector2(20, 0), Vector2(20, 5), Vector2(10, 5)])
-        let regions = SketchRegions.find(in: sketch).regions
+        let result = SketchRegions.find(in: sketch)
+        let regions = result.regions
         try #require(regions.count == 2)
         #expect(isClose(regions[0].area, 100))
         #expect(isClose(regions[1].area, 50))
+        #expect(result.openCurves.isEmpty)
+        #expect(result.warning == nil)
+    }
+
+    @Test func aLineDrawnOverASquaresEdgeIsNotOpen() {
+        var sketch = Sketch()
+        square(&sketch, side: 10)
+        sketch.addLine(Vector2(0, 0), Vector2(10, 0))
+        let result = SketchRegions.find(in: sketch)
+        #expect(result.regions.count == 1)
+        #expect(result.openCurves.isEmpty)
+        #expect(result.warning == nil)
     }
 
     @Test func aLineAcrossASquareSplitsItInTwo() {

@@ -11,6 +11,8 @@ struct RegionGraph: Sendable {
         var shape: CurveShape
         /// Index into `curves`.
         var source: Int
+        /// Other curves that overlap this piece exactly; they bound a region through it too.
+        var overlappingSources: Set<Int> = []
     }
 
     let curves: [SketchCurve]
@@ -26,7 +28,9 @@ struct RegionGraph: Sendable {
     }
 
     /// Curve indices with at least one edge left.
-    var usedSources: Set<Int> { Set(edges.map(\.source)) }
+    var usedSources: Set<Int> {
+        edges.reduce(into: Set<Int>()) { $0.formUnion($1.overlappingSources); $0.insert($1.source) }
+    }
 
     /// The vertex at `point`, merging points closer than the intersection tolerance.
     mutating func vertex(_ point: Vector2) -> Int {
@@ -71,7 +75,11 @@ struct RegionGraph: Sendable {
             let to = vertex(piece.endPoint)
             guard from != to else { continue }
             let edge = Edge(from: from, to: to, shape: piece, source: source)
-            if !edges.contains(where: { Self.isSameGeometry($0, edge) }) { edges.append(edge) }
+            if let existing = edges.firstIndex(where: { Self.isSameGeometry($0, edge) }) {
+                if edges[existing].source != source { edges[existing].overlappingSources.insert(source) }
+            } else {
+                edges.append(edge)
+            }
         }
     }
 
