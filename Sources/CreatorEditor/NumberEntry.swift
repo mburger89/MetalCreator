@@ -1,3 +1,4 @@
+import Foundation
 import MetalUI
 
 /// A number field. While typing, the draft is kept locally so a partial value ("6" on the way to "60") never
@@ -14,12 +15,13 @@ struct NumberEntry: Component {
     let commit: @MainActor (Double) -> Void
     @State var draft: String?
     @FocusState var isFocused: Bool
+    @State var owner = UUID()
 
     var content: some ElementGroup {
         HStack(spacing: Pixels(0)) {
             TextField(placeholder, text: draft ?? text, onChange: { typed in
                 draft = typed
-                model.notePendingEntry(PendingEntry(text: typed, commit: commit, clear: clear))
+                model.notePendingEntry(PendingEntry(owner: owner, text: typed, commit: commit, clear: clear))
             })
             .focused($isFocused)
             .onSubmit {
@@ -28,7 +30,10 @@ struct NumberEntry: Component {
             }
         }
         .frame(width: width.px)
-        .onChange(of: text) { draft = nil }
+        .onChange(of: text) {
+            draft = nil
+            model.discardPendingEntry(ownedBy: owner)
+        }
         .onChange(of: isFocused) { wasFocused, focused in
             if wasFocused, !focused { model.commitPendingEntry() }
         }

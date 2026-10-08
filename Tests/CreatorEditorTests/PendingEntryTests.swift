@@ -1,6 +1,7 @@
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
+import Foundation
 import Testing
 @testable import CreatorEditor
 
@@ -71,5 +72,29 @@ struct PendingEntryTests {
         editor.notePendingEntry(typed(" ", into: total, editor))
         editor.commitPendingEntry()
         #expect(editor.graph.nodes[grid.id]?.inputValues["total"] == nil)
+    }
+
+    @Test func aFieldDiscardsItsOwnEntryWhenItsValueChangesUnderneath() throws {
+        let editor = makeEditor([rect])
+        let field = try widthField(editor, rect.id)
+        let owner = UUID()
+        var entry = typed("75", into: field, editor)
+        entry.owner = owner
+        editor.notePendingEntry(entry)
+        editor.setNumber(field, to: 20)
+        editor.discardPendingEntry(ownedBy: owner)
+        editor.commitPendingEntry()
+        #expect(editor.graph.nodes[rect.id]?.inputValues["width"] == .number(20), "the stale 75 was not written")
+    }
+
+    @Test func aFieldDoesNotDiscardAnotherFieldsEntry() throws {
+        let editor = makeEditor([rect])
+        let field = try widthField(editor, rect.id)
+        var entry = typed("75", into: field, editor)
+        entry.owner = UUID()
+        editor.notePendingEntry(entry)
+        editor.discardPendingEntry(ownedBy: UUID())
+        editor.commitPendingEntry()
+        #expect(editor.graph.nodes[rect.id]?.inputValues["width"] == .number(75))
     }
 }
