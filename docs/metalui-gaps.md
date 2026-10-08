@@ -108,3 +108,6 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
   palette is open (the keymap stage precedes field keys). SwiftUI's `onKeyPress` on the field would fix it.
 - **M5-i. No keyframe animation.** The refused-wire "brief shake" (spec §6.2) wants a back-and-forth keyframe
   animation. Stopgap: the node's offset jumps 6 pt and springs back (`.animation(.spring(duration:bounce:), value:)`).
+- **M5-j. No `ProgressView` or indeterminate spinner.** The node status badge shows a spinner while the node evaluates
+  (spec §6.2). MetalUI has no activity indicator. Stopgap: a static `◌` glyph (`StatusBadge.text(for:)`). Wanted:
+  `ProgressView()` (indeterminate, small control size) or a `TimelineView(.animation)` to rotate a glyph.

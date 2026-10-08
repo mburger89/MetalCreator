@@ -391,3 +391,5 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
 - §6.1/§6.6's glass blur and the window gradient wait for MetalUI. Panels are `#21222c` at 86% with the hairline,
   and the preview's background is solid `#191a21` (docs/metalui-gaps.md M5-c, M5-d).
 - §6.2's refusal shake is a spring back from a 6-pt offset (no keyframe animation yet, M5-i).
+- §6.2's status-badge spinner is a static `◌` glyph while a node evaluates: MetalUI has no `ProgressView` or
+  activity indicator yet (docs/metalui-gaps.md M5-j).
