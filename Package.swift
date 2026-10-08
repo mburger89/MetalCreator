@@ -36,6 +36,11 @@ let package = Package(
         // A dev window for the viewport's human checks (docs/verification/human-checks.md, group V). Not the app (M6).
         .executableTarget(name: "ViewportHarness",
                           dependencies: ["CreatorViewport", "CreatorOCCT", "CreatorKernel", "CreatorGeometry", metalUI]),
+        .target(name: "CreatorEditor", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUI]),
+        .testTarget(
+            name: "CreatorEditorTests",
+            dependencies: ["CreatorEditor", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUI]
+        ),
         .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT", "CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
         .testTarget(name: "CreatorKernelTests", dependencies: ["CreatorKernel", "CreatorGeometry"]),
