@@ -22,7 +22,11 @@ enum LevenbergMarquardt {
         var iterations: Int
     }
 
-    static func minimize(_ system: ComponentSystem, from start: [Double]) -> Outcome {
+    /// Minimises the sum of squared residuals from `start`. `iterationLimit` caps the iterations;
+    /// with `stallFraction`, an accepted step that lowers the cost by less than that fraction of
+    /// it ends the solve early (used by drag mode's pull, which only needs to get close).
+    static func minimize(_ system: ComponentSystem, from start: [Double], iterationLimit: Int = iterationLimit,
+                         stallFraction: Double? = nil) -> Outcome {
         var x = system.unstuck(start, tolerance: residualTolerance)
         var (r, jacobian) = system.evaluate(x)
         var iterations = 0
@@ -61,6 +65,7 @@ enum LevenbergMarquardt {
                 let factor = 2 * rho - 1
                 mu *= max(1.0 / 3.0, 1 - factor * factor * factor)
                 nu = 2
+                if let stallFraction, currentCost - candidateCost < stallFraction * currentCost { break }
             } else {
                 mu *= nu
                 nu *= 2

@@ -40,4 +40,25 @@ struct DenseMatrix: Hashable, Sendable {
         }
         return result
     }
+
+    /// Applies the Householder reflector I − 2 v vᵀ / ‖v‖² (v running over rows `start...`) to
+    /// columns `firstColumn...`. Walks the row-major storage row by row, so it stays in cache;
+    /// each column's dot product still sums over rows in ascending order, exactly as a
+    /// column-by-column loop would.
+    mutating func reflect(_ v: [Double], vNorm: Double, fromRow start: Int, fromColumn firstColumn: Int) {
+        let width = columns - firstColumn
+        guard width > 0, vNorm > 0 else { return }
+        var factors = Array(repeating: 0.0, count: width)
+        for i in start..<rows {
+            let vi = v[i - start]
+            let base = i * columns + firstColumn
+            for j in 0..<width { factors[j] += vi * storage[base + j] }
+        }
+        for j in 0..<width { factors[j] = 2 * factors[j] / vNorm }
+        for i in start..<rows {
+            let vi = v[i - start]
+            let base = i * columns + firstColumn
+            for j in 0..<width { storage[base + j] -= factors[j] * vi }
+        }
+    }
 }

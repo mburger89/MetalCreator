@@ -2,8 +2,10 @@ import CreatorGeometry
 import Foundation
 
 extension SketchCommands {
-    /// The most instances one pattern command makes.
-    static let patternLimit = 1000
+    /// The most instances one pattern command makes. The solver is dense (O(n³) in the unknowns)
+    /// and re-solves every drag frame, so a pattern can't be allowed to grow a sketch past what
+    /// it solves interactively; 100 copies of a small feature stay in that range.
+    static let patternLimit = 100
 
     /// `count − 1` copies of the selection, each `spacing` further along `direction` (spec §3).
     ///

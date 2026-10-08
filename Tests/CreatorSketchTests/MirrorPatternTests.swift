@@ -155,5 +155,9 @@ struct MirrorPatternTests {
         #expect(throws: SketchCommandError("A pattern needs at least 2 instances.")) {
             try SketchCommands.linearPattern(sketch, entities: [circle], direction: Vector2(1, 0), spacing: 5, count: 1)
         }
+        // The dense solver re-solves every drag frame, so patterns stay at a size it solves interactively.
+        #expect(throws: SketchCommandError("A pattern can have at most 100 instances.")) {
+            try SketchCommands.linearPattern(sketch, entities: [circle], direction: Vector2(1, 0), spacing: 5, count: 101)
+        }
     }
 }

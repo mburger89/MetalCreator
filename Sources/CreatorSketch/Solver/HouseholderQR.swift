@@ -29,12 +29,7 @@ enum HouseholderQR {
             var vNorm = 0.0
             for value in v { vNorm += value * value }
             if vNorm > 0 {
-                for j in k..<n {
-                    var s = 0.0
-                    for i in k..<m { s += v[i - k] * r[i, j] }
-                    let f = 2 * s / vNorm
-                    for i in k..<m { r[i, j] -= f * v[i - k] }
-                }
+                r.reflect(v, vNorm: vNorm, fromRow: k, fromColumn: k)
                 var s = 0.0
                 for i in k..<m { s += v[i - k] * y[i] }
                 let f = 2 * s / vNorm

@@ -17,15 +17,15 @@ struct RankRevealingQR {
         var rank = 0
         for k in 0..<min(m, n) {
             // Pick the remaining column with the largest norm below row k (first wins on ties).
+            var norms = Array(repeating: 0.0, count: n - k)
+            for i in k..<m {
+                for j in k..<n { norms[j - k] += r[i, j] * r[i, j] }
+            }
             var best = k
             var bestNorm = -1.0
-            for j in k..<n {
-                var s = 0.0
-                for i in k..<m { s += r[i, j] * r[i, j] }
-                if s > bestNorm {
-                    bestNorm = s
-                    best = j
-                }
+            for j in k..<n where norms[j - k] > bestNorm {
+                bestNorm = norms[j - k]
+                best = j
             }
             let norm = bestNorm.squareRoot()
             if k == 0 { threshold = Self.relativeTolerance * max(1, norm) }
@@ -43,14 +43,7 @@ struct RankRevealingQR {
             v[0] -= alpha
             var vNorm = 0.0
             for value in v { vNorm += value * value }
-            if vNorm > 0 {
-                for j in k..<n {
-                    var s = 0.0
-                    for i in k..<m { s += v[i - k] * r[i, j] }
-                    let f = 2 * s / vNorm
-                    for i in k..<m { r[i, j] -= f * v[i - k] }
-                }
-            }
+            r.reflect(v, vNorm: vNorm, fromRow: k, fromColumn: k)
             reflectors.append((k, v, vNorm))
             rank += 1
         }

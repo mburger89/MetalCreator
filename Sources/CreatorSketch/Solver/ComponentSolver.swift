@@ -9,6 +9,13 @@ enum ComponentSolver {
     /// An unknown whose unit vector has at least this squared length outside the Jacobian's row
     /// space can still move.
     static let freeTolerance = 1e-10
+    /// Drag mode's pull towards the targets runs at most this many iterations. The pull only
+    /// has to get near; the projection that follows restores every constraint exactly. A drag
+    /// whose target can't be reached would otherwise run LM's full 200 iterations on a stalled
+    /// least-squares fit every frame (spec §8 re-solves per frame).
+    static let pullIterationLimit = 20
+    /// The pull also stops once an accepted step lowers its cost by less than this fraction.
+    static let pullStallFraction = 1e-6
 
     struct Outcome: Sendable {
         /// Local unknown values: the solution, or the warm start when unsatisfied.
@@ -38,7 +45,7 @@ enum ComponentSolver {
             // hard constraint exactly from there, so geometry slides along its remaining freedom.
             // A result that only holds by collapsing or inverting a curve is dropped, and the
             // component solves as if not dragged.
-            let pulled = LevenbergMarquardt.minimize(system.adding(drags), from: start)
+            let pulled = pull(system, drags, from: start)
             let projected = LevenbergMarquardt.minimize(system, from: pulled.x)
             if projected.maxResidual <= satisfiedTolerance, degeneracy(system.global(projected.x)) == nil {
                 result = projected
@@ -59,6 +66,12 @@ enum ComponentSolver {
         return Outcome(x: x, isSatisfied: isSatisfied, conflictSets: conflictSets,
                        degreesOfFreedom: analysis.degreesOfFreedom, freeColumns: analysis.freeColumns,
                        degenerateReason: degenerateReason)
+    }
+
+    /// Drag mode's first phase: the hard rows plus the drag targets as soft rows.
+    static func pull(_ system: ComponentSystem, _ drags: [SolverTerm], from start: [Double]) -> LevenbergMarquardt.Outcome {
+        LevenbergMarquardt.minimize(system.adding(drags), from: start, iterationLimit: pullIterationLimit,
+                                    stallFraction: pullStallFraction)
     }
 
     struct Analysis {
