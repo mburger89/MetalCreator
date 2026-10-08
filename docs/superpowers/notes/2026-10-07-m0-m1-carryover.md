@@ -43,7 +43,7 @@ Read this before writing the M2 and M3 plans.
 - `CancelsTaskNode` test assumes nodes run in the caller's task — revisit with parallel evaluation.
 - Hard-coded `/opt/homebrew` OCCT prefix (packaging deferred, spec §11).
 - M2 final review residuals: `oriented()` runs `BRepLib::OrientClosedSolid` on every extrude/revolve/loft even when the volume is already positive (only call it when negative — measure in M7); its boolean return is ignored; note that it works by reversing the solid, like the old code. The non-destructive-boolean test is a regression guard only — a stronger test would read max vertex/edge tolerance of a near-touching tool input (rises from 1e-7 in destructive mode).
-- Before M4: build edge polylines from `BRep_Tool::PolygonOnTriangulation` so lines sit on the face mesh; meshes depend on earlier tessellations (BRepMesh reuses finer triangulation in shared TShapes).
+- ✅ (M4) Before M4: build edge polylines from `BRep_Tool::PolygonOnTriangulation` so lines sit on the face mesh; meshes depend on earlier tessellations (BRepMesh reuses finer triangulation in shared TShapes).
 - ✅ (M3) M3 notes from the M2 review: Edges by Tag should match "picked tags ⊆ face tags" per side (unions merge tag sets); Edges by Direction uses `abs(dot)` and `kind == .line`; Edge Set Op dedupes; Loft rejects sections with different segment counts (Rectangle → Circle) — show a clear message or plan resampling; warn when a picked key contains `.unnamed`.
 
 ## From M3
@@ -61,3 +61,29 @@ Read this before writing the M2 and M3 plans.
 - `Topology.midpointOrder` uses a 1e-6 mm tolerance compare, which is not a strict weak ordering for pathological midpoints.
 - M6 exports the solids of `isOutput` nodes; the Output node's `name` is the export name.
 - **Owned by M6 (untracked until now): spec §8 naming stability, the polygon swap.** `BracketAcceptanceTests` covers Width 60→90 and Hole count 4→6, but not "a rectangle profile swapped for a polygon". The swapped profile is the L-flange's Rectangle, replaced by a Regular Polygon. The swap as written empties the fillet rule, because no polygon side is parallel to Z (spec Errata (M3)). M6 adds a polygon rotation, or uses a Polyline, then writes the test. The test asserts that the chamfer keys are unchanged, that nothing warns, and that the fillet count is pinned. The fillet's flange keys are expected to change.
+
+## From M4
+- Picking renders the ID pass on its own command queue and waits for it (`ViewportPicker`). It's re-rendered only when the camera
+  or scene changes, and never during a drag. Measure against the §7.3 orbit target in M7.
+- Every newly shown solid is tessellated on the kernel actor. A dragged fillet radius re-tessellates each step; measure
+  the §7.3 100 ms target in M7. Tessellation now cleans the shape first (deterministic meshes), so each call meshes from scratch.
+- M6 owns the glue the viewport can't see:
+  - `DocumentModel` outputs → `ViewportItem` (ghosts from `lastGoodOutputs` of erroring nodes)
+  - `HandleSpec` → `ViewportHandle` (Extrude: profile plane + normal; Fillet/Chamfer: an edge midpoint + bisector),
+    only while the node's `NodeSetting.showHandle` reads `.bool(true)` (seeded by `defaultSettings`; missing counts as shown)
+  - `handleChanged(.ended)` → `endCoalescing()`
+  - `ViewState.camera`/`homeCamera` ↔ `ViewportModel.pose`/`homePose`. Sync the camera into `ViewState` on drag end,
+    animation end and save, **not on every pose change**: writing `DocumentModel.viewState` invalidates every
+    observer of it (M5's editor reads the dock and canvas transform from it), which would rebuild the graph panel at
+    60 Hz during an orbit and threaten §7.3.
+  - Both input stopgaps take over `Window.onInput`: M4's `ViewportModifierTracker` and M5's `GraphPanelInput`.
+    `ViewportModifierTracker.install(on:)` chains to the previous handler. Whichever is installed second must chain
+    too (or share one modifier tracker), or the other silently stops seeing events.
+  - `selectEdgesOfFace` → an Edges by Tag node: `.setInput(node, NodeSetting.picks, .edgePicks(picks))` with the
+    reported `[EdgePick]`, unchanged (the node warns on `.unnamed` picks itself); pick-mode clicks the same way,
+    through `topology.picks(for:)`
+  - a keymap context for the viewport's keys
+- Stopgaps to delete when MetalUI C7 lands: `ViewportModifierTracker`, the hover-point context menu, window-wide viewport keys.
+- `ViewportPalette` (GPU colours) duplicates spec §6.6 hex values that M5's `Palette` will also hold. M5 can't unify
+  them (neither target may import the other); M6 decides on a shared home.
+- Faces above 2²² − 1 and solids beyond 256 aren't pickable (`PickID`).

@@ -33,6 +33,9 @@ let package = Package(
         .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry"]),
         .target(name: "CreatorNodes", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
         .target(name: "CreatorViewport", dependencies: ["CreatorKernel", "CreatorGeometry", metalUI]),
+        // A dev window for the viewport's human checks (docs/verification/human-checks.md, group V). Not the app (M6).
+        .executableTarget(name: "ViewportHarness",
+                          dependencies: ["CreatorViewport", "CreatorOCCT", "CreatorKernel", "CreatorGeometry", metalUI]),
         .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT", "CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
         .testTarget(name: "CreatorKernelTests", dependencies: ["CreatorKernel", "CreatorGeometry"]),

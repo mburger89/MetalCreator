@@ -15,7 +15,7 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 | M1 | Graph engine: values, broadcasting, evaluator, undo, `.mcgraph`, `DocumentModel` | ✅ | — |
 | M2 | OCCT kernel: all operations, tags through history, conformance + naming stability | ✅ | M0, M1 |
 | M3 | The 26 nodes (values, profiles, solids, selection rules, fillet/chamfer, output) | ✅ | M2 |
-| M4 | Viewport on MetalUI `MetalView`: shaded/edge/ID passes, camera, view cube, picking, context menu, handles | 📝 plan ready for review (…-m4-viewport.md); runs after M3 | M2; MetalUI C7 for final input bindings (stopgaps until then) |
+| M4 | Viewport on MetalUI `MetalView`: shaded/edge/ID passes, camera, view cube, picking, context menu, handles | 🔄 code done; human checks V pending | M2; MetalUI C7 for final input bindings (stopgaps until then) |
 | M5 | Graph panel on MetalUI: canvas, both docks, palette, context inspector | 📝 plan ready for review (…-m5-graph-panel.md); runs after M4 | M1; node inspector specs from M3 |
 | M6 | App shell + acceptance demo (§7.2 bracket, STEP/STL export) | ⏳ after M3–M5 | M3, M4, M5 |
 | M7 | Measure §7.3 targets, finish `docs/metalui-gaps.md`, CLAUDE.md | ⏳ after M6 | M6 |
@@ -38,5 +38,5 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 ## Carry-over items with a milestone
 
 - ✅ Before M3: Edges-by-Tag subset matching; Edges by Direction `abs(dot)` + `kind == .line`; Edge Set Op dedupe; Loft segment-count message; warn on `.unnamed` picks; multi-solid boolean warning.
-- Before M4: edge polylines from `BRep_Tool::PolygonOnTriangulation`; mesh determinism across calls.
+- ✅ Before M4: edge polylines from `BRep_Tool::PolygonOnTriangulation`; mesh determinism across calls.
 - M7: `oriented()` cost; OCCTKernel on the default executor; per-item calls under the global lock.

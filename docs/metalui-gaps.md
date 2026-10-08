@@ -34,3 +34,33 @@ MetalCreator's concrete expectations (for C7's designer): see the M4 (viewport) 
 `location` in the gesture element's local coordinate space; middle-drag pans, right-drag orbits, two-finger
 scroll zooms toward the cursor in the viewport and pans the graph canvas (⌘-scroll zooms it); momentum is honoured
 for canvas panning and ignored for viewport zoom.
+
+## Hit by M4 (viewport), 2026-10-08
+
+Gap numbers 1–5 are the C7 items above. New gaps are labelled M4-a… (M5 uses M5-a…), so later milestones never collide with the C7 numbering. Each stopgap lives behind one type of ours, named in its entry, so the swap stays local.
+
+- **Gap 5 (C7 item 5, now concrete): modifiers during a drag.** Shift-drag pans and ⌥-drag zooms the viewport (spec §9).
+   `DragGesture.Value` has no modifiers. Stopgap: `ViewportModifierTracker` follows `.modifiersChanged` through a
+   chained `Window.onInput`. Wanted: `DragGesture.Value.modifiers` (the modifiers held at each change, including at the press).
+- **Gap 4 (C7 item 4, now concrete): context-menu location.** The face menu must know which face was under the
+   secondary press: the press point in the element's local points. Stopgap: the last `onContinuousHover` point
+   (`ViewportModel.contextMenuItems()` reads the hovered pick). The model re-picks at the last pointer point whenever
+   the camera moves under a still pointer (drag release, key zoom, projection switch, end of a view-cube or Look At
+   animation) or the scene is replaced (`refreshHover()`). It's still wrong if the pointer moved without a hover
+   event since. Wanted: the opening location passed to the `.contextMenu` builder, or `SpatialTapGesture` for secondary clicks.
+- **Gap 1 (C7 item 1): scroll-wheel zoom toward the cursor.** Not available. Stopgaps: ⌥-drag and the +/− keys
+   (`ViewportInputMap`). The C7 shape the viewport expects is in the "C7 status" section above.
+- **M4-a (new): an element's size, and keyboard focus.**
+   - No `GeometryReader` or `onGeometryChange`: the viewport learns its size from `MetalDrawContext.pixelSize / scaleFactor`
+     inside its draw, into untracked state (`ViewportModel.viewSize`). Input before the first draw sees a zero size and is ignored.
+     Wanted: `onGeometryChange(for:of:action:)` or a size in the draw's `value:` round trip.
+   - A click doesn't focus a `.focusable()` element (divergence 94), so the viewport's F, + and − keys are bound window-wide
+     (`ViewportKeyBindings`). The app shell will collide with text fields. Wanted: focus-on-click for a focusable
+     surface, or a key context an element contributes while hovered.
+- **M4-b (new): builder and redraw ergonomics.**
+   - A helper returning `some Element`, called inside a `for` in a container's builder, fails with "underlying type for opaque
+     result type could not be inferred" (the same chain written inline compiles). The viewport writes its label
+     loops inline.
+   - A `.continuous` `MetalView` redraws its surface every frame, but the element tree isn't rebuilt, so overlay labels
+     can't follow a camera animation. They're hidden while one runs. Wanted: `TimelineView(.animation)`, or a per-frame
+     rebuild hook for elements above a continuous surface.
