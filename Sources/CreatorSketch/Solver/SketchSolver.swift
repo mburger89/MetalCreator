@@ -1,11 +1,12 @@
 import CreatorGeometry
 
 /// The numeric constraint solver (spec §4): decomposition into connected components, warm start
-/// from `Sketch.solved`, Levenberg–Marquardt with dense QR, rank-revealing DOF and
+/// from `Sketch.solved`, Levenberg–Marquardt with dense QR, drag mode, rank-revealing DOF and
 /// freedom analysis, and minimal conflict sets. Pure and deterministic.
 public enum SketchSolver {
-    /// Solves `sketch`.
-    public static func solve(_ sketch: Sketch) -> SketchSolution {
+    /// Solves `sketch`. `dragging` maps point entities to where the pointer wants them; those
+    /// points become soft targets and everything else slides along its remaining freedom.
+    public static func solve(_ sketch: Sketch, dragging: [SketchEntityID: Vector2] = [:]) -> SketchSolution {
         let layout = UnknownLayout(sketch)
         let x0 = layout.warmStart(sketch)
         let built: TermBuilder.Output
@@ -14,7 +15,11 @@ public enum SketchSolver {
         } catch {
             return failed(sketch, layout: layout, x: x0, reason: error.reason)
         }
-        let partition = ComponentPartition(terms: built.terms, layout: layout)
+        let drags = dragging.keys.sorted().compactMap { id -> SolverTerm? in
+            guard let column = layout.pointColumns[id], let target = dragging[id], target.isFinite else { return nil }
+            return SolverTerm(role: .drag, equation: .target(.unknown(column: column), target))
+        }
+        let partition = ComponentPartition(terms: built.terms + drags, layout: layout)
         var x = x0
         var conflictSets: [[SketchConstraintRef]] = []
         var freeColumns = Set<Int>()

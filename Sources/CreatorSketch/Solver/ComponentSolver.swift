@@ -23,9 +23,19 @@ enum ComponentSolver {
     }
 
     static func solve(_ component: ComponentPartition.Component, base: [Double]) -> Outcome {
-        let system = ComponentSystem(terms: component.terms, columns: component.columns, base: base)
+        let full = ComponentSystem(terms: component.terms, columns: component.columns, base: base)
+        let system = full.filtered { $0.role != .drag }
+        let drags = full.terms.filter { $0.role == .drag }
         let start = system.local(base)
-        let solved = LevenbergMarquardt.minimize(system, from: start)
+        var result: LevenbergMarquardt.Outcome?
+        if !drags.isEmpty {
+            // Drag mode (spec §4 step 4): pull towards the targets as soft rows, then restore every
+            // hard constraint exactly from there, so geometry slides along its remaining freedom.
+            let pulled = LevenbergMarquardt.minimize(system.adding(drags), from: start)
+            let projected = LevenbergMarquardt.minimize(system, from: pulled.x)
+            if projected.maxResidual <= satisfiedTolerance { result = projected }
+        }
+        let solved = result ?? LevenbergMarquardt.minimize(system, from: start)
         let isSatisfied = solved.maxResidual <= satisfiedTolerance
         let x = isSatisfied ? solved.x : start
         let analysis = analyse(system, at: x)
