@@ -8,7 +8,8 @@ import MetalUI
 /// - `swift run ViewportHarness` shows the part.
 /// - `HARNESS_GHOST=1` draws it as a stale ghost.
 /// - `HARNESS_SELECT=1` selects its top face and edges.
-/// Clicks, menu choices and handle drags print to the terminal.
+/// Clicking a face selects it and its edges (an edge selects that edge; empty space clears). Clicks, menu choices
+/// and handle drags print to the terminal.
 @MainActor
 func runHarness() throws {
     let app = try App()
@@ -16,9 +17,14 @@ func runHarness() throws {
     let kernel = OCCTKernel()
     let model = ViewportModel(kernel: kernel)
     let modifiers = ViewportModifierTracker()
-    model.events.clicked = { print("clicked: \(String(describing: $0))") }
-    model.events.selectEdgesOfFace = { face, picks, edges in
+    let selection = HarnessSelection()
+    model.events.clicked = { [weak model] target in
+        print("clicked: \(String(describing: target))")
+        if let model { selection.apply(target, on: model) }
+    }
+    model.events.selectEdgesOfFace = { [weak model] face, picks, edges in
         print("select edges of face \(face.face.rawValue): edges \(edges.map(\.rawValue)), \(picks.count) picks")
+        if let model { selection.selectEdges(edges, ofSolid: face.solidIndex, on: model) }
     }
     model.events.showProducingNode = { print("show producing node \($0)") }
     model.events.handleChanged = { id, value, phase in print("handle \(id) = \(value) (\(phase))") }
@@ -39,7 +45,7 @@ func runHarness() throws {
         do {
             let scene = try await HarnessScene.build(kernel, ghost: environment["HARNESS_GHOST"] == "1",
                                                      selectTop: environment["HARNESS_SELECT"] == "1")
-            model.show(scene.items)
+            selection.show(scene.items, on: model)
             model.showHandles(scene.handles)
         } catch {
             print("ViewportHarness: \(error)")

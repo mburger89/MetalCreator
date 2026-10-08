@@ -25,8 +25,13 @@ enum HarnessScene {
             edge.kind == .line && !edge.isSeam && edge.convexity == .convex
                 && abs((edge.direction ?? .zero).dot(.unitZ)) > 0.999
         }
-        let part = (try? await kernel.fillet(bracket, edges: vertical.map(\.id), radius: 3,
-                                             tag: NodeTag(node: NodeID(), item: 0))) ?? bracket
+        let part: Solid
+        do {
+            part = try await kernel.fillet(bracket, edges: vertical.map(\.id), radius: 3, tag: NodeTag(node: NodeID(), item: 0))
+        } catch {
+            print("ViewportHarness: the R3 fillet on \(vertical.count) vertical edges failed, showing the part without it: \(error)")
+            part = bracket
+        }
         var item = ViewportItem(solid: part, isGhost: ghost)
         if selectTop,
            let top = part.topology.faces.filter({ ($0.normal ?? .zero).dot(.unitZ) > 0.999 })

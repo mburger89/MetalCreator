@@ -56,7 +56,8 @@ drags print to the terminal.
   the vertex position in `ViewportShaders` and compile with `MTLCompileOptions.preserveInvariance = true`.
   Pinned: ghost flags in `ghostsSelectionAndHoverReachTheFrame`. Observed:
 - [ ] **V8 Selection.** `HARNESS_SELECT=1` shows the flange's top face and its edges glowing pink (#ff79c6). Edges stay
-  pink in Shaded mode. Pinned: `edgeInstancesAreOnePerSegmentWithTheirPickID`. Observed:
+  pink in Shaded mode. In any mode, clicking a face selects it and its edges, clicking an edge selects that edge,
+  and clicking empty space clears (the harness applies clicks itself; in the app, selection belongs to the shell). Pinned: `edgeInstancesAreOnePerSegmentWithTheirPickID`. Observed:
 - [ ] **V9 Handles.** A purple arrow handle at the plate top labelled "6 mm", and an orange radial handle at a fillet
   labelled "R 3 mm". Dragging a knob moves it along its axis, the label follows, and the terminal prints `changed`
   values and one `ended`. The camera doesn't move. Known symptom (gap M4-a): handle labels are missing on the first build of a document with a saved camera, and misplaced during a live resize, until the next rebuild. Pinned: `draggingAHandleEditsItsValueAndNotTheCamera`. Observed:
