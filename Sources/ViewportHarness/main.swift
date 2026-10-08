@@ -8,8 +8,9 @@ import MetalUI
 /// - `swift run ViewportHarness` shows the part.
 /// - `HARNESS_GHOST=1` draws it as a stale ghost.
 /// - `HARNESS_SELECT=1` selects its top face and edges.
-/// Clicking a face selects it and its edges (an edge selects that edge; empty space clears). Clicks, menu choices
-/// and handle drags print to the terminal.
+/// Clicking a face selects it and its edges (an edge selects that edge; empty space clears). Dragging a handle
+/// rebuilds the part with the new plate thickness or fillet radius. Clicks, menu choices and handle drags print
+/// to the terminal.
 @MainActor
 func runHarness() throws {
     let app = try App()
@@ -27,7 +28,13 @@ func runHarness() throws {
         if let model { selection.selectEdges(edges, ofSolid: face.solidIndex, on: model) }
     }
     model.events.showProducingNode = { print("show producing node \($0)") }
-    model.events.handleChanged = { id, value, phase in print("handle \(id) = \(value) (\(phase))") }
+    let rebuilder = HarnessRebuilder(kernel: kernel, selection: selection,
+                                     ghost: environment["HARNESS_GHOST"] == "1",
+                                     selectTop: environment["HARNESS_SELECT"] == "1")
+    model.events.handleChanged = { [weak model] id, value, phase in
+        print("handle \(id) = \(value) (\(phase))")
+        if let model { rebuilder.handleChanged(id, to: value, on: model) }
+    }
     let window = try app.openWindow(title: "MetalCreator — Viewport Harness",
                                     size: Size(width: Pixels(1100), height: Pixels(720)),
                                     content: {
@@ -41,16 +48,7 @@ func runHarness() throws {
         guard let model else { return false }
         return ViewportKeyBindings.handle(action, model: model)
     }
-    Task {
-        do {
-            let scene = try await HarnessScene.build(kernel, ghost: environment["HARNESS_GHOST"] == "1",
-                                                     selectTop: environment["HARNESS_SELECT"] == "1")
-            selection.show(scene.items, on: model)
-            model.showHandles(scene.handles)
-        } catch {
-            print("ViewportHarness: \(error)")
-        }
-    }
+    rebuilder.rebuild(on: model)
     app.run()
 }
 
