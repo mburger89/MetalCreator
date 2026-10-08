@@ -1,14 +1,17 @@
 import CreatorGeometry
 import Foundation
 
-/// The axis triad at the bottom-left of the viewport (spec §6.3): X, Y and Z turning with the camera.
+/// The axis triad at the bottom-left of the model area (spec §6.3): X, Y and Z turning with the camera.
+/// `leading` and `bottom` are its distances from the viewport's left and bottom edges.
 public struct TriadLayout: Hashable, Sendable {
     public var side: Double
-    public var inset: Double
+    public var leading: Double
+    public var bottom: Double
 
-    public init(side: Double = 64, inset: Double = 16) {
+    public init(side: Double = 64, leading: Double = 16, bottom: Double = 16) {
         self.side = side
-        self.inset = inset
+        self.leading = leading
+        self.bottom = bottom
     }
 
     static let halfExtent = 1.2
@@ -17,7 +20,7 @@ public struct TriadLayout: Hashable, Sendable {
 
     /// The widget's top-left corner in a viewport of `size`.
     func origin(in size: ViewportSize) -> ScreenPoint {
-        ScreenPoint(inset, size.height - inset - side)
+        ScreenPoint(leading, size.height - bottom - side)
     }
 
     func widgetPose(_ pose: CameraPose) -> CameraPose {

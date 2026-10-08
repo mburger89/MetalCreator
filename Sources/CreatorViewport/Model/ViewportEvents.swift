@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorKernel
 
 /// What the viewport tells its host. Every callback runs on the main actor, from input.
@@ -15,6 +16,16 @@ public struct ViewportEvents {
     public var handleChanged: @MainActor (String, Double, HandleDragPhase) -> Void = { _, _, _ in }
     /// A node's display name for menu titles, or `nil` to show its short ID.
     public var nodeName: @MainActor (NodeID) -> String? = { _ in nil }
+    /// The camera came to rest at this pose: a drag that moved it was released, an animation (view cube,
+    /// arrows, Home, F, Look At) ended or was stopped, a key zoom or a projection switch was applied, or the
+    /// first scene was framed. The host saves it into `ViewState.camera`. It is never sent on every pose change,
+    /// so the document isn't rewritten at 60 Hz during an orbit.
+    public var cameraSettled: @MainActor (CameraPose) -> Void = { _ in }
+    /// "Set Home View" made this the home view.
+    public var homeChanged: @MainActor (CameraPose?) -> Void = { _ in }
+    /// A press began on the viewport, before anything else it does. The host releases text focus here, as a
+    /// canvas press does (docs/metalui-gaps.md M5-g).
+    public var pressed: @MainActor () -> Void = {}
 
     public init() {}
 }

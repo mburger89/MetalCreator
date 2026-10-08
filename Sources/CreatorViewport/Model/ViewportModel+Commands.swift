@@ -14,6 +14,7 @@ extension ViewportModel {
             if let home = homePose ?? sceneBounds.map(defaultHome(for:)) { animate(to: home) }
         case .setHome:
             homePose = currentPose()
+            events.homeChanged(homePose)
         case .view(let region):
             animate(to: region.pose(from: currentPose()))
         case .rotate(let arrow):
@@ -22,6 +23,7 @@ extension ViewportModel {
             stopAnimation()
             pose.projection = projection
             refreshHover()
+            events.cameraSettled(pose)
         case .shading(let mode):
             shading = mode
         }
@@ -38,8 +40,10 @@ extension ViewportModel {
 
     func zoom(by factor: Double) {
         stopAnimation()
+        let before = pose
         apply(CameraNavigation.zoom(pose, factor: factor, toward: lastHoverPoint, size: viewSize))
         refreshHover()
+        if pose != before { events.cameraSettled(pose) }
     }
 
     /// Spec §6.3: "F frames the selection, or everything". With nothing shown, nothing happens.

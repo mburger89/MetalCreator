@@ -27,6 +27,8 @@ public final class ViewportModel {
     public var theme: ColorTheme = .dracula
     public var cubeLayout = ViewCubeLayout()
     public var triadLayout = TriadLayout()
+    /// How far floating panels cover the viewport's edges (`setModelArea(_:)`).
+    public internal(set) var modelArea = ViewportInsets()
     /// Display tolerance in mm. Meshes are cached per solid and tolerance. A change applies at the next `show(_:)`.
     public var displayTolerance = 0.05
     /// The shown scene: what's drawn, picked, framed and offered in the context menu. It changes only when a
@@ -164,9 +166,10 @@ public final class ViewportModel {
         let clock = clock
         animationTask = Task { [weak self] in
             await clock.sleep(for: CameraAnimation.viewCubeDuration)
-            guard !Task.isCancelled else { return }
-            self?.animation = nil
-            self?.refreshHover()
+            guard !Task.isCancelled, let self else { return }
+            animation = nil
+            refreshHover()
+            events.cameraSettled(pose)
         }
     }
 
@@ -176,6 +179,7 @@ public final class ViewportModel {
         pose = currentPose()
         animation = nil
         animationTask?.cancel()
+        events.cameraSettled(pose)
     }
 
     /// Takes `next` as the camera, unless it's non-finite (which would make the view and the document unusable).
@@ -209,6 +213,7 @@ public final class ViewportModel {
         guard needsFirstFraming, !viewSize.isEmpty, let bounds = sceneBounds else { return }
         needsFirstFraming = false
         pose = homePose ?? defaultHome(for: bounds)
+        events.cameraSettled(pose)
     }
 
     /// Isometric, perspective, framed on `bounds`.

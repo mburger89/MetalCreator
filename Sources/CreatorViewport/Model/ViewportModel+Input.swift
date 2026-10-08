@@ -11,6 +11,7 @@ extension ViewportModel {
     /// - on a handle's knob, it edits the handle
     /// - otherwise it depends on the modifiers (`ViewportInputMap`)
     public func pointerDown(at point: ScreenPoint, modifiers: ViewportModifiers) {
+        events.pressed()
         stopAnimation()
         var mode = ViewportInputMap.dragMode(for: modifiers)
         var pivot: Vector3?
@@ -74,6 +75,9 @@ extension ViewportModel {
         default:
             break
         }
+        // A drag that moved the camera settles it here. A click put it back, and a cube click animates
+        // (its end reports).
+        if !isAnimating, pose != state.startPose { events.cameraSettled(pose) }
     }
 
     /// The pointer moved over the viewport (`nil` when it left). Over the cube, its region is hit-tested on the CPU.

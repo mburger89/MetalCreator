@@ -25,7 +25,8 @@ extension ViewportView {
             ProposalText(model.gridLabel)
                 .foregroundStyle(model.hintColor)
                 .font(.caption)
-                .padding(Edges(all: Pixels(12)))
+                .padding(Edges(top: Pixels(0), right: Pixels(Float(model.modelArea.trailing + 12)),
+                               bottom: Pixels(Float(model.modelArea.bottom + 12)), left: Pixels(0)))
                 .allowsHitTesting(false)
         }
     }
@@ -81,7 +82,8 @@ extension ViewportView {
         }
         .frame(width: Pixels(Float(model.triadLayout.side)), height: Pixels(Float(model.triadLayout.side)),
                alignment: .topLeading)
-        .padding(Edges(all: Pixels(Float(model.triadLayout.inset))))
+        .padding(Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(Float(model.triadLayout.bottom)),
+                       left: Pixels(Float(model.triadLayout.leading))))
         .allowsHitTesting(false)
     }
 
