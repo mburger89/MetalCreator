@@ -1,5 +1,5 @@
 /// Solves one component, then analyses it: degrees of freedom and free unknowns from a
-/// rank-revealing QR of the Jacobian, and a minimal conflict set when it can't be satisfied or
+/// rank-revealing QR of the Jacobian, and minimal conflict sets when it can't be satisfied or
 /// its constraints are redundant (spec §4).
 enum ComponentSolver {
     /// A solve whose largest residual ends at or below this (mm) satisfies its constraints. LM
@@ -14,8 +14,8 @@ enum ComponentSolver {
         /// Local unknown values: the solution, or the warm start when unsatisfied.
         var x: [Double]
         var isSatisfied: Bool
-        /// Conflicting sets, empty when the component is consistent and independent. Here one
-        /// set holding every ref; Task 6 narrows it to minimal sets, one per conflict.
+        /// Minimal conflicting sets, one per independent conflict; empty when the component is
+        /// consistent and independent.
         var conflictSets: [[SketchConstraintRef]]
         var degreesOfFreedom: Int
         /// Global columns that can still move.
@@ -29,9 +29,12 @@ enum ComponentSolver {
         let isSatisfied = solved.maxResidual <= satisfiedTolerance
         let x = isSatisfied ? solved.x : start
         let analysis = analyse(system, at: x)
-        // Every constraint in a component that can't be met or is redundant (Task 6 narrows
-        // this to minimal sets).
-        let conflictSets = !isSatisfied || analysis.isRedundant ? [refs(of: system)] : []
+        var conflictSets: [[SketchConstraintRef]] = []
+        if !isSatisfied {
+            conflictSets = ConflictSearch.unsatisfiableSets(system, from: start, stalled: solved.x).sets
+        } else if analysis.isRedundant {
+            conflictSets = ConflictSearch.dependentSets(system, at: x)
+        }
         return Outcome(x: x, isSatisfied: isSatisfied, conflictSets: conflictSets,
                        degreesOfFreedom: analysis.degreesOfFreedom, freeColumns: analysis.freeColumns)
     }
