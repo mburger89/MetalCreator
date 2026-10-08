@@ -45,6 +45,23 @@ let package = Package(
             name: "GraphPanelPreview",
             dependencies: ["CreatorEditor", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUI]
         ),
+        // The app shell (M6): the one target that joins the graph, the nodes, the viewport and the editor. A library,
+        // so its model is tested.
+        .target(
+            name: "CreatorApp",
+            dependencies: [
+                "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorKernel", "CreatorGeometry",
+                "CreatorStyle", metalUI,
+            ]
+        ),
+        // CreatorOCCT is a test-only dependency: the app-level acceptance test runs the §7.2 bracket on OCCT.
+        .testTarget(
+            name: "CreatorAppTests",
+            dependencies: [
+                "CreatorApp", "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorKernel",
+                "CreatorGeometry", "CreatorOCCT", "CreatorStyle", metalUI,
+            ]
+        ),
         // CreatorNodes is a test-only dependency: BuiltInNodesInspectorTests runs the real M3
         // definitions through the inspector; the CreatorEditor library never imports it.
         .testTarget(
