@@ -49,6 +49,6 @@ extension SketchCommands {
         edited.add(.tangent(lines[0], arc))
         edited.add(.tangent(lines[1], arc))
         edited.addDimension(.radius(arc), value: radius)
-        return SketchEdit(sketch: edited, description: "Fillet \(sketch.label(of: corner)) (\(radius.sketchDisplay) mm)")
+        return try edit(from: sketch, to: edited, description: "Fillet \(sketch.label(of: corner)) (\(radius.sketchDisplay) mm)")
     }
 }

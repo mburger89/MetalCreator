@@ -27,7 +27,7 @@ extension SketchCommands {
         for pair in copy.curves {
             if case .circle = edited.entities[pair.copy]?.kind { edited.add(.equal(pair.original, pair.copy)) }
         }
-        return SketchEdit(sketch: edited, description: "Mirror \(count(selection.count))")
+        return try edit(from: sketch, to: edited, description: "Mirror \(count(selection.count))")
     }
 
     /// True when `point` is already held on the line `axis`: one of its endpoints, or under a

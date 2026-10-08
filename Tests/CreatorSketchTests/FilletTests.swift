@@ -102,6 +102,21 @@ struct FilletTests {
         // The fillet removed the origin's fix and both lines' lengths, so the sketch is usable but no longer fully constrained.
         let solution = try requireSolvesInPlace(filleted)
         #expect(solution.status == .underConstrained(dof: 4))
+        // The edit says what it removed, and the radius never takes a removed dimension's name.
+        let fix = try #require(rectangle.sketch.constraintIDs.first { if case .fix = rectangle.sketch.constraints[$0] { true } else { false } })
+        #expect(edit.removed == [.constraint(fix), .dimension(rectangle.width), .dimension(rectangle.height)])
+        let radius = try #require(filleted.dimensions.values.first { if case .radius = $0.kind { true } else { false } })
+        #expect(radius.name == "d3")
+    }
+
+    /// Removing an exposed dimension would leave its graph socket dangling, so the command refuses.
+    @Test func filletingACornerWithAnExposedDimensionIsRefused() {
+        var rectangle = ConstrainedRectangle(drawnOffset: 0)
+        rectangle.sketch.dimensions[rectangle.width]?.isExposed = true
+        let corner = rectangle.sketch.ends(rectangle.lines[0]).0
+        #expect(throws: SketchCommandError("That would remove d1, which is exposed as an input. Stop exposing it first.")) {
+            try SketchCommands.fillet(rectangle.sketch, corner: corner, radius: 5)
+        }
     }
 
     @Test func tooLargeARadiusNamesTheLargestThatFits() {

@@ -18,7 +18,7 @@ extension SketchCommands {
             guard cuts.count >= 2, case .circle(let center, _) = kind else {
                 edited.removeEntity(curve)
                 edited.removeOrphanPoints(kind.referencedPoints)
-                return SketchEdit(sketch: edited, description: description)
+                return try edit(from: sketch, to: edited, description: description)
             }
             // The removed span runs counter-clockwise from the last cut at or before the pick to the next.
             let index = cuts.lastIndex { $0.t <= pickT } ?? cuts.count - 1
@@ -27,7 +27,7 @@ extension SketchCommands {
             let end = point(at: removedFrom.position, on: removedFrom.cutter, in: &edited)
             edited.entities[curve]?.kind = .arc(center: center, start: start, end: end)
             edited.solved[curve] = nil
-            return SketchEdit(sketch: edited, description: description)
+            return try edit(from: sketch, to: edited, description: description)
         }
 
         let lower = cuts.last { $0.t < pickT }
@@ -65,7 +65,7 @@ extension SketchCommands {
                 edited.add(.equal(curve, piece))
             }
         }
-        return SketchEdit(sketch: edited, description: description)
+        return try edit(from: sketch, to: edited, description: description)
     }
 
     struct Cut {

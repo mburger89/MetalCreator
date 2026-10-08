@@ -45,7 +45,7 @@ extension SketchCommands {
                 previous[point] = to
             }
         }
-        return SketchEdit(sketch: edited, description: "Linear pattern of \(Self.count(selection.count)) (×\(count))")
+        return try edit(from: sketch, to: edited, description: "Linear pattern of \(Self.count(selection.count)) (×\(count))")
     }
 
     /// `count − 1` copies of the selection rotated about `center` in equal steps round a full turn
@@ -82,7 +82,7 @@ extension SketchCommands {
                 previous[point] = spoke
             }
         }
-        return SketchEdit(sketch: edited, description: "Circular pattern of \(Self.count(selection.count)) (×\(count))")
+        return try edit(from: sketch, to: edited, description: "Circular pattern of \(Self.count(selection.count)) (×\(count))")
     }
 
     static func checkCount(_ count: Int) throws(SketchCommandError) {

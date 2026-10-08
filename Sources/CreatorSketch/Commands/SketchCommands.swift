@@ -3,10 +3,35 @@ import CreatorGeometry
 /// Pure sketch editing commands (spec §3): each takes a sketch and arguments and returns a
 /// `SketchEdit`, never touching its input. Geometry is read at the current positions (the last
 /// solve, else drawn), and new points get drawn and warm-start positions where they are created,
-/// so the result solves without moving anything that was already in place.
+/// so the result solves without moving anything that was already in place. Every edit lists the
+/// constraints and dimensions it removed (`SketchEdit.removed`), and a command that would remove
+/// an exposed dimension throws instead.
 public enum SketchCommands {}
 
 extension SketchCommands {
+    /// The edit from `original` to `edited`, listing what it removed. Refuses an edit that would
+    /// remove an exposed dimension: its input socket would vanish from the Sketch node, and any
+    /// value wired into it with it.
+    static func edit(from original: Sketch, to edited: Sketch, description: String) throws(SketchCommandError) -> SketchEdit {
+        let removed = original.constraintRefs.filter { ref in
+            switch ref {
+            case .constraint(let id): edited.constraints[id] == nil
+            case .dimension(let id): edited.dimensions[id] == nil
+            }
+        }
+        let exposed = removed.compactMap { ref -> String? in
+            guard case .dimension(let id) = ref, let dimension = original.dimensions[id], dimension.isExposed else { return nil }
+            return dimension.name
+        }
+        if !exposed.isEmpty {
+            let names = exposed.count == 1 ? exposed[0] : exposed.dropLast().joined(separator: ", ") + " and " + (exposed.last ?? "")
+            throw SketchCommandError(exposed.count == 1
+                ? "That would remove \(names), which is exposed as an input. Stop exposing it first."
+                : "That would remove \(names), which are exposed as inputs. Stop exposing them first.")
+        }
+        return SketchEdit(sketch: edited, description: description, removed: removed)
+    }
+
     /// A curve's current shape, refusing points and projected edges.
     static func editableShape(_ sketch: Sketch, _ id: SketchEntityID, verb: String) throws(SketchCommandError) -> CurveShape {
         guard let entity = sketch.entities[id] else { throw SketchCommandError("That curve no longer exists.") }

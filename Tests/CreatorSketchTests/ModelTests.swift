@@ -75,8 +75,41 @@ struct ModelTests {
         #expect(blank == false)
         #expect(renamed)
         #expect(sketch.dimensions[second]?.name == "width")
+        // Auto names are never reused, even once their dimension is renamed or removed: an exposed
+        // "d2" socket can't silently start driving something else.
         sketch.addDimension(.length(line), value: 1)
-        #expect(sketch.dimensions.values.map(\.name).sorted() == ["d1", "d2", "width"])
+        #expect(sketch.dimensions.values.map(\.name).sorted() == ["d1", "d3", "width"])
+        sketch.dimensions[first] = nil
+        let fourth = sketch.addDimension(.length(line), value: 2)
+        #expect(sketch.dimensions[fourth]?.name == "d4")
+    }
+
+    /// Hand-named "d5" is skipped by auto naming, which carries on after it.
+    @Test func autoNamesSkipNamesInUse() {
+        var sketch = Sketch()
+        let line = sketch.addLine(.zero, Vector2(10, 0))
+        let first = sketch.addDimension(.length(line), value: 10)
+        sketch.renameDimension(first, to: "d2")
+        #expect(sketch.dimensions[sketch.addDimension(.length(line), value: 10)]?.name == "d3")
+    }
+
+    /// Files from before the name counter, or edited by hand, decode with counters past every ID
+    /// and auto name already used.
+    @Test func decodingClampsTheCountersPastWhatIsInUse() throws {
+        var sketch = Sketch()
+        let line = sketch.addLine(.zero, Vector2(10, 0))
+        sketch.addDimension(.length(line), value: 10)
+        let second = sketch.addDimension(.length(line), value: 10)
+        sketch.renameDimension(second, to: "d7")
+        var object = try #require(try JSONSerialization.jsonObject(with: try JSONEncoder().encode(sketch)) as? [String: Any])
+        object["nextID"] = 2
+        object["nextDimensionNumber"] = nil
+        let decoded = try JSONDecoder().decode(Sketch.self, from: try JSONSerialization.data(withJSONObject: object))
+        #expect(decoded.nextID == 6)
+        #expect(decoded.nextDimensionNumber == 8)
+        var edited = decoded
+        #expect(edited.addPoint(.zero).rawValue == 6)
+        #expect(edited.dimensions[edited.addDimension(.length(line), value: 1)]?.name == "d8")
     }
 
     @Test func removingAPointRemovesItsCurvesAndTheirConstraints() {

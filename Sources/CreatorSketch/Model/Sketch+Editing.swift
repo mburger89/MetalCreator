@@ -61,23 +61,30 @@ extension Sketch {
         return id
     }
 
-    /// Adds a dimension named with the first free `d1`, `d2`, … name. An angle takes the sense
-    /// nearest the lines' current positions.
+    /// Adds a dimension with the next auto name (`nextDimensionName`), which is then never handed
+    /// out again. An angle takes the sense nearest the lines' current positions.
     @discardableResult
     public mutating func addDimension(_ kind: DimensionKind, value: Double, isDriving: Bool = true) -> DimensionID {
         let id = DimensionID(takeNextID())
         let sense = nearestAngleSense(for: kind, degrees: value) { position(of: $0) }
-        dimensions[id] = SketchDimension(kind: kind, name: nextDimensionName(), value: value, isDriving: isDriving,
+        let number = nextDimensionNumberInUse()
+        nextDimensionNumber = number + 1
+        dimensions[id] = SketchDimension(kind: kind, name: "d\(number)", value: value, isDriving: isDriving,
                                          angleSense: sense)
         return id
     }
 
-    /// The first name `dN` (N = 1, 2, …) that no dimension uses.
+    /// The name the next added dimension gets: `dN` for the first N from `nextDimensionNumber`
+    /// on that no dimension uses.
     public func nextDimensionName() -> String {
+        "d\(nextDimensionNumberInUse())"
+    }
+
+    func nextDimensionNumberInUse() -> Int {
         let used = Set(dimensions.values.map(\.name))
-        var number = 1
+        var number = max(1, nextDimensionNumber)
         while used.contains("d\(number)") { number += 1 }
-        return "d\(number)"
+        return number
     }
 
     /// Renames a dimension. Returns false, changing nothing, when `name` is empty after trimming

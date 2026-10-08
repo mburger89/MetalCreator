@@ -50,7 +50,7 @@ extension SketchCommands {
             edited.move(moving, to: hit.position)
             edited.add(.pointOn(point: moving, curve: hit.cutter))
         }
-        return SketchEdit(sketch: edited, description: "Extend \(sketch.label(of: curve))")
+        return try edit(from: sketch, to: edited, description: "Extend \(sketch.label(of: curve))")
     }
 
     static func isArc(_ shape: CurveShape) -> Bool {
