@@ -41,6 +41,9 @@ extension ViewportView {
             model.draw(context)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onScrollWheel { event in
+            model.scrolled(by: Double(event.delta.y.value), at: ScreenPoint(event.location), phase: ViewportScrollPhase(event))
+        }
         .gesture(SpatialTapGesture().onEnded { model.click(at: ScreenPoint($0.location)) })
         .gesture(drag(.primary, model: model))
         .gesture(drag(.secondary, model: model))

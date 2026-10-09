@@ -52,6 +52,10 @@ public final class ViewportModel {
     /// Answers "what is under this point?". It's set when the GPU objects are made, and tests set it directly.
     @ObservationIgnored var pick: (@MainActor (ScreenPoint) -> PickTarget?)?
     @ObservationIgnored var drag: DragState?
+    /// The camera when the scroll under way (a trackpad scroll, or a run of wheel steps) began; `nil` between scrolls.
+    @ObservationIgnored var scrollStartPose: CameraPose?
+    /// Settles a run of wheel steps once the wheel has been still for `ViewportInputMap.wheelSettleDelay`.
+    @ObservationIgnored var wheelSettleTask: Task<Void, Never>?
     @ObservationIgnored var lastHoverPoint: ScreenPoint?
     @ObservationIgnored var gpuRenderer: ViewportRenderer?
     @ObservationIgnored var gpuFailure: String?
