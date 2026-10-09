@@ -56,6 +56,8 @@ public final class ViewportModel {
     @ObservationIgnored var scrollStartPose: CameraPose?
     /// Settles a run of wheel steps once the wheel has been still for `ViewportInputMap.wheelSettleDelay`.
     @ObservationIgnored var wheelSettleTask: Task<Void, Never>?
+    /// Where the pinch under way began; `nil` between pinches.
+    @ObservationIgnored var pinchStart: PinchStart?
     @ObservationIgnored var lastHoverPoint: ScreenPoint?
     @ObservationIgnored var gpuRenderer: ViewportRenderer?
     @ObservationIgnored var gpuFailure: String?

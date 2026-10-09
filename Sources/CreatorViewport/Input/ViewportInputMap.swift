@@ -1,7 +1,7 @@
 /// The viewport's input bindings (spec §9), in one place. Pointer input is MetalUI C7's: primary drag orbits,
-/// Shift-drag pans and ⌥-drag zooms, right-drag orbits, middle-drag pans and two-finger scroll zooms toward the
-/// cursor. The keys (F frames, + and − zoom) are still window-wide stopgaps until MetalUI scopes keys to an element
-/// (docs/metalui-gaps.md M4-a).
+/// Shift-drag pans and ⌥-drag zooms, right-drag orbits, middle-drag pans, two-finger scroll zooms toward the cursor
+/// and a pinch zooms about its centre. The keys (F frames, + and − zoom) are still window-wide stopgaps until
+/// MetalUI scopes keys to an element (docs/metalui-gaps.md M4-a).
 public enum ViewportInputMap {
     /// Orbit speed: radians of yaw or pitch per point dragged.
     public static let orbitRadiansPerPoint = 0.008
@@ -15,6 +15,9 @@ public enum ViewportInputMap {
     /// Wheel steps closer together than this many seconds are one zoom: the camera settles once, after the last
     /// (a free-spinning wheel sends tens of steps a second, spec §7.3).
     public static let wheelSettleDelay = 0.15
+    /// The smallest pinch magnification the zoom follows. MetalUI's magnification is 1 plus the pinch's deltas, so
+    /// a hard pinch-in can reach zero or below.
+    public static let minimumMagnification = 0.05
     /// How far a press moves before it drags. A primary press that moves less is a click (MetalUI's tap slop is
     /// also 5 points), and a right press that moves less opens the face menu.
     public static let dragThreshold = 5.0

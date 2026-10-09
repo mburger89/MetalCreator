@@ -48,6 +48,9 @@ extension ViewportView {
         .gesture(drag(.primary, model: model))
         .gesture(drag(.secondary, model: model))
         .gesture(drag(.middle, model: model))
+        .gesture(MagnifyGesture()
+            .onChanged { model.pinchChanged(magnification: $0.magnification, centre: ScreenPoint($0.startLocation)) }
+            .onEnded { _ in model.pinchEnded() })
         .onContinuousHover { phase in
             switch phase {
             case .active(let point): model.pointerHovered(at: ScreenPoint(point))
