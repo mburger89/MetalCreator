@@ -37,12 +37,10 @@ extension SketchEditorModel {
     public func deleteSelection() {
         guard !selection.isEmpty else { return }
         var edited = sketch
-        var freed: [SketchEntityID] = []
-        for id in selection.sorted() {
-            freed += edited.entities[id]?.kind.referencedPoints ?? []
-            edited.removeEntity(id)
-        }
-        edited.removeOrphanPoints(freed)
+        for id in selection.sorted() { edited.removeEntity(id) }
+        // Every entity that went, including curves cascaded away with a selected point, frees its points.
+        let freed = sketch.entities.filter { edited.entities[$0.key] == nil }.flatMap { $0.value.kind.referencedPoints }
+        edited.removeOrphanPoints(freed.filter { edited.entities[$0] != nil })
         let exposed = sketch.dimensionIDs.compactMap { id -> String? in
             guard let dimension = sketch.dimensions[id], dimension.isExposed, edited.dimensions[id] == nil else { return nil }
             return dimension.name

@@ -61,6 +61,29 @@ struct SelectionAndConstraintTests {
         #expect(host.commits.map(\.description) == ["Delete"])
     }
 
+    @Test func deletingAPointRemovesItsCurvesAndTheirNowLonePoints() {
+        var sketch = Sketch()
+        let start = sketch.addPoint(Vector2(0, 0))
+        let end = sketch.addPoint(Vector2(10, 0))
+        _ = sketch.addLine(from: start, to: end)
+        let (model, _) = makeModel(sketch)
+        model.selection = [start]
+        model.deleteSelection()
+        #expect(model.sketch.entities.isEmpty, "the line went with its start, and its end was left on its own")
+    }
+
+    @Test func deletingASharedCornerLeavesNoOrphanPoints() {
+        let rectangle = RectangleSketch()
+        let (model, _) = makeModel(rectangle.sketch)
+        model.selection = [rectangle.corners[0]]
+        model.deleteSelection()
+        #expect(model.sketch.entities[rectangle.corners[0]] == nil)
+        #expect(model.sketch.entities[rectangle.lines[0]] == nil && model.sketch.entities[rectangle.lines[3]] == nil)
+        #expect(model.sketch.entities[rectangle.lines[1]] != nil && model.sketch.entities[rectangle.lines[2]] != nil)
+        #expect(Set(model.sketch.entities.keys) == Set(model.sketch.entities.values.flatMap(\.kind.referencedPoints))
+            .union([rectangle.lines[1], rectangle.lines[2]]), "only the two remaining lines and their points are left")
+    }
+
     @Test func deleteRefusesToRemoveAnExposedDimension() {
         var rectangle = RectangleSketch()
         rectangle.sketch.dimensions[rectangle.width]?.isExposed = true
