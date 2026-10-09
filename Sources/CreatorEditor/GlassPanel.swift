@@ -17,7 +17,7 @@ public struct GlassPanel<Body: ElementGroup>: Component {
         let palette = Palette(themes)
         let shape = RoundedRectangle(cornerRadius: Pixels(10))
         return ZStack(alignment: .topLeading) { body }
-            .padding(Edges(all: Pixels(10)))
+            .padding(Edges(all: GraphPanelLayout.glassPadding.px))
             .background(palette.glass.color, in: shape)
             .overlay { shape.strokeBorder(palette.hairline.color, lineWidth: Pixels(1)) }
     }

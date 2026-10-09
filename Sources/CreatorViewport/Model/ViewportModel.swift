@@ -47,8 +47,9 @@ public final class ViewportModel {
     let kernel: any Kernel
     let clock: any ViewportClock
     let cache = TessellationCache()
-    /// The view's size in points, recorded by the draw (MetalUI has no size callback: docs/metalui-gaps.md).
-    @ObservationIgnored var viewSize = ViewportSize(width: 0, height: 0)
+    /// The view's size in points, recorded by the draw (MetalUI has no size callback: docs/metalui-gaps.md). The app
+    /// shell reads it as the window's size, since the viewport fills the window.
+    @ObservationIgnored public internal(set) var viewSize = ViewportSize(width: 0, height: 0)
     /// Answers "what is under this point?". It's set when the GPU objects are made, and tests set it directly.
     @ObservationIgnored var pick: (@MainActor (ScreenPoint) -> PickTarget?)?
     @ObservationIgnored var drag: DragState?

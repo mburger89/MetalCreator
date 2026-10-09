@@ -33,6 +33,9 @@ public final class EditorModel {
     public private(set) var clipboard: NodeClipboard?
     /// The last inspector button pressed, for the viewport to act on (M4/M6).
     public private(set) var inspectorRequest: InspectorRequest?
+    /// Where the host lays the panel out in its window (`EditorModel+Placement`). The app shell and
+    /// `GraphPanelPreview` set it; it is asked, not stored, so it always reads the current dock and sizes.
+    @ObservationIgnored public var placement: (@MainActor () -> PanelPlacement?)?
 
     /// The dock to return to when the hidden panel is shown again.
     @ObservationIgnored private var lastVisibleDock: DockSide = .left
