@@ -93,7 +93,7 @@ public actor Evaluator {
             }
         }
 
-        for spec in definition.inputs {
+        for spec in definition.inputs(for: node) {
             if let link = graph.incomingLink(to: Endpoint(node: node.id, socket: spec.name)) {
                 guard let upstream = results[link.from.node], upstream.state.isSuccess, let outputs = upstream.outputs else {
                     return .blocked("Waiting on “\(spec.name)”: the node wired into it has no result.")
@@ -126,7 +126,7 @@ public actor Evaluator {
 
     private func run(_ definition: any NodeDefinition.Type, node: Node, inputs: [SocketName: Value],
                      parameters: [ParameterID: ConstantValue]) async throws -> NodeResult {
-        let plan = BroadcastPlan.make(inputs: inputs, specs: definition.inputs)
+        let plan = BroadcastPlan.make(inputs: inputs, specs: definition.inputs(for: node))
         let clock = ContinuousClock()
         let start = clock.now
         var collected: [SocketName: [Scalar]] = [:]

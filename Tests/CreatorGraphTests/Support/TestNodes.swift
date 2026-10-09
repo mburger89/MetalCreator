@@ -233,9 +233,30 @@ enum OptionalOutputNode: NodeDefinition {
     }
 }
 
+/// Adds a number input per name in its `extra` text setting (comma-separated), each defaulting to 1,
+/// like the Sketch node's exposed dimensions. `sum` adds `value` and every extra input.
+enum ExtraInputsNode: NodeDefinition {
+    static let typeID = "test.extraInputs"
+    static let displayName = "Extra Inputs"
+    static let category = NodeCategory.value
+    static let inputs = [SocketSpec("value", .number, defaultValue: .number(0))]
+    static let outputs = [SocketSpec("sum", .number)]
+    static func extras(_ node: Node) -> [SocketName] {
+        guard case .text(let names)? = node.inputValues["extra"] else { return [] }
+        return names.split(separator: ",").map { SocketName(String($0)) }
+    }
+    static func inputs(for node: Node) -> [SocketSpec] {
+        inputs + extras(node).map { SocketSpec($0, .number, defaultValue: .number(1)) }
+    }
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        let extra = try extras(context.node).reduce(0.0) { $0 + (try inputs.number($1)) }
+        return NodeOutputs(["sum": .number(try inputs.number("value") + extra)])
+    }
+}
+
 let testRegistry = NodeRegistry([
     ConstantNode.self, IntegerNode.self, AddNode.self, RequiredNode.self, SumListNode.self, ListSourceNode.self,
     FailNode.self, WarnNode.self, SlowNode.self, StubbornNode.self, HangingNode.self, CancelsTaskNode.self,
     ParameterNode.self, BoxNode.self, VersionedNode.self,
-    SinkNode.self, OptionalOutputNode.self,
+    SinkNode.self, OptionalOutputNode.self, ExtraInputsNode.self,
 ])

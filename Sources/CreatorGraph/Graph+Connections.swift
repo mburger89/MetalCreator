@@ -6,7 +6,9 @@ extension Graph {
             return .unknownNode
         }
         guard let output = sourceDefinition.outputs.first(where: { $0.name == from.socket }) else { return .unknownSocket(from.socket) }
-        guard let input = targetDefinition.inputs.first(where: { $0.name == to.socket }) else { return .unknownSocket(to.socket) }
+        guard let input = targetDefinition.inputs(for: target).first(where: { $0.name == to.socket }) else {
+            return .unknownSocket(to.socket)
+        }
         guard from.node != to.node else { return .sameNode }
         guard input.type.accepts(output.type) else { return .typeMismatch(from: output.type, to: input.type) }
         guard !upstreamClosure(of: from.node).contains(to.node) else { return .wouldCreateCycle }
