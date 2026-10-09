@@ -27,11 +27,13 @@ extension SketchEditorModel {
         commit(edited, makeConstruction ? "Make Construction" : "Make Normal Geometry")
     }
 
-    /// Esc: ends the stroke in progress, or with none, finishes the sketch.
+    /// Esc: ends the stroke in progress; with none, clears the selection; with nothing selected, finishes the sketch.
     public func escape() {
         if drawState != .idle {
             drawState = .idle
             preview = .none
+        } else if !selection.isEmpty {
+            selection = []
         } else {
             finish()
         }
@@ -49,7 +51,8 @@ extension SketchEditorModel {
     func click(at p: Vector2, tolerance: Double, modifiers: ViewportModifiers) {
         refusal = nil
         switch tool {
-        case .select, .dimension: break
+        case .select: select(at: p, tolerance: tolerance)
+        case .dimension: break
         case .point: placePoint(at: p, tolerance: tolerance)
         case .line: placeLinePoint(at: p, tolerance: tolerance, suppressed: modifiers.contains(.command))
         case .circle: placeCirclePoint(at: p, tolerance: tolerance)

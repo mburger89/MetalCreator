@@ -21,11 +21,17 @@ extension SketchEditorModel: ViewportTool {
         return true
     }
 
+    /// A drag that starts on a point moves it; any other drag orbits.
     public func dragBegan(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) -> Bool {
-        false
+        guard let p = projector.planePoint(under: point, on: plane) else { return false }
+        return beginDrag(at: p, tolerance: tolerance(projector))
     }
 
-    public func dragMoved(to point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) {}
+    public func dragMoved(to point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) {
+        if let p = projector.planePoint(under: point, on: plane) { drag(to: p) }
+    }
 
-    public func dragEnded(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) {}
+    public func dragEnded(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) {
+        endDrag(at: projector.planePoint(under: point, on: plane))
+    }
 }

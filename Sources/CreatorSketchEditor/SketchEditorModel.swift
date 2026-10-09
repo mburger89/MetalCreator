@@ -12,11 +12,11 @@ import Observation
 public final class SketchEditorModel {
     /// The sketch as the editor shows it: the last stored or committed one, solved and remembered, so its positions
     /// are the ones on screen.
-    public private(set) var sketch: Sketch
+    public internal(set) var sketch: Sketch
     /// The plane the sketch is drawn on, in world space.
     public private(set) var plane: Plane
     /// The live solve of `sketch` (re-run on every edit and every drag step).
-    public private(set) var solution: SketchSolution
+    public internal(set) var solution: SketchSolution
     /// A plain-language reason the last command was refused, until the next edit or tool change.
     public internal(set) var refusal: String?
     /// The selected entities (drawn in the selection colour; constraints and dimensions apply to them).
@@ -31,6 +31,10 @@ public final class SketchEditorModel {
     public internal(set) var isConstruction = false
     /// What the drawing tool has placed so far.
     var drawState = DrawState.idle
+    /// The point being dragged, between a drag's press and its release.
+    @ObservationIgnored var dragged: SketchEntityID?
+    /// The sketch when the drag began, so a drag that moved nothing records no step.
+    @ObservationIgnored var dragOrigin: Sketch?
 
     @ObservationIgnored public var events = SketchEditorEvents()
 
