@@ -313,3 +313,36 @@ Labelled P-a… so they don't clash with the C7 items, M4-a…, M5-a…, M6-a…
   `Contents/Resources/Licenses/MetalUI/` (checked by `scripts/verify-app.sh`).
 - **M6-d, now visible.** The packaged app declares `.mcgraph` (owner, exported type), so a double-click in Finder
   opens MetalCreator, but not the file: no open-document event reaches the app (human check P2).
+
+## Hit by the node library's overlap fix, 2026-10-09
+
+Labelled LF-a… so they don't clash with the labels above. Checked against MetalUI `67a579e`.
+
+- **LF-a. A clip pushed inside an `offset` or a uniform `scaleEffect` forgets the clip outside it.** A node on the
+  graph canvas is `NodeView` (`.clipShape(RoundedRectangle)` then `.offset` to its place), inside the canvas's
+  `ZStack { … }.scaleEffect(zoom).offset(pan)`, inside the canvas's `.clipped()`. Panned past the canvas's top edge,
+  the node's body and header paint outside the canvas: over the node library (docked left, the strip across the
+  canvas's top; docked at the bottom, the column at its left) and over the panel's header. Its sockets and border,
+  which have no clip of their own, are cut at the canvas's edge as they should be. Cause, read from the source: a
+  translation or uniform positive scale is a *flattening* render effect (`Frame.paintWithRenderEffect`), which leaves
+  `clipBase` alone, so a clip pushed inside it is intersected with the outer clip in the content's **pre-effect**
+  space (`pushClip`); `RenderEffect.apply(to:flattens:outer:)` then maps that `contentMask` (it is `innerMask`) by
+  the effect and never cuts it by the clip in force at the scope's entry. The outer clip moves with the content.
+  Non-flattening effects (rotation) split the clip at entry and keep an outer mask, so they're right. Minimal
+  reproduction (`renderFrame`, 200 × 200, scale factor 1):
+  ```swift
+  ZStack(alignment: .topLeading) {
+      Color.red.frame(width: Pixels(40), height: Pixels(40)).clipped().offset(x: Pixels(0), y: Pixels(-60))
+  }
+  .frame(width: Pixels(100), height: Pixels(100)).clipped().padding(Pixels(50))
+  ```
+  The red rect is at (80, 20) 40 × 40 with `contentMask` (80, 20) 40 × 40, so it paints 30 px above the clip at
+  y = 50; without the inner `.clipped()` its mask is (50, 50) 100 × 100, as it should be. `.scaleEffect(4)` in place of
+  the offset gives the same: bounds and mask (20, 20) 160 × 160 against the clip (50, 50) 100 × 100. Wanted: a clip
+  pushed inside a flattening effect is cut by the clip in force at the effect's entry after it is mapped (as an
+  `innerMask` primitive's mask is mapped), in paint and in prepaint (hitboxes). Meanwhile: the graph panel draws the
+  node library after the canvas (`GraphPanelBody`), over the room the canvas is inset from, so a node goes under the
+  library's opaque background; that order is right regardless and stays. Still broken until the fix: a node panned
+  past the canvas's top shows over the panel's header (which has no opaque fill), and one panned past the panel's
+  edge shows over the glass padding and beyond it. Pinned: `aNodeAboveTheCanvasNeverCoversTheHeader` (a known
+  issue; it starts failing as "Known issue was not recorded" once MetalUI fixes this, and the `withKnownIssue` goes).

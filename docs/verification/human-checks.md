@@ -288,7 +288,7 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
 
 **Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
 
-Run `swift run MetalCreatorApp` (EP-1–EP-9) and `swift run GraphPanelPreview` (EP-10).
+Run `swift run MetalCreatorApp` (EP-1–EP-9, EP-11) and `swift run GraphPanelPreview` (EP-10).
 
 - [ ] **EP-1 The palette floats at the pointer.** Dock the graph at the bottom. With the pointer over the canvas,
   near its bottom-left, press Tab: the palette opens with its bottom-left corner at the pointer, reaching up over the
@@ -344,6 +344,12 @@ Run `swift run MetalCreatorApp` (EP-1–EP-9) and `swift run GraphPanelPreview` 
   builds only the rows in view). **Observed:**
 - [ ] **EP-10 The preview.** In `GraphPanelPreview` (its window keeps one size), EP-1's placement holds in both
   docks, and the library works as in EP-4–EP-7 with the preview's nine node types. **Observed:**
+- [ ] **EP-11 Nodes go under the library.** Dock the graph left with the library shown and type "out" in its
+  search field. Pan the canvas so a node slides up under the library strip: the node disappears at the canvas's top
+  edge and the strip's search field, headers and rows stay whole on top of it. Dock at the bottom and pan a node left
+  under the library column: the same at the canvas's left edge. Known (gap LF-a): pan a node up past the panel's
+  header with the library hidden and it shows over the header. Pinned: `aNodeUnderTheLibraryStripIsHiddenByIt`,
+  `aNodeUnderTheLibraryColumnIsHiddenByIt`, `aNodeAboveTheCanvasNeverCoversTheHeader` (known issue). **Observed:**
 
 ## Group P — the packaged app (packaging)
 
