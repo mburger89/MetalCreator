@@ -82,6 +82,18 @@ struct ViewportToolTests {
         #expect(tool.lastProjector?.size == ViewportSize(width: 400, height: 300))
     }
 
+    /// "Edit sketch" turns the camera while the user may already be drawing: when the turn ends, the tool is told the
+    /// pointer is where it still is (re-mapped under the settled camera), so a rubber band in progress isn't dropped.
+    @Test func theEndOfACameraTurnTellsTheToolThePointerIsStillThere() async {
+        let tool = RecordingTool()
+        let model = makeModel(tool: tool)
+        model.pose = CameraPose(target: .zero, distance: 100, yaw: 0.7, pitch: 0.3)
+        model.lookAt(.xy, framing: BoundingBox(min: Vector3(-10, -10, 0), max: Vector3(10, 10, 0)))
+        model.pointerHovered(at: ScreenPoint(120, 80))
+        await model.waitForAnimation()
+        #expect(tool.calls == ["moved 120,80", "moved 120,80"], "never \"moved nowhere\" while the pointer is over the view")
+    }
+
     /// The face menu stays, but while a tool holds the pointer it only navigates: "Select Edges of Face" would add a
     /// node and "Show Producing Node" would change the graph's selection in the middle of a sketch.
     @Test func whileAToolIsSetTheFaceMenuOnlyLooksAt() async throws {

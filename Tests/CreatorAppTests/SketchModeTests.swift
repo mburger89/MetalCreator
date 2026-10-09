@@ -19,6 +19,10 @@ struct SketchModeTests {
         app.editor.press(.editSketch, on: node.id)
         app.handle(try #require(app.editor.inspectorRequest))
         await app.settle()
+        // The camera's turn to the plane ends by replaying the viewport's pointer to the tool (`refreshHover()`).
+        // These tests drive the editor directly, so the viewport has no pointer and that replay would clear a hover
+        // or rubber band drawn while it was still turning: sketch mode is entered once the camera has settled.
+        await app.viewport.waitForAnimation()
         return app
     }
 
