@@ -16,7 +16,8 @@ struct PaletteEntryRow: Component {
                 Text(entry.displayName).font(.callout).foregroundStyle(palette.primaryText.color)
                 Spacer()
             }
-            .padding(Edges(top: Pixels(3), right: Pixels(6), bottom: Pixels(3), left: Pixels(6)))
+            .padding(Edges(top: Pixels(0), right: Pixels(6), bottom: Pixels(0), left: Pixels(6)))
+            .frame(height: PaletteLayout.rowHeight.px)
             .background(isHighlighted ? palette.field.color : Color.clear, in: RoundedRectangle(cornerRadius: Pixels(4)))
         }
         .buttonStyle(.plain)
