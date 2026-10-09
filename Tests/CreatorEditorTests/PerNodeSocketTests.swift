@@ -60,4 +60,24 @@ struct PerNodeSocketTests {
         let rows = NodeRowModel.rows(for: node, shape: shape, graph: graph, registry: BuiltInNodes.registry)
         #expect(rows.first { $0.id == "in.d1" }?.value == ValueText.format(25, unit: .millimetres))
     }
+
+    /// The Sketch node declares an inspector ("Edit sketch"), which can't name its exposed dimensions, so they follow
+    /// it as number rows: outside sketch mode the inspector still edits them.
+    @Test func aSketchNodesInspectorHasEditSketchAndItsExposedDimensions() throws {
+        var sketch = Sketch()
+        let line = sketch.addLine(Vector2(0, 0), Vector2(25, 0))
+        let dimension = sketch.addDimension(.length(line), value: 25)
+        sketch.dimensions[dimension]?.isExposed = true
+        var node = BuiltInNodes.registry.makeNode(SketchNode.typeID)
+        node.inputValues[NodeSetting.sketch] = .sketch(sketch)
+        var graph = Graph()
+        graph.nodes[node.id] = node
+        let page = InspectorBuilder.page(graph: graph, selection: [node.id], registry: BuiltInNodes.registry, results: [:])
+        let rows = page.sections.flatMap(\.rows)
+        #expect(rows.contains { if case .button(_, .editSketch) = $0 { true } else { false } })
+        let field = try #require(rows.lazy.compactMap { row -> InputField? in
+            if case .number(let field) = row { field } else { nil }
+        }.first)
+        #expect(field.socket == "d1" && field.unit == .millimetres && field.value == .number(25))
+    }
 }

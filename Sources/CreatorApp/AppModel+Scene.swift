@@ -27,10 +27,12 @@ extension AppModel {
     }
 
     /// Shows the scene and the selected nodes' handles. While picking, only the solid being picked on, with the
-    /// picked edges selected, no handles and a crosshair pointer. A scene or handles equal to what's shown aren't sent again: the
-    /// observation also fires for canvas pans, camera settles and panel resizes, which change neither.
+    /// picked edges selected, no handles and a crosshair pointer. While sketching, the scene dimmed (ghosted, still
+    /// pickable) and no handles, and the open sketch follows its node. A scene or handles equal to what's shown aren't
+    /// sent again: the observation also fires for canvas pans, camera settles and panel resizes, which change neither.
     func refreshScene() {
-        let scene: [SceneItem]
+        refreshSketch()
+        var scene: [SceneItem]
         if viewport.isPicking != (pick != nil) { viewport.isPicking = pick != nil }
         if let pick {
             scene = [SceneItem(item: ViewportItem(solid: pick.solid, selectedEdges: Set(pick.picked)), source: pick.source)]
@@ -39,6 +41,13 @@ extension AppModel {
             scene = SceneBuilder.scene(shown: shown, graph: document.graph, results: document.results,
                                        lastGood: document.lastGoodOutputs, selection: editor.selection)
         }
+        if sketch != nil {
+            scene = scene.map { entry in
+                var dimmed = entry
+                dimmed.item.isGhost = true
+                return dimmed
+            }
+        }
         sources = Dictionary(scene.compactMap { entry in entry.source.map { (ObjectIdentifier(entry.item.solid), $0) } },
                              uniquingKeysWith: { first, _ in first })
         let items = scene.map(\.item)
@@ -46,7 +55,7 @@ extension AppModel {
             requestedScene = items
             viewport.show(items)
         }
-        let handles = pick == nil
+        let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: document.graph, results: document.results, registry: registry)
             : []
         handleTargets = Dictionary(handles.map { ($0.handle.id, $0.target) }, uniquingKeysWith: { first, _ in first })
@@ -68,6 +77,7 @@ extension AppModel {
             _ = editor.dock
             _ = previewMode
             _ = pick
+            _ = sketch
             _ = panelWidth
             _ = panelHeight
             _ = themes.current

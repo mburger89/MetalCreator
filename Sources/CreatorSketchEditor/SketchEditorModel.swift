@@ -39,39 +39,49 @@ public final class SketchEditorModel {
     var dimensionPick: SketchEntityID?
     /// Names an exposed dimension can't take (the Sketch node's own inputs and settings). The host provides it.
     @ObservationIgnored let isReservedName: @MainActor (String) -> Bool
+    /// The sketch as the host last stored it (given, reloaded or committed), before this editor's solve: `reload(_:)`
+    /// compares against it, so the host can reload on every refresh without dropping a stroke in progress.
+    @ObservationIgnored var stored: Sketch
 
     @ObservationIgnored public var events = SketchEditorEvents()
 
     public init(sketch: Sketch, plane: Plane, isReservedName: @escaping @MainActor (String) -> Bool = { _ in false }) {
         self.plane = plane
         self.isReservedName = isReservedName
+        stored = sketch
         let solution = SketchSolver.solve(sketch)
         self.solution = solution
         self.sketch = Self.remembering(sketch, solution)
     }
 
-    /// Shows a sketch that came from the host (undo, redo, or a file change), unless it's the one already shown.
-    public func reload(_ stored: Sketch, plane newPlane: Plane) {
+    /// Shows a sketch that came from the host (undo, redo, or a file change), unless it is the one the host last stored.
+    public func reload(_ newSketch: Sketch, plane newPlane: Plane) {
         if newPlane != plane { plane = newPlane }
-        guard stored != sketch else { return }
-        let solved = SketchSolver.solve(stored)
+        guard newSketch != stored else { return }
+        stored = newSketch
+        let solved = SketchSolver.solve(newSketch)
         solution = solved
-        sketch = Self.remembering(stored, solved)
+        sketch = Self.remembering(newSketch, solved)
         selection = selection.filter { sketch.entities[$0] != nil }
         if let hovered, sketch.entities[hovered] == nil { self.hovered = nil }
-        // A stroke may hold points the stored sketch no longer has.
+        // A stroke, a Dimension tool's first pick or a point drag may name entities the stored sketch no longer has,
+        // and a drag's release would commit over the undo: all three end here.
         drawState = .idle
         preview = .none
+        dimensionPick = nil
+        dragged = nil
+        dragOrigin = nil
     }
 
     /// Takes `edited` as the sketch, solved and remembered, and hands it to the host as one undo step.
     func commit(_ edited: Sketch, _ description: String) {
         let solved = SketchSolver.solve(edited)
-        let stored = Self.remembering(edited, solved)
+        let remembered = Self.remembering(edited, solved)
         solution = solved
-        sketch = stored
+        sketch = remembered
+        stored = remembered
         refusal = nil
-        events.committed(SketchCommit(sketch: stored, description: description))
+        events.committed(SketchCommit(sketch: remembered, description: description))
     }
 
     /// `sketch` with `solution` as its warm start when the solve is usable (S4 → S5 handoff: the node then

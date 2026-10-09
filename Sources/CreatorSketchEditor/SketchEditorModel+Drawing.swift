@@ -28,8 +28,10 @@ extension SketchEditorModel {
         commit(edited, makeConstruction ? "Make Construction" : "Make Normal Geometry")
     }
 
-    /// Esc: ends the stroke in progress; with none, clears the selection; with nothing selected, finishes the sketch.
+    /// Esc: closes the host's popup if one is open (`SketchEditorEvents.dismissHostPopup`); else ends the stroke in
+    /// progress; with none, clears the selection; with nothing selected, finishes the sketch.
     public func escape() {
+        if events.dismissHostPopup() { return }
         if drawState != .idle || dimensionPick != nil {
             drawState = .idle
             dimensionPick = nil
@@ -41,8 +43,10 @@ extension SketchEditorModel {
         }
     }
 
-    /// ⏎ or the Finish button: leaves sketch mode (the host does), dropping any stroke in progress.
+    /// ⏎ or the Finish button: leaves sketch mode (the host does), dropping any stroke in progress; with the host's
+    /// popup open, it only closes that.
     public func finish() {
+        if events.dismissHostPopup() { return }
         drawState = .idle
         preview = .none
         events.finished()

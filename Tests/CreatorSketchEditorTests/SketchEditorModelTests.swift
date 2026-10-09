@@ -60,6 +60,46 @@ struct SketchEditorModelTests {
         #expect(SketchEditorModel(sketch: Sketch(), plane: .xy).statusText.hasPrefix("Nothing drawn yet"))
     }
 
+    /// The host reloads the stored sketch on every scene refresh; the stored sketch has no warm start yet, so it
+    /// differs from the solved one shown, but it is the one the editor was given, so nothing is dropped.
+    @Test func reloadingTheStoredSketchAgainKeepsAStrokeInProgress() {
+        let given = RectangleSketch().sketch
+        let model = SketchEditorModel(sketch: given, plane: .xy)
+        model.choose(.line)
+        model.click(at: Vector2(0, 60), tolerance: 1, modifiers: [])
+        model.reload(given, plane: .xy)
+        #expect(model.drawState != .idle)
+    }
+
+    /// Undo while the Dimension tool waits for its second pick: the first pick may name an entity the reloaded
+    /// sketch lacks, so it is dropped, and the next click starts afresh instead of being refused.
+    @Test func reloadingDropsAPendingDimensionPick() {
+        let model = SketchEditorModel(sketch: RectangleSketch(dimensioned: false).sketch, plane: .xy)
+        let host = RecordingHost(model)
+        model.choose(.dimension)
+        model.click(at: Vector2(30, 0.3), tolerance: 1, modifiers: [])
+        #expect(model.dimensionPick != nil)
+        model.reload(Sketch(), plane: .xy)
+        model.click(at: Vector2(30, 20), tolerance: 1, modifiers: [])
+        #expect(model.refusal == nil && host.commits.isEmpty)
+    }
+
+    /// Undo (⌘Z) in the middle of a point drag ends the drag: its next step and its release don't commit "Move
+    /// Point" over the undo.
+    @Test func reloadingEndsAPointDrag() {
+        let model = SketchEditorModel(sketch: RectangleSketch(dimensioned: false).sketch, plane: .xy)
+        let host = RecordingHost(model)
+        model.choose(.select)
+        #expect(model.beginDrag(at: Vector2(60.3, 40.2), tolerance: 1))
+        model.drag(to: Vector2(70, 50))
+        model.reload(RectangleSketch().sketch, plane: .xy)
+        model.drag(to: Vector2(75, 55))
+        model.endDrag(at: Vector2(80, 50))
+        #expect(host.commits.isEmpty)
+        let corner = model.sketch.position(of: RectangleSketch().corners[2]) ?? .zero
+        #expect((corner - Vector2(60, 40)).length < 1e-6, "the reloaded sketch, unmoved")
+    }
+
     @Test func theReadoutNamesTheFreedomOrTheProblem() {
         #expect(SketchEditorModel(sketch: RectangleSketch().sketch, plane: .xy).statusText == "Fully constrained")
         #expect(SketchEditorModel(sketch: RectangleSketch(dimensioned: false).sketch, plane: .xy).statusText
