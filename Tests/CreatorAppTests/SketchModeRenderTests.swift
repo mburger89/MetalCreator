@@ -1,6 +1,7 @@
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+import CreatorViewport
 import MetalUI
 import MetalUIText
 import Testing
@@ -42,6 +43,34 @@ struct SketchModeRenderTests {
         app.finishSketch()
         #expect(glyphCount { TopBar(model: app) } == before.bar)
         #expect(glyphCount { InspectorDock(model: app) } == before.inspector)
+    }
+
+    /// The view cube's arrows, Home button and View menu are hidden while sketching (the camera is locked to the
+    /// plane), and come back when the sketch ends.
+    @Test func theViewCubesControlsAreHiddenWhileSketching() async throws {
+        var builder = GraphBuilder()
+        let box = builder.sketchedBox(rectangleSketch())
+        let app = AppModel(kernel: FakeKernel(), file: GraphFile(graph: builder.graph))
+        await app.settle()
+        app.beginSketch(for: box.sketch.id)
+        await app.settle()
+        #expect(cubeControlGlyphs(app) == 0)
+        app.finishSketch()
+        #expect(cubeControlGlyphs(app) > 0)
+    }
+
+    /// Glyphs drawn where the viewport puts the cube's controls: just below the cube, at its left.
+    func cubeControlGlyphs(_ app: AppModel) -> Int {
+        let viewport = app.viewport
+        let scene = renderFrame({ ZStack { ViewportView(model: viewport) } }, size: Size(width: Pixels(1400), height: Pixels(900)),
+                                scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+        let cube = viewport.cubeLayout
+        let top = cube.origin.y + cube.side
+        return scene.glyphs.filter { glyph in
+            let x = Double(glyph.bounds.origin.x + glyph.bounds.size.width / 2) / 2
+            let y = Double(glyph.bounds.origin.y + glyph.bounds.size.height / 2) / 2
+            return x >= cube.origin.x && x <= cube.origin.x + 240 && y >= top && y <= top + 80
+        }.count
     }
 
     func glyphCount<View: ElementGroup>(_ view: () -> View) -> Int {

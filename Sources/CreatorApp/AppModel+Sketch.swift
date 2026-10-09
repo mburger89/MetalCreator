@@ -11,8 +11,10 @@ extension AppModel {
     static let noWiredPlane = "Its plane comes from the wire into “plane”, which has no result yet. Wire a plane that evaluates."
 
     /// "Edit sketch" (sketcher spec §8): opens the node's sketch in the viewport. The camera looks straight at its
-    /// plane, orthographic; the model dims (ghosts) but stays in view; the editor takes the primary pointer and the
-    /// top bar and inspector show its toolbar and lists. A pick in progress is cancelled, as it would be by any edit.
+    /// plane, orthographic, framed on the sketch (`SketchEditorModel.framingBounds`), and stays locked to it (planar
+    /// navigation) until the sketch ends; the model dims (ghosts) but stays in view; the editor takes the primary
+    /// pointer and the top bar and inspector show its toolbar and lists. A pick in progress is cancelled, as it would
+    /// be by any edit.
     public func beginSketch(for id: NodeID) {
         editor.commitPendingEntry()
         editor.closePalette()
@@ -33,11 +35,11 @@ extension AppModel {
         let session = SketchSession(node: id, editor: sketchEditor, viewport: viewport)
         sketch = session
         session.start()
-        viewport.lookAt(plane, framing: Self.framing(sketchEditor.sketch, on: plane))
+        if let bounds = sketchEditor.framingBounds { viewport.lookAt(plane, framing: bounds) }
     }
 
-    /// Leaves sketch mode: the viewport gets its pointer, its ground grid and its camera controls back, and the model
-    /// is drawn solid again.
+    /// Leaves sketch mode: the viewport gets its pointer, its ground grid, free orbit and its camera controls back (the
+    /// camera stays where it is), and the model is drawn solid again.
     public func finishSketch() {
         sketch?.stop()
         sketch = nil
@@ -102,17 +104,5 @@ extension AppModel {
             }
             return plane
         }
-    }
-
-    /// What entering a sketch frames: its points with a margin, or 100 mm around the plane's origin when it has fewer
-    /// than two distinct points.
-    static func framing(_ sketch: Sketch, on plane: Plane) -> BoundingBox {
-        let points = sketch.entityIDs.compactMap { sketch.position(of: $0) }.map(plane.point)
-        if let box = BoundingBox(points: points), box.size.length > 1e-6 {
-            let margin = box.size * 0.1
-            return BoundingBox(min: box.min - margin, max: box.max + margin)
-        }
-        return BoundingBox(points: [plane.point(Vector2(-50, -50)), plane.point(Vector2(50, 50))])
-            ?? BoundingBox(min: plane.origin, max: plane.origin)
     }
 }
