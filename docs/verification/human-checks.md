@@ -517,8 +517,8 @@ that into an Output. Select the Sketch.
   turn the foreground colour. Add a conflicting constraint: the readout and the conflicting rows turn red, and Remove
   on the extra one fixes it. **Observed:**
 - [ ] **S5-5 Dragging.** With Select, drag a free corner: the sketch follows live and stays constrained; the extrusion
-  updates once, on release; one ⌘Z undoes the whole drag. A drag on empty space orbits; right-drag orbits, middle-drag
-  pans, scroll zooms. **Observed:**
+  updates once, on release; one ⌘Z undoes the whole drag. A drag on empty space pans (S5-9); right-drag and middle-drag
+  pan, scroll zooms. **Observed:**
 - [ ] **S5-6 Exposing.** Turn on "Expose as input" for d1, then Finish (⏎): the Sketch node on the canvas shows a `d1`
   input with "80 mm". Wire a Number into it: the part follows the Number. Edit sketch again, rename d1 to `width`: the
   wire moves to `width`. Renaming it `plane` is refused in words. **Observed:**
@@ -530,4 +530,17 @@ that into an Output. Select the Sketch.
 - [ ] **S5-8 The chrome is not the sketch.** With Line active, click in the gaps between the toolbar's buttons, on
   the inspector's "DIMENSIONS" label and on its readout, and scroll over both: nothing is drawn, no rubber band
   follows the pointer under the panels, and the view doesn't zoom. Choose Select, select a line and click a gap in the
-  toolbar: the selection stays. Right-click a ghosted face: the menu offers only Look At. **Observed:**
+  toolbar: the selection stays. Right-click a ghosted face: no menu opens (Look At would turn the camera, S5-9).
+  **Observed:**
+- [ ] **S5-9 The camera stays on the sketch plane.** While sketching: the view cube, its ◀ ▲ ▼ ▶ ⌂ buttons and its
+  View menu are gone. Drag on empty space (any tool), right-drag and middle-drag: each pans, the view never turns.
+  Scroll and pinch zoom toward the pointer. A click where the cube was draws there. With Select, a drag on a point
+  still moves the point. Pan away and press F: the sketch is framed again, still face-on. Finish (⏎): the cube and its
+  controls are back, the camera hasn't moved, and a drag on empty space orbits again. **Observed:**
+- [ ] **S5-10 The pointer readout.** Press L and click once: a small glass chip (no shadow) sits centred just above
+  the pointer and reads the line's length and angle, e.g. "24.5 mm · 30.0°" (counter-clockwise from the sketch's +x,
+  0 to under 360°); near-horizontal, it reads the snapped values ("… · 0.0°"). Move the pointer to the top edge: the
+  chip flips below it; to the left or right edge: it stays inside the view. Esc, the second click of a circle, or
+  leaving the view: it goes. Circle after the centre: "⌀ 20.0 mm". Arc: "R 12.0 mm" after the centre, then
+  "R 12.0 mm · 90.0°" after the start. Point: the pointer's position, "12.0, 8.5". Select and Dimension: none.
+  Finish: none. **Observed:**

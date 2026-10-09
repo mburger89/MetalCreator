@@ -351,3 +351,16 @@ All tests use Swift Testing.
 - §8's inspector: a reference dimension's row shows its live measurement (the node's `measurements`), its value is
   read-only ("d1 is a reference: make it driving to set it."), and making it driving again takes the value it
   measures now, so nothing moves.
+- §8's entering, amended (user, 2026-10-09): sketch mode locks the camera to the sketch plane. The editor asks the
+  viewport for planar navigation (`ViewportTool.navigation == .planar`): a primary drag that doesn't start on a sketch
+  point pans (a drag on a point still moves it), right- and middle-drags pan, scroll, pinch and ⌥-drag zoom; the view
+  cube, its arrows and its View menu are hidden, the commands that turn the camera (cube regions, arrows, Home,
+  projection) do nothing and the face menu is empty (Look At would turn it). F frames the sketch
+  (`ViewportTool.framingBounds`: its points with a 10% margin) without turning. Leaving restores free orbit and keeps
+  the camera where it is.
+- §8's live feedback gains a pointer readout (user, 2026-10-09), S5a's and distinct from S5b's dimension labels in the
+  view: a glass chip centred above the pointer (flipped below at the top edge, clamped at the sides) reading what the
+  next click would commit, after snapping, to one decimal: a line's length and angle (counter-clockwise from the
+  plane's +x, 0 ≤ angle < 360°), a circle's diameter, an arc's radius then radius and counter-clockwise sweep, and the
+  Point tool's plane position. It goes with the stroke, on Esc, when the pointer leaves the view and outside sketch
+  mode.
