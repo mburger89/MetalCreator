@@ -39,7 +39,7 @@ extension ViewportModel {
     }
 
     /// A press. What the drag will do is decided here:
-    /// - with the primary button: on the view cube, it orbits (and a click selects a region); on a handle's knob,
+    /// - with the primary button: on the view cube, it orbits (a click goes to `click(at:)`); on a handle's knob,
     ///   it edits the handle; otherwise it depends on the modifiers (`ViewportInputMap`)
     /// - with the right button it orbits (the cube's way on the cube), and with the middle button it pans
     public func pointerDown(at point: ScreenPoint, modifiers: ViewportModifiers, button: ViewportPointerButton = .primary) {

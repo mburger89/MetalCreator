@@ -190,7 +190,9 @@ Labelled VI-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   `aPinchThatLostItsEndDoesntPullTheNextOneBack`). What is left: nothing for primary input. A lost right or middle
   release leaves that drag, its closed hand and a still hover until the next primary press or click, or the next
   drag of the same button; until then a drag of the other of the two is ignored, as MetalUI ignores its press
-  (`CI-AA` item 4). Wanted: an `onEnded` (or a separate cancellation callback) for a gesture its arena drops, or
+  (`CI-AA` item 4). A trackpad scroll whose `.ended`/`.cancelled` never arrives (the window resigns mid-scroll) leaves
+  the camera unsettled into the document and the hover un-picked until a later scroll ends; and a pinch that lost its
+  end followed by one at the same centre reuses the stale start camera. Wanted: an `onEnded` (or a separate cancellation callback) for a gesture its arena drops, or
   `@GestureState`.
 
 ## Node-drag performance, 2026-10-08

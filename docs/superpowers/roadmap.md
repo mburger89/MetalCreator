@@ -29,10 +29,10 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 | 7 | Patterns, fields, nested data trees, surface textures, lattices | 💬 | After the slice |
 | 8 | Variants and versions UI | 💬 | Graph parameters already model variants |
 | — | Packaging: bundle OCCT dylibs into a signed `.app` | ⏳ after M6 | Spec §11 |
-| — | C7 adoption: swap the viewport's, the graph panel's and the app's input stopgaps for MetalUI C7's APIs once `feat/input-apis` merges (lists in the carry-over note, From M4, From M5, From M6) | 🔒 MetalUI C7 | MetalUI decisions file `docs/superpowers/2026-10-08-input-apis-decisions.md` |
+| — | C7 adoption: swap the viewport's, the graph panel's and the app's input stopgaps for MetalUI C7's APIs once `feat/input-apis` merges (lists in the carry-over note, From M4, From M5, From M6) | 🔄 viewport ✅ (branch `viewport-input`, human checks VC pending); graph panel and app ⏳ (MetalUI C7 merged as c62d6ba) | MetalUI decisions file `docs/superpowers/2026-10-08-input-apis-decisions.md` |
 | — | Naming: picks on merged faces — an Edges by Tag pick on a face a union merged must survive one operand changing (spec §8's polygon swap, Errata (M6)); needs the split-edge count handled too, not only a minimal tag subset | ⏳ after M6 | `BracketAcceptanceTests+PolygonSwap` (flip its expectations when fixed) |
 | — | Viewport: a selected rule's edges over the Final part — in Final preview, show the edges of a selected rule whose solid isn't shown (spec §6.3, Errata (M6)) | ⏳ after M6 | `SceneTests.aRuleSelectedInFinalPreviewGlowsOnlyOnItsOwnSolid` |
-| — | Viewport: frame in the model area — first framing, F and Look At centre the part in `ViewportModel.modelArea`, not the whole view (spec §6.3) | ⏳ after M6 | carry-over From M6 |
+| — | Viewport: frame in the model area — first framing, F and Look At centre the part in `ViewportModel.modelArea`, not the whole view (spec §6.3) | ✅ (branch `viewport-input`; the arrows, cube and pointer-less key zoom keep it there) | carry-over From M6 |
 
 ## Cross-project dependencies
 
