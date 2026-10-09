@@ -14,6 +14,16 @@ extension Topology {
         edges.filter { edge($0, matches: key) }.sorted(by: Self.midpointOrder)
     }
 
+    /// The edges a remembered key names now: its matches, or, only when it has none, the matches of its
+    /// narrowed key (`EdgeKey.narrowed`). A pick on a face a union merged names both operands' tags; when
+    /// the other operand changes and the faces no longer merge, the narrowed key still finds the edge. A
+    /// key that matches anything is never narrowed, so a pick that resolves today resolves the same way.
+    public func edges(resolving key: EdgeKey) -> [EdgeInfo] {
+        let matches = edges(matching: key)
+        guard matches.isEmpty, let narrowed = key.narrowed else { return matches }
+        return edges(matching: narrowed)
+    }
+
     /// The picks that select exactly `ids`: one per distinct key, in first-picked order. A key that
     /// names more edges than were picked records the picked edges' ordinals. Unknown IDs and seams
     /// are skipped.
