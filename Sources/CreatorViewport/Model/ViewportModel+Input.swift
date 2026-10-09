@@ -78,9 +78,11 @@ extension ViewportModel {
             apply(CameraNavigation.orbit(pose, dx: dx, dy: dy, pivot: modelAreaPivot(pose)))
         case .pan:
             apply(CameraNavigation.pan(pose, dx: dx, dy: dy, size: viewSize))
+            refreshToolPointer(at: point)
         case .zoom:
             apply(CameraNavigation.zoom(pose, factor: exp(-dy * ViewportInputMap.zoomPerPoint), toward: state.start,
                                         size: viewSize))
+            refreshToolPointer(at: point)
         case .handle(let id):
             updateHandle(id, state, to: point, phase: .changed)
         case .tool:

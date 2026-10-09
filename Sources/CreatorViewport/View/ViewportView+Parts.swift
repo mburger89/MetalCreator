@@ -1,8 +1,8 @@
 import MetalUI
 
 extension ViewportView {
-    /// The surface, the handle labels and the view cube's controls (hidden with the cube while navigation is planar) (the renderer paints the cube's face names on
-    /// it). The label loop is written inline: MetalUI's builder can't infer an opaque element returned by a helper
+    /// The surface, the handle labels and the view cube's controls, which are hidden with the cube while navigation is
+    /// planar (the renderer paints the cube's face names on it). The label loop is written inline: MetalUI's builder can't infer an opaque element returned by a helper
     /// inside a `for` (docs/metalui-gaps.md gap M4-b).
     @MainActor
     static func stack(model: ViewportModel) -> some Element {

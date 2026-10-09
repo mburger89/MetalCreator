@@ -179,9 +179,11 @@ public final class ViewportModel {
         presentedPose(at: clock.now())
     }
 
-    /// Animates from what's on screen now to `target` (spec §6.3: about 250 ms). `pose` becomes `target` at once.
+    /// Animates from what's on screen now to `target` (spec §6.3: about 250 ms). `pose` becomes `target` at once. An
+    /// explicit camera move (Look At, a cube region, F) counts as the first framing: the first scene won't undo it.
     func animate(to target: CameraPose) {
         guard target.isFinite else { return }
+        needsFirstFraming = false
         let now = clock.now()
         animation = CameraAnimation(from: presentedPose(at: now), to: target, start: now,
                                     duration: CameraAnimation.viewCubeDuration)
@@ -197,10 +199,12 @@ public final class ViewportModel {
         }
     }
 
-    /// Freezes an animation where it is now, so input continues from what the user sees.
+    /// Freezes an animation where it is now, so input continues from what the user sees. While navigation is planar
+    /// it finishes the animation instead (`pose` is already its end): frozen part-way, the turn onto the plane would
+    /// lock an oblique view in.
     func stopAnimation() {
         guard animation != nil else { return }
-        pose = currentPose()
+        if !isPlanar { pose = currentPose() }
         animation = nil
         animationTask?.cancel()
         events.cameraSettled(pose)
@@ -232,8 +236,10 @@ public final class ViewportModel {
     }
 
     /// Frames the first shown scene from the home view, once. It waits for a real view size: framed for a zero
-    /// size, a narrow viewport would clip the part.
+    /// size, a narrow viewport would clip the part. Never while navigation is planar (the camera faces the tool's
+    /// plane, and the home view would turn it): that counts as framed.
     private func frameFirstSceneIfNeeded() {
+        if isPlanar { needsFirstFraming = false }
         guard needsFirstFraming, !viewSize.isEmpty, let bounds = sceneBounds else { return }
         needsFirstFraming = false
         pose = homePose ?? defaultHome(for: bounds)
