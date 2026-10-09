@@ -31,8 +31,9 @@ let package = Package(
         .target(name: "CreatorGeometry"),
         .target(name: "CreatorSketch", dependencies: ["CreatorGeometry"]),
         .target(name: "CreatorKernel", dependencies: ["CreatorGeometry"]),
-        .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry"]),
-        .target(name: "CreatorNodes", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
+        // CreatorSketch: `ConstantValue.sketch` (S4). The Sketch node in CreatorNodes solves it.
+        .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
+        .target(name: "CreatorNodes", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
         // Colour themes (spec §6.6, Dracula by default): the roles, the built-in themes and the `ThemeStore` that
         // the editor's views and the viewport's GPU colours read.
         .target(name: "CreatorStyle", dependencies: [metalUI]),
@@ -76,9 +77,9 @@ let package = Package(
         .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
         .testTarget(name: "CreatorSketchTests", dependencies: ["CreatorSketch", "CreatorGeometry"]),
         .testTarget(name: "CreatorKernelTests", dependencies: ["CreatorKernel", "CreatorGeometry"]),
-        .testTarget(name: "CreatorGraphTests", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
+        .testTarget(name: "CreatorGraphTests", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
         .testTarget(name: "CreatorNodesTests",
-                    dependencies: ["CreatorNodes", "CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorOCCT"]),
+                    dependencies: ["CreatorNodes", "CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch", "CreatorOCCT"]),
         // CreatorOCCT is a test-only dependency: the offscreen ID-pass test renders a real OCCT box (spec §8).
         .testTarget(name: "CreatorViewportTests",
                     dependencies: ["CreatorViewport", "CreatorKernel", "CreatorGeometry", "CreatorOCCT", "CreatorStyle", metalUI]),

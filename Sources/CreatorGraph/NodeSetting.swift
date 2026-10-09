@@ -11,5 +11,19 @@ public enum NodeSetting {
     /// seeded with `.bool(true)` through `NodeDefinition.defaultSettings`.
     public static let showHandle: SocketName = "showHandle"
 
-    public static let all: Set<SocketName> = [parameter, picks, showHandle]
+    /// Sketch: the sketch, as `.sketch(_:)`. New nodes are seeded with an empty sketch on XY.
+    public static let sketch: SocketName = "sketch"
+    /// Plane from Face: the picked face, as `.facePick(topology.facePick(for:))`.
+    public static let face: SocketName = "face"
+
+    public static let all: Set<SocketName> = [parameter, picks, showHandle, sketch, face]
+
+    /// The start of every projection setting's name, which no exposed dimension may use.
+    public static let projectionPrefix = "projection."
+
+    /// Sketch: the edge pick of one projected edge, as `.edgePicks([pick])`, stored under the
+    /// projection's `ProjectionSource.reference` (sketcher spec §7, S1–S2 handoff).
+    public static func projection(_ reference: String) -> SocketName {
+        SocketName(projectionPrefix + reference)
+    }
 }
