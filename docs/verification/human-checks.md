@@ -223,3 +223,9 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   `.mcgraph` file holds no theme. Quitting forgets the choice until the Themes milestone. Pinned: `ThemeTests`,
   `ThemeStoreTests`, `ThemeRenderTests`, `ViewportPaletteTests`, `theViewportDrawsTheChosenThemeAcrossDocuments`,
   `theWindowRepaintsInTheChosenTheme`. **Observed:**
+- [ ] **M6-14 The triad follows a dock resize.** With the graph panel docked at the bottom, drag its top edge up as far
+  as it goes, then down as far as it goes, and release each time without moving the pointer over the viewport
+  afterwards: the X, Y and Z letters stay at their axes' tips (never above or below the drawn triad), and
+  "mm · grid" stays at the bottom-right of the uncovered area. Repeat docked at the left, dragging its right edge both
+  ways. Pinned: `theTriadsLettersStayOnItsAxesWhenTheDockResizes`, `aModelAreaThatMovesOnlyTheTriadRedraws`.
+  **Observed:**

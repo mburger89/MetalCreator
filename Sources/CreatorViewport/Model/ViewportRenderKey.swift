@@ -11,6 +11,8 @@ public struct ViewportRenderKey: Hashable, Sendable {
     var sceneGeneration: Int
     var handles: [ViewportHandle]
     var cube: ViewCubeLayout
+    /// The triad's place: a model area that moves only the triad (a bottom dock's resize) redraws it.
+    var triad: TriadLayout
     /// The theme's GPU colours: switching themes redraws.
     var palette: ViewportPalette
 }

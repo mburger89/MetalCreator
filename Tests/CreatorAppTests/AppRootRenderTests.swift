@@ -2,10 +2,12 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import CreatorStyle
+import Foundation
 import MetalUI
 import MetalUIText
 import Testing
 @testable import CreatorApp
+@testable import CreatorViewport
 
 /// Headless frames of the whole window. They don't compare pixels: they prove the shell builds, lays out and
 /// paints in every dock, with a pick in progress, and that the panels are laid out to `AppLayout`'s numbers (the
@@ -43,6 +45,49 @@ struct AppRootRenderTests {
         }
         let widest = panels.map { Double($0.bounds.size.width) / scale }.max() ?? 0
         #expect(abs(widest - app.panelWidth) < 1, "drawn \(widest) pt wide for a \(app.panelWidth) pt panel")
+    }
+
+    /// Resizing the dock moves the triad (spec §6.3). Its letters (MetalUI text) and its lines (the GPU, at
+    /// `TriadLayout.origin` in the surface) must move together: before and after each resize every axis letter is
+    /// drawn where the renderer puts that axis' tip, and the surface's redraw value changes, because an on-demand
+    /// `MetalView` repaints only then and would otherwise keep the triad's lines where they were.
+    @Test(arguments: [(DockSide.bottom, 120.0), (.bottom, -120.0), (.left, 120.0), (.left, -120.0)])
+    func theTriadsLettersStayOnItsAxesWhenTheDockResizes(_ dock: DockSide, _ translation: Double) async throws {
+        let app = AppModel(kernel: FakeKernel(), file: GraphFile(graph: Graph(), viewState: ViewState(dock: dock)))
+        await app.settle()
+        try expectTriadLettersOnTheirAxes(app)
+        let before = app.viewport.renderKey
+        let layoutBefore = app.viewport.triadLayout
+        app.beginPanelResize()
+        app.resizePanel(by: translation)
+        app.endPanelResize()
+        await app.settle()
+        #expect(app.viewport.triadLayout != layoutBefore, "the resize moved the triad")
+        #expect(app.viewport.renderKey != before, "the surface redraws, so the triad's lines move too")
+        try expectTriadLettersOnTheirAxes(app)
+    }
+
+    /// Every triad letter's glyph is centred where `TriadLayout` puts that axis' label in the surface's frame.
+    func expectTriadLettersOnTheirAxes(_ app: AppModel, sourceLocation: SourceLocation = #_sourceLocation) throws {
+        let scale = 2.0
+        let scene = render(app)
+        let surface = try #require(scene.surfaces.first, sourceLocation: sourceLocation)
+        let size = ViewportSize(width: Double(surface.bounds.size.width) / scale,
+                                height: Double(surface.bounds.size.height) / scale)
+        let triad = app.viewport.triadLayout
+        let origin = triad.origin(in: size)
+        let labels = app.viewport.triadLabels()
+        #expect(labels.count >= 2, sourceLocation: sourceLocation)
+        let centres = scene.glyphs.map { glyph in
+            (x: Double(glyph.bounds.origin.x + glyph.bounds.size.width / 2) / scale,
+             y: Double(glyph.bounds.origin.y + glyph.bounds.size.height / 2) / scale)
+        }
+        for label in labels {
+            let expectedX = Double(surface.bounds.origin.x) / scale + origin.x + label.position.x
+            let expectedY = Double(surface.bounds.origin.y) / scale + origin.y + label.position.y
+            let nearest = centres.map { hypot($0.x - expectedX, $0.y - expectedY) }.min() ?? .infinity
+            #expect(nearest < 6, "\(label.text) is drawn \(nearest) pt from its axis tip", sourceLocation: sourceLocation)
+        }
     }
 
     @Test func aPickInProgressDrawsItsBanner() async throws {

@@ -82,7 +82,7 @@ public final class ViewportModel {
     public var renderKey: ViewportRenderKey {
         ViewportRenderKey(pose: pose, isAnimating: isAnimating, shading: shading, hovered: hovered,
                           hoveredCubeRegion: hoveredCubeRegion, sceneGeneration: sceneGeneration, handles: handles,
-                          cube: cubeLayout, palette: palette)
+                          cube: cubeLayout, triad: triadLayout, palette: palette)
     }
 
     /// The union of every shown solid's bounds, ghosts included.

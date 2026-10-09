@@ -85,6 +85,19 @@ struct ViewportEventTests {
         #expect(recorder.settled == [model.pose])
     }
 
+    /// An on-demand `MetalView` repaints only when its value changes, so a model area that moves only the triad
+    /// (a bottom dock's resize: the cube stays put) must still change `renderKey`, or the triad's lines stay where
+    /// they were while its letters (element-tree text) move.
+    @Test func aModelAreaThatMovesOnlyTheTriadRedraws() {
+        let (model, _) = makeModel()
+        model.setModelArea(ViewportInsets(top: 60, leading: 0, bottom: 320, trailing: 300))
+        let before = model.renderKey
+        let cube = model.cubeLayout
+        model.setModelArea(ViewportInsets(top: 60, leading: 0, bottom: 440, trailing: 300))
+        #expect(model.cubeLayout == cube)
+        #expect(model.renderKey != before)
+    }
+
     @Test func theOverlaysMoveIntoTheModelArea() {
         let (model, _) = makeModel()
         model.setModelArea(ViewportInsets(top: 60, leading: 400, bottom: 0, trailing: 300))
