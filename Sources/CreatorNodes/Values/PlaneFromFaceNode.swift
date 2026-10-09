@@ -1,0 +1,41 @@
+import CreatorGeometry
+import CreatorGraph
+import CreatorKernel
+
+/// A plane on a flat face of a solid (sketcher spec §7): origin at the face centroid, normal along the
+/// face's outward normal, x axis from `FacePlane`. The face is the remembered `FacePick` in the `face`
+/// setting, so the plane follows the face when the model changes. "New sketch on face" (S5) wires this
+/// node into a Sketch.
+public enum PlaneFromFaceNode: NodeDefinition {
+    public static let typeID = "creator.planeFromFace"
+    public static let displayName = "Plane from Face"
+    public static let category = NodeCategory.value
+    public static let inputs = [SocketSpec("solid", .solid)]
+    public static let outputs = [SocketSpec("plane", .plane)]
+
+    static let nothingPicked = "Pick a face for this plane to sit on."
+    static let unreadablePick = "This plane's picked face can't be read. Pick the face again."
+    static let noMatch = "The picked face isn't on this solid any more. Pick it again."
+    static let notFlat = "The picked face isn't flat, so it has no plane."
+    static let unnamedPick = "The picked face has no stable name, so the plane may move to a different face "
+        + "when the model changes. Pick it again after the change."
+
+    public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        let solid = try inputs.solid("solid")
+        let pick: FacePick
+        switch context.node.inputValues[NodeSetting.face] {
+        case nil: throw NodeError.invalidValue(nothingPicked)
+        case .facePick(let stored)?: pick = stored
+        case .some: throw NodeError.invalidValue(unreadablePick)
+        }
+        let matches = solid.topology.faces(matching: pick)
+        guard let face = matches.first else { throw NodeError.invalidValue(noMatch) }
+        guard face.kind == .plane, let normal = face.normal?.normalized else { throw NodeError.invalidValue(notFlat) }
+        var warnings: [String] = []
+        if matches.count > 1 {
+            warnings.append("The pick matches \(matches.count.display) faces; the plane is on the first.")
+        }
+        if pick.touchesUnnamedFace { warnings.append(unnamedPick) }
+        return NodeOutputs(["plane": .plane(FacePlane.plane(origin: face.centroid, normal: normal))], warnings: warnings)
+    }
+}
