@@ -490,3 +490,37 @@ User-approved design, 2026-10-08 (plan `2026-10-08-editor-polish.md`).
   newest minimum among its bundled binaries: 27.0, because Homebrew's bottles are built for macOS 27.
 - §4.5's `.mcgraph` is registered by the packaged app (`com.metalcreator.mcgraph`, conforming to `public.json`).
   Opening a double-clicked file waits for MetalUI's open-document events (gap M6-d).
+
+## Errata (naming: merged faces)
+
+Plan `2026-10-09-naming-merged-faces.md`, roadmap row "Naming: picks on merged faces".
+
+- §5.3 rules 3 and 5: a remembered edge key that matches no edge is retried **narrowed**: each side keeps only the
+  tags whose node call (node and broadcast item) the other side also has tags from, and a side with no such tag keeps
+  all of its tags (`EdgeKey.narrowed`, `Topology.edges(resolving:)`). A pick on a face a union merged names both
+  operands' tags; narrowed, it names the edge by the operand the edge runs along (the plate's top edge on a plate side
+  is `{plate.endCap} | {plate.side}` whatever the flange does), so it survives the other operand changing or leaving.
+  An edge where two operands meet keeps its full name, and a key that matches anything is never narrowed, so every
+  pick that resolved before resolves the same way.
+- §5.3 rule 6: a pick of every edge its key names also counts **runs**, edges that meet end to end, and drifts only
+  when the edge count and the run count both differ from the recorded ones (`EdgePick.hasDrifted(matching:inRuns:)`):
+  an edge that an operation splits in two, or stops splitting, is still the picked edge. `EdgePick.runCount` is
+  recorded only when the runs were fewer than the edges. It is an optional key that older readers ignore (they count
+  edges, as before), so §4.5's format version stays 4. A pick of some of a key's edges (ordinals) still counts edges.
+  A pick saved before this has no run count, so each recorded edge counts as its own run: it still warns when its
+  edges become fewer runs (a split edge it recorded as 2 edges, now whole), and it no longer warns when a recorded
+  edge is split into more pieces (master warned "Matched 2 edges, expected 1." there).
+- Errata (M6)'s polygon swap: the two picks on the plate sides the union had merged with the rectangle's now resolve
+  to the plate's whole side edges, and Edges by Tag is `.ok` with five edges, so §8's chamfer promise holds for the
+  names. The part is still lost, for a reason the M6 probe didn't see: OCCT's fillet of the hexagon's vertical edges
+  reports success but returns a solid that `BRepCheck_Analyzer` rejects, and on it every fillet or chamfer along the
+  plate top's tangent chain fails (at 0.5, 0.2 and 0.05 mm alike), while the same resolved edges chamfer on the union
+  before the fillet. It depends on the fillet radius: `BRepCheck`-valid at R 0.5, 1 and 2, where the chamfer
+  succeeds; through the graph the chamfer also succeeds at R 2.5; invalid at the bracket's R3. So the Chamfer stays
+  in error and the Output has no result, until the kernel rejects or repairs invalid blend results (roadmap row
+  "Kernel: blends that return an invalid solid").
+  `BracketAcceptanceTests.swappingTheFlangeForAPolygonKeepsEveryPickButTheFilletedHexagonCantBeChamfered` pins it, and
+  `BracketAcceptanceTests.aChamferPickedOnMergedSidesSurvivesTheFlangeChangingWidth` pins the case end to end with no
+  warning or error (the flange alone made 40 or 70 mm wide, so no plate side stays merged).
+- Face picks (`FacePick`, Plane from Face) are not narrowed: one made on a merged face still names both operands'
+  tags (roadmap row "Naming: face picks on merged faces").

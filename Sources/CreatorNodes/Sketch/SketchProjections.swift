@@ -43,7 +43,8 @@ enum SketchProjections {
 
     /// The one edge a stored pick names among `references`, or why there isn't one. Each solid is
     /// matched by `EdgeTagMatch.choose` (tag subsets, then ordinals), the same as Edges by Tag (parent
-    /// spec §5.3), and a changed match count is reported in Edges by Tag's words, never silently.
+    /// spec §5.3, narrowing a key that matches nothing), and a changed match count is reported in Edges by
+    /// Tag's words, never silently (`EdgePick.hasDrifted(matching:inRuns:)`, as Edges by Tag).
     static func locate(_ setting: ConstantValue?, in references: [Solid]) -> Located {
         guard case .edgePicks(let picks)? = setting, picks.count == 1, let pick = picks.first else {
             return .problem("has no picked edge.")
@@ -53,16 +54,18 @@ enum SketchProjections {
         }
         var found: [EdgeInfo] = []
         var matched = 0
+        var runs = 0
         for solid in references {
             let choice = EdgeTagMatch.choose(pick, in: solid.topology)
             matched += choice.matchCount
+            runs += choice.runCount
             found += choice.chosen
         }
         switch found.count {
         case 0: return .problem("matches no edge of the references.")
         case 1:
-            let drift = matched == pick.matchCount ? nil : EdgeTagMatch.drift([(matched, pick.matchCount)])
-            return .found(found[0], drift: drift)
+            let drifted = pick.hasDrifted(matching: matched, inRuns: runs)
+            return .found(found[0], drift: drifted ? EdgeTagMatch.drift([(matched, pick.matchCount)]) : nil)
         default: return .problem("matches \(found.count.display) edges of the references.")
         }
     }

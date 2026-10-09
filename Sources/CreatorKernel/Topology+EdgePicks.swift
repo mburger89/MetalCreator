@@ -14,9 +14,20 @@ extension Topology {
         edges.filter { edge($0, matches: key) }.sorted(by: Self.midpointOrder)
     }
 
+    /// The edges a remembered key names now: its matches, or, only when it has none, the matches of its
+    /// narrowed key (`EdgeKey.narrowed`). A pick on a face a union merged names both operands' tags; when
+    /// the other operand changes and the faces no longer merge, the narrowed key still finds the edge. A
+    /// key that matches anything is never narrowed, so a pick that resolves today resolves the same way.
+    public func edges(resolving key: EdgeKey) -> [EdgeInfo] {
+        let matches = edges(matching: key)
+        guard matches.isEmpty, let narrowed = key.narrowed else { return matches }
+        return edges(matching: narrowed)
+    }
+
     /// The picks that select exactly `ids`: one per distinct key, in first-picked order. A key that
-    /// names more edges than were picked records the picked edges' ordinals. Unknown IDs and seams
-    /// are skipped.
+    /// names more edges than were picked records the picked edges' ordinals; a key whose every match was
+    /// picked records its run count when its matches form fewer runs than edges (`EdgePick.runCount`).
+    /// Unknown IDs and seams are skipped.
     public func picks(for ids: [EdgeID]) -> [EdgePick] {
         let picked = Set(ids)
         var seenKeys: Set<EdgeKey> = []
@@ -25,8 +36,12 @@ extension Topology {
             guard let edge = edge(id), !edge.isSeam, let key = key(of: edge), seenKeys.insert(key).inserted else { continue }
             let matches = edges(matching: key)
             let ordinals = matches.indices.filter { picked.contains(matches[$0].id) }
-            result.append(EdgePick(key: key, matchCount: matches.count,
-                                   ordinals: ordinals.count == matches.count ? nil : ordinals))
+            guard ordinals.count == matches.count else {
+                result.append(EdgePick(key: key, matchCount: matches.count, ordinals: ordinals))
+                continue
+            }
+            let runs = Self.runCount(matches)
+            result.append(EdgePick(key: key, matchCount: matches.count, runCount: runs == matches.count ? nil : runs))
         }
         return result
     }

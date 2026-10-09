@@ -4,7 +4,10 @@ import CreatorKernel
 /// The rule that picking writes (spec §5.3, rule 5): edges named by remembered `EdgePick`s,
 /// stored in the `picks` setting as `.edgePicks(solid.topology.picks(for: edgeIDs))`; the M6 app
 /// shell writes it from viewport picks. A key matches by tag subsets on each side, so unions that
-/// merge faces keep the pick. A changed match count is a warning, never silent (rule 6).
+/// merge faces keep the pick, and a key that matches nothing is narrowed to the operand its edge runs
+/// along (`Topology.edges(resolving:)`), so a pick on a merged face survives the other operand changing.
+/// A changed match count is a warning, never silent (rule 6), unless only the number of pieces a picked
+/// edge is split into changed (`EdgePick.hasDrifted(matching:inRuns:)`).
 public enum EdgesByTagNode: NodeDefinition {
     public static let typeID = "creator.edgesByTag"
     public static let displayName = "Edges by Tag"
