@@ -391,7 +391,8 @@ Labelled LF-a… so they don't clash with the labels above. Checked against Meta
   past the canvas's top shows over the panel's header (which has no opaque fill), and one panned past the panel's
   edge shows over the glass padding and beyond it. Pinned: `aNodeAboveTheCanvasNeverCoversTheHeader` (a known
   issue; it starts failing as "Known issue was not recorded" once MetalUI fixes this, and the `withKnownIssue` goes).
-- **LF-b. A clip inside nested flattening effects is cut by the outer clip in the wrong space (regression in MetalUI
+- ✅ **Fixed in MetalUI 9ad2254 (PR #60, ruling GX-Y; the known issue in `aNodeAtANegativeCanvasPositionDrawsWhole`
+  is gone).** **LF-b. A clip inside nested flattening effects is cut by the outer clip in the wrong space (regression in MetalUI
   0b400b4, the LF-a fix).** A node whose canvas position is negative (left of or above the canvas's origin before the
   pan and zoom), panned wholly into the canvas, paints only the slice of its header and body right of (and below) the
   canvas's edge moved by the pan: the rest shows the canvas background, while its border and sockets (no clip of their
