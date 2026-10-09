@@ -43,12 +43,20 @@ extension SketchEditorModel {
         }
     }
 
-    /// ⏎ or the Finish button: leaves sketch mode (the host does), dropping any stroke in progress; with the host's
-    /// popup open, it only closes that.
+    /// ⏎ or the Finish button: leaves sketch mode (the host does), dropping any stroke in progress and any point drag
+    /// (its uncommitted steps undone, so an editor used again shows no stale chip and its release commits nothing);
+    /// with the host's popup open, it only closes that.
     public func finish() {
         if events.dismissHostPopup() { return }
         drawState = .idle
         preview = .none
+        if dragged != nil, let origin = dragOrigin {
+            let solved = SketchSolver.solve(origin)
+            solution = solved
+            sketch = Self.remembering(origin, solved)
+        }
+        dragged = nil
+        dragOrigin = nil
         events.finished()
     }
 

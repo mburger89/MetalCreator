@@ -65,6 +65,24 @@ struct DragReadoutTests {
                 "the end lands on the radius the solve keeps")
     }
 
+    /// The sweep runs counter-clockwise from the start: an end dragged to 135° reads 135°, never the 225° the other
+    /// way round.
+    @Test func anArcsSweepRunsCounterClockwiseFromItsStart() {
+        var sketch = Sketch()
+        let center = sketch.addPoint(Vector2(0, 0))
+        let start = sketch.addPoint(Vector2(12, 0))
+        let end = sketch.addPoint(Vector2(0, 12))
+        sketch.addArc(center: center, start: start, end: end)
+        sketch.add(.fix(center, at: .zero))
+        sketch.add(.fix(start, at: Vector2(12, 0)))
+        let model = makeModel(sketch)
+        let text = drag(model, from: Vector2(0, 12), to: Vector2(-12, 12))
+        let solved = model.sketch.position(of: end) ?? .zero
+        let angle = atan2(solved.y, solved.x) * 180 / .pi
+        #expect(abs(angle - 135) < 1, "the solve puts the end near the pointer's 135°")
+        #expect(text == "R 12.0 mm · \(ReadoutText.number(angle))°", "counter-clockwise from the start at 0°, not 360° less")
+    }
+
     @Test func anArcsStartReadsItsRadiusAndSweep() {
         var sketch = Sketch()
         let center = sketch.addPoint(Vector2(0, 0))
@@ -120,7 +138,58 @@ struct DragReadoutTests {
         let far = sketch.addPoint(Vector2(-20, 12))
         sketch.addLine(from: end, to: far)
         let model = makeModel(sketch)
-        #expect(drag(model, from: Vector2(0, 12), to: Vector2(1, 13))?.contains("mm") == false)
+        let text = drag(model, from: Vector2(0, 12), to: Vector2(1, 13))
+        let solved = model.sketch.position(of: end) ?? Vector2(.nan, .nan)
+        #expect(text == ReadoutText.position(solved), "the solved position")
+        #expect(text?.contains("mm") == false)
+    }
+
+    /// Construction geometry counts: a construction line sharing a line's end makes it a corner.
+    @Test func aLineEndSharedWithConstructionGeometryReadsItsPosition() {
+        var sketch = Sketch()
+        let start = sketch.addPoint(Vector2(0, 0))
+        let end = sketch.addPoint(Vector2(10, 0))
+        sketch.addLine(from: start, to: end)
+        sketch.add(.fix(start, at: .zero))
+        let other = sketch.addPoint(Vector2(10, 10))
+        sketch.addLine(from: end, to: other, isConstruction: true)
+        let model = makeModel(sketch)
+        #expect(drag(model, from: Vector2(10, 0), to: Vector2(12, 3)) == ReadoutText.position(model.sketch.position(of: end) ?? .zero))
+        #expect(model.pointerReadout?.contains("mm") == false)
+    }
+
+    /// Other constraints on a lone line end (on a curve, a midpoint) hold it but don't make it a corner: it still
+    /// reads its line, as solved.
+    @Test func aLineEndOnACurveStillReadsItsLine() {
+        var sketch = Sketch()
+        let start = sketch.addPoint(Vector2(0, 0))
+        let end = sketch.addPoint(Vector2(10, 0))
+        sketch.addLine(from: start, to: end)
+        sketch.add(.fix(start, at: .zero))
+        let low = sketch.addPoint(Vector2(10, -50))
+        let high = sketch.addPoint(Vector2(10, 50))
+        let rail = sketch.addLine(from: low, to: high, isConstruction: true)
+        sketch.add(.fix(low, at: Vector2(10, -50)))
+        sketch.add(.fix(high, at: Vector2(10, 50)))
+        sketch.add(.pointOn(point: end, curve: rail))
+        let model = makeModel(sketch)
+        #expect(drag(model, from: Vector2(10, 0), to: Vector2(10, 10)) == "14.1 mm · 45.0°")
+    }
+
+    @Test func aLineEndAtAMidpointStillReadsItsLine() {
+        var sketch = Sketch()
+        let start = sketch.addPoint(Vector2(0, 0))
+        let end = sketch.addPoint(Vector2(10, 0))
+        sketch.addLine(from: start, to: end)
+        sketch.add(.fix(start, at: .zero))
+        let low = sketch.addPoint(Vector2(10, -5))
+        let high = sketch.addPoint(Vector2(10, 5))
+        let other = sketch.addLine(from: low, to: high)
+        sketch.add(.fix(low, at: Vector2(10, -5)))
+        sketch.add(.fix(high, at: Vector2(10, 5)))
+        sketch.add(.midpoint(point: end, line: other))
+        let model = makeModel(sketch)
+        #expect(drag(model, from: Vector2(10, 0), to: Vector2(14, 6)) == "10.0 mm · 0.0°", "held at the midpoint")
     }
 
     /// Two line ends joined by a coincident constraint are a corner too.
@@ -167,6 +236,23 @@ struct DragReadoutTests {
         #expect(model.pointerReadout != nil)
         model.reload(RectangleSketch().sketch, plane: .xy)
         #expect(model.pointerReadout == nil)
+    }
+
+    /// Finishing the sketch mid-drag ends the drag: no stale chip in an editor that is used again, and the later
+    /// release commits nothing.
+    @Test func finishingEndsADrag() {
+        let model = makeModel(RectangleSketch(dimensioned: false).sketch)
+        let host = RecordingHost(model)
+        #expect(model.beginDrag(at: Vector2(60.3, 40.2), tolerance: 1))
+        model.drag(to: Vector2(70, 50))
+        model.finish()
+        #expect(host.finishes == 1)
+        #expect(model.pointerReadout == nil)
+        model.drag(to: Vector2(75, 55))
+        model.endDrag(at: Vector2(80, 50))
+        #expect(host.commits.isEmpty, "the release after finishing records no step")
+        let corner = model.sketch.position(of: RectangleSketch().corners[2]) ?? .zero
+        #expect((corner - Vector2(60, 40)).length < 1e-6, "the uncommitted drag is dropped, as a stroke is")
     }
 
     /// A release that moved nothing (the fixed corner) still hides the chip: its views hear the drag end.

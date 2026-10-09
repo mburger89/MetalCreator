@@ -7,9 +7,9 @@ import CreatorSketch
 /// - The start or end of exactly one arc, which nothing else shares: the arc's radius and sweep.
 /// - Anything else (a circle's or arc's centre, a free point, a corner): its position.
 ///
-/// A point is shared (a corner) when more than one curve is built on it, or a coincident constraint joins it to
-/// another point, so a point that ends both an arc and a line reads its position: neither curve's values describe
-/// the corner, and its position is what both have in common. Other constraints on the point (on a curve, a midpoint,
+/// A point is shared (a corner) when more than one curve (construction ones too) is built on it, or a coincident
+/// constraint joins it to another point, so a point that ends both an arc and a line reads its position: neither
+/// curve's values describe the corner, and its position is what both have in common. Other constraints on the point (on a curve, a midpoint,
 /// fixed) don't make it shared: they hold it, and its curve's values still read what the drag changes.
 extension SketchEditorModel {
     func dragReadout(_ point: SketchEntityID) -> String? {

@@ -371,8 +371,9 @@ All tests use Swift Testing.
   outside sketch mode.
 - The pointer readout also shows while a point is dragged (user, 2026-10-09), whatever the tool: the solved values,
   what the release keeps, in the same format, updated every drag step and following the pointer, gone on the release
-  or when the drag is cancelled (undo mid-drag). The end of exactly one line reads that line's length and angle (start
-  to end); the start or end of exactly one arc, its radius and sweep; anything else (a circle's or arc's centre, a free
-  point, a corner) its position. A point is a corner when more than one curve is built on it or a coincident
-  constraint joins it to another point, so a point that ends both an arc and a line reads its position (precedence:
-  shared beats either curve); other constraints on it (on a curve, midpoint, fix) don't make it shared.
+  or when the drag is cancelled (undo mid-drag; Finish mid-drag also drops the drag's uncommitted steps, as it drops a
+  stroke). The end of exactly one line reads that line's length and angle (start to end); the start or end of exactly
+  one arc, its radius and sweep; anything else (a circle's or arc's centre, a free point, a corner) its position. A
+  point is a corner when more than one curve is built on it (construction curves count) or a coincident constraint
+  joins it to another point, so a point that ends both an arc and a line reads its position (precedence: shared beats
+  either curve); other constraints on it (on a curve, midpoint, fix) don't make it shared.
