@@ -79,14 +79,20 @@ Read this before writing the M2 and M3 plans.
     To make that possible, M6 adds two events to `ViewportEvents`: `cameraSettled(pose)` (fired from `pointerUp`,
     the end of an animation, `zoom(by:)` and `.projection`) and `homeChanged(homePose)` (from `.setHome`), so
     `ViewState` is synced without observing `pose` at 60 Hz.
-  - Both input stopgaps take over `Window.onInput`: M4's `ViewportModifierTracker` and M5's `GraphPanelInput`.
-    `ViewportModifierTracker.install(on:)` chains to the previous handler. Whichever is installed second must chain
-    too (or share one modifier tracker), or the other silently stops seeing events.
+  - ✅ (viewport C7) Both input stopgaps take over `Window.onInput`: M4's `ViewportModifierTracker` and M5's
+    `GraphPanelInput`. The viewport's tracker is gone (its drags read `DragGesture.Value.modifiers`), so only
+    `GraphPanelInput` is left on `onInput`, through `AppInput`.
   - `selectEdgesOfFace` → an Edges by Tag node: `.setInput(node, NodeSetting.picks, .edgePicks(picks))` with the
     reported `[EdgePick]`, unchanged (the node warns on `.unnamed` picks itself); pick-mode clicks the same way,
     through `topology.picks(for:)`
   - a keymap context for the viewport's keys
 - Stopgaps to delete when MetalUI C7 lands: `ViewportModifierTracker`, the hover-point context menu, window-wide viewport keys.
+  ✅ (viewport C7, plan `2026-10-09-viewport-input-c7.md`) The tracker and the hover-point menu are gone: drags read
+  `DragGesture.Value.modifiers`, and the face menu picks at the right press (`contextMenuItems(at:)`, the located
+  `.contextMenu`). The keys stay window-wide (`!Panel` context) until MetalUI C9 scopes keys to an element.
+  C7 also brought: two-finger scroll zooms toward the cursor (momentum ignored), pinch zooms about its centre,
+  middle-drag pans, right-drag orbits (a right click still opens the menu), `SpatialTapGesture` clicks, and the
+  crosshair and closed-hand cursors. The graph panel's own C7 swap (From M5) is still to do.
 - `ViewportPalette` (GPU colours) duplicates spec §6.6 hex values that M5's `Palette` will also hold. M5 can't unify
   them (neither target may import the other); M6 decides on a shared home.
 - Faces above 2²² − 1 and solids beyond 256 aren't pickable (`PickID`).
@@ -122,9 +128,12 @@ Read this before writing the M2 and M3 plans.
   change too). Owner: roadmap row "Naming: picks on merged faces".
 - `AppModel` replaces the document's parts on New and Open; `AppInput` is installed once and forwards. Nothing may
   capture a `GraphPanelInput`, `EditorModel` or `ViewportModel` for the window's lifetime.
-- The first framing, F and Look At frame the part in the whole viewport, not the model area the panels leave, so a
-  part can sit partly under the graph panel. Owner: roadmap row "Viewport: frame in the model area" (teach
-  `CameraNavigation.frame` `ViewportModel.modelArea`; the insets already exist).
+- ✅ (viewport C7 plan) The first framing, F and Look At frame the part in the whole viewport, not the model area the
+  panels leave, so a part can sit partly under the graph panel. Owner: roadmap row "Viewport: frame in the model
+  area". Done: `CameraNavigation.frame(_:_:size:insets:)` centres and fits the part in `ViewportModel.modelArea`,
+  and the arrows, the cube's regions, a cube drag and the +/− keys without a pointer turn or zoom about the model
+  area's centre (`modelAreaPivot(_:)`), so the part stays there; insets the view can't honour are ignored for framing
+  (`ViewportInsets.usable(in:)`), though `setModelArea` still takes them unvalidated (M7 item below).
 - In Final preview a selected rule that feeds a feature glows nothing (spec Errata (M6)). Owner: roadmap row
   "Viewport: a selected rule's edges over the Final part".
 - `AppModel.refreshScene()` re-shows only a changed scene or changed handles; the observation itself still wakes for
