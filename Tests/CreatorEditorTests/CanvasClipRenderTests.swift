@@ -59,8 +59,8 @@ struct CanvasClipRenderTests {
                 "the node paints over the library column")
     }
 
-    /// Known to fail (gap LF-a): a node's own `clipShape` under the canvas's offset loses the canvas's clip, so the
-    /// node paints over the header, which has no opaque fill to hide it the way the library's does.
+    /// A node's own `clipShape` under the canvas's offset keeps the canvas's clip, so the node never paints over the
+    /// header, which has no opaque fill to hide it the way the library's does (gap LF-a, fixed in MetalUI 0b400b4).
     @Test(arguments: [DockSide.left, .bottom])
     func aNodeAboveTheCanvasNeverCoversTheHeader(dock: DockSide) {
         let header = GraphPanelLayout.glassPadding + GraphPanelLayout.headerHeight / 2
@@ -68,9 +68,7 @@ struct CanvasClipRenderTests {
         let canvas = GraphPanelLayout.canvasFrame(inPanelOf: Self.panel, flow: editor.flow, showsLibrary: false)
         #expect(nodeShows(at: Vector2(node.origin.x + 30, canvas.origin.y + 10), in: scene, node: node),
                 "set up: the node shows in the canvas")
-        withKnownIssue("LF-a: a clip inside an offset or a scale forgets the clip outside it") {
-            #expect(!nodeShows(at: Vector2(node.origin.x + 30, header), in: scene, node: node),
-                    "the node paints over the panel's header")
-        }
+        #expect(!nodeShows(at: Vector2(node.origin.x + 30, header), in: scene, node: node),
+                "the node paints over the panel's header (gap LF-a, fixed in MetalUI 0b400b4)")
     }
 }

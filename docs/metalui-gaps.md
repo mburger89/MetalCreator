@@ -318,7 +318,8 @@ Labelled P-a… so they don't clash with the C7 items, M4-a…, M5-a…, M6-a…
 
 Labelled LF-a… so they don't clash with the labels above. Checked against MetalUI `67a579e`.
 
-- **LF-a. A clip pushed inside an `offset` or a uniform `scaleEffect` forgets the clip outside it.** A node on the
+- ✅ **Fixed in MetalUI 0b400b4 (PR #58, ruling GX-X; the known issue in `aNodeAboveTheCanvasNeverCoversTheHeader` is
+  gone).** **LF-a. A clip pushed inside an `offset` or a uniform `scaleEffect` forgets the clip outside it.** A node on the
   graph canvas is `NodeView` (`.clipShape(RoundedRectangle)` then `.offset` to its place), inside the canvas's
   `ZStack { … }.scaleEffect(zoom).offset(pan)`, inside the canvas's `.clipped()`. Panned past the canvas's top edge,
   the node's body and header paint outside the canvas: over the node library (docked left, the strip across the
