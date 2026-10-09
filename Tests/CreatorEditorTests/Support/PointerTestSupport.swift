@@ -4,16 +4,17 @@ import CreatorGeometry
 
 @MainActor
 extension EditorModel {
-    /// A click (press and release without moving) at a canvas-local screen point.
-    func click(_ point: Vector2) {
-        pointerDragged(from: point, to: point)
-        pointerReleased(from: point, at: point)
+    /// A click (press and release without moving) at a canvas-local screen point, with `modifiers` held
+    /// throughout, as the canvas's zero-distance drag reports one.
+    func click(_ point: Vector2, modifiers: CanvasModifiers = []) {
+        pointerDragged(from: point, to: point, modifiers: modifiers)
+        pointerReleased(from: point, at: point, modifiers: modifiers)
     }
 
-    /// A press at `start`, a move to `end` and a release there.
-    func drag(_ start: Vector2, _ end: Vector2) {
-        pointerDragged(from: start, to: start)
-        pointerDragged(from: start, to: end)
-        pointerReleased(from: start, at: end)
+    /// A press at `start`, a move to `end` and a release there, with `modifiers` held throughout.
+    func drag(_ start: Vector2, _ end: Vector2, modifiers: CanvasModifiers = []) {
+        pointerDragged(from: start, to: start, modifiers: modifiers)
+        pointerDragged(from: start, to: end, modifiers: modifiers)
+        pointerReleased(from: start, at: end, modifiers: modifiers)
     }
 }

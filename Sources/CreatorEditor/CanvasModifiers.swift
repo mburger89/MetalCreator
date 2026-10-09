@@ -1,5 +1,5 @@
-/// Modifier keys held during a canvas press or drag. MetalUI gives no modifiers on a gesture yet
-/// (docs/metalui-gaps.md item 5), so `GraphPanelInput` tracks them from the window's key events.
+/// Modifier keys held during a canvas press or drag. They come from the gesture's own value
+/// (MetalUI C7's `DragGesture.Value.modifiers`, read by `GraphPanelInput`), so they can't go stale.
 public struct CanvasModifiers: OptionSet, Sendable, Hashable {
     public let rawValue: UInt8
     public init(rawValue: UInt8) { self.rawValue = rawValue }

@@ -7,13 +7,54 @@ import Testing
 
 @MainActor
 struct GraphPanelInputTests {
-    @Test func modifierChangesReachTheModelWithoutBeingClaimed() {
-        let editor = makeEditor([])
+    /// A canvas drag value as MetalUI reports it, in canvas-local points.
+    func value(_ start: Vector2, _ location: Vector2, _ modifiers: Modifiers = []) -> DragGesture.Value {
+        DragGesture.Value(startLocation: Point(x: Pixels(Float(start.x)), y: Pixels(Float(start.y))),
+                          location: Point(x: Pixels(Float(location.x)), y: Pixels(Float(location.y))),
+                          modifiers: modifiers)
+    }
+
+    /// The window's modifier events are neither claimed nor kept: a press reads its own (MetalUI C7), so a ⇧
+    /// reported while the pointer was elsewhere can't make the next click extend the selection.
+    @Test func modifierChangesAreNeitherClaimedNorTracked() {
+        let a = testNode(NumberTestNode.self, id: 1, at: .zero)
+        let b = testNode(NumberTestNode.self, id: 2, at: Vector2(300, 0))
+        let editor = makeEditor([a, b])
+        editor.selection = [a.id]
         let input = GraphPanelInput(model: editor)
         #expect(!input.handle(.modifiersChanged([.shift, .option])))
-        #expect(editor.modifiers == [.shift, .option])
-        #expect(!input.handle(.modifiersChanged([])))
-        #expect(editor.modifiers.isEmpty)
+        let point = editor.screenPoint(in: b.id)
+        input.canvasChanged(value(point, point))
+        input.canvasEnded(value(point, point))
+        #expect(editor.selection == [b.id])
+    }
+
+    /// The canvas gesture starts at the press (zero minimum distance), and each value's modifiers reach the model:
+    /// the press's ⇧ extends the click, and control is dropped (the canvas binds nothing to it).
+    @Test func theCanvasGestureReadsThePressModifiersFromItsValues() {
+        let a = testNode(NumberTestNode.self, id: 1, at: .zero)
+        let b = testNode(NumberTestNode.self, id: 2, at: Vector2(300, 0))
+        let editor = makeEditor([a, b])
+        editor.selection = [a.id]
+        let input = GraphPanelInput(model: editor)
+        #expect(input.canvasGesture().minimumDistance == Pixels(0))
+        let point = editor.screenPoint(in: b.id)
+        input.canvasChanged(value(point, point, [.shift, .control]))
+        input.canvasEnded(value(point, point))
+        #expect(editor.selection == [a.id, b.id])
+        #expect(GraphPanelInput.canvasModifiers([.shift, .option, .command, .control]) == [.shift, .option, .command])
+    }
+
+    @Test func anOptionDragThroughTheGestureDuplicates() {
+        let a = testNode(NumberTestNode.self, id: 1, at: .zero)
+        let editor = makeEditor([a])
+        let input = GraphPanelInput(model: editor)
+        let start = editor.screenPoint(in: a.id)
+        input.canvasChanged(value(start, start, .option))
+        input.canvasChanged(value(start, start + Vector2(0, 80), .option))
+        input.canvasEnded(value(start, start + Vector2(0, 80), .option))
+        #expect(editor.graph.nodes.count == 2)
+        #expect(editor.graph.nodes[a.id]?.position == .zero)
     }
 
     @Test func mappedKeysAreRunAndClaimed() {
@@ -83,22 +124,12 @@ struct GraphPanelInputTests {
         let input = GraphPanelInput(model: editor)
         var releases = 0
         input.releaseTextFocus = { releases += 1 }
-        input.canvasChanged(from: Vector2(10, 10), to: Vector2(10, 10))
-        input.canvasChanged(from: Vector2(10, 10), to: Vector2(40, 10))
-        input.canvasEnded(from: Vector2(10, 10), at: Vector2(40, 10))
+        input.canvasChanged(value(Vector2(10, 10), Vector2(10, 10)))
+        input.canvasChanged(value(Vector2(10, 10), Vector2(40, 10)))
+        input.canvasEnded(value(Vector2(10, 10), Vector2(40, 10)))
         #expect(releases == 1)
-        input.canvasEnded(from: Vector2(5, 5), at: Vector2(5, 5))
+        input.canvasEnded(value(Vector2(5, 5), Vector2(5, 5)))
         #expect(releases == 2)
         #expect(editor.transform.offset == Vector2(30, 0))
-    }
-
-    /// The C7 stand-ins are single functions named after C7's provisional APIs, so the swap is local.
-    @Test func theC7StandInsAreTheirOwnFunctions() {
-        let editor = makeEditor([])
-        let input = GraphPanelInput(model: editor)
-        #expect(GraphPanelInput.spatialTapGesture().minimumDistance == Pixels(0))
-        _ = input.handle(.modifiersChanged([.option]))
-        let value = DragGesture.Value(startLocation: Point(x: Pixels(1), y: Pixels(2)), location: Point(x: Pixels(3), y: Pixels(4)))
-        #expect(input.dragValueModifiers(value) == .option)
     }
 }
