@@ -28,7 +28,8 @@ public actor FakeKernel: Kernel {
         guard let bounds = BoundingBox(points: corners) else {
             throw KernelError.invalidInput("The profile is empty.")
         }
-        return Solid(topology: Self.prism(profile, distance: distance, tag: tag), bounds: bounds, storage: FakeStorage())
+        return Solid(topology: Self.prism(profile, distance: distance, heights: (back, front), tag: tag), bounds: bounds,
+                     storage: FakeStorage())
     }
 
     public func revolve(_ profile: Profile2D, axis: Axis, angle: Angle, tag: NodeTag) throws -> Solid {
@@ -155,16 +156,18 @@ public actor FakeKernel: Kernel {
     /// `.side(loop:segment:)`, bottom and top edges per segment, and between-side edges. A
     /// single-segment loop (a circle) gets a seam instead of between-side edges. Hole corners are
     /// concave. The outer loop's faces and edges are numbered exactly as for a profile without holes.
-    private static func prism(_ profile: Profile2D, distance: Double, tag: NodeTag) -> Topology {
+    /// Every edge carries its exact curve, the caps' at `heights` along the normal (S4 projection).
+    private static func prism(_ profile: Profile2D, distance: Double, heights: (Double, Double), tag: NodeTag) -> Topology {
         let normal = profile.plane.normal
         var faces = [
             FaceInfo(id: FaceID(0), kind: .plane, normal: -normal, area: 0, centroid: .zero, tags: [TopoTag(tag, .startCap)]),
             FaceInfo(id: FaceID(1), kind: .plane, normal: normal, area: 0, centroid: .zero, tags: [TopoTag(tag, .endCap)]),
         ]
         var edges: [EdgeInfo] = []
-        func addEdge(_ kind: CurveKind, _ direction: Vector3?, _ length: Double, _ convexity: Convexity, _ a: Int, _ b: Int) {
+        func addEdge(_ kind: CurveKind, _ direction: Vector3?, _ length: Double, _ convexity: Convexity, _ a: Int, _ b: Int,
+                     curve: EdgeCurve? = nil) {
             edges.append(EdgeInfo(id: EdgeID(edges.count), kind: kind, direction: direction, length: length,
-                                  midpoint: .zero, convexity: convexity, faces: [FaceID(a), FaceID(b)]))
+                                  midpoint: .zero, convexity: convexity, faces: [FaceID(a), FaceID(b)], curve: curve))
         }
         for (loop, segments) in profile.loops.enumerated() {
             let first = faces.count
@@ -177,18 +180,40 @@ public actor FakeKernel: Kernel {
                 let along: Vector3? = isLine
                     ? (profile.plane.point(segment.endPoint) - profile.plane.point(segment.startPoint)).normalized
                     : normal
-                addEdge(isLine ? .line : .circle, along, segment.length, .convex, 0, side)
-                addEdge(isLine ? .line : .circle, along, segment.length, .convex, 1, side)
+                addEdge(isLine ? .line : .circle, along, segment.length, .convex, 0, side,
+                        curve: curve(of: segment, on: profile.plane, at: heights.0))
+                addEdge(isLine ? .line : .circle, along, segment.length, .convex, 1, side,
+                        curve: curve(of: segment, on: profile.plane, at: heights.1))
+            }
+            // A wall edge rises from the corner where segment k ends (a circle's seam from its start).
+            func rising(from corner: Vector2) -> EdgeCurve {
+                .line(start: profile.plane.point(corner) + normal * heights.0, end: profile.plane.point(corner) + normal * heights.1)
             }
             if segments.count == 1 {
-                addEdge(.line, normal, distance, .smooth, first, first)
+                addEdge(.line, normal, distance, .smooth, first, first, curve: rising(from: segments[0].startPoint))
             } else {
                 for k in segments.indices {
-                    addEdge(.line, normal, distance, loop == 0 ? .convex : .concave, first + k, first + (k + 1) % segments.count)
+                    addEdge(.line, normal, distance, loop == 0 ? .convex : .concave, first + k, first + (k + 1) % segments.count,
+                            curve: rising(from: segments[k].endPoint))
                 }
             }
         }
         return Topology(faces: faces, edges: edges)
+    }
+
+    /// A profile segment's exact curve, lifted `height` along the plane normal. A clockwise arc
+    /// (`end < start`) is the same circle run counter-clockwise from its end.
+    private static func curve(of segment: Segment2D, on plane: Plane, at height: Double) -> EdgeCurve {
+        let lift = plane.normal * height
+        switch segment {
+        case .line(let a, let b):
+            return .line(start: plane.point(a) + lift, end: plane.point(b) + lift)
+        case .arc(let center, let radius, let start, let end):
+            let from = min(start, end).radians
+            let first = center + Vector2(cos(from), sin(from)) * radius
+            return .circle(center: plane.point(center) + lift, axis: plane.normal, radius: radius,
+                           start: plane.point(first) + lift, sweep: abs(end.radians - start.radians))
+        }
     }
 
     /// `other`'s faces and edges, renumbered after `base`'s, appended to `base`.
