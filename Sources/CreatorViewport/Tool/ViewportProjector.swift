@@ -5,10 +5,14 @@ import CreatorGeometry
 public struct ViewportProjector: Hashable, Sendable {
     public var pose: CameraPose
     public var size: ViewportSize
+    /// The model area: how far floating panels cover the view's edges (`ViewportModel.modelArea`, as far as the view
+    /// can honour it), so a tool keeps what it draws on screen (the sketch's readout) clear of them.
+    public var modelArea: ViewportInsets
 
-    public init(pose: CameraPose, size: ViewportSize) {
+    public init(pose: CameraPose, size: ViewportSize, modelArea: ViewportInsets = ViewportInsets()) {
         self.pose = pose
         self.size = size
+        self.modelArea = modelArea
     }
 
     /// Millimetres per point at the target's depth (everywhere, in orthographic).

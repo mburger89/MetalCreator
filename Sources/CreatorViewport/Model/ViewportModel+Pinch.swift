@@ -17,6 +17,7 @@ extension ViewportModel {
         guard let start = pinchStart else { return }
         let factor = max(magnification, ViewportInputMap.minimumMagnification)
         apply(CameraNavigation.zoom(start.pose, factor: factor, toward: centre, size: viewSize))
+        refreshToolPointer(at: centre)
     }
 
     /// The pinch ended: the camera settles where it is, once.

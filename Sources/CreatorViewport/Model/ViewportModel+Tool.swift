@@ -3,7 +3,22 @@ import Foundation
 
 extension ViewportModel {
     /// The camera input is made in now, for the tool.
-    var projector: ViewportProjector { ViewportProjector(pose: currentPose(), size: viewSize) }
+    var projector: ViewportProjector {
+        ViewportProjector(pose: currentPose(), size: viewSize, modelArea: modelArea.usable(in: viewSize))
+    }
+
+    /// While navigation is planar, tells the tool the pointer is at `point` after the camera moved under it (a pan or
+    /// zoom drag step, a scroll, a pinch), so its rubber band and readout follow.
+    func refreshToolPointer(at point: ScreenPoint) {
+        guard isPlanar else { return }
+        tool?.pointerMoved(to: point, projector: projector)
+    }
+
+    /// True while the tool asks for planar navigation: nothing turns the camera.
+    var isPlanar: Bool { tool?.navigation == .planar }
+
+    /// Whether the view cube, its arrows and its View menu are shown: not while navigation is planar.
+    public var showsViewCube: Bool { !isPlanar }
 
     /// Offers a primary drag's press to the tool; true when the tool took it.
     func toolTakesDrag(at point: ScreenPoint, modifiers: ViewportModifiers) -> Bool {

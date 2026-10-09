@@ -72,7 +72,7 @@ final class ViewportRenderer {
             drawLines(handles.buffer, count: handles.count, uniforms, depth: pipelines.depthAlways, style: Self.plainLines,
                       encoder)
         }
-        if let labels { drawCube(frame, labels: labels, scale: scale, width: width, height: height, encoder) }
+        if let labels, frame.showsViewCube { drawCube(frame, labels: labels, scale: scale, width: width, height: height, encoder) }
         drawTriad(frame, scale: scale, width: width, height: height, encoder)
         encoder.endEncoding()
         encodedPasses += 1

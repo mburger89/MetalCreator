@@ -40,6 +40,7 @@ extension ViewportModel {
             scrollStartPose = pose
         }
         apply(CameraNavigation.zoom(pose, factor: factor, toward: point, size: viewSize))
+        refreshToolPointer(at: point)
     }
 
     /// Ends the run of wheel steps once the wheel has been still for `wheelSettleDelay`: each step restarts the wait.

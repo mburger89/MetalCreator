@@ -46,7 +46,11 @@ Module boundaries (dependency order):
     drags it claims, each with a `ViewportProjector` for screen → plane), and draws over the scene with
     `showOverlay(_:)` (`ViewportOverlay`: world-space lines and points in `OverlayTint` roles, dashed construction, and
     a `gridPlane` that replaces the ground grid). Navigation (right/middle drags, Shift/⌥ drags, scroll, pinch, the
-    cube, handles) always stays the viewport's; the face menu offers only Look At while a tool is set.
+    cube, handles) always stays the viewport's; the face menu offers only Look At while a tool is set. A tool's
+    `navigation` (`ViewportNavigation`, default `.free`) of `.planar` locks the orientation: drags that would orbit
+    pan, the cube and its controls are hidden, turning commands and the face menu do nothing (`showsViewCube`,
+    `isPlanar`; the first scene's framing never runs, and input finishes an animation instead of freezing it); a tool's
+    `framingBounds` is what F frames, and `ViewportProjector.modelArea` the area its on-screen chrome stays in.
     `lookAt(_ plane:framing:)` faces a plane, orthographic.
   - `ViewportModel` (`@MainActor @Observable`, testable without a GPU) owns the camera, picking, the view cube,
     the context menu and handles. `ViewportRenderer`/`ViewportPicker` are the Metal side. `ViewportView` is the
@@ -59,7 +63,9 @@ Module boundaries (dependency order):
   Its input (MetalUI C7 gestures, and the key and focus stopgaps) lives only in `GraphPanelInput`.
 - `CreatorSketchEditor`: the sketch editor (sketcher spec §8). `@MainActor @Observable SketchEditorModel` holds the
   sketch being edited, its live solve (`solve(_:dragging:)` per drag step), the tool and its stroke, the selection, and
-  the inspector's rows; it is the viewport's `ViewportTool` and builds its `ViewportOverlay`. Graph-free: every edit is
+  the inspector's rows; it is the viewport's `ViewportTool` (planar navigation; F frames the sketch) and builds its
+  `ViewportOverlay` and the pointer readout (`pointerReadout`, placed by `ReadoutChip`, drawn by its
+  `PointerReadoutView`, which the app puts over the viewport). Graph-free: every edit is
   a `SketchCommit` (the whole sketch, solved and remembered) through `events.committed`, which the host stores.
   Depends on CreatorSketch, CreatorViewport, CreatorGeometry, CreatorStyle and MetalUI only. Its keys are toolbar
   button shortcuts (L, A, C, D, X, ⌫, ⌦, ⏎, Esc; ⌦ and Esc are hidden buttons), which run before the graph panel's

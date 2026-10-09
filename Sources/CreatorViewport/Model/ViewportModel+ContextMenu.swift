@@ -7,9 +7,10 @@ extension ViewportModel {
     /// then, so it's the one under the press even if the pointer moved without a hover event or the camera moved
     /// under it. Over an edge, the menu uses the edge's first face. Over nothing, over the view cube, or opened
     /// without a pointer (`nil`: from the keyboard or accessibility) it's empty, and MetalUI opens no menu. While a
-    /// `tool` holds the pointer (a sketch is open) it only navigates: Look At, and nothing that edits or selects.
+    /// `tool` holds the pointer (a sketch is open) it only navigates: Look At, and nothing that edits or selects; with
+    /// planar navigation it's empty, since Look At would turn the camera.
     public func contextMenuItems(at point: ScreenPoint?) -> [ViewportMenuItem] {
-        guard let point, !cubeLayout.contains(point), let ref = faceRef(for: pick?(point)),
+        guard let point, !isPlanar, !cubeLayout.contains(point), let ref = faceRef(for: pick?(point)),
               let face = items[ref.solidIndex].solid.topology.face(ref.face) else { return [] }
         guard tool == nil else { return [.lookAt(ref)] }
         var menu: [ViewportMenuItem] = [.lookAt(ref), .selectEdgesOfFace(ref)]
@@ -39,8 +40,9 @@ extension ViewportModel {
     }
 
     /// Look At (spec §6.3): animates to face the face's normal, orthographic, framed on the face in the model area.
+    /// Nothing happens while navigation is planar.
     public func lookAt(_ ref: ViewportFaceRef) {
-        guard items.indices.contains(ref.solidIndex), let mesh = cache.mesh(for: items[ref.solidIndex].solid)?.mesh,
+        guard !isPlanar, items.indices.contains(ref.solidIndex), let mesh = cache.mesh(for: items[ref.solidIndex].solid)?.mesh,
               let direction = MeshQueries.faceDirection(mesh, ref.face),
               let bounds = MeshQueries.faceBounds(mesh, ref.face) else { return }
         var target = currentPose()

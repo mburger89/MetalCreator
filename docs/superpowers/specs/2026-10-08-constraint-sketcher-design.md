@@ -328,7 +328,7 @@ All tests use Swift Testing.
   ⌫ and ⌦ (Delete), ⏎ (Finish) and Esc (end the stroke, else clear the selection, else finish). ⌫ and ⌦ never fall
   through to the graph's delete, which would delete the Sketch node being edited. The toolbar and the inspector are
   opaque to the pointer, so a click on their chrome never draws in the viewport beneath; the viewport's face menu
-  offers only Look At while sketching.
+  is empty while sketching (see the camera-lock erratum below: Look At would turn the camera).
 - §8's undo: each command is one `setInput` of the whole sketch; a point drag commits once, on release, so it is one
   step without a coalescing key, and downstream evaluation runs on pointer-up. Typed values commit on Return or when
   the field loses focus (no 150 ms debounce: nothing evaluates while typing).
@@ -351,3 +351,21 @@ All tests use Swift Testing.
 - §8's inspector: a reference dimension's row shows its live measurement (the node's `measurements`), its value is
   read-only ("d1 is a reference: make it driving to set it."), and making it driving again takes the value it
   measures now, so nothing moves.
+- §8's entering, amended (user, 2026-10-09): sketch mode locks the camera to the sketch plane. The editor asks the
+  viewport for planar navigation (`ViewportTool.navigation == .planar`): a primary drag that doesn't start on a sketch
+  point pans (a drag on a point still moves it), right- and middle-drags pan, scroll, pinch and ⌥-drag zoom; the view
+  cube, its arrows and its View menu are hidden, the commands that turn the camera (cube regions, arrows, Home,
+  projection) do nothing and the face menu is empty (Look At would turn it). F frames the sketch
+  (`ViewportTool.framingBounds`: its points, circles and arcs whole, with a 10% margin) without turning. Leaving
+  restores free orbit and keeps the camera where it is. The first scene's isometric framing never runs while sketching
+  (a new document's first solid, drawn mid-sketch, keeps the camera face-on), and input during the turn onto the
+  plane finishes the turn instead of freezing it part-way.
+- §8's live feedback gains a pointer readout (user, 2026-10-09), S5a's and distinct from S5b's dimension labels in the
+  view: a glass chip, drawn over the panels, centred above the pointer (flipped below near the model area's top,
+  clamped inside its sides; none in a model area too small to hold it) reading what the next click would commit, after
+  snapping, to one decimal: a line's length and angle (counter-clockwise from the plane's +x, 0 ≤ angle < 360°), a
+  circle's diameter, an arc's radius then radius and counter-clockwise sweep (0…360°, a near-full arc reads 360.0°),
+  and the Point tool's plane position. The Point tool's readout is a position readout: over an existing point it
+  shows that point's position, though a click there commits nothing. It follows the pointer through pans, zooms and
+  scrolls, and goes with the stroke, on Esc, when the pointer leaves the view (onto the toolbar or inspector too) and
+  outside sketch mode.

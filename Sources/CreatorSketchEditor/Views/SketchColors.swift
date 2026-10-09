@@ -14,4 +14,7 @@ struct SketchColors {
     var secondary: Color { colors.comment.color }
     var problem: Color { colors.error.color }
     var warning: Color { colors.warning.color }
+    /// Floating chrome: the theme's glass and its hairline.
+    var glass: Color { colors.glassFill.color }
+    var hairline: Color { colors.glassStroke.color }
 }

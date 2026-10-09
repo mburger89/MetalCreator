@@ -16,3 +16,13 @@ public enum ViewportCommand: Hashable, Sendable {
     case projection(Projection)
     case shading(ShadingMode)
 }
+
+extension ViewportCommand {
+    /// Whether the command can change the camera's orientation or projection (refused while navigation is planar).
+    var turnsTheCamera: Bool {
+        switch self {
+        case .view, .rotate, .home, .projection: true
+        case .frame, .zoomIn, .zoomOut, .setHome, .shading: false
+        }
+    }
+}
