@@ -8,3 +8,6 @@ DerivedData/
 .netrc
 
 .superpowers/
+
+# scripts/package-app.sh writes the packaged app here.
+/dist
