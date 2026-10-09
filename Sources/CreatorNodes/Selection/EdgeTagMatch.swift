@@ -11,7 +11,8 @@ struct EdgeTagMatch: Equatable {
         + "when the model changes. Pick it again after the change."
 
     /// Drift is reported per drifted pick, so two picks drifting in opposite directions
-    /// (1 → 2 and 1 → 0) never cancel out into "Matched 2 edges, expected 2.".
+    /// (1 → 2 and 1 → 0) never cancel out into "Matched 2 edges, expected 2.". A pick drifts by
+    /// `EdgePick.hasDrifted(matching:inRuns:)`: a picked edge that is split, or no longer split, is not drift.
     static func resolve(_ picks: [EdgePick], in topology: Topology) -> EdgeTagMatch {
         guard !picks.isEmpty else { return EdgeTagMatch(edges: [], warnings: [nothingPicked]) }
         var selected: [EdgeID] = []
@@ -19,7 +20,9 @@ struct EdgeTagMatch: Equatable {
         var drifts: [(found: Int, expected: Int)] = []
         for pick in picks {
             let choice = choose(pick, in: topology)
-            if choice.matchCount != pick.matchCount { drifts.append((choice.matchCount, pick.matchCount)) }
+            if pick.hasDrifted(matching: choice.matchCount, inRuns: choice.runCount) {
+                drifts.append((choice.matchCount, pick.matchCount))
+            }
             for edge in choice.chosen where seen.insert(edge.id).inserted {
                 selected.append(edge.id)
             }
@@ -36,12 +39,13 @@ struct EdgeTagMatch: Equatable {
         return EdgeTagMatch(edges: selected, warnings: warnings)
     }
 
-    /// The edges one pick chooses in `topology` (its key's tag-subset matches, narrowed by its
-    /// ordinals), and how many edges the key matched. The Sketch node's projections use it too.
-    static func choose(_ pick: EdgePick, in topology: Topology) -> (chosen: [EdgeInfo], matchCount: Int) {
-        let matches = topology.edges(matching: pick.key)
+    /// The edges one pick chooses in `topology` (what its key resolves to, `Topology.edges(resolving:)`:
+    /// its tag-subset matches, else its narrowed key's; then narrowed by its ordinals), how many edges the
+    /// key matched and how many runs they form. The Sketch node's projections use it too.
+    static func choose(_ pick: EdgePick, in topology: Topology) -> (chosen: [EdgeInfo], matchCount: Int, runCount: Int) {
+        let matches = topology.edges(resolving: pick.key)
         let chosen = pick.ordinals.map { ordinals in ordinals.filter(matches.indices.contains).map { matches[$0] } } ?? matches
-        return (chosen, matches.count)
+        return (chosen, matches.count, Topology.runCount(matches))
     }
 
     /// "Matched 1 edge, expected 2." (several drifts joined by "; ").
