@@ -95,10 +95,24 @@ extension SketchEditorModel {
             refusal = "“\(text)” isn't a number."
             return
         }
+        if let problem = Self.valueProblem(value, kind: dimension.kind) {
+            refusal = problem
+            return
+        }
         guard value != dimension.value else { return }
         var edited = sketch
         edited.dimensions[id]?.value = value
         commit(edited, "Change \(dimension.name)")
+    }
+
+    /// Why `value` can't drive a dimension of `kind` (sizes are more than 0 mm, angles 0 to 180°), or nil if it can.
+    private static func valueProblem(_ value: Double, kind: DimensionKind) -> String? {
+        switch kind {
+        case .angle:
+            return (0...180).contains(value) ? nil : "An angle must be between 0° and 180°."
+        case .length, .distance, .radius, .diameter:
+            return value > 0 ? nil : "A \(kindName(kind).lowercased()) must be more than 0 mm."
+        }
     }
 
     /// Renames a dimension, refusing an empty or repeated name and one the Sketch node reserves (`isReservedName`).

@@ -66,6 +66,33 @@ struct DimensionTests {
         #expect(model.refusal == "“wide” isn't a number." && host.commits.count == 1)
     }
 
+    @Test func zeroNegativeAndOutOfRangeValuesAreRefused() {
+        let rectangle = RectangleSketch()
+        let (model, host) = makeModel(rectangle.sketch)
+        for text in ["0", "0 mm", "-5 mm"] {
+            model.refusal = nil
+            model.setValue(text, of: rectangle.width)
+            #expect(model.refusal == "A length must be more than 0 mm.")
+        }
+        #expect(host.commits.isEmpty)
+        #expect(model.dimensionRows.first?.value == "60 mm")
+    }
+
+    @Test func anglesOutsideZeroTo180AreRefused() throws {
+        var sketch = Sketch()
+        let a = sketch.addPoint(Vector2(0, 0))
+        let l1 = sketch.addLine(from: a, to: sketch.addPoint(Vector2(10, 0)))
+        let l2 = sketch.addLine(from: a, to: sketch.addPoint(Vector2(0, 10)))
+        let angle = sketch.addDimension(.angle(l1, l2), value: 90, isDriving: false)
+        let (model, host) = makeModel(sketch)
+        for text in ["270°", "-10°", "181"] {
+            model.refusal = nil
+            model.setValue(text, of: angle)
+            #expect(model.refusal == "An angle must be between 0° and 180°.")
+        }
+        #expect(host.commits.isEmpty)
+    }
+
     @Test func renamingRefusesTakenAndReservedNames() {
         let rectangle = RectangleSketch()
         let (model, host) = makeModel(rectangle.sketch, reserved: ["plane"])
