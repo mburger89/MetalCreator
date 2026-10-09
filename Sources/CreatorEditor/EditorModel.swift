@@ -51,6 +51,11 @@ public final class EditorModel {
     @ObservationIgnored var requestSerial = 0
     /// What an inspector field holds but hasn't committed (`EditorModel+PendingEntry`).
     @ObservationIgnored var pendingEntry: PendingEntry?
+    /// Whether the trackpad scroll under way zooms (it began with ⌘ held) or pans; `nil` between scrolls
+    /// (`EditorModel+Scroll`).
+    @ObservationIgnored var scrollZooms: Bool?
+    /// A ⌘-scroll ended and its glide, until its momentum ends, is ignored (`EditorModel+Scroll`).
+    @ObservationIgnored var scrollGlideIgnored = false
 
     public init(document: DocumentModel) {
         self.document = document

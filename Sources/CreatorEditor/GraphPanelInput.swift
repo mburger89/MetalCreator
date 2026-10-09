@@ -10,6 +10,8 @@ import MetalUI
 ///   modifiers, and the model tells a click from a drag (`EditorModel.dragThreshold`). It isn't a
 ///   `SpatialTapGesture` plus a drag, as the viewport's is: a tap's value has no modifiers, and a click must know
 ///   whether ⇧ was held (gap GI-a).
+/// - `scrolled(_:)`, from the canvas's `.onScrollWheel`: two-finger scroll and the wheel pan, ⌘-scroll zooms
+///   about the pointer (`EditorModel.scrolled(by:at:modifiers:phase:)`, phases from `scrollPhase(of:)`).
 ///
 /// Three stopgaps remain, for MetalUI gaps outside C7:
 /// - keys: read from the window's `onInput` fallback, so a focused text field keeps its keys;
@@ -125,6 +127,28 @@ public final class GraphPanelInput {
         let start = Self.vector(value.startLocation)
         if model.currentPress?.point != start { releaseTextFocus?() }
         model.pointerReleased(from: start, at: Self.vector(value.location), modifiers: Self.canvasModifiers(value.modifiers))
+    }
+
+    /// A scroll over the canvas, from its `.onScrollWheel`: the delta, the pointer in canvas-local points, the
+    /// modifiers and the phase go to the model. Returns `true` (claimed), so the viewport beneath never sees it.
+    public func scrolled(_ event: ScrollEvent) -> Bool {
+        model.scrolled(by: Self.vector(event.delta), at: Self.vector(event.location),
+                       modifiers: Self.canvasModifiers(event.modifiers), phase: Self.scrollPhase(of: event))
+    }
+
+    /// A MetalUI scroll event's place in its gesture. Momentum wins over the gesture phase, and its end (or
+    /// cancellation) is its own phase; no phase at all is a wheel step (and every scroll on SDL, which reports none,
+    /// MetalUI `CI-I` item 6).
+    public static func scrollPhase(of event: ScrollEvent) -> CanvasScrollPhase {
+        if event.isMomentum {
+            return event.momentumPhase == .ended || event.momentumPhase == .cancelled ? .momentumEnded : .momentum
+        }
+        switch event.phase {
+        case .none: return .step
+        case .mayBegin, .began: return .began
+        case .changed: return .changed
+        case .ended, .cancelled: return .ended
+        }
     }
 
     /// A node-library row's one gesture: a zero-distance drag reported in window points (`.global`), so a click

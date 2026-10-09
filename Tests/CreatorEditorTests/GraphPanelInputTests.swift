@@ -119,6 +119,36 @@ struct GraphPanelInputTests {
         #expect(editor.palette == nil)
     }
 
+    @Test func scrollEventsMapToCanvasPhases() {
+        func event(_ phase: InputPhase, momentum: InputPhase = .none) -> ScrollEvent {
+            ScrollEvent(position: Point(x: Pixels(0), y: Pixels(0)), delta: Point(x: Pixels(0), y: Pixels(1)),
+                        phase: phase, momentumPhase: momentum, isPrecise: true, timestamp: 0)
+        }
+        #expect(GraphPanelInput.scrollPhase(of: event(.none)) == .step)
+        #expect(GraphPanelInput.scrollPhase(of: event(.mayBegin)) == .began)
+        #expect(GraphPanelInput.scrollPhase(of: event(.began)) == .began)
+        #expect(GraphPanelInput.scrollPhase(of: event(.changed)) == .changed)
+        #expect(GraphPanelInput.scrollPhase(of: event(.ended)) == .ended)
+        #expect(GraphPanelInput.scrollPhase(of: event(.cancelled)) == .ended)
+        #expect(GraphPanelInput.scrollPhase(of: event(.none, momentum: .began)) == .momentum)
+        #expect(GraphPanelInput.scrollPhase(of: event(.none, momentum: .changed)) == .momentum)
+        #expect(GraphPanelInput.scrollPhase(of: event(.none, momentum: .ended)) == .momentumEnded)
+        #expect(GraphPanelInput.scrollPhase(of: event(.none, momentum: .cancelled)) == .momentumEnded)
+    }
+
+    /// A scroll is claimed and reaches the model at the canvas-local `location`, not the window's `position`.
+    @Test func aScrollEventZoomsAboutItsLocalPoint() {
+        let editor = makeEditor([])
+        let input = GraphPanelInput(model: editor)
+        var event = ScrollEvent(position: Point(x: Pixels(700), y: Pixels(500)), delta: Point(x: Pixels(0), y: Pixels(10)),
+                                modifiers: .command, phase: .none, momentumPhase: .none, isPrecise: false, timestamp: 0)
+        event.location = Point(x: Pixels(200), y: Pixels(100))
+        let under = editor.transform.toCanvas(Vector2(200, 100))
+        #expect(input.scrolled(event))
+        #expect(editor.transform.zoom > 1)
+        #expect((editor.transform.toCanvas(Vector2(200, 100)) - under).length < 1e-6)
+    }
+
     @Test func aCanvasPressReleasesTextFocusOncePerPress() {
         let editor = makeEditor([])
         let input = GraphPanelInput(model: editor)
