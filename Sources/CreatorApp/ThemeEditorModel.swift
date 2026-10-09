@@ -64,9 +64,9 @@ public final class ThemeEditorModel {
 
     /// Shows the theme with `id`, from the editor's menu or View ▸ Theme.
     public func select(_ id: ColorTheme.ID) {
-        commitName()
+        let refusal = commitNameKeepingRefusal()
         themes.select(id)
-        message = nil
+        message = refusal
     }
 
     /// A keystroke in the name field.
@@ -82,10 +82,19 @@ public final class ThemeEditorModel {
         perform { () throws(ThemeProblem) in try themes.rename(draft.id, to: draft.text) }
     }
 
+    /// Commits a typed name for an action that follows (select, duplicate, import, export) and returns the refusal
+    /// if the name was refused, so the action's own success doesn't wipe it: the person still learns why the name
+    /// didn't stick.
+    private func commitNameKeepingRefusal() -> String? {
+        guard nameDraft != nil else { return nil }
+        commitName()
+        return message
+    }
+
     /// Duplicate: an editable copy of the shown theme, shown at once.
     public func duplicate() {
-        commitName()
-        perform { () throws(ThemeProblem) in _ = try themes.duplicate(theme.id) }
+        let refusal = commitNameKeepingRefusal()
+        if perform({ () throws(ThemeProblem) in _ = try themes.duplicate(theme.id) }) { message = refusal }
     }
 
     /// Delete…: asks first, about the shown theme.
@@ -120,10 +129,10 @@ public final class ThemeEditorModel {
 
     /// Import…: the open panel, then the chosen `.mctheme` file as a new theme, shown at once.
     public func importTheme(using picker: any FilePicker) async {
-        commitName()
+        let refusal = commitNameKeepingRefusal()
         do {
             guard let url = try await picker.chooseFileToOpen([.mctheme]) else { return }
-            perform { () throws(ThemeProblem) in _ = try themes.importTheme(from: url) }
+            if perform({ () throws(ThemeProblem) in _ = try themes.importTheme(from: url) }) { message = refusal }
         } catch {
             message = error.localizedDescription
         }
@@ -131,11 +140,11 @@ public final class ThemeEditorModel {
 
     /// Export…: the save panel, then the shown theme (built-in or custom) as a `.mctheme` file.
     public func exportTheme(using picker: any FilePicker) async {
-        commitName()
+        let refusal = commitNameKeepingRefusal()
         let theme = theme
         do {
             guard let url = try await picker.chooseDestination([.mctheme], defaultName: "\(theme.name).mctheme") else { return }
-            perform { () throws(ThemeProblem) in try themes.exportTheme(theme.id, to: url) }
+            if perform({ () throws(ThemeProblem) in try themes.exportTheme(theme.id, to: url) }) { message = refusal }
         } catch {
             message = error.localizedDescription
         }
@@ -147,13 +156,16 @@ public final class ThemeEditorModel {
         Task { await action(filePicker) }
     }
 
-    /// Runs a store action: success clears the message, a problem shows it.
-    private func perform(_ action: () throws(ThemeProblem) -> Void) {
+    /// Runs a store action: success clears the message, a problem shows it. Returns whether it succeeded.
+    @discardableResult
+    private func perform(_ action: () throws(ThemeProblem) -> Void) -> Bool {
         do {
             try action()
             message = nil
+            return true
         } catch {
             message = error.message
+            return false
         }
     }
 }

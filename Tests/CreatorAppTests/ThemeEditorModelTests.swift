@@ -78,6 +78,20 @@ struct ThemeEditorModelTests {
         #expect(editor.nameText == "Dracula Copy")
     }
 
+    /// A refused name must not be silently lost when the next action succeeds: the refusal stays shown.
+    @Test func aRefusalSurvivesSelectingAndDuplicating() {
+        let editor = makeEditor()
+        editor.duplicate()
+        editor.typeName("nord")
+        editor.select("alucard")
+        #expect(editor.message == "There’s already a theme called “nord”.")
+        #expect(editor.theme == .alucard)
+        editor.select(editor.themes.customs[0].id)
+        editor.typeName("")
+        editor.duplicate()
+        #expect(editor.message != nil && editor.theme.name == "Dracula Copy Copy")
+    }
+
     @Test func closingAndSelectingCommitATypedName() {
         let editor = makeEditor()
         editor.open()
