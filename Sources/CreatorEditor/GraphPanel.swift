@@ -18,14 +18,26 @@ public struct GraphPanel: Component {
     }
 
     public var content: some ElementGroup {
-        GlassPanel {
-            VStack(alignment: .leading, spacing: GraphPanelLayout.spacing.px) {
-                GraphPanelHeader(model: model)
-                    .frame(height: GraphPanelLayout.headerHeight.px)
-                GraphPanelBody(model: model, input: input)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                if let refusal = model.refusal {
-                    Text(refusal.message).font(.caption).foregroundStyle(Palette(themes).statusError.color)
+        ZStack {
+            // The glass only paints, and MetalUI gives a painted view no hitbox (its divergence 141), so without this
+            // backdrop a scroll, pinch, press or hover over the header's gaps, the padding or the refusal line would
+            // reach the viewport beneath. Opaque (a content shape with an empty drag) and claiming every scroll, as
+            // the palette's backdrop is (docs/metalui-gaps.md EP-b). The canvas, the header's buttons and the
+            // library's list are drawn above it and take their own input.
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(DragGesture(minimumDistance: Pixels(0)))
+                .onScrollWheel { _ in true }
+            GlassPanel {
+                VStack(alignment: .leading, spacing: GraphPanelLayout.spacing.px) {
+                    GraphPanelHeader(model: model)
+                        .frame(height: GraphPanelLayout.headerHeight.px)
+                    GraphPanelBody(model: model, input: input)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    if let refusal = model.refusal {
+                        Text(refusal.message).font(.caption).foregroundStyle(Palette(themes).statusError.color)
+                    }
                 }
             }
         }

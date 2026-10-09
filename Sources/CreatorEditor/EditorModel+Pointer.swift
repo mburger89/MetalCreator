@@ -7,24 +7,27 @@ extension EditorModel {
     /// How far a press must move before it counts as a drag, in screen points.
     public static let dragThreshold = 3.0
 
-    /// A canvas drag moved. `start` and `location` are canvas-local screen points. The first
-    /// call of a press records what it landed on; a drag starts once it moves `dragThreshold`.
-    public func pointerDragged(from start: Vector2, to location: Vector2) {
-        ensurePress(at: start)
+    /// A canvas drag moved. `start` and `location` are canvas-local screen points, and `modifiers` are the ones
+    /// held at this change (MetalUI's `DragGesture.Value.modifiers`). The first call of a press records what it
+    /// landed on and the modifiers held at the press; a drag starts once it moves `dragThreshold`, and the
+    /// modifiers held then decide what it does (⇧ box-selects on empty canvas, ⌥ duplicates nodes).
+    public func pointerDragged(from start: Vector2, to location: Vector2, modifiers: CanvasModifiers = []) {
+        ensurePress(at: start, modifiers: modifiers)
         guard let press = currentPress else { return }
         if interaction == nil {
             guard (location - press.point).length >= Self.dragThreshold else { return }
-            setInteraction(beginInteraction(for: press.hit, at: press.point))
+            setInteraction(beginInteraction(for: press.hit, at: press.point, modifiers: modifiers))
         }
         update(to: location, from: press.point)
     }
 
-    /// The press ended at `location`. Without a drag this is a click.
-    public func pointerReleased(from start: Vector2, at location: Vector2) {
-        ensurePress(at: start)
+    /// The press ended at `location`. Without a drag this is a click, and ⇧ held at the press extends the
+    /// selection. `modifiers` (held at the release) count only for a press that reported no change before.
+    public func pointerReleased(from start: Vector2, at location: Vector2, modifiers: CanvasModifiers = []) {
+        ensurePress(at: start, modifiers: modifiers)
         guard let press = currentPress else { return }
         switch interaction {
-        case nil: click(press.hit)
+        case nil: click(press.hit, extending: press.modifiers.contains(.shift))
         case .moving: document.endCoalescing()
         case .duplicating(let start, let delta): finishDuplicate(start: start, delta: delta)
         case .connecting(let wire): finishWire(wire, at: location)
@@ -33,25 +36,25 @@ extension EditorModel {
         endPress()
     }
 
-    /// A press began. Commits a typed inspector value, ends any slider drag's undo step and closes the palette.
-    public func pointerPressed(at screen: Vector2) {
+    /// A press began, with `modifiers` held. Commits a typed inspector value, ends any slider drag's undo step and
+    /// closes the palette.
+    public func pointerPressed(at screen: Vector2, modifiers: CanvasModifiers = []) {
         commitPendingEntry()
         document.endCoalescing()
         palette = nil
-        beginPress(at: screen)
+        beginPress(at: screen, modifiers: modifiers)
     }
 
     /// Starts a press at `start` unless one with that start is in progress. A recorded press
     /// with another start is a gesture that never ended (say the window lost key status
-    /// mid-drag); it is dropped, so its hit and interaction don't leak into this one.
-    private func ensurePress(at start: Vector2) {
+    /// mid-drag); it is dropped, so its hit, modifiers and interaction don't leak into this one.
+    private func ensurePress(at start: Vector2, modifiers: CanvasModifiers) {
         guard currentPress?.point != start else { return }
         if currentPress != nil { endPress() }
-        pointerPressed(at: start)
+        pointerPressed(at: start, modifiers: modifiers)
     }
 
-    private func click(_ hit: CanvasHit) {
-        let extending = modifiers.contains(.shift)
+    private func click(_ hit: CanvasHit, extending: Bool) {
         let clicked: NodeID?
         switch hit {
         case .node(let id): clicked = id
@@ -71,7 +74,7 @@ extension EditorModel {
         }
     }
 
-    private func beginInteraction(for hit: CanvasHit, at screen: Vector2) -> CanvasInteraction {
+    private func beginInteraction(for hit: CanvasHit, at screen: Vector2, modifiers: CanvasModifiers) -> CanvasInteraction {
         switch hit {
         case .socket(let socket):
             return .connecting(WireDrag(from: socket, current: transform.toCanvas(screen)))

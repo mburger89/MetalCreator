@@ -24,12 +24,14 @@ refinements: `.onScrollWheel`'s closure returns `Bool` (`true` claims), the scro
 `ScrollEvent.location`, `RotateGesture.Value.rotation` is clockwise-positive, the crosshair is
 `PointerStyle.rectSelection`, and the located context menu is `.contextMenu { (location: Point<Pixels>?) in … }`
 (`CI-R`). **The viewport has adopted it** (plan `docs/superpowers/plans/2026-10-09-viewport-input-c7.md`): items 1–5
-are closed for the viewport, and gaps 4 and 5 below with them. The graph panel's adoption (M5-e, M5-f and the
-canvas's share of items 1 and 2) is a later plan; the viewport's keys still wait for key scoping (M4-a, MetalUI C9).
+are closed for the viewport, and gaps 4 and 5 below with them. **The graph panel has adopted it too** (plan
+`docs/superpowers/plans/2026-10-09-graph-input-c7.md`): M5-e, M5-f, the canvas's share of items 1, 2 and 5 and the
+dock edge's resize cursor are closed, and GI-a and GI-b below are what it found. The viewport's and the graph's keys
+still wait for key scoping (M4-a, M5-b, MetalUI C9).
 
 The provisional names, as the MetalUI session reported them on 2026-10-08 (all kept: C7's design phase probed
-SwiftUI, and where SwiftUI has a spelling MetalUI took it). MetalCreator wraps each stopgap that is left (the graph
-panel's, in `GraphPanelInput`) behind one function/modifier of its own, named after these, so the swap is local.
+SwiftUI, and where SwiftUI has a spelling MetalUI took it). No C7 stopgap is left in MetalCreator; the input stopgaps
+that remain are for gaps outside C7 (keys, focus, the palette's outside press), in `GraphPanelInput` and `AppInput`.
 
 - Tap location: `SpatialTapGesture` (`.location`), `.onTapGesture(count:coordinateSpace:perform:)`.
 - Pinch/rotate: `MagnifyGesture` (`.magnification`, `.startLocation`), `RotateGesture` (`.rotation`).
@@ -110,11 +112,20 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
   need a backdrop blur (spec §6.1). Stopgap: `#21222c` at 86% opacity with the hairline (`GlassPanel`).
 - **M5-d. No gradients.** The window background is a `#3a3d4e` → `#191a21` vertical gradient (spec §6.6). Stopgap:
   solid `#191a21`.
-- **M5-e. Modifiers on a press** (adds to gap 5, which M4's entry made concrete). Shift-click and ⇧/⌥-drag on the
+- ✅ **Closed by C7 (graph panel, 2026-10-09):** the canvas's one `DragGesture(minimumDistance: 0)` reads
+  `DragGesture.Value.modifiers` (a click those at the press, a drag those when it starts), `GraphPanelInput` no
+  longer tracks `.modifiersChanged`, and `dragValueModifiers(_:)` and `spatialTapGesture()` are gone. A click's
+  location is still that drag's, not a `SpatialTapGesture`'s, because a tap's value has no modifiers (GI-a).
+  **M5-e. Modifiers on a press** (adds to gap 5, which M4's entry made concrete). Shift-click and ⇧/⌥-drag on the
   canvas need the modifiers at the press, in the gesture's value. Stopgap: `GraphPanelInput.dragValueModifiers(_:)`
   returns the set `GraphPanelInput.handle(_:)` tracks from `.modifiersChanged`; C7's `DragGesture.Value.modifiers`
   replaces its body. A click's location is `GraphPanelInput.spatialTapGesture()`, a zero-distance drag (gap 4).
-- **M5-f. Canvas scroll and pinch** (adds to items 1 and 2). Two-finger scroll should pan the graph canvas and
+- ✅ **Closed by C7 (graph panel, 2026-10-09):** `.onScrollWheel` pans the canvas by the scroll's delta (momentum
+  honoured) and ⌘-scroll zooms about `ScrollEvent.location` (`EditorModel.scrolled(by:at:modifiers:phase:)`; a
+  trackpad scroll zooms or pans as it began, and a zoom's glide is ignored); `MagnifyGesture` zooms about
+  `startLocation` (`EditorModel.pinchChanged`). The +/− keys and the header's zoom buttons stay; the keys' hover veto
+  in `AppInput` stays until keys are scoped (M4-a, M5-b).
+  **M5-f. Canvas scroll and pinch** (adds to items 1 and 2). Two-finger scroll should pan the graph canvas and
   ⌘-scroll or pinch should zoom about the pointer (the `location` in the canvas's local points). Stopgap: drag on empty
   canvas pans; +/− keys and the header buttons zoom about the pointer (`EditorModel.zoom(in:)`). With M4's viewport
   in the same window, M4's window-wide keymap takes `=`/`+`/`-` before `onInput` (gap M4-a), so M6 needs a key context.
@@ -171,7 +182,9 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
   canvas's hover state, so the graph's own + and − zoom it (as M5-b does for Tab); F has no graph binding and still
   frames the viewport. A key context contributed while an element
   is hovered, or `onKeyPress` on a region, would replace both vetoes. C7 (`feat/input-apis`) doesn't include it.
-- **Cursor for the dock's resize edge** (adds to C7 item 5). The graph panel's inner edge is a drag handle and should
+- ✅ **Closed by C7 (2026-10-09):** `PanelResizeHandle` shows `.columnResize` on the left dock's edge and
+  `.rowResize` on the bottom dock's (`PanelResizeHandle.pointerStyle(alongWidth:)`).
+  **Cursor for the dock's resize edge** (adds to C7 item 5). The graph panel's inner edge is a drag handle and should
   show a column or row resize cursor. C7's `PointerStyle` has `.columnResize` and `.rowResize` (decision `CI-H`).
   Adopt them when C7 merges.
 
@@ -196,6 +209,32 @@ Labelled VI-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   the camera unsettled into the document and the hover un-picked until a later scroll ends; and a pinch that lost its
   end followed by one at the same centre reuses the stale start camera. Wanted: an `onEnded` (or a separate cancellation callback) for a gesture its arena drops, or
   `@GestureState`.
+
+## Hit by the graph panel's C7 adoption, 2026-10-09
+
+Labelled GI-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-a…, M6-a…, VI-a… and PERF-a… entries.
+
+- **GI-a. A tap's value has no modifiers.** Shift-click extends the graph's selection (spec §6.2), so a canvas click
+  must know whether ⇧ was held at the press. `SpatialTapGesture.Value` carries only `location` (SwiftUI's carries no
+  more; a SwiftUI app reads `NSEvent.modifierFlags` or `onModifierKeysChanged(mask:initial:_:)`, which C7 deferred,
+  `CI-A`). So the canvas can't be written the viewport's way (a `SpatialTapGesture` inside a nonzero-distance drag):
+  it keeps one `DragGesture(minimumDistance: 0)` for clicks and drags, whose values carry the location and the
+  modifiers (`CI-G`), and `EditorModel` tells a click from a drag by its own 3-point threshold, beside MetalUI's
+  5-point tap slop. Every value is C7's, so nothing here is undone later, but the canvas can't recognise a double
+  click. Wanted: `modifiers` on `SpatialTapGesture.Value` (MetalUI-only, as `DragGesture.Value.modifiers` is,
+  divergence 140), or `onModifierKeysChanged`.
+- **GI-b. No wheel latching, met by a canvas pan's glide** (MetalUI `CI-AD`, stated, not built). A flick that pans
+  the graph canvas glides on through momentum events, and MetalUI sends each to whatever is under the pointer at that
+  event. If the pointer drifts off the canvas mid-glide, the canvas stops and the rest of the glide scrolls the node
+  library's list or the inspector, if the pointer is over one (the viewport ignores momentum, and the graph panel's
+  chrome claims every scroll). Stopgap: none. Wanted: `CI-AD`'s latch (a scroll gesture's events, momentum included,
+  go to the element under its `.began`). Human check GI-1 records what happens.
+- **VI-a, met again.** The canvas's pinch keeps its start in `EditorModel` too, so a pinch that changes at another
+  centre while one is under way, or finds the canvas moved since that one's last change, ends it first
+  (`aPinchThatLostItsEndDoesntPullTheNextOneBack`, `aPinchThatLostItsEndDoesntUndoWhatMovedTheCanvasSince`); a lost
+  pinch end followed by a pinch at the same centre, with nothing moving the canvas between, zooms from the lost
+  pinch's start. A canvas press already drops a press that lost its release (`EditorModel.ensurePress`), its
+  modifiers with it (`aLostPressTakesItsModifiersWithIt`).
 
 ## Node-drag performance, 2026-10-08
 
@@ -293,7 +332,8 @@ it starts on any move with no slop, ahead of a click (`DN-D`).
   `.rightMouseDown` and `.otherMouseDown` (`GraphPanelInput.handle(_:)` → `EditorModel.windowPressed(at:)`). Known
   limits: a press into a text field or onto a slider, and a right-click that opens the viewport's context menu, are
   claimed before `onInput`, so they don't close the palette (Escape, a canvas press, or any other press does); a
-  pinch over the palette reaches what is under it, where nothing takes a pinch yet (gap 2). Wanted: a chrome-less popover style (SwiftUI's
+  pinch over the palette does nothing: the palette is the pinch's target (`CI-D`) and nothing on its chain takes a
+  pinch (`PaletteDock` is drawn beside the graph panel and the viewport, not inside them), so it stays open. Wanted: a chrome-less popover style (SwiftUI's
   `.presentationBackground(.clear)` / a plain `popoverStyle`) with a point anchor (`attachmentAnchor: .point(_:)`),
   or an outside-press callback for an overlay.
 

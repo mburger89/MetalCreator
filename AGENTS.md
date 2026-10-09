@@ -38,7 +38,7 @@ Module boundaries (dependency order):
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
   behaviour (selection, canvas transform, dock transpose, hit testing, wiring, clipboard, palette, inspector edits);
   views are thin MetalUI `Component`s. Depends on Graph/Kernel/Geometry, CreatorStyle and MetalUI — **not** on `CreatorNodes`.
-  Stopgap input (pending MetalUI C7) lives only in `GraphPanelInput`.
+  Its input (MetalUI C7 gestures, and the key and focus stopgaps) lives only in `GraphPanelInput`.
 - `CreatorApp` + `MetalCreatorApp`: the app shell, the only target joining Graph, Nodes, Viewport and Editor.
   `@MainActor @Observable AppModel` owns the open document's parts (document, editor, graph input, viewport; replaced
   together on New and Open), turns results into `ViewportItem`s (`SceneBuilder`) and `HandleSpec`s into
@@ -66,9 +66,11 @@ The viewport's pointer input is MetalUI C7's (spec §9): its bindings live in `V
 `ViewportKeyBindings` until MetalUI scopes keys to an element (C9).
 Editor geometry is computed by `NodeLayout`, never measured; views are framed to it so
 drawing and hit testing agree. Node positions are stored left-to-right; the left dock draws their transpose.
-Graph panel input stopgaps live only in `GraphPanelInput`. Each C7 stand-in is one function named after its
-provisional C7 API (`spatialTapGesture()`, `dragValueModifiers(_:)`), and `install(on:)` chains onto the window's
-existing handlers.
+The graph canvas's pointer input is MetalUI C7's, turned into `EditorModel` calls by `GraphPanelInput`: one
+`DragGesture(minimumDistance: 0)` for clicks and drags, whose `value.modifiers` the model reads (a `SpatialTapGesture`
+has none, gap GI-a), `.onScrollWheel` (`scrolled(by:at:modifiers:phase:)`: pan, ⌘ zooms) and `MagnifyGesture`
+(`pinchChanged`); the cursor is `EditorModel.canvasCursor`. Its key, focus and palette stopgaps live only in
+`GraphPanelInput` too, and `install(on:)` chains onto the window's existing handlers.
 The app installs the window's input through `AppInput`, never `GraphPanelInput.install(on:)` (only
 `GraphPanelPreview` still uses it), because New and Open replace the document's `GraphPanelInput`.
 App-shell input stopgaps live only in `AppInput`: the viewport's keys carry the `!Panel` key context (the graph panel

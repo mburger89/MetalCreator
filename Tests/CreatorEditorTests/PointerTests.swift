@@ -14,10 +14,9 @@ struct PointerTests {
         #expect(editor.selection == [a.id])
         editor.click(editor.screenPoint(in: b.id))
         #expect(editor.selection == [b.id])
-        editor.modifiers = .shift
-        editor.click(editor.screenPoint(in: a.id))
+        editor.click(editor.screenPoint(in: a.id), modifiers: .shift)
         #expect(editor.selection == [a.id, b.id])
-        editor.click(editor.screenPoint(in: a.id))
+        editor.click(editor.screenPoint(in: a.id), modifiers: .shift)
         #expect(editor.selection == [b.id])
     }
 
@@ -25,10 +24,8 @@ struct PointerTests {
         let a = testNode(NumberTestNode.self, id: 1, at: .zero)
         let editor = makeEditor([a])
         editor.selection = [a.id]
-        editor.modifiers = .shift
-        editor.click(Vector2(600, 600))
+        editor.click(Vector2(600, 600), modifiers: .shift)
         #expect(editor.selection == [a.id])
-        editor.modifiers = []
         editor.click(Vector2(600, 600))
         #expect(editor.selection.isEmpty)
     }
@@ -46,9 +43,8 @@ struct PointerTests {
     @Test func anOptionClickDoesNotDuplicate() {
         let a = testNode(NumberTestNode.self, id: 1, at: .zero)
         let editor = makeEditor([a])
-        editor.modifiers = .option
         let start = editor.screenPoint(in: a.id)
-        editor.drag(start, start + Vector2(2, 1))
+        editor.drag(start, start + Vector2(2, 1), modifiers: .option)
         #expect(editor.graph.nodes.count == 1)
         #expect(editor.selection == [a.id])
         #expect(!editor.document.canUndo)
@@ -84,15 +80,14 @@ struct PointerTests {
         let c = testNode(NumberTestNode.self, id: 3, at: Vector2(800, 0))
         let editor = makeEditor([a, b, c])
         editor.selection = [c.id]
-        editor.modifiers = .shift
         let start = Vector2(380, -20)
-        editor.pointerDragged(from: start, to: start)
-        editor.pointerDragged(from: start, to: Vector2(420, 20))
+        editor.pointerDragged(from: start, to: start, modifiers: .shift)
+        editor.pointerDragged(from: start, to: Vector2(420, 20), modifiers: .shift)
         guard case .boxSelecting(let corner, let current, let base)? = editor.interaction else {
             Issue.record("expected a box selection"); return
         }
         #expect(corner == start && current == Vector2(420, 20) && base == [c.id])
-        editor.pointerReleased(from: start, at: Vector2(420, 20))
+        editor.pointerReleased(from: start, at: Vector2(420, 20), modifiers: .shift)
         #expect(editor.selection == [b.id, c.id])
         #expect(editor.transform.offset == .zero)
     }
@@ -143,14 +138,13 @@ struct PointerTests {
         let extrude = testNode(ExtrudeTestNode.self, id: 2, at: Vector2(300, 0))
         let editor = makeEditor([rect, extrude], [wire(rect, "profile", extrude, "profile")])
         editor.selection = [rect.id, extrude.id]
-        editor.modifiers = .option
         let start = editor.screenPoint(in: rect.id)
-        editor.pointerDragged(from: start, to: start)
-        editor.pointerDragged(from: start, to: start + Vector2(0, 200))
+        editor.pointerDragged(from: start, to: start, modifiers: .option)
+        editor.pointerDragged(from: start, to: start + Vector2(0, 200), modifiers: .option)
         guard case .duplicating(_, let delta)? = editor.interaction else { Issue.record("expected ghosts"); return }
         #expect(delta == Vector2(0, 200))
         #expect(editor.graph.nodes.count == 2)
-        editor.pointerReleased(from: start, at: start + Vector2(0, 200))
+        editor.pointerReleased(from: start, at: start + Vector2(0, 200), modifiers: .option)
         #expect(editor.graph.nodes.count == 4)
         #expect(editor.graph.links.count == 2)
         #expect(editor.graph.nodes[rect.id]?.position == .zero)

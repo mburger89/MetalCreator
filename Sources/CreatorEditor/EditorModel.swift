@@ -21,8 +21,6 @@ public final class EditorModel {
         }
     }
 
-    /// Modifier keys currently held, fed by `GraphPanelInput`.
-    public var modifiers: CanvasModifiers = []
     /// The pointer over the canvas, in canvas-local screen points; `nil` when it is elsewhere.
     public var pointerLocation: Vector2?
     public private(set) var interaction: CanvasInteraction?
@@ -46,11 +44,20 @@ public final class EditorModel {
     @ObservationIgnored private var lastVisibleDock: DockSide = .left
     @ObservationIgnored private var pressStart: Vector2?
     @ObservationIgnored private var pressHit: CanvasHit = .empty
+    /// The modifiers held at the press (MetalUI's `DragGesture.Value.modifiers` at its first change).
+    @ObservationIgnored private var pressModifiers: CanvasModifiers = []
     @ObservationIgnored private var pasteCount = 0
     @ObservationIgnored private var refusalSerial = 0
     @ObservationIgnored var requestSerial = 0
     /// What an inspector field holds but hasn't committed (`EditorModel+PendingEntry`).
     @ObservationIgnored var pendingEntry: PendingEntry?
+    /// Whether the trackpad scroll under way zooms (it began with ⌘ held) or pans; `nil` between scrolls
+    /// (`EditorModel+Scroll`).
+    @ObservationIgnored var scrollZooms: Bool?
+    /// The pinch under way (`EditorModel+Pinch`).
+    @ObservationIgnored var pinchStart: CanvasPinch?
+    /// A ⌘-scroll ended and its glide, until its momentum ends, is ignored (`EditorModel+Scroll`).
+    @ObservationIgnored var scrollGlideIgnored = false
 
     public init(document: DocumentModel) {
         self.document = document
@@ -180,16 +187,20 @@ public final class EditorModel {
 
     // MARK: - Press bookkeeping (used by EditorModel+Pointer)
 
-    func beginPress(at screen: Vector2) {
+    func beginPress(at screen: Vector2, modifiers: CanvasModifiers) {
         pressStart = screen
         pressHit = hitTest(screen)
+        pressModifiers = modifiers
     }
 
-    var currentPress: (point: Vector2, hit: CanvasHit)? { pressStart.map { ($0, pressHit) } }
+    var currentPress: (point: Vector2, hit: CanvasHit, modifiers: CanvasModifiers)? {
+        pressStart.map { ($0, pressHit, pressModifiers) }
+    }
 
     func endPress() {
         pressStart = nil
         pressHit = .empty
+        pressModifiers = []
         interaction = nil
     }
 

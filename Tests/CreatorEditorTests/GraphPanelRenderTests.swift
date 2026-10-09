@@ -27,9 +27,8 @@ struct GraphPanelRenderTests {
         editor.pointerDragged(from: socket, to: socket + Vector2(80, 60))
         #expect(!renderHeadless { GraphPanel(model: editor, input: input) }.isEmpty)
         editor.pointerReleased(from: socket, at: Vector2(880, 580))
-        editor.modifiers = .shift
-        editor.pointerDragged(from: Vector2(880, 580), to: Vector2(880, 580))
-        editor.pointerDragged(from: Vector2(880, 580), to: Vector2(600, 400))
+        editor.pointerDragged(from: Vector2(880, 580), to: Vector2(880, 580), modifiers: .shift)
+        editor.pointerDragged(from: Vector2(880, 580), to: Vector2(600, 400), modifiers: .shift)
         #expect(!renderHeadless { GraphPanel(model: editor, input: input) }.isEmpty)
     }
 
@@ -52,10 +51,9 @@ struct GraphPanelRenderTests {
     @Test func theDuplicateGhostsDraw() {
         let editor = sampleEditor(dock: .bottom)
         editor.selection = [nodeID(1)]
-        editor.modifiers = .option
         let start = editor.screenPoint(in: nodeID(1))
-        editor.pointerDragged(from: start, to: start)
-        editor.pointerDragged(from: start, to: start + Vector2(0, 120))
+        editor.pointerDragged(from: start, to: start, modifiers: .option)
+        editor.pointerDragged(from: start, to: start + Vector2(0, 120), modifiers: .option)
         let input = GraphPanelInput(model: editor)
         #expect(!renderHeadless { GraphPanel(model: editor, input: input) }.isEmpty)
     }

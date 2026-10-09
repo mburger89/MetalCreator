@@ -8,7 +8,8 @@ import MetalUI
 /// - keymap: the viewport's F, + and − in the `AppKeyContext.viewport` context, so they type into a focused
 ///   panel field instead (gap M4-a), then the graph's palette arrows and Tab (gaps M5-h, M5-b);
 /// - `onAction`: the graph's actions first, then the viewport's keys, except + and − while the pointer is over
-///   the graph canvas, which fall through to the graph's own zoom keys (gap M5-f). F has no graph binding, so it
+///   the graph canvas, which fall through to the graph's own zoom keys (gaps M4-a, M5-b: keys aren't scoped to a
+///   hovered element until MetalUI C9). F has no graph binding, so it
 ///   frames the viewport from anywhere;
 /// - `onInput`: the graph's keys;
 /// - text focus: `AppModel.releaseTextFocus` clears the window's focus, for canvas and viewport presses (gap M5-g).
