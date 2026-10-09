@@ -40,7 +40,8 @@ extension ViewportModel {
 
     /// A press. What the drag will do is decided here:
     /// - with the primary button: on the view cube, it orbits (a click goes to `click(at:)`); on a handle's knob,
-    ///   it edits the handle; otherwise it depends on the modifiers (`ViewportInputMap`)
+    ///   it edits the handle; with no modifier, a `tool` may take it; otherwise it depends on the modifiers
+    ///   (`ViewportInputMap`)
     /// - with the right button it orbits (the cube's way on the cube), and with the middle button it pans
     public func pointerDown(at point: ScreenPoint, modifiers: ViewportModifiers, button: ViewportPointerButton = .primary) {
         events.pressed()
@@ -53,11 +54,13 @@ extension ViewportModel {
         } else if button == .primary, let handle = HandleMath.hit(handles, at: point, pose: pose, size: viewSize) {
             mode = .handle(handle.id)
             handleStart = handle.value
+        } else if button == .primary, mode == .orbit, toolTakesDrag(at: point, modifiers: modifiers) {
+            mode = .tool
         } else if mode == .orbit {
             pivot = pivotPoint(under: point)
         }
         drag = DragState(mode: mode, button: button, start: point, last: point, startPose: pose, pivot: pivot,
-                         handleStartValue: handleStart)
+                         handleStartValue: handleStart, modifiers: modifiers)
         if activeDragMode != mode { activeDragMode = mode }
     }
 
@@ -77,6 +80,8 @@ extension ViewportModel {
                                         size: viewSize))
         case .handle(let id):
             updateHandle(id, state, to: point, phase: .changed)
+        case .tool:
+            tool?.dragMoved(to: point, modifiers: state.modifiers, projector: projector)
         }
         state.last = point
         drag = state
@@ -89,6 +94,7 @@ extension ViewportModel {
         drag = nil
         activeDragMode = nil
         if case .handle(let id) = state.mode { updateHandle(id, state, to: point, phase: .ended) }
+        if state.mode == .tool { tool?.dragEnded(at: point, modifiers: state.modifiers, projector: projector) }
         // A drag that moved the camera settles it here.
         if !isAnimating, pose != state.startPose { events.cameraSettled(pose) }
         pointerReleased(at: point)
@@ -96,17 +102,19 @@ extension ViewportModel {
 
     /// A click: a primary press released within MetalUI's tap slop (`SpatialTapGesture`, its location the
     /// release). On the view cube it looks at the region under the pointer; on a handle's knob it does nothing;
-    /// elsewhere it reports the face or edge under the pointer, or `nil` for empty space.
+    /// elsewhere the `tool` may claim it, and otherwise it reports the face or edge under the pointer, or `nil` for
+    /// empty space. `modifiers` are the click's (MetalUI's tap reports none yet: docs/metalui-gaps.md S5-a).
     ///
     /// A drag still under way ends first, where it was: a click is a primary press and release, so a primary drag
     /// under way lost its release, and the primary button wins over another (`beginDragIfNeeded`).
-    public func click(at point: ScreenPoint) {
+    public func click(at point: ScreenPoint, modifiers: ViewportModifiers = []) {
         if let state = drag { pointerUp(at: state.last) }
         events.pressed()
         stopAnimation()
         if cubeLayout.contains(point) {
             if let region = cubeLayout.region(at: point, pose: pose) { perform(.view(region)) }
-        } else if HandleMath.hit(handles, at: point, pose: pose, size: viewSize) == nil {
+        } else if HandleMath.hit(handles, at: point, pose: pose, size: viewSize) == nil,
+                  tool?.clicked(at: point, modifiers: modifiers, projector: projector) != true {
             events.clicked(pick?(point))
         }
         pointerReleased(at: point)
@@ -124,6 +132,7 @@ extension ViewportModel {
     /// animates (the end of the animation picks once, `refreshHover()`).
     public func pointerHovered(at point: ScreenPoint?) {
         lastHoverPoint = point
+        if drag == nil { tool?.pointerMoved(to: point, projector: projector) }
         guard drag == nil, animation == nil else { return }
         var newHovered: PickTarget?
         var newCubeRegion: ViewCubeRegion?

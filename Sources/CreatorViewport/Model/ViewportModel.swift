@@ -25,6 +25,9 @@ public final class ViewportModel {
     /// True while the host is picking edges in the view ("Pick edges in view…", spec §5.3): the pointer is a
     /// crosshair (`cursor`).
     public var isPicking = false
+    /// What takes the primary pointer input first (`ViewportTool`), or `nil`: the sketch editor while sketching. While
+    /// one is set the pointer is a crosshair.
+    public var tool: (any ViewportTool)?
     /// The colour theme the viewport draws in (spec §6.6). The app shell sets it from its `ThemeStore`; a change is
     /// drawn on the next frame, because the GPU colours (`palette`) are part of `renderKey`.
     public var theme: ColorTheme = .dracula
