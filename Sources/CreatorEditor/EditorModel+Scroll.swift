@@ -13,11 +13,12 @@ extension EditorModel {
     /// momentum ends. A trackpad scroll zooms or pans as it began, so pressing or letting go of ⌘ part-way changes
     /// nothing until the next one. A scroll that moves the canvas closes the add-node palette, which adds at the
     /// point it opened over. Returns `true`: the canvas claims every scroll over it, so none reaches the viewport or
-    /// the window.
+    /// the window. While a press drags on the canvas the scroll is claimed but moves nothing: the drag measures from
+    /// its press, so a transform changed under it would be undone, or move the dragged nodes off the pointer.
     @discardableResult
     public func scrolled(by delta: Vector2, at point: Vector2, modifiers: CanvasModifiers, phase: CanvasScrollPhase) -> Bool {
         guard let zooms = scrollMode(for: phase, command: modifiers.contains(.command)) else { return true }
-        guard delta.isFinite, point.isFinite else { return true }
+        guard interaction == nil, delta.isFinite, point.isFinite else { return true }
         let moved = zooms
             ? transform.zoomed(by: exp(delta.y * Self.scrollZoomPerPoint), around: point)
             : transform.panned(by: delta)
