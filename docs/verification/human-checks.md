@@ -387,3 +387,41 @@ Run `swift run MetalCreatorApp`, with the preview mode set to Selected node.
   Known (S5): exposed-dimension sockets aren't drawn, and neither node has inspector controls of its own. Pinned:
   `theBuiltInsAreTheSliceAndTheSketcherNodesInSixCategories`, `aNewSketchHoldsAnEmptySketchOnXYAndAsksForAShape`,
   `aMissingUnreadableOrStalePickIsAPlainError`, `aSketchSettingRoundTripsThroughAFile`. **Observed:**
+
+## Group S5 — the sketch editor in the viewport (S5a)
+
+**Status: NOT RUN.** Run `swift run MetalCreatorApp`. Add a Sketch, wire its `profiles` into an Extrude (10 mm) and
+that into an Output. Select the Sketch.
+
+- [ ] **S5-1 Entering.** The inspector shows "Edit sketch". Press it: the camera turns to look straight down at XY,
+  orthographic; the ground grid gives way to a grid on the sketch plane; the top bar shows the sketch toolbar (Sketch,
+  Select, Line, Arc, Circle, Point, Dimension, Construction, Delete, Finish) and the inspector "Nothing drawn yet. Pick
+  Line (L), Arc (A) or Circle (C).", the CONSTRAIN buttons (all dimmed), DIMENSIONS and CONSTRAINTS. The pointer is a
+  crosshair. **Observed:**
+- [ ] **S5-2 Drawing a rectangle.** Press L and click four corners, then click the first corner again: each line is
+  cyan while it can move; the rubber band follows the pointer; a near-horizontal or near-vertical line snaps and the
+  readout drops. The last click closes the loop on the first point. Press Esc: the chain ends. The Extrude shows a
+  ghosted box under the sketch. **Observed:**
+- [ ] **S5-3 Inference and ⌘.** Draw a nearly horizontal line holding ⌘. Known (gap S5-a): it still snaps.
+  **Observed:**
+- [ ] **S5-4 Constraints and dimensions.** Choose Select, click two lines (both turn green); the inspector's
+  Perpendicular, Parallel and Equal buttons are enabled, the rest dimmed with a tooltip saying what to select. Press D,
+  click the bottom line, then empty space: "Length d1" appears with its value. Type 80 in its value field and press
+  Return: the rectangle and the extrusion follow. Add dimensions until the readout says "Fully constrained": the lines
+  turn the foreground colour. Add a conflicting constraint: the readout and the conflicting rows turn red, and Remove
+  on the extra one fixes it. **Observed:**
+- [ ] **S5-5 Dragging.** With Select, drag a free corner: the sketch follows live and stays constrained; the extrusion
+  updates once, on release; one ⌘Z undoes the whole drag. A drag on empty space orbits; right-drag orbits, middle-drag
+  pans, scroll zooms. **Observed:**
+- [ ] **S5-6 Exposing.** Turn on "Expose as input" for d1, then Finish (⏎): the Sketch node on the canvas shows a `d1`
+  input with "80 mm". Wire a Number into it: the part follows the Number. Edit sketch again, rename d1 to `width`: the
+  wire moves to `width`. Renaming it `plane` is refused in words. **Observed:**
+- [ ] **S5-7 Keys stay where they belong.** While sketching, click into a dimension's name field and type "lad":
+  the letters go into the field, the tool doesn't change. Click the Sketch node on the graph canvas (it is the graph's
+  selection) and press ⌫, then fn-⌫ (or ⌦ on an extended keyboard), with nothing selected in the sketch: no graph node
+  is deleted and sketch mode stays. Select a line and press fn-⌫: the line is deleted. Press Esc twice with nothing in
+  progress: sketch mode ends and the top bar comes back. **Observed:**
+- [ ] **S5-8 The chrome is not the sketch.** With Line active, click in the gaps between the toolbar's buttons, on
+  the inspector's "DIMENSIONS" label and on its readout, and scroll over both: nothing is drawn, no rubber band
+  follows the pointer under the panels, and the view doesn't zoom. Choose Select, select a line and click a gap in the
+  toolbar: the selection stays. Right-click a ghosted face: the menu offers only Look At. **Observed:**

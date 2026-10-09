@@ -313,3 +313,18 @@ Labelled P-a… so they don't clash with the C7 items, M4-a…, M5-a…, M6-a…
   `Contents/Resources/Licenses/MetalUI/` (checked by `scripts/verify-app.sh`).
 - **M6-d, now visible.** The packaged app declares `.mcgraph` (owner, exported type), so a double-click in Finder
   opens MetalCreator, but not the file: no open-document event reaches the app (human check P2).
+
+## Hit by the sketch editor (S5a), 2026-10-09
+
+Labelled S5-a… so they don't clash with the labels above.
+
+- **S5-a. No modifiers on a hover (and, as GI-a, on a tap).** Sketcher spec §8: holding ⌘ suppresses constraint
+  inference while drawing (a line's end snapping horizontal or vertical), and the rubber band previews what a click
+  would infer, so both the click and the hover need the modifiers held. The tap half is the graph-input track's
+  **GI-a** (`SpatialTapGesture.Value` has only `location`), one request with this one. What S5-a adds is the hover:
+  `onContinuousHover`'s phase carries no modifiers, and nothing reports a modifier change while the pointer is still
+  (SwiftUI apps on macOS read `NSEvent.modifierFlags` or `onModifierKeysChanged(mask:initial:_:)`).
+  `DragGesture.Value.modifiers` (C7's `CI-G`) covers drags only. Stopgap: none. `ViewportModel.click(at:modifiers:)`
+  and the editor take modifiers, and `ViewportView` passes `[]`, so ⌘ doesn't suppress inference yet (human check
+  S5-3 records it). The Select tool's clicks toggle membership instead of needing ⇧. Wanted, as one request with GI-a:
+  tap modifiers (GI-a), and modifiers on hover or SwiftUI's `onModifierKeysChanged(mask:initial:_:)`.

@@ -72,3 +72,14 @@ These are the items later milestones must pick up (S3 has merged; its items are 
   geometry, if the editor can tell them apart.
 - Constraints that hold whatever the geometry is (concentric on circles sharing a centre) are dropped by the solver,
   not reported; the editor may skip creating them when it infers constraints.
+
+## S5a → S5b (plan `docs/superpowers/plans/2026-10-09-sketcher-s5-editor.md`)
+- Project: give `CreatorSketchEditor` CreatorKernel, add a Project tool that asks the host for model-edge picks (the
+  viewport's ID-buffer `pick`, so `ViewportTool.clicked` returning false lets `ViewportEvents.clicked` report the edge),
+  and have `SketchStore` add `NodeSetting.projection(reference)` and wire the solid into `references` in the same batch.
+- "New sketch on face": the face context menu item (`ViewportMenuItem`) and a batch that adds Plane from Face + Sketch
+  (`.wired`); `AppModel.sketchPlane(of:_:)` already reads a wired plane from the upstream result.
+- Double-click a Sketch node to edit: the canvas's tap gesture in `GraphPanelInput` (the graph-input track's file).
+- Trim, Fillet, Mirror, Pattern call `SketchCommands` and route `SketchCommandError.message` into `refusal`.
+- ⌘ to suppress inference and ⇧-click to extend the selection wait for gap S5-a (hover modifiers) and GI-a (tap
+  modifiers), one MetalUI request.
