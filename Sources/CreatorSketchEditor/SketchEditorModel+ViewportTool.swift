@@ -26,10 +26,12 @@ extension SketchEditorModel: ViewportTool {
     }
 
     public func pointerMoved(to point: ScreenPoint?, projector: ViewportProjector) {
+        follow(point, projector)
         hover(at: point.flatMap { projector.planePoint(under: $0, on: plane) }, tolerance: tolerance(projector), modifiers: [])
     }
 
     public func clicked(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) -> Bool {
+        follow(point, projector)
         if let p = projector.planePoint(under: point, on: plane) {
             click(at: p, tolerance: tolerance(projector), modifiers: modifiers)
         }
@@ -48,5 +50,11 @@ extension SketchEditorModel: ViewportTool {
 
     public func dragEnded(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) {
         endDrag(at: projector.planePoint(under: point, on: plane))
+    }
+
+    /// Records where the pointer is on screen, for the readout's chip.
+    private func follow(_ point: ScreenPoint?, _ projector: ViewportProjector) {
+        if pointerOnScreen != point { pointerOnScreen = point }
+        if viewSize != projector.size { viewSize = projector.size }
     }
 }

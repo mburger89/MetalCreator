@@ -1,11 +1,12 @@
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
-import CreatorViewport
+import CreatorSketchEditor
 import MetalUI
 import MetalUIText
 import Testing
 @testable import CreatorApp
+@testable import CreatorViewport
 
 /// Headless frames of the window in sketch mode: the top bar holds the sketch toolbar and the inspector the sketch's
 /// lists, in every dock. Looks, keys and the chrome's opacity to the pointer are human checks (group S5).
@@ -57,6 +58,40 @@ struct SketchModeRenderTests {
         #expect(cubeControlGlyphs(app) == 0)
         app.finishSketch()
         #expect(cubeControlGlyphs(app) > 0)
+    }
+
+    /// The pointer readout's chip is drawn just above the pointer while drawing, and goes when the sketch ends.
+    @Test func theReadoutIsDrawnAboveThePointer() async throws {
+        var builder = GraphBuilder()
+        let box = builder.sketchedBox(rectangleSketch())
+        let app = AppModel(kernel: FakeKernel(), file: GraphFile(graph: builder.graph))
+        await app.settle()
+        app.viewport.recordViewSize(ViewportSize(width: 1400, height: 900))
+        app.beginSketch(for: box.sketch.id)
+        await app.settle()
+        await app.viewport.waitForAnimation()
+        let editor = try #require(app.sketch?.editor)
+        editor.choose(.point)
+        let pointer = ScreenPoint(700, 500)
+        app.viewport.pointerHovered(at: pointer)
+        let chip = try #require(editor.readoutChip)
+        #expect(chip.origin.y + chip.size.height < pointer.y, "above the pointer")
+        #expect(glyphs(in: chip, of: app) > 0)
+        app.finishSketch()
+        #expect(glyphs(in: chip, of: app) == 0, "gone outside sketch mode")
+    }
+
+    /// Glyphs of the whole window drawn inside `chip`'s frame.
+    func glyphs(in chip: ReadoutChip, of app: AppModel) -> Int {
+        let input = AppInput(model: app)
+        let scene = renderFrame({ ZStack { AppRoot(model: app, input: input) } }, size: Size(width: Pixels(1400), height: Pixels(900)),
+                                scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+        return scene.glyphs.filter { glyph in
+            let x = Double(glyph.bounds.origin.x + glyph.bounds.size.width / 2) / 2
+            let y = Double(glyph.bounds.origin.y + glyph.bounds.size.height / 2) / 2
+            return x >= chip.origin.x && x <= chip.origin.x + chip.size.width
+                && y >= chip.origin.y && y <= chip.origin.y + chip.size.height
+        }.count
     }
 
     /// Glyphs drawn where the viewport puts the cube's controls: just below the cube, at its left.

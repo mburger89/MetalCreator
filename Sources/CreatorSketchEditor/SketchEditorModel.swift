@@ -1,5 +1,6 @@
 import CreatorGeometry
 import CreatorSketch
+import CreatorViewport
 import Foundation
 import Observation
 
@@ -29,6 +30,9 @@ public final class SketchEditorModel {
     public internal(set) var tool = SketchTool.line
     /// Whether new geometry is construction geometry (X toggles it).
     public internal(set) var isConstruction = false
+    /// Where the pointer is over the viewport (`nil`: off it), and the viewport's size, for the readout's chip.
+    var pointerOnScreen: ScreenPoint?
+    var viewSize = ViewportSize(width: 0, height: 0)
     /// What the drawing tool has placed so far.
     var drawState = DrawState.idle
     /// The point being dragged, between a drag's press and its release.

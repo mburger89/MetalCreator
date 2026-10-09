@@ -1,8 +1,10 @@
 import CreatorEditor
+import CreatorSketchEditor
 import CreatorViewport
 import MetalUI
 
-/// The window's content (spec §6.1): the viewport fills the window, and the glass top bar, the graph panel in its
+/// The window's content (spec §6.1): the viewport fills the window (with the sketch's pointer readout over it while
+/// sketching), and the glass top bar, the graph panel in its
 /// dock and the inspector float over it. A pick in progress shows its banner over the top, and the add-node palette
 /// and a node-library type being dragged float over everything (spec §6.2), drawn last so nothing clips or covers
 /// them. Every view below reads
@@ -20,6 +22,7 @@ public struct AppRoot: Component {
     public var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
             ViewportView(model: model.viewport)
+            if let session = model.sketch { PointerReadoutView(model: session.editor) }
             VStack(alignment: .leading, spacing: AppLayout.margin.px) {
                 ZStack { TopBar(model: model) }
                     .frame(height: AppLayout.topBarHeight.px)
