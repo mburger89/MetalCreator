@@ -24,6 +24,15 @@ struct ViewportPalette: Hashable, Sendable {
     var axisX: SIMD4<Float>
     var axisY: SIMD4<Float>
     var axisZ: SIMD4<Float>
+    /// The sketch overlay (sketcher spec §8): free, fixed, conflicting, construction and projected geometry, the
+    /// selection (the Sketch node's header colour) and a tool's rubber band (the free colour, faded).
+    var sketchUnderConstrained: SIMD4<Float>
+    var sketchFullyConstrained: SIMD4<Float>
+    var sketchConflicting: SIMD4<Float>
+    var sketchConstruction: SIMD4<Float>
+    var sketchProjected: SIMD4<Float>
+    var sketchSelected: SIMD4<Float>
+    var sketchPreview: SIMD4<Float>
 
     init(_ theme: ColorTheme) {
         let colors = theme.colors
@@ -44,6 +53,13 @@ struct ViewportPalette: Hashable, Sendable {
         axisX = colors.axisX.rgba
         axisY = colors.axisY.rgba
         axisZ = colors.axisZ.rgba
+        sketchUnderConstrained = colors.sketchUnderConstrained.rgba
+        sketchFullyConstrained = colors.sketchFullyConstrained.rgba
+        sketchConflicting = colors.sketchConflicting.rgba
+        sketchConstruction = colors.sketchConstruction.rgba
+        sketchProjected = colors.sketchProjected.rgba
+        sketchSelected = colors.profileHeader.rgba
+        sketchPreview = colors.sketchUnderConstrained.opacity(0.6).rgba
     }
 
     /// The default theme's colours.

@@ -31,6 +31,8 @@ public final class AppModel {
     public var previewMode: PreviewMode = .final
     /// "Pick edges in view…" in progress.
     public internal(set) var pick: PickSession?
+    /// A Sketch node being edited in the viewport (sketcher spec §8), or `nil`.
+    public internal(set) var sketch: SketchSession?
     public var alert: AppAlert?
     /// The docked graph panel's width (docked left) and height (docked at the bottom), in points.
     public internal(set) var panelWidth = AppLayout.defaultPanelWidth
@@ -79,6 +81,8 @@ public final class AppModel {
     func load(_ file: GraphFile, from url: URL?) {
         let parts = DocumentParts(file, registry: registry, kernel: kernel)
         pick = nil
+        sketch?.stop()
+        sketch = nil
         previewMode = .final
         document = parts.document
         editor = parts.editor

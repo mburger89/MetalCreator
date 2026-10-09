@@ -310,3 +310,44 @@ All tests use Swift Testing.
   `plane` warns that the wire has no effect.
 - §7's evaluate does not store the solve's warm start: it solves from the stored sketch every time, so results don't
   depend on evaluation history. S5's editor writes `Sketch.remember(_:)` into the setting after each edit.
+
+## Errata (S5a)
+
+- §8 is split: S5a (plan `2026-10-09-sketcher-s5-editor.md`) has sketch mode, Line, Arc (centre, start, end), Circle,
+  Point, construction, the constraint buttons, Dimension, the inspector's lists, point drags and the live solve. S5b
+  has Project, "New sketch on face", double-click to enter, Trim, Fillet, Mirror, Pattern, 3-point arcs, tangent and
+  point-on inference with glyphs, dimension labels in the view and the region fill.
+- §2's `CreatorSketchEditor` depends on CreatorSketch, CreatorViewport, CreatorGeometry, CreatorStyle (the theme's
+  colours, which postdate the table) and MetalUI; CreatorKernel joins with Project (S5b). The inspector sections are
+  its views (`SketchInspector`, `SketchToolbar`); the app shell gives them their glass and places them.
+- §8's entering: "Edit sketch" is the Sketch node's inspector button (`InspectorAction.editSketch`). The model is
+  ghosted (the viewport's 40%, not 30%) and stays pickable; the plane's grid replaces the ground grid. Leaving keeps
+  the camera where it is.
+- §8's toolbar is one row in the top bar (it replaces the document's name, Preview, Undo, Redo and Export while
+  sketching); the constraint buttons are in the inspector, three to a row. Keys are button shortcuts: L, A, C, D, X,
+  ⌫ and ⌦ (Delete), ⏎ (Finish) and Esc (end the stroke, else clear the selection, else finish). ⌫ and ⌦ never fall
+  through to the graph's delete, which would delete the Sketch node being edited. The toolbar and the inspector are
+  opaque to the pointer, so a click on their chrome never draws in the viewport beneath; the viewport's face menu
+  offers only Look At while sketching.
+- §8's undo: each command is one `setInput` of the whole sketch; a point drag commits once, on release, so it is one
+  step without a coalescing key, and downstream evaluation runs on pointer-up. Typed values commit on Return or when
+  the field loses focus (no 150 ms debounce: nothing evaluates while typing).
+- §8's selection: Select-tool clicks toggle an entity in the selection (MetalUI's taps carry no modifiers,
+  docs/metalui-gaps.md S5-a), a click on nothing clears it; points win over the curves through them. ⌘ can't suppress
+  inference until S5-a is fixed.
+- §8's inference in S5a: a click within the pick radius (8 points) of a point shares it (coincident by construction);
+  a line's end within the radius of its start's height or x snaps horizontal or vertical and adds the constraint.
+- §8's Dimension tool: a circle gives a diameter and an arc a radius at once; a line waits for a second pick (a line:
+  angle; a point: distance; nothing: length); a point waits for a point or a line (distance). Each measures the
+  geometry as it is, so nothing moves.
+- §7's single source for exposed values (S4 → S5 handoff): opening a sketch folds a constant left under an exposed
+  dimension's socket name into the sketch, and every commit clears it; renaming an exposed dimension moves its wire,
+  and un-exposing it drops the wire. Delete and the inspector's Remove refuse to remove an exposed dimension.
+- §7's "a wired value overrides the stored one" holds in the editor too: opening (and every refresh) loads a wired
+  exposed dimension's value from the wire's current number result (a wire without one yet leaves the stored value),
+  so the editor solves and lists what the node evaluates. Its value is read-only ("Its value comes from the wire into
+  “width”."), and storing an edit keeps the stored value under a wire that stays; un-exposing drops the wire and
+  keeps the value shown.
+- §8's inspector: a reference dimension's row shows its live measurement (the node's `measurements`), its value is
+  read-only ("d1 is a reference: make it driving to set it."), and making it driving again takes the value it
+  measures now, so nothing moves.

@@ -15,4 +15,6 @@ public struct ViewportRenderKey: Hashable, Sendable {
     var triad: TriadLayout
     /// The theme's GPU colours: switching themes redraws.
     var palette: ViewportPalette
+    /// The host's overlay: a sketch edit redraws.
+    var overlay: ViewportOverlay
 }

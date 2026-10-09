@@ -92,6 +92,9 @@ struct OffscreenRenderTests {
                                         style: .linear, tint: .solid),
         ]
         frame.hoveredCubeRegion = .top
+        // A sketch overlay: a plane grid in place of the ground grid, a dashed construction line and a point.
+        frame.overlay = ViewportOverlay(lines: [OverlayLine(.zero, Vector3(10, 0, 10), tint: .construction, isDashed: true)],
+                                        points: [OverlayPoint(Vector3(10, 0, 10), tint: .fullyConstrained)], gridPlane: .xz)
         let device = try #require(MTLCreateSystemDefaultDevice())
         let renderer = try ViewportRenderer(device: device)
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: 400, height: 400,

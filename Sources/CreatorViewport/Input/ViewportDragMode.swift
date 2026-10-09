@@ -7,4 +7,6 @@ public enum ViewportDragMode: Hashable, Sendable {
     case cube
     /// The drag began on a handle's knob: it edits that handle (by `ViewportHandle.id`).
     case handle(String)
+    /// The `ViewportModel.tool` took the drag (a sketch point being dragged).
+    case tool
 }

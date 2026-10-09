@@ -6,10 +6,12 @@ extension ViewportModel {
     /// location, which MetalUI's located `.contextMenu` hands its builder (C7 item 4). The face is picked there and
     /// then, so it's the one under the press even if the pointer moved without a hover event or the camera moved
     /// under it. Over an edge, the menu uses the edge's first face. Over nothing, over the view cube, or opened
-    /// without a pointer (`nil`: from the keyboard or accessibility) it's empty, and MetalUI opens no menu.
+    /// without a pointer (`nil`: from the keyboard or accessibility) it's empty, and MetalUI opens no menu. While a
+    /// `tool` holds the pointer (a sketch is open) it only navigates: Look At, and nothing that edits or selects.
     public func contextMenuItems(at point: ScreenPoint?) -> [ViewportMenuItem] {
         guard let point, !cubeLayout.contains(point), let ref = faceRef(for: pick?(point)),
               let face = items[ref.solidIndex].solid.topology.face(ref.face) else { return [] }
+        guard tool == nil else { return [.lookAt(ref)] }
         var menu: [ViewportMenuItem] = [.lookAt(ref), .selectEdgesOfFace(ref)]
         let nodes = MeshQueries.producingNodes(of: face)
         for node in nodes {

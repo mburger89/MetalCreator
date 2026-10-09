@@ -13,6 +13,8 @@ extension AppModel {
             beginPick(for: request.node)
         case .pickFacesInView:
             alert = .problem(AppProblem("Faces can't be picked yet", "No node in this version selects faces."))
+        case .editSketch:
+            beginSketch(for: request.node)
         }
     }
 

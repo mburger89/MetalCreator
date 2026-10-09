@@ -11,4 +11,6 @@ struct DragState {
     /// The orbit pivot: the model point under the press, else the bounds centre.
     var pivot: Vector3?
     var handleStartValue: Double
+    /// The modifiers held at the press, passed to a tool's drag.
+    var modifiers: ViewportModifiers = []
 }

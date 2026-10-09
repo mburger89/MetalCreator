@@ -15,6 +15,8 @@ struct ViewportFrame {
     var triad: TriadLayout
     /// The colours to draw in: the model's theme (`ViewportModel.palette`).
     var palette: ViewportPalette = .dracula
+    /// The host's overlay (`ViewportModel.overlay`): the sketch editor's geometry and plane grid.
+    var overlay = ViewportOverlay()
 
     /// Half the scene's diagonal (at least 1 mm), used for depth ranges.
     var sceneRadius: Double { sceneBounds.map { max($0.size.length / 2, 1) } ?? 1 }

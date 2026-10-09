@@ -176,3 +176,24 @@ let inspectorTestRegistry = NodeRegistry([
     FilletTestNode.self, OutputTestNode.self, TransformTestNode.self, GraphParameterTestNode.self,
     GridPointsTestNode.self,
 ])
+
+/// Mirrors the Sketch node's exposed dimensions: one extra number input per node, named by the `extra` setting
+/// (`.text(name)`), in millimetres with a default of 7, beside a static `profile` input. No inspector, so the
+/// fallback rows list it.
+enum PerNodeSocketTestNode: NodeDefinition {
+    static let typeID = "editortest.perNodeSocket"
+    static let displayName = "Per-node Socket"
+    static let category = NodeCategory.profile
+    static let inputs = [SocketSpec("profile", .profile, optional: true)]
+    static let outputs = [SocketSpec("profile", .profile)]
+    static func inputs(for node: Node) -> [SocketSpec] {
+        guard case .text(let name)? = node.inputValues["extra"] else { return inputs }
+        return inputs + [SocketSpec(SocketName(name), .number, defaultValue: .number(7), unit: .millimetres)]
+    }
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        NodeOutputs(["profile": .profile(.rectangle(width: 1, height: 1, plane: .xy))])
+    }
+}
+
+/// The editor registry plus `PerNodeSocketTestNode`, for the per-node socket tests.
+let perNodeSocketTestRegistry = NodeRegistry([NumberTestNode.self, PerNodeSocketTestNode.self])

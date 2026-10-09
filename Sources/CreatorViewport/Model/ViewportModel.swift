@@ -25,6 +25,9 @@ public final class ViewportModel {
     /// True while the host is picking edges in the view ("Pick edges in view…", spec §5.3): the pointer is a
     /// crosshair (`cursor`).
     public var isPicking = false
+    /// What takes the primary pointer input first (`ViewportTool`), or `nil`: the sketch editor while sketching. While
+    /// one is set the pointer is a crosshair.
+    public var tool: (any ViewportTool)?
     /// The colour theme the viewport draws in (spec §6.6). The app shell sets it from its `ThemeStore`; a change is
     /// drawn on the next frame, because the GPU colours (`palette`) are part of `renderKey`.
     public var theme: ColorTheme = .dracula
@@ -38,6 +41,8 @@ public final class ViewportModel {
     /// requested scene's meshes are ready.
     public private(set) var items: [ViewportItem] = []
     public internal(set) var handles: [ViewportHandle] = []
+    /// Lines and points the host draws over the scene (`showOverlay(_:)`): the sketch editor's geometry.
+    public private(set) var overlay = ViewportOverlay()
     public internal(set) var hovered: PickTarget?
     public internal(set) var hoveredCubeRegion: ViewCubeRegion?
     /// What the drag under way does, or `nil` between drags. It's written once at each press and release (never per
@@ -95,7 +100,7 @@ public final class ViewportModel {
     public var renderKey: ViewportRenderKey {
         ViewportRenderKey(pose: pose, isAnimating: isAnimating, shading: shading, hovered: hovered,
                           hoveredCubeRegion: hoveredCubeRegion, sceneGeneration: sceneGeneration, handles: handles,
-                          cube: cubeLayout, triad: triadLayout, palette: palette)
+                          cube: cubeLayout, triad: triadLayout, palette: palette, overlay: overlay)
     }
 
     /// The union of every shown solid's bounds, ghosts included.
@@ -142,6 +147,11 @@ public final class ViewportModel {
     /// The handles to draw, already resolved against their nodes' outputs by the host (spec §6.5).
     public func showHandles(_ newHandles: [ViewportHandle]) {
         handles = newHandles
+    }
+
+    /// The overlay to draw over the scene (the sketch editor's geometry and plane grid); an equal one changes nothing.
+    public func showOverlay(_ newOverlay: ViewportOverlay) {
+        if overlay != newOverlay { overlay = newOverlay }
     }
 
     /// Returns once the most recent `show(_:)` has finished loading.

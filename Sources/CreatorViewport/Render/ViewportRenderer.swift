@@ -13,16 +13,18 @@ import Metal
 @MainActor
 final class ViewportRenderer {
     let device: any MTLDevice
-    private let pipelines: ViewportPipelines
+    let pipelines: ViewportPipelines
     private let placeholder: any MTLBuffer
     private var meshes: [Int: GPUMesh] = [:]
     private var multisample: (width: Int, height: Int, color: any MTLTexture, depth: any MTLTexture)?
     /// The handles' instances, kept until the handles change, so a frame of a continuous orbit allocates no
     /// buffers (spec §7.3's 60 fps). The view cube keeps its own.
-    private var handleBuffer: (handles: [ViewportHandle], scale: Float, buffer: any MTLBuffer, count: Int)?
+    var handleBuffer: (handles: [ViewportHandle], scale: Float, buffer: any MTLBuffer, count: Int)?
+    /// The overlay's instances, kept until what they're built from changes (dashes and the plane grid follow the zoom).
+    var overlayBuffer: (key: OverlayBufferKey, buffer: any MTLBuffer, count: Int)?
     private let cube: ViewCubeResources
     /// The palette `handleBuffer` was built in.
-    private var handlePalette = ViewportPalette.dracula
+    var handlePalette = ViewportPalette.dracula
     /// Main passes encoded so far. Tests use it to tell "drew" from "bailed out".
     private(set) var encodedPasses = 0
 
@@ -62,9 +64,10 @@ final class ViewportRenderer {
                                                  pixelWidth: width, pixelHeight: height)
         drawBackground(frame.palette, encoder)
         drawSolids(frame, ghosts: false, uniforms, encoder)
-        drawGrid(frame, uniforms, encoder)
+        if frame.overlay.gridPlane == nil { drawGrid(frame, uniforms, encoder) }
         drawEdges(frame, uniforms, scale: pixelScale, encoder)
         drawSolids(frame, ghosts: true, uniforms, encoder)
+        drawOverlay(frame, uniforms, scale: pixelScale, encoder)
         if let handles = handleInstances(for: frame, scale: pixelScale) {
             drawLines(handles.buffer, count: handles.count, uniforms, depth: pipelines.depthAlways, style: Self.plainLines,
                       encoder)
@@ -114,7 +117,7 @@ final class ViewportRenderer {
 
     // MARK: - Layers
 
-    private static let plainLines = LineUniforms(widthOverride: 0, depthBias: 0, padding0: 0, padding1: 0)
+    static let plainLines = LineUniforms(widthOverride: 0, depthBias: 0, padding0: 0, padding1: 0)
 
     /// How far (mm) edges move towards the camera so they win against the faces they bound.
     private func edgeDepthBias(_ frame: ViewportFrame) -> Double { max(frame.pose.distance * 0.002, 1e-3) }
@@ -181,21 +184,6 @@ final class ViewportRenderer {
         }
     }
 
-    /// The frame's handles in its palette, kept until the handles, the scale or the palette change.
-    private func handleInstances(for frame: ViewportFrame, scale: Float) -> (buffer: any MTLBuffer, count: Int)? {
-        if let cached = handleBuffer, cached.handles == frame.handles, cached.scale == scale, handlePalette == frame.palette {
-            return (cached.buffer, cached.count)
-        }
-        handlePalette = frame.palette
-        let instances = GPUGeometry.handleInstances(frame.handles, scale: scale, palette: frame.palette)
-        guard let buffer = GPUBuffers.make(device, instances) else {
-            handleBuffer = nil
-            return nil
-        }
-        handleBuffer = (frame.handles, scale, buffer, instances.count)
-        return (buffer, instances.count)
-    }
-
     private func drawGrid(_ frame: ViewportFrame, _ uniforms: FrameUniforms, _ encoder: any MTLRenderCommandEncoder) {
         var grid = GPUGeometry.gridUniforms(frame)
         encoder.setRenderPipelineState(pipelines.grid)
@@ -219,9 +207,9 @@ final class ViewportRenderer {
         }
     }
 
-    private func drawLines(_ buffer: any MTLBuffer, count: Int, _ uniforms: FrameUniforms,
-                           depth: any MTLDepthStencilState, style: LineUniforms,
-                           pipeline: (any MTLRenderPipelineState)? = nil, _ encoder: any MTLRenderCommandEncoder) {
+    func drawLines(_ buffer: any MTLBuffer, count: Int, _ uniforms: FrameUniforms,
+                   depth: any MTLDepthStencilState, style: LineUniforms,
+                   pipeline: (any MTLRenderPipelineState)? = nil, _ encoder: any MTLRenderCommandEncoder) {
         guard count > 0 else { return }
         var style = style
         encoder.setRenderPipelineState(pipeline ?? pipelines.line)

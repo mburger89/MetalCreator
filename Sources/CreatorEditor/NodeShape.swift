@@ -1,7 +1,8 @@
 import CreatorGraph
 import CreatorKernel
 
-/// What the canvas needs to draw and hit-test one node: its title, category and sockets.
+/// What the canvas needs to draw and hit-test one node: its title, category and sockets. A registered node's inputs
+/// are `inputs(for: node)`, so per-node sockets (the Sketch node's exposed dimensions) are drawn and wired.
 /// A node whose type isn't registered is a "missing node" (spec §4.5): it keeps the sockets its
 /// wires name, untyped.
 public struct NodeShape: Equatable, Sendable {
@@ -28,7 +29,7 @@ public struct NodeShape: Equatable, Sendable {
     public init(_ node: Node, in graph: Graph, registry: NodeRegistry) {
         if let definition = registry[node.typeID] {
             self.init(title: node.name, category: definition.category,
-                      inputs: definition.inputs.map { Socket(name: $0.name, type: $0.type) },
+                      inputs: definition.inputs(for: node).map { Socket(name: $0.name, type: $0.type) },
                       outputs: definition.outputs.map { Socket(name: $0.name, type: $0.type) })
         } else {
             let inputs = Set(graph.links.filter { $0.to.node == node.id }.map(\.to.socket)).sorted()

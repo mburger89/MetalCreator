@@ -27,11 +27,25 @@ public enum SketchNode: NodeDefinition {
         SocketSpec("measurements", .number),
     ]
     public static let defaultSettings: [SocketName: ConstantValue] = [NodeSetting.sketch: .sketch(Sketch())]
+    /// "Edit sketch" opens the sketch editor in the viewport (sketcher spec §8, S5).
+    public static let inspector = [InspectorSection(title: "Sketch", controls: [.button(title: "Edit sketch", action: .editSketch)])]
 
     static let missingSketch = "This sketch's drawing is missing. Undo the last change, or add a new Sketch."
     static let unreadableSketch = "This sketch's drawing can't be read. Undo the last change, or add a new Sketch."
     static let wiredPlaneMissing = "Wire a plane into “plane”: this sketch is drawn on the wired plane."
     static let ignoredPlane = "“plane” is wired, but this sketch is drawn on its own plane, so the wire has no effect."
+
+    /// True for a name an exposed dimension can't take: a fixed input, a setting or a projection setting (the sketch
+    /// editor refuses it when renaming; S4 → S5 handoff).
+    public static func isReservedDimensionName(_ name: String) -> Bool {
+        SketchSockets.isReserved(name)
+    }
+
+    /// Each exposed dimension that is a socket, by its socket name: the same partition the node evaluates, so a
+    /// reserved, empty or repeated name (all but the first by name, then ID) is left out.
+    public static func exposedSocketNames(_ sketch: Sketch) -> [DimensionID: SocketName] {
+        Dictionary(uniqueKeysWithValues: SketchSockets.exposed(sketch).map { ($0.id, $0.spec.name) })
+    }
 
     public static func inputs(for node: Node) -> [SocketSpec] {
         guard case .sketch(let sketch)? = node.inputValues[NodeSetting.sketch] else { return inputs }
