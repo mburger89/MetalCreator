@@ -43,16 +43,28 @@ enum CameraNavigation {
         return next
     }
 
-    /// Centres `bounds` and backs off until its bounding sphere fits the view with `margin`, keeping the
-    /// orientation and projection. A point or flat box still gets a usable distance. Non-finite bounds change nothing.
-    static func frame(_ bounds: BoundingBox, _ pose: CameraPose, size: ViewportSize, margin: Double = 1.1) -> CameraPose {
+    /// Centres `bounds` in the model area (the view less `insets`, spec §6.3) and backs off until its bounding
+    /// sphere fits that area with `margin`, keeping the orientation and projection. Insets the view can't honour are
+    /// ignored (`ViewportInsets.usable(in:)`). A point or flat box still gets a usable distance. Non-finite bounds
+    /// change nothing.
+    static func frame(_ bounds: BoundingBox, _ pose: CameraPose, size: ViewportSize, insets: ViewportInsets = ViewportInsets(),
+                      margin: Double = 1.1) -> CameraPose {
         guard bounds.min.isFinite, bounds.max.isFinite else { return pose }
+        let area = insets.usable(in: size)
         let radius = max(bounds.size.length / 2, 0.5)
-        let halfVertical = CameraPose.fieldOfView / 2
-        let halfHorizontal = atan(tan(halfVertical) * size.aspect)
+        // The area's width and height in units of the view's height: the tangent of an angle across it.
+        let high = size.isEmpty ? 1 : (size.height - area.top - area.bottom) / size.height
+        let wide = size.isEmpty ? size.aspect : (size.width - area.leading - area.trailing) / size.height
+        let tanHalf = tan(CameraPose.fieldOfView / 2)
+        let halfVertical = atan(tanHalf * high)
+        let halfHorizontal = atan(tanHalf * wide)
         var next = pose
-        next.target = bounds.center
         next.distance = min(max(radius * margin / sin(min(halfVertical, halfHorizontal)), minimumDistance), maximumDistance)
+        // The target sits at the view's centre; move it so the bounds' centre lands on the area's centre instead.
+        let scale = CameraMath.millimetresPerPoint(next, size: size)
+        let offsetX = (area.leading - area.trailing) / 2
+        let offsetY = (area.top - area.bottom) / 2
+        next.target = bounds.center - next.right * (offsetX * scale) + next.up * (offsetY * scale)
         return next
     }
 

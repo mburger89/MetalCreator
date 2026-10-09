@@ -36,7 +36,7 @@ extension ViewportModel {
         case .orbit:
             apply(CameraNavigation.orbit(pose, dx: dx, dy: dy, pivot: state.pivot))
         case .cube:
-            apply(CameraNavigation.orbit(pose, dx: dx, dy: dy, pivot: nil))
+            apply(CameraNavigation.orbit(pose, dx: dx, dy: dy, pivot: modelAreaPivot(pose)))
         case .pan:
             apply(CameraNavigation.pan(pose, dx: dx, dy: dy, size: viewSize))
         case .zoom:

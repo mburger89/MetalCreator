@@ -37,7 +37,7 @@ extension ViewportModel {
         }
     }
 
-    /// Look At (spec §6.3): animates to face the face's normal, orthographic, framed on the face.
+    /// Look At (spec §6.3): animates to face the face's normal, orthographic, framed on the face in the model area.
     public func lookAt(_ ref: ViewportFaceRef) {
         guard items.indices.contains(ref.solidIndex), let mesh = cache.mesh(for: items[ref.solidIndex].solid)?.mesh,
               let direction = MeshQueries.faceDirection(mesh, ref.face),
@@ -48,7 +48,7 @@ extension ViewportModel {
         target.yaw = orientation.yaw
         target.pitch = orientation.pitch
         target.projection = .orthographic
-        animate(to: CameraNavigation.frame(bounds, target, size: viewSize))
+        animate(to: CameraNavigation.frame(bounds, target, size: viewSize, insets: modelArea))
     }
 
     /// The face the context menu is about: the hovered face, or the first face of the hovered edge. `nil` if the

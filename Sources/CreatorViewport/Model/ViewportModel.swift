@@ -216,10 +216,10 @@ public final class ViewportModel {
         events.cameraSettled(pose)
     }
 
-    /// Isometric, perspective, framed on `bounds`.
+    /// Isometric, perspective, framed on `bounds` in the model area.
     func defaultHome(for bounds: BoundingBox) -> CameraPose {
         var home = ViewCubeRegion.isometric.pose(from: CameraPose())
         home.projection = .perspective
-        return CameraNavigation.frame(bounds, home, size: viewSize)
+        return CameraNavigation.frame(bounds, home, size: viewSize, insets: modelArea)
     }
 }
