@@ -131,7 +131,9 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
   sits below the standard title bar.
 - **M6-d. No open-document events.** Finder double-click, `open -a`, dropping a file on the Dock icon and Open Recent
   all need the app to receive file URLs (AppKit `application(_:open:)`, SwiftUI `.onOpenURL`). This matters once the
-  app is packaged. Stopgap: a path argument (`swift run MetalCreatorApp bracket.mcgraph`).
+  app is packaged. Stopgap: a path argument (`swift run MetalCreatorApp bracket.mcgraph`). Queued in MetalUI as C8
+  (app shell). The packaged app declares `.mcgraph` with no `NSDocumentClass`, so a Finder double-click may show AppKit's
+  "cannot open files in this format" alert rather than nothing (human check P2 records which).
 - **M6-e. No public test window or headless platform.** `Window`'s initializer is internal and `FakePlatformWindow`
   lives in MetalUI's own test target (C7's `CI-N` keeps it there), so a client can't dispatch keys and clicks through
   a real `Window` in its tests. M6's riskiest routing (the `Panel` / `!Panel` key contexts on the focus chain, the

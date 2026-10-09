@@ -243,8 +243,9 @@ Run `scripts/package-app.sh` first; it ends with `==> Wrote …/dist/MetalCreato
   select MetalCreator ▸ ⓘ ▸ Open Files and Ports: no path starts with `/opt/homebrew`. Pinned headless:
   `scripts/verify-app.sh` (the self-test with Homebrew unreadable) and `SelfTestTests`. **Observed:**
 - [ ] **P2 The document type.** Save a graph as `test.mcgraph` and choose File ▸ Get Info on it in Finder: Kind reads
-  "MetalCreator Graph" and "Open with" names MetalCreator. Double-click it: MetalCreator comes to the front with an
-  empty document, not the file (known: gap M6-d, MetalUI C8; use File ▸ Open…). Pinned:
+  "MetalCreator Graph" and "Open with" names MetalCreator. Double-click it: MetalCreator comes to the front but doesn't
+  open the file (known: gap M6-d, queued in MetalUI as C8; use File ▸ Open…). Either an empty document or AppKit's
+  "cannot open files in the “MetalCreator Graph” format" alert is expected: record which one you saw. Pinned:
   `AppBundleInfoTests.itOwnsAndExportsTheMcgraphType`. **Observed:**
 - [ ] **P3 Another Mac (optional).** On a second Apple-silicon Mac with macOS 27 and no Homebrew, unzip a copy made
   with `ditto -c -k --keepParent dist/MetalCreator.app MetalCreator.zip`. Gatekeeper refuses the ad-hoc app at first;
