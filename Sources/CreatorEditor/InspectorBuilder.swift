@@ -19,10 +19,16 @@ public enum InspectorBuilder {
             return InspectorPage(header: header, sections: [note], parameters: parameters)
         }
         let header = InspectorHeader(node: id, title: node.name, category: definition.category, state: results[id]?.state)
-        let declared = definition.inspector.isEmpty ? fallbackSections(definition.inputs) : definition.inspector
+        // `inputs(for:)`, not the static list: per-node sockets (exposed sketch dimensions) get their unit and default.
+        // A declared inspector can't name them, so they follow its sections as fallback rows.
+        let inputs = definition.inputs(for: node)
+        let fixed = Set(definition.inputs.map(\.name))
+        let declared = definition.inspector.isEmpty
+            ? fallbackSections(inputs)
+            : definition.inspector + fallbackSections(inputs.filter { !fixed.contains($0.name) })
         let sections = declared.map { section in
             InspectorSectionRows(title: section.title, rows: section.controls.map {
-                row(for: $0, node: node, inputs: definition.inputs, outputs: definition.outputs, graph: graph,
+                row(for: $0, node: node, inputs: inputs, outputs: definition.outputs, graph: graph,
                     results: results)
             })
         }

@@ -31,7 +31,7 @@ public enum HandleBuilder {
         case .linear(let name), .radial(let name): socket = name
         }
         guard graph.incomingLink(to: Endpoint(node: node.id, socket: socket)) == nil,
-              let input = definition.inputs.first(where: { $0.name == socket }), input.type == .number,
+              let input = definition.inputs(for: node).first(where: { $0.name == socket }), input.type == .number,
               let value = number(node.inputValues[socket] ?? input.defaultValue) else { return nil }
         let placement: Placement?
         let style: HandleStyle

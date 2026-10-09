@@ -10,9 +10,10 @@ public struct NodeRowModel: Equatable, Sendable, Identifiable {
 
     public var id: String { (isInput ? "in." : "out.") + socket.rawValue }
 
-    /// Rows for `node`: inputs first, then outputs, matching `NodeLayout`'s row order.
+    /// Rows for `node`: inputs first, then outputs, matching `NodeLayout`'s row order. Each input's unit and default
+    /// come from `inputs(for: node)`, the same list `NodeShape` draws.
     public static func rows(for node: Node, shape: NodeShape, graph: Graph, registry: NodeRegistry) -> [NodeRowModel] {
-        let specs = registry[node.typeID]?.inputs ?? []
+        let specs = registry[node.typeID]?.inputs(for: node) ?? []
         let inputs = shape.inputs.map { socket -> NodeRowModel in
             let wired = graph.incomingLink(to: Endpoint(node: node.id, socket: socket.name)) != nil
             let spec = specs.first { $0.name == socket.name }
