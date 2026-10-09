@@ -130,7 +130,7 @@ Run `swift run ViewportHarness` (VC7 also with `HARNESS_PICK=1`) with a trackpad
 
 ## Group GI — graph panel and app input on MetalUI C7
 
-**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`); MetalUI's own
+**Status: IN PROGRESS** (2026-10-09: GI-1 and GI-3 pass, user). Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`); MetalUI's own
 group Y covers the platform side (trackpad phases, momentum, every cursor).
 
 The tests pin the model and the conversions from MetalUI values only. The view glue has no headless coverage (no
@@ -146,7 +146,7 @@ Run `swift run MetalCreatorApp` on a saved bracket, with a trackpad and a wheel 
   viewport doesn't zoom and the inspector doesn't scroll. Flick, then move the pointer off the canvas mid-glide, onto
   the viewport and then onto the node library: record whether the glide stops and whether the library scrolls
   (gap GI-b). Pinned: `aWheelStepPansTheCanvasByItsDelta`, `aTrackpadScrollPansAndItsGlideKeepsPanning`,
-  `scrollEventsMapToCanvasPhases`. **Observed:**
+  `scrollEventsMapToCanvasPhases`. **Observed:** 2026-10-09 PASS (user: "pan and pinch both work well").
 - [ ] **GI-2 ⌘-scroll zooms about the pointer.** Hold ⌘ and scroll over a node: the node stays under the pointer as
   the canvas zooms. One way zooms in, the other out; note which way feels wrong, if one does (the sign is
   `EditorModel.scrolled(by:at:modifiers:phase:)`'s, the viewport's too). Flick with ⌘ held: the zoom stops when the
@@ -157,7 +157,7 @@ Run `swift run MetalCreatorApp` on a saved bracket, with a trackpad and a wheel 
   `aScrollEventZoomsAboutItsLocalPoint`. **Observed:**
 - [ ] **GI-3 Pinch.** Pinch out over a node: the canvas zooms in about the point where the pinch began; pinching in
   zooms out, and a hard pinch-in holds at 25% instead of springing back. A pinch over the viewport still zooms the
-  viewport, not the canvas. Pinned: `CanvasPinchTests`. **Observed:**
+  viewport, not the canvas. Pinned: `CanvasPinchTests`. **Observed:** 2026-10-09 PASS (user: "pan and pinch both work well").
 - [ ] **GI-4 The panel's chrome takes the pointer.** Over the graph panel's header (between its buttons), its padding
   and, while one shows, the refusal line under the canvas: scroll, ⌘-scroll and pinch, and nothing moves (before this
   plan the viewport beneath zoomed); click there, and no face is picked or highlighted in the viewport and the
