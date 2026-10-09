@@ -211,3 +211,17 @@ and after a drag, and draws exactly one frame per drag event.
   that skip an unchanged subtree and reuse its last layout and paint, or `EquatableView`-style skipping for a
   component whose stored inputs compare equal. MetalCreator can then pass each `NodeView` value inputs, as it already
   does.
+
+## Hit by packaging, 2026-10-09
+
+Labelled P-a… so they don't clash with the C7 items, M4-a…, M5-a…, M6-a… or PERF-a….
+
+- **P-a. No list of the third-party code a MetalUI app links.** A packaged app has to carry the notices of the code
+  compiled into it. MetalCreator's release binary contains MetalUI's vendored stb_image (`CStbImage`, MIT or public
+  domain; `nm` finds 92 `stbi_` symbols), and other products or traits could add FreeType, HarfBuzz, SheenBidi or
+  libunibreak. Which vendored code each MetalUI product links on macOS isn't written down, so
+  `scripts/package-app.sh` bundles the licences of the Homebrew libraries only. Wanted: in MetalUI's
+  `docs/packaging.md`, or a `THIRD-PARTY-NOTICES` file, a list per platform and trait of the vendored code each
+  product links and where its licence file is. Stopgap: none; the packaged app lacks the stb_image notice until then.
+- **M6-d, now visible.** The packaged app declares `.mcgraph` (owner, exported type), so a double-click in Finder
+  opens MetalCreator, but not the file: no open-document event reaches the app (human check P2).

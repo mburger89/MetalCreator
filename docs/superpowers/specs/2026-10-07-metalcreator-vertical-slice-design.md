@@ -454,3 +454,15 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
   first framing and F. Owner: roadmap row "Viewport: frame in the model area".
 - §6.2 "inline value fields" (Errata (M5)) gained a commit rule: a typed value is committed on Return, when its field
   loses focus, and on the next canvas or viewport press, selection change, pick, Undo or Redo, save or export.
+
+## Errata (Packaging)
+
+- §5.2's "Bundling OCCT's dylibs into a signed `.app` is **deferred**" and §11's "Bundling OCCT into a signed,
+  distributable `.app`" are done by `scripts/package-app.sh` (design: `2026-10-09-packaging-design.md`; how-to:
+  `docs/packaging.md`). It builds `dist/MetalCreator.app` with OCCT and its Homebrew dependencies in
+  `Contents/Frameworks`, signs it ad hoc (or with `METALCREATOR_SIGN_IDENTITY`), and `scripts/verify-app.sh` proves
+  it runs with Homebrew unreadable. Notarization stays a manual step, and the app has no icon yet.
+- §3.1's platform floor holds for the build (`.macOS(.v26)`), but the packaged app's `LSMinimumSystemVersion` is the
+  newest minimum among its bundled binaries: 27.0, because Homebrew's bottles are built for macOS 27.
+- §4.5's `.mcgraph` is registered by the packaged app (`com.metalcreator.mcgraph`, conforming to `public.json`).
+  Opening a double-clicked file waits for MetalUI's open-document events (gap M6-d).

@@ -229,3 +229,29 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   "mm · grid" stays at the bottom-right of the uncovered area. Repeat docked at the left, dragging its right edge both
   ways. Pinned: `theTriadsLettersStayOnItsAxesWhenTheDockResizes`, `aModelAreaThatMovesOnlyTheTriadRedraws`.
   **Observed:**
+
+## Group P — the packaged app (packaging)
+
+**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
+
+Run `scripts/package-app.sh` first; it ends with `==> Wrote …/dist/MetalCreator.app`. How-to: `docs/packaging.md`.
+
+- [ ] **P1 Finder launch, moved.** Copy `dist/MetalCreator.app` to `~/Applications` in Finder and double-click it
+  there. The window opens in Dracula, as with `swift run MetalCreatorApp`. Wire a Rectangle into an Extrude and the
+  Extrude into an Output, then File ▸ Export STEP…: the file is written and opens in a STEP viewer
+  (FreeCAD or any other; without one, `head -c 12` on it prints `ISO-10303-21`). In Activity Monitor,
+  select MetalCreator ▸ ⓘ ▸ Open Files and Ports: no path starts with `/opt/homebrew`. Pinned headless:
+  `scripts/verify-app.sh` (the self-test with Homebrew unreadable) and `SelfTestTests`. **Observed:**
+- [ ] **P2 The document type.** Save a graph as `test.mcgraph` and choose File ▸ Get Info on it in Finder: Kind reads
+  "MetalCreator Graph" and "Open with" names MetalCreator. Double-click it: MetalCreator comes to the front with an
+  empty document, not the file (known: gap M6-d, MetalUI C8; use File ▸ Open…). Pinned:
+  `AppBundleInfoTests.itOwnsAndExportsTheMcgraphType`. **Observed:**
+- [ ] **P3 Another Mac (optional).** On a second Apple-silicon Mac with macOS 27 and no Homebrew, unzip a copy made
+  with `ditto -c -k --keepParent dist/MetalCreator.app MetalCreator.zip`. Gatekeeper refuses the ad-hoc app at first;
+  Control-click ▸ Open (or System Settings ▸ Privacy & Security ▸ Open Anyway) opens it, and P1's export works.
+  **Observed:**
+- [ ] **P4 Developer ID (optional, needs your identity).**
+  `METALCREATOR_SIGN_IDENTITY="Developer ID Application: …" scripts/package-app.sh` passes; `codesign -dv
+  dist/MetalCreator.app` shows your TeamIdentifier and `flags=0x10000(runtime)`, and the verify step says dyld printed
+  no load list. Then notarize by hand (`docs/packaging.md`): `spctl --assess --type execute --verbose
+  dist/MetalCreator.app` reads "accepted, source=Notarized Developer ID". **Observed:**

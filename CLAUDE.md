@@ -8,6 +8,7 @@ MetalCreator is a node-based parametric CAD app for macOS built on MetalUI (`../
 The binding spec is `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md`; milestone
 plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 (OCCT kernel), M3 (the 26 nodes) and S3 (profile holes) are done. M4 (viewport) code is done; its human checks (group V in `docs/verification/human-checks.md`) are pending. M5 (graph panel and inspector) code is done; its human checks (group M5 in `docs/verification/human-checks.md`) are pending.
 M6 (app shell) code is done; its human checks (group M6) are pending.
+Packaging (`scripts/package-app.sh`, `docs/packaging.md`) is done; its human checks (group P) are pending.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -45,7 +46,9 @@ Module boundaries (dependency order):
   `ViewportHandle`s (`HandleBuilder`), turns viewport events into graph commands (picking writes Edges by Tag rules),
   and opens, saves and exports. `AppInput` installs the window's input once and forwards to the current document.
   `MetalCreatorApp` is the executable (`OCCTKernel`). It owns the app's `ThemeStore` (View ▸ Theme) and provides it
-  to every view with `.environment(model.themes)`.
+  to every view with `.environment(model.themes)`. `LaunchCommand` parses its command line: a file to open, or the
+  headless `--version`, `--self-test` (`SelfTest`: OCCT, STEP/STL export, MetalUI's shaders) and `--info-plist`.
+  `AppBundleInfo` is the version's one source; the packaged `Info.plist` is generated from it, never edited.
 
 Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.md` and fixed in MetalUI,
 never worked around here. Graph links are kept canonically sorted by destination; result caching is keyed by node identity.
@@ -91,6 +94,9 @@ swift run GraphPanelPreview                   # graph panel + inspector, for doc
 swift run MetalCreatorApp [file.mcgraph]   # the app (docs/verification/human-checks.md, group M6)
 swift test --filter CreatorAppTests        # app model, scene, handles, picking, files, export, input; AppAcceptanceTests runs §7.2 on OCCT
 swift test --filter CreatorStyleTests      # colour themes: the built-ins, legibility, ThemeStore
+scripts/package-app.sh                     # dist/MetalCreator.app: release build, OCCT bundled, signed ad hoc, verified (docs/packaging.md)
+scripts/verify-app.sh [path.app]           # re-check a packaged app: signature, no Homebrew links, self-test with Homebrew unreadable
+swift run MetalCreatorApp --self-test      # the same headless checks, unpackaged
 ```
 
 ## Linting
