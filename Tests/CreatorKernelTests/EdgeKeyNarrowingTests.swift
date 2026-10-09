@@ -61,7 +61,7 @@ struct EdgeKeyNarrowingTests {
     @Test func aKeyThatMatchesResolvesToItsMatches() {
         let key = EdgeKey([top], [side, flangeSide])
         #expect(topology(merged: true).edges(resolving: key).map(\.id) == [EdgeID(0)])
-        // The narrowed key would match edge 0 too; a key that matches is never narrowed, so nothing changes.
+        // The narrowed key would match edge 0 too; resolving does not narrow a key that already matches, so nothing changes.
         #expect(topology(merged: true).edges(resolving: EdgeKey([top], [side])).map(\.id) == [EdgeID(0)])
     }
 

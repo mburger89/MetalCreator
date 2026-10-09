@@ -515,9 +515,10 @@ Plan `2026-10-09-naming-merged-faces.md`, roadmap row "Naming: picks on merged f
   names. The part is still lost, for a reason the M6 probe didn't see: OCCT's fillet of the hexagon's vertical edges
   reports success but returns a solid that `BRepCheck_Analyzer` rejects, and on it every fillet or chamfer along the
   plate top's tangent chain fails (at 0.5, 0.2 and 0.05 mm alike), while the same resolved edges chamfer on the union
-  before the fillet. It depends on the fillet radius: valid at R ≤ 2 (and the chamfer then succeeds; it succeeds at
-  R 2.5 too), invalid at the bracket's R3. So the Chamfer stays in error and the Output has no result, until the kernel rejects or repairs
-  invalid blend results (roadmap row "Kernel: blends that return an invalid solid").
+  before the fillet. It depends on the fillet radius: `BRepCheck`-valid at R 0.5, 1 and 2, where the chamfer
+  succeeds; through the graph the chamfer also succeeds at R 2.5; invalid at the bracket's R3. So the Chamfer stays
+  in error and the Output has no result, until the kernel rejects or repairs invalid blend results (roadmap row
+  "Kernel: blends that return an invalid solid").
   `BracketAcceptanceTests.swappingTheFlangeForAPolygonKeepsEveryPickButTheFilletedHexagonCantBeChamfered` pins it, and
   `BracketAcceptanceTests.aChamferPickedOnMergedSidesSurvivesTheFlangeChangingWidth` pins the case end to end with no
   warning or error (the flange alone made 40 or 70 mm wide, so no plate side stays merged).

@@ -169,3 +169,12 @@ Read this before writing the M2 and M3 plans.
   - `ViewportGlueTests` should assert that two separate drags are two undo steps (undo twice). Owner: M7.
   - No test pins that docking or resizing the panel doesn't re-show the scene (`ViewportItem.drawsTheSame`), as
     `panningTheCanvasOrSettlingTheCameraDoesntRebuildTheScene` does for a pan. Owner: M7.
+
+## From naming: merged faces
+- Edge runs join on curve-evaluated end points with a fixed 1e-6 mm tolerance, and join any two edges sharing an end
+  point. After blends an edge's curve can end up to the vertex tolerance away, so a split edge may count as 2 runs (a
+  spurious drift warning, fails safe); two matched edges meeting at a corner count as one run. Fix when touched: have
+  the shim return vertex points (`BRep_Tool::Pnt` of `TopExp::FirstVertex/LastVertex`) or the vertex tolerance, and
+  require tangent continuity at a joint (`Topology+EdgeRuns.swift`, `cocct_inspect.cpp`).
+- Sketch projections with several references add edges and runs across solids while narrowing per solid; compare
+  drift per solid if multi-reference projections become common (`SketchProjections.swift`).
