@@ -81,7 +81,8 @@ extension AppModel {
         for (id, name) in SketchStore.exposedNames(stored) {
             guard let link = document.graph.incomingLink(to: Endpoint(node: node.id, socket: name)) else { continue }
             wired.insert(id)
-            if case .number(let value)? = document.results[link.from.node]?.outputs?[link.from.socket]?.items.first {
+            if let result = document.results[link.from.node], result.state.isSuccess,
+               case .number(let value)? = result.outputs?[link.from.socket]?.items.first {
                 sketch.dimensions[id]?.value = value
             }
         }
@@ -95,7 +96,8 @@ extension AppModel {
             return plane
         case .wired:
             guard let link = document.graph.incomingLink(to: Endpoint(node: node.id, socket: "plane")),
-                  case .plane(let plane)? = document.results[link.from.node]?.outputs?[link.from.socket]?.items.first else {
+                  let result = document.results[link.from.node], result.state.isSuccess,
+                  case .plane(let plane)? = result.outputs?[link.from.socket]?.items.first else {
                 return nil
             }
             return plane

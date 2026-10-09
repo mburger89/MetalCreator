@@ -51,12 +51,8 @@ enum SketchStore {
         return folded
     }
 
-    /// Each exposed dimension's socket name, leaving out the reserved ones.
+    /// Each exposed dimension's socket name, as the node partitions them (reserved and repeated names left out).
     static func exposedNames(_ sketch: Sketch) -> [DimensionID: SocketName] {
-        var names: [DimensionID: SocketName] = [:]
-        for (id, dimension) in sketch.dimensions where dimension.isExposed && !SketchNode.isReservedDimensionName(dimension.name) {
-            names[id] = SocketName(dimension.name)
-        }
-        return names
+        SketchNode.exposedSocketNames(sketch)
     }
 }

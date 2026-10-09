@@ -41,6 +41,12 @@ public enum SketchNode: NodeDefinition {
         SketchSockets.isReserved(name)
     }
 
+    /// Each exposed dimension that is a socket, by its socket name: the same partition the node evaluates, so a
+    /// reserved, empty or repeated name (all but the first by name, then ID) is left out.
+    public static func exposedSocketNames(_ sketch: Sketch) -> [DimensionID: SocketName] {
+        Dictionary(uniqueKeysWithValues: SketchSockets.exposed(sketch).map { ($0.id, $0.spec.name) })
+    }
+
     public static func inputs(for node: Node) -> [SocketSpec] {
         guard case .sketch(let sketch)? = node.inputValues[NodeSetting.sketch] else { return inputs }
         return inputs + SketchSockets.exposed(sketch).map(\.spec)
