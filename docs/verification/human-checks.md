@@ -461,7 +461,7 @@ Run `swift run MetalCreatorApp`, with the preview mode set to Selected node.
 
 - [ ] **TH-1 The editor.** View ▸ Theme lists Dracula, Alucard and Nord, then Edit Themes…. Choose it: a glass panel
   opens at the top right below the top bar, over the inspector, as tall as the window allows, and lists every role
-  under its group with its hex and a swatch; it scrolls. Dracula's name field and Dark controls toggle are disabled and
+  under its group with its hex and a colour well; it scrolls. Dracula's name field and Dark controls toggle are disabled and
   a line says built-ins are read-only. Drag or scroll on the panel: the viewport neither orbits nor zooms. Done (or
   Escape) closes it. Dock the graph at the bottom (Bottom) and open the editor again: it ends a margin above the graph
   panel, which stays whole; drag the panel's top edge up and down: the editor follows. On the Chamfer, press "Pick
@@ -474,7 +474,7 @@ Run `swift run MetalCreatorApp`, with the preview mode set to Selected node.
   editor's menu and View ▸ Theme say "Midnight". Type "nord" and press Return: "There’s already a theme called “nord”."
   and the field shows "Midnight" again. Turn Dark controls off: the window and its buttons turn light. Pinned:
   `ThemeEditorModelTests`. **Observed:**
-- [ ] **TH-3 Colours (needs MetalUI C10 merged).** Click a role's colour well: MetalUI's colour panel opens. Drag in
+- [ ] **TH-3 Colours.** Click a role's colour well: MetalUI's colour panel opens. Drag in
   its square: the role's colour changes as you drag, on the panels and in the viewport (try Selection, Solid nodes,
   Shading). Glass, Glass hairline and Edges offer opacity, others don't. With VoiceOver on, move to a role's well: it
   reads the role's name (e.g. "Selection"), then "colour well" and its value. Quit and relaunch: Midnight is shown,
