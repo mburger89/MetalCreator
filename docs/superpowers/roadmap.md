@@ -26,24 +26,28 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 
 | # | Item | Status | Notes |
 |---|---|---|---|
-| 6 | Constraint sketcher: Sketch node, 2D editor, pure-Swift constraint solver | 🔄 spec `2026-10-08-constraint-sketcher-design.md`; S3 ✅ merged; S1+S2 ✅ merged (CreatorSketch: solver, regions, commands); S4 ⏳ ready to plan (handoff: notes/2026-10-08-sketcher-s1-s2-handoff.md); S5 after S4 | Rules for S4 regions: holes sorted, loops counter-clockwise, deterministic start segment (spec §5) |
+| 6 | Constraint sketcher: Sketch node, 2D editor, pure-Swift constraint solver | 🔄 spec `2026-10-08-constraint-sketcher-design.md`; S3 ✅ merged; S1+S2 ✅ merged (CreatorSketch: solver, regions, commands); S4 ✅ merged 2026-10-09 (Sketch node, Plane from Face, projection, format 4; human check S4-1 pending); S5 (editor in the viewport) ⏳ ready to plan (handoff: notes/2026-10-08-sketcher-s1-s2-handoff.md, "S4 → S5") | Rules for S4 regions: holes sorted, loops counter-clockwise, deterministic start segment (spec §5) |
 | 7 | Patterns, fields, nested data trees, surface textures, lattices | 💬 | After the slice |
 | 8 | Variants and versions UI | 💬 | Graph parameters already model variants |
-| — | Packaging: bundle OCCT dylibs into a signed `.app` | ✅ code done; human checks P pending | Spec §11, Errata (Packaging); `scripts/package-app.sh`, `docs/packaging.md`. Ad hoc by default, Developer ID via `METALCREATOR_SIGN_IDENTITY`; notarization is manual; no icon yet; needs macOS 27 while Homebrew's bottles do; MetalUI gap P-a (vendored-code notices) |
-| — | C7 adoption: swap the viewport's, the graph panel's and the app's input stopgaps for MetalUI C7's APIs once `feat/input-apis` merges (lists in the carry-over note, From M4, From M5, From M6) | 🔒 MetalUI C7 | MetalUI decisions file `docs/superpowers/2026-10-08-input-apis-decisions.md` |
+| — | Packaging: bundle OCCT dylibs into a signed `.app` | ✅ code done; human checks P pending | Spec §11, Errata (Packaging); `scripts/package-app.sh`, `docs/packaging.md`. Ad hoc by default, Developer ID via `METALCREATOR_SIGN_IDENTITY`; notarization is manual; no icon yet; needs macOS 27 while Homebrew's bottles do; MetalUI gap P-a fixed (MetalUI 67a579e; its notices are bundled) |
+| — | C7 adoption: swap the viewport's, the graph panel's and the app's input stopgaps for MetalUI C7's APIs once `feat/input-apis` merges (lists in the carry-over note, From M4, From M5, From M6) | 🔄 viewport ✅ merged (human checks VC pending); graph panel and app ⏳ (MetalUI C7 merged as c62d6ba) | MetalUI decisions file `docs/superpowers/2026-10-08-input-apis-decisions.md` |
 | — | Naming: picks on merged faces — an Edges by Tag pick on a face a union merged must survive one operand changing (spec §8's polygon swap, Errata (M6)); needs the split-edge count handled too, not only a minimal tag subset | ⏳ after M6 | `BracketAcceptanceTests+PolygonSwap` (flip its expectations when fixed) |
 | — | Viewport: a selected rule's edges over the Final part — in Final preview, show the edges of a selected rule whose solid isn't shown (spec §6.3, Errata (M6)) | ⏳ after M6 | `SceneTests.aRuleSelectedInFinalPreviewGlowsOnlyOnItsOwnSolid` |
-| — | Viewport: frame in the model area — first framing, F and Look At centre the part in `ViewportModel.modelArea`, not the whole view (spec §6.3) | ⏳ after M6 | carry-over From M6 |
+| — | Viewport: frame in the model area — first framing, F and Look At centre the part in `ViewportModel.modelArea`, not the whole view (spec §6.3) | ✅ merged 2026-10-09 (human checks VC pending; the arrows, cube and pointer-less key zoom keep it there) | carry-over From M6 |
 
 ## Cross-project dependencies
 
 | Item | Owner | Status |
 |---|---|---|
-| MetalUI C7 "Input API gaps for MetalCreator" (scroll, pinch/rotate, middle/right drag, tap location, cursor + drag modifiers) | MetalUI session | 🔄 in verification (2026-10-08); started 2026-10-08 on MetalUI branch feat/input-apis; renames of the provisional names (docs/metalui-gaps.md) will be flagged in MetalUI docs/superpowers/2026-10-08-input-apis-decisions.md (prefix CI-). MetalUI now also has `.task`/`.task(id:)` |
-| MetalUI C8 app shell: M6-b close/quit veto (first), M6-a title + edited marker, M6-c hidden title bar, M6-d open-document events | MetalUI session | ⏳ queued 2026-10-08, after C7 |
-| MetalUI C9 key and focus scoping: M4-a/M5-b hover- or region-scoped keys + element size, M5-g press ends editing, M5-h ↑/↓ in fields, M4-b redraw during animation | MetalUI session | ⏳ queued 2026-10-08, after C7 |
-| MetalUI C10 controls and looks: M6-f ColorPicker (needed by Themes), M5-a Slider onEditingChanged, M5-c blur, M5-d gradients, M5-i keyframes, M5-j ProgressView | MetalUI session | ⏳ queued 2026-10-08 |
+| MetalUI C7 "Input API gaps for MetalCreator" (scroll, pinch/rotate, middle/right drag, tap location, cursor + drag modifiers) | MetalUI session | ✅ merged as MetalUI c62d6ba (PR #56), 2026-10-09; final names in MetalUI `docs/superpowers/2026-10-08-input-apis-decisions.md` (CI-A…CI-AL). Adopted by the viewport; graph panel and app still to adopt |
+| MetalUI C8 app shell: M6-b close/quit veto (first), M6-a title + edited marker, M6-c hidden title bar, M6-d open-document events | MetalUI session | 🔄 in progress since 2026-10-09 (close/quit veto first) |
+| MetalUI C9 key and focus scoping: M4-a/M5-b hover- or region-scoped keys + element size, M5-g press ends editing, M5-h ↑/↓ in fields, M4-b redraw during animation | MetalUI session | 🔄 in progress since 2026-10-09; also onGeometryChange, the for-loop builder fix (M4-b; until then `ForEach` works), TimelineView, focus-on-click |
+| MetalUI C10 controls and looks: M6-f ColorPicker (needed by Themes), M5-a Slider onEditingChanged, M5-c blur, M5-d gradients, M5-i keyframes, M5-j ProgressView | MetalUI session | 🔄 last lane (gradients, blur, materials) as of 2026-10-09 |
 | MetalUI public test harness (item 8): M6-e headless Window + simulateInput | MetalUI session | ⏳ queued 2026-10-08, after C7 |
+| MetalUI C13/C14 performance: PERF-a translation-free shadow cache + portable fast blur (no vImage: MetalUI imports nothing), PERF-b rebuild only what changed | MetalUI session | ⏳ queued 2026-10-08 |
+| MetalUI C15 editor overlays: EP-a frames/hover in window coordinates, window size; EP-b a chrome-less point-anchored popover that closes on any outside press | MetalUI session | ⏳ after C9 |
+| MetalUI C16 cancellation: VI-a dropped drags and pinches, lost scroll ends (`.cancelled` on resign) | MetalUI session | ⏳ after C8 and C9 |
+| MetalUI C17 third-party notices: P-a | MetalUI session | ✅ merged as MetalUI 67a579e (PR #57); bundled by `scripts/package-app.sh` |
 
 ## Carry-over items with a milestone
 

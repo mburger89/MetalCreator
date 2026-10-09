@@ -22,15 +22,15 @@ drags print to the terminal.
   space rotates about the part's centre. Dragging far up or down stops at straight-down or straight-up, with no flip
   and no spin. Pinned: `orbitKeepsThePivotWhereItWasOnScreen`, `orbitClampsPitchAtThePoles`. Observed:
 - [ ] **V3 Pan, zoom and frame.**
-  - Shift-drag pans with the pointer (the stopgap modifier tracker). Known limit (gap 5): `held` modifiers can go stale if Shift is released while the window is inactive.
+  - Shift-drag pans with the pointer (Shift held when the drag starts; the drag reads it from MetalUI, C7).
   - ⌥-drag up zooms in toward where the drag began.
   - + and − zoom toward the pointer.
   - F frames the part (with `HARNESS_SELECT=1`, the selected top face).
 
   Pinned: `shiftDragPansAndOptionDragZooms`, `keyZoomGoesTowardTheLastHoverPoint`, `fFramesTheSelectionBeforeEverything`. Observed:
 - [ ] **V4 Hover.** The face under the pointer gets a faint cyan tint that follows the pointer without flicker or lag.
-  After an orbit drag, a +/− zoom or a view-cube click with the pointer left still, the tint (and a right-click menu)
-  is on the face under the pointer now, not the one before the move.
+  After an orbit drag, a +/− zoom or a view-cube click with the pointer left still, the tint is on the face under
+  the pointer now, not the one before the move.
   Pinned: `hoverAsksThePickerOrTheCube`, `movingTheCameraUnderAStillPointerRepicks`,
   `idPassReportsTheFaceAndEdgeUnderChosenPixels`. Observed:
 - [ ] **V5 View cube.**
@@ -50,7 +50,8 @@ drags print to the terminal.
   - The View menu switches Perspective and Orthographic, Shaded and Shaded + Edges, and Set Home View makes ⌂ return there.
 
   Pinned: `ViewCubeTests`, `clickingTheCubeLooksAtTheRegionUnderThePointer`, `arrowsAndHomeAnimate`. Observed: 2026-10-07: the painted face labels sit on the faces, turn with the cube and read well (user). Animation, edge/corner views, cube drag, arrows, ⌂ and the View menu not yet confirmed.
-- [ ] **V6 Face menu.** Right-click a face: Look At, Select Edges of Face and Show Producing Node.
+- [ ] **V6 Face menu.** Right-click a face: Look At, Select Edges of Face and Show Producing Node, for the face under
+  the right press (VC5 checks that after the camera moves).
   - Look At animates to face that face, orthographic, framed on it.
   - The other two print the face's edges and the producing node.
   - Right-click empty space: no menu.
@@ -73,6 +74,59 @@ drags print to the terminal.
   `aSceneShownBeforeTheFirstDrawIsFramedOnceTheViewHasASize`. Observed:
 - [ ] **V11 Grid steps.** Zooming in and out switches the grid between 1, 10 and 100 mm, and the label follows. Pinned:
   `gridSpacingStepsWithZoom`. Observed:
+
+## Group VC — viewport input on MetalUI C7
+
+**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`); MetalUI's own
+group Y covers the platform side (trackpad phases, real mouse buttons, every cursor).
+
+The `viewport-input` branch merges before this group is run: the tests pin the model only, and the view glue in
+`ViewportView+Parts.swift` `surface(model:)` has no headless coverage (no headless MetalUI window, gap M6-e). That
+glue is the tap declared inside the primary drag, the secondary drag deferring the face menu to release, the scroll
+delta's sign, `.pointerStyle(model.cursor?.pointerStyle)`, the located `.contextMenu` overload, and `pressed()`
+(the text-focus release) firing on release rather than on press. Run this group first after the merge, in this
+order: VC3, VC4, VC5, then VC1's scroll sign, then the rest. A failure there is a bug in that glue (or in MetalUI
+C7), not in the model.
+
+Run `swift run ViewportHarness` (VC7 also with `HARNESS_PICK=1`) with a trackpad and a three-button mouse; VC8 runs
+`swift run MetalCreatorApp` on a saved bracket. Clicks and menu choices print to the terminal.
+
+- [ ] **VC1 Scroll zoom.** Two-finger scroll over the part zooms toward the point under the pointer: that point
+  stays put. When the fingers lift the zoom stops at once (no glide). A wheel mouse zooms in steps of about 10%;
+  spinning it fast stays smooth, and the hover tint catches up just after the wheel stops.
+  Scrolling one way zooms in and the other way out; note which way feels wrong, if one does (the sign is
+  `ViewportModel.scrolled(by:at:phase:)`). Pinned: `ScrollZoomTests` (`aRunOfWheelStepsSettlesOnce`),
+  `scrollEventsMapToZoomPhases`. Observed:
+- [ ] **VC2 Pinch.** Pinching out zooms in about the point where the pinch began, and pinching in zooms out; a hard
+  pinch-in holds instead of springing back. A twist does nothing. Pinned: `PinchZoomTests`. Observed:
+- [ ] **VC3 Right and middle drags.** Middle-drag pans with the pointer, whatever is held. Right-drag orbits about the
+  point under the pointer (on the view cube, it orbits like a cube drag) and opens no menu. A right click that
+  doesn't move opens the face menu on release. Right-drag on a handle's knob orbits and leaves the value alone.
+  Middle-drag, ⌘-Tab away before releasing, release, come back: a primary drag orbits at once and the closed hand
+  goes. Pinned: `ButtonDragTests`, `theRightButtonOrbitsAndTheMiddleButtonPans`. Observed:
+- [ ] **VC4 Clicks.** A click on a face or an edge prints `clicked` with it; on empty space `clicked: nil`. A press
+  dragged more than a few points and brought back prints no click (the camera keeps the orbit). A click on a view-cube
+  face still animates to it, and a click on a handle's knob prints nothing. Pinned: `aClickReportsThePickAtItsLocationAndLeavesTheCameraAlone`,
+  `aDragThatComesBackToItsStartIsNotAClick`, `aClickOnAHandleKnobOrTheCubeReportsNoPick`. Observed:
+- [ ] **VC5 The menu is for the face under the press.** Hover a face, scroll-zoom so another face comes under the
+  still pointer, and right-click without moving: the menu is for the face under the pointer now (Look At turns to
+  it). Right-click the view cube: no face menu. Pinned: `theMenuIsForTheFaceUnderThePressNotTheLastHover`,
+  `noFaceMenuOverTheViewCubeOrWithoutAPointer`. Observed:
+- [ ] **VC6 Modifiers mid-drag.** Hold Shift, then drag: it pans. Hold ⌥, then drag up: it zooms in. Switch to another
+  app with Shift held, release Shift there, come back and drag: it orbits (no stale Shift). Pinned:
+  `aPrimaryDragTakesItsModeFromItsOwnModifiers`. Observed:
+- [ ] **VC7 Cursors.** A closed hand while a primary, right or middle drag orbits or pans, and while dragging the view
+  cube; the arrow for a ⌥-drag zoom, a handle drag and over the cube's buttons. With `HARNESS_PICK=1` the pointer is a
+  crosshair over the viewport, and a hand while a drag navigates. In the app, "Pick edges in view…" shows the
+  crosshair; Done or Cancel brings the arrow back. Pinned: `CursorTests`, `theViewportShowsACrosshairOnlyWhilePicking`.
+  Observed:
+- [ ] **VC8 Framing in the model area (app).** Open a saved bracket with no saved camera (or press F): the part sits
+  in the middle of the area right of the graph panel and left of the inspector, not under either. Dock the panel at
+  the bottom and press F: the part is centred above the panel. Right-click a face ▸ Look At: the face is centred in
+  the same area. With either dock, after F click ▶, then ▲, then a cube face and a cube corner, then drag the cube:
+  the part turns in place, centred in the area, never swinging under the inspector or the bottom panel. With the
+  pointer off the window (over the menu bar), press + and −: the part stays centred. Pinned:
+  `ModelAreaFramingTests`. Observed:
 
 ## Group M5 — the graph panel and inspector (M5)
 

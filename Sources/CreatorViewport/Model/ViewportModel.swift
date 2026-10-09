@@ -22,6 +22,9 @@ public final class ViewportModel {
         }
     }
     public var shading: ShadingMode = .shadedEdges
+    /// True while the host is picking edges in the view ("Pick edges in view…", spec §5.3): the pointer is a
+    /// crosshair (`cursor`).
+    public var isPicking = false
     /// The colour theme the viewport draws in (spec §6.6). The app shell sets it from its `ThemeStore`; a change is
     /// drawn on the next frame, because the GPU colours (`palette`) are part of `renderKey`.
     public var theme: ColorTheme = .dracula
@@ -37,6 +40,9 @@ public final class ViewportModel {
     public internal(set) var handles: [ViewportHandle] = []
     public internal(set) var hovered: PickTarget?
     public internal(set) var hoveredCubeRegion: ViewCubeRegion?
+    /// What the drag under way does, or `nil` between drags. It's written once at each press and release (never per
+    /// move), so the view's pointer style follows it.
+    public internal(set) var activeDragMode: ViewportDragMode?
     /// Bumped each time a scene's meshes are ready.
     public private(set) var sceneGeneration = 0
     /// A plain-language message when the last scene couldn't be tessellated, else `nil`.
@@ -53,6 +59,12 @@ public final class ViewportModel {
     /// Answers "what is under this point?". It's set when the GPU objects are made, and tests set it directly.
     @ObservationIgnored var pick: (@MainActor (ScreenPoint) -> PickTarget?)?
     @ObservationIgnored var drag: DragState?
+    /// The camera when the scroll under way (a trackpad scroll, or a run of wheel steps) began; `nil` between scrolls.
+    @ObservationIgnored var scrollStartPose: CameraPose?
+    /// Settles a run of wheel steps once the wheel has been still for `ViewportInputMap.wheelSettleDelay`.
+    @ObservationIgnored var wheelSettleTask: Task<Void, Never>?
+    /// Where the pinch under way began; `nil` between pinches.
+    @ObservationIgnored var pinchStart: PinchStart?
     @ObservationIgnored var lastHoverPoint: ScreenPoint?
     @ObservationIgnored var gpuRenderer: ViewportRenderer?
     @ObservationIgnored var gpuFailure: String?
@@ -189,8 +201,8 @@ public final class ViewportModel {
     }
 
     /// Re-picks under a pointer that hasn't moved, after the camera or the scene changed beneath it, so the hover
-    /// tint and the context menu (which reads the hover pick until C7 item 4) never name a face that's no longer
-    /// under the pointer. Nothing is picked during a drag, so there the old pick is just dropped.
+    /// tint never names a face that's no longer under the pointer. Nothing is picked during a drag, so there the old
+    /// pick is just dropped.
     func refreshHover() {
         if drag == nil {
             pointerHovered(at: lastHoverPoint)
@@ -217,10 +229,10 @@ public final class ViewportModel {
         events.cameraSettled(pose)
     }
 
-    /// Isometric, perspective, framed on `bounds`.
+    /// Isometric, perspective, framed on `bounds` in the model area.
     func defaultHome(for bounds: BoundingBox) -> CameraPose {
         var home = ViewCubeRegion.isometric.pose(from: CameraPose())
         home.projection = .perspective
-        return CameraNavigation.frame(bounds, home, size: viewSize)
+        return CameraNavigation.frame(bounds, home, size: viewSize, insets: modelArea)
     }
 }

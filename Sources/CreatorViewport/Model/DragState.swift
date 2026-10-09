@@ -3,6 +3,8 @@ import CreatorGeometry
 /// A pointer drag in progress: what it does, where it started, and what it started from.
 struct DragState {
     var mode: ViewportDragMode
+    /// The button that began it: only that button's moves and release reach it.
+    var button: ViewportPointerButton
     var start: ScreenPoint
     var last: ScreenPoint
     var startPose: CameraPose

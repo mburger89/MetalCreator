@@ -12,4 +12,15 @@ public struct ViewportInsets: Hashable, Sendable {
         self.bottom = bottom
         self.trailing = trailing
     }
+
+    /// These insets as far as a view of `size` can honour them, for framing: a negative or non-finite side counts
+    /// as 0, and insets that would leave a model area under one point wide or high are dropped (the whole view is
+    /// used), as they are for an empty view.
+    func usable(in size: ViewportSize) -> ViewportInsets {
+        func side(_ value: Double) -> Double { value.isFinite ? max(value, 0) : 0 }
+        let result = ViewportInsets(top: side(top), leading: side(leading), bottom: side(bottom), trailing: side(trailing))
+        guard !size.isEmpty, size.width - result.leading - result.trailing >= 1,
+              size.height - result.top - result.bottom >= 1 else { return ViewportInsets() }
+        return result
+    }
 }

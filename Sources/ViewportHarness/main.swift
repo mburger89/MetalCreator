@@ -8,6 +8,7 @@ import MetalUI
 /// - `swift run ViewportHarness` shows the part.
 /// - `HARNESS_GHOST=1` draws it as a stale ghost.
 /// - `HARNESS_SELECT=1` selects its top face and edges.
+/// - `HARNESS_PICK=1` shows the picking crosshair, as the app does while picking edges.
 /// Clicking a face selects it and its edges (an edge selects that edge; empty space clears). Dragging a handle
 /// rebuilds the part with the new plate thickness or fillet radius. Clicks, menu choices and handle drags print
 /// to the terminal.
@@ -17,7 +18,7 @@ func runHarness() throws {
     let environment = ProcessInfo.processInfo.environment
     let kernel = OCCTKernel()
     let model = ViewportModel(kernel: kernel)
-    let modifiers = ViewportModifierTracker()
+    model.isPicking = environment["HARNESS_PICK"] == "1"
     let selection = HarnessSelection()
     model.events.clicked = { [weak model] target in
         print("clicked: \(String(describing: target))")
@@ -39,10 +40,9 @@ func runHarness() throws {
                                     size: Size(width: Pixels(1100), height: Pixels(720)),
                                     content: {
                                         // A window's root must be an Element, and a Component is a group, so it's wrapped.
-                                        ZStack { ViewportView(model: model, modifiers: modifiers) }
+                                        ZStack { ViewportView(model: model) }
                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     })
-    modifiers.install(on: window)
     window.keymap = Keymap(ViewportKeyBindings.bindings())
     window.onAction = { [weak model] action in
         guard let model else { return false }

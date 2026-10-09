@@ -16,9 +16,7 @@ struct ViewportInputTests {
 
     @Test func clickingTheCubeLooksAtTheRegionUnderThePointer() {
         let model = makeModel(pose: CameraPose(target: .zero, distance: 100, yaw: 0.3, pitch: 0.2))
-        let centre = model.cubeLayout.center
-        model.pointerDown(at: centre, modifiers: [])
-        model.pointerUp(at: centre)
+        model.click(at: model.cubeLayout.center)
         #expect(model.isAnimating)
         #expect(isClose(model.pose.toEye, Vector3(0, -1, 0)))
         #expect(model.pose.projection == .orthographic)
@@ -68,17 +66,68 @@ struct ViewportInputTests {
         #expect(isClose(try #require(CameraMath.project(hit.point, model.pose, size: size)).point, press, tolerance: 1e-9))
     }
 
-    @Test func aClickReportsThePickAndLeavesTheCameraAlone() {
+    @Test func aClickReportsThePickAtItsLocationAndLeavesTheCameraAlone() {
         let start = CameraPose(target: .zero, distance: 100)
         let model = makeModel(pose: start)
         var clicked: PickTarget??
-        model.pick = { _ in .edge(solid: 0, EdgeID(3)) }
+        var pickedAt: ScreenPoint?
+        model.pick = { point in
+            pickedAt = point
+            return .edge(solid: 0, EdgeID(3))
+        }
         model.events.clicked = { clicked = $0 }
-        model.pointerDown(at: ScreenPoint(200, 200), modifiers: [])
-        model.pointerDragged(to: ScreenPoint(201, 201))
-        model.pointerUp(at: ScreenPoint(201, 201))
+        model.click(at: ScreenPoint(201, 201))
         #expect(clicked == .some(.edge(solid: 0, EdgeID(3))))
+        #expect(pickedAt == ScreenPoint(201, 201))
         #expect(model.pose == start)
+    }
+
+    @Test func aDragThatComesBackToItsStartIsNotAClick() {
+        let start = CameraPose(target: .zero, distance: 100, yaw: 0.2, pitch: 0.3)
+        let model = makeModel(pose: start)
+        var clicks = 0
+        model.pick = { _ in .face(solid: 0, FaceID(1)) }
+        model.events.clicked = { _ in clicks += 1 }
+        model.pointerDown(at: ScreenPoint(200, 150), modifiers: [])
+        model.pointerDragged(to: ScreenPoint(240, 150))
+        model.pointerDragged(to: ScreenPoint(201, 150))
+        model.pointerUp(at: ScreenPoint(201, 150))
+        #expect(clicks == 0)
+        #expect(model.pose != start, "the orbit is kept, not put back")
+    }
+
+    @Test func aClickOnAHandleKnobOrTheCubeReportsNoPick() {
+        let pose = CameraPose(target: .zero, distance: 20 / tan(CameraPose.fieldOfView / 2), yaw: 0, pitch: 0,
+                              projection: .orthographic)
+        let model = makeModel(pose: pose)
+        model.showHandles([ViewportHandle(id: "extrude", anchor: .zero, direction: .unitZ, value: 10, range: 0...100,
+                                          style: .linear, tint: .solid),
+        ])
+        var clicks = 0
+        var handleReports = 0
+        model.pick = { _ in .face(solid: 0, FaceID(1)) }
+        model.events.clicked = { _ in clicks += 1 }
+        model.events.handleChanged = { _, _, _ in handleReports += 1 }
+        model.click(at: ScreenPoint(200, 75))
+        model.click(at: model.cubeLayout.center)
+        #expect(clicks == 0)
+        #expect(handleReports == 0, "a click on a knob changes nothing")
+    }
+
+    /// A click while a drag is still under way means that drag lost its release (docs/metalui-gaps.md VI-a): it
+    /// ends where it was, and the hover picks again.
+    @Test func aClickAfterALostDragEndsItAndHoversAgain() {
+        let model = makeModel(pose: CameraPose(target: .zero, distance: 100, yaw: 0.2, pitch: 0.3))
+        model.pick = { _ in .face(solid: 0, FaceID(1)) }
+        var settled: [CameraPose] = []
+        model.events.cameraSettled = { settled.append($0) }
+        model.dragChanged(from: ScreenPoint(200, 150), to: ScreenPoint(230, 150), modifiers: [], button: .primary)
+        let orbited = model.pose
+        #expect(model.hovered == nil, "nothing is picked during a drag")
+        model.click(at: ScreenPoint(300, 220))
+        #expect(!model.isPointerDown)
+        #expect(settled == [orbited], "the lost drag settled where it was")
+        #expect(model.hovered == .face(solid: 0, FaceID(1)))
     }
 
     @Test func hoverAsksThePickerOrTheCube() {

@@ -39,10 +39,17 @@ struct ViewportEventTests {
 
     @Test func aClickThatLeavesTheCameraAloneReportsNoPose() {
         let (model, recorder) = makeModel()
-        model.pointerDown(at: ScreenPoint(200, 150), modifiers: [])
-        model.pointerDragged(to: ScreenPoint(201, 150))
-        model.pointerUp(at: ScreenPoint(201, 150))
+        model.click(at: ScreenPoint(201, 150))
         #expect(recorder.settled.isEmpty)
+        #expect(recorder.presses == 1)
+    }
+
+    @Test func aClickStopsAnAnimationWhereItIs() {
+        let (model, recorder) = makeModel()
+        model.perform(.rotate(.up))
+        model.click(at: ScreenPoint(200, 150))
+        #expect(!model.isAnimating)
+        #expect(recorder.settled == [model.pose], "the click froze it where it was on screen")
         #expect(recorder.presses == 1)
     }
 
@@ -104,9 +111,7 @@ struct ViewportEventTests {
         #expect(model.cubeLayout.origin == ScreenPoint(416, 76))
         #expect(model.triadLayout.origin(in: size) == ScreenPoint(416, 300 - 16 - 64))
         #expect(model.modelArea.trailing == 300)
-        let centre = model.cubeLayout.center
-        model.pointerDown(at: centre, modifiers: [])
-        model.pointerUp(at: centre)
+        model.click(at: model.cubeLayout.center)
         #expect(model.isAnimating, "the moved cube is still the one that's clicked")
     }
 }

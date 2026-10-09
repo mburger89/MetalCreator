@@ -5,9 +5,9 @@ extension ViewportView {
     /// it). The label loop is written inline: MetalUI's builder can't infer an opaque element returned by a helper
     /// inside a `for` (docs/metalui-gaps.md gap M4-b).
     @MainActor
-    static func stack(model: ViewportModel, modifiers: ViewportModifierTracker) -> some Element {
+    static func stack(model: ViewportModel) -> some Element {
         ZStack(alignment: .topLeading) {
-            surface(model: model, modifiers: modifiers)
+            surface(model: model)
             for label in model.handleLabels() {
                 ProposalText(label.text)
                     .foregroundStyle(model.labelColor)
@@ -32,39 +32,51 @@ extension ViewportView {
     }
 
     /// The GPU surface and its input. It redraws on demand when `renderKey` changes, and continuously while the
-    /// camera animates. One zero-distance drag carries every press: MetalUI reports a click as a change plus an end.
+    /// camera animates. The tap is declared first, so it is the inner gesture: a click is the tap's, and the
+    /// primary drag reports only once the tap has failed by moving (MetalUI `IX-D` item 3). The right and middle
+    /// buttons drag in their own arenas (MetalUI `CI-F`).
     @MainActor
-    static func surface(model: ViewportModel, modifiers: ViewportModifierTracker) -> some Element {
+    static func surface(model: ViewportModel) -> some Element {
         MetalView(redraw: model.isAnimating ? .continuous : .onDemand, value: model.renderKey) { context in
             model.draw(context)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    if !model.isPointerDown {
-                        model.pointerDown(at: ScreenPoint(value.startLocation), modifiers: modifiers.held)
-                    }
-                    model.pointerDragged(to: ScreenPoint(value.location))
-                }
-                .onEnded { value in
-                    if !model.isPointerDown {
-                        model.pointerDown(at: ScreenPoint(value.startLocation), modifiers: modifiers.held)
-                    }
-                    model.pointerUp(at: ScreenPoint(value.location))
-                }
-        )
+        .pointerStyle(model.cursor?.pointerStyle)
+        .onScrollWheel { event in
+            model.scrolled(by: Double(event.delta.y.value), at: ScreenPoint(event.location), phase: ViewportScrollPhase(event))
+        }
+        .gesture(SpatialTapGesture().onEnded { model.click(at: ScreenPoint($0.location)) })
+        .gesture(drag(.primary, model: model))
+        .gesture(drag(.secondary, model: model))
+        .gesture(drag(.middle, model: model))
+        .gesture(MagnifyGesture()
+            .onChanged { model.pinchChanged(magnification: $0.magnification, centre: ScreenPoint($0.startLocation)) }
+            .onEnded { _ in model.pinchEnded() })
         .onContinuousHover { phase in
             switch phase {
             case .active(let point): model.pointerHovered(at: ScreenPoint(point))
             case .ended: model.pointerHovered(at: nil)
             }
         }
-        .contextMenu {
-            for item in model.contextMenuItems() {
+        .contextMenu { (location: Point<Pixels>?) in
+            for item in model.contextMenuItems(at: location.map { ScreenPoint($0) }) {
                 Button(item.title) { model.choose(item) }
             }
         }
+    }
+
+    /// A drag with `button` that reports its values, and the modifiers held at each, to the model.
+    @MainActor
+    static func drag(_ button: ViewportPointerButton, model: ViewportModel) -> DragGesture {
+        DragGesture(minimumDistance: Pixels(Float(ViewportInputMap.dragThreshold)), button: button.mouseButton)
+            .onChanged { value in
+                model.dragChanged(from: ScreenPoint(value.startLocation), to: ScreenPoint(value.location),
+                                  modifiers: ViewportModifiers(value.modifiers), button: button)
+            }
+            .onEnded { value in
+                model.dragEnded(from: ScreenPoint(value.startLocation), at: ScreenPoint(value.location),
+                                modifiers: ViewportModifiers(value.modifiers), button: button)
+            }
     }
 
     /// Triad axis names in a widget-sized box at the bottom-left, matching where the renderer draws the triad.

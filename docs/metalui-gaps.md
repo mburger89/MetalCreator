@@ -19,9 +19,17 @@ which button or gesture, which coordinates, what we do in the meantime.
 
 ## C7 status and provisional API names (from the MetalUI session, 2026-10-08)
 
-Nothing landed or designed yet; C7 is next after MetalUI's C4. Names below are provisional (C7's design phase
-probes SwiftUI and may rule otherwise; where SwiftUI has a spelling, MetalUI takes it). MetalCreator wraps each
-stopgap behind one function/modifier of its own, named after these, so the swap is local.
+**Merged (MetalUI `c62d6ba`, record §81, rulings `CI-A`…`CI-AL`).** Every provisional name below was kept. The
+refinements: `.onScrollWheel`'s closure returns `Bool` (`true` claims), the scroll's local point is
+`ScrollEvent.location`, `RotateGesture.Value.rotation` is clockwise-positive, the crosshair is
+`PointerStyle.rectSelection`, and the located context menu is `.contextMenu { (location: Point<Pixels>?) in … }`
+(`CI-R`). **The viewport has adopted it** (plan `docs/superpowers/plans/2026-10-09-viewport-input-c7.md`): items 1–5
+are closed for the viewport, and gaps 4 and 5 below with them. The graph panel's adoption (M5-e, M5-f and the
+canvas's share of items 1 and 2) is a later plan; the viewport's keys still wait for key scoping (M4-a, MetalUI C9).
+
+The provisional names, as the MetalUI session reported them on 2026-10-08 (all kept: C7's design phase probed
+SwiftUI, and where SwiftUI has a spelling MetalUI took it). MetalCreator wraps each stopgap that is left (the graph
+panel's, in `GraphPanelInput`) behind one function/modifier of its own, named after these, so the swap is local.
 
 - Tap location: `SpatialTapGesture` (`.location`), `.onTapGesture(count:coordinateSpace:perform:)`.
 - Pinch/rotate: `MagnifyGesture` (`.magnification`, `.startLocation`), `RotateGesture` (`.rotation`).
@@ -39,17 +47,29 @@ for canvas panning and ignored for viewport zoom.
 
 Gap numbers 1–5 are the C7 items above. New gaps are labelled M4-a… (M5 uses M5-a…), so later milestones never collide with the C7 numbering. Each stopgap lives behind one type of ours, named in its entry, so the swap stays local.
 
-- **Gap 5 (C7 item 5, now concrete): modifiers during a drag.** Shift-drag pans and ⌥-drag zooms the viewport (spec §9).
+- ✅ **Closed by C7 (viewport, 2026-10-09):** the drags read `DragGesture.Value.modifiers` and
+   `ViewportModifierTracker` is deleted; the closed hand (`.grabActive`) shows while a drag orbits or pans, and the
+   crosshair (`.rectSelection`) while picking.
+   **Gap 5 (C7 item 5, now concrete): modifiers during a drag.** Shift-drag pans and ⌥-drag zooms the viewport (spec §9).
    `DragGesture.Value` has no modifiers. Stopgap: `ViewportModifierTracker` follows `.modifiersChanged` through a
    chained `Window.onInput`. Wanted: `DragGesture.Value.modifiers` (the modifiers held at each change, including at the press).
    Known limit: `held` modifiers can go stale if Shift is released while the window is inactive.
-- **Gap 4 (C7 item 4, now concrete): context-menu location.** The face menu must know which face was under the
+- ✅ **Closed by C7 (viewport, 2026-10-09):** the face menu uses the located `.contextMenu` and picks at the right
+   press (`ViewportModel.contextMenuItems(at:)`); clicks are a `SpatialTapGesture` (`ViewportModel.click(at:)`). A
+   right-drag (`DragGesture(button: .secondary)`) orbits, and a right press that moves less than 5 points opens the
+   menu on its release.
+   **Gap 4 (C7 item 4, now concrete): context-menu location.** The face menu must know which face was under the
    secondary press: the press point in the element's local points. Stopgap: the last `onContinuousHover` point
    (`ViewportModel.contextMenuItems()` reads the hovered pick). The model re-picks at the last pointer point whenever
    the camera moves under a still pointer (drag release, key zoom, projection switch, end of a view-cube or Look At
    animation) or the scene is replaced (`refreshHover()`). It's still wrong if the pointer moved without a hover
    event since. Wanted: the opening location passed to the `.contextMenu` builder, or `SpatialTapGesture` for secondary clicks.
-- **Gap 1 (C7 item 1): scroll-wheel zoom toward the cursor.** Not available. Stopgaps: ⌥-drag and the +/− keys
+- ✅ **Closed by C7 (viewport, 2026-10-09), with items 2 and 3:** `.onScrollWheel` zooms toward `ScrollEvent.location`
+   (a run of wheel steps settles the camera once the wheel has been still for 0.15 s, a trackpad scroll at its end,
+   momentum ignored), `MagnifyGesture` zooms
+   about `startLocation`, and middle-drag pans. ⌥-drag and the +/− keys stay. The viewport has no rotate gesture
+   (spec §6.3 gives it none).
+   **Gap 1 (C7 item 1): scroll-wheel zoom toward the cursor.** Not available. Stopgaps: ⌥-drag and the +/− keys
    (`ViewportInputMap`). The C7 shape the viewport expects is in the "C7 status" section above.
 - **M4-a (new): an element's size, and keyboard focus.**
    - No `GeometryReader` or `onGeometryChange`: the viewport learns its size from `MetalDrawContext.pixelSize / scaleFactor`
@@ -154,6 +174,28 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
 - **Cursor for the dock's resize edge** (adds to C7 item 5). The graph panel's inner edge is a drag handle and should
   show a column or row resize cursor. C7's `PointerStyle` has `.columnResize` and `.rowResize` (decision `CI-H`).
   Adopt them when C7 merges.
+
+## Hit by the viewport's C7 adoption, 2026-10-09
+
+Labelled VI-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-a…, M6-a… and PERF-a… entries.
+
+- **VI-a. A gesture dropped without an end tells its owner nothing.** MetalUI drops a stale button arena or pinch
+  arena silently when the next press of that button, or the next pinch, arrives (`CI-AB`: no `onEnded`), and the
+  primary arena's re-formation drops a drag the same way. SwiftUI resets per-gesture state on cancellation through
+  `@GestureState` / `updating(_:body:)`, which MetalUI doesn't offer (`IX-B`). The viewport holds per-gesture state
+  in its model: the drag's mode (and with it the closed-hand cursor) and the camera a pinch began from. Stopgap:
+  `ViewportModel` ends a drag, where it was, when a value of the same button arrives from another press, or a
+  primary drag value or a click arrives while another button's drag is under way (MetalUI forms the primary arena on
+  every primary press, `CI-F` item 3); and a pinch when one begins at another centre
+  (`aDragThatLostItsReleaseEndsWhenItsButtonDragsAgain`, `aPrimaryDragAfterALostMiddleReleaseStillOrbits`,
+  `aClickAfterALostDragEndsItAndHoversAgain`, `aClickAfterALostDragBringsBackTheArrow`,
+  `aPinchThatLostItsEndDoesntPullTheNextOneBack`). What is left: nothing for primary input. A lost right or middle
+  release leaves that drag, its closed hand and a still hover until the next primary press or click, or the next
+  drag of the same button; until then a drag of the other of the two is ignored, as MetalUI ignores its press
+  (`CI-AA` item 4). A trackpad scroll whose `.ended`/`.cancelled` never arrives (the window resigns mid-scroll) leaves
+  the camera unsettled into the document and the hover un-picked until a later scroll ends; and a pinch that lost its
+  end followed by one at the same centre reuses the stale start camera. Wanted: an `onEnded` (or a separate cancellation callback) for a gesture its arena drops, or
+  `@GestureState`.
 
 ## Node-drag performance, 2026-10-08
 

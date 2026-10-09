@@ -2,30 +2,63 @@ import CreatorGeometry
 import CreatorKernel
 import Foundation
 
-/// Pointer input, in viewport points (y down), from `ViewportView`'s stopgap gestures (spec §9).
+/// Pointer input, in viewport points (y down), from `ViewportView`'s MetalUI gestures (spec §9).
 extension ViewportModel {
     var isPointerDown: Bool { drag != nil }
 
+    /// A drag's value from MetalUI: the first one begins the drag at `start` (`pointerDown`), and every one moves it
+    /// to `point`. A right or middle drag while another drag is under way is ignored (`beginDragIfNeeded`).
+    public func dragChanged(from start: ScreenPoint, to point: ScreenPoint, modifiers: ViewportModifiers,
+                            button: ViewportPointerButton) {
+        beginDragIfNeeded(from: start, modifiers: modifiers, button: button)
+        guard drag?.button == button else { return }
+        pointerDragged(to: point)
+    }
+
+    /// A drag's last value from MetalUI, at its release. A drag MetalUI ends without a change first begins here.
+    public func dragEnded(from start: ScreenPoint, at point: ScreenPoint, modifiers: ViewportModifiers,
+                          button: ViewportPointerButton) {
+        beginDragIfNeeded(from: start, modifiers: modifiers, button: button)
+        guard drag?.button == button else { return }
+        pointerUp(at: point)
+    }
+
+    /// Begins the drag a value belongs to. The drag under way ends first, where it was, when its release must have
+    /// been lost (MetalUI drops such an arena without a word, its `CI-AB`; docs/metalui-gaps.md VI-a):
+    /// - a value of the same button from another press;
+    /// - a primary value while another button's drag is under way: MetalUI forms the primary arena on every primary
+    ///   press, apart from the button arena (`CI-F` item 3), so the primary button always gets its drag.
+    /// A right or middle value while another drag is under way is ignored, as MetalUI ignores that press (`CI-AA`
+    /// item 4).
+    private func beginDragIfNeeded(from start: ScreenPoint, modifiers: ViewportModifiers, button: ViewportPointerButton) {
+        if let state = drag {
+            let lostItsRelease = state.button == button ? state.start != start : button == .primary
+            if lostItsRelease { pointerUp(at: state.last) }
+        }
+        if drag == nil { pointerDown(at: start, modifiers: modifiers, button: button) }
+    }
+
     /// A press. What the drag will do is decided here:
-    /// - on the view cube, it orbits (and a click selects a region)
-    /// - on a handle's knob, it edits the handle
-    /// - otherwise it depends on the modifiers (`ViewportInputMap`)
-    public func pointerDown(at point: ScreenPoint, modifiers: ViewportModifiers) {
+    /// - with the primary button: on the view cube, it orbits (a click goes to `click(at:)`); on a handle's knob,
+    ///   it edits the handle; otherwise it depends on the modifiers (`ViewportInputMap`)
+    /// - with the right button it orbits (the cube's way on the cube), and with the middle button it pans
+    public func pointerDown(at point: ScreenPoint, modifiers: ViewportModifiers, button: ViewportPointerButton = .primary) {
         events.pressed()
         stopAnimation()
-        var mode = ViewportInputMap.dragMode(for: modifiers)
+        var mode = ViewportInputMap.dragMode(for: modifiers, button: button)
         var pivot: Vector3?
         var handleStart = 0.0
-        if cubeLayout.contains(point) {
+        if button != .middle, cubeLayout.contains(point) {
             mode = .cube
-        } else if let handle = HandleMath.hit(handles, at: point, pose: pose, size: viewSize) {
+        } else if button == .primary, let handle = HandleMath.hit(handles, at: point, pose: pose, size: viewSize) {
             mode = .handle(handle.id)
             handleStart = handle.value
         } else if mode == .orbit {
             pivot = pivotPoint(under: point)
         }
-        drag = DragState(mode: mode, start: point, last: point, startPose: pose, pivot: pivot,
+        drag = DragState(mode: mode, button: button, start: point, last: point, startPose: pose, pivot: pivot,
                          handleStartValue: handleStart)
+        if activeDragMode != mode { activeDragMode = mode }
     }
 
     public func pointerDragged(to point: ScreenPoint) {
@@ -36,7 +69,7 @@ extension ViewportModel {
         case .orbit:
             apply(CameraNavigation.orbit(pose, dx: dx, dy: dy, pivot: state.pivot))
         case .cube:
-            apply(CameraNavigation.orbit(pose, dx: dx, dy: dy, pivot: nil))
+            apply(CameraNavigation.orbit(pose, dx: dx, dy: dy, pivot: modelAreaPivot(pose)))
         case .pan:
             apply(CameraNavigation.pan(pose, dx: dx, dy: dy, size: viewSize))
         case .zoom:
@@ -49,35 +82,41 @@ extension ViewportModel {
         drag = state
     }
 
-    /// A release. A press that moved less than `clickSlop` is a click. It puts back any tiny orbit, then picks a
-    /// cube region or reports the face or edge under the pointer. Either way the hover pick is redone where the
-    /// pointer now is, because the camera may have moved under it.
+    /// A release that ends a drag. A drag never clicks, even one that comes back to where it began: clicks are
+    /// `click(at:)`'s. The hover pick is redone where the pointer now is, because the camera may have moved under it.
     public func pointerUp(at point: ScreenPoint) {
         guard let state = drag else { return }
         drag = nil
-        defer {
-            // The release point is where the pointer is now. Released outside the view, it's not over it at all.
-            let inside = !viewSize.isEmpty && (0...viewSize.width).contains(point.x)
-                && (0...viewSize.height).contains(point.y)
-            lastHoverPoint = inside ? point : nil
-            refreshHover()
-        }
-        let isClick = (point - state.start).length < ViewportInputMap.clickSlop
-        switch state.mode {
-        case .cube where isClick:
-            apply(state.startPose)
-            if let region = cubeLayout.region(at: point, pose: pose) { perform(.view(region)) }
-        case .orbit where isClick:
-            apply(state.startPose)
-            events.clicked(pick?(point))
-        case .handle(let id):
-            updateHandle(id, state, to: point, phase: .ended)
-        default:
-            break
-        }
-        // A drag that moved the camera settles it here. A click put it back, and a cube click animates
-        // (its end reports).
+        activeDragMode = nil
+        if case .handle(let id) = state.mode { updateHandle(id, state, to: point, phase: .ended) }
+        // A drag that moved the camera settles it here.
         if !isAnimating, pose != state.startPose { events.cameraSettled(pose) }
+        pointerReleased(at: point)
+    }
+
+    /// A click: a primary press released within MetalUI's tap slop (`SpatialTapGesture`, its location the
+    /// release). On the view cube it looks at the region under the pointer; on a handle's knob it does nothing;
+    /// elsewhere it reports the face or edge under the pointer, or `nil` for empty space.
+    ///
+    /// A drag still under way ends first, where it was: a click is a primary press and release, so a primary drag
+    /// under way lost its release, and the primary button wins over another (`beginDragIfNeeded`).
+    public func click(at point: ScreenPoint) {
+        if let state = drag { pointerUp(at: state.last) }
+        events.pressed()
+        stopAnimation()
+        if cubeLayout.contains(point) {
+            if let region = cubeLayout.region(at: point, pose: pose) { perform(.view(region)) }
+        } else if HandleMath.hit(handles, at: point, pose: pose, size: viewSize) == nil {
+            events.clicked(pick?(point))
+        }
+        pointerReleased(at: point)
+    }
+
+    /// The pointer is at the release point now. Released outside the view, it's not over it at all.
+    private func pointerReleased(at point: ScreenPoint) {
+        let inside = !viewSize.isEmpty && (0...viewSize.width).contains(point.x) && (0...viewSize.height).contains(point.y)
+        lastHoverPoint = inside ? point : nil
+        refreshHover()
     }
 
     /// The pointer moved over the viewport (`nil` when it left). Over the cube, its region is hit-tested on the CPU.

@@ -2,14 +2,13 @@ import CreatorGeometry
 import CreatorKernel
 
 extension ViewportModel {
-    /// The face context menu (spec §6.3), built when the menu opens, for the face under the pointer. Over an edge,
-    /// it uses the edge's first face. Over nothing it's empty, and MetalUI opens no menu.
-    ///
-    /// MetalUI doesn't yet give a context menu its click location (C7 item 4, docs/metalui-gaps.md), so "under the
-    /// pointer" is the last hover pick. The model redoes that pick whenever the camera or the scene moves under a
-    /// still pointer (`refreshHover()`), so it can't name a face that has moved away.
-    public func contextMenuItems() -> [ViewportMenuItem] {
-        guard let ref = hoveredFaceRef(),
+    /// The face context menu (spec §6.3), built when the menu opens, for the face under `point`: the right press's
+    /// location, which MetalUI's located `.contextMenu` hands its builder (C7 item 4). The face is picked there and
+    /// then, so it's the one under the press even if the pointer moved without a hover event or the camera moved
+    /// under it. Over an edge, the menu uses the edge's first face. Over nothing, over the view cube, or opened
+    /// without a pointer (`nil`: from the keyboard or accessibility) it's empty, and MetalUI opens no menu.
+    public func contextMenuItems(at point: ScreenPoint?) -> [ViewportMenuItem] {
+        guard let point, !cubeLayout.contains(point), let ref = faceRef(for: pick?(point)),
               let face = items[ref.solidIndex].solid.topology.face(ref.face) else { return [] }
         var menu: [ViewportMenuItem] = [.lookAt(ref), .selectEdgesOfFace(ref)]
         let nodes = MeshQueries.producingNodes(of: face)
@@ -37,7 +36,7 @@ extension ViewportModel {
         }
     }
 
-    /// Look At (spec §6.3): animates to face the face's normal, orthographic, framed on the face.
+    /// Look At (spec §6.3): animates to face the face's normal, orthographic, framed on the face in the model area.
     public func lookAt(_ ref: ViewportFaceRef) {
         guard items.indices.contains(ref.solidIndex), let mesh = cache.mesh(for: items[ref.solidIndex].solid)?.mesh,
               let direction = MeshQueries.faceDirection(mesh, ref.face),
@@ -48,13 +47,13 @@ extension ViewportModel {
         target.yaw = orientation.yaw
         target.pitch = orientation.pitch
         target.projection = .orthographic
-        animate(to: CameraNavigation.frame(bounds, target, size: viewSize))
+        animate(to: CameraNavigation.frame(bounds, target, size: viewSize, insets: modelArea))
     }
 
-    /// The face the context menu is about: the hovered face, or the first face of the hovered edge. `nil` if the
-    /// pick is stale (its solid is gone).
-    func hoveredFaceRef() -> ViewportFaceRef? {
-        switch hovered {
+    /// The face a context menu over `target` is about: the face, or the first face of the edge. `nil` over
+    /// nothing, or for a stale pick (its solid is gone).
+    func faceRef(for target: PickTarget?) -> ViewportFaceRef? {
+        switch target {
         case .face(let solid, let face)?:
             guard items.indices.contains(solid) else { return nil }
             return ViewportFaceRef(solidIndex: solid, face: face)
