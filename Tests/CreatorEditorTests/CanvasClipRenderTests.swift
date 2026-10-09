@@ -12,10 +12,11 @@ import Testing
 struct CanvasClipRenderTests {
     static let panel = Vector2(900, 600)
 
-    /// A Rectangle node panned so its top-left corner is `screen` in the panel (window points), and the scene.
-    func render(dock: DockSide, nodeAt screen: Vector2, zoom: Double = 1,
-                showsLibrary: Bool = true) -> (EditorModel, Scene, CanvasRect) {
-        let rect = testNode(RectangleTestNode.self, id: 1, at: .zero)
+    /// A Rectangle node at `position` on the canvas, panned so its top-left corner is `screen` in the panel (window
+    /// points), and the scene.
+    func render(dock: DockSide, nodeAt screen: Vector2, zoom: Double = 1, showsLibrary: Bool = true,
+                position: Vector2 = .zero) -> (EditorModel, Scene, CanvasRect) {
+        let rect = testNode(RectangleTestNode.self, id: 1, at: position)
         let editor = makeEditor([rect], dock: dock)
         if editor.showsLibrary != showsLibrary { editor.toggleLibrary() }
         let canvas = GraphPanelLayout.canvasFrame(inPanelOf: Self.panel, flow: editor.flow, showsLibrary: editor.showsLibrary)
@@ -70,5 +71,23 @@ struct CanvasClipRenderTests {
                 "set up: the node shows in the canvas")
         #expect(!nodeShows(at: Vector2(node.origin.x + 30, header), in: scene, node: node),
                 "the node paints over the panel's header (gap LF-a, fixed in MetalUI 0b400b4)")
+    }
+
+    /// A node wholly inside the canvas draws whole wherever it sits on the canvas. One at a negative canvas position
+    /// (left of and above the canvas's origin before the pan) is the case gap LF-b breaks: MetalUI 0b400b4 cuts the
+    /// node's own `clipShape` by the canvas's clip in the space inside the pan and zoom, so only the slice right of
+    /// (and below) the canvas's edge moved by the pan paints, and the rest of the header and body is missing.
+    @Test(arguments: [DockSide.left, .bottom], [1.0, 1.5])
+    func aNodeAtANegativeCanvasPositionDrawsWhole(dock: DockSide, zoom: Double) {
+        let (editor, scene, node) = render(dock: dock, nodeAt: Vector2(60, 90), zoom: zoom, showsLibrary: false,
+                                           position: Vector2(-60, -40))
+        let canvas = GraphPanelLayout.canvasFrame(inPanelOf: Self.panel, flow: editor.flow, showsLibrary: false)
+        #expect(canvas.contains(node.origin) && canvas.contains(node.origin + node.size), "set up: wholly in the canvas")
+        #expect(nodeShows(at: node.origin + node.size * 0.8, in: scene, node: node), "set up: the node's lower right shows")
+        withKnownIssue("LF-b: a clip inside nested flattening effects is cut in the wrong space (MetalUI 0b400b4)") {
+            #expect(nodeShows(at: node.origin + Vector2(10, 10), in: scene, node: node), "the header's left end")
+            #expect(nodeShows(at: node.origin + Vector2(10, node.size.y - 10), in: scene, node: node),
+                    "the body's bottom-left")
+        }
     }
 }

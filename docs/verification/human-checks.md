@@ -405,8 +405,11 @@ Run `swift run MetalCreatorApp` (EP-1–EP-9, EP-11) and `swift run GraphPanelPr
   edge and the strip's search field, headers and rows stay whole on top of it. Dock at the bottom and pan a node left
   under the library column: the same at the canvas's left edge. Hide the library and pan a node up past the panel's
   header: it disappears at the canvas's edge, never over the header or the glass padding (gap LF-a, fixed in MetalUI
-  0b400b4). Pinned: `aNodeUnderTheLibraryStripIsHiddenByIt`, `aNodeUnderTheLibraryColumnIsHiddenByIt`,
-  `aNodeAboveTheCanvasNeverCoversTheHeader`. **Observed:**
+  0b400b4). Pan the canvas right and down by more than a node's size, then drag a node to the canvas's top-left
+  corner, wholly inside it: it draws whole, header and body, not only a slice at its right or bottom (gap LF-b, open
+  since MetalUI 0b400b4). Pinned: `aNodeUnderTheLibraryStripIsHiddenByIt`,
+  `aNodeUnderTheLibraryColumnIsHiddenByIt`, `aNodeAboveTheCanvasNeverCoversTheHeader`,
+  `aNodeAtANegativeCanvasPositionDrawsWhole`. **Observed:**
 
 ## Group P — the packaged app (packaging)
 

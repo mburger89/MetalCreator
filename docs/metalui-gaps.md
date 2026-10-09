@@ -391,6 +391,39 @@ Labelled LF-a… so they don't clash with the labels above. Checked against Meta
   past the canvas's top shows over the panel's header (which has no opaque fill), and one panned past the panel's
   edge shows over the glass padding and beyond it. Pinned: `aNodeAboveTheCanvasNeverCoversTheHeader` (a known
   issue; it starts failing as "Known issue was not recorded" once MetalUI fixes this, and the `withKnownIssue` goes).
+- **LF-b. A clip inside nested flattening effects is cut by the outer clip in the wrong space (regression in MetalUI
+  0b400b4, the LF-a fix).** A node whose canvas position is negative (left of or above the canvas's origin before the
+  pan and zoom), panned wholly into the canvas, paints only the slice of its header and body right of (and below) the
+  canvas's edge moved by the pan: the rest shows the canvas background, while its border and sockets (no clip of their
+  own) draw whole. A node laid out past the canvas's right or bottom edge (beyond the canvas's size, before the pan)
+  and panned in loses its right or bottom part the same way, or vanishes. On MetalUI 67a579e the same nodes drew whole
+  (their masks were the node's own clip, uncut: LF-a's leak). Cause, read from the source: each flattening scope cuts
+  the masks pushed inside it by its `outer`, the clip in force at its entry, right after its own map
+  (`Frame.insertThroughScopes` → `cutToEntryClip`). For the node's `.offset`, nested in the canvas's
+  `.scaleEffect(zoom).offset(pan)`, that entry clip is the canvas's `.clipped()`, pushed **outside** the enclosing
+  scopes, so in window space; it is applied in the enclosing scopes' content space (before zoom and pan) and then
+  moved by them. Effective mask: the node's clip ∩ the canvas clip mapped by the zoom and pan, so the cut sits at the
+  canvas's edge + pan. LF-a's nested test (`aClipInsideNestedFlatteningEffectsIsCutByTheClipOutsideBoth`) keeps its
+  bar inside the outer clip in every space, so it can't see this. Wanted: a nested flattening scope cuts only by the
+  clips pushed inside the enclosing flattening scope (when none has been pushed since that scope's entry, by nothing:
+  the enclosing scope's own cut covers it). Minimal reproduction (MetalUI's `RenderEffectTests` harness:
+  `effectFrame`, 200 × 200, scale factor 1; `fxBar(40, 40)` is `Color(.accent).frame(width: 40, height: 40)`; the
+  LF-a stage is `ZStack(alignment: .topLeading) { inner }.frame(width: 100, height: 100).clipped().padding(50)`):
+  ```swift
+  lfaStage(fxBar(40, 40).clipped().offset(x: px(-60), y: px(0)).offset(x: px(60), y: px(0)))
+  ```
+  The bar is at (80, 80) 40 × 40, wholly inside the clip (50, 50) 100 × 100, but its `contentMask` is (110, 80)
+  10 × 40, so only its right 10 px paint; wanted (80, 80) 40 × 40. Without the inner `.clipped()` the mask is
+  (50, 50) 100 × 100, as it should be; on 67a579e this tree gives (80, 80) 40 × 40. The canvas's shape gives the same:
+  `lfaStage(ZStack(alignment: .topLeading) { fxBar(40, 40).clipped().offset(x: px(-60), y: px(0)) }
+  .scaleEffect(1, anchor: .topLeading).offset(x: px(60), y: px(0)))` → mask (110, 80) 10 × 40; with
+  `.scaleEffect(0.5, anchor: .topLeading)` the bar is at (110, 80) 20 × 20 and its mask (125, 80) 5 × 20 (wanted the
+  bar's bounds). In MetalCreator (`CanvasClipRenderTests`, panel 900 × 600, scale 2, canvas at (10, 46)): a Rectangle
+  node at canvas (−100, 0), pan (150, 0), zoom 1, paints at (60, 46) 168 × 136 pt with its body's mask (160, 46)
+  68 × 136 pt (device (320, 92) 136 × 272); at zoom 1.5 at (10, 46) 252 × 204 pt, mask (160, 46) 102 × 204 pt. Not a
+  window-position effect: the panel's offset in the window, the dock and the selection don't matter. Pinned:
+  `aNodeAtANegativeCanvasPositionDrawsWhole` (a known issue; it starts failing as "Known issue was not recorded" once
+  MetalUI fixes this, and the `withKnownIssue` goes).
 
 ## Hit by the Themes milestone, 2026-10-09
 
