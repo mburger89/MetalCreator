@@ -82,7 +82,7 @@ public enum SketchRegions {
     ///
     /// An arc a counter-clockwise loop runs along clockwise (a notch cut into an outline) keeps
     /// its traversal sense, stored with `end < start`, so the loop stays continuous; the shim
-    /// does not build such arcs yet (S4 handoff).
+    /// builds it clockwise (S4).
     static func emitted(_ loop: [LoopSegment]) -> [Segment2D] {
         let counterClockwise = LoopMeasure.area(loop) < 0 ? loop.reversed().map(\.reversed) : loop
         guard var first = counterClockwise.indices.first else { return [] }

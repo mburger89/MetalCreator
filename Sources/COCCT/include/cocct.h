@@ -115,7 +115,8 @@ typedef struct {
 } occt_plane;
 
 /// One profile segment in plane coordinates. kind 0 = line (x0,y0)→(x1,y1);
-/// kind 1 = counter-clockwise arc around (cx,cy) with `radius` from angle `start` to `end` (radians).
+/// kind 1 = arc around (cx,cy) with `radius` from angle `start` to `end` (radians): counter-clockwise when
+/// end > start, clockwise when end < start (a counter-clockwise loop running along a notch).
 typedef struct {
     int kind;
     double x0, y0, x1, y1;
@@ -131,7 +132,6 @@ typedef struct {
 /// A planar region. loops[0] is the outer boundary; loops[1 ..< loop_count] are holes, which must
 /// lie inside it without touching it or each other. Holes may wind either way: the shim reverses a
 /// hole wire that winds the same way as the outer loop, which is what OCCT needs.
-/// Arc segments are counter-clockwise only, so a loop containing an arc arrives counter-clockwise.
 typedef struct {
     occt_plane plane;
     const occt_loop *loops;

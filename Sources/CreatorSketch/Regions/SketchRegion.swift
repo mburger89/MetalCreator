@@ -5,7 +5,7 @@ import CreatorGeometry
 /// holes are sorted by area descending, then centroid x, then y, so a hole's loop index (its
 /// position plus one) is stable. Segments follow the loop: an arc the loop runs along clockwise
 /// (a notch in an outline) is stored with `end < start`, so every loop stays continuous
-/// (`Profile2D.isClosed` holds) even though `Segment2D` documents its arcs as counter-clockwise.
+/// (`Profile2D.isClosed` holds); the kernel builds such clockwise arcs (S4).
 public struct SketchRegion: Hashable, Sendable {
     public var outer: [Segment2D]
     public var holes: [[Segment2D]]

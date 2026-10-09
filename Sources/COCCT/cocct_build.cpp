@@ -73,7 +73,7 @@ TopoDS_Edge build_edge(const gp_Ax2 &frame, const occt_segment &segment) {
     if (!std::isfinite(segment.start) || !std::isfinite(segment.end)) {
         throw user_error("an arc in the profile has a non-finite angle");
     }
-    if (!(segment.end - segment.start > 1e-12)) {
+    if (!(std::abs(segment.end - segment.start) > 1e-12)) {
         throw user_error("an arc in the profile has no sweep");
     }
     if (!(segment.radius > 1e-9) || !std::isfinite(segment.radius)) {
@@ -83,11 +83,15 @@ TopoDS_Edge build_edge(const gp_Ax2 &frame, const occt_segment &segment) {
         throw user_error("an arc in the profile has an invalid centre");
     }
     const gp_Ax2 axes(point_on(frame, segment.cx, segment.cy), frame.Direction(), frame.XDirection());
-    BRepBuilderAPI_MakeEdge make(gp_Circ(axes, segment.radius), segment.start, segment.end);
+    // A clockwise arc (end < start, a loop running along a notch) is the counter-clockwise arc from
+    // end to start, reversed, so the wire still runs start → end.
+    const bool clockwise = segment.end < segment.start;
+    BRepBuilderAPI_MakeEdge make(gp_Circ(axes, segment.radius), std::min(segment.start, segment.end),
+                                 std::max(segment.start, segment.end));
     if (!make.IsDone()) {
         throw user_error("an arc in the profile could not be built");
     }
-    return make.Edge();
+    return clockwise ? TopoDS::Edge(make.Edge().Reversed()) : make.Edge();
 }
 
 built_loop build_loop(const gp_Ax2 &frame, const occt_loop &loop, bool hole) {
