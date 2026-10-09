@@ -20,7 +20,7 @@ struct ViewportPaletteTests {
         #expect(palette.hover == Self.rgba(0x8be9fd) && palette.selection == Self.rgba(0xff79c6))
         #expect(palette.solid == Self.rgba(0xbd93f9) && palette.feature == Self.rgba(0xffb86c))
         #expect(palette.gridMinor == Self.rgba(0x44475a) && palette.gridMajor == Self.rgba(0x6272a4))
-        #expect(palette.cubeFace == Self.rgba(0x44475a) && palette.cubeRim == Self.rgba(0x343746))
+        #expect(palette.cubeFace == Self.rgba(0x282a36) && palette.cubeRim == Self.rgba(0x21222c))
         #expect(palette.cubeLabel == Self.rgba(0xf8f8f2))
         #expect(palette.axisX == Self.rgba(0xff5555) && palette.axisY == Self.rgba(0x50fa7b) && palette.axisZ == Self.rgba(0x8be9fd))
     }

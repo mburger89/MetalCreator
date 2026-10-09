@@ -41,7 +41,6 @@ struct NodeView: Component {
             corner.strokeBorder(isSelected ? accent.color : palette.hairline.color,
                                 lineWidth: Pixels(isSelected ? 2 : 1))
         }
-        .shadow(color: accent.opacity(isSelected ? 0.7 : 0).color, radius: Pixels(isSelected ? 10 : 0))
         .overlay(alignment: .topLeading) {
             // A Component is legacy content; inside a ZStack it is adopted, so the result stays
             // proposal content and takes the modifiers below.

@@ -14,7 +14,7 @@ struct PaletteTests {
         #expect(Palette.dracula.header(for: category) == HexColor(rgb))
     }
 
-    @Test func selectionGlowIsTheNodesOwnHeaderColour() {
+    @Test func selectionOutlineIsTheNodesOwnHeaderColour() {
         for category in NodeCategory.allCases {
             #expect(Palette.dracula.selection(for: category) == Palette.dracula.header(for: category))
         }

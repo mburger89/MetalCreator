@@ -15,7 +15,7 @@ struct ThemeTests {
             (c.profileHeader, 0x50fa7b), (c.solidHeader, 0xbd93f9), (c.selectionHeader, 0xff79c6),
             (c.featureHeader, 0xffb86c), (c.outputHeader, 0x8be9fd), (c.success, 0x50fa7b), (c.warning, 0xf1fa8c),
             (c.error, 0xff5555), (c.shadeLight, 0xc5c8de), (c.shadeDark, 0x6f739a), (c.gridMinor, 0x44475a),
-            (c.gridMajor, 0x6272a4), (c.cubeFace, 0x44475a), (c.cubeRim, 0x343746), (c.cubeLabel, 0xf8f8f2),
+            (c.gridMajor, 0x6272a4), (c.cubeFace, 0x282a36), (c.cubeRim, 0x21222c), (c.cubeLabel, 0xf8f8f2),
             (c.axisX, 0xff5555), (c.axisY, 0x50fa7b), (c.axisZ, 0x8be9fd), (c.sketchUnderConstrained, 0x8be9fd),
             (c.sketchFullyConstrained, 0xf8f8f2), (c.sketchConflicting, 0xff5555), (c.sketchConstruction, 0x6272a4),
             (c.sketchProjected, 0xbd93f9),

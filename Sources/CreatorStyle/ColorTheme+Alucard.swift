@@ -14,7 +14,7 @@ extension ColorTheme {
         success: HexColor(0x14710a), warning: HexColor(0x846e15), error: HexColor(0xcb3a2a),
         shadeLight: HexColor(0xcfcfde), shadeDark: HexColor(0x6c664b), edge: HexColor(0x1f1f1f, opacity: 0.9),
         gridMinor: HexColor(0xcfcfde), gridMajor: HexColor(0x6c664b),
-        cubeFace: HexColor(0xcfcfde), cubeRim: HexColor(0xdedccf), cubeLabel: HexColor(0x1f1f1f),
+        cubeFace: HexColor(0xbcbbca), cubeRim: HexColor(0xa9a8b6), cubeLabel: HexColor(0x1f1f1f),
         axisX: HexColor(0xcb3a2a), axisY: HexColor(0x14710a), axisZ: HexColor(0x036a96),
         sketchUnderConstrained: HexColor(0x036a96), sketchFullyConstrained: HexColor(0x1f1f1f),
         sketchConflicting: HexColor(0xcb3a2a), sketchConstruction: HexColor(0x6c664b),

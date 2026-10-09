@@ -83,8 +83,8 @@ Run `swift run GraphPanelPreview`.
 - [ ] **M5-1 Dracula colours.** Headers are comment-blue (Number), green (Rectangle), purple (Extrude), pink
   (All Edges), orange (Fillet), cyan (Output). Header text is dark (`#282a36`). Body text is near-white, hint text
   blue-grey. Pinned: `PaletteTests`. **Observed:**
-- [ ] **M5-2 Selection glow.** Click Extrude: it gets a 2-pt outline and a soft glow in *purple*, its own header
-  colour. Click Fillet: the glow is orange. Pinned: `selectionGlowIsTheNodesOwnHeaderColour`. **Observed:**
+- [ ] **M5-2 Selection outline.** Click Extrude: it gets a 2-pt outline in *purple*, its own header colour, and no
+  glow. Click Fillet: the outline is orange. Pinned: `selectionOutlineIsTheNodesOwnHeaderColour`. **Observed:**
 - [ ] **M5-3 Glass panels.** The panel and inspector are translucent dark with a faint 1-pt light hairline and rounded
   corners (no blur yet, gap M5-c). **Observed:**
 - [ ] **M5-4 Wires.** Wires are smooth curves leaving outputs forwards and entering inputs forwards, coloured by the

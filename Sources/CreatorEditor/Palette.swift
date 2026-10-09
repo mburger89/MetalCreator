@@ -61,7 +61,7 @@ public struct Palette: Hashable, Sendable {
         }
     }
 
-    /// A selected node's outline and glow: always its own header colour (spec §6.6).
+    /// A selected node's outline (no glow): always its own header colour (spec §6.6).
     public func selection(for category: NodeCategory) -> HexColor { header(for: category) }
 
     /// A socket's colour, and the colour of wires leaving it, by type: its category's header colour.

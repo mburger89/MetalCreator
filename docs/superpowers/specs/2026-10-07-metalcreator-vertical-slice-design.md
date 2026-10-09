@@ -189,7 +189,7 @@ The direction was chosen in the visual brainstorm: **"Model-First," refined, in 
 - Nodes are MetalUI components placed under a canvas transform for pan and zoom. Wires are bezier `Path`s coloured by the type of their source socket.
 - **Flow follows the dock.** When docked left, inputs sit on the **top** edge of each node and outputs on the **bottom**. When docked at the bottom, inputs are on the left and outputs on the right. Each node stores one canonical position in left-to-right coordinates. The vertical layout is its **transpose** (x↔y), so switching docks is deterministic and lossless.
 - Node anatomy: a coloured header (by category, §6.6) with the node name, then rows for inputs with inline value fields when unwired. A status badge sits at the top-right of the header: a spinner, the evaluation time in ms, ⚠, or ✕.
-- **Selection.** A selected node is outlined, with a soft outer glow, **in its own header colour**.
+- **Selection.** A selected node is outlined **in its own header colour**, with no glow (user decision, 2026-10-08).
 - Interactions in the slice:
   - Drag from a socket to connect. Dropping onto an occupied input replaces its wire. Invalid drops are refused with a brief shake.
   - Click to select, Shift-click to extend, ⇧-drag on empty canvas to box-select. A plain drag on empty canvas pans.
@@ -264,7 +264,7 @@ Themes milestone after M6 (roadmap).
 | Model shading | Neutral lavender greys (about `#c5c8de` → `#6f739a`), edges `#f8f8f2` |
 
 Rules:
-- A node's selection outline and glow always use **its own header colour**.
+- A node's selection outline always uses **its own header colour**.
 - Text on accent fills (headers, primary buttons, badges) is the theme's text-on-accent colour, chosen for contrast:
   `#282a36` in Dracula.
 - Colours are defined once, as the roles of the built-in themes in `CreatorStyle`, and used everywhere by role: views
@@ -332,7 +332,7 @@ All tests use Swift Testing.
 - **Topological-naming stability:** the bracket's fillet and chamfer edge sets keep their meaning (the same tag keys, and the expected counts) across Width 60→90, Hole count 4→6, and a rectangle profile swapped for a polygon.
 - **Editor and viewport models:** the dock transpose, hit testing under the canvas transform, connect, refuse and replace rules, the inspector binding wired vs unwired, mapping a pick to a rule, view-cube face to camera orientation, the Look At camera.
 - **Offscreen render test:** the ID pass on a known solid returns the expected face and edge IDs at chosen pixels. Pixel colour is not compared.
-- **Human checks:** a short `docs/verification/human-checks.md` list, following MetalUI's convention, covers glass panels, Dracula colours, selection glow, handles, and view-cube animation.
+- **Human checks:** a short `docs/verification/human-checks.md` list, following MetalUI's convention, covers glass panels, Dracula colours, selection outline, handles, and view-cube animation.
 
 ## 9. MetalUI dependency and gaps
 
