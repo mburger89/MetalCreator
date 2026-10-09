@@ -8,7 +8,7 @@ extension EditorModel {
     /// The canvas's frame in window points; `nil` while the panel is hidden or not placed.
     public var canvasFrameInWindow: CanvasRect? {
         guard isPanelVisible, let placement = panelPlacement else { return nil }
-        let local = GraphPanelLayout.canvasFrame(inPanelOf: placement.panel.size)
+        let local = GraphPanelLayout.canvasFrame(inPanelOf: placement.panel.size, flow: flow, showsLibrary: showsLibrary)
         return CanvasRect(origin: placement.panel.origin + local.origin, size: local.size)
     }
 

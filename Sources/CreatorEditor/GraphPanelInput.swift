@@ -160,6 +160,20 @@ public final class GraphPanelInput {
         model.pointerReleased(from: start, at: location)
     }
 
+    /// A node-library row's one gesture: a zero-distance drag reported in window points (`.global`), so a click
+    /// and a drag are told apart by the model (`EditorModel.moveLibraryDrag`, `endLibraryDrag`, `LibraryDrag.threshold`)
+    /// and the release is turned into a canvas point with the host's placement (`canvasFrameInWindow`), with no
+    /// row frame needed. MetalUI's own gesture: the drag never leaves the window as a system drag.
+    public func libraryGesture(for typeID: String) -> DragGesture {
+        DragGesture(minimumDistance: Pixels(0), coordinateSpace: .global)
+            .onChanged { [model] value in
+                model.moveLibraryDrag(typeID, from: Self.vector(value.startLocation), to: Self.vector(value.location))
+            }
+            .onEnded { [model] value in
+                model.endLibraryDrag(typeID, from: Self.vector(value.startLocation), at: Self.vector(value.location))
+            }
+    }
+
     /// The pointer over the canvas, from `.onContinuousHover`.
     public func hover(_ phase: HoverPhase) {
         switch phase {

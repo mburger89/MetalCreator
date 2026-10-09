@@ -3,8 +3,8 @@ import MetalUI
 
 /// The preview window's content: the window background, the graph panel in its dock and the
 /// inspector on the right — the layout the app shell (M6) floats over the viewport — and the
-/// add-node palette floating over all of it. It is laid out to `PreviewLayout`, which tells the
-/// editor where the panel is.
+/// add-node palette and a dragged node-library type floating over all of it. It is laid out to
+/// `PreviewLayout`, which tells the editor where the panel is.
 struct PreviewRoot: Component {
     let model: EditorModel
     let input: GraphPanelInput
@@ -44,6 +44,7 @@ struct PreviewRoot: Component {
                 .padding(Edges(all: PreviewLayout.margin.px))
             }
             SearchPaletteOverlay(model: model)
+            LibraryDragOverlay(model: model)
         }
         .frame(width: PreviewLayout.window.x.px, height: PreviewLayout.window.y.px)
     }

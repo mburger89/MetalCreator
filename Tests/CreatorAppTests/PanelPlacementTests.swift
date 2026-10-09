@@ -41,7 +41,7 @@ struct PanelPlacementTests {
         let panel = try #require(AppLayout.graphPanelFrame(dock: .left, panelWidth: app.panelWidth,
                                                            panelHeight: app.panelHeight, window: window))
         #expect(app.editor.panelPlacement == PanelPlacement(window: window, panel: panel))
-        #expect(app.editor.canvasFrameInWindow?.origin == panel.origin + Vector2(10, 46))
+        #expect(app.editor.canvasFrameInWindow?.origin == panel.origin + Vector2(10, 46 + 176 + 8), "under the library's strip")
         app.editor.setDock(.bottom)
         #expect(app.editor.panelPlacement?.panel.origin == Vector2(12, 900 - 12 - app.panelHeight))
     }
