@@ -37,6 +37,9 @@ public final class SketchEditorModel {
     @ObservationIgnored var dragOrigin: Sketch?
     /// The Dimension tool's first pick, while it waits for the second.
     var dimensionPick: SketchEntityID?
+    /// The exposed dimensions whose value comes from a wire, so it can't be typed. The host provides it (on `init` and
+    /// every `reload`), with the wired values already in the sketch.
+    public private(set) var wiredDimensions: Set<DimensionID>
     /// Names an exposed dimension can't take (the Sketch node's own inputs and settings). The host provides it.
     @ObservationIgnored let isReservedName: @MainActor (String) -> Bool
     /// The sketch as the host last stored it (given, reloaded or committed), before this editor's solve: `reload(_:)`
@@ -45,8 +48,10 @@ public final class SketchEditorModel {
 
     @ObservationIgnored public var events = SketchEditorEvents()
 
-    public init(sketch: Sketch, plane: Plane, isReservedName: @escaping @MainActor (String) -> Bool = { _ in false }) {
+    public init(sketch: Sketch, plane: Plane, wired: Set<DimensionID> = [],
+                isReservedName: @escaping @MainActor (String) -> Bool = { _ in false }) {
         self.plane = plane
+        wiredDimensions = wired
         self.isReservedName = isReservedName
         stored = sketch
         let solution = SketchSolver.solve(sketch)
@@ -55,8 +60,10 @@ public final class SketchEditorModel {
     }
 
     /// Shows a sketch that came from the host (undo, redo, or a file change), unless it is the one the host last stored.
-    public func reload(_ newSketch: Sketch, plane newPlane: Plane) {
+    /// `wired` names the dimensions whose value now comes from a wire.
+    public func reload(_ newSketch: Sketch, plane newPlane: Plane, wired: Set<DimensionID> = []) {
         if newPlane != plane { plane = newPlane }
+        if wired != wiredDimensions { wiredDimensions = wired }
         guard newSketch != stored else { return }
         stored = newSketch
         let solved = SketchSolver.solve(newSketch)

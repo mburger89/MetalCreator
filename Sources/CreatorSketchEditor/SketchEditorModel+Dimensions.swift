@@ -54,14 +54,17 @@ extension SketchEditorModel {
         commit(edited, "Dimension \(edited.dimensions[id]?.name ?? "")")
     }
 
-    /// The inspector's dimensions, in ID order.
+    /// The inspector's dimensions, in ID order. A reference dimension shows what it measures now (its stored value is
+    /// only the measurement from when it became a reference).
     public var dimensionRows: [DimensionRow] {
         let conflicts = conflictRefs
         return sketch.dimensionIDs.compactMap { id in
             guard let dimension = sketch.dimensions[id] else { return nil }
+            let value = dimension.isDriving ? dimension.value : solution.measurements[id] ?? dimension.value
             return DimensionRow(id: id, kind: Self.kindName(dimension.kind), name: dimension.name,
-                                value: DimensionText.format(dimension.value, kind: dimension.kind), isExposed: dimension.isExposed,
-                                isDriving: dimension.isDriving, isConflicting: conflicts.contains(.dimension(id)))
+                                value: DimensionText.format(value, kind: dimension.kind), isExposed: dimension.isExposed,
+                                isDriving: dimension.isDriving, isWired: wiredDimensions.contains(id),
+                                isConflicting: conflicts.contains(.dimension(id)))
         }
     }
 
@@ -89,8 +92,17 @@ extension SketchEditorModel {
     }
 
     /// A typed value for a dimension: one step. Text that isn't a number is refused, and the field shows the old value.
+    /// A wired dimension (its value comes from the wire) and a reference dimension (it only measures) are refused too.
     public func setValue(_ text: String, of id: DimensionID) {
         guard let dimension = sketch.dimensions[id] else { return }
+        if wiredDimensions.contains(id) {
+            refusal = "Its value comes from the wire into “\(dimension.name)”."
+            return
+        }
+        guard dimension.isDriving else {
+            refusal = "\(dimension.name) is a reference: make it driving to set it."
+            return
+        }
         guard let value = DimensionText.parse(text) else {
             refusal = "“\(text)” isn't a number."
             return
@@ -140,12 +152,14 @@ extension SketchEditorModel {
         commit(edited, exposed ? "Expose \(dimension.name)" : "Stop Exposing \(dimension.name)")
     }
 
-    /// Driving or reference (a reference dimension only measures, into the node's `measurements`).
+    /// Driving or reference (a reference dimension only measures, into the node's `measurements`). Either way it takes
+    /// the value the geometry has now, so nothing moves.
     public func setDriving(_ driving: Bool, of id: DimensionID) {
         guard let dimension = sketch.dimensions[id], dimension.isDriving != driving else { return }
         var edited = sketch
         edited.dimensions[id]?.isDriving = driving
-        if !driving, let measured = SketchSolver.solve(edited).measurements[id] { edited.dimensions[id]?.value = measured }
+        let measured = driving ? solution.measurements[id] : SketchSolver.solve(edited).measurements[id]
+        if let measured, measured.isFinite { edited.dimensions[id]?.value = measured }
         commit(edited, driving ? "Make \(dimension.name) Driving" : "Make \(dimension.name) Reference")
     }
 

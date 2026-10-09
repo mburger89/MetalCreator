@@ -1,7 +1,7 @@
 import CreatorStyle
 import MetalUI
 
-/// One dimension: kind, name field, value field, then "Expose as input", Driving and Remove.
+/// One dimension: kind, name field, value field (plain text for a reference or wired one), then "Expose as input", Driving and Remove.
 struct DimensionRowView: Component {
     let model: SketchEditorModel
     let row: DimensionRow
@@ -13,7 +13,11 @@ struct DimensionRowView: Component {
             HStack(spacing: Pixels(6)) {
                 Text(row.kind).font(.callout).foregroundStyle(row.isConflicting ? colors.problem : colors.primary)
                 DimensionField(text: row.name, width: 64) { model.rename(row.id, to: $0) }
-                DimensionField(text: row.value, width: 80) { model.setValue($0, of: row.id) }
+                if row.isValueEditable {
+                    DimensionField(text: row.value, width: 80) { model.setValue($0, of: row.id) }
+                } else {
+                    Text(row.value).font(.callout).foregroundStyle(colors.secondary).frame(width: Pixels(80))
+                }
             }
             HStack(spacing: Pixels(6)) {
                 Toggle("Expose as input", isOn: Binding(get: { row.isExposed }, set: { model.setExposed($0, of: row.id) }))

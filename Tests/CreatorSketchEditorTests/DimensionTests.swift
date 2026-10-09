@@ -83,7 +83,7 @@ struct DimensionTests {
         let a = sketch.addPoint(Vector2(0, 0))
         let l1 = sketch.addLine(from: a, to: sketch.addPoint(Vector2(10, 0)))
         let l2 = sketch.addLine(from: a, to: sketch.addPoint(Vector2(0, 10)))
-        let angle = sketch.addDimension(.angle(l1, l2), value: 90, isDriving: false)
+        let angle = sketch.addDimension(.angle(l1, l2), value: 90)
         let (model, host) = makeModel(sketch)
         for text in ["270°", "-10°", "181"] {
             model.refusal = nil
@@ -114,6 +114,42 @@ struct DimensionTests {
         #expect(model.dimensionRows.map(\.isDriving) == [true, false])
         #expect(host.commits.map(\.description) == ["Expose d1", "Make d2 Reference"])
         #expect(model.solution.degreesOfFreedom == 1, "a reference dimension holds nothing")
+    }
+
+    /// A reference dimension's row shows the live measurement, not the value it had when it became a reference, and
+    /// its value can't be typed (it would change nothing). Making it driving again holds the geometry as it is.
+    @Test func aReferenceRowFollowsTheGeometryAndRefusesTypedValues() throws {
+        let rectangle = RectangleSketch()
+        let (model, host) = makeModel(rectangle.sketch)
+        model.setDriving(false, of: rectangle.height)
+        model.choose(.select)
+        #expect(model.beginDrag(at: Vector2(60, 40), tolerance: 1))
+        model.endDrag(at: Vector2(60, 55))
+        let measured = try #require(model.solution.measurements[rectangle.height])
+        #expect(abs(measured - 55) < 1e-6)
+        let row = try #require(model.dimensionRows.first { $0.id == rectangle.height })
+        #expect(row.value == "55 mm" && !row.isValueEditable)
+        model.setValue("20", of: rectangle.height)
+        #expect(model.refusal == "d2 is a reference: make it driving to set it.")
+        #expect(host.commits.map(\.description) == ["Make d2 Reference", "Move Point"])
+        model.setDriving(true, of: rectangle.height)
+        let corner = try #require(model.sketch.position(of: rectangle.corners[2]))
+        #expect(abs(corner.y - 55) < 1e-6, "driving again holds the height as it is")
+        #expect(model.dimensionRows.last?.value == "55 mm")
+    }
+
+    /// A dimension whose value comes from a wire (the host says which) can't be typed.
+    @Test func aWiredDimensionRefusesTypedValues() throws {
+        let rectangle = RectangleSketch()
+        let model = SketchEditorModel(sketch: rectangle.sketch, plane: .xy, wired: [rectangle.width])
+        let host = RecordingHost(model)
+        let row = try #require(model.dimensionRows.first)
+        #expect(row.isWired && !row.isValueEditable)
+        model.setValue("75", of: rectangle.width)
+        #expect(model.refusal == "Its value comes from the wire into “d1”.")
+        #expect(host.commits.isEmpty)
+        model.reload(rectangle.sketch, plane: .xy, wired: [])
+        #expect(model.dimensionRows.first?.isWired == false, "the host's reload says what's wired now")
     }
 
     @Test func theInspectorListsAndRemovesConstraintsAndMarksConflicts() throws {
