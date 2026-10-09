@@ -5,6 +5,7 @@ import CreatorNodes
 import CreatorSketch
 import Testing
 @testable import CreatorApp
+@testable import CreatorSketchEditor
 @testable import CreatorViewport
 
 /// Sketch mode locks the camera to the sketch plane (user, 2026-10-09): a drag off the sketch's points pans, a drag on
@@ -108,5 +109,29 @@ struct SketchCameraTests {
         app.viewport.dragChanged(from: start, to: ScreenPoint(start.x + 50, start.y), modifiers: [], button: .primary)
         #expect(app.viewport.activeDragMode == .orbit)
         app.viewport.dragEnded(from: start, at: ScreenPoint(start.x + 50, start.y), modifiers: [], button: .primary)
+    }
+
+    @Test func enteringFacesThePlaneOrthographic() async throws {
+        let (app, _) = try await openSketch(twoPoints())
+        #expect(app.viewport.pose.projection == .orthographic)
+        #expect((app.viewport.pose.toEye - Plane.xy.normal).length < 1e-9)
+    }
+
+    /// A new document has no camera yet, so its first solid would be framed isometric: drawing the first profile
+    /// mid-sketch must not turn the camera off the plane (and leave it locked there).
+    @Test func theFirstSolidOfANewDocumentKeepsTheCameraOnThePlane() async throws {
+        let (app, _) = try await openSketch(Sketch(plane: .fixed(.xy)))
+        #expect(app.viewport.items.isEmpty, "nothing to show yet")
+        let editor = try #require(app.sketch?.editor)
+        editor.choose(.line)
+        for corner in [Vector2(0, 0), Vector2(40, 0), Vector2(40, 30), Vector2(0, 30), Vector2(0, 0)] {
+            editor.click(at: corner, tolerance: 1, modifiers: [])
+        }
+        await app.settle()
+        await app.viewport.framingTask?.value
+        await app.viewport.waitForAnimation()
+        #expect(!app.viewport.items.isEmpty, "the extrusion is shown")
+        #expect(app.viewport.pose.projection == .orthographic)
+        #expect((app.viewport.pose.toEye - Plane.xy.normal).length < 1e-9, "still face-on")
     }
 }

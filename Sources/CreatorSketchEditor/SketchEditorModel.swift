@@ -33,6 +33,7 @@ public final class SketchEditorModel {
     /// Where the pointer is over the viewport (`nil`: off it), and the viewport's size, for the readout's chip.
     var pointerOnScreen: ScreenPoint?
     var viewSize = ViewportSize(width: 0, height: 0)
+    var modelArea = ViewportInsets()
     /// What the drawing tool has placed so far.
     var drawState = DrawState.idle
     /// The point being dragged, between a drag's press and its release.

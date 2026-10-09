@@ -26,4 +26,23 @@ struct SketchNavigationTests {
         let bounds = try #require(model.framingBounds)
         #expect(bounds.min == Vector3(-50, -50, 0) && bounds.max == Vector3(50, 50, 0))
     }
+
+    /// A circle's centre alone would leave the circle off screen: F frames the whole curve.
+    @Test func fFramesALoneCircleWhole() throws {
+        var sketch = Sketch()
+        sketch.addCircle(center: Vector2(200, 200), radius: 30)
+        let bounds = try #require(SketchEditorModel(sketch: sketch, plane: .xy).framingBounds)
+        #expect(bounds.min.x <= 170 && bounds.min.y <= 170 && bounds.max.x >= 230 && bounds.max.y >= 230)
+        #expect(bounds.max.x < 240, "with the margin, not the 100 mm fallback around the origin")
+    }
+
+    @Test func fFramesAnArcsCircle() throws {
+        var sketch = Sketch()
+        let center = sketch.addPoint(Vector2(100, 0))
+        let start = sketch.addPoint(Vector2(110, 0))
+        let end = sketch.addPoint(Vector2(100, 10))
+        sketch.addArc(center: center, start: start, end: end)
+        let bounds = try #require(SketchEditorModel(sketch: sketch, plane: .xy).framingBounds)
+        #expect(bounds.min.x <= 90 && bounds.min.y <= -10 && bounds.max.x >= 110 && bounds.max.y >= 10)
+    }
 }

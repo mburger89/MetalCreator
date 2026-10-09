@@ -8,10 +8,10 @@ import CreatorViewport
 extension SketchEditorModel: ViewportTool {
     public var navigation: ViewportNavigation { .planar }
 
-    /// The sketch's points on its plane with a 10% margin, or 100 mm around the plane's origin when it has fewer than
-    /// two distinct points: what entering the sketch and F frame.
+    /// The sketch on its plane with a 10% margin (its points, and each circle and arc as its whole circle), or 100 mm
+    /// around the plane's origin when that has no size: what entering the sketch and F frame.
     public var framingBounds: BoundingBox? {
-        let points = sketch.entityIDs.compactMap { sketch.position(of: $0) }.map(plane.point)
+        let points = framedPoints().map(plane.point)
         if let box = BoundingBox(points: points), box.size.length > 1e-6 {
             let margin = box.size * 0.1
             return BoundingBox(min: box.min - margin, max: box.max + margin)
@@ -56,5 +56,26 @@ extension SketchEditorModel: ViewportTool {
     private func follow(_ point: ScreenPoint?, _ projector: ViewportProjector) {
         if pointerOnScreen != point { pointerOnScreen = point }
         if viewSize != projector.size { viewSize = projector.size }
+        if modelArea != projector.modelArea { modelArea = projector.modelArea }
+    }
+
+    /// The plane points framing must hold: every point, and the corners of each circle's and arc's square.
+    private func framedPoints() -> [Vector2] {
+        var points = sketch.entityIDs.compactMap { sketch.position(of: $0) }
+        for id in sketch.entityIDs {
+            var circle: (center: Vector2, radius: Double)?
+            switch sketch.entities[id]?.kind {
+            case .circle(let center, _)?:
+                if let c = sketch.position(of: center), let r = sketch.radius(of: id) { circle = (c, r) }
+            case .arc(let center, let start, _)?:
+                if let c = sketch.position(of: center), let s = sketch.position(of: start) { circle = (c, (s - c).length) }
+            default:
+                break
+            }
+            guard let circle, circle.radius.isFinite else { continue }
+            let r = abs(circle.radius)
+            points += [circle.center - Vector2(r, r), circle.center + Vector2(r, r)]
+        }
+        return points
     }
 }

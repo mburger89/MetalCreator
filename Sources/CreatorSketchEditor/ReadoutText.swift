@@ -39,7 +39,14 @@ enum ReadoutText {
     static func arc(center: Vector2, start: Vector2, end: Vector2) -> String {
         let from = start - center
         let to = end - center
-        return "\(radius(from.length)) · \(degrees(atan2(to.y, to.x) - atan2(from.y, from.x)))"
+        return "\(radius(from.length)) · \(sweep(atan2(to.y, to.x) - atan2(from.y, from.x)))"
+    }
+
+    /// A sweep in degrees, 0…360 inclusive: unlike a line's angle it never wraps, so a near-full arc reads "360.0°".
+    static func sweep(_ radians: Double) -> String {
+        var degrees = (radians * 180 / .pi).truncatingRemainder(dividingBy: 360)
+        if degrees < 0 { degrees += 360 }
+        return "\(number(degrees))°"
     }
 
     /// "12.0, 8.5".

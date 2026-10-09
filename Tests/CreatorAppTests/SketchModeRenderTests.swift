@@ -81,6 +81,37 @@ struct SketchModeRenderTests {
         #expect(glyphs(in: chip, of: app) == 0, "gone outside sketch mode")
     }
 
+    /// The chip is painted over the window's chrome (the top bar, the panels), never under their glass.
+    @Test func theReadoutIsPaintedOverTheChrome() async throws {
+        var builder = GraphBuilder()
+        let box = builder.sketchedBox(rectangleSketch())
+        let app = AppModel(kernel: FakeKernel(), file: GraphFile(graph: builder.graph))
+        await app.settle()
+        app.viewport.recordViewSize(ViewportSize(width: 1400, height: 900))
+        app.beginSketch(for: box.sketch.id)
+        await app.settle()
+        await app.viewport.waitForAnimation()
+        let editor = try #require(app.sketch?.editor)
+        editor.choose(.point)
+        app.viewport.pointerHovered(at: ScreenPoint(700, 500))
+        let chip = try #require(editor.readoutChip)
+        let input = AppInput(model: app)
+        let scene = renderFrame({ ZStack { AppRoot(model: app, input: input) } }, size: Size(width: Pixels(1400), height: Pixels(900)),
+                                scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+        func inChip(_ bounds: MUIBounds) -> Bool {
+            let drawn = frame(of: bounds)
+            return drawn.origin.x >= chip.origin.x - 0.5 && drawn.origin.y >= chip.origin.y - 0.5
+                && drawn.origin.x + drawn.size.x <= chip.origin.x + chip.size.width + 0.5
+                && drawn.origin.y + drawn.size.y <= chip.origin.y + chip.size.height + 0.5
+        }
+        let chipGlyphs = scene.glyphs.indices.filter { inChip(scene.glyphs[$0].bounds) }
+            .compactMap { paintPosition(of: .glyph, at: $0, in: scene) }
+        let others = scene.rects.indices.filter { !inChip(scene.rects[$0].bounds) }
+            .compactMap { paintPosition(of: .rect, at: $0, in: scene) }
+        #expect(!chipGlyphs.isEmpty && !others.isEmpty)
+        #expect((others.max() ?? 0) < (chipGlyphs.min() ?? 0), "a panel's glass is painted over the chip")
+    }
+
     /// Glyphs of the whole window drawn inside `chip`'s frame.
     func glyphs(in chip: ReadoutChip, of app: AppModel) -> Int {
         let input = AppInput(model: app)
