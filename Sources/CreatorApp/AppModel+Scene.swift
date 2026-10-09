@@ -27,10 +27,11 @@ extension AppModel {
     }
 
     /// Shows the scene and the selected nodes' handles. While picking, only the solid being picked on, with the
-    /// picked edges selected, and no handles. A scene or handles equal to what's shown aren't sent again: the
+    /// picked edges selected, no handles and a crosshair pointer. A scene or handles equal to what's shown aren't sent again: the
     /// observation also fires for canvas pans, camera settles and panel resizes, which change neither.
     func refreshScene() {
         let scene: [SceneItem]
+        if viewport.isPicking != (pick != nil) { viewport.isPicking = pick != nil }
         if let pick {
             scene = [SceneItem(item: ViewportItem(solid: pick.solid, selectedEdges: Set(pick.picked)), source: pick.source)]
         } else {

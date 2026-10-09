@@ -58,6 +58,7 @@ extension ViewportModel {
         }
         drag = DragState(mode: mode, button: button, start: point, last: point, startPose: pose, pivot: pivot,
                          handleStartValue: handleStart)
+        if activeDragMode != mode { activeDragMode = mode }
     }
 
     public func pointerDragged(to point: ScreenPoint) {
@@ -86,6 +87,7 @@ extension ViewportModel {
     public func pointerUp(at point: ScreenPoint) {
         guard let state = drag else { return }
         drag = nil
+        activeDragMode = nil
         if case .handle(let id) = state.mode { updateHandle(id, state, to: point, phase: .ended) }
         // A drag that moved the camera settles it here.
         if !isAnimating, pose != state.startPose { events.cameraSettled(pose) }

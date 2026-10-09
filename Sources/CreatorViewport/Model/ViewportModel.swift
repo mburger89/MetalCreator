@@ -22,6 +22,9 @@ public final class ViewportModel {
         }
     }
     public var shading: ShadingMode = .shadedEdges
+    /// True while the host is picking edges in the view ("Pick edges in view…", spec §5.3): the pointer is a
+    /// crosshair (`cursor`).
+    public var isPicking = false
     /// The colour theme the viewport draws in (spec §6.6). The app shell sets it from its `ThemeStore`; a change is
     /// drawn on the next frame, because the GPU colours (`palette`) are part of `renderKey`.
     public var theme: ColorTheme = .dracula
@@ -37,6 +40,9 @@ public final class ViewportModel {
     public internal(set) var handles: [ViewportHandle] = []
     public internal(set) var hovered: PickTarget?
     public internal(set) var hoveredCubeRegion: ViewCubeRegion?
+    /// What the drag under way does, or `nil` between drags. It's written once at each press and release (never per
+    /// move), so the view's pointer style follows it.
+    public internal(set) var activeDragMode: ViewportDragMode?
     /// Bumped each time a scene's meshes are ready.
     public private(set) var sceneGeneration = 0
     /// A plain-language message when the last scene couldn't be tessellated, else `nil`.

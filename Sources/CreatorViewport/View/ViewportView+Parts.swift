@@ -41,6 +41,7 @@ extension ViewportView {
             model.draw(context)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .pointerStyle(model.cursor?.pointerStyle)
         .onScrollWheel { event in
             model.scrolled(by: Double(event.delta.y.value), at: ScreenPoint(event.location), phase: ViewportScrollPhase(event))
         }

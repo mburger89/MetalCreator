@@ -8,6 +8,7 @@ import MetalUI
 /// - `swift run ViewportHarness` shows the part.
 /// - `HARNESS_GHOST=1` draws it as a stale ghost.
 /// - `HARNESS_SELECT=1` selects its top face and edges.
+/// - `HARNESS_PICK=1` shows the picking crosshair, as the app does while picking edges.
 /// Clicking a face selects it and its edges (an edge selects that edge; empty space clears). Dragging a handle
 /// rebuilds the part with the new plate thickness or fillet radius. Clicks, menu choices and handle drags print
 /// to the terminal.
@@ -17,6 +18,7 @@ func runHarness() throws {
     let environment = ProcessInfo.processInfo.environment
     let kernel = OCCTKernel()
     let model = ViewportModel(kernel: kernel)
+    model.isPicking = environment["HARNESS_PICK"] == "1"
     let selection = HarnessSelection()
     model.events.clicked = { [weak model] target in
         print("clicked: \(String(describing: target))")
