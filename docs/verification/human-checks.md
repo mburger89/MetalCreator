@@ -80,6 +80,14 @@ drags print to the terminal.
 **Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`); MetalUI's own
 group Y covers the platform side (trackpad phases, real mouse buttons, every cursor).
 
+The `viewport-input` branch merges before this group is run: the tests pin the model only, and the view glue in
+`ViewportView+Parts.swift` `surface(model:)` has no headless coverage (no headless MetalUI window, gap M6-e). That
+glue is the tap declared inside the primary drag, the secondary drag deferring the face menu to release, the scroll
+delta's sign, `.pointerStyle(model.cursor?.pointerStyle)`, the located `.contextMenu` overload, and `pressed()`
+(the text-focus release) firing on release rather than on press. Run this group first after the merge, in this
+order: VC3, VC4, VC5, then VC1's scroll sign, then the rest. A failure there is a bug in that glue (or in MetalUI
+C7), not in the model.
+
 Run `swift run ViewportHarness` (VC7 also with `HARNESS_PICK=1`) with a trackpad and a three-button mouse; VC8 runs
 `swift run MetalCreatorApp` on a saved bracket. Clicks and menu choices print to the terminal.
 
