@@ -51,8 +51,8 @@ extension ViewportView {
             case .ended: model.pointerHovered(at: nil)
             }
         }
-        .contextMenu {
-            for item in model.contextMenuItems() {
+        .contextMenu { (location: Point<Pixels>?) in
+            for item in model.contextMenuItems(at: location.map { ScreenPoint($0) }) {
                 Button(item.title) { model.choose(item) }
             }
         }

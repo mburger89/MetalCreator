@@ -23,21 +23,48 @@ struct ContextMenuTests {
         let node = NodeID()
         let model = await model(showing: [try await fakeBox(node: node)])
         model.pick = { _ in .face(solid: 0, FaceID(2)) }
-        model.pointerHovered(at: ScreenPoint(300, 200))
         let ref = ViewportFaceRef(solidIndex: 0, face: FaceID(2))
-        #expect(model.contextMenuItems() == [.lookAt(ref), .selectEdgesOfFace(ref),
-                                             .showProducingNode(node, title: "Show Producing Node"),
+        let press = ScreenPoint(300, 200)
+        #expect(model.contextMenuItems(at: press) == [.lookAt(ref), .selectEdgesOfFace(ref),
+                                                      .showProducingNode(node, title: "Show Producing Node"),
         ])
-        #expect(model.contextMenuItems().map(\.title) == ["Look At", "Select Edges of Face", "Show Producing Node"])
+        #expect(model.contextMenuItems(at: press).map(\.title) == ["Look At", "Select Edges of Face", "Show Producing Node"])
     }
 
-    @Test func nothingUnderThePointerMeansNoMenu() async throws {
+    @Test func nothingUnderThePressMeansNoMenu() async throws {
         let model = await model(showing: [try await fakeBox()])
-        model.pointerHovered(at: ScreenPoint(300, 200))
-        #expect(model.contextMenuItems().isEmpty)
+        #expect(model.contextMenuItems(at: ScreenPoint(300, 200)).isEmpty)
         model.pick = { _ in .face(solid: 7, FaceID(0)) }
-        model.pointerHovered(at: ScreenPoint(301, 200))
-        #expect(model.contextMenuItems().isEmpty, "a stale pick of a solid that is gone opens nothing")
+        #expect(model.contextMenuItems(at: ScreenPoint(301, 200)).isEmpty, "a stale pick of a solid that is gone opens nothing")
+    }
+
+    /// The menu is for the face under the right press, picked as the menu opens (C7 item 4), not the last hover:
+    /// the pointer can move without a hover event, and the camera can move under a still pointer.
+    @Test func theMenuIsForTheFaceUnderThePressNotTheLastHover() async throws {
+        let model = await model(showing: [try await fakeBox()])
+        var askedAt: [ScreenPoint] = []
+        model.pick = { point in
+            askedAt.append(point)
+            return point == ScreenPoint(300, 200) ? .face(solid: 0, FaceID(2)) : .face(solid: 0, FaceID(3))
+        }
+        model.pointerHovered(at: ScreenPoint(300, 200))
+        #expect(model.hovered == .face(solid: 0, FaceID(2)))
+        #expect(model.contextMenuItems(at: ScreenPoint(120, 80)).first == .lookAt(ViewportFaceRef(solidIndex: 0, face: FaceID(3))))
+        #expect(askedAt.last == ScreenPoint(120, 80))
+    }
+
+    @Test func noFaceMenuOverTheViewCubeOrWithoutAPointer() async throws {
+        let model = await model(showing: [try await fakeBox()])
+        var asked = 0
+        model.pick = { _ in
+            asked += 1
+            return .face(solid: 0, FaceID(2))
+        }
+        model.pointerHovered(at: ScreenPoint(300, 200))
+        asked = 0
+        #expect(model.contextMenuItems(at: model.cubeLayout.center).isEmpty, "the cube is drawn over the part")
+        #expect(model.contextMenuItems(at: nil).isEmpty, "a keyboard or accessibility open has no pointer")
+        #expect(asked == 0)
     }
 
     @Test func movingTheCameraUnderAStillPointerRepicks() async throws {
@@ -45,7 +72,7 @@ struct ContextMenuTests {
         var underPointer: PickTarget? = .face(solid: 0, FaceID(2))
         model.pick = { _ in underPointer }
         model.pointerHovered(at: ScreenPoint(300, 200))
-        #expect(model.contextMenuItems().first == .lookAt(ViewportFaceRef(solidIndex: 0, face: FaceID(2))))
+        #expect(model.hovered == .face(solid: 0, FaceID(2)))
 
         // An orbit drag, with no hover events while it runs: the release re-picks where the pointer is.
         underPointer = .face(solid: 0, FaceID(3))
@@ -54,12 +81,11 @@ struct ContextMenuTests {
         #expect(model.hovered == .face(solid: 0, FaceID(2)), "nothing is picked during a drag")
         model.pointerUp(at: ScreenPoint(340, 180))
         #expect(model.hovered == .face(solid: 0, FaceID(3)))
-        #expect(model.contextMenuItems().first == .lookAt(ViewportFaceRef(solidIndex: 0, face: FaceID(3))))
 
         // A key zoom and a projection switch move the camera under a still pointer.
         underPointer = nil
         model.performKey(.zoomIn)
-        #expect(model.contextMenuItems().isEmpty, "the face that was under the pointer has moved away")
+        #expect(model.hovered == nil, "the face that was under the pointer has moved away")
         underPointer = .face(solid: 0, FaceID(1))
         model.perform(.projection(.orthographic))
         #expect(model.hovered == .face(solid: 0, FaceID(1)))
@@ -77,14 +103,12 @@ struct ContextMenuTests {
         await model.waitForAnimation()
         #expect(picks == 1, "exactly one pick when the animation ends")
         #expect(model.hovered == .face(solid: 0, FaceID(4)))
-        #expect(model.contextMenuItems().first == .lookAt(ViewportFaceRef(solidIndex: 0, face: FaceID(4))))
     }
 
     @Test func anEdgeUnderThePointerOffersItsFirstFace() async throws {
         let model = await model(showing: [try await fakeBox()])
         model.pick = { _ in .edge(solid: 0, EdgeID(8)) }
-        model.pointerHovered(at: ScreenPoint(300, 200))
-        #expect(model.hoveredFaceRef() == ViewportFaceRef(solidIndex: 0, face: FaceID(2)))
+        #expect(model.contextMenuItems(at: ScreenPoint(300, 200)).first == .lookAt(ViewportFaceRef(solidIndex: 0, face: FaceID(2))))
     }
 
     @Test func selectEdgesOfFaceReportsTheBoundaryKeys() async throws {
@@ -120,8 +144,7 @@ struct ContextMenuTests {
         let model = await model(showing: [solid])
         model.events.nodeName = { $0 == nodeA ? "Extrude" : nil }
         model.pick = { _ in .face(solid: 0, FaceID(0)) }
-        model.pointerHovered(at: ScreenPoint(300, 200))
-        let titles = model.contextMenuItems().map(\.title)
+        let titles = model.contextMenuItems(at: ScreenPoint(300, 200)).map(\.title)
         let sorted = [nodeA, nodeB].sorted()
         let expected = sorted.map {
             $0 == nodeA ? "Show Producing Node (Extrude)" : "Show Producing Node (\(nodeB.description))"
@@ -129,7 +152,7 @@ struct ContextMenuTests {
         #expect(Array(titles.dropFirst(2)) == expected)
         var shown: [NodeID] = []
         model.events.showProducingNode = { shown.append($0) }
-        for item in model.contextMenuItems().dropFirst(2) { model.choose(item) }
+        for item in model.contextMenuItems(at: ScreenPoint(300, 200)).dropFirst(2) { model.choose(item) }
         #expect(shown == sorted)
     }
 

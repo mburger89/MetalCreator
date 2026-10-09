@@ -188,8 +188,8 @@ public final class ViewportModel {
     }
 
     /// Re-picks under a pointer that hasn't moved, after the camera or the scene changed beneath it, so the hover
-    /// tint and the context menu (which reads the hover pick until C7 item 4) never name a face that's no longer
-    /// under the pointer. Nothing is picked during a drag, so there the old pick is just dropped.
+    /// tint never names a face that's no longer under the pointer. Nothing is picked during a drag, so there the old
+    /// pick is just dropped.
     func refreshHover() {
         if drag == nil {
             pointerHovered(at: lastHoverPoint)
