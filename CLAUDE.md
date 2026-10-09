@@ -49,7 +49,8 @@ Module boundaries (dependency order):
     cube, handles) always stays the viewport's; the face menu offers only Look At while a tool is set. A tool's
     `navigation` (`ViewportNavigation`, default `.free`) of `.planar` locks the orientation: drags that would orbit
     pan, the cube and its controls are hidden, turning commands and the face menu do nothing (`showsViewCube`,
-    `isPlanar`); a tool's `framingBounds` is what F frames.
+    `isPlanar`; the first scene's framing never runs, and input finishes an animation instead of freezing it); a tool's
+    `framingBounds` is what F frames, and `ViewportProjector.modelArea` the area its on-screen chrome stays in.
     `lookAt(_ plane:framing:)` faces a plane, orthographic.
   - `ViewportModel` (`@MainActor @Observable`, testable without a GPU) owns the camera, picking, the view cube,
     the context menu and handles. `ViewportRenderer`/`ViewportPicker` are the Metal side. `ViewportView` is the

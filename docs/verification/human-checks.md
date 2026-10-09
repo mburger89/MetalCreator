@@ -535,12 +535,18 @@ that into an Output. Select the Sketch.
 - [ ] **S5-9 The camera stays on the sketch plane.** While sketching: the view cube, its ◀ ▲ ▼ ▶ ⌂ buttons and its
   View menu are gone. Drag on empty space (any tool), right-drag and middle-drag: each pans, the view never turns.
   Scroll and pinch zoom toward the pointer. A click where the cube was draws there. With Select, a drag on a point
-  still moves the point. Pan away and press F: the sketch is framed again, still face-on. Finish (⏎): the cube and its
-  controls are back, the camera hasn't moved, and a drag on empty space orbits again. **Observed:**
+  still moves the point. Pan away and press F: the sketch is framed again, still face-on (a lone circle away from the
+  origin is framed whole). Press Edit sketch and scroll at once, during the turn: the view still ends face-on. In a new
+  document (Sketch → Extrude → Output), edit the sketch and draw a closed rectangle: the extrusion appears and the
+  camera stays face-on. Finish (⏎): the cube and its controls are back, the camera hasn't moved, and a drag on empty
+  space orbits again. **Observed:**
 - [ ] **S5-10 The pointer readout.** Press L and click once: a small glass chip (no shadow) sits centred just above
   the pointer and reads the line's length and angle, e.g. "24.5 mm · 30.0°" (counter-clockwise from the sketch's +x,
-  0 to under 360°); near-horizontal, it reads the snapped values ("… · 0.0°"). Move the pointer to the top edge: the
-  chip flips below it; to the left or right edge: it stays inside the view. Esc, the second click of a circle, or
-  leaving the view: it goes. Circle after the centre: "⌀ 20.0 mm". Arc: "R 12.0 mm" after the centre, then
-  "R 12.0 mm · 90.0°" after the start. Point: the pointer's position, "12.0, 8.5". Select and Dimension: none.
+  0 to under 360°); near-horizontal, it reads the snapped values ("… · 0.0°"). Move the pointer just under the top
+  bar: the chip flips below the pointer, never under the bar's glass; next to the graph panel or the inspector: it
+  stays inside the uncovered area, never under them. Middle-drag and scroll with a line in progress: the chip and the
+  rubber band follow the pointer. Esc, the second click of a circle, leaving the view, or moving onto the toolbar or
+  inspector: the chip goes. Circle after the centre: "⌀ 20.0 mm". Arc: "R 12.0 mm" after the centre, then
+  "R 12.0 mm · 90.0°" after the start; nearly a full turn reads "360.0°". Point: the pointer's position, "12.0, 8.5"
+  (over an existing point, that point's position, though a click there adds nothing). Select and Dimension: none.
   Finish: none. **Observed:**
