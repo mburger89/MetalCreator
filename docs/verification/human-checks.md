@@ -77,7 +77,7 @@ drags print to the terminal.
 
 ## Group VC — viewport input on MetalUI C7
 
-**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`); MetalUI's own
+**Status: IN PROGRESS** (2026-10-09: VC1–VC7 pass; VC8 not yet confirmed). Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`); MetalUI's own
 group Y covers the platform side (trackpad phases, real mouse buttons, every cursor).
 
 The `viewport-input` branch merges before this group is run: the tests pin the model only, and the view glue in
@@ -96,30 +96,30 @@ Run `swift run ViewportHarness` (VC7 also with `HARNESS_PICK=1`) with a trackpad
   spinning it fast stays smooth, and the hover tint catches up just after the wheel stops.
   Scrolling one way zooms in and the other way out; note which way feels wrong, if one does (the sign is
   `ViewportModel.scrolled(by:at:phase:)`). Pinned: `ScrollZoomTests` (`aRunOfWheelStepsSettlesOnce`),
-  `scrollEventsMapToZoomPhases`. Observed:
+  `scrollEventsMapToZoomPhases`. Observed: 2026-10-09 PASS (user, release ViewportHarness).
 - [ ] **VC2 Pinch.** Pinching out zooms in about the point where the pinch began, and pinching in zooms out; a hard
-  pinch-in holds instead of springing back. A twist does nothing. Pinned: `PinchZoomTests`. Observed:
+  pinch-in holds instead of springing back. A twist does nothing. Pinned: `PinchZoomTests`. Observed: 2026-10-09 PASS (user, release ViewportHarness).
 - [ ] **VC3 Right and middle drags.** Middle-drag pans with the pointer, whatever is held. Right-drag orbits about the
   point under the pointer (on the view cube, it orbits like a cube drag) and opens no menu. A right click that
   doesn't move opens the face menu on release. Right-drag on a handle's knob orbits and leaves the value alone.
   Middle-drag, ⌘-Tab away before releasing, release, come back: a primary drag orbits at once and the closed hand
-  goes. Pinned: `ButtonDragTests`, `theRightButtonOrbitsAndTheMiddleButtonPans`. Observed:
+  goes. Pinned: `ButtonDragTests`, `theRightButtonOrbitsAndTheMiddleButtonPans`. Observed: 2026-10-09 PASS (user, release ViewportHarness); the stationary right-click opened the face menu (Show producing node chosen, harness log).
 - [ ] **VC4 Clicks.** A click on a face or an edge prints `clicked` with it; on empty space `clicked: nil`. A press
   dragged more than a few points and brought back prints no click (the camera keeps the orbit). A click on a view-cube
   face still animates to it, and a click on a handle's knob prints nothing. Pinned: `aClickReportsThePickAtItsLocationAndLeavesTheCameraAlone`,
-  `aDragThatComesBackToItsStartIsNotAClick`, `aClickOnAHandleKnobOrTheCubeReportsNoPick`. Observed:
+  `aDragThatComesBackToItsStartIsNotAClick`, `aClickOnAHandleKnobOrTheCubeReportsNoPick`. Observed: 2026-10-09 PASS (user, release ViewportHarness): face clicks printed their faces, empty space `clicked: nil` (harness log).
 - [ ] **VC5 The menu is for the face under the press.** Hover a face, scroll-zoom so another face comes under the
   still pointer, and right-click without moving: the menu is for the face under the pointer now (Look At turns to
   it). Right-click the view cube: no face menu. Pinned: `theMenuIsForTheFaceUnderThePressNotTheLastHover`,
-  `noFaceMenuOverTheViewCubeOrWithoutAPointer`. Observed:
+  `noFaceMenuOverTheViewCubeOrWithoutAPointer`. Observed: 2026-10-09 PASS (user, release ViewportHarness).
 - [ ] **VC6 Modifiers mid-drag.** Hold Shift, then drag: it pans. Hold ⌥, then drag up: it zooms in. Switch to another
   app with Shift held, release Shift there, come back and drag: it orbits (no stale Shift). Pinned:
-  `aPrimaryDragTakesItsModeFromItsOwnModifiers`. Observed:
+  `aPrimaryDragTakesItsModeFromItsOwnModifiers`. Observed: 2026-10-09 PASS (user, release ViewportHarness).
 - [ ] **VC7 Cursors.** A closed hand while a primary, right or middle drag orbits or pans, and while dragging the view
   cube; the arrow for a ⌥-drag zoom, a handle drag and over the cube's buttons. With `HARNESS_PICK=1` the pointer is a
   crosshair over the viewport, and a hand while a drag navigates. In the app, "Pick edges in view…" shows the
   crosshair; Done or Cancel brings the arrow back. Pinned: `CursorTests`, `theViewportShowsACrosshairOnlyWhilePicking`.
-  Observed:
+  Observed: 2026-10-09 PASS (user, release ViewportHarness).
 - [ ] **VC8 Framing in the model area (app).** Open a saved bracket with no saved camera (or press F): the part sits
   in the middle of the area right of the graph panel and left of the inspector, not under either. Dock the panel at
   the bottom and press F: the part is centred above the panel. Right-click a face ▸ Look At: the face is centred in
