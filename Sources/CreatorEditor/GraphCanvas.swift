@@ -1,7 +1,7 @@
 import MetalUI
 
 /// The graph canvas: the layers under the zoom and pan transform, one press-and-drag gesture
-/// for everything (hit testing is the model's), the scroll wheel, and pointer tracking for the palette. The palette
+/// for everything (hit testing is the model's), a pinch, the scroll wheel, and pointer tracking for the palette. The palette
 /// itself floats over the whole window (`SearchPaletteOverlay`), so the canvas never clips it.
 struct GraphCanvas: Component {
     let model: EditorModel
@@ -18,6 +18,7 @@ struct GraphCanvas: Component {
         }
         .clipped()
         .gesture(input.canvasGesture())
+        .gesture(input.pinchGesture())
         .contentShape(Rectangle())
         .onContinuousHover { phase in input.hover(phase) }
         .onScrollWheel { event in input.scrolled(event) }

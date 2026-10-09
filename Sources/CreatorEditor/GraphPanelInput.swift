@@ -12,6 +12,7 @@ import MetalUI
 ///   whether ⇧ was held (gap GI-a).
 /// - `scrolled(_:)`, from the canvas's `.onScrollWheel`: two-finger scroll and the wheel pan, ⌘-scroll zooms
 ///   about the pointer (`EditorModel.scrolled(by:at:modifiers:phase:)`, phases from `scrollPhase(of:)`).
+/// - `pinchGesture()`: a `MagnifyGesture` zooms about where the pinch began (`EditorModel.pinchChanged`).
 ///
 /// Three stopgaps remain, for MetalUI gaps outside C7:
 /// - keys: read from the window's `onInput` fallback, so a focused text field keeps its keys;
@@ -134,6 +135,15 @@ public final class GraphPanelInput {
     public func scrolled(_ event: ScrollEvent) -> Bool {
         model.scrolled(by: Self.vector(event.delta), at: Self.vector(event.location),
                        modifiers: Self.canvasModifiers(event.modifiers), phase: Self.scrollPhase(of: event))
+    }
+
+    /// The canvas's pinch: zooms by the cumulative magnification about where it began (`startLocation`).
+    public func pinchGesture() -> MagnifyGesture {
+        MagnifyGesture()
+            .onChanged { [model] value in
+                model.pinchChanged(magnification: value.magnification, centre: Self.vector(value.startLocation))
+            }
+            .onEnded { [model] _ in model.pinchEnded() }
     }
 
     /// A MetalUI scroll event's place in its gesture. Momentum wins over the gesture phase, and its end (or

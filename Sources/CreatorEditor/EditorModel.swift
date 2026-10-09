@@ -54,6 +54,8 @@ public final class EditorModel {
     /// Whether the trackpad scroll under way zooms (it began with ⌘ held) or pans; `nil` between scrolls
     /// (`EditorModel+Scroll`).
     @ObservationIgnored var scrollZooms: Bool?
+    /// The pinch under way (`EditorModel+Pinch`).
+    @ObservationIgnored var pinchStart: CanvasPinch?
     /// A ⌘-scroll ended and its glide, until its momentum ends, is ignored (`EditorModel+Scroll`).
     @ObservationIgnored var scrollGlideIgnored = false
 
