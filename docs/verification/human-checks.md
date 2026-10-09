@@ -77,7 +77,7 @@ drags print to the terminal.
 
 ## Group VC — viewport input on MetalUI C7
 
-**Status: IN PROGRESS** (2026-10-09: VC1–VC7 pass; VC8 not yet confirmed). Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`); MetalUI's own
+**Status: PASS** (2026-10-09: VC1–VC8 pass, user). Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`); MetalUI's own
 group Y covers the platform side (trackpad phases, real mouse buttons, every cursor).
 
 The `viewport-input` branch merges before this group is run: the tests pin the model only, and the view glue in
@@ -126,7 +126,7 @@ Run `swift run ViewportHarness` (VC7 also with `HARNESS_PICK=1`) with a trackpad
   the same area. With either dock, after F click ▶, then ▲, then a cube face and a cube corner, then drag the cube:
   the part turns in place, centred in the area, never swinging under the inspector or the bottom panel. With the
   pointer off the window (over the menu bar), press + and −: the part stays centred. Pinned:
-  `ModelAreaFramingTests`. Observed:
+  `ModelAreaFramingTests`. Observed: 2026-10-09 PASS (user, release MetalCreatorApp).
 
 ## Group M5 — the graph panel and inspector (M5)
 
