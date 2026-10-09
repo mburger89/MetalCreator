@@ -9,7 +9,23 @@ These are the items later milestones must pick up (S3 has merged; its items are 
   start point is lexicographically smallest (x, then y, 1e-9 mm); holes are sorted by area descending, then
   centroid x, then y. A hole's loop index (`TopoRole.side(loop:segment:)`) is its position plus one.
 
-## S4 (Sketch node)
+## S4 (Sketch node) — done; picked up as below (plan `docs/superpowers/plans/2026-10-09-sketcher-s4-sketch-node.md`)
+- The clockwise-arc case is taken: the shim builds an arc with `end < start` clockwise, so notched regions extrude.
+- Every item below is implemented by `SketchNode`, `SketchSolve`, `SketchProjections` and `SketchSockets` in
+  `Sources/CreatorNodes`; the sketcher spec's Errata (S4) lists the choices.
+
+## S4 → S5 (editor)
+- Draw exposed-dimension sockets: `NodeShape(_:in:registry:)` and `InspectorBuilder` read `definition.inputs`; switch
+  them to `definition.inputs(for: node)`.
+- After each edit, store `Sketch.remember(SketchSolver.solve(sketch))` in the `sketch` setting as one `setInput`, so the
+  node's solve warm-starts from what the user sees (the node itself never writes the setting).
+- Project writes `.edgePicks(topology.picks(for: [edge]))` under `NodeSetting.projection(reference)` and wires the
+  picked edge's solid into `references`. A new projection's `reference` must be unique in the sketch.
+- "New sketch on face" writes `.facePick(topology.facePick(for: face))` into a new Plane from Face's `face` setting and
+  wires its `plane` into a Sketch whose plane is `.wired`. `AppModel.handle(.pickFacesInView)` still refuses.
+- Dimension names: `SketchSockets.isReserved` names the ones that can't be sockets; refuse them when renaming.
+
+## S4 (Sketch node), as handed over by S1–S2
 - Concave arcs: an arc a counter-clockwise loop runs along clockwise (a notch cut into an outline) is still stored as
   `Segment2D.arc` with `end < start`, which keeps the loop continuous (`Profile2D.isClosed` holds). `build_profile`
   throws "an arc in the profile has no sweep" for it, so a notched region does not extrude yet. Spec §6 defers this

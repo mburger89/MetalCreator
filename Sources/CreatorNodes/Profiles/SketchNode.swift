@@ -8,8 +8,12 @@ import CreatorSketch
 /// dimension adds a number input named after it, whose wired value overrides the stored one, so graph
 /// parameters drive the sketch. Reference dimensions come out of `measurements`, in name order.
 ///
-/// States: an under-constrained sketch, open curves and an exposed dimension that can't be a socket
-/// are warnings; an over-constrained or failed solve is an error, and the last good part stays ghosted.
+/// Projected edges are re-resolved on every evaluation against the `references` solids
+/// (`SketchProjections`), so a projection follows its edge when the model upstream changes.
+///
+/// States: an under-constrained sketch, open curves, a projection whose pick matches no edge or
+/// several (suspended, not deleted) and an exposed dimension that can't be a socket are warnings; an
+/// over-constrained or failed solve is an error, and the last good part stays ghosted.
 public enum SketchNode: NodeDefinition {
     public static let typeID = "creator.sketch"
     public static let displayName = "Sketch"
@@ -51,6 +55,8 @@ public enum SketchNode: NodeDefinition {
             guard inputs.has("plane") else { throw NodeError.invalidValue(wiredPlaneMissing) }
             plane = try inputs.plane("plane")
         }
+        let references = inputs.has("references") ? try inputs.solids("references") : []
+        warnings += SketchProjections.resolve(&sketch, settings: context.node.inputValues, references: references, on: plane)
         for (id, spec) in SketchSockets.exposed(sketch) where inputs.has(spec.name) {
             sketch.dimensions[id]?.value = try inputs.number(spec.name)
         }

@@ -18,17 +18,15 @@ struct EdgeTagMatch: Equatable {
         var seen: Set<EdgeID> = []
         var drifts: [(found: Int, expected: Int)] = []
         for pick in picks {
-            let matches = topology.edges(matching: pick.key)
-            if matches.count != pick.matchCount { drifts.append((matches.count, pick.matchCount)) }
-            let chosen = pick.ordinals.map { ordinals in ordinals.filter(matches.indices.contains).map { matches[$0] } } ?? matches
-            for edge in chosen where seen.insert(edge.id).inserted {
+            let choice = choose(pick, in: topology)
+            if choice.matchCount != pick.matchCount { drifts.append((choice.matchCount, pick.matchCount)) }
+            for edge in choice.chosen where seen.insert(edge.id).inserted {
                 selected.append(edge.id)
             }
         }
         var warnings: [String] = []
         if !drifts.isEmpty {
-            let counts = drifts.map { "\($0.found) \($0.found == 1 ? "edge" : "edges"), expected \($0.expected)" }
-            warnings.append("Matched \(counts.joined(separator: "; ")).")
+            warnings.append(drift(drifts))
         } else if selected.isEmpty {
             warnings.append("Matched 0 edges, expected \(picks.reduce(0) { $0 + $1.matchCount }).")
         }
@@ -36,5 +34,19 @@ struct EdgeTagMatch: Equatable {
             warnings.append(unnamedPick)
         }
         return EdgeTagMatch(edges: selected, warnings: warnings)
+    }
+
+    /// The edges one pick chooses in `topology` (its key's tag-subset matches, narrowed by its
+    /// ordinals), and how many edges the key matched. The Sketch node's projections use it too.
+    static func choose(_ pick: EdgePick, in topology: Topology) -> (chosen: [EdgeInfo], matchCount: Int) {
+        let matches = topology.edges(matching: pick.key)
+        let chosen = pick.ordinals.map { ordinals in ordinals.filter(matches.indices.contains).map { matches[$0] } } ?? matches
+        return (chosen, matches.count)
+    }
+
+    /// "Matched 1 edge, expected 2." (several drifts joined by "; ").
+    static func drift(_ drifts: [(found: Int, expected: Int)]) -> String {
+        let counts = drifts.map { "\($0.found) \($0.found == 1 ? "edge" : "edges"), expected \($0.expected)" }
+        return "Matched \(counts.joined(separator: "; "))."
     }
 }
