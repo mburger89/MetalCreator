@@ -122,10 +122,11 @@ Read this before writing the M2 and M3 plans.
   (keymap runs before `onInput`); M6 scopes the viewport's with a key context (gap M4-a).
 
 ## From M6
-- Regular Polygon is `typeVersion` 2 (`rotation`). The §8 polygon swap keeps the fillet (re-derived) but not the
-  chamfer: picks on faces a union merged name both operands' tags and drift when one operand changes, the Chamfer
-  then fails and the Output has no result (spec Errata (M6)). A minimal-tag-subset pick isn't enough (the edge counts
-  change too). Owner: roadmap row "Naming: picks on merged faces".
+- Regular Polygon is `typeVersion` 2 (`rotation`). ✅ (naming-merged-faces plan) The §8 polygon swap's picks on faces
+  a union merged now resolve with no warning: a key that matches nothing is retried `EdgeKey.narrowed`, and drift
+  counts runs as well as edges (`EdgePick.runCount`). The Chamfer still fails there, because OCCT's fillet of the
+  hexagon returns an invalid solid (spec Errata (naming: merged faces)). Owner of that: roadmap row "Kernel: blends
+  that return an invalid solid"; face picks on merged faces: roadmap row "Naming: face picks on merged faces".
 - `AppModel` replaces the document's parts on New and Open; `AppInput` is installed once and forwards. Nothing may
   capture a `GraphPanelInput`, `EditorModel` or `ViewportModel` for the window's lifetime.
 - ✅ (viewport C7 plan) The first framing, F and Look At frame the part in the whole viewport, not the model area the
