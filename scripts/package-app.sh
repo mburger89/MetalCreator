@@ -114,6 +114,16 @@ for keg in $(awk '{ print $2 }' "$WORK/seen" | sed -nE 's#^(.*/Cellar/[^/]+/[^/]
 done
 [ "$(awk '{ print $2 }' "$WORK/seen" | grep -vc '/Cellar/' || true)" -eq 0 ] \
     || fail "a bundled library isn't from a Homebrew keg, so its licence is unknown: $(awk '{ print $2 }' "$WORK/seen" | grep -v '/Cellar/' | head -n 1)"
+# The code MetalUI compiles into the binary: on macOS with its default (CoreText) text system that is stb_image only
+# (MetalUI's THIRD-PARTY-NOTICES.md, gap P-a).
+METALUI="$ROOT/../MetalUI"
+mkdir -p "$CONTENTS/Resources/Licenses/MetalUI"
+for notice in THIRD-PARTY-NOTICES.md Sources/CStbImage/LICENSE; do
+    [ -f "$METALUI/$notice" ] || fail "MetalUI's $notice is missing from $METALUI"
+done
+cp "$METALUI/THIRD-PARTY-NOTICES.md" "$CONTENTS/Resources/Licenses/MetalUI/"
+cp "$METALUI/Sources/CStbImage/LICENSE" "$CONTENTS/Resources/Licenses/MetalUI/stb_image-LICENSE"
+printf '    MetalUI: %s\n' "$(ls "$CONTENTS/Resources/Licenses/MetalUI" | tr '\n' ' ')"
 
 step "Pointing every link at Contents/Frameworks"
 repoint() {

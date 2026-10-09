@@ -30,6 +30,7 @@ anyone opens it. The app's code doesn't change, apart from three headless flags 
    `@executable_path/../Frameworks`. `Package.swift` is unchanged; the `/opt/homebrew` rpath its linker flags embed is
    one of the rpaths deleted.
 5. Copy each Homebrew keg's licence files into `Resources/Licenses/<formula>/`; a keg without one stops the script.
+   MetalUI's `THIRD-PARTY-NOTICES.md` and stb_image's licence go into `Resources/Licenses/MetalUI/`.
 6. Write `Info.plist` by running the built binary: `MetalCreatorApp --info-plist <minimum macOS>`.
 7. Sign inside-out: each library in `Frameworks`, then the app.
 8. Run `scripts/verify-app.sh` on it, and only then move it to `dist/MetalCreator.app`. The app is assembled in a
@@ -81,7 +82,8 @@ an empty environment (`env -i`, so no `DYLD_*` variable) under `sandbox-exec` wi
 10. **The artefacts go to `dist/`** (`METALCREATOR_DIST_DIR` overrides it), which is git-ignored. Each run that
     passes replaces the app; one that fails leaves it alone.
 11. **Licences travel with the libraries** (OCCT's LGPL 2.1 and its exception, TBB's Apache 2.0, FreeType's FTL,
-    libpng's licence). The stb_image notice for code MetalUI compiles into the binary is MetalUI's to list (gap P-a).
+    libpng's licence). The stb_image notice for code MetalUI compiles into the binary comes from MetalUI's
+    `THIRD-PARTY-NOTICES.md` (gap P-a, fixed in MetalUI 67a579e).
 
 ## Out of scope
 

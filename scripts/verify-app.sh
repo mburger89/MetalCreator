@@ -37,6 +37,11 @@ step "signature"
 codesign --verify --deep --strict "$APP" || fail "codesign --verify --deep --strict rejects the bundle"
 codesign -dv "$APP" 2>&1 | grep -E '^(Identifier|Signature|Authority|TeamIdentifier)=' | sed 's/^/    /'
 
+step "notices"
+for notice in MetalUI/THIRD-PARTY-NOTICES.md MetalUI/stb_image-LICENSE; do
+    [ -f "$CONTENTS/Resources/Licenses/$notice" ] || fail "Contents/Resources/Licenses/$notice is missing"
+done
+
 step "links"
 minimum="$(plutil -extract LSMinimumSystemVersion raw "$PLIST")"
 count=0

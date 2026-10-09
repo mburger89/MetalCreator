@@ -224,6 +224,9 @@ Labelled P-a… so they don't clash with the C7 items, M4-a…, M5-a…, M6-a…
   libunibreak. Which vendored code each MetalUI product links on macOS isn't written down, so
   `scripts/package-app.sh` bundles the licences of the Homebrew libraries only. Wanted: in MetalUI's
   `docs/packaging.md`, or a `THIRD-PARTY-NOTICES` file, a list per platform and trait of the vendored code each
-  product links and where its licence file is. Stopgap: none; the packaged app lacks the stb_image notice until then.
+  product links and where its licence file is. **Fixed in MetalUI 67a579e** (`THIRD-PARTY-NOTICES.md`, "Third-party
+  notices" in its `docs/packaging.md`): on macOS with the default text system only stb_image is linked, and
+  `scripts/package-app.sh` copies `THIRD-PARTY-NOTICES.md` and `Sources/CStbImage/LICENSE` into
+  `Contents/Resources/Licenses/MetalUI/` (checked by `scripts/verify-app.sh`).
 - **M6-d, now visible.** The packaged app declares `.mcgraph` (owner, exported type), so a double-click in Finder
   opens MetalCreator, but not the file: no open-document event reaches the app (human check P2).
