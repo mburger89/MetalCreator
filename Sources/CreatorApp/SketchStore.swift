@@ -7,7 +7,9 @@ import CreatorSketch
 /// - the whole sketch, as a `setInput` of the `sketch` setting;
 /// - an exposed dimension's value lives in one place, the sketch, so a constant left under its socket name is cleared
 ///   (otherwise it would silently override later edits);
-/// - a renamed exposed dimension takes its wire with it, and one no longer exposed drops its wire and constant.
+/// - a renamed exposed dimension takes its wire with it, and one no longer exposed drops its wire and constant;
+/// - a dimension still wired keeps its stored value: the editor showed (and solved) the wired value, which overrides
+///   the stored one only while the wire is there (sketcher spec §7).
 /// Reserved names are never touched: they are never sockets (`SketchNode.isReservedDimensionName`).
 enum SketchStore {
     static func commands(storing new: Sketch, in node: Node, graph: Graph) -> [GraphCommand] {
@@ -30,7 +32,13 @@ enum SketchStore {
             guard let name = newNames[id], case .number? = node.inputValues[name] else { continue }
             after.append(.setInput(node.id, name, nil))
         }
-        return before + [.setInput(node.id, NodeSetting.sketch, .sketch(new))] + after
+        var storing = new
+        for id in newNames.keys {
+            guard let oldName = oldNames[id], let oldValue = old?.dimensions[id]?.value,
+                  graph.incomingLink(to: Endpoint(node: node.id, socket: oldName)) != nil else { continue }
+            storing.dimensions[id]?.value = oldValue
+        }
+        return before + [.setInput(node.id, NodeSetting.sketch, .sketch(storing))] + after
     }
 
     /// The sketch with each exposed dimension's constant (left under its socket name) folded into its value, so the

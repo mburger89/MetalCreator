@@ -343,3 +343,11 @@ All tests use Swift Testing.
 - §7's single source for exposed values (S4 → S5 handoff): opening a sketch folds a constant left under an exposed
   dimension's socket name into the sketch, and every commit clears it; renaming an exposed dimension moves its wire,
   and un-exposing it drops the wire. Delete and the inspector's Remove refuse to remove an exposed dimension.
+- §7's "a wired value overrides the stored one" holds in the editor too: opening (and every refresh) loads a wired
+  exposed dimension's value from the wire's current number result (a wire without one yet leaves the stored value),
+  so the editor solves and lists what the node evaluates. Its value is read-only ("Its value comes from the wire into
+  “width”."), and storing an edit keeps the stored value under a wire that stays; un-exposing drops the wire and
+  keeps the value shown.
+- §8's inspector: a reference dimension's row shows its live measurement (the node's `measurements`), its value is
+  read-only ("d1 is a reference: make it driving to set it."), and making it driving again takes the value it
+  measures now, so nothing moves.

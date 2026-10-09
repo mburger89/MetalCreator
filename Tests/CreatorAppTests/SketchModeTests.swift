@@ -159,6 +159,32 @@ struct SketchModeTests {
         #expect(to("width")?.from.node == number.id, "undo puts the wire back")
     }
 
+    /// A wired exposed dimension (sketcher spec §7: the wired value overrides the stored one) opens at the wired
+    /// value, so the overlay agrees with the model beneath it; its value can't be typed, and other edits keep the
+    /// stored value under the wire.
+    @Test func aWiredDimensionOpensAtItsWiredValue() async throws {
+        var builder = GraphBuilder()
+        let box = builder.sketchedBox(rectangleSketch(exposed: true))
+        let number = builder.add(NumberNode.self, ["value": .number(75)], at: Vector2(0, 200))
+        builder.wire(number, "value", to: box.sketch, "width")
+        let app = try await openSketch(builder, box.sketch)
+        let editor = try #require(app.sketch?.editor)
+        let row = try #require(editor.dimensionRows.first)
+        #expect(row.value == "75 mm" && row.isWired)
+        let widest = editor.sketch.entityIDs.compactMap { editor.sketch.position(of: $0)?.x }.max() ?? 0
+        #expect(abs(widest - 75) < 1e-6, "the editor solves what the node evaluates")
+        editor.setValue("50", of: row.id)
+        #expect(editor.refusal == "Its value comes from the wire into “width”.")
+        #expect(!app.document.canUndo)
+        let height = try #require(editor.sketch.dimensionIDs.last)
+        editor.setValue("30", of: height)
+        await app.settle()
+        let stored = try #require(storedSketch(app, box.sketch))
+        #expect(stored.dimensions[row.id]?.value == 60, "the stored value stays under the wire")
+        #expect(editor.dimensionRows.first?.value == "75 mm" && editor.dimensionRows.last?.value == "30 mm")
+        #expect(app.document.results[box.sketch.id]?.state.isSuccess == true)
+    }
+
     @Test func reservedNamesAreRefused() async throws {
         var builder = GraphBuilder()
         let box = builder.sketchedBox()

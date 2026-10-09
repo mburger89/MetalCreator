@@ -24,7 +24,8 @@ extension AppModel {
         }
         pick = nil
         sketch?.stop()
-        let sketchEditor = SketchEditorModel(sketch: SketchStore.folded(stored, constants: node.inputValues), plane: plane,
+        let shown = shownSketch(of: node, stored)
+        let sketchEditor = SketchEditorModel(sketch: shown.sketch, plane: plane, wired: shown.wired,
                                              isReservedName: SketchNode.isReservedDimensionName)
         sketchEditor.events.committed = { [weak self] in self?.storeSketch($0) }
         sketchEditor.events.finished = { [weak self] in self?.finishSketch() }
@@ -67,7 +68,24 @@ extension AppModel {
             return finishSketch()
         }
         let plane = sketchPlane(of: node, stored) ?? session.editor.plane
-        session.editor.reload(SketchStore.folded(stored, constants: node.inputValues), plane: plane)
+        let shown = shownSketch(of: node, stored)
+        session.editor.reload(shown.sketch, plane: plane, wired: shown.wired)
+    }
+
+    /// The sketch as the node evaluates it (sketcher spec §7): each exposed dimension takes the constant left under its
+    /// socket name or, when the socket is wired, the wire's current result (a wire without a number result yet leaves
+    /// the stored value). `wired` names the wired dimensions, whose values the editor can't type.
+    func shownSketch(of node: Node, _ stored: Sketch) -> (sketch: Sketch, wired: Set<DimensionID>) {
+        var sketch = SketchStore.folded(stored, constants: node.inputValues)
+        var wired: Set<DimensionID> = []
+        for (id, name) in SketchStore.exposedNames(stored) {
+            guard let link = document.graph.incomingLink(to: Endpoint(node: node.id, socket: name)) else { continue }
+            wired.insert(id)
+            if case .number(let value)? = document.results[link.from.node]?.outputs?[link.from.socket]?.items.first {
+                sketch.dimensions[id]?.value = value
+            }
+        }
+        return (sketch, wired)
     }
 
     /// The plane a sketch is drawn on: its own, or the plane wired into the node (from the wire's current result).
