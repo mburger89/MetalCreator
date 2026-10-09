@@ -396,7 +396,8 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
 
 - §6.2's "inline value fields" are read-only text on the node's row. Values are edited in the inspector, because a
   `TextField` on the canvas would compete with the canvas-wide gesture and split keyboard focus (§9's risk list).
-  Revisit when MetalUI C7 lands.
+  Revisit when MetalUI C7 lands. Revisited after C7 (2026-10-09): still read-only (Tab keymap M5-b / C9, a second hit
+  test under the canvas scale, PERF-b); see the carry-over note From M5.
 - §6.1/§6.2's ⇥ is contextual: Tab opens the add-node palette while the panel is visible, the pointer is over the
   canvas and no palette is open; otherwise it moves keyboard focus as usual. Space always opens the palette. Tab
   hides the panel only when nothing focusable is on screen (in practice never, since the inspector is). While the
