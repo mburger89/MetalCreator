@@ -64,8 +64,8 @@ Module boundaries (dependency order):
 - `CreatorSketchEditor`: the sketch editor (sketcher spec §8). `@MainActor @Observable SketchEditorModel` holds the
   sketch being edited, its live solve (`solve(_:dragging:)` per drag step), the tool and its stroke, the selection, and
   the inspector's rows; it is the viewport's `ViewportTool` (planar navigation; F frames the sketch) and builds its
-  `ViewportOverlay` and the pointer readout (`pointerReadout`, placed by `ReadoutChip`, drawn by its
-  `PointerReadoutView`, which the app puts over the viewport). Graph-free: every edit is
+  `ViewportOverlay` and the pointer readout (`pointerReadout`, while drawing or dragging a point; placed by
+  `ReadoutChip`, drawn by its `PointerReadoutView`, which the app puts over the viewport). Graph-free: every edit is
   a `SketchCommit` (the whole sketch, solved and remembered) through `events.committed`, which the host stores.
   Depends on CreatorSketch, CreatorViewport, CreatorGeometry, CreatorStyle and MetalUI only. Its keys are toolbar
   button shortcuts (L, A, C, D, X, ⌫, ⌦, ⏎, Esc; ⌦ and Esc are hidden buttons), which run before the graph panel's

@@ -549,4 +549,6 @@ that into an Output. Select the Sketch.
   inspector: the chip goes. Circle after the centre: "⌀ 20.0 mm". Arc: "R 12.0 mm" after the centre, then
   "R 12.0 mm · 90.0°" after the start; nearly a full turn reads "360.0°". Point: the pointer's position, "12.0, 8.5"
   (over an existing point, that point's position, though a click there adds nothing). Select and Dimension: none.
-  Finish: none. **Observed:**
+  Finish: none. Select, then drag the free end of a lone line: the chip follows the pointer and reads the line's length
+  and angle as solved (a dimensioned line keeps its length however far you drag); an arc's start or end: "R … mm · …°";
+  a rectangle's corner, a circle's centre or a free point: its position. Release: the chip goes. **Observed:**
