@@ -450,3 +450,43 @@ Run `swift run MetalCreatorApp`, with the preview mode set to Selected node.
   Known (S5): exposed-dimension sockets aren't drawn, and neither node has inspector controls of its own. Pinned:
   `theBuiltInsAreTheSliceAndTheSketcherNodesInSixCategories`, `aNewSketchHoldsAnEmptySketchOnXYAndAsksForAShape`,
   `aMissingUnreadableOrStalePickIsAPlainError`, `aSketchSettingRoundTripsThroughAFile`. **Observed:**
+
+## Group TH — themes: custom themes, `.mctheme` files and the theme editor
+
+**Status: NOT RUN.** Run `swift run MetalCreatorApp`. Your own themes are saved in
+`~/Library/Application Support/MetalCreator/Themes`; move that folder aside first to start clean, and back afterwards.
+
+- [ ] **TH-1 The editor.** View ▸ Theme lists Dracula, Alucard and Nord, then Edit Themes…. Choose it: a glass panel
+  opens at the top right below the top bar, over the inspector, as tall as the window allows, and lists every role
+  under its group with its hex and a swatch; it scrolls. Dracula's name field and Dark controls toggle are disabled and
+  a line says built-ins are read-only. Drag or scroll on the panel: the viewport neither orbits nor zooms. Done (or
+  Escape) closes it. Dock the graph at the bottom (Bottom) and open the editor again: it ends a margin above the graph
+  panel, which stays whole; drag the panel's top edge up and down: the editor follows. On the Chamfer, press "Pick
+  edges in view…", then open the editor: the first Escape cancels the pick (the banner's Cancel runs first) and the
+  editor stays open; a second Escape closes it. Pinned:
+  `theEditorFloatsAtTheTopRightBelowTheTopBarAndFillsTheHeight`, `theEditorStopsAboveAGraphPanelDockedAtTheBottom`.
+  **Observed:**
+- [ ] **TH-2 Duplicate, rename, dark.** Duplicate: "Dracula Copy" is shown and View ▸ Theme lists it after a divider.
+  Type "Midnight" in the name field (F, + and − type, the viewport doesn't frame or zoom) and press Return: the
+  editor's menu and View ▸ Theme say "Midnight". Type "nord" and press Return: "There’s already a theme called “nord”."
+  and the field shows "Midnight" again. Turn Dark controls off: the window and its buttons turn light. Pinned:
+  `ThemeEditorModelTests`. **Observed:**
+- [ ] **TH-3 Colours (needs MetalUI C10 merged).** Click a role's colour well: MetalUI's colour panel opens. Drag in
+  its square: the role's colour changes as you drag, on the panels and in the viewport (try Selection, Solid nodes,
+  Shading). Glass, Glass hairline and Edges offer opacity, others don't. With VoiceOver on, move to a role's well: it
+  reads the role's name (e.g. "Selection"), then "colour well" and its value. Quit and relaunch: Midnight is shown,
+  with your colours. Pinned: `theColourBindingReadsAndWritesTheRole`, `manyQuickEditsKeepTheLastColour`. **Observed:**
+- [ ] **TH-4 Export and import.** Export… offers "Midnight.mctheme"; save it to the Desktop and open it in a text
+  editor: small JSON, every role as `#rrggbb`. Change `"selection"` to `"pink"` and save as `bad.mctheme`; Import…
+  it: "“bad.mctheme” couldn’t be imported. ‘selection’ isn’t a colour like #ff79c6." Import `Midnight.mctheme`:
+  "Midnight 2" is shown. Pinned: `ThemeImportExportTests`. **Observed:**
+- [ ] **TH-5 Delete and launch.** Delete… asks first; Cancel keeps it, Delete removes it and Dracula is shown. With
+  two custom themes, press Delete… on one, choose the other from View ▸ Theme, then press Delete: the first is
+  removed, the one shown stays. Choose Nord, quit and relaunch: Nord is shown. Put a file named `junk.mctheme`
+  containing "nope" in the themes folder and relaunch: the app starts, and Edit Themes… says “junk.mctheme” was
+  skipped and why. Pinned: `aDeleteConfirmationStaysWithItsTheme`, `filesThatCantBeReadAreReported`,
+  `theRememberedCustomThemeIsShownAtLaunchAndAGoneOneFallsBackToDracula`. **Observed:**
+- [ ] **TH-6 MetalUI's controls follow the theme.** In each built-in and in a custom theme, the top bar's buttons, the
+  Preview and Export menus, the inspector's fields and sliders, and the editor's own controls are drawn in the theme's
+  colours (Dracula: node-body grey buttons, purple accent), not MetalUI's blue defaults. Pinned:
+  `metalUIsControlsTakeTheThemesTokens`. **Observed:**

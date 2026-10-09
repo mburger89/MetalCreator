@@ -10,6 +10,7 @@ plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 
 M6 (app shell) code is done; its human checks (group M6) are pending.
 Editor polish (the floating add-node palette and the node library) code is done; its human checks (group EP) are pending.
 Packaging (`scripts/package-app.sh`, `docs/packaging.md`) is done; its human checks (group P) are pending.
+Themes (custom themes, `.mctheme` files, the theme editor) code is done; its human checks (group TH) are pending. Editing a colour in the app waits for MetalUI C10's `ColorPicker` (plan Task 11); until then colours change by import.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -30,10 +31,16 @@ Module boundaries (dependency order):
   `Node.inputValues`; `NodeRegistry.makeNode` seeds `defaultSettings` and sets `isOutput` for `.output`-category nodes.
 - `CreatorStyle`: colour themes (spec §6.6, Dracula by default), the only place colour hex values are written.
   `ThemeColors` is a colour per role (never a hue); `ColorTheme` (not `Theme`: MetalUI exports one) has the built-ins
-  `.dracula`, `.alucard` and `.nord`; `@MainActor @Observable ThemeStore` holds `current` and `select(_:)`, with injected
-  `ThemePreferences`. Editor and app views read `@Environment(ThemeStore.self) var themes: ThemeStore?` and draw
-  `Palette(themes)` (Dracula without a store); the viewport draws `ViewportModel.theme`, which the app shell sets.
-  Themes are app-level, never in `.mcgraph`. Tests: `swift test --filter CreatorStyleTests`.
+  `.dracula`, `.alucard` and `.nord` (read-only); `ThemeRole` names each role (`ThemeColors[role]`; the names are the
+  `.mctheme` keys; `ThemeRoleTests` pins them to the stored properties). `@MainActor @Observable ThemeStore` holds
+  `current`, `select(_:)` and the custom themes (`customs`: duplicate, rename, `setColor`, `setDark`, delete, import,
+  export), saving each change to an injected `ThemeFolder` before showing it (`nil`: memory only, every test's), with
+  injected `ThemePreferences` (`UserDefaultsThemePreferences` in the app). `ThemeFile` is the `.mctheme` format
+  (version 1; missing roles are Dracula's, unknown ones ignored, a bad colour refused naming its role); custom themes'
+  colours are always `quantized` (opacity to a byte) so a file round-trips exactly. `ColorTheme.controlTheme` maps
+  roles onto MetalUI's control tokens. Editor and app views read `@Environment(ThemeStore.self) var themes:
+  ThemeStore?` and draw `Palette(themes)` (Dracula without a store); the viewport draws `ViewportModel.theme`, which the
+  app shell sets. Themes are app-level, never in `.mcgraph`. Tests: `swift test --filter CreatorStyleTests`.
 - `CreatorViewport`: the 3D viewport on MetalUI's `MetalView`.
   - `ViewportModel` (`@MainActor @Observable`, testable without a GPU) owns the camera, picking, the view cube,
     the context menu and handles. `ViewportRenderer`/`ViewportPicker` are the Metal side. `ViewportView` is the
@@ -49,8 +56,11 @@ Module boundaries (dependency order):
   together on New and Open), turns results into `ViewportItem`s (`SceneBuilder`) and `HandleSpec`s into
   `ViewportHandle`s (`HandleBuilder`), turns viewport events into graph commands (picking writes Edges by Tag rules),
   and opens, saves and exports. `AppInput` installs the window's input once and forwards to the current document.
-  `MetalCreatorApp` is the executable (`OCCTKernel`). It owns the app's `ThemeStore` (View ▸ Theme) and provides it
-  to every view with `.environment(model.themes)`. `LaunchCommand` parses its command line: a file to open, or the
+  `MetalCreatorApp` is the executable (`OCCTKernel`). It makes the app's `ThemeStore` (`AppThemes.store()`: user
+  defaults, `~/Library/Application Support/MetalCreator/Themes`) and its `ThemeEditorModel`, and opens the window on
+  `AppWindowRoot`: `AppRoot` with the theme editor (`ThemeEditorDock`, a floating glass panel at the top right) over
+  it, the store in the environment and `.theme(current.controlTheme)` for MetalUI's controls. View ▸ Theme is
+  `ThemeMenu` (every theme, then Edit Themes…). `LaunchCommand` parses its command line: a file to open, or the
   headless `--version`, `--self-test` (`SelfTest`: OCCT, STEP/STL export, MetalUI's shaders) and `--info-plist`.
   `AppBundleInfo` is the version's one source; the packaged `Info.plist` is generated from it, never edited.
 
@@ -116,7 +126,7 @@ swift test --filter CreatorEditorTests       # editor model + headless render te
 swift run GraphPanelPreview                   # graph panel + inspector, for docs/verification/human-checks.md (M5)
 swift run MetalCreatorApp [file.mcgraph]   # the app (docs/verification/human-checks.md, group M6)
 swift test --filter CreatorAppTests        # app model, scene, handles, picking, files, export, input; AppAcceptanceTests runs §7.2 on OCCT
-swift test --filter CreatorStyleTests      # colour themes: the built-ins, legibility, ThemeStore
+swift test --filter CreatorStyleTests      # colour themes: built-ins, roles, .mctheme files, the folder, ThemeStore
 scripts/package-app.sh                     # dist/MetalCreator.app: release build, OCCT bundled, signed ad hoc, verified (docs/packaging.md)
 scripts/verify-app.sh [path.app]           # re-check a packaged app: signature, no Homebrew links, self-test with Homebrew unreadable
 swift run MetalCreatorApp --self-test      # the same headless checks, unpackaged

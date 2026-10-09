@@ -525,3 +525,31 @@ Plan `2026-10-09-naming-merged-faces.md`, roadmap row "Naming: picks on merged f
   warning or error (the flange alone made 40 or 70 mm wide, so no plate side stays merged).
 - Face picks (`FacePick`, Plane from Face) are not narrowed: one made on a merged face still names both operands'
   tags (roadmap row "Naming: face picks on merged faces").
+
+## Errata (Themes)
+
+Plan `2026-10-09-themes-editor.md` (roadmap row "Themes").
+
+- §6.6's "Custom themes and `.mctheme` files are the Themes milestone after M6" is done. Any theme can be duplicated
+  ("<name> Copy", then "… Copy 2"); a copy is renamed, recoloured role by role, switched between dark and light
+  controls, deleted (after a confirmation), exported and imported. The built-ins Dracula, Alucard and Nord stay
+  read-only. View ▸ Theme lists the built-ins, then the custom themes by name, then Edit Themes….
+- A `.mctheme` file is small JSON: `version` (1), `name`, `dark` and `colors`, a `#rrggbb` (or, translucent,
+  `#rrggbbaa`) per role keyed by `ThemeColors`' property names. A missing role is Dracula's, an unknown role is
+  ignored, a missing `dark` follows the panel base's lightness, a missing name is the file's name, and a colour that
+  isn't one is refused plainly ("‘selection’ isn’t a colour like #ff79c6."). A newer version, or a file that isn't a
+  theme, is refused with a sentence. An import never replaces a theme: a taken name becomes "<name> 2".
+- Custom themes live in `~/Library/Application Support/MetalCreator/Themes`, one `<id>.mctheme` per theme (the id
+  survives renames); a file that can't be read is skipped and the editor says which and why. Each change is saved at
+  once. The chosen theme is remembered in the user's defaults (`selectedThemeID`), which replaces Errata (M6)'s "isn't
+  remembered between launches either"; a remembered theme that is gone falls back to Dracula. Themes are still
+  app-level and never in a `.mcgraph`.
+- The theme editor is a floating glass panel at the window's top right, below the top bar and over the inspector,
+  down to the window's bottom margin or, with the graph panel docked at the bottom, to a margin above it, so the graph
+  panel and the viewport show each edit as it is made (a second window would end the app when closed until
+  MetalUI C8 lane 2, and MetalUI has no sheet). It lists every role under its group with its colour; each role is
+  edited with MetalUI's `ColorPicker` (gap M6-f, MetalUI C10 lane 1) once C10 merges (plan Task 11); until then
+  colours change by import.
+- MetalUI's own controls follow the theme: `ColorTheme.controlTheme` maps roles onto its tokens (background ←
+  background bottom, surface ← node body, surfaceSecondary ← field, accent ← accent, separator ← comment,
+  textPrimary ← foreground) for `.theme(_:)` over the window.
