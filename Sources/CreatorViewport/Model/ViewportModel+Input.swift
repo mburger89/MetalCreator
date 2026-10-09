@@ -81,35 +81,40 @@ extension ViewportModel {
         drag = state
     }
 
-    /// A release. A press that moved less than `clickSlop` is a click. It puts back any tiny orbit, then picks a
-    /// cube region or reports the face or edge under the pointer. Either way the hover pick is redone where the
-    /// pointer now is, because the camera may have moved under it.
+    /// A release that ends a drag. A drag never clicks, even one that comes back to where it began: clicks are
+    /// `click(at:)`'s. The hover pick is redone where the pointer now is, because the camera may have moved under it.
     public func pointerUp(at point: ScreenPoint) {
         guard let state = drag else { return }
         drag = nil
-        defer {
-            // The release point is where the pointer is now. Released outside the view, it's not over it at all.
-            let inside = !viewSize.isEmpty && (0...viewSize.width).contains(point.x)
-                && (0...viewSize.height).contains(point.y)
-            lastHoverPoint = inside ? point : nil
-            refreshHover()
-        }
-        let isClick = (point - state.start).length < ViewportInputMap.clickSlop
-        switch state.mode {
-        case .cube where isClick:
-            apply(state.startPose)
-            if let region = cubeLayout.region(at: point, pose: pose) { perform(.view(region)) }
-        case .orbit where isClick:
-            apply(state.startPose)
-            events.clicked(pick?(point))
-        case .handle(let id):
-            updateHandle(id, state, to: point, phase: .ended)
-        default:
-            break
-        }
-        // A drag that moved the camera settles it here. A click put it back, and a cube click animates
-        // (its end reports).
+        if case .handle(let id) = state.mode { updateHandle(id, state, to: point, phase: .ended) }
+        // A drag that moved the camera settles it here.
         if !isAnimating, pose != state.startPose { events.cameraSettled(pose) }
+        pointerReleased(at: point)
+    }
+
+    /// A click: a primary press released within MetalUI's tap slop (`SpatialTapGesture`, its location the
+    /// release). On the view cube it looks at the region under the pointer; on a handle's knob it does nothing;
+    /// elsewhere it reports the face or edge under the pointer, or `nil` for empty space.
+    ///
+    /// A drag still under way ends first, where it was: a click is a primary press and release, so a primary drag
+    /// under way lost its release, and the primary button wins over another (`beginDragIfNeeded`).
+    public func click(at point: ScreenPoint) {
+        if let state = drag { pointerUp(at: state.last) }
+        events.pressed()
+        stopAnimation()
+        if cubeLayout.contains(point) {
+            if let region = cubeLayout.region(at: point, pose: pose) { perform(.view(region)) }
+        } else if HandleMath.hit(handles, at: point, pose: pose, size: viewSize) == nil {
+            events.clicked(pick?(point))
+        }
+        pointerReleased(at: point)
+    }
+
+    /// The pointer is at the release point now. Released outside the view, it's not over it at all.
+    private func pointerReleased(at point: ScreenPoint) {
+        let inside = !viewSize.isEmpty && (0...viewSize.width).contains(point.x) && (0...viewSize.height).contains(point.y)
+        lastHoverPoint = inside ? point : nil
+        refreshHover()
     }
 
     /// The pointer moved over the viewport (`nil` when it left). Over the cube, its region is hit-tested on the CPU.

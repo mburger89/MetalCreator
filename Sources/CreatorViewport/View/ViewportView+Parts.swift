@@ -32,17 +32,19 @@ extension ViewportView {
     }
 
     /// The GPU surface and its input. It redraws on demand when `renderKey` changes, and continuously while the
-    /// camera animates. A zero-distance primary drag carries every primary press: MetalUI reports a click as a
-    /// change plus an end. The right and middle buttons drag in their own arenas (MetalUI `CI-F`).
+    /// camera animates. The tap is declared first, so it is the inner gesture: a click is the tap's, and the
+    /// primary drag reports only once the tap has failed by moving (MetalUI `IX-D` item 3). The right and middle
+    /// buttons drag in their own arenas (MetalUI `CI-F`).
     @MainActor
     static func surface(model: ViewportModel) -> some Element {
         MetalView(redraw: model.isAnimating ? .continuous : .onDemand, value: model.renderKey) { context in
             model.draw(context)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .gesture(drag(.primary, minimumDistance: 0, model: model))
-        .gesture(drag(.secondary, minimumDistance: ViewportInputMap.dragThreshold, model: model))
-        .gesture(drag(.middle, minimumDistance: ViewportInputMap.dragThreshold, model: model))
+        .gesture(SpatialTapGesture().onEnded { model.click(at: ScreenPoint($0.location)) })
+        .gesture(drag(.primary, model: model))
+        .gesture(drag(.secondary, model: model))
+        .gesture(drag(.middle, model: model))
         .onContinuousHover { phase in
             switch phase {
             case .active(let point): model.pointerHovered(at: ScreenPoint(point))
@@ -58,8 +60,8 @@ extension ViewportView {
 
     /// A drag with `button` that reports its values, and the modifiers held at each, to the model.
     @MainActor
-    static func drag(_ button: ViewportPointerButton, minimumDistance: Double, model: ViewportModel) -> DragGesture {
-        DragGesture(minimumDistance: Pixels(Float(minimumDistance)), button: button.mouseButton)
+    static func drag(_ button: ViewportPointerButton, model: ViewportModel) -> DragGesture {
+        DragGesture(minimumDistance: Pixels(Float(ViewportInputMap.dragThreshold)), button: button.mouseButton)
             .onChanged { value in
                 model.dragChanged(from: ScreenPoint(value.startLocation), to: ScreenPoint(value.location),
                                   modifiers: ViewportModifiers(value.modifiers), button: button)

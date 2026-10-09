@@ -8,9 +8,8 @@ public enum ViewportInputMap {
     public static let zoomPerPoint = 0.01
     /// One + or − key press zooms by this factor.
     public static let keyZoomFactor = 1.25
-    /// A press that moves less than this many points before it is released is a click.
-    public static let clickSlop = 3.0
-    /// How far a right or middle press moves before it drags. A right press that moves less opens the face menu.
+    /// How far a press moves before it drags. A primary press that moves less is a click (MetalUI's tap slop is
+    /// also 5 points), and a right press that moves less opens the face menu.
     public static let dragThreshold = 5.0
 
     /// What a drag that begins with `button` pressed and `modifiers` held does. The middle button pans and the
