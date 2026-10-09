@@ -8,6 +8,7 @@ MetalCreator is a node-based parametric CAD app for macOS built on MetalUI (`../
 The binding spec is `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md`; milestone
 plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 (OCCT kernel), M3 (the 26 nodes) and S3 (profile holes) are done. M4 (viewport) code is done; its human checks (group V in `docs/verification/human-checks.md`) are pending. M5 (graph panel and inspector) code is done; its human checks (group M5 in `docs/verification/human-checks.md`) are pending.
 M6 (app shell) code is done; its human checks (group M6) are pending.
+Editor polish (the floating add-node palette and the node library) code is done; its human checks (group EP) are pending.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -63,6 +64,15 @@ The GPU structs in `Sources/CreatorViewport/Render` mirror the MSL in `ViewportS
 Viewport input stopgaps (spec §9) live only in `ViewportInputMap`, `ViewportModifierTracker` and `ViewportKeyBindings` until MetalUI C7.
 Editor geometry is computed by `NodeLayout`, never measured; views are framed to it so
 drawing and hit testing agree. Node positions are stored left-to-right; the left dock draws their transpose.
+The graph panel's insides (header, node library, canvas) are computed by `GraphPanelLayout` and the palette's size
+by `PaletteLayout`; the host says where the panel is in its window through `EditorModel.placement` (the app:
+`AppModel.panelPlacement`, from `AppLayout` and the viewport's size; the preview: `PreviewLayout`, a fixed-size
+window). The add-node palette floats over the window: the host draws `SearchPaletteOverlay` last (the app inside
+`PaletteDock`, for the `Panel` key context), then `LibraryDragOverlay`, never inside the canvas. A library row is a
+`PaletteEntryLabel` under one `DragGesture(minimumDistance: 0, coordinateSpace: .global)`
+(`GraphPanelInput.libraryGesture(for:)`; not a `Button`, whose click would hold the drag off), and the model tells a
+click from a drag (`LibraryDrag.threshold`); never MetalUI drag and drop (it becomes a system drag outside the
+window). The library's visibility is `ViewState.showsLibrary` (an optional key: no format bump).
 Graph panel input stopgaps live only in `GraphPanelInput`. Each C7 stand-in is one function named after its
 provisional C7 API (`spatialTapGesture()`, `dragValueModifiers(_:)`), and `install(on:)` chains onto the window's
 existing handlers.

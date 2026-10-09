@@ -229,3 +229,64 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   "mm · grid" stays at the bottom-right of the uncovered area. Repeat docked at the left, dragging its right edge both
   ways. Pinned: `theTriadsLettersStayOnItsAxesWhenTheDockResizes`, `aModelAreaThatMovesOnlyTheTriadRedraws`.
   **Observed:**
+
+## Group EP — editor polish: the floating palette and the node library
+
+**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
+
+Run `swift run MetalCreatorApp` (EP-1–EP-9) and `swift run GraphPanelPreview` (EP-10).
+
+- [ ] **EP-1 The palette floats at the pointer.** Dock the graph at the bottom. With the pointer over the canvas,
+  near its bottom-left, press Tab: the palette opens with its bottom-left corner at the pointer, reaching up over the
+  viewport, every row and the search field visible, nothing clipped by the panel's edge. Escape. Move the pointer
+  near the canvas's right end (under the inspector) and press Space: it opens to the pointer's left, fully visible,
+  over the inspector. Dock left and press Tab near the canvas's top-left: its top-left corner is at the pointer. The
+  graph panel never moves or resizes while it is open. Pinned: `FloatingPaletteTests`,
+  `thePaletteIsPaintedOverEverythingWhereItWasPlaced`. **Observed:**
+- [ ] **EP-2 The palette's keys and rows.** Open it with Space: ten rows show and the caption says how many more.
+  Press ↓ twelve times: the rows scroll to keep the highlight in view; ↑ scrolls back. Type "ex": the rows narrow
+  and the palette keeps its size and place. Type "f+": they go into the field (the viewport neither frames nor
+  zooms). Press Return: the node is added where the pointer was when the palette opened (not at the palette's
+  corner) and selected; ⌘Z removes it in one step. Pinned: `theRowsScrollToKeepTheHighlightInView`,
+  `atTheBottomDockItFlipsUpAndAddsAtThePressPoint`; the key context is this check only (gap M6-e). **Observed:**
+- [ ] **EP-3 Closing the palette.** Open it, then click empty viewport: it closes (and the viewport takes the
+  click). Open it, click a top-bar button: it closes. Open it, click the canvas: it closes. Open it, right-click or
+  middle-click the canvas or the inspector: it closes. Open it and click its glass padding or caption: it stays open
+  and nothing under it reacts. Open it over the inspector (near the window's right edge) and scroll over it: the
+  inspector doesn't scroll. Open it and click into an inspector field, or right-click the viewport (its context menu
+  opens): known, it stays open (gap EP-b); Escape closes it. Pinned: `aPressOutsideClosesItAndOneInsideDoesNot`,
+  `theWindowsPressesReachThePaletteUnclaimed`. **Observed:**
+- [ ] **EP-4 The library's place.** A new window shows the library, captioned "Nodes" above its "Search nodes" field:
+  docked at the bottom, a column at the canvas's left edge; docked left, a strip across the canvas's top. It lists Value, Profile, Solid, Selection,
+  Feature and Output, each under a header in that category's node-header colour, and scrolls when it doesn't fit.
+  Press Library in the header: it goes and the canvas takes its room; press it again: it's back. Hide it, save, and
+  reopen the file: it's still hidden, and the top bar never showed "— Edited" for it. Pinned: `LibraryViewTests`,
+  `itIsShownByDefaultAndItsVisibilityIsSavedButNotAnEdit`. **Observed:**
+- [ ] **EP-5 Click to add.** Pan and zoom the canvas, then click Extrude in the library: an Extrude appears in the
+  middle of the visible canvas, selected. Click it a few more times: each lands near the middle, wholly in view, none
+  overlapping, and once there's no free room in view the next lands in the middle anyway. ⌘Z removes them one by one.
+  Click a row with a slight trackpad wobble: it still adds (no ghost appears). Pinned:
+  `aClickAddsTheTypeCentredInTheVisibleCanvasAsOneStep`, `aClickedTypeIsNudgedOffTheNodesAlreadyThere`,
+  `aClickedTypeStaysInViewWhenTheCentreIsCrowded`, `aClickThatMovesUnderTheThresholdStillAddsAtTheCentre`.
+  **Observed:**
+- [ ] **EP-6 Drag to add.** In both docks, drag Fillet from the library onto the canvas and let go: a Fillet lands
+  with its top-left corner where you let go, selected; ⌘Z removes it. While dragging, a flat copy of the row follows
+  the pointer (its top-left corner at the pointer), over the canvas, the viewport and the inspector, with no shadow.
+  Drag a type and let go over the library itself, the viewport, the inspector, or outside the window: nothing is
+  added and the ghost goes. Dragged out of the window it stays MetalUI's own drag (no system drag image, nothing in
+  another app reacts). Pinned: `LibraryDragTests`, `aRowsGestureIsAZeroDistanceDragInWindowPoints`,
+  `theDragGhostIsDrawnAtThePointerOnlyWhileDragging`, `aDraggedLibraryTypeIsPaintedOverTheWindow`; the gesture in a
+  scrolling list is this check only. **Observed:**
+- [ ] **EP-7 Hover help.** Rest the pointer on Extrude in the library: after about a second a tooltip reads
+  "Extrude: profile, distance, mode, reversed → solid". Search "fil": only Selection ▸ Edge Filter and Feature ▸ Fillet
+  stay (the palette's matches for "fil"); clear the field: everything is back. Pinned: `hoverHelpNamesInputsThenOutputs`,
+  `theSearchIsThePalettes`. **Observed:**
+- [ ] **EP-8 Themes.** View ▸ Theme ▸ Alucard: the library's background, headers and text, and the palette's glass,
+  rows and caption, all take Alucard's colours at once; no glow or shadow anywhere. Pinned:
+  `theLibraryRedrawsInTheChosenTheme`, `aSectionHeaderIsItsCategorysHeaderColour`, `theLibraryRasterizesNothing`.
+  **Observed:**
+- [ ] **EP-9 Still quick.** With the library shown, drag a node around the §7.2 bracket's graph, drag a library
+  type across the window, and scroll the library: it feels as it did before the library (PERF-b still rebuilds the whole window; the library's `List`
+  builds only the rows in view). **Observed:**
+- [ ] **EP-10 The preview.** In `GraphPanelPreview` (its window keeps one size), EP-1's placement holds in both
+  docks, and the library works as in EP-4–EP-7 with the preview's nine node types. **Observed:**
