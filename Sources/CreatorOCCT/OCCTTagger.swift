@@ -30,7 +30,8 @@ enum OCCTTagger {
         }
         let edges = raw.edges.enumerated().map { index, edge in
             EdgeInfo(id: EdgeID(index), kind: edge.kind, direction: edge.direction, length: edge.length,
-                     midpoint: edge.midpoint, convexity: edge.convexity, faces: edge.faces.map(FaceID.init))
+                     midpoint: edge.midpoint, convexity: edge.convexity, faces: edge.faces.map(FaceID.init),
+                     curve: edge.curve)
         }
         return Topology(faces: faces, edges: edges)
     }

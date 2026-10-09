@@ -27,7 +27,7 @@ public enum Scalar: Sendable {
         }
     }
 
-    /// The runtime form of a stored constant. `text` and `edgePicks` settings have none.
+    /// The runtime form of a stored constant. `text`, `edgePicks`, `sketch` and `facePick` settings have none.
     public init?(_ constant: ConstantValue) {
         switch constant {
         case .number(let value): self = .number(value)
@@ -35,7 +35,7 @@ public enum Scalar: Sendable {
         case .bool(let value): self = .bool(value)
         case .vector(let value): self = .vector(value)
         case .plane(let value): self = .plane(value)
-        case .text, .edgePicks: return nil
+        case .text, .edgePicks, .sketch, .facePick: return nil
         }
     }
 

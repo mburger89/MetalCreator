@@ -16,6 +16,7 @@
 #include <STEPControl_Controller.hxx>
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
+#include <gp_Circ.hxx>
 
 #include <mutex>
 
@@ -113,7 +114,20 @@ void describe_edge(const TopoDS_Edge &edge, const TopTools_IndexedMapOfShape &fa
         GProp_GProps properties;
         BRepGProp::LinearProperties(edge, properties);
         info.length = properties.Mass();
-        set3(info.midpoint, curve.Value(0.5 * (curve.FirstParameter() + curve.LastParameter())));
+        const double first = curve.FirstParameter();
+        const double last = curve.LastParameter();
+        set3(info.midpoint, curve.Value(0.5 * (first + last)));
+        if (!Precision::IsInfinite(first) && !Precision::IsInfinite(last)) {
+            set3(info.start, curve.Value(first));
+            set3(info.end, curve.Value(last));
+            info.has_ends = 1;
+        }
+        if (info.kind == 1) {
+            const gp_Circ circle = curve.Circle();
+            set3(info.center, circle.Location());
+            info.radius = circle.Radius();
+            info.sweep = last - first;
+        }
     } else {
         info.kind = 4;
     }

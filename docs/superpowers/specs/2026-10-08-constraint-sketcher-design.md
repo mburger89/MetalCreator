@@ -280,3 +280,33 @@ All tests use Swift Testing.
 - Projecting non-planar or oblique curves.
 - Editing a sketch outside the viewport.
 - A constructive (D-Cubed-style) solver: it could later replace components behind the same `SketchSolver` interface.
+
+## Errata (S4)
+
+- §6's deferred clockwise-arc case is taken in S4: a `Segment2D.arc` with `end < start` runs clockwise, `build_edge`
+  builds it as the counter-clockwise arc from `end` to `start`, reversed, and `Segment2D.length` is positive. A
+  region with a notch (a counter-clockwise outline running along an arc the other way) extrudes and revolves.
+- §6's format bump: S4 takes `GraphFile.currentFormatVersion` 3 → 4 for `ConstantValue.sketch` and `.facePick`. If
+  another branch bumps the version first, whichever merges second takes the next number (the constant, the test
+  `savedFilesCarryTheCurrentFormatVersion`, the doc comment on the constant and the CLAUDE.md line).
+- §7's exposed-dimension sockets come from `NodeDefinition.inputs(for: node)` (CreatorGraph), in dimension-name order,
+  defaulting to the stored value. A dimension named like a fixed input (`plane`, `references`), a setting, a
+  `projection.` setting, empty or repeated is not exposed, and the node warns. The graph panel draws a node's
+  static `inputs` until S5 switches `NodeShape` and the inspector to `inputs(for:)`, so exposed sockets can be wired
+  (by `Graph.apply(.connect)`) but aren't drawn yet.
+- §7's "pick data for projected edges" is one setting per projection, `NodeSetting.projection(reference)` =
+  `"projection.<reference>"`, holding `.edgePicks([pick])`. The pick resolves by tag subsets across every
+  `references` solid and must name exactly one edge; a changed match count is a warning (parent spec §5.3 rule 6).
+  A reference dimension on a suspended projection would measure the curve stored in the sketch (S4 never refreshes
+  it), so it isn't output: `measurements` is empty and the node warns naming it. The same holds for a reference
+  dimension that doesn't fit its geometry (a length on a projected circle), so list positions never shift.
+- §7's Plane from Face stores its face as `NodeSetting.face` = `.facePick(FacePick)`, the picked face's whole tag set
+  (`Topology.facePick(for:)`), matched as a subset like an edge pick. Its "nearly parallel" threshold: world X is
+  used unless its in-plane part is shorter than 1e-3.
+- §7's Sketch node has no inspector controls in S4 ("Edit sketch" is S5) and Plane from Face has no "Pick face in
+  view…" button: the app's `pickFacesInView` still refuses, so the button waits for the app to write `.facePick`.
+- §7's under-constrained warning reads "The sketch has N degrees of freedom left, so it isn't fully constrained."; an
+  empty sketch warns "Draw a closed shape in the sketch to make a profile."; a fixed-plane sketch with a wired
+  `plane` warns that the wire has no effect.
+- §7's evaluate does not store the solve's warm start: it solves from the stored sketch every time, so results don't
+  depend on evaluation history. S5's editor writes `Sketch.remember(_:)` into the setting after each edit.

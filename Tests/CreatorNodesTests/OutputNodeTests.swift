@@ -5,10 +5,11 @@ import CreatorNodes
 import Testing
 
 struct OutputNodeTests {
-    @Test func theSliceHasTwentySixNodesInSixCategories() {
-        #expect(BuiltInNodes.all.count == 26)
+    /// The slice's 26 (spec §7.1) plus Plane from Face and Sketch (S4).
+    @Test func theBuiltInsAreTheSliceAndTheSketcherNodesInSixCategories() {
+        #expect(BuiltInNodes.all.count == 28)
         let counts = Dictionary(grouping: BuiltInNodes.all, by: { $0.category }).mapValues(\.count)
-        #expect(counts == [.value: 8, .profile: 5, .solid: 5, .selection: 5, .feature: 2, .output: 1])
+        #expect(counts == [.value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .output: 1])
     }
 
     /// The palette path (M5) is `registry.makeNode(typeID, at:)`, so that is what is tested.

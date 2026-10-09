@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MetalCreator is a node-based parametric CAD app for macOS built on MetalUI (`../MetalUI`, joined in M4).
 The binding spec is `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md`; milestone
-plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 (OCCT kernel), M3 (the 26 nodes) and S3 (profile holes) are done. M4 (viewport) code is done; its human checks (group V in `docs/verification/human-checks.md`) are pending. M5 (graph panel and inspector) code is done; its human checks (group M5 in `docs/verification/human-checks.md`) are pending.
+plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 (OCCT kernel), M3 (the 26 nodes), S3 (profile holes) and S4 (the Sketch and Plane from Face nodes) are done. M4 (viewport) code is done; its human checks (group V in `docs/verification/human-checks.md`) are pending. M5 (graph panel and inspector) code is done; its human checks (group M5 in `docs/verification/human-checks.md`) are pending.
 M6 (app shell) code is done; its human checks (group M6) are pending.
 Editor polish (the floating add-node palette and the node library) code is done; its human checks (group EP) are pending.
 Packaging (`scripts/package-app.sh`, `docs/packaging.md`) is done; its human checks (group P) are pending.
@@ -21,10 +21,13 @@ Module boundaries (dependency order):
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
   `*_free`; no C++ exception crosses into Swift.
 - `CreatorGraph`: graph model, sockets, broadcasting, `Evaluator` (cached, cancellable), commands and undo,
-  `.mcgraph` files, `DocumentModel`.
-- `CreatorNodes`: the 26 built-in node definitions (`BuiltInNodes.registry`), UI-free: inspector sections and handles
-  are data. Non-socket settings (`NodeSetting` in CreatorGraph: parameter, picks, showHandle) live in `Node.inputValues`;
-  `NodeRegistry.makeNode` seeds `defaultSettings` and sets `isOutput` for `.output`-category nodes.
+  `.mcgraph` files, `DocumentModel`. Depends on `CreatorSketch` for the `ConstantValue.sketch` setting. A node's inputs
+  are `NodeDefinition.inputs(for: node)` (default: the static `inputs`); the Evaluator and `connectionProblem` read
+  it, so per-node sockets (the Sketch node's exposed dimensions) wire and gather like declared ones.
+- `CreatorNodes`: the 28 built-in node definitions (`BuiltInNodes.registry`: the slice's 26 plus Plane from Face and
+  Sketch), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
+  parameter, picks, showHandle, sketch, face, and `projection(reference)` per projected edge) live in
+  `Node.inputValues`; `NodeRegistry.makeNode` seeds `defaultSettings` and sets `isOutput` for `.output`-category nodes.
 - `CreatorStyle`: colour themes (spec §6.6, Dracula by default), the only place colour hex values are written.
   `ThemeColors` is a colour per role (never a hue); `ColorTheme` (not `Theme`: MetalUI exports one) has the built-ins
   `.dracula`, `.alucard` and `.nord`; `@MainActor @Observable ThemeStore` holds `current` and `select(_:)`, with injected
@@ -55,7 +58,12 @@ Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.
 never worked around here. Graph links are kept canonically sorted by destination; result caching is keyed by node identity.
 Edge/face IDs are OCCT map order. A circle edge's `direction` is its axis, so direction rules must also check `kind == .line`.
 All OCCT work runs under `OCCTKernel.serialized` (process-wide lock) because OCCT shapes share geometry across solids and meshing mutates it; never call the shim outside it (tests included).
-Edge picks (`EdgePick`) match by tag subsets per side and warn on count drift; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 3 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero).
+Edge picks (`EdgePick`) match by tag subsets per side and warn on count drift; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 4 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
+4 added the `.sketch` and `.facePick` settings).
+A `Segment2D.arc` with `end < start` runs clockwise (a sketch region's notch); the shim builds it reversed and
+`length` is positive. Edges carry `EdgeInfo.curve` (`EdgeCurve`, lines and circles) for sketch projection; a
+`FacePick` names faces by tag subset like `EdgePick`. The Sketch node solves on every evaluation from the stored
+sketch's warm start; writing `Sketch.remember` back into the setting is the editor's job (S5).
 `Profile2D` is `outer` + `holes` (loop 0 = outer, n = hole n); `segments` is the outer loop only, so code that
 rebuilds a profile must keep `holes` (copy it and change `plane`, don't re-init from `segments`). Side tags are
 `.side(loop:segment:)` and `.side(segment:)` means loop 0; never match `.side` with one binding (`case .side(let s)`

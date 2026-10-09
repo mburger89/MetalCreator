@@ -21,6 +21,8 @@ struct OCCTRawTopology: Sendable {
         /// 0-based face indices: two distinct for a normal edge, the same twice for a seam,
         /// none for a free edge.
         var faces: [Int]
+        /// The exact line or circle, when the shim reported its ends.
+        var curve: EdgeCurve?
     }
 
     var faces: [Face]
@@ -37,9 +39,24 @@ struct OCCTRawTopology: Sendable {
         let edges = UnsafeBufferPointer(start: raw.edges, count: Int(raw.edge_count)).map { info in
             Edge(kind: curveKind(info.kind), direction: info.has_direction != 0 ? vector(info.direction) : nil,
                  length: info.length, midpoint: vector(info.midpoint), convexity: convexity(info.convexity),
-                 faces: info.face_a > 0 && info.face_b > 0 ? [Int(info.face_a) - 1, Int(info.face_b) - 1] : [])
+                 faces: info.face_a > 0 && info.face_b > 0 ? [Int(info.face_a) - 1, Int(info.face_b) - 1] : [],
+                 curve: curve(info))
         }
         return OCCTRawTopology(faces: faces, edges: edges)
+    }
+
+    /// The edge's line or circle from the shim's ends, centre, radius and sweep.
+    static func curve(_ info: occt_edge_info) -> EdgeCurve? {
+        guard info.has_ends != 0 else { return nil }
+        switch info.kind {
+        case 0:
+            return .line(start: vector(info.start), end: vector(info.end))
+        case 1 where info.has_direction != 0:
+            return .circle(center: vector(info.center), axis: vector(info.direction), radius: info.radius,
+                           start: vector(info.start), sweep: info.sweep)
+        default:
+            return nil
+        }
     }
 
     static func vector(_ value: (Double, Double, Double)) -> Vector3 {

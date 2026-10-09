@@ -17,15 +17,5 @@ public struct EdgePick: Hashable, Sendable, Codable {
     /// True when the key names a face by the `.unnamed` fallback, which is unstable across
     /// rebuilds. Blend faces are checked recursively: a fillet face whose source edge bordered an
     /// unnamed face is just as unstable.
-    public var touchesUnnamedFace: Bool { Self.mentionsUnnamedFace(key) }
-
-    private static func mentionsUnnamedFace(_ key: EdgeKey) -> Bool {
-        key.first.union(key.second).contains { tag in
-            switch tag.role {
-            case .unnamed: true
-            case .blend(let source): mentionsUnnamedFace(source)
-            case .startCap, .endCap, .side: false
-            }
-        }
-    }
+    public var touchesUnnamedFace: Bool { key.first.union(key.second).contains { $0.role.isUnstable } }
 }

@@ -86,6 +86,9 @@ typedef struct {
 /// Curve kinds: 0 line, 1 circle, 2 ellipse, 3 bspline, 4 other.
 /// Convexity: 0 convex, 1 concave, 2 smooth, 3 unknown.
 /// face_a/face_b: 1-based face indices; equal for a seam; both 0 for a free edge.
+/// For projecting edges into a sketch (S4): when has_ends, `start` and `end` are the curve's points at
+/// its first and last parameter. For a circle, `center` and `radius` are its own, and the edge runs
+/// counter-clockwise about `direction` from `start` through `sweep` radians (2π for a full circle).
 typedef struct {
     int kind;
     int has_direction;
@@ -95,6 +98,12 @@ typedef struct {
     int convexity;
     int face_a;
     int face_b;
+    int has_ends;
+    double start[3];
+    double end[3];
+    double center[3];
+    double radius;
+    double sweep;
 } occt_edge_info;
 
 typedef struct {
@@ -115,7 +124,8 @@ typedef struct {
 } occt_plane;
 
 /// One profile segment in plane coordinates. kind 0 = line (x0,y0)→(x1,y1);
-/// kind 1 = counter-clockwise arc around (cx,cy) with `radius` from angle `start` to `end` (radians).
+/// kind 1 = arc around (cx,cy) with `radius` from angle `start` to `end` (radians): counter-clockwise when
+/// end > start, clockwise when end < start (a counter-clockwise loop running along a notch).
 typedef struct {
     int kind;
     double x0, y0, x1, y1;
@@ -131,7 +141,6 @@ typedef struct {
 /// A planar region. loops[0] is the outer boundary; loops[1 ..< loop_count] are holes, which must
 /// lie inside it without touching it or each other. Holes may wind either way: the shim reverses a
 /// hole wire that winds the same way as the outer loop, which is what OCCT needs.
-/// Arc segments are counter-clockwise only, so a loop containing an arc arrives counter-clockwise.
 typedef struct {
     occt_plane plane;
     const occt_loop *loops;

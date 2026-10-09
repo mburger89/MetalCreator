@@ -317,3 +317,19 @@ Run `scripts/package-app.sh` first; it ends with `==> Wrote …/dist/MetalCreato
   dist/MetalCreator.app` shows your TeamIdentifier and `flags=0x10000(runtime)`, and the verify step says dyld printed
   no load list. Then notarize by hand (`docs/packaging.md`): `spctl --assess --type execute --verbose
   dist/MetalCreator.app` reads "accepted, source=Notarized Developer ID". **Observed:**
+
+## Group S4 — the Sketch and Plane from Face nodes (S4)
+
+**Status: NOT RUN.** S4 adds no views; this checks that the two new nodes reach the running app.
+
+Run `swift run MetalCreatorApp`, with the preview mode set to Selected node.
+
+- [ ] **S4-1 The new nodes in the palette.** Open the add-node palette over the canvas and search "sketch", then
+  "face": Sketch and Plane from Face are listed. Add both. Sketch draws with inputs `plane` and `references` and
+  outputs `profiles` and `measurements`; select it: its badge is a warning, "Draw a closed shape in the sketch to make
+  a profile.", and the viewport shows nothing. Plane from Face draws with input `solid` and output `plane`; select it:
+  its badge is an error until a solid is wired. Wire an Extrude's solid into it and select it again: the error reads
+  "Pick a face for this plane to sit on." Nothing crashes, Undo removes each node, and Save then Open keeps both.
+  Known (S5): exposed-dimension sockets aren't drawn, and neither node has inspector controls of its own. Pinned:
+  `theBuiltInsAreTheSliceAndTheSketcherNodesInSixCategories`, `aNewSketchHoldsAnEmptySketchOnXYAndAsksForAShape`,
+  `aMissingUnreadableOrStalePickIsAPlainError`, `aSketchSettingRoundTripsThroughAFile`. **Observed:**
