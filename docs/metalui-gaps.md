@@ -131,7 +131,9 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
   sits below the standard title bar.
 - **M6-d. No open-document events.** Finder double-click, `open -a`, dropping a file on the Dock icon and Open Recent
   all need the app to receive file URLs (AppKit `application(_:open:)`, SwiftUI `.onOpenURL`). This matters once the
-  app is packaged. Stopgap: a path argument (`swift run MetalCreatorApp bracket.mcgraph`).
+  app is packaged. Stopgap: a path argument (`swift run MetalCreatorApp bracket.mcgraph`). Queued in MetalUI as C8
+  (app shell). The packaged app declares `.mcgraph` with no `NSDocumentClass`, so a Finder double-click may show AppKit's
+  "cannot open files in this format" alert rather than nothing (human check P2 records which).
 - **M6-e. No public test window or headless platform.** `Window`'s initializer is internal and `FakePlatformWindow`
   lives in MetalUI's own test target (C7's `CI-N` keeps it there), so a client can't dispatch keys and clicks through
   a real `Window` in its tests. M6's riskiest routing (the `Panel` / `!Panel` key contexts on the focus chain, the
@@ -252,3 +254,20 @@ it starts on any move with no slop, ahead of a click (`DN-D`).
   pinch over the palette reaches what is under it, where nothing takes a pinch yet (gap 2). Wanted: a chrome-less popover style (SwiftUI's
   `.presentationBackground(.clear)` / a plain `popoverStyle`) with a point anchor (`attachmentAnchor: .point(_:)`),
   or an outside-press callback for an overlay.
+
+## Hit by packaging, 2026-10-09
+
+Labelled P-a… so they don't clash with the C7 items, M4-a…, M5-a…, M6-a… or PERF-a….
+
+- **P-a. No list of the third-party code a MetalUI app links.** A packaged app has to carry the notices of the code
+  compiled into it. MetalCreator's release binary contains MetalUI's vendored stb_image (`CStbImage`, MIT or public
+  domain; `nm` finds 92 `stbi_` symbols), and other products or traits could add FreeType, HarfBuzz, SheenBidi or
+  libunibreak. Which vendored code each MetalUI product links on macOS isn't written down, so
+  `scripts/package-app.sh` bundles the licences of the Homebrew libraries only. Wanted: in MetalUI's
+  `docs/packaging.md`, or a `THIRD-PARTY-NOTICES` file, a list per platform and trait of the vendored code each
+  product links and where its licence file is. **Fixed in MetalUI 67a579e** (`THIRD-PARTY-NOTICES.md`, "Third-party
+  notices" in its `docs/packaging.md`): on macOS with the default text system only stb_image is linked, and
+  `scripts/package-app.sh` copies `THIRD-PARTY-NOTICES.md` and `Sources/CStbImage/LICENSE` into
+  `Contents/Resources/Licenses/MetalUI/` (checked by `scripts/verify-app.sh`).
+- **M6-d, now visible.** The packaged app declares `.mcgraph` (owner, exported type), so a double-click in Finder
+  opens MetalCreator, but not the file: no open-document event reaches the app (human check P2).

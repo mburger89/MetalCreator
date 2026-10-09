@@ -478,3 +478,15 @@ User-approved design, 2026-10-08 (plan `2026-10-08-editor-polish.md`).
 - The graph panel's insides are laid out to computed numbers (`GraphPanelLayout`), and the host reports where the
   panel is in its window (`EditorModel.placement`), because MetalUI measures nothing (docs/metalui-gaps.md M4-a,
   EP-a). `GraphPanelPreview`'s window keeps one size for the same reason.
+
+## Errata (Packaging)
+
+- §5.2's "Bundling OCCT's dylibs into a signed `.app` is **deferred**" and §11's "Bundling OCCT into a signed,
+  distributable `.app`" are done by `scripts/package-app.sh` (design: `2026-10-09-packaging-design.md`; how-to:
+  `docs/packaging.md`). It builds `dist/MetalCreator.app` with OCCT and its Homebrew dependencies in
+  `Contents/Frameworks`, signs it ad hoc (or with `METALCREATOR_SIGN_IDENTITY`), and `scripts/verify-app.sh` proves
+  it runs with Homebrew unreadable. Notarization stays a manual step, and the app has no icon yet.
+- §3.1's platform floor holds for the build (`.macOS(.v26)`), but the packaged app's `LSMinimumSystemVersion` is the
+  newest minimum among its bundled binaries: 27.0, because Homebrew's bottles are built for macOS 27.
+- §4.5's `.mcgraph` is registered by the packaged app (`com.metalcreator.mcgraph`, conforming to `public.json`).
+  Opening a double-clicked file waits for MetalUI's open-document events (gap M6-d).
