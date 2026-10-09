@@ -17,7 +17,7 @@ public struct AppRoot: Component {
 
     public var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
-            ViewportView(model: model.viewport, modifiers: input.modifiers)
+            ViewportView(model: model.viewport)
             VStack(alignment: .leading, spacing: AppLayout.margin.px) {
                 ZStack { TopBar(model: model) }
                     .frame(height: AppLayout.topBarHeight.px)

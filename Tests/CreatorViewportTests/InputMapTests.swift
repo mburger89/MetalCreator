@@ -11,6 +11,20 @@ struct InputMapTests {
         #expect(ViewportInputMap.dragMode(for: .command) == .orbit)
     }
 
+    @Test func theRightButtonOrbitsAndTheMiddleButtonPans() {
+        #expect(ViewportInputMap.dragMode(for: [], button: .secondary) == .orbit)
+        #expect(ViewportInputMap.dragMode(for: .shift, button: .secondary) == .orbit)
+        #expect(ViewportInputMap.dragMode(for: [], button: .middle) == .pan)
+        #expect(ViewportInputMap.dragMode(for: .option, button: .middle) == .pan)
+        #expect(ViewportInputMap.dragMode(for: .option, button: .primary) == .zoom)
+    }
+
+    @Test func viewportButtonsAreMetalUIButtons() {
+        #expect(ViewportPointerButton.primary.mouseButton == .primary)
+        #expect(ViewportPointerButton.secondary.mouseButton == .secondary)
+        #expect(ViewportPointerButton.middle.mouseButton == .middle)
+    }
+
     @Test func metalUIModifiersConvert() {
         #expect(ViewportModifiers(Modifiers([.shift, .option])) == [.shift, .option])
         #expect(ViewportModifiers(Modifiers.command) == .command)

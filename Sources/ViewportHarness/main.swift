@@ -17,7 +17,6 @@ func runHarness() throws {
     let environment = ProcessInfo.processInfo.environment
     let kernel = OCCTKernel()
     let model = ViewportModel(kernel: kernel)
-    let modifiers = ViewportModifierTracker()
     let selection = HarnessSelection()
     model.events.clicked = { [weak model] target in
         print("clicked: \(String(describing: target))")
@@ -39,10 +38,9 @@ func runHarness() throws {
                                     size: Size(width: Pixels(1100), height: Pixels(720)),
                                     content: {
                                         // A window's root must be an Element, and a Component is a group, so it's wrapped.
-                                        ZStack { ViewportView(model: model, modifiers: modifiers) }
+                                        ZStack { ViewportView(model: model) }
                                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                                     })
-    modifiers.install(on: window)
     window.keymap = Keymap(ViewportKeyBindings.bindings())
     window.onAction = { [weak model] action in
         guard let model else { return false }
