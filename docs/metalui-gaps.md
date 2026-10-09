@@ -152,3 +152,62 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
 - **Cursor for the dock's resize edge** (adds to C7 item 5). The graph panel's inner edge is a drag handle and should
   show a column or row resize cursor. C7's `PointerStyle` has `.columnResize` and `.rowResize` (decision `CI-H`).
   Adopt them when C7 merges.
+
+## Node-drag performance, 2026-10-08
+
+Labelled PERF-a… so they don't clash with the labels above. Measured on branch `perf/node-drag` (MetalUI `dc6528c`)
+with headless harnesses that drive the real `AppRoot` (they need `@testable import MetalUI`, gap M6-e, so they
+aren't checked in): a window-like frame loop (one `StateTable`, `ShapingCache`, `GlyphAtlas` and `AnimationStore`
+kept across frames, 1440 × 900 at 2×) and a real `Window` over a headless `PlatformWindow`, a drag delivered as
+`.mouseDown`/`.mouseDragged` events with one display-link tick each. No GPU work is included. The machine was
+loaded, so timings are ±20%; the pixel counters are exact. MetalCreator's own share of a drag event is small and
+was checked separately: the model step (`EditorModel` → `DocumentModel.perform(.batch([.move]))`, coalesced) costs
+0.03–0.06 ms, the app's scene refresh it wakes 0.05–0.1 ms (nothing is re-evaluated, `ViewportModel.show` and
+`showHandles` aren't called, the viewport's `renderKey` doesn't change, so the `MetalView` doesn't redraw;
+`NodeDragTests` pins this), and building the views' inputs (wires, draw order, node shapes and rows, the inspector
+page) 0.19 ms release / 0.55 ms debug for the 20-node §7.2 bracket. The window idles (0 frames in 30 ticks) before
+and after a drag, and draws exactly one frame per drag event.
+
+| Per drag event (input + build + paint) | Circle only, debug | Circle only, release | Bracket (20 nodes), debug | Bracket, release |
+|---|---|---|---|---|
+| Today (selection glow on the dragged node) | 631 ms | 17 ms | 915 ms | 39 ms |
+| Glow modifier given a zero colour (measurement only) | 30 ms | 3.2 ms | 140 ms | 15 ms |
+| Frame with nothing moving (cache hits) | 10.8 ms | 2.1 ms | 58 ms | 13 ms |
+
+- **PERF-a. A shadow is re-rasterized and re-blurred on the CPU every frame its content moves.** `NodeView` draws
+  the selected node's glow as `.shadow(color: accent.opacity(0.7), radius: 10)` over the whole node. Per SH5 every
+  leaf gets its own shadow: 9 for a Circle node, 21 for an Extrude. Each goes through `Frame.shadowImage` →
+  `shadowCoverage` (`silhouette` per primitive, then `BoxBlur.blur`) → `RasterCache.tint`. The coverage `RasterKey`
+  holds `full` (the composed affine, translation included), the leaf primitives' absolute bounds and the clip from
+  `RasterPlacement`, so moving the node by one point misses every entry, and so does panning the canvas or resizing
+  the panel. Evidence, from the frame loop and `AnimationStore.rasters`:
+  - The node still: 0 px blurred and 0 px rasterized per frame. The node moving 2 pt per frame: 500,904 px blurred,
+    231,177 px rasterized and 9 new tinted textures per frame (Circle); 584,000–797,000 px blurred (bracket node).
+  - `NodeView` alone, selected: 637 ms per frame moving against 1.8 ms still (debug); 13.7 ms against 0.43 ms
+    (release). Unselected (the glow's colour is clear, so `shadowImage` returns early): 1.6–1.8 ms either way.
+  - Release `sample` of the moving loop: `BoxBlur.blur` about 70% of the frame, `RasterCache.tint` about 14%.
+  - The silhouettes alone cost too: radius 0 with the 0.7 colour (no blur) still takes 94 ms debug / 5.6 ms release
+    per drag event for the Circle node, against 30 / 3.2 ms with a clear colour.
+  - Each miss also makes new `ImageTexture` identities, so the renderer uploads 9–21 new textures per frame (not
+    measured headless).
+  The debug build is about 45× slower than release here, and `swift run` builds MetalUI in debug, so the user saw
+  about 1.5 frames per second.
+  Proposed fix: key the coverage translation-free. Split `full` into its linear part and its device-pixel
+  translation, key on the linear part, the fractional translation (quantized to 1/4 px if needed) and the leaf's
+  geometry relative to its own origin, rasterize unclipped (or clipped to a translation-relative rect), and crop to
+  `placement.clip` after the lookup. Place the cached mask at the new integer offset. Whole-pixel moves and pans then
+  hit the cache, and so does the tinted texture, so no re-upload either. Separately, `BoxBlur` and the silhouette loops
+  could use unchecked buffer access or vImage (`vImageBoxConvolve_Planar8`) on Apple platforms. MetalCreator's
+  selection glow is being removed on another branch, but any shadow over moving content hits this.
+- **PERF-b. Every observed change rebuilds, lays out and paints the whole window.** With nothing moving and every
+  raster cached, a frame of the bracket graph (20 nodes, one selected) costs 54–58 ms debug / 12–13 ms release,
+  about 0.5 ms per node in release and 2.5–3 ms in debug. A Circle-only graph costs 10.8 / 2.1 ms. Of that,
+  MetalCreator's view inputs are 0.55 / 0.19 ms (above). A release `sample` puts about 43% in `requestLayout`
+  (the `NodeView` subtrees alone about 33%) and the rest in paint, spread over dictionary lookups, retain/release
+  and generic-metadata lookups inside MetalUI. A drag invalidates `Graph`, which every node view reads, so this
+  repeats on every pointer move: 15 ms per drag event for the bracket in release, with no glow, is over a 120 Hz
+  frame (8.3 ms) and close to 60 Hz. Wanted: rebuild only what changed. SwiftUI re-runs only bodies whose
+  dependencies changed and reuses unchanged subtrees. For MetalUI that could be per-`Component` observation scopes
+  that skip an unchanged subtree and reuse its last layout and paint, or `EquatableView`-style skipping for a
+  component whose stored inputs compare equal. MetalCreator can then pass each `NodeView` value inputs, as it already
+  does.
