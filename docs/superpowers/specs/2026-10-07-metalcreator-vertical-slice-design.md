@@ -513,7 +513,8 @@ Plan `2026-10-09-themes-editor.md` (roadmap row "Themes").
   down to the window's bottom margin or, with the graph panel docked at the bottom, to a margin above it, so the graph
   panel and the viewport show each edit as it is made (a second window would end the app when closed until
   MetalUI C8 lane 2, and MetalUI has no sheet). It lists every role under its group with its colour; each role is
-  edited with MetalUI's `ColorPicker` (gap M6-f, MetalUI C10 lane 1).
+  edited with MetalUI's `ColorPicker` (gap M6-f, MetalUI C10 lane 1) once C10 merges (plan Task 11); until then
+  colours change by import.
 - MetalUI's own controls follow the theme: `ColorTheme.controlTheme` maps roles onto its tokens (background ←
   background bottom, surface ← node body, surfaceSecondary ← field, accent ← accent, separator ← comment,
   textPrimary ← foreground) for `.theme(_:)` over the window.

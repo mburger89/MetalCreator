@@ -10,7 +10,7 @@ plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 
 M6 (app shell) code is done; its human checks (group M6) are pending.
 Editor polish (the floating add-node palette and the node library) code is done; its human checks (group EP) are pending.
 Packaging (`scripts/package-app.sh`, `docs/packaging.md`) is done; its human checks (group P) are pending.
-Themes (custom themes, `.mctheme` files, the theme editor) code is done; its human checks (group TH) are pending.
+Themes (custom themes, `.mctheme` files, the theme editor) code is done; its human checks (group TH) are pending. Editing a colour in the app waits for MetalUI C10's `ColorPicker` (plan Task 11); until then colours change by import.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.

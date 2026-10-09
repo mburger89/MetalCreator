@@ -89,7 +89,7 @@ struct ThemeEditorModelTests {
         editor.select(editor.themes.customs[0].id)
         editor.typeName("")
         editor.duplicate()
-        #expect(editor.message != nil && editor.theme.name == "Dracula Copy Copy")
+        #expect(editor.message == "A theme needs a name." && editor.theme.name == "Dracula Copy Copy")
     }
 
     @Test func closingAndSelectingCommitATypedName() {
