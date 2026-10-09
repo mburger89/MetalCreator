@@ -25,6 +25,12 @@ public final class SketchEditorModel {
     public internal(set) var hovered: SketchEntityID?
     /// The active tool's rubber band.
     public internal(set) var preview = SketchPreview.none
+    /// The active tool (`choose(_:)`).
+    public internal(set) var tool = SketchTool.line
+    /// Whether new geometry is construction geometry (X toggles it).
+    public internal(set) var isConstruction = false
+    /// What the drawing tool has placed so far.
+    var drawState = DrawState.idle
 
     @ObservationIgnored public var events = SketchEditorEvents()
 
@@ -44,6 +50,9 @@ public final class SketchEditorModel {
         sketch = Self.remembering(stored, solved)
         selection = selection.filter { sketch.entities[$0] != nil }
         if let hovered, sketch.entities[hovered] == nil { self.hovered = nil }
+        // A stroke may hold points the stored sketch no longer has.
+        drawState = .idle
+        preview = .none
     }
 
     /// Takes `edited` as the sketch, solved and remembered, and hands it to the host as one undo step.
