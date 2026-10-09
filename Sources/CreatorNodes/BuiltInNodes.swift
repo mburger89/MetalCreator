@@ -7,6 +7,7 @@ public enum BuiltInNodes {
         NumberNode.self, IntegerNode.self, VectorNode.self, PlaneNode.self, PlaneFromFaceNode.self, GraphParameterNode.self,
         SeriesNode.self, RangeNode.self, GridPointsNode.self,
         RectangleNode.self, RoundedRectangleNode.self, CircleNode.self, RegularPolygonNode.self, PolylineNode.self,
+        SketchNode.self,
         ExtrudeNode.self, RevolveNode.self, LoftNode.self, BooleanNode.self, TransformNode.self,
         EdgesByTagNode.self, EdgesByDirectionNode.self, EdgeFilterNode.self, AllEdgesNode.self, EdgeSetOpNode.self,
         FilletNode.self, ChamferNode.self,

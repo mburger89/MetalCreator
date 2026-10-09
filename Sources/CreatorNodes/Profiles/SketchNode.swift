@@ -1,0 +1,64 @@
+import CreatorGeometry
+import CreatorGraph
+import CreatorKernel
+import CreatorSketch
+
+/// A constraint sketch (sketcher spec §7): the `sketch` setting holds the geometry, constraints and
+/// dimensions; the node solves it and outputs its closed regions as a list of profiles. Each exposed
+/// dimension adds a number input named after it, whose wired value overrides the stored one, so graph
+/// parameters drive the sketch. Reference dimensions come out of `measurements`, in name order.
+///
+/// States: an under-constrained sketch, open curves and an exposed dimension that can't be a socket
+/// are warnings; an over-constrained or failed solve is an error, and the last good part stays ghosted.
+public enum SketchNode: NodeDefinition {
+    public static let typeID = "creator.sketch"
+    public static let displayName = "Sketch"
+    public static let category = NodeCategory.profile
+    public static let inputs = [
+        SocketSpec("plane", .plane, optional: true),
+        SocketSpec("references", .solid, access: .list, optional: true),
+    ]
+    public static let outputs = [
+        SocketSpec("profiles", .profile),
+        SocketSpec("measurements", .number),
+    ]
+    public static let defaultSettings: [SocketName: ConstantValue] = [NodeSetting.sketch: .sketch(Sketch())]
+
+    static let missingSketch = "This sketch's drawing is missing. Undo the last change, or add a new Sketch."
+    static let unreadableSketch = "This sketch's drawing can't be read. Undo the last change, or add a new Sketch."
+    static let wiredPlaneMissing = "Wire a plane into “plane”: this sketch is drawn on the wired plane."
+    static let ignoredPlane = "“plane” is wired, but this sketch is drawn on its own plane, so the wire has no effect."
+
+    public static func inputs(for node: Node) -> [SocketSpec] {
+        guard case .sketch(let sketch)? = node.inputValues[NodeSetting.sketch] else { return inputs }
+        return inputs + SketchSockets.exposed(sketch).map(\.spec)
+    }
+
+    public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        var sketch: Sketch
+        switch context.node.inputValues[NodeSetting.sketch] {
+        case nil: throw NodeError.invalidValue(missingSketch)
+        case .sketch(let stored)?: sketch = stored
+        case .some: throw NodeError.invalidValue(unreadableSketch)
+        }
+        var warnings = SketchSockets.refused(sketch)
+        let plane: Plane
+        switch sketch.plane {
+        case .fixed(let own):
+            plane = own
+            if inputs.has("plane") { warnings.append(ignoredPlane) }
+        case .wired:
+            guard inputs.has("plane") else { throw NodeError.invalidValue(wiredPlaneMissing) }
+            plane = try inputs.plane("plane")
+        }
+        for (id, spec) in SketchSockets.exposed(sketch) where inputs.has(spec.name) {
+            sketch.dimensions[id]?.value = try inputs.number(spec.name)
+        }
+        let output = try SketchSolve.run(sketch, on: plane)
+        let lists: [SocketName: [Scalar]] = [
+            "profiles": output.profiles.map(Scalar.profile),
+            "measurements": output.measurements.map(Scalar.number),
+        ]
+        return NodeOutputs(lists: lists, warnings: warnings + output.warnings)
+    }
+}
