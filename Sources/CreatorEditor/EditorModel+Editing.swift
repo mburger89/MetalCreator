@@ -49,9 +49,14 @@ extension EditorModel {
         if let ids = insert(clipboard(of: selection), offset: Vector2(24, 24)) { selection = ids }
     }
 
-    /// Adds a node of `typeID` under the palette (or at the canvas origin) and selects it.
+    /// Adds a node of `typeID` with its top-left corner at `screen` (canvas-local screen points: under the palette,
+    /// or where a library node was dropped) and selects it, as one undo step.
     public func addNode(_ typeID: String, atScreen screen: Vector2) {
-        let node = registry.makeNode(typeID, at: flow.stored(transform.toCanvas(screen)))
+        add(registry.makeNode(typeID, at: flow.stored(transform.toCanvas(screen))))
+    }
+
+    /// Adds `node` (made by `NodeRegistry.makeNode`) and selects it, as one undo step.
+    func add(_ node: Node) {
         do {
             try document.perform(.addNode(node))
             selection = [node.id]

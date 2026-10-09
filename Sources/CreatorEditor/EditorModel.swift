@@ -4,7 +4,7 @@ import CreatorKernel
 import Observation
 
 /// The graph panel's state and behaviour: selection, the canvas transform, the dock, drags,
-/// wiring, clipboard and the add-node palette. Every edit goes through `DocumentModel.perform`,
+/// wiring, clipboard, the add-node palette and the node library. Every edit goes through `DocumentModel.perform`,
 /// so it is undoable. Views hold no logic; tests drive this class directly (spec §3.2, §8).
 @MainActor
 @Observable
@@ -30,6 +30,11 @@ public final class EditorModel {
     /// True for a moment after a refusal, while the refused node shakes.
     public private(set) var isShaking = false
     public var palette: SearchPaletteState?
+    /// What the node library's search field holds (`EditorModel+Library`). Not saved.
+    public internal(set) var libraryQuery = ""
+    /// A library type being dragged toward the canvas, once it has moved far enough to be a drag
+    /// (`EditorModel+Library`); `LibraryDragOverlay` draws it at the pointer.
+    public internal(set) var libraryDrag: LibraryDrag?
     public private(set) var clipboard: NodeClipboard?
     /// The last inspector button pressed, for the viewport to act on (M4/M6).
     public private(set) var inspectorRequest: InspectorRequest?
