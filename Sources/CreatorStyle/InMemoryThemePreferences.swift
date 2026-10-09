@@ -1,4 +1,4 @@
-/// Theme preferences that last as long as the object: the app's until the Themes milestone, and every test's.
+/// Theme preferences that last as long as the object: every test's, and any store that shouldn't remember.
 @MainActor
 public final class InMemoryThemePreferences: ThemePreferences {
     public var selectedThemeID: ColorTheme.ID?
