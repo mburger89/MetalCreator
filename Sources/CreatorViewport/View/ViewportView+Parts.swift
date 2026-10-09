@@ -1,7 +1,7 @@
 import MetalUI
 
 extension ViewportView {
-    /// The surface, the handle labels and the view cube's controls (the renderer paints the cube's face names on
+    /// The surface, the handle labels and the view cube's controls (hidden with the cube while navigation is planar) (the renderer paints the cube's face names on
     /// it). The label loop is written inline: MetalUI's builder can't infer an opaque element returned by a helper
     /// inside a `for` (docs/metalui-gaps.md gap M4-b).
     @MainActor
@@ -16,7 +16,7 @@ extension ViewportView {
                     .offset(x: Pixels(Float(label.position.x)), y: Pixels(Float(label.position.y - 9)))
                     .allowsHitTesting(false)
             }
-            cubeControls(model: model)
+            if model.showsViewCube { cubeControls(model: model) }
         }
         .overlay(alignment: .bottomLeading) {
             triadLabels(model: model)

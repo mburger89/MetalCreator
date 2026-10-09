@@ -17,4 +17,6 @@ public struct ViewportRenderKey: Hashable, Sendable {
     var palette: ViewportPalette
     /// The host's overlay: a sketch edit redraws.
     var overlay: ViewportOverlay
+    /// Whether the view cube is drawn: entering or leaving planar navigation redraws.
+    var showsViewCube: Bool
 }

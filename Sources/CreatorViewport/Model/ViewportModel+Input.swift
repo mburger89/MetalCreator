@@ -43,19 +43,22 @@ extension ViewportModel {
     ///   it edits the handle; with no modifier, a `tool` may take it; otherwise it depends on the modifiers
     ///   (`ViewportInputMap`)
     /// - with the right button it orbits (the cube's way on the cube), and with the middle button it pans
+    /// - with planar navigation (`ViewportNavigation.planar`) there is no cube, and every drag that would orbit pans
     public func pointerDown(at point: ScreenPoint, modifiers: ViewportModifiers, button: ViewportPointerButton = .primary) {
         events.pressed()
         stopAnimation()
         var mode = ViewportInputMap.dragMode(for: modifiers, button: button)
         var pivot: Vector3?
         var handleStart = 0.0
-        if button != .middle, cubeLayout.contains(point) {
+        if button != .middle, showsViewCube, cubeLayout.contains(point) {
             mode = .cube
         } else if button == .primary, let handle = HandleMath.hit(handles, at: point, pose: pose, size: viewSize) {
             mode = .handle(handle.id)
             handleStart = handle.value
         } else if button == .primary, mode == .orbit, toolTakesDrag(at: point, modifiers: modifiers) {
             mode = .tool
+        } else if mode == .orbit, isPlanar {
+            mode = .pan
         } else if mode == .orbit {
             pivot = pivotPoint(under: point)
         }
@@ -111,7 +114,7 @@ extension ViewportModel {
         if let state = drag { pointerUp(at: state.last) }
         events.pressed()
         stopAnimation()
-        if cubeLayout.contains(point) {
+        if showsViewCube, cubeLayout.contains(point) {
             if let region = cubeLayout.region(at: point, pose: pose) { perform(.view(region)) }
         } else if HandleMath.hit(handles, at: point, pose: pose, size: viewSize) == nil,
                   tool?.clicked(at: point, modifiers: modifiers, projector: projector) != true {
@@ -137,7 +140,7 @@ extension ViewportModel {
         var newHovered: PickTarget?
         var newCubeRegion: ViewCubeRegion?
         if let point {
-            if cubeLayout.contains(point) {
+            if showsViewCube, cubeLayout.contains(point) {
                 newCubeRegion = cubeLayout.region(at: point, pose: currentPose())
             } else {
                 newHovered = pick?(point)

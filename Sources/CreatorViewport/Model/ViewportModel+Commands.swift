@@ -2,7 +2,14 @@ import CreatorGeometry
 import CreatorKernel
 
 extension ViewportModel {
+    /// While navigation is planar, the commands that would turn the camera (a cube region, an arrow, Home, a projection
+    /// change) do nothing.
     public func perform(_ command: ViewportCommand) {
+        if isPlanar, command.turnsTheCamera { return }
+        run(command)
+    }
+
+    private func run(_ command: ViewportCommand) {
         switch command {
         case .frame:
             frameSelectionOrEverything()
@@ -55,10 +62,11 @@ extension ViewportModel {
         if pose != before { events.cameraSettled(pose) }
     }
 
-    /// Spec §6.3: "F frames the selection, or everything", in the model area the panels leave. With nothing shown,
-    /// nothing happens.
+    /// Spec §6.3: "F frames the selection, or everything", in the model area the panels leave; while a tool has
+    /// bounds of its own (`ViewportTool.framingBounds`: the sketch) it frames those. Framing never turns the camera.
+    /// With nothing shown, nothing happens.
     func frameSelectionOrEverything() {
-        guard let bounds = selectionBounds() ?? sceneBounds else { return }
+        guard let bounds = tool?.framingBounds ?? selectionBounds() ?? sceneBounds else { return }
         animate(to: CameraNavigation.frame(bounds, currentPose(), size: viewSize, insets: modelArea))
     }
 

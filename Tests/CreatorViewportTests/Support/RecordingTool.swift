@@ -1,4 +1,5 @@
 // Test fixture file: a viewport tool that records what reaches it and claims what it is told to.
+import CreatorGeometry
 @testable import CreatorViewport
 
 /// Records every call as a short string ("moved 10,20", "clicked 10,20", "began 10,20", "dragged 10,20",
@@ -6,6 +7,10 @@
 @MainActor
 final class RecordingTool: ViewportTool {
     var claims = true
+    /// How the viewport navigates while this tool is set (free orbit unless a test says otherwise).
+    var navigation = ViewportNavigation.free
+    /// What F frames while this tool is set.
+    var framingBounds: BoundingBox?
     private(set) var calls: [String] = []
     private(set) var lastProjector: ViewportProjector?
 

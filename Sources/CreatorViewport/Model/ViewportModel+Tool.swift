@@ -5,6 +5,12 @@ extension ViewportModel {
     /// The camera input is made in now, for the tool.
     var projector: ViewportProjector { ViewportProjector(pose: currentPose(), size: viewSize) }
 
+    /// True while the tool asks for planar navigation: nothing turns the camera.
+    var isPlanar: Bool { tool?.navigation == .planar }
+
+    /// Whether the view cube, its arrows and its View menu are shown: not while navigation is planar.
+    public var showsViewCube: Bool { !isPlanar }
+
     /// Offers a primary drag's press to the tool; true when the tool took it.
     func toolTakesDrag(at point: ScreenPoint, modifiers: ViewportModifiers) -> Bool {
         tool?.dragBegan(at: point, modifiers: modifiers, projector: projector) ?? false
