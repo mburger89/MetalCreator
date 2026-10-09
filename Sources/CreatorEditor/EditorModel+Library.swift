@@ -39,50 +39,58 @@ extension EditorModel {
     public var visibleCanvasCentre: Vector2 { visibleCanvasSize * 0.5 }
 
     /// A click on a library type: adds it centred in the visible canvas, or at the nearest spot in view where it
-    /// overlaps no other node, and selects it, as one undo step.
-    public func addFromLibrary(_ typeID: String) {
-        guard registry[typeID] != nil else { return }
+    /// overlaps no other node, and selects it, as one undo step. Returns whether a node was added (false for a type
+    /// that isn't registered, or when the graph refuses the add).
+    @discardableResult
+    public func addFromLibrary(_ typeID: String) -> Bool {
+        guard registry[typeID] != nil else { return false }
         var node = registry.makeNode(typeID)
         let size = NodeLayout.size(shape(of: node))
         let centred = transform.toCanvas(visibleCanvasCentre) - size * 0.5
         let visible = CanvasRect(corner: transform.toCanvas(.zero), transform.toCanvas(visibleCanvasSize))
         node.position = flow.stored(freeOrigin(near: centred, size: size, in: visible))
-        add(node)
+        return add(node)
     }
 
     /// A library type dropped on the canvas at `screen` (canvas-local screen points): its top-left corner lands
-    /// there, as one undo step. Returns false, adding nothing, for a type that isn't registered.
+    /// there, as one undo step. Returns false, adding nothing, for a type that isn't registered or when the graph
+    /// refuses the add.
     @discardableResult
     public func dropFromLibrary(_ typeID: String, atScreen screen: Vector2) -> Bool {
         guard registry[typeID] != nil, screen.isFinite else { return false }
-        addNode(typeID, atScreen: screen)
-        return true
+        return addNode(typeID, atScreen: screen)
     }
 
     /// The pointer moved while pressing a library type's row (`start` and `location` in window points). Once it is
     /// `LibraryDrag.threshold` from the press the type is being dragged, and `LibraryDragOverlay` draws it at the
-    /// pointer; short of that nothing changes, so a click's jitter rebuilds nothing.
+    /// pointer; short of that nothing changes, so a click's jitter rebuilds nothing. Once dragged, the press stays a
+    /// drag until it ends, even when the pointer comes back within the threshold (the usual way to cancel one).
     public func moveLibraryDrag(_ typeID: String, from start: Vector2, to location: Vector2) {
         let drag = LibraryDrag(typeID: typeID, start: start, location: location)
-        let shown = drag.isDragging ? drag : nil
+        let shown = isLibraryDragging(typeID, from: start) || drag.isDragging ? drag : nil
         if libraryDrag != shown { libraryDrag = shown }
     }
 
-    /// The press on a library type's row ended at `location` (window points). Short of `LibraryDrag.threshold` it was
-    /// a click: the type is added at the visible canvas's centre (`addFromLibrary(_:)`). Otherwise it was dragged: it
+    /// The press on a library type's row ended at `location` (window points). If it never moved
+    /// `LibraryDrag.threshold` from the press it was a click: the type is added at the visible canvas's centre
+    /// (`addFromLibrary(_:)`). Otherwise it was dragged, wherever it ended: it
     /// is added with its top-left corner at the release point when that is on the canvas (`canvasFrameInWindow`, which
     /// leaves out the library), and nothing is added anywhere else or before the host has placed the panel. Each add
     /// is one undo step. Returns whether a node was added.
     @discardableResult
     public func endLibraryDrag(_ typeID: String, from start: Vector2, at location: Vector2) -> Bool {
+        let wasDragging = isLibraryDragging(typeID, from: start)
+            || LibraryDrag(typeID: typeID, start: start, location: location).isDragging
         if libraryDrag != nil { libraryDrag = nil }
         guard registry[typeID] != nil else { return false }
-        guard LibraryDrag(typeID: typeID, start: start, location: location).isDragging else {
-            addFromLibrary(typeID)
-            return true
-        }
+        guard wasDragging else { return addFromLibrary(typeID) }
         guard let canvas = canvasFrameInWindow, canvas.contains(location) else { return false }
         return dropFromLibrary(typeID, atScreen: location - canvas.origin)
+    }
+
+    /// Whether the press of `typeID` at `start` (window points) has already crossed `LibraryDrag.threshold`.
+    func isLibraryDragging(_ typeID: String, from start: Vector2) -> Bool {
+        libraryDrag.map { $0.typeID == typeID && $0.start == start } ?? false
     }
 
     /// The type the drag ghost shows, while a library type is being dragged.

@@ -50,18 +50,23 @@ extension EditorModel {
     }
 
     /// Adds a node of `typeID` with its top-left corner at `screen` (canvas-local screen points: under the palette,
-    /// or where a library node was dropped) and selects it, as one undo step.
-    public func addNode(_ typeID: String, atScreen screen: Vector2) {
+    /// or where a library node was dropped) and selects it, as one undo step. Returns whether the graph took it.
+    @discardableResult
+    public func addNode(_ typeID: String, atScreen screen: Vector2) -> Bool {
         add(registry.makeNode(typeID, at: flow.stored(transform.toCanvas(screen))))
     }
 
-    /// Adds `node` (made by `NodeRegistry.makeNode`) and selects it, as one undo step.
-    func add(_ node: Node) {
+    /// Adds `node` (made by `NodeRegistry.makeNode`) and selects it, as one undo step. Returns false, having shown
+    /// the refusal, when the graph refuses it.
+    @discardableResult
+    func add(_ node: Node) -> Bool {
         do {
             try document.perform(.addNode(node))
             selection = [node.id]
+            return true
         } catch {
             refuse(error.message, node: nil)
+            return false
         }
     }
 

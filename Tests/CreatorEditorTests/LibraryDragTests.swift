@@ -74,6 +74,21 @@ struct LibraryDragTests {
         #expect(!editor.document.canUndo, "one step")
     }
 
+    /// A press dragged out past the threshold and brought back near the press (the usual way to cancel a drag) is
+    /// still a drag: released over the library it adds nothing, rather than turning into a click.
+    @Test func aDragBroughtBackNearThePressIsStillADragAndAddsNothing() throws {
+        let editor = placed(.bottom)
+        let start = try rowPoint(editor), out = start + Vector2(100, 0), back = start + Vector2(3, 3)
+        editor.moveLibraryDrag(NumberTestNode.typeID, from: start, to: out)
+        #expect(editor.libraryDrag != nil)
+        editor.moveLibraryDrag(NumberTestNode.typeID, from: start, to: back)
+        #expect(editor.libraryDrag == LibraryDrag(typeID: NumberTestNode.typeID, start: start, location: back),
+                "the ghost stays, following the pointer")
+        #expect(!editor.endLibraryDrag(NumberTestNode.typeID, from: start, at: back))
+        #expect(editor.graph.nodes.isEmpty)
+        #expect(editor.libraryDrag == nil)
+    }
+
     /// Before the host has placed the panel there is no canvas in window points, so a drag adds nothing; an
     /// unregistered type adds nothing either way.
     @Test func withoutAPlacementOrARegisteredTypeNothingIsAdded() {
