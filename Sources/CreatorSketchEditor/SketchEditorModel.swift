@@ -35,11 +35,16 @@ public final class SketchEditorModel {
     @ObservationIgnored var dragged: SketchEntityID?
     /// The sketch when the drag began, so a drag that moved nothing records no step.
     @ObservationIgnored var dragOrigin: Sketch?
+    /// The Dimension tool's first pick, while it waits for the second.
+    var dimensionPick: SketchEntityID?
+    /// Names an exposed dimension can't take (the Sketch node's own inputs and settings). The host provides it.
+    @ObservationIgnored let isReservedName: @MainActor (String) -> Bool
 
     @ObservationIgnored public var events = SketchEditorEvents()
 
-    public init(sketch: Sketch, plane: Plane) {
+    public init(sketch: Sketch, plane: Plane, isReservedName: @escaping @MainActor (String) -> Bool = { _ in false }) {
         self.plane = plane
+        self.isReservedName = isReservedName
         let solution = SketchSolver.solve(sketch)
         self.solution = solution
         self.sketch = Self.remembering(sketch, solution)

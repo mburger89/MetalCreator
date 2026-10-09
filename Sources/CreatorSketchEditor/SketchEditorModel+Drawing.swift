@@ -10,6 +10,7 @@ extension SketchEditorModel {
     public func choose(_ newTool: SketchTool) {
         tool = newTool
         drawState = .idle
+        dimensionPick = nil
         preview = .none
         refusal = nil
     }
@@ -29,8 +30,9 @@ extension SketchEditorModel {
 
     /// Esc: ends the stroke in progress; with none, clears the selection; with nothing selected, finishes the sketch.
     public func escape() {
-        if drawState != .idle {
+        if drawState != .idle || dimensionPick != nil {
             drawState = .idle
+            dimensionPick = nil
             preview = .none
         } else if !selection.isEmpty {
             selection = []
@@ -52,7 +54,7 @@ extension SketchEditorModel {
         refusal = nil
         switch tool {
         case .select: select(at: p, tolerance: tolerance)
-        case .dimension: break
+        case .dimension: dimension(at: p, tolerance: tolerance)
         case .point: placePoint(at: p, tolerance: tolerance)
         case .line: placeLinePoint(at: p, tolerance: tolerance, suppressed: modifiers.contains(.command))
         case .circle: placeCirclePoint(at: p, tolerance: tolerance)
