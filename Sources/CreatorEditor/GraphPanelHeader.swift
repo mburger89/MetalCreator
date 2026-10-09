@@ -2,8 +2,9 @@ import CreatorGraph
 import CreatorStyle
 import MetalUI
 
-/// The graph panel's header: the title, dock buttons (Left, Bottom, Hide), zoom buttons (the
-/// stopgap for pinch and ⌘-scroll, docs/metalui-gaps.md) and Add, which opens the palette.
+/// The graph panel's header: the title, Add (opens the palette), Library (shows or hides the node
+/// library), zoom buttons (the stopgap for pinch and ⌘-scroll, docs/metalui-gaps.md) and the dock
+/// buttons (Left, Bottom, Hide).
 struct GraphPanelHeader: Component {
     let model: EditorModel
     @Environment(ThemeStore.self) var themes: ThemeStore?
@@ -14,6 +15,8 @@ struct GraphPanelHeader: Component {
             Spacer()
             Button("Add") { model.openPalette() }
                 .help("Add a node (Space)")
+            Button("Library") { model.toggleLibrary() }
+                .help(model.showsLibrary ? "Hide the node library" : "Show the node library")
             Button("−") { model.zoom(in: false) }
                 .help("Zoom out (−)")
             Button("+") { model.zoom(in: true) }

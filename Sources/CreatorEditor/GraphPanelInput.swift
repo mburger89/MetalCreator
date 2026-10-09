@@ -14,13 +14,16 @@ import MetalUI
 ///   +/− keys and header zoom buttons (`EditorModel.zoom(in:)`) are the stopgap, and they stay.
 ///   The canvas sets no cursor yet (C7 `.pointerStyle(_:)`).
 ///
-/// Two more stopgaps are for MetalUI gaps outside C7:
+/// Three more stopgaps are for MetalUI gaps outside C7:
 /// - keys: read from the window's `onInput` fallback, so a focused text field keeps its keys;
 ///   the palette's ↑/↓ and Tab over the canvas alone go through the window keymap (`keymap`,
 ///   `handleAction`), because a focused field claims arrows and focus traversal claims Tab before
 ///   `onInput` (gaps M5-h, M5-b);
 /// - focus: a canvas press clears text focus through `releaseTextFocus`, because MetalUI never
-///   unfocuses a field on an outside press (gap M5-g).
+///   unfocuses a field on an outside press (gap M5-g);
+/// - the floating palette's "click outside": a press of any button reaching `onInput` outside the
+///   palette closes it (`handle(_:)`), because MetalUI's only overlay that dismisses itself is
+///   `.popover`, with its own chrome (gap EP-b).
 @MainActor
 public final class GraphPanelInput {
     public let model: EditorModel
@@ -88,7 +91,10 @@ public final class GraphPanelInput {
     }
 
     /// Install from `Window.onInput` (`install(on:)` does). Returns true when the event was used.
-    /// Tracking modifiers here is part of the `dragValueModifiers(_:)` stopgap.
+    /// Tracking modifiers here is part of the `dragValueModifiers(_:)` stopgap. Every primary press
+    /// reaches `onInput` (MetalUI claims none, except one in a text field or on a slider), and so does
+    /// every other button's press but a right-click that opens a context menu, so the floating
+    /// palette's "click outside" is read here too.
     public func handle(_ event: InputEvent) -> Bool {
         switch event {
         case .modifiersChanged(let modifiers):
@@ -98,6 +104,10 @@ public final class GraphPanelInput {
             model.modifiers = Self.canvasModifiers(key.modifiers)
             guard let command = GraphKeyBindings.command(for: key, paletteOpen: model.palette != nil) else { return false }
             return model.perform(command)
+        case .mouseDown(let mouse), .rightMouseDown(let mouse), .otherMouseDown(let mouse):
+            // Any button's press outside the floating palette closes it. Never claimed, so the press goes on.
+            model.windowPressed(at: Self.vector(mouse.position))
+            return false
         default:
             return false
         }
@@ -148,6 +158,20 @@ public final class GraphPanelInput {
     func canvasEnded(from start: Vector2, at location: Vector2) {
         if model.currentPress?.point != start { releaseTextFocus?() }
         model.pointerReleased(from: start, at: location)
+    }
+
+    /// A node-library row's one gesture: a zero-distance drag reported in window points (`.global`), so a click
+    /// and a drag are told apart by the model (`EditorModel.moveLibraryDrag`, `endLibraryDrag`, `LibraryDrag.threshold`)
+    /// and the release is turned into a canvas point with the host's placement (`canvasFrameInWindow`), with no
+    /// row frame needed. MetalUI's own gesture: the drag never leaves the window as a system drag.
+    public func libraryGesture(for typeID: String) -> DragGesture {
+        DragGesture(minimumDistance: Pixels(0), coordinateSpace: .global)
+            .onChanged { [model] value in
+                model.moveLibraryDrag(typeID, from: Self.vector(value.startLocation), to: Self.vector(value.location))
+            }
+            .onEnded { [model] value in
+                model.endLibraryDrag(typeID, from: Self.vector(value.startLocation), at: Self.vector(value.location))
+            }
     }
 
     /// The pointer over the canvas, from `.onContinuousHover`.

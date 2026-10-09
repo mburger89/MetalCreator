@@ -1,23 +1,14 @@
-import CreatorStyle
 import MetalUI
 
-/// One palette match: a category-coloured dot and the type's name; clicking adds it.
+/// One palette match (`PaletteEntryLabel`); clicking adds it.
 struct PaletteEntryRow: Component {
     let entry: PaletteEntry
     let isHighlighted: Bool
     let action: @MainActor () -> Void
-    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
-        let palette = Palette(themes)
-        return Button(action: action) {
-            HStack(spacing: Pixels(6)) {
-                Circle().fill(palette.header(for: entry.category).color).frame(width: Pixels(8), height: Pixels(8))
-                Text(entry.displayName).font(.callout).foregroundStyle(palette.primaryText.color)
-                Spacer()
-            }
-            .padding(Edges(top: Pixels(3), right: Pixels(6), bottom: Pixels(3), left: Pixels(6)))
-            .background(isHighlighted ? palette.field.color : Color.clear, in: RoundedRectangle(cornerRadius: Pixels(4)))
+        Button(action: action) {
+            PaletteEntryLabel(entry: entry, isHighlighted: isHighlighted)
         }
         .buttonStyle(.plain)
     }

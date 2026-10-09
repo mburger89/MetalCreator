@@ -1,3 +1,4 @@
+import CreatorEditor
 import CreatorGeometry
 import CreatorGraph
 import CreatorViewport
@@ -21,6 +22,19 @@ public enum AppLayout {
     public static let panelHeights: ClosedRange<Double> = 160...700
     /// Where "Show Producing Node" puts the node's top-left corner on the canvas, in canvas-local points.
     public static let revealPoint = Vector2(24, 24)
+
+    /// The docked graph panel's frame in a `window`-sized window, in window points (the frame `PanelArea` gives
+    /// `GraphDock`); `nil` while it's hidden.
+    public static func graphPanelFrame(dock: DockSide, panelWidth: Double, panelHeight: Double, window: Vector2) -> CanvasRect? {
+        let top = margin + topBarHeight + margin
+        switch dock {
+        case .left: return CanvasRect(origin: Vector2(margin, top), size: Vector2(panelWidth, max(0, window.y - top - margin)))
+        case .bottom:
+            return CanvasRect(origin: Vector2(margin, window.y - margin - panelHeight),
+                              size: Vector2(max(0, window.x - 2 * margin), panelHeight))
+        case .hidden: return nil
+        }
+    }
 
     /// The part of the viewport the panels leave uncovered, for `ViewportModel.setModelArea(_:)`.
     public static func modelArea(dock: DockSide, panelWidth: Double, panelHeight: Double) -> ViewportInsets {

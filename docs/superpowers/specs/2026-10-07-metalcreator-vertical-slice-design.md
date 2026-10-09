@@ -454,3 +454,27 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
   first framing and F. Owner: roadmap row "Viewport: frame in the model area".
 - §6.2 "inline value fields" (Errata (M5)) gained a commit rule: a typed value is committed on Return, when its field
   loses focus, and on the next canvas or viewport press, selection change, pick, Undo or Redo, save or export.
+
+## Errata (editor polish)
+
+User-approved design, 2026-10-08 (plan `2026-10-08-editor-polish.md`).
+
+- §6.2's add-node palette (Tab or Space "at the cursor") floats over the whole window, above the canvas, the
+  viewport and the inspector, and takes no part in the panel's layout. Its top-left corner is at the pointer; it
+  flips to the pointer's left at the window's right edge and above it at the bottom edge, and is clamped inside the
+  window as a last resort. It has a fixed size: ten rows, which ↑/↓ scroll, and a caption line ("No matching
+  nodes", or how many more match). The node it adds lands at the canvas point where it opened. Escape and a press
+  outside it close it; a press into a text field or onto a slider doesn't (docs/metalui-gaps.md EP-b).
+- §6.2 gains the node library ("Nodes"): the registry's types under a search field (the palette's search), grouped
+  by category under headers in the category colours (§6.6). Docked at the bottom it is a column at the canvas's left
+  edge; docked left, a strip across the canvas's top (the side the graph flows from, across the panel's short axis).
+  It is shown by default; the header's Library button hides and shows it, and the choice is saved in the document's
+  view state (`ViewState.showsLibrary`, an optional key older readers ignore, so §4.5's format version stays 3;
+  toggling it is not an edit). A "Nodes" caption heads it. A click adds the type centred in the visible canvas, or
+  at the nearest spot in view where it overlaps no node; dragging it onto the canvas (a MetalUI `DragGesture` inside
+  the window, no system drag and drop; a press moving under 10 pt is a click) adds it with its top-left corner at
+  the release point, and a release anywhere else adds nothing; each add is one undo step. Hovering a type shows its inputs → outputs ("Extrude: profile, distance, mode,
+  reversed → solid") as a MetalUI tooltip.
+- The graph panel's insides are laid out to computed numbers (`GraphPanelLayout`), and the host reports where the
+  panel is in its window (`EditorModel.placement`), because MetalUI measures nothing (docs/metalui-gaps.md M4-a,
+  EP-a). `GraphPanelPreview`'s window keeps one size for the same reason.

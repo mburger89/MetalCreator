@@ -11,17 +11,21 @@ public struct ViewState: Sendable, Codable, Equatable {
     public var camera: CameraPose?
     /// The document's home view, set from the viewport's View menu (spec §6.3). `nil` means isometric and framed.
     public var homeCamera: CameraPose?
+    /// Whether the graph panel shows its node library ("Nodes"). Shown unless the user hid it; files from before
+    /// the editor-polish milestone have no key and show it. Not a format change: older readers ignore the key.
+    public var showsLibrary: Bool
 
     public init(dock: DockSide = .left, canvasOffset: Vector2 = .zero, canvasZoom: Double = 1,
-                camera: CameraPose? = nil, homeCamera: CameraPose? = nil) {
+                camera: CameraPose? = nil, homeCamera: CameraPose? = nil, showsLibrary: Bool = true) {
         self.dock = dock
         self.canvasOffset = canvasOffset
         self.canvasZoom = canvasZoom
         self.camera = camera
         self.homeCamera = homeCamera
+        self.showsLibrary = showsLibrary
     }
 
-    private enum CodingKeys: String, CodingKey { case dock, canvasOffset, canvasZoom, camera, homeCamera }
+    private enum CodingKeys: String, CodingKey { case dock, canvasOffset, canvasZoom, camera, homeCamera, showsLibrary }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -30,5 +34,6 @@ public struct ViewState: Sendable, Codable, Equatable {
         canvasZoom = try container.decodeIfPresent(Double.self, forKey: .canvasZoom) ?? 1
         camera = try container.decodeIfPresent(CameraPose.self, forKey: .camera)
         homeCamera = try container.decodeIfPresent(CameraPose.self, forKey: .homeCamera)
+        showsLibrary = try container.decodeIfPresent(Bool.self, forKey: .showsLibrary) ?? true
     }
 }

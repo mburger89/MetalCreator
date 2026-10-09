@@ -211,3 +211,44 @@ and after a drag, and draws exactly one frame per drag event.
   that skip an unchanged subtree and reuse its last layout and paint, or `EquatableView`-style skipping for a
   component whose stored inputs compare equal. MetalCreator can then pass each `NodeView` value inputs, as it already
   does.
+
+## Hit by editor polish (floating palette, node library), 2026-10-08
+
+Labelled EP-a… so they don't clash with the labels above. Checked against MetalUI `c62d6ba` (C7 merged). Two
+things the design expected to be gaps are not. Tooltips: `.help(_:)` (ruling `MN-P`, after the pointer rests 1 s)
+shows a library type's inputs → outputs. The library's drag: each row's one `DragGesture(minimumDistance: 0,
+coordinateSpace: .global)` reports window points (C7), so the release is mapped onto the canvas with the host's
+placement, no row frame needed, and the model tells a click (under 10 pt) from a drag. MetalUI's drag and drop
+(`draggable(_:)`, `dropDestination(for:action:isTargeted:)`, rulings `DN-*`) is deliberately not used: a draggable
+that leaves the window becomes a system drag (`NSDraggingSession`, divergence 101), which the design ruled out, and
+it starts on any move with no slop, ahead of a click (`DN-D`).
+
+- **EP-a. No element frame in window coordinates, no hover coordinate space, and no window size** (adds to M4-a).
+  The add-node palette floats over the window with its top-left corner at the pointer and flips at the window's right
+  and bottom edges, so it needs the pointer in window points and the window's size; a click on a library type adds it
+  at the visible canvas's centre, so it needs the canvas's size. Gesture values can be in window points
+  (`DragGesture(coordinateSpace: .global)`, `SpatialTapGesture`, C7), which the library's drag uses, but the palette
+  opens from the hover pointer: `HoverPhase.active` is element-local only, nothing reports an element's frame
+  (no `onGeometryChange`), and nothing reports the window's size. Stopgap: the panel's insides
+  are computed (`GraphPanelLayout`; the header and the library are framed to it), and the host reports the panel's
+  frame and the window's size through `EditorModel.placement`: the app from `AppLayout.graphPanelFrame` and the
+  viewport's recorded draw size (the viewport fills the window, M4-a), `GraphPanelPreview` from a window kept at one
+  size (`PreviewLayout`). Known limits: before the viewport's first draw the palette opens at the canvas-local point
+  unflipped; resizing the window while the palette is open leaves it where it opened; a refusal line under the
+  canvas makes the "visible centre" half a line low. Wanted: `onGeometryChange(for:of:action:)` with a global or
+  named coordinate space (SwiftUI's `.global`, `coordinateSpace(_:)`), a coordinate space for `onContinuousHover`'s
+  location, and the window's size in the environment.
+- **EP-b. No plain anchored overlay that dismisses on an outside press.** `.popover` is placed against its anchor
+  and dismissed by an outside press or Escape (`MN-N`), but it draws its own chrome (the `.surface` panel, border and
+  default shadow, a per-frame cost over moving content, PERF-a) and anchors to an element's edge, not to a point.
+  The palette wants glass chrome, its top-left corner at the pointer, no shadow. Stopgap: the host draws
+  `SearchPaletteOverlay` last in its root `ZStack` (in the app inside `PaletteDock`, which contributes the `Panel`
+  key context so F, + and − type into the search field); a transparent backdrop with an empty `DragGesture` and a
+  claiming `.onScrollWheel` keeps a press or a scroll on the palette's padding from reaching the canvas, the
+  inspector or the viewport beneath; a press of any button outside is read from `Window.onInput`'s `.mouseDown`,
+  `.rightMouseDown` and `.otherMouseDown` (`GraphPanelInput.handle(_:)` → `EditorModel.windowPressed(at:)`). Known
+  limits: a press into a text field or onto a slider, and a right-click that opens the viewport's context menu, are
+  claimed before `onInput`, so they don't close the palette (Escape, a canvas press, or any other press does); a
+  pinch over the palette reaches what is under it, where nothing takes a pinch yet (gap 2). Wanted: a chrome-less popover style (SwiftUI's
+  `.presentationBackground(.clear)` / a plain `popoverStyle`) with a point anchor (`attachmentAnchor: .point(_:)`),
+  or an outside-press callback for an overlay.

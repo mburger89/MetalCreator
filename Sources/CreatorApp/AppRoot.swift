@@ -3,7 +3,9 @@ import CreatorViewport
 import MetalUI
 
 /// The window's content (spec §6.1): the viewport fills the window, and the glass top bar, the graph panel in its
-/// dock and the inspector float over it. A pick in progress shows its banner over the top. Every view below reads
+/// dock and the inspector float over it. A pick in progress shows its banner over the top, and the add-node palette
+/// and a node-library type being dragged float over everything (spec §6.2), drawn last so nothing clips or covers
+/// them. Every view below reads
 /// the app's theme from the environment, and the window's MetalUI controls follow its light or dark (spec §6.6).
 /// All behaviour is in `AppModel`; this is glue.
 public struct AppRoot: Component {
@@ -33,6 +35,8 @@ public struct AppRoot: Component {
                 .padding(Edges(top: (AppLayout.margin * 2 + AppLayout.topBarHeight).px, right: Pixels(0),
                                bottom: Pixels(0), left: Pixels(0)))
             }
+            PaletteDock(model: model)
+            LibraryDragOverlay(model: model.editor)
         }
         .onChange(of: model.editor.inspectorRequest) { _, request in
             if let request { model.handle(request) }
