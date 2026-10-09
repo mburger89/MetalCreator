@@ -3,7 +3,8 @@ import Testing
 @testable import CreatorGraph
 
 /// The node library's visibility is saved in the view state. It is an added optional key, which older readers
-/// ignore, so `GraphFile.currentFormatVersion` stays 3 (CLAUDE.md: bump only for changes older readers can't decode).
+/// ignore, so it needed no format bump (CLAUDE.md: bump only for changes older readers can't decode). The version is 4
+/// because sketcher S4 added `ConstantValue.sketch`, not because of this key.
 struct ViewStateLibraryTests {
     @Test func theLibraryIsShownUnlessHidden() throws {
         #expect(ViewState().showsLibrary)
@@ -21,6 +22,6 @@ struct ViewStateLibraryTests {
         let older = try JSONDecoder().decode(FormatThreeViewState.self, from: data)
         #expect(older.dock == .bottom)
         #expect(older.canvasZoom == 2)
-        #expect(GraphFile.currentFormatVersion == 3, "no format bump")
+        #expect(GraphFile.currentFormatVersion == 4, "S4's bump only; the library's key added none")
     }
 }
