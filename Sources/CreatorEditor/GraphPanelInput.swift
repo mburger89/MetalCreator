@@ -13,6 +13,7 @@ import MetalUI
 /// - `scrolled(_:)`, from the canvas's `.onScrollWheel`: two-finger scroll and the wheel pan, ⌘-scroll zooms
 ///   about the pointer (`EditorModel.scrolled(by:at:modifiers:phase:)`, phases from `scrollPhase(of:)`).
 /// - `pinchGesture()`: a `MagnifyGesture` zooms about where the pinch began (`EditorModel.pinchChanged`).
+/// - The cursor is the model's (`EditorModel.canvasCursor`, a closed hand while a drag pans); `GraphCanvas` sets it.
 ///
 /// Three stopgaps remain, for MetalUI gaps outside C7:
 /// - keys: read from the window's `onInput` fallback, so a focused text field keeps its keys;
