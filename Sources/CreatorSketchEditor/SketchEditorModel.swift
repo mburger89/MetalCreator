@@ -19,6 +19,12 @@ public final class SketchEditorModel {
     public private(set) var solution: SketchSolution
     /// A plain-language reason the last command was refused, until the next edit or tool change.
     public internal(set) var refusal: String?
+    /// The selected entities (drawn in the selection colour; constraints and dimensions apply to them).
+    public internal(set) var selection: Set<SketchEntityID> = []
+    /// The entity under the pointer, if any.
+    public internal(set) var hovered: SketchEntityID?
+    /// The active tool's rubber band.
+    public internal(set) var preview = SketchPreview.none
 
     @ObservationIgnored public var events = SketchEditorEvents()
 
@@ -36,6 +42,8 @@ public final class SketchEditorModel {
         let solved = SketchSolver.solve(stored)
         solution = solved
         sketch = Self.remembering(stored, solved)
+        selection = selection.filter { sketch.entities[$0] != nil }
+        if let hovered, sketch.entities[hovered] == nil { self.hovered = nil }
     }
 
     /// Takes `edited` as the sketch, solved and remembered, and hands it to the host as one undo step.
