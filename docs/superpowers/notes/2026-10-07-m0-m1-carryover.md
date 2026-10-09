@@ -92,7 +92,8 @@ Read this before writing the M2 and M3 plans.
   `.contextMenu`). The keys stay window-wide (`!Panel` context) until MetalUI C9 scopes keys to an element.
   C7 also brought: two-finger scroll zooms toward the cursor (momentum ignored), pinch zooms about its centre,
   middle-drag pans, right-drag orbits (a right click still opens the menu), `SpatialTapGesture` clicks, and the
-  crosshair and closed-hand cursors. The graph panel's own C7 swap (From M5) is still to do.
+  crosshair and closed-hand cursors. The graph panel's own C7 swap (From M5) is done too (plan
+  `2026-10-09-graph-input-c7.md`).
 - `ViewportPalette` (GPU colours) duplicates spec §6.6 hex values that M5's `Palette` will also hold. M5 can't unify
   them (neither target may import the other); M6 decides on a shared home.
 - Faces above 2²² − 1 and solids beyond 256 aren't pickable (`PickID`).
@@ -100,6 +101,15 @@ Read this before writing the M2 and M3 plans.
 ## From M5
 - Inline node values are read-only text (spec §6.2 says "inline value fields"); editing is in the inspector, because
   a canvas `TextField` would fight the canvas-wide gesture and split keyboard focus. Revisit when MetalUI C7 lands.
+  Revisited after C7 (plan `2026-10-09-graph-input-c7.md`): still read-only. C7 is pointer input; what makes a
+  canvas field unsound is untouched by it. (1) Keys: Tab is a window-wide keymap binding that opens the palette
+  whenever the pointer is over the canvas (gap M5-b), so in a node's field it would open the palette instead of
+  moving focus; keys are scoped to an element only by MetalUI C9. (2) Hit testing: the canvas draws its layers with
+  `allowsHitTesting(false)` and every hit is the model's (`EditorModel.hitTest`, computed from `NodeLayout`); a field
+  needs its own MetalUI hit region under the canvas's scale, a second hit test that must agree with the model's at
+  every zoom, and MetalUI gives a text field's press to the field before any gesture, so a node could no longer be
+  dragged by its rows. (3) Cost: a field per unwired input on every node adds to the whole-window rebuild every drag
+  step pays (PERF-b). Revisit with MetalUI C9 and PERF-b.
 - Inspector settings rule: a control naming a non-socket is a setting (`NodeSetting`); new nodes carry their seeded
   `defaultSettings`, and a setting toggle with nothing stored reads On; `.parameterPicker` writes M3's
   `ConstantValue.parameter(id)` and reads `.parameterID` (one encoding, in CreatorGraph).
@@ -118,6 +128,12 @@ Read this before writing the M2 and M3 plans.
   `canvasGesture()` becomes a tap plus a nonzero-distance drag and its stand-in test is rewritten), `dragValueModifiers(_:)` →
   `DragGesture.Value.modifiers` (body-only; then `handle(_:)` stops tracking `.modifiersChanged`), and scroll/pinch get new
   handlers (`.onScrollWheel`, `MagnifyGesture`); the +/− keys and header buttons stay.
+  ✅ (graph input C7) Done, with one change: `dragValueModifiers(_:)` is gone (the canvas drag reads
+  `DragGesture.Value.modifiers` and `handle(_:)` stops tracking), and so is `spatialTapGesture()`, but the canvas
+  keeps its zero-distance drag for clicks, since a `SpatialTapGesture`'s value has no modifiers (gap GI-a). Scroll
+  pans and ⌘-scroll zooms (`EditorModel.scrolled(by:at:modifiers:phase:)`), a pinch zooms
+  (`EditorModel.pinchChanged`), a pan shows the closed hand (`EditorModel.canvasCursor`), and a scroll, pinch,
+  press or hover over the panel's chrome no longer reaches the viewport (`GraphPanel`'s opaque backdrop).
 - With M4's viewport in the same window, M4's window-wide `=`/`+`/`-` keymap bindings win over the graph's zoom keys
   (keymap runs before `onInput`); M6 scopes the viewport's with a key context (gap M4-a).
 
@@ -144,6 +160,8 @@ Read this before writing the M2 and M3 plans.
 - Stopgaps to delete when C7 merges, beyond M4's and M5's lists: the canvas hover veto in `AppInput.handleAction`
   (only if MetalUI also gains hover-scoped key contexts), and the resize edge's missing cursor (adopt
   `.pointerStyle(.columnResize)` / `.rowResize`, C7 `CI-H`). Key-routing dispatch tests wait for gap M6-e.
+  ✅ (graph input C7) The resize edge's cursor is done (`PanelResizeHandle.pointerStyle(alongWidth:)`); the hover
+  veto stays until MetalUI C9.
 - `ViewportHarness` and `GraphPanelPreview` stay until human-check groups V and M5 have been run; delete them then.
 - Themes (spec §6.6): the theme type is `ColorTheme` because MetalUI exports `Theme`. A view that draws a colour reads
   `@Environment(ThemeStore.self) var themes: ThemeStore?` and draws `Palette(themes)`; `Palette.dracula` in a view is a

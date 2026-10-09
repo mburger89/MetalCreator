@@ -3,7 +3,7 @@ import CreatorStyle
 import MetalUI
 
 /// The graph panel's header: the title, Add (opens the palette), Library (shows or hides the node
-/// library), zoom buttons (the stopgap for pinch and ⌘-scroll, docs/metalui-gaps.md) and the dock
+/// library), zoom buttons (beside pinch and ⌘-scroll on the canvas, and the +/− keys) and the dock
 /// buttons (Left, Bottom, Hide).
 struct GraphPanelHeader: Component {
     let model: EditorModel

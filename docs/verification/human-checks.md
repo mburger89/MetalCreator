@@ -128,6 +128,62 @@ Run `swift run ViewportHarness` (VC7 also with `HARNESS_PICK=1`) with a trackpad
   pointer off the window (over the menu bar), press + and −: the part stays centred. Pinned:
   `ModelAreaFramingTests`. Observed:
 
+## Group GI — graph panel and app input on MetalUI C7
+
+**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`); MetalUI's own
+group Y covers the platform side (trackpad phases, momentum, every cursor).
+
+The tests pin the model and the conversions from MetalUI values only. The view glue has no headless coverage (no
+headless MetalUI window, gap M6-e): `GraphCanvas`'s `.gesture`, `.onScrollWheel` and `.pointerStyle` lines,
+`GraphPanel`'s opaque backdrop and `PanelResizeHandle`'s `.pointerStyle`. Run GI-4, GI-1 and GI-6 first: a
+failure there is a bug in that glue (or in MetalUI C7), not in the model.
+
+Run `swift run MetalCreatorApp` on a saved bracket, with a trackpad and a wheel mouse; GI-8 also runs
+`swift run GraphPanelPreview`.
+
+- [ ] **GI-1 Scroll pans.** Two-finger scroll over the graph canvas pans it in every direction, the nodes following
+  the fingers; a flick glides to a stop. A wheel mouse pans up and down a step at a time. Nothing else moves: the
+  viewport doesn't zoom and the inspector doesn't scroll. Flick, then move the pointer off the canvas mid-glide, onto
+  the viewport and then onto the node library: record whether the glide stops and whether the library scrolls
+  (gap GI-b). Pinned: `aWheelStepPansTheCanvasByItsDelta`, `aTrackpadScrollPansAndItsGlideKeepsPanning`,
+  `scrollEventsMapToCanvasPhases`. **Observed:**
+- [ ] **GI-2 ⌘-scroll zooms about the pointer.** Hold ⌘ and scroll over a node: the node stays under the pointer as
+  the canvas zooms. One way zooms in, the other out; note which way feels wrong, if one does (the sign is
+  `EditorModel.scrolled(by:at:modifiers:phase:)`'s, the viewport's too). Flick with ⌘ held: the zoom stops when the
+  fingers lift, with no glide, and the canvas doesn't pan either, even if ⌘ is let go during the glide. Start a plain
+  scroll, then press ⌘ part-way: it keeps panning until the fingers lift. The zoom stops at 25% and 300%. Pinned:
+  `commandScrollZoomsAboutThePointer`, `aZoomScrollsGlideIsIgnored`, `aZoomsGlideIsIgnoredOnlyUntilItsMomentumEnds`,
+  `aTrackpadScrollZoomsOrPansAsItBegan`, `aScrollThatBeganElsewhereIsTakenUpAsItIsNow`, `theScrollZoomStaysInRange`,
+  `aScrollEventZoomsAboutItsLocalPoint`. **Observed:**
+- [ ] **GI-3 Pinch.** Pinch out over a node: the canvas zooms in about the point where the pinch began; pinching in
+  zooms out, and a hard pinch-in holds at 25% instead of springing back. A pinch over the viewport still zooms the
+  viewport, not the canvas. Pinned: `CanvasPinchTests`. **Observed:**
+- [ ] **GI-4 The panel's chrome takes the pointer.** Over the graph panel's header (between its buttons), its padding
+  and, while one shows, the refusal line under the canvas: scroll, ⌘-scroll and pinch, and nothing moves (before this
+  plan the viewport beneath zoomed); click there, and no face is picked or highlighted in the viewport and the
+  selection doesn't change; hover there after hovering a face, and the viewport's hover highlight goes. The header's
+  buttons still work. Scroll over the node library: its list scrolls and the canvas doesn't. Pinned: none (view
+  glue). **Observed:**
+- [ ] **GI-5 Modifiers come from the press.** Shift-click two nodes: both are selected. Press on a third with ⇧ held,
+  let go of ⇧, then release: it is added too. Click a node without ⇧ right after: only it is selected. ⇧-drag on
+  empty canvas box-selects; ⌥-drag a node duplicates it; press on a node, then hold ⌥ before moving: it duplicates.
+  Hold ⇧, ⌘-Tab to another app, let go of ⇧ there, come back and click a node: a plain click. Pinned:
+  `PressModifierTests`, `modifierChangesAreNeitherClaimedNorTracked`,
+  `theCanvasGestureReadsThePressModifiersFromItsValues`, `anOptionDragThroughTheGestureDuplicates`. **Observed:**
+- [ ] **GI-6 Cursors.** Drag empty canvas: a closed hand from the moment it pans until the release, also when the
+  pointer leaves the panel mid-drag; a click shows none. Moving nodes, dragging a wire and box selection keep the
+  arrow. Hover the dock's inner edge: a left-right resize cursor docked left, an up-down one docked at the bottom,
+  kept while dragging it. Pinned: `CanvasCursorTests`, `theLeftDocksEdgeIsAColumnResizeAndTheBottomDocksARowResize`.
+  **Observed:**
+- [ ] **GI-7 The palette.** Open the palette (Space) over the canvas, then scroll or pinch over the canvas outside
+  it: it closes. Open it again and scroll over the palette itself: the canvas doesn't move and the palette stays.
+  Pinch over the palette: nothing moves (neither the canvas nor the viewport) and it stays open.
+  Pinned: `aScrollThatMovesTheCanvasClosesThePalette`, `aPinchClosesThePalette`. **Observed:**
+- [ ] **GI-8 Keys unchanged, and the preview.** Over the canvas, + and − still zoom it (not the viewport), F frames
+  the viewport, Tab and Space open the palette, and Delete, ⌘C, ⌘V and ⌘D work after a canvas click. Then in
+  `swift run GraphPanelPreview`: GI-1, GI-2, GI-3, GI-5 and GI-6's canvas half behave the same. Pinned:
+  `AppInputTests`, `KeyCommandTests`. **Observed:**
+
 ## Group M5 — the graph panel and inspector (M5)
 
 **Status: IN PROGRESS** (2026-10-07: V7, V9 pass; V5 labels confirmed). Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
