@@ -2,13 +2,15 @@ import CreatorKernel
 import Foundation
 
 extension KernelError {
-    /// OCCT couldn't build the blend at all.
-    static func blendFailed(size: Double, chamfer: Bool) -> KernelError {
+    /// OCCT couldn't build the blend (or its checker failed). `largest` is the largest size that works, nil when none
+    /// was found or looked for.
+    static func blendFailed(size: Double, chamfer: Bool, largest: Double?) -> KernelError {
         if chamfer {
+            let limit = largest.map { " (max ≈ \(millimetres($0)) mm)" } ?? ""
             return .operationFailed(operation: "chamfer",
-                                    reason: "the selected edges can't be chamfered by \(millimetres(size)) mm.")
+                                    reason: "the selected edges can't be chamfered by \(millimetres(size)) mm\(limit).")
         }
-        return .filletFailed(radius: size, maxRadius: nil, reason: "the selected edges can't be rounded this much.")
+        return .filletFailed(radius: size, maxRadius: largest, reason: "the selected edges can't be rounded this much.")
     }
 
     /// OCCT built the blend but its checker rejects the solid. `largest` is the largest size that gives a valid one,
