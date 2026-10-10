@@ -40,7 +40,8 @@ extension AppModel {
         guard let target = handleTargets[id] else { return }
         if value != currentNumber(target) {
             do {
-                try document.perform(.setInput(target.node, target.socket, .number(value)), coalescingKey: "handle-\(id)")
+                try document.perform(.setInput(target.node, target.socket, .number(value)), at: editor.graphPath,
+                                     coalescingKey: "handle-\(id)")
             } catch {
                 alert = .problem(AppProblem("The value couldn't be changed", error.message))
             }
@@ -51,17 +52,19 @@ extension AppModel {
     /// The number `target` currently reads: its stored input, or its socket's default (from `inputs(for:)`, so a
     /// per-node socket's default counts).
     private func currentNumber(_ target: HandleTarget) -> Double? {
-        guard let node = document.graph.nodes[target.node] else { return nil }
+        guard let node = editor.graph.nodes[target.node] else { return nil }
         let stored = node.inputValues[target.socket]
             ?? registry[node.typeID]?.inputs(for: node).first { $0.name == target.socket }?.defaultValue
         return HandleBuilder.number(stored)
     }
 
     /// "Show Producing Node": selects the node and scrolls the graph to it, showing a hidden panel first. A face made
-    /// inside a group names a scoped ID, so its group node on the top level is shown.
+    /// inside a group names a scoped ID, so its group node on the top level is shown: the panel goes back out to the
+    /// top level for it.
     func showProducingNode(_ id: NodeID) {
         guard let node = producingNode(id) else { return }
         if !editor.isPanelVisible { editor.toggleHidden() }
+        editor.goToLevel(0)
         editor.selection = [node.id]
         let zoom = editor.transform.zoom
         editor.transform = CanvasTransform(offset: AppLayout.revealPoint - editor.displayOrigin(of: node) * zoom, zoom: zoom)

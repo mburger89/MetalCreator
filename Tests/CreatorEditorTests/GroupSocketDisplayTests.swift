@@ -32,7 +32,7 @@ struct GroupSocketDisplayTests {
     @Test func theInspectorEditsAGroupNodesInputs() throws {
         let (node, graph) = rib()
         let page = InspectorBuilder.page(graph: graph, selection: [node.id], registry: registry, results: [:])
-        let row = try #require(page.sections.first?.rows.first)
+        let row = try #require(page.sections.first { $0.title == "Inputs" }?.rows.first)
         guard case .number(let field) = row else {
             Issue.record("expected a number row, got \(row)")
             return

@@ -4,9 +4,19 @@ import CreatorKernel
 extension EditorModel {
     /// What the context inspector shows now.
     public var inspectorPage: InspectorPage {
-        var page = InspectorBuilder.page(graph: graph, selection: selection, registry: registry, results: document.results)
+        var page = InspectorBuilder.page(graph: graphWithDocumentParameters, selection: selection, registry: registry,
+                                         results: levelResults)
         page.comment = commentPage
+        page.group = groupPanel
         return page
+    }
+
+    /// The graph shown, with the document's parameters: they belong to the top level, and nodes inside a group read
+    /// them too (`Evaluator` hands every level the top level's), so the inspector lists and offers them there.
+    var graphWithDocumentParameters: Graph {
+        var shown = graph
+        shown.parameters = rootGraph.parameters
+        return shown
     }
 
     /// A slider's edit begins (`true`, at the press) or ends (`false`, at the release): MetalUI's
@@ -24,7 +34,7 @@ extension EditorModel {
         guard value != field.value else { return }
         let key = continuous ? "input-\(field.node.rawValue.uuidString)-\(field.socket.rawValue)" : nil
         do {
-            try document.perform(.setInput(field.node, field.socket, value), coalescingKey: key)
+            try edit(.setInput(field.node, field.socket, value), coalescingKey: key)
         } catch {
             refuse(error.message, node: field.node)
         }
@@ -35,7 +45,7 @@ extension EditorModel {
     public func clearInput(_ field: InputField) {
         guard field.isOptional, graph.nodes[field.node]?.inputValues[field.socket] != nil else { return }
         do {
-            try document.perform(.setInput(field.node, field.socket, nil))
+            try edit(.setInput(field.node, field.socket, nil))
         } catch {
             refuse(error.message, node: field.node)
         }
@@ -78,7 +88,7 @@ extension EditorModel {
 
     /// A number for a parameter, as a whole number for an integer parameter (refused if no `Int` holds it).
     public func setParameterNumber(_ id: ParameterID, to number: Double, continuous: Bool = false) {
-        guard let parameter = graph.parameters.first(where: { $0.id == id }) else { return }
+        guard let parameter = rootGraph.parameters.first(where: { $0.id == id }) else { return }
         guard parameter.type == .integer else {
             setParameter(id, to: .number(number), continuous: continuous)
             return
@@ -90,9 +100,19 @@ extension EditorModel {
         setParameter(id, to: .integer(whole), continuous: continuous)
     }
 
-    /// An inspector button: recorded for the viewport, which owns pick mode (M4/M6).
+    /// An inspector button. A group node's (Edit Group, Make Unique, Ungroup) the panel carries out itself; the rest are
+    /// recorded for the app shell, which owns pick mode and the sketch (M4/M6).
     public func press(_ action: InspectorAction, on node: NodeID) {
-        requestSerial += 1
-        setInspectorRequest(InspectorRequest(node: node, action: action, serial: requestSerial))
+        switch action {
+        case .editGroup:
+            enterGroup(node)
+        case .makeUnique:
+            makeUnique(node)
+        case .ungroup:
+            ungroup(node)
+        case .pickEdgesInView, .pickFacesInView, .editSketch:
+            requestSerial += 1
+            setInspectorRequest(InspectorRequest(node: node, action: action, serial: requestSerial))
+        }
     }
 }

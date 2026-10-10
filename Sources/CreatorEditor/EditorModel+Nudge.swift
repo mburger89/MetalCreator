@@ -16,7 +16,7 @@ extension EditorModel {
             document.endCoalescing()
             nudgeKey = "nudge-\(UUID().uuidString)"
         }
-        try? document.perform(.batch(moveCommands(from: start, by: flow.stored(delta))), coalescingKey: nudgeKey)
+        try? edit(.batch(moveCommands(from: start, by: flow.stored(delta))), coalescingKey: nudgeKey)
         return true
     }
 }

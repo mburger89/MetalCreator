@@ -4,10 +4,14 @@ import Foundation
 public enum GroupNaming {
     /// `base` if no definition has that name, else "base 2", "base 3", …
     public static func uniqueDefinitionName(_ base: String, among definitions: [GroupID: GroupDefinition]) -> String {
-        let names = Set(definitions.values.map(\.name))
-        guard names.contains(base) else { return base }
+        uniqueName(base, taken: Set(definitions.values.map(\.name)))
+    }
+
+    /// `base` if it isn't in `taken`, else "base 2", "base 3", …
+    static func uniqueName(_ base: String, taken: Set<String>) -> String {
+        guard taken.contains(base) else { return base }
         var number = 2
-        while names.contains("\(base) \(number)") { number += 1 }
+        while taken.contains("\(base) \(number)") { number += 1 }
         return "\(base) \(number)"
     }
 
@@ -20,9 +24,14 @@ public enum GroupNaming {
         return SocketName("\(base.rawValue)\(number)")
     }
 
-    /// Socket names that can't be used: a group node keeps its settings (`NodeSetting`) beside its inputs' values.
+    /// The name of the "+" socket Group Input and Group Output draw to expose a new socket (groups spec §6): no
+    /// socket of a definition may have it.
+    public static let plusSocket: SocketName = "+"
+
+    /// Socket names that can't be used: a group node keeps its settings (`NodeSetting`) beside its inputs' values,
+    /// and the "+" socket is the canvas's.
     public static func isReserved(_ name: SocketName) -> Bool {
-        NodeSetting.all.contains(name) || name.rawValue.hasPrefix(NodeSetting.projectionPrefix)
+        name == plusSocket || NodeSetting.all.contains(name) || name.rawValue.hasPrefix(NodeSetting.projectionPrefix)
     }
 
     /// Why `sockets` can't be one side of a group, or `nil` if they can.

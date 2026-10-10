@@ -13,7 +13,7 @@ extension EditorModel {
             deleteSelection()
         case .selectAll, .nudge, .frameSelection, .cut, .addNote, .addFrame:
             return performSelectionCommand(command)
-        case .group, .ungroup:
+        case .group, .ungroup, .enterGroup, .exitGroup:
             return performGroupKey(command)
         case .copy, .paste, .duplicate, .zoomIn, .zoomOut, .undo, .redo:
             performEdit(command)
@@ -52,8 +52,12 @@ extension EditorModel {
         case .duplicate: duplicateSelection()
         case .zoomIn: zoom(in: true)
         case .zoomOut: zoom(in: false)
-        case .undo: document.undo()
-        case .redo: document.redo()
+        case .undo:
+            document.undo()
+            refreshLevel()
+        case .redo:
+            document.redo()
+            refreshLevel()
         default: break // `perform(_:)` routes every other command elsewhere.
         }
     }

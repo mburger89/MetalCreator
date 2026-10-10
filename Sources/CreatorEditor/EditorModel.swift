@@ -29,6 +29,16 @@ public final class EditorModel {
         set { canvasSelection = CanvasSelection(nodes: newValue) }
     }
 
+    /// The group nodes entered from the top level (`EditorModel+Levels`). Read `levelPath`, which leaves out any that
+    /// no longer exist.
+    public internal(set) var enteredGroups: [NodeID] = []
+    /// True while the host needs the level shown to stay as it is (the app: sketch mode, which works on the top level's
+    /// graph). `enterGroup`, `exitGroup` and `goToLevel` do nothing meanwhile, so no key or click changes the level
+    /// under an open sketch.
+    public var isLevelLocked = false
+    /// The pan and zoom each group level had when it was last shown, by `levelPath`.
+    var levelTransforms: [[NodeID]: CanvasTransform] = [:]
+
     /// The pointer over the canvas, in canvas-local screen points; `nil` when it is elsewhere.
     public var pointerLocation: Vector2?
     public private(set) var interaction: CanvasInteraction?
@@ -84,7 +94,10 @@ public final class EditorModel {
         if document.viewState.dock != .hidden { lastVisibleDock = document.viewState.dock }
     }
 
-    public var graph: Graph { document.graph }
+    /// The graph the panel shows: the top level's, or the inside of the group entered (`EditorModel+Levels`).
+    public var graph: Graph {
+        enteredGroups.isEmpty ? document.graph : document.content.graph(at: graphPath) ?? document.graph
+    }
     public var registry: NodeRegistry { document.registry }
 
     // MARK: - Dock and transform
@@ -105,11 +118,21 @@ public final class EditorModel {
         setDock(isPanelVisible ? .hidden : lastVisibleDock)
     }
 
+    /// Pan and zoom of the level shown. The top level's are saved with the file; each group's inside remembers its
+    /// own while the document is open (view state, not undone).
     public var transform: CanvasTransform {
-        get { CanvasTransform(document.viewState) }
+        get {
+            let levels = levelPath
+            return levels.isEmpty ? CanvasTransform(document.viewState) : levelTransforms[levels] ?? CanvasTransform()
+        }
         set {
-            document.viewState.canvasOffset = newValue.offset
-            document.viewState.canvasZoom = newValue.zoom
+            let levels = levelPath
+            if levels.isEmpty {
+                document.viewState.canvasOffset = newValue.offset
+                document.viewState.canvasZoom = newValue.zoom
+            } else if newValue.offset.isFinite {
+                levelTransforms[levels] = newValue
+            }
         }
     }
 

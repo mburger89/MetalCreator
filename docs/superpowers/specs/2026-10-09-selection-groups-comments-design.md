@@ -287,3 +287,73 @@ Plan `2026-10-09-comments.md`.
   into the level it ungroups into, offset like the nodes, in the same undo step (User decision 8, (b); one undo takes
   them back out and restores the definition). A
   negative size in a hand-edited file reads as zero.
+
+## Errata (C2)
+
+Plan `2026-10-09-groups-editor.md`.
+
+- §6 "Entering" and "Breadcrumbs": a level is the group nodes entered from the top level (`EditorModel.levelPath`, each
+  by its ID in the graph before it), not a definition, so a definition used twice shows the entered instance's states
+  (`DocumentModel.innerResults` is keyed by instance path). `EditorModel.graph` is the level's graph and
+  `EditorModel.edit(_:)` addresses its path; the document's parameters stay on the top level and show at every level.
+  Each level remembers its pan and zoom while the document is open (not saved, not undone); a level entered for the
+  first time frames its nodes. Undo or Redo that removes the group node entered drops the panel to the level around it
+  (`refreshLevel()`).
+- §6 "Entering": Edit Group, Make Unique and Ungroup are the group node's inspector buttons (`InspectorAction.editGroup`,
+  `.makeUnique`, `.ungroup`, declared by `GroupNode.inspector`), carried out by the graph panel itself and never
+  recorded for the app shell. S5b's double-click recogniser presses the first of `doubleClickActions` ([.editSketch,
+  .editGroup]) a node's inspector has, and now runs after the click it ends on, so a click that enters a group
+  doesn't select its group node inside. ⌘↓ and ⌘↑ are `GraphKeyCommand.enterGroup`/`.exitGroup`.
+- §6 "Inside": the "+" is a socket named `GroupNaming.plusSocket` ("+", reserved: no socket of a definition may have
+  it) at the end of Group Input's outputs and Group Output's inputs. A wire dragged between it and another socket,
+  either way round, exposes the socket (`GroupCommands.exposeOutput`, `exposeInput`): the new output or input is named
+  after the socket and typed from it, an input keeps its target's unit, range and default, and the socket and its wire
+  are one command, so one undo step. Any other pairing with a "+" is refused with a hint.
+- §6 "Inside": Group Input and Group Output cannot be copied, duplicated or deleted (Delete with only them selected
+  says why); they can be moved.
+- §6 "Inspector": the definition part shows name, accent and "Used N times" ("Used 1 time") for a group node, Group
+  Input or Group Output; the socket list (rename, move up or down, remove) for Group Input and Group Output. Removing
+  a socket a group node has wired is refused naming that node (`GroupCommands.removeSocket`).
+- §6 "Library": the "Groups" section lists the definitions that match the library's search; a group row carries the
+  key "group:<uuid>" through the library's one gesture in place of a node type's ID. A definition no group node uses
+  shows Delete. Placing a group inside itself is refused ("A group can't contain itself.").
+- §6 "Viewport": while a level is shown the document evaluates all of it (`DocumentModel.inspectedLevel`,
+  `Evaluator.evaluate(_:definitions:demand:inspecting:)`), so every inner node has a state in `innerResults` and
+  Selected node previews any of them, also one nothing reads; a node asked for this way never changes its group
+  node's result. Handles and picking read the level's graph and results (a pick starts from a node of the level, never
+  a top-level endpoint or Group Output). A pick is written through
+  `GraphContent.relativeToLevel`, which renames the tags naming this instance's identities to the names the
+  definition uses; tags naming nodes outside the level stay as they are. A pick under way is cancelled by showing
+  another level. Final preview shows the Output nodes of the top level whichever level is shown. An open sketch
+  holds the level shown: entering or leaving does nothing until it closes (`EditorModel.isLevelLocked`).
+- §6 "Viewport": editing a sketch inside a group is not supported yet: "Edit sketch" there says so. Sketch mode reads
+  the top level's graph throughout, and sub-project S5c rewrites it.
+- §9 "Clipboard": `NodeClipboard.definitions` holds every definition the copied group nodes use, however deep
+  (`GroupMerge.definitions(used:in:)`). On paste (`GroupMerge.plan(importing:into:)`) a definition that some
+  definition of the document equals, ignoring ID and name (accent, sockets and inside), is reused, whatever its ID or
+  name (the original, a rename of it, or the copy an earlier paste added, so pasting the same clipboard twice adds
+  one copy at most), one the document has no match for is added as it is, and one whose ID is taken by other content,
+  or whose name is taken, comes in as a copy "Name (imported)" (a fresh ID when the ID was taken), with the pasted
+  group nodes, and any definition placing it, retargeted. The additions and the nodes are one undo step.
+
+User decisions (C2), all 15 of the plan's "User decisions" decided as the recommended defaults (approved 2026-10-09/10):
+
+1. Sketches inside a group: "Edit sketch" refuses until S5c lands.
+2. The level shown and per-level pan and zoom are not saved.
+3. No mouse way to Group yet: keys only (⌘G, ⇧⌘G) and the group node's Ungroup button.
+4. A dropped "+" names the socket after its source or target (made unique); an input keeps the target's unit, range,
+   default, access and optional.
+5. The whole level shown is evaluated.
+6. Esc never leaves a group; ⌘↑ and the breadcrumbs do.
+7. Copies of a changed definition on paste are named "Name (imported)".
+8. "Used 1 time" for one, "Used 0 times" for none.
+9. The accent picker is a menu of the seven role names.
+10. A rename alone never makes a copy on paste.
+11. Group Input and Group Output can't be copied, duplicated or deleted.
+12. A pick under way is cancelled when the level changes.
+13. Undo and Redo may change something inside a level that isn't shown.
+14. The double-click recogniser runs after the click it ends on: double-click selects the group node, then opens it,
+    so the selection clears on entry. For a Sketch node this changes S5b's order: the node is now selected first and
+    the sketch opens second (`EditorModel+Pointer.swift`: `pairClick` after `click`). The sketcher-s5c owner must
+    know before merging.
+15. Groups are not in the palette (Space), only in the library.

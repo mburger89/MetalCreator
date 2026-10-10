@@ -34,6 +34,15 @@ public final class DocumentModel {
         }
     }
 
+    /// The level the graph panel shows (groups spec §6): the group nodes entered from the top level, each by its ID in
+    /// the graph before it; empty on the top level. Everything on that level is evaluated, so `innerResults` has
+    /// a state for each of its nodes.
+    public var inspectedLevel: [NodeID] = [] {
+        didSet {
+            if oldValue != inspectedLevel { scheduleEvaluation() }
+        }
+    }
+
     /// The registry the document was opened with, without its definitions.
     @ObservationIgnored private let baseRegistry: NodeRegistry
     private var undoStack = UndoStack()
@@ -158,12 +167,14 @@ public final class DocumentModel {
         let current = generation
         let snapshot = content
         let demand = demand
+        let level = inspectedLevel
         let evaluator = evaluator
         isEvaluating = true
         evaluationTask = Task {
             let report: EvaluationReport
             do {
-                report = try await evaluator.evaluate(snapshot.graph, definitions: snapshot.definitions, demand: demand)
+                report = try await evaluator.evaluate(snapshot.graph, definitions: snapshot.definitions, demand: demand,
+                                                inspecting: level)
             } catch {
                 return  // Cancelled: a newer generation is already scheduled.
             }

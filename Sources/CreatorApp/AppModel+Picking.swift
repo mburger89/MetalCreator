@@ -17,7 +17,15 @@ extension AppModel {
             // Only a double click on the graph canvas can ask while a sketch is open (the inspector shows the
             // sketch's lists then): it changes nothing, so the stroke, selection and camera stay (Errata (S5b)).
             guard sketch == nil else { return }
+            // The sketch editor works on the top level's graph, as the rest of sketch mode does.
+            guard !editor.isInsideGroup else {
+                alert = .problem(AppProblem("The sketch can't be edited here",
+                                            "Sketches inside a group can't be edited yet. Edit it before grouping, or from the top level."))
+                return
+            }
             beginSketch(for: request.node)
+        case .editGroup, .makeUnique, .ungroup:
+            break  // The graph panel carries these out itself (`EditorModel.press`); they are never recorded.
         }
     }
 
@@ -30,15 +38,15 @@ extension AppModel {
         editor.commitPendingEntry()
         // The banner's Escape and Return are button shortcuts, which run before the palette's keys in `onInput`.
         editor.closePalette()
-        let graph = document.graph
+        let graph = editor.graph
         guard let node = graph.nodes[id] else { return }
         if node.typeID == EdgesByTagNode.typeID {
             guard let source = graph.incomingLink(to: Endpoint(node: id, socket: "solid"))?.from,
                   let solid = solid(at: source) else {
                 return refusePick("Wire a solid with a result into “\(node.name)” first, then pick its edges.")
             }
-            let current = SceneBuilder.edgeSets(document.results[id]).first { $0.solid === solid }?.edges ?? []
-            pick = PickSession(solid: solid, source: source, rule: id, consumer: nil, picked: current)
+            let current = SceneBuilder.edgeSets(editor.result(of: id)).first { $0.solid === solid }?.edges ?? []
+            pick = PickSession(solid: solid, source: source, rule: id, consumer: nil, picked: current, level: editor.levelPath)
             return
         }
         let consumer = Endpoint(node: id, socket: "edges")
@@ -46,10 +54,11 @@ extension AppModel {
             return refusePick("Wire an edge rule into “\(node.name)” first, so there are edges to pick on.")
         }
         if upstream.typeID == EdgesByTagNode.typeID { return beginPick(for: upstream.id) }
-        guard let set = SceneBuilder.edgeSets(document.results[upstream.id]).first, let source = producer(of: set.solid) else {
+        guard let set = SceneBuilder.edgeSets(editor.result(of: upstream.id)).first, let source = producer(of: set.solid) else {
             return refusePick("“\(upstream.name)” has no edges to start from yet.")
         }
-        pick = PickSession(solid: set.solid, source: source, rule: nil, consumer: consumer, picked: set.edges)
+        pick = PickSession(solid: set.solid, source: source, rule: nil, consumer: consumer, picked: set.edges,
+                           level: editor.levelPath)
     }
 
     /// Done: the picks go into the rule (or a new one), as one undo step, and the rule is selected.
@@ -59,7 +68,7 @@ extension AppModel {
         let picks = ConstantValue.edgePicks(session.solid.topology.picks(for: session.picked))
         do {
             if let rule = session.rule {
-                try document.perform(.setInput(rule, NodeSetting.picks, picks))
+                try document.perform(.setInput(rule, NodeSetting.picks, relativeToLevel(picks)), at: editor.graphPath)
                 editor.selection = [rule]
             } else {
                 editor.selection = [try addRule(picks, from: session.source, into: session.consumer)]
@@ -107,27 +116,39 @@ extension AppModel {
     /// Adds an Edges by Tag rule holding `picks`, wired from `source` and, when given, into `consumer` (replacing
     /// its wire), as one undo step. It's placed between the two nodes, or beside `source`.
     func addRule(_ picks: ConstantValue, from source: Endpoint, into consumer: Endpoint?) throws(GraphError) -> NodeID {
-        let graph = document.graph
+        let graph = editor.graph
         let from = graph.nodes[source.node]?.position ?? .zero
         let position = consumer.flatMap { graph.nodes[$0.node]?.position }.map { (from + $0) * 0.5 + Vector2(0, 140) }
             ?? from + Vector2(240, 140)
         var rule = registry.makeNode(EdgesByTagNode.typeID, at: position)
-        rule.inputValues[NodeSetting.picks] = picks
+        rule.inputValues[NodeSetting.picks] = relativeToLevel(picks)
         var commands: [GraphCommand] = [.addNode(rule), .connect(Link(from: source, to: Endpoint(node: rule.id, socket: "solid")))]
         if let consumer {
             commands.append(.connect(Link(from: Endpoint(node: rule.id, socket: "edges"), to: consumer)))
         }
-        try document.perform(.batch(commands))
+        try document.perform(.batch(commands), at: editor.graphPath)
         return rule.id
+    }
+
+    /// A pick made in the viewport, as the graph panel's level names faces: the faces shown were made under the
+    /// instance's identities, and a pick stored inside a group names them as its definition does
+    /// (`GraphContent.relativeToLevel`), so every instance reads it as its own. On the top level it is unchanged.
+    func relativeToLevel(_ picks: ConstantValue) -> ConstantValue {
+        document.content.relativeToLevel(picks, levels: editor.levelPath)
     }
 
     /// The output socket that produced `solid`, by identity: a shown solid's recorded source, else any node
     /// whose current result carries it, preferring a node that isn't an Output (which only passes it through).
     func producer(of solid: Solid) -> Endpoint? {
-        if let source = sources[ObjectIdentifier(solid)] { return source }
-        let candidates = document.results.keys.sorted().flatMap { id -> [(Endpoint, Bool)] in
-            guard let result = document.results[id], result.state.isSuccess, let outputs = result.outputs else { return [] }
-            let isOutput = document.graph.nodes[id]?.isOutput ?? false
+        // `sources` come from the scene shown, which in Final preview carries the top level's endpoints (an Output
+        // passes on what is wired into it): inside a group only a source that is a node of the level shown counts.
+        if let source = sources[ObjectIdentifier(solid)], editor.graph.nodes[source.node] != nil { return source }
+        let results = editor.levelResults
+        let candidates = results.keys.sorted().flatMap { id -> [(Endpoint, Bool)] in
+            // Group Output only passes its inputs on to the group node: it has no output to wire from.
+            guard let result = results[id], result.state.isSuccess, let outputs = result.outputs,
+                  editor.graph.nodes[id]?.typeID != GroupNodes.outputTypeID else { return [] }
+            let isOutput = editor.graph.nodes[id]?.isOutput ?? false
             return outputs.keys.sorted().compactMap { socket in
                 outputs[socket]?.items.contains { scalar in
                     if case .solid(let candidate) = scalar { candidate === solid } else { false }
@@ -139,7 +160,7 @@ extension AppModel {
 
     /// The first solid the output `endpoint` carries now.
     func solid(at endpoint: Endpoint) -> Solid? {
-        guard let result = document.results[endpoint.node], result.state.isSuccess else { return nil }
+        guard let result = editor.result(of: endpoint.node), result.state.isSuccess else { return nil }
         for case .solid(let solid) in result.outputs?[endpoint.socket]?.items ?? [] { return solid }
         return nil
     }

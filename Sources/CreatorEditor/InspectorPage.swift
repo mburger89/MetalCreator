@@ -6,4 +6,6 @@ public struct InspectorPage: Equatable, Sendable {
     public var parameters: [ParameterRow]
     /// The selected comments' page: set when comments are selected and no node is (`EditorModel.inspectorPage`).
     public var comment: CommentPage?
+    /// The definition behind the selected group node, Group Input or Group Output (`EditorModel.groupPanel`).
+    public var group: GroupPanel?
 }

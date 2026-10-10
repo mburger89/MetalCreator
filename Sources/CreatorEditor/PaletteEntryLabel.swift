@@ -10,8 +10,9 @@ struct PaletteEntryLabel: Component {
 
     var content: some ElementGroup {
         let palette = Palette(themes)
+        let dot = entry.accent.map(palette.accent) ?? palette.header(for: entry.category)
         return HStack(spacing: Pixels(6)) {
-            Circle().fill(palette.header(for: entry.category).color).frame(width: Pixels(8), height: Pixels(8))
+            Circle().fill(dot.color).frame(width: Pixels(8), height: Pixels(8))
             Text(entry.displayName).font(.callout).foregroundStyle(palette.primaryText.color)
             Spacer()
         }

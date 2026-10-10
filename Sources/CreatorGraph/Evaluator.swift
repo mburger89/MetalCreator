@@ -16,14 +16,19 @@ public actor Evaluator {
 
     public var cachedEntryCount: Int { cache.count }
 
-    /// Evaluates `demand` on the top level of `graph`; group nodes run the graphs of `definitions`.
-    public func evaluate(_ graph: Graph, definitions: [GroupID: GroupDefinition] = [:],
-                         demand: Set<NodeID>) async throws -> EvaluationReport {
+    /// Evaluates `demand` on the top level of `graph`; group nodes run the graphs of `definitions`. With `inspecting`,
+    /// the group nodes entered from the top level down to the level the graph panel shows (groups spec §6), every
+    /// node of that level is evaluated too, so each has a state in `innerResults` even when nothing downstream
+    /// wants it; a node there that fails doesn't fail the group node unless it feeds Group Output.
+    public func evaluate(_ graph: Graph, definitions: [GroupID: GroupDefinition] = [:], demand: Set<NodeID>,
+                         inspecting level: [NodeID] = []) async throws -> EvaluationReport {
         // Entries of nodes no longer anywhere (deleted, or inside a group node that's gone) leave the cache.
         cache.removeEntries(notIn: graph.scopedNodeIDs(definitions: definitions))
         let parameters = Dictionary(graph.parameters.map { ($0.id, $0.value) }, uniquingKeysWith: { first, _ in first })
-        let setup = EvaluationSetup(registry: registry.withGroups(definitions), parameters: parameters)
+        let setup = EvaluationSetup(registry: registry.withGroups(definitions), parameters: parameters, inspected: level)
         var trace = EvaluationTrace()
+        var demand = demand
+        if let first = level.first, graph.nodes[first] != nil { demand.insert(first) }
         let level = try await evaluateLevel(graph, demand: demand, scope: EvaluationScope(setup: setup), trace: &trace)
         return EvaluationReport(results: level.results, evaluatedNodes: level.evaluated, innerResults: trace.results,
                                 evaluatedInnerNodes: trace.evaluated)

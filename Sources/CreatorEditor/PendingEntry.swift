@@ -11,7 +11,8 @@ public struct PendingEntry {
     public var commit: @MainActor (Double) -> Void
     /// Set for an optional input: emptying the field clears it.
     public var clear: (@MainActor () -> Void)?
-    /// Set for a text field (a comment's text or title): the text is committed as typed, not read as a number.
+    /// Set for a text field (a comment's text or title, a group's or a socket's name): the text is committed as typed,
+    /// not read as a number.
     public var textCommit: (@MainActor (String) -> Void)?
 
     public init(owner: UUID? = nil, text: String, commit: @escaping @MainActor (Double) -> Void, clear: (@MainActor () -> Void)? = nil) {

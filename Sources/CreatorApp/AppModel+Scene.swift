@@ -20,9 +20,12 @@ extension AppModel {
         observeScene()
     }
 
-    /// "Selected node" previews the one selected node; Final, or anything but one selected node, previews none.
+    /// "Selected node" previews the one selected node of the level shown; Final, or anything but one selected node, previews none.
     func applyPreview() {
-        let wanted = previewMode == .selectedNode && editor.selection.count == 1 ? editor.selection.first : nil
+        // Inside a group the document evaluates the whole level (`DocumentModel.inspectedLevel`), so the selected node
+        // needs no demand of its own there.
+        let wanted = previewMode == .selectedNode && editor.selection.count == 1 && !editor.isInsideGroup
+            ? editor.selection.first : nil
         if document.previewNode != wanted { document.previewNode = wanted }
     }
 
@@ -33,15 +36,14 @@ extension AppModel {
     /// sent again: the observation also fires for canvas pans, camera settles and panel resizes, which change neither.
     func refreshScene() {
         refreshSketch()
+        // A pick belongs to the level it began on: showing another cancels it.
+        if let session = pick, session.level != editor.levelPath { pick = nil }
         var scene: [SceneItem]
         if viewport.isPicking != (pick != nil) { viewport.isPicking = pick != nil }
         if let pick {
             scene = [SceneItem(item: ViewportItem(solid: pick.solid, selectedEdges: Set(pick.picked)), source: pick.source)]
         } else {
-            let shown = previewMode == .final ? outputNodes : (document.previewNode.map { [$0] } ?? [])
-            scene = SceneBuilder.scene(shown: shown, graph: document.graph, results: document.results,
-                                       lastGood: document.lastGoodOutputs, selection: editor.selection,
-                                       showsGuides: previewMode == .final && sketch == nil)
+            scene = shownScene()
         }
         if sketch != nil {
             scene = scene.map { entry in
@@ -58,11 +60,27 @@ extension AppModel {
             viewport.show(items)
         }
         let handles = pick == nil && sketch == nil
-            ? HandleBuilder.handles(for: editor.selection, graph: document.graph, results: document.results, registry: registry)
+            ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
             : []
         handleTargets = Dictionary(handles.map { ($0.handle.id, $0.target) }, uniquingKeysWith: { first, _ in first })
         let shownHandles = handles.map(\.handle)
         if viewport.handles != shownHandles { viewport.showHandles(shownHandles) }
+    }
+
+    /// The scene for the preview mode: Final shows every Output node of the whole part, whichever level the graph
+    /// panel shows; Selected node shows the one selected node of that level, from the top-level results or, inside
+    /// a group, from the results inside it (`EditorModel.levelResults`; there is no last good result to ghost).
+    private func shownScene() -> [SceneItem] {
+        if previewMode == .final {
+            return SceneBuilder.scene(shown: outputNodes, graph: document.graph, results: document.results,
+                                      lastGood: document.lastGoodOutputs, selection: editor.isInsideGroup ? [] : editor.selection,
+                                      showsGuides: sketch == nil)
+        }
+        let shown = editor.isInsideGroup
+            ? (editor.selection.count == 1 ? Array(editor.selection) : [])
+            : (document.previewNode.map { [$0] } ?? [])
+        return SceneBuilder.scene(shown: shown, graph: editor.graph, results: editor.levelResults,
+                                  lastGood: editor.isInsideGroup ? [:] : document.lastGoodOutputs, selection: editor.selection)
     }
 
     /// Follows what the scene is made from, once; the first change schedules one refresh, which follows again. A
@@ -72,8 +90,11 @@ extension AppModel {
         let generation = observationGeneration
         withObservationTracking {
             _ = document.results
+            _ = document.innerResults
             _ = document.lastGoodOutputs
             _ = document.graph
+            _ = document.definitions
+            _ = editor.enteredGroups
             _ = document.previewNode
             _ = editor.selection
             _ = editor.dock

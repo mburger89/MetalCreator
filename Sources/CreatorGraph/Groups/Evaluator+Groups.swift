@@ -30,9 +30,16 @@ extension Evaluator {
         let before = trace.evaluated.count
         let inner = scope.entering(node.id, group: definition.id, graph: definition.graph,
                                   bound: EvaluationScope.Bound(values: inputs, key: key))
-        let level = try await evaluateLevel(definition.graph, demand: [output.id], scope: inner, trace: &trace)
+        let wanted = scope.setup.inspectedNodes(inside: inner.path, of: definition.graph)
+        let everything = try await evaluateLevel(definition.graph, demand: wanted.union([output.id]), scope: inner,
+                                                 trace: &trace)
         let ran = trace.evaluated.count > before
         let graph = definition.graph
+        // Only what feeds Group Output speaks for the group node: messages and states of the nodes asked for to be
+        // shown (`inspectedNodes`) stay in `trace`.
+        let feeding = Set(graph.evaluationOrder(for: [output.id]).order)
+        var level = everything
+        level.order = everything.order.filter(feeding.contains)
         if let message = GroupTrail.firstError(in: level, graph: graph, definition: definition) {
             return GroupOutcome(result: NodeResult(state: .error(message)), key: key, ran: ran)
         }

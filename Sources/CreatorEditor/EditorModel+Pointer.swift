@@ -32,9 +32,12 @@ extension EditorModel {
             endPress()
             return
         }
-        if interaction == nil { pairClick(on: press.hit, at: press.point, modifiers: press.modifiers) } else { lastNodeClick = nil }
+        if interaction != nil { lastNodeClick = nil }
         switch interaction {
-        case nil: click(press.hit, mode: SelectionMode(press.modifiers))
+        case nil:
+            click(press.hit, mode: SelectionMode(press.modifiers))
+            // After the click: a double click on a group node enters it, and the click must not select it afterwards.
+            pairClick(on: press.hit, at: press.point, modifiers: press.modifiers)
         case .moving, .resizing: document.endCoalescing()
         case .duplicating(let start, let delta): finishDuplicate(start: start, delta: delta)
         case .connecting(let wire): finishWire(wire, at: location)
@@ -129,10 +132,10 @@ extension EditorModel {
         case .panning(let startOffset):
             transform = CanvasTransform(offset: startOffset + (location - pressPoint), zoom: transform.zoom)
         case .moving(let start, let key):
-            try? document.perform(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key)
+            try? edit(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key)
         case .resizing(let id, let start, let key):
             if let command = resizeCommand(id, from: start, by: (location - pressPoint) * (1 / transform.zoom)) {
-                try? document.perform(command, coalescingKey: key)
+                try? edit(command, coalescingKey: key)
             }
         case .duplicating(let start, _):
             setInteraction(.duplicating(start: start, delta: storedDelta))
@@ -162,11 +165,15 @@ extension EditorModel {
             // Dragging a wired input off onto empty canvas removes its wire.
             if wire.from.isInput, let link = graph.incomingLink(to: wire.from.endpoint) {
                 do {
-                    try document.perform(.disconnect(link))
+                    try edit(.disconnect(link))
                 } catch {
                     refuse(error.message, node: link.to.node)
                 }
             }
+            return
+        }
+        if isPlus(wire.from) || isPlus(target) {
+            exposeSocket(wire.from, target)
             return
         }
         guard target.isInput != wire.from.isInput else {

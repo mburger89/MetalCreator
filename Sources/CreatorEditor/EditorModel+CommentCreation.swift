@@ -58,7 +58,7 @@ extension EditorModel {
 
     private func commit(_ command: GraphCommand, selecting id: CommentID) -> Bool {
         do {
-            try document.perform(command)
+            try edit(command)
             canvasSelection = CanvasSelection(comments: [id])
             return true
         } catch {

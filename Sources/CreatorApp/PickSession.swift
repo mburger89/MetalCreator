@@ -15,13 +15,17 @@ public struct PickSession {
     public var consumer: Endpoint?
     /// The picked edges, in the order they were picked.
     public var picked: [EdgeID]
+    /// The level of the graph panel the pick began on (`EditorModel.levelPath`): `source`, `rule` and `consumer` are
+    /// nodes of that level's graph, and Done writes there.
+    public var level: [NodeID]
 
-    public init(solid: Solid, source: Endpoint, rule: NodeID?, consumer: Endpoint?, picked: [EdgeID]) {
+    public init(solid: Solid, source: Endpoint, rule: NodeID?, consumer: Endpoint?, picked: [EdgeID], level: [NodeID] = []) {
         self.solid = solid
         self.source = source
         self.rule = rule
         self.consumer = consumer
         self.picked = picked
+        self.level = level
     }
 
     /// Adds `edge`, or removes it if it's already picked.

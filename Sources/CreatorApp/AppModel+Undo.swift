@@ -5,11 +5,13 @@ extension AppModel {
     public func undo() {
         editor.commitPendingEntry()
         document.undo()
+        editor.refreshLevel()
     }
 
     /// Redo. A typed value is committed first, as for Undo; it is a new edit, so nothing is left to redo.
     public func redo() {
         editor.commitPendingEntry()
         document.redo()
+        editor.refreshLevel()
     }
 }

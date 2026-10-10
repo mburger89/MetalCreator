@@ -22,7 +22,7 @@ struct NodeView: Component {
     var content: some ElementGroup {
         let size = NodeLayout.size(shape)
         let palette = Palette(themes)
-        let accent = palette.header(for: shape.category)
+        let accent = shape.accent.map(palette.accent) ?? palette.header(for: shape.category)
         let corner = RoundedRectangle(cornerRadius: Pixels(6))
         return VStack(alignment: .leading, spacing: Pixels(0)) {
             NodeHeaderView(title: shape.isMissing ? "Missing: \(shape.title)" : shape.title, accent: accent, state: state)
@@ -38,8 +38,15 @@ struct NodeView: Component {
         .background(palette.nodeBody.color, in: corner)
         .clipShape(corner)
         .overlay {
-            corner.strokeBorder(isSelected ? accent.color : palette.hairline.color,
-                                lineWidth: Pixels(isSelected ? 2 : 1))
+            // A group node's border is doubled, both rings in its accent: an outer one and a thin inner one.
+            corner.strokeBorder(shape.isGroup || isSelected ? accent.color : palette.hairline.color,
+                                lineWidth: Pixels(shape.isGroup ? (isSelected ? 3 : 2) : (isSelected ? 2 : 1)))
+        }
+        .overlay {
+            if shape.isGroup {
+                RoundedRectangle(cornerRadius: Pixels(3)).strokeBorder(accent.color, lineWidth: Pixels(1))
+                    .padding(Edges(all: Pixels(4)))
+            }
         }
         .overlay(alignment: .topLeading) {
             // A Component is legacy content; inside a ZStack it is adopted, so the result stays
