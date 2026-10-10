@@ -91,11 +91,15 @@ struct GuideRenderTests {
                 "the part is picked as before")
     }
 
-    @Test func anEdgeBehindThePartStaysHidden() async throws {
+    @Test func anEdgeBehindThePartShowsFaintlyThroughIt() async throws {
         let inside = try await box(width: 4, depth: 4, height: 10)
         let with = try render(try await frame(guide: inside.mesh))
         let without = try render(try await frame(guide: nil))
         // The guide's left edges are at view x = 90, 8 mm behind the part's front face.
-        #expect(color(with, 90, 150) == color(without, 90, 150))
+        let seen = color(with, 90, 150)
+        let plain = color(without, 90, 150)
+        #expect(seen[1] < plain[1] - 10, "pinker than the part's face: \(seen) against \(plain)")
+        #expect(seen[1] > 121, "but fainter than the selection pink (green 121): \(seen)")
+        #expect(color(with, 100, 100) == color(without, 100, 100), "the part's face between the edges is as before")
     }
 }

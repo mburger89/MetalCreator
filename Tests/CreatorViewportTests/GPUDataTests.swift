@@ -65,6 +65,21 @@ struct GPUDataTests {
         #expect(selectedOnly.count == 1)
     }
 
+    @Test func hiddenEdgesTakeTheFadedSelectionColour() {
+        let mesh = TestMeshes.box(bounds)
+        let palette = ViewportPalette.dracula
+        let hidden = GPUGeometry.edgeInstances(mesh.edgePolylines, solid: 1, selected: [EdgeID(1)], selectedOnly: true, scale: 1,
+                                               hidden: true)
+        #expect(hidden.count == 1)
+        #expect(hidden[0].color == palette.hiddenSelection)
+        #expect(SIMD3(hidden[0].color.x, hidden[0].color.y, hidden[0].color.z)
+            == SIMD3(palette.selection.x, palette.selection.y, palette.selection.z), "the same hue")
+        #expect(abs(hidden[0].color.w - palette.selection.w * ViewportPalette.hiddenGuideOpacity) < 1e-6)
+        #expect(hidden[0].color.w < palette.selection.w)
+        let shown = GPUGeometry.edgeInstances(mesh.edgePolylines, solid: 1, selected: [EdgeID(1)], selectedOnly: true, scale: 1)
+        #expect(shown[0].color == palette.selection, "not hidden: unchanged")
+    }
+
     @Test func faceFlagsMarkHoverAndSelection() {
         let flags = GPUGeometry.faceFlags(count: 4, hovered: FaceID(1), selected: [FaceID(1), FaceID(3), FaceID(9)])
         #expect(flags == [0, 3, 0, 2])

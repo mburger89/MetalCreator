@@ -15,7 +15,7 @@ final class ViewportRenderer {
     let device: any MTLDevice
     let pipelines: ViewportPipelines
     private let placeholder: any MTLBuffer
-    private var meshes: [Int: GPUMesh] = [:]
+    private(set) var meshes: [Int: GPUMesh] = [:]
     private var multisample: (width: Int, height: Int, color: any MTLTexture, depth: any MTLTexture)?
     /// The handles' instances, kept until the handles change, so a frame of a continuous orbit allocates no
     /// buffers (spec §7.3's 60 fps). The view cube keeps its own.
@@ -121,7 +121,7 @@ final class ViewportRenderer {
     static let plainLines = LineUniforms(widthOverride: 0, depthBias: 0, padding0: 0, padding1: 0)
 
     /// How far (mm) edges move towards the camera so they win against the faces they bound.
-    private func edgeDepthBias(_ frame: ViewportFrame) -> Double { max(frame.pose.distance * 0.002, 1e-3) }
+    func edgeDepthBias(_ frame: ViewportFrame) -> Double { max(frame.pose.distance * 0.002, 1e-3) }
 
     private func bind(_ uniforms: FrameUniforms, _ encoder: any MTLRenderCommandEncoder) {
         var copy = uniforms
@@ -203,19 +203,6 @@ final class ViewportRenderer {
         for item in frame.items where !item.isGhost && !item.isGuide && (!selectedOnly || !item.selectedEdges.isEmpty) {
             let key = EdgeInstanceKey(solid: item.solidIndex, selected: item.selectedEdges, selectedOnly: selectedOnly,
                                       scale: scale)
-            guard let edges = meshes[item.meshSerial]?.edges(key, palette: frame.palette, device: device) else { continue }
-            drawLines(edges.buffer, count: edges.count, uniforms, depth: pipelines.depthTest, style: style, encoder)
-        }
-    }
-
-    /// A guide's selected edges (spec §6.3, Errata (M6)), after the solids and ghosts so they lie over them. They're
-    /// depth-tested with the bias B-rep edges get: where they lie on the part they cover its edge in the selection
-    /// colour, and where they float clear of it they show as an overlay. The guide's own surfaces aren't drawn.
-    private func drawGuides(_ frame: ViewportFrame, _ uniforms: FrameUniforms, scale: Float,
-                            _ encoder: any MTLRenderCommandEncoder) {
-        let style = LineUniforms(widthOverride: 0, depthBias: Float(edgeDepthBias(frame)), padding0: 0, padding1: 0)
-        for item in frame.items where item.isGuide && !item.selectedEdges.isEmpty {
-            let key = EdgeInstanceKey(solid: item.solidIndex, selected: item.selectedEdges, selectedOnly: true, scale: scale)
             guard let edges = meshes[item.meshSerial]?.edges(key, palette: frame.palette, device: device) else { continue }
             drawLines(edges.buffer, count: edges.count, uniforms, depth: pipelines.depthTest, style: style, encoder)
         }
