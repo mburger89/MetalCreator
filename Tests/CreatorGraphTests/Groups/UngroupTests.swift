@@ -110,6 +110,17 @@ struct UngroupTests {
         #expect(document.content == before)
     }
 
+    @Test func makeUniqueOfANumberedGroupCountsOn() throws {
+        let numbered = Doubler(name: "Doubler 2")
+        let node = instance(of: numbered.definition, output: true)
+        let content = GraphContent(graph: graph([node]), definitions: table([numbered.definition]))
+        let edit = try GroupCommands.makeUnique(node.id, in: .root, of: content, registry: testRegistry)
+        var applied = content
+        try applied.apply(edit.command, registry: testRegistry)
+        #expect(applied.definitions.values.map(\.name).sorted() == ["Doubler 2", "Doubler 3"])
+
+    }
+
     /// "Counted": a box whose end cap a counter inside picks; it puts out the box's solid and the count. One group
     /// node of it, and a counter outside picking that node's box's end cap.
     struct CountedScene {

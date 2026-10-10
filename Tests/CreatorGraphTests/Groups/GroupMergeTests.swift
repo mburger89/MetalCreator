@@ -87,6 +87,14 @@ struct GroupMergeTests {
         #expect(plan.targets == [other.id: other.id])
     }
 
+    /// Make Unique counts on from a number ("Rib 2" gives "Rib 3"); a paste that meets a taken name does not: it adds
+    /// "(imported)", so the number-aware naming never reaches it.
+    @Test func aNumberedNameTheDocumentUsesIsImportedNotCountedOn() throws {
+        let other = Doubler(name: "Rib 2")
+        let plan = GroupMerge.plan(importing: table([other.definition]), into: content([Doubler(name: "Rib 2").definition]))
+        #expect(try #require(plan.additions.first).name == "Rib 2 (imported)")
+    }
+
     @Test func theSameStaleClipboardPastedTwiceAddsOneCopy() throws {
         var edited = doubler.definition
         edited.graph.nodes[doubler.add.id]?.inputValues["b"] = .number(10)

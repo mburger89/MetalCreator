@@ -164,6 +164,26 @@ struct GroupCommandTests {
         #expect(GroupNaming.uniqueDefinitionName("Rib", among: table([doubler.definition])) == "Rib")
     }
 
+    /// A copy of "Rib 2" is "Rib 3" (the groups spec's "Name 2"), not "Rib 2 2".
+    @Test func aNumberedNameCountsOnFromItsOwnNumber() {
+        func named(_ names: [String]) -> [GroupID: GroupDefinition] { table(names.map { Doubler(name: $0).definition }) }
+        #expect(GroupNaming.uniqueDefinitionName("Rib 2", among: named(["Rib", "Rib 2"])) == "Rib 3")
+        #expect(GroupNaming.uniqueDefinitionName("Rib 2", among: named(["Rib 2", "Rib 3"])) == "Rib 4")
+        #expect(GroupNaming.uniqueDefinitionName("Rib 2020", among: named(["Rib 2020"])) == "Rib 2021")
+        #expect(GroupNaming.uniqueDefinitionName("Rib", among: named(["Rib"])) == "Rib 2", "no number: from 2 as before")
+        #expect(GroupNaming.uniqueDefinitionName("Rib 0", among: named(["Rib 0"])) == "Rib 2")
+        #expect(GroupNaming.uniqueDefinitionName("Rib 2", among: named(["Other"])) == "Rib 2", "free names stay as they are")
+        #expect(GroupNaming.uniqueDefinitionName("2", among: named(["2"])) == "2 2", "a bare number has no stem to count on")
+        #expect(GroupNaming.uniqueDefinitionName("Rib 2x", among: named(["Rib 2x"])) == "Rib 2x 2")
+        // Numbers `Int` can't hold or that aren't ASCII digits are not counted on.
+        #expect(GroupNaming.uniqueDefinitionName("Rib 99999999999999999999", among: named(["Rib 99999999999999999999"]))
+                == "Rib 99999999999999999999 2")
+        #expect(GroupNaming.uniqueDefinitionName("Rib 9223372036854775807", among: named(["Rib 9223372036854775807"]))
+                == "Rib 9223372036854775807 2")
+        #expect(GroupNaming.uniqueDefinitionName("Rib ٣", among: named(["Rib ٣"])) == "Rib ٣ 2")
+        #expect(GroupNaming.uniqueDefinitionName("Rib +3", among: named(["Rib +3"])) == "Rib +3 2")
+    }
+
     @Test func groupingIsRefusedPlainly() {
         let document = document()
         let doubler = Doubler()
