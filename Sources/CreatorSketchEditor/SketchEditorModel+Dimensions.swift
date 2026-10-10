@@ -51,7 +51,7 @@ extension SketchEditorModel {
         }
         edited.dimensions[id]?.value = measured
         edited.dimensions[id]?.isDriving = true
-        commit(edited, "Dimension \(edited.dimensions[id]?.name ?? "")")
+        commit(edited, "Dimension \(edited.dimensions[id]?.name ?? "")", named: SketchStepName.addDimension)
     }
 
     /// The inspector's dimensions, in ID order. A reference dimension shows what it measures now (its stored value is
@@ -114,7 +114,7 @@ extension SketchEditorModel {
         guard value != dimension.value else { return }
         var edited = sketch
         edited.dimensions[id]?.value = value
-        commit(edited, "Change \(dimension.name)")
+        commit(edited, "Change \(dimension.name)", named: SketchStepName.changeDimension)
     }
 
     /// Why `value` can't drive a dimension of `kind` (sizes are more than 0 mm, angles 0 to 180°), or nil if it can.
@@ -141,7 +141,7 @@ extension SketchEditorModel {
             refusal = trimmed.isEmpty ? "A dimension needs a name." : "Another dimension is already called “\(trimmed)”."
             return
         }
-        commit(edited, "Rename \(dimension.name) to \(trimmed)")
+        commit(edited, "Rename \(dimension.name) to \(trimmed)", named: SketchStepName.renameDimension)
     }
 
     /// "Expose as input" (sketcher spec §7): the dimension becomes an input socket named after it.
@@ -149,7 +149,8 @@ extension SketchEditorModel {
         guard let dimension = sketch.dimensions[id], dimension.isExposed != exposed else { return }
         var edited = sketch
         edited.dimensions[id]?.isExposed = exposed
-        commit(edited, exposed ? "Expose \(dimension.name)" : "Stop Exposing \(dimension.name)")
+        commit(edited, exposed ? "Expose \(dimension.name)" : "Stop Exposing \(dimension.name)",
+               named: exposed ? SketchStepName.exposeDimension : SketchStepName.stopExposingDimension)
     }
 
     /// Driving or reference (a reference dimension only measures, into the node's `measurements`). Either way it takes
@@ -160,7 +161,8 @@ extension SketchEditorModel {
         edited.dimensions[id]?.isDriving = driving
         let measured = driving ? solution.measurements[id] : SketchSolver.solve(edited).measurements[id]
         if let measured, measured.isFinite { edited.dimensions[id]?.value = measured }
-        commit(edited, driving ? "Make \(dimension.name) Driving" : "Make \(dimension.name) Reference")
+        commit(edited, driving ? "Make \(dimension.name) Driving" : "Make \(dimension.name) Reference",
+               named: driving ? SketchStepName.makeDimensionDriving : SketchStepName.makeDimensionReference)
     }
 
     /// Removes one constraint or dimension from the inspector's list. An exposed dimension is refused (its input and
@@ -178,6 +180,6 @@ extension SketchEditorModel {
             }
             edited.dimensions[id] = nil
         }
-        commit(edited, "Delete \(sketch.label(of: ref))")
+        commit(edited, "Delete \(sketch.label(of: ref))", named: SketchStepName.delete)
     }
 }

@@ -38,7 +38,7 @@ extension AppModel {
             .connect(Link(from: Endpoint(node: planeNode.id, socket: "plane"), to: Endpoint(node: sketchNode.id, socket: "plane"))),
         ]
         do {
-            try document.perform(.batch(commands))
+            try document.perform(.batch(commands), name: UndoName.newSketchOnFace)
         } catch {
             alert = .problem(AppProblem("No sketch was made", error.message))
             return

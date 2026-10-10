@@ -28,7 +28,7 @@ extension SketchEditorModel {
         var edited = sketch
         edited.add(constraint)
         selection = []
-        commit(edited, kind.title)
+        commit(edited, kind.title, named: SketchStepName.addConstraint)
     }
 
     /// Delete: removes the selected entities with everything built on them and every constraint and dimension on
@@ -51,6 +51,6 @@ extension SketchEditorModel {
         }
         selection = []
         hovered = nil
-        commit(edited, "Delete")
+        commit(edited, "Delete", named: SketchStepName.delete)
     }
 }

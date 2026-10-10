@@ -263,8 +263,11 @@ Plan `2026-10-09-comments.md`.
 - §7 Commands: `GraphCommand` gains `setSticky`, `removeSticky`, `setFrame`, `removeFrame`. A set adds or replaces the
   comment whole, so a move, a resize, a text, title or accent edit is one command carrying the new value, and its
   inverse the old; all four have `affectsResults == false` and touch no node.
-- §7 "Undo names" ('Add Note', 'Edit Note', …): MetalCreator's undo history has no step names (the menu says "Undo"),
-  so each change is pinned as exactly one undo step; showing names is a separate change to `UndoStack` and the menus.
+- §7 "Undo names" ('Add Note', 'Edit Note', …): when comments landed MetalCreator's undo history had no step names (the
+  menu said "Undo"), so each change was pinned as exactly one undo step. Named undo steps (plan
+  `2026-10-10-named-undo.md`) now give every step a name: Add Note, Edit Note (text and accent), Add Frame, Edit Frame
+  (title and accent), Move (a drag or an arrow run), Resize and Delete, plus Cut, Paste and Duplicate, and the Edit menu
+  and the top bar read "Undo Add Note", "Redo Delete" and so on.
 - §7 Frame membership is read from drawn centres when a move begins, and a nudge carries it too; ⌥-drag and copy/paste
   of a frame take the frame alone. Only nodes are carried, not notes lying inside a frame.
 - §3/§7 Box select: a note is taken when its rectangle meets the box, a frame only when the box meets its chrome (its

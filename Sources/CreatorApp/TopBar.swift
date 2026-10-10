@@ -4,8 +4,9 @@ import CreatorSketchEditor
 import CreatorStyle
 import MetalUI
 
-/// The glass top bar (spec §6.1): the document's name, the Preview menu, Undo, Redo and Export. While a sketch is
-/// open it holds the sketch toolbar instead (sketcher spec §8: "Toolbar (glass, top)"), in chrome opaque to the pointer.
+/// The glass top bar (spec §6.1): the document's name, the Preview menu, Undo, Redo (each titled by its step,
+/// `AppModel.undoTitle`) and Export. While a sketch is open it holds the sketch toolbar instead (sketcher spec §8:
+/// "Toolbar (glass, top)"), in chrome opaque to the pointer.
 struct TopBar: Component {
     let model: AppModel
     @Environment(ThemeStore.self) var themes: ThemeStore?
@@ -30,9 +31,9 @@ struct TopBar: Component {
                         }
                     }
                     .pickerStyle(.menu)
-                    Button("Undo") { model.undo() }
+                    Button(model.undoTitle) { model.undo() }
                         .disabled(!model.document.canUndo)
-                    Button("Redo") { model.redo() }
+                    Button(model.redoTitle) { model.redo() }
                         .disabled(!model.document.canRedo)
                     Menu("Export") {
                         Button("STEP…") { model.withFilePicker { await model.exportDocument(.step, using: $0) } }

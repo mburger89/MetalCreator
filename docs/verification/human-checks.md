@@ -951,3 +951,44 @@ there is a box, then a Sketch (select it, "Edit sketch").
 - [ ] **S5c-8 Review follow-ups.** With Circle, click a centre, then move the pointer over an existing line while sizing the
   circle: the rubber band doesn't jump onto the line and no chip appears. Click a centre on a line: "Point on" appears and
   the centre stays on the line. Pinned: `SnapAndTangentCoverageTests`. **Observed:**
+
+## Group NU — named undo steps
+
+**Status: PENDING.** Plan `2026-10-10-named-undo.md`, spec `2026-10-09-selection-groups-comments-design.md` §7 and its
+Errata (B: comments), parent spec §6.1. The tests pin the names on the model (`UndoTitleTests` pins the titles and that the
+top bar draws them); these check what a person reads in the real menu bar and window. Run `swift run MetalCreatorApp` on a
+saved bracket.
+
+- [ ] **NU-1 Edit menu.** Open the Edit menu with nothing edited: the items read "Undo" and "Redo", both greyed. Press
+  Cmd+Shift+N (Add Note) and open Edit again: "Undo Add Note" is enabled and "Redo" is greyed. Press Cmd+Z and open Edit:
+  "Undo" greyed, "Redo Add Note" enabled. Pinned: `theTitlesNameTheStepsAndFollowUndoAndRedo`. **Observed:**
+- [ ] **NU-2 Top bar.** The top bar's buttons read the same as the menu at every step of NU-1 ("Undo Add Note", then
+  "Redo Add Note"), and the row stays on one line at the default window width, with the name not clipped. Make the
+  window narrower: **record what the bar does when "Undo Resize" and "Redo Delete" no longer fit.** Pinned:
+  `theTopBarDrawsTheTitle`. **Observed:**
+- [ ] **NU-3 Each kind of edit.** After each edit below, the Edit menu reads as given. Add a node from the palette: "Undo Add
+  <the node's type>". Drag a node: "Undo Move". Press an arrow key a few times: "Undo Move" (one step). Wire two sockets:
+  "Undo Connect"; drag the wire off its input: "Undo Disconnect". Change an inspector slider by dragging it: "Undo Change
+  <the input's label>" (one step for the whole drag). Select nodes and press Delete: "Undo Delete"; Cmd+X: "Undo Cut";
+  Cmd+V: "Undo Paste"; Cmd+D: "Undo Duplicate". Pinned: `EditorUndoNameTests`. **Observed:**
+- [ ] **NU-4 Comments.** Add Note: "Undo Add Note". Type in its inspector and click away: "Undo Edit Note". Frame Selection:
+  "Undo Add Frame". Retitle the frame: "Undo Edit Frame". Drag a note: "Undo Move". Drag its handle: "Undo Resize".
+  Delete it: "Undo Delete". Pinned: `editingNotesAndFrames`, `movingResizingAndDeletingComments`. **Observed:**
+- [ ] **NU-5 Groups.** Cmd+G on two nodes: "Undo Group". Rename the group in the inspector: "Undo Rename Group" (the name you
+  typed is not in the menu). Inside, drop a wire on Group Output's +: "Undo Add Output Socket". Make Unique: "Undo Make
+  Unique". Cmd+Shift+G: "Undo Ungroup". Pinned: `groupUngroupAndMakeUnique`, `groupDefinitionEditsEachHaveTheirOwnName`,
+  `groupSocketsAreExposedMovedAndRemoved`. **Observed:**
+- [ ] **NU-6 Viewport.** Drag a handle in the viewport: "Undo Drag Handle" (one step). Pick edges in view and press Done:
+  "Undo Pick Edges". Right-click a face, Select Edges of Face: "Undo Select Edges of Face"; New Sketch on Face: "Undo New
+  Sketch on Face". Pinned: `AppUndoNameTests`. **Observed:**
+- [ ] **NU-6b Sketch editor.** In a sketch, draw a line, a circle and an arc, add a constraint, type a dimension value,
+  rename a dimension to something long ("Plate width"), Expose it, trim, fillet with a radius you typed, mirror and pattern:
+  the menu reads "Undo Add Line", "Add Circle", "Add Arc", "Add Constraint", "Change Dimension", "Rename Dimension"
+  (never the name you typed), "Expose Dimension", "Trim", "Fillet" (no radius), "Mirror" and "Linear Pattern"/"Circular
+  Pattern" (no count). Drag a point: "Undo Move Point". Pinned: `SketchStepNameTests`, `aRenamedDimensionNeverReachesTheMenu`.
+  **Record whether any name reads badly or is too coarse (for example "Delete" for an entity and for a constraint).** **Observed:**
+- [ ] **NU-7 Typed value.** Type a new number into an inspector field without pressing Return and open the Edit menu: it
+  names the step before the typed value (the value commits when Cmd+Z runs). **Record what it reads and whether that
+  surprises you.** Pinned: `anInputEditIsTitledByTheInputsLabel`. **Observed:**
+- [ ] **NU-8 Files.** Save, close and reopen: the Edit menu reads plain "Undo" and "Redo" (names are not saved). New does the
+  same. Pinned: `aNewDocumentStartsWithPlainTitles`. **Observed:**

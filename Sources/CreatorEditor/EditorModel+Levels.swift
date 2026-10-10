@@ -24,9 +24,10 @@ extension EditorModel {
     /// The top-level graph, whichever level is shown: the document's parameters live here.
     public var rootGraph: Graph { document.graph }
 
-    /// Applies `command` to the graph the panel shows, as one undo step (`DocumentModel.perform(_:at:)`).
-    public func edit(_ command: GraphCommand, coalescingKey: String? = nil) throws(GraphError) {
-        try document.perform(command, at: graphPath, coalescingKey: coalescingKey)
+    /// Applies `command` to the graph the panel shows, as one undo step named `name` (`DocumentModel.perform(_:at:)`;
+    /// without one the step is named from the command).
+    public func edit(_ command: GraphCommand, coalescingKey: String? = nil, name: String? = nil) throws(GraphError) {
+        try document.perform(command, at: graphPath, coalescingKey: coalescingKey, name: name)
     }
 
     /// The result of node `id` of the graph shown: from the top-level results, or from the results inside the group

@@ -28,7 +28,7 @@ extension SketchEditorModel {
             refusal = left.first ?? "There is nothing there to project."
             return
         }
-        commit(edited, "Project", projections: writes)
+        commit(edited, "Project", named: SketchStepName.project, projections: writes)
         if !left.isEmpty { refusal = left.joined(separator: " ") }
     }
 

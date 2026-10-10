@@ -24,7 +24,7 @@ struct SketchEditorModelTests {
         let host = RecordingHost(model)
         var edited = model.sketch
         edited.dimensions[rectangle.width]?.value = 80
-        model.commit(edited, "Change d1")
+        model.commit(edited, "Change d1", named: SketchStepName.changeDimension)
         let commit = try #require(host.commits.first)
         #expect(host.commits.count == 1 && commit.description == "Change d1")
         let corner = try #require(commit.sketch.position(of: rectangle.corners[1]))
@@ -38,7 +38,7 @@ struct SketchEditorModelTests {
         let host = RecordingHost(model)
         var edited = model.sketch
         edited.add(.vertical(rectangle.lines[0]))
-        model.commit(edited, "Vertical")
+        model.commit(edited, "Vertical", named: SketchStepName.addConstraint)
         #expect(model.statusIsProblem)
         #expect(host.commits.first?.sketch == edited, "a conflicting sketch keeps its warm start")
     }

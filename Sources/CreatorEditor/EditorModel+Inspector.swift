@@ -34,7 +34,7 @@ extension EditorModel {
         guard value != field.value else { return }
         let key = continuous ? "input-\(field.node.rawValue.uuidString)-\(field.socket.rawValue)" : nil
         do {
-            try edit(.setInput(field.node, field.socket, value), coalescingKey: key)
+            try edit(.setInput(field.node, field.socket, value), coalescingKey: key, name: UndoName.changeInput(field.label))
         } catch {
             refuse(error.message, node: field.node)
         }
@@ -45,7 +45,7 @@ extension EditorModel {
     public func clearInput(_ field: InputField) {
         guard field.isOptional, graph.nodes[field.node]?.inputValues[field.socket] != nil else { return }
         do {
-            try edit(.setInput(field.node, field.socket, nil))
+            try edit(.setInput(field.node, field.socket, nil), name: UndoName.clearInput(field.label))
         } catch {
             refuse(error.message, node: field.node)
         }
@@ -80,7 +80,7 @@ extension EditorModel {
     public func setParameter(_ id: ParameterID, to value: ConstantValue, continuous: Bool = false) {
         let key = continuous ? "parameter-\(id.rawValue.uuidString)" : nil
         do {
-            try document.perform(.setParameter(id, value), coalescingKey: key)
+            try document.perform(.setParameter(id, value), coalescingKey: key, name: UndoName.changeParameter)
         } catch {
             refuse(error.message, node: nil)
         }

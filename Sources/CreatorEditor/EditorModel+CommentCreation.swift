@@ -49,16 +49,16 @@ extension EditorModel {
     }
 
     private func add(_ note: StickyNote) -> Bool {
-        commit(.setSticky(note), selecting: note.id)
+        commit(.setSticky(note), selecting: note.id, named: UndoName.addNote)
     }
 
     private func add(_ box: CommentFrame) -> Bool {
-        commit(.setFrame(box), selecting: box.id)
+        commit(.setFrame(box), selecting: box.id, named: UndoName.addFrame)
     }
 
-    private func commit(_ command: GraphCommand, selecting id: CommentID) -> Bool {
+    private func commit(_ command: GraphCommand, selecting id: CommentID, named name: String) -> Bool {
         do {
-            try edit(command)
+            try edit(command, name: name)
             canvasSelection = CanvasSelection(comments: [id])
             return true
         } catch {

@@ -28,6 +28,7 @@ code is done; its human checks (group CM) are pending.
 Groups C1 (model and evaluation, `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` §4–§5) is done.
 Groups C2 (the editor, §6: entering a group, breadcrumbs, the + sockets, the group inspector, the library's Groups
 section, the viewport and the clipboard inside groups) code is done; its human checks (group GR) are pending.
+Named undo steps (plan `docs/superpowers/plans/2026-10-10-named-undo.md`) code is done; its human checks (group NU) are pending.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -45,6 +46,18 @@ Module boundaries (dependency order):
   carries the document's definitions: `DocumentModel.registry`, `withGroups(_:)`). Every reader (the Evaluator,
   `connectionProblem`, the canvas, the inspector) asks the registry, so per-node sockets wire and gather like declared
   ones.
+  - Undo names: every undo step carries a short English name (`UndoStack.Entry.name`), given where the edit is made:
+    `DocumentModel.perform(_:at:coalescingKey:name:)` takes one of `UndoName`'s constants ("Add Note", "Move", "Delete");
+    without one (or a blank one) the step is "Edit", so a forgotten name shows as "Undo Edit" and fails the test of its
+    call site. A coalesced run keeps its first record's name. Names have no numbers and never include text the person
+    typed (a note, a group's or dimension's name); an input is named by its fixed label ("Change Width"), a node by its
+    type ("Add Box"). The sketch editor (graph-free) gives each `SketchCommit` a fixed `name` from `SketchStepName`
+    ("Add Line", "Change Dimension", "Fillet"; `SketchEditorModel.commit` requires `named:`), which `AppModel.storeSketch`
+    passes through `UndoName.sketch(_:)`; `SketchCommit.description` ("Rename d1 to Plate width") holds typed text and
+    numbers and is never a name. `DocumentModel.undoName` and `redoName` feed `AppModel.undoTitle` and `redoTitle`, which
+    the Edit menu (`AppCommands`) and the top bar (`TopBar`) show as "Undo <name>" and "Redo <name>" (plain "Undo"/"Redo"
+    with nothing to take back). Names are in memory only and not part of `.mcgraph`. Tests: `UndoNameTests`,
+    `EditorUndoNameTests`, `SketchStepNameTests`, `AppUndoNameTests`, `UndoTitleTests`.
   - Groups (`Sources/CreatorGraph/Groups`): `GroupDefinition`s live in `GraphContent.definitions` beside the top-level
     graph (`DocumentModel.content`); a group node is type `group` with `NodeSetting.group`, and every `NodeRegistry`
     registers `group`, `groupInput` and `groupOutput` itself (`NodeRegistry.all`, the palette's list, leaves them out).

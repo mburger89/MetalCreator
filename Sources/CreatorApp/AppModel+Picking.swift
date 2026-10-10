@@ -68,10 +68,11 @@ extension AppModel {
         let picks = ConstantValue.edgePicks(session.solid.topology.picks(for: session.picked))
         do {
             if let rule = session.rule {
-                try document.perform(.setInput(rule, NodeSetting.picks, relativeToLevel(picks)), at: editor.graphPath)
+                try document.perform(.setInput(rule, NodeSetting.picks, relativeToLevel(picks)), at: editor.graphPath,
+                                     name: UndoName.pickEdges)
                 editor.selection = [rule]
             } else {
-                editor.selection = [try addRule(picks, from: session.source, into: session.consumer)]
+                editor.selection = [try addRule(picks, from: session.source, into: session.consumer, named: UndoName.pickEdges)]
             }
         } catch {
             alert = .problem(AppProblem("The picked edges couldn't be saved", error.message))
@@ -107,15 +108,16 @@ extension AppModel {
             return
         }
         do {
-            editor.selection = [try addRule(.edgePicks(picks), from: source, into: nil)]
+            editor.selection = [try addRule(.edgePicks(picks), from: source, into: nil, named: UndoName.selectEdgesOfFace)]
         } catch {
             alert = .problem(AppProblem("No rule was made", error.message))
         }
     }
 
     /// Adds an Edges by Tag rule holding `picks`, wired from `source` and, when given, into `consumer` (replacing
-    /// its wire), as one undo step. It's placed between the two nodes, or beside `source`.
-    func addRule(_ picks: ConstantValue, from source: Endpoint, into consumer: Endpoint?) throws(GraphError) -> NodeID {
+    /// its wire), as one undo step called `name`. It's placed between the two nodes, or beside `source`.
+    func addRule(_ picks: ConstantValue, from source: Endpoint, into consumer: Endpoint?,
+                 named name: String) throws(GraphError) -> NodeID {
         let graph = editor.graph
         let from = graph.nodes[source.node]?.position ?? .zero
         let position = consumer.flatMap { graph.nodes[$0.node]?.position }.map { (from + $0) * 0.5 + Vector2(0, 140) }
@@ -126,7 +128,7 @@ extension AppModel {
         if let consumer {
             commands.append(.connect(Link(from: Endpoint(node: rule.id, socket: "edges"), to: consumer)))
         }
-        try document.perform(.batch(commands), at: editor.graphPath)
+        try document.perform(.batch(commands), at: editor.graphPath, name: name)
         return rule.id
     }
 
