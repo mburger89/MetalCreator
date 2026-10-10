@@ -519,7 +519,8 @@ Plan `2026-10-09-naming-merged-faces.md`, roadmap row "Naming: picks on merged f
   before the fillet. It depends on the fillet radius: `BRepCheck`-valid at R 0.5, 1 and 2, where the chamfer
   succeeds; through the graph the chamfer also succeeds at R 2.5; invalid at the bracket's R3. So the Chamfer stays
   in error and the Output has no result, until the kernel rejects or repairs invalid blend results (roadmap row
-  "Kernel: blends that return an invalid solid").
+  "Kernel: blends that return an invalid solid"). (Superseded: see Errata (Kernel: invalid blends); the test below is
+  now `swappingTheFlangeForAPolygonKeepsEveryPickOnceTheFilletFits`.)
   `BracketAcceptanceTests.swappingTheFlangeForAPolygonKeepsEveryPickButTheFilletedHexagonCantBeChamfered` pins it, and
   `BracketAcceptanceTests.aChamferPickedOnMergedSidesSurvivesTheFlangeChangingWidth` pins the case end to end with no
   warning or error (the flange alone made 40 or 70 mm wide, so no plate side stays merged).
