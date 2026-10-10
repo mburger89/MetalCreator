@@ -656,7 +656,7 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
 - **CM-a. `TextEditor` has no commit key.** Canvas comments spec §7: a note's text commits on focus loss or ⌘↩.
   MetalUI's `TextField` has `onSubmit` (Return), but `TextEditor` has none: Return inserts a line break (ruling
   TI-H), and whether a ⌘↩ reaches the window's `onInput` fallback while a `TextEditor` is focused can't be checked
-  without a headless window (M6-e). No stopgap: a global ⌘↩ chord would work around the gap, so MetalCreator commits
+  without a headless window (M6-e). Originally (before C9): no stopgap, since a global ⌘↩ chord would work around the gap, so MetalCreator commits
   a note's text on focus loss only (a canvas press clears focus, M5-g; the model also commits on a selection change
   and on saving), and ⌘↩ is unbound. Wanted: C9 lets MetalCreator bind it with SwiftUI's own
   `.onKeyPress(.return) { press in guard press.modifiers.contains(.command) else { return .ignored }; commit();
@@ -665,7 +665,7 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
   handling.
   **Fixed by MetalUI C9** (KF-Z/KF-AA, merged to MetalUI master 0a9eb36): a Return with the commit modifier (⌘ on macOS, ⌃ elsewhere: `CommentKeys.commitModifier`) is not an editing key of a
   `TextEditor`, and an `onKeyPress(keys: [.return])` handler runs before the editor's keys, so
-  `press.modifiers.contains(.command) ? commit() : .ignored` commits on ⌘↩ while plain Return still breaks the line (no
+  `press.modifiers.contains(commitModifier) ? commit() : .ignored` commits on ⌘↩ (⌃↩ off macOS) while plain Return still breaks the line (no
   MetalUI-only hook was needed). **Adopted** (Comments typing plan Task 3): `CommentKeys.commitsNote` is that test, used by
   the inspector's note box (`CommentTextEntry`) and the canvas editor (`CommentEditorField`). The spec's CM Errata line
   "not on ⌘↩" is superseded (Errata (B: typing on the canvas)).

@@ -5,7 +5,7 @@ extension EditorModel {
     /// pending entry at a time: a field typed into while a comment is being typed into on the canvas commits that
     /// edit first, so the two never fight over the same text.
     public func notePendingEntry(_ entry: PendingEntry?) {
-        if let edit = commentEdit, entry?.owner != edit.owner { commitCommentEdit() }
+        if let edit = commentEdit, let entry, entry.owner != edit.owner { commitCommentEdit() }
         pendingEntry = entry
     }
 

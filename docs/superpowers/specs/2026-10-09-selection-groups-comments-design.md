@@ -294,7 +294,7 @@ Plan `2026-10-09-comments.md`.
 
 ## Errata (B: typing on the canvas)
 
-Plan `2026-10-10-comments-canvas-typing.md`; MetalUI C9 (`feat/key-focus`).
+Plan `2026-10-10-comments-canvas-typing.md`; MetalUI C9 (merged at MetalUI master `0a9eb36`).
 
 - §8 Typing on the canvas is built. A double click (S5b's recogniser, still synthesised: gap S5-b, until MetalUI C16) on
   a note, or on a frame's title bar (not its 6 pt edge band, which grabs the frame), starts editing in place: a
