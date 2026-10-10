@@ -42,7 +42,7 @@ extension AppModel {
         if value != currentNumber(target) {
             do {
                 try document.perform(.setInput(target.node, target.socket, .number(value)), at: editor.graphPath,
-                                     coalescingKey: "handle-\(id)")
+                                     coalescingKey: "handle-\(id)", name: UndoName.dragHandle)
             } catch {
                 alert = .problem(AppProblem("The value couldn't be changed", error.message))
             }

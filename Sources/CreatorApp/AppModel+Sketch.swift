@@ -70,7 +70,7 @@ extension AppModel {
         }
         do {
             let commands = SketchStore.commands(storing: commit.sketch, in: node, graph: document.graph, projections: projections)
-            try document.perform(.batch(commands))
+            try document.perform(.batch(commands), name: UndoName.sketch(commit.name))
         } catch {
             alert = .problem(AppProblem("The sketch couldn't be changed", error.message))
             refreshSketch()
