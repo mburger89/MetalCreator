@@ -10,7 +10,7 @@ plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 
 M6 (app shell) code is done; its human checks (group M6) are pending.
 Editor polish (the floating add-node palette and the node library) code is done; its human checks (group EP) are pending.
 Packaging (`scripts/package-app.sh`, `docs/packaging.md`) is done; its human checks (group P) are pending.
-Themes (custom themes, `.mctheme` files, the theme editor) code is done; its human checks (group TH) are pending. Editing a colour in the app waits for MetalUI C10's `ColorPicker` (plan Task 11); until then colours change by import.
+Themes (custom themes, `.mctheme` files, the theme editor) code is done; its human checks (group TH) are pending. Each role is edited with MetalUI C10's `ColorPicker` (plan Task 11).
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -64,8 +64,8 @@ Module boundaries (dependency order):
 - `CreatorSketchEditor`: the sketch editor (sketcher spec §8). `@MainActor @Observable SketchEditorModel` holds the
   sketch being edited, its live solve (`solve(_:dragging:)` per drag step), the tool and its stroke, the selection, and
   the inspector's rows; it is the viewport's `ViewportTool` (planar navigation; F frames the sketch) and builds its
-  `ViewportOverlay` and the pointer readout (`pointerReadout`, placed by `ReadoutChip`, drawn by its
-  `PointerReadoutView`, which the app puts over the viewport). Graph-free: every edit is
+  `ViewportOverlay` and the pointer readout (`pointerReadout`, while drawing or dragging a point; placed by
+  `ReadoutChip`, drawn by its `PointerReadoutView`, which the app puts over the viewport). Graph-free: every edit is
   a `SketchCommit` (the whole sketch, solved and remembered) through `events.committed`, which the host stores.
   Depends on CreatorSketch, CreatorViewport, CreatorGeometry, CreatorStyle and MetalUI only. Its keys are toolbar
   button shortcuts (L, A, C, D, X, ⌫, ⌦, ⏎, Esc; ⌦ and Esc are hidden buttons), which run before the graph panel's

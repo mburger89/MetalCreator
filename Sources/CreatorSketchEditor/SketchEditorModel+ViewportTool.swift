@@ -41,14 +41,19 @@ extension SketchEditorModel: ViewportTool {
     /// A drag that starts on a point moves it; any other drag pans (planar navigation).
     public func dragBegan(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) -> Bool {
         guard let p = projector.planePoint(under: point, on: plane) else { return false }
-        return beginDrag(at: p, tolerance: tolerance(projector))
+        guard beginDrag(at: p, tolerance: tolerance(projector)) else { return false }
+        follow(point, projector)
+        return true
     }
 
+    /// One drag step. The viewport sends no hover during a drag, so the readout's chip follows the pointer here.
     public func dragMoved(to point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) {
+        follow(point, projector)
         if let p = projector.planePoint(under: point, on: plane) { drag(to: p) }
     }
 
     public func dragEnded(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) {
+        follow(point, projector)
         endDrag(at: projector.planePoint(under: point, on: plane))
     }
 

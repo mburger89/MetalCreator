@@ -406,8 +406,8 @@ Run `swift run MetalCreatorApp` (EP-1–EP-9, EP-11) and `swift run GraphPanelPr
   under the library column: the same at the canvas's left edge. Hide the library and pan a node up past the panel's
   header: it disappears at the canvas's edge, never over the header or the glass padding (gap LF-a, fixed in MetalUI
   0b400b4). Pan the canvas right and down by more than a node's size, then drag a node to the canvas's top-left
-  corner, wholly inside it: it draws whole, header and body, not only a slice at its right or bottom (gap LF-b, open
-  since MetalUI 0b400b4). Pinned: `aNodeUnderTheLibraryStripIsHiddenByIt`,
+  corner, wholly inside it: it draws whole, header and body, not only a slice at its right or bottom (gap LF-b, fixed
+  in MetalUI 9ad2254). Pinned: `aNodeUnderTheLibraryStripIsHiddenByIt`,
   `aNodeUnderTheLibraryColumnIsHiddenByIt`, `aNodeAboveTheCanvasNeverCoversTheHeader`,
   `aNodeAtANegativeCanvasPositionDrawsWhole`. **Observed:**
 
@@ -461,7 +461,7 @@ Run `swift run MetalCreatorApp`, with the preview mode set to Selected node.
 
 - [ ] **TH-1 The editor.** View ▸ Theme lists Dracula, Alucard and Nord, then Edit Themes…. Choose it: a glass panel
   opens at the top right below the top bar, over the inspector, as tall as the window allows, and lists every role
-  under its group with its hex and a swatch; it scrolls. Dracula's name field and Dark controls toggle are disabled and
+  under its group with its hex and a colour well; it scrolls. Dracula's name field and Dark controls toggle are disabled and
   a line says built-ins are read-only. Drag or scroll on the panel: the viewport neither orbits nor zooms. Done (or
   Escape) closes it. Dock the graph at the bottom (Bottom) and open the editor again: it ends a margin above the graph
   panel, which stays whole; drag the panel's top edge up and down: the editor follows. On the Chamfer, press "Pick
@@ -474,7 +474,7 @@ Run `swift run MetalCreatorApp`, with the preview mode set to Selected node.
   editor's menu and View ▸ Theme say "Midnight". Type "nord" and press Return: "There’s already a theme called “nord”."
   and the field shows "Midnight" again. Turn Dark controls off: the window and its buttons turn light. Pinned:
   `ThemeEditorModelTests`. **Observed:**
-- [ ] **TH-3 Colours (needs MetalUI C10 merged).** Click a role's colour well: MetalUI's colour panel opens. Drag in
+- [ ] **TH-3 Colours.** Click a role's colour well: MetalUI's colour panel opens. Drag in
   its square: the role's colour changes as you drag, on the panels and in the viewport (try Selection, Solid nodes,
   Shading). Glass, Glass hairline and Edges offer opacity, others don't. With VoiceOver on, move to a role's well: it
   reads the role's name (e.g. "Selection"), then "colour well" and its value. Quit and relaunch: Midnight is shown,
@@ -549,4 +549,6 @@ that into an Output. Select the Sketch.
   inspector: the chip goes. Circle after the centre: "⌀ 20.0 mm". Arc: "R 12.0 mm" after the centre, then
   "R 12.0 mm · 90.0°" after the start; nearly a full turn reads "360.0°". Point: the pointer's position, "12.0, 8.5"
   (over an existing point, that point's position, though a click there adds nothing). Select and Dimension: none.
-  Finish: none. **Observed:**
+  Finish: none. Select, then drag the free end of a lone line: the chip follows the pointer and reads the line's length
+  and angle as solved (a dimensioned line keeps its length however far you drag); an arc's start or end: "R … mm · …°";
+  a rectangle's corner, a circle's centre or a free point: its position. Release: the chip goes. **Observed:**

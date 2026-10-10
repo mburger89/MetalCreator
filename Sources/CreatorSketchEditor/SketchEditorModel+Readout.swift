@@ -5,9 +5,11 @@ import CreatorViewport
 /// the view): what the next click would commit, read off the rubber band, so it shows the snapped values. A line
 /// (after its first click) reads its length and angle, a circle (after its centre) its diameter, an arc its radius
 /// (after the centre) then its radius and sweep (after the start), and the Point tool the pointer's position on the
-/// plane. Nothing otherwise: no stroke, Esc, the pointer off the view, the Select and Dimension tools.
+/// plane. While a point is dragged, the drag's readout (`dragReadout`) instead, whatever the tool. Nothing otherwise:
+/// no stroke, Esc, the pointer off the view, the Select and Dimension tools.
 extension SketchEditorModel {
     public var pointerReadout: String? {
+        if let dragged { return dragReadout(dragged) }
         switch drawState {
         case .idle:
             guard tool == .point, let at = preview.points.first else { return nil }
