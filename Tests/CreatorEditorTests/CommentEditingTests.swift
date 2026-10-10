@@ -76,6 +76,17 @@ struct CommentEditingTests {
         #expect(editor.graph.stickies.count == 1 && editor.graph.frames.count == 1 && !editor.document.canUndo)
     }
 
+    /// A copy of a frame together with the nodes it held puts the copies in the copied frame, since both move by the
+    /// same offset: membership is geometric and so survives the copy.
+    @Test func aCopiedFrameHoldsTheCopiedNodesItWasCopiedWith() throws {
+        let editor = editor()
+        editor.canvasSelection = CanvasSelection(nodes: [a.id], comments: [frame.id])
+        let copies = try #require(editor.insert(editor.clipboard(of: editor.canvasSelection), offset: Vector2(0, 500)))
+        let copiedFrame = try #require(copies.comments.compactMap { editor.graph.frames[$0] }.first)
+        #expect(copies.nodes.count == 1 && editor.members(of: copiedFrame) == copies.nodes)
+        #expect(editor.members(of: frame) == [a.id], "and the original still holds the original")
+    }
+
     @Test func aCommentOnlyCopyPastes() {
         let editor = editor()
         editor.canvasSelection = CanvasSelection(comments: [sticky.id])

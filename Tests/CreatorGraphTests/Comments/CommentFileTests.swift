@@ -6,6 +6,7 @@ import Testing
 
 /// Comments are saved with their graph (canvas comments spec 2026-10-09 §7): sorted by ID, keys optional on decode,
 /// under the current format version 5 that groups (C1) already bumped to.
+@MainActor
 struct CommentFileTests {
     func json(_ file: GraphFile) throws -> [String: Any] {
         try #require(try JSONSerialization.jsonObject(with: try GraphFileIO.encode(file)) as? [String: Any])
@@ -89,6 +90,27 @@ struct CommentFileTests {
         let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
         #expect(file.graph.stickies[commentID(1)]?.text == "first")
         #expect(file.graph.frames.isEmpty)
+    }
+
+    /// A hand-edited file may give a comment a negative size; it reads as zero, so it can still be selected with ⌘A and
+    /// deleted, and nothing downstream sees an inside-out rectangle.
+    @Test func aNegativeSizeInAFileReadsAsZero() throws {
+        let rect = #"{"origin": {"x": 5, "y": 6}, "size": {"x": -40, "y": 30}}"#
+        let text = """
+        {"formatVersion": 5, "graph": {"nodes": [],
+        "stickies": [{"id": "\(commentID(1).rawValue.uuidString)", "text": "Odd", "frame": \(rect)}],
+        "frames": [{"id": "\(commentID(2).rawValue.uuidString)", "title": "Odd", "frame": \(rect)}]}}
+        """
+        let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
+        #expect(file.graph.stickies[commentID(1)]?.frame == CanvasRect(origin: Vector2(5, 6), size: Vector2(0, 30)))
+        #expect(file.graph.frames[commentID(2)]?.frame.size == Vector2(0, 30))
+    }
+
+    @Test func theDocumentSavesItsComments() throws {
+        let document = DocumentModel(file: GraphFile(graph: Graph(stickies: [commentID(1): note(1, "Saved")])),
+                                     registry: testRegistry, kernel: FakeKernel())
+        let reopened = try GraphFileIO.decode(try document.fileData(), registry: testRegistry)
+        #expect(reopened.graph.stickies[commentID(1)]?.text == "Saved")
     }
 
     @Test func graphEqualityIncludesComments() {

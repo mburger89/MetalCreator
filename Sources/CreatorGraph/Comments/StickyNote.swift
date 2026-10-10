@@ -23,7 +23,7 @@ extension StickyNote: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.init(id: try container.decode(CommentID.self, forKey: .id),
                   text: try container.decodeIfPresent(String.self, forKey: .text) ?? "",
-                  frame: try container.decode(CanvasRect.self, forKey: .frame),
+                  frame: try container.decode(CanvasRect.self, forKey: .frame).withNonNegativeSize,
                   accent: (try? container.decodeIfPresent(AccentRole.self, forKey: .accent)) ?? .muted)
     }
 

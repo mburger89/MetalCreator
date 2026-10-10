@@ -92,6 +92,19 @@ struct CommentRenderTests {
         #expect(selected - plain == 2, "selected: one handle each (\(selected - plain))")
     }
 
+    /// Text and titles of any length draw inside their comment without trapping: very long, many lines, no spaces.
+    @Test func extremeTextStillRenders() {
+        let long = String(repeating: "wide", count: 5_000)
+        let lines = (0..<400).map { "line \($0)" }.joined(separator: "\n")
+        let editor = makeEditor([], stickies: [note(1, long, at: Vector2(20, 20)), note(2, lines, at: Vector2(300, 20)),
+                                               note(3, "", at: Vector2(20, 200), size: Vector2(0, 0)), ],
+                                frames: [box(4, long, at: Vector2(20, 300)),
+                                         box(5, "", at: Vector2(500, 300), size: Vector2(10, 10)), ])
+        editor.canvasSelection = editor.allItems
+        #expect(!panel(editor).rects.isEmpty)
+        #expect(editor.hitTest(Vector2(25, 205)) == .empty, "a zero-size note can't be hit, and can be selected with ⌘A")
+    }
+
     @Test func aGraphOfManyCommentsStillRenders() {
         let notes = (1...200).map { note($0, at: Vector2(Double($0 % 20) * 170, Double($0 / 20) * 110)) }
         let editor = makeEditor([], stickies: notes)

@@ -2,8 +2,9 @@ import CreatorKernel
 
 extension GroupCommands {
     /// Make Unique: copies group node `id`'s definition as "Name 2" (the next free number), with fresh IDs for every
-    /// node inside, and points this group node, renamed to match, at the copy (groups spec §5). Picks on this group
-    /// node's faces, and the copy's own picks, are renamed to the new IDs, so they keep naming the same faces.
+    /// node inside, and its canvas comments, and points this group node, renamed to match, at the copy (groups spec
+    /// §5). Picks on this group node's faces, and the copy's own picks, are renamed to the new IDs, so they keep
+    /// naming the same faces.
     public static func makeUnique(_ id: NodeID, in path: GraphPath, of content: GraphContent,
                                   registry: NodeRegistry) throws(GraphError) -> GroupEdit {
         let (_, _, definition) = try groupNode(id, in: path, of: content, registry: registry, action: "make unique")
@@ -25,6 +26,9 @@ extension GroupCommands {
             return Link(from: Endpoint(node: from, socket: link.from.socket), to: Endpoint(node: to, socket: link.to.socket))
         }
         copy.graph.sortLinks()
+        // The definition's own canvas comments come along (an ID only has to be unique within its graph).
+        copy.graph.stickies = definition.graph.stickies
+        copy.graph.frames = definition.graph.frames
         let here = GraphCommand.batch([.setInput(id, NodeSetting.group, .group(copyID)), .rename(id, copy.name)])
         let picks = GroupScopes.renamingPicks(at: path, in: content) { reached in
             guard reached.count > 1, reached.first == id, let copy = fresh[reached[1]] else { return nil }

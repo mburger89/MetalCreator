@@ -29,6 +29,12 @@ public struct CanvasRect: Equatable, Sendable, Codable {
         origin.x <= other.maxX && other.origin.x <= maxX && origin.y <= other.maxY && other.origin.y <= maxY
     }
 
+    /// This rectangle with a negative width or height read as zero, so a hand-edited file can't give a comment a size
+    /// the canvas can't draw or hit.
+    public var withNonNegativeSize: CanvasRect {
+        CanvasRect(origin: origin, size: Vector2(max(size.x, 0), max(size.y, 0)))
+    }
+
     /// This rectangle shifted by `delta`.
     public func moved(by delta: Vector2) -> CanvasRect {
         CanvasRect(origin: origin + delta, size: size)
