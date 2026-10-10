@@ -26,7 +26,8 @@ extension AppModel {
         if document.previewNode != wanted { document.previewNode = wanted }
     }
 
-    /// Shows the scene and the selected nodes' handles. While picking, only the solid being picked on, with the
+    /// Shows the scene and the selected nodes' handles. In Final preview the scene also carries the selected rules'
+    /// edges on solids it doesn't show, as guides (not while sketching). While picking, only the solid being picked on, with the
     /// picked edges selected, no handles and a crosshair pointer. While sketching, the scene dimmed (ghosted, still
     /// pickable) and no handles, and the open sketch follows its node. A scene or handles equal to what's shown aren't
     /// sent again: the observation also fires for canvas pans, camera settles and panel resizes, which change neither.
@@ -39,7 +40,8 @@ extension AppModel {
         } else {
             let shown = previewMode == .final ? outputNodes : (document.previewNode.map { [$0] } ?? [])
             scene = SceneBuilder.scene(shown: shown, graph: document.graph, results: document.results,
-                                       lastGood: document.lastGoodOutputs, selection: editor.selection)
+                                       lastGood: document.lastGoodOutputs, selection: editor.selection,
+                                       showsGuides: previewMode == .final && sketch == nil)
         }
         if sketch != nil {
             scene = scene.map { entry in

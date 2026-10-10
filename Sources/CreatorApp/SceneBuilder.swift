@@ -11,10 +11,14 @@ public enum SceneBuilder {
     ///   outputs, not ghosted, so a drag doesn't flicker.
     /// - A node in error, or blocked by an error upstream, shows its last good result as a ghost.
     /// - Edge sets show their solid with the set's edges selected (a rule previewed on its own).
-    /// - Edges picked by a selected rule glow on whichever shown solid is the rule's own (spec §6.3). In Final
-    ///   preview a rule feeding a Fillet or Chamfer is on a solid that isn't shown, so nothing glows (Errata (M6)).
+    /// - Edges picked by a selected rule glow on whichever shown solid is the rule's own (spec §6.3).
+    /// - With `showsGuides` (Final preview), the edges of a selected rule whose solid no shown part holds come as
+    ///   guide items (`ViewportItem.isGuide`), which the viewport draws over the part. A rule feeding a Fillet or
+    ///   Chamfer is on the solid before the feature, which Final doesn't show (Errata (M6)): its edges glow where they
+    ///   lie on the finished part and show as an overlay where they don't.
     public static func scene(shown: [NodeID], graph: Graph, results: [NodeID: NodeResult],
-                             lastGood: [NodeID: [SocketName: Value]], selection: Set<NodeID>) -> [SceneItem] {
+                             lastGood: [NodeID: [SocketName: Value]], selection: Set<NodeID>,
+                             showsGuides: Bool = false) -> [SceneItem] {
         var scene: [SceneItem] = []
         for id in shown {
             guard let node = graph.nodes[id] else { continue }
@@ -30,7 +34,9 @@ public enum SceneBuilder {
             }
             scene += items(of: node, outputs: outputs, isGhost: isGhost, graph: graph)
         }
-        return highlighting(scene, selectedSets: selection.sorted().flatMap { edgeSets(results[$0]) })
+        let selectedSets = selection.sorted().flatMap { edgeSets(results[$0]) }
+        let highlighted = highlighting(scene, selectedSets: selectedSets)
+        return showsGuides ? highlighted + guides(for: selectedSets, notShownIn: highlighted) : highlighted
     }
 
     /// The items one node's outputs make, socket by socket in name order.
@@ -60,6 +66,22 @@ public enum SceneBuilder {
         guard let result, result.state.isSuccess, let outputs = result.outputs else { return [] }
         return outputs.values.flatMap(\.items).compactMap { scalar in
             if case .edgeSet(let set) = scalar { set } else { nil }
+        }
+    }
+
+    /// One guide per solid the sets are on that no shown part holds, in the sets' order, holding all their edges. A
+    /// solid shown only as a ghost is stale, so it doesn't count as shown. A set with no edges makes no guide.
+    static func guides(for sets: [EdgeSet], notShownIn scene: [SceneItem]) -> [SceneItem] {
+        var order: [Solid] = []
+        var edges: [ObjectIdentifier: Set<EdgeID>] = [:]
+        for set in sets where !set.edges.isEmpty && !scene.contains(where: { !$0.item.isGhost && $0.item.solid === set.solid }) {
+            let key = ObjectIdentifier(set.solid)
+            if edges[key] == nil { order.append(set.solid) }
+            edges[key, default: []].formUnion(set.edges)
+        }
+        return order.map { solid in
+            SceneItem(item: ViewportItem(solid: solid, selectedEdges: edges[ObjectIdentifier(solid)] ?? [], isGuide: true),
+                      source: nil)
         }
     }
 
