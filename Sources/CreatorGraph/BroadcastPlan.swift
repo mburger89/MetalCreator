@@ -20,6 +20,7 @@ public struct BroadcastPlan: Sendable {
             case .item:
                 itemInputs[spec.name] = value
                 if case .list(let scalars) = value { counts.append(scalars.count) }
+                if case .tree(let tree) = value { counts.append(tree.itemCount) }
             }
         }
         guard let longest = counts.max() else {
@@ -35,6 +36,9 @@ public struct BroadcastPlan: Sendable {
             switch value {
             case .one(let scalar): slots[name] = .item(scalar)
             case .list(let scalars): slots[name] = .item(scalars[min(item, scalars.count - 1)])
+            case .tree(let tree):
+                let scalars = tree.items
+                slots[name] = .item(scalars[min(item, scalars.count - 1)])
             }
         }
         for (name, scalars) in listInputs {
