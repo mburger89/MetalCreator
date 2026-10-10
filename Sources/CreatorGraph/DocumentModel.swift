@@ -72,21 +72,29 @@ public final class DocumentModel {
 
     public var canUndo: Bool { undoStack.canUndo }
     public var canRedo: Bool { undoStack.canRedo }
+    /// The name of the step Undo would take back ("Add Note"), or `nil` with nothing to undo.
+    public var undoName: String? { undoStack.undoName }
+    /// The name of the step Redo would re-apply, or `nil` with nothing to redo.
+    public var redoName: String? { undoStack.redoName }
 
     /// Applies an edit. Pass the same `coalescingKey` for every step of a slider or handle
-    /// drag, then call `endCoalescing()` when the drag ends, so the drag is one undo step.
-    public func perform(_ command: GraphCommand, coalescingKey: String? = nil) throws(GraphError) {
+    /// drag, then call `endCoalescing()` when the drag ends, so the drag is one undo step. `name` is the step's name in
+    /// the Edit menu (`UndoName`); without one (or with a blank one) the step is called "Edit", so
+    /// every caller passes one. A coalesced run keeps the name of its first record.
+    public func perform(_ command: GraphCommand, coalescingKey: String? = nil, name: String? = nil) throws(GraphError) {
         // The stale set must be taken before the edit, so dependents of removed nodes and links count.
         let stale = graph.downstreamClosure(of: content.touchedTopLevelNodes(command))
         let effect = effect(of: command)
         let inverse = try content.apply(command, registry: baseRegistry)
-        undoStack.record(forward: command, inverse: inverse, coalescingKey: coalescingKey)
+        undoStack.record(forward: command, inverse: inverse, coalescingKey: coalescingKey,
+                         name: UndoName.cleaned(name) ?? UndoName.edit)
         didChange(effect, markingStale: stale)
     }
 
     /// Applies a graph command to the graph at `path`: the top level, or inside a group definition (groups spec §5).
-    public func perform(_ command: GraphCommand, at path: GraphPath, coalescingKey: String? = nil) throws(GraphError) {
-        try perform(command.at(path), coalescingKey: coalescingKey)
+    public func perform(_ command: GraphCommand, at path: GraphPath, coalescingKey: String? = nil,
+                        name: String? = nil) throws(GraphError) {
+        try perform(command.at(path), coalescingKey: coalescingKey, name: name)
     }
 
     public func endCoalescing() {

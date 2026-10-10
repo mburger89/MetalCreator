@@ -6,6 +6,8 @@ public struct UndoStack: Sendable {
         /// What undo applies: the inverse of the first command of a coalesced run.
         public var inverse: GraphCommand
         public var coalescingKey: String?
+        /// What the Edit menu calls the step ("Add Note"): the first record's, for a coalesced run.
+        public var name: String
     }
 
     public private(set) var undoEntries: [Entry] = []
@@ -16,15 +18,21 @@ public struct UndoStack: Sendable {
 
     public var canUndo: Bool { !undoEntries.isEmpty }
     public var canRedo: Bool { !redoEntries.isEmpty }
+    /// The name of the step Undo would take back, or `nil` with nothing to undo.
+    public var undoName: String? { undoEntries.last?.name }
+    /// The name of the step Redo would re-apply, or `nil` with nothing to redo.
+    public var redoName: String? { redoEntries.last?.name }
 
     /// Records an applied command. Consecutive records with the same non-nil key, with no
-    /// `endCoalescing()` between them, merge into one entry that keeps the first inverse.
-    public mutating func record(forward: GraphCommand, inverse: GraphCommand, coalescingKey: String?) {
+    /// `endCoalescing()` between them, merge into one entry that keeps the first inverse and the first `name`.
+    /// `name` defaults to "Edit" for the direct callers in tests; `DocumentModel` always passes one.
+    public mutating func record(forward: GraphCommand, inverse: GraphCommand, coalescingKey: String?,
+                                name: String = UndoName.edit) {
         redoEntries.removeAll()
         if let key = coalescingKey, isCoalescingOpen, let last = undoEntries.last, last.coalescingKey == key {
             undoEntries[undoEntries.count - 1].forward = forward
         } else {
-            undoEntries.append(Entry(forward: forward, inverse: inverse, coalescingKey: coalescingKey))
+            undoEntries.append(Entry(forward: forward, inverse: inverse, coalescingKey: coalescingKey, name: name))
         }
         isCoalescingOpen = coalescingKey != nil
     }
