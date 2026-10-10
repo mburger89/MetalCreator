@@ -75,6 +75,9 @@ public final class EditorModel {
     @ObservationIgnored var requestSerial = 0
     /// What an inspector field holds but hasn't committed (`EditorModel+PendingEntry`).
     @ObservationIgnored var pendingEntry: PendingEntry?
+    /// The comment being typed into in place on the canvas (`EditorModel+CommentEditing`). View state: never undone,
+    /// never saved. While it is set, `pendingEntry` is its draft.
+    public internal(set) var commentEdit: CommentEdit?
     /// The undo coalescing key of the arrow-key run under way (`EditorModel+Nudge`).
     @ObservationIgnored var nudgeKey: String?
     /// Whether the trackpad scroll under way zooms (it began with ⌘ held) or pans; `nil` between scrolls
@@ -107,6 +110,8 @@ public final class EditorModel {
     public var isPanelVisible: Bool { dock != .hidden }
 
     public func setDock(_ dock: DockSide) {
+        // The canvas, and the field typed into on it, go away: commit what was typed rather than leave it pending.
+        if dock == .hidden { commitCommentEdit() }
         if dock != .hidden { lastVisibleDock = dock }
         // The canvas moves or unmounts, so its last hover location no longer says where the pointer is.
         if dock != document.viewState.dock { pointerLocation = nil }

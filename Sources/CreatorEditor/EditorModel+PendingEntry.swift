@@ -1,8 +1,11 @@
 import Foundation
 
 extension EditorModel {
-    /// Records what an inspector field holds after a keystroke (`nil` once it's committed or abandoned).
+    /// Records what an inspector field holds after a keystroke (`nil` once it's committed or abandoned). There is one
+    /// pending entry at a time: a field typed into while a comment is being typed into on the canvas commits that
+    /// edit first, so the two never fight over the same text.
     public func notePendingEntry(_ entry: PendingEntry?) {
+        if let edit = commentEdit, entry?.owner != edit.owner { commitCommentEdit() }
         pendingEntry = entry
     }
 
