@@ -38,8 +38,10 @@ extension EditorModel {
         }
     }
 
-    /// Runs a context-menu item; `screen` is where the menu opened (`nil` for a keyboard open: the visible centre).
+    /// Runs a context-menu item; `screen` is where the menu opened (`nil` for a keyboard open: the visible centre). It does
+    /// nothing while a drag is under way, as the keys do nothing then: the item's edit would split the drag's undo step.
     public func choose(_ item: CanvasMenuItem, at screen: Vector2?) {
+        guard interaction == nil else { return }
         switch item {
         case .addNote:
             if let screen { addNote(atScreen: screen) } else { addNoteAtPointer() }

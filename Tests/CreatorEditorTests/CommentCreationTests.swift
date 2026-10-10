@@ -28,6 +28,23 @@ struct CommentCreationTests {
         #expect(editor.graph.stickies.isEmpty && !editor.document.canUndo, "one undo step")
     }
 
+    /// A menu item chosen while a drag is under way (a secondary press during a primary drag) would add a step in the
+    /// middle of the move's coalesced run, as the keys never do (`performSelectionCommand`).
+    @Test func aMenuItemChosenMidDragChangesNothingAndTheMoveStaysOneStep() {
+        let editor = makeEditor([a])
+        let press = editor.screenPoint(in: a.id)
+        editor.pointerDragged(from: press, to: press + Vector2(20, 0))
+        guard case .moving? = editor.interaction else { Issue.record("expected a move"); return }
+        editor.choose(.addNote, at: Vector2(300, 300))
+        editor.choose(.frameSelection, at: nil)
+        #expect(editor.graph.stickies.isEmpty && editor.graph.frames.isEmpty)
+        editor.pointerDragged(from: press, to: press + Vector2(40, 0))
+        editor.pointerReleased(from: press, at: press + Vector2(40, 0))
+        #expect(editor.graph.nodes[a.id]?.position == a.position + Vector2(40, 0))
+        editor.document.undo()
+        #expect(editor.graph.nodes[a.id]?.position == a.position && !editor.document.canUndo, "the whole drag, one step")
+    }
+
     @Test func addNoteReadsTheTransformAndTheLeftDocksFlow() throws {
         let editor = makeEditor([], dock: .left)
         editor.transform = CanvasTransform(offset: Vector2(10, 20), zoom: 2)
