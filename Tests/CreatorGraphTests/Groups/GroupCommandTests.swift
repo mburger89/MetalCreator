@@ -210,6 +210,18 @@ struct GroupCommandTests {
         }
     }
 
+    @Test func aWireOutOfTheSelectionFromASocketOfUnknownTypeIsRefused() {
+        var mystery = GroupScene.position(makeNode(ConstantNode.self), -200, 0)
+        mystery.typeID = "missing.type"
+        var content = GraphContent(graph: document().graph, definitions: [:])
+        content.graph.nodes[mystery.id] = mystery
+        content.graph.links.append(link(mystery, "value", scene.other, "b"))
+        #expect(throws: GraphError.invalidValue(
+            "A wire out of the selection leaves a socket of unknown type, so it can't become an output.")) {
+            try GroupCommands.group([mystery.id], in: .root, of: content, registry: testRegistry)
+        }
+    }
+
     /// A node outside the selection that both takes from it and feeds it would leave the group node wired in a cycle
     /// (G → a1 → G), which wiring refuses, so Group refuses it too.
     @Test func groupingAroundAnOutsideNodeInBetweenIsRefused() {

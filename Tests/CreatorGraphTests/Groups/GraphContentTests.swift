@@ -262,4 +262,12 @@ struct GraphContentTests {
         #expect(start.affectsResults(.inDefinition(doubler.id, .setInput(doubler.add.id, "b", nil))))
         #expect(!start.affectsMessages(.rename(doubler.add.id, "Plus")), "top-level names aren't in any message")
     }
+
+    /// With no group node using the definition the wire left on the socket is inside, on Group Input.
+    @Test func aSocketWiredInsideOnGroupInputCantBeRemovedEither() {
+        let start = content([], [doubler.definition])
+        var interface = doubler.definition.interface
+        interface.inputs = []
+        expectRefused(.setInterface(doubler.id, interface), on: start, "“value” is wired on “Group Input”. Unwire it first.")
+    }
 }
