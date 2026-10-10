@@ -83,6 +83,16 @@ struct GraphContentTests {
         expectRefused(.addDefinition(selfish), on: start, message)
     }
 
+    @Test func aBatchInsideADefinitionIsCheckedStepByStep() {
+        let outer = outer()
+        let start = content([], [doubler.definition, outer])
+        let added = instance(of: doubler.definition)
+        // The node is fine when added, then retargeted at the group it sits in: the second step must be refused.
+        let batch = GraphCommand.batch([.addNode(added), .setInput(added.id, NodeSetting.group, .group(outer.id))])
+        expectRefused(.inDefinition(outer.id, batch), on: start, "A group can't contain itself.")
+        expectRefused(.inDefinition(outer.id, .batch([batch])), on: start, "A group can't contain itself.")
+    }
+
     @Test func anOutputNodeCantGoInAGroup() throws {
         let start = content([], [doubler.definition])
         let message = "An Output node can't go in a group."

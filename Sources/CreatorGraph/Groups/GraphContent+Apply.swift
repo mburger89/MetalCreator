@@ -48,11 +48,7 @@ extension GraphContent {
     private mutating func applyGroupEdit(_ command: GraphCommand, registry: NodeRegistry) throws(GraphError) -> GraphCommand {
         switch command {
         case .inDefinition(let id, let inner):
-            guard var definition = definitions[id] else { throw GroupRefusal.missing }
-            try check(inner, in: .definition(id), registry: registry)
-            let inverse = try definition.graph.apply(inner, registry: registry.withGroups(definitions))
-            definitions[id] = definition
-            return .inDefinition(id, inverse)
+            return .inDefinition(id, try applyInside(id, inner, registry: registry))
         case .addDefinition(let definition):
             try checkNew(definition, registry: registry)
             definitions[definition.id] = definition
@@ -72,6 +68,31 @@ extension GraphContent {
         default:
             throw GroupRefusal.nested  // `apply` routes only the four group commands here.
         }
+    }
+
+    /// Applies a graph command inside definition `id`. A batch goes one command at a time, each checked against the
+    /// graph the earlier ones left, so an add followed by a retarget of the new node can't slip past the rules; a
+    /// refused batch changes nothing.
+    private mutating func applyInside(_ id: GroupID, _ inner: GraphCommand,
+                                      registry: NodeRegistry) throws(GraphError) -> GraphCommand {
+        guard var definition = definitions[id] else { throw GroupRefusal.missing }
+        if case .batch(let commands) = inner {
+            let snapshot = definitions
+            var inverses: [GraphCommand] = []
+            do {
+                for command in commands {
+                    inverses.append(try applyInside(id, command, registry: registry))
+                }
+            } catch {
+                definitions = snapshot
+                throw error
+            }
+            return .batch(Array(inverses.reversed()))
+        }
+        try check(inner, in: .definition(id), registry: registry)
+        let inverse = try definition.graph.apply(inner, registry: registry.withGroups(definitions))
+        definitions[id] = definition
+        return inverse
     }
 
     // MARK: - Rules
