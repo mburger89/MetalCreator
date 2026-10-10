@@ -576,13 +576,41 @@ Plan `2026-10-09-kernel-invalid-blends.md`, roadmap row "Kernel: blends that ret
   names was built and checked). A fillet reads "Radius 3 mm is too large for the selected edges (max ≈ 2.5 mm)."; a
   chamfer "Chamfer failed: chamfering the 4 selected edges by 3 mm gives a broken solid (max ≈ 2.5 mm)."; when not even
   0.1 mm works, "…gives a broken solid, even by 0.1 mm.". The fillet message with a maximum is §3's own wording and
-  doesn't name the edge count on purpose (the error's `reason` keeps it); the others do. A blend OCCT can't build at all keeps its message, with no
-  maximum (roadmap row "Kernel: largest size for blends OCCT can't build").
+  doesn't name the edge count on purpose (the error's `reason` keeps it); the others do. A blend OCCT can't build at all
+  keeps its message, with no maximum. (Superseded: see Errata (Kernel: largest size for blends OCCT can't build), which
+  names a maximum there too, and replaces "even by 0.1 mm" for a size of 0.1 mm or less.)
 - Errata (naming: merged faces)'s polygon swap: at R3 the Fillet is now the node in error, naming 2.5 mm, and the Edges
   by Tag, Chamfer and Output after it wait for its solid. With the radius at 2.5 every node is `.ok`: the five picks
   resolve as that errata says, the Chamfer succeeds and the Output has its part.
   `BracketAcceptanceTests.swappingTheFlangeForAPolygonKeepsEveryPickOnceTheFilletFits` pins it (it replaces
   `swappingTheFlangeForAPolygonKeepsEveryPickButTheFilletedHexagonCantBeChamfered`).
+
+## Errata (Kernel: largest size for blends OCCT can't build)
+
+Plan `2026-10-09-kernel-blend-max.md`, roadmap row "Kernel: largest size for blends OCCT can't build". It completes
+§3's "max ≈ where possible" and the risks table's "the maximum radius where possible" for the kernel's blends.
+
+- §3's errors: a fillet or chamfer OCCT reports not done runs the same search as one OCCT builds but its checker rejects
+  (`OCCTKernel.largestValidBlend`, Errata (Kernel: invalid blends)): "Radius 40 mm is too large for the selected edges
+  (max ≈ 9.9 mm)." for a fillet of the 10 × 20 × 30 box's vertical edge, "Chamfer failed: the selected edges can't be
+  chamfered by 40 mm (max ≈ 9.9 mm)." for a chamfer. It costs up to about 20 more tries, each under the OCCT lock on
+  its own and stopping when the evaluation is cancelled. When no size works, the message is the old one, with no
+  maximum ("…could not be applied: the selected edges can't be rounded this much.").
+- A blend whose result the checker itself fails on (`occt_is_valid` answered -1: it threw) says nothing about any size,
+  so it gets that same generic message and no search (`OCCTValidity.unchecked`).
+- The search's grid is in `BlendGrid`: it starts from `Int((size * 10 - 1e-9).rounded(.up))` tenths of a millimetre, so
+  a size float arithmetic put a hair over the grid (`0.1 + 0.2`) names a size below it, not itself. "…even by 0.1 mm"
+  is said only when the search tried 0.1 mm, that is for a size above it; for a size of 0.1 mm or less the clause is
+  left out ("Radius 0.1 mm could not be applied: rounding the selected edge gives a broken solid.").
+- Cost, measured in a release build (`BlendRefusalBench`; figures in `docs/verification/performance.md`): a refused
+  blend costs tens of milliseconds more than one that works, on §8's hexagon flange and on the §7.2 bracket's Fillet
+  node alike. While the Fillet's radius handle is dragged past the maximum, each step pays that search; the evaluation
+  is off the main actor and cancellable. Human check M5-10 covers the drag.
+- `BRepCheck_Analyzer` runs on every blend result: a few milliseconds on the flange union. Watch it on large parts
+  (`docs/superpowers/notes/2026-10-07-m0-m1-carryover.md`).
+- `FeatureConformanceTests.impossibleFilletFailsCleanlyAndKernelRecovers` now expects `maxRadius` 9.9.
+- The 1e-9 slack makes the maximum conservative for an off-grid size (it can be a step below a size that would still
+  build).
 
 ## Errata (multi-select)
 

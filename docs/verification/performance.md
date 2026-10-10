@@ -8,7 +8,7 @@ viewport or the kernel, and replace the numbers here (keep the machine, load and
 
 ```sh
 scripts/bench.sh                      # every benchmark: about 10 minutes, most of it the release build
-scripts/bench.sh GraphPanZoomBench    # one suite (also OrbitBench, FilletDragBench, KernelBench)
+scripts/bench.sh GraphPanZoomBench    # one suite (also OrbitBench, FilletDragBench, KernelBench, BlendRefusalBench)
 ```
 
 The benchmarks are Swift Testing suites in `Tests/CreatorAppTests/Bench`. A plain `swift test` skips them
@@ -101,6 +101,38 @@ judged on an idle run, which is still to do: the machine stayed loaded while thi
 | Per-item calls under the global lock | `kernel-lock`, `kernel-hop` | the lock 7.7 ns a call uncontended; a refused call's actor round trip 9.1 µs | Fine: under 2% of the cheapest real operation (0.49 ms), so a broadcast of n items pays n × 9 µs at most. |
 | Picking renders the ID pass only when the camera or scene changes, never during a drag | `orbit-*` | not on the orbit path (the orbit frames above include no ID pass) | Nothing to measure in an orbit; a pick after it settles is one ID pass. |
 | A dragged fillet radius re-tessellates each step | `fillet-drag evaluate+mesh` | 20.44 ms, evaluation and meshing together | Met within the drag's 100 ms. |
+
+## Refused blends (Errata: Kernel, largest size for blends OCCT can't build)
+
+A refused fillet or chamfer searches for the largest size that works (`OCCTKernel.largestValidBlend`: at most 20 tries
+on a 0.1 mm grid). `scripts/bench.sh BlendRefusalBench`, 2026-10-09, MacBook Pro (MacBookPro18,2, Apple M1 Max),
+macOS 27.0.1, a release build. Load averages 150.92 / 147.58 / 132.21 before the run and 83.84 / 123.64 / 125.55 after:
+**far from idle** (other worktrees were building and testing), so read these as upper bounds on the cost; re-measure
+on an idle machine to judge them.
+
+| Part | Case | Median (p95) |
+|---|---|---|
+| §8 hexagon flange (plate + hexagon, four upright edges) | fillet R2.5, works: build + check | 16.22 ms (78.45) |
+| | fillet R3, refused: build + check + search | 97.95 ms (202.07) |
+| | the search alone | 69.89 ms (161.33) |
+| | `BRepCheck_Analyzer` alone on the union | 2.37 ms (4.78) |
+| §7.2 bracket (the Fillet node and everything after it) | radius 3.05 to 3.24, works | 37.48 ms (171.31) |
+| | radius 8.25 to 9.20, refused (the message names max ≈ 3.9 mm) | 100.91 ms (255.27) |
+
+```text
+BENCH blend-flange fillet R2.5 (works: build + check): median 16.22 ms, p95 78.45 ms, max 78.68 ms (n 25)
+BENCH blend-flange fillet R3 (refused: build + check + search): median 97.95 ms, p95 202.07 ms, max 212.10 ms (n 25)
+BENCH blend-flange search alone (largestValidBlend below R3): median 69.89 ms, p95 161.33 ms, max 181.52 ms (n 25)
+BENCH blend-flange checker alone (BRepCheck_Analyzer on the union): median 2.37 ms, p95 4.78 ms, max 6.61 ms (n 25)
+BENCH blend-bracket message: Radius 9.2 mm is too large for the selected edges (max ≈ 3.9 mm).
+BENCH blend-bracket Fillet node R3.x (works; evaluation of the Fillet and what follows): median 37.48 ms, p95 171.31 ms, max 173.99 ms (n 20)
+BENCH blend-bracket Fillet node R8.x (refused; evaluation of the Fillet and what follows): median 100.91 ms, p95 255.27 ms, max 290.22 ms (n 20)
+```
+
+A refused blend costs about 60 to 80 ms more than one that works. The evaluation runs off the main actor and a
+cancelled one stops between tries, so the window never waits for it; but a radius handle dragged past the maximum pays
+the search on every step, so its error appears about 100 ms after the drag, not 37 ms. Which refusal the bracket's
+radius 8.25 to 9.20 met (OCCT not done, or the checker rejecting) is not recorded; both run the same search.
 
 ## Raw output
 

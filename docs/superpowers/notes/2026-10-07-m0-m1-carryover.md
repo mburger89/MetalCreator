@@ -202,3 +202,11 @@ Read this before writing the M2 and M3 plans.
   require tangent continuity at a joint (`Topology+EdgeRuns.swift`, `cocct_inspect.cpp`).
 - Sketch projections with several references add edges and runs across solids while narrowing per solid; compare
   drift per solid if multi-reference projections become common (`SketchProjections.swift`).
+
+## From kernel: largest size for blends OCCT can't build
+- Watch: `OCCTKernel.blend` runs `BRepCheck_Analyzer` (`OCCTShape.validity`) on the result of every fillet and chamfer,
+  under the OCCT lock. On §8's hexagon flange union it is a small part of a blend (a few milliseconds of a blend of
+  tens; `BlendRefusalBench`, figures in `docs/verification/performance.md`). The analyzer walks every face, edge and vertex, so it grows
+  with the part: on a large part with hundreds of faces, check how much of each blend it takes (`blend-flange checker
+  alone`), and if it dominates consider checking only the faces and edges the blend touched. Owner: whoever meets a slow
+  blend on a large part.
