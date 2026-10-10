@@ -37,7 +37,8 @@ Module boundaries (dependency order):
 - `CreatorSketch`: the constraint sketch model, `SketchSolver` (numeric Levenberg–Marquardt with analytic Jacobians,
   DOF and minimal conflicts), `SketchRegions` and `SketchCommands`. Imports only `CreatorGeometry` and Foundation;
   never iterate a dictionary where order reaches output. Tests: `swift test --filter CreatorSketchTests`.
-- `CreatorKernel`: the `Kernel` protocol, `Solid`, tagged topology tables, `FakeKernel` for tests.
+- `CreatorKernel`: the `Kernel` protocol, `Solid`, tagged topology tables, `FakeKernel` for tests (it refuses extruded holes that lie outside
+  the outline's bounds, as OCCT refuses strays).
 - `COCCT` + `CreatorOCCT`: the OpenCascade C shim and `OCCTKernel: Kernel` (topology tables, face tags carried through
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
   `*_free`; no C++ exception crosses into Swift.
@@ -235,19 +236,21 @@ Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.
 never worked around here. Graph links are kept canonically sorted by destination; result caching is keyed by node identity.
 Edge/face IDs are OCCT map order. A circle edge's `direction` is its axis, so direction rules must also check `kind == .line`.
 All OCCT work runs under `OCCTKernel.serialized` (process-wide lock) because OCCT shapes share geometry across solids and meshing mutates it; never call the shim outside it (tests included).
-Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a pick without one counts each recorded edge as a run) and warns only when both changed; a key that still matches nothing is split by operand (`EdgeKey.operandKeys`, for an edge between a merged face and a third operand's face) and warns when two operands both fit; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 5 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
+Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a run is edges that continue each other end to end, ends within 1e-4 mm leaving that point in opposite directions to within 0.01 rad, so two edges meeting at a corner are two runs; a pick without one counts each recorded edge as a run) and warns only when both changed; a key that still matches nothing is split by operand (`EdgeKey.operandKeys`, for an edge between a merged face and a third operand's face) and warns when two operands both fit; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 5 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
 4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode; canvas comments' `stickies` and `frames` keys, written only when present and optional on decode, are also under 5).
 A `Segment2D.arc` with `end < start` runs clockwise (a sketch region's notch); the shim builds it reversed and
 `length` is positive. Edges carry `EdgeInfo.curve` (`EdgeCurve`, lines and circles) for sketch projection; a
 `FacePick` names faces by tag subset like `EdgePick`; one that matches nothing is retried per operand and ranked by the normal and centroid it recorded (optional keys, no format bump; `Topology.resolution(of:)`), and warns when it can only guess. The Sketch node solves on every evaluation from the stored
-sketch's warm start; the editor writes `Sketch.remember` back into the setting with every commit (S5a). Node readers
+sketch's warm start (a constraint or dimension on a projected edge of the wrong kind is skipped and named in a warning,
+like one on a suspended edge); the editor writes `Sketch.remember` back into the setting with every commit (S5a). Node readers
 of sockets use `inputs(for: node)` (canvas shape and rows, inspector, handles), never the static `inputs`.
 `Profile2D` is `outer` + `holes` (loop 0 = outer, n = hole n); `segments` is the outer loop only, so code that
 rebuilds a profile must keep `holes` (copy it and change `plane`, don't re-init from `segments`). Side tags are
 `.side(loop:segment:)` and `.side(segment:)` means loop 0; never match `.side` with one binding (`case .side(let s)`
 binds the tuple and only warns). The shim orients hole wires against the outer wire; history `operand` on segment
-records is the loop. Loft refuses profiles with holes.
-Create nodes only with `NodeRegistry.makeNode`. Numbers in node messages use `Locale.messages` (`Double.display`, `Int.display`).
+records is the loop. Loft refuses profiles with holes, before it compares segment counts (`KernelError.loftWithHoles`).
+Create nodes only with `NodeRegistry.makeNode`. Numbers in node and kernel messages use `Locale.messages` (defined in
+CreatorKernel; `Double.display`, `Int.display` in CreatorNodes; `KernelError.userMessage` uses it too).
 Shim errors: `cocct::user_error` / `set_error` messages are user-facing and unprefixed; any other OCCT exception is prefixed "occt: " by `guarded` and mapped to a generic sentence by `KernelError.plainReason`.
 Every fillet and chamfer result is checked with OCCT's `BRepCheck_Analyzer` (`OCCTShape.isValid`) and never returned when
 the check rejects it: the blend fails naming the largest size that works (`OCCTKernel.largestValidBlend`, spec Errata
