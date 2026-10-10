@@ -9,7 +9,7 @@ extension EditorModel {
             guard isPanelVisible else { return false }
             openPalette()
         case .deleteSelection:
-            guard !canvasSelection.isEmpty else { return false }
+            guard isPanelVisible, !canvasSelection.isEmpty else { return false }
             deleteSelection()
         case .selectAll, .nudge, .frameSelection, .cut, .addNote, .addFrame:
             return performSelectionCommand(command)
@@ -35,7 +35,7 @@ extension EditorModel {
         case .nudge(let delta, let isRepeat): return nudgeSelection(by: delta, isRepeat: isRepeat)
         case .frameSelection: return pointerLocation != nil && frameSelection()
         case .cut:
-            guard !canvasSelection.isEmpty else { return false }
+            guard isPanelVisible, !canvasSelection.isEmpty else { return false }
             cutSelection()
         case .addNote: addNoteAtPointer()
         case .addFrame: return addFrameAroundSelection()
@@ -75,15 +75,16 @@ extension EditorModel {
     }
 
     /// Escape, in order (spec 2026-10-09 §3): closes the palette; else ends the drag under way
-    /// (`cancelInteraction()`); else clears the selection. With none of these to do it returns false, and the key
-    /// goes on. A pick's, a sketch's and the theme editor's Esc are button shortcuts, which MetalUI runs first.
+    /// (`cancelInteraction()`); else clears the selection, while the panel shows the canvas (as with the other selection
+    /// keys). With none of these to do it returns false, and the key goes on. A pick's, a sketch's and the theme editor's
+    /// Esc are button shortcuts, which MetalUI runs first.
     private func cancel() -> Bool {
         if palette != nil {
             closePalette()
             return true
         }
         if cancelInteraction() { return true }
-        guard !canvasSelection.isEmpty else { return false }
+        guard isPanelVisible, !canvasSelection.isEmpty else { return false }
         clearSelection()
         return true
     }
