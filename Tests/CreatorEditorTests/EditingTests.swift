@@ -54,6 +54,33 @@ struct EditingTests {
         #expect(editor.graph.nodes.count == 3)
     }
 
+    /// Two connected selected nodes: the wire between them is copied, and the selection becomes the copies, by paste
+    /// and by duplicate alike (the multi-select review's open item).
+    @Test func pasteAndDuplicateOfTwoConnectedNodesCopyTheWireAndSelectTheCopies() throws {
+        let editor = chain()
+        let wireBetween = wire(rect, "profile", extrude, "profile")
+        editor.selection = [rect.id, extrude.id]
+        editor.copySelection()
+        editor.paste()
+        let pasted = editor.selection
+        #expect(pasted.count == 2 && pasted.isDisjoint(with: [rect.id, extrude.id, output.id]))
+        let pastedRect = try #require(pasted.first { editor.graph.nodes[$0]?.typeID == RectangleTestNode.typeID })
+        let pastedExtrude = try #require(pasted.first { editor.graph.nodes[$0]?.typeID == ExtrudeTestNode.typeID })
+        #expect(editor.graph.links.contains(Link(from: Endpoint(node: pastedRect, socket: wireBetween.from.socket),
+                                                  to: Endpoint(node: pastedExtrude, socket: wireBetween.to.socket))))
+        #expect(editor.graph.links.contains(wireBetween), "the originals stay wired")
+        #expect(editor.graph.links.count == 3)
+
+        editor.selection = [rect.id, extrude.id]
+        editor.duplicateSelection()
+        let duplicated = editor.selection
+        #expect(duplicated.count == 2 && duplicated.isDisjoint(with: pasted.union([rect.id, extrude.id, output.id])))
+        #expect(editor.graph.links.count == 4)
+        #expect(editor.graph.links.filter { duplicated.contains($0.from.node) && duplicated.contains($0.to.node) }.count == 1)
+        editor.document.undo()
+        #expect(editor.graph.links.count == 3 && editor.graph.nodes.count == 5, "one undo step takes the duplicate back")
+    }
+
     @Test func pasteWithAnEmptyClipboardDoesNothing() {
         let editor = chain()
         editor.paste()
