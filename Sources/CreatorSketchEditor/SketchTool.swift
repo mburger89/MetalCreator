@@ -7,6 +7,8 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
     case line
     /// Centre, start, end (A).
     case arc
+    /// Start, end, then a point the arc passes through (A again, from Arc).
+    case arcThreePoint
     /// Centre, then a point on the circle (C).
     case circle
     /// A lone point.
@@ -31,6 +33,7 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
         case .select: "Select"
         case .line: "Line"
         case .arc: "Arc"
+        case .arcThreePoint: "3-Point Arc"
         case .circle: "Circle"
         case .point: "Point"
         case .dimension: "Dimension"
@@ -45,7 +48,7 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
     /// Whether a click places a point (the rubber band then marks where it would land).
     var placesPoints: Bool {
         switch self {
-        case .line, .arc, .circle, .point: true
+        case .line, .arc, .arcThreePoint, .circle, .point: true
         case .select, .dimension, .trim, .extend, .fillet, .mirror, .pattern: false
         }
     }
@@ -54,7 +57,7 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
     var picksCurves: Bool {
         switch self {
         case .trim, .extend, .mirror: true
-        case .select, .line, .arc, .circle, .point, .dimension, .fillet, .pattern: false
+        case .select, .line, .arc, .arcThreePoint, .circle, .point, .dimension, .fillet, .pattern: false
         }
     }
 }

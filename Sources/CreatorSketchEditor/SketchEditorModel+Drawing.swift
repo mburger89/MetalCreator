@@ -15,6 +15,13 @@ extension SketchEditorModel {
         refusal = nil
     }
 
+    /// A toolbar button or its key: picks `tool`, except that Arc's (A) on the centre arc switches to the 3-point arc,
+    /// and back (sketcher spec §8: "Arc (centre / 3-point) | A").
+    public func press(_ tool: SketchTool) {
+        guard tool == .arc else { return choose(tool) }
+        choose(self.tool == .arc ? .arcThreePoint : .arc)
+    }
+
     /// X (sketcher spec §8): with a selection, turns it into construction geometry, or back when it all is already;
     /// with none, toggles whether new geometry is construction.
     public func toggleConstruction() {
@@ -71,6 +78,7 @@ extension SketchEditorModel {
         case .line: placeLinePoint(at: p, tolerance: tolerance, suppressed: modifiers.contains(.command))
         case .circle: placeCirclePoint(at: p, tolerance: tolerance)
         case .arc: placeArcPoint(at: p, tolerance: tolerance)
+        case .arcThreePoint: placeThreePointArcPoint(at: p, tolerance: tolerance)
         case .trim, .extend, .fillet, .mirror, .pattern: modify(at: p, tolerance: tolerance)
         }
         hover(at: p, tolerance: tolerance, modifiers: modifiers)
@@ -163,6 +171,30 @@ extension SketchEditorModel {
         }
     }
 
+    /// Start, end, then a point the arc passes through: the arc runs on the circle through the three, from the start to
+    /// the end the way that passes the third (counter-clockwise from whichever end makes it so), around a new centre
+    /// point. A third click in line with the other two draws nothing and waits for another.
+    private func placeThreePointArcPoint(at p: Vector2, tolerance: Double) {
+        switch drawState {
+        case .arcThroughFrom(let start):
+            let end = anchor(at: p, tolerance: tolerance)
+            guard (end.position - start.position).length > 1e-9, end.point == nil || end.point != start.point else { return }
+            drawState = .arcThrough(start: start, end: end)
+        case .arcThrough(let start, let end):
+            guard let arc = EditorGeometry.threePointArc(from: start.position, to: end.position, through: p) else { return }
+            var edited = sketch
+            let s = start.point(in: &edited)
+            let e = end.point(in: &edited)
+            let c = edited.addPoint(arc.center)
+            edited.addArc(center: c, start: arc.isCounterClockwise ? s : e, end: arc.isCounterClockwise ? e : s,
+                          isConstruction: isConstruction)
+            commit(edited, "Arc")
+            drawState = .idle
+        default:
+            drawState = .arcThroughFrom(anchor(at: p, tolerance: tolerance))
+        }
+    }
+
     /// An arc's end: an existing point as it is, else the click moved onto the start's radius; `nil` on the centre.
     private func arcEnd(center: Vector2, start: Vector2, toward target: SketchAnchor) -> SketchAnchor? {
         if target.point != nil { return target }
@@ -195,6 +227,14 @@ extension SketchEditorModel {
             }
             return SketchPreview(curves: [.arc(center: center.position, start: start.position, end: end.position)],
                                  points: [center.position, start.position, end.position])
+        case .arcThroughFrom(let start):
+            return SketchPreview(curves: [.line(start.position, target.position)], points: [start.position])
+        case .arcThrough(let start, let end):
+            guard let arc = EditorGeometry.threePointArc(from: start.position, to: end.position, through: p) else {
+                return SketchPreview(curves: [.line(start.position, end.position)], points: [start.position, end.position])
+            }
+            let (from, to) = arc.isCounterClockwise ? (start.position, end.position) : (end.position, start.position)
+            return SketchPreview(curves: [.arc(center: arc.center, start: from, end: to)], points: [start.position, end.position])
         }
     }
 }

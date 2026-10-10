@@ -56,4 +56,16 @@ enum EditorGeometry {
     static func distance(from p: Vector2, toPolyline points: [Vector2]) -> Double {
         zip(points, points.dropFirst()).map { distance(from: p, toSegment: $0, $1) }.min() ?? .infinity
     }
+
+    /// The arc from `a` to `b` through `p`: the centre of the circle through the three, and whether the arc runs
+    /// counter-clockwise from `a` (else from `b`). `nil` when the three are in line (or two coincide).
+    static func threePointArc(from a: Vector2, to b: Vector2, through p: Vector2) -> (center: Vector2, isCounterClockwise: Bool)? {
+        let (u, v) = (b - a, p - a)
+        let cross = u.x * v.y - u.y * v.x
+        guard abs(cross) > 1e-9 * max(1, u.x * u.x + u.y * u.y, v.x * v.x + v.y * v.y) else { return nil }
+        let (uu, vv) = (u.x * u.x + u.y * u.y, v.x * v.x + v.y * v.y)
+        let center = a + Vector2(v.y * uu - u.y * vv, u.x * vv - v.x * uu) * (1 / (2 * cross))
+        // Counter-clockwise from a to b passes the points to the right of the chord a→b.
+        return (center, cross < 0)
+    }
 }

@@ -6,4 +6,7 @@ enum DrawState: Hashable, Sendable {
     case circleAround(SketchAnchor)
     case arcAround(SketchAnchor)
     case arcFrom(center: SketchAnchor, start: SketchAnchor)
+    /// A 3-point arc's start, then its start and end.
+    case arcThroughFrom(SketchAnchor)
+    case arcThrough(start: SketchAnchor, end: SketchAnchor)
 }
