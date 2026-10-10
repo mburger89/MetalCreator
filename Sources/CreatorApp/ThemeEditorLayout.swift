@@ -10,9 +10,6 @@ enum ThemeEditorLayout {
     static let top = AppLayout.margin * 2 + AppLayout.topBarHeight
     /// A role's row.
     static let rowHeight = 24.0
-    /// A role's swatch.
-    static let swatchWidth = 40.0
-    static let swatchHeight = 18.0
     /// Between the editor's sections.
     static let spacing = 8.0
 
