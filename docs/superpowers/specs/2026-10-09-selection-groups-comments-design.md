@@ -280,7 +280,8 @@ Plan `2026-10-09-comments.md`.
 - §7 Editing: a note's text commits on focus loss (not on ⌘↩: MetalUI's `TextEditor` has no commit key, gap CM-a, and
   a chord would work around it), a frame's title on Return and on focus loss, both also on any model commit (a canvas
   press, a selection change); an empty or blank title is refused ("A frame needs a title.") and the field shows the
-  old one. The inspector's comment page shows only when no node is selected.
+  old one. The inspector's comment page shows only when no node is selected. (The ⌘↩ part is superseded by Errata (B:
+  typing on the canvas): MetalUI C9 answered gap CM-a.)
 - §7 Draw: the accent roles map to theme colours in `Palette.accent(_:)` (cyan Output's header, green Profile's,
   orange Feature's, pink Selection's, purple Solid's, yellow the warning colour, muted Value's), which group
   definitions (C2) use too. Selected comments draw a 2 pt accent ring; the ⌥-drag ghosts of comments are
@@ -290,6 +291,32 @@ Plan `2026-10-09-comments.md`.
   into the level it ungroups into, offset like the nodes, in the same undo step (User decision 8, (b); one undo takes
   them back out and restores the definition). A
   negative size in a hand-edited file reads as zero.
+
+## Errata (B: typing on the canvas)
+
+Plan `2026-10-10-comments-canvas-typing.md`; MetalUI C9 (`feat/key-focus`).
+
+- §8 Typing on the canvas is built. A double click (S5b's recogniser, still synthesised: gap S5-b, until MetalUI C16) on
+  a note, or on a frame's title bar (not its 6 pt edge band, which grabs the frame), starts editing in place: a
+  multi-line `TextEditor` over the note, a single-line `TextField` over the title bar, drawn under the canvas's own zoom
+  and pan, so it lies over the comment in both docks at any zoom. The comment becomes the whole selection.
+- §7 Editing (amends Errata (B: comments)): a note's text now commits on ⌘↩ as well as on focus loss, in the canvas
+  editor and in the inspector's box (an `onKeyPress`; gap CM-a closed). A title commits on Return. Esc cancels a canvas
+  edit: the comment keeps what it held. A press elsewhere on the canvas, a selection or level change, hiding the panel,
+  undo, saving and exporting commit it. An empty or blank title is refused as in the inspector ("A frame needs a title.")
+  and the old title returns; a line break pasted into a title becomes a space. Every commit is one `setNoteText` /
+  `setFrameTitle` step, the inspector's own path ("Edit Note", "Edit Frame"), so the two surfaces share one undo story.
+- One pending entry at a time: a canvas draft is the model's `pendingEntry`. Beginning an edit commits whatever was
+  typed before (in the inspector, or on another comment), and a field typed into while the canvas is being typed into (the
+  inspector's) commits the canvas edit first, so the two never fight over one comment's text.
+- Keys: the graph canvas is a MetalUI C9 key region carrying one `onKeyPress` for the graph's keys, and the comment
+  editor is its sibling, not its child. While a canvas field has focus, the canvas's keys (Delete, arrows, Space, ⌘A,
+  F, ⌘C/⌘V/⌘X/⌘D, ⌘G, ⌘⇧N, ⌘⇧C, Tab) cannot act on the canvas, because a focused element keeps every key. Consequence,
+  deliberate: the graph's keys act only while the pointer is over the canvas and nothing is focused (the canvas is not
+  focusable, so a click leaves no focus on it), not from anywhere in the window; a click and then moving the pointer to
+  the inspector or the viewport ends Delete, the arrows and ⌘A. The open palette's keys and the viewport's F, + and − are unchanged (M5-h and the viewport's side of
+  M4-a stay open). A canvas press clears a field's focus (M5-g, adopted for the canvas).
+- A press outside every key region (inert chrome) leaves a canvas edit open: gap CT-a.
 
 ## Errata (C2)
 
