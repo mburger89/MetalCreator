@@ -95,11 +95,15 @@ extension SketchEditorModel {
         let picker = SketchPicker(sketch: sketch, solution: solution)
         let under = tool.picksCurves ? picker.curve(near: p, tolerance: tolerance) : picker.entity(near: p, tolerance: tolerance)
         if hovered != under { hovered = under }
-        let suppressed = modifiers.contains(.command)
-        // One anchor per move, shared by everything the move shows, so its curve scan runs once.
-        let target = anchor(at: p, tolerance: tolerance, suppressed: suppressed)
-        var next = rubberBand(to: p, landing: target, tolerance: tolerance, suppressed: suppressed)
-        next.inferred = inferredConstraints(landing: target, tolerance: tolerance, suppressed: suppressed)
+        // Only a tool that places points has a rubber band, so only it needs an anchor (and its second scan of the curves).
+        var next = SketchPreview.none
+        if tool.placesPoints {
+            let suppressed = modifiers.contains(.command)
+            // One anchor per move, shared by everything the move shows, so its curve scan runs once.
+            let target = anchor(at: p, tolerance: tolerance, suppressed: curvesSuppressed(suppressed))
+            next = rubberBand(to: p, landing: target, tolerance: tolerance, suppressed: suppressed)
+            next.inferred = inferredConstraints(landing: target, tolerance: tolerance, suppressed: suppressed)
+        }
         if preview != next { preview = next }
     }
 
@@ -113,6 +117,10 @@ extension SketchEditorModel {
         }
         return .free(p)
     }
+
+    /// Whether a click now ignores the curves under it: ⌘ is held (`suppressed`), or the click is only a size
+    /// (`DrawState.snapsToCurves`).
+    func curvesSuppressed(_ suppressed: Bool) -> Bool { suppressed || !drawState.snapsToCurves }
 
     /// A lone point, held on the curve it's clicked on; a click on an existing point adds nothing.
     private func placePoint(at p: Vector2, tolerance: Double, suppressed: Bool) {
@@ -147,12 +155,14 @@ extension SketchEditorModel {
         drawState = .lineFrom(.existing(b, at: end.position))
     }
 
+    /// The centre (held on a curve or shared with a point, like any placed point), then a point on the circle: that
+    /// click is only a size, so it snaps to an existing point's distance but never onto a curve.
     private func placeCirclePoint(at p: Vector2, tolerance: Double, suppressed: Bool) {
         guard case .circleAround(let center) = drawState else {
             drawState = .circleAround(anchor(at: p, tolerance: tolerance, suppressed: suppressed))
             return
         }
-        let radius = (anchor(at: p, tolerance: tolerance, suppressed: suppressed).position - center.position).length
+        let radius = (anchor(at: p, tolerance: tolerance, suppressed: curvesSuppressed(suppressed)).position - center.position).length
         guard radius > 1e-9 else { return }
         var edited = sketch
         edited.addCircle(center: center.point(in: &edited), radius: radius, isConstruction: isConstruction)
@@ -162,7 +172,7 @@ extension SketchEditorModel {
 
     /// Centre, start, then end: the end lands on the start's radius, along the ray through the click.
     private func placeArcPoint(at p: Vector2, tolerance: Double, suppressed: Bool) {
-        let target = anchor(at: p, tolerance: tolerance, suppressed: suppressed)
+        let target = anchor(at: p, tolerance: tolerance, suppressed: curvesSuppressed(suppressed))
         switch drawState {
         case .arcAround(let center):
             guard (target.position - center.position).length > 1e-9 else { return }

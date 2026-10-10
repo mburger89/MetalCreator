@@ -10,3 +10,15 @@ enum DrawState: Hashable, Sendable {
     case arcThroughFrom(SketchAnchor)
     case arcThrough(start: SketchAnchor, end: SketchAnchor)
 }
+
+extension DrawState {
+    /// Whether the next click may be held on a curve under it (point-on, sketcher spec §8). A circle's radius point and
+    /// a centre arc's end are only sizes and keep no point, so a curve under them must not move them: they would snap
+    /// with no constraint and no glyph (`SketchEditorModel.inferredConstraints` infers nothing there).
+    var snapsToCurves: Bool {
+        switch self {
+        case .circleAround, .arcFrom: false
+        case .idle, .lineFrom, .arcAround, .arcThroughFrom, .arcThrough: true
+        }
+    }
+}
