@@ -30,6 +30,8 @@ public final class SketchEditorModel {
     public internal(set) var tool = SketchTool.line
     /// Whether new geometry is construction geometry (X toggles it).
     public internal(set) var isConstruction = false
+    /// The command tools' settings (the fillet radius), typed in the inspector while their tool is active.
+    public internal(set) var options = SketchToolOptions()
     /// Where the pointer is over the viewport (`nil`: off it), and the viewport's size, for the readout's chip.
     var pointerOnScreen: ScreenPoint?
     var viewSize = ViewportSize(width: 0, height: 0)

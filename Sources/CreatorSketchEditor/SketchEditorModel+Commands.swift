@@ -8,6 +8,7 @@ extension SketchEditorModel {
     func modify(at p: Vector2, tolerance: Double) {
         switch tool {
         case .trim, .extend: trimOrExtend(at: p, tolerance: tolerance)
+        case .fillet: fillet(at: p, tolerance: tolerance)
         default: break
         }
     }
