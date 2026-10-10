@@ -449,8 +449,7 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
 - §6.3's "edges selected by the active rule glow pink" holds in Selected-node preview and in pick mode, and in Final
   only when the rule's own solid is shown. A rule feeding a Fillet or Chamfer is on the solid before the feature,
   which Final doesn't show, so selecting it glows nothing (the viewport draws no edges on ghosts or on solids it
-  doesn't show). Pinned: `SceneTests.aRuleSelectedInFinalPreviewGlowsOnlyOnItsOwnSolid`. Owner: roadmap row
-  "Viewport: a selected rule's edges over the Final part".
+  doesn't show). Superseded for Final preview by Errata (Viewport: a rule's edges over the Final part), below.
 - §6.3's Look At is framed on the face, but in the whole viewport, not the model area the panels leave; so are the
   first framing and F. Owner: roadmap row "Viewport: frame in the model area".
 - §6.2 "inline value fields" (Errata (M5)) gained a commit rule: a typed value is committed on Return, when its field
@@ -589,3 +588,26 @@ Plan `2026-10-09-kernel-invalid-blends.md`, roadmap row "Kernel: blends that ret
 - §6.2's click, box and pan rules are superseded by `2026-10-09-selection-groups-comments-design.md` §3 and its
   Errata (A): ⌘-click toggles, a plain drag on empty canvas box-selects (⇧ adds, ⌘ toggles), and the canvas pans with
   the middle button or a two-finger scroll (the user's Gate G answer (b), 2026-10-09).
+
+## Errata (Viewport: a rule's edges over the Final part)
+
+- §6.3's "faces and edges selected by the active rule glow pink" now holds in Final preview for every selected rule,
+  which ends Errata (M6)'s exception. The edges a selected rule picks on a solid no shown part holds (a rule feeding a
+  Fillet or Chamfer is on the solid before the feature) reach the viewport as a **guide** (`ViewportItem.isGuide`):
+  only its selected edges are drawn, in the selection colour at the width a glow has, after the solids and the ghosts,
+  depth-tested with the bias B-rep edges get. Where they lie on the finished part they cover its white edge in pink;
+  where they don't (an edge the fillet rounded away) they show as an overlay in free space; where the part hides them
+  they show faded, at 35% of the selection colour (`ViewportPalette.hiddenGuideOpacity`). A guide has no surfaces and
+  is no part of the scene: it never widens the framed bounds or the point the camera orbits about, and is never
+  hovered, picked or offered the face menu. F with a rule selected frames its edges.
+- It appears in Final preview only, for a selected rule that succeeded and picked at least one edge (a rule in error or
+  blocked has only a stale result and makes none). Selected-node preview keeps Errata (M6)'s behaviour (the rule's own
+  solid with its edges selected; several selected shows nothing), and neither pick mode nor sketch mode shows guides.
+  A rule whose solid another Output shows glows on that item and makes no guide; rules on the same hidden solid share
+  one guide. Pinned: `SceneGuideTests`, `ViewportGuideTests`, `GuideRenderTests`, `GPUDataTests.hiddenEdgesTakeTheFadedSelectionColour`
+  and human check M6-15.
+- Every selected rule gets a guide (a multi-selection of rules draws all their edges, as the glow on a shown solid
+  does); in Final a rule whose solid is a pre-feature intermediate always makes one, and where its edges coincide with
+  the part's they simply recolour them pink.
+- Not covered: face rules (nothing previews a selected set of faces yet, in any mode) and a rule selected inside a
+  group (the groups editor's viewport per level).

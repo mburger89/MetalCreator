@@ -299,9 +299,10 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
 - [ ] **M6-8 Preview.** Preview ▸ Selected node, select the Extrude of the holes: only the four hole cylinders show.
   Select the Edge Set Op: the bracket before filleting shows with the four fillet edges pink. Select nothing: the
   viewport is empty. Preview ▸ Final: the whole bracket again. Still in Final, select the fillet's Edge Set Op and the
-  chamfer's Edges by Tag: nothing glows on the finished part (known, Errata (M6); the rule's solid isn't shown).
-  Orbit, pan the graph canvas and drag the panel edge: the part doesn't flicker or reload. Pinned: `SceneTests`,
-  `aRuleSelectedInFinalPreviewGlowsOnlyOnItsOwnSolid`, `panningTheCanvasOrSettlingTheCameraDoesntRebuildTheScene`.
+  chamfer's Edges by Tag: their edges are drawn over the finished part (M6-15). Orbit, pan the graph canvas and drag
+  the panel edge: the part doesn't flicker or reload. Pinned: `SceneTests`,
+  `aRuleSelectedInFinalPreviewGlowsOnItsOwnShownSolidAndAddsNoGuide`,
+  `panningTheCanvasOrSettlingTheCameraDoesntRebuildTheScene`.
   **Observed:**
 - [ ] **M6-9 Handles.** Select the flange's Extrude: a purple arrow with "8 mm" starts on the flange profile; drag it
   and the flange thickens live; release and ⌘Z undoes the whole drag in one step. Select the Fillet: an orange radial
@@ -341,6 +342,16 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   "mm · grid" stays at the bottom-right of the uncovered area. Repeat docked at the left, dragging its right edge both
   ways. Pinned: `theTriadsLettersStayOnItsAxesWhenTheDockResizes`, `aModelAreaThatMovesOnlyTheTriadRedraws`.
   **Observed:**
+- [ ] **M6-15 A selected rule's edges over the Final part.** With the bracket open in Preview ▸ Final, select the
+  fillet's Edge Set Op: its four edges (the flange's vertical corners, as in M6-8) show pink, as thick as a selection
+  glow, over the finished part. R3 rounds those corners away, so the pink lines float just outside the rounded corners
+  (the part has no edge of its own there to cover). Select the chamfer's Edges by Tag too: the plate's top outline is
+  pink over the chamfered part. Orbit: the pink lines stay on their edges, with no flicker or shimmer, and any piece
+  the part hides in front of it shows as a faint pink line through the part. Shaded (View menu) keeps them. Click and
+  right-click on a pink line in free space: nothing is selected and no face menu opens. Press F with a rule selected:
+  the view frames that rule's edges. Deselect: the lines go. Preview ▸ Selected node with one rule selected: the
+  bracket before the feature, edges pink, with no extra lines. View ▸ Theme ▸ Alucard: the lines take its selection
+  colour. Pinned: `SceneGuideTests`, `ViewportGuideTests`, `GuideRenderTests`. **Observed:**
 
 ## Group EP — editor polish: the floating palette and the node library
 

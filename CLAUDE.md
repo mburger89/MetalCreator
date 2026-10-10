@@ -78,7 +78,9 @@ Module boundaries (dependency order):
     `lookAt(_ plane:framing:)` faces a plane, orthographic.
   - `ViewportModel` (`@MainActor @Observable`, testable without a GPU) owns the camera, picking, the view cube,
     the context menu and handles. `ViewportRenderer`/`ViewportPicker` are the Metal side. `ViewportView` is the
-    MetalUI glue.
+    MetalUI glue. A `ViewportItem` with `isGuide` is no part of the scene: only its selected edges are drawn, after the
+    solids and ghosts (faded where the part hides them), and it never frames, orbits, picks or opens the face menu
+    (`ViewportRenderer+Guides`).
   - It depends on Kernel, Geometry, CreatorStyle and MetalUI only, never CreatorGraph. The app shell turns graph outputs into
     `ViewportItem`s and `HandleSpec`s into `ViewportHandle`s.
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
@@ -125,7 +127,8 @@ Module boundaries (dependency order):
   the `sketch` setting, a cleared constant under each exposed dimension's name (the value lives in the sketch alone),
   and a renamed exposed dimension's wire moved (dropped when it stops being exposed).
   `@MainActor @Observable AppModel` owns the open document's parts (document, editor, graph input, viewport; replaced
-  together on New and Open), turns results into `ViewportItem`s (`SceneBuilder`) and `HandleSpec`s into
+  together on New and Open), turns results into `ViewportItem`s (`SceneBuilder`; in Final preview a selected rule's edges on a solid no shown
+  part holds come as guide items, Errata (Viewport: a rule's edges over the Final part)) and `HandleSpec`s into
   `ViewportHandle`s (`HandleBuilder`), turns viewport events into graph commands (picking writes Edges by Tag rules),
   and opens, saves and exports. `AppInput` installs the window's input once and forwards to the current document.
   `MetalCreatorApp` is the executable (`OCCTKernel`). It makes the app's `ThemeStore` (`AppThemes.store()`: user
