@@ -25,7 +25,8 @@ extension SketchTool {
         case .arc: "a"
         case .circle: "c"
         case .dimension: "d"
-        case .select, .point: nil
+        case .trim: "t"
+        case .select, .point, .extend: nil
         }
     }
 }

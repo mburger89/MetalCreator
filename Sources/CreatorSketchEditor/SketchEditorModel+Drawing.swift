@@ -71,6 +71,7 @@ extension SketchEditorModel {
         case .line: placeLinePoint(at: p, tolerance: tolerance, suppressed: modifiers.contains(.command))
         case .circle: placeCirclePoint(at: p, tolerance: tolerance)
         case .arc: placeArcPoint(at: p, tolerance: tolerance)
+        case .trim, .extend: modify(at: p, tolerance: tolerance)
         }
         hover(at: p, tolerance: tolerance, modifiers: modifiers)
     }
@@ -83,7 +84,7 @@ extension SketchEditorModel {
             return
         }
         let picker = SketchPicker(sketch: sketch, solution: solution)
-        let under = picker.entity(near: p, tolerance: tolerance)
+        let under = tool.picksCurves ? picker.curve(near: p, tolerance: tolerance) : picker.entity(near: p, tolerance: tolerance)
         if hovered != under { hovered = under }
         let next = rubberBand(to: p, tolerance: tolerance, suppressed: modifiers.contains(.command))
         if preview != next { preview = next }
@@ -176,7 +177,7 @@ extension SketchEditorModel {
         let target = anchor(at: p, tolerance: tolerance)
         switch drawState {
         case .idle:
-            return tool == .select || tool == .dimension ? .none : SketchPreview(points: [target.position])
+            return tool.placesPoints ? SketchPreview(points: [target.position]) : .none
         case .lineFrom(let start):
             var end = target.position
             if target.point == nil {
