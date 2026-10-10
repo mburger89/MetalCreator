@@ -80,7 +80,7 @@ Inputs the spec implies but no rule above names, most likely to bite first; each
 
 ## User decisions
 
-Product behaviour the spec leaves open. Each has a recommended default, which the plan builds:
+**Decided: all 15 as the recommended defaults (approved 2026-10-09/10; recorded in the spec's Errata (C2)).** Product behaviour the spec left open. Each had a recommended default, which the plan builds:
 
 1. **Sketches inside a group.** Default: "Edit sketch" there refuses with "Sketches inside a group can't be edited yet. Edit it before grouping, or from the top level." Options: (a) refuse until S5c lands (recommended: sketch mode reads the top level's graph in about ten places and S5c is rewriting that file); (b) make sketch mode level-aware in this plan (a merge fight with S5c).
 2. **Saving the level and per-level pan and zoom.** Default: not saved; the file opens on the top level, and levels remember their view while the document is open. Options: (a) not saved (recommended: no format change, and `ViewState` is shared with B); (b) save them in `ViewState` as optional keys (no version bump needed).

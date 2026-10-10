@@ -294,3 +294,25 @@ Plan `2026-10-09-groups-editor.md`.
   one copy at most), one the document has no match for is added as it is, and one whose ID is taken by other content,
   or whose name is taken, comes in as a copy "Name (imported)" (a fresh ID when the ID was taken), with the pasted
   group nodes, and any definition placing it, retargeted. The additions and the nodes are one undo step.
+
+User decisions (C2), all 15 of the plan's "User decisions" decided as the recommended defaults (approved 2026-10-09/10):
+
+1. Sketches inside a group: "Edit sketch" refuses until S5c lands.
+2. The level shown and per-level pan and zoom are not saved.
+3. No mouse way to Group yet: keys only (⌘G, ⇧⌘G) and the group node's Ungroup button.
+4. A dropped "+" names the socket after its source or target (made unique); an input keeps the target's unit, range,
+   default, access and optional.
+5. The whole level shown is evaluated.
+6. Esc never leaves a group; ⌘↑ and the breadcrumbs do.
+7. Copies of a changed definition on paste are named "Name (imported)".
+8. "Used 1 time" for one, "Used 0 times" for none.
+9. The accent picker is a menu of the seven role names.
+10. A rename alone never makes a copy on paste.
+11. Group Input and Group Output can't be copied, duplicated or deleted.
+12. A pick under way is cancelled when the level changes.
+13. Undo and Redo may change something inside a level that isn't shown.
+14. The double-click recogniser runs after the click it ends on: double-click selects the group node, then opens it,
+    so the selection clears on entry. For a Sketch node this changes S5b's order: the node is now selected first and
+    the sketch opens second (`EditorModel+Pointer.swift`: `pairClick` after `click`). The sketcher-s5c owner must
+    know before merging.
+15. Groups are not in the palette (Space), only in the library.

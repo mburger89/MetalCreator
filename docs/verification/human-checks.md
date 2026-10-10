@@ -692,7 +692,8 @@ plate and its extrude (select both, ⌘G) first.
   out. Pan and zoom inside, go out and in: they are as you left them; the top level's are too. Select the group node
   and press "Edit Group" in its inspector: in. Group something inside and go in twice: "Graph › Group › Group 2", and a
   click on "Group" goes up one level. ⌘↓ with a plain node selected does nothing. Pinned: `EditorLevelTests`,
-  `EditorGroupEntryTests`. **Observed:**
+  `EditorGroupEntryTests`. Order (plan decision 14): a double-click selects the group node, then opens it, so the
+  selection clears on entry; on a Sketch node the node is selected first and the sketch opens second. **Observed:**
 - [ ] **GR-3 Editing inside.** Inside, move a node, wire two nodes, add one from the library and one with Space, delete
   one: each is one ⌘Z. Add an Output node: "An Output node can't go in a group." Select everything and press Delete:
   Group Input and Group Output stay. ⌘C and ⌘V inside: the nodes copy, the boundary nodes don't. The part in the
