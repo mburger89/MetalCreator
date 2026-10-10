@@ -48,7 +48,7 @@ What headless can't show, so the numbers are an upper bound for the CPU and a lo
 ## Results
 
 2026-10-09, MacBook Pro (MacBookPro18,2, Apple M1 Max, 10 cores), macOS 27.0.1, MetalUI `2155f1e`, MetalCreator
-branch `m7-measure`. Load averages (1, 5, 15 minutes) 22.54 / 33.70 / 58.73 before the run and 11.92 / 26.99 / 53.35
+`71ec6fc` (branch `m7-measure`). Load averages (1, 5, 15 minutes) 22.54 / 33.70 / 58.73 before the run and 11.92 / 26.99 / 53.35
 after: **not idle** (other worktrees were building and testing in parallel; idle means all three under 3, before and
 after). So the zoom-50 and orbit-panel-left verdicts, which sit within a millisecond or two of the budget, are **not
 judged**: the medians are kept, to be judged on an idle machine. The other verdicts are far from their budgets and hold
@@ -56,8 +56,8 @@ at any load.
 
 | §7.3 target | Benchmark | Measured (median, p95) | Budget | Verdict | A miss belongs to |
 |---|---|---|---|---|---|
-| Panning a 50-node graph at 60 fps | `pan-50` | CPU 13.09 ms (p95 14.79), GPU 3.25 ms; the canvas builds 16 of 50 nodes (max 20) | 16.67 ms | **Met** (with canvas culling; 26.63 ms without it) | — |
-| Zooming a 50-node graph at 60 fps | `zoom-50` | CPU 15.03 ms (p95 17.56, max 36.06), GPU 3.38 ms; 25 of 50 nodes built (all 50 zoomed out), with level of detail | 16.67 ms | **Not judged: within noise at load 22.54 / 33.70 / 58.73** (median under the budget, p95 over; 26.53 ms without culling and level of detail) | MetalUI C14 (PERF-b), if it misses on an idle run |
+| Panning a 50-node graph at 60 fps | `pan-50` | CPU 13.09 ms (p95 14.79), GPU 3.25 ms; the canvas builds 16 of 50 nodes (max 20) | 16.67 ms | **Met** (with canvas culling; 26.63 ms without it, indicative: a separate run at a different load) | — |
+| Zooming a 50-node graph at 60 fps | `zoom-50` | CPU 15.03 ms (p95 17.56, max 36.06), GPU 3.38 ms; 25 of 50 nodes built (all 50 zoomed out), with level of detail | 16.67 ms | **Not judged: within noise at load 22.54 / 33.70 / 58.73** (median under the budget, p95 over; 26.53 ms without culling and level of detail, indicative: a separate run at a different load) | MetalUI C14 (PERF-b), if it misses on an idle run |
 | Fillet radius drag: viewport updated within 100 ms of each value change | `fillet-drag` | command-to-frame 43.14 ms (p95 45.59): evaluate + mesh 20.44 ms, window CPU 16.91 ms, GPU 5.44 ms; 75 of 75 steps showed a new part | 100 ms | **Met** | — |
 | Orbiting the bracket at 60 fps | `orbit-panel-left` | CPU 16.01 ms (p95 17.70), GPU 5.11 ms | 16.67 ms | **Not judged: within noise at load 22.54 / 33.70 / 58.73** (median at the budget's edge, p95 over): each orbit step rebuilds the graph panel too | MetalUI C14 (PERF-b), if it misses on an idle run |
 | (the same, graph panel hidden) | `orbit-panel-hidden` | CPU 1.98 ms (p95 2.13), GPU 2.06 ms | 16.67 ms | **Met** | — |
@@ -72,9 +72,9 @@ at any load.
   (`ViewportModel.observedViewSize`, gap M4-a's stopgap), so what a bigger window uncovers is drawn at once.
 - **Level of detail** (`EditorModel.drawsNodeRows`, `rowsMinimumZoom` = 0.5): zoomed out below half size, nodes are
   drawn without their rows, whose text is too small to read there. Zoomed out, culling can't help (every node is in
-  view), so this is MetalCreator's lever on the zoom target. Measured when it was added, with all 50 nodes in view at
-  zoom 0.25, alternating frames with and without rows in one release run (so both saw the same load, 1-minute load
-  61): 28.82 ms with rows, 19.02 ms without, 34% less; the frame's glyphs drop from 2,151 to 971. Re-measure it on an
+  view), so this is MetalCreator's lever on the zoom target. From the M7 plan's probe, not re-measured on this branch:
+  all 50 nodes in view at zoom 0.25, alternating frames with and without rows in one release run (so both saw the same
+  load, 1-minute load 61): 28.82 ms with rows, 19.02 ms without, 34% less; the frame's glyphs drop from 2,151 to 971. Re-measure it on an
   idle machine with `CanvasLayers` passing every node's rows (one uncommitted line) if the zoom verdict is close.
 - **Every node draws** (`CanvasLayers` keys nodes by their whole UUID): MetalUI's `ForEach` names an element by its
   id's description and drops a repeat (gap M7-a), and a `NodeID` prints only its first 8 hex digits, so two nodes whose

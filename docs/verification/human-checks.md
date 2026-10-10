@@ -565,7 +565,7 @@ of about 50 nodes, like the benchmark's (`FiftyNodeGraph`): a row of Rectangle �
 wired, then copied and pasted until there are ten rows, spread out so the graph is several canvases wide and tall.
 Save it; M7-1 to M7-4 use it, and M7-4 also the §7.2 bracket.
 
-- [ ] **M7-1 Panning and zooming, both docks.** Docked left, drag the empty canvas quickly in circles, then scroll
+- [ ] **M7-1 Panning and zooming, both docks.** Docked left, pan quickly in circles with a two-finger scroll, then scroll
   with ⌘ to zoom all the way out and back in, quickly, several times; then dock at the bottom and repeat. No node or
   wire pops in late, flickers or is missing at the canvas's edges, and a wire between two nodes both out of view
   still crosses the view where it should. Zooming out past half size, the nodes' rows go and come back at the same

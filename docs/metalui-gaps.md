@@ -35,7 +35,7 @@ work (the owner named). The sections below keep each gap's full use case.
 | VI-a | A dropped gesture's end | C16 | ⏳ queued after C8 and C9 |
 | GI-a | Modifiers on a tap | none yet (with S5-a) | ⏳ reported, not queued |
 | GI-b | Wheel latching (`CI-AD`) | none yet | ⏳ reported, not queued |
-| PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | 🔄 in progress (`perf/shadow-cache`, 31c88a4) |
+| PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | 🔄 in progress (`perf/shadow-cache`) |
 | PERF-b | Every observed change rebuilds, lays out and paints the whole window | C14 | ⏳ queued; measured by M7 (below) |
 | EP-a | Element frame in window coordinates, hover coordinate space, window size | C15 | ⏳ queued after C9 |
 | EP-b | Chrome-less point-anchored popover that closes on an outside press | C15 | ⏳ queued after C9 |
