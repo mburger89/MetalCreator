@@ -4,8 +4,10 @@ import CreatorKernel
 extension EditorModel {
     /// What the context inspector shows now.
     public var inspectorPage: InspectorPage {
-        InspectorBuilder.page(graph: graphWithDocumentParameters, selection: selection, registry: registry,
-                              results: levelResults)
+        var page = InspectorBuilder.page(graph: graphWithDocumentParameters, selection: selection, registry: registry,
+                                         results: levelResults)
+        page.group = groupPanel
+        return page
     }
 
     /// The graph shown, with the document's parameters: they belong to the top level, and nodes inside a group read

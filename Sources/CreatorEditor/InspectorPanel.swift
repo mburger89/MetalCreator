@@ -19,6 +19,9 @@ public struct InspectorPanel: Component {
                 if let header = page.header {
                     InspectorHeaderView(header: header)
                 }
+                if let group = page.group {
+                    GroupPanelView(panel: group, model: model)
+                }
                 ForEach(page.sections, id: \.title) { section in
                     InspectorSectionView(title: section.title) {
                         ForEach(section.rows.indices, id: \.self) { index in
