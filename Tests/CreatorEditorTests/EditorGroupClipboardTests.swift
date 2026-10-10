@@ -132,6 +132,20 @@ struct EditorGroupClipboardTests {
         #expect(editor.graph.nodes.count == 6, "the delete was one step")
     }
 
+    /// Copying only Group Input and Group Output copies nothing, so it leaves the clipboard as it was: a paste still
+    /// pastes what was copied before.
+    @Test func copyingOnlyTheBoundaryKeepsTheEarlierClipboard() throws {
+        let grouped = try GroupedEditor()
+        let editor = grouped.editor
+        editor.enterGroup(grouped.group)
+        editor.selection = [grouped.rectangle.id]
+        editor.copySelection()
+        let earlier = editor.clipboard
+        editor.selection = Set(editor.graph.nodes.values.filter(GroupNodes.isBoundary).map(\.id))
+        editor.copySelection()
+        #expect(editor.clipboard == earlier)
+    }
+
     @Test func deletingOnlyTheBoundaryExplainsWhyNothingHappened() throws {
         let grouped = try GroupedEditor()
         let editor = grouped.editor

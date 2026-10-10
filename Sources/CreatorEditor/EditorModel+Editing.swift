@@ -38,7 +38,10 @@ extension EditorModel {
     /// ⌘C: copies the selected items (the nodes and the wires between them).
     public func copySelection() {
         guard !canvasSelection.isEmpty else { return }
-        setClipboard(clipboard(of: canvasSelection))
+        let copied = clipboard(of: canvasSelection)
+        // Group Input and Output are never copied, so a selection of only them copies nothing: keep what was there.
+        guard !copied.isEmpty else { return }
+        setClipboard(copied)
     }
 
     /// ⌘V: pastes the clipboard offset down and right, one step further on each paste,

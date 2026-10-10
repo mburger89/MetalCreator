@@ -7,4 +7,7 @@ public struct NodeClipboard: Equatable, Sendable {
     public var nodes: [Node]
     public var links: [Link]
     public var definitions: [GroupID: GroupDefinition] = [:]
+
+    /// Whether there is nothing to paste (the definitions only travel with group nodes).
+    public var isEmpty: Bool { nodes.isEmpty }
 }
