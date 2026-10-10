@@ -118,7 +118,7 @@ struct UngroupTests {
         var applied = content
         try applied.apply(edit.command, registry: testRegistry)
         #expect(applied.definitions.values.map(\.name).sorted() == ["Doubler 2", "Doubler 3"])
-
+        #expect(applied.graph.nodes[node.id]?.name == "Doubler 3")
     }
 
     /// "Counted": a box whose end cap a counter inside picks; it puts out the box's solid and the count. One group
