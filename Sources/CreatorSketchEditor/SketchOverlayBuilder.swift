@@ -13,7 +13,7 @@ enum SketchOverlayBuilder {
     static let pointSize = 6.0
 
     static func overlay(sketch: Sketch, solution: SketchSolution, plane: Plane, selection: Set<SketchEntityID>,
-                        hovered: SketchEntityID?, preview: SketchPreview) -> ViewportOverlay {
+                        hovered: SketchEntityID?, preview: SketchPreview, fills: [OverlayFill] = []) -> ViewportOverlay {
         var lines: [OverlayLine] = []
         var points: [OverlayPoint] = []
         for id in sketch.entityIDs {
@@ -31,7 +31,7 @@ enum SketchOverlayBuilder {
             lines += segments(polyline(of: curve), on: plane, tint: .preview, width: curveWidth, dashed: false)
         }
         points += preview.points.map { OverlayPoint(plane.point($0), tint: .preview, size: pointSize) }
-        return ViewportOverlay(lines: lines, points: points, gridPlane: plane)
+        return ViewportOverlay(lines: lines, points: points, fills: fills, gridPlane: plane)
     }
 
     /// The colour role of one entity: selected, then hovered, then conflicting, construction, projected, then free or

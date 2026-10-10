@@ -53,6 +53,9 @@ public final class SketchEditorModel {
     /// The sketch as the host last stored it (given, reloaded or committed), before this editor's solve: `reload(_:)`
     /// compares against it, so the host can reload on every refresh without dropping a stroke in progress.
     @ObservationIgnored var stored: Sketch
+    /// The region fills of `sketch` on `plane`, kept until either changes: the overlay is rebuilt on every hover, and
+    /// finding regions is more work than a hover (`regionFills`).
+    @ObservationIgnored var fillCache: (sketch: Sketch, plane: Plane, fills: [OverlayFill])?
 
     @ObservationIgnored public var events = SketchEditorEvents()
 
