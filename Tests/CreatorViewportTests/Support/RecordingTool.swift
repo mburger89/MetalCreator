@@ -7,6 +7,10 @@ import CreatorGeometry
 @MainActor
 final class RecordingTool: ViewportTool {
     var claims = true
+    /// Whether the tool takes the pick under a click it declined (`clickedModel`).
+    var claimsModel = false
+    /// The picks offered to `clickedModel`, in order (`nil`: empty space).
+    private(set) var modelPicks: [PickTarget?] = []
     /// How the viewport navigates while this tool is set (free orbit unless a test says otherwise).
     var navigation = ViewportNavigation.free
     /// What F frames while this tool is set.
@@ -37,5 +41,11 @@ final class RecordingTool: ViewportTool {
 
     func dragEnded(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) {
         record("ended", point, projector)
+    }
+
+    func clickedModel(_ target: PickTarget?, at point: ScreenPoint, modifiers: ViewportModifiers,
+                      projector: ViewportProjector) -> Bool {
+        modelPicks.append(target)
+        return claimsModel
     }
 }

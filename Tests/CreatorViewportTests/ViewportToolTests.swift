@@ -30,6 +30,51 @@ struct ViewportToolTests {
         #expect(picked.count == 1, "an unclaimed click is reported as before")
     }
 
+    @Test func aDeclinedClickOffersThePickToTheTool() {
+        let tool = RecordingTool()
+        tool.claims = false
+        let model = makeModel(tool: tool)
+        model.pick = { _ in .edge(solid: 0, EdgeID(3)) }
+        var reported: [PickTarget?] = []
+        model.events.clicked = { reported.append($0) }
+        model.click(at: ScreenPoint(200, 150))
+        #expect(tool.modelPicks == [.edge(solid: 0, EdgeID(3))])
+        #expect(reported == [.edge(solid: 0, EdgeID(3))], "the tool left it, so the host hears it as before")
+    }
+
+    @Test func aToolThatTakesThePickKeepsItFromTheHost() {
+        let tool = RecordingTool()
+        tool.claims = false
+        tool.claimsModel = true
+        let model = makeModel(tool: tool)
+        model.pick = { point in point.x < 100 ? .face(solid: 0, FaceID(1)) : nil }
+        var reported: [PickTarget?] = []
+        model.events.clicked = { reported.append($0) }
+        model.click(at: ScreenPoint(50, 150))
+        model.click(at: ScreenPoint(300, 150))
+        #expect(tool.modelPicks == [.face(solid: 0, FaceID(1)), nil], "empty space is offered too")
+        #expect(reported.isEmpty)
+    }
+
+    @Test func aClaimedClickIsNotOfferedAPick() {
+        let tool = RecordingTool()
+        tool.claimsModel = true
+        let model = makeModel(tool: tool)
+        model.pick = { _ in .face(solid: 0, FaceID(1)) }
+        model.click(at: ScreenPoint(200, 150))
+        #expect(tool.modelPicks.isEmpty, "the tool claimed the click on the plane, so there is nothing to offer")
+    }
+
+    @Test func theCubeAndTheHandlesKeepTheirClicksFromTheToolsPick() {
+        let tool = RecordingTool()
+        tool.claims = false
+        tool.claimsModel = true
+        let model = makeModel(tool: tool)
+        model.pick = { _ in .face(solid: 0, FaceID(1)) }
+        model.click(at: model.cubeLayout.center)
+        #expect(tool.modelPicks.isEmpty)
+    }
+
     @Test func aClaimedDragMovesNoCamera() {
         let tool = RecordingTool()
         let model = makeModel(tool: tool)

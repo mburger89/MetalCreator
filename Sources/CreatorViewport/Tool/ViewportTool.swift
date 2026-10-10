@@ -16,6 +16,11 @@ public protocol ViewportTool: AnyObject {
     /// A click off the view cube and the handles. Return true to claim it; unclaimed, the viewport reports the pick
     /// under it as usual (`ViewportEvents.clicked`).
     func clicked(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) -> Bool
+    /// A click `clicked(at:…)` declined, with the face or edge the ID pass found under it (`nil`: empty space), for a
+    /// tool that works on the model (the sketch editor's Project). Return true to claim it; unclaimed, the viewport
+    /// reports the pick as usual (`ViewportEvents.clicked`). It is not called for a click the view cube or a handle took.
+    func clickedModel(_ target: PickTarget?, at point: ScreenPoint, modifiers: ViewportModifiers,
+                      projector: ViewportProjector) -> Bool
     /// A primary drag with no navigating modifier (Shift, ⌥) begins at `point`, off the cube and the handles.
     /// Return true to take it: its moves and release then come here, and the camera stays put. Declined, it orbits
     /// (pans with `.planar` navigation).
@@ -27,4 +32,8 @@ public protocol ViewportTool: AnyObject {
 extension ViewportTool {
     public var navigation: ViewportNavigation { .free }
     public var framingBounds: BoundingBox? { nil }
+    public func clickedModel(_ target: PickTarget?, at point: ScreenPoint, modifiers: ViewportModifiers,
+                             projector: ViewportProjector) -> Bool {
+        false
+    }
 }
