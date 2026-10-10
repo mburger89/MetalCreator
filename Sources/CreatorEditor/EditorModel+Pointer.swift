@@ -132,10 +132,10 @@ extension EditorModel {
         case .panning(let startOffset):
             transform = CanvasTransform(offset: startOffset + (location - pressPoint), zoom: transform.zoom)
         case .moving(let start, let key):
-            try? edit(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key)
+            try? edit(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key, name: UndoName.move)
         case .resizing(let id, let start, let key):
             if let command = resizeCommand(id, from: start, by: (location - pressPoint) * (1 / transform.zoom)) {
-                try? edit(command, coalescingKey: key)
+                try? edit(command, coalescingKey: key, name: UndoName.resize)
             }
         case .duplicating(let start, _):
             setInteraction(.duplicating(start: start, delta: storedDelta))
@@ -157,7 +157,7 @@ extension EditorModel {
 
     /// The copies land where the ghosts were, as one undo step; the originals never moved.
     private func finishDuplicate(start: SelectionPositions, delta: Vector2) {
-        if let copies = insert(clipboard(of: start.items), offset: delta) { canvasSelection = copies }
+        if let copies = insert(clipboard(of: start.items), offset: delta, named: UndoName.duplicate) { canvasSelection = copies }
     }
 
     private func finishWire(_ wire: WireDrag, at location: Vector2) {
@@ -165,7 +165,7 @@ extension EditorModel {
             // Dragging a wired input off onto empty canvas removes its wire.
             if wire.from.isInput, let link = graph.incomingLink(to: wire.from.endpoint) {
                 do {
-                    try edit(.disconnect(link))
+                    try edit(.disconnect(link), name: UndoName.disconnect)
                 } catch {
                     refuse(error.message, node: link.to.node)
                 }

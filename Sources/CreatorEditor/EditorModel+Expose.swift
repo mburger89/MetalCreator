@@ -25,10 +25,12 @@ extension EditorModel {
             switch (boundary.typeID, plus.isInput, other.isInput) {
             case (GroupNodes.outputTypeID, true, false):
                 try document.perform(GroupCommands.exposeOutput(from: other.endpoint, on: boundary.id, in: definition,
-                                                                of: document.content, registry: registry))
+                                                                of: document.content, registry: registry),
+                                     name: UndoName.addOutputSocket)
             case (GroupNodes.inputTypeID, false, true):
                 try document.perform(GroupCommands.exposeInput(to: other.endpoint, from: boundary.id, in: definition,
-                                                               of: document.content, registry: registry))
+                                                               of: document.content, registry: registry),
+                                     name: UndoName.addInputSocket)
             default:
                 refuse(Self.exposeHint, node: plus.endpoint.node)
             }

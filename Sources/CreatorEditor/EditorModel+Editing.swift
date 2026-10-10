@@ -12,7 +12,7 @@ extension EditorModel {
             return
         }
         do {
-            try edit(.connect(link))
+            try edit(.connect(link), name: UndoName.connect)
         } catch {
             refuse(error.message, node: link.to.node)
         }
@@ -22,6 +22,11 @@ extension EditorModel {
     /// frame leaves the nodes it held where they are. Group Input and Group Output stay (a group always has both); with
     /// only those selected, it says why nothing happened.
     public func deleteSelection() {
+        delete(named: UndoName.delete)
+    }
+
+    /// Deletes the selection as one undo step called `name` ("Delete", or "Cut" for ⌘X).
+    private func delete(named name: String) {
         let present = canvasSelection.nodes.filter { graph.nodes[$0] != nil }
         let commands = present.filter { !isBoundary($0) }.sorted().map { GraphCommand.removeNode($0) }
             + canvasSelection.comments.sorted().compactMap { id -> GraphCommand? in
@@ -33,7 +38,7 @@ extension EditorModel {
             return
         }
         do {
-            try edit(.batch(commands))
+            try edit(.batch(commands), name: name)
             canvasSelection = CanvasSelection()
         } catch {
             refuse(error.message, node: nil)
@@ -45,7 +50,7 @@ extension EditorModel {
         guard !canvasSelection.isEmpty else { return }
         let copied = clipboard(of: canvasSelection)
         if !copied.isEmpty { setClipboard(copied) }
-        deleteSelection()
+        delete(named: UndoName.cut)
     }
 
     /// ⌘C: copies the selected items (the nodes, the wires between them, and the comments).
@@ -61,13 +66,15 @@ extension EditorModel {
     /// and selects the copies.
     public func paste() {
         guard let clipboard else { return }
-        if let copies = insert(clipboard, offset: nextPasteOffset()) { canvasSelection = copies }
+        if let copies = insert(clipboard, offset: nextPasteOffset(), named: UndoName.paste) { canvasSelection = copies }
     }
 
     /// ⌘D: duplicates the selection offset down and right, leaving the clipboard alone.
     public func duplicateSelection() {
         guard !canvasSelection.isEmpty else { return }
-        if let copies = insert(clipboard(of: canvasSelection), offset: Vector2(24, 24)) { canvasSelection = copies }
+        if let copies = insert(clipboard(of: canvasSelection), offset: Vector2(24, 24), named: UndoName.duplicate) {
+            canvasSelection = copies
+        }
     }
 
     /// Adds a node of `typeID` with its top-left corner at `screen` (canvas-local screen points: under the palette,
@@ -83,7 +90,7 @@ extension EditorModel {
     @discardableResult
     func add(_ node: Node) -> Bool {
         do {
-            try edit(.addNode(node))
+            try edit(.addNode(node), name: UndoName.addNode(node))
             selection = [node.id]
             return true
         } catch {
@@ -113,7 +120,7 @@ extension EditorModel {
     /// Adds fresh copies of `clipboard` moved by `offset` (stored coordinates) as one undo step, with the group
     /// definitions it carries that the document lacks or has with other content (`GroupMerge`; the copied group
     /// nodes follow them). Returns the copies, to select, or `nil` if the graph refused or there was nothing to add.
-    func insert(_ clipboard: NodeClipboard, offset: Vector2) -> CanvasSelection? {
+    func insert(_ clipboard: NodeClipboard, offset: Vector2, named name: String) -> CanvasSelection? {
         guard !clipboard.isEmpty else { return nil }
         let merge = GroupMerge.plan(importing: clipboard.definitions, into: document.content)
         var mapping: [NodeID: NodeID] = [:]
@@ -144,7 +151,8 @@ extension EditorModel {
         }
         do {
             // The definitions are added to the document, the nodes and comments to the level shown.
-            try document.perform(.batch(merge.additions.map { .addDefinition($0) } + [GraphCommand.batch(commands).at(graphPath)]))
+            try document.perform(.batch(merge.additions.map { .addDefinition($0) } + [GraphCommand.batch(commands).at(graphPath)]),
+                                 name: name)
             return CanvasSelection(nodes: Set(mapping.values), comments: comments)
         } catch {
             refuse(error.message, node: nil)

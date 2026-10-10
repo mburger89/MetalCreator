@@ -23,7 +23,7 @@ extension EditorModel {
     public func setNoteText(_ id: CommentID, to text: String) {
         guard var note = graph.stickies[id], note.text != text else { return }
         note.text = text
-        commitComment(.setSticky(note))
+        commitComment(.setSticky(note), named: UndoName.editNote)
     }
 
     /// Sets a frame's title, trimmed, as one undo step. An empty title is refused with a message and changes nothing
@@ -38,24 +38,24 @@ extension EditorModel {
         }
         guard box.title != trimmed else { return true }
         box.title = trimmed
-        return commitComment(.setFrame(box))
+        return commitComment(.setFrame(box), named: UndoName.editFrame)
     }
 
     /// Sets a note's or a frame's accent, as one undo step.
     public func setCommentAccent(_ id: CommentID, to accent: AccentRole) {
         if var note = graph.stickies[id], note.accent != accent {
             note.accent = accent
-            commitComment(.setSticky(note))
+            commitComment(.setSticky(note), named: UndoName.editNote)
         } else if var box = graph.frames[id], box.accent != accent {
             box.accent = accent
-            commitComment(.setFrame(box))
+            commitComment(.setFrame(box), named: UndoName.editFrame)
         }
     }
 
     @discardableResult
-    private func commitComment(_ command: GraphCommand) -> Bool {
+    private func commitComment(_ command: GraphCommand, named name: String) -> Bool {
         do {
-            try edit(command)
+            try edit(command, name: name)
             return true
         } catch {
             refuse(error.message, node: nil)

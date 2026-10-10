@@ -27,19 +27,19 @@ extension EditorModel {
     public func renameGroup(_ id: GroupID, to name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard trimmed != document.definitions[id]?.name else { return }
-        perform { () throws(GraphError) in try GroupCommands.rename(id, to: trimmed, in: document.content) }
+        perform(UndoName.renameGroup) { () throws(GraphError) in try GroupCommands.rename(id, to: trimmed, in: document.content) }
     }
 
     public func setGroupAccent(_ id: GroupID, to accent: AccentRole) {
         guard accent != document.definitions[id]?.accent else { return }
-        perform { () throws(GraphError) in try GroupCommands.setAccent(id, accent, in: document.content) }
+        perform(UndoName.changeGroupAccent) { () throws(GraphError) in try GroupCommands.setAccent(id, accent, in: document.content) }
     }
 
     /// Renames socket `old` of `side` to `new`, on the definition, its wires inside and every group node of it.
     public func renameGroupSocket(_ id: GroupID, side: GroupSocketSide, from old: SocketName, to new: String) {
         let name = SocketName(new.trimmingCharacters(in: .whitespaces))
         guard name != old else { return }
-        perform { () throws(GraphError) in
+        perform(UndoName.renameSocket) { () throws(GraphError) in
             try GroupCommands.renameSocket(id, side: side, from: old, to: name, in: document.content)
         }
     }
@@ -48,26 +48,26 @@ extension EditorModel {
     public func moveGroupSocket(_ id: GroupID, side: GroupSocketSide, named name: SocketName, by step: Int) {
         let sockets = side == .input ? document.definitions[id]?.inputs : document.definitions[id]?.outputs
         guard let index = sockets?.firstIndex(where: { $0.name == name }) else { return }
-        perform { () throws(GraphError) in
+        perform(UndoName.moveSocket) { () throws(GraphError) in
             try GroupCommands.moveSocket(id, side: side, from: index, to: index + step, in: document.content)
         }
     }
 
     /// Removes socket `name` of `side` and its wires inside. Refused while a group node has it wired, naming that node.
     public func removeGroupSocket(_ id: GroupID, side: GroupSocketSide, named name: SocketName) {
-        perform { () throws(GraphError) in
+        perform(UndoName.removeSocket) { () throws(GraphError) in
             try GroupCommands.removeSocket(id, side: side, name: name, in: document.content)
         }
     }
 
     /// Deletes definition `id` from the document. Refused while a group node uses it.
     public func deleteGroup(_ id: GroupID) {
-        perform { () throws(GraphError) in try GroupCommands.deleteDefinition(id, in: document.content) }
+        perform(UndoName.deleteGroup) { () throws(GraphError) in try GroupCommands.deleteDefinition(id, in: document.content) }
     }
 
-    private func perform(_ build: () throws(GraphError) -> GraphCommand) {
+    private func perform(_ name: String, _ build: () throws(GraphError) -> GraphCommand) {
         do {
-            try document.perform(try build())
+            try document.perform(try build(), name: name)
         } catch {
             refuse(error.message, node: selection.first)
         }
