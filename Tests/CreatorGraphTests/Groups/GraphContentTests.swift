@@ -145,6 +145,46 @@ struct GraphContentTests {
         }
     }
 
+    /// Undo and Redo replay commands that were valid when recorded (`DocumentModel.replay`), so the new-definition and
+    /// interface rules, which a hand-edited file may already break, don't apply to them.
+    @Test func aReplayedCommandSkipsTheRulesTheFileMayAlreadyBreak() throws {
+        let start = content([], [Doubler(name: "Same").definition])
+        let twin = Doubler(name: "Same").definition
+        expectRefused(.addDefinition(twin), on: start, "A group named “Same” already exists.")
+        var replayed = start
+        try replayed.apply(.addDefinition(twin), registry: testRegistry, replaying: true)
+        #expect(replayed.definitions.count == 2, "two definitions called “Same”, as the hand-edited file had")
+        var renamed = twin.interface
+        renamed.name = "Other"
+        try replayed.apply(.setInterface(twin.id, renamed), registry: testRegistry)
+        var back = twin.interface
+        back.name = "Same"
+        #expect(throws: GraphError.invalidValue("A group named “Same” already exists.")) {
+            try replayed.apply(.setInterface(twin.id, back), registry: testRegistry)
+        }
+        try replayed.apply(.setInterface(twin.id, back), registry: testRegistry, replaying: true)
+        #expect(replayed.definitions[twin.id]?.name == "Same")
+    }
+
+    /// Ungrouping removes the definition with its last group node, and Undo adds it back. If the file already had another
+    /// definition of that name, the add-back must still go through (it used to trip `assertionFailure` in a debug build).
+    @MainActor
+    @Test func undoingAnUngroupInAFileWithRepeatedNamesRestoresTheDefinition() throws {
+        let first = Doubler(name: "Same"), second = Doubler(name: "Same")
+        let node = instance(of: first.definition), kept = instance(of: second.definition)
+        let document = DocumentModel(file: GraphFile(graph: graph([node, kept]),
+                                                     definitions: table([first.definition, second.definition])),
+                                     registry: testRegistry, kernel: FakeKernel())
+        let before = document.content
+        let edit = try GroupCommands.ungroup(node.id, in: .root, of: document.content, registry: testRegistry)
+        try document.perform(edit.command)
+        #expect(document.definitions.count == 1)
+        document.undo()
+        #expect(document.content == before)
+        document.redo()
+        #expect(document.definitions.count == 1)
+    }
+
     @Test func aRefusedBatchChangesNothing() {
         let start = content([instance(of: doubler.definition)], [doubler.definition])
         expectRefused(.batch([.inDefinition(doubler.id, .addNode(makeNode(ConstantNode.self))), .removeDefinition(doubler.id)]),

@@ -7,11 +7,14 @@ extension GraphContent {
     /// containing itself, directly or through other groups; an Output node in a group; Group Input or Group Output
     /// outside a group, a second one, or deleting one; removing a definition in use; a bad name or socket list; and,
     /// once the whole command has applied, a socket removed from a definition or given another type while a wire is
-    /// still on it, on a group node or inside on Group Input or Group Output.
+    /// still on it, on a group node or inside on Group Input or Group Output. `replaying` is for Undo and Redo, which
+    /// replay commands that were valid when recorded: a new definition and a new interface are then not checked again,
+    /// as a hand-edited file may already break those rules (a name used twice) and its history must still replay.
     @discardableResult
-    public mutating func apply(_ command: GraphCommand, registry: NodeRegistry) throws(GraphError) -> GraphCommand {
+    public mutating func apply(_ command: GraphCommand, registry: NodeRegistry,
+                               replaying: Bool = false) throws(GraphError) -> GraphCommand {
         let before = self
-        let inverse = try applyCommand(command, registry: registry)
+        let inverse = try applyCommand(command, registry: registry, replaying: replaying)
         do {
             try checkWiredSockets(changedBy: command, before: before)
         } catch {
@@ -22,14 +25,15 @@ extension GraphContent {
     }
 
     /// `apply` without the check across the whole command, so a batch can rename a socket and move its wires.
-    private mutating func applyCommand(_ command: GraphCommand, registry: NodeRegistry) throws(GraphError) -> GraphCommand {
+    private mutating func applyCommand(_ command: GraphCommand, registry: NodeRegistry,
+                                       replaying: Bool) throws(GraphError) -> GraphCommand {
         switch command {
         case .batch(let commands):
             let snapshot = self
             var inverses: [GraphCommand] = []
             do {
                 for command in commands {
-                    inverses.append(try applyCommand(command, registry: registry))
+                    inverses.append(try applyCommand(command, registry: registry, replaying: replaying))
                 }
             } catch {
                 self = snapshot
@@ -37,7 +41,7 @@ extension GraphContent {
             }
             return .batch(Array(inverses.reversed()))
         case .inDefinition, .addDefinition, .removeDefinition, .setInterface:
-            return try applyGroupEdit(command, registry: registry)
+            return try applyGroupEdit(command, registry: registry, replaying: replaying)
         default:
             try check(command, in: .root, registry: registry)
             return try graph.apply(command, registry: registry.withGroups(definitions))
@@ -45,12 +49,13 @@ extension GraphContent {
     }
 
     /// The four group commands; `apply` routes them here.
-    private mutating func applyGroupEdit(_ command: GraphCommand, registry: NodeRegistry) throws(GraphError) -> GraphCommand {
+    private mutating func applyGroupEdit(_ command: GraphCommand, registry: NodeRegistry,
+                                         replaying: Bool) throws(GraphError) -> GraphCommand {
         switch command {
         case .inDefinition(let id, let inner):
             return .inDefinition(id, try applyInside(id, inner, registry: registry))
         case .addDefinition(let definition):
-            try checkNew(definition, registry: registry)
+            if !replaying { try checkNew(definition, registry: registry) }
             definitions[definition.id] = definition
             return .removeDefinition(definition.id)
         case .removeDefinition(let id):
@@ -60,7 +65,7 @@ extension GraphContent {
             return .addDefinition(definition)
         case .setInterface(let id, let interface):
             guard var definition = definitions[id] else { throw GroupRefusal.missing }
-            try checkInterface(interface, of: id)
+            if !replaying { try checkInterface(interface, of: id) }
             let old = definition.interface
             definition.interface = interface
             definitions[id] = definition

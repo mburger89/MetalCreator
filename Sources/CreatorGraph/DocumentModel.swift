@@ -141,7 +141,7 @@ public final class DocumentModel {
         let stale = graph.downstreamClosure(of: content.touchedTopLevelNodes(command))
         let effect = effect(of: command)
         do {
-            try content.apply(command, registry: baseRegistry)
+            try content.apply(command, registry: baseRegistry, replaying: true)
         } catch {
             // Undo and redo replay commands that were valid when recorded, so this means
             // the history is out of step with the graph.
