@@ -44,7 +44,7 @@ work (the owner named). The sections below keep each gap's full use case.
 | LF-b | A clip inside nested flattening effects (LF-a's regression) | C19 | ✅ fixed (9ad2254) |
 | TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | ⏳ reported, not queued |
 | S5-a | Modifiers on a hover (and a tap, GI-a) | none yet (with GI-a) | ⏳ reported, not queued |
-| S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ⏳ sent to the MetalUI session 2026-10-09 |
+| S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ⏳ reported 2026-10-09 |
 | M7-a | `ForEach` identity is an id's description | none yet | ⏳ reported, not queued |
 | M7-b | No warm headless frame for measuring | none yet (with M6-e) | ⏳ reported, not queued; used again by C10 (below) |
 | C10-a | No backdrop blur behind a material | C10-c (unscheduled) | ⏳ sent to the MetalUI session 2026-10-09 |
