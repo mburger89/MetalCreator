@@ -514,6 +514,13 @@ Plan `2026-10-09-naming-merged-faces.md`, roadmap row "Naming: picks on merged f
   A pick saved before this has no run count, so each recorded edge counts as its own run: it still warns when its
   edges become fewer runs (a split edge it recorded as 2 edges, now whole), and it no longer warns when a recorded
   edge is split into more pieces (master warned "Matched 2 edges, expected 1." there).
+- §5.3 rule 6's runs, refined (follow-ups, kernel): edges join into one run only where they continue each other, not
+  wherever they touch. Their ends must be within 1e-4 mm (OCCT edge ends sit up to the vertex tolerance from a shared
+  vertex after a blend, so the old 1e-6 mm counted a split edge as two runs and warned) and they must leave that point in
+  opposite directions to within 0.01 rad (`Topology.runCount`, `EdgeCurve.endDirections`), so two edges that meet at a
+  corner are two runs, not one. Which edges a pick selects, and the file format, do not change; only the warning can.
+  A pick saved before this whose recorded run count came from the old rule (a whole loop of straight edges that meet at
+  corners recorded 1 run; it is now 4) warns the first time its edge count changes, where it stayed silent before.
 - Errata (M6)'s polygon swap: the two picks on the plate sides the union had merged with the rectangle's now resolve
   to the plate's whole side edges, and Edges by Tag is `.ok` with five edges, so §8's chamfer promise holds for the
   names. The part is still lost, for a reason the M6 probe didn't see: OCCT's fillet of the hexagon's vertical edges
