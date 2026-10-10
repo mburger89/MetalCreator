@@ -31,6 +31,9 @@ extension AppModel {
                                              isReservedName: SketchNode.isReservedDimensionName)
         sketchEditor.events.committed = { [weak self] in self?.storeSketch($0) }
         sketchEditor.events.finished = { [weak self] in self?.finishSketch() }
+        sketchEditor.events.projection = { [weak self] target, plane in
+            self?.resolveProjection(target, onto: plane, for: id) ?? ProjectionResolution(candidates: [], skipped: [Self.noProjection])
+        }
         sketchEditor.events.dismissHostPopup = { [weak self] in self?.closePaletteOverSketch() ?? false }
         let session = SketchSession(node: id, editor: sketchEditor, viewport: viewport)
         sketch = session
@@ -55,10 +58,21 @@ extension AppModel {
     /// Stores one editor commit in the node as one undo step (`SketchStore`).
     func storeSketch(_ commit: SketchCommit) {
         guard let session = sketch, let node = document.graph.nodes[session.node] else { return }
+        var projections: [SketchStore.Projection] = []
+        for write in commit.projections {
+            guard viewport.items.indices.contains(write.solid), let source = producer(of: viewport.items[write.solid].solid) else {
+                alert = .problem(AppProblem("The projection couldn't be stored", "The part it was picked on can't be found."))
+                refreshSketch()   // the editor already shows the projections it was refused: back to what is stored
+                return
+            }
+            projections.append(SketchStore.Projection(reference: write.reference, pick: write.pick, source: source))
+        }
         do {
-            try document.perform(.batch(SketchStore.commands(storing: commit.sketch, in: node, graph: document.graph)))
+            let commands = SketchStore.commands(storing: commit.sketch, in: node, graph: document.graph, projections: projections)
+            try document.perform(.batch(commands))
         } catch {
             alert = .problem(AppProblem("The sketch couldn't be changed", error.message))
+            refreshSketch()
         }
     }
 
@@ -78,7 +92,7 @@ extension AppModel {
     /// socket name or, when the socket is wired, the wire's current result (a wire without a number result yet leaves
     /// the stored value). `wired` names the wired dimensions, whose values the editor can't type.
     func shownSketch(of node: Node, _ stored: Sketch) -> (sketch: Sketch, wired: Set<DimensionID>) {
-        var sketch = SketchStore.folded(stored, constants: node.inputValues)
+        var sketch = refreshedProjections(SketchStore.folded(stored, constants: node.inputValues), of: node)
         var wired: Set<DimensionID> = []
         for (id, name) in SketchStore.exposedNames(stored) {
             guard let link = document.graph.incomingLink(to: Endpoint(node: node.id, socket: name)) else { continue }
