@@ -4,7 +4,9 @@ import CreatorKernel
 extension EditorModel {
     /// What the context inspector shows now.
     public var inspectorPage: InspectorPage {
-        InspectorBuilder.page(graph: graph, selection: selection, registry: registry, results: document.results)
+        var page = InspectorBuilder.page(graph: graph, selection: selection, registry: registry, results: document.results)
+        page.comment = commentPage
+        return page
     }
 
     /// Sets an unwired input. `continuous` edits (slider steps) share one coalescing key per

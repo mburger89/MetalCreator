@@ -26,6 +26,9 @@ public struct InspectorPanel: Component {
                         }
                     }
                 }
+                if let comment = page.comment {
+                    CommentInspectorView(page: comment, model: model)
+                }
                 InspectorSectionView(title: "Document Parameters") {
                     if page.parameters.isEmpty {
                         Text("No parameters").font(.caption).foregroundStyle(Palette(themes).secondaryText.color)
