@@ -12,6 +12,8 @@ import MetalUI
 public struct AppRoot: Component {
     public let model: AppModel
     public let input: AppInput
+    /// The window buttons' space under a hidden title bar (gap M6-c); zero in a standard window. `TopBar` clears it.
+    @Environment(\.titleBarInsets) var titleBarInsets
 
     public init(model: AppModel, input: AppInput) {
         self.model = model
@@ -22,7 +24,7 @@ public struct AppRoot: Component {
         ZStack(alignment: .topLeading) {
             ViewportView(model: model.viewport)
             VStack(alignment: .leading, spacing: AppLayout.margin.px) {
-                ZStack { TopBar(model: model) }
+                ZStack { TopBar(model: model, clearance: Pixels(Float(AppLayout.topBarClearance(titleBarInsets: titleBarInsets)))) }
                     .frame(height: AppLayout.topBarHeight.px)
                 PanelArea(model: model)
             }
