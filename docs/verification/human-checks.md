@@ -172,9 +172,9 @@ Run `swift run MetalCreatorApp` on a saved bracket, with a trackpad and a wheel 
   `theCanvasGestureReadsThePressModifiersFromItsValues`, `anOptionDragThroughTheGestureDuplicates`. **Observed:**
 - [ ] **GI-6 Cursors.** Middle-drag the canvas: a closed hand from the press until the release, also when the pointer
   leaves the panel mid-drag (since multi-select a plain drag on empty canvas box-selects, MS-3); a click shows none.
-  Moving nodes, dragging a wire and box selection keep the arrow. Hover the dock's inner edge: a left-right resize cursor docked left, an up-down one docked at the bottom,
-  kept while dragging it. Pinned: `CanvasCursorTests`, `theLeftDocksEdgeIsAColumnResizeAndTheBottomDocksARowResize`.
-  **Observed:**
+  Moving nodes, dragging a wire and box selection keep the arrow. Hover the dock's inner edge: a left-right resize
+  cursor docked left, an up-down one docked at the bottom, kept while dragging it. Pinned: `CanvasCursorTests`,
+  `theLeftDocksEdgeIsAColumnResizeAndTheBottomDocksARowResize`. **Observed:**
 - [ ] **GI-7 The palette.** Open the palette (Space) over the canvas, then scroll or pinch over the canvas outside
   it: it closes. Open it again and scroll over the palette itself: the canvas doesn't move and the palette stays.
   Pinch over the palette: nothing moves (neither the canvas nor the viewport) and it stays open.
@@ -378,13 +378,13 @@ for C10-5.
   canvas during a shake: the node keeps shaking at its new place and stops at rest. Pan a refused node out of sight and
   back: it does not shake. Drag a node normally: no shake. Pinned: `RefusalShakeTests` (the keyframes at injected times, the
   per-node count, a refused node drawn at rest). **Observed:**
-- [ ] **C10-3 Evaluating spinner.** Make a node slow (a Boolean or a large-radius fillet on a dense part) and edit
-  it: its badge shows a small spinner of twelve spokes turning once every 0.8 seconds, then the time in ms. The spinner fits
-  the header and reads on every header colour (value, profile, solid, selection rule, feature, output) in Dracula and in
-  Alucard. Select the busy node: the inspector header's badge shows the same spinner, readable on its background (its
-  colour is MetalUI's control accent, not the old status grey: accepted, user decision 4).
-  While it turns, panning the canvas stays smooth; note the frame rate (a spinner redraws the whole window each
-  frame, PERF-b). Pinned: `StatusBadgeRenderTests` (the still frame), `statusBadges`. **Observed:**
+- [ ] **C10-3 Evaluating spinner.** Make a node slow (a Boolean or a large-radius fillet on a dense part) and edit it:
+  its badge shows a small spinner of twelve spokes turning steadily (MetalUI sets its period), then the time in ms. The
+  spinner fits the header and reads on every header colour (value, profile, solid, selection rule, feature, output) in
+  Dracula and in Alucard. Select the busy node: the inspector header's badge shows the same spinner, readable on its
+  background (its colour is MetalUI's control accent, not the old status grey: accepted, user decision 4). While it
+  turns, panning the canvas stays smooth; note the frame rate (a spinner redraws the whole window each frame, PERF-b).
+  Pinned: `StatusBadgeRenderTests` (the still frame), `statusBadges`. **Observed:**
 - [ ] **C10-4 Slider undo.** Select a node with a slider (Extrude's Distance): drag the slider, then ⌘Z once: the whole drag
   is undone and the value returns to what it was before the press. Drag it again twice with nothing in between: two ⌘Z. Use a
   document parameter's slider the same way. Click the slider's track without moving: one undo step (or none if the value
@@ -421,11 +421,11 @@ Run `swift run MetalCreatorApp` (EP-1–EP-9, EP-11) and `swift run GraphPanelPr
   opens): known, it stays open (gap EP-b); Escape closes it. Pinned: `aPressOutsideClosesItAndOneInsideDoesNot`,
   `theWindowsPressesReachThePaletteUnclaimed`. **Observed:**
 - [ ] **EP-4 The library's place.** A new window shows the library, captioned "Nodes" above its "Search nodes" field:
-  docked at the bottom, a column at the canvas's left edge; docked left, a strip across the canvas's top. It lists Value, Profile, Solid, Selection,
-  Feature and Output, each under a header in that category's node-header colour, and scrolls when it doesn't fit.
-  Press Library in the header: it goes and the canvas takes its room; press it again: it's back. Hide it, save, and
-  reopen the file: it's still hidden, and the top bar never showed "— Edited" for it. Pinned: `LibraryViewTests`,
-  `itIsShownByDefaultAndItsVisibilityIsSavedButNotAnEdit`. **Observed:**
+  docked at the bottom, a column at the canvas's left edge; docked left, a strip across the canvas's top. It lists
+  Value, Profile, Solid, Selection, Feature and Output, each under a header in that category's node-header colour, and
+  scrolls when it doesn't fit. Press Library in the header: it goes and the canvas takes its room; press it again: it's
+  back. Hide it, save, and reopen the file: it's still hidden, and the top bar never showed "— Edited" for it. Pinned:
+  `LibraryViewTests`, `itIsShownByDefaultAndItsVisibilityIsSavedButNotAnEdit`. **Observed:**
 - [ ] **EP-5 Click to add.** Pan and zoom the canvas, then click Extrude in the library: an Extrude appears in the
   middle of the visible canvas, selected. Click it a few more times: each lands near the middle, wholly in view, none
   overlapping, and once there's no free room in view the next lands in the middle anyway. ⌘Z removes them one by one.
@@ -441,17 +441,17 @@ Run `swift run MetalCreatorApp` (EP-1–EP-9, EP-11) and `swift run GraphPanelPr
   another app reacts). Pinned: `LibraryDragTests`, `aRowsGestureIsAZeroDistanceDragInWindowPoints`,
   `theDragGhostIsDrawnAtThePointerOnlyWhileDragging`, `aDraggedLibraryTypeIsPaintedOverTheWindow`; the gesture in a
   scrolling list is this check only. **Observed:**
-- [ ] **EP-7 Hover help.** Rest the pointer on Extrude in the library: after about a second a tooltip reads
-  "Extrude: profile, distance, mode, reversed → solid". Search "fil": only Selection ▸ Edge Filter and Feature ▸ Fillet
-  stay (the palette's matches for "fil"); clear the field: everything is back. Pinned: `hoverHelpNamesInputsThenOutputs`,
+- [ ] **EP-7 Hover help.** Rest the pointer on Extrude in the library: after about a second a tooltip reads "Extrude:
+  profile, distance, mode, reversed → solid". Search "fil": only Selection ▸ Edge Filter and Feature ▸ Fillet stay (the
+  palette's matches for "fil"); clear the field: everything is back. Pinned: `hoverHelpNamesInputsThenOutputs`,
   `theSearchIsThePalettes`. **Observed:**
 - [ ] **EP-8 Themes.** View ▸ Theme ▸ Alucard: the library's background, headers and text, and the palette's glass,
   rows and caption, all take Alucard's colours at once; no glow or shadow anywhere. Pinned:
   `theLibraryRedrawsInTheChosenTheme`, `aSectionHeaderIsItsCategorysHeaderColour`, `theLibraryRasterizesNothing`.
   **Observed:**
-- [ ] **EP-9 Still quick.** With the library shown, drag a node around the §7.2 bracket's graph, drag a library
-  type across the window, and scroll the library: it feels as it did before the library (PERF-b still rebuilds the whole window; the library's `List`
-  builds only the rows in view). **Observed:**
+- [ ] **EP-9 Still quick.** With the library shown, drag a node around the §7.2 bracket's graph, drag a library type
+  across the window, and scroll the library: it feels as it did before the library (PERF-b still rebuilds the whole
+  window; the library's `List` builds only the rows in view). **Observed:**
 - [ ] **EP-10 The preview.** In `GraphPanelPreview` (its window keeps one size), EP-1's placement holds in both
   docks, and the library works as in EP-4–EP-7 with the preview's nine node types. **Observed:**
 - [ ] **EP-11 Nodes go under the library.** Dock the graph left with the library shown and type "out" in its
@@ -464,6 +464,10 @@ Run `swift run MetalCreatorApp` (EP-1–EP-9, EP-11) and `swift run GraphPanelPr
   in MetalUI 9ad2254). Pinned: `aNodeUnderTheLibraryStripIsHiddenByIt`,
   `aNodeUnderTheLibraryColumnIsHiddenByIt`, `aNodeAboveTheCanvasNeverCoversTheHeader`,
   `aNodeAtANegativeCanvasPositionDrawsWhole`. **Observed:**
+- [ ] **EP-12 The header at the minimum width.** Drag the dock's edge to its narrowest (240 points) with the library
+  shown: the 28 pt header's title, Library button and the dock and hide buttons do not overlap or get cut off, and each
+  can still be pressed. **Record what gives way first** (the title, or a button). Pinned: `GraphPanelLayout`'s header
+  height only; the crowding itself is this check only. **Observed:**
 
 ## Group P — the packaged app (packaging)
 
@@ -497,13 +501,14 @@ Run `scripts/package-app.sh` first; it ends with `==> Wrote …/dist/MetalCreato
 
 Run `swift run MetalCreatorApp` for AS-1 to AS-5, and `scripts/package-app.sh` first for AS-6 and AS-7. The model's side
 of each check is pinned headless (`AppModelCloseTests`, `WindowChromeTests`, `AppModelOpenURLTests`,
-`TitleBarClearanceTests`, `TopBarClearanceRenderTests`, `SaveChangesAnswerTests`); what MetalUI's window, menu and Finder do with it is these checks only (gap M6-e).
+`TitleBarClearanceTests`, `TopBarClearanceRenderTests`, `SaveChangesAnswerTests`); what MetalUI's window, menu and
+Finder do with it is these checks only (gap M6-e).
 
-Product decisions behind these checks (the user approved the recommended default of each on 2026-10-09/10): (1) the hidden
-title bar (not merged; the window is standard) ships only if AS-5 shows the window drags, as its own commit; (2) a Finder open of the file already open does
-nothing; (3) a typed but uncommitted inspector value counts as a change when a Finder open arrives; (4) the top bar keeps
-the name and "— Edited"; (5) close and quit share one alert; (6) an open onto edited work asks "Discard unsaved changes?".
-Gap C8-a was reported to the MetalUI session on 2026-10-10.
+Product decisions behind these checks (the user approved the recommended default of each on 2026-10-09/10): (1) the
+hidden title bar (not merged; the window is standard) ships only if AS-5 shows the window drags, as its own commit; (2)
+a Finder open of the file already open does nothing; (3) a typed but uncommitted inspector value counts as a change when
+a Finder open arrives; (4) the top bar keeps the name and "— Edited"; (5) close and quit share one alert; (6) an open
+onto edited work asks "Discard unsaved changes?". Gap C8-a was reported to the MetalUI session on 2026-10-10.
 
 - [ ] **AS-1 Close with unsaved changes.** In an empty window add a node, then press the close button. A sheet asks "Do
   you want to save the changes to “Untitled”?" with Save, Don't Save and Cancel; Return is Save, Esc is Cancel. Cancel:
@@ -788,7 +793,8 @@ warnings read well where they appear.
   a Plane from Face on a face a union merged (S5c's New sketch on face, once it lands; before that, a document saved
   by a test, since the app can't pick a face yet), then unmerge it so the choice is a guess (a pick made before
   positions were recorded). (2) Edges by Tag's ambiguous-pick warning: a hole rim picked on a merged side, then a
-  change after which two parts each have a rim. Record which of the two you could reach. Pinned:
+  change after which two parts each have a rim. Record which of the two you could reach (the second needs both operands to have a rim after an edit; if you can't
+  get there, write that, the tests pin both). Pinned:
   `aPlanePickWithoutAPositionWarnsOnceTheFaceHasComeApart`, `aGuessBetweenOperandsIsReportedNotSilent`.
   **Observed:**
 
@@ -836,7 +842,9 @@ on a saved bracket, docked at the bottom; CM-9 docks left.
   on the note it was typed into. Pick an accent: the note re-tints at once, in each of the three themes. Select one
   frame: a title field and the swatches; Return commits "Front plate"; clearing it and pressing Return refuses with
   "A frame needs a title." and the old title returns. Select two comments: "2 comments selected". Pinned:
-  `CommentInspectorTests`. **Observed:**
+  `CommentInspectorTests`. The field losing focus commits the text, and no headless test reaches that (a focus loss
+  needs a real window, gap M6-e): only the model-level commit is pinned, so **record whether clicking away from the text
+  box, not only onto the canvas, commits it.** **Observed:**
 - [ ] **CM-8 Saving.** Save with notes and frames, close, reopen: they are where they were, with their text, titles and
   accents; ⌘Z has nothing to undo. Open a file saved before comments: it opens unchanged. Editing a note marks the
   document edited. Pinned: `CommentFileTests`. **Observed:**
@@ -871,11 +879,12 @@ plate and its extrude (select both, ⌘G) first.
   Group Input and Group Output stay. ⌘C and ⌘V inside: the nodes copy, the boundary nodes don't. The part in the
   viewport follows every edit. ⌘Z until the group itself is undone while inside: the panel falls back to the top
   level. Pinned: `EditorLevelTests`, `EditorGroupClipboardTests`, `EditorLevelReviewTests`. **Observed:**
-- [ ] **GR-4 The + sockets.** Inside, drag from a node's output onto Group Output's "+": a new output appears on
-  Group Output named after the socket, wired, and the group node outside has it too; one ⌘Z removes both. Drag from
-  Group Input's "+" onto an unwired input: a new input, wired, with the target's default; one ⌘Z removes it. Drag the
-  wire from the node's socket to the "+" instead of the other way: the same. Drag an output onto Group Input's "+":
-  the hint appears and nothing changes. Pinned: `ExposeSocketTests`. **Observed:**
+- [ ] **GR-4 The + sockets.** Inside, drag from a node's output onto Group Output's "+": a new output appears on Group
+  Output named after the socket, wired, and the group node outside has it too; one ⌘Z removes both. Drag from Group
+  Input's "+" onto an unwired input: a new input, wired, with the target's default, unit, range, access and optional
+  (Errata (C2)); one ⌘Z removes it. Drag the wire from the node's socket to the "+" instead of the other way: the same.
+  Drag an output onto Group Input's "+": the hint appears and nothing changes. Pinned: `ExposeSocketTests`.
+  **Observed:**
 - [ ] **GR-5 The inspector.** Select the group node: name, accent, "Used 1 time", Edit Group, Make Unique, Ungroup, and
   its inputs. Rename it (Return, or click away): its nodes and the library follow. Duplicate it (⌘D): "Used 2 times".
   Make Unique on the copy: it is named "<name> 2" and the original is "Used 1 time". Ungroup: its nodes come back
@@ -904,18 +913,33 @@ plate and its extrude (select both, ⌘G) first.
   top level the group node fails with "<name> › Extrude: …". Fix it: both clear. A node inside that nothing reads and
   that fails shows its badge and leaves the group node alone. Pinned: `InspectedLevelTests`, `EditorLevelTests`.
   **Observed:**
+- [ ] **GR-10 Refusal caption.** Make any edit that is refused (for example drag a wire from a number into an Extrude's
+  profile). The red message appears under the graph panel and the canvas ends above it: the bottom nodes are not covered
+  by it. Wait for it to go (about 2 seconds) and the canvas grows back. With the message showing, drag a node type from
+  the library and drop it on the message: nothing is added; drop it just above the message, on the canvas: the node is
+  added (and the message goes, because an edit went through). Make a refusal with a long message (a sketch with a long
+  error) and note whether it wraps over the bottom canvas row. Pinned: `PanelPlacementTests`, `LibraryDragTests`,
+  `RefusalShakeTests` (the 16 pt line height is a constant; this check is the only measurement of a real caption line).
+  **Observed:**
+- [ ] **GR-11 Breadcrumb tooltips.** Inside a group two levels deep, hover each crumb in the header and wait for its
+  tooltip. Only the crumb for the level just outside the one shown reads "Back to <name> (⌘↑)"; every other crumb reads
+  "Back to <name>" with no shortcut (the top "Graph" crumb included when it is two levels out). At the top level no
+  tooltip names ⌘↑. Press ⌘↑ and confirm it goes out one level, as the tooltip said. Pinned: `BreadcrumbRenderTests`.
+  **Observed:**
 
 ## Group S5c — the sketch editor's links to the model and the viewport (S5c)
 
 **Status: NOT RUN.** Run `swift run MetalCreatorApp`. Add a Rectangle wired into an Extrude (20 mm) into an Output, so
 there is a box, then a Sketch (select it, "Edit sketch").
 
-- [ ] **S5c-1 Project an edge.** In a sketch on the XY plane, press P ("Project ✓") and click one of the box's top edges: a
-  purple line appears on the plane (nothing highlights the edge under the pointer while you aim: only faces highlight, a
-  known gap, see Errata (S5c); a click takes the edge whose pixels it lands on). In the graph, the Sketch node now
-  has a wire into `references` from the box's Extrude. The tool stays on Project after the click (click a second edge without pressing P again). One ⌘Z removes the line, the wire and the stored pick together. The purple line is real geometry: draw a closed shape that uses it and the fill appears. Draw a line ending on the purple line: "Point on" appears and the point stays on it
-  when you drag. Change the Rectangle's width in the graph and the purple line follows. Pinned: `ProjectToolTests`,
-  `SketchProjectTests`. **Observed:**
+- [ ] **S5c-1 Project an edge.** In a sketch on the XY plane, press P ("Project ✓") and click one of the box's top
+  edges: a purple line appears on the plane (nothing highlights the edge under the pointer while you aim: only faces
+  highlight, a known gap, see Errata (S5c); a click takes the edge whose pixels it lands on). In the graph, the Sketch
+  node now has a wire into `references` from the box's Extrude. The tool stays on Project after the click (click a
+  second edge without pressing P again). One ⌘Z removes the line, the wire and the stored pick together. The purple line
+  is real geometry: draw a closed shape that uses it and the fill appears. Draw a line ending on the purple line: "Point
+  on" appears and the point stays on it when you drag. Change the Rectangle's width in the graph and the purple line
+  follows. Pinned: `ProjectToolTests`, `SketchProjectTests`. **Observed:**
 - [ ] **S5c-2 Project a face, and what can't be projected.** Press P and click the box's top face: all four of its edges
   project. Click a vertical edge: the inspector says "That edge can't be projected: it is perpendicular to the sketch
   plane, so it projects to a point." and nothing changes. Click a side face: only what projects appears, and the inspector
@@ -992,3 +1016,35 @@ saved bracket.
   surprises you.** Pinned: `anInputEditIsTitledByTheInputsLabel`. **Observed:**
 - [ ] **NU-8 Files.** Save, close and reopen: the Edit menu reads plain "Undo" and "Redo" (names are not saved). New does the
   same. Pinned: `aNewDocumentStartsWithPlainTitles`. **Observed:**
+
+## Group FA — final-review follow-ups (app, viewport, docs)
+
+**Status: NOT RUN.** Plan `2026-10-10-followups-app.md`. Run `swift run MetalCreatorApp`. The tests pin the models and the
+renderer's buffers; these check what a real window shows.
+
+- [ ] **FA-1 A moved plane.** On a box (Rectangle, Extrude, Output), right-click its top face and choose New Sketch on
+  Face; the sketch opens on the face's plane. While it is open, change the Extrude's distance in the graph: the plane
+  moves with the face, the camera looks at it again (animated) and the sketch stays open, drawn on it. Then delete the
+  wire into the Sketch node's `plane`: one alert, "The plane lost its result", saying that nothing is wired into
+  "plane" now, and the sketch stays open on the last plane; further edits raise no second alert. Pinned:
+  `SketchPlaneFollowTests`. **Observed:**
+- [ ] **FA-2 Handle labels after Open.** Save a document with the camera moved, quit, reopen it, and select an Extrude
+  at once, before touching the viewport: its "10 mm" label stands beside the knob. Resize the window while it is
+  selected: the label follows the knob. Pinned: `handleLabelsAreRebuiltWhenTheDrawRecordsTheFirstSize`. **Observed:**
+- [ ] **FA-3 Scroll or pinch during a camera move.** Zoom with the wheel or a pinch and press F (or click a view cube
+  face) in the middle of it: the next scroll or pinch step continues from what is on screen, with no jump when the
+  animation would have finished. Pinned: `aScrollEventStopsAnAnimationStartedMidScroll`,
+  `aPinchEventStopsAnAnimationStartedMidPinch`. **Observed:**
+- [ ] **FA-4 A sketch orbit stays smooth.** In a sketch, orbit is locked to the plane, so pan and zoom the sketch with a
+  dashed construction line and the grid on: the grid, the dashes and the points draw exactly as before, and a pan or zoom
+  is no slower. Leave the sketch: the faint region fill goes. Pinned: `RendererCacheTests`. **Observed:**
+- [ ] **FA-5 A colour drag.** Duplicate a theme, open Edit Themes… and drag a colour picker's selection around
+  continuously: the window recolours smoothly with no stutter. Stop dragging, wait a second, quit and reopen: the last
+  colour is kept. Drag again and quit at once (⌘Q): the colour is still kept. Pinned: `ThemeColorDragTests`,
+  `ThemeColorPreviewTests`. **Observed:**
+- [ ] **FA-6 A file arrives while an alert is up.** With the Save / Don't Save question up (edit, then ⌘W), or after a
+  failed Open, double-click a `.mcgraph` in Finder: the alert on screen stays as it is and nothing opens behind it. Press
+  OK, double-click again: it opens. Pinned: `AppModelOpenURLTests`. **Observed:**
+- [ ] **FA-7 The command line.** In the packaged app (`scripts/package-app.sh`), running
+  `MetalCreator.app/Contents/MacOS/MetalCreator --help` prints the usage and exits 0; `--info-plist ٢٦` is a usage error
+  (exit 64). Pinned: `LaunchCommandTests`. **Observed:**

@@ -7,8 +7,8 @@ which button or gesture, which coordinates, what we do in the meantime.
 
 Every gap in this file, the MetalUI item that owns it and where it stands, checked against MetalUI master `2155f1e`
 and its branches.
-"Fixed, not adopted" means MetalUI has the API and MetalCreator still runs its stopgap; adopting it is MetalCreator's
-work (the owner named). The sections below keep each gap's full use case.
+A gap marked fixed and adopted no longer has a stopgap in MetalCreator; its entry below keeps the use case and the
+stopgap as they were. The sections below keep each gap's full use case.
 
 | Gap | What | MetalUI item | Status |
 |---|---|---|---|
@@ -185,18 +185,20 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
   longer tracks `.modifiersChanged`, and `dragValueModifiers(_:)` and `spatialTapGesture()` are gone. A click's
   location is still that drag's, not a `SpatialTapGesture`'s, because a tap's value has no modifiers (GI-a).
   **M5-e. Modifiers on a press** (adds to gap 5, which M4's entry made concrete). Shift-click and ⇧/⌥-drag on the
-  canvas need the modifiers at the press, in the gesture's value. Stopgap: `GraphPanelInput.dragValueModifiers(_:)`
-  returns the set `GraphPanelInput.handle(_:)` tracks from `.modifiersChanged`; C7's `DragGesture.Value.modifiers`
-  replaces its body. A click's location is `GraphPanelInput.spatialTapGesture()`, a zero-distance drag (gap 4).
+  canvas need the modifiers at the press, in the gesture's value. Former stopgap (removed by C7):
+  `GraphPanelInput.dragValueModifiers(_:)` returned the set `GraphPanelInput.handle(_:)` tracked from `.modifiersChanged`
+  until C7's `DragGesture.Value.modifiers` replaced its body. A click's location was
+  `GraphPanelInput.spatialTapGesture()`, a zero-distance drag (gap 4).
 - ✅ **Closed by C7 (graph panel, 2026-10-09):** `.onScrollWheel` pans the canvas by the scroll's delta (momentum
   honoured) and ⌘-scroll zooms about `ScrollEvent.location` (`EditorModel.scrolled(by:at:modifiers:phase:)`; a
   trackpad scroll zooms or pans as it began, and a zoom's glide is ignored); `MagnifyGesture` zooms about
   `startLocation` (`EditorModel.pinchChanged`). The +/− keys and the header's zoom buttons stay; the keys' hover veto
   in `AppInput` stays until keys are scoped (M4-a, M5-b).
   **M5-f. Canvas scroll and pinch** (adds to items 1 and 2). Two-finger scroll should pan the graph canvas and
-  ⌘-scroll or pinch should zoom about the pointer (the `location` in the canvas's local points). Stopgap: drag on empty
-  canvas pans; +/− keys and the header buttons zoom about the pointer (`EditorModel.zoom(in:)`). With M4's viewport
-  in the same window, M4's window-wide keymap takes `=`/`+`/`-` before `onInput` (gap M4-a), so M6 needs a key context.
+  ⌘-scroll or pinch should zoom about the pointer (the `location` in the canvas's local points). Former stopgap (C7
+  replaced the pan; the +/− keys and the header buttons stay): a drag on empty canvas panned, and the keys and buttons
+  zoomed about the pointer (`EditorModel.zoom(in:)`). With M4's viewport in the same window, M4's window-wide keymap
+  takes `=`/`+`/`-` before `onInput` (gap M4-a), so M6 needed a key context.
 - **M5-g. A press elsewhere never clears text focus** (focus-by-click is deliberately not MetalUI policy,
   `Window.focus(_:)` docs). After editing an inspector field, the field keeps Delete, ⌘C/⌘V/⌘Z and Space while the
   user clicks nodes, so the graph's keys stop working with no visible cause. Stopgap: the canvas gesture calls
@@ -279,8 +281,8 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
 - ✅ **Closed by C7 (2026-10-09):** `PanelResizeHandle` shows `.columnResize` on the left dock's edge and
   `.rowResize` on the bottom dock's (`PanelResizeHandle.pointerStyle(alongWidth:)`).
   **Cursor for the dock's resize edge** (adds to C7 item 5). The graph panel's inner edge is a drag handle and should
-  show a column or row resize cursor. C7's `PointerStyle` has `.columnResize` and `.rowResize` (decision `CI-H`).
-  Adopt them when C7 merges.
+  show a column or row resize cursor. C7's `PointerStyle` has `.columnResize` and `.rowResize` (decision `CI-H`);
+  MetalCreator adopted them when C7 merged.
 
 ## Hit by the viewport's C7 adoption, 2026-10-09
 
@@ -392,9 +394,9 @@ and after a drag, and draws exactly one frame per drag event.
   the open verdicts are MetalUI's to fix").** Spec §7.3's targets meet this gap twice. Orbiting the bracket changes only the
   camera, yet the window's CPU frame with the graph panel shown is several times the frame with it hidden, close to
   the 60 fps budget: every orbit step rebuilds the panel's nodes. Zooming the 50-node graph out until every node is in
-  view costs about the budget, about 0.5 ms a node rebuilt, so canvas culling (which brought panning well inside the
-  budget) can't help there; MetalCreator's level of detail (no rows below half zoom) takes about a third off such a
-  frame, and what is left is MetalUI's rebuild of nodes that didn't change. Both verdicts are not judged yet (the
+  view costs about the budget, so canvas culling (which brought panning well inside the budget) can't help there;
+  MetalCreator's level of detail (no rows below half zoom) takes a share off such a frame (its figure is in
+  performance.md, from a probe at another load), and what is left is MetalUI's rebuild of nodes that didn't change. Both verdicts are not judged yet (the
   recorded run was not idle); a miss on an idle run waits for C14.
 
 ## Hit by editor polish (floating palette, node library), 2026-10-08

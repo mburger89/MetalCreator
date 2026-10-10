@@ -44,7 +44,7 @@ Read this before writing the M2 and M3 plans.
 - `restoreLinks` doesn't guard duplicates within one call or occupied inputs (only reachable via hand-built commands).
 - `CancelsTaskNode` test assumes nodes run in the caller's task — revisit with parallel evaluation.
 - ✅ Hard-coded `/opt/homebrew` OCCT prefix: the build still links Homebrew's OCCT through `Package.swift`'s prefix, but `scripts/package-app.sh` bundles the libraries and removes that rpath, so the packaged app doesn't depend on it (Errata (Packaging)).
-- M2 final review residuals (✅ M7 measured `oriented()`: a whole extrude, `oriented()` included, costs well under a millisecond; left as it is; `docs/verification/performance.md`): `oriented()` runs `BRepLib::OrientClosedSolid` on every extrude/revolve/loft even when the volume is already positive (only call it when negative — measure in M7); its boolean return is ignored; note that it works by reversing the solid, like the old code. The non-destructive-boolean test is a regression guard only — a stronger test would read max vertex/edge tolerance of a near-touching tool input (rises from 1e-7 in destructive mode).
+- M2 final review residuals (✅ M7 measured `oriented()`: small beside the extrude it belongs to, left as it is; the figure, from a run that was not idle, is in `docs/verification/performance.md`): `oriented()` runs `BRepLib::OrientClosedSolid` on every extrude/revolve/loft even when the volume is already positive (only call it when negative — measure in M7); its boolean return is ignored; note that it works by reversing the solid, like the old code. The non-destructive-boolean test is a regression guard only — a stronger test would read max vertex/edge tolerance of a near-touching tool input (rises from 1e-7 in destructive mode).
 - ✅ (M4) Before M4: build edge polylines from `BRep_Tool::PolygonOnTriangulation` so lines sit on the face mesh; meshes depend on earlier tessellations (BRepMesh reuses finer triangulation in shared TShapes).
 - ✅ (M3) M3 notes from the M2 review: Edges by Tag should match "picked tags ⊆ face tags" per side (unions merge tag sets); Edges by Direction uses `abs(dot)` and `kind == .line`; Edge Set Op dedupes; Loft rejects sections with different segment counts (Rectangle → Circle) — show a clear message or plan resampling; warn when a picked key contains `.unnamed`.
 
@@ -159,8 +159,8 @@ Read this before writing the M2 and M3 plans.
   "Viewport: a selected rule's edges over the Final part".
 - `AppModel.refreshScene()` re-shows only a changed scene or changed handles; the observation itself still wakes for
   every `viewState` change (it reads `editor.dock`). Narrow it if M7's 50-node pan measurement shows the wake-ups.
-  ✅ (M7) It doesn't: a pan step's model work, the scene refresh's wake-up included, is about a tenth of a
-  millisecond (`docs/verification/performance.md`, the `model` lines).
+  ✅ (M7) It doesn't: a pan step's model work, the scene refresh's wake-up included, is small beside the frame's cost
+  (`docs/verification/performance.md`, the `model` lines; figures from a run that was not idle).
 - The panel's size isn't saved with the file (add `ViewState` fields if wanted; optional keys, no format bump).
 - Handles show only for the selected nodes; nodes not upstream of an Output (and not previewed) have no result, so they
   show no handle and no rule summary count.
