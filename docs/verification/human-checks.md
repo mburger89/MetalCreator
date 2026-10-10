@@ -478,10 +478,9 @@ Run `scripts/package-app.sh` first; it ends with `==> Wrote …/dist/MetalCreato
   select MetalCreator ▸ ⓘ ▸ Open Files and Ports: no path starts with `/opt/homebrew`. Pinned headless:
   `scripts/verify-app.sh` (the self-test with Homebrew unreadable) and `SelfTestTests`. **Observed:**
 - [ ] **P2 The document type.** Save a graph as `test.mcgraph` and choose File ▸ Get Info on it in Finder: Kind reads
-  "MetalCreator Graph" and "Open with" names MetalCreator. Double-click it: MetalCreator comes to the front but doesn't
-  open the file (known: gap M6-d, queued in MetalUI as C8; use File ▸ Open…). Either an empty document or AppKit's
-  "cannot open files in the “MetalCreator Graph” format" alert is expected: record which one you saw. Pinned:
-  `AppBundleInfoTests.itOwnsAndExportsTheMcgraphType`. **Observed:**
+  "MetalCreator Graph" and "Open with" names MetalCreator. Double-click it: MetalCreator opens and shows that graph
+  (MetalUI C8 delivers the file; checks AS-6 and AS-7 cover the double-click and the Dock drop in depth). Pinned:
+  `AppBundleInfoTests.itOwnsAndExportsTheMcgraphType`, `itNeedsNoDocumentClassAndDeclaresNoURLScheme`. **Observed:**
 - [ ] **P3 Another Mac (optional).** On a second Apple-silicon Mac with macOS 27 and no Homebrew, unzip a copy made
   with `ditto -c -k --keepParent dist/MetalCreator.app MetalCreator.zip`. Gatekeeper refuses the ad-hoc app at first;
   Control-click ▸ Open (or System Settings ▸ Privacy & Security ▸ Open Anyway) opens it, and P1's export works.
@@ -491,6 +490,58 @@ Run `scripts/package-app.sh` first; it ends with `==> Wrote …/dist/MetalCreato
   dist/MetalCreator.app` shows your TeamIdentifier and `flags=0x10000(runtime)`, and the verify step says dyld printed
   no load list. Then notarize by hand (`docs/packaging.md`): `spctl --assess --type execute --verbose
   dist/MetalCreator.app` reads "accepted, source=Notarized Developer ID". **Observed:**
+
+## Group AS — the app shell on MetalUI C8
+
+**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`, its AS1–AS10).
+
+Run `swift run MetalCreatorApp` for AS-1 to AS-5, and `scripts/package-app.sh` first for AS-6 and AS-7. The model's side
+of each check is pinned headless (`AppModelCloseTests`, `WindowChromeTests`, `AppModelOpenURLTests`,
+`TitleBarClearanceTests`, `TopBarClearanceRenderTests`, `SaveChangesAnswerTests`); what MetalUI's window, menu and Finder do with it is these checks only (gap M6-e).
+
+Product decisions behind these checks (the user approved the recommended default of each on 2026-10-09/10): (1) the hidden
+title bar (not merged; the window is standard) ships only if AS-5 shows the window drags, as its own commit; (2) a Finder open of the file already open does
+nothing; (3) a typed but uncommitted inspector value counts as a change when a Finder open arrives; (4) the top bar keeps
+the name and "— Edited"; (5) close and quit share one alert; (6) an open onto edited work asks "Discard unsaved changes?".
+Gap C8-a was reported to the MetalUI session on 2026-10-10.
+
+- [ ] **AS-1 Close with unsaved changes.** In an empty window add a node, then press the close button. A sheet asks "Do
+  you want to save the changes to “Untitled”?" with Save, Don't Save and Cancel; Return is Save, Esc is Cancel. Cancel:
+  the window stays, the change is still there, and pressing ⌘W asks again. Save: the save panel opens (Untitled.mcgraph);
+  cancelling that panel keeps the window; choosing a folder saves and closes the window and the app ends. Reopen,
+  change a value, close, Don't Save: the app ends and the file on disk is unchanged. Make the file read-only on disk,
+  change a value, close, Save: an alert says the save failed and the window stays. Press the close button twice
+  quickly: one sheet. With nothing changed (or right after a save) the window closes at once. Type 75 into a number
+  field without pressing Return, then close: the sheet appears. **Observed:**
+- [ ] **AS-2 Quit with unsaved changes.** Change a value, then press ⌘Q (and, separately, Dock icon ▸ Quit and the
+  MetalCreator menu ▸ Quit): the same sheet. Cancel keeps the app; Don't Save quits; Save writes the file, then quits.
+  While the sheet is up, ⌘Q and ⌘W open no second sheet. With no changes ⌘Q quits at once. **Observed:**
+- [ ] **AS-3 Title and edited dot.** The Window menu and Mission Control name the window "Untitled", then the file's
+  name after a save or an open. The close button shows AppKit's edited dot after a change and loses it after a save or
+  an undo back to the saved state; New resets the name. The top bar still reads the name and "— Edited". **Observed:**
+- [ ] **AS-4 Proxy icon.** Spec §6.1's window shows the document's file in the title bar. The window has the standard
+  title bar: record whether the title and the proxy icon show, and whether ⌘-clicking the title shows the path menu.
+  (Under a hidden title bar AppKit is expected to draw neither; the represented file would still name the document in
+  the Window menu.) **Observed:**
+- [ ] **AS-5 The top bar under the window buttons.** The three window buttons sit over the glass top bar's left end, the
+  document name starts clear of them, and nothing overlaps at the minimum window width. **This needs the hidden title bar, which is not merged:
+  add `windowStyle: .hiddenTitleBar` to `openWindow` in `Sources/MetalCreatorApp/main.swift` to run it, and merge
+  that line only if the window drags (plan Task 4b).** Enter a sketch (Edit sketch on a
+  Sketch node): the toolbar starts clear of the buttons too. Enter full screen (⌃⌘F): the buttons leave and the content
+  moves back to the bar's left edge; leave full screen and it clears them again. **Drag the window by the top bar and
+  by the strip above the panels: record whether it moves (gap C8-a predicts it doesn't, because the viewport's gestures
+  cover the band).** Double-click the strip: record whether the window zooms. **Observed:**
+- [ ] **AS-6 Finder double-click (packaged app).** Copy `dist/MetalCreator.app` to `~/Applications`. Double-click a saved
+  `.mcgraph` in Finder: MetalCreator launches and shows that graph, with no "cannot open files" alert. With the app
+  running and unchanged, double-click another `.mcgraph`: it replaces the document. After a change, double-click
+  another: the "Discard unsaved changes?" question appears; Cancel keeps the document, Discard Changes opens the file.
+  Double-click the file that is already open, changed or not: nothing happens (it is not reloaded). Type a value into
+  an inspector field without pressing Return, then double-click another file: the question appears. (MetalUI has not
+  measured Finder either: its AS9.) **Observed:**
+- [ ] **AS-7 Dock drop, `open`, and the command line.** Drag a `.mcgraph` onto the Dock icon, running and not running:
+  it opens. Drag two files at once: the last one stays open. `open -a ~/Applications/MetalCreator.app file.mcgraph`
+  opens it. `swift run MetalCreatorApp file.mcgraph` and `swift run MetalCreatorApp relative/path/file.mcgraph` (from another
+  directory than the file's) open it once (not twice), and a path that doesn't exist shows an alert. **Observed:**
 
 ## Group S4 — the Sketch and Plane from Face nodes (S4)
 

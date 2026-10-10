@@ -76,5 +76,15 @@ If the submission is rejected, `xcrun notarytool log <submission id> --keychain-
 
 ## Not yet
 
-No app icon (Finder shows the generic one), no disk image, arm64 only, and a double-clicked `.mcgraph` opens the app
-without opening the file until MetalUI delivers open-document events (`docs/metalui-gaps.md` M6-d).
+No app icon (Finder shows the generic one), no disk image and arm64 only.
+
+## Documents
+
+The `.mcgraph` document type in `Info.plist` comes from `AppBundleInfo` (never edited by hand). A Finder double-click,
+a drop on the Dock icon and `open -a MetalCreator.app file.mcgraph` reach the app as MetalUI open-URL events
+(`App.onOpenURL`, set before `app.run()` in `Sources/MetalCreatorApp/main.swift`) and open the file through
+`AppModel.openRequested(_:)`: with unsaved changes the app asks first, and several dropped files leave the last one
+open. No `NSDocumentClass` is declared; MetalUI's probe (`docs/probes/appkit-open-without-document-class.swift`) found
+AppKit's "cannot open files in this format" alert only for an application delegate without `application(_:open:)`,
+which MetalUI's has. A Finder double-click and a Dock drop themselves are human checks AS-6 and AS-7 (MetalUI has not
+measured them either, its AS9).

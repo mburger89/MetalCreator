@@ -56,7 +56,7 @@ an empty environment (`env -i`, so no `DYLD_*` variable) under `sandbox-exec` wi
 3. **Three headless flags, parsed by `LaunchCommand` (tested):** `--version`, `--self-test` (exit 0 or 1) and
    `--info-plist <version>`; an unknown `--flag` prints the usage and exits 64. Anything else starting with `-` is the
    system's (`-psn_…`, `-NSSomeDefault value`) and opens an empty window, as before; any other first argument is still
-   the file to open (gap M6-d's stopgap).
+   the file to open, handed to the app as a Finder open is (MetalUI C8).
 4. **`--self-test` runs the code paths a missing library would break**, without a window: a 10 mm cube on OCCT
    (volume and mesh), STEP and STL export into a temporary folder (OCCT's data-exchange toolkits; they need none of
    OCCT's resource files — measured with Homebrew unreadable), and MetalUI's shader bundle found and compiled on the
@@ -75,8 +75,8 @@ an empty environment (`env -i`, so no `DYLD_*` variable) under `sandbox-exec` wi
    manual `notarytool` and `stapler` steps; they are unverified here.
 8. **`.mcgraph` is declared now**: a `CFBundleDocumentTypes` entry (role Editor, rank Owner) and an exported type
    declaration (`com.metalcreator.mcgraph`, conforming to `public.json`, extension `mcgraph`) — the identifier
-   `ContentType.mcgraph` already uses. Finder then names the kind and opens the app on a double-click, but the file
-   itself isn't opened until MetalUI delivers open-document events (gap M6-d, MetalUI C8).
+   `ContentType.mcgraph` already uses. Finder names the kind and a double-click or Dock drop opens the file in the
+   app through MetalUI's `App.onOpenURL` (gap M6-d, MetalUI C8; no `NSDocumentClass` is needed, MetalUI's probe).
 9. **No app icon yet.** `CFBundleIconFile` is omitted and Finder shows the generic app icon. An icon is a design task
    of its own; MetalUI's `docs/packaging.md` has the `.icns` recipe for when one exists.
 10. **The artefacts go to `dist/`** (`METALCREATOR_DIST_DIR` overrides it), which is git-ignored. Each run that

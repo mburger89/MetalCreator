@@ -2,6 +2,7 @@ import CreatorEditor
 import CreatorGeometry
 import CreatorGraph
 import CreatorViewport
+import MetalUI
 
 /// The window's layout numbers (spec §6.1). The views are framed to them, so the model can tell the viewport
 /// which part of it the floating panels cover without measuring anything (MetalUI has no geometry reader yet,
@@ -20,6 +21,17 @@ public enum AppLayout {
     public static let defaultPanelHeight = 300.0
     public static let panelWidths: ClosedRange<Double> = 240...900
     public static let panelHeights: ClosedRange<Double> = 160...700
+    /// The space between the window buttons' right edge and the top bar's first control.
+    public static let titleBarGap = 8.0
+
+    /// How far the top bar's content starts in from the glass's inner edge so that it clears the window buttons under
+    /// a hidden title bar (gap M6-c): `titleBarInsets.left` is the buttons' right edge in the window, the glass starts
+    /// at `margin` and pads its content by `GraphPanelLayout.glassPadding`. Zero in a standard window, whose
+    /// insets are zero.
+    public static func topBarClearance(titleBarInsets: Edges<Pixels>) -> Double {
+        max(0, Double(titleBarInsets.left.value) + titleBarGap - margin - GraphPanelLayout.glassPadding)
+    }
+
     /// Where "Show Producing Node" puts the node's top-left corner on the canvas, in canvas-local points.
     public static let revealPoint = Vector2(24, 24)
 

@@ -5,6 +5,7 @@ import MetalUI
 extension AppModel {
     /// New: an empty document. With unsaved changes it asks first (`alert`, then `discardChanges()`).
     public func newDocument() {
+        guard closeRequest == .idle else { return }
         guard !isEdited else {
             pendingDiscard = .newDocument
             alert = .discardChanges
@@ -15,6 +16,7 @@ extension AppModel {
 
     /// Open…: the open panel, then the chosen file. With unsaved changes it asks first.
     public func openDocument(using picker: any FilePicker) async {
+        guard closeRequest == .idle else { return }
         guard !isEdited else {
             pendingDiscard = .openDocument(picker)
             alert = .discardChanges
@@ -30,6 +32,7 @@ extension AppModel {
         switch action {
         case .newDocument: load(GraphFile(), from: nil)
         case .openDocument(let picker): await chooseAndOpen(using: picker)
+        case .openURL(let url): openReportingFailure(url)
         }
     }
 

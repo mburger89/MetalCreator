@@ -22,14 +22,20 @@ func runApp(opening path: String?) throws {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     input.install(on: window)
+    // Close and quit (gap M6-b): ⌘Q asks each window's `onCloseRequest` in turn when the app sets no
+    // `onTerminateRequest`, and this app has one window, so one handler and one reply route serve both.
+    window.onCloseRequest = { model.closeRequested() }
+    model.replyToCloseRequest = { window.replyToCloseRequest($0) }
+    // Title, edited dot and proxy icon (gap M6-a) follow the document. The task lives as long as the app.
+    let chrome = WindowChromeSync(model: model, chrome: window)
+    Task { await chrome.follow() }
     model.filePicker = WindowFilePicker(window: window)
     themeEditor.filePicker = model.filePicker
+    // Opening documents (gap M6-d): Finder, the Dock and `open -a` reach `App.onOpenURL` while the app runs, so it is
+    // set before `app.run()`. AppKit delivers no command-line path, so the path argument is handed over the same way.
+    app.onOpenURL = { model.openRequested($0) }
     if let path {
-        do {
-            try model.open(URL(fileURLWithPath: path))
-        } catch {
-            model.alert = .problem(error)
-        }
+        app.open([URL(fileURLWithPath: path)])
     }
     app.run()
 }

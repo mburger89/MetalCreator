@@ -34,6 +34,8 @@ public final class AppModel {
     /// A Sketch node being edited in the viewport (sketcher spec §8), or `nil`.
     public internal(set) var sketch: SketchSession?
     public var alert: AppAlert?
+    /// The close or quit question in progress (`AppModel+Closing`).
+    public internal(set) var closeRequest = CloseRequestState.idle
     /// The docked graph panel's width (docked left) and height (docked at the bottom), in points.
     public internal(set) var panelWidth = AppLayout.defaultPanelWidth
     public internal(set) var panelHeight = AppLayout.defaultPanelHeight
@@ -43,6 +45,8 @@ public final class AppModel {
     @ObservationIgnored public var filePicker: (any FilePicker)?
     /// Clears the window's text focus. `AppInput.install(on:)` sets it.
     @ObservationIgnored public var releaseTextFocus: (@MainActor () -> Void)?
+    /// Answers the window's pending close request (`Window.replyToCloseRequest`). The app sets it once the window is open.
+    @ObservationIgnored public var replyToCloseRequest: (@MainActor (Bool) -> Void)?
     @ObservationIgnored var pendingDiscard: DiscardAction?
     @ObservationIgnored var handleTargets: [String: HandleTarget] = [:]
     /// The output socket behind each shown solid, by identity.

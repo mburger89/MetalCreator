@@ -429,9 +429,11 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
   once, as theme roles in `CreatorStyle`". The theme is the app's and is never saved in a `.mcgraph` file; until the
   Themes milestone it isn't remembered between launches either. Custom themes and `.mctheme` files: roadmap row
   "Themes".
-- §6.1's window title, close prompt and full-size glass top bar wait for MetalUI (docs/metalui-gaps.md M6-a, M6-b,
-  M6-c): the document's name and "— Edited" are shown in the top bar, New and Open ask before discarding changes, but
-  closing or quitting doesn't ask.
+- §6.1's window title and close prompt are done on MetalUI C8 (docs/metalui-gaps.md M6-a, M6-b; plan
+  `2026-10-09-adopt-c8`); the full-size glass top bar (M6-c) is not: the title bar stays standard until human check AS-5
+  shows a hidden one still drags (gap C8-a). The title bar names the document and shows the edited dot, closing the window or
+  quitting with unsaved changes asks Save / Don't Save / Cancel, and the top bar's content is already
+  padded to clear the window buttons for when the title bar is hidden. The top bar shows the name and "— Edited". New and Open… ask "Discard unsaved changes?".
 - §6.1's "Selected node" preview shows exactly one selected node's outputs; with none or several selected the viewport
   is empty. An edge set previews as its solid with the set's edges selected.
 - §6.5's handles are shown for the selected nodes, for unwired number inputs only.
@@ -491,7 +493,7 @@ User-approved design, 2026-10-08 (plan `2026-10-08-editor-polish.md`).
 - §3.1's platform floor holds for the build (`.macOS(.v26)`), but the packaged app's `LSMinimumSystemVersion` is the
   newest minimum among its bundled binaries: 27.0, because Homebrew's bottles are built for macOS 27.
 - §4.5's `.mcgraph` is registered by the packaged app (`com.metalcreator.mcgraph`, conforming to `public.json`).
-  Opening a double-clicked file waits for MetalUI's open-document events (gap M6-d).
+  A double-clicked or dropped file opens through MetalUI's `App.onOpenURL` (gap M6-d, `AppModel.openRequested(_:)`).
 
 ## Errata (naming: merged faces)
 

@@ -9,10 +9,14 @@ import MetalUI
 struct TopBar: Component {
     let model: AppModel
     @Environment(ThemeStore.self) var themes: ThemeStore?
+    /// How far the content starts in so that it clears the window buttons under a hidden title bar (gap M6-c): the
+    /// window root passes `AppLayout.topBarClearance` of the window's `titleBarInsets`; zero in a standard window.
+    var clearance = Pixels(0)
 
     var content: some ElementGroup {
+        let clearButtons = Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0), left: clearance)
         if let sketch = model.sketch {
-            SketchChrome { SketchToolbar(model: sketch.editor) }
+            SketchChrome { ZStack(alignment: .topLeading) { SketchToolbar(model: sketch.editor) }.padding(clearButtons) }
         } else {
             GlassPanel {
                 HStack(spacing: Pixels(10)) {
@@ -35,6 +39,7 @@ struct TopBar: Component {
                         Button("STL…") { model.withFilePicker { await model.exportDocument(.stl, using: $0) } }
                     }
                 }
+                .padding(clearButtons)
             }
         }
     }

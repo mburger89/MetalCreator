@@ -2,7 +2,8 @@
 /// Everything but ``run(path:)`` prints and exits without opening a window, so the packaging script and a terminal
 /// can use the packaged binary headlessly.
 public enum LaunchCommand: Equatable, Sendable {
-    /// Open the window, and the `.mcgraph` file at `path` if one is named.
+    /// Open the window, and the `.mcgraph` file at `path` if one is named. The file is handed to the app as Finder
+    /// would (`App.open`, then `AppModel.openRequested(_:)`), so it gets the same unsaved-changes check.
     case run(path: String?)
     /// `--version`: print ``AppBundleInfo/versionLine``.
     case version
