@@ -12,16 +12,17 @@ extension KernelError {
     }
 
     /// OCCT built the blend but its checker rejects the solid. `largest` is the largest size that gives a valid one,
-    /// nil when not even 0.1 mm does.
+    /// nil when none was found: then the message adds "even by 0.1 mm" only if 0.1 mm was tried (`size` above it).
     static func invalidBlend(size: Double, largest: Double?, edgeCount: Int, chamfer: Bool) -> KernelError {
         let edges = edgeCount == 1 ? "the selected edge" : "the \(edgeCount) selected edges"
+        let noneFound = BlendGrid.triesSmallest(below: size) ? ", even by \(millimetres(BlendGrid.step)) mm" : ""
         if chamfer {
-            let limit = largest.map { " (max ≈ \(millimetres($0)) mm)" } ?? ", even by 0.1 mm"
+            let limit = largest.map { " (max ≈ \(millimetres($0)) mm)" } ?? noneFound
             return .operationFailed(operation: "chamfer",
                                     reason: "chamfering \(edges) by \(millimetres(size)) mm gives a broken solid\(limit).")
         }
         let reason = largest == nil
-            ? "rounding \(edges) gives a broken solid, even by 0.1 mm."
+            ? "rounding \(edges) gives a broken solid\(noneFound)."
             : "rounding \(edges) by \(millimetres(size)) mm gives a broken solid."
         return .filletFailed(radius: size, maxRadius: largest, reason: reason)
     }

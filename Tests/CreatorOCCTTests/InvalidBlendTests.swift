@@ -131,6 +131,27 @@ struct InvalidBlendTests {
                                        reason: "rounding the 4 selected edges gives a broken solid, even by 0.1 mm."))
     }
 
+    /// A size of 0.1 mm or less never tried 0.1 mm, so the messages can't say "even by 0.1 mm".
+    @Test func aSizeNoLargerThanTheSmallestOneDoesNotClaimToHaveTriedIt() {
+        #expect(KernelError.invalidBlend(size: 0.1, largest: nil, edgeCount: 1, chamfer: false).userMessage
+            == "Radius 0.1 mm could not be applied: rounding the selected edge gives a broken solid.")
+        #expect(KernelError.invalidBlend(size: 0.05, largest: nil, edgeCount: 4, chamfer: true).userMessage
+            == "Chamfer failed: chamfering the 4 selected edges by 0.05 mm gives a broken solid.")
+        #expect(KernelError.invalidBlend(size: 0.15, largest: nil, edgeCount: 4, chamfer: true).userMessage
+            == "Chamfer failed: chamfering the 4 selected edges by 0.15 mm gives a broken solid, even by 0.1 mm.")
+    }
+
+    /// Computed sizes land a hair off the grid: asked for `0.1 + 0.2`, the search names a size below it (0.2), not 0.3.
+    /// 0.3 would build; the maximum is conservative for an off-grid size (`BlendGrid`).
+    @Test func aSizeAHairOverTheGridNamesTheOneBelowIt() async throws {
+        let kernel = OCCTKernel()
+        let solid = try await box(kernel, 10, 20, 30)
+        let edge = try #require(solid.topology.edges.first { $0.kind == .line && isClose($0.length, 30) })
+        let source = try #require((solid.storage as? OCCTSolidStorage)?.shape)
+        let largest = try await kernel.largestValidBlend(of: source, edges: [edge.id], below: 0.1 + 0.2, chamfer: false)
+        #expect(largest == 0.2)
+    }
+
     @Test func theMessagesNameOneEdgeAndSayWhenNoSizeWorks() {
         #expect(KernelError.invalidBlend(size: 3, largest: nil, edgeCount: 1, chamfer: false).userMessage
             == "Radius 3 mm could not be applied: rounding the selected edge gives a broken solid, even by 0.1 mm.")

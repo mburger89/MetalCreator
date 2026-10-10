@@ -58,8 +58,8 @@ extension OCCTKernel {
     func largestValidBlend(of source: OCCTShape, edges: [EdgeID], below size: Double, chamfer: Bool,
                            check: (OCCTShape) -> OCCTValidity = { $0.validity }) throws -> Double? {
         var works = 0
-        // In tenths of a millimetre; capped so a huge size can't overflow `Int` (sizes above it are never tried).
-        var fails = Int(min((size * 10).rounded(.up), 1_000_000))
+        // In tenths of a millimetre (sizes above `BlendGrid.mostTenths` are never tried).
+        var fails = BlendGrid.firstFailingTenths(for: size)
         while fails - works > 1 {
             try Task.checkCancellation()
             let tenths = (works + fails) / 2
