@@ -15,12 +15,13 @@ extension AppModel {
     /// navigation) until the sketch ends; the model dims (ghosts) but stays in view; the editor takes the primary
     /// pointer and the top bar and inspector show its toolbar and lists. A pick in progress is cancelled, as it would
     /// be by any edit.
-    public func beginSketch(for id: NodeID) {
+    public func beginSketch(for id: NodeID, plane known: Plane? = nil) {
         editor.commitPendingEntry()
         editor.closePalette()
         guard let node = document.graph.nodes[id], node.typeID == SketchNode.typeID,
               case .sketch(let stored)? = node.inputValues[NodeSetting.sketch] else { return }
-        guard let plane = sketchPlane(of: node, stored) else {
+        // `known`: the plane of a sketch whose wired source hasn't evaluated yet (New Sketch on Face).
+        guard let plane = known ?? sketchPlane(of: node, stored) else {
             alert = .problem(AppProblem("The sketch can't be opened yet", Self.noWiredPlane))
             return
         }
@@ -111,12 +112,22 @@ extension AppModel {
         case .fixed(let plane):
             return plane
         case .wired:
-            guard let link = document.graph.incomingLink(to: Endpoint(node: node.id, socket: "plane")),
-                  let result = document.results[link.from.node], result.state.isSuccess,
-                  case .plane(let plane)? = result.outputs?[link.from.socket]?.items.first else {
-                return nil
+            guard let link = document.graph.incomingLink(to: Endpoint(node: node.id, socket: "plane")) else { return nil }
+            if let result = document.results[link.from.node], result.state.isSuccess,
+               case .plane(let plane)? = result.outputs?[link.from.socket]?.items.first {
+                return plane
             }
-            return plane
+            return unevaluatedFacePlane(of: link.from.node)
         }
+    }
+
+    /// The plane a Plane from Face makes, worked out from its picked face when the node itself hasn't evaluated: nothing
+    /// downstream of a new sketch draws it yet. It needs the node's solid to have a result; `nil` otherwise.
+    private func unevaluatedFacePlane(of id: NodeID) -> Plane? {
+        guard let node = document.graph.nodes[id], node.typeID == PlaneFromFaceNode.typeID,
+              case .facePick(let pick)? = node.inputValues[NodeSetting.face],
+              let source = document.graph.incomingLink(to: Endpoint(node: id, socket: "solid"))?.from,
+              let solid = solid(at: source), let face = solid.topology.faces(matching: pick).first else { return nil }
+        return PlaneFromFaceNode.plane(of: face)
     }
 }

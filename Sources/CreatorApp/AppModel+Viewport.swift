@@ -14,6 +14,7 @@ extension AppModel {
         viewport.events.clicked = { events()?.viewportClicked($0) }
         viewport.events.selectEdgesOfFace = { face, picks, edges in events()?.selectEdgesOfFace(face, picks, edges) }
         viewport.events.showProducingNode = { events()?.showProducingNode($0) }
+        viewport.events.newSketchOnFace = { face, pick in events()?.newSketchOnFace(face, pick) }
         viewport.events.handleChanged = { id, value, phase in events()?.handleChanged(id, value, phase) }
         viewport.events.nodeName = { id in events()?.producingNode(id)?.name }
         // The camera reaches the file only when it comes to rest, never per frame: writing `viewState` invalidates
