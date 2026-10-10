@@ -15,6 +15,10 @@ public enum GraphKeyCommand: Equatable, Sendable {
     /// An arrow key: nudges the selection by `delta` display canvas points (the way the arrow points on screen).
     /// `isRepeat` marks a held key's auto-repeat, which joins the undo step its first press began.
     case nudge(Vector2, isRepeat: Bool)
+    /// ⌘⇧N: adds a note (canvas comments spec 2026-10-09 §7).
+    case addNote
+    /// ⌘⇧C: frames the selection.
+    case addFrame
     case copy
     /// ⌘X: copies the selection, then deletes it.
     case cut

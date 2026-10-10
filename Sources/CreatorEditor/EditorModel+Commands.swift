@@ -11,7 +11,7 @@ extension EditorModel {
         case .deleteSelection:
             guard !canvasSelection.isEmpty else { return false }
             deleteSelection()
-        case .selectAll, .nudge, .frameSelection, .cut:
+        case .selectAll, .nudge, .frameSelection, .cut, .addNote, .addFrame:
             return performSelectionCommand(command)
         case .group, .ungroup:
             return performGroupKey(command)
@@ -37,6 +37,8 @@ extension EditorModel {
         case .cut:
             guard !canvasSelection.isEmpty else { return false }
             cutSelection()
+        case .addNote: addNoteAtPointer()
+        case .addFrame: return addFrameAroundSelection()
         default: return false // `perform(_:)` routes every other command elsewhere.
         }
         return true
