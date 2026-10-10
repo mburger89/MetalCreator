@@ -14,6 +14,9 @@ public struct GroupPanel: Equatable, Sendable {
         public var id: String { name.rawValue }
     }
 
+    /// The node the panel is for (the group node, Group Input or Group Output): an edit the panel makes that is
+    /// refused shakes this node, whatever is selected by the time a typed name is committed.
+    public var node: NodeID
     public var definition: GroupID
     public var name: String
     public var accent: AccentRole
