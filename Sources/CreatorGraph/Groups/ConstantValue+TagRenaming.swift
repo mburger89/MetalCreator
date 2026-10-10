@@ -15,7 +15,9 @@ extension ConstantValue {
                 return renamed
             })
         case .facePick(let pick):
-            return .facePick(FacePick(tags: Self.renaming(pick.tags, names)))
+            var renamed = pick
+            renamed.tags = Self.renaming(pick.tags, names)
+            return .facePick(renamed)
         default:
             return self
         }
