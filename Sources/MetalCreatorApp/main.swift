@@ -15,11 +15,8 @@ func runApp(opening path: String?) throws {
     let themeEditor = ThemeEditorModel(themes: model.themes)
     let input = AppInput(model: model)
     AppCommands.install(on: app, model: model, themeEditor: themeEditor)
-    // Spec §6.1: the glass top bar sits under the window buttons (gap M6-c). `AppRoot` reads `titleBarInsets` and the
-    // top bar clears them. Whether the window still drags by its top bar is gap C8-a.
     let window = try app.openWindow(title: "MetalCreator", size: Size(width: Pixels(1440), height: Pixels(900)),
-                                    minSize: Size(width: Pixels(1000), height: Pixels(640)),
-                                    windowStyle: .hiddenTitleBar) {
+                                    minSize: Size(width: Pixels(1000), height: Pixels(640))) {
         // A window's root must be an Element, and a Component is a group, so it's wrapped.
         ZStack { AppWindowRoot(model: model, input: input, themeEditor: themeEditor) }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
