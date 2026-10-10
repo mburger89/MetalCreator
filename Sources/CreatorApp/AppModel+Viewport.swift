@@ -15,7 +15,7 @@ extension AppModel {
         viewport.events.selectEdgesOfFace = { face, picks, edges in events()?.selectEdgesOfFace(face, picks, edges) }
         viewport.events.showProducingNode = { events()?.showProducingNode($0) }
         viewport.events.handleChanged = { id, value, phase in events()?.handleChanged(id, value, phase) }
-        viewport.events.nodeName = { events()?.document.graph.nodes[$0]?.name }
+        viewport.events.nodeName = { id in events()?.producingNode(id)?.name }
         // The camera reaches the file only when it comes to rest, never per frame: writing `viewState` invalidates
         // the editor, which reads its dock and canvas transform from it (M4 carry-over, spec §7.3).
         viewport.events.cameraSettled = { events()?.document.viewState.camera = $0 }
@@ -57,12 +57,18 @@ extension AppModel {
         return HandleBuilder.number(stored)
     }
 
-    /// "Show Producing Node": selects the node and scrolls the graph to it, showing a hidden panel first.
+    /// "Show Producing Node": selects the node and scrolls the graph to it, showing a hidden panel first. A face made
+    /// inside a group names a scoped ID, so its group node on the top level is shown.
     func showProducingNode(_ id: NodeID) {
-        guard let node = document.graph.nodes[id] else { return }
+        guard let node = producingNode(id) else { return }
         if !editor.isPanelVisible { editor.toggleHidden() }
-        editor.selection = [id]
+        editor.selection = [node.id]
         let zoom = editor.transform.zoom
         editor.transform = CanvasTransform(offset: AppLayout.revealPoint - editor.displayOrigin(of: node) * zoom, zoom: zoom)
+    }
+
+    /// The top-level node behind faces tagged with `id` (`GraphContent.topLevelNode(producing:)`).
+    func producingNode(_ id: NodeID) -> Node? {
+        document.content.topLevelNode(producing: id).flatMap { document.graph.nodes[$0] }
     }
 }
