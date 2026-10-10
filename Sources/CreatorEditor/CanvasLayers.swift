@@ -5,7 +5,8 @@ import MetalUI
 
 /// Everything drawn under the canvas transform, back to front: wires, nodes, ⌥-drag ghosts, the
 /// wire being dragged and the box selection. Positions are display canvas points; the parent
-/// applies zoom and pan as render effects.
+/// applies zoom and pan as render effects. Nodes and ghosts are keyed by their whole UUID: MetalUI's `ForEach` names
+/// an element by its id's description and drops a repeat (`DD-L`, gap M7-a), and a `NodeID` prints only 8 hex digits.
 struct CanvasLayers: Component {
     let model: EditorModel
     @Environment(ThemeStore.self) var themes: ThemeStore?
@@ -17,7 +18,7 @@ struct CanvasLayers: Component {
             ForEach(Self.wires(model, palette: palette), id: \.id) { wire in
                 WireView(geometry: wire.geometry, color: wire.color)
             }
-            ForEach(model.drawOrder, id: \.id) { node in
+            ForEach(model.drawOrder, id: \.id.rawValue) { node in
                 let shape = model.shape(of: node)
                 NodeView(shape: shape,
                          rows: NodeRowModel.rows(for: node, shape: shape, graph: model.graph, registry: model.registry),
@@ -26,7 +27,7 @@ struct CanvasLayers: Component {
                          state: model.document.results[node.id]?.state,
                          shake: model.isShaking && model.refusal?.node == node.id ? 6 : 0)
             }
-            ForEach(Self.ghosts(model), id: \.id) { node in
+            ForEach(Self.ghosts(model), id: \.id.rawValue) { node in
                 let shape = model.shape(of: node)
                 NodeView(shape: shape, rows: [], origin: flow.display(node.position), flow: flow,
                          isSelected: true, state: nil, shake: 0, isGhost: true)
