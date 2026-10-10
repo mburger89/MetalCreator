@@ -30,9 +30,10 @@ extension EditorModel {
         return add(CommentFrame(frame: flow.stored(CommentLayout.framing(bounds))))
     }
 
-    /// Whether `item` can run now.
+    /// Whether `item` can run now: never while a drag is under way (`choose(_:at:)` does nothing then).
     public func isEnabled(_ item: CanvasMenuItem) -> Bool {
-        switch item {
+        guard interaction == nil else { return false }
+        return switch item {
         case .addNote: true
         case .frameSelection: bounds(of: canvasSelection) != nil
         }

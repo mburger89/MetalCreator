@@ -35,6 +35,7 @@ struct CommentCreationTests {
         let press = editor.screenPoint(in: a.id)
         editor.pointerDragged(from: press, to: press + Vector2(20, 0))
         guard case .moving? = editor.interaction else { Issue.record("expected a move"); return }
+        #expect(!editor.isEnabled(.addNote) && !editor.isEnabled(.frameSelection), "greyed while the drag is under way")
         editor.choose(.addNote, at: Vector2(300, 300))
         editor.choose(.frameSelection, at: nil)
         #expect(editor.graph.stickies.isEmpty && editor.graph.frames.isEmpty)
