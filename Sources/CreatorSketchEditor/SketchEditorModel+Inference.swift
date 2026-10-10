@@ -18,6 +18,36 @@ extension SketchEditorModel {
         return LineInference.infer(from: start.position, to: end, tolerance: tolerance, suppressed: suppressed)
     }
 
+    /// The constraints a click landing on `target` (`anchor`) would infer (sketcher spec §8: "a glyph previews each
+    /// inferred constraint"): a new point shares an existing one (coincident) or is held on a curve (point on); a
+    /// line's free end snaps tangent, horizontal or vertical. Clicks that place no point (a circle's radius, a 3-point
+    /// arc's third point) infer nothing, and an arc's end only shares a point (its end is moved onto the radius
+    /// otherwise). ⌘ (`suppressed`) leaves only coincident.
+    func inferredConstraints(landing target: SketchAnchor, tolerance: Double, suppressed: Bool) -> [SketchConstraintKind] {
+        switch drawState {
+        case .idle:
+            return tool.placesPoints ? Self.inferred(by: target) : []
+        case .lineFrom(let start):
+            guard case .free(let at) = target else { return Self.inferred(by: target) }
+            return lineInference(from: start, to: at, tolerance: tolerance, suppressed: suppressed).0.map { [$0.kind] } ?? []
+        case .arcAround, .arcThroughFrom:
+            return Self.inferred(by: target)
+        case .arcFrom:
+            return target.point == nil ? [] : [.coincident]
+        case .circleAround, .arcThrough:
+            return []
+        }
+    }
+
+    /// Coincident on a point, point on for a curve, nothing in free space.
+    static func inferred(by anchor: SketchAnchor) -> [SketchConstraintKind] {
+        switch anchor {
+        case .existing: [.coincident]
+        case .onCurve: [.pointOn]
+        case .free: []
+        }
+    }
+
     /// The newest arc that starts or ends at `start`'s point, and its unit tangent there.
     private func tangent(at start: SketchAnchor) -> (arc: SketchEntityID, direction: Vector2)? {
         guard let point = start.point else { return nil }

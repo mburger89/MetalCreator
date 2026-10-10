@@ -18,6 +18,15 @@ enum LineInference: Hashable, Sendable {
         return (nil, end)
     }
 
+    /// The constraint button it matches, for its glyph.
+    var kind: SketchConstraintKind {
+        switch self {
+        case .horizontal: .horizontal
+        case .vertical: .vertical
+        case .tangent: .tangent
+        }
+    }
+
     func constraint(on line: SketchEntityID) -> SketchConstraint {
         switch self {
         case .horizontal: .horizontal(line)

@@ -98,7 +98,8 @@ extension SketchEditorModel {
         let suppressed = modifiers.contains(.command)
         // One anchor per move, shared by everything the move shows, so its curve scan runs once.
         let target = anchor(at: p, tolerance: tolerance, suppressed: suppressed)
-        let next = rubberBand(to: p, landing: target, tolerance: tolerance, suppressed: suppressed)
+        var next = rubberBand(to: p, landing: target, tolerance: tolerance, suppressed: suppressed)
+        next.inferred = inferredConstraints(landing: target, tolerance: tolerance, suppressed: suppressed)
         if preview != next { preview = next }
     }
 

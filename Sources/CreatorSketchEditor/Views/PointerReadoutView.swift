@@ -13,6 +13,7 @@ public struct PointerReadoutView: Component {
     public var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
             if let chip = model.readoutChip { ReadoutChipView(chip: chip) }
+            if let chip = model.inferenceChip { InferenceChipView(chip: chip) }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .allowsHitTesting(false)
