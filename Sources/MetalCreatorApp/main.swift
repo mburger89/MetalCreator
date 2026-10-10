@@ -60,15 +60,31 @@ func printError(_ text: String) {
     FileHandle.standardError.write(Data((text + "\n").utf8))
 }
 
+/// Prints why a launch step failed and exits 1, in place of the crash report an uncaught top-level error makes.
+func fail(_ action: String, _ error: any Error) -> Never {
+    printError("\(action): \(error.localizedDescription)")
+    exit(1)
+}
+
 switch LaunchCommand(arguments: Array(CommandLine.arguments.dropFirst())) {
 case .run(let path):
-    try runApp(opening: path)
+    do {
+        try runApp(opening: path)
+    } catch {
+        fail("MetalCreator couldn't start", error)
+    }
 case .version:
     print(AppBundleInfo.versionLine)
+case .help:
+    print(LaunchCommand.usage)
 case .selfTest:
     runSelfTest()
 case .infoPlist(let minimum):
-    FileHandle.standardOutput.write(try AppBundleInfo.infoPlistData(minimumSystemVersion: minimum))
+    do {
+        FileHandle.standardOutput.write(try AppBundleInfo.infoPlistData(minimumSystemVersion: minimum))
+    } catch {
+        fail("The Info.plist couldn't be written", error)
+    }
 case .usageError(let message):
     printError(message + "\n" + LaunchCommand.usage)
     exit(64)
