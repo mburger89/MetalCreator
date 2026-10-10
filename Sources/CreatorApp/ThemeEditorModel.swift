@@ -22,8 +22,15 @@ public final class ThemeEditorModel {
     /// The window's open and save panels. The app sets it once the window is open.
     @ObservationIgnored public var filePicker: (any FilePicker)?
 
-    public init(themes: ThemeStore) {
+    /// How long a colour drag must pause before the theme is saved.
+    public static let saveDelay = Duration.milliseconds(300)
+    /// Waits `saveDelay` (tests stand in for it).
+    @ObservationIgnored private let sleep: @MainActor (Duration) async -> Void
+    @ObservationIgnored private var saveTask: Task<Void, Never>?
+
+    public init(themes: ThemeStore, sleep: @escaping @MainActor (Duration) async -> Void = { try? await Task.sleep(for: $0) }) {
         self.themes = themes
+        self.sleep = sleep
     }
 
     /// The theme being edited: the one shown.
@@ -58,6 +65,7 @@ public final class ThemeEditorModel {
     /// Done (or Escape): commits a typed name, then closes.
     public func close() {
         commitName()
+        flush()
         isOpen = false
         pendingDeleteID = nil
     }
@@ -117,9 +125,31 @@ public final class ThemeEditorModel {
         perform { () throws(ThemeProblem) in try themes.setColor(color, for: role, in: theme.id) }
     }
 
-    /// The colour picker's binding for `role`: the shown theme's colour, and `setColor` for each write.
+    /// The colour picker's binding for `role`: the shown theme's colour, and `dragColor` for each write.
     public func colorBinding(for role: ThemeRole) -> Binding<Color> {
-        Binding(get: { [self] in theme.colors[role].color }, set: { [self] in setColor(HexColor($0), for: role) })
+        Binding(get: { [self] in theme.colors[role].color }, set: { [self] in dragColor(HexColor($0), for: role) })
+    }
+
+    /// One sample of a colour drag: shown at once, saved once the drag has paused for `saveDelay` (or sooner, by `flush()`),
+    /// so a drag writes the theme's file once and not for every sample.
+    public func dragColor(_ color: HexColor, for role: ThemeRole) {
+        guard perform({ () throws(ThemeProblem) in try themes.previewColor(color, for: role, in: theme.id) }) else { return }
+        saveTask?.cancel()
+        let sleep = sleep
+        saveTask = Task { [weak self] in
+            await sleep(Self.saveDelay)
+            guard !Task.isCancelled else { return }
+            self?.flush()
+        }
+    }
+
+    /// Saves colours not yet saved, now: a problem is shown as the message. Called when the editor closes and the window
+    /// is asked to close, so no colour is lost.
+    public func flush() {
+        saveTask?.cancel()
+        saveTask = nil
+        guard themes.hasUnsavedColors else { return }
+        perform { () throws(ThemeProblem) in try themes.saveColors() }
     }
 
     /// The Dark controls toggle.

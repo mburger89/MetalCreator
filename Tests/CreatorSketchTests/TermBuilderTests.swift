@@ -146,6 +146,56 @@ struct TermBuilderTests {
         #expect(output.suspended == [.constraint(constraint), .dimension(dimension)])
     }
 
+    /// A projected edge that was a line when the constraint was made and is an arc now (a fillet added upstream).
+    func sketchWithProjectedArc() -> (sketch: Sketch, arc: SketchEntityID) {
+        var sketch = Sketch()
+        let arc = sketch.add(SketchEntity(.projected(ProjectionSource(
+            reference: "e", curve: .arc(center: .zero, radius: 5, start: .degrees(0), end: .degrees(90))))))
+        return (sketch, arc)
+    }
+
+    @Test func aConstraintOrDimensionOnAProjectedEdgeOfTheWrongKindIsSuspended() throws {
+        var (sketch, arc) = sketchWithProjectedArc()
+        let line = sketch.addLine(Vector2(0, 10), Vector2(8, 11))
+        let horizontal = sketch.add(.horizontal(arc))
+        let equal = sketch.add(.equal(line, arc))
+        let length = sketch.addDimension(.length(arc), value: 4)
+        let output = try build(sketch)
+        #expect(output.suspended == [.constraint(horizontal), .constraint(equal), .dimension(length)])
+        #expect(output.terms.isEmpty)
+    }
+
+    @Test func aProjectedEdgeThatChangedKindDoesNotFailTheSketch() throws {
+        var (sketch, arc) = sketchWithProjectedArc()
+        let line = sketch.addLine(.zero, Vector2(10, 3))
+        sketch.add(.horizontal(line))
+        sketch.addDimension(.length(line), value: 10)
+        let onArc = sketch.add(.horizontal(arc))
+        let solution = SketchSolver.solve(sketch)
+        if case .failed(let reason) = solution.status {
+            Issue.record("the sketch failed: \(reason)")
+            return
+        }
+        #expect(solution.suspended == [.constraint(onArc)], "only the constraint on the arc is skipped")
+        let (start, end) = sketch.ends(line)
+        #expect(isClose(try #require(solution.points[start]).y, try #require(solution.points[end]).y), "the line still solves")
+    }
+
+    /// The projected line is not what is wrong here (a circle was never a line), so the sketch still fails with the
+    /// sentence, and the constraint is not suspended in its place.
+    @Test func aWrongKindOperandThatIsNotProjectedStillFailsTheSketch() {
+        var sketch = Sketch()
+        let projected = sketch.add(SketchEntity(.projected(ProjectionSource(
+            reference: "e", curve: .line(Vector2(0, 0), Vector2(10, 0))))))
+        let circle = sketch.addCircle(center: Vector2(0, 20), radius: 3)
+        let parallel = sketch.add(.parallel(projected, circle))
+        if case .failed(let reason) = SketchSolver.solve(sketch).status {
+            #expect(reason == "\(sketch.label(of: .constraint(parallel))) needs two lines.")
+        } else {
+            Issue.record("the sketch should fail")
+        }
+    }
+
     @Test func refusalsAreInPlainLanguage() {
         var sketch = Sketch()
         let line = sketch.addLine(.zero, Vector2(10, 0))

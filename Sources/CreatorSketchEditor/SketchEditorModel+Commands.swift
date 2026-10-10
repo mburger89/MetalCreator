@@ -21,19 +21,19 @@ extension SketchEditorModel {
         guard let curve = SketchPicker(sketch: sketch, solution: solution).curve(near: p, tolerance: tolerance) else { return }
         let current = sketch
         if tool == .trim {
-            apply { () throws(SketchCommandError) in try SketchCommands.trim(current, curve: curve, near: p) }
+            apply(SketchStepName.trim) { () throws(SketchCommandError) in try SketchCommands.trim(current, curve: curve, near: p) }
         } else {
-            apply { () throws(SketchCommandError) in try SketchCommands.extend(current, curve: curve, near: p) }
+            apply(SketchStepName.extend) { () throws(SketchCommandError) in try SketchCommands.extend(current, curve: curve, near: p) }
         }
     }
 
     /// Commits a command's edit as one step (the selection keeps what's left of it), or shows why it was refused.
-    func apply(_ command: () throws(SketchCommandError) -> SketchEdit) {
+    func apply(_ name: String, _ command: () throws(SketchCommandError) -> SketchEdit) {
         do {
             let edit = try command()
             selection = selection.filter { edit.sketch.entities[$0] != nil }
             hovered = nil
-            commit(edit.sketch, edit.description)
+            commit(edit.sketch, edit.description, named: name)
         } catch {
             refusal = error.message
         }

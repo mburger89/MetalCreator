@@ -37,6 +37,17 @@ struct SelectionKeyTests {
         #expect(editor.selection.isEmpty)
     }
 
+    /// With the panel hidden a leftover selection is out of sight, and Esc is not the editor's to claim or to clear it with.
+    @Test func escapeDoesNothingWhileThePanelIsHidden() {
+        let editor = makeEditor([a, b])
+        editor.selection = [a.id]
+        editor.setDock(.hidden)
+        #expect(!editor.perform(.cancel), "the key goes on")
+        #expect(editor.selection == [a.id])
+        editor.setDock(.bottom)
+        #expect(editor.perform(.cancel) && editor.selection.isEmpty)
+    }
+
     @Test func escapeClosesThePaletteBeforeClearingTheSelection() {
         let editor = makeEditor([a])
         editor.selection = [a.id]

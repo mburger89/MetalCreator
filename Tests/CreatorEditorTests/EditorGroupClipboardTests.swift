@@ -146,6 +146,31 @@ struct EditorGroupClipboardTests {
         #expect(editor.clipboard == earlier)
     }
 
+    /// Cut deletes first and copies only what the delete took, so a cut that deletes nothing leaves the clipboard alone.
+    @Test func cuttingOnlyTheBoundaryKeepsTheClipboardAndExplainsWhy() throws {
+        let grouped = try GroupedEditor()
+        let editor = grouped.editor
+        editor.enterGroup(grouped.group)
+        editor.selection = [grouped.rectangle.id]
+        editor.copySelection()
+        let earlier = editor.clipboard
+        editor.selection = Set(editor.graph.nodes.values.filter(GroupNodes.isBoundary).map(\.id))
+        editor.perform(.cut)
+        #expect(editor.clipboard == earlier)
+        #expect(editor.refusal?.message == "A group's Group Input and Group Output can't be deleted.")
+        #expect(editor.graph.nodes.count == 4)
+    }
+
+    @Test func cuttingTheBoundaryWithANodeTakesOnlyTheNode() throws {
+        let grouped = try GroupedEditor()
+        let editor = grouped.editor
+        editor.enterGroup(grouped.group)
+        editor.selectAll()
+        editor.perform(.cut)
+        #expect(editor.clipboard?.nodes.map(\.id).sorted() == [grouped.rectangle.id, grouped.extrude.id].sorted())
+        #expect(editor.graph.nodes.values.allSatisfy(GroupNodes.isBoundary) && editor.graph.nodes.count == 2)
+    }
+
     @Test func deletingOnlyTheBoundaryExplainsWhyNothingHappened() throws {
         let grouped = try GroupedEditor()
         let editor = grouped.editor

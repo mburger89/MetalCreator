@@ -5,7 +5,7 @@ extension EditorModel {
     /// ⌘G: groups the selected nodes of the level shown into a new definition and selects its group node, as one undo
     /// step (groups spec §5). A refused group changes nothing and shows its message.
     public func groupSelection() {
-        run(refusing: nil) { () throws(GraphError) in
+        run(UndoName.group, refusing: nil) { () throws(GraphError) in
             try GroupCommands.group(selection, in: graphPath, of: document.content, registry: registry)
         }
     }
@@ -21,24 +21,25 @@ extension EditorModel {
 
     /// Ungroups group node `id` of the level shown (its inspector's Ungroup, or ⇧⌘G).
     public func ungroup(_ id: NodeID) {
-        run(refusing: id) { () throws(GraphError) in
+        run(UndoName.ungroup, refusing: id) { () throws(GraphError) in
             try GroupCommands.ungroup(id, in: graphPath, of: document.content, registry: registry)
         }
     }
 
     /// Make Unique on group node `id` of the level shown: it gets its own copy of the definition, as one undo step.
     public func makeUnique(_ id: NodeID) {
-        run(refusing: id) { () throws(GraphError) in
+        run(UndoName.makeUnique, refusing: id) { () throws(GraphError) in
             try GroupCommands.makeUnique(id, in: graphPath, of: document.content, registry: registry)
         }
     }
 
-    /// Performs the group command `build` makes as one undo step and selects what it says, or shows why it was
+    /// Performs the group command `build` makes as one undo step named `name` and selects what it says, or shows why it was
     /// refused (shaking `node`).
-    private func run(refusing node: NodeID?, _ build: () throws(GraphError) -> GroupEdit) {
+    private func run(_ name: String, refusing node: NodeID?, _ build: () throws(GraphError) -> GroupEdit) {
         do {
             let edit = try build()
-            try document.perform(edit.command)
+            try document.perform(edit.command, name: name)
+            clearRefusal()
             selection = edit.selection
         } catch {
             refuse(error.message, node: node)

@@ -2,17 +2,26 @@ import Foundation
 
 /// Names for definitions and their sockets (groups spec §4, §5).
 public enum GroupNaming {
-    /// `base` if no definition has that name, else "base 2", "base 3", …
+    /// `base` if no definition has that name, else "base 2", "base 3", …; a `base` that already ends in a number counts on
+    /// from it, so a copy of "Rib 2" is "Rib 3", not "Rib 2 2".
     public static func uniqueDefinitionName(_ base: String, among definitions: [GroupID: GroupDefinition]) -> String {
         uniqueName(base, taken: Set(definitions.values.map(\.name)))
     }
 
-    /// `base` if it isn't in `taken`, else "base 2", "base 3", …
+    /// `base` if it isn't in `taken`, else "base 2", "base 3", … (see `uniqueDefinitionName`).
     static func uniqueName(_ base: String, taken: Set<String>) -> String {
         guard taken.contains(base) else { return base }
+        var stem = base
         var number = 2
-        while taken.contains("\(base) \(number)") { number += 1 }
-        return "\(base) \(number)"
+        if let space = base.lastIndex(of: " "), space > base.startIndex {
+            let digits = base[base.index(after: space)...]
+            if !digits.isEmpty, digits.allSatisfy({ $0.isASCII && $0.isNumber }), let own = Int(digits), own < Int.max {
+                stem = String(base[..<space])
+                number = max(own + 1, 2)
+            }
+        }
+        while taken.contains("\(stem) \(number)") { number += 1 }
+        return "\(stem) \(number)"
     }
 
     /// `base` if no socket in `existing` has it and it isn't a setting's name, else "base2", "base3", …

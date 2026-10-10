@@ -55,7 +55,10 @@ struct GroupBuilder {
                 sockets.inputs(for: node).first { $0.name == link.to.socket }
             }
             name = GroupNaming.uniqueSocketName(link.to.socket, among: definition.inputs.map(\.name))
-            definition.inputs.append(SocketSpec(name, type, unit: target?.unit ?? .none, range: target?.range))
+            // As `GroupCommands.exposeInput` does for the "+" drop, so unwiring the source later leaves the part as it was.
+            definition.inputs.append(SocketSpec(name, type, access: target?.access ?? .item, defaultValue: target?.defaultValue,
+                                                unit: target?.unit ?? .none, range: target?.range,
+                                                optional: target?.isOptional ?? false))
             inputs[link.from] = name
             outside.append(Link(from: link.from, to: Endpoint(node: groupNode.id, socket: name)))
         }

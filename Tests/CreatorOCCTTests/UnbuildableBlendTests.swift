@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import CreatorGeometry
 @testable import CreatorKernel
@@ -46,8 +47,8 @@ struct UnbuildableBlendTests {
         await #expect(throws: CancellationError.self) { try await blend.value }
     }
 
-    /// The search starts from the size asked for, capped, so a size far beyond the part (here a metre-scale 1e9 mm) ends in
-    /// the same maximum after the same few tries.
+    /// The search starts from the size asked for, capped, so a size far beyond the part (here 1e9 mm, a thousand
+    /// kilometres) ends in the same maximum as one just beyond it.
     @Test func aRadiusFarBeyondThePartNamesTheSameMaximum() async throws {
         let kernel = OCCTKernel()
         let solid = try await box(kernel, 10, 20, 30)
@@ -84,5 +85,15 @@ struct UnbuildableBlendTests {
             == "Chamfer failed: the selected edges can't be chamfered by 40 mm (max ≈ 9.9 mm).")
         #expect(KernelError.blendFailed(size: 2.5, chamfer: true, largest: nil).userMessage
             == "Chamfer failed: the selected edges can't be chamfered by 2.5 mm.")
+    }
+
+    /// A chamfer's sizes are written into its reason where it is built, so they take the locale given there; a fillet's
+    /// are written by `KernelError.message(locale:)` (`KernelErrorMessageTests`).
+    @Test func aChamferMessageWritesItsSizesInTheLocaleItIsGiven() {
+        let german = Locale(identifier: "de_DE")
+        #expect(KernelError.blendFailed(size: 2.5, chamfer: true, largest: 9.9, locale: german).userMessage
+            == "Chamfer failed: the selected edges can't be chamfered by 2,5 mm (max ≈ 9,9 mm).")
+        #expect(KernelError.invalidBlend(size: 2.5, largest: nil, edgeCount: 2, chamfer: true, locale: german).userMessage
+            == "Chamfer failed: chamfering the 2 selected edges by 2,5 mm gives a broken solid, even by 0,1 mm.")
     }
 }

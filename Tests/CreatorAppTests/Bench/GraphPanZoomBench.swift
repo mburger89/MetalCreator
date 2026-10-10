@@ -49,8 +49,8 @@ struct GraphPanZoomBench {
         print(gpu.line(budget: Bench.frameBudget))
     }
 
-    /// 130 frames at zoom 1, panning along the rows (docked left, they run across the canvas) from the first row to
-    /// the last, drifting down a little.
+    /// 130 frames at zoom 1, panning along the rows (docked left, they run across the canvas) 16 points a frame and
+    /// drifting down 2 points a frame: 2,080 and 260 points in all, which is not the whole graph.
     @Test func panningFiftyNodes() async throws {
         let transforms = (0..<130).map { step in
             CanvasTransform(offset: Vector2(-Double(step) * 16, -Double(step) * 2), zoom: 1)

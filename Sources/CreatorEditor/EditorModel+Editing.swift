@@ -12,7 +12,7 @@ extension EditorModel {
             return
         }
         do {
-            try edit(.connect(link))
+            try edit(.connect(link), name: UndoName.connect)
         } catch {
             refuse(error.message, node: link.to.node)
         }
@@ -22,6 +22,13 @@ extension EditorModel {
     /// frame leaves the nodes it held where they are. Group Input and Group Output stay (a group always has both); with
     /// only those selected, it says why nothing happened.
     public func deleteSelection() {
+        delete(named: UndoName.delete)
+    }
+
+    /// Deletes the selection as one undo step called `name` ("Delete", or "Cut" for ⌘X). Returns whether anything was
+    /// deleted.
+    @discardableResult
+    private func delete(named name: String) -> Bool {
         let present = canvasSelection.nodes.filter { graph.nodes[$0] != nil }
         let commands = present.filter { !isBoundary($0) }.sorted().map { GraphCommand.removeNode($0) }
             + canvasSelection.comments.sorted().compactMap { id -> GraphCommand? in
@@ -30,22 +37,25 @@ extension EditorModel {
             }
         guard !commands.isEmpty else {
             if !present.isEmpty { refuse("A group's Group Input and Group Output can't be deleted.", node: nil) }
-            return
+            return false
         }
         do {
-            try edit(.batch(commands))
+            try edit(.batch(commands), name: name)
             canvasSelection = CanvasSelection()
+            return true
         } catch {
             refuse(error.message, node: nil)
+            return false
         }
     }
 
-    /// ⌘X: copies the selection, then deletes it, the delete being one undo step.
+    /// ⌘X: copies the selection, then deletes it, the delete being one undo step. The clipboard is replaced only once the
+    /// delete has gone through.
     public func cutSelection() {
         guard !canvasSelection.isEmpty else { return }
         let copied = clipboard(of: canvasSelection)
-        if !copied.isEmpty { setClipboard(copied) }
-        deleteSelection()
+        guard delete(named: UndoName.cut), !copied.isEmpty else { return }
+        setClipboard(copied)
     }
 
     /// ⌘C: copies the selected items (the nodes, the wires between them, and the comments).
@@ -61,21 +71,28 @@ extension EditorModel {
     /// and selects the copies.
     public func paste() {
         guard let clipboard else { return }
-        if let copies = insert(clipboard, offset: nextPasteOffset()) { canvasSelection = copies }
+        if let copies = insert(clipboard, offset: nextPasteOffset(), named: UndoName.paste) { canvasSelection = copies }
     }
 
     /// ⌘D: duplicates the selection offset down and right, leaving the clipboard alone.
     public func duplicateSelection() {
         guard !canvasSelection.isEmpty else { return }
-        if let copies = insert(clipboard(of: canvasSelection), offset: Vector2(24, 24)) { canvasSelection = copies }
+        if let copies = insert(clipboard(of: canvasSelection), offset: Vector2(24, 24), named: UndoName.duplicate) {
+            canvasSelection = copies
+        }
     }
 
     /// Adds a node of `typeID` with its top-left corner at `screen` (canvas-local screen points: under the palette,
-    /// or where a library node was dropped) and selects it, as one undo step. Returns whether the graph took it.
+    /// or where a library node was dropped) and selects it, as one undo step. Returns whether the graph took it. A key
+    /// that names no registered type, or a group definition that is gone, adds nothing and says so.
     @discardableResult
     public func addNode(_ typeID: String, atScreen screen: Vector2) -> Bool {
         let position = flow.stored(transform.toCanvas(screen))
-        return add(libraryNode(for: typeID, at: position) ?? registry.makeNode(typeID, at: position))
+        guard let node = libraryNode(for: typeID, at: position) else {
+            refuse("That node isn't in the library any more.", node: nil)
+            return false
+        }
+        return add(node)
     }
 
     /// Adds `node` (made by `NodeRegistry.makeNode`) and selects it, as one undo step. Returns false, having shown
@@ -83,7 +100,7 @@ extension EditorModel {
     @discardableResult
     func add(_ node: Node) -> Bool {
         do {
-            try edit(.addNode(node))
+            try edit(.addNode(node), name: UndoName.addNode(node))
             selection = [node.id]
             return true
         } catch {
@@ -113,7 +130,7 @@ extension EditorModel {
     /// Adds fresh copies of `clipboard` moved by `offset` (stored coordinates) as one undo step, with the group
     /// definitions it carries that the document lacks or has with other content (`GroupMerge`; the copied group
     /// nodes follow them). Returns the copies, to select, or `nil` if the graph refused or there was nothing to add.
-    func insert(_ clipboard: NodeClipboard, offset: Vector2) -> CanvasSelection? {
+    func insert(_ clipboard: NodeClipboard, offset: Vector2, named name: String) -> CanvasSelection? {
         guard !clipboard.isEmpty else { return nil }
         let merge = GroupMerge.plan(importing: clipboard.definitions, into: document.content)
         var mapping: [NodeID: NodeID] = [:]
@@ -144,7 +161,9 @@ extension EditorModel {
         }
         do {
             // The definitions are added to the document, the nodes and comments to the level shown.
-            try document.perform(.batch(merge.additions.map { .addDefinition($0) } + [GraphCommand.batch(commands).at(graphPath)]))
+            try document.perform(.batch(merge.additions.map { .addDefinition($0) } + [GraphCommand.batch(commands).at(graphPath)]),
+                                 name: name)
+            clearRefusal()
             return CanvasSelection(nodes: Set(mapping.values), comments: comments)
         } catch {
             refuse(error.message, node: nil)

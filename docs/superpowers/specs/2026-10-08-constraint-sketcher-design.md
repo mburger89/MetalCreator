@@ -310,6 +310,11 @@ All tests use Swift Testing.
   `plane` warns that the wire has no effect.
 - §7's evaluate does not store the solve's warm start: it solves from the stored sketch every time, so results don't
   depend on evaluation history. S5's editor writes `Sketch.remember(_:)` into the setting after each edit.
+- §7's suspension also covers a constraint or dimension on a projected edge whose current curve is the wrong kind for it
+  (a line that an edit upstream turned into an arc, or the reverse): the solver skips it like one on a suspended edge, so
+  the rest of the sketch still solves instead of the whole sketch failing, and the Sketch node warns "<constraint> is
+  ignored: its projected edge is a different kind of curve now." The edge itself is not marked suspended, and the
+  constraint is kept (not deleted), so it applies again if the edge returns to its kind.
 
 ## Errata (S5a)
 

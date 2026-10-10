@@ -15,6 +15,11 @@ public struct ThemeFolder: Hashable, Sendable {
         ThemeFolder(URL.applicationSupportDirectory.appending(path: "MetalCreator/Themes", directoryHint: .isDirectory))
     }
 
+    /// Whether `id` can be a file's name in this folder: it holds no "/" and isn't "." or "..".
+    static func isUsable(_ id: ColorTheme.ID) -> Bool {
+        !id.isEmpty && !id.contains("/") && id != "." && id != ".."
+    }
+
     /// The `.mctheme` file of the theme with `id`.
     public func fileURL(for id: ColorTheme.ID) -> URL {
         url.appending(path: "\(id).mctheme", directoryHint: .notDirectory)
@@ -31,14 +36,20 @@ public struct ThemeFolder: Hashable, Sendable {
         } catch {
             return ([], ["The themes folder couldn’t be read: \(error.localizedDescription)"])
         }
+        let reservedLowercased = Set(reserved.map { $0.lowercased() })
         var themes: [ColorTheme] = []
         var problems: [String] = []
         let themeFiles = files.filter { $0.pathExtension == "mctheme" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
         for file in themeFiles {
             let id = file.deletingPathExtension().lastPathComponent
             let skipped = "“\(file.lastPathComponent)” was skipped:"
-            guard !reserved.contains(id) else {
+            // Case-insensitively: on the usual case-insensitive volume "Dracula.mctheme" is the built-in's name too.
+            guard !reservedLowercased.contains(id.lowercased()) else {
                 problems.append("\(skipped) its name is a built-in theme’s.")
+                continue
+            }
+            guard Self.isUsable(id) else {
+                problems.append("\(skipped) its name can’t be used for a theme.")
                 continue
             }
             do {
@@ -57,6 +68,7 @@ public struct ThemeFolder: Hashable, Sendable {
 
     /// Writes `theme` to its file, creating the folder if needed.
     public func save(_ theme: ColorTheme) throws(ThemeProblem) {
+        guard Self.isUsable(theme.id) else { throw ThemeProblem("“\(theme.name)” couldn’t be saved: its id can’t be a file name.") }
         do {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
             try ThemeFile.encode(theme).write(to: fileURL(for: theme.id), options: .atomic)
@@ -67,6 +79,7 @@ public struct ThemeFolder: Hashable, Sendable {
 
     /// Deletes the file of the theme with `id`. A file that is already gone is fine.
     public func remove(_ id: ColorTheme.ID) throws(ThemeProblem) {
+        guard Self.isUsable(id) else { throw ThemeProblem("The theme couldn’t be deleted: its id can’t be a file name.") }
         do {
             try FileManager.default.removeItem(at: fileURL(for: id))
         } catch CocoaError.fileNoSuchFile {

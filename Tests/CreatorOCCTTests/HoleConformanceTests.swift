@@ -100,6 +100,30 @@ struct HoleConformanceTests {
                                           reason: "a hole in the profile is outside the outline or overlaps another loop."))
     }
 
+    /// OCCT's answer to a hole that touches the outline or another hole at one point, pinned so a change in OCCT is seen:
+    /// the checker rejects the face, and the error is the plain one for a stray hole.
+    @Test(arguments: KernelUnderTest.allCases)
+    func aHoleTouchingTheOutlineAtAPointIsAPlainError(_ under: KernelUnderTest) async {
+        let touching = Profile2D(plane: .xy, outer: plate.outer,
+                                 holes: [Profile2D.circle(radius: 2, center: Vector2(3, 0), plane: .xy).segments])
+        let error = await #expect(throws: KernelError.self) {
+            try await under.make().extrude(touching, distance: 1, mode: .oneSided, tag: newTag())
+        }
+        #expect(error == .operationFailed(operation: "extrude",
+                                          reason: "a hole in the profile is outside the outline or overlaps another loop."))
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func twoHolesTouchingAtAPointAreAPlainError(_ under: KernelUnderTest) async {
+        let holes = [Vector2(-2, 0), Vector2(2, 0)].map { Profile2D.circle(radius: 2, center: $0, plane: .xy).segments }
+        let error = await #expect(throws: KernelError.self) {
+            try await under.make().extrude(Profile2D(plane: .xy, outer: plate.outer, holes: holes), distance: 1,
+                                           mode: .oneSided, tag: newTag())
+        }
+        #expect(error == .operationFailed(operation: "extrude",
+                                          reason: "a hole in the profile is outside the outline or overlaps another loop."))
+    }
+
     @Test(arguments: KernelUnderTest.allCases)
     func aZeroAreaHoleIsAPlainError(_ under: KernelUnderTest) async {
         // Closed (out and back), so it passes `isClosed` and reaches the shim's area check.

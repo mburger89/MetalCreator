@@ -70,4 +70,44 @@ struct CommentGroupTests {
         document.undo()
         #expect(document.content == before, "one undo brings back the definition and the node, and removes both comments")
     }
+
+    @Test func ungroupingOneOfSeveralInstancesSplicesCommentsAndLeavesTheDefinitionsOwnAlone() throws {
+        var doubler = Doubler()
+        doubler.definition.graph.stickies[commentID(5)] = note(5, "Inside", at: Vector2(10, 20))
+        var node = instance(of: doubler.definition, output: true)
+        node.position = Vector2(100, 200)
+        let other = instance(of: doubler.definition, output: true)
+        let document = DocumentModel(file: GraphFile(graph: graph([node, other]), definitions: table([doubler.definition])),
+                                     registry: testRegistry, kernel: FakeKernel())
+        let before = document.content
+        let edit = try GroupCommands.ungroup(node.id, in: .root, of: document.content, registry: testRegistry)
+        try document.perform(edit.command)
+        #expect(document.definitions[doubler.id]?.graph.stickies[commentID(5)]?.text == "Inside", "the other instance keeps it")
+        #expect(document.graph.stickies.values.map(\.text) == ["Inside"])
+        #expect(document.graph.stickies.values.first?.frame.origin == Vector2(110, 220))
+        #expect(document.graph.stickies[commentID(5)] == nil, "a fresh ID")
+        document.undo()
+        #expect(document.content == before)
+    }
+
+    @Test func ungroupingInsideADefinitionSplicesCommentsIntoThatDefinition() throws {
+        var doubler = Doubler()
+        doubler.definition.graph.frames[commentID(6)] = box(6, "Inner", at: Vector2(30, 40))
+        var inner = instance(of: doubler.definition)
+        inner.position = Vector2(100, 200)
+        let wrapper = define("Wrapper", outputs: [SocketSpec("result", .number)], nodes: [inner]) { _, output in
+            [link(inner, "result", output, "result")]
+        }
+        let top = instance(of: wrapper, output: true)
+        let document = DocumentModel(file: GraphFile(graph: graph([top]), definitions: table([doubler.definition, wrapper])),
+                                     registry: testRegistry, kernel: FakeKernel())
+        let before = document.content
+        let edit = try GroupCommands.ungroup(inner.id, in: .definition(wrapper.id), of: document.content, registry: testRegistry)
+        try document.perform(edit.command)
+        let frames = try #require(document.definitions[wrapper.id]).graph.frames.values
+        #expect(frames.map(\.title) == ["Inner"] && frames.first?.frame.origin == Vector2(130, 240))
+        #expect(document.graph.frames.isEmpty, "not the top level")
+        document.undo()
+        #expect(document.content == before)
+    }
 }

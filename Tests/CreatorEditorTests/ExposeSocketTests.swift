@@ -76,4 +76,27 @@ struct ExposeSocketTests {
         editor.drag(from, editor.screenPoint(of: output.id, "+", input: true))
         #expect(grouped.current?.outputs.map(\.name) == ["solid", "profile", "profile2"])
     }
+
+    /// Only Group Input's and Group Output's "+" is the expose socket; a node whose type is missing keeps whatever sockets
+    /// its wires name, one of them possibly called "+", and a wire dragged from that is refused as any wire from such a node.
+    @Test func aMissingNodesPlusSocketIsNotTheExposeSocket() {
+        let first = testNode(NumberTestNode.self, id: 1, at: Vector2(300, 0))
+        let second = testNode(NumberTestNode.self, id: 2, at: Vector2(300, 200))
+        var gone = Node(id: nodeID(3), typeID: "plugin.gone", name: "Gone")
+        gone.position = .zero
+        let editor = makeEditor([first, second, gone], [wire(gone, "+", first, "value")])
+        editor.transform = CanvasTransform()
+        editor.drag(editor.screenPoint(of: gone.id, "+", input: false), editor.screenPoint(of: second.id, "value", input: true))
+        #expect(editor.refusal?.message == "That node's type isn't available, so it can't be wired.")
+        #expect(editor.refusal?.node == second.id)
+        #expect(editor.graph.links == [wire(gone, "+", first, "value")])
+    }
+
+    @Test func plusIsOnlyGroupInputsOrOutputsSocket() throws {
+        let (grouped, editor, input, output) = try inside()
+        #expect(editor.isPlus(SocketRef(Endpoint(node: input.id, socket: "+"), isInput: false)))
+        #expect(editor.isPlus(SocketRef(Endpoint(node: output.id, socket: "+"), isInput: true)))
+        #expect(!editor.isPlus(SocketRef(Endpoint(node: grouped.rectangle.id, socket: "+"), isInput: true)))
+        #expect(!editor.isPlus(SocketRef(Endpoint(node: nodeID(99), socket: "+"), isInput: true)))
+    }
 }

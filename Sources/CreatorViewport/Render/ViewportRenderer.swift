@@ -3,9 +3,9 @@ import CreatorKernel
 import Metal
 
 /// Draws a `ViewportFrame` with Metal (spec §6.3).
-/// - The main pass draws, in order: the background gradient, opaque solids, the ground grid, B-rep edges,
-///   ghosts, guides' selected edges, handles, the view cube (its face names painted on from a label atlas) and the triad. It renders
-///   into its own 4× MSAA colour and depth targets, resolved into the MetalView's target.
+/// - The main pass draws, in order: the background gradient, opaque solids, the ground grid, B-rep edges, ghosts,
+///   guides' selected edges, handles, the view cube (its face names painted on from a label atlas) and the triad. It
+///   renders into its own 4× MSAA colour and depth targets, resolved into the MetalView's target.
 /// - The ID pass writes `PickID`s into an `r32Uint` target (edges 6 points wide).
 /// GPU meshes are cached by mesh serial and dropped once a frame no longer shows them. Every colour comes from the
 /// frame's palette (the viewport's theme); the buffers that bake colours in are rebuilt when it changes.
@@ -22,8 +22,10 @@ final class ViewportRenderer {
     var handleBuffer: (handles: [ViewportHandle], scale: Float, buffer: any MTLBuffer, count: Int)?
     /// The overlay's instances, kept until what they're built from changes (dashes and the plane grid follow the zoom).
     var overlayBuffer: (key: OverlayBufferKey, buffer: any MTLBuffer, count: Int)?
-    /// The overlay's fill triangles, kept until the fills or the palette change.
+    /// The overlay's fill triangles, kept until the fills or the palette change, and dropped once a frame has none.
     var fillBuffer: (key: FillBufferKey, buffer: any MTLBuffer, count: Int)?
+    /// The triad's instances, which depend only on the pixel scale and the palette: an orbit turns the widget's camera.
+    var triadBuffer: (scale: Float, palette: ViewportPalette, buffer: any MTLBuffer, count: Int)?
     private let cube: ViewCubeResources
     /// The palette `handleBuffer` was built in.
     var handlePalette = ViewportPalette.dracula
@@ -257,14 +259,13 @@ final class ViewportRenderer {
         let x = origin.x * scale
         let y = origin.y * scale
         let side = triad.side * scale
-        let instances = GPUGeometry.triadInstances(scale: Float(scale), palette: frame.palette)
         guard x >= 0, y >= 0, x + side <= Double(width), y + side <= Double(height),
-              let buffer = GPUBuffers.make(device, instances) else { return }
+              let lines = triadInstances(scale: Float(scale), palette: frame.palette) else { return }
         encoder.setViewport(MTLViewport(originX: x, originY: y, width: side, height: side, znear: 0, zfar: 1))
         let uniforms = GPUGeometry.frameUniforms(triad.widgetPose(frame.pose),
                                                  size: ViewportSize(width: triad.side, height: triad.side), sceneRadius: 2,
                                                  pixelWidth: Int(side), pixelHeight: Int(side))
-        drawLines(buffer, count: instances.count, uniforms, depth: pipelines.depthAlways, style: Self.plainLines, encoder)
+        drawLines(lines.buffer, count: lines.count, uniforms, depth: pipelines.depthAlways, style: Self.plainLines, encoder)
     }
 
     // MARK: - Resources

@@ -47,6 +47,10 @@ What headless can't show, so the numbers are an upper bound for the CPU and a lo
 
 ## Results
 
+Figures in this file that did not come from one controlled run (the same machine, load and commit for both sides of a
+comparison) are labelled as such where they appear. They are indicative only. An idle-machine re-run is pending and will
+replace them.
+
 2026-10-09, MacBook Pro (MacBookPro18,2, Apple M1 Max, 10 cores), macOS 27.0.1, MetalUI `2155f1e`, MetalCreator
 `71ec6fc` (branch `m7-measure`). Load averages (1, 5, 15 minutes) 22.54 / 33.70 / 58.73 before the run and 11.92 / 26.99 / 53.35
 after: **not idle** (other worktrees were building and testing in parallel; idle means all three under 3, before and
@@ -56,8 +60,8 @@ at any load.
 
 | §7.3 target | Benchmark | Measured (median, p95) | Budget | Verdict | A miss belongs to |
 |---|---|---|---|---|---|
-| Panning a 50-node graph at 60 fps | `pan-50` | CPU 13.09 ms (p95 14.79), GPU 3.25 ms; the canvas builds 16 of 50 nodes (max 20) | 16.67 ms | **Met** (with canvas culling; 26.63 ms without it, indicative: a separate run at a different load) | — |
-| Zooming a 50-node graph at 60 fps | `zoom-50` | CPU 15.03 ms (p95 17.56, max 36.06), GPU 3.38 ms; 25 of 50 nodes built (all 50 zoomed out), with level of detail | 16.67 ms | **Not judged: within noise at load 22.54 / 33.70 / 58.73** (median under the budget, p95 over; 26.53 ms without culling and level of detail, indicative: a separate run at a different load) | MetalUI C14 (PERF-b), if it misses on an idle run |
+| Panning a 50-node graph at 60 fps | `pan-50` | CPU 13.09 ms (p95 14.79), GPU 3.25 ms; the canvas builds 16 of 50 nodes (max 20) | 16.67 ms | **Met** (with canvas culling; 26.63 ms without it is from a separate run at a different load, so not a controlled comparison) | — |
+| Zooming a 50-node graph at 60 fps | `zoom-50` | CPU 15.03 ms (p95 17.56, max 36.06), GPU 3.38 ms; 25 of 50 nodes built (all 50 zoomed out), with level of detail | 16.67 ms | **Not judged: within noise at load 22.54 / 33.70 / 58.73** (median under the budget, p95 over; 26.53 ms without culling and level of detail is from a separate run at a different load, so not a controlled comparison) | MetalUI C14 (PERF-b), if it misses on an idle run |
 | Fillet radius drag: viewport updated within 100 ms of each value change | `fillet-drag` | command-to-frame 43.14 ms (p95 45.59): evaluate + mesh 20.44 ms, window CPU 16.91 ms, GPU 5.44 ms; 75 of 75 steps showed a new part | 100 ms | **Met** | — |
 | Orbiting the bracket at 60 fps | `orbit-panel-left` | CPU 16.01 ms (p95 17.70), GPU 5.11 ms | 16.67 ms | **Not judged: within noise at load 22.54 / 33.70 / 58.73** (median at the budget's edge, p95 over): each orbit step rebuilds the graph panel too | MetalUI C14 (PERF-b), if it misses on an idle run |
 | (the same, graph panel hidden) | `orbit-panel-hidden` | CPU 1.98 ms (p95 2.13), GPU 2.06 ms | 16.67 ms | **Met** | — |
@@ -133,6 +137,10 @@ A refused blend costs about 60 to 80 ms more than one that works. The evaluation
 cancelled one stops between tries, so the window never waits for it; but a radius handle dragged past the maximum pays
 the search on every step, so its error appears about 100 ms after the drag, not 37 ms. Which refusal the bracket's
 radius 8.25 to 9.20 met (OCCT not done, or the checker rejecting) is not recorded; both run the same search.
+
+Against the 100 ms budget for the fillet drag (spec §7.3), the bracket's refused evaluation (median 100.91 ms, p95
+255.27 ms) sits at the budget's edge, but the run was at a load of about 150, far from idle, so it is **not judged**:
+neither inside nor outside the budget until the idle re-run replaces these figures. (The “works” cases are well inside it.)
 
 ## Raw output
 

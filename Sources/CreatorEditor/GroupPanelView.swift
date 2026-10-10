@@ -16,9 +16,11 @@ struct GroupPanelView: Component {
             InspectorSectionView(title: "Definition") {
                 LabeledRow(label: "Name") {
                     Spacer()
-                    TextEntry(model: model, text: panel.name) { model.renameGroup(panel.definition, to: $0) }
+                    TextEntry(model: model, text: panel.name) { model.renameGroup(panel.definition, to: $0, on: panel.node) }
                 }
-                Picker("Accent", selection: Binding(get: { panel.accent }, set: { model.setGroupAccent(panel.definition, to: $0) })) {
+                Picker("Accent", selection: Binding(
+                    get: { panel.accent }, set: { model.setGroupAccent(panel.definition, to: $0, on: panel.node) }
+                )) {
                     ForEach(AccentRole.allCases, id: \.self) { role in
                         Text(role.rawValue.capitalized).tag(role)
                     }

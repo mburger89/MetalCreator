@@ -21,7 +21,10 @@ extension ViewportRenderer {
 
     /// The frame's fill triangles in its palette, kept until the fills or the palette change.
     func fillVertices(for frame: ViewportFrame) -> (buffer: any MTLBuffer, count: Int)? {
-        guard !frame.overlay.fills.isEmpty else { return nil }
+        guard !frame.overlay.fills.isEmpty else {
+            fillBuffer = nil
+            return nil
+        }
         let key = FillBufferKey(fills: frame.overlay.fills, palette: frame.palette)
         if let cached = fillBuffer, cached.key == key { return (cached.buffer, cached.count) }
         let vertices = OverlayGeometry.fillVertices(frame.overlay.fills, palette: frame.palette)
@@ -33,14 +36,20 @@ extension ViewportRenderer {
         return (buffer, vertices.count)
     }
 
-    /// The frame's overlay in its palette, kept until the overlay, the camera, the scale or the palette change.
+    /// The frame's overlay in its palette, kept until what the instances are built from changes: the overlay, the scale,
+    /// the palette, and the camera only as far as it reaches them (where the plane grid is centred and how far it
+    /// reaches, and the zoom the dashes are cut at). An orbit, or a pan inside one grid cell, reuses the buffer.
     func overlayInstances(for frame: ViewportFrame, scale: Float) -> (buffer: any MTLBuffer, count: Int)? {
         guard !frame.overlay.isEmpty else { return nil }
-        let key = OverlayBufferKey(overlay: frame.overlay, pose: frame.pose, size: frame.size, gridSpacing: frame.gridSpacing,
-                                   scale: scale, palette: frame.palette)
+        let grid = frame.overlay.gridPlane.flatMap {
+            OverlayGeometry.gridExtent(on: $0, pose: frame.pose, size: frame.size, spacing: frame.gridSpacing)
+        }
+        let dashZoom = frame.overlay.lines.contains(where: \.isDashed)
+            ? CameraMath.millimetresPerPoint(frame.pose, size: frame.size) : nil
+        let key = OverlayBufferKey(overlay: frame.overlay, grid: grid, dashZoom: dashZoom, scale: scale, palette: frame.palette)
         if let cached = overlayBuffer, cached.key == key { return (cached.buffer, cached.count) }
-        let instances = OverlayGeometry.instances(frame.overlay, pose: frame.pose, size: frame.size,
-                                                  gridSpacing: frame.gridSpacing, scale: scale, palette: frame.palette)
+        let instances = OverlayGeometry.instances(frame.overlay, grid: grid, millimetresPerPoint: dashZoom ?? 1, scale: scale,
+                                                  palette: frame.palette)
         guard let buffer = GPUBuffers.make(device, instances) else {
             overlayBuffer = nil
             return nil

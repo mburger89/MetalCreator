@@ -13,23 +13,31 @@ enum SketchSockets {
 
     /// Exposed dimensions that can't be sockets, as warnings for the node.
     static func refused(_ sketch: Sketch) -> [String] {
-        partition(sketch).refused.map { name in
-            name.isEmpty
-                ? "An exposed dimension has no name, so it isn't an input. Name it to expose it."
-                : "Dimension “\(name)” can't be an input: the node already has an input or setting with that name. Rename it."
+        partition(sketch).refused.map { refusal in
+            if refusal.name.isEmpty {
+                return "An exposed dimension has no name, so it isn't an input. Name it to expose it."
+            }
+            return refusal.isRepeat
+                ? "Dimension “\(refusal.name)” can't be an input: another exposed dimension has the same name. Rename one of them."
+                : "Dimension “\(refusal.name)” can't be an input: the node already has an input or setting with that name. Rename it."
         }
     }
 
-    private static func partition(_ sketch: Sketch) -> (sockets: [(id: DimensionID, spec: SocketSpec)], refused: [String]) {
+    private static func partition(_ sketch: Sketch)
+        -> (sockets: [(id: DimensionID, spec: SocketSpec)], refused: [(name: String, isRepeat: Bool)]) {
         var sockets: [(id: DimensionID, spec: SocketSpec)] = []
-        var refused: [String] = []
+        var refused: [(name: String, isRepeat: Bool)] = []
         var used = Set<String>()
         let exposed = sketch.dimensionIDs.compactMap { id in sketch.dimensions[id].map { (id, $0) } }
             .filter { $0.1.isExposed }
             .sorted { ($0.1.name, $0.0) < ($1.1.name, $1.0) }
         for (id, dimension) in exposed {
-            guard !isReserved(dimension.name), used.insert(dimension.name).inserted else {
-                refused.append(dimension.name)
+            guard !isReserved(dimension.name) else {
+                refused.append((dimension.name, false))
+                continue
+            }
+            guard used.insert(dimension.name).inserted else {
+                refused.append((dimension.name, true))
                 continue
             }
             let unit: ValueUnit = if case .angle = dimension.kind { .degrees } else { .millimetres }

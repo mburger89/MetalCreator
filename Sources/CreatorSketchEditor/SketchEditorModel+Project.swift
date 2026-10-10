@@ -25,10 +25,10 @@ extension SketchEditorModel {
             writes.append(ProjectionWrite(reference: reference, pick: candidate.pick, solid: candidate.solid))
         }
         guard !writes.isEmpty else {
-            refusal = left.first ?? "There is nothing there to project."
+            refusal = left.isEmpty ? "There is nothing there to project." : left.joined(separator: " ")
             return
         }
-        commit(edited, "Project", projections: writes)
+        commit(edited, "Project", named: SketchStepName.project, projections: writes)
         if !left.isEmpty { refusal = left.joined(separator: " ") }
     }
 

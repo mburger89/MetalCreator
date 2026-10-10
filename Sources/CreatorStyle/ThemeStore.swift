@@ -5,7 +5,8 @@ import Observation
 /// the environment and the app shell hands it to the viewport, so selecting a theme, or editing the current one,
 /// re-renders the editor by observation and reaches the GPU colours on the viewport's next frame. The built-ins are
 /// read-only; the person's own themes (`customs`) are duplicated, renamed, recoloured, deleted, imported and
-/// exported here (`ThemeStore+Library`, `ThemeStore+Files`), and each change is saved to `folder` at once.
+/// exported here (`ThemeStore+Library`, `ThemeStore+Files`), and each change is saved to `folder` at once (except a
+/// colour drag, which is shown first and saved once: `previewColor`, `saveColors()`).
 @MainActor
 @Observable
 public final class ThemeStore {
@@ -20,6 +21,8 @@ public final class ThemeStore {
     @ObservationIgnored let preferences: any ThemePreferences
     /// Where custom themes are saved; `nil` keeps them in memory only (tests, previews).
     @ObservationIgnored let folder: ThemeFolder?
+    /// A custom theme as it was last saved, while colours changed with `previewColor` wait to be saved (`saveColors()`).
+    @ObservationIgnored var unsavedBase: ColorTheme?
 
     /// Loads the custom themes from `folder`, then starts with the theme `preferences` remembers, or Dracula when it
     /// remembers none or one that no longer exists.

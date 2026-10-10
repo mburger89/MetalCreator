@@ -76,4 +76,23 @@ struct ThemeFolderTests {
         let error = #expect(throws: ThemeProblem.self) { try ThemeFolder(blocker).save(Self.custom("custom-a", "Alpha")) }
         #expect(error?.message.hasPrefix("“Alpha” couldn’t be saved: ") == true)
     }
+
+    /// The usual volume is case-insensitive: "Dracula.mctheme" is the built-in's file name there, so it is skipped too.
+    @Test func aFileNamedLikeABuiltInInAnotherCaseIsSkipped() throws {
+        let folder = Self.temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder.url) }
+        try FileManager.default.createDirectory(at: folder.url, withIntermediateDirectories: true)
+        try ThemeFile.encode(Self.custom("Dracula", "Shouty")).write(to: folder.fileURL(for: "Dracula"))
+        let loaded = folder.load(reserved: ["dracula"])
+        #expect(loaded.themes.isEmpty)
+        #expect(loaded.problems == ["“Dracula.mctheme” was skipped: its name is a built-in theme’s."])
+    }
+
+    @Test(arguments: ["a/b", "..", ".", ""])
+    func anIdThatIsNotAFileNameIsNeverWrittenOrRemoved(_ id: String) {
+        let folder = Self.temporaryFolder()
+        #expect(throws: ThemeProblem.self) { try folder.save(Self.custom(id, "Odd")) }
+        #expect(throws: ThemeProblem.self) { try folder.remove(id) }
+        #expect(!FileManager.default.fileExists(atPath: folder.url.path(percentEncoded: false)), "not even the folder")
+    }
 }

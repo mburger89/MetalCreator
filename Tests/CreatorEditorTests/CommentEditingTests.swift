@@ -81,7 +81,8 @@ struct CommentEditingTests {
     @Test func aCopiedFrameHoldsTheCopiedNodesItWasCopiedWith() throws {
         let editor = editor()
         editor.canvasSelection = CanvasSelection(nodes: [a.id], comments: [frame.id])
-        let copies = try #require(editor.insert(editor.clipboard(of: editor.canvasSelection), offset: Vector2(0, 500)))
+        let copies = try #require(editor.insert(editor.clipboard(of: editor.canvasSelection), offset: Vector2(0, 500),
+                                                named: UndoName.paste))
         let copiedFrame = try #require(copies.comments.compactMap { editor.graph.frames[$0] }.first)
         #expect(copies.nodes.count == 1 && editor.members(of: copiedFrame) == copies.nodes)
         #expect(editor.members(of: frame) == [a.id], "and the original still holds the original")

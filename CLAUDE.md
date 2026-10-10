@@ -28,13 +28,17 @@ code is done; its human checks (group CM) are pending.
 Groups C1 (model and evaluation, `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` §4–§5) is done.
 Groups C2 (the editor, §6: entering a group, breadcrumbs, the + sockets, the group inspector, the library's Groups
 section, the viewport and the clipboard inside groups) code is done; its human checks (group GR) are pending.
+Named undo steps (plan `docs/superpowers/plans/2026-10-10-named-undo.md`) code is done; its human checks (group NU) are pending.
+Final-review follow-ups (plans `docs/superpowers/plans/2026-10-10-followups-app.md`, `2026-10-10-followups-editor.md` and
+`2026-10-10-followups-kernel.md`) code is done; the app track's human checks (group FA) are pending.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
 - `CreatorSketch`: the constraint sketch model, `SketchSolver` (numeric Levenberg–Marquardt with analytic Jacobians,
   DOF and minimal conflicts), `SketchRegions` and `SketchCommands`. Imports only `CreatorGeometry` and Foundation;
   never iterate a dictionary where order reaches output. Tests: `swift test --filter CreatorSketchTests`.
-- `CreatorKernel`: the `Kernel` protocol, `Solid`, tagged topology tables, `FakeKernel` for tests.
+- `CreatorKernel`: the `Kernel` protocol, `Solid`, tagged topology tables, `FakeKernel` for tests (it refuses extruded holes that lie outside
+  the outline's bounds, as OCCT refuses strays).
 - `COCCT` + `CreatorOCCT`: the OpenCascade C shim and `OCCTKernel: Kernel` (topology tables, face tags carried through
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
   `*_free`; no C++ exception crosses into Swift.
@@ -45,6 +49,19 @@ Module boundaries (dependency order):
   carries the document's definitions: `DocumentModel.registry`, `withGroups(_:)`). Every reader (the Evaluator,
   `connectionProblem`, the canvas, the inspector) asks the registry, so per-node sockets wire and gather like declared
   ones.
+  - Undo names: every undo step carries a short English name (`UndoStack.Entry.name`), given where the edit is made:
+    `DocumentModel.perform(_:at:coalescingKey:name:)` takes one of `UndoName`'s constants ("Add Note", "Move", "Delete");
+    without one (or a blank one) the step is "Edit", so a forgotten name shows as "Undo Edit" and fails the test of its
+    call site. A coalesced run keeps its first record's name. Names have no numbers and never include text the person
+    typed (a note, a group's or dimension's name); an input is named by its fixed label ("Change Width"), a node by its
+    type ("Add Box"). The sketch editor (graph-free) gives each `SketchCommit` a fixed `name` from `SketchStepName`
+    ("Add Line", "Change Dimension", "Fillet"; `SketchEditorModel.commit` requires `named:`, `SketchCommit.init` and
+    `EditorModel.edit` require `name:`), which `AppModel.storeSketch`
+    passes through `UndoName.sketch(_:)`; `SketchCommit.description` ("Rename d1 to Plate width") holds typed text and
+    numbers and is never a name. `DocumentModel.undoName` and `redoName` feed `AppModel.undoTitle` and `redoTitle`, which
+    the Edit menu (`AppCommands`) and the top bar (`TopBar`) show as "Undo <name>" and "Redo <name>" (plain "Undo"/"Redo"
+    with nothing to take back). Names are in memory only and not part of `.mcgraph`. Tests: `UndoNameTests`,
+    `EditorUndoNameTests`, `SketchStepNameTests`, `AppUndoNameTests`, `UndoTitleTests`.
   - Groups (`Sources/CreatorGraph/Groups`): `GroupDefinition`s live in `GraphContent.definitions` beside the top-level
     graph (`DocumentModel.content`); a group node is type `group` with `NodeSetting.group`, and every `NodeRegistry`
     registers `group`, `groupInput` and `groupOutput` itself (`NodeRegistry.all`, the palette's list, leaves them out).
@@ -74,7 +91,10 @@ Module boundaries (dependency order):
   `.dracula`, `.alucard` and `.nord` (read-only); `ThemeRole` names each role (`ThemeColors[role]`; the names are the
   `.mctheme` keys; `ThemeRoleTests` pins them to the stored properties). `@MainActor @Observable ThemeStore` holds
   `current`, `select(_:)` and the custom themes (`customs`: duplicate, rename, `setColor`, `setDark`, delete, import,
-  export), saving each change to an injected `ThemeFolder` before showing it (`nil`: memory only, every test's), with
+  export), saving each change to an injected `ThemeFolder` before showing it (`nil`: memory only, every test's; a colour
+  picker's drag is the one exception: `previewColor` shows each sample and `saveColors()` writes once, driven by
+  `ThemeEditorModel.dragColor` after `saveDelay` and by `flush()` on close, and a failed save puts the saved colours
+  back; the folder skips a file named like a built-in in any case, and never writes an id that is not a file name), with
   injected `ThemePreferences` (`UserDefaultsThemePreferences` in the app). `ThemeFile` is the `.mctheme` format
   (version 1; missing roles are Dracula's, unknown ones ignored, a bad colour refused naming its role); custom themes'
   colours are always `quantized` (opacity to a byte) so a file round-trips exactly. `ColorTheme.controlTheme` maps
@@ -101,7 +121,10 @@ Module boundaries (dependency order):
     the context menu and handles. `ViewportRenderer`/`ViewportPicker` are the Metal side. `ViewportView` is the
     MetalUI glue. A `ViewportItem` with `isGuide` is no part of the scene: only its selected edges are drawn, after the
     solids and ghosts (faded where the part hides them), and it never frames, orbits, picks or opens the face menu
-    (`ViewportRenderer+Guides`).
+    (`ViewportRenderer+Guides`). The renderer keeps the triad's, the overlay's and the region fills' GPU buffers between
+    frames: the overlay's key holds the grid's extent and the dashes' zoom, not the pose, so an orbit allocates none, and
+    the fills' buffer is dropped once a frame has no fills (`RendererCacheTests`). `handleLabels()` reads the size through
+    `observedViewSize`, as `overlayLabels()` does. Every scroll or pinch event stops a camera animation started mid-gesture.
   - It depends on Kernel, Geometry, CreatorStyle and MetalUI only, never CreatorGraph. The app shell turns graph outputs into
     `ViewportItem`s and `HandleSpec`s into `ViewportHandle`s.
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
@@ -188,39 +211,46 @@ Module boundaries (dependency order):
   `ViewportHandle`s (`HandleBuilder`), turns viewport events into graph commands (picking writes Edges by Tag rules),
   and opens, saves and exports. Inside a group `AppModel` reads the level through `editor.graph`/`levelResults`: Selected
   node previews the level's selected node, handles and picking work there, and a pick is written through
-  `GraphContent.relativeToLevel`; Final preview and export stay on the top level. Sketch mode is top-level only
-  ("Edit sketch" and New Sketch on Face inside a group say so). `AppInput` installs the window's input once and forwards to the current document.
+  `GraphContent.relativeToLevel` (Done and a viewport click drop a pick whose level is no longer the one shown); Final
+  preview and export stay on the top level. Sketch mode is top-level only
+  ("Edit sketch" and New Sketch on Face inside a group say so). The open sketch follows a wired plane: when it moves the
+  camera looks at it again (`viewport.lookAt`), and when its node fails or its wire goes the sketch stays on the last plane
+  and says so once (`SketchSession.hasPlane`; a plane that is only evaluating again is waited for). `AppInput` installs the window's input once and forwards to the current document.
   The window shell is MetalUI C8's, wired in `MetalCreatorApp`: `Window.onCloseRequest` is `AppModel.closeRequested()`
   (`CloseDecision`; `.later` with unsaved changes, the Save / Don't Save / Cancel alert, `answerSaveChanges(_:)` replying
   through `replyToCloseRequest`; ⌘Q asks the same handler because the app sets no `onTerminateRequest`),
   `WindowChromeSync` keeps `Window.title`, `isDocumentEdited` and `representedURL` on the document
   (`AppModel.windowChrome`), the window keeps its standard title bar (`.hiddenTitleBar` waits for check AS-5, gap C8-a; `TopBar` already pads by
   `AppLayout.topBarClearance`, zero in a standard window), and
-  `App.onOpenURL` is `AppModel.openRequested(_:)` (the path argument goes through `App.open(_:)`).
+  `App.onOpenURL` is `AppModel.openRequested(_:)` (the path argument goes through `App.open(_:)`; a file that arrives while
+  any alert is up is ignored).
   `MetalCreatorApp` is the executable (`OCCTKernel`). It makes the app's `ThemeStore` (`AppThemes.store()`: user
   defaults, `~/Library/Application Support/MetalCreator/Themes`) and its `ThemeEditorModel`, and opens the window on
   `AppWindowRoot`: `AppRoot` with the theme editor (`ThemeEditorDock`, a floating glass panel at the top right) over
   it, the store in the environment and `.theme(current.controlTheme)` for MetalUI's controls. View ▸ Theme is
   `ThemeMenu` (every theme, then Edit Themes…). `LaunchCommand` parses its command line: a file to open, or the
-  headless `--version`, `--self-test` (`SelfTest`: OCCT, STEP/STL export, MetalUI's shaders) and `--info-plist`.
+  headless `--help`, `--version`, `--self-test` (`SelfTest`: OCCT, STEP/STL export, MetalUI's shaders) and `--info-plist`.
   `AppBundleInfo` is the version's one source; the packaged `Info.plist` is generated from it, never edited.
 
 Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.md` and fixed in MetalUI,
 never worked around here. Graph links are kept canonically sorted by destination; result caching is keyed by node identity.
 Edge/face IDs are OCCT map order. A circle edge's `direction` is its axis, so direction rules must also check `kind == .line`.
 All OCCT work runs under `OCCTKernel.serialized` (process-wide lock) because OCCT shapes share geometry across solids and meshing mutates it; never call the shim outside it (tests included).
-Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a pick without one counts each recorded edge as a run) and warns only when both changed; a key that still matches nothing is split by operand (`EdgeKey.operandKeys`, for an edge between a merged face and a third operand's face) and warns when two operands both fit; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 5 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
+Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a run is edges that continue each other end to end, ends within 1e-4 mm leaving that point in opposite directions to within 0.01 rad, so two edges meeting at a corner are two runs; a pick without one counts each recorded edge as a run) and warns only when both changed; a key that still matches nothing is split by operand (`EdgeKey.operandKeys`, for an edge between a merged face and a third operand's face) and warns when two operands both fit; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 5 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
 4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode; canvas comments' `stickies` and `frames` keys, written only when present and optional on decode, are also under 5).
 A `Segment2D.arc` with `end < start` runs clockwise (a sketch region's notch); the shim builds it reversed and
 `length` is positive. Edges carry `EdgeInfo.curve` (`EdgeCurve`, lines and circles) for sketch projection; a
 `FacePick` names faces by tag subset like `EdgePick`; one that matches nothing is retried per operand and ranked by the normal and centroid it recorded (optional keys, no format bump; `Topology.resolution(of:)`), and warns when it can only guess. The Sketch node solves on every evaluation from the stored
-sketch's warm start; the editor writes `Sketch.remember` back into the setting with every commit (S5a). Node readers
+sketch's warm start (a constraint or dimension on a projected edge of the wrong kind is skipped and named in a warning,
+like one on a suspended edge); the editor writes `Sketch.remember` back into the setting with every commit (S5a). Node readers
 of sockets use `inputs(for: node)` (canvas shape and rows, inspector, handles), never the static `inputs`.
 `Profile2D` is `outer` + `holes` (loop 0 = outer, n = hole n); `segments` is the outer loop only, so code that
 rebuilds a profile must keep `holes` (copy it and change `plane`, don't re-init from `segments`). Side tags are
 `.side(loop:segment:)` and `.side(segment:)` means loop 0; never match `.side` with one binding (`case .side(let s)`
 binds the tuple and only warns). The shim orients hole wires against the outer wire; history `operand` on segment
-records is the loop. Loft refuses profiles with holes. Create nodes only with `NodeRegistry.makeNode`. Numbers in node messages use `Locale.messages` (`Double.display`, `Int.display`).
+records is the loop. Loft refuses profiles with holes, before it compares segment counts (`KernelError.loftWithHoles`).
+Create nodes only with `NodeRegistry.makeNode`. Numbers in node and kernel messages use `Locale.messages` (defined in
+CreatorKernel; `Double.display`, `Int.display` in CreatorNodes; `KernelError.userMessage` uses it too).
 Shim errors: `cocct::user_error` / `set_error` messages are user-facing and unprefixed; any other OCCT exception is prefixed "occt: " by `guarded` and mapped to a generic sentence by `KernelError.plainReason`.
 Every fillet and chamfer result is checked with OCCT's `BRepCheck_Analyzer` (`OCCTShape.isValid`) and never returned when
 the check rejects it: the blend fails naming the largest size that works (`OCCTKernel.largestValidBlend`, spec Errata

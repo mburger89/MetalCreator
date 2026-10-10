@@ -164,6 +164,73 @@ struct EditorGroupInspectorTests {
         #expect(grouped.current?.name == "Rib", "clicking away didn't drop it")
     }
 
+    /// A name typed in the inspector is committed when the selection moves on, and a refusal then belongs to the node
+    /// the field was typed for, not to the node just selected.
+    @Test func aRefusedNameCommittedByClickingAwayShakesTheNodeItWasTypedFor() throws {
+        let grouped = try GroupedEditor()
+        let editor = grouped.editor
+        editor.selection = [grouped.group]
+        editor.perform(.duplicate)
+        editor.press(.makeUnique, on: try #require(editor.selection.first))
+        let other = try #require(editor.document.definitions.values.first { $0.id != grouped.definition.id })
+        editor.renameGroup(other.id, to: "Rib")
+        editor.selection = [grouped.group]
+        let panel = try #require(editor.groupPanel)
+        #expect(panel.node == grouped.group)
+        // What the Name field records on each keystroke (`GroupPanelView`).
+        editor.notePendingEntry(PendingEntry(text: "Rib") { editor.renameGroup(panel.definition, to: $0, on: panel.node) })
+        editor.selection = [grouped.number.id]
+        #expect(editor.refusal?.message == "A group named “Rib” already exists.")
+        #expect(editor.refusal?.node == grouped.group)
+        #expect(editor.shakeCount(of: grouped.group) == 1)
+        #expect(editor.shakeCount(of: grouped.number.id) == 0, "the node just selected didn't refuse anything")
+    }
+
+    /// The node a name was typed for can be gone when the entry is committed (Undo took the Group back): the caption says
+    /// so and nothing crashes.
+    @Test func aNameCommittedAfterItsGroupWasUndoneOnlySaysSo() throws {
+        let grouped = try GroupedEditor()
+        let editor = grouped.editor
+        editor.selection = [grouped.group]
+        let panel = try #require(editor.groupPanel)
+        editor.notePendingEntry(PendingEntry(text: "Rib") { editor.renameGroup(panel.definition, to: $0, on: panel.node) })
+        editor.document.undo()
+        #expect(editor.document.definitions.isEmpty)
+        editor.commitPendingEntry()
+        #expect(editor.refusal?.message == "That group no longer exists.")
+        #expect(editor.document.definitions.isEmpty)
+    }
+
+    @Test func aRefusedSocketNameShakesTheGroupInputItWasTypedFor() throws {
+        let grouped = try GroupedEditor()
+        let editor = grouped.editor
+        editor.enterGroup(grouped.group)
+        let input = try #require(grouped.definition.inputNode)
+        editor.selection = [input.id]
+        let panel = try #require(editor.groupPanel)
+        editor.notePendingEntry(PendingEntry(text: "  ") {
+            editor.renameGroupSocket(panel.definition, side: .input, from: "width", to: $0, on: panel.node)
+        })
+        editor.selection = [grouped.rectangle.id]
+        #expect(editor.refusal?.message == "A socket needs a name.")
+        #expect(editor.shakeCount(of: input.id) == 1)
+        #expect(editor.shakeCount(of: grouped.rectangle.id) == 0)
+        #expect(grouped.current?.inputs.map(\.name) == ["width"])
+    }
+
+    @Test func movingTheFirstSocketUpOrTheLastDownIsIgnored() throws {
+        let grouped = try GroupedEditor()
+        let editor = grouped.editor
+        editor.enterGroup(grouped.group)
+        editor.selection = [try #require(grouped.definition.inputNode).id]
+        let undoName = editor.document.undoName
+        editor.moveGroupSocket(grouped.definition.id, side: .input, named: "width", by: -1)
+        editor.moveGroupSocket(grouped.definition.id, side: .input, named: "width", by: 1)
+        #expect(editor.refusal == nil, "an arrow with nowhere to go says nothing")
+        #expect(editor.document.undoName == undoName, "and records nothing")
+        #expect(grouped.current?.inputs.map(\.name) == ["width"])
+    }
+
     @Test func theInspectorDrawsTheGroupPartAndTheSocketList() throws {
         let grouped = try GroupedEditor()
         let editor = grouped.editor

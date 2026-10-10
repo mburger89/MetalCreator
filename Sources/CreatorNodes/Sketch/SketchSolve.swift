@@ -28,7 +28,7 @@ enum SketchSolve {
         case .solved, .underConstrained:
             break
         }
-        var warnings: [String] = []
+        var warnings = ignoredByKind(sketch, solution)
         let freedom = solution.degreesOfFreedom
         if freedom > 0 {
             let count = freedom == 1 ? "1 degree" : "\(freedom.display) degrees"
@@ -42,6 +42,22 @@ enum SketchSolve {
         let measured = measurements(sketch, solution)
         return Output(profiles: found.regions.map { $0.profile(on: plane) }, measurements: measured.values,
                       warnings: warnings + measured.warnings)
+    }
+
+    /// The constraints and dimensions the solver left out because a projected edge they sit on is another kind of curve than
+    /// when they were made (a line that an edit upstream turned into an arc). A suspended projection is named by
+    /// `SketchProjections` already, with its constraints.
+    private static func ignoredByKind(_ sketch: Sketch, _ solution: SketchSolution) -> [String] {
+        solution.suspended.compactMap { ref in
+            let entities = switch ref {
+            case .constraint(let id): sketch.constraints[id]?.entities ?? []
+            case .dimension(let id): sketch.dimensions[id]?.kind.entities ?? []
+            }
+            let isNamedAlready = entities.contains { entity in
+                if case .projected(let source)? = sketch.entities[entity]?.kind { source.isSuspended } else { false }
+            }
+            return isNamedAlready ? nil : "\(sketch.label(of: ref)) is ignored: its projected edge is a different kind of curve now."
+        }
     }
 
     /// Why a reference dimension isn't measured, for `unmeasured(_:because:)`.

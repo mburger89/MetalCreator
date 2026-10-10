@@ -102,4 +102,33 @@ struct ScrollZoomTests {
         model.scrolled(by: 20, at: cursor, phase: .moving)
         #expect(!model.isAnimating)
     }
+
+    /// The wheel's debounce (spec §7.3): each step restarts the wait, so a settle comes `wheelSettleDelay` after the
+    /// last step and not before. Needs a clock whose sleeps last (`ManualClock`'s return at once).
+    @Test func theWheelSettlesOnlyOnceItHasBeenStillForTheWholeDelay() async {
+        let clock = GatedClock()
+        let model = ViewportModel(kernel: StubMeshKernel(), pose: start, clock: clock)
+        model.viewSize = size
+        var settled: [CameraPose] = []
+        model.events.cameraSettled = { settled.append($0) }
+        let delay = ViewportInputMap.wheelSettleDelay
+        model.scrolled(by: 10, at: cursor, phase: .step)
+        await clock.advance(by: delay * 0.6)
+        model.scrolled(by: 10, at: cursor, phase: .step)
+        await clock.advance(by: delay * 0.6)
+        #expect(settled.isEmpty, "the first step's wait ran out, but the second step restarted it")
+        await clock.advance(by: delay * 0.6)
+        #expect(settled == [model.pose], "settled once, after the wheel was still for the whole delay")
+    }
+
+    /// F, an arrow or a cube click during a scroll starts an animation; the next scroll event takes over from what
+    /// is shown, as a drag does, instead of letting the animation finish over it.
+    @Test func aScrollEventStopsAnAnimationStartedMidScroll() {
+        let (model, _) = makeModel()
+        model.scrolled(by: 10, at: cursor, phase: .moving)
+        model.perform(.view(.top))
+        #expect(model.isAnimating)
+        model.scrolled(by: 10, at: cursor, phase: .moving)
+        #expect(!model.isAnimating, "the scroll's pose is shown, not the old interpolation")
+    }
 }

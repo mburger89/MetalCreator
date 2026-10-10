@@ -7,8 +7,8 @@ import MetalUI
 /// and the inspector float over it. A pick in progress shows its banner over the top. While sketching, the pointer
 /// readout is drawn over all of those (it never takes the pointer). The add-node palette and a node-library type
 /// being dragged float over everything (spec §6.2), drawn last so nothing clips or covers them. Every view below
-/// reads the app's theme from the environment, and the window's MetalUI controls follow its light or dark (spec
-/// §6.6). All behaviour is in `AppModel`; this is glue.
+/// reads the app's theme from the environment, and the window's MetalUI controls follow its light or dark (spec §6.6).
+/// All behaviour is in `AppModel`; this is glue.
 public struct AppRoot: Component {
     public let model: AppModel
     public let input: AppInput
@@ -24,8 +24,10 @@ public struct AppRoot: Component {
         ZStack(alignment: .topLeading) {
             ViewportView(model: model.viewport)
             VStack(alignment: .leading, spacing: AppLayout.margin.px) {
-                ZStack { TopBar(model: model, clearance: Pixels(Float(AppLayout.topBarClearance(titleBarInsets: titleBarInsets)))) }
-                    .frame(height: AppLayout.topBarHeight.px)
+                ZStack {
+                    TopBar(model: model, clearance: Pixels(Float(AppLayout.topBarClearance(titleBarInsets: titleBarInsets))))
+                }
+                .frame(height: AppLayout.topBarHeight.px)
                 PanelArea(model: model)
             }
             .padding(Edges(all: AppLayout.margin.px))

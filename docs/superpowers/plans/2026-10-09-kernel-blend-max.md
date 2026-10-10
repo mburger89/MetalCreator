@@ -23,7 +23,7 @@ Parallel tracks: groups-comments, groups-editor, sketcher-s5c, adopt-c10, naming
 | `CLAUDE.md` | extends the one paragraph about `OCCTShape.isValid` / `largestValidBlend` (about line 156) | other tracks' status lines and paragraphs; the extended paragraph |
 | `docs/verification/performance.md` | the "How to run" suite list gains `BlendRefusalBench`; a new section "Refused blends" before "Raw output" | other tracks' rows and sections; the union of the suite names in "How to run" |
 | `docs/superpowers/notes/2026-10-07-m0-m1-carryover.md` | appends a section at the end | other tracks' appended sections (both stay; order doesn't matter) |
-| `docs/verification/human-checks.md` | extends one pending check, M5-10 (the Fillet radius sentence and its "Pinned" line, about line 232) | other tracks' new and changed checks; if both sides edited M5-10, keep both sides' sentences in it |
+| `docs/verification/human-checks.md` | adds one check, M6-15 (planned as an extension of M5-10's Fillet radius sentence) | other tracks' new and changed checks; if both sides edited M6-15, keep both sides' sentences in it |
 | `Tests/CreatorOCCTTests/FeatureConformanceTests.swift` | one test's assertions (`impossibleFilletFailsCleanlyAndKernelRecovers`) | any other test in the file |
 | `Tests/CreatorAppTests/Bench/` | adds `BlendRefusalBench.swift` and `BlendRefusalFixtureTests.swift` only | other benchmark files |
 
@@ -1067,7 +1067,7 @@ index e98fd63..3ae5b38 100644
 +- Cost, measured in a release build (`BlendRefusalBench`; figures in `docs/verification/performance.md`): a refused
 +  blend costs tens of milliseconds more than one that works, on §8's hexagon flange and on the §7.2 bracket's Fillet
 +  node alike. While the Fillet's radius handle is dragged past the maximum, each step pays that search; the evaluation
-+  is off the main actor and cancellable. Human check M5-10 covers the drag.
++  is off the main actor and cancellable. Human check M6-15 covers the drag.
 +- `BRepCheck_Analyzer` runs on every blend result: a few milliseconds on the flange union. Watch it on large parts
 +  (`docs/superpowers/notes/2026-10-07-m0-m1-carryover.md`).
 +- `FeatureConformanceTests.impossibleFilletFailsCleanlyAndKernelRecovers` now expects `maxRadius` 9.9.
@@ -1136,7 +1136,7 @@ index 458d189..5d274ea 100644
  The run the tables above come from (`scripts/bench.sh`, every suite):
 ```
 
-`docs/verification/human-checks.md` (M5-10, the one pending check that drags a Fillet radius past its maximum):
+`docs/verification/human-checks.md` (M6-15, the one pending check that drags a Fillet radius past its maximum):
 
 ```diff
 diff --git a/docs/verification/human-checks.md b/docs/verification/human-checks.md
@@ -1179,14 +1179,14 @@ Expected: each name appears and exists in `Sources/CreatorOCCT`.
 
 ```bash
 git add docs CLAUDE.md
-git commit -m "docs: blend maximum errata, roadmap, performance record, carry-over note and the M5-10 drag check"
+git commit -m "docs: blend maximum errata, roadmap, performance record, carry-over note and the M6-15 drag check"
 ```
 
 ---
 
 ## Self-review
 
-- **Spec coverage:** §3/§10 "max ≈ where possible" for a not-built blend: Task 3. The four minors: size ≤ 0.1 mm (Task 2), `fails` without overshoot (Task 2), -1 to the generic message (Task 1), analyzer cost noted in the carry-over note (Task 5). Measurement on bracket and flange in release: Task 4, recorded in Task 5 (figures in `performance.md` only). Roadmap row and spec errata: Task 5. `maxRadius` 9.9: Task 3. The visible change (a refused Fillet drag): the M5-10 human check, Task 5.
+- **Spec coverage:** §3/§10 "max ≈ where possible" for a not-built blend: Task 3. The four minors: size ≤ 0.1 mm (Task 2), `fails` without overshoot (Task 2), -1 to the generic message (Task 1), analyzer cost noted in the carry-over note (Task 5). Measurement on bracket and flange in release: Task 4, recorded in Task 5 (figures in `performance.md` only). Roadmap row and spec errata: Task 5. `maxRadius` 9.9: Task 3. The visible change (a refused Fillet drag): the M6-15 human check, Task 5.
 - **Placeholder scan:** none; every code step is a complete file or a diff from verified code. The only values that depend on the executor's machine are the measurements, stated as such.
 - **Type consistency:** `OCCTValidity` (Task 1) → `check:` closures and `attempt(blending:…)`; `BlendGrid.firstFailingTenths(for:)` and `triesSmallest(below:)` (Task 2) used by `largestValidBlend` and `invalidBlend`; `blendFailed(size:chamfer:largest:)` (Task 3) replaces the Task 1 form, and Task 1's `InvalidBlendTests` case reaches it only through `blend`, so Task 3 breaks no earlier test. The Task 1 `blend` calls `KernelError.blendFailed(size:chamfer:)`; Task 3 replaces that whole file.
 - **Review Focus:** all seven lines have a named test.

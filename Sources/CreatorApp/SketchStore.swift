@@ -11,9 +11,9 @@ import Foundation
 /// - a renamed exposed dimension takes its wire with it, and one no longer exposed drops its wire and constant;
 /// - a dimension still wired keeps its stored value: the editor showed (and solved) the wired value, which overrides
 ///   the stored one only while the wire is there (sketcher spec §7).
-/// Reserved names are never touched: they are never sockets (`SketchNode.isReservedDimensionName`).
 /// - a projection the edit added stores its pick under `NodeSetting.projection(reference)` and wires its solid into
 ///   `references` when nothing is wired there; one the edit removed clears its pick.
+/// Reserved names are never touched: they are never sockets (`SketchNode.isReservedDimensionName`).
 enum SketchStore {
     /// A projection to store beside the sketch: the pick, and the output that made the solid it was picked on.
     struct Projection {

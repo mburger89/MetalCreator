@@ -4,8 +4,8 @@ import Testing
 /// Spec §7.3: "While the fillet radius is being dragged on the bracket, the viewport updates within 100 ms of each
 /// value change. Measured from command to presented frame, as the median over a scripted drag." The §7.2 bracket on
 /// OCCT with its Fillet selected; each step drags the radius handle to a new value (2.00 → 3.48 mm in 0.02 mm steps,
-/// never a value the evaluator has cached; the bracket's edges take up to about 4 mm), then waits for the evaluation, the scene and its meshes, then draws the
-/// window's frame (CPU) and both GPU passes. Prints `BENCH fillet-drag …`.
+/// never a value the evaluator has cached; the bracket's edges take up to about 4 mm), then waits for the evaluation,
+/// the scene and its meshes, then draws the window's frame (CPU) and both GPU passes. Prints `BENCH fillet-drag …`.
 @MainActor
 @Suite(.serialized, .enabled(if: Bench.isRequested, "set METALCREATOR_BENCH=1 (scripts/bench.sh)"))
 struct FilletDragBench {

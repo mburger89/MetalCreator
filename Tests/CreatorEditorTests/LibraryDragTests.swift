@@ -44,6 +44,19 @@ struct LibraryDragTests {
         #expect(!editor.document.canUndo, "one step")
     }
 
+    /// The refusal caption sits under the canvas, so a release on it is off the canvas.
+    @Test func aReleaseOnTheRefusalCaptionAddsNothing() throws {
+        let editor = placed(.bottom)
+        let start = try rowPoint(editor)
+        let canvas = try #require(editor.canvasFrameInWindow)
+        let onCaption = canvas.origin + Vector2(120, canvas.size.y - 4)
+        editor.refuse("No.", node: nil)
+        #expect(!editor.endLibraryDrag(FilletTestNode.typeID, from: start, at: onCaption))
+        #expect(editor.graph.nodes.isEmpty)
+        editor.clearRefusal()
+        #expect(editor.endLibraryDrag(FilletTestNode.typeID, from: start, at: onCaption), "the same spot is canvas without it")
+    }
+
     /// Released over the library itself, the viewport, the inspector or outside the window: nothing is added.
     @Test(arguments: [DockSide.left, .bottom])
     func aReleaseOffTheCanvasAddsNothing(_ dock: DockSide) throws {

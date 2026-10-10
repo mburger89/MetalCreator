@@ -49,6 +49,12 @@ struct TopoRoleLoopTests {
         }
     }
 
+    /// `.side(loop: -1, ...)` can be built, but decoding refuses it, so encoding must too: a file that can't be read back
+    /// is never written. Only the OCCT tagger makes side roles, and its loops are never negative.
+    @Test func aNegativeLoopIsNotEncoded() {
+        #expect(throws: EncodingError.self) { try JSONEncoder().encode(TopoRole.side(loop: -1, segment: 2)) }
+    }
+
     @Test func anOldEdgePickDecodesWithOuterWalls() throws {
         let node = NodeID()
         let json = """

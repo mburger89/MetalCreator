@@ -60,6 +60,55 @@ struct EdgeRunTests {
         #expect(Topology.runCount([a, line(1, Vector3(1, 0, 0), Vector3(2, 0, 0))]) == 2)
     }
 
+    @Test func twoEdgesMeetingAtACornerAreTwoRuns() {
+        let across = line(0, .zero, Vector3(10, 0, 0)), up = line(1, Vector3(10, 0, 0), Vector3(10, 10, 0))
+        #expect(Topology.runCount([across, up]) == 2, "a right-angle corner is two edges to a person picking")
+        let almost = line(2, Vector3(10, 0, 0), Vector3(20, 0.5, 0))
+        #expect(Topology.runCount([across, almost]) == 2, "even a shallow bend is a corner")
+    }
+
+    @Test func aStraightRunAndATangentArcAreOneRun() {
+        let across = line(0, .zero, Vector3(10, 0, 0))
+        // A quarter arc leaving (10, 0) upwards: centre (10, 5), radius 5, from (10, 0) round to (15, 5).
+        let arc = EdgeInfo(id: EdgeID(1), kind: .circle, direction: .unitZ, length: 5 * .pi / 2, midpoint: Vector3(13.5, 1.5, 0),
+                           convexity: .convex, faces: [FaceID(0), FaceID(1)],
+                           curve: .circle(center: Vector3(10, 5, 0), axis: .unitZ, radius: 5, start: Vector3(10, 0, 0), sweep: .pi / 2))
+        #expect(Topology.runCount([across, arc]) == 1, "the arc leaves the line's end along the line")
+        let corner = line(2, Vector3(10, 0, 0), Vector3(10, 10, 0))
+        #expect(Topology.runCount([corner, arc]) == 2, "the arc turns away from a line that leaves the same point at an angle")
+    }
+
+    @Test func halvesOfASplitArcAreOneRun() {
+        func piece(_ id: Int, from degrees: Double) -> EdgeInfo {
+            let start = Vector3(5 * cos(degrees * .pi / 180), 5 * sin(degrees * .pi / 180), 0)
+            return EdgeInfo(id: EdgeID(id), kind: .circle, direction: .unitZ, length: 1, midpoint: start, convexity: .convex,
+                            faces: [FaceID(0), FaceID(1)],
+                            curve: .circle(center: .zero, axis: .unitZ, radius: 5, start: start, sweep: .pi / 4))
+        }
+        #expect(Topology.runCount([piece(0, from: 0), piece(1, from: 45)]) == 1)
+        #expect(Topology.runCount([piece(0, from: 0), piece(1, from: 90)]) == 2, "a gap")
+    }
+
+    /// OCCT edge ends sit up to the vertex tolerance (often 1e-5 mm) from the vertex they share after a blend.
+    @Test func halvesThatEndAFewMicrometresApartAreStillOneRun() {
+        let first = line(0, Vector3(-30, 12, 6), Vector3(-30, -16, 6))
+        let second = line(1, Vector3(-30, 12.00002, 6), Vector3(-30, 15, 6))
+        #expect(Topology.runCount([first, second]) == 1)
+        let apart = line(2, Vector3(-30, 12.01, 6), Vector3(-30, 15, 6))
+        #expect(Topology.runCount([first, apart]) == 2, "a hundredth of a millimetre is a real gap")
+    }
+
+    @Test func anEdgeLeavesEachEndAlongItself() throws {
+        #expect(EdgeCurve.line(start: .zero, end: Vector3(0, 4, 0)).endDirections == [Vector3(0, 1, 0), Vector3(0, -1, 0)])
+        let quarter = EdgeCurve.circle(center: .zero, axis: .unitZ, radius: 2, start: Vector3(2, 0, 0), sweep: .pi / 2)
+        let directions = quarter.endDirections
+        try #require(directions.count == 2)
+        #expect(near(directions[0], Vector3(0, 1, 0)), "counter-clockwise from (2, 0)")
+        #expect(near(directions[1], Vector3(1, 0, 0)), "back along the arc from (0, 2)")
+        #expect(EdgeCurve.circle(center: .zero, axis: .unitZ, radius: 2, start: Vector3(2, 0, 0), sweep: 2 * .pi).endDirections.isEmpty)
+        #expect(EdgeCurve.line(start: .zero, end: .zero).endDirections.isEmpty)
+    }
+
     /// Face 0: top. Face 1: the side. `split` cuts the top-side edge in two at y = 12.
     func topology(split: Bool) -> Topology {
         let edges = split

@@ -104,4 +104,31 @@ struct InspectedLevelTests {
         await document.waitForEvaluation()
         #expect(document.innerResults[[group.id, extra.id]] == nil)
     }
+
+    /// `innerResults` follows the document as `results` does: an entry for a node that is gone doesn't wait for the next
+    /// evaluation to leave.
+    @MainActor
+    @Test func innerResultsOfNodesThatAreGoneLeaveAtOnce() async throws {
+        let extra = makeNode(ConstantNode.self, ["value": .number(7)])
+        let (definition, add) = rib(extra: extra)
+        let group = instance(of: definition, ["value": .number(3)], output: true)
+        let document = DocumentModel(file: GraphFile(graph: graph([group]), definitions: table([definition])),
+                                     registry: testRegistry, kernel: FakeKernel())
+        document.inspectedLevel = [group.id]
+        await document.waitForEvaluation()
+        #expect(document.innerResults[[group.id, extra.id]] != nil && document.innerResults[[group.id, add.id]] != nil)
+
+        try document.perform(GraphCommand.removeNode(extra.id).at(.definition(definition.id)))
+        #expect(document.innerResults[[group.id, extra.id]] == nil, "the deleted inner node, before the evaluation reports")
+        #expect(document.innerResults[[group.id, add.id]] != nil, "the others stay until it does")
+        await document.waitForEvaluation()
+        #expect(document.innerResults[[group.id, add.id]] != nil)
+        document.undo()
+        await document.waitForEvaluation()
+        #expect(document.innerResults[[group.id, extra.id]]?.outputs?["value"]?.numbers == [7], "Undo brings its state back")
+
+        try document.perform(.removeNode(group.id))
+        #expect(document.innerResults.isEmpty, "a deleted group node takes everything inside it")
+        await document.waitForEvaluation()
+    }
 }

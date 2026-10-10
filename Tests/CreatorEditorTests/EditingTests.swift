@@ -99,6 +99,21 @@ struct EditingTests {
         #expect(copy?.position == Vector2(24, 24))
     }
 
+    /// Cut takes the clipboard only once the delete went through, and Undo of the cut leaves it: the cut nodes come back and
+    /// a paste still puts a copy beside them.
+    @Test func cutUndoPasteGivesTheNodeAndACopy() {
+        let number = testNode(NumberTestNode.self, id: 9, at: .zero, values: ["value": .number(42)])
+        let editor = makeEditor([number])
+        editor.selection = [number.id]
+        editor.cutSelection()
+        #expect(editor.graph.nodes.isEmpty && editor.clipboard?.nodes.map(\.id) == [number.id])
+        editor.document.undo()
+        #expect(editor.graph.nodes.keys.sorted() == [number.id])
+        editor.paste()
+        #expect(editor.graph.nodes.count == 2)
+        #expect(editor.selection.first.flatMap { editor.graph.nodes[$0] }?.inputValues["value"] == .number(42))
+    }
+
     @Test func copiesKeepTheirInputValues() {
         let number = testNode(NumberTestNode.self, id: 9, at: .zero, values: ["value": .number(42)])
         let editor = makeEditor([number])

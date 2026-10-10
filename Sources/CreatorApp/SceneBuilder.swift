@@ -74,7 +74,8 @@ public enum SceneBuilder {
     static func guides(for sets: [EdgeSet], notShownIn scene: [SceneItem]) -> [SceneItem] {
         var order: [Solid] = []
         var edges: [ObjectIdentifier: Set<EdgeID>] = [:]
-        for set in sets where !set.edges.isEmpty && !scene.contains(where: { !$0.item.isGhost && $0.item.solid === set.solid }) {
+        for set in sets where !set.edges.isEmpty
+            && !scene.contains(where: { !$0.item.isGhost && $0.item.solid === set.solid }) {
             let key = ObjectIdentifier(set.solid)
             if edges[key] == nil { order.append(set.solid) }
             edges[key, default: []].formUnion(set.edges)

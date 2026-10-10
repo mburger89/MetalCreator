@@ -514,16 +514,24 @@ Plan `2026-10-09-naming-merged-faces.md`, roadmap row "Naming: picks on merged f
   A pick saved before this has no run count, so each recorded edge counts as its own run: it still warns when its
   edges become fewer runs (a split edge it recorded as 2 edges, now whole), and it no longer warns when a recorded
   edge is split into more pieces (master warned "Matched 2 edges, expected 1." there).
+- §5.3 rule 6's runs, refined (follow-ups, kernel): edges join into one run only where they continue each other, not
+  wherever they touch. Their ends must be within 1e-4 mm (OCCT edge ends sit up to the vertex tolerance from a shared
+  vertex after a blend, so the old 1e-6 mm counted a split edge as two runs and warned) and they must leave that point in
+  opposite directions to within 0.01 rad (`Topology.runCount`, `EdgeCurve.endDirections`), so two edges that meet at a
+  corner are two runs, not one. Which edges a pick selects, and the file format, do not change; only the warning can.
+  A pick saved before this whose recorded run count came from the old rule (a whole loop of straight edges that meet at
+  corners recorded 1 run; it is now 4) warns the first time its edge count changes, where it stayed silent before.
 - Errata (M6)'s polygon swap: the two picks on the plate sides the union had merged with the rectangle's now resolve
   to the plate's whole side edges, and Edges by Tag is `.ok` with five edges, so §8's chamfer promise holds for the
   names. The part is still lost, for a reason the M6 probe didn't see: OCCT's fillet of the hexagon's vertical edges
   reports success but returns a solid that `BRepCheck_Analyzer` rejects, and on it every fillet or chamfer along the
   plate top's tangent chain fails (at 0.5, 0.2 and 0.05 mm alike), while the same resolved edges chamfer on the union
   before the fillet. It depends on the fillet radius: `BRepCheck`-valid at R 0.5, 1 and 2, where the chamfer
-  succeeds; through the graph the chamfer also succeeds at R 2.5; invalid at the bracket's R3. So the Chamfer stays
-  in error and the Output has no result, until the kernel rejects or repairs invalid blend results (roadmap row
-  "Kernel: blends that return an invalid solid"). (Superseded: see Errata (Kernel: invalid blends); the test below is
-  now `swappingTheFlangeForAPolygonKeepsEveryPickOnceTheFilletFits`.)
+  succeeds; through the graph the chamfer also succeeds at R 2.5 (`BRepCheck` validity was recorded at 0.5, 1 and 2
+  only); invalid at the bracket's R3. So the Chamfer stays in error and the Output has no result, until the kernel
+  rejects or repairs invalid blend results (roadmap row "Kernel: blends that return an invalid solid"). (Superseded:
+  see Errata (Kernel: invalid blends); the test below is now
+  `swappingTheFlangeForAPolygonKeepsEveryPickOnceTheFilletFits`.)
   `BracketAcceptanceTests.swappingTheFlangeForAPolygonKeepsEveryPickButTheFilletedHexagonCantBeChamfered` pins it, and
   `BracketAcceptanceTests.aChamferPickedOnMergedSidesSurvivesTheFlangeChangingWidth` pins the case end to end with no
   warning or error (the flange alone made 40 or 70 mm wide, so no plate side stays merged).
@@ -555,10 +563,10 @@ picks with no position).
   side (`EdgeKey.operandKeys`): the rim of a hole through a face a union merged is `{plate.side, flange.side} |
   {hole.wall}` and the wall shares no node call with either. When several operands' keys name edges, the one with the
   recorded edge count wins if exactly one has it; otherwise the nearest count wins and Edges by Tag warns
-  (`EdgeTagMatch.ambiguousPick`), as does a Sketch projection (`SketchProjections.locate`). A count summed over several reference solids is never
-  compared with one operand's, and a pick with edge ordinals that resolved through one operand's share of its key is a
-  guess too (the ordinals were recorded against the whole key's edges). An edge where two operands meet keeps its full
-  name, and a key that matches anything or narrows is never split.
+  (`EdgeTagMatch.ambiguousPick`), as does a Sketch projection (`SketchProjections.locate`). A count summed over several
+  reference solids is never compared with one operand's, and a pick with edge ordinals that resolved through one
+  operand's share of its key is a guess too (the ordinals were recorded against the whole key's edges). An edge where
+  two operands meet keeps its full name, and a key that matches anything or narrows is never split.
 - The case with the flange wider than the plate: the hole's rim at the bracket's left side is then the flange's own
   face (x = -35), so the pick follows the hole to that face rather than staying on the plate.
   `BracketAcceptanceTests.aPlanePickedOnAMergedSideSurvivesTheFlangeChangingWidth`, `...BecomingAPolygon` and
@@ -581,9 +589,10 @@ Plan `2026-10-09-themes-editor.md` (roadmap row "Themes").
   theme, is refused with a sentence. An import never replaces a theme: a taken name becomes "<name> 2".
 - Custom themes live in `~/Library/Application Support/MetalCreator/Themes`, one `<id>.mctheme` per theme (the id
   survives renames); a file that can't be read is skipped and the editor says which and why. Each change is saved at
-  once. The chosen theme is remembered in the user's defaults (`selectedThemeID`), which replaces Errata (M6)'s "isn't
-  remembered between launches either"; a remembered theme that is gone falls back to Dracula. Themes are still
-  app-level and never in a `.mcgraph`.
+  once (a colour picker's drag is shown at once and saved once it pauses for 300 ms, and when the editor or the window
+  closes: plan `2026-10-10-followups-app.md`, Task 7). The chosen theme is remembered in the user's defaults
+  (`selectedThemeID`), which replaces Errata (M6)'s "isn't remembered between launches either"; a remembered theme
+  that is gone falls back to Dracula. Themes are still app-level and never in a `.mcgraph`.
 - The theme editor is a floating glass panel at the window's top right, below the top bar and over the inspector,
   down to the window's bottom margin or, with the graph panel docked at the bottom, to a margin above it, so the graph
   panel and the viewport show each edit as it is made (a second window would end the app when closed until

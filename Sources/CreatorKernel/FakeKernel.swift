@@ -22,6 +22,10 @@ public actor FakeKernel: Kernel {
         guard profile.isClosed, let flat = profile.bounds else {
             throw KernelError.invalidInput("The profile is not a closed loop.")
         }
+        guard Self.holesAreInsideOutline(profile) else {
+            throw KernelError.operationFailed(
+                operation: "extrude", reason: "a hole in the profile is outside the outline or overlaps another loop.")
+        }
         let normal = profile.plane.normal
         let (back, front) = mode == .symmetric ? (-distance / 2, distance / 2) : (0, distance)
         let corners = [flat.min, flat.max].flatMap { [$0 + normal * back, $0 + normal * front] }
@@ -42,7 +46,7 @@ public actor FakeKernel: Kernel {
         try Task.checkCancellation()
         operationLog.append("loft")
         guard sections.allSatisfy(\.holes.isEmpty) else {
-            throw KernelError.invalidInput("A loft can't use profiles with holes yet.")
+            throw KernelError.loftWithHoles
         }
         throw KernelError.unsupported("loft")
     }

@@ -137,4 +137,19 @@ struct GroupInterfaceTests {
         setup.document.undo()
         #expect(setup.document.definitions[unused.id] == unused.definition)
     }
+
+    @Test func anUnwiredOutputIsRemovedWithItsWireInside() throws {
+        let setup = Setup(doubler)
+        let document = setup.document
+        try document.perform(.disconnect(link(setup.wired, "result", setup.first, "value")))
+        try document.perform(.disconnect(link(setup.typed, "result", setup.second, "value")))
+        let before = document.content
+        try document.perform(try GroupCommands.removeSocket(doubler.id, side: .output, name: "result", in: document.content))
+        let definition = try #require(document.definitions[doubler.id])
+        #expect(definition.outputs.isEmpty)
+        let remaining: Set = [link(doubler.input, "value", doubler.add, "a"), link(doubler.input, "value", doubler.add, "b")]
+        #expect(Set(definition.graph.links) == remaining)
+        document.undo()
+        #expect(document.content == before, "one undo step")
+    }
 }

@@ -12,16 +12,16 @@ struct GroupSocketRowView: Component {
     var content: some ElementGroup {
         HStack(spacing: Pixels(4)) {
             TextEntry(model: model, text: socket.name.rawValue, width: 110) {
-                model.renameGroupSocket(panel.definition, side: side, from: socket.name, to: $0)
+                model.renameGroupSocket(panel.definition, side: side, from: socket.name, to: $0, on: panel.node)
             }
             Spacer()
-            Button("↑") { model.moveGroupSocket(panel.definition, side: side, named: socket.name, by: -1) }
+            Button("↑") { model.moveGroupSocket(panel.definition, side: side, named: socket.name, by: -1, on: panel.node) }
                 .help("Move up")
                 .disabled(!socket.canMoveUp)
-            Button("↓") { model.moveGroupSocket(panel.definition, side: side, named: socket.name, by: 1) }
+            Button("↓") { model.moveGroupSocket(panel.definition, side: side, named: socket.name, by: 1, on: panel.node) }
                 .help("Move down")
                 .disabled(!socket.canMoveDown)
-            Button("Remove") { model.removeGroupSocket(panel.definition, side: side, named: socket.name) }
+            Button("Remove") { model.removeGroupSocket(panel.definition, side: side, named: socket.name, on: panel.node) }
                 .help("Remove this socket and its wires inside")
         }
     }

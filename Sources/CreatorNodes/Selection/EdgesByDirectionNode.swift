@@ -6,6 +6,7 @@ import Foundation
 /// Straight edges parallel to a direction, within an angle tolerance (spec §7.1, Selection).
 /// Either sense counts (|cos| is compared), and only lines qualify: a circle edge's `direction`
 /// is its axis, so without the `kind == .line` check every hole rim would match "parallel to Z".
+/// The slider stops at 45° but the node accepts up to 90° (every line then matches), for a wired value.
 public enum EdgesByDirectionNode: NodeDefinition {
     public static let typeID = "creator.edgesByDirection"
     public static let displayName = "Edges by Direction"
