@@ -15,16 +15,16 @@ work (the owner named). The sections below keep each gap's full use case.
 | 1–5 | Scroll wheel, pinch/rotate, middle and right drags, tap location, cursor and drag modifiers | C7 | ✅ fixed (c62d6ba), adopted by the viewport and the graph panel |
 | M4-a | An element's size (`onGeometryChange`), focus on click | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
 | M4-b | Opaque helper inside a builder `for`; redraw labels during a camera animation (`TimelineView`) | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
-| M5-a | `Slider` `onEditingChanged` | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
+| M5-a | `Slider` `onEditingChanged` | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M5-b | Hover- or region-scoped key bindings | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
-| M5-c | Materials and blur | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
-| M5-d | Gradients | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
+| M5-c | Materials and blur | C10 | ✅ fixed (2155f1e) as a flat tint, adopted by decision (the glass keeps the theme's tint); the backdrop blur is C10-a |
+| M5-d | Gradients | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M5-e | Modifiers on a press | C7 | ✅ fixed (c62d6ba), adopted |
 | M5-f | Canvas scroll and pinch | C7 | ✅ fixed (c62d6ba), adopted |
 | M5-g | A press elsewhere ends text editing | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
 | M5-h | ↑/↓ in a focused single-line field | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
-| M5-i | Keyframe animation | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
-| M5-j | `ProgressView` | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
+| M5-i | Keyframe animation | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
+| M5-j | `ProgressView` | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M6-a | Window title and edited marker | C8 | 🔄 open; C8 in progress (`feat/app-shell`) |
 | M6-b | Close and quit veto | C8 | 🔄 open; C8 in progress (`feat/app-shell`) |
 | M6-c | Full-size content view | C8 | 🔄 open; C8 in progress (`feat/app-shell`) |
@@ -44,9 +44,10 @@ work (the owner named). The sections below keep each gap's full use case.
 | LF-b | A clip inside nested flattening effects (LF-a's regression) | C19 | ✅ fixed (9ad2254) |
 | TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | ⏳ reported, not queued |
 | S5-a | Modifiers on a hover (and a tap, GI-a) | none yet (with GI-a) | ⏳ reported, not queued |
-| S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ⏳ reported 2026-10-09 |
+| S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ⏳ sent to the MetalUI session 2026-10-09 |
 | M7-a | `ForEach` identity is an id's description | none yet | ⏳ reported, not queued |
-| M7-b | No warm headless frame for measuring | none yet (with M6-e) | ⏳ reported, not queued |
+| M7-b | No warm headless frame for measuring | none yet (with M6-e) | ⏳ reported, not queued; used again by C10 (below) |
+| C10-a | No backdrop blur behind a material | C10-c (unscheduled) | ⏳ sent to the MetalUI session 2026-10-09 |
 
 ## Reported 2026-10-07 (C7)
 
@@ -147,6 +148,11 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
   coalesces a slider drag into one undo step and needs to know when the drag ends. Stopgap: steps share a coalescing
   key; it ends on the next selection change, canvas press, other edit, undo or redo
   (`EditorModel.setInput(_:to:continuous:)`). Two drags of the same slider with nothing between them merge.
+  **Fixed by MetalUI C10 lane 1** (2155f1e; `Slider(value:in:onEditingChanged:)`, rulings `LK-B`, `LK-Q`, `LK-U`: `true`
+  before the press's write, `false` after the release's, always paired) and adopted (Adopt C10 plan Task 1): both
+  inspector sliders (a node's input and a document parameter) call `EditorModel.sliderEditingChanged(_:)`, which closes
+  the undo run, so a drag is one undo step and two drags with nothing between them are two. The selection, canvas-press
+  and undo ends stay as a safety net.
 - **M5-b. No focus-scoped or hover-scoped key binding.** Tab focus traversal claims Tab before `Window.onInput`
   whenever anything focusable is on screen (the inspector always is). The window keymap runs earlier, and a binding
   whose `onAction` returns false falls through to the later stages, traversal included, so the graph binds Tab
@@ -159,8 +165,18 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
   focus region.
 - **M5-c. No materials or blur** (`.background(.ultraThinMaterial)`, `.blur(radius:)`). Glass panels over the viewport
   need a backdrop blur (spec §6.1). Stopgap: `#21222c` at 86% opacity with the hairline (`GlassPanel`).
+  **Fixed by MetalUI C10 lane 3** (2155f1e; `.blur(radius:)` and `Material`, rulings `LK-K`, `LK-L`), **adopted by
+  decision, nothing swapped** (Adopt C10 plan Task 5): MetalUI's materials are a flat grey tint fitted to SwiftUI's
+  (its divergences 166, 167) with no backdrop blur, and `.blur(radius:)` blurs a view's own pixels, so neither gives
+  the spec's glass; and a material's grey is the same in every theme, where `GlassPanel` fills with the theme's `glass`
+  role (Dracula's `#21222c` at 86%, editable in the theme editor). `GlassPanel` keeps the theme's tint and the hairline;
+  `GlassFillTests` pins it. What spec §6.1 wants, a blur of what is behind the panel, is gap C10-a.
 - **M5-d. No gradients.** The window background is a `#3a3d4e` → `#191a21` vertical gradient (spec §6.6). Stopgap:
   solid `#191a21`.
+  **Fixed by MetalUI C10 lane 3** (2155f1e; `LinearGradient`, ruling `LK-J`) and adopted (Adopt C10 plan Task 4): the
+  preview window's background is `WindowBackground`, the theme's `backgroundTop` to `backgroundBottom` top to bottom.
+  The app's viewport already paints the same gradient on the GPU (`ViewportRenderer`), so the app shell has no
+  background to swap.
 - ✅ **Closed by C7 (graph panel, 2026-10-09):** the canvas's one `DragGesture(minimumDistance: 0)` reads
   `DragGesture.Value.modifiers` (a click those at the press, a drag those when it starts), `GraphPanelInput` no
   longer tracks `.modifiersChanged`, and `dragValueModifiers(_:)` and `spatialTapGesture()` are gone. A click's
@@ -189,9 +205,15 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
   palette is open (the keymap stage precedes field keys). SwiftUI's `onKeyPress` on the field would fix it.
 - **M5-i. No keyframe animation.** The refused-wire "brief shake" (spec §6.2) wants a back-and-forth keyframe
   animation. Stopgap: the node's offset jumps 6 pt and springs back (`.animation(.spring(duration:bounce:), value:)`).
+  **Fixed by MetalUI C10 lane 2** (2155f1e; `keyframeAnimator`, `KeyframeTimeline`, rulings `LK-H`, `LK-I`) and adopted
+  (Adopt C10 plan Task 3): `NodeView` runs `RefusalShake`'s keyframes (6 pt out in 0.05 s, 6 pt back across in 0.1 s,
+  home in 0.05 s) each time `EditorModel.shakeCount(of:)` goes up. `isShaking` and its 300 ms timer are gone.
 - **M5-j. No `ProgressView` or indeterminate spinner.** The node status badge shows a spinner while the node evaluates
   (spec §6.2). MetalUI has no activity indicator. Stopgap: a static `◌` glyph (`StatusBadge.text(for:)`). Wanted:
   `ProgressView()` (indeterminate, small control size) or a `TimelineView(.animation)` to rotate a glyph.
+  **Fixed by MetalUI C10 lane 2** (2155f1e; `ProgressView`, rulings `LK-E`, `LK-F`) and adopted (Adopt C10 plan Task 2):
+  `StatusBadgeView` draws `ProgressView().controlSize(.small)` while `StatusBadge.isBusy`; `StatusBadge.text` is empty
+  for `.evaluating`.
 
 ## Hit by M6 (app shell), 2026-10-09
 
@@ -550,3 +572,26 @@ Labelled M7-a… so they don't clash with the labels above. Checked against Meta
   checked in. Stopgap: cold frames, labelled as an upper bound. Wanted, as one request with M6-e: a public headless
   window (or a frame renderer that keeps its caches across frames) that a client can drive with input and time,
   including the display link's pacing.
+
+## Used again by the C10 adoption, 2026-10-09
+
+- **M6-e and M7-b, used again.** The C10 adoption's two animations can be seen only at rest from a test: `renderFrame`
+  draws one frame at time zero with a fresh animation store, and a `Frame`'s timestamp and `AnimationStore` are
+  internal. The refusal shake's motion is tested through the public `KeyframeTimeline` at injected times, the
+  spinner's through its still frame, and what a real window does (the shake running on a new refusal, the spinner
+  turning, a slider's `onEditingChanged` pairing) is human checks C10-2 to C10-4. Stopgap: none beyond that. Wanted,
+  with M6-e: a public headless window, or `renderFrame` taking a timestamp and returning its animation store, so a
+  test can tick a `keyframeAnimator` and a `ProgressView` and press a `Slider`.
+
+## Hit by the C10 adoption, 2026-10-09
+
+Labelled C10-a… so they don't clash with the labels above. Checked against MetalUI `2155f1e`.
+
+- **C10-a. No backdrop blur behind a material.** Spec §6.1 wants the floating panels (graph panel, inspector, top bar)
+  to blur the 3D viewport behind them. MetalUI's `Material` is a flat tint fitted to SwiftUI's (divergence 166) and
+  `.blur(radius:)` blurs a view's own pixels, leaving a `MetalView` unblurred (divergence 167), so nothing blurs what is
+  behind a panel, and the viewport behind MetalCreator's panels is a GPU surface a CPU blur could not read
+  (`LK-L` item 4, deferred as C10-c in `LK-A`). Stopgap, and the look we ship: `GlassPanel` fills with the theme's
+  translucent `glass` tint and a 1-pt hairline. Wanted: a backdrop blur that sees a `MetalView` beneath it (a pass split
+  at each material on both renderers), usable as `.background(.ultraThinMaterial)`; until then the theme's own tint stays.
+  Sent to the MetalUI session by the controller, 2026-10-09.

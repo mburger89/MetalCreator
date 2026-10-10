@@ -12,6 +12,11 @@ Editor polish (the floating add-node palette and the node library) code is done;
 Packaging (`scripts/package-app.sh`, `docs/packaging.md`) is done; its human checks (group P) are pending.
 Multi-select polish (sub-project A of `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md`) code is
 done; its human checks (group MS) are pending.
+MetalUI C10's looks and controls are adopted (plan `docs/superpowers/plans/2026-10-09-adopt-c10.md`; human checks group C10
+pending): the inspector's sliders end an undo step with `Slider(onEditingChanged:)` (`EditorModel.sliderEditingChanged(_:)`),
+a refused node shakes with `keyframeAnimator` (`RefusalShake`, `EditorModel.shakeCount(of:)`), an evaluating node's badge is
+a `ProgressView`, the preview window's background is a `LinearGradient` (`WindowBackground`), and the glass panels keep the
+theme's flat tint on purpose (no backdrop blur exists, gap C10-a).
 Themes (custom themes, `.mctheme` files, the theme editor) code is done; its human checks (group TH) are pending. Each role is edited with MetalUI C10's `ColorPicker` (plan Task 11).
 M7 (measure and record) code is done: spec §7.3's numbers are in `docs/verification/performance.md`, taken by the
 release benchmarks in `Tests/CreatorAppTests/Bench` (`scripts/bench.sh`); `docs/metalui-gaps.md` opens with a summary

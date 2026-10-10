@@ -249,7 +249,7 @@ Themes milestone after M6 (roadmap).
 | Role | Colour |
 |---|---|
 | Window and viewport background (gradient) | `#3a3d4e` → `#191a21` |
-| Glass panels | `#21222c` at about 86% with blur, hairline `#ffffff1f` |
+| Glass panels | `#21222c` at about 86% (no blur: Errata (M5), gap C10-a), hairline `#ffffff1f` |
 | Panel base, dark text on accents | `#282a36` |
 | Node body, fields, tracks, dividers | `#343746` / `#44475a` |
 | Primary text / secondary and hint text | `#f8f8f2` / `#6272a4` |
@@ -408,11 +408,13 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
   passes `BuiltInNodes.registry`. `CreatorNodes` is a test-only dependency of `CreatorEditorTests`, where
   `BuiltInNodesInspectorTests` runs every built-in definition through `InspectorBuilder` and `NodeShape`.
 - §6.4's inspector also clears an optional input: emptying its field unsets it (for example Grid Points `total`).
-- §6.1/§6.6's glass blur and the window gradient wait for MetalUI. Panels are `#21222c` at 86% with the hairline,
-  and the preview's background is solid `#191a21` (docs/metalui-gaps.md M5-c, M5-d).
-- §6.2's refusal shake is a spring back from a 6-pt offset (no keyframe animation yet, M5-i).
-- §6.2's status-badge spinner is a static `◌` glyph while a node evaluates: MetalUI has no `ProgressView` or
-  activity indicator yet (docs/metalui-gaps.md M5-j).
+- §6.1/§6.6's glass blur is not built, and not for want of an API: MetalUI C10's materials are a flat grey tint with no
+  backdrop blur and its `.blur(radius:)` blurs a view's own pixels, so panels keep the theme's translucent `glass` tint
+  (Dracula `#21222c` at 86%) with the hairline; a blur of the viewport behind them is MetalUI's C10-c (docs/metalui-gaps.md
+  M5-c, C10-a). The window gradient (§6.6) is MetalUI's `LinearGradient` (`WindowBackground`, M5-d); the app's viewport paints it on the GPU.
+- §6.2's refusal shake is MetalUI's `keyframeAnimator`: 6 pt right, 6 pt left, home, in 0.2 s, once per refusal (M5-i).
+- §6.2's status-badge spinner is MetalUI's `ProgressView` while a node evaluates (M5-j).
+- §6.4's sliders end one undo step per drag at MetalUI's `Slider(onEditingChanged:)` (M5-a).
 
 ## Errata (M6)
 

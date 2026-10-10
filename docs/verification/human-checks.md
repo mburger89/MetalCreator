@@ -197,7 +197,7 @@ Run `swift run GraphPanelPreview`.
 - [ ] **M5-2 Selection outline.** Click Extrude: it gets a 2-pt outline in *purple*, its own header colour, and no
   glow. Click Fillet: the outline is orange. Pinned: `selectionOutlineIsTheNodesOwnHeaderColour`. **Observed:**
 - [ ] **M5-3 Glass panels.** The panel and inspector are translucent dark with a faint 1-pt light hairline and rounded
-  corners (no blur yet, gap M5-c). **Observed:**
+  corners, a flat tint with no blur (gap C10-a; check C10-1). **Observed:**
 - [ ] **M5-4 Wires.** Wires are smooth curves leaving outputs forwards and entering inputs forwards, coloured by the
   source socket (green from Rectangle, purple from Extrude, pink from All Edges). Socket dots use the same colours.
   Pinned: `WireGeometryTests`, `wiresRunBetweenTheirSocketAnchors`. **Observed:**
@@ -212,8 +212,8 @@ Run `swift run GraphPanelPreview`.
   the node stays under the pointer. Click a socket's edge at that zoom and drag: a cyan wire follows the pointer.
   Pinned: `HitTestTests`, `MiddlePanTests`. **Observed:**
 - [ ] **M5-7 Wiring.** Drag Rectangle's output onto Extrude's profile input: a wire is made (it replaces the old one).
-  Drag Number's output onto Extrude's profile: nothing connects, Extrude jumps sideways and springs back (a brief
-  wobble, gap M5-i), and "A number can't connect to a profile input." shows under the canvas for about two seconds.
+  Drag Number's output onto Extrude's profile: nothing connects, Extrude shakes (6 points right, 6 left, home in a
+  fifth of a second; check C10-2), and "A number can't connect to a profile input." shows under the canvas for about two seconds.
   Drag from Extrude's wired profile input onto empty canvas: the wire is removed; ⌘Z brings it back.
   Pinned: `WiringTests`. **Observed:**
 - [ ] **M5-8 Box select and ⌥-drag.** Hold ⇧ and drag on empty canvas: a cyan box selects what it touches. Hold ⌥
@@ -291,7 +291,7 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   isn't reachable from a test). Type "abc" into Width and press Tab: the field shows Width's value again, not
   "abc"; type Width's current value and press Tab: the field shows it formatted as before. **Observed:**
 - [ ] **M6-7 Layout.** The viewport fills the window; the top bar, graph panel and inspector float over it as glass
-  (no blur, gap M5-c). The view cube sits at the top-left of the uncovered area, right of the panel; the triad at its
+  (a flat tint, no blur, gap C10-a). The view cube sits at the top-left of the uncovered area, right of the panel; the triad at its
   bottom-left and "mm · grid" at its bottom-right, clear of the panels. Press Bottom, then Hide, then "Show graph":
   the cube, triad and label move with the panels. Drag the panel's inner edge (the faint strip): it resizes, within
   limits, and the cube follows. Pinned: `theViewportOverlaysMoveOutFromUnderThePanels`,
@@ -341,6 +341,39 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   "mm · grid" stays at the bottom-right of the uncovered area. Repeat docked at the left, dragging its right edge both
   ways. Pinned: `theTriadsLettersStayOnItsAxesWhenTheDockResizes`, `aModelAreaThatMovesOnlyTheTriadRedraws`.
   **Observed:**
+
+## Group C10 — MetalUI C10's controls and looks (Adopt C10)
+
+**Status: NOT RUN.** Plan `2026-10-09-adopt-c10.md`. The tests pin the models, the keyframes read at injected times, the
+spinner's still frame and the gradient's pixels; a real window is needed for the motion (no public headless window or
+frame time, gaps M6-e and M7-b) and for how things look. Run `swift run MetalCreatorApp`, and `swift run GraphPanelPreview`
+for C10-5.
+
+- [ ] **C10-1 Glass panels.** The top bar, graph panel and inspector are the theme's translucent fill with a faint 1-pt
+  hairline and rounded corners; the viewport shows through unblurred (there is no backdrop blur, gap C10-a). Switch
+  View ▸ Theme to Alucard and Nord: each panel takes that theme's glass colour (light in Alucard). In the theme editor change
+  the Glass role's colour and opacity: every panel follows. Pinned: `GlassFillTests`. **Observed:**
+- [ ] **C10-2 Refusal shake.** Drag Number's output onto Extrude's profile input: Extrude jumps 6 points right, 6 left and
+  settles, in about a fifth of a second, crisp and not bouncy; the message shows under the canvas for about two seconds.
+  Do it twice in a row, quickly: it shakes twice. Refuse Extrude, then another node: only the second shakes. Pan the
+  canvas during a shake: the node keeps shaking at its new place and stops at rest. Pan a refused node out of sight and
+  back: it does not shake. Drag a node normally: no shake. Pinned: `RefusalShakeTests` (the keyframes at injected times, the
+  per-node count, a refused node drawn at rest). **Observed:**
+- [ ] **C10-3 Evaluating spinner.** Make a node slow (a Boolean or a large-radius fillet on a dense part) and edit
+  it: its badge shows a small spinner of twelve spokes turning once every 0.8 seconds, then the time in ms. The spinner fits
+  the header and reads on every header colour (value, profile, solid, selection rule, feature, output) in Dracula and in
+  Alucard. Select the busy node: the inspector header's badge shows the same spinner, readable on its background (its
+  colour is MetalUI's control accent, not the old status grey: accepted, user decision 4).
+  While it turns, panning the canvas stays smooth; note the frame rate (a spinner redraws the whole window each
+  frame, PERF-b). Pinned: `StatusBadgeRenderTests` (the still frame), `statusBadges`. **Observed:**
+- [ ] **C10-4 Slider undo.** Select a node with a slider (Extrude's Distance): drag the slider, then ⌘Z once: the whole drag
+  is undone and the value returns to what it was before the press. Drag it again twice with nothing in between: two ⌘Z. Use a
+  document parameter's slider the same way. Click the slider's track without moving: one undo step (or none if the value
+  did not change). Focus the slider and press ← three times: each press is its own step. Pinned: `SliderEditingTests` (the
+  model); the pairing through a real window is this check only. **Observed:**
+- [ ] **C10-5 Window gradient.** `swift run GraphPanelPreview`: the window behind the panels fades from a lighter blue-grey
+  at the top to near-black at the bottom, smoothly, with no banding or seam at the panels' edges. In the app, the viewport
+  behind the panels shows the same gradient. Pinned: `WindowBackgroundTests`. **Observed:**
 
 ## Group EP — editor polish: the floating palette and the node library
 
