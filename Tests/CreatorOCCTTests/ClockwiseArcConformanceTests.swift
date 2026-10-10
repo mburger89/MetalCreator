@@ -42,6 +42,25 @@ struct ClockwiseArcConformanceTests {
         #expect(isClose(try await kernel.properties(of: solid).volume, 2 * (1200 - (200 - 8 * Double.pi))))
     }
 
+    /// The notch stays one hole wall of its own loop, named by its segment: the history lookup after the shim reverses the
+    /// edge for a clockwise arc finds the hole loop's wall as it does the outer loop's (`aNotchedPlateExtrudesToItsAnalyticVolume`).
+    @Test(arguments: KernelUnderTest.allCases)
+    func aNotchedHolesWallsAreNamedByTheirLoopAndSegment(_ under: KernelUnderTest) async throws {
+        let tag = newTag()
+        let outline = Profile2D.rectangle(width: 40, height: 30, plane: .xy).segments
+        let profile = Profile2D(plane: .xy, outer: outline, holes: [Self.notchedPlate(offset: Vector2(-10, -5))])
+        let solid = try await under.make().extrude(profile, distance: 2, mode: .oneSided, tag: tag)
+        // Four outer walls, six hole walls, two caps.
+        #expect(solid.topology.faces.count == 12)
+        for segment in 0..<6 {
+            #expect(faces(solid, role: .side(loop: 1, segment: segment), of: tag).count == 1, "hole wall \(segment)")
+        }
+        let notchWall = try #require(faces(solid, role: .side(loop: 1, segment: 3), of: tag).first)
+        #expect(notchWall.kind == .cylinder)
+        #expect(isClose(notchWall.area, 2 * 4 * Double.pi))
+        #expect(!solid.topology.faces.contains { face in face.tags.contains { if case .unnamed = $0.role { true } else { false } } })
+    }
+
     @Test(arguments: KernelUnderTest.allCases)
     func aNotchedPlateRevolves(_ under: KernelUnderTest) async throws {
         // Revolved a half turn about the plate's left edge (the y axis): Pappus, area × π × centroid x.
