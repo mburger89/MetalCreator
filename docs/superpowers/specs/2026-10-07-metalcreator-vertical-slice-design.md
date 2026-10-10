@@ -524,8 +524,44 @@ Plan `2026-10-09-naming-merged-faces.md`, roadmap row "Naming: picks on merged f
   `BracketAcceptanceTests.swappingTheFlangeForAPolygonKeepsEveryPickButTheFilletedHexagonCantBeChamfered` pins it, and
   `BracketAcceptanceTests.aChamferPickedOnMergedSidesSurvivesTheFlangeChangingWidth` pins the case end to end with no
   warning or error (the flange alone made 40 or 70 mm wide, so no plate side stays merged).
-- Face picks (`FacePick`, Plane from Face) are not narrowed: one made on a merged face still names both operands'
-  tags (roadmap row "Naming: face picks on merged faces").
+- Face picks (`FacePick`, Plane from Face) were not narrowed by this plan; see Errata (naming: face picks).
+
+## Errata (naming: face picks)
+
+Plan `2026-10-09-naming-face-picks.md`, roadmap row "Naming: face picks on merged faces". The user approved the plan's
+recommended defaults on 2026-10-09 (decided: a silent per-operand retry when exactly one part stays in the old plane;
+the normal and centroid recorded as optional keys with no format bump; following a lone-operand hole rim silently;
+the nearest count then key order with a warning; using the edge and reporting the guess for projections; warning for
+picks with no position).
+
+- §5.3 rule 5: a face pick (`FacePick`, Plane from Face) also records the picked flat face's outward normal and
+  centroid (`FacePick.normal`, `FacePick.centroid`, optional keys that older readers ignore, so §4.5's format version
+  is unchanged; renaming a pick for a group keeps them).
+- §5.3 rules 3 and 5: a face pick that matches no face is retried with each operand's tags alone (the tags of one node
+  call, `TopoTag.origin`; `Set<TopoTag>.partsByOrigin`). A candidate must face the way the picked face did; the one
+  lying in the plane the picked face was in wins, nearest its centroid first (`Topology.resolution(of:)`). A pick that
+  matches anything is never retried, so every pick that resolved before resolves the same way.
+- §5.3 rule 6: the retry is silent only when the pick recorded its position and exactly one candidate lies in the
+  picked face's plane (within a micrometre); the plane then stays where it was in space, on whichever part is left, so
+  if the plate moves and the flange stays it sits on the flange's face (the pick doesn't record which operand it was
+  picked on). Otherwise Plane from Face still places the plane, on the best candidate, and warns that it
+  isn't clear which part was picked (`PlaneFromFaceNode.mergedPick`), as it does for a pick made before positions were
+  recorded. A pick no candidate of which faces the picked way is still "isn't on this solid any more".
+- §5.3 rule 3: an edge key that matches nothing, whose narrowed key (Errata (naming: merged faces)) matches nothing
+  either, is retried by operand for each side that has tags from several node calls and none in common with the other
+  side (`EdgeKey.operandKeys`): the rim of a hole through a face a union merged is `{plate.side, flange.side} |
+  {hole.wall}` and the wall shares no node call with either. When several operands' keys name edges, the one with the
+  recorded edge count wins if exactly one has it; otherwise the nearest count wins and Edges by Tag warns
+  (`EdgeTagMatch.ambiguousPick`), as does a Sketch projection (`SketchProjections.locate`). A count summed over several reference solids is never
+  compared with one operand's, and a pick with edge ordinals that resolved through one operand's share of its key is a
+  guess too (the ordinals were recorded against the whole key's edges). An edge where two operands meet keeps its full
+  name, and a key that matches anything or narrows is never split.
+- The case with the flange wider than the plate: the hole's rim at the bracket's left side is then the flange's own
+  face (x = -35), so the pick follows the hole to that face rather than staying on the plate.
+  `BracketAcceptanceTests.aPlanePickedOnAMergedSideSurvivesTheFlangeChangingWidth`, `...BecomingAPolygon` and
+  `BracketAcceptanceTests.aHoleRimPickedOnAMergedSideSurvivesTheFlangeChangingWidth`, `...BecomingAPolygon` pin all of
+  it, and `BracketAcceptanceTests.aPlanePickedOnAMergedSideStaysInPlaceWhenOnlyThePlateMoves` pins the plane staying put
+  when the plate alone changes.
 
 ## Errata (Themes)
 

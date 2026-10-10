@@ -55,17 +55,22 @@ enum SketchProjections {
         var found: [EdgeInfo] = []
         var matched = 0
         var runs = 0
+        var isAmbiguous = false
         for solid in references {
-            let choice = EdgeTagMatch.choose(pick, in: solid.topology)
+            let choice = EdgeTagMatch.choose(pick, in: solid.topology, comparesRecordedCount: references.count == 1)
             matched += choice.matchCount
             runs += choice.runCount
+            isAmbiguous = isAmbiguous || choice.isAmbiguous
             found += choice.chosen
         }
         switch found.count {
         case 0: return .problem("matches no edge of the references.")
         case 1:
             let drifted = pick.hasDrifted(matching: matched, inRuns: runs)
-            return .found(found[0], drift: drifted ? EdgeTagMatch.drift([(matched, pick.matchCount)]) : nil)
+            let drift = drifted ? EdgeTagMatch.drift([(matched, pick.matchCount)]) : nil
+            let guess = isAmbiguous ? EdgeTagMatch.ambiguousPick : nil
+            let notes = [drift, guess].compactMap { $0 }
+            return .found(found[0], drift: notes.isEmpty ? nil : notes.joined(separator: " "))
         default: return .problem("matches \(found.count.display) edges of the references.")
         }
     }

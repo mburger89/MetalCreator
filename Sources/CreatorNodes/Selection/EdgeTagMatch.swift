@@ -9,6 +9,8 @@ struct EdgeTagMatch: Equatable {
     static let nothingPicked = "Pick edges in view to fill this rule."
     static let unnamedPick = "A picked edge borders a face with no stable name, so the pick may move to a different edge "
         + "when the model changes. Pick it again after the change."
+    static let ambiguousPick = "A picked edge was on a face that a union had merged from several parts, and more than one of "
+        + "them now has an edge that fits. The pick uses the closest match; pick it again to settle it."
 
     /// Drift is reported per drifted pick, so two picks drifting in opposite directions
     /// (1 → 2 and 1 → 0) never cancel out into "Matched 2 edges, expected 2.". A pick drifts by
@@ -18,8 +20,10 @@ struct EdgeTagMatch: Equatable {
         var selected: [EdgeID] = []
         var seen: Set<EdgeID> = []
         var drifts: [(found: Int, expected: Int)] = []
+        var isAmbiguous = false
         for pick in picks {
             let choice = choose(pick, in: topology)
+            isAmbiguous = isAmbiguous || choice.isAmbiguous
             if pick.hasDrifted(matching: choice.matchCount, inRuns: choice.runCount) {
                 drifts.append((choice.matchCount, pick.matchCount))
             }
@@ -33,19 +37,31 @@ struct EdgeTagMatch: Equatable {
         } else if selected.isEmpty {
             warnings.append("Matched 0 edges, expected \(picks.reduce(0) { $0 + $1.matchCount }).")
         }
+        if isAmbiguous {
+            warnings.append(ambiguousPick)
+        }
         if picks.contains(where: \.touchesUnnamedFace) {
             warnings.append(unnamedPick)
         }
         return EdgeTagMatch(edges: selected, warnings: warnings)
     }
 
-    /// The edges one pick chooses in `topology` (what its key resolves to, `Topology.edges(resolving:)`:
-    /// its tag-subset matches, else its narrowed key's; then narrowed by its ordinals), how many edges the
-    /// key matched and how many runs they form. The Sketch node's projections use it too.
-    static func choose(_ pick: EdgePick, in topology: Topology) -> (chosen: [EdgeInfo], matchCount: Int, runCount: Int) {
-        let matches = topology.edges(resolving: pick.key)
+    /// The edges one pick chooses in `topology` (what its key resolves to, `Topology.resolution(of:expecting:)`:
+    /// its tag-subset matches, else its narrowed key's, else one operand's share of it; then narrowed by its
+    /// ordinals), how many edges the key matched, how many runs they form and whether the choice between operands
+    /// was a guess. The Sketch node's projections use it too.
+    ///
+    /// `comparesRecordedCount` says the pick's recorded count is for this topology alone; a caller that sums
+    /// matches over several solids (`SketchProjections.locate`) passes `false`, since the sum is no operand's
+    /// count. A pick with ordinals that resolved through one operand's share of its key is a guess too: its
+    /// ordinals index the whole key's edges.
+    static func choose(_ pick: EdgePick, in topology: Topology, comparesRecordedCount: Bool = true)
+        -> (chosen: [EdgeInfo], matchCount: Int, runCount: Int, isAmbiguous: Bool) {
+        let resolution = topology.resolution(of: pick.key, expecting: comparesRecordedCount ? pick.matchCount : nil)
+        let matches = resolution.edges
         let chosen = pick.ordinals.map { ordinals in ordinals.filter(matches.indices.contains).map { matches[$0] } } ?? matches
-        return (chosen, matches.count, Topology.runCount(matches))
+        let isAmbiguous = resolution.isAmbiguous || (pick.ordinals != nil && resolution.isSplit)
+        return (chosen, matches.count, Topology.runCount(matches), isAmbiguous)
     }
 
     /// "Matched 1 edge, expected 2." (several drifts joined by "; ").

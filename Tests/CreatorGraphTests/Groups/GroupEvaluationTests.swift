@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorKernel
 import Testing
 @testable import CreatorGraph
@@ -123,6 +124,14 @@ struct GroupEvaluationTests {
         #expect(picks.renamingTags([a: b]) == renamed)
         #expect(endCapPick(of: a).renamingTags([a: b]) == endCapPick(of: b))
         #expect(ConstantValue.number(1).renamingTags([a: b]) == .number(1))
+    }
+
+    @Test func renamingTagsKeepsAFacePicksPosition() {
+        let a = NodeID(), b = NodeID()
+        let normal = Vector3(0, 0, 1), centroid = Vector3(1, 2, 3)
+        let pick = FacePick(tags: [TopoTag(node: a, item: 0, role: .endCap)], normal: normal, centroid: centroid)
+        let renamed = FacePick(tags: [TopoTag(node: b, item: 0, role: .endCap)], normal: normal, centroid: centroid)
+        #expect(ConstantValue.facePick(pick).renamingTags([a: b]) == .facePick(renamed))
     }
 
     @Test func eachInstanceIsCachedOnItsOwnAndADefinitionEditRerunsThemAll() async throws {
