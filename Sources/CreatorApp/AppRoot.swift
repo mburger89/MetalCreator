@@ -49,6 +49,10 @@ public struct AppRoot: Component {
             if case .discardChanges = alert {
                 Button("Discard Changes", role: .destructive) { Task { await model.discardChanges() } }
                 Button("Cancel", role: .cancel) { model.keepChanges() }
+            } else if case .saveChanges = alert {
+                for answer in SaveChangesAnswer.allCases {
+                    Button(answer.title, role: answer.role) { Task { await model.answerSaveChanges(answer) } }
+                }
             }
         } message: { alert in
             Text(alert.message)

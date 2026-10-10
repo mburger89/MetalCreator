@@ -31,6 +31,13 @@ struct AppRootRenderTests {
         #expect(!scene.glyphs.isEmpty)
     }
 
+    @Test func theWindowDrawsWhileTheSaveChangesAlertIsUp() async throws {
+        let app = await makeApp()
+        try app.document.perform(.addNode(BuiltInNodes.registry.makeNode(NumberNode.typeID)))
+        #expect(app.closeRequested() == .later)
+        #expect(!render(app).glyphs.isEmpty, "the alert's buttons are built beside the window")
+    }
+
     @Test func theDockedPanelIsLaidOutToTheModelsWidth() async {
         let app = await makeApp()
         app.beginPanelResize()

@@ -22,6 +22,10 @@ func runApp(opening path: String?) throws {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     input.install(on: window)
+    // Close and quit (gap M6-b): ⌘Q asks each window's `onCloseRequest` in turn when the app sets no
+    // `onTerminateRequest`, and this app has one window, so one handler and one reply route serve both.
+    window.onCloseRequest = { model.closeRequested() }
+    model.replyToCloseRequest = { window.replyToCloseRequest($0) }
     model.filePicker = WindowFilePicker(window: window)
     themeEditor.filePicker = model.filePicker
     if let path {
