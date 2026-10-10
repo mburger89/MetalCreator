@@ -33,7 +33,7 @@ struct FacePickTests {
     }
 
     @Test func aFacesPickIsItsWholeTagSet() {
-        #expect(sample().facePick(for: FaceID(1)) == FacePick(tags: [top, flangeTop]))
+        #expect(sample().facePick(for: FaceID(1))?.tags == [top, flangeTop])
         #expect(sample().facePick(for: FaceID(9)) == nil)
     }
 
