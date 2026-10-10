@@ -15,8 +15,11 @@ public enum NodeSetting {
     public static let sketch: SocketName = "sketch"
     /// Plane from Face: the picked face, as `.facePick(topology.facePick(for:))`.
     public static let face: SocketName = "face"
+    /// Group, Group Input and Group Output: the definition they belong to, as `ConstantValue.group(_:)`
+    /// (groups spec §4). `NodeRegistry.makeGroupNode` sets it.
+    public static let group: SocketName = "groupID"
 
-    public static let all: Set<SocketName> = [parameter, picks, showHandle, sketch, face]
+    public static let all: Set<SocketName> = [parameter, picks, showHandle, sketch, face, group]
 
     /// The start of every projection setting's name, which no exposed dimension may use.
     public static let projectionPrefix = "projection."

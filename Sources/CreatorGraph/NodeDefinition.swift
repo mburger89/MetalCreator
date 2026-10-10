@@ -13,6 +13,9 @@ public protocol NodeDefinition: Sendable {
     /// its settings (the Sketch node's exposed dimensions, sketcher spec §7) adds more. The evaluator and
     /// `Graph.connectionProblem` read this, so a socket listed here can be wired and is gathered.
     static func inputs(for node: Node) -> [SocketSpec]
+    /// The output sockets of one node; the fixed `outputs` unless a type says otherwise. Read sockets through
+    /// `NodeRegistry.inputs(for:)`/`outputs(for:)`, which also give group nodes their definition's sockets.
+    static func outputs(for node: Node) -> [SocketSpec]
     static var inspector: [InspectorSection] { get }
     static var handles: [HandleSpec] { get }
     /// True if `evaluate` reads `context.parameters`, so parameter edits invalidate its cache.
@@ -30,6 +33,7 @@ public protocol NodeDefinition: Sendable {
 extension NodeDefinition {
     public static var typeVersion: Int { 1 }
     public static func inputs(for node: Node) -> [SocketSpec] { inputs }
+    public static func outputs(for node: Node) -> [SocketSpec] { outputs }
     public static var inspector: [InspectorSection] { [] }
     public static var handles: [HandleSpec] { [] }
     public static var readsParameters: Bool { false }
