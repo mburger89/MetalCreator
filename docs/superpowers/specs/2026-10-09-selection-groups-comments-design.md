@@ -181,3 +181,31 @@ public struct CommentFrame: Sendable, Codable, Equatable { id, title: String, fr
 
 Rows: "Multi-select polish (A)", "Groups: model and evaluation (C1)", "Comments (B)", "Groups: editor (C2)",
 "Comments: typing on the canvas (after MetalUI C9 + canvas double-click)".
+
+## Errata (C1)
+
+Plan `2026-10-09-groups-core.md`.
+
+- §4 "per-node sockets through `NodeDefinition.inputs(for:)`/`outputs(for:)`": a node definition's static methods
+  can't see the document's definitions, so a node's sockets are read through `NodeRegistry.inputs(for:)`/
+  `outputs(for:)`, which give group nodes, Group Input and Group Output their definition's sockets (the registry
+  carries the document's definitions, `DocumentModel.registry`) and every other node `NodeDefinition.inputs(for:)`/
+  `outputs(for:)` (the latter added here). Group Input and Group Output also carry `NodeSetting.group`.
+- §4 "registry entry `group`": the three group types live in `CreatorGraph` (the evaluator and the commands need
+  them, and `CreatorEditor` can't import `CreatorNodes`), and every `NodeRegistry` registers them itself; the palette
+  and the library don't list them.
+- §4 Group Output's inputs are optional: an unwired one is an output the group node doesn't produce.
+- §5 Naming: a pick stored inside a definition names faces as if the definition were the top level (its own nodes
+  by ID, nodes inside its group nodes by `NodeID.scoped` of the path from it), and each instance reads it as its own
+  (`EvaluationScope.naming`), so a sub-graph with a picked fillet works in every instance.
+- §5 Naming: Group, Ungroup and Make Unique change the names faces are made under, and each renames, in the same
+  undo step, every pick in the document that names a face of the nodes it moves (`GroupScopes.renamingPicks`),
+  inside the moved nodes too. So no pick drifts across them, and there is no message to state ("picks across them
+  follow the existing drift rules … stated in the commands' messages" no longer applies; `GroupEdit` has no notice).
+- §4/§5 A definition's new interface is refused, after the whole command, when it removes a socket, or gives it
+  another type, while a wire is still on it: on a group node, or inside on Group Input or Group Output.
+- §5 Ungroup removes the definition with its last group node; Make Unique also renames its group node to the
+  copy's name; renaming a definition renames the group nodes still named after it.
+- §5 ⌘G and ⇧⌘G (`EditorModel.groupSelection`/`ungroupSelection`) act on the top level until C2 shows a
+  definition's inside.
+- §2 The file format went 4 → 5 here; comments (B) add their keys under 5.
