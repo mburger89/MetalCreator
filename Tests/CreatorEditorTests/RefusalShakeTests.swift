@@ -63,6 +63,27 @@ struct RefusalShakeTests {
         #expect(grouped.editor.refusal == nil, "and so is a rename")
     }
 
+    @Test func aSuccessfulGroupAndUngroupClearTheCaption() throws {
+        let editor = makeEditor([number, extrude])
+        editor.selection = []
+        editor.groupSelection()
+        #expect(editor.refusal != nil, "an empty selection is refused")
+        editor.selection = [number.id, extrude.id]
+        editor.groupSelection()
+        #expect(editor.refusal == nil, "a group that goes through ends the old caption")
+        editor.refuse("Stale.", node: nil)
+        editor.ungroupSelection()
+        #expect(editor.refusal == nil, "and so does an ungroup")
+    }
+
+    @Test func aParameterEditClearsTheCaption() {
+        let width = GraphParameter(name: "Plate width", type: .number, value: .number(60))
+        let editor = makeEditor([], parameters: [width])
+        editor.refuse("Stale.", node: nil)
+        editor.setParameter(width.id, to: .number(70), continuous: true)
+        #expect(editor.refusal == nil)
+    }
+
     @Test func aRefusalNamingNoNodeShakesNothing() {
         let editor = makeEditor([number])
         editor.refuse("Nothing to group.", node: nil)

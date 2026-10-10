@@ -27,10 +27,12 @@ extension EditorModel {
                 try document.perform(GroupCommands.exposeOutput(from: other.endpoint, on: boundary.id, in: definition,
                                                                 of: document.content, registry: registry),
                                      name: UndoName.addOutputSocket)
+                clearRefusal()
             case (GroupNodes.inputTypeID, false, true):
                 try document.perform(GroupCommands.exposeInput(to: other.endpoint, from: boundary.id, in: definition,
                                                                of: document.content, registry: registry),
                                      name: UndoName.addInputSocket)
+                clearRefusal()
             default:
                 refuse(Self.exposeHint, node: plus.endpoint.node)
             }

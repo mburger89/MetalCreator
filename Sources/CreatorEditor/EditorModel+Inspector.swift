@@ -81,6 +81,7 @@ extension EditorModel {
         let key = continuous ? "parameter-\(id.rawValue.uuidString)" : nil
         do {
             try document.perform(.setParameter(id, value), coalescingKey: key, name: UndoName.changeParameter)
+            clearRefusal()
         } catch {
             refuse(error.message, node: nil)
         }

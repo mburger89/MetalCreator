@@ -39,6 +39,7 @@ extension EditorModel {
         do {
             let edit = try build()
             try document.perform(edit.command, name: name)
+            clearRefusal()
             selection = edit.selection
         } catch {
             refuse(error.message, node: node)
