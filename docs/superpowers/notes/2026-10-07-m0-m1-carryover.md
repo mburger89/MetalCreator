@@ -140,9 +140,10 @@ Read this before writing the M2 and M3 plans.
 ## From M6
 - Regular Polygon is `typeVersion` 2 (`rotation`). ✅ (naming-merged-faces plan) The §8 polygon swap's picks on faces
   a union merged now resolve with no warning: a key that matches nothing is retried `EdgeKey.narrowed`, and drift
-  counts runs as well as edges (`EdgePick.runCount`). The Chamfer still fails there, because OCCT's fillet of the
-  hexagon returns an invalid solid (spec Errata (naming: merged faces)). Owner of that: roadmap row "Kernel: blends
-  that return an invalid solid"; face picks on merged faces: roadmap row "Naming: face picks on merged faces".
+  counts runs as well as edges (`EdgePick.runCount`). ✅ (kernel-invalid-blends plan) OCCT's R3 fillet of the hexagon
+  returns a solid its checker rejects; the kernel now refuses it and the Fillet names the largest radius that works,
+  2.5 mm, at which the Chamfer and the Output have their part (spec Errata (Kernel: invalid blends)). Face picks on
+  merged faces: roadmap row "Naming: face picks on merged faces".
 - `AppModel` replaces the document's parts on New and Open; `AppInput` is installed once and forwards. Nothing may
   capture a `GraphPanelInput`, `EditorModel` or `ViewportModel` for the window's lifetime.
 - ✅ (viewport C7 plan) The first framing, F and Look At frame the part in the whole viewport, not the model area the

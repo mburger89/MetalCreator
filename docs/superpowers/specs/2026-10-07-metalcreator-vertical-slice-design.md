@@ -553,3 +553,33 @@ Plan `2026-10-09-themes-editor.md` (roadmap row "Themes").
 - MetalUI's own controls follow the theme: `ColorTheme.controlTheme` maps roles onto its tokens (background ←
   background bottom, surface ← node body, surfaceSecondary ← field, accent ← accent, separator ← comment,
   textPrimary ← foreground) for `.theme(_:)` over the window.
+
+## Errata (Kernel: invalid blends)
+
+Plan `2026-10-09-kernel-invalid-blends.md`, roadmap row "Kernel: blends that return an invalid solid".
+
+- §5.2: the OCCT kernel checks every fillet and chamfer result with OCCT's own checker (`BRepCheck_Analyzer`, geometry
+  included: `occt_is_valid`, `OCCTShape.isValid`) and never returns one it rejects. OCCT can report a blend done and
+  still return such a solid: §8's hexagon flange, its four upright edges at the bracket's R3 (a chamfer of 3 mm too;
+  both are valid at 2.5 mm and below). That solid has wires not closed in their faces, an unclosed shell, vertex
+  tolerances near 5 mm and a wrong volume (on the §7.2 bracket, holes included, about 1900 mm³ below what a valid
+  fillet would leave; on a hole-free plate and hexagon, about 1800 mm³ above), and every later blend along its
+  tangent chains fails.
+- It isn't repaired. The plan's probe tried `ShapeFix_Shape` (default and with tight tolerances),
+  `ShapeUpgrade_UnifySameDomain`, `ShapeFix_ShapeTolerance::LimitTolerance`, `BRepLib::SameParameter`, the other
+  fillet shapes (quasi-angular, polynomial), tighter and looser `SetParams`, filleting one edge at a time and fixing
+  the input first: none gives a valid solid, and ShapeFix changes its volume. A blend that passes is returned as
+  built, with its history, so its faces keep every tag (§5.3 is unchanged).
+- §3's errors: a refused blend names the largest size below the one asked for, on a 0.1 mm grid, that OCCT builds and
+  its checker accepts (`OCCTKernel.largestValidBlend`: a bisection of at most 20 tries, each under the OCCT lock on its
+  own, stopping when the evaluation is cancelled; it assumes every size above a failing one fails too, and the size it
+  names was built and checked). A fillet reads "Radius 3 mm is too large for the selected edges (max ≈ 2.5 mm)."; a
+  chamfer "Chamfer failed: chamfering the 4 selected edges by 3 mm gives a broken solid (max ≈ 2.5 mm)."; when not even
+  0.1 mm works, "…gives a broken solid, even by 0.1 mm.". The fillet message with a maximum is §3's own wording and
+  doesn't name the edge count on purpose (the error's `reason` keeps it); the others do. A blend OCCT can't build at all keeps its message, with no
+  maximum (roadmap row "Kernel: largest size for blends OCCT can't build").
+- Errata (naming: merged faces)'s polygon swap: at R3 the Fillet is now the node in error, naming 2.5 mm, and the Edges
+  by Tag, Chamfer and Output after it wait for its solid. With the radius at 2.5 every node is `.ok`: the five picks
+  resolve as that errata says, the Chamfer succeeds and the Output has its part.
+  `BracketAcceptanceTests.swappingTheFlangeForAPolygonKeepsEveryPickOnceTheFilletFits` pins it (it replaces
+  `swappingTheFlangeForAPolygonKeepsEveryPickButTheFilletedHexagonCantBeChamfered`).
