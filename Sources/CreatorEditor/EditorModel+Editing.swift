@@ -18,10 +18,15 @@ extension EditorModel {
         }
     }
 
-    /// Delete / ⌫: removes the selected nodes and their wires, as one undo step.
+    /// Delete / ⌫: removes the selected nodes and their wires, as one undo step. Group Input and Group Output stay
+    /// (a group always has both); with only those selected, it says why nothing happened.
     public func deleteSelection() {
-        let ids = selection.filter { graph.nodes[$0] != nil }.sorted()
-        guard !ids.isEmpty else { return }
+        let present = selection.filter { graph.nodes[$0] != nil }
+        let ids = present.filter { !isBoundary($0) }.sorted()
+        guard !ids.isEmpty else {
+            if !present.isEmpty { refuse("A group's Group Input and Group Output can't be deleted.", node: nil) }
+            return
+        }
         do {
             try edit(.batch(ids.map { .removeNode($0) }))
             selection = []
@@ -70,22 +75,31 @@ extension EditorModel {
         }
     }
 
-    /// What copying `items` puts on the clipboard: their nodes and the wires between them. B adds: comments.
+    /// What copying `items` puts on the clipboard: their nodes and the wires between them, and the definitions their
+    /// group nodes use. Group Input and Group Output are never copied. B adds: comments.
     func clipboard(of items: CanvasSelection) -> NodeClipboard {
-        let ids = items.nodes
-        let nodes = ids.sorted().compactMap { graph.nodes[$0] }
+        let nodes = items.nodes.sorted().compactMap { graph.nodes[$0] }.filter { !GroupNodes.isBoundary($0) }
+        let ids = Set(nodes.map(\.id))
         let links = graph.links.filter { ids.contains($0.from.node) && ids.contains($0.to.node) }
-        return NodeClipboard(nodes: nodes, links: links)
+        return NodeClipboard(nodes: nodes, links: links,
+                             definitions: GroupMerge.definitions(used: nodes, in: document.content))
     }
 
-    /// Adds fresh copies of `clipboard` moved by `offset` (stored coordinates) as one undo
-    /// step. Returns the copies, to select, or `nil` if the graph refused. B adds: comments.
+    /// Whether `id` is Group Input or Group Output of the level shown.
+    func isBoundary(_ id: NodeID) -> Bool {
+        graph.nodes[id].map(GroupNodes.isBoundary) ?? false
+    }
+
+    /// Adds fresh copies of `clipboard` moved by `offset` (stored coordinates) as one undo step, with the group
+    /// definitions it carries that the document lacks or has with other content (`GroupMerge`; the copied group
+    /// nodes follow them). Returns the copies, to select, or `nil` if the graph refused. B adds: comments.
     func insert(_ clipboard: NodeClipboard, offset: Vector2) -> CanvasSelection? {
         guard !clipboard.nodes.isEmpty else { return nil }
+        let merge = GroupMerge.plan(importing: clipboard.definitions, into: document.content)
         var mapping: [NodeID: NodeID] = [:]
         var commands: [GraphCommand] = []
         for original in clipboard.nodes {
-            var copy = original
+            var copy = merge.retargeting(original)
             copy.id = NodeID()
             copy.position = original.position + offset
             mapping[original.id] = copy.id
@@ -98,7 +112,8 @@ extension EditorModel {
         // Copied wires were valid when copied and join only new nodes, so they are restored as they were.
         if !links.isEmpty { commands.append(.restoreLinks(links)) }
         do {
-            try edit(.batch(commands))
+            // The definitions are added to the document, the nodes to the level shown.
+            try document.perform(.batch(merge.additions.map { .addDefinition($0) } + [GraphCommand.batch(commands).at(graphPath)]))
             return CanvasSelection(nodes: Set(mapping.values))
         } catch {
             refuse(error.message, node: nil)
