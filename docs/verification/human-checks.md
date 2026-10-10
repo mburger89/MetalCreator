@@ -674,3 +674,50 @@ at the bottom too.
 - [ ] **MS-8 Draw order.** Overlap three nodes, select the two at the back: they draw above the third, and a click
   where all three overlap selects the topmost drawn one. Docked at the bottom too. Pinned:
   `selectedNodesDrawLastAndAreHitFirst`. **Observed:**
+
+## Group S5c — the sketch editor's links to the model and the viewport (S5c)
+
+**Status: NOT RUN.** Run `swift run MetalCreatorApp`. Add a Rectangle wired into an Extrude (20 mm) into an Output, so
+there is a box, then a Sketch (select it, "Edit sketch").
+
+- [ ] **S5c-1 Project an edge.** In a sketch on the XY plane, press P ("Project ✓") and click one of the box's top edges: a
+  purple line appears on the plane (nothing highlights the edge under the pointer while you aim: only faces highlight, a
+  known gap, see Errata (S5c); a click takes the edge whose pixels it lands on). In the graph, the Sketch node now
+  has a wire into `references` from the box's Extrude. The tool stays on Project after the click (click a second edge without pressing P again). One ⌘Z removes the line, the wire and the stored pick together. The purple line is real geometry: draw a closed shape that uses it and the fill appears. Draw a line ending on the purple line: "Point on" appears and the point stays on it
+  when you drag. Change the Rectangle's width in the graph and the purple line follows. Pinned: `ProjectToolTests`,
+  `SketchProjectTests`. **Observed:**
+- [ ] **S5c-2 Project a face, and what can't be projected.** Press P and click the box's top face: all four of its edges
+  project. Click a vertical edge: the inspector says "That edge can't be projected: it is perpendicular to the sketch
+  plane, so it projects to a point." and nothing changes. Click a side face: only what projects appears, and the inspector
+  says what was left out. Click the same edge twice: "That edge is already projected." Pinned: `SketchProjectTests`.
+  **Observed:**
+- [ ] **S5c-3 One part per sketch.** Add a second box, project an edge of the first in the sketch, then an edge of the second:
+  "This sketch already projects from another part. Project from one part per sketch." Wire the Sketch's profiles into
+  the first box's Extrude and try to project one of that box's edges: "That part is made from this sketch, so its edges
+  can't be projected into it." Nothing is stored either time. Pinned: `SketchProjectTests`. **Observed:**
+- [ ] **S5c-4 New sketch on face.** Finish the sketch. Right-click the box's top face: the menu reads Look At, Select Edges
+  of Face, New Sketch on Face, Show Producing Node. Choose New Sketch on Face: a Plane from Face and a Sketch appear in the
+  graph beside the box's Extrude, wired; the sketch is open, the view looks straight at the top face, and drawing works.
+  One ⌘Z removes both nodes and leaves sketch mode. A side face of the box offers the same item; a cylinder's curved face
+  does not. While a sketch is open, the right-click menu is empty. Nothing previews yet: the new Sketch feeds nothing, so
+  wire its `profiles` into an Extrude to see a solid (the nodes are placed 240 and 480 points to the right of the producer
+  and a little below, and may overlap nodes already there). Finish the new sketch without wiring it on, then press
+  "Edit sketch" on it: it opens again. Pinned: `NewSketchOnFaceTests`. **Observed:**
+- [ ] **S5c-5 Dimension labels.** Draw a rectangle and dimension it (D, then each side): each dimension shows a small glass
+  label with its value ("60 mm") standing off its line. A circle's diameter and an arc's radius label sit on the curve's
+  upper right and middle; an angle between two lines sits at their corner. Expose a dimension ("Expose as input"): its label
+  reads "width = 60 mm". Make one a reference: "(40 mm)" in grey. Add a conflicting dimension: the label is red. The
+  labels follow pans and zooms, and typing a new value in the inspector changes the label. Clicking a label picks what is
+  under it. Pinned: `DimensionLabelTests`, `OverlayLabelTests`. **Observed:**
+- [ ] **S5c-6 Labels and the camera** (gap S5-c). Open a sketch with dimensions: the labels appear after the camera has
+  turned onto the plane, not during the turn. Pan and zoom: they stay on their dimensions with no lag you can see, and
+  stay legible in the other themes. Note whether panning a sketch with many labels (20 or more) stays smooth. **Observed:**
+- [ ] **S5c-7 Region fill.** Draw a closed shape: a faint green fill appears inside it, under the lines and points. A shape
+  with a hole (a circle inside a rectangle) is filled around the hole; a small circle inside the hole is filled again.
+  Open the shape (delete a line): the fill goes. Construction geometry is never filled. Drag a corner: the fill follows live.
+  The fill never blocks a click: clicking inside it selects what is under the pointer, or clears the selection. Pinned:
+  `RegionFillTests`, `RegionTriangulatorTests`, `OffscreenRenderTests.anOverlayFillTintsThePixelsItCoversAndNoOthers`.
+  **Observed:**
+- [ ] **S5c-8 Review follow-ups.** With Circle, click a centre, then move the pointer over an existing line while sizing the
+  circle: the rubber band doesn't jump onto the line and no chip appears. Click a centre on a line: "Point on" appears and
+  the centre stays on the line. Pinned: `SnapAndTangentCoverageTests`. **Observed:**
