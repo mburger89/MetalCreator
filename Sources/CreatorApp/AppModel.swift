@@ -31,8 +31,11 @@ public final class AppModel {
     public var previewMode: PreviewMode = .final
     /// "Pick edges in view…" in progress.
     public internal(set) var pick: PickSession?
-    /// A Sketch node being edited in the viewport (sketcher spec §8), or `nil`.
-    public internal(set) var sketch: SketchSession?
+    /// A Sketch node being edited in the viewport (sketcher spec §8), or `nil`. Sketch mode works on the top level's
+    /// graph, so the graph panel keeps the level it shows while one is open (`EditorModel.isLevelLocked`).
+    public internal(set) var sketch: SketchSession? {
+        didSet { editor.isLevelLocked = sketch != nil }
+    }
     public var alert: AppAlert?
     /// The docked graph panel's width (docked left) and height (docked at the bottom), in points.
     public internal(set) var panelWidth = AppLayout.defaultPanelWidth
