@@ -13,7 +13,8 @@ public enum GroupCommands {
     /// distinct source inside wired out becomes one output (named after it). Inputs and outputs are ordered by their
     /// nodes' places, top to bottom. The grouped nodes' faces are made under new identities (`NodeID.scoped`), so every
     /// pick outside the selection that names one is renamed to match; picks inside it name them as before. Refused for
-    /// an empty selection, Group Input or Output, an Output node, or a boundary socket whose type can't be told.
+    /// an empty selection, Group Input or Output, an Output node, a node outside the selection that both takes from
+    /// it and feeds it (the group node would be wired in a cycle), or a boundary socket whose type can't be told.
     public static func group(_ ids: Set<NodeID>, in path: GraphPath, of content: GraphContent,
                              registry: NodeRegistry) throws(GraphError) -> GroupEdit {
         guard let graph = content.graph(at: path) else { throw GroupRefusal.missing }
@@ -44,6 +45,9 @@ public enum GroupCommands {
             if node.isOutput || sockets[node.typeID]?.category == .output { throw GroupRefusal.outputInside }
             picked.append(node)
         }
+        let after = graph.downstreamClosure(of: ids).subtracting(ids)
+        let before = ids.reduce(into: Set<NodeID>()) { $0.formUnion(graph.upstreamClosure(of: $1)) }
+        guard after.isDisjoint(with: before) else { throw GroupRefusal.wouldCycle }
         return picked
     }
 

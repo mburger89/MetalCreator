@@ -9,6 +9,8 @@ enum GroupRefusal {
     static let boundaryMoved = GraphError.invalidValue("Group Input and Group Output belong to their group.")
     static let nested = GraphError.invalidValue("A group edit can't go inside another edit.")
     static let duplicateID = GraphError.invalidValue("That group already exists.")
+    static let wouldCycle = GraphError.invalidValue(
+        "These nodes can't be grouped: a node outside the selection both takes from them and feeds them.")
     static let emptyName = GraphError.invalidValue("A group needs a name.")
 
     static func nameTaken(_ name: String) -> GraphError { .invalidValue("A group named “\(name)” already exists.") }

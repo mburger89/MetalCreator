@@ -208,4 +208,7 @@ Plan `2026-10-09-groups-core.md`.
   copy's name; renaming a definition renames the group nodes still named after it.
 - §5 ⌘G and ⇧⌘G (`EditorModel.groupSelection`/`ungroupSelection`) act on the top level until C2 shows a
   definition's inside.
+- §5 Group is also refused when a node outside the selection both takes from it and feeds it ("These nodes can't
+  be grouped: a node outside the selection both takes from them and feeds them."): the group node would be wired in a
+  cycle, which wiring refuses. Applies at a definition's path too.
 - §2 The file format went 4 → 5 here; comments (B) add their keys under 5.

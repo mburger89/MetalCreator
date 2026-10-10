@@ -144,6 +144,16 @@ struct GroupCommandTests {
         }
     }
 
+    /// A node outside the selection that both takes from it and feeds it would leave the group node wired in a cycle
+    /// (G → a1 → G), which wiring refuses, so Group refuses it too.
+    @Test func groupingAroundAnOutsideNodeInBetweenIsRefused() {
+        let document = document()
+        #expect(throws: GraphError.invalidValue(
+            "These nodes can't be grouped: a node outside the selection both takes from them and feeds them.")) {
+            try GroupCommands.group([scene.c1.id, scene.a2.id], in: .root, of: document.content, registry: testRegistry)
+        }
+    }
+
     /// The counts of `ids`' `count` outputs after evaluating `content` with the face pick counter registered.
     func counts(_ content: GraphContent, _ ids: [NodeID]) async throws -> [Double?] {
         let report = try await Evaluator(registry: pickRegistry, kernel: FakeKernel())
