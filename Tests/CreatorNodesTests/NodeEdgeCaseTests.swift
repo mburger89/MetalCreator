@@ -3,6 +3,7 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import CreatorOCCT
+import CreatorSketch
 import Testing
 
 /// Inputs the node tests didn't reach (final review, M3 ledger): limits, refusals and graph shapes at the edge of what a
@@ -77,6 +78,23 @@ struct NodeEdgeCaseTests {
         h.wire(copies, "solid", to: output, "solid")
         let report = try await h.run([output])
         #expect(report.warning(output) == "There is nothing to preview or export.")
+    }
+
+    /// A circle tangent to a plate's edge from inside gives the plate's region a self-touching outer loop (the circle runs
+    /// along it as a notch) and the circle its own region. OCCT builds both faces: the two solids have the analytic volumes.
+    @Test func aCircleTangentInsideAPlateExtrudesToTheAnalyticVolumes() async throws {
+        var plate = RectangleSketch(width: 20, height: 20)
+        plate.sketch.addCircle(center: Vector2(10, 5), radius: 5)
+        var h = Harness()
+        let sketch = h.add(SketchNode.self, [NodeSetting.sketch: .sketch(plate.sketch)])
+        let extrude = h.add(ExtrudeNode.self, ["distance": .number(3)])
+        h.wire(sketch, "profiles", to: extrude, "profile")
+        let kernel = OCCTKernel()
+        let report = try await h.run([extrude], kernel: kernel)
+        let solids = try #require(report.value(extrude, "solid")?.solids)
+        try #require(solids.count == 2)
+        #expect(isClose(try await volume(solids[0], kernel), 3 * (400 - 25 * Double.pi), relative: 1e-6))
+        #expect(isClose(try await volume(solids[1], kernel), 3 * 25 * Double.pi, relative: 1e-6))
     }
 
     // MARK: Called directly, with inputs no wire produces
