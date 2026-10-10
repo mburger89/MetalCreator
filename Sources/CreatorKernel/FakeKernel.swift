@@ -42,7 +42,7 @@ public actor FakeKernel: Kernel {
         try Task.checkCancellation()
         operationLog.append("loft")
         guard sections.allSatisfy(\.holes.isEmpty) else {
-            throw KernelError.invalidInput("A loft can't use profiles with holes yet.")
+            throw KernelError.loftWithHoles
         }
         throw KernelError.unsupported("loft")
     }

@@ -8,6 +8,9 @@ public enum KernelError: Error, Equatable, Sendable {
     case unsupported(String)
     case exportFailed(String)
 
+    /// The refusal every kernel gives a loft through profiles with holes, and the Loft node gives it first.
+    public static let loftWithHoles = KernelError.invalidInput("A loft can't use profiles with holes yet.")
+
     public var userMessage: String {
         switch self {
         case .invalidInput(let message):

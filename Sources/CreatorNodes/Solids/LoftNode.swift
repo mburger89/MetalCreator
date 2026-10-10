@@ -4,7 +4,8 @@ import CreatorKernel
 
 /// A solid through a list of closed sections, in list order (spec §7.1, Solids). Wire a
 /// broadcast profile in, for example a Circle over several planes. Sections must have the
-/// same number of segments; resampling is deferred, so a mismatch is explained instead.
+/// same number of segments; resampling is deferred, so a mismatch is explained instead. Sections with holes are
+/// refused first (the kernels don't loft them yet).
 public enum LoftNode: NodeDefinition {
     public static let typeID = "creator.loft"
     public static let displayName = "Loft"
@@ -22,6 +23,8 @@ public enum LoftNode: NodeDefinition {
             throw NodeError.invalidValue("A loft needs at least two sections. "
                 + "Wire in a list of profiles, such as a Circle broadcast over several planes.")
         }
+        // Checked first: a holed section is refused whatever its segment count, so the count mismatch is not the news.
+        guard sections.allSatisfy({ $0.holes.isEmpty }) else { throw KernelError.loftWithHoles }
         let counts = sections.map(\.segments.count)
         if let mismatch = counts.indices.first(where: { counts[$0] != counts[0] }) {
             throw NodeError.invalidValue(
