@@ -46,6 +46,15 @@ struct CatalogTests {
         }
     }
 
+    /// A setting and an input socket of one name would share one `inputValues` key; the control test above skips settings
+    /// before it looks sockets up, so this is what notices.
+    @Test func noInputSocketIsNamedLikeASetting() {
+        for definition in BuiltInNodes.all {
+            let clashes = definition.inputs.map(\.name).filter { NodeSetting.all.contains($0) }
+            #expect(clashes.isEmpty, "\(definition.typeID) has input sockets named like settings: \(clashes)")
+        }
+    }
+
     @Test func inspectorControlsBindRealSocketsOfTheRightType() {
         for definition in BuiltInNodes.all {
             for control in definition.inspector.flatMap(\.controls) {
