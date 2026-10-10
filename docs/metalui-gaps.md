@@ -16,13 +16,13 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M4-a | An element's size (`onGeometryChange`), focus on click | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
 | M4-b | Opaque helper inside a builder `for`; redraw labels during a camera animation (`TimelineView`) | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
 | M5-a | `Slider` `onEditingChanged` | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
-| M5-b | Hover- or region-scoped key bindings | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
+| M5-b | Hover- or region-scoped key bindings | C9 | ✅ fixed by C9 (`feat/key-focus`: `hoverKeyRegion`, `onKeyPress`), adopted for the graph canvas (Comments typing plan); the viewport still runs its pointer veto (M4-a) |
 | M5-c | Materials and blur | C10 | ✅ fixed (2155f1e) as a flat tint, adopted by decision (the glass keeps the theme's tint); the backdrop blur is C10-a |
 | M5-d | Gradients | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M5-e | Modifiers on a press | C7 | ✅ fixed (c62d6ba), adopted |
 | M5-f | Canvas scroll and pinch | C7 | ✅ fixed (c62d6ba), adopted |
-| M5-g | A press elsewhere ends text editing | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
-| M5-h | ↑/↓ in a focused single-line field | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
+| M5-g | A press elsewhere ends text editing | C9 | ✅ fixed by C9 (`feat/key-focus`: a key region clears a field's focus on a press), adopted for the graph canvas (Comments typing plan); viewport presses still call `AppModel.releaseTextFocus` (M4-a); a press outside every region resigns nothing, by design (CT-a) |
+| M5-h | ↑/↓ in a focused single-line field | C9 | ✅ fixed by C9 (`onKeyPress(keys:)` on the field), not adopted: the palette's ↑/↓ stay a keymap action (`PaletteMove`) until the palette is moved onto it |
 | M5-i | Keyframe animation | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M5-j | `ProgressView` | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M6-a | Window title and edited marker | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
@@ -50,7 +50,10 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M7-a | `ForEach` identity is an id's description | none yet | ⏳ reported, not queued |
 | M7-b | No warm headless frame for measuring | none yet (with M6-e) | ⏳ reported, not queued; used again by C10 (below) |
 | C10-a | No backdrop blur behind a material | C10-c (unscheduled) | ⏳ sent to the MetalUI session 2026-10-09 |
-| CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | lands with C9 | ✅ answered: lands with C9 |
+| CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | C9 | ✅ fixed by C9 (KF-Z/KF-AA: ⌘↩ is no editing key of a `TextEditor`, so an `onKeyPress` for it commits), adopted by the inspector's note box and the canvas editor (Comments typing plan) |
+| CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C24 |
+| CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C25 |
+| CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | ⏳ reported 2026-10-10 (Comments typing final review), rides with M6-e |
 
 ## Reported 2026-10-07 (C7)
 
@@ -166,6 +169,11 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
   the pointer over the canvas Tab opens the palette even from a focused inspector field instead of moving focus.
   Wanted: a key context an element contributes while hovered (as M4-a asks for the viewport), or `onKeyPress` on a
   focus region.
+  **Fixed by MetalUI C9** (`feat/key-focus`, KF-B to KF-E: `onKeyPress`, `hoverKeyRegion`; a key region's keys follow the
+  pointer while nothing is focused, and a focused field keeps every key) and **adopted for the graph canvas** (Comments typing
+  plan Task 4): `CanvasSurface` is a key region and its one `onKeyPress` runs the graph's keys, Tab included (it no longer opens
+  the palette from a focused field; `GraphTab` and the keymap's `tab` binding are gone). The viewport's F, + and − keep
+  `AppInput`'s pointer veto until the viewport adopts C9 (M4-a).
 - **M5-c. No materials or blur** (`.background(.ultraThinMaterial)`, `.blur(radius:)`). Glass panels over the viewport
   need a backdrop blur (spec §6.1). Stopgap: `#21222c` at 86% opacity with the hairline (`GlassPanel`).
   **Fixed by MetalUI C10 lane 3** (2155f1e; `.blur(radius:)` and `Material`, rulings `LK-K`, `LK-L`), **adopted by
@@ -204,10 +212,18 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
   user clicks nodes, so the graph's keys stop working with no visible cause. Stopgap: the canvas gesture calls
   `GraphPanelInput.releaseTextFocus` (`window.focus(nil)`) at the start of each press. A SwiftUI-like rule (a press on
   non-focusable content resigns the field), or a `.focusable(false)`-style "clears focus" modifier, would fix it.
+  **Fixed by MetalUI C9** as an opt-in, not a default (KF-G keeps SwiftUI's rule that a press elsewhere resigns nothing):
+  a primary press inside a `hoverKeyRegion` clears a field's focus, unless it lands on a text field. **Adopted for the
+  graph canvas** (Comments typing plan Task 4): the canvas surface is a key region, `GraphPanelInput.releaseTextFocus` is
+  gone, and a canvas press ends a typed value and a canvas edit. Viewport presses still call `AppModel.releaseTextFocus`
+  (the viewport adopts C9 with M4-a). A press outside every region still resigns nothing: gap CT-a.
 - **M5-h. A focused single-line field claims ↑/↓** (mac: caret to start/end, `TextEditing.key`) before the raw key
   bubble and `onInput`. The add-node palette needs ↑/↓ to move its highlight while its search field is focused.
   Stopgap: `GraphPanelInput.keymap` binds `up`/`down` to `PaletteMove`, and `handleAction` runs it only while the
   palette is open (the keymap stage precedes field keys). SwiftUI's `onKeyPress` on the field would fix it.
+  **Fixed by MetalUI C9** (`onKeyPress(keys: [.upArrow, .downArrow])` on the field runs before the field's own keys, KF-C
+  item 4). **Not adopted** by the Comments typing plan, which uses no single-line field's arrows: the palette's `PaletteMove`
+  keymap action stays until the palette moves onto it.
 - **M5-i. No keyframe animation.** The refused-wire "brief shake" (spec §6.2) wants a back-and-forth keyframe
   animation. Stopgap: the node's offset jumps 6 pt and springs back (`.animation(.spring(duration:bounce:), value:)`).
   **Fixed by MetalUI C10 lane 2** (2155f1e; `keyframeAnimator`, `KeyframeTimeline`, rulings `LK-H`, `LK-I`) and adopted
@@ -640,13 +656,19 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
 - **CM-a. `TextEditor` has no commit key.** Canvas comments spec §7: a note's text commits on focus loss or ⌘↩.
   MetalUI's `TextField` has `onSubmit` (Return), but `TextEditor` has none: Return inserts a line break (ruling
   TI-H), and whether a ⌘↩ reaches the window's `onInput` fallback while a `TextEditor` is focused can't be checked
-  without a headless window (M6-e). No stopgap: a global ⌘↩ chord would work around the gap, so MetalCreator commits
+  without a headless window (M6-e). Originally (before C9): no stopgap, since a global ⌘↩ chord would work around the gap, so MetalCreator commits
   a note's text on focus loss only (a canvas press clears focus, M5-g; the model also commits on a selection change
   and on saving), and ⌘↩ is unbound. Wanted: C9 lets MetalCreator bind it with SwiftUI's own
   `.onKeyPress(.return) { press in guard press.modifiers.contains(.command) else { return .ignored }; commit();
   return .handled }` on the `TextEditor` (no MetalUI-only hook is needed). Status: answered: lands with C9. The gap
   was already sent to the MetalUI session by the controller. Logged with C9 (key and focus scoping), which owns the key
   handling.
+  **Fixed by MetalUI C9** (KF-Z/KF-AA, merged to MetalUI master 0a9eb36): a Return with the commit modifier (⌘ on macOS, ⌃ elsewhere: `CommentKeys.commitModifier`) is not an editing key of a
+  `TextEditor`, and an `onKeyPress(keys: [.return])` handler runs before the editor's keys, so
+  `press.modifiers.contains(commitModifier) ? commit() : .ignored` commits on ⌘↩ (⌃↩ off macOS) while plain Return still breaks the line (no
+  MetalUI-only hook was needed). **Adopted** (Comments typing plan Task 3): `CommentKeys.commitsNote` is that test, used by
+  the inspector's note box (`CommentTextEntry`) and the canvas editor (`CommentEditorField`). The spec's CM Errata line
+  "not on ⌘↩" is superseded (Errata (B: typing on the canvas)).
 
 ## Hit by the sketch editor (S5c), 2026-10-09
 
@@ -667,3 +689,39 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
   camera change; S5c-6 is where that is looked at, and the labels are not capped or culled by count (a silent cap would hide
   dimensions). Sent to the MetalUI session (the standing rule: every MetalUI gap goes to that session to implement); the
   repository is never edited from here.
+
+## Typing on the canvas (Comments typing plan), 2026-10-10
+
+Labelled CT-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-a…, M6-a…, CM-a… entries.
+
+- **CT-a. A press outside every key region resigns no focus, and nothing asks it to without taking over key routing.**
+  Typing a note or a title on the canvas should end when the user presses anywhere else (spec §8: "on a press elsewhere").
+  C9 gives a key region (`hoverKeyRegion`): a primary press inside it clears a field's focus, but a region also routes keys
+  by hover, and a press outside every region resigns nothing (KF-G, SwiftUI's rule). MetalCreator uses what exists and works
+  around nothing: the canvas is a region (a canvas press ends the edit), viewport presses still call `window.focus(nil)`
+  (M4-a's hook), and every model commit ends it (a selection or level change, hiding the panel, undo, save, export, another
+  field being typed into). A press on inert chrome (the glass padding, the header's gaps, the inspector's empty areas)
+  leaves the editor open and focused; the next press on the canvas, the viewport or a control ends it. Wanted: an opt-in
+  that makes a container resign focus on a primary press inside it without routing keys, for example
+  `.resignsFocusOnPress()` (or `hoverKeyRegion(routesKeys: false)`), which MetalCreator would put on the app's root. Human
+  check CT-11 records what a press on inert chrome does. Status: queued as MetalUI C24 (after C9, which merged to MetalUI master 0a9eb36; the spelling is still open) (the
+  standing rule: every MetalUI gap goes to that session to implement); the repository is never edited from here.
+- **CT-b. No way to set a text field's selection or caret, so an editor opened from code cannot open with its text
+  selected or its caret at the end.** A double click that starts editing a note or a title in place wants the title's
+  whole text selected (as a rename does) and a note's caret at the end of its text. `TextField` and `TextEditor` have no
+  selection binding (SwiftUI's `TextField(text:selection:)` with `TextSelection`, macOS 15), and a field focused from code
+  (`FocusState` written in `onAppear`) opens with its caret at the start of its text and nothing selected (measured in the
+  C9 probe: a `.textInput("X")` into a freshly focused field gives `Xhello`). MetalCreator works around nothing: the editor
+  opens as MetalUI opens it, and the user presses ⌘A or ⌘→ (or clicks) to select or move the caret. Wanted: a selection
+  binding on both fields, or `FocusState`-style `selectAll()` / caret-position on focus. Human check CT-1 records what the
+  user sees. Status: queued as MetalUI C25 (after C9, merged to MetalUI master 0a9eb36; a `selection` binding or a selectAll/caret-on-focus hook); the repository is never edited from here.
+- **CT-c. The comment editor's C9-dependent behaviour has no automated test.** The field's Return, Esc and ⌘↩ handlers,
+  the focus-loss commit, `onAppear` focus, a canvas press clearing focus (M5-g), the hovered key region and a focused field
+  winning over hover are `onKeyPress` / `FocusState` / key-region behaviour that exists only inside a real `Window`.
+  MetalUI exposes no public key or mouse injection (`simulateInput` lives on `FakePlatformWindow` in MetalUI's own test
+  target: M6-e), so MetalCreator tests only the pure `KeyPress` to `KeyEvent` mapping, the model and render geometry. If
+  MetalUI changes, or the sibling-not-child arrangement regresses, only the manual checks CT-1..CT-9 notice. MetalCreator
+  works around nothing (no private-API or `@testable` reach into MetalUI). Wanted: M6-e's public headless `Window` with
+  `simulateInput` and a rendered frame, then a test that types into the field, sends ⌘↩ and Esc, presses the canvas, and
+  asserts `commentEdit` and the graph. Status: rides with M6-e (queued); forward to the MetalUI session per the standing
+  rule; the repository is never edited from here.

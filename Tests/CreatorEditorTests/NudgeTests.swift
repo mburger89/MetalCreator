@@ -112,7 +112,7 @@ struct NudgeTests {
         let editor = makeEditor([a])
         editor.selection = [a.id]
         let input = GraphPanelInput(model: editor)
-        #expect(input.handle(.keyDown(key("\u{f703}", .shift))))
+        #expect(input.handleKey(key("\u{f703}", .shift)))
         #expect(editor.graph.nodes[a.id]?.position == Vector2(110, 100))
     }
 }

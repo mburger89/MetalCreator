@@ -135,15 +135,15 @@ struct ViewportGlueTests {
         #expect(app.viewport.sceneGeneration == generation + 1, "a new result still shows")
     }
 
-    @Test func aPressOnTheViewportOrTheCanvasReleasesTextFocus() async {
+    /// A press on the canvas clears text focus by itself (a MetalUI C9 key region, gap M5-g); the viewport's press still
+    /// goes through the shell's hook (gap M4-a).
+    @Test func aPressOnTheViewportReleasesTextFocus() async {
         let app = await makeApp()
         var released = 0
         app.releaseTextFocus = { released += 1 }
         app.viewport.pointerDown(at: ScreenPoint(500, 400), modifiers: [])
         app.viewport.pointerUp(at: ScreenPoint(500, 400))
         #expect(released == 1)
-        app.graphInput.releaseTextFocus?()
-        #expect(released == 2, "the graph panel's press goes through the same hook")
     }
 
     @Test func aViewportPressCommitsATypedInspectorValue() async throws {

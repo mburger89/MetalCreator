@@ -19,23 +19,22 @@ import MetalUI
 /// - The cursor is the model's (`EditorModel.canvasCursor`, a closed hand while a middle drag pans); `GraphCanvas`
 ///   sets it.
 ///
-/// Three stopgaps remain, for MetalUI gaps outside C7:
-/// - keys: read from the window's `onInput` fallback, so a focused text field keeps its keys;
-///   the palette's ↑/↓ and Tab over the canvas alone go through the window keymap (`keymap`,
-///   `handleAction`), because a focused field claims arrows and focus traversal claims Tab before
-///   `onInput` (gaps M5-h, M5-b), and keys aren't scoped to an element until MetalUI C9;
-/// - focus: a canvas press clears text focus through `releaseTextFocus`, because MetalUI never
-///   unfocuses a field on an outside press (gap M5-g);
+/// The canvas's keys and its text focus are MetalUI C9's (key and focus scoping), not stopgaps:
+/// - `keyPressed(_:)`, from the canvas surface's `.onKeyPress` (`CanvasSurface`): the graph's keys. The surface is a
+///   `hoverKeyRegion`, so with nothing focused the keys go to the canvas under the pointer, and a focused field (the
+///   inspector's, the library's search, the canvas's own comment editor) keeps every key, wherever the pointer is
+///   (gap M5-b). A press on the canvas also clears a field's focus (gap M5-g).
+///
+/// Two stopgaps remain, for MetalUI gaps C9 did not close:
+/// - the palette's keys: its ↑/↓ and the keys of the open palette's search field go through the window keymap
+///   (`keymap`, `handleAction`) and `onInput` (`handle(_:)`), because a focused single-line field claims arrows before
+///   `onInput` (gap M5-h, which C9 answers with `onKeyPress` on the field; not adopted here);
 /// - the floating palette's "click outside": a press of any button reaching `onInput` outside the
 ///   palette closes it (`handle(_:)`), because MetalUI's only overlay that dismisses itself is
 ///   `.popover`, with its own chrome (gap EP-b).
 @MainActor
 public final class GraphPanelInput {
     public let model: EditorModel
-    /// Clears the window's text focus. The shell sets it to `{ [weak window] in window?.focus(nil) }`.
-    /// Without it, an inspector field edited a moment ago keeps claiming Delete, ⌘C/⌘V/⌘Z and
-    /// Space while the user works on the canvas.
-    public var releaseTextFocus: (@MainActor () -> Void)?
 
     public init(model: EditorModel) {
         self.model = model
@@ -48,7 +47,6 @@ public final class GraphPanelInput {
     /// - `onInput`: this panel's `handle(_:)` first, then the previous handler.
     /// - `keymap`: `keymap`'s bindings are appended to the window's.
     /// - `onAction`: `handleAction(_:)` first, then the previous handler.
-    /// - `releaseTextFocus`: `window.focus(nil)`, unless the shell set its own.
     public func install(on window: Window) {
         let previousInput = window.onInput
         window.onInput = { [weak self] event in
@@ -61,9 +59,6 @@ public final class GraphPanelInput {
             if self?.handleAction(action) == true { return true }
             return previousAction?(action) ?? false
         }
-        if releaseTextFocus == nil {
-            releaseTextFocus = { [weak window] in window?.focus(nil) }
-        }
     }
 
     /// Install as (or merge into) `Window.keymap`, with `handleAction(_:)` in `Window.onAction`.
@@ -71,38 +66,27 @@ public final class GraphPanelInput {
         Keymap {
             KeyBinding("up", PaletteMove(step: -1))
             KeyBinding("down", PaletteMove(step: 1))
-            KeyBinding("tab", GraphTab())
         }
     }
 
-    /// Install from `Window.onAction`. Runs a palette move while the palette is open, and opens the
-    /// palette on Tab while the pointer is over the visible canvas and no palette is open. Otherwise
-    /// it returns false, and MetalUI passes the key on (to a focused field, Tab focus traversal, a
-    /// `GraphShowButton` shortcut or `onInput`) as if it were unbound.
+    /// Install from `Window.onAction`. Runs a palette move while the palette is open. Otherwise it returns false, and
+    /// MetalUI passes the key on (to a focused field, Tab focus traversal, a `GraphShowButton` shortcut or `onInput`)
+    /// as if it were unbound.
     public func handleAction(_ action: any Action) -> Bool {
-        switch action {
-        case let move as PaletteMove:
-            guard model.palette != nil else { return false }
-            model.movePaletteHighlight(by: move.step)
-            return true
-        case is GraphTab:
-            guard model.isPanelVisible, model.pointerLocation != nil, model.palette == nil else { return false }
-            model.openPalette()
-            return true
-        default:
-            return false
-        }
+        guard let move = action as? PaletteMove, model.palette != nil else { return false }
+        model.movePaletteHighlight(by: move.step)
+        return true
     }
 
-    /// Install from `Window.onInput` (`install(on:)` does). Returns true when the event was used: the graph's
-    /// keys. Every primary press reaches `onInput` (MetalUI claims none, except one in a text field or on a
-    /// slider), and so does every other button's press but a right-click that opens a context menu, so the
-    /// floating palette's "click outside" is read here too. Modifier changes aren't tracked: a press reads its
-    /// own (`canvasGesture()`).
+    /// Install from `Window.onInput` (`install(on:)` does). Returns true when the event was used: the open palette's keys
+    /// (the rest of the graph's keys are `keyPressed(_:)`'s, scoped by MetalUI C9). Every primary press reaches
+    /// `onInput` (MetalUI claims none, except one in a text field or on a slider), and so does every other button's
+    /// press but a right-click that opens a context menu, so the floating palette's "click outside" is read here too.
+    /// Modifier changes aren't tracked: a press reads its own (`canvasGesture()`).
     public func handle(_ event: InputEvent) -> Bool {
         switch event {
         case .keyDown(let key):
-            guard let command = GraphKeyBindings.command(for: key, paletteOpen: model.palette != nil) else { return false }
+            guard model.palette != nil, let command = GraphKeyBindings.command(for: key, paletteOpen: true) else { return false }
             return model.perform(command)
         case .mouseDown(let mouse), .rightMouseDown(let mouse), .otherMouseDown(let mouse):
             // Any button's press outside the floating palette closes it. Never claimed, so the press goes on.
@@ -113,6 +97,33 @@ public final class GraphPanelInput {
         }
     }
 
+    /// The graph's keys, from the canvas surface's `onKeyPress` (MetalUI C9: the surface is a key region, so these
+    /// arrive only while the pointer is over the canvas and nothing is focused; a focused
+    /// field anywhere keeps its keys). `.handled` claims the key, `.ignored` lets it go on (the palette's own keys are
+    /// `handle(_:)`'s, and Tab only counts over the canvas: unclaimed it moves focus).
+    public func keyPressed(_ press: KeyPress) -> KeyPress.Result {
+        let key = Self.keyEvent(key: press.key, characters: press.characters, modifiers: press.modifiers,
+                                isRepeat: press.phase.contains(.repeat))
+        return handleKey(key) ? .handled : .ignored
+    }
+
+    /// The `KeyEvent` the graph's bindings read, from a `KeyPress`'s parts. `KeyPress.key` is the first character the
+    /// unmodified layout reports (`KeyEquivalent` spells the arrows, Delete, Tab, Return and Esc as AppKit's
+    /// characters, which `GraphKeyBindings` matches); `isRepeat` is what splits a held arrow's nudges from a new step.
+    /// Pure, so the mapping is tested without a window. The timestamp is unused by the bindings.
+    public static func keyEvent(key: KeyEquivalent, characters: String, modifiers: EventModifiers, isRepeat: Bool) -> KeyEvent {
+        KeyEvent(charactersIgnoringModifiers: String(key.character), characters: characters, modifiers: modifiers,
+                 isRepeat: isRepeat, timestamp: 0)
+    }
+
+    /// Runs the graph's command for `key`, if it has one and the palette isn't open. Returns whether it was used.
+    public func handleKey(_ key: KeyEvent) -> Bool {
+        guard model.palette == nil, let command = GraphKeyBindings.command(for: key, paletteOpen: false) else { return false }
+        // Tab opens the palette at the pointer; with the pointer not reported over the canvas it is focus traversal's.
+        if command == .tab, model.pointerLocation == nil { return false }
+        return model.perform(command)
+    }
+
     /// The canvas's one press-and-drag gesture: clicks, moves, box selection and wiring. A zero minimum
     /// distance, so its first change is the press itself, with the press's modifiers.
     public func canvasGesture() -> DragGesture {
@@ -121,17 +132,16 @@ public final class GraphPanelInput {
             .onEnded { [self] value in canvasEnded(value) }
     }
 
-    /// The gesture moved (its first change is the press). The first call of a press releases text focus.
+    /// The gesture moved (its first change is the press). A press also clears a focused field's focus, because the
+    /// canvas surface is a key region (MetalUI C9, gap M5-g).
     func canvasChanged(_ value: DragGesture.Value) {
         let start = Self.vector(value.startLocation)
-        if model.currentPress?.point != start { releaseTextFocus?() }
         model.pointerDragged(from: start, to: Self.vector(value.location), modifiers: Self.canvasModifiers(value.modifiers))
     }
 
-    /// The gesture ended: a release, or a click's only report when no change came first, so it releases focus too.
+    /// The gesture ended: a release, or a click's only report when no change came first.
     func canvasEnded(_ value: DragGesture.Value) {
         let start = Self.vector(value.startLocation)
-        if model.currentPress?.point != start { releaseTextFocus?() }
         model.pointerReleased(from: start, at: Self.vector(value.location), modifiers: Self.canvasModifiers(value.modifiers))
     }
 

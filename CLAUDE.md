@@ -25,6 +25,9 @@ release benchmarks in `Tests/CreatorAppTests/Bench` (`scripts/bench.sh`); `docs/
 table of every gap, its MetalUI item and its status; its human checks (group M7) are pending.
 Canvas comments (sub-project B of the same spec, §7: sticky notes and comment frames, plan `2026-10-09-comments.md`)
 code is done; its human checks (group CM) are pending.
+Typing on the canvas (spec §8: a double click on a note or a frame's title bar edits it in place; plan
+`2026-10-10-comments-canvas-typing.md`; the graph's keys and text focus on MetalUI C9's key regions) code is done; its human
+checks (group CT) are pending.
 Groups C1 (model and evaluation, `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` §4–§5) is done.
 Groups C2 (the editor, §6: entering a group, breadcrumbs, the + sockets, the group inspector, the library's Groups
 section, the viewport and the clipboard inside groups) code is done; its human checks (group GR) are pending.
@@ -130,11 +133,12 @@ Module boundaries (dependency order):
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
   behaviour (selection, canvas transform, dock transpose, hit testing, wiring, clipboard, palette, inspector edits);
   views are thin MetalUI `Component`s. Depends on Graph/Kernel/Geometry, CreatorStyle and MetalUI — **not** on `CreatorNodes`.
-  Its input (MetalUI C7 gestures, and the key and focus stopgaps) lives only in `GraphPanelInput`. A double click on
-  a node (two plain clicks on its body at most `EditorModel.doubleClickInterval`, 0.4 s as the groups spec's §6 says,
-  not macOS's 500 ms default, and `doubleClickSlop`, 4 points, apart, timed by the injectable `now`; gap S5-b) presses
-  its first inspector button in `doubleClickActions` ("Edit sketch"; `nodeDoubleClicked(_:)`). While a sketch is open
-  the app ignores it (`AppModel.handle(_:)`'s guard).
+  Its input (MetalUI C7 gestures, C9 key scoping, and the palette's stopgaps) lives only in `GraphPanelInput`. A double
+  click on a node (two plain clicks on its body at most `EditorModel.doubleClickInterval`, 0.4 s as the groups spec's §6
+  says, not macOS's 500 ms default, and `doubleClickSlop`, 4 points, apart, timed by the injectable `now`; gap S5-b)
+  presses its first inspector button in `doubleClickActions` ("Edit sketch"; `nodeDoubleClicked(_:)`); the same pairing on
+  a note or a frame's title bar, not its edge band (a `ClickTarget`, kept in `lastClick`), starts editing it in place
+  (`beginEditing(_:)`). While a sketch is open the app ignores it (`AppModel.handle(_:)`'s guard).
   The canvas builds only what can show (`EditorModel.drawnNodes`, `drawnCanvasRect`: the visible canvas grown by
   `cullingMargin`, everything while unplaced), and below zoom `rowsMinimumZoom` draws nodes without their rows
   (`drawsNodeRows`); hit testing, selection and edits always see the whole graph. A
@@ -170,8 +174,17 @@ Module boundaries (dependency order):
   nodes with the selected last in each kind (`drawOrderFrames`, `drawOrderNotes`, culled as `drawnFrames`/`drawnNotes`).
   Add Note and Frame Selection are `addNote(atScreen:)`, `addNoteAtPointer()` and `addFrameAroundSelection()`, on ⌘⇧N,
   ⌘⇧C and the canvas's context menu (`CanvasMenuItem`); ⌘X cuts. The inspector's comment page is `CommentPage`
-  (`CommentInspectorView`); text commits through `PendingEntry.textCommit`, on focus loss or any
-  model commit (no ⌘↩ chord, gap CM-a). Comment views draw no shadows and few rects (`StickyView`, `CommentFrameView`). Make Unique copies a definition's
+  (`CommentInspectorView`); text commits through `PendingEntry.textCommit`, on ⌘↩ (⌃↩ off macOS; `CommentKeys.commitsNote`, an
+  `onKeyPress` on the box: MetalUI C9, gap CM-a), on focus loss or any model commit.
+  Typing on the canvas: `EditorModel.commentEdit` (`CommentEdit`) is the comment being edited in place, `commentEditor`
+  (`CommentEditor`) where its field goes (a note's rectangle, a frame's title bar, in display canvas points). Its draft
+  rides the model's one `pendingEntry` (`EditorModel+CommentEditing`: `beginEditing`, `commentDraftChanged`,
+  `commitCommentEdit`, `cancelCommentEdit`), so a canvas press, a selection or level change, hiding the panel, undo, save
+  and export commit it, as one `setNoteText` / `setFrameTitle` step (the inspector's own paths), and a field typed into
+  elsewhere (`notePendingEntry`) commits it first. `CommentEditorLayer` draws the field (`CommentEditorField`: a
+  `TextEditor`, ⌘↩ commits, or a `TextField`, Return commits; Esc cancels; losing focus commits) under the canvas's own
+  zoom and pan, as the sibling of `CanvasSurface`, the canvas's key region: never inside it, or the field's keys would
+  reach the canvas's handler. Comment views draw no shadows and few rects (`StickyView`, `CommentFrameView`). Make Unique copies a definition's
   comments (`GroupCommands+MakeUnique`); Ungroup splices them into the level. ⌘A, arrows (one undo step per key-down run) and F act only while the
   panel shows; Esc closes the palette, then cancels a drag, then clears the selection.
 - `CreatorSketchEditor`: the sketch editor (sketcher spec §8). `@MainActor @Observable SketchEditorModel` holds the
@@ -280,9 +293,12 @@ The graph canvas's pointer input is MetalUI C7's, turned into `EditorModel` call
 has none, gap GI-a; a drag on empty canvas box-selects and never pans), a `DragGesture(minimumDistance: 0, button:
 .middle)` (`middlePanGesture()` → `middleDragged`: pans, as the viewport's middle drag does; the user's Gate G answer
 (b), 2026-10-09), `.onScrollWheel` (`scrolled(by:at:modifiers:phase:)`: pan, ⌘ zooms) and `MagnifyGesture`
-(`pinchChanged`); the cursor is `EditorModel.canvasCursor` (a closed hand while a middle drag pans). Its key, focus
-and palette stopgaps live only in
-`GraphPanelInput` too, and `install(on:)` chains onto the window's existing handlers.
+(`pinchChanged`); the cursor is `EditorModel.canvasCursor` (a closed hand while a middle drag pans). Its keys and text
+focus are MetalUI C9's: `CanvasSurface` is a `hoverKeyRegion` whose one `onKeyPress` runs the graph's keys
+(`GraphPanelInput.keyPressed(_:)`), so with nothing focused they act where the pointer is, a focused field (the inspector's,
+the library's, the canvas's comment editor) keeps every key wherever the pointer is, and a canvas press clears a field's focus.
+The open palette's ↑/↓ (a keymap action, gap M5-h), its keys on `onInput` and its click-outside (gap EP-b) are the stopgaps
+left in `GraphPanelInput`, and `install(on:)` chains onto the window's existing handlers.
 The app installs the window's input through `AppInput`, never `GraphPanelInput.install(on:)` (only
 `GraphPanelPreview` still uses it), because New and Open replace the document's `GraphPanelInput`.
 App-shell input stopgaps live only in `AppInput`: the viewport's keys carry the `!Panel` key context (the graph panel

@@ -15,9 +15,9 @@ import Testing
 struct AppInputTests {
     @Test func theViewportsKeysAreOutOfScopeWhileFocusIsInAPanel() throws {
         let bindings = AppInput.keymap.bindings
-        #expect(bindings.map(\.spelling) == ["f", "=", "shift-+", "+", "-", "up", "down", "tab"])
+        #expect(bindings.map(\.spelling) == ["f", "=", "shift-+", "+", "-", "up", "down"])
         #expect(bindings.prefix(5).allSatisfy { $0.action is ViewportKeyAction && $0.context == AppKeyContext.viewport })
-        #expect(bindings.suffix(3).allSatisfy { $0.context == nil })
+        #expect(bindings.suffix(2).allSatisfy { $0.context == nil })
         let predicate = try #require(ContextPredicate.parse(AppKeyContext.viewport))
         #expect(predicate.evaluate(against: []), "nothing focused: F, + and − reach the viewport")
         #expect(!predicate.evaluate(against: [KeyContext(AppKeyContext.panel)]), "a focused inspector or palette field types them")
@@ -51,7 +51,7 @@ struct AppInputTests {
         app.editor.pointerLocation = Vector2(40, 40)
         #expect(!input.handleAction(ViewportKeyAction(command: .frame)))
         let f = KeyEvent(charactersIgnoringModifiers: "f", characters: "f", timestamp: 1)
-        #expect(input.handleInput(.keyDown(f)))
+        #expect(app.graphInput.handleKey(f), "the canvas region's onKeyPress runs the graph's F")
         #expect(app.editor.transform != canvas)
     }
 
@@ -60,17 +60,18 @@ struct AppInputTests {
         let input = AppInput(model: app)
         app.editor.openPalette()
         #expect(input.handleAction(PaletteMove(step: 1)))
-        #expect(!input.handleAction(GraphTab()), "the palette is already open")
     }
 
-    @Test func theGraphsKeysArriveThroughTheInputFallback() async throws {
+    @Test func theGraphsKeysArriveThroughTheCanvasRegionNotTheInputFallback() async throws {
         let app = await makeApp()
         let input = AppInput(model: app)
         let node = BuiltInNodes.registry.makeNode(NumberNode.typeID)
         try app.document.perform(.addNode(node))
         app.editor.selection = [node.id]
         let delete = KeyEvent(charactersIgnoringModifiers: "\u{7f}", characters: "\u{7f}", timestamp: 1)
-        #expect(input.handleInput(.keyDown(delete)))
+        #expect(!input.handleInput(.keyDown(delete)), "the window's input fallback is the open palette's, not the graph's")
+        #expect(app.document.graph.nodes.count == 1)
+        #expect(app.graphInput.handleKey(delete))
         #expect(app.document.graph.nodes.isEmpty)
     }
 }
