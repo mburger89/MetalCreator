@@ -1,5 +1,5 @@
 /// The sketch editor's tools (sketcher spec §8's toolbar): the drawing tools, Dimension, and the tools that change
-/// what's drawn through `SketchCommands` (Trim, Extend, Fillet). Project follows in S5c.
+/// what's drawn through `SketchCommands` (Trim, Extend, Fillet, Mirror). Project follows in S5c.
 public enum SketchTool: Hashable, Sendable, CaseIterable {
     /// Click to select (⇧ adds), drag a point to move it.
     case select
@@ -19,6 +19,8 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
     case extend
     /// Click a corner where two lines meet to round it (`SketchToolOptions.filletRadius`). No key: F frames the sketch.
     case fillet
+    /// With geometry selected, click a line to copy the selection mirrored about it.
+    case mirror
 
     /// The toolbar's title.
     public var title: String {
@@ -32,6 +34,7 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
         case .trim: "Trim"
         case .extend: "Extend"
         case .fillet: "Fillet"
+        case .mirror: "Mirror"
         }
     }
 
@@ -39,14 +42,14 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
     var placesPoints: Bool {
         switch self {
         case .line, .arc, .circle, .point: true
-        case .select, .dimension, .trim, .extend, .fillet: false
+        case .select, .dimension, .trim, .extend, .fillet, .mirror: false
         }
     }
 
     /// Whether the tool acts on a curve, so the pointer picks the curve under it even over one of its points.
     var picksCurves: Bool {
         switch self {
-        case .trim, .extend: true
+        case .trim, .extend, .mirror: true
         case .select, .line, .arc, .circle, .point, .dimension, .fillet: false
         }
     }

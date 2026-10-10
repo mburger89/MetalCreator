@@ -9,6 +9,7 @@ extension SketchEditorModel {
         switch tool {
         case .trim, .extend: trimOrExtend(at: p, tolerance: tolerance)
         case .fillet: fillet(at: p, tolerance: tolerance)
+        case .mirror: mirror(at: p, tolerance: tolerance)
         default: break
         }
     }

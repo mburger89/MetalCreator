@@ -26,7 +26,7 @@ extension SketchTool {
         case .circle: "c"
         case .dimension: "d"
         case .trim: "t"
-        case .select, .point, .extend, .fillet: nil
+        case .select, .point, .extend, .fillet, .mirror: nil
         }
     }
 }
