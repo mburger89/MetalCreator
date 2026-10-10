@@ -10,6 +10,7 @@ extension SketchEditorModel {
         case .trim, .extend: trimOrExtend(at: p, tolerance: tolerance)
         case .fillet: fillet(at: p, tolerance: tolerance)
         case .mirror: mirror(at: p, tolerance: tolerance)
+        case .pattern: pattern(at: p, tolerance: tolerance)
         default: break
         }
     }

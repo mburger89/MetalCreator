@@ -71,7 +71,7 @@ extension SketchEditorModel {
         case .line: placeLinePoint(at: p, tolerance: tolerance, suppressed: modifiers.contains(.command))
         case .circle: placeCirclePoint(at: p, tolerance: tolerance)
         case .arc: placeArcPoint(at: p, tolerance: tolerance)
-        case .trim, .extend, .fillet, .mirror: modify(at: p, tolerance: tolerance)
+        case .trim, .extend, .fillet, .mirror, .pattern: modify(at: p, tolerance: tolerance)
         }
         hover(at: p, tolerance: tolerance, modifiers: modifiers)
     }

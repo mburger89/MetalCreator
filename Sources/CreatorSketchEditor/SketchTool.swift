@@ -1,5 +1,5 @@
 /// The sketch editor's tools (sketcher spec §8's toolbar): the drawing tools, Dimension, and the tools that change
-/// what's drawn through `SketchCommands` (Trim, Extend, Fillet, Mirror). Project follows in S5c.
+/// what's drawn through `SketchCommands` (Trim, Extend, Fillet, Mirror, Pattern). Project follows in S5c.
 public enum SketchTool: Hashable, Sendable, CaseIterable {
     /// Click to select (⇧ adds), drag a point to move it.
     case select
@@ -21,6 +21,9 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
     case fillet
     /// With geometry selected, click a line to copy the selection mirrored about it.
     case mirror
+    /// With geometry selected, click a point to copy the selection around it, or a line to copy it along the line
+    /// (`SketchToolOptions.patternCount`, `patternSpacing`).
+    case pattern
 
     /// The toolbar's title.
     public var title: String {
@@ -35,6 +38,7 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
         case .extend: "Extend"
         case .fillet: "Fillet"
         case .mirror: "Mirror"
+        case .pattern: "Pattern"
         }
     }
 
@@ -42,7 +46,7 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
     var placesPoints: Bool {
         switch self {
         case .line, .arc, .circle, .point: true
-        case .select, .dimension, .trim, .extend, .fillet, .mirror: false
+        case .select, .dimension, .trim, .extend, .fillet, .mirror, .pattern: false
         }
     }
 
@@ -50,7 +54,7 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
     var picksCurves: Bool {
         switch self {
         case .trim, .extend, .mirror: true
-        case .select, .line, .arc, .circle, .point, .dimension, .fillet: false
+        case .select, .line, .arc, .circle, .point, .dimension, .fillet, .pattern: false
         }
     }
 }
