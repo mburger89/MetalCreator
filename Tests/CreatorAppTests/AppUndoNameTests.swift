@@ -119,9 +119,9 @@ struct AppUndoNameTests {
         editor.rename(dimension, to: "Plate width")
         await app.settle()
         #expect(app.document.undoName == "Rename Dimension")
-        #expect(app.document.undoName != "Rename d1 to Plate width", "the typed name never reaches the step name")
+        #expect(app.undoTitle == "Undo Rename Dimension", "the typed name never reaches the menu")
         editor.setValue("55", of: dimension)
         await app.settle()
-        #expect(app.document.undoName == "Change Dimension")
+        #expect(app.undoTitle == "Undo Change Dimension")
     }
 }

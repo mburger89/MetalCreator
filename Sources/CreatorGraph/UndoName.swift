@@ -54,8 +54,8 @@ public enum UndoName {
     /// A sketch editor commit: its fixed step name (`SketchCommit.name`, "Add Line"), or "Edit Sketch" when it has none.
     public static func sketch(_ name: String) -> String { cleaned(name) ?? editSketch }
 
-    /// The generic name, for a step whose caller gave none (or a blank one). No callers use it: a step called "Edit"
-    /// is a forgotten name, which the tests of each call site catch.
+    /// The generic name, for a step whose caller gave none (or a blank one). No call site should rely on it: a step
+    /// called "Edit" is a forgotten name, which the tests of each call site catch.
     public static let edit = "Edit"
 
     /// `name` trimmed, or `nil` when nothing is left (a blank name is no name).
