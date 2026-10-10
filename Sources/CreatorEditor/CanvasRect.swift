@@ -26,4 +26,10 @@ public struct CanvasRect: Equatable, Sendable {
     public func intersects(_ other: CanvasRect) -> Bool {
         origin.x <= other.maxX && other.origin.x <= maxX && origin.y <= other.maxY && other.origin.y <= maxY
     }
+
+    /// The smallest rectangle holding both.
+    public func union(_ other: CanvasRect) -> CanvasRect {
+        CanvasRect(corner: Vector2(min(origin.x, other.origin.x), min(origin.y, other.origin.y)),
+                   Vector2(max(maxX, other.maxX), max(maxY, other.maxY)))
+    }
 }

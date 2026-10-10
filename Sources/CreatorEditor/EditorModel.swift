@@ -11,14 +11,23 @@ import Observation
 public final class EditorModel {
     public let document: DocumentModel
 
-    /// Selected nodes. Changing it commits a typed but uncommitted inspector value (to the node it was typed
-    /// for) and ends any slider drag's undo coalescing.
-    public var selection: Set<NodeID> = [] {
+    /// Everything selected on the canvas (`EditorModel+Selection`, spec 2026-10-09 §3). Changing it commits a typed
+    /// but uncommitted inspector value (to the node it was typed for) and ends any slider drag's undo coalescing.
+    /// View state: never undone, never saved.
+    public var canvasSelection = CanvasSelection() {
         didSet {
-            guard selection != oldValue else { return }
+            guard canvasSelection != oldValue else { return }
             commitPendingEntry()
             document.endCoalescing()
         }
+    }
+
+    /// The selected nodes. Setting it replaces the whole canvas selection (comments too, once sub-project B adds
+    /// them), so code that selects nodes (a click, a paste, the app's Show Producing Node) leaves nothing else
+    /// selected; to keep other items, go through `select(_:mode:)` or `canvasSelection`.
+    public var selection: Set<NodeID> {
+        get { canvasSelection.nodes }
+        set { canvasSelection = CanvasSelection(nodes: newValue) }
     }
 
     /// The pointer over the canvas, in canvas-local screen points; `nil` when it is elsewhere.
