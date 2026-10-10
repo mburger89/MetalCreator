@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MetalCreator is a node-based parametric CAD app for macOS built on MetalUI (`../MetalUI`, joined in M4).
 The binding spec is `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md`; milestone
-plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 (OCCT kernel), M3 (the 26 nodes), S3 (profile holes) and S4 (the Sketch and Plane from Face nodes) are done. S5a (the sketch editor in the viewport: sketch mode, drawing, constraints, dimensions, live solve) code is done; its human checks (group S5) are pending. S5b (trim, extend, fillet, mirror and pattern tools, 3-point arcs, point-on and tangent inference with glyphs, double-click to edit) code is done; its human checks (group S5b) are pending; S5c (Project, New sketch on face, dimension labels in the view, region fill) is next. M4 (viewport) code is done; its human checks (group V in `docs/verification/human-checks.md`) are pending. M5 (graph panel and inspector) code is done; its human checks (group M5 in `docs/verification/human-checks.md`) are pending.
+plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 (OCCT kernel), M3 (the 26 nodes), S3 (profile holes) and S4 (the Sketch and Plane from Face nodes) are done. S5a (the sketch editor in the viewport: sketch mode, drawing, constraints, dimensions, live solve) code is done; its human checks (group S5) are pending. S5b (trim, extend, fillet, mirror and pattern tools, 3-point arcs, point-on and tangent inference with glyphs, double-click to edit) code is done; its human checks (group S5b) are pending; S5c (Project, New sketch on face, dimension labels in the view, region fill) code is done; its human checks (group S5c) are pending. M4 (viewport) code is done; its human checks (group V in `docs/verification/human-checks.md`) are pending. M5 (graph panel and inspector) code is done; its human checks (group M5 in `docs/verification/human-checks.md`) are pending.
 M6 (app shell) code is done; its human checks (group M6) are pending.
 MetalUI C8 (the app shell: close and quit veto, window title and edited dot, open-document events) is
 adopted, except the hidden title bar (gap M6-c, held for check AS-5); its human checks (group AS) are pending.
@@ -91,7 +91,12 @@ Module boundaries (dependency order):
     pan, the cube and its controls are hidden, turning commands and the face menu do nothing (`showsViewCube`,
     `isPlanar`; the first scene's framing never runs, and input finishes an animation instead of freezing it); a tool's
     `framingBounds` is what F frames, and `ViewportProjector.modelArea` the area its on-screen chrome stays in.
-    `lookAt(_ plane:framing:)` faces a plane, orthographic.
+    `lookAt(_ plane:framing:)` faces a plane, orthographic. A tool also takes the face or edge under a click it declined
+    (`clickedModel`: the sketch editor's Project). `ViewportOverlay` also carries `fills` (`OverlayFill`: world triangles
+    in the `.region` tint, one blended pipeline drawn under the lines, never in the ID pass) and `labels` (`OverlayLabel`:
+    text anchored in world space, placed by `overlayLabels()` and drawn as MetalUI text over the surface, hidden while
+    the camera animates: gap S5-c). The face menu adds New Sketch on Face (`ViewportEvents.newSketchOnFace`) on a flat
+    face that has a normal, outside sketch mode.
   - `ViewportModel` (`@MainActor @Observable`, testable without a GPU) owns the camera, picking, the view cube,
     the context menu and handles. `ViewportRenderer`/`ViewportPicker` are the Metal side. `ViewportView` is the
     MetalUI glue. A `ViewportItem` with `isGuide` is no part of the scene: only its selected edges are drawn, after the
@@ -154,10 +159,15 @@ Module boundaries (dependency order):
   `InferenceChip`). The command tools (Trim, Extend, Fillet, Mirror, Pattern) run `SketchCommands` on a click and show
   a refused command's message as `refusal`; their settings are `SketchToolOptions`. A click within the pick radius of
   a curve (not a point) holds a new point on it (point-on); a line leaving an arc's end snaps tangent; ⌘ suppresses
-  both, never a shared point. Graph-free: every edit is
+  both, never a shared point. Project (P) declines the plane click and takes the viewport's pick: the host resolves it
+  (`events.projection`) into `ProjectionCandidate`s, each becomes a fixed `.projected` entity with a reference `edgeN`, and
+  the commit's `projections` carry the picks to store. The overlay also carries a fill per closed region
+  (`RegionTriangulator`, found again only when the sketch changes) and a read-only label per dimension
+  (`SketchDimensionLabels`). Graph-free: every edit is
   a `SketchCommit` (the whole sketch, solved and remembered) through `events.committed`, which the host stores.
-  Depends on CreatorSketch, CreatorViewport, CreatorGeometry, CreatorStyle and MetalUI only. Its keys are toolbar
-  button shortcuts (L, A (again: 3-point arc), C, D, T, X, ⌫, ⌦, ⏎, Esc; ⌦ and Esc are hidden buttons; Fillet has no
+  Depends on CreatorSketch, CreatorViewport, CreatorKernel (Project's `EdgePick`), CreatorGeometry, CreatorStyle and
+  MetalUI only. Its keys are toolbar
+  button shortcuts (L, A (again: 3-point arc), C, D, T, P, X, ⌫, ⌦, ⏎, Esc; ⌦ and Esc are hidden buttons; Fillet has no
   key because F frames the sketch), which run before the graph panel's
   `onInput` keys; the Delete button and the hidden ⌦ one are never disabled, so ⌫ and ⌦ never fall through to deleting
   nodes (the graph's selection is the Sketch node being edited). Tests: `swift test --filter CreatorSketchEditorTests`.
@@ -167,7 +177,11 @@ Module boundaries (dependency order):
   the top bar holds `SketchToolbar` and the inspector `SketchInspector`, each in `SketchChrome` (glass over an opaque
   backdrop, so a click on the chrome never reaches the editor beneath). `SketchStore` turns a commit into one batch:
   the `sketch` setting, a cleared constant under each exposed dimension's name (the value lives in the sketch alone),
-  and a renamed exposed dimension's wire moved (dropped when it stops being exposed).
+  and a renamed exposed dimension's wire moved (dropped when it stops being exposed). A Project commit also stores each pick
+  under `NodeSetting.projection(reference)` and wires the solid's producer into `references` (one wire: `resolveProjection`
+  refuses another part, or one made from the sketch); a removed projection clears its pick. The face menu's New Sketch on
+  Face (`newSketchOnFace`) inserts Plane from Face and a wired Sketch as one batch and opens the sketch on
+  `PlaneFromFaceNode.plane(of:)`.
   `@MainActor @Observable AppModel` owns the open document's parts (document, editor, graph input, viewport; replaced
   together on New and Open), turns results into `ViewportItem`s (`SceneBuilder`; in Final preview a selected rule's edges on a solid no shown
   part holds come as guide items, Errata (Viewport: a rule's edges over the Final part)) and `HandleSpec`s into

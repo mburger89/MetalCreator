@@ -46,4 +46,12 @@ public enum PlaneFromFaceNode: NodeDefinition {
         if pick.touchesUnnamedFace { warnings.append(unnamedPick) }
         return NodeOutputs(["plane": .plane(FacePlane.plane(origin: face.centroid, normal: normal))], warnings: warnings)
     }
+
+    /// The plane `evaluate` puts on a flat face that has a normal (its centroid and `FacePlane`'s axes); `nil` for any
+    /// other face. The sketch editor opens a new sketch on it before this node has run. (`evaluate` is left as it is, so
+    /// the naming-face-picks track's edits to it merge; `NewSketchOnFaceTests` pins that the two agree.)
+    public static func plane(of face: FaceInfo) -> Plane? {
+        guard face.kind == .plane, let normal = face.normal?.normalized else { return nil }
+        return FacePlane.plane(origin: face.centroid, normal: normal)
+    }
 }

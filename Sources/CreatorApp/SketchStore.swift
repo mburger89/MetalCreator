@@ -2,6 +2,7 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import CreatorSketch
+import Foundation
 
 /// The graph commands that store an edited sketch in its node as one undo step (S4 → S5 handoff):
 /// - the whole sketch, as a `setInput` of the `sketch` setting;
@@ -11,8 +12,20 @@ import CreatorSketch
 /// - a dimension still wired keeps its stored value: the editor showed (and solved) the wired value, which overrides
 ///   the stored one only while the wire is there (sketcher spec §7).
 /// Reserved names are never touched: they are never sockets (`SketchNode.isReservedDimensionName`).
+/// - a projection the edit added stores its pick under `NodeSetting.projection(reference)` and wires its solid into
+///   `references` when nothing is wired there; one the edit removed clears its pick.
 enum SketchStore {
-    static func commands(storing new: Sketch, in node: Node, graph: Graph) -> [GraphCommand] {
+    /// A projection to store beside the sketch: the pick, and the output that made the solid it was picked on.
+    struct Projection {
+        let reference: String
+        let pick: EdgePick
+        let source: Endpoint
+    }
+
+    /// The Sketch node's input the projected solids are wired into (sketcher spec §7).
+    static let referencesSocket: SocketName = "references"
+
+    static func commands(storing new: Sketch, in node: Node, graph: Graph, projections: [Projection] = []) -> [GraphCommand] {
         let old: Sketch? = if case .sketch(let stored)? = node.inputValues[NodeSetting.sketch] { stored } else { nil }
         let oldNames = old.map(exposedNames) ?? [:]
         let newNames = exposedNames(new)
@@ -39,6 +52,33 @@ enum SketchStore {
             storing.dimensions[id]?.value = oldValue
         }
         return before + [.setInput(node.id, NodeSetting.sketch, .sketch(storing))] + after
+            + projectionCommands(old: old, new: new, in: node, graph: graph, projections: projections)
+    }
+
+    /// The picks of the projections the edit added, the pick settings of the ones it removed (cleared), and the wire from the
+    /// first added projection's solid into `references` when that input has none.
+    static func projectionCommands(old: Sketch?, new: Sketch, in node: Node, graph: Graph,
+                                   projections: [Projection]) -> [GraphCommand] {
+        var commands: [GraphCommand] = []
+        let removed = old.map(projectedReferences).map { $0.subtracting(projectedReferences(new)) } ?? []
+        for reference in removed.sorted() where node.inputValues[NodeSetting.projection(reference)] != nil {
+            commands.append(.setInput(node.id, NodeSetting.projection(reference), nil))
+        }
+        for projection in projections {
+            commands.append(.setInput(node.id, NodeSetting.projection(projection.reference), .edgePicks([projection.pick])))
+        }
+        let references = Endpoint(node: node.id, socket: referencesSocket)
+        if let first = projections.first, graph.incomingLink(to: references) == nil {
+            commands.append(.connect(Link(from: first.source, to: references)))
+        }
+        return commands
+    }
+
+    /// The references of the sketch's projected edges.
+    static func projectedReferences(_ sketch: Sketch) -> Set<String> {
+        Set(sketch.entityIDs.compactMap { id -> String? in
+            if case .projected(let source)? = sketch.entities[id]?.kind { source.reference } else { nil }
+        })
     }
 
     /// The sketch with each exposed dimension's constant (left under its socket name) folded into its value, so the

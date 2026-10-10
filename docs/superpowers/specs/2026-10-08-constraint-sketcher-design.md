@@ -415,3 +415,48 @@ All tests use Swift Testing.
   recogniser), because the canvas's one zero-distance drag carries no click count (docs/metalui-gaps.md S5-b, MetalUI
   C16). A double click on a node with an "Edit sketch" inspector button presses it. While a sketch is open, a double
   click (or any .editSketch request) changes nothing: the stroke, the selection and the camera stay.
+
+## Errata (S5c)
+
+- §8's S5c (plan `2026-10-09-sketcher-s5c.md`) has Project, "New sketch on face", dimension labels in the view and the region
+  fill; `CreatorSketchEditor` now depends on `CreatorKernel` (§2), for `EdgePick`.
+- §8's Project (P) is a sketch-mode tool that declines the plane click, so the viewport's ID-buffer pick reaches the tool
+  (`ViewportTool.clickedModel`): nothing turns the camera and no menu opens. An edge pick projects that edge; a face pick
+  projects each of its edges. Each edge becomes a fixed `.projected` entity whose `reference` is the first unused
+  `edgeN`; the commit stores `projection.<reference>` = `.edgePicks([pick])` and wires the solid's producer into
+  `references` (when nothing is wired there) in the same batch as the sketch: one undo step. `references` takes one wire, so a
+  sketch projects from one part: a pick on another part, or on a part made from this sketch (a cycle), is refused in words,
+  as are edges S4 can't project (perpendicular, oblique, unsupported) and edges already projected. Deleting a projected curve
+  clears its stored pick (its wire stays).
+- §8's "New sketch on face" is the face menu's item, offered on a flat face that has a normal and only outside sketch mode
+  (Errata (S5a)). One batch adds Plane from Face (`face` = the picked face's `facePick`, `solid` wired from the producer
+  of the face's solid) and a Sketch (plane `.wired`, wired from the Plane from Face), beside the producer, and the sketch
+  opens at once on the plane worked out from the face by the node's own function (`PlaneFromFaceNode.plane(of:)`); the
+  editor takes the evaluated plane once there is one, and "Edit sketch" works the plane out the same way while the chain
+  feeds no Output and so never evaluates. The Sketch's `references` stays unwired until the first Project.
+- §8's dimension labels are read-only text at the dimension: a length at the line's middle, a radius at the arc's middle,
+  a diameter at the circle's upper right, a distance between its two points (or a point and its foot on the line), an
+  angle at the lines' corner; each stands off its geometry along its normal (or the bisector, or outwards) by 16 points on
+  screen. A driving dimension reads its value ("60 mm", "45°"; an exposed one "width = 60 mm"), a reference dimension its
+  measurement in brackets in the construction colour, a dimension in a conflict is red. §8 puts the editable name and value
+  fields in the inspector and says nothing of editing in the view, so the labels don't take the pointer. They are
+  element-tree text (docs/metalui-gaps.md S5-c) and are hidden while the camera animates.
+- §8's "Output regions: faint green fill" is one filled triangle set per region `SketchRegions.find` returns (holes left
+  empty, an island in a hole its own region), in the Sketch node's header green at 18% opacity, drawn under the curves and
+  over the model, and never in the ID pass, so a click goes through it.
+- Project stays the active tool after a click (a repeated Project; Select is one key away). Nothing highlights the edge under
+  the pointer while the Project tool aims: the viewport highlights only a hovered face (`FrameItem.hoveredFace`), so an edge
+  click gives no feedback until the line appears (a face click shows the face lit, though it projects all its edges). A
+  hovered-edge highlight is a viewport change (a picked edge in the frame, a highlight in the edge pipeline) that the
+  viewport-final-edges track is rewriting; it is not in S5c.
+- A projected edge is real, not construction, geometry: it closes regions and gets the faint fill like a drawn line.
+- The new Plane from Face and Sketch are placed 240 and 480 points right of, and 140 below, the producer of the picked
+  face's solid. They may overlap nodes already there; moving them is the user's, and placing clear of nodes is a later nicety.
+  The new Sketch feeds nothing, so nothing previews until it is wired on (Errata (S4): a Sketch's profiles go into an
+  Extrude).
+- The S5b review's follow-ups: a circle's radius click and a centre arc's end click are only sizes, so no curve snaps them
+  (they snap to an existing point's distance only); the hover scans the curves once and only for tools that place points.
+- Decided: the user approved the recommended default of each of the plan's 12 User decisions (2026-10-09/10): Project on a
+  face projects all its edges, one part per sketch (refused in words), read-only labels, the label texts above, New Sketch on
+  Face unwired with a 100 mm frame and no Extrude, the fill at 18% of the header green, a deleted projected curve keeps
+  its wire, no hover feedback for edges, Project stays active, nodes placed at fixed offsets, projected edges are real geometry.

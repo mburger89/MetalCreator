@@ -46,6 +46,7 @@ work (the owner named). The sections below keep each gap's full use case.
 | TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | ⏳ reported, not queued |
 | S5-a | Modifiers on a hover (and a tap, GI-a) | none yet (with GI-a) | ⏳ reported, not queued |
 | S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ⏳ reported 2026-10-09 |
+| S5-c | A `MetalView` draw can't draw text (world-anchored labels) | MetalUI session (with M4-b) | ⏳ reported 2026-10-09, sent to the MetalUI session |
 | M7-a | `ForEach` identity is an id's description | none yet | ⏳ reported, not queued |
 | M7-b | No warm headless frame for measuring | none yet (with M6-e) | ⏳ reported, not queued; used again by C10 (below) |
 | C10-a | No backdrop blur behind a material | C10-c (unscheduled) | ⏳ sent to the MetalUI session 2026-10-09 |
@@ -644,3 +645,23 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
   return .handled }` on the `TextEditor` (no MetalUI-only hook is needed). Status: answered: lands with C9. The gap
   was already sent to the MetalUI session by the controller. Logged with C9 (key and focus scoping), which owns the key
   handling.
+
+## Hit by the sketch editor (S5c), 2026-10-09
+
+- **S5-c. A `MetalView` draw can't draw text, so labels anchored in the 3D scene are element-tree text, rebuilt on every
+  camera change.** Sketcher spec §8: a sketch's dimension values are shown in the view, at the dimension
+  (`ViewportOverlay.labels`, drawn from `ViewportModel.overlayLabels()`). They follow the camera (a pan, a zoom, the Look
+  At onto the plane) and a sketch has dozens. MetalUI draws text only as elements in the tree, never inside a `MetalView`'s
+  draw (`MetalDrawContext` offers the target, the command buffer, `clear(…)` and the scale factor, and no text), so
+  `ViewportView` places one `ProposalText` per label from a function that reads the pose: the tree is rebuilt on every
+  camera change (PERF-b's cost), and a camera animation doesn't rebuild it (M4-b), so the labels are hidden for the 250 ms
+  Look At that opens a sketch. A text box's size can't be asked either, so the box is computed from the text (7 points a
+  character, `PlacedLabel.size(of:)`, as the S5a readout chip is). Stopgap: exactly that, which is how the handle values
+  (`handleLabels()`) and the triad's axis names are drawn. Wanted: text drawn into a `MetalView` pass, such as a
+  `MetalDrawContext.drawText(_:at:style:)` positioned in the view's points and batched with the frame's glyph atlas, so
+  scene-anchored text moves with the frame it is drawn in, needs no tree rebuild and shows during animations; and a way
+  to measure a string from a component. M4-b (a redraw during an animation) would remove the hiding but not the
+  rebuilds. Human check S5c-6 records it. Not measured: a sketch with 20 or more labels pays the rebuild for each on every
+  camera change; S5c-6 is where that is looked at, and the labels are not capped or culled by count (a silent cap would hide
+  dimensions). Sent to the MetalUI session (the standing rule: every MetalUI gap goes to that session to implement); the
+  repository is never edited from here.

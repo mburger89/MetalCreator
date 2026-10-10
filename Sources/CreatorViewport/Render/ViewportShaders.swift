@@ -23,6 +23,7 @@ struct LineInstance { float3 a; float3 b; float4 color; float width; uint id; };
 struct LineUniforms { float widthOverride; float depthBias; float padding0; float padding1; };
 struct GridUniforms { float2 center; float extent; float spacing; float4 minorColor; float4 majorColor; };
 struct CubeVertex { float3 position; float4 color; float2 uv; float4 labelRect; };
+struct FillVertex { float3 position; float4 color; };
 
 // MARK: Background
 
@@ -180,6 +181,27 @@ fragment float4 grid_fragment(GridOut in [[stage_in]], constant GridUniforms &gr
     float alpha = max(minor * 0.35, major * 0.6) * fade;
     float3 color = mix(grid.minorColor.rgb, grid.majorColor.rgb, major);
     return float4(color * alpha, alpha);
+}
+
+// MARK: Overlay fills (a sketch region's faint colour, under the overlay's lines)
+
+struct FillOut {
+    float4 position [[position]];
+    float4 color [[flat]];
+};
+
+vertex FillOut fill_vertex(uint vid [[vertex_id]],
+                           device const FillVertex *vertices [[buffer(0)]],
+                           constant FrameUniforms &uniforms [[buffer(1)]]) {
+    FillVertex v = vertices[vid];
+    FillOut out;
+    out.position = uniforms.viewProjection * float4(v.position, 1.0);
+    out.color = v.color;
+    return out;
+}
+
+fragment float4 fill_fragment(FillOut in [[stage_in]]) {
+    return float4(in.color.rgb * in.color.a, in.color.a);
 }
 
 // MARK: View cube

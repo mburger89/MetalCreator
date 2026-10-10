@@ -53,6 +53,9 @@ public final class SketchEditorModel {
     /// The sketch as the host last stored it (given, reloaded or committed), before this editor's solve: `reload(_:)`
     /// compares against it, so the host can reload on every refresh without dropping a stroke in progress.
     @ObservationIgnored var stored: Sketch
+    /// The region fills of `sketch` on `plane`, kept until either changes: the overlay is rebuilt on every hover, and
+    /// finding regions is more work than a hover (`regionFills`).
+    @ObservationIgnored var fillCache: (sketch: Sketch, plane: Plane, fills: [OverlayFill])?
 
     @ObservationIgnored public var events = SketchEditorEvents()
 
@@ -89,14 +92,14 @@ public final class SketchEditorModel {
     }
 
     /// Takes `edited` as the sketch, solved and remembered, and hands it to the host as one undo step.
-    func commit(_ edited: Sketch, _ description: String) {
+    func commit(_ edited: Sketch, _ description: String, projections: [ProjectionWrite] = []) {
         let solved = SketchSolver.solve(edited)
         let remembered = Self.remembering(edited, solved)
         solution = solved
         sketch = remembered
         stored = remembered
         refusal = nil
-        events.committed(SketchCommit(sketch: remembered, description: description))
+        events.committed(SketchCommit(sketch: remembered, description: description, projections: projections))
     }
 
     /// `sketch` with `solution` as its warm start when the solve is usable (S4 → S5 handoff: the node then

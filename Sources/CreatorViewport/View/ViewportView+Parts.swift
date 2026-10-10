@@ -16,6 +16,15 @@ extension ViewportView {
                     .offset(x: Pixels(Float(label.position.x)), y: Pixels(Float(label.position.y - 9)))
                     .allowsHitTesting(false)
             }
+            for label in model.overlayLabels() {
+                ProposalText(label.text)
+                    .font(.caption)
+                    .foregroundStyle(model.textColor(for: label.tint))
+                    .frame(width: Pixels(Float(label.size.width)), height: Pixels(Float(label.size.height)))
+                    .background(model.labelFill, in: RoundedRectangle(cornerRadius: Pixels(4)))
+                    .offset(x: Pixels(Float(label.origin.x)), y: Pixels(Float(label.origin.y)))
+                    .allowsHitTesting(false)
+            }
             if model.showsViewCube { cubeControls(model: model) }
         }
         .overlay(alignment: .bottomLeading) {

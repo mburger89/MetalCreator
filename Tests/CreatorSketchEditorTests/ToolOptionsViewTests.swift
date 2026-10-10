@@ -9,7 +9,7 @@ import Testing
 struct ToolOptionsViewTests {
     @Test func theToolbarHoldsEveryTool() {
         let drawing: [SketchTool] = [.select, .line, .arc, .arcThreePoint, .circle, .point, .dimension]
-        #expect(SketchTool.allCases == drawing + [.trim, .extend, .fillet, .mirror, .pattern])
+        #expect(SketchTool.allCases == drawing + [.trim, .extend, .fillet, .mirror, .pattern, .project])
         let model = SketchEditorModel(sketch: RectangleSketch().sketch, plane: .xy)
         model.choose(.pattern)
         #expect(!renderHeadless { SketchToolbar(model: model) }.glyphs.isEmpty)
@@ -17,7 +17,7 @@ struct ToolOptionsViewTests {
 
     @Test func theCommandToolsSayWhatToDo() {
         let hinted = SketchTool.allCases.filter { $0.hint != nil }
-        #expect(hinted == [.arcThreePoint, .trim, .extend, .fillet, .mirror, .pattern])
+        #expect(hinted == [.arcThreePoint, .trim, .extend, .fillet, .mirror, .pattern, .project])
     }
 
     /// The glyphs `text` draws (one per character that isn't a space).

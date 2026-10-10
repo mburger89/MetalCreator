@@ -94,3 +94,16 @@ These are the items later milestones must pick up (S3 has merged; its items are 
   camera every frame, like `handleLabels()`) and filled overlay triangles (a renderer pipeline; `GPUDataTests`).
 - Pattern construction (connectors, spokes) is still drawn as any construction; telling it apart needs a marker in
   the sketch model (CreatorSketch) or the editor remembering what a pattern added.
+
+## S5c → later (plan `docs/superpowers/plans/2026-10-09-sketcher-s5c.md`)
+- Done in S5c (sketcher spec Errata (S5c)): Project (an edge or a face, over `ViewportTool.clickedModel`), New sketch on face,
+  read-only dimension labels in the view (gap S5-c), the region fill, and the S5b review's follow-ups.
+- Not done: ⌘ to suppress inference and ⇧-click to extend the selection (gaps S5-a and GI-a); editing a dimension in the
+  view (the spec puts the fields in the inspector); labels that avoid each other (two dimensions near one spot overlap);
+  a sketch that projects from more than one part (`references` takes one wire; several would need a list of wires or a
+  merge node); a projection that follows a re-projected edge it already holds (a re-projection after the model moved
+  makes a second entity only while the wired solid has no result yet, because then the duplicate check falls back to the
+  stored curve; once the solid evaluates, the editor shows the refreshed curve (`refreshedProjections`) and compares with it);
+  hover feedback for the edge under the Project tool (only faces highlight); framing a new sketch on the
+  face itself (it frames 100 mm round the face's centroid; the viewport knows the face's bounds and the app doesn't);
+  the 150 ms debounce while typing; pattern construction told apart from the user's own.

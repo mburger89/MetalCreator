@@ -6,8 +6,8 @@ import Foundation
 /// Projects a model edge onto a sketch plane (sketcher spec §7, "Projection, v1"): a line becomes a
 /// 2D line, and a circle or arc whose axis is parallel to the plane normal becomes a 2D circle or
 /// arc. Anything else is refused, with the reason for the node's warning.
-enum EdgeProjection {
-    enum Outcome: Equatable {
+public enum EdgeProjection {
+    public enum Outcome: Equatable {
         case curve(ProjectedCurve)
         case refused(String)
     }
@@ -21,7 +21,7 @@ enum EdgeProjection {
     static let oblique = "it is a circle or arc that doesn't face the sketch plane"
     static let unsupported = "only lines, circles and arcs can be projected"
 
-    static func project(_ edge: EdgeInfo, onto plane: Plane) -> Outcome {
+    public static func project(_ edge: EdgeInfo, onto plane: Plane) -> Outcome {
         switch edge.curve {
         case .line(let start, let end)?:
             let (a, b) = (local(start, on: plane), local(end, on: plane))

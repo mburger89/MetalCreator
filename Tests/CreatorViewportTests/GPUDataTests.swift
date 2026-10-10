@@ -12,6 +12,8 @@ struct GPUDataTests {
         #expect(MemoryLayout<MeshVertex>.stride == 48)
         #expect(MemoryLayout<LineInstance>.stride == 64)
         #expect(MemoryLayout<LineInstance>.offset(of: \LineInstance.width) == 48)
+        #expect(MemoryLayout<FillVertex>.stride == 32)
+        #expect(MemoryLayout<FillVertex>.offset(of: \FillVertex.color) == 16)
         #expect(MemoryLayout<CubeVertex>.stride == 64)
         #expect(MemoryLayout<CubeVertex>.offset(of: \CubeVertex.uv) == 32)
         #expect(MemoryLayout<CubeVertex>.offset(of: \CubeVertex.labelRect) == 48)

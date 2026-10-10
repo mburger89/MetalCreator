@@ -22,6 +22,33 @@ extension ViewportModel {
         }
     }
 
+    /// The overlay's labels on screen (`ViewportOverlay.labels`): each box centred on its anchor projected with the camera,
+    /// moved `OverlayLabel.nudgeDistance` points along its nudge as that looks on screen. Left out: all of them while
+    /// the camera animates (as the handle labels are), an anchor at or behind a perspective eye, and a box wholly
+    /// outside the view. Gap S5-c: this is element-tree text, not text in the Metal pass.
+    public func overlayLabels() -> [PlacedLabel] {
+        let size = observedViewSize
+        guard !size.isEmpty, !isAnimating, !overlay.labels.isEmpty else { return [] }
+        return overlay.labels.compactMap { label in
+            guard let anchor = CameraMath.project(label.position, pose, size: size)?.point else { return nil }
+            var centre = anchor
+            if let nudge = label.nudge, let tip = CameraMath.project(label.position + nudge, pose, size: size)?.point {
+                let (dx, dy) = (tip.x - anchor.x, tip.y - anchor.y)
+                let length = (dx * dx + dy * dy).squareRoot()
+                if length > 1e-6 {
+                    centre = ScreenPoint(anchor.x + dx / length * OverlayLabel.nudgeDistance,
+                                         anchor.y + dy / length * OverlayLabel.nudgeDistance)
+                }
+            }
+            let box = PlacedLabel.size(of: label.text)
+            let origin = ScreenPoint(centre.x - box.width / 2, centre.y - box.height / 2)
+            guard origin.x + box.width > 0, origin.y + box.height > 0, origin.x < size.width, origin.y < size.height else {
+                return nil
+            }
+            return PlacedLabel(text: label.text, tint: label.tint, origin: origin, size: box)
+        }
+    }
+
     /// The unit and grid label (spec §6.3), such as "mm · grid 10 mm".
     public var gridLabel: String {
         GridSpacing.label(spacing: gridSpacing(for: pose))

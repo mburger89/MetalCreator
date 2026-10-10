@@ -32,9 +32,19 @@ extension SketchEditorModel: ViewportTool {
 
     public func clicked(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) -> Bool {
         follow(point, projector)
+        guard tool != .project else { return false }
         if let p = projector.planePoint(under: point, on: plane) {
             click(at: p, tolerance: tolerance(projector), modifiers: modifiers)
         }
+        return true
+    }
+
+    /// The Project tool takes the model's pick under a click it declined (Task 2): an edge, a face, or empty space.
+    public func clickedModel(_ target: PickTarget?, at point: ScreenPoint, modifiers: ViewportModifiers,
+                             projector: ViewportProjector) -> Bool {
+        guard tool == .project else { return false }
+        follow(point, projector)
+        project(target)
         return true
     }
 

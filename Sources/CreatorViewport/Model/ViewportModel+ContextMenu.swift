@@ -14,6 +14,8 @@ extension ViewportModel {
               let face = items[ref.solidIndex].solid.topology.face(ref.face) else { return [] }
         guard tool == nil else { return [.lookAt(ref)] }
         var menu: [ViewportMenuItem] = [.lookAt(ref), .selectEdgesOfFace(ref)]
+        // Plane from Face takes a flat face with a normal (`PlaneFromFaceNode`); another face would only make an error.
+        if face.kind == .plane, face.normal != nil { menu.append(.newSketchOnFace(ref)) }
         let nodes = MeshQueries.producingNodes(of: face)
         for node in nodes {
             let title = nodes.count == 1
@@ -36,6 +38,10 @@ extension ViewportModel {
             events.selectEdgesOfFace(ref, topology.picks(for: ids), ids)
         case .showProducingNode(let node, _):
             events.showProducingNode(node)
+        case .newSketchOnFace(let ref):
+            guard items.indices.contains(ref.solidIndex),
+                  let pick = items[ref.solidIndex].solid.topology.facePick(for: ref.face) else { return }
+            events.newSketchOnFace(ref, pick)
         }
     }
 
