@@ -22,6 +22,10 @@ public enum GraphKeyCommand: Equatable, Sendable {
     case group
     /// ⇧⌘G: ungroups the selected group node.
     case ungroup
+    /// ⌘↓: enters the selected group node.
+    case enterGroup
+    /// ⌘↑: goes back out of the group shown.
+    case exitGroup
     case zoomIn
     case zoomOut
     case undo

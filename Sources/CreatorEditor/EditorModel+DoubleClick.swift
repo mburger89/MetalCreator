@@ -11,9 +11,9 @@ extension EditorModel {
     public static let doubleClickInterval = Duration.milliseconds(400)
     /// How far apart a double click's two clicks may land, in screen points.
     public static let doubleClickSlop = 4.0
-    /// The inspector buttons a double click presses; the first of them a node's inspector has wins. The groups
-    /// editor adds its "Edit Group" action here.
-    static let doubleClickActions: [InspectorAction] = [.editSketch]
+    /// The inspector buttons a double click presses; the first of them a node's inspector has wins: a Sketch node's
+    /// "Edit sketch", a group node's "Edit Group" (groups spec §6).
+    static let doubleClickActions: [InspectorAction] = [.editSketch, .editGroup]
 
     /// A press released without a drag, on `hit` at `point` with `modifiers` held: the second click with no modifiers
     /// on one node's body is a double click (`nodeDoubleClicked`); any other click on a body starts a new pair, and a

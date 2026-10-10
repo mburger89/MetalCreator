@@ -49,7 +49,8 @@ public enum GraphKeyBindings {
         }
     }
 
-    /// ⌘ chords; `character` is already lowercased, and ⇧ turns ⌘Z into redo and ⌘G into ungroup.
+    /// ⌘ chords; `character` is already lowercased, and ⇧ turns ⌘Z into redo and ⌘G into ungroup. ⌘↓ and ⌘↑ (the
+    /// arrows' private-use characters) go into and out of a group.
     static func commandChord(for character: String, shifted: Bool) -> GraphKeyCommand? {
         switch character {
         case "c": .copy
@@ -58,6 +59,8 @@ public enum GraphKeyBindings {
         case "a": shifted ? nil : .selectAll
         case "g": shifted ? .ungroup : .group
         case "z": shifted ? .redo : .undo
+        case "\u{f701}": shifted ? nil : .enterGroup
+        case "\u{f700}": shifted ? nil : .exitGroup
         default: nil
         }
     }

@@ -89,9 +89,19 @@ extension EditorModel {
         setParameter(id, to: .integer(whole), continuous: continuous)
     }
 
-    /// An inspector button: recorded for the viewport, which owns pick mode (M4/M6).
+    /// An inspector button. A group node's (Edit Group, Make Unique, Ungroup) the panel carries out itself; the rest are
+    /// recorded for the app shell, which owns pick mode and the sketch (M4/M6).
     public func press(_ action: InspectorAction, on node: NodeID) {
-        requestSerial += 1
-        setInspectorRequest(InspectorRequest(node: node, action: action, serial: requestSerial))
+        switch action {
+        case .editGroup:
+            enterGroup(node)
+        case .makeUnique:
+            makeUnique(node)
+        case .ungroup:
+            ungroup(node)
+        case .pickEdgesInView, .pickFacesInView, .editSketch:
+            requestSerial += 1
+            setInspectorRequest(InspectorRequest(node: node, action: action, serial: requestSerial))
+        }
     }
 }
