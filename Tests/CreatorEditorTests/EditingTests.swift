@@ -110,7 +110,7 @@ struct EditingTests {
         editor.connect(wire(number, "value", extrude, "profile"))
         #expect(editor.graph.links.isEmpty)
         #expect(editor.refusal == RefusalFeedback(message: "A number can't connect to a profile input.", node: extrude.id, serial: 1))
-        #expect(editor.isShaking)
+        #expect(editor.shakeCount(of: extrude.id) == 1)
         #expect(!editor.document.canUndo)
     }
 
