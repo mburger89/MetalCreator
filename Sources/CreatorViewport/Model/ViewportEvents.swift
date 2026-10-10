@@ -10,6 +10,9 @@ public struct ViewportEvents {
     /// (`topology.picks(for:)`, the encoding an Edges by Tag rule stores, spec §5.3) and their IDs, seams excluded.
     /// The host wraps the picks as `.edgePicks(…)`; the viewport never builds a graph value.
     public var selectEdgesOfFace: @MainActor (ViewportFaceRef, [EdgePick], [EdgeID]) -> Void = { _, _, _ in }
+    /// "New Sketch on Face" (sketcher spec §8): the flat face, and its remembered pick (`topology.facePick(for:)`, the
+    /// encoding Plane from Face stores). The host wraps the pick as `.facePick(…)`; the viewport never builds a graph value.
+    public var newSketchOnFace: @MainActor (ViewportFaceRef, FacePick) -> Void = { _, _ in }
     /// "Show Producing Node": the node that made the face, from its tags.
     public var showProducingNode: @MainActor (NodeID) -> Void = { _ in }
     /// A handle drag: the handle's id and its new value.

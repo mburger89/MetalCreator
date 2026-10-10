@@ -31,6 +31,50 @@ struct ContextMenuTests {
         #expect(model.contextMenuItems(at: press).map(\.title) == ["Look At", "Select Edges of Face", "Show Producing Node"])
     }
 
+    /// `fakeBox`'s end cap (face 1) is flat and has a normal; its side faces are flat too but carry none.
+    @Test func aFlatFaceWithANormalOffersNewSketchOnFace() async throws {
+        let model = await model(showing: [try await fakeBox()])
+        let cap = ViewportFaceRef(solidIndex: 0, face: FaceID(1))
+        model.pick = { _ in .face(solid: 0, FaceID(1)) }
+        let items = model.contextMenuItems(at: ScreenPoint(300, 200))
+        #expect(items.prefix(3).map(\.title) == ["Look At", "Select Edges of Face", "New Sketch on Face"])
+        #expect(items.contains(.newSketchOnFace(cap)))
+        model.pick = { _ in .face(solid: 0, FaceID(2)) }
+        #expect(!model.contextMenuItems(at: ScreenPoint(301, 200)).contains { item in
+            if case .newSketchOnFace = item { true } else { false }
+        }, "a face with no normal can't have a Plane from Face")
+    }
+
+    @Test func aCurvedFaceOffersNoSketch() async throws {
+        let face = FaceInfo(id: FaceID(0), kind: .cylinder, normal: .unitZ, area: 1, centroid: .zero, tags: [])
+        let cylinder = Solid(topology: Topology(faces: [face], edges: []),
+                             bounds: BoundingBox(min: .zero, max: Vector3(1, 1, 1)), storage: TestStorage())
+        let model = await model(showing: [cylinder])
+        model.pick = { _ in .face(solid: 0, FaceID(0)) }
+        let ref = ViewportFaceRef(solidIndex: 0, face: FaceID(0))
+        #expect(model.contextMenuItems(at: ScreenPoint(300, 200)) == [.lookAt(ref), .selectEdgesOfFace(ref)])
+    }
+
+    @Test func whileAToolHoldsThePointerTheMenuIsLookAtAlone() async throws {
+        let model = await model(showing: [try await fakeBox()])
+        model.tool = RecordingTool()
+        model.pick = { _ in .face(solid: 0, FaceID(1)) }
+        #expect(model.contextMenuItems(at: ScreenPoint(300, 200)) == [.lookAt(ViewportFaceRef(solidIndex: 0, face: FaceID(1)))])
+    }
+
+    @Test func choosingNewSketchOnFaceReportsTheFaceAndItsRememberedPick() async throws {
+        let solid = try await fakeBox()
+        let model = await model(showing: [solid])
+        var reported: [(face: ViewportFaceRef, pick: FacePick)] = []
+        model.events.newSketchOnFace = { reported.append(($0, $1)) }
+        let ref = ViewportFaceRef(solidIndex: 0, face: FaceID(1))
+        model.choose(.newSketchOnFace(ref))
+        #expect(reported.map(\.face) == [ref])
+        #expect(reported.first?.pick == solid.topology.facePick(for: FaceID(1)))
+        model.choose(.newSketchOnFace(ViewportFaceRef(solidIndex: 5, face: FaceID(1))))
+        #expect(reported.count == 1, "a face of a solid that is gone reports nothing")
+    }
+
     @Test func nothingUnderThePressMeansNoMenu() async throws {
         let model = await model(showing: [try await fakeBox()])
         #expect(model.contextMenuItems(at: ScreenPoint(300, 200)).isEmpty)
@@ -149,10 +193,10 @@ struct ContextMenuTests {
         let expected = sorted.map {
             $0 == nodeA ? "Show Producing Node (Extrude)" : "Show Producing Node (\(nodeB.description))"
         }
-        #expect(Array(titles.dropFirst(2)) == expected)
+        #expect(Array(titles.dropFirst(3)) == expected)
         var shown: [NodeID] = []
         model.events.showProducingNode = { shown.append($0) }
-        for item in model.contextMenuItems(at: ScreenPoint(300, 200)).dropFirst(2) { model.choose(item) }
+        for item in model.contextMenuItems(at: ScreenPoint(300, 200)).dropFirst(3) { model.choose(item) }
         #expect(shown == sorted)
     }
 
