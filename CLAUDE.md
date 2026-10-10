@@ -16,8 +16,9 @@ Themes (custom themes, `.mctheme` files, the theme editor) code is done; its hum
 M7 (measure and record) code is done: spec §7.3's numbers are in `docs/verification/performance.md`, taken by the
 release benchmarks in `Tests/CreatorAppTests/Bench` (`scripts/bench.sh`); `docs/metalui-gaps.md` opens with a summary
 table of every gap, its MetalUI item and its status; its human checks (group M7) are pending.
-Groups C1 (model and evaluation, `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` §4–§5) is done:
-⌘G/⇧⌘G work on the top level; entering a group, breadcrumbs and the group inspector are C2.
+Groups C1 (model and evaluation, `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` §4–§5) is done.
+Groups C2 (the editor, §6: entering a group, breadcrumbs, the + sockets, the group inspector, the library's Groups
+section, the viewport and the clipboard inside groups) code is done; its human checks (group GR) are pending.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -49,6 +50,12 @@ Module boundaries (dependency order):
     if the definition were the top level (`GroupScopes.identity`), and `EvaluationScope.naming` reads it as each
     instance's; Group, Ungroup and Make Unique rename every pick whose faces they move (`GroupScopes.renamingPicks`),
     so no pick drifts. Dirty state compares `DocumentModel.content` (definitions too).
+    The editor's levels (`GraphContent.path(entering:)`, `existingLevels(_:)`, `relativeToLevel(_:levels:)`: a level is
+    the group nodes entered from the top level, each by its ID in the graph before it) and
+    `DocumentModel.inspectedLevel` (the level the panel shows, which `Evaluator.evaluate(…inspecting:)` evaluates
+    whole, so `innerResults` has a state for every node there; a node asked for that way never changes its group
+    node's result). `GroupCommands.exposeOutput/exposeInput` (the + sockets) and `GroupMerge` (the clipboard's
+    definitions, merged by content) build one command each. `GroupNaming.plusSocket` ("+") is a reserved name.
 - `CreatorNodes`: the 28 built-in node definitions (`BuiltInNodes.registry`: the slice's 26 plus Plane from Face and
   Sketch), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
   parameter, picks, showHandle, sketch, face, groupID, and `projection(reference)` per projected edge) live in
@@ -96,6 +103,17 @@ Module boundaries (dependency order):
   repeat (gap M7-a), and a `NodeID` prints only 8 hex digits. The window's size reaches the panel's placement through
   `ViewportModel.observedViewSize` (bumped one task after the draw records a new size, gap M4-a), never `viewSize`
   itself, so a resize rebuilds the canvas.
+  The graph panel shows a level (`EditorModel+Levels`: `enteredGroups`/`levelPath`, `enterGroup(_:)`, `exitGroup()`,
+  `goToLevel(_:)`, `breadcrumbs`, `refreshLevel()` after anything that undoes): `EditorModel.graph` is the level's
+  graph, so every reader (hit testing, drawing, the inspector, selection) sees it, and every edit goes through
+  `edit(_:coalescingKey:)`, which addresses `graphPath`; the document's parameters stay on `rootGraph`. Each level keeps
+  its own pan and zoom in the model (not saved), and changing level clears the selection. A group node's Edit Group,
+  Make Unique and Ungroup are its inspector buttons (`InspectorAction`), carried out by `EditorModel.press`; a double
+  click on a group node presses Edit Group through S5b's recogniser; ⌘↓/⌘↑ enter and leave. Group Input/Output draw a "+"
+  socket (a `NodeShape` socket named `GroupNaming.plusSocket`); a wire between it and another socket exposes a socket
+  (`EditorModel+Expose`). `GroupPanel` (`EditorModel.groupPanel`, `GroupPanelView`) is the inspector's definition part;
+  the library's "Groups" section carries a group by the key `GroupLibraryEntry.key` through the library's one gesture.
+  `NodeClipboard.definitions` carries the definitions copied group nodes use.
   The selection is `canvasSelection` (`CanvasSelection`: nodes, and comments once sub-project B lands); `selection`
   is its nodes, and assigning it replaces the whole selection. Every gesture and key goes through
   `EditorModel+Selection` (`select(_:mode:)` with `SelectionMode`: none replaces, ⇧ adds, ⌘ toggles; `allItems`,
@@ -127,7 +145,10 @@ Module boundaries (dependency order):
   `@MainActor @Observable AppModel` owns the open document's parts (document, editor, graph input, viewport; replaced
   together on New and Open), turns results into `ViewportItem`s (`SceneBuilder`) and `HandleSpec`s into
   `ViewportHandle`s (`HandleBuilder`), turns viewport events into graph commands (picking writes Edges by Tag rules),
-  and opens, saves and exports. `AppInput` installs the window's input once and forwards to the current document.
+  and opens, saves and exports. Inside a group `AppModel` reads the level through `editor.graph`/`levelResults`: Selected
+  node previews the level's selected node, handles and picking work there, and a pick is written through
+  `GraphContent.relativeToLevel`; Final preview and export stay on the top level. Sketch mode is top-level only
+  ("Edit sketch" inside a group says so). `AppInput` installs the window's input once and forwards to the current document.
   `MetalCreatorApp` is the executable (`OCCTKernel`). It makes the app's `ThemeStore` (`AppThemes.store()`: user
   defaults, `~/Library/Application Support/MetalCreator/Themes`) and its `ThemeEditorModel`, and opens the window on
   `AppWindowRoot`: `AppRoot` with the theme editor (`ThemeEditorDock`, a floating glass panel at the top right) over

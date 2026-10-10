@@ -674,3 +674,60 @@ at the bottom too.
 - [ ] **MS-8 Draw order.** Overlap three nodes, select the two at the back: they draw above the third, and a click
   where all three overlap selects the topmost drawn one. Docked at the bottom too. Pinned:
   `selectedNodesDrawLastAndAreHitFirst`. **Observed:**
+
+## Group GR — groups: the editor (C2)
+
+**Status: PENDING.** Plan `2026-10-09-groups-editor.md`, spec `2026-10-09-selection-groups-comments-design.md` §6 and
+its Errata (C2). The tests pin the model and the frames; these check the gestures through a real window. Run
+`swift run MetalCreatorApp` on a saved bracket, docked at the bottom, then GR-2 and GR-4 docked left too. Group the
+plate and its extrude (select both, ⌘G) first.
+
+- [ ] **GR-1 Look.** The group node has a header in its accent (purple) titled with the definition's name, and two
+  rings around it, a thick one and a thin one inside. Change the accent in the inspector: header and rings follow.
+  Switch the theme (View ▸ Theme): they follow. Select it: the outer ring thickens. Pinned: `GroupLookTests`.
+  **Observed:**
+- [ ] **GR-2 Entering and leaving.** Double-click the group node (two quick clicks): the panel shows its inside,
+  framed, nothing selected, the header reads "Graph › Group" and Group Input and Group Output flank the nodes. Click
+  "Graph" in the header: back out. Select the group node and press ⌘↓: in again, with the pan and zoom you left; ⌘↑:
+  out. Pan and zoom inside, go out and in: they are as you left them; the top level's are too. Select the group node
+  and press "Edit Group" in its inspector: in. Group something inside and go in twice: "Graph › Group › Group 2", and a
+  click on "Group" goes up one level. ⌘↓ with a plain node selected does nothing. Pinned: `EditorLevelTests`,
+  `EditorGroupEntryTests`. **Observed:**
+- [ ] **GR-3 Editing inside.** Inside, move a node, wire two nodes, add one from the library and one with Space, delete
+  one: each is one ⌘Z. Add an Output node: "An Output node can't go in a group." Select everything and press Delete:
+  Group Input and Group Output stay. ⌘C and ⌘V inside: the nodes copy, the boundary nodes don't. The part in the
+  viewport follows every edit. ⌘Z until the group itself is undone while inside: the panel falls back to the top
+  level. Pinned: `EditorLevelTests`, `EditorGroupClipboardTests`, `EditorLevelReviewTests`. **Observed:**
+- [ ] **GR-4 The + sockets.** Inside, drag from a node's output onto Group Output's "+": a new output appears on
+  Group Output named after the socket, wired, and the group node outside has it too; one ⌘Z removes both. Drag from
+  Group Input's "+" onto an unwired input: a new input, wired, with the target's default; one ⌘Z removes it. Drag the
+  wire from the node's socket to the "+" instead of the other way: the same. Drag an output onto Group Input's "+":
+  the hint appears and nothing changes. Pinned: `ExposeSocketTests`. **Observed:**
+- [ ] **GR-5 The inspector.** Select the group node: name, accent, "Used 1 time", Edit Group, Make Unique, Ungroup, and
+  its inputs. Rename it (Return, or click away): its nodes and the library follow. Duplicate it (⌘D): "Used 2 times".
+  Make Unique on the copy: it is named "<name> 2" and the original is "Used 1 time". Ungroup: its nodes come back
+  selected. Inside, select Group Output: its sockets are listed; rename one (the wire outside follows), move one up
+  and down, remove an unwired one. Remove a wired one: the message names the group node and nothing changes. Pinned:
+  `EditorGroupInspectorTests`. **Observed:**
+- [ ] **GR-6 The library.** The library ends with a "Groups" section listing each definition. Click one: another
+  instance appears in view. Drag one onto the canvas: it lands where dropped. Search for part of a name: the list
+  filters. Inside a group, click that group's own row: "A group can't contain itself." Delete both group nodes of a
+  definition: its row offers Delete, which removes it (⌘Z brings it back). Pinned: `LibraryGroupsTests`.
+  **Observed:**
+- [ ] **GR-7 The viewport inside.** With Final preview, enter the group: the whole part stays. Switch to Selected node
+  and click an inner node: its solid shows alone; click a node nothing reads (add one and wire only its input): it
+  shows too. Select a Fillet or Extrude inside: its handle appears, and dragging it edits the definition as one ⌘Z;
+  with two instances, both parts change. Pick edges in view on a rule inside: Done writes the rule, the Fillet works,
+  and the second instance's Fillet works too. Showing another level during a pick cancels it. "Edit sketch" on a
+  Sketch node inside says it can't yet. Open a sketch on the top level, then press ⌘↓ on a group node, or click a
+  breadcrumb: nothing happens. Pinned: `GroupViewportTests`. **Observed:**
+- [ ] **GR-8 Clipboard.** Select the group node, ⌘C, Ungroup (the definition goes), ⌘V: the group node returns with its
+  definition. Copy it, enter the group, edit something inside, go out and ⌘V: a second definition "<name> (imported)"
+  appears, as it was copied; the node already there still uses the edited one. ⌘V again: another node using the same
+  "(imported)" definition, no third one. Rename the definition and paste a copy made before: no new definition.
+  Pinned: `EditorGroupClipboardTests`, `GroupMergeTests`.
+  **Observed:**
+- [ ] **GR-9 Inner states.** Inside, set an Extrude's distance to -1: its header shows the error badge, and out on the
+  top level the group node fails with "<name> › Extrude: …". Fix it: both clear. A node inside that nothing reads and
+  that fails shows its badge and leaves the group node alone. Pinned: `InspectedLevelTests`, `EditorLevelTests`.
+  **Observed:**
