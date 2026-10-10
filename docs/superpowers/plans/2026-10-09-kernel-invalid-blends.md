@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md`: §3 (error messages: "max ≈" when OCCT reports enough), §5.2 (the kernel), §8 (naming stability's polygon swap), the risks table ("OCCT fillets fail for some radii: Clear errors with the maximum radius where possible"), and Errata (naming: merged faces), which hands this defect to this row. Task 3 adds Errata (Kernel: invalid blends).
 
-**Verified against master `fdef111` (1368 tests) and MetalUI `0b400b4`.** Every code block below was extracted from this file into a fresh copy of the worktree and applied task by task, in order. The copy sat next to an export of MetalUI at `0b400b4` (`git archive`). The live `../MetalUI` checkout moved to `9ad2254` during this session; that commit fixes LF-b, so on it `CanvasClipRenderTests`' eight `withKnownIssue` cases report "Known issue was not recorded" on master as well as here (see Risks). After each task the package built with no new warnings: only the expected OCCT "built for newer macOS" linker notes and M4's existing `ContextMenuTests` capture warning. `swift test` exited 0, no line said "recorded an issue" or "failed after", and 11 "Test run with" lines appeared (the 8 LF-b known issues expected). `swiftlint lint --strict` reported zero violations. Cumulative test counts: Task 1 → 1370 (master + 2), Task 2 → 1376 (master + 8), Task 3 → 1376 (master + 8). A parameterised test counts once.
+**Verified against master `fdef111` (1368 tests) and MetalUI `0b400b4`.** Every code block below was extracted from this file into a fresh copy of the worktree and applied task by task, in order. The copy sat next to an export of MetalUI at `0b400b4` (`git archive`), as Prerequisites' "Running the full suite" describes. The live `../MetalUI` checkout has moved on (at review it was `2155f1e`, which contains LF-b's fix `9ad2254`), so built against it `CanvasClipRenderTests`' `withKnownIssue` cases report "Known issue was not recorded" on master as well as here (see Risks). After each task the package built with no new warnings: only the expected OCCT "built for newer macOS" linker notes and M4's existing `ContextMenuTests` capture warning. `swift test` exited 0, no line said "recorded an issue" or "failed after", and 11 "Test run with" lines appeared (the 8 LF-b known issues expected). `swiftlint lint --strict` reported zero violations. Cumulative test counts: Task 1 → 1370 (master + 2), Task 2 → 1377 (master + 9), Task 3 → 1377 (master + 9). A parameterised test counts once.
 
 **Shared with other tracks (merge with care):**
 - `CLAUDE.md` (Task 3 adds one sentence after the "Shim errors" rule). Every track edits it.
@@ -24,12 +24,15 @@
 **Prerequisites:**
 - The worktree `/Users/maxburger/Developer/MetalCreator-blends` on branch `kernel-invalid-blends` at `fdef111` or later, clean (`git status --short` prints nothing). Run every command from it; never `cd` to another worktree.
 - OpenCascade 7.9 from Homebrew, as for M2 on. SwiftLint installed.
+- **Running the full suite.** `../MetalUI` belongs to another session: never modify it, and never edit `Package.swift`'s MetalUI path. Builds, filtered runs and `swiftlint` run in the worktree. For the gated full `swift test` (exit 0, no "recorded an issue" or "failed after" line, 11 "Test run with" lines, the 8 LF-b known issues expected), use one of:
+  1. *A scratch copy* (preferred): `git archive HEAD` of the worktree (plus its uncommitted changes) extracted to `<scratch>/MetalCreator-blends`, next to `<scratch>/MetalUI` from `git -C ../MetalUI archive 0b400b4` (read-only git), and run `swift test` there. The relative MetalUI path then resolves to `0b400b4` without touching either checkout.
+  2. *In the worktree*, against whatever `../MetalUI` holds: when it contains LF-b's fix, `CanvasClipRenderTests.aNodeAtANegativeCanvasPositionDrawsWhole` reports "Known issue was not recorded". Count only "recorded an issue" / "failed after" lines outside `CanvasClipRenderTests`, and report the `CanvasClipRenderTests` ones to the LF-b owner (MetalUI session) rather than changing them here.
 
 ## Probe evidence (real OCCT 7.9)
 
 Probed on master with a throw-away shim function and test (not part of the plan). Through the §7.2 bracket graph, the polygon swap's union and the Fillet rule's four edges were taken and every variant below was run on them. A variant counts as a **repair** only if `BRepCheck_Analyzer` accepts the result and the 5 resolved top-outline edges then chamfer at 0.5 mm.
 
-1. **What's broken.** The four edges are the hexagon's upright edges, x = ±12.99, z 7.5 → 22.5, on its two caps (y = 12 and y = 20). At R3, `BRepFilletAPI_MakeFillet` reports done with 4 contours. The solid it returns has 3 wires not closed in their face (`BRepCheck_NotClosed`), 3 faces `BRepCheck_UnorientableShape`, an unclosed shell, vertex tolerances up to **4.995 mm** (the union's are 1e-4) and volume **16007 mm³**, where the valid trend gives about 17905 (R2.5: 17940.1, R2.55: 17936.7). About 1900 mm³ is missing, so the shape isn't just a bad tolerance. Every chamfer of the outline fails on it.
+1. **What's broken.** The four edges are the hexagon's upright edges, x = ±12.99, z 7.5 → 22.5, on its two caps (y = 12 and y = 20). At R3, `BRepFilletAPI_MakeFillet` reports done with 4 contours. The solid it returns has 3 wires not closed in their face (`BRepCheck_NotClosed`), 3 faces `BRepCheck_UnorientableShape`, an unclosed shell, vertex tolerances up to **4.995 mm** (the union's are 1e-4) and volume **16007 mm³**, where the valid trend gives about 17905 (R2.5: 17940.1, R2.55: 17936.7). About 1900 mm³ is missing, so the shape isn't just a bad tolerance. Every chamfer of the outline fails on it. These volumes are the bracket's, holes included. On the kernel-only `HexagonFlange` fixture (Decision 8, no holes) the invalid R3 fillet has *more* volume than a valid one would (20202 mm³, against 18411 at R2.5, 18408 at R2.55; 20231 at the invalid R2.6), so the defect is a wrong volume, not specifically a loss.
 2. **Where it starts.** Valid at R 1, 2, 2.5 and 2.55 (and the outline then chamfers at 0.5 mm). Invalid at 2.6, 2.7, 2.8, 2.85, 2.9, 3, 3.5. Not done at 4. A **chamfer** of the same four edges behaves the same way: valid at 1, 2 and 2.5, done but invalid at 3, not done from 4. The rectangle bracket's R3 fillet is valid.
 3. **Repair attempts, all on the R3 result; none gives a valid solid:**
    - `ShapeFix_Shape`, default: still invalid, volume changes to 16832.3, outline chamfer done but invalid (15866.5).
@@ -48,7 +51,7 @@ Probed on master with a throw-away shim function and test (not part of the plan)
 3. **Only fillets and chamfers are checked** (this row). Booleans, extrudes and transforms are not: the probe found no invalid one, and checking them is a behaviour change for its own row (see Risks).
 4. **Name the largest size that works** (spec §3, risks table). `largestValidBlend` bisects in tenths of a millimetre between 0 and the size asked for. It returns only a size that was built and accepted, and returns nil when even 0.1 mm isn't. It assumes that once a size fails, every larger size fails (true across probe 2). The upper bound is capped at 1,000,000 tenths (100 m), so a huge size can't overflow `Int`. That gives at most 20 tries, each under the OCCT lock on its own, with `Task.checkCancellation()` before each. The search runs only when OCCT built a result and the checker rejected it. A blend OCCT can't build at all keeps today's message, with no search (new roadmap row, Task 3).
 5. **Messages** (`KernelError+Blend.swift`). Existing cases are reused; no new `KernelError` case:
-   - Fillet with a size that works: `.filletFailed(radius:maxRadius:reason:)`, read as §3's "Radius 3 mm is too large for the selected edges (max ≈ 2.5 mm)."
+   - Fillet with a size that works: `.filletFailed(radius:maxRadius:reason:)`, read as §3's "Radius 3 mm is too large for the selected edges (max ≈ 2.5 mm)." That wording is §3's own, so it doesn't name the edge count; the count is kept in `reason`, which this case of `userMessage` doesn't show. The other three messages name it.
    - Fillet with none: "Radius 3 mm could not be applied: rounding the 4 selected edges gives a broken solid, even by 0.1 mm."
    - Chamfer: `.operationFailed(operation: "chamfer", …)`, read as "Chamfer failed: chamfering the 4 selected edges by 3 mm gives a broken solid (max ≈ 2.5 mm)." or "…, even by 0.1 mm."
    - One edge reads "the selected edge". Numbers use the same `FormatStyle` as the kernel's other messages (`.number.precision(.fractionLength(0...2))`). The existing not-built messages move into `KernelError.blendFailed` word for word.
@@ -76,7 +79,7 @@ Probed on master with a throw-away shim function and test (not part of the plan)
 
 1. **A blend OCCT builds correctly comes back exactly as before**: same shape, same history, every face tagged. Pinned by `InvalidBlendTests.theRadiusItNamesWorksAndKeepsEveryFaceNamed` (Task 2) and by the unchanged `NamingStabilityTests`/`FeatureConformanceTests`.
 2. **The size the message names actually works, downstream included.** Pinned by `theRadiusItNamesWorksAndKeepsEveryFaceNamed`, by `aChamferOCCTBreaksIsRefusedWithTheLargestDistanceThatWorks` (it chamfers at the size it was told) and by the swap test, whose Chamfer and Output succeed at 2.5 (Task 2).
-3. **Dragging the radius handle while a search runs**: the superseded evaluation must stop rather than finish its tries. Pinned by `aCancelledSearchStopsBeforeTryingASize` (Task 2).
+3. **Dragging the radius handle while a search runs**: the superseded evaluation must stop rather than finish its tries. Pinned by `aCancelledSearchStopsBeforeTryingASize` (the search itself) and `aCancelledBlendStopsRatherThanNamingASize` (`blend` → search lets the `CancellationError` through; the `catch is OCCTError` wraps only the first build, and `fillet`/`chamfer` already check cancellation on entry) (Task 2). Both cancel before the call; a cancel arriving mid-search is caught by the same `Task.checkCancellation()` before the next try and isn't pinned separately.
 4. **A radius far larger than the part**, up to `.greatestFiniteMagnitude` through the kernel API: no `Int` overflow trap, and the search still ends on a size that works. Pinned by `aRadiusFarBeyondThePartStillFindsOneThatWorks` (Task 2).
 5. **Wording when one edge is selected, or when no size works.** Pinned by `theMessagesNameOneEdgeAndSayWhenNoSizeWorks` (Task 2).
 
@@ -262,7 +265,7 @@ Expected: 2 tests pass (the parameterised one with 2 cases).
 - [ ] **Step 5: Full suite and lint**
 
 Run: `swift build --build-tests 2>&1 | grep -E "warning:|error:" | grep -v "built for newer"`. Expected: only `ContextMenuTests.swift`'s existing `underPointer` capture warning.
-Run: `swift test 2>&1 | tee /tmp/kib-1.txt; grep -E "recorded an issue|failed after" /tmp/kib-1.txt; grep -c "Test run with" /tmp/kib-1.txt`. Expected: exit 0, no matching line (the 8 LF-b known issues are fine), 11 lines, 1370 tests in all.
+Run: `swift test 2>&1 | tee /tmp/kib-1.txt; grep -E "recorded an issue|failed after" /tmp/kib-1.txt; grep -c "Test run with" /tmp/kib-1.txt`. Expected (per Prerequisites' "Running the full suite"): exit 0, no matching line (the 8 LF-b known issues are fine), 11 lines, 1370 tests in all.
 Run: `swiftlint lint --strict`. Expected: 0 violations.
 
 - [ ] **Step 6: Commit**
@@ -356,6 +359,19 @@ struct InvalidBlendTests {
             return try await kernel.largestValidBlend(of: source, edges: flange.uprightEdges, below: 3, chamfer: false)
         }
         await #expect(throws: CancellationError.self) { try await search.value }
+    }
+
+    /// The refused blend's search lets the cancellation through rather than naming a size. `fillet` checks cancellation
+    /// on entry, so this calls the shared `blend` it delegates to: the first build runs, the checker refuses it, and the
+    /// search's `CancellationError` must reach the caller (the `catch is OCCTError` wraps only the first build).
+    @Test func aCancelledBlendStopsRatherThanNamingASize() async throws {
+        let kernel = OCCTKernel()
+        let flange = try await HexagonFlange.make(kernel)
+        let blend = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await kernel.blend(flange.union, edges: flange.uprightEdges, size: 3, chamfer: false, tag: newTag())
+        }
+        await #expect(throws: CancellationError.self) { try await blend.value }
     }
 
     /// The search starts at the size asked for, so a size far beyond the part (or beyond `Int`) still ends in one that works.
@@ -629,7 +645,7 @@ Expected: all pass. `swappingTheFlangeForAPolygonKeepsEveryPickOnceTheFilletFits
 - [ ] **Step 8: Full suite and lint**
 
 Run: `swift build --build-tests 2>&1 | grep -E "warning:|error:" | grep -v "built for newer"`. Expected: only the existing `ContextMenuTests` warning.
-Run: `swift test 2>&1 | tee /tmp/kib-2.txt; grep -E "recorded an issue|failed after" /tmp/kib-2.txt; grep -c "Test run with" /tmp/kib-2.txt`. Expected: exit 0, no matching line, 11 lines, 1376 tests in all.
+Run: `swift test 2>&1 | tee /tmp/kib-2.txt; grep -E "recorded an issue|failed after" /tmp/kib-2.txt; grep -c "Test run with" /tmp/kib-2.txt`. Expected (per Prerequisites' "Running the full suite"): exit 0, no matching line, 11 lines, 1377 tests in all.
 Run: `swiftlint lint --strict`. Expected: 0 violations.
 
 - [ ] **Step 9: Commit**
@@ -701,7 +717,8 @@ Plan `2026-10-09-kernel-invalid-blends.md`, roadmap row "Kernel: blends that ret
   included: `occt_is_valid`, `OCCTShape.isValid`) and never returns one it rejects. OCCT can report a blend done and
   still return such a solid: §8's hexagon flange, its four upright edges at the bracket's R3 (a chamfer of 3 mm too;
   both are valid at 2.5 mm and below). That solid has wires not closed in their faces, an unclosed shell, vertex
-  tolerances near 5 mm and about 1900 mm³ less volume than a valid fillet would leave, and every later blend along its
+  tolerances near 5 mm and a wrong volume (on the §7.2 bracket, holes included, about 1900 mm³ below what a valid
+  fillet would leave; on a hole-free plate and hexagon, about 1800 mm³ above), and every later blend along its
   tangent chains fails.
 - It isn't repaired. The plan's probe tried `ShapeFix_Shape` (default and with tight tolerances),
   `ShapeUpgrade_UnifySameDomain`, `ShapeFix_ShapeTolerance::LimitTolerance`, `BRepLib::SameParameter`, the other
@@ -713,7 +730,8 @@ Plan `2026-10-09-kernel-invalid-blends.md`, roadmap row "Kernel: blends that ret
   own, stopping when the evaluation is cancelled; it assumes every size above a failing one fails too, and the size it
   names was built and checked). A fillet reads "Radius 3 mm is too large for the selected edges (max ≈ 2.5 mm)."; a
   chamfer "Chamfer failed: chamfering the 4 selected edges by 3 mm gives a broken solid (max ≈ 2.5 mm)."; when not even
-  0.1 mm works, "…gives a broken solid, even by 0.1 mm.". A blend OCCT can't build at all keeps its message, with no
+  0.1 mm works, "…gives a broken solid, even by 0.1 mm.". The fillet message with a maximum is §3's own wording and
+  doesn't name the edge count on purpose (the error's `reason` keeps it); the others do. A blend OCCT can't build at all keeps its message, with no
   maximum (roadmap row "Kernel: largest size for blends OCCT can't build").
 - Errata (naming: merged faces)'s polygon swap: at R3 the Fillet is now the node in error, naming 2.5 mm, and the Edges
   by Tag, Chamfer and Output after it wait for its solid. With the radius at 2.5 every node is `.ok`: the five picks
@@ -745,7 +763,7 @@ with:
 
 Run: `grep -n "Kernel: invalid blends" CLAUDE.md docs/superpowers/roadmap.md docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md docs/superpowers/notes/2026-10-07-m0-m1-carryover.md`
 Expected: at least one line from each file.
-Run: `swift test 2>&1 | tee /tmp/kib-3.txt; grep -E "recorded an issue|failed after" /tmp/kib-3.txt; grep -c "Test run with" /tmp/kib-3.txt` and `swiftlint lint --strict`. Expected: as Task 2 (1376 tests, 11 lines, 0 violations).
+Run: `swift test 2>&1 | tee /tmp/kib-3.txt; grep -E "recorded an issue|failed after" /tmp/kib-3.txt; grep -c "Test run with" /tmp/kib-3.txt` and `swiftlint lint --strict`. Expected: as Task 2 (1377 tests, 11 lines, 0 violations).
 
 - [ ] **Step 6: Commit**
 
@@ -759,7 +777,7 @@ git commit -m "docs(kernel): Errata (Kernel: invalid blends), roadmap rows, CLAU
 
 ## Risks
 
-- **MetalUI moved under this track.** The live `../MetalUI` is at `9ad2254` (LF-b fixed). Built against it, master's `CanvasClipRenderTests.aNodeAtANegativeCanvasPositionDrawsWhole` records 4 "Known issue was not recorded" issues, from 8 known issues that no longer happen. That is unrelated to this plan and isn't fixed here (the LF-b track owns removing the `withKnownIssue`). Until it is, run the full suite against MetalUI `0b400b4`, or count only issues outside `CanvasClipRenderTests`.
+- **MetalUI moved under this track.** The live `../MetalUI` keeps moving (at review `2155f1e`, which contains LF-b's fix `9ad2254`). Built against it, master's `CanvasClipRenderTests.aNodeAtANegativeCanvasPositionDrawsWhole` records "Known issue was not recorded" issues, from known issues that no longer happen, which trips the gate's "recorded an issue" rule for reasons unrelated to this plan. It isn't fixed here (the LF-b track owns removing the `withKnownIssue`), and `../MetalUI` and `Package.swift`'s MetalUI path stay untouched. Until it is, use Prerequisites' "Running the full suite": a scratch copy beside a `git archive 0b400b4` MetalUI, or count only issues outside `CanvasClipRenderTests` and report those to the LF-b owner.
 - **The bisection assumes monotonic failure.** If OCCT fails at some size and works at a larger one, the search can name a smaller size than the largest that works. It never names one that fails, because every returned size was built and checked.
 - **Cost.** `BRepCheck_Analyzer` now runs on every fillet and chamfer: about 3-4 ms per check on the hexagon flange's blend result (about 2 ms on its union), measured at review. That is paid on every drag step of a radius handle. A refused blend costs up to about 20 extra blend tries; the swap's costs 5. Each try releases the OCCT lock, so other kernels' OCCT work can interleave, but `largestValidBlend` is synchronous on the `OCCTKernel` actor, so this kernel (its tessellation, measuring and later blends) stays busy until the search ends or the evaluation is cancelled (checked between tries).
 - **An invalid input blames the blend.** Only the output is checked. If the solid coming in is already invalid (say from a broken boolean, which isn't checked: Decision 3), every fillet or chamfer on it is refused after the search (up to about 20 tries) as "…gives a broken solid, even by 0.1 mm.", naming the blend and its size rather than the real cause. None was seen (Probe 6: every existing result is valid). Checking `source.isValid` on the failure path, with its own "input solid is invalid" message, belongs with the row that checks other operations.
@@ -770,7 +788,7 @@ git commit -m "docs(kernel): Errata (Kernel: invalid blends), roadmap rows, CLAU
 
 ## Self-review
 
-- **Row coverage.** "Reject such a result with a plain message, or repair it": repair probed and refused with evidence (Probe 3–5); rejection with a plain message naming the edge count and sizes (Task 2). "Never return an invalid solid silently": every blend is checked (Task 2's `blend`). "Keep face/edge tags and history through any repair": nothing is repaired; passing blends return the shim's own history (Decision 7, Review Focus 1). "All work under `OCCTKernel.serialized`": the check runs inside the blend's own `serialized` call and each search try in its own; tests call `isValid` only inside `serialized`. "Shim errors per CLAUDE.md": the query reports no text; the not-built messages are unchanged (`blendFailed`). "Test to flip": `swappingTheFlangeForAPolygonKeepsEveryPickOnceTheFilletFits` (Task 2).
+- **Row coverage.** "Reject such a result with a plain message, or repair it": repair probed and refused with evidence (Probe 3–5); rejection with a plain message naming the sizes, and the edge count except in §3's own fillet wording (Decision 5; Task 2). "Never return an invalid solid silently": every blend is checked (Task 2's `blend`). "Keep face/edge tags and history through any repair": nothing is repaired; passing blends return the shim's own history (Decision 7, Review Focus 1). "All work under `OCCTKernel.serialized`": the check runs inside the blend's own `serialized` call and each search try in its own; tests call `isValid` only inside `serialized`. "Shim errors per CLAUDE.md": the query reports no text; the not-built messages are unchanged (`blendFailed`). "Test to flip": `swappingTheFlangeForAPolygonKeepsEveryPickOnceTheFilletFits` (Task 2).
 - **Placeholders:** none; every code step has its complete code.
 - **Type consistency:** `isValid`, `HexagonFlange.union`/`uprightEdges`, `largestValidBlend(of:edges:below:chamfer:)`, `KernelError.blendFailed(size:chamfer:)` and `invalidBlend(size:largest:edgeCount:chamfer:)` are spelled the same in every task.
 - **Review Focus:** each of the five lines has its test in Task 2.
