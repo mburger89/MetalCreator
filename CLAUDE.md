@@ -155,7 +155,10 @@ records is the loop. Loft refuses profiles with holes. Create nodes only with `N
 Shim errors: `cocct::user_error` / `set_error` messages are user-facing and unprefixed; any other OCCT exception is prefixed "occt: " by `guarded` and mapped to a generic sentence by `KernelError.plainReason`.
 Every fillet and chamfer result is checked with OCCT's `BRepCheck_Analyzer` (`OCCTShape.isValid`) and never returned when
 the check rejects it: the blend fails naming the largest size that works (`OCCTKernel.largestValidBlend`, spec Errata
-(Kernel: invalid blends)).
+(Kernel: invalid blends)). A blend OCCT can't build names one too, and a checker that itself throws
+(`OCCTValidity.unchecked`) gives the generic message with no search (Errata (Kernel: largest size for blends OCCT can't
+build)); a refused blend costs tens of milliseconds more than one that works (`BlendRefusalBench`,
+`docs/verification/performance.md`).
 MetalUI exports its own `Angle`: a file importing both MetalUI and CreatorGeometry writes `CreatorGeometry.Angle`.
 The GPU structs in `Sources/CreatorViewport/Render` mirror the MSL in `ViewportShaders.swift`, and `GPUDataTests` pins their strides, so change both together.
 The viewport's pointer input is MetalUI C7's (spec §9): its bindings live in `ViewportInputMap`, its behaviour in

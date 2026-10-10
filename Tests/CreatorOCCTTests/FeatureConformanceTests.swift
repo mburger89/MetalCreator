@@ -54,10 +54,11 @@ struct FeatureConformanceTests {
         let error = await #expect(throws: KernelError.self) {
             try await kernel.fillet(solid, edges: [edge.id], radius: 40, tag: newTag())
         }
-        guard case .filletFailed(let radius, _, let reason)? = error else { Issue.record("expected filletFailed"); return }
+        guard case .filletFailed(let radius, let maxRadius, let reason)? = error else { Issue.record("expected filletFailed"); return }
         #expect(radius == 40)
+        #expect(maxRadius == 9.9, "the box's narrower face is 10 mm wide")
         #expect(reason == "the selected edges can't be rounded this much.")
-        #expect(error?.userMessage.contains("40") == true)
+        #expect(error?.userMessage == "Radius 40 mm is too large for the selected edges (max ≈ 9.9 mm).")
         // The kernel is still usable.
         let ok = try await kernel.fillet(solid, edges: [edge.id], radius: 1, tag: newTag())
         #expect(ok.topology.faces.count == 7)

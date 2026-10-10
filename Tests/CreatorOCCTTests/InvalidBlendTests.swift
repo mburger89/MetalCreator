@@ -1,3 +1,4 @@
+import Synchronization
 import Testing
 @testable import CreatorGeometry
 @testable import CreatorKernel
@@ -85,6 +86,70 @@ struct InvalidBlendTests {
         #expect(radius == 9.9, "its narrower face is 10 mm wide")
         let filleted = try await kernel.fillet(solid, edges: [edge.id], radius: radius, tag: newTag())
         #expect(try isValid(filleted))
+    }
+
+    /// Counts the checker's calls from a closure the kernel runs on its own actor.
+    final class CheckCount: Sendable {
+        let calls = Mutex(0)
+        func record() { calls.withLock { $0 += 1 } }
+    }
+
+    /// A checker that throws says nothing about any size: the blend fails with the generic message and no search runs.
+    /// The search checks every try it makes, so exactly one call to the checker means no search ran.
+    @Test func aCheckerThatThrowsGivesTheGenericMessageInsteadOfASearch() async throws {
+        let kernel = OCCTKernel()
+        let flange = try await HexagonFlange.make(kernel)
+        let count = CheckCount()
+        let error = await #expect(throws: KernelError.self) {
+            try await kernel.blend(flange.union, edges: flange.uprightEdges, size: 3, chamfer: false, tag: newTag()) { _ in
+                count.record()
+                return .unchecked
+            }
+        }
+        #expect(error == .filletFailed(radius: 3, maxRadius: nil, reason: "the selected edges can't be rounded this much."))
+        #expect(count.calls.withLock { $0 } == 1)
+        let chamfer = await #expect(throws: KernelError.self) {
+            try await kernel.blend(flange.union, edges: flange.uprightEdges, size: 3, chamfer: true, tag: newTag()) { _ in
+                count.record()
+                return .unchecked
+            }
+        }
+        #expect(chamfer?.userMessage == "Chamfer failed: the selected edges can't be chamfered by 3 mm.")
+        #expect(count.calls.withLock { $0 } == 2)
+    }
+
+    /// A checker that rejects every size leaves the search nothing to name: the message keeps no maximum, and says "even
+    /// by 0.1 mm" because the search did try it. (The not-built path has its own wiring of `largest`; see
+    /// `UnbuildableBlendTests.aBlendNoSizeCanBuildKeepsTheGenericMessage`.)
+    @Test func aCheckerThatRejectsEverySizeFindsNoMaximum() async throws {
+        let kernel = OCCTKernel()
+        let flange = try await HexagonFlange.make(kernel)
+        let error = await #expect(throws: KernelError.self) {
+            try await kernel.blend(flange.union, edges: flange.uprightEdges, size: 3, chamfer: false, tag: newTag()) { _ in .invalid }
+        }
+        #expect(error == .filletFailed(radius: 3, maxRadius: nil,
+                                       reason: "rounding the 4 selected edges gives a broken solid, even by 0.1 mm."))
+    }
+
+    /// A size of 0.1 mm or less never tried 0.1 mm, so the messages can't say "even by 0.1 mm".
+    @Test func aSizeNoLargerThanTheSmallestOneDoesNotClaimToHaveTriedIt() {
+        #expect(KernelError.invalidBlend(size: 0.1, largest: nil, edgeCount: 1, chamfer: false).userMessage
+            == "Radius 0.1 mm could not be applied: rounding the selected edge gives a broken solid.")
+        #expect(KernelError.invalidBlend(size: 0.05, largest: nil, edgeCount: 4, chamfer: true).userMessage
+            == "Chamfer failed: chamfering the 4 selected edges by 0.05 mm gives a broken solid.")
+        #expect(KernelError.invalidBlend(size: 0.15, largest: nil, edgeCount: 4, chamfer: true).userMessage
+            == "Chamfer failed: chamfering the 4 selected edges by 0.15 mm gives a broken solid, even by 0.1 mm.")
+    }
+
+    /// Computed sizes land a hair off the grid: asked for `0.1 + 0.2`, the search names a size below it (0.2), not 0.3.
+    /// 0.3 would build; the maximum is conservative for an off-grid size (`BlendGrid`).
+    @Test func aSizeAHairOverTheGridNamesTheOneBelowIt() async throws {
+        let kernel = OCCTKernel()
+        let solid = try await box(kernel, 10, 20, 30)
+        let edge = try #require(solid.topology.edges.first { $0.kind == .line && isClose($0.length, 30) })
+        let source = try #require((solid.storage as? OCCTSolidStorage)?.shape)
+        let largest = try await kernel.largestValidBlend(of: source, edges: [edge.id], below: 0.1 + 0.2, chamfer: false)
+        #expect(largest == 0.2)
     }
 
     @Test func theMessagesNameOneEdgeAndSayWhenNoSizeWorks() {

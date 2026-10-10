@@ -341,6 +341,14 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   "mm · grid" stays at the bottom-right of the uncovered area. Repeat docked at the left, dragging its right edge both
   ways. Pinned: `theTriadsLettersStayOnItsAxesWhenTheDockResizes`, `aModelAreaThatMovesOnlyTheTriadRedraws`.
   **Observed:**
+- [ ] **M6-15 Dragging a Fillet radius past its maximum (spec Errata, Kernel: invalid blends).** On the bracket, select
+  the Fillet and drag its Radius slider above the largest size that works: the badge turns to a red ✕ and hovering it
+  shows "Radius N mm is too large for the selected edges (max ≈ X mm).", N the radius dragged to and X a size from the
+  part (a message without a maximum is wrong). The drag stays responsive (a refused radius searches for the maximum
+  on every step, so the badge may trail the slider by a fraction of a second); dragging back below X clears the error
+  and shows the part again. Repeat with the Fillet's radius handle in the viewport (spec §7.2): past the maximum, the
+  same message. Pinned: the maximum in the message: `UnbuildableBlendTests`, `InvalidBlendTests`; the drag's feel is
+  this check only. **Observed:**
 
 ## Group EP — editor polish: the floating palette and the node library
 
