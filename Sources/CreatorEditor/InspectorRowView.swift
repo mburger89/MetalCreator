@@ -18,7 +18,7 @@ struct InspectorRowView: Component {
             LabeledRow(label: field.label) {
                 Slider(value: Binding(get: { field.number ?? range.lowerBound },
                                       set: { model.setNumber(field, to: $0, continuous: true) }),
-                       in: range)
+                       in: range, onEditingChanged: { model.sliderEditingChanged($0) })
                 NumberEntry(model: model, text: ValueText.format(field.value, unit: field.unit)) {
                     model.setNumber(field, to: $0)
                 }
