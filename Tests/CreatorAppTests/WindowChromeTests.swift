@@ -50,6 +50,7 @@ struct WindowChromeTests {
         let chrome = RecordingChrome()
         let sync = WindowChromeSync(model: app, chrome: chrome)
         sync.apply()
+        #expect(chrome.titleWrites == ["Untitled"], "the first apply wrote the title")
         let writes = (chrome.titleWrites.count, chrome.editedWrites.count, chrome.urlWrites.count)
         sync.apply()
         #expect((chrome.titleWrites.count, chrome.editedWrites.count, chrome.urlWrites.count) == writes)

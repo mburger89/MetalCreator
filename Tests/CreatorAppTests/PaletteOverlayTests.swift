@@ -21,8 +21,8 @@ struct PaletteOverlayTests {
         app.editor.openPalette()
         let palette = try #require(app.editor.palette)
         let panel = try #require(app.panelPlacement?.panel)
-        #expect(palette.windowOrigin.y + PaletteLayout.size.y <= panel.origin.y + 10 + 46 + 40,
-                "flipped up: its bottom edge is at the pointer")
+        let pointer = try #require(app.editor.windowPoint(fromCanvas: Vector2(200, 40)))
+        #expect(palette.windowOrigin.y + PaletteLayout.size.y <= pointer.y + 0.5, "flipped up: its bottom edge is at the pointer")
         #expect(palette.windowOrigin.y < panel.origin.y, "so it reaches above the graph panel, over the viewport")
 
         let input = AppInput(model: app)
