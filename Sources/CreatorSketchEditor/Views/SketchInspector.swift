@@ -2,7 +2,7 @@ import CreatorStyle
 import MetalUI
 
 /// The inspector while sketching (sketcher spec §8): the degrees-of-freedom readout or the problem, a refused
-/// command's reason, the constraint buttons, the dimensions with their name and value fields, "Expose as input" and
+/// command's reason, the active tool's hint and options, the constraint buttons, the dimensions with their name and value fields, "Expose as input" and
 /// driving switches, and the constraints, each removable. Conflicting rows are in the error colour. The host draws it
 /// in glass chrome.
 public struct SketchInspector: Component {
@@ -20,6 +20,7 @@ public struct SketchInspector: Component {
             if let refusal = model.refusal {
                 Text(refusal).font(.caption).foregroundStyle(colors.warning)
             }
+            ToolOptionsView(model: model)
             Text("CONSTRAIN").font(.caption2).foregroundStyle(colors.secondary)
             ConstraintButtons(model: model)
             Text("DIMENSIONS").font(.caption2).foregroundStyle(colors.secondary)

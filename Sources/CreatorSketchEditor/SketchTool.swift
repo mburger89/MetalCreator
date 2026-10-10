@@ -45,6 +45,19 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
         }
     }
 
+    /// What to do with the tool, for the inspector; `nil` for the drawing tools, whose rubber band says it.
+    public var hint: String? {
+        switch self {
+        case .trim: "Click the part of a curve to remove, between the curves crossing it."
+        case .extend: "Click a line or an arc near the end to extend to the next curve."
+        case .fillet: "Click a corner where two lines meet."
+        case .mirror: "Select the geometry, then click the line to mirror it about."
+        case .pattern: "Select the geometry, then click a point to copy it around, or a line to copy it along."
+        case .arcThreePoint: "Click the start, the end, then a point the arc passes through."
+        case .select, .line, .arc, .circle, .point, .dimension: nil
+        }
+    }
+
     /// Whether a click places a point (the rubber band then marks where it would land).
     var placesPoints: Bool {
         switch self {

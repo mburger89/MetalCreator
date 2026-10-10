@@ -12,6 +12,11 @@ enum DimensionText {
         return "\(number) mm"
     }
 
+    /// "12.5 mm": a size that belongs to no dimension (a tool's option).
+    static func millimetres(_ value: Double) -> String {
+        "\(value.formatted(.number.precision(.fractionLength(0...3)).grouping(.never).locale(locale))) mm"
+    }
+
     /// A typed value, ignoring spaces and a trailing unit ("12.5 mm", "45°"); `nil` if it isn't a finite number.
     static func parse(_ text: String) -> Double? {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
