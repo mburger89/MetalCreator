@@ -25,10 +25,11 @@ work (the owner named). The sections below keep each gap's full use case.
 | M5-h | ↑/↓ in a focused single-line field | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
 | M5-i | Keyframe animation | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
 | M5-j | `ProgressView` | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
-| M6-a | Window title and edited marker | C8 | 🔄 open; C8 in progress (`feat/app-shell`) |
-| M6-b | Close and quit veto | C8 | 🔄 open; C8 in progress (`feat/app-shell`) |
-| M6-c | Full-size content view | C8 | 🔄 open; C8 in progress (`feat/app-shell`) |
-| M6-d | Open-document events | C8 | 🔄 open; C8 in progress (`feat/app-shell`) |
+| M6-a | Window title and edited marker | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
+| M6-b | Close and quit veto | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
+| M6-c | Full-size content view | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
+| M6-d | Open-document events | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
+| C8-a | Window drag region for a hidden title bar under a gesture-carrying view | none yet | ⏳ reported to the MetalUI session 2026-10-10, not yet queued |
 | M6-e | Public headless test window | item 8 (test harness) | ⏳ queued |
 | M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
 | M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
@@ -197,19 +198,34 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
 
 Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
 
-- **M6-a. No window title API.** The title is fixed by `App.openWindow(title:…)`. `PlatformWindow.title` is settable,
+- ✅ **Fixed in MetalUI 70e9389 (PR #61, rulings AS-D), adopted:** `WindowChromeSync` sets `Window.title`,
+  `Window.isDocumentEdited` and `Window.representedURL` from the document (`AppModel.windowChrome`), so the title bar
+  reads the file's name, the close button shows the edited dot and the proxy icon names the file. The top bar keeps
+  its name and "— Edited". Under the hidden title bar (M6-c) AppKit draws neither the title nor the proxy icon.
+  **M6-a. No window title API.** The title is fixed by `App.openWindow(title:…)`. `PlatformWindow.title` is settable,
   but `Window` doesn't expose it, and there's no represented file or edited marker (AppKit's `representedURL` and
   `isDocumentEdited`). The app wants "bracket.mcgraph — Edited" in the title bar. Stopgap: the glass top bar shows the
   name and "— Edited"; the native title stays "MetalCreator". Wanted: a settable `Window.title` and an edited marker,
   or SwiftUI's `.navigationTitle` / `.navigationDocument(_:)`.
-- **M6-b. No close or quit interception.** Closing the window, or ⌘Q, ends the app at once, so it can't ask whether
+- ✅ **Fixed in MetalUI 70e9389 (PR #61, rulings AS-B, AS-C, AS-K), adopted:** `Window.onCloseRequest` is
+  `AppModel.closeRequested()`, which answers `.later` with unsaved changes and shows Save / Don't Save / Cancel;
+  `AppModel.answerSaveChanges(_:)` runs the save flow and calls `Window.replyToCloseRequest`. The app sets no
+  `onTerminateRequest`: ⌘Q asks the one window's handler, so close and quit share one question and one reply.
+  **M6-b. No close or quit interception.** Closing the window, or ⌘Q, ends the app at once, so it can't ask whether
   to save (AppKit: `windowShouldClose(_:)`, `applicationShouldTerminate(_:)`; SwiftUI document apps get it from
   `DocumentGroup`). Stopgap: none. New and Open ask before discarding unsaved changes; close and quit don't. Wanted: a
   window-close veto and an app terminate hook that can show an alert first.
-- **M6-c. No full-size content view.** Spec §6.1 draws the glass top bar under the traffic lights (AppKit
+- ✅ **Fixed in MetalUI 70e9389 (PR #61, rulings AS-E, AS-F, AS-J), adopted (plan Task 4b, merged after human check
+  AS-5):** the window opens with `windowStyle: .hiddenTitleBar` and `TopBar` pads its content by
+  `AppLayout.topBarClearance(titleBarInsets:)` (`AppRoot` reads `@Environment(\.titleBarInsets)`). Dragging the
+  window by its top bar is gap C8-a.
+  **M6-c. No full-size content view.** Spec §6.1 draws the glass top bar under the traffic lights (AppKit
   `.fullSizeContentView` with a transparent title bar; SwiftUI `.windowStyle(.hiddenTitleBar)`). Stopgap: the top bar
   sits below the standard title bar.
-- **M6-d. No open-document events.** Finder double-click, `open -a`, dropping a file on the Dock icon and Open Recent
+- ✅ **Fixed in MetalUI 70e9389 (PR #61, rulings AS-G, AS-M, AS-Q), adopted:** `app.onOpenURL` is
+  `AppModel.openRequested(_:)` (set before `app.run()`), and the path argument goes through `app.open(_:)`. An
+  edited document asks the New and Open… question first.
+  **M6-d. No open-document events.** Finder double-click, `open -a`, dropping a file on the Dock icon and Open Recent
   all need the app to receive file URLs (AppKit `application(_:open:)`, SwiftUI `.onOpenURL`). This matters once the
   app is packaged. Stopgap: a path argument (`swift run MetalCreatorApp bracket.mcgraph`). Queued in MetalUI as C8
   (app shell). The packaged app declares `.mcgraph` with no `NSDocumentClass`, so a Finder double-click may show AppKit's
@@ -412,7 +428,7 @@ Labelled P-a… so they don't clash with the C7 items, M4-a…, M5-a…, M6-a…
   notices" in its `docs/packaging.md`): on macOS with the default text system only stb_image is linked, and
   `scripts/package-app.sh` copies `THIRD-PARTY-NOTICES.md` and `Sources/CStbImage/LICENSE` into
   `Contents/Resources/Licenses/MetalUI/` (checked by `scripts/verify-app.sh`).
-- **M6-d, now visible.** The packaged app declares `.mcgraph` (owner, exported type), so a double-click in Finder
+- ✅ **M6-d, now fixed (adopted, plan `2026-10-09-adopt-c8`; human checks AS-6 and AS-7).** **M6-d, now visible.** The packaged app declares `.mcgraph` (owner, exported type), so a double-click in Finder
   opens MetalCreator, but not the file: no open-document event reaches the app (human check P2).
 
 ## Hit by the node library's overlap fix, 2026-10-09
@@ -550,3 +566,21 @@ Labelled M7-a… so they don't clash with the labels above. Checked against Meta
   checked in. Stopgap: cold frames, labelled as an upper bound. Wanted, as one request with M6-e: a public headless
   window (or a frame renderer that keeps its caches across frames) that a client can drive with input and time,
   including the display link's pacing.
+
+## Hit by adopting C8 (app shell), 2026-10-09
+
+Labelled C8-a… so they don't clash with the labels above. Checked against MetalUI `70e9389`.
+
+- **C8-a. No window-drag region for a hidden title bar under a gesture-carrying view.** With
+  `windowStyle: .hiddenTitleBar` MetalUI drags the window from a press in the title-bar band only when nothing claims
+  the press: no opaque hitbox and no gesture arena (ruling AS-J, `Window.answerUnclaimedTitleBarPress`).
+  MetalCreator's viewport fills the whole window (spec §6.1) and carries gestures over all of it
+  (`ViewportView+Parts`: a `SpatialTapGesture`, three `DragGesture`s and a `MagnifyGesture`), so every press in the
+  band, including one on the empty glass of the top bar (glass only paints, divergence 141), forms an arena, and the
+  window can't be dragged by its top bar. Found by reading MetalUI 70e9389; human check AS-5 confirms or refutes it.
+  Stopgap: none (a claiming view over the band would not drag the window either, and the viewport stays full-bleed).
+  If AS-5 confirms it, the window keeps its standard title bar until MetalUI answers (plan Task 4b: drop the one
+  `windowStyle:` line; the top bar's clearance code stays, it is zero in a standard window), and M6-c stays open.
+  Wanted: a way to mark a region as the window's drag handle that wins over the gestures beneath it, as SwiftUI's
+  `WindowDragGesture` / `.windowBackgroundDragBehavior(.enabled)` (macOS 15) or a `.windowDragArea()` modifier; the
+  top bar's glass would carry it.
