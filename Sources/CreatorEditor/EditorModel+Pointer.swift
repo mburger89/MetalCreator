@@ -27,7 +27,7 @@ extension EditorModel {
         ensurePress(at: start, modifiers: modifiers)
         guard let press = currentPress else { return }
         switch interaction {
-        case nil: click(press.hit, extending: press.modifiers.contains(.shift))
+        case nil: click(press.hit, mode: SelectionMode(press.modifiers))
         case .moving: document.endCoalescing()
         case .duplicating(let start, let delta): finishDuplicate(start: start, delta: delta)
         case .connecting(let wire): finishWire(wire, at: location)
@@ -54,46 +54,41 @@ extension EditorModel {
         pointerPressed(at: start, modifiers: modifiers)
     }
 
-    private func click(_ hit: CanvasHit, extending: Bool) {
-        let clicked: NodeID?
-        switch hit {
-        case .node(let id): clicked = id
-        case .socket(let socket): clicked = socket.endpoint.node
-        case .empty: clicked = nil
-        }
-        guard let clicked else {
-            if !extending { selection = [] }
+    /// A press that didn't move selects what it landed on as `mode` says (spec 2026-10-09 §3). On an item already
+    /// selected, a plain click collapses the selection to it, ⌘ toggles it out and ⇧ keeps it. On empty canvas a
+    /// plain click clears the selection and a modified one keeps it.
+    private func click(_ hit: CanvasHit, mode: SelectionMode) {
+        guard let items = items(for: hit) else {
+            if mode == .replace { clearSelection() }
             return
         }
-        if !extending {
-            selection = [clicked]
-        } else if selection.contains(clicked) {
-            selection.remove(clicked)
-        } else {
-            selection.insert(clicked)
-        }
+        select(items, mode: mode)
     }
 
     private func beginInteraction(for hit: CanvasHit, at screen: Vector2, modifiers: CanvasModifiers) -> CanvasInteraction {
-        switch hit {
-        case .socket(let socket):
+        if case .socket(let socket) = hit {
             return .connecting(WireDrag(from: socket, current: transform.toCanvas(screen)))
-        case .node(let id):
-            if !selection.contains(id) {
-                selection = modifiers.contains(.shift) ? selection.union([id]) : [id]
-            }
-            let start = Dictionary(uniqueKeysWithValues: selection.compactMap { id in
-                graph.nodes[id].map { (id, $0.position) }
-            })
-            if modifiers.contains(.option) { return .duplicating(start: start, delta: .zero) }
-            return .moving(start: start, key: "move-\(UUID().uuidString)")
-        case .empty:
-            if modifiers.contains(.shift) {
-                let point = transform.toCanvas(screen)
-                return .boxSelecting(start: point, current: point, base: selection)
-            }
-            return .panning(startOffset: transform.offset)
         }
+        // Any other hit reaches the selection only through `items(for:)`, so a new kind of hit (sub-project B's
+        // comments) needs no change here. An unselected item is selected first: alone, or added with ⇧ or ⌘.
+        guard let items = items(for: hit) else { return emptyCanvasDrag(at: screen, modifiers: modifiers) }
+        if !canvasSelection.isSuperset(of: items) {
+            select(items, mode: SelectionMode(modifiers) == .replace ? .replace : .add)
+        }
+        // Every selected item moves (with ⌥, is copied once the pointer has moved), so a ⌘-drag on a selected
+        // node moves the selection instead of toggling the node.
+        let start = positions(of: canvasSelection)
+        if modifiers.contains(.option) { return .duplicating(start: start, delta: .zero) }
+        return .moving(start: start, key: "move-\(UUID().uuidString)")
+    }
+
+    /// A drag that began on empty canvas: ⇧ held as it starts box-selects; otherwise it pans.
+    private func emptyCanvasDrag(at screen: Vector2, modifiers: CanvasModifiers) -> CanvasInteraction {
+        if modifiers.contains(.shift) {
+            let point = transform.toCanvas(screen)
+            return .boxSelecting(start: point, current: point, base: selection)
+        }
+        return .panning(startOffset: transform.offset)
     }
 
     private func update(to location: Vector2, from pressPoint: Vector2) {
@@ -104,10 +99,7 @@ extension EditorModel {
         case .panning(let startOffset):
             transform = CanvasTransform(offset: startOffset + (location - pressPoint), zoom: transform.zoom)
         case .moving(let start, let key):
-            let moves = start.keys.sorted().compactMap { id in
-                start[id].map { GraphCommand.move(id, to: $0 + storedDelta) }
-            }
-            try? document.perform(.batch(moves), coalescingKey: key)
+            try? document.perform(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key)
         case .duplicating(let start, _):
             setInteraction(.duplicating(start: start, delta: storedDelta))
         case .boxSelecting(let start, _, let base):
@@ -121,8 +113,8 @@ extension EditorModel {
     }
 
     /// The copies land where the ghosts were, as one undo step; the originals never moved.
-    private func finishDuplicate(start: [NodeID: Vector2], delta: Vector2) {
-        if let ids = insert(clipboard(of: Set(start.keys)), offset: delta) { selection = ids }
+    private func finishDuplicate(start: SelectionPositions, delta: Vector2) {
+        if let copies = insert(clipboard(of: start.items), offset: delta) { canvasSelection = copies }
     }
 
     private func finishWire(_ wire: WireDrag, at location: Vector2) {

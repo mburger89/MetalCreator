@@ -65,8 +65,8 @@ struct CanvasLayers: Component {
     /// The ⌥-drag ghosts: copies of the dragged nodes at their would-be positions.
     static func ghosts(_ model: EditorModel) -> [Node] {
         guard case .duplicating(let start, let delta)? = model.interaction else { return [] }
-        return start.keys.sorted().compactMap { id in
-            guard var node = model.graph.nodes[id], let position = start[id] else { return nil }
+        return start.nodes.keys.sorted().compactMap { id in
+            guard var node = model.graph.nodes[id], let position = start.nodes[id] else { return nil }
             node.position = position + delta
             return node
         }

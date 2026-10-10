@@ -6,7 +6,7 @@ import Testing
 
 @MainActor
 struct PointerTests {
-    @Test func clickSelectsAndShiftClickToggles() {
+    @Test func clickSelectsAndShiftClickAdds() {
         let a = testNode(NumberTestNode.self, id: 1, at: .zero)
         let b = testNode(NumberTestNode.self, id: 2, at: Vector2(300, 0))
         let editor = makeEditor([a, b])
@@ -17,7 +17,7 @@ struct PointerTests {
         editor.click(editor.screenPoint(in: a.id), modifiers: .shift)
         #expect(editor.selection == [a.id, b.id])
         editor.click(editor.screenPoint(in: a.id), modifiers: .shift)
-        #expect(editor.selection == [b.id])
+        #expect(editor.selection == [a.id, b.id], "⇧ adds and never removes; ⌘ toggles (spec 2026-10-09 §3)")
     }
 
     @Test func clickOnEmptyCanvasClearsUnlessShiftIsHeld() {

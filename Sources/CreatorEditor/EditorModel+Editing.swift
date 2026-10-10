@@ -30,23 +30,23 @@ extension EditorModel {
         }
     }
 
-    /// ⌘C: copies the selected nodes and the wires between them.
+    /// ⌘C: copies the selected items (the nodes and the wires between them).
     public func copySelection() {
-        guard !selection.isEmpty else { return }
-        setClipboard(clipboard(of: selection))
+        guard !canvasSelection.isEmpty else { return }
+        setClipboard(clipboard(of: canvasSelection))
     }
 
     /// ⌘V: pastes the clipboard offset down and right, one step further on each paste,
     /// and selects the copies.
     public func paste() {
         guard let clipboard else { return }
-        if let ids = insert(clipboard, offset: nextPasteOffset()) { selection = ids }
+        if let copies = insert(clipboard, offset: nextPasteOffset()) { canvasSelection = copies }
     }
 
     /// ⌘D: duplicates the selection offset down and right, leaving the clipboard alone.
     public func duplicateSelection() {
-        guard !selection.isEmpty else { return }
-        if let ids = insert(clipboard(of: selection), offset: Vector2(24, 24)) { selection = ids }
+        guard !canvasSelection.isEmpty else { return }
+        if let copies = insert(clipboard(of: canvasSelection), offset: Vector2(24, 24)) { canvasSelection = copies }
     }
 
     /// Adds a node of `typeID` with its top-left corner at `screen` (canvas-local screen points: under the palette,
@@ -70,15 +70,17 @@ extension EditorModel {
         }
     }
 
-    func clipboard(of ids: Set<NodeID>) -> NodeClipboard {
+    /// What copying `items` puts on the clipboard: their nodes and the wires between them. B adds: comments.
+    func clipboard(of items: CanvasSelection) -> NodeClipboard {
+        let ids = items.nodes
         let nodes = ids.sorted().compactMap { graph.nodes[$0] }
         let links = graph.links.filter { ids.contains($0.from.node) && ids.contains($0.to.node) }
         return NodeClipboard(nodes: nodes, links: links)
     }
 
     /// Adds fresh copies of `clipboard` moved by `offset` (stored coordinates) as one undo
-    /// step. Returns the new IDs, or `nil` if the graph refused.
-    func insert(_ clipboard: NodeClipboard, offset: Vector2) -> Set<NodeID>? {
+    /// step. Returns the copies, to select, or `nil` if the graph refused. B adds: comments.
+    func insert(_ clipboard: NodeClipboard, offset: Vector2) -> CanvasSelection? {
         guard !clipboard.nodes.isEmpty else { return nil }
         var mapping: [NodeID: NodeID] = [:]
         var commands: [GraphCommand] = []
@@ -97,7 +99,7 @@ extension EditorModel {
         if !links.isEmpty { commands.append(.restoreLinks(links)) }
         do {
             try document.perform(.batch(commands))
-            return Set(mapping.values)
+            return CanvasSelection(nodes: Set(mapping.values))
         } catch {
             refuse(error.message, node: nil)
             return nil
