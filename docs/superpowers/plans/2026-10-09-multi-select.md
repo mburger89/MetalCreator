@@ -2,24 +2,25 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Select many nodes and act on them as one: ⌘-click toggles, ⇧ adds, a ⇧-box adds and a ⌘-box toggles (whether a plain drag on empty canvas box-selects or still pans is **the user's decision, taken at Gate G before Task 3**), ⌘A selects all, Esc clears, arrow keys nudge (one undo step per key-down run), F frames the selection in the graph canvas, every drag moves (or ⌥-copies) the whole selection, all on one selection model that canvas comments (sub-project B) join without reworking any of it.
+**Goal:** Select many nodes and act on them as one: ⌘-click toggles, ⇧ adds, a drag on empty canvas box-selects (none replaces, ⇧ adds, ⌘ toggles) and the middle button pans (**the user's decision at Gate G, 2026-10-09: answer (b)**), ⌘A selects all, Esc clears, arrow keys nudge (one undo step per key-down run), F frames the selection in the graph canvas, every drag moves (or ⌥-copies) the whole selection, all on one selection model that canvas comments (sub-project B) join without reworking any of it.
 
-**Architecture:** The selection becomes a value, `CanvasSelection` (nodes now; B adds comment ids), stored as `EditorModel.canvasSelection`; the existing `selection: Set<NodeID>` stays as its node part, so every current reader (inspector, app, scene, handles) is untouched. Every gesture and key goes through one small set of `EditorModel+Selection` members (`select(_:mode:)`, `allItems`, `items(for:)`, `items(intersecting:)`, `positions(of:)`, `moveCommands(from:by:)`, `bounds(of:)`), which are the members B extends (B's few other edits, a frame's resize drag and comment ghosts, are listed under "Interface for B"). A drag starts generically: on a socket it wires, on anything `items(for:)` maps to items it selects them then moves or ⌥-copies the selection, and on nothing it box-selects or pans, so a new kind of hit needs no pointer change. Behaviour stays in the model and is tested headless; the only view change is the box and ghost layers reading the new interaction values, and the only app change is `AppInput` letting F through to the graph while the pointer is over its canvas.
+**Architecture:** The selection becomes a value, `CanvasSelection` (nodes now; B adds comment ids), stored as `EditorModel.canvasSelection`; the existing `selection: Set<NodeID>` stays as its node part, so every current reader (inspector, app, scene, handles) is untouched. Every gesture and key goes through one small set of `EditorModel+Selection` members (`select(_:mode:)`, `allItems`, `items(for:)`, `items(intersecting:)`, `positions(of:)`, `moveCommands(from:by:)`, `bounds(of:)`), which are the members B extends (B's few other edits, a frame's resize drag and comment ghosts, are listed under "Interface for B"). A drag starts generically: on a socket it wires, on anything `items(for:)` maps to items it selects them then moves or ⌥-copies the selection, and on nothing it box-selects (a middle-button drag pans, wherever it starts), so a new kind of hit needs no pointer change. Behaviour stays in the model and is tested headless; the only view changes are the box and ghost layers reading the new interaction values and the canvas's middle-button pan gesture (`GraphPanelInput.middlePanGesture()`, forwarding to the model like `canvasGesture()`), and the only app change is `AppInput` letting F through to the graph while the pointer is over its canvas.
 
-**Tech Stack:** Swift 6.4 (language mode 6, strict concurrency), SwiftPM, Swift Testing, MetalUI at `../MetalUI` `9ad2254` or later (verified on `2155f1e`, which contains it; C7's `DragGesture.Value.modifiers`; `KeyEvent.isRepeat`; the window keymap, `onAction` and `onInput` fallback).
+**Tech Stack:** Swift 6.4 (language mode 6, strict concurrency), SwiftPM, Swift Testing, MetalUI at `../MetalUI` `9ad2254` or later (verified on `2155f1e`, which contains it; C7's `DragGesture.Value.modifiers` and `DragGesture(…, button: .middle)` (`CI-F`); `KeyEvent.isRepeat`; the window keymap, `onAction` and `onInput` fallback).
 
-**Gate G (before Task 3 and Task 7):** the user decides how box select is reached (Key decision 4, "Gate G" below). Tasks 1, 2 and 4–6 don't depend on it; Task 3 and Task 7's box wording do. Don't run Task 3 or Task 7 until the answer is recorded in this plan.
+**Gate G (decided):** the user decided on 2026-10-09: **answer (b)** — a plain drag on empty canvas box-selects and replaces the selection, ⇧-drag adds, ⌘-drag toggles; panning moves off the plain drag to two-finger scroll (already there) and the middle mouse button (Key decision 4, "Gate G" below). Task 3 and Task 7 implement it.
 
 **Spec:** `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` §3 (sub-project A; §2 for the order A → C1 ∥ B → C2, §7 and §9 for what B needs from A), under the parent spec `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md` with all its Errata (§6.2: "Click to select, Shift-click to extend, ⇧-drag on empty canvas to box-select. A plain drag on empty canvas pans."; Errata (M5) on Tab). Reference for behaviour (read-only): `../MetalNodes` `MetalNodesKit/Sources/MetalNodesUI/Editor/EditorModel+Selection.swift` (`SelectionMode`, `select(nodes:comments:mode:)`, `nudgeSelection`), `Canvas/InputModifiers.swift` (⌘ toggles before ⇧ adds), `Canvas/NodeView.swift` (a press without movement on a selected node collapses, ⌘ toggles), and its spec §18.6 (arrows 1 pt / ⇧ 10 pt, F frames the selection with 40 pt padding).
 
 **Files shared with other tracks** (multi-select runs beside groups-core, sketcher-s5b, kernel-invalid-blends and m7-measure; everything else here is inside `Sources/CreatorEditor`, `Tests/CreatorEditorTests` and the two `CreatorApp` files below):
-- `Sources/CreatorEditor/EditorModel.swift` — **sketcher-s5b** Task 8 adds two stored properties after `scrollGlideIgnored` (`now`, `lastNodeClick`). This plan replaces the `selection` property (Task 1), and adds `pressCancelled` after `pressModifiers`, `nudgeKey` after `pendingEntry`, and `cancelPress()`/`isPressCancelled` after `endPress()` (Tasks 4, 5). Different lines: merges cleanly.
+- `Sources/CreatorEditor/EditorModel.swift` — **sketcher-s5b** Task 8 adds two stored properties after `scrollGlideIgnored` (`now`, `lastNodeClick`). This plan replaces the `selection` property (Task 1), and adds `middlePanStart` after `pressModifiers` (Task 3), `pressCancelled` after `pressModifiers`, `nudgeKey` after `pendingEntry`, and `cancelPress()`/`isPressCancelled` after `endPress()` (Tasks 4, 5). Different lines: merges cleanly.
 - `Sources/CreatorEditor/EditorModel+Pointer.swift` — **sketcher-s5b** Task 8 inserts one line (`if interaction == nil { pairClick(on: press.hit, at: press.point, modifiers: press.modifiers) } else { lastNodeClick = nil }`) between `pointerReleased`'s `guard let press = currentPress else { return }` and its `switch`, and its replace block quotes the `case nil: click(press.hit, extending: …)` line after it. This plan changes that guard (Task 4: `guard let press = currentPress, !isPressCancelled else { endPress(); return }`) and that `case nil:` line (Task 2: `case nil: click(press.hit, mode: SelectionMode(press.modifiers))`). Whichever merges second keeps this plan's guard, then s5b's line, then this plan's `case nil:`, **and makes the cancelled-press branch clear the pending click too** — `guard let press = currentPress, !isPressCancelled else { lastNodeClick = nil; endPress(); return }` — so a node click just before an Esc-cancelled drag can't pair with the next click as a double click (s5b's own `else { lastNodeClick = nil }` never runs on that early return). s5b's `pairClick` already lets any modifier start no pair, so ⌘- and ⇧-clicks never make a double click. `click(_:extending:)` itself is not in s5b's diff.
+- `Sources/CreatorEditor/GraphPanelInput.swift`, `GraphCanvas.swift` — Task 3 adds the middle-button pan (`middlePanGesture()`, `middleChanged`, `middleEnded`, three doc lines; one `.gesture` line). No other track's plan edits them (m7-measure's tests only construct `GraphPanelInput(model:)`); m7-measure's culling may touch `GraphCanvas`'s layers, a different line. Task 3 also rewrites pan tests in `PointerTests`, `PressModifierTests`, `CanvasCursorTests`, `ScrollDuringDragTests` and `GraphPanelInputTests`: a track adding a test that drags empty canvas to pan must use `middleDrag` after this merges.
 - `Sources/CreatorEditor/CanvasLayers.swift` — **m7-measure** may add culling here (CLAUDE.md's M7 carry-over names `CanvasLayers` the hot path). This plan changes two lines (the box's pattern, the ghosts' `start.nodes`); sub-project B later adds comment ghosts to `ghosts`.
 - `Sources/CreatorEditor/EditorModel+Editing.swift`, `NodeClipboard.swift` — **groups-core** (C1) may route copy and paste through groups (spec §9: "groups referenced by pasted nodes travel with them"); this plan changes `clipboard(of:)` to take a `CanvasSelection` and `insert(_:offset:)` to return one. `NodeClipboard` itself is untouched.
 - `Sources/CreatorApp/AppInput.swift` and `Tests/CreatorAppTests/AppInputTests.swift` — one line of `handleAction` and its doc comment; one assertion, one test name and one new test.
-- `CLAUDE.md` (project state, the `CreatorEditor` bullet, the app-shell input stopgap sentence), `docs/superpowers/roadmap.md` (one new row after "Viewport: frame in the model area"), `docs/verification/human-checks.md` (GI-8's F clause, and a new group MS at the end), and `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` (a new "Errata (A: multi-select)" at the end; groups-core adds its own errata to the same file). Every track edits CLAUDE.md, the roadmap and the human checks; whichever merges second re-applies its lines.
-- **Not touched:** `Package.swift`, `../MetalUI`, `docs/metalui-gaps.md` (no new gap: see "MetalUI gaps"), `Sources/CreatorGraph` (selection is view state, never a `GraphCommand`), `Sources/CreatorViewport`, `GraphPanelInput.swift` (keys already reach the model through `handle(_:)`).
+- `CLAUDE.md` (project state, the `CreatorEditor` bullet, the canvas-gesture sentence, the app-shell input stopgap sentence), `docs/superpowers/roadmap.md` (one new row after "Viewport: frame in the model area"), `docs/verification/human-checks.md` (GI-6's and M5-6's pan, GI-8's F clause, and a new group MS at the end), and `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` (a new "Errata (A: multi-select)" at the end; groups-core adds its own errata to the same file). Every track edits CLAUDE.md, the roadmap and the human checks; whichever merges second re-applies its lines.
+- **Not touched:** `Package.swift`, `../MetalUI`, `docs/metalui-gaps.md` (no new gap: see "MetalUI gaps"), `Sources/CreatorGraph` (selection is view state, never a `GraphCommand`), `Sources/CreatorViewport`; `GraphPanelInput`'s key paths (keys already reach the model through `handle(_:)`).
 
 ## Global Constraints
 
@@ -29,7 +30,7 @@
 - One type per file; no force unwraps or `try!`; no GCD; `FormatStyle` for user-facing numbers.
 - Editor geometry is computed by `NodeLayout`, never measured; hit testing and draw order are the model's (`EditorModel.hitTest`, `drawOrder`) and agree: "Selected items draw last and are hit-tested in the same order (existing rule)" (spec §3).
 - "Selection stays view state: never undone, not saved (as today)" (spec §3): no `GraphCommand`, no `ViewState` key, no format bump.
-- "the existing shortcut rules stay" (task brief): a plain drag on empty canvas pans (parent §6.2); Tab, Space, +, − and the viewport's `!Panel` key context are unchanged; graph keys arrive through the window's `onInput` fallback, so a focused text field keeps its keys.
+- "the existing shortcut rules stay" (task brief), but for the one the user changed at Gate G (2026-10-09, answer (b)): a plain drag on empty canvas box-selects, replacing, and the pan moves to two-finger scroll and the middle button (parent §6.2's "A plain drag on empty canvas pans" is amended in Errata (A)); Tab, Space, +, − and the viewport's `!Panel` key context are unchanged; graph keys arrive through the window's `onInput` fallback, so a focused text field keeps its keys.
 - MetalUI gaps are logged in `docs/metalui-gaps.md` and fixed in MetalUI, never worked around here. Never modify `../MetalUI`; never edit `Package.swift`'s MetalUI path. Run every command from the worktree root.
 - **The full check** (every task ends with it):
 
@@ -49,10 +50,10 @@
 1. **One selection value, nodes now, comments later.** `CanvasSelection { var nodes: Set<NodeID> }` with `isEmpty`, `isSuperset(of:)` and `applying(_:mode:)`; `EditorModel.canvasSelection` stores it (its `didSet` keeps today's "commit a typed value, end coalescing"). `selection: Set<NodeID>` becomes a computed view of its nodes whose **setter replaces the whole selection**, so the dozen places that assign `selection = [id]` (paste, add node, the app's Show Producing Node and picking) keep their meaning ("select exactly this") once comments exist. Moves carry `SelectionPositions { var nodes: [NodeID: Vector2] }` (stored positions at drag start). B adds `comments: Set<CommentID>` / `comments: [CommentID: Vector2]` with empty defaults and extends the "B adds" members (see "Interface for B" for its few other edits).
 2. **Modes.** `SelectionMode(modifiers)`: ⌘ → `.toggle` (wins over ⇧), ⇧ → `.add`, else `.replace` (⌥ is duplication, not a mode), as MetalNodes. A click (no drag) applies its hit's items with the press's mode: plain on a selected node collapses the selection to it, ⌘ toggles it out, **⇧ keeps it** (before this plan ⇧-click on a selected node removed it; spec §3 "⇧ keeps adding"). On empty canvas only a plain click clears.
 3. **A drag starting on a node** (generically: on any hit `items(for:)` maps to items, after `.socket` has taken wiring) selects it first if it isn't selected (plain: alone; ⇧ or ⌘: added — a ⌘-drag must not toggle the dragged node out) and then moves every selected item, or with ⌥ ghosts them all and copies on release; the copy happens only once the press has moved `dragThreshold` (today's rule), so an ⌥-click copies nothing.
-4. **Box select: the user decides at Gate G.** The spec's §3 says "Existing: … a drag on empty canvas box-selects" and asks for "no modifier replaces, ⇧ adds, ⌘ toggles", but the parent §6.2 and today's code pan on a plain drag (only a ⇧-drag box-selects), and the brief keeps the existing shortcut rules. The two can't both hold, so this is the user's call, asked before Task 3 (see "Gate G"); nothing here or in the spec's errata treats either answer as settled before then. Either way the box's **mode is decided when the drag starts, from the modifiers held as it crosses `dragThreshold`** (`beginInteraction`'s `modifiers`, as ⌥-duplicate reads them; a click instead reads `press.modifiers`): ⇧ adds, ⌘ toggles each node the box covers (⌘ wins when both are held). Letting go of the key before the release changes nothing — a box that turned into "replace" when ⇧ came up a moment before the button would silently drop the selection it was adding to. It is recomputed from the selection the drag began with (`base`) at every step, so a node the box leaves again is as it was. Task 3 as written implements **answer (a)**: a box starts on empty canvas with ⇧ or ⌘ held (⌘-drag is new), a plain drag still pans, and `SelectionMode.replace` exists in the model only (to replace, click empty canvas first). **Answer (b)** — a plain drag box-selects, replacing — changes only `emptyCanvasDrag(at:modifiers:)` (every drag on empty canvas box-selects in `SelectionMode(modifiers)`) and moves the pan to the **middle button** (a second canvas gesture in `GraphPanelInput` beside `canvasGesture()`, `DragGesture(minimumDistance: 0, button: .middle)`, as the viewport's middle drag pans, VC3; two-finger scroll already pans, GI-1). Space-drag (MetalNodes) isn't offered: Space opens the palette. Gate G lists what (b) changes.
+4. **Box select: the user decided at Gate G (2026-10-09, answer (b)).** The spec's §3 says "Existing: … a drag on empty canvas box-selects" and asks for "no modifier replaces, ⇧ adds, ⌘ toggles"; the parent §6.2 and the code before this plan pan on a plain drag (only a ⇧-drag box-selected). The user chose §3: **every drag that starts on empty canvas box-selects**, in `SelectionMode(modifiers)` — no modifier replaces, ⇧ adds, ⌘ toggles each node the box covers (⌘ wins when both are held). The box's **mode is decided when the drag starts, from the modifiers held as it crosses `dragThreshold`** (`beginInteraction`'s `modifiers`, as ⌥-duplicate reads them; a click instead reads `press.modifiers`). Letting go of the key before the release changes nothing — a box that turned into "replace" when ⇧ came up a moment before the button would silently drop the selection it was adding to. It is recomputed from the selection the drag began with (`base`) at every step, so a node the box leaves again is as it was. **Panning** moves off the plain drag (the user: "pan with two fingers or the middle mouse button"): two-finger scroll already pans (`scrolled(by:at:modifiers:phase:)`, GI-1), and a **middle-button drag** pans, as the viewport's does (VC3): a second canvas gesture in `GraphPanelInput` beside `canvasGesture()`, `DragGesture(minimumDistance: 0, button: .middle)` (MetalUI `CI-F`: its own arena, apart from the primary press's), forwarding to `EditorModel.middleDragged(from:to:)`/`middleReleased(from:at:)`, which set `.panning(startOffset:)` (so the closed hand, Esc's claim, the selection keys' claim and the scroll/pinch hold-off all apply unchanged). It pans wherever it starts, nodes included, and never selects or edits. Like `ViewportModel.dragChanged`: a middle value whose press began during a primary press is ignored (MetalUI ignores that press, `CI-AA` item 4), and a primary press ends a middle pan (the primary button always gets its drag, `CI-F` item 3), the rest of that middle press then ignored so the canvas never jumps. Space-drag (MetalNodes) isn't offered: Space opens the palette.
 5. **Keys** stay in `GraphKeyBindings` → `GraphKeyCommand` → `EditorModel.perform(_:)` through the window's `onInput` fallback, which runs only when no focused field claimed the key — so a focused inspector or palette field keeps ⌘A (MetalUI's `TextEditing` selects its text), arrows (caret) and F (types). New commands: `.selectAll` (⌘A; ⇧⌘A unbound), `.nudge(Vector2, isRepeat:)` (←↑→↓ with no modifier but ⇧), `.frameSelection` (F, no modifier). The palette's navigation keys win while it is open (↑/↓ move its highlight; ←/→ and ⌘A go to its field). All three act only while the panel is visible (with it hidden, ⌘A then Delete would erase nodes no one can see) and pass the key on otherwise.
 6. **Nudge** moves by 1 display canvas point, 10 with ⇧, the way the arrow points on screen (`flow.stored`, so the left dock's transpose is honoured), through `moveCommands`. **One undo step per key-down run**: a key-down that isn't an auto-repeat (`KeyEvent.isRepeat == false`) ends coalescing and starts a new key (`nudge-<UUID>`); its auto-repeats reuse it, so holding → is one step and three taps are three. Anything that ends coalescing meanwhile (a press, a selection change, Undo) makes the next repeat a new step, so a step never mixes two selections' moves. No key-up is needed.
-7. **Esc**, in order: closes the palette (today); **during a drag** cancels it if it hasn't changed the document — a wire being dragged is dropped, ⌥-drag ghosts vanish, a box puts back the selection it began with — and ignores the rest of that press (no click, no connect on release); a pan or a move goes on (its steps are already in the document) and Esc is claimed so it can't clear the selection mid-move; else **clears the selection**; else passes on. Cancelling a pick (`PickBanner`'s Esc button), a sketch's Esc and the theme editor's Esc are buttons with shortcuts, which MetalUI runs before `onInput`, so they still come first ("after closing the palette, ending a wire drag, or cancelling a pick, as today").
+7. **Esc**, in order: closes the palette (today); **during a drag** cancels it if it hasn't changed the document — a wire being dragged is dropped, ⌥-drag ghosts vanish, a box puts back the selection it began with — and ignores the rest of that press (no click, no connect on release); a pan (the middle button's) or a move goes on (a move's steps are already in the document) and Esc is claimed so it can't clear the selection mid-move; else **clears the selection**; else passes on. Cancelling a pick (`PickBanner`'s Esc button), a sketch's Esc and the theme editor's Esc are buttons with shortcuts, which MetalUI runs before `onInput`, so they still come first ("after closing the palette, ending a wire drag, or cancelling a pick, as today").
 8. **F frames the selection in the graph canvas when the pointer is over it.** `AppInput.handleAction` now declines every viewport key action — F as well as + and − — while `editor.pointerLocation != nil`, so F falls through to `onInput` and the graph's binding; elsewhere F still frames the viewport (spec: "the viewport's F is unchanged"). The graph's F needs the pointer over the visible canvas (`perform` returns false otherwise, as Tab's palette does). It fits the selected items' bounds — **everything when nothing (still on the canvas) is selected**, like the viewport's "F frames the selection, or everything" — in `visibleCanvasSize` with 40 screen points of padding, centred, the zoom clamped to `CanvasTransform.zoomRange` (MetalNodes §18.6). Immediate, no animation (the canvas transform is view state, written as a pan writes it).
 9. **Draw and hit order**: unchanged code (`drawOrder`: unselected by id, then selected by id; `hitTest` walks it backwards). Task 1 pins it for a multi-selection; B draws comments in its own layers by the same rule.
 
@@ -82,7 +83,7 @@ func insert(_ clipboard: NodeClipboard, offset: Vector2) -> CanvasSelection?   /
 public func deleteSelection()                                         // + remove the selected comments, same batch
 ```
 
-Unchanged for B: `select(_:mode:)`, `selectAll()`, `clearSelection()`, `canvasSelection`, `selection` (assigning it selects exactly those nodes and no comments), `SelectionMode`, `nudgeSelection(by:isRepeat:)`, `frameSelection()`, the selection keys' guards (`.deleteSelection`, ⌘C and ⌘D already test `canvasSelection.isEmpty`), the Esc order and every key binding; and in `EditorModel+Pointer` the click, select-then-move, ⌥-drag and box paths: `click(_:mode:)` and `beginInteraction` reach items only through `items(for:)` (a drag on `.socket` wires; on any hit `items(for:)` maps to items it selects them, then moves or ⌥-copies the selection; on `nil` it box-selects or pans), so B's comment hit cases need no Pointer edit for selecting or moving.
+Unchanged for B: `select(_:mode:)`, `selectAll()`, `clearSelection()`, `canvasSelection`, `selection` (assigning it selects exactly those nodes and no comments), `SelectionMode`, `nudgeSelection(by:isRepeat:)`, `frameSelection()`, the selection keys' guards (`.deleteSelection`, ⌘C and ⌘D already test `canvasSelection.isEmpty`), the Esc order and every key binding; and in `EditorModel+Pointer` the click, select-then-move, ⌥-drag and box paths: `click(_:mode:)` and `beginInteraction` reach items only through `items(for:)` (a drag on `.socket` wires; on any hit `items(for:)` maps to items it selects them, then moves or ⌥-copies the selection; on `nil` it box-selects), so B's comment hit cases need no Pointer edit for selecting or moving.
 
 What B does add outside those members (spec §7):
 - **Resizing a frame** (its bottom-right handle): a new `CanvasHit` case for the handle, taken in `beginInteraction` before `items(for:)` (beside `.socket`), a new `CanvasInteraction` case, and that case in the exhaustive switches of `update(to:from:)`, `pointerReleased` and `cancelInteraction()` (Task 4; a resize already performed into the document goes on, like a move), and a cursor for it in `canvasCursor` if it isn't the arrow.
@@ -90,7 +91,7 @@ What B does add outside those members (spec §7):
 
 ## MetalUI gaps
 
-None new. The plan relies on existing behaviour and logged gaps only: keys aren't scoped to the hovered canvas (M4-a, M5-b, MetalUI C9), so F over the canvas is `AppInput`'s existing hover veto widened from + and − to F; graph keys come from the `onInput` fallback, which a focused field pre-empts (as ⌘C/⌘V today). Whether MetalUI delivers Esc's key-down to `onInput` while the primary button is held is a human check (MS-4), not a known gap; if it doesn't, log it then.
+None new. The plan relies on existing behaviour and logged gaps only: the middle-button pan is MetalUI's `DragGesture(…, button: .middle)` (`CI-F`), as the viewport's VC3 uses it; keys aren't scoped to the hovered canvas (M4-a, M5-b, MetalUI C9), so F over the canvas is `AppInput`'s existing hover veto widened from + and − to F; graph keys come from the `onInput` fallback, which a focused field pre-empts (as ⌘C/⌘V today). Whether MetalUI delivers Esc's key-down to `onInput` while the primary button is held is a human check (MS-4), not a known gap; if it doesn't, log it then.
 
 ## Review Focus
 
@@ -100,22 +101,24 @@ None new. The plan relies on existing behaviour and logged gaps only: keys aren'
 4. **A held arrow key** must be exactly one undo step, and a selection change during the hold must start a new step rather than fold another node's moves into the first — `aHeldArrowIsOneUndoStep`, `aRepeatAfterTheSelectionChangedStartsANewStep` (Task 5).
 5. **An arrow or ⌘A in the middle of a move** must not split the move into two undo steps (a nudge ends coalescing and performs its own step; ⌘A changes the selection, whose `didSet` ends coalescing): while a drag is under way the selection keys are claimed and do nothing — `selectAllDuringAMoveKeepsItOneUndoStep` (Task 4), `aNudgeDuringAMoveKeepsItOneUndoStep` (Task 5), `fDuringADragIsClaimedAndChangesNothing` (Task 6).
 6. **A stale selection** (a selected node removed by Undo, which never prunes the selection) must not crash or act on ghosts in drags, nudges, box select or F — `positionsAndMovesSkipItemsNoLongerOnTheCanvas`, `boundsCoverTheItemsDrawnFrames` (Task 1), `fWithOnlyAStaleSelectionFramesEverything` (Task 6).
+7. **A plain drag on empty canvas** (Gate G answer (b)) must box-select, replacing, and never pan; the **middle button** must pan from anywhere (nodes included) without selecting or moving anything, and give way to a primary press without a jump when it moves again — `aPlainDragReplacesTheSelection`, `plainDragOnEmptyCanvasBoxSelectsAndNeverPans`, `aMiddleDragOnANodePansAndLeavesTheNodeWhereItIs`, `aMiddleDragDuringAPrimaryPressIsIgnored`, `aPrimaryPressEndsAMiddlePan` (Task 3).
 
 ## Risks left open
 
-- **Box select waits on the user** (Gate G): the spec's "a drag on empty canvas box-selects … no modifier replaces" and the parent §6.2's "a plain drag on empty canvas pans" conflict. Task 3 implements answer (a); answer (b) changes `emptyCanvasDrag` and adds a middle-button pan (Gate G lists the rest). **⇧-click on a selected node now keeps it** instead of removing it (Key decision 2) — a behaviour change to an existing human-checked gesture (GI-5 only adds), recorded in the errata.
+- **A plain drag no longer pans** (the user's Gate G answer (b)): a mouse with neither a middle button nor a scroll wheel can't pan the graph canvas (F frames, Task 6, and + and − zoom). Whether a middle drag over the canvas reaches the canvas's gesture rather than the viewport beneath the panel, and keeps the closed hand when it leaves the panel, is MetalUI's arena ranking, checked by hand (GI-6, MS-3), not headless (gap M6-e). As in the viewport, a primary press whose release was lost holds middle pans off until the next primary press ends it. **⇧-click on a selected node now keeps it** instead of removing it (Key decision 2) — a behaviour change to an existing human-checked gesture (GI-5 only adds), recorded in the errata.
 - **Graph keys still act in sketch mode**, as Delete, ⌘C and Tab do today: arrows nudge the Sketch node on the canvas and ⌘A selects every node. Harmless (undoable, view state), but a sketch-mode ⌘A or arrow binding (S5b+) must be a toolbar shortcut so it runs first.
 - **Other keys during a drag are as today**: ⌘V, ⌘D, Delete and ⌘Z mid-move still act (and can split a move's undo step, or remove a node being dragged), as before this plan; only the new selection keys and Esc are claimed during a drag.
 - **Esc during a drag** depends on MetalUI delivering the key-down while the button is held (MS-4).
+- **Other tracks' tests that pan with a plain drag** break once this merges (a plain drag box-selects); none exists in their plans today, but whichever merges second must move such a test to `middleDrag`.
 - **The view glue isn't exercised headless** (gap M6-e): the box and ghost layers render in `GraphPanelRenderTests`, but MS-1…MS-8 drive them.
 
-## Gate G: how box select is reached (the user's decision, before Task 3)
+## Gate G: how box select is reached (decided)
 
-Ask the user, quoting both: spec 2026-10-09 §3 ("Existing: … a drag on empty canvas box-selects"; "Box-select modes: no modifier replaces, ⇧ adds, ⌘ toggles") and the parent spec §6.2 ("⇧-drag on empty canvas to box-select. A plain drag on empty canvas pans."). Record the answer here (date, words) before running Task 3 or Task 7.
+The spec 2026-10-09 §3 ("Existing: … a drag on empty canvas box-selects"; "Box-select modes: no modifier replaces, ⇧ adds, ⌘ toggles") and the parent spec §6.2 ("⇧-drag on empty canvas to box-select. A plain drag on empty canvas pans.") conflict, so the user was asked, quoting both, with two answers: (a) keep "a plain drag pans" (⇧-drag adds, ⌘-drag toggles, replace by clicking empty canvas first), or (b) a plain drag box-selects, replacing, and the pan moves elsewhere.
 
-- **(a) Keep "a plain drag pans"** (Task 3 as written): ⇧-drag adds, ⌘-drag (new) toggles; replacing is "click empty canvas, then ⇧-drag". Task 7's errata and MS-3 use their "(a)" text.
-- **(b) A plain drag box-selects, replacing**; the pan moves to the middle button (and two-finger scroll, as today). Before running Task 3, revise it to: `emptyCanvasDrag(at:modifiers:)` returns `.boxSelecting(start:current:base:mode: SelectionMode(modifiers))` for every drag; a middle-button `DragGesture(minimumDistance: 0, button: .middle)` in `GraphPanelInput` beside `canvasGesture()`, calling a new `EditorModel.middleDragged(from:to:)`/`middleReleased()` that pans (and shows the closed hand, `canvasCursor`); `BoxSelectModeTests` gains `aPlainDragReplacesTheSelection` and a middle-drag pan test; the tests that pin a plain-drag pan change (`PointerTests.plainDragOnEmptyCanvasPans`, `PressModifierTests`, `CanvasCursorTests`' pan cases, `ScrollDuringDragTests`, `GraphPanelInputTests`' pan through the gesture); Task 7 rewrites GI-5's and GI-6's and M5-6's "drag empty canvas: it pans", the CLAUDE.md sentence on the canvas gesture, and uses the "(b)" errata text. Re-run the full check and recount before executing.
-- **Answer:** _(pending — ask before Task 3)_
+**Decision:** the user decided 2026-10-09: **answer (b)** — a plain drag on empty canvas box-selects and replaces the selection, ⇧-drag adds, ⌘-drag toggles; panning moves off the plain drag: "pan with two fingers (trackpad scroll pan, already implemented) or the middle mouse button".
+
+What it changes, all in Task 3 and Task 7: `emptyCanvasDrag(at:modifiers:)` returns `.boxSelecting(start:current:base:mode: SelectionMode(modifiers))` for every drag; a middle-button `DragGesture(minimumDistance: 0, button: .middle)` in `GraphPanelInput` beside `canvasGesture()` (`middlePanGesture()`), calling `EditorModel.middleDragged(from:to:)`/`middleReleased(from:at:)`, which pan through `.panning` (closed hand, `canvasCursor`); `BoxSelectModeTests` has `aPlainDragReplacesTheSelection`, and `MiddlePanTests` the middle pan; the tests that pinned a plain-drag pan now pin the box or the middle pan (`PointerTests.plainDragOnEmptyCanvasPans` → `middleDragOnTheCanvasPans` plus `plainDragOnEmptyCanvasBoxSelectsAndNeverPans`, `PressModifierTests`' two pans, `CanvasCursorTests`' pan cases, `ScrollDuringDragTests`, `GraphPanelInputTests.aCanvasPressReleasesTextFocusOncePerPress` plus `aMiddleDragThroughItsGesturePansAndKeepsTextFocus`, and Task 4's and Task 6's during-a-pan tests); the two-finger scroll (`CanvasScrollTests`) and pinch tests are untouched. Task 7 rewrites GI-6's and M5-6's "drag empty canvas: it pans", the CLAUDE.md sentence on the canvas's gestures, MS-3, and the errata's box bullet with the user's answer and date.
 
 ---
 
@@ -127,9 +130,12 @@ Ask the user, quoting both: spec 2026-10-09 §3 ("Existing: … a drag on empty 
 | `Sources/CreatorEditor/CanvasSelection.swift` (create) | 1 | What is selected (nodes; B adds comments), combined by mode |
 | `Sources/CreatorEditor/SelectionPositions.swift` (create) | 1 | Selected items' stored positions when a drag began |
 | `Sources/CreatorEditor/EditorModel+Selection.swift` (create) | 1 | `select(_:mode:)`, `selectAll()`, `clearSelection()` and the "B adds" members |
-| `Sources/CreatorEditor/EditorModel.swift` (modify) | 1, 4, 5 | `canvasSelection` + `selection` view; `pressCancelled`, `cancelPress()`; `nudgeKey` |
+| `Sources/CreatorEditor/EditorModel.swift` (modify) | 1, 3, 4, 5 | `canvasSelection` + `selection` view; `middlePanStart`; `pressCancelled`, `cancelPress()`; `nudgeKey` |
+| `Sources/CreatorEditor/EditorModel+MiddlePan.swift` (create) | 3 | The middle-button pan: `middleDragged(from:to:)`, `middleReleased(from:at:)` |
+| `Sources/CreatorEditor/GraphPanelInput.swift`, `GraphCanvas.swift` (modify) | 3 | `middlePanGesture()` on the canvas, forwarding to the model |
+| `Sources/CreatorEditor/EditorModel+Cursor.swift`, `CanvasCursor.swift`, `EditorModel+Pinch.swift` (modify) | 3 | Docs: the closed hand and "a pan" are the middle button's |
 | `Sources/CreatorEditor/CanvasRect.swift` (modify) | 1, 6 | `union(_:)`, `centre` |
-| `Sources/CreatorEditor/EditorModel+Pointer.swift` (modify) | 2, 3, 4 | Click modes, drags of the whole selection, box modes, Esc mid-drag |
+| `Sources/CreatorEditor/EditorModel+Pointer.swift` (modify) | 2, 3, 4 | Click modes, drags of the whole selection, box modes (every empty-canvas drag), a primary press ends a middle pan, Esc mid-drag |
 | `Sources/CreatorEditor/CanvasInteraction.swift` (modify) | 2, 3 | `moving`/`duplicating` carry `SelectionPositions`; `boxSelecting` carries `base: CanvasSelection` and `mode` |
 | `Sources/CreatorEditor/EditorModel+Editing.swift` (modify) | 2 | Clipboard of a `CanvasSelection`; inserts return one |
 | `Sources/CreatorEditor/CanvasLayers.swift` (modify) | 2, 3 | Ghosts from `start.nodes`; the box's new pattern |
@@ -141,13 +147,15 @@ Ask the user, quoting both: spec 2026-10-09 §3 ("Existing: … a drag on empty 
 | `Sources/CreatorApp/AppInput.swift` (modify) | 6 | F, + and − go to the graph over its canvas |
 | `Tests/CreatorEditorTests/CanvasSelectionTests.swift` (create) | 1 | Modes, the model members, draw/hit order |
 | `Tests/CreatorEditorTests/MultiSelectPointerTests.swift` (create) | 2 | Clicks and drags by mode |
-| `Tests/CreatorEditorTests/BoxSelectModeTests.swift` (create) | 3 | Box modes |
+| `Tests/CreatorEditorTests/BoxSelectModeTests.swift` (create) | 3 | Box modes, a plain box replaces |
+| `Tests/CreatorEditorTests/MiddlePanTests.swift` (create) | 3 | The middle-button pan |
+| `Tests/CreatorEditorTests/Support/PointerTestSupport.swift`, `PressModifierTests.swift`, `CanvasCursorTests.swift`, `ScrollDuringDragTests.swift`, `GraphPanelInputTests.swift`, `CanvasPinchTests.swift` (modify) | 3 | `middleDrag`; the pans they pinned move to the middle button, a plain drag now pins the box |
 | `Tests/CreatorEditorTests/SelectionKeyTests.swift` (create) | 4 | ⌘A and Esc |
 | `Tests/CreatorEditorTests/NudgeTests.swift` (create) | 5 | Arrows |
 | `Tests/CreatorEditorTests/FramingTests.swift` (create) | 6 | F |
-| `Tests/CreatorEditorTests/PointerTests.swift` (modify) | 2, 3 | ⇧-click adds; the box's new pattern |
+| `Tests/CreatorEditorTests/PointerTests.swift` (modify) | 2, 3 | ⇧-click adds; the box's new pattern; the middle drag pans and a plain one box-selects |
 | `Tests/CreatorAppTests/AppInputTests.swift` (modify) | 6 | F over the canvas is the graph's |
-| `docs/…` (modify) | 7 | Human checks MS, GI-8, CLAUDE.md, roadmap, spec errata |
+| `docs/…` (modify) | 7 | Human checks MS, GI-6, M5-6, GI-8, CLAUDE.md, roadmap, spec errata |
 
 ## Tasks
 
@@ -155,12 +163,11 @@ Ask the user, quoting both: spec 2026-10-09 §3 ("Existing: … a drag on empty 
 |---|---|---|
 | 1 | The selection model: `SelectionMode`, `CanvasSelection`, `SelectionPositions`, `canvasSelection`, `EditorModel+Selection` | master + 9 = 1399 |
 | 2 | Clicks and drags by mode: ⌘-click toggles, press-without-move collapses, ⇧ adds, drags move and ⌥-copy the whole selection | master + 17 = 1407 |
-| G | **Gate G: the user's box-select decision** (see above); Task 3 and Task 7 wait for it | — |
-| 3 | Box select modes: ⇧ adds, ⌘ toggles, the mode fixed as the drag starts (answer (a)) | master + 22 = 1412 |
-| 4 | ⌘A and Esc; the selection keys are claimed during a drag | master + 32 = 1422 |
-| 5 | Arrow-key nudge, one undo step per key-down run | master + 41 = 1431 |
-| 6 | F frames the selection in the graph canvas | master + 51 = 1441 |
-| 7 | Docs: human checks MS, CLAUDE.md, roadmap, spec errata (box wording per Gate G) | master + 51 = 1441 |
+| 3 | Box select modes (Gate G answer (b)): a drag on empty canvas box-selects, none replaces, ⇧ adds, ⌘ toggles, the mode fixed as the drag starts; the middle button pans | master + 32 = 1422 |
+| 4 | ⌘A and Esc; the selection keys are claimed during a drag | master + 42 = 1432 |
+| 5 | Arrow-key nudge, one undo step per key-down run | master + 51 = 1441 |
+| 6 | F frames the selection in the graph canvas | master + 61 = 1451 |
+| 7 | Docs: human checks MS (and GI-6, M5-6), CLAUDE.md, roadmap, spec errata | master + 61 = 1451 |
 
 ---
 
@@ -959,16 +966,17 @@ git add Sources/CreatorEditor/EditorModel+Pointer.swift Sources/CreatorEditor/Ca
 git commit -m "feat(editor): ⌘-click toggles, ⇧ adds, and drags move or ⌥-copy the whole selection"
 ```
 
-### Task 3: Box select modes
+### Task 3: Box select modes, and the middle button pans
 
 **Files:**
-- **Gate:** run only after Gate G is answered. As written this is answer (a); for (b), revise it first as Gate G says.
-- Create: `Tests/CreatorEditorTests/BoxSelectModeTests.swift`
-- Modify: `Sources/CreatorEditor/CanvasInteraction.swift` (`boxSelecting`), `Sources/CreatorEditor/EditorModel+Pointer.swift` (`pointerDragged`'s doc, `pointerReleased`, `emptyCanvasDrag`, `update`'s box case, a new `applyBox`), `Sources/CreatorEditor/CanvasLayers.swift` (the box's pattern), `Tests/CreatorEditorTests/PointerTests.swift` (the box's pattern)
+- Create: `Sources/CreatorEditor/EditorModel+MiddlePan.swift`, `Tests/CreatorEditorTests/BoxSelectModeTests.swift`, `Tests/CreatorEditorTests/MiddlePanTests.swift`
+- Modify: `Sources/CreatorEditor/CanvasInteraction.swift` (`panning`'s doc, `boxSelecting`), `Sources/CreatorEditor/EditorModel.swift` (`middlePanStart`), `Sources/CreatorEditor/EditorModel+Pointer.swift` (`pointerDragged`'s doc, `pointerReleased`, `pointerPressed` ends a middle pan, `emptyCanvasDrag`, `update`'s box case, a new `applyBox`), `Sources/CreatorEditor/EditorModel+Cursor.swift`, `CanvasCursor.swift`, `EditorModel+Pinch.swift` (docs), `Sources/CreatorEditor/GraphPanelInput.swift` (`middlePanGesture()`, `middleChanged`, `middleEnded`, the type's doc), `Sources/CreatorEditor/GraphCanvas.swift` (the gesture), `Sources/CreatorEditor/CanvasLayers.swift` (the box's pattern), `Tests/CreatorEditorTests/Support/PointerTestSupport.swift` (`middleDrag`), `Tests/CreatorEditorTests/PointerTests.swift`, `PressModifierTests.swift`, `CanvasCursorTests.swift`, `ScrollDuringDragTests.swift`, `GraphPanelInputTests.swift`, `CanvasPinchTests.swift` (the pans they pinned move to the middle button)
+
+The user decided Gate G on 2026-10-09: **answer (b)**. A plain drag on empty canvas box-selects, replacing the selection; ⇧-drag adds, ⌘-drag toggles; the pan moves off the plain drag to two-finger scroll (already there, GI-1) and the middle mouse button. The middle-button pan mirrors the viewport's (VC3): a `DragGesture(…, button: .middle)` of its own (MetalUI `CI-F`: a non-primary drag lives in that button's own arena, apart from the primary press's), whose values `GraphPanelInput` forwards to the model, so it is tested headless. Its rules follow `ViewportModel.dragChanged`'s: a middle value while a primary press is under way is ignored (MetalUI ignores that press, `CI-AA` item 4), and a primary press ends a middle pan under way (the primary button always gets its drag, `CI-F` item 3), the rest of that middle press then ignored.
 
 **Interfaces:**
 - Consumes (Task 1): `SelectionMode(_:)`, `CanvasSelection.applying(_:mode:)`, `items(intersecting:)`, `canvasSelection`.
-- Produces: `CanvasInteraction.boxSelecting(start: Vector2, current: Vector2, base: CanvasSelection, mode: SelectionMode)` — Task 4's Esc puts `base` back.
+- Produces: `CanvasInteraction.boxSelecting(start: Vector2, current: Vector2, base: CanvasSelection, mode: SelectionMode)` — Task 4's Esc puts `base` back; `.panning(startOffset:)` is now only a middle-button pan. `EditorModel.middleDragged(from:to:)`, `middleReleased(from:at:)` (public); `GraphPanelInput.middlePanGesture()` (public), `middleChanged(_:)`, `middleEnded(_:)` (internal). Test support: `EditorModel.middleDrag(_:_:)`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -981,9 +989,10 @@ import CreatorKernel
 import Testing
 @testable import CreatorEditor
 
-/// Box select modes (spec 2026-10-09 §3, Errata (A)): a plain drag on empty canvas still pans; a drag that starts with
-/// ⇧ or ⌘ held box-selects, and those modifiers, held as it starts, decide how the box combines with the selection it
-/// began with: ⇧ adds, ⌘ toggles each node it covers.
+/// Box select modes (spec 2026-10-09 §3, Errata (A); the user's Gate G answer (b), 2026-10-09): every drag that starts
+/// on empty canvas draws a box, and the modifiers held as it starts decide how the box combines with the selection it
+/// began with: none replaces it, ⇧ adds, ⌘ toggles each node it covers. Panning is the middle button's
+/// (`MiddlePanTests`) and two-finger scroll's (`CanvasScrollTests`).
 @MainActor
 struct BoxSelectModeTests {
     let a = testNode(NumberTestNode.self, id: 1, at: .zero)
@@ -993,6 +1002,17 @@ struct BoxSelectModeTests {
     let start = Vector2(380, -20)
     let overB = Vector2(420, 20)
     let overBC = Vector2(820, 20)
+
+    @Test func aPlainDragReplacesTheSelection() {
+        let editor = makeEditor([a, b, c])
+        editor.selection = [a.id, b.id]
+        editor.drag(start, overBC)
+        #expect(editor.selection == [b.id, c.id])
+        #expect(editor.transform == CanvasTransform(), "a plain drag on empty canvas no longer pans")
+        editor.drag(Vector2(1200, 300), Vector2(1250, 350))
+        #expect(editor.selection.isEmpty, "a box over nothing replaces the selection with nothing")
+        #expect(!editor.document.canUndo, "selection is view state")
+    }
 
     @Test func commandBoxTogglesEachNodeItCovers() {
         let editor = makeEditor([a, b, c])
@@ -1049,6 +1069,169 @@ struct BoxSelectModeTests {
 }
 ```
 
+**Create** `Tests/CreatorEditorTests/MiddlePanTests.swift`:
+
+```swift
+import CreatorGeometry
+import CreatorGraph
+import CreatorKernel
+import Testing
+@testable import CreatorEditor
+
+/// The middle mouse button pans the graph canvas (the user's Gate G answer (b), 2026-10-09: a plain drag box-selects,
+/// so the pan moves to two-finger scroll and the middle button), as it pans the viewport (VC3). It pans wherever it
+/// starts, nodes included, and never selects, moves or edits anything. As in the viewport, a middle press during a
+/// primary press is ignored, and a primary press ends a middle pan.
+@MainActor
+struct MiddlePanTests {
+    let a = testNode(NumberTestNode.self, id: 1, at: .zero)
+    let press = Vector2(600, 600)
+
+    @Test func aMiddleDragPansTheCanvasAndNothingElse() {
+        let editor = makeEditor([a])
+        editor.selection = [a.id]
+        editor.transform = CanvasTransform(offset: Vector2(5, 5), zoom: 2)
+        editor.middleDragged(from: press, to: press)
+        editor.middleDragged(from: press, to: press + Vector2(30, -20))
+        guard case .panning? = editor.interaction else { Issue.record("expected a pan"); return }
+        editor.middleReleased(from: press, at: press + Vector2(30, -20))
+        #expect(editor.transform == CanvasTransform(offset: Vector2(35, -15), zoom: 2))
+        #expect(editor.document.viewState.canvasOffset == Vector2(35, -15))
+        #expect(editor.interaction == nil)
+        #expect(editor.selection == [a.id] && editor.graph.nodes[a.id]?.position == .zero)
+        #expect(!editor.document.canUndo, "panning is not an edit")
+    }
+
+    @Test func aMiddleDragOnANodePansAndLeavesTheNodeWhereItIs() {
+        let editor = makeEditor([a])
+        let onA = editor.screenPoint(in: a.id)
+        editor.middleDrag(onA, onA + Vector2(0, 40))
+        #expect(editor.transform.offset == Vector2(0, 40))
+        #expect(editor.graph.nodes[a.id]?.position == .zero && editor.selection.isEmpty)
+    }
+
+    @Test func aMiddleClickChangesNothing() {
+        let editor = makeEditor([a])
+        editor.selection = [a.id]
+        editor.middleDrag(press, press)
+        #expect(editor.transform == CanvasTransform() && editor.selection == [a.id] && editor.interaction == nil)
+    }
+
+    /// MetalUI ignores another button's press while the primary one is held (`CI-AA` item 4); a value that arrives
+    /// anyway changes nothing, and the primary drag goes on.
+    @Test func aMiddleDragDuringAPrimaryPressIsIgnored() {
+        let editor = makeEditor([a])
+        let onA = editor.screenPoint(in: a.id)
+        editor.pointerDragged(from: onA, to: onA)
+        editor.middleDrag(press, press + Vector2(40, 0))
+        #expect(editor.transform == CanvasTransform() && editor.interaction == nil)
+        editor.pointerDragged(from: onA, to: onA + Vector2(0, 40))
+        editor.pointerReleased(from: onA, at: onA + Vector2(0, 40))
+        #expect(editor.graph.nodes[a.id]?.position == Vector2(0, 40))
+    }
+
+    /// The primary button always gets its drag (MetalUI `CI-F` item 3): its press ends a middle pan under way, and the
+    /// rest of that middle press is ignored, so the canvas never jumps when it moves again.
+    @Test func aPrimaryPressEndsAMiddlePan() {
+        let editor = makeEditor([a])
+        editor.middleDragged(from: press, to: press)
+        editor.middleDragged(from: press, to: press + Vector2(30, 0))
+        editor.click(editor.screenPoint(in: a.id))
+        #expect(editor.selection == [a.id] && editor.interaction == nil && editor.canvasCursor == nil)
+        editor.middleDragged(from: press, to: press + Vector2(80, 0))
+        editor.middleReleased(from: press, at: press + Vector2(80, 0))
+        #expect(editor.transform.offset == Vector2(30, 0))
+        editor.middleDrag(Vector2(100, 100), Vector2(110, 100))
+        #expect(editor.transform.offset == Vector2(40, 0), "the next middle press pans again")
+    }
+
+    /// A middle press whose release was lost (the window resigned mid-drag) is replaced by the next one, which pans
+    /// from where the canvas is.
+    @Test func aMiddlePanThatLostItsReleaseIsReplacedByTheNext() {
+        let editor = makeEditor([a])
+        editor.middleDragged(from: press, to: press + Vector2(30, 0))
+        let next = Vector2(200, 200)
+        editor.middleDragged(from: next, to: next)
+        editor.middleDragged(from: next, to: next + Vector2(0, 20))
+        #expect(editor.transform.offset == Vector2(30, 20))
+        editor.middleReleased(from: next, at: next + Vector2(0, 20))
+        #expect(editor.interaction == nil)
+    }
+}
+```
+
+**Modify** `Tests/CreatorEditorTests/Support/PointerTestSupport.swift`, replace:
+
+```swift
+    /// A press at `start`, a move to `end` and a release there, with `modifiers` held throughout.
+    func drag(_ start: Vector2, _ end: Vector2, modifiers: CanvasModifiers = []) {
+        pointerDragged(from: start, to: start, modifiers: modifiers)
+        pointerDragged(from: start, to: end, modifiers: modifiers)
+        pointerReleased(from: start, at: end, modifiers: modifiers)
+    }
+```
+
+with:
+
+```swift
+    /// A press at `start`, a move to `end` and a release there, with `modifiers` held throughout.
+    func drag(_ start: Vector2, _ end: Vector2, modifiers: CanvasModifiers = []) {
+        pointerDragged(from: start, to: start, modifiers: modifiers)
+        pointerDragged(from: start, to: end, modifiers: modifiers)
+        pointerReleased(from: start, at: end, modifiers: modifiers)
+    }
+
+    /// A middle-button press at `start`, a move to `end` and a release there, as the canvas's zero-distance middle
+    /// drag reports them.
+    func middleDrag(_ start: Vector2, _ end: Vector2) {
+        middleDragged(from: start, to: start)
+        middleDragged(from: start, to: end)
+        middleReleased(from: start, at: end)
+    }
+```
+
+**Modify** `Tests/CreatorEditorTests/PointerTests.swift`, replace:
+
+```swift
+    @Test func plainDragOnEmptyCanvasPans() {
+        let editor = makeEditor([])
+        editor.transform = CanvasTransform(offset: Vector2(5, 5), zoom: 2)
+        editor.drag(Vector2(100, 100), Vector2(130, 80))
+        #expect(editor.transform == CanvasTransform(offset: Vector2(35, -15), zoom: 2))
+        #expect(editor.document.viewState.canvasOffset == Vector2(35, -15))
+        #expect(editor.interaction == nil)
+    }
+```
+
+with:
+
+```swift
+    /// The user's Gate G answer (b), 2026-10-09: the middle button pans; a plain drag on empty canvas box-selects.
+    @Test func middleDragOnTheCanvasPans() {
+        let editor = makeEditor([])
+        editor.transform = CanvasTransform(offset: Vector2(5, 5), zoom: 2)
+        editor.middleDrag(Vector2(100, 100), Vector2(130, 80))
+        #expect(editor.transform == CanvasTransform(offset: Vector2(35, -15), zoom: 2))
+        #expect(editor.document.viewState.canvasOffset == Vector2(35, -15))
+        #expect(editor.interaction == nil)
+    }
+
+    @Test func plainDragOnEmptyCanvasBoxSelectsAndNeverPans() {
+        let a = testNode(NumberTestNode.self, id: 1, at: .zero)
+        let editor = makeEditor([a])
+        editor.transform = CanvasTransform(offset: Vector2(5, 5), zoom: 2)
+        editor.pointerDragged(from: Vector2(1, 1), to: Vector2(1, 1))
+        editor.pointerDragged(from: Vector2(1, 1), to: Vector2(130, 80))
+        guard case .boxSelecting(_, _, let base, let mode)? = editor.interaction else {
+            Issue.record("expected a box selection"); return
+        }
+        #expect(base.isEmpty && mode == .replace && editor.canvasCursor == nil)
+        editor.pointerReleased(from: Vector2(1, 1), at: Vector2(130, 80))
+        #expect(editor.selection == [a.id])
+        #expect(editor.transform == CanvasTransform(offset: Vector2(5, 5), zoom: 2))
+    }
+```
+
 **Modify** `Tests/CreatorEditorTests/PointerTests.swift`, replace:
 
 ```swift
@@ -1067,12 +1250,258 @@ with:
         #expect(corner == start && current == Vector2(420, 20) && base == CanvasSelection(nodes: [c.id]) && mode == .add)
 ```
 
+**Modify** `Tests/CreatorEditorTests/PressModifierTests.swift`, replace:
+
+```swift
+        editor.drag(Vector2(600, 600), Vector2(640, 620))
+        #expect(editor.transform.offset == Vector2(40, 20), "a plain drag on empty canvas pans, not box-selects")
+    }
+```
+
+with:
+
+```swift
+        editor.drag(Vector2(-20, -20), Vector2(20, 20))
+        #expect(editor.selection == [a.id], "a plain box replaces: the first press's ⇧ doesn't make it add")
+    }
+```
+
+**Modify** `Tests/CreatorEditorTests/PressModifierTests.swift`, replace:
+
+```swift
+    /// What a drag does is decided when it starts; a modifier pressed later doesn't change it.
+    @Test func aModifierPressedMidDragDoesntChangeTheDrag() {
+        let editor = makeEditor([a])
+        editor.pointerDragged(from: Vector2(600, 600), to: Vector2(600, 600))
+        editor.pointerDragged(from: Vector2(600, 600), to: Vector2(620, 600))
+        editor.pointerDragged(from: Vector2(600, 600), to: Vector2(650, 600), modifiers: .shift)
+        guard case .panning? = editor.interaction else { Issue.record("expected a pan"); return }
+        #expect(editor.transform.offset == Vector2(50, 0))
+    }
+```
+
+with:
+
+```swift
+    /// What a drag does is decided when it starts; a modifier pressed later doesn't change it.
+    @Test func aModifierPressedMidDragDoesntChangeTheDrag() {
+        let editor = makeEditor([a, b])
+        editor.selection = [b.id]
+        editor.pointerDragged(from: Vector2(-20, -20), to: Vector2(-20, -20))
+        editor.pointerDragged(from: Vector2(-20, -20), to: Vector2(10, 10))
+        editor.pointerDragged(from: Vector2(-20, -20), to: Vector2(20, 20), modifiers: .shift)
+        guard case .boxSelecting(_, _, _, let mode)? = editor.interaction else { Issue.record("expected a box"); return }
+        #expect(mode == .replace && editor.selection == [a.id], "⇧ pressed mid-drag doesn't make the box add")
+        #expect(editor.transform.offset == .zero)
+    }
+```
+
+**Modify** `Tests/CreatorEditorTests/CanvasCursorTests.swift`, replace:
+
+```swift
+/// The canvas's cursor (docs/metalui-gaps.md C7 item 5): a closed hand while a drag pans, the arrow otherwise.
+@MainActor
+struct CanvasCursorTests {
+    @Test func aDragOnEmptyCanvasShowsTheClosedHandUntilItsRelease() {
+        let editor = makeEditor([])
+        editor.pointerDragged(from: Vector2(500, 500), to: Vector2(500, 500))
+        #expect(editor.canvasCursor == nil, "a press that hasn't moved may still be a click")
+        editor.pointerDragged(from: Vector2(500, 500), to: Vector2(530, 500))
+        #expect(editor.canvasCursor == .grabbing)
+        #expect(editor.canvasCursor?.pointerStyle == .grabActive)
+        editor.pointerReleased(from: Vector2(500, 500), at: Vector2(530, 500))
+        #expect(editor.canvasCursor == nil)
+    }
+```
+
+with:
+
+```swift
+/// The canvas's cursor (docs/metalui-gaps.md C7 item 5): a closed hand while a middle-button drag pans, the arrow
+/// otherwise.
+@MainActor
+struct CanvasCursorTests {
+    /// A middle press can only pan (it never clicks), so the hand shows from the press.
+    @Test func aMiddleDragShowsTheClosedHandUntilItsRelease() {
+        let editor = makeEditor([])
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(500, 500))
+        #expect(editor.canvasCursor == .grabbing)
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(530, 500))
+        #expect(editor.canvasCursor == .grabbing)
+        #expect(editor.canvasCursor?.pointerStyle == .grabActive)
+        editor.middleReleased(from: Vector2(500, 500), at: Vector2(530, 500))
+        #expect(editor.canvasCursor == nil)
+    }
+```
+
+**Modify** `Tests/CreatorEditorTests/CanvasCursorTests.swift`, replace:
+
+```swift
+        editor.pointerDragged(from: Vector2(900, 900), to: Vector2(900, 900), modifiers: .shift)
+        editor.pointerDragged(from: Vector2(900, 900), to: Vector2(950, 950), modifiers: .shift)
+        #expect(editor.interaction != nil && editor.canvasCursor == nil)
+    }
+
+    /// A pan whose release was lost keeps its hand only until the next press.
+    @Test func aPanThatLostItsReleaseLosesTheHandAtTheNextPress() {
+        let editor = makeEditor([])
+        editor.pointerDragged(from: Vector2(500, 500), to: Vector2(500, 500))
+        editor.pointerDragged(from: Vector2(500, 500), to: Vector2(560, 500))
+        #expect(editor.canvasCursor == .grabbing)
+        editor.click(Vector2(100, 100))
+        #expect(editor.canvasCursor == nil)
+    }
+```
+
+with:
+
+```swift
+        editor.pointerDragged(from: Vector2(900, 900), to: Vector2(900, 900), modifiers: .shift)
+        editor.pointerDragged(from: Vector2(900, 900), to: Vector2(950, 950), modifiers: .shift)
+        #expect(editor.interaction != nil && editor.canvasCursor == nil)
+        editor.pointerReleased(from: Vector2(900, 900), at: Vector2(950, 950), modifiers: .shift)
+        editor.pointerDragged(from: Vector2(900, 900), to: Vector2(900, 900))
+        editor.pointerDragged(from: Vector2(900, 900), to: Vector2(950, 950))
+        #expect(editor.interaction != nil && editor.canvasCursor == nil, "a plain drag on empty canvas is a box")
+    }
+
+    /// A middle pan that lost its release keeps its hand only until the next primary press.
+    @Test func aPanThatLostItsReleaseLosesTheHandAtTheNextPress() {
+        let editor = makeEditor([])
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(500, 500))
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(560, 500))
+        #expect(editor.canvasCursor == .grabbing)
+        editor.click(Vector2(100, 100))
+        #expect(editor.canvasCursor == nil)
+    }
+```
+
+**Replace the whole of** `Tests/CreatorEditorTests/ScrollDuringDragTests.swift` with:
+
+```swift
+import CreatorGeometry
+import CreatorGraph
+import Foundation
+import Testing
+@testable import CreatorEditor
+
+/// A scroll or a pinch while a drag is under way on the canvas (holding a button and turning the wheel, or pinching
+/// mid-drag) leaves the canvas alone: the drag measures from its press, so a transform changed under it would be
+/// undone at its next step (a middle-button pan), move the dragged nodes off the pointer (a move) or shift a box
+/// under it. The scroll is still claimed, so it doesn't reach the viewport.
+@MainActor
+struct ScrollDuringDragTests {
+    @Test func aScrollDuringAMiddlePanIsIgnoredAndThePanKeepsItsOffset() {
+        let editor = makeEditor([])
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(500, 500))
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(530, 500))
+        let panned = editor.transform
+        #expect(editor.scrolled(by: Vector2(0, 40), at: Vector2(530, 500), modifiers: [], phase: .step))
+        #expect(editor.scrolled(by: Vector2(0, 10), at: Vector2(530, 500), modifiers: .command, phase: .step))
+        #expect(editor.transform == panned)
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(540, 500))
+        #expect(editor.transform == CanvasTransform(offset: panned.offset + Vector2(10, 0), zoom: panned.zoom))
+    }
+
+    @Test func aScrollDuringABoxIsIgnored() {
+        let editor = makeEditor([])
+        editor.pointerPressed(at: Vector2(500, 500))
+        editor.pointerDragged(from: Vector2(500, 500), to: Vector2(530, 500))
+        guard case .boxSelecting? = editor.interaction else { Issue.record("expected a box"); return }
+        #expect(editor.scrolled(by: Vector2(0, 40), at: Vector2(530, 500), modifiers: [], phase: .step))
+        #expect(editor.transform == CanvasTransform())
+    }
+
+    @Test func aPinchDuringADragIsIgnored() {
+        let editor = makeEditor([])
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(500, 500))
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(530, 500))
+        let panned = editor.transform
+        editor.pinchChanged(magnification: 2, centre: Vector2(300, 300))
+        #expect(editor.transform == panned)
+    }
+
+    @Test func aScrollAfterTheDragEndsMovesTheCanvasAgain() {
+        let editor = makeEditor([])
+        editor.middleDrag(Vector2(500, 500), Vector2(530, 500))
+        let released = editor.transform
+        editor.scrolled(by: Vector2(0, 40), at: Vector2(530, 500), modifiers: [], phase: .step)
+        #expect(editor.transform == CanvasTransform(offset: released.offset + Vector2(0, 40), zoom: released.zoom))
+    }
+}
+```
+
+**Modify** `Tests/CreatorEditorTests/CanvasPinchTests.swift`, replace:
+
+```swift
+        editor.drag(Vector2(600, 600), Vector2(640, 620))
+        let panned = editor.transform
+```
+
+with:
+
+```swift
+        editor.middleDrag(Vector2(600, 600), Vector2(640, 620))
+        let panned = editor.transform
+        #expect(panned.offset != .zero, "the middle drag panned")
+```
+
+**Modify** `Tests/CreatorEditorTests/GraphPanelInputTests.swift`, replace:
+
+```swift
+        input.canvasEnded(value(Vector2(5, 5), Vector2(5, 5)))
+        #expect(releases == 2)
+        #expect(editor.transform.offset == Vector2(30, 0))
+    }
+```
+
+with:
+
+```swift
+        input.canvasEnded(value(Vector2(5, 5), Vector2(5, 5)))
+        #expect(releases == 2)
+        #expect(editor.transform.offset == .zero, "a plain drag through the canvas gesture box-selects; it doesn't pan")
+    }
+
+    /// The canvas's middle-button drag (the user's Gate G answer (b)) pans through the model, from its own arena
+    /// (MetalUI `CI-F`), and leaves text focus alone: it isn't a click on the canvas.
+    @Test func aMiddleDragThroughItsGesturePansAndKeepsTextFocus() {
+        let editor = makeEditor([])
+        let input = GraphPanelInput(model: editor)
+        var releases = 0
+        input.releaseTextFocus = { releases += 1 }
+        let gesture = input.middlePanGesture()
+        #expect(gesture.button == .middle && gesture.minimumDistance == Pixels(0))
+        input.middleChanged(value(Vector2(10, 10), Vector2(10, 10)))
+        input.middleChanged(value(Vector2(10, 10), Vector2(40, 30)))
+        #expect(editor.canvasCursor == .grabbing)
+        input.middleEnded(value(Vector2(10, 10), Vector2(40, 30)))
+        #expect(editor.transform.offset == Vector2(30, 20) && editor.interaction == nil)
+        #expect(releases == 0)
+    }
+```
+
 - [ ] **Step 2: Run them to see them fail**
 
 Run: `swift build --build-tests 2>&1 | grep error: | head -3`
-Expected: compile errors — the `.boxSelecting` patterns with four values don't match the three-value case.
+Expected: compile errors — the `.boxSelecting` patterns with four values don't match the three-value case, and `EditorModel` has no `middleDragged`.
 
 - [ ] **Step 3: Implement**
+
+**Modify** `Sources/CreatorEditor/CanvasInteraction.swift`, replace:
+
+```swift
+    /// A plain drag on empty canvas: moves the view.
+    case panning(startOffset: Vector2)
+```
+
+with:
+
+```swift
+    /// A middle-button drag (`EditorModel.middleDragged`): moves the view. `startOffset` is the canvas offset at its
+    /// press.
+    case panning(startOffset: Vector2)
+```
 
 **Modify** `Sources/CreatorEditor/CanvasInteraction.swift`, replace:
 
@@ -1085,10 +1514,60 @@ Expected: compile errors — the `.boxSelecting` patterns with four values don't
 with:
 
 ```swift
-    /// A ⇧- or ⌘-drag on empty canvas (a plain one pans). Corners are display canvas points; `base` is the
-    /// selection before the drag, which the box is combined with as `mode` says: the modifiers held as the drag
-    /// started ask for it (⇧ adds, ⌘ toggles).
+    /// A drag on empty canvas. Corners are display canvas points; `base` is the selection before the drag, which the
+    /// box is combined with as `mode` says: the modifiers held as the drag started ask for it (none replaces, ⇧ adds,
+    /// ⌘ toggles).
     case boxSelecting(start: Vector2, current: Vector2, base: CanvasSelection, mode: SelectionMode)
+```
+
+**Modify** `Sources/CreatorEditor/EditorModel.swift`, replace:
+
+```swift
+    @ObservationIgnored private var pressModifiers: CanvasModifiers = []
+```
+
+with:
+
+```swift
+    @ObservationIgnored private var pressModifiers: CanvasModifiers = []
+    /// Where the middle-button press now panning, or last panning, the canvas began (`EditorModel+MiddlePan`); `nil`
+    /// once released.
+    @ObservationIgnored var middlePanStart: Vector2?
+```
+
+**Create** `Sources/CreatorEditor/EditorModel+MiddlePan.swift`:
+
+```swift
+import CreatorGeometry
+
+extension EditorModel {
+    /// A middle-button drag over the canvas moved (`GraphPanelInput.middlePanGesture()`; the user's Gate G answer (b),
+    /// 2026-10-09: a plain drag box-selects, so the pan is the middle button's and two-finger scroll's). `start` and
+    /// `location` are canvas-local screen points. It pans wherever it starts, nodes included: the canvas follows the
+    /// pointer from its offset at the press, closed hand and all (`canvasCursor`), and nothing is selected, moved or
+    /// edited. As the viewport's middle drag (VC3, `ViewportModel.dragChanged`): a value whose press began during a
+    /// primary press is ignored (MetalUI ignores that press, `CI-AA` item 4), a primary press ends the pan
+    /// (`pointerPressed`) and the rest of its press is then ignored, and a press whose release was lost is replaced
+    /// by the next.
+    public func middleDragged(from start: Vector2, to location: Vector2) {
+        if middlePanStart != start {
+            guard currentPress == nil else { return }
+            middlePanStart = start
+            setInteraction(.panning(startOffset: transform.offset))
+        }
+        guard case .panning(let startOffset)? = interaction, location.isFinite else { return }
+        let panned = CanvasTransform(offset: startOffset + (location - start), zoom: transform.zoom)
+        if panned != transform { transform = panned }
+    }
+
+    /// The middle button was released at `location`: the pan ends there.
+    public func middleReleased(from start: Vector2, at location: Vector2) {
+        middleDragged(from: start, to: location)
+        guard middlePanStart == start else { return }
+        middlePanStart = nil
+        if case .panning? = interaction { setInteraction(nil) }
+    }
+}
 ```
 
 **Modify** `Sources/CreatorEditor/EditorModel+Pointer.swift`, replace:
@@ -1100,7 +1579,7 @@ with:
 with:
 
 ```swift
-    /// modifiers held then decide what it does (⇧ or ⌘ box-selects on empty canvas and picks the box's mode,
+    /// modifiers held then decide what it does (on empty canvas the box's mode: none replaces, ⇧ adds, ⌘ toggles;
     /// ⌥ duplicates the selection).
 ```
 
@@ -1137,6 +1616,34 @@ with:
 **Modify** `Sources/CreatorEditor/EditorModel+Pointer.swift`, replace:
 
 ```swift
+    /// A press began, with `modifiers` held. Commits a typed inspector value, ends any slider drag's undo step and
+    /// closes the palette.
+    public func pointerPressed(at screen: Vector2, modifiers: CanvasModifiers = []) {
+        commitPendingEntry()
+        document.endCoalescing()
+        palette = nil
+        beginPress(at: screen, modifiers: modifiers)
+    }
+```
+
+with:
+
+```swift
+    /// A press began, with `modifiers` held. Commits a typed inspector value, ends any slider drag's undo step and
+    /// closes the palette. A middle-button pan under way ends: the primary button always gets its drag (MetalUI
+    /// `CI-F` item 3), and the rest of that middle press is ignored (`middleDragged`).
+    public func pointerPressed(at screen: Vector2, modifiers: CanvasModifiers = []) {
+        commitPendingEntry()
+        document.endCoalescing()
+        palette = nil
+        if case .panning? = interaction { setInteraction(nil) }
+        beginPress(at: screen, modifiers: modifiers)
+    }
+```
+
+**Modify** `Sources/CreatorEditor/EditorModel+Pointer.swift`, replace:
+
+```swift
     /// A drag that began on empty canvas: ⇧ held as it starts box-selects; otherwise it pans.
     private func emptyCanvasDrag(at screen: Vector2, modifiers: CanvasModifiers) -> CanvasInteraction {
         if modifiers.contains(.shift) {
@@ -1147,17 +1654,15 @@ with:
     }
 ```
 
-with (Gate G answer (a); answer (b) revises this first):
+with:
 
 ```swift
-    /// A drag that began on empty canvas. A plain one pans (spec §6.2); with ⇧ or ⌘ held as it crosses
-    /// `dragThreshold` it box-selects, in the mode those modifiers ask for (⇧ adds, ⌘ toggles).
+    /// A drag that began on empty canvas box-selects (the user's Gate G answer (b), 2026-10-09), in the mode the
+    /// modifiers held as it crosses `dragThreshold` ask for: none replaces the selection, ⇧ adds, ⌘ toggles. It never
+    /// pans: the middle button (`middleDragged`) and two-finger scroll do.
     private func emptyCanvasDrag(at screen: Vector2, modifiers: CanvasModifiers) -> CanvasInteraction {
-        if modifiers.contains(.shift) || modifiers.contains(.command) {
-            let point = transform.toCanvas(screen)
-            return .boxSelecting(start: point, current: point, base: canvasSelection, mode: SelectionMode(modifiers))
-        }
-        return .panning(startOffset: transform.offset)
+        let point = transform.toCanvas(screen)
+        return .boxSelecting(start: point, current: point, base: canvasSelection, mode: SelectionMode(modifiers))
     }
 ```
 
@@ -1187,14 +1692,167 @@ with:
 
 ```swift
     /// The box from `start` to `current` (display canvas points) combined with the selection the drag began with, as
-    /// `mode` says (⇧ adds, ⌘ toggles). It starts from `base` at every step, so a node the box covers and then leaves
-    /// again is as it was.
+    /// `mode` says (none replaces, ⇧ adds, ⌘ toggles). It starts from `base` at every step, so a node the box covers
+    /// and then leaves again is as it was.
     private func applyBox(from start: Vector2, to current: Vector2, base: CanvasSelection, mode: SelectionMode) {
         setInteraction(.boxSelecting(start: start, current: current, base: base, mode: mode))
         canvasSelection = base.applying(items(intersecting: CanvasRect(corner: start, current)), mode: mode)
     }
 
     private func finishDuplicate(start: SelectionPositions, delta: Vector2) {
+```
+
+**Modify** `Sources/CreatorEditor/EditorModel+Cursor.swift`, replace:
+
+```swift
+    /// The pointer's shape over the canvas, or `nil` for the arrow: a closed hand while a drag pans it. MetalUI keeps
+    /// a pressed element's style while the pointer leaves it (`CI-H` item 6), so a fast pan keeps the hand. Moving
+```
+
+with:
+
+```swift
+    /// The pointer's shape over the canvas, or `nil` for the arrow: a closed hand while a middle-button drag pans it.
+    /// MetalUI keeps a pressed element's style while the pointer leaves it, a middle button's drag included (`CI-H`
+    /// item 6), so a fast pan keeps the hand. Moving
+```
+
+**Modify** `Sources/CreatorEditor/GraphPanelInput.swift`, replace:
+
+```swift
+/// - `canvasGesture()`: one `DragGesture(minimumDistance: 0)` carries clicks, pans, moves, box selection and
+///   wiring. Its values give the press point (`startLocation`) and the modifiers held at each change
+```
+
+with:
+
+```swift
+/// - `canvasGesture()`: one `DragGesture(minimumDistance: 0)` carries clicks, moves, box selection and
+///   wiring. Its values give the press point (`startLocation`) and the modifiers held at each change
+```
+
+**Modify** `Sources/CreatorEditor/GraphPanelInput.swift`, replace:
+
+```swift
+/// - `scrolled(_:)`, from the canvas's `.onScrollWheel`: two-finger scroll and the wheel pan, ⌘-scroll zooms
+```
+
+with:
+
+```swift
+/// - `middlePanGesture()`: a `DragGesture(minimumDistance: 0, button: .middle)` pans (`EditorModel.middleDragged`),
+///   in the middle button's own arena (MetalUI `CI-F`), as the viewport's middle drag does (VC3). A plain drag
+///   box-selects (the user's Gate G answer (b), 2026-10-09), so this and two-finger scroll are the canvas's pans.
+/// - `scrolled(_:)`, from the canvas's `.onScrollWheel`: two-finger scroll and the wheel pan, ⌘-scroll zooms
+```
+
+**Modify** `Sources/CreatorEditor/GraphPanelInput.swift`, replace:
+
+```swift
+/// - The cursor is the model's (`EditorModel.canvasCursor`, a closed hand while a drag pans); `GraphCanvas` sets it.
+```
+
+with:
+
+```swift
+/// - The cursor is the model's (`EditorModel.canvasCursor`, a closed hand while a middle drag pans); `GraphCanvas`
+///   sets it.
+```
+
+**Modify** `Sources/CreatorEditor/GraphPanelInput.swift`, replace:
+
+```swift
+    /// The canvas's one press-and-drag gesture: clicks, pans, moves, box selection and wiring. A zero minimum
+```
+
+with:
+
+```swift
+    /// The canvas's one press-and-drag gesture: clicks, moves, box selection and wiring. A zero minimum
+```
+
+**Modify** `Sources/CreatorEditor/GraphPanelInput.swift`, replace:
+
+```swift
+    /// A scroll over the canvas, from its `.onScrollWheel`: the delta, the pointer in canvas-local points, the
+```
+
+with:
+
+```swift
+    /// The canvas's middle-button drag: pans. A zero minimum distance, so the closed hand shows from the press (a
+    /// middle press never clicks). Text focus is left alone: a pan isn't a click on the canvas.
+    public func middlePanGesture() -> DragGesture {
+        DragGesture(minimumDistance: Pixels(0), button: .middle)
+            .onChanged { [self] value in middleChanged(value) }
+            .onEnded { [self] value in middleEnded(value) }
+    }
+
+    /// The middle drag moved (its first change is the press).
+    func middleChanged(_ value: DragGesture.Value) {
+        model.middleDragged(from: Self.vector(value.startLocation), to: Self.vector(value.location))
+    }
+
+    /// The middle button was released.
+    func middleEnded(_ value: DragGesture.Value) {
+        model.middleReleased(from: Self.vector(value.startLocation), at: Self.vector(value.location))
+    }
+
+    /// A scroll over the canvas, from its `.onScrollWheel`: the delta, the pointer in canvas-local points, the
+```
+
+**Modify** `Sources/CreatorEditor/GraphCanvas.swift`, replace:
+
+```swift
+/// The graph canvas: the layers under the zoom and pan transform, one press-and-drag gesture
+/// for everything (hit testing is the model's), a pinch, the scroll wheel, the cursor, and pointer
+```
+
+with:
+
+```swift
+/// The graph canvas: the layers under the zoom and pan transform, one press-and-drag gesture
+/// for everything (hit testing is the model's), a middle-button drag that pans, a pinch, the scroll wheel, the
+/// cursor, and pointer
+```
+
+**Modify** `Sources/CreatorEditor/GraphCanvas.swift`, replace:
+
+```swift
+        .gesture(input.canvasGesture())
+        .gesture(input.pinchGesture())
+```
+
+with:
+
+```swift
+        .gesture(input.canvasGesture())
+        .gesture(input.middlePanGesture())
+        .gesture(input.pinchGesture())
+```
+
+**Modify** `Sources/CreatorEditor/CanvasCursor.swift`, replace:
+
+```swift
+    /// A drag pans the canvas: a closed hand.
+```
+
+with:
+
+```swift
+    /// A middle-button drag pans the canvas: a closed hand.
+```
+
+**Modify** `Sources/CreatorEditor/EditorModel+Pinch.swift`, replace:
+
+```swift
+    /// way that changes at another centre, or finds the canvas moved since its last change (a drag pan, a scroll,
+```
+
+with:
+
+```swift
+    /// way that changes at another centre, or finds the canvas moved since its last change (a middle-button pan, a scroll,
 ```
 
 **Modify** `Sources/CreatorEditor/CanvasLayers.swift`, replace:
@@ -1212,19 +1870,26 @@ with:
 - [ ] **Step 4: Run the tests to see them pass**
 
 Run: `swift test --filter CreatorEditorTests`
-Expected: every editor test passes, among them the 5 new `BoxSelectModeTests`, `PointerTests.shiftDragOnEmptyCanvasBoxSelectsAddingToTheSelection`, `PressModifierTests` (a plain drag still pans; a modifier pressed mid-pan doesn't box-select) and `CanvasCursorTests` (box selection keeps the arrow).
+Expected: every editor test passes, among them the 6 new `BoxSelectModeTests`, the 6 new `MiddlePanTests`, `GraphPanelInputTests.aMiddleDragThroughItsGesturePansAndKeepsTextFocus`, the new `PointerTests.plainDragOnEmptyCanvasBoxSelectsAndNeverPans`, the renamed `PointerTests.middleDragOnTheCanvasPans`, `ScrollDuringDragTests.aScrollDuringABoxIsIgnored`, `PointerTests.shiftDragOnEmptyCanvasBoxSelectsAddingToTheSelection`, `PressModifierTests` (a plain box replaces; a modifier pressed mid-drag doesn't change its mode), `CanvasCursorTests` (a middle drag shows the closed hand; a plain box keeps the arrow) `CanvasPinchTests.aPinchThatLostItsEndDoesntUndoWhatMovedTheCanvasSince` (its pan is now a middle drag) and `CanvasScrollTests` (two-finger scroll still pans, untouched).
 
 - [ ] **Step 5: Run the full check**
 
-Expected: no new warning, no lint violation, `exit 0`, `0`, `11`, **1412** tests (master + 22).
+Expected: no new warning, no lint violation, `exit 0`, `0`, `11`, **1422** tests (master + 32).
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add Sources/CreatorEditor/CanvasInteraction.swift Sources/CreatorEditor/EditorModel+Pointer.swift \
-  Sources/CreatorEditor/CanvasLayers.swift Tests/CreatorEditorTests/BoxSelectModeTests.swift \
-  Tests/CreatorEditorTests/PointerTests.swift
-git commit -m "feat(editor): box select adds with ⇧ and toggles with ⌘, its mode fixed as the drag starts"
+git add Sources/CreatorEditor/CanvasInteraction.swift Sources/CreatorEditor/EditorModel.swift \
+  Sources/CreatorEditor/EditorModel+MiddlePan.swift Sources/CreatorEditor/EditorModel+Pointer.swift \
+  Sources/CreatorEditor/EditorModel+Cursor.swift Sources/CreatorEditor/CanvasCursor.swift \
+  Sources/CreatorEditor/EditorModel+Pinch.swift Sources/CreatorEditor/GraphPanelInput.swift \
+  Sources/CreatorEditor/GraphCanvas.swift Sources/CreatorEditor/CanvasLayers.swift \
+  Tests/CreatorEditorTests/BoxSelectModeTests.swift Tests/CreatorEditorTests/MiddlePanTests.swift \
+  Tests/CreatorEditorTests/Support/PointerTestSupport.swift Tests/CreatorEditorTests/PointerTests.swift \
+  Tests/CreatorEditorTests/PressModifierTests.swift Tests/CreatorEditorTests/CanvasCursorTests.swift \
+  Tests/CreatorEditorTests/ScrollDuringDragTests.swift Tests/CreatorEditorTests/GraphPanelInputTests.swift \
+  Tests/CreatorEditorTests/CanvasPinchTests.swift
+git commit -m "feat(editor): a drag on empty canvas box-selects (none replaces, ⇧ adds, ⌘ toggles); the middle button pans"
 ```
 
 ### Task 4: ⌘A and Esc
@@ -1326,17 +1991,18 @@ struct SelectionKeyTests {
         #expect(editor.selection == [a.id])
     }
 
+    /// A plain box replaces the selection as it grows (Task 3); Esc puts back the one it began with.
     @Test func escapePutsBackTheSelectionABoxBeganWith() {
         let editor = makeEditor([a, b])
         editor.selection = [a.id]
         let start = Vector2(380, -20)
-        editor.pointerDragged(from: start, to: start, modifiers: .shift)
-        editor.pointerDragged(from: start, to: Vector2(420, 20), modifiers: .shift)
-        #expect(editor.selection == [a.id, b.id])
+        editor.pointerDragged(from: start, to: start)
+        editor.pointerDragged(from: start, to: Vector2(420, 20))
+        #expect(editor.selection == [b.id])
         #expect(editor.perform(.cancel))
         #expect(editor.selection == [a.id] && editor.interaction == nil)
-        editor.pointerDragged(from: start, to: Vector2(430, 30), modifiers: .shift)
-        editor.pointerReleased(from: start, at: Vector2(430, 30), modifiers: .shift)
+        editor.pointerDragged(from: start, to: Vector2(430, 30))
+        editor.pointerReleased(from: start, at: Vector2(430, 30))
         #expect(editor.selection == [a.id])
     }
 
@@ -1374,14 +2040,15 @@ struct SelectionKeyTests {
         #expect(editor.graph.nodes[a.id]?.position == .zero && !editor.document.canUndo)
     }
 
+    /// A pan (the middle button's, Task 3) changes no document; Esc is claimed and the pan goes on.
     @Test func escapeDuringAPanIsClaimedAndThePanGoesOn() {
         let editor = makeEditor([a])
         editor.selection = [a.id]
-        editor.pointerDragged(from: Vector2(900, 600), to: Vector2(900, 600))
-        editor.pointerDragged(from: Vector2(900, 600), to: Vector2(920, 600))
+        editor.middleDragged(from: Vector2(900, 600), to: Vector2(900, 600))
+        editor.middleDragged(from: Vector2(900, 600), to: Vector2(920, 600))
         #expect(editor.perform(.cancel))
-        editor.pointerDragged(from: Vector2(900, 600), to: Vector2(950, 600))
-        editor.pointerReleased(from: Vector2(900, 600), at: Vector2(950, 600))
+        editor.middleDragged(from: Vector2(900, 600), to: Vector2(950, 600))
+        editor.middleReleased(from: Vector2(900, 600), at: Vector2(950, 600))
         #expect(editor.transform.offset == Vector2(50, 0) && editor.selection == [a.id])
     }
 }
@@ -1514,8 +2181,9 @@ with:
 ```swift
     /// Esc during a drag (spec 2026-10-09 §3). A drag that hasn't changed the document is cancelled and the rest of
     /// its press ignored: a wire being dragged is dropped, ⌥-drag ghosts vanish, and a box puts back the selection it
-    /// began with. A pan or a move goes on (a move's steps are already in the document, for Undo), and the key is
-    /// still claimed so it can't clear the selection mid-drag. Returns false with no drag under way.
+    /// began with. A pan (the middle button's) or a move goes on (a move's steps are already in the document, for
+    /// Undo), and the key is still claimed so it can't clear the selection mid-drag. Returns false with no drag under
+    /// way.
     func cancelInteraction() -> Bool {
         switch interaction {
         case nil: return false
@@ -1619,7 +2287,7 @@ Expected: every editor test passes, among them the 10 new `SelectionKeyTests` an
 
 - [ ] **Step 5: Run the full check**
 
-Expected: no new warning, no lint violation, `exit 0`, `0`, `11`, **1422** tests (master + 32).
+Expected: no new warning, no lint violation, `exit 0`, `0`, `11`, **1432** tests (master + 42).
 
 - [ ] **Step 6: Commit**
 
@@ -1947,7 +2615,7 @@ Expected: every editor test passes, among them the 9 new `NudgeTests` and `KeyCo
 
 - [ ] **Step 5: Run the full check**
 
-Expected: no new warning, no lint violation, `exit 0`, `0`, `11`, **1431** tests (master + 41).
+Expected: no new warning, no lint violation, `exit 0`, `0`, `11`, **1441** tests (master + 51).
 
 - [ ] **Step 6: Commit**
 
@@ -2067,11 +2735,11 @@ struct FramingTests {
     @Test func fDuringADragIsClaimedAndChangesNothing() {
         let editor = makeEditor([a, b])
         editor.pointerLocation = Vector2(10, 10)
-        editor.pointerDragged(from: Vector2(900, 600), to: Vector2(900, 600))
-        editor.pointerDragged(from: Vector2(900, 600), to: Vector2(920, 600))
+        editor.middleDragged(from: Vector2(900, 600), to: Vector2(900, 600))
+        editor.middleDragged(from: Vector2(900, 600), to: Vector2(920, 600))
         #expect(editor.perform(.frameSelection))
         #expect(editor.transform == CanvasTransform(offset: Vector2(20, 0), zoom: 1))
-        editor.pointerReleased(from: Vector2(900, 600), at: Vector2(920, 600))
+        editor.middleReleased(from: Vector2(900, 600), at: Vector2(920, 600))
     }
 
     @Test func fFramesTheLeftDocksTransposedLayout() {
@@ -2287,7 +2955,7 @@ Expected: every test passes, among them the 9 new `FramingTests` and `AppInputTe
 
 - [ ] **Step 5: Run the full check**
 
-Expected: no new warning, no lint violation, `exit 0`, `0`, `11`, **1441** tests (master + 51).
+Expected: no new warning, no lint violation, `exit 0`, `0`, `11`, **1451** tests (master + 61).
 
 - [ ] **Step 6: Commit**
 
@@ -2303,13 +2971,46 @@ git commit -m "feat(editor): F frames the selection in the graph canvas when the
 ### Task 7: Docs: human checks MS, CLAUDE.md, roadmap, spec errata
 
 **Files:**
-- Modify: `docs/verification/human-checks.md` (GI-8's F clause; append group MS), `CLAUDE.md` (project state, the `CreatorEditor` bullet, the app-shell input sentence), `docs/superpowers/roadmap.md` (a row), `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` (append Errata (A: multi-select))
+- Modify: `docs/verification/human-checks.md` (GI-6's and M5-6's pan, GI-8's F clause; append group MS), `CLAUDE.md` (project state, the `CreatorEditor` bullet, the canvas-gesture sentence, the app-shell input sentence), `docs/superpowers/roadmap.md` (a row), `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` (append Errata (A: multi-select))
 
 **Interfaces:** none (docs only).
 
-**Gate:** run only after Gate G is answered. The MS-3 check and the errata's first bullet below are answer (a)'s text; for (b), use the "(b)" text given after each, and amend GI-5, GI-6 and M5-6 as Gate G says. The errata record the user's answer as theirs (with its date), never as this plan's interpretation.
+The user's Gate G answer (b), 2026-10-09, is what MS-3, GI-6, M5-6, the CLAUDE.md canvas sentence and the errata's first bullet record, as the user's decision with its date. GI-5 needs no change (its ⇧-drag still box-selects).
 
 - [ ] **Step 1: Human checks**
+
+**Modify** `docs/verification/human-checks.md`, replace:
+
+```markdown
+- [ ] **GI-6 Cursors.** Drag empty canvas: a closed hand from the moment it pans until the release, also when the
+  pointer leaves the panel mid-drag; a click shows none. Moving nodes, dragging a wire and box selection keep the
+  arrow.
+```
+
+with:
+
+```markdown
+- [ ] **GI-6 Cursors.** Middle-drag the canvas: a closed hand from the press until the release, also when the pointer
+  leaves the panel mid-drag (since multi-select a plain drag on empty canvas box-selects, MS-3); a click shows none.
+  Moving nodes, dragging a wire and box selection keep the arrow.
+```
+
+**Modify** `docs/verification/human-checks.md`, replace:
+
+```markdown
+- [ ] **M5-6 Pan, zoom, hit testing.** Drag empty canvas: it pans. Press + three times with the pointer over a node:
+  the node stays under the pointer. Click a socket's edge at that zoom and drag: a cyan wire follows the pointer.
+  Pinned: `HitTestTests`. **Observed:**
+```
+
+with:
+
+```markdown
+- [ ] **M5-6 Pan, zoom, hit testing.** Middle-drag the canvas (or scroll with two fingers): it pans (since
+  multi-select a plain drag on empty canvas box-selects, MS-3). Press + three times with the pointer over a node:
+  the node stays under the pointer. Click a socket's edge at that zoom and drag: a cyan wire follows the pointer.
+  Pinned: `HitTestTests`, `MiddlePanTests`. **Observed:**
+```
 
 **Modify** `docs/verification/human-checks.md`, replace:
 
@@ -2346,10 +3047,14 @@ at the bottom too.
   one of the three: three ghosts follow and three copies land, selected, as one undo step; ⌥-click without moving:
   nothing is copied. Pinned: `commandDragMovesTheSelectionAndKeepsIt`, `aModifiedDragOnAnUnselectedNodeAddsItAndMovesEverything`,
   `optionDragCopiesTheWholeSelectionOnlyOnceItMoves`. **Observed:**
-- [ ] **MS-3 Box select.** A plain drag on empty canvas still pans. ⇧-drag a box over two unselected nodes: they join
-  the selection. ⌘-drag a box over one selected and one unselected node: they swap. Start a ⇧-box and let go of ⇧
-  just before the button: the box still adds (nothing selected before is lost). Grow a ⌘-box over a node, then shrink
-  it away: the node is as it was. Pinned: `BoxSelectModeTests`. **Observed:**
+- [ ] **MS-3 Box select and pan** (the user's Gate G answer (b), 2026-10-09). Select a node, then drag on empty
+  canvas over two others: a box selects exactly those two (the first is dropped) and the canvas doesn't move; a plain
+  drag over nothing clears the selection. ⇧-drag a box over two unselected nodes: they join the selection. ⌘-drag a
+  box over one selected and one unselected node: they swap. Start a ⇧-box and let go of ⇧ just before the button: the
+  box still adds (nothing selected before is lost). Grow a ⌘-box over a node, then shrink it away: the node is as it
+  was. Middle-drag from empty canvas, then from a node: the canvas pans with a closed hand, nothing is selected or
+  moved, and the viewport behind the panel doesn't move; two-finger scroll pans too. Hold the middle button, click a
+  node, keep moving: the pan stops and doesn't jump. Pinned: `BoxSelectModeTests`, `MiddlePanTests`. **Observed:**
 - [ ] **MS-4 ⌘A and Esc.** Click the canvas, ⌘A: every node is selected. Click into an inspector number field, ⌘A:
   the field's text is selected and the canvas selection doesn't change; the same in the open palette's search field.
   Esc with the palette open closes it and keeps the selection; Esc again clears the selection. Start dragging a wire
@@ -2373,9 +3078,6 @@ at the bottom too.
   where all three overlap selects the topmost drawn one. Docked at the bottom too. Pinned:
   `selectedNodesDrawLastAndAreHitFirst`. **Observed:**
 ```
-
-(Answer (b): MS-3 opens "A plain drag on empty canvas draws a box that replaces the selection; a middle-button drag
-and two-finger scroll pan." and goes on as above.)
 
 - [ ] **Step 2: CLAUDE.md**
 
@@ -2414,6 +3116,23 @@ with:
 **Modify** `CLAUDE.md`, replace:
 
 ```markdown
+has none, gap GI-a), `.onScrollWheel` (`scrolled(by:at:modifiers:phase:)`: pan, ⌘ zooms) and `MagnifyGesture`
+(`pinchChanged`); the cursor is `EditorModel.canvasCursor`. Its key, focus and palette stopgaps live only in
+```
+
+with:
+
+```markdown
+has none, gap GI-a; a drag on empty canvas box-selects and never pans), a `DragGesture(minimumDistance: 0, button:
+.middle)` (`middlePanGesture()` → `middleDragged`: pans, as the viewport's middle drag does; the user's Gate G answer
+(b), 2026-10-09), `.onScrollWheel` (`scrolled(by:at:modifiers:phase:)`: pan, ⌘ zooms) and `MagnifyGesture`
+(`pinchChanged`); the cursor is `EditorModel.canvasCursor` (a closed hand while a middle drag pans). Its key, focus
+and palette stopgaps live only in
+```
+
+**Modify** `CLAUDE.md`, replace:
+
+```markdown
 and the inspector contribute `Panel`), and over the graph canvas + and − are declined so the graph's zoom keys work. The
 ```
 
@@ -2436,7 +3155,7 @@ with:
 
 ```markdown
 | — | Viewport: frame in the model area — first framing, F and Look At centre the part in `ViewportModel.modelArea`, not the whole view (spec §6.3) | ✅ merged 2026-10-09 (human checks VC pending; the arrows, cube and pointer-less key zoom keep it there) | carry-over From M6 |
-| — | Multi-select polish (A): ⌘-click toggles, box select modes, ⌘A, Esc, arrow nudge, F frames the graph's selection, drags and ⌥-drags of the whole selection, on a `CanvasSelection` comments join (spec `2026-10-09-selection-groups-comments-design.md` §3, Errata (A: multi-select); plan `2026-10-09-multi-select.md`) | ✅ code done; human checks MS pending | Unblocks Comments (B) and Groups (C1, C2) |
+| — | Multi-select polish (A): ⌘-click toggles, box select (a plain drag replaces, ⇧ adds, ⌘ toggles; the middle button pans), ⌘A, Esc, arrow nudge, F frames the graph's selection, drags and ⌥-drags of the whole selection, on a `CanvasSelection` comments join (spec `2026-10-09-selection-groups-comments-design.md` §3, Errata (A: multi-select); plan `2026-10-09-multi-select.md`) | ✅ code done; human checks MS pending | Unblocks Comments (B) and Groups (C1, C2) |
 ```
 
 - [ ] **Step 4: Spec errata**
@@ -2449,15 +3168,14 @@ with:
 
 Plan `2026-10-09-multi-select.md`.
 
-- Box select, as the user decided on <date> (Gate G, answer (a)): §3's "Existing: … a drag on empty canvas
-  box-selects" is a drag *with ⇧*, and a plain drag pans (parent §6.2), as before. A box starts on a drag on empty
-  canvas with ⇧ or ⌘ held; the modifiers held when the drag starts (crosses the drag threshold, as ⌥-duplicate's are)
-  fix its mode for the whole drag: ⇧ adds, ⌘ toggles each node it covers (⌘ wins over ⇧). It is recomputed from the
-  selection it began with at every step. "No modifier replaces" has no box gesture; to replace, click empty canvas
-  first. Pinned: `BoxSelectModeTests`.
-  (Answer (b) instead: "Box select, as the user decided on <date> (Gate G, answer (b)): a drag on empty canvas
-  box-selects, replacing the selection; ⇧ adds and ⌘ toggles, the modifiers held when the drag starts fixing the mode
-  for the whole drag. The parent §6.2's plain-drag pan moves to the middle button; two-finger scroll still pans.")
+- Box select, as the user decided on 2026-10-09 (Gate G, answer (b)): §3 holds, and the parent §6.2's "A plain drag on
+  empty canvas pans" no longer does. Every drag that starts on empty canvas box-selects; the modifiers held when the
+  drag starts (crosses the drag threshold, as ⌥-duplicate's are) fix its mode for the whole drag: none replaces the
+  selection, ⇧ adds, ⌘ toggles each node it covers (⌘ wins over ⇧). It is recomputed from the selection it began
+  with at every step. Panning is two-finger scroll (as before) and the middle mouse button (the user: "pan with two
+  fingers or the middle mouse button"), as in the viewport: a middle drag pans wherever it starts, nodes included,
+  and never selects or moves; a primary press ends it. Space-drag isn't a pan (Space opens the palette). Pinned:
+  `BoxSelectModeTests`, `MiddlePanTests`.
 - §3's "⇧ keeps adding": a ⇧-click on a selected node now keeps it (before, it removed it); ⌘-click toggles; ⌘ wins
   when both are held. A drag on an unselected node with ⇧ or ⌘ adds it, then moves the whole selection.
 - ⌘A, the arrows and F act only while the panel is visible (with it hidden, ⌘A then Delete would erase nodes no one
@@ -2483,7 +3201,7 @@ Plan `2026-10-09-multi-select.md`.
 
 - [ ] **Step 5: Run the full check**
 
-Expected: no new warning, no lint violation, `exit 0`, `0`, `11`, **1441** tests (master + 51; docs only).
+Expected: no new warning, no lint violation, `exit 0`, `0`, `11`, **1451** tests (master + 61; docs only).
 
 - [ ] **Step 6: Commit**
 
@@ -2497,8 +3215,8 @@ git commit -m "docs: multi-select errata, human checks MS, CLAUDE.md and roadmap
 
 ## Self-review
 
-- **Spec §3 coverage:** ⌘-click toggle, ⇧ adds, no modifier replaces, press-without-move collapse (⌘: toggle), ⌘-drag moves — Task 2. Modifiers from the press's drag value — Task 2 (a click: `SelectionMode(press.modifiers)`; a drag: the modifiers held as it crosses `dragThreshold`; `GraphPanelInput` unchanged). Box modes — Gate G, then Task 3 (Key decision 4: ⇧ adds, ⌘ toggles, the mode fixed as the drag starts; whether a plain drag box-selects, replacing, is the user's answer at Gate G, asked before Task 3 and the errata). "and comments" in box select and ⌘A — the `items(intersecting:)`/`allItems` hooks B extends. ⌘A on the current level, focused field keeps it — Task 4 (`onInput` fallback; MS-4). Esc after palette/wire/pick — Task 4 (pick's Esc is a button run first). Arrows 1/10 pt, one undo step per key-down run — Task 5. F frames the selection over the canvas, viewport's F unchanged — Task 6. Mixed drags, ⌥-drag duplicates the whole selection deferred until movement — Task 2 (`positions(of: canvasSelection)`; `dragThreshold`). Selection is view state — no `GraphCommand`/`ViewState` change anywhere. Selected items draw last and hit-tested in the same order — Task 1 pin. Human checks for A — Task 7 (group MS; GI-8 amended). Roadmap row "Multi-select polish (A)" — Task 7.
+- **Spec §3 coverage:** ⌘-click toggle, ⇧ adds, no modifier replaces, press-without-move collapse (⌘: toggle), ⌘-drag moves — Task 2. Modifiers from the press's drag value — Task 2 (a click: `SelectionMode(press.modifiers)`; a drag: the modifiers held as it crosses `dragThreshold`; `GraphPanelInput` unchanged). Box modes — Task 3, as the user decided at Gate G (2026-10-09, answer (b); Key decision 4: every drag on empty canvas box-selects, none replaces, ⇧ adds, ⌘ toggles, the mode fixed as the drag starts; the pan moves to two-finger scroll and the middle button). "and comments" in box select and ⌘A — the `items(intersecting:)`/`allItems` hooks B extends. ⌘A on the current level, focused field keeps it — Task 4 (`onInput` fallback; MS-4). Esc after palette/wire/pick — Task 4 (pick's Esc is a button run first). Arrows 1/10 pt, one undo step per key-down run — Task 5. F frames the selection over the canvas, viewport's F unchanged — Task 6. Mixed drags, ⌥-drag duplicates the whole selection deferred until movement — Task 2 (`positions(of: canvasSelection)`; `dragThreshold`). Selection is view state — no `GraphCommand`/`ViewState` change anywhere. Selected items draw last and hit-tested in the same order — Task 1 pin. Human checks for A — Task 7 (group MS; GI-8 amended). Roadmap row "Multi-select polish (A)" — Task 7.
 - **Placeholders:** none; every step has its code or command.
 - **Type consistency:** `CanvasSelection(nodes:)`, `SelectionPositions(nodes:)`, `.items`, `SelectionMode(_:)`, `select(_:mode:)`, `positions(of:)`, `moveCommands(from:by:)`, `bounds(of:)`, `.boxSelecting(start:current:base:mode:)`, `.nudge(_:isRepeat:)`, `nudgeSelection(by:isRepeat:)`, `frameSelection()`, `framingPadding`, `CanvasTransform.framing(_:in:padding:)` are used with the same names and labels in every task.
-- **Review Focus:** each of the six lines has its test in the owning task (named above).
-- **Verified** (2026-10-09, after review): every code block applied task by task, by script, to a scratch copy of master `2e64c96` beside a `MetalUI` symlink (`2155f1e`), Task 3 as answer (a). After each task `swift build --build-tests` printed no new warning, `swiftlint lint --strict` no violation, and `swift test` exited 0 with no "recorded an issue"/"failed after" line and 11 "Test run with" lines: 1399, 1407, 1412, 1422, 1431, 1441, 1441 tests (master 1390 + 9, 17, 22, 32, 41, 51, 51). The three during-a-drag tests fail without `performSelectionCommand`'s `interaction == nil` guard (checked by removing it).
+- **Review Focus:** each of the seven lines has its test in the owning task (named above).
+- **Verified** (2026-10-09, after the Gate G revision): every code block applied task by task, by script, to a scratch copy (`git archive`) of branch `multi-select` at `f7f856e` (master `156a0b2` merged in, 1390 tests measured there) beside a `MetalUI` archive of `2155f1e`, Task 3 as answer (b). After each task `swift build --build-tests` printed no new warning, `swiftlint lint --strict` no violation, and `swift test` exited 0 with no "recorded an issue"/"failed after" line and 11 "Test run with" lines: 1399, 1407, 1422, 1432, 1441, 1451, 1451 tests (master 1390 + 9, 17, 32, 42, 51, 61, 61). `aMiddleDragDuringAPrimaryPressIsIgnored` and `aPrimaryPressEndsAMiddlePan` fail without `middleDragged`'s `currentPress == nil` guard and `pointerPressed`'s end of the middle pan (checked by removing them). Earlier (answer (a), master `2e64c96`): the three during-a-drag tests fail without `performSelectionCommand`'s `interaction == nil` guard (checked by removing it).
