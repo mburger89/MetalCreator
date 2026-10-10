@@ -11,7 +11,7 @@ extension EditorModel {
         case .deleteSelection:
             guard !canvasSelection.isEmpty else { return false }
             deleteSelection()
-        case .selectAll:
+        case .selectAll, .nudge:
             return performSelectionCommand(command)
         case .copy, .paste, .duplicate, .zoomIn, .zoomOut, .undo, .redo:
             performEdit(command)
@@ -30,6 +30,7 @@ extension EditorModel {
         guard interaction == nil else { return true }
         switch command {
         case .selectAll: selectAll()
+        case .nudge(let delta, let isRepeat): return nudgeSelection(by: delta, isRepeat: isRepeat)
         default: return false // `perform(_:)` routes every other command elsewhere.
         }
         return true

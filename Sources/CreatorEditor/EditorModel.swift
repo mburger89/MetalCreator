@@ -65,6 +65,8 @@ public final class EditorModel {
     @ObservationIgnored var requestSerial = 0
     /// What an inspector field holds but hasn't committed (`EditorModel+PendingEntry`).
     @ObservationIgnored var pendingEntry: PendingEntry?
+    /// The undo coalescing key of the arrow-key run under way (`EditorModel+Nudge`).
+    @ObservationIgnored var nudgeKey: String?
     /// Whether the trackpad scroll under way zooms (it began with ⌘ held) or pans; `nil` between scrolls
     /// (`EditorModel+Scroll`).
     @ObservationIgnored var scrollZooms: Bool?
