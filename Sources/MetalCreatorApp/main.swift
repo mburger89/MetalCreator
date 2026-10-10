@@ -26,6 +26,9 @@ func runApp(opening path: String?) throws {
     // `onTerminateRequest`, and this app has one window, so one handler and one reply route serve both.
     window.onCloseRequest = { model.closeRequested() }
     model.replyToCloseRequest = { window.replyToCloseRequest($0) }
+    // Title, edited dot and proxy icon (gap M6-a) follow the document. The task lives as long as the app.
+    let chrome = WindowChromeSync(model: model, chrome: window)
+    Task { await chrome.follow() }
     model.filePicker = WindowFilePicker(window: window)
     themeEditor.filePicker = model.filePicker
     if let path {
