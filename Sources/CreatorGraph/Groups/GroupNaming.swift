@@ -20,9 +20,14 @@ public enum GroupNaming {
         return SocketName("\(base.rawValue)\(number)")
     }
 
-    /// Socket names that can't be used: a group node keeps its settings (`NodeSetting`) beside its inputs' values.
+    /// The name of the "+" socket Group Input and Group Output draw to expose a new socket (groups spec §6): no
+    /// socket of a definition may have it.
+    public static let plusSocket: SocketName = "+"
+
+    /// Socket names that can't be used: a group node keeps its settings (`NodeSetting`) beside its inputs' values,
+    /// and the "+" socket is the canvas's.
     public static func isReserved(_ name: SocketName) -> Bool {
-        NodeSetting.all.contains(name) || name.rawValue.hasPrefix(NodeSetting.projectionPrefix)
+        name == plusSocket || NodeSetting.all.contains(name) || name.rawValue.hasPrefix(NodeSetting.projectionPrefix)
     }
 
     /// Why `sockets` can't be one side of a group, or `nil` if they can.

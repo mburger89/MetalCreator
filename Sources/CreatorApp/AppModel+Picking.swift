@@ -18,6 +18,8 @@ extension AppModel {
             // sketch's lists then): it changes nothing, so the stroke, selection and camera stay (Errata (S5b)).
             guard sketch == nil else { return }
             beginSketch(for: request.node)
+        case .editGroup, .makeUnique, .ungroup:
+            break  // The graph panel carries these out itself (`EditorModel.press`); they are never recorded.
         }
     }
 

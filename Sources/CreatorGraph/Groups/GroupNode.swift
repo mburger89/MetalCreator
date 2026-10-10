@@ -8,6 +8,13 @@ public enum GroupNode: NodeDefinition {
     public static let category = NodeCategory.feature
     public static let inputs: [SocketSpec] = []
     public static let outputs: [SocketSpec] = []
+    public static let inspector = [
+        InspectorSection(title: "Group", controls: [
+            .button(title: "Edit Group", action: .editGroup),
+            .button(title: "Make Unique", action: .makeUnique),
+            .button(title: "Ungroup", action: .ungroup),
+        ]),
+    ]
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         throw NodeError.invalidValue("A group is evaluated through its definition's graph.")
