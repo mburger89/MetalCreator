@@ -7,6 +7,8 @@ import MetalUI
 struct LibrarySectionHeader: Component {
     let category: NodeCategory
     let title: String
+    /// A group definition's accent colours the header in place of the category's (the "Groups" section).
+    var accent: AccentRole?
     @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
@@ -19,6 +21,6 @@ struct LibrarySectionHeader: Component {
         }
         .padding(Edges(top: Pixels(0), right: Pixels(6), bottom: Pixels(0), left: Pixels(6)))
         .frame(height: Pixels(18))
-        .background(palette.header(for: category).color, in: RoundedRectangle(cornerRadius: Pixels(4)))
+        .background((accent.map(palette.accent) ?? palette.header(for: category)).color, in: RoundedRectangle(cornerRadius: Pixels(4)))
     }
 }

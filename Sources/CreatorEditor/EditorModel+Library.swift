@@ -24,9 +24,44 @@ extension EditorModel {
         LibrarySection.grouping(PaletteSearch.entries(in: registry, matching: libraryQuery))
     }
 
-    /// A type's inputs → outputs, for the library's hover help; `nil` for an unregistered type.
+    /// The document's group definitions the library's search matches (the same search as the node types), by name,
+    /// with how often each is used.
+    public var libraryGroups: [GroupLibraryEntry] {
+        let needle = libraryQuery.trimmingCharacters(in: .whitespaces)
+        let content = document.content
+        return content.definitions.values
+            .filter { needle.isEmpty || $0.name.localizedStandardContains(needle) }
+            .sorted { ($0.name, $0.id) < ($1.name, $1.id) }
+            .map { GroupLibraryEntry(group: $0.id, name: $0.name, accent: $0.accent,
+                                     uses: GroupDependencies.instances(of: $0.id, in: content).count) }
+    }
+
+    /// The library's rows: the node types by category, then the "Groups" section.
+    public var libraryItems: [LibraryItem] {
+        LibraryItem.rows(librarySections, groups: libraryGroups)
+    }
+
+    /// A type's inputs → outputs, for the library's hover help (a group's too, by its key); `nil` for an
+    /// unregistered type or a definition that is gone.
     public func librarySummary(of typeID: String) -> String? {
-        registry[typeID].map(NodeTypeSummary.text)
+        if let id = GroupLibraryEntry.group(forKey: typeID) {
+            guard let definition = document.definitions[id] else { return nil }
+            let names = { (sockets: [SocketSpec], none: String) in
+                sockets.isEmpty ? none : sockets.map { InspectorLabel.text(for: $0.name).lowercased() }.joined(separator: ", ")
+            }
+            return "\(definition.name): \(names(definition.inputs, "no inputs")) → \(names(definition.outputs, "no outputs"))"
+        }
+        return registry[typeID].map(NodeTypeSummary.text)
+    }
+
+    /// A fresh node for a library key: a node of that type, or an instance of the group definition the key names
+    /// (`GroupLibraryEntry.key`); `nil` for a type that isn't registered or a definition that is gone.
+    func libraryNode(for key: String, at position: Vector2 = .zero) -> Node? {
+        if let id = GroupLibraryEntry.group(forKey: key) {
+            guard document.definitions[id] != nil else { return nil }
+            return registry.makeGroupNode(GroupNodes.groupTypeID, for: id, at: position)
+        }
+        return registry[key] == nil ? nil : registry.makeNode(key, at: position)
     }
 
     /// The visible canvas's size in points, from the host's placement (without one,
@@ -43,8 +78,7 @@ extension EditorModel {
     /// that isn't registered, or when the graph refuses the add).
     @discardableResult
     public func addFromLibrary(_ typeID: String) -> Bool {
-        guard registry[typeID] != nil else { return false }
-        var node = registry.makeNode(typeID)
+        guard var node = libraryNode(for: typeID) else { return false }
         let size = NodeLayout.size(shape(of: node))
         let centred = transform.toCanvas(visibleCanvasCentre) - size * 0.5
         let visible = CanvasRect(corner: transform.toCanvas(.zero), transform.toCanvas(visibleCanvasSize))
@@ -57,7 +91,7 @@ extension EditorModel {
     /// refuses the add.
     @discardableResult
     public func dropFromLibrary(_ typeID: String, atScreen screen: Vector2) -> Bool {
-        guard registry[typeID] != nil, screen.isFinite else { return false }
+        guard libraryNode(for: typeID) != nil, screen.isFinite else { return false }
         return addNode(typeID, atScreen: screen)
     }
 
@@ -82,7 +116,7 @@ extension EditorModel {
         let wasDragging = isLibraryDragging(typeID, from: start)
             || LibraryDrag(typeID: typeID, start: start, location: location).isDragging
         if libraryDrag != nil { libraryDrag = nil }
-        guard registry[typeID] != nil else { return false }
+        guard libraryNode(for: typeID) != nil else { return false }
         guard wasDragging else { return addFromLibrary(typeID) }
         guard let canvas = canvasFrameInWindow, canvas.contains(location) else { return false }
         return dropFromLibrary(typeID, atScreen: location - canvas.origin)
@@ -95,7 +129,13 @@ extension EditorModel {
 
     /// The type the drag ghost shows, while a library type is being dragged.
     public var libraryDragEntry: PaletteEntry? {
-        guard let drag = libraryDrag, let definition = registry[drag.typeID] else { return nil }
+        guard let drag = libraryDrag else { return nil }
+        if let id = GroupLibraryEntry.group(forKey: drag.typeID) {
+            return document.definitions[id].map {
+                GroupLibraryEntry(group: id, name: $0.name, accent: $0.accent, uses: 0).paletteEntry
+            }
+        }
+        guard let definition = registry[drag.typeID] else { return nil }
         return PaletteEntry(typeID: definition.typeID, displayName: definition.displayName, category: definition.category)
     }
 

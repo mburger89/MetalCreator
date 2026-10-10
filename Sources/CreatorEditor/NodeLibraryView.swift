@@ -13,7 +13,7 @@ struct NodeLibraryView: Component {
 
     var content: some ElementGroup {
         let palette = Palette(themes)
-        let rows = LibraryItem.rows(model.librarySections)
+        let rows = model.libraryItems
         return VStack(alignment: .leading, spacing: PaletteLayout.spacing.px) {
             Text("Nodes")
                 .font(.system(.caption, weight: .semibold))
