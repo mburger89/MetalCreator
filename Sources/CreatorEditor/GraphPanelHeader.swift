@@ -2,8 +2,8 @@ import CreatorGraph
 import CreatorStyle
 import MetalUI
 
-/// The graph panel's header: the title, Add (opens the palette), Library (shows or hides the node
-/// library), zoom buttons (beside pinch and ⌘-scroll on the canvas, and the +/− keys) and the dock
+/// The graph panel's header: the title as breadcrumbs (`BreadcrumbBar`), Add (opens the palette), Library (shows or
+/// hides the node library), zoom buttons (beside pinch and ⌘-scroll on the canvas, and the +/− keys) and the dock
 /// buttons (Left, Bottom, Hide).
 struct GraphPanelHeader: Component {
     let model: EditorModel
@@ -11,7 +11,7 @@ struct GraphPanelHeader: Component {
 
     var content: some ElementGroup {
         HStack(spacing: Pixels(6)) {
-            Text("Graph").font(.headline).foregroundStyle(Palette(themes).primaryText.color)
+            BreadcrumbBar(model: model)
             Spacer()
             Button("Add") { model.openPalette() }
                 .help("Add a node (Space)")
