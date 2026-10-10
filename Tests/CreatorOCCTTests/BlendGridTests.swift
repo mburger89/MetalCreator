@@ -20,6 +20,13 @@ struct BlendGridTests {
         #expect(BlendGrid.firstFailingTenths(for: .greatestFiniteMagnitude) == BlendGrid.mostTenths)
     }
 
+    /// `Int(.nan)` traps. Nothing but `blendSource` (which refuses such a size first) calls the search today.
+    @Test(arguments: [Double.nan, -Double.infinity, -1.0, 0.0])
+    func aSizeThatIsNotPositiveHasNothingToTry(_ size: Double) {
+        #expect(BlendGrid.firstFailingTenths(for: size) == 0)
+        #expect(!BlendGrid.triesSmallest(below: size))
+    }
+
     @Test func theSmallestSizeIsTriedOnlyBelowASizeAboveIt() {
         #expect(!BlendGrid.triesSmallest(below: 0.1))
         #expect(!BlendGrid.triesSmallest(below: 0.05))

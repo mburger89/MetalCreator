@@ -65,9 +65,10 @@ extension OCCTKernel {
         return try shape(of: solid)
     }
 
-    /// The largest size below `size`, on a 0.1 mm grid, whose blend OCCT builds and `check` accepts; nil when not
-    /// even 0.1 mm does. It bisects, assuming every size above one that fails fails too; the size it returns was built
-    /// and checked. Each try takes the OCCT lock on its own, and a cancelled evaluation stops between tries.
+    /// The largest size below `size`, on a 0.1 mm grid, whose blend OCCT builds and `check` accepts (asked a second
+    /// time when it can't judge); nil when not even 0.1 mm does. It bisects, assuming every size above one that fails
+    /// fails too; the size it returns was built and checked. Each try takes the OCCT lock on its own, and a cancelled
+    /// evaluation stops between tries.
     func largestValidBlend(of source: OCCTShape, edges: [EdgeID], below size: Double, chamfer: Bool,
                            check: (OCCTShape) -> OCCTValidity = { $0.validity }) throws -> Double? {
         var works = 0
@@ -78,7 +79,9 @@ extension OCCTKernel {
             let tenths = (works + fails) / 2
             let valid = Self.serialized { () -> Bool in
                 guard let built = try? source.blended(edges: edges, size: Double(tenths) / 10, chamfer: chamfer) else { return false }
-                return check(built.0) == .valid
+                // A checker that can't judge says nothing about the size: it gets one more look before it fails.
+                let verdict = check(built.0)
+                return (verdict == .unchecked ? check(built.0) : verdict) == .valid
             }
             if valid { works = tenths } else { fails = tenths }
         }

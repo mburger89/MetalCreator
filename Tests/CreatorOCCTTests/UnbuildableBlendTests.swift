@@ -46,8 +46,8 @@ struct UnbuildableBlendTests {
         await #expect(throws: CancellationError.self) { try await blend.value }
     }
 
-    /// The search starts from the size asked for, capped, so a size far beyond the part (here a metre-scale 1e9 mm) ends in
-    /// the same maximum after the same few tries.
+    /// The search starts from the size asked for, capped, so a size far beyond the part (here 1e9 mm, a thousand
+    /// kilometres) ends in the same maximum as one just beyond it.
     @Test func aRadiusFarBeyondThePartNamesTheSameMaximum() async throws {
         let kernel = OCCTKernel()
         let solid = try await box(kernel, 10, 20, 30)

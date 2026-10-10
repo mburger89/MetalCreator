@@ -76,6 +76,7 @@ struct BlendRefusalBench {
             try app.document.perform(.setInput(bracket.fillet.id, "radius", .number(3 + Double(step) * 0.01)))
             await app.settle()
             let b = clock.now
+            #expect(app.document.results[bracket.fillet.id]?.state.isSuccess == true, "the “works” sample must work (R3.x)")
             try app.document.perform(.setInput(bracket.fillet.id, "radius", .number(8 + Double(step) * 0.05)))
             await app.settle()
             let c = clock.now
