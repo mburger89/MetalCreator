@@ -9,6 +9,10 @@ public enum GraphKeyCommand: Equatable, Sendable {
     case copy
     case paste
     case duplicate
+    /// ⌘G: groups the selection (groups spec §5).
+    case group
+    /// ⇧⌘G: ungroups the selected group node.
+    case ungroup
     case zoomIn
     case zoomOut
     case undo

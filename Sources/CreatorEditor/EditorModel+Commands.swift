@@ -11,6 +11,8 @@ extension EditorModel {
         case .deleteSelection:
             guard !selection.isEmpty else { return false }
             deleteSelection()
+        case .group, .ungroup:
+            return performGroupKey(command)
         case .copy, .paste, .duplicate, .zoomIn, .zoomOut, .undo, .redo:
             performEdit(command)
         case .cancel, .paletteUp, .paletteDown, .paletteConfirm:
