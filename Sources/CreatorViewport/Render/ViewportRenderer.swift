@@ -4,7 +4,7 @@ import Metal
 
 /// Draws a `ViewportFrame` with Metal (spec §6.3).
 /// - The main pass draws, in order: the background gradient, opaque solids, the ground grid, B-rep edges,
-///   ghosts, handles, the view cube (its face names painted on from a label atlas) and the triad. It renders
+///   ghosts, guides' selected edges, handles, the view cube (its face names painted on from a label atlas) and the triad. It renders
 ///   into its own 4× MSAA colour and depth targets, resolved into the MetalView's target.
 /// - The ID pass writes `PickID`s into an `r32Uint` target (edges 6 points wide).
 /// GPU meshes are cached by mesh serial and dropped once a frame no longer shows them. Every colour comes from the
@@ -15,7 +15,7 @@ final class ViewportRenderer {
     let device: any MTLDevice
     let pipelines: ViewportPipelines
     private let placeholder: any MTLBuffer
-    private var meshes: [Int: GPUMesh] = [:]
+    private(set) var meshes: [Int: GPUMesh] = [:]
     private var multisample: (width: Int, height: Int, color: any MTLTexture, depth: any MTLTexture)?
     /// The handles' instances, kept until the handles change, so a frame of a continuous orbit allocates no
     /// buffers (spec §7.3's 60 fps). The view cube keeps its own.
@@ -67,6 +67,7 @@ final class ViewportRenderer {
         if frame.overlay.gridPlane == nil { drawGrid(frame, uniforms, encoder) }
         drawEdges(frame, uniforms, scale: pixelScale, encoder)
         drawSolids(frame, ghosts: true, uniforms, encoder)
+        drawGuides(frame, uniforms, scale: pixelScale, encoder)
         drawOverlay(frame, uniforms, scale: pixelScale, encoder)
         if let handles = handleInstances(for: frame, scale: pixelScale) {
             drawLines(handles.buffer, count: handles.count, uniforms, depth: pipelines.depthAlways, style: Self.plainLines,
@@ -97,7 +98,7 @@ final class ViewportRenderer {
         encoder.setRenderPipelineState(pipelines.idMesh)
         encoder.setDepthStencilState(pipelines.depthWrite)
         bind(uniforms, encoder)
-        for item in frame.items {
+        for item in frame.items where !item.isGuide {
             guard let gpu = meshes[item.meshSerial], let vertices = gpu.vertexBuffer,
                   let base = PickID.base(kind: PickID.faceKind, solid: item.solidIndex) else { continue }
             var draw = DrawUniforms(pickBase: base, ghost: 0, faceCount: UInt32(gpu.faceCount), padding: 0)
@@ -106,7 +107,7 @@ final class ViewportRenderer {
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: gpu.vertexCount)
         }
         let style = LineUniforms(widthOverride: 6, depthBias: Float(edgeDepthBias(frame)), padding0: 0, padding1: 0)
-        for item in frame.items {
+        for item in frame.items where !item.isGuide {
             let key = EdgeInstanceKey(solid: item.solidIndex, selected: [], selectedOnly: false, scale: 1)
             guard let edges = meshes[item.meshSerial]?.edges(key, palette: frame.palette, device: device) else { continue }
             drawLines(edges.buffer, count: edges.count, uniforms, depth: pipelines.depthTest, style: style,
@@ -120,7 +121,7 @@ final class ViewportRenderer {
     static let plainLines = LineUniforms(widthOverride: 0, depthBias: 0, padding0: 0, padding1: 0)
 
     /// How far (mm) edges move towards the camera so they win against the faces they bound.
-    private func edgeDepthBias(_ frame: ViewportFrame) -> Double { max(frame.pose.distance * 0.002, 1e-3) }
+    func edgeDepthBias(_ frame: ViewportFrame) -> Double { max(frame.pose.distance * 0.002, 1e-3) }
 
     private func bind(_ uniforms: FrameUniforms, _ encoder: any MTLRenderCommandEncoder) {
         var copy = uniforms
@@ -140,7 +141,7 @@ final class ViewportRenderer {
     /// colour pass, which passes only where its depth equals the prepass's (`lessEqual`, no write).
     private func drawSolids(_ frame: ViewportFrame, ghosts: Bool, _ uniforms: FrameUniforms,
                             _ encoder: any MTLRenderCommandEncoder) {
-        let items = frame.items.filter { $0.isGhost == ghosts }
+        let items = frame.items.filter { $0.isGhost == ghosts && !$0.isGuide }
         guard !items.isEmpty else { return }
         bind(uniforms, encoder)
         var shade = ShadeUniforms(frame.palette)
@@ -199,7 +200,7 @@ final class ViewportRenderer {
                            _ encoder: any MTLRenderCommandEncoder) {
         let style = LineUniforms(widthOverride: 0, depthBias: Float(edgeDepthBias(frame)), padding0: 0, padding1: 0)
         let selectedOnly = frame.shading == .shaded
-        for item in frame.items where !item.isGhost && (!selectedOnly || !item.selectedEdges.isEmpty) {
+        for item in frame.items where !item.isGhost && !item.isGuide && (!selectedOnly || !item.selectedEdges.isEmpty) {
             let key = EdgeInstanceKey(solid: item.solidIndex, selected: item.selectedEdges, selectedOnly: selectedOnly,
                                       scale: scale)
             guard let edges = meshes[item.meshSerial]?.edges(key, palette: frame.palette, device: device) else { continue }

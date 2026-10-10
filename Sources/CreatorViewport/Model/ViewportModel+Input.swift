@@ -157,7 +157,7 @@ extension ViewportModel {
         guard !viewSize.isEmpty, point.x.isFinite, point.y.isFinite else { return sceneBounds?.center }
         let ray = CameraMath.ray(through: point, pose, size: viewSize)
         let meshes = items.enumerated().compactMap { index, item in
-            cache.mesh(for: item.solid).map { (solidIndex: index, mesh: $0.mesh) }
+            item.isGuide ? nil : cache.mesh(for: item.solid).map { (solidIndex: index, mesh: $0.mesh) }
         }
         return MeshRaycast.nearest(ray, in: meshes)?.point ?? sceneBounds?.center
     }

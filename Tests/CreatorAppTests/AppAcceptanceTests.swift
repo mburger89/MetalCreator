@@ -33,7 +33,11 @@ struct AppAcceptanceTests {
         app.finishPick()
         await app.settle()
         expectAllOK(app, "Width 60, 4 holes")
-        #expect(app.viewport.items.count == 1 && app.viewport.items.first?.isGhost == false)
+        let parts = app.viewport.items.filter { !$0.isGuide }
+        #expect(parts.count == 1 && parts.first?.isGhost == false)
+        let guides = app.viewport.items.filter(\.isGuide)
+        #expect(guides.count == 1 && guides.first?.selectedEdges.isEmpty == false,
+                "the picked rule stays selected, so its edges on the pre-chamfer solid are drawn over the part")
         #expect(app.exportName == "Bracket")
 
         // Save and reopen: the picks survive the file and nothing warns.

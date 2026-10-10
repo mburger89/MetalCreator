@@ -18,5 +18,9 @@ func makeBracketBenchApp() async throws -> (app: AppModel, bracket: AppBracket) 
     app.finishPick()
     await app.settle()
     expectAllOK(app, "the benchmark's bracket")
+    // The pick leaves the Chamfer's rule selected, and a selected rule's edges are drawn over the part as a guide
+    // (Errata (M6)). The benchmarks measure the bracket alone, as spec §7.3 words it, as the performance record did.
+    app.editor.selection = []
+    await app.settle()
     return (app, bracket)
 }

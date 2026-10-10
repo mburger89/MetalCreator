@@ -10,4 +10,6 @@ struct FrameItem {
     var hoveredFace: FaceID?
     var selectedFaces: Set<FaceID>
     var selectedEdges: Set<EdgeID>
+    /// Only the selected edges are drawn, over everything else (`ViewportItem.isGuide`).
+    var isGuide = false
 }

@@ -26,13 +26,15 @@ enum GPUGeometry {
     /// Dracula) and twice as wide (spec §6.3). With `selectedOnly`, only selected edges are kept ("Shaded" mode
     /// still shows the rule's edges).
     static func edgeInstances(_ polylines: [EdgeID: [Vector3]], solid: Int, selected: Set<EdgeID>,
-                              selectedOnly: Bool, scale: Float, palette: ViewportPalette = .dracula) -> [LineInstance] {
+                              selectedOnly: Bool, scale: Float, palette: ViewportPalette = .dracula,
+                              hidden: Bool = false) -> [LineInstance] {
         var instances: [LineInstance] = []
+        let selectionColor = hidden ? palette.hiddenSelection : palette.selection
         for edge in polylines.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
             let isSelected = selected.contains(edge)
             guard isSelected || !selectedOnly, let points = polylines[edge], points.count >= 2 else { continue }
             let id = PickID.encode(.edge(solid: solid, edge)) ?? 0
-            let color = isSelected ? palette.selection : palette.edge
+            let color = isSelected ? selectionColor : palette.edge
             let width = (isSelected ? 2.5 : 1.25) * scale
             for (a, b) in zip(points, points.dropFirst()) {
                 instances.append(LineInstance(a: float3(a), b: float3(b), color: color, width: width, id: id))

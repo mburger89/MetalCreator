@@ -24,6 +24,8 @@ struct ViewportPipelines {
     let depthWrite: any MTLDepthStencilState
     /// The grid, edges and the ghosts' colour pass: test against the solids (less-or-equal) without writing.
     let depthTest: any MTLDepthStencilState
+    /// A guide's edges behind the part: pass only where something nearer already wrote depth, without writing.
+    let depthBehind: any MTLDepthStencilState
 
     init(device: any MTLDevice) throws {
         let library = try device.makeLibrary(source: ViewportShaders.source, options: nil)
@@ -74,5 +76,6 @@ struct ViewportPipelines {
         depthAlways = try depth(.always, write: false)
         depthWrite = try depth(.less, write: true)
         depthTest = try depth(.lessEqual, write: false)
+        depthBehind = try depth(.greater, write: false)
     }
 }

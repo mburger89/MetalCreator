@@ -71,10 +71,11 @@ struct SceneTests {
         #expect(item.selectedEdges.count == 12, "a box's twelve edges glow")
     }
 
-    /// Spec §6.3's glow in Final preview: a selected rule's edges glow on a shown solid only when it is the rule's
-    /// own. A rule feeding a Fillet is on the solid before the fillet, which Final shows only if another Output shows
-    /// it; on the filleted part nothing glows (spec Errata (M6)). Preview ▸ Selected node shows the rule on its solid.
-    @Test func aRuleSelectedInFinalPreviewGlowsOnlyOnItsOwnSolid() async throws {
+    /// Spec §6.3's glow in Final preview: a selected rule's edges glow on a shown solid that is the rule's own. A
+    /// rule feeding a Fillet is on the solid before the fillet; where another Output shows that solid it glows there
+    /// and nothing else is added, and where none does the rule's edges come as a guide
+    /// (`SceneGuideTests.aRuleWhoseSolidIsNotShownDrawsItsEdgesAsAGuideOverTheFinalPart`, Errata (M6)).
+    @Test func aRuleSelectedInFinalPreviewGlowsOnItsOwnShownSolidAndAddsNoGuide() async throws {
         var builder = GraphBuilder()
         let box = builder.box()
         let edges = builder.add(AllEdgesNode.self, at: Vector2(480, 200))
@@ -88,7 +89,8 @@ struct SceneTests {
         await app.settle()
         let filleted = try #require(solids(app, fillet).first)
         let plain = try #require(solids(app, box.extrude).first)
-        #expect(app.viewport.items.count == 2)
+        #expect(app.viewport.items.count == 2, "the rule's solid is shown, so its edges need no guide")
+        #expect(app.viewport.items.allSatisfy { !$0.isGuide })
         #expect(app.viewport.items.first { $0.solid === filleted }?.selectedEdges.isEmpty == true,
                 "the filleted part isn't the rule's solid, so nothing glows on it")
         #expect(app.viewport.items.first { $0.solid === plain }?.selectedEdges.count == 12,
