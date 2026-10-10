@@ -162,5 +162,8 @@ struct LibraryGroupsTests {
         editor.setLibraryQuery("grou")
         let onlyGroups = renderHeadless { NodeLibraryView(model: editor, input: GraphPanelInput(model: editor)) }.glyphs.count
         #expect(onlyGroups < withGroups && onlyGroups != noMatch, "the search drops the node types and keeps the Groups section")
+        #expect(editor.librarySections.isEmpty && editor.libraryGroups.map(\.name) == ["Group"], "what the view was handed")
+        editor.setLibraryQuery("zzzz")
+        #expect(editor.librarySections.isEmpty && editor.libraryGroups.isEmpty)
     }
 }

@@ -13,7 +13,9 @@ struct BreadcrumbRenderTests {
         editor.enterGroup(grouped.group)
         let inside = renderHeadless { GraphPanelHeader(model: editor) }.glyphs.count
         #expect(inside > top, "Group and › join Graph")
+        #expect(editor.breadcrumbs.map(\.title) == ["Graph", "Group"])
         editor.exitGroup()
+        #expect(editor.breadcrumbs.map(\.title) == ["Graph"])
         #expect(renderHeadless { GraphPanelHeader(model: editor) }.glyphs.count == top)
     }
 

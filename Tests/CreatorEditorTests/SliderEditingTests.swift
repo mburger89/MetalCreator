@@ -59,6 +59,8 @@ struct SliderEditingTests {
         let field = try #require(widthField(editor))
         drag(editor, field, through: [])
         #expect(!editor.document.canUndo)
+        drag(editor, field, through: [10, 10])
+        #expect(!editor.document.canUndo, "writing the value it already has is not an edit")
     }
 
     @Test func aParameterSliderDragIsOneStepAndTwoDragsAreTwo() {
