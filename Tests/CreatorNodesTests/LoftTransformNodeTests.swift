@@ -46,6 +46,20 @@ struct LoftTransformNodeTests {
         #expect(message.contains("same kind"))
     }
 
+    /// Regions of one sketch: a 60 × 40 plate with a hole (four outer segments) and, apart from it, a triangle (three).
+    @Test func holedSectionsAreRefusedBeforeTheirSegmentCountsAreCompared() async throws {
+        var plate = RectangleSketch(width: 60, height: 40)
+        plate.addHole(center: Vector2(15, 20), radius: 5)
+        let corners = [Vector2(100, 0), Vector2(110, 0), Vector2(105, 8)].map { plate.sketch.addPoint($0) }
+        for k in 0..<3 { plate.sketch.addLine(from: corners[k], to: corners[(k + 1) % 3]) }
+        var h = Harness()
+        let sketch = h.add(SketchNode.self, [NodeSetting.sketch: .sketch(plate.sketch)])
+        let loft = h.add(LoftNode.self)
+        h.wire(sketch, "profiles", to: loft, "sections")
+        let report = try await h.run([loft], kernel: OCCTKernel())
+        #expect(report.error(loft) == "A loft can't use profiles with holes yet.")
+    }
+
     @Test func oneSectionIsNotALoft() async throws {
         var h = Harness()
         let circle = h.add(CircleNode.self)

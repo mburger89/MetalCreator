@@ -13,46 +13,24 @@ struct TermBuilder {
 
     struct Output: Sendable {
         var terms: [SolverTerm]
-        /// Constraints and dimensions skipped because they touch a suspended projected edge.
+        /// Constraints and dimensions skipped because they touch a suspended projected edge, or a projected edge
+        /// whose kind no longer fits them (a line that an upstream fillet made an arc).
         var suspended: [SketchConstraintRef]
     }
 
     func build() throws(SolveFailure) -> Output {
         try validateEntities()
-        var terms: [SolverTerm] = []
-        var suspended: [SketchConstraintRef] = []
-        for id in sketch.constraintIDs {
-            guard let constraint = sketch.constraints[id] else { continue }
-            let ref = SketchConstraintRef.constraint(id)
-            try requireExisting(constraint.entities, ref)
-            if touchesSuspended(constraint.entities) {
-                suspended.append(ref)
-                continue
-            }
-            for equation in try equations(for: constraint, ref) where !isTriviallyMet(equation) {
-                terms.append(SolverTerm(role: .user(ref), equation: equation))
-            }
-        }
-        for id in sketch.dimensionIDs {
-            guard let dimension = sketch.dimensions[id], dimension.isDriving else { continue }
-            let ref = SketchConstraintRef.dimension(id)
-            try requireExisting(dimension.kind.entities, ref)
-            if touchesSuspended(dimension.kind.entities) {
-                suspended.append(ref)
-                continue
-            }
-            try validate(dimension)
-            let equation = try equation(for: dimension, ref)
-            if !isTriviallyMet(equation) { terms.append(SolverTerm(role: .user(ref), equation: equation)) }
-        }
+        var output = Output(terms: [], suspended: [])
+        try addConstraintTerms(to: &output)
+        try addDimensionTerms(to: &output)
         for id in sketch.entityIDs {
             guard case .arc(let center, let start, let end) = sketch.entities[id]?.kind else { continue }
             let equation = Equation.arcRadius(center: try point(center, ref: nil, needs: ""),
                                               start: try point(start, ref: nil, needs: ""),
                                               end: try point(end, ref: nil, needs: ""))
-            terms.append(SolverTerm(role: .implicit, equation: equation))
+            output.terms.append(SolverTerm(role: .implicit, equation: equation))
         }
-        return Output(terms: terms, suspended: suspended)
+        return output
     }
 
     /// Constants agreeing to within this (mm) already hold. The same as the solver's satisfied
@@ -86,9 +64,15 @@ struct TermBuilder {
 
     // MARK: Operands
 
-    func wrongKind(_ ref: SketchConstraintRef?, needs: String) -> SolveFailure {
+    /// `blaming` are the operands that are the wrong kind, or whose kind decides the refusal: when one is a projected
+    /// edge, the kind followed the model upstream and the constraint is suspended instead of failing the sketch.
+    func wrongKind(_ ref: SketchConstraintRef?, needs: String, blaming operands: [SketchEntityID] = []) -> SolveFailure {
         let name = ref.map { sketch.label(of: $0) } ?? "A constraint"
-        return SolveFailure(reason: "\(name) needs \(needs).")
+        return SolveFailure(reason: "\(name) needs \(needs).", blamesProjection: operands.contains(where: isProjected))
+    }
+
+    func isProjected(_ id: SketchEntityID) -> Bool {
+        if case .projected = sketch.entities[id]?.kind { true } else { false }
     }
 
     func point(_ id: SketchEntityID, ref: SketchConstraintRef?, needs: String) throws(SolveFailure) -> PointOperand {
@@ -102,7 +86,7 @@ struct TermBuilder {
             return LineOperand(start: try point(start, ref: ref, needs: needs), end: try point(end, ref: ref, needs: needs))
         case .projected(let source):
             if case .line(let a, let b) = source.curve { return LineOperand(start: .constant(a), end: .constant(b)) }
-            throw wrongKind(ref, needs: needs)
+            throw wrongKind(ref, needs: needs, blaming: [id])
         default:
             throw wrongKind(ref, needs: needs)
         }
@@ -122,7 +106,7 @@ struct TermBuilder {
             case .arc(let center, let radius, _, _), .circle(let center, let radius):
                 return CircleOperand(center: .constant(center), radius: .constant(radius), endpoints: [])
             case .line:
-                throw wrongKind(ref, needs: needs)
+                throw wrongKind(ref, needs: needs, blaming: [id])
             }
         default:
             throw wrongKind(ref, needs: needs)
@@ -216,7 +200,7 @@ struct TermBuilder {
             if isLine(a), isLine(b) {
                 return [.equalLength(try line(a, ref: ref, needs: needs), try line(b, ref: ref, needs: needs))]
             }
-            guard isCircular(a), isCircular(b) else { throw wrongKind(ref, needs: needs) }
+            guard isCircular(a), isCircular(b) else { throw wrongKind(ref, needs: needs, blaming: [a, b]) }
             return [.equalRadius(try circle(a, ref: ref, needs: needs), try circle(b, ref: ref, needs: needs))]
         case .midpoint(let p, let l):
             let needs = "a point and a line"
@@ -238,7 +222,7 @@ struct TermBuilder {
         let needs = "a line and an arc or circle, or two arcs or circles"
         if isLine(a) || isLine(b) {
             let (lineID, circleID) = isLine(a) ? (a, b) : (b, a)
-            guard !isLine(circleID) else { throw wrongKind(ref, needs: needs) }
+            guard !isLine(circleID) else { throw wrongKind(ref, needs: needs, blaming: [a, b]) }
             let l = try line(lineID, ref: ref, needs: needs)
             let c = try circle(circleID, ref: ref, needs: needs)
             if let shared = sharedEndpoint(lineID, circleID) {

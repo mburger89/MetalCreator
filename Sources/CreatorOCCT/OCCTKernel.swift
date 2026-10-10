@@ -57,7 +57,7 @@ public actor OCCTKernel: Kernel {
         try Task.checkCancellation()
         guard sections.count >= 2 else { throw KernelError.invalidInput("A loft needs at least two sections.") }
         guard sections.allSatisfy(\.holes.isEmpty) else {
-            throw KernelError.invalidInput("A loft can't use profiles with holes yet.")
+            throw KernelError.loftWithHoles
         }
         guard Set(sections.map(\.segments.count)).count == 1 else {
             throw KernelError.invalidInput("Every loft section needs the same number of segments.")

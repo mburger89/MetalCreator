@@ -49,6 +49,26 @@ struct SketchNodeTests {
         #expect(profiles.map(\.outer.count) == [4, 1])
     }
 
+    /// A projected edge is refreshed from the model on every evaluation, so a line a fillet turned into an arc arrives as an
+    /// arc: what was said about it as a line can't hold, and the person is told which constraint is left out.
+    @Test func aConstraintOnAProjectedEdgeThatChangedKindIsIgnoredAndSaid() throws {
+        var sketch = Sketch()
+        let source = ProjectionSource(reference: "e", curve: .arc(center: .zero, radius: 5, start: .degrees(0), end: .degrees(90)))
+        let arc = sketch.add(SketchEntity(.projected(source)))
+        sketch.add(.horizontal(arc))
+        let output = try SketchSolve.run(sketch, on: .xy)
+        #expect(output.warnings.contains("Horizontal on Projected edge 1 is ignored: its projected edge is a different kind of curve now."))
+    }
+
+    @Test func aSuspendedProjectionIsNotSaidTwice() throws {
+        var sketch = Sketch()
+        let source = ProjectionSource(reference: "e", curve: .arc(center: .zero, radius: 5, start: .degrees(0), end: .degrees(90)),
+                                      isSuspended: true)
+        sketch.add(.horizontal(sketch.add(SketchEntity(.projected(source)))))
+        let output = try SketchSolve.run(sketch, on: .xy)
+        #expect(!output.warnings.contains { $0.contains("different kind of curve") }, "SketchProjections already names it")
+    }
+
     @Test func anUnderConstrainedSketchWarnsAndStillOutputs() async throws {
         var sketch = Sketch()
         let corners = [Vector2(0, 0), Vector2(10, 0), Vector2(10, 10), Vector2(0, 10)].map { sketch.addPoint($0) }

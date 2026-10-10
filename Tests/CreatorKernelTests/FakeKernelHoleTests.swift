@@ -56,4 +56,30 @@ struct FakeKernelHoleTests {
             try await FakeKernel().loft([holed, holed], ruled: true, tag: tag)
         }
     }
+
+    /// The OCCT kernel's message (HoleConformanceTests): the stand-in must fail the same way, or a graph test passes on it
+    /// that fails for a person.
+    static let strayHole = KernelError.operationFailed(
+        operation: "extrude", reason: "a hole in the profile is outside the outline or overlaps another loop.")
+
+    @Test func aHoleOutsideTheOutlineIsRefused() async {
+        let stray = Profile2D(plane: .xy, outer: outline, holes: [Profile2D.circle(radius: 1, center: Vector2(20, 0), plane: .xy).segments])
+        await #expect(throws: Self.strayHole) {
+            try await FakeKernel().extrude(stray, distance: 1, mode: .oneSided, tag: tag)
+        }
+    }
+
+    @Test func aHoleCrossingTheOutlineIsRefused() async {
+        let crossing = Profile2D(plane: .xy, outer: outline,
+                                 holes: [Profile2D.circle(radius: 2, center: Vector2(4, 0), plane: .xy).segments])
+        await #expect(throws: Self.strayHole) {
+            try await FakeKernel().extrude(crossing, distance: 1, mode: .oneSided, tag: tag)
+        }
+    }
+
+    @Test func aHoleInsideTheOutlineStillExtrudes() async throws {
+        let inside = Profile2D(plane: .xy, outer: outline, holes: [Profile2D.circle(radius: 2, center: Vector2(1, 1), plane: .xy).segments])
+        let solid = try await FakeKernel().extrude(inside, distance: 1, mode: .oneSided, tag: tag)
+        #expect(solid.bounds.size.x == 10)
+    }
 }

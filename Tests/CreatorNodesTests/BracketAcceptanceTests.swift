@@ -127,6 +127,16 @@ struct BracketAcceptanceTests {
                 sourceLocation: sourceLocation)
     }
 
+    /// The fillet rule still names the same 4 edges by the same keys, and the chamfer rule the same 7.
+    func expectSelections(_ document: DocumentModel, _ bracket: Bracket, fillet: Set<EdgeKey>, chamfer: Set<EdgeKey>,
+                          sourceLocation: SourceLocation = #_sourceLocation) throws {
+        let filletSet = try edgeSet(document, bracket.filletEdges), chamferSet = try edgeSet(document, bracket.chamferEdges)
+        #expect(keys(filletSet) == fillet, sourceLocation: sourceLocation)
+        #expect(keys(chamferSet) == chamfer, sourceLocation: sourceLocation)
+        #expect(filletSet.edges.count == 4, sourceLocation: sourceLocation)
+        #expect(chamferSet.edges.count == 7, sourceLocation: sourceLocation)
+    }
+
     @Test func bracketKeepsItsEdgeSelectionsAcrossParameterChangesAndExports() async throws {
         let kernel = OCCTKernel()
         let bracket = Self.makeBracket()
@@ -153,10 +163,7 @@ struct BracketAcceptanceTests {
         try document.perform(.setParameter(bracket.holeCount.id, .integer(6)))
         await document.waitForEvaluation()
         expectAllOK(document, "Width 90, 6 holes")
-        #expect(keys(try edgeSet(document, bracket.filletEdges)) == filletKeys)
-        #expect(keys(try edgeSet(document, bracket.chamferEdges)) == chamferKeys)
-        #expect(try edgeSet(document, bracket.filletEdges).edges.count == 4)
-        #expect(try edgeSet(document, bracket.chamferEdges).edges.count == 7)
+        try expectSelections(document, bracket, fillet: filletKeys, chamfer: chamferKeys)
         let cut = try #require(document.results[bracket.cut.id]?.outputs?["solid"]?.solids?.first)
         for item in 0..<6 {
             #expect(cut.topology.faces.contains { $0.tags.contains(TopoTag(node: bracket.holes.id, item: item, role: .side(segment: 0))) })
@@ -170,7 +177,7 @@ struct BracketAcceptanceTests {
         let reopened = try DocumentModel(data: try document.fileData(), registry: BuiltInNodes.registry, kernel: kernel)
         await reopened.waitForEvaluation()
         expectAllOK(reopened, "reopened")
-        #expect(keys(try edgeSet(reopened, bracket.chamferEdges)) == chamferKeys)
+        try expectSelections(reopened, bracket, fillet: filletKeys, chamfer: chamferKeys)
 
         // Export STEP (re-read through OCCT) and STL (closed and manifold).
         let step = URL.temporaryDirectory.appending(path: "bracket-\(UUID().uuidString).step")

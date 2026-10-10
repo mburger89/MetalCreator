@@ -37,7 +37,8 @@ struct GraphParameterNodeTests {
         let integer = h.add(IntegerNode.self)
         h.wire(node, "integer", to: integer, "value")
         let report = try await h.run([integer])
-        #expect(report.error(integer) == "“value” is wired to “integer”, which that node doesn't produce with its current settings.")
+        #expect(report.error(integer)
+            == "“value” is wired to “integer”, which that node doesn't have, or doesn't produce with its current settings.")
     }
 
     @Test func boolAndVectorParametersFillTheirOutputs() async throws {

@@ -30,6 +30,10 @@ extension TopoRole: Codable {
         case .endCap:
             try container.encode(Kind.endCap, forKey: .role)
         case .side(let loop, let segment):
+            guard loop >= 0 else {
+                throw EncodingError.invalidValue(loop, EncodingError.Context(
+                    codingPath: encoder.codingPath, debugDescription: "A side face's loop can't be negative."))
+            }
             try container.encode(Kind.side, forKey: .role)
             if loop != 0 {
                 try container.encode(loop, forKey: .loop)

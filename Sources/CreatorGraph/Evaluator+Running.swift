@@ -39,7 +39,7 @@ extension Evaluator {
                 }
                 guard let value = outputs[link.from.socket] else {
                     return .failed("“\(spec.name)” is wired to “\(link.from.socket)”, "
-                        + "which that node doesn't produce with its current settings.")
+                        + "which that node doesn't have, or doesn't produce with its current settings.")
                 }
                 guard let converted = value.converted(to: spec.type) else {
                     return .failed("“\(spec.name)” needs \(spec.type.indefiniteName).")

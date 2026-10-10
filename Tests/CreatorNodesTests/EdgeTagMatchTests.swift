@@ -51,6 +51,12 @@ struct EdgeTagMatchTests {
         #expect(EdgeTagMatch.resolve(picks, in: topology()) == EdgeTagMatch(edges: [], warnings: ["Matched 0 edges, expected 1."]))
     }
 
+    /// An ordinal past the key's matches (the file was edited, or the matches are fewer now) selects nothing, and says so.
+    @Test func anOrdinalPastTheMatchesSelectsNothingAndWarns() {
+        let pick = EdgePick(key: EdgeKey([top], [front]), matchCount: 2, ordinals: [5])
+        #expect(EdgeTagMatch.resolve([pick], in: topology()) == EdgeTagMatch(edges: [], warnings: ["Matched 0 edges, expected 2."]))
+    }
+
     /// A 1 → 2 drift and a 1 → 0 drift must not add up to "Matched 2 edges, expected 2.".
     @Test func oppositeDriftsDoNotCancelOut() {
         let split = EdgePick(key: EdgeKey([top], [front]), matchCount: 1)

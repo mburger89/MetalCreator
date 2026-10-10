@@ -97,6 +97,17 @@ struct ProjectToolTests {
         #expect(silent.refusal == "Click an edge or a face of the model to project it.")
     }
 
+    /// A face pick can leave several edges out for different reasons, and with none projectable all of them are said, as they
+    /// are when some project.
+    @Test func everyReasonForLeavingEdgesOutIsSaidWhenNothingProjects() {
+        let circle = "Edge 2 can't be projected: it is a circle that doesn't face the sketch plane."
+        let perpendicular = "Edge 3 can't be projected: it is perpendicular to the sketch plane."
+        let (model, host) = makeModel(skipped: [circle, perpendicular])
+        model.project(.face(solid: 0, FaceID(1)))
+        #expect(host.commits.isEmpty)
+        #expect(model.refusal == "\(circle) \(perpendicular)")
+    }
+
     @Test func someEdgesProjectingAndSomeNotStoresTheOnesThatDoAndSaysWhatWasLeftOut() {
         let reason = "Edge 2 can't be projected: it is a circle that doesn't face the sketch plane."
         let (model, host) = makeModel(answering: [candidate(0)], skipped: [reason])
