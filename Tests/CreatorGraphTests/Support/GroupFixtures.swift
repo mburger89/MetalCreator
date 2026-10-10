@@ -38,3 +38,15 @@ func instance(of definition: GroupDefinition, _ values: [SocketName: ConstantVal
 func table(_ definitions: [GroupDefinition]) -> [GroupID: GroupDefinition] {
     Dictionary(uniqueKeysWithValues: definitions.map { ($0.id, $0) })
 }
+
+/// A definition named `name` whose inside holds `nodes` and its boundary; `links` is given Group Input and Group
+/// Output and returns the inside's wires.
+func define(_ name: String, inputs: [SocketSpec] = [], outputs: [SocketSpec], nodes: [Node],
+            links: (_ input: Node, _ output: Node) -> [Link]) -> GroupDefinition {
+    let id = GroupID()
+    let input = testRegistry.makeGroupNode(GroupNodes.inputTypeID, for: id, at: GroupDefinition.defaultInputPosition)
+    let output = testRegistry.makeGroupNode(GroupNodes.outputTypeID, for: id, at: GroupDefinition.defaultOutputPosition)
+    var inside = graph([input, output] + nodes, links(input, output))
+    inside.sortLinks()
+    return GroupDefinition(id: id, name: name, inputs: inputs, outputs: outputs, graph: inside)
+}
