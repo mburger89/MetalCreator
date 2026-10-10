@@ -229,19 +229,14 @@ Run `swift run GraphPanelPreview`.
   plane picker and a 3×3 anchor grid; Document Parameters below. Drag the Width slider, release, then press ⌘Z
   once: width returns to where the drag started. Select Fillet: an EDGES section reads "All Edges · 12 edges" in
   pink, a "Show handle in view" toggle that starts On, and a "Pick edges in view…" button. Select All Edges: its
-  EDGES row reads "12 edges". Drag Radius above 10: Fillet's badge turns to a red ✕ and hovering it shows
-  "Radius N mm is too large for the selected edges (max ≈ X mm).", N the radius dragged to and X a size from the part
-  (a message without a maximum is wrong). The drag stays responsive (a refused radius searches for the maximum on every step, so the badge may trail the slider by
-  a fraction of a second); dragging back below X clears the error and shows the part again. Repeat with the bracket's
-  Fillet radius handle in the viewport (spec §7.2): past the maximum, the same message.
+  EDGES row reads "12 edges". Drag Radius above 10: Fillet's badge turns to a red ✕ and hovering it shows the message.
   Select Extrude: a Distance/Symmetric segmented control, the Distance slider and a "Reverse direction" toggle that
   starts Off (no Direction menu, spec Errata (M3)).
   Add a Transform (palette): its Move row has three fields; type 5 into the middle one and the node row reads
   "0 mm, 5 mm, 0 mm". Add a Graph Parameter: its menu lists Width; choose it and the menu shows Width.
   Add a Grid Points: its Total field is empty, showing "Not set", and the node row reads "—". Type 6 and press
   Return: the row reads "6". Empty the field and press Return: it's "Not set" again. Click empty canvas and press ⌘Z: 6 comes back.
-  Pinned: `InspectorTests` (`anOptionalInputStartsUnsetAndCanBeCleared`), `CoalescingTests`; the maximum in the message:
-  `UnbuildableBlendTests`, `InvalidBlendTests` (the drag's feel is this check only). **Observed:**
+  Pinned: `InspectorTests` (`anOptionalInputStartsUnsetAndCanBeCleared`), `CoalescingTests`. **Observed:**
 - [ ] **M5-11 Keys stay with fields.** Click into the Width number field, type "75" and press Delete: the digit is
   deleted, not the node. Press Return: Width becomes 75 mm. Pinned: design (`Window.onInput` fallback),
   `mappedKeysAreRunAndClaimed`. **Observed:**
@@ -346,6 +341,14 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   "mm · grid" stays at the bottom-right of the uncovered area. Repeat docked at the left, dragging its right edge both
   ways. Pinned: `theTriadsLettersStayOnItsAxesWhenTheDockResizes`, `aModelAreaThatMovesOnlyTheTriadRedraws`.
   **Observed:**
+- [ ] **M6-15 Dragging a Fillet radius past its maximum (spec Errata, Kernel: invalid blends).** On the bracket, select
+  the Fillet and drag its Radius slider above the largest size that works: the badge turns to a red ✕ and hovering it
+  shows "Radius N mm is too large for the selected edges (max ≈ X mm).", N the radius dragged to and X a size from the
+  part (a message without a maximum is wrong). The drag stays responsive (a refused radius searches for the maximum
+  on every step, so the badge may trail the slider by a fraction of a second); dragging back below X clears the error
+  and shows the part again. Repeat with the Fillet's radius handle in the viewport (spec §7.2): past the maximum, the
+  same message. Pinned: the maximum in the message: `UnbuildableBlendTests`, `InvalidBlendTests`; the drag's feel is
+  this check only. **Observed:**
 
 ## Group EP — editor polish: the floating palette and the node library
 
