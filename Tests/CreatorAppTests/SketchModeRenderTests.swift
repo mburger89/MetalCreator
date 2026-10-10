@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
@@ -79,6 +80,32 @@ struct SketchModeRenderTests {
         #expect(glyphs(in: chip, of: app) > 0)
         app.finishSketch()
         #expect(glyphs(in: chip, of: app) == 0, "gone outside sketch mode")
+    }
+
+    /// Dragging a sketch point draws the chip by the pointer at each drag step (the viewport sends the tool the drag,
+    /// no hover), and the release takes it away.
+    @Test func theReadoutFollowsAPointDrag() async throws {
+        var builder = GraphBuilder()
+        let box = builder.sketchedBox(rectangleSketch())
+        let app = AppModel(kernel: FakeKernel(), file: GraphFile(graph: builder.graph))
+        await app.settle()
+        app.viewport.recordViewSize(ViewportSize(width: 1400, height: 900))
+        app.beginSketch(for: box.sketch.id)
+        await app.settle()
+        await app.viewport.waitForAnimation()
+        let editor = try #require(app.sketch?.editor)
+        editor.choose(.select)
+        let corner = try #require(app.viewport.projector.screenPoint(of: Vector3(60, 40, 0)))
+        let step = ScreenPoint(corner.x + 30, corner.y + 30)
+        app.viewport.dragChanged(from: corner, to: step, modifiers: [], button: .primary)
+        let chip = try #require(editor.readoutChip)
+        #expect(chip.text == "60.0, 40.0", "the fully constrained corner stays where the solve keeps it")
+        #expect(chip == ReadoutChip(text: chip.text, pointer: step, in: ViewportSize(width: 1400, height: 900),
+                                    modelArea: app.viewport.projector.modelArea), "by the pointer, not the press")
+        #expect(glyphs(in: chip, of: app) > 0)
+        app.viewport.dragEnded(from: corner, at: step, modifiers: [], button: .primary)
+        #expect(editor.readoutChip == nil)
+        #expect(glyphs(in: chip, of: app) == 0, "gone with the release")
     }
 
     /// The chip is painted over the window's chrome (the top bar, the panels), never under their glass.

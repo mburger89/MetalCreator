@@ -36,8 +36,9 @@ public final class SketchEditorModel {
     var modelArea = ViewportInsets()
     /// What the drawing tool has placed so far.
     var drawState = DrawState.idle
-    /// The point being dragged, between a drag's press and its release.
-    @ObservationIgnored var dragged: SketchEntityID?
+    /// The point being dragged, between a drag's press and its release. Observed: the pointer readout shows while it
+    /// is set, so the readout's views hear the release even when the drag moved nothing.
+    var dragged: SketchEntityID?
     /// The sketch when the drag began, so a drag that moved nothing records no step.
     @ObservationIgnored var dragOrigin: Sketch?
     /// The Dimension tool's first pick, while it waits for the second.
