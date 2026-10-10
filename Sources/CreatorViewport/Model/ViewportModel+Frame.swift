@@ -12,7 +12,8 @@ extension ViewportModel {
             if case .face(let solid, let face)? = hovered, solid == index { hoveredFace = face }
             frameItems.append(FrameItem(meshSerial: cached.serial, mesh: cached.mesh, solidIndex: index,
                                         isGhost: item.isGhost, hoveredFace: hoveredFace,
-                                        selectedFaces: item.selectedFaces, selectedEdges: item.selectedEdges))
+                                        selectedFaces: item.selectedFaces, selectedEdges: item.selectedEdges,
+                                        isGuide: item.isGuide))
         }
         return ViewportFrame(pose: shown, size: viewSize, sceneBounds: sceneBounds, items: frameItems, shading: shading,
                              gridSpacing: gridSpacing(for: shown), handles: handles, cube: cubeLayout,

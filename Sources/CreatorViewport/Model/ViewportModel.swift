@@ -116,9 +116,11 @@ public final class ViewportModel {
                           showsViewCube: showsViewCube)
     }
 
-    /// The union of every shown solid's bounds, ghosts included.
+    /// The union of every shown solid's bounds, ghosts included and guides left out.
     public var sceneBounds: BoundingBox? {
-        items.reduce(BoundingBox?.none) { bounds, item in bounds?.union(item.solid.bounds) ?? item.solid.bounds }
+        items.filter { !$0.isGuide }.reduce(BoundingBox?.none) { bounds, item in
+            bounds?.union(item.solid.bounds) ?? item.solid.bounds
+        }
     }
 
     /// Asks for a new scene. Its meshes load in the background, and until they arrive the shown scene stays up
