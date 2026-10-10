@@ -176,10 +176,10 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
   (AppKit `NSColorWell`/`NSColorPanel`), with opacity. MetalUI has none. M6 doesn't need it: its three built-in themes
   are read-only and chosen from View ▸ Theme. Stopgap, if the Themes milestone comes first: a hex `TextField` per role,
   refused plainly when it isn't a colour. Wanted: `ColorPicker` over MetalUI's `Color`.
-**Being fixed by MetalUI C10
-  lane 1** (`feat/controls-looks`: `ColorPicker(_:selection:supportsOpacity:)` and its drawn panel, rulings `LK-C`,
-  `LK-D`, `LK-P`). The Themes plan (`2026-10-09-themes-editor.md`) adopts it in its last task once C10 is merged; until
-  then the editor shows each role's hex and a swatch, and colours change only by import, with no hex-field stopgap.
+**Fixed by MetalUI C10
+  lane 1** (2155f1e; `ColorPicker(_:selection:supportsOpacity:)` and its drawn panel, rulings `LK-C`, `LK-D`, `LK-P`)
+  and adopted by the Themes plan's last task: each role's row in the theme editor is a `ColorPicker`, opacity only for
+  the glass and the edges. MetalUI draws its own panel on macOS too (its divergence 165: SwiftUI opens `NSColorPanel`).
 - **M4-a and M5-b, used again by M6.** The viewport's F, + and − carry the `!Panel` key context, and the graph panel
   and the inspector contribute `Panel` from a MetalUI `Stack` wrapper, so a focused field types them. With nothing
   focused they are window-wide. Over the graph canvas `AppInput.handleAction` declines + and − by reading the
