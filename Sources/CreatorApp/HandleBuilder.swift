@@ -69,8 +69,15 @@ public enum HandleBuilder {
         guard case .edgeSet(let set)? = upstream(node, "edges", graph: graph, results: results),
               let edge = set.edges.first.flatMap(set.solid.topology.edge) else { return nil }
         let normals = edge.faces.compactMap { set.solid.topology.face($0)?.normal }
-        guard let bisector = normals.reduce(Vector3.zero, +).normalized else { return nil }
+        guard let bisector = bisector(of: normals) else { return nil }
         return (edge.midpoint, bisector, 1)
+    }
+
+    /// The unit direction a radial handle points along: the normalised sum of the normals of the faces at its edge.
+    /// A face that isn't planar contributes its axis (`Face.normal`). Normals that cancel (or none) give `nil`, and the
+    /// handle is then left out without a message: only a degenerate part reaches it.
+    static func bisector(of normals: [Vector3]) -> Vector3? {
+        normals.reduce(Vector3.zero, +).normalized
     }
 
     /// The first item the link into `node.socket` carries, from its upstream node's current result.

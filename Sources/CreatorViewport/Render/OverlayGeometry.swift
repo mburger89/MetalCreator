@@ -13,12 +13,28 @@ enum OverlayGeometry {
     static let gridWidth = 1.0
     static let majorGridWidth = 1.25
 
+    /// Where the plane grid is centred and how far it reaches: everything of the camera the grid lines depend on.
+    struct GridExtent: Equatable {
+        var plane: Plane
+        var spacing: Double
+        var centreX: Double
+        var centreY: Double
+        var reach: Double
+    }
+
     static func instances(_ overlay: ViewportOverlay, pose: CameraPose, size: ViewportSize, gridSpacing: Double,
                           scale: Float, palette: ViewportPalette) -> [LineInstance] {
+        let grid = overlay.gridPlane.flatMap { gridExtent(on: $0, pose: pose, size: size, spacing: gridSpacing) }
+        return instances(overlay, grid: grid, millimetresPerPoint: CameraMath.millimetresPerPoint(pose, size: size),
+                         scale: scale, palette: palette)
+    }
+
+    /// The instances for a camera already reduced to what they depend on (`gridExtent`, and the zoom the dashes use).
+    static func instances(_ overlay: ViewportOverlay, grid: GridExtent?, millimetresPerPoint: Double, scale: Float,
+                          palette: ViewportPalette) -> [LineInstance] {
         var instances: [LineInstance] = []
-        let millimetresPerPoint = CameraMath.millimetresPerPoint(pose, size: size)
-        if let plane = overlay.gridPlane {
-            for line in gridLines(on: plane, pose: pose, size: size, spacing: gridSpacing) {
+        if let grid {
+            for line in gridLines(grid) {
                 let color = line.major ? palette.gridMajor : palette.gridMinor
                 let width = Float(line.major ? majorGridWidth : gridWidth) * scale
                 instances.append(LineInstance(a: GPUGeometry.float3(line.a), b: GPUGeometry.float3(line.b), color: color,
@@ -69,12 +85,23 @@ enum OverlayGeometry {
     /// plane (snapped to a major line so the grid doesn't swim while panning), reaching past the view's edges.
     static func gridLines(on plane: Plane, pose: CameraPose, size: ViewportSize,
                           spacing: Double) -> [(a: Vector3, b: Vector3, major: Bool)] {
-        guard spacing.isFinite, spacing > 0, !size.isEmpty else { return [] }
+        gridExtent(on: plane, pose: pose, size: size, spacing: spacing).map(gridLines) ?? []
+    }
+
+    /// The grid's centre (snapped to a major line) and reach for this camera; `nil` for a degenerate spacing or size.
+    static func gridExtent(on plane: Plane, pose: CameraPose, size: ViewportSize, spacing: Double) -> GridExtent? {
+        guard spacing.isFinite, spacing > 0, !size.isEmpty else { return nil }
         let offset = pose.target - plane.origin
         let major = spacing * 10
-        let centreX = (offset.dot(plane.xAxis) / major).rounded() * major
-        let centreY = (offset.dot(plane.yAxis) / major).rounded() * major
-        let reach = (pose.visibleHeight * max(size.aspect, 1) / spacing).rounded(.up) * spacing + major
+        return GridExtent(plane: plane, spacing: spacing,
+                          centreX: (offset.dot(plane.xAxis) / major).rounded() * major,
+                          centreY: (offset.dot(plane.yAxis) / major).rounded() * major,
+                          reach: (pose.visibleHeight * max(size.aspect, 1) / spacing).rounded(.up) * spacing + major)
+    }
+
+    static func gridLines(_ grid: GridExtent) -> [(a: Vector3, b: Vector3, major: Bool)] {
+        let (plane, spacing, centreX, centreY, reach) = (grid.plane, grid.spacing, grid.centreX, grid.centreY, grid.reach)
+        let major = spacing * 10
         let count = Int(reach / spacing)
         var lines: [(a: Vector3, b: Vector3, major: Bool)] = []
         for step in -count...count {

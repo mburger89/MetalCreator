@@ -6,8 +6,9 @@ import MetalUI
 /// with MetalUI C10 in hand): MetalUI's materials (`.ultraThinMaterial` and the rest) are a flat grey fitted to
 /// SwiftUI's, with no backdrop blur and no theme, so they would drop the theme's `glass` role (which the theme editor
 /// lets people set) for a grey no theme chose; and `.blur(radius:)` blurs a view's own pixels, not what is behind it.
-/// A true backdrop blur is MetalUI's C10-c (docs/metalui-gaps.md C10-a), and the viewport behind the panels is a GPU
-/// surface a CPU blur could not read anyway. Public so the app shell's top bar and pick banner (M6) share the chrome.
+/// A true backdrop blur is MetalUI's item C10-c, which docs/metalui-gaps.md logs as gap C10-a, and the viewport behind
+/// the panels is a GPU surface a CPU blur could not read anyway. Public so the app shell's top bar and pick banner (M6)
+/// share the chrome.
 public struct GlassPanel<Body: ElementGroup>: Component {
     let body: Body
     @Environment(ThemeStore.self) var themes: ThemeStore?

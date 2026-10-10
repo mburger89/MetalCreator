@@ -36,4 +36,22 @@ struct LaunchCommandTests {
     func theSystemsOwnArgumentsOpenAnEmptyWindow(_ arguments: [String]) {
         #expect(LaunchCommand(arguments: arguments) == .run(path: nil))
     }
+
+    /// `\d` matches any script's digits; a macOS version is ASCII ("٢٦" is Arabic-Indic 26, "２６" fullwidth).
+    @Test(arguments: ["٢٦", "２６", "26.٠"])
+    func infoPlistTakesOnlyASCIIDigits(_ version: String) {
+        #expect(LaunchCommand(arguments: ["--info-plist", version]) == .usageError("--info-plist takes one macOS version, like 26.0."))
+    }
+
+    @Test func helpPrintsTheUsageInsteadOfBeingAnUnknownOption() {
+        #expect(LaunchCommand(arguments: ["--help"]) == .help)
+        #expect(LaunchCommand(arguments: ["--help", "x"]) == .usageError("--help takes no value."))
+        #expect(LaunchCommand.usage.contains("--help") && LaunchCommand.usage.contains("--self-test"))
+    }
+
+    /// Only the first file is opened; later arguments (Xcode appends its own after the file) are not files.
+    @Test func argumentsAfterTheFileAreIgnored() {
+        #expect(LaunchCommand(arguments: ["a.mcgraph", "b.mcgraph"]) == .run(path: "a.mcgraph"))
+        #expect(LaunchCommand(arguments: ["a.mcgraph", "-NSDocumentRevisionsDebugMode", "YES"]) == .run(path: "a.mcgraph"))
+    }
 }

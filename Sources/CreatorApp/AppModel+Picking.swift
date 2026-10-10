@@ -61,10 +61,13 @@ extension AppModel {
                            level: editor.levelPath)
     }
 
-    /// Done: the picks go into the rule (or a new one), as one undo step, and the rule is selected.
+    /// Done: the picks go into the rule (or a new one), as one undo step, and the rule is selected. A pick whose level
+    /// is no longer the one shown is dropped without writing.
     public func finishPick() {
         guard let session = pick else { return }
         pick = nil
+        // The level changed and `refreshScene` hasn't cancelled the pick yet: its nodes belong to another graph.
+        guard session.level == editor.levelPath else { return }
         let picks = ConstantValue.edgePicks(session.solid.topology.picks(for: session.picked))
         do {
             if let rule = session.rule {
@@ -86,7 +89,12 @@ extension AppModel {
 
     /// A click in the viewport. While picking, a click on an edge of the picked solid adds or removes it.
     func viewportClicked(_ target: PickTarget?) {
-        guard var session = pick, case .edge(let index, let edge)? = target, viewport.items.indices.contains(index),
+        guard var session = pick else { return }
+        guard session.level == editor.levelPath else {
+            pick = nil
+            return
+        }
+        guard case .edge(let index, let edge)? = target, viewport.items.indices.contains(index),
               viewport.items[index].solid === session.solid else { return }
         session.toggle(edge)
         pick = session

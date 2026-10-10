@@ -8,6 +8,8 @@ import CreatorSketchEditor
 import CreatorViewport
 
 extension AppModel {
+    static let planeFailed = "The node wired into “plane” has no result now, so the sketch stays on the plane it had."
+    static let planeUnwired = "Nothing is wired into “plane” now, so the sketch stays on the plane it had."
     static let noWiredPlane = "Its plane comes from the wire into “plane”, which has no result yet. Wire a plane that evaluates."
 
     /// "Edit sketch" (sketcher spec §8): opens the node's sketch in the viewport. The camera looks straight at its
@@ -84,9 +86,21 @@ extension AppModel {
         guard let node = document.graph.nodes[session.node], case .sketch(let stored)? = node.inputValues[NodeSetting.sketch] else {
             return finishSketch()
         }
-        let plane = sketchPlane(of: node, stored) ?? session.editor.plane
+        let found = sketchPlane(of: node, stored)
+        let plane = found ?? session.editor.plane
+        // A wired plane that moved: the camera looks at it again. One that lost its result (the wire's node failed)
+        // leaves the sketch on the last plane and says so once, when it is lost; while another alert or a close is
+        // being answered it waits, and is said at the first refresh after.
+        let moved = found != nil && plane != session.editor.plane
+        if found != nil {
+            session.hasPlane = true
+        } else if session.hasPlane, alert == nil, closeRequest == .idle, let message = planeLossMessage(of: node, stored) {
+            session.hasPlane = false
+            alert = .problem(AppProblem("The plane lost its result", message))
+        }
         let shown = shownSketch(of: node, stored)
         session.editor.reload(shown.sketch, plane: plane, wired: shown.wired)
+        if moved, let bounds = session.editor.framingBounds { viewport.lookAt(plane, framing: bounds) }
     }
 
     /// The sketch as the node evaluates it (sketcher spec §7): each exposed dimension takes the constant left under its
@@ -121,6 +135,17 @@ extension AppModel {
             guard document.results[link.from.node] == nil else { return nil }
             return unevaluatedFacePlane(of: link.from.node)
         }
+    }
+
+    /// Why the plane wired into `node` is gone for good, or `nil` while it is not: its wire was removed, or its node
+    /// failed. A node that is only evaluating again (or not yet) isn't gone: the sketch waits for its result.
+    private func planeLossMessage(of node: Node, _ sketch: Sketch) -> String? {
+        guard case .wired = sketch.plane else { return nil }
+        guard let link = document.graph.incomingLink(to: Endpoint(node: node.id, socket: "plane")) else {
+            return Self.planeUnwired
+        }
+        if case .error? = document.results[link.from.node]?.state { return Self.planeFailed }
+        return nil
     }
 
     /// The plane a Plane from Face makes, worked out from its picked face when the node itself hasn't evaluated: nothing

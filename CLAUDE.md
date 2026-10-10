@@ -29,6 +29,8 @@ Groups C1 (model and evaluation, `docs/superpowers/specs/2026-10-09-selection-gr
 Groups C2 (the editor, §6: entering a group, breadcrumbs, the + sockets, the group inspector, the library's Groups
 section, the viewport and the clipboard inside groups) code is done; its human checks (group GR) are pending.
 Named undo steps (plan `docs/superpowers/plans/2026-10-10-named-undo.md`) code is done; its human checks (group NU) are pending.
+Final-review follow-ups (plans `docs/superpowers/plans/2026-10-10-followups-app.md`, `2026-10-10-followups-editor.md` and
+`2026-10-10-followups-kernel.md`) code is done; the app track's human checks (group FA) are pending.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -88,7 +90,10 @@ Module boundaries (dependency order):
   `.dracula`, `.alucard` and `.nord` (read-only); `ThemeRole` names each role (`ThemeColors[role]`; the names are the
   `.mctheme` keys; `ThemeRoleTests` pins them to the stored properties). `@MainActor @Observable ThemeStore` holds
   `current`, `select(_:)` and the custom themes (`customs`: duplicate, rename, `setColor`, `setDark`, delete, import,
-  export), saving each change to an injected `ThemeFolder` before showing it (`nil`: memory only, every test's), with
+  export), saving each change to an injected `ThemeFolder` before showing it (`nil`: memory only, every test's; a colour
+  picker's drag is the one exception: `previewColor` shows each sample and `saveColors()` writes once, driven by
+  `ThemeEditorModel.dragColor` after `saveDelay` and by `flush()` on close, and a failed save puts the saved colours
+  back; the folder skips a file named like a built-in in any case, and never writes an id that is not a file name), with
   injected `ThemePreferences` (`UserDefaultsThemePreferences` in the app). `ThemeFile` is the `.mctheme` format
   (version 1; missing roles are Dracula's, unknown ones ignored, a bad colour refused naming its role); custom themes'
   colours are always `quantized` (opacity to a byte) so a file round-trips exactly. `ColorTheme.controlTheme` maps
@@ -115,7 +120,10 @@ Module boundaries (dependency order):
     the context menu and handles. `ViewportRenderer`/`ViewportPicker` are the Metal side. `ViewportView` is the
     MetalUI glue. A `ViewportItem` with `isGuide` is no part of the scene: only its selected edges are drawn, after the
     solids and ghosts (faded where the part hides them), and it never frames, orbits, picks or opens the face menu
-    (`ViewportRenderer+Guides`).
+    (`ViewportRenderer+Guides`). The renderer keeps the triad's, the overlay's and the region fills' GPU buffers between
+    frames: the overlay's key holds the grid's extent and the dashes' zoom, not the pose, so an orbit allocates none, and
+    the fills' buffer is dropped once a frame has no fills (`RendererCacheTests`). `handleLabels()` reads the size through
+    `observedViewSize`, as `overlayLabels()` does. Every scroll or pinch event stops a camera animation started mid-gesture.
   - It depends on Kernel, Geometry, CreatorStyle and MetalUI only, never CreatorGraph. The app shell turns graph outputs into
     `ViewportItem`s and `HandleSpec`s into `ViewportHandle`s.
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
@@ -202,21 +210,25 @@ Module boundaries (dependency order):
   `ViewportHandle`s (`HandleBuilder`), turns viewport events into graph commands (picking writes Edges by Tag rules),
   and opens, saves and exports. Inside a group `AppModel` reads the level through `editor.graph`/`levelResults`: Selected
   node previews the level's selected node, handles and picking work there, and a pick is written through
-  `GraphContent.relativeToLevel`; Final preview and export stay on the top level. Sketch mode is top-level only
-  ("Edit sketch" and New Sketch on Face inside a group say so). `AppInput` installs the window's input once and forwards to the current document.
+  `GraphContent.relativeToLevel` (Done and a viewport click drop a pick whose level is no longer the one shown); Final
+  preview and export stay on the top level. Sketch mode is top-level only
+  ("Edit sketch" and New Sketch on Face inside a group say so). The open sketch follows a wired plane: when it moves the
+  camera looks at it again (`viewport.lookAt`), and when its node fails or its wire goes the sketch stays on the last plane
+  and says so once (`SketchSession.hasPlane`; a plane that is only evaluating again is waited for). `AppInput` installs the window's input once and forwards to the current document.
   The window shell is MetalUI C8's, wired in `MetalCreatorApp`: `Window.onCloseRequest` is `AppModel.closeRequested()`
   (`CloseDecision`; `.later` with unsaved changes, the Save / Don't Save / Cancel alert, `answerSaveChanges(_:)` replying
   through `replyToCloseRequest`; ⌘Q asks the same handler because the app sets no `onTerminateRequest`),
   `WindowChromeSync` keeps `Window.title`, `isDocumentEdited` and `representedURL` on the document
   (`AppModel.windowChrome`), the window keeps its standard title bar (`.hiddenTitleBar` waits for check AS-5, gap C8-a; `TopBar` already pads by
   `AppLayout.topBarClearance`, zero in a standard window), and
-  `App.onOpenURL` is `AppModel.openRequested(_:)` (the path argument goes through `App.open(_:)`).
+  `App.onOpenURL` is `AppModel.openRequested(_:)` (the path argument goes through `App.open(_:)`; a file that arrives while
+  any alert is up is ignored).
   `MetalCreatorApp` is the executable (`OCCTKernel`). It makes the app's `ThemeStore` (`AppThemes.store()`: user
   defaults, `~/Library/Application Support/MetalCreator/Themes`) and its `ThemeEditorModel`, and opens the window on
   `AppWindowRoot`: `AppRoot` with the theme editor (`ThemeEditorDock`, a floating glass panel at the top right) over
   it, the store in the environment and `.theme(current.controlTheme)` for MetalUI's controls. View ▸ Theme is
   `ThemeMenu` (every theme, then Edit Themes…). `LaunchCommand` parses its command line: a file to open, or the
-  headless `--version`, `--self-test` (`SelfTest`: OCCT, STEP/STL export, MetalUI's shaders) and `--info-plist`.
+  headless `--help`, `--version`, `--self-test` (`SelfTest`: OCCT, STEP/STL export, MetalUI's shaders) and `--info-plist`.
   `AppBundleInfo` is the version's one source; the packaged `Info.plist` is generated from it, never edited.
 
 Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.md` and fixed in MetalUI,
@@ -234,7 +246,8 @@ of sockets use `inputs(for: node)` (canvas shape and rows, inspector, handles), 
 rebuilds a profile must keep `holes` (copy it and change `plane`, don't re-init from `segments`). Side tags are
 `.side(loop:segment:)` and `.side(segment:)` means loop 0; never match `.side` with one binding (`case .side(let s)`
 binds the tuple and only warns). The shim orients hole wires against the outer wire; history `operand` on segment
-records is the loop. Loft refuses profiles with holes. Create nodes only with `NodeRegistry.makeNode`. Numbers in node messages use `Locale.messages` (`Double.display`, `Int.display`).
+records is the loop. Loft refuses profiles with holes.
+Create nodes only with `NodeRegistry.makeNode`. Numbers in node messages use `Locale.messages` (`Double.display`, `Int.display`).
 Shim errors: `cocct::user_error` / `set_error` messages are user-facing and unprefixed; any other OCCT exception is prefixed "occt: " by `guarded` and mapped to a generic sentence by `KernelError.plainReason`.
 Every fillet and chamfer result is checked with OCCT's `BRepCheck_Analyzer` (`OCCTShape.isValid`) and never returned when
 the check rejects it: the blend fails naming the largest size that works (`OCCTKernel.largestValidBlend`, spec Errata

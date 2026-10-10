@@ -112,6 +112,11 @@ struct ViewportInputTests {
         model.click(at: model.cubeLayout.center)
         #expect(clicks == 0)
         #expect(handleReports == 0, "a click on a knob changes nothing")
+        // The counter is wired: dragging the same knob does report.
+        model.pointerDown(at: ScreenPoint(200, 75), modifiers: [])
+        model.pointerDragged(to: ScreenPoint(200, 45))
+        model.pointerUp(at: ScreenPoint(200, 45))
+        #expect(handleReports > 0)
     }
 
     /// A click while a drag is still under way means that drag lost its release (docs/metalui-gaps.md VI-a): it

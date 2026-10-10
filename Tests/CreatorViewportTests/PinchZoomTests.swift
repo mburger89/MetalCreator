@@ -72,4 +72,15 @@ struct PinchZoomTests {
         model.pinchChanged(magnification: 1.2, centre: centre)
         #expect(!model.isAnimating)
     }
+
+    /// F, an arrow or a cube click during a pinch starts an animation; the next pinch event takes over from what is
+    /// shown instead of letting the animation finish over it.
+    @Test func aPinchEventStopsAnAnimationStartedMidPinch() {
+        let (model, _) = makeModel()
+        model.pinchChanged(magnification: 1.5, centre: centre)
+        model.perform(.view(.top))
+        #expect(model.isAnimating)
+        model.pinchChanged(magnification: 1.6, centre: centre)
+        #expect(!model.isAnimating, "the pinch's pose is shown, not the old interpolation")
+    }
 }

@@ -89,7 +89,7 @@ struct InvalidBlendTests {
     }
 
     /// Counts the checker's calls from a closure the kernel runs on its own actor.
-    final class CheckCount: Sendable {
+    private final class CheckCount: Sendable {
         let calls = Mutex(0)
         func record() { calls.withLock { $0 += 1 } }
     }

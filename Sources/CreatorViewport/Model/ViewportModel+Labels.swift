@@ -11,11 +11,13 @@ extension ViewportModel {
         isAnimating ? [] : triadLayout.labels(pose: pose)
     }
 
-    /// Each handle's value beside its knob (spec §6.5), in viewport points. "R 3 mm" for a radial handle.
+    /// Each handle's value beside its knob (spec §6.5), in viewport points. "R 3 mm" for a radial handle. The size is
+    /// read through `observedViewSize`, so labels built before the first draw recorded it are rebuilt after it.
     public func handleLabels() -> [ViewportLabel] {
-        guard !viewSize.isEmpty, !isAnimating else { return [] }
+        let size = observedViewSize
+        guard !size.isEmpty, !isAnimating else { return [] }
         return handles.compactMap { handle in
-            guard let knob = CameraMath.project(handle.knob, pose, size: viewSize)?.point else { return nil }
+            guard let knob = CameraMath.project(handle.knob, pose, size: size)?.point else { return nil }
             let amount = handle.value.formatted(.number.precision(.fractionLength(0...2)))
             let text = handle.style == .radial ? "R \(amount) mm" : "\(amount) mm"
             return ViewportLabel(text: text, position: ScreenPoint(knob.x + 14, knob.y - 14))

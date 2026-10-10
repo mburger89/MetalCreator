@@ -2,11 +2,14 @@
 /// Everything but ``run(path:)`` prints and exits without opening a window, so the packaging script and a terminal
 /// can use the packaged binary headlessly.
 public enum LaunchCommand: Equatable, Sendable {
-    /// Open the window, and the `.mcgraph` file at `path` if one is named. The file is handed to the app as Finder
-    /// would (`App.open`, then `AppModel.openRequested(_:)`), so it gets the same unsaved-changes check.
+    /// Open the window, and the `.mcgraph` file at `path` if one is named (the first argument; any after it are
+    /// ignored). The file is handed to the app as Finder would (`App.open`, then `AppModel.openRequested(_:)`), so it
+    /// gets the same unsaved-changes check.
     case run(path: String?)
     /// `--version`: print ``AppBundleInfo/versionLine``.
     case version
+    /// `--help`: print ``usage`` and exit 0.
+    case help
     /// `--self-test`: run ``SelfTest`` and exit 0 when every check passes, 1 otherwise.
     case selfTest
     /// `--info-plist <minimum macOS>`: print the bundle's `Info.plist` (``AppBundleInfo``).
@@ -14,9 +17,10 @@ public enum LaunchCommand: Equatable, Sendable {
     /// A flag this program doesn't take, or one missing its value: print the message and ``usage``, exit 64.
     case usageError(String)
 
-    /// The flags, as `--help` would list them.
+    /// The flags, as `--help` lists them.
     public static let usage = """
         usage: MetalCreator [file.mcgraph]
+               MetalCreator --help
                MetalCreator --version
                MetalCreator --self-test
                MetalCreator --info-plist <minimum macOS, e.g. 26.0>
@@ -30,10 +34,12 @@ public enum LaunchCommand: Equatable, Sendable {
         switch first {
         case "--version":
             self = arguments.count == 1 ? .version : .usageError("--version takes no value.")
+        case "--help":
+            self = arguments.count == 1 ? .help : .usageError("--help takes no value.")
         case "--self-test":
             self = arguments.count == 1 ? .selfTest : .usageError("--self-test takes no value.")
         case "--info-plist":
-            guard arguments.count == 2, let minimum = arguments.last, minimum.wholeMatch(of: /\d+(\.\d+){0,2}/) != nil else {
+            guard arguments.count == 2, let minimum = arguments.last, minimum.wholeMatch(of: /[0-9]+(\.[0-9]+){0,2}/) != nil else {
                 self = .usageError("--info-plist takes one macOS version, like 26.0.")
                 return
             }

@@ -18,7 +18,8 @@ enum ThemeMenu {
         for section in sections(editor.themes) {
             for theme in section {
                 // Choosing the checked theme writes `false`; selecting it again changes nothing.
-                Toggle(theme.name, isOn: Binding(get: { editor.theme.id == theme.id }, set: { _ in editor.select(theme.id) }))
+                Toggle(theme.name, isOn: Binding(get: { editor.theme.id == theme.id },
+                                                 set: { _ in editor.select(theme.id) }))
             }
             Divider()
         }
