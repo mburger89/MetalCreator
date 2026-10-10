@@ -12,7 +12,7 @@ extension EditorModel {
             return
         }
         do {
-            try document.perform(.connect(link))
+            try edit(.connect(link))
         } catch {
             refuse(error.message, node: link.to.node)
         }
@@ -23,7 +23,7 @@ extension EditorModel {
         let ids = selection.filter { graph.nodes[$0] != nil }.sorted()
         guard !ids.isEmpty else { return }
         do {
-            try document.perform(.batch(ids.map { .removeNode($0) }))
+            try edit(.batch(ids.map { .removeNode($0) }))
             selection = []
         } catch {
             refuse(error.message, node: nil)
@@ -61,7 +61,7 @@ extension EditorModel {
     @discardableResult
     func add(_ node: Node) -> Bool {
         do {
-            try document.perform(.addNode(node))
+            try edit(.addNode(node))
             selection = [node.id]
             return true
         } catch {
@@ -98,7 +98,7 @@ extension EditorModel {
         // Copied wires were valid when copied and join only new nodes, so they are restored as they were.
         if !links.isEmpty { commands.append(.restoreLinks(links)) }
         do {
-            try document.perform(.batch(commands))
+            try edit(.batch(commands))
             return CanvasSelection(nodes: Set(mapping.values))
         } catch {
             refuse(error.message, node: nil)

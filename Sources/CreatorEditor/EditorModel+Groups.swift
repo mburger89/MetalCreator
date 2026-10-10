@@ -1,12 +1,11 @@
 import CreatorGraph
 
 extension EditorModel {
-    /// ⌘G: groups the selected nodes into a new definition and selects its group node, as one undo step (groups
-    /// spec §5). The panel shows only the top level until C2 adds entering groups, so it groups there. A refused
-    /// group changes nothing and shows its message.
+    /// ⌘G: groups the selected nodes of the level shown into a new definition and selects its group node, as one undo
+    /// step (groups spec §5). A refused group changes nothing and shows its message.
     public func groupSelection() {
         do {
-            let edit = try GroupCommands.group(selection, in: .root, of: document.content, registry: registry)
+            let edit = try GroupCommands.group(selection, in: graphPath, of: document.content, registry: registry)
             try document.perform(edit.command)
             selection = edit.selection
         } catch {
@@ -28,7 +27,7 @@ extension EditorModel {
             return
         }
         do {
-            let edit = try GroupCommands.ungroup(id, in: .root, of: document.content, registry: registry)
+            let edit = try GroupCommands.ungroup(id, in: graphPath, of: document.content, registry: registry)
             try document.perform(edit.command)
             selection = edit.selection
         } catch {

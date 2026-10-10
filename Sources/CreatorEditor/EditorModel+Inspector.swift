@@ -4,7 +4,16 @@ import CreatorKernel
 extension EditorModel {
     /// What the context inspector shows now.
     public var inspectorPage: InspectorPage {
-        InspectorBuilder.page(graph: graph, selection: selection, registry: registry, results: document.results)
+        InspectorBuilder.page(graph: graphWithDocumentParameters, selection: selection, registry: registry,
+                              results: levelResults)
+    }
+
+    /// The graph shown, with the document's parameters: they belong to the top level, and nodes inside a group read
+    /// them too (`Evaluator` hands every level the top level's), so the inspector lists and offers them there.
+    var graphWithDocumentParameters: Graph {
+        var shown = graph
+        shown.parameters = rootGraph.parameters
+        return shown
     }
 
     /// Sets an unwired input. `continuous` edits (slider steps) share one coalescing key per
@@ -14,7 +23,7 @@ extension EditorModel {
         guard value != field.value else { return }
         let key = continuous ? "input-\(field.node.rawValue.uuidString)-\(field.socket.rawValue)" : nil
         do {
-            try document.perform(.setInput(field.node, field.socket, value), coalescingKey: key)
+            try edit(.setInput(field.node, field.socket, value), coalescingKey: key)
         } catch {
             refuse(error.message, node: field.node)
         }
@@ -25,7 +34,7 @@ extension EditorModel {
     public func clearInput(_ field: InputField) {
         guard field.isOptional, graph.nodes[field.node]?.inputValues[field.socket] != nil else { return }
         do {
-            try document.perform(.setInput(field.node, field.socket, nil))
+            try edit(.setInput(field.node, field.socket, nil))
         } catch {
             refuse(error.message, node: field.node)
         }
@@ -68,7 +77,7 @@ extension EditorModel {
 
     /// A number for a parameter, as a whole number for an integer parameter (refused if no `Int` holds it).
     public func setParameterNumber(_ id: ParameterID, to number: Double, continuous: Bool = false) {
-        guard let parameter = graph.parameters.first(where: { $0.id == id }) else { return }
+        guard let parameter = rootGraph.parameters.first(where: { $0.id == id }) else { return }
         guard parameter.type == .integer else {
             setParameter(id, to: .number(number), continuous: continuous)
             return

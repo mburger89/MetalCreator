@@ -125,7 +125,7 @@ extension EditorModel {
         case .panning(let startOffset):
             transform = CanvasTransform(offset: startOffset + (location - pressPoint), zoom: transform.zoom)
         case .moving(let start, let key):
-            try? document.perform(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key)
+            try? edit(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key)
         case .duplicating(let start, _):
             setInteraction(.duplicating(start: start, delta: storedDelta))
         case .boxSelecting(let start, _, let base, let mode):
@@ -154,7 +154,7 @@ extension EditorModel {
             // Dragging a wired input off onto empty canvas removes its wire.
             if wire.from.isInput, let link = graph.incomingLink(to: wire.from.endpoint) {
                 do {
-                    try document.perform(.disconnect(link))
+                    try edit(.disconnect(link))
                 } catch {
                     refuse(error.message, node: link.to.node)
                 }
