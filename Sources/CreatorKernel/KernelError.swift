@@ -11,17 +11,21 @@ public enum KernelError: Error, Equatable, Sendable {
     /// The refusal every kernel gives a loft through profiles with holes, and the Loft node gives it first.
     public static let loftWithHoles = KernelError.invalidInput("A loft can't use profiles with holes yet.")
 
-    public var userMessage: String {
+    /// The message, with its numbers in `Locale.messages`.
+    public var userMessage: String { message(locale: .messages) }
+
+    /// The message with its numbers written in `locale`. Only `userMessage` and the tests call it.
+    func message(locale: Locale) -> String {
         switch self {
         case .invalidInput(let message):
             message
         case .operationFailed(let operation, let reason):
             "\(operation.sentenceCased) failed: \(reason)"
         case .filletFailed(let radius, let maxRadius?, _):
-            "Radius \(radius.formatted(.number.precision(.fractionLength(0...2)))) mm is too large for the selected edges "
-                + "(max ≈ \(maxRadius.formatted(.number.precision(.fractionLength(0...2)))) mm)."
+            "Radius \(radius.millimetreText(locale: locale)) mm is too large for the selected edges "
+                + "(max ≈ \(maxRadius.millimetreText(locale: locale)) mm)."
         case .filletFailed(let radius, nil, let reason):
-            "Radius \(radius.formatted(.number.precision(.fractionLength(0...2)))) mm could not be applied: \(reason)"
+            "Radius \(radius.millimetreText(locale: locale)) mm could not be applied: \(reason)"
         case .unsupported(let operation):
             "\(operation.sentenceCased) isn't supported by this kernel yet."
         case .exportFailed(let reason):
