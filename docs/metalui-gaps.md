@@ -53,6 +53,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | C9 | ✅ fixed by C9 (KF-Z/KF-AA: ⌘↩ is no editing key of a `TextEditor`, so an `onKeyPress` for it commits), adopted by the inspector's note box and the canvas editor (Comments typing plan) |
 | CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C24 |
 | CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C25 |
+| CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | ⏳ reported 2026-10-10 (Comments typing final review), rides with M6-e |
 
 ## Reported 2026-10-07 (C7)
 
@@ -714,3 +715,13 @@ Labelled CT-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   opens as MetalUI opens it, and the user presses ⌘A or ⌘→ (or clicks) to select or move the caret. Wanted: a selection
   binding on both fields, or `FocusState`-style `selectAll()` / caret-position on focus. Human check CT-1 records what the
   user sees. Status: queued as MetalUI C25 (after C9, merged to MetalUI master 0a9eb36; a `selection` binding or a selectAll/caret-on-focus hook); the repository is never edited from here.
+- **CT-c. The comment editor's C9-dependent behaviour has no automated test.** The field's Return, Esc and ⌘↩ handlers,
+  the focus-loss commit, `onAppear` focus, a canvas press clearing focus (M5-g), the hovered key region and a focused field
+  winning over hover are `onKeyPress` / `FocusState` / key-region behaviour that exists only inside a real `Window`.
+  MetalUI exposes no public key or mouse injection (`simulateInput` lives on `FakePlatformWindow` in MetalUI's own test
+  target: M6-e), so MetalCreator tests only the pure `KeyPress` to `KeyEvent` mapping, the model and render geometry. If
+  MetalUI changes, or the sibling-not-child arrangement regresses, only the manual checks CT-1..CT-9 notice. MetalCreator
+  works around nothing (no private-API or `@testable` reach into MetalUI). Wanted: M6-e's public headless `Window` with
+  `simulateInput` and a rendered frame, then a test that types into the field, sends ⌘↩ and Esc, presses the canvas, and
+  asserts `commentEdit` and the graph. Status: rides with M6-e (queued); forward to the MetalUI session per the standing
+  rule; the repository is never edited from here.
