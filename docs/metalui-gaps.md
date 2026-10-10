@@ -27,9 +27,9 @@ work (the owner named). The sections below keep each gap's full use case.
 | M5-j | `ProgressView` | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
 | M6-a | Window title and edited marker | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
 | M6-b | Close and quit veto | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
-| M6-c | Full-size content view | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
+| M6-c | Full-size content view | C8 | 🔄 open: fixed in MetalUI 70e9389 (PR #61) but not adopted; the window keeps its standard title bar until human check AS-5 shows it drags (C8-a) |
 | M6-d | Open-document events | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
-| C8-a | Window drag region for a hidden title bar under a gesture-carrying view | none yet | ⏳ reported to the MetalUI session 2026-10-10, not yet queued |
+| C8-a | Window drag region for a hidden title bar under a gesture-carrying view | none yet | ⏳ reported to the MetalUI session 2026-10-10, not yet queued; predicted from reading MetalUI, AS-5 not run (it would confirm or refute) |
 | M6-e | Public headless test window | item 8 (test harness) | ⏳ queued |
 | M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
 | M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
@@ -201,7 +201,7 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
 - ✅ **Fixed in MetalUI 70e9389 (PR #61, rulings AS-D), adopted:** `WindowChromeSync` sets `Window.title`,
   `Window.isDocumentEdited` and `Window.representedURL` from the document (`AppModel.windowChrome`), so the title bar
   reads the file's name, the close button shows the edited dot and the proxy icon names the file. The top bar keeps
-  its name and "— Edited". Under the hidden title bar (M6-c) AppKit draws neither the title nor the proxy icon.
+  its name and "— Edited". The window keeps its standard title bar (M6-c is open), so AppKit draws the title and the proxy icon.
   **M6-a. No window title API.** The title is fixed by `App.openWindow(title:…)`. `PlatformWindow.title` is settable,
   but `Window` doesn't expose it, and there's no represented file or edited marker (AppKit's `representedURL` and
   `isDocumentEdited`). The app wants "bracket.mcgraph — Edited" in the title bar. Stopgap: the glass top bar shows the
@@ -215,10 +215,11 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
   to save (AppKit: `windowShouldClose(_:)`, `applicationShouldTerminate(_:)`; SwiftUI document apps get it from
   `DocumentGroup`). Stopgap: none. New and Open ask before discarding unsaved changes; close and quit don't. Wanted: a
   window-close veto and an app terminate hook that can show an alert first.
-- ✅ **Fixed in MetalUI 70e9389 (PR #61, rulings AS-E, AS-F, AS-J), adopted (plan Task 4b, merged after human check
-  AS-5):** the window opens with `windowStyle: .hiddenTitleBar` and `TopBar` pads its content by
-  `AppLayout.topBarClearance(titleBarInsets:)` (`AppRoot` reads `@Environment(\.titleBarInsets)`). Dragging the
-  window by its top bar is gap C8-a.
+- 🔄 **Fixed in MetalUI 70e9389 (PR #61, rulings AS-E, AS-F, AS-J), not adopted:** `windowStyle: .hiddenTitleBar` is
+  held back (plan Task 4b) until human check AS-5 shows the window drags by its top bar (gap C8-a predicts it doesn't).
+  `TopBar` already pads its content by `AppLayout.topBarClearance(titleBarInsets:)` (`AppRoot` reads
+  `@Environment(\.titleBarInsets)`); the inset is zero in a standard window. To adopt: run AS-5 with the
+  `windowStyle: .hiddenTitleBar` argument added in `Sources/MetalCreatorApp/main.swift`, record the result, then commit it.
   **M6-c. No full-size content view.** Spec §6.1 draws the glass top bar under the traffic lights (AppKit
   `.fullSizeContentView` with a transparent title bar; SwiftUI `.windowStyle(.hiddenTitleBar)`). Stopgap: the top bar
   sits below the standard title bar.
@@ -579,8 +580,8 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
   band, including one on the empty glass of the top bar (glass only paints, divergence 141), forms an arena, and the
   window can't be dragged by its top bar. Found by reading MetalUI 70e9389; human check AS-5 confirms or refutes it.
   Stopgap: none (a claiming view over the band would not drag the window either, and the viewport stays full-bleed).
-  If AS-5 confirms it, the window keeps its standard title bar until MetalUI answers (plan Task 4b: drop the one
-  `windowStyle:` line; the top bar's clearance code stays, it is zero in a standard window), and M6-c stays open.
+  Until AS-5 shows otherwise the window keeps its standard title bar (plan Task 4b: the one `windowStyle:` line is not
+  merged; the top bar's clearance code stays, it is zero in a standard window), and M6-c stays open.
   Wanted: a way to mark a region as the window's drag handle that wins over the gestures beneath it, as SwiftUI's
   `WindowDragGesture` / `.windowBackgroundDragBehavior(.enabled)` (macOS 15) or a `.windowDragArea()` modifier; the
   top bar's glass would carry it.

@@ -448,7 +448,7 @@ of each check is pinned headless (`AppModelCloseTests`, `WindowChromeTests`, `Ap
 `TitleBarClearanceTests`, `TopBarClearanceRenderTests`, `SaveChangesAnswerTests`); what MetalUI's window, menu and Finder do with it is these checks only (gap M6-e).
 
 Product decisions behind these checks (the user approved the recommended default of each on 2026-10-09/10): (1) the hidden
-title bar ships only if AS-5 shows the window drags, as its own commit; (2) a Finder open of the file already open does
+title bar (not merged; the window is standard) ships only if AS-5 shows the window drags, as its own commit; (2) a Finder open of the file already open does
 nothing; (3) a typed but uncommitted inspector value counts as a change when a Finder open arrives; (4) the top bar keeps
 the name and "— Edited"; (5) close and quit share one alert; (6) an open onto edited work asks "Discard unsaved changes?".
 Gap C8-a was reported to the MetalUI session on 2026-10-10.
@@ -467,14 +467,14 @@ Gap C8-a was reported to the MetalUI session on 2026-10-10.
 - [ ] **AS-3 Title and edited dot.** The Window menu and Mission Control name the window "Untitled", then the file's
   name after a save or an open. The close button shows AppKit's edited dot after a change and loses it after a save or
   an undo back to the saved state; New resets the name. The top bar still reads the name and "— Edited". **Observed:**
-- [ ] **AS-4 Proxy icon.** Spec §6.1's window shows the document's file in the title bar. Under the hidden title bar
-  AppKit is expected to draw neither the title nor the proxy icon: record whether either shows. If it doesn't, the
-  represented file still names the document in the Window menu; record whether ⌘-clicking where the title would be
-  shows the path menu. (To see the icon, temporarily open the window with the standard style in
-  `Sources/MetalCreatorApp/main.swift`; don't commit that.) **Observed:**
+- [ ] **AS-4 Proxy icon.** Spec §6.1's window shows the document's file in the title bar. The window has the standard
+  title bar: record whether the title and the proxy icon show, and whether ⌘-clicking the title shows the path menu.
+  (Under a hidden title bar AppKit is expected to draw neither; the represented file would still name the document in
+  the Window menu.) **Observed:**
 - [ ] **AS-5 The top bar under the window buttons.** The three window buttons sit over the glass top bar's left end, the
-  document name starts clear of them, and nothing overlaps at the minimum window width. **Run this check, with the
-  `windowStyle: .hiddenTitleBar` line applied, before merging it (plan Task 4b).** Enter a sketch (Edit sketch on a
+  document name starts clear of them, and nothing overlaps at the minimum window width. **This needs the hidden title bar, which is not merged:
+  add `windowStyle: .hiddenTitleBar` to `openWindow` in `Sources/MetalCreatorApp/main.swift` to run it, and merge
+  that line only if the window drags (plan Task 4b).** Enter a sketch (Edit sketch on a
   Sketch node): the toolbar starts clear of the buttons too. Enter full screen (⌃⌘F): the buttons leave and the content
   moves back to the bar's left edge; leave full screen and it clears them again. **Drag the window by the top bar and
   by the strip above the panels: record whether it moves (gap C8-a predicts it doesn't, because the viewport's gestures
