@@ -398,7 +398,7 @@ for C10-5.
 
 **Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
 
-Run `swift run MetalCreatorApp` (EP-1–EP-9, EP-11) and `swift run GraphPanelPreview` (EP-10).
+Run `swift run MetalCreatorApp` (EP-1–EP-9, EP-11, EP-12) and `swift run GraphPanelPreview` (EP-10).
 
 - [ ] **EP-1 The palette floats at the pointer.** Dock the graph at the bottom. With the pointer over the canvas,
   near its bottom-left, press Tab: the palette opens with its bottom-left corner at the pointer, reaching up over the

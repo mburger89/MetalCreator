@@ -396,8 +396,8 @@ and after a drag, and draws exactly one frame per drag event.
   the 60 fps budget: every orbit step rebuilds the panel's nodes. Zooming the 50-node graph out until every node is in
   view costs about the budget, so canvas culling (which brought panning well inside the budget) can't help there;
   MetalCreator's level of detail (no rows below half zoom) takes a share off such a frame (its figure is in
-  performance.md, from a probe at another load), and what is left is MetalUI's rebuild of nodes that didn't change. Both verdicts are not judged yet (the
-  recorded run was not idle); a miss on an idle run waits for C14.
+  performance.md, from a probe at another load), and what is left is MetalUI's rebuild of nodes that didn't change.
+  Both verdicts are not judged yet (the recorded run was not idle); a miss on an idle run waits for C14.
 
 ## Hit by editor polish (floating palette, node library), 2026-10-08
 
