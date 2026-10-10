@@ -58,6 +58,10 @@ public final class EditorModel {
     @ObservationIgnored var pinchStart: CanvasPinch?
     /// A ⌘-scroll ended and its glide, until its momentum ends, is ignored (`EditorModel+Scroll`).
     @ObservationIgnored var scrollGlideIgnored = false
+    /// The time now, for telling a double click from two clicks (`EditorModel+DoubleClick`); tests set their own.
+    @ObservationIgnored public var now: @MainActor () -> ContinuousClock.Instant = { ContinuousClock.now }
+    /// The last plain click on a node: which, where on the canvas (screen points) and when.
+    @ObservationIgnored var lastNodeClick: NodeClick?
 
     public init(document: DocumentModel) {
         self.document = document

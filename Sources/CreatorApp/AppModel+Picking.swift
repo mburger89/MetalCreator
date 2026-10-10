@@ -14,6 +14,9 @@ extension AppModel {
         case .pickFacesInView:
             alert = .problem(AppProblem("Faces can't be picked yet", "No node in this version selects faces."))
         case .editSketch:
+            // Only a double click on the graph canvas can ask while a sketch is open (the inspector shows the
+            // sketch's lists then): it changes nothing, so the stroke, selection and camera stay (Errata (S5b)).
+            guard sketch == nil else { return }
             beginSketch(for: request.node)
         }
     }

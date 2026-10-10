@@ -197,3 +197,19 @@ enum PerNodeSocketTestNode: NodeDefinition {
 
 /// The editor registry plus `PerNodeSocketTestNode`, for the per-node socket tests.
 let perNodeSocketTestRegistry = NodeRegistry([NumberTestNode.self, PerNodeSocketTestNode.self])
+
+/// Mirrors the Sketch node's inspector: an "Edit sketch" button, which a double click also presses.
+enum SketchTestNode: NodeDefinition {
+    static let typeID = "editortest.sketch"
+    static let displayName = "Sketch"
+    static let category = NodeCategory.profile
+    static let inputs: [SocketSpec] = []
+    static let outputs = [SocketSpec("profiles", .profile)]
+    static let inspector = [InspectorSection(title: "Sketch", controls: [.button(title: "Edit sketch", action: .editSketch)])]
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        NodeOutputs(["profiles": .profile(.rectangle(width: 1, height: 1, plane: .xy))])
+    }
+}
+
+/// The editor registry plus `SketchTestNode`, for the double-click tests.
+let sketchTestRegistry = NodeRegistry([NumberTestNode.self, FilletTestNode.self, SketchTestNode.self])

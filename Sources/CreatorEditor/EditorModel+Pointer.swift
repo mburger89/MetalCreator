@@ -26,6 +26,7 @@ extension EditorModel {
     public func pointerReleased(from start: Vector2, at location: Vector2, modifiers: CanvasModifiers = []) {
         ensurePress(at: start, modifiers: modifiers)
         guard let press = currentPress else { return }
+        if interaction == nil { pairClick(on: press.hit, at: press.point, modifiers: press.modifiers) } else { lastNodeClick = nil }
         switch interaction {
         case nil: click(press.hit, extending: press.modifiers.contains(.shift))
         case .moving: document.endCoalescing()
