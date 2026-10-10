@@ -14,7 +14,7 @@ extension EditorModel {
     /// ⌥ duplicates the selection).
     public func pointerDragged(from start: Vector2, to location: Vector2, modifiers: CanvasModifiers = []) {
         ensurePress(at: start, modifiers: modifiers)
-        guard let press = currentPress else { return }
+        guard let press = currentPress, !isPressCancelled else { return }
         if interaction == nil {
             guard (location - press.point).length >= Self.dragThreshold else { return }
             setInteraction(beginInteraction(for: press.hit, at: press.point, modifiers: modifiers))
@@ -26,7 +26,11 @@ extension EditorModel {
     /// press (`SelectionMode`). `modifiers` (held at the release) count only for a press that reported no change before.
     public func pointerReleased(from start: Vector2, at location: Vector2, modifiers: CanvasModifiers = []) {
         ensurePress(at: start, modifiers: modifiers)
-        guard let press = currentPress else { return }
+        guard let press = currentPress, !isPressCancelled else {
+            // A press whose drag Esc cancelled ends here: no click, no wire.
+            endPress()
+            return
+        }
         switch interaction {
         case nil: click(press.hit, mode: SelectionMode(press.modifiers))
         case .moving: document.endCoalescing()
@@ -48,6 +52,22 @@ extension EditorModel {
         palette = nil
         if case .panning? = interaction { setInteraction(nil) }
         beginPress(at: screen, modifiers: modifiers)
+    }
+
+    /// Esc during a drag (spec 2026-10-09 §3). A drag that hasn't changed the document is cancelled and the rest of
+    /// its press ignored: a wire being dragged is dropped, ⌥-drag ghosts vanish, and a box puts back the selection it
+    /// began with. A pan (the middle button's) or a move goes on (a move's steps are already in the document, for
+    /// Undo), and the key is still claimed so it can't clear the selection mid-drag. Returns false with no drag under
+    /// way.
+    func cancelInteraction() -> Bool {
+        switch interaction {
+        case nil: return false
+        case .panning?, .moving?: return true
+        case .connecting?, .duplicating?: break
+        case .boxSelecting(_, _, let base, _)?: canvasSelection = base
+        }
+        cancelPress()
+        return true
     }
 
     /// Starts a press at `start` unless one with that start is in progress. A recorded press

@@ -55,6 +55,8 @@ public final class EditorModel {
     @ObservationIgnored private var pressHit: CanvasHit = .empty
     /// The modifiers held at the press (MetalUI's `DragGesture.Value.modifiers` at its first change).
     @ObservationIgnored private var pressModifiers: CanvasModifiers = []
+    /// Esc cancelled the press's drag (`cancelPress()`): the rest of the press, to its release, is ignored.
+    @ObservationIgnored private var pressCancelled = false
     /// Where the middle-button press now panning, or last panning, the canvas began (`EditorModel+MiddlePan`); `nil`
     /// once released.
     @ObservationIgnored var middlePanStart: Vector2?
@@ -213,8 +215,18 @@ public final class EditorModel {
         pressStart = nil
         pressHit = .empty
         pressModifiers = []
+        pressCancelled = false
         interaction = nil
     }
+
+    /// Ends the drag under way without finishing it; the press's later changes and its release do nothing.
+    func cancelPress() {
+        interaction = nil
+        pressCancelled = true
+    }
+
+    /// Whether Esc cancelled the press under way (`cancelPress()`).
+    var isPressCancelled: Bool { pressCancelled }
 
     func setInteraction(_ interaction: CanvasInteraction?) { self.interaction = interaction }
 }

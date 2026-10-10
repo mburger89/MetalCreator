@@ -6,6 +6,8 @@ public enum GraphKeyCommand: Equatable, Sendable {
     /// Space: the add-node palette.
     case openPalette
     case deleteSelection
+    /// ⌘A: selects everything on the canvas.
+    case selectAll
     case copy
     case paste
     case duplicate

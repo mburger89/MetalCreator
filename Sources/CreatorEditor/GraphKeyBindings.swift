@@ -34,6 +34,7 @@ public enum GraphKeyBindings {
         case "c": .copy
         case "v": .paste
         case "d": .duplicate
+        case "a": shifted ? nil : .selectAll
         case "z": shifted ? .redo : .undo
         default: nil
         }
