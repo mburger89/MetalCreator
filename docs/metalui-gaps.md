@@ -36,7 +36,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | VI-a | A dropped gesture's end | C16 | ⏳ queued after C8 and C9 |
 | GI-a | Modifiers on a tap | none yet (with S5-a) | ⏳ reported, not queued |
 | GI-b | Wheel latching (`CI-AD`) | none yet | ⏳ reported, not queued |
-| PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | 🔄 in progress (`perf/shadow-cache`) |
+| PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | ✅ fixed (MetalUI ebcf3c7, PR #63), adopted with no code change; idle re-measure pending |
 | PERF-b | Every observed change rebuilds, lays out and paints the whole window | C14 | ⏳ queued; measured by M7 (below) |
 | EP-a | Element frame in window coordinates, hover coordinate space, window size | C15 | ⏳ queued after C9 |
 | EP-b | Chrome-less point-anchored popover that closes on an outside press | C15 | ⏳ queued after C9 |
@@ -414,6 +414,10 @@ and after a drag, and draws exactly one frame per drag event.
   MetalCreator's level of detail (no rows below half zoom) takes a share off such a frame (its figure is in
   performance.md, from a probe at another load), and what is left is MetalUI's rebuild of nodes that didn't change.
   Both verdicts are not judged yet (the recorded run was not idle); a miss on an idle run waits for C14.
+  **Fixed by MetalUI C13** (merged to MetalUI master ebcf3c7, PR #63, rulings PF-A…PF-N): shadow, blur, path and gradient
+  rasters are cached apart from position, so a node dragged by whole device pixels reuses its texture (MetalUI measured
+  20 shadowed nodes at 2×: 9 new textures a frame before, 0 after). MetalCreator adopts it with no code change; the
+  node-drag and pan numbers in `docs/verification/performance.md` wait for the idle benchmark re-run.
 
 ## Hit by editor polish (floating palette, node library), 2026-10-08
 
