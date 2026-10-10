@@ -15,6 +15,8 @@ struct ViewportPipelines {
     let ghostDepth: any MTLRenderPipelineState
     let line: any MTLRenderPipelineState
     let grid: any MTLRenderPipelineState
+    /// The overlay's filled triangles: blended, drawn under its lines.
+    let fill: any MTLRenderPipelineState
     let cube: any MTLRenderPipelineState
     let idMesh: any MTLRenderPipelineState
     let idLine: any MTLRenderPipelineState
@@ -68,6 +70,7 @@ struct ViewportPipelines {
         ghostDepth = try pipeline("mesh_vertex", "mesh_fragment", blended: false, writesColor: false)
         line = try pipeline("line_vertex", "line_fragment", blended: true)
         grid = try pipeline("grid_vertex", "grid_fragment", blended: true)
+        fill = try pipeline("fill_vertex", "fill_fragment", blended: true)
         cube = try pipeline("cube_vertex", "cube_fragment", blended: true)
         idMesh = try pipeline("mesh_vertex", "id_mesh_fragment", color: Self.idFormat, samples: 1, blended: false)
         idLine = try pipeline("line_vertex", "id_line_fragment", color: Self.idFormat, samples: 1, blended: false)

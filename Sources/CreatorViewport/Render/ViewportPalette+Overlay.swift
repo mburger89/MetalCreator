@@ -10,6 +10,7 @@ extension ViewportPalette {
         case .selected: sketchSelected
         case .hovered: hover
         case .preview: sketchPreview
+        case .region: sketchRegion
         }
     }
 }

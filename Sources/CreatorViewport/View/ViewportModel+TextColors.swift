@@ -17,7 +17,7 @@ extension ViewportModel {
         case .conflicting: colors.sketchConflicting.color
         case .construction: colors.sketchConstruction.color
         case .projected: colors.sketchProjected.color
-        case .selected: colors.profileHeader.color
+        case .selected, .region: colors.profileHeader.color
         case .hovered: colors.focus.color
         }
     }

@@ -22,6 +22,8 @@ final class ViewportRenderer {
     var handleBuffer: (handles: [ViewportHandle], scale: Float, buffer: any MTLBuffer, count: Int)?
     /// The overlay's instances, kept until what they're built from changes (dashes and the plane grid follow the zoom).
     var overlayBuffer: (key: OverlayBufferKey, buffer: any MTLBuffer, count: Int)?
+    /// The overlay's fill triangles, kept until the fills or the palette change.
+    var fillBuffer: (key: FillBufferKey, buffer: any MTLBuffer, count: Int)?
     private let cube: ViewCubeResources
     /// The palette `handleBuffer` was built in.
     var handlePalette = ViewportPalette.dracula

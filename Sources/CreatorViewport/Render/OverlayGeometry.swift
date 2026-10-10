@@ -40,6 +40,14 @@ enum OverlayGeometry {
         return instances
     }
 
+    /// Three vertices per triangle of every fill, in the tint's colour; a fill's trailing one or two vertices are ignored.
+    static func fillVertices(_ fills: [OverlayFill], palette: ViewportPalette) -> [FillVertex] {
+        fills.flatMap { fill -> [FillVertex] in
+            let color = palette.color(fill.tint)
+            return fill.vertices.prefix(fill.triangleCount * 3).map { FillVertex(position: GPUGeometry.float3($0), color: color) }
+        }
+    }
+
     /// `a`–`b` cut into dashes `dash` points long with `gap`-point gaps at `millimetresPerPoint`, the last dash
     /// clipped at `b`. A degenerate zoom, or more than `dashLimit` dashes, gives the whole line.
     static func dashes(_ a: Vector3, _ b: Vector3, millimetresPerPoint: Double) -> [(Vector3, Vector3)] {

@@ -153,6 +153,39 @@ struct OffscreenRenderTests {
         #expect(fromBehind != fromFront, "and FRONT's doesn't show through it")
     }
 
+    /// A fill tints the pixels it covers and leaves the rest: the same frame with and without a triangle round the view's
+    /// centre. (It compares the two renders, not colours.)
+    @Test func anOverlayFillTintsThePixelsItCoversAndNoOthers() throws {
+        let device = try #require(MTLCreateSystemDefaultDevice())
+        let renderer = try ViewportRenderer(device: device)
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: 400, height: 400,
+                                                                  mipmapped: false)
+        descriptor.usage = .renderTarget
+        descriptor.storageMode = .shared
+        let target = try #require(device.makeTexture(descriptor: descriptor))
+        let queue = try #require(device.makeCommandQueue())
+        func pixels(_ overlay: ViewportOverlay) throws -> [UInt8] {
+            let frame = ViewportFrame(pose: Self.front, size: Self.size, sceneBounds: nil, items: [], shading: .shadedEdges,
+                                      gridSpacing: 10, handles: [], cube: ViewCubeLayout(), hoveredCubeRegion: nil,
+                                      triad: TriadLayout(), overlay: overlay)
+            let commandBuffer = try #require(queue.makeCommandBuffer())
+            renderer.encode(frame, into: target, scale: 2, commandBuffer: commandBuffer)
+            commitAndWait(commandBuffer)
+            var bytes = [UInt8](repeating: 0, count: 400 * 400 * 4)
+            target.getBytes(&bytes, bytesPerRow: 400 * 4, from: MTLRegionMake2D(0, 0, 400, 400), mipmapLevel: 0)
+            return bytes
+        }
+        func channels(_ bytes: [UInt8], x: Int, y: Int) -> [Int] {
+            (0..<3).map { Int(bytes[(y * 400 + x) * 4 + $0]) }
+        }
+        let fill = OverlayFill(vertices: [Vector3(-6, 0, 9), Vector3(6, 0, 9), Vector3(0, 0, 21)])
+        let plain = try pixels(ViewportOverlay())
+        let filled = try pixels(ViewportOverlay(fills: [fill]))
+        let inside = zip(channels(plain, x: 200, y: 200), channels(filled, x: 200, y: 200)).map { abs($0 - $1) }
+        #expect(inside.contains { $0 >= 3 }, "the view's centre is inside the triangle: \(inside)")
+        #expect(channels(plain, x: 20, y: 380) == channels(filled, x: 20, y: 380), "a corner far from it is untouched")
+    }
+
     @Test func aTargetOfTheWrongFormatIsLeftAlone() throws {
         let device = try #require(MTLCreateSystemDefaultDevice())
         let renderer = try ViewportRenderer(device: device)
