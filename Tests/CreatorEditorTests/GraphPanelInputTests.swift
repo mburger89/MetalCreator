@@ -63,10 +63,28 @@ struct GraphPanelInputTests {
         editor.selection = [node.id]
         let input = GraphPanelInput(model: editor)
         let delete = KeyEvent(charactersIgnoringModifiers: "\u{7f}", characters: "\u{7f}", timestamp: 1)
-        #expect(input.handle(.keyDown(delete)))
+        #expect(!input.handle(.keyDown(delete)), "the window's input fallback no longer runs the graph's keys")
+        #expect(editor.graph.nodes.count == 1)
+        #expect(input.handleKey(delete))
         #expect(editor.graph.nodes.isEmpty)
         let letter = KeyEvent(charactersIgnoringModifiers: "q", characters: "q", timestamp: 2)
-        #expect(!input.handle(.keyDown(letter)))
+        #expect(!input.handleKey(letter))
+    }
+
+    /// While the add-node palette is open its keys are the window's (a focused search field claims arrows before
+    /// anything else, gap M5-h): the graph's own keys stand aside, and Esc closes the palette.
+    @Test func theOpenPalettesKeysStayOnTheInputFallback() {
+        let node = testNode(NumberTestNode.self, id: 1, at: .zero)
+        let editor = makeEditor([node])
+        editor.selection = [node.id]
+        let input = GraphPanelInput(model: editor)
+        editor.openPalette()
+        let delete = KeyEvent(charactersIgnoringModifiers: "\u{7f}", characters: "\u{7f}", timestamp: 1)
+        #expect(!input.handleKey(delete) && !input.handle(.keyDown(delete)))
+        #expect(editor.graph.nodes.count == 1)
+        let escape = KeyEvent(charactersIgnoringModifiers: "\u{1b}", characters: "\u{1b}", timestamp: 2)
+        #expect(input.handle(.keyDown(escape)))
+        #expect(editor.palette == nil)
     }
 
     @Test func hoverTracksThePointer() {
@@ -83,7 +101,7 @@ struct GraphPanelInputTests {
     @Test func paletteArrowsAreKeymapActionsOnlyWhileThePaletteIsOpen() {
         let editor = makeEditor([])
         let input = GraphPanelInput(model: editor)
-        #expect(GraphPanelInput.keymap.bindings.map(\.spelling) == ["up", "down", "tab"])
+        #expect(GraphPanelInput.keymap.bindings.map(\.spelling) == ["up", "down"])
         #expect(GraphPanelInput.keymap.bindings.prefix(2).allSatisfy { $0.action is PaletteMove })
         // Closed: unhandled, so MetalUI passes the arrow on to a focused field.
         #expect(!input.handleAction(PaletteMove(step: 1)))
@@ -94,29 +112,27 @@ struct GraphPanelInputTests {
         #expect(editor.palette?.highlighted == 0)
     }
 
-    /// Tab is a keymap action because Tab focus traversal runs before `onInput` whenever anything
-    /// focusable is on screen (the inspector always is). Unclaimed, it falls through to traversal
-    /// or, while hidden, to `GraphShowButton`'s shortcut. Only the mapping is pinned here.
-    @Test func tabIsAKeymapActionThatOpensThePaletteOnlyOverTheVisibleCanvas() throws {
+    /// Tab is the canvas region's key now (MetalUI C9, gap M5-b), not a keymap action: it reaches the graph only while
+    /// the pointer is over the canvas with nothing focused, so a focused field (the inspector's, a comment being typed
+    /// into on the canvas) gets it. It opens the palette over the visible canvas; unclaimed, it is focus traversal's.
+    @Test func tabOpensThePaletteOnlyOverTheVisibleCanvas() {
         let editor = makeEditor([])
         let input = GraphPanelInput(model: editor)
-        let binding = try #require(GraphPanelInput.keymap.bindings.last)
-        #expect(binding.spelling == "tab")
-        #expect(binding.action is GraphTab)
-        // Pointer off the canvas: unclaimed, so focus traversal gets Tab.
-        #expect(!input.handleAction(GraphTab()))
-        #expect(editor.palette == nil)
+        let tab = KeyEvent(charactersIgnoringModifiers: "\t", characters: "\t", timestamp: 1)
+        // Pointer not over the canvas: unclaimed, so focus traversal gets Tab.
+        #expect(!input.handleKey(tab))
+        #expect(editor.palette == nil && editor.isPanelVisible)
         input.hover(.active(Point(x: Pixels(40), y: Pixels(30))))
-        #expect(input.handleAction(GraphTab()))
+        #expect(input.handleKey(tab))
         #expect(editor.palette?.screenPosition == Vector2(40, 30))
         // Palette already open: unclaimed (no second palette).
-        #expect(!input.handleAction(GraphTab()))
+        #expect(!input.handleKey(tab))
         editor.closePalette()
         // Hidden: unclaimed, so `GraphShowButton`'s Tab shortcut shows the panel.
         editor.toggleHidden()
         #expect(!editor.isPanelVisible)
-        #expect(!input.handleAction(GraphTab()))
-        #expect(editor.palette == nil)
+        #expect(!input.handleKey(tab))
+        #expect(editor.palette == nil && !editor.isPanelVisible)
     }
 
     @Test func scrollEventsMapToCanvasPhases() {
@@ -149,27 +165,23 @@ struct GraphPanelInputTests {
         #expect((editor.transform.toCanvas(Vector2(200, 100)) - under).length < 1e-6)
     }
 
-    @Test func aCanvasPressReleasesTextFocusOncePerPress() {
+    /// Clearing a field's focus on a canvas press is the surface's, as a MetalUI C9 key region (gap M5-g); the gesture
+    /// only reports the press.
+    @Test func aPlainDragThroughTheCanvasGestureBoxSelectsAndDoesNotPan() {
         let editor = makeEditor([])
         let input = GraphPanelInput(model: editor)
-        var releases = 0
-        input.releaseTextFocus = { releases += 1 }
         input.canvasChanged(value(Vector2(10, 10), Vector2(10, 10)))
         input.canvasChanged(value(Vector2(10, 10), Vector2(40, 10)))
         input.canvasEnded(value(Vector2(10, 10), Vector2(40, 10)))
-        #expect(releases == 1)
         input.canvasEnded(value(Vector2(5, 5), Vector2(5, 5)))
-        #expect(releases == 2)
         #expect(editor.transform.offset == .zero, "a plain drag through the canvas gesture box-selects; it doesn't pan")
     }
 
     /// The canvas's middle-button drag (the user's Gate G answer (b)) pans through the model, from its own arena
-    /// (MetalUI `CI-F`), and leaves text focus alone: it isn't a click on the canvas.
-    @Test func aMiddleDragThroughItsGesturePansAndKeepsTextFocus() {
+    /// (MetalUI `CI-F`).
+    @Test func aMiddleDragThroughItsGesturePans() {
         let editor = makeEditor([])
         let input = GraphPanelInput(model: editor)
-        var releases = 0
-        input.releaseTextFocus = { releases += 1 }
         let gesture = input.middlePanGesture()
         #expect(gesture.button == .middle && gesture.minimumDistance == Pixels(0))
         input.middleChanged(value(Vector2(10, 10), Vector2(10, 10)))
@@ -177,6 +189,5 @@ struct GraphPanelInputTests {
         #expect(editor.canvasCursor == .grabbing)
         input.middleEnded(value(Vector2(10, 10), Vector2(40, 30)))
         #expect(editor.transform.offset == Vector2(30, 20) && editor.interaction == nil)
-        #expect(releases == 0)
     }
 }

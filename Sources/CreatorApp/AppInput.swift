@@ -6,13 +6,14 @@ import MetalUI
 /// document, and with it the editor and its `GraphPanelInput`, is replaced on New and Open, so these hooks
 /// forward to whichever is current instead of binding one (as `GraphPanelInput.install(on:)` would):
 /// - keymap: the viewport's F, + and − in the `AppKeyContext.viewport` context, so they type into a focused
-///   panel field instead (gap M4-a), then the graph's palette arrows and Tab (gaps M5-h, M5-b);
+///   panel field instead (gap M4-a), then the graph's palette arrows (gap M5-h);
 /// - `onAction`: the graph's actions first, then the viewport's keys, except while the pointer is over the graph
 ///   canvas: there F, + and − fall through to the graph's own keys (F frames the graph's selection, + and − zoom
-///   the canvas; spec 2026-10-09 §3), because keys aren't scoped to a hovered element until MetalUI C9 (gaps M4-a,
-///   M5-b);
-/// - `onInput`: the graph's keys;
-/// - text focus: `AppModel.releaseTextFocus` clears the window's focus, for canvas and viewport presses (gap M5-g).
+///   the canvas; spec 2026-10-09 §3). The graph's keys are scoped by MetalUI C9 (the canvas is a key region whose
+///   `onKeyPress` runs them), so this veto is only the viewport's side of M4-a, left until the viewport adopts C9;
+/// - `onInput`: the open palette's keys and its click-outside;
+/// - text focus: `AppModel.releaseTextFocus` clears the window's focus for a viewport press (gap M4-a); the canvas
+///   clears it itself, as a key region (gap M5-g).
 @MainActor
 public final class AppInput {
     public let model: AppModel

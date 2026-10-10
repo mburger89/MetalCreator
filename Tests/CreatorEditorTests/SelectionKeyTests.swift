@@ -26,7 +26,7 @@ struct SelectionKeyTests {
     @Test func selectAllSelectsEveryNodeThroughTheInputFallback() {
         let editor = makeEditor([a, b])
         let input = GraphPanelInput(model: editor)
-        #expect(input.handle(.keyDown(key("a", .command))))
+        #expect(input.handleKey(key("a", .command)))
         #expect(editor.selection == [a.id, b.id])
     }
 
