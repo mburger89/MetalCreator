@@ -22,8 +22,7 @@ public final class EditorModel {
         }
     }
 
-    /// The selected nodes. Setting it replaces the whole canvas selection (comments too, once sub-project B adds
-    /// them), so code that selects nodes (a click, a paste, the app's Show Producing Node) leaves nothing else
+    /// The selected nodes. Setting it replaces the whole canvas selection (selected comments too), so code that selects nodes (a click, a paste, the app's Show Producing Node) leaves nothing else
     /// selected; to keep other items, go through `select(_:mode:)` or `canvasSelection`.
     public var selection: Set<NodeID> {
         get { canvasSelection.nodes }
@@ -147,7 +146,8 @@ public final class EditorModel {
     }
 
     /// What is under `screen` (canvas-local screen points): the frontmost node's socket within
-    /// `NodeLayout.socketHitRadius` screen points, else the frontmost node, else empty canvas.
+    /// `NodeLayout.socketHitRadius` screen points, else the frontmost node, else a comment (`commentHit(at:)`:
+    /// notes, then frames), else empty canvas.
     public func hitTest(_ screen: Vector2) -> CanvasHit {
         let point = transform.toCanvas(screen)
         let radius = NodeLayout.socketHitRadius / transform.zoom
@@ -164,7 +164,7 @@ public final class EditorModel {
             }
             if CanvasRect(origin: origin, size: NodeLayout.size(shape)).contains(point) { return .node(node.id) }
         }
-        return .empty
+        return commentHit(at: point) ?? .empty
     }
 
     /// Nodes whose drawn frame meets `rect` (display canvas points).

@@ -33,3 +33,18 @@ extension EditorModel {
         return drawOrder.filter { drawn.intersects(frame(of: $0)) }
     }
 }
+
+extension EditorModel {
+    /// The notes the canvas builds, back to front: `drawOrderNotes` without those wholly outside `drawnCanvasRect`,
+    /// as `drawnNodes` culls nodes. Hit testing and selection always see every note.
+    public var drawnNotes: [StickyNote] {
+        guard let drawn = drawnCanvasRect else { return drawOrderNotes }
+        return drawOrderNotes.filter { drawn.intersects(frame(of: $0)) }
+    }
+
+    /// The frames the canvas builds, back to front, culled like `drawnNotes`.
+    public var drawnFrames: [CommentFrame] {
+        guard let drawn = drawnCanvasRect else { return drawOrderFrames }
+        return drawOrderFrames.filter { drawn.intersects(frame(of: $0)) }
+    }
+}
