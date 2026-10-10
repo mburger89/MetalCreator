@@ -42,7 +42,9 @@ extension Topology {
         return result
     }
 
-    /// Deterministic order for edges sharing a key (spec §5.3, rule 5).
+    /// Deterministic order for edges sharing a key (spec §5.3, rule 5). Midpoints within 1e-6 mm tie and go by ID. That is
+    /// not a strict weak ordering when three midpoints chain within the tolerance, which no real part does; it is left as
+    /// it is because a saved pick's ordinals index this order.
     static func midpointOrder(_ a: EdgeInfo, _ b: EdgeInfo) -> Bool {
         let pairs = [(a.midpoint.x, b.midpoint.x), (a.midpoint.y, b.midpoint.y), (a.midpoint.z, b.midpoint.z)]
         for (p, q) in pairs where abs(p - q) > 1e-6 {
