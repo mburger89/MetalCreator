@@ -29,6 +29,11 @@ public struct CanvasRect: Equatable, Sendable, Codable {
         origin.x <= other.maxX && other.origin.x <= maxX && origin.y <= other.maxY && other.origin.y <= maxY
     }
 
+    /// This rectangle shifted by `delta`.
+    public func moved(by delta: Vector2) -> CanvasRect {
+        CanvasRect(origin: origin + delta, size: size)
+    }
+
     /// The smallest rectangle holding both.
     public func union(_ other: CanvasRect) -> CanvasRect {
         CanvasRect(corner: Vector2(min(origin.x, other.origin.x), min(origin.y, other.origin.y)),

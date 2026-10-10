@@ -11,7 +11,7 @@ extension EditorModel {
         case .deleteSelection:
             guard !canvasSelection.isEmpty else { return false }
             deleteSelection()
-        case .selectAll, .nudge, .frameSelection:
+        case .selectAll, .nudge, .frameSelection, .cut:
             return performSelectionCommand(command)
         case .group, .ungroup:
             return performGroupKey(command)
@@ -23,8 +23,8 @@ extension EditorModel {
         return true
     }
 
-    /// The selection's keys (spec 2026-10-09 §3). They act only while the panel shows the canvas: with it hidden they
-    /// would select or move nodes no one can see. During a drag they are claimed and do nothing, as Esc is during a
+    /// The selection's keys (spec 2026-10-09 §3), and ⌘X. They act only while the panel shows the canvas: with it hidden they
+    /// would select, move or cut nodes no one can see. During a drag they are claimed and do nothing, as Esc is during a
     /// move: a nudge or a selection change would end the move's coalescing and split it into two undo steps, and F
     /// would shift the canvas under the pointer.
     private func performSelectionCommand(_ command: GraphKeyCommand) -> Bool {
@@ -34,6 +34,9 @@ extension EditorModel {
         case .selectAll: selectAll()
         case .nudge(let delta, let isRepeat): return nudgeSelection(by: delta, isRepeat: isRepeat)
         case .frameSelection: return pointerLocation != nil && frameSelection()
+        case .cut:
+            guard !canvasSelection.isEmpty else { return false }
+            cutSelection()
         default: return false // `perform(_:)` routes every other command elsewhere.
         }
         return true

@@ -16,6 +16,8 @@ public enum GraphKeyCommand: Equatable, Sendable {
     /// `isRepeat` marks a held key's auto-repeat, which joins the undo step its first press began.
     case nudge(Vector2, isRepeat: Bool)
     case copy
+    /// ⌘X: copies the selection, then deletes it.
+    case cut
     case paste
     case duplicate
     /// ⌘G: groups the selection (groups spec §5).

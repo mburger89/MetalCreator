@@ -103,10 +103,10 @@ extension EditorModel {
             select(items, mode: SelectionMode(modifiers) == .replace ? .replace : .add)
         }
         // Every selected item moves (with ⌥, is copied once the pointer has moved), so a ⌘-drag on a selected
-        // node moves the selection instead of toggling the node.
-        let start = positions(of: canvasSelection)
-        if modifiers.contains(.option) { return .duplicating(start: start, delta: .zero) }
-        return .moving(start: start, key: "move-\(UUID().uuidString)")
+        // node moves the selection instead of toggling the node. A moved frame carries the nodes it holds
+        // (`carried(by:)`); a copied one doesn't.
+        if modifiers.contains(.option) { return .duplicating(start: positions(of: canvasSelection), delta: .zero) }
+        return .moving(start: positions(of: carried(by: canvasSelection)), key: "move-\(UUID().uuidString)")
     }
 
     /// A drag that began on empty canvas box-selects (the user's Gate G answer (b), 2026-10-09), in the mode the

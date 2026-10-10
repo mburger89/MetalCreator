@@ -53,6 +53,7 @@ public enum GraphKeyBindings {
     static func commandChord(for character: String, shifted: Bool) -> GraphKeyCommand? {
         switch character {
         case "c": .copy
+        case "x": .cut
         case "v": .paste
         case "d": .duplicate
         case "a": shifted ? nil : .selectAll
