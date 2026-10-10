@@ -246,3 +246,44 @@ Plan `2026-10-09-groups-core.md`.
   be grouped: a node outside the selection both takes from them and feeds them."): the group node would be wired in a
   cycle, which wiring refuses. Applies at a definition's path too.
 - §2 The file format went 4 → 5 here; comments (B) add their keys under 5.
+
+## Errata (B: comments)
+
+Plan `2026-10-09-comments.md`.
+
+- §7 `CanvasRect` moved from `CreatorEditor` to `CreatorGraph` (Codable), because a `Graph` stores it. A note and a
+  frame share one `CommentID` namespace (a selection or a hit names a comment without its kind), and a graph holds an
+  ID in at most one of `stickies` and `frames`; a decoded repeat keeps the first.
+- §2 Older builds: a build that predates comments ignores the two keys on open and so drops the comments on its next
+  save (they are optional under version 5, with no bump, as the spec asks). Ungroup splices a definition's own comments into the level (User decision 8, (b)).
+- §7 Storage: the keys are written only when a graph has comments (a graph without any is written exactly as before),
+  sorted by ID; an unknown accent reads as muted. A comment's `frame` is stored in left-to-right canvas points like a
+  node's position, and the left dock draws the transpose of its origin and size, so a frame stays around the nodes it
+  held when the dock changes.
+- §7 Commands: `GraphCommand` gains `setSticky`, `removeSticky`, `setFrame`, `removeFrame`. A set adds or replaces the
+  comment whole, so a move, a resize, a text, title or accent edit is one command carrying the new value, and its
+  inverse the old; all four have `affectsResults == false` and touch no node.
+- §7 "Undo names" ('Add Note', 'Edit Note', …): MetalCreator's undo history has no step names (the menu says "Undo"),
+  so each change is pinned as exactly one undo step; showing names is a separate change to `UndoStack` and the menus.
+- §7 Frame membership is read from drawn centres when a move begins, and a nudge carries it too; ⌥-drag and copy/paste
+  of a frame take the frame alone. Only nodes are carried, not notes lying inside a frame.
+- §3/§7 Box select: a note is taken when its rectangle meets the box, a frame only when the box meets its chrome (its
+  title bar or edge band), so a box drawn among the nodes inside a frame does not select the frame.
+- §7 Hit-testing: a node (or socket) beats any comment, a note beats a frame, and the selected raise within their
+  kind. A selected comment's 12 pt bottom-right handle is `CanvasHit.resize`, tested before the comment's own body.
+- §7 Add Note: ⌘⇧N places the note's top-left at the pointer when it is over the canvas, else centres it on the visible
+  canvas; the context menu places it at the point it opened. Frame Selection frames `bounds(of: canvasSelection)`, so
+  it can frame comments too. ⌘C with ⇧ is Frame Selection, and ⌘X (cut: copy, then one delete step) is new.
+- §7 Editing: a note's text commits on focus loss (not on ⌘↩: MetalUI's `TextEditor` has no commit key, gap CM-a, and
+  a chord would work around it), a frame's title on Return and on focus loss, both also on any model commit (a canvas
+  press, a selection change); an empty or blank title is refused ("A frame needs a title.") and the field shows the
+  old one. The inspector's comment page shows only when no node is selected.
+- §7 Draw: the accent roles map to theme colours in `Palette.accent(_:)` (cyan Output's header, green Profile's,
+  orange Feature's, pink Selection's, purple Solid's, yellow the warning colour, muted Value's), which group
+  definitions (C2) use too. Selected comments draw a 2 pt accent ring; the ⌥-drag ghosts of comments are
+  `CanvasLayers.commentGhosts`, beside the nodes' `ghosts`.
+- §7 Comments and groups: comments belong to the level (a graph or a definition's inside) they are on. Group leaves
+  the level's comments where they are; Make Unique copies the definition's own comments with it; Ungroup splices them
+  into the level it ungroups into, offset like the nodes, in the same undo step (User decision 8, (b); one undo takes
+  them back out and restores the definition). A
+  negative size in a hand-edited file reads as zero.

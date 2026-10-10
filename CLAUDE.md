@@ -23,6 +23,8 @@ Themes (custom themes, `.mctheme` files, the theme editor) code is done; its hum
 M7 (measure and record) code is done: spec §7.3's numbers are in `docs/verification/performance.md`, taken by the
 release benchmarks in `Tests/CreatorAppTests/Bench` (`scripts/bench.sh`); `docs/metalui-gaps.md` opens with a summary
 table of every gap, its MetalUI item and its status; its human checks (group M7) are pending.
+Canvas comments (sub-project B of the same spec, §7: sticky notes and comment frames, plan `2026-10-09-comments.md`)
+code is done; its human checks (group CM) are pending.
 Groups C1 (model and evaluation, `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` §4–§5) is done:
 ⌘G/⇧⌘G work on the top level; entering a group, breadcrumbs and the group inspector are C2.
 
@@ -105,11 +107,26 @@ Module boundaries (dependency order):
   repeat (gap M7-a), and a `NodeID` prints only 8 hex digits. The window's size reaches the panel's placement through
   `ViewportModel.observedViewSize` (bumped one task after the draw records a new size, gap M4-a), never `viewSize`
   itself, so a resize rebuilds the canvas.
-  The selection is `canvasSelection` (`CanvasSelection`: nodes, and comments once sub-project B lands); `selection`
-  is its nodes, and assigning it replaces the whole selection. Every gesture and key goes through
+  The selection is `canvasSelection` (`CanvasSelection`: nodes and comments); `selection`
+  is its nodes, and assigning it replaces the whole selection (selected comments too). Every gesture and key goes through
   `EditorModel+Selection` (`select(_:mode:)` with `SelectionMode`: none replaces, ⇧ adds, ⌘ toggles; `allItems`,
   `items(for:)`, `items(intersecting:)`, `positions(of:)`, `moveCommands(from:by:)`, `bounds(of:)`), the only members
-  comments extend (spec 2026-10-09 Errata (A)). ⌘A, arrows (one undo step per key-down run) and F act only while the
+  comments extend (spec 2026-10-09 Errata (A)).
+  Canvas comments (`StickyNote`, `CommentFrame`, `CommentID`, `CanvasRect`: `Sources/CreatorGraph/Comments`) are per
+  `Graph` (`stickies`, `frames`; a definition's inside has its own), saved sorted by ID and only when present (format 5,
+  keys optional), edited by the four commands `setSticky`/`removeSticky`/`setFrame`/`removeFrame` (a set adds or
+  replaces whole, so a move, resize or edit is one command), and never affect evaluation (`affectsResults` is false).
+  A comment's `frame` is stored left-to-right like a node's position; the left dock draws the transpose of origin and
+  size (`CanvasFlow.display(_:)`). Geometry is `CommentLayout` (computed, never measured); a frame holds the nodes whose
+  drawn centres lie inside it (`EditorModel.members(of:)`, never stored), and a moved or nudged frame carries them
+  (`carried(by:)`). Hits: `CanvasHit.note`/`.frame` (title bar and 6 pt edge band only)/`.resize` (the 12 pt
+  bottom-right handle of a selected comment, begins `CanvasInteraction.resizing`); draw order frames, wires, notes,
+  nodes with the selected last in each kind (`drawOrderFrames`, `drawOrderNotes`, culled as `drawnFrames`/`drawnNotes`).
+  Add Note and Frame Selection are `addNote(atScreen:)`, `addNoteAtPointer()` and `addFrameAroundSelection()`, on ⌘⇧N,
+  ⌘⇧C and the canvas's context menu (`CanvasMenuItem`); ⌘X cuts. The inspector's comment page is `CommentPage`
+  (`CommentInspectorView`); text commits through `PendingEntry.textCommit`, on focus loss or any
+  model commit (no ⌘↩ chord, gap CM-a). Comment views draw no shadows and few rects (`StickyView`, `CommentFrameView`). Make Unique copies a definition's
+  comments (`GroupCommands+MakeUnique`); Ungroup splices them into the level. ⌘A, arrows (one undo step per key-down run) and F act only while the
   panel shows; Esc closes the palette, then cancels a drag, then clears the selection.
 - `CreatorSketchEditor`: the sketch editor (sketcher spec §8). `@MainActor @Observable SketchEditorModel` holds the
   sketch being edited, its live solve (`solve(_:dragging:)` per drag step), the tool and its stroke, the selection, and
@@ -158,7 +175,7 @@ never worked around here. Graph links are kept canonically sorted by destination
 Edge/face IDs are OCCT map order. A circle edge's `direction` is its axis, so direction rules must also check `kind == .line`.
 All OCCT work runs under `OCCTKernel.serialized` (process-wide lock) because OCCT shapes share geometry across solids and meshing mutates it; never call the shim outside it (tests included).
 Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a pick without one counts each recorded edge as a run) and warns only when both changed; a key that still matches nothing is split by operand (`EdgeKey.operandKeys`, for an edge between a merged face and a third operand's face) and warns when two operands both fit; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 5 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
-4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode).
+4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode; canvas comments' `stickies` and `frames` keys, written only when present and optional on decode, are also under 5).
 A `Segment2D.arc` with `end < start` runs clockwise (a sketch region's notch); the shim builds it reversed and
 `length` is positive. Edges carry `EdgeInfo.curve` (`EdgeCurve`, lines and circles) for sketch projection; a
 `FacePick` names faces by tag subset like `EdgePick`; one that matches nothing is retried per operand and ranked by the normal and centroid it recorded (optional keys, no format bump; `Topology.resolution(of:)`), and warns when it can only guess. The Sketch node solves on every evaluation from the stored

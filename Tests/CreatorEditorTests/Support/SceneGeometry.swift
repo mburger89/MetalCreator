@@ -1,6 +1,7 @@
 // Test fixture file: where a headless frame's primitives land on screen.
 import CreatorEditor
 import CreatorGeometry
+import CreatorGraph
 import MetalUI
 
 /// A rect's frame on screen, in points: its bounds through its transform when it has one (ruling GX-F: a

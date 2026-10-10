@@ -31,6 +31,21 @@ struct FramingTests {
         #expect(CanvasTransform.framing(wide, in: Vector2(800, 400), padding: 40).zoom == CanvasTransform.zoomRange.lowerBound)
     }
 
+    /// A rect with no width or height divides by zero; the zoom stays finite and in range, and the rect's centre is
+    /// centred (the multi-select review's open item).
+    @Test func framingAZeroSizeRectStaysFiniteAndCentred() {
+        let canvas = Vector2(800, 400)
+        for size in [Vector2(0, 0), Vector2(0, 100), Vector2(100, 0)] {
+            let rect = CanvasRect(origin: Vector2(300, 200), size: size)
+            let framed = CanvasTransform.framing(rect, in: canvas, padding: 40)
+            #expect(framed.zoom.isFinite && CanvasTransform.zoomRange.contains(framed.zoom), "size \(size)")
+            #expect(framed.offset.isFinite, "size \(size)")
+            #expect(close(framed.toScreen(rect.centre), canvas * 0.5), "size \(size)")
+        }
+        let point = CanvasTransform.framing(CanvasRect(origin: .zero, size: .zero), in: canvas, padding: 40)
+        #expect(point.zoom == 1, "nothing to fit: the zoom is left alone")
+    }
+
     @Test func fIsTheFrameKey() {
         func key(_ characters: String, _ modifiers: Modifiers = []) -> KeyEvent {
             KeyEvent(charactersIgnoringModifiers: characters, characters: characters, modifiers: modifiers, timestamp: 0)

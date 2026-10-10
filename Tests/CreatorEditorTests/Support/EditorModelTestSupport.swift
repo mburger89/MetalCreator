@@ -6,8 +6,11 @@ import CreatorKernel
 
 @MainActor
 func makeEditor(_ nodes: [Node], _ links: [Link] = [], parameters: [GraphParameter] = [],
+                stickies: [StickyNote] = [], frames: [CommentFrame] = [],
                 dock: DockSide = .bottom, registry: NodeRegistry = editorTestRegistry) -> EditorModel {
-    let graph = Graph(nodes: Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) }), links: links, parameters: parameters)
+    let graph = Graph(nodes: Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) }), links: links, parameters: parameters,
+                      stickies: Dictionary(uniqueKeysWithValues: stickies.map { ($0.id, $0) }),
+                      frames: Dictionary(uniqueKeysWithValues: frames.map { ($0.id, $0) }))
     let document = DocumentModel(file: GraphFile(graph: graph, viewState: ViewState(dock: dock)),
                                  registry: registry, kernel: FakeKernel())
     return EditorModel(document: document)

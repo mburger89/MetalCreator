@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorGraph
 
 extension EditorModel {
     /// The panel's placement in its window, from the host; `nil` without a host (headless tests) or before the

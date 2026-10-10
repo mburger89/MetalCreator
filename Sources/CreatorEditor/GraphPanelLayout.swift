@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorGraph
 
 /// The graph panel's own geometry, computed rather than measured (MetalUI has no geometry reader:
 /// docs/metalui-gaps.md M4-a, EP-a), so the editor can tell where its canvas is in the window. `GlassPanel`,

@@ -35,7 +35,7 @@ extension EditorModel {
         if interaction == nil { pairClick(on: press.hit, at: press.point, modifiers: press.modifiers) } else { lastNodeClick = nil }
         switch interaction {
         case nil: click(press.hit, mode: SelectionMode(press.modifiers))
-        case .moving: document.endCoalescing()
+        case .moving, .resizing: document.endCoalescing()
         case .duplicating(let start, let delta): finishDuplicate(start: start, delta: delta)
         case .connecting(let wire): finishWire(wire, at: location)
         case .boxSelecting(let start, _, let base, let mode):
@@ -58,13 +58,13 @@ extension EditorModel {
 
     /// Esc during a drag (spec 2026-10-09 §3). A drag that hasn't changed the document is cancelled and the rest of
     /// its press ignored: a wire being dragged is dropped, ⌥-drag ghosts vanish, and a box puts back the selection it
-    /// began with. A pan (the middle button's) or a move goes on (a move's steps are already in the document, for
+    /// began with. A pan (the middle button's), a move or a resize goes on (a move's steps are already in the document, for
     /// Undo), and the key is still claimed so it can't clear the selection mid-drag. Returns false with no drag under
     /// way.
     func cancelInteraction() -> Bool {
         switch interaction {
         case nil: return false
-        case .panning?, .moving?: return true
+        case .panning?, .moving?, .resizing?: return true
         case .connecting?, .duplicating?: break
         case .boxSelecting(_, _, let base, _)?: canvasSelection = base
         }
@@ -96,17 +96,21 @@ extension EditorModel {
         if case .socket(let socket) = hit {
             return .connecting(WireDrag(from: socket, current: transform.toCanvas(screen)))
         }
-        // Any other hit reaches the selection only through `items(for:)`, so a new kind of hit (sub-project B's
-        // comments) needs no change here. An unselected item is selected first: alone, or added with ⇧ or ⌘.
+        // A selected comment's handle starts a resize before anything reaches the selection (canvas comments spec
+        // 2026-10-09 §7); every other hit reaches it only through `items(for:)`. An unselected item is selected
+        // first: alone, or added with ⇧ or ⌘.
+        if case .resize(let id) = hit, let start = storedFrame(ofComment: id) {
+            return .resizing(id, start: start, key: "resize-\(UUID().uuidString)")
+        }
         guard let items = items(for: hit) else { return emptyCanvasDrag(at: screen, modifiers: modifiers) }
         if !canvasSelection.isSuperset(of: items) {
             select(items, mode: SelectionMode(modifiers) == .replace ? .replace : .add)
         }
         // Every selected item moves (with ⌥, is copied once the pointer has moved), so a ⌘-drag on a selected
-        // node moves the selection instead of toggling the node.
-        let start = positions(of: canvasSelection)
-        if modifiers.contains(.option) { return .duplicating(start: start, delta: .zero) }
-        return .moving(start: start, key: "move-\(UUID().uuidString)")
+        // node moves the selection instead of toggling the node. A moved frame carries the nodes it holds
+        // (`carried(by:)`); a copied one doesn't.
+        if modifiers.contains(.option) { return .duplicating(start: positions(of: canvasSelection), delta: .zero) }
+        return .moving(start: positions(of: carried(by: canvasSelection)), key: "move-\(UUID().uuidString)")
     }
 
     /// A drag that began on empty canvas box-selects (the user's Gate G answer (b), 2026-10-09), in the mode the
@@ -126,6 +130,10 @@ extension EditorModel {
             transform = CanvasTransform(offset: startOffset + (location - pressPoint), zoom: transform.zoom)
         case .moving(let start, let key):
             try? document.perform(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key)
+        case .resizing(let id, let start, let key):
+            if let command = resizeCommand(id, from: start, by: (location - pressPoint) * (1 / transform.zoom)) {
+                try? document.perform(command, coalescingKey: key)
+            }
         case .duplicating(let start, _):
             setInteraction(.duplicating(start: start, delta: storedDelta))
         case .boxSelecting(let start, _, let base, let mode):

@@ -4,7 +4,9 @@ import CreatorKernel
 extension EditorModel {
     /// What the context inspector shows now.
     public var inspectorPage: InspectorPage {
-        InspectorBuilder.page(graph: graph, selection: selection, registry: registry, results: document.results)
+        var page = InspectorBuilder.page(graph: graph, selection: selection, registry: registry, results: document.results)
+        page.comment = commentPage
+        return page
     }
 
     /// A slider's edit begins (`true`, at the press) or ends (`false`, at the release): MetalUI's

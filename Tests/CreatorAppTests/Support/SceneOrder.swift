@@ -1,6 +1,7 @@
 // Test fixture file: reading a headless frame's paint order and rect frames.
 import CreatorEditor
 import CreatorGeometry
+import CreatorGraph
 import MetalUI
 
 /// Where a primitive is in the frame's paint order: its index in the finalized `drawList`'s runs, all kinds

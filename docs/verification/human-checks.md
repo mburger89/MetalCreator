@@ -791,3 +791,58 @@ warnings read well where they appear.
   change after which two parts each have a rim. Record which of the two you could reach. Pinned:
   `aPlanePickWithoutAPositionWarnsOnceTheFaceHasComeApart`, `aGuessBetweenOperandsIsReportedNotSilent`.
   **Observed:**
+
+## Group CM — canvas comments (sub-project B)
+
+**Status: PENDING.** Plan `2026-10-09-comments.md`, spec `2026-10-09-selection-groups-comments-design.md` §7 and its
+Errata (B: comments). The tests pin the model and the headless frames; these check the gestures, keys, menu and the
+inspector's text field through a real window (no headless MetalUI window, gap M6-e). Run `swift run MetalCreatorApp`
+on a saved bracket, docked at the bottom; CM-9 docks left.
+
+- [ ] **CM-1 Add Note.** Put the pointer over the canvas and press ⌘⇧N: a muted 160 × 100 note reading "Note"
+  appears with its top-left under the pointer and is selected (ringed, with a small square handle at its bottom-right
+  corner). ⌘Z removes it, ⇧⌘Z brings it back. Right-click empty canvas: the menu offers Add Note and Frame Selection
+  (greyed with nothing selected); Add Note puts a note where you clicked. Pinned: `CommentCreationTests`. **Observed:**
+- [ ] **CM-2 Frame Selection.** Select two or three nodes and press ⌘⇧C (and again from the right-click menu): a
+  muted frame titled "Frame" appears around them, 24 points clear of the nodes on every side with a title bar above,
+  and is the only thing selected. With nothing selected ⌘⇧C does nothing and the menu item is greyed. ⌘C alone still
+  copies. Pinned: `frameSelectionPadsTheBoundsAndAddsATitleBarAndSelectsTheFrame`,
+  `frameSelectionIsDisabledWithNothingSelected`. **Observed:**
+- [ ] **CM-3 Draw order and hits.** Make a frame around two wired nodes with a note overlapping one of them. The frame
+  is behind the wires, the wires are behind the note, the note is behind the nodes. Click a node inside the frame: the
+  node is selected. Press on empty space inside the frame and drag: a box starts (the frame is not grabbed). Press on
+  its title bar or its 6-point inner edge: the frame is grabbed. A press anywhere on the note grabs it. Overlap two
+  notes and select the lower one: it comes to the front. Pinned: `CommentHitTests`, `CommentRenderTests`.
+  **Observed:**
+- [ ] **CM-4 Frames carry their nodes.** Drag the frame by its title bar: the frame and the nodes whose centres were
+  inside move together and one ⌘Z puts them all back. Drag one node out past the frame's edge: it is no longer
+  carried. Drag a frame over other nodes: only the nodes it held when the drag began come along. Select a frame and
+  press → : it nudges with its nodes. Delete the frame: the nodes stay. ⌥-drag a frame: a copy lands without the
+  nodes. Pinned: `CommentMoveTests`, `CommentEditingTests`. **Observed:**
+- [ ] **CM-5 Resize.** Select a note: drag its bottom-right handle: the top-left stays put and the size follows the
+  pointer; it stops at 80 × 40. The same for a frame, whose nodes stay where they are. One ⌘Z undoes the whole drag.
+  An unselected note's corner grabs the note instead. Zoom out to 25%: **record whether the 12-canvas-point handle
+  (3 screen points) can still be grabbed** (User decision 12). Pinned: `CommentResizeTests`. **Observed:**
+- [ ] **CM-6 Selection and clipboard.** Box-select over a note and a node: both are selected. A box drawn wholly
+  inside a frame, among its nodes, selects the nodes and not the frame; a box crossing its edge or title bar selects it
+  too. ⌘A selects every node and comment. ⌘C and ⌘V paste copies of notes and frames, offset down and right and
+  selected; ⌘D duplicates; ⌘X cuts (one ⌘Z brings the cut items back); Delete removes selected comments with selected
+  nodes in one step. Drag a node while a note is also selected: both move. Pinned: `CommentSelectionTests`,
+  `CommentEditingTests`, `CommentMoveTests`. **Observed:**
+- [ ] **CM-7 Inspector.** Select one note: the inspector shows a text box and seven accent swatches. Type two lines
+  (Return makes a line break), then click empty canvas: the note shows both lines and one ⌘Z removes the edit. Type
+  again and press ⌘↩: nothing is bound to it (**record what the field does with it**, gap CM-a); click away and the
+  text commits. Select another comment while typing: the text lands
+  on the note it was typed into. Pick an accent: the note re-tints at once, in each of the three themes. Select one
+  frame: a title field and the swatches; Return commits "Front plate"; clearing it and pressing Return refuses with
+  "A frame needs a title." and the old title returns. Select two comments: "2 comments selected". Pinned:
+  `CommentInspectorTests`. **Observed:**
+- [ ] **CM-8 Saving.** Save with notes and frames, close, reopen: they are where they were, with their text, titles and
+  accents; ⌘Z has nothing to undo. Open a file saved before comments: it opens unchanged. Editing a note marks the
+  document edited. Pinned: `CommentFileTests`. **Observed:**
+- [ ] **CM-9 Docked left.** Dock the panel left: comments are drawn transposed with the nodes, a frame still surrounds
+  the same nodes, and Add Note, Frame Selection, moving and resizing behave as at the bottom (resize follows the pointer
+  as drawn). Pinned: `CommentSelectionTests`, `CommentResizeTests`, `CommentCullingTests`. **Observed:**
+- [ ] **CM-10 Cost.** Paste a few hundred notes (⌘V repeatedly) and pan, then zoom all the way out: panning is as smooth
+  as with the same number of nodes, and the notes and frames cast no shadow. Pinned: `CommentCullingTests`,
+  `eachCommentIsAFewRects`. **Observed:**

@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorGraph
 
 extension EditorModel {
     /// Tab or Space: opens the add-node palette under the pointer (or the canvas corner). It floats over the

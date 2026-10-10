@@ -4,4 +4,6 @@ public struct InspectorPage: Equatable, Sendable {
     public var header: InspectorHeader?
     public var sections: [InspectorSectionRows]
     public var parameters: [ParameterRow]
+    /// The selected comments' page: set when comments are selected and no node is (`EditorModel.inspectorPage`).
+    public var comment: CommentPage?
 }

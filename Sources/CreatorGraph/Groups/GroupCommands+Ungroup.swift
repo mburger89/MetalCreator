@@ -6,7 +6,9 @@ extension GroupCommands {
     /// Whatever fed an input of the group node now feeds what Group Input fed with it; an unwired input's typed value
     /// (or its default) is written onto those inner inputs instead. What took an output of the group node now takes
     /// what fed Group Output, and where Group Input fed Group Output straight through, what fed that input (or its
-    /// value). The definition is removed with its last group node. Picks on the spliced nodes' faces, outside them or
+    /// value). The definition's own sticky notes and frames are spliced into the same graph too, with fresh IDs and moved
+    /// by the group node's position like its nodes, in the same undo step, so nothing is lost (canvas comments spec
+    /// 2026-10-09 §7). The definition is removed with its last group node. Picks on the spliced nodes' faces, outside them or
     /// inside, are renamed to the nodes' new IDs, so they keep naming the same faces.
     public static func ungroup(_ id: NodeID, in path: GraphPath, of content: GraphContent,
                                registry: NodeRegistry) throws(GraphError) -> GroupEdit {
@@ -35,8 +37,14 @@ extension GroupCommands {
                 }
             }
         }
+        let offset = instance.position
+        let comments: [GraphCommand] = definition.graph.stickies.values.sorted { $0.id < $1.id }.map {
+            .setSticky(StickyNote(text: $0.text, frame: $0.frame.moved(by: offset), accent: $0.accent))
+        } + definition.graph.frames.values.sorted { $0.id < $1.id }.map {
+            .setFrame(CommentFrame(title: $0.title, frame: $0.frame.moved(by: offset), accent: $0.accent))
+        }
         let here: [GraphCommand] = [.removeNode(id)] + splice.nodes.values.sorted { $0.id < $1.id }.map { .addNode($0) }
-            + (splice.links.isEmpty ? [] : [.restoreLinks(splice.links)]) + settings
+            + (splice.links.isEmpty ? [] : [.restoreLinks(splice.links)]) + settings + comments
         let lastOne = GroupDependencies.instances(of: definition.id, in: content).allSatisfy { $0.path == path && $0.node.id == id }
         let fresh = splice.fresh
         let picks = GroupScopes.renamingPicks(at: path, in: content, skipping: [id]) { reached in

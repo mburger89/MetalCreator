@@ -1,7 +1,8 @@
 import CreatorGeometry
 
-/// An axis-aligned rectangle in canvas or screen points, y down.
-public struct CanvasRect: Equatable, Sendable {
+/// An axis-aligned rectangle in canvas or screen points, y down. Lives in `CreatorGraph`, with the comments it frames
+/// (`StickyNote.frame`, `CommentFrame.frame`; canvas comments spec 2026-10-09 §7), and is saved with them.
+public struct CanvasRect: Equatable, Sendable, Codable {
     public var origin: Vector2
     public var size: Vector2
 
@@ -26,6 +27,17 @@ public struct CanvasRect: Equatable, Sendable {
 
     public func intersects(_ other: CanvasRect) -> Bool {
         origin.x <= other.maxX && other.origin.x <= maxX && origin.y <= other.maxY && other.origin.y <= maxY
+    }
+
+    /// This rectangle with a negative width or height read as zero, so a hand-edited file can't give a comment a size
+    /// the canvas can't draw or hit.
+    public var withNonNegativeSize: CanvasRect {
+        CanvasRect(origin: origin, size: Vector2(max(size.x, 0), max(size.y, 0)))
+    }
+
+    /// This rectangle shifted by `delta`.
+    public func moved(by delta: Vector2) -> CanvasRect {
+        CanvasRect(origin: origin + delta, size: size)
     }
 
     /// The smallest rectangle holding both.

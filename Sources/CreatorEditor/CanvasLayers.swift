@@ -3,12 +3,12 @@ import CreatorGraph
 import CreatorStyle
 import MetalUI
 
-/// Everything drawn under the canvas transform, back to front: wires, nodes, ⌥-drag ghosts, the
-/// wire being dragged and the box selection. Positions are display canvas points; the parent
-/// applies zoom and pan as render effects. Nodes and wires that can't show aren't built
-/// (`EditorModel.drawnNodes`, `drawnCanvasRect`), nor nodes' rows while zoomed out (`drawsNodeRows`). Nodes and
-/// ghosts are keyed by their whole UUID: MetalUI's `ForEach` names an element by its id's description and drops a
-/// repeat (`DD-L`, gap M7-a), and a `NodeID` prints only 8 hex digits.
+/// Everything drawn under the canvas transform, back to front: comment frames, wires, notes, nodes (the selected last
+/// within each kind), ⌥-drag ghosts, the wire being dragged and the box selection. Positions are display canvas
+/// points; the parent applies zoom and pan as render effects. Nodes, comments and wires that can't show aren't built
+/// (`EditorModel.drawnNodes`, `drawnNotes`, `drawnFrames`, `drawnCanvasRect`), nor nodes' rows while zoomed out
+/// (`drawsNodeRows`). Nodes, comments and ghosts are keyed by their whole UUID: MetalUI's `ForEach` names an element
+/// by its id's description and drops a repeat (`DD-L`, gap M7-a), and a `NodeID` prints only 8 hex digits.
 struct CanvasLayers: Component {
     let model: EditorModel
     @Environment(ThemeStore.self) var themes: ThemeStore?
@@ -16,9 +16,16 @@ struct CanvasLayers: Component {
     var content: some ElementGroup {
         let flow = model.flow
         let palette = Palette(themes)
+        let selectedComments = model.canvasSelection.comments
         return ZStack(alignment: .topLeading) {
+            ForEach(model.drawnFrames, id: \.id.rawValue) { box in
+                CommentFrameView(box: box, rect: model.frame(of: box), isSelected: selectedComments.contains(box.id))
+            }
             ForEach(Self.wires(model, palette: palette), id: \.id) { wire in
                 WireView(geometry: wire.geometry, color: wire.color)
+            }
+            ForEach(model.drawnNotes, id: \.id.rawValue) { note in
+                StickyView(note: note, rect: model.frame(of: note), isSelected: selectedComments.contains(note.id))
             }
             ForEach(model.drawnNodes, id: \.id.rawValue) { node in
                 let shape = model.shape(of: node)
@@ -34,6 +41,12 @@ struct CanvasLayers: Component {
                 let shape = model.shape(of: node)
                 NodeView(shape: shape, rows: [], origin: flow.display(node.position), flow: flow,
                          isSelected: true, state: nil, shakes: 0, isGhost: true)
+            }
+            ForEach(Self.commentGhosts(model).frames, id: \.id.rawValue) { box in
+                CommentFrameView(box: box, rect: model.frame(of: box), isSelected: true, isGhost: true)
+            }
+            ForEach(Self.commentGhosts(model).notes, id: \.id.rawValue) { note in
+                StickyView(note: note, rect: model.frame(of: note), isSelected: true, isGhost: true)
             }
             if case .connecting(let drag)? = model.interaction, let anchor = model.anchor(of: drag.from) {
                 let geometry = drag.from.isInput
@@ -79,5 +92,22 @@ struct CanvasLayers: Component {
             node.position = position + delta
             return node
         }
+    }
+
+    /// The ⌥-drag ghosts of the dragged comments: copies at their would-be positions.
+    static func commentGhosts(_ model: EditorModel) -> (notes: [StickyNote], frames: [CommentFrame]) {
+        guard case .duplicating(let start, let delta)? = model.interaction else { return ([], []) }
+        let ids = start.comments.keys.sorted()
+        let notes = ids.compactMap { id -> StickyNote? in
+            guard var note = model.graph.stickies[id], let origin = start.comments[id] else { return nil }
+            note.frame.origin = origin + delta
+            return note
+        }
+        let frames = ids.compactMap { id -> CommentFrame? in
+            guard var box = model.graph.frames[id], let origin = start.comments[id] else { return nil }
+            box.frame.origin = origin + delta
+            return box
+        }
+        return (notes, frames)
     }
 }

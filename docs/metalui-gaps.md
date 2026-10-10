@@ -49,6 +49,7 @@ work (the owner named). The sections below keep each gap's full use case.
 | M7-a | `ForEach` identity is an id's description | none yet | ⏳ reported, not queued |
 | M7-b | No warm headless frame for measuring | none yet (with M6-e) | ⏳ reported, not queued; used again by C10 (below) |
 | C10-a | No backdrop blur behind a material | C10-c (unscheduled) | ⏳ sent to the MetalUI session 2026-10-09 |
+| CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | lands with C9 | ✅ answered: lands with C9 |
 
 ## Reported 2026-10-07 (C7)
 
@@ -630,3 +631,16 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
   Wanted: a way to mark a region as the window's drag handle that wins over the gestures beneath it, as SwiftUI's
   `WindowDragGesture` / `.windowBackgroundDragBehavior(.enabled)` (macOS 15) or a `.windowDragArea()` modifier; the
   top bar's glass would carry it.
+
+## Canvas comments (sub-project B)
+
+- **CM-a. `TextEditor` has no commit key.** Canvas comments spec §7: a note's text commits on focus loss or ⌘↩.
+  MetalUI's `TextField` has `onSubmit` (Return), but `TextEditor` has none: Return inserts a line break (ruling
+  TI-H), and whether a ⌘↩ reaches the window's `onInput` fallback while a `TextEditor` is focused can't be checked
+  without a headless window (M6-e). No stopgap: a global ⌘↩ chord would work around the gap, so MetalCreator commits
+  a note's text on focus loss only (a canvas press clears focus, M5-g; the model also commits on a selection change
+  and on saving), and ⌘↩ is unbound. Wanted: C9 lets MetalCreator bind it with SwiftUI's own
+  `.onKeyPress(.return) { press in guard press.modifiers.contains(.command) else { return .ignored }; commit();
+  return .handled }` on the `TextEditor` (no MetalUI-only hook is needed). Status: answered: lands with C9. The gap
+  was already sent to the MetalUI session by the controller. Logged with C9 (key and focus scoping), which owns the key
+  handling.

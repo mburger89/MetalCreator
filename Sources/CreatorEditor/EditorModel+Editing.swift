@@ -18,19 +18,31 @@ extension EditorModel {
         }
     }
 
-    /// Delete / ⌫: removes the selected nodes and their wires, as one undo step.
+    /// Delete / ⌫: removes the selected nodes and their wires and the selected comments, as one undo step. A deleted
+    /// frame leaves the nodes it held where they are.
     public func deleteSelection() {
-        let ids = selection.filter { graph.nodes[$0] != nil }.sorted()
-        guard !ids.isEmpty else { return }
+        let commands = canvasSelection.nodes.filter { graph.nodes[$0] != nil }.sorted().map { GraphCommand.removeNode($0) }
+            + canvasSelection.comments.sorted().compactMap { id -> GraphCommand? in
+                if graph.stickies[id] != nil { return .removeSticky(id) }
+                return graph.frames[id] != nil ? .removeFrame(id) : nil
+            }
+        guard !commands.isEmpty else { return }
         do {
-            try document.perform(.batch(ids.map { .removeNode($0) }))
-            selection = []
+            try document.perform(.batch(commands))
+            canvasSelection = CanvasSelection()
         } catch {
             refuse(error.message, node: nil)
         }
     }
 
-    /// ⌘C: copies the selected items (the nodes and the wires between them).
+    /// ⌘X: copies the selection, then deletes it, the delete being one undo step.
+    public func cutSelection() {
+        guard !canvasSelection.isEmpty else { return }
+        setClipboard(clipboard(of: canvasSelection))
+        deleteSelection()
+    }
+
+    /// ⌘C: copies the selected items (the nodes, the wires between them, and the comments).
     public func copySelection() {
         guard !canvasSelection.isEmpty else { return }
         setClipboard(clipboard(of: canvasSelection))
@@ -70,18 +82,20 @@ extension EditorModel {
         }
     }
 
-    /// What copying `items` puts on the clipboard: their nodes and the wires between them. B adds: comments.
+    /// What copying `items` puts on the clipboard: their nodes, the wires between them and their comments.
     func clipboard(of items: CanvasSelection) -> NodeClipboard {
         let ids = items.nodes
         let nodes = ids.sorted().compactMap { graph.nodes[$0] }
         let links = graph.links.filter { ids.contains($0.from.node) && ids.contains($0.to.node) }
-        return NodeClipboard(nodes: nodes, links: links)
+        let comments = items.comments.sorted()
+        return NodeClipboard(nodes: nodes, links: links, stickies: comments.compactMap { graph.stickies[$0] },
+                             frames: comments.compactMap { graph.frames[$0] })
     }
 
     /// Adds fresh copies of `clipboard` moved by `offset` (stored coordinates) as one undo
-    /// step. Returns the copies, to select, or `nil` if the graph refused. B adds: comments.
+    /// step. Returns the copies, to select, or `nil` if the graph refused or there was nothing to add.
     func insert(_ clipboard: NodeClipboard, offset: Vector2) -> CanvasSelection? {
-        guard !clipboard.nodes.isEmpty else { return nil }
+        guard !clipboard.isEmpty else { return nil }
         var mapping: [NodeID: NodeID] = [:]
         var commands: [GraphCommand] = []
         for original in clipboard.nodes {
@@ -97,9 +111,20 @@ extension EditorModel {
         }
         // Copied wires were valid when copied and join only new nodes, so they are restored as they were.
         if !links.isEmpty { commands.append(.restoreLinks(links)) }
+        var comments: Set<CommentID> = []
+        for original in clipboard.stickies {
+            let copy = StickyNote(text: original.text, frame: original.frame.moved(by: offset), accent: original.accent)
+            comments.insert(copy.id)
+            commands.append(.setSticky(copy))
+        }
+        for original in clipboard.frames {
+            let copy = CommentFrame(title: original.title, frame: original.frame.moved(by: offset), accent: original.accent)
+            comments.insert(copy.id)
+            commands.append(.setFrame(copy))
+        }
         do {
             try document.perform(.batch(commands))
-            return CanvasSelection(nodes: Set(mapping.values))
+            return CanvasSelection(nodes: Set(mapping.values), comments: comments)
         } catch {
             refuse(error.message, node: nil)
             return nil

@@ -122,6 +122,9 @@ extension Graph {
             }
             return .batch(Array(inverses.reversed()))
 
+        case .setSticky, .removeSticky, .setFrame, .removeFrame:
+            return try applyComment(command)
+
         case .inDefinition, .addDefinition, .removeDefinition, .setInterface:
             throw .invalidValue("A group edit applies to the whole document, not to one graph.")
         }
