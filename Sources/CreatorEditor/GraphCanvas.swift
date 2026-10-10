@@ -2,7 +2,7 @@ import MetalUI
 
 /// The graph canvas: the layers under the zoom and pan transform, one press-and-drag gesture
 /// for everything (hit testing is the model's), a middle-button drag that pans, a pinch, the scroll wheel, the
-/// cursor, and pointer
+/// cursor, the context menu (Add Note, Frame Selection at the point it opened) and pointer
 /// tracking for the palette. All input goes through `GraphPanelInput` to the model. The palette itself floats over
 /// the whole window (`SearchPaletteOverlay`), so the canvas never clips it.
 struct GraphCanvas: Component {
@@ -25,6 +25,12 @@ struct GraphCanvas: Component {
         .contentShape(Rectangle())
         .onContinuousHover { phase in input.hover(phase) }
         .onScrollWheel { event in input.scrolled(event) }
+        .contextMenu { (location: Point<Pixels>?) in
+            for item in CanvasMenuItem.allCases {
+                Button(item.title) { model.choose(item, at: location.map { GraphPanelInput.vector($0) }) }
+                    .disabled(!model.isEnabled(item))
+            }
+        }
         .pointerStyle(model.canvasCursor?.pointerStyle)
     }
 }
