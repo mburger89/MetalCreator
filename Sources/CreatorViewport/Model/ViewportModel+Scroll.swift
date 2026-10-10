@@ -32,13 +32,11 @@ extension ViewportModel {
         }
     }
 
-    /// One scroll event's zoom, without settling. The scroll's first event stops an animation and keeps the camera
-    /// it began with.
+    /// One scroll event's zoom, without settling. Every event stops an animation (one started mid-scroll by F, an arrow
+    /// or the cube, which would otherwise finish over the zoom); the scroll's first event keeps the camera it began with.
     private func zoomScrolling(by factor: Double, toward point: ScreenPoint) {
-        if scrollStartPose == nil {
-            stopAnimation()
-            scrollStartPose = pose
-        }
+        stopAnimation()
+        if scrollStartPose == nil { scrollStartPose = pose }
         apply(CameraNavigation.zoom(pose, factor: factor, toward: point, size: viewSize))
         refreshToolPointer(at: point)
     }

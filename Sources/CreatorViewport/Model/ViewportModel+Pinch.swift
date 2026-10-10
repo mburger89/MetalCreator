@@ -10,10 +10,8 @@ extension ViewportModel {
     public func pinchChanged(magnification: Double, centre: ScreenPoint) {
         guard magnification.isFinite else { return }
         if let start = pinchStart, start.centre != centre { pinchEnded() }
-        if pinchStart == nil {
-            stopAnimation()
-            pinchStart = PinchStart(pose: pose, centre: centre)
-        }
+        stopAnimation()   // also one started mid-pinch by F, an arrow or the cube
+        if pinchStart == nil { pinchStart = PinchStart(pose: pose, centre: centre) }
         guard let start = pinchStart else { return }
         let factor = max(magnification, ViewportInputMap.minimumMagnification)
         apply(CameraNavigation.zoom(start.pose, factor: factor, toward: centre, size: viewSize))

@@ -1,4 +1,5 @@
 import CreatorGeometry
+import Foundation
 import MetalUI
 import Testing
 @testable import CreatorViewport
@@ -58,5 +59,33 @@ struct CursorTests {
     @Test func cursorsAreMetalUIPointerStyles() {
         #expect(ViewportCursor.crosshair.pointerStyle == .rectSelection)
         #expect(ViewportCursor.grabbing.pointerStyle == .grabActive)
+    }
+
+    /// The view cube's drag is its own mode: it orbits like a drag in the view, but a click on it picks a region.
+    @Test func aDragFromTheCubeIsTheCubeModeAndAHandCursor() {
+        let model = makeModel()
+        let from = model.cubeLayout.center
+        model.dragChanged(from: from, to: from + ScreenPoint(10, 0), modifiers: [], button: .primary)
+        #expect(model.activeDragMode == .cube)
+        #expect(model.cursor == .grabbing)
+        model.dragEnded(from: from, at: from + ScreenPoint(10, 0), modifiers: [], button: .primary)
+        #expect(model.activeDragMode == nil && model.cursor == nil)
+    }
+
+    /// A handle's knob drag edits the handle: it keeps the arrow (or the crosshair while picking).
+    @Test func aHandleDragKeepsTheArrow() {
+        let pose = CameraPose(target: .zero, distance: 20 / tan(CameraPose.fieldOfView / 2), yaw: 0, pitch: 0,
+                              projection: .orthographic)
+        let model = ViewportModel(kernel: StubMeshKernel(), pose: pose, clock: ManualClock())
+        model.viewSize = ViewportSize(width: 400, height: 300)
+        model.showHandles([ViewportHandle(id: "extrude", anchor: .zero, direction: .unitZ, value: 10, range: 0...100,
+                                          style: .linear, tint: .solid),
+        ])
+        // 40 mm tall in 300 points: the knob at z = 10 is 75 points above the centre.
+        model.dragChanged(from: ScreenPoint(200, 75), to: ScreenPoint(200, 60), modifiers: [], button: .primary)
+        #expect(model.activeDragMode == .handle("extrude"))
+        #expect(model.cursor == nil)
+        model.isPicking = true
+        #expect(model.cursor == .crosshair)
     }
 }
