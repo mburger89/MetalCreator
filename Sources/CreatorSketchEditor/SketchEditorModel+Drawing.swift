@@ -32,7 +32,8 @@ extension SketchEditorModel {
         let makeConstruction = selection.contains { sketch.entities[$0]?.isConstruction == false }
         var edited = sketch
         for id in selection.sorted() { edited.entities[id]?.isConstruction = makeConstruction }
-        commit(edited, makeConstruction ? "Make Construction" : "Make Normal Geometry")
+        commit(edited, makeConstruction ? "Make Construction" : "Make Normal Geometry",
+               named: makeConstruction ? SketchStepName.makeConstruction : SketchStepName.makeNormalGeometry)
     }
 
     /// Esc: closes the host's popup if one is open (`SketchEditorEvents.dismissHostPopup`); else ends the stroke in
@@ -129,7 +130,7 @@ extension SketchEditorModel {
         guard target.point == nil else { return }
         var edited = sketch
         _ = target.point(in: &edited, isConstruction: isConstruction)
-        commit(edited, "Point")
+        commit(edited, "Point", named: SketchStepName.addPoint)
     }
 
     /// The first click starts a chain; each later one ends a line there and starts the next from its end.
@@ -152,7 +153,7 @@ extension SketchEditorModel {
         let b = end.point(in: &edited)
         let line = edited.addLine(from: a, to: b, isConstruction: isConstruction)
         if let inference { edited.add(inference.constraint(on: line)) }
-        commit(edited, "Line")
+        commit(edited, "Line", named: SketchStepName.addLine)
         drawState = .lineFrom(.existing(b, at: end.position))
     }
 
@@ -167,7 +168,7 @@ extension SketchEditorModel {
         guard radius > 1e-9 else { return }
         var edited = sketch
         edited.addCircle(center: center.point(in: &edited), radius: radius, isConstruction: isConstruction)
-        commit(edited, "Circle")
+        commit(edited, "Circle", named: SketchStepName.addCircle)
         drawState = .idle
     }
 
@@ -186,7 +187,7 @@ extension SketchEditorModel {
             let s = start.point(in: &edited)
             let e = end.point(in: &edited)
             edited.addArc(center: c, start: s, end: e, isConstruction: isConstruction)
-            commit(edited, "Arc")
+            commit(edited, "Arc", named: SketchStepName.addArc)
             drawState = .idle
         default:
             drawState = .arcAround(target)
@@ -210,7 +211,7 @@ extension SketchEditorModel {
             let c = edited.addPoint(arc.center)
             edited.addArc(center: c, start: arc.isCounterClockwise ? s : e, end: arc.isCounterClockwise ? e : s,
                           isConstruction: isConstruction)
-            commit(edited, "Arc")
+            commit(edited, "Arc", named: SketchStepName.addArc)
             drawState = .idle
         default:
             drawState = .arcThroughFrom(anchor(at: p, tolerance: tolerance, suppressed: suppressed))

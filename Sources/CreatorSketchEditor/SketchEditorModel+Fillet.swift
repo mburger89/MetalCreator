@@ -12,7 +12,7 @@ extension SketchEditorModel {
         }
         let current = sketch
         let radius = options.filletRadius
-        apply { () throws(SketchCommandError) in try SketchCommands.fillet(current, corner: corner, radius: radius) }
+        apply(SketchStepName.fillet) { () throws(SketchCommandError) in try SketchCommands.fillet(current, corner: corner, radius: radius) }
     }
 
     /// The typed fillet radius ("2.5", "2.5 mm"). Not an edit, so not an undo step; text that isn't a size more than

@@ -92,14 +92,14 @@ public final class SketchEditorModel {
     }
 
     /// Takes `edited` as the sketch, solved and remembered, and hands it to the host as one undo step.
-    func commit(_ edited: Sketch, _ description: String, projections: [ProjectionWrite] = []) {
+    func commit(_ edited: Sketch, _ description: String, named name: String, projections: [ProjectionWrite] = []) {
         let solved = SketchSolver.solve(edited)
         let remembered = Self.remembering(edited, solved)
         solution = solved
         sketch = remembered
         stored = remembered
         refusal = nil
-        events.committed(SketchCommit(sketch: remembered, description: description, projections: projections))
+        events.committed(SketchCommit(sketch: remembered, description: description, name: name, projections: projections))
     }
 
     /// `sketch` with `solution` as its warm start when the solve is usable (S4 → S5 handoff: the node then

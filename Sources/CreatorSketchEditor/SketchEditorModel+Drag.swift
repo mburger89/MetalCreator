@@ -34,7 +34,7 @@ extension SketchEditorModel {
         if sketch == origin {
             solution = SketchSolver.solve(sketch)
         } else {
-            commit(sketch, "Move Point")
+            commit(sketch, "Move Point", named: SketchStepName.movePoint)
         }
     }
 }

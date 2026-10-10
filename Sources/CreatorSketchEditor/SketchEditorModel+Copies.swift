@@ -11,7 +11,9 @@ extension SketchEditorModel {
         guard let axis = SketchPicker(sketch: sketch, solution: solution).curve(near: p, tolerance: tolerance) else { return }
         let current = sketch
         let selected = selection.sorted()
-        apply { () throws(SketchCommandError) in try SketchCommands.mirror(current, entities: selected, about: axis) }
+        apply(SketchStepName.mirror) { () throws(SketchCommandError) in
+            try SketchCommands.mirror(current, entities: selected, about: axis)
+        }
     }
 
     /// A Pattern click: on a point, `options.patternCount` instances of the selection around it (a circular pattern);
@@ -22,12 +24,12 @@ extension SketchEditorModel {
         let (current, selected, count, spacing) = (sketch, selection.sorted(), options.patternCount, options.patternSpacing)
         switch sketch.entities[target]?.kind {
         case .point?:
-            apply { () throws(SketchCommandError) in
+            apply(SketchStepName.circularPattern) { () throws(SketchCommandError) in
                 try SketchCommands.circularPattern(current, entities: selected, center: target, count: count)
             }
         case .line(let start, let end)?:
             guard let a = sketch.position(of: start), let b = sketch.position(of: end) else { return }
-            apply { () throws(SketchCommandError) in
+            apply(SketchStepName.linearPattern) { () throws(SketchCommandError) in
                 try SketchCommands.linearPattern(current, entities: selected, direction: b - a, spacing: spacing, count: count)
             }
         default:
