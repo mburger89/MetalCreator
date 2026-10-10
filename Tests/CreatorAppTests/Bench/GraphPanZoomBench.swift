@@ -15,7 +15,7 @@ struct GraphPanZoomBench {
     static let warmUp = 10
 
     /// The nodes the canvas builds this frame.
-    static func nodesBuilt(_ app: AppModel) -> Int { app.editor.drawOrder.count }
+    static func nodesBuilt(_ app: AppModel) -> Int { app.editor.drawnNodes.count }
 
     /// Runs `transforms` as frames and prints the model step, the window's CPU frame and its GPU composite.
     func run(_ name: String, transforms: [CanvasTransform]) async throws {
