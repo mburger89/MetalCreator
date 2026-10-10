@@ -189,7 +189,7 @@ Module boundaries (dependency order):
   and opens, saves and exports. Inside a group `AppModel` reads the level through `editor.graph`/`levelResults`: Selected
   node previews the level's selected node, handles and picking work there, and a pick is written through
   `GraphContent.relativeToLevel`; Final preview and export stay on the top level. Sketch mode is top-level only
-  ("Edit sketch" inside a group says so). `AppInput` installs the window's input once and forwards to the current document.
+  ("Edit sketch" and New Sketch on Face inside a group say so). `AppInput` installs the window's input once and forwards to the current document.
   The window shell is MetalUI C8's, wired in `MetalCreatorApp`: `Window.onCloseRequest` is `AppModel.closeRequested()`
   (`CloseDecision`; `.later` with unsaved changes, the Save / Don't Save / Cancel alert, `answerSaveChanges(_:)` replying
   through `replyToCloseRequest`; ⌘Q asks the same handler because the app sets no `onTerminateRequest`),

@@ -3,7 +3,7 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
-import CreatorViewport
+@testable import CreatorViewport
 import Testing
 @testable import CreatorApp
 
@@ -203,5 +203,25 @@ struct GroupViewportTests {
         app.undo()
         #expect(app.editor.enteredGroups.isEmpty && app.document.definitions.isEmpty)
         #expect(app.editor.graph.nodes[scene.extrude.id] != nil, "the top level has its nodes back")
+    }
+
+    /// Sketch mode works on the top level's graph, so New Sketch on Face inside a group says why it does nothing.
+    @Test func newSketchOnFaceIsRefusedInsideAGroup() async throws {
+        let scene = try await groupedBox()
+        let app = scene.app
+        app.previewMode = .selectedNode
+        app.editor.selection = [scene.extrude.id]
+        await app.settle()
+        let before = app.document.content
+        app.viewport.pick = { _ in .face(solid: 0, FaceID(1)) }
+        let items = app.viewport.contextMenuItems(at: ScreenPoint(700, 450))
+        let item = try #require(items.first { if case .newSketchOnFace = $0 { true } else { false } })
+        app.viewport.choose(item)
+        #expect(app.sketch == nil && app.document.content == before)
+        guard case .problem(let problem)? = app.alert else {
+            Issue.record("no alert")
+            return
+        }
+        #expect(problem.message == "Sketches inside a group can't be made yet. Make it before grouping, or from the top level.")
     }
 }
