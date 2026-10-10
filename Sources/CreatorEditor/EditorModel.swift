@@ -34,8 +34,9 @@ public final class EditorModel {
     public var pointerLocation: Vector2?
     public private(set) var interaction: CanvasInteraction?
     public private(set) var refusal: RefusalFeedback?
-    /// True for a moment after a refusal, while the refused node shakes.
-    public private(set) var isShaking = false
+    /// How many times each node has been refused, which is the trigger of its shake (`NodeView`, `RefusalShake`).
+    /// Each refusal adds one, so the node shakes once per refusal, however close together they are.
+    public private(set) var shakeCounts: [NodeID: Int] = [:]
     public var palette: SearchPaletteState?
     /// What the node library's search field holds (`EditorModel+Library`). Not saved.
     public internal(set) var libraryQuery = ""
@@ -178,19 +179,21 @@ public final class EditorModel {
         refusalSerial += 1
         let serial = refusalSerial
         refusal = RefusalFeedback(message: message, node: node, serial: serial)
-        isShaking = true
+        if let node { shakeCounts[node, default: 0] += 1 }
         Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(300))
-            if self?.refusal?.serial == serial { self?.isShaking = false }
-            try? await Task.sleep(for: .seconds(2))
+            try? await Task.sleep(for: .milliseconds(2300))
             if self?.refusal?.serial == serial { self?.refusal = nil }
         }
+    }
+
+    /// How many refusals `node` has had; a node shakes each time this goes up.
+    public func shakeCount(of node: NodeID) -> Int {
+        shakeCounts[node] ?? 0
     }
 
     /// Clears the refusal message (for example when the user starts another edit).
     public func clearRefusal() {
         refusal = nil
-        isShaking = false
     }
 
     func setClipboard(_ clipboard: NodeClipboard) {

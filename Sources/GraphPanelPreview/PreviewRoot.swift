@@ -11,7 +11,7 @@ struct PreviewRoot: Component {
 
     var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
-            Palette.dracula.backgroundBottom.color
+            WindowBackground()
             switch model.dock {
             case .left:
                 HStack(alignment: .top, spacing: PreviewLayout.margin.px) {

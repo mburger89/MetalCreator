@@ -7,9 +7,17 @@ extension EditorModel {
         InspectorBuilder.page(graph: graph, selection: selection, registry: registry, results: document.results)
     }
 
+    /// A slider's edit begins (`true`, at the press) or ends (`false`, at the release): MetalUI's
+    /// `Slider(onEditingChanged:)`, which calls it once each way per drag, a key press or an accessibility step
+    /// (gap M5-a). Either way it closes the undo run before it, so the drag's steps (`continuous` edits) are one
+    /// undo step of their own and two drags with nothing between them are two. The selection changing, a canvas
+    /// press and an undo still close the run, as a safety net.
+    public func sliderEditingChanged(_ isEditing: Bool) {
+        document.endCoalescing()
+    }
+
     /// Sets an unwired input. `continuous` edits (slider steps) share one coalescing key per
-    /// socket, so a whole drag is one undo step; it ends when the selection changes, the canvas
-    /// is pressed, another edit is made, or on undo (MetalUI's `Slider` reports no drag end yet).
+    /// socket, so a whole drag is one undo step: it ends with `sliderEditingChanged(false)`.
     public func setInput(_ field: InputField, to value: ConstantValue, continuous: Bool = false) {
         guard value != field.value else { return }
         let key = continuous ? "input-\(field.node.rawValue.uuidString)-\(field.socket.rawValue)" : nil

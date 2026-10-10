@@ -20,7 +20,8 @@ struct ParameterRowView: Component {
             model.setParameterNumber(parameter.id, to: value, continuous: continuous)
         }
         return LabeledRow(label: parameter.name) {
-            Slider(value: Binding(get: { number }, set: { write($0, true) }), in: row.range)
+            Slider(value: Binding(get: { number }, set: { write($0, true) }), in: row.range,
+                   onEditingChanged: { model.sliderEditingChanged($0) })
             NumberEntry(model: model, text: ValueText.format(number, unit: .none)) { write($0, false) }
         }
     }

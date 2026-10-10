@@ -46,7 +46,10 @@ struct FormattingTests {
     @Test func statusBadges() {
         #expect(StatusBadge.text(for: .ok(duration: .milliseconds(12))) == "12 ms")
         #expect(StatusBadge.text(for: .ok(duration: .microseconds(300))) == "<1 ms")
-        #expect(StatusBadge.text(for: .evaluating) == "◌")
+        #expect(StatusBadge.text(for: .evaluating) == "")
+        #expect(StatusBadge.isBusy(.evaluating))
+        let quiet: [NodeState?] = [.idle(nil), .ok(duration: .zero), .warning("w"), .error("e"), nil]
+        #expect(!quiet.contains(where: StatusBadge.isBusy))
         #expect(StatusBadge.text(for: .warning("matched 6 edges, expected 4")) == "⚠")
         #expect(StatusBadge.text(for: .error("Boom")) == "✕")
         #expect(StatusBadge.text(for: .idle(nil)) == "")

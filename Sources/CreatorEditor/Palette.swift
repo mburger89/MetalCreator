@@ -25,7 +25,7 @@ public struct Palette: Hashable, Sendable {
     // Surfaces
     public var backgroundTop: HexColor { colors.backgroundTop }
     public var backgroundBottom: HexColor { colors.backgroundBottom }
-    /// Glass panels (`#21222c` at about 86% in Dracula). Blur is a MetalUI gap (docs/metalui-gaps.md).
+    /// Glass panels (`#21222c` at about 86% in Dracula): a flat tint, no backdrop blur (`GlassPanel`, gap M5-c).
     public var glass: HexColor { colors.glassFill }
     /// The 1-pt hairline around glass panels (`#ffffff1f` in Dracula).
     public var hairline: HexColor { colors.glassStroke }

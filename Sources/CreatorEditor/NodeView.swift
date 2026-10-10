@@ -13,8 +13,8 @@ struct NodeView: Component {
     let flow: CanvasFlow
     let isSelected: Bool
     let state: NodeState?
-    /// Horizontal offset while the node shakes after a refused wire; it springs back to 0.
-    let shake: Double
+    /// How many refusals this node has had (`EditorModel.shakeCount(of:)`): each new one shakes it (`RefusalShake`).
+    let shakes: Int
     /// Drawn at reduced opacity: an ⌥-drag ghost.
     var isGhost = false
     @Environment(ThemeStore.self) var themes: ThemeStore?
@@ -47,9 +47,13 @@ struct NodeView: Component {
             ZStack(alignment: .topLeading) { SocketLayer(shape: shape, flow: flow) }
         }
         .opacity(isGhost ? 0.4 : 1)
-        .offset(x: (origin.x + shake).px, y: origin.y.px)
-        // Only a change of `shake` animates, so dragging and panning stay immediate. The bouncy
-        // spring back to 0 is the "brief shake" (spec §6.2); MetalUI has no keyframes.
-        .animation(.spring(duration: 0.35, bounce: 0.7), value: shake)
+        // Only a new refusal runs the keyframes (the trigger is the count), so dragging and panning stay immediate and a
+        // node that scrolls into view shows at rest. The offset is written inside the closure (a decoration after the
+        // animator would not compile, MetalUI LK-T).
+        .keyframeAnimator(initialValue: 0.0, trigger: shakes) { node, shake in
+            node.offset(x: (origin.x + shake).px, y: origin.y.px)
+        } keyframes: { _ in
+            RefusalShake.keyframes
+        }
     }
 }

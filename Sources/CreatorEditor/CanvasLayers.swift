@@ -28,12 +28,12 @@ struct CanvasLayers: Component {
                          origin: model.displayOrigin(of: node), flow: flow,
                          isSelected: model.selection.contains(node.id),
                          state: model.document.results[node.id]?.state,
-                         shake: model.isShaking && model.refusal?.node == node.id ? 6 : 0)
+                         shakes: model.shakeCount(of: node.id))
             }
             ForEach(Self.ghosts(model), id: \.id.rawValue) { node in
                 let shape = model.shape(of: node)
                 NodeView(shape: shape, rows: [], origin: flow.display(node.position), flow: flow,
-                         isSelected: true, state: nil, shake: 0, isGhost: true)
+                         isSelected: true, state: nil, shakes: 0, isGhost: true)
             }
             if case .connecting(let drag)? = model.interaction, let anchor = model.anchor(of: drag.from) {
                 let geometry = drag.from.isInput

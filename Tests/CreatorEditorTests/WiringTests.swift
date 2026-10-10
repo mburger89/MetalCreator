@@ -51,7 +51,7 @@ struct WiringTests {
         #expect(editor.graph.links.isEmpty)
         #expect(editor.refusal?.message == "A number can't connect to a profile input.")
         #expect(editor.refusal?.node == extrude.id)
-        #expect(editor.isShaking)
+        #expect(editor.shakeCount(of: extrude.id) == 1)
         #expect(!editor.document.canUndo)
     }
 
