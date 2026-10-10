@@ -4,16 +4,20 @@ import MetalUI
 /// The graph panel's input (spec §9): the canvas's gestures, and the window hooks for the MetalUI gaps C7 didn't
 /// close, in one place (docs/metalui-gaps.md). The canvas's pointer input is MetalUI C7's; the behaviour is the
 /// model's (`EditorModel+Pointer`), and this type only turns MetalUI values into the model's:
-/// - `canvasGesture()`: one `DragGesture(minimumDistance: 0)` carries clicks, pans, moves, box selection and
+/// - `canvasGesture()`: one `DragGesture(minimumDistance: 0)` carries clicks, moves, box selection and
 ///   wiring. Its values give the press point (`startLocation`) and the modifiers held at each change
 ///   (`DragGesture.Value.modifiers`, the press's at the first), so Shift-click and ⇧/⌥-drag read the press's own
 ///   modifiers, and the model tells a click from a drag (`EditorModel.dragThreshold`). It isn't a
 ///   `SpatialTapGesture` plus a drag, as the viewport's is: a tap's value has no modifiers, and a click must know
 ///   whether ⇧ was held (gap GI-a).
+/// - `middlePanGesture()`: a `DragGesture(minimumDistance: 0, button: .middle)` pans (`EditorModel.middleDragged`),
+///   in the middle button's own arena (MetalUI `CI-F`), as the viewport's middle drag does (VC3). A plain drag
+///   box-selects (the user's Gate G answer (b), 2026-10-09), so this and two-finger scroll are the canvas's pans.
 /// - `scrolled(_:)`, from the canvas's `.onScrollWheel`: two-finger scroll and the wheel pan, ⌘-scroll zooms
 ///   about the pointer (`EditorModel.scrolled(by:at:modifiers:phase:)`, phases from `scrollPhase(of:)`).
 /// - `pinchGesture()`: a `MagnifyGesture` zooms about where the pinch began (`EditorModel.pinchChanged`).
-/// - The cursor is the model's (`EditorModel.canvasCursor`, a closed hand while a drag pans); `GraphCanvas` sets it.
+/// - The cursor is the model's (`EditorModel.canvasCursor`, a closed hand while a middle drag pans); `GraphCanvas`
+///   sets it.
 ///
 /// Three stopgaps remain, for MetalUI gaps outside C7:
 /// - keys: read from the window's `onInput` fallback, so a focused text field keeps its keys;
@@ -109,7 +113,7 @@ public final class GraphPanelInput {
         }
     }
 
-    /// The canvas's one press-and-drag gesture: clicks, pans, moves, box selection and wiring. A zero minimum
+    /// The canvas's one press-and-drag gesture: clicks, moves, box selection and wiring. A zero minimum
     /// distance, so its first change is the press itself, with the press's modifiers.
     public func canvasGesture() -> DragGesture {
         DragGesture(minimumDistance: Pixels(0))
@@ -129,6 +133,24 @@ public final class GraphPanelInput {
         let start = Self.vector(value.startLocation)
         if model.currentPress?.point != start { releaseTextFocus?() }
         model.pointerReleased(from: start, at: Self.vector(value.location), modifiers: Self.canvasModifiers(value.modifiers))
+    }
+
+    /// The canvas's middle-button drag: pans. A zero minimum distance, so the closed hand shows from the press (a
+    /// middle press never clicks). Text focus is left alone: a pan isn't a click on the canvas.
+    public func middlePanGesture() -> DragGesture {
+        DragGesture(minimumDistance: Pixels(0), button: .middle)
+            .onChanged { [self] value in middleChanged(value) }
+            .onEnded { [self] value in middleEnded(value) }
+    }
+
+    /// The middle drag moved (its first change is the press).
+    func middleChanged(_ value: DragGesture.Value) {
+        model.middleDragged(from: Self.vector(value.startLocation), to: Self.vector(value.location))
+    }
+
+    /// The middle button was released.
+    func middleEnded(_ value: DragGesture.Value) {
+        model.middleReleased(from: Self.vector(value.startLocation), at: Self.vector(value.location))
     }
 
     /// A scroll over the canvas, from its `.onScrollWheel`: the delta, the pointer in canvas-local points, the

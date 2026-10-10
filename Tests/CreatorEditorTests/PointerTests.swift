@@ -6,7 +6,7 @@ import Testing
 
 @MainActor
 struct PointerTests {
-    @Test func clickSelectsAndShiftClickToggles() {
+    @Test func clickSelectsAndShiftClickAdds() {
         let a = testNode(NumberTestNode.self, id: 1, at: .zero)
         let b = testNode(NumberTestNode.self, id: 2, at: Vector2(300, 0))
         let editor = makeEditor([a, b])
@@ -17,7 +17,7 @@ struct PointerTests {
         editor.click(editor.screenPoint(in: a.id), modifiers: .shift)
         #expect(editor.selection == [a.id, b.id])
         editor.click(editor.screenPoint(in: a.id), modifiers: .shift)
-        #expect(editor.selection == [b.id])
+        #expect(editor.selection == [a.id, b.id], "⇧ adds and never removes; ⌘ toggles (spec 2026-10-09 §3)")
     }
 
     @Test func clickOnEmptyCanvasClearsUnlessShiftIsHeld() {
@@ -65,13 +65,29 @@ struct PointerTests {
         #expect(editor.interaction == nil)
     }
 
-    @Test func plainDragOnEmptyCanvasPans() {
+    /// The user's Gate G answer (b), 2026-10-09: the middle button pans; a plain drag on empty canvas box-selects.
+    @Test func middleDragOnTheCanvasPans() {
         let editor = makeEditor([])
         editor.transform = CanvasTransform(offset: Vector2(5, 5), zoom: 2)
-        editor.drag(Vector2(100, 100), Vector2(130, 80))
+        editor.middleDrag(Vector2(100, 100), Vector2(130, 80))
         #expect(editor.transform == CanvasTransform(offset: Vector2(35, -15), zoom: 2))
         #expect(editor.document.viewState.canvasOffset == Vector2(35, -15))
         #expect(editor.interaction == nil)
+    }
+
+    @Test func plainDragOnEmptyCanvasBoxSelectsAndNeverPans() {
+        let a = testNode(NumberTestNode.self, id: 1, at: .zero)
+        let editor = makeEditor([a])
+        editor.transform = CanvasTransform(offset: Vector2(5, 5), zoom: 2)
+        editor.pointerDragged(from: Vector2(1, 1), to: Vector2(1, 1))
+        editor.pointerDragged(from: Vector2(1, 1), to: Vector2(130, 80))
+        guard case .boxSelecting(_, _, let base, let mode)? = editor.interaction else {
+            Issue.record("expected a box selection"); return
+        }
+        #expect(base.isEmpty && mode == .replace && editor.canvasCursor == nil)
+        editor.pointerReleased(from: Vector2(1, 1), at: Vector2(130, 80))
+        #expect(editor.selection == [a.id])
+        #expect(editor.transform == CanvasTransform(offset: Vector2(5, 5), zoom: 2))
     }
 
     @Test func shiftDragOnEmptyCanvasBoxSelectsAddingToTheSelection() {
@@ -83,10 +99,10 @@ struct PointerTests {
         let start = Vector2(380, -20)
         editor.pointerDragged(from: start, to: start, modifiers: .shift)
         editor.pointerDragged(from: start, to: Vector2(420, 20), modifiers: .shift)
-        guard case .boxSelecting(let corner, let current, let base)? = editor.interaction else {
+        guard case .boxSelecting(let corner, let current, let base, let mode)? = editor.interaction else {
             Issue.record("expected a box selection"); return
         }
-        #expect(corner == start && current == Vector2(420, 20) && base == [c.id])
+        #expect(corner == start && current == Vector2(420, 20) && base == CanvasSelection(nodes: [c.id]) && mode == .add)
         editor.pointerReleased(from: start, at: Vector2(420, 20), modifiers: .shift)
         #expect(editor.selection == [b.id, c.id])
         #expect(editor.transform.offset == .zero)

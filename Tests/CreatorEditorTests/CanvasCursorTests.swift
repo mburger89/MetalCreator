@@ -4,17 +4,19 @@ import MetalUI
 import Testing
 @testable import CreatorEditor
 
-/// The canvas's cursor (docs/metalui-gaps.md C7 item 5): a closed hand while a drag pans, the arrow otherwise.
+/// The canvas's cursor (docs/metalui-gaps.md C7 item 5): a closed hand while a middle-button drag pans, the arrow
+/// otherwise.
 @MainActor
 struct CanvasCursorTests {
-    @Test func aDragOnEmptyCanvasShowsTheClosedHandUntilItsRelease() {
+    /// A middle press can only pan (it never clicks), so the hand shows from the press.
+    @Test func aMiddleDragShowsTheClosedHandUntilItsRelease() {
         let editor = makeEditor([])
-        editor.pointerDragged(from: Vector2(500, 500), to: Vector2(500, 500))
-        #expect(editor.canvasCursor == nil, "a press that hasn't moved may still be a click")
-        editor.pointerDragged(from: Vector2(500, 500), to: Vector2(530, 500))
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(500, 500))
+        #expect(editor.canvasCursor == .grabbing)
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(530, 500))
         #expect(editor.canvasCursor == .grabbing)
         #expect(editor.canvasCursor?.pointerStyle == .grabActive)
-        editor.pointerReleased(from: Vector2(500, 500), at: Vector2(530, 500))
+        editor.middleReleased(from: Vector2(500, 500), at: Vector2(530, 500))
         #expect(editor.canvasCursor == nil)
     }
 
@@ -35,13 +37,17 @@ struct CanvasCursorTests {
         editor.pointerDragged(from: Vector2(900, 900), to: Vector2(900, 900), modifiers: .shift)
         editor.pointerDragged(from: Vector2(900, 900), to: Vector2(950, 950), modifiers: .shift)
         #expect(editor.interaction != nil && editor.canvasCursor == nil)
+        editor.pointerReleased(from: Vector2(900, 900), at: Vector2(950, 950), modifiers: .shift)
+        editor.pointerDragged(from: Vector2(900, 900), to: Vector2(900, 900))
+        editor.pointerDragged(from: Vector2(900, 900), to: Vector2(950, 950))
+        #expect(editor.interaction != nil && editor.canvasCursor == nil, "a plain drag on empty canvas is a box")
     }
 
-    /// A pan whose release was lost keeps its hand only until the next press.
+    /// A middle pan that lost its release keeps its hand only until the next primary press.
     @Test func aPanThatLostItsReleaseLosesTheHandAtTheNextPress() {
         let editor = makeEditor([])
-        editor.pointerDragged(from: Vector2(500, 500), to: Vector2(500, 500))
-        editor.pointerDragged(from: Vector2(500, 500), to: Vector2(560, 500))
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(500, 500))
+        editor.middleDragged(from: Vector2(500, 500), to: Vector2(560, 500))
         #expect(editor.canvasCursor == .grabbing)
         editor.click(Vector2(100, 100))
         #expect(editor.canvasCursor == nil)

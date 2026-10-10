@@ -9,12 +9,30 @@ extension EditorModel {
             guard isPanelVisible else { return false }
             openPalette()
         case .deleteSelection:
-            guard !selection.isEmpty else { return false }
+            guard !canvasSelection.isEmpty else { return false }
             deleteSelection()
+        case .selectAll, .nudge, .frameSelection:
+            return performSelectionCommand(command)
         case .copy, .paste, .duplicate, .zoomIn, .zoomOut, .undo, .redo:
             performEdit(command)
         case .cancel, .paletteUp, .paletteDown, .paletteConfirm:
             return performPaletteCommand(command)
+        }
+        return true
+    }
+
+    /// The selection's keys (spec 2026-10-09 §3). They act only while the panel shows the canvas: with it hidden they
+    /// would select or move nodes no one can see. During a drag they are claimed and do nothing, as Esc is during a
+    /// move: a nudge or a selection change would end the move's coalescing and split it into two undo steps, and F
+    /// would shift the canvas under the pointer.
+    private func performSelectionCommand(_ command: GraphKeyCommand) -> Bool {
+        guard isPanelVisible else { return false }
+        guard interaction == nil else { return true }
+        switch command {
+        case .selectAll: selectAll()
+        case .nudge(let delta, let isRepeat): return nudgeSelection(by: delta, isRepeat: isRepeat)
+        case .frameSelection: return pointerLocation != nil && frameSelection()
+        default: return false // `perform(_:)` routes every other command elsewhere.
         }
         return true
     }
@@ -33,17 +51,29 @@ extension EditorModel {
         }
     }
 
-    /// The palette's keys. Escape does nothing (and goes on) while no palette is open.
+    /// The palette's keys, and Escape.
     private func performPaletteCommand(_ command: GraphKeyCommand) -> Bool {
         switch command {
-        case .cancel:
-            guard palette != nil else { return false }
-            closePalette()
+        case .cancel: return cancel()
         case .paletteUp: movePaletteHighlight(by: -1)
         case .paletteDown: movePaletteHighlight(by: 1)
         case .paletteConfirm: confirmPalette()
         default: return false // `perform(_:)` routes every other command elsewhere.
         }
+        return true
+    }
+
+    /// Escape, in order (spec 2026-10-09 §3): closes the palette; else ends the drag under way
+    /// (`cancelInteraction()`); else clears the selection. With none of these to do it returns false, and the key
+    /// goes on. A pick's, a sketch's and the theme editor's Esc are button shortcuts, which MetalUI runs first.
+    private func cancel() -> Bool {
+        if palette != nil {
+            closePalette()
+            return true
+        }
+        if cancelInteraction() { return true }
+        guard !canvasSelection.isEmpty else { return false }
+        clearSelection()
         return true
     }
 }

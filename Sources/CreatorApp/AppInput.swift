@@ -7,10 +7,10 @@ import MetalUI
 /// forward to whichever is current instead of binding one (as `GraphPanelInput.install(on:)` would):
 /// - keymap: the viewport's F, + and − in the `AppKeyContext.viewport` context, so they type into a focused
 ///   panel field instead (gap M4-a), then the graph's palette arrows and Tab (gaps M5-h, M5-b);
-/// - `onAction`: the graph's actions first, then the viewport's keys, except + and − while the pointer is over
-///   the graph canvas, which fall through to the graph's own zoom keys (gaps M4-a, M5-b: keys aren't scoped to a
-///   hovered element until MetalUI C9). F has no graph binding, so it
-///   frames the viewport from anywhere;
+/// - `onAction`: the graph's actions first, then the viewport's keys, except while the pointer is over the graph
+///   canvas: there F, + and − fall through to the graph's own keys (F frames the graph's selection, + and − zoom
+///   the canvas; spec 2026-10-09 §3), because keys aren't scoped to a hovered element until MetalUI C9 (gaps M4-a,
+///   M5-b);
 /// - `onInput`: the graph's keys;
 /// - text focus: `AppModel.releaseTextFocus` clears the window's focus, for canvas and viewport presses (gap M5-g).
 @MainActor
@@ -37,7 +37,7 @@ public final class AppInput {
     public func handleAction(_ action: any Action) -> Bool {
         if model.graphInput.handleAction(action) { return true }
         guard let key = action as? ViewportKeyAction else { return false }
-        if key.command != .frame, model.editor.pointerLocation != nil { return false }
+        if model.editor.pointerLocation != nil { return false }
         return ViewportKeyBindings.handle(key, model: model.viewport)
     }
 

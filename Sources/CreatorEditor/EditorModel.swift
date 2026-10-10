@@ -11,14 +11,23 @@ import Observation
 public final class EditorModel {
     public let document: DocumentModel
 
-    /// Selected nodes. Changing it commits a typed but uncommitted inspector value (to the node it was typed
-    /// for) and ends any slider drag's undo coalescing.
-    public var selection: Set<NodeID> = [] {
+    /// Everything selected on the canvas (`EditorModel+Selection`, spec 2026-10-09 §3). Changing it commits a typed
+    /// but uncommitted inspector value (to the node it was typed for) and ends any slider drag's undo coalescing.
+    /// View state: never undone, never saved.
+    public var canvasSelection = CanvasSelection() {
         didSet {
-            guard selection != oldValue else { return }
+            guard canvasSelection != oldValue else { return }
             commitPendingEntry()
             document.endCoalescing()
         }
+    }
+
+    /// The selected nodes. Setting it replaces the whole canvas selection (comments too, once sub-project B adds
+    /// them), so code that selects nodes (a click, a paste, the app's Show Producing Node) leaves nothing else
+    /// selected; to keep other items, go through `select(_:mode:)` or `canvasSelection`.
+    public var selection: Set<NodeID> {
+        get { canvasSelection.nodes }
+        set { canvasSelection = CanvasSelection(nodes: newValue) }
     }
 
     /// The pointer over the canvas, in canvas-local screen points; `nil` when it is elsewhere.
@@ -46,11 +55,18 @@ public final class EditorModel {
     @ObservationIgnored private var pressHit: CanvasHit = .empty
     /// The modifiers held at the press (MetalUI's `DragGesture.Value.modifiers` at its first change).
     @ObservationIgnored private var pressModifiers: CanvasModifiers = []
+    /// Esc cancelled the press's drag (`cancelPress()`): the rest of the press, to its release, is ignored.
+    @ObservationIgnored private var pressCancelled = false
+    /// Where the middle-button press now panning, or last panning, the canvas began (`EditorModel+MiddlePan`); `nil`
+    /// once released.
+    @ObservationIgnored var middlePanStart: Vector2?
     @ObservationIgnored private var pasteCount = 0
     @ObservationIgnored private var refusalSerial = 0
     @ObservationIgnored var requestSerial = 0
     /// What an inspector field holds but hasn't committed (`EditorModel+PendingEntry`).
     @ObservationIgnored var pendingEntry: PendingEntry?
+    /// The undo coalescing key of the arrow-key run under way (`EditorModel+Nudge`).
+    @ObservationIgnored var nudgeKey: String?
     /// Whether the trackpad scroll under way zooms (it began with ⌘ held) or pans; `nil` between scrolls
     /// (`EditorModel+Scroll`).
     @ObservationIgnored var scrollZooms: Bool?
@@ -195,6 +211,7 @@ public final class EditorModel {
         pressStart = screen
         pressHit = hitTest(screen)
         pressModifiers = modifiers
+        pressCancelled = false
     }
 
     var currentPress: (point: Vector2, hit: CanvasHit, modifiers: CanvasModifiers)? {
@@ -205,8 +222,18 @@ public final class EditorModel {
         pressStart = nil
         pressHit = .empty
         pressModifiers = []
+        pressCancelled = false
         interaction = nil
     }
+
+    /// Ends the drag under way without finishing it; the press's later changes and its release do nothing.
+    func cancelPress() {
+        interaction = nil
+        pressCancelled = true
+    }
+
+    /// Whether Esc cancelled the press under way (`cancelPress()`).
+    var isPressCancelled: Bool { pressCancelled }
 
     func setInteraction(_ interaction: CanvasInteraction?) { self.interaction = interaction }
 }

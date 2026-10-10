@@ -549,8 +549,7 @@ Plan `2026-10-09-themes-editor.md` (roadmap row "Themes").
   down to the window's bottom margin or, with the graph panel docked at the bottom, to a margin above it, so the graph
   panel and the viewport show each edit as it is made (a second window would end the app when closed until
   MetalUI C8 lane 2, and MetalUI has no sheet). It lists every role under its group with its colour; each role is
-  edited with MetalUI's `ColorPicker` (gap M6-f, MetalUI C10 lane 1) once C10 merges (plan Task 11); until then
-  colours change by import.
+  edited with MetalUI's `ColorPicker` (gap M6-f, MetalUI C10 lane 1, adopted by plan Task 11 on 2026-10-09).
 - MetalUI's own controls follow the theme: `ColorTheme.controlTheme` maps roles onto its tokens (background ←
   background bottom, surface ← node body, surfaceSecondary ← field, accent ← accent, separator ← comment,
   textPrimary ← foreground) for `.theme(_:)` over the window.
@@ -584,3 +583,9 @@ Plan `2026-10-09-kernel-invalid-blends.md`, roadmap row "Kernel: blends that ret
   resolve as that errata says, the Chamfer succeeds and the Output has its part.
   `BracketAcceptanceTests.swappingTheFlangeForAPolygonKeepsEveryPickOnceTheFilletFits` pins it (it replaces
   `swappingTheFlangeForAPolygonKeepsEveryPickButTheFilletedHexagonCantBeChamfered`).
+
+## Errata (multi-select)
+
+- §6.2's click, box and pan rules are superseded by `2026-10-09-selection-groups-comments-design.md` §3 and its
+  Errata (A): ⌘-click toggles, a plain drag on empty canvas box-selects (⇧ adds, ⌘ toggles), and the canvas pans with
+  the middle button or a two-finger scroll (the user's Gate G answer (b), 2026-10-09).
