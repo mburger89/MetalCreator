@@ -159,6 +159,8 @@ public final class DocumentModel {
         let existing = Set(graph.nodes.keys)
         results = results.filter { existing.contains($0.key) }
         lastGoodOutputs = lastGoodOutputs.filter { existing.contains($0.key) }
+        let content = content
+        innerResults = innerResults.filter { content.hasNode(atInstance: $0.key) }
         for id in stale where results[id] != nil {
             results[id]?.state = .evaluating
         }
