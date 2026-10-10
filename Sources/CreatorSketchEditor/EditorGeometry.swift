@@ -57,6 +57,14 @@ enum EditorGeometry {
         return a + d * t
     }
 
+    /// The point of the infinite line through `a` and `b` nearest `p` (`a` when they coincide).
+    static func nearest(to p: Vector2, onLine a: Vector2, _ b: Vector2) -> Vector2 {
+        let d = b - a
+        let squared = d.x * d.x + d.y * d.y
+        guard squared > 0 else { return a }
+        return a + d * (((p.x - a.x) * d.x + (p.y - a.y) * d.y) / squared)
+    }
+
     /// The point of the circle around `center` nearest `p` (its rightmost point when `p` is the centre).
     static func nearest(to p: Vector2, onCircle center: Vector2, radius: Double) -> Vector2 {
         let offset = p - center

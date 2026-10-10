@@ -76,7 +76,7 @@ extension SketchEditorModel {
         }
     }
 
-    private var conflictRefs: Set<SketchConstraintRef> {
+    var conflictRefs: Set<SketchConstraintRef> {
         if case .overConstrained(let conflicts) = solution.status { return Set(conflicts) }
         return []
     }
