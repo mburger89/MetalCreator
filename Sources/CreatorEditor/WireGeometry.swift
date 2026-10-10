@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorGraph
 
 /// A wire's cubic bezier between two sockets (spec §6.2). The control points leave each socket
 /// along the flow — right/left in the horizontal flow, down/up in the vertical — so a wire

@@ -4,6 +4,7 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// walls), which a version-2 reader would silently drop. 4: adds the `sketch` and `facePick` setting
     /// kinds (S4), which a version-3 reader can't decode. 5: adds group definitions (groups spec §2, §4), which a
     /// version-4 reader would drop while keeping group nodes that name them. Version-1 to -4 files still load unchanged.
+    /// Canvas comments (`Graph.stickies`, `Graph.frames`) add optional keys under 5: no bump.
     public static let currentFormatVersion = 5
 
     public var formatVersion: Int

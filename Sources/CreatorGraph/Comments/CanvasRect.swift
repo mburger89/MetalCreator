@@ -1,7 +1,8 @@
 import CreatorGeometry
 
-/// An axis-aligned rectangle in canvas or screen points, y down.
-public struct CanvasRect: Equatable, Sendable {
+/// An axis-aligned rectangle in canvas or screen points, y down. Lives in `CreatorGraph`, with the comments it frames
+/// (`StickyNote.frame`, `CommentFrame.frame`; canvas comments spec 2026-10-09 §7), and is saved with them.
+public struct CanvasRect: Equatable, Sendable, Codable {
     public var origin: Vector2
     public var size: Vector2
 
