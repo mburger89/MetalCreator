@@ -143,7 +143,7 @@ struct SnapAndTangentCoverageTests {
         #expect(host.commits.isEmpty)
     }
 
-    @Test(arguments: [SketchTool.select, .dimension, .trim, .extend, .fillet, .mirror, .pattern])
+    @Test(arguments: [SketchTool.select, .dimension, .trim, .extend, .fillet, .mirror, .pattern, .project])
     func hoveringWithAToolThatPlacesNoPointsShowsNoRubberBand(_ tool: SketchTool) {
         let (sketch, line) = lineSketch()
         let (model, _) = makeModel(sketch, tool: tool)

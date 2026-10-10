@@ -81,6 +81,7 @@ extension SketchEditorModel {
         case .arc: placeArcPoint(at: p, tolerance: tolerance, suppressed: suppressed)
         case .arcThreePoint: placeThreePointArcPoint(at: p, tolerance: tolerance, suppressed: suppressed)
         case .trim, .extend, .fillet, .mirror, .pattern: modify(at: p, tolerance: tolerance)
+        case .project: break   // takes no plane click: the viewport's pick reaches `clickedModel`
         }
         hover(at: p, tolerance: tolerance, modifiers: modifiers)
     }

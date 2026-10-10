@@ -35,14 +35,15 @@ enum SketchOverlayBuilder {
         return ViewportOverlay(lines: lines, points: points, fills: fills, labels: labels, gridPlane: plane)
     }
 
-    /// The colour role of one entity: selected, then hovered, then conflicting, construction, projected, then free or
-    /// fixed.
+    /// The colour role of one entity: selected, then hovered, then conflicting, a suspended projection (conflicting too:
+    /// its pick finds no edge now), construction, projected, then free or fixed.
     static func tint(of id: SketchEntityID, _ entity: SketchEntity, solution: SketchSolution, selection: Set<SketchEntityID>,
                      hovered: SketchEntityID?) -> OverlayTint {
         if selection.contains(id) { return .selected }
         if hovered == id { return .hovered }
         let freedom = solution.freedom[id] ?? .free
         if freedom == .conflicting { return .conflicting }
+        if case .projected(let source) = entity.kind, source.isSuspended { return .conflicting }
         if entity.isConstruction { return .construction }
         if case .projected = entity.kind { return .projected }
         return freedom == .fixed ? .fullyConstrained : .underConstrained

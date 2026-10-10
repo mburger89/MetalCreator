@@ -49,7 +49,7 @@ let package = Package(
         // The in-viewport sketch editor (sketcher spec §8, S5): `SketchEditorModel`, its tools and its views. Graph-free:
         // the app shell turns its commits into graph commands. CreatorStyle for the theme's colours.
         .target(name: "CreatorSketchEditor",
-                dependencies: ["CreatorSketch", "CreatorViewport", "CreatorGeometry", "CreatorStyle", metalUI]),
+                dependencies: ["CreatorSketch", "CreatorViewport", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI]),
         // The app shell (M6): the one target that joins the graph, the nodes, the viewport and the editors. A library,
         // so its model is tested; the executable below only opens the window.
         .target(
@@ -77,8 +77,12 @@ let package = Package(
             ]
         ),
         .testTarget(name: "CreatorStyleTests", dependencies: ["CreatorStyle", metalUI]),
-        .testTarget(name: "CreatorSketchEditorTests",
-                    dependencies: ["CreatorSketchEditor", "CreatorSketch", "CreatorViewport", "CreatorGeometry", "CreatorStyle", metalUI]),
+        .testTarget(
+            name: "CreatorSketchEditorTests",
+            dependencies: [
+                "CreatorSketchEditor", "CreatorSketch", "CreatorViewport", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI,
+            ]
+        ),
         .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT", "CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
         .testTarget(name: "CreatorSketchTests", dependencies: ["CreatorSketch", "CreatorGeometry"]),
