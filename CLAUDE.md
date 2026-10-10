@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 MetalCreator is a node-based parametric CAD app for macOS built on MetalUI (`../MetalUI`, joined in M4).
 The binding spec is `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md`; milestone
-plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 (OCCT kernel), M3 (the 26 nodes), S3 (profile holes) and S4 (the Sketch and Plane from Face nodes) are done. S5a (the sketch editor in the viewport: sketch mode, drawing, constraints, dimensions, live solve) code is done; its human checks (group S5) are pending; S5b (Project, New sketch on face, trim/fillet/mirror/pattern tools) is next. M4 (viewport) code is done; its human checks (group V in `docs/verification/human-checks.md`) are pending. M5 (graph panel and inspector) code is done; its human checks (group M5 in `docs/verification/human-checks.md`) are pending.
+plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 (OCCT kernel), M3 (the 26 nodes), S3 (profile holes) and S4 (the Sketch and Plane from Face nodes) are done. S5a (the sketch editor in the viewport: sketch mode, drawing, constraints, dimensions, live solve) code is done; its human checks (group S5) are pending. S5b (trim, extend, fillet, mirror and pattern tools, 3-point arcs, point-on and tangent inference with glyphs, double-click to edit) code is done; its human checks (group S5b) are pending; S5c (Project, New sketch on face, dimension labels in the view, region fill) is next. M4 (viewport) code is done; its human checks (group V in `docs/verification/human-checks.md`) are pending. M5 (graph panel and inspector) code is done; its human checks (group M5 in `docs/verification/human-checks.md`) are pending.
 M6 (app shell) code is done; its human checks (group M6) are pending.
 Editor polish (the floating add-node palette and the node library) code is done; its human checks (group EP) are pending.
 Packaging (`scripts/package-app.sh`, `docs/packaging.md`) is done; its human checks (group P) are pending.
@@ -60,15 +60,24 @@ Module boundaries (dependency order):
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
   behaviour (selection, canvas transform, dock transpose, hit testing, wiring, clipboard, palette, inspector edits);
   views are thin MetalUI `Component`s. Depends on Graph/Kernel/Geometry, CreatorStyle and MetalUI — **not** on `CreatorNodes`.
-  Its input (MetalUI C7 gestures, and the key and focus stopgaps) lives only in `GraphPanelInput`.
+  Its input (MetalUI C7 gestures, and the key and focus stopgaps) lives only in `GraphPanelInput`. A double click on
+  a node (two plain clicks on its body at most `EditorModel.doubleClickInterval`, 0.4 s as the groups spec's §6 says,
+  not macOS's 500 ms default, and `doubleClickSlop`, 4 points, apart, timed by the injectable `now`; gap S5-b) presses
+  its first inspector button in `doubleClickActions` ("Edit sketch"; `nodeDoubleClicked(_:)`). While a sketch is open
+  the app ignores it (`AppModel.handle(_:)`'s guard).
 - `CreatorSketchEditor`: the sketch editor (sketcher spec §8). `@MainActor @Observable SketchEditorModel` holds the
   sketch being edited, its live solve (`solve(_:dragging:)` per drag step), the tool and its stroke, the selection, and
   the inspector's rows; it is the viewport's `ViewportTool` (planar navigation; F frames the sketch) and builds its
   `ViewportOverlay` and the pointer readout (`pointerReadout`, while drawing or dragging a point; placed by
-  `ReadoutChip`, drawn by its `PointerReadoutView`, which the app puts over the viewport). Graph-free: every edit is
+  `ReadoutChip`, drawn by its `PointerReadoutView`, which the app puts over the viewport, with the inference glyphs'
+  `InferenceChip`). The command tools (Trim, Extend, Fillet, Mirror, Pattern) run `SketchCommands` on a click and show
+  a refused command's message as `refusal`; their settings are `SketchToolOptions`. A click within the pick radius of
+  a curve (not a point) holds a new point on it (point-on); a line leaving an arc's end snaps tangent; ⌘ suppresses
+  both, never a shared point. Graph-free: every edit is
   a `SketchCommit` (the whole sketch, solved and remembered) through `events.committed`, which the host stores.
   Depends on CreatorSketch, CreatorViewport, CreatorGeometry, CreatorStyle and MetalUI only. Its keys are toolbar
-  button shortcuts (L, A, C, D, X, ⌫, ⌦, ⏎, Esc; ⌦ and Esc are hidden buttons), which run before the graph panel's
+  button shortcuts (L, A (again: 3-point arc), C, D, T, X, ⌫, ⌦, ⏎, Esc; ⌦ and Esc are hidden buttons; Fillet has no
+  key because F frames the sketch), which run before the graph panel's
   `onInput` keys; the Delete button and the hidden ⌦ one are never disabled, so ⌫ and ⌦ never fall through to deleting
   nodes (the graph's selection is the Sketch node being edited). Tests: `swift test --filter CreatorSketchEditorTests`.
 - `CreatorApp` + `MetalCreatorApp`: the app shell, the only target joining Graph, Nodes, Viewport and the editors.

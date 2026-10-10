@@ -552,3 +552,41 @@ that into an Output. Select the Sketch.
   Finish: none. Select, then drag the free end of a lone line: the chip follows the pointer and reads the line's length
   and angle as solved (a dimensioned line keeps its length however far you drag); an arc's start or end: "R … mm · …°";
   a rectangle's corner, a circle's centre or a free point: its position. Release: the chip goes. **Observed:**
+
+## Group S5b — the sketch editor's tools and inference (S5b)
+
+**Status: NOT RUN.** Run `swift run MetalCreatorApp`. Add a Sketch, wire its `profiles` into an Extrude (10 mm) and
+that into an Output, select the Sketch and press "Edit sketch".
+
+- [ ] **S5b-1 Trim and Extend.** Draw two crossing lines. Press T and click one line's end beyond the crossing: that
+  span goes, one ⌘Z brings it back. Choose Extend and click near the free end of a short line that points at another
+  line: it grows to meet it. Extend a line that meets nothing: the inspector says "There is nothing to extend Line 1
+  to." and nothing changes. Pinned headless by `ModifyToolTests`. **Observed:**
+- [ ] **S5b-2 Fillet.** Draw a rectangle, choose Fillet: the inspector shows "Click a corner where two lines meet."
+  and Radius "5 mm". Click a corner: it rounds, with a radius dimension. Type 500 in Radius and click another corner:
+  "Radius 500 mm is too large for this corner (max ≈ …)." and nothing changes. F still frames the sketch. Pinned by
+  `FilletToolTests`. **Observed:**
+- [ ] **S5b-3 Mirror.** Draw a construction line (X) and a shape beside it. With Select, click the shape's lines,
+  choose Mirror and click the construction line: a mirrored copy appears; drag an original corner: its copy follows,
+  mirrored. With nothing selected, Mirror says "Select the geometry to mirror first." Pinned by `MirrorToolTests`.
+  **Observed:**
+- [ ] **S5b-4 Pattern.** Draw a small circle and a point beside it; select the circle, choose Pattern, set Instances
+  to 6 and click the point: six circles around it. Select one, click a line: copies along it, Spacing apart (type 15).
+  Instances "1" is refused in words. Pinned by `PatternToolTests`. **Observed:**
+- [ ] **S5b-5 3-point arcs.** Press A twice: "3-Point Arc ✓". Click a start, an end, then move the pointer: the arc
+  bends through it, the readout shows the chord, then "R … mm · …°"; click: the arc is drawn. A third click in line
+  with the ends draws nothing. Press A again: back to the centre arc. Pinned by `ThreePointArcTests`. **Observed:**
+- [ ] **S5b-6 Inference and glyphs.** With Line, move over an existing line: the rubber band's point jumps onto it and
+  a green "Point on" chip sits below right of the pointer; click there and drag the line away with Select: the point
+  stays on it. Over a point: "Coincident". From an arc's end, draw along its tangent: "Tangent", and the line stays
+  tangent when the arc is dragged. Near the right or bottom of the view, the chip moves left or up. Pinned by
+  `InferenceTests`, `InferenceGlyphTests`. **Observed:**
+- [ ] **S5b-7 Double-click to edit.** Finish the sketch. Double-click the Sketch node on the graph canvas: sketch mode
+  opens as with "Edit sketch". Two slow clicks (0.4 s apart or more), or a double click on another node, only
+  select. While sketching, draw a line's first point and double-click the Sketch node: nothing changes (the line in
+  progress, the selection and the view stay). Known (gap S5-b): the system's double-click speed isn't honoured; the
+  interval is a fixed 0.4 s (the groups spec's). Pinned by `DoubleClickTests`, `SketchDoubleClickTests`.
+  **Observed:**
+- [ ] **S5b-8 The toolbar fits.** At the default window size, every tool (Select … Pattern), Construction, Delete and
+  Finish are visible in the top bar, none clipped. Not pinned (a toolbar's width against the window's is measured only
+  by eye). **Observed:**

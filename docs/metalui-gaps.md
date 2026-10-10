@@ -452,3 +452,21 @@ Labelled S5-a… so they don't clash with the labels above.
   and the editor take modifiers, and `ViewportView` passes `[]`, so ⌘ doesn't suppress inference yet (human check
   S5-3 records it). The Select tool's clicks toggle membership instead of needing ⇧. Wanted, as one request with GI-a:
   tap modifiers (GI-a), and modifiers on hover or SwiftUI's `onModifierKeysChanged(mask:initial:_:)`.
+
+## Hit by the sketch editor (S5b), 2026-10-09
+
+- **S5-b. A drag's value has no click count, so the graph canvas can't see a double click.** Sketcher spec §8: a
+  double click on a Sketch node opens its sketch. The canvas's clicks come from its one
+  `DragGesture(minimumDistance: 0)` (GI-a: a tap's value has no modifiers), whose `Value` has no click count, though
+  MetalUI's platform event has one (`MouseEvent.clickCount`, AppKit's, which honours the user's double-click speed).
+  `SpatialTapGesture(count: 2)` recognises a double tap, but beside the zero-distance drag the two compete in the
+  gesture arena (whether `.simultaneousGesture` lets both recognise can't be checked from a client without a headless
+  window, M6-e), and its sequence waits MetalUI's fixed 0.33 s (`tapSequenceDeferral`), not the user's setting.
+  Stopgap: `EditorModel+DoubleClick` pairs two plain clicks on one node itself, at most 0.4 s
+  (`doubleClickInterval`) and 4 points (`doubleClickSlop`) apart, with an injectable clock. The values are the groups
+  spec's (`2026-10-09-selection-groups-comments-design.md` §6: "two primary clicks within 0.4 s and 4 pt with no
+  modifiers"), not macOS's 500 ms default, so the groups editor shares this one recogniser. **The same request as the
+  groups spec's "Canvas double-click (GI-a, MetalUI C16)" (§8)**: one MetalUI request, C16, covers both; S5-b is this
+  file's record of it. Wanted: `clickCount` on `DragGesture.Value` (the press's `MouseEvent.clickCount`), as
+  SwiftUI-on-AppKit apps read `NSEvent.clickCount`; then the model reads the count, the user's double-click speed is
+  honoured, and the stopgap goes. Human check S5b-7 records it. Sent to the MetalUI session with this entry.

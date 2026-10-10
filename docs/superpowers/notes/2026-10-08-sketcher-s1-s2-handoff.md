@@ -83,3 +83,14 @@ These are the items later milestones must pick up (S3 has merged; its items are 
 - Trim, Fillet, Mirror, Pattern call `SketchCommands` and route `SketchCommandError.message` into `refusal`.
 - ⌘ to suppress inference and ⇧-click to extend the selection wait for gap S5-a (hover modifiers) and GI-a (tap
   modifiers), one MetalUI request.
+
+## S5b → S5c (plan `docs/superpowers/plans/2026-10-09-sketcher-s5b.md`)
+- Done in S5b (sketcher spec Errata (S5b)): Trim, Extend, Fillet, Mirror and Pattern tools; 3-point arcs; point-on
+  and tangent inference with their glyph chip; double-click to edit (gap S5-b's stopgap in `EditorModel`).
+- Project (S5c): as in "S5a → S5b" above. Point-on inference already snaps onto projected edges
+  (`SketchPicker.nearestPoint(on:to:)`), so a projection only has to land in the sketch.
+- "New sketch on face" (S5c): offered only outside sketch mode (the face menu is empty while sketching, Errata (S5a)).
+- Dimension labels in the view and the region fill (S5c) need a viewport overlay label API (projected with the
+  camera every frame, like `handleLabels()`) and filled overlay triangles (a renderer pipeline; `GPUDataTests`).
+- Pattern construction (connectors, spokes) is still drawn as any construction; telling it apart needs a marker in
+  the sketch model (CreatorSketch) or the editor remembering what a pattern added.
