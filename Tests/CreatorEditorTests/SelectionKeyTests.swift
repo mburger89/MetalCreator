@@ -96,6 +96,19 @@ struct SelectionKeyTests {
         #expect(editor.selection == [a.id])
     }
 
+    /// A press Esc cancelled whose release never came (the window lost key) doesn't leave the next press at the same
+    /// point cancelled too: its drag box-selects as usual.
+    @Test func aNewPressAfterACancelledOneWhoseReleaseWasLostDragsNormally() {
+        let editor = makeEditor([a, b])
+        let start = Vector2(380, -20)
+        editor.pointerDragged(from: start, to: start)
+        editor.pointerDragged(from: start, to: Vector2(420, 20))
+        #expect(editor.perform(.cancel))
+        editor.pointerPressed(at: start)
+        editor.pointerDragged(from: start, to: Vector2(420, 20))
+        #expect(editor.selection == [b.id], "the new press is not the cancelled one")
+    }
+
     /// A move's steps are already in the document, so Esc doesn't cancel it; it is claimed, so it can't clear the
     /// selection mid-move (which would end the move's coalescing and split it into two undo steps).
     @Test func escapeDuringAMoveKeepsItOneUndoStep() {

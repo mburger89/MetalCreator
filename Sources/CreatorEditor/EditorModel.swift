@@ -207,6 +207,7 @@ public final class EditorModel {
         pressStart = screen
         pressHit = hitTest(screen)
         pressModifiers = modifiers
+        pressCancelled = false
     }
 
     var currentPress: (point: Vector2, hit: CanvasHit, modifiers: CanvasModifiers)? {

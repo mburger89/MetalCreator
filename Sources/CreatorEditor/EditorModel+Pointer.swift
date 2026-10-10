@@ -134,7 +134,6 @@ extension EditorModel {
         }
     }
 
-    /// The copies land where the ghosts were, as one undo step; the originals never moved.
     /// The box from `start` to `current` (display canvas points) combined with the selection the drag began with, as
     /// `mode` says (none replaces, ⇧ adds, ⌘ toggles). It starts from `base` at every step, so a node the box covers
     /// and then leaves again is as it was.
@@ -143,6 +142,7 @@ extension EditorModel {
         canvasSelection = base.applying(items(intersecting: CanvasRect(corner: start, current)), mode: mode)
     }
 
+    /// The copies land where the ghosts were, as one undo step; the originals never moved.
     private func finishDuplicate(start: SelectionPositions, delta: Vector2) {
         if let copies = insert(clipboard(of: start.items), offset: delta) { canvasSelection = copies }
     }
