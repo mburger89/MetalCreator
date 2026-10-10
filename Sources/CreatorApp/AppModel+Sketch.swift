@@ -89,11 +89,12 @@ extension AppModel {
         let found = sketchPlane(of: node, stored)
         let plane = found ?? session.editor.plane
         // A wired plane that moved: the camera looks at it again. One that lost its result (the wire's node failed)
-        // leaves the sketch on the last plane and says so once, when it is lost.
+        // leaves the sketch on the last plane and says so once, when it is lost; while another alert or a close is
+        // being answered it waits, and is said at the first refresh after.
         let moved = found != nil && plane != session.editor.plane
         if found != nil {
             session.hasPlane = true
-        } else if session.hasPlane, let message = planeLossMessage(of: node, stored) {
+        } else if session.hasPlane, alert == nil, closeRequest == .idle, let message = planeLossMessage(of: node, stored) {
             session.hasPlane = false
             alert = .problem(AppProblem("The plane lost its result", message))
         }

@@ -77,4 +77,17 @@ struct SketchPlaneFollowTests {
         await app.settle()
         #expect(app.alert == nil, "said once")
     }
+
+    /// A question already on screen (here Discard Changes) is never replaced: the loss is said once it is answered.
+    @Test func aLostPlaneWaitsForTheAlertAlreadyShowing() async throws {
+        let (app, _) = try await openOnWiredPlane()
+        app.alert = .discardChanges
+        let link = try #require(app.document.graph.links.first { $0.to.node == app.sketch?.node && $0.to.socket == "plane" })
+        try app.document.perform(.disconnect(link))
+        await app.settle()
+        #expect(app.alert == .discardChanges, "the question stays")
+        app.alert = nil
+        app.refreshScene()
+        #expect(app.alert == .problem(AppProblem("The plane lost its result", AppModel.planeUnwired)), "then the loss is said")
+    }
 }
