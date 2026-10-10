@@ -69,6 +69,7 @@ public enum GraphKeyBindings {
         case "\u{7f}", "\u{f728}": .deleteSelection
         case "=", "+": .zoomIn
         case "-": .zoomOut
+        case "f": shifted ? nil : .frameSelection
         case "\u{1b}": .cancel
         default: nil
         }

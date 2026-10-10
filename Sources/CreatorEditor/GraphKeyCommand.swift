@@ -10,6 +10,8 @@ public enum GraphKeyCommand: Equatable, Sendable {
     case deleteSelection
     /// ⌘A: selects everything on the canvas.
     case selectAll
+    /// F with the pointer over the canvas: frames the selection (everything when nothing is selected).
+    case frameSelection
     /// An arrow key: nudges the selection by `delta` display canvas points (the way the arrow points on screen).
     /// `isRepeat` marks a held key's auto-repeat, which joins the undo step its first press began.
     case nudge(Vector2, isRepeat: Bool)

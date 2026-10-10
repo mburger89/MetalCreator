@@ -23,7 +23,7 @@ struct AppInputTests {
         #expect(!predicate.evaluate(against: [KeyContext(AppKeyContext.panel)]), "a focused inspector or palette field types them")
     }
 
-    @Test func theViewportsZoomKeysYieldToTheGraphOverItsCanvas() async {
+    @Test func theViewportsKeysYieldToTheGraphOverItsCanvas() async {
         let app = await makeApp()
         let input = AppInput(model: app)
         let before = app.viewport.pose
@@ -34,7 +34,25 @@ struct AppInputTests {
         #expect(!input.handleAction(ViewportKeyAction(command: .zoomIn)), "unclaimed: + goes on to the graph's zoom")
         #expect(!input.handleAction(ViewportKeyAction(command: .zoomOut)), "and − too")
         #expect(app.viewport.pose == zoomed)
-        #expect(input.handleAction(ViewportKeyAction(command: .frame)), "the graph has no F, so F frames the viewport")
+        #expect(!input.handleAction(ViewportKeyAction(command: .frame)), "F goes on to the graph's own F")
+    }
+
+    /// Spec 2026-10-09 §3: "F frames the selection in the graph canvas when the pointer is over it (the viewport's F
+    /// is unchanged)".
+    @Test func fFramesTheGraphOverItsCanvasAndTheViewportElsewhere() async throws {
+        let app = await makeApp()
+        let input = AppInput(model: app)
+        let node = BuiltInNodes.registry.makeNode(NumberNode.typeID, at: Vector2(2000, 2000))
+        try app.document.perform(.addNode(node))
+        app.editor.selection = [node.id]
+        let canvas = app.editor.transform
+        #expect(input.handleAction(ViewportKeyAction(command: .frame)), "the pointer elsewhere: the viewport frames")
+        #expect(app.editor.transform == canvas)
+        app.editor.pointerLocation = Vector2(40, 40)
+        #expect(!input.handleAction(ViewportKeyAction(command: .frame)))
+        let f = KeyEvent(charactersIgnoringModifiers: "f", characters: "f", timestamp: 1)
+        #expect(input.handleInput(.keyDown(f)))
+        #expect(app.editor.transform != canvas)
     }
 
     @Test func theGraphsActionsComeFirst() async {

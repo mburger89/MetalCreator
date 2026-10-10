@@ -18,6 +18,7 @@ public struct CanvasRect: Equatable, Sendable {
 
     public var maxX: Double { origin.x + size.x }
     public var maxY: Double { origin.y + size.y }
+    public var centre: Vector2 { origin + size * 0.5 }
 
     public func contains(_ point: Vector2) -> Bool {
         point.x >= origin.x && point.x <= maxX && point.y >= origin.y && point.y <= maxY

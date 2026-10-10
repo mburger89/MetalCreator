@@ -34,6 +34,15 @@ public struct CanvasTransform: Equatable, Sendable {
         return CanvasTransform(offset: anchor - pinned * zoom, zoom: zoom)
     }
 
+    /// The transform that shows `rect` (display canvas points) as large as fits in a canvas of `size` (screen
+    /// points) with `padding` screen points around it, centred; the zoom stays in `zoomRange`, so a small rect may
+    /// fill less and a huge one overflow.
+    public static func framing(_ rect: CanvasRect, in size: Vector2, padding: Double) -> CanvasTransform {
+        let fit = min((size.x - 2 * padding) / rect.size.x, (size.y - 2 * padding) / rect.size.y)
+        let zoom = CanvasTransform(zoom: fit).zoom
+        return CanvasTransform(offset: size * 0.5 - rect.centre * zoom, zoom: zoom)
+    }
+
     public func panned(by delta: Vector2) -> CanvasTransform {
         CanvasTransform(offset: offset + delta, zoom: zoom)
     }
