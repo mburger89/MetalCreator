@@ -28,15 +28,16 @@ extension EditorModel {
         ensurePress(at: start, modifiers: modifiers)
         guard let press = currentPress, !isPressCancelled else {
             // A press whose drag Esc cancelled ends here: no click, no wire, and no half of a double click.
-            lastNodeClick = nil
+            lastClick = nil
             endPress()
             return
         }
-        if interaction != nil { lastNodeClick = nil }
+        if interaction != nil { lastClick = nil }
         switch interaction {
         case nil:
             click(press.hit, mode: SelectionMode(press.modifiers))
-            // After the click: a double click on a group node enters it, and the click must not select it afterwards.
+            // After the click: a double click on a group node enters it and one on a note or a frame's title bar edits
+            // it, and the click must not select it afterwards.
             pairClick(on: press.hit, at: press.point, modifiers: press.modifiers)
         case .moving, .resizing: document.endCoalescing()
         case .duplicating(let start, let delta): finishDuplicate(start: start, delta: delta)

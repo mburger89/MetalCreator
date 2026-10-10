@@ -89,8 +89,9 @@ public final class EditorModel {
     @ObservationIgnored var scrollGlideIgnored = false
     /// The time now, for telling a double click from two clicks (`EditorModel+DoubleClick`); tests set their own.
     @ObservationIgnored public var now: @MainActor () -> ContinuousClock.Instant = { ContinuousClock.now }
-    /// The last plain click on a node: which, where on the canvas (screen points) and when.
-    @ObservationIgnored var lastNodeClick: NodeClick?
+    /// The last plain click on a node, a note or a frame's title bar: which, where on the canvas (screen points) and
+    /// when.
+    @ObservationIgnored var lastClick: RecentClick?
 
     public init(document: DocumentModel) {
         self.document = document

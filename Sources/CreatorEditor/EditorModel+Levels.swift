@@ -109,7 +109,7 @@ extension EditorModel {
         commitPendingEntry()
         clearSelection()
         palette = nil
-        lastNodeClick = nil
+        lastClick = nil
         enteredGroups = levels
         document.inspectedLevel = levels
         if !levels.isEmpty, levelTransforms[levels] == nil, let all = bounds(of: allItems) {
