@@ -55,6 +55,9 @@ public final class EditorModel {
     @ObservationIgnored private var pressHit: CanvasHit = .empty
     /// The modifiers held at the press (MetalUI's `DragGesture.Value.modifiers` at its first change).
     @ObservationIgnored private var pressModifiers: CanvasModifiers = []
+    /// Where the middle-button press now panning, or last panning, the canvas began (`EditorModel+MiddlePan`); `nil`
+    /// once released.
+    @ObservationIgnored var middlePanStart: Vector2?
     @ObservationIgnored private var pasteCount = 0
     @ObservationIgnored private var refusalSerial = 0
     @ObservationIgnored var requestSerial = 0

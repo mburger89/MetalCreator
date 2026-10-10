@@ -11,7 +11,7 @@ extension EditorModel {
     /// transform it had when the pinch began, about `centre`, within `CanvasTransform.zoomRange`; a pinch-in to zero
     /// or below holds at `minimumMagnification` rather than springing back, and a non-finite value changes nothing.
     /// The pinch's first change closes the add-node palette, which adds at the point it opened over. A pinch under
-    /// way that changes at another centre, or finds the canvas moved since its last change (a drag pan, a scroll,
+    /// way that changes at another centre, or finds the canvas moved since its last change (a middle-button pan, a scroll,
     /// a zoom key, a dock change), lost its end (MetalUI drops it without a word, docs/metalui-gaps.md VI-a), so
     /// it starts afresh from the canvas as it is. A pinch while a press drags on the canvas changes nothing (as a
     /// scroll then doesn't).

@@ -44,8 +44,8 @@ struct PressModifierTests {
         editor.click(editor.screenPoint(in: a.id), modifiers: .shift)
         editor.click(editor.screenPoint(in: b.id))
         #expect(editor.selection == [b.id])
-        editor.drag(Vector2(600, 600), Vector2(640, 620))
-        #expect(editor.transform.offset == Vector2(40, 20), "a plain drag on empty canvas pans, not box-selects")
+        editor.drag(Vector2(-20, -20), Vector2(20, 20))
+        #expect(editor.selection == [a.id], "a plain box replaces: the first press's ⇧ doesn't make it add")
     }
 
     /// ⌥ pressed after the button went down, but before the press moved far enough to drag, still duplicates.
@@ -61,12 +61,14 @@ struct PressModifierTests {
 
     /// What a drag does is decided when it starts; a modifier pressed later doesn't change it.
     @Test func aModifierPressedMidDragDoesntChangeTheDrag() {
-        let editor = makeEditor([a])
-        editor.pointerDragged(from: Vector2(600, 600), to: Vector2(600, 600))
-        editor.pointerDragged(from: Vector2(600, 600), to: Vector2(620, 600))
-        editor.pointerDragged(from: Vector2(600, 600), to: Vector2(650, 600), modifiers: .shift)
-        guard case .panning? = editor.interaction else { Issue.record("expected a pan"); return }
-        #expect(editor.transform.offset == Vector2(50, 0))
+        let editor = makeEditor([a, b])
+        editor.selection = [b.id]
+        editor.pointerDragged(from: Vector2(-20, -20), to: Vector2(-20, -20))
+        editor.pointerDragged(from: Vector2(-20, -20), to: Vector2(10, 10))
+        editor.pointerDragged(from: Vector2(-20, -20), to: Vector2(20, 20), modifiers: .shift)
+        guard case .boxSelecting(_, _, _, let mode)? = editor.interaction else { Issue.record("expected a box"); return }
+        #expect(mode == .replace && editor.selection == [a.id], "⇧ pressed mid-drag doesn't make the box add")
+        #expect(editor.transform.offset == .zero)
     }
 
     /// A press whose release was lost (the window resigned mid-drag) takes its ⇧ with it.

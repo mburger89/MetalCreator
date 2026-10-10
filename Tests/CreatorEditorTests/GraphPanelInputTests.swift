@@ -160,6 +160,23 @@ struct GraphPanelInputTests {
         #expect(releases == 1)
         input.canvasEnded(value(Vector2(5, 5), Vector2(5, 5)))
         #expect(releases == 2)
-        #expect(editor.transform.offset == Vector2(30, 0))
+        #expect(editor.transform.offset == .zero, "a plain drag through the canvas gesture box-selects; it doesn't pan")
+    }
+
+    /// The canvas's middle-button drag (the user's Gate G answer (b)) pans through the model, from its own arena
+    /// (MetalUI `CI-F`), and leaves text focus alone: it isn't a click on the canvas.
+    @Test func aMiddleDragThroughItsGesturePansAndKeepsTextFocus() {
+        let editor = makeEditor([])
+        let input = GraphPanelInput(model: editor)
+        var releases = 0
+        input.releaseTextFocus = { releases += 1 }
+        let gesture = input.middlePanGesture()
+        #expect(gesture.button == .middle && gesture.minimumDistance == Pixels(0))
+        input.middleChanged(value(Vector2(10, 10), Vector2(10, 10)))
+        input.middleChanged(value(Vector2(10, 10), Vector2(40, 30)))
+        #expect(editor.canvasCursor == .grabbing)
+        input.middleEnded(value(Vector2(10, 10), Vector2(40, 30)))
+        #expect(editor.transform.offset == Vector2(30, 20) && editor.interaction == nil)
+        #expect(releases == 0)
     }
 }

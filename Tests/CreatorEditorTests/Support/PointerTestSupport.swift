@@ -17,4 +17,12 @@ extension EditorModel {
         pointerDragged(from: start, to: end, modifiers: modifiers)
         pointerReleased(from: start, at: end, modifiers: modifiers)
     }
+
+    /// A middle-button press at `start`, a move to `end` and a release there, as the canvas's zero-distance middle
+    /// drag reports them.
+    func middleDrag(_ start: Vector2, _ end: Vector2) {
+        middleDragged(from: start, to: start)
+        middleDragged(from: start, to: end)
+        middleReleased(from: start, at: end)
+    }
 }

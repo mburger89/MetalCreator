@@ -58,8 +58,9 @@ struct CanvasPinchTests {
     @Test func aPinchThatLostItsEndDoesntUndoWhatMovedTheCanvasSince() {
         let editor = makeEditor([])
         editor.pinchChanged(magnification: 1.2, centre: centre)
-        editor.drag(Vector2(600, 600), Vector2(640, 620))
+        editor.middleDrag(Vector2(600, 600), Vector2(640, 620))
         let panned = editor.transform
+        #expect(panned.offset != .zero, "the middle drag panned")
         editor.pinchChanged(magnification: 1.25, centre: centre)
         #expect(editor.transform == panned.zoomed(by: 1.25, around: centre))
         editor.zoom(in: true)
