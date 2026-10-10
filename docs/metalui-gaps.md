@@ -562,4 +562,5 @@ Labelled M7-a… so they don't clash with the labels above. Checked against Meta
   and on saving), and ⌘↩ is unbound. Wanted: C9 lets MetalCreator bind it with SwiftUI's own
   `.onKeyPress(.return) { press in guard press.modifiers.contains(.command) else { return .ignored }; commit();
   return .handled }` on the `TextEditor` (no MetalUI-only hook is needed). Status: answered: lands with C9. The gap
-  was already sent to the MetalUI session by the controller. Logged with C9 (key and focus scoping), which owns the key handling.
+  was already sent to the MetalUI session by the controller. Logged with C9 (key and focus scoping), which owns the key
+  handling.
