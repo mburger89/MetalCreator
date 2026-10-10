@@ -36,6 +36,7 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 | — | Naming: face picks on merged faces — a `FacePick` (Plane from Face) on a face a union merged names both operands' tags and matches nothing once they stop merging; narrow it like `EdgeKey.narrowed` (it has no other side, so it needs its own rule). Also not narrowed yet: an edge pick between a merged face and a third operand's face (a hole through a merged plate+flange side), since the hole wall's tags share no origin with the merged side | 💬 | Errata (naming: merged faces) |
 | — | Viewport: a selected rule's edges over the Final part — in Final preview, show the edges of a selected rule whose solid isn't shown (spec §6.3, Errata (M6)) | ⏳ after M6 | `SceneTests.aRuleSelectedInFinalPreviewGlowsOnlyOnItsOwnSolid` |
 | — | Viewport: frame in the model area — first framing, F and Look At centre the part in `ViewportModel.modelArea`, not the whole view (spec §6.3) | ✅ merged 2026-10-09 (human checks VC pending; the arrows, cube and pointer-less key zoom keep it there) | carry-over From M6 |
+| — | Multi-select polish (A): ⌘-click toggles, box select (a plain drag replaces, ⇧ adds, ⌘ toggles; the middle button pans), ⌘A, Esc, arrow nudge, F frames the graph's selection, drags and ⌥-drags of the whole selection, on a `CanvasSelection` comments join (spec `2026-10-09-selection-groups-comments-design.md` §3, Errata (A: multi-select); plan `2026-10-09-multi-select.md`) | ✅ code done; human checks MS pending | Unblocks Comments (B) and Groups (C1, C2) |
 
 ## Cross-project dependencies
 

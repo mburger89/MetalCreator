@@ -10,6 +10,8 @@ plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 
 M6 (app shell) code is done; its human checks (group M6) are pending.
 Editor polish (the floating add-node palette and the node library) code is done; its human checks (group EP) are pending.
 Packaging (`scripts/package-app.sh`, `docs/packaging.md`) is done; its human checks (group P) are pending.
+Multi-select polish (sub-project A of `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md`) code is
+done; its human checks (group MS) are pending.
 Themes (custom themes, `.mctheme` files, the theme editor) code is done; its human checks (group TH) are pending. Each role is edited with MetalUI C10's `ColorPicker` (plan Task 11).
 
 Module boundaries (dependency order):
@@ -61,6 +63,12 @@ Module boundaries (dependency order):
   behaviour (selection, canvas transform, dock transpose, hit testing, wiring, clipboard, palette, inspector edits);
   views are thin MetalUI `Component`s. Depends on Graph/Kernel/Geometry, CreatorStyle and MetalUI — **not** on `CreatorNodes`.
   Its input (MetalUI C7 gestures, and the key and focus stopgaps) lives only in `GraphPanelInput`.
+  The selection is `canvasSelection` (`CanvasSelection`: nodes, and comments once sub-project B lands); `selection`
+  is its nodes, and assigning it replaces the whole selection. Every gesture and key goes through
+  `EditorModel+Selection` (`select(_:mode:)` with `SelectionMode`: none replaces, ⇧ adds, ⌘ toggles; `allItems`,
+  `items(for:)`, `items(intersecting:)`, `positions(of:)`, `moveCommands(from:by:)`, `bounds(of:)`), the only members
+  comments extend (spec 2026-10-09 Errata (A)). ⌘A, arrows (one undo step per key-down run) and F act only while the
+  panel shows; Esc closes the palette, then cancels a drag, then clears the selection.
 - `CreatorSketchEditor`: the sketch editor (sketcher spec §8). `@MainActor @Observable SketchEditorModel` holds the
   sketch being edited, its live solve (`solve(_:dragging:)` per drag step), the tool and its stroke, the selection, and
   the inspector's rows; it is the viewport's `ViewportTool` (planar navigation; F frames the sketch) and builds its
@@ -126,13 +134,17 @@ click from a drag (`LibraryDrag.threshold`); never MetalUI drag and drop (it bec
 window). The library's visibility is `ViewState.showsLibrary` (an optional key: no format bump).
 The graph canvas's pointer input is MetalUI C7's, turned into `EditorModel` calls by `GraphPanelInput`: one
 `DragGesture(minimumDistance: 0)` for clicks and drags, whose `value.modifiers` the model reads (a `SpatialTapGesture`
-has none, gap GI-a), `.onScrollWheel` (`scrolled(by:at:modifiers:phase:)`: pan, ⌘ zooms) and `MagnifyGesture`
-(`pinchChanged`); the cursor is `EditorModel.canvasCursor`. Its key, focus and palette stopgaps live only in
+has none, gap GI-a; a drag on empty canvas box-selects and never pans), a `DragGesture(minimumDistance: 0, button:
+.middle)` (`middlePanGesture()` → `middleDragged`: pans, as the viewport's middle drag does; the user's Gate G answer
+(b), 2026-10-09), `.onScrollWheel` (`scrolled(by:at:modifiers:phase:)`: pan, ⌘ zooms) and `MagnifyGesture`
+(`pinchChanged`); the cursor is `EditorModel.canvasCursor` (a closed hand while a middle drag pans). Its key, focus
+and palette stopgaps live only in
 `GraphPanelInput` too, and `install(on:)` chains onto the window's existing handlers.
 The app installs the window's input through `AppInput`, never `GraphPanelInput.install(on:)` (only
 `GraphPanelPreview` still uses it), because New and Open replace the document's `GraphPanelInput`.
 App-shell input stopgaps live only in `AppInput`: the viewport's keys carry the `!Panel` key context (the graph panel
-and the inspector contribute `Panel`), and over the graph canvas + and − are declined so the graph's zoom keys work. The
+and the inspector contribute `Panel`), and over the graph canvas F, + and − are declined so the graph's own keys work
+(F frames the graph's selection there). The
 camera reaches `ViewState` only through `cameraSettled`/`homeChanged`, never per frame. Regular Polygon is
 `typeVersion` 2 (`rotation`).
 

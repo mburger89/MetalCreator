@@ -170,9 +170,9 @@ Run `swift run MetalCreatorApp` on a saved bracket, with a trackpad and a wheel 
   Hold ⇧, ⌘-Tab to another app, let go of ⇧ there, come back and click a node: a plain click. Pinned:
   `PressModifierTests`, `modifierChangesAreNeitherClaimedNorTracked`,
   `theCanvasGestureReadsThePressModifiersFromItsValues`, `anOptionDragThroughTheGestureDuplicates`. **Observed:**
-- [ ] **GI-6 Cursors.** Drag empty canvas: a closed hand from the moment it pans until the release, also when the
-  pointer leaves the panel mid-drag; a click shows none. Moving nodes, dragging a wire and box selection keep the
-  arrow. Hover the dock's inner edge: a left-right resize cursor docked left, an up-down one docked at the bottom,
+- [ ] **GI-6 Cursors.** Middle-drag the canvas: a closed hand from the press until the release, also when the pointer
+  leaves the panel mid-drag (since multi-select a plain drag on empty canvas box-selects, MS-3); a click shows none.
+  Moving nodes, dragging a wire and box selection keep the arrow. Hover the dock's inner edge: a left-right resize cursor docked left, an up-down one docked at the bottom,
   kept while dragging it. Pinned: `CanvasCursorTests`, `theLeftDocksEdgeIsAColumnResizeAndTheBottomDocksARowResize`.
   **Observed:**
 - [ ] **GI-7 The palette.** Open the palette (Space) over the canvas, then scroll or pinch over the canvas outside
@@ -180,7 +180,8 @@ Run `swift run MetalCreatorApp` on a saved bracket, with a trackpad and a wheel 
   Pinch over the palette: nothing moves (neither the canvas nor the viewport) and it stays open.
   Pinned: `aScrollThatMovesTheCanvasClosesThePalette`, `aPinchClosesThePalette`. **Observed:**
 - [ ] **GI-8 Keys unchanged, and the preview.** Over the canvas, + and − still zoom it (not the viewport), F frames
-  the viewport, Tab and Space open the palette, and Delete, ⌘C, ⌘V and ⌘D work after a canvas click. Then in
+  the graph's selection (MS-6; before multi-select it framed the viewport), Tab and Space open the palette, and
+  Delete, ⌘C, ⌘V and ⌘D work after a canvas click. Then in
   `swift run GraphPanelPreview`: GI-1, GI-2, GI-3, GI-5 and GI-6's canvas half behave the same. Pinned:
   `AppInputTests`, `KeyCommandTests`. **Observed:**
 
@@ -206,9 +207,10 @@ Run `swift run GraphPanelPreview`.
   Press Tab (even with an inspector field focused): the panel returns to the last side. Hide again and click "Show
   graph": same. Pinned: `DockTests`, `theHiddenPanelLeavesAShowButton`; the Tab shortcut is this check only.
   **Observed:**
-- [ ] **M5-6 Pan, zoom, hit testing.** Drag empty canvas: it pans. Press + three times with the pointer over a node:
+- [ ] **M5-6 Pan, zoom, hit testing.** Middle-drag the canvas (or scroll with two fingers): it pans (since
+  multi-select a plain drag on empty canvas box-selects, MS-3). Press + three times with the pointer over a node:
   the node stays under the pointer. Click a socket's edge at that zoom and drag: a cyan wire follows the pointer.
-  Pinned: `HitTestTests`. **Observed:**
+  Pinned: `HitTestTests`, `MiddlePanTests`. **Observed:**
 - [ ] **M5-7 Wiring.** Drag Rectangle's output onto Extrude's profile input: a wire is made (it replaces the old one).
   Drag Number's output onto Extrude's profile: nothing connects, Extrude jumps sideways and springs back (a brief
   wobble, gap M5-i), and "A number can't connect to a profile input." shows under the canvas for about two seconds.
@@ -552,3 +554,50 @@ that into an Output. Select the Sketch.
   Finish: none. Select, then drag the free end of a lone line: the chip follows the pointer and reads the line's length
   and angle as solved (a dimensioned line keeps its length however far you drag); an arc's start or end: "R … mm · …°";
   a rectangle's corner, a circle's centre or a free point: its position. Release: the chip goes. **Observed:**
+
+## Group MS — multi-select (sub-project A)
+
+**Status: PENDING.** Plan `2026-10-09-multi-select.md`, spec `2026-10-09-selection-groups-comments-design.md` §3 and
+its Errata (A: multi-select). The tests pin the model; these check the gestures and keys through a real window (no
+headless MetalUI window, gap M6-e). Run `swift run MetalCreatorApp` on a saved bracket, docked left, then MS-8 docked
+at the bottom too.
+
+- [ ] **MS-1 Clicks.** Click a node, then ⌘-click two more: all three are selected; ⌘-click one of them again: it
+  alone is deselected. ⇧-click a selected node: it stays selected. Click one of several selected nodes: only it stays
+  selected. ⌘-click and ⇧-click empty canvas: nothing changes; a plain click there clears. Pinned:
+  `MultiSelectPointerTests`. **Observed:**
+- [ ] **MS-2 Drags.** Select three nodes, then drag one of them: all three move, and one ⌘Z puts them back. ⌘-drag a
+  selected node: all move and all stay selected. ⇧- or ⌘-drag an unselected node: it joins and everything moves. ⌥-drag
+  one of the three: three ghosts follow and three copies land, selected, as one undo step; ⌥-click without moving:
+  nothing is copied. Pinned: `commandDragMovesTheSelectionAndKeepsIt`, `aModifiedDragOnAnUnselectedNodeAddsItAndMovesEverything`,
+  `optionDragCopiesTheWholeSelectionOnlyOnceItMoves`. **Observed:**
+- [ ] **MS-3 Box select and pan** (the user's Gate G answer (b), 2026-10-09). Select a node, then drag on empty
+  canvas over two others: a box selects exactly those two (the first is dropped) and the canvas doesn't move; a plain
+  drag over nothing clears the selection. ⇧-drag a box over two unselected nodes: they join the selection. ⌘-drag a
+  box over one selected and one unselected node: they swap. Start a ⇧-box and let go of ⇧ just before the button: the
+  box still adds (nothing selected before is lost). Grow a ⌘-box over a node, then shrink it away: the node is as it
+  was. Middle-drag from empty canvas, then from a node: the canvas pans with a closed hand, nothing is selected or
+  moved, and the viewport behind the panel doesn't move; two-finger scroll pans too. Hold the middle button, click a
+  node, keep moving: the pan stops and doesn't jump. Pinned: `BoxSelectModeTests`, `MiddlePanTests`. **Observed:**
+- [ ] **MS-4 ⌘A and Esc.** Click the canvas, ⌘A: every node is selected. Click into an inspector number field, ⌘A:
+  the field's text is selected and the canvas selection doesn't change; the same in the open palette's search field.
+  Esc with the palette open closes it and keeps the selection; Esc again clears the selection. Start dragging a wire
+  and press Esc with the button still held: the wire vanishes, and releasing over a socket connects nothing (record
+  whether the Esc arrives during the drag at all). ⌥-drag ghosts then Esc: they vanish. ⇧-box then Esc: the selection
+  is as before the box. With Pick edges in view under way, Esc cancels the pick and keeps the selection. Drag a node
+  and, with the button still held, press ⌘A and → : nothing changes, and after the release one ⌘Z puts the node back.
+  Pinned: `SelectionKeyTests`, `aNudgeDuringAMoveKeepsItOneUndoStep`. **Observed:**
+- [ ] **MS-5 Arrows.** Select two nodes, click empty canvas with ⇧ (so no field has focus), press → three times:
+  they move 3 points right, and ⌘Z three times puts them back step by step. Hold ⇧→ for a second: they glide right
+  10 points per repeat, and one ⌘Z undoes the whole hold. Docked left, ↓ moves them down the screen. In a focused
+  inspector field the arrows move the caret instead. Pinned: `NudgeTests`. **Observed:**
+- [ ] **MS-6 F.** Select a node far off screen, put the pointer over the graph canvas and press F: the canvas pans and
+  zooms so it is centred with a margin. With nothing selected, F frames every node. With the pointer over the
+  viewport, F frames the part as before; in a focused inspector field F types. Pinned: `FramingTests`,
+  `AppInputTests.fFramesTheGraphOverItsCanvasAndTheViewportElsewhere`. **Observed:**
+- [ ] **MS-7 Panel hidden.** Hide the panel (Tab with the pointer off the canvas), then ⌘A and Delete: no node is
+  deleted (show the panel to check); arrows move nothing. Pinned: `selectAllDoesNothingWhileThePanelIsHidden`,
+  `withNothingSelectedOrThePanelHiddenTheKeyGoesOn`. **Observed:**
+- [ ] **MS-8 Draw order.** Overlap three nodes, select the two at the back: they draw above the third, and a click
+  where all three overlap selects the topmost drawn one. Docked at the bottom too. Pinned:
+  `selectedNodesDrawLastAndAreHitFirst`. **Observed:**

@@ -181,3 +181,37 @@ public struct CommentFrame: Sendable, Codable, Equatable { id, title: String, fr
 
 Rows: "Multi-select polish (A)", "Groups: model and evaluation (C1)", "Comments (B)", "Groups: editor (C2)",
 "Comments: typing on the canvas (after MetalUI C9 + canvas double-click)".
+
+## Errata (A: multi-select)
+
+Plan `2026-10-09-multi-select.md`.
+
+- Box select, as the user decided on 2026-10-09 (Gate G, answer (b)): §3 holds, and the parent §6.2's "A plain drag on
+  empty canvas pans" no longer does. Every drag that starts on empty canvas box-selects; the modifiers held when the
+  drag starts (crosses the drag threshold, as ⌥-duplicate's are) fix its mode for the whole drag: none replaces the
+  selection, ⇧ adds, ⌘ toggles each node it covers (⌘ wins over ⇧). It is recomputed from the selection it began
+  with at every step. Panning is two-finger scroll (as before) and the middle mouse button (the user: "pan with two
+  fingers or the middle mouse button"), as in the viewport: a middle drag pans wherever it starts, nodes included,
+  and never selects or moves; a primary press ends it. Space-drag isn't a pan (Space opens the palette). Pinned:
+  `BoxSelectModeTests`, `MiddlePanTests`.
+- §3's "⇧ keeps adding": a ⇧-click on a selected node now keeps it (before, it removed it); ⌘-click toggles; ⌘ wins
+  when both are held. A drag on an unselected node with ⇧ or ⌘ adds it, then moves the whole selection.
+- ⌘A, the arrows and F act only while the panel is visible (with it hidden, ⌘A then Delete would erase nodes no one
+  can see), and pass the key on otherwise. A focused field keeps all three (they come from the window's `onInput`
+  fallback). During a drag all three are claimed and do nothing, so a move stays one undo step.
+- Esc also drops ⌥-drag ghosts and cancels a box (putting back the selection it began with); during a pan or a move
+  it is claimed and does nothing, so it can't split the move's undo step. The rest of a cancelled press is ignored.
+- F over the graph canvas frames the selection, or every node when nothing (still on the canvas) is selected, with
+  40 screen points of padding, the zoom within 25–300%. `AppInput` declines the viewport's F (as it did + and −) while
+  the pointer is over the canvas.
+- Arrows nudge 1 canvas point (⇧ 10) the way they point on screen (the left dock's transpose is undone). A key-down
+  that isn't an auto-repeat starts a new undo step; anything that ends coalescing (a press, a selection change, Undo)
+  also does.
+- The selection model B extends: `CanvasSelection` (B adds `comments: Set<CommentID>`), `SelectionPositions` (B adds
+  `comments: [CommentID: Vector2]`), and `EditorModel`'s `allItems`, `items(for:)`, `items(intersecting:)`,
+  `positions(of:)`, `moveCommands(from:by:)`, `bounds(of:)`, `clipboard(of:)`, `insert(_:offset:)` and
+  `deleteSelection()`. Assigning `EditorModel.selection` selects exactly those nodes and no comments. Drags reach
+  items only through `items(for:)`, so comment hits select and move without a pointer change; B's other edits are a
+  frame's resize drag (its hit case before `items(for:)`, its `CanvasInteraction` case in `update`, `pointerReleased`
+  and `cancelInteraction()`) and comment ghosts in `CanvasLayers.ghosts`.
+- Graph keys still act in sketch mode, as Delete and ⌘C do: arrows nudge the Sketch node and ⌘A selects every node.
