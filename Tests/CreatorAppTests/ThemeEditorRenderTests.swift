@@ -92,21 +92,22 @@ struct ThemeEditorRenderTests {
         #expect(glass.allSatisfy { abs($0.height - height) < 1 && $0.y + $0.height < graphTop })
     }
 
-    @Test func theSwatchesShowTheShownThemesColoursAndFollowAnEdit() async throws {
+    /// Each role's colour well (MetalUI's `ColorPicker`: a 48×24 bezel showing the colour inset 4 pt, 40×16,
+    /// `LK-C` item 3) shows the shown theme's colour, and follows an edit at once.
+    @Test func theColourWellsShowTheShownThemesColoursAndFollowAnEdit() async throws {
         let (app, editor) = await makeApp()
         editor.select("nord")
         editor.duplicate()
         editor.open()
-        func swatches() -> [HexColor] {
+        func wells() -> [HexColor] {
             fills(app, editor).filter { fill in
-                abs(fill.width - ThemeEditorLayout.swatchWidth) < 0.5 && abs(fill.height - ThemeEditorLayout.swatchHeight) < 0.5
-                    && fill.colour.opacity > 0
+                abs(fill.width - 40) < 0.5 && abs(fill.height - 16) < 0.5 && fill.colour.opacity > 0
             }.map(\.colour)
         }
         let surfaces = ThemeRoleGroup.surfaces.roles.map { editor.theme.colors[$0].quantized }
-        #expect(Array(swatches().prefix(surfaces.count)) == surfaces, "the first rows are the surfaces, in order")
+        #expect(Array(wells().prefix(surfaces.count)) == surfaces, "the first rows are the surfaces, in order")
         editor.setColor(HexColor(0x00ffaa), for: try #require(ThemeRole.named("backgroundTop")))
-        #expect(swatches().first == HexColor(0x00ffaa))
+        #expect(wells().first == HexColor(0x00ffaa))
     }
 
     /// MetalUI's own controls (the top bar's buttons, filled with the `surfaceSecondary` token) draw the theme's
