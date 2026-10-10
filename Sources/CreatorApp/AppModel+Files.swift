@@ -71,7 +71,7 @@ extension AppModel {
             throw AppProblem("“\(url.lastPathComponent)” couldn't be saved", error.localizedDescription)
         }
         fileURL = url
-        savedGraph = document.graph
+        savedContent = document.content
     }
 
     /// Save: to the document's file, or Save As… for a new document. Returns whether it was saved.

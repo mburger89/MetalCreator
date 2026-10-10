@@ -21,12 +21,12 @@ struct EdgePickRunCountFileTests {
         return EdgePick(key: EdgeKey([top], [side]), matchCount: 2, runCount: 1)
     }
 
-    @Test func aRunCountRoundTripsThroughAVersionFourFile() throws {
+    @Test func aRunCountRoundTripsThroughACurrentFile() throws {
         let rule = makeNode(ConstantNode.self, ["picks": .edgePicks([split])])
         let data = try GraphFileIO.encode(GraphFile(graph: graph([rule])))
         let text = try #require(String(bytes: data, encoding: .utf8))
         #expect(text.contains(#""runCount" : 1"#))
-        #expect(text.contains(#""formatVersion" : 4"#))
+        #expect(text.contains(#""formatVersion" : \#(GraphFile.currentFormatVersion)"#))
         let decoded = try GraphFileIO.decode(data, registry: testRegistry)
         #expect(decoded.graph.nodes[rule.id]?.inputValues["picks"] == .edgePicks([split]))
     }

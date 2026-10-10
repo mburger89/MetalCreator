@@ -25,12 +25,12 @@ struct EdgePickFileTests {
         #expect(decoded.graph.nodes[rule.id]?.inputValues["picks"] == .edgePicks(samplePicks()))
     }
 
-    /// 4 since S4 (`sketch` and `facePick` settings). Whichever of S4 and another format-bumping branch
+    /// 5 since groups (C1; 4 since S4's `sketch` and `facePick` settings). Whichever format-bumping branch
     /// merges second takes the next number and updates both literals here.
     @Test func savedFilesCarryTheCurrentFormatVersion() throws {
-        #expect(GraphFile.currentFormatVersion == 4)
+        #expect(GraphFile.currentFormatVersion == 5)
         let text = try #require(String(bytes: try GraphFileIO.encode(GraphFile()), encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 4"#))
+        #expect(text.contains(#""formatVersion" : 5"#))
     }
 
     @Test func versionTwoEdgePicksDecodeAsOuterWalls() throws {

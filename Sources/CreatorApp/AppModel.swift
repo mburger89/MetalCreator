@@ -26,8 +26,8 @@ public final class AppModel {
     public private(set) var viewport: ViewportModel
     /// Where the document was last opened from or saved to; `nil` for a new one.
     public internal(set) var fileURL: URL?
-    /// The graph as it was last opened or saved. The document is edited while its graph differs.
-    var savedGraph: Graph
+    /// The graph and its group definitions as they were last opened or saved. The document is edited while they differ.
+    var savedContent: GraphContent
     public var previewMode: PreviewMode = .final
     /// "Pick edges in view…" in progress.
     public internal(set) var pick: PickSession?
@@ -66,13 +66,13 @@ public final class AppModel {
         graphInput = parts.input
         viewport = parts.viewport
         self.fileURL = fileURL
-        savedGraph = file.graph
+        savedContent = GraphContent(graph: file.graph, definitions: file.definitions)
         connectParts()
     }
 
-    /// True while the graph differs from the one last opened or saved. Camera, dock and canvas changes are saved
-    /// with the file but don't count as edits.
-    public var isEdited: Bool { document.graph != savedGraph }
+    /// True while the graph or a group definition differs from the one last opened or saved. Camera, dock and canvas
+    /// changes are saved with the file but don't count as edits.
+    public var isEdited: Bool { document.content != savedContent }
 
     /// The file's name, or "Untitled".
     public var displayName: String { fileURL?.lastPathComponent ?? "Untitled" }
@@ -89,7 +89,7 @@ public final class AppModel {
         graphInput = parts.input
         viewport = parts.viewport
         fileURL = url
-        savedGraph = file.graph
+        savedContent = GraphContent(graph: file.graph, definitions: file.definitions)
         requestedScene = []
         connectParts()
     }

@@ -2,13 +2,17 @@ import CreatorKernel
 import Foundation
 import Observation
 
-/// One open document: the graph, its undo history and its latest evaluation. The UI observes
-/// this. Every edit goes through `perform(_:coalescingKey:)`.
+/// One open document: the graph and its group definitions, its undo history and its latest evaluation. The UI
+/// observes this. Every edit goes through `perform(_:coalescingKey:)` (or `perform(_:at:coalescingKey:)`).
 @MainActor
 @Observable
 public final class DocumentModel {
-    public private(set) var graph: Graph
+    /// The top-level graph and the group definitions (groups spec §4), edited together.
+    public private(set) var content: GraphContent
     public private(set) var results: [NodeID: NodeResult] = [:]
+    /// Results inside group nodes (groups spec §5), by instance path: the group nodes from the top level down, then
+    /// the inner node's ID (`EvaluationReport.innerResults`). C2 draws a group's inside from these.
+    public private(set) var innerResults: [[NodeID]: NodeResult] = [:]
     /// The last successful outputs of each node. The viewport ghosts these when a node errors (spec §4.4).
     public private(set) var lastGoodOutputs: [NodeID: [SocketName: Value]] = [:]
     public private(set) var isEvaluating = false
@@ -30,7 +34,8 @@ public final class DocumentModel {
         }
     }
 
-    public let registry: NodeRegistry
+    /// The registry the document was opened with, without its definitions.
+    @ObservationIgnored private let baseRegistry: NodeRegistry
     private var undoStack = UndoStack()
     @ObservationIgnored private let evaluator: Evaluator
     @ObservationIgnored private var evaluationTask: Task<Void, Never>?
@@ -38,9 +43,9 @@ public final class DocumentModel {
 
     public init(file: GraphFile = GraphFile(), registry: NodeRegistry, kernel: any Kernel,
                 cacheBudgetBytes: Int = 512 * 1024 * 1024) {
-        self.graph = file.graph
+        self.content = GraphContent(graph: file.graph, definitions: file.definitions)
         self.viewState = file.viewState
-        self.registry = registry
+        self.baseRegistry = registry
         self.evaluator = Evaluator(registry: registry, kernel: kernel, cacheBudgetBytes: cacheBudgetBytes)
         scheduleEvaluation()
     }
@@ -49,6 +54,13 @@ public final class DocumentModel {
         self.init(file: try GraphFileIO.decode(data, registry: registry), registry: registry, kernel: kernel)
     }
 
+    /// The top-level graph.
+    public var graph: Graph { content.graph }
+    /// The document's group definitions.
+    public var definitions: [GroupID: GroupDefinition] { content.definitions }
+    /// The registry carrying this document's definitions, so group nodes have their sockets.
+    public var registry: NodeRegistry { baseRegistry.withGroups(content.definitions) }
+
     public var canUndo: Bool { undoStack.canUndo }
     public var canRedo: Bool { undoStack.canRedo }
 
@@ -56,11 +68,16 @@ public final class DocumentModel {
     /// drag, then call `endCoalescing()` when the drag ends, so the drag is one undo step.
     public func perform(_ command: GraphCommand, coalescingKey: String? = nil) throws(GraphError) {
         // The stale set must be taken before the edit, so dependents of removed nodes and links count.
-        let stale = graph.downstreamClosure(of: command.touchedNodes)
-        let inverse = try graph.apply(command, registry: registry)
+        let stale = graph.downstreamClosure(of: content.touchedTopLevelNodes(command))
+        let effect = effect(of: command)
+        let inverse = try content.apply(command, registry: baseRegistry)
         undoStack.record(forward: command, inverse: inverse, coalescingKey: coalescingKey)
-        guard command.affectsResults else { return }
-        didChange(markingStale: stale)
+        didChange(effect, markingStale: stale)
+    }
+
+    /// Applies a graph command to the graph at `path`: the top level, or inside a group definition (groups spec §5).
+    public func perform(_ command: GraphCommand, at path: GraphPath, coalescingKey: String? = nil) throws(GraphError) {
+        try perform(command.at(path), coalescingKey: coalescingKey)
     }
 
     public func endCoalescing() {
@@ -78,7 +95,7 @@ public final class DocumentModel {
     }
 
     public func fileData() throws -> Data {
-        try GraphFileIO.encode(GraphFile(graph: graph, viewState: viewState))
+        try GraphFileIO.encode(GraphFile(graph: graph, definitions: definitions, viewState: viewState))
     }
 
     /// Returns once the most recently scheduled evaluation has finished and been applied.
@@ -97,20 +114,31 @@ public final class DocumentModel {
         return ids
     }
 
+    /// What applying `command` to the content as it is now changes: results (mark the stale nodes and re-evaluate),
+    /// only group messages (re-evaluate, every result cached, nothing marked), or nothing.
+    private func effect(of command: GraphCommand) -> (results: Bool, messages: Bool) {
+        (content.affectsResults(command), content.affectsMessages(command))
+    }
+
     private func replay(_ command: GraphCommand) {
-        let stale = graph.downstreamClosure(of: command.touchedNodes)
+        let stale = graph.downstreamClosure(of: content.touchedTopLevelNodes(command))
+        let effect = effect(of: command)
         do {
-            try graph.apply(command, registry: registry)
+            try content.apply(command, registry: baseRegistry)
         } catch {
             // Undo and redo replay commands that were valid when recorded, so this means
             // the history is out of step with the graph.
             assertionFailure("Undo history could not be replayed: \(error)")
         }
-        guard command.affectsResults else { return }
-        didChange(markingStale: stale)
+        didChange(effect, markingStale: stale)
     }
 
-    private func didChange(markingStale stale: Set<NodeID>) {
+    private func didChange(_ effect: (results: Bool, messages: Bool), markingStale stale: Set<NodeID>) {
+        guard effect.results else {
+            // A renamed definition or inner node: group messages carry the names, so re-evaluate (from the cache).
+            if effect.messages { scheduleEvaluation() }
+            return
+        }
         let existing = Set(graph.nodes.keys)
         results = results.filter { existing.contains($0.key) }
         lastGoodOutputs = lastGoodOutputs.filter { existing.contains($0.key) }
@@ -128,14 +156,14 @@ public final class DocumentModel {
         evaluationTask?.cancel()
         generation += 1
         let current = generation
-        let snapshot = graph
+        let snapshot = content
         let demand = demand
         let evaluator = evaluator
         isEvaluating = true
         evaluationTask = Task {
             let report: EvaluationReport
             do {
-                report = try await evaluator.evaluate(snapshot, demand: demand)
+                report = try await evaluator.evaluate(snapshot.graph, definitions: snapshot.definitions, demand: demand)
             } catch {
                 return  // Cancelled: a newer generation is already scheduled.
             }
@@ -147,6 +175,7 @@ public final class DocumentModel {
     private func apply(_ report: EvaluationReport) {
         // Replace, not merge: a node that left the demand must not keep a stale `.evaluating` state.
         results = report.results
+        innerResults = report.innerResults
         for (id, result) in report.results {
             if result.state.isSuccess, let outputs = result.outputs {
                 lastGoodOutputs[id] = outputs

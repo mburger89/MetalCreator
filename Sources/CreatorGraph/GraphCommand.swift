@@ -23,9 +23,19 @@ public indirect enum GraphCommand: Sendable, Equatable {
     case removeParameter(ParameterID)
     case setParameter(ParameterID, ConstantValue)
     case batch([GraphCommand])
+    /// A graph command applied inside definition `GroupID` (groups spec §5). Group commands run only through
+    /// `GraphContent.apply`; `Graph.apply` refuses them.
+    case inDefinition(GroupID, GraphCommand)
+    /// Adds a group definition (the inverse of `removeDefinition`).
+    case addDefinition(GroupDefinition)
+    /// Removes a definition that no group node uses.
+    case removeDefinition(GroupID)
+    /// Replaces a definition's name, accent and sockets; wires and values on its group nodes are separate commands.
+    case setInterface(GroupID, GroupInterface)
 
-    /// Nodes whose own inputs or existence change. Callers that mark results stale must take
-    /// `downstreamClosure` on the graph *before* applying the command, so dependents of removed
+    /// Nodes whose own inputs or existence change, on the graph the command addresses (group commands touch none
+    /// here; `GraphContent.touchedTopLevelNodes` adds the group nodes they reach). Callers that mark results stale
+    /// must take `downstreamClosure` on the graph *before* applying the command, so dependents of removed
     /// nodes and links are included.
     public var touchedNodes: Set<NodeID> {
         switch self {
@@ -35,6 +45,7 @@ public indirect enum GraphCommand: Sendable, Equatable {
         case .connect(let link), .disconnect(let link): [link.to.node]
         case .restoreLinks(let links): Set(links.map(\.to.node))
         case .move, .rename, .addParameter, .removeParameter, .setParameter: []
+        case .inDefinition, .addDefinition, .removeDefinition, .setInterface: []
         case .batch(let commands): commands.reduce(into: []) { $0.formUnion($1.touchedNodes) }
         }
     }
@@ -43,8 +54,9 @@ public indirect enum GraphCommand: Sendable, Equatable {
     /// need not re-evaluate.
     public var affectsResults: Bool {
         switch self {
-        case .move, .rename: false
+        case .move, .rename, .addDefinition, .removeDefinition: false
         case .batch(let commands): commands.contains { $0.affectsResults }
+        case .inDefinition(_, let command): command.affectsResults
         default: true
         }
     }

@@ -16,6 +16,8 @@ Themes (custom themes, `.mctheme` files, the theme editor) code is done; its hum
 M7 (measure and record) code is done: spec §7.3's numbers are in `docs/verification/performance.md`, taken by the
 release benchmarks in `Tests/CreatorAppTests/Bench` (`scripts/bench.sh`); `docs/metalui-gaps.md` opens with a summary
 table of every gap, its MetalUI item and its status; its human checks (group M7) are pending.
+Groups C1 (model and evaluation, `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` §4–§5) is done:
+⌘G/⇧⌘G work on the top level; entering a group, breadcrumbs and the group inspector are C2.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -27,12 +29,29 @@ Module boundaries (dependency order):
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
   `*_free`; no C++ exception crosses into Swift.
 - `CreatorGraph`: graph model, sockets, broadcasting, `Evaluator` (cached, cancellable), commands and undo,
-  `.mcgraph` files, `DocumentModel`. Depends on `CreatorSketch` for the `ConstantValue.sketch` setting. A node's inputs
-  are `NodeDefinition.inputs(for: node)` (default: the static `inputs`); the Evaluator and `connectionProblem` read
-  it, so per-node sockets (the Sketch node's exposed dimensions) wire and gather like declared ones.
+  `.mcgraph` files, `DocumentModel`. Depends on `CreatorSketch` for the `ConstantValue.sketch` setting. A node's sockets
+  are `NodeRegistry.inputs(for:)`/`outputs(for:)`: `NodeDefinition.inputs(for:)`/`outputs(for:)` of its type
+  (default: the static lists), or, for a group node, Group Input or Group Output, its definition's (the registry
+  carries the document's definitions: `DocumentModel.registry`, `withGroups(_:)`). Every reader (the Evaluator,
+  `connectionProblem`, the canvas, the inspector) asks the registry, so per-node sockets wire and gather like declared
+  ones.
+  - Groups (`Sources/CreatorGraph/Groups`): `GroupDefinition`s live in `GraphContent.definitions` beside the top-level
+    graph (`DocumentModel.content`); a group node is type `group` with `NodeSetting.group`, and every `NodeRegistry`
+    registers `group`, `groupInput` and `groupOutput` itself (`NodeRegistry.all`, the palette's list, leaves them out).
+    Edits go through `GraphContent.apply`: graph commands on the top level, `.inDefinition(id, …)` (or
+    `DocumentModel.perform(_:at:)`) inside a definition, plus `addDefinition`/`removeDefinition`/`setInterface`; it
+    refuses a group inside itself (`GroupDependencies`), an Output node in a group and a stray or missing Group
+    Input/Output, and (after the whole command) a socket removed or retyped while still wired. `GroupCommands`
+    builds Group, Ungroup, Make Unique and the definition edits as `GroupEdit`s (one undo step). The Evaluator runs
+    a group node's definition level by level (`Evaluator+Groups`): values pass through, inner nodes evaluate and
+    cache under `NodeID.scoped(instance path + id)`, so their tags differ per instance and stay put when the
+    definition is edited; inner messages read "Rib › Fillet: …". A pick stored inside a definition names faces as
+    if the definition were the top level (`GroupScopes.identity`), and `EvaluationScope.naming` reads it as each
+    instance's; Group, Ungroup and Make Unique rename every pick whose faces they move (`GroupScopes.renamingPicks`),
+    so no pick drifts. Dirty state compares `DocumentModel.content` (definitions too).
 - `CreatorNodes`: the 28 built-in node definitions (`BuiltInNodes.registry`: the slice's 26 plus Plane from Face and
   Sketch), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
-  parameter, picks, showHandle, sketch, face, and `projection(reference)` per projected edge) live in
+  parameter, picks, showHandle, sketch, face, groupID, and `projection(reference)` per projected edge) live in
   `Node.inputValues`; `NodeRegistry.makeNode` seeds `defaultSettings` and sets `isOutput` for `.output`-category nodes.
 - `CreatorStyle`: colour themes (spec §6.6, Dracula by default), the only place colour hex values are written.
   `ThemeColors` is a colour per role (never a hue); `ColorTheme` (not `Theme`: MetalUI exports one) has the built-ins
@@ -121,8 +140,8 @@ Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.
 never worked around here. Graph links are kept canonically sorted by destination; result caching is keyed by node identity.
 Edge/face IDs are OCCT map order. A circle edge's `direction` is its axis, so direction rules must also check `kind == .line`.
 All OCCT work runs under `OCCTKernel.serialized` (process-wide lock) because OCCT shapes share geometry across solids and meshing mutates it; never call the shim outside it (tests included).
-Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a pick without one counts each recorded edge as a run) and warns only when both changed; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 4 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
-4 added the `.sketch` and `.facePick` settings).
+Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a pick without one counts each recorded edge as a run) and warns only when both changed; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 5 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
+4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode).
 A `Segment2D.arc` with `end < start` runs clockwise (a sketch region's notch); the shim builds it reversed and
 `length` is positive. Edges carry `EdgeInfo.curve` (`EdgeCurve`, lines and circles) for sketch projection; a
 `FacePick` names faces by tag subset like `EdgePick`. The Sketch node solves on every evaluation from the stored

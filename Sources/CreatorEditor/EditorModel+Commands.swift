@@ -13,6 +13,8 @@ extension EditorModel {
             deleteSelection()
         case .selectAll, .nudge, .frameSelection:
             return performSelectionCommand(command)
+        case .group, .ungroup:
+            return performGroupKey(command)
         case .copy, .paste, .duplicate, .zoomIn, .zoomOut, .undo, .redo:
             performEdit(command)
         case .cancel, .paletteUp, .paletteDown, .paletteConfirm:
