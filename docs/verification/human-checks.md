@@ -674,3 +674,17 @@ at the bottom too.
 - [ ] **MS-8 Draw order.** Overlap three nodes, select the two at the back: they draw above the third, and a click
   where all three overlap selects the topmost drawn one. Docked at the bottom too. Pinned:
   `selectedNodesDrawLastAndAreHitFirst`. **Observed:**
+
+## Group NF — naming: face picks on merged faces
+
+**Status: NOT RUN.** Plan `2026-10-09-naming-face-picks.md`. The tests pin the behaviour; this checks that the two new
+warnings read well where they appear.
+
+- [ ] **NF-1 The two warnings.** Trigger both in `swift run MetalCreatorApp` and read each in the node's status badge
+  and in the inspector: they wrap, aren't cut off, and say what to do. (1) Plane from Face's merged-pick warning:
+  a Plane from Face on a face a union merged (S5c's New sketch on face, once it lands; before that, a document saved
+  by a test, since the app can't pick a face yet), then unmerge it so the choice is a guess (a pick made before
+  positions were recorded). (2) Edges by Tag's ambiguous-pick warning: a hole rim picked on a merged side, then a
+  change after which two parts each have a rim. Record which of the two you could reach. Pinned:
+  `aPlanePickWithoutAPositionWarnsOnceTheFaceHasComeApart`, `aGuessBetweenOperandsIsReportedNotSilent`.
+  **Observed:**
