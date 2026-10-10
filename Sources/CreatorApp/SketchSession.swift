@@ -14,6 +14,9 @@ public final class SketchSession {
     private weak var viewport: ViewportModel?
     private var isFollowing = false
     private var refreshPending = false
+    /// Whether the node's plane had a result at the last refresh (a wired plane can lose it); the app says so once
+    /// when it is lost.
+    var hasPlane = false
 
     init(node: NodeID, editor: SketchEditorModel, viewport: ViewportModel) {
         self.node = node

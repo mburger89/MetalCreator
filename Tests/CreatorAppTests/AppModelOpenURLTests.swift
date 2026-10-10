@@ -146,4 +146,32 @@ struct AppModelOpenURLTests {
         #expect(app.document.graph.nodes.count == 3 && !app.isEdited && app.alert == nil)
         #expect(app.fileURL?.standardizedFileURL.path == url.standardizedFileURL.path)
     }
+
+    /// A problem alert is up: a file that arrives then must not replace it, or the question it may be hiding.
+    @Test func aFileThatArrivesWhileAProblemAlertIsUpLeavesTheAlertAlone() async throws {
+        let url = try boxFile("during-problem.mcgraph")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let app = await makeApp()
+        let problem = AppAlert.problem(AppProblem("Something failed", "It did."))
+        app.alert = problem
+        app.openRequested(url)
+        #expect(app.alert == problem)
+        #expect(app.fileURL == nil, "nothing was opened behind the alert")
+    }
+
+    @Test func aFileThatArrivesWhileTheDiscardQuestionIsUpKeepsTheFirstQuestion() async throws {
+        let first = try boxFile("asked-first.mcgraph")
+        let second = try boxFile("asked-second.mcgraph")
+        defer {
+            try? FileManager.default.removeItem(at: first)
+            try? FileManager.default.removeItem(at: second)
+        }
+        let app = await makeApp()
+        try edit(app)
+        app.openRequested(first)
+        app.openRequested(second)
+        #expect(app.alert == .discardChanges)
+        await app.discardChanges()
+        #expect(app.fileURL == first, "Discard Changes opens the file the question was asked about")
+    }
 }
