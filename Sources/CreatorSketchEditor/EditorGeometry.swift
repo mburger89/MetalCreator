@@ -45,15 +45,40 @@ enum EditorGeometry {
 
     /// The distance from `p` to the segment `a`–`b`.
     static func distance(from p: Vector2, toSegment a: Vector2, _ b: Vector2) -> Double {
+        (p - nearest(to: p, onSegment: a, b)).length
+    }
+
+    /// The point of the segment `a`–`b` nearest `p`.
+    static func nearest(to p: Vector2, onSegment a: Vector2, _ b: Vector2) -> Vector2 {
         let d = b - a
         let squared = d.x * d.x + d.y * d.y
-        guard squared > 0 else { return (p - a).length }
+        guard squared > 0 else { return a }
         let t = min(max(((p.x - a.x) * d.x + (p.y - a.y) * d.y) / squared, 0), 1)
-        return (p - (a + d * t)).length
+        return a + d * t
+    }
+
+    /// The point of the circle around `center` nearest `p` (its rightmost point when `p` is the centre).
+    static func nearest(to p: Vector2, onCircle center: Vector2, radius: Double) -> Vector2 {
+        let offset = p - center
+        let length = offset.length
+        guard length > 1e-12 else { return center + Vector2(radius, 0) }
+        return center + offset * (radius / length)
     }
 
     /// The distance from `p` to a polyline.
     static func distance(from p: Vector2, toPolyline points: [Vector2]) -> Double {
         zip(points, points.dropFirst()).map { distance(from: p, toSegment: $0, $1) }.min() ?? .infinity
+    }
+
+    /// The arc from `a` to `b` through `p`: the centre of the circle through the three, and whether the arc runs
+    /// counter-clockwise from `a` (else from `b`). `nil` when the three are in line (or two coincide).
+    static func threePointArc(from a: Vector2, to b: Vector2, through p: Vector2) -> (center: Vector2, isCounterClockwise: Bool)? {
+        let (u, v) = (b - a, p - a)
+        let cross = u.x * v.y - u.y * v.x
+        guard abs(cross) > 1e-9 * max(1, u.x * u.x + u.y * u.y, v.x * v.x + v.y * v.y) else { return nil }
+        let (uu, vv) = (u.x * u.x + u.y * u.y, v.x * v.x + v.y * v.y)
+        let center = a + Vector2(v.y * uu - u.y * vv, u.x * vv - v.x * uu) * (1 / (2 * cross))
+        // Counter-clockwise from a to b passes the points to the right of the chord a→b.
+        return (center, cross < 0)
     }
 }

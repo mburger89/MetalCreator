@@ -14,6 +14,8 @@ struct SketchColors {
     var secondary: Color { colors.comment.color }
     var problem: Color { colors.error.color }
     var warning: Color { colors.warning.color }
+    /// Inferred constraints' glyphs: the selection's colour (the Sketch node's header green).
+    var inferred: Color { colors.profileHeader.color }
     /// Floating chrome: the theme's glass and its hairline.
     var glass: Color { colors.glassFill.color }
     var hairline: Color { colors.glassStroke.color }

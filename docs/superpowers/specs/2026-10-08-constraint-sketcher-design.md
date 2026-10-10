@@ -377,3 +377,41 @@ All tests use Swift Testing.
   point is a corner when more than one curve is built on it (construction curves count) or a coincident constraint
   joins it to another point, so a point that ends both an arc and a line reads its position (precedence: shared beats
   either curve); other constraints on it (on a curve, midpoint, fix) don't make it shared.
+
+## Errata (S5b)
+
+- §8's S5b/S5c split (plan `2026-10-09-sketcher-s5b.md`): S5b has Trim, Extend, Fillet, Mirror, Pattern, 3-point
+  arcs, point-on and tangent inference with their glyphs, and double-click to edit. S5c has Project, "New sketch on
+  face", dimension labels in the view and the region fill: each needs the viewport (an ID-buffer pick routed through
+  the tool, an overlay label API, filled overlay triangles), CreatorKernel in the editor, or graph insertion batches.
+- §8's toolbar gains Trim (T), Extend (no key: §3 has the command, §8's table no row), Fillet, Mirror and Pattern,
+  after the drawing tools and Dimension. Fillet has **no key**: F frames the sketch (Errata (S5a), the camera lock),
+  and the user's later decision wins over §8's table. Each runs its `SketchCommands` command on a click as one undo
+  step; a refused command shows `SketchCommandError.message` as the inspector's refusal and stores nothing.
+- §8's tool flows: Trim and Extend click a curve (Extend the end nearer the click); Fillet clicks a corner point with
+  the inspector's radius (default 5 mm); Mirror and Pattern act on the selection (made with Select first), Mirror on
+  a click on the axis line, Pattern on a click on a point (circular, around it) or a line (linear, along it from its
+  start toward its end), with the inspector's instance count (default 3, 2 or more; more than 100 is refused when it
+  runs) and spacing (default 20 mm). The selection stays after Mirror and Pattern. The options aren't saved. Pattern
+  construction is drawn as construction (dashed), not yet told apart from the user's own.
+- §8's "Arc (centre / 3-point) | A": A picks the centre arc, and A again switches to the 3-point arc and back; the
+  toolbar also has a 3-Point Arc button. A 3-point arc is start, end, then a point it passes through; its centre is a
+  new point; a third click in line with the ends draws nothing and waits. Its readout reads the chord, then the radius
+  and sweep.
+- §8's inference: point-on applies to every curve (lines, arcs, circles, projected edges), not only projected
+  geometry: a click within the pick radius of a curve, and not of a point, makes a new point held on it by point-on
+  (points win over curves). ⌘ suppresses it, as §8 says of inference (the click lands where it is, free); only
+  sharing a point (coincident) isn't suppressed, because it is structural. A line whose start is an arc's start or end
+  snaps tangent to it (the newest such arc) when its end is within the pick radius of the tangent, either way along
+  it, and gets a tangent constraint; tangent wins over horizontal and vertical, and ⌘ suppresses all three. A line's
+  end on a point or a curve takes no direction inference. Until clicks and hovers carry modifiers (gaps S5-a, GI-a),
+  ⌘ reaches none of this in the app; the editor's tests pin it.
+- §8's glyphs: one chip below and right of the pointer names what the next click would infer ("Horizontal",
+  "Point on", "Tangent", "Coincident"), in the selection's green on the theme's glass, beside the pointer readout and
+  placed like it (moved left and up at the model area's edges; none when it doesn't fit). Clicks that keep no point (a
+  circle's radius, a 3-point arc's third point) infer nothing.
+- §8's "Enter by double-clicking a Sketch node": the graph canvas pairs two plain clicks on the same node's body,
+  at most 0.4 s and 4 points apart (the groups spec's values, §6, not macOS's 500 ms default, so groups share the
+  recogniser), because the canvas's one zero-distance drag carries no click count (docs/metalui-gaps.md S5-b, MetalUI
+  C16). A double click on a node with an "Edit sketch" inspector button presses it. While a sketch is open, a double
+  click (or any .editSketch request) changes nothing: the stroke, the selection and the camera stay.

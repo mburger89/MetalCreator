@@ -36,4 +36,29 @@ struct SketchPicker {
     func entity(near p: Vector2, tolerance: Double) -> SketchEntityID? {
         point(near: p, tolerance: tolerance)?.id ?? curve(near: p, tolerance: tolerance)
     }
+
+    /// The place on `curve` nearest `p`, at its solved position: on a line's segment, or on an arc's or a circle's
+    /// circle (the curve is picked near its drawn span first, so that place is on what's drawn); `nil` for a point.
+    func nearestPoint(on curve: SketchEntityID, to p: Vector2) -> Vector2? {
+        let at = { (point: SketchEntityID) in SketchOverlayBuilder.position(point, sketch, solution) }
+        switch sketch.entities[curve]?.kind {
+        case .line(let start, let end)?:
+            guard let a = at(start), let b = at(end) else { return nil }
+            return EditorGeometry.nearest(to: p, onSegment: a, b)
+        case .arc(let center, let start, _)?:
+            guard let c = at(center), let s = at(start) else { return nil }
+            return EditorGeometry.nearest(to: p, onCircle: c, radius: (s - c).length)
+        case .circle(let center, _)?:
+            guard let c = at(center), let radius = solution.radii[curve] ?? sketch.radius(of: curve) else { return nil }
+            return EditorGeometry.nearest(to: p, onCircle: c, radius: radius)
+        case .projected(let source)?:
+            switch source.curve {
+            case .line(let a, let b): return EditorGeometry.nearest(to: p, onSegment: a, b)
+            case .arc(let c, let radius, _, _), .circle(let c, let radius):
+                return EditorGeometry.nearest(to: p, onCircle: c, radius: radius)
+            }
+        case .point?, nil:
+            return nil
+        }
+    }
 }

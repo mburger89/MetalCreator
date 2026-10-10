@@ -8,11 +8,11 @@ struct SketchToolButton: Component {
     var content: some ElementGroup {
         let title = model.tool == tool ? "\(tool.title) ✓" : tool.title
         if let key = tool.key {
-            Button(title) { model.choose(tool) }
+            Button(title) { model.press(tool) }
                 .keyboardShortcut(key, modifiers: [])
                 .help("\(tool.title) (\(String(key.character).uppercased()))")
         } else {
-            Button(title) { model.choose(tool) }
+            Button(title) { model.press(tool) }
         }
     }
 }
@@ -25,7 +25,8 @@ extension SketchTool {
         case .arc: "a"
         case .circle: "c"
         case .dimension: "d"
-        case .select, .point: nil
+        case .trim: "t"
+        case .select, .point, .arcThreePoint, .extend, .fillet, .mirror, .pattern: nil
         }
     }
 }
