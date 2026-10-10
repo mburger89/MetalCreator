@@ -27,7 +27,7 @@ struct CanvasLayers: Component {
                              ? NodeRowModel.rows(for: node, shape: shape, graph: model.graph, registry: model.registry) : [],
                          origin: model.displayOrigin(of: node), flow: flow,
                          isSelected: model.selection.contains(node.id),
-                         state: model.document.results[node.id]?.state,
+                         state: model.result(of: node.id)?.state,
                          shake: model.isShaking && model.refusal?.node == node.id ? 6 : 0)
             }
             ForEach(Self.ghosts(model), id: \.id.rawValue) { node in

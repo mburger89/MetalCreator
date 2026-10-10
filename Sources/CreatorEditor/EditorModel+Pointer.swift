@@ -164,6 +164,10 @@ extension EditorModel {
             }
             return
         }
+        if isPlus(wire.from) || isPlus(target) {
+            exposeSocket(wire.from, target)
+            return
+        }
         guard target.isInput != wire.from.isInput else {
             refuse("Connect an output to an input.", node: target.endpoint.node)
             return
