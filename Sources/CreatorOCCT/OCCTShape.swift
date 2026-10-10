@@ -28,6 +28,8 @@ final class OCCTShape: Sendable {
     var volume: Double { occt_volume(raw) }
     var faceCount: Int { Int(occt_face_count(raw)) }
     var edgeCount: Int { Int(occt_edge_count(raw)) }
+    /// Whether OCCT's own checker (`BRepCheck_Analyzer`) accepts the shape. A check that fails counts as invalid.
+    var isValid: Bool { occt_is_valid(raw) == 1 }
 
     /// Length of the edge at 1-based `index`, or -1 when out of range.
     func edgeLength(at index: Int) -> Double {

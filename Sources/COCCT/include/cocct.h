@@ -24,6 +24,9 @@ int occt_face_count(const occt_shape *shape);
 int occt_edge_count(const occt_shape *shape);
 /// Length of the edge at 1-based `index` in OCCT's indexed edge map, or -1 if out of range.
 double occt_edge_length(const occt_shape *shape, int index);
+/// 1 when OCCT's checker (BRepCheck_Analyzer, geometry included) accepts the shape as a valid B-rep, 0 when it
+/// rejects it, -1 if the check itself fails.
+int occt_is_valid(const occt_shape *shape);
 
 /// Fillets the edge at 1-based `edge_index` with `radius`. Returns NULL on failure.
 occt_shape *occt_fillet_edge(const occt_shape *shape, int edge_index, double radius, occt_status *status);

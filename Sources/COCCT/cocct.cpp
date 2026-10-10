@@ -1,5 +1,6 @@
 #include "cocct_internal.hpp"
 
+#include <BRepCheck_Analyzer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepGProp.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
@@ -62,6 +63,10 @@ double occt_edge_length(const occt_shape *shape, int index) {
         BRepGProp::LinearProperties(edges(index), props);
         return props.Mass();
     });
+}
+
+int occt_is_valid(const occt_shape *shape) {
+    return queried([&]() -> int { return BRepCheck_Analyzer(shape->shape).IsValid() ? 1 : 0; });
 }
 
 occt_shape *occt_fillet_edge(const occt_shape *shape, int edge_index, double radius, occt_status *status) {
