@@ -20,7 +20,7 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 | M6 | App shell + acceptance demo (§7.2 bracket, STEP/STL export) | ✅ code merged; human checks M6 pending | M3, M4, M5 |
 | Polish | Editor polish: the add-node palette floats over the window at the pointer (flipping at the edges); a node library ("Nodes") in the graph panel, shown by default, click or drag to add (plan `2026-10-08-editor-polish.md`, Errata (editor polish)) | ✅ code done; human checks EP pending | M5, M6 |
 | Themes | Custom colour themes (spec §6.6, Errata (M6)): duplicate, edit, rename and delete them (the built-ins stay read-only); export and import `.mctheme` files, a small versioned JSON of hex colours by role (missing roles fall back to Dracula, unknown roles are ignored, a bad hex is refused plainly, e.g. "‘selection’ isn’t a colour like #ff79c6."), stored in `~/Library/Application Support/MetalCreator/Themes/`; the selected theme remembered in preferences (a `ThemePreferences` over the user's defaults). Themes stay app-level, never in `.mcgraph`. Also map roles onto MetalUI's control tokens (`.theme(_:)`) | ✅ code done, including Task 11's `ColorPicker` (MetalUI C10); human checks TH pending | M6's `CreatorStyle` (`ColorTheme`, `ThemeColors`, `ThemeStore`); MetalUI gap M6-f (no colour picker) |
-| M7 | Measure §7.3 targets, finish `docs/metalui-gaps.md`, CLAUDE.md | ⏳ after M6 | M6 |
+| M7 | Measure §7.3 targets, finish `docs/metalui-gaps.md`, CLAUDE.md (plan `2026-10-09-m7-measure.md`) | ✅ numbers recorded in `docs/verification/performance.md` (`scripts/bench.sh`): pan, fillet drag and orbit with the panel hidden met; zooming the 50-node graph out (with level of detail) and orbiting with the panel shown not judged yet: the recorded run was not idle, so they await an idle re-run, and a miss there waits for MetalUI C14 (PERF-b); canvas culling and level of detail added; human checks M7 pending | M6 |
 
 ## Later sub-projects
 
@@ -36,6 +36,7 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 | — | Kernel: largest size for blends OCCT can't build — a fillet or chamfer OCCT reports not done still says "can't be rounded this much" without a maximum (spec §3, risks table: "the maximum radius where possible"); `OCCTKernel.largestValidBlend` could name one there too, at the cost of up to ~20 failing tries | ⏳ | `FeatureConformanceTests.impossibleFilletFailsCleanlyAndKernelRecovers` (its `maxRadius` would become 9.9) |
 | — | Naming: face picks on merged faces — a `FacePick` (Plane from Face) on a face a union merged names both operands' tags and matches nothing once they stop merging; narrow it like `EdgeKey.narrowed` (it has no other side, so it needs its own rule). Also not narrowed yet: an edge pick between a merged face and a third operand's face (a hole through a merged plate+flange side), since the hole wall's tags share no origin with the merged side | 💬 | Errata (naming: merged faces) |
 | — | Viewport: a selected rule's edges over the Final part — in Final preview, show the edges of a selected rule whose solid isn't shown (spec §6.3, Errata (M6)) | ⏳ after M6 | `SceneTests.aRuleSelectedInFinalPreviewGlowsOnlyOnItsOwnSolid` |
+| — | Adopt MetalUI C10 (merged as MetalUI 2155f1e): `Slider` `onEditingChanged` for the inspector's coalescing (M5-a), materials and blur for the glass panels (M5-c), the window gradient (M5-d), the refused wire's keyframe shake (M5-i), `ProgressView` for the evaluating badge (M5-j); `ColorPicker` (M6-f) is already adopted (Themes Task 11) | ⏳ | docs/metalui-gaps.md summary table |
 | — | Viewport: frame in the model area — first framing, F and Look At centre the part in `ViewportModel.modelArea`, not the whole view (spec §6.3) | ✅ merged 2026-10-09 (human checks VC pending; the arrows, cube and pointer-less key zoom keep it there) | carry-over From M6 |
 
 ## Cross-project dependencies
@@ -47,7 +48,8 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
 | MetalUI C9 key and focus scoping: M4-a/M5-b hover- or region-scoped keys + element size, M5-g press ends editing, M5-h ↑/↓ in fields, M4-b redraw during animation | MetalUI session | 🔄 in progress since 2026-10-09; also onGeometryChange, the for-loop builder fix (M4-b; until then `ForEach` works), TimelineView, focus-on-click |
 | MetalUI C10 controls and looks: M6-f ColorPicker (needed by Themes), M5-a Slider onEditingChanged, M5-c blur, M5-d gradients, M5-i keyframes, M5-j ProgressView | MetalUI session | ✅ merged 2155f1e (PR #59); ColorPicker adopted by Themes Task 11 |
 | MetalUI public test harness (item 8): M6-e headless Window + simulateInput | MetalUI session | ⏳ queued 2026-10-08, after C7 |
-| MetalUI C13/C14 performance: PERF-a translation-free shadow cache + portable fast blur (no vImage: MetalUI imports nothing), PERF-b rebuild only what changed | MetalUI session | ⏳ queued 2026-10-08 |
+| MetalUI C13/C14 performance: PERF-a translation-free shadow cache + portable fast blur (no vImage: MetalUI imports nothing), PERF-b rebuild only what changed | MetalUI session | C13 🔄 in progress on MetalUI `perf/shadow-cache` (2026-10-09: rulings PF-A…PF-L, lane 1's red tests); C14 ⏳ queued 2026-10-08. M7 measured C14's share (`docs/verification/performance.md`): zooming the 50-node graph out and orbiting with the panel shown wait for it if an idle run still misses (verdicts not judged yet) |
+| MetalUI C18/C19 clips: LF-a a clip inside a flattening effect, LF-b its nested regression | MetalUI session | ✅ merged as MetalUI 0b400b4 (C18) and 9ad2254 (C19) |
 | MetalUI C15 editor overlays: EP-a frames/hover in window coordinates, window size; EP-b a chrome-less point-anchored popover that closes on any outside press | MetalUI session | ⏳ after C9 |
 | MetalUI C16 cancellation: VI-a dropped drags and pinches, lost scroll ends (`.cancelled` on resign) | MetalUI session | ⏳ after C8 and C9 |
 | MetalUI C17 third-party notices: P-a | MetalUI session | ✅ merged as MetalUI 67a579e (PR #57); bundled by `scripts/package-app.sh` |
@@ -64,5 +66,7 @@ Status key: ✅ done · 🔄 in progress · ⏳ ready to start · 🔒 blocked (
   pass the real `BuiltInNodes.registry`. Deferred to M6 from spec §6.1/§6.2:
   resizing the docked panel along its inner edge, and the Preview menu (Final / Selected node →
   `document.previewNode`).
-- M7: measure 50-node pan/zoom (CanvasLayers is the hot path; add viewport culling there if
+- ✅ M7: measure 50-node pan/zoom (CanvasLayers is the hot path; add viewport culling there if
   it misses 60 fps). `oriented()` cost; OCCTKernel on the default executor; per-item calls under the global lock.
+  Done (`docs/verification/performance.md`): the canvas culls, which brings panning inside the budget; `oriented()`,
+  the default executor and the per-item lock and hop are each too small to change.

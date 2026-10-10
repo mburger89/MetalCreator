@@ -591,3 +591,37 @@ that into an Output, select the Sketch and press "Edit sketch".
 - [ ] **S5b-8 The toolbar fits.** At the default window size, every tool (Select … Pattern), Construction, Delete and
   Finish are visible in the top bar, none clipped. Not pinned (a toolbar's width against the window's is measured only
   by eye). **Observed:**
+
+## Group M7 — measure and record: canvas culling, resizing, smoothness
+
+**Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`).
+
+The canvas builds only the nodes and wires that can show (`EditorModel.drawnNodes`, a margin of
+`EditorModel.cullingMargin` points past every edge), and the numbers in `docs/verification/performance.md` are
+headless cold frames with no display link. These checks are what only the real window can show. Run
+`swift run -c release MetalCreatorApp` (release: a debug MetalUI draws about 45× slower, gap PERF-a) and build a graph
+of about 50 nodes, like the benchmark's (`FiftyNodeGraph`): a row of Rectangle → Extrude → All Edges → Fillet → Output,
+wired, then copied and pasted until there are ten rows, spread out so the graph is several canvases wide and tall.
+Save it; M7-1 to M7-4 use it, and M7-4 also the §7.2 bracket.
+
+- [ ] **M7-1 Panning and zooming, both docks.** Docked left, pan quickly in circles with a two-finger scroll, then scroll
+  with ⌘ to zoom all the way out and back in, quickly, several times; then dock at the bottom and repeat. No node or
+  wire pops in late, flickers or is missing at the canvas's edges, and a wire between two nodes both out of view
+  still crosses the view where it should. Zooming out past half size, the nodes' rows go and come back at the same
+  zoom; headers, titles, sockets and wires stay, and clicking a node or dragging a wire between sockets still works
+  there. Pinned: `CanvasCullingTests` (`nodesWhollyOutsideTheDrawnRectAreNotDrawn`,
+  `aWireCrossingTheViewWithBothEndsOutsideIsDrawn`, `theNodesInViewStillPaint`, `aZoomedOutNodeDrawsWithoutItsRows`).
+  **Observed:**
+- [ ] **M7-2 A refused wire at the edge.** Pan so that a node straddles the canvas's right edge (then its bottom
+  edge). Drag a wire from an incompatible socket onto it: it shakes, whole where it shows, with nothing cut off or
+  missing, and settles back. Pinned: `theNodesInViewStillPaint`. **Observed:**
+- [ ] **M7-3 Resizing.** Dock left with nodes below the window's bottom edge (pan up until some rows are just out of
+  view). Enter full screen (⌃⌘F, or the green button): the nodes the taller panel uncovers appear at once, without
+  moving the pointer. Leave full screen, then click the green button's Zoom (⌥-click) and drag the window's corner
+  quickly larger and smaller; dock at the bottom and widen the window past nodes off its right end. Every uncovered
+  node and wire appears; none stays missing until the next pan. Pinned: `aGrownWindowRebuildsTheCanvasWithWhatItUncovers`,
+  `aNewSizeReachesObserversOneTaskAfterTheDraw`, `aBiggerWindowDrawsMore`. **Observed:**
+- [ ] **M7-4 Smoothness.** Pan the 50-node graph (zoom 1) and orbit the bracket with the panel shown: both feel
+  smooth, no stutter. Zoomed all the way out, panning may hitch (PERF-b, recorded in performance.md): note whether
+  it does. Optionally confirm with Instruments' Animation Hitches or Core Animation FPS template, attached to the
+  release app, and write the frame rate here. **Observed:**

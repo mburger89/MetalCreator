@@ -29,7 +29,9 @@ Read this before writing the M2 and M3 plans.
   `Kernel.boolean` doc comment); fillet `maxRadius` is always nil.
 - Fillet/chamfer corner faces (generated from vertices) carry the `.blend` tags of every selected edge at that vertex.
   Booleans run non-destructively; inside-out solids are fixed with `BRepLib::OrientClosedSolid`, never `Reversed()`.
-- `OCCTKernel` runs on the default actor executor; long OCCT calls occupy a cooperative-pool thread. Measure in M7.
+- ✅ (M7) `OCCTKernel` runs on the default actor executor; long OCCT calls occupy a cooperative-pool thread. Measure in M7.
+  Measured: while the bracket re-evaluates, the main actor never waits more than a fraction of a millisecond; no
+  custom executor needed (`docs/verification/performance.md`, "Carry-over items").
 - Fuse/cut call `SimplifyResult()`; if that ever drops history for a face it shows up as `.unnamed` (pinned by
   `noFaceIsUntaggedOrUnnamedInTheBracket`).
 
@@ -42,7 +44,7 @@ Read this before writing the M2 and M3 plans.
 - `restoreLinks` doesn't guard duplicates within one call or occupied inputs (only reachable via hand-built commands).
 - `CancelsTaskNode` test assumes nodes run in the caller's task — revisit with parallel evaluation.
 - ✅ Hard-coded `/opt/homebrew` OCCT prefix: the build still links Homebrew's OCCT through `Package.swift`'s prefix, but `scripts/package-app.sh` bundles the libraries and removes that rpath, so the packaged app doesn't depend on it (Errata (Packaging)).
-- M2 final review residuals: `oriented()` runs `BRepLib::OrientClosedSolid` on every extrude/revolve/loft even when the volume is already positive (only call it when negative — measure in M7); its boolean return is ignored; note that it works by reversing the solid, like the old code. The non-destructive-boolean test is a regression guard only — a stronger test would read max vertex/edge tolerance of a near-touching tool input (rises from 1e-7 in destructive mode).
+- M2 final review residuals (✅ M7 measured `oriented()`: a whole extrude, `oriented()` included, costs well under a millisecond; left as it is; `docs/verification/performance.md`): `oriented()` runs `BRepLib::OrientClosedSolid` on every extrude/revolve/loft even when the volume is already positive (only call it when negative — measure in M7); its boolean return is ignored; note that it works by reversing the solid, like the old code. The non-destructive-boolean test is a regression guard only — a stronger test would read max vertex/edge tolerance of a near-touching tool input (rises from 1e-7 in destructive mode).
 - ✅ (M4) Before M4: build edge polylines from `BRep_Tool::PolygonOnTriangulation` so lines sit on the face mesh; meshes depend on earlier tessellations (BRepMesh reuses finer triangulation in shared TShapes).
 - ✅ (M3) M3 notes from the M2 review: Edges by Tag should match "picked tags ⊆ face tags" per side (unions merge tag sets); Edges by Direction uses `abs(dot)` and `kind == .line`; Edge Set Op dedupes; Loft rejects sections with different segment counts (Rectangle → Circle) — show a clear message or plan resampling; warn when a picked key contains `.unnamed`.
 
@@ -64,9 +66,10 @@ Read this before writing the M2 and M3 plans.
 
 ## From M4
 - Picking renders the ID pass on its own command queue and waits for it (`ViewportPicker`). It's re-rendered only when the camera
-  or scene changes, and never during a drag. Measure against the §7.3 orbit target in M7.
-- Every newly shown solid is tessellated on the kernel actor. A dragged fillet radius re-tessellates each step; measure
-  the §7.3 100 ms target in M7. Tessellation now cleans the shape first (deterministic meshes), so each call meshes from scratch.
+  or scene changes, and never during a drag. Measure against the §7.3 orbit target in M7. ✅ (M7) Not on the orbit
+  path; an orbit frame's cost is the window's rebuild (PERF-b; `docs/verification/performance.md`).
+- ✅ (M7: the fillet drag meets its 100 ms, evaluation and meshing included; `docs/verification/performance.md`) Every newly shown solid is tessellated on the
+  kernel actor. A dragged fillet radius re-tessellates each step; measure the §7.3 100 ms target in M7. Tessellation now cleans the shape first (deterministic meshes), so each call meshes from scratch.
 - M6 owns the glue the viewport can't see:
   - `DocumentModel` outputs → `ViewportItem` (ghosts from `lastGoodOutputs` of erroring nodes)
   - `HandleSpec` → `ViewportHandle` (Extrude: profile plane + normal; Fillet/Chamfer: an edge midpoint + bisector),
@@ -156,6 +159,8 @@ Read this before writing the M2 and M3 plans.
   "Viewport: a selected rule's edges over the Final part".
 - `AppModel.refreshScene()` re-shows only a changed scene or changed handles; the observation itself still wakes for
   every `viewState` change (it reads `editor.dock`). Narrow it if M7's 50-node pan measurement shows the wake-ups.
+  ✅ (M7) It doesn't: a pan step's model work, the scene refresh's wake-up included, is about a tenth of a
+  millisecond (`docs/verification/performance.md`, the `model` lines).
 - The panel's size isn't saved with the file (add `ViewState` fields if wanted; optional keys, no format bump).
 - Handles show only for the selected nodes; nodes not upstream of an Output (and not previewed) have no result, so they
   show no handle and no rule summary count.

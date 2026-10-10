@@ -11,6 +11,9 @@ M6 (app shell) code is done; its human checks (group M6) are pending.
 Editor polish (the floating add-node palette and the node library) code is done; its human checks (group EP) are pending.
 Packaging (`scripts/package-app.sh`, `docs/packaging.md`) is done; its human checks (group P) are pending.
 Themes (custom themes, `.mctheme` files, the theme editor) code is done; its human checks (group TH) are pending. Each role is edited with MetalUI C10's `ColorPicker` (plan Task 11).
+M7 (measure and record) code is done: spec §7.3's numbers are in `docs/verification/performance.md`, taken by the
+release benchmarks in `Tests/CreatorAppTests/Bench` (`scripts/bench.sh`); `docs/metalui-gaps.md` opens with a summary
+table of every gap, its MetalUI item and its status; its human checks (group M7) are pending.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -65,6 +68,13 @@ Module boundaries (dependency order):
   not macOS's 500 ms default, and `doubleClickSlop`, 4 points, apart, timed by the injectable `now`; gap S5-b) presses
   its first inspector button in `doubleClickActions` ("Edit sketch"; `nodeDoubleClicked(_:)`). While a sketch is open
   the app ignores it (`AppModel.handle(_:)`'s guard).
+  The canvas builds only what can show (`EditorModel.drawnNodes`, `drawnCanvasRect`: the visible canvas grown by
+  `cullingMargin`, everything while unplaced), and below zoom `rowsMinimumZoom` draws nodes without their rows
+  (`drawsNodeRows`); hit testing, selection and edits always see the whole graph. A
+  `ForEach` over nodes keys them `id: \.id.rawValue`: MetalUI names elements by their id's description and drops a
+  repeat (gap M7-a), and a `NodeID` prints only 8 hex digits. The window's size reaches the panel's placement through
+  `ViewportModel.observedViewSize` (bumped one task after the draw records a new size, gap M4-a), never `viewSize`
+  itself, so a resize rebuilds the canvas.
 - `CreatorSketchEditor`: the sketch editor (sketcher spec §8). `@MainActor @Observable SketchEditorModel` holds the
   sketch being edited, its live solve (`solve(_:dragging:)` per drag step), the tool and its stroke, the selection, and
   the inspector's rows; it is the viewport's `ViewportTool` (planar navigation; F frames the sketch) and builds its
@@ -170,7 +180,13 @@ swift test --filter CreatorSketchEditorTests   # the sketch editor: tools, infer
 scripts/package-app.sh                     # dist/MetalCreator.app: release build, OCCT bundled, signed ad hoc, verified (docs/packaging.md)
 scripts/verify-app.sh [path.app]           # re-check a packaged app: signature, no Homebrew links, self-test with Homebrew unreadable
 swift run MetalCreatorApp --self-test      # the same headless checks, unpackaged
+scripts/bench.sh [suite]                   # spec §7.3 benchmarks, release build; numbers go in docs/verification/performance.md
 ```
+
+Benchmarks (`Tests/CreatorAppTests/Bench`) are Swift Testing suites that print `BENCH …` lines and assert no time; a
+plain `swift test` skips them (`.enabled(if: Bench.isRequested)`), and one run in a debug build records an issue
+instead of printing debug numbers (MetalUI draws about 45× slower in debug). Their fixtures (`BenchSamples`,
+`BenchRenderer`, `FiftyNodeGraph`, the bracket) are checked in the default run. Measure release, on an idle Mac.
 
 ## Linting
 

@@ -3,6 +3,51 @@
 MetalUI's design agent reads this file (MetalUI item C7). Each entry gives a concrete use case:
 which button or gesture, which coordinates, what we do in the meantime.
 
+## Summary (M7, 2026-10-09)
+
+Every gap in this file, the MetalUI item that owns it and where it stands, checked against MetalUI master `2155f1e`
+and its branches.
+"Fixed, not adopted" means MetalUI has the API and MetalCreator still runs its stopgap; adopting it is MetalCreator's
+work (the owner named). The sections below keep each gap's full use case.
+
+| Gap | What | MetalUI item | Status |
+|---|---|---|---|
+| 1–5 | Scroll wheel, pinch/rotate, middle and right drags, tap location, cursor and drag modifiers | C7 | ✅ fixed (c62d6ba), adopted by the viewport and the graph panel |
+| M4-a | An element's size (`onGeometryChange`), focus on click | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
+| M4-b | Opaque helper inside a builder `for`; redraw labels during a camera animation (`TimelineView`) | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
+| M5-a | `Slider` `onEditingChanged` | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
+| M5-b | Hover- or region-scoped key bindings | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
+| M5-c | Materials and blur | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
+| M5-d | Gradients | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
+| M5-e | Modifiers on a press | C7 | ✅ fixed (c62d6ba), adopted |
+| M5-f | Canvas scroll and pinch | C7 | ✅ fixed (c62d6ba), adopted |
+| M5-g | A press elsewhere ends text editing | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
+| M5-h | ↑/↓ in a focused single-line field | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
+| M5-i | Keyframe animation | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
+| M5-j | `ProgressView` | C10 | Fixed in MetalUI 2155f1e, not adopted (owner: roadmap row "Adopt MetalUI C10") |
+| M6-a | Window title and edited marker | C8 | 🔄 open; C8 in progress (`feat/app-shell`) |
+| M6-b | Close and quit veto | C8 | 🔄 open; C8 in progress (`feat/app-shell`) |
+| M6-c | Full-size content view | C8 | 🔄 open; C8 in progress (`feat/app-shell`) |
+| M6-d | Open-document events | C8 | 🔄 open; C8 in progress (`feat/app-shell`) |
+| M6-e | Public headless test window | item 8 (test harness) | ⏳ queued |
+| M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
+| M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
+| VI-a | A dropped gesture's end | C16 | ⏳ queued after C8 and C9 |
+| GI-a | Modifiers on a tap | none yet (with S5-a) | ⏳ reported, not queued |
+| GI-b | Wheel latching (`CI-AD`) | none yet | ⏳ reported, not queued |
+| PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | 🔄 in progress (`perf/shadow-cache`) |
+| PERF-b | Every observed change rebuilds, lays out and paints the whole window | C14 | ⏳ queued; measured by M7 (below) |
+| EP-a | Element frame in window coordinates, hover coordinate space, window size | C15 | ⏳ queued after C9 |
+| EP-b | Chrome-less point-anchored popover that closes on an outside press | C15 | ⏳ queued after C9 |
+| P-a | Third-party notices | C17 | ✅ fixed (67a579e), adopted |
+| LF-a | A clip inside an `offset` or uniform `scaleEffect` | C18 | ✅ fixed (0b400b4) |
+| LF-b | A clip inside nested flattening effects (LF-a's regression) | C19 | ✅ fixed (9ad2254) |
+| TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | ⏳ reported, not queued |
+| S5-a | Modifiers on a hover (and a tap, GI-a) | none yet (with GI-a) | ⏳ reported, not queued |
+| S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ⏳ reported 2026-10-09 |
+| M7-a | `ForEach` identity is an id's description | none yet | ⏳ reported, not queued |
+| M7-b | No warm headless frame for measuring | none yet (with M6-e) | ⏳ reported, not queued |
+
 ## Reported 2026-10-07 (C7)
 
 1. **Scroll wheel / trackpad scroll on an element.** Viewport: two-finger scroll zooms toward the
@@ -78,6 +123,10 @@ Gap numbers 1–5 are the C7 items above. New gaps are labelled M4-a… (M5 uses
      inside its draw, into untracked state (`ViewportModel.viewSize`). Input before the first draw sees a zero size and is ignored.
      Symptom: handle labels are missing on the first build of a document with a saved camera, and misplaced during a live resize, until the next rebuild (handle labels are laid out from the recorded size).
      Wanted: `onGeometryChange(for:of:action:)` or a size in the draw's `value:` round trip.
+     M7 extends this stopgap for the graph canvas's culling: a recorded size that differs from the last bumps the
+     observed `ViewportModel.viewSizeChanges` one task after the draw (`observedViewSize`, which
+     `AppModel.panelPlacement` reads), so a resize rebuilds the canvas at the new size, one frame late. It goes with
+     the stopgap.
    - A click doesn't focus a `.focusable()` element (divergence 94), so the viewport's F, + and − keys are bound window-wide
      (`ViewportKeyBindings`). The app shell will collide with text fields. Wanted: focus-on-click for a focusable
      surface, or a key context an element contributes while hovered.
@@ -298,6 +347,14 @@ and after a drag, and draws exactly one frame per drag event.
   that skip an unchanged subtree and reuse its last layout and paint, or `EquatableView`-style skipping for a
   component whose stored inputs compare equal. MetalCreator can then pass each `NodeView` value inputs, as it already
   does.
+  **Measured by M7 (2026-10-09, release; the numbers are in docs/verification/performance.md, "Results" and "Why
+  the open verdicts are MetalUI's to fix").** Spec §7.3's targets meet this gap twice. Orbiting the bracket changes only the
+  camera, yet the window's CPU frame with the graph panel shown is several times the frame with it hidden, close to
+  the 60 fps budget: every orbit step rebuilds the panel's nodes. Zooming the 50-node graph out until every node is in
+  view costs about the budget, about 0.5 ms a node rebuilt, so canvas culling (which brought panning well inside the
+  budget) can't help there; MetalCreator's level of detail (no rows below half zoom) takes about a third off such a
+  frame, and what is left is MetalUI's rebuild of nodes that didn't change. Both verdicts are not judged yet (the
+  recorded run was not idle); a miss on an idle run waits for C14.
 
 ## Hit by editor polish (floating palette, node library), 2026-10-08
 
@@ -470,3 +527,26 @@ Labelled S5-a… so they don't clash with the labels above.
   file's record of it. Wanted: `clickCount` on `DragGesture.Value` (the press's `MouseEvent.clickCount`), as
   SwiftUI-on-AppKit apps read `NSEvent.clickCount`; then the model reads the count, the user's double-click speed is
   honoured, and the stopgap goes. Human check S5b-7 records it. Sent to the MetalUI session with this entry.
+
+## Hit by M7 (measure and record), 2026-10-09
+
+Labelled M7-a… so they don't clash with the labels above. Checked against MetalUI `2155f1e`.
+
+- **M7-a. `ForEach` names an element by its id's description, so ids that print alike drop elements.** The graph
+  canvas draws its nodes with `ForEach(nodes, id: …)`. A `NodeID` is a UUID that prints only its first 8 hex digits
+  (short, for messages), so two nodes whose UUIDs began alike drew as one: MetalUI produces only the first element
+  whose id is equal **in value or in description** (`DD-L`, divergence 79, pinned on purpose by
+  `aForEachWhoseIDsCollideInDescriptionProducesOnlyTheFirst`), where SwiftUI tells `Hashable` ids apart. Real nodes
+  collide rarely (random UUIDs), but tests that number their nodes (`00000000-…-000000000001`) lost every node after
+  the first. Fixed in MetalCreator without a stopgap: the canvas keys nodes and ⌥-drag ghosts by the whole UUID
+  (`id: \.id.rawValue`, `CanvasIdentityRenderTests`), which stays right if MetalUI changes. Wanted: identity by
+  `Hashable` equality alone, as SwiftUI; or, failing that, a debug-build warning when a `ForEach` drops an element,
+  since today it drops it silently.
+- **M7-b. No warm headless frame to measure.** Spec §7.3's targets are measured headless
+  (`Tests/CreatorAppTests/Bench`, docs/verification/performance.md). The only public way to draw the app's window
+  without a screen is `renderFrame`, which draws a fresh window's first frame each call: no state table, text
+  shaping cache or raster cache survives to the next, so every number is a cold-frame upper bound. PERF-a and PERF-b
+  were measured with a warm frame loop and a headless `Window`, but those need `@testable import MetalUI` and aren't
+  checked in. Stopgap: cold frames, labelled as an upper bound. Wanted, as one request with M6-e: a public headless
+  window (or a frame renderer that keeps its caches across frames) that a client can drive with input and time,
+  including the display link's pacing.
