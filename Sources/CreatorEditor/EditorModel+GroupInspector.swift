@@ -81,6 +81,7 @@ extension EditorModel {
     private func perform(_ name: String, on node: NodeID?, _ build: () throws(GraphError) -> GraphCommand) {
         do {
             try document.perform(try build(), name: name)
+            clearRefusal()
         } catch {
             refuse(error.message, node: node)
         }

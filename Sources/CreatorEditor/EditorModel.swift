@@ -214,9 +214,10 @@ public final class EditorModel {
         shakeCounts[node] ?? 0
     }
 
-    /// Clears the refusal message (for example when the user starts another edit).
+    /// Clears the refusal message: an edit that goes through calls it (`edit(_:coalescingKey:name:)`, a paste, a group
+    /// edit), as the caption would otherwise go on explaining a refusal the person has moved past.
     public func clearRefusal() {
-        refusal = nil
+        if refusal != nil { refusal = nil }
     }
 
     func setClipboard(_ clipboard: NodeClipboard) {

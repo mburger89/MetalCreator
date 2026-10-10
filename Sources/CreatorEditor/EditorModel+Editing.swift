@@ -158,6 +158,7 @@ extension EditorModel {
             // The definitions are added to the document, the nodes and comments to the level shown.
             try document.perform(.batch(merge.additions.map { .addDefinition($0) } + [GraphCommand.batch(commands).at(graphPath)]),
                                  name: name)
+            clearRefusal()
             return CanvasSelection(nodes: Set(mapping.values), comments: comments)
         } catch {
             refuse(error.message, node: nil)

@@ -38,6 +38,31 @@ struct RefusalShakeTests {
         #expect(editor.shakeCount(of: extrude.id) == 1)
     }
 
+    /// The caption says why the last edit was refused; once another edit goes through it is stale, so it goes at once
+    /// (the shake count stays: it only ever counts refusals).
+    @Test func aSuccessfulEditClearsTheCaptionAtOnce() {
+        let editor = makeEditor([number, extrude])
+        editor.connect(wire(number, "value", extrude, "profile"))
+        #expect(editor.refusal != nil)
+        editor.connect(wire(number, "value", extrude, "distance"))
+        #expect(editor.refusal == nil)
+        #expect(editor.shakeCount(of: extrude.id) == 1)
+    }
+
+    @Test func aPasteOrAGroupEditClearsItToo() throws {
+        let editor = makeEditor([number, extrude])
+        editor.connect(wire(number, "value", extrude, "profile"))
+        editor.selection = [number.id]
+        editor.copySelection()
+        editor.paste()
+        #expect(editor.refusal == nil, "a paste is an edit")
+        let grouped = try GroupedEditor()
+        grouped.editor.renameGroup(grouped.definition.id, to: " ")
+        #expect(grouped.editor.refusal?.message == "A group needs a name.")
+        grouped.editor.renameGroup(grouped.definition.id, to: "Rib")
+        #expect(grouped.editor.refusal == nil, "and so is a rename")
+    }
+
     @Test func aRefusalNamingNoNodeShakesNothing() {
         let editor = makeEditor([number])
         editor.refuse("Nothing to group.", node: nil)
