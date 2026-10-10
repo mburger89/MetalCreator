@@ -5,9 +5,10 @@ import CreatorKernel
 extension EditorModel {
     static let exposeHint = "Drop a wire from an output on Group Output's +, or drag from Group Input's + onto an input."
 
-    /// Whether `socket` is the "+" of Group Input or Group Output.
+    /// Whether `socket` is the "+" of Group Input or Group Output. A node whose type is missing keeps the sockets its wires
+    /// name, so one may be called "+" (older files could); that is an ordinary socket.
     func isPlus(_ socket: SocketRef) -> Bool {
-        socket.endpoint.socket == GroupNaming.plusSocket
+        socket.endpoint.socket == GroupNaming.plusSocket && isBoundary(socket.endpoint.node)
     }
 
     /// A wire dragged between two sockets, one of them a "+" (either end can be the one dragged from). An output

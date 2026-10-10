@@ -62,6 +62,12 @@ extension EditorModel {
         return crumbs
     }
 
+    /// A breadcrumb's tooltip. ⌘↑ goes out one level, so only the crumb for the level just outside the one shown names it.
+    public func breadcrumbHelp(_ crumb: Breadcrumb) -> String {
+        let help = "Back to \(crumb.title)"
+        return crumb.depth == breadcrumbs.count - 2 ? help + " (⌘↑)" : help
+    }
+
     /// Enters group node `id` of the graph shown (a double click, ⌘↓, "Edit Group"). The selection clears, and the
     /// level shows with the pan and zoom it had last time, or framing everything the first time. Returns false for
     /// anything that isn't a group node whose definition exists, while a drag is under way, or while the level is
