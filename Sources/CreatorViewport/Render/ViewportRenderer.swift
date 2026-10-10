@@ -3,9 +3,9 @@ import CreatorKernel
 import Metal
 
 /// Draws a `ViewportFrame` with Metal (spec §6.3).
-/// - The main pass draws, in order: the background gradient, opaque solids, the ground grid, B-rep edges,
-///   ghosts, guides' selected edges, handles, the view cube (its face names painted on from a label atlas) and the triad. It renders
-///   into its own 4× MSAA colour and depth targets, resolved into the MetalView's target.
+/// - The main pass draws, in order: the background gradient, opaque solids, the ground grid, B-rep edges, ghosts,
+///   guides' selected edges, handles, the view cube (its face names painted on from a label atlas) and the triad. It
+///   renders into its own 4× MSAA colour and depth targets, resolved into the MetalView's target.
 /// - The ID pass writes `PickID`s into an `r32Uint` target (edges 6 points wide).
 /// GPU meshes are cached by mesh serial and dropped once a frame no longer shows them. Every colour comes from the
 /// frame's palette (the viewport's theme); the buffers that bake colours in are rebuilt when it changes.

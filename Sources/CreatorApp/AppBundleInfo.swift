@@ -52,7 +52,9 @@ public enum AppBundleInfo {
                     "UTTypeIdentifier": document.identifier,
                     "UTTypeDescription": documentTypeName,
                     "UTTypeConformsTo": [ContentType.json.identifier],
-                    "UTTypeTagSpecification": ["public.filename-extension": [document.preferredFilenameExtension ?? "mcgraph"]],
+                    "UTTypeTagSpecification": [
+                        "public.filename-extension": [document.preferredFilenameExtension ?? "mcgraph"],
+                    ],
                 ] as [String: Any],
             ],
         ]

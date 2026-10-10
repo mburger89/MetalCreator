@@ -3,8 +3,9 @@ import MetalUI
 extension AppModel {
     /// The window's `onCloseRequest` (close button, ⌘W, and ⌘Q, which asks each window in turn). With unsaved changes
     /// it shows the Save / Don't Save / Cancel alert and answers `.later`; the answer reaches the window through
-    /// `replyToCloseRequest`. A typed but uncommitted inspector value counts as a change, so it is committed first. A request that arrives while
-    /// the question is open answers `.later` again and puts the alert back if another alert replaced it.
+    /// `replyToCloseRequest`. A typed but uncommitted inspector value counts as a change, so it is committed first. A
+    /// request that arrives while the question is open answers `.later` again and puts the alert back if another alert
+    /// replaced it.
     public func closeRequested() -> CloseRequestReply {
         guard closeRequest == .idle else {
             // A question is already open. If something else took the alert's place, ask again: MetalUI's close request

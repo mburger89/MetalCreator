@@ -30,10 +30,11 @@ extension AppModel {
     }
 
     /// Shows the scene and the selected nodes' handles. In Final preview the scene also carries the selected rules'
-    /// edges on solids it doesn't show, as guides (not while sketching). While picking, only the solid being picked on, with the
-    /// picked edges selected, no handles and a crosshair pointer. While sketching, the scene dimmed (ghosted, still
-    /// pickable) and no handles, and the open sketch follows its node. A scene or handles equal to what's shown aren't
-    /// sent again: the observation also fires for canvas pans, camera settles and panel resizes, which change neither.
+    /// edges on solids it doesn't show, as guides (not while sketching). While picking, only the solid being picked on,
+    /// with the picked edges selected, no handles and a crosshair pointer. While sketching, the scene dimmed (ghosted,
+    /// still pickable) and no handles, and the open sketch follows its node. A scene or handles equal to what's shown
+    /// aren't sent again: the observation also fires for canvas pans, camera settles and panel resizes, which change
+    /// neither.
     func refreshScene() {
         refreshSketch()
         // A pick belongs to the level it began on: showing another cancels it.
