@@ -571,7 +571,8 @@ that into an Output, select the Sketch and press "Edit sketch".
   mirrored. With nothing selected, Mirror says "Select the geometry to mirror first." Pinned by `MirrorToolTests`.
   **Observed:**
 - [ ] **S5b-4 Pattern.** Draw a small circle and a point beside it; select the circle, choose Pattern, set Instances
-  to 6 and click the point: six circles around it. Select one, click a line: copies along it, Spacing apart (type 15).
+  to 6 and click the point: six circles around it. With Select, select one circle, choose Pattern again and click a line: copies along it,
+  Spacing apart (type 15).
   Instances "1" is refused in words. Pinned by `PatternToolTests`. **Observed:**
 - [ ] **S5b-5 3-point arcs.** Press A twice: "3-Point Arc ✓". Click a start, an end, then move the pointer: the arc
   bends through it, the readout shows the chord, then "R … mm · …°"; click: the arc is drawn. A third click in line
