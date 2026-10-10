@@ -3,7 +3,7 @@
 #   1. Info.plist is well formed and names the executable;
 #   2. the signature verifies, deep and strict;
 #   3. no Mach-O file in the bundle links or searches Homebrew (/opt/homebrew, /usr/local), and every @rpath library
-#      it links is in Contents/Frameworks;
+#      it links (and every @loader_path and @executable_path one) is in the bundle;
 #   4. LSMinimumSystemVersion is no older than any bundled binary's minimum macOS;
 #   5. `MetalCreator --self-test` passes with the environment emptied (no DYLD_* variables) and Homebrew's directories
 #      unreadable (sandbox-exec), and dyld loads nothing from outside the bundle and the system.
@@ -54,8 +54,15 @@ while IFS= read -r -d '' file; do
     if otool -l "$file" | grep -E '^ +path (/opt/homebrew|/usr/local)' > /dev/null; then
         fail "$file searches a Homebrew directory (LC_RPATH)"
     fi
-    for name in $(otool -L "$file" | sed -n '2,$p' | awk '{ print $1 }' | grep '^@rpath/' || true); do
-        [ -f "$CONTENTS/Frameworks/${name#@rpath/}" ] || fail "$file links $name, which is not in Contents/Frameworks"
+    # Each relative install name must name a file in the bundle: @rpath/ ones in Contents/Frameworks (the app's only
+    # rpath), @loader_path/ ones beside the file that links them, @executable_path/ ones beside the executable.
+    for name in $(otool -L "$file" | sed -n '2,$p' | awk '{ print $1 }' | grep -E '^@(rpath|loader_path|executable_path)/' || true); do
+        case "$name" in
+            @rpath/*) wanted="$CONTENTS/Frameworks/${name#@rpath/}" ;;
+            @loader_path/*) wanted="$(dirname "$file")/${name#@loader_path/}" ;;
+            *) wanted="$CONTENTS/MacOS/${name#@executable_path/}" ;;
+        esac
+        [ -f "$wanted" ] || fail "$file links $name, which is not in the bundle ($wanted)"
     done
     needs="$(minimum_os "$file")"
     [ "$(version_number "$needs")" -le "$(version_number "$minimum")" ] \

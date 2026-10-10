@@ -2,8 +2,8 @@
 # Builds dist/MetalCreator.app: a release build of MetalCreatorApp with the OpenCascade libraries it links (and theirs,
 # from Homebrew) copied into Contents/Frameworks and re-pointed there, MetalUI's resource bundles in Contents/Resources,
 # an Info.plist written by the app itself (`--info-plist`), signed inside-out, then checked by scripts/verify-app.sh.
-# The app is assembled in a temporary folder and replaces dist/MetalCreator.app only once it has passed, so a failed
-# run leaves the previous app alone.
+# The app is assembled in a temporary folder, copied next to dist/MetalCreator.app and checked there, and replaces it only
+# once it has passed, so a failed run leaves the previous app alone.
 # Design: docs/superpowers/specs/2026-10-09-packaging-design.md.
 #
 # usage: scripts/package-app.sh
@@ -17,7 +17,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="${METALCREATOR_DIST_DIR:-$ROOT/dist}"
 IDENTITY="${METALCREATOR_SIGN_IDENTITY:--}"
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+# The finished app is staged beside its destination, so the last step is a rename on one volume.
+STAGE="$DIST/.MetalCreator.app.staging"
+trap 'rm -rf "$WORK" "$STAGE"' EXIT   # (.old is removed once the new app is in place)
 APP="$WORK/MetalCreator.app"
 CONTENTS="$APP/Contents"
 FRAMEWORKS="$CONTENTS/Frameworks"
@@ -82,6 +84,8 @@ printf '%s\n' "$BINARY" > "$WORK/queue"
 while [ -s "$WORK/queue" ]; do
     file="$(head -n 1 "$WORK/queue")"
     sed -i '' '1d' "$WORK/queue"
+    # Into a file first: a failure of otool inside a process substitution would go unseen by `set -e`.
+    linked_libraries "$file" > "$WORK/links"
     while IFS= read -r name; do
         is_system "$name" && continue
         library="$(basename "$name")"
@@ -96,14 +100,15 @@ while [ -s "$WORK/queue" ]; do
         cp "$real" "$FRAMEWORKS/$library"
         chmod u+w "$FRAMEWORKS/$library"
         printf '%s\n' "$source" >> "$WORK/queue"
-    done < <(linked_libraries "$file")
+    done < "$WORK/links"
 done
 printf '    %s libraries\n' "$(wc -l < "$WORK/seen" | tr -d ' ')"
 
 step "Copying their licences into Contents/Resources/Licenses"
 # Each library comes from a Homebrew keg, <prefix>/Cellar/<formula>/<version>; its licence files sit at the keg's top
 # level or in share/doc/<formula>.
-for keg in $(awk '{ print $2 }' "$WORK/seen" | sed -nE 's#^(.*/Cellar/[^/]+/[^/]+)/.*#\1#p' | sort -u); do
+awk '{ print $2 }' "$WORK/seen" | sed -nE 's#^(.*/Cellar/[^/]+/[^/]+)/.*#\1#p' | sort -u > "$WORK/kegs"
+while IFS= read -r keg; do
     formula="$(basename "$(dirname "$keg")")"
     mkdir -p "$CONTENTS/Resources/Licenses/$formula"
     find "$keg" "$keg/share/doc/$formula" -maxdepth 1 -type f \
@@ -111,7 +116,7 @@ for keg in $(awk '{ print $2 }' "$WORK/seen" | sed -nE 's#^(.*/Cellar/[^/]+/[^/]
         -exec cp {} "$CONTENTS/Resources/Licenses/$formula/" \; 2> /dev/null || true
     [ -n "$(ls -A "$CONTENTS/Resources/Licenses/$formula")" ] || fail "found no licence file for $formula in $keg"
     printf '    %s: %s\n' "$formula" "$(ls "$CONTENTS/Resources/Licenses/$formula" | tr '\n' ' ')"
-done
+done < "$WORK/kegs"
 [ "$(awk '{ print $2 }' "$WORK/seen" | grep -vc '/Cellar/' || true)" -eq 0 ] \
     || fail "a bundled library isn't from a Homebrew keg, so its licence is unknown: $(awk '{ print $2 }' "$WORK/seen" | grep -v '/Cellar/' | head -n 1)"
 # The code MetalUI compiles into the binary: on macOS with its default (CoreText) text system that is stb_image only
@@ -130,10 +135,12 @@ repoint() {
     local file="$1" name
     local args=()
     codesign --remove-signature "$file"
+    linked_libraries "$file" > "$WORK/links"
+    rpaths "$file" > "$WORK/rpaths"
     while IFS= read -r name; do
         is_system "$name" || args+=(-change "$name" "@rpath/$(basename "$name")")
-    done < <(linked_libraries "$file")
-    while IFS= read -r name; do args+=(-delete_rpath "$name"); done < <(rpaths "$file")
+    done < "$WORK/links"
+    while IFS= read -r name; do args+=(-delete_rpath "$name"); done < "$WORK/rpaths"
     install_name_tool ${args[@]+"${args[@]}"} "${@:2}" "$file"
 }
 for library in "$FRAMEWORKS"/*.dylib; do
@@ -157,9 +164,16 @@ for library in "$FRAMEWORKS"/*.dylib; do
 done
 codesign "${sign_options[@]}" "$APP"
 
-"$ROOT/scripts/verify-app.sh" "$APP"
-
 mkdir -p "$DIST"
-rm -rf "$DIST/MetalCreator.app"
-mv "$APP" "$DIST/MetalCreator.app"
+rm -rf "$STAGE"
+ditto "$APP" "$STAGE"
+"$ROOT/scripts/verify-app.sh" "$STAGE"
+
+# The old app is moved aside, not deleted first, so no moment leaves the destination empty: if the second rename fails
+# the old one is put back.
+OLD="$DIST/.MetalCreator.app.old"
+rm -rf "$OLD"
+if [ -e "$DIST/MetalCreator.app" ]; then mv "$DIST/MetalCreator.app" "$OLD"; fi
+mv "$STAGE" "$DIST/MetalCreator.app" || { [ ! -e "$OLD" ] || mv "$OLD" "$DIST/MetalCreator.app"; fail "couldn't move the new app into place"; }
+rm -rf "$OLD"
 step "Wrote $(cd "$DIST" && pwd -P)/MetalCreator.app"
