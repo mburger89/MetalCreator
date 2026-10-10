@@ -117,6 +117,8 @@ extension AppModel {
                case .plane(let plane)? = result.outputs?[link.from.socket]?.items.first {
                 return plane
             }
+            // Only a node that hasn't evaluated falls back: one that evaluated and failed rejected the plane itself.
+            guard document.results[link.from.node] == nil else { return nil }
             return unevaluatedFacePlane(of: link.from.node)
         }
     }
