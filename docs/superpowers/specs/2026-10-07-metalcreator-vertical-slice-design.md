@@ -606,6 +606,8 @@ Plan `2026-10-09-kernel-blend-max.md`, roadmap row "Kernel: largest size for ble
   blend costs tens of milliseconds more than one that works, on §8's hexagon flange and on the §7.2 bracket's Fillet
   node alike. While the Fillet's radius handle is dragged past the maximum, each step pays that search; the evaluation
   is off the main actor and cancellable. Human check M6-15 covers the drag.
+- Approved by the user 2026-10-09 (recommended defaults): the 0.1 mm wording, the grid slack, the search for a not-built
+  blend, and the M6-15 drag check. Recorded in the plan's "User decisions".
 - `BRepCheck_Analyzer` runs on every blend result: a few milliseconds on the flange union. Watch it on large parts
   (`docs/superpowers/notes/2026-10-07-m0-m1-carryover.md`).
 - `FeatureConformanceTests.impossibleFilletFailsCleanlyAndKernelRecovers` now expects `maxRadius` 9.9.

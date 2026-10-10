@@ -61,9 +61,13 @@ Failure modes the spec implies but a plain happy-path test would not exercise, m
 - **A test seam, `check:`.** `blend` and `largestValidBlend` take `check: (OCCTShape) -> OCCTValidity = { $0.validity }` so a test can stand in for a checker that throws (no real shape reproduces that), reject every size, or count its calls (the search checks every try it makes, so a count of one proves no search ran).
 - **`BlendGrid`** holds `step` (0.1), `mostTenths` (1_000_000), `firstFailingTenths(for:)` = `Int(min((size * 10 - 1e-9).rounded(.up), 1_000_000))` and `triesSmallest(below:)`. The message and the search read the same function, so "even by 0.1 mm" is said exactly when 0.1 mm was tried.
 - **Off-grid sizes:** the 1e-9 slack in `firstFailingTenths` treats a size within 1e-9 above a grid value as that value, so for an off-grid size the maximum named is conservative (a step below a size that would still build). Harmless; a comment in `BlendGrid` says so, and `aSizeAHairOverTheGridNamesTheOneBelowIt` pins it.
-- **Size ≤ 0.1 mm:** the clause is left out (see User decisions in the hand-back); "at any size" would claim more than was tried.
+- **Size ≤ 0.1 mm:** the clause is left out (see User decisions below); "at any size" would claim more than was tried.
 - **Measurement:** `BlendRefusalBench` (a new suite in `Tests/CreatorAppTests/Bench`, run by `scripts/bench.sh BlendRefusalBench`), on the §8 flange at kernel level and the §7.2 bracket's Fillet node at app level. The figures are written in `docs/verification/performance.md` only; every other record says "tens of milliseconds" so a re-measure on an idle machine changes one file. `BlendRefusalFixtureTests` keeps the bench's flange copy equal to `HexagonFlange`.
-- **Human check:** the one visible change, a refused Fillet radius drag now naming a maximum with a search on every step, is added to M5-10 (Task 5).
+- **Human check:** the one visible change, a refused Fillet radius drag now naming a maximum with a search on every step, is human check M6-15 (run in the app on the bracket with the real kernel; first planned as an addition to M5-10, moved by commit 008159f because Group M5 runs in a preview without the real kernel).
+
+## User decisions (approved 2026-10-09, all recommended defaults)
+
+The user approved this plan's decisions on 2026-10-09 with "go with your recommended defaults": the sizes-at-or-below-0.1 mm wording (clause left out), the 1e-9 slack on the grid (conservative for off-grid sizes), the search for a not-built blend too, `OCCTValidity` and the `check:` seam, the benchmark figures kept in `performance.md` only, and the drag check as a human check (M6-15, see Decisions above).
 
 ## File structure
 
