@@ -5,7 +5,8 @@ import CreatorKernel
 /// stored in the `picks` setting as `.edgePicks(solid.topology.picks(for: edgeIDs))`; the M6 app
 /// shell writes it from viewport picks. A key matches by tag subsets on each side, so unions that
 /// merge faces keep the pick, and a key that matches nothing is narrowed to the operand its edge runs
-/// along (`Topology.edges(resolving:)`), so a pick on a merged face survives the other operand changing.
+/// along (`Topology.resolution(of:expecting:)`), so a pick on a merged face survives the other operand
+/// changing, including an edge between a merged face and a third operand's face (a hole through it).
 /// A changed match count is a warning, never silent (rule 6), unless only the number of pieces a picked
 /// edge is split into changed (`EdgePick.hasDrifted(matching:inRuns:)`).
 public enum EdgesByTagNode: NodeDefinition {
