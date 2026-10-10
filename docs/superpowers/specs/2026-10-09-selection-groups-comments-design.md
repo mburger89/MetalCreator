@@ -360,3 +360,26 @@ User decisions (C2), all 15 of the plan's "User decisions" decided as the recomm
     the sketch opens second (`EditorModel+Pointer.swift`: `pairClick` after `click`). The sketcher-s5c owner must
     know before merging.
 15. Groups are not in the palette (Space), only in the library.
+
+## Errata (F: editor follow-ups)
+
+Plan `2026-10-10-followups-editor.md` (the final review's leftover editor and groups items).
+
+- §5 Make Unique: a name that already ends in a number counts on from it, so a copy of "Rib 2" is "Rib 3", not "Rib 2 2";
+  "Name" still gives "Name 2". (`GroupNaming.uniqueName`; only Make Unique is affected: ⌘G's "Group" has no number and a
+  paste that meets a taken name is named "<name> (imported)", which is never counted on.)
+- §5 Group: an input made from a wire into the selection keeps its target socket's access, optional, default, unit and
+  range, as the "+" drop does (C2 decision 4), so unwiring that source later leaves the part running on the default.
+- §6 "+" drop: an exposed output keeps its source socket's optional flag as well as its unit.
+- §6 Inspector: a refused name or socket edit shakes the node the field was typed for (`GroupPanel.node`), also when a
+  click away is what commits it.
+- §6 Library and palette: adding a key that names no registered type, or a group definition that is gone, adds nothing
+  and says "That node isn't in the library any more."
+- §6 "+": only Group Input's and Group Output's "+" is the expose socket; a Missing node's "+" is an ordinary socket.
+- §6 Breadcrumbs: only the crumb for the level just outside the one shown names ⌘↑ in its tooltip.
+- §3 Esc clears the selection only while the panel shows the canvas, like the other selection keys.
+- §6.2 (parent spec) Refusal caption: a successful edit clears it at once, and while it shows the canvas is one caption
+  line (`GraphPanelLayout.refusalLineHeight`) and the panel's spacing shorter, so a library drop on the caption adds
+  nothing. A comment menu item chosen mid-drag does nothing.
+- §4/§5 Undo and Redo replay without the new-definition and interface rules (`GraphContent.apply(_:registry:replaying:)`),
+  so a hand-edited file that already repeats a group name can still undo an Ungroup.

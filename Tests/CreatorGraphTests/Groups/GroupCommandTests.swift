@@ -7,6 +7,8 @@ import Testing
 @MainActor
 struct GroupCommandTests {
     let scene = GroupScene()
+    /// Add's two inputs as a group keeps them: both default to 0.
+    static let addInputs = [SocketSpec("a", .number, defaultValue: .number(0)), SocketSpec("b", .number, defaultValue: .number(0))]
 
     func document(_ extra: [Node] = []) -> DocumentModel {
         var start = graph(scene.nodes + extra, scene.links)
@@ -28,7 +30,7 @@ struct GroupCommandTests {
 
         let definition = try #require(document.definitions.values.first)
         #expect(definition.name == "Group")
-        #expect(definition.inputs == [SocketSpec("a", .number), SocketSpec("b", .number)])
+        #expect(definition.inputs == Self.addInputs, "each keeps its target socket's default")
         #expect(definition.outputs == [SocketSpec("sum", .number), SocketSpec("sum2", .number)])
         #expect(definition.graph.nodes[scene.a1.id]?.position == Vector2(0, 0))
         #expect(definition.graph.nodes[scene.a2.id]?.position == Vector2(0, 100))
@@ -51,6 +53,50 @@ struct GroupCommandTests {
 
         await document.waitForEvaluation()
         #expect(document.results[scene.sink.id]?.outputs?["value"]?.numbers == [7])
+    }
+
+    /// A wire from outside becomes an input that keeps what the target socket has (access, optional, default, unit and
+    /// range), as the "+" drop does (`GroupCommands.exposeInput`), so unwiring it later leaves the part as it was.
+    @Test func anInputWiredFromOutsideKeepsTheTargetSocketsSettings() throws {
+        let probe = makeNode(ExposeProbeNode.self)
+        let sources = (0..<3).map { _ in makeNode(AddNode.self) }
+        var content = GraphContent(graph: graph([probe] + sources, [
+            link(sources[0], "sum", probe, "values"), link(sources[1], "sum", probe, "maybe"),
+            link(sources[2], "sum", probe, "length"),
+        ]))
+        let edit = try GroupCommands.group([probe.id], in: .root, of: content, registry: probeRegistry)
+        try content.apply(edit.command, registry: probeRegistry)
+        let definition = try #require(content.definitions.values.first)
+        #expect(Set(definition.inputs.map(\.name)) == ["values", "maybe", "length"])
+        let byName = Dictionary(uniqueKeysWithValues: definition.inputs.map { ($0.name, $0) })
+        #expect(byName["values"] == SocketSpec("values", .number, access: .list))
+        #expect(byName["maybe"] == SocketSpec("maybe", .number, optional: true))
+        #expect(byName["length"] == SocketSpec("length", .number, defaultValue: .number(5), unit: .millimetres, range: 1...20))
+    }
+
+    @Test func unwiringAGroupedInputLeavesTheGroupRunningOnTheTargetsDefault() async throws {
+        let document = document()
+        let edit = try group([scene.a1.id, scene.a2.id], in: document)
+        let node = try #require(edit.selection.first.flatMap { document.graph.nodes[$0] })
+        let definition = try #require(document.definitions.values.first)
+        #expect(definition.inputs == Self.addInputs, "each keeps its target socket's default")
+        try document.perform(.disconnect(link(scene.c2, "value", node, "b")))
+        await document.waitForEvaluation()
+        // a1 = 2 + 2 = 4 and a2 = a1 + b, with b on its default 0 rather than the group going idle.
+        #expect(document.results[scene.sink.id]?.outputs?["value"]?.numbers == [4])
+    }
+
+    /// Group, unwire an outside source, Ungroup: the spliced nodes evaluate as the group did.
+    @Test func ungroupingAfterUnwiringAGroupedInputEvaluatesAsBefore() async throws {
+        let document = document()
+        let grouped = try group([scene.a1.id, scene.a2.id], in: document)
+        let node = try #require(grouped.selection.first)
+        try document.perform(.disconnect(link(scene.c2, "value", document.graph.nodes[node] ?? scene.c2, "b")))
+        let edit = try GroupCommands.ungroup(node, in: .root, of: document.content, registry: testRegistry)
+        try document.perform(edit.command)
+        #expect(document.definitions.isEmpty)
+        await document.waitForEvaluation()
+        #expect(document.results[scene.sink.id]?.outputs?["value"]?.numbers == [4], "b is on its default 0, as in the group")
     }
 
     @Test func groupingIsOneUndoStep() throws {
@@ -118,6 +164,26 @@ struct GroupCommandTests {
         #expect(GroupNaming.uniqueDefinitionName("Rib", among: table([doubler.definition])) == "Rib")
     }
 
+    /// A copy of "Rib 2" is "Rib 3" (the groups spec's "Name 2"), not "Rib 2 2".
+    @Test func aNumberedNameCountsOnFromItsOwnNumber() {
+        func named(_ names: [String]) -> [GroupID: GroupDefinition] { table(names.map { Doubler(name: $0).definition }) }
+        #expect(GroupNaming.uniqueDefinitionName("Rib 2", among: named(["Rib", "Rib 2"])) == "Rib 3")
+        #expect(GroupNaming.uniqueDefinitionName("Rib 2", among: named(["Rib 2", "Rib 3"])) == "Rib 4")
+        #expect(GroupNaming.uniqueDefinitionName("Rib 2020", among: named(["Rib 2020"])) == "Rib 2021")
+        #expect(GroupNaming.uniqueDefinitionName("Rib", among: named(["Rib"])) == "Rib 2", "no number: from 2 as before")
+        #expect(GroupNaming.uniqueDefinitionName("Rib 0", among: named(["Rib 0"])) == "Rib 2")
+        #expect(GroupNaming.uniqueDefinitionName("Rib 2", among: named(["Other"])) == "Rib 2", "free names stay as they are")
+        #expect(GroupNaming.uniqueDefinitionName("2", among: named(["2"])) == "2 2", "a bare number has no stem to count on")
+        #expect(GroupNaming.uniqueDefinitionName("Rib 2x", among: named(["Rib 2x"])) == "Rib 2x 2")
+        // Numbers `Int` can't hold or that aren't ASCII digits are not counted on.
+        #expect(GroupNaming.uniqueDefinitionName("Rib 99999999999999999999", among: named(["Rib 99999999999999999999"]))
+                == "Rib 99999999999999999999 2")
+        #expect(GroupNaming.uniqueDefinitionName("Rib 9223372036854775807", among: named(["Rib 9223372036854775807"]))
+                == "Rib 9223372036854775807 2")
+        #expect(GroupNaming.uniqueDefinitionName("Rib ٣", among: named(["Rib ٣"])) == "Rib ٣ 2")
+        #expect(GroupNaming.uniqueDefinitionName("Rib +3", among: named(["Rib +3"])) == "Rib +3 2")
+    }
+
     @Test func groupingIsRefusedPlainly() {
         let document = document()
         let doubler = Doubler()
@@ -141,6 +207,18 @@ struct GroupCommandTests {
         #expect(throws: GraphError.invalidValue(
             "A wire into the selection comes from a socket of unknown type, so it can't become an input.")) {
             try GroupCommands.group([scene.a1.id], in: .root, of: withMystery, registry: testRegistry)
+        }
+    }
+
+    @Test func aWireOutOfTheSelectionFromASocketOfUnknownTypeIsRefused() {
+        var mystery = GroupScene.position(makeNode(ConstantNode.self), -200, 0)
+        mystery.typeID = "missing.type"
+        var content = GraphContent(graph: document().graph, definitions: [:])
+        content.graph.nodes[mystery.id] = mystery
+        content.graph.links.append(link(mystery, "value", scene.other, "b"))
+        #expect(throws: GraphError.invalidValue(
+            "A wire out of the selection leaves a socket of unknown type, so it can't become an output.")) {
+            try GroupCommands.group([mystery.id], in: .root, of: content, registry: testRegistry)
         }
     }
 

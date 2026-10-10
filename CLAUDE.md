@@ -52,7 +52,8 @@ Module boundaries (dependency order):
     call site. A coalesced run keeps its first record's name. Names have no numbers and never include text the person
     typed (a note, a group's or dimension's name); an input is named by its fixed label ("Change Width"), a node by its
     type ("Add Box"). The sketch editor (graph-free) gives each `SketchCommit` a fixed `name` from `SketchStepName`
-    ("Add Line", "Change Dimension", "Fillet"; `SketchEditorModel.commit` requires `named:`), which `AppModel.storeSketch`
+    ("Add Line", "Change Dimension", "Fillet"; `SketchEditorModel.commit` requires `named:`, `SketchCommit.init` and
+    `EditorModel.edit` require `name:`), which `AppModel.storeSketch`
     passes through `UndoName.sketch(_:)`; `SketchCommit.description` ("Rename d1 to Plate width") holds typed text and
     numbers and is never a name. `DocumentModel.undoName` and `redoName` feed `AppModel.undoTitle` and `redoTitle`, which
     the Edit menu (`AppCommands`) and the top bar (`TopBar`) show as "Undo <name>" and "Redo <name>" (plain "Undo"/"Redo"

@@ -117,6 +117,7 @@ struct AppModelOpenURLTests {
         _ = app.closeRequested()
         app.openRequested(url)
         #expect(app.alert == .saveChanges(name: "Untitled"), "the close question isn't replaced")
+        // Nothing was queued behind the close question, so confirming a discard has no file to open.
         await app.discardChanges()
         #expect(app.fileURL == nil)
     }

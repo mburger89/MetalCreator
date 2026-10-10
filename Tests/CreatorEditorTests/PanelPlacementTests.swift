@@ -32,6 +32,37 @@ struct PanelPlacementTests {
                 == CanvasRect(origin: Vector2(10, 230), size: Vector2(380, 460)))
     }
 
+    /// A refusal message showing under the body takes one caption line and the spacing above it from the body's bottom,
+    /// so the editor's idea of where the canvas is matches what `GraphPanel` lays out.
+    @Test func aRefusalLineTakesOneCaptionLineFromTheBodysBottom() {
+        let line = Vector2(0, GraphPanelLayout.refusalLineHeight + GraphPanelLayout.spacing)
+        let size = Vector2(800, 300)
+        let body = GraphPanelLayout.bodyFrame(inPanelOf: size)
+        let shown = GraphPanelLayout.bodyFrame(inPanelOf: size, showsRefusal: true)
+        #expect(shown.origin == body.origin && shown.size == body.size - line)
+        #expect(GraphPanelLayout.bodyFrame(inPanelOf: Vector2(10, 10), showsRefusal: true).size == .zero, "never negative")
+        for (flow, library) in [(CanvasFlow.horizontal, false), (.horizontal, true), (.vertical, false), (.vertical, true)] {
+            let plain = GraphPanelLayout.canvasFrame(inPanelOf: size, flow: flow, showsLibrary: library)
+            let withLine = GraphPanelLayout.canvasFrame(inPanelOf: size, flow: flow, showsLibrary: library, showsRefusal: true)
+            #expect(withLine.origin == plain.origin && withLine.size == plain.size - line)
+        }
+        #expect(GraphPanelLayout.libraryFrame(inPanelOf: size, flow: .horizontal, showsRefusal: true).size
+                == GraphPanelLayout.libraryFrame(inPanelOf: size, flow: .horizontal).size - line)
+    }
+
+    @Test func theCanvasShrinksWhileARefusalShows() {
+        let editor = makeEditor([], dock: .bottom)
+        let panel = CanvasRect(origin: Vector2(12, 388), size: Vector2(976, 300))
+        editor.placement = { PanelPlacement(window: Vector2(1000, 700), panel: panel) }
+        #expect(editor.canvasFrameInWindow?.size == Vector2(772, 244))
+        #expect(editor.drawnCanvasRect != nil)
+        editor.refuse("No.", node: nil)
+        #expect(editor.canvasFrameInWindow?.size == Vector2(772, 220), "one 16-point line and the 8 points above it")
+        #expect(editor.visibleCanvasCentre == Vector2(386, 110))
+        editor.clearRefusal()
+        #expect(editor.canvasFrameInWindow?.size == Vector2(772, 244))
+    }
+
     @Test func theHostPlacesTheCanvasInTheWindow() {
         let editor = makeEditor([], dock: .bottom)
         #expect(editor.canvasFrameInWindow == nil, "no host, no window coordinates")

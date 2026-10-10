@@ -13,7 +13,9 @@ struct BreadcrumbRenderTests {
         editor.enterGroup(grouped.group)
         let inside = renderHeadless { GraphPanelHeader(model: editor) }.glyphs.count
         #expect(inside > top, "Group and › join Graph")
+        #expect(editor.breadcrumbs.map(\.title) == ["Graph", "Group"])
         editor.exitGroup()
+        #expect(editor.breadcrumbs.map(\.title) == ["Graph"])
         #expect(renderHeadless { GraphPanelHeader(model: editor) }.glyphs.count == top)
     }
 
@@ -27,5 +29,18 @@ struct BreadcrumbRenderTests {
         editor.enterGroup(try #require(editor.selection.first))
         #expect(renderHeadless { GraphPanelHeader(model: editor) }.glyphs.count > oneDeep)
         #expect(editor.breadcrumbs.map(\.title) == ["Graph", "Group", "Group 2"])
+    }
+
+    @Test func onlyTheCrumbJustOutsideTheLevelShownNamesTheKeyThatGoesThere() throws {
+        let grouped = try GroupedEditor()
+        let editor = grouped.editor
+        editor.enterGroup(grouped.group)
+        editor.selection = [grouped.rectangle.id]
+        editor.groupSelection()
+        editor.enterGroup(try #require(editor.selection.first))
+        let crumbs = editor.breadcrumbs
+        #expect(crumbs.map(editor.breadcrumbHelp) == ["Back to Graph", "Back to Group (⌘↑)", "Back to Group 2"])
+        editor.exitGroup()
+        #expect(editor.breadcrumbs.map(editor.breadcrumbHelp) == ["Back to Graph (⌘↑)", "Back to Group"])
     }
 }

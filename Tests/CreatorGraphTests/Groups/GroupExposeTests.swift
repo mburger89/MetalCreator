@@ -131,6 +131,20 @@ struct GroupExposeTests {
         #expect(model.definitions[probeDefinition.id]?.outputs.last?.unit == .millimetres)
     }
 
+    @Test func anOptionalOutputStaysOptional() throws {
+        let source = makeNode(OptionalOutputNode.self)
+        let maybe = define("Maybe", outputs: [], nodes: [source]) { _, _ in [] }
+        let model = DocumentModel(file: GraphFile(graph: graph([instance(of: maybe)]), definitions: table([maybe])),
+                                  registry: testRegistry, kernel: FakeKernel())
+        let output = try #require(maybe.outputNode)
+        for socket in ["always", "sometimes"] {
+            let command = try GroupCommands.exposeOutput(from: Endpoint(node: source.id, socket: SocketName(socket)),
+                                                         on: output.id, in: maybe.id, of: model.content, registry: testRegistry)
+            try model.perform(command)
+        }
+        #expect(model.definitions[maybe.id]?.outputs == [SocketSpec("always", .number), SocketSpec("sometimes", .number, optional: true)])
+    }
+
     @Test func aSecondInputDropFromTheSameSocketGetsAnotherName() throws {
         let document = document(instance(of: definition))
         let input = try #require(definition.inputNode)

@@ -24,10 +24,11 @@ extension EditorModel {
     /// The top-level graph, whichever level is shown: the document's parameters live here.
     public var rootGraph: Graph { document.graph }
 
-    /// Applies `command` to the graph the panel shows, as one undo step named `name` (`DocumentModel.perform(_:at:)`;
-    /// without one the step is named from the command).
-    public func edit(_ command: GraphCommand, coalescingKey: String? = nil, name: String? = nil) throws(GraphError) {
+    /// Applies `command` to the graph the panel shows, as one undo step named `name` (`UndoName`; required, so no edit can
+    /// reach the Edit menu as the fallback "Edit"). An edit that goes through clears the refusal caption.
+    public func edit(_ command: GraphCommand, coalescingKey: String? = nil, name: String) throws(GraphError) {
         try document.perform(command, at: graphPath, coalescingKey: coalescingKey, name: name)
+        clearRefusal()
     }
 
     /// The result of node `id` of the graph shown: from the top-level results, or from the results inside the group
@@ -59,6 +60,12 @@ extension EditorModel {
             path = .definition(definition.id)
         }
         return crumbs
+    }
+
+    /// A breadcrumb's tooltip. ⌘↑ goes out one level, so only the crumb for the level just outside the one shown names it.
+    public func breadcrumbHelp(_ crumb: Breadcrumb) -> String {
+        let help = "Back to \(crumb.title)"
+        return crumb.depth == breadcrumbs.count - 2 ? help + " (⌘↑)" : help
     }
 
     /// Enters group node `id` of the graph shown (a double click, ⌘↓, "Edit Group"). The selection clears, and the

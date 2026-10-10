@@ -95,8 +95,6 @@ struct AppUndoNameTests {
         #expect(app.document.undoName == "Add Constraint")
         app.storeSketch(SketchCommit(sketch: editor.sketch, description: "Vertical", name: "  "))
         #expect(app.document.undoName == "Edit Sketch", "a commit with a blank name")
-        app.storeSketch(SketchCommit(sketch: editor.sketch, description: "Vertical"))
-        #expect(app.document.undoName == "Edit Sketch", "a commit made without a name")
 
         editor.choose(.line)
         editor.click(at: Vector2(0, 60), tolerance: 1, modifiers: [])

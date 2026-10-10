@@ -18,7 +18,7 @@ struct BreadcrumbBar: Component {
                 } else {
                     Button(crumb.title) { model.goToLevel(crumb.depth) }
                         .buttonStyle(.plain)
-                        .help("Back to \(crumb.title) (⌘↑)")
+                        .help(model.breadcrumbHelp(crumb))
                         .foregroundStyle(palette.secondaryText.color)
                     Text("›").font(.headline).foregroundStyle(palette.secondaryText.color)
                 }

@@ -88,6 +88,7 @@ struct GroupLookTests {
                                                          in: editor.document.content))
         let renamed = glyphs()
         #expect(renamed > top, "the group node's header reads the definition's name")
+        #expect(editor.shape(of: try #require(editor.graph.nodes[grouped.group])).title == "Hole pattern for ribs")
         editor.enterGroup(grouped.group)
         #expect(glyphs() != renamed, "the canvas draws the inside, not the top level")
     }

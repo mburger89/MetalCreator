@@ -25,6 +25,13 @@ extension GraphContent {
         return Array(levels.prefix(count))
     }
 
+    /// Whether `instance`, the group nodes from the top level down and then an inner node (the key of
+    /// `DocumentModel.innerResults`), names a node that exists.
+    public func hasNode(atInstance instance: [NodeID]) -> Bool {
+        guard let node = instance.last, let path = path(entering: Array(instance.dropLast())) else { return false }
+        return graph(at: path)?.nodes[node] != nil
+    }
+
     /// `value`, if it is a remembered pick, as the graph at `levels` names faces: the tags it holds name nodes by the
     /// identities they're made under (`NodeID.scoped` of the instance path), and a pick stored in a definition names
     /// them as if the definition were the top level (`GroupScopes.identity`), so every instance reads it as its own

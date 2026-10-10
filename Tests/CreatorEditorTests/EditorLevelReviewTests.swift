@@ -20,8 +20,8 @@ struct EditorLevelReviewTests {
         editor.selection = [grouped.group]
         editor.perform(.duplicate)
         let second = try #require(editor.selection.first)
-        try editor.edit(.setInput(second, "width", .number(50)))
-        try editor.edit(.setInput(grouped.number.id, "value", .number(7)))
+        try editor.edit(.setInput(second, "width", .number(50)), name: UndoName.changeInput("Width"))
+        try editor.edit(.setInput(grouped.number.id, "value", .number(7)), name: UndoName.changeInput("Value"))
         await editor.document.waitForEvaluation()
 
         editor.enterGroup(grouped.group)

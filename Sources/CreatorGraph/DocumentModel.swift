@@ -141,7 +141,7 @@ public final class DocumentModel {
         let stale = graph.downstreamClosure(of: content.touchedTopLevelNodes(command))
         let effect = effect(of: command)
         do {
-            try content.apply(command, registry: baseRegistry)
+            try content.apply(command, registry: baseRegistry, replaying: true)
         } catch {
             // Undo and redo replay commands that were valid when recorded, so this means
             // the history is out of step with the graph.
@@ -159,6 +159,8 @@ public final class DocumentModel {
         let existing = Set(graph.nodes.keys)
         results = results.filter { existing.contains($0.key) }
         lastGoodOutputs = lastGoodOutputs.filter { existing.contains($0.key) }
+        let content = content
+        innerResults = innerResults.filter { content.hasNode(atInstance: $0.key) }
         for id in stale where results[id] != nil {
             results[id]?.state = .evaluating
         }

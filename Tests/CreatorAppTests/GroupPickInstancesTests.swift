@@ -35,6 +35,12 @@ struct GroupPickInstancesTests {
         app.viewportClicked(.edge(solid: 0, EdgeID(3)))
         app.finishPick()
         await app.settle()
+        let definition = try #require(app.document.definitions.values.first)
+        guard case .edgePicks(let picks)? = definition.graph.nodes[rule.id]?.inputValues[NodeSetting.picks] else {
+            Issue.record("the rule inside the definition holds no picks")
+            return
+        }
+        #expect(!picks.isEmpty, "the two clicked edges are stored with the definition")
         #expect(app.document.innerResults[[first, chamfer.id]]?.state.isSuccess == true, "the instance it was made in")
         #expect(app.document.innerResults[[second, chamfer.id]]?.state.isSuccess == true, "and the other one")
     }
