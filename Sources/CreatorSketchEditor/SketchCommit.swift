@@ -11,8 +11,8 @@ public struct SketchCommit: Hashable, Sendable {
     public var name: String
     public var projections: [ProjectionWrite]
 
-    public init(sketch: Sketch, description: String, name: String = SketchStepName.editSketch,
-                projections: [ProjectionWrite] = []) {
+    /// `name` is required, so no edit can reach the Edit menu without one.
+    public init(sketch: Sketch, description: String, name: String, projections: [ProjectionWrite] = []) {
         self.sketch = sketch
         self.description = description
         self.name = name

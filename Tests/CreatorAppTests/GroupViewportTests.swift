@@ -63,7 +63,7 @@ struct GroupViewportTests {
         app.previewMode = .selectedNode
         app.editor.transform = CanvasTransform()
         let lonely = try #require(app.editor.registry.makeNode(ExtrudeNode.typeID, at: Vector2(200, 300)) as Node?)
-        try app.editor.edit(.addNode(lonely))
+        try app.editor.edit(.addNode(lonely), name: UndoName.addNode(lonely))
         app.editor.connect(Link(from: Endpoint(node: scene.rectangle.id, socket: "profile"),
                                 to: Endpoint(node: lonely.id, socket: "profile")))
         app.editor.selection = [lonely.id]

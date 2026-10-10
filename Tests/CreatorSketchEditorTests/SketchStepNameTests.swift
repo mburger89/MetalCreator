@@ -139,8 +139,4 @@ struct SketchStepNameTests {
         model.project(.edge(solid: 0, EdgeID(1)))
         #expect(host.commits.map(\.name) == ["Project"])
     }
-
-    @Test func aCommitMadeWithoutANameIsCalledEditSketch() {
-        #expect(SketchCommit(sketch: Sketch(), description: "Vertical").name == "Edit Sketch")
-    }
 }

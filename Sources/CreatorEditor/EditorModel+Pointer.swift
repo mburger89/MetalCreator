@@ -129,8 +129,8 @@ extension EditorModel {
         // Screen delta → stored (left-to-right) canvas delta: undo the zoom, then the dock transpose.
         let storedDelta = flow.stored((location - pressPoint) * (1 / transform.zoom))
         switch interaction {
-        case .panning(let startOffset):
-            transform = CanvasTransform(offset: startOffset + (location - pressPoint), zoom: transform.zoom)
+        case .panning:
+            break  // The middle button's (`middleDragged`); a primary press ends a pan first (`pointerPressed`).
         case .moving(let start, let key):
             try? edit(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key, name: UndoName.move)
         case .resizing(let id, let start, let key):

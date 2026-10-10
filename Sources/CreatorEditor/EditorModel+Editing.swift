@@ -25,8 +25,10 @@ extension EditorModel {
         delete(named: UndoName.delete)
     }
 
-    /// Deletes the selection as one undo step called `name` ("Delete", or "Cut" for ⌘X).
-    private func delete(named name: String) {
+    /// Deletes the selection as one undo step called `name` ("Delete", or "Cut" for ⌘X). Returns whether anything was
+    /// deleted.
+    @discardableResult
+    private func delete(named name: String) -> Bool {
         let present = canvasSelection.nodes.filter { graph.nodes[$0] != nil }
         let commands = present.filter { !isBoundary($0) }.sorted().map { GraphCommand.removeNode($0) }
             + canvasSelection.comments.sorted().compactMap { id -> GraphCommand? in
@@ -35,22 +37,25 @@ extension EditorModel {
             }
         guard !commands.isEmpty else {
             if !present.isEmpty { refuse("A group's Group Input and Group Output can't be deleted.", node: nil) }
-            return
+            return false
         }
         do {
             try edit(.batch(commands), name: name)
             canvasSelection = CanvasSelection()
+            return true
         } catch {
             refuse(error.message, node: nil)
+            return false
         }
     }
 
-    /// ⌘X: copies the selection, then deletes it, the delete being one undo step.
+    /// ⌘X: copies the selection, then deletes it, the delete being one undo step. The clipboard is replaced only once the
+    /// delete has gone through.
     public func cutSelection() {
         guard !canvasSelection.isEmpty else { return }
         let copied = clipboard(of: canvasSelection)
-        if !copied.isEmpty { setClipboard(copied) }
-        delete(named: UndoName.cut)
+        guard delete(named: UndoName.cut), !copied.isEmpty else { return }
+        setClipboard(copied)
     }
 
     /// ⌘C: copies the selected items (the nodes, the wires between them, and the comments).

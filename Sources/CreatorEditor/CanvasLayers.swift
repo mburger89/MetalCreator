@@ -17,6 +17,7 @@ struct CanvasLayers: Component {
         let flow = model.flow
         let palette = Palette(themes)
         let selectedComments = model.canvasSelection.comments
+        let commentGhosts = Self.commentGhosts(model)
         return ZStack(alignment: .topLeading) {
             ForEach(model.drawnFrames, id: \.id.rawValue) { box in
                 CommentFrameView(box: box, rect: model.frame(of: box), isSelected: selectedComments.contains(box.id))
@@ -42,10 +43,10 @@ struct CanvasLayers: Component {
                 NodeView(shape: shape, rows: [], origin: flow.display(node.position), flow: flow,
                          isSelected: true, state: nil, shakes: 0, isGhost: true)
             }
-            ForEach(Self.commentGhosts(model).frames, id: \.id.rawValue) { box in
+            ForEach(commentGhosts.frames, id: \.id.rawValue) { box in
                 CommentFrameView(box: box, rect: model.frame(of: box), isSelected: true, isGhost: true)
             }
-            ForEach(Self.commentGhosts(model).notes, id: \.id.rawValue) { note in
+            ForEach(commentGhosts.notes, id: \.id.rawValue) { note in
                 StickyView(note: note, rect: model.frame(of: note), isSelected: true, isGhost: true)
             }
             if case .connecting(let drag)? = model.interaction, let anchor = model.anchor(of: drag.from) {
