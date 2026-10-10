@@ -71,14 +71,15 @@ extension SketchEditorModel {
     /// (sketcher spec §8).
     func click(at p: Vector2, tolerance: Double, modifiers: ViewportModifiers) {
         refusal = nil
+        let suppressed = modifiers.contains(.command)
         switch tool {
         case .select: select(at: p, tolerance: tolerance)
         case .dimension: dimension(at: p, tolerance: tolerance)
-        case .point: placePoint(at: p, tolerance: tolerance)
-        case .line: placeLinePoint(at: p, tolerance: tolerance, suppressed: modifiers.contains(.command))
-        case .circle: placeCirclePoint(at: p, tolerance: tolerance)
-        case .arc: placeArcPoint(at: p, tolerance: tolerance)
-        case .arcThreePoint: placeThreePointArcPoint(at: p, tolerance: tolerance)
+        case .point: placePoint(at: p, tolerance: tolerance, suppressed: suppressed)
+        case .line: placeLinePoint(at: p, tolerance: tolerance, suppressed: suppressed)
+        case .circle: placeCirclePoint(at: p, tolerance: tolerance, suppressed: suppressed)
+        case .arc: placeArcPoint(at: p, tolerance: tolerance, suppressed: suppressed)
+        case .arcThreePoint: placeThreePointArcPoint(at: p, tolerance: tolerance, suppressed: suppressed)
         case .trim, .extend, .fillet, .mirror, .pattern: modify(at: p, tolerance: tolerance)
         }
         hover(at: p, tolerance: tolerance, modifiers: modifiers)
@@ -94,35 +95,44 @@ extension SketchEditorModel {
         let picker = SketchPicker(sketch: sketch, solution: solution)
         let under = tool.picksCurves ? picker.curve(near: p, tolerance: tolerance) : picker.entity(near: p, tolerance: tolerance)
         if hovered != under { hovered = under }
-        let next = rubberBand(to: p, tolerance: tolerance, suppressed: modifiers.contains(.command))
+        let suppressed = modifiers.contains(.command)
+        // One anchor per move, shared by everything the move shows, so its curve scan runs once.
+        let target = anchor(at: p, tolerance: tolerance, suppressed: suppressed)
+        let next = rubberBand(to: p, landing: target, tolerance: tolerance, suppressed: suppressed)
         if preview != next { preview = next }
     }
 
-    /// Where a click at `p` lands: the nearest existing point within `tolerance`, else `p` itself.
-    func anchor(at p: Vector2, tolerance: Double) -> SketchAnchor {
+    /// Where a click at `p` lands: the nearest existing point within `tolerance`, else the nearest place on the nearest
+    /// curve within it (point-on inference, sketcher spec §8; not while ⌘ `suppressed` it), else `p` itself.
+    func anchor(at p: Vector2, tolerance: Double, suppressed: Bool) -> SketchAnchor {
         let picker = SketchPicker(sketch: sketch, solution: solution)
-        guard let hit = picker.point(near: p, tolerance: tolerance) else { return .free(p) }
-        return .existing(hit.id, at: hit.at)
+        if let hit = picker.point(near: p, tolerance: tolerance) { return .existing(hit.id, at: hit.at) }
+        if !suppressed, let curve = picker.curve(near: p, tolerance: tolerance), let on = picker.nearestPoint(on: curve, to: p) {
+            return .onCurve(curve, at: on)
+        }
+        return .free(p)
     }
 
-    private func placePoint(at p: Vector2, tolerance: Double) {
-        guard case .free(let at) = anchor(at: p, tolerance: tolerance) else { return }
+    /// A lone point, held on the curve it's clicked on; a click on an existing point adds nothing.
+    private func placePoint(at p: Vector2, tolerance: Double, suppressed: Bool) {
+        let target = anchor(at: p, tolerance: tolerance, suppressed: suppressed)
+        guard target.point == nil else { return }
         var edited = sketch
-        edited.addPoint(at, isConstruction: isConstruction)
+        _ = target.point(in: &edited, isConstruction: isConstruction)
         commit(edited, "Point")
     }
 
     /// The first click starts a chain; each later one ends a line there and starts the next from its end.
     private func placeLinePoint(at p: Vector2, tolerance: Double, suppressed: Bool) {
         guard case .lineFrom(let start) = drawState else {
-            drawState = .lineFrom(anchor(at: p, tolerance: tolerance))
+            drawState = .lineFrom(anchor(at: p, tolerance: tolerance, suppressed: suppressed))
             return
         }
-        var end = anchor(at: p, tolerance: tolerance)
+        var end = anchor(at: p, tolerance: tolerance, suppressed: suppressed)
         if end.point != nil, end.point == start.point { return }
         var inference: LineInference?
         if case .free(let at) = end {
-            let inferred = LineInference.infer(from: start.position, to: at, tolerance: tolerance, suppressed: suppressed)
+            let inferred = lineInference(from: start, to: at, tolerance: tolerance, suppressed: suppressed)
             inference = inferred.0
             end = .free(inferred.1)
         }
@@ -136,12 +146,12 @@ extension SketchEditorModel {
         drawState = .lineFrom(.existing(b, at: end.position))
     }
 
-    private func placeCirclePoint(at p: Vector2, tolerance: Double) {
+    private func placeCirclePoint(at p: Vector2, tolerance: Double, suppressed: Bool) {
         guard case .circleAround(let center) = drawState else {
-            drawState = .circleAround(anchor(at: p, tolerance: tolerance))
+            drawState = .circleAround(anchor(at: p, tolerance: tolerance, suppressed: suppressed))
             return
         }
-        let radius = (anchor(at: p, tolerance: tolerance).position - center.position).length
+        let radius = (anchor(at: p, tolerance: tolerance, suppressed: suppressed).position - center.position).length
         guard radius > 1e-9 else { return }
         var edited = sketch
         edited.addCircle(center: center.point(in: &edited), radius: radius, isConstruction: isConstruction)
@@ -150,14 +160,14 @@ extension SketchEditorModel {
     }
 
     /// Centre, start, then end: the end lands on the start's radius, along the ray through the click.
-    private func placeArcPoint(at p: Vector2, tolerance: Double) {
+    private func placeArcPoint(at p: Vector2, tolerance: Double, suppressed: Bool) {
+        let target = anchor(at: p, tolerance: tolerance, suppressed: suppressed)
         switch drawState {
         case .arcAround(let center):
-            let start = anchor(at: p, tolerance: tolerance)
-            guard (start.position - center.position).length > 1e-9 else { return }
-            drawState = .arcFrom(center: center, start: start)
+            guard (target.position - center.position).length > 1e-9 else { return }
+            drawState = .arcFrom(center: center, start: target)
         case .arcFrom(let center, let start):
-            let end = arcEnd(center: center.position, start: start.position, toward: anchor(at: p, tolerance: tolerance))
+            let end = arcEnd(center: center.position, start: start.position, toward: target)
             guard let end, end.point == nil || end.point != start.point else { return }
             var edited = sketch
             let c = center.point(in: &edited)
@@ -167,17 +177,17 @@ extension SketchEditorModel {
             commit(edited, "Arc")
             drawState = .idle
         default:
-            drawState = .arcAround(anchor(at: p, tolerance: tolerance))
+            drawState = .arcAround(target)
         }
     }
 
     /// Start, end, then a point the arc passes through: the arc runs on the circle through the three, from the start to
     /// the end the way that passes the third (counter-clockwise from whichever end makes it so), around a new centre
     /// point. A third click in line with the other two draws nothing and waits for another.
-    private func placeThreePointArcPoint(at p: Vector2, tolerance: Double) {
+    private func placeThreePointArcPoint(at p: Vector2, tolerance: Double, suppressed: Bool) {
         switch drawState {
         case .arcThroughFrom(let start):
-            let end = anchor(at: p, tolerance: tolerance)
+            let end = anchor(at: p, tolerance: tolerance, suppressed: suppressed)
             guard (end.position - start.position).length > 1e-9, end.point == nil || end.point != start.point else { return }
             drawState = .arcThrough(start: start, end: end)
         case .arcThrough(let start, let end):
@@ -191,7 +201,7 @@ extension SketchEditorModel {
             commit(edited, "Arc")
             drawState = .idle
         default:
-            drawState = .arcThroughFrom(anchor(at: p, tolerance: tolerance))
+            drawState = .arcThroughFrom(anchor(at: p, tolerance: tolerance, suppressed: suppressed))
         }
     }
 
@@ -204,16 +214,15 @@ extension SketchEditorModel {
         return .free(center + ray * ((start - center).length / length))
     }
 
-    /// The rubber band from what's placed to `p`.
-    private func rubberBand(to p: Vector2, tolerance: Double, suppressed: Bool) -> SketchPreview {
-        let target = anchor(at: p, tolerance: tolerance)
+    /// The rubber band from what's placed to `p`, where a click would land on `target` (`anchor`).
+    private func rubberBand(to p: Vector2, landing target: SketchAnchor, tolerance: Double, suppressed: Bool) -> SketchPreview {
         switch drawState {
         case .idle:
             return tool.placesPoints ? SketchPreview(points: [target.position]) : .none
         case .lineFrom(let start):
             var end = target.position
-            if target.point == nil {
-                end = LineInference.infer(from: start.position, to: end, tolerance: tolerance, suppressed: suppressed).1
+            if case .free = target {
+                end = lineInference(from: start, to: end, tolerance: tolerance, suppressed: suppressed).1
             }
             return SketchPreview(curves: [.line(start.position, end)], points: [start.position, end])
         case .circleAround(let center):

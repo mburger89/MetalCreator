@@ -45,11 +45,24 @@ enum EditorGeometry {
 
     /// The distance from `p` to the segment `a`–`b`.
     static func distance(from p: Vector2, toSegment a: Vector2, _ b: Vector2) -> Double {
+        (p - nearest(to: p, onSegment: a, b)).length
+    }
+
+    /// The point of the segment `a`–`b` nearest `p`.
+    static func nearest(to p: Vector2, onSegment a: Vector2, _ b: Vector2) -> Vector2 {
         let d = b - a
         let squared = d.x * d.x + d.y * d.y
-        guard squared > 0 else { return (p - a).length }
+        guard squared > 0 else { return a }
         let t = min(max(((p.x - a.x) * d.x + (p.y - a.y) * d.y) / squared, 0), 1)
-        return (p - (a + d * t)).length
+        return a + d * t
+    }
+
+    /// The point of the circle around `center` nearest `p` (its rightmost point when `p` is the centre).
+    static func nearest(to p: Vector2, onCircle center: Vector2, radius: Double) -> Vector2 {
+        let offset = p - center
+        let length = offset.length
+        guard length > 1e-12 else { return center + Vector2(radius, 0) }
+        return center + offset * (radius / length)
     }
 
     /// The distance from `p` to a polyline.
