@@ -37,6 +37,7 @@ public struct GraphPanel: Component {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     if let refusal = model.refusal {
                         Text(refusal.message).font(.caption).foregroundStyle(Palette(themes).statusError.color)
+                            .frame(minHeight: GraphPanelLayout.refusalLineHeight.px)
                     }
                 }
             }

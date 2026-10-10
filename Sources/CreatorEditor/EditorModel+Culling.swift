@@ -12,7 +12,8 @@ extension EditorModel {
     /// panel is hidden, when everything is drawn.
     public var drawnCanvasRect: CanvasRect? {
         guard isPanelVisible, let placement = panelPlacement else { return nil }
-        let size = GraphPanelLayout.canvasFrame(inPanelOf: placement.panel.size, flow: flow, showsLibrary: showsLibrary).size
+        let size = GraphPanelLayout.canvasFrame(inPanelOf: placement.panel.size, flow: flow, showsLibrary: showsLibrary,
+                                                showsRefusal: refusal != nil).size
         let margin = Vector2(Self.cullingMargin, Self.cullingMargin)
         return CanvasRect(corner: transform.toCanvas(.zero - margin), transform.toCanvas(size + margin))
     }

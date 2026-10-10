@@ -22,17 +22,22 @@ public enum GraphPanelLayout {
     /// The canvas size assumed while the host hasn't placed the panel (headless tests): the centre of a small panel.
     public static let fallbackCanvasSize = Vector2(400, 300)
 
+    /// The refusal message's caption line under the body (`GraphPanel`): one `.caption` line. A message long enough to wrap
+    /// takes more, which this does not model.
+    public static let refusalLineHeight = 16.0
+
     /// The body under the header inside a panel of `size`, in panel-local points. It runs to the panel's padding; a
-    /// refusal message showing under it takes one line from its bottom.
-    public static func bodyFrame(inPanelOf size: Vector2) -> CanvasRect {
+    /// refusal message showing under it (`showsRefusal`) takes one line, and the spacing above it, from its bottom.
+    public static func bodyFrame(inPanelOf size: Vector2, showsRefusal: Bool = false) -> CanvasRect {
         let origin = Vector2(glassPadding, glassPadding + headerHeight + spacing)
+        let refusal = showsRefusal ? refusalLineHeight + spacing : 0
         return CanvasRect(origin: origin, size: Vector2(max(0, size.x - 2 * glassPadding),
-                                                        max(0, size.y - origin.y - glassPadding)))
+                                                        max(0, size.y - origin.y - glassPadding - refusal)))
     }
 
     /// The node library's frame in the body, for a panel of `size` showing the graph in `flow`.
-    public static func libraryFrame(inPanelOf size: Vector2, flow: CanvasFlow) -> CanvasRect {
-        let body = bodyFrame(inPanelOf: size)
+    public static func libraryFrame(inPanelOf size: Vector2, flow: CanvasFlow, showsRefusal: Bool = false) -> CanvasRect {
+        let body = bodyFrame(inPanelOf: size, showsRefusal: showsRefusal)
         switch flow {
         case .horizontal: return CanvasRect(origin: body.origin, size: Vector2(min(libraryExtent, body.size.x), body.size.y))
         case .vertical: return CanvasRect(origin: body.origin, size: Vector2(body.size.x, min(libraryExtent, body.size.y)))
@@ -40,8 +45,9 @@ public enum GraphPanelLayout {
     }
 
     /// The canvas's frame: the whole body, or the body beside or below the library.
-    public static func canvasFrame(inPanelOf size: Vector2, flow: CanvasFlow, showsLibrary: Bool) -> CanvasRect {
-        let body = bodyFrame(inPanelOf: size)
+    public static func canvasFrame(inPanelOf size: Vector2, flow: CanvasFlow, showsLibrary: Bool,
+                                   showsRefusal: Bool = false) -> CanvasRect {
+        let body = bodyFrame(inPanelOf: size, showsRefusal: showsRefusal)
         guard showsLibrary else { return body }
         let inset = libraryExtent + spacing
         switch flow {
