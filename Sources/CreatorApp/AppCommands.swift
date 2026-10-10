@@ -2,7 +2,8 @@ import CreatorKernel
 import MetalUI
 
 /// The menu bar (spec §6.1): File's New, Open…, Save, Save As… and the exports, Edit's Undo and Redo bound to
-/// the document (`AppModel.undo()`, which commits a typed value first), and View ▸ Theme (`ThemeMenu`: every theme
+/// the document (`AppModel.undo()`, which commits a typed value first), titled "Undo Add Note" by the step
+/// (`AppModel.undoTitle`, `redoTitle`), and View ▸ Theme (`ThemeMenu`: every theme
 /// with a checkmark on the current one, and Edit Themes…, spec §6.6). Commands run when nothing in the window claims
 /// their key first (a focused field keeps its own editing keys).
 public enum AppCommands {
@@ -24,10 +25,10 @@ public enum AppCommands {
                     .keyboardShortcut("e", modifiers: [.command, .shift])
             }
             CommandGroup(replacing: .undoRedo) {
-                Button("Undo") { model.undo() }
+                Button(model.undoTitle) { model.undo() }
                     .keyboardShortcut("z")
                     .disabled(!model.document.canUndo)
-                Button("Redo") { model.redo() }
+                Button(model.redoTitle) { model.redo() }
                     .keyboardShortcut("z", modifiers: [.command, .shift])
                     .disabled(!model.document.canRedo)
             }
