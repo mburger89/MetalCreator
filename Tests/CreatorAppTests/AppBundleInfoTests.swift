@@ -23,8 +23,8 @@ struct AppBundleInfoTests {
         #expect(plist["NSHighResolutionCapable"] as? Bool == true)
     }
 
-    /// Ready for open-document events (gap M6-d): Finder knows `.mcgraph` files are this app's, under the identifier
-    /// the file panels already use.
+    /// Finder knows `.mcgraph` files are this app's, under the identifier the file panels already use, so a
+    /// double-click or a Dock drop reaches `AppModel.openRequested(_:)` through MetalUI's `App.onOpenURL` (gap M6-d).
     @Test func itOwnsAndExportsTheMcgraphType() throws {
         let plist = try roundTripped(minimumSystemVersion: "26.0")
         let documentTypes = try #require(plist["CFBundleDocumentTypes"] as? [[String: Any]])
@@ -40,6 +40,17 @@ struct AppBundleInfoTests {
         let tags = try #require(exported["UTTypeTagSpecification"] as? [String: Any])
         #expect(tags["public.filename-extension"] as? [String] == ["mcgraph"])
         #expect(ContentType.mcgraph.preferredFilenameExtension == "mcgraph")
+    }
+
+    /// MetalUI's probe (`docs/probes/appkit-open-without-document-class.swift`): with MetalUI's application delegate a
+    /// document type of exactly this shape needs no `NSDocumentClass`, and the plist declares no URL scheme, so only
+    /// files are opened.
+    @Test func itNeedsNoDocumentClassAndDeclaresNoURLScheme() throws {
+        let plist = try roundTripped(minimumSystemVersion: "26.0")
+        let documentType = try #require((plist["CFBundleDocumentTypes"] as? [[String: Any]])?.first)
+        #expect(documentType["NSDocumentClass"] == nil)
+        #expect(plist["NSPrincipalClass"] == nil)
+        #expect(plist["CFBundleURLTypes"] == nil)
     }
 
     private func roundTripped(minimumSystemVersion: String) throws -> [String: Any] {

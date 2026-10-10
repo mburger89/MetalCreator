@@ -31,12 +31,11 @@ func runApp(opening path: String?) throws {
     Task { await chrome.follow() }
     model.filePicker = WindowFilePicker(window: window)
     themeEditor.filePicker = model.filePicker
+    // Opening documents (gap M6-d): Finder, the Dock and `open -a` reach `App.onOpenURL` while the app runs, so it is
+    // set before `app.run()`. AppKit delivers no command-line path, so the path argument is handed over the same way.
+    app.onOpenURL = { model.openRequested($0) }
     if let path {
-        do {
-            try model.open(URL(fileURLWithPath: path))
-        } catch {
-            model.alert = .problem(error)
-        }
+        app.open([URL(fileURLWithPath: path)])
     }
     app.run()
 }

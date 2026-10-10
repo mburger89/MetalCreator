@@ -32,6 +32,7 @@ extension AppModel {
         switch action {
         case .newDocument: load(GraphFile(), from: nil)
         case .openDocument(let picker): await chooseAndOpen(using: picker)
+        case .openURL(let url): openReportingFailure(url)
         }
     }
 
