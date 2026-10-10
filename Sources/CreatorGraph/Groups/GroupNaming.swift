@@ -4,10 +4,14 @@ import Foundation
 public enum GroupNaming {
     /// `base` if no definition has that name, else "base 2", "base 3", …
     public static func uniqueDefinitionName(_ base: String, among definitions: [GroupID: GroupDefinition]) -> String {
-        let names = Set(definitions.values.map(\.name))
-        guard names.contains(base) else { return base }
+        uniqueName(base, taken: Set(definitions.values.map(\.name)))
+    }
+
+    /// `base` if it isn't in `taken`, else "base 2", "base 3", …
+    static func uniqueName(_ base: String, taken: Set<String>) -> String {
+        guard taken.contains(base) else { return base }
         var number = 2
-        while names.contains("\(base) \(number)") { number += 1 }
+        while taken.contains("\(base) \(number)") { number += 1 }
         return "\(base) \(number)"
     }
 
