@@ -78,11 +78,16 @@ extension EditorModel {
     }
 
     /// Adds a node of `typeID` with its top-left corner at `screen` (canvas-local screen points: under the palette,
-    /// or where a library node was dropped) and selects it, as one undo step. Returns whether the graph took it.
+    /// or where a library node was dropped) and selects it, as one undo step. Returns whether the graph took it. A key
+    /// that names no registered type, or a group definition that is gone, adds nothing and says so.
     @discardableResult
     public func addNode(_ typeID: String, atScreen screen: Vector2) -> Bool {
         let position = flow.stored(transform.toCanvas(screen))
-        return add(libraryNode(for: typeID, at: position) ?? registry.makeNode(typeID, at: position))
+        guard let node = libraryNode(for: typeID, at: position) else {
+            refuse("That node isn't in the library any more.", node: nil)
+            return false
+        }
+        return add(node)
     }
 
     /// Adds `node` (made by `NodeRegistry.makeNode`) and selects it, as one undo step. Returns false, having shown

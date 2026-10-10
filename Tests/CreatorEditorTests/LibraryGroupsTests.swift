@@ -91,6 +91,21 @@ struct LibraryGroupsTests {
         #expect(editor.graph.nodes.count == 3)
     }
 
+    /// The palette and the drop both end in `addNode(_:atScreen:)`; a key that names nothing registered, or a definition
+    /// that is gone, adds no node (not a "missing" node of that type) and says so.
+    @Test func addingAStaleOrUnknownKeyAddsNothingAndSaysSo() throws {
+        let grouped = try GroupedEditor()
+        let editor = grouped.editor
+        let before = editor.document.content
+        #expect(!editor.addNode("group:" + UUID().uuidString, atScreen: Vector2(50, 50)))
+        #expect(editor.refusal?.message == "That node isn't in the library any more.")
+        editor.clearRefusal()
+        #expect(!editor.addNode("no.such.type", atScreen: Vector2(50, 50)))
+        #expect(editor.refusal?.message == "That node isn't in the library any more.")
+        #expect(editor.document.content == before)
+        #expect(editor.addNode(NumberTestNode.typeID, atScreen: Vector2(50, 50)), "a registered type still goes in")
+    }
+
     @Test func aGroupCantBePlacedInsideItself() throws {
         let grouped = try GroupedEditor()
         let editor = placed(grouped.editor)
