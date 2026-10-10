@@ -198,7 +198,8 @@ Plan `2026-10-09-groups-core.md`.
 - §5 Naming: a pick stored inside a definition names faces as if the definition were the top level (its own nodes
   by ID, nodes inside its group nodes by `NodeID.scoped` of the path from it), and each instance reads it as its own
   (`EvaluationScope.naming`), so a sub-graph with a picked fillet works in every instance.
-- §5 Naming: Group, Ungroup and Make Unique change the names faces are made under, and each renames, in the same
+- §5 Naming (a change to §5 the user approved on 2026-10-09): Group, Ungroup and Make Unique change the names faces
+  are made under, and each renames, in the same
   undo step, every pick in the document that names a face of the nodes it moves (`GroupScopes.renamingPicks`),
   inside the moved nodes too. So no pick drifts across them, and there is no message to state ("picks across them
   follow the existing drift rules … stated in the commands' messages" no longer applies; `GroupEdit` has no notice).
