@@ -81,6 +81,25 @@ public actor FakeKernel: Kernel {
         return Solid(topology: solid.topology, bounds: solid.bounds.translated(by: transform.translation), storage: FakeStorage())
     }
 
+    public func place(_ tools: [Solid], at transforms: [Transform], qualifying qualify: @Sendable (NodeID) -> NodeID,
+                      tag: NodeTag) throws -> [Solid] {
+        try Task.checkCancellation()
+        operationLog.append("place")
+        guard tools.count == transforms.count else {
+            throw KernelError.invalidInput("Each placed copy needs one tool and one placement.")
+        }
+        return zip(tools, transforms).enumerated().map { index, pair in
+            let (tool, transform) = pair
+            let (low, high) = (tool.bounds.min, tool.bounds.max)
+            let corners = (0..<8).map { corner in
+                transform.applied(to: Vector3(corner & 1 == 0 ? low.x : high.x, corner & 2 == 0 ? low.y : high.y,
+                                              corner & 4 == 0 ? low.z : high.z))
+            }
+            return Solid(topology: tool.topology.qualified(item: index, qualify), bounds: BoundingBox(points: corners) ?? tool.bounds,
+                         storage: FakeStorage())
+        }
+    }
+
     public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
         operationLog.append("fillet")

@@ -45,6 +45,11 @@ actor StubMeshKernel: Kernel {
         throw KernelError.unsupported("transform")
     }
 
+    func place(_ tools: [Solid], at transforms: [Transform], qualifying qualify: @Sendable (NodeID) -> NodeID,
+               tag: NodeTag) throws -> [Solid] {
+        throw KernelError.unsupported("place")
+    }
+
     func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid {
         throw KernelError.unsupported("fillet")
     }
