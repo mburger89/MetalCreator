@@ -17,6 +17,6 @@ struct PatternsLibraryTests {
 
     @Test func thePatternsSectionHoldsThePatternNodes() {
         let names = sections.first { $0.category == .patterns }?.entries.map(\.displayName)
-        #expect(names == ["Place", "Points to Placements", "Pattern Feature", "Hole Pattern"])
+        #expect(names == ["Place", "Points to Placements", "Pattern Feature", "Hole Pattern", "Boss / Pin Pattern"])
     }
 }

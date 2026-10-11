@@ -11,7 +11,7 @@ public enum BuiltInNodes {
         ExtrudeNode.self, RevolveNode.self, LoftNode.self, BooleanNode.self, TransformNode.self,
         EdgesByTagNode.self, EdgesByDirectionNode.self, EdgeFilterNode.self, AllEdgesNode.self, EdgeSetOpNode.self,
         FilletNode.self, ChamferNode.self,
-        PlaceNode.self, PointsToPlacementsNode.self, PatternFeatureNode.self, HolePatternNode.self,
+        PlaceNode.self, PointsToPlacementsNode.self, PatternFeatureNode.self, HolePatternNode.self, BossPatternNode.self,
         OutputNode.self,
     ]
 
