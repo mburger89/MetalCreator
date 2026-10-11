@@ -61,6 +61,15 @@ struct PathMapperNodeTests {
         #expect(report.value(mapper, "tree")?.outline == report.value(second, "tree")?.outline)
     }
 
+    @Test func anItemRuleWarnsInItemsNotBranches() async throws {
+        var h = Harness()
+        let source = rows(&h, count: 12, size: 4)
+        let mapper = mapper(&h, rule: "{A;A} → {0}", after: source)
+        let report = try await h.run([mapper])
+        #expect(report.warning(mapper) == "The rule matched 3 of 12 items; the other 9 stay in their own branch. "
+                + "1 of them shares a branch with the results, so their items are mixed in.")
+    }
+
     @Test func aLeftBranchThatSharesAPathWithAResultSaysSo() async throws {
         var h = Harness()
         let first = rows(&h, count: 12, size: 6)

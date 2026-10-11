@@ -184,7 +184,7 @@ struct PathRuleTests {
         let result = try PathRuleParser.parse("{A;B} → {B;A}").apply(to: grid)
         #expect(result.tree.outline == "[[0,4,8],[1,5,9],[2,6,10],[3,7,11]]")
         #expect(result.tree.shapeText == "4 × 3")
-        #expect(result.matched == 3 && result.total == 3 && result.merged == 0)
+        #expect(result.matched == 12 && result.total == 12 && result.merged == 0)
     }
 
     @Test func keepingTheRowsOfAGridNamesItems() throws {
@@ -203,9 +203,16 @@ struct PathRuleTests {
     @Test func aRepeatedLetterMatchesItemsAndTheRestStayInTheirOwnBranch() throws {
         let diagonal = try PathRuleParser.parse("{A;A} → {0}").apply(to: grid)
         #expect(diagonal.tree.outline == "[[0,1,2,3,5,10],[4,6,7],[8,9,11]]")
-        #expect(diagonal.matched == 0, "no branch has all its items on the diagonal")
-        #expect(diagonal.total == 3)
+        #expect(diagonal.matched == 3, "three items are on the diagonal and moved")
+        #expect(diagonal.total == 12)
+        #expect(diagonal.countsItems)
         #expect(diagonal.merged == 1, "the left-in-place items of {0} joined the diagonal")
+    }
+
+    @Test func aTrailingEmptyBranchSurvivesAnItemRule() throws {
+        let sparse = try #require(DataTree(depth: 2, branches: [.list([.integer(1)]), .list([])]))
+        #expect(try map("{A;B} → {A;B}", sparse) == "[[1],[]]")
+        #expect(try map("{A;B} → {A}", sparse) == "[[1],[]]")
     }
 
     @Test func aFlatListWithOneLetterNamesItemsAndTheTargetIsTheirPosition() throws {

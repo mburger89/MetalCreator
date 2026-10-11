@@ -22,8 +22,11 @@ public enum PathMapperNode: NodeDefinition {
             let result = try PathRuleParser.parse(text).apply(to: try inputs.tree("tree"))
             guard result.matched < result.total else { return NodeOutputs(trees: ["tree": result.tree]) }
             let others = result.total - result.matched
-            var warning = "The rule matched \(result.matched.display) of \(result.total.display) branches; "
-                + "the other \(others.display) stay where they were."
+            var warning = result.countsItems
+                ? "The rule matched \(result.matched.display) of \(result.total.display) items; "
+                    + "the other \(others.display) stay in their own branch."
+                : "The rule matched \(result.matched.display) of \(result.total.display) branches; "
+                    + "the other \(others.display) stay where they were."
             if result.merged > 0 {
                 warning += " \(result.merged.display) of them \(result.merged == 1 ? "shares a branch" : "share branches") "
                     + "with the results, so their items are mixed in."
