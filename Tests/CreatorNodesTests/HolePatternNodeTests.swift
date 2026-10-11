@@ -195,7 +195,7 @@ struct HolePatternNodeTests {
         #expect(try await plate.h.run([node]).error(node) == "Patterns are limited to 2,000 instances.")
     }
 
-    @Test func theBracketsFourHolesComeOutTheSameAsTheirTransformPath() async throws {
+    @Test func fourHolesRemoveFourCylindersFromTheBracket() async throws {
         let kernel = OCCTKernel()
         let (plate, node) = holes(["diameter": .number(5), "depth": .number(6)])
         let part = try onlySolid(try await plate.h.run([node], kernel: kernel), node)
@@ -212,7 +212,7 @@ struct HolePatternNodeTests {
         plate.h.wire(plate.placements, "placements", to: rows, "tree")
         plate.h.wire(rows, "tree", to: node, "placements")
         let report = try await plate.h.run([node], kernel: kernel)
-        #expect(report.error(node) == "Patterns take a flat list of placements for now: flatten the tree first.")
+        #expect(report.error(node) == "Patterns take flat lists for now: flatten the tree first.")
         #expect(report.value(node, "solid") == nil)
     }
 }

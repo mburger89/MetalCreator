@@ -229,7 +229,7 @@ Plan `2026-10-10-7a-trees.md`. Where the build settled what §2 and §4 left ope
 - **A tree on a pattern node is refused** (User decision 8a, fixed at the merge with 7a-1). A tree wired to any input of Place,
   Hole, Boss, Slot or Pattern Feature would run the node once per branch, cutting the part once per branch and restarting `{i}`
   at 0 in each. `EvalContext.isTreeRun` tells a node its run came from a tree, and `PlacementMoves.requireFlat` (the one place
-  the check is written) fails it with "Patterns take a flat list of placements for now: flatten the tree first." before
+  the check is written) fails it with "Patterns take flat lists for now: flatten the tree first." before
   anything is placed. Nested paths for tree instances arrive with 7a-3.
 
 - **Group edits rename instance picks** (User decision 3, fixed in 7a-2). Group, Ungroup and Make Unique rename a pick on

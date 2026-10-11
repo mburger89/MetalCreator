@@ -113,7 +113,7 @@ struct PlaceNodeTests {
         #expect(report.error(place) == "Placement {0} has no usable direction: its normal and x axis must not be zero or along each other.")
     }
 
-    @Test func aWiredPlaneAndAPointBothWorkAsAPlacement() async throws {
+    @Test func aWiredPlaneWorksAsAPlacement() async throws {
         var h = Harness()
         let tool = h.box(10, 10, 10)
         let plane = h.add(PlaneNode.self, ["orientation": .integer(1), "offset": .number(0)])
@@ -144,7 +144,7 @@ struct PlaceNodeTests {
         let kernel = FakeKernel()
         await kernel.clearLog()
         let report = try await f.h.run([treed], kernel: kernel)
-        #expect(report.error(treed) == "Patterns take a flat list of placements for now: flatten the tree first.")
+        #expect(report.error(treed) == "Patterns take flat lists for now: flatten the tree first.")
         #expect(await kernel.operationLog.contains("place") == false)
     }
 }

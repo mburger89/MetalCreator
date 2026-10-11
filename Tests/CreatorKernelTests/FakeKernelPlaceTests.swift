@@ -65,5 +65,23 @@ struct FakeKernelPlaceTests {
         }
     }
 
+    @Test func aNonFinitePlacementIsRefused() async throws {
+        let kernel = FakeKernel()
+        let source = try await tool(kernel)
+        let bad = Transform(translation: Vector3(.nan, 0, 0))
+        await #expect(throws: KernelError.invalidInput("The move or rotation must be a finite number.")) {
+            try await kernel.place([source, source], at: [.identity, bad], qualifying: { $0 }, tag: tag)
+        }
+    }
+
+    @Test func aRotationWithoutAnAxisIsRefused() async throws {
+        let kernel = FakeKernel()
+        let source = try await tool(kernel)
+        let bad = Transform(translation: .zero, rotationAxis: nil, rotation: .degrees(45))
+        await #expect(throws: KernelError.invalidInput("A rotation needs an axis.")) {
+            try await kernel.place([source, source], at: [.identity, bad], qualifying: { $0 }, tag: tag)
+        }
+    }
+
     func isClose(_ a: Vector3, _ b: Vector3) -> Bool { (a - b).length < 1e-9 }
 }

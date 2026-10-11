@@ -75,9 +75,7 @@ public actor FakeKernel: Kernel {
     public func transform(_ solid: Solid, by transform: Transform, tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
         operationLog.append("transform")
-        if transform.rotation.radians != 0, transform.rotationAxis == nil {
-            throw KernelError.invalidInput("A rotation needs an axis.")
-        }
+        try transform.validate()
         return Solid(topology: solid.topology, bounds: solid.bounds.translated(by: transform.translation), storage: FakeStorage())
     }
 
@@ -88,6 +86,7 @@ public actor FakeKernel: Kernel {
         guard tools.count == transforms.count else {
             throw KernelError.invalidInput("Each placed copy needs one tool and one placement.")
         }
+        try transforms.forEach { try $0.validate() }
         return zip(tools, transforms).enumerated().map { index, pair in
             let (tool, transform) = pair
             let (low, high) = (tool.bounds.min, tool.bounds.max)

@@ -24,15 +24,7 @@ public actor OCCTKernel: Kernel {
 
     /// Rejects moves OCCT cannot build.
     static func validate(_ transform: Transform) throws {
-        guard transform.translation.isFinite, transform.rotation.radians.isFinite else {
-            throw KernelError.invalidInput("The move or rotation must be a finite number.")
-        }
-        if transform.rotation.radians != 0, transform.rotationAxis == nil {
-            throw KernelError.invalidInput("A rotation needs an axis.")
-        }
-        if let axis = transform.rotationAxis, axis.direction.normalized == nil {
-            throw KernelError.invalidInput("The rotation axis needs a direction.")
-        }
+        try transform.validate()
     }
 
     public init() {

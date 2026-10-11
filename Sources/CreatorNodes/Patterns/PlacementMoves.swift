@@ -8,7 +8,7 @@ enum PlacementMoves {
     /// part once for each and restarting `{i}` at 0 in each. Every node that places instances calls this first.
     static func requireFlat(_ context: EvalContext) throws {
         if context.isTreeRun {
-            throw NodeError.invalidValue("Patterns take a flat list of placements for now: flatten the tree first.")
+            throw NodeError.invalidValue("Patterns take flat lists for now: flatten the tree first.")
         }
     }
 
