@@ -19,7 +19,16 @@ public enum NodeSetting {
     /// (groups spec §4). `NodeRegistry.makeGroupNode` sets it.
     public static let group: SocketName = "groupID"
 
-    public static let all: Set<SocketName> = [parameter, picks, showHandle, sketch, face, group]
+    /// Path Mapper: its rule, as `.text("{A;B} → {B;A}")`. New nodes are seeded with a rule that changes nothing.
+    public static let pathRule: SocketName = "pathRule"
+    /// Branch by Path: the branch to take, as `.text("{0}")`.
+    public static let branchPath: SocketName = "branchPath"
+    /// List Item: the one item to take by its full path, as `.text("{0;3}")`; empty means "use the index".
+    public static let itemPath: SocketName = "itemPath"
+
+    public static let all: Set<SocketName> = [
+        parameter, picks, showHandle, sketch, face, group, pathRule, branchPath, itemPath
+    ]
 
     /// The start of every projection setting's name, which no exposed dimension may use.
     public static let projectionPrefix = "projection."

@@ -24,6 +24,7 @@ enum PatternApply {
     /// Places the copies and combines them with the part. No tools, or no placements, is the part as it is. Warns of
     /// the pieces a result falls into, as Boolean does, and of the instances that missed the part.
     static func run(_ request: Request, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        try PlacementMoves.requireFlat(context)
         let (op, part, tools, planes) = (request.operation, request.part, request.tools, request.planes)
         let count = planes.isEmpty ? 0 : tools.count
         try PatternLimit.check(count)

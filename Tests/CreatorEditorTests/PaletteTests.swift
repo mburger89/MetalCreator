@@ -8,7 +8,7 @@ import Testing
 struct PaletteTests {
     @Test(arguments: [
         (NodeCategory.value, UInt32(0x6272a4)), (.profile, 0x50fa7b), (.solid, 0xbd93f9),
-        (.selection, 0xff79c6), (.feature, 0xffb86c), (.patterns, 0xffb86c), (.output, 0x8be9fd),
+        (.selection, 0xff79c6), (.feature, 0xffb86c), (.patterns, 0xffb86c), (.lists, 0x6272a4), (.output, 0x8be9fd),
     ])
     func headerColoursFollowTheSpecTable(_ category: NodeCategory, _ rgb: UInt32) {
         #expect(Palette.dracula.header(for: category) == HexColor(rgb))

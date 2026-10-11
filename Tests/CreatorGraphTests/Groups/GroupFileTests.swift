@@ -32,11 +32,11 @@ struct GroupFileTests {
         #expect(file.graph.nodes[id]?.inputValues["value"] == .number(2))
     }
 
-    /// 5 since groups (C1). Comments (B) add their keys under the same version; whichever merges first bumps.
-    @Test func savedFilesAreFormatFive() throws {
-        #expect(GraphFile.currentFormatVersion == 5)
+    /// 5 since groups (C1), 6 since the tree nodes (7a). Comments (B) added their keys under 5.
+    @Test func savedFilesAreFormatSix() throws {
+        #expect(GraphFile.currentFormatVersion == 6)
         let text = try #require(String(bytes: try GraphFileIO.encode(GraphFile()), encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 5"#))
+        #expect(text.contains(#""formatVersion" : 6"#))
         #expect(text.contains(#""definitions" : ["#))
     }
 

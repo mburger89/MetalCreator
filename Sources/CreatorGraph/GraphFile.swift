@@ -3,9 +3,11 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// 2: adds the `edgePicks` constant kind (M3). 3: side-face tags may carry a `loop` (S3, hole
     /// walls), which a version-2 reader would silently drop. 4: adds the `sketch` and `facePick` setting
     /// kinds (S4), which a version-3 reader can't decode. 5: adds group definitions (groups spec §2, §4), which a
-    /// version-4 reader would drop while keeping group nodes that name them. Version-1 to -4 files still load unchanged.
-    /// Canvas comments (`Graph.stickies`, `Graph.frames`) add optional keys under 5: no bump.
-    public static let currentFormatVersion = 5
+    /// version-4 reader would drop while keeping group nodes that name them. 6: the Lists & Trees nodes (7a: data
+    /// trees) keep text settings (`NodeSetting.pathRule`, `NodeSetting.branchPath`, `NodeSetting.itemPath`) that a
+    /// version-5 reader would show as a node it can't run. Trees themselves are computed, never saved. Version-1 to -5
+    /// files still load unchanged. Canvas comments (`Graph.stickies`, `Graph.frames`) add optional keys under 5: no bump.
+    public static let currentFormatVersion = 6
 
     public var formatVersion: Int
     public var graph: Graph

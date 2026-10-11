@@ -41,7 +41,7 @@ public enum Scalar: Sendable {
 
     /// This value as `target`, applying the implicit conversions, or `nil` if impossible.
     public func converted(to target: SocketType) -> Scalar? {
-        if type == target { return self }
+        if type == target || target == .any { return self }
         switch (self, target) {
         case (.integer(let value), .number): return .number(Double(value))
         case (.vector(let value), .plane): return .plane(.through(value))

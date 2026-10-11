@@ -4,6 +4,14 @@ import CreatorKernel
 
 /// Turns placements into the moves that carry a tool built at the origin, facing +Z, onto them.
 enum PlacementMoves {
+    /// Refuses a tree on any input of a pattern node (User decision 8a): the node would run once per branch, cutting the
+    /// part once for each and restarting `{i}` at 0 in each. Every node that places instances calls this first.
+    static func requireFlat(_ context: EvalContext) throws {
+        if context.isTreeRun {
+            throw NodeError.invalidValue("Patterns take a flat list of placements for now: flatten the tree first.")
+        }
+    }
+
     /// The move for each of `count` instances: instance `i` uses placement `i`, and a shorter list repeats its last
     /// placement (broadcasting, spec §4.2). A placement with no usable direction names its path.
     static func make(_ planes: [Plane], count: Int) throws -> [Transform] {

@@ -21,6 +21,7 @@ public enum PlaceNode: NodeDefinition {
     public static let outputs = [SocketSpec("solids", .solid)]
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        try PlacementMoves.requireFlat(context)
         let tools = try inputs.solids("tool")
         let planes = try inputs.planes("placements")
         let count = tools.isEmpty || planes.isEmpty ? 0 : max(tools.count, planes.count)

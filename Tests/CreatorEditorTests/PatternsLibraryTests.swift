@@ -3,7 +3,7 @@ import CreatorNodes
 import Testing
 @testable import CreatorEditor
 
-/// The node library's "Patterns" category (patterns spec §8): between Feature and Output, holding the pattern nodes.
+/// The node library's "Patterns" category (patterns spec §8): between Feature and Lists & Trees, holding the pattern nodes.
 struct PatternsLibraryTests {
     var sections: [LibrarySection] {
         LibrarySection.grouping(BuiltInNodes.all.map {
@@ -12,7 +12,7 @@ struct PatternsLibraryTests {
     }
 
     @Test func thePatternsSectionFollowsFeatureAndPrecedesOutput() {
-        #expect(sections.map(\.title) == ["Value", "Profile", "Solid", "Selection", "Feature", "Patterns", "Output"])
+        #expect(sections.map(\.title) == ["Value", "Profile", "Solid", "Selection", "Feature", "Patterns", "Lists & Trees", "Output"])
     }
 
     @Test func thePatternsSectionHoldsThePatternNodes() {

@@ -5,7 +5,7 @@ extension EditorModel {
     /// What the context inspector shows now.
     public var inspectorPage: InspectorPage {
         var page = InspectorBuilder.page(graph: graphWithDocumentParameters, selection: selection, registry: registry,
-                                         results: levelResults)
+                                         results: levelResults, expandedShapes: expandedShapeLists)
         page.comment = commentPage
         page.group = groupPanel
         return page

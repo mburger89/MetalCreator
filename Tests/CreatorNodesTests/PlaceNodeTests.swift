@@ -133,4 +133,18 @@ struct PlaceNodeTests {
                                  PatternFeatureNode.typeID,
         ])
     }
+
+    @Test func aTreeOfPlacementsIsRefusedWithoutPlacingAnything() async throws {
+        var f = Fixture()
+        let rows = f.h.add(PartitionNode.self, ["size": .integer(2)])
+        f.h.wire(f.placements, "placements", to: rows, "tree")
+        let treed = f.h.add(PlaceNode.self)
+        f.h.wire(rows, "tree", to: treed, "placements")
+        f.h.wire(f.tool, "solid", to: treed, "tool")
+        let kernel = FakeKernel()
+        await kernel.clearLog()
+        let report = try await f.h.run([treed], kernel: kernel)
+        #expect(report.error(treed) == "Patterns take a flat list of placements for now: flatten the tree first.")
+        #expect(await kernel.operationLog.contains("place") == false)
+    }
 }
