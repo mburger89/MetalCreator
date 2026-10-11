@@ -1,11 +1,12 @@
 import CreatorGraph
 import CreatorKernel
 
-/// Reshapes a tree by a text rule, `source → target` (7a spec §4; `PathRule` has the syntax): `{A;B} → {B;A}` swaps rows
-/// and columns, `{A;B} → {A}` merges each row, `{A;B} → {A;B%2}` folds the columns in two, `{A} → {(i)}` sends each item
-/// to the branch of its own index. A rule that doesn't read, or whose source has a different number of levels than the
-/// tree, refuses naming the part that failed; a rule that matches only some branches warns and leaves the rest where
-/// they were. The rule is a saved text setting.
+/// Reshapes a tree by a text rule, `source → target` (7a spec §4; `PathRule` has the syntax). A source with a letter per level of
+/// branches moves whole branches: `{A;B} → {A}` merges each row, `{A;B} → {A;B%2}` folds the columns in two, `{A} → {(i)}` sends each
+/// item to the branch of its own index. A source with one letter more also names the item's position, so `{A;B} → {B;A}` turns a
+/// 3 × 8 grid into an 8 × 3 one. A rule that doesn't read, or whose source has neither as many letters as the tree has levels of
+/// branches nor one more, refuses naming the part that failed; a rule that matches only some branches (or items) warns and leaves
+/// the rest where they were. The rule is a saved text setting.
 public enum PathMapperNode: NodeDefinition {
     public static let typeID = "creator.pathMapper"
     public static let displayName = "Path Mapper"

@@ -76,7 +76,7 @@ struct TreesAcceptanceTests {
         #expect(document.results[plate.holes.id]?.outputs?["solid"]?.depth == 2)
     }
 
-    @Test func aPathMapperTransposesTheRowsAndTheNamesStayWithTheirPoints() async throws {
+    @Test func aPathMapperTransposesTheRowsIntoColumns() async throws {
         let kernel = OCCTKernel()
         let plate = Self.makePlate()
         var h = Harness()
@@ -97,8 +97,17 @@ struct TreesAcceptanceTests {
         for column in columns {
             #expect(isClose(try await volume(column, kernel), base - 2 * hole))
         }
-        // Column 0 holds the first point of each row: items 0 and 4 of the grid's order become items 0 and 1 of the mapped tree.
+        // The mapper's tree is 4 branches of 2 (the partition's was 2 of 4), and branch {c} holds column c: the same x, a row apart.
+        let mapped = try #require(document.results[mapper.id]?.outputs?["tree"]?.asTree)
+        #expect(mapped.leaves.map(\.path.indices) == [[0], [1], [2], [3]])
+        #expect(mapped.leaves.allSatisfy { $0.items.count == 2 })
+        let columnPoints = mapped.leaves.map { $0.items.compactMap { if case .vector(let point) = $0 { point } else { nil } } }
+        #expect(columnPoints.allSatisfy { $0.count == 2 })
+        #expect(columnPoints.allSatisfy { abs($0[0].x - $0[1].x) < 1e-9 && abs($0[1].y - $0[0].y - 12) < 1e-9 })
+        #expect(abs(columnPoints[1][0].x - columnPoints[0][0].x - 12) < 1e-9)
+        // The holes are named by their place in the mapped tree: column 0 has items 0 and 1, column 1 has 2 and 3.
         #expect(hasHole(columns[0], plate.holes, item: 0) && hasHole(columns[0], plate.holes, item: 1))
+        #expect(hasHole(columns[1], plate.holes, item: 2) && !hasHole(columns[1], plate.holes, item: 0))
     }
 
     @Test func changingTheRowLengthReshapesTheResultAndTheFileRoundTripsAsFormatSix() async throws {

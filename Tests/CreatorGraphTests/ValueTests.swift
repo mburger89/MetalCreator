@@ -24,6 +24,12 @@ struct ValueTests {
         #expect(plane.normal == .unitZ)
     }
 
+    @Test func convertingADepthOneTreeGivesAList() throws {
+        let converted = try #require(Value.tree(.list([.integer(1), .integer(2)])).converted(to: .number))
+        guard case .list(let scalars) = converted else { Issue.record("expected list"); return }
+        #expect(scalars.count == 2)
+    }
+
     @Test func impossibleConversionIsNil() {
         #expect(Scalar.bool(true).converted(to: .number) == nil)
     }

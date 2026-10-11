@@ -47,7 +47,7 @@ public enum Value: Sendable {
             let converted = scalars.compactMap { $0.converted(to: target) }
             return converted.count == scalars.count ? .list(converted) : nil
         case .tree(let tree):
-            return tree.mapItems { $0.converted(to: target) }.map(Value.tree)
+            return tree.mapItems { $0.converted(to: target) }.map(Value.init)
         }
     }
 
