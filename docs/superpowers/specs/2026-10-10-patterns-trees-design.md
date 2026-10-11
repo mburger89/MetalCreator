@@ -175,3 +175,51 @@ An instance whose tool misses the part (a hole in empty space) does not fail the
 - Curved faces in Face Pattern; fields (7b); lattices (7c); textures (7d).
 - Patterns of patterns beyond what nesting gives (e.g. a pattern feature that itself contains picks inside each instance).
 - More than ~2,000 instances as B-rep.
+
+## Errata (7a-1: data trees)
+
+Plan `2026-10-10-7a-trees.md`. Where the build settled what §2 and §4 left open:
+
+- §2 Depth. A flat list is a tree of depth 1 and an item has depth 0; every branch at a level has the same depth, so a tree is
+  held as a depth plus nested branches (`DataTree`). `Value.tree` holds depth 2 or more; a depth-1 tree is always a `.list`.
+- §2 Broadcasting. A `list` socket uses up one level of a tree (one branch per run), so a `list` socket on a 3 × 8 tree runs 3
+  times and its output has one entry per branch. Trees of depth 2 or more that differ in depth (3 × 8 against 2 × 3 × 4) are
+  matched from the outermost level, and the node warns once, naming both shapes, even when the shallower tree's levels line up with
+  the outer ones (2 × 2 against 2 × 2 × 1: the build does not judge which depths "nest"; User decision 4); a tree against a single
+  item or a flat list never warns. A broadcast over more than 100,000 runs is refused naming the shapes. A node that returns a tree runs once: a list on one
+  of its other inputs fails with "This node works on a whole tree at once, so its other inputs must be single values, not lists."
+- §2 Broadcasting, a flat list. Against a tree on an item socket a flat list applies to every branch and matches that branch's items
+  (a flat list of 8 against a 3 × 8 tree). Against a tree on a `list` socket, which has used one level up, a flat list on an item
+  socket is paired with the branches one for one and the shorter side repeats its last (three plates against three rows of tools;
+  `[1,2,3]` against `[[10,11],[20]]` runs 3 times: branch 0, 1, 1). One rule gives both: a flat list steps only when it is as deep
+  as the deepest input left. The spec's "a flat list applies to every branch" is read for item sockets only (User decision 3).
+- §2 Types. Tree nodes' sockets are `SocketType.any` (accepts and may be wired to every type; the items are checked where they
+  are used). `SocketSpec.Access.tree` hands a node the whole value; a single item arrives as a list of one.
+- §2 Files. Format 6; the new saved settings are `NodeSetting.pathRule`, `NodeSetting.branchPath` and `NodeSetting.itemPath`, all `.text`.
+- §4 Path Mapper. A rule's paths name branches or items, chosen by how many letters the source has (User decision 2, option
+  c). A source with as many terms as the tree has levels of branches names branches (one index per level of branches): a 3 × 8
+  tree has the branches `{0}` to `{2}`, a flat list has one branch `{}`, and `(i)` is the item's index in its branch. A source
+  with exactly one term more names items: the first terms match the branch and the last the item's index in it, so on a 3 × 8
+  grid `{A;B} → {B;A}` makes an 8 × 3 one (a transpose) and `{A;B} → {A}` gathers every item of branch A into branch A (the rows
+  stay). With items named, the target has the branch's terms (`{A}`) or one more, the item's position in the branch it goes to
+  (`{B;A}`); an item the source does not match stays at its own index in its own branch. A source with two or more terms too many
+  or too few refuses, naming the depth ("The rule's source {A;B;C} names 3 levels, but this tree (3 × 8) has 1 level of
+  branches."). `{A} → {(i)}` is still the branch-level way to swap rows and columns, and `{A;B} → {A}` merges the branches of a
+  tree of depth 3 (branch-level, two levels of branches). Letters are single letters
+  other than `i`; a repeated letter or a whole number in the source matches only equal or that index; unmatched branches stay
+  where they were (a warning), which needs a target of the same depth; the target may use `+ - * / %` (also `−` and `×`), whole
+  numbers, letters and brackets; a negative index, a division by zero, an overflow and a result of more than 10,000 branches
+  refuse. A branch that stays where it was can land on a path the rule also wrote to; its items are then mixed with the result's
+  and the warning says how many branches did (`{0;B} → {B;0}`). A new node's rule is `{A} → {A}`.
+- §4 Tree Statistics outputs `depth`, `branches` (how many hold items), `items` and `counts` (items per branch); the path list is
+  the inspector's expandable Data section, because no socket carries text.
+- §4 List Item takes the item at an index from every branch and keeps the branches (one item each, none where the branch is too
+  short, with a warning counting them). Its `itemPath` setting (empty by default) takes the one item a full path such as `{0;3}`
+  names instead, and the index is then ignored; a path with the wrong number of indices, a missing branch or a missing item
+  refuses ("No item {1;7}: {1} has 3 items."), never a neighbour (User decision 5). Branch by Path takes the branch at a path setting (`{0}` by default); a shorter path
+  takes the subtree under it; a path that is not there refuses ("No branch {5}: the tree has 3 branches."), never a neighbour.
+- §4 Flatten's `level` is how many levels of branches to keep from the outside; empty keeps none.
+- §8 Library. The category is "Lists & Trees" (`NodeCategory.lists`, between Feature and Output) and shares the Value header
+  colour: the theme files have no role for it.
+- §2 Display. A socket's tooltip reads "Tree 3 × 8" (only for trees); the inspector's "Data" section appears only when a node has a
+  tree on an input or output.

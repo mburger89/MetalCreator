@@ -34,6 +34,9 @@ section, the viewport and the clipboard inside groups) code is done; its human c
 Named undo steps (plan `docs/superpowers/plans/2026-10-10-named-undo.md`) code is done; its human checks (group NU) are pending.
 Final-review follow-ups (plans `docs/superpowers/plans/2026-10-10-followups-app.md`, `2026-10-10-followups-editor.md` and
 `2026-10-10-followups-kernel.md`) code is done; the app track's human checks (group FA) are pending.
+Data trees (sub-project 7a-1: spec `docs/superpowers/specs/2026-10-10-patterns-trees-design.md` §2 and §4's tree nodes, plan
+`docs/superpowers/plans/2026-10-10-7a-trees.md`) code is done; its human checks (group TR) are pending. Instance paths for
+placed copies, the layouts and Place are the other 7a tracks.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -85,9 +88,21 @@ Module boundaries (dependency order):
     whole, so `innerResults` has a state for every node there; a node asked for that way never changes its group
     node's result). `GroupCommands.exposeOutput/exposeInput` (the + sockets) and `GroupMerge` (the clipboard's
     definitions, merged by content) build one command each. `GroupNaming.plusSocket` ("+") is a reserved name.
-- `CreatorNodes`: the 28 built-in node definitions (`BuiltInNodes.registry`: the slice's 26 plus Plane from Face and
-  Sketch), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
-  parameter, picks, showHandle, sketch, face, groupID, and `projection(reference)` per projected edge) live in
+  - Data trees (`DataTree`, `TreePath`, `Value.tree`; 7a spec §2): `Value` is `.one`, `.list` or `.tree`. A `DataTree` has a
+    `depth` (1 is a flat list, which is why `Value(_ tree:)` makes a `.list` of it), every branch at a level has the same depth,
+    and a gap is an empty branch. `TreePath` (`{0;3}`, `TreePath(parsing:)`) is the one path type: derived, never stored, and
+    what later instance names adopt. Broadcasting stays flat (the old code, unchanged) until a `.tree` meets an item or list
+    socket; then `BroadcastPlan.nestedPlan` matches level by level: the outermost level first, the shorter side repeating its
+    last branch, a `.one` or flat list applying to every branch, a `list` socket using up one level (one branch per run),
+    trees of different depth matched from the outside with one warning naming both shapes, and more than
+    `maximumTreeIterations` runs refused. Outputs keep the deepest nesting (`BroadcastPlan.assemble`). A `tree`-access socket
+    (`SocketSpec.Access.tree`, `NodeInputs.tree`) gets the whole value as a `DataTree` and never broadcasts; a node returns
+    trees through `NodeOutputs(trees:)` and must run once (other inputs single values). `SocketType.any` is for the tree
+    nodes' sockets only. Iteration `item` numbers (the tag's item) are flat, row by row.
+- `CreatorNodes`: the 35 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch, and
+  the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
+  Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
+  parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, and `projection(reference)` per projected edge) live in
   `Node.inputValues`; `NodeRegistry.makeNode` seeds `defaultSettings` and sets `isOutput` for `.output`-category nodes.
 - `CreatorStyle`: colour themes (spec §6.6, Dracula by default), the only place colour hex values are written.
   `ThemeColors` is a colour per role (never a hue); `ColorTheme` (not `Theme`: MetalUI exports one) has the built-ins
@@ -157,6 +172,10 @@ Module boundaries (dependency order):
   and another socket exposes a socket (`EditorModel+Expose`). `GroupPanel` (`EditorModel.groupPanel`, `GroupPanelView`)
   is the inspector's definition part; the library's "Groups" section carries a group by the key `GroupLibraryEntry.key`
   through the library's one gesture. `NodeClipboard.definitions` carries the definitions copied group nodes use.
+  Data trees show in two places (`EditorModel+TreeDisplay`): a socket carrying a tree has a tooltip, "Tree 3 × 8"
+  (`socketHelp(of:)`, drawn by `SocketLayer`), and the inspector gets a "Data" section (`TreeShapeRow`: the shape, and a
+  list of branch paths with item counts that `toggleShapeList(_:)` opens, cut after 50) only when the node has a tree on
+  an input or output. A `.text` setting (the Path Mapper's rule, Branch by Path's and List Item's paths) is an `InspectorControl.text`.
   The selection is `canvasSelection` (`CanvasSelection`: nodes and comments); `selection`
   is its nodes, and assigning it replaces the whole selection (selected comments too). Every gesture and key goes through
   `EditorModel+Selection` (`select(_:mode:)` with `SelectionMode`: none replaces, ⇧ adds, ⌘ toggles; `allItems`,
@@ -249,8 +268,8 @@ Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.
 never worked around here. Graph links are kept canonically sorted by destination; result caching is keyed by node identity.
 Edge/face IDs are OCCT map order. A circle edge's `direction` is its axis, so direction rules must also check `kind == .line`.
 All OCCT work runs under `OCCTKernel.serialized` (process-wide lock) because OCCT shapes share geometry across solids and meshing mutates it; never call the shim outside it (tests included).
-Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a run is edges that continue each other end to end, ends within 1e-4 mm leaving that point in opposite directions to within 0.01 rad, so two edges meeting at a corner are two runs; a pick without one counts each recorded edge as a run) and warns only when both changed; a key that still matches nothing is split by operand (`EdgeKey.operandKeys`, for an edge between a merged face and a third operand's face) and warns when two operands both fit; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 5 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
-4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode; canvas comments' `stickies` and `frames` keys, written only when present and optional on decode, are also under 5).
+Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a run is edges that continue each other end to end, ends within 1e-4 mm leaving that point in opposite directions to within 0.01 rad, so two edges meeting at a corner are two runs; a pick without one counts each recorded edge as a run) and warns only when both changed; a key that still matches nothing is split by operand (`EdgeKey.operandKeys`, for an edge between a merged face and a third operand's face) and warns when two operands both fit; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 6 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
+4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode; canvas comments' `stickies` and `frames` keys, written only when present and optional on decode, are also under 5; 6 added the tree nodes' text settings `pathRule`, `branchPath` and `itemPath`; trees themselves are computed, never saved; files of format 1 to 5 open unchanged).
 A `Segment2D.arc` with `end < start` runs clockwise (a sketch region's notch); the shim builds it reversed and
 `length` is positive. Edges carry `EdgeInfo.curve` (`EdgeCurve`, lines and circles) for sketch projection; a
 `FacePick` names faces by tag subset like `EdgePick`; one that matches nothing is retried per operand and ranked by the normal and centroid it recorded (optional keys, no format bump; `Topology.resolution(of:)`), and warns when it can only guess. The Sketch node solves on every evaluation from the stored
