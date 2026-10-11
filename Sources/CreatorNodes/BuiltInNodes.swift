@@ -11,7 +11,7 @@ public enum BuiltInNodes {
         ExtrudeNode.self, RevolveNode.self, LoftNode.self, BooleanNode.self, TransformNode.self,
         EdgesByTagNode.self, EdgesByDirectionNode.self, EdgeFilterNode.self, AllEdgesNode.self, EdgeSetOpNode.self,
         FilletNode.self, ChamferNode.self,
-        FlattenNode.self, GraftNode.self, PartitionNode.self, TreeStatisticsNode.self,
+        FlattenNode.self, GraftNode.self, PartitionNode.self, TreeStatisticsNode.self, ListItemNode.self, BranchByPathNode.self,
         OutputNode.self,
     ]
 

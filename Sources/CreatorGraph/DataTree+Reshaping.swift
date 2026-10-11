@@ -27,3 +27,17 @@ extension DataTree {
         return DataTree(depth: depth + 1, scalars: [], children: branches.map { $0.partitioned(size: size) })
     }
 }
+
+extension DataTree {
+    /// The item at `index` of every branch, one item per branch (none where the branch is shorter), keeping the
+    /// nesting. `missing` counts the branches that had no such item.
+    public func picking(itemAt index: Int) -> (tree: DataTree, missing: Int) {
+        if depth == 1 {
+            let picked = items.indices.contains(index) ? [items[index]] : []
+            return (.list(picked), picked.isEmpty ? 1 : 0)
+        }
+        let picks = branches.map { $0.picking(itemAt: index) }
+        let tree = DataTree(depth: depth, branches: picks.map(\.tree)) ?? .empty(depth: depth)
+        return (tree, picks.reduce(0) { $0 + $1.missing })
+    }
+}
