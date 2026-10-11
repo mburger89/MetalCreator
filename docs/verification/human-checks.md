@@ -1105,3 +1105,43 @@ renderer's buffers; these check what a real window shows.
 - [ ] **FA-7 The command line.** In the packaged app (`scripts/package-app.sh`), running
   `MetalCreator.app/Contents/MacOS/MetalCreator --help` prints the usage and exits 0; `--info-plist ٢٦` is a usage error
   (exit 64). Pinned: `LaunchCommandTests`. **Observed:**
+
+## Group PA — patterns: Place, the shortcut nodes and the Patterns library (7a-2)
+
+**Status: NOT RUN.** Plan `2026-10-10-7a-place.md`. Run `swift run MetalCreatorApp`. The tests pin the nodes, the kernel and the
+naming; these check what a real window shows. Build a plate (Rectangle on a plane at z = −6, Extrude 6) and a Grid Points
+(4 × 3, 15 mm) wired into Points to Placements for the checks below.
+
+- [ ] **PA-1 The library.** Open the node library: a "Patterns" section sits between Feature and Output, holding Place,
+  Points to Placements, Hole Pattern, Boss / Pin Pattern, Slot Pattern and Pattern Feature, with the Feature colour on
+  their headers. Typing "hole" in the add-node palette finds Hole Pattern. **Observed:**
+- [ ] **PA-2 Holes.** (Spec §5 wants each shortcut documented as Place + Boolean underneath in its inspector help; until User decision 9 (b) is chosen this check is where it is stated: Hole Pattern gives the same part as a Place and a Boolean wired by hand.) Wire the plate and the placements into a Hole Pattern and an Output: twelve Ø5 holes cut from the top
+  face down. In the inspector switch Mouth to Counterbore, then Countersink: the holes gain the step, then the cone; Through
+  all cuts right through whatever the depth. Wire a Series (start 3, step 1, count 3) into `diameter`: the first three holes are 3, 4 and 5 mm and the rest repeat 5 mm. **Observed:**
+- [ ] **PA-3 Bosses and slots.** The same plate with a Boss / Pin Pattern (draft 5°, tip fillet 1): twelve pins standing up from
+  the face, leaning in, with rounded tips. Slot Pattern: twelve slots with rounded ends running along X; turn the placements
+  with Points to Placements' direction (1, 0, 0) and the tools turn with them (on a side face, cutting or growing along X).
+  **Observed:**
+- [ ] **PA-4 Misses.** Raise Grid Points' spacing until holes fall off the plate: the Hole Pattern shows a warning badge
+  reading "N of 12 holes miss the part." and the rest of the holes stay cut; the same for bosses ("bosses") and slots.
+  **Observed:**
+- [ ] **PA-5 A pick follows its instance.** Pick the rim of one hole (the Fillet's "Pick edges in view…") and fillet it. Change
+  the spacing, the diameter, the depth and the row count: the fillet stays on the same hole. Add a column: the fillet stays on the
+  same *position in the list* ({4}), which is now another hole, with no warning (User decision 7). Lower
+  the count so that hole is gone: Edges by Tag shows "Instance {n} no longer exists, so the edge picked on it isn't selected."
+  and nothing else is filleted. **Observed:**
+- [ ] **PA-6 Too many.** Set Grid Points to 50 × 50 into a Hole Pattern: the Points to Placements node reads "Patterns are
+  limited to 2,000 instances." and nothing hangs. **Observed:**
+- [ ] **PA-7 The old bracket.** Open a bracket saved before this track (Grid Points → Transform → Boolean holes): it opens and
+  evaluates exactly as before, no warnings. **Observed:**
+- [ ] **PA-8 A pick inside a group.** Select the plate, the grid, Points to Placements and a Hole Pattern and Group them; enter the group, add an Edges
+  by Tag and a Fillet inside it, and pick a hole's rim in the viewport (the pick is written relative to the level). Change the
+  grid's count so that hole is gone: the warning names the instance, then raise it again and the fillet returns on the same
+  position. Leave the group: the result is unchanged. **Observed:**
+- [ ] **PA-9 The Hole Pattern node on the canvas.** The node has about ten sockets: it reads clearly at normal zoom, its labels
+  ("Counterbore diameter", "Countersink angle") are not clipped, the Patterns header (the Feature colour, User decision 2) reads as
+  a Feature-family node, and the inspector's sections are in a sensible order. **Observed:**
+- [ ] **PA-10 A projected rim.** In a Sketch wired to the Hole Pattern's result, Project (P) the rim of one hole: the circle
+  appears and a dimension on it holds. Lower the grid's count so that hole is gone: the sketch warns "Projected edge 1 was
+  picked on instance {n}, which no longer exists. Its constraints are ignored." and projects no other hole's rim. **Observed:**
+

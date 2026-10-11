@@ -8,7 +8,7 @@ viewport or the kernel, and replace the numbers here (keep the machine, load and
 
 ```sh
 scripts/bench.sh                      # every benchmark: about 10 minutes, most of it the release build
-scripts/bench.sh GraphPanZoomBench    # one suite (also OrbitBench, FilletDragBench, KernelBench, BlendRefusalBench)
+scripts/bench.sh GraphPanZoomBench    # one suite (also OrbitBench, FilletDragBench, KernelBench, BlendRefusalBench, PatternBench)
 ```
 
 The benchmarks are Swift Testing suites in `Tests/CreatorAppTests/Bench`. A plain `swift test` skips them
@@ -141,6 +141,39 @@ radius 8.25 to 9.20 met (OCCT not done, or the checker rejecting) is not recorde
 Against the 100 ms budget for the fillet drag (spec §7.3), the bracket's refused evaluation (median 100.91 ms, p95
 255.27 ms) sits at the budget's edge, but the run was at a load of about 150, far from idle, so it is **not judged**:
 neither inside nor outside the budget until the idle re-run replaces these figures. (The “works” cases are well inside it.)
+
+## Patterns (patterns spec §7, sub-project 7a-2)
+
+**Target:** about 200 instances, edit-to-preview within a second or two, release build on an idle Mac: the median of an
+edit's evaluation, scene and meshes stays under **2,000 ms** (`Bench.patternBudget`). A miss is recorded with its numbers,
+never hidden (parent spec §7.3).
+
+**What is measured** (`Tests/CreatorAppTests/Bench/PatternBench.swift`, fixture `PatternBenchApp`): a 210 × 110 × 6 plate
+with 200 Ø5 through-holes, a 20 × 10 grid 10 mm apart, three ways, each in a real `AppModel` on OCCT:
+
+| Benchmark | The graph |
+|---|---|
+| `pattern-200 Hole Pattern` | Grid Points → Points to Placements → Hole Pattern (through all) → Output |
+| `pattern-200 Hole Pattern + Fillet on one hole` | the same, then Edges by Tag (the rim of hole {110} picked) → Fillet R0.5 → Output |
+| `pattern-200 Place + Boolean` | Grid Points → Points to Placements → Place (a Circle and an Extrude as the tool) → one Boolean → Output |
+
+Each is built once (the **cold build**: every node, the scene and its meshes), then the holes' diameter is edited 40 times
+to a value never seen before (4.00 → 4.39 mm), each step waiting for the evaluation, the scene and its meshes: the
+**edit-to-preview** a person gets dragging the size. The same run is the proof of the §7 claims in code: one
+`Kernel.place` and one `Kernel.boolean` per evaluation (`PatternFeatureNodeTests.subtractingMakesOnePlaceAndOneBooleanWhateverTheCount`),
+one tool per distinct size (`ToolPlanTests`), and instance tags that add no boolean work (`PlaceConformanceTests`).
+
+**Fixture checks** run in a plain `swift test` on a 5 × 3 grid (`PatternBenchAppTests`: every node OK, the volume exact,
+the Place + Boolean variant the same part as the shortcut, one blend face for the filleted variant). The full 200-hole size
+was also built once in a debug test run while writing the plan (all three variants, every node OK, the removed volume
+equal to 200 holes' to 1e-9), which says nothing about speed.
+
+**Results: not measured yet.** The numbers are for an idle run: `scripts/bench.sh PatternBench` (the script prints the machine
+and its load average before and after; idle means all three load averages under 3). Record here, with the machine, load
+and commits: cold build and edit median / p95 / max for each of the three, the verdict against 2,000 ms, and whether the
+Place + Boolean path costs more than the shortcut (it should not: they make the same two kernel calls). If the budget is
+missed, the first lever is the copies: `OCCTKernel.place` copies each tool's geometry (`BRepBuilderAPI_Transform` with copy),
+where a located shape (`TopoDS_Shape::Moved`) would share it; measure before changing the shim.
 
 ## Raw output
 
