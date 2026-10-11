@@ -65,31 +65,17 @@ extension Evaluator {
     func run(_ definition: any NodeDefinition.Type, node: Node, inputs: [SocketName: Value],
              setup: EvaluationSetup) async throws -> NodeResult {
         let plan = BroadcastPlan.make(inputs: inputs, specs: setup.registry.inputs(for: node))
+        if let refusal = plan.refusal { return NodeResult(state: .error(refusal)) }
         let outputSpecs = setup.registry.outputs(for: node)
         let clock = ContinuousClock()
         let start = clock.now
-        var collected: [SocketName: [Scalar]] = [:]
-        var producedList: Set<SocketName> = []
-        var absent: Set<SocketName> = []
-        var warnings: [String] = []
+        var collector = IterationOutputs(warnings: plan.warning.map { [$0] } ?? [])
         do {
             for item in 0..<plan.iterations {
                 try Task.checkCancellation()
                 let context = EvalContext(node: node, item: item, parameters: setup.parameters)
                 let outputs = try await definition.evaluate(plan.inputs(at: item), kernel: kernel, context: context)
-                for spec in outputSpecs {
-                    if let list = outputs.lists[spec.name] {
-                        collected[spec.name, default: []] += list
-                        producedList.insert(spec.name)
-                    } else if let scalar = outputs.values[spec.name] {
-                        collected[spec.name, default: []].append(scalar)
-                    } else if spec.isOptional {
-                        absent.insert(spec.name)
-                    } else {
-                        throw NodeError.invalidValue("The node didn't produce its “\(spec.name)” output.")
-                    }
-                }
-                warnings += outputs.warnings
+                try collector.record(outputs, specs: outputSpecs, iterations: plan.iterations)
             }
         } catch is CancellationError {
             throw CancellationError()
@@ -99,19 +85,9 @@ extension Evaluator {
             return NodeResult(state: .error(Self.message(for: error)))
         }
 
-        var outputs: [SocketName: Value] = [:]
-        // An optional output that any iteration left out is absent from the result.
-        for spec in outputSpecs where !absent.contains(spec.name) {
-            let scalars = collected[spec.name] ?? []
-            if plan.isSingle, !producedList.contains(spec.name), let only = scalars.first, scalars.count == 1 {
-                outputs[spec.name] = .one(only)
-            } else {
-                outputs[spec.name] = .list(scalars)
-            }
-        }
-        let unique = Array(Set(warnings)).sorted()
+        let unique = Array(Set(collector.warnings)).sorted()
         let state: NodeState = unique.isEmpty ? .ok(duration: start.duration(to: clock.now)) : .warning(unique.joined(separator: "\n"))
-        return NodeResult(state: state, outputs: outputs)
+        return NodeResult(state: state, outputs: collector.values(for: outputSpecs, plan: plan))
     }
 
     /// Plain-language text for any error a node can throw.
