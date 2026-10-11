@@ -1,7 +1,8 @@
 /// Declares one input or output socket of a node type.
 public struct SocketSpec: Sendable, Equatable {
-    /// `.item` sockets broadcast over lists. `.list` sockets receive the whole list at once.
-    public enum Access: String, Sendable, Equatable, Codable { case item, list }
+    /// `.item` sockets broadcast over lists and trees. `.list` sockets receive one flat list at once: a tree on one
+    /// gives it a branch per evaluation. `.tree` sockets receive the whole value as a `DataTree`, and never broadcast.
+    public enum Access: String, Sendable, Equatable, Codable { case item, list, tree }
 
     public var name: SocketName
     public var type: SocketType
