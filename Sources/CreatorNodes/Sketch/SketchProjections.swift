@@ -56,7 +56,14 @@ enum SketchProjections {
         var matched = 0
         var runs = 0
         var isAmbiguous = false
+        var vanished: Set<Int> = []
         for solid in references {
+            // A pick on a placed copy that the pattern no longer has is not retried on the part around it (patterns spec §6).
+            let gone = solid.topology.vanishedInstances(in: pick.key.first.union(pick.key.second))
+            if !gone.isEmpty {
+                vanished.formUnion(gone)
+                continue
+            }
             let choice = EdgeTagMatch.choose(pick, in: solid.topology, comparesRecordedCount: references.count == 1)
             matched += choice.matchCount
             runs += choice.runCount
@@ -64,6 +71,7 @@ enum SketchProjections {
             found += choice.chosen
         }
         switch found.count {
+        case 0 where !vanished.isEmpty: return .problem(vanishedInstances(vanished.sorted()))
         case 0: return .problem("matches no edge of the references.")
         case 1:
             let drifted = pick.hasDrifted(matching: matched, inRuns: runs)
@@ -73,5 +81,13 @@ enum SketchProjections {
             return .found(found[0], drift: notes.isEmpty ? nil : notes.joined(separator: " "))
         default: return .problem("matches \(found.count.display) edges of the references.")
         }
+    }
+
+    /// "was picked on instance {4}, which no longer exists." (several paths are listed).
+    static func vanishedInstances(_ items: [Int]) -> String {
+        let paths = items.map(InstancePath.text).formatted(.list(type: .and).locale(.messages))
+        return items.count == 1
+            ? "was picked on instance \(paths), which no longer exists."
+            : "was picked on instances \(paths), which no longer exist."
     }
 }
