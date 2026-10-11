@@ -27,7 +27,7 @@ public enum GroupCommands {
         let here: [GraphCommand] = ids.sorted().map { .removeNode($0) } + [.addNode(builder.groupNode)]
             + (builder.outside.isEmpty ? [] : [.restoreLinks(builder.outside)])
         let groupNode = builder.groupNode.id
-        let picks = GroupScopes.renamingPicks(at: path, in: content, skipping: ids) { reached in
+        let picks = GroupScopes.renamingPicks(at: path, in: content, registry: registry, skipping: ids) { reached in
             guard let first = reached.first, ids.contains(first) else { return nil }
             return [groupNode] + reached
         }

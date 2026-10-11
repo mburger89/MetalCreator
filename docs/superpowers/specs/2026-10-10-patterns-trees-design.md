@@ -175,3 +175,13 @@ An instance whose tool misses the part (a hole in empty space) does not fail the
 - Curved faces in Face Pattern; fields (7b); lattices (7c); textures (7d).
 - Patterns of patterns beyond what nesting gives (e.g. a pattern feature that itself contains picks inside each instance).
 - More than ~2,000 instances as B-rep.
+
+## Errata
+
+### 7a-2 (Place and shortcuts)
+
+- **Group edits rename instance picks** (User decision 3, fixed in 7a-2). Group, Ungroup and Make Unique rename a pick on
+  a pattern instance's faces exactly as they rename a pick on any node's: `GroupScopes.names` lifts its table to the
+  placer/tool pairs (`GroupScopes.lifting`) for every node whose type places instances, so the pick resolves to the same
+  instance with no warning, and undo restores it in the same step. Still open: a Place inside a group whose tool is made
+  outside it doesn't match picks stored in the definition.

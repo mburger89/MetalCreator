@@ -12,7 +12,7 @@ extension GroupCommands {
         var copy = GroupDefinition(id: copyID, name: GroupNaming.uniqueDefinitionName(definition.name, among: content.definitions),
                                    accent: definition.accent, inputs: definition.inputs, outputs: definition.outputs)
         let fresh = Dictionary(uniqueKeysWithValues: definition.graph.nodes.keys.map { ($0, NodeID()) })
-        let names = GroupScopes.names(in: definition.graph, definitions: content.definitions) { path in
+        let names = GroupScopes.names(in: definition.graph, definitions: content.definitions, registry: registry) { path in
             path.first.flatMap { fresh[$0] }.map { [$0] + path.dropFirst() }
         }
         for node in definition.graph.nodes.values {
@@ -30,7 +30,7 @@ extension GroupCommands {
         copy.graph.stickies = definition.graph.stickies
         copy.graph.frames = definition.graph.frames
         let here = GraphCommand.batch([.setInput(id, NodeSetting.group, .group(copyID)), .rename(id, copy.name)])
-        let picks = GroupScopes.renamingPicks(at: path, in: content) { reached in
+        let picks = GroupScopes.renamingPicks(at: path, in: content, registry: registry) { reached in
             guard reached.count > 1, reached.first == id, let copy = fresh[reached[1]] else { return nil }
             return [id, copy] + reached.dropFirst(2)
         }

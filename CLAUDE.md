@@ -108,9 +108,9 @@ Module boundaries (dependency order):
     count, spacing and size changes; `EdgeTagMatch` and Plane from Face say "Instance {4} no longer exists…" when it is gone
     and never fall back to a neighbour. In a group, `EvaluationScope.entering` lifts its renaming table to the placer/tool
     pairs (`GroupScopes.lifting`, `NodeDefinition.placesInstances`), and `GraphContent.relativeToLevel(_:levels:registry:)`
-    does the same for a pick made in the viewport inside one. Not lifted yet: Group, Ungroup and Make Unique
-    (`GroupScopes.renamingPicks`) don't rename instance picks, and a Place inside a group whose tool comes from outside it
-    keeps instance picks stored in the definition from matching.
+    does the same for a pick made in the viewport inside one. Group, Ungroup and Make Unique rename instance picks too
+    (`GroupScopes.names` lifts its table with the registry); not lifted yet: a Place inside a group whose tool comes from
+    outside it keeps instance picks stored in the definition from matching.
 - `CreatorStyle`: colour themes (spec §6.6, Dracula by default), the only place colour hex values are written.
   `ThemeColors` is a colour per role (never a hue); `ColorTheme` (not `Theme`: MetalUI exports one) has the built-ins
   `.dracula`, `.alucard` and `.nord` (read-only); `ThemeRole` names each role (`ThemeColors[role]`; the names are the
