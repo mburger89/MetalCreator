@@ -8,6 +8,14 @@ extension NodeInputs {
         try typedList(name, .number) { if case .number(let value) = $0 { value } else { nil } }
     }
 
+    func integers(_ name: SocketName) throws -> [Int] {
+        try typedList(name, .integer) { if case .integer(let value) = $0 { value } else { nil } }
+    }
+
+    func bools(_ name: SocketName) throws -> [Bool] {
+        try typedList(name, .bool) { if case .bool(let value) = $0 { value } else { nil } }
+    }
+
     func vectors(_ name: SocketName) throws -> [Vector3] {
         try typedList(name, .vector) { if case .vector(let value) = $0 { value } else { nil } }
     }
