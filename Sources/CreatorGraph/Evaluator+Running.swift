@@ -73,7 +73,7 @@ extension Evaluator {
         do {
             for item in 0..<plan.iterations {
                 try Task.checkCancellation()
-                let context = EvalContext(node: node, item: item, parameters: setup.parameters)
+                let context = EvalContext(node: node, item: item, parameters: setup.parameters, isTreeRun: plan.isTreeRun)
                 let outputs = try await definition.evaluate(plan.inputs(at: item), kernel: kernel, context: context)
                 try collector.record(outputs, specs: outputSpecs, iterations: plan.iterations)
             }

@@ -14,7 +14,8 @@ extension GroupCommands {
                                registry: NodeRegistry) throws(GraphError) -> GroupEdit {
         let (graph, instance, definition) = try groupNode(id, in: path, of: content, registry: registry, action: "ungroup")
         guard let input = definition.inputNode, let output = definition.outputNode else { throw GroupRefusal.boundaryCount }
-        var splice = GroupSplice(definition: definition, at: instance.position, definitions: content.definitions)
+        var splice = GroupSplice(definition: definition, at: instance.position, definitions: content.definitions,
+                              registry: registry)
         for spec in definition.inputs {
             let external = graph.incomingLink(to: Endpoint(node: id, socket: spec.name))?.from
             let value = instance.inputValues[spec.name] ?? spec.defaultValue
@@ -47,7 +48,7 @@ extension GroupCommands {
             + (splice.links.isEmpty ? [] : [.restoreLinks(splice.links)]) + settings + comments
         let lastOne = GroupDependencies.instances(of: definition.id, in: content).allSatisfy { $0.path == path && $0.node.id == id }
         let fresh = splice.fresh
-        let picks = GroupScopes.renamingPicks(at: path, in: content, skipping: [id]) { reached in
+        let picks = GroupScopes.renamingPicks(at: path, in: content, registry: registry, skipping: [id]) { reached in
             guard reached.count > 1, reached.first == id, let copy = fresh[reached[1]] else { return nil }
             return [copy] + reached.dropFirst(2)
         }

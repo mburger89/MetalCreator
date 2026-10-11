@@ -37,11 +37,18 @@ extension GraphContent {
     /// them as if the definition were the top level (`GroupScopes.identity`), so every instance reads it as its own
     /// (`EvaluationScope.naming`). A pick made in the viewport while a definition's inside is shown goes through
     /// here before it is stored. Tags naming nodes outside the level, and every other value, are unchanged.
-    public func relativeToLevel(_ value: ConstantValue, levels: [NodeID]) -> ConstantValue {
+    ///
+    /// With `registry`, the faces of copies a pattern node inside placed are renamed too (patterns spec §6): they are
+    /// named by the node and the tool together (`GroupScopes.lifting`).
+    public func relativeToLevel(_ value: ConstantValue, levels: [NodeID], registry: NodeRegistry? = nil) -> ConstantValue {
         guard case .definition(let id)? = path(entering: levels), let inside = definitions[id]?.graph else { return value }
         var names: [NodeID: NodeID] = [:]
         for relative in GroupScopes.paths(in: inside, definitions: definitions, entered: [id]) {
             names[NodeID.scoped(levels + relative)] = GroupScopes.identity(relative)
+        }
+        if let registry {
+            let placers = GroupScopes.placerPaths(in: inside, definitions: definitions, registry: registry, entered: [id])
+            names = GroupScopes.lifting(names, placers: Set(placers.map { NodeID.scoped(levels + $0) }))
         }
         return value.renamingTags(names)
     }

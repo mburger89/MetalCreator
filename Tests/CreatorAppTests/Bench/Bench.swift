@@ -25,6 +25,9 @@ enum Bench {
     /// The fillet drag's budget, command to frame, in milliseconds (spec §7.3).
     static let dragBudget = 100.0
 
+    /// The pattern benchmark's budget, in milliseconds: patterns spec §7's "a second or two" for ~200 instances.
+    static let patternBudget = 2000.0
+
     /// The window the benchmarks draw: 1440 × 900 points at scale 2, a 15-inch MacBook's default.
     static let windowWidth = 1440.0
     static let windowHeight = 900.0

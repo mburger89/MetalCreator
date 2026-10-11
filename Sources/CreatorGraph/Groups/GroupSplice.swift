@@ -10,11 +10,12 @@ struct GroupSplice {
     /// Each inner node's copy, by the inner node's ID.
     private(set) var fresh: [NodeID: NodeID] = [:]
 
-    init(definition: GroupDefinition, at origin: Vector2, definitions: [GroupID: GroupDefinition]) {
+    init(definition: GroupDefinition, at origin: Vector2, definitions: [GroupID: GroupDefinition],
+         registry: NodeRegistry) {
         for node in definition.graph.nodes.values where !GroupNodes.isBoundary(node) {
             fresh[node.id] = NodeID()
         }
-        let names = GroupScopes.names(in: definition.graph, definitions: definitions) { [fresh] path in
+        let names = GroupScopes.names(in: definition.graph, definitions: definitions, registry: registry) { [fresh] path in
             path.first.flatMap { fresh[$0] }.map { [$0] + path.dropFirst() }
         }
         for node in definition.graph.nodes.values {

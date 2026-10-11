@@ -22,6 +22,11 @@ public actor OCCTKernel: Kernel {
               abs(normal.dot(xAxis)) <= 1 - 1e-9 else { throw invalid }
     }
 
+    /// Rejects moves OCCT cannot build.
+    static func validate(_ transform: Transform) throws {
+        try transform.validate()
+    }
+
     public init() {
         occtInitialize()
     }
@@ -84,17 +89,31 @@ public actor OCCTKernel: Kernel {
 
     public func transform(_ solid: Solid, by transform: Transform, tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
-        guard transform.translation.isFinite, transform.rotation.radians.isFinite else {
-            throw KernelError.invalidInput("The move or rotation must be a finite number.")
-        }
-        if transform.rotation.radians != 0, transform.rotationAxis == nil {
-            throw KernelError.invalidInput("A rotation needs an axis.")
-        }
-        if let axis = transform.rotationAxis, axis.direction.normalized == nil {
-            throw KernelError.invalidInput("The rotation axis needs a direction.")
-        }
+        try Self.validate(transform)
         let source = try shape(of: solid)
         return try build("transform", inputs: [solid.topology], tag: tag) { try source.transformed(by: transform) }
+    }
+
+    /// One call for every copy (patterns spec §3, §7): each copy moves its tool's shape (the tool is built once and
+    /// shared by every copy that uses it), reads the moved shape's small topology, and requalifies its tags. The
+    /// Boolean that follows takes all the copies as one compound of tools; nothing here is a boolean.
+    public func place(_ tools: [Solid], at transforms: [Transform], qualifying qualify: @Sendable (NodeID) -> NodeID,
+                      tag: NodeTag) throws -> [Solid] {
+        try Task.checkCancellation()
+        guard tools.count == transforms.count else {
+            throw KernelError.invalidInput("Each placed copy needs one tool and one placement.")
+        }
+        var copies: [Solid] = []
+        copies.reserveCapacity(tools.count)
+        for (index, pair) in zip(tools, transforms).enumerated() {
+            try Task.checkCancellation()
+            let (tool, transform) = (pair.0, pair.1)
+            try Self.validate(transform)
+            let source = try shape(of: tool)
+            let moved = try build("place", inputs: [tool.topology], tag: tag) { try source.transformed(by: transform) }
+            copies.append(Solid(topology: moved.topology.qualified(item: index, qualify), bounds: moved.bounds, storage: moved.storage))
+        }
+        return copies
     }
 
     public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid {

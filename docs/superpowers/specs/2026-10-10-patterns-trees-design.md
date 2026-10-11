@@ -223,3 +223,17 @@ Plan `2026-10-10-7a-trees.md`. Where the build settled what §2 and §4 left ope
   colour: the theme files have no role for it.
 - §2 Display. A socket's tooltip reads "Tree 3 × 8" (only for trees); the inspector's "Data" section appears only when a node has a
   tree on an input or output.
+
+## Errata (7a-2: Place and shortcuts)
+
+- **A tree on a pattern node is refused** (User decision 8a, fixed at the merge with 7a-1). A tree wired to any input of Place,
+  Hole, Boss, Slot or Pattern Feature would run the node once per branch, cutting the part once per branch and restarting `{i}`
+  at 0 in each. `EvalContext.isTreeRun` tells a node its run came from a tree, and `PlacementMoves.requireFlat` (the one place
+  the check is written) fails it with "Patterns take flat lists for now: flatten the tree first." before
+  anything is placed. Nested paths for tree instances arrive with 7a-3.
+
+- **Group edits rename instance picks** (User decision 3, fixed in 7a-2). Group, Ungroup and Make Unique rename a pick on
+  a pattern instance's faces exactly as they rename a pick on any node's: `GroupScopes.names` lifts its table to the
+  placer/tool pairs (`GroupScopes.lifting`) for every node whose type places instances, so the pick resolves to the same
+  instance with no warning, and undo restores it in the same step. Still open: a Place inside a group whose tool is made
+  outside it doesn't match picks stored in the definition.

@@ -33,6 +33,11 @@ public enum PlaneFromFaceNode: NodeDefinition {
         case .facePick(let stored)?: pick = stored
         case .some: throw NodeError.invalidValue(unreadablePick)
         }
+        // A pick on a placed copy that the pattern no longer has is not retried on the part around it (patterns spec §6).
+        if let gone = solid.topology.vanishedInstances(in: pick.tags).first {
+            throw NodeError.invalidValue("Instance \(InstancePath.text(gone)) no longer exists, so the picked face isn't there any more. "
+                + "Pick the face again.")
+        }
         let resolution = solid.topology.resolution(of: pick)
         let matches = resolution.faces
         guard let face = matches.first else { throw NodeError.invalidValue(noMatch) }

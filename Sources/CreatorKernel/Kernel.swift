@@ -16,6 +16,15 @@ public protocol Kernel: Actor {
     /// than one connected shell); the M3 Boolean node may warn about it.
     func boolean(_ op: BooleanOp, _ a: Solid, _ b: [Solid], tag: NodeTag) throws -> Solid
     func transform(_ solid: Solid, by transform: Transform, tag: NodeTag) throws -> Solid
+    /// Places a copy of each tool, all in one call (patterns spec §3 and §7): copy `i` is `tools[i]` moved by
+    /// `transforms[i]`, rotated about its axis first and then translated, as `transform(_:by:tag:)` does. The same
+    /// `Solid` may appear in `tools` as often as it likes: it is built once, and its copies differ from it only by
+    /// their move (the OCCT kernel copies the geometry per instance; patterns spec §7 sharing is not met). Each copy's
+    /// faces carry the tool's tags qualified by its index (`Topology.qualified(item:_:)`): every tag's node becomes
+    /// `qualify(node)` and its item `i`, so a pick on one copy names that copy and no other. `tag` names faces the tool's
+    /// history doesn't explain. The counts must match; none is an empty result.
+    func place(_ tools: [Solid], at transforms: [Transform], qualifying qualify: @Sendable (NodeID) -> NodeID,
+               tag: NodeTag) throws -> [Solid]
     func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid
     func chamfer(_ solid: Solid, edges: [EdgeID], distance: Double, tag: NodeTag) throws -> Solid
     func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh

@@ -25,10 +25,10 @@ struct AnySocketTests {
         #expect(SocketType.any.indefiniteName == "a value")
     }
 
-    @Test func listsAndTreesIsACategoryBeforeOutput() {
+    @Test func listsAndTreesIsACategoryAfterPatternsAndBeforeOutput() {
         #expect(NodeCategory.lists.title == "Lists & Trees")
         #expect(NodeCategory.value.title == "Value")
         #expect(NodeCategory.allCases.last == .output)
-        #expect(NodeCategory.allCases.firstIndex(of: .lists) == NodeCategory.allCases.firstIndex(of: .feature).map { $0 + 1 })
+        #expect(NodeCategory.allCases == [.value, .profile, .solid, .selection, .feature, .patterns, .lists, .output])
     }
 }

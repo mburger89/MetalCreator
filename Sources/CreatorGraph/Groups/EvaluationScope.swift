@@ -30,10 +30,14 @@ struct EvaluationScope: Sendable {
     /// The scope inside group node `node` of definition `group`, whose graph is `graph`.
     func entering(_ node: NodeID, group: GroupID, graph: Graph, bound: Bound) -> EvaluationScope {
         let inside = path + [node], groups = groups + [group]
-        var names = names
+        var entered: [NodeID: NodeID] = [:]
         for relative in GroupScopes.paths(in: graph, definitions: setup.registry.groups, entered: groups) {
-            names[GroupScopes.identity(relative)] = NodeID.scoped(inside + relative)
+            entered[GroupScopes.identity(relative)] = NodeID.scoped(inside + relative)
         }
+        // The copies a pattern node inside placed are named by that node and the tool's: rename those pairs too.
+        let placers = GroupScopes.placerPaths(in: graph, definitions: setup.registry.groups, registry: setup.registry,
+                                              entered: groups)
+        let names = names.merging(GroupScopes.lifting(entered, placers: Set(placers.map(GroupScopes.identity)))) { _, new in new }
         return EvaluationScope(setup: setup, path: inside, groups: groups, bound: bound, names: names)
     }
 

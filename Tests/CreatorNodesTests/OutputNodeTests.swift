@@ -5,11 +5,11 @@ import CreatorNodes
 import Testing
 
 struct OutputNodeTests {
-    /// The slice's 26 (spec §7.1) plus Plane from Face and Sketch (S4) and the tree nodes (7a).
-    @Test func theBuiltInsAreTheSliceTheSketcherAndTheTreeNodesInSevenCategories() {
-        #expect(BuiltInNodes.all.count == 35)
+    /// The slice's 26 (spec §7.1) plus Plane from Face and Sketch (S4), the tree nodes (7a-1) and Place, Points to Placements and the shortcuts (7a-2).
+    @Test func theBuiltInsAreTheSliceTheSketcherTheTreeNodesAndThePatternNodesInEightCategories() {
+        #expect(BuiltInNodes.all.count == 41)
         let counts = Dictionary(grouping: BuiltInNodes.all, by: { $0.category }).mapValues(\.count)
-        #expect(counts == [.value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .lists: 7, .output: 1])
+        #expect(counts == [.value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .patterns: 6, .lists: 7, .output: 1])
     }
 
     /// The palette path (M5) is `registry.makeNode(typeID, at:)`, so that is what is tested.

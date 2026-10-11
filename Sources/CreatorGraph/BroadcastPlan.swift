@@ -13,6 +13,9 @@ public struct BroadcastPlan: Sendable {
     /// Present when a tree meets an item or list socket: one entry per iteration, in the order they run.
     let nested: NestedIterations?
 
+    /// True when a tree met an item or list socket, so the node runs once per branch.
+    public var isTreeRun: Bool { nested != nil }
+
     init(iterations: Int, isSingle: Bool, itemInputs: [SocketName: Value], listInputs: [SocketName: [Scalar]],
          treeInputs: [SocketName: DataTree], nested: NestedIterations? = nil, warning: String? = nil,
          refusal: String? = nil) {

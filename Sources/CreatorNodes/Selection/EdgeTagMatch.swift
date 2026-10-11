@@ -21,7 +21,14 @@ struct EdgeTagMatch: Equatable {
         var seen: Set<EdgeID> = []
         var drifts: [(found: Int, expected: Int)] = []
         var isAmbiguous = false
+        var vanished: Set<Int> = []
         for pick in picks {
+            // A pick on a placed copy that the pattern no longer has selects nothing, never a neighbour's edge (§6).
+            let gone = topology.vanishedInstances(in: pick.key.first.union(pick.key.second))
+            if !gone.isEmpty {
+                vanished.formUnion(gone)
+                continue
+            }
             let choice = choose(pick, in: topology)
             isAmbiguous = isAmbiguous || choice.isAmbiguous
             if pick.hasDrifted(matching: choice.matchCount, inRuns: choice.runCount) {
@@ -32,9 +39,12 @@ struct EdgeTagMatch: Equatable {
             }
         }
         var warnings: [String] = []
+        if !vanished.isEmpty {
+            warnings.append(vanishedInstances(vanished.sorted()))
+        }
         if !drifts.isEmpty {
             warnings.append(drift(drifts))
-        } else if selected.isEmpty {
+        } else if selected.isEmpty, vanished.isEmpty {
             warnings.append("Matched 0 edges, expected \(picks.reduce(0) { $0 + $1.matchCount }).")
         }
         if isAmbiguous {
@@ -62,6 +72,14 @@ struct EdgeTagMatch: Equatable {
         let chosen = pick.ordinals.map { ordinals in ordinals.filter(matches.indices.contains).map { matches[$0] } } ?? matches
         let isAmbiguous = resolution.isAmbiguous || (pick.ordinals != nil && resolution.isSplit)
         return (chosen, matches.count, Topology.runCount(matches), isAmbiguous)
+    }
+
+    /// "Instance {4} no longer exists, so the edge picked on it isn't selected." (several paths are listed).
+    static func vanishedInstances(_ items: [Int]) -> String {
+        let paths = items.map(InstancePath.text).formatted(.list(type: .and).locale(.messages))
+        return items.count == 1
+            ? "Instance \(paths) no longer exists, so the edge picked on it isn't selected."
+            : "Instances \(paths) no longer exist, so the edges picked on them aren't selected."
     }
 
     /// "Matched 1 edge, expected 2." (several drifts joined by "; ").

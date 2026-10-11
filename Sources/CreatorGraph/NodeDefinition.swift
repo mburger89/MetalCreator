@@ -20,6 +20,9 @@ public protocol NodeDefinition: Sendable {
     static var handles: [HandleSpec] { get }
     /// True if `evaluate` reads `context.parameters`, so parameter edits invalidate its cache.
     static var readsParameters: Bool { get }
+    /// True if `evaluate` places copies of a tool (`Kernel.place`), whose faces are named by the node and the tool's
+    /// tag nodes (patterns spec §6, `NodeID.instanceScoped`), so a group instance must rename those pairs too.
+    static var placesInstances: Bool { get }
     /// Stored settings (`NodeSetting` names) a new node starts with. `NodeRegistry.makeNode`
     /// applies them, so every reader sees a stored value and none relies on "absent means …".
     static var defaultSettings: [SocketName: ConstantValue] { get }
@@ -37,6 +40,7 @@ extension NodeDefinition {
     public static var inspector: [InspectorSection] { [] }
     public static var handles: [HandleSpec] { [] }
     public static var readsParameters: Bool { false }
+    public static var placesInstances: Bool { false }
     public static var defaultSettings: [SocketName: ConstantValue] { [:] }
     public static func migrate(_ node: Node, from version: Int) -> Node { node }
 }

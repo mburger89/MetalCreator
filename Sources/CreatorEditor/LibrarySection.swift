@@ -9,7 +9,7 @@ public struct LibrarySection: Equatable, Sendable, Identifiable {
 
     public var title: String { Self.title(for: category) }
 
-    /// "Value", "Profile", "Solid", "Selection", "Feature", "Lists & Trees", "Output".
+    /// "Value", "Profile", "Solid", "Selection", "Feature", "Patterns", "Lists & Trees", "Output".
     public static func title(for category: NodeCategory) -> String { category.title }
 
     /// `entries` grouped by category, in `NodeCategory.allCases` order, keeping their order within each group;

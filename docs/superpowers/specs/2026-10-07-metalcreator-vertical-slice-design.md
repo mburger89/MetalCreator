@@ -690,3 +690,32 @@ Plan `2026-10-09-kernel-blend-max.md`, roadmap row "Kernel: largest size for ble
   the part's they simply recolour them pink.
 - Not covered: face rules (nothing previews a selected set of faces yet, in any mode) and a rule selected inside a
   group (the groups editor's viewport per level).
+
+## Errata (7a-2: Place, shortcuts and performance)
+
+Plan `2026-10-10-7a-place.md`, patterns spec `2026-10-10-patterns-trees-design.md` §3, §5–§7.
+
+- §5.1: the kernel protocol gains `place(_ tools: [Solid], at transforms: [Transform], qualifying: (NodeID) -> NodeID, tag: NodeTag)
+  -> [Solid]`: copy `i` is `tools[i]` moved by `transforms[i]` (rotation about its axis first, then translation, as `transform`),
+  all in one call, and the same `Solid` may appear as often as it likes. It is the only new kernel operation; combining the copies
+  is the existing `boolean` with the copies as its tools, so a Place or a shortcut makes one `place` and one `boolean` however
+  many instances there are.
+- §5.3 rule 1 (naming): a placed copy's faces carry its tool's tags with the node replaced by `qualify(node)` (the nodes made by
+  `NodeID.instanceScoped([placer, toolNode])`, a version-8 UUID that `NodeID.isInstanceQualified` recognises, in a namespace of its
+  own beside `NodeID.scoped`'s) and the item replaced by the copy's index, the flat instance path `{i}` until the trees land.
+  Blend roles' source edges are qualified the same way. Two tools of one tool node that differ only in their broadcast item
+  share a qualified node (the item is the copy's index); no built-in pattern node makes such a tool.
+- §5.3 rule 6 (no silent drift): a pick whose tags name a copy that no face of the topology has any tag of (`Topology.vanishedInstances(in:)`)
+  is not retried on what is left of the part around it. Edges by Tag selects nothing for it and warns "Instance {4} no longer
+  exists, so the edge picked on it isn't selected." (the paths are listed when several are gone) and does not also count
+  it as drift; Plane from Face fails with "Instance {2} no longer exists, so the picked face isn't there any more. Pick the face
+  again." Picks on ordinary broadcast items are untouched by this.
+- Groups (spec 2026-10-09 §5): inside a group definition the copies' qualified nodes are renamed with the table that renames the
+  nodes (`GroupScopes.lifting`, used by `EvaluationScope.entering` and by `GraphContent.relativeToLevel(_:levels:registry:)`), for
+  every placer (`NodeDefinition.placesInstances`) and every node of the definition as its tool. Not renamed yet: Group, Ungroup and
+  Make Unique leave instance picks as they are, and a Place whose tool is made outside its group keeps picks stored inside the
+  definition from matching; both show "Instance {i} no longer exists…", and are follow-ups.
+- File format: unchanged (5). Picks store their tags, and a placed copy's are a longer form of the same data.
+- §7.3: a fourth performance target, from patterns spec §7: ~200 instances, edit-to-preview within a second or two. Its benchmark is
+  `PatternBench` (`docs/verification/performance.md`, "Patterns").
+

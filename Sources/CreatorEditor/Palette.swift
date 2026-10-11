@@ -56,7 +56,7 @@ public struct Palette: Hashable, Sendable {
         case .profile: colors.profileHeader
         case .solid: colors.solidHeader
         case .selection: colors.selectionHeader
-        case .feature: colors.featureHeader
+        case .feature, .patterns: colors.featureHeader
         // Lists & Trees shares the Value colour: the theme files have no role of its own.
         case .lists: colors.valueHeader
         case .output: colors.outputHeader

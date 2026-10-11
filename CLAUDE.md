@@ -37,6 +37,9 @@ Final-review follow-ups (plans `docs/superpowers/plans/2026-10-10-followups-app.
 Data trees (sub-project 7a-1: spec `docs/superpowers/specs/2026-10-10-patterns-trees-design.md` §2 and §4's tree nodes, plan
 `docs/superpowers/plans/2026-10-10-7a-trees.md`) code is done; its human checks (group TR) are pending. Instance paths for
 placed copies, the layouts and Place are the other 7a tracks.
+Patterns, sub-project 7a-2 (Place, Points to Placements, the four shortcut nodes, the `Patterns` library category and the
+200-instance benchmark; plan `docs/superpowers/plans/2026-10-10-7a-place.md`, spec `2026-10-10-patterns-trees-design.md` §3, §5,
+§6, §7) code is done; its human checks (group PA) are pending and its benchmark numbers (`PatternBench`) await an idle run.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -44,7 +47,10 @@ Module boundaries (dependency order):
   DOF and minimal conflicts), `SketchRegions` and `SketchCommands`. Imports only `CreatorGeometry` and Foundation;
   never iterate a dictionary where order reaches output. Tests: `swift test --filter CreatorSketchTests`.
 - `CreatorKernel`: the `Kernel` protocol, `Solid`, tagged topology tables, `FakeKernel` for tests (it refuses extruded holes that lie outside
-  the outline's bounds, as OCCT refuses strays).
+  the outline's bounds, as OCCT refuses strays). `Kernel.place(_:at:qualifying:tag:)` makes every placed copy of a pattern in one
+  call: copy `i` is a tool moved by a `Transform`, its tags requalified (`Topology.qualified(item:_:)`: node → `qualify(node)`,
+  item → `i`, nested blend source edges too). `NodeID.isInstanceQualified` (a version-8 UUID) tells those nodes from any other,
+  and `Topology.vanishedInstances(in:)` finds the copies a pick names that a topology no longer has.
 - `COCCT` + `CreatorOCCT`: the OpenCascade C shim and `OCCTKernel: Kernel` (topology tables, face tags carried through
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
   `*_free`; no C++ exception crosses into Swift.
@@ -99,11 +105,28 @@ Module boundaries (dependency order):
     (`SocketSpec.Access.tree`, `NodeInputs.tree`) gets the whole value as a `DataTree` and never broadcasts; a node returns
     trees through `NodeOutputs(trees:)` and must run once (other inputs single values). `SocketType.any` is for the tree
     nodes' sockets only. Iteration `item` numbers (the tag's item) are flat, row by row.
-- `CreatorNodes`: the 35 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch, and
-  the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
+- `CreatorNodes`: the 41 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch, the six
+  `Patterns` nodes below, and the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
   Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
   parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, and `projection(reference)` per projected edge) live in
   `Node.inputValues`; `NodeRegistry.makeNode` seeds `defaultSettings` and sets `isOutput` for `.output`-category nodes.
+  - Patterns (`Sources/CreatorNodes/Patterns`, category `NodeCategory.patterns`, library section "Patterns"; patterns spec §3, §5–§7):
+    Place (a tool built at the origin facing +Z and a list of `Plane` placements: one copy per placement, the longer list
+    sets the count and the shorter repeats its last item), Points to Placements, and the shortcuts Hole Pattern, Boss / Pin
+    Pattern, Slot Pattern and Pattern Feature, each Place + Boolean underneath through `PatternApply`: tools built once per
+    distinct size (`ToolPlan`), one `Kernel.place` and one `Kernel.boolean`, never a boolean per instance. A shortcut's sizes
+    are `.list` sockets read through `PerInstance` (broadcasting inside the node, so it can make one kernel call). Over 2,000
+    instances refuses ("Patterns are limited to 2,000 instances.", `PatternLimit`); a tree on any input is refused
+    (`EvalContext.isTreeRun`, `PlacementMoves.requireFlat`: "flatten the tree first"); an instance that did nothing to the part
+    warns with the count (`PatternMisses`: a cut leaves no face tagged with its index, a union's bounds don't touch the
+    part's). A copy's tags are its tool's, qualified: node `NodeID.instanceScoped([placer, toolNode])` and item the copy's
+    flat index (`InstancePath.text` writes it `{i}`; 7a-trees brings the tree path), so a pick follows its instance through
+    count, spacing and size changes; `EdgeTagMatch` and Plane from Face say "Instance {4} no longer exists…" when it is gone
+    and never fall back to a neighbour. In a group, `EvaluationScope.entering` lifts its renaming table to the placer/tool
+    pairs (`GroupScopes.lifting`, `NodeDefinition.placesInstances`), and `GraphContent.relativeToLevel(_:levels:registry:)`
+    does the same for a pick made in the viewport inside one. Group, Ungroup and Make Unique rename instance picks too
+    (`GroupScopes.names` lifts its table with the registry); not lifted yet: a Place inside a group whose tool comes from
+    outside it keeps instance picks stored in the definition from matching.
 - `CreatorStyle`: colour themes (spec §6.6, Dracula by default), the only place colour hex values are written.
   `ThemeColors` is a colour per role (never a hue); `ColorTheme` (not `Theme`: MetalUI exports one) has the built-ins
   `.dracula`, `.alucard` and `.nord` (read-only); `ThemeRole` names each role (`ThemeColors[role]`; the names are the
@@ -349,6 +372,7 @@ scripts/package-app.sh                     # dist/MetalCreator.app: release buil
 scripts/verify-app.sh [path.app]           # re-check a packaged app: signature, no Homebrew links, self-test with Homebrew unreadable
 swift run MetalCreatorApp --self-test      # the same headless checks, unpackaged
 scripts/bench.sh [suite]                   # spec §7.3 benchmarks, release build; numbers go in docs/verification/performance.md
+scripts/bench.sh PatternBench              # patterns spec §7: 200 holes in a plate, edit-to-preview (idle Mac only)
 ```
 
 Benchmarks (`Tests/CreatorAppTests/Bench`) are Swift Testing suites that print `BENCH …` lines and assert no time; a
