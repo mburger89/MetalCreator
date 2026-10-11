@@ -213,3 +213,17 @@ enum SketchTestNode: NodeDefinition {
 
 /// The editor registry plus `SketchTestNode`, for the double-click tests.
 let sketchTestRegistry = NodeRegistry([NumberTestNode.self, FilletTestNode.self, SketchTestNode.self])
+
+/// A node with a `.text` setting beside a socket, like the Path Mapper: the rule is a stored setting, not a socket.
+enum TextSettingTestNode: NodeDefinition {
+    static let typeID = "editortest.textSetting"
+    static let displayName = "Text Setting"
+    static let category = NodeCategory.lists
+    static let defaultSettings: [SocketName: ConstantValue] = [NodeSetting.pathRule: .text("{A} → {A}")]
+    static let inputs = [SocketSpec("tree", .any, access: .tree)]
+    static let outputs = [SocketSpec("tree", .any)]
+    static let inspector = [InspectorSection(title: "Rule", controls: [.text(NodeSetting.pathRule)])]
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        NodeOutputs(trees: ["tree": try inputs.tree("tree")])
+    }
+}

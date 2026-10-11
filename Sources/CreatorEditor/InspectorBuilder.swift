@@ -110,6 +110,7 @@ public enum InspectorBuilder {
         if case .planePicker = control { return .planePicker(field, selected: planeChoice(field.value)) }
         if case .anchorGrid = control { return .anchorGrid(field, selected: anchorIndex(field.value)) }
         if case .vector = control { return .vector(field) }
+        if case .text = control { return .text(field) }
         if case .parameterPicker = control {
             let id = field.value?.parameterID
             let selected = graph.parameters.contains { $0.id == id } ? id : nil
