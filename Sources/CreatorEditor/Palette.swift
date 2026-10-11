@@ -56,7 +56,7 @@ public struct Palette: Hashable, Sendable {
         case .profile: colors.profileHeader
         case .solid: colors.solidHeader
         case .selection: colors.selectionHeader
-        case .feature: colors.featureHeader
+        case .feature, .patterns: colors.featureHeader
         case .output: colors.outputHeader
         }
     }

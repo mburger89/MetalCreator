@@ -12,6 +12,10 @@ extension NodeInputs {
         try typedList(name, .vector) { if case .vector(let value) = $0 { value } else { nil } }
     }
 
+    func planes(_ name: SocketName) throws -> [Plane] {
+        try typedList(name, .plane) { if case .plane(let value) = $0 { value } else { nil } }
+    }
+
     func profiles(_ name: SocketName) throws -> [Profile2D] {
         try typedList(name, .profile) { if case .profile(let value) = $0 { value } else { nil } }
     }
