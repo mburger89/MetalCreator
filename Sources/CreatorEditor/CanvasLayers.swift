@@ -36,7 +36,7 @@ struct CanvasLayers: Component {
                          origin: model.displayOrigin(of: node), flow: flow,
                          isSelected: model.selection.contains(node.id),
                          state: model.result(of: node.id)?.state,
-                         shakes: model.shakeCount(of: node.id))
+                         shakes: model.shakeCount(of: node.id), socketHelp: model.socketHelp(of: node.id))
             }
             ForEach(Self.ghosts(model), id: \.id.rawValue) { node in
                 let shape = model.shape(of: node)

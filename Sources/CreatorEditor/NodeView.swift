@@ -17,6 +17,8 @@ struct NodeView: Component {
     let shakes: Int
     /// Drawn at reduced opacity: an ⌥-drag ghost.
     var isGhost = false
+    /// Tooltips of the sockets that carry a data tree (`EditorModel.socketHelp(of:)`), by "in.<name>"/"out.<name>".
+    var socketHelp: [String: String] = [:]
     @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
@@ -51,7 +53,7 @@ struct NodeView: Component {
         .overlay(alignment: .topLeading) {
             // A Component is legacy content; inside a ZStack it is adopted, so the result stays
             // proposal content and takes the modifiers below.
-            ZStack(alignment: .topLeading) { SocketLayer(shape: shape, flow: flow) }
+            ZStack(alignment: .topLeading) { SocketLayer(shape: shape, flow: flow, help: socketHelp) }
         }
         .opacity(isGhost ? 0.4 : 1)
         // Only a new refusal runs the keyframes (the trigger is the count), so dragging and panning stay immediate and a

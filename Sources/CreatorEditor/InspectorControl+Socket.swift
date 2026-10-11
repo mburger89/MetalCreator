@@ -6,7 +6,8 @@ extension InspectorControl {
     public var socket: SocketName? {
         switch self {
         case .slider(let socket), .number(let socket), .integer(let socket), .planePicker(let socket),
-             .vector(let socket), .anchorGrid(let socket), .ruleSummary(let socket), .parameterPicker(let socket):
+             .vector(let socket), .anchorGrid(let socket), .ruleSummary(let socket), .parameterPicker(let socket),
+             .text(let socket):
             socket
         case .toggle(let socket, _), .segmented(let socket, _):
             socket

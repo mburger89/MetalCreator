@@ -12,6 +12,7 @@ extension SocketType {
         case .solid: "a solid"
         case .edgeSet: "an edge set"
         case .faceSet: "a face set"
+        case .any: "a value"
         }
     }
 }

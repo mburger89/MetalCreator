@@ -1105,3 +1105,53 @@ renderer's buffers; these check what a real window shows.
 - [ ] **FA-7 The command line.** In the packaged app (`scripts/package-app.sh`), running
   `MetalCreator.app/Contents/MacOS/MetalCreator --help` prints the usage and exits 0; `--info-plist ٢٦` is a usage error
   (exit 64). Pinned: `LaunchCommandTests`. **Observed:**
+
+## Group TR — data trees (7a-1)
+
+**Status: NOT RUN.** Plan `2026-10-10-7a-trees.md`, spec `2026-10-10-patterns-trees-design.md` §2 and §4's tree nodes. Run
+`swift run MetalCreatorApp`. The tests pin the models, the messages and that the views draw; these check what a real window
+shows. Build the graph first: Series (count 24) into Partition (size 8) into Number-in nodes such as Rectangle `width`.
+
+- [ ] **TR-1 Library.** Open the node library: a "Lists & Trees" section sits between Feature and Output, in the Value
+  colour, listing Branch by Path, Flatten, Graft, List Item, Partition, Path Mapper and Tree Statistics. Search "path": both
+  Path nodes show. Pinned: `theLibraryTitlesTheCategory`, `theBuiltInsAreTheSliceTheSketcherAndTheTreeNodesInSevenCategories`.
+  **Observed:**
+- [ ] **TR-2 Socket tooltips.** With the graph above evaluated, rest the pointer on Partition's output dot for a second: the
+  tooltip reads "Tree 3 × 8". The dot of the wired input on the node after it says the same. A dot carrying one item or a plain
+  list shows nothing at all when you rest on it: no bubble, not even an empty padded one (MetalUI shows a bubble for any help
+  text, so such a dot declares none). **Record whether the tooltip appears over a dot this small.** Look at the colour too: the
+  dots of the tree nodes (`any` sockets) and the wires leaving them are drawn in the Value colour; **record whether a wire from
+  a tree node is hard to tell from a number wire** (if it is, that is a product question, not a bug). Pinned:
+  `theSocketsOfATreeShowItsShape`, `onlyADotThatCarriesATreeDeclaresATooltip`. **Observed:**
+- [ ] **TR-3 The Data section.** Select Partition: the inspector ends with a "Data" section, "Tree out  3 × 8" and a "Show
+  paths" button. Press it: three rows, `{0}`, `{1}`, `{2}`, each "8 items"; it reads "Hide paths" now, and the list stays open
+  while you select another node and come back. Undo is not enabled by it. Change the size to 5: "5 branches: 5, 5, 5, 5, 4" and
+  the list follows. Select Series: no Data section. Make 60 branches (Series count 120, Partition size 2): the list stops after 50
+  rows and ends with "and 10 more". Pinned: `thePathListOpensAndClosesAndIsNotAnEdit`, `aLongPathListIsCutShort`. **Observed:**
+- [ ] **TR-4 Path Mapper.** Add a Path Mapper after Partition: its Rule row shows `{A} → {A}` in a text field. Type
+  `{A} → {(i)}` and press Return: the table is transposed (the tooltip says "Tree 8 × 3"); the Edit menu says "Undo Change Path
+  rule". Click away instead of pressing Return: the rule is kept. Type `{A;B} → {B;A}`: the table is
+  transposed again, as 8 × 3 (a source with one letter more than the tree has levels of branches names items; User decision 2).
+  Type `{A;B;C} → {A}`: the node's badge shows an error and its tooltip reads "The rule's source {A;B;C} names 3 levels, but
+  this tree (3 × 8) has 1 level of branches. Write the source with 1 level, like {A}, or with 2, like {A;B}, to name items too." Type
+  `{A} → {C}`, then `{A`, then `{A} → {A/0}`: each names its failing part. The rule's text field should fit the inspector at
+  its default width: no clipped text at either end, a long rule scrolls inside the field instead of widening the panel.
+  Pinned: `PathRuleTests`, `PathMapperNodeTests`, `typingARuleStoresItAsOneNamedUndoStep`. **Observed:**
+- [ ] **TR-5 A rule that matches some branches.** On a 2 × 3 × 2 tree (Partition twice), `{A;A} → {A;A}` gives a ⚠ badge, "The
+  rule matched 2 of 6 branches; the other 4 stay where they were." and the data is unchanged. Type `{0;B} → {B;0}`: the badge
+  adds "1 of them shares a branch with the results, so their items are mixed in." Pinned:
+  `aRuleMatchingSomeBranchesWarnsAndKeepsTheRest`, `aLeftBranchThatSharesAPathWithAResultSaysSo`. **Observed:**
+- [ ] **TR-6 Broadcasting.** Wire Partition's tree into a Rectangle's `width` (Series from 1), the Rectangle into an
+  Extrude and that into Output: 24 boxes appear, and the Extrude's output tooltip reads "Tree 3 × 8". Wire a plain Series of 8
+  into `height`: each row pairs with it item by item. Wire a tree of another depth (Partition twice) into `height`: a ⚠ badge
+  names both shapes, once. Pinned: `aFlatListAppliesToEveryBranch`, `differentDepthsWarnWithBothShapes`. **Observed:**
+- [ ] **TR-7 Boolean and branches.** Subtract an Extrude of a 3-row hole tree from a plate: three plates appear, one per row,
+  each with its own row of holes. Pinned: `eachRowOfHolesCutsItsOwnCopyOfThePlate`. **Observed:**
+- [ ] **TR-8 Old files.** Open a bracket saved before this change (format 5): it opens with every pick holding and no warning;
+  save it, and the file says `"formatVersion" : 6`. An older build refuses the new file. Pinned: `TreeFileTests`. **Observed:**
+- [ ] **TR-9 List Item and Branch by Path.** Add a List Item after Partition (3 × 8): with the "Item path" field empty and
+  index 1 it gives one item per row. Type `{1;2}` into Item path and press Return: it gives that one item and the index no
+  longer matters. Type `{1}`: the node's badge says the path has 1 index but an item of this tree (3 × 8) needs 2. Type
+  `{1;99}`: "No item {1;99}: {1} has 8 items." Clear the field: the index is used again. Add a Branch by Path with `{2}`: the
+  third row. Pinned: `anItemPathTakesTheOneItemAtThatPath`, `anItemPathOverridesTheIndex`, `aBlankItemPathMeansUseTheIndex`,
+  `aMissingBranchOrItemInAPathSaysHowManyThereAre`, `aMissingBranchSaysHowManyThereAre`. **Observed:**

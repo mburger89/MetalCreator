@@ -17,9 +17,13 @@ public enum InspectorRow: Equatable, Sendable {
     /// A menu of the document's parameters for a setting (M3's Graph Parameter). `selected` is
     /// the parameter the setting names, if it still exists.
     case parameterPicker(InputField, options: [GraphParameter], selected: ParameterID?)
+    /// A line of text for a `.text` setting; `field.value` is the stored `.text`, or `nil` when none is stored.
+    case text(InputField)
     case button(title: String, action: InspectorAction)
     /// A wired input: read-only text such as "wired from Edges ∥ Z".
     case wired(label: String, source: String)
+    /// A data tree on one of the node's sockets: its shape and, opened, its branches (the Data section).
+    case treeShape(TreeShapeRow)
     /// A value shown without an editor, such as a missing node's type.
     case readOnly(label: String, text: String)
 }

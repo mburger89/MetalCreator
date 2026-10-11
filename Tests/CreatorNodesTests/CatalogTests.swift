@@ -8,7 +8,7 @@ struct CatalogTests {
     func socket(of control: InspectorControl) -> SocketName? {
         switch control {
         case .slider(let name), .number(let name), .integer(let name), .planePicker(let name),
-             .anchorGrid(let name), .ruleSummary(let name), .vector(let name), .parameterPicker(let name):
+             .anchorGrid(let name), .ruleSummary(let name), .vector(let name), .parameterPicker(let name), .text(let name):
             name
         case .toggle(let name, _), .segmented(let name, _):
             name
@@ -26,7 +26,7 @@ struct CatalogTests {
         case .planePicker: [.plane]
         case .ruleSummary: [.edgeSet]
         case .vector: [.vector]
-        case .parameterPicker, .button: []
+        case .parameterPicker, .text, .button: []
         }
     }
 

@@ -77,6 +77,15 @@ struct InspectorRowView: Component {
                 Spacer()
                 AnchorGridView(selected: selected) { model.setInput(field, to: .integer($0)) }
             }
+        case .treeShape(let tree):
+            TreeShapeView(row: tree, model: model)
+        case .text(let field):
+            LabeledRow(label: field.label) {
+                Spacer()
+                TextEntry(model: model, text: Self.settingText(field), placeholder: "Text", width: 170) {
+                    model.setInput(field, to: .text($0))
+                }
+            }
         case .parameterPicker(let field, let options, let selected):
             if options.isEmpty {
                 LabeledRow(label: field.label) {
@@ -111,6 +120,11 @@ struct InspectorRowView: Component {
                 Text(text).font(.callout).foregroundStyle(palette.secondaryText.color)
             }
         }
+    }
+
+    /// The text a `.text` setting holds; empty when none is stored.
+    static func settingText(_ field: InputField) -> String {
+        if case .text(let text)? = field.value { text } else { "" }
     }
 
     /// A field's text: empty while an optional input is unset, else its value (one component of a vector).
