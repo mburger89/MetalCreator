@@ -144,7 +144,7 @@ extension AppModel {
     /// instance's identities, and a pick stored inside a group names them as its definition does
     /// (`GraphContent.relativeToLevel`), so every instance reads it as its own. On the top level it is unchanged.
     func relativeToLevel(_ picks: ConstantValue) -> ConstantValue {
-        document.content.relativeToLevel(picks, levels: editor.levelPath)
+        document.content.relativeToLevel(picks, levels: editor.levelPath, registry: document.registry)
     }
 
     /// The output socket that produced `solid`, by identity: a shown solid's recorded source, else any node

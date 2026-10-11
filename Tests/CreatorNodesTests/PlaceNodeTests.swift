@@ -125,4 +125,12 @@ struct PlaceNodeTests {
         #expect(isClose(copy.bounds.min, Vector3(-5, -10, -5)))
         #expect(isClose(copy.bounds.max, Vector3(5, 0, 5)))
     }
+
+    /// Group instances rename the copies a pattern node placed (`GroupScopes.lifting`), so the nodes that place copies say so.
+    @Test func onlyTheNodesThatPlaceCopiesAreFlaggedAsPlacers() {
+        let flagged = BuiltInNodes.all.filter { $0.placesInstances }.map { $0.typeID }  // A key path on a metatype crashes Swift 6.4.
+        #expect(Set(flagged) == [PlaceNode.typeID, HolePatternNode.typeID, BossPatternNode.typeID, SlotPatternNode.typeID,
+                                 PatternFeatureNode.typeID,
+        ])
+    }
 }

@@ -13,6 +13,7 @@ public enum PlaceNode: NodeDefinition {
     public static let typeID = "creator.place"
     public static let displayName = "Place"
     public static let category = NodeCategory.patterns
+    public static let placesInstances = true
     public static let inputs = [
         SocketSpec("tool", .solid, access: .list),
         SocketSpec("placements", .plane, access: .list),

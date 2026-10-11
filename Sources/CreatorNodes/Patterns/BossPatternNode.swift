@@ -14,6 +14,7 @@ public enum BossPatternNode: NodeDefinition {
     public static let typeID = "creator.bossPattern"
     public static let displayName = "Boss / Pin Pattern"
     public static let category = NodeCategory.patterns
+    public static let placesInstances = true
     public static let inputs = [
         SocketSpec("part", .solid),
         SocketSpec("placements", .plane, access: .list),
