@@ -7,9 +7,9 @@ import Testing
 struct OutputNodeTests {
     /// The slice's 26 (spec §7.1) plus Plane from Face and Sketch (S4), Place and Points to Placements (7a-2).
     @Test func theBuiltInsAreTheSliceTheSketcherAndThePatternNodesInSevenCategories() {
-        #expect(BuiltInNodes.all.count == 33)
+        #expect(BuiltInNodes.all.count == 34)
         let counts = Dictionary(grouping: BuiltInNodes.all, by: { $0.category }).mapValues(\.count)
-        #expect(counts == [.value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .patterns: 5, .output: 1])
+        #expect(counts == [.value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .patterns: 6, .output: 1])
     }
 
     /// The palette path (M5) is `registry.makeNode(typeID, at:)`, so that is what is tested.

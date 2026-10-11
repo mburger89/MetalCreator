@@ -46,3 +46,27 @@ struct ProfileShapeTests {
         #expect(Profile2D.polyline(points, closed: false, plane: .xy).segments.count == 2)
     }
 }
+
+struct ProfileSlotTests {
+    @Test func aSlotIsAClosedFourSegmentLoopCentredOnTheOrigin() {
+        let slot = Profile2D.slot(length: 20, width: 6, plane: .xy)
+        #expect(slot.segments.count == 4)
+        #expect(slot.isClosed)
+        #expect(slot.bounds?.min == Vector3(-10, -3, 0))
+        #expect(slot.bounds?.max == Vector3(10, 3, 0))
+    }
+
+    @Test func aSlotsPerimeterIsTwoStraightsAndACircle() {
+        let slot = Profile2D.slot(length: 20, width: 6, plane: .xy)
+        #expect(isClose(slot.segments.reduce(0) { $0 + $1.length }, 2 * 14 + 2 * Double.pi * 3, tolerance: 1e-9))
+    }
+
+    @Test func aSlotsEndsAreRoundedAboutTheCentresOfItsEnds() {
+        let slot = Profile2D.slot(length: 20, width: 6, plane: .xy)
+        guard case .arc(let right, let radius, _, _) = slot.segments[1], case .arc(let left, _, _, _) = slot.segments[3] else {
+            Issue.record("segments 1 and 3 are the ends' arcs")
+            return
+        }
+        #expect(right == Vector2(7, 0) && left == Vector2(-7, 0) && radius == 3)
+    }
+}
