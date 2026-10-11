@@ -30,7 +30,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M6-c | Full-size content view | C8 | 🔄 open: fixed in MetalUI 70e9389 (PR #61) but not adopted; the window keeps its standard title bar until human check AS-5 shows it drags (C8-a) |
 | M6-d | Open-document events | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
 | C8-a | Window drag region for a hidden title bar under a gesture-carrying view | none yet | ⏳ reported to the MetalUI session 2026-10-10, not yet queued; predicted from reading MetalUI, AS-5 not run (it would confirm or refute) |
-| M6-e | Public headless test window | item 8 (test harness) | ⏳ queued |
+| M6-e | Public headless test window | item 8 (test harness) | 🟡 landed in MetalUI master 280d706 (item 8, `MetalUITesting`); adoption here pending |
 | M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
 | M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
 | VI-a | A dropped gesture's end | C16 | ⏳ queued after C8 and C9 |
@@ -43,17 +43,17 @@ stopgap as they were. The sections below keep each gap's full use case.
 | P-a | Third-party notices | C17 | ✅ fixed (67a579e), adopted |
 | LF-a | A clip inside an `offset` or uniform `scaleEffect` | C18 | ✅ fixed (0b400b4) |
 | LF-b | A clip inside nested flattening effects (LF-a's regression) | C19 | ✅ fixed (9ad2254) |
-| TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | ⏳ reported, not queued |
+| TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | 🟡 landed in MetalUI master 280d706 (item 8, `MetalUITesting`); adoption here pending |
 | S5-a | Modifiers on a hover (and a tap, GI-a) | none yet (with GI-a) | ⏳ reported, not queued |
 | S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ⏳ reported 2026-10-09 |
 | S5-c | A `MetalView` draw can't draw text (world-anchored labels) | MetalUI session (with M4-b) | ⏳ reported 2026-10-09, sent to the MetalUI session |
 | M7-a | `ForEach` identity is an id's description | none yet | ⏳ reported, not queued |
-| M7-b | No warm headless frame for measuring | none yet (with M6-e) | ⏳ reported, not queued; used again by C10 (below) |
+| M7-b | No warm headless frame for measuring | none yet (with M6-e) | 🟡 landed in MetalUI master 280d706 (item 8, `MetalUITesting`); adoption here pending |
 | C10-a | No backdrop blur behind a material | C10-c (unscheduled) | ⏳ sent to the MetalUI session 2026-10-09 |
 | CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | C9 | ✅ fixed by C9 (KF-Z/KF-AA: ⌘↩ is no editing key of a `TextEditor`, so an `onKeyPress` for it commits), adopted by the inspector's note box and the canvas editor (Comments typing plan) |
 | CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C24 |
 | CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C25 |
-| CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | ⏳ reported 2026-10-10 (Comments typing final review), rides with M6-e |
+| CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | 🟡 landed in MetalUI master 280d706 (item 8, `MetalUITesting`); adoption here pending |
 
 ## Reported 2026-10-07 (C7)
 
