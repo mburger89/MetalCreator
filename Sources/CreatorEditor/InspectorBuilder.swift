@@ -7,7 +7,7 @@ import Foundation
 /// (spec §6.4). Pure: tests check wired versus unwired binding without any UI.
 public enum InspectorBuilder {
     public static func page(graph: Graph, selection: Set<NodeID>, registry: NodeRegistry,
-                            results: [NodeID: NodeResult]) -> InspectorPage {
+                            results: [NodeID: NodeResult], expandedShapes: Set<String> = []) -> InspectorPage {
         let parameters = graph.parameters.map { ParameterRow(parameter: $0, range: parameterRange($0)) }
         guard selection.count == 1, let id = selection.first, let node = graph.nodes[id] else {
             return InspectorPage(header: nil, sections: [], parameters: parameters)
@@ -27,13 +27,38 @@ public enum InspectorBuilder {
         let declared = definition.inspector.isEmpty
             ? fallbackSections(inputs)
             : definition.inspector + fallbackSections(inputs.filter { !fixed.contains($0.name) })
-        let sections = declared.map { section in
+        var sections = declared.map { section in
             InspectorSectionRows(title: section.title, rows: section.controls.map {
                 row(for: $0, node: node, inputs: inputs, outputs: registry.outputs(for: node), graph: graph,
                     results: results)
             })
         }
+        if let data = dataSection(node: node, graph: graph, registry: registry, results: results, expanded: expandedShapes) {
+            sections.append(data)
+        }
         return InspectorPage(header: header, sections: sections, parameters: parameters)
+    }
+
+    /// The "Data" section (7a spec §2): a row for each tree wired into one of the node's inputs and each tree it made,
+    /// with its shape and, when opened, its branches. `nil` when the node has none, so a node that works on items and
+    /// flat lists shows exactly what it always did.
+    static func dataSection(node: Node, graph: Graph, registry: NodeRegistry, results: [NodeID: NodeResult],
+                            expanded: Set<String>) -> InspectorSectionRows? {
+        var rows: [InspectorRow] = []
+        for spec in registry.inputs(for: node) {
+            guard let link = graph.incomingLink(to: Endpoint(node: node.id, socket: spec.name)),
+                  case .tree(let tree)? = results[link.from.node]?.outputs?[link.from.socket] else { continue }
+            let key = TreeShapeRow.key(node: node.id, isInput: true, socket: spec.name)
+            rows.append(.treeShape(TreeShapeRow(key: key, label: "\(InspectorLabel.text(for: spec.name)) in", tree: tree,
+                                                isExpanded: expanded.contains(key))))
+        }
+        for spec in registry.outputs(for: node) {
+            guard case .tree(let tree)? = results[node.id]?.outputs?[spec.name] else { continue }
+            let key = TreeShapeRow.key(node: node.id, isInput: false, socket: spec.name)
+            rows.append(.treeShape(TreeShapeRow(key: key, label: "\(InspectorLabel.text(for: spec.name)) out", tree: tree,
+                                                isExpanded: expanded.contains(key))))
+        }
+        return rows.isEmpty ? nil : InspectorSectionRows(title: "Data", rows: rows)
     }
 
     /// A definition that declares no inspector gets one row per number, integer, bool or vector input.

@@ -77,6 +77,8 @@ struct InspectorRowView: Component {
                 Spacer()
                 AnchorGridView(selected: selected) { model.setInput(field, to: .integer($0)) }
             }
+        case .treeShape(let tree):
+            TreeShapeView(row: tree, model: model)
         case .text(let field):
             LabeledRow(label: field.label) {
                 Spacer()

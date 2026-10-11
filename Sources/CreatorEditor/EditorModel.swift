@@ -75,6 +75,9 @@ public final class EditorModel {
     @ObservationIgnored var requestSerial = 0
     /// What an inspector field holds but hasn't committed (`EditorModel+PendingEntry`).
     @ObservationIgnored var pendingEntry: PendingEntry?
+    /// The data-tree path lists the inspector has open (`TreeShapeRow.key`; `EditorModel+TreeDisplay`). View state: never
+    /// undone, never saved.
+    public internal(set) var expandedShapeLists: Set<String> = []
     /// The comment being typed into in place on the canvas (`EditorModel+CommentEditing`). View state: never undone,
     /// never saved. While it is set, `pendingEntry` is its draft.
     public internal(set) var commentEdit: CommentEdit?

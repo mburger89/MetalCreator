@@ -227,3 +227,23 @@ enum TextSettingTestNode: NodeDefinition {
         NodeOutputs(trees: ["tree": try inputs.tree("tree")])
     }
 }
+
+/// Makes a data tree from nothing: `rows` branches of `columns` numbers (default 3 × 8). Not in `editorTestRegistry`, so the
+/// palette tests' type lists stay as they are: tree tests use `treeDisplayRegistry`.
+enum TreeMakerTestNode: NodeDefinition {
+    static let typeID = "editortest.treeMaker"
+    static let displayName = "Tree Maker"
+    static let category = NodeCategory.lists
+    static let inputs = [
+        SocketSpec("rows", .integer, defaultValue: .integer(3)),
+        SocketSpec("columns", .integer, defaultValue: .integer(8)),
+    ]
+    static let outputs = [SocketSpec("values", .number)]
+    static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        let (rows, columns) = (try inputs.integer("rows"), try inputs.integer("columns"))
+        let branches = (0..<rows).map { _ in DataTree.list((0..<columns).map { .number(Double($0)) }) }
+        return NodeOutputs(trees: ["values": DataTree(depth: 2, branches: branches) ?? .empty(depth: 2)])
+    }
+}
+
+let treeDisplayRegistry = NodeRegistry([TreeMakerTestNode.self, TextSettingTestNode.self, NumberTestNode.self])

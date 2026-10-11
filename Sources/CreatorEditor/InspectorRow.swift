@@ -22,6 +22,8 @@ public enum InspectorRow: Equatable, Sendable {
     case button(title: String, action: InspectorAction)
     /// A wired input: read-only text such as "wired from Edges ∥ Z".
     case wired(label: String, source: String)
+    /// A data tree on one of the node's sockets: its shape and, opened, its branches (the Data section).
+    case treeShape(TreeShapeRow)
     /// A value shown without an editor, such as a missing node's type.
     case readOnly(label: String, text: String)
 }
