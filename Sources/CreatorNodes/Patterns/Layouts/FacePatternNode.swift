@@ -68,11 +68,13 @@ public enum FacePatternNode: NodeDefinition {
             throw NodeError.invalidValue("Face Pattern would have to try more than \(maximumCandidates.display) positions: "
                 + "raise the spacing.")
         }
-        let rows = Int(lowRow)...max(Int(highRow), Int(lowRow) - 1)
+        // A stride is empty when highRow < lowRow (a face between two lattice rows); a closed range would trap there.
+        let rows = stride(from: Int(lowRow), through: Int(highRow), by: 1)
         let firstColumn = Int(lowColumn)
         var rowBranches: [DataTree] = []
         var total = 0
         for row in rows {
+            try Task.checkCancellation()
             let offset = abs(row) % 2 == 1 ? shift : 0
             let lastColumn = Int(((box.max.x - offset) / spacingX).rounded(.down))
             var cells: [DataTree] = []
