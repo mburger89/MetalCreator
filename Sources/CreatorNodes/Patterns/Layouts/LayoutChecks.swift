@@ -15,8 +15,11 @@ enum LayoutChecks {
         return value
     }
 
-    /// `a × b` instances, refused over the pattern limit before any of them is made (and without overflowing).
+    /// `a × b` instances, refused over the pattern limit before any of them is made (and without overflowing). Each count is
+    /// also checked on its own: a zero count makes the product 0, but the other count would still size a loop of empty rows.
     static func product(_ a: Int, _ b: Int) throws -> Int {
+        try PatternLimit.check(a)
+        try PatternLimit.check(b)
         let (total, overflowed) = a.multipliedReportingOverflow(by: b)
         guard !overflowed else { throw PatternLimit.refusal }
         try PatternLimit.check(total)

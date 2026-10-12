@@ -68,6 +68,9 @@ struct GridPatternNodeTests {
         (["spacingX": .number(-1)], "“spacingX” must be 0 or more."),
         (["countX": .integer(51), "countY": .integer(40)], "Patterns are limited to 2,000 instances."),
         (["countX": .integer(Int.max), "countY": .integer(3)], "Patterns are limited to 2,000 instances."),
+        (["countX": .integer(0), "countY": .integer(2_001)], "Patterns are limited to 2,000 instances."),
+        (["countX": .integer(0), "countY": .integer(Int.max)], "Patterns are limited to 2,000 instances."),
+        (["countX": .integer(Int.max), "countY": .integer(0)], "Patterns are limited to 2,000 instances."),
         (["plane": .plane(Plane(origin: .zero, normal: .zero, xAxis: .unitX))], "The grid's plane has no usable direction."),
     ] as [([SocketName: ConstantValue], String)])
     func aBadInputIsRefusedInPlainWords(settings: [SocketName: ConstantValue], message: String) async throws {
