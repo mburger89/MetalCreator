@@ -13,6 +13,9 @@ public struct ViewportEvents {
     /// "New Sketch on Face" (sketcher spec §8): the flat face, and its remembered pick (`topology.facePick(for:)`, the
     /// encoding Plane from Face stores). The host wraps the pick as `.facePick(…)`; the viewport never builds a graph value.
     public var newSketchOnFace: @MainActor (ViewportFaceRef, FacePick) -> Void = { _, _ in }
+    /// "Pattern on Face" (patterns spec §3): the flat face, and its remembered pick, the encoding Face Pattern stores as it
+    /// stores Plane from Face's. The host wraps the pick as `.facePick(…)`.
+    public var patternOnFace: @MainActor (ViewportFaceRef, FacePick) -> Void = { _, _ in }
     /// "Show Producing Node": the node that made the face, from its tags.
     public var showProducingNode: @MainActor (NodeID) -> Void = { _ in }
     /// A handle drag: the handle's id and its new value.

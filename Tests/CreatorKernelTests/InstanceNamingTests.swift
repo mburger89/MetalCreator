@@ -43,6 +43,19 @@ struct InstanceNamingTests {
         #expect(moved.node == qualify(tool))
     }
 
+    @Test func aTopologyCanBeRenamedByAnotherItemWithoutChangingItsNodesOrRoles() {
+        let key = EdgeKey([wall(qualify(tool), item: 1)], [TopoTag(node: qualify(tool), item: 1, role: .endCap)])
+        let blend = TopoTag(node: qualify(tool), item: 1, role: .blend(sourceEdge: key))
+        let topology = Topology(faces: [face(0, [wall(qualify(tool), item: 1)]), face(1, [blend])], edges: [])
+        let item = InstancePath.item(for: [2, 5]) ?? 0
+        let renamed = topology.withInstanceItem(item)
+        #expect(renamed.faces[0].tags == [wall(qualify(tool), item: item)])
+        let expected = EdgeKey([wall(qualify(tool), item: item)], [TopoTag(node: qualify(tool), item: item, role: .endCap)])
+        #expect(renamed.faces[1].tags == [TopoTag(node: qualify(tool), item: item, role: .blend(sourceEdge: expected))])
+        #expect(renamed.vanishedInstances(in: [wall(qualify(tool), item: item)]) == [])
+        #expect(renamed.vanishedInstances(in: [wall(qualify(tool), item: 1)]) == [1])
+    }
+
     @Test func aTopologyKeepsItsShapeAndRenamesItsFaces() {
         let edge = EdgeInfo(id: EdgeID(0), kind: .circle, direction: .unitZ, length: 3, midpoint: .zero, convexity: .convex,
                             faces: [FaceID(0), FaceID(1)])
@@ -63,6 +76,13 @@ struct InstanceNamingTests {
         let topology = Topology(faces: [face(0, [wall(qualify(tool), item: 0)]), face(1, [wall(qualify(tool), item: 1)])], edges: [])
         let pick: Set = [wall(qualify(tool), item: 5), wall(NodeID(), item: 0)]
         #expect(topology.vanishedInstances(in: pick) == [5])
+    }
+
+    @Test func vanishedTreePathsAreListedInPathOrder() throws {
+        let gone = [try #require(InstancePath.item(for: [1, 1])), try #require(InstancePath.item(for: [0, 2]))]
+        let topology = Topology(faces: [face(0, [wall(qualify(tool), item: 5)])], edges: [])
+        let pick = Set(gone.map { wall(qualify(tool), item: $0) })
+        #expect(topology.vanishedInstances(in: pick).map { InstancePath.text($0) } == ["{0;2}", "{1;1}"])
     }
 
     @Test func aPickOnAnOrdinaryBroadcastItemIsNeverCalledVanished() {

@@ -35,11 +35,17 @@ Named undo steps (plan `docs/superpowers/plans/2026-10-10-named-undo.md`) code i
 Final-review follow-ups (plans `docs/superpowers/plans/2026-10-10-followups-app.md`, `2026-10-10-followups-editor.md` and
 `2026-10-10-followups-kernel.md`) code is done; the app track's human checks (group FA) are pending.
 Data trees (sub-project 7a-1: spec `docs/superpowers/specs/2026-10-10-patterns-trees-design.md` §2 and §4's tree nodes, plan
-`docs/superpowers/plans/2026-10-10-7a-trees.md`) code is done; its human checks (group TR) are pending. Instance paths for
-placed copies, the layouts and Place are the other 7a tracks.
+`docs/superpowers/plans/2026-10-10-7a-trees.md`) code is done; its human checks (group TR) are pending.
 Patterns, sub-project 7a-2 (Place, Points to Placements, the four shortcut nodes, the `Patterns` library category and the
 200-instance benchmark; plan `docs/superpowers/plans/2026-10-10-7a-place.md`, spec `2026-10-10-patterns-trees-design.md` §3, §5,
 §6, §7) code is done; its human checks (group PA) are pending and its benchmark numbers (`PatternBench`) await an idle run.
+Patterns, sub-project 7a-3 part A (the five layout nodes, trees of placements through Place and the shortcuts, instance
+tags by
+tree path, layout previews in the viewport, Pattern on Face and the acceptance test; plan
+`docs/superpowers/plans/2026-10-12-7a-layouts.md`,
+spec `2026-10-10-patterns-trees-design.md` §3, §6, §8, §9 and its Errata (7a-3)) code is done; its human checks (group
+PL) are pending.
+Culling, Random and Jitter are 7a-variation.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -49,7 +55,12 @@ Module boundaries (dependency order):
 - `CreatorKernel`: the `Kernel` protocol, `Solid`, tagged topology tables, `FakeKernel` for tests (it refuses extruded holes that lie outside
   the outline's bounds, as OCCT refuses strays). `Kernel.place(_:at:qualifying:tag:)` makes every placed copy of a pattern in one
   call: copy `i` is a tool moved by a `Transform`, its tags requalified (`Topology.qualified(item:_:)`: node → `qualify(node)`,
-  item → `i`, nested blend source edges too). `NodeID.isInstanceQualified` (a version-8 UUID) tells those nodes from any other,
+  item → `i`, nested blend source edges too). A pattern over a tree renames each copy afterwards
+  (`Topology.withInstanceItem(_:)`,
+  no kernel call): `InstancePath` is the one place a path becomes a tag item and back, `{i}` being the item `i` (so a
+  pick saved
+  before trees resolves unchanged) and `{a;b}` to `{a;b;c;d}` (indices up to 32,767) one negative `Int`.
+  `NodeID.isInstanceQualified` (a version-8 UUID) tells those nodes from any other,
   and `Topology.vanishedInstances(in:)` finds the copies a pick names that a topology no longer has.
 - `COCCT` + `CreatorOCCT`: the OpenCascade C shim and `OCCTKernel: Kernel` (topology tables, face tags carried through
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
@@ -103,25 +114,49 @@ Module boundaries (dependency order):
     trees of different depth matched from the outside with one warning naming both shapes, and more than
     `maximumTreeIterations` runs refused. Outputs keep the deepest nesting (`BroadcastPlan.assemble`). A `tree`-access socket
     (`SocketSpec.Access.tree`, `NodeInputs.tree`) gets the whole value as a `DataTree` and never broadcasts; a node returns
-    trees through `NodeOutputs(trees:)` and must run once (other inputs single values). `SocketType.any` is for the tree
+    trees through `NodeOutputs(trees:)` and must run once (other inputs single values;
+    `NodeDefinition.singleValuesRefusal` lets a node, the layouts, refuse a list
+    there in its own words before it runs). `SocketType.any` is for the tree
     nodes' sockets only. Iteration `item` numbers (the tag's item) are flat, row by row.
-- `CreatorNodes`: the 41 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch, the six
+- `CreatorNodes`: the 46 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
+the eleven
   `Patterns` nodes below, and the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
   Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
   parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, and `projection(reference)` per projected edge) live in
   `Node.inputValues`; `NodeRegistry.makeNode` seeds `defaultSettings` and sets `isOutput` for `.output`-category nodes.
   - Patterns (`Sources/CreatorNodes/Patterns`, category `NodeCategory.patterns`, library section "Patterns"; patterns spec §3, §5–§7):
-    Place (a tool built at the origin facing +Z and a list of `Plane` placements: one copy per placement, the longer list
-    sets the count and the shorter repeats its last item), Points to Placements, and the shortcuts Hole Pattern, Boss / Pin
+    The layouts (`Patterns/Layouts`): Linear Pattern (a flat list), Grid Pattern (a tree, a branch per row), Circular
+    Pattern (a
+    branch per ring; `countStep`, `radiusStep`, `startAngle`), Curve Pattern (a branch per chain of straight or circular
+    edges,
+    `EdgeChains`, or per loop of a profile) and Face Pattern (a picked flat face, `FaceRegion` clipping to its holes and
+    a margin; a
+    branch per row holding a branch per grid cell, counted from the lowest row and column its box reaches, so a vent
+    keeps its path
+    as the margin or a hole changes (a face growing at its lower left renumbers)), each refusing over 2,000
+    (`PatternLimit`). A layout that is a tree is one even for one row or ring, so a ring added later renames no path. A
+    list wired into
+    a layout's input is refused in its own words (`NodeDefinition.singleValuesRefusal`, before it runs).
+    Place (a tool built at the origin facing +Z and `Plane` placements, matched by `InstanceGrid`: the longer flat list
+    sets the
+    count and the shorter repeats its last item; a tree of placements gives a tree of copies, a flat list applying to
+    every
+    branch and a tree as deep as the shape matching level by level, so a Graft of one size per ring sizes the rings),
+    Points to Placements, and the shortcuts Hole Pattern, Boss / Pin
     Pattern, Slot Pattern and Pattern Feature, each Place + Boolean underneath through `PatternApply`: tools built once per
     distinct size (`ToolPlan`), one `Kernel.place` and one `Kernel.boolean`, never a boolean per instance. A shortcut's sizes
-    are `.list` sockets read through `PerInstance` (broadcasting inside the node, so it can make one kernel call). Over 2,000
-    instances refuses ("Patterns are limited to 2,000 instances.", `PatternLimit`); a tree on any input is refused
-    (`EvalContext.isTreeRun`, `PlacementMoves.requireFlat`: "flatten the tree first"); an instance that did nothing to the part
-    warns with the count (`PatternMisses`: a cut leaves no face tagged with its index, a union's bounds don't touch the
+    are `.tree` sockets matched to the placements by `InstanceGrid` (inside the node, so it can make one kernel call).
+    Over 2,000
+    instances refuses ("Patterns are limited to 2,000 instances.", `PatternLimit`); a tree on the part or the operation
+    is refused
+    (`EvalContext.isTreeRun`, `PlacementMoves.requireSingleValues`); placements, sizes and tools are read whole, one
+    kernel call for a tree; an instance that did nothing to the part
+    warns with the count (`PatternMisses`: a cut leaves no face tagged with its item, a union's bounds don't touch the
     part's). A copy's tags are its tool's, qualified: node `NodeID.instanceScoped([placer, toolNode])` and item the copy's
-    flat index (`InstancePath.text` writes it `{i}`; 7a-trees brings the tree path), so a pick follows its instance through
-    count, spacing and size changes; `EdgeTagMatch` and Plane from Face say "Instance {4} no longer exists…" when it is gone
+    path (`InstancePath.item(for:)`: `{i}` is the item `i`, `{row;i}` one packed negative number), so a pick follows its
+    instance through
+    count, spacing and size changes; `EdgeTagMatch` and Plane from Face say "Instance {4} no longer exists…" (several,
+    in path order) when it is gone
     and never fall back to a neighbour. In a group, `EvaluationScope.entering` lifts its renaming table to the placer/tool
     pairs (`GroupScopes.lifting`, `NodeDefinition.placesInstances`), and `GraphContent.relativeToLevel(_:levels:registry:)`
     does the same for a pick made in the viewport inside one. Group, Ungroup and Make Unique rename instance picks too
@@ -264,7 +299,14 @@ Module boundaries (dependency order):
   together on New and Open), turns results into `ViewportItem`s (`SceneBuilder`; in Final preview a selected rule's edges on a solid no shown
   part holds come as guide items, Errata (Viewport: a rule's edges over the Final part)) and `HandleSpec`s into
   `ViewportHandle`s (`HandleBuilder`), turns viewport events into graph commands (picking writes Edges by Tag rules),
-  and opens, saves and exports. Inside a group `AppModel` reads the level through `editor.graph`/`levelResults`: Selected
+  and opens, saves and exports. A selected layout node is evaluated even before anything is wired to it and shows its
+  placements
+  as an overlay of axis triads (`LayoutPreview`, `OverlayTint.axisX/Y/Z`; Face Pattern also dashes the area it fills),
+  which never
+  picks, frames or opens a menu; the face menu's Pattern on Face (`AppModel.patternOnFace`) inserts a Face Pattern
+  holding the
+  face's pick, wired from the part. Inside a group `AppModel` reads the level through `editor.graph`/`levelResults`:
+  Selected
   node previews the level's selected node, handles and picking work there, and a pick is written through
   `GraphContent.relativeToLevel` (Done and a viewport click drop a pick whose level is no longer the one shown); Final
   preview and export stay on the top level. Sketch mode is top-level only

@@ -5,18 +5,18 @@ import CreatorKernel
 /// Which instances of a pattern did nothing to the part (patterns spec §5): a hole in empty space, a boss beside the
 /// plate. They don't fail the node; it warns with the count, "3 of 24 holes miss the part."
 enum PatternMisses {
-    /// How many of `copies` missed `part`. A subtracted or intersected copy missed when none of the faces the
+    /// How many of `copies` missed `part`; copy `i` is named by the tag item `items[i]` (`InstancePath.item`). A subtracted or intersected copy missed when none of the faces the
     /// operation left carries its tag (a cut leaves its tool's faces as the walls of what it cut, and a tool that
     /// found nothing to cut leaves none). A united copy missed when its bounds don't touch the part's: it brings its
     /// faces along wherever it stands, and a copy apart from the part is a piece of its own.
-    static func count(_ op: BooleanOp, part: Solid, result: Solid, copies: [Solid]) -> Int {
+    static func count(_ op: BooleanOp, part: Solid, result: Solid, copies: [Solid], items: [Int]) -> Int {
         switch op {
         case .union:
             return copies.filter { !touches($0.bounds, part.bounds) }.count
         case .subtract, .intersect:
             let nodes = Set(copies.flatMap { $0.topology.faces.flatMap(\.tags) }.map(\.node).filter(\.isInstanceQualified))
             let present = Set(result.topology.faces.flatMap(\.tags).filter { nodes.contains($0.node) }.map(\.item))
-            return copies.indices.filter { !present.contains($0) }.count
+            return items.filter { !present.contains($0) }.count
         }
     }
 

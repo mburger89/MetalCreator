@@ -223,4 +223,24 @@ struct GroupViewportTests {
         }
         #expect(problem.message == "Sketches inside a group can't be made yet. Make it before grouping, or from the top level.")
     }
+
+    /// Pattern on Face writes a pick for the top level, so inside a group it says why it does nothing.
+    @Test func patternOnFaceIsRefusedInsideAGroup() async throws {
+        let scene = try await groupedBox()
+        let app = scene.app
+        app.previewMode = .selectedNode
+        app.editor.selection = [scene.extrude.id]
+        await app.settle()
+        let before = app.document.content
+        app.viewport.pick = { _ in .face(solid: 0, FaceID(1)) }
+        let items = app.viewport.contextMenuItems(at: ScreenPoint(700, 450))
+        let item = try #require(items.first { if case .patternOnFace = $0 { true } else { false } })
+        app.viewport.choose(item)
+        #expect(app.document.content == before)
+        guard case .problem(let problem)? = app.alert else {
+            Issue.record("no alert")
+            return
+        }
+        #expect(problem.message == "Patterns on a face can't be made inside a group yet. Make it before grouping, or from the top level.")
+    }
 }

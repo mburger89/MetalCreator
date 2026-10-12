@@ -1,5 +1,7 @@
 extension ViewportPalette {
-    /// An overlay tint's colour (sketcher spec §8's table).
+    // One case per tint, nothing to branch on.
+    // swiftlint:disable cyclomatic_complexity
+    /// An overlay tint's colour (sketcher spec §8's table, and the axis colours of the layout previews).
     func color(_ tint: OverlayTint) -> SIMD4<Float> {
         switch tint {
         case .underConstrained: sketchUnderConstrained
@@ -11,6 +13,10 @@ extension ViewportPalette {
         case .hovered: hover
         case .preview: sketchPreview
         case .region: sketchRegion
+        case .axisX: axisX
+        case .axisY: axisY
+        case .axisZ: axisZ
         }
     }
+    // swiftlint:enable cyclomatic_complexity
 }

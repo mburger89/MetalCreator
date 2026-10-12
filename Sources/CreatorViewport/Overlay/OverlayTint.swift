@@ -16,6 +16,9 @@ public enum OverlayTint: Hashable, Sendable {
     case hovered
     /// A tool's rubber band, before it's committed: the under-constrained colour, faded.
     case preview
+    /// A placement's x, y and z axes (the layout previews' triads, patterns spec §8): the theme's axis colours, as the view
+    /// cube's triad draws them.
+    case axisX, axisY, axisZ
     /// The fill of a closed region (sketcher spec §8's "faint green fill"): the Sketch node's header colour, faint.
     case region
 }

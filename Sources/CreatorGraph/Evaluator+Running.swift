@@ -66,6 +66,7 @@ extension Evaluator {
              setup: EvaluationSetup) async throws -> NodeResult {
         let plan = BroadcastPlan.make(inputs: inputs, specs: setup.registry.inputs(for: node))
         if let refusal = plan.refusal { return NodeResult(state: .error(refusal)) }
+        if plan.iterations > 1, let refusal = definition.singleValuesRefusal { return NodeResult(state: .error(refusal)) }
         let outputSpecs = setup.registry.outputs(for: node)
         let clock = ContinuousClock()
         let start = clock.now

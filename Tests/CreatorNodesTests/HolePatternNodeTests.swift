@@ -203,16 +203,17 @@ struct HolePatternNodeTests {
         #expect(part.topology.faces.filter { $0.kind == .cylinder }.count == 4)
     }
 
-    @Test func aTreeOfPlacementsIsRefusedAndTheKernelNeverCuts() async throws {
+    @Test func aTreeOnThePartIsRefusedAndTheKernelNeverCuts() async throws {
         let kernel = OCCTKernel()
         var plate = PatternPlate(columns: 2, rows: 2)
         let node = plate.h.add(HolePatternNode.self, ["diameter": .number(5), "depth": .number(3)])
-        let rows = plate.h.add(PartitionNode.self, ["size": .integer(2)])
-        plate.h.wire(plate.plate, "solid", to: node, "part")
-        plate.h.wire(plate.placements, "placements", to: rows, "tree")
-        plate.h.wire(rows, "tree", to: node, "placements")
+        let parts = plate.h.add(GraftNode.self)
+        plate.h.wire(plate.plate, "solid", to: parts, "tree")
+        plate.h.wire(parts, "tree", to: node, "part")
+        plate.h.wire(plate.placements, "placements", to: node, "placements")
         let report = try await plate.h.run([node], kernel: kernel)
-        #expect(report.error(node) == "Patterns take flat lists for now: flatten the tree first.")
+        #expect(report.error(node) == "Only placements and sizes can be trees: flatten the tree wired into the part "
+            + "or the operation first.")
         #expect(report.value(node, "solid") == nil)
     }
 }

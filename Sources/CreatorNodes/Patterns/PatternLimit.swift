@@ -5,10 +5,13 @@ import CreatorGraph
 enum PatternLimit {
     static let maximumInstances = 2_000
 
+    /// "Patterns are limited to 2,000 instances."
+    static var refusal: NodeError {
+        NodeError.invalidValue("Patterns are limited to \(maximumInstances.display) instances.")
+    }
+
     /// Refuses a pattern of more than `maximumInstances`.
     static func check(_ count: Int) throws {
-        guard count <= maximumInstances else {
-            throw NodeError.invalidValue("Patterns are limited to \(maximumInstances.display) instances.")
-        }
+        guard count <= maximumInstances else { throw refusal }
     }
 }
