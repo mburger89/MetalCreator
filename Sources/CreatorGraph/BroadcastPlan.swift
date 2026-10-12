@@ -34,7 +34,8 @@ public struct BroadcastPlan: Sendable {
     /// socket broadcasts level by level instead (`BroadcastPlan.nestedPlan`); flat inputs never take that path.
     public static func make(inputs: [SocketName: Value], specs: [SocketSpec]) -> BroadcastPlan {
         let meetsTree = specs.contains { spec in
-            if spec.access != .tree, case .tree? = inputs[spec.name] { true } else { false }
+            // A culled flat list is a tree of depth 1 but broadcasts as a list, so only deeper trees need the nested plan.
+            if spec.access != .tree, case .tree(let tree)? = inputs[spec.name] { tree.depth >= 2 } else { false }
         }
         if meetsTree { return nestedPlan(inputs: inputs, specs: specs) }
         var itemInputs: [SocketName: Value] = [:]
@@ -49,8 +50,9 @@ public struct BroadcastPlan: Sendable {
             case .tree:
                 treeInputs[spec.name] = value.asTree ?? .list(value.items)
             case .item:
-                itemInputs[spec.name] = value
-                if case .list(let scalars) = value { counts.append(scalars.count) }
+                let flat = value.droppingCulls
+                itemInputs[spec.name] = flat
+                if case .list(let scalars) = flat { counts.append(scalars.count) }
             }
         }
         guard let longest = counts.max() else {

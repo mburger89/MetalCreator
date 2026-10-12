@@ -12,7 +12,7 @@ extension DataTree {
         if depth == 1 {
             let taken = Array(scalars[next..<next + count])
             next += count
-            return .list(taken)
+            return DataTree(depth: 1, scalars: taken, children: [], slots: slots)
         }
         var rebuiltBranches: [DataTree] = []
         for branch in branches {
