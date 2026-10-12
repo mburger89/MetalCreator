@@ -6,7 +6,7 @@ extension AppModel {
     /// viewport's first draw (the window's size is the viewport's, gap M4-a) or while the panel is hidden. Observed:
     /// a resize rebuilds what reads it (the canvas's culling) one task after the viewport's draw records the size.
     public var panelPlacement: PanelPlacement? {
-        let size = viewport.observedViewSize
+        let size = viewport.viewSize
         return panelPlacement(inWindowOf: Vector2(size.width, size.height))
     }
 

@@ -61,7 +61,7 @@ struct PanelPlacementTests {
     }
 
     /// A window grown by far more than the culling margin in one step (full screen, the green zoom button) rebuilds
-    /// the canvas: the size the viewport's draw records reaches what `CanvasLayers` reads one task later, and the
+    /// the canvas: the size the viewport's layout reports reaches what `CanvasLayers` reads, and the
     /// node below the old bottom edge is then drawn.
     @Test func aGrownWindowRebuildsTheCanvasWithWhatItUncovers() async throws {
         var builder = GraphBuilder()
@@ -70,14 +70,11 @@ struct PanelPlacementTests {
         let app = await makeApp(builder.graph)
         try #require(app.editor.dock == .left)
         app.viewport.recordViewSize(ViewportSize(width: 1000, height: 700))
-        await app.viewport.sizeChangeTask?.value
         #expect(app.editor.drawnNodes.contains { $0.id == near.id })
         #expect(!app.editor.drawnNodes.contains { $0.id == far.id }, "set up: the far node is culled")
         let observer = Observer()
         withObservationTracking { _ = app.editor.drawnNodes } onChange: { MainActor.assumeIsolated { observer.changes += 1 } }
         app.viewport.recordViewSize(ViewportSize(width: 1000, height: 1400))
-        #expect(observer.changes == 0, "the draw writes no tracked state")
-        await app.viewport.sizeChangeTask?.value
         #expect(observer.changes == 1, "the canvas is rebuilt at the new size")
         #expect(app.editor.drawnNodes.contains { $0.id == far.id }, "and draws the node it uncovers")
     }
