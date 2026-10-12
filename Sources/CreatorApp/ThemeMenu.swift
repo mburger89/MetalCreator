@@ -6,7 +6,7 @@ import MetalUI
 /// the menu opens, so a new, renamed or deleted theme is listed as it is.
 enum ThemeMenu {
     /// The menu's groups of themes, divided in the menu: the built-ins, then the custom themes if there are any.
-    /// (What the menu lists is tested here: MetalUI can't evaluate menu content outside itself, gap TH-a.)
+    /// (This list is tested here; what the evaluated menu shows and does is tested in `ThemeMenuEvaluationTests`, gap TH-a.)
     @MainActor
     static func sections(_ themes: ThemeStore) -> [[ColorTheme]] {
         themes.customs.isEmpty ? [themes.builtIns] : [themes.builtIns, themes.customs]

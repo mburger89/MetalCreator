@@ -43,7 +43,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | P-a | Third-party notices | C17 | ✅ fixed (67a579e), adopted |
 | LF-a | A clip inside an `offset` or uniform `scaleEffect` | C18 | ✅ fixed (0b400b4) |
 | LF-b | A clip inside nested flattening effects (LF-a's regression) | C19 | ✅ fixed (9ad2254) |
-| TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | 🟡 landed in MetalUI master 280d706 (item 8, `MetalUITesting`); adoption here pending |
+| TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `MenuEvaluation`, `TestApp.menuBar`), adopted (plan `2026-10-12-adopt-test-harness`): `ThemeMenuEvaluationTests` |
 | S5-a | Modifiers on a hover (and a tap, GI-a) | none yet (with GI-a) | ⏳ reported, not queued |
 | S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ⏳ reported 2026-10-09 |
 | S5-c | A `MetalView` draw can't draw text (world-anchored labels) | MetalUI session (with M4-b) | ⏳ reported 2026-10-09, sent to the MetalUI session |
@@ -589,6 +589,12 @@ Labelled TH-a… so they don't clash with the labels above. Checked against Meta
   `ThemeMenu.sections(_:)` returns the themes it lists, which `ThemeMenuTests` checks; the builder only turns them into
   items. Wanted: a public read-only evaluation of menu content (titles, enabled, `isOn`, shortcut, and a way to run an
   item), or one in a test-support product (with M6-e's headless window).
+  **Fixed by MetalUI item 8** (master 280d706: `MenuEvaluation`, `TestApp.menuBar`, `performMenuBarItem`) **and adopted**
+  (plan `2026-10-12-adopt-test-harness`): `ThemeMenuEvaluationTests` evaluates `ThemeMenu.items` as a window does at the
+  menu's open and checks what it lists (built-ins, divider, custom themes, divider, Edit Themes…), which item is checked,
+  and that choosing one shows the theme and Edit Themes… opens the editor; it also reads View ▸ Theme from the app's
+  menu bar (`AppCommands`) and runs an item through `performMenuBarItem`, which restyles the window. `ThemeMenu.sections(_:)`
+  stays: it is the list the menu is built from, and `ThemeMenuTests` keeps pinning it.
 
 ## Hit by the sketch editor (S5a), 2026-10-09
 
