@@ -86,6 +86,12 @@ struct AppWindow {
     /// The window x where the inspector's column starts (it floats at the window's right edge).
     var inspectorColumnStart: Double { size.x - AppLayout.margin - AppLayout.inspectorWidth }
 
+    /// Draws one more frame with nothing changed, as a display link would after something marked the window dirty.
+    func redraw() {
+        window.window.setNeedsRedraw()
+        window.tick()
+    }
+
     /// A window point from a vector.
     func windowPoint(_ vector: Vector2) -> Point<Pixels> {
         Point(x: Pixels(Float(vector.x)), y: Pixels(Float(vector.y)))

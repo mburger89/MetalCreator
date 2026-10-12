@@ -48,7 +48,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ⏳ reported 2026-10-09 |
 | S5-c | A `MetalView` draw can't draw text (world-anchored labels) | MetalUI session (with M4-b) | ⏳ reported 2026-10-09, sent to the MetalUI session |
 | M7-a | `ForEach` identity is an id's description | none yet | ⏳ reported, not queued |
-| M7-b | No warm headless frame for measuring | none yet (with M6-e) | 🟡 landed in MetalUI master 280d706 (item 8, `MetalUITesting`); adoption here pending |
+| M7-b | No warm headless frame for measuring | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `TestWindow` warm frames and `FrameWork`), adopted for work counts (plan `2026-10-12-adopt-test-harness`): `WarmFrameTests`; the release benchmarks (`Bench`) still report cold-frame milliseconds until they are moved onto it |
 | C10-a | No backdrop blur behind a material | C10-c (unscheduled) | ⏳ sent to the MetalUI session 2026-10-09 |
 | CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | C9 | ✅ fixed by C9 (KF-Z/KF-AA: ⌘↩ is no editing key of a `TextEditor`, so an `onKeyPress` for it commits), adopted by the inspector's note box and the canvas editor (Comments typing plan) |
 | CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C24 |
@@ -651,6 +651,14 @@ Labelled M7-a… so they don't clash with the labels above. Checked against Meta
   checked in. Stopgap: cold frames, labelled as an upper bound. Wanted, as one request with M6-e: a public headless
   window (or a frame renderer that keeps its caches across frames) that a client can drive with input and time,
   including the display link's pacing.
+  **Fixed by MetalUI item 8** (master 280d706: a `TestWindow` is one `Window` for its life, `lastFrameWork`/`frameWork`
+  count the work of each frame) **and adopted for counts** (plan `2026-10-12-adopt-test-harness`): `WarmFrameTests` opens
+  the editor with `recordsLayout: false` and pins what is stable on any machine, never a time: an idle window draws no
+  frame at all, a warm redraw uploads no atlas pixels, rasterizes and blurs no pixels and makes no texture, and a second
+  unchanged frame does exactly the work of the first. It does **not** pin zero layout work: a forced redraw of the
+  whole window re-measures it (hundreds of layout cache misses at 1440 × 900), which is PERF-b (C14, queued), so the
+  test leaves that number to PERF-b's own adoption. Not done: moving `Tests/CreatorAppTests/Bench` onto the warm
+  window (the release benchmark is never run in this plan); `docs/verification/performance.md` still says cold frames.
 
 ## Used again by the C10 adoption, 2026-10-09
 
