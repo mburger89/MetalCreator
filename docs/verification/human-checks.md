@@ -1281,3 +1281,80 @@ shows. Build a plate (Rectangle 120 × 80 on a plane at z = −8, Extrude 8) and
 - [ ] **PL-12 A list on a layout.** Wire a Series into a Grid Pattern's `spacingX`: the node refuses with "Grid Pattern takes single
   values, not lists: wire one value into each input, or pick one out of the list first with List Item." and shakes. Put a List Item
   between the Series and the socket: it works. The same for Circular Pattern's `radius`. **Observed:**
+
+## Group VA — variation and culling (7a-3 part B)
+
+**Status: NOT RUN.** Plan `2026-10-12-7a-variation.md`, spec `2026-10-10-patterns-trees-design.md` §4 and §6. Run
+`swift run MetalCreatorApp`. The tests pin the nodes, the generator and the naming; these check what a real window shows. Build a
+plate (Rectangle 60 × 40 on a plane at z = −6, Extrude 6) and a Grid Points (4 × 3, 15 mm) into Points to Placements into a Hole
+Pattern (Ø5, depth 6) into an Output; then put the nodes below between Points to Placements and the Hole Pattern.
+
+- [ ] **VA-1 The library.** The "Patterns" section ends with Cull Pattern, Cull Index, Cull by Region, Random Reduce, Random Values and
+  Jitter after Pattern Feature (the layouts come first in the section). Typing "cull" in the add-node palette finds three.
+  Pinned: `thePatternsSectionHoldsThePatternNodes`. **Observed:**
+- [ ] **VA-2 Cull Pattern.** The Pattern row shows `1 0` in a text field: every other hole is gone. Type `1 1 0` and press Return: every
+  third is gone. Type `1 2`: the badge reads "“1 2” isn't a pattern. Use 1 to keep an item and 0 to cull it, like 1 0 1." The
+  Edit menu names each change ("Change Cull pattern"). A long pattern scrolls inside the field. Set Scope to Overall with the
+  placements in rows (Partition by 4): the mask runs on from one row into the next. Pinned: `CullPatternNodeTests`,
+  `VariationSettingTests`. **Observed:**
+- [ ] **VA-3 Culled tooltips and the Data section.** With Cull Pattern selected, rest on its output dot: the tooltip reads "Tree 6, culled".
+  The inspector's Data section lists `{}` with 6 items. **Record that the section shows no gaps (a culled branch's missing
+  indices are not listed).** Pinned: `theShapeSaysCulled`. **Observed:**
+- [ ] **VA-4 Cull Index.** Type `1, 4` into Cull Index's field: holes 1 and 4 are gone and the others have not moved. Type `{2}`: the
+  same as `2`. Type `{0;3}`: the badge reads "{0;3} has 2 indices, but an item of this tree (12) needs 1. Write it like {0}." Type `{}`: the badge
+  reads "“{}” names the whole tree. To cull everything, use Cull Pattern with 0." Type `{9}`: the badge reads
+  "{9} names nothing in this tree." and the holes are unchanged. Pinned: `CullIndexNodeTests`. **Observed:**
+- [ ] **VA-5 A pick follows its hole through a cull.** Fillet the rim of one hole (pick it in the viewport). Cull another hole with
+  Cull Index: the fillet stays on the same hole, which has not moved, with no badge. Cull the filleted hole itself: Edges by Tag
+  reads "Instance {n} no longer exists, so the edge picked on it isn't selected." and nothing else is filleted. Clear the cull: the
+  fillet returns. Pinned: `CulledPickTests`. **Observed:**
+- [ ] **VA-6 Cull by Region.** Add a Vector (0, 0, 0) and a Cull by Region with Reference "Point", Keep "Outside or beyond" and
+  distance 12: the holes nearest the middle are gone. Switch Keep: only they remain. Switch Reference to Profile with nothing wired:
+  the badge reads "Connect or set “profile”." Wire a Rectangle into `profile`: holes inside it stay. Its two sections (Region and
+  Keep) fit the inspector without clipping. Pinned: `CullByRegionNodeTests`. **Observed:**
+- [ ] **VA-7 Random Reduce.** Set Count 3, Overall, Seed 5: three holes are gone. Change the Seed: other holes go, and the badge never
+  appears. Set it back to 5: the same three. Raise Count to 4: the same three and one more. Switch to Fraction 0.5, Per branch with
+  the placements in rows (Partition by 4): half of each row. Pinned: `RandomReduceNodeTests`. **Observed:**
+- [ ] **VA-8 Random Values.** Wire Random Values (min 4, max 6, Seed 5) with the Jitter's output in `shape` into the Hole Pattern's
+  `diameter`: the holes differ in size, and a hole keeps its size when another is culled. Wire `integers` into a Cull Index's
+  `indices`: no badge. Set min 0.2, max 0.8: `integers` has no socket result (a wire from it says it isn't produced). Pinned:
+  `RandomValuesNodeTests`, `VariationPipelineTests`. **Observed:**
+- [ ] **VA-9 Jitter.** Jitter (distance 1, turn 30) after the cull: the holes move a little, none out of the plate's plane, and the Seed
+  re-rolls them without a badge. Selecting Jitter shows no preview triads (previews are the layout nodes' only); record that nothing
+  shows. Pinned: `JitterNodeTests`. **Observed:**
+- [ ] **VA-10 The same file twice.** Save the graph, quit, reopen it: the holes are exactly where they were (the seed is saved, nothing
+  else is random). On a second machine, if there is one, the same file gives the same part. Pinned: `SeededRandomTests`.
+  **Observed:**
+- [ ] **VA-11 Undo.** Undoing a pattern or a path edit puts the previous mask back and the holes with it; the Edit menu names the step
+  ("Change Cull pattern", "Change Cull indices"). Pinned: `VariationSettingTests` (the names and the undo; the menu text is human).
+  **Observed:**
+- [ ] **VA-12 A cull before Points to Placements.** Move the Cull Index to sit between Grid Points and Points to Placements (wire Grid
+  Points into it and it into Points to Placements) and type `0`: the first point's hole is gone and the others stay where they are,
+  exactly as when the cull came after Points to Placements. Fillet the rim of the fifth hole (index 4): it stays on that hole when you
+  change the cull to `1`, and with the cull changed to `4` the badge reads "Instance {4} no longer exists, so the edge picked on it
+  isn't selected." Pinned: `CulledPickTests` (both stages), `pointsToPlacementsKeepsACulledListsIndices`. **Observed:**
+- [ ] **VA-13 Equal seeds.** Random Reduce (Count 3, Seed 0) and Random Values (Seed 0, wired into the Hole Pattern's `diameter`): the
+  holes Random Reduce drops are not simply the smallest ones. Pinned: `withTheSameSeedTheItemsRandomReduceDropsAreNotTheSmallestRandomValues`.
+  **Observed:**
+- [ ] **VA-14 A cull in rows keeps `{row;column}`.** Replace Grid Points and Points to Placements with a Grid Pattern (4 × 3, 15 mm)
+  wired into the Cull Index. Fillet the rim of the hole in the second row, third column (`{1;2}`), then type `1` into the Cull
+  Index: the second column goes from every row and the fillet stays on the same hole. Type `{1;2}`: the badge reads "Instance {1;2}
+  no longer exists, so the edge picked on it isn't selected." and nothing else is filleted. Type `{1}`: the whole second row is gone,
+  the other rows have not moved, and the same badge appears. Pinned: `CulledTreePickTests`. **Observed:**
+- [ ] **VA-15 Points to Placements in rows.** Put a Partition (size 4) between Grid Points and Points to Placements: the placements come
+  out as three rows of four (the Hole Pattern's holes are `{row;column}`), and a Cull Index `{1;2}` between Partition and
+  Points to Placements leaves every other hole where it was. Pinned: `aTreeOfPointsIsATreeOfPlacementsAtTheSamePaths`,
+  `CulledTreePickTests` (`beforePlacements`). **Observed:**
+- [ ] **VA-16 Cull by Region, Edges.** Reference Edges, wire All Edges of the plate into `edges`, Within 12 mm, Keep "Outside or
+  beyond": the holes nearest the plate's rim go and the middle ones stay. Wire Edges by Tag on a hole pattern's rims instead (circles):
+  the same node measures to them. Wire an edge set with a spline in it: the badge says how many of the edges it can't measure.
+  Pinned: `CullByRegionNodeTests`. **Observed:**
+- [ ] **VA-17 Cull by Region, Face.** Reference Face. **Record whether anything in the library can feed `faces`** (at the time of
+  writing no node outputs a face set, User decision U18, so the socket cannot be wired from the window and the node reports the missing
+  input). If a face-set node exists by now, wire a flat face's set to it: the distance is to the face's **plane**, so a flat face
+  far to the side of a small face counts as near it (record that this surprises, as the Errata say; User decision U3). A curved face
+  refuses with the count. Pinned: `theFaceReferenceCullsByDistanceToTheFacePlane`, `aCurvedFaceIsRefusedWithTheCount`. **Observed:**
+- [ ] **VA-18 Cells three deep.** With Face Pattern (7a-layouts) on a face, wire its placements through Cull Pattern `1 0`: every vent
+  stays (per branch, one item each). Set Scope to Overall: every other vent goes. Cull Index `1`: nothing goes; `{0;1}` removes
+  one vent and the others have not moved; a pick on a vent follows it through that cull. Random Reduce (defaults) removes one vent.
+  Pinned on a hand-made `{row;column;0}` tree: `CellTreeTests`, `CellTreePickTests`. **Observed:**

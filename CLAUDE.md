@@ -45,7 +45,9 @@ tree path, layout previews in the viewport, Pattern on Face and the acceptance t
 `docs/superpowers/plans/2026-10-12-7a-layouts.md`,
 spec `2026-10-10-patterns-trees-design.md` §3, §6, §8, §9 and its Errata (7a-3)) code is done; its human checks (group
 PL) are pending.
-Culling, Random and Jitter are 7a-variation.
+Patterns, sub-project 7a-3 part B (variation and culling: Cull Pattern, Cull Index, Cull by Region, Random Reduce, Random Values and
+Jitter; plan `docs/superpowers/plans/2026-10-12-7a-variation.md`, spec `2026-10-10-patterns-trees-design.md` §4) code is done; its human
+checks (group VA) are pending. The layouts, previews and acceptance test are part A (7a-layouts).
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -106,7 +108,7 @@ Module boundaries (dependency order):
     node's result). `GroupCommands.exposeOutput/exposeInput` (the + sockets) and `GroupMerge` (the clipboard's
     definitions, merged by content) build one command each. `GroupNaming.plusSocket` ("+") is a reserved name.
   - Data trees (`DataTree`, `TreePath`, `Value.tree`; 7a spec §2): `Value` is `.one`, `.list` or `.tree`. A `DataTree` has a
-    `depth` (1 is a flat list, which is why `Value(_ tree:)` makes a `.list` of it), every branch at a level has the same depth,
+    `depth` (1 is a flat list, which is why `Value(_ tree:)` makes a `.list` of it, except a culled list, below), every branch at a level has the same depth,
     and a gap is an empty branch. `TreePath` (`{0;3}`, `TreePath(parsing:)`) is the one path type: derived, never stored, and
     what later instance names adopt. Broadcasting stays flat (the old code, unchanged) until a `.tree` meets an item or list
     socket; then `BroadcastPlan.nestedPlan` matches level by level: the outermost level first, the shorter side repeating its
@@ -118,11 +120,18 @@ Module boundaries (dependency order):
     `NodeDefinition.singleValuesRefusal` lets a node, the layouts, refuse a list
     there in its own words before it runs). `SocketType.any` is for the tree
     nodes' sockets only. Iteration `item` numbers (the tag's item) are flat, row by row.
-- `CreatorNodes`: the 46 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
-the eleven
+    Culling keeps paths (patterns spec §4): a flat list or branch that has had items taken out holds the survivors at the indices
+    they had (`DataTree.culledList(_:at:)`, `isCulled`, `itemPositions`; `DataTree.keepingItems(where:)` and
+    `mappingItems(_:)` are how nodes cull and refill, `replacingItems(_:)` keeps the indices), and since a `.list` cannot say which
+    indices its items keep, such a list is a `Value.tree` of depth 1 (`Value(_:)` makes every other flat tree a `.list`). It broadcasts as a list: an item or list socket sees
+    the survivors in order, as a rank, and a `tree` socket gets the tree whole with its indices, which is how `InstanceGrid` reads
+    them. Reshaping nodes (Flatten, Graft, Partition, Path Mapper) renumber, as reshaping does, and List Item, Branch by Path and
+    Tree Statistics count a culled list's survivors by rank; Cull Index alone names the places items had.
+- `CreatorNodes`: the 52 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
+the seventeen
   `Patterns` nodes below, and the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
   Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
-  parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, and `projection(reference)` per projected edge) live in
+  parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, cullPattern, cullIndices, and `projection(reference)` per projected edge) live in
   `Node.inputValues`; `NodeRegistry.makeNode` seeds `defaultSettings` and sets `isOutput` for `.output`-category nodes.
   - Patterns (`Sources/CreatorNodes/Patterns`, category `NodeCategory.patterns`, library section "Patterns"; patterns spec §3, §5–§7):
     The layouts (`Patterns/Layouts`): Linear Pattern (a flat list), Grid Pattern (a tree, a branch per row), Circular
@@ -162,6 +171,24 @@ the eleven
     does the same for a pick made in the viewport inside one. Group, Ungroup and Make Unique rename instance picks too
     (`GroupScopes.names` lifts its table with the registry); not lifted yet: a Place inside a group whose tool comes from
     outside it keeps instance picks stored in the definition from matching.
+  - Variation (`Sources/CreatorNodes/Patterns/Variation`, category `Patterns`; patterns spec §4): Cull Pattern (a text mask `1 0 1`
+    or a wired `keep` list, repeated along each branch, or with scope Overall along the whole tree, over the items it has now), Cull Index (indices and `{0;3}` paths as text, or
+    wired numbers; an index or path names the place an item had before any cull; a bare index is a place within a branch, so on a
+    `{row;column;0}` tree of one item per branch use paths), Cull by Region (placements inside or outside a
+    profile, within or beyond a distance of a point, an edge set's straight and circular edges, or flat faces' planes;
+    `RegionDistance`, `Profile2D.contains`), Random Reduce (`RandomReduction`; scope Overall by default), Random Values (reals and `integers`, in the shape of
+    a tree or a count) and Jitter (`PlaneJitter`). Each takes a tree whole (`tree` access) and returns the same nesting with a
+    culled list where items went. **All randomness is `SeededRandom`: SplitMix64, written out in the repo and pinned by
+    `SeededRandomTests`, never the system's generator.** A draw depends on the seed, the item's branch ordinal (the stream) and its
+    index in the branch, never on how many items there are, so a cull or a longer list reshuffles nothing; a seed never warns.
+    Each node draws for its own `SeededRandom.Purpose` (the seed is mixed with a fixed per-node constant), so equal seeds on
+    different nodes give unrelated numbers; the constants are pinned like the algorithm. `InstanceGrid` makes exactly the instances
+    a culled list or branch of placements holds, at the paths they had (`{0;2}` is still `{0;2}` when `{0;1}` is gone: the tag
+    item is `InstancePath.item(for:)` of the item's branch path and the index it kept), reads every other input at an instance's
+    index (its own value, else the nearest one before it, else its first; a culled size or tool list that is not the lead sets no
+    number of instances, however many survivors it holds) and gives Place's copies back in the placements' shape with the same
+    gaps. Points to Placements takes `points` and `direction` whole and returns placements at the same paths, so a cull may sit
+    anywhere before it. So a pick on one instance survives a cull of another and a pick on a culled one warns naming its path.
 - `CreatorStyle`: colour themes (spec §6.6, Dracula by default), the only place colour hex values are written.
   `ThemeColors` is a colour per role (never a hue); `ColorTheme` (not `Theme`: MetalUI exports one) has the built-ins
   `.dracula`, `.alucard` and `.nord` (read-only); `ThemeRole` names each role (`ThemeColors[role]`; the names are the

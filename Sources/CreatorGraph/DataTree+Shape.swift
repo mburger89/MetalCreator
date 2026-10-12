@@ -14,11 +14,12 @@ extension DataTree {
     /// How a tree is described in tooltips and the inspector: "3 × 8" when every branch is alike, else the branch
     /// count and the items in each branch ("3 branches: 8, 4, 8"), cut after the first few.
     public var shapeText: String {
-        if let dimensions { return dimensions.map { $0.shapeNumber }.joined(separator: " × ") }
+        let culled = isCulled ? ", culled" : ""
+        if let dimensions { return dimensions.map { $0.shapeNumber }.joined(separator: " × ") + culled }
         let counts = leaves.map(\.items.count)
         let shown = counts.prefix(Self.shownCounts).map { $0.shapeNumber }.joined(separator: ", ")
         let more = counts.count > Self.shownCounts ? ", …" : ""
-        return "\(counts.count.shapeNumber) \(counts.count == 1 ? "branch" : "branches"): \(shown)\(more)"
+        return "\(counts.count.shapeNumber) \(counts.count == 1 ? "branch" : "branches"): \(shown)\(more)\(culled)"
     }
 
     static let shownCounts = 6

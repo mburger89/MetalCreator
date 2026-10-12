@@ -4,12 +4,13 @@
 public enum Value: Sendable {
     case one(Scalar)
     case list([Scalar])
-    /// Nested lists of depth 2 or more; `Value(_:)` turns a flat `DataTree` into a `.list`.
+    /// Nested lists of depth 2 or more, or a flat list that has been culled (`DataTree.isCulled`: its items keep the
+    /// indices they had, which a `.list` cannot say); `Value(_:)` turns any other flat `DataTree` into a `.list`.
     case tree(DataTree)
 
-    /// The value of `tree`: a flat list for depth 1, else `.tree`.
+    /// The value of `tree`: a flat list for a plain depth-1 tree, else `.tree`.
     public init(_ tree: DataTree) {
-        self = tree.depth == 1 ? .list(tree.items) : .tree(tree)
+        self = tree.depth == 1 && !tree.isCulled ? .list(tree.items) : .tree(tree)
     }
 
     /// How many indices an item's path has: 0 for one item, 1 for a list, the tree's depth otherwise.
