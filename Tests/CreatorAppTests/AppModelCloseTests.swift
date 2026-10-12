@@ -7,8 +7,8 @@ import Testing
 @testable import CreatorApp
 
 /// Closing the window and quitting with unsaved changes (spec §6.1, gap M6-b): the alert, each answer, and the one
-/// reply the window gets. MetalUI's window and app are not built here (no public headless window, gap M6-e), so the
-/// model's handler and reply are driven directly.
+/// reply the window gets. MetalUI's window and app are not built here (a `MetalUITesting` window could drive the close,
+/// gap M6-e adopted; no test does yet), so the model's handler and reply are driven directly.
 @MainActor
 struct AppModelCloseTests {
     /// An app whose window replies are recorded.

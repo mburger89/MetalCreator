@@ -81,7 +81,8 @@ drags print to the terminal.
 group Y covers the platform side (trackpad phases, real mouse buttons, every cursor).
 
 The `viewport-input` branch merges before this group is run: the tests pin the model only, and the view glue in
-`ViewportView+Parts.swift` `surface(model:)` has no headless coverage (no headless MetalUI window, gap M6-e). That
+`ViewportView+Parts.swift` `surface(model:)` has no test through a window yet (gap M6-e is adopted: a `MetalUITesting`
+window can drive it, and a press on the viewport already runs through it in `CanvasTypingFocusWindowTests`). That
 glue is the tap declared inside the primary drag, the secondary drag deferring the face menu to release, the scroll
 delta's sign, `.pointerStyle(model.cursor?.pointerStyle)`, the located `.contextMenu` overload, and `pressed()`
 (the text-focus release) firing on release rather than on press. Run this group first after the merge, in this
@@ -133,8 +134,9 @@ Run `swift run ViewportHarness` (VC7 also with `HARNESS_PICK=1`) with a trackpad
 **Status: IN PROGRESS** (2026-10-09: GI-1 and GI-3 pass, user). Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`); MetalUI's own
 group Y covers the platform side (trackpad phases, momentum, every cursor).
 
-The tests pin the model and the conversions from MetalUI values only. The view glue has no headless coverage (no
-headless MetalUI window, gap M6-e): `GraphCanvas`'s `.gesture`, `.onScrollWheel` and `.pointerStyle` lines,
+The tests pin the model and the conversions from MetalUI values only. The view glue has no test through a window yet
+(gap M6-e is adopted: a `MetalUITesting` window can drive it; the canvas typing and the graph's keys already do, group CT):
+`GraphCanvas`'s `.gesture`, `.onScrollWheel` and `.pointerStyle` lines,
 `GraphPanel`'s opaque backdrop and `PanelResizeHandle`'s `.pointerStyle`. Run GI-4, GI-1 and GI-6 first: a
 failure there is a bug in that glue (or in MetalUI C7), not in the model.
 
@@ -516,7 +518,8 @@ Run `scripts/package-app.sh` first; it ends with `==> Wrote …/dist/MetalCreato
 Run `swift run MetalCreatorApp` for AS-1 to AS-5, and `scripts/package-app.sh` first for AS-6 and AS-7. The model's side
 of each check is pinned headless (`AppModelCloseTests`, `WindowChromeTests`, `AppModelOpenURLTests`,
 `TitleBarClearanceTests`, `TopBarClearanceRenderTests`, `SaveChangesAnswerTests`); what MetalUI's window, menu and
-Finder do with it is these checks only (gap M6-e).
+Finder do with it is these checks only (gap M6-e is adopted: `TestWindow.requestClose()` and `presentedAlert` could drive
+the window half; no test does yet).
 
 Product decisions behind these checks (the user approved the recommended default of each on 2026-10-09/10): (1) the
 hidden title bar (not merged; the window is standard) ships only if AS-5 shows the window drags, as its own commit; (2)
@@ -753,8 +756,8 @@ Save it; M7-1 to M7-4 use it, and M7-4 also the §7.2 bracket.
 ## Group MS — multi-select (sub-project A)
 
 **Status: PENDING.** Plan `2026-10-09-multi-select.md`, spec `2026-10-09-selection-groups-comments-design.md` §3 and
-its Errata (A: multi-select). The tests pin the model; these check the gestures and keys through a real window (no
-headless MetalUI window, gap M6-e). Run `swift run MetalCreatorApp` on a saved bracket, docked left, then MS-8 docked
+its Errata (A: multi-select). The tests pin the model; these check the gestures and keys through a real window (gap
+M6-e is adopted: the graph's keys and the Edit chords are driven in groups CT and M6, the gestures not yet). Run `swift run MetalCreatorApp` on a saved bracket, docked left, then MS-8 docked
 at the bottom too.
 
 - [ ] **MS-1 Clicks.** Click a node, then ⌘-click two more: all three are selected; ⌘-click one of them again: it
@@ -816,7 +819,8 @@ warnings read well where they appear.
 
 **Status: PENDING.** Plan `2026-10-09-comments.md`, spec `2026-10-09-selection-groups-comments-design.md` §7 and its
 Errata (B: comments). The tests pin the model and the headless frames; these check the gestures, keys, menu and the
-inspector's text field through a real window (no headless MetalUI window, gap M6-e). Run `swift run MetalCreatorApp`
+inspector's text field through a real window (gap M6-e is adopted: the typing, the note box and the Undo are driven in group
+CT, the rest not yet). Run `swift run MetalCreatorApp`
 on a saved bracket, docked at the bottom; CM-9 docks left.
 
 - [ ] **CM-1 Add Note.** Put the pointer over the canvas and press ⌘⇧N: a muted 160 × 100 note reading "Note"
@@ -856,8 +860,9 @@ on a saved bracket, docked at the bottom; CM-9 docks left.
   on the note it was typed into. Pick an accent: the note re-tints at once, in each of the three themes. Select one
   frame: a title field and the swatches; Return commits "Front plate"; clearing it and pressing Return refuses with
   "A frame needs a title." and the old title returns. Select two comments: "2 comments selected". Pinned:
-  `CommentInspectorTests`. The field losing focus commits the text, and no headless test reaches that (a focus loss
-  needs a real window, gap M6-e): only the model-level commit is pinned, so **record whether clicking away from the text
+  `CommentInspectorTests`. The field losing focus commits the text; through the window only the canvas editor's focus loss is driven
+  (`clickingIntoTheInspectorsBoxCommitsTheCanvasEditFirst`, group CT), not this box's own (gap M6-e is adopted), so only the
+  model-level commit is pinned here, and **record whether clicking away from the text
   box, not only onto the canvas, commits it.** **Observed:**
 - [ ] **CM-8 Saving.** Save with notes and frames, close, reopen: they are where they were, with their text, titles and
   accents; ⌘Z has nothing to undo. Open a file saved before comments: it opens unchanged. Editing a note marks the
