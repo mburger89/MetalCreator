@@ -13,7 +13,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | Gap | What | MetalUI item | Status |
 |---|---|---|---|
 | 1–5 | Scroll wheel, pinch/rotate, middle and right drags, tap location, cursor and drag modifiers | C7 | ✅ fixed (c62d6ba), adopted by the viewport and the graph panel |
-| M4-a | An element's size (`onGeometryChange`), focus on click | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
+| M4-a | An element's size (`onGeometryChange`), focus on click | C9 | 🟡 C9 is on MetalUI master: `onGeometryChange` (KF-J) is public and the canvas adopted the key regions (M5-b, M5-g); the viewport still records its size from its draw and releases focus itself (app follow-up, see M6-e) |
 | M4-b | Opaque helper inside a builder `for`; redraw labels during a camera animation (`TimelineView`) | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
 | M5-a | `Slider` `onEditingChanged` | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M5-b | Hover- or region-scoped key bindings | C9 | ✅ fixed by C9 (`feat/key-focus`: `hoverKeyRegion`, `onKeyPress`), adopted for the graph canvas (Comments typing plan); the viewport still runs its pointer veto (M4-a) |
@@ -30,7 +30,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M6-c | Full-size content view | C8 | 🔄 open: fixed in MetalUI 70e9389 (PR #61) but not adopted; the window keeps its standard title bar until human check AS-5 shows it drags (C8-a) |
 | M6-d | Open-document events | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
 | C8-a | Window drag region for a hidden title bar under a gesture-carrying view | none yet | ⏳ reported to the MetalUI session 2026-10-10, not yet queued; predicted from reading MetalUI, AS-5 not run (it would confirm or refute) |
-| M6-e | Public headless test window | item 8 (test harness) | 🟡 landed in MetalUI master 280d706 (item 8, `MetalUITesting`); adoption here pending |
+| M6-e | Public headless test window | item 8 (test harness) | ✅ fixed (MetalUI 280d706, PR #65: `MetalUITesting`), adopted in the test targets (plan `2026-10-12-adopt-test-harness`): `AppWindow` opens the app's real root in a `TestWindow` (`AppWindowTests`), and the observable key routing is pinned by the window tests (`ViewportKeyRoutingWindowTests`, `EditMenuRoutingWindowTests`, `PaletteKeyRoutingWindowTests`), while the canvas hover veto and the `Panel` key context stay pinned only by mapping tests (`AppInputTests`); MetalCreator had no platform fake of its own to replace; the harness's one limit for this app (no `MetalView` draw, so no window size) and its app-side fix are in the entry |
 | M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
 | M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
 | VI-a | A dropped gesture's end | C16 | ⏳ queued after C8 and C9 |
@@ -43,17 +43,17 @@ stopgap as they were. The sections below keep each gap's full use case.
 | P-a | Third-party notices | C17 | ✅ fixed (67a579e), adopted |
 | LF-a | A clip inside an `offset` or uniform `scaleEffect` | C18 | ✅ fixed (0b400b4) |
 | LF-b | A clip inside nested flattening effects (LF-a's regression) | C19 | ✅ fixed (9ad2254) |
-| TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | 🟡 landed in MetalUI master 280d706 (item 8, `MetalUITesting`); adoption here pending |
+| TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `MenuEvaluation`, `TestApp.menuBar`), adopted (plan `2026-10-12-adopt-test-harness`): `ThemeMenuEvaluationTests` |
 | S5-a | Modifiers on a hover (and a tap, GI-a) | none yet (with GI-a) | ⏳ reported, not queued |
 | S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ⏳ reported 2026-10-09 |
 | S5-c | A `MetalView` draw can't draw text (world-anchored labels) | MetalUI session (with M4-b) | ⏳ reported 2026-10-09, sent to the MetalUI session |
 | M7-a | `ForEach` identity is an id's description | none yet | ⏳ reported, not queued |
-| M7-b | No warm headless frame for measuring | none yet (with M6-e) | 🟡 landed in MetalUI master 280d706 (item 8, `MetalUITesting`); adoption here pending |
+| M7-b | No warm headless frame for measuring | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `TestWindow` warm frames and `FrameWork`), adopted for work counts (plan `2026-10-12-adopt-test-harness`): `WarmFrameTests`; the release benchmarks (`Bench`) still report cold-frame milliseconds until they are moved onto it |
 | C10-a | No backdrop blur behind a material | C10-c (unscheduled) | ⏳ sent to the MetalUI session 2026-10-09 |
 | CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | C9 | ✅ fixed by C9 (KF-Z/KF-AA: ⌘↩ is no editing key of a `TextEditor`, so an `onKeyPress` for it commits), adopted by the inspector's note box and the canvas editor (Comments typing plan) |
 | CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C24 |
 | CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C25 |
-| CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | 🟡 landed in MetalUI master 280d706 (item 8, `MetalUITesting`); adoption here pending |
+| CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | ✅ fixed (MetalUI 280d706), adopted (plan `2026-10-12-adopt-test-harness`): `CanvasNoteTypingWindowTests`, `CanvasTitleTypingWindowTests`, `CanvasTypingKeysWindowTests`, `CanvasTypingFocusWindowTests`, `CanvasTypingUndoWindowTests`; CT-1..CT-11 keep only their visual and machine-specific parts |
 
 ## Reported 2026-10-07 (C7)
 
@@ -134,6 +134,9 @@ Gap numbers 1–5 are the C7 items above. New gaps are labelled M4-a… (M5 uses
      observed `ViewportModel.viewSizeChanges` one task after the draw (`observedViewSize`, which
      `AppModel.panelPlacement` reads), so a resize rebuilds the canvas at the new size, one frame late. It goes with
      the stopgap.
+     **Update 2026-10-12:** `onGeometryChange(for:of:action:)` is public on MetalUI master (`GeometryChange.swift`, KF-J,
+     C9), so the size half is no longer a MetalUI request: adopting it here replaces the draw-time record (it also makes
+     `panelPlacement` available to the headless window tests, see M6-e).
    - A click doesn't focus a `.focusable()` element (divergence 94), so the viewport's F, + and − keys are bound window-wide
      (`ViewportKeyBindings`). The app shell will collide with text fields. Wanted: focus-on-click for a focusable
      surface, or a key context an element contributes while hovered.
@@ -279,6 +282,35 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
   canvas hover veto, menu commands running before `onInput`, button shortcuts ahead of the palette) is pinned only
   as mapping (`AppInputTests`) plus human checks M6-4, M6-5 and M6-11. Stopgap: none. Wanted: a public headless
   `Window` (or `FakePlatformWindow` in a test-support product) with `simulateInput` and a rendered frame.
+  **Fixed by MetalUI item 8** (master 280d706, PR #65: the `MetalUITesting` product) **and adopted** (plan
+  `2026-10-12-adopt-test-harness`): `CreatorAppTests` depends on `MetalUITesting`, and `AppWindow` (test support) opens
+  `AppWindowRoot` over `FakeKernel` in a `TestWindow` with the app's own `AppCommands` and `AppInput`, so clicks and
+  keys go through MetalUI's real routing (`AppWindowTests`). The observable key routing is pinned by those window tests; the canvas hover veto and the `Panel` key context stay pinned only by mapping tests (`AppInputTests`). MetalCreator never wrote a `Platform` or `PlatformWindow`
+  fake (its stopgap was no test at all, the mapping tests and the human checks), so there was nothing to replace or
+  delete; `renderFrame` stays for the render tests that read one cold frame.
+  **A limit of the harness, not a MetalUI gap:** `MetalUITesting` records a `GPUSurface`/`MetalView` draw and does not run
+  it (`../MetalUI/docs/testing.md`, "What it cannot do", ruled deferral `HT-Q`: there is no GPU context to hand the
+  closure), so the guide promises nothing here and nothing is forwarded. The app learns its window's size from that draw
+  (`ViewportModel.observedViewSize`, gap M4-a's stopgap), so in a `TestWindow` it stays 0 × 0 and the property form of `AppModel.panelPlacement`
+  is `nil` (the parameterised `panelPlacement(inWindowOf:)` works headless). Clicks and keys are unaffected (a canvas gesture's location is local to the canvas), so the window tests run;
+  they compute where the canvas is from `AppLayout` and `GraphPanelLayout` (`AppWindow.canvasFrame`) and set nothing on
+  the model. Not testable headless until the app changes: dropping a library node on the canvas (`canvasFrameInWindow`),
+  the culling of nodes beyond the panel in a real window, and anything that waits for the first viewport draw.
+  **App follow-up (decision D1):** `onGeometryChange(for:of:action:)` is public on MetalUI master
+  (`Sources/MetalUI/GeometryChange.swift`, KF-J, C9; `GeometryProxy.size`), so the size half of M4-a is adoptable now:
+  take the window's size from it, drop the draw-time `observedViewSize` record, and `panelPlacement` and
+  `canvasFrameInWindow` work headless and `AppWindow.canvasFrame` can go. Until then `AppWindow.canvasFrame` is the
+  stopgap.
+  **The routes this entry named are pinned through the window** (Task 5 of the plan): F, + and − go to the viewport over the
+  viewport and to the graph over its canvas, and a focused inspector field keeps them until a viewport press gives them
+  back (`ViewportKeyRoutingWindowTests`, M6-4); the Edit menu is titled by the step and runs Undo and Redo, ⌘Z and ⇧⌘Z
+  act over the canvas and over the viewport, and ⌘C, ⌘V and ⌘D copy, paste and duplicate over the canvas only
+  (`EditMenuRoutingWindowTests`, M6-5); Space over the canvas opens the palette with its search field focused, "f+" is
+  typed into it and Return adds the node (`PaletteKeyRoutingWindowTests`, EP-2). The canvas hover veto and the
+  `Panel` key context in `AppInput` are not what these tests depend on: with either removed they still pass, because C9's
+  key region and a focused field claim the keys first. **Not driven yet** (adopted, untested): the sketch toolbar's button
+  shortcuts ahead of the palette (M6-11), the window shell (close veto, title, edited dot: group AS), the viewport's
+  gesture glue (group V) and the inspector box's own focus-loss commit (CM-7).
 - **M6-f. No colour picker.** The Themes milestone after M6 (roadmap) edits a custom theme's colours role by role,
   which wants SwiftUI's `ColorPicker(_:selection:supportsOpacity:)`: a colour well that opens the system colour panel
   (AppKit `NSColorWell`/`NSColorPanel`), with opacity. MetalUI has none. M6 doesn't need it: its three built-in themes
@@ -557,6 +589,12 @@ Labelled TH-a… so they don't clash with the labels above. Checked against Meta
   `ThemeMenu.sections(_:)` returns the themes it lists, which `ThemeMenuTests` checks; the builder only turns them into
   items. Wanted: a public read-only evaluation of menu content (titles, enabled, `isOn`, shortcut, and a way to run an
   item), or one in a test-support product (with M6-e's headless window).
+  **Fixed by MetalUI item 8** (master 280d706: `MenuEvaluation`, `TestApp.menuBar`, `performMenuBarItem`) **and adopted**
+  (plan `2026-10-12-adopt-test-harness`): `ThemeMenuEvaluationTests` evaluates `ThemeMenu.items` as a window does at the
+  menu's open and checks what it lists (built-ins, divider, custom themes, divider, Edit Themes…), which item is checked,
+  and that choosing one shows the theme and Edit Themes… opens the editor; it also reads View ▸ Theme from the app's
+  menu bar (`AppCommands`) and runs an item through `performMenuBarItem`, which restyles the window. `ThemeMenu.sections(_:)`
+  stays: it is the list the menu is built from, and `ThemeMenuTests` keeps pinning it.
 
 ## Hit by the sketch editor (S5a), 2026-10-09
 
@@ -613,6 +651,14 @@ Labelled M7-a… so they don't clash with the labels above. Checked against Meta
   checked in. Stopgap: cold frames, labelled as an upper bound. Wanted, as one request with M6-e: a public headless
   window (or a frame renderer that keeps its caches across frames) that a client can drive with input and time,
   including the display link's pacing.
+  **Fixed by MetalUI item 8** (master 280d706: a `TestWindow` is one `Window` for its life, `lastFrameWork`/`frameWork`
+  count the work of each frame) **and adopted for counts** (plan `2026-10-12-adopt-test-harness`): `WarmFrameTests` opens
+  the editor with `recordsLayout: false` and pins what is stable on any machine, never a time: an idle window draws no
+  frame at all, a warm redraw uploads no atlas pixels, rasterizes and blurs no pixels and makes no texture, and a second
+  unchanged frame does exactly the work of the first. It does **not** pin zero layout work: a forced redraw of the
+  whole window re-measures it (hundreds of layout cache misses at 1440 × 900), which is PERF-b (C14, queued), so the
+  test leaves that number to PERF-b's own adoption. Not done: moving `Tests/CreatorAppTests/Bench` onto the warm
+  window (the release benchmark is never run in this plan); `docs/verification/performance.md` still says cold frames.
 
 ## Used again by the C10 adoption, 2026-10-09
 
@@ -623,6 +669,11 @@ Labelled M7-a… so they don't clash with the labels above. Checked against Meta
   turning, a slider's `onEditingChanged` pairing) is human checks C10-2 to C10-4. Stopgap: none beyond that. Wanted,
   with M6-e: a public headless window, or `renderFrame` taking a timestamp and returning its animation store, so a
   test can tick a `keyframeAnimator` and a `ProgressView` and press a `Slider`.
+  **Fixed by MetalUI item 8, partly adopted** (plan `2026-10-12-adopt-test-harness`): `RefusalShakeWindowTests` moves the
+  window's clock by hand and reads the frames (a refused node is 6 points out at 0.05 s, 6 across at 0.15 s and home at
+  0.25 s, only that node moves, and a second refusal shakes again) and `InspectorSliderWindowTests` drags the inspector's
+  real slider (one drag is one "Change Width" step, two drags are two). Not adopted: the spinner turning, because a
+  node can be held mid-evaluation only by a kernel that waits, which no test kernel does; human check C10-3 stays.
 
 ## Hit by the C10 adoption, 2026-10-09
 
@@ -667,6 +718,8 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
   return .handled }` on the `TextEditor` (no MetalUI-only hook is needed). Status: answered: lands with C9. The gap
   was already sent to the MetalUI session by the controller. Logged with C9 (key and focus scoping), which owns the key
   handling.
+  **Pinned through a real window (2026-10-12):** `CanvasTypingFocusWindowTests` types into the inspector's `TextEditor`
+  and sends the primary-modifier Return (commits, one "Edit Note" step) and a plain Return (breaks the line).
   **Fixed by MetalUI C9** (KF-Z/KF-AA, merged to MetalUI master 0a9eb36): a Return with the commit modifier (⌘ on macOS, ⌃ elsewhere: `CommentKeys.commitModifier`) is not an editing key of a
   `TextEditor`, and an `onKeyPress(keys: [.return])` handler runs before the editor's keys, so
   `press.modifiers.contains(commitModifier) ? commit() : .ignored` commits on ⌘↩ (⌃↩ off macOS) while plain Return still breaks the line (no
@@ -729,3 +782,19 @@ Labelled CT-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   `simulateInput` and a rendered frame, then a test that types into the field, sends ⌘↩ and Esc, presses the canvas, and
   asserts `commentEdit` and the graph. Status: rides with M6-e (queued); forward to the MetalUI session per the standing
   rule; the repository is never edited from here.
+  **Adopted (2026-10-12, plan `2026-10-12-adopt-test-harness`):** the tests type through the app's real window
+  (`AppWindow`, MetalUI 280d706). `CanvasNoteTypingWindowTests`: a double click opens a focused editor exactly over the
+  note (both docks, and at 0.5× and 2× zoom), Return breaks the line, `CommentKeys.commitModifier` (primary-modifier)
+  Return commits as one "Edit Note" step, Esc cancels with nothing to undo, a press on empty canvas commits and clears
+  focus (M5-g). `CanvasTitleTypingWindowTests`: the same for a frame's title (Return commits through `onSubmit`, a blank
+  title is refused; dragging the title bar moves the frame and its nodes as one "Move" step). `CanvasTypingKeysWindowTests`: while a field is focused the graph's keys edit its text (Delete,
+  arrows, Space, F, the ⌘ chords, ⌘A, Tab) and afterwards act again over the canvas but not over the viewport (M5-b).
+  `CanvasTypingFocusWindowTests`: a double click on another comment commits the first and focuses the next; the
+  inspector's note box breaks lines on Return and commits on the primary-modifier Return (CM-a); clicking into it commits
+  a canvas edit first; a press on the panel's glass resigns nothing (CT-a, by design) and the next canvas press commits;
+  a press on the 3D viewport commits at once; the inspector's accent swatch changes the accent without ending the edit
+  (pinned as measured, decision D4). `CanvasTypingUndoWindowTests`: ⌘Z and ⇧⌘Z undo and redo a committed note edit in one
+  step each, and ⌘Z while an editor is focused undoes the typing in the field and leaves the document alone (KF-C).
+  A field's focus-loss commit (`onChange(of:)`) runs in the frame after the click, so that test runs `runUntilIdle()`.
+  Human checks CT-1..CT-11 keep what a person must judge (CT-1's look, CT-6's softness, CT-7, CT-12), a physical
+  keyboard, the paste and the swatch.

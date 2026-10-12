@@ -5,7 +5,7 @@ import Testing
 @testable import CreatorSketchEditor
 
 /// Headless frames of the toolbar and the inspector: they build, lay out and paint in each state. Looks and keys are
-/// human checks (group S5; a client can't send keys through a window, docs/metalui-gaps.md M6-e).
+/// human checks (group S5; a window test could send them keys with `MetalUITesting`, docs/metalui-gaps.md M6-e, adopted).
 @MainActor
 struct SketchViewTests {
     @Test func theToolKeysAreTheSpecs() {

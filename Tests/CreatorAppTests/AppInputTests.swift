@@ -8,9 +8,9 @@ import MetalUI
 import Testing
 @testable import CreatorApp
 
-/// The window's key routing, as far as it can be pinned without a real `Window` (its initializer is internal):
-/// the keymap and its contexts, and what `onAction` and `onInput` do. The routing through a window is human
-/// checks M6-4 and M6-5.
+/// The window's key routing at the level of the mapping: the keymap and its contexts, and what `onAction` and `onInput`
+/// do. The routing through a real window is `ViewportKeyRoutingWindowTests`, `EditMenuRoutingWindowTests` and
+/// `PaletteKeyRoutingWindowTests` (`MetalUITesting`, gap M6-e).
 @MainActor
 struct AppInputTests {
     @Test func theViewportsKeysAreOutOfScopeWhileFocusIsInAPanel() throws {
