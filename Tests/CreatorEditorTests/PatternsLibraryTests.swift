@@ -20,7 +20,7 @@ struct PatternsLibraryTests {
         #expect(names == [
             "Linear Pattern", "Grid Pattern", "Circular Pattern", "Curve Pattern", "Face Pattern", "Place", "Points to Placements",
             "Hole Pattern", "Boss / Pin Pattern", "Slot Pattern", "Pattern Feature",
-            "Cull Pattern", "Cull Index",
+            "Cull Pattern", "Cull Index", "Cull by Region",
         ])
     }
 }

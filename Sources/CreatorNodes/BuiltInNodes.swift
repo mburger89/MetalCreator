@@ -19,6 +19,7 @@ public enum BuiltInNodes {
         PathMapperNode.self,
         CullPatternNode.self,
         CullIndexNode.self,
+        CullByRegionNode.self,
         OutputNode.self,
     ]
 
