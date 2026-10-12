@@ -7,6 +7,8 @@ public enum ViewportMenuItem: Hashable, Sendable {
     /// A Plane from Face and a Sketch on it, opened for drawing (sketcher spec §8). Only on a flat face, only outside
     /// sketch mode.
     case newSketchOnFace(ViewportFaceRef)
+    /// A Face Pattern on the face, wired from the solid (patterns spec §3). Only on a flat face with a normal, like New Sketch.
+    case patternOnFace(ViewportFaceRef)
     /// One item per producing node. The title names the node when a face has several.
     case showProducingNode(NodeID, title: String)
 
@@ -15,6 +17,7 @@ public enum ViewportMenuItem: Hashable, Sendable {
         case .lookAt: "Look At"
         case .selectEdgesOfFace: "Select Edges of Face"
         case .newSketchOnFace: "New Sketch on Face"
+        case .patternOnFace: "Pattern on Face"
         case .showProducingNode(_, let title): title
         }
     }
