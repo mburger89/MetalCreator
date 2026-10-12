@@ -5,7 +5,7 @@ import CreatorNodes
 import Testing
 
 struct OutputNodeTests {
-    /// The slice's 26 (spec §7.1) plus Plane from Face and Sketch (S4), the tree nodes (7a-1) and Place, Points to Placements and the shortcuts (7a-2).
+    /// The slice's 26 (spec §7.1) plus Plane from Face and Sketch (S4), the tree nodes (7a-1), Place, Points to Placements and the shortcuts (7a-2), and the five layouts (7a-3).
     @Test func theBuiltInsAreTheSliceTheSketcherTheTreeNodesAndThePatternNodesInEightCategories() {
         #expect(BuiltInNodes.all.count == 46)
         let counts = Dictionary(grouping: BuiltInNodes.all, by: { $0.category }).mapValues(\.count)

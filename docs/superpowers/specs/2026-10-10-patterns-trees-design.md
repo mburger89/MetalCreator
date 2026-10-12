@@ -237,3 +237,40 @@ Plan `2026-10-10-7a-trees.md`. Where the build settled what §2 and §4 left ope
   placer/tool pairs (`GroupScopes.lifting`) for every node whose type places instances, so the pick resolves to the same
   instance with no warning, and undo restores it in the same step. Still open: a Place inside a group whose tool is made
   outside it doesn't match picks stored in the definition.
+
+## Errata (7a-3: layouts)
+
+Plan `2026-10-12-7a-layouts.md`. Where the build settled what §3, §6 and §8 left open:
+
+- **§3 Shapes.** Linear Pattern is a flat list; Grid, Circular and Curve Pattern are always trees of depth 2 (a branch per row,
+  ring or chain), even for one row or ring, so adding one renames no other path. Circular Pattern adds `startAngle`, and its
+  per-ring count is a `countStep` added for each ring (no node makes a list of integers to wire in). Curve Pattern follows
+  straight and circular edges only (another curve refuses, naming the edge); its chains are curves meeting end to end, in the
+  order given, and a profile gives its outline and then its holes. **Face Pattern is a tree of depth 3, a branch per grid cell
+  in a branch per row (`{row;column;0}`), not "one branch per row"**: a path counted among the kept placements of a row would
+  shift every vent after a dropped one, so a bigger margin, a bigger hole or a smaller face would make a pick on a vent name
+  another vent, which §6 forbids. Rows are counted from the lowest row the face's box reaches and columns from the lowest column
+  it reaches, a cell that is clipped is an empty branch, and a vent that stays keeps its path whatever the margin or a hole does
+  (only a face that grows at its lower left renumbers). It anchors its grid at the face's centroid, keeps a position when it is
+  on the face and `margin` clear of every edge (holes included, by true distance), and tries at most 200,000 cells. A list wired
+  into a layout's single-valued input is refused in that layout's own words ("Grid Pattern takes single values, not lists: …")
+  before it runs, instead of 7a-1's generic tree sentence.
+- **§3 Place and the shortcuts over trees.** Placements, tools and sizes are `.tree` sockets, matched by
+  `InstanceGrid`: the deepest input sets the shape (a tree's items are the instances); a flat list applies to every branch and
+  matches its items; a tree as deep as the shape is matched level by level, a shorter side repeating its last branch; any other
+  depth is refused, naming both shapes. The output of Place has the shape of the instances. A tree on `part` or `operation` is
+  still refused ("Only placements and sizes can be trees: flatten the tree wired into the part or the operation first."), which
+  replaces 7a-2's refusal for everything else. A Boolean fed a tree of copies takes it a branch at a time, as always; Flatten it
+  first to cut once.
+- **§6 Tags.** An instance's tag item is its path packed by `InstancePath`: `{i}` is the item `i` (so every pick saved before
+  trees resolves unchanged), `{a;b}` to four indices each up to 32,767 are one negative number, and a path that can't be
+  named is refused. Copies are renamed after the one `Kernel.place` call, which still names them by flat index. Several vanished
+  paths are listed in path order.
+- **§8 Previews.** A selected layout node shows its placements as an overlay of axis triads (the theme's axis colours; each axis
+  is 40% of the smallest distance between neighbours, 5 mm for one placement), Face Pattern also a dashed outline of the face
+  moved in by the margin (mitred corners: exact on straight edges, a guide at arcs). A selected layout node is always evaluated, so
+  the triads show before anything is wired to it. The triads are an overlay drawn over everything (the sketch editor's mechanism),
+  not depth-tested guides like Final preview's selected-rule edges: they never pick, frame or open a menu, but those inside the
+  plate show through it, never faded.
+- **Pattern on Face.** The face menu of a flat face with a normal also offers "Pattern on Face", which inserts a Face Pattern
+  holding the face's pick, wired from the part's producer, as one undo step (refused inside a group, as New Sketch on Face is).

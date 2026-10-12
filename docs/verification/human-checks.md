@@ -1195,3 +1195,55 @@ shows. Build the graph first: Series (count 24) into Partition (size 8) into Num
   `{1;99}`: "No item {1;99}: {1} has 8 items." Clear the field: the index is used again. Add a Branch by Path with `{2}`: the
   third row. Pinned: `anItemPathTakesTheOneItemAtThatPath`, `anItemPathOverridesTheIndex`, `aBlankItemPathMeansUseTheIndex`,
   `aMissingBranchOrItemInAPathSaysHowManyThereAre`, `aMissingBranchSaysHowManyThereAre`. **Observed:**
+
+## Group PL — patterns: the layouts, trees of placements and previews (7a-3)
+
+**Status: NOT RUN.** Plan `2026-10-12-7a-layouts.md`, spec `2026-10-10-patterns-trees-design.md` §3, §6, §8 and its Errata (7a-3). Run
+`swift run MetalCreatorApp`. The tests pin the nodes, the naming, the overlay's lines and the file; these check what a real window
+shows. Build a plate (Rectangle 120 × 80 on a plane at z = −8, Extrude 8) and an Output for the checks below.
+
+- [ ] **PL-1 The library.** Open the node library: the "Patterns" section opens with Linear Pattern, Grid Pattern, Circular Pattern,
+  Curve Pattern and Face Pattern, then Place, Points to Placements and the shortcuts. Typing "ring" in the add-node palette finds
+  Circular Pattern. **Observed:**
+- [ ] **PL-2 Triads.** Add a Grid Pattern (4 × 3, 10 mm) and select it with nothing wired to it: a small x (red), y (green) and z (cyan)
+  triad appears at each of the 12 placements, each axis a little under half the distance to the next. Change the counts and the
+  spacing in the inspector: the triads follow at once. Select another node, or two nodes: they go. Right-click on a triad, click on
+  it, press F and drag the view: it never picks, opens a face menu or changes what F frames. **Observed:**
+- [ ] **PL-3 How they read.** Do the triads read at the default zoom, on a dark and a light theme (View ▸ Theme ▸ Alucard)? Set a Grid
+  Pattern to 40 × 50 (2,000 placements): the view stays smooth. **Record whether the axes are too small or too big** (the 40% rule is
+  a guess). Then select a Hole Pattern's Circular Pattern so that its triads sit on the plate's top face and look from below and from
+  inside the plate: they are drawn through the solid, never faded (User decision 13). **Record whether that reads or clutters**, and
+  so whether depth-aware guides are wanted. **Observed:**
+- [ ] **PL-4 Rings and per-ring sizes.** Circular Pattern (radius 15, count 4, rings 2, radius step 10, count step 4) into a Hole Pattern
+  on the plate (through all), with a Series (6, step −2, 2 values) into a Graft into `diameter`: the inner ring has four Ø6 holes and
+  the outer eight Ø4. Pick the rim of one outer hole (Fillet ▸ Pick edges in view…) and fillet it. Set rings to 3: the fillet stays
+  on the same hole. Set rings to 1: the Edges by Tag rule warns "Instance {1;3} no longer exists, so the edge picked on it isn't
+  selected." (use the path of the hole you picked) and nothing else is filleted. Turn the start angle: the holes and the fillet turn
+  together. **Observed:**
+- [ ] **PL-5 Pattern on Face.** Right-click the plate's top face: the menu offers Look At, Select Edges of Face, New Sketch on Face,
+  **Pattern on Face**. Choose it: a Face Pattern appears beside the Extrude, wired from it and selected, its triads fill the face and
+  a dashed outline runs round it, 3 mm inside the edge. Switch Stagger on: every second row moves half a pitch. Raise the margin to
+  12: the outer columns and rows go. Undo: both the node and the wire go in one step ("Undo Pattern on Face"). Right-click a side
+  face of a cylinder: no Pattern on Face. **Observed:**
+- [ ] **PL-6 Holes in the face.** Drill the plate first (a Hole Pattern, Ø20, through) and use Pattern on Face on its top: no placement
+  stands within the margin of the hole, and the dashed outline circles the hole. **Record how the outline looks at the hole** (it is
+  a mitred guide; the placements are exact). **Observed:**
+- [ ] **PL-7 Vents.** Face Pattern (spacing 14 × 12, stagger, margin 6) into a Slot Pattern (8 × 3, through all): staggered vents run
+  across the plate, clear of the edge and of the bolt holes. Pick the rim of one vent (Fillet ▸ Pick edges in view…) and fillet it,
+  then raise the margin by a few millimetres so some vents drop: the fillet stays on the same vent, or, if that vent has gone, the
+  Edges by Tag rule warns naming its path (`{row;column;0}`) and nothing else is filleted. Make a bolt hole bigger: the same.
+  **Record which of the two happens to the vents beside the dropped ones** (it must be neither a different vent nor a neighbour).
+  **Observed:**
+- [ ] **PL-8 Curve and Linear.** Edges by Direction (X) on the plate into a Curve Pattern (count 5): five triads along each of four
+  edges, facing along the edge. A Rectangle into a Curve Pattern's `profile`: placements round the outline. A Linear Pattern
+  (count 6, spacing 8) into a Hole Pattern: a row of holes. **Observed:**
+- [ ] **PL-9 A Boolean over a tree.** Wire a Grid Pattern into Place and Place into a Boolean's `tools` (subtract from the plate): one
+  plate per row, each with its row of copies cut, as for any tree (spec §2). Flatten between Place and the Boolean: one plate with every
+  copy cut. **Record whether this is the surprise it may be** (a Hole Pattern over the same grid cuts every hole at once). **Observed:**
+- [ ] **PL-10 Tree display.** A Grid Pattern's output dot reads "Tree 3 × 4" on rest; the inspector's Data section lists `{0}` to `{2}`
+  with 4 items each. A Linear Pattern's reads as a plain list. **Observed:**
+- [ ] **PL-11 Old files and groups.** Open a bracket saved before this track: it opens with every pick holding and no warning. Group a
+  Hole Pattern fed by a Grid Pattern and enter the group: Pattern on Face says it can't be made inside a group yet. **Observed:**
+- [ ] **PL-12 A list on a layout.** Wire a Series into a Grid Pattern's `spacingX`: the node refuses with "Grid Pattern takes single
+  values, not lists: wire one value into each input, or pick one out of the list first with List Item." and shakes. Put a List Item
+  between the Series and the socket: it works. The same for Circular Pattern's `radius`. **Observed:**
