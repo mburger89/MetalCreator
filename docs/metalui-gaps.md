@@ -30,7 +30,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M6-c | Full-size content view | C8 | 🔄 open: fixed in MetalUI 70e9389 (PR #61) but not adopted; the window keeps its standard title bar until human check AS-5 shows it drags (C8-a) |
 | M6-d | Open-document events | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
 | C8-a | Window drag region for a hidden title bar under a gesture-carrying view | none yet | ⏳ reported to the MetalUI session 2026-10-10, not yet queued; predicted from reading MetalUI, AS-5 not run (it would confirm or refute) |
-| M6-e | Public headless test window | item 8 (test harness) | ✅ fixed (MetalUI 280d706, PR #65: `MetalUITesting`), adopted in the test targets (plan `2026-10-12-adopt-test-harness`): `AppWindow` opens the app's real root in a `TestWindow` (`AppWindowTests`); MetalCreator had no platform fake of its own to replace; the harness's one limit for this app (no `MetalView` draw, so no window size) and its app-side fix are in the entry |
+| M6-e | Public headless test window | item 8 (test harness) | ✅ fixed (MetalUI 280d706, PR #65: `MetalUITesting`), adopted in the test targets (plan `2026-10-12-adopt-test-harness`): `AppWindow` opens the app's real root in a `TestWindow` (`AppWindowTests`), and the routes the entry named are pinned there (`ViewportKeyRoutingWindowTests`, `EditMenuRoutingWindowTests`, `PaletteKeyRoutingWindowTests`); MetalCreator had no platform fake of its own to replace; the harness's one limit for this app (no `MetalView` draw, so no window size) and its app-side fix are in the entry |
 | M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
 | M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
 | VI-a | A dropped gesture's end | C16 | ⏳ queued after C8 and C9 |
@@ -301,6 +301,16 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
   take the window's size from it, drop the draw-time `observedViewSize` record, and `panelPlacement` and
   `canvasFrameInWindow` work headless and `AppWindow.canvasFrame` can go. Until then `AppWindow.canvasFrame` is the
   stopgap.
+  **The routes this entry named are pinned through the window** (Task 5 of the plan): F, + and − go to the viewport over the
+  viewport and to the graph over its canvas, and a focused inspector field keeps them until a viewport press gives them
+  back (`ViewportKeyRoutingWindowTests`, M6-4); the Edit menu is titled by the step and runs Undo and Redo, ⌘Z and ⇧⌘Z
+  act over the canvas and over the viewport, and ⌘C, ⌘V and ⌘D copy, paste and duplicate over the canvas only
+  (`EditMenuRoutingWindowTests`, M6-5); Space over the canvas opens the palette with its search field focused, "f+" is
+  typed into it and Return adds the node (`PaletteKeyRoutingWindowTests`, EP-2). The canvas hover veto and the
+  `Panel` key context in `AppInput` are not what these tests depend on: with either removed they still pass, because C9's
+  key region and a focused field claim the keys first. **Not driven yet** (adopted, untested): the sketch toolbar's button
+  shortcuts ahead of the palette (M6-11), the window shell (close veto, title, edited dot: group AS), the viewport's
+  gesture glue (group V) and the inspector box's own focus-loss commit (CM-7).
 - **M6-f. No colour picker.** The Themes milestone after M6 (roadmap) edits a custom theme's colours role by role,
   which wants SwiftUI's `ColorPicker(_:selection:supportsOpacity:)`: a colour well that opens the system colour panel
   (AppKit `NSColorWell`/`NSColorPanel`), with opacity. MetalUI has none. M6 doesn't need it: its three built-in themes

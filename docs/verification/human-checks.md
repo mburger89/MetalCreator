@@ -274,14 +274,17 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   unsaved changes, New and Open ask "Discard unsaved changes?"; Cancel keeps the document, and a later New asks again.
   Pinned: `AppModelFileTests`.
   **Observed:**
-- [ ] **M6-4 Keys and focus.** Click into an inspector number field and type "f", "+" and "-": they go into the field;
-  the viewport doesn't frame or zoom. Open the palette and type "f+": they go into the search field. Click empty
-  viewport space (the field loses focus), then press F, + and −: the viewport frames and zooms. Move the pointer over
-  the graph canvas and press + and −: the graph zooms, not the viewport; press F there: the viewport frames. Pinned:
-  `AppInputTests`; the dispatch through a window is this check only (gap M6-e). **Observed:**
-- [ ] **M6-5 Menu bar and chords.** ⌘Z and ⇧⌘Z undo and redo graph edits (Edit menu). With a node selected and the
-  pointer over the canvas, ⌘C, ⌘V and ⌘D copy, paste and duplicate it (the standard Copy and Paste items don't swallow
-  the keys). ⌘N, ⌘O, ⌘S, ⇧⌘S, ⌘E and ⇧⌘E run New, Open…, Save, Save As…, Export STEP… and Export STL…. **Observed:**
+- [ ] **M6-4 Keys and focus.** **Automated, no manual step** (`ViewportKeyRoutingWindowTests`, `PaletteKeyRoutingWindowTests`,
+  through the app's real window): "f", "+" and "-" pressed with an inspector field focused leave the viewport alone, and a
+  press on the viewport gives the keys back; with the pointer over the viewport + and − zoom it and F frames it; over the
+  graph canvas + and − zoom the graph and F frames the graph's selection, not the viewport (spec 2026-10-09 §3: this
+  line used to say the viewport frames); the open palette's search field takes "f+". **By hand:** the same on a
+  physical keyboard (+ is ⇧= on a US layout). Pinned: `AppInputTests` (the mapping). **Observed:**
+- [ ] **M6-5 Menu bar and chords (what is left).** **Automated, no manual step** (`EditMenuRoutingWindowTests`): the Edit menu
+  is titled by the step ("Undo Edit Note") and its Undo and Redo run; ⌘Z and ⇧⌘Z undo and redo one step each over the
+  canvas and over the viewport; with a node selected and the pointer over the canvas, ⌘C, ⌘V and ⌘D copy, paste and
+  duplicate it (the standard Copy and Paste items don't swallow the keys) and do nothing over the viewport. **By hand:**
+  ⌘N, ⌘O, ⌘S, ⇧⌘S, ⌘E and ⇧⌘E run New, Open…, Save, Save As…, Export STEP… and Export STL…. **Observed:**
 - [ ] **M6-6 A typed value isn't lost.** Type 75 into Width without pressing Return, then click the viewport: Width
   becomes 75 (one ⌘Z undoes it). Type 50 into a node's field and click another node on the canvas: the first node gets
   50, the second is unchanged. Type a value and press Tab: it's committed. Type 80 into Width without Return and
@@ -412,7 +415,10 @@ Run `swift run MetalCreatorApp` (EP-1–EP-9, EP-11, EP-12) and `swift run Graph
   and the palette keeps its size and place. Type "f+": they go into the field (the viewport neither frames nor
   zooms). Press Return: the node is added where the pointer was when the palette opened (not at the palette's
   corner) and selected; ⌘Z removes it in one step. Pinned: `theRowsScrollToKeepTheHighlightInView`,
-  `atTheBottomDockItFlipsUpAndAddsAtThePressPoint`; the key context is this check only (gap M6-e). **Observed:**
+  `atTheBottomDockItFlipsUpAndAddsAtThePressPoint`. **Automated** (`PaletteKeyRoutingWindowTests`): Space over the canvas opens
+  the palette with the search field focused, "f+" go into the field (the viewport neither frames nor zooms), Return adds a
+  node and selects it, ⌘Z removes it in one step, Esc closes the palette and adds nothing. **By hand:** the rows' scrolling
+  and where the node lands. **Observed:**
 - [ ] **EP-3 Closing the palette.** Open it, then click empty viewport: it closes (and the viewport takes the
   click). Open it, click a top-bar button: it closes. Open it, click the canvas: it closes. Open it, right-click or
   middle-click the canvas or the inspector: it closes. Open it and click its glass padding or caption: it stays open
