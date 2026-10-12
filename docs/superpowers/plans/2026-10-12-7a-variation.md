@@ -2,15 +2,17 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Six tree-aware nodes in the Patterns category (Cull Pattern, Cull Index, Cull by Region, Random Reduce, Random Values, Jitter) whose culls keep paths, whose randomness is one fixed, documented, seeded generator, and whose survivors keep their original instance index in Place's and the shortcuts' tags, so a pick on one instance survives a cull of another and a pick on a culled instance warns naming its path.
+**Goal:** Six tree-aware nodes in the Patterns category (Cull Pattern, Cull Index, Cull by Region, Random Reduce, Random Values, Jitter) whose culls keep paths, whose randomness is one fixed, documented, seeded generator, and whose survivors keep their original tree path (`{3}`, `{1;2}`) in Place's and the shortcuts' instance tags, so a pick on one instance survives a cull of another and a pick on a culled instance warns naming its path.
 
-**Architecture:** A cull cannot renumber, so a flat list or branch gains the one thing it lacked, item-level gaps: a `DataTree` of depth 1 may carry the indices its items keep (a "culled list", a `Value.tree` of depth 1), and `NodeInputs.positions(_:)` hands them to a `list` socket. Points to Placements passes a culled list of points on as culled placements, and Place and the shortcuts read culled placements through `PlacementSet`: the instances are exactly the surviving indices, each copy's tags carry its index (the copies `Kernel.place` numbers 0, 1, 2… are renumbered to their instance), and sizes and tools are read by index. The six nodes take a tree whole (`tree` access) and return the same nesting; all randomness is `SeededRandom`, SplitMix64 written out in the repo, drawn by an item's place (branch ordinal and index), never by how many items there are.
+**Architecture:** A cull cannot renumber, so a flat list or branch gains the one thing it lacked, item-level gaps: a `DataTree` of depth 1 may carry the indices its items keep (a "culled list", a `Value.tree` of depth 1), which broadcasts as a list everywhere and arrives whole on a `tree` socket. 7a-3 part A already names an instance by its tree path and reads placements, sizes and tools whole through `InstanceGrid`; this plan teaches that one rule to make exactly the instances a culled list or branch holds, at the index each item kept (so the packed path in the copy's tags is the item's original path), to read every other input at that index, and to give the copies back with the same gaps. Points to Placements takes its `points` as a whole tree and returns placements at the same paths, so a cull anywhere before it keeps them. The six nodes take a tree whole (`tree` access) and return the same nesting; all randomness is `SeededRandom`, SplitMix64 written out in the repo, drawn by an item's place (branch ordinal and index), never by how many items there are.
 
 **Tech Stack:** Swift 6.4 strict concurrency, Swift Testing, `FakeKernel` and `OCCTKernel` in tests, `swiftlint lint --strict`. No third-party code. No MetalUI change, no new MetalUI gap.
 
-**Spec:** `docs/superpowers/specs/2026-10-10-patterns-trees-design.md` §4 (culling and randomness), §6 (naming), §8 (errors), §9 (testing) and its Errata for 7a-1 and 7a-2, under `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md` with all its Errata; the merged plans `docs/superpowers/plans/2026-10-10-7a-trees.md` and `2026-10-10-7a-place.md`. Executors read the spec's §4 and §6 first. This plan adds an Errata section to the spec in Task 10.
+**Spec:** `docs/superpowers/specs/2026-10-10-patterns-trees-design.md` §4 (culling and randomness), §6 (naming), §8 (errors), §9 (testing) and its Errata for 7a-1 and 7a-2, under `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md` with all its Errata; the merged plans `docs/superpowers/plans/2026-10-10-7a-trees.md`, `2026-10-10-7a-place.md` and `2026-10-12-7a-layouts.md` (its Tasks 1 to 8 are in this branch's base: `InstancePath`, `InstanceGrid`, Place and the shortcuts over trees, picks by tree path, the Linear, Grid, Circular and Curve Patterns). Executors read the spec's §4 and §6 first. This plan adds an Errata section to the spec in Task 10.
 
-**Base:** branch `7a-variation` off master `9e5d2d5` (2639 tests). Layout nodes (Linear, Grid, Circular, Curve, Face), previews, lifting the tree refusal on Place and the shortcuts, tree-path instance picks and the acceptance test are 7a-layouts, not here. Never run the release benchmark.
+**Base:** branch `7a-variation` off master `6dda4d6` (2741 tests; the merge of 7a-layouts Tasks 1 to 8). Face Pattern, the layout previews, Pattern on Face, the acceptance test and the layouts' documentation (7a-layouts Tasks 9 to 14) are built in parallel on `7a-layouts` and merge **before** this track; none is needed here. Never run the release benchmark.
+
+**What 7a-3 part A made unnecessary.** The first version of this plan (written against master `9e5d2d5`) carried its own instance-numbering machinery. None of it is built any more: no `PlacementSet`, no `PerInstance` (that file was removed in part A) with `positions` or `span`, no `NodeInputs.positions(_:)` or culled-list slot in `BroadcastPlan` and `TreeCursor`, no `Topology.renumberingInstance` and no `PlacementMoves.copies`, no `instances:` on `PatternApply.Request` or `PatternMisses`, and no edit to Place or the four shortcuts: `InstanceGrid` is the one matching rule and already names each copy by `grid.items`. What stays is the culled list itself (Task 2), the generator (Task 1) and the six nodes (Tasks 4 to 9).
 
 ## Merge order and shared files
 
@@ -18,26 +20,29 @@
 
 | Shared file | Others touching it | What this track keeps / what to re-derive |
 |---|---|---|
-| `Sources/CreatorNodes/BuiltInNodes.swift` | 7a-layouts (5 layout nodes), harness (none) | This track adds six lines **above `OutputNode.self`** (one per node), never in the shortcut line. Keep both. |
-| `Tests/CreatorNodesTests/OutputNodeTests.swift` | 7a-layouts | Node count and the category dictionary: after both, 41 + 5 + 6 = **52** nodes and `.patterns` = 6 + 5 + 6 = **17**. |
-| `Tests/CreatorEditorTests/PatternsLibraryTests.swift` | 7a-layouts | The Patterns names list: layouts first (library order is `BuiltInNodes.all` order within the category), then Place … Pattern Feature, then this track's six in the order Cull Pattern, Cull Index, Cull by Region, Random Reduce, Random Values, Jitter. |
-| `Sources/CreatorGraph/NodeSetting.swift` | 7a-layouts if it adds a setting | `cullPattern` and `cullIndices` are added to `all`; keep every other track's. |
-| `Sources/CreatorGraph/{DataTree,Value,DataTree+Shape,NodeInputs,BroadcastPlan,TreeCursor}.swift` | 7a-layouts (lifting the tree refusal may touch `EvalContext`, `BroadcastPlan`) | **Keep the culled list**: `slots` in `DataTree`, `Value(_:)` returning `.tree` for a culled depth-1 tree, `meetsTree` ignoring depth-1 trees, `culledInputs`, `NodeInputs.positions(_:)`, the `TreeCursor.slot` case. A tree run (`isTreeRun`) must still deliver a culled branch's indices (`TreeCursor.slot`). |
-| `Sources/CreatorNodes/Patterns/{PlaceNode,PatternApply,PlacementMoves,PatternMisses,PerInstance,PointsToPlacementsNode}.swift`, `HolePatternNode`, `BossPatternNode`, `SlotPatternNode`, `PatternFeatureNode` | 7a-layouts (tree refusal, tree-path picks) — **the heaviest overlap** | **Keep:** `PlacementSet.instances(alongside:)` as the single source of the instances; `PlacementMoves.copies(of:at:instances:…)` as the one place copies are made and tagged; reading sizes through `PerInstance(…, positions:)`; `PatternMisses.count(…, instances:)`; **in `PointsToPlacementsNode`** the culled-points path (`PerInstance` for `points` and `direction`, the instances a culled `points` list holds, a `trees` output of culled placements, and the tree-run warning) — if 7a-layouts changes how that node runs in a tree (it should not need to), keep a culled list of points producing a culled list of placements. If 7a-layouts changes how an instance is named (a tree path instead of the flat index), `copies` must tag each copy with **its instance's path** (`DataTree.Leaf.itemPath(_:)`), and `Topology.renumberingInstance` becomes whatever sets that path; delete it if `Kernel.place` takes the paths itself. |
-| `Tests/CreatorNodesTests/Variation/CulledPickTests.swift` | — | **Must pass unchanged after 7a-layouts merges**: it uses one flat list (Grid Points and Points to Placements with a Cull Index on either side of Points to Placements), where a tree-path pick `{i}` is still the item index. If it fails, the merge broke "culling keeps the instance's index", not the test. It reads `PatternPlate`'s `h`, `plate`, `grid` and `placements` (and `VariationPipelineTests` its `plateVolume`): if 7a-layouts changes that fixture, adapt the fixture's use in these two files, never the expectations. |
-| `Sources/CreatorKernel/Topology+InstanceItems.swift` | — (new) | New file; `Topology+Instances.swift` is not edited. |
-| `CLAUDE.md`, `docs/superpowers/roadmap.md`, the spec's Errata, `docs/verification/human-checks.md` | 7a-layouts, harness | Each track appends its own paragraph/section; keep all. This track's: the CLAUDE.md paragraph and the Variation bullet, roadmap row text for 7a-3 part B, "Errata (7a-3 part B)", "Group VA". The CLAUDE.md node count becomes 52 and "the twelve `Patterns` nodes" becomes seventeen. |
-| `Tests/CreatorNodesTests/PatternPickStabilityTests.swift`, `Support/PatternPlate.swift` | 7a-layouts | **Not edited here** (`CulledPickTests` has its own fixture and only reads `PatternPlate`). |
+| `Sources/CreatorNodes/BuiltInNodes.swift` | 7a-layouts (Task 9 adds `FacePatternNode.self` beside the other layouts) | This track adds six lines **above `OutputNode.self`** (one per node). Keep both. |
+| `Tests/CreatorNodesTests/OutputNodeTests.swift` | 7a-layouts (Task 9) | Node count and the category dictionary: after both, 45 + 1 (Face Pattern) + 6 = **52** nodes and `.patterns` = 10 + 1 + 6 = **17**. Each task here edits the numbers by one; re-derive them from the merged base, not from this plan's. |
+| `Tests/CreatorEditorTests/PatternsLibraryTests.swift` | 7a-layouts (Task 9) | The Patterns names list: layouts first (library order is `BuiltInNodes.all` order within the category), then Place … Pattern Feature, then this track's six in the order Cull Pattern, Cull Index, Cull by Region, Random Reduce, Random Values, Jitter. |
+| `Sources/CreatorGraph/NodeSetting.swift` | 7a-layouts only if it adds a setting | `cullPattern` and `cullIndices` are added to `all`; keep every other track's. |
+| `Sources/CreatorGraph/{DataTree,DataTree+Items,DataTree+Shape,Value,BroadcastPlan}.swift` | none planned (7a-layouts Tasks 9 to 14 add nodes, previews, a menu entry, tests and docs) | **Keep the culled list**: `slots` in `DataTree` and the `slots:` parameter of its `init`, `culledList`, `isCulled`, `Leaf.positions`, `replacingItems` keeping the slots, `Value(_:)` returning `.tree` for a culled depth-1 tree, `meetsTree` looking only at trees of depth 2 or more, and `droppingCulls` on an item socket. |
+| `Sources/CreatorNodes/Patterns/InstanceGrid.swift` | none planned (Face Pattern reads `LayoutChecks`, `PatternLimit` and `FaceRegion`, not the grid) | Task 3 replaces the file. If 7a-layouts changed it, keep that change and re-apply the culled-lead support: `flatCells`/`treeCells`, `Column`, `culledIndices`, `tree(of:)` returning a culled list, `vectors(_:)`. |
+| `Sources/CreatorNodes/Patterns/PointsToPlacementsNode.swift` | none planned | **Keep `points` and `direction` on `.tree` access**, read through `InstanceGrid`, returning `grid.tree(of: planes)` (Task 3). |
+| `Tests/CreatorNodesTests/Variation/{CulledPickTests,CulledTreePickTests,InstanceGridCullTests,CulledInstancesTests,PointsToPlacementsCullTests,VariationPipelineTests}.swift` | — | **Must pass unchanged after 7a-layouts merges.** If one fails, the merge broke "culling keeps paths", not the test. They read `PatternPlate`'s `h`, `plate`, `grid`, `placements`, `init(columns:rows:spacingX:spacingY:)` and `plateVolume` (and the `Harness.box`, `onlySolid`, `volume`, `isClose` helpers): if 7a-layouts changes that fixture, adapt the fixture's use in these files, never the expectations. |
+| `CLAUDE.md` | 7a-layouts (its Task 14) **and harness** (it edits the testing paragraphs for MetalUITesting and the human-checks sentence) | Each track appends its own paragraph/section; keep all. This track's: the CLAUDE.md paragraph, the "Culling keeps paths" bullet and the Variation bullet. The node count becomes 52 and the `Patterns` nodes seventeen (7a-layouts writes 46 and eleven; this plan writes 51 and sixteen for a branch without Face Pattern); the settings list gains `cullPattern, cullIndices` and the file-format sentence is **not** touched (format stays 6, User decision U17). |
+| `docs/superpowers/roadmap.md`, the spec's Errata | 7a-layouts (its Task 14), harness | Append only: this track's roadmap row 7a-3b and "Errata (7a-3 part B)". Keep the other tracks' rows and Errata. |
+| `docs/verification/human-checks.md` | 7a-layouts (its Task 14: group PA/LA text) **and harness (it adds the CT group)** | Group VA is inserted directly after the existing paragraph ending `aMissingBranchOrItemInAPathSaysHowManyThereAre`, … **Observed:** (text this branch already has). Keep the other tracks' groups wherever they put them; re-number nothing. |
+| `Tests/CreatorNodesTests/Support/VariationFixtures.swift` and every test that calls `Harness`, `EvaluationReport` or `PatternPlate` (all of `Tests/CreatorNodesTests/Variation/`, `Tests/CreatorEditorTests/VariationSettingTests.swift`) | harness (test support: MetalUITesting adoption, it may rename or reshape `Harness` and `EvaluationReport` in `NodeTestSupport.swift`) | This track only **extends** `Harness` (`source(count:rows:)`, `wire(_:to:_:)`) and `EvaluationReport` (`tree`, `positions`) in `VariationFixtures.swift` and uses the existing helpers. **The side that merges second (this one) re-checks `VariationFixtures.swift` and the tests above against any rename or signature change of `Harness`, `EvaluationReport`, `onlySolid`, `volume` and `isClose`**, adapting the fixture's and tests' *use* of them, never an expectation. |
+| `Tests/CreatorNodesTests/PatternTreePickTests.swift`, `InstanceGridTests.swift`, `PlaceTreeTests.swift`, `Support/PatternPlate.swift` | 7a-layouts | **Not edited here.** |
 
 ## Global Constraints
 
 - Swift 6 strict concurrency, Swift Testing, the repo's `CLAUDE.md` rules: one type per file, behaviour in models and thin views (this plan touches no views), no force unwraps, no GCD, `FormatStyle` for text (`.formatted(.number.locale(.messages))`, `.list(type:)`), no C-style formatting.
 - `swiftlint lint --strict` reports zero violations before every commit (line length 140, trailing commas in multi-line literals).
 - Randomness is **always seeded** through a `seed` input, by one fixed, documented algorithm implemented in the repo (`SeededRandom`, SplitMix64), **never the system generator**. Each random node draws for its own `SeededRandom.Purpose`, which is mixed into the seed, so two nodes with the same seed do not draw the same numbers (User decision U7). The same seed gives the same result on every machine and in every release, a seed change never warns, and fixed seeds are pinned in tests, per branch and overall.
-- Culling keeps paths: survivors keep their original paths (a sparse result), never renumbered; a pick on an instance survives a cull of another instance and a pick on a culled instance warns naming its path (spec §4, §6).
+- Culling keeps paths: survivors keep their original paths (a sparse result), never renumbered, in the value and in instance tags; a pick on an instance survives a cull of another instance and a pick on a culled instance warns naming its path (spec §4, §6).
 - Messages are plain and actionable (spec §8): a path error names the shape, a refused value names the socket and the limit, a path that names nothing is named.
 - All six nodes are in `NodeCategory.patterns`, tree-aware, and take lists or trees (`access: .tree`).
-- `GraphFile.currentFormatVersion` stays 6: the two new settings are `.text` values of new node types (see Key decisions).
+- `GraphFile.currentFormatVersion` stays 6: the two new settings are `.text` values of new node types (Key decision 10, User decision U17: a deliberate departure from 7a-1, which bumped for its three text settings).
 - MetalUI gaps go in `docs/metalui-gaps.md` (entry **and** summary table row) and are never worked around. This plan finds none.
 - A full `swift test` run passes only if the exit code is 0, no line says "recorded an issue" or "failed after", and 11 "Test run with" lines appear. Never run the release benchmark (`scripts/bench.sh`).
 - Run every command from the worktree root. Do not edit `Package.swift`'s MetalUI path or anything under `../MetalUI`.
@@ -47,30 +52,31 @@
 
 The inputs and conditions the spec implies but no node's own happy-path tests would exercise, most likely first. Each has its test in the task that owns the code.
 
-1. **A size or tool list longer than the culled placements.** A culled tail must not come back as repeats of the last placement ("ghost" instances), and a survivor must keep its own size, not the size of its rank. Tests: `aCulledListMakesExactlyTheInstancesItKeeps`, `aLongerToolListAddsNoInstancesToCulledPlacements`, `aSurvivingInstanceKeepsItsOwnTool`, `aCulledSizeListIsReadByTheInstancesIndex` (Task 3). The same holds the other way round: a culled size or tool list with **more** survivors than there are plain placements sets no number of instances (`aCulledSizeListWithMoreSurvivorsThanPlacementsSetsNoNumberOfInstances`, `aCulledSizeListLongerThanThePlacementsMakesNoExtraHoles`, Task 3).
-2. **Everything culled.** A cull that removes every placement leaves the part untouched with no error and no warning, and Place makes no copies. Test: `aCullThatRemovesEveryPlacementLeavesThePartAloneAndMakesNoCopies` (Task 3); empty branches stay as gaps: `aMaskThatCullsEverythingLeavesEmptyBranches` (Task 4).
-3. **Culling a list that was already culled.** The mask counts the items left; indices and paths name the places items had at the start; nothing renumbers. Tests: `aSecondCullCountsTheSurvivorsAndKeepsTheFirstOnesIndices` (Task 4), `indicesNameThePlacesTheItemsHadBeforeAnyCull`, `aPathOnAnItemAlreadyCulledWarns` (Task 5).
-4. **A reshaping node after a cull** (Partition, Flatten, Path Mapper) renumbers, as reshaping does; and an ordinary item socket given a culled list pairs by place and drops the gaps. Pinned, so a change is deliberate: `aReshapingNodeAfterACullRenumbersAsReshapingDoes` (Task 4), `aCulledListOnAnItemSocketPairsItemsByTheirPlaceInTheList` (Task 2).
+1. **A size or tool list longer than the culled placements.** A culled tail must not come back as repeats of the last placement ("ghost" instances), and a survivor must keep its own size, not the size of its rank. Tests: `aCulledListMakesExactlyTheInstancesItKeepsAtTheirIndices`, `aLongerListAddsNoInstancesToCulledOnes`, `aSurvivorKeepsItsOwnSizeNotTheSizeOfItsRank`, `aCulledSizeListIsReadByTheInstancesIndex`, `aCulledSizeListWithMoreSurvivorsThanPlacementsSetsNoNumberOfInstances` (`InstanceGridCullTests`), `aCulledSizeListLongerThanThePlacementsMakesNoExtraHoles`, `aCulledToolListGivesEachSurvivorItsOwnTool` (`CulledInstancesTests`), all Task 3.
+2. **A cull inside a tree of placements** (a Grid Pattern's rows, a Circular Pattern's rings). A gap inside one row must leave the rest of the row where it was, a whole branch culled must leave the other branches' numbers alone, and a size per row must still be read at the instance's place. Tests: `aCulledBranchKeepsItsIndicesInEveryPath`, `aWholeBranchCulledLeavesAGapAndTheOthersKeepTheirNumbers`, `aCulledTreeOfPlacementsKeepsEveryTreePath`, `aSizePerRowAndACullTogetherReadTheRowsSizeAtTheInstancesPlace` (Task 3), `CulledTreePickTests` (Task 5: `aPickOnOneInstanceSurvivesACullOfAnother`, `aWholeBranchCulledNamesEveryPickOnIt`).
+3. **Everything culled, and culling a list that was already culled.** A cull that removes every placement leaves the part untouched with no error and no warning, and Place makes no copies; the mask counts the items left, indices and paths name the places items had at the start, nothing renumbers. Tests: `aCullThatRemovesEveryPlacementLeavesThePartAloneAndMakesNoCopies`, `everyPlacementCulledMakesNoInstancesAndGivesBackAnEmptyCulledList` (Task 3), `aMaskThatCullsEverythingLeavesEmptyBranches`, `aSecondCullCountsTheSurvivorsAndKeepsTheFirstOnesIndices` (Task 4), `indicesNameThePlacesTheItemsHadBeforeAnyCull`, `aPathOnAnItemAlreadyCulledWarns` (Task 5).
+4. **A cull placed before Points to Placements.** Grid Points → Cull → Points to Placements is the most natural graph, and Points to Placements used to read `points` as a plain list, so the placements came out renumbered and every pick shifted to a neighbour. It now reads `points` as a tree and returns placements at the same paths (User decision U15). Tests: `pointsToPlacementsKeepsACulledListsIndices`, `aTreeOfPointsIsATreeOfPlacementsAtTheSamePaths`, `aCulledDirectionListIsReadByTheInstancesIndexAndSetsNoNumberOfPlacements`, `aCullThatRemovesEveryPointMakesAnEmptyCulledListOfPlacements` (Task 3), and `CulledPickTests` and `CulledTreePickTests` run with the cull on **both sides** of Points to Placements (Task 5).
 5. **Numbers must not depend on how many items there are.** More placements, a longer list, a cull, or a changed count must not reshuffle the others: `moreItemsAtTheEndNeverChangeWhichEarlierOneIsLowest` (Task 7), `theFirstNumbersDoNotDependOnHowManyThereAre`, `aCulledShapeGetsNumbersAtThePathsItKeptAndTheOthersKeepTheirNumbers` (Task 8), `addingPlacementsDoesNotMoveTheEarlierOnes`, `aCulledInputStaysCulledAndTheSurvivorsMoveAsTheyWouldHave` (Task 9).
-6. **A cull placed before Points to Placements.** Grid Points → Cull → Points to Placements is the most natural graph, and Points to Placements used to read `points` as a plain list, so the placements came out renumbered and every pick shifted to a neighbour. It now passes a culled list of points on as culled placements. Tests: `pointsToPlacementsKeepsACulledListsIndices`, `aCulledDirectionListIsReadByTheInstancesIndex`, `aCullThatRemovesEveryPointMakesAnEmptyCulledList` (Task 3), and `CulledPickTests` run with the cull on **both sides** of Points to Placements (Task 5, `aPickOnOneInstanceSurvivesACullOfAnother` and the two tests after it). Inside a tree run a culled branch still renumbers, and the node says so (`inATreeRunACulledBranchIsRenumberedAndSaysSo`, User decision U15).
+6. **A reshaping node or an ordinary node after a cull** (Partition, Flatten, Path Mapper; Extrude, Rectangle…) renumbers or drops the gaps, as reshaping does; pinned, so a change is deliberate: `aReshapingNodeAfterACullRenumbersAsReshapingDoes` (Task 4), `aCulledListOnAnItemSocketPairsItemsByTheirPlaceInTheList`, `aCulledListOnAListSocketRunsOnceAndGetsItsItems` (Task 2).
 7. **Equal seeds on different nodes.** Random Reduce, Random Values and Jitter all default to seed 0; unsalted, the items Random Reduce drops would be exactly the ones with the smallest Random Values. Each node draws for its own `SeededRandom.Purpose` (Task 1: `eachPurposeHasItsOwnPinnedNumbers`, `equalSeedsOnDifferentPurposesDrawDifferentNumbers`; Task 10: `withTheSameSeedTheItemsRandomReduceDropsAreNotTheSmallestRandomValues`).
+8. **A tree three deep, `{row;column;0}`** (Face Pattern's shape, one item per branch, which Place, the shortcuts and every node here must handle). A bare index and Cull Pattern's per-branch mask count places *within a branch*, so there they are degenerate (bare `1` culls nothing, `0` culls every cell, `1 0` keeps every cell) and Random Reduce Per branch empties the tree: pinned, with the ways to reach cells (paths, Cull Pattern Overall, Random Reduce Overall) pinned beside them (User decision U16). Tests, built by hand from a Series, Partition and Graft (never Face Pattern): `CellTreeTests` (Cull Index, Cull Pattern, Random Reduce, Random Values and Jitter ordinals), `CellTreePickTests` (Place's instance paths and tags after a cull of one cell; a pick survives a cull of another cell, a pick on a culled cell warns naming `{1;1;0}`), all Task 11.
 
 ---
 
 ## Key decisions
 
-1. **Item-level gaps: `Value.tree` could not express them, so it is extended minimally.** 7a-1 holds a sparse tree's gaps as empty branches, which only says "branch 2 has nothing", not "item 1 of this branch is gone". The extension: a `DataTree` of depth 1 may carry `slots`, the index each item keeps (`DataTree.culledList(_:at:)`, `isCulled`, `itemPositions`); `Value(_:)` makes it a `Value.tree` of depth 1 (a `.list` cannot say it), and every other flat tree stays a `.list`, so no existing value changes form. Deeper trees carry gaps in their depth-1 leaves, so a cull of a 3 × 8 tree leaves 3 culled branches. *Why not a null item:* arithmetic nodes would fail with type errors on it, and counts would include it. A list culled only at its end is still marked culled (`slots` held even when 0, 1, 2…) so the culled tail cannot come back as repeated placements.
-2. **A culled list broadcasts as a list.** `BroadcastPlan.meetsTree` now looks only at trees of depth 2 or more, so a culled list on a `list` socket runs the node once (`isTreeRun` stays false and Place does not refuse it) and arrives with its indices (`NodeInputs.positions`); on an `item` socket it pairs by place and drops the gaps; on a `tree` socket it arrives whole. Beside a real tree (a nested plan) the same indices arrive through `TreeCursor.slot`.
-3. **Surviving instances keep their index without touching the `Kernel` protocol.** `Kernel.place` numbers copies by position in its argument list. Rather than adding a parameter to the protocol (three conformers, and 7a-layouts is changing instance naming), `PlacementMoves.copies` places the survivors and renumbers any copy whose instance index differs (`Topology.renumberingInstance(to:)` sets the item of every instance-qualified tag, blend source edges included) on a new `Solid` that shares the kernel's storage, as `OCCTKernel.place` itself builds its copies.
-4. **Instances are exactly the surviving indices.** `PlacementSet.instances(alongside:)`: a plain list makes `0..<max(placements, other lists)` as before; a culled list makes its indices and a longer size list adds none. Sizes and tools are read by the instance's index (`PerInstance(…, positions:)`: its own value, else the nearest one before it, else the first). A culled size or tool list never sets the number of instances, however many survivors it holds: it contributes `PerInstance.span` (1 when it holds anything, 0 when everything was culled, which makes no instances, as an empty plain list does). Dense graphs behave exactly as before (the 7a-2 tests pass untouched).
+1. **Item-level gaps: `Value.tree` could not express them, so it is extended minimally.** 7a-1 holds a sparse tree's gaps as empty branches, which only says "branch 2 has nothing", not "item 1 of this branch is gone". `InstanceGrid` reads those branch gaps already (an instance's path is its leaf's path plus the item's index, so `{2;0}` stays `{2;0}` with `{1}` empty), so only the item level is new. The extension: a `DataTree` of depth 1 may carry `slots`, the index each item keeps (`DataTree.culledList(_:at:)`, `isCulled`, `itemPositions`); `Value(_:)` makes it a `Value.tree` of depth 1 (a `.list` cannot say it), and every other flat tree stays a `.list`, so no existing value changes form. Deeper trees carry gaps in their depth-1 leaves, so a cull of a 3 × 8 tree leaves 3 culled branches. *Why not a null item:* arithmetic nodes would fail with type errors on it, and counts would include it. A list culled only at its end is still marked culled (`slots` held even when 0, 1, 2…) so the culled tail cannot come back as repeated placements.
+2. **A culled list broadcasts as a list.** `BroadcastPlan.meetsTree` now looks only at trees of depth 2 or more, so a culled list on a `list` or `item` socket runs the node as a list would, seeing its survivors in order (a rank; the gaps are dropped, User decision U6), and on a `tree` socket it arrives whole with its indices. Nothing reads indices through a `list` socket, because every pattern node takes its placements whole.
+3. **Surviving instances keep their path with no kernel change and no renumbering.** `InstanceGrid` builds each instance's path from the index its item kept (`leaf.path + [index]`, or `[index]` for a flat list) and `PlacementMoves.place` already renames a copy `Kernel.place` numbered by position to `grid.items[i]` (`InstancePath.item(for:)`). So a survivor's copy carries its original path in every tag, a flat survivor `{3}` keeps the tag item 3 exactly as before trees (saved picks resolve unchanged), and `Topology.vanishedInstances` already names a culled path in the pick's warning.
+4. **Instances are exactly the surviving indices, and everything else is read at the index.** A culled flat lead makes its indices' instances (a plain list makes `0..<` the longest plain list, as before); a tree lead makes an instance per item at `leaf.path + [index]`. A size, tool or direction input is read at the instance's index: its own value if it has one there, else the nearest one before it, else its first, which is how a plain shorter list repeating its last item already behaved (User decision U12). A culled input that is not the lead never sets the number of instances, however many survivors it holds, and one with everything culled makes none (the rule "any input with no items makes no instances" is unchanged). `InstanceGrid.tree(of:)` returns the copies in the placements' shape with the same gaps, so Place's `solids` output of culled placements is culled alike.
 5. **One generator, drawn by place.** `SeededRandom` is SplitMix64: draw `k` of a stream is `mix(start + (k + 1) × 0x9E3779B97F4A7C15)`, so any draw is reachable directly and sequential and direct access agree. Stream 0 starts at the seed; stream `n` at `mix(seed + n × step)`. Nodes draw item `(branch ordinal n, index i)` from stream `n` at draw `i` (Jitter: draws `3i`, `3i + 1`, `3i + 2`), so counts, culls and longer lists reshuffle nothing. Seed 0 reproduces the published SplitMix64 vector (pinned, `Purpose.plain`), and other seeds' first draws are pinned. **Each random node draws for its own `SeededRandom.Purpose`** (`reduce`, `values`, `jitter`): the seed is first mixed with a fixed per-purpose constant (`mix(seed ^ salt)`, the salt being the node's name in ASCII ending `_1`), so equal seeds on different nodes draw unrelated numbers (User decision U7). The salts are part of the contract and pinned in `SeededRandomTests`.
 6. **Random Reduce ranks, it does not shuffle.** Every item gets its draw as a key and the smallest keys go: a bigger amount drops what a smaller one did and more, and the choice depends on the seed and the items' places alone. Per branch ranks within each branch (stream = branch ordinal); overall ranks all items together. A fraction rounds to the nearest whole item, halves up.
 7. **Random Values has two outputs.** `values` (reals, `min` up to `max`) and `integers` (both ends included, `min` rounded up to `max` rounded down), the second an optional output left out when no whole number is in range (the existing "isn't produced" wire message covers it). With a `shape` wired it fills that tree (culled gaps included); with none it makes a flat list of `count` (at most 100,000).
-8. **Cull Pattern and Cull Index take their lists as saved text** (`cullPattern`: `1 0 1`; `cullIndices`: `1, 4, {0;3}`) because no node today makes a list of booleans or integers by hand; each also takes a wired list (`keep` booleans; `indices` numbers, so a Series or Random Values' `integers` works). A bare index names that place in every branch; a path names one item or, when short, a whole branch (left as an empty branch).
-9. **Cull by Region judges a placement by its origin**; a profile is a prism along its plane's normal; the boundary counts as inside/within; distances use exact straight and circular edges (anything else refuses with the count) and the **plane** of a flat face (a curved face refuses with the count). Choices are integer sockets with segmented controls (`reference`: Profile, Point, Edges, Face; `keep`: Inside or within, Outside or beyond), the same way `Pattern Feature`'s operation is.
-10. **No file-format bump.** The new settings belong to new node types; `NodeSetting.all` gains them (so Group sockets cannot be named like them). A file with these nodes opened by a build without them already fails on the unknown node type, which is how 7a-2's nodes behaved.
+8. **Cull Pattern and Cull Index take their lists as saved text** (`cullPattern`: `1 0 1`; `cullIndices`: `1, 4, {0;3}`) because no node today makes a list of booleans or integers by hand; each also takes a wired list (`keep` booleans; `indices` numbers, so a Series or Random Values' `integers` works). A bare index names that place *within* every branch (the last level: on a `{row;column;0}` tree only 0 is a place, User decision U16); a path names one item or, when short, a whole branch (left as an empty branch). Cull Pattern also has a `scope` (Per branch, the default: the mask restarts at every branch; Overall: it runs on along the whole tree in order).
+9. **Cull by Region judges a placement by its origin**; a profile is a prism along its plane's normal; the boundary counts as inside/within; distances use exact straight and circular edges (anything else refuses with the count) and the **plane** of a flat face (a curved face refuses with the count; User decision U3, chosen). Choices are integer sockets with segmented controls (`reference`: Profile, Point, Edges, Face; `keep`: Inside or within, Outside or beyond), the same way `Pattern Feature`'s operation is.
+10. **No file-format bump, a deliberate departure from 7a-1 (User decision U17).** 7a-1 bumped to 6 for its three text settings, so a build without them would refuse the file. Here the format stays 6: the settings belong to new node types, no `ConstantValue` kind is added (CLAUDE.md's bump rule does not apply), and 7a-2 and 7a-3 part A added nodes without a bump. What an older build does with such a file is *not* "refuse": a format-6 file opens, and each unknown node type is an error on that node when it is evaluated (`EvaluatorTests.unknownNodeTypeIsAnErrorNotACrash`); only a file of a *newer* format is refused (`TreeFileTests.aNewerFileIsStillRefusedWithItsVersion`). `NodeSetting.all` gains the two names (so Group sockets cannot be named like them). `VariationFileTests` (Task 11) pins a save and reopen of both settings and that a format-5 file still opens.
 11. **The nodes are `tree`-access and `any`-typed** (like the Lists & Trees nodes), except Cull by Region and Jitter, whose placements are `plane`-typed, and Random Values, whose outputs are `number` and `integer`: a typed wire connects them to size and placement inputs, and `Value.converted(to:)` keeps the culled indices.
-12. **Points to Placements carries a cull through.** A cull is as likely to sit before Points to Placements (on Grid Points) as after it, and the node used to read its `points` as a plain list and return a plain one, which renumbered. It now reads `points` and `direction` through `PerInstance`: when `points` is culled the placements are exactly the surviving indices, the output is a culled list (`DataTree.culledList`, through `NodeOutputs(trees:)`), and a direction list is read by the instance's index. Inside a tree run (a culled branch of a deeper tree) the node cannot return a tree per run, so it returns the branch as a plain list and warns that culling after the node keeps the paths (User decision U15).
+12. **Points to Placements takes trees (User decision U15, chosen by the user: "fix it properly now").** `points` and `direction` move to `.tree` access and are matched by `InstanceGrid`, the same rule Place uses, and the placements come back in the shape of the points with the same paths (`grid.tree(of:)`). A cull anywhere before the node therefore keeps paths and no renumbering warning exists. Side effects, pinned: a tree of points gives a tree of placements (as the per-branch runs it replaces did), the 2,000-instance limit now counts the whole tree rather than each branch, and a zero direction names the instance's tree path (`The direction of placement {1;2} can't be zero.`).
 
 ## User decisions (the plan takes the recommended default; change them before executing if you disagree)
 
@@ -78,10 +84,10 @@ The inputs and conditions the spec implies but no node's own happy-path tests wo
 |---|---|---|---|
 | U1 | Cull Pattern polarity | (a) `1`/true **keeps**, `0`/false culls, the wired socket is called `keep`; (b) Grasshopper's: true culls | (a): "keep" says what the socket does; a designer reads `1 0` as "every other one stays". |
 | U2 | What a repeating mask counts | (a) the items the branch has **now** (a second Cull Pattern works on what is left); (b) the places they had | (a), like a list pattern in Grasshopper. Indices and paths in Cull Index always use places. |
-| U3 | Distance to a face | (a) to the face's **plane**, flat faces only, a curved face refused (a placement far beside a small face counts as near it); (b) Face refuses altogether until a kernel distance to the face's outline exists; (c) to the face's real outline (needs a kernel query) | (a) now, (c) when a kernel distance exists; the docs, the node's comment and the Errata say "to the plane". `FaceInfo` has no bounds beyond area and centroid, so "also inside the face's bounds" cannot be done without that query. Choose (b) if a wrong keep near a small face would be worse than no Face option. |
+| U3 | Distance to a face | (a) to the face's **plane**, flat faces only, a curved face refused (a placement far beside a small face counts as near it); (b) Face refuses altogether until a kernel distance to the face's outline exists; (c) to the face's real outline (needs a kernel query) | **(a), chosen by the user (2026-10-12).** (c) when a kernel distance exists; the docs, the node's comment and the Errata say "to the plane". `FaceInfo` has no bounds beyond area and centroid, so "also inside the face's bounds" cannot be done without that query. |
 | U4 | A placement exactly on a boundary or at exactly the distance | (a) inside/within; (b) outside/beyond | (a). |
 | U5 | Paths through reshaping and selecting | (a) Partition, Flatten, Graft and Path Mapper renumber a culled list (reshaping makes new branches), and **List Item, Branch by Path and Tree Statistics count a culled list's survivors by rank** (List Item index 2 on a list culled to {0, 2, 4} returns the item at {4}), while Cull Index always names the places items had; (b) they carry or name the old indices | (a): cull last, or cull after reshaping; the same rule as U2 (a node that works on "what is there now" counts the survivors). (b) would need each node to decide what a path means after a reshape, and would change 7a-1's nodes. |
-| U6 | An arbitrary node (Extrude, Rectangle…) fed a culled list | (a) pairs by place and returns a plain list (gaps dropped); (b) keeps the gaps in its output (the "outputs keep the nesting of the deepest input" rule extended to gaps) | (a) now: only the pattern, cull and random nodes keep gaps. Wire the cull after the sizes, or feed sizes into the pattern node (it reads them by index). |
+| U6 | An arbitrary node (Extrude, Rectangle…) fed a culled list | (a) pairs by place and returns a plain list (gaps dropped); (b) keeps the gaps in its output (the "outputs keep the deepest nesting" rule extended to gaps) | (a) now: only the pattern, cull and random nodes keep gaps. Wire the cull after the sizes, or feed sizes into the pattern node (it reads them by index). |
 | U7 | Two random nodes with the same seed | (a) the same draws (correlated: with equal seeds Random Reduce drops exactly the items with the smallest Random Values, and Jitter's offsets follow the same numbers); (b) each node type salts the seed (`SeededRandom.Purpose`) so equal seeds decorrelate | **(b), planned.** Nothing has shipped with these nodes, so the salt costs nothing now, and adding one later would change every pinned value and every saved file's result, which is the property the spec makes a promise. The cost: one more constant per node to document and pin. Choose (a) only if "the seed is the seed" matters more than independence. |
 | U8 | Jitter's shape | (a) a disc of radius `distance` in the placement's plane and a symmetric turn; (b) a square (independent X and Y limits) | (a): one number, direction-free. |
 | U9 | Random Values' `integers` when no whole number is in range | (a) output left out (a wire says it isn't produced); (b) error | (a): the reals still work. |
@@ -89,8 +95,11 @@ The inputs and conditions the spec implies but no node's own happy-path tests wo
 | U11 | Where Cull by Region judges a placement | (a) by its **origin** only, a profile being a prism along its plane's normal (a tilted placement's footprint and height are ignored); (b) by the placement's footprint or the tool's extent | (a): one point, easy to predict and explain; a designer who needs margins adds the tool's radius to `distance`. |
 | U12 | An instance whose own size or tool was culled | (a) takes the nearest earlier surviving value, else the first (a plain shorter list repeats its last); (b) is refused, naming its path; (c) is skipped | (a): never a surprise failure after a cull, and it is how a shorter plain list already behaves. |
 | U13 | Rounding a fraction in Random Reduce | (a) to the nearest whole item, halves up (a quarter of 6 is 2); (b) always down; (c) always up | (a). |
-| U14 | Defaults | Random Reduce drops 1 per branch (seed 0); Cull Pattern starts at `1 0` (every other item stays); Jitter 1 mm and 5 degrees; Random Values 8 values from 0 to 1 | As planned: each does something visible when dropped on the canvas, and 0 is the empty default only for Cull Index. The alternative is dropping nothing by default. |
-| U15 | Points to Placements on a culled branch inside a tree run | (a) returns the branch as a plain list (renumbered) and warns "cull after Points to Placements to keep the paths"; (b) refuses; (c) takes `points` as a whole tree (a larger change to a 7a-2 node, with tree-path instances) | (a): graphs that worked on master keep working, the warning names the fix, and 7a-layouts (which owns tree-path instance names) can do (c). Flat lists and single-level culls, the common case, keep their indices. |
+| U14 | Defaults | Random Reduce drops 1 from the whole tree (scope Overall, seed 0); Cull Pattern starts at `1 0` (every other item stays, scope Per branch); Jitter 1 mm and 5 degrees; Random Values 8 values from 0 to 1 | As planned: each does something visible when dropped on the canvas, and 0 is the empty default only for Cull Index. Random Reduce's scope was Per branch until this revision: on branches of one item (a Face Pattern's cells) a default of "1 per branch" emptied the graph (U16). The alternative is dropping nothing by default. |
+| U15 | Points to Placements and a cull before it | (a) a culled branch inside a tree run is returned renumbered with a warning; (b) refused; (c) `points` taken as a whole tree and the tree of placements returned with the same paths | **(c), chosen by the user (2026-10-12): "fix it properly now".** Done in Task 3 on top of 7a-3 part A's `InstanceGrid`; no renumbering and no warning exist. |
+| U16 | Reaching cells in a tree three deep, `{row;column;0}` (Face Pattern's shape: one item in every branch). Checked on a 2 × 3 × 1 tree: a bare Cull Index `1` culls **nothing** (a bare index is a place within a branch, and the only place is 0), `0` culls **every** cell, Cull Pattern `1 0` per branch keeps **every** cell, and Random Reduce Per branch with Count 1 drops **all six**; only path lists (`{0;1}`, `{0;1;0}`, `{1}`) and Cull by Region work as they do on rows. (An earlier version of this row said Cull Index `1` keeps every other vent: that was wrong.) | (a) keep one rule (places within a branch) and give the nodes a way to reach cells: Cull Pattern gets a `scope` (Per branch, Overall), Random Reduce defaults to Overall, Cull Index reaches cells by paths; (b) also level-aware indices or a wildcard in Cull Index (`{*;1}`, "column 1 of every row" in one entry); (c) make a bare index and the mask count the whole tree by default (changes rows: `1` would no longer mean "the second of every row"); (d) change nothing and document that these nodes want paths on cells | **(a), planned.** With it: Cull Pattern `1 0` with scope Overall keeps cells 0, 2, 4 of the six; Random Reduce drops one cell by default and Per branch stays available (and documented as emptying such a tree); paths cull a cell (`{0;1}` or `{0;1;0}`) or a row (`{1}`). Bare indices stay as U10 says and are pinned on this shape. What (a) cannot do is "this column of every row" in one entry (list `{0;1}, {1;1}`, or use Cull by Region); a wildcard (b) is a small later addition if designers ask for it. (c) would break the rule rows already have. |
+| U17 | The file format when these nodes (and their two text settings) are saved | (a) stay at 6, as 7a-2 and 7a-3 part A did: no `ConstantValue` kind is added, a format-6 file opens in an older build and shows the new nodes as unknown types; (b) bump to 7 as 7a-1 did for its text settings, so older builds refuse the file by version | **(a), planned.** It is a departure from 7a-1's precedent and from the spec's line "older builds refuse format-6 files": that refusal would come from a newer *format*, which these nodes do not need. (b) would also edit five test files that spell the version, `TreeFileTests.aNewerFileIsStillRefusedWithItsVersion` (which uses 7), CLAUDE.md's format sentence and collide with whichever parallel track also bumps. Choose (b) only if an older build must refuse to open such files rather than show unknown nodes. |
+| U18 | Cull by Region's Face reference when no node can produce a face set | (a) keep it as built: the node, its distance maths (to the face's plane) and its tests exist, the `faces` socket can't be wired from the window until a node outputs a face set, and VA-17 records that; (b) leave "Face" out of the segmented control until a face-set node exists; (c) add a face-set node now (new scope: a Faces by Tag, say) | **(a), planned.** The spec (§4) lists a face as a reference; a producer belongs with face selection, not with variation; hiding it and bringing it back later changes a saved `reference` value. Until then the Face option on the canvas reports a missing `faces` input. |
 
 ---
 
@@ -101,12 +110,10 @@ Source (all new files unless marked), by responsibility:
 | File | Responsibility |
 |---|---|
 | `Sources/CreatorNodes/Patterns/Variation/SeededRandom.swift` | SplitMix64: the only generator; draws by place; a `Purpose` per random node |
-| `Sources/CreatorGraph/DataTree.swift` (edit), `DataTree+Culling.swift`, `Value+Culled.swift` | culled lists: per-item indices, `keepingItems`, `replacingItems`, `rebuildingLeaves` |
-| `Sources/CreatorGraph/{Value,DataTree+Shape,NodeInputs,BroadcastPlan,TreeCursor}.swift` (edits) | `Value(_:)` form, "culled" in shape text, `positions(_:)`, a culled list broadcasts as a list |
-| `Sources/CreatorKernel/Topology+InstanceItems.swift` | `renumberingInstance(to:)`: a copy's tags take its instance's index |
-| `Sources/CreatorNodes/Patterns/PlacementSet.swift`, `NodeInputs+PerInstance.swift` | the instances culled placements make; sizes read by index |
-| `Sources/CreatorNodes/Patterns/{PlacementMoves,PlaceNode,PatternApply,PatternMisses,PerInstance,HolePatternNode,BossPatternNode,SlotPatternNode,PatternFeatureNode}.swift` (edits) | Place and the shortcuts use `PlacementSet` and `PlacementMoves.copies`; `PerInstance.span` |
-| `Sources/CreatorNodes/Patterns/PointsToPlacementsNode.swift` (edit) | a culled list of points makes a culled list of placements |
+| `Sources/CreatorGraph/DataTree.swift` (edit), `DataTree+Culling.swift`, `DataTree+Items.swift` (edit), `Value+Culled.swift` | culled lists: per-item indices, `keepingItems`, `mappingItems`, `rebuildingLeaves`, `replacingItems` keeping them |
+| `Sources/CreatorGraph/{Value,DataTree+Shape,BroadcastPlan}.swift` (edits) | `Value(_:)` form, "culled" in shape text, a culled list broadcasts as a list |
+| `Sources/CreatorNodes/Patterns/InstanceGrid.swift` (edit) | the instances culled placements make; every other input read at the instance's index; copies back with the same gaps |
+| `Sources/CreatorNodes/Patterns/PointsToPlacementsNode.swift` (edit) | points and directions as trees; placements at the same paths |
 | `Sources/CreatorNodes/Patterns/Variation/CullMask.swift`, `CullPatternNode.swift` | Cull Pattern |
 | `Sources/CreatorNodes/Patterns/Variation/CullTargets.swift`, `CullIndexNode.swift` | Cull Index |
 | `Sources/CreatorGeometry/Profile2D+Contains.swift`, `Sources/CreatorNodes/Patterns/Variation/RegionDistance.swift`, `CullByRegionNode.swift` | Cull by Region |
@@ -115,9 +122,9 @@ Source (all new files unless marked), by responsibility:
 | `Sources/CreatorNodes/Patterns/Variation/PlaneJitter.swift`, `JitterNode.swift` | Jitter |
 | `Sources/CreatorGraph/NodeSetting.swift`, `Sources/CreatorNodes/BuiltInNodes.swift` (edits) | `cullPattern`, `cullIndices`; six registrations |
 
-Tests: `Tests/CreatorNodesTests/Variation/*` (one file per node, `CulledInstancesTests`, `CulledPickTests`, `VariationPipelineTests`),
-`Tests/CreatorGraphTests/Trees/CulledTreeTests.swift`, `Tests/CreatorKernelTests/InstanceRenumberingTests.swift`,
-`Tests/CreatorGeometryTests/ProfileContainsTests.swift`, `Tests/CreatorNodesTests/Support/VariationFixtures.swift`, and edits to
+Tests: `Tests/CreatorNodesTests/Variation/*` (one file per node, `InstanceGridCullTests`, `CulledInstancesTests`, `PointsToPlacementsCullTests`, `CulledPickTests`, `CulledTreePickTests`, `VariationPipelineTests`),
+`Tests/CreatorGraphTests/Trees/CulledTreeTests.swift`, `Tests/CreatorGeometryTests/ProfileContainsTests.swift`, `Tests/CreatorNodesTests/Support/VariationFixtures.swift`,
+`Tests/CreatorNodesTests/Variation/{CellTreeTests,CellTreePickTests,VariationFileTests}.swift` (Task 11), `Tests/CreatorEditorTests/VariationSettingTests.swift` (Task 11), and edits to
 `OutputNodeTests.swift` and `PatternsLibraryTests.swift`. Docs: `CLAUDE.md`, `docs/superpowers/roadmap.md`, the spec's Errata,
 `docs/verification/human-checks.md`.
 
@@ -347,13 +354,13 @@ Run, from the worktree root:
 
 ```bash
 swift build --build-tests 2>&1 | grep -E "^/.*(warning|error):" | grep -v "ld: warning" | sort -u
-swift test > /tmp/vtest.log 2>&1; echo "exit=$?"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -cE "recorded an issue|failed after"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -c "Test run with"
+swift test > "${TMPDIR:-/tmp}/vtest.log" 2>&1; echo "exit=$?"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -cE "recorded an issue|failed after"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -c "Test run with"
 swiftlint lint --strict
 ```
 
-Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,650 = master + 11** (+11 in this task; the Swift Testing total counts a parameterised test once).
+Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,752 = master + 11** (+11 in this task; the Swift Testing total counts a parameterised test once).
 
 - [ ] **Step 6: Commit**
 
@@ -371,29 +378,29 @@ git commit -m "feat(7a-3b): SeededRandom, the SplitMix64 generator every random 
 - Create: `Sources/CreatorGraph/DataTree+Culling.swift`
 - Create: `Sources/CreatorGraph/Value+Culled.swift`
 - Modify: `Sources/CreatorGraph/BroadcastPlan.swift`
+- Modify: `Sources/CreatorGraph/DataTree+Items.swift`
 - Modify: `Sources/CreatorGraph/DataTree+Shape.swift`
 - Modify: `Sources/CreatorGraph/DataTree.swift`
-- Modify: `Sources/CreatorGraph/NodeInputs.swift`
-- Modify: `Sources/CreatorGraph/TreeCursor.swift`
 - Modify: `Sources/CreatorGraph/Value.swift`
 - Test: `Tests/CreatorGraphTests/Trees/CulledTreeTests.swift` (new)
 
 **Interfaces:**
 
-- Consumes: 7a-1: `DataTree`, `Value.tree`, `TreePath`, `BroadcastPlan`, `TreeCursor`, `NodeInputs.tree`.
+- Consumes: 7a-1: `DataTree`, `Value.tree`, `TreePath`, `BroadcastPlan`, `NodeInputs.tree`; 7a-3 part A: `DataTree.replacingItems(_ scalars:)` (`DataTree+Items.swift`).
 - Produces: `DataTree.culledList(_ scalars: [Scalar], at positions: [Int]) -> DataTree?` (nil unless one non-negative, strictly increasing index per
 item); `isCulled: Bool`; `itemPositions: [Int]` (a flat list's indices; empty for a deeper tree); `culledPositions: [Int]?`;
 `DataTree.Leaf` gains `positions: [Int]`, `isCulled: Bool` and `itemPath(_ k: Int) -> TreePath`;
 `rebuildingLeaves(_ transform: (Leaf, _ ordinal: Int) -> LeafRewrite) -> DataTree`;
 `keepingItems(where keep: (Leaf, _ ordinal: Int, _ k: Int) -> Bool) -> DataTree` (survivors keep their indices; an unchanged plain list stays plain);
-`replacingItems(_ transform: (Leaf, _ ordinal: Int, _ k: Int) -> Scalar) -> DataTree`;
-`NodeInputs.positions(_ name: SocketName) -> [Int]?`; `Value(_:)` returns `.tree` for a culled depth-1 tree; `DataTree.shapeText` adds ", culled".
+`mappingItems(_ transform: (Leaf, _ ordinal: Int, _ k: Int) -> Scalar) -> DataTree`; `replacingItems(_ scalars:)` now keeps a culled list's indices;
+`Value(_:)` returns `.tree` for a culled depth-1 tree; `DataTree.shapeText` adds ", culled".
 
 This is the key extension (Key decisions 1 and 2): a flat list or branch that has had items taken out holds the survivors at the indices
-they had. `DataTree` gains the optional per-item indices of a depth-1 tree, `Value(_:)` makes a culled depth-1 tree a `.tree`, broadcasting
-treats it as a list (so a pattern node still runs once) and hands the indices to a `list` socket, and two builders (`keepingItems`,
-`replacingItems`) are how every later node culls or refills a tree while keeping its nesting. Nothing existing changes form: a plain flat tree is
-still a `.list`.
+they had. `DataTree` gains the optional per-item indices of a depth-1 tree, `Value(_:)` makes a culled depth-1 tree a `.tree`, and two builders
+(`keepingItems`, `mappingItems`) are how every later node culls or refills a tree while keeping its nesting. Nothing existing changes form: a
+plain flat tree is still a `.list`. Broadcasting treats a culled list as a list (a node on a `list` or `item` socket sees its survivors in
+order, as a rank: User decision U6); only a `tree`-access socket sees the indices, and that is how `InstanceGrid` (Task 3) reads them.
+Nothing reads the indices through a `list` socket, because after 7a-3 part A every pattern node reads its placements whole.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -523,29 +530,30 @@ struct CulledTreeTests {
         #expect(seen == [0, 1, 2])
     }
 
-    @Test func replacingItemsKeepsTheNestingAndTheIndices() throws {
+    @Test func mappingItemsKeepsTheNestingAndTheIndices() throws {
         let tree = try #require(DataTree(depth: 2, branches: [culled([1, 2], at: [1, 4]), .list(numbers([3]))]))
-        let replaced = tree.replacingItems { leaf, ordinal, k in .integer(ordinal * 100 + leaf.positions[k]) }
+        let replaced = tree.mappingItems { leaf, ordinal, k in .integer(ordinal * 100 + leaf.positions[k]) }
         #expect(replaced.outline == "[[1,4],[100]]")
         #expect(replaced.leaves.map(\.positions) == [[1, 4], [0]])
+    }
+
+    @Test func replacingItemsKeepsTheIndicesOfACulledList() throws {
+        let flat = try culled([1, 2], at: [1, 4])
+        let replaced = try #require(flat.replacingItems(numbers([8, 9])))
+        #expect(replaced.isCulled && replaced.itemPositions == [1, 4])
+        let deep = try #require(DataTree(depth: 2, branches: [culled([1], at: [2]), .list(numbers([3, 4]))]))
+        #expect(try #require(deep.replacingItems(numbers([5, 6, 7]))).leaves.map(\.positions) == [[2], [0, 1]])
     }
 
     // MARK: broadcasting
 
     let specs = [SocketSpec("a", .number, access: .list), SocketSpec("b", .number)]
 
-    @Test func aCulledListOnAListSocketRunsOnceAndKeepsItsIndices() throws {
+    @Test func aCulledListOnAListSocketRunsOnceAndGetsItsItems() throws {
         let plan = BroadcastPlan.make(inputs: ["a": Value(try culled([1, 2, 3], at: [0, 2, 5]))], specs: specs)
         #expect(!plan.isTreeRun)
         #expect(plan.iterations == 1)
-        let inputs = plan.inputs(at: 0)
-        #expect(try inputs.list("a").count == 3)
-        #expect(inputs.positions("a") == [0, 2, 5])
-    }
-
-    @Test func anOrdinaryListHasNoPositions() {
-        let plan = BroadcastPlan.make(inputs: ["a": .list(numbers([1, 2]))], specs: specs)
-        #expect(plan.inputs(at: 0).positions("a") == nil)
+        #expect(try plan.inputs(at: 0).list("a").count == 3, "a list socket sees the survivors in order, as a rank")
     }
 
     @Test func aCulledListOnAnItemSocketPairsItemsByTheirPlaceInTheList() throws {
@@ -556,12 +564,12 @@ struct CulledTreeTests {
         #expect(try (0..<3).map { try plan.inputs(at: $0).number("b") } == [5, 6, 7])
     }
 
-    @Test func aCulledListOnAListSocketBesideARealTreeKeepsItsIndices() throws {
+    @Test func aCulledListBesideARealTreeBroadcastsLikeAList() throws {
         let tree = try #require(DataTree(depth: 2, branches: [.list(numbers([1, 2])), .list(numbers([3, 4]))]))
         let plan = BroadcastPlan.make(inputs: ["a": Value(try culled([1, 2], at: [0, 4])), "b": .tree(tree)], specs: specs)
         #expect(plan.isTreeRun)
         #expect(plan.iterations == 4)
-        #expect(plan.inputs(at: 3).positions("a") == [0, 4])
+        #expect(try plan.inputs(at: 3).list("a").count == 2)
     }
 
     @Test func aTreeAccessSocketGetsTheCulledTreeWhole() throws {
@@ -626,7 +634,7 @@ extension DataTree {
     }
 
     /// The same nesting and the same indices with each item replaced by `transform(leaf, ordinal, k)`.
-    public func replacingItems(_ transform: (_ leaf: Leaf, _ ordinal: Int, _ k: Int) -> Scalar) -> DataTree {
+    public func mappingItems(_ transform: (_ leaf: Leaf, _ ordinal: Int, _ k: Int) -> Scalar) -> DataTree {
         rebuildingLeaves { leaf, ordinal in
             (leaf.items.indices.map { transform(leaf, ordinal, $0) }, leaf.positions, leaf.isCulled)
         }
@@ -660,7 +668,7 @@ add:
 ```swift
     /// A flat list that has been culled: each item's index in its branch, strictly increasing. `nil` for a list that
     /// has not been (its items are 0, 1, 2…) and for every tree deeper than a list.
-    private let slots: [Int]?
+    let slots: [Int]?
 ```
 
 
@@ -815,66 +823,20 @@ with:
 ```
 
 
-In `Sources/CreatorGraph/NodeInputs.swift`, directly after:
+In `Sources/CreatorGraph/DataTree+Items.swift`, replace:
 
 ```swift
-    public func has(_ name: SocketName) -> Bool { slots[name] != nil }
-```
-
-add:
-
-```swift
-
-    /// The indices a culled flat list's items keep (`DataTree.culledPositions`): item `k` of `list(name)` is `{positions[k]}`.
-    /// `nil` for anything that is not a culled flat list, whose items are 0, 1, 2….
-    public func positions(_ name: SocketName) -> [Int]? {
-        if case .tree(let tree)? = slots[name] { tree.culledPositions } else { nil }
-    }
-```
-
-
-In `Sources/CreatorGraph/BroadcastPlan.swift`, replace:
-
-```swift
-    private let treeInputs: [SocketName: DataTree]
-    /// Present when
+            let taken = Array(scalars[next..<next + count])
+            next += count
+            return .list(taken)
 ```
 
 with:
 
 ```swift
-    private let treeInputs: [SocketName: DataTree]
-    /// A culled flat list on a list socket: the node gets its items as the list and its indices from `NodeInputs.positions`.
-    private let culledInputs: [SocketName: DataTree]
-    /// Present when
-```
-
-
-In `Sources/CreatorGraph/BroadcastPlan.swift`, replace:
-
-```swift
-    init(iterations: Int, isSingle: Bool, itemInputs: [SocketName: Value], listInputs: [SocketName: [Scalar]],
-         treeInputs: [SocketName: DataTree], nested: NestedIterations? = nil, warning: String? = nil,
-         refusal: String? = nil) {
-        self.iterations = iterations
-        self.isSingle = isSingle
-        self.itemInputs = itemInputs
-        self.listInputs = listInputs
-        self.treeInputs = treeInputs
-```
-
-with:
-
-```swift
-    init(iterations: Int, isSingle: Bool, itemInputs: [SocketName: Value], listInputs: [SocketName: [Scalar]],
-         treeInputs: [SocketName: DataTree], culledInputs: [SocketName: DataTree] = [:], nested: NestedIterations? = nil,
-         warning: String? = nil, refusal: String? = nil) {
-        self.iterations = iterations
-        self.isSingle = isSingle
-        self.itemInputs = itemInputs
-        self.listInputs = listInputs
-        self.treeInputs = treeInputs
-        self.culledInputs = culledInputs
+            let taken = Array(scalars[next..<next + count])
+            next += count
+            return DataTree(depth: 1, scalars: taken, children: [], slots: slots)
 ```
 
 
@@ -899,103 +861,18 @@ with:
 In `Sources/CreatorGraph/BroadcastPlan.swift`, replace:
 
 ```swift
-        var treeInputs: [SocketName: DataTree] = [:]
-        var counts: [Int] = []
-        for spec in specs {
-            guard let value = inputs[spec.name] else { continue }
-            switch spec.access {
-            case .list:
-                listInputs[spec.name] = value.items
-            case .tree:
-                treeInputs[spec.name] = value.asTree ?? .list(value.items)
             case .item:
                 itemInputs[spec.name] = value
                 if case .list(let scalars) = value { counts.append(scalars.count) }
-            }
-        }
 ```
 
 with:
 
 ```swift
-        var treeInputs: [SocketName: DataTree] = [:]
-        var culledInputs: [SocketName: DataTree] = [:]
-        var counts: [Int] = []
-        for spec in specs {
-            guard let value = inputs[spec.name] else { continue }
-            switch spec.access {
-            case .list:
-                listInputs[spec.name] = value.items
-                if case .tree(let tree) = value { culledInputs[spec.name] = tree }
-            case .tree:
-                treeInputs[spec.name] = value.asTree ?? .list(value.items)
             case .item:
                 let flat = value.droppingCulls
                 itemInputs[spec.name] = flat
                 if case .list(let scalars) = flat { counts.append(scalars.count) }
-            }
-        }
-```
-
-
-In `Sources/CreatorGraph/BroadcastPlan.swift`, replace:
-
-```swift
-            return BroadcastPlan(iterations: 1, isSingle: true, itemInputs: itemInputs, listInputs: listInputs,
-                                 treeInputs: treeInputs)
-```
-
-with:
-
-```swift
-            return BroadcastPlan(iterations: 1, isSingle: true, itemInputs: itemInputs, listInputs: listInputs,
-                                 treeInputs: treeInputs, culledInputs: culledInputs)
-```
-
-
-In `Sources/CreatorGraph/BroadcastPlan.swift`, replace:
-
-```swift
-        return BroadcastPlan(iterations: iterations, isSingle: false, itemInputs: itemInputs, listInputs: listInputs,
-                             treeInputs: treeInputs)
-```
-
-with:
-
-```swift
-        return BroadcastPlan(iterations: iterations, isSingle: false, itemInputs: itemInputs, listInputs: listInputs,
-                             treeInputs: treeInputs, culledInputs: culledInputs)
-```
-
-
-In `Sources/CreatorGraph/BroadcastPlan.swift`, directly after:
-
-```swift
-        for (name, scalars) in listInputs {
-            slots[name] = .list(scalars)
-        }
-```
-
-add:
-
-```swift
-        for (name, tree) in culledInputs {
-            slots[name] = .tree(tree)
-        }
-```
-
-
-In `Sources/CreatorGraph/TreeCursor.swift`, replace:
-
-```swift
-        case (.list, .tree(let tree)): .list(tree.items)
-```
-
-with:
-
-```swift
-        case (.list, .tree(let tree)):
-            if tree.depth == 1, tree.isCulled { .tree(tree) } else { .list(tree.items) }
 ```
 
 
@@ -1011,13 +888,13 @@ Run, from the worktree root:
 
 ```bash
 swift build --build-tests 2>&1 | grep -E "^/.*(warning|error):" | grep -v "ld: warning" | sort -u
-swift test > /tmp/vtest.log 2>&1; echo "exit=$?"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -cE "recorded an issue|failed after"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -c "Test run with"
+swift test > "${TMPDIR:-/tmp}/vtest.log" 2>&1; echo "exit=$?"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -cE "recorded an issue|failed after"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -c "Test run with"
 swiftlint lint --strict
 ```
 
-Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,670 = master + 31** (+20 in this task; the Swift Testing total counts a parameterised test once).
+Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,772 = master + 31** (+20 in this task; the Swift Testing total counts a parameterised test once).
 
 - [ ] **Step 6: Commit**
 
@@ -1028,96 +905,158 @@ git commit -m "feat(7a-3b): culled lists, a flat tree whose items keep the indic
 
 ---
 
-### Task 3: Surviving instances keep their index
+### Task 3: Surviving instances keep their path
 
 **Files:**
 
-- Create: `Sources/CreatorKernel/Topology+InstanceItems.swift`
-- Create: `Sources/CreatorNodes/Patterns/NodeInputs+PerInstance.swift`
-- Create: `Sources/CreatorNodes/Patterns/PlacementSet.swift`
-- Modify: `Sources/CreatorNodes/Patterns/BossPatternNode.swift`
-- Modify: `Sources/CreatorNodes/Patterns/HolePatternNode.swift`
-- Modify: `Sources/CreatorNodes/Patterns/PatternApply.swift`
-- Modify: `Sources/CreatorNodes/Patterns/PatternFeatureNode.swift`
-- Modify: `Sources/CreatorNodes/Patterns/PatternMisses.swift`
-- Modify: `Sources/CreatorNodes/Patterns/PerInstance.swift`
-- Modify: `Sources/CreatorNodes/Patterns/PlaceNode.swift`
-- Modify: `Sources/CreatorNodes/Patterns/PlacementMoves.swift`
-- Modify: `Sources/CreatorNodes/Patterns/PointsToPlacementsNode.swift`
-- Modify: `Sources/CreatorNodes/Patterns/SlotPatternNode.swift`
-- Test: `Tests/CreatorKernelTests/InstanceRenumberingTests.swift` (new)
+- Modify (the whole file is given): `Sources/CreatorNodes/Patterns/InstanceGrid.swift`
+- Modify (the whole file is given): `Sources/CreatorNodes/Patterns/PointsToPlacementsNode.swift`
+- Test: `Tests/CreatorNodesTests/Variation/InstanceGridCullTests.swift` (new)
 - Test: `Tests/CreatorNodesTests/Variation/CulledInstancesTests.swift` (new)
 - Test: `Tests/CreatorNodesTests/Variation/PointsToPlacementsCullTests.swift` (new)
 
 **Interfaces:**
 
-- Consumes: Task 2: `DataTree.culledList`, `NodeInputs.positions`; 7a-2: `PlaceNode`, the shortcuts, `PatternApply`, `PlacementMoves`, `PerInstance`, `PatternMisses`; `Topology.qualified(item:_:)`.
-- Produces: `Topology.renumberingInstance(to item: Int) -> Topology` (CreatorKernel, public);
-`struct PlacementSet { let planes: [Plane]; let culledIndices: [Int]?; func instances(alongside lengths: [Int]) -> [Int]; func planes(for instances: [Int]) -> [Plane] }`
-and `NodeInputs.placementSet(_:)`; `PlacementMoves.copies(of:at:instances:placedBy:kernel:tag:) async throws -> [Solid]` replacing `PlacementMoves.make(_:count:)`
-(now `make(_:instances:)`); `PerInstance(_:positions:)` with `span` and `NodeInputs.perInstanceNumbers/Bools/Integers/Solids/Vectors(_:)`;
-`PatternApply.Request` gains `instances: [Int]` (its `tools` and `planes` are one per instance, in the same order) and `PatternApply.tools(_:for:)` takes a `PerInstance<Solid>`;
-`PatternMisses.count(_:part:result:copies:instances:)`. Place outputs the copies of culled placements as a culled list; **Points to Placements turns a culled list of points into a culled list of placements** (Key decision 12).
+- Consumes: Task 2: `DataTree.culledList`, `isCulled`, `itemPositions`, `culledPositions`, `Leaf.positions`, `keepingItems`; 7a-3 part A: `InstanceGrid`, `InstancePath.item(for:)` / `indices(ofItem:)` / `text(_:)`, `PlaceNode`, the four shortcuts, `PlacementMoves.place` (which names each copy by `grid.items[i]`), `PatternMisses`, `PatternLimit`.
+- Produces: `InstanceGrid` reads culled trees: a culled flat lead makes exactly its indices' instances (`paths == [[i]]`, `items == [i]`), a tree lead makes an instance per item at `leaf.path + [the index the item kept]`, every other input is read at the instance's index (`Column.scalar(at:)`: its own value, else the nearest one before it, else its first; a plain list repeats its last), a culled input that is not the lead sets no number of instances, and `tree(of:)` returns the instances in the placements' shape with the same gaps (a culled list at the same indices for a flat lead); `InstanceGrid.vectors(_:) throws -> [Vector3]`; `PointsToPlacementsNode` with `points` and `direction` on `.tree` access, returning `NodeOutputs(trees: ["placements": grid.tree(of: planes)])`.
 
-Place and the four shortcuts must make exactly the instances a culled placement list holds, tag each copy with the index its placement had, and
-read sizes and tools by that index. The cull may also sit **before** Points to Placements (Grid Points → Cull → Points to Placements), so that node
-has to pass the indices on or the cull renumbers there; and a culled size or tool list must never set how many instances there are, however many
-survivors it holds (`PerInstance.span`). This is the "naming" half of the track: until it is done a cull would shift every later pick to the next
-hole (Key decisions 3 and 4). Dense graphs are unchanged, so the 7a-2 tests (`HolePatternNodeTests`, `PatternPickStabilityTests`, …) must pass
-untouched; run them after Step 3. The tests call the nodes' `evaluate` directly with culled placements because no Cull node exists yet; the
-graph-level naming test comes in Task 5.
+After 7a-3 part A an instance is named by its tree path (`{3}`, `{1;2}`), placements, sizes and tools are read whole through one rule, and the copies are renamed by `grid.items`. So culling needs no instance-numbering machinery of its own: if the rule reads the index each item kept instead of its rank, a survivor keeps its path in its tags, its messages, its tool and its size, and a pick on it follows it. This task is that one change to `InstanceGrid`, plus Points to Placements reading its `points` whole: it used to read them as a list and return a plain list (and, in a tree run, one list per branch), which would renumber any cull placed before it (Grid Points, then a Cull, then Points to Placements, is as natural a graph as the cull after it; User decision U15). Place and the four shortcuts are **not edited**: they already read `InstanceGrid` and give `grid.tree(of:)` back, which now carries the gaps. Dense graphs behave exactly as before, so the 7a-2 and 7a-3 part A tests pass untouched; run them after Step 3.
 
 After Step 3 also run the existing pattern suites, which the change must not move:
-`swift test --filter "HolePatternNodeTests|BossPatternNodeTests|SlotPatternNodeTests|PatternFeatureNodeTests|PlaceNodeTests|PatternPickStabilityTests|GroupPatternNamingTests"`.
+`swift test --filter "HolePatternNodeTests|BossPatternNodeTests|SlotPatternNodeTests|PatternFeatureNodeTests|PlaceNodeTests|PlaceTreeTests|InstanceGridTests|PointsToPlacementsNodeTests|PatternTreePickTests|PatternPickStabilityTests|GroupPatternNamingTests"`.
 
 - [ ] **Step 1: Write the failing tests**
 
-Create `Tests/CreatorKernelTests/InstanceRenumberingTests.swift`:
+Create `Tests/CreatorNodesTests/Variation/InstanceGridCullTests.swift`:
 
 ```swift
-import Foundation
+import CreatorGeometry
+import CreatorGraph
+import CreatorKernel
 import Testing
-@testable import CreatorKernel
+@testable import CreatorNodes
 
-/// A copy made by `Kernel.place` is numbered by its place in the call; culling renumbers it to the index its placement had.
-struct InstanceRenumberingTests {
-    let tool = NodeID()
+/// Culling keeps paths (patterns spec §4, §6) where instances are named: `InstanceGrid` makes exactly the instances a culled
+/// list or branch holds, at the indices they had, and reads every other input at those indices.
+struct InstanceGridCullTests {
+    func numbers(_ values: Double...) -> DataTree { .list(values.map(Scalar.number)) }
 
-    /// A stand-in for `NodeID.instanceScoped` (CreatorGraph): a fixed map into version-8 IDs.
-    func qualify(_ node: NodeID) -> NodeID {
-        var bytes = node.rawValue.uuid
-        bytes.6 = (bytes.6 & 0x0F) | 0x80
-        bytes.0 ^= 0x5A
-        return NodeID(rawValue: UUID(uuid: bytes))
+    /// `values`, with only the items at `kept` left, as a Cull node leaves them.
+    func culled(_ values: [Double], keeping kept: [Int]) throws -> DataTree {
+        try #require(DataTree.culledList(kept.map { .number(values[$0]) }, at: kept))
     }
 
-    func face(_ id: Int, _ tags: Set<TopoTag>) -> FaceInfo {
-        FaceInfo(id: FaceID(id), kind: .cylinder, normal: nil, area: 1, centroid: .zero, tags: tags)
+    func rows(_ rows: [[Double]]) throws -> DataTree {
+        try #require(DataTree(depth: 2, branches: rows.map { .list($0.map(Scalar.number)) }))
     }
 
-    @Test func everyInstanceTagTakesTheNewItem() {
-        let wall = TopoTag(node: tool, item: 0, role: .side(segment: 1))
-        let cap = TopoTag(node: tool, item: 0, role: .endCap)
-        let placed = Topology(faces: [face(0, [wall]), face(1, [cap])], edges: []).qualified(item: 1, qualify)
-        let moved = placed.renumberingInstance(to: 6)
-        #expect(moved.faces[0].tags == [TopoTag(node: qualify(tool), item: 6, role: .side(segment: 1))])
-        #expect(moved.faces[1].tags == [TopoTag(node: qualify(tool), item: 6, role: .endCap)])
-        #expect(moved.faces.map(\.id) == placed.faces.map(\.id), "faces and their order are untouched")
+    func grid(_ trees: [(SocketName, DataTree)]) throws -> InstanceGrid {
+        try InstanceGrid(trees.map { (name: $0.0, tree: $0.1) })
     }
 
-    @Test func aBlendTagsSourceEdgeIsRenumberedToo() {
-        let edge = EdgeKey([TopoTag(node: tool, item: 0, role: .side(segment: 1))], [TopoTag(node: tool, item: 0, role: .endCap)])
-        let blend = TopoTag(node: tool, item: 0, role: .blend(sourceEdge: edge))
-        let moved = Topology(faces: [face(0, [blend])], edges: []).qualified(item: 2, qualify).renumberingInstance(to: 9)
-        let expected = EdgeKey([TopoTag(node: qualify(tool), item: 9, role: .side(segment: 1))],
-                               [TopoTag(node: qualify(tool), item: 9, role: .endCap)])
-        #expect(moved.faces[0].tags == [TopoTag(node: qualify(tool), item: 9, role: .blend(sourceEdge: expected))])
+    // MARK: A culled flat list
+
+    @Test func aCulledListMakesExactlyTheInstancesItKeepsAtTheirIndices() throws {
+        let grid = try grid([("placements", try culled([0, 10, 20, 30], keeping: [1, 3]))])
+        #expect(grid.count == 2)
+        #expect(grid.paths == [[1], [3]])
+        #expect(grid.items == [1, 3], "a flat instance is named by its index, so {3} is still {3}")
+        #expect(try grid.numbers("placements") == [10, 30])
     }
 
-    @Test func aTagThatIsNotAnInstancesIsLeftAlone() {
-        let plain = TopoTag(node: tool, item: 3, role: .endCap)
-        let moved = Topology(faces: [face(0, [plain])], edges: []).renumberingInstance(to: 8)
-        #expect(moved.faces[0].tags == [plain])
+    @Test func aLongerListAddsNoInstancesToCulledOnes() throws {
+        let grid = try grid([("placements", try culled([0, 1, 2, 3, 4], keeping: [0, 1])), ("size", numbers(5, 6, 7, 8, 9, 10))])
+        #expect(grid.count == 2, "what was culled off the end stays gone")
+        #expect(try grid.numbers("size") == [5, 6])
+    }
+
+    @Test func aSurvivorKeepsItsOwnSizeNotTheSizeOfItsRank() throws {
+        let grid = try grid([("placements", try culled([0, 1, 2, 3], keeping: [1, 3])), ("size", numbers(10, 20, 30, 40))])
+        #expect(try grid.numbers("size") == [20, 40])
+    }
+
+    @Test func aCulledSizeListIsReadByTheInstancesIndex() throws {
+        let sizes = try culled([5, 0, 0, 9], keeping: [0, 3])
+        let grid = try grid([("placements", numbers(0, 0, 0, 0)), ("size", sizes)])
+        #expect(try grid.numbers("size") == [5, 5, 5, 9], "its own value at its index, else the nearest one before it")
+        let late = try self.grid([("placements", numbers(0, 0, 0)), ("size", try culled([0, 0, 0, 7], keeping: [3]))])
+        #expect(try late.numbers("size") == [7, 7, 7], "before its first survivor, the first")
+    }
+
+    @Test func aCulledSizeListWithMoreSurvivorsThanPlacementsSetsNoNumberOfInstances() throws {
+        let sizes = try #require(DataTree.culledList(Array(repeating: Scalar.number(5), count: 10), at: Array(10..<20)))
+        let grid = try grid([("placements", numbers(0, 0, 0, 0)), ("size", sizes)])
+        #expect(grid.count == 4, "ten survivors do not make ten instances")
+        #expect(grid.items == [0, 1, 2, 3])
+    }
+
+    @Test func aCulledSizeListWithNothingLeftMakesNoInstances() throws {
+        let nothing = try #require(DataTree.culledList([], at: []))
+        let grid = try grid([("placements", numbers(0, 0, 0)), ("size", nothing)])
+        #expect(grid.count == 0)
+    }
+
+    @Test func everyPlacementCulledMakesNoInstancesAndGivesBackAnEmptyCulledList() throws {
+        let grid = try grid([("placements", try #require(DataTree.culledList([], at: []))), ("size", numbers(1, 2))])
+        #expect(grid.count == 0 && grid.items.isEmpty)
+        let back = grid.tree(of: [])
+        #expect(back.isCulled && back.itemCount == 0)
+    }
+
+    @Test func theOutputIsCulledAtTheSameIndices() throws {
+        let grid = try grid([("placements", try culled([0, 1, 2, 3, 4], keeping: [0, 2, 3]))])
+        let back = grid.tree(of: [.integer(7), .integer(8), .integer(9)])
+        #expect(back.isCulled && back.itemPositions == [0, 2, 3])
+        #expect(back.items.map(\.outlineText) == ["7", "8", "9"])
+    }
+
+    @Test func aPlainListIsStillPlain() throws {
+        let grid = try grid([("placements", numbers(1, 2))])
+        #expect(!grid.tree(of: [.integer(7), .integer(8)]).isCulled)
+    }
+
+    // MARK: A culled tree
+
+    @Test func aCulledBranchKeepsItsIndicesInEveryPath() throws {
+        let tree = try rows([[0, 1, 2, 3], [4, 5, 6]]).keepingItems { leaf, _, k in !(leaf.path == TreePath([0]) && k == 1) }
+        let grid = try grid([("placements", tree)])
+        #expect(grid.paths == [[0, 0], [0, 2], [0, 3], [1, 0], [1, 1], [1, 2]], "{0;2} is still {0;2} with {0;1} gone")
+        #expect(grid.items == grid.paths.compactMap { InstancePath.item(for: $0) })
+        #expect(try grid.numbers("placements") == [0, 2, 3, 4, 5, 6])
+    }
+
+    @Test func aFlatListAppliesByIndexToACulledBranch() throws {
+        let tree = try rows([[0, 0, 0, 0], [0, 0, 0]]).keepingItems { leaf, _, k in !(leaf.path == TreePath([0]) && k == 1) }
+        let grid = try grid([("placements", tree), ("size", numbers(10, 20, 30, 40))])
+        #expect(try grid.numbers("size") == [10, 30, 40, 10, 20, 30], "{0;2} takes the third size, not the second")
+    }
+
+    @Test func aWholeBranchCulledLeavesAGapAndTheOthersKeepTheirNumbers() throws {
+        let tree = try rows([[0, 0], [0, 0, 0]]).keepingItems { leaf, _, _ in leaf.path != TreePath([0]) }
+        let grid = try grid([("placements", tree)])
+        #expect(grid.paths == [[1, 0], [1, 1], [1, 2]])
+        let back = grid.tree(of: grid.paths.map { _ in .integer(1) })
+        #expect(back.outline == "[[],[1,1,1]]")
+    }
+
+    @Test func theOutputOfACulledTreeHasTheSameGaps() throws {
+        let tree = try rows([[0, 0, 0, 0], [0, 0]]).keepingItems { leaf, _, k in !(leaf.path == TreePath([0]) && k % 2 == 1) }
+        let grid = try grid([("placements", tree)])
+        let back = grid.tree(of: (0..<grid.count).map { .integer($0) })
+        #expect(back.leaves.map(\.positions) == [[0, 2], [0, 1]])
+        #expect(back.items.map(\.outlineText) == ["0", "1", "2", "3"])
+    }
+
+    @Test func aCulledTreeOfSizesIsReadAtTheInstancesPlace() throws {
+        let sizes = try rows([[1, 2, 3], [4, 5, 6]]).keepingItems { _, _, k in k != 1 }
+        let grid = try grid([("placements", try rows([[0, 0, 0], [0, 0, 0]])), ("size", sizes)])
+        #expect(try grid.numbers("size") == [1, 1, 3, 4, 4, 6], "{r;1} takes the nearest size before it")
+    }
+
+    @Test func aCulledFirstItemInATreeOfSizesIsStoodInForByTheFirstSurvivor() throws {
+        let sizes = try rows([[1, 2], [3, 4]]).keepingItems { _, _, k in k != 0 }
+        let grid = try grid([("placements", try rows([[0, 0], [0, 0]])), ("size", sizes)])
+        #expect(try grid.numbers("size") == [2, 2, 4, 4], "the first survivor stands in for the culled first item")
     }
 }
 ```
@@ -1132,8 +1071,8 @@ import CreatorKernel
 @testable import CreatorNodes
 import Testing
 
-/// Points to Placements and a cull (patterns spec §4, Key decision 12): a cull of the Grid Points must number the instances
-/// as a cull of the placements would, so a culled list of points makes a culled list of placements at the same indices.
+/// Points to Placements takes its points whole and gives back placements with the same paths (patterns spec §4, User decision
+/// U15), so a cull anywhere before it, on the Grid Points say, numbers the instances as a cull of the placements would.
 struct PointsToPlacementsCullTests {
     let kernel = FakeKernel()
 
@@ -1146,19 +1085,20 @@ struct PointsToPlacementsCullTests {
         return BroadcastPlan.make(inputs: values, specs: PointsToPlacementsNode.inputs).inputs(at: 0)
     }
 
-    func context(isTreeRun: Bool = false) -> EvalContext {
-        EvalContext(node: BuiltInNodes.registry.makeNode(PointsToPlacementsNode.typeID), item: 0, parameters: [:], isTreeRun: isTreeRun)
+    func context() -> EvalContext {
+        EvalContext(node: BuiltInNodes.registry.makeNode(PointsToPlacementsNode.typeID), item: 0, parameters: [:])
     }
+
+    func point(_ index: Int) -> Scalar { .vector(Vector3(Double(index) * 20, 0, 0)) }
 
     /// Points at x = 0, 20, 40, 60 with the ones in `kept` left, as a Cull node leaves them.
     func culledPoints(_ kept: [Int]) throws -> Value {
-        Value(try #require(DataTree.culledList(kept.map { .vector(Vector3(Double($0) * 20, 0, 0)) }, at: kept)))
+        Value(try #require(DataTree.culledList(kept.map(point), at: kept)))
     }
 
     @Test func pointsToPlacementsKeepsACulledListsIndices() async throws {
-        let outputs = try await PointsToPlacementsNode.evaluate(
-            inputs(["points": try culledPoints([1, 2, 3])]),
-            kernel: kernel, context: context())
+        let outputs = try await PointsToPlacementsNode.evaluate(inputs(["points": try culledPoints([1, 2, 3])]), kernel: kernel,
+                                                                context: context())
         let tree = try #require(outputs.trees["placements"])
         #expect(tree.itemPositions == [1, 2, 3], "the first survivor is still {1}, not {0}")
         #expect(Value(tree).planes?.map(\.origin.x) == [20, 40, 60])
@@ -1167,33 +1107,55 @@ struct PointsToPlacementsCullTests {
 
     @Test func aCulledDirectionListIsReadByTheInstancesIndexAndSetsNoNumberOfPlacements() async throws {
         let directions = try #require(DataTree.culledList([.vector(.unitX), .vector(.unitY)], at: [0, 2]))
-        let points = Value.list((0..<3).map { .vector(Vector3(Double($0) * 20, 0, 0)) })
-        let outputs = try await PointsToPlacementsNode.evaluate(
-            inputs(["points": points, "direction": Value(directions)]),
-            kernel: kernel, context: context())
-        let planes = try #require(outputs.lists["placements"].flatMap { Value.list($0).planes })
+        let points = Value.list((0..<3).map(point))
+        let outputs = try await PointsToPlacementsNode.evaluate(inputs(["points": points, "direction": Value(directions)]),
+                                                                kernel: kernel, context: context())
+        let tree = try #require(outputs.trees["placements"])
+        let planes = try #require(Value(tree).planes)
         #expect(planes.count == 3, "three points, three placements")
         #expect(zip(planes.map(\.normal), [Vector3.unitX, .unitX, .unitY]).allSatisfy { isClose($0, $1) }, "{1} takes {0}'s direction")
     }
 
     @Test func aCullThatRemovesEveryPointMakesAnEmptyCulledListOfPlacements() async throws {
-        let outputs = try await PointsToPlacementsNode.evaluate(
-            inputs(["points": try culledPoints([])]),
-            kernel: kernel, context: context())
+        let outputs = try await PointsToPlacementsNode.evaluate(inputs(["points": try culledPoints([])]), kernel: kernel,
+                                                                context: context())
         let tree = try #require(outputs.trees["placements"])
         #expect(tree.isCulled && tree.itemCount == 0)
     }
 
-    @Test func inATreeRunACulledBranchIsRenumberedAndSaysSo() async throws {
-        let inTree = context(isTreeRun: true)
-        let outputs = try await PointsToPlacementsNode.evaluate(
-            inputs(["points": try culledPoints([1, 3])]), kernel: kernel, context: inTree)
-        #expect(outputs.trees.isEmpty, "a node in a tree run returns one list per branch")
-        #expect(outputs.lists["placements"]?.count == 2)
-        #expect(outputs.warnings == ["Points to Placements numbers a culled branch from 0 again. Cull after it to keep the paths."])
-        let whole = try await PointsToPlacementsNode.evaluate(
-            inputs(["points": try culledPoints([0, 1])]), kernel: kernel, context: inTree)
-        #expect(whole.warnings.isEmpty, "nothing was renumbered")
+    @Test func aTreeOfPointsIsATreeOfPlacementsAtTheSamePaths() async throws {
+        let rows = try #require(DataTree(depth: 2, branches: [.list((0..<3).map(point)), .list((3..<5).map(point))]))
+        let culled = rows.keepingItems { leaf, _, k in !(leaf.path == TreePath([0]) && k == 1) }
+        let outputs = try await PointsToPlacementsNode.evaluate(inputs(["points": Value(culled)]), kernel: kernel, context: context())
+        let tree = try #require(outputs.trees["placements"])
+        #expect(tree.depth == 2)
+        #expect(tree.leaves.map(\.positions) == [[0, 2], [0, 1]], "{0;2} is still {0;2}")
+        #expect(Value(tree).planes?.map(\.origin.x) == [0, 40, 60, 80])
+    }
+
+    @Test func aDirectionPerRowIsMatchedToTheRowsOfPoints() async throws {
+        let rows = try #require(DataTree(depth: 2, branches: [.list((0..<2).map(point)), .list((2..<4).map(point))]))
+        let facing = try #require(DataTree(depth: 2, branches: [.list([.vector(.unitX)]), .list([.vector(.unitY)])]))
+        let outputs = try await PointsToPlacementsNode.evaluate(inputs(["points": .tree(rows), "direction": .tree(facing)]),
+                                                                kernel: kernel, context: context())
+        let tree = try #require(outputs.trees["placements"])
+        let planes = try #require(Value(tree).planes)
+        #expect(zip(planes.map(\.normal), [Vector3.unitX, .unitX, .unitY, .unitY]).allSatisfy { isClose($0, $1) })
+    }
+
+    @Test func aZeroDirectionOnACulledPointNamesItsPath() async throws {
+        let directions = try #require(DataTree.culledList([.vector(.unitZ), .vector(.zero)], at: [0, 5]))
+        let given = inputs(["points": .list((0..<6).map(point)), "direction": Value(directions)])
+        await #expect(throws: NodeError.invalidValue("The direction of placement {5} can't be zero.")) {
+            _ = try await PointsToPlacementsNode.evaluate(given, kernel: kernel, context: context())
+        }
+    }
+
+    @Test func aPlainListOfPointsStillMakesAPlainListOfPlacements() async throws {
+        let outputs = try await PointsToPlacementsNode.evaluate(inputs(["points": .list((0..<3).map(point))]), kernel: kernel,
+                                                                context: context())
+        let tree = try #require(outputs.trees["placements"])
+        #expect(!tree.isCulled && tree.depth == 1 && tree.itemCount == 3)
     }
 }
 ```
@@ -1209,7 +1171,7 @@ import CreatorKernel
 import CreatorOCCT
 import Testing
 
-/// Culling keeps paths (patterns spec §4, §6): an instance whose placement survived a cull keeps its index in its tags,
+/// Culling keeps paths (patterns spec §4, §6): an instance whose placement survived a cull keeps its path in its tags,
 /// its messages and its tool, so a pick on it follows it. Place and the shortcuts read culled placements here; the
 /// Cull nodes that make them have their own tests.
 struct CulledInstancesTests {
@@ -1259,35 +1221,6 @@ struct CulledInstancesTests {
         Set(solid.topology.faces.flatMap(\.tags).filter(\.node.isInstanceQualified).map(\.item))
     }
 
-    // MARK: the set
-
-    @Test func aPlainListMakesInstancesFromZeroAndTheLongestListSetsHowMany() {
-        let set = PlacementSet(planes: [plane(0), plane(1)], culledIndices: nil)
-        #expect(set.instances(alongside: []) == [0, 1])
-        #expect(set.instances(alongside: [4, 1]) == [0, 1, 2, 3])
-        #expect(set.planes(for: [0, 1, 2, 3]).map(\.origin.x) == [0, 1, 1, 1], "the shorter repeats its last")
-    }
-
-    @Test func anEmptyListMeansNoInstances() {
-        #expect(PlacementSet(planes: [plane(0)], culledIndices: nil).instances(alongside: [0, 3]).isEmpty)
-        #expect(PlacementSet(planes: [], culledIndices: nil).instances(alongside: [3]).isEmpty)
-        #expect(PlacementSet(planes: [], culledIndices: []).instances(alongside: []).isEmpty)
-    }
-
-    @Test func aCulledListMakesExactlyTheInstancesItKeeps() {
-        let set = PlacementSet(planes: [plane(0), plane(40)], culledIndices: [0, 2])
-        #expect(set.instances(alongside: []) == [0, 2])
-        #expect(set.instances(alongside: [9]) == [0, 2], "a longer size list adds none")
-        #expect(set.planes(for: [0, 2]).map(\.origin.x) == [0, 40])
-    }
-
-    @Test func aSetIsReadFromTheSocket() throws {
-        let set = try inputs(PlaceNode.self, ["placements": try culled([1, 3])]).placementSet("placements")
-        #expect(set.culledIndices == [1, 3])
-        #expect(set.planes.count == 2)
-        #expect(try inputs(PlaceNode.self, ["placements": plain(2)]).placementSet("placements").culledIndices == nil)
-    }
-
     // MARK: Place
 
     @Test func placeTagsEachCopyWithItsOriginalIndex() async throws {
@@ -1312,9 +1245,9 @@ struct CulledInstancesTests {
         let outputs = try await PlaceNode.evaluate(
             inputs(PlaceNode.self, ["tool": .one(.solid(try await block())), "placements": plain(3)]),
             kernel: kernel, context: context(PlaceNode.self))
-        #expect(outputs.trees.isEmpty)
-        let copies = try #require(outputs.lists["solids"].flatMap { Value.list($0).solids })
-        #expect(copies.map { items(of: $0) } == [[0], [1], [2]])
+        let tree = try #require(outputs.trees["solids"])
+        #expect(!tree.isCulled, "nothing was culled, so nothing is marked")
+        #expect(try copies(outputs).map { items(of: $0) } == [[0], [1], [2]])
     }
 
     @Test func aSurvivingInstanceKeepsItsOwnTool() async throws {
@@ -1347,28 +1280,6 @@ struct CulledInstancesTests {
         #expect(message?.hasPrefix("Placement {5} has no usable direction") == true, "got \(String(describing: message))")
     }
 
-    // MARK: per-instance lists
-
-    @Test func aPlainListRepeatsItsLastAndACulledOneIsReadByIndex() {
-        let plain = PerInstance([10, 20])
-        #expect([0, 1, 2, 5].map { plain[$0] } == [10, 20, 20, 20])
-        let culled = PerInstance([10, 20, 30], positions: [1, 3, 4])
-        #expect([0, 1, 2, 3, 4, 9].map { culled[$0] } == [10, 10, 10, 20, 30, 30],
-                "its own value at its index, else the nearest one before it, else the first")
-        #expect(culled.count == 3)
-        #expect(culled.span == 1, "a culled list never sets the number of instances")
-        #expect(plain.span == 2 && PerInstance<Int>([], positions: []).span == 0)
-    }
-
-    @Test func aCulledSizeListWithMoreSurvivorsThanPlacementsSetsNoNumberOfInstances() {
-        let planes = (0..<4).map { plane(Double($0)) }
-        let sizes = PerInstance(Array(repeating: 5.0, count: 10), positions: Array(10..<20))
-        #expect(sizes.count == 10 && sizes.span == 1)
-        let set = PlacementSet(planes: planes, culledIndices: nil)
-        #expect(set.instances(alongside: [sizes.span]) == [0, 1, 2, 3], "ten survivors do not make ten instances")
-        #expect(set.instances(alongside: [PerInstance<Double>([], positions: []).span]).isEmpty, "everything culled makes none")
-    }
-
     @Test func aCulledSizeListLongerThanThePlacementsMakesNoExtraHoles() async throws {
         let sizes = try #require(DataTree.culledList(Array(repeating: Scalar.number(5), count: 10), at: Array(10..<20)))
         let given = inputs(HolePatternNode.self, [
@@ -1393,7 +1304,7 @@ struct CulledInstancesTests {
         let outputs = try await PlaceNode.evaluate(
             inputs(PlaceNode.self, ["tool": Value(toolTree), "placements": plain(4)]),
             kernel: kernel, context: context(PlaceNode.self))
-        let placed = try #require(outputs.lists["solids"].flatMap { Value.list($0).solids })
+        let placed = try copies(outputs)
         #expect(zip(placed.map(\.bounds.max.z), [5, 5, 6, 7]).allSatisfy { isClose($0, $1) }, "{0} has no tool of its own: the first")
         #expect(placed.count == 4, "a culled tool list sets no number of instances")
     }
@@ -1494,660 +1405,339 @@ struct CulledInstancesTests {
         let solid = try resultSolid(outputs)
         #expect(items(of: solid) == [0, 1, 2], "got \(items(of: solid).sorted())")
     }
+
+    // MARK: trees
+
+    /// Two rows of three placements, 20 mm apart along x and 20 mm along y, with `culling` taken out as a Cull node would.
+    func rows(culling drop: (DataTree.Leaf, Int) -> Bool = { _, _ in false }) throws -> Value {
+        let branches = (0..<2).map { row in
+            DataTree.list((0..<3).map { .plane(.through(Vector3(Double($0) * 20, Double(row) * 20, 0))) })
+        }
+        let tree = try #require(DataTree(depth: 2, branches: branches))
+        return Value(tree.keepingItems { leaf, _, k in !drop(leaf, k) })
+    }
+
+    func paths(of solid: Solid) -> Set<[Int]> {
+        Set(items(of: solid).compactMap { InstancePath.indices(ofItem: $0) })
+    }
+
+    @Test func aCulledTreeOfPlacementsKeepsEveryTreePath() async throws {
+        let placements = try rows { leaf, k in leaf.path == TreePath([0]) && k == 1 }
+        let outputs = try await HolePatternNode.evaluate(
+            inputs(HolePatternNode.self, ["part": .one(.solid(try await plate())), "placements": placements]),
+            kernel: kernel, context: context(HolePatternNode.self))
+        let solid = try resultSolid(outputs)
+        #expect(paths(of: solid) == [[0, 0], [0, 2], [1, 0], [1, 1], [1, 2]], "{0;2} is still {0;2}, and {0;1} is gone")
+        #expect(outputs.warnings.isEmpty, "\(outputs.warnings)")
+    }
+
+    @Test func aWholeBranchCulledLeavesTheOtherBranchesNumbersAlone() async throws {
+        let placements = try rows { leaf, _ in leaf.path == TreePath([0]) }
+        let outputs = try await HolePatternNode.evaluate(
+            inputs(HolePatternNode.self, ["part": .one(.solid(try await plate())), "placements": placements]),
+            kernel: kernel, context: context(HolePatternNode.self))
+        #expect(paths(of: try resultSolid(outputs)) == [[1, 0], [1, 1], [1, 2]])
+    }
+
+    @Test func placeOnACulledTreeGivesCopiesBackInTheSameGaps() async throws {
+        let placements = try rows { leaf, k in leaf.path == TreePath([1]) && k == 0 }
+        let outputs = try await PlaceNode.evaluate(
+            inputs(PlaceNode.self, ["tool": .one(.solid(try await block())), "placements": placements]),
+            kernel: kernel, context: context(PlaceNode.self))
+        let tree = try #require(outputs.trees["solids"])
+        #expect(tree.leaves.map(\.positions) == [[0, 1, 2], [1, 2]])
+        #expect(try copies(outputs).map { paths(of: $0) } == [[[0, 0]], [[0, 1]], [[0, 2]], [[1, 1]], [[1, 2]]])
+    }
+
+    @Test func aSizePerRowAndACullTogetherReadTheRowsSizeAtTheInstancesPlace() async throws {
+        let placements = try rows { _, k in k == 0 }
+        let diameters = try #require(DataTree(depth: 2, branches: [.list([.number(4)]), .list([.number(-1)])]))
+        let given = inputs(HolePatternNode.self, [
+            "part": .one(.solid(try await plate())), "placements": placements, "diameter": Value(diameters),
+        ])
+        var message: String?
+        do {
+            _ = try await HolePatternNode.evaluate(given, kernel: kernel, context: context(HolePatternNode.self))
+        } catch let error as NodeError {
+            message = error.message
+        }
+        #expect(message == "Hole {1;1}: the diameter must be greater than 0 mm.", "got \(String(describing: message))")
+    }
 }
 ```
 
 
 - [ ] **Step 2: Run them**
 
-Run: `swift test --filter "CulledInstancesTests|InstanceRenumberingTests|PointsToPlacementsCullTests" 2>&1 | grep -v 'ld: warning'`
+Run: `swift test --filter "InstanceGridCullTests|CulledInstancesTests|PointsToPlacementsCullTests" 2>&1 | grep -v 'ld: warning'`
 
-Expected: FAIL, the tests do not build (`value of type 'Topology' has no member 'renumberingInstance'`, then `cannot find 'PlacementSet' in scope`).
+Expected: FAIL. The three suites build and run, and `Test run with 42 tests in 3 suites failed` with 37 issues (`InstanceGridCullTests` 13, `CulledInstancesTests` 17, `PointsToPlacementsCullTests` 7): a culled list is still read by rank (`grid.paths == [[1], [3]]` fails) and Points to Placements still returns lists, so `outputs.trees["placements"]` is `nil`.
 
 - [ ] **Step 3: Write the implementation**
 
-Create `Sources/CreatorKernel/Topology+InstanceItems.swift`:
+This replaces the whole file ("Create" writes a whole file).
 
-```swift
-extension Topology {
-    /// This topology as the copy numbered `item` of a placed tool, for a copy that `Kernel.place` numbered otherwise: every
-    /// instance-qualified tag (`NodeID.isInstanceQualified`, the ones `qualified(item:_:)` made) gets `item` as its item,
-    /// its blend source edge's tags too. Faces, edges and their order are untouched. Culling uses it: a copy of the third
-    /// survivor is `{4}` when the placement it stands on had the index 4 before the cull.
-    public func renumberingInstance(to item: Int) -> Topology {
-        var copy = self
-        for index in copy.faces.indices {
-            copy.faces[index].tags = Set(copy.faces[index].tags.map { $0.renumbered(to: item) })
-        }
-        return copy
-    }
-}
-
-extension TopoTag {
-    func renumbered(to item: Int) -> TopoTag {
-        TopoTag(node: node, item: node.isInstanceQualified ? item : self.item, role: role.renumbered(to: item))
-    }
-}
-
-extension TopoRole {
-    func renumbered(to item: Int) -> TopoRole {
-        guard case .blend(let edge) = self else { return self }
-        return .blend(sourceEdge: EdgeKey(Set(edge.first.map { $0.renumbered(to: item) }),
-                                          Set(edge.second.map { $0.renumbered(to: item) })))
-    }
-}
-```
-
-
-Create `Sources/CreatorNodes/Patterns/NodeInputs+PerInstance.swift`:
+Create `Sources/CreatorNodes/Patterns/InstanceGrid.swift`:
 
 ```swift
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 
-extension NodeInputs {
-    /// A `.list`-access socket read for a pattern's instances: its values, and the indices they keep when the list was culled.
-    func perInstanceNumbers(_ name: SocketName) throws -> PerInstance<Double> {
-        PerInstance(try numbers(name), positions: positions(name))
+/// The instances a pattern node makes, and what each one's inputs are (patterns spec §3 and §5, with trees). The
+/// inputs are matched by the same rules broadcasting uses, and the node still makes one kernel call for all of them:
+///
+/// - The deepest input sets the shape: when all are flat, the longest sets the number of instances and a shorter list
+///   repeats its last item (as before trees); when one is a tree, its items are the instances and the instance at
+///   `{r;c}` is item `c` of branch `r`. Ties go to the first name asked for, which is the placements.
+/// - A flat list applies to every branch and matches that branch's items (a flat list of 8 against 3 rows of 8).
+/// - A tree as deep as the shape is matched level by level, a shorter side repeating its last branch (a tree of three
+///   one-item branches gives each of three rings one value: Graft a list of diameters).
+/// - A tree of another depth is refused, naming both shapes, and so is a branch with no items to take from.
+///
+/// Any input with no items at all makes no instances, as an empty list always has.
+///
+/// Culling keeps paths (patterns spec §4): an instance is named by the place its placement had, not by its rank among the
+/// survivors, so a branch or list that has had items taken out (`DataTree.isCulled`) makes exactly the instances it holds,
+/// at the indices it kept; the gaps make none, and the output comes back with the same gaps (`tree(of:)`). The other inputs
+/// are read at an instance's index: its own value if the input has one there, else the nearest one before it, else its first
+/// (a plain list repeating its last item is the same rule). A culled list that is not the lead sets no number of instances,
+/// however many survivors it holds, so a culled tail never comes back as repeats.
+struct InstanceGrid {
+    /// Each instance's indices in the tree: `[i]` for a flat list, `[r, c]` for item `c` of branch `r`.
+    let paths: [[Int]]
+    /// Each instance's tag item (`InstancePath.item(for:)`): its flat index for `[i]`, a packed negative number deeper.
+    let items: [Int]
+    private let shape: DataTree?
+    /// The indices a culled flat lead keeps, so the output can be culled alike.
+    private let culledIndices: [Int]?
+    private let depth: Int
+    private let columns: [SocketName: [Scalar]]
+
+    var count: Int { paths.count }
+
+    /// The instances of the inputs `names`, each read as a whole tree (`.tree` access, so a flat list arrives as a tree
+    /// of depth 1 and a single value as a list of one).
+    init(_ inputs: NodeInputs, _ names: [SocketName]) throws {
+        try self.init(names.map { (name: $0, tree: try inputs.tree($0)) })
     }
 
-    func perInstanceBools(_ name: SocketName) throws -> PerInstance<Bool> {
-        PerInstance(try bools(name), positions: positions(name))
+    init(_ trees: [(name: SocketName, tree: DataTree)]) throws {
+        guard var lead = trees.first else { throw NodeError.invalidValue("A pattern needs placements.") }
+        for entry in trees where entry.tree.depth > lead.tree.depth { lead = entry }
+        if trees.contains(where: { $0.tree.itemCount == 0 }) {
+            (paths, items, shape, depth, columns) = ([], [], nil, lead.tree.depth, [:])
+            culledIndices = lead.tree.depth == 1 && lead.tree.isCulled ? [] : nil
+            return
+        }
+        let cells = lead.tree.depth == 1 ? try Self.flatCells(trees, lead: lead.tree) : try Self.treeCells(trees, lead: lead)
+        var items: [Int] = []
+        items.reserveCapacity(cells.count)
+        for cell in cells {
+            guard let item = InstancePath.item(for: cell.path) else {
+                throw NodeError.invalidValue("Instance \(InstancePath.text(indices: cell.path)) can't be named: patterns take trees up "
+                    + "to \(InstancePath.maximumDepth) levels deep, with branch numbers below \((InstancePath.maximumIndex + 1).display).")
+            }
+            items.append(item)
+        }
+        var columns: [SocketName: [Scalar]] = [:]
+        let leaves = lead.tree.depth == 1 ? [] : lead.tree.leaves
+        for entry in trees {
+            columns[entry.name] = try Self.values(of: entry, matching: cells.map { ($0.leaf, $0.position, $0.path) }, leaves: leaves)
+        }
+        (self.paths, self.items, self.depth, self.columns) = (cells.map(\.path), items, lead.tree.depth, columns)
+        shape = lead.tree.depth == 1 ? nil : lead.tree
+        culledIndices = lead.tree.depth == 1 && lead.tree.isCulled ? lead.tree.itemPositions : nil
     }
 
-    func perInstanceIntegers(_ name: SocketName) throws -> PerInstance<Int> {
-        PerInstance(try integers(name), positions: positions(name))
+    private typealias Cell = (path: [Int], leaf: Int, position: Int)
+
+    /// The instances of flat inputs: a culled lead's own indices, else 0 up to the longest plain list (a culled list that
+    /// is not the lead sets no number of instances).
+    private static func flatCells(_ trees: [(name: SocketName, tree: DataTree)], lead: DataTree) throws -> [Cell] {
+        guard lead.isCulled else {
+            let count = trees.filter { !$0.tree.isCulled }.map(\.tree.itemCount).max() ?? 0
+            try PatternLimit.check(count)
+            return (0..<count).map { ([$0], 0, $0) }
+        }
+        try PatternLimit.check(lead.itemCount)
+        return lead.itemPositions.map { ([$0], 0, $0) }
     }
 
-    func perInstanceSolids(_ name: SocketName) throws -> PerInstance<Solid> {
-        PerInstance(try solids(name), positions: positions(name))
+    /// The instances of a tree lead: its items, each at the path of its branch and the index the item kept there.
+    private static func treeCells(_ trees: [(name: SocketName, tree: DataTree)],
+                                  lead: (name: SocketName, tree: DataTree)) throws -> [Cell] {
+        for entry in trees where entry.tree.depth != 1 && entry.tree.depth != lead.tree.depth {
+            throw NodeError.invalidValue("“\(entry.name)” (\(entry.tree.shapeText)) and “\(lead.name)” "
+                + "(\(lead.tree.shapeText)) are nested differently. Use a flat list, or trees of the same depth.")
+        }
+        try PatternLimit.check(lead.tree.itemCount)
+        var cells: [Cell] = []
+        for (leaf, entry) in lead.tree.leaves.enumerated() {
+            for position in entry.positions { cells.append((entry.path.indices + [position], leaf, position)) }
+        }
+        return cells
     }
 
-    func perInstanceVectors(_ name: SocketName) throws -> PerInstance<Vector3> {
-        PerInstance(try vectors(name), positions: positions(name))
+    /// The input's item for each cell: the one at the cell's own place in the branch it is matched with.
+    private static func values(of entry: (name: SocketName, tree: DataTree), matching cells: [(leaf: Int, position: Int, path: [Int])],
+                               leaves: [DataTree.Leaf]) throws -> [Scalar] {
+        let tree = entry.tree
+        if tree.depth == 1 {
+            let column = Column(tree)
+            return cells.map { column.scalar(at: $0.position) }
+        }
+        var byLeaf: [Int: Column] = [:]
+        var result: [Scalar] = []
+        result.reserveCapacity(cells.count)
+        for cell in cells {
+            if byLeaf[cell.leaf] == nil {
+                byLeaf[cell.leaf] = Column(try branch(of: entry, at: leaves[cell.leaf].path))
+            }
+            if let column = byLeaf[cell.leaf] { result.append(column.scalar(at: cell.position)) }
+        }
+        return result
+    }
+
+    /// The branch a leaf is matched with: level by level, a shorter side repeating its last branch.
+    private static func branch(of entry: (name: SocketName, tree: DataTree), at path: TreePath) throws -> DataTree {
+        var branch = entry.tree
+        for index in path.indices {
+            let branches = branch.branches
+            guard let last = branches.indices.last else { throw empty(entry.name, path) }
+            branch = branches[min(index, last)]
+        }
+        guard !branch.items.isEmpty else { throw empty(entry.name, path) }
+        return branch
+    }
+
+    /// One input's items in the branch an instance is matched with, and the places they have there.
+    private struct Column {
+        let items: [Scalar]
+        /// The places of a culled branch's items; `nil` for a plain one, whose items are 0, 1, 2….
+        let places: [Int]?
+
+        init(_ branch: DataTree) {
+            items = branch.items
+            places = branch.culledPositions
+        }
+
+        /// The item at `place`: a plain branch repeats its last item past the end; a culled one gives the item that has
+        /// that place, else the nearest one before it, else its first.
+        func scalar(at place: Int) -> Scalar {
+            guard let places else { return items[min(place, items.count - 1)] }
+            var (low, high) = (0, places.count)
+            while low < high {
+                let middle = (low + high) / 2
+                if places[middle] <= place { low = middle + 1 } else { high = middle }
+            }
+            return items[max(low - 1, 0)]
+        }
+    }
+
+    private static func empty(_ name: SocketName, _ path: TreePath) -> NodeError {
+        NodeError.invalidValue("“\(name)” has no items for the branch \(path).")
+    }
+
+    /// A tree holding `scalars`, one per instance, in the shape the instances came in: a flat list for a flat pattern (a culled
+    /// list, at the same indices, when the placements were culled), else the tree (the empty branches and culled gaps too) the
+    /// instances sit in.
+    func tree(of scalars: [Scalar]) -> DataTree {
+        if let shape { return shape.replacingItems(scalars) ?? .empty(depth: depth) }
+        if let culledIndices { return DataTree.culledList(scalars, at: culledIndices) ?? .list(scalars) }
+        return depth > 1 && scalars.isEmpty ? .empty(depth: depth) : .list(scalars)
+    }
+
+    // MARK: Typed inputs, one value per instance
+
+    func numbers(_ name: SocketName) throws -> [Double] {
+        try typed(name, .number) { if case .number(let value) = $0 { value } else { nil } }
+    }
+
+    func integers(_ name: SocketName) throws -> [Int] {
+        try typed(name, .integer) { if case .integer(let value) = $0 { value } else { nil } }
+    }
+
+    func bools(_ name: SocketName) throws -> [Bool] {
+        try typed(name, .bool) { if case .bool(let value) = $0 { value } else { nil } }
+    }
+
+    func vectors(_ name: SocketName) throws -> [Vector3] {
+        try typed(name, .vector) { if case .vector(let value) = $0 { value } else { nil } }
+    }
+
+    func planes(_ name: SocketName) throws -> [Plane] {
+        try typed(name, .plane) { if case .plane(let value) = $0 { value } else { nil } }
+    }
+
+    func solids(_ name: SocketName) throws -> [Solid] {
+        try typed(name, .solid) { if case .solid(let value) = $0 { value } else { nil } }
+    }
+
+    private func typed<T>(_ name: SocketName, _ type: SocketType, _ extract: (Scalar) -> T?) throws -> [T] {
+        try (columns[name] ?? []).map { scalar in
+            guard let value = extract(scalar) else { throw NodeError.typeMismatch(name, expected: type) }
+            return value
+        }
     }
 }
 ```
 
 
-Create `Sources/CreatorNodes/Patterns/PlacementSet.swift`:
+This replaces the whole file ("Create" writes a whole file).
+
+Create `Sources/CreatorNodes/Patterns/PointsToPlacementsNode.swift`:
 
 ```swift
 import CreatorGeometry
 import CreatorGraph
+import CreatorKernel
 
-/// The placements on a pattern node's `placements` socket and the instances they make (patterns spec §4: "culling keeps
-/// paths"). An instance's index is the `{i}` in its tags and its messages, so a pick follows it.
-///
-/// A plain list makes the instances 0, 1, 2… and, as everywhere (spec §4.2), the longest of it and the node's other
-/// per-instance lists sets how many, a shorter one repeating its last item. A culled list (a Cull node's output) makes
-/// exactly the instances it still holds, at the indices they had before the cull: `{3}` is still `{3}` when `{1}` is
-/// gone, a longer size list adds none, and what was culled off the end does not come back. A culled size or tool list never adds instances
-/// either, however many survivors it holds. Sizes and tools are read by
-/// the instance's index either way, so a surviving instance keeps its own size.
-struct PlacementSet {
-    let planes: [Plane]
-    /// A culled list's instance indices, one per plane; `nil` for a plain list.
-    let culledIndices: [Int]?
+/// Points in, placements out (patterns spec §3): each point becomes a plane through it facing `direction`, with the
+/// x axis Plane from Face would give (`FacePlane`: world X projected onto the plane, else world Y). It moves graphs
+/// built on Grid Points over to Place without redrawing them. Points and directions are read whole and matched as
+/// `InstanceGrid` matches placements (the longer flat list sets the number of placements and the shorter repeats its last
+/// item; a tree of points gives a tree of placements), and the placements come back in the shape of the points with the
+/// same paths, so a cull anywhere before this node (on the points, say) keeps the paths of the instances that stay: a
+/// culled list of points is a culled list of placements at the same indices.
+public enum PointsToPlacementsNode: NodeDefinition {
+    public static let typeID = "creator.pointsToPlacements"
+    public static let displayName = "Points to Placements"
+    public static let category = NodeCategory.patterns
+    public static let inputs = [
+        SocketSpec("points", .vector, access: .tree),
+        SocketSpec("direction", .vector, access: .tree, defaultValue: .vector(.unitZ)),
+    ]
+    public static let outputs = [SocketSpec("placements", .plane)]
+    public static let inspector = [InspectorSection(title: "Facing", controls: [.vector("direction")])]
 
-    /// The instances this set and the node's per-instance lists make. `lengths` are the lists' `PerInstance.span`s, not their
-    /// counts: a plain list's span is its count and a culled list's is 1, or 0 when everything was culled. None if any is 0.
-    func instances(alongside lengths: [Int]) -> [Int] {
-        if planes.isEmpty || lengths.contains(0) { return [] }
-        if let culledIndices { return culledIndices }
-        return Array(0..<max(planes.count, lengths.max() ?? 0))
-    }
-
-    /// The placement of each of `instances` (from `instances(alongside:)`), in order.
-    func planes(for instances: [Int]) -> [Plane] {
-        guard culledIndices == nil, let last = planes.indices.last else { return planes }
-        return instances.map { planes[min($0, last)] }
+    public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        let grid = try InstanceGrid(inputs, ["points", "direction"])
+        guard grid.count > 0 else { return NodeOutputs(trees: ["placements": grid.tree(of: [])]) }
+        let (points, directions) = (try grid.vectors("points"), try grid.vectors("direction"))
+        var planes: [Scalar] = []
+        planes.reserveCapacity(grid.count)
+        for index in 0..<grid.count {
+            guard let normal = directions[index].normalized else {
+                throw NodeError.invalidValue("The direction of placement \(InstancePath.text(grid.items[index])) can't be zero.")
+            }
+            planes.append(.plane(FacePlane.plane(origin: points[index], normal: normal)))
+        }
+        return NodeOutputs(trees: ["placements": grid.tree(of: planes)])
     }
 }
-
-extension NodeInputs {
-    /// The `placements` of a pattern node: its planes, and the indices they keep when they were culled.
-    func placementSet(_ name: SocketName) throws -> PlacementSet {
-        PlacementSet(planes: try planes(name), culledIndices: positions(name))
-    }
-}
 ```
 
 
-In `Sources/CreatorNodes/Patterns/PlacementMoves.swift`, replace:
+- [ ] **Step 4: Run the task's tests, then the existing pattern suites**
 
-```swift
-    /// The move for each of `count` instances: instance `i` uses placement `i`, and a shorter list repeats its last
-    /// placement (broadcasting, spec §4.2). A placement with no usable direction names its path.
-    static func make(_ planes: [Plane], count: Int) throws -> [Transform] {
-        guard let last = planes.indices.last else { return [] }
-        var moves: [Transform] = []
-        moves.reserveCapacity(count)
-        for index in 0..<count {
-            guard let move = planes[min(index, last)].placement else {
-                throw NodeError.invalidValue("Placement \(InstancePath.text(index)) has no usable direction: "
-                    + "its normal and x axis must not be zero or along each other.")
-            }
-            moves.append(move)
-        }
-        return moves
-    }
-```
-
-with:
-
-```swift
-    /// The move for each instance: `planes[j]` is the placement of instance `instances[j]` (`PlacementSet.planes(for:)`).
-    /// A placement with no usable direction names its instance's path.
-    static func make(_ planes: [Plane], instances: [Int]) throws -> [Transform] {
-        var moves: [Transform] = []
-        moves.reserveCapacity(instances.count)
-        for (plane, instance) in zip(planes, instances) {
-            guard let move = plane.placement else {
-                throw NodeError.invalidValue("Placement \(InstancePath.text(instance)) has no usable direction: "
-                    + "its normal and x axis must not be zero or along each other.")
-            }
-            moves.append(move)
-        }
-        return moves
-    }
-
-    /// One copy of `tools[j]` on `planes[j]` for each instance `instances[j]`, in one kernel call. The copy's tags name
-    /// the instance (`instances[j]`), not its place `j` in this call, so a copy keeps its index when other instances were
-    /// culled: `Kernel.place` numbers the copies 0, 1, 2…, and any whose instance is another number is renumbered.
-    static func copies(of tools: [Solid], at planes: [Plane], instances: [Int], placedBy place: NodeID, kernel: any Kernel,
-                       tag: NodeTag) async throws -> [Solid] {
-        let moves = try make(planes, instances: instances)
-        let placed = try await kernel.place(tools, at: moves, qualifying: qualifier(placedBy: place), tag: tag)
-        return zip(placed, instances).enumerated().map { slot, pair in
-            let (copy, instance) = pair
-            guard instance != slot else { return copy }
-            return Solid(topology: copy.topology.renumberingInstance(to: instance), bounds: copy.bounds, storage: copy.storage)
-        }
-    }
-```
-
-
-In `Sources/CreatorNodes/Patterns/PlaceNode.swift`, replace:
-
-```swift
-        let tools = try inputs.solids("tool")
-        let planes = try inputs.planes("placements")
-        let count = tools.isEmpty || planes.isEmpty ? 0 : max(tools.count, planes.count)
-        try PatternLimit.check(count)
-        let moves = try PlacementMoves.make(planes, count: count)
-        let used = (0..<count).map { tools[min($0, tools.count - 1)] }
-        let copies = try await kernel.place(used, at: moves, qualifying: PlacementMoves.qualifier(placedBy: context.node.id),
-                                            tag: context.tag)
-        return NodeOutputs(lists: ["solids": copies.map(Scalar.solid)])
-```
-
-with:
-
-```swift
-        let tools = try inputs.perInstanceSolids("tool")
-        let placements = try inputs.placementSet("placements")
-        let instances = placements.instances(alongside: [tools.span])
-        try PatternLimit.check(instances.count)
-        let used = instances.map { tools[$0] }
-        let copies = try await PlacementMoves.copies(of: used, at: placements.planes(for: instances), instances: instances,
-                                                     placedBy: context.node.id, kernel: kernel, tag: context.tag)
-        // Copies of culled placements are a culled list too, so each copy is still at its instance's path.
-        guard placements.culledIndices != nil, let culled = DataTree.culledList(copies.map(Scalar.solid), at: instances) else {
-            return NodeOutputs(lists: ["solids": copies.map(Scalar.solid)])
-        }
-        return NodeOutputs(trees: ["solids": culled])
-```
-
-
-In `Sources/CreatorNodes/Patterns/PointsToPlacementsNode.swift`, replace:
-
-```swift
-/// built on Grid Points over to Place without redrawing them. Points and directions broadcast: the longer list sets
-/// the number of placements and the shorter repeats its last item.
-```
-
-with:
-
-```swift
-/// built on Grid Points over to Place without redrawing them. Points and directions broadcast: the longer list sets
-/// the number of placements and the shorter repeats its last item. Culling keeps paths (spec §4): a culled list of points (a
-/// Cull node's output, `NodeInputs.positions`) makes exactly the placements at the indices the points kept, as a culled
-/// list too, so a cull before this node numbers the instances as one after it would. A direction list is read by that
-/// index (`PerInstance`), and a culled one sets no number of placements.
-```
-
-
-In `Sources/CreatorNodes/Patterns/PointsToPlacementsNode.swift`, replace:
-
-```swift
-        let points = try inputs.vectors("points")
-        let directions = try inputs.vectors("direction")
-        let count = points.isEmpty || directions.isEmpty ? 0 : max(points.count, directions.count)
-        try PatternLimit.check(count)
-        var planes: [Scalar] = []
-        planes.reserveCapacity(count)
-        for index in 0..<count {
-            guard let normal = directions[min(index, directions.count - 1)].normalized else {
-                throw NodeError.invalidValue("The direction of placement \(InstancePath.text(index)) can't be zero.")
-            }
-            planes.append(.plane(FacePlane.plane(origin: points[min(index, points.count - 1)], normal: normal)))
-        }
-        return NodeOutputs(lists: ["placements": planes])
-    }
-```
-
-with:
-
-```swift
-        let points = try inputs.perInstanceVectors("points")
-        let directions = try inputs.perInstanceVectors("direction")
-        let instances = Self.instances(points: points, directions: directions)
-        try PatternLimit.check(instances.count)
-        var planes: [Scalar] = []
-        planes.reserveCapacity(instances.count)
-        for instance in instances {
-            guard let normal = directions[instance].normalized else {
-                throw NodeError.invalidValue("The direction of placement \(InstancePath.text(instance)) can't be zero.")
-            }
-            planes.append(.plane(FacePlane.plane(origin: points[instance], normal: normal)))
-        }
-        guard let kept = points.positions else { return NodeOutputs(lists: ["placements": planes]) }
-        // Inside a tree run the node makes one list per branch, so a culled branch can only come out renumbered (User decision U15).
-        if context.isTreeRun {
-            let gaps = kept != Array(0..<kept.count)
-            return NodeOutputs(lists: ["placements": planes], warnings: gaps ? [Self.renumberedWarning] : [])
-        }
-        guard let culled = DataTree.culledList(planes, at: kept) else { return NodeOutputs(lists: ["placements": planes]) }
-        return NodeOutputs(trees: ["placements": culled])
-    }
-
-    static let renumberedWarning = "Points to Placements numbers a culled branch from 0 again. Cull after it to keep the paths."
-
-    /// The placements to make: none if either list is empty; exactly the indices a culled list of points keeps; otherwise 0, 1, 2…
-    /// as many as the longer list says (a culled direction list sets no number).
-    private static func instances(points: PerInstance<Vector3>, directions: PerInstance<Vector3>) -> [Int] {
-        if points.count == 0 || directions.count == 0 { return [] }
-        if let kept = points.positions { return kept }
-        return Array(0..<max(points.count, directions.span))
-    }
-```
-
-
-In `Sources/CreatorNodes/Patterns/PatternApply.swift`, replace:
-
-```swift
-    /// What a shortcut asks for: `operation` of `part` with a copy of `tools[i]` at every instance `i`, placed on
-    /// `planes[min(i, planes.count - 1)]`.
-    struct Request {
-        let operation: BooleanOp
-        let part: Solid
-        let tools: [Solid]
-        let planes: [Plane]
-        let nouns: Nouns
-    }
-```
-
-with:
-
-```swift
-    /// What a shortcut asks for: `operation` of `part` with a copy of `tools[j]` on `planes[j]` for each instance
-    /// `instances[j]` (`PlacementSet.instances(alongside:)`: 0, 1, 2… for a plain list, the surviving indices for a culled
-    /// one). The three lists are the same length.
-    struct Request {
-        let operation: BooleanOp
-        let part: Solid
-        let tools: [Solid]
-        let planes: [Plane]
-        let instances: [Int]
-        let nouns: Nouns
-    }
-```
-
-
-In `Sources/CreatorNodes/Patterns/PatternApply.swift`, replace:
-
-```swift
-        let (op, part, tools, planes) = (request.operation, request.part, request.tools, request.planes)
-        let count = planes.isEmpty ? 0 : tools.count
-        try PatternLimit.check(count)
-        guard count > 0 else { return NodeOutputs(["solid": .solid(part)]) }
-        let moves = try PlacementMoves.make(planes, count: count)
-        let copies = try await kernel.place(tools, at: moves, qualifying: PlacementMoves.qualifier(placedBy: context.node.id),
-                                            tag: context.tag)
-        let result = try await kernel.boolean(op, part, copies, tag: context.tag)
-        var warnings = PieceWarning.warnings(for: result)
-        let missed = PatternMisses.count(op, part: part, result: result, copies: copies)
-        let nouns = request.nouns
-        if let message = PatternMisses.warning(missed: missed, of: count, singular: nouns.singular, plural: nouns.plural) {
-```
-
-with:
-
-```swift
-        let (op, part, instances) = (request.operation, request.part, request.instances)
-        try PatternLimit.check(instances.count)
-        guard !instances.isEmpty else { return NodeOutputs(["solid": .solid(part)]) }
-        let copies = try await PlacementMoves.copies(of: request.tools, at: request.planes, instances: instances,
-                                                     placedBy: context.node.id, kernel: kernel, tag: context.tag)
-        let result = try await kernel.boolean(op, part, copies, tag: context.tag)
-        var warnings = PieceWarning.warnings(for: result)
-        let missed = PatternMisses.count(op, part: part, result: result, copies: copies, instances: instances)
-        let nouns = request.nouns
-        if let message = PatternMisses.warning(missed: missed, of: instances.count, singular: nouns.singular, plural: nouns.plural) {
-```
-
-
-In `Sources/CreatorNodes/Patterns/PatternApply.swift`, replace:
-
-```swift
-    /// The tool for each of the instances that `tools` and `planes` make together: the longer list sets the number
-    /// of instances and the shorter repeats its last item (broadcasting, spec §4.2).
-    static func tools(_ tools: [Solid], planes: [Plane]) -> [Solid] {
-        guard let last = tools.indices.last, !planes.isEmpty else { return [] }
-        return (0..<max(tools.count, planes.count)).map { tools[min($0, last)] }
-    }
-```
-
-with:
-
-```swift
-    /// The tool for each of `instances`, by the instance's index: a list of tools gives a surviving instance its own tool,
-    /// and a list shorter than the index repeats its last (broadcasting, spec §4.2).
-    static func tools(_ tools: PerInstance<Solid>, for instances: [Int]) -> [Solid] {
-        tools.values.isEmpty ? [] : instances.map { tools[$0] }
-    }
-```
-
-
-In `Sources/CreatorNodes/Patterns/PatternMisses.swift`, replace:
-
-```swift
-    static func count(_ op: BooleanOp, part: Solid, result: Solid, copies: [Solid]) -> Int {
-```
-
-with:
-
-```swift
-    /// `instances[j]` is the index copy `j` carries in its tags (a cull leaves gaps in the numbering).
-    static func count(_ op: BooleanOp, part: Solid, result: Solid, copies: [Solid], instances: [Int]) -> Int {
-```
-
-
-In `Sources/CreatorNodes/Patterns/PatternMisses.swift`, replace:
-
-```swift
-            return copies.indices.filter { !present.contains($0) }.count
-```
-
-with:
-
-```swift
-            return instances.filter { !present.contains($0) }.count
-```
-
-
-In `Sources/CreatorNodes/Patterns/PatternFeatureNode.swift`, replace:
-
-```swift
-        let planes = try inputs.planes("placements")
-        let tools = PatternApply.tools(try inputs.solids("tool"), planes: planes)
-        let request = PatternApply.Request(operation: op, part: try inputs.solid("part"), tools: tools, planes: planes,
-                                           nouns: PatternApply.Nouns(singular: "feature", plural: "features"))
-```
-
-with:
-
-```swift
-        let placements = try inputs.placementSet("placements")
-        let tools = try inputs.perInstanceSolids("tool")
-        let instances = placements.instances(alongside: [tools.span])
-        let request = PatternApply.Request(operation: op, part: try inputs.solid("part"),
-                                           tools: PatternApply.tools(tools, for: instances),
-                                           planes: placements.planes(for: instances), instances: instances,
-                                           nouns: PatternApply.Nouns(singular: "feature", plural: "features"))
-```
-
-
-In `Sources/CreatorNodes/Patterns/BossPatternNode.swift`, replace:
-
-```swift
-        let planes = try inputs.planes("placements")
-        let (diameters, heights) = (PerInstance(try inputs.numbers("diameter")), PerInstance(try inputs.numbers("height")))
-        let (drafts, fillets) = (PerInstance(try inputs.numbers("draft")), PerInstance(try inputs.numbers("tipFillet")))
-        let count = PerInstance<Plane>.instances([planes.count, diameters.count, heights.count, drafts.count, fillets.count])
-        try PatternLimit.check(count)
-        guard count > 0 else { return NodeOutputs(["solid": .solid(part)]) }
-        var sizes: [BossSize] = []
-        for index in 0..<count {
-            let size = BossSize(diameter: diameters[index], height: heights[index], draft: .degrees(drafts[index]),
-                                tipFillet: fillets[index])
-            if let problem = size.problem(at: InstancePath.text(index)) { throw NodeError.invalidValue(problem) }
-```
-
-with:
-
-```swift
-        let placements = try inputs.placementSet("placements")
-        let (diameters, heights) = (try inputs.perInstanceNumbers("diameter"), try inputs.perInstanceNumbers("height"))
-        let (drafts, fillets) = (try inputs.perInstanceNumbers("draft"), try inputs.perInstanceNumbers("tipFillet"))
-        let instances = placements.instances(alongside: [diameters.span, heights.span, drafts.span, fillets.span])
-        try PatternLimit.check(instances.count)
-        guard !instances.isEmpty else { return NodeOutputs(["solid": .solid(part)]) }
-        var sizes: [BossSize] = []
-        for index in instances {
-            let size = BossSize(diameter: diameters[index], height: heights[index], draft: .degrees(drafts[index]),
-                                tipFillet: fillets[index])
-            if let problem = size.problem(at: InstancePath.text(index)) { throw NodeError.invalidValue(problem) }
-```
-
-
-In `Sources/CreatorNodes/Patterns/BossPatternNode.swift`, replace:
-
-```swift
-tools: plan.toolIndex.map { built[$0] }, planes: planes,
-                                           nouns: PatternApply.Nouns(singular: "boss", plural: "bosses"))
-```
-
-with:
-
-```swift
-tools: plan.toolIndex.map { built[$0] },
-                                           planes: placements.planes(for: instances), instances: instances,
-                                           nouns: PatternApply.Nouns(singular: "boss", plural: "bosses"))
-```
-
-
-In `Sources/CreatorNodes/Patterns/SlotPatternNode.swift`, replace:
-
-```swift
-        let planes = try inputs.planes("placements")
-        let (lengths, widths) = (PerInstance(try inputs.numbers("length")), PerInstance(try inputs.numbers("width")))
-        let (depths, through) = (PerInstance(try inputs.numbers("depth")), PerInstance(try inputs.bools("throughAll")))
-        let count = PerInstance<Plane>.instances([planes.count, lengths.count, widths.count, depths.count, through.count])
-        try PatternLimit.check(count)
-        guard count > 0 else { return NodeOutputs(["solid": .solid(part)]) }
-        let reach = through.values.contains(true) ? ThroughReach.length(of: part, placements: planes) : 0
-        var sizes: [SlotSize] = []
-        for index in 0..<count {
-```
-
-with:
-
-```swift
-        let placements = try inputs.placementSet("placements")
-        let (lengths, widths) = (try inputs.perInstanceNumbers("length"), try inputs.perInstanceNumbers("width"))
-        let (depths, through) = (try inputs.perInstanceNumbers("depth"), try inputs.perInstanceBools("throughAll"))
-        let instances = placements.instances(alongside: [lengths.span, widths.span, depths.span, through.span])
-        try PatternLimit.check(instances.count)
-        guard !instances.isEmpty else { return NodeOutputs(["solid": .solid(part)]) }
-        let reach = through.values.contains(true) ? ThroughReach.length(of: part, placements: placements.planes) : 0
-        var sizes: [SlotSize] = []
-        for index in instances {
-```
-
-
-In `Sources/CreatorNodes/Patterns/SlotPatternNode.swift`, replace:
-
-```swift
-tools: plan.toolIndex.map { built[$0] }, planes: planes,
-                                           nouns: PatternApply.Nouns(singular: "slot", plural: "slots"))
-```
-
-with:
-
-```swift
-tools: plan.toolIndex.map { built[$0] },
-                                           planes: placements.planes(for: instances), instances: instances,
-                                           nouns: PatternApply.Nouns(singular: "slot", plural: "slots"))
-```
-
-
-In `Sources/CreatorNodes/Patterns/HolePatternNode.swift`, replace:
-
-```swift
-        let planes = try inputs.planes("placements")
-        let values = (diameters
-```
-
-with:
-
-```swift
-        let placements = try inputs.placementSet("placements")
-        let values = (diameters
-```
-
-
-In `Sources/CreatorNodes/Patterns/HolePatternNode.swift`, replace:
-
-```swift
-        let count = PerInstance<Plane>.instances([
-            planes.count, values.diameters.count, values.depths.count, values.through.count, values.styles.count,
-            values.cbDiameters.count, values.cbDepths.count, values.csDiameters.count, values.csAngles.count,
-        ])
-        try PatternLimit.check(count)
-        guard count > 0 else { return NodeOutputs(["solid": .solid(part)]) }
-        let reach = values.through.values.contains(true) ? ThroughReach.length(of: part, placements: planes) : 0
-        var sizes: [HoleSize] = []
-        for index in 0..<count {
-```
-
-with:
-
-```swift
-        let instances = placements.instances(alongside: [
-            values.diameters.span, values.depths.span, values.through.span, values.styles.span,
-            values.cbDiameters.span, values.cbDepths.span, values.csDiameters.span, values.csAngles.span,
-        ])
-        try PatternLimit.check(instances.count)
-        guard !instances.isEmpty else { return NodeOutputs(["solid": .solid(part)]) }
-        let reach = values.through.values.contains(true) ? ThroughReach.length(of: part, placements: placements.planes) : 0
-        var sizes: [HoleSize] = []
-        for index in instances {
-```
-
-
-In `Sources/CreatorNodes/Patterns/HolePatternNode.swift`, replace:
-
-```swift
-tools: plan.toolIndex.map { built[$0] }, planes: planes,
-                                           nouns: PatternApply.Nouns(singular: "hole", plural: "holes"))
-```
-
-with:
-
-```swift
-tools: plan.toolIndex.map { built[$0] },
-                                           planes: placements.planes(for: instances), instances: instances,
-                                           nouns: PatternApply.Nouns(singular: "hole", plural: "holes"))
-```
-
-
-In `Sources/CreatorNodes/Patterns/HolePatternNode.swift`, replace:
-
-```swift
-        let values = (diameters: PerInstance(try inputs.numbers("diameter")), depths: PerInstance(try inputs.numbers("depth")),
-                      through: PerInstance(try inputs.bools("throughAll")), styles: PerInstance(try inputs.integers("style")),
-                      cbDiameters: PerInstance(try inputs.numbers("counterboreDiameter")),
-                      cbDepths: PerInstance(try inputs.numbers("counterboreDepth")),
-                      csDiameters: PerInstance(try inputs.numbers("countersinkDiameter")),
-                      csAngles: PerInstance(try inputs.numbers("countersinkAngle")))
-```
-
-with:
-
-```swift
-        let values = (diameters: try inputs.perInstanceNumbers("diameter"), depths: try inputs.perInstanceNumbers("depth"),
-                      through: try inputs.perInstanceBools("throughAll"), styles: try inputs.perInstanceIntegers("style"),
-                      cbDiameters: try inputs.perInstanceNumbers("counterboreDiameter"),
-                      cbDepths: try inputs.perInstanceNumbers("counterboreDepth"),
-                      csDiameters: try inputs.perInstanceNumbers("countersinkDiameter"),
-                      csAngles: try inputs.perInstanceNumbers("countersinkAngle"))
-```
-
-
-In `Sources/CreatorNodes/Patterns/PerInstance.swift`, replace:
-
-```swift
-/// An input that varies by instance (patterns spec §5): one value per item of a list, and a shorter list repeats its
-/// last item, as broadcasting does everywhere (spec §4.2). A shortcut node takes its sizes as lists so it can make
-/// one kernel call for all its instances, and reads them through this.
-struct PerInstance<Value> {
-    let values: [Value]
-
-    init(_ values: [Value]) {
-        self.values = values
-    }
-
-    var count: Int { values.count }
-
-    /// The value for instance `index`, repeating the last. Only call it on a list with a value in it.
-    subscript(index: Int) -> Value { values[min(index, values.count - 1)] }
-```
-
-with:
-
-```swift
-/// An input that varies by instance (patterns spec §5): one value per item of a list, and a shorter list repeats its
-/// last item, as broadcasting does everywhere (spec §4.2). A shortcut node takes its sizes as lists so it can make
-/// one kernel call for all its instances, and reads them through this.
-///
-/// A list that was culled (a Cull node's or Random Values' output, `positions` set) holds its values at the indices they
-/// had, so instance `i` takes the value at index `i`; where that one was culled it takes the nearest one before it (the
-/// first, if none), the way a shorter plain list repeats its last. A culled list's `count` is the values it still holds, but it
-/// does not set how many instances there are: its `span` does the telling (`PlacementSet.instances(alongside:)`).
-struct PerInstance<Value> {
-    let values: [Value]
-    /// A culled list's indices, one per value; `nil` for a plain list.
-    let positions: [Int]?
-
-    init(_ values: [Value], positions: [Int]? = nil) {
-        self.values = values
-        self.positions = positions
-    }
-
-    var count: Int { values.count }
-
-    /// What this list says about how many instances there are. A plain list says its `count`, as everywhere (the longest list
-    /// sets the number). A culled list's survivors sit at indices of their own, so however many it holds it sets no number: its
-    /// span is 1 when it holds anything (no placement list is shorter than that) and 0 when everything was culled, which makes
-    /// no instances, as an empty plain list does.
-    var span: Int { positions == nil ? values.count : min(values.count, 1) }
-
-    /// The value for instance `index`. Only call it on a list with a value in it.
-    subscript(index: Int) -> Value {
-        guard let positions else { return values[min(index, values.count - 1)] }
-        return values[positions.lastIndex { $0 <= index } ?? 0]
-    }
-```
-
-
-- [ ] **Step 4: Run the task's tests**
-
-Run: `swift test --filter "CulledInstancesTests|InstanceRenumberingTests|PointsToPlacementsCullTests" 2>&1 | grep -v 'ld: warning'`
+Run: `swift test --filter "InstanceGridCullTests|CulledInstancesTests|PointsToPlacementsCullTests" 2>&1 | grep -v 'ld: warning'`
 
 Expected: PASS, with no line saying "recorded an issue" or "failed after".
+
+Run: `swift test --filter "HolePatternNodeTests|BossPatternNodeTests|SlotPatternNodeTests|PatternFeatureNodeTests|PlaceNodeTests|PlaceTreeTests|InstanceGridTests|PointsToPlacementsNodeTests|PatternTreePickTests|PatternPickStabilityTests|GroupPatternNamingTests" 2>&1 | grep -v 'ld: warning'`
+
+Expected: PASS, untouched.
 
 - [ ] **Step 5: The full rule**
 
@@ -2155,19 +1745,19 @@ Run, from the worktree root:
 
 ```bash
 swift build --build-tests 2>&1 | grep -E "^/.*(warning|error):" | grep -v "ld: warning" | sort -u
-swift test > /tmp/vtest.log 2>&1; echo "exit=$?"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -cE "recorded an issue|failed after"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -c "Test run with"
+swift test > "${TMPDIR:-/tmp}/vtest.log" 2>&1; echo "exit=$?"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -cE "recorded an issue|failed after"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -c "Test run with"
 swiftlint lint --strict
 ```
 
-Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,699 = master + 60** (+29 in this task; the Swift Testing total counts a parameterised test once).
+Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,814 = master + 73** (+42 in this task; the Swift Testing total counts a parameterised test once).
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add -A
-git commit -m "feat(7a-3b): Place and the shortcuts keep a surviving instance's index, its tags and its sizes"
+git commit -m "feat(7a-3b): InstanceGrid keeps the paths of culled items; Points to Placements takes its points as a tree"
 ```
 
 ---
@@ -2188,11 +1778,12 @@ git commit -m "feat(7a-3b): Place and the shortcuts keep a surviving instance's 
 **Interfaces:**
 
 - Consumes: Task 2: `keepingItems(where:)`; `NodeInputs.bools(_:)` (Patterns support).
-- Produces: `CullPatternNode` (`creator.cullPattern`, inputs `tree` (any, tree), `keep` (bool list, optional), output `tree`; setting `NodeSetting.cullPattern`, default `"1 0"`);
+- Produces: `CullPatternNode` (`creator.cullPattern`, inputs `tree` (any, tree), `keep` (bool list, optional), `scope` (integer: Per branch, Overall; default Per branch), output `tree`; setting `NodeSetting.cullPattern`, default `"1 0"`);
 `CullMask.parse(_:)`; test fixtures `TreeSource`, `Harness.source(count:rows:)`, `Harness.wire(_ source:to:_:)`, `EvaluationReport.tree(_:_:)`, `EvaluationReport.positions(_:_:)`.
 
 The first node, and the shared test fixtures (`TreeSource`, `Harness.source(count:rows:)`, `EvaluationReport.positions`). The mask is the saved text
-`cullPattern` (`1 0`, `T F T`), or a wired `keep` list; it repeats across each branch over the items the branch has now (User decision U2) and
+`cullPattern` (`1 0`, `T F T`), or a wired `keep` list; it repeats across each branch over the items the branch has now (User decision U2), or,
+with `scope` Overall, runs on along the whole tree in order (U16: it is how one mask reaches the cells of a `{row;column;0}` tree), and
 `1` keeps (U1). Registering the node updates the node count, the Patterns category count and the library's list, which are the lines the other
 tracks also edit (see Merge order).
 
@@ -2248,10 +1839,11 @@ import Testing
 
 /// Cull Pattern (patterns spec §4): a true/false mask repeated across each branch, and a cull keeps paths.
 struct CullPatternNodeTests {
-    func run(_ pattern: String, count: Int = 6, rows: Int? = nil) async throws -> (report: EvaluationReport, cull: Node) {
+    func run(_ pattern: String, count: Int = 6, rows: Int? = nil,
+             overall: Bool = false) async throws -> (report: EvaluationReport, cull: Node) {
         var h = Harness()
         let source = h.source(count: count, rows: rows)
-        let cull = h.add(CullPatternNode.self, [NodeSetting.cullPattern: .text(pattern)])
+        let cull = h.add(CullPatternNode.self, [NodeSetting.cullPattern: .text(pattern), "scope": .integer(overall ? 1 : 0)])
         h.wire(source, to: cull, "tree")
         return (try await h.run([cull]), cull)
     }
@@ -2272,6 +1864,24 @@ struct CullPatternNodeTests {
     @Test func aMaskLongerThanTheBranchJustStopsEarly() async throws {
         let (report, cull) = try await run("0 1 1 1 1 1", count: 6, rows: 2)
         #expect(report.positions(cull) == [[1], [1], [1]])
+    }
+
+    @Test func overallTheMaskRunsOnFromBranchToBranch() async throws {
+        let (report, cull) = try await run("1 0 0", count: 8, rows: 4, overall: true)
+        #expect(report.positions(cull) == [[0, 3], [2]], "items 0, 3 and 6 of the tree: {0;0}, {0;3} and {1;2}")
+        let (flat, flatCull) = try await run("1 0", count: 6, overall: true)
+        #expect(flat.positions(flatCull) == [[0, 2, 4]], "on a flat list both scopes say the same")
+    }
+
+    @Test func overallCountsTheItemsLeftByAnEarlierCull() async throws {
+        var h = Harness()
+        let source = h.source(count: 6, rows: 2)
+        let first = h.add(CullPatternNode.self, [NodeSetting.cullPattern: .text("1 0")])  // keeps {0;0}, {1;0}, {2;0}
+        let second = h.add(CullPatternNode.self, [NodeSetting.cullPattern: .text("1 0"), "scope": .integer(1)])
+        h.wire(source, to: first, "tree")
+        h.wire(first, "tree", to: second, "tree")
+        let report = try await h.run([second])
+        #expect(report.positions(second) == [[0], [], [0]], "the three survivors are counted 1 0 1; the middle one goes")
     }
 
     @Test func aSecondCullCountsTheSurvivorsAndKeepsTheFirstOnesIndices() async throws {
@@ -2315,6 +1925,15 @@ struct CullPatternNodeTests {
         #expect(report.positions(cull) == [[0, 2, 3, 5]])
     }
 
+    @Test func aScopeThatIsNeitherIsRefused() async throws {
+        var h = Harness()
+        let source = h.source(count: 4)
+        let cull = h.add(CullPatternNode.self, ["scope": .integer(5)])
+        h.wire(source, to: cull, "tree")
+        let report = try await h.run([cull])
+        #expect(report.error(cull) == "Choose Per branch or Overall for “scope”.")
+    }
+
     @Test func aBadPatternNamesItself() async throws {
         let (report, cull) = try await run("1 2 0")
         #expect(report.error(cull) == "“1 2 0” isn't a pattern. Use 1 to keep an item and 0 to cull it, like 1 0 1.")
@@ -2330,12 +1949,15 @@ struct CullPatternNodeTests {
 
     @Test func aWiredListOfBooleansTakesThePlaceOfTheText() async throws {
         let tree = DataTree.list((0..<4).map { .integer($0) })
-        let outputs = try await evaluate(NodeInputs(item: 0, slots: ["tree": .tree(tree), "keep": .list([.bool(false), .bool(true)])]))
+        let slots: [SocketName: NodeInputs.Slot] = [
+            "tree": .tree(tree), "keep": .list([.bool(false), .bool(true)]), "scope": .item(.integer(0)),
+        ]
+        let outputs = try await evaluate(NodeInputs(item: 0, slots: slots))
         #expect(try #require(outputs.trees["tree"]).itemPositions == [1, 3])
     }
 
     @Test func anEmptyWiredListIsRefused() async throws {
-        let inputs = NodeInputs(item: 0, slots: ["tree": .tree(.list([.integer(1)])), "keep": .list([])])
+        let inputs = NodeInputs(item: 0, slots: ["tree": .tree(.list([.integer(1)])), "keep": .list([]), "scope": .item(.integer(0))])
         await #expect(throws: NodeError.self) { _ = try await evaluate(inputs) }
     }
 
@@ -2352,6 +1974,7 @@ struct CullPatternNodeTests {
     @Test func theNodeStartsWithAPatternThatKeepsEveryOtherItem() {
         let node = BuiltInNodes.registry.makeNode(CullPatternNode.typeID)
         #expect(node.inputValues[NodeSetting.cullPattern] == .text("1 0"))
+        #expect(CullPatternNode.inputs.first { $0.name == "scope" }?.defaultValue == .integer(0), "per branch, as for rows")
         #expect(CullPatternNode.category == .patterns)
     }
 }
@@ -2361,40 +1984,44 @@ struct CullPatternNodeTests {
 In `Tests/CreatorNodesTests/OutputNodeTests.swift`, replace:
 
 ```swift
-        #expect(BuiltInNodes.all.count == 41)
+        #expect(BuiltInNodes.all.count == 45)
 ```
 
 with:
 
 ```swift
-        #expect(BuiltInNodes.all.count == 42)
+        #expect(BuiltInNodes.all.count == 46)
 ```
 
 
 In `Tests/CreatorNodesTests/OutputNodeTests.swift`, replace:
 
 ```swift
-.feature: 2, .patterns: 6, .lists: 7
+.feature: 2, .patterns: 10, .lists: 7
 ```
 
 with:
 
 ```swift
-.feature: 2, .patterns: 7, .lists: 7
+.feature: 2, .patterns: 11, .lists: 7
 ```
 
 
 In `Tests/CreatorEditorTests/PatternsLibraryTests.swift`, replace:
 
 ```swift
-        #expect(names == ["Place", "Points to Placements", "Hole Pattern", "Boss / Pin Pattern", "Slot Pattern", "Pattern Feature"])
+        #expect(names == [
+            "Linear Pattern", "Grid Pattern", "Circular Pattern", "Curve Pattern", "Place", "Points to Placements", "Hole Pattern",
+            "Boss / Pin Pattern", "Slot Pattern", "Pattern Feature",
+        ])
 ```
 
 with:
 
 ```swift
         #expect(names == [
-            "Place", "Points to Placements", "Hole Pattern", "Boss / Pin Pattern", "Slot Pattern", "Pattern Feature",
+            "Linear Pattern", "Grid Pattern", "Circular Pattern", "Curve Pattern", "Place", "Points to Placements", "Hole Pattern",
+            "Boss / Pin Pattern", "Slot Pattern", "Pattern Feature",
             "Cull Pattern",
         ])
 ```
@@ -2441,21 +2068,27 @@ import CreatorGraph
 import CreatorKernel
 
 /// Keeps or culls the items of every branch by a repeating mask (patterns spec §4): `1 0` keeps every other item, `1 1 0`
-/// culls every third. The mask starts again at the first item of each branch and counts the items the branch has now, so a
-/// second Cull Pattern after a first works on what is left. Culling keeps paths: a survivor keeps the index it had, so
+/// culls every third. Per branch (the default) the mask starts again at the first item of each branch; Overall it runs on
+/// along the whole tree, branch after branch, which is how one mask reaches every other cell of a `{row;column;0}` tree whose
+/// branches hold one item each (User decision U16). Either way it counts the items there are now, so a second Cull Pattern
+/// after a first works on what is left. Culling keeps paths: a survivor keeps the index it had, so
 /// `{3}` is still `{3}` when `{1}` is gone and a pick on it follows it (§6). The mask is a saved text setting, or a list of
 /// true and false wired into `keep`, which takes its place.
 public enum CullPatternNode: NodeDefinition {
     public static let typeID = "creator.cullPattern"
     public static let displayName = "Cull Pattern"
     public static let category = NodeCategory.patterns
+    public static let scopes = ["Per branch", "Overall"]
     public static let inputs = [
         SocketSpec("tree", .any, access: .tree),
         SocketSpec("keep", .bool, access: .list, optional: true),
+        SocketSpec("scope", .integer, defaultValue: .integer(0)),
     ]
     public static let outputs = [SocketSpec("tree", .any)]
     public static let defaultSettings: [SocketName: ConstantValue] = [NodeSetting.cullPattern: .text("1 0")]
-    public static let inspector = [InspectorSection(title: "Pattern", controls: [.text(NodeSetting.cullPattern)])]
+    public static let inspector = [
+        InspectorSection(title: "Pattern", controls: [.text(NodeSetting.cullPattern), .segmented("scope", options: scopes)]),
+    ]
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let tree = try inputs.tree("tree")
@@ -2469,7 +2102,16 @@ public enum CullPatternNode: NodeDefinition {
             }
             mask = try CullMask.parse(text)
         }
-        return NodeOutputs(trees: ["tree": tree.keepingItems { _, _, k in mask[k % mask.count] }])
+        // Where each branch's first item falls in the mask: the start for every branch, or after the items before it.
+        var starts = Array(repeating: 0, count: tree.leaves.count)
+        if try inputs.choice("scope", options: scopes) == 1 {
+            var before = 0
+            for (ordinal, leaf) in tree.leaves.enumerated() {
+                starts[ordinal] = before
+                before += leaf.items.count
+            }
+        }
+        return NodeOutputs(trees: ["tree": tree.keepingItems { _, ordinal, k in mask[(starts[ordinal] + k) % mask.count] }])
     }
 }
 ```
@@ -2523,13 +2165,13 @@ Run, from the worktree root:
 
 ```bash
 swift build --build-tests 2>&1 | grep -E "^/.*(warning|error):" | grep -v "ld: warning" | sort -u
-swift test > /tmp/vtest.log 2>&1; echo "exit=$?"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -cE "recorded an issue|failed after"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -c "Test run with"
+swift test > "${TMPDIR:-/tmp}/vtest.log" 2>&1; echo "exit=$?"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -cE "recorded an issue|failed after"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -c "Test run with"
 swiftlint lint --strict
 ```
 
-Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,712 = master + 73** (+13 in this task; the Swift Testing total counts a parameterised test once).
+Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,830 = master + 89** (+16 in this task; the Swift Testing total counts a parameterised test once).
 
 - [ ] **Step 6: Commit**
 
@@ -2550,21 +2192,23 @@ git commit -m "feat(7a-3b): Cull Pattern, a repeating keep/cull mask that keeps 
 - Modify: `Sources/CreatorNodes/BuiltInNodes.swift`
 - Test: `Tests/CreatorNodesTests/Variation/CullIndexNodeTests.swift` (new)
 - Test: `Tests/CreatorNodesTests/Variation/CulledPickTests.swift` (new)
+- Test: `Tests/CreatorNodesTests/Variation/CulledTreePickTests.swift` (new)
 - Test: `Tests/CreatorEditorTests/PatternsLibraryTests.swift` (modify)
 - Test: `Tests/CreatorNodesTests/OutputNodeTests.swift` (modify)
 
 **Interfaces:**
 
-- Consumes: Tasks 2–4; `EdgesByTagNode`, `FilletNode`, `HolePatternNode`, `PatternPlate`, `OCCTKernel` (tests).
+- Consumes: Tasks 2–4; `EdgesByTagNode`, `FilletNode`, `HolePatternNode`, `GridPatternNode`, `PartitionNode`, `PointsToPlacementsNode`, `PatternPlate`, `OCCTKernel` (tests).
 - Produces: `CullIndexNode` (`creator.cullIndex`, inputs `tree` (any, tree), `indices` (number list, optional), output `tree`; setting `NodeSetting.cullIndices`, default `""`);
 `CullTargets` (parses `1, 4, {0;3}`, `drops(_:at:depth:)`, `unmatched(in:)`).
 
-Indices and paths such as `{0;3}` come out of a list or tree; everything else keeps its path. The same task adds the spec §9 naming test,
-`CulledPickTests`, on a single flat list (Grid Points and Points to Placements, with the Cull Index either after Points to Placements or before it on the Grid Points, then a Hole Pattern and a fillet on a picked rim): a pick on one
-instance survives a cull of another and does not move to a neighbour; a pick on a culled instance warns "Instance {1} no longer exists…" naming
-its path and selects nothing; undoing the cull brings the pick back. **After 7a-layouts merges (picks by tree path) this file must pass unchanged**:
-a flat list's items are still `{i}`. If culling changed a survivor's flat index, `aPickOnOneInstanceSurvivesACullOfAnother` and
-`aCullLeavesTheSurvivorsAtTheirIndices` fail, which is the bug to avoid.
+Indices and paths such as `{0;3}` come out of a list or tree; everything else keeps its path. The same task adds the spec §9 naming tests. `CulledPickTests`
+works on a single flat list (Grid Points and Points to Placements, with the Cull Index either after Points to Placements or before it on the Grid Points,
+then a Hole Pattern and a fillet on a picked rim) and `CulledTreePickTests` on a tree of placements (a Grid Pattern's rows, or Grid Points cut into rows
+by Partition, culled before Points to Placements): a pick on one instance survives a cull of another and does not move to a neighbour; a pick on a culled
+instance warns "Instance {1;1} no longer exists…" naming its path and selects nothing; a whole branch culled names every pick on it; undoing the cull
+brings the pick back. If culling changed a survivor's path, `aPickOnOneInstanceSurvivesACullOfAnother` and `aCullLeavesTheSurvivorsAtTheirIndices` fail,
+which is the bug to avoid. These tests pass unchanged after 7a-layouts' remaining tasks merge (they read only `PatternPlate`'s `h`, `plate`, `grid` and `placements`).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2742,8 +2386,8 @@ import Testing
 
 /// Patterns spec §6 and §9 for culling: a pick on an instance survives a cull of another instance, and a pick on a culled
 /// instance warns, naming its path, and selects nothing. The placements are one flat list (Grid Points → Points to
-/// Placements → Cull Index), so an instance's path is `{i}`, its index in the list. These tests hold for the tree-path
-/// picks of sub-project 7a-layouts as well, where a flat list's items are still `{i}`, and must pass unchanged there.
+/// Placements → Cull Index), so an instance's path is `{i}`, its index in the list; `CulledTreePickTests` does the same over
+/// a tree of placements.
 struct CulledPickTests {
     /// Which side of Points to Placements the cull is on. Both must number the survivors alike: a cull of the Grid Points
     /// is as natural as one of the placements.
@@ -2900,29 +2544,220 @@ struct CulledPickTests {
 ```
 
 
+Create `Tests/CreatorNodesTests/Variation/CulledTreePickTests.swift`:
+
+```swift
+import CreatorGeometry
+import CreatorGraph
+import CreatorKernel
+@testable import CreatorNodes
+import CreatorOCCT
+import Testing
+
+/// Patterns spec §6 and §9 for culling a tree of placements: an instance is named by its tree path, culling keeps the path of
+/// every survivor, a pick on one survives a cull of another and does not move to a neighbour, and a pick on a culled instance
+/// warns, naming its path, and selects nothing.
+struct CulledTreePickTests {
+    /// Where the cull sits: after a Grid Pattern's tree of placements, or on the Grid Points before Points to Placements.
+    enum Stage: CaseIterable, Sendable {
+        case afterLayout, beforePlacements
+    }
+
+    /// 3 × 2 Ø5 holes 15 mm apart in rows of 3 (`{row;column}`), a Cull Index on them, a Hole Pattern, an Edges by Tag on the
+    /// result and a Fillet on its edges.
+    struct Fixture {
+        var plate: PatternPlate
+        let cull: Node, holes: Node, rule: Node, fillet: Node
+
+        init(_ stage: Stage = .afterLayout, culler: any NodeDefinition.Type = CullIndexNode.self) {
+            plate = PatternPlate(columns: 3, rows: 2, spacingX: 15, spacingY: 15)
+            cull = plate.h.add(culler)
+            holes = plate.h.add(HolePatternNode.self, ["diameter": .number(5), "depth": .number(6)])
+            plate.h.wire(plate.plate, "solid", to: holes, "part")
+            switch stage {
+            case .afterLayout:
+                let layout = plate.h.add(GridPatternNode.self, ["countX": .integer(3), "countY": .integer(2),
+                                                                "spacingX": .number(15), "spacingY": .number(15),
+                ])
+                plate.h.wire(layout, "placements", to: cull, "tree")
+                plate.h.wire(cull, "tree", to: holes, "placements")
+            case .beforePlacements:
+                let rows = plate.h.add(PartitionNode.self, ["size": .integer(3)])
+                let placed = plate.h.add(PointsToPlacementsNode.self)
+                plate.h.wire(plate.grid, "points", to: rows, "tree")
+                plate.h.wire(rows, "tree", to: cull, "tree")
+                plate.h.wire(cull, "tree", to: placed, "points")
+                plate.h.wire(placed, "placements", to: holes, "placements")
+            }
+            rule = plate.h.add(EdgesByTagNode.self)
+            plate.h.wire(holes, "solid", to: rule, "solid")
+            fillet = plate.h.add(FilletNode.self, ["radius": .number(0.5)])
+            plate.h.wire(rule, "edges", to: fillet, "edges")
+        }
+
+        /// Culls what `text` names (Cull Index's setting) or keeps what it says (Cull Pattern's).
+        mutating func cull(_ text: String) {
+            let setting = plate.h.nodes[cull.id]?.typeID == CullPatternNode.typeID ? NodeSetting.cullPattern : NodeSetting.cullIndices
+            plate.h.set(cull, setting, .text(text))
+        }
+
+        /// The tag of the bore of the hole at `path`, the way Hole Pattern names it.
+        func bore(_ path: [Int]) -> TopoTag {
+            TopoTag(node: NodeID.instanceScoped([holes.id, holes.id]), item: InstancePath.item(for: path) ?? -1, role: .side(segment: 1))
+        }
+
+        /// The rim of the hole at `path` on the plate's top.
+        func rim(of path: [Int], in solid: Solid) -> EdgeInfo? {
+            let top = TopoTag(node: plate.plate.id, item: 0, role: .endCap)
+            return solid.topology.edges.first { edge in
+                guard edge.kind == .circle, !edge.isSeam, edge.faces.count == 2 else { return false }
+                let sides = edge.faces.compactMap { solid.topology.face($0) }
+                return sides.contains { $0.tags.contains(bore(path)) } && sides.contains { $0.tags.contains(top) }
+            }
+        }
+
+        /// Picks the rims of the holes at `paths` on the rule, from a run with nothing culled.
+        mutating func pick(_ paths: [[Int]], kernel: any Kernel) async throws {
+            let culled = plate.h.nodes[cull.id]?.typeID == CullPatternNode.typeID
+            cull(culled ? "1" : "")
+            let solid = try onlySolid(try await plate.h.run([holes], kernel: kernel), holes)
+            let edges = try paths.map { try #require(rim(of: $0, in: solid)).id }
+            plate.h.set(rule, NodeSetting.picks, .edgePicks(solid.topology.picks(for: edges)))
+        }
+
+        /// The edges the rule selects now.
+        func selected(_ report: EvaluationReport) throws -> (solid: Solid, edges: [EdgeInfo]) {
+            let set = try #require(report.value(rule, "edges")?.edgeSets?.first)
+            return (set.solid, set.edges.compactMap { set.solid.topology.edge($0) })
+        }
+
+        func center(of edge: EdgeInfo) throws -> Vector3 {
+            guard case .circle(let center, _, _, _, _)? = edge.curve else { throw NodeError.invalidValue("not a circle") }
+            return center
+        }
+
+        func touches(_ path: [Int], _ edge: EdgeInfo, in solid: Solid) -> Bool {
+            edge.faces.compactMap { solid.topology.face($0) }.contains { $0.tags.contains(bore(path)) }
+        }
+
+        /// The paths of the holes the Hole Pattern made.
+        func holePaths(_ report: EvaluationReport) throws -> Set<[Int]> {
+            let solid = try onlySolid(report, holes)
+            let items = solid.topology.faces.flatMap(\.tags).filter(\.node.isInstanceQualified).map(\.item)
+            return Set(items.compactMap { InstancePath.indices(ofItem: $0) })
+        }
+    }
+
+    @Test(arguments: ["0", "2", "{0;0}", "{1;0}", "{0}", "0, {1;2}"], Stage.allCases)
+    func aPickOnOneInstanceSurvivesACullOfAnother(_ cull: String, _ stage: Stage) async throws {
+        let kernel = OCCTKernel()
+        var f = Fixture(stage)
+        try await f.pick([[1, 1]], kernel: kernel)
+        let before = try f.selected(try await f.plate.h.run([f.rule], kernel: kernel))
+        f.cull(cull)
+        let report = try await f.plate.h.run([f.fillet], kernel: kernel)
+        #expect(report.isOK(f.rule) && report.isOK(f.fillet), "after culling \(cull) \(stage): \(String(describing: report.state(f.rule)))")
+        let (solid, edges) = try f.selected(report)
+        #expect(edges.count == 1 && edges.allSatisfy { f.touches([1, 1], $0, in: solid) }, "still the rim of {1;1}")
+        #expect(isClose(try f.center(of: try #require(edges.first)), try f.center(of: try #require(before.edges.first))),
+                "the same physical hole: a cull never moves a pick to a neighbour")
+    }
+
+    @Test(arguments: Stage.allCases)
+    func aCullLeavesTheSurvivorsAtTheirTreePaths(_ stage: Stage) async throws {
+        let kernel = OCCTKernel()
+        var f = Fixture(stage)
+        f.cull("1")
+        let report = try await f.plate.h.run([f.holes], kernel: kernel)
+        #expect(try f.holePaths(report) == [[0, 0], [0, 2], [1, 0], [1, 2]], "{0;2} and {1;2}, not {0;1} and {1;1}: \(stage)")
+        #expect(report.isOK(f.holes), "a cull never warns")
+    }
+
+    @Test(arguments: ["{1;1}", "1", "{1}"], Stage.allCases)
+    func aPickOnACulledPathWarnsNamingItAndSelectsNothing(_ cull: String, _ stage: Stage) async throws {
+        let kernel = OCCTKernel()
+        var f = Fixture(stage)
+        try await f.pick([[1, 1]], kernel: kernel)
+        f.cull(cull)
+        let report = try await f.plate.h.run([f.rule], kernel: kernel)
+        #expect(report.warning(f.rule) == "Instance {1;1} no longer exists, so the edge picked on it isn't selected.", "\(cull) \(stage)")
+        #expect(try f.selected(report).edges.isEmpty, "never a neighbour's rim")
+    }
+
+    @Test func aWholeBranchCulledNamesEveryPickOnIt() async throws {
+        let kernel = OCCTKernel()
+        var f = Fixture()
+        try await f.pick([[0, 0], [0, 2], [1, 1]], kernel: kernel)
+        f.cull("{0}")
+        let report = try await f.plate.h.run([f.rule], kernel: kernel)
+        #expect(report.warning(f.rule) == "Instances {0;0} and {0;2} no longer exist, so the edges picked on them aren't selected.")
+        let (solid, edges) = try f.selected(report)
+        #expect(edges.count == 1 && edges.allSatisfy { f.touches([1, 1], $0, in: solid) })
+    }
+
+    @Test func aPickComesBackWhenTheCullIsUndone() async throws {
+        let kernel = OCCTKernel()
+        var f = Fixture()
+        try await f.pick([[1, 1]], kernel: kernel)
+        f.cull("1")
+        _ = try await f.plate.h.run([f.rule], kernel: kernel)
+        f.cull("")
+        let report = try await f.plate.h.run([f.rule], kernel: kernel)
+        #expect(report.isOK(f.rule))
+        let (solid, edges) = try f.selected(report)
+        #expect(edges.count == 1 && edges.allSatisfy { f.touches([1, 1], $0, in: solid) })
+    }
+
+    @Test func aCullPatternKeepsTheTreePathsOfTheItemsItKeeps() async throws {
+        let kernel = OCCTKernel()
+        var f = Fixture(.afterLayout, culler: CullPatternNode.self)
+        try await f.pick([[1, 2], [1, 1]], kernel: kernel)
+        f.cull("1 0")
+        let report = try await f.plate.h.run([f.fillet], kernel: kernel)
+        #expect(try f.holePaths(try await f.plate.h.run([f.holes], kernel: kernel)) == [[0, 0], [0, 2], [1, 0], [1, 2]])
+        #expect(report.warning(f.rule) == "Instance {1;1} no longer exists, so the edge picked on it isn't selected.")
+        let (solid, edges) = try f.selected(report)
+        #expect(edges.count == 1 && edges.allSatisfy { f.touches([1, 2], $0, in: solid) }, "{1;2} keeps its place")
+    }
+
+    @Test func aPickSurvivesACullAndARowLengthChangeTogether() async throws {
+        let kernel = OCCTKernel()
+        var f = Fixture(.beforePlacements)
+        try await f.pick([[1, 1]], kernel: kernel)
+        f.cull("0")
+        f.plate.h.set(f.plate.grid, "spacingX", .number(18))
+        let report = try await f.plate.h.run([f.fillet], kernel: kernel)
+        #expect(report.isOK(f.rule) && report.isOK(f.fillet))
+        let (solid, edges) = try f.selected(report)
+        #expect(edges.count == 1 && edges.allSatisfy { f.touches([1, 1], $0, in: solid) })
+    }
+}
+```
+
+
 In `Tests/CreatorNodesTests/OutputNodeTests.swift`, replace:
 
 ```swift
-        #expect(BuiltInNodes.all.count == 42)
+        #expect(BuiltInNodes.all.count == 46)
 ```
 
 with:
 
 ```swift
-        #expect(BuiltInNodes.all.count == 43)
+        #expect(BuiltInNodes.all.count == 47)
 ```
 
 
 In `Tests/CreatorNodesTests/OutputNodeTests.swift`, replace:
 
 ```swift
-.feature: 2, .patterns: 7, .lists: 7
+.feature: 2, .patterns: 11, .lists: 7
 ```
 
 with:
 
 ```swift
-.feature: 2, .patterns: 8, .lists: 7
+.feature: 2, .patterns: 12, .lists: 7
 ```
 
 
@@ -2943,7 +2778,7 @@ with:
 
 - [ ] **Step 2: Run them**
 
-Run: `swift test --filter "CullIndexNodeTests|CulledPickTests|OutputNodeTests|PatternsLibraryTests|CatalogTests|BuiltInNodesInspectorTests" 2>&1 | grep -v 'ld: warning'`
+Run: `swift test --filter "CullIndexNodeTests|CulledPickTests|CulledTreePickTests|OutputNodeTests|PatternsLibraryTests|CatalogTests|BuiltInNodesInspectorTests" 2>&1 | grep -v 'ld: warning'`
 
 Expected: FAIL, the tests do not build (`cannot find 'CullIndexNode' in scope`).
 
@@ -2956,8 +2791,10 @@ import CreatorGraph
 import CreatorKernel
 import Foundation
 
-/// Takes listed items out of a list or tree (patterns spec §4). An index such as `3` drops that place from every branch; a
-/// path such as `{0;3}` drops one item, and a shorter one such as `{1}` drops everything under it. They go in the saved text
+/// Takes listed items out of a list or tree (patterns spec §4). An index such as `3` drops that place from every branch (the
+/// place within the branch: in a tree whose branches hold one item each, like a Face Pattern's `{row;column;0}` cells, only 0
+/// is a place, so name cells by path); a path such as `{0;3}` drops one item, and a shorter one such as `{1}` drops everything
+/// under it. They go in the saved text
 /// setting, `1, 4, {0;3}`, or as numbers wired into `indices` (a Series, Random Values' integers). Culling keeps paths: the
 /// rest keep the indices they had, so `{4}` is still `{4}` when `{1}` is gone and a pick on it follows it (§6); a pick on the
 /// culled item warns, naming its path. A path that names nothing in the tree is said once and the others still apply.
@@ -3004,7 +2841,7 @@ Create `Sources/CreatorNodes/Patterns/Variation/CullTargets.swift`:
 import CreatorGraph
 
 /// What a Cull Index takes out (patterns spec §4): item indices, which name that place in every branch (`3` is `{0;3}`,
-/// `{1;3}`, … ), and paths, which name one item (`{0;3}`) or, when they stop short of the items, everything under them (`{1}`
+/// `{1;3}`, …; always the last level, so on `{row;column;0}` cells only `0` names anything), and paths, which name one item (`{0;3}`) or, when they stop short of the items, everything under them (`{1}`
 /// is the whole second row). An index or path names the place an item had before any cull, so culling twice never shifts it.
 struct CullTargets {
     private(set) var indices: Set<Int> = []
@@ -3123,7 +2960,7 @@ with:
 
 - [ ] **Step 4: Run the task's tests**
 
-Run: `swift test --filter "CullIndexNodeTests|CulledPickTests|OutputNodeTests|PatternsLibraryTests|CatalogTests|BuiltInNodesInspectorTests" 2>&1 | grep -v 'ld: warning'`
+Run: `swift test --filter "CullIndexNodeTests|CulledPickTests|CulledTreePickTests|OutputNodeTests|PatternsLibraryTests|CatalogTests|BuiltInNodesInspectorTests" 2>&1 | grep -v 'ld: warning'`
 
 Expected: PASS, with no line saying "recorded an issue" or "failed after".
 
@@ -3133,19 +2970,19 @@ Run, from the worktree root:
 
 ```bash
 swift build --build-tests 2>&1 | grep -E "^/.*(warning|error):" | grep -v "ld: warning" | sort -u
-swift test > /tmp/vtest.log 2>&1; echo "exit=$?"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -cE "recorded an issue|failed after"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -c "Test run with"
+swift test > "${TMPDIR:-/tmp}/vtest.log" 2>&1; echo "exit=$?"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -cE "recorded an issue|failed after"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -c "Test run with"
 swiftlint lint --strict
 ```
 
-Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,736 = master + 97** (+24 in this task; the Swift Testing total counts a parameterised test once).
+Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,861 = master + 120** (+31 in this task; the Swift Testing total counts a parameterised test once).
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add -A
-git commit -m "feat(7a-3b): Cull Index, and picks that survive a cull of another instance"
+git commit -m "feat(7a-3b): Cull Index, and picks that survive a cull of another instance (flat and in rows)"
 ```
 
 ---
@@ -3490,26 +3327,26 @@ struct CullByRegionNodeTests {
 In `Tests/CreatorNodesTests/OutputNodeTests.swift`, replace:
 
 ```swift
-        #expect(BuiltInNodes.all.count == 43)
+        #expect(BuiltInNodes.all.count == 47)
 ```
 
 with:
 
 ```swift
-        #expect(BuiltInNodes.all.count == 44)
+        #expect(BuiltInNodes.all.count == 48)
 ```
 
 
 In `Tests/CreatorNodesTests/OutputNodeTests.swift`, replace:
 
 ```swift
-.feature: 2, .patterns: 8, .lists: 7
+.feature: 2, .patterns: 12, .lists: 7
 ```
 
 with:
 
 ```swift
-.feature: 2, .patterns: 9, .lists: 7
+.feature: 2, .patterns: 13, .lists: 7
 ```
 
 
@@ -3767,13 +3604,13 @@ Run, from the worktree root:
 
 ```bash
 swift build --build-tests 2>&1 | grep -E "^/.*(warning|error):" | grep -v "ld: warning" | sort -u
-swift test > /tmp/vtest.log 2>&1; echo "exit=$?"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -cE "recorded an issue|failed after"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -c "Test run with"
+swift test > "${TMPDIR:-/tmp}/vtest.log" 2>&1; echo "exit=$?"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -cE "recorded an issue|failed after"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -c "Test run with"
 swiftlint lint --strict
 ```
 
-Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,764 = master + 125** (+28 in this task; the Swift Testing total counts a parameterised test once).
+Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,889 = master + 148** (+28 in this task; the Swift Testing total counts a parameterised test once).
 
 - [ ] **Step 6: Commit**
 
@@ -3801,7 +3638,7 @@ git commit -m "feat(7a-3b): Cull by Region, placements inside/outside a profile 
 - Produces: `RandomReduction.slotsToDrop(in:seed:amount:overall:) -> Set<RandomReduction.Slot>`; `RandomReduceNode` (`creator.randomReduce`;
 inputs `tree` (any, tree), `by`, `count`, `fraction`, `scope`, `seed`; output `tree`).
 
-Drop N or a fraction, per branch or overall (Key decision 6). The pinned results in the tests were worked out directly from the generator
+Drop N or a fraction, overall (the default) or per branch (Key decision 6, User decision U16: per branch on branches of one item drops everything). The pinned results in the tests were worked out directly from the generator
 (a tiny script of its own, ranking the draws of the `Reduce_1` purpose), not by running the node, so they check the node against the algorithm.
 
 - [ ] **Step 1: Write the failing tests**
@@ -3838,15 +3675,31 @@ struct RandomReduceNodeTests {
     }
 
     @Test func perBranchEveryBranchLosesItsOwnItem() async throws {
-        let (report, node) = try await reduce(["seed": .integer(7)], count: 12, rows: 4)
+        let (report, node) = try await reduce(["scope": .integer(0), "seed": .integer(7)], count: 12, rows: 4)
         #expect(report.positions(node) == [[0, 1, 2], [1, 2, 3], [0, 2, 3]])
-        let (other, otherNode) = try await reduce(["seed": .integer(8)], count: 12, rows: 4)
+        let (other, otherNode) = try await reduce(["scope": .integer(0), "seed": .integer(8)], count: 12, rows: 4)
         #expect(other.positions(otherNode) == [[0, 1, 3], [1, 2, 3], [0, 2, 3]])
     }
 
     @Test func overallTheWholeTreeLosesThreeWhereverTheyAre() async throws {
         let (report, node) = try await reduce(["count": .integer(3), "scope": .integer(1), "seed": .integer(7)], count: 12, rows: 4)
         #expect(report.positions(node) == [[1, 2], [0, 1, 2, 3], [0, 2, 3]])
+    }
+
+    @Test func theDefaultDropsOneItemFromTheWholeTreeNotOnePerBranch() async throws {
+        let (report, node) = try await reduce([:], count: 12, rows: 4)
+        #expect(report.tree(node)?.itemCount == 11)
+        let (ones, onesNode) = try await reduce([:], count: 6, rows: 1)
+        #expect(ones.tree(onesNode)?.itemCount == 5, "branches of one item each are not emptied (User decision U16)")
+    }
+
+    @Test func theScopeStartsOnOverall() {
+        #expect(RandomReduceNode.inputs.first { $0.name == "scope" }?.defaultValue == .integer(1))
+    }
+
+    @Test func perBranchOnBranchesOfOneItemDropsEveryItemAsItSays() async throws {
+        let (report, node) = try await reduce(["scope": .integer(0)], count: 6, rows: 1)
+        #expect(report.tree(node)?.itemCount == 0, "one from each branch of one is all of them: choose Overall for such a tree")
     }
 
     // MARK: properties
@@ -3893,12 +3746,12 @@ struct RandomReduceNodeTests {
     }
 
     @Test func aFractionPerBranchTakesThatFractionOfEachBranch() async throws {
-        let (report, node) = try await reduce(["by": .integer(1), "fraction": .number(0.5)], count: 12, rows: 4)
+        let (report, node) = try await reduce(["by": .integer(1), "fraction": .number(0.5), "scope": .integer(0)], count: 12, rows: 4)
         #expect(report.positions(node)?.map(\.count) == [2, 2, 2])
     }
 
     @Test func aCountLargerThanTheBranchDropsItAllWithoutAWarning() async throws {
-        let (report, node) = try await reduce(["count": .integer(9)], count: 6, rows: 3)
+        let (report, node) = try await reduce(["count": .integer(9), "scope": .integer(0)], count: 6, rows: 3)
         #expect(report.positions(node) == [[], []])
         #expect(report.isOK(node))
     }
@@ -3954,26 +3807,26 @@ struct RandomReduceNodeTests {
 In `Tests/CreatorNodesTests/OutputNodeTests.swift`, replace:
 
 ```swift
-        #expect(BuiltInNodes.all.count == 44)
+        #expect(BuiltInNodes.all.count == 48)
 ```
 
 with:
 
 ```swift
-        #expect(BuiltInNodes.all.count == 45)
+        #expect(BuiltInNodes.all.count == 49)
 ```
 
 
 In `Tests/CreatorNodesTests/OutputNodeTests.swift`, replace:
 
 ```swift
-.feature: 2, .patterns: 9, .lists: 7
+.feature: 2, .patterns: 13, .lists: 7
 ```
 
 with:
 
 ```swift
-.feature: 2, .patterns: 10, .lists: 7
+.feature: 2, .patterns: 14, .lists: 7
 ```
 
 
@@ -4006,7 +3859,9 @@ Create `Sources/CreatorNodes/Patterns/Variation/RandomReduceNode.swift`:
 import CreatorGraph
 import CreatorKernel
 
-/// Drops items at random (patterns spec §4): a count or a fraction, from each branch or from the whole tree. It is always
+/// Drops items at random (patterns spec §4): a count or a fraction, from the whole tree (the default) or from each branch.
+/// Overall is the default because it does the same at every depth: per branch, a tree whose branches hold one item each (a
+/// Face Pattern's `{row;column;0}` cells) loses every item (User decision U16). It is always
 /// seeded: the same seed drops the same items on every machine and in every release (`SeededRandom`, SplitMix64), so an
 /// edit elsewhere never reshuffles it, and a new seed is just a different draw, never a warning. Culling keeps paths: the
 /// items that stay keep their indices, so a pick on one follows it (§6) and a pick on a dropped item warns naming its path.
@@ -4021,7 +3876,7 @@ public enum RandomReduceNode: NodeDefinition {
         SocketSpec("by", .integer, defaultValue: .integer(0)),
         SocketSpec("count", .integer, defaultValue: .integer(1), unit: .count),
         SocketSpec("fraction", .number, defaultValue: .number(0.25), range: 0...1),
-        SocketSpec("scope", .integer, defaultValue: .integer(0)),
+        SocketSpec("scope", .integer, defaultValue: .integer(1)),
         SocketSpec("seed", .integer, defaultValue: .integer(0)),
     ]
     public static let outputs = [SocketSpec("tree", .any)]
@@ -4144,13 +3999,13 @@ Run, from the worktree root:
 
 ```bash
 swift build --build-tests 2>&1 | grep -E "^/.*(warning|error):" | grep -v "ld: warning" | sort -u
-swift test > /tmp/vtest.log 2>&1; echo "exit=$?"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -cE "recorded an issue|failed after"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -c "Test run with"
+swift test > "${TMPDIR:-/tmp}/vtest.log" 2>&1; echo "exit=$?"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -cE "recorded an issue|failed after"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -c "Test run with"
 swiftlint lint --strict
 ```
 
-Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,778 = master + 139** (+14 in this task; the Swift Testing total counts a parameterised test once).
+Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,906 = master + 165** (+17 in this task; the Swift Testing total counts a parameterised test once).
 
 - [ ] **Step 6: Commit**
 
@@ -4173,7 +4028,7 @@ git commit -m "feat(7a-3b): Random Reduce, seeded and stable, per branch or over
 
 **Interfaces:**
 
-- Consumes: Tasks 1 and 2 (`replacingItems`); `Int.display`.
+- Consumes: Tasks 1 and 2 (`mappingItems`); `Int.display`.
 - Produces: `RandomValuesNode` (`creator.randomValues`; inputs `shape` (any, tree, optional), `count`, `min`, `max`, `seed`; outputs `values` (number) and `integers` (integer, optional)).
 
 Per-instance reals or whole numbers in a range, in the shape of a tree or a count (Key decision 7). Because it refills a tree, a culled shape gets
@@ -4345,26 +4200,26 @@ struct RandomValuesNodeTests {
 In `Tests/CreatorNodesTests/OutputNodeTests.swift`, replace:
 
 ```swift
-        #expect(BuiltInNodes.all.count == 45)
+        #expect(BuiltInNodes.all.count == 49)
 ```
 
 with:
 
 ```swift
-        #expect(BuiltInNodes.all.count == 46)
+        #expect(BuiltInNodes.all.count == 50)
 ```
 
 
 In `Tests/CreatorNodesTests/OutputNodeTests.swift`, replace:
 
 ```swift
-.feature: 2, .patterns: 10, .lists: 7
+.feature: 2, .patterns: 14, .lists: 7
 ```
 
 with:
 
 ```swift
-.feature: 2, .patterns: 11, .lists: 7
+.feature: 2, .patterns: 15, .lists: 7
 ```
 
 
@@ -4432,7 +4287,7 @@ public enum RandomValuesNode: NodeDefinition {
         guard low <= high else { throw NodeError.invalidValue("“min” can't be more than “max”.") }
         let seed = try inputs.integer("seed")
         let shape = try shape(of: inputs)
-        let reals = shape.replacingItems { leaf, ordinal, k in
+        let reals = shape.mappingItems { leaf, ordinal, k in
             let random = SeededRandom(seed: seed, stream: ordinal, purpose: .values)
             return .number(low + random.unit(at: leaf.positions[k]) * (high - low))
         }
@@ -4440,7 +4295,7 @@ public enum RandomValuesNode: NodeDefinition {
         let (first, last) = (low.rounded(.up), high.rounded(.down))
         if first <= last, abs(first) < 1e15, abs(last) < 1e15 {
             let (lowest, span) = (Int(first), Int(last - first) + 1)
-            trees["integers"] = shape.replacingItems { leaf, ordinal, k in
+            trees["integers"] = shape.mappingItems { leaf, ordinal, k in
                 .integer(lowest + SeededRandom(seed: seed, stream: ordinal, purpose: .values).below(span, at: leaf.positions[k]))
             }
         }
@@ -4489,13 +4344,13 @@ Run, from the worktree root:
 
 ```bash
 swift build --build-tests 2>&1 | grep -E "^/.*(warning|error):" | grep -v "ld: warning" | sort -u
-swift test > /tmp/vtest.log 2>&1; echo "exit=$?"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -cE "recorded an issue|failed after"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -c "Test run with"
+swift test > "${TMPDIR:-/tmp}/vtest.log" 2>&1; echo "exit=$?"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -cE "recorded an issue|failed after"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -c "Test run with"
 swiftlint lint --strict
 ```
 
-Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,794 = master + 155** (+16 in this task; the Swift Testing total counts a parameterised test once).
+Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,922 = master + 181** (+16 in this task; the Swift Testing total counts a parameterised test once).
 
 - [ ] **Step 6: Commit**
 
@@ -4727,26 +4582,26 @@ struct JitterNodeTests {
 In `Tests/CreatorNodesTests/OutputNodeTests.swift`, replace:
 
 ```swift
-        #expect(BuiltInNodes.all.count == 46)
+        #expect(BuiltInNodes.all.count == 50)
 ```
 
 with:
 
 ```swift
-        #expect(BuiltInNodes.all.count == 47)
+        #expect(BuiltInNodes.all.count == 51)
 ```
 
 
 In `Tests/CreatorNodesTests/OutputNodeTests.swift`, replace:
 
 ```swift
-.feature: 2, .patterns: 11, .lists: 7
+.feature: 2, .patterns: 15, .lists: 7
 ```
 
 with:
 
 ```swift
-.feature: 2, .patterns: 12, .lists: 7
+.feature: 2, .patterns: 16, .lists: 7
 ```
 
 
@@ -4808,7 +4663,7 @@ public enum JitterNode: NodeDefinition {
         guard distance.isFinite, distance >= 0 else { throw NodeError.invalidValue("“distance” can't be negative.") }
         guard turn.isFinite, turn >= 0 else { throw NodeError.invalidValue("“turn” can't be negative.") }
         let seed = try inputs.integer("seed")
-        let shaken = tree.replacingItems { leaf, ordinal, k in
+        let shaken = tree.mappingItems { leaf, ordinal, k in
             guard case .plane(let plane) = leaf.items[k] else { return leaf.items[k] }
             let random = SeededRandom(seed: seed, stream: ordinal, purpose: .jitter)
             return .plane(PlaneJitter.jittered(plane, random: random, index: leaf.positions[k], distance: distance, turn: turn))
@@ -4872,13 +4727,13 @@ Run, from the worktree root:
 
 ```bash
 swift build --build-tests 2>&1 | grep -E "^/.*(warning|error):" | grep -v "ld: warning" | sort -u
-swift test > /tmp/vtest.log 2>&1; echo "exit=$?"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -cE "recorded an issue|failed after"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -c "Test run with"
+swift test > "${TMPDIR:-/tmp}/vtest.log" 2>&1; echo "exit=$?"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -cE "recorded an issue|failed after"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -c "Test run with"
 swiftlint lint --strict
 ```
 
-Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,806 = master + 167** (+12 in this task; the Swift Testing total counts a parameterised test once).
+Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,934 = master + 193** (+12 in this task; the Swift Testing total counts a parameterised test once).
 
 - [ ] **Step 6: Commit**
 
@@ -4901,14 +4756,14 @@ git commit -m "feat(7a-3b): Jitter, seeded offsets and turns for placements"
 
 **Interfaces:**
 
-- Consumes: Tasks 1–9; `PatternPlate`, `OCCTKernel`.
+- Consumes: Tasks 1–9; `PatternPlate`, `GridPatternNode`, `OCCTKernel`.
 - Produces: Nothing the code depends on.
 
 One integration test of the six nodes together on a real plate on OCCT (a region cull, a random drop, Jitter, and a Hole Pattern whose diameters are
-Random Values in the shape of what is left): the volume equals the plate minus the holes the random choices made, each hole is named by the index
-its placement had, the same seed gives the same part and another gives another without a warning. It passes as soon as it is written (it exercises
-Tasks 1–9), so there is no red step. Then the records: CLAUDE.md, roadmap, the spec's Errata and the human checks (group VA). No benchmark is run or
-added.
+Random Values in the shape of what is left), once over a flat list of placements and once over a Grid Pattern's rows: the volume equals the plate minus
+the holes the random choices made, each hole is named by the path its placement had (`{i}` or `{row;column}`), the same seed gives the same part and
+another gives another without a warning. It passes as soon as it is written (it exercises Tasks 1–9), so there is no red step. Then the records:
+CLAUDE.md, roadmap, the spec's Errata and the human checks (group VA). No benchmark is run or added.
 
 - [ ] **Step 1: Write the test**
 
@@ -4931,15 +4786,24 @@ struct VariationPipelineTests {
         var plate = PatternPlate(columns: 4, rows: 3, spacingX: 15, spacingY: 15)
         let region: Node, reduce: Node, jitter: Node, diameters: Node, holes: Node
 
-        init(seed: Int) {
+        /// `inRows`: the placements are a Grid Pattern's tree of rows (`{row;column}`) instead of one flat list from Grid Points.
+        init(seed: Int, inRows: Bool = false) {
             let origin = plate.h.add(VectorNode.self)
+            let placements: Node
+            if inRows {
+                placements = plate.h.add(GridPatternNode.self, ["countX": .integer(4), "countY": .integer(3),
+                                                                "spacingX": .number(15), "spacingY": .number(15),
+                ])
+            } else {
+                placements = plate.placements
+            }
             region = plate.h.add(CullByRegionNode.self, ["reference": .integer(1), "keep": .integer(1), "distance": .number(12)])
             reduce = plate.h.add(RandomReduceNode.self, ["count": .integer(3), "scope": .integer(1), "seed": .integer(seed)])
             jitter = plate.h.add(JitterNode.self, ["distance": .number(1), "turn": .number(30), "seed": .integer(seed)])
             diameters = plate.h.add(RandomValuesNode.self, ["min": .number(4), "max": .number(6), "seed": .integer(seed)])
             holes = plate.h.add(HolePatternNode.self, ["depth": .number(6)])
             plate.h.wire(origin, "vector", to: region, "point")
-            plate.h.wire(plate.placements, "placements", to: region, "placements")
+            plate.h.wire(placements, "placements", to: region, "placements")
             plate.h.wire(region, "placements", to: reduce, "tree")
             plate.h.wire(reduce, "tree", to: jitter, "placements")
             plate.h.wire(jitter, "placements", to: diameters, "shape")
@@ -4962,6 +4826,27 @@ struct VariationPipelineTests {
         let solid = try onlySolid(report, p.holes)
         let items = Set(solid.topology.faces.flatMap(\.tags).filter(\.node.isInstanceQualified).map(\.item))
         #expect(items == Set(survivors), "each hole is named by the index its placement had")
+        let widths = try #require(report.value(p.diameters, "values")?.numbers)
+        let removed = widths.reduce(0) { $0 + Double.pi * $1 * $1 / 4 * 6 }
+        #expect(isClose(try await volume(solid, kernel), PatternPlate.plateVolume - removed, relative: 1e-4))
+    }
+
+    /// The same graph over a tree of placements: every hole is named by its tree path, and the survivors keep the path they had.
+    @Test func theGraphOnATreeOfPlacementsNamesEveryHoleByItsOwnTreePath() async throws {
+        let kernel = OCCTKernel()
+        let p = Pipeline(seed: 5, inRows: true)
+        let report = try await p.plate.h.run([p.holes], kernel: kernel)
+        for node in [p.region, p.reduce, p.jitter, p.diameters, p.holes] {
+            #expect(report.isOK(node), "\(node.name): \(String(describing: report.state(node)))")
+        }
+        let tree = try #require(report.tree(p.jitter, "placements"))
+        let survivors = Set(tree.leaves.flatMap { leaf in leaf.positions.map { leaf.path.indices + [$0] } })
+        #expect(survivors.count == 7, "12 placements, 2 culled by region, 3 dropped at random")
+        #expect(survivors.isDisjoint(with: [[1, 1], [1, 2]]), "the two beside the middle are gone first")
+        let solid = try onlySolid(report, p.holes)
+        let items = solid.topology.faces.flatMap(\.tags).filter(\.node.isInstanceQualified).map(\.item)
+        let paths = Set(items.compactMap { InstancePath.indices(ofItem: $0) })
+        #expect(paths == survivors, "each hole is named by the tree path its placement had")
         let widths = try #require(report.value(p.diameters, "values")?.numbers)
         let removed = widths.reduce(0) { $0 + Double.pi * $1 * $1 / 4 * 6 }
         #expect(isClose(try await volume(solid, kernel), PatternPlate.plateVolume - removed, relative: 1e-4))
@@ -5047,11 +4932,11 @@ add:
 ```markdown
     Culling keeps paths (patterns spec §4): a flat list or branch that has had items taken out holds the survivors at the indices
     they had (`DataTree.culledList(_:at:)`, `isCulled`, `itemPositions`; `DataTree.keepingItems(where:)` and
-    `replacingItems(_:)` are how nodes cull and refill), and since a `.list` cannot say that it is a `Value.tree` of depth 1 (`Value(_:)`
-    makes any other flat tree a `.list`). It broadcasts as a list: an item socket pairs by place and drops the gaps, a `list` socket
-    gets the items and their indices through `NodeInputs.positions(_:)`, a `tree` socket gets the tree whole. Reshaping nodes
-    (Flatten, Graft, Partition, Path Mapper) renumber, as reshaping does, and List Item, Branch by Path and Tree Statistics
-    count a culled list's survivors by rank; Cull Index alone names the places items had.
+    `mappingItems(_:)` are how nodes cull and refill, `replacingItems(_:)` keeps the indices), and since a `.list` cannot say that it is
+    a `Value.tree` of depth 1 (`Value(_:)` makes any other flat tree a `.list`). It broadcasts as a list: an item or list socket sees
+    the survivors in order, as a rank, and a `tree` socket gets the tree whole with its indices, which is how `InstanceGrid` reads
+    them. Reshaping nodes (Flatten, Graft, Partition, Path Mapper) renumber, as reshaping does, and List Item, Branch by Path and
+    Tree Statistics count a culled list's survivors by rank; Cull Index alone names the places items had.
 ```
 
 
@@ -5065,7 +4950,7 @@ In `CLAUDE.md`, replace:
 with:
 
 ```markdown
-- `CreatorNodes`: the 47 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch, the twelve
+- `CreatorNodes`: the 51 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch, the sixteen
   `Patterns` nodes below,
 ```
 
@@ -5093,35 +4978,36 @@ add:
 
 ```markdown
   - Variation (`Sources/CreatorNodes/Patterns/Variation`, category `Patterns`; patterns spec §4): Cull Pattern (a text mask `1 0 1`
-    or a wired `keep` list, repeated along each branch over the items it has now), Cull Index (indices and `{0;3}` paths as text, or
-    wired numbers; an index or path names the place an item had before any cull), Cull by Region (placements inside or outside a
+    or a wired `keep` list, repeated along each branch, or with scope Overall along the whole tree, over the items it has now), Cull Index (indices and `{0;3}` paths as text, or
+    wired numbers; an index or path names the place an item had before any cull; a bare index is a place within a branch, so on a
+    `{row;column;0}` tree of one item per branch use paths), Cull by Region (placements inside or outside a
     profile, within or beyond a distance of a point, an edge set's straight and circular edges, or flat faces' planes;
-    `RegionDistance`, `Profile2D.contains`), Random Reduce (`RandomReduction`), Random Values (reals and `integers`, in the shape of
+    `RegionDistance`, `Profile2D.contains`), Random Reduce (`RandomReduction`; scope Overall by default), Random Values (reals and `integers`, in the shape of
     a tree or a count) and Jitter (`PlaneJitter`). Each takes a tree whole (`tree` access) and returns the same nesting with a
     culled list where items went. **All randomness is `SeededRandom`: SplitMix64, written out in the repo and pinned by
     `SeededRandomTests`, never the system's generator.** A draw depends on the seed, the item's branch ordinal (the stream) and its
     index in the branch, never on how many items there are, so a cull or a longer list reshuffles nothing; a seed never warns.
     Each node draws for its own `SeededRandom.Purpose` (the seed is mixed with a fixed per-node constant), so equal seeds on
-    different nodes give unrelated numbers; the constants are pinned like the algorithm. Points to Placements passes a culled
-    list of points on as culled placements (inside a tree run it renumbers a culled branch and warns), so a cull may sit before
-    or after it. Place and the shortcuts read culled placements (`PlacementSet`): the instances are exactly the surviving indices, each copy's
-    tags carry that index (`PlacementMoves.copies` renumbers what `Kernel.place` numbered 0, 1, 2…, `Topology.renumberingInstance`)
-    and sizes and tools are read by the index (`PerInstance` with `positions`; a culled size list never sets the number of
-    instances, `PerInstance.span`), so a pick on one instance survives a cull of another and a pick on a culled one warns naming
-    its path.
+    different nodes give unrelated numbers; the constants are pinned like the algorithm. `InstanceGrid` makes exactly the instances
+    a culled list or branch of placements holds, at the paths they had (`{0;2}` is still `{0;2}` when `{0;1}` is gone: the tag
+    item is `InstancePath.item(for:)` of the item's branch path and the index it kept), reads every other input at an instance's
+    index (its own value, else the nearest one before it, else its first; a culled size or tool list that is not the lead sets no
+    number of instances, however many survivors it holds) and gives Place's copies back in the placements' shape with the same
+    gaps. Points to Placements takes `points` and `direction` whole and returns placements at the same paths, so a cull may sit
+    anywhere before it. So a pick on one instance survives a cull of another and a pick on a culled one warns naming its path.
 ```
 
 
-In `docs/superpowers/roadmap.md`, replace:
+In `docs/superpowers/roadmap.md`, directly after:
 
 ```markdown
-next 7a-3 (layouts, culling, random, Jitter, previews, the acceptance test, tree paths in picks) |
+| 7a-2 (Place, shortcuts) merged; 7a-3 (layouts, naming by tree path) follows |
 ```
 
-with:
+add:
 
 ```markdown
-7a-3 part B (culling, random and Jitter: plan `2026-10-12-7a-variation.md`) code done, human checks VA pending; next 7a-3 part A (layouts, previews, the acceptance test, tree paths in picks) |
+| 7a-3b | Variation and culling (7a spec §4): Cull Pattern, Cull Index, Cull by Region, Random Reduce, Random Values, Jitter; culls keep paths (a culled list in `Value.tree`, instances named by their original tree path), all randomness one seeded SplitMix64 (plan `2026-10-12-7a-variation.md`) | ✅ code done; human checks VA pending | Builds on 7a-3 part A's tree-path instances; merges after it |
 ```
 
 
@@ -5158,26 +5044,31 @@ Plan `2026-10-12-7a-variation.md`. Where the build settled what §4 left open:
   branch, so a `DataTree` of depth 1 may now carry the indices its items keep (`culledList(_:at:)`, `isCulled`), and such a
   list is a `Value.tree` of depth 1 (`Value(_:)` makes every other flat tree a `.list`). A list that has been culled stays
   culled even when its indices are 0, 1, 2…, because what was taken off its end must not come back. It broadcasts as a list:
-  an item socket pairs by place and so drops the gaps, a `list` socket gets the items and `NodeInputs.positions(_:)`, a `tree`
-  socket the whole tree. The reshaping nodes (Flatten, Graft, Partition, Path Mapper) renumber, as reshaping does, and List Item,
+  an item or list socket sees the survivors in order, as a rank, and a `tree` socket (every pattern node) gets the tree whole,
+  indices included. The reshaping nodes (Flatten, Graft, Partition, Path Mapper) renumber, as reshaping does, and List Item,
   Branch by Path and Tree Statistics count a culled list's survivors by rank (List Item 2 of a list culled to {0, 2, 4} is the
   item at {4}); only Cull Index names the places items had. The tooltip and Data section say "culled" ("3, culled"). This
   amends the 7a-1 entry above: a depth-1 tree is a `.list` unless it is culled.
 - **§4 Cull Pattern.** The mask is the saved text `cullPattern` (`1 0 1`, `T F T`, commas allowed; 1 or T keeps, 0 or F culls;
-  default `1 0`), or a list of booleans wired into `keep`, which takes its place. It starts again at each branch and counts the
-  items the branch has now, so a second Cull Pattern works on what is left.
+  default `1 0`), or a list of booleans wired into `keep`, which takes its place. `scope` (Per branch, the default; Overall) says where
+  the mask starts: Per branch, it starts again at each branch; Overall, it runs on along the whole tree, branch after branch. Either way
+  it counts the items there are now, so a second Cull Pattern works on what is left. On a tree whose branches hold one item each
+  (`{row;column;0}`, Face Pattern's cells) Per branch keeps every cell for `1 0`; use Overall.
 - **§4 Cull Index.** The saved text `cullIndices` holds indices (`3`: that place in every branch) and paths (`{0;3}`: one item;
   `{1}`: the whole second branch, which stays as an empty branch); numbers wired into `indices` add to them. An index or path
   names the place an item had before any cull. `{}` (the whole tree) refuses, pointing at Cull Pattern `0`. A path with more
   indices than the tree has levels refuses naming the shape;
-  a path that names nothing warns once ("{0;9} names nothing in this tree."); an index past the end is not a problem.
+  a path that names nothing warns once ("{0;9} names nothing in this tree."); an index past the end is not a problem. A bare index is a
+  place within a branch (the last level), so on a tree whose branches hold one item each (`{row;column;0}`) `1` names nothing and
+  `0` names every cell; name cells by path (`{0;1}`, `{0;1;0}`, `{1}` for a row).
 - **§4 Cull by Region.** `reference` (Profile, Point, Edges, Face) says which of `profile`, `point`, `edges` or `faces` is
   measured from, `keep` (Inside or within, Outside or beyond) says which side stays, and `distance` is the limit for the other
   three. A placement is judged by its origin. A profile is a prism along its plane's normal; a point exactly on the outline or at
   exactly the distance counts as inside. Edges are measured exactly when straight or circular (another curve refuses, with the
   count); faces are measured to their **plane**, not their outline (a placement far beside a small flat face counts as near it),
   and a curved face refuses, with the count.
-- **§4 Random Reduce.** `by` (Count, Fraction), `count`, `fraction`, `scope` (Per branch, Overall) and `seed`. Each item's key is the
+- **§4 Random Reduce.** `by` (Count, Fraction), `count`, `fraction`, `scope` (Overall, the default, or Per branch) and `seed`. Overall
+  because Per branch on branches of one item (a Face Pattern's cells) drops every item. Each item's key is the
   generator's draw at its index in the stream of its branch's ordinal, and the smallest keys go: a bigger amount drops what a
   smaller one did and more, and adding items to the end changes nothing earlier. A fraction rounds to the nearest item, halves up.
 - **§4 Random Values.** `shape` (any tree), else a flat list of `count` (at most 100,000); `min`, `max`, `seed`. `values` are reals
@@ -5193,16 +5084,17 @@ Plan `2026-10-12-7a-variation.md`. Where the build settled what §4 left open:
   a whole number below `b` is the high word of the draw times `b`. The sequence for seed 0 is the published one, and the first
   draws of other seeds and of each node's purpose are pinned in `SeededRandomTests`; changing the algorithm or a salt changes every
   saved file's random results.
-- **§6 Culled instances keep their index.** Place and the shortcuts make exactly the instances a culled placement list holds (a
-  longer size list adds none), tag each copy with the index its placement had (`PlacementSet`, `PlacementMoves.copies`), and read
-  sizes and tools by that index (`PerInstance`: a culled size list gives instance `i` its value at `i`, else the nearest one before
-  it, else its first). A pick on `{4}` therefore survives a cull of `{1}`, and a pick on a culled instance warns naming its path.
-  Place outputs the copies of culled placements as a culled list too. A culled size or tool list never adds instances, however many
-  survivors it holds, and one with everything culled makes none.
-- **§3, §4 Points to Placements and a cull.** A culled list of points makes a culled list of placements at the same indices, so a
-  cull of the Grid Points and a cull of the placements number the instances alike; a direction list is read by that index. Inside a
-  tree run (a culled branch of a deeper tree) the node returns one plain list per branch, renumbered from 0, and warns that
-  culling after it keeps the paths.
+- **§6 Culled instances keep their path.** Place and the shortcuts make exactly the instances a culled list or branch of placements
+  holds (a longer size list adds none), name each by the path its placement had (`{3}` in a flat list, `{1;2}` in rows: the
+  placement's branch path and the index it kept, so a cull of `{1;1}` leaves `{1;2}` where it is), and read sizes and tools at that
+  index (`InstanceGrid`: a culled size list gives instance `i` its value at `i`, else the nearest one before it, else its first).
+  A pick on `{1;2}` therefore survives a cull of `{1;1}`, and a pick on a culled instance warns naming its path. Place outputs
+  its copies in the placements' shape with the same gaps. A culled size or tool list never adds instances, however many survivors it
+  holds, and one with everything culled makes none.
+- **§3, §4 Points to Placements takes trees (the user's decision U15).** `points` and `direction` are read whole and matched as
+  `InstanceGrid` matches placements, and the placements come back in the shape of the points with the same paths: a cull anywhere
+  before the node (on the Grid Points, say) numbers the instances as a cull of the placements would, a tree of points gives a tree of
+  placements, and a culled direction list is read at the instance's index. This replaces the 7a-2 behaviour of one run per branch.
 ```
 
 
@@ -5225,11 +5117,13 @@ plate (Rectangle 60 × 40 on a plane at z = −6, Extrude 6) and a Grid Points (
 Pattern (Ø5, depth 6) into an Output; then put the nodes below between Points to Placements and the Hole Pattern.
 
 - [ ] **VA-1 The library.** The "Patterns" section ends with Cull Pattern, Cull Index, Cull by Region, Random Reduce, Random Values and
-  Jitter after Pattern Feature (or after the layouts, if 7a-layouts has merged). Typing "cull" in the add-node palette finds three.
+  Jitter after Pattern Feature (the layouts come first in the section). Typing "cull" in the add-node palette finds three.
   Pinned: `thePatternsSectionHoldsThePatternNodes`. **Observed:**
 - [ ] **VA-2 Cull Pattern.** The Pattern row shows `1 0` in a text field: every other hole is gone. Type `1 1 0` and press Return: every
   third is gone. Type `1 2`: the badge reads "“1 2” isn't a pattern. Use 1 to keep an item and 0 to cull it, like 1 0 1." The
-  Edit menu names each change. A long pattern scrolls inside the field. Pinned: `CullPatternNodeTests`. **Observed:**
+  Edit menu names each change ("Change Cull pattern"). A long pattern scrolls inside the field. Set Scope to Overall with the
+  placements in rows (Partition by 4): the mask runs on from one row into the next. Pinned: `CullPatternNodeTests`,
+  `VariationSettingTests`. **Observed:**
 - [ ] **VA-3 Culled tooltips and the Data section.** With Cull Pattern selected, rest on its output dot: the tooltip reads "Tree 6, culled".
   The inspector's Data section lists `{}` with 6 items. **Record that the section shows no gaps (a culled branch's missing
   indices are not listed).** Pinned: `theShapeSaysCulled`. **Observed:**
@@ -5253,12 +5147,13 @@ Pattern (Ø5, depth 6) into an Output; then put the nodes below between Points t
   `indices`: no badge. Set min 0.2, max 0.8: `integers` has no socket result (a wire from it says it isn't produced). Pinned:
   `RandomValuesNodeTests`, `VariationPipelineTests`. **Observed:**
 - [ ] **VA-9 Jitter.** Jitter (distance 1, turn 30) after the cull: the holes move a little, none out of the plate's plane, and the Seed
-  re-rolls them without a badge. Selecting Jitter shows no preview triads yet; they arrive with 7a-layouts, so record that nothing shows.
-  Pinned: `JitterNodeTests`. **Observed:**
+  re-rolls them without a badge. Selecting Jitter shows no preview triads (previews are the layout nodes' only); record that nothing
+  shows. Pinned: `JitterNodeTests`. **Observed:**
 - [ ] **VA-10 The same file twice.** Save the graph, quit, reopen it: the holes are exactly where they were (the seed is saved, nothing
   else is random). On a second machine, if there is one, the same file gives the same part. Pinned: `SeededRandomTests`.
   **Observed:**
-- [ ] **VA-11 Undo.** Undoing a pattern or a path edit puts the previous mask back and the holes with it; the Edit menu names the step.
+- [ ] **VA-11 Undo.** Undoing a pattern or a path edit puts the previous mask back and the holes with it; the Edit menu names the step
+  ("Change Cull pattern", "Change Cull indices"). Pinned: `VariationSettingTests` (the names and the undo; the menu text is human).
   **Observed:**
 - [ ] **VA-12 A cull before Points to Placements.** Move the Cull Index to sit between Grid Points and Points to Placements (wire Grid
   Points into it and it into Points to Placements) and type `0`: the first point's hole is gone and the others stay where they are,
@@ -5268,6 +5163,28 @@ Pattern (Ø5, depth 6) into an Output; then put the nodes below between Points t
 - [ ] **VA-13 Equal seeds.** Random Reduce (Count 3, Seed 0) and Random Values (Seed 0, wired into the Hole Pattern's `diameter`): the
   holes Random Reduce drops are not simply the smallest ones. Pinned: `withTheSameSeedTheItemsRandomReduceDropsAreNotTheSmallestRandomValues`.
   **Observed:**
+- [ ] **VA-14 A cull in rows keeps `{row;column}`.** Replace Grid Points and Points to Placements with a Grid Pattern (4 × 3, 15 mm)
+  wired into the Cull Index. Fillet the rim of the hole in the second row, third column (`{1;2}`), then type `1` into the Cull
+  Index: the second column goes from every row and the fillet stays on the same hole. Type `{1;2}`: the badge reads "Instance {1;2}
+  no longer exists, so the edge picked on it isn't selected." and nothing else is filleted. Type `{1}`: the whole second row is gone,
+  the other rows have not moved, and the same badge appears. Pinned: `CulledTreePickTests`. **Observed:**
+- [ ] **VA-15 Points to Placements in rows.** Put a Partition (size 4) between Grid Points and Points to Placements: the placements come
+  out as three rows of four (the Hole Pattern's holes are `{row;column}`), and a Cull Index `{1;2}` between Partition and
+  Points to Placements leaves every other hole where it was. Pinned: `aTreeOfPointsIsATreeOfPlacementsAtTheSamePaths`,
+  `CulledTreePickTests` (`beforePlacements`). **Observed:**
+- [ ] **VA-16 Cull by Region, Edges.** Reference Edges, wire All Edges of the plate into `edges`, Within 12 mm, Keep "Outside or
+  beyond": the holes nearest the plate's rim go and the middle ones stay. Wire Edges by Tag on a hole pattern's rims instead (circles):
+  the same node measures to them. Wire an edge set with a spline in it: the badge says how many of the edges it can't measure.
+  Pinned: `CullByRegionNodeTests`. **Observed:**
+- [ ] **VA-17 Cull by Region, Face.** Reference Face. **Record whether anything in the library can feed `faces`** (at the time of
+  writing no node outputs a face set, User decision U18, so the socket cannot be wired from the window and the node reports the missing
+  input). If a face-set node exists by now, wire a flat face's set to it: the distance is to the face's **plane**, so a flat face
+  far to the side of a small face counts as near it (record that this surprises, as the Errata say; User decision U3). A curved face
+  refuses with the count. Pinned: `theFaceReferenceCullsByDistanceToTheFacePlane`, `aCurvedFaceIsRefusedWithTheCount`. **Observed:**
+- [ ] **VA-18 Cells three deep.** With Face Pattern (7a-layouts) on a face, wire its placements through Cull Pattern `1 0`: every vent
+  stays (per branch, one item each). Set Scope to Overall: every other vent goes. Cull Index `1`: nothing goes; `{0;1}` removes
+  one vent and the others have not moved; a pick on a vent follows it through that cull. Random Reduce (defaults) removes one vent.
+  Pinned on a hand-made `{row;column;0}` tree: `CellTreeTests`, `CellTreePickTests`. **Observed:**
 ```
 
 
@@ -5283,13 +5200,13 @@ Run, from the worktree root:
 
 ```bash
 swift build --build-tests 2>&1 | grep -E "^/.*(warning|error):" | grep -v "ld: warning" | sort -u
-swift test > /tmp/vtest.log 2>&1; echo "exit=$?"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -cE "recorded an issue|failed after"
-sed 's/\x1b\[[0-9;]*m//g' /tmp/vtest.log | grep -c "Test run with"
+swift test > "${TMPDIR:-/tmp}/vtest.log" 2>&1; echo "exit=$?"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -cE "recorded an issue|failed after"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -c "Test run with"
 swiftlint lint --strict
 ```
 
-Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,809 = master + 170** (+3 in this task; the Swift Testing total counts a parameterised test once).
+Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,938 = master + 197** (+4 in this task; the Swift Testing total counts a parameterised test once).
 
 - [ ] **Step 6: Commit**
 
@@ -5300,41 +5217,492 @@ git commit -m "docs(7a-3b): variation pipeline test, CLAUDE.md, roadmap, spec Er
 
 ---
 
+### Task 11: Trees three deep, settings in files, undo names
+
+**Files:**
+
+- Test: `Tests/CreatorNodesTests/Variation/CellTreeTests.swift` (new)
+- Test: `Tests/CreatorNodesTests/Variation/CellTreePickTests.swift` (new)
+- Test: `Tests/CreatorNodesTests/Variation/VariationFileTests.swift` (new)
+- Test: `Tests/CreatorEditorTests/VariationSettingTests.swift` (new)
+
+**Interfaces:**
+
+- Consumes: Tasks 1–10; `TreeSource`, `Harness.source(count:rows:)` (Task 4), `PatternPlate`, `GraftNode`, `GridPatternNode`, `OCCTKernel`.
+- Produces: Nothing the code depends on.
+
+Review findings on Tasks 3 to 9: nothing pinned a tree of depth 3, which is the shape Face Pattern (7a-layouts Task 9, merging first) feeds into Place and these
+nodes (`{row;column;0}`, one placement per cell). These tests build that shape by hand, a Series partitioned into rows and grafted (`cells`), and a Grid
+Pattern's placements grafted (`CellTreePickTests`), so they hold whatever the layouts do. They cover the instance paths and tags Place makes after a cull
+of one cell, Cull Index paths of two and three indices, the bare index (degenerate, deliberately, User decision U16), Cull Pattern per branch and Overall,
+Random Reduce's scope, Random Values' and Jitter's per-branch ordinals, and a pick that survives a cull of another cell. The other two files pin the saved
+settings (a save and reopen, and a format-5 file; User decision U17) and the undo names of typing a mask or a list. All pass at once (they exercise Tasks 1–10),
+so there is no red step.
+
+- [ ] **Step 1: Write the tests**
+
+Create `Tests/CreatorNodesTests/Variation/CellTreeTests.swift`:
+
+```swift
+import CreatorGeometry
+import CreatorGraph
+import CreatorKernel
+import CreatorNodes
+import Testing
+
+/// The variation nodes on a tree three deep, `{row;column;0}`: one item in every branch, which is the shape Face Pattern gives
+/// Place (one placement per cell). It is built here by hand (a Series, Partition and Graft), not by Face Pattern, so these
+/// tests hold whatever the layouts do. Bare indices and the mask count places within a branch, so what they do to this shape
+/// is pinned: it is deliberate (User decisions U10 and U16), and the paths, Cull Pattern's Overall scope and Cull by Region
+/// are how a designer reaches cells.
+struct CellTreeTests {
+    /// 2 rows of 3 cells numbered 0…5: `{0;0;0}` … `{1;2;0}`.
+    static let all = "[[[0],[1],[2]],[[3],[4],[5]]]"
+
+    /// A Series of 6 in rows of 3, every item then grafted into a branch of its own.
+    func cells(_ h: inout Harness) -> TreeSource {
+        let rows = h.source(count: 6, rows: 3)
+        let graft = h.add(GraftNode.self)
+        h.wire(rows, to: graft, "tree")
+        return TreeSource(node: graft, socket: "tree")
+    }
+
+    /// `type` run on the cells with `settings`.
+    func run(_ type: any NodeDefinition.Type,
+             _ settings: [SocketName: ConstantValue]) async throws -> (report: EvaluationReport, node: Node) {
+        var h = Harness()
+        let source = cells(&h)
+        let node = h.add(type, settings)
+        h.wire(source, to: node, "tree")
+        return (try await h.run([node]), node)
+    }
+
+    func cull(_ text: String) async throws -> (report: EvaluationReport, node: Node) {
+        try await run(CullIndexNode.self, [NodeSetting.cullIndices: .text(text)])
+    }
+
+    @Test func theCellsAreThreeDeepWithOneItemInEveryBranch() async throws {
+        var h = Harness()
+        let source = cells(&h)
+        let report = try await h.run([source.node])
+        let tree = try #require(report.tree(source.node))
+        #expect(tree.depth == 3 && tree.shapeText == "2 × 3 × 1")
+        #expect(tree.outline == Self.all)
+        #expect(tree.leaves.map(\.path) == [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]].map { TreePath($0) })
+    }
+
+    // MARK: Cull Index
+
+    @Test(arguments: ["{0;1;0}", "{0;1}"])
+    func aPathOfThreeIndicesOrTwoCullsOneCell(_ text: String) async throws {
+        let (report, node) = try await cull(text)
+        #expect(report.value(node, "tree")?.outline == "[[[0],[],[2]],[[3],[4],[5]]]", "\(text)")
+        #expect(report.tree(node)?.leaves.count == 6, "the other five cells are still at their own paths")
+        #expect(report.isOK(node))
+    }
+
+    @Test func aRowPathCullsTheWholeRowAndLeavesItsBranchesEmpty() async throws {
+        let (report, node) = try await cull("{1}")
+        #expect(report.value(node, "tree")?.outline == "[[[0],[1],[2]],[[],[],[]]]")
+    }
+
+    @Test func severalPathsAtDifferentLevelsApplyTogether() async throws {
+        let (report, node) = try await cull("{0;0;0}, {1;1}, {0;2}")
+        #expect(report.value(node, "tree")?.outline == "[[[],[1],[]],[[3],[],[5]]]")
+    }
+
+    @Test func aBareIndexIsAPlaceInTheLastLevelSoOnCellsOnlyZeroIsThere() async throws {
+        let (one, oneNode) = try await cull("1")
+        #expect(one.value(oneNode, "tree")?.outline == Self.all, "no cell has an item 1: nothing is culled, and nothing warns")
+        #expect(one.isOK(oneNode))
+        let (zero, zeroNode) = try await cull("0")
+        #expect(zero.value(zeroNode, "tree")?.outline == "[[[],[],[]],[[],[],[]]]", "every cell's only item is item 0: all of them go")
+    }
+
+    @Test func aPathWithFourIndicesIsRefusedNamingTheShape() async throws {
+        let (report, node) = try await cull("{0;1;0;0}")
+        #expect(report.error(node) == "{0;1;0;0} has 4 indices, but an item of this tree (2 × 3 × 1) needs 3. Write it like {0;0;0}.")
+    }
+
+    @Test func aPathThatNamesNoCellWarns() async throws {
+        let (report, node) = try await cull("{0;5}, {0;1;0}")
+        #expect(report.warning(node) == "{0;5} names nothing in this tree.")
+        #expect(report.value(node, "tree")?.outline == "[[[0],[],[2]],[[3],[4],[5]]]")
+    }
+
+    // MARK: Cull Pattern
+
+    @Test func perBranchTheMaskRestartsInEveryCellSoOneOneZeroKeepsEveryCell() async throws {
+        let (report, node) = try await run(CullPatternNode.self, [NodeSetting.cullPattern: .text("1 0")])
+        #expect(report.value(node, "tree")?.outline == Self.all, "each branch has one item, the mask's first")
+        #expect(report.tree(node)?.isCulled == false)
+        let (second, secondNode) = try await run(CullPatternNode.self, [NodeSetting.cullPattern: .text("0 1")])
+        #expect(second.value(secondNode, "tree")?.outline == "[[[],[],[]],[[],[],[]]]", "and 0 1 culls every cell")
+    }
+
+    @Test func overallTheMaskRunsAlongTheCellsInOrder() async throws {
+        let (report, node) = try await run(CullPatternNode.self, [NodeSetting.cullPattern: .text("1 0"), "scope": .integer(1)])
+        #expect(report.value(node, "tree")?.outline == "[[[0],[],[2]],[[],[4],[]]]", "cells 0, 2 and 4 stay, at their own paths")
+        let (thirds, thirdsNode) = try await run(CullPatternNode.self, [NodeSetting.cullPattern: .text("1 1 0"), "scope": .integer(1)])
+        #expect(thirds.value(thirdsNode, "tree")?.outline == "[[[0],[1],[]],[[3],[4],[]]]")
+    }
+
+    // MARK: Random Reduce
+
+    @Test func randomReduceDropsOneCellByDefaultAndNeverEmptiesTheTree() async throws {
+        let (report, node) = try await run(RandomReduceNode.self, [:])
+        #expect(report.tree(node)?.itemCount == 5)
+        let (three, threeNode) = try await run(RandomReduceNode.self, ["count": .integer(3), "seed": .integer(7)])
+        #expect(three.tree(threeNode)?.itemCount == 3)
+    }
+
+    @Test func randomReducePerBranchOnCellsDropsEveryCellAsItSays() async throws {
+        let (report, node) = try await run(RandomReduceNode.self, ["scope": .integer(0)])
+        #expect(report.tree(node)?.itemCount == 0)
+        #expect(report.isOK(node))
+    }
+
+    @Test func randomReduceOverallKeepsTheSurvivorsAtTheirCellPaths() async throws {
+        let (report, node) = try await run(RandomReduceNode.self, ["count": .integer(2), "seed": .integer(3)])
+        let tree = try #require(report.tree(node))
+        #expect(tree.leaves.count == 6 && tree.itemCount == 4)
+        for leaf in tree.leaves {
+            let cell = String(leaf.path.indices[0] * 3 + leaf.path.indices[1])
+            #expect(leaf.items.isEmpty || leaf.items.map(\.outlineText) == [cell], "a survivor keeps its own number at its own path")
+        }
+    }
+
+    // MARK: Random Values and Jitter
+
+    @Test func aCulledCellKeepsTheOtherCellsRandomValues() async throws {
+        func values(culling text: String) async throws -> [[String]] {
+            var h = Harness()
+            let source = cells(&h)
+            let cullNode = h.add(CullIndexNode.self, [NodeSetting.cullIndices: .text(text)])
+            let random = h.add(RandomValuesNode.self, ["seed": .integer(42)])
+            h.wire(source, to: cullNode, "tree")
+            h.wire(cullNode, "tree", to: random, "shape")
+            let report = try await h.run([random])
+            return try #require(report.tree(random, "values")).leaves.map { $0.items.map(\.outlineText) }
+        }
+        let whole = try await values(culling: "")
+        let culled = try await values(culling: "{0;1}")
+        #expect(whole.count == 6 && culled.count == 6)
+        #expect(Set(whole.joined()).count == 6, "each cell draws from its own branch's stream")
+        #expect(culled[1].isEmpty)
+        for cell in [0, 2, 3, 4, 5] { #expect(culled[cell] == whole[cell], "cell \(cell)") }
+    }
+
+    @Test func aCulledCellKeepsTheOtherCellsJitter() async throws {
+        func jittered(culling text: String) async throws -> [[Plane]] {
+            var h = Harness()
+            let layout = h.add(GridPatternNode.self, ["countX": .integer(3), "countY": .integer(2)])
+            let graft = h.add(GraftNode.self)
+            let cullNode = h.add(CullIndexNode.self, [NodeSetting.cullIndices: .text(text)])
+            let jitter = h.add(JitterNode.self, ["distance": .number(2), "turn": .number(10), "seed": .integer(5)])
+            h.wire(layout, "placements", to: graft, "tree")
+            h.wire(graft, "tree", to: cullNode, "tree")
+            h.wire(cullNode, "tree", to: jitter, "placements")
+            let report = try await h.run([jitter])
+            return try #require(report.tree(jitter, "placements")).leaves.map { leaf in
+                leaf.items.compactMap { if case .plane(let plane) = $0 { plane } else { nil } }
+            }
+        }
+        let whole = try await jittered(culling: "")
+        let culled = try await jittered(culling: "{1;0}")
+        #expect(whole.count == 6 && culled.count == 6 && culled[3].isEmpty)
+        for cell in [0, 1, 2, 4, 5] { #expect(culled[cell] == whole[cell], "cell \(cell)") }
+        #expect(whole[0] != whole[1], "the cells do not all move alike")
+    }
+}
+```
+
+
+Create `Tests/CreatorNodesTests/Variation/CellTreePickTests.swift`:
+
+```swift
+import CreatorGeometry
+import CreatorGraph
+import CreatorKernel
+@testable import CreatorNodes
+import CreatorOCCT
+import Testing
+
+/// Patterns spec §6 and §9 for a culled tree three deep, `{row;column;0}` (one placement per cell, the shape Face Pattern gives
+/// Place): the instances Place makes are named by the whole path, a pick on one survives a cull of another, and a pick on a
+/// culled one warns, naming its three-index path. The tree is a Grid Pattern's rows with every placement grafted into a branch
+/// of its own, so none of this needs Face Pattern.
+struct CellTreePickTests {
+    /// 3 × 2 Ø5 holes 15 mm apart, grafted to `{row;column;0}`, a Cull Index, a Hole Pattern, an Edges by Tag and a Fillet.
+    struct Fixture {
+        var plate = PatternPlate(columns: 3, rows: 2, spacingX: 15, spacingY: 15)
+        let cull: Node, holes: Node, rule: Node, fillet: Node
+
+        init() {
+            let layout = plate.h.add(GridPatternNode.self, ["countX": .integer(3), "countY": .integer(2),
+                                                            "spacingX": .number(15), "spacingY": .number(15),
+            ])
+            let graft = plate.h.add(GraftNode.self)
+            cull = plate.h.add(CullIndexNode.self)
+            holes = plate.h.add(HolePatternNode.self, ["diameter": .number(5), "depth": .number(6)])
+            plate.h.wire(layout, "placements", to: graft, "tree")
+            plate.h.wire(graft, "tree", to: cull, "tree")
+            plate.h.wire(plate.plate, "solid", to: holes, "part")
+            plate.h.wire(cull, "tree", to: holes, "placements")
+            rule = plate.h.add(EdgesByTagNode.self)
+            plate.h.wire(holes, "solid", to: rule, "solid")
+            fillet = plate.h.add(FilletNode.self, ["radius": .number(0.5)])
+            plate.h.wire(rule, "edges", to: fillet, "edges")
+        }
+
+        mutating func cull(_ text: String) { plate.h.set(cull, NodeSetting.cullIndices, .text(text)) }
+
+        /// The tag of the bore of the hole at `path`, the way Hole Pattern names it.
+        func bore(_ path: [Int]) -> TopoTag {
+            TopoTag(node: NodeID.instanceScoped([holes.id, holes.id]), item: InstancePath.item(for: path) ?? -1, role: .side(segment: 1))
+        }
+
+        /// The rim of the hole at `path` on the plate's top.
+        func rim(of path: [Int], in solid: Solid) -> EdgeInfo? {
+            let top = TopoTag(node: plate.plate.id, item: 0, role: .endCap)
+            return solid.topology.edges.first { edge in
+                guard edge.kind == .circle, !edge.isSeam, edge.faces.count == 2 else { return false }
+                let sides = edge.faces.compactMap { solid.topology.face($0) }
+                return sides.contains { $0.tags.contains(bore(path)) } && sides.contains { $0.tags.contains(top) }
+            }
+        }
+
+        /// Picks the rims of the holes at `paths` on the rule, from a run with nothing culled.
+        mutating func pick(_ paths: [[Int]], kernel: any Kernel) async throws {
+            cull("")
+            let solid = try onlySolid(try await plate.h.run([holes], kernel: kernel), holes)
+            let edges = try paths.map { try #require(rim(of: $0, in: solid)).id }
+            plate.h.set(rule, NodeSetting.picks, .edgePicks(solid.topology.picks(for: edges)))
+        }
+
+        func selected(_ report: EvaluationReport) throws -> (solid: Solid, edges: [EdgeInfo]) {
+            let set = try #require(report.value(rule, "edges")?.edgeSets?.first)
+            return (set.solid, set.edges.compactMap { set.solid.topology.edge($0) })
+        }
+
+        func touches(_ path: [Int], _ edge: EdgeInfo, in solid: Solid) -> Bool {
+            edge.faces.compactMap { solid.topology.face($0) }.contains { $0.tags.contains(bore(path)) }
+        }
+
+        /// The paths of the holes the Hole Pattern made.
+        func holePaths(_ report: EvaluationReport) throws -> Set<[Int]> {
+            let solid = try onlySolid(report, holes)
+            let items = solid.topology.faces.flatMap(\.tags).filter(\.node.isInstanceQualified).map(\.item)
+            return Set(items.compactMap { InstancePath.indices(ofItem: $0) })
+        }
+    }
+
+    static let every: Set<[Int]> = [[0, 0, 0], [0, 1, 0], [0, 2, 0], [1, 0, 0], [1, 1, 0], [1, 2, 0]]
+
+    @Test func everyCellMakesAHoleAtItsThreeIndexPath() async throws {
+        var f = Fixture()
+        f.cull("")
+        let report = try await f.plate.h.run([f.holes], kernel: OCCTKernel())
+        #expect(try f.holePaths(report) == Self.every)
+    }
+
+    @Test(arguments: ["{0;1;0}", "{0;1}"])
+    func aCulledCellLeavesTheOthersAtTheirPaths(_ text: String) async throws {
+        var f = Fixture()
+        f.cull(text)
+        let report = try await f.plate.h.run([f.holes], kernel: OCCTKernel())
+        #expect(try f.holePaths(report) == Self.every.subtracting([[0, 1, 0]]), "\(text)")
+        #expect(report.isOK(f.holes), "a cull never warns")
+    }
+
+    @Test func aBareIndexOnCellsCullsNothingOrEverythingAsItsLastLevelHasOnlyZero() async throws {
+        var f = Fixture()
+        f.cull("1")
+        let kept = try await f.plate.h.run([f.holes], kernel: OCCTKernel())
+        #expect(try f.holePaths(kept) == Self.every)
+        f.cull("0")
+        let report = try await f.plate.h.run([f.holes], kernel: OCCTKernel())
+        #expect(report.isOK(f.holes), "no holes is not an error")
+        #expect(try onlySolid(report, f.holes).topology.faces.flatMap(\.tags).filter(\.node.isInstanceQualified).isEmpty)
+    }
+
+    @Test(arguments: ["{1;1;0}", "{1;1}", "{1}"])
+    func aPickOnACulledCellWarnsNamingItsThreeIndexPathAndSelectsNothing(_ text: String) async throws {
+        let kernel = OCCTKernel()
+        var f = Fixture()
+        try await f.pick([[1, 1, 0]], kernel: kernel)
+        f.cull(text)
+        let report = try await f.plate.h.run([f.rule], kernel: kernel)
+        #expect(report.warning(f.rule) == "Instance {1;1;0} no longer exists, so the edge picked on it isn't selected.", "\(text)")
+        #expect(try f.selected(report).edges.isEmpty, "never a neighbour's rim")
+    }
+
+    @Test(arguments: ["{0;0;0}", "{0;2}", "{0}", "{1;0}, {1;2}"])
+    func aPickOnOneCellSurvivesACullOfAnother(_ text: String) async throws {
+        let kernel = OCCTKernel()
+        var f = Fixture()
+        try await f.pick([[1, 1, 0]], kernel: kernel)
+        let before = try f.selected(try await f.plate.h.run([f.rule], kernel: kernel))
+        f.cull(text)
+        let report = try await f.plate.h.run([f.fillet], kernel: kernel)
+        #expect(report.isOK(f.rule) && report.isOK(f.fillet), "after culling \(text): \(String(describing: report.state(f.rule)))")
+        let (solid, edges) = try f.selected(report)
+        #expect(edges.count == 1 && edges.allSatisfy { f.touches([1, 1, 0], $0, in: solid) }, "still the rim of {1;1;0}")
+        #expect(before.edges.count == 1)
+    }
+}
+```
+
+
+Create `Tests/CreatorNodesTests/Variation/VariationFileTests.swift`:
+
+```swift
+import CreatorGraph
+import CreatorKernel
+import CreatorNodes
+import Foundation
+import Testing
+
+/// The variation nodes' two text settings are saved with the graph (format 6, which does not change: User decision U17) and a
+/// reopened graph evaluates exactly as it did.
+struct VariationFileTests {
+    func roundTrip(_ file: GraphFile) throws -> GraphFile {
+        try GraphFileIO.decode(try GraphFileIO.encode(file), registry: BuiltInNodes.registry)
+    }
+
+    @Test func cullPatternAndCullIndexSettingsSurviveSaveAndReload() async throws {
+        var h = Harness()
+        let source = h.source(count: 8, rows: 4)
+        let pattern = h.add(CullPatternNode.self, [NodeSetting.cullPattern: .text("1 1 0"), "scope": .integer(1)])
+        let index = h.add(CullIndexNode.self, [NodeSetting.cullIndices: .text("1, {0;3}")])
+        h.wire(source, to: pattern, "tree")
+        h.wire(pattern, "tree", to: index, "tree")
+        let before = try await h.run([index])
+
+        let reopened = try roundTrip(GraphFile(graph: h.graph))
+        #expect(reopened.formatVersion == GraphFile.currentFormatVersion && GraphFile.currentFormatVersion == 6)
+        #expect(reopened.graph.nodes[pattern.id]?.inputValues[NodeSetting.cullPattern] == .text("1 1 0"))
+        #expect(reopened.graph.nodes[pattern.id]?.inputValues["scope"] == .integer(1))
+        #expect(reopened.graph.nodes[index.id]?.inputValues[NodeSetting.cullIndices] == .text("1, {0;3}"))
+
+        let after = try await Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel())
+            .evaluate(reopened.graph, demand: [index.id])
+        #expect(after.value(index, "tree")?.outline == before.value(index, "tree")?.outline)
+        #expect(after.positions(index) == before.positions(index) && before.positions(index) != nil)
+    }
+
+    @Test func aFormatFiveFileStillOpensWithTheVariationNodesAvailable() throws {
+        var h = Harness()
+        let series = h.add(SeriesNode.self, ["count": .integer(4)])
+        let older = try roundTrip(GraphFile(formatVersion: 5, graph: h.graph))
+        #expect(older.formatVersion == 5, "a file keeps the version it was written with until it is saved")
+        #expect(older.graph.nodes[series.id]?.inputValues["count"] == .integer(4))
+    }
+}
+```
+
+
+Create `Tests/CreatorEditorTests/VariationSettingTests.swift`:
+
+```swift
+import CreatorGraph
+import CreatorNodes
+import Testing
+@testable import CreatorEditor
+
+/// Typing a Cull Pattern mask or a Cull Index list is one named undo step, like any text setting (`TextSettingTests`).
+@MainActor
+struct VariationSettingTests {
+    /// Types `text` into the first text field of a new `typeID` node and returns the editor and the node.
+    func type(_ text: String, into typeID: String) throws -> (editor: EditorModel, node: Node) {
+        let node = BuiltInNodes.registry.makeNode(typeID)
+        let editor = makeEditor([node], registry: BuiltInNodes.registry)
+        editor.selection = [node.id]
+        let field = try #require(editor.inspectorPage.sections.flatMap(\.rows).compactMap { row -> InputField? in
+            if case .text(let field) = row { field } else { nil }
+        }.first)
+        editor.setInput(field, to: .text(text))
+        return (editor, node)
+    }
+
+    @Test func typingACullPatternMaskIsOneNamedUndoStep() throws {
+        let (editor, node) = try type("1 1 0", into: CullPatternNode.typeID)
+        #expect(editor.graph.nodes[node.id]?.inputValues[NodeSetting.cullPattern] == .text("1 1 0"))
+        #expect(editor.document.undoName == "Change Cull pattern")
+        editor.document.undo()
+        #expect(editor.graph.nodes[node.id]?.inputValues[NodeSetting.cullPattern] == .text("1 0"))
+    }
+
+    @Test func typingCullIndicesIsOneNamedUndoStep() throws {
+        let (editor, node) = try type("1, {0;3}", into: CullIndexNode.typeID)
+        #expect(editor.graph.nodes[node.id]?.inputValues[NodeSetting.cullIndices] == .text("1, {0;3}"))
+        #expect(editor.document.undoName == "Change Cull indices")
+        editor.document.undo()
+        #expect(editor.graph.nodes[node.id]?.inputValues[NodeSetting.cullIndices] == .text(""))
+    }
+}
+```
+
+
+- [ ] **Step 2: Run them (they pass at once)**
+
+Run: `swift test --filter "CellTreeTests|CellTreePickTests|VariationFileTests|VariationSettingTests" 2>&1 | grep -v 'ld: warning'`
+
+Expected: PASS, with no line saying "recorded an issue" or "failed after".
+
+- [ ] **Step 3: The full rule**
+
+Run, from the worktree root:
+
+```bash
+swift build --build-tests 2>&1 | grep -E "^/.*(warning|error):" | grep -v "ld: warning" | sort -u
+swift test > "${TMPDIR:-/tmp}/vtest.log" 2>&1; echo "exit=$?"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -cE "recorded an issue|failed after"
+sed 's/\x1b\[[0-9;]*m//g' "${TMPDIR:-/tmp}/vtest.log" | grep -c "Test run with"
+swiftlint lint --strict
+```
+
+Expected: no warnings other than master's `ContextMenuTests.swift:140` ('underPointer' mutated after capture), which appears whenever that test target recompiles; `exit=0`; `0` bad lines; `11` "Test run with" lines; swiftlint `Found 0 violations`. **Test count: 2,961 = master + 220** (+23 in this task; the Swift Testing total counts a parameterised test once).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add -A
+git commit -m "test(7a-3b): variation on trees three deep, saved settings and undo names"
+```
+
+---
+
 ## Self-review
 
 **Spec coverage (§4, §6, §8, §9).**
-- Cull Pattern: Task 4. Cull Index (indices and paths such as `{0;3}`): Task 5. Cull by Region (profile inside/outside; point, edge set, face within/beyond): Task 6. Random Reduce (N or fraction, per branch or overall): Task 7. Random Values (integers or reals in a range, in the shape of a tree or a count): Task 8. Jitter (offset in the placement's plane, turn about its normal, within limits): Task 9. All in the Patterns category and tree-aware (`access: .tree`).
-- Culling keeps paths, including item gaps inside a branch: Tasks 2 (representation) and 3 (instances and tags, and Points to Placements passing a cull through), pinned per node in Tasks 4–9.
-- Randomness seeded by a `seed` input, a fixed documented repo algorithm, pinned values, never the system generator, seed change never warns: Task 1 (generator, one purpose per random node, and their pins), Tasks 7–9 (`report.isOK` after a seed change; pinned results per branch and overall), Task 10 (same seed, same part; equal seeds on different nodes decorrelated).
-- Naming (§6, §9): a pick on an instance survives a cull of another and a pick on a culled instance warns naming its path: Task 5 (`CulledPickTests`, flat branch, `{i}` = item index, valid unchanged after 7a-layouts); the tags themselves: Task 3.
-- Errors (§8): path shapes named (Task 5), refused values name their socket (Tasks 4–9), unmatched paths named (Task 5), no warning for a seed.
-- Layout nodes, previews, lifting the tree refusal, tree-path picks and the acceptance test are out of scope (7a-layouts); no benchmark is run or added.
+- Cull Pattern: Task 4 (with a `scope`: Per branch or Overall). Cull Index (indices and paths such as `{0;3}`): Task 5. Cull by Region (profile inside/outside; point, edge set, face within/beyond): Task 6. Random Reduce (N or fraction, overall by default or per branch): Task 7. Random Values (integers or reals in a range, in the shape of a tree or a count): Task 8. Jitter (offset in the placement's plane, turn about its normal, within limits): Task 9. All in the Patterns category and tree-aware (`access: .tree`).
+- Culling keeps paths, including item gaps inside a branch: Task 2 (the representation), Task 3 (instances and tags by tree path, and Points to Placements passing every path on), pinned per node in Tasks 4 to 9, end to end in Task 10, and on a tree three deep, `{row;column;0}`, in Task 11.
+- Randomness seeded by a `seed` input, a fixed documented repo algorithm, pinned values, never the system generator, seed change never warns: Task 1 (generator, one purpose per random node, and their pins), Tasks 7 to 9 (`report.isOK` after a seed change; pinned results per branch and overall), Task 10 (same seed, same part; equal seeds on different nodes decorrelated).
+- Naming (§6, §9): a pick on an instance survives a cull of another and a pick on a culled instance warns naming its path, on a flat list and in rows: Task 5 (`CulledPickTests`, `CulledTreePickTests`, each with the cull on both sides of Points to Placements); the tags themselves: Task 3.
+- Errors (§8): path shapes named (Task 5), refused values name their socket (Tasks 4 to 9), unmatched paths named (Task 5), no warning for a seed or a cull.
+- Face Pattern, layout previews, Pattern on Face and the acceptance test are 7a-layouts Tasks 9 to 14 (merging first); no benchmark is run or added.
 
-**Placeholder scan.** Every code block was applied, task by task, to a scratch copy of master (`9e5d2d5`) and built, tested and linted; the plan text is generated from those same files, so there is no pseudo-code and no "similar to Task N". The steps name the files; the code is in the plan.
+**Placeholder scan.** Every code block was applied, task by task, to a fresh copy of master `6dda4d6` (the replay below) and built, tested and linted; the plan text is the text that was applied, so there is no pseudo-code and no "similar to Task N". The steps name the files; the code is in the plan.
 
-**Type consistency.** `culledList(_:at:)`, `isCulled`, `itemPositions`, `culledPositions`, `Leaf.positions`, `keepingItems(where:)`, `replacingItems(_:)` (Task 2) are the names Tasks 3–9 call; `PlacementSet.instances(alongside:)`, `planes(for:)`, `PlacementMoves.copies(of:at:instances:placedBy:kernel:tag:)`, `PerInstance(_:positions:)`, `NodeInputs.perInstance*` (Task 3) are used by every shortcut as written; `SeededRandom.value(at:)/unit(at:)/below(_:at:)` (Task 1) by Tasks 7–9; `NodeSetting.cullPattern/cullIndices` by their nodes and the tests.
+**Type consistency.** `culledList(_:at:)`, `isCulled`, `itemPositions`, `culledPositions`, `Leaf.positions`, `keepingItems(where:)`, `mappingItems(_:)`, `replacingItems(_:)` (Task 2) are the names Tasks 3 to 9 call (Task 3 through `InstanceGrid`, which reads `isCulled`, `itemPositions`, `culledPositions`, `Leaf.positions` and builds `culledList`); `InstanceGrid.vectors(_:)` (Task 3) is Points to Placements'; `SeededRandom.value(at:)/unit(at:)/below(_:at:)` (Task 1) are Tasks 7 to 9's; `NodeSetting.cullPattern/cullIndices` are their nodes' and the tests'.
 
-**Review Focus.** Each of the seven has its test in the task named in the list at the top; none is left uncovered.
+**Review Focus.** Each of the eight has its test in the task named in the list at the top; none is left uncovered.
 
-**Verification record.** The plan was revised after a review that replayed it on master `9e5d2d5`. The revision was re-verified by applying every
-edit of Tasks 1–10 in order to a scratch copy of master (a sibling `MetalUI` symlink), then `swift build --build-tests` (no new warnings beyond
-master's `ContextMenuTests.swift:140`), a full `swift test` (exit 0, 0 lines saying "recorded an issue" or "failed after", 11 "Test run with" lines,
-2,809 tests = 231 + 73 + 187 + 197 + 149 + 499 + 141 + 415 + 48 + 591 + 278) and `swiftlint lint --strict` (0 violations). Every pinned random
-value was recomputed with a separate implementation of SplitMix64 and the purpose salts, never by running the nodes. The tests-only (RED) state
-of each task does not build, as each task's Step 2 says (the symbols are missing); the earlier replay measured those error counts and the
-revision did not change which symbols are missing. Per-task new tests and running totals:
+**Verification record.** Replayed on master `6dda4d6` (2741 tests), twice. The first replay applied Tasks 1 to 10 of the earlier version of this plan in order to a fresh scratch copy (a sibling `MetalUI` symlink to `/Users/maxburger/Developer/MetalUI`) by a script that stops at an anchor that is missing or repeated: build, full `swift test` and `swiftlint lint --strict` clean, with the per-task totals in the table. The pinned random values (Tasks 1, 7, 8, 9) were recomputed with a separate SplitMix64 and the purpose salts, never by running the nodes. This revision (review findings on the depth-3 shape, U16 and U17) was replayed the same way on a fresh scratch copy, **Tasks 1 to 11 applied by the script (83 edits, no anchor missed)**: `swift build --build-tests` with no warning beyond master's `ContextMenuTests.swift:140`, a full `swift test` with exit 0, 0 lines saying "recorded an issue" or "failed after", 11 "Test run with" lines totalling **2,961 tests** (231 + 73 + 187 + 197 + 149 + 640 + 147 + 418 + 48 + 593 + 278), and `swiftlint lint --strict` with 0 violations. A mutation (Cull Pattern ignoring its scope) failed 5 tests across `CullPatternNodeTests` and `CellTreeTests`, so the new tests can fail. The totals of Tasks 4 to 10 in the table moved by this revision's +3 (Task 4) and +3 (Task 7); only the final total was re-measured. Task 3's Step 2 is red (37 issues) and every other task's Step 2 fails to build with the symbol it names; Tasks 10 and 11 have no red step. Per-task new tests and running totals:
 
 | Task | What | New tests | Total |
 |---|---|---|---|
-| 1 | SeededRandom, the one generator, one purpose per random node | +11 | 2,650 (master + 11) |
-| 2 | Culled lists in trees (paths kept through a cull) | +20 | 2,670 (master + 31) |
-| 3 | Surviving instances keep their index (and Points to Placements passes a cull on) | +29 | 2,699 (master + 60) |
-| 4 | Cull Pattern | +13 | 2,712 (master + 73) |
-| 5 | Cull Index, and the naming test (spec §9), the cull on both sides of Points to Placements | +24 | 2,736 (master + 97) |
-| 6 | Cull by Region | +28 | 2,764 (master + 125) |
-| 7 | Random Reduce | +14 | 2,778 (master + 139) |
-| 8 | Random Values | +16 | 2,794 (master + 155) |
-| 9 | Jitter | +12 | 2,806 (master + 167) |
-| 10 | The pipeline test and the records | +3 | 2,809 (master + 170) |
+| 1 | SeededRandom, the one generator, one purpose per random node | +11 | 2,752 (master + 11) |
+| 2 | Culled lists in trees (paths kept through a cull) | +20 | 2,772 (master + 31) |
+| 3 | Surviving instances keep their path (`InstanceGrid`, Points to Placements over trees) | +42 | 2,814 (master + 73) |
+| 4 | Cull Pattern (with `scope`) | +16 | 2,830 (master + 89) |
+| 5 | Cull Index, and the naming tests (spec §9) on a flat list and on rows, the cull on both sides of Points to Placements | +31 | 2,861 (master + 120) |
+| 6 | Cull by Region | +28 | 2,889 (master + 148) |
+| 7 | Random Reduce (scope Overall by default) | +17 | 2,906 (master + 165) |
+| 8 | Random Values | +16 | 2,922 (master + 181) |
+| 9 | Jitter | +12 | 2,934 (master + 193) |
+| 10 | The pipeline test (flat and in rows) and the records | +4 | 2,938 (master + 197) |
+| 11 | Trees three deep, saved settings, undo names | +23 | 2,961 (master + 220) |
 
 Every task: `swift build --build-tests` with no new warnings (master's `ContextMenuTests.swift:140` aside), full `swift test` exit 0 with no "recorded an issue" or "failed after" line and 11 "Test run with" lines, `swiftlint lint --strict` with 0 violations.
