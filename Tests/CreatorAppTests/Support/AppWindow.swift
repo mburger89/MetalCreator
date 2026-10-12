@@ -70,6 +70,19 @@ struct AppWindow {
         windowPoint(canvasFrame.origin + local)
     }
 
+    /// The window point at the middle of the comment `id` as the canvas draws it (docks and zoom included).
+    func centre(ofComment id: CommentID) -> Point<Pixels> {
+        guard let rect = editor.frame(ofComment: id) else { return windowPoint(.zero) }
+        return point(inCanvas: rect.origin + rect.size * 0.5)
+    }
+
+    /// The window point at the middle of the frame `id`'s title bar.
+    func titleBarCentre(ofFrame id: CommentID) -> Point<Pixels> {
+        guard let rect = editor.frame(ofComment: id) else { return windowPoint(.zero) }
+        let bar = CommentLayout.titleBar(of: rect)
+        return point(inCanvas: bar.origin + bar.size * 0.5)
+    }
+
     /// A window point from a vector.
     func windowPoint(_ vector: Vector2) -> Point<Pixels> {
         Point(x: Pixels(Float(vector.x)), y: Pixels(Float(vector.y)))
