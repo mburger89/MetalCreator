@@ -367,8 +367,10 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
 ## Group C10 — MetalUI C10's controls and looks (Adopt C10)
 
 **Status: NOT RUN.** Plan `2026-10-09-adopt-c10.md`. The tests pin the models, the keyframes read at injected times, the
-spinner's still frame and the gradient's pixels; a real window is needed for the motion (no public headless window or
-frame time, gaps M6-e and M7-b) and for how things look. Run `swift run MetalCreatorApp`, and `swift run GraphPanelPreview`
+spinner's still frame and the gradient's pixels. Since the test-harness adoption (plan `2026-10-12-adopt-test-harness.md`,
+gaps M6-e and M7-b) the shake's motion and the slider's undo pairing are also driven through the app's real window and
+its clock (`RefusalShakeWindowTests`, `InspectorSliderWindowTests`); a real window is still needed for the spinner's
+turning and for how things look. Run `swift run MetalCreatorApp`, and `swift run GraphPanelPreview`
 for C10-5.
 
 - [ ] **C10-1 Glass panels.** The top bar, graph panel and inspector are the theme's translucent fill with a faint 1-pt
@@ -380,7 +382,11 @@ for C10-5.
   Do it twice in a row, quickly: it shakes twice. Refuse Extrude, then another node: only the second shakes. Pan the
   canvas during a shake: the node keeps shaking at its new place and stops at rest. Pan a refused node out of sight and
   back: it does not shake. Drag a node normally: no shake. Pinned: `RefusalShakeTests` (the keyframes at injected times, the
-  per-node count, a refused node drawn at rest). **Observed:**
+  per-node count, a refused node drawn at rest). **Automated** (`RefusalShakeWindowTests`, fed through
+  `EditorModel.connect`, not a pointer drag): in the app's window a refused node is 6 points out at 0.05 s, 6 across at
+  0.15 s and home at 0.25 s, only that node moves, and a second refusal shakes again. **By hand:** the look (crisp, not
+  bouncy), the message for two seconds, panning during a shake, a refused node scrolled out of sight and back, a normal
+  drag. **Observed:**
 - [ ] **C10-3 Evaluating spinner.** Make a node slow (a Boolean or a large-radius fillet on a dense part) and edit it:
   its badge shows a small spinner of twelve spokes turning steadily (MetalUI sets its period), then the time in ms. The
   spinner fits the header and reads on every header colour (value, profile, solid, selection rule, feature, output) in
@@ -392,7 +398,9 @@ for C10-5.
   is undone and the value returns to what it was before the press. Drag it again twice with nothing in between: two ⌘Z. Use a
   document parameter's slider the same way. Click the slider's track without moving: one undo step (or none if the value
   did not change). Focus the slider and press ← three times: each press is its own step. Pinned: `SliderEditingTests` (the
-  model); the pairing through a real window is this check only. **Observed:**
+  model). **Automated** (`InspectorSliderWindowTests`): a drag on the inspector's real slider is one "Change Width" undo
+  step and two drags are two. **By hand:** a document parameter's slider, a click on the track without moving, and ←
+  three times. **Observed:**
 - [ ] **C10-5 Window gradient.** `swift run GraphPanelPreview`: the window behind the panels fades from a lighter blue-grey
   at the top to near-black at the bottom, smoothly, with no banding or seam at the panels' edges. In the app, the viewport
   behind the panels shows the same gradient. Pinned: `WindowBackgroundTests`. **Observed:**

@@ -669,6 +669,11 @@ Labelled M7-a… so they don't clash with the labels above. Checked against Meta
   turning, a slider's `onEditingChanged` pairing) is human checks C10-2 to C10-4. Stopgap: none beyond that. Wanted,
   with M6-e: a public headless window, or `renderFrame` taking a timestamp and returning its animation store, so a
   test can tick a `keyframeAnimator` and a `ProgressView` and press a `Slider`.
+  **Fixed by MetalUI item 8, partly adopted** (plan `2026-10-12-adopt-test-harness`): `RefusalShakeWindowTests` moves the
+  window's clock by hand and reads the frames (a refused node is 6 points out at 0.05 s, 6 across at 0.15 s and home at
+  0.25 s, only that node moves, and a second refusal shakes again) and `InspectorSliderWindowTests` drags the inspector's
+  real slider (one drag is one "Change Width" step, two drags are two). Not adopted: the spinner turning, because a
+  node can be held mid-evaluation only by a kernel that waits, which no test kernel does; human check C10-3 stays.
 
 ## Hit by the C10 adoption, 2026-10-09
 
