@@ -181,7 +181,7 @@ An instance whose tool misses the part (a hole in empty space) does not fail the
 Plan `2026-10-10-7a-trees.md`. Where the build settled what §2 and §4 left open:
 
 - §2 Depth. A flat list is a tree of depth 1 and an item has depth 0; every branch at a level has the same depth, so a tree is
-  held as a depth plus nested branches (`DataTree`). `Value.tree` holds depth 2 or more; a depth-1 tree is always a `.list`.
+  held as a depth plus nested branches (`DataTree`). `Value.tree` holds depth 2 or more; a depth-1 tree is a `.list`, except a culled list (Errata 7a-3 part B).
 - §2 Broadcasting. A `list` socket uses up one level of a tree (one branch per run), so a `list` socket on a 3 × 8 tree runs 3
   times and its output has one entry per branch. Trees of depth 2 or more that differ in depth (3 × 8 against 2 × 3 × 4) are
   matched from the outermost level, and the node warns once, naming both shapes, even when the shallower tree's levels line up with
@@ -274,3 +274,63 @@ Plan `2026-10-12-7a-layouts.md`. Where the build settled what §3, §6 and §8 l
   plate show through it, never faded.
 - **Pattern on Face.** The face menu of a flat face with a normal also offers "Pattern on Face", which inserts a Face Pattern
   holding the face's pick, wired from the part's producer, as one undo step (refused inside a group, as New Sketch on Face is).
+
+## Errata (7a-3 part B: variation and culling)
+
+Plan `2026-10-12-7a-variation.md`. Where the build settled what §4 left open:
+
+- **§4 Culling keeps paths: a culled list.** `Value.tree` could hold a gap only as an empty branch. A cull leaves gaps inside a
+  branch, so a `DataTree` of depth 1 may now carry the indices its items keep (`culledList(_:at:)`, `isCulled`), and such a
+  list is a `Value.tree` of depth 1 (`Value(_:)` makes every other flat tree a `.list`). A list that has been culled stays
+  culled even when its indices are 0, 1, 2…, because what was taken off its end must not come back. It broadcasts as a list:
+  an item or list socket sees the survivors in order, as a rank, and a `tree` socket (every pattern node) gets the tree whole,
+  indices included. The reshaping nodes (Flatten, Graft, Partition, Path Mapper) renumber, as reshaping does, and List Item,
+  Branch by Path and Tree Statistics count a culled list's survivors by rank (List Item 2 of a list culled to {0, 2, 4} is the
+  item at {4}); only Cull Index names the places items had. The tooltip and Data section say "culled" ("3, culled"). This
+  amends the 7a-1 entry above: a depth-1 tree is a `.list` unless it is culled.
+- **§4 Cull Pattern.** The mask is the saved text `cullPattern` (`1 0 1`, `T F T`, commas allowed; 1 or T keeps, 0 or F culls;
+  default `1 0`), or a list of booleans wired into `keep`, which takes its place. `scope` (Per branch, the default; Overall) says where
+  the mask starts: Per branch, it starts again at each branch; Overall, it runs on along the whole tree, branch after branch. Either way
+  it counts the items there are now, so a second Cull Pattern works on what is left. On a tree whose branches hold one item each
+  (`{row;column;0}`, Face Pattern's cells) Per branch keeps every cell for `1 0`; use Overall.
+- **§4 Cull Index.** The saved text `cullIndices` holds indices (`3`: that place in every branch) and paths (`{0;3}`: one item;
+  `{1}`: the whole second branch, which stays as an empty branch); numbers wired into `indices` add to them. An index or path
+  names the place an item had before any cull. `{}` (the whole tree) refuses, pointing at Cull Pattern `0`. A path with more
+  indices than the tree has levels refuses naming the shape;
+  a path that names nothing warns once ("{0;9} names nothing in this tree."); an index past the end is not a problem. A bare index is a
+  place within a branch (the last level), so on a tree whose branches hold one item each (`{row;column;0}`) `1` names nothing and
+  `0` names every cell; name cells by path (`{0;1}`, `{0;1;0}`, `{1}` for a row).
+- **§4 Cull by Region.** `reference` (Profile, Point, Edges, Face) says which of `profile`, `point`, `edges` or `faces` is
+  measured from, `keep` (Inside or within, Outside or beyond) says which side stays, and `distance` is the limit for the other
+  three. A placement is judged by its origin. A profile is a prism along its plane's normal; a point exactly on the outline or at
+  exactly the distance counts as inside. Edges are measured exactly when straight or circular (another curve refuses, with the
+  count); faces are measured to their **plane**, not their outline (a placement far beside a small flat face counts as near it),
+  and a curved face refuses, with the count.
+- **§4 Random Reduce.** `by` (Count, Fraction), `count`, `fraction`, `scope` (Overall, the default, or Per branch) and `seed`. Overall
+  because Per branch on branches of one item (a Face Pattern's cells) drops every item. Each item's key is the
+  generator's draw at its index in the stream of its branch's ordinal, and the smallest keys go: a bigger amount drops what a
+  smaller one did and more, and adding items to the end changes nothing earlier. A fraction rounds to the nearest item, halves up.
+- **§4 Random Values.** `shape` (any tree), else a flat list of `count` (at most 100,000); `min`, `max`, `seed`. `values` are reals
+  from `min` up to `max`; `integers` are whole numbers from `min` rounded up to `max` rounded down, both included, and the output is
+  left out when there are none. A number depends on the seed, the branch ordinal and the index in the branch only.
+- **§4 Jitter.** `distance` (a point in a disc of that radius in the placement's own plane, spread evenly over it), `turn` (degrees,
+  either way, about the placement's normal) and `seed`. Draw `3p`, `3p + 1`, `3p + 2` of the branch's stream move placement `p`.
+- **§4 The generator.** SplitMix64 (`SeededRandom`): the state starts at the seed (a negative seed is its two's complement) and
+  each draw adds 0x9E3779B97F4A7C15 and scrambles. Each random node mixes a constant of its own into the seed first
+  (`mix(seed ^ salt)`; the salt is the node's name in ASCII ending `_1`: `Reduce_1`, `Values_1`, `Jitter_1`), so two nodes given
+  the same seed, the default 0 included, draw unrelated numbers; the bare generator keeps the published sequence. Stream `n`
+  starts at `mix(start + n × step)`, `start` being the mixed seed. A real is the top 53 bits over 2⁵³;
+  a whole number below `b` is the high word of the draw times `b`. The sequence for seed 0 is the published one, and the first
+  draws of other seeds and of each node's purpose are pinned in `SeededRandomTests`; changing the algorithm or a salt changes every
+  saved file's random results.
+- **§6 Culled instances keep their path.** Place and the shortcuts make exactly the instances a culled list or branch of placements
+  holds (a longer size list adds none), name each by the path its placement had (`{3}` in a flat list, `{1;2}` in rows: the
+  placement's branch path and the index it kept, so a cull of `{1;1}` leaves `{1;2}` where it is), and read sizes and tools at that
+  index (`InstanceGrid`: a culled size list gives instance `i` its value at `i`, else the nearest one before it, else its first).
+  A pick on `{1;2}` therefore survives a cull of `{1;1}`, and a pick on a culled instance warns naming its path. Place outputs
+  its copies in the placements' shape with the same gaps. A culled size or tool list never adds instances, however many survivors it
+  holds, and one with everything culled makes none.
+- **§3, §4 Points to Placements takes trees (the user's decision U15).** `points` and `direction` are read whole and matched as
+  `InstanceGrid` matches placements, and the placements come back in the shape of the points with the same paths: a cull anywhere
+  before the node (on the Grid Points, say) numbers the instances as a cull of the placements would, a tree of points gives a tree of
+  placements, and a culled direction list is read at the instance's index. This replaces the 7a-2 behaviour of one run per branch.
