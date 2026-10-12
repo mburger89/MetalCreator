@@ -54,16 +54,22 @@ public enum FacePatternNode: NodeDefinition {
         let frame = try Frame(of: face)
         let region = try FaceRegion.outline(of: face, in: solid.topology, origin: frame.origin, xAxis: frame.xAxis, yAxis: frame.yAxis)
         guard let box = region.bounds else { throw NodeError.invalidValue(FaceRegion.unreadable) }
-        // Rows j and columns i of the lattice through the centroid, as far as the face's box reaches.
-        let rows = Int((box.min.y / spacingY).rounded(.up))...Int((box.max.y / spacingY).rounded(.down))
+        // Rows j and columns i of the lattice through the centroid, as far as the face's box reaches. Worked out as Doubles and
+        // checked against the cap before any Int is made, so a tiny spacing gives the message instead of a trap.
         let shift = stagger ? spacingX / 2 : 0
+        let (lowRow, highRow) = ((box.min.y / spacingY).rounded(.up), (box.max.y / spacingY).rounded(.down))
         // Every row counts its columns from this one (a staggered row starts up to `shift` further right, never further left).
-        let firstColumn = Int(((box.min.x - shift) / spacingX).rounded(.up))
+        let lowColumn = ((box.min.x - shift) / spacingX).rounded(.up)
         let columnsPerRow = (box.max.x - box.min.x + shift) / spacingX + 1
-        guard Double(rows.count) * columnsPerRow <= Double(maximumCandidates) else {
+        let rowCount = max(highRow - lowRow + 1, 0)
+        let limit = 1e15  // far above anything the cap allows, far below where Int(_:) traps
+        guard rowCount * columnsPerRow <= Double(maximumCandidates), abs(lowRow) < limit, abs(highRow) < limit,
+              abs(lowColumn) < limit else {
             throw NodeError.invalidValue("Face Pattern would have to try more than \(maximumCandidates.display) positions: "
                 + "raise the spacing.")
         }
+        let rows = Int(lowRow)...max(Int(highRow), Int(lowRow) - 1)
+        let firstColumn = Int(lowColumn)
         var rowBranches: [DataTree] = []
         var total = 0
         for row in rows {

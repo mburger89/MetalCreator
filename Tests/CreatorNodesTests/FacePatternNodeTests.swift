@@ -188,6 +188,12 @@ struct FacePatternNodeTests {
         (["spacingX": .number(0.5), "spacingY": .number(0.5)], "Patterns are limited to 2,000 instances."),
         (["spacingX": .number(0.01), "spacingY": .number(0.01)],
          "Face Pattern would have to try more than 200,000 positions: raise the spacing."),
+        (["spacingX": .number(1e-300), "spacingY": .number(1e-300)],
+         "Face Pattern would have to try more than 200,000 positions: raise the spacing."),
+        (["spacingX": .number(1e-300)],
+         "Face Pattern would have to try more than 200,000 positions: raise the spacing."),
+        (["spacingY": .number(1e-300), "stagger": .bool(true)],
+         "Face Pattern would have to try more than 200,000 positions: raise the spacing."),
     ] as [([SocketName: ConstantValue], String)])
     func aBadInputIsRefusedInPlainWords(settings: [SocketName: ConstantValue], message: String) async throws {
         var f = Fixture(settings)
