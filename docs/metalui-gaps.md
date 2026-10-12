@@ -38,8 +38,8 @@ stopgap as they were. The sections below keep each gap's full use case.
 | GI-b | Wheel latching (`CI-AD`) | none yet | ⏳ reported, not queued |
 | PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | ✅ fixed (MetalUI ebcf3c7, PR #63), adopted with no code change; idle re-measure pending |
 | PERF-b | Every observed change rebuilds, lays out and paints the whole window | C14 | ⏳ queued; measured by M7 (below) |
-| EP-a | Element frame in window coordinates, hover coordinate space, window size | C15 | ⏳ queued after C9 |
-| EP-b | Chrome-less point-anchored popover that closes on an outside press | C15 | ⏳ queued after C9 |
+| EP-a | Element frame in window coordinates, hover coordinate space, window size | C15 | 🟡 landed in MetalUI master 0abce86 (`CoordinateSpace.named`, `onGeometryChange` with `.global`/`.named`, `onContinuousHover(coordinateSpace:)`, `\.windowSize`); adoption here pending |
+| EP-b | Chrome-less point-anchored popover that closes on an outside press | C15 | 🟡 landed in MetalUI master 0abce86 (`.anchoredOverlay(isPresented:attachmentAnchor:content:)`, `PopoverAttachmentAnchor.point`); adoption here pending |
 | P-a | Third-party notices | C17 | ✅ fixed (67a579e), adopted |
 | LF-a | A clip inside an `offset` or uniform `scaleEffect` | C18 | ✅ fixed (0b400b4) |
 | LF-b | A clip inside nested flattening effects (LF-a's regression) | C19 | ✅ fixed (9ad2254) |
