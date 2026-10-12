@@ -20,6 +20,7 @@ public enum BuiltInNodes {
         CullPatternNode.self,
         CullIndexNode.self,
         CullByRegionNode.self,
+        RandomReduceNode.self,
         OutputNode.self,
     ]
 
