@@ -22,9 +22,8 @@ public struct GraphPanel: Component {
         ZStack {
             // The glass only paints, and MetalUI gives a painted view no hitbox (its divergence 141), so without this
             // backdrop a scroll, pinch, press or hover over the header's gaps, the padding or the refusal line would
-            // reach the viewport beneath. Opaque (a content shape with an empty drag) and claiming every scroll, as
-            // the palette's backdrop is (docs/metalui-gaps.md EP-b). The canvas, the header's buttons and the
-            // library's list are drawn above it and take their own input.
+            // reach the viewport beneath. Opaque (a content shape with an empty drag) and claiming every scroll. The
+            // canvas, the header's buttons and the library's list are drawn above it and take their own input.
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())

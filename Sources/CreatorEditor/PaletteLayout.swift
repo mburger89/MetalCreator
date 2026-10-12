@@ -1,8 +1,7 @@
 import CreatorGeometry
 
-/// The add-node palette's fixed size, computed so it can be placed inside the window before it is drawn
-/// (`PalettePlacement`). It shows at most `visibleRows` matches; ↑/↓ scroll the rest into view, so the panel never
-/// grows or jumps while the user types.
+/// The add-node palette's fixed size, computed so the palette is the same size whatever it shows. It shows at most
+/// `visibleRows` matches; ↑/↓ scroll the rest into view, so the panel never grows or jumps while the user types.
 public enum PaletteLayout {
     /// The column inside the glass.
     public static let contentWidth = 220.0
@@ -13,8 +12,6 @@ public enum PaletteLayout {
     public static let captionHeight = 16.0
     /// Between the field, the rows and the caption.
     public static let spacing = 4.0
-    /// The gap the palette keeps from the window's edges when it flips or is clamped.
-    public static let windowMargin = 8.0
 
     /// The rows' height: `visibleRows` of them, filled or not.
     public static var rowsHeight: Double { Double(visibleRows) * rowHeight }

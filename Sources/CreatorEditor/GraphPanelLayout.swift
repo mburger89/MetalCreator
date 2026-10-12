@@ -1,10 +1,10 @@
 import CreatorGeometry
 import CreatorGraph
 
-/// The graph panel's own geometry, computed rather than measured (MetalUI has no geometry reader:
-/// docs/metalui-gaps.md M4-a, EP-a), so the editor can tell where its canvas is in the window. `GlassPanel`,
-/// `GraphPanel`, `GraphPanelHeader` and `GraphPanelBody` are framed to these numbers, as nodes are framed to
-/// `NodeLayout`.
+/// The graph panel's own geometry, computed rather than measured: where the canvas is inside the panel. The panel
+/// itself reports where it is in the window (`EditorModel.panelPlacement`, from `onGeometryChange`: docs/metalui-gaps.md
+/// EP-a), and the editor adds the two to tell where its canvas is in the window. `GlassPanel`, `GraphPanel`,
+/// `GraphPanelHeader` and `GraphPanelBody` are framed to these numbers, as nodes are framed to `NodeLayout`.
 ///
 /// Under the header is the body: the node library and the canvas. The library sits on the side the graph flows
 /// from, across the panel's short axis: a column at the canvas's left edge when docked at the bottom (the graph

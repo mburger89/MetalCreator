@@ -41,6 +41,9 @@ public final class EditorModel {
 
     /// The pointer over the canvas, in canvas-local screen points; `nil` when it is elsewhere.
     public var pointerLocation: Vector2?
+    /// The pointer over the canvas, in window points (the canvas's `.global` hover, `GraphCanvas`); `nil` when it is
+    /// elsewhere. Read only when the palette opens, so it is not tracked.
+    @ObservationIgnored public var pointerWindowLocation: Vector2?
     public private(set) var interaction: CanvasInteraction?
     public private(set) var refusal: RefusalFeedback?
     /// How many times each node has been refused, which is the trigger of its shake (`NodeView`, `RefusalShake`).

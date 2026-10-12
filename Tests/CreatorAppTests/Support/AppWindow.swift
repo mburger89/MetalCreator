@@ -94,6 +94,12 @@ struct AppWindow {
         return point(inCanvas: bar.origin + bar.size * 0.5)
     }
 
+    /// The add-node palette, once it is open: MetalUI publishes an `anchoredOverlay` as a `popover` node, so its frame is
+    /// where the overlay put the glass.
+    var palettePanel: TestElement? {
+        (try? window.elements(role: .popover))?.first
+    }
+
     /// The window x where the inspector's column starts (it floats at the window's right edge).
     var inspectorColumnStart: Double { size.x - AppLayout.margin - AppLayout.inspectorWidth }
 
