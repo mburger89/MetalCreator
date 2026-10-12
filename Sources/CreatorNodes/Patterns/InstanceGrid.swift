@@ -161,7 +161,11 @@ struct InstanceGrid {
     /// list, at the same indices, when the placements were culled), else the tree (the empty branches and culled gaps too) the
     /// instances sit in.
     func tree(of scalars: [Scalar]) -> DataTree {
-        if let shape { return shape.replacingItems(scalars) ?? .empty(depth: depth) }
+        if let shape {
+            if let replaced = shape.replacingItems(scalars) { return replaced }
+            assertionFailure("InstanceGrid.tree(of:) got \(scalars.count) scalars for a shape of a different size")
+            return .empty(depth: depth)
+        }
         if let culledIndices { return DataTree.culledList(scalars, at: culledIndices) ?? .list(scalars) }
         return depth > 1 && scalars.isEmpty ? .empty(depth: depth) : .list(scalars)
     }

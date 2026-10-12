@@ -1,8 +1,9 @@
 import CreatorGraph
 
 /// What a Cull Index takes out (patterns spec §4): item indices, which name that place in every branch (`3` is `{0;3}`,
-/// `{1;3}`, …; always the last level, so on `{row;column;0}` cells only `0` names anything), and paths, which name one item (`{0;3}`) or, when they stop short of the items, everything under them (`{1}`
-/// is the whole second row). An index or path names the place an item had before any cull, so culling twice never shifts it.
+/// `{1;3}`, …; always the last level, so on `{row;column;0}` cells only `0` names anything), and paths, which name one
+/// item (`{0;3}`) or, when they stop short of the items, everything under them (`{1}` is the whole second row). An
+/// index or path names the place an item had before any cull, so culling twice never shifts it.
 struct CullTargets {
     private(set) var indices: Set<Int> = []
     private(set) var paths: [TreePath] = []

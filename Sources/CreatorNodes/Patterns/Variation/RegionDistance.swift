@@ -52,6 +52,8 @@ enum RegionDistance {
                                  sweep: Double) -> Double {
         guard let normal = axis.normalized, let first = (start - center).normalized else { return (point - center).length }
         let second = normal.cross(first)
+        // `angle <= sweep` below assumes a positive (counter-clockwise) sweep, as OCCT reports it (cocct.h).
+        assert(sweep >= 0, "arc sweep must be counter-clockwise positive")
         let offset = point - center
         let height = offset.dot(normal)
         let (x, y) = (offset.dot(first), offset.dot(second))

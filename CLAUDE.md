@@ -122,8 +122,8 @@ Module boundaries (dependency order):
     nodes' sockets only. Iteration `item` numbers (the tag's item) are flat, row by row.
     Culling keeps paths (patterns spec §4): a flat list or branch that has had items taken out holds the survivors at the indices
     they had (`DataTree.culledList(_:at:)`, `isCulled`, `itemPositions`; `DataTree.keepingItems(where:)` and
-    `mappingItems(_:)` are how nodes cull and refill, `replacingItems(_:)` keeps the indices), and since a `.list` cannot say that it is
-    a `Value.tree` of depth 1 (`Value(_:)` makes any other flat tree a `.list`). It broadcasts as a list: an item or list socket sees
+    `mappingItems(_:)` are how nodes cull and refill, `replacingItems(_:)` keeps the indices), and since a `.list` cannot say which
+    indices its items keep, such a list is a `Value.tree` of depth 1 (`Value(_:)` makes every other flat tree a `.list`). It broadcasts as a list: an item or list socket sees
     the survivors in order, as a rank, and a `tree` socket gets the tree whole with its indices, which is how `InstanceGrid` reads
     them. Reshaping nodes (Flatten, Graft, Partition, Path Mapper) renumber, as reshaping does, and List Item, Branch by Path and
     Tree Statistics count a culled list's survivors by rank; Cull Index alone names the places items had.

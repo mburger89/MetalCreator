@@ -2,12 +2,13 @@ import CreatorGraph
 import CreatorKernel
 import Foundation
 
-/// A random number for every instance (patterns spec §4), reals or whole numbers in a range, in the shape of a tree wired
-/// into `shape` or, with nothing wired, a flat list of `count`. Wire `values` into a size (diameters, heights) or `integers`
-/// into a count or a Cull Index to vary a pattern. It is always seeded (`SeededRandom`, SplitMix64, purpose `.values`): the same
-/// seed gives the same numbers on every machine and in every release, and not the numbers Random Reduce or Jitter draw for it. A number depends on the seed and on where its item is (its branch's
-/// ordinal and its index in the branch), never on how many items there are, so more instances or a cull don't change the
-/// numbers the others get, and a shape that was culled gets numbers at the paths it kept. A new seed never warns.
+/// A random number for every instance (patterns spec §4), reals or whole numbers in a range, in the shape of a tree
+/// wired into `shape` or, with nothing wired, a flat list of `count`. Wire `values` into a size (diameters, heights) or
+/// `integers` into a count or a Cull Index to vary a pattern. It is always seeded (`SeededRandom`, SplitMix64, purpose
+/// `.values`): the same seed gives the same numbers on every machine and in every release, and not the numbers Random
+/// Reduce or Jitter draw for it. A number depends on the seed and on where its item is (its branch's ordinal and its
+/// index in the branch), never on how many items there are, so more instances or a cull don't change the numbers the
+/// others get, and a shape that was culled gets numbers at the paths it kept. A new seed never warns.
 ///
 /// `values` are reals from `min` up to `max`. `integers` are whole numbers from `min` rounded up to `max` rounded down,
 /// both ends included; there are none (and the output is left out) when no whole number lies between them.

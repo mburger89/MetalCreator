@@ -31,9 +31,9 @@ public enum CullPatternNode: NodeDefinition {
             mask = try inputs.bools("keep")
             guard !mask.isEmpty else { throw NodeError.invalidValue("“keep” is an empty list. Give it at least one true or false.") }
         } else {
-            guard case .text(let text)? = context.node.inputValues[NodeSetting.cullPattern] else {
-                throw NodeError.invalidValue("The pattern is empty. Write 1 to keep an item and 0 to cull it, like 1 0 1.")
-            }
+            // A missing or non-text setting reads as empty; `CullMask.parse` says so.
+            var text = ""
+            if case .text(let setting)? = context.node.inputValues[NodeSetting.cullPattern] { text = setting }
             mask = try CullMask.parse(text)
         }
         // Where each branch's first item falls in the mask: the start for every branch, or after the items before it.

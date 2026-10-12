@@ -67,6 +67,7 @@ struct SeededRandom: Sendable {
     /// Draw `index` as a whole number in 0 ..< `bound` (`bound` at least 1): the draw's high bits scaled to the bound
     /// (multiply-high, no division), whose bias is below `bound` / 2⁶⁴.
     func below(_ bound: Int, at index: Int) -> Int {
-        Int(value(at: index).multipliedFullWidth(by: UInt64(bound)).high)
+        precondition(bound >= 1, "SeededRandom.below needs a bound of at least 1")
+        return Int(value(at: index).multipliedFullWidth(by: UInt64(bound)).high)
     }
 }

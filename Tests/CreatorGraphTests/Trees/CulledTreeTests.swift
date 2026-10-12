@@ -163,6 +163,24 @@ struct CulledTreeTests {
         #expect(try plan.inputs(at: 3).list("a").count == 2)
     }
 
+    @Test func aCulledListAndATreeOnTwoItemSocketsPairLikeAPlainListWould() throws {
+        let itemSpecs = [SocketSpec("a", .number), SocketSpec("b", .number)]
+        let tree = try #require(DataTree(depth: 2, branches: [.list(numbers([10, 11])), .list(numbers([20, 21]))]))
+        let reals = try #require(DataTree.culledList([1, 2].map { .number(Double($0)) }, at: [0, 4]))
+        let plain = Value.list([.number(1), .number(2)])
+        func pairs(_ a: Value) throws -> (count: Int, a: [Double], b: [Double]) {
+            let plan = BroadcastPlan.make(inputs: ["a": a, "b": .tree(tree)], specs: itemSpecs)
+            return (plan.iterations, try (0..<plan.iterations).map { try plan.inputs(at: $0).number("a") },
+                    try (0..<plan.iterations).map { try plan.inputs(at: $0).number("b") })
+        }
+        let culledPairs = try pairs(Value(reals))
+        #expect(culledPairs.count == 4, "one run per item of the tree")
+        #expect(culledPairs.a == [1, 2, 1, 2], "the survivors in order, repeated for every branch")
+        #expect(culledPairs.b == [10, 11, 20, 21])
+        let plainPairs = try pairs(plain)
+        #expect(culledPairs.count == plainPairs.count && culledPairs.a == plainPairs.a && culledPairs.b == plainPairs.b)
+    }
+
     @Test func aTreeAccessSocketGetsTheCulledTreeWhole() throws {
         let treeSpecs = [SocketSpec("t", .any, access: .tree)]
         let plan = BroadcastPlan.make(inputs: ["t": Value(try culled([1, 2], at: [3, 4]))], specs: treeSpecs)

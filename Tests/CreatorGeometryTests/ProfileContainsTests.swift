@@ -43,7 +43,7 @@ struct ProfileContainsTests {
         #expect(!plate.contains(Vector2(20, 0)))
     }
 
-    @Test func aClockwiseArcNotchIsHandled() {
+    @Test func anLShapedNotchIsHandled() {
         // An L-shaped notch: the region is the 20 × 10 rectangle without its top-right quarter.
         let corners = [Vector2(-10, -5), Vector2(10, -5), Vector2(10, 0), Vector2(0, 0), Vector2(0, 5), Vector2(-10, 5)]
         let loop = corners.indices.map { Segment2D.line(corners[$0], corners[($0 + 1) % corners.count]) }

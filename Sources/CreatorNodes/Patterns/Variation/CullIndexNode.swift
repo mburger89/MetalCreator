@@ -2,13 +2,13 @@ import CreatorGraph
 import CreatorKernel
 import Foundation
 
-/// Takes listed items out of a list or tree (patterns spec §4). An index such as `3` drops that place from every branch (the
-/// place within the branch: in a tree whose branches hold one item each, like a Face Pattern's `{row;column;0}` cells, only 0
-/// is a place, so name cells by path); a path such as `{0;3}` drops one item, and a shorter one such as `{1}` drops everything
-/// under it. They go in the saved text
-/// setting, `1, 4, {0;3}`, or as numbers wired into `indices` (a Series, Random Values' integers). Culling keeps paths: the
-/// rest keep the indices they had, so `{4}` is still `{4}` when `{1}` is gone and a pick on it follows it (§6); a pick on the
-/// culled item warns, naming its path. A path that names nothing in the tree is said once and the others still apply.
+/// Takes listed items out of a list or tree (patterns spec §4). An index such as `3` drops that place from every branch
+/// (the place within the branch: in a tree whose branches hold one item each, like a Face Pattern's `{row;column;0}`
+/// cells, only 0 is a place, so name cells by path); a path such as `{0;3}` drops one item, and a shorter one such as
+/// `{1}` drops everything under it. They go in the saved text setting, `1, 4, {0;3}`, or as numbers wired into
+/// `indices` (a Series, Random Values' integers). Culling keeps paths: the rest keep the indices they had, so `{4}` is
+/// still `{4}` when `{1}` is gone and a pick on it follows it (§6); a pick on the culled item warns, naming its path. A
+/// path that names nothing in the tree is said once and the others still apply.
 public enum CullIndexNode: NodeDefinition {
     public static let typeID = "creator.cullIndex"
     public static let displayName = "Cull Index"

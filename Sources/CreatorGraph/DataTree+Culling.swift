@@ -1,11 +1,13 @@
 extension DataTree {
     /// What `rebuildingLeaves` takes back for one branch: its new items, the index each one has in its branch (one per
-    /// item), and whether the branch is culled (so those indices are kept as they are rather than counted).
+    /// item), and whether the branch is culled (so those indices are kept as they are rather than counted). When
+    /// `isCulled` is true the positions must be valid for `DataTree.culledList(_:at:)` (one per item, ascending, no
+    /// negatives); that is a precondition, and a violation trips an `assertionFailure`.
     public typealias LeafRewrite = (items: [Scalar], positions: [Int], isCulled: Bool)
 
     /// The same nesting with every branch that holds items rewritten by `transform`, which gets the branch and its
     /// ordinal (0 for the first branch that holds items, 1 for the next, counting empty ones, and so on in tree order).
-    /// Branches that are empty gaps stay as they are. A branch's ordinal is what the random nodes use as its stream.
+    /// Every depth-1 branch is transformed, empty ones included, and each counts in the ordinal. A branch's ordinal is what the random nodes use as its stream.
     public func rebuildingLeaves(_ transform: (_ leaf: Leaf, _ ordinal: Int) -> LeafRewrite) -> DataTree {
         var ordinal = 0
         return rebuilt(under: TreePath(), ordinal: &ordinal, transform)
@@ -18,7 +20,11 @@ extension DataTree {
             let rewritten = transform(leaf, ordinal)
             ordinal += 1
             guard rewritten.isCulled else { return .list(rewritten.items) }
-            return DataTree.culledList(rewritten.items, at: rewritten.positions) ?? .list(rewritten.items)
+            guard let culled = DataTree.culledList(rewritten.items, at: rewritten.positions) else {
+                assertionFailure("LeafRewrite is culled but its positions are not valid for its items")
+                return .list(rewritten.items)
+            }
+            return culled
         }
         var rebuiltBranches: [DataTree] = []
         for (index, branch) in branches.enumerated() {
