@@ -67,9 +67,9 @@ drags print to the terminal.
   and clicking empty space clears (the harness applies clicks itself; in the app, selection belongs to the shell). Pinned: `edgeInstancesAreOnePerSegmentWithTheirPickID`. Observed:
 - [x] **V9 Handles.** A purple arrow handle at the plate top labelled "6 mm", and an orange radial handle at a fillet
   labelled "R 3 mm". Dragging a knob moves it along its axis, the label follows, and the terminal prints `changed`
-  values and one `ended`. The camera doesn't move. Known symptom (gap M4-a): handle labels are missing on the first build of a document with a saved camera, and misplaced during a live resize, until the next rebuild. Pinned: `draggingAHandleEditsItsValueAndNotTheCamera`. Observed: 2026-10-07 PASS: both handles dragged (plate 5→10.7 mm, fillet 4.4 mm); each drag printed `changed` values and exactly one `ended` (harness log).
+  values and one `ended`. The camera doesn't move. Handle labels are there from the first layout of a document with a saved camera and follow a live resize (the viewport's size is `onGeometryChange`'s, gap M4-a, adopted). Pinned: `draggingAHandleEditsItsValueAndNotTheCamera`, `handleLabelsAreRebuiltWhenTheLayoutReportsTheFirstSize`. Observed: 2026-10-07 PASS: both handles dragged (plate 5→10.7 mm, fillet 4.4 mm); each drag printed `changed` values and exactly one `ended` (harness log).
 - [ ] **V10 Resize and displays.** Resizing the window live shows no stretched or blank frames, and picking stays
-  accurate after a resize (known symptom, gap M4-a: handle labels are missing on the first build of a document with a saved camera, and misplaced during a live resize, until the next rebuild). Moving between a Retina and a 1× display keeps lines crisp. Starting the harness in a
+  accurate after a resize (handle labels follow the resize at once: the viewport's size is `onGeometryChange`'s, gap M4-a, adopted; pinned `aResizedWindowResizesTheViewport`). Moving between a Retina and a 1× display keeps lines crisp. Starting the harness in a
   narrow window (drag it narrow, quit, relaunch) frames the whole bracket, not clipped at the sides. Pinned:
   `aSceneShownBeforeTheFirstDrawIsFramedOnceTheViewHasASize`. Observed:
 - [ ] **V11 Grid steps.** Zooming in and out switches the grid between 1, 10 and 100 mm, and the label follows. Pinned:
@@ -180,7 +180,8 @@ Run `swift run MetalCreatorApp` on a saved bracket, with a trackpad and a wheel 
 - [ ] **GI-7 The palette.** Open the palette (Space) over the canvas, then scroll or pinch over the canvas outside
   it: it closes. Open it again and scroll over the palette itself: the canvas doesn't move and the palette stays.
   Pinch over the palette: nothing moves (neither the canvas nor the viewport) and it stays open.
-  Pinned: `aScrollThatMovesTheCanvasClosesThePalette`, `aPinchClosesThePalette`. **Observed:**
+  Pinned: `aScrollThatMovesTheCanvasClosesThePalette`, `aPinchClosesThePalette`, `PaletteOverlayWindowTests` (`aScrollOverItDoesNotReachTheCanvasOrTheViewport`,
+  `aPinchOverItMovesNothingAndItStaysOpen`). **Observed:**
 - [ ] **GI-8 Keys unchanged, and the preview.** Over the canvas, + and − still zoom it (not the viewport), F frames
   the graph's selection (MS-6; before multi-select it framed the viewport), Tab and Space open the palette, and
   Delete, ⌘C, ⌘V and ⌘D work after a canvas click. Then in
@@ -418,14 +419,17 @@ Run `swift run MetalCreatorApp` (EP-1–EP-9, EP-11, EP-12) and `swift run Graph
   viewport, every row and the search field visible, nothing clipped by the panel's edge. Escape. Move the pointer
   near the canvas's right end (under the inspector) and press Space: it opens to the pointer's left, fully visible,
   over the inspector. Dock left and press Tab near the canvas's top-left: its top-left corner is at the pointer. The
-  graph panel never moves or resizes while it is open. Pinned: `FloatingPaletteTests`,
+  graph panel never moves or resizes while it is open. The palette is MetalUI's `anchoredOverlay` (gap EP-b): at the
+  window's edge it is flush with it (no margin). Resize the window with the palette open: it stays inside. Pinned:
+  `PaletteOverlayWindowTests` (`itOpensWithItsTopLeftCornerAtThePointerWhateverTheViewportHasDrawn`, `itFlipsUpAtTheBottomEdgeAndOnlyThere`,
+  `itFlipsLeftAtTheRightEdgeAndUpAtTheBottom`, `resizingTheWindowWhileOpenKeepsItInside`),
   `thePaletteIsPaintedOverEverythingWhereItWasPlaced`. **Observed:**
 - [ ] **EP-2 The palette's keys and rows.** Open it with Space: ten rows show and the caption says how many more.
   Press ↓ twelve times: the rows scroll to keep the highlight in view; ↑ scrolls back. Type "ex": the rows narrow
   and the palette keeps its size and place. Type "f+": they go into the field (the viewport neither frames nor
   zooms). Press Return: the node is added where the pointer was when the palette opened (not at the palette's
   corner) and selected; ⌘Z removes it in one step. Pinned: `theRowsScrollToKeepTheHighlightInView`,
-  `atTheBottomDockItFlipsUpAndAddsAtThePressPoint`. **Automated** (`PaletteKeyRoutingWindowTests`): Space over the canvas opens
+  `theNodeItAddsLandsAtThePressPoint`. **Automated** (`PaletteKeyRoutingWindowTests`): Space over the canvas opens
   the palette with the search field focused, "f+" go into the field (the viewport neither frames nor zooms), Return adds a
   node and selects it, ⌘Z removes it in one step, Esc closes the palette and adds nothing. **By hand:** the rows' scrolling
   and where the node lands. **Observed:**
@@ -433,9 +437,12 @@ Run `swift run MetalCreatorApp` (EP-1–EP-9, EP-11, EP-12) and `swift run Graph
   click). Open it, click a top-bar button: it closes. Open it, click the canvas: it closes. Open it, right-click or
   middle-click the canvas or the inspector: it closes. Open it and click its glass padding or caption: it stays open
   and nothing under it reacts. Open it over the inspector (near the window's right edge) and scroll over it: the
-  inspector doesn't scroll. Open it and click into an inspector field, or right-click the viewport (its context menu
-  opens): known, it stays open (gap EP-b); Escape closes it. Pinned: `aPressOutsideClosesItAndOneInsideDoesNot`,
-  `theWindowsPressesReachThePaletteUnclaimed`. **Observed:**
+  inspector doesn't scroll. Open it and click into an inspector field, or right-click the canvas (its context menu
+  opens): it closes, the field has the focus, the menu opens. Escape closes it. **Automated** (`PaletteOverlayWindowTests`:
+  `aPressIntoATextFieldClosesItAndTheFieldGetsFocus`, `aRightClickThatOpensAContextMenuClosesItAndTheMenuStillOpens`,
+  `theRightAndMiddleButtonsOutsideCloseItToo`, `aPressOnTheViewportClosesIt`, `aPressOnTheCanvasClosesItAndSelectsWhatItHit`,
+  `aPressOnItsOwnGlassStaysOpenAndNothingBeneathReacts`, `escapeClosesItAndLeavesTheSelectionAlone`).
+  **By hand:** the looks, and the scroll over the inspector. **Observed:**
 - [ ] **EP-4 The library's place.** A new window shows the library, captioned "Nodes" above its "Search nodes" field:
   docked at the bottom, a column at the canvas's left edge; docked left, a strip across the canvas's top. It lists
   Value, Profile, Solid, Selection, Feature and Output, each under a header in that category's node-header colour, and

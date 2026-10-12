@@ -227,7 +227,7 @@ the seventeen
     (`ViewportRenderer+Guides`). The renderer keeps the triad's, the overlay's and the region fills' GPU buffers between
     frames: the overlay's key holds the grid's extent and the dashes' zoom, not the pose, so an orbit allocates none, and
     the fills' buffer is dropped once a frame has no fills (`RendererCacheTests`). `handleLabels()` reads the size through
-    `observedViewSize`, as `overlayLabels()` does. Every scroll or pinch event stops a camera animation started mid-gesture.
+    the tracked `viewSize`, as `overlayLabels()` does. Every scroll or pinch event stops a camera animation started mid-gesture.
   - It depends on Kernel, Geometry, CreatorStyle and MetalUI only, never CreatorGraph. The app shell turns graph outputs into
     `ViewportItem`s and `HandleSpec`s into `ViewportHandle`s.
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
@@ -243,9 +243,9 @@ the seventeen
   `cullingMargin`, everything while unplaced), and below zoom `rowsMinimumZoom` draws nodes without their rows
   (`drawsNodeRows`); hit testing, selection and edits always see the whole graph. A
   `ForEach` over nodes keys them `id: \.id.rawValue`: MetalUI names elements by their id's description and drops a
-  repeat (gap M7-a), and a `NodeID` prints only 8 hex digits. The window's size reaches the panel's placement through
-  `ViewportModel.observedViewSize` (bumped one task after the draw records a new size, gap M4-a), never `viewSize`
-  itself, so a resize rebuilds the canvas.
+  repeat (gap M7-a), and a `NodeID` prints only 8 hex digits. The graph panel measures itself: `GraphPanel`'s
+  `onGeometryChange` writes `EditorModel.panelPlacement` (its frame in the window and `\.windowSize`, gaps EP-a and M4-a),
+  tracked, so a resize or a move rebuilds the canvas; nothing computes the panel's place from `AppLayout`.
   The graph panel shows a level (`EditorModel+Levels`: `enteredGroups`/`levelPath`, `enterGroup(_:)`, `exitGroup()`,
   `goToLevel(_:)`, `breadcrumbs`, `refreshLevel()` after anything that undoes): `EditorModel.graph` is the level's
   graph, so every reader (hit testing, drawing, the inspector, selection) sees it, and every edit goes through
@@ -391,10 +391,13 @@ The viewport's pointer input is MetalUI C7's (spec §9): its bindings live in `V
 Editor geometry is computed by `NodeLayout`, never measured; views are framed to it so
 drawing and hit testing agree. Node positions are stored left-to-right; the left dock draws their transpose.
 The graph panel's insides (header, node library, canvas) are computed by `GraphPanelLayout` and the palette's size
-by `PaletteLayout`; the host says where the panel is in its window through `EditorModel.placement` (the app:
-`AppModel.panelPlacement`, from `AppLayout` and the viewport's size; the preview: `PreviewLayout`, a fixed-size
-window). The add-node palette floats over the window: the host draws `SearchPaletteOverlay` last (the app inside
-`PaletteDock`, for the `Panel` key context), then `LibraryDragOverlay`, never inside the canvas. A library row is a
+by `PaletteLayout`; the panel says where it is in its window itself (`EditorModel.panelPlacement`, from `onGeometryChange`;
+`AppModel.panelPlacement` forwards it; tests that draw one cold `renderFrame` run no layout callbacks and set it with
+`ExpectedLayout.place`). The add-node palette floats over the window as MetalUI's `anchoredOverlay` (gap EP-b), opening at the
+pointer's window point (`EditorModel.pointerWindowLocation`, the canvas container's `.global` hover): the host draws
+`SearchPaletteOverlay` last (the app inside `PaletteDock`, for the `Panel` key context), then `LibraryDragOverlay`, never
+inside the canvas. MetalUI places it (flip and clamp), closes it (any outside press, Escape) and keeps presses and the wheel
+on it from what lies beneath; the model holds no palette geometry. A library row is a
 `PaletteEntryLabel` under one `DragGesture(minimumDistance: 0, coordinateSpace: .global)`
 (`GraphPanelInput.libraryGesture(for:)`; not a `Button`, whose click would hold the drag off), and the model tells a
 click from a drag (`LibraryDrag.threshold`); never MetalUI drag and drop (it becomes a system drag outside the
@@ -408,8 +411,8 @@ has none, gap GI-a; a drag on empty canvas box-selects and never pans), a `DragG
 focus are MetalUI C9's: `CanvasSurface` is a `hoverKeyRegion` whose one `onKeyPress` runs the graph's keys
 (`GraphPanelInput.keyPressed(_:)`), so with nothing focused they act where the pointer is, a focused field (the inspector's,
 the library's, the canvas's comment editor) keeps every key wherever the pointer is, and a canvas press clears a field's focus.
-The open palette's ↑/↓ (a keymap action, gap M5-h), its keys on `onInput` and its click-outside (gap EP-b) are the stopgaps
-left in `GraphPanelInput`, and `install(on:)` chains onto the window's existing handlers.
+The open palette's ↑/↓ (a keymap action, gap M5-h) and its keys on `onInput` are the stopgap left in `GraphPanelInput`, and
+`install(on:)` chains onto the window's existing handlers.
 The app installs the window's input through `AppInput`, never `GraphPanelInput.install(on:)` (only
 `GraphPanelPreview` still uses it), because New and Open replace the document's `GraphPanelInput`.
 App-shell input stopgaps live only in `AppInput`: the viewport's keys carry the `!Panel` key context (the graph panel
