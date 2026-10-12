@@ -2,29 +2,17 @@ import CreatorGeometry
 import CreatorGraph
 
 extension EditorModel {
-    /// Tab or Space: opens the add-node palette under the pointer (or the canvas corner). It floats over the
-    /// window (`SearchPaletteOverlay`), placed once by `PalettePlacement` so it is fully visible; the node it adds
-    /// still lands at the canvas point where it opened.
+    /// Tab or Space: opens the add-node palette under the pointer (or the canvas corner). It floats over the window
+    /// (`SearchPaletteOverlay`), anchored at the pointer's window point (`pointerWindowLocation`, which the canvas's
+    /// `.global` hover reports, so it needs neither a placed panel nor a drawn viewport); the node it adds still lands
+    /// at the canvas point where it opened.
     public func openPalette() {
         let screen = pointerLocation ?? Vector2(24, 24)
-        let pointer = windowPoint(fromCanvas: screen) ?? screen
-        let origin = PalettePlacement.origin(pointer: pointer, size: PaletteLayout.size, window: panelPlacement?.window)
-        palette = SearchPaletteState(screenPosition: screen, windowOrigin: origin)
+        let window = pointerLocation == nil ? nil : pointerWindowLocation
+        palette = SearchPaletteState(screenPosition: screen, windowPoint: window ?? windowPoint(fromCanvas: screen))
     }
 
     public func closePalette() { palette = nil }
-
-    /// The open palette's frame in window points.
-    public var paletteFrame: CanvasRect? {
-        palette.map { CanvasRect(origin: $0.windowOrigin, size: PaletteLayout.size) }
-    }
-
-    /// A press anywhere in the window, in window points (`GraphPanelInput.handle(_:)`): one outside the open
-    /// palette closes it ("a click outside").
-    public func windowPressed(at point: Vector2) {
-        guard let frame = paletteFrame, !frame.contains(point) else { return }
-        closePalette()
-    }
 
     /// The palette's matches for its current query.
     public var paletteEntries: [PaletteEntry] {

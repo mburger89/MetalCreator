@@ -72,8 +72,8 @@ at any load.
   and wires whose frames meet the visible canvas grown by `EditorModel.cullingMargin` (160 points) on every side.
   Panning the 50-node graph went from 26.63 ms to 13.09 ms of CPU a frame (runs minutes apart, both loaded; the
   second at load 10.55 / 26.20 / 52.76 before). Hit testing, selection and every edit still see the whole graph;
-  culling is drawing only. A window resize reaches the canvas one task after the viewport's draw records the new size
-  (`ViewportModel.observedViewSize`, gap M4-a's stopgap), so what a bigger window uncovers is drawn at once.
+  culling is drawing only. A window resize reaches the canvas as the panel's `onGeometryChange` reports its new frame
+  (`EditorModel.panelPlacement`, gap EP-a), so what a bigger window uncovers is drawn at once.
 - **Level of detail** (`EditorModel.drawsNodeRows`, `rowsMinimumZoom` = 0.5): zoomed out below half size, nodes are
   drawn without their rows, whose text is too small to read there. Zoomed out, culling can't help (every node is in
   view), so this is MetalCreator's lever on the zoom target. From the M7 plan's probe, not re-measured on this branch:

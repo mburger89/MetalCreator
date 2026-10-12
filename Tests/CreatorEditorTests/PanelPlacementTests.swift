@@ -6,7 +6,7 @@ import Testing
 @testable import CreatorEditor
 
 /// The panel's geometry is computed (`GraphPanelLayout`), and the host says where the panel is in its window
-/// (`EditorModel.placement`), so the editor knows where its canvas is without measuring anything (gap M4-a).
+/// (`EditorModel.panelPlacement`, which the panel itself reports: gap EP-a), so the editor knows where its canvas is.
 @MainActor
 struct PanelPlacementTests {
     @Test func theBodySitsUnderTheHeaderInsideTheGlass() {
@@ -53,7 +53,7 @@ struct PanelPlacementTests {
     @Test func theCanvasShrinksWhileARefusalShows() {
         let editor = makeEditor([], dock: .bottom)
         let panel = CanvasRect(origin: Vector2(12, 388), size: Vector2(976, 300))
-        editor.placement = { PanelPlacement(window: Vector2(1000, 700), panel: panel) }
+        editor.panelPlacement = PanelPlacement(window: Vector2(1000, 700), panel: panel)
         #expect(editor.canvasFrameInWindow?.size == Vector2(772, 244))
         #expect(editor.drawnCanvasRect != nil)
         editor.refuse("No.", node: nil)
@@ -67,7 +67,7 @@ struct PanelPlacementTests {
         let editor = makeEditor([], dock: .bottom)
         #expect(editor.canvasFrameInWindow == nil, "no host, no window coordinates")
         let panel = CanvasRect(origin: Vector2(12, 388), size: Vector2(976, 300))
-        editor.placement = { PanelPlacement(window: Vector2(1000, 700), panel: panel) }
+        editor.panelPlacement = PanelPlacement(window: Vector2(1000, 700), panel: panel)
         #expect(editor.canvasFrameInWindow == CanvasRect(origin: Vector2(206, 434), size: Vector2(772, 244)))
         #expect(editor.windowPoint(fromCanvas: Vector2(5, 6)) == Vector2(211, 440))
         #expect(editor.visibleCanvasCentre == Vector2(386, 122))

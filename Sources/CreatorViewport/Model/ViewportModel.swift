@@ -58,12 +58,10 @@ public final class ViewportModel {
     let kernel: any Kernel
     let clock: any ViewportClock
     let cache = TessellationCache()
-    /// The view's size in points, recorded by the draw (MetalUI has no size callback: docs/metalui-gaps.md). The app
-    /// shell reads it as the window's size, since the viewport fills the window, through `observedViewSize`.
-    @ObservationIgnored public internal(set) var viewSize = ViewportSize(width: 0, height: 0)
-    /// Counts the recorded view sizes that differed from the one before, bumped one task after the draw (a draw must
-    /// not write tracked state). `observedViewSize` reads it, so what lays out from the window's size is rebuilt.
-    public private(set) var viewSizeChanges = 0
+    /// The view's size in points, from `ViewportView`'s `onGeometryChange` (`recordViewSize(_:)`; zero until the first
+    /// build has been laid out). Tracked, so what is built from it (the handle and overlay labels) is rebuilt after a
+    /// resize.
+    public internal(set) var viewSize = ViewportSize(width: 0, height: 0)
     /// Answers "what is under this point?". It's set when the GPU objects are made, and tests set it directly.
     @ObservationIgnored var pick: (@MainActor (ScreenPoint) -> PickTarget?)?
     @ObservationIgnored var drag: DragState?
@@ -83,8 +81,6 @@ public final class ViewportModel {
     @ObservationIgnored private(set) var pendingItems: [ViewportItem]?
     /// The deferred first framing scheduled by `recordViewSize(_:)`. Tests await it.
     @ObservationIgnored private(set) var framingTask: Task<Void, Never>?
-    /// The deferred `viewSizeChanges` bump scheduled by `recordViewSize(_:)`; `nil` once it has run. Tests await it.
-    @ObservationIgnored private(set) var sizeChangeTask: Task<Void, Never>?
 
     /// `pose` is a saved camera (`ViewState.camera`). Without one, the first scene is framed from the home view.
     public init(kernel: any Kernel, pose: CameraPose? = nil, clock: any ViewportClock = SystemViewportClock()) {
@@ -97,13 +93,6 @@ public final class ViewportModel {
     }
 
     public var isAnimating: Bool { animation != nil }
-
-    /// `viewSize`, read so that the reader's observers learn of a new size: one task after the draw that records it
-    /// (gap M4-a). The app's graph panel placement reads it, so a resize rebuilds the canvas at the new size.
-    public var observedViewSize: ViewportSize {
-        _ = viewSizeChanges
-        return viewSize
-    }
 
     /// `theme`'s colours as the GPU takes them.
     var palette: ViewportPalette { ViewportPalette(theme) }
@@ -240,19 +229,11 @@ public final class ViewportModel {
         }
     }
 
-    /// Records the view's size, from the draw. A size that differs from the last reaches `observedViewSize`'s
-    /// readers, and the first real size frames a scene that arrived before it. Both are done from a task, because a
-    /// draw must not write tracked state.
+    /// Records the view's size, from `ViewportView`'s `onGeometryChange` (which runs after the build, so it may write
+    /// tracked state). The first real size frames a scene that arrived before it, from a task.
     func recordViewSize(_ size: ViewportSize) {
         let wasEmpty = viewSize.isEmpty
-        if size != viewSize, sizeChangeTask == nil {
-            sizeChangeTask = Task { [weak self] in
-                guard let self else { return }
-                sizeChangeTask = nil
-                viewSizeChanges += 1
-            }
-        }
-        viewSize = size
+        if size != viewSize { viewSize = size }
         guard wasEmpty, !size.isEmpty, needsFirstFraming, sceneBounds != nil else { return }
         framingTask = Task { [weak self] in self?.frameFirstSceneIfNeeded() }
     }

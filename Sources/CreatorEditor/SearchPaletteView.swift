@@ -3,8 +3,9 @@ import MetalUI
 
 /// The add-node palette: a search field (focused when it opens), the matches in view, the
 /// highlighted one marked, and a caption line. It is `PaletteLayout.size`, whatever it shows, so it
-/// never grows or jumps. Return adds, Escape closes (keys come through `GraphPanelInput`). A press or
-/// a scroll on its glass is caught here, so it never reaches the canvas, inspector or viewport beneath.
+/// never grows or jumps. Return adds, Escape closes (keys come through `GraphPanelInput`). `SearchPaletteOverlay`
+/// presents it with `anchoredOverlay`, which keeps a press or a scroll on its glass from reaching the canvas,
+/// inspector or viewport beneath.
 struct SearchPaletteView: Component {
     let model: EditorModel
     @FocusState var searchFocused: Bool
@@ -17,11 +18,6 @@ struct SearchPaletteView: Component {
         let highlightedID = all.indices.contains(highlighted) ? all[highlighted].id : nil
         let size = PaletteLayout.size
         return ZStack(alignment: .topLeading) {
-            Color.clear
-                .frame(width: size.x.px, height: size.y.px)
-                .contentShape(Rectangle())
-                .gesture(DragGesture(minimumDistance: Pixels(0)))
-                .onScrollWheel { _ in true }
             GlassPanel {
                 VStack(alignment: .leading, spacing: PaletteLayout.spacing.px) {
                     TextField("Add node", text: model.palette?.query ?? "", onChange: { model.setPaletteQuery($0) })
@@ -45,6 +41,7 @@ struct SearchPaletteView: Component {
                 .frame(width: PaletteLayout.contentSize.x.px, height: PaletteLayout.contentSize.y.px, alignment: .topLeading)
             }
         }
+        .frame(width: size.x.px, height: size.y.px)
     }
 
     private func caption(hidden: Int, empty: Bool) -> String {

@@ -12,9 +12,9 @@ extension ViewportModel {
     }
 
     /// Each handle's value beside its knob (spec §6.5), in viewport points. "R 3 mm" for a radial handle. The size is
-    /// read through `observedViewSize`, so labels built before the first draw recorded it are rebuilt after it.
+    /// read from the tracked `viewSize`, so labels built before the first layout reported it are rebuilt after it.
     public func handleLabels() -> [ViewportLabel] {
-        let size = observedViewSize
+        let size = viewSize
         guard !size.isEmpty, !isAnimating else { return [] }
         return handles.compactMap { handle in
             guard let knob = CameraMath.project(handle.knob, pose, size: size)?.point else { return nil }
@@ -29,7 +29,7 @@ extension ViewportModel {
     /// the camera animates (as the handle labels are), an anchor at or behind a perspective eye, and a box wholly
     /// outside the view. Gap S5-c: this is element-tree text, not text in the Metal pass.
     public func overlayLabels() -> [PlacedLabel] {
-        let size = observedViewSize
+        let size = viewSize
         guard !size.isEmpty, !isAnimating, !overlay.labels.isEmpty else { return [] }
         return overlay.labels.compactMap { label in
             guard let anchor = CameraMath.project(label.position, pose, size: size)?.point else { return nil }

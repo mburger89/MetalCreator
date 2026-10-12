@@ -11,7 +11,7 @@ import Testing
 struct LibraryGroupsTests {
     func placed(_ editor: EditorModel) -> EditorModel {
         let panel = CanvasRect(origin: Vector2(12, 388), size: Vector2(976, 300))
-        editor.placement = { PanelPlacement(window: Vector2(1000, 700), panel: panel) }
+        editor.panelPlacement = PanelPlacement(window: Vector2(1000, 700), panel: panel)
         return editor
     }
 

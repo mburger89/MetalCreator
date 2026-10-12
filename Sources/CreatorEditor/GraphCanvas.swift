@@ -13,5 +13,6 @@ struct GraphCanvas: Component {
             CommentEditorLayer(model: model)
         }
         .clipped()
+        .onContinuousHover(coordinateSpace: .global) { phase in input.windowHover(phase) }
     }
 }

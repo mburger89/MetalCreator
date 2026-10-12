@@ -41,6 +41,9 @@ public final class EditorModel {
 
     /// The pointer over the canvas, in canvas-local screen points; `nil` when it is elsewhere.
     public var pointerLocation: Vector2?
+    /// The pointer over the canvas, in window points (the canvas's `.global` hover, `GraphCanvas`); `nil` when it is
+    /// elsewhere. Read only when the palette opens, so it is not tracked.
+    @ObservationIgnored public var pointerWindowLocation: Vector2?
     public private(set) var interaction: CanvasInteraction?
     public private(set) var refusal: RefusalFeedback?
     /// How many times each node has been refused, which is the trigger of its shake (`NodeView`, `RefusalShake`).
@@ -55,9 +58,11 @@ public final class EditorModel {
     public private(set) var clipboard: NodeClipboard?
     /// The last inspector button pressed, for the viewport to act on (M4/M6).
     public private(set) var inspectorRequest: InspectorRequest?
-    /// Where the host lays the panel out in its window (`EditorModel+Placement`). The app shell and
-    /// `GraphPanelPreview` set it; it is asked, not stored, so it always reads the current dock and sizes.
-    @ObservationIgnored public var placement: (@MainActor () -> PanelPlacement?)?
+    /// Where the panel is in its window and how big the window is (`EditorModel+Placement`), as the panel measured them
+    /// itself: `GraphPanel`'s `onGeometryChange` writes it after the build that laid it out, and hiding the panel clears
+    /// it (`setDock(_:)`). `nil` before the first layout and while the panel is hidden. Tracked, so a canvas built from it (the
+    /// culling) is rebuilt when the panel moves or the window is resized. Tests set it directly.
+    public var panelPlacement: PanelPlacement?
 
     /// The dock to return to when the hidden panel is shown again.
     @ObservationIgnored private var lastVisibleDock: DockSide = .left
@@ -115,7 +120,10 @@ public final class EditorModel {
 
     public func setDock(_ dock: DockSide) {
         // The canvas, and the field typed into on it, go away: commit what was typed rather than leave it pending.
-        if dock == .hidden { commitCommentEdit() }
+        if dock == .hidden {
+            commitCommentEdit()
+            panelPlacement = nil
+        }
         if dock != .hidden { lastVisibleDock = dock }
         // The canvas moves or unmounts, so its last hover location no longer says where the pointer is.
         if dock != document.viewState.dock { pointerLocation = nil }

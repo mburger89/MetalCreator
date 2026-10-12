@@ -5,8 +5,8 @@ import CreatorViewport
 import MetalUI
 
 /// The window's layout numbers (spec §6.1). The views are framed to them, so the model can tell the viewport
-/// which part of it the floating panels cover without measuring anything (MetalUI has no geometry reader yet,
-/// docs/metalui-gaps.md M4-a).
+/// which part of it the floating panels cover (`modelArea`) without waiting for a layout. Where the graph panel really
+/// is, is measured by the panel itself (`EditorModel.panelPlacement`).
 public enum AppLayout {
     /// Around the window's edge and between panels.
     public static let margin = 12.0
@@ -34,19 +34,6 @@ public enum AppLayout {
 
     /// Where "Show Producing Node" puts the node's top-left corner on the canvas, in canvas-local points.
     public static let revealPoint = Vector2(24, 24)
-
-    /// The docked graph panel's frame in a `window`-sized window, in window points (the frame `PanelArea` gives
-    /// `GraphDock`); `nil` while it's hidden.
-    public static func graphPanelFrame(dock: DockSide, panelWidth: Double, panelHeight: Double, window: Vector2) -> CanvasRect? {
-        let top = margin + topBarHeight + margin
-        switch dock {
-        case .left: return CanvasRect(origin: Vector2(margin, top), size: Vector2(panelWidth, max(0, window.y - top - margin)))
-        case .bottom:
-            return CanvasRect(origin: Vector2(margin, window.y - margin - panelHeight),
-                              size: Vector2(max(0, window.x - 2 * margin), panelHeight))
-        case .hidden: return nil
-        }
-    }
 
     /// The part of the viewport the panels leave uncovered, for `ViewportModel.setModelArea(_:)`.
     public static func modelArea(dock: DockSide, panelWidth: Double, panelHeight: Double) -> ViewportInsets {

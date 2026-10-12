@@ -6,13 +6,11 @@ extension ViewportModel {
     public var gpuFailureMessage: String? { gpuFailure }
 
     /// The `MetalView` draw (spec §6.3). It runs on the main actor inside MetalUI's frame, after the tracked build.
-    /// It records the surface's size, makes the GPU objects on first use, and encodes into the frame's own command
-    /// buffer. It writes only untracked state (a draw must never dirty the window), and it never commits.
+    /// It makes the GPU objects on first use and encodes into the frame's own command buffer. It writes only untracked
+    /// state (a draw must never dirty the window), and it never commits. The view's size is not recorded here: it
+    /// comes from `ViewportView`'s `onGeometryChange`.
     func draw(_ context: MetalDrawContext) {
         let scale = context.scaleFactor > 0 ? Double(context.scaleFactor) : 1
-        // Untracked, and a first real size schedules (not performs) any pending first framing.
-        recordViewSize(ViewportSize(width: Double(context.pixelSize.width.value) / scale,
-                                    height: Double(context.pixelSize.height.value) / scale))
         guard let renderer = renderer(for: context.device) else {
             context.clear(red: 0.35, green: 0.08, blue: 0.1, alpha: 1)
             return

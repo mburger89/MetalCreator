@@ -4,12 +4,12 @@ import CreatorGraph
 extension EditorModel {
     /// How far past the canvas's edges, in screen points, nodes and wires are still drawn. It covers a refused node's
     /// shake and its sockets' overhang, and the one frame of a window resize before the canvas is rebuilt at the new
-    /// size (`ViewportModel.observedViewSize`, docs/metalui-gaps.md M4-a).
+    /// size.
     public static let cullingMargin = 160.0
 
     /// The part of the canvas that can show, in display canvas points, grown by `cullingMargin` screen points on every
-    /// side; `nil` while the host hasn't placed the panel (headless tests, before the viewport's first draw) or the
-    /// panel is hidden, when everything is drawn.
+    /// side; `nil` while the panel hasn't reported where it is (tests that set no placement, before its first
+    /// layout) or is hidden, when everything is drawn.
     public var drawnCanvasRect: CanvasRect? {
         guard isPanelVisible, let placement = panelPlacement else { return nil }
         let size = GraphPanelLayout.canvasFrame(inPanelOf: placement.panel.size, flow: flow, showsLibrary: showsLibrary,

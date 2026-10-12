@@ -13,7 +13,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | Gap | What | MetalUI item | Status |
 |---|---|---|---|
 | 1–5 | Scroll wheel, pinch/rotate, middle and right drags, tap location, cursor and drag modifiers | C7 | ✅ fixed (c62d6ba), adopted by the viewport and the graph panel |
-| M4-a | An element's size (`onGeometryChange`), focus on click | C9 | 🟡 C9 is on MetalUI master: `onGeometryChange` (KF-J) is public and the canvas adopted the key regions (M5-b, M5-g); the viewport still records its size from its draw and releases focus itself (app follow-up, see M6-e) |
+| M4-a | An element's size (`onGeometryChange`), focus on click | C9 | ✅ size: fixed by C9 (`onGeometryChange`, KF-J) and adopted (plan `2026-10-12-adopt-c15`): `ViewportView` records the viewport's size from its layout (`AppWindowTests.theViewportLearnsTheWindowsSizeFromItsLayout`, `aResizedWindowResizesTheViewport`, `aDocumentLoadedIntoTheWindowLearnsTheSizeToo`, `ViewSizeObservationTests`); the draw-time record and `observedViewSize` are gone. Focus on click: C9's key regions are adopted for the graph canvas (M5-b, M5-g); the viewport's pointer veto and `releaseTextFocus` stay (see those rows) |
 | M4-b | Opaque helper inside a builder `for`; redraw labels during a camera animation (`TimelineView`) | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
 | M5-a | `Slider` `onEditingChanged` | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M5-b | Hover- or region-scoped key bindings | C9 | ✅ fixed by C9 (`feat/key-focus`: `hoverKeyRegion`, `onKeyPress`), adopted for the graph canvas (Comments typing plan); the viewport still runs its pointer veto (M4-a) |
@@ -30,7 +30,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M6-c | Full-size content view | C8 | 🔄 open: fixed in MetalUI 70e9389 (PR #61) but not adopted; the window keeps its standard title bar until human check AS-5 shows it drags (C8-a) |
 | M6-d | Open-document events | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
 | C8-a | Window drag region for a hidden title bar under a gesture-carrying view | none yet | ⏳ reported to the MetalUI session 2026-10-10, not yet queued; predicted from reading MetalUI, AS-5 not run (it would confirm or refute) |
-| M6-e | Public headless test window | item 8 (test harness) | ✅ fixed (MetalUI 280d706, PR #65: `MetalUITesting`), adopted in the test targets (plan `2026-10-12-adopt-test-harness`): `AppWindow` opens the app's real root in a `TestWindow` (`AppWindowTests`), and the observable key routing is pinned by the window tests (`ViewportKeyRoutingWindowTests`, `EditMenuRoutingWindowTests`, `PaletteKeyRoutingWindowTests`), while the canvas hover veto and the `Panel` key context stay pinned only by mapping tests (`AppInputTests`); MetalCreator had no platform fake of its own to replace; the harness's one limit for this app (no `MetalView` draw, so no window size) and its app-side fix are in the entry |
+| M6-e | Public headless test window | item 8 (test harness) | ✅ fixed (MetalUI 280d706, PR #65: `MetalUITesting`), adopted in the test targets (plan `2026-10-12-adopt-test-harness`): `AppWindow` opens the app's real root in a `TestWindow` (`AppWindowTests`), and the observable key routing is pinned by the window tests (`ViewportKeyRoutingWindowTests`, `EditMenuRoutingWindowTests`, `PaletteKeyRoutingWindowTests`), while the canvas hover veto and the `Panel` key context stay pinned only by mapping tests (`AppInputTests`); MetalCreator had no platform fake of its own to replace; the harness's one limit for this app (no `MetalView` draw, so no window size) is gone: the size and the panel's frame come from `onGeometryChange` (M4-a, EP-a) |
 | M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
 | M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
 | VI-a | A dropped gesture's end | C16 | 🟡 landed in MetalUI master a720fba (C16: `.onCancelled` on Drag/Magnify/Rotate gestures); adoption here pending |
@@ -38,8 +38,8 @@ stopgap as they were. The sections below keep each gap's full use case.
 | GI-b | Wheel latching (`CI-AD`) | none yet | 🟡 landed in MetalUI master a720fba (C16: a scroll latches to the element under its `.began`, momentum included; synthesized `.cancelled` on key loss); adoption here pending |
 | PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | ✅ fixed (MetalUI ebcf3c7, PR #63), adopted with no code change; idle re-measure pending |
 | PERF-b | Every observed change rebuilds, lays out and paints the whole window | C14 | ⏳ queued; measured by M7 (below) |
-| EP-a | Element frame in window coordinates, hover coordinate space, window size | C15 | 🟡 landed in MetalUI master 0abce86 (`CoordinateSpace.named`, `onGeometryChange` with `.global`/`.named`, `onContinuousHover(coordinateSpace:)`, `\.windowSize`); adoption here pending |
-| EP-b | Chrome-less point-anchored popover that closes on an outside press | C15 | 🟡 landed in MetalUI master 0abce86 (`.anchoredOverlay(isPresented:attachmentAnchor:content:)`, `PopoverAttachmentAnchor.point`); adoption here pending |
+| EP-a | Element frame in window coordinates, hover coordinate space, window size | C15 | ✅ fixed (MetalUI 0abce86, PR #66: `CoordinateSpace.named`, `onGeometryChange` with `.global`/`.named`, `onContinuousHover(coordinateSpace:)`, `\.windowSize`), adopted (plan `2026-10-12-adopt-c15`): the graph panel measures itself (`PanelPlacementTests.theEditorIsToldWhereItsCanvasIs`, `aGrownWindowRebuildsTheCanvasWithWhatItUncovers`, `hidingThePanelClearsThePlacementAndShowingItBringsItBack`, `aNewDocumentIsPlacedToo`) and the palette opens at the canvas's `.global` hover (`PaletteOverlayWindowTests.itOpensWithItsTopLeftCornerAtThePointerWhateverTheViewportHasDrawn`, `FloatingPaletteTests`) |
+| EP-b | Chrome-less point-anchored popover that closes on an outside press | C15 | ✅ fixed (MetalUI 0abce86, PR #66: `.anchoredOverlay(isPresented:at:in:anchor:content:)`), adopted (plan `2026-10-12-adopt-c15`): `SearchPaletteOverlay` is an `anchoredOverlay`, and the stopgap's known limits are pinned fixed (`PaletteOverlayWindowTests.aPressIntoATextFieldClosesItAndTheFieldGetsFocus`, `aRightClickThatOpensAContextMenuClosesItAndTheMenuStillOpens`, `aScrollOverItDoesNotReachTheCanvasOrTheViewport`, `itFlipsLeftAtTheRightEdgeAndUpAtTheBottom`) |
 | P-a | Third-party notices | C17 | ✅ fixed (67a579e), adopted |
 | LF-a | A clip inside an `offset` or uniform `scaleEffect` | C18 | ✅ fixed (0b400b4) |
 | LF-b | A clip inside nested flattening effects (LF-a's regression) | C19 | ✅ fixed (9ad2254) |
@@ -134,9 +134,13 @@ Gap numbers 1–5 are the C7 items above. New gaps are labelled M4-a… (M5 uses
      observed `ViewportModel.viewSizeChanges` one task after the draw (`observedViewSize`, which
      `AppModel.panelPlacement` reads), so a resize rebuilds the canvas at the new size, one frame late. It goes with
      the stopgap.
-     **Update 2026-10-12:** `onGeometryChange(for:of:action:)` is public on MetalUI master (`GeometryChange.swift`, KF-J,
-     C9), so the size half is no longer a MetalUI request: adopting it here replaces the draw-time record (it also makes
-     `panelPlacement` available to the headless window tests, see M6-e).
+     **Fixed by MetalUI C9 (`onGeometryChange`, KF-J) and adopted** (plan `2026-10-12-adopt-c15`, 2026-10-12): `ViewportView`
+     reports its size from `onGeometryChange` into the tracked `ViewportModel.viewSize` (`recordViewSize(_:)`), so the
+     draw-time record, `viewSizeChanges`, `sizeChangeTask` and `observedViewSize` are gone. The labels, the first framing
+     and a resize follow the layout, in a `TestWindow` too (`AppWindowTests`). The report carries the model's identity, so
+     New and Open (a fresh `ViewportModel` under the same view) are told the size again. The graph panel's placement
+     (gap EP-a) is measured the same way. The focus half of this entry (below) is C9's and still only partly adopted: see
+     M5-b and M5-g.
    - A click doesn't focus a `.focusable()` element (divergence 94), so the viewport's F, + and − keys are bound window-wide
      (`ViewportKeyBindings`). The app shell will collide with text fields. Wanted: focus-on-click for a focusable
      surface, or a key context an element contributes while hovered.
@@ -288,19 +292,14 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
   keys go through MetalUI's real routing (`AppWindowTests`). The observable key routing is pinned by those window tests; the canvas hover veto and the `Panel` key context stay pinned only by mapping tests (`AppInputTests`). MetalCreator never wrote a `Platform` or `PlatformWindow`
   fake (its stopgap was no test at all, the mapping tests and the human checks), so there was nothing to replace or
   delete; `renderFrame` stays for the render tests that read one cold frame.
-  **A limit of the harness, not a MetalUI gap:** `MetalUITesting` records a `GPUSurface`/`MetalView` draw and does not run
-  it (`../MetalUI/docs/testing.md`, "What it cannot do", ruled deferral `HT-Q`: there is no GPU context to hand the
-  closure), so the guide promises nothing here and nothing is forwarded. The app learns its window's size from that draw
-  (`ViewportModel.observedViewSize`, gap M4-a's stopgap), so in a `TestWindow` it stays 0 × 0 and the property form of `AppModel.panelPlacement`
-  is `nil` (the parameterised `panelPlacement(inWindowOf:)` works headless). Clicks and keys are unaffected (a canvas gesture's location is local to the canvas), so the window tests run;
-  they compute where the canvas is from `AppLayout` and `GraphPanelLayout` (`AppWindow.canvasFrame`) and set nothing on
-  the model. Not testable headless until the app changes: dropping a library node on the canvas (`canvasFrameInWindow`),
-  the culling of nodes beyond the panel in a real window, and anything that waits for the first viewport draw.
-  **App follow-up (decision D1):** `onGeometryChange(for:of:action:)` is public on MetalUI master
-  (`Sources/MetalUI/GeometryChange.swift`, KF-J, C9; `GeometryProxy.size`), so the size half of M4-a is adoptable now:
-  take the window's size from it, drop the draw-time `observedViewSize` record, and `panelPlacement` and
-  `canvasFrameInWindow` work headless and `AppWindow.canvasFrame` can go. Until then `AppWindow.canvasFrame` is the
-  stopgap.
+  **A limit of the harness, not a MetalUI gap, and now no limit for this app:** `MetalUITesting` records a
+  `GPUSurface`/`MetalView` draw and does not run it (`../MetalUI/docs/testing.md`, "What it cannot do", ruled deferral
+  `HT-Q`: there is no GPU context to hand the closure), so an app that learned its window's size from a draw had none in a
+  `TestWindow`. **Adopted (decision D1, plan `2026-10-12-adopt-c15`):** the viewport and the graph panel report their size
+  and frame from `onGeometryChange` (KF-J), which does run headless, so the property form of `AppModel.panelPlacement`
+  is the measured panel (`PanelPlacementTests.theEditorIsToldWhereItsCanvasIs`, both docks, agreeing with `AppLayout`'s
+  numbers), `canvasFrameInWindow` works (a library drop, the culling, the visible centre), and `AppWindow.canvasFrame` is
+  that measured frame rather than a computation from `AppLayout`.
   **The routes this entry named are pinned through the window** (Task 5 of the plan): F, + and − go to the viewport over the
   viewport and to the graph over its canvas, and a focused inspector field keeps them until a viewport press gives them
   back (`ViewportKeyRoutingWindowTests`, M6-4); the Edit menu is titled by the step and runs Undo and Redo, ⌘Z and ⇧⌘Z
@@ -477,6 +476,17 @@ it starts on any move with no slop, ahead of a click (`DN-D`).
   canvas makes the "visible centre" half a line low. Wanted: `onGeometryChange(for:of:action:)` with a global or
   named coordinate space (SwiftUI's `.global`, `coordinateSpace(_:)`), a coordinate space for `onContinuousHover`'s
   location, and the window's size in the environment.
+  **Fixed by MetalUI C15** (master 0abce86, PR #66) **and adopted** (plan `2026-10-12-adopt-c15`): `GraphPanel` reports
+  `PanelPlacement(window:, panel:)` from `onGeometryChange` (`proxy.frame(in: .global)`) and `@Environment(\.windowSize)`
+  into `EditorModel.panelPlacement`, so `EditorModel.placement`, `AppLayout.graphPanelFrame`, `AppModel.panelPlacement(inWindowOf:)`
+  and `GraphPanelPreview`'s `PreviewLayout.placement` are gone, and the viewport's recorded draw size is not involved (gap
+  M4-a). The palette opens at `EditorModel.pointerWindowLocation`, the canvas container's
+  `onContinuousHover(coordinateSpace: .global)`. The known limits are gone: the palette opens correctly before any draw
+  (`itOpensWithItsTopLeftCornerAtThePointerWhateverTheViewportHasDrawn`: this window never draws one), the visible centre
+  reads the measured canvas, which the refusal line shortens, and a resize while it is open re-places it
+  (`resizingTheWindowWhileOpenKeepsItInside`). The panel's frame is the panel's own, so it is right in any host.
+  `PanelPlacement.window` is kept (a headless window pins that `\.windowSize` arrives: `theEditorIsToldWhereItsCanvasIs`),
+  but nothing in `Sources` reads it now: MetalUI flips the palette itself (gap EP-b).
 - **EP-b. No plain anchored overlay that dismisses on an outside press.** `.popover` is placed against its anchor
   and dismissed by an outside press or Escape (`MN-N`), but it draws its own chrome (the `.surface` panel, border and
   default shadow, a per-frame cost over moving content, PERF-a) and anchors to an element's edge, not to a point.
@@ -492,6 +502,20 @@ it starts on any move with no slop, ahead of a click (`DN-D`).
   pinch (`PaletteDock` is drawn beside the graph panel and the viewport, not inside them), so it stays open. Wanted: a chrome-less popover style (SwiftUI's
   `.presentationBackground(.clear)` / a plain `popoverStyle`) with a point anchor (`attachmentAnchor: .point(_:)`),
   or an outside-press callback for an overlay.
+  **Fixed by MetalUI C15** (master 0abce86, PR #66) **and adopted** (plan `2026-10-12-adopt-c15`). The call is
+  `.anchoredOverlay(isPresented:at:in:anchor:content:)` (the summary row first spelled it with `attachmentAnchor:`, which
+  is `.popover`'s): `SearchPaletteOverlay` puts `SearchPaletteView` (its own glass, no shadow) at the palette's window point
+  (`in: .global`, `anchor: .topLeading`, the pointer). `EditorModel.windowPressed`, `paletteFrame`, `PalettePlacement`,
+  `PaletteLayout.windowMargin`, the palette's backdrop (the empty `DragGesture`, the claiming `.onScrollWheel`) and the
+  `.mouseDown`/`.rightMouseDown`/`.otherMouseDown` cases of `GraphPanelInput.handle(_:)` are gone. The known limits are
+  fixed, each pinned through the window (`PaletteOverlayWindowTests`): a press into a text field closes it and the field
+  gets the focus, a right-click that opens a context menu closes it and the menu opens, any outside press (primary,
+  right, middle, on the canvas, the viewport) closes it, Escape closes it with its field focused and leaves the selection alone
+  (`PaletteOverlayWindowTests.escapeClosesItAndLeavesTheSelectionAlone`), a press, a scroll or a pinch on it reaches nothing
+  beneath, and F, + and − still type into its field. Behaviour that differs from the stopgap: MetalUI clamps with no
+  margin, so a palette at the window's edge is flush with it (the stopgap kept `PaletteLayout.windowMargin`, 8 points);
+  a pinch over it still does nothing and it stays open (C15 swallows presses, wheel and drops, not pinches, and the
+  stopgap's note held too: GI-7).
 
 ## Hit by packaging, 2026-10-09
 

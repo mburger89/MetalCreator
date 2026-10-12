@@ -50,9 +50,12 @@ struct ViewportKeyRoutingWindowTests {
     @Test func fFramesTheViewportOverTheViewportAndTheGraphOverItsCanvas() async throws {
         let (app, rectangle, canvasSpot) = try await open()
         app.editor.selection = [rectangle.id]
+        // The viewport frames its scene as soon as it has a size, which the window now gives it at once (gap M4-a): zoom
+        // in first, so there is a framing for F to restore.
+        app.window.hover(at: viewportSpot)
+        app.window.typeKey("+")
         let pose = app.model.viewport.pose
         let transform = app.editor.transform
-        app.window.hover(at: viewportSpot)
         app.window.typeKey("f")
         app.window.advance(by: 1)
         #expect(app.model.viewport.pose != pose, "the viewport frames its part")

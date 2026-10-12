@@ -109,7 +109,7 @@ struct CommentRenderTests {
         let notes = (1...200).map { note($0, at: Vector2(Double($0 % 20) * 170, Double($0 / 20) * 110)) }
         let editor = makeEditor([], stickies: notes)
         let area = CanvasRect(origin: Vector2(12, 288), size: Vector2(876, 300))
-        editor.placement = { PanelPlacement(window: Vector2(900, 600), panel: area) }
+        editor.panelPlacement = PanelPlacement(window: Vector2(900, 600), panel: area)
         #expect(editor.drawnNotes.count < notes.count, "culled to what shows")
         #expect(!panel(editor).rects.isEmpty)
     }

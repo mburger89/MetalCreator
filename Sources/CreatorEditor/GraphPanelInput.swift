@@ -25,13 +25,11 @@ import MetalUI
 ///   inspector's, the library's search, the canvas's own comment editor) keeps every key, wherever the pointer is
 ///   (gap M5-b). A press on the canvas also clears a field's focus (gap M5-g).
 ///
-/// Two stopgaps remain, for MetalUI gaps C9 did not close:
-/// - the palette's keys: its ↑/↓ and the keys of the open palette's search field go through the window keymap
-///   (`keymap`, `handleAction`) and `onInput` (`handle(_:)`), because a focused single-line field claims arrows before
-///   `onInput` (gap M5-h, which C9 answers with `onKeyPress` on the field; not adopted here);
-/// - the floating palette's "click outside": a press of any button reaching `onInput` outside the
-///   palette closes it (`handle(_:)`), because MetalUI's only overlay that dismisses itself is
-///   `.popover`, with its own chrome (gap EP-b).
+/// One stopgap remains, for a MetalUI gap C9 did not close: the palette's keys. Its ↑/↓ and the keys of the open
+/// palette's search field go through the window keymap (`keymap`, `handleAction`) and `onInput` (`handle(_:)`),
+/// because a focused single-line field claims arrows before `onInput` (gap M5-h, which C9 answers with `onKeyPress`
+/// on the field; not adopted here). The palette's click outside is MetalUI's (`anchoredOverlay`, C15, gaps EP-a and
+/// EP-b), and its opening point is the canvas's `.global` hover (`windowHover(_:)`).
 @MainActor
 public final class GraphPanelInput {
     public let model: EditorModel
@@ -79,19 +77,13 @@ public final class GraphPanelInput {
     }
 
     /// Install from `Window.onInput` (`install(on:)` does). Returns true when the event was used: the open palette's keys
-    /// (the rest of the graph's keys are `keyPressed(_:)`'s, scoped by MetalUI C9). Every primary press reaches
-    /// `onInput` (MetalUI claims none, except one in a text field or on a slider), and so does every other button's
-    /// press but a right-click that opens a context menu, so the floating palette's "click outside" is read here too.
-    /// Modifier changes aren't tracked: a press reads its own (`canvasGesture()`).
+    /// (the rest of the graph's keys are `keyPressed(_:)`'s, scoped by MetalUI C9). Modifier changes aren't tracked: a
+    /// press reads its own (`canvasGesture()`).
     public func handle(_ event: InputEvent) -> Bool {
         switch event {
         case .keyDown(let key):
             guard model.palette != nil, let command = GraphKeyBindings.command(for: key, paletteOpen: true) else { return false }
             return model.perform(command)
-        case .mouseDown(let mouse), .rightMouseDown(let mouse), .otherMouseDown(let mouse):
-            // Any button's press outside the floating palette closes it. Never claimed, so the press goes on.
-            model.windowPressed(at: Self.vector(mouse.position))
-            return false
         default:
             return false
         }
@@ -208,11 +200,20 @@ public final class GraphPanelInput {
             }
     }
 
-    /// The pointer over the canvas, from `.onContinuousHover`.
+    /// The pointer over the canvas, in canvas-local points, from `.onContinuousHover`.
     public func hover(_ phase: HoverPhase) {
         switch phase {
         case .active(let point): model.pointerLocation = Self.vector(point)
         case .ended: model.pointerLocation = nil
+        }
+    }
+
+    /// The same pointer in window points, from `.onContinuousHover(coordinateSpace: .global)` on the canvas's container:
+    /// where the palette opens (`EditorModel.openPalette()`).
+    public func windowHover(_ phase: HoverPhase) {
+        switch phase {
+        case .active(let point): model.pointerWindowLocation = Self.vector(point)
+        case .ended: model.pointerWindowLocation = nil
         }
     }
 

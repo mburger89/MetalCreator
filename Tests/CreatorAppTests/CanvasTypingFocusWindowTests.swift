@@ -69,7 +69,7 @@ struct CanvasTypingFocusWindowTests {
         let app = try await open()
         app.window.doubleClick(at: app.centre(ofComment: fixture.note.id))
         app.window.typeText("Kept ")
-        let panel = try #require(app.model.panelPlacement(inWindowOf: app.size)).panel
+        let panel = try #require(app.model.panelPlacement).panel
         app.window.click(at: app.windowPoint(panel.origin + Vector2(4, 4)))
         #expect(app.editor.commentEdit != nil, "a press on the panel's glass resigns nothing (gap CT-a)")
         #expect(try app.window.focusedElement?.role == .textArea)
