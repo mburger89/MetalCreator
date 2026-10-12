@@ -165,7 +165,8 @@ struct CulledTreeTests {
 
     @Test func aCulledListAndATreeOnTwoItemSocketsPairLikeAPlainListWould() throws {
         let itemSpecs = [SocketSpec("a", .number), SocketSpec("b", .number)]
-        let tree = try #require(DataTree(depth: 2, branches: [.list(numbers([10, 11])), .list(numbers([20, 21]))]))
+        let tree = try #require(DataTree(depth: 2, branches: [
+            .list([10, 11].map { .number(Double($0)) }), .list([20, 21].map { .number(Double($0)) })]))
         let reals = try #require(DataTree.culledList([1, 2].map { .number(Double($0)) }, at: [0, 4]))
         let plain = Value.list([.number(1), .number(2)])
         func pairs(_ a: Value) throws -> (count: Int, a: [Double], b: [Double]) {
