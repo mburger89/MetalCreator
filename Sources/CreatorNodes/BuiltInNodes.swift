@@ -22,6 +22,7 @@ public enum BuiltInNodes {
         CullByRegionNode.self,
         RandomReduceNode.self,
         RandomValuesNode.self,
+        JitterNode.self,
         OutputNode.self,
     ]
 
