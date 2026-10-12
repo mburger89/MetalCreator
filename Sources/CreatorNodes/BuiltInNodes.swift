@@ -18,6 +18,7 @@ public enum BuiltInNodes {
         FlattenNode.self, GraftNode.self, PartitionNode.self, TreeStatisticsNode.self, ListItemNode.self, BranchByPathNode.self,
         PathMapperNode.self,
         CullPatternNode.self,
+        CullIndexNode.self,
         OutputNode.self,
     ]
 

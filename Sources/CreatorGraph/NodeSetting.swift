@@ -29,8 +29,11 @@ public enum NodeSetting {
     /// Cull Pattern: its mask, as `.text("1 0 1")` (1 keeps an item, 0 culls it, repeated along each branch).
     public static let cullPattern: SocketName = "cullPattern"
 
+    /// Cull Index: the indices and paths to take out, as `.text("1, 4, {0;3}")`; empty takes nothing out.
+    public static let cullIndices: SocketName = "cullIndices"
+
     public static let all: Set<SocketName> = [
-        parameter, picks, showHandle, sketch, face, group, pathRule, branchPath, itemPath, cullPattern
+        parameter, picks, showHandle, sketch, face, group, pathRule, branchPath, itemPath, cullPattern, cullIndices
     ]
 
     /// The start of every projection setting's name, which no exposed dimension may use.
