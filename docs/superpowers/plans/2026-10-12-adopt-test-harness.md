@@ -2044,6 +2044,8 @@ git diff 9e5d2d5 -- Package.swift | grep '^[-+].*package(path'               # n
 
 - [ ] **Step 3: A clean full run** (from a clean build, to see warnings): `rm -rf .build && swift test 2>&1 | tee /tmp/harness-test.log`, then the checks in Task 1's "Full run" step. Expected total **2689** (master + 50), 11 run lines, exit 0, `swiftlint lint --strict --quiet` silent.
 
+  **Verified total:** a full run of this branch gives exactly 2689 tests in 11 `Test run with` lines (exit 0, no issue lines), which is master's 2639 plus the 50 `@Test` functions added since `9e5d2d5` (none removed, no parameterised case adds to the count); the 2711 seen in other runs did not come from this tree.
+
 - [ ] **Step 4: Do not push and do not run the release benchmark.** The merge order (7a-layouts, 7a-variation, then this) and the push (`git push origin master:main`, once green) belong to the controller.
 
 - [ ] **Step: Commit** (end the message with the attribution lines the session specifies).

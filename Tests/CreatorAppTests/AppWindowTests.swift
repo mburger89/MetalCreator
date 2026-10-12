@@ -18,6 +18,7 @@ struct AppWindowTests {
 
     @Test func aPointInTheCanvasReachesTheCanvasAtTheSamePlace() async throws {
         let app = try await AppWindow.open()
+        #expect(app.canvasFrame.origin != .zero, "the canvas is placed inside the window")
         let local = Vector2(120, 80)
         app.window.hover(at: app.point(inCanvasView: local))
         #expect(app.editor.pointerLocation == local, "the canvas sees the pointer where the helper put it")

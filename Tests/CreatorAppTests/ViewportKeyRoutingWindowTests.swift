@@ -8,8 +8,9 @@ import Testing
 @testable import CreatorEditor
 
 /// F, + and − go to the viewport over the viewport and to the graph over its canvas, and a focused field keeps them (human
-/// check M6-4; the "canvas hover veto" and the `Panel` / `!Panel` key contexts that gap M6-e named). Every key goes through
-/// the app's real window: the keymap, `AppInput`, the canvas's key region and the focus chain.
+/// check M6-4). Every key goes through the app's real window (the keymap, `AppInput`, the canvas's key region and the
+/// focus chain), so the observable routing is pinned here; the canvas hover veto and the `Panel` key context that gap M6-e
+/// named stay pinned only by the mapping tests (`AppInputTests`).
 @MainActor
 struct ViewportKeyRoutingWindowTests {
     /// Above the graph panel with the default (bottom) dock: the viewport, not the canvas.

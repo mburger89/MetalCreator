@@ -30,7 +30,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M6-c | Full-size content view | C8 | 🔄 open: fixed in MetalUI 70e9389 (PR #61) but not adopted; the window keeps its standard title bar until human check AS-5 shows it drags (C8-a) |
 | M6-d | Open-document events | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
 | C8-a | Window drag region for a hidden title bar under a gesture-carrying view | none yet | ⏳ reported to the MetalUI session 2026-10-10, not yet queued; predicted from reading MetalUI, AS-5 not run (it would confirm or refute) |
-| M6-e | Public headless test window | item 8 (test harness) | ✅ fixed (MetalUI 280d706, PR #65: `MetalUITesting`), adopted in the test targets (plan `2026-10-12-adopt-test-harness`): `AppWindow` opens the app's real root in a `TestWindow` (`AppWindowTests`), and the routes the entry named are pinned there (`ViewportKeyRoutingWindowTests`, `EditMenuRoutingWindowTests`, `PaletteKeyRoutingWindowTests`); MetalCreator had no platform fake of its own to replace; the harness's one limit for this app (no `MetalView` draw, so no window size) and its app-side fix are in the entry |
+| M6-e | Public headless test window | item 8 (test harness) | ✅ fixed (MetalUI 280d706, PR #65: `MetalUITesting`), adopted in the test targets (plan `2026-10-12-adopt-test-harness`): `AppWindow` opens the app's real root in a `TestWindow` (`AppWindowTests`), and the observable key routing is pinned by the window tests (`ViewportKeyRoutingWindowTests`, `EditMenuRoutingWindowTests`, `PaletteKeyRoutingWindowTests`), while the canvas hover veto and the `Panel` key context stay pinned only by mapping tests (`AppInputTests`); MetalCreator had no platform fake of its own to replace; the harness's one limit for this app (no `MetalView` draw, so no window size) and its app-side fix are in the entry |
 | M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
 | M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
 | VI-a | A dropped gesture's end | C16 | ⏳ queued after C8 and C9 |
@@ -285,14 +285,14 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
   **Fixed by MetalUI item 8** (master 280d706, PR #65: the `MetalUITesting` product) **and adopted** (plan
   `2026-10-12-adopt-test-harness`): `CreatorAppTests` depends on `MetalUITesting`, and `AppWindow` (test support) opens
   `AppWindowRoot` over `FakeKernel` in a `TestWindow` with the app's own `AppCommands` and `AppInput`, so clicks and
-  keys go through MetalUI's real routing (`AppWindowTests`). MetalCreator never wrote a `Platform` or `PlatformWindow`
+  keys go through MetalUI's real routing (`AppWindowTests`). The observable key routing is pinned by those window tests; the canvas hover veto and the `Panel` key context stay pinned only by mapping tests (`AppInputTests`). MetalCreator never wrote a `Platform` or `PlatformWindow`
   fake (its stopgap was no test at all, the mapping tests and the human checks), so there was nothing to replace or
   delete; `renderFrame` stays for the render tests that read one cold frame.
   **A limit of the harness, not a MetalUI gap:** `MetalUITesting` records a `GPUSurface`/`MetalView` draw and does not run
   it (`../MetalUI/docs/testing.md`, "What it cannot do", ruled deferral `HT-Q`: there is no GPU context to hand the
   closure), so the guide promises nothing here and nothing is forwarded. The app learns its window's size from that draw
-  (`ViewportModel.observedViewSize`, gap M4-a's stopgap), so in a `TestWindow` it stays 0 × 0 and `AppModel.panelPlacement`
-  is `nil`. Clicks and keys are unaffected (a canvas gesture's location is local to the canvas), so the window tests run;
+  (`ViewportModel.observedViewSize`, gap M4-a's stopgap), so in a `TestWindow` it stays 0 × 0 and the property form of `AppModel.panelPlacement`
+  is `nil` (the parameterised `panelPlacement(inWindowOf:)` works headless). Clicks and keys are unaffected (a canvas gesture's location is local to the canvas), so the window tests run;
   they compute where the canvas is from `AppLayout` and `GraphPanelLayout` (`AppWindow.canvasFrame`) and set nothing on
   the model. Not testable headless until the app changes: dropping a library node on the canvas (`canvasFrameInWindow`),
   the culling of nodes beyond the panel in a real window, and anything that waits for the first viewport draw.

@@ -5,6 +5,7 @@ import CreatorGraph
 import CreatorKernel
 import MetalUI
 import MetalUITesting
+import Testing
 @testable import CreatorApp
 
 /// `MetalCreatorApp`'s window without a screen: `AppWindowRoot` over `FakeKernel` in a `TestWindow`, with the app's
@@ -54,7 +55,10 @@ struct AppWindow {
 
     /// The graph canvas in window points, from `AppLayout` and `GraphPanelLayout`.
     var canvasFrame: CanvasRect {
-        guard let placement = model.panelPlacement(inWindowOf: size) else { return CanvasRect(origin: .zero, size: .zero) }
+        guard let placement = model.panelPlacement(inWindowOf: size) else {
+            Issue.record("no panel placement for a window of \(size): the canvas has no frame")
+            return CanvasRect(origin: .zero, size: .zero)
+        }
         let local = GraphPanelLayout.canvasFrame(inPanelOf: placement.panel.size, flow: editor.flow,
                                                  showsLibrary: editor.showsLibrary)
         return CanvasRect(origin: placement.panel.origin + local.origin, size: local.size)
@@ -72,13 +76,19 @@ struct AppWindow {
 
     /// The window point at the middle of the comment `id` as the canvas draws it (docks and zoom included).
     func centre(ofComment id: CommentID) -> Point<Pixels> {
-        guard let rect = editor.frame(ofComment: id) else { return windowPoint(.zero) }
+        guard let rect = editor.frame(ofComment: id) else {
+            Issue.record("no comment \(id) in the editor: it has no centre")
+            return windowPoint(.zero)
+        }
         return point(inCanvas: rect.origin + rect.size * 0.5)
     }
 
     /// The window point at the middle of the frame `id`'s title bar.
     func titleBarCentre(ofFrame id: CommentID) -> Point<Pixels> {
-        guard let rect = editor.frame(ofComment: id) else { return windowPoint(.zero) }
+        guard let rect = editor.frame(ofComment: id) else {
+            Issue.record("no frame \(id) in the editor: it has no title bar")
+            return windowPoint(.zero)
+        }
         let bar = CommentLayout.titleBar(of: rect)
         return point(inCanvas: bar.origin + bar.size * 0.5)
     }
