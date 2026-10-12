@@ -47,4 +47,14 @@ struct InstancePathTests {
         #expect(InstancePath.indices(ofItem: Int.min) == nil)
         #expect(InstancePath.text(-5) == "{-5}")
     }
+
+    @Test func pathsAreOrderedLevelByLevel() throws {
+        func item(_ indices: [Int]) throws -> Int { try #require(InstancePath.item(for: indices)) }
+        #expect(InstancePath.isOrdered(try item([0, 2]), before: try item([1, 1])))
+        #expect(!InstancePath.isOrdered(try item([1, 1]), before: try item([0, 2])))
+        #expect(InstancePath.isOrdered(try item([0, 9]), before: try item([3])))
+        let (deep, deeper) = (try item([0, 2]), try item([1, 1]))
+        #expect([deeper, deep].sorted { InstancePath.isOrdered($0, before: $1) } == [deep, deeper])
+        #expect([4, 1].sorted { InstancePath.isOrdered($0, before: $1) } == [1, 4])
+    }
 }

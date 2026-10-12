@@ -19,13 +19,13 @@ extension Topology {
         return copy
     }
 
-    /// The copies a pick's `tags` name that this topology has no face of any more, sorted (patterns spec §6): an
+    /// The copies a pick's `tags` name that this topology has no face of any more, in path order (patterns spec §6): an
     /// instance-qualified tag whose node call (`TopoTag.origin`) no face's tags include, however its role. Empty for
     /// a pick with no such tag, and for tags of an ordinary broadcast item, which this never judges.
     public func vanishedInstances(in tags: Set<TopoTag>) -> [Int] {
         let wanted = TopoTag.instanceTags(in: tags)
         guard !wanted.isEmpty else { return [] }
         let present = Set(TopoTag.instanceTags(in: Set(faces.flatMap(\.tags))).map(\.origin))
-        return Set(wanted.filter { !present.contains($0.origin) }.map(\.item)).sorted()
+        return Set(wanted.filter { !present.contains($0.origin) }.map(\.item)).sorted { InstancePath.isOrdered($0, before: $1) }
     }
 }

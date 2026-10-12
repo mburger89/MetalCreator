@@ -78,6 +78,13 @@ struct InstanceNamingTests {
         #expect(topology.vanishedInstances(in: pick) == [5])
     }
 
+    @Test func vanishedTreePathsAreListedInPathOrder() throws {
+        let gone = [try #require(InstancePath.item(for: [1, 1])), try #require(InstancePath.item(for: [0, 2]))]
+        let topology = Topology(faces: [face(0, [wall(qualify(tool), item: 5)])], edges: [])
+        let pick = Set(gone.map { wall(qualify(tool), item: $0) })
+        #expect(topology.vanishedInstances(in: pick).map { InstancePath.text($0) } == ["{0;2}", "{1;1}"])
+    }
+
     @Test func aPickOnAnOrdinaryBroadcastItemIsNeverCalledVanished() {
         let topology = Topology(faces: [face(0, [wall(tool, item: 0)])], edges: [])
         #expect(topology.vanishedInstances(in: [wall(tool, item: 9)]) == [])

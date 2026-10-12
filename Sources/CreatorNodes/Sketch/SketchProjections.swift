@@ -71,7 +71,7 @@ enum SketchProjections {
             found += choice.chosen
         }
         switch found.count {
-        case 0 where !vanished.isEmpty: return .problem(vanishedInstances(vanished.sorted()))
+        case 0 where !vanished.isEmpty: return .problem(vanishedInstances(vanished.sorted { InstancePath.isOrdered($0, before: $1) }))
         case 0: return .problem("matches no edge of the references.")
         case 1:
             let drifted = pick.hasDrifted(matching: matched, inRuns: runs)

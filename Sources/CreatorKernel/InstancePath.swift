@@ -40,6 +40,12 @@ public enum InstancePath {
         return self.item(for: indices) == item ? indices : nil
     }
 
+    /// Whether the instance named by tag item `a` comes before the one named by `b`, comparing paths level by level
+    /// (`{0;2}` before `{1;1}`), which is how messages list several. A number that is no path counts as a path of itself.
+    public static func isOrdered(_ a: Int, before b: Int) -> Bool {
+        (indices(ofItem: a) ?? [a]).lexicographicallyPrecedes(indices(ofItem: b) ?? [b])
+    }
+
     /// `{3}` or `{0;3}`: the path of `indices`.
     public static func text(indices: [Int]) -> String {
         "{" + indices.map { String($0) }.joined(separator: ";") + "}"
