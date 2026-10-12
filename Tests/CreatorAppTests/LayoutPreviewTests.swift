@@ -3,6 +3,7 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import CreatorOCCT
+import CreatorSketch
 import CreatorViewport
 import Testing
 @testable import CreatorApp
@@ -88,11 +89,66 @@ struct LayoutPreviewTests {
 
     @Test func theShortcutsAndPlaceShowNothingOfTheirOwn() async throws {
         var builder = GraphBuilder()
+        let grid = builder.add(GridPointsNode.self, ["countX": .integer(2), "countY": .integer(2)])
+        let shortcut = builder.add(PointsToPlacementsNode.self)
+        let tool = builder.solid()
         let place = builder.add(PlaceNode.self)
+        builder.wire(grid, "points", to: shortcut, "points")
+        builder.wire(shortcut, "placements", to: place, "placements")
+        builder.wire(tool.extrude, "solid", to: place, "tool")
         let app = await makeApp(builder.graph)
-        app.editor.selection = [place.id]
+        app.previewMode = .selectedNode  // so the selected node is evaluated: only layout nodes are in Final preview
+        for node in [shortcut, place] {
+            app.editor.selection = [node.id]
+            await app.settle()
+            // Each has a good result (the shortcut four placements, which a layout node would draw as triads), so the
+            // empty overlay is the `layoutTypes` guard at work.
+            #expect(app.editor.levelResults[node.id]?.state.isSuccess == true, "\(node.name)")
+            if node.id == shortcut.id { #expect(app.editor.levelResults[node.id]?.outputs?["placements"]?.items.count == 4) }
+            #expect(app.viewport.overlay.isEmpty, "\(node.name)")
+        }
+    }
+
+    @Test func noTriadsAreDrawnWhileAPickIsOn() async throws {
+        var builder = GraphBuilder()
+        let layout = builder.add(LinearPatternNode.self, ["count": .integer(3)])
+        let box = builder.solid()
+        let rule = builder.add(EdgesByTagNode.self)
+        let output = builder.add(OutputNode.self)
+        builder.wire(box.extrude, "solid", to: rule, "solid")
+        builder.wire(box.extrude, "solid", to: output, "solid")
+        let app = await makeApp(builder.graph)
+        app.editor.selection = [layout.id]
         await app.settle()
-        #expect(app.viewport.overlay.isEmpty)
+        #expect(app.viewport.overlay.lines.count == 9, "shown before the pick")
+        app.beginPick(for: rule.id)
+        await app.settle()
+        try #require(app.pick != nil)
+        #expect(app.editor.selection == [layout.id])
+        #expect(app.viewport.overlay.isEmpty, "the pick shows the solid alone")
+        app.finishPick()
+        app.editor.selection = [layout.id]
+        await app.settle()
+        #expect(app.viewport.overlay.lines.count == 9, "and back after it")
+    }
+
+    @Test func anOpenSketchKeepsItsOwnLinesWhileALayoutNodeIsSelected() async throws {
+        var sketch = Sketch(plane: .fixed(.xy))
+        sketch.addPoint(Vector2(20, 20))
+        sketch.addPoint(Vector2(40, 30))
+        var builder = GraphBuilder()
+        let box = builder.sketchedBox(sketch)
+        let layout = builder.add(LinearPatternNode.self, ["count": .integer(3)])
+        let app = await makeApp(builder.graph)
+        app.beginSketch(for: box.sketch.id)
+        await app.settle()
+        await app.viewport.waitForAnimation()
+        let own = app.viewport.overlay
+        app.editor.selection = [layout.id]
+        app.refreshScene()
+        await app.settle()
+        #expect(app.viewport.overlay == own, "the sketch editor's overlay, not the layout node's triads")
+        #expect(!app.viewport.overlay.lines.contains { $0.tint == .axisZ })
     }
 
     @Test func aCircularPatternShowsOneTriadPerPlacementInEveryRing() async throws {
