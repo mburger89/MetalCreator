@@ -53,7 +53,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | C9 | ✅ fixed by C9 (KF-Z/KF-AA: ⌘↩ is no editing key of a `TextEditor`, so an `onKeyPress` for it commits), adopted by the inspector's note box and the canvas editor (Comments typing plan) |
 | CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C24 |
 | CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C25 |
-| CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | 🟡 landed in MetalUI master 280d706 (item 8, `MetalUITesting`); adoption here pending |
+| CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | ✅ fixed (MetalUI 280d706), adopted (plan `2026-10-12-adopt-test-harness`): `CanvasNoteTypingWindowTests`, `CanvasTitleTypingWindowTests`, `CanvasTypingKeysWindowTests`, `CanvasTypingFocusWindowTests`, `CanvasTypingUndoWindowTests`; CT-1..CT-11 keep only their visual and machine-specific parts |
 
 ## Reported 2026-10-07 (C7)
 
@@ -689,6 +689,8 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
   return .handled }` on the `TextEditor` (no MetalUI-only hook is needed). Status: answered: lands with C9. The gap
   was already sent to the MetalUI session by the controller. Logged with C9 (key and focus scoping), which owns the key
   handling.
+  **Pinned through a real window (2026-10-12):** `CanvasTypingFocusWindowTests` types into the inspector's `TextEditor`
+  and sends the primary-modifier Return (commits, one "Edit Note" step) and a plain Return (breaks the line).
   **Fixed by MetalUI C9** (KF-Z/KF-AA, merged to MetalUI master 0a9eb36): a Return with the commit modifier (⌘ on macOS, ⌃ elsewhere: `CommentKeys.commitModifier`) is not an editing key of a
   `TextEditor`, and an `onKeyPress(keys: [.return])` handler runs before the editor's keys, so
   `press.modifiers.contains(commitModifier) ? commit() : .ignored` commits on ⌘↩ (⌃↩ off macOS) while plain Return still breaks the line (no
@@ -751,3 +753,19 @@ Labelled CT-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   `simulateInput` and a rendered frame, then a test that types into the field, sends ⌘↩ and Esc, presses the canvas, and
   asserts `commentEdit` and the graph. Status: rides with M6-e (queued); forward to the MetalUI session per the standing
   rule; the repository is never edited from here.
+  **Adopted (2026-10-12, plan `2026-10-12-adopt-test-harness`):** the tests type through the app's real window
+  (`AppWindow`, MetalUI 280d706). `CanvasNoteTypingWindowTests`: a double click opens a focused editor exactly over the
+  note (both docks, and at 0.5× and 2× zoom), Return breaks the line, `CommentKeys.commitModifier` (primary-modifier)
+  Return commits as one "Edit Note" step, Esc cancels with nothing to undo, a press on empty canvas commits and clears
+  focus (M5-g). `CanvasTitleTypingWindowTests`: the same for a frame's title (Return commits through `onSubmit`, a blank
+  title is refused; dragging the title bar moves the frame and its nodes as one "Move" step). `CanvasTypingKeysWindowTests`: while a field is focused the graph's keys edit its text (Delete,
+  arrows, Space, F, the ⌘ chords, ⌘A, Tab) and afterwards act again over the canvas but not over the viewport (M5-b).
+  `CanvasTypingFocusWindowTests`: a double click on another comment commits the first and focuses the next; the
+  inspector's note box breaks lines on Return and commits on the primary-modifier Return (CM-a); clicking into it commits
+  a canvas edit first; a press on the panel's glass resigns nothing (CT-a, by design) and the next canvas press commits;
+  a press on the 3D viewport commits at once; the inspector's accent swatch changes the accent without ending the edit
+  (pinned as measured, decision D4). `CanvasTypingUndoWindowTests`: ⌘Z and ⇧⌘Z undo and redo a committed note edit in one
+  step each, and ⌘Z while an editor is focused undoes the typing in the field and leaves the document alone (KF-C).
+  A field's focus-loss commit (`onChange(of:)`) runs in the frame after the click, so that test runs `runUntilIdle()`.
+  Human checks CT-1..CT-11 keep what a person must judge (CT-1's look, CT-6's softness, CT-7, CT-12), a physical
+  keyboard, the paste and the swatch.

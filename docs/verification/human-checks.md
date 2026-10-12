@@ -857,57 +857,72 @@ on a saved bracket, docked at the bottom; CM-9 docks left.
 
 ## Group CT — typing on the canvas (Comments typing plan)
 
-**Status: PENDING.** Plan `2026-10-10-comments-canvas-typing.md`, spec `2026-10-09-selection-groups-comments-design.md` §8
-and its Errata (B: typing on the canvas). The tests pin the model and the headless frames; these check the double click,
-the focus and the keys through a real window (MetalUI C9's own tests pin the key routing; the app has no headless
-window, gap M6-e). Run `swift run MetalCreatorApp` on a saved bracket with a note and a frame; CT-5 docks left.
+**Status: PENDING (what only a person can judge).** Plan `2026-10-10-comments-canvas-typing.md`, spec
+`2026-10-09-selection-groups-comments-design.md` §8 and its Errata (B: typing on the canvas). The tests pin the model and
+the headless frames, and since the test-harness adoption (plan `2026-10-12-adopt-test-harness.md`, gap CT-c) they also
+drive the double click, the focus and the keys through the app's real window: `CanvasNoteTypingWindowTests`,
+`CanvasTitleTypingWindowTests`, `CanvasTypingKeysWindowTests`, `CanvasTypingFocusWindowTests`, `CanvasTypingUndoWindowTests`. A clause marked
+**Automated** below has no manual step; what stays is how it looks and what the real machine does. Run
+`swift run MetalCreatorApp` on a saved bracket with a note and a frame; CT-5 docks left.
 
-- [ ] **CT-1 A note.** Double click a note: a white-backed editor appears exactly over it, with the caret in it, and the
-  note's text is in it, the caret at its start and nothing selected (gap CT-b: **record it**; ⌘A selects it all). Type two lines (Return breaks the line), press ⌘↩: the editor closes, the note shows both lines,
-  and one ⌘Z puts the old text back. **Observe each of these separately and write each down:** focus is in the field the
-  moment it appears (no extra click); Return breaks the line and commits nothing; ⌘↩ commits; Esc cancels (CT-2);
-  clicking away commits (CT-2). Pinned: `CommentTypingTests`, `CommentDoubleClickTests`, `CommentEditorRenderTests`.
-  **Observed:**
-- [ ] **CT-2 Ending an edit.** Four separate observations, each written down, for a note: **Esc** closes the editor and
-  the note keeps its old text, with nothing to undo; **⌘↩** commits and closes; **Return** breaks the line and the editor
-  stays open; **a click away** (the next lines) commits. For a frame's title: **Return** commits, **Esc** cancels, **a
-  click away** commits. Start a note edit and type, then Esc as above. Type again and click empty canvas, then another node, then the 3D viewport, then the inspector's
-  accent swatch: each commits the text (one ⌘Z each). Type, then ⌘S: the saved file has the text. Pinned: `CommentTypingTests`.
-  **Observed:**
-- [ ] **CT-3 A frame's title.** Double click a frame's title bar: a one-line field over the bar with the title in it. Type
-  "Front plate", Return: it commits (one ⌘Z undoes it). Esc cancels. Clear it and press Return: "A frame needs a title."
-  appears and the old title returns. Paste text containing a line break: it becomes a space. A double click on the
-  frame's edge band or its inside starts no edit, and dragging the title bar still moves the frame and its nodes.
-  Pinned: `CommentTypingTests`, `CommentDoubleClickTests`. **Observed:**
-- [ ] **CT-4 The graph's keys stand aside.** With an editor focused and nodes selected on the canvas: Delete deletes
-  characters and no node; arrows move the caret and no node; Space and F type; ⌘A selects the text; ⌘C, ⌘X and ⌘V use the
-  text; ⌘⇧N adds no note, ⌘G, ⌘D and ⌘⇧C do nothing to the canvas; Tab does not open the add-node palette. Afterwards,
-  with the pointer over the canvas and nothing focused, Delete, arrows, ⌘A, F and Space act again (Tab opens the palette);
-  with the pointer over the viewport or the inspector's empty space they do not (User decision 1: **record it**). Pinned:
-  `GraphPanelInputTests`, `SelectionKeyTests`, `NudgeTests`. **Observed:**
-- [ ] **CT-5 Both docks.** Repeat CT-1 and CT-3 docked bottom and docked left: the editor lies exactly over the note and
-  over the title bar (the left dock draws both transposed), and typing, ⌘↩, Return and Esc behave the same. Pinned:
-  `CommentEditorRenderTests`, `CommentTypingTests`. **Observed:**
-- [ ] **CT-6 Zoom.** At 25 %, 100 % and 300 % (⌘-scroll, or the header buttons) repeat CT-1 and CT-3: the editor's text
-  is scaled as the note's is and lies over it, typing works, and a click inside the editor places the caret under the
-  pointer (the editor is drawn under a scale effect). **Record** whether the title field is usable at 25 % and whether the
-  text is soft at 300 % (MetalUI divergence 106: text under a scale effect is resampled). Pinned: `CommentEditorRenderTests`.
-  **Observed:**
+- [ ] **CT-1 A note (the look).** Double click a note: a white-backed editor appears exactly over it, with the caret
+  visible in it, and the note's text is in it, the caret at its start and nothing selected (gap CT-b: **record it**; ⌘A
+  selects it all). Type two lines, press ⌘↩: the note shows both lines. **Automated, no manual step:** the editor lies over
+  the note with focus in it the moment it appears, Return breaks the line and commits nothing, ⌘↩ commits as one undo
+  step, Esc cancels, clicking away commits (`CanvasNoteTypingWindowTests`). Pinned: `CommentTypingTests`,
+  `CommentDoubleClickTests`, `CommentEditorRenderTests`. **Observed:**
+- [ ] **CT-2 Ending an edit (what is left).** **Automated, no manual step:** for a note, Esc closes the editor and the
+  note keeps its old text with nothing to undo, ⌘↩ commits, Return breaks the line and the editor stays open, a click on
+  empty canvas commits (one ⌘Z), and so does a press on the 3D viewport (`CanvasNoteTypingWindowTests`,
+  `CanvasTypingFocusWindowTests`); for a frame's title, Return commits, Esc cancels, a click away commits
+  (`CanvasTitleTypingWindowTests`). **By hand:** type and click another node: it commits (one ⌘Z). Type and click the
+  inspector's accent swatch and **record what happens** (through the headless window the accent changes and the edit stays
+  open with its draft until the next canvas press: decision D4, `anAccentSwatchPressChangesTheAccentAndLeavesTheEditOpenWithNothingLost`).
+  Type, then ⌘S: the saved file has the text. Pinned: `CommentTypingTests`. **Observed:**
+- [ ] **CT-3 A frame's title (what is left).** **Automated, no manual step:** a double click on the title bar opens a
+  focused one-line field over the bar with the title in it; Return commits (one ⌘Z undoes it); Esc cancels; clearing it
+  and pressing Return shows "A frame needs a title." and keeps the old title; dragging the title bar moves the frame and
+  the nodes inside it as one undo step (`CanvasTitleTypingWindowTests`). **By hand:** paste text containing a line break:
+  it becomes a space. A double click on the frame's edge band or its inside starts no edit. Pinned: `CommentTypingTests`,
+  `CommentDoubleClickTests`. **Observed:**
+- [ ] **CT-4 The graph's keys stand aside (what is left).** **Automated, no manual step** (`CanvasTypingKeysWindowTests`):
+  with an editor focused, Delete deletes characters and no node; arrows move the caret and no node; Space and F type; ⌘A
+  selects the text; ⌘⇧N adds no note, ⌘G, ⌘D and ⌘⇧C do nothing to the canvas; Tab does not open the add-node palette;
+  afterwards, with the pointer over the canvas and nothing focused, Delete acts again, and with the pointer over the
+  viewport it does not (User decision 1). (Starting an edit makes the comment the whole selection, so "nodes selected
+  while an editor is focused" cannot arise.) **By hand:** ⌘C, ⌘X and ⌘V use the text, not the canvas's clipboard; over
+  the canvas also the arrows, ⌘A, F and Space act again and Tab opens the palette; over the inspector's empty space they
+  do not (**record it**). Pinned: `GraphPanelInputTests`, `SelectionKeyTests`, `NudgeTests`. **Observed:**
+- [x] **CT-5 Both docks.** **Automated, no manual step:** docked bottom and docked left (which draws both transposed)
+  the editor lies exactly over the note and over the title bar, and ⌘↩, Return and Esc behave the same
+  (`CanvasNoteTypingWindowTests`, `CanvasTitleTypingWindowTests`, each run for both docks). Pinned:
+  `CommentEditorRenderTests`, `CommentTypingTests`.
+- [ ] **CT-6 Zoom (the look).** At 25 %, 100 % and 300 % (⌘-scroll, or the header buttons) repeat CT-1 and CT-3: typing
+  works, and a click inside the editor places the caret under the pointer (the editor is drawn under a scale effect).
+  **Record** whether the title field is usable at 25 % and whether the text is soft at 300 % (MetalUI divergence 106: text
+  under a scale effect is resampled). **Automated:** at 0.5× and 2× the editor is scaled as the note is and lies over it
+  (`theEditorFollowsTheCanvasZoom`). Pinned: `CommentEditorRenderTests`. **Observed:**
 - [ ] **CT-7 Themes.** In each of the three built-in themes the editor's background, text and focus ring are readable
   over the note's tint and the title bar's tint, and Esc or ⌘↩ returns to the themed note. **Observed:**
-- [ ] **CT-8 Undo.** Edit a note, ⌘Z: the old text, ⇧⌘Z: the new. While an editor is open and focused, ⌘Z: **record
-  whether it undoes the typing in the field or the document's last step** (MetalUI's field keeps ⌘Z before the app's
-  command, KF-C). **Observed:**
-- [ ] **CT-9 Inspector and canvas together.** Select a note (the inspector shows its text), double click it and type: the
-  inspector shows the old text until the edit commits. Click into the inspector's box and type: the canvas edit commits
-  first and nothing is lost. In the inspector's box, ⌘↩ commits and Return breaks the line (gap CM-a). Pinned:
-  `CommentTypingTests`, `CommentKeysTests`. **Observed:**
-- [ ] **CT-10 Focus.** Double click a note, double click another note, then a frame's title bar, without clicking
-  elsewhere between: each edit commits and the next starts with the caret in its field. Press Tab in an editor: focus
-  moves (it opens no palette). Pinned: `CommentDoubleClickTests`. **Observed:**
+- [ ] **CT-8 Undo (what is left).** **Automated, no manual step:** edit a note, ⌘Z gives the old text and ⇧⌘Z the new,
+  one step each, over the canvas and over the viewport (`EditMenuRoutingWindowTests`, `CanvasTypingUndoWindowTests`); while an
+  editor is open and focused, ⌘Z undoes the typing in the field and leaves the document alone (the measured answer,
+  pinned: MetalUI's field keeps ⌘Z before the app's command, KF-C; decision D2). **By hand:** the same keys on a physical
+  keyboard. **Observed:**
+- [x] **CT-9 Inspector and canvas together.** **Automated, no manual step** (`CanvasTypingFocusWindowTests`): with a note
+  selected the inspector shows its text; double click the note and type, and the inspector shows the old text until the
+  edit commits; clicking into the inspector's box commits the canvas edit first and loses nothing; in the box, ⌘↩ commits
+  and Return breaks the line (gap CM-a). Pinned: `CommentTypingTests`, `CommentKeysTests`.
+- [ ] **CT-10 Focus (what is left).** **Automated, no manual step** (`CanvasTypingFocusWindowTests`): double click a note,
+  double click another note, then a frame's title bar, without clicking elsewhere between: each edit commits and the next
+  has the focus in its field (and Tab opens no palette, `tabOpensNoPalette`). **By hand:** the caret is visible
+  in each new field, and Tab in an editor moves focus to the next control. Pinned: `CommentDoubleClickTests`.
+  **Observed:**
 - [ ] **CT-11 Inert chrome (gap CT-a).** While a note is being edited, press the graph panel's header gap, the glass
   padding and an empty area of the inspector. **Record** whether the editor stays open (the expected, documented
-  behaviour: User decision 2) and what the next canvas press does. **Observed:**
+  behaviour: User decision 2) and what the next canvas press does. **Automated:** a press on the panel's glass padding
+  leaves the editor open and focused, typing continues, and the next canvas press commits
+  (`CanvasTypingFocusWindowTests`); **by hand:** the header gap and the inspector's empty area. **Observed:**
 - [ ] **CT-12 Groups and saving.** Enter a group, double click a note there and type, then leave the group with ⌘↑: the
   text is in the definition's note. Save, quit, reopen: the text persists, the edit marked the document edited, and ⌘Z
   has nothing to undo. Pinned: `CommentTypingTests`. **Observed:**

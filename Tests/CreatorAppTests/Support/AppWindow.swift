@@ -83,6 +83,9 @@ struct AppWindow {
         return point(inCanvas: bar.origin + bar.size * 0.5)
     }
 
+    /// The window x where the inspector's column starts (it floats at the window's right edge).
+    var inspectorColumnStart: Double { size.x - AppLayout.margin - AppLayout.inspectorWidth }
+
     /// A window point from a vector.
     func windowPoint(_ vector: Vector2) -> Point<Pixels> {
         Point(x: Pixels(Float(vector.x)), y: Pixels(Float(vector.y)))
