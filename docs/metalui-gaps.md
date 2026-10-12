@@ -33,9 +33,9 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M6-e | Public headless test window | item 8 (test harness) | ✅ fixed (MetalUI 280d706, PR #65: `MetalUITesting`), adopted in the test targets (plan `2026-10-12-adopt-test-harness`): `AppWindow` opens the app's real root in a `TestWindow` (`AppWindowTests`), and the observable key routing is pinned by the window tests (`ViewportKeyRoutingWindowTests`, `EditMenuRoutingWindowTests`, `PaletteKeyRoutingWindowTests`), while the canvas hover veto and the `Panel` key context stay pinned only by mapping tests (`AppInputTests`); MetalCreator had no platform fake of its own to replace; the harness's one limit for this app (no `MetalView` draw, so no window size) and its app-side fix are in the entry |
 | M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
 | M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
-| VI-a | A dropped gesture's end | C16 | ⏳ queued after C8 and C9 |
-| GI-a | Modifiers on a tap | none yet (with S5-a) | ⏳ reported, not queued |
-| GI-b | Wheel latching (`CI-AD`) | none yet | ⏳ reported, not queued |
+| VI-a | A dropped gesture's end | C16 | 🟡 landed in MetalUI master a720fba (C16: `.onCancelled` on Drag/Magnify/Rotate gestures); adoption here pending |
+| GI-a | Modifiers on a tap | none yet (with S5-a) | 🟡 landed in MetalUI master a720fba (C16: `SpatialTapGesture.Value.modifiers`); adoption here pending |
+| GI-b | Wheel latching (`CI-AD`) | none yet | 🟡 landed in MetalUI master a720fba (C16: a scroll latches to the element under its `.began`, momentum included; synthesized `.cancelled` on key loss); adoption here pending |
 | PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | ✅ fixed (MetalUI ebcf3c7, PR #63), adopted with no code change; idle re-measure pending |
 | PERF-b | Every observed change rebuilds, lays out and paints the whole window | C14 | ⏳ queued; measured by M7 (below) |
 | EP-a | Element frame in window coordinates, hover coordinate space, window size | C15 | 🟡 landed in MetalUI master 0abce86 (`CoordinateSpace.named`, `onGeometryChange` with `.global`/`.named`, `onContinuousHover(coordinateSpace:)`, `\.windowSize`); adoption here pending |
@@ -44,8 +44,8 @@ stopgap as they were. The sections below keep each gap's full use case.
 | LF-a | A clip inside an `offset` or uniform `scaleEffect` | C18 | ✅ fixed (0b400b4) |
 | LF-b | A clip inside nested flattening effects (LF-a's regression) | C19 | ✅ fixed (9ad2254) |
 | TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `MenuEvaluation`, `TestApp.menuBar`), adopted (plan `2026-10-12-adopt-test-harness`): `ThemeMenuEvaluationTests` |
-| S5-a | Modifiers on a hover (and a tap, GI-a) | none yet (with GI-a) | ⏳ reported, not queued |
-| S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ⏳ reported 2026-10-09 |
+| S5-a | Modifiers on a hover (and a tap, GI-a) | none yet (with GI-a) | 🟡 landed in MetalUI master a720fba (C16: `.onModifierKeysChanged(mask:initial:_:)` on a still pointer); adoption here pending |
+| S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | 🟡 landed in MetalUI master a720fba (C16: `DragGesture.Value.clickCount`); adoption here pending |
 | S5-c | A `MetalView` draw can't draw text (world-anchored labels) | MetalUI session (with M4-b) | ⏳ reported 2026-10-09, sent to the MetalUI session |
 | M7-a | `ForEach` identity is an id's description | none yet | ⏳ reported, not queued |
 | M7-b | No warm headless frame for measuring | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `TestWindow` warm frames and `FrameWork`), adopted for work counts (plan `2026-10-12-adopt-test-harness`): `WarmFrameTests`; the release benchmarks (`Bench`) still report cold-frame milliseconds until they are moved onto it |
