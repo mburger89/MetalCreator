@@ -19,6 +19,9 @@ extension ViewportModel {
         case .projected: colors.sketchProjected.color
         case .selected, .region: colors.profileHeader.color
         case .hovered: colors.focus.color
+        case .axisX: colors.axisX.color
+        case .axisY: colors.axisY.color
+        case .axisZ: colors.axisZ.color
         }
     }
 }

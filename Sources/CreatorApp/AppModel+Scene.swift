@@ -20,12 +20,17 @@ extension AppModel {
         observeScene()
     }
 
-    /// "Selected node" previews the one selected node of the level shown; Final, or anything but one selected node, previews none.
+    /// "Selected node" previews the one selected node of the level shown; Final, or anything but one selected node, previews none,
+    /// except that a selected layout node is always evaluated (Final preview shows its placements as an overlay,
+    /// `layoutOverlay`, even before anything is wired to it).
     func applyPreview() {
         // Inside a group the document evaluates the whole level (`DocumentModel.inspectedLevel`), so the selected node
         // needs no demand of its own there.
-        let wanted = previewMode == .selectedNode && editor.selection.count == 1 && !editor.isInsideGroup
-            ? editor.selection.first : nil
+        var wanted: NodeID?
+        if editor.selection.count == 1, !editor.isInsideGroup, let selected = editor.selection.first {
+            let isLayout = editor.graph.nodes[selected].map { LayoutPreview.layoutTypes.contains($0.typeID) } ?? false
+            wanted = previewMode == .selectedNode || isLayout ? selected : nil
+        }
         if document.previewNode != wanted { document.previewNode = wanted }
     }
 
@@ -60,6 +65,8 @@ extension AppModel {
             requestedScene = items
             viewport.show(items)
         }
+        // The sketch editor draws its own overlay while a sketch is open; otherwise a selected layout node shows its placements.
+        if sketch == nil { viewport.showOverlay(pick == nil ? layoutOverlay : ViewportOverlay()) }
         let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
             : []
