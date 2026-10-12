@@ -9,6 +9,16 @@ extension Topology {
         return copy
     }
 
+    /// This topology with `item` as the item of every tag, however the tags were named before. Placed copies come from
+    /// `Kernel.place` named by their flat index; a pattern over a tree renames each by its path (`InstancePath.item`).
+    public func withInstanceItem(_ item: Int) -> Topology {
+        var copy = self
+        for index in copy.faces.indices {
+            copy.faces[index].tags = Set(copy.faces[index].tags.map { $0.withItem(item) })
+        }
+        return copy
+    }
+
     /// The copies a pick's `tags` name that this topology has no face of any more, sorted (patterns spec §6): an
     /// instance-qualified tag whose node call (`TopoTag.origin`) no face's tags include, however its role. Empty for
     /// a pick with no such tag, and for tags of an ordinary broadcast item, which this never judges.

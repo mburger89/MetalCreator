@@ -43,6 +43,19 @@ struct InstanceNamingTests {
         #expect(moved.node == qualify(tool))
     }
 
+    @Test func aTopologyCanBeRenamedByAnotherItemWithoutChangingItsNodesOrRoles() {
+        let key = EdgeKey([wall(qualify(tool), item: 1)], [TopoTag(node: qualify(tool), item: 1, role: .endCap)])
+        let blend = TopoTag(node: qualify(tool), item: 1, role: .blend(sourceEdge: key))
+        let topology = Topology(faces: [face(0, [wall(qualify(tool), item: 1)]), face(1, [blend])], edges: [])
+        let item = InstancePath.item(for: [2, 5]) ?? 0
+        let renamed = topology.withInstanceItem(item)
+        #expect(renamed.faces[0].tags == [wall(qualify(tool), item: item)])
+        let expected = EdgeKey([wall(qualify(tool), item: item)], [TopoTag(node: qualify(tool), item: item, role: .endCap)])
+        #expect(renamed.faces[1].tags == [TopoTag(node: qualify(tool), item: item, role: .blend(sourceEdge: expected))])
+        #expect(renamed.vanishedInstances(in: [wall(qualify(tool), item: item)]) == [])
+        #expect(renamed.vanishedInstances(in: [wall(qualify(tool), item: 1)]) == [1])
+    }
+
     @Test func aTopologyKeepsItsShapeAndRenamesItsFaces() {
         let edge = EdgeInfo(id: EdgeID(0), kind: .circle, direction: .unitZ, length: 3, midpoint: .zero, convexity: .convex,
                             faces: [FaceID(0), FaceID(1)])
