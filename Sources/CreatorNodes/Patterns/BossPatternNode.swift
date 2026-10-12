@@ -8,8 +8,8 @@ import CreatorKernel
 /// shared by every boss of that size, one kernel call places all the copies, and one unions them. A boss that
 /// doesn't touch the part doesn't fail the node; it warns with the count ("3 of 24 bosses miss the part.").
 ///
-/// Every size is a list, so a boss can differ from the next: the longest list sets the number of bosses and a
-/// shorter one repeats its last item. Faces of boss `i` are tagged with its instance path `{i}`.
+/// Every size is a list or a tree, so a boss can differ from the next (`InstanceGrid` matches them to the placements, as
+/// Hole Pattern's sizes are). Faces of the boss at path `{i}` or `{row;i}` are tagged with that path.
 public enum BossPatternNode: NodeDefinition {
     public static let typeID = "creator.bossPattern"
     public static let displayName = "Boss / Pin Pattern"
@@ -17,11 +17,11 @@ public enum BossPatternNode: NodeDefinition {
     public static let placesInstances = true
     public static let inputs = [
         SocketSpec("part", .solid),
-        SocketSpec("placements", .plane, access: .list),
-        SocketSpec("diameter", .number, access: .list, defaultValue: .number(8), unit: .millimetres, range: 0.1...100),
-        SocketSpec("height", .number, access: .list, defaultValue: .number(5), unit: .millimetres, range: 0.1...200),
-        SocketSpec("draft", .number, access: .list, defaultValue: .number(0), unit: .degrees, range: 0...45),
-        SocketSpec("tipFillet", .number, access: .list, defaultValue: .number(0), unit: .millimetres, range: 0...20),
+        SocketSpec("placements", .plane, access: .tree),
+        SocketSpec("diameter", .number, access: .tree, defaultValue: .number(8), unit: .millimetres, range: 0.1...100),
+        SocketSpec("height", .number, access: .tree, defaultValue: .number(5), unit: .millimetres, range: 0.1...200),
+        SocketSpec("draft", .number, access: .tree, defaultValue: .number(0), unit: .degrees, range: 0...45),
+        SocketSpec("tipFillet", .number, access: .tree, defaultValue: .number(0), unit: .millimetres, range: 0...20),
     ]
     public static let outputs = [SocketSpec("solid", .solid)]
     public static let inspector = [
@@ -30,18 +30,18 @@ public enum BossPatternNode: NodeDefinition {
     ]
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        try PlacementMoves.requireSingleValues(context)
         let part = try inputs.solid("part")
-        let planes = try inputs.planes("placements")
-        let (diameters, heights) = (PerInstance(try inputs.numbers("diameter")), PerInstance(try inputs.numbers("height")))
-        let (drafts, fillets) = (PerInstance(try inputs.numbers("draft")), PerInstance(try inputs.numbers("tipFillet")))
-        let count = PerInstance<Plane>.instances([planes.count, diameters.count, heights.count, drafts.count, fillets.count])
-        try PatternLimit.check(count)
-        guard count > 0 else { return NodeOutputs(["solid": .solid(part)]) }
+        let grid = try InstanceGrid(inputs, ["placements", "diameter", "height", "draft", "tipFillet"])
+        guard grid.count > 0 else { return NodeOutputs(["solid": .solid(part)]) }
+        let planes = try grid.planes("placements")
+        let (diameters, heights) = (try grid.numbers("diameter"), try grid.numbers("height"))
+        let (drafts, fillets) = (try grid.numbers("draft"), try grid.numbers("tipFillet"))
         var sizes: [BossSize] = []
-        for index in 0..<count {
+        for index in 0..<grid.count {
             let size = BossSize(diameter: diameters[index], height: heights[index], draft: .degrees(drafts[index]),
                                 tipFillet: fillets[index])
-            if let problem = size.problem(at: InstancePath.text(index)) { throw NodeError.invalidValue(problem) }
+            if let problem = size.problem(at: InstancePath.text(grid.items[index])) { throw NodeError.invalidValue(problem) }
             sizes.append(size)
         }
         let plan = ToolPlan(sizes: sizes)
@@ -50,7 +50,7 @@ public enum BossPatternNode: NodeDefinition {
             built.append(try await tool(size, kernel: kernel, tag: context.tag))
         }
         let request = PatternApply.Request(operation: .union, part: part, tools: plan.toolIndex.map { built[$0] }, planes: planes,
-                                           nouns: PatternApply.Nouns(singular: "boss", plural: "bosses"))
+                                           grid: grid, nouns: PatternApply.Nouns(singular: "boss", plural: "bosses"))
         return try await PatternApply.run(request, kernel: kernel, context: context)
     }
 

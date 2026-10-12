@@ -40,7 +40,7 @@ struct EdgeTagMatch: Equatable {
         }
         var warnings: [String] = []
         if !vanished.isEmpty {
-            warnings.append(vanishedInstances(vanished.sorted()))
+            warnings.append(vanishedInstances(vanished.sorted { InstancePath.isOrdered($0, before: $1) }))
         }
         if !drifts.isEmpty {
             warnings.append(drift(drifts))
