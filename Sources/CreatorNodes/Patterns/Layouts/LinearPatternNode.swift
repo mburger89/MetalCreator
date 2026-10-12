@@ -32,7 +32,7 @@ public enum LinearPatternNode: NodeDefinition {
         try PatternLimit.check(count)
         let direction = try LayoutChecks.direction(try inputs.vector("direction"), "direction")
         let facing = try LayoutChecks.direction(try inputs.vector("facing"), "facing")
-        let start = try inputs.vector("start")
+        let start = try LayoutChecks.finite(try inputs.vector("start"), "start")
         let step: Double
         if inputs.has("length") {
             let length = try LayoutChecks.number(try inputs.number("length"), "length")

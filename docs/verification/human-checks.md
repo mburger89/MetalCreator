@@ -81,7 +81,8 @@ drags print to the terminal.
 group Y covers the platform side (trackpad phases, real mouse buttons, every cursor).
 
 The `viewport-input` branch merges before this group is run: the tests pin the model only, and the view glue in
-`ViewportView+Parts.swift` `surface(model:)` has no headless coverage (no headless MetalUI window, gap M6-e). That
+`ViewportView+Parts.swift` `surface(model:)` has no test through a window yet (gap M6-e is adopted: a `MetalUITesting`
+window can drive it, and a press on the viewport already runs through it in `CanvasTypingFocusWindowTests`). That
 glue is the tap declared inside the primary drag, the secondary drag deferring the face menu to release, the scroll
 delta's sign, `.pointerStyle(model.cursor?.pointerStyle)`, the located `.contextMenu` overload, and `pressed()`
 (the text-focus release) firing on release rather than on press. Run this group first after the merge, in this
@@ -133,8 +134,9 @@ Run `swift run ViewportHarness` (VC7 also with `HARNESS_PICK=1`) with a trackpad
 **Status: IN PROGRESS** (2026-10-09: GI-1 and GI-3 pass, user). Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`); MetalUI's own
 group Y covers the platform side (trackpad phases, momentum, every cursor).
 
-The tests pin the model and the conversions from MetalUI values only. The view glue has no headless coverage (no
-headless MetalUI window, gap M6-e): `GraphCanvas`'s `.gesture`, `.onScrollWheel` and `.pointerStyle` lines,
+The tests pin the model and the conversions from MetalUI values only. The view glue has no test through a window yet
+(gap M6-e is adopted: a `MetalUITesting` window can drive it; the canvas typing and the graph's keys already do, group CT):
+`GraphCanvas`'s `.gesture`, `.onScrollWheel` and `.pointerStyle` lines,
 `GraphPanel`'s opaque backdrop and `PanelResizeHandle`'s `.pointerStyle`. Run GI-4, GI-1 and GI-6 first: a
 failure there is a bug in that glue (or in MetalUI C7), not in the model.
 
@@ -274,14 +276,17 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   unsaved changes, New and Open ask "Discard unsaved changes?"; Cancel keeps the document, and a later New asks again.
   Pinned: `AppModelFileTests`.
   **Observed:**
-- [ ] **M6-4 Keys and focus.** Click into an inspector number field and type "f", "+" and "-": they go into the field;
-  the viewport doesn't frame or zoom. Open the palette and type "f+": they go into the search field. Click empty
-  viewport space (the field loses focus), then press F, + and −: the viewport frames and zooms. Move the pointer over
-  the graph canvas and press + and −: the graph zooms, not the viewport; press F there: the viewport frames. Pinned:
-  `AppInputTests`; the dispatch through a window is this check only (gap M6-e). **Observed:**
-- [ ] **M6-5 Menu bar and chords.** ⌘Z and ⇧⌘Z undo and redo graph edits (Edit menu). With a node selected and the
-  pointer over the canvas, ⌘C, ⌘V and ⌘D copy, paste and duplicate it (the standard Copy and Paste items don't swallow
-  the keys). ⌘N, ⌘O, ⌘S, ⇧⌘S, ⌘E and ⇧⌘E run New, Open…, Save, Save As…, Export STEP… and Export STL…. **Observed:**
+- [ ] **M6-4 Keys and focus.** **Automated, no manual step** (`ViewportKeyRoutingWindowTests`, `PaletteKeyRoutingWindowTests`,
+  through the app's real window): "f", "+" and "-" pressed with an inspector field focused leave the viewport alone, and a
+  press on the viewport gives the keys back; with the pointer over the viewport + and − zoom it and F frames it; over the
+  graph canvas + and − zoom the graph and F frames the graph's selection, not the viewport (spec 2026-10-09 §3: this
+  line used to say the viewport frames); the open palette's search field takes "f+". **By hand:** the same on a
+  physical keyboard (+ is ⇧= on a US layout). Pinned: `AppInputTests` (the mapping). **Observed:**
+- [ ] **M6-5 Menu bar and chords (what is left).** **Automated, no manual step** (`EditMenuRoutingWindowTests`): the Edit menu
+  is titled by the step ("Undo Edit Note") and its Undo and Redo run; ⌘Z and ⇧⌘Z undo and redo one step each over the
+  canvas and over the viewport; with a node selected and the pointer over the canvas, ⌘C, ⌘V and ⌘D copy, paste and
+  duplicate it (the standard Copy and Paste items don't swallow the keys) and do nothing over the viewport. **By hand:**
+  ⌘N, ⌘O, ⌘S, ⇧⌘S, ⌘E and ⇧⌘E run New, Open…, Save, Save As…, Export STEP… and Export STL…. **Observed:**
 - [ ] **M6-6 A typed value isn't lost.** Type 75 into Width without pressing Return, then click the viewport: Width
   becomes 75 (one ⌘Z undoes it). Type 50 into a node's field and click another node on the canvas: the first node gets
   50, the second is unchanged. Type a value and press Tab: it's committed. Type 80 into Width without Return and
@@ -364,8 +369,10 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
 ## Group C10 — MetalUI C10's controls and looks (Adopt C10)
 
 **Status: NOT RUN.** Plan `2026-10-09-adopt-c10.md`. The tests pin the models, the keyframes read at injected times, the
-spinner's still frame and the gradient's pixels; a real window is needed for the motion (no public headless window or
-frame time, gaps M6-e and M7-b) and for how things look. Run `swift run MetalCreatorApp`, and `swift run GraphPanelPreview`
+spinner's still frame and the gradient's pixels. Since the test-harness adoption (plan `2026-10-12-adopt-test-harness.md`,
+gaps M6-e and M7-b) the shake's motion and the slider's undo pairing are also driven through the app's real window and
+its clock (`RefusalShakeWindowTests`, `InspectorSliderWindowTests`); a real window is still needed for the spinner's
+turning and for how things look. Run `swift run MetalCreatorApp`, and `swift run GraphPanelPreview`
 for C10-5.
 
 - [ ] **C10-1 Glass panels.** The top bar, graph panel and inspector are the theme's translucent fill with a faint 1-pt
@@ -377,7 +384,11 @@ for C10-5.
   Do it twice in a row, quickly: it shakes twice. Refuse Extrude, then another node: only the second shakes. Pan the
   canvas during a shake: the node keeps shaking at its new place and stops at rest. Pan a refused node out of sight and
   back: it does not shake. Drag a node normally: no shake. Pinned: `RefusalShakeTests` (the keyframes at injected times, the
-  per-node count, a refused node drawn at rest). **Observed:**
+  per-node count, a refused node drawn at rest). **Automated** (`RefusalShakeWindowTests`, fed through
+  `EditorModel.connect`, not a pointer drag): in the app's window a refused node is 6 points out at 0.05 s, 6 across at
+  0.15 s and home at 0.25 s, only that node moves, and a second refusal shakes again. **By hand:** the look (crisp, not
+  bouncy), the message for two seconds, panning during a shake, a refused node scrolled out of sight and back, a normal
+  drag. **Observed:**
 - [ ] **C10-3 Evaluating spinner.** Make a node slow (a Boolean or a large-radius fillet on a dense part) and edit it:
   its badge shows a small spinner of twelve spokes turning steadily (MetalUI sets its period), then the time in ms. The
   spinner fits the header and reads on every header colour (value, profile, solid, selection rule, feature, output) in
@@ -389,7 +400,9 @@ for C10-5.
   is undone and the value returns to what it was before the press. Drag it again twice with nothing in between: two ⌘Z. Use a
   document parameter's slider the same way. Click the slider's track without moving: one undo step (or none if the value
   did not change). Focus the slider and press ← three times: each press is its own step. Pinned: `SliderEditingTests` (the
-  model); the pairing through a real window is this check only. **Observed:**
+  model). **Automated** (`InspectorSliderWindowTests`): a drag on the inspector's real slider is one "Change Width" undo
+  step and two drags are two. **By hand:** a document parameter's slider, a click on the track without moving, and ←
+  three times. **Observed:**
 - [ ] **C10-5 Window gradient.** `swift run GraphPanelPreview`: the window behind the panels fades from a lighter blue-grey
   at the top to near-black at the bottom, smoothly, with no banding or seam at the panels' edges. In the app, the viewport
   behind the panels shows the same gradient. Pinned: `WindowBackgroundTests`. **Observed:**
@@ -412,7 +425,10 @@ Run `swift run MetalCreatorApp` (EP-1–EP-9, EP-11, EP-12) and `swift run Graph
   and the palette keeps its size and place. Type "f+": they go into the field (the viewport neither frames nor
   zooms). Press Return: the node is added where the pointer was when the palette opened (not at the palette's
   corner) and selected; ⌘Z removes it in one step. Pinned: `theRowsScrollToKeepTheHighlightInView`,
-  `atTheBottomDockItFlipsUpAndAddsAtThePressPoint`; the key context is this check only (gap M6-e). **Observed:**
+  `atTheBottomDockItFlipsUpAndAddsAtThePressPoint`. **Automated** (`PaletteKeyRoutingWindowTests`): Space over the canvas opens
+  the palette with the search field focused, "f+" go into the field (the viewport neither frames nor zooms), Return adds a
+  node and selects it, ⌘Z removes it in one step, Esc closes the palette and adds nothing. **By hand:** the rows' scrolling
+  and where the node lands. **Observed:**
 - [ ] **EP-3 Closing the palette.** Open it, then click empty viewport: it closes (and the viewport takes the
   click). Open it, click a top-bar button: it closes. Open it, click the canvas: it closes. Open it, right-click or
   middle-click the canvas or the inspector: it closes. Open it and click its glass padding or caption: it stays open
@@ -502,7 +518,8 @@ Run `scripts/package-app.sh` first; it ends with `==> Wrote …/dist/MetalCreato
 Run `swift run MetalCreatorApp` for AS-1 to AS-5, and `scripts/package-app.sh` first for AS-6 and AS-7. The model's side
 of each check is pinned headless (`AppModelCloseTests`, `WindowChromeTests`, `AppModelOpenURLTests`,
 `TitleBarClearanceTests`, `TopBarClearanceRenderTests`, `SaveChangesAnswerTests`); what MetalUI's window, menu and
-Finder do with it is these checks only (gap M6-e).
+Finder do with it is these checks only (gap M6-e is adopted: `TestWindow.requestClose()` and `presentedAlert` could drive
+the window half; no test does yet).
 
 Product decisions behind these checks (the user approved the recommended default of each on 2026-10-09/10): (1) the
 hidden title bar (not merged; the window is standard) ships only if AS-5 shows the window drags, as its own commit; (2)
@@ -739,8 +756,8 @@ Save it; M7-1 to M7-4 use it, and M7-4 also the §7.2 bracket.
 ## Group MS — multi-select (sub-project A)
 
 **Status: PENDING.** Plan `2026-10-09-multi-select.md`, spec `2026-10-09-selection-groups-comments-design.md` §3 and
-its Errata (A: multi-select). The tests pin the model; these check the gestures and keys through a real window (no
-headless MetalUI window, gap M6-e). Run `swift run MetalCreatorApp` on a saved bracket, docked left, then MS-8 docked
+its Errata (A: multi-select). The tests pin the model; these check the gestures and keys through a real window (gap
+M6-e is adopted: the graph's keys and the Edit chords are driven in groups CT and M6, the gestures not yet). Run `swift run MetalCreatorApp` on a saved bracket, docked left, then MS-8 docked
 at the bottom too.
 
 - [ ] **MS-1 Clicks.** Click a node, then ⌘-click two more: all three are selected; ⌘-click one of them again: it
@@ -802,7 +819,8 @@ warnings read well where they appear.
 
 **Status: PENDING.** Plan `2026-10-09-comments.md`, spec `2026-10-09-selection-groups-comments-design.md` §7 and its
 Errata (B: comments). The tests pin the model and the headless frames; these check the gestures, keys, menu and the
-inspector's text field through a real window (no headless MetalUI window, gap M6-e). Run `swift run MetalCreatorApp`
+inspector's text field through a real window (gap M6-e is adopted: the typing, the note box and the Undo are driven in group
+CT, the rest not yet). Run `swift run MetalCreatorApp`
 on a saved bracket, docked at the bottom; CM-9 docks left.
 
 - [ ] **CM-1 Add Note.** Put the pointer over the canvas and press ⌘⇧N: a muted 160 × 100 note reading "Note"
@@ -842,8 +860,9 @@ on a saved bracket, docked at the bottom; CM-9 docks left.
   on the note it was typed into. Pick an accent: the note re-tints at once, in each of the three themes. Select one
   frame: a title field and the swatches; Return commits "Front plate"; clearing it and pressing Return refuses with
   "A frame needs a title." and the old title returns. Select two comments: "2 comments selected". Pinned:
-  `CommentInspectorTests`. The field losing focus commits the text, and no headless test reaches that (a focus loss
-  needs a real window, gap M6-e): only the model-level commit is pinned, so **record whether clicking away from the text
+  `CommentInspectorTests`. The field losing focus commits the text; through the window only the canvas editor's focus loss is driven
+  (`clickingIntoTheInspectorsBoxCommitsTheCanvasEditFirst`, group CT), not this box's own (gap M6-e is adopted), so only the
+  model-level commit is pinned here, and **record whether clicking away from the text
   box, not only onto the canvas, commits it.** **Observed:**
 - [ ] **CM-8 Saving.** Save with notes and frames, close, reopen: they are where they were, with their text, titles and
   accents; ⌘Z has nothing to undo. Open a file saved before comments: it opens unchanged. Editing a note marks the
@@ -857,57 +876,72 @@ on a saved bracket, docked at the bottom; CM-9 docks left.
 
 ## Group CT — typing on the canvas (Comments typing plan)
 
-**Status: PENDING.** Plan `2026-10-10-comments-canvas-typing.md`, spec `2026-10-09-selection-groups-comments-design.md` §8
-and its Errata (B: typing on the canvas). The tests pin the model and the headless frames; these check the double click,
-the focus and the keys through a real window (MetalUI C9's own tests pin the key routing; the app has no headless
-window, gap M6-e). Run `swift run MetalCreatorApp` on a saved bracket with a note and a frame; CT-5 docks left.
+**Status: PENDING (what only a person can judge).** Plan `2026-10-10-comments-canvas-typing.md`, spec
+`2026-10-09-selection-groups-comments-design.md` §8 and its Errata (B: typing on the canvas). The tests pin the model and
+the headless frames, and since the test-harness adoption (plan `2026-10-12-adopt-test-harness.md`, gap CT-c) they also
+drive the double click, the focus and the keys through the app's real window: `CanvasNoteTypingWindowTests`,
+`CanvasTitleTypingWindowTests`, `CanvasTypingKeysWindowTests`, `CanvasTypingFocusWindowTests`, `CanvasTypingUndoWindowTests`. A clause marked
+**Automated** below has no manual step; what stays is how it looks and what the real machine does. Run
+`swift run MetalCreatorApp` on a saved bracket with a note and a frame; CT-5 docks left.
 
-- [ ] **CT-1 A note.** Double click a note: a white-backed editor appears exactly over it, with the caret in it, and the
-  note's text is in it, the caret at its start and nothing selected (gap CT-b: **record it**; ⌘A selects it all). Type two lines (Return breaks the line), press ⌘↩: the editor closes, the note shows both lines,
-  and one ⌘Z puts the old text back. **Observe each of these separately and write each down:** focus is in the field the
-  moment it appears (no extra click); Return breaks the line and commits nothing; ⌘↩ commits; Esc cancels (CT-2);
-  clicking away commits (CT-2). Pinned: `CommentTypingTests`, `CommentDoubleClickTests`, `CommentEditorRenderTests`.
-  **Observed:**
-- [ ] **CT-2 Ending an edit.** Four separate observations, each written down, for a note: **Esc** closes the editor and
-  the note keeps its old text, with nothing to undo; **⌘↩** commits and closes; **Return** breaks the line and the editor
-  stays open; **a click away** (the next lines) commits. For a frame's title: **Return** commits, **Esc** cancels, **a
-  click away** commits. Start a note edit and type, then Esc as above. Type again and click empty canvas, then another node, then the 3D viewport, then the inspector's
-  accent swatch: each commits the text (one ⌘Z each). Type, then ⌘S: the saved file has the text. Pinned: `CommentTypingTests`.
-  **Observed:**
-- [ ] **CT-3 A frame's title.** Double click a frame's title bar: a one-line field over the bar with the title in it. Type
-  "Front plate", Return: it commits (one ⌘Z undoes it). Esc cancels. Clear it and press Return: "A frame needs a title."
-  appears and the old title returns. Paste text containing a line break: it becomes a space. A double click on the
-  frame's edge band or its inside starts no edit, and dragging the title bar still moves the frame and its nodes.
-  Pinned: `CommentTypingTests`, `CommentDoubleClickTests`. **Observed:**
-- [ ] **CT-4 The graph's keys stand aside.** With an editor focused and nodes selected on the canvas: Delete deletes
-  characters and no node; arrows move the caret and no node; Space and F type; ⌘A selects the text; ⌘C, ⌘X and ⌘V use the
-  text; ⌘⇧N adds no note, ⌘G, ⌘D and ⌘⇧C do nothing to the canvas; Tab does not open the add-node palette. Afterwards,
-  with the pointer over the canvas and nothing focused, Delete, arrows, ⌘A, F and Space act again (Tab opens the palette);
-  with the pointer over the viewport or the inspector's empty space they do not (User decision 1: **record it**). Pinned:
-  `GraphPanelInputTests`, `SelectionKeyTests`, `NudgeTests`. **Observed:**
-- [ ] **CT-5 Both docks.** Repeat CT-1 and CT-3 docked bottom and docked left: the editor lies exactly over the note and
-  over the title bar (the left dock draws both transposed), and typing, ⌘↩, Return and Esc behave the same. Pinned:
-  `CommentEditorRenderTests`, `CommentTypingTests`. **Observed:**
-- [ ] **CT-6 Zoom.** At 25 %, 100 % and 300 % (⌘-scroll, or the header buttons) repeat CT-1 and CT-3: the editor's text
-  is scaled as the note's is and lies over it, typing works, and a click inside the editor places the caret under the
-  pointer (the editor is drawn under a scale effect). **Record** whether the title field is usable at 25 % and whether the
-  text is soft at 300 % (MetalUI divergence 106: text under a scale effect is resampled). Pinned: `CommentEditorRenderTests`.
-  **Observed:**
+- [ ] **CT-1 A note (the look).** Double click a note: a white-backed editor appears exactly over it, with the caret
+  visible in it, and the note's text is in it, the caret at its start and nothing selected (gap CT-b: **record it**; ⌘A
+  selects it all). Type two lines, press ⌘↩: the note shows both lines. **Automated, no manual step:** the editor lies over
+  the note with focus in it the moment it appears, Return breaks the line and commits nothing, ⌘↩ commits as one undo
+  step, Esc cancels, clicking away commits (`CanvasNoteTypingWindowTests`). Pinned: `CommentTypingTests`,
+  `CommentDoubleClickTests`, `CommentEditorRenderTests`. **Observed:**
+- [ ] **CT-2 Ending an edit (what is left).** **Automated, no manual step:** for a note, Esc closes the editor and the
+  note keeps its old text with nothing to undo, ⌘↩ commits, Return breaks the line and the editor stays open, a click on
+  empty canvas commits (one ⌘Z), and so does a press on the 3D viewport (`CanvasNoteTypingWindowTests`,
+  `CanvasTypingFocusWindowTests`); for a frame's title, Return commits, Esc cancels, a click away commits
+  (`CanvasTitleTypingWindowTests`). **By hand:** type and click another node: it commits (one ⌘Z). Type and click the
+  inspector's accent swatch and **record what happens** (through the headless window the accent changes and the edit stays
+  open with its draft until the next canvas press: decision D4, `anAccentSwatchPressChangesTheAccentAndLeavesTheEditOpenWithNothingLost`).
+  Type, then ⌘S: the saved file has the text. Pinned: `CommentTypingTests`. **Observed:**
+- [ ] **CT-3 A frame's title (what is left).** **Automated, no manual step:** a double click on the title bar opens a
+  focused one-line field over the bar with the title in it; Return commits (one ⌘Z undoes it); Esc cancels; clearing it
+  and pressing Return shows "A frame needs a title." and keeps the old title; dragging the title bar moves the frame and
+  the nodes inside it as one undo step (`CanvasTitleTypingWindowTests`). **By hand:** paste text containing a line break:
+  it becomes a space. A double click on the frame's edge band or its inside starts no edit. Pinned: `CommentTypingTests`,
+  `CommentDoubleClickTests`. **Observed:**
+- [ ] **CT-4 The graph's keys stand aside (what is left).** **Automated, no manual step** (`CanvasTypingKeysWindowTests`):
+  with an editor focused, Delete deletes characters and no node; arrows move the caret and no node; Space and F type; ⌘A
+  selects the text; ⌘⇧N adds no note, ⌘G, ⌘D and ⌘⇧C do nothing to the canvas; Tab does not open the add-node palette;
+  afterwards, with the pointer over the canvas and nothing focused, Delete acts again, and with the pointer over the
+  viewport it does not (User decision 1). (Starting an edit makes the comment the whole selection, so "nodes selected
+  while an editor is focused" cannot arise.) **By hand:** ⌘C, ⌘X and ⌘V use the text, not the canvas's clipboard; over
+  the canvas also the arrows, ⌘A, F and Space act again and Tab opens the palette; over the inspector's empty space they
+  do not (**record it**). Pinned: `GraphPanelInputTests`, `SelectionKeyTests`, `NudgeTests`. **Observed:**
+- [x] **CT-5 Both docks.** **Automated, no manual step:** docked bottom and docked left (which draws both transposed)
+  the editor lies exactly over the note and over the title bar, and ⌘↩, Return and Esc behave the same
+  (`CanvasNoteTypingWindowTests`, `CanvasTitleTypingWindowTests`, each run for both docks). Pinned:
+  `CommentEditorRenderTests`, `CommentTypingTests`.
+- [ ] **CT-6 Zoom (the look).** At 25 %, 100 % and 300 % (⌘-scroll, or the header buttons) repeat CT-1 and CT-3: typing
+  works, and a click inside the editor places the caret under the pointer (the editor is drawn under a scale effect).
+  **Record** whether the title field is usable at 25 % and whether the text is soft at 300 % (MetalUI divergence 106: text
+  under a scale effect is resampled). **Automated:** at 0.5× and 2× the editor is scaled as the note is and lies over it
+  (`theEditorFollowsTheCanvasZoom`). Pinned: `CommentEditorRenderTests`. **Observed:**
 - [ ] **CT-7 Themes.** In each of the three built-in themes the editor's background, text and focus ring are readable
   over the note's tint and the title bar's tint, and Esc or ⌘↩ returns to the themed note. **Observed:**
-- [ ] **CT-8 Undo.** Edit a note, ⌘Z: the old text, ⇧⌘Z: the new. While an editor is open and focused, ⌘Z: **record
-  whether it undoes the typing in the field or the document's last step** (MetalUI's field keeps ⌘Z before the app's
-  command, KF-C). **Observed:**
-- [ ] **CT-9 Inspector and canvas together.** Select a note (the inspector shows its text), double click it and type: the
-  inspector shows the old text until the edit commits. Click into the inspector's box and type: the canvas edit commits
-  first and nothing is lost. In the inspector's box, ⌘↩ commits and Return breaks the line (gap CM-a). Pinned:
-  `CommentTypingTests`, `CommentKeysTests`. **Observed:**
-- [ ] **CT-10 Focus.** Double click a note, double click another note, then a frame's title bar, without clicking
-  elsewhere between: each edit commits and the next starts with the caret in its field. Press Tab in an editor: focus
-  moves (it opens no palette). Pinned: `CommentDoubleClickTests`. **Observed:**
+- [ ] **CT-8 Undo (what is left).** **Automated, no manual step:** edit a note, ⌘Z gives the old text and ⇧⌘Z the new,
+  one step each, over the canvas and over the viewport (`EditMenuRoutingWindowTests`, `CanvasTypingUndoWindowTests`); while an
+  editor is open and focused, ⌘Z undoes the typing in the field and leaves the document alone (the measured answer,
+  pinned: MetalUI's field keeps ⌘Z before the app's command, KF-C; decision D2). **By hand:** the same keys on a physical
+  keyboard. **Observed:**
+- [x] **CT-9 Inspector and canvas together.** **Automated, no manual step** (`CanvasTypingFocusWindowTests`): with a note
+  selected the inspector shows its text; double click the note and type, and the inspector shows the old text until the
+  edit commits; clicking into the inspector's box commits the canvas edit first and loses nothing; in the box, ⌘↩ commits
+  and Return breaks the line (gap CM-a). Pinned: `CommentTypingTests`, `CommentKeysTests`.
+- [ ] **CT-10 Focus (what is left).** **Automated, no manual step** (`CanvasTypingFocusWindowTests`): double click a note,
+  double click another note, then a frame's title bar, without clicking elsewhere between: each edit commits and the next
+  has the focus in its field (and Tab opens no palette, `tabOpensNoPalette`). **By hand:** the caret is visible
+  in each new field, and Tab in an editor moves focus to the next control. Pinned: `CommentDoubleClickTests`.
+  **Observed:**
 - [ ] **CT-11 Inert chrome (gap CT-a).** While a note is being edited, press the graph panel's header gap, the glass
   padding and an empty area of the inspector. **Record** whether the editor stays open (the expected, documented
-  behaviour: User decision 2) and what the next canvas press does. **Observed:**
+  behaviour: User decision 2) and what the next canvas press does. **Automated:** a press on the panel's glass padding
+  leaves the editor open and focused, typing continues, and the next canvas press commits
+  (`CanvasTypingFocusWindowTests`); **by hand:** the header gap and the inspector's empty area. **Observed:**
 - [ ] **CT-12 Groups and saving.** Enter a group, double click a note there and type, then leave the group with ⌘↑: the
   text is in the definition's note. Save, quit, reopen: the text persists, the edit marked the document edited, and ⌘Z
   has nothing to undo. Pinned: `CommentTypingTests`. **Observed:**
@@ -1195,3 +1229,55 @@ shows. Build the graph first: Series (count 24) into Partition (size 8) into Num
   `{1;99}`: "No item {1;99}: {1} has 8 items." Clear the field: the index is used again. Add a Branch by Path with `{2}`: the
   third row. Pinned: `anItemPathTakesTheOneItemAtThatPath`, `anItemPathOverridesTheIndex`, `aBlankItemPathMeansUseTheIndex`,
   `aMissingBranchOrItemInAPathSaysHowManyThereAre`, `aMissingBranchSaysHowManyThereAre`. **Observed:**
+
+## Group PL — patterns: the layouts, trees of placements and previews (7a-3)
+
+**Status: NOT RUN.** Plan `2026-10-12-7a-layouts.md`, spec `2026-10-10-patterns-trees-design.md` §3, §6, §8 and its Errata (7a-3). Run
+`swift run MetalCreatorApp`. The tests pin the nodes, the naming, the overlay's lines and the file; these check what a real window
+shows. Build a plate (Rectangle 120 × 80 on a plane at z = −8, Extrude 8) and an Output for the checks below.
+
+- [ ] **PL-1 The library.** Open the node library: the "Patterns" section opens with Linear Pattern, Grid Pattern, Circular Pattern,
+  Curve Pattern and Face Pattern, then Place, Points to Placements and the shortcuts. Typing "ring" in the add-node palette finds
+  Circular Pattern. **Observed:**
+- [ ] **PL-2 Triads.** Add a Grid Pattern (4 × 3, 10 mm) and select it with nothing wired to it: a small x (red), y (green) and z (cyan)
+  triad appears at each of the 12 placements, each axis a little under half the distance to the next. Change the counts and the
+  spacing in the inspector: the triads follow at once. Select another node, or two nodes: they go. Right-click on a triad, click on
+  it, press F and drag the view: it never picks, opens a face menu or changes what F frames. **Observed:**
+- [ ] **PL-3 How they read.** Do the triads read at the default zoom, on a dark and a light theme (View ▸ Theme ▸ Alucard)? Set a Grid
+  Pattern to 40 × 50 (2,000 placements): the view stays smooth. **Record whether the axes are too small or too big** (the 40% rule is
+  a guess). Then select a Hole Pattern's Circular Pattern so that its triads sit on the plate's top face and look from below and from
+  inside the plate: they are drawn through the solid, never faded (User decision 13). **Record whether that reads or clutters**, and
+  so whether depth-aware guides are wanted. **Observed:**
+- [ ] **PL-4 Rings and per-ring sizes.** Circular Pattern (radius 15, count 4, rings 2, radius step 10, count step 4) into a Hole Pattern
+  on the plate (through all), with a Series (6, step −2, 2 values) into a Graft into `diameter`: the inner ring has four Ø6 holes and
+  the outer eight Ø4. Pick the rim of one outer hole (Fillet ▸ Pick edges in view…) and fillet it. Set rings to 3: the fillet stays
+  on the same hole. Set rings to 1: the Edges by Tag rule warns "Instance {1;3} no longer exists, so the edge picked on it isn't
+  selected." (use the path of the hole you picked) and nothing else is filleted. Turn the start angle: the holes and the fillet turn
+  together. **Observed:**
+- [ ] **PL-5 Pattern on Face.** Right-click the plate's top face: the menu offers Look At, Select Edges of Face, New Sketch on Face,
+  **Pattern on Face**. Choose it: a Face Pattern appears beside the Extrude, wired from it and selected, its triads fill the face and
+  a dashed outline runs round it, 3 mm inside the edge. Switch Stagger on: every second row moves half a pitch. Raise the margin to
+  12: the outer columns and rows go. Undo: both the node and the wire go in one step ("Undo Pattern on Face"). Right-click a side
+  face of a cylinder: no Pattern on Face. **Observed:**
+- [ ] **PL-6 Holes in the face.** Drill the plate first (a Hole Pattern, Ø20, through) and use Pattern on Face on its top: no placement
+  stands within the margin of the hole, and the dashed outline circles the hole. **Record how the outline looks at the hole** (it is
+  a mitred guide; the placements are exact). **Observed:**
+- [ ] **PL-7 Vents.** Face Pattern (spacing 14 × 12, stagger, margin 6) into a Slot Pattern (8 × 3, through all): staggered vents run
+  across the plate, clear of the edge and of the bolt holes. Pick the rim of one vent (Fillet ▸ Pick edges in view…) and fillet it,
+  then raise the margin by a few millimetres so some vents drop: the fillet stays on the same vent, or, if that vent has gone, the
+  Edges by Tag rule warns naming its path (`{row;column;0}`) and nothing else is filleted. Make a bolt hole bigger: the same.
+  **Record which of the two happens to the vents beside the dropped ones** (it must be neither a different vent nor a neighbour).
+  **Observed:**
+- [ ] **PL-8 Curve and Linear.** Edges by Direction (X) on the plate into a Curve Pattern (count 5): five triads along each of four
+  edges, facing along the edge. A Rectangle into a Curve Pattern's `profile`: placements round the outline. A Linear Pattern
+  (count 6, spacing 8) into a Hole Pattern: a row of holes. **Observed:**
+- [ ] **PL-9 A Boolean over a tree.** Wire a Grid Pattern into Place and Place into a Boolean's `tools` (subtract from the plate): one
+  plate per row, each with its row of copies cut, as for any tree (spec §2). Flatten between Place and the Boolean: one plate with every
+  copy cut. **Record whether this is the surprise it may be** (a Hole Pattern over the same grid cuts every hole at once). **Observed:**
+- [ ] **PL-10 Tree display.** A Grid Pattern's output dot reads "Tree 3 × 4" on rest; the inspector's Data section lists `{0}` to `{2}`
+  with 4 items each. A Linear Pattern's reads as a plain list. **Observed:**
+- [ ] **PL-11 Old files and groups.** Open a bracket saved before this track: it opens with every pick holding and no warning. Group a
+  Hole Pattern fed by a Grid Pattern and enter the group: Pattern on Face says it can't be made inside a group yet. **Observed:**
+- [ ] **PL-12 A list on a layout.** Wire a Series into a Grid Pattern's `spacingX`: the node refuses with "Grid Pattern takes single
+  values, not lists: wire one value into each input, or pick one out of the list first with List Item." and shakes. Put a List Item
+  between the Series and the socket: it works. The same for Circular Pattern's `radius`. **Observed:**

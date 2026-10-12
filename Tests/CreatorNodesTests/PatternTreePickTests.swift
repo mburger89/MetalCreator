@@ -9,9 +9,6 @@ import Testing
 
 /// Patterns spec §6 with trees (7a-3): a pick on the rim of the hole at `{1;1}` follows that path through edits to the
 /// pattern, and says so, naming the path, when it is gone. A pick saved before trees (7a-2) still resolves.
-/// Which node of the fixture an edit changes.
-enum EditTarget { case grid, rows, holes }
-
 @MainActor
 struct PatternTreePickTests {
     /// 3 × 2 Ø5 holes 15 mm apart, cut into rows of 3 (Partition), an Edges by Tag on the result and a Fillet on its edges.
@@ -64,6 +61,9 @@ struct PatternTreePickTests {
         }
     }
 
+    /// Which node of the fixture an edit changes.
+    enum EditTarget { case grid, holes }
+
     struct Edit: CustomTestStringConvertible {
         let what: String
         let target: EditTarget
@@ -86,7 +86,6 @@ struct PatternTreePickTests {
         #expect(before.isOK(f.rule) && before.isOK(f.fillet), "before changing \(edit.what)")
         let node: Node = switch edit.target {
         case .grid: f.plate.grid
-        case .rows: f.rows
         case .holes: f.holes
         }
         f.plate.h.set(node, edit.socket, edit.value)

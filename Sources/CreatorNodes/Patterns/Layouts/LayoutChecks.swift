@@ -34,6 +34,18 @@ enum LayoutChecks {
         return value
     }
 
+    /// A number that is finite (it may be negative).
+    static func finite(_ value: Double, _ name: SocketName) throws -> Double {
+        guard value.isFinite else { throw NodeError.invalidValue("“\(name)” must be a finite number.") }
+        return value
+    }
+
+    /// A point that is finite.
+    static func finite(_ point: Vector3, _ name: SocketName) throws -> Vector3 {
+        guard point.isFinite else { throw NodeError.invalidValue("“\(name)” must be a finite point.") }
+        return point
+    }
+
     /// A direction with a length, as a unit vector.
     static func direction(_ vector: Vector3, _ name: SocketName) throws -> Vector3 {
         guard vector.isFinite, let unit = vector.normalized else { throw NodeError.invalidValue("“\(name)” can't be zero.") }

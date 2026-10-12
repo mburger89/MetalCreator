@@ -12,6 +12,7 @@ public enum BuiltInNodes {
         EdgesByTagNode.self, EdgesByDirectionNode.self, EdgeFilterNode.self, AllEdgesNode.self, EdgeSetOpNode.self,
         FilletNode.self, ChamferNode.self,
         LinearPatternNode.self, GridPatternNode.self, CircularPatternNode.self, CurvePatternNode.self,
+        FacePatternNode.self,
         PlaceNode.self, PointsToPlacementsNode.self,
         HolePatternNode.self, BossPatternNode.self, SlotPatternNode.self, PatternFeatureNode.self,
         FlattenNode.self, GraftNode.self, PartitionNode.self, TreeStatisticsNode.self, ListItemNode.self, BranchByPathNode.self,

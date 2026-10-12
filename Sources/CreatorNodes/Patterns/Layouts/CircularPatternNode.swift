@@ -41,12 +41,12 @@ public enum CircularPatternNode: NodeDefinition {
     ]
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
-        let centre = try inputs.vector("centre")
+        let centre = try LayoutChecks.finite(try inputs.vector("centre"), "centre")
         let axis = try LayoutChecks.direction(try inputs.vector("axis"), "axis")
         let radius = try inputs.number("radius")
         let (sweep, start) = (try inputs.number("sweep"), try inputs.number("startAngle"))
         guard sweep.isFinite, start.isFinite, radius.isFinite else { throw NodeError.invalidValue("The circle's numbers must be finite.") }
-        let (step, rotate) = (try inputs.number("radiusStep"), try inputs.bool("rotate"))
+        let (step, rotate) = (try LayoutChecks.finite(try inputs.number("radiusStep"), "radiusStep"), try inputs.bool("rotate"))
         let rings = try LayoutChecks.count(try inputs.integer("rings"), "rings")
         try PatternLimit.check(rings)
         let count = try LayoutChecks.count(try inputs.integer("count"), "count")
