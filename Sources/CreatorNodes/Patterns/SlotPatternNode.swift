@@ -8,8 +8,8 @@ import CreatorKernel
 /// every slot of that size, one kernel call places all the copies, and one subtracts them. A slot that misses the
 /// part doesn't fail the node; it warns with the count ("3 of 24 slots miss the part.").
 ///
-/// Every size is a list, so a slot can differ from the next: the longest list sets the number of slots and a shorter
-/// one repeats its last item. Faces of slot `i` are tagged with its instance path `{i}`.
+/// Every size is a list or a tree, so a slot can differ from the next (`InstanceGrid` matches them to the placements, as
+/// Hole Pattern's sizes are). Faces of the slot at path `{i}` or `{row;i}` are tagged with that path.
 public enum SlotPatternNode: NodeDefinition {
     public static let typeID = "creator.slotPattern"
     public static let displayName = "Slot Pattern"
@@ -17,11 +17,11 @@ public enum SlotPatternNode: NodeDefinition {
     public static let placesInstances = true
     public static let inputs = [
         SocketSpec("part", .solid),
-        SocketSpec("placements", .plane, access: .list),
-        SocketSpec("length", .number, access: .list, defaultValue: .number(20), unit: .millimetres, range: 0.2...200),
-        SocketSpec("width", .number, access: .list, defaultValue: .number(6), unit: .millimetres, range: 0.1...100),
-        SocketSpec("depth", .number, access: .list, defaultValue: .number(10), unit: .millimetres, range: 0.1...200),
-        SocketSpec("throughAll", .bool, access: .list, defaultValue: .bool(false)),
+        SocketSpec("placements", .plane, access: .tree),
+        SocketSpec("length", .number, access: .tree, defaultValue: .number(20), unit: .millimetres, range: 0.2...200),
+        SocketSpec("width", .number, access: .tree, defaultValue: .number(6), unit: .millimetres, range: 0.1...100),
+        SocketSpec("depth", .number, access: .tree, defaultValue: .number(10), unit: .millimetres, range: 0.1...200),
+        SocketSpec("throughAll", .bool, access: .tree, defaultValue: .bool(false)),
     ]
     public static let outputs = [SocketSpec("solid", .solid)]
     public static let inspector = [
@@ -30,18 +30,18 @@ public enum SlotPatternNode: NodeDefinition {
     ]
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
+        try PlacementMoves.requireSingleValues(context)
         let part = try inputs.solid("part")
-        let planes = try inputs.planes("placements")
-        let (lengths, widths) = (PerInstance(try inputs.numbers("length")), PerInstance(try inputs.numbers("width")))
-        let (depths, through) = (PerInstance(try inputs.numbers("depth")), PerInstance(try inputs.bools("throughAll")))
-        let count = PerInstance<Plane>.instances([planes.count, lengths.count, widths.count, depths.count, through.count])
-        try PatternLimit.check(count)
-        guard count > 0 else { return NodeOutputs(["solid": .solid(part)]) }
-        let reach = through.values.contains(true) ? ThroughReach.length(of: part, placements: planes) : 0
+        let grid = try InstanceGrid(inputs, ["placements", "length", "width", "depth", "throughAll"])
+        guard grid.count > 0 else { return NodeOutputs(["solid": .solid(part)]) }
+        let planes = try grid.planes("placements")
+        let (lengths, widths) = (try grid.numbers("length"), try grid.numbers("width"))
+        let (depths, through) = (try grid.numbers("depth"), try grid.bools("throughAll"))
+        let reach = through.contains(true) ? ThroughReach.length(of: part, placements: planes) : 0
         var sizes: [SlotSize] = []
-        for index in 0..<count {
+        for index in 0..<grid.count {
             let size = SlotSize(length: lengths[index], width: widths[index], depth: through[index] ? reach : depths[index])
-            if let problem = size.problem(at: InstancePath.text(index)) { throw NodeError.invalidValue(problem) }
+            if let problem = size.problem(at: InstancePath.text(grid.items[index])) { throw NodeError.invalidValue(problem) }
             sizes.append(size)
         }
         let plan = ToolPlan(sizes: sizes)
@@ -53,7 +53,7 @@ public enum SlotPatternNode: NodeDefinition {
                                                   mode: .oneSided, tag: context.tag))
         }
         let request = PatternApply.Request(operation: .subtract, part: part, tools: plan.toolIndex.map { built[$0] }, planes: planes,
-                                           nouns: PatternApply.Nouns(singular: "slot", plural: "slots"))
+                                           grid: grid, nouns: PatternApply.Nouns(singular: "slot", plural: "slots"))
         return try await PatternApply.run(request, kernel: kernel, context: context)
     }
 }

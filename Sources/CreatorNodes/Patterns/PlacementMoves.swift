@@ -4,28 +4,14 @@ import CreatorKernel
 
 /// Turns placements into the moves that carry a tool built at the origin, facing +Z, onto them.
 enum PlacementMoves {
-    /// Refuses a tree on any input of a pattern node (User decision 8a): the node would run once per branch, cutting the
-    /// part once for each and restarting `{i}` at 0 in each. Every node that places instances calls this first.
-    static func requireFlat(_ context: EvalContext) throws {
+    /// Refuses a tree on the part (or any other single-value input) of a shortcut node (User decision 8a): the node would
+    /// run once per branch, cutting the part once for each. Only the placements and the sizes take trees
+    /// (`InstanceGrid`), and they are read whole.
+    static func requireSingleValues(_ context: EvalContext) throws {
         if context.isTreeRun {
-            throw NodeError.invalidValue("Patterns take flat lists for now: flatten the tree first.")
+            throw NodeError.invalidValue("Only placements and sizes can be trees: flatten the tree wired into the part "
+                + "or the operation first.")
         }
-    }
-
-    /// The move for each of `count` instances: instance `i` uses placement `i`, and a shorter list repeats its last
-    /// placement (broadcasting, spec §4.2). A placement with no usable direction names its path.
-    static func make(_ planes: [Plane], count: Int) throws -> [Transform] {
-        guard let last = planes.indices.last else { return [] }
-        var moves: [Transform] = []
-        moves.reserveCapacity(count)
-        for index in 0..<count {
-            guard let move = planes[min(index, last)].placement else {
-                throw NodeError.invalidValue("Placement \(InstancePath.text(index)) has no usable direction: "
-                    + "its normal and x axis must not be zero or along each other.")
-            }
-            moves.append(move)
-        }
-        return moves
     }
 
     /// The move for each instance, from the placement `planes[i]` of the instance whose tag item is `items[i]`. A
