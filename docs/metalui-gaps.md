@@ -47,11 +47,11 @@ stopgap as they were. The sections below keep each gap's full use case.
 | S5-a | Modifiers on a hover (and a tap, GI-a) | none yet (with GI-a) | 🟡 landed in MetalUI master a720fba (C16: `.onModifierKeysChanged(mask:initial:_:)` on a still pointer); adoption here pending |
 | S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | 🟡 landed in MetalUI master a720fba (C16: `DragGesture.Value.clickCount`); adoption here pending |
 | S5-c | A `MetalView` draw can't draw text (world-anchored labels) | MetalUI session (with M4-b) | ⏳ reported 2026-10-09, sent to the MetalUI session |
-| M7-a | `ForEach` identity is an id's description | none yet | ⏳ reported, not queued |
+| M7-a | `ForEach` identity is an id's description | C20 | ✅ fixed by C20 (MetalUI master 5f35df6: identity by `Hashable` equality); nothing to adopt, the canvas's `\.id.rawValue` keys stay correct |
 | M7-b | No warm headless frame for measuring | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `TestWindow` warm frames and `FrameWork`), adopted for work counts (plan `2026-10-12-adopt-test-harness`): `WarmFrameTests`; the release benchmarks (`Bench`) still report cold-frame milliseconds until they are moved onto it |
 | C10-a | No backdrop blur behind a material | C10-c (unscheduled) | ⏳ sent to the MetalUI session 2026-10-09 |
 | CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | C9 | ✅ fixed by C9 (KF-Z/KF-AA: ⌘↩ is no editing key of a `TextEditor`, so an `onKeyPress` for it commits), adopted by the inspector's note box and the canvas editor (Comments typing plan) |
-| CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C24 |
+| CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan); C24 in progress (`feat/resign-on-press`, 2026-10-12) |
 | CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C25 |
 | CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | ✅ fixed (MetalUI 280d706), adopted (plan `2026-10-12-adopt-test-harness`): `CanvasNoteTypingWindowTests`, `CanvasTitleTypingWindowTests`, `CanvasTypingKeysWindowTests`, `CanvasTypingFocusWindowTests`, `CanvasTypingUndoWindowTests`; CT-1..CT-11 keep only their visual and machine-specific parts |
 
@@ -667,6 +667,8 @@ Labelled M7-a… so they don't clash with the labels above. Checked against Meta
   (`id: \.id.rawValue`, `CanvasIdentityRenderTests`), which stays right if MetalUI changes. Wanted: identity by
   `Hashable` equality alone, as SwiftUI; or, failing that, a debug-build warning when a `ForEach` drops an element,
   since today it drops it silently.
+  **Fixed by MetalUI C20** (master 5f35df6, PR #68): `ForEach` tells ids apart by `Hashable` equality, as SwiftUI does;
+  ids equal as values still produce only the first. Nothing to adopt: keying by the whole UUID stays correct.
 - **M7-b. No warm headless frame to measure.** Spec §7.3's targets are measured headless
   (`Tests/CreatorAppTests/Bench`, docs/verification/performance.md). The only public way to draw the app's window
   without a screen is `renderFrame`, which draws a fresh window's first frame each call: no state table, text

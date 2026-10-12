@@ -242,8 +242,8 @@ the seventeen
   The canvas builds only what can show (`EditorModel.drawnNodes`, `drawnCanvasRect`: the visible canvas grown by
   `cullingMargin`, everything while unplaced), and below zoom `rowsMinimumZoom` draws nodes without their rows
   (`drawsNodeRows`); hit testing, selection and edits always see the whole graph. A
-  `ForEach` over nodes keys them `id: \.id.rawValue`: MetalUI names elements by their id's description and drops a
-  repeat (gap M7-a), and a `NodeID` prints only 8 hex digits. The graph panel measures itself: `GraphPanel`'s
+  `ForEach` over nodes keys them `id: \.id.rawValue` (the whole UUID; a `NodeID` prints only 8 hex digits, and before
+  MetalUI C20 a `ForEach` named elements by their description: gap M7-a, fixed). The graph panel measures itself: `GraphPanel`'s
   `onGeometryChange` writes `EditorModel.panelPlacement` (its frame in the window and `\.windowSize`, gaps EP-a and M4-a),
   tracked, so a resize or a move rebuilds the canvas; nothing computes the panel's place from `AppLayout`.
   The graph panel shows a level (`EditorModel+Levels`: `enteredGroups`/`levelPath`, `enterGroup(_:)`, `exitGroup()`,
