@@ -111,7 +111,12 @@ struct InstanceGrid {
     /// A tree holding `scalars`, one per instance, in the shape the instances came in: a flat list for a flat pattern, else
     /// the tree (the empty branches too) the instances sit in.
     func tree(of scalars: [Scalar]) -> DataTree {
-        if let shape { return shape.replacingItems(scalars) ?? .empty(depth: depth) }
+        if let shape {
+            // One scalar per instance fits the shape by construction; a mismatch is a bug in the caller, never an input.
+            let replaced = shape.replacingItems(scalars)
+            if replaced == nil { assertionFailure("\(scalars.count) values do not fit the \(count) instances of the pattern") }
+            return replaced ?? .empty(depth: depth)
+        }
         return depth > 1 && scalars.isEmpty ? .empty(depth: depth) : .list(scalars)
     }
 
