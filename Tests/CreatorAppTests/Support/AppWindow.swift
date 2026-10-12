@@ -12,9 +12,9 @@ import Testing
 /// menu bar and input hooks installed as `main.swift` installs them (`AppCommands`, `AppInput`). Clicks and keys reach it
 /// through MetalUI's own routing, so key regions, focus and gestures run as in the app.
 ///
-/// MetalUI does not run a `MetalView`'s draw headless (its ruling HT-Q), and the app learns its window's size from the
-/// viewport's draw (gap M4-a), so `model.panelPlacement` stays `nil` here. The panel is where `AppLayout` puts it for
-/// `size`, and `point(inCanvas:)` and `canvasFrame` compute from that, the way the app's layout numbers do.
+/// MetalUI does not run a `MetalView`'s draw headless (its ruling HT-Q), so nothing here depends on one: the panel and
+/// the viewport report their frames from `onGeometryChange` (gaps EP-a, M4-a), which does run, and `canvasFrame` is the
+/// canvas the panel measured (`model.panelPlacement`), the frame MetalUI routes the pointer to.
 @MainActor
 struct AppWindow {
     static let defaultSize = Vector2(1440, 900)
@@ -48,20 +48,21 @@ struct AppWindow {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         input.install(on: window.window)
+        // The panel and the viewport report their frames after the build that laid them out, which draws once more.
+        try await window.runUntilIdle()
         return AppWindow(model: model, themeEditor: themeEditor, testApp: testApp, window: window, size: size)
     }
 
     var editor: EditorModel { model.editor }
 
-    /// The graph canvas in window points, from `AppLayout` and `GraphPanelLayout`.
+    /// The graph canvas in window points, as the panel measured itself (`EditorModel.canvasFrameInWindow`: the measured
+    /// panel less the library, the header and the refusal line).
     var canvasFrame: CanvasRect {
-        guard let placement = model.panelPlacement(inWindowOf: size) else {
-            Issue.record("no panel placement for a window of \(size): the canvas has no frame")
+        guard let frame = editor.canvasFrameInWindow else {
+            Issue.record("the graph panel has not reported where it is: the canvas has no frame")
             return CanvasRect(origin: .zero, size: .zero)
         }
-        let local = GraphPanelLayout.canvasFrame(inPanelOf: placement.panel.size, flow: editor.flow,
-                                                 showsLibrary: editor.showsLibrary)
-        return CanvasRect(origin: placement.panel.origin + local.origin, size: local.size)
+        return frame
     }
 
     /// The window point of a point in canvas coordinates (a note's corner, say), through the canvas's pan and zoom.

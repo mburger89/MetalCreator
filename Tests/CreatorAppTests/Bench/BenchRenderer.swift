@@ -1,4 +1,5 @@
 // Test fixture file: draws the app's window and its viewport headless, CPU and GPU, for the §7.3 benchmarks.
+import CreatorGeometry
 import Metal
 import MetalUI
 import MetalUIText
@@ -38,10 +39,11 @@ final class BenchRenderer {
     /// The viewport main passes drawn so far (`drawViewport(_:)` draws one unless the frame is empty).
     var viewportPasses: Int { viewportRenderer.encodedPasses }
 
-    /// Tells `app`'s viewport the window's size, as its first draw would: the graph panel's placement (and so its
-    /// culling) and the viewport's framing need it, and a headless frame never draws the surface.
+    /// Tells `app` the window's size and where its panel is, as the first layout of a real window would: the graph
+    /// panel's placement (and so its culling) and the viewport's framing need them, and `renderFrame` runs no layout
+    /// callbacks.
     func place(_ app: AppModel) {
-        app.viewport.recordViewSize(ViewportSize(width: Bench.windowWidth, height: Bench.windowHeight))
+        ExpectedLayout.place(app, window: Vector2(Bench.windowWidth, Bench.windowHeight))
     }
 
     /// The CPU side of a frame: the whole window built, laid out and painted into a scene.

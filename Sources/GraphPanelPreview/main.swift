@@ -13,10 +13,9 @@ func runPreview() throws {
     let window = try app.openWindow(title: "MetalCreator — Graph Panel Preview", size: size) {
         ZStack { PreviewRoot(model: model, input: input) }
     }
-    // One size, so `PreviewLayout` knows where the panel is (gap M4-a).
+    // One size: `PreviewRoot` is framed to `PreviewLayout`.
     window.minSize = size
     window.maxSize = size
-    model.placement = { [weak model] in model.flatMap { PreviewLayout.placement($0.dock) } }
     // Keys through `onInput`, the palette's ↑/↓ as keymap actions (they run before a focused search
     // field claims them), and a canvas press clearing text focus (gap M5-g). `install(on:)` chains
     // onto any handlers already there, as the app shell (M6) needs with the viewport's.

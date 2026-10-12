@@ -2,10 +2,6 @@ import CreatorGeometry
 import CreatorGraph
 
 extension EditorModel {
-    /// The panel's placement in its window, from the host; `nil` without a host (headless tests) or before the
-    /// window has a size.
-    public var panelPlacement: PanelPlacement? { placement?() }
-
     /// The canvas's frame in window points; `nil` while the panel is hidden or not placed.
     public var canvasFrameInWindow: CanvasRect? {
         guard isPanelVisible, let placement = panelPlacement else { return nil }

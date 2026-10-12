@@ -11,7 +11,7 @@ struct CommentCullingTests {
     static let panel = CanvasRect(origin: Vector2(12, 388), size: Vector2(976, 300))
 
     func placed(_ editor: EditorModel) -> EditorModel {
-        editor.placement = { PanelPlacement(window: Self.window, panel: Self.panel) }
+        editor.panelPlacement = PanelPlacement(window: Self.window, panel: Self.panel)
         return editor
     }
 

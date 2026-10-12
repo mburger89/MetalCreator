@@ -13,7 +13,7 @@ struct CanvasCullingTests {
     static let panel = CanvasRect(origin: Vector2(12, 388), size: Vector2(976, 300))
 
     func placed(_ editor: EditorModel) -> EditorModel {
-        editor.placement = { PanelPlacement(window: Self.window, panel: Self.panel) }
+        editor.panelPlacement = PanelPlacement(window: Self.window, panel: Self.panel)
         return editor
     }
 
@@ -115,7 +115,7 @@ struct CanvasCullingTests {
         let culled = placed(makeEditor([far]))
         #expect(culled.drawnNodes.isEmpty)
         let wider = CanvasRect(origin: Self.panel.origin, size: Self.panel.size + Vector2(800, 0))
-        culled.placement = { PanelPlacement(window: Self.window + Vector2(800, 0), panel: wider) }
+        culled.panelPlacement = PanelPlacement(window: Self.window + Vector2(800, 0), panel: wider)
         #expect(culled.drawnNodes.map(\.id) == [far.id])
     }
 
@@ -161,7 +161,7 @@ struct CanvasCullingTests {
         let straddling = testNode(RectangleTestNode.self, id: 2, at: Vector2(canvas.size.x - 60, 20))
         let far = (3...22).map { testNode(RectangleTestNode.self, id: $0, at: Vector2(Double($0) * 200 + 2_000, 20)) }
         let editor = makeEditor([inView, straddling] + far)
-        editor.placement = { PanelPlacement(window: size, panel: CanvasRect(origin: .zero, size: size)) }
+        editor.panelPlacement = PanelPlacement(window: size, panel: CanvasRect(origin: .zero, size: size))
         #expect(editor.drawnNodes.map(\.id) == [nodeID(1), nodeID(2)])
         let scene = renderHeadless { GraphPanel(model: editor, input: GraphPanelInput(model: editor)) }
         for (node, inset) in [(inView, Vector2(40, 60)), (straddling, Vector2(30, 60))] {

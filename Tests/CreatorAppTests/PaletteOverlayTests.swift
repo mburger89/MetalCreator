@@ -16,7 +16,7 @@ struct PaletteOverlayTests {
     @Test func thePaletteIsPaintedOverEverythingWhereItWasPlaced() async throws {
         let app = AppModel(kernel: FakeKernel(), file: GraphFile(graph: Graph(), viewState: ViewState(dock: .bottom)))
         await app.settle()
-        app.viewport.recordViewSize(ViewportSize(width: 1400, height: 900))
+        ExpectedLayout.place(app, window: Vector2(1400, 900))
         app.editor.pointerLocation = Vector2(200, 40)
         app.editor.openPalette()
         let palette = try #require(app.editor.palette)
@@ -56,7 +56,7 @@ struct PaletteOverlayTests {
     @Test func aDraggedLibraryTypeIsPaintedOverTheWindow() async throws {
         let app = AppModel(kernel: FakeKernel(), file: GraphFile(graph: Graph(), viewState: ViewState(dock: .bottom)))
         await app.settle()
-        app.viewport.recordViewSize(ViewportSize(width: 1400, height: 900))
+        ExpectedLayout.place(app, window: Vector2(1400, 900))
         let panel = try #require(app.panelPlacement?.panel)
         let row = panel.origin + Vector2(60, 100), pointer = Vector2(700, 300)
         app.editor.moveLibraryDrag(FilletNode.typeID, from: row, to: pointer)

@@ -14,7 +14,7 @@ enum ThemeEditorLayout {
     static let spacing = 8.0
 
     /// The panel's distance from the window's bottom edge: a margin, or, over a graph panel docked at the bottom, a
-    /// margin above that panel's resize handle (`AppLayout.graphPanelFrame`, `PanelArea`).
+    /// margin above that panel's resize handle (`AppLayout.modelArea`, `PanelArea`).
     static func bottom(dock: DockSide, panelHeight: Double) -> Double {
         switch dock {
         case .bottom: AppLayout.margin + panelHeight + AppLayout.resizeHandle + AppLayout.margin

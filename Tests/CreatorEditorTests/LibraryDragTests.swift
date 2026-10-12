@@ -15,7 +15,7 @@ struct LibraryDragTests {
         let placement = dock == .left
             ? PanelPlacement(window: Vector2(1400, 900), panel: CanvasRect(origin: Vector2(12, 68), size: Vector2(460, 820)))
             : PanelPlacement(window: Vector2(1000, 700), panel: CanvasRect(origin: Vector2(12, 388), size: Vector2(976, 300)))
-        editor.placement = { placement }
+        editor.panelPlacement = placement
         return editor
     }
 

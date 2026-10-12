@@ -49,7 +49,7 @@ struct FloatingPaletteTests {
     @Test func atTheBottomDockItFlipsUpAndAddsAtThePressPoint() throws {
         let editor = makeEditor([], dock: .bottom)
         let panel = CanvasRect(origin: Vector2(12, 388), size: Vector2(976, 300))
-        editor.placement = { PanelPlacement(window: Vector2(1000, 700), panel: panel) }
+        editor.panelPlacement = PanelPlacement(window: Vector2(1000, 700), panel: panel)
         editor.pointerLocation = Vector2(100, 50)
         editor.openPalette()
         let palette = try #require(editor.palette)
@@ -65,7 +65,7 @@ struct FloatingPaletteTests {
     @Test func atTheLeftDockItOpensWithItsTopLeftCornerAtThePointer() throws {
         let editor = makeEditor([], dock: .left)
         let panel = CanvasRect(origin: Vector2(12, 68), size: Vector2(460, 820))
-        editor.placement = { PanelPlacement(window: Vector2(1400, 900), panel: panel) }
+        editor.panelPlacement = PanelPlacement(window: Vector2(1400, 900), panel: panel)
         editor.pointerLocation = Vector2(50, 40)
         editor.openPalette()
         let canvas = try #require(editor.canvasFrameInWindow)
