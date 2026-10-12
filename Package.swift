@@ -13,6 +13,9 @@ let occtLibraries = [
 /// The UI framework (spec §3.1). Its gaps are logged in docs/metalui-gaps.md and fixed in MetalUI.
 let metalUI: Target.Dependency = .product(name: "MetalUI", package: "MetalUI")
 
+/// MetalUI's headless test harness (`docs/testing.md` in MetalUI): a dependency of test targets only, never of a product.
+let metalUITesting: Target.Dependency = .product(name: "MetalUITesting", package: "MetalUI")
+
 let package = Package(
     name: "MetalCreator",
     platforms: [.macOS(.v26)],
@@ -65,7 +68,7 @@ let package = Package(
             name: "CreatorAppTests",
             dependencies: [
                 "CreatorApp", "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorKernel",
-                "CreatorGeometry", "CreatorOCCT", "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", metalUI,
+                "CreatorGeometry", "CreatorOCCT", "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", metalUI, metalUITesting,
             ]
         ),
         // CreatorNodes is a test-only dependency: BuiltInNodesInspectorTests runs the real M3
