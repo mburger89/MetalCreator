@@ -121,9 +121,22 @@ struct InstanceGridTests {
         }
     }
 
-    @Test func aPathThatCannotBeNamedIsRefused() {
-        let wide = DataTree(depth: 2, branches: (0...InstancePath.maximumIndex + 1).map { _ in .list([.integer(1)]) }) ?? .empty(depth: 2)
-        #expect(throws: NodeError.self) { _ = try grid([("placements", wide)]) }
+    @Test func aBranchNumberThatCannotBeNamedIsRefused() {
+        // 32,769 branches, only the last holding an item: few instances, but the branch number {32768} is too big.
+        let branches = (0...InstancePath.maximumIndex + 1).map { index in
+            DataTree.list(index == InstancePath.maximumIndex + 1 ? [.integer(1)] : [])
+        }
+        let wide = DataTree(depth: 2, branches: branches) ?? .empty(depth: 2)
+        #expect(throws: NodeError.invalidValue("Instance {32768;0} can't be named: patterns take trees up to 4 levels deep, "
+            + "with branch numbers below 32,768.")) { _ = try grid([("placements", wide)]) }
+    }
+
+    @Test func aTreeTooDeepToNameItsInstancesIsRefused() {
+        // Depth 5: each instance's path has five indices, one more than a tag can hold.
+        var tree = rows([[1, 2]])
+        for depth in 3...5 { tree = DataTree(depth: depth, branches: [tree]) ?? .empty(depth: depth) }
+        #expect(throws: NodeError.invalidValue("Instance {0;0;0;0;0} can't be named: patterns take trees up to 4 levels deep, "
+            + "with branch numbers below 32,768.")) { _ = try grid([("placements", tree)]) }
     }
 
     @Test func moreInstancesThanThePatternLimitAreRefusedInAFlatListAndInATree() {
