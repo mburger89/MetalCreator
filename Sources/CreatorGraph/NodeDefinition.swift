@@ -23,6 +23,10 @@ public protocol NodeDefinition: Sendable {
     /// True if `evaluate` places copies of a tool (`Kernel.place`), whose faces are named by the node and the tool's
     /// tag nodes (patterns spec §6, `NodeID.instanceScoped`), so a group instance must rename those pairs too.
     static var placesInstances: Bool { get }
+    /// What to say when a list (or a tree) is wired into an input of a node that makes one result from single values, such as a
+    /// layout node: the evaluator refuses, with this sentence, before running it once per item. `nil` (the default) lets the
+    /// evaluator broadcast, as for any node.
+    static var singleValuesRefusal: String? { get }
     /// Stored settings (`NodeSetting` names) a new node starts with. `NodeRegistry.makeNode`
     /// applies them, so every reader sees a stored value and none relies on "absent means …".
     static var defaultSettings: [SocketName: ConstantValue] { get }
@@ -41,6 +45,7 @@ extension NodeDefinition {
     public static var handles: [HandleSpec] { [] }
     public static var readsParameters: Bool { false }
     public static var placesInstances: Bool { false }
+    public static var singleValuesRefusal: String? { nil }
     public static var defaultSettings: [SocketName: ConstantValue] { [:] }
     public static func migrate(_ node: Node, from version: Int) -> Node { node }
 }
