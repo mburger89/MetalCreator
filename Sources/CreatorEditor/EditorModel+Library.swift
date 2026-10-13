@@ -105,6 +105,12 @@ extension EditorModel {
         if libraryDrag != shown { libraryDrag = shown }
     }
 
+    /// MetalUI dropped the press on a library row without a release (`onCancelled`, C16; docs/metalui-gaps.md VI-a): the
+    /// ghost at the pointer goes, and nothing is added, not even as a click.
+    public func cancelLibraryDrag() {
+        if libraryDrag != nil { libraryDrag = nil }
+    }
+
     /// The press on a library type's row ended at `location` (window points). If it never moved
     /// `LibraryDrag.threshold` from the press it was a click: the type is added at the visible canvas's centre
     /// (`addFromLibrary(_:)`). Otherwise it was dragged, wherever it ended: it

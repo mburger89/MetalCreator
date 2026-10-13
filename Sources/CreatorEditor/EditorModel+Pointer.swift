@@ -51,6 +51,19 @@ extension EditorModel {
         endPress()
     }
 
+    /// MetalUI dropped the press under way without a release (`onCancelled`, C16: another press replaced it, a button's
+    /// release went unseen; docs/metalui-gaps.md VI-a). It ends as Esc would end it, apart from being final: a wire being
+    /// dragged is dropped, ⌥-drag ghosts vanish, a box puts back the selection it began with, a move or a resize
+    /// stays where it got to and its undo step ends (kept, not reverted: user decision U4). It never clicks, and it is no
+    /// half of a double click. No press under way: nothing happens.
+    public func pointerCancelled() {
+        guard currentPress != nil else { return }
+        _ = cancelInteraction()
+        document.endCoalescing()
+        lastClick = nil
+        endPress()
+    }
+
     /// A press began, with `modifiers` held and the platform's `clickCount`. Commits a typed inspector value, ends any slider drag's undo step and
     /// closes the palette. A middle-button pan under way ends: the primary button always gets its drag (MetalUI
     /// `CI-F` item 3), and the rest of that middle press is ignored (`middleDragged`).
@@ -78,9 +91,10 @@ extension EditorModel {
         return true
     }
 
-    /// Starts a press at `start` unless one with that start is in progress. A recorded press
-    /// with another start is a gesture that never ended (say the window lost key status
-    /// mid-drag); it is dropped, so its hit, modifiers and interaction don't leak into this one.
+    /// Starts a press at `start` unless one with that start is in progress. A recorded press with another start is a
+    /// gesture that never ended and that MetalUI didn't cancel: a press on the same element continues its arena, which
+    /// fails the lost drag without a word (gap VI-b). It is dropped, so its hit, modifiers and interaction don't leak
+    /// into this one. A press MetalUI does cancel arrives as `pointerCancelled()`.
     private func ensurePress(at start: Vector2, modifiers: CanvasModifiers, clickCount: Int) {
         guard currentPress?.point != start else { return }
         if currentPress != nil { endPress() }
