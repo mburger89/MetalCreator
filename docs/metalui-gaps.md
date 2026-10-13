@@ -1003,8 +1003,8 @@ Labelled C21-a… so they don't clash with the labels above. Checked against Met
   of the backdrop as the role says: `(1 - tint) * (1 - material) = 1 - glass`. That needs the material's own opacity
   (0.4706 for `.ultraThinMaterial` in light, 0.5059 in dark, and so on), which is `Material.fill(for:)`, internal. Nor can a
   material be given our colour (`.ultraThinMaterial.tint(color)`) or an opacity. Stopgap: `GlassThickness.materialOpacity(isDark:)`
-  copies MetalUI's `LK-L` table, and `GlassMaterialTableTests` renders each material in both schemes and fails when MetalUI's
-  record differs from the copy. Wanted: a public read of a material's tint (`Material.tint(in:) -> Color`, or its opacity),
+  copied MetalUI's `LK-L` table, and `GlassMaterialTableTests` rendered each material in both schemes and failed when MetalUI's
+  record differed from the copy. Wanted: a public read of a material's tint (`Material.tint(in:) -> Color`, or its opacity),
   or a material that takes a tint colour. Found by the C21 adoption; sent to the MetalUI session 2026-10-12.
   Note: MetalUI's `Material.swift` doc comment still says "a fitted flat tint, with no backdrop blur (divergence 166)"; divergences.md says 166 was amended, so the source comment is stale (seen at `930db4a`).
   **Adopted (2026-10-13, plan `2026-10-13-adopt-c27.md`; MetalUI C27, master 848ee029, PR #76, record §101, ruling `MT-B`):**

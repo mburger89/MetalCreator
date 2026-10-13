@@ -23,7 +23,9 @@ struct GlassReduceTransparencyWindowTests {
         return [value.h, value.s, value.l, value.a]
     }
 
-    func isClose(_ a: [Float], _ b: [Float]) -> Bool { zip(a, b).allSatisfy { abs($0 - $1) < 0.01 } }
+    func isClose(_ a: [Float], _ b: [Float]) -> Bool {
+        a.count == b.count && zip(a, b).allSatisfy { abs($0 - $1) < 0.01 }
+    }
 
     /// Every rect's background, so two frames compare without `MUIRect` being `Equatable`.
     func backgrounds(_ scene: Scene) -> [[Float]] {
@@ -64,7 +66,7 @@ struct GlassReduceTransparencyWindowTests {
         let off = try await AppWindow.open(options: .init(accessibilityReduceTransparency: false)).window.scene
         let style = GlassStyle(theme: .dracula, surface: .graphPanel)
         #expect(!off.backdrops.isEmpty)
-        #expect(count(off, style.tint) > 0, "the tint is the derived see-through one")
+        #expect(count(off, style.tint) == off.backdrops.count, "each panel's tint is the derived see-through one")
         #expect(off.backdrops.allSatisfy { abs(Double($0.tint.a) - style.thickness.materialOpacity(isDark: true)) < 1e-4 })
     }
 
@@ -85,13 +87,14 @@ struct GlassReduceTransparencyWindowTests {
 
     @Test func thePaletteIsOpaqueToo() async throws {
         let app = try await AppWindow.open(options: Self.reducing)
+        let palette = GlassStyle(theme: .dracula, surface: .palette, reducesTransparency: true).tint
+        let paletteRectsBefore = count(app.window.scene, palette)
         app.window.hover(at: app.point(inCanvasView: Vector2(200, 40)))
         app.window.typeKey(.space)
         try await app.window.runUntilIdle()
         #expect(app.palettePanel != nil, "the palette opened")
         #expect(app.window.scene.backdrops.isEmpty)
-        let palette = GlassStyle(theme: .dracula, surface: .palette, reducesTransparency: true).tint
-        #expect(count(app.window.scene, palette) > 0)
+        #expect(count(app.window.scene, palette) == paletteRectsBefore + 1, "exactly the palette panel adds its opaque rect")
     }
 
     func chipScene(_ options: HeadlessPlatformWindow.Options) throws -> Scene {
