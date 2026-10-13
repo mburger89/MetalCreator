@@ -40,6 +40,12 @@ public final class DocumentModel {
         }
     }
 
+    /// What every evaluation, and every read of an image's bytes for the app shell, uses to find them: the embedded images and
+    /// the folder the document is saved in.
+    public var imageResolver: ImageResolver {
+        ImageResolver(embedded: images, documentFolder: documentURL?.deletingLastPathComponent())
+    }
+
     /// The node shown in "Selected node" preview mode. It joins the evaluation demand.
     public var previewNode: NodeID? {
         didSet {
@@ -144,7 +150,7 @@ public final class DocumentModel {
     /// document is now: a file that can be found gets its absolute path and a path relative to `folder`, so a first save gains
     /// the relative path and Save As elsewhere makes it again; one that cannot be found keeps the paths it had.
     private func contentStoringImages(relativeTo folder: URL?) -> GraphContent {
-        let resolver = ImageResolver(embedded: images, documentFolder: documentURL?.deletingLastPathComponent())
+        let resolver = imageResolver
         let store = { (reference: ImageReference) in resolver.stored(reference, inDocumentFolder: folder) }
         var stored = content
         stored.graph = content.graph.mappingImages(store)
@@ -238,7 +244,7 @@ public final class DocumentModel {
         let demand = demand
         let level = inspectedLevel
         let evaluator = evaluator
-        let resolver = ImageResolver(embedded: images, documentFolder: documentURL?.deletingLastPathComponent())
+        let resolver = imageResolver
         isEvaluating = true
         evaluationTask = Task {
             let report: EvaluationReport

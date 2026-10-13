@@ -69,11 +69,12 @@ extension AppModel {
         editor.commitPendingEntry()
         if document.viewState.camera != nil { document.viewState.camera = viewport.pose }
         do {
-            try document.fileData().write(to: url, options: .atomic)
+            try document.fileData(savingTo: url).write(to: url, options: .atomic)
         } catch {
             throw AppProblem("“\(url.lastPathComponent)” couldn't be saved", error.localizedDescription)
         }
         fileURL = url
+        document.didSave(to: url)
         savedContent = document.content
     }
 

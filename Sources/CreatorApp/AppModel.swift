@@ -65,7 +65,7 @@ public final class AppModel {
         self.kernel = kernel
         self.registry = registry
         self.themes = themes
-        let parts = DocumentParts(file, registry: registry, kernel: kernel)
+        let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: fileURL)
         document = parts.document
         editor = parts.editor
         graphInput = parts.input
@@ -84,7 +84,7 @@ public final class AppModel {
 
     /// Replaces the open document (New, Open). The pick and the preview mode start over.
     func load(_ file: GraphFile, from url: URL?) {
-        let parts = DocumentParts(file, registry: registry, kernel: kernel)
+        let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: url)
         pick = nil
         sketch?.stop()
         sketch = nil
