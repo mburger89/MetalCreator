@@ -1550,7 +1550,7 @@ Noise Field into a Multiply's `b`; wire the Remap into the Multiply's `a`.
 - [ ] **FI-core-1 The field socket's colour.** The Fields nodes' sockets and the wires between them are one colour (the Feature
   orange in Dracula) that is easy to tell from the Value nodes' blue-grey, the Solid purple and the Selection pink. A number wired
   into a Remap's `field` socket keeps its own colour at the number end. Switch View > Theme to Alucard and Nord: the field dots
-  and wires stay legible against the node body and are still different from the Value dots. Pinned: `FieldPaletteTests`.
+  and wires stay legible against the node body and are still different from the Value dots. Pinned: `FieldPaletteTests`, for the default theme (Dracula) only; Alucard and Nord are human-only.
   **Observed:**
 - [ ] **FI-core-2 The recipe row.** Select the Multiply: the inspector's last section is "Field" with the recipe under its label:
   `remap(distance(solid), 0…20 → 1…0) × noise(seed 0, scale 10, octaves 1)`. A long recipe wraps inside the panel, is not clipped

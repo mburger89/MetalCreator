@@ -63,6 +63,18 @@ struct FieldDisplayTests {
         #expect(page.sections.last == InspectorSectionRows(title: "Field", rows: [.recipe(label: "Field", text: "No field yet")]))
     }
 
+    @Test func anEvaluatedResultWithoutAFieldSaysSoAccurately() {
+        let radial = node(RadialGradientNode.self)
+        let graph = Graph(nodes: [radial.id: radial], links: [], parameters: [])
+        let mixed = Value.list([.field(.constant(1)), .number(2)])
+        for value in [Value.list([]), mixed] {
+            let results = [radial.id: NodeResult(state: .ok(duration: .zero), outputs: ["field": value])]
+            let page = InspectorBuilder.page(graph: graph, selection: [radial.id], registry: registry, results: results)
+            let expected = InspectorSectionRows(title: "Field", rows: [.recipe(label: "Field", text: "No field in this result")])
+            #expect(page.sections.last == expected)
+        }
+    }
+
     @Test func aListOfFieldsIsCounted() async {
         let series = node(SeriesNode.self, ["count": .integer(3)])
         let add = node(FieldAddNode.self, ["b": .number(10)])
