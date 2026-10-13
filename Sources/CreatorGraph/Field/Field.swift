@@ -8,7 +8,7 @@ import CreatorKernel
 ///
 /// Adding a case (Image Field in 7b-2) means adding it to `children`, to `description` and to the sampler, none of which
 /// has a `default`, so the compiler lists the places.
-public indirect enum Field: Sendable {
+public indirect enum Field: Hashable, Sendable {
     /// What a distance field measures from. A point or a profile is plain Swift maths; anything on a solid asks the kernel.
     public enum DistanceSource: Sendable {
         case point(Vector3)
