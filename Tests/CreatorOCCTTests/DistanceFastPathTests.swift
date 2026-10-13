@@ -7,51 +7,11 @@ import Testing
 /// The analytic path of `occt_distances` (planes and cylinders with exact formulas) against `BRepExtrema` alone, which the
 /// shim keeps callable as `occt_distances_reference`. They must agree to 1e-9 mm everywhere, and most where the formulas
 /// change branch: a projection inside a face, outside it near an edge or a hole, on the face, in a hole, round a corner arc.
-struct DistanceFastPathTests {
-    let tolerance = 1e-9
-
-    func plate(_ kernel: OCCTKernel, holes: [[Segment2D]] = []) async throws -> OCCTShape {
-        var profile = Profile2D.roundedRectangle(width: 60, height: 40, radius: 4, plane: .xy)
-        profile.holes = holes
-        let solid = try await kernel.extrude(profile, distance: 6, mode: .oneSided, tag: newTag())
-        return try await kernel.shape(of: solid)
-    }
-
-    func circleLoop(at center: Vector2, radius: Double) -> [Segment2D] {
-        [.arc(center: center, radius: radius, start: Angle(radians: 0), end: Angle(radians: 2 * .pi))]
-    }
-
-    /// Points on a regular grid (so some fall exactly on edges, corner-arc ends and faces) over the region round `bounds`.
-    func grid(x: ClosedRange<Double>, y: ClosedRange<Double>, z: ClosedRange<Double>, step: Double) -> [Vector3] {
-        var points: [Vector3] = []
-        for xi in stride(from: x.lowerBound, through: x.upperBound, by: step) {
-            for yi in stride(from: y.lowerBound, through: y.upperBound, by: step) {
-                for zi in stride(from: z.lowerBound, through: z.upperBound, by: step) { points.append(Vector3(xi, yi, zi)) }
-            }
-        }
-        return points
-    }
-
-    func expectAgreement(_ shape: OCCTShape, _ points: [Vector3], kind: OCCTShape.DistanceKind = .surface, indices: [Int32] = [],
-                         signed: Bool, sourceLocation: SourceLocation = #_sourceLocation) throws {
-        let (fast, reference) = try OCCTKernel.serialized { () throws -> ([Double], [Double]) in
-            (try shape.distances(from: points[...], kind: kind, indices: indices, signed: signed),
-             try shape.distancesByExtrema(from: points[...], kind: kind, indices: indices, signed: signed))
-        }
-        #expect(fast.count == points.count && reference.count == points.count, sourceLocation: sourceLocation)
-        var worst = 0.0
-        var worstPoint = Vector3.zero
-        for (index, point) in points.enumerated() where abs(fast[index] - reference[index]) > worst {
-            worst = abs(fast[index] - reference[index])
-            worstPoint = point
-        }
-        #expect(worst <= tolerance, "the fast path and BRepExtrema differ by \(worst) at \(worstPoint)", sourceLocation: sourceLocation)
-    }
-
+struct DistanceFastPathTests: DistanceFastPathChecking {
     @Test(arguments: [true, false])
     func thePlatesDistanceMatchesExtremaEverywhere(_ signed: Bool) async throws {
         let shape = try await plate(OCCTKernel())
-        // x, y and z at half-millimetre steps: on the faces, on the edges, on the ends of the R4 corner arcs, inside, round it.
+        // x, y and z at one-millimetre steps (half-millimetre steps take minutes against BRepExtrema): on the faces, on the edges, on the ends of the R4 corner arcs, inside, round it.
         try expectAgreement(shape, grid(x: -36...36, y: -26...26, z: -3...9, step: 1), signed: signed)
     }
 

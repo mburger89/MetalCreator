@@ -172,6 +172,15 @@ occt_shape *occt_transform(const occt_shape *shape, const double translation[3],
                            const double axis_origin[3], const double axis_direction[3], double angle,
                            occt_history *history, occt_status *status);
 
+/// FOR TESTS ONLY. A copy of `shape` carrying a non-identity TopLoc_Location (`shape.Moved(loc)`: the geometry is shared and
+/// unchanged, only the location is set, as a STEP import can give): a rotation about Z by `angle_z` radians, then a translation.
+/// Reports failure in `status` and returns null; throws nothing; the caller frees the result with occt_shape_free.
+occt_shape *occt_test_located_copy(const occt_shape *shape, const double translation[3], double angle_z, occt_status *status);
+
+/// FOR TESTS ONLY. The largest BRep_Tool::Tolerance over the vertices of `shape` in millimetres, or -1 if anything throws.
+/// Reads only; allocates nothing the caller must free.
+double occt_test_max_vertex_tolerance(const occt_shape *shape);
+
 /// Fillets the edges (1-based indices) with `radius`. History operand 0 = shape:
 /// OCCT_FROM_FACE for kept/modified faces, OCCT_FROM_EDGE (index = input edge) for blend faces.
 occt_shape *occt_fillet(const occt_shape *shape, const int *edge_indices, int count, double radius,
