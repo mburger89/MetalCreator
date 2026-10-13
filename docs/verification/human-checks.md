@@ -919,8 +919,8 @@ drive the double click, the focus and the keys through the app's real window: `C
 `swift run MetalCreatorApp` on a saved bracket with a note and a frame; CT-5 docks left.
 
 - [ ] **CT-1 A note (the look).** Double click a note: a white-backed editor appears exactly over it, with the caret
-  visible in it, and the note's text is in it, the caret at its start and nothing selected (gap CT-b: **record it**; ⌘A
-  selects it all). Type two lines, press ⌘↩: the note shows both lines. **Automated, no manual step:** the editor lies over
+  visible in it, and the note's text is in it, the caret at its end and nothing selected (gap CT-b, adopted: C25-2; ⌘A
+  selects it all). Type two lines, press ⌘↩: the note shows the old text and both lines after it. **Automated, no manual step:** the editor lies over
   the note with focus in it the moment it appears, Return breaks the line and commits nothing, ⌘↩ commits as one undo
   step, Esc cancels, clicking away commits (`CanvasNoteTypingWindowTests`). Pinned: `CommentTypingTests`,
   `CommentDoubleClickTests`, `CommentEditorRenderTests`. **Observed:**
@@ -1472,3 +1472,43 @@ lower the Glass role's opacity in the theme editor to about 40% for C21-1 and pu
 - [ ] **C21-8 Small glass.** The Show graph button and the chips are small: each blurs only its own box (MetalUI divergence 247), so
   it reads as a soft frosted patch of the backdrop's average colour. Judge whether that reads as glass or as an odd flat patch; if
   odd, the chips can go back to the flat tint (user decision 3 of the plan). **Observed:**
+
+## Group C25 — MetalUI C25: text selection and caret control (Adopt C25)
+
+**Status: NOT RUN.** Plan `2026-10-12-adopt-c25.md` (gap CT-b). Run `swift run MetalCreatorApp` on a saved bracket with a note and a frame. The tests
+drive the real window (`CanvasTypingSelectionWindowTests`: the opening selection, typing replacing and appending, the keys
+publishing back) and the model (`CommentEditSelectionTests`); these checks are what a sequence cannot show: how the selection
+looks, the feel of the caret, an input method composing, and the keys of a real keyboard. For C25-3 add an input source
+(System Settings > Keyboard > Input Sources, for example Japanese Hiragana or Pinyin).
+
+- [ ] **C25-1 A title opens selected.** Double click a frame's title bar: the field appears over the bar with the whole title
+  highlighted (the selection colour is visible against the bar's tint, the text stays legible). Type a letter: it replaces the
+  whole title and nothing else; keep typing: the letters append (the title is not selected again). Press Return: the frame
+  has the new title; ⌘Z puts the old one back. Repeat docked left and at 25 % and 300 % zoom: the highlight lies exactly
+  over the text. Pinned: `aTitleOpensWithAllOfItSelectedAndTypingReplacesIt`. **Observed:**
+- [ ] **C25-2 A note opens with the caret at its end.** Double click a note with one line and with three lines: nothing is
+  highlighted, the caret blinks after the last character (on the last line), and typing appends there. With a note whose
+  text ends in a line break the caret is on the empty last line. An empty note opens with the caret at its start. Pinned:
+  `aNoteOpensWithTheCaretAtItsEndAndTypingAppends`, `aNoteEndingInALineBreakOpensOnItsEmptyLastLine`. **Observed:**
+- [ ] **C25-3 An input method composing (the feel).** With a composing input source, open a title (all selected) and start
+  composing: the underlined marked text replaces the selection, and committing it (Space or Return as the input source
+  does) leaves the composed text as the title; Return after that commits the title, and the first Return of a composition
+  must commit the composition, not the title. In a note, compose at the end and mid-line (click first), then press ⌘↩.
+  The model writes the selection only when an edit begins, so nothing can race a composition: **record** any caret jump,
+  lost marked text or doubled character. **Observed:**
+- [ ] **C25-4 Select all and the selection keys.** In a title and in a note: ⌘A highlights all of it and typing replaces it;
+  ⇧← and ⇧→ extend from the caret, ⇧⌥← selects a word, ⌥← moves a word, ⌘← and ⌘→ go to the line's ends, Delete removes the
+  selection, and a double click on a word selects the word. After each, typing acts on what is highlighted. **Record** a key
+  that does something else. Pinned: `theKeysPublishWhatTheyDoBackToTheModel`, `aNoteIsSelectedAllByCommandAAndReplacedByTyping`.
+  **Observed:**
+- [ ] **C25-5 A click places the caret.** Open a title (all selected) and click inside its text: the highlight goes and the
+  caret sits under the pointer; typing inserts there. Same in a note. Pinned: `aClickInsideTheEditorMovesTheCaretAndPublishesIt`.
+  **Observed:**
+- [ ] **C25-6 Every edit opens fresh.** Open a title, move the caret to the middle, press Esc; open it again: it is all selected
+  again, not at the middle. Open a note, move the caret to the start, press ⌘↩, open it again: the caret is at the end. Pinned:
+  `eachEditOpensFreshNotWhereTheLastOneEnded`. **Observed:**
+- [ ] **C25-7 Undo inside the field.** Open a title, type a letter (it replaces the title), press ⌘Z while the field is focused:
+  **record** what the field shows and where the selection is (MetalUI ends the open typing group when the selection is
+  written at the edit's start; what ⌘Z restores is not documented yet, gap CT-d, so record it, don't judge it). Pass: then Esc,
+  and the frame keeps its old title and the document has nothing to undo.
+  **Observed:**

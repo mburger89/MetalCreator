@@ -1,6 +1,7 @@
 import CreatorGeometry
 import CreatorGraph
 import Foundation
+import MetalUI
 
 /// Typing into a note or a frame's title in place on the canvas (comments typing plan; spec 2026-10-09 §8). The draft
 /// is held here and in the model's one `pendingEntry` slot, so a canvas press, a selection change, undo, saving and
@@ -16,9 +17,10 @@ extension EditorModel {
     }
 
     /// Starts editing comment `id` in place: a note's text over the note, a frame's title over its title bar. The
-    /// comment becomes the whole selection, and anything typed and not yet committed (in the inspector, or on another
-    /// comment) is committed first. Returns false, doing nothing, for a comment that isn't on the level shown, with
-    /// the panel hidden, or during a drag.
+    /// comment becomes the whole selection, and the field opens with a title's text all selected or a note's caret at
+    /// the end (`CommentEdit.Kind.openingSelection(in:)`; MetalUI C25, gap CT-b). Anything typed and not yet
+    /// committed (in the inspector, or on another comment) is committed first. Returns false, doing nothing, for a
+    /// comment that isn't on the level shown, with the panel hidden, or during a drag.
     @discardableResult
     public func beginEditing(_ id: CommentID) -> Bool {
         guard isPanelVisible, interaction == nil else { return false }
@@ -35,7 +37,8 @@ extension EditorModel {
         }
         commitPendingEntry()
         canvasSelection = CanvasSelection(comments: [id])
-        let edit = CommentEdit(id: id, kind: kind, original: text, draft: text, owner: UUID())
+        let edit = CommentEdit(id: id, kind: kind, original: text, draft: text, owner: UUID(),
+                               selection: kind.openingSelection(in: text))
         commentEdit = edit
         pendingEntry = entry(for: edit)
         return true
@@ -47,6 +50,14 @@ extension EditorModel {
         edit.draft = text
         commentEdit = edit
         pendingEntry = entry(for: edit)
+    }
+
+    /// The field moved its selection (typing, a click, a double click, shift-arrows, ⌘A, delete). Kept so the next
+    /// frame hands the field back the selection it already has; the edit's draft, pending entry and undo are untouched.
+    public func commentSelectionChanged(_ selection: TextSelection) {
+        guard var edit = commentEdit, edit.selection != selection else { return }
+        edit.selection = selection
+        commentEdit = edit
     }
 
     /// Ends the edit, writing the draft: focus loss, ⌘↩ on a note, Return on a title. Does nothing with no edit.
