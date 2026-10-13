@@ -47,5 +47,7 @@ struct PreviewRoot: Component {
             LibraryDragOverlay(model: model)
         }
         .frame(width: PreviewLayout.window.x.px, height: PreviewLayout.window.y.px)
+        // As the app's root does (MetalUI C24, gap CT-a): a press on inert chrome ends typing in a field.
+        .resignsFocusOnPress()
     }
 }
