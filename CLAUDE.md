@@ -56,12 +56,13 @@ checks (group VA) are pending. The layouts, previews and acceptance test are par
 Fields, sub-project 7b-1 (the fields core: the `Field` value and `.field` sockets, `FieldSampler` and `FieldDistanceCache`,
 `Kernel.distances`, the four sources, the six maths nodes, Sample Field and Cull by Field, the `Fields` library category and
 `FieldBench` rows 1 to 3; plan `docs/superpowers/plans/2026-10-12-7b-core.md`, spec `docs/superpowers/specs/2026-10-12-fields-design.md`
-§2 to §4, §7 and §9) code is done; its human checks (group FI-core) are pending and its benchmark numbers await an idle run. Images
-(7b-2, format 7) are planned beside 7b-3.
+§2 to §4, §7 and §9) is merged; its human checks (group FI-core) are pending and its benchmark numbers are recorded in
+`docs/verification/performance.md`. Images (7b-2, format 7) are planned beside 7b-3.
 Fields, sub-project 7b-3 (Field Scatter, the surface tint, the slice plane and the legend, the three theme roles `fieldLow`,
 `fieldMid` and `fieldHigh`, the acceptance test and `FieldBench` rows 3 and 4; plan
 `docs/superpowers/plans/2026-10-13-7b-3-scatter-previews.md`, spec `docs/superpowers/specs/2026-10-12-fields-design.md` §3.3, §6, §7
-and §8 and its Errata (7b-3)) code is done; its human checks (group FI) are pending and its benchmark numbers await an idle run.
+and §8 and its Errata (7b-3)) code is done; its human checks (group FI) are pending and its benchmark numbers are recorded in
+`docs/verification/performance.md`.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -86,8 +87,9 @@ Module boundaries (dependency order):
 - `COCCT` + `CreatorOCCT`: the OpenCascade C shim and `OCCTKernel: Kernel` (topology tables, face tags carried through
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
   `*_free`; no C++ exception crosses into Swift. `occt_distances` (`cocct_distance.cpp`) measures points to a solid's faces,
-  picked faces or picked edges with `BRepExtrema_DistShapeShape` (to the faces, not the solid: OCCT answers 0 for a point
-  inside a solid) and signs a solid's distance with `BRepClass3d_SolidClassifier`, only for a point inside the solid's bounds; it
+  picked faces or picked edges: planes and cylinders bounded by lines and circle arcs by exact formulas (`cocct_distance_analytic.hpp`),
+  every other face with `BRepExtrema_DistShapeShape` (to the faces, not the solid: OCCT answers 0 for a point
+  inside a solid; `occt_distances_reference` is the Extrema-only path `DistanceFastPathTests` compares to at 1e-9) and signs a solid's distance with `BRepClass3d_SolidClassifier`, only for a point inside the solid's bounds; it
   shares the points out in blocks of 64 over OCCT's thread pool while `OCCTKernel.serialized` is held, and the caller's buffer
   is the output, so it allocates nothing to free. `OCCTKernel` calls it 1,024 points at a time, checking for cancellation between.
 - `CreatorGraph`: graph model, sockets, broadcasting, `Evaluator` (cached, cancellable), commands and undo,
