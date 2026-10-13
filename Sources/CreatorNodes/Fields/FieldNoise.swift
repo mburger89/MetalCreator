@@ -14,6 +14,7 @@ struct FieldNoise: Sendable {
 
     /// `scale` is the size in mm of the first octave's features; `octaves` is 1 or more.
     init(seed: Int, scale: Double, octaves: Int) {
+        precondition(octaves >= 1 && scale > 0, "FieldNoise needs 1 or more octaves and a scale above 0")
         self.scale = scale
         self.octaves = octaves
         self.generators = (0..<octaves).map { SeededRandom(seed: seed, stream: $0, purpose: .fieldNoise) }

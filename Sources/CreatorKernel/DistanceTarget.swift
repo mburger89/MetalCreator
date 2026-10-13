@@ -14,7 +14,8 @@ public enum DistanceTarget: Sendable {
         }
     }
 
-    /// Refuses a target with nothing to measure to: an empty selection, or an ID the solid doesn't have. Every kernel
+    /// Refuses a target with nothing to measure to: an empty selection, or an ID the solid doesn't have (face and edge IDs are
+    /// dense from 0, so a valid one is below the topology's face or edge count). Every kernel
     /// calls it first, so the messages are the same everywhere.
     public func validate() throws {
         switch self {

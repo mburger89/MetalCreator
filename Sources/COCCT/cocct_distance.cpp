@@ -102,6 +102,10 @@ int occt_distances(const occt_shape *shape, int kind, const int *indices, int in
             set_error(status, "there are no points to measure from");
             return 0;
         }
+        if (kind < 0 || kind > 2) {
+            set_error(status, "the distance target is not one this build knows");
+            return 0;
+        }
         // The target: every face of the shape, or the picked faces or edges (1-based, in the indexed maps).
         const bool edges = kind == 2;
         const TopTools_IndexedMapOfShape all = map_of(shape->shape, edges ? TopAbs_EDGE : TopAbs_FACE);

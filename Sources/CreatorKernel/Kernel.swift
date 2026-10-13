@@ -5,7 +5,8 @@ import Foundation
 /// any future Swift kernel, live behind it (spec §5.1). Calls are serialized by the actor.
 ///
 /// Conformers must call `try Task.checkCancellation()` on entry to every operation, so calls
-/// queued by a superseded evaluation are skipped.
+/// queued by a superseded evaluation are skipped. `FakeKernel` checks only on entry, never inside an operation; a long
+/// `distances` call there is not interrupted part-way (the OCCT kernel checks between its chunks of points).
 public protocol Kernel: Actor {
     func extrude(_ profile: Profile2D, distance: Double, mode: ExtrudeMode, tag: NodeTag) throws -> Solid
     func revolve(_ profile: Profile2D, axis: Axis, angle: Angle, tag: NodeTag) throws -> Solid

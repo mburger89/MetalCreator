@@ -196,7 +196,7 @@ the plate's number as the cost of every solid.
 **What is measured** (`Tests/CreatorAppTests/Bench/FieldBench.swift`, fixtures `FieldBenchFixtures`): row 1 and 3 call
 `FieldSampler.sample` and the two nodes' `evaluate` directly on the Fake kernel; row 2 samples a plate extruded by `OCCTKernel`
 with a new `FieldDistanceCache` each round (so the first sampling always asks the kernel) and then again with the same cache
-(the cached time is the cache's lookup: hashing 10,000 points and comparing them).
+(the cached time is the cache's lookup: hashing 10,000 points and comparing them). The distance cache is keyed by Solid identity, so a solid evicted from the result cache and rebuilt equal is a new key and is re-measured.
 
 **How row 2 is kept fast.** `BRepExtrema_DistShapeShape` costs about 28 µs a point on this plate (CPU time on one thread,
 measured with the fixture's plate and points in a standalone program), and a solid classification about 18 µs more. So

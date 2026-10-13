@@ -119,7 +119,11 @@ struct FieldNoiseTests {
         let noise = FieldNoise(seed: 1, scale: 0.001, octaves: 6)
         for point in [Vector3(1e300, 0, 0), Vector3(-1e300, 1e300, -1e300), Vector3(1e15, 1e15, 1e15), Vector3(.infinity, 0, 0)] {
             let value = noise.value(at: point)
-            #expect(value.isNaN || (0.0...1.0).contains(value))
+            if point.x.isFinite, point.y.isFinite, point.z.isFinite {
+                #expect(value.isFinite && (0.0...1.0).contains(value), "\(point)")
+            } else {
+                #expect(value.isNaN || (0.0...1.0).contains(value), "\(point)")
+            }
         }
     }
 }

@@ -201,7 +201,7 @@ struct DistanceConformanceTests {
         }
     }
 
-    @Test func manyCallsLeakNothingVisibleAndKeepWorking() async throws {
+    @Test func manyCallsKeepWorking() async throws {
         let kernel = OCCTKernel()
         let solid = try await cube(kernel)
         for round in 0..<200 {
