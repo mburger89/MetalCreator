@@ -3,6 +3,7 @@ import CreatorEditor
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
+import CreatorStyle
 import MetalUI
 import MetalUITesting
 import Testing
@@ -31,10 +32,10 @@ struct AppWindow {
     /// the platform's does.
     static func open(_ graph: Graph = Graph(), dock: DockSide = .bottom, zoom: Double = 1,
                      recordsLayout: Bool = true, windowStyle: WindowStyle = AppLayout.windowStyle,
-                     options: HeadlessPlatformWindow.Options? = nil) async throws -> AppWindow {
+                     options: HeadlessPlatformWindow.Options? = nil, themes: ThemeStore = ThemeStore()) async throws -> AppWindow {
         let size = defaultSize
         let viewState = ViewState(dock: dock, canvasZoom: zoom, showsLibrary: false)
-        let model = AppModel(kernel: FakeKernel(), file: GraphFile(graph: graph, viewState: viewState))
+        let model = AppModel(kernel: FakeKernel(), file: GraphFile(graph: graph, viewState: viewState), themes: themes)
         await model.settle()
         let themeEditor = ThemeEditorModel(themes: model.themes)
         let input = AppInput(model: model)

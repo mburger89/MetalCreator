@@ -30,9 +30,10 @@ struct NodeView: Component, Equatable {
         return VStack(alignment: .leading, spacing: Pixels(0)) {
             NodeHeaderView(title: shape.isMissing ? "Missing: \(shape.title)" : shape.title, accent: accent, state: state,
                            palette: palette)
+                .equatable()
             VStack(alignment: .leading, spacing: Pixels(0)) {
                 ForEach(rows, id: \.id) { row in
-                    NodeRowView(row: row, palette: palette)
+                    NodeRowView(row: row, palette: palette).equatable()
                 }
             }
             .padding(Edges(top: NodeLayout.bodyPadding.px, right: Pixels(10),
@@ -55,7 +56,7 @@ struct NodeView: Component, Equatable {
         .overlay(alignment: .topLeading) {
             // A Component is legacy content; inside a ZStack it is adopted, so the result stays
             // proposal content and takes the modifiers below.
-            ZStack(alignment: .topLeading) { SocketLayer(shape: shape, flow: flow, palette: palette, help: socketHelp) }
+            ZStack(alignment: .topLeading) { SocketLayer(shape: shape, flow: flow, palette: palette, help: socketHelp).equatable() }
         }
         .opacity(isGhost ? 0.4 : 1)
         // Only a new refusal runs the keyframes (the trigger is the count), so dragging and panning stay immediate and a

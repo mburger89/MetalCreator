@@ -16,7 +16,7 @@ struct NodeHeaderView: Component, Equatable {
                 .font(.system(.caption, weight: .semibold))
                 .foregroundStyle(palette.textOnAccent.color)
             Spacer()
-            StatusBadgeView(state: state, palette: palette)
+            StatusBadgeView(state: state, palette: palette).equatable()
         }
         .padding(Edges(top: Pixels(0), right: Pixels(8), bottom: Pixels(0), left: Pixels(8)))
         .frame(width: NodeLayout.width.px, height: NodeLayout.headerHeight.px)
