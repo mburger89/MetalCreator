@@ -11,14 +11,18 @@ public struct EvalContext: Sendable {
     /// The evaluator's cache of kernel distances for fields (fields spec §2.2), shared by every node it runs. A context
     /// made by hand (tests) gets a cache of its own.
     public let fieldDistances: FieldDistanceCache
+    /// Where a node finds the bytes behind an `ImageReference` (fields spec §5): the document's embedded images and the folder
+    /// it is saved in. A context made by hand (tests) has none, so every image is absent.
+    public let images: ImageResolver
 
     public init(node: Node, item: Int, parameters: [ParameterID: ConstantValue], isTreeRun: Bool = false,
-                fieldDistances: FieldDistanceCache = FieldDistanceCache()) {
+                fieldDistances: FieldDistanceCache = FieldDistanceCache(), images: ImageResolver = ImageResolver()) {
         self.node = node
         self.item = item
         self.parameters = parameters
         self.isTreeRun = isTreeRun
         self.fieldDistances = fieldDistances
+        self.images = images
     }
 
     /// The tag kernel calls should use, so created faces are named after this node and item.

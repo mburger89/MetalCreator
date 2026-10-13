@@ -22,14 +22,15 @@ public actor Evaluator {
     /// Evaluates `demand` on the top level of `graph`; group nodes run the graphs of `definitions`. With `inspecting`,
     /// the group nodes entered from the top level down to the level the graph panel shows (groups spec §6), every
     /// node of that level is evaluated too, so each has a state in `innerResults` even when nothing downstream
-    /// wants it; a node there that fails doesn't fail the group node unless it feeds Group Output.
+    /// wants it; a node there that fails doesn't fail the group node unless it feeds Group Output. `images` is the document's
+    /// embedded images and folder: an image setting adds what it points at now to its node's cache key (`gather`).
     public func evaluate(_ graph: Graph, definitions: [GroupID: GroupDefinition] = [:], demand: Set<NodeID>,
-                         inspecting level: [NodeID] = []) async throws -> EvaluationReport {
+                         inspecting level: [NodeID] = [], images: ImageResolver = ImageResolver()) async throws -> EvaluationReport {
         // Entries of nodes no longer anywhere (deleted, or inside a group node that's gone) leave the cache.
         cache.removeEntries(notIn: graph.scopedNodeIDs(definitions: definitions))
         let parameters = Dictionary(graph.parameters.map { ($0.id, $0.value) }, uniquingKeysWith: { first, _ in first })
         let setup = EvaluationSetup(registry: registry.withGroups(definitions), parameters: parameters, inspected: level,
-                                    fieldDistances: fieldDistances)
+                                    fieldDistances: fieldDistances, images: images)
         var trace = EvaluationTrace()
         var demand = demand
         if let first = level.first, graph.nodes[first] != nil { demand.insert(first) }

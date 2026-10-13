@@ -24,6 +24,9 @@ extension Evaluator {
         for (name, value) in node.inputValues.sorted(by: { $0.key < $1.key }) {
             hasher.combine(name)
             hasher.combine(value)
+            // An image is part of the key by what it points at now (fields spec D11): the file's modification date and size
+            // are read at every evaluation, so a file edited on disk runs the node again and an untouched one does not.
+            if case .image(let reference) = value { hasher.combine(setup.images.stamp(of: reference)) }
         }
         if definition.readsParameters {
             for (id, value) in setup.parameters.sorted(by: { $0.key < $1.key }) {
@@ -75,7 +78,7 @@ extension Evaluator {
             for item in 0..<plan.iterations {
                 try Task.checkCancellation()
                 let context = EvalContext(node: node, item: item, parameters: setup.parameters, isTreeRun: plan.isTreeRun,
-                                          fieldDistances: setup.fieldDistances)
+                                          fieldDistances: setup.fieldDistances, images: setup.images)
                 let outputs = try await definition.evaluate(plan.inputs(at: item), kernel: kernel, context: context)
                 try collector.record(outputs, specs: outputSpecs, iterations: plan.iterations)
             }
@@ -97,6 +100,7 @@ extension Evaluator {
         switch error {
         case let error as KernelError: error.userMessage
         case let error as NodeError: error.message
+        case let error as ImageProblem: error.message
         default: String(describing: error)
         }
     }

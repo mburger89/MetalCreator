@@ -11,6 +11,8 @@ struct EvaluationSetup: Sendable {
     var inspected: [NodeID] = []
     /// The evaluator's cache of kernel distances for fields, handed to every `EvalContext`.
     var fieldDistances: FieldDistanceCache
+    /// The document's embedded images and its folder (fields spec §5), the same for every level and every node.
+    var images: ImageResolver
 
     /// The nodes of `graph`, the inside of the group node at instance path `path`, that the inspected level asks for:
     /// all of them when `path` is the level, else the one group node on the way down to it.

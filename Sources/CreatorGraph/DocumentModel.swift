@@ -27,6 +27,19 @@ public final class DocumentModel {
         }
     }
 
+    /// The document's embedded images by hash (fields spec §5): everything embedded or pasted this session plus what the file
+    /// held. An image stays here while the session lasts, so undo can bring back a node that uses it; a save writes only the
+    /// ones nodes use now (`fileData`).
+    public private(set) var images: [ImageHash: Data]
+
+    /// Where the document is saved, or `nil` while it is new. Its folder is where relative image links start, so a change of
+    /// folder reads them again at the next evaluation.
+    public var documentURL: URL? {
+        didSet {
+            if oldValue?.deletingLastPathComponent() != documentURL?.deletingLastPathComponent() { scheduleEvaluation() }
+        }
+    }
+
     /// The node shown in "Selected node" preview mode. It joins the evaluation demand.
     public var previewNode: NodeID? {
         didSet {
@@ -51,8 +64,10 @@ public final class DocumentModel {
     @ObservationIgnored private var generation = 0
 
     public init(file: GraphFile = GraphFile(), registry: NodeRegistry, kernel: any Kernel,
-                cacheBudgetBytes: Int = 512 * 1024 * 1024) {
+                cacheBudgetBytes: Int = 512 * 1024 * 1024, documentURL: URL? = nil) {
         self.content = GraphContent(graph: file.graph, definitions: file.definitions)
+        self.images = file.images
+        self.documentURL = documentURL
         self.viewState = file.viewState
         self.baseRegistry = registry
         self.evaluator = Evaluator(registry: registry, kernel: kernel, cacheBudgetBytes: cacheBudgetBytes)
@@ -109,6 +124,20 @@ public final class DocumentModel {
     public func redo() {
         guard let entry = undoStack.takeRedo() else { return }
         replay(entry.forward)
+    }
+
+    /// Keeps `data`, the bytes of a PNG or JPEG, for nodes to embed, and returns the hash that names it (fields spec §5). Two
+    /// pictures with the same bytes are one entry. Nothing is checked here: choosing a file checks it
+    /// (`GreyImageDecoder.inspect`), and a node that cannot decode what it points at says so. A node already pointing at a
+    /// hash that was absent runs again.
+    @discardableResult
+    public func addImage(_ data: Data) -> ImageHash {
+        let hash = ImageHash(of: data)
+        if images[hash] == nil {
+            images[hash] = data
+            scheduleEvaluation()
+        }
+        return hash
     }
 
     public func fileData() throws -> Data {
@@ -179,12 +208,13 @@ public final class DocumentModel {
         let demand = demand
         let level = inspectedLevel
         let evaluator = evaluator
+        let resolver = ImageResolver(embedded: images, documentFolder: documentURL?.deletingLastPathComponent())
         isEvaluating = true
         evaluationTask = Task {
             let report: EvaluationReport
             do {
                 report = try await evaluator.evaluate(snapshot.graph, definitions: snapshot.definitions, demand: demand,
-                                                inspecting: level)
+                                                inspecting: level, images: resolver)
             } catch {
                 return  // Cancelled: a newer generation is already scheduled.
             }

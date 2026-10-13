@@ -1,3 +1,5 @@
+import Foundation
+
 /// The contents of a `.mcgraph` file: the recipe and the editor's view, no geometry (spec §4.5).
 public struct GraphFile: Sendable, Codable, Equatable {
     /// 2: adds the `edgePicks` constant kind (M3). 3: side-face tags may carry a `loop` (S3, hole
@@ -14,13 +16,17 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// The document's group definitions (groups spec §4). Written as an array sorted by ID; absent in older files.
     public var definitions: [GroupID: GroupDefinition]
     public var viewState: ViewState
+    /// The embedded images, by the hash of their bytes (fields spec §5). Not yet written: the file format 7 task does that.
+    public var images: [ImageHash: Data]
 
     public init(formatVersion: Int = GraphFile.currentFormatVersion, graph: Graph = Graph(),
-                definitions: [GroupID: GroupDefinition] = [:], viewState: ViewState = ViewState()) {
+                definitions: [GroupID: GroupDefinition] = [:], viewState: ViewState = ViewState(),
+                images: [ImageHash: Data] = [:]) {
         self.formatVersion = formatVersion
         self.graph = graph
         self.definitions = definitions
         self.viewState = viewState
+        self.images = images
     }
 
     private enum CodingKeys: String, CodingKey { case formatVersion, graph, definitions, viewState }
@@ -32,6 +38,7 @@ public struct GraphFile: Sendable, Codable, Equatable {
         let list = try container.decodeIfPresent([GroupDefinition].self, forKey: .definitions) ?? []
         definitions = Dictionary(list.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         viewState = try container.decodeIfPresent(ViewState.self, forKey: .viewState) ?? ViewState()
+        images = [:]
     }
 
     public func encode(to encoder: any Encoder) throws {
