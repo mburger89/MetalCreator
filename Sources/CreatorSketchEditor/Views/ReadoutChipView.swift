@@ -1,8 +1,8 @@
 import CreatorStyle
 import MetalUI
 
-/// One readout chip framed where `ReadoutChip` places it: its text centred in the theme's glass with its hairline,
-/// no shadow.
+/// One readout chip framed where `ReadoutChip` places it: its text centred in the theme's glass (a blurring material under the
+/// theme's tint, `GlassStyle`) with its hairline, no shadow.
 struct ReadoutChipView: Component {
     let chip: ReadoutChip
     @Environment(ThemeStore.self) var themes: ThemeStore?
@@ -14,7 +14,7 @@ struct ReadoutChipView: Component {
             .font(.caption)
             .foregroundStyle(colors.primary)
             .frame(width: Pixels(Float(chip.size.width)), height: Pixels(Float(chip.size.height)))
-            .background(colors.glass, in: shape)
+            .glassBackground(GlassStyle(themes: themes, surface: .chip), in: shape)
             .overlay { shape.strokeBorder(colors.hairline, lineWidth: Pixels(1)) }
             .offset(x: Pixels(Float(chip.origin.x)), y: Pixels(Float(chip.origin.y)))
     }

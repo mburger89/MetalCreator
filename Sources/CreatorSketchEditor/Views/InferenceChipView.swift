@@ -14,7 +14,7 @@ struct InferenceChipView: Component {
             .font(.caption)
             .foregroundStyle(colors.inferred)
             .frame(width: Pixels(Float(chip.size.width)), height: Pixels(Float(chip.size.height)))
-            .background(colors.glass, in: shape)
+            .glassBackground(GlassStyle(themes: themes, surface: .chip), in: shape)
             .overlay { shape.strokeBorder(colors.hairline, lineWidth: Pixels(1)) }
             .offset(x: Pixels(Float(chip.origin.x)), y: Pixels(Float(chip.origin.y)))
     }
