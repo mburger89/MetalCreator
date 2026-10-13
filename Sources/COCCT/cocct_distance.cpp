@@ -1,3 +1,4 @@
+#include "cocct_distance_analytic.hpp"
 #include "cocct_internal.hpp"
 
 #include <BRepBndLib.hxx>
@@ -14,6 +15,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <limits>
+#include <vector>
 #include <mutex>
 #include <string>
 
@@ -21,14 +24,16 @@ using namespace cocct;
 
 namespace {
 
-/// The distances from a run of points to one target, in blocks that OCCT's own thread pool shares out (`OSD_Parallel`). Each
+/// The distances from a run of points to one target, in blocks that OCCT's own thread pool shares out (`OSD_Parallel`). The
+/// target is split once into the faces with an exact formula (planes and cylinders bounded by lines and circle arcs, in
+/// cocct_distance_analytic.hpp) and the rest, which BRepExtrema measures. Each
 /// block builds its own extrema and classifier objects, so the threads share only the shapes, which they read and never
 /// change; the process-wide lock the caller holds keeps every other OCCT call out meanwhile. No exception leaves a worker: a
 /// block that throws records its message and the rest stop.
 struct DistanceBlocks {
     static constexpr int block = 64;
 
-    const TopoDS_Shape &target;
+    const cocct::AnalyticTarget &target;
     const TopoDS_Shape &solid;
     const double *points;
     double *out;
@@ -48,23 +53,40 @@ struct DistanceBlocks {
         }
     }
 
+    static double measure(BRepExtrema_DistShapeShape &distance, const gp_Pnt &point) {
+        distance.LoadS1(BRepBuilderAPI_MakeVertex(point).Vertex());
+        if (!distance.Perform() || !distance.IsDone()) {
+            throw user_error("OCCT could not measure the distance from a point");
+        }
+        return distance.Value();
+    }
+
     void operator()(int index) const {
         if (failed.load()) {
             return;
         }
         try {
             BRepExtrema_DistShapeShape distance;
-            distance.LoadS2(target);
+            if (target.hasRest) {
+                distance.LoadS2(target.rest);
+            }
+            std::vector<const AnalyticFace *> fallback;
             BRepClass3d_SolidClassifier classifier;
             bool loaded = false;
             const int end = std::min(count, (index + 1) * block);
             for (int i = index * block; i < end; ++i) {
                 const gp_Pnt point(points[3 * i], points[3 * i + 1], points[3 * i + 2]);
-                distance.LoadS1(BRepBuilderAPI_MakeVertex(point).Vertex());
-                if (!distance.Perform() || !distance.IsDone()) {
-                    throw user_error("OCCT could not measure the distance from a point");
+                double value = std::numeric_limits<double>::infinity();
+                if (target.hasRest) {
+                    value = measure(distance, point);
                 }
-                double value = distance.Value();
+                fallback.clear();
+                value = analytic_distance(target, point, value, fallback);
+                for (const AnalyticFace *entry : fallback) {
+                    BRepExtrema_DistShapeShape single;
+                    single.LoadS2(entry->face);
+                    value = std::min(value, measure(single, point));
+                }
                 // Only a point inside the solid's bounds can be inside the solid; the others skip the classifier.
                 if (signed_solid && !bounds.IsOut(point)) {
                     if (!loaded) {
@@ -93,10 +115,10 @@ struct DistanceBlocks {
 
 } // namespace
 
-extern "C" {
+namespace {
 
-int occt_distances(const occt_shape *shape, int kind, const int *indices, int index_count, const double *points,
-                   int point_count, int signed_distance, double *out, occt_status *status) {
+int run_distances(const occt_shape *shape, int kind, const int *indices, int index_count, const double *points,
+                  int point_count, int signed_distance, double *out, occt_status *status, bool analytic) {
     return guarded(status, [&]() -> int {
         if (!shape || !points || !out || point_count < 0) {
             set_error(status, "there are no points to measure from");
@@ -109,12 +131,10 @@ int occt_distances(const occt_shape *shape, int kind, const int *indices, int in
         // The target: every face of the shape, or the picked faces or edges (1-based, in the indexed maps).
         const bool edges = kind == 2;
         const TopTools_IndexedMapOfShape all = map_of(shape->shape, edges ? TopAbs_EDGE : TopAbs_FACE);
-        TopoDS_Compound target;
-        BRep_Builder builder;
-        builder.MakeCompound(target);
+        std::vector<TopoDS_Shape> picked;
         if (kind == 0) {
             for (int i = 1; i <= all.Extent(); ++i) {
-                builder.Add(target, all(i));
+                picked.push_back(all(i));
             }
         } else {
             if (!indices || index_count <= 0) {
@@ -124,8 +144,24 @@ int occt_distances(const occt_shape *shape, int kind, const int *indices, int in
                 if (indices[i] < 1 || indices[i] > all.Extent()) {
                     throw user_error(edges ? "edge index out of range" : "face index out of range");
                 }
-                builder.Add(target, all(indices[i]));
+                picked.push_back(all(indices[i]));
             }
+        }
+        // Faces split into the analytic ones and the rest; edges are always measured by BRepExtrema.
+        AnalyticTarget target;
+        if (edges) {
+            BRep_Builder builder;
+            builder.MakeCompound(target.rest);
+            for (const TopoDS_Shape &edge : picked) {
+                builder.Add(target.rest, edge);
+            }
+            target.hasRest = !picked.empty();
+        } else {
+            std::vector<TopoDS_Face> faces;
+            for (const TopoDS_Shape &face : picked) {
+                faces.push_back(TopoDS::Face(face));
+            }
+            target = split_target(faces, analytic);
         }
         // The sign of a solid's distance: inside is negative. Faces and edges are never signed.
         const bool signed_solid = signed_distance != 0 && kind == 0;
@@ -140,6 +176,20 @@ int occt_distances(const occt_shape *shape, int kind, const int *indices, int in
         }
         return 1;
     });
+}
+
+} // namespace
+
+extern "C" {
+
+int occt_distances(const occt_shape *shape, int kind, const int *indices, int index_count, const double *points,
+                   int point_count, int signed_distance, double *out, occt_status *status) {
+    return run_distances(shape, kind, indices, index_count, points, point_count, signed_distance, out, status, true);
+}
+
+int occt_distances_reference(const occt_shape *shape, int kind, const int *indices, int index_count, const double *points,
+                             int point_count, int signed_distance, double *out, occt_status *status) {
+    return run_distances(shape, kind, indices, index_count, points, point_count, signed_distance, out, status, false);
 }
 
 } // extern "C"

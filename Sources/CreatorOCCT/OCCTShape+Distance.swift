@@ -15,6 +15,21 @@ extension OCCTShape {
     /// One distance per point, in order (see `occt_distances`). Call under `OCCTKernel.serialized`.
     func distances(from points: ArraySlice<Vector3>, kind: DistanceKind, indices: [Int32],
                    signed: Bool) throws(OCCTError) -> [Double] {
+        try run(from: points, kind: kind, indices: indices, signed: signed, call: occt_distances)
+    }
+
+    /// The same distances by `BRepExtrema` alone, without the analytic path for planes and cylinders
+    /// (`occt_distances_reference`): what the fast path is tested against.
+    func distancesByExtrema(from points: ArraySlice<Vector3>, kind: DistanceKind, indices: [Int32],
+                            signed: Bool) throws(OCCTError) -> [Double] {
+        try run(from: points, kind: kind, indices: indices, signed: signed, call: occt_distances_reference)
+    }
+
+    private typealias Measure = (OpaquePointer?, Int32, UnsafePointer<Int32>?, Int32, UnsafePointer<Double>?, Int32, Int32,
+                                 UnsafeMutablePointer<Double>?, UnsafeMutablePointer<occt_status>?) -> Int32
+
+    private func run(from points: ArraySlice<Vector3>, kind: DistanceKind, indices: [Int32], signed: Bool,
+                         call: Measure) throws(OCCTError) -> [Double] {
         guard !points.isEmpty else { return [] }
         var coordinates: [Double] = []
         coordinates.reserveCapacity(points.count * 3)
@@ -29,7 +44,7 @@ extension OCCTShape {
             indices.withUnsafeBufferPointer { ids in
                 coordinates.withUnsafeBufferPointer { xyz in
                     result.withUnsafeMutableBufferPointer { out in
-                        occt_distances(self.raw, kind.rawValue, ids.baseAddress, Int32(ids.count), xyz.baseAddress, count,
+                        call(self.raw, kind.rawValue, ids.baseAddress, Int32(ids.count), xyz.baseAddress, count,
                                        signed ? 1 : 0, out.baseAddress, status)
                     }
                 }

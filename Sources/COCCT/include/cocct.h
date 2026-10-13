@@ -203,6 +203,10 @@ void occt_mesh_free(occt_mesh *mesh);
 /// as in occt_fillet). With `signed_distance` and kind 0, a point inside the shape gets a negative distance. Returns 1.
 int occt_distances(const occt_shape *shape, int kind, const int *indices, int index_count, const double *points,
                    int point_count, int signed_distance, double *out, occt_status *status);
+/// The same measurement with BRepExtrema alone, no analytic fast path for planes and cylinders: the reference the fast
+/// path is tested against. Same arguments and result as occt_distances.
+int occt_distances_reference(const occt_shape *shape, int kind, const int *indices, int index_count, const double *points,
+                             int point_count, int signed_distance, double *out, occt_status *status);
 /// A compound of copies-by-reference of the given shapes.
 occt_shape *occt_make_compound(const occt_shape *const *shapes, int count, occt_status *status);
 /// Reads a STEP file into one shape (a compound for several bodies).
