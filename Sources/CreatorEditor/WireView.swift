@@ -4,7 +4,7 @@ import MetalUI
 
 /// One wire: a stroked `WireShape` in a frame just big enough for the curve, offset to its
 /// place on the canvas.
-struct WireView: Component {
+struct WireView: Component, Equatable {
     let geometry: WireGeometry
     let color: HexColor
     var lineWidth = 2.0

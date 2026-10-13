@@ -20,13 +20,15 @@ struct CanvasLayers: Component {
         let commentGhosts = Self.commentGhosts(model)
         return ZStack(alignment: .topLeading) {
             ForEach(model.drawnFrames, id: \.id.rawValue) { box in
-                CommentFrameView(box: box, rect: model.frame(of: box), isSelected: selectedComments.contains(box.id))
+                CommentFrameView(box: box, rect: model.frame(of: box), isSelected: selectedComments.contains(box.id),
+                                 palette: palette)
             }
             ForEach(Self.wires(model, palette: palette), id: \.id) { wire in
                 WireView(geometry: wire.geometry, color: wire.color)
             }
             ForEach(model.drawnNotes, id: \.id.rawValue) { note in
-                StickyView(note: note, rect: model.frame(of: note), isSelected: selectedComments.contains(note.id))
+                StickyView(note: note, rect: model.frame(of: note), isSelected: selectedComments.contains(note.id),
+                           palette: palette)
             }
             ForEach(model.drawnNodes, id: \.id.rawValue) { node in
                 let shape = model.shape(of: node)
@@ -44,10 +46,10 @@ struct CanvasLayers: Component {
                          isSelected: true, state: nil, shakes: 0, palette: palette, isGhost: true)
             }
             ForEach(commentGhosts.frames, id: \.id.rawValue) { box in
-                CommentFrameView(box: box, rect: model.frame(of: box), isSelected: true, isGhost: true)
+                CommentFrameView(box: box, rect: model.frame(of: box), isSelected: true, palette: palette, isGhost: true)
             }
             ForEach(commentGhosts.notes, id: \.id.rawValue) { note in
-                StickyView(note: note, rect: model.frame(of: note), isSelected: true, isGhost: true)
+                StickyView(note: note, rect: model.frame(of: note), isSelected: true, palette: palette, isGhost: true)
             }
             if case .connecting(let drag)? = model.interaction, let anchor = model.anchor(of: drag.from) {
                 let geometry = drag.from.isInput

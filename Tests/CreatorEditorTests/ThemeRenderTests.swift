@@ -64,10 +64,12 @@ struct ThemeRenderTests {
                 }
             }),
             ("note", { store in
-                self.paint(store) { StickyView(note: StickyNote(text: "Hi", frame: rect), rect: rect, isSelected: false) }
+                self.paint(store) { StickyView(note: StickyNote(text: "Hi", frame: rect), rect: rect, isSelected: false,
+                                      palette: Palette(store)) }
             }),
             ("frame", { store in
-                self.paint(store) { CommentFrameView(box: CommentFrame(title: "Frame", frame: rect), rect: rect, isSelected: false) }
+                self.paint(store) { CommentFrameView(box: CommentFrame(title: "Frame", frame: rect), rect: rect, isSelected: false,
+                                             palette: Palette(store)) }
             }),
             ("header", { store in self.paint(store) { GraphPanelHeader(model: editor) } }),
             ("library", { store in self.paint(store) { NodeLibraryView(model: editor, input: GraphPanelInput(model: editor)) } }),
