@@ -52,8 +52,8 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M7-a | `ForEach` identity is an id's description | C20 | ✅ fixed by C20 (MetalUI master 5f35df6: identity by `Hashable` equality); nothing to adopt, the canvas's `\.id.rawValue` keys stay correct |
 | M7-b | No warm headless frame for measuring | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `TestWindow` warm frames and `FrameWork`), adopted for work counts (plan `2026-10-12-adopt-test-harness`): `WarmFrameTests`; the release benchmarks (`Bench`) still report cold-frame milliseconds until they are moved onto it |
 | C10-a | No backdrop blur behind a material | C21 (was C10-c) | ✅ fixed by C21 (MetalUI master d6a815c: a material blurs what MetalUI drew beneath it, GPU surfaces included; divergences 245 to 248), adopted (plan `2026-10-12-adopt-c21.md`): every glass panel is a material under the theme's tint (`GlassStyle`); human checks C21 pending |
-| C21-a | A `Material`'s tint opacity can't be read, so a theme's tint can't be sized against it | C27 | ⏳ found by the C21 adoption (plan `2026-10-12-adopt-c21.md`); queued as MetalUI C27 (material follow-ups) |
-| C21-b | Reduce Transparency is neither readable by an app nor honoured by materials | C27 | ⏳ found by the C21 adoption; queued as MetalUI C27 (with C21-a); no stopgap: panels blur whatever the setting says until MetalUI provides it |
+| C21-a | A `Material`'s tint opacity can't be read, so a theme's tint can't be sized against it | C27 | ✅ fixed by C27 (MetalUI master 848ee029, PR #76, record §101: `Material.tint(in:)`, ruling `MT-B`), adopted (plan `2026-10-13-adopt-c27.md`): `GlassThickness.materialOpacity(isDark:)` reads it; the copied `LK-L` table is gone and `GlassMaterialTableTests` with it, `GlassMaterialOpacityTests` checks the read against the drawn backdrop; MetalUI human check MT-3 covers the solve |
+| C21-b | Reduce Transparency is neither readable by an app nor honoured by materials | C27 | ✅ fixed by C27 (MetalUI master 848ee029, PR #76, record §101: `EnvironmentValues.accessibilityReduceTransparency`, materials draw an opaque grey with no blur, divergence 315; `TestWindow.setReduceTransparency`), adopted (plan `2026-10-13-adopt-c27.md`): the glass panels and chips read it and the theme's tint goes opaque with MetalUI's grey (`GlassReduceTransparencyWindowTests`); C21-5 runs on a real system |
 | CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | C9 | ✅ fixed by C9 (KF-Z/KF-AA: ⌘↩ is no editing key of a `TextEditor`, so an `onKeyPress` for it commits), adopted by the inspector's note box and the canvas editor (Comments typing plan) |
 | CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 | ✅ fixed (MetalUI 0fb2ea6e, PR #74, record §98, rulings RF-A…RF-I: `.resignsFocusOnPress(_ isEnabled: Bool = true)`, an opt-in container modifier: a primary press inside it resigns a focused field and routes no key by hover), ✅ adopted (plan `2026-10-13-adopt-c24`): `AppWindowRoot` (and `GraphPanelPreview`'s root) carry it; the viewport's `releaseTextFocus` hook is gone; a press on inert chrome ends a canvas edit and commits a typed inspector value (`CanvasResignOnPressWindowTests`, `InspectorFieldResignWindowTests`) |
 | CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 | ✅ fixed by C25 (MetalUI master 3fce05f: `TextField(_:text:selection:)` and `TextEditor(_:text:selection:)` over `Binding<TextSelection?>`; divergences 265, 266), adopted (plan `2026-10-12-adopt-c25.md`): a frame's title opens with all of it selected and a note with the caret at its end (`CommentEdit.selection`); human checks C25 pending |
@@ -828,7 +828,7 @@ Labelled C10-a… so they don't clash with the labels above. Checked against Met
   content (the viewport is that, the desktop is not); 246 no saturation lift (a blurred backdrop is plainer than SwiftUI's);
   247 the blur region is the shape's bounding box (a small panel, a chip, blurs only what is in its own box, edge-clamped);
   248 a material inside `.shadow`, `.blur` or `.compositingGroup()` draws flat (no panel here uses them,
-  `aPanelHasNoImagesSoNothingIsRasterised`); Reduce Transparency is not honoured (C21-b, no stopgap). MetalUI's own human checks
+  `aPanelHasNoImagesSoNothingIsRasterised`); Reduce Transparency is honoured since C27 (C21-b: MetalUI draws an opaque grey, the tint goes opaque). MetalUI's own human checks
   BB1 to BB6 are unrun; C21-1 and C21-3 are the first real-window sight of the blur over a viewport, and a result that
   looks like a MetalUI fault should be run against BB1 and BB2 in MetalUI's demo before it is logged here.
 
@@ -998,7 +998,7 @@ Labelled CT-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
 
 Labelled C21-a… so they don't clash with the labels above. Checked against MetalUI `d6a815c` and again at `930db4a` (`d6a815c` or later works).
 
-- **C21-a. A `Material`'s tint opacity can't be read, so a theme's tint can't be sized against it.** A glass panel is
+- **C21-a (adopted by C27). A `Material`'s tint opacity can't be read, so a theme's tint can't be sized against it.** A glass panel is
   the theme's `glass` role (a colour and the opacity the person chose) over a material, and the pair should hide as much
   of the backdrop as the role says: `(1 - tint) * (1 - material) = 1 - glass`. That needs the material's own opacity
   (0.4706 for `.ultraThinMaterial` in light, 0.5059 in dark, and so on), which is `Material.fill(for:)`, internal. Nor can a
@@ -1007,12 +1007,38 @@ Labelled C21-a… so they don't clash with the labels above. Checked against Met
   record differs from the copy. Wanted: a public read of a material's tint (`Material.tint(in:) -> Color`, or its opacity),
   or a material that takes a tint colour. Found by the C21 adoption; sent to the MetalUI session 2026-10-12.
   Note: MetalUI's `Material.swift` doc comment still says "a fitted flat tint, with no backdrop blur (divergence 166)"; divergences.md says 166 was amended, so the source comment is stale (seen at `930db4a`).
-- **C21-b. Reduce Transparency is neither readable by an app nor honoured by materials.** MetalUI's divergence 249: a
+  **Adopted (2026-10-13, plan `2026-10-13-adopt-c27.md`; MetalUI C27, master 848ee029, PR #76, record §101, ruling `MT-B`):**
+  `Material.tint(in: ColorScheme) -> Color` is public (MetalUI-only; SwiftUI has no such read), and the opacity is
+  `tint(in: scheme).resolve(in: EnvironmentValues()).opacity`. `GlassThickness.materialOpacity(isDark:)` is now that read, so the
+  copied `LK-L` table is deleted and a retune of MetalUI's fitted table moves every tint with it. `GlassMaterialTableTests`, which
+  guarded the copy, is replaced by `GlassMaterialOpacityTests` (per thickness and scheme, the opacity read equals the opacity of
+  the backdrop record MetalUI draws) and `GlassThicknessTests` (what any table must satisfy: a thicker material is more opaque,
+  every opacity is a fraction, light and dark differ). The solve `t = 1 - (1 - g) / (1 - m)` is unchanged, in
+  `GlassStyle.tint` and `tintOpacity(glass:materialOpacity:)`; that the pair really hides `g` of the backdrop is MetalUI's human
+  check MT-3 and ours C21-1. The stale source comment in the note is fixed in MetalUI (it now says there is no saturation lift,
+  divergence 166).
+- **C21-b (adopted by C27). Reduce Transparency is neither readable by an app nor honoured by materials.** MetalUI's divergence 249: a
   material blurs whatever the accessibility setting says, and nothing in `EnvironmentValues` carries the setting (SwiftUI's
   `\.accessibilityReduceTransparency`). The HIG asks for it. Sent to the MetalUI session 2026-10-12. No stopgap: MetalUI gaps
   are fixed in MetalUI, so the panels blur whatever the setting says until MetalUI provides it. Wanted:
   `\.accessibilityReduceTransparency` (the reduce-motion pattern: two `PlatformWindow` requirements), and materials that fall
   back to an opaque tint when it is on. Human check C21-5 waits on it.
+  **Adopted (2026-10-13, plan `2026-10-13-adopt-c27.md`; MetalUI C27, master 848ee029, PR #76, record §101, rulings `MT-D`,
+  `MT-E`, `MT-F`, `MT-G`, `MT-I`):** `EnvironmentValues.accessibilityReduceTransparency` (SwiftUI's key, read-only outside
+  MetalUI) is stamped from two defaultless `PlatformWindow` requirements: AppKit reads
+  `NSWorkspace.accessibilityDisplayShouldReduceTransparency` live, SDL answers `false` and never fires (`MT-E`). With it on every
+  material draws the scheme's fitted grey at alpha 1 as an ordinary rect and never a backdrop record, so no blur pass and no
+  frame-target copy (`MT-F`, divergence 315: a ruling, not a measurement of SwiftUI). MetalCreator owns no `PlatformWindow`
+  conformer (`grep PlatformWindow Sources` finds nothing: the app runs on MetalUI's platforms and the tests on
+  `HeadlessPlatformWindow`), so the two new requirements need no change here. `GlassPanel`, `ReadoutChipView` and
+  `InferenceChipView` read the value and pass it to `GlassStyle(reducesTransparency:)`, which makes the theme's tint fully opaque
+  (plan user decision U-C27-1); the material layer is still drawn and MetalUI turns it into the grey under the tint. The
+  stopgap-shaped `GlassStyle.blursBackdrop` is removed: MetalUI owns the blur. `GlassReduceTransparencyWindowTests` (real
+  headless windows, `HeadlessPlatformWindow.Options` and `TestWindow.setReduceTransparency(_:)`) pin: with it on no panel, palette
+  or chip draws a backdrop record, each is the theme's glass colour at full opacity, every label is still drawn, and switching it
+  on and off while the app runs returns the original frame; `reducingTransparencyKeepsEveryThemesTextLegible` pins the contrast
+  of every built-in theme's text on its opaque glass (primary 7:1, dim 3:1). Still open: the grey against a real SwiftUI window
+  is MetalUI's human check MT-1, and the real system toggle is ours, C21-5.
 
 ## Found by the C25 adoption, 2026-10-12
 
