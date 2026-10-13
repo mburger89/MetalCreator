@@ -11,7 +11,7 @@ extension InspectorControl {
             socket
         case .toggle(let socket, _), .segmented(let socket, _):
             socket
-        case .button:
+        case .button, .note:
             nil
         }
     }

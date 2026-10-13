@@ -12,7 +12,7 @@ struct CatalogTests {
             name
         case .toggle(let name, _), .segmented(let name, _):
             name
-        case .button:
+        case .button, .note:
             nil
         }
     }
@@ -27,7 +27,7 @@ struct CatalogTests {
         case .planePicker: [.plane]
         case .ruleSummary: [.edgeSet]
         case .vector: [.vector]
-        case .parameterPicker, .text, .button: []
+        case .parameterPicker, .text, .button, .note: []
         }
     }
 

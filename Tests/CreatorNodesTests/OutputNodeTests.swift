@@ -10,10 +10,10 @@ struct OutputNodeTests {
     /// (Hole, Boss, Slot, Pattern Feature; 7a-2), and the variation nodes (Cull Pattern, Cull Index, Cull by Region,
     /// Random Reduce, Random Values, Jitter; 7a-3b), and the Fields nodes (fields spec §3).
     @Test func theBuiltInsAreTheSliceTheSketcherTheTreeNodesThePatternNodesAndTheFieldNodesInNineCategories() {
-        #expect(BuiltInNodes.all.count == 64)
+        #expect(BuiltInNodes.all.count == 65)
         let counts = Dictionary(grouping: BuiltInNodes.all, by: { $0.category }).mapValues(\.count)
         let expected: [NodeCategory: Int] = [
-            .value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .patterns: 17, .lists: 7, .fields: 12, .output: 1,
+            .value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .patterns: 17, .lists: 7, .fields: 13, .output: 1,
         ]
         #expect(counts == expected)
     }

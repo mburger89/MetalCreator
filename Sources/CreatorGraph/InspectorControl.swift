@@ -16,4 +16,6 @@ public enum InspectorControl: Sendable, Equatable {
     /// the field loses focus.
     case text(SocketName)
     case button(title: String, action: InspectorAction)
+    /// A line of help under the node's controls, shown read-only (Field Scatter's note on renumbering). It edits nothing.
+    case note(String)
 }

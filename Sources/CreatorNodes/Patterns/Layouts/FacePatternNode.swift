@@ -108,7 +108,7 @@ public enum FacePatternNode: NodeDefinition {
 
     /// The flat face the `face` setting names on `solid`, and the warnings its pick earns (as Plane from Face's: an ambiguous
     /// pick, several matches, an unnamed face). A pick on a copy a pattern no longer has is not retried on the part around it.
-    private static func pickedFace(of solid: Solid, context: EvalContext) throws -> (FaceInfo, [String]) {
+    static func pickedFace(of solid: Solid, context: EvalContext) throws -> (FaceInfo, [String]) {
         let pick: FacePick
         switch context.node.inputValues[NodeSetting.face] {
         case nil: throw NodeError.invalidValue(nothingPicked)
