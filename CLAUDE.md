@@ -295,7 +295,7 @@ the fourteen `Fields` nodes below, the seventeen
   badge, socket layer, wire, comment frame, note, handle): `CanvasLayers` makes the `Palette` and passes it down as a stored
   value, and each of those is `Equatable` and `.equatable()` where `CanvasLayers` and `NodeView` build it (MetalUI C14 slice 1,
   gap PERF-b), so an unchanged node's `content` getter is skipped. A view that reads `@Environment` is refused by
-  `.equatable()` (MetalUI divergence 346), so a canvas view never declares one; its `==` must cover every stored property the
+  `.equatable()` (MetalUI divergence 346), so an `.equatable()` canvas view never declares one (`BoxSelectionView` is the one canvas view that still reads `@Environment(ThemeStore)`: it is not `.equatable()` and is rebuilt anyway); its `==` must cover every stored property the
   getter reads (the synthesized one does; a hand-written one is `nonisolated static func ==`), and `expectEqualityCovers`
   (`CreatorEditorTests`) fails when a view gains a property its test has no variant for. The viewport draws `ViewportModel.theme`, which the
   app shell sets. Themes are app-level, never in `.mcgraph`. Tests: `swift test --filter CreatorStyleTests`.
