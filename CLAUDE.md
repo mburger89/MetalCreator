@@ -53,6 +53,11 @@ PL) are pending.
 Patterns, sub-project 7a-3 part B (variation and culling: Cull Pattern, Cull Index, Cull by Region, Random Reduce, Random Values and
 Jitter; plan `docs/superpowers/plans/2026-10-12-7a-variation.md`, spec `2026-10-10-patterns-trees-design.md` §4) code is done; its human
 checks (group VA) are pending. The layouts, previews and acceptance test are part A (7a-layouts).
+Fields, sub-project 7b-1 (the fields core: the `Field` value and `.field` sockets, `FieldSampler` and `FieldDistanceCache`,
+`Kernel.distances`, the four sources, the six maths nodes, Sample Field and Cull by Field, the `Fields` library category and
+`FieldBench` rows 1 to 3; plan `docs/superpowers/plans/2026-10-12-7b-core.md`, spec `docs/superpowers/specs/2026-10-12-fields-design.md`
+§2 to §4, §7 and §9) code is done; its human checks (group FI-core) are pending and its benchmark numbers await an idle run. Images
+(7b-2, format 7) and Field Scatter with the previews (7b-3) are planned after it merges.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -69,9 +74,18 @@ Module boundaries (dependency order):
   before trees resolves unchanged) and `{a;b}` to `{a;b;c;d}` (indices up to 32,767) one negative `Int`.
   `NodeID.isInstanceQualified` (a version-8 UUID) tells those nodes from any other,
   and `Topology.vanishedInstances(in:)` finds the copies a pick names that a topology no longer has.
+  `Kernel.distances(from:to:signed:)` measures a batch of points to a `DistanceTarget` (`.solid`, `.faces`, `.edges`; fields
+  spec §3.1): millimetres to the surface, negative inside a solid when signed (the sign is ignored for faces and edges);
+  `DistanceTarget.validate()` gives every kernel the same refusals and `.identity` is what the field cache keys on. `FakeKernel`
+  is exact for its boxes, for planar faces measured to their infinite plane and for straight or circular edges
+  (`EdgeCurve.distance(from:)`, shared with Cull by Region), and throws `unsupported` for the rest.
 - `COCCT` + `CreatorOCCT`: the OpenCascade C shim and `OCCTKernel: Kernel` (topology tables, face tags carried through
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
-  `*_free`; no C++ exception crosses into Swift.
+  `*_free`; no C++ exception crosses into Swift. `occt_distances` (`cocct_distance.cpp`) measures points to a solid's faces,
+  picked faces or picked edges with `BRepExtrema_DistShapeShape` (to the faces, not the solid: OCCT answers 0 for a point
+  inside a solid) and signs a solid's distance with `BRepClass3d_SolidClassifier`, only for a point inside the solid's bounds; it
+  shares the points out in blocks of 64 over OCCT's thread pool while `OCCTKernel.serialized` is held, and the caller's buffer
+  is the output, so it allocates nothing to free. `OCCTKernel` calls it 1,024 points at a time, checking for cancellation between.
 - `CreatorGraph`: graph model, sockets, broadcasting, `Evaluator` (cached, cancellable), commands and undo,
   `.mcgraph` files, `DocumentModel`. Depends on `CreatorSketch` for the `ConstantValue.sketch` setting. A node's sockets
   are `NodeRegistry.inputs(for:)`/`outputs(for:)`: `NodeDefinition.inputs(for:)`/`outputs(for:)` of its type
@@ -132,8 +146,8 @@ Module boundaries (dependency order):
     the survivors in order, as a rank, and a `tree` socket gets the tree whole with its indices, which is how `InstanceGrid` reads
     them. Reshaping nodes (Flatten, Graft, Partition, Path Mapper) renumber, as reshaping does, and List Item, Branch by Path and
     Tree Statistics count a culled list's survivors by rank; Cull Index alone names the places items had.
-- `CreatorNodes`: the 52 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
-the seventeen
+- `CreatorNodes`: the 64 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
+the twelve `Fields` nodes below, the seventeen
   `Patterns` nodes below, and the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
   Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
   parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, cullPattern, cullIndices, and `projection(reference)` per projected edge) live in
@@ -194,6 +208,28 @@ the seventeen
     number of instances, however many survivors it holds) and gives Place's copies back in the placements' shape with the same
     gaps. Points to Placements takes `points` and `direction` whole and returns placements at the same paths, so a cull may sit
     anywhere before it. So a pick on one instance survives a cull of another and a pick on a culled one warns naming its path.
+  - Fields (`Sources/CreatorNodes/Fields`, category `NodeCategory.fields`, library section "Fields", after Lists & Trees; fields spec
+    §3): `FieldSampler.sample(_:at:kernel:cache:)` is the one way to read a field: it walks the expression once per batch over
+    structure-of-arrays `[Double]`s, checks cancellation every 1,024 points, asks the kernel once per distance leaf (through the
+    evaluator's `FieldDistanceCache` when given), and never lets a value depend on the rest of the batch; its one `switch` over
+    `Field` has no `default`, so a new case (Image Field, 7b-2) is a compile error there, in `Field.children` and in
+    `Field.description`. `FieldNoise` is 3D simplex noise hashed with `SeededRandom` (purpose `.fieldNoise`, the octave as the stream;
+    `.fieldCull` is Cull by Field's; both pinned in `FieldNoiseTests` like the others). The sources are Distance Field (`target` is
+    an `any` socket: a vector, edge set, profile, face set or solid; `mode` Unsigned / Signed matters to a solid only), Linear
+    Gradient, Radial Gradient and Noise Field; the maths nodes (`Maths/`) are Add, Multiply, Min / Max, Remap, Clamp and Smooth
+    Blend, each over `.field` item sockets, so a list of fields broadcasts and a number typed or wired in is a constant field.
+    Sample Field (`at` is a `plane` socket with `tree` access, so points and placements both wire) returns numbers in the shape of
+    `at`, culled gaps and paths included, from one sampler call; a single plane gives a list of one. Cull by Field keeps placements
+    by Threshold (Above and Below both keep a value exactly on the level) or Probability (a `.fieldCull` draw at the item's kept
+    index, stream = branch ordinal, below the field held to 0…1, as Random Reduce draws), keeping paths; both refuse a list in any
+    input in the layouts' words (`singleValuesRefusal` = `LayoutChecks.singleValues`). The graded-sizes chain is a field → Remap →
+    Sample Field → a shortcut's size socket (Remap takes and returns a field, so the spec's reverse order cannot be wired; fields
+    spec Errata (7b-1)). Fields are computed, never saved, and a group interface refuses a `field` socket
+    (`GroupRefusal.fieldSocket`, in `GraphContent.checkInterface`): `"field"` in a format-6 file would not decode in an older
+    build, so 7b-2's format 7 lifts it. The distance cache counts the solids its entries keep alive. `FieldBench`
+    (`Tests/CreatorAppTests/Bench`): rows 1 and 2 are the spec's (row 2's 100 ms is for analytic solids and gates the merge;
+    `field-2b` records a smooth loft); row 3 measures Sample Field and Cull by Field over 2,000 placements until Field Scatter
+    (7b-3) can be measured at the same size.
 - `CreatorStyle`: colour themes (spec §6.6, Dracula by default), the only place colour hex values are written.
   `ThemeColors` is a colour per role (never a hue); `ColorTheme` (not `Theme`: MetalUI exports one) has the built-ins
   `.dracula`, `.alucard` and `.nord` (read-only); `ThemeRole` names each role (`ThemeColors[role]`; the names are the
@@ -269,6 +305,10 @@ the seventeen
   (`socketHelp(of:)`, drawn by `SocketLayer`), and the inspector gets a "Data" section (`TreeShapeRow`: the shape, and a
   list of branch paths with item counts that `toggleShapeList(_:)` opens, cut after 50) only when the node has a tree on
   an input or output. A `.text` setting (the Path Mapper's rule, Branch by Path's and List Item's paths) is an `InspectorControl.text`.
+  Fields show the same way: a socket carrying a field has a tooltip with its recipe cut to 80 characters (`Value.fieldSummary(limit:)`,
+  "3 fields" for a list), and a node with a field output gets a last "Field" section (`InspectorRow.recipe`, which puts the text
+  under its label so a long recipe wraps; `InspectorBuilder.fieldSection`). A field socket's dot borrows the Feature header colour
+  (`Palette.header(for: .fields)`) until the theme has a role of its own.
   The selection is `canvasSelection` (`CanvasSelection`: nodes and comments); `selection`
   is its nodes, and assigning it replaces the whole selection (selected comments too). Every gesture and key goes through
   `EditorModel+Selection` (`select(_:mode:)` with `SelectionMode`: none replaces, ⇧ adds, ⌘ toggles; `allItems`,
