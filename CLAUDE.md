@@ -225,8 +225,8 @@ the seventeen
     `lookAt(_ plane:framing:)` faces a plane, orthographic. A tool also takes the face or edge under a click it declined
     (`clickedModel`: the sketch editor's Project). `ViewportOverlay` also carries `fills` (`OverlayFill`: world triangles
     in the `.region` tint, one blended pipeline drawn under the lines, never in the ID pass) and `labels` (`OverlayLabel`:
-    text anchored in world space, placed by `overlayLabels()` and drawn as MetalUI text over the surface, hidden while
-    the camera animates: gap S5-c). The face menu adds New Sketch on Face (`ViewportEvents.newSketchOnFace`) on a flat
+    text anchored in world space, placed by `overlayLabels(measuring:)` and drawn as MetalUI text over the surface, hidden while
+    the camera animates: gap S5-c; each box is its text's measured width, MetalUI C23: see below). The face menu adds New Sketch on Face (`ViewportEvents.newSketchOnFace`) on a flat
     face that has a normal, outside sketch mode.
   - `ViewportModel` (`@MainActor @Observable`, testable without a GPU) owns the camera, picking, the view cube,
     the context menu and handles. `ViewportRenderer`/`ViewportPicker` are the Metal side. `ViewportView` is the
@@ -234,8 +234,12 @@ the seventeen
     solids and ghosts (faded where the part hides them), and it never frames, orbits, picks or opens the face menu
     (`ViewportRenderer+Guides`). The renderer keeps the triad's, the overlay's and the region fills' GPU buffers between
     frames: the overlay's key holds the grid's extent and the dashes' zoom, not the pose, so an orbit allocates none, and
-    the fills' buffer is dropped once a frame has no fills (`RendererCacheTests`). `handleLabels()` reads the size through
-    the tracked `viewSize`, as `overlayLabels()` does. Every scroll or pinch event stops a camera animation started mid-gesture.
+    the fills' buffer is dropped once a frame has no fills (`RendererCacheTests`). `handleLabels(measuring:)` reads the size through
+    the tracked `viewSize`, as `overlayLabels(measuring:)` does. Text sizes are measured, never estimated from a character count:
+    `ViewportView` (and the sketch editor's `PointerReadoutView`) read MetalUI's `@Environment(\.textMeasurer)`, wrap it as a
+    `TextMeasure` (`ProposalText` in `.caption`) and pass it into the model calls that place labels and chips; a model test passes a
+    fake measure, a view test the real one (`TextMeasure.real()` in each test target's `Support/TextMeasureSupport.swift`).
+    There is no default measure and no fallback estimate. Every scroll or pinch event stops a camera animation started mid-gesture.
   - It depends on Kernel, Geometry, CreatorStyle and MetalUI only, never CreatorGraph. The app shell turns graph outputs into
     `ViewportItem`s and `HandleSpec`s into `ViewportHandle`s.
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
@@ -306,7 +310,7 @@ the seventeen
   the inspector's rows; it is the viewport's `ViewportTool` (planar navigation; F frames the sketch) and builds its
   `ViewportOverlay` and the pointer readout (`pointerReadout`, while drawing or dragging a point; placed by
   `ReadoutChip`, drawn by its `PointerReadoutView`, which the app puts over the viewport, with the inference glyphs'
-  `InferenceChip`). The command tools (Trim, Extend, Fillet, Mirror, Pattern) run `SketchCommands` on a click and show
+  `InferenceChip`; both are as wide as their measured text: `readoutChip(measuring:)`, `inferenceChip(measuring:)`). The command tools (Trim, Extend, Fillet, Mirror, Pattern) run `SketchCommands` on a click and show
   a refused command's message as `refusal`; their settings are `SketchToolOptions`. A click within the pick radius of
   a curve (not a point) holds a new point on it (point-on); a line leaving an arc's end snaps tangent; ⌘ suppresses
   both, never a shared point. Project (P) declines the plane click and takes the viewport's pick: the host resolves it
