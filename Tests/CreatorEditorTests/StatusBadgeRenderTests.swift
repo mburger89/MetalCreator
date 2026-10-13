@@ -9,7 +9,7 @@ import Testing
 @MainActor
 struct StatusBadgeRenderTests {
     func badge(_ state: NodeState?) -> Scene {
-        renderHeadless { StatusBadgeView(state: state) }
+        renderHeadless { StatusBadgeView(state: state, palette: .dracula) }
     }
 
     @Test func anEvaluatingBadgeDrawsTheSpinnerAndNoText() {

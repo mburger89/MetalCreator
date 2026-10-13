@@ -65,7 +65,7 @@ struct GroupLookTests {
             let shape = NodeShape(title: "Rib", category: .feature, inputs: [], outputs: [], accent: accent, isGroup: isGroup)
             return renderHeadless {
                 NodeView(shape: shape, rows: [], origin: Vector2(100, 100), flow: .horizontal, isSelected: false, state: nil,
-                         shakes: 0)
+                         shakes: 0, palette: .dracula)
             }
         }
         let plain = draw(isGroup: false, accent: nil), group = draw(isGroup: true, accent: .purple)

@@ -6,7 +6,7 @@ import MetalUI
 /// One node on the canvas (spec §6.2): a header in its category colour with the name and status
 /// badge, then a row per input (with its value when unwired) and per output. Sized by
 /// `NodeLayout` so drawing and hit testing agree; input is handled by the canvas, not here.
-struct NodeView: Component {
+struct NodeView: Component, Equatable {
     let shape: NodeShape
     let rows: [NodeRowModel]
     let origin: Vector2
@@ -15,22 +15,24 @@ struct NodeView: Component {
     let state: NodeState?
     /// How many refusals this node has had (`EditorModel.shakeCount(of:)`): each new one shakes it (`RefusalShake`).
     let shakes: Int
+    /// The theme's colours, passed as a value so `==` covers them (a view that read the `ThemeStore` environment could not be
+    /// `.equatable()`, MetalUI divergence 346).
+    let palette: Palette
     /// Drawn at reduced opacity: an ⌥-drag ghost.
     var isGhost = false
     /// Tooltips of the sockets that carry a data tree (`EditorModel.socketHelp(of:)`), by "in.<name>"/"out.<name>".
     var socketHelp: [String: String] = [:]
-    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
         let size = NodeLayout.size(shape)
-        let palette = Palette(themes)
         let accent = shape.accent.map(palette.accent) ?? palette.header(for: shape.category)
         let corner = RoundedRectangle(cornerRadius: Pixels(6))
         return VStack(alignment: .leading, spacing: Pixels(0)) {
-            NodeHeaderView(title: shape.isMissing ? "Missing: \(shape.title)" : shape.title, accent: accent, state: state)
+            NodeHeaderView(title: shape.isMissing ? "Missing: \(shape.title)" : shape.title, accent: accent, state: state,
+                           palette: palette)
             VStack(alignment: .leading, spacing: Pixels(0)) {
                 ForEach(rows, id: \.id) { row in
-                    NodeRowView(row: row)
+                    NodeRowView(row: row, palette: palette)
                 }
             }
             .padding(Edges(top: NodeLayout.bodyPadding.px, right: Pixels(10),
@@ -53,7 +55,7 @@ struct NodeView: Component {
         .overlay(alignment: .topLeading) {
             // A Component is legacy content; inside a ZStack it is adopted, so the result stays
             // proposal content and takes the modifiers below.
-            ZStack(alignment: .topLeading) { SocketLayer(shape: shape, flow: flow, help: socketHelp) }
+            ZStack(alignment: .topLeading) { SocketLayer(shape: shape, flow: flow, palette: palette, help: socketHelp) }
         }
         .opacity(isGhost ? 0.4 : 1)
         // Only a new refusal runs the keyframes (the trigger is the count), so dragging and panning stay immediate and a

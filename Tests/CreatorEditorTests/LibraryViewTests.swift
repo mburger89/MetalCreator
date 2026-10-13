@@ -70,7 +70,8 @@ struct LibraryViewTests {
         }
         let accent = Palette(store).header(for: .profile)
         let header = fills(renderHeadless { LibrarySectionHeader(category: .profile, title: "Profile").environment(store) })
-        let node = fills(renderHeadless { NodeHeaderView(title: "Rectangle", accent: accent, state: nil).environment(store) })
+        let headerView = NodeHeaderView(title: "Rectangle", accent: accent, state: nil, palette: Palette(store))
+        let node = fills(renderHeadless { headerView.environment(store) })
         #expect(!header.isDisjoint(with: node))
     }
 

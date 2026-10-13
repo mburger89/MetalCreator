@@ -36,12 +36,12 @@ struct CanvasLayers: Component {
                          origin: model.displayOrigin(of: node), flow: flow,
                          isSelected: model.selection.contains(node.id),
                          state: model.result(of: node.id)?.state,
-                         shakes: model.shakeCount(of: node.id), socketHelp: model.socketHelp(of: node.id))
+                         shakes: model.shakeCount(of: node.id), palette: palette, socketHelp: model.socketHelp(of: node.id))
             }
             ForEach(Self.ghosts(model), id: \.id.rawValue) { node in
                 let shape = model.shape(of: node)
                 NodeView(shape: shape, rows: [], origin: flow.display(node.position), flow: flow,
-                         isSelected: true, state: nil, shakes: 0, isGhost: true)
+                         isSelected: true, state: nil, shakes: 0, palette: palette, isGhost: true)
             }
             ForEach(commentGhosts.frames, id: \.id.rawValue) { box in
                 CommentFrameView(box: box, rect: model.frame(of: box), isSelected: true, isGhost: true)
