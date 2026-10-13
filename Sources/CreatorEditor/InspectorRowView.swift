@@ -119,6 +119,11 @@ struct InspectorRowView: Component {
                 Spacer()
                 Text(text).font(.callout).foregroundStyle(palette.secondaryText.color)
             }
+        case .recipe(let label, let text):
+            VStack(alignment: .leading, spacing: Pixels(4)) {
+                Text(label).font(.callout).foregroundStyle(palette.primaryText.color)
+                Text(text).font(.callout).foregroundStyle(palette.secondaryText.color)
+            }
         }
     }
 

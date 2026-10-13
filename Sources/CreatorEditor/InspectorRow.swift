@@ -26,4 +26,6 @@ public enum InspectorRow: Equatable, Sendable {
     case treeShape(TreeShapeRow)
     /// A value shown without an editor, such as a missing node's type.
     case readOnly(label: String, text: String)
+    /// A read-only text that may be long, under its label so it wraps: a field's recipe (fields spec §2.1).
+    case recipe(label: String, text: String)
 }
