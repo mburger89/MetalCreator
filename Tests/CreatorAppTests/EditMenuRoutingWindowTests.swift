@@ -22,7 +22,7 @@ struct EditMenuRoutingWindowTests {
     func afterAnEdit() async throws -> AppWindow {
         let app = try await AppWindow.open(fixture.graph)
         app.window.doubleClick(at: app.centre(ofComment: fixture.note.id))
-        app.window.typeText("New ")
+        app.window.typeText(" New")
         app.window.typeKey(.return, modifierFlags: .primary)
         app.window.hover(at: app.point(inCanvasView: Vector2(900, 120)))
         return app
@@ -37,7 +37,7 @@ struct EditMenuRoutingWindowTests {
         #expect(try editMenu(app).prefix(2).map(\.title) == ["Undo", "Redo Edit Note"])
         #expect(try editMenu(app).first?.isEnabled == false, "nothing left to undo")
         try app.testApp.performMenuBarItem("Edit", "Redo Edit Note")
-        #expect(app.editor.graph.stickies[fixture.note.id]?.text == "New Line one")
+        #expect(app.editor.graph.stickies[fixture.note.id]?.text == "Line one New")
     }
 
     /// Over the canvas the graph's own ⌘Z answers, over the viewport the Edit menu's: the same step either way.
@@ -49,7 +49,7 @@ struct EditMenuRoutingWindowTests {
         #expect(app.editor.graph.stickies[fixture.note.id]?.text == "Line one")
         #expect(!app.editor.document.canUndo && app.editor.document.canRedo)
         app.window.typeKey("z", modifierFlags: [.primary, .shift])
-        #expect(app.editor.graph.stickies[fixture.note.id]?.text == "New Line one")
+        #expect(app.editor.graph.stickies[fixture.note.id]?.text == "Line one New")
         #expect(app.editor.document.canUndo && !app.editor.document.canRedo)
     }
 

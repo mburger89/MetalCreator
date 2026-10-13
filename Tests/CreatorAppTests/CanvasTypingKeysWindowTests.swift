@@ -27,7 +27,7 @@ struct CanvasTypingKeysWindowTests {
         app.window.typeKey(.delete)
         app.window.typeKey(.leftArrow)
         app.window.typeText("Q")
-        #expect(app.editor.commentEdit?.draft.hasPrefix("QX") == true, "Delete removed the Y and the arrow moved the caret")
+        #expect(app.editor.commentEdit?.draft.hasSuffix("QX") == true, "Delete removed the Y and the arrow moved the caret")
         #expect(app.editor.graph.nodes[fixture.rectangle.id]?.position == before)
         #expect(app.editor.graph.nodes[fixture.rectangle.id] != nil, "Delete deleted no node")
     }
@@ -35,7 +35,7 @@ struct CanvasTypingKeysWindowTests {
     @Test func spaceAndFAreTypedAndOpenNothing() async throws {
         let app = try await editing()
         app.window.typeText(" f")
-        #expect(app.editor.commentEdit?.draft.hasPrefix(" f") == true)
+        #expect(app.editor.commentEdit?.draft.hasSuffix(" f") == true)
         #expect(app.editor.palette == nil, "Space does not open the add-node palette")
     }
 

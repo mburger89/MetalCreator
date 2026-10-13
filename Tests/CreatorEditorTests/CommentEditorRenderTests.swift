@@ -63,7 +63,9 @@ struct CommentEditorRenderTests {
             for transform in transforms {
                 let editor = editor(dock: dock, transform)
                 let bar = CommentLayout.titleBar(of: try #require(editor.frame(ofComment: frame.id)))
-                let inside = bar.origin + Vector2(30, bar.size.y * 0.5)
+                // Near the bar's far end, beyond the title's text: the title opens all selected (gap CT-b), and the selection's
+                // highlight is the topmost rect over the text itself.
+                let inside = bar.origin + Vector2(bar.size.x - 10, bar.size.y * 0.5)
                 let before = try #require(painted(at: inside, in: panel(editor), editor))
                 #expect(!before.opaque, "set up: the bar is a tint")
                 editor.beginEditing(frame.id)
