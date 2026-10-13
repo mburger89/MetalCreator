@@ -59,12 +59,12 @@ struct InferenceGlyphTests {
 
     @Test func theChipSitsBelowRightOfThePointer() throws {
         let size = ViewportSize(width: 400, height: 300)
-        let chip = try #require(InferenceChip(kinds: [.horizontal], pointer: ScreenPoint(200, 150), in: size))
+        let chip = try #require(InferenceChip(kinds: [.horizontal], pointer: ScreenPoint(200, 150), in: size, measuring: .fake))
         #expect(chip.text == "Horizontal")
         #expect(chip.origin == ScreenPoint(200 + ReadoutChip.gap, 150 + ReadoutChip.gap))
-        let two = try #require(InferenceChip(kinds: [.pointOn, .tangent], pointer: ScreenPoint(200, 150), in: size))
+        let two = try #require(InferenceChip(kinds: [.pointOn, .tangent], pointer: ScreenPoint(200, 150), in: size, measuring: .fake))
         #expect(two.text == "Point on · Tangent" && two.size.width > chip.size.width)
-        #expect(InferenceChip(kinds: [], pointer: ScreenPoint(200, 150), in: size) == nil)
+        #expect(InferenceChip(kinds: [], pointer: ScreenPoint(200, 150), in: size, measuring: .fake) == nil)
     }
 
     /// Sketcher spec §8, gap S5-a: ⌘ held over a pointer that doesn't move suppresses the glyph and the snap the rubber
@@ -88,13 +88,14 @@ struct InferenceGlyphTests {
 
     @Test func theChipMovesLeftAndUpAtTheModelAreasEdges() throws {
         let size = ViewportSize(width: 400, height: 300)
-        let chip = try #require(InferenceChip(kinds: [.vertical], pointer: ScreenPoint(390, 290), in: size))
+        let chip = try #require(InferenceChip(kinds: [.vertical], pointer: ScreenPoint(390, 290), in: size, measuring: .fake))
         #expect(abs(chip.origin.x + chip.size.width - (390 - ReadoutChip.gap)) < 1e-9, "left of the pointer")
         #expect(abs(chip.origin.y + chip.size.height - (290 - ReadoutChip.gap)) < 1e-9, "above it")
         let inset = try #require(InferenceChip(kinds: [.vertical], pointer: ScreenPoint(250, 150), in: size,
-                                               modelArea: ViewportInsets(trailing: 100)))
+                                               modelArea: ViewportInsets(trailing: 100), measuring: .fake))
         #expect(inset.origin.x + inset.size.width <= 300, "clear of a panel on the trailing side")
-        #expect(InferenceChip(kinds: [.vertical], pointer: ScreenPoint(20, 10), in: ViewportSize(width: 60, height: 30)) == nil)
+        #expect(InferenceChip(kinds: [.vertical], pointer: ScreenPoint(20, 10), in: ViewportSize(width: 60, height: 30),
+                measuring: .fake) == nil)
     }
 
     @Test func theModelPlacesTheChipAtThePointer() throws {
@@ -104,12 +105,13 @@ struct InferenceGlyphTests {
                                                            projection: .orthographic), size: size)
         model.click(at: .zero, tolerance: 1, modifiers: [])
         model.pointerMoved(to: ScreenPoint(300, 151), modifiers: [], projector: projector)
-        let chip = try #require(model.inferenceChip, "a pointer just below the start's height infers horizontal")
-        #expect(chip == InferenceChip(kinds: [.horizontal], pointer: ScreenPoint(300, 151), in: size))
+        let chip = try #require(model.inferenceChip(measuring: .fake), "a pointer just below the start's height infers horizontal")
+        #expect(chip == InferenceChip(kinds: [.horizontal], pointer: ScreenPoint(300, 151), in: size, measuring: .fake))
         #expect(chip == InferenceChip(kinds: [.horizontal], pointer: ScreenPoint(300, 151), in: size,
-                                      avoiding: model.readoutChip), "the readout above the pointer is already clear")
+                                      avoiding: model.readoutChip(measuring: .fake),
+                                              measuring: .fake), "the readout above the pointer is already clear")
         model.pointerMoved(to: nil, modifiers: [], projector: projector)
-        #expect(model.inferenceChip == nil)
+        #expect(model.inferenceChip(measuring: .fake) == nil)
     }
 
     func overlap(_ a: (origin: ScreenPoint, size: ViewportSize), _ b: (origin: ScreenPoint, size: ViewportSize)) -> Bool {
@@ -122,8 +124,8 @@ struct InferenceGlyphTests {
     @Test(arguments: [ScreenPoint(200, 290), ScreenPoint(200, 10), ScreenPoint(390, 290), ScreenPoint(390, 10)])
     func theChipKeepsClearOfTheReadout(_ pointer: ScreenPoint) throws {
         let size = ViewportSize(width: 400, height: 300)
-        let readout = try #require(ReadoutChip(text: "20.0 mm · 0.0°", pointer: pointer, in: size))
-        let chip = try #require(InferenceChip(kinds: [.horizontal], pointer: pointer, in: size, avoiding: readout))
+        let readout = try #require(ReadoutChip(text: "20.0 mm · 0.0°", pointer: pointer, in: size, measuring: .fake))
+        let chip = try #require(InferenceChip(kinds: [.horizontal], pointer: pointer, in: size, avoiding: readout, measuring: .fake))
         #expect(!overlap((chip.origin, chip.size), (readout.origin, readout.size)))
         #expect(chip.origin.y >= ReadoutChip.margin && chip.origin.y + chip.size.height <= 300 - ReadoutChip.margin)
     }
@@ -137,8 +139,8 @@ struct InferenceGlyphTests {
         model.click(at: .zero, tolerance: 1, modifiers: [])
         for pointer in [ScreenPoint(200.4, 292), ScreenPoint(200.4, 8)] {
             model.pointerMoved(to: pointer, modifiers: [], projector: projector)
-            let readout = try #require(model.readoutChip, "a line's length and angle")
-            let chip = try #require(model.inferenceChip, "straight above or below the start infers vertical")
+            let readout = try #require(model.readoutChip(measuring: .fake), "a line's length and angle")
+            let chip = try #require(model.inferenceChip(measuring: .fake), "straight above or below the start infers vertical")
             #expect(chip.text == "Vertical")
             #expect(!overlap((chip.origin, chip.size), (readout.origin, readout.size)))
         }
@@ -146,7 +148,8 @@ struct InferenceGlyphTests {
 
     @Test func theChipViewHoldsItsText() throws {
         let text: [SketchConstraintKind] = [.coincident, .pointOn, .tangent]
-        let chip = try #require(InferenceChip(kinds: text, pointer: ScreenPoint(300, 300), in: ViewportSize(width: 1200, height: 700)))
+        let chip = try #require(InferenceChip(kinds: text, pointer: ScreenPoint(300, 300), in: ViewportSize(width: 1200, height: 700),
+                measuring: .real()))
         let scene = renderHeadless {
             ZStack(alignment: .topLeading) { InferenceChipView(chip: chip) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

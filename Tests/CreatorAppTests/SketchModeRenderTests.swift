@@ -13,6 +13,13 @@ import Testing
 /// lists, in every dock. Looks, keys and the chrome's opacity to the pointer are human checks (group S5).
 @MainActor
 struct SketchModeRenderTests {
+    /// The window's own measure (MetalUI's text system over CoreText): the chips the tests read are the chips it draws.
+    let measure: TextMeasure
+
+    init() throws {
+        measure = try .real()
+    }
+
     @Test(arguments: [DockSide.left, .bottom, .hidden])
     func theWindowDrawsInSketchMode(_ dock: DockSide) async throws {
         var builder = GraphBuilder()
@@ -75,7 +82,7 @@ struct SketchModeRenderTests {
         editor.choose(.point)
         let pointer = ScreenPoint(700, 500)
         app.viewport.pointerHovered(at: pointer)
-        let chip = try #require(editor.readoutChip)
+        let chip = try #require(editor.readoutChip(measuring: measure))
         #expect(chip.origin.y + chip.size.height < pointer.y, "above the pointer")
         #expect(glyphs(in: chip, of: app) > 0)
         app.finishSketch()
@@ -98,13 +105,13 @@ struct SketchModeRenderTests {
         let corner = try #require(app.viewport.projector.screenPoint(of: Vector3(60, 40, 0)))
         let step = ScreenPoint(corner.x + 30, corner.y + 30)
         app.viewport.dragChanged(from: corner, to: step, modifiers: [], button: .primary)
-        let chip = try #require(editor.readoutChip)
+        let chip = try #require(editor.readoutChip(measuring: measure))
         #expect(chip.text == "60.0, 40.0", "the fully constrained corner stays where the solve keeps it")
         #expect(chip == ReadoutChip(text: chip.text, pointer: step, in: ViewportSize(width: 1400, height: 900),
-                                    modelArea: app.viewport.projector.modelArea), "by the pointer, not the press")
+                                    modelArea: app.viewport.projector.modelArea, measuring: measure), "by the pointer, not the press")
         #expect(glyphs(in: chip, of: app) > 0)
         app.viewport.dragEnded(from: corner, at: step, modifiers: [], button: .primary)
-        #expect(editor.readoutChip == nil)
+        #expect(editor.readoutChip(measuring: measure) == nil)
         #expect(glyphs(in: chip, of: app) == 0, "gone with the release")
     }
 
@@ -121,7 +128,7 @@ struct SketchModeRenderTests {
         let editor = try #require(app.sketch?.editor)
         editor.choose(.point)
         app.viewport.pointerHovered(at: ScreenPoint(700, 500))
-        let chip = try #require(editor.readoutChip)
+        let chip = try #require(editor.readoutChip(measuring: measure))
         let input = AppInput(model: app)
         let scene = renderFrame({ ZStack { AppRoot(model: app, input: input) } }, size: Size(width: Pixels(1400), height: Pixels(900)),
                                 scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))

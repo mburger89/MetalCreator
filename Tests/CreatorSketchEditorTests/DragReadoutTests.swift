@@ -277,17 +277,17 @@ struct DragReadoutTests {
                                                            projection: .orthographic), size: size)
         let press = try #require(projector.screenPoint(of: Vector3(60, 40, 0)))
         #expect(model.dragBegan(at: press, modifiers: [], projector: projector))
-        #expect(model.readoutChip == ReadoutChip(text: "60.0, 40.0", pointer: press, in: size))
+        #expect(model.readoutChip(measuring: .fake) == ReadoutChip(text: "60.0, 40.0", pointer: press, in: size, measuring: .fake))
         let step = try #require(projector.screenPoint(of: Vector3(70, 50, 0)))
         model.dragMoved(to: step, modifiers: [], projector: projector)
-        #expect(model.readoutChip == ReadoutChip(text: "70.0, 50.0", pointer: step, in: size))
+        #expect(model.readoutChip(measuring: .fake) == ReadoutChip(text: "70.0, 50.0", pointer: step, in: size, measuring: .fake))
         let next = try #require(projector.screenPoint(of: Vector3(65, 30, 0)))
         model.dragMoved(to: next, modifiers: [], projector: projector)
-        let chip = try #require(model.readoutChip)
+        let chip = try #require(model.readoutChip(measuring: .fake))
         #expect(chip.text == "65.0, 30.0")
-        #expect(chip == ReadoutChip(text: chip.text, pointer: next, in: size), "it follows the pointer")
+        #expect(chip == ReadoutChip(text: chip.text, pointer: next, in: size, measuring: .fake), "it follows the pointer")
         model.dragEnded(at: next, modifiers: [], projector: projector)
-        #expect(model.readoutChip == nil)
+        #expect(model.readoutChip(measuring: .fake) == nil)
     }
 }
 

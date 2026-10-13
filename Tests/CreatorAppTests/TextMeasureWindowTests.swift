@@ -1,6 +1,7 @@
 import MetalUI
 import MetalUITesting
 import Testing
+@testable import CreatorSketchEditor
 @testable import CreatorViewport
 
 /// MetalUI C23's `@Environment(\.textMeasurer)` through a real window (MetalUI's `docs/testing.md`, "Measuring text"): a
@@ -54,5 +55,16 @@ struct TextMeasureWindowTests {
         let narrow = PlacedLabel.box(of: "iiiiiiiiii", measuring: measure)
         #expect(narrow.width < oldLabelEstimate("iiiiiiiiii"), "ten narrow letters need less than 7 points each")
         #expect(wide.width > narrow.width)
+    }
+
+    @Test func theChipsAreSizedByTheSameMeasure() throws {
+        let (_, measure) = try open()
+        let wide = ReadoutChip.size(of: "WWWWWWWWWW", measuring: measure)
+        #expect(wide.width > oldChipEstimate("WWWWWWWWWW"))
+        #expect(wide.height == ReadoutChip.height)
+        #expect(measure("WWWWWWWWWW").height <= ReadoutChip.height, "a line fits the chip's fixed box")
+        let chip = try #require(ReadoutChip(text: "WWWWWWWWWW", pointer: ScreenPoint(600, 350),
+                                            in: ViewportSize(width: 1200, height: 700), measuring: measure))
+        #expect(chip.size == wide)
     }
 }
