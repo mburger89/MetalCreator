@@ -22,21 +22,11 @@ public enum GlassThickness: String, CaseIterable, Sendable {
         }
     }
 
-    /// How opaque the material's own tint is in a light or dark scheme: MetalUI's `LK-L` table (`Material.fill(for:)`,
-    /// which is internal). `GlassMaterialTableTests` renders each material and compares, so a MetalUI change fails
-    /// a test here instead of shifting every panel's look unseen.
+    /// How opaque the material's own tint is in a light or dark scheme: the opacity of MetalUI's `Material.tint(in:)`
+    /// (MetalUI C27, record 101, ruling `MT-B`), which is the tint the material composites over its blur. Read from
+    /// MetalUI each time, so a retune of its fitted table moves every panel's tint with it and nothing here copies it.
     public func materialOpacity(isDark: Bool) -> Double {
-        switch (self, isDark) {
-        case (.ultraThin, false): 0.4706
-        case (.thin, false): 0.5961
-        case (.regular, false): 0.7137
-        case (.thick, false): 0.8275
-        case (.ultraThick, false): 0.9373
-        case (.ultraThin, true): 0.5059
-        case (.thin, true): 0.5961
-        case (.regular, true): 0.6902
-        case (.thick, true): 0.7804
-        case (.ultraThick, true): 0.8627
-        }
+        let tint = material.tint(in: isDark ? .dark : .light)
+        return Double(tint.resolve(in: EnvironmentValues()).opacity)
     }
 }
