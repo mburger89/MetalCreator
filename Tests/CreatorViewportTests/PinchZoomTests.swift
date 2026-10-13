@@ -44,15 +44,18 @@ struct PinchZoomTests {
         #expect(isClose(model.pose.distance, 25))
     }
 
-    /// MetalUI drops a pinch whose end was lost without a word (window resigned mid-gesture, its `CI-AB`); the next
-    /// pinch must zoom from where the camera is, not from where the lost one began.
-    @Test func aPinchThatLostItsEndDoesntPullTheNextOneBack() {
+    /// MetalUI drops a pinch whose end was lost (window resigned mid-gesture, a new pinch replaced it: its `CI-AB`) and
+    /// tells the gesture's owner (`onCancelled`, C16, gap VI-a: `pinchEnded()`); the next pinch zooms from where the
+    /// camera is, not from where the lost one began, at any centre.
+    @Test(arguments: [ScreenPoint(200, 150), ScreenPoint(300, 100)])
+    func aCancelledPinchDoesntPullTheNextOneBack(next: ScreenPoint) {
         let (model, settled) = makeModel()
         model.pinchChanged(magnification: 2, centre: centre)
         let lost = model.pose
-        model.pinchChanged(magnification: 1.25, centre: ScreenPoint(300, 100))
-        #expect(isClose(model.pose.distance, 40), "1.25× from the lost pinch's 50 mm")
-        #expect(settled() == [lost], "the lost pinch settled where it was")
+        model.pinchEnded()
+        #expect(settled() == [lost], "the cancelled pinch settled where it was")
+        model.pinchChanged(magnification: 1.25, centre: next)
+        #expect(isClose(model.pose.distance, 40), "1.25× from the cancelled pinch's 50 mm")
     }
 
     @Test func aHardPinchInHoldsInsteadOfSpringingBack() {

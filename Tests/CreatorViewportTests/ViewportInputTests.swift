@@ -119,9 +119,40 @@ struct ViewportInputTests {
         #expect(handleReports > 0)
     }
 
-    /// A click while a drag is still under way means that drag lost its release (docs/metalui-gaps.md VI-a): it
-    /// ends where it was, and the hover picks again.
-    @Test func aClickAfterALostDragEndsItAndHoversAgain() {
+    /// A handle's drag that MetalUI dropped without an end (`onCancelled`, C16, gap VI-a) ends as a release would: the
+    /// handle keeps its last value and reports `.ended`, so the host closes the edit.
+    @Test func aCancelledHandleDragEndsTheEditWhereItWas() {
+        let pose = CameraPose(target: .zero, distance: 20 / tan(CameraPose.fieldOfView / 2), yaw: 0, pitch: 0,
+                              projection: .orthographic)
+        let model = makeModel(pose: pose)
+        model.showHandles([ViewportHandle(id: "extrude", anchor: .zero, direction: .unitZ, value: 10, range: 0...100,
+                                          style: .linear, tint: .solid),
+        ])
+        var phases: [HandleDragPhase] = []
+        model.events.handleChanged = { _, _, phase in phases.append(phase) }
+        model.dragChanged(from: ScreenPoint(200, 75), to: ScreenPoint(200, 45), modifiers: [], button: .primary)
+        model.dragCancelled(button: .primary)
+        #expect(phases == [.changed, .ended])
+        #expect(isClose(model.handles[0].value, 14) && !model.isPointerDown)
+    }
+
+    /// A cancelled primary drag hovers again where the pointer is, as a release does.
+    @Test func aCancelledPrimaryDragHoversAgain() {
+        let model = makeModel(pose: CameraPose(target: .zero, distance: 100, yaw: 0.2, pitch: 0.3))
+        model.pick = { _ in .face(solid: 0, FaceID(1)) }
+        var settled: [CameraPose] = []
+        model.events.cameraSettled = { settled.append($0) }
+        model.dragChanged(from: ScreenPoint(200, 150), to: ScreenPoint(230, 150), modifiers: [], button: .primary)
+        let orbited = model.pose
+        #expect(model.hovered == nil, "nothing is picked during a drag")
+        model.dragCancelled(button: .primary)
+        #expect(!model.isPointerDown && settled == [orbited])
+        #expect(model.hovered == .face(solid: 0, FaceID(1)), "the pick is redone where the drag ended")
+    }
+
+    /// A click while another button's drag is still under way ends that drag where it was, and the hover picks again:
+    /// a click is a primary press and release, and the primary button wins over another's (`beginDragIfNeeded`).
+    @Test func aClickWhileADragIsUnderWayEndsItAndHoversAgain() {
         let model = makeModel(pose: CameraPose(target: .zero, distance: 100, yaw: 0.2, pitch: 0.3))
         model.pick = { _ in .face(solid: 0, FaceID(1)) }
         var settled: [CameraPose] = []

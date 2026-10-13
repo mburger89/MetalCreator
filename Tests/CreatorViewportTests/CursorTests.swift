@@ -45,9 +45,18 @@ struct CursorTests {
         #expect(model.cursor == .crosshair)
     }
 
-    /// A drag whose release was lost leaves no closed hand behind once the primary button is used again
-    /// (docs/metalui-gaps.md VI-a).
-    @Test func aClickAfterALostDragBringsBackTheArrow() {
+    /// A drag MetalUI dropped without an end leaves no closed hand behind (`onCancelled`, C16, gap VI-a).
+    @Test func aCancelledDragBringsBackTheArrow() {
+        let model = makeModel()
+        model.dragChanged(from: ScreenPoint(200, 150), to: ScreenPoint(220, 150), modifiers: [], button: .middle)
+        #expect(model.cursor == .grabbing)
+        model.dragCancelled(button: .middle)
+        #expect(model.activeDragMode == nil)
+        #expect(model.cursor == nil)
+    }
+
+    /// The primary button pressed while a middle drag is under way ends it, closed hand and all.
+    @Test func aClickWhileAMiddleDragIsUnderWayBringsBackTheArrow() {
         let model = makeModel()
         model.dragChanged(from: ScreenPoint(200, 150), to: ScreenPoint(220, 150), modifiers: [], button: .middle)
         #expect(model.cursor == .grabbing)
