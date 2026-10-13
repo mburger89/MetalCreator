@@ -254,3 +254,36 @@ as PNG and JPEG.
   plate's per point; `field-2b` records it without a budget.
 - **The distance cache (§2.2) counts the solids it keeps alive** (`Solid.estimatedBytes`) with its points and distances, so its
   64 MB bounds what it pins.
+
+## Errata (7b-2: images and file format 7)
+
+- **The `images` table is a JSON object (§5).** `"images": {"<sha256 hex>": "<base64>"}`, keys sorted by the encoder, written only when
+  a node uses an embedded picture. Reading is forgiving: an entry whose key is not 64 lowercase hex digits, whose text is not base64,
+  whose bytes pass 16 MB or do not hash to the key is dropped, and so is an entry whose value is not a string; each is judged alone, so
+  one bad picture costs only itself. A node that points at a dropped one fails with "This embedded image's data is missing from the
+  file, or damaged. Choose the image again in the inspector." The rest of the document opens; the next save writes the table without
+  the dropped entry, for good.
+- **A linked image's relative path is optional (§5).** `.linked(relativePath: String?, absolutePath: String)`. A save writes both paths
+  for a file it can find, the relative one made from the folder being saved to (so Save As elsewhere makes it again), and leaves a
+  missing file's paths as they were. The relative path is tried first, then the absolute one.
+- **Limits apply to every picture (D10).** A linked file over 16 MB or 8,192 px a side, or not a PNG or JPEG, fails the node like an
+  embedded one; D10 said "embedded". A linked path that is not a regular file (folder, device, pipe) is refused before it is opened.
+- **A picture that cannot be decoded is remembered under its stamp (§5).** A cut-short or damaged file that is unchanged fails at once at
+  every evaluation instead of being read and decoded again each time (at most 256 are remembered); a changed stamp tries it again. A
+  read error is not remembered: fixing a permission changes no stamp.
+- **A file is opened without blocking and checked again (§5).** The path is checked to be a regular file before it is opened, and the
+  open descriptor is checked once more, so a path swapped for a named pipe in between cannot hold the evaluation.
+- **Save As brings the open document along (§5).** After a save the document's linked paths are the ones just written (no undo step, no
+  edit), so a same-named picture in the new folder cannot take the linked one's place unseen.
+- **`image` is no reserved socket name.** `NodeSetting.image` is left out of `NodeSetting.reservedForSockets` (the names a group socket or an exposed Sketch dimension may not take; it is in `NodeSetting.all`): only Image Field has it, and a group
+  socket or an exposed Sketch dimension called "image" in an older file keeps working.
+- **Truncated PNGs are caught by structure (§5).** ImageIO decodes a PNG cut short as an all-black picture without an error, so a PNG is
+  only accepted when its chunks lead to IEND (`PNGStructure`); a cut-short JPEG is caught by ImageIO's own status.
+- **The decode cache is keyed by what the reference points at, not by content hash (§5).** An embedded picture's key is its hash; a
+  linked file's is path, modification date and size, so the file is not read again while it is unchanged (D11).
+- **Colour and transparency (§5, §10).** A colour picture is accepted and converted (Rec. 709 luminance of the colour composited against
+  black); only the node's recipe says it was not grey. A JPEG or PNG's EXIF orientation is applied (U11 (b)).
+- **`Field.ownPlane` (§6).** The plane of the first linear gradient or image in a field, searched depth first from the left, for the slice
+  plane to start on; fields with neither (distance, radial, noise, constants) have none.
+- **Format 7 lifts the group interface's `field` refusal (7b-1 Errata).** `GroupRefusal.fieldSocket` is gone; a field wire may cross a
+  group's edge and an interface socket may be a field.

@@ -56,8 +56,11 @@ checks (group VA) are pending. The layouts, previews and acceptance test are par
 Fields, sub-project 7b-1 (the fields core: the `Field` value and `.field` sockets, `FieldSampler` and `FieldDistanceCache`,
 `Kernel.distances`, the four sources, the six maths nodes, Sample Field and Cull by Field, the `Fields` library category and
 `FieldBench` rows 1 to 3; plan `docs/superpowers/plans/2026-10-12-7b-core.md`, spec `docs/superpowers/specs/2026-10-12-fields-design.md`
-§2 to §4, §7 and §9) code is done; its human checks (group FI-core) are pending and its benchmark numbers await an idle run. Images
-(7b-2, format 7) and Field Scatter with the previews (7b-3) are planned after it merges.
+§2 to §4, §7 and §9) code is done; its human checks (group FI-core) are pending and its benchmark numbers await an idle run.
+Fields, sub-project 7b-2 (images: the Image Field, `ImageReference` and `NodeSetting.image`, the document's `images` table,
+`GreyImageDecoder`, choosing, linking, relinking and embedding a picture, file format 7, and a `field` socket on a group's edge; plan
+`docs/superpowers/plans/2026-10-13-7b-2-images.md`, spec `docs/superpowers/specs/2026-10-12-fields-design.md` §5 and the 7b-1 Errata)
+code is done; its human checks (group FI-img) are pending. Field Scatter with the previews (7b-3) is built beside it.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -146,11 +149,11 @@ Module boundaries (dependency order):
     the survivors in order, as a rank, and a `tree` socket gets the tree whole with its indices, which is how `InstanceGrid` reads
     them. Reshaping nodes (Flatten, Graft, Partition, Path Mapper) renumber, as reshaping does, and List Item, Branch by Path and
     Tree Statistics count a culled list's survivors by rank; Cull Index alone names the places items had.
-- `CreatorNodes`: the 64 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
-the twelve `Fields` nodes below, the seventeen
+- `CreatorNodes`: the 65 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
+the thirteen `Fields` nodes below, the seventeen
   `Patterns` nodes below, and the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
   Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
-  parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, cullPattern, cullIndices, and `projection(reference)` per projected edge) live in
+  parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, cullPattern, cullIndices, image, and `projection(reference)` per projected edge) live in
   `Node.inputValues`; `NodeRegistry.makeNode` seeds `defaultSettings` and sets `isOutput` for `.output`-category nodes.
   - Patterns (`Sources/CreatorNodes/Patterns`, category `NodeCategory.patterns`, library section "Patterns"; patterns spec §3, §5–§7):
     The layouts (`Patterns/Layouts`): Linear Pattern (a flat list), Grid Pattern (a tree, a branch per row), Circular
@@ -212,8 +215,8 @@ the twelve `Fields` nodes below, the seventeen
     §3): `FieldSampler.sample(_:at:kernel:cache:)` is the one way to read a field: it walks the expression once per batch over
     structure-of-arrays `[Double]`s, checks cancellation every 1,024 points, asks the kernel once per distance leaf (through the
     evaluator's `FieldDistanceCache` when given), and never lets a value depend on the rest of the batch; its one `switch` over
-    `Field` has no `default`, so a new case (Image Field, 7b-2) is a compile error there, in `Field.children` and in
-    `Field.description`. `FieldNoise` is 3D simplex noise hashed with `SeededRandom` (purpose `.fieldNoise`, the octave as the stream;
+    `Field` has no `default`, so a new case (the Image Field's `.image`, 7b-2, was the first) is a compile error there, in `Field.children`, `Field.description` and
+    `Field.ownPlane`. `FieldNoise` is 3D simplex noise hashed with `SeededRandom` (purpose `.fieldNoise`, the octave as the stream;
     `.fieldCull` is Cull by Field's; both pinned in `FieldNoiseTests` like the others). The sources are Distance Field (`target` is
     an `any` socket: a vector, edge set, profile, face set or solid; `mode` Unsigned / Signed matters to a solid only), Linear
     Gradient, Radial Gradient and Noise Field; the maths nodes (`Maths/`) are Add, Multiply, Min / Max, Remap, Clamp and Smooth
@@ -224,12 +227,32 @@ the twelve `Fields` nodes below, the seventeen
     index, stream = branch ordinal, below the field held to 0…1, as Random Reduce draws), keeping paths; both refuse a list in any
     input in the layouts' words (`singleValuesRefusal` = `LayoutChecks.singleValues`). The graded-sizes chain is a field → Remap →
     Sample Field → a shortcut's size socket (Remap takes and returns a field, so the spec's reverse order cannot be wired; fields
-    spec Errata (7b-1)). Fields are computed, never saved, and a group interface refuses a `field` socket
-    (`GroupRefusal.fieldSocket`, in `GraphContent.checkInterface`): `"field"` in a format-6 file would not decode in an older
-    build, so 7b-2's format 7 lifts it. The distance cache counts the solids its entries keep alive. `FieldBench`
+    spec Errata (7b-1)). Fields are computed, never saved; a group interface may carry a `field` socket (format 7: under 6 `"field"`
+    would not decode in an older build, so 7b-1 refused it with `GroupRefusal.fieldSocket`, now gone). The distance cache counts the
+    solids its entries keep alive. `FieldBench`
     (`Tests/CreatorAppTests/Bench`): rows 1 and 2 are the spec's (row 2's 100 ms is for analytic solids and gates the merge;
     `field-2b` records a smooth loft); row 3 measures Sample Field and Cull by Field over 2,000 placements until Field Scatter
     (7b-3) can be measured at the same size.
+  - Images (fields spec §5; plan `2026-10-13-7b-2-images`): the Image Field (`Fields/Sources/ImageFieldNode`) projects a picture along a
+    plane (centred, `width` × `height` mm, row 0 at the plane's +y, Tile or Clamp, bilinear grey in 0…1) as `Field.image(GreyImage,
+    plane:width:height:edges:)`. The picture is the node's `NodeSetting.image`, a `ConstantValue.image(ImageReference)`: `.embedded(ImageHash)`
+    (the SHA-256 of the file's bytes) or `.linked(relativePath:absolutePath:)`. **Images are untrusted input**: `ImageLimits` (16 MB, 8,192 px
+    a side, PNG and JPEG only) are checked from the header before a pixel is decoded (`GreyImageDecoder.inspect`, the only ImageIO user, with
+    `PNGStructure.isWhole` because ImageIO reads a cut-short PNG as black), `decode` works in 32 MB bands off the caller's actor and checks
+    for cancellation (a PNG is decoded once up front, because ImageIO would decode it whole again for every band), a linked path must be
+    a regular file, opened without blocking and checked again on the descriptor, and is read at most 16 MB + 1 byte (`ImageResolver`),
+    and every failure is an `ImageProblem` with its sentence. Colour becomes Rec. 709 luminance of the colour composited against black; EXIF orientation is
+    applied. `DocumentModel.images` is the session's pool of embedded bytes by hash (`addImage`; unused ones are dropped on save, not
+    before, so undo works); `ImageResolver` (the pool and the document's folder) goes to every evaluation, and `gather` adds
+    `ImageStamp` (a linked file's path, modification date and size, or an embedded hash) to a node's cache key, so a file edited on disk
+    runs the node again at the next evaluation and nothing else does. `GreyImageCache` keeps decoded pictures by that stamp (256 MB, LRU) and, under the same stamp, the pictures that
+    failed to decode (at most 256), so a damaged file fails at once until it changes; a read error is not remembered.
+    `fileData(savingTo:)` writes the linked paths as they will be found from the new folder, and `DocumentModel.didSave(to:)` brings the
+    open document's paths into line with them (no undo step, no edit). `Field.ownPlane` is the plane of the first linear gradient or
+    image in a field (the slice plane of 7b-3 starts there). `NodeSetting.image` is the one setting not in `NodeSetting.reservedForSockets` (the names a group socket or an exposed Sketch
+    dimension may not take), so one called "image" in an older file keeps working. The inspector's `.image` control makes a
+    status line and the buttons that fit (Choose Image…, Link Image…, Relink…, Embed Image: `InspectorAction`s carried out by
+    `AppModel.performImage`, which owns the panels); the clipboard carries the embedded pictures its nodes use.
 - `CreatorStyle`: colour themes (spec §6.6, Dracula by default), the only place colour hex values are written.
   `ThemeColors` is a colour per role (never a hue); `ColorTheme` (not `Theme`: MetalUI exports one) has the built-ins
   `.dracula`, `.alucard` and `.nord` (read-only); `ThemeRole` names each role (`ThemeColors[role]`; the names are the
@@ -417,8 +440,8 @@ Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.
 never worked around here. Graph links are kept canonically sorted by destination; result caching is keyed by node identity.
 Edge/face IDs are OCCT map order. A circle edge's `direction` is its axis, so direction rules must also check `kind == .line`.
 All OCCT work runs under `OCCTKernel.serialized` (process-wide lock) because OCCT shapes share geometry across solids and meshing mutates it; never call the shim outside it (tests included).
-Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a run is edges that continue each other end to end, ends within 1e-4 mm leaving that point in opposite directions to within 0.01 rad, so two edges meeting at a corner are two runs; a pick without one counts each recorded edge as a run) and warns only when both changed; a key that still matches nothing is split by operand (`EdgeKey.operandKeys`, for an edge between a merged face and a third operand's face) and warns when two operands both fit; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 6 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
-4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode; canvas comments' `stickies` and `frames` keys, written only when present and optional on decode, are also under 5; 6 added the tree nodes' text settings `pathRule`, `branchPath` and `itemPath`; trees themselves are computed, never saved; files of format 1 to 5 open unchanged).
+Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a run is edges that continue each other end to end, ends within 1e-4 mm leaving that point in opposite directions to within 0.01 rad, so two edges meeting at a corner are two runs; a pick without one counts each recorded edge as a run) and warns only when both changed; a key that still matches nothing is split by operand (`EdgeKey.operandKeys`, for an edge between a merged face and a third operand's face) and warns when two operands both fit; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 7 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
+4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode; canvas comments' `stickies` and `frames` keys, written only when present and optional on decode, are also under 5; 6 added the tree nodes' text settings `pathRule`, `branchPath` and `itemPath`; trees themselves are computed, never saved; 7 added the Image Field's `image` setting, the optional top-level `images` table (base64 bytes keyed by SHA-256, sorted, written only when used; a damaged entry is dropped on reading) and the `field` socket type in group interfaces; files of format 1 to 6 open unchanged and are written as 7).
 A `Segment2D.arc` with `end < start` runs clockwise (a sketch region's notch); the shim builds it reversed and
 `length` is positive. Edges carry `EdgeInfo.curve` (`EdgeCurve`, lines and circles) for sketch projection; a
 `FacePick` names faces by tag subset like `EdgePick`; one that matches nothing is retried per operand and ranked by the normal and centroid it recorded (optional keys, no format bump; `Topology.resolution(of:)`), and warns when it can only guess. The Sketch node solves on every evaluation from the stored
