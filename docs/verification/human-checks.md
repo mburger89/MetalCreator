@@ -1766,3 +1766,31 @@ Run `swift run MetalCreatorApp` on a saved bracket with a note, a frame and a Re
   the node library's search field and press the glass or the viewport: the query text stays and the list stays filtered (the
   field sends every keystroke to the model and has no focus-loss action). (c) Open the add-node palette, type, and press its
   glass: the query stays and the palette stays open. **Observed:**
+
+## Group C14 — MetalUI C14 slice 1: unchanged canvas views skip their content (Adopt C14)
+
+**Status: NOT RUN.** Plan `2026-10-13-adopt-c14.md`. A node, wire, note or frame view that is `.equatable()` is not
+re-evaluated while its value is unchanged. The tests count evaluations and compare each frame with a full re-evaluation
+(`CanvasContentSkipWindowTests`); these checks are what a person sees. A skipped view that should have changed shows as a
+stale colour, glow, outline or handle. Run `swift run MetalCreatorApp` on a saved bracket with a note and a frame, and for C14-2
+a graph of 50 nodes.
+
+- [ ] **C14-1 A theme switch.** With nodes, wires, a note and a frame on screen, switch Dracula to Alucard to Nord: every node,
+  wire, note and frame takes the new colours at once, none keeps an old colour. Pinned:
+  `aThemeChangeEvaluatesEveryViewAndDrawsTheNewColours`. **Observed:**
+- [ ] **C14-2 Dragging one node.** In a 50-node graph drag one node: it and its wires follow the pointer; no other node shows a
+  stale glow or outline. Pinned: `draggingOneNodeEvaluatesOnlyThatNodeAndItsWires`. **Observed:**
+- [ ] **C14-3 Selection.** Select a node, then another, then click empty canvas: each selection outline appears on the chosen
+  node only and is gone from the one that lost it; clearing leaves none. Pinned:
+  `aSelectionChangeEvaluatesOnlyTheNodesWhoseSelectionChanged`. **Observed:**
+- [ ] **C14-4 The badge.** Wire a profile (a Rectangle) into an Extrude: the Extrude's status badge changes with its
+  evaluation state, and so do its rows and the new wire. Pinned: `aNodesBadgeFollowsItsEvaluationState`. **Observed:**
+- [ ] **C14-5 The refusal shake.** Drag a wire to a socket that refuses it: the target node shakes out across and home, and
+  shakes again on the next refusal. Pinned: `RefusalShakeWindowTests` (`aRefusedConnectionShakesTheTargetNodeOutAcrossAndHome`,
+  `eachNewRefusalShakesAgain`). **Observed:**
+- [ ] **C14-6 A wire dragged from a socket.** Press on a socket and drag: the wire follows the pointer in the focus colour and
+  the nodes under it stay put; release on empty canvas and it goes. Pinned: `aHandleAndAWireAreEqualOnlyWhenEveryInputIs`
+  (the wire follows its geometry and colour). **Observed:**
+- [ ] **C14-7 Note and frame handles.** Select a note, then a frame: each shows its resize handles and ring only while
+  selected, and a handle drag resizes it. Pinned: `selectingACommentEvaluatesOnlyThatComment`,
+  `aHandleAndAWireAreEqualOnlyWhenEveryInputIs`. **Observed:**
