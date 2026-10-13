@@ -27,7 +27,7 @@ struct Sampling {
     let kernel: any Kernel
     let cache: FieldDistanceCache?
 
-    // The values of `field` at `points`. One branch per case, with no `default`, so a case added later (Image Field in 7b-2)
+    // The values of `field` at `points`. One branch per case, with no `default`, so a case added later
     // is a compile error here; that is over the complexity limit.
     // swiftlint:disable:next cyclomatic_complexity
     func values(of field: Field, at points: [Vector3]) async throws -> [Double] {
@@ -44,6 +44,12 @@ struct Sampling {
         case .noise(let seed, let scale, let octaves):
             let noise = FieldNoise(seed: seed, scale: scale, octaves: octaves)
             return try FieldSampler.map(points) { noise.value(at: $0) }
+        case .image(let image, let plane, let width, let height, let edges):
+            let across = plane.xAxis.normalized ?? .zero, up = plane.yAxis.normalized ?? .zero
+            return try FieldSampler.map(points) { point in
+                let offset = point - plane.origin
+                return image.value(u: offset.dot(across) / width + 0.5, v: 0.5 - offset.dot(up) / height, edges: edges)
+            }
         case .add(let a, let b):
             return try FieldSampler.combine(try await values(of: a, at: points), try await values(of: b, at: points), +)
         case .multiply(let a, let b):

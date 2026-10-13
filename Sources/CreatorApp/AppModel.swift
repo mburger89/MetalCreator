@@ -60,6 +60,9 @@ public final class AppModel {
     @ObservationIgnored var resizeStart: Double?
     @ObservationIgnored var observationGeneration = 0
     @ObservationIgnored var sceneTask: Task<Void, Never>?
+    /// The documents (by identity) with an image button waiting on a file panel (`performImage`); another press on the same
+    /// document meanwhile is ignored, but a different document's buttons work.
+    @ObservationIgnored var imageActionDocuments: Set<ObjectIdentifier> = []
 
     /// `kernel` evaluates the document and tessellates for the viewport (`OCCTKernel` in the app, `FakeKernel`
     /// in tests). `file` is the document to start with, `fileURL` where it came from, `themes` the app's themes.
@@ -68,7 +71,7 @@ public final class AppModel {
         self.kernel = kernel
         self.registry = registry
         self.themes = themes
-        let parts = DocumentParts(file, registry: registry, kernel: kernel)
+        let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: fileURL)
         document = parts.document
         editor = parts.editor
         graphInput = parts.input
@@ -88,7 +91,7 @@ public final class AppModel {
 
     /// Replaces the open document (New, Open). The pick and the preview mode start over.
     func load(_ file: GraphFile, from url: URL?) {
-        let parts = DocumentParts(file, registry: registry, kernel: kernel)
+        let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: url)
         pick = nil
         sketch?.stop()
         sketch = nil

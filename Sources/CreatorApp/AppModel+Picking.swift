@@ -24,6 +24,8 @@ extension AppModel {
                 return
             }
             beginSketch(for: request.node)
+        case .chooseImage, .linkImage, .relinkImage, .embedImage:
+            handleImage(request)
         case .editGroup, .makeUnique, .ungroup:
             break  // The graph panel carries these out itself (`EditorModel.press`); they are never recorded.
         }

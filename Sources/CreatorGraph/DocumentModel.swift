@@ -27,6 +27,25 @@ public final class DocumentModel {
         }
     }
 
+    /// The document's embedded images by hash (fields spec §5): everything embedded or pasted this session plus what the file
+    /// held. An image stays here while the session lasts, so undo can bring back a node that uses it; a save writes only the
+    /// ones nodes use now (`fileData`).
+    public private(set) var images: [ImageHash: Data]
+
+    /// Where the document is saved, or `nil` while it is new. Its folder is where relative image links start, so a change of
+    /// folder reads them again at the next evaluation.
+    public var documentURL: URL? {
+        didSet {
+            if oldValue?.deletingLastPathComponent() != documentURL?.deletingLastPathComponent() { scheduleEvaluation() }
+        }
+    }
+
+    /// What every evaluation, and every read of an image's bytes for the app shell, uses to find them: the embedded images and
+    /// the folder the document is saved in.
+    public var imageResolver: ImageResolver {
+        ImageResolver(embedded: images, documentFolder: documentURL?.deletingLastPathComponent())
+    }
+
     /// The node shown in "Selected node" preview mode. It joins the evaluation demand.
     public var previewNode: NodeID? {
         didSet {
@@ -51,8 +70,10 @@ public final class DocumentModel {
     @ObservationIgnored private var generation = 0
 
     public init(file: GraphFile = GraphFile(), registry: NodeRegistry, kernel: any Kernel,
-                cacheBudgetBytes: Int = 512 * 1024 * 1024) {
+                cacheBudgetBytes: Int = 512 * 1024 * 1024, documentURL: URL? = nil) {
         self.content = GraphContent(graph: file.graph, definitions: file.definitions)
+        self.images = file.images
+        self.documentURL = documentURL
         self.viewState = file.viewState
         self.baseRegistry = registry
         self.evaluator = Evaluator(registry: registry, kernel: kernel, cacheBudgetBytes: cacheBudgetBytes)
@@ -114,8 +135,52 @@ public final class DocumentModel {
         replay(entry.forward)
     }
 
-    public func fileData() throws -> Data {
-        try GraphFileIO.encode(GraphFile(graph: graph, definitions: definitions, viewState: viewState))
+    /// Keeps `data`, the bytes of a PNG or JPEG, for nodes to embed, and returns the hash that names it (fields spec §5). Two
+    /// pictures with the same bytes are one entry. Nothing is checked here: choosing a file checks it
+    /// (`GreyImageDecoder.inspect`), and a node that cannot decode what it points at says so. A node already pointing at a
+    /// hash that was absent runs again.
+    @discardableResult
+    public func addImage(_ data: Data) -> ImageHash {
+        let hash = ImageHash(of: data)
+        if images[hash] == nil {
+            images[hash] = data
+            scheduleEvaluation()
+        }
+        return hash
+    }
+
+    /// The content with every linked image's paths as they will be found from `folder`, resolving each file from where the
+    /// document is now: a file that can be found gets its absolute path and a path relative to `folder`, so a first save gains
+    /// the relative path and Save As elsewhere makes it again; one that cannot be found keeps the paths it had.
+    private func contentStoringImages(relativeTo folder: URL?) -> GraphContent {
+        let resolver = imageResolver
+        let store = { (reference: ImageReference) in resolver.stored(reference, inDocumentFolder: folder) }
+        var stored = content
+        stored.graph = content.graph.mappingImages(store)
+        for (id, definition) in content.definitions { stored.definitions[id]?.graph = definition.graph.mappingImages(store) }
+        return stored
+    }
+
+    /// The document as a file (always the current format). Only the embedded images a node uses are written, each once; a
+    /// linked image's paths are written as they will be found from `destination`, the file about to be written (else from
+    /// `documentURL`). The open document is not changed (`didSave(to:)` does that once the file is written).
+    public func fileData(savingTo destination: URL? = nil) throws -> Data {
+        let stored = contentStoringImages(relativeTo: (destination ?? documentURL)?.deletingLastPathComponent())
+        let used = stored.definitions.values.reduce(stored.graph.embeddedImageHashes) { $0.union($1.graph.embeddedImageHashes) }
+        let file = GraphFile(graph: stored.graph, definitions: stored.definitions, viewState: viewState,
+                             images: images.filter { used.contains($0.key) })
+        return try GraphFileIO.encode(file)
+    }
+
+    /// Makes `url` the document's file after it was written, and brings the open document's linked images into line with what was
+    /// saved: their paths become the ones `fileData(savingTo:)` wrote, as a change that is no undo step and no edit. Without
+    /// this, a Save As into another folder would keep the old relative paths, which are tried first, so a same-named
+    /// picture in the new folder would silently replace the linked one until the file was reopened. A caller that tracks
+    /// what is saved (`AppModel.savedContent`) reads `content` again afterwards.
+    public func didSave(to url: URL) {
+        let stored = contentStoringImages(relativeTo: url.deletingLastPathComponent())
+        if stored != content { content = stored }
+        documentURL = url
     }
 
     /// Returns once the most recently scheduled evaluation has finished and been applied.
@@ -182,12 +247,13 @@ public final class DocumentModel {
         let demand = demand
         let level = inspectedLevel
         let evaluator = evaluator
+        let resolver = imageResolver
         isEvaluating = true
         evaluationTask = Task {
             let report: EvaluationReport
             do {
                 report = try await evaluator.evaluate(snapshot.graph, definitions: snapshot.definitions, demand: demand,
-                                                inspecting: level)
+                                                inspecting: level, images: resolver)
             } catch {
                 return  // Cancelled: a newer generation is already scheduled.
             }

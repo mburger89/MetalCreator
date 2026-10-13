@@ -1260,7 +1260,7 @@ shows. Build the graph first: Series (count 24) into Partition (size 8) into Num
 - [ ] **TR-7 Boolean and branches.** Subtract an Extrude of a 3-row hole tree from a plate: three plates appear, one per row,
   each with its own row of holes. Pinned: `eachRowOfHolesCutsItsOwnCopyOfThePlate`. **Observed:**
 - [ ] **TR-8 Old files.** Open a bracket saved before this change (format 5): it opens with every pick holding and no warning;
-  save it, and the file says `"formatVersion" : 6`. An older build refuses the new file. Pinned: `TreeFileTests`. **Observed:**
+  save it, and the file says `"formatVersion" : 6` (7 since 7b-2: group FI-img). An older build refuses the new file. Pinned: `TreeFileTests`. **Observed:**
 - [ ] **TR-9 List Item and Branch by Path.** Add a List Item after Partition (3 × 8): with the "Item path" field empty and
   index 1 it gives one item per row. Type `{1;2}` into Item path and press Return: it gives that one item and the index no
   longer matters. Type `{1}`: the node's badge says the path has 1 index but an item of this tree (3 × 8) needs 2. Type
@@ -1589,6 +1589,69 @@ Noise Field into a Multiply's `b`; wire the Remap into the Multiply's `a`.
   origin, Threshold, keep Above 0.5): the holes within 15 mm of the centre are gone and the rest are where they were. Switch to
   Probability with a Noise Field: about half the holes remain, and changing the seed changes which, with no hole moving and no
   badge. Pinned: `CullByFieldNodeTests`, `CulledByFieldPickTests`. **Observed:**
+
+## Group FI-img — images (7b-2)
+
+**Status: NOT RUN.** Plan `2026-10-13-7b-2-images.md`, spec `2026-10-12-fields-design.md` §5. Run `swift run MetalCreatorApp`. The tests pin the
+decoding, the limits, the cache keys, the file and the app's flows over scripted file panels; these check only what the real panels and
+window show. Have a small greyscale PNG (a left-to-right ramp is best), a second one with a top-to-bottom ramp (black at the top row),
+a colour JPEG straight from a phone held upright (it carries an EXIF orientation), a text file renamed `x.png`, a GIF, and a PNG or
+JPEG over 16 MB or over 8,192 px wide to hand. Build: a Rectangle (60 × 40) into an Extrude (6); Grid Points (2 × 2, 40 × 20) into Points
+to Placements; an Image Field (width 60, height 40, Edges Clamp) into a Remap (0…1 → 3…5) into a Sample Field's `field`, the placements
+into its `at`, the values into a Hole Pattern's `diameter` (with the placements and the plate).
+
+- [ ] **FI-img-1 Choose an image.** Select the Image Field: the inspector's first section is "Image" with "No image chosen" and the buttons
+  "Choose Image…" and "Link to File…". Press Choose Image…: the open panel offers PNG and JPEG files and greys out others. Pick the ramp:
+  the row reads "Embedded · " and eight hex digits, the title bar shows the edited dot, Edit reads "Undo Choose Image", and the holes on the
+  right are larger than those on the left. Undo returns "No image chosen" and the dot goes. Pinned: `ImageInspectorTests`,
+  `ImageActionTests.choosingAFileEmbedsItAsOneUndoStepAndTheNodeRuns`, `ImageAcceptanceTests`. **If the panel lets a `.txt` be chosen, that
+  is a MetalUI gap: log it in `docs/metalui-gaps.md` (entry and summary row) and send it to the MetalUI session; do not work around it.**
+  **Observed:**
+- [ ] **FI-img-2 Pictures that cannot be used.** Choose, one after the other, the text file renamed `x.png`, the GIF, the over-wide picture
+  and the over-16 MB one (if the panel will not show a GIF, rename it `x.png`): each gives an alert titled “name” can't be used as an
+  image with its own sentence ("…isn't a readable PNG or JPEG image, or it is damaged.", "Only PNG and JPEG images can be used.", "…a
+  side can be at most 8,192 px.", "…images are limited to 16 MB."), the row and the holes do not change and the edited dot does not
+  appear. The app stays responsive throughout. Pinned: `ImageActionTests`, `GreyImageDecoderTests`. **Observed:**
+- [ ] **FI-img-3 Link, lose and relink.** Save the document in a folder. Press "Link Image…": the save panel proposes `image.png`; save it
+  into the folder: the row reads "Linked · image.png" and Edit reads "Undo Link Image". In Finder rename the file: edit anything in the
+  app (the Hole Pattern's depth): the Image Field shows its error "Image 'image.png' wasn't found at …/. Relink it in the inspector."
+  and the holes go. Press "Relink…", choose the renamed file: the error clears and the holes come back; Edit reads "Undo Relink Image".
+  Pinned: `ImageActionTests`, `ImageAcceptanceTests.aMissingPictureStopsTheChainAtTheImageWithoutHarmingAnythingElse`. **Observed:**
+- [ ] **FI-img-4 A file edited elsewhere.** With the picture linked, open it in another app, invert it and save it; back in MetalCreator edit
+  anything: the holes' sizes swap within the evaluation. Edit nothing and bring the window forward only: nothing changes (the date is
+  checked at each evaluation, not watched). Nothing new appears in the picture's folder at any point. Pinned:
+  `ImageAcceptanceTests.aLinkedPictureEditedOnDiskResizesTheHolesAtTheNextEvaluation`. **Observed:**
+- [ ] **FI-img-5 Embed, and moving a document.** Press "Embed Image" on the link: the row reads "Embedded · …", Edit reads "Undo Embed Image",
+  and the file saved has the picture inside it (the `.mcgraph` grows by about the picture's size; the same picture on two Image Fields
+  adds it once). Link it again, save, then move the folder holding the document and the picture to another place and open the document
+  there: the holes are as before (the relative path works while the stored absolute one is stale). Then Save As into a new folder that
+  already holds a different picture with the same file name: the holes do not change, and the edited dot does not appear. Pinned:
+  `ImageActionTests`, `ImageFileTests`. **Observed:**
+- [ ] **FI-img-6 Copy, group, reopen.** Copy the Image Field and paste: the copy has the same picture. Group the Image Field, Remap and Sample
+  Field together, then group only the Remap: both are accepted, a field wire crosses the group's edge, the holes are unchanged. Save,
+  quit, reopen: everything is as it was and the picture is still embedded. Pinned: `ImageInspectorTests`, `GroupFieldTests`,
+  `ImageFileTests`. **Observed:**
+- [ ] **FI-img-7 Colour and transparency.** Choose the colour JPEG, then a PNG with a transparent area: the node runs; bright colours give
+  larger holes and transparent areas read as black (smallest holes). Pinned: `GreyImageDecoderTests`. **Observed:**
+- [ ] **FI-img-8 Which way up.** Use a 4 × 4 Grid Points and the top-to-bottom ramp, with the view from above (the cube's Top face) and the
+  plane left on XY: the holes at the far side (+y) are the smallest and the near side the largest, and a left-to-right ramp makes the
+  left holes smallest. Now look from underneath (the cube's Bottom face): the pattern reads mirrored. That is right: the picture is projected
+  along the plane's normal and reads correctly from the normal's side. A horizontal flip or a vertical flip from above is a defect (the
+  pictures' row 0 is the plane's +y). Pinned: `ImageFieldSamplingTests`, `ImageFieldNodeTests`. **Observed:**
+- [ ] **FI-img-9 A large picture.** Choose a legal grey PNG about 8,000 px square (under 16 MB; a smooth gradient compresses well), then a
+  colour PNG or JPEG of the same size. The Image Field shows its evaluating badge, the window keeps answering (orbit the view meanwhile), and
+  each finishes in a few seconds (note the time) with Activity Monitor's memory for the app staying under about 1.5 GB; editing the Hole
+  Pattern's depth afterwards does not decode again (instant). Measured at the plan: about 0.3 s and 300 MB for grey, 2 to 3 s and 700 MB for
+  colour, in a release build. Pinned: `GreyImageDecoderTests`, `GreyImageCacheTests`. **Observed:**
+- [ ] **FI-img-10 Link Image onto an existing file.** With an embedded picture, press "Link Image…" and in the save panel pick the name of a
+  file that already exists. The real panel should ask before replacing it (the app writes the file whole, replacing it); Cancel there
+  changes nothing. If the panel does not ask, that is a MetalUI gap: log it in `docs/metalui-gaps.md` (entry and summary row) and send it to
+  the MetalUI session; do not work around it. Pinned: `ImageActionTests.linkingAnEmbeddedPictureSavesItWhereAskedThenLinksItWithoutTouchingAnythingElse`.
+  **Observed:**
+- [ ] **FI-img-11 A phone photo's rotation.** Choose the phone JPEG that Preview shows upright but whose pixels are stored sideways: the
+  field applies the orientation tag, so the holes' pattern matches what Preview shows (upright, not turned a quarter or flipped). This is the
+  planned behaviour (user decision U11 (b)). Pinned: `GreyImageDecoderTests`.
+  **Observed:**
 
 ## Group FI — field previews and Field Scatter (7b-3)
 

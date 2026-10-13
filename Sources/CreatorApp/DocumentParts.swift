@@ -2,6 +2,7 @@ import CreatorEditor
 import CreatorGraph
 import CreatorKernel
 import CreatorViewport
+import Foundation
 
 /// Everything that belongs to one open document, made together and replaced together on New and Open.
 @MainActor
@@ -12,8 +13,8 @@ struct DocumentParts {
     let viewport: ViewportModel
 
     /// The viewport starts at the file's saved camera and home view; without one it frames the first scene.
-    init(_ file: GraphFile, registry: NodeRegistry, kernel: any Kernel) {
-        document = DocumentModel(file: file, registry: registry, kernel: kernel)
+    init(_ file: GraphFile, registry: NodeRegistry, kernel: any Kernel, documentURL: URL? = nil) {
+        document = DocumentModel(file: file, registry: registry, kernel: kernel, documentURL: documentURL)
         editor = EditorModel(document: document)
         input = GraphPanelInput(model: editor)
         viewport = ViewportModel(kernel: kernel, pose: file.viewState.camera)

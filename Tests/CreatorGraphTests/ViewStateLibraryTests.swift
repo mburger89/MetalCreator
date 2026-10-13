@@ -22,6 +22,6 @@ struct ViewStateLibraryTests {
         let older = try JSONDecoder().decode(FormatThreeViewState.self, from: data)
         #expect(older.dock == .bottom)
         #expect(older.canvasZoom == 2)
-        #expect(GraphFile.currentFormatVersion == 6, "S4's, groups' and trees' bumps only; the library's key added none")
+        #expect(GraphFile.currentFormatVersion == 7, "S4's, groups', trees' and images' bumps only; the library's key added none")
     }
 }

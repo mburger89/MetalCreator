@@ -1,4 +1,5 @@
 import CreatorGraph
+import Foundation
 
 /// Copied nodes and the wires between them, with the group definitions the copied group nodes use (every one, however
 /// deep), so a paste finds them even after the document lost them, and merges them by content (groups spec §9,
@@ -10,6 +11,9 @@ public struct NodeClipboard: Equatable, Sendable {
     public var definitions: [GroupID: GroupDefinition] = [:]
     public var stickies: [StickyNote] = []
     public var frames: [CommentFrame] = []
+    /// The embedded pictures the copied nodes (and the copied definitions' nodes) use, so a paste finds them even where the
+    /// document never held them (fields spec §5).
+    public var images: [ImageHash: Data] = [:]
 
     /// Whether there is nothing to paste (the definitions only travel with group nodes).
     public var isEmpty: Bool { nodes.isEmpty && stickies.isEmpty && frames.isEmpty }

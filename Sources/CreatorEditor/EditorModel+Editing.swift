@@ -116,10 +116,15 @@ extension EditorModel {
         let ids = Set(nodes.map(\.id))
         let links = graph.links.filter { ids.contains($0.from.node) && ids.contains($0.to.node) }
         let comments = items.comments.sorted()
-        return NodeClipboard(nodes: nodes, links: links,
-                             definitions: GroupMerge.definitions(used: nodes, in: document.content),
+        let definitions = GroupMerge.definitions(used: nodes, in: document.content)
+        var hashes = Set(nodes.flatMap { $0.inputValues.values.compactMap { value -> ImageHash? in
+            if case .image(.embedded(let hash)) = value { hash } else { nil }
+        } })
+        for definition in definitions.values { hashes.formUnion(definition.graph.embeddedImageHashes) }
+        return NodeClipboard(nodes: nodes, links: links, definitions: definitions,
                              stickies: comments.compactMap { graph.stickies[$0] },
-                             frames: comments.compactMap { graph.frames[$0] })
+                             frames: comments.compactMap { graph.frames[$0] },
+                             images: document.images.filter { hashes.contains($0.key) })
     }
 
     /// Whether `id` is Group Input or Group Output of the level shown.
@@ -163,6 +168,8 @@ extension EditorModel {
             // The definitions are added to the document, the nodes and comments to the level shown.
             try document.perform(.batch(merge.additions.map { .addDefinition($0) } + [GraphCommand.batch(commands).at(graphPath)]),
                                  name: name)
+            // The pictures the copies use join the document only once the paste took, so a refused paste leaves none behind.
+            for data in clipboard.images.values { document.addImage(data) }
             clearRefusal()
             return CanvasSelection(nodes: Set(mapping.values), comments: comments)
         } catch {

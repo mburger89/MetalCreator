@@ -48,7 +48,7 @@ enum SketchSockets {
 
     /// Names an exposed dimension may not take.
     static func isReserved(_ name: String) -> Bool {
-        name.isEmpty || name.hasPrefix(NodeSetting.projectionPrefix) || NodeSetting.all.contains(SocketName(name))
+        name.isEmpty || name.hasPrefix(NodeSetting.projectionPrefix) || NodeSetting.reservedForSockets.contains(SocketName(name))
             || SketchNode.inputs.contains { $0.name.rawValue == name }
     }
 }

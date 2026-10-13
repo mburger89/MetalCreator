@@ -129,10 +129,10 @@ struct PatternsAcceptanceTests {
         #expect(isFilleted(edited, hole: [1, 3], bolts: part.bolts), "the fillet is still on the hole at {1;3}")
         #expect(document.results[part.rule.id]?.state.isSuccess == true)
 
-        // Save and reopen: format 6, every pick holds.
+        // Save and reopen: format 7, every pick holds.
         let data = try document.fileData()
         let text = try #require(String(bytes: data, encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 6"#))
+        #expect(text.contains(#""formatVersion" : 7"#))
         let reopened = try DocumentModel(data: data, registry: BuiltInNodes.registry, kernel: kernel)
         await reopened.waitForEvaluation()
         expectAllOK(reopened, "reopened")
@@ -149,7 +149,7 @@ struct PatternsAcceptanceTests {
         #expect(isClose(readVolume, try await volume(again, kernel), relative: 1e-3))
 
         // The same file marked format 5 opens and evaluates the same: nothing in it needs 6 (it holds no Path Mapper).
-        let asFive = text.replacing(#""formatVersion" : 6"#, with: #""formatVersion" : 5"#)
+        let asFive = text.replacing(#""formatVersion" : 7"#, with: #""formatVersion" : 5"#)
         let older = try DocumentModel(data: Data(asFive.utf8), registry: BuiltInNodes.registry, kernel: kernel)
         await older.waitForEvaluation()
         expectAllOK(older, "format 5")
@@ -177,7 +177,7 @@ struct PatternsAcceptanceTests {
         #expect(document.results[rule.id]?.outputs?["edges"]?.edgeSets?.first?.edges.count == 7, "the seven picked edges")
 
         let text = try #require(String(bytes: try document.fileData(), encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 6"#))
+        #expect(text.contains(#""formatVersion" : 7"#))
         let saved = try DocumentModel(data: Data(text.utf8), registry: BuiltInNodes.registry, kernel: kernel)
         await saved.waitForEvaluation()
         expectAllOK(saved, "format 5 saved as 6")

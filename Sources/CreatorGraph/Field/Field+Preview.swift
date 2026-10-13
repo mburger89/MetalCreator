@@ -1,25 +1,14 @@
 import CreatorGeometry
 
 /// What the field previews ask of a field (fields spec §6). Each is an exhaustive `switch` with no `default`, so a case added
-/// later (Image Field in 7b-2, which has a plane of its own) is a compile error here until it says what it is.
+/// later is a compile error here until it says what it is. The slice's own plane is `Field.ownPlane` (Field+OwnPlane).
 extension Field {
-    /// The plane the field is itself about, for the slice to start on: a linear gradient's, or the first one found in the
-    /// fields this one is made from.
-    public var ownPlane: Plane? {
-        switch self {
-        case .linearGradient(let plane, _):
-            plane
-        case .constant, .distance, .radialGradient, .noise, .add, .multiply, .minimum, .maximum, .remap, .clamp, .smoothMinimum:
-            children.lazy.compactMap(\.ownPlane).first
-        }
-    }
-
     /// Whether sampling needs the kernel: a distance to a solid, faces or edges, anywhere in the expression.
     public var measuresWithKernel: Bool {
         switch self {
         case .distance(.kernel, _):
             true
-        case .distance, .constant, .linearGradient, .radialGradient, .noise:
+        case .distance, .constant, .linearGradient, .radialGradient, .noise, .image:
             false
         case .add, .multiply, .minimum, .maximum, .remap, .clamp, .smoothMinimum:
             children.contains { $0.measuresWithKernel }
@@ -36,7 +25,7 @@ extension Field {
             a.isSignedDistance && b.isSignedDistance
         case .clamp(let inner, _, _):
             inner.isSignedDistance
-        case .constant, .distance, .linearGradient, .radialGradient, .noise, .add, .multiply, .remap:
+        case .constant, .distance, .linearGradient, .radialGradient, .noise, .image, .add, .multiply, .remap:
             false
         }
     }
@@ -52,7 +41,7 @@ extension Field {
             Self.combinedUnit(a, b)
         case .clamp(let inner, _, _):
             inner.unit
-        case .constant, .linearGradient, .radialGradient, .noise, .multiply, .remap:
+        case .constant, .linearGradient, .radialGradient, .noise, .image, .multiply, .remap:
             .none
         }
     }

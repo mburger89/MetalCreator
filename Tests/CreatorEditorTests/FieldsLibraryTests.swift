@@ -19,7 +19,7 @@ struct FieldsLibraryTests {
     @Test func theFieldsSectionHoldsTheFieldNodesInOrder() {
         let names = sections.first { $0.category == .fields }?.entries.map(\.displayName)
         #expect(names == [
-            "Distance Field", "Linear Gradient", "Radial Gradient", "Noise Field",
+            "Distance Field", "Linear Gradient", "Radial Gradient", "Noise Field", "Image Field",
             "Add", "Multiply", "Min / Max", "Remap", "Clamp", "Smooth Blend",
             "Sample Field", "Cull by Field", "Field Scatter",
         ])

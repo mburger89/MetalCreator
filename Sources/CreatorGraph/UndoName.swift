@@ -26,6 +26,12 @@ public enum UndoName {
     public static func clearInput(_ label: String) -> String { label.isEmpty ? "Clear Input" : "Clear \(label)" }
     public static let changeParameter = "Change Parameter"
 
+    // MARK: Images (fields spec §4)
+    public static let chooseImage = "Choose Image"
+    public static let relinkImage = "Relink Image"
+    public static let embedImage = "Embed Image"
+    public static let linkImage = "Link Image"
+
     // MARK: Comments (canvas comments spec §7)
     public static let addNote = "Add Note"
     public static let editNote = "Edit Note"

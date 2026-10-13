@@ -49,4 +49,16 @@ struct SketchExposedNameTests {
         #expect(report.warning(node) == "Dimension “\(name)” can't be an input: another exposed dimension has the same name. "
             + "Rename one of them.")
     }
+
+    /// A sketch made before 7b-2 may expose a dimension called "image"; Image Field's setting of that name takes nothing from it.
+    @Test func anExposedDimensionCalledImageIsStillAnInputAndEvaluatesAsBefore() async throws {
+        var rectangle = RectangleSketch()
+        rectangle.expose(rectangle.width)
+        rectangle.sketch.dimensions[rectangle.width]?.name = "image"
+        var h = Harness()
+        let node = sketchNode(&h, rectangle.sketch)
+        #expect(SketchNode.inputs(for: h.graph.nodes[node.id] ?? node).map(\.name) == ["plane", "references", "image"])
+        let report = try await h.run([node])
+        #expect(report.error(node) == nil && report.warning(node)?.contains("can't be an input") != true)
+    }
 }
