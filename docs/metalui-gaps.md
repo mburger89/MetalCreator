@@ -1018,7 +1018,7 @@ Labelled C21-a… so they don't clash with the labels above. Checked against Met
 
 Labelled CT-d so it stays beside CT-b and CT-c. Checked against MetalUI `3fce05f`.
 
-- **CT-d (adopted by C28, see the Adopted paragraph that ends this entry; the text below is the gap as found). `MetalUITesting` cannot drive an input method, so how the canvas editor behaves while text is composing has no
+- **CT-d (adopted by C28). `MetalUITesting` cannot drive an input method, so how the canvas editor behaves while text is composing has no
   automated test.** MetalUI holds a selection write back while an input method composes (marked text; divergence 266 and
   ruling `SL-H`) and publishes the selection after the composition commits, but `TestWindow` types only committed text
   (`typeText`) and keys (`typeKey`): no public call starts, updates or commits marked text. The canvas editor opens a

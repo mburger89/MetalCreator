@@ -1502,7 +1502,10 @@ looks, the feel of the caret, an input method composing, and the keys of a real 
   that commits the title, and the **first Return of a composition must commit the composition, not the title** (the
   harness's Return is a key, not the input method's). In a note, compose at the end and mid-line (click first), then press
   ⌘↩. **Record** any caret jump, lost marked text or doubled character, and what a click on the graph panel does while
-  composing: MetalUI drops the composition uncommitted (`IM-I`), so the marked text is lost. `IM-I` is MetalUI hygiene (stale marked text must not return on refocus), **not a platform measurement**; AppKit text fields normally commit marked text when focus leaves. **Say whether losing the marked text feels wrong; if it does, ask MetalUI for commit-on-resign (option b of the plan's user decision).** **Observed:**
+  composing: MetalUI drops the composition uncommitted (`IM-I`), so the marked text is lost. `IM-I` is MetalUI hygiene
+  (stale marked text must not return on refocus), **not a platform measurement**; AppKit text fields normally commit
+  marked text when focus leaves. **If losing the marked text feels wrong, report it: it becomes a MetalUI request for
+  commit-on-resign.** **Observed:**
 - [ ] **C25-4 Select all and the selection keys.** In a title and in a note: ⌘A highlights all of it and typing replaces it;
   ⇧← and ⇧→ extend from the caret, ⇧⌥← selects a word, ⌥← moves a word, ⌘← and ⌘→ go to the line's ends, Delete removes the
   selection, and a double click on a word selects the word. After each, typing acts on what is highlighted. **Record** a key

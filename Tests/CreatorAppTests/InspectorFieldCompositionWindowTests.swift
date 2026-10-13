@@ -9,7 +9,8 @@ import Testing
 
 /// An input method composing in an inspector number field, through the app's real window (MetalUI C28, gap CT-d): the
 /// marked text is the field's own, the model hears of the committed text only, and a press elsewhere while composing
-/// drops the composition (MetalUI `IM-I`) and leaves no pending value (nothing was typed before the composition in the press test, so what is committed from before it is pinned by the canvas note and title tests, not here).
+/// drops the composition (MetalUI `IM-I`) and leaves no pending value. The press test types nothing before composing;
+/// text committed before a composition is pinned by the canvas note and title tests.
 @MainActor
 struct InspectorFieldCompositionWindowTests {
     /// The window showing a Rectangle node, selected, and its Width field clicked, all of it selected.
@@ -41,8 +42,8 @@ struct InspectorFieldCompositionWindowTests {
 
     @Test func aCancelledCompositionLeavesTheFieldAlone() async throws {
         let (app, node) = try await widthField()
-        app.window.setMarkedText("9")
-        app.window.cancelMarkedText()
+        #expect(app.window.setMarkedText("9"))
+        #expect(app.window.cancelMarkedText())
         #expect(app.editor.pendingEntry == nil)
         app.window.typeText("7")
         #expect(app.editor.pendingEntry?.text == "7", "the select-all survived: typing replaced the value")
@@ -53,7 +54,8 @@ struct InspectorFieldCompositionWindowTests {
     @Test(arguments: InertSpot.allCases)
     func aPressOnChromeWhileComposingCommitsNothingOfIt(spot: InertSpot) async throws {
         let (app, node) = try await widthField()
-        app.window.setMarkedText("9")
+        #expect(app.window.setMarkedText("9"))
+        #expect(app.window.markedText == "9")
         app.window.click(at: try spot.point(in: app))
         try await app.window.runUntilIdle()
         #expect(app.window.markedText == "")
