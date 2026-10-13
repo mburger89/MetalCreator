@@ -522,17 +522,24 @@ Run `scripts/package-app.sh` first; it ends with `==> Wrote …/dist/MetalCreato
 
 **Status: NOT RUN.** Following MetalUI's convention (`../MetalUI/docs/verification/human-checks.md`, its AS1–AS10).
 
-Run `swift run MetalCreatorApp` for AS-1 to AS-5, and `scripts/package-app.sh` first for AS-6 and AS-7. The model's side
-of each check is pinned headless (`AppModelCloseTests`, `WindowChromeTests`, `AppModelOpenURLTests`,
-`TitleBarClearanceTests`, `TopBarClearanceRenderTests`, `SaveChangesAnswerTests`); what MetalUI's window, menu and
+Run `swift run MetalCreatorApp` for AS-1 to AS-5 and AS-8 to AS-10, and `scripts/package-app.sh` first for AS-6 and AS-7. The
+model's side of each check is pinned headless (`AppModelCloseTests`, `WindowChromeTests`, `AppModelOpenURLTests`,
+`TitleBarClearanceTests`, `TopBarClearanceRenderTests`, `TitleBarClearanceWindowTests`, `WindowDragWindowTests`,
+`SketchWindowDragWindowTests`, `SaveChangesAnswerTests`); what MetalUI's window, menu and
 Finder do with it is these checks only (gap M6-e is adopted: `TestWindow.requestClose()` and `presentedAlert` could drive
-the window half; no test does yet).
+the window half; no test does yet). The window drag is pinned only as far as the platform being asked
+(`TestWindow.windowDrags`, MetalUI C22's `performWindowDrag`); that AppKit then moves the window is AS-5.
 
 Product decisions behind these checks (the user approved the recommended default of each on 2026-10-09/10): (1) the
-hidden title bar (not merged; the window is standard) ships only if AS-5 shows the window drags, as its own commit; (2)
+hidden title bar (not merged; the window is standard) ships only if AS-5 shows the window drags, as its own commit (amended by
+the C22 plan `2026-10-12-adopt-c22`: it ships now with MetalUI C22's window drag and stays only if AS-5 shows the window
+drags; the amendment is pending the user's answer to that plan's User decision 3, so until then it is not approved); (2)
 a Finder open of the file already open does nothing; (3) a typed but uncommitted inspector value counts as a change when
 a Finder open arrives; (4) the top bar keeps the name and "— Edited"; (5) close and quit share one alert; (6) an open
-onto edited work asks "Discard unsaved changes?". Gap C8-a was reported to the MetalUI session on 2026-10-10.
+onto edited work asks "Discard unsaved changes?". Gap C8-a was reported to the MetalUI session on 2026-10-10 and is fixed by C22.
+The window drag's own decisions (which regions drag, whether a double click zooms) are in the C22 plan's "User decisions"
+and are recorded here once the user has answered them: the written default is the top bar's empty space and the strip above it,
+and a double click does nothing.
 
 - [ ] **AS-1 Close with unsaved changes.** In an empty window add a node, then press the close button. A sheet asks "Do
   you want to save the changes to “Untitled”?" with Save, Don't Save and Cancel; Return is Save, Esc is Cancel. Cancel:
@@ -548,18 +555,22 @@ onto edited work asks "Discard unsaved changes?". Gap C8-a was reported to the M
 - [ ] **AS-3 Title and edited dot.** The Window menu and Mission Control name the window "Untitled", then the file's
   name after a save or an open. The close button shows AppKit's edited dot after a change and loses it after a save or
   an undo back to the saved state; New resets the name. The top bar still reads the name and "— Edited". **Observed:**
-- [ ] **AS-4 Proxy icon.** Spec §6.1's window shows the document's file in the title bar. The window has the standard
-  title bar: record whether the title and the proxy icon show, and whether ⌘-clicking the title shows the path menu.
-  (Under a hidden title bar AppKit is expected to draw neither; the represented file would still name the document in
-  the Window menu.) **Observed:**
-- [ ] **AS-5 The top bar under the window buttons.** The three window buttons sit over the glass top bar's left end, the
-  document name starts clear of them, and nothing overlaps at the minimum window width. **This needs the hidden title bar, which is not merged:
-  add `windowStyle: .hiddenTitleBar` to `openWindow` in `Sources/MetalCreatorApp/main.swift` to run it, and merge
-  that line only if the window drags (plan Task 4b).** Enter a sketch (Edit sketch on a
-  Sketch node): the toolbar starts clear of the buttons too. Enter full screen (⌃⌘F): the buttons leave and the content
-  moves back to the bar's left edge; leave full screen and it clears them again. **Drag the window by the top bar and
-  by the strip above the panels: record whether it moves (gap C8-a predicts it doesn't, because the viewport's gestures
-  cover the band).** Double-click the strip: record whether the window zooms. **Observed:**
+- [ ] **AS-4 Proxy icon.** Spec §6.1's window shows the document's file in the title bar. The title bar is hidden now (plan
+  `2026-10-12-adopt-c22`): record whether AppKit draws the title or the proxy icon at all (expected: neither, and the Window
+  menu still names the document, `representedURL` is still set; the top bar names it). **Observed:**
+- [ ] **AS-5 The top bar under the window buttons, and dragging the window by it.** (The live test of the hidden title bar,
+  gap M6-c, and of MetalUI C22's `WindowDragGesture`, gap C8-a: `windowStyle: AppLayout.windowStyle` in
+  `Sources/MetalCreatorApp/main.swift`. MetalUI's own WD1–WD7 ask the same of its demo.) The three window buttons sit over the
+  glass top bar's left end, the document name starts clear of them (8 pt past the zoom button), and nothing overlaps at the
+  minimum window width (1000 × 640). Enter a sketch (Edit sketch on a Sketch node): the toolbar starts clear of the buttons too.
+  Enter full screen (⌃⌘F): the buttons leave and the content moves back to the bar's left edge; leave full screen and it clears
+  them again. **Drag the window by the gap between the name and the Preview picker, by the document's name, and by the strip
+  above the bar (also in the row beside and between the window buttons): the window moves with the pointer from the first few
+  points, follows it all the way and stays where it is dropped.** Press and release in the gap without moving: nothing moves
+  and the viewport is not clicked. Right-click the gap: the window doesn't move. Double-click the gap and the strip: record
+  whether the window zooms (expected: no). Drag the window with a model in the viewport: the camera doesn't move. Pinned
+  headless, up to the platform being asked to move the window: `WindowDragWindowTests`, `SketchWindowDragWindowTests`,
+  `TitleBarClearanceWindowTests`. **Observed:**
 - [ ] **AS-6 Finder double-click (packaged app).** Copy `dist/MetalCreator.app` to `~/Applications`. Double-click a saved
   `.mcgraph` in Finder: MetalCreator launches and shows that graph, with no "cannot open files" alert. With the app
   running and unchanged, double-click another `.mcgraph`: it replaces the document. After a change, double-click
@@ -571,6 +582,22 @@ onto edited work asks "Discard unsaved changes?". Gap C8-a was reported to the M
   it opens. Drag two files at once: the last one stays open. `open -a ~/Applications/MetalCreator.app file.mcgraph`
   opens it. `swift run MetalCreatorApp file.mcgraph` and `swift run MetalCreatorApp relative/path/file.mcgraph` (from another
   directory than the file's) open it once (not twice), and a path that doesn't exist shows an alert. **Observed:**
+- [ ] **AS-8 Controls stay controls under the drag.** Click Undo, Redo, the Preview picker and Export: each works, and the window
+  doesn't move. Press on each of them and drag 40 points away: the window doesn't move (record what the control does). Press
+  in the glass's padding just below the buttons, or in a gap between two buttons, and drag: the viewport orbits and the window
+  doesn't move (by design these places are not handles: User decision 1). Start a drag just under the bar, on the viewport: it orbits as before.
+  Pinned: `aPressDragOnABarControlNeverAsks`, `thePaddingBelowTheControlsIsNotAHandle`, `aDragBelowTheBarStillOrbitsTheViewportAndDoesNotAsk`.
+  **Observed:**
+- [ ] **AS-9 The sketch toolbar drags too.** In a sketch, drag the window by the "Sketch" label, by the gap before Finish and by
+  the strip above the bar, over its whole 22 points (the top 12 are the margin, the lower 10 lie over the toolbar's glass, whose backdrop has a
+  drag gesture of its own; the strip is drawn above it): it moves. Press and drag from a tool button, Construction, Delete and Finish: it doesn't. Make the
+  window its smallest (1000 wide): record how small the gap before Finish gets (the strip still drags). Pinned:
+  `SketchWindowDragWindowTests`. **Observed:**
+- [ ] **AS-10 The edges of a drag.** Drag the window by the bar and release outside the window, over the Dock and over the menu bar:
+  the window ends where you let go, and the pointer, hover highlights and cursors are normal at once; a click and a drag in the
+  viewport work on the next try. Switch away with ⌘-Tab mid-drag and back: nothing is stuck. Drag across to a second display, if
+  there is one. In full screen drag the strip: nothing moves and nothing breaks (MetalUI's WD6). Drag, then undo a change from the
+  Undo button: the document and the window are fine. **Observed:**
 
 ## Group S4 — the Sketch and Plane from Face nodes (S4)
 

@@ -9,7 +9,7 @@ The binding spec is `docs/superpowers/specs/2026-10-07-metalcreator-vertical-sli
 plans live in `docs/superpowers/plans/`. M0 (OCCT probe), M1 (graph engine), M2 (OCCT kernel), M3 (the 26 nodes), S3 (profile holes) and S4 (the Sketch and Plane from Face nodes) are done. S5a (the sketch editor in the viewport: sketch mode, drawing, constraints, dimensions, live solve) code is done; its human checks (group S5) are pending. S5b (trim, extend, fillet, mirror and pattern tools, 3-point arcs, point-on and tangent inference with glyphs, double-click to edit) code is done; its human checks (group S5b) are pending; S5c (Project, New sketch on face, dimension labels in the view, region fill) code is done; its human checks (group S5c) are pending. M4 (viewport) code is done; its human checks (group V in `docs/verification/human-checks.md`) are pending. M5 (graph panel and inspector) code is done; its human checks (group M5 in `docs/verification/human-checks.md`) are pending.
 M6 (app shell) code is done; its human checks (group M6) are pending.
 MetalUI C8 (the app shell: close and quit veto, window title and edited dot, open-document events) is
-adopted, except the hidden title bar (gap M6-c, held for check AS-5); its human checks (group AS) are pending.
+adopted, with the hidden title bar (gap M6-c) and MetalUI C22's window drag (gap C8-a; plan `docs/superpowers/plans/2026-10-12-adopt-c22.md`); its human checks (group AS; the drag is AS-5) are pending.
 Editor polish (the floating add-node palette and the node library) code is done; its human checks (group EP) are pending.
 Packaging (`scripts/package-app.sh`, `docs/packaging.md`) is done; its human checks (group P) are pending.
 Multi-select polish (sub-project A of `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md`) code is
@@ -351,8 +351,11 @@ the seventeen
   (`CloseDecision`; `.later` with unsaved changes, the Save / Don't Save / Cancel alert, `answerSaveChanges(_:)` replying
   through `replyToCloseRequest`; ⌘Q asks the same handler because the app sets no `onTerminateRequest`),
   `WindowChromeSync` keeps `Window.title`, `isDocumentEdited` and `representedURL` on the document
-  (`AppModel.windowChrome`), the window keeps its standard title bar (`.hiddenTitleBar` waits for check AS-5, gap C8-a; `TopBar` already pads by
-  `AppLayout.topBarClearance`, zero in a standard window), and
+  (`AppModel.windowChrome`), the window opens with the hidden title bar (`AppLayout.windowStyle`, gap M6-c; check AS-5): `TopBar` pads
+  by `AppLayout.topBarClearance` of the window's `titleBarInsets` (zero in full screen), and the window is dragged by `WindowDragHandle`
+  (CreatorStyle; MetalUI C22's `WindowDragGesture`, gap C8-a): the strip `AppLayout.windowDragStripHeight` along the top, and the top
+  bar's empty space (its label and the gap beside the controls; the sketch toolbar's too), never behind a control (a disabled one would
+  pass the press to a handle behind it), and
   `App.onOpenURL` is `AppModel.openRequested(_:)` (the path argument goes through `App.open(_:)`; a file that arrives while
   any alert is up is ignored).
   `MetalCreatorApp` is the executable (`OCCTKernel`). It makes the app's `ThemeStore` (`AppThemes.store()`: user
