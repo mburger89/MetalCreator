@@ -12,8 +12,10 @@ public struct GlassStyle: Hashable, Sendable {
     public let fill: HexColor
     /// Whether the theme is a dark one; the material's grey and the controls follow it.
     public let isDark: Bool
-    /// Reduce Transparency: no material, no blur, the theme's colour fully opaque. Wired and tested; nothing sets it yet; waits on
-    /// MetalUI providing `\.accessibilityReduceTransparency` (C21-b, sent to the MetalUI session 2026-10-12).
+    /// Reduce Transparency, the system setting as MetalUI's `\.accessibilityReduceTransparency` reads it (MetalUI C27, gap
+    /// C21-b). MetalUI itself then draws the material as an opaque grey rect with no blur (divergence 315), so the style
+    /// keeps the material layer and leaves the fallback to MetalUI; what the style changes is the theme's tint over it,
+    /// which goes fully opaque so the theme's text sits on the colour it was designed for (plan decision U-C27-1).
     public let reducesTransparency: Bool
 
     public init(theme: ColorTheme, surface: GlassSurface, reducesTransparency: Bool = false) {
@@ -29,13 +31,10 @@ public struct GlassStyle: Hashable, Sendable {
         self.init(theme: themes?.current ?? .dracula, surface: surface, reducesTransparency: reducesTransparency)
     }
 
-    /// Whether a material blurs what is drawn beneath the panel.
-    public var blursBackdrop: Bool { !reducesTransparency }
-
     /// The theme's colour laid over the material: its role's colour at the opacity that, with the material beneath, hides
     /// as much of the backdrop as the role's own opacity says. Fully opaque when transparency is reduced.
     public var tint: HexColor {
-        guard blursBackdrop else { return fill.opacity(1) }
+        guard !reducesTransparency else { return fill.opacity(1) }
         let material = thickness.materialOpacity(isDark: isDark)
         return fill.opacity(Self.tintOpacity(glass: fill.opacity, materialOpacity: material))
     }

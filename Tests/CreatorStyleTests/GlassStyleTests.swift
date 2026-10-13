@@ -50,11 +50,18 @@ struct GlassStyleTests {
         #expect(GlassStyle.tintOpacity(glass: 0.9, materialOpacity: 1) == 0)
     }
 
-    @Test func reducingTransparencyDrawsTheThemesColourOpaqueWithNoMaterial() {
+    @Test func reducingTransparencyMakesTheThemesColourOpaque() {
         let style = GlassStyle(theme: .dracula, surface: .graphPanel, reducesTransparency: true)
-        #expect(!style.blursBackdrop)
         #expect(style.tint == HexColor(0x21222c, opacity: 1))
-        #expect(GlassStyle(theme: .dracula, surface: .graphPanel).blursBackdrop)
+        #expect(GlassStyle(theme: .dracula, surface: .graphPanel).tint.opacity < 1)
+    }
+
+    @Test(arguments: ColorTheme.builtIns, GlassSurface.allCases)
+    func reducingTransparencyKeepsEveryThemesTextLegible(_ theme: ColorTheme, _ surface: GlassSurface) {
+        let tint = GlassStyle(theme: theme, surface: surface, reducesTransparency: true).tint
+        #expect(tint.opacity == 1 && tint.rgb == theme.colors.glassFill.rgb, "the theme's own colour, opaque")
+        #expect(ThemeTests.contrast(theme.colors.foreground, tint) >= 7, "\(theme.name) \(surface): primary text")
+        #expect(ThemeTests.contrast(theme.colors.comment, tint) >= 3, "\(theme.name) \(surface): dim text")
     }
 
     @Test func theStyleFollowsTheThemesColourAndItsLightOrDark() {

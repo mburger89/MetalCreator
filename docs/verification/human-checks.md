@@ -1441,7 +1441,7 @@ with a visible model (File > Open on a saved bracket, or the demo). The tests pi
 panel, painted after the viewport's surface, under the theme's tint at the opacity `GlassStyle` computes: `GlassFillTests`,
 `GlassBackgroundTests`, `ChipGlassTests`, `GlassBlursViewportTests`); these checks are what only a screen shows: whether the
 blur is there and looks right over a moving viewport, how it reads at each thickness, how it costs (the system's Reduce
-Transparency, C21-5, waits on MetalUI). **MetalUI's own checks BB1 to BB6 are unrun**, so a fault here may be MetalUI's: run the same thing in
+Transparency, C21-5). **MetalUI's own checks BB1 to BB6 are unrun**, so a fault here may be MetalUI's: run the same thing in
 MetalUI's demo (`METALUI_LOOKS_DEMO=1 swift run MetalUIDemo`, BB1 with a panel over the MetalView demo) before logging a gap. At
 Dracula's 86% glass the blur is faint by design (the role says the panel hides 86% of what is behind it); to see it plainly,
 lower the Glass role's opacity in the theme editor to about 40% for C21-1 and put it back.
@@ -1464,9 +1464,16 @@ lower the Glass role's opacity in the theme editor to about 40% for C21-1 and pu
   an inspector label: nothing is drawn, the selection does not change, and the rubber band does not follow the pointer under the
   panel (the material paints and takes no pointer, so the backdrop still does). Pinned: none (a pointer test through a material is
   C21-4 alone). **Observed:**
-- [ ] **C21-5 Reduce Transparency (waits on MetalUI).** MetalUI does not honour the setting (gap C21-b, sent to the
-  MetalUI session 2026-10-12) and there is no stopgap here, so this check cannot run yet: the panels blur whatever System Settings >
-  Accessibility > Display says. Run it once MetalUI provides `\.accessibilityReduceTransparency` and the app adopts it. **Observed:** n/a
+- [ ] **C21-5 Reduce Transparency.** MetalUI C27 reads the setting and the app follows it (gap C21-b, plan
+  `2026-10-13-adopt-c27.md`). Turn on System Settings > Accessibility > Display > Reduce transparency while the app runs
+  (no restart): every glass surface (top bar, graph panel, inspector, theme editor, pick banner, Show graph button, palette,
+  sketch chips) becomes a flat, opaque panel in the theme's own colour with no blur and the hairline kept, and its text is easy
+  to read in Dracula, Alucard and Nord (user decision U-C27-1: the tint is opaque; write down any surface or theme where the
+  panel reads wrong). Orbit with the setting on: no GPU cost from the blur (compare C21-3). Turn it off: the blur comes back at
+  once with nothing stale. Relaunch with it on: the first frame is already opaque. Pinned:
+  `GlassReduceTransparencyWindowTests` and `reducingTransparencyKeepsEveryThemesTextLegible` (a simulated setting; only this
+  check sees the real one). If the grey looks wrong against a real SwiftUI window, that is MetalUI's check MT-1.
+  **Observed:**
 - [ ] **C21-6 Glass over glass.** Open the palette over the graph panel, the theme editor over the inspector, and draw with a chip over a
   panel: the upper glass blurs the lower (blurred twice, MetalUI BB3), stays legible and has clean edges. **Observed:**
 - [ ] **C21-7 Resize and docks.** Resize the window, move it between a Retina and a non-Retina display if you have one, drag the
