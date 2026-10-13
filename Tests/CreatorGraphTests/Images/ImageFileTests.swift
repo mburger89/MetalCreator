@@ -129,9 +129,9 @@ struct ImageFileTests {
         object["images"] = [good.hex: first.base64EncodedString(), bad.hex: 12] as [String: Any]
         let file = try reopened(try JSONSerialization.data(withJSONObject: object))
         let node = probe(.embedded(good))
-        let reopened = DocumentModel(file: GraphFile(graph: Graph(nodes: [node.id: node]), images: file.images),
+        let document = DocumentModel(file: GraphFile(graph: Graph(nodes: [node.id: node]), images: file.images),
                                      registry: Self.registry, kernel: FakeKernel())
-        let table = try #require(try json(try reopened.fileData())["images"] as? [String: String])
+        let table = try #require(try json(try document.fileData())["images"] as? [String: String])
         #expect(Set(table.keys) == [good.hex], "the damaged entry is gone from the file for good once it is saved")
     }
 

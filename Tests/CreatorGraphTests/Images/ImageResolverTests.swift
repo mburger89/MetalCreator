@@ -96,6 +96,27 @@ struct ImageResolverTests {
         #expect(try ImageResolver().bytes(of: linked(link)) == png)
     }
 
+    @Test func aRelativePathIsAppliedFromTheSymlinkResolvedDocumentFolder() throws {
+        try folder.write(Data("beside".utf8), to: "real/project/shared/vent.png")
+        try folder.write(Data("elsewhere!".utf8), to: "fallback/vent.png")
+        try FileManager.default.createDirectory(at: folder.url.appending(path: "real/project/doc"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: folder.url.appending(path: "other"), withIntermediateDirectories: true)
+        let linkedFolder = folder.url.appending(path: "other/doc", directoryHint: .isDirectory)
+        try FileManager.default.createSymbolicLink(at: linkedFolder, withDestinationURL: folder.url.appending(path: "real/project/doc"))
+        // Lexically `other/doc/../shared` is `other/shared`, which does not exist; through the link it is `real/project/shared`.
+        let fallback = folder.url.appending(path: "fallback/vent.png")
+        let reference = ImageReference.linked(relativePath: "../shared/vent.png", absolutePath: fallback.path(percentEncoded: false))
+        let resolver = ImageResolver(documentFolder: linkedFolder)
+        #expect(try resolver.bytes(of: reference) == Data("beside".utf8))
+        let found = try #require(resolver.location(of: reference))
+        #expect(found.resolvingSymlinksInPath().path(percentEncoded: false)
+            == folder.url.appending(path: "real/project/shared/vent.png").resolvingSymlinksInPath().path(percentEncoded: false))
+        // And what saving writes from that folder reads back to the same file.
+        let stored = resolver.stored(reference, inDocumentFolder: linkedFolder)
+        guard case .linked(let relative?, _) = stored else { Issue.record("expected a linked reference"); return }
+        #expect(relative == "../shared/vent.png")
+    }
+
     @Test func aFileOverSixteenMegabytesIsRefusedUnreadAndOneAtTheLimitIsRead() throws {
         let big = try folder.write(Data(count: ImageLimits.maxBytes), to: "exact.png")
         #expect(try ImageResolver().bytes(of: linked(big)).count == ImageLimits.maxBytes)

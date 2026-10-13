@@ -199,6 +199,20 @@ struct GreyImageDecoderTests {
         }
     }
 
+    @Test(arguments: [5, 7]) func aColourPictureWithATransposingOrientationIsGreyAsPreviewShowsIt(tag: Int) async throws {
+        let data = TestImages.colourRows(7, 4, orientation: tag)
+        let expected = oriented(tag, 7, 4) { x, y in
+            let (red, green, blue) = TestImages.pixel(x, y)
+            return Int(((0.2126 * Double(red) + 0.7152 * Double(green) + 0.0722 * Double(blue)) * 257).rounded())
+        }
+        let image = try await GreyImageDecoder.decode(data)
+        #expect(image.width == expected.0 && image.height == expected.1 && image.width == 4)
+        let worst = zip(image.pixels, expected.2).map { abs(Int($0) - $1) }.max() ?? .max
+        #expect(worst <= 600, "orientation \(tag): largest difference \(worst)")
+        let banded = try await GreyImageDecoder.decode(data, bandBytes: 4 * 8)
+        #expect(banded.pixels == image.pixels)
+    }
+
     @Test func theSideLimitAppliesToTheOrientedSize() async throws {
         // 8,193 wide and 2 tall as stored; a quarter turn makes it 2 wide and 8,193 tall, still over the limit.
         let data = TestImages.flatGrey(8_193, 2, 5, orientation: 6)

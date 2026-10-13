@@ -31,7 +31,9 @@ public indirect enum Field: Sendable {
     case noise(seed: Int, scale: Double, octaves: Int)
     /// A picture projected along `plane`'s normal (fields spec §5): the point's plane coordinates, centred on the plane's origin
     /// and scaled by `width` and `height` millimetres, pick a position in the picture (row 0 at the top, plane +y up), and
-    /// the value is the bilinear grey in 0…1. `plane` has unit axes. `edges` says what lies outside the rectangle.
+    /// the value is the bilinear grey in 0…1. `plane` has unit axes. `width` and `height` must be positive and finite. `edges`
+    /// says what lies outside the rectangle. A point so far out that its picture position overflows to infinity
+    /// (`GreyImage.value`) has value 0, with either edge mode.
     case image(GreyImage, plane: Plane, width: Double, height: Double, edges: ImageEdges)
 
     // MARK: Maths

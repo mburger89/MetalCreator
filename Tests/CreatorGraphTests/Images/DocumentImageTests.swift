@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorKernel
 import Foundation
 import Testing
@@ -48,5 +49,35 @@ struct DocumentImageTests {
         document.documentURL = folder.url.appending(path: "doc/Plate.mcgraph")
         await document.waitForEvaluation()
         #expect(size(document, node) == 6)
+    }
+
+    // MARK: didSave(to:)
+
+    @Test func didSaveBringsLinkedPathsIntoLineWithTheNewFolderAndMovesTheURLWithoutTouchingUndo() async throws {
+        let file = try folder.write(Data(count: 6), to: "doc/maps/vent.png")
+        let absolute = file.standardizedFileURL.path(percentEncoded: false)
+        let (document, node) = document(.linked(relativePath: "maps/vent.png", absolutePath: absolute),
+                                        url: folder.url.appending(path: "doc/Plate.mcgraph"))
+        try document.perform(.move(node.id, to: Vector2(5, 5)), name: "Move")
+        let name = document.undoName, canRedo = document.canRedo
+        let destination = folder.url.appending(path: "copy/Plate.mcgraph")
+        document.didSave(to: destination)
+        let setting = document.graph.nodes[node.id]?.inputValues[NodeSetting.image]
+        #expect(setting == .image(.linked(relativePath: "../doc/maps/vent.png", absolutePath: absolute)))
+        #expect(document.documentURL == destination)
+        #expect(document.canUndo && document.undoName == name && document.canRedo == canRedo, "no undo step was added or lost")
+        await document.waitForEvaluation()
+        #expect(size(document, node) == 6, "the file is still found from the new folder")
+    }
+
+    @Test func didSaveLeavesContentWithNoLinkedImagesAsItWas() throws {
+        let hash = ImageHash(of: Data("held".utf8))
+        for reference in [ImageReference?.none, .embedded(hash)] {
+            let (document, _) = document(reference, images: [hash: Data("held".utf8)])
+            let before = document.content
+            document.didSave(to: folder.url.appending(path: "doc/Plate.mcgraph"))
+            #expect(document.content == before)
+            #expect(document.documentURL == folder.url.appending(path: "doc/Plate.mcgraph"))
+        }
     }
 }

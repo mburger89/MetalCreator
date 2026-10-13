@@ -68,6 +68,15 @@ struct GreyImageTests {
         }
     }
 
+    @Test func aFiniteCoordinateThatOverflowsWhenScaledGivesZero() throws {
+        let image = try #require(Self.checker)  // 2 × 2: 1.5e308 × 2 is infinity
+        for edges in ImageEdges.allCases {
+            #expect(image.value(u: 1.5e308, v: 0.25, edges: edges) == 0, "u overflows, \(edges)")
+            #expect(image.value(u: 0.25, v: -1.5e308, edges: edges) == 0, "v overflows, \(edges)")
+            #expect(image.value(u: 0.25, v: 0.25, edges: edges) == 0, "a coordinate that does not overflow still reads a pixel")
+        }
+    }
+
     @Test func theEdgeModesHaveTheirSegmentedControlOrder() {
         #expect(ImageEdges.options == ["Tile", "Clamp"])
         #expect(ImageEdges(rawValue: 0) == .tile && ImageEdges(rawValue: 1) == .clamp && ImageEdges(rawValue: 2) == nil)

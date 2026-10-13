@@ -25,13 +25,17 @@ public struct ImageResolver: Sendable {
     public func location(of reference: ImageReference) -> URL? {
         guard case .linked(let relative, let absolute) = reference else { return nil }
         if let relative, let folder = documentFolder {
-            let candidate = folder.appending(path: relative).standardizedFileURL
+            // The folder's symbolic links are resolved before the relative path is applied, because `relativePath(from:to:)`
+            // counts `..` on resolved paths; applied lexically to a symlinked folder, a `..` would climb the wrong tree.
+            let candidate = folder.resolvingSymlinksInPath().appending(path: relative).standardizedFileURL
             if FileManager.default.fileExists(atPath: candidate.path(percentEncoded: false)) { return candidate }
         }
         return URL(filePath: absolute).standardizedFileURL
     }
 
-    /// What `reference` points at now (see `ImageStamp`).
+    /// What `reference` points at now (see `ImageStamp`). Two limits: the stamp is taken before the bytes are read, so a file
+    /// changed in between is read newer than its stamp says; and a symbolic link retargeted to a file with the same modification
+    /// date and size gives the same stamp, so that change goes unnoticed until the date or size differs.
     public func stamp(of reference: ImageReference) -> ImageStamp {
         switch reference {
         case .embedded(let hash):

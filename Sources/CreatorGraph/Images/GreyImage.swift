@@ -22,7 +22,8 @@ public struct GreyImage: Sendable {
     /// The grey value in 0…1 at picture coordinates `u` (0 left edge, 1 right edge) and `v` (0 top edge, 1 bottom edge),
     /// bilinear between pixel centres. Outside 0…1 the picture repeats or holds its edge pixels, as `edges` says. A
     /// coordinate that is NaN or infinite gives 0, and no finite one can trap: positions are folded into the picture while
-    /// still `Double`s.
+    /// still `Double`s. A finite `u` or `v` so large that scaling by the size overflows to infinity (a magnitude over
+    /// `Double.greatestFiniteMagnitude` ÷ the side in pixels) also gives 0, not a pixel.
     public func value(u: Double, v: Double, edges: ImageEdges) -> Double {
         let x = u * Double(width) - 0.5, y = v * Double(height) - 0.5
         guard x.isFinite, y.isFinite else { return 0 }
