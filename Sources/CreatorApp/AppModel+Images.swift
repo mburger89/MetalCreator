@@ -29,13 +29,16 @@ extension AppModel {
     /// 8,192 px on a side, or not a PNG or JPEG, and the setting stays as it was (fields spec D10).
     public func performImage(_ action: InspectorAction, on node: NodeID, using picker: any FilePicker) async {
         editor.commitPendingEntry()
-        guard editor.graph.nodes[node] != nil else { return }
+        guard editor.graph.nodes[node] != nil, !isImageActionInFlight else { return }
+        isImageActionInFlight = true
+        defer { isImageActionInFlight = false }
+        let target = ImageTarget(document: document, path: editor.graphPath, levels: editor.levelPath, node: node)
         do {
             switch action {
-            case .chooseImage: try await chooseImage(for: node, using: picker)
-            case .linkImage: try await linkImage(for: node, using: picker)
-            case .relinkImage: try await relinkImage(for: node, using: picker, named: UndoName.relinkImage)
-            case .embedImage: try embedImage(for: node)
+            case .chooseImage: try await chooseImage(target, using: picker)
+            case .linkImage: try await linkImage(target, using: picker)
+            case .relinkImage: try await relinkImage(target, using: picker, named: UndoName.relinkImage)
+            case .embedImage: try embedImage(target)
             case .pickEdgesInView, .pickFacesInView, .editSketch, .editGroup, .makeUnique, .ungroup: break
             }
         } catch let problem as AppProblem {
@@ -47,42 +50,57 @@ extension AppModel {
         }
     }
 
+    /// The document, level and node an image action began on. A file panel stays open while the person does other things,
+    /// so the answer is used only if the same node of the same level of the same document is still there.
+    private struct ImageTarget {
+        let document: DocumentModel
+        let path: GraphPath
+        let levels: [NodeID]
+        let node: NodeID
+    }
+
+    /// Whether `target` is still what the window shows.
+    private func isCurrent(_ target: ImageTarget) -> Bool {
+        document === target.document && editor.levelPath == target.levels && editor.graph.nodes[target.node] != nil
+    }
+
     private func currentImage(of node: NodeID) -> ImageReference? {
         if case .image(let reference)? = editor.graph.nodes[node]?.inputValues[NodeSetting.image] { reference } else { nil }
     }
 
-    private func chooseImage(for node: NodeID, using picker: any FilePicker) async throws {
-        guard let url = try await picker.chooseFileToOpen(Self.imageTypes) else { return }
+    private func chooseImage(_ target: ImageTarget, using picker: any FilePicker) async throws {
+        guard let url = try await picker.chooseFileToOpen(Self.imageTypes), isCurrent(target) else { return }
         let bytes = try checkedBytes(of: url)
-        try setImage(.embedded(document.addImage(bytes)), on: node, named: UndoName.chooseImage)
+        try setImage(.embedded(document.addImage(bytes)), on: target, named: UndoName.chooseImage)
     }
 
-    private func linkImage(for node: NodeID, using picker: any FilePicker) async throws {
-        guard case .embedded(let hash)? = currentImage(of: node) else {
-            return try await relinkImage(for: node, using: picker, named: UndoName.linkImage)
+    private func linkImage(_ target: ImageTarget, using picker: any FilePicker) async throws {
+        guard case .embedded(let hash)? = currentImage(of: target.node) else {
+            return try await relinkImage(target, using: picker, named: UndoName.linkImage)
         }
         guard let bytes = document.images[hash] else { throw ImageProblem.embeddedMissing }
         let format = try GreyImageDecoder.inspect(bytes).format
-        guard let url = try await picker.chooseDestination(Self.imageTypes, defaultName: "image.\(format.fileExtension)") else { return }
+        guard let url = try await picker.chooseDestination(Self.imageTypes, defaultName: "image.\(format.fileExtension)"),
+              isCurrent(target), currentImage(of: target.node) == .embedded(hash) else { return }
         do {
             try bytes.write(to: url, options: .atomic)
         } catch {
             throw AppProblem("“\(url.lastPathComponent)” couldn't be saved", error.localizedDescription)
         }
-        try setImage(linkedReference(to: url), on: node, named: UndoName.linkImage)
+        try setImage(linkedReference(to: url), on: target, named: UndoName.linkImage)
     }
 
-    private func relinkImage(for node: NodeID, using picker: any FilePicker, named name: String) async throws {
-        guard let url = try await picker.chooseFileToOpen(Self.imageTypes) else { return }
+    private func relinkImage(_ target: ImageTarget, using picker: any FilePicker, named name: String) async throws {
+        guard let url = try await picker.chooseFileToOpen(Self.imageTypes), isCurrent(target) else { return }
         _ = try checkedBytes(of: url)
-        try setImage(linkedReference(to: url), on: node, named: name)
+        try setImage(linkedReference(to: url), on: target, named: name)
     }
 
-    private func embedImage(for node: NodeID) throws {
-        guard let reference = currentImage(of: node), !reference.isEmbedded else { return }
+    private func embedImage(_ target: ImageTarget) throws {
+        guard let reference = currentImage(of: target.node), !reference.isEmbedded else { return }
         let bytes = try document.imageResolver.bytes(of: reference)
         _ = try GreyImageDecoder.inspect(bytes)
-        try setImage(.embedded(document.addImage(bytes)), on: node, named: UndoName.embedImage)
+        try setImage(.embedded(document.addImage(bytes)), on: target, named: UndoName.embedImage)
     }
 
     /// The bytes of the file at `url` once they pass the image limits, else a sentence naming the file.
@@ -103,9 +121,9 @@ extension AppModel {
         return .linked(relativePath: relative, absolutePath: file.path(percentEncoded: false))
     }
 
-    private func setImage(_ reference: ImageReference, on node: NodeID, named name: String) throws {
+    private func setImage(_ reference: ImageReference, on target: ImageTarget, named name: String) throws {
         do {
-            try document.perform(.setInput(node, NodeSetting.image, .image(reference)), at: editor.graphPath, name: name)
+            try document.perform(.setInput(target.node, NodeSetting.image, .image(reference)), at: target.path, name: name)
         } catch {
             throw AppProblem("The image couldn't be changed", error.message)
         }

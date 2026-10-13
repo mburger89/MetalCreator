@@ -57,6 +57,8 @@ public final class AppModel {
     @ObservationIgnored var resizeStart: Double?
     @ObservationIgnored var observationGeneration = 0
     @ObservationIgnored var sceneTask: Task<Void, Never>?
+    /// An image button is waiting on a file panel (`performImage`); another press meanwhile is ignored.
+    @ObservationIgnored var isImageActionInFlight = false
 
     /// `kernel` evaluates the document and tessellates for the viewport (`OCCTKernel` in the app, `FakeKernel`
     /// in tests). `file` is the document to start with, `fileURL` where it came from, `themes` the app's themes.
