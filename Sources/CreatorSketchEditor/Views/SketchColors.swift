@@ -16,7 +16,6 @@ struct SketchColors {
     var warning: Color { colors.warning.color }
     /// Inferred constraints' glyphs: the selection's colour (the Sketch node's header green).
     var inferred: Color { colors.profileHeader.color }
-    /// Floating chrome: the theme's glass and its hairline.
-    var glass: Color { colors.glassFill.color }
+    /// Floating chrome's hairline; its glass is `GlassStyle`'s.
     var hairline: Color { colors.glassStroke.color }
 }

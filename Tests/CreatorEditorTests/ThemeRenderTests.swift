@@ -12,7 +12,7 @@ struct ThemeRenderTests {
     /// A glass panel with an inspector section and a row: glass, hairline, hint text and primary text.
     func render(_ store: ThemeStore?) -> [[Float]] {
         let scene = renderHeadless {
-            GlassPanel {
+            GlassPanel(.inspector) {
                 InspectorSectionView(title: "Shape") {
                     LabeledRow(label: "Width") { Spacer() }
                 }

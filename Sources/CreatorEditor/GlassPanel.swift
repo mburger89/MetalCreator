@@ -1,28 +1,31 @@
 import CreatorStyle
 import MetalUI
 
-/// Glass chrome for floating panels (spec §6.1, §6.6): the theme's glass fill (`#21222c` at 86% in Dracula), its 1-pt
-/// hairline (`#ffffff1f`) and rounded corners. The fill stays the theme's own flat tint, on purpose (gap M5-c, decided
-/// with MetalUI C10 in hand): MetalUI's materials (`.ultraThinMaterial` and the rest) are a flat grey fitted to
-/// SwiftUI's, with no backdrop blur and no theme, so they would drop the theme's `glass` role (which the theme editor
-/// lets people set) for a grey no theme chose; and `.blur(radius:)` blurs a view's own pixels, not what is behind it.
-/// A true backdrop blur is MetalUI's item C10-c, which docs/metalui-gaps.md logs as gap C10-a, and the viewport behind
-/// the panels is a GPU surface a CPU blur could not read anyway. Public so the app shell's top bar and pick banner (M6)
-/// share the chrome.
+/// Glass chrome for floating panels (spec §6.1, §6.6): rounded corners, a 1-pt hairline, and a fill that blurs the
+/// viewport behind the panel. The fill is MetalUI's material for the panel's surface (`GlassSurface.thickness`), which
+/// blurs what is drawn beneath it (MetalUI C21, gap C10-a), with the theme's `glass` role laid over it
+/// (`GlassStyle.tint`: Dracula's `#21222c` at 86%, lowered a little because the material under it already hides some of
+/// the backdrop). The colour stays the theme's, so the theme editor's Glass role still sets it, and Alucard's light glass
+/// is light. Which material, and what the tint is, are `GlassStyle`'s (CreatorStyle); this only draws it. The blur
+/// sees what MetalUI drew beneath the panel in the same window, and nothing of the desktop (MetalUI divergence 245).
+/// Public so the app shell's top bar and pick banner (M6) share the chrome.
 public struct GlassPanel<Body: ElementGroup>: Component {
+    let surface: GlassSurface
     let body: Body
     @Environment(ThemeStore.self) var themes: ThemeStore?
 
-    public init(@ElementBuilder _ body: () -> Body) {
+    public init(_ surface: GlassSurface, @ElementBuilder _ body: () -> Body) {
+        self.surface = surface
         self.body = body()
     }
 
     public var content: some ElementGroup {
         let palette = Palette(themes)
+        let style = GlassStyle(themes: themes, surface: surface)
         let shape = RoundedRectangle(cornerRadius: Pixels(10))
         return ZStack(alignment: .topLeading) { body }
             .padding(Edges(all: GraphPanelLayout.glassPadding.px))
-            .background(palette.glass.color, in: shape)
+            .glassBackground(style, in: shape)
             .overlay { shape.strokeBorder(palette.hairline.color, lineWidth: Pixels(1)) }
     }
 }

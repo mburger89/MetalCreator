@@ -67,8 +67,9 @@ struct ThemeEditorRenderTests {
         let width = ThemeEditorLayout.width + 2 * GraphPanelLayout.glassPadding
         let x = Double(Self.window.width.value) - AppLayout.margin - width
         let height = Double(Self.window.height.value) - ThemeEditorLayout.top - AppLayout.margin
+        let tint = GlassStyle(theme: .dracula, surface: .themeEditor).tint.quantized
         let glass = fills(app, editor).filter { fill in
-            fill.colour == Palette.dracula.glass.quantized && abs(fill.x - x) < 1 && abs(fill.y - ThemeEditorLayout.top) < 1
+            fill.colour == tint && abs(fill.x - x) < 1 && abs(fill.y - ThemeEditorLayout.top) < 1
         }
         #expect(glass.count == 1, "one glass panel at (\(x), \(ThemeEditorLayout.top))")
         #expect(glass.allSatisfy { abs($0.width - width) < 1 && abs($0.height - height) < 1 })
@@ -85,8 +86,9 @@ struct ThemeEditorRenderTests {
         let windowHeight = Double(Self.window.height.value)
         let graphTop = windowHeight - AppLayout.margin - app.panelHeight
         let height = graphTop - AppLayout.resizeHandle - AppLayout.margin - ThemeEditorLayout.top
+        let tint = GlassStyle(theme: .dracula, surface: .themeEditor).tint.quantized
         let glass = fills(app, editor).filter { fill in
-            fill.colour == Palette.dracula.glass.quantized && abs(fill.x - x) < 1 && abs(fill.y - ThemeEditorLayout.top) < 1
+            fill.colour == tint && abs(fill.x - x) < 1 && abs(fill.y - ThemeEditorLayout.top) < 1
         }
         #expect(glass.count == 1, "one glass panel at (\(x), \(ThemeEditorLayout.top))")
         #expect(glass.allSatisfy { abs($0.height - height) < 1 && $0.y + $0.height < graphTop })

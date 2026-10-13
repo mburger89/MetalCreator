@@ -249,7 +249,7 @@ Themes milestone after M6 (roadmap).
 | Role | Colour |
 |---|---|
 | Window and viewport background (gradient) | `#3a3d4e` → `#191a21` |
-| Glass panels | `#21222c` at about 86% (no blur: Errata (M5), gap C10-a), hairline `#ffffff1f` |
+| Glass panels | `#21222c` at about 86%, over a blurring material (Errata (C21)), hairline `#ffffff1f` |
 | Panel base, dark text on accents | `#282a36` |
 | Node body, fields, tracks, dividers | `#343746` / `#44475a` |
 | Primary text / secondary and hint text | `#f8f8f2` / `#6272a4` |
@@ -408,10 +408,9 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
   passes `BuiltInNodes.registry`. `CreatorNodes` is a test-only dependency of `CreatorEditorTests`, where
   `BuiltInNodesInspectorTests` runs every built-in definition through `InspectorBuilder` and `NodeShape`.
 - §6.4's inspector also clears an optional input: emptying its field unsets it (for example Grid Points `total`).
-- §6.1/§6.6's glass blur is not built, and not for want of an API: MetalUI C10's materials are a flat grey tint with no
-  backdrop blur and its `.blur(radius:)` blurs a view's own pixels, so panels keep the theme's translucent `glass` tint
-  (Dracula `#21222c` at 86%) with the hairline; a blur of the viewport behind them is MetalUI's C10-c (docs/metalui-gaps.md
-  M5-c, C10-a). The window gradient (§6.6) is MetalUI's `LinearGradient` (`WindowBackground`, M5-d); the app's viewport paints it on the GPU.
+- §6.1/§6.6's glass blur was not built with MetalUI C10 (its materials were a flat grey tint with no backdrop blur, and its
+  `.blur(radius:)` blurs a view's own pixels), so panels kept the theme's translucent `glass` tint with the hairline until
+  MetalUI C21 (docs/metalui-gaps.md M5-c, C10-a; Errata (C21) below). The window gradient (§6.6) is MetalUI's `LinearGradient` (`WindowBackground`, M5-d); the app's viewport paints it on the GPU.
 - §6.2's refusal shake is MetalUI's `keyframeAnimator`: 6 pt right, 6 pt left, home, in 0.2 s, once per refusal (M5-i).
 - §6.2's status-badge spinner is MetalUI's `ProgressView` while a node evaluates (M5-j).
 - §6.4's sliders end one undo step per drag at MetalUI's `Slider(onEditingChanged:)` (M5-a).
@@ -719,3 +718,14 @@ Plan `2026-10-10-7a-place.md`, patterns spec `2026-10-10-patterns-trees-design.m
 - §7.3: a fourth performance target, from patterns spec §7: ~200 instances, edit-to-preview within a second or two. Its benchmark is
   `PatternBench` (`docs/verification/performance.md`, "Patterns").
 
+## Errata (C21: the glass blur)
+
+- §6.1/§6.6's glass blurs the viewport behind it (MetalUI C21, docs/metalui-gaps.md C10-a, plan `2026-10-12-adopt-c21.md`). A panel is
+  a MetalUI material, then the theme's `glass` role over it, then the hairline: `GlassStyle` (CreatorStyle), drawn by
+  `GlassPanel(_ surface:)`. The role stays the theme's: its colour is the tint's, and its opacity is how much of the backdrop the panel
+  hides, so the tint's own opacity is `1 - (1 - glass) / (1 - material)` (Dracula's 86% over `.ultraThinMaterial` is a 72% tint).
+  The "86%" in §6.6's table is the role's value; the pixels over it are the tint at about 72% over the material.
+- The thickness of each surface is `GlassSurface.thickness`: the thinnest material everywhere except the palette (one step thicker).
+- Reduce Transparency is not honoured (gap C21-b, sent to the MetalUI session): panels blur whatever the setting says until MetalUI provides it.
+- MetalUI's limits stay visible: the blur sees only the window's own content (245), has no saturation lift (246), covers the shape's
+  bounding box (247), and a material inside `.shadow`/`.blur`/`.compositingGroup()` is flat (248), which no panel uses.
