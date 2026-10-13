@@ -34,7 +34,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
 | M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
 | VI-a | A dropped gesture's end | C16 | ✅ fixed (MetalUI a720fba, PR #67: `.onCancelled` on Drag/Magnify/Rotate gestures; a synthesized `.cancelled` scroll when the window stops being key), adopted (plan `2026-10-12-adopt-c16`): the viewport's three button drags and pinch, the canvas's press, middle pan and pinch, the library row's drag and the panel's resize edge end through it (`ViewportCancelWindowTests`, `CanvasCancelWindowTests`, `PointerCancelTests`); the lost-pinch guesses are gone. A primary drag whose next press lands on the same element is dropped by MetalUI without a cancel and keeps its stopgap (VI-b) |
-| VI-b | A press that continues a gesture arena fails a drag that had reported, without `onCancelled` | none yet | ⏳ found by the C16 adoption (plan `2026-10-12-adopt-c16`), sent to the MetalUI session |
+| VI-b | A press that continues a gesture arena fails a drag that had reported, without `onCancelled` | C26 (queued after C22) | ⏳ found by the C16 adoption (plan `2026-10-12-adopt-c16`), queued as MetalUI C26 |
 | GI-a | Modifiers on a tap | C16 (with S5-a) | ✅ fixed (MetalUI a720fba: `SpatialTapGesture.Value.modifiers`), adopted (plan `2026-10-12-adopt-c16`): the viewport's click passes its tap's modifiers (`ViewportModifiersWindowTests.aCommandClickReachesTheToolWithCommandAndAPlainOneWithout`); the graph canvas needs nothing, since its one zero-distance drag already carries them and must stay a drag |
 | GI-b | Wheel latching (`CI-AD`) | C16 | ✅ fixed (MetalUI a720fba: a scroll latches to the element under its `.began`, momentum included; synthesized `.cancelled` on key loss), adopted (plan `2026-10-12-adopt-c16`) with no code to remove (the entry's stopgap was none): `ScrollLatchWindowTests` pins the canvas's glide staying on the canvas, the viewport's staying off it and key loss mid-glide; human check C16-1 |
 | PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | ✅ fixed (MetalUI ebcf3c7, PR #63), adopted with no code change; idle re-measure pending |
@@ -430,7 +430,8 @@ Labelled VI-b so it stays beside VI-a.
   it fails through the same `cancel()` as `abandon()` (a leaf that reported owes its `onCancelled`), or the primary arena
   is cancelled on a plain `.mouseMoved` as the button arenas are. When MetalUI fixes it: invert the pin test `aPrimaryPressOnTheSameElementLeavesTheLostDragToTheNextDragValues`
   and the matching `PressModifierTests` pin, and remove the stopgap with it: `ViewportModel.beginDragIfNeeded`'s primary
-  branch, the drag-ending line in `click(at:)` and `EditorModel.ensurePress`'s drop. Sent to the MetalUI session with this entry.
+  branch, the drag-ending line in `click(at:)` and `EditorModel.ensurePress`'s drop. Sent to the MetalUI session with this entry; queued there as C26, after C22 (both edit
+  the gesture arena), leaning to the first fix.
 
 ## Node-drag performance, 2026-10-08
 
