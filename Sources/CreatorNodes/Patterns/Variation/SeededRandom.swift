@@ -28,6 +28,10 @@ struct SeededRandom: Sendable {
         case values = 0x5661_6C75_6573_5F31
         /// Jitter: "Jitter_1".
         case jitter = 0x4A69_7474_6572_5F31
+        /// Noise Field: "FNoise_1".
+        case fieldNoise = 0x464E_6F69_7365_5F31
+        /// Cull by Field, Probability: "FCull__1".
+        case fieldCull = 0x4643_756C_6C5F_5F31
     }
 
     private let start: UInt64
