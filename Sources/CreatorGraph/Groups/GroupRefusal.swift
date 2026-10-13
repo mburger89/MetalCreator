@@ -12,11 +12,6 @@ enum GroupRefusal {
     static let wouldCycle = GraphError.invalidValue(
         "These nodes can't be grouped: a node outside the selection both takes from them and feeds them.")
     static let emptyName = GraphError.invalidValue("A group needs a name.")
-    /// Fields are never saved and `"field"` is no socket type a format-6 file may hold (CLAUDE.md: a change older readers can't
-    /// decode bumps the format; 7b-2's format 7 lifts this).
-    static let fieldSocket = GraphError.invalidValue(
-        "A field can't cross a group's edge yet: group the nodes on both sides of the wire together, "
-            + "or sample the field into numbers first.")
 
     static func nameTaken(_ name: String) -> GraphError { .invalidValue("A group named “\(name)” already exists.") }
     static func inUse(_ name: String) -> GraphError { .invalidValue("“\(name)” is still in use. Delete its group nodes first.") }
