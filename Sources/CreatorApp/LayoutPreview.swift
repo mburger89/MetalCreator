@@ -11,6 +11,7 @@ public enum LayoutPreview {
     /// The nodes whose placements are previewed.
     public static let layoutTypes: Set<String> = [
         LinearPatternNode.typeID, GridPatternNode.typeID, CircularPatternNode.typeID, CurvePatternNode.typeID, FacePatternNode.typeID,
+        FieldScatterNode.typeID,
     ]
 
     /// How long a triad's axes are when there is a single placement, in millimetres.
@@ -26,16 +27,17 @@ public enum LayoutPreview {
         let planes = value.items.compactMap { scalar -> Plane? in
             if case .plane(let plane) = scalar { plane } else { nil }
         }
-        var overlay = ViewportOverlay(lines: triads(of: planes))
-        if node.typeID == FacePatternNode.typeID {
+        let isScatter = node.typeID == FieldScatterNode.typeID
+        var overlay = ViewportOverlay(lines: triads(of: planes, length: isScatter ? scatterTriadLength(of: planes) : nil))
+        if node.typeID == FacePatternNode.typeID || isScatter {
             overlay.lines += clippedArea(of: node, graph: graph, results: results)
         }
         return overlay
     }
 
-    /// An x, y and z line for each placement.
-    static func triads(of planes: [Plane]) -> [OverlayLine] {
-        let length = triadLength(of: planes)
+    /// An x, y and z line for each placement, `length` long, or sized by the steps between placements.
+    static func triads(of planes: [Plane], length: Double? = nil) -> [OverlayLine] {
+        let length = length ?? triadLength(of: planes)
         return planes.flatMap { plane in
             [OverlayLine(plane.origin, plane.origin + plane.xAxis * length, tint: .axisX),
              OverlayLine(plane.origin, plane.origin + plane.yAxis * length, tint: .axisY),
@@ -71,7 +73,7 @@ public enum LayoutPreview {
         if let link = graph.incomingLink(to: Endpoint(node: node.id, socket: socket)) {
             return results[link.from.node]?.outputs?[link.from.socket]
         }
-        let spec = FacePatternNode.inputs.first { $0.name == socket }
+        let spec = (node.typeID == FieldScatterNode.typeID ? FieldScatterNode.inputs : FacePatternNode.inputs).first { $0.name == socket }
         guard let constant = node.inputValues[socket] ?? spec?.defaultValue, let type = spec?.type else { return nil }
         return Scalar(constant)?.converted(to: type).map(Value.one)
     }
