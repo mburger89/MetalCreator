@@ -36,7 +36,24 @@ public enum InspectorBuilder {
         if let data = dataSection(node: node, graph: graph, registry: registry, results: results, expanded: expandedShapes) {
             sections.append(data)
         }
+        if let recipe = fieldSection(node: node, registry: registry, results: results) {
+            sections.append(recipe)
+        }
         return InspectorPage(header: header, sections: sections, parameters: parameters)
+    }
+
+    /// The "Field" section (fields spec §2.1): the recipe of the field each field output of the node holds, read-only. `nil` for a
+    /// node with no field output. Its row is labelled "Field", or by the socket when there are several; before the node has a
+    /// result it says "No field yet", and when its result holds no field (an empty or mixed list) "No field in this result".
+    static func fieldSection(node: Node, registry: NodeRegistry, results: [NodeID: NodeResult]) -> InspectorSectionRows? {
+        let outputs = registry.outputs(for: node).filter { $0.type == .field }
+        guard !outputs.isEmpty else { return nil }
+        let rows = outputs.map { spec -> InspectorRow in
+            let output = results[node.id]?.outputs?[spec.name]
+            let text = output?.fieldSummary() ?? (results[node.id]?.outputs == nil ? "No field yet" : "No field in this result")
+            return .recipe(label: outputs.count == 1 ? "Field" : InspectorLabel.text(for: spec.name), text: text)
+        }
+        return InspectorSectionRows(title: "Field", rows: rows)
     }
 
     /// The "Data" section (7a spec §2): a row for each tree wired into one of the node's inputs and each tree it made,

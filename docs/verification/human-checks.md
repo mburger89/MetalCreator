@@ -1328,7 +1328,8 @@ plate (Rectangle 60 × 40 on a plane at z = −6, Extrude 6) and a Grid Points (
 Pattern (Ø5, depth 6) into an Output; then put the nodes below between Points to Placements and the Hole Pattern.
 
 - [ ] **VA-1 The library.** The "Patterns" section ends with Cull Pattern, Cull Index, Cull by Region, Random Reduce, Random Values and
-  Jitter after Pattern Feature (the layouts come first in the section). Typing "cull" in the add-node palette finds three.
+  Jitter after Pattern Feature (the layouts come first in the section). Typing "cull" in the add-node palette finds three (four
+  once Cull by Field exists, 7b-1: it comes last, under Fields).
   Pinned: `thePatternsSectionHoldsThePatternNodes`. **Observed:**
 - [ ] **VA-2 Cull Pattern.** The Pattern row shows `1 0` in a text field: every other hole is gone. Type `1 1 0` and press Return: every
   third is gone. Type `1 2`: the badge reads "“1 2” isn't a pattern. Use 1 to keep an item and 0 to cull it, like 1 0 1." The
@@ -1552,6 +1553,42 @@ cannot show is the OS really taking the button away.
   note or a frame's title bar: it edits once. Double-click in the viewport: two clicks, and nothing is dragged or cancelled (no
   flash of the closed hand, the camera does not move). Pinned: `aDoubleClickOverTheViewportCancelsNothing`,
   `CanvasDoubleClickWindowTests`. **Observed:**
+
+## Group FI-core — the fields core (7b-1)
+
+**Status: NOT RUN.** Plan `2026-10-12-7b-core.md`, spec `2026-10-12-fields-design.md` §2.1 and §3. Run `swift run MetalCreatorApp`. The
+tests pin the value, the maths, the sampling, the kernel distances and the nodes; these check only what a real window shows.
+Build: a Rectangle (60 × 40) into an Extrude (6) into a Distance Field's `target`, that into a Remap (from 0…20, to 1…0), and a
+Noise Field into a Multiply's `b`; wire the Remap into the Multiply's `a`.
+
+- [ ] **FI-core-1 The field socket's colour.** The Fields nodes' sockets and the wires between them are one colour (the Feature
+  orange in Dracula) that is easy to tell from the Value nodes' blue-grey, the Solid purple and the Selection pink. A number wired
+  into a Remap's `field` socket keeps its own colour at the number end. Switch View > Theme to Alucard and Nord: the field dots
+  and wires stay legible against the node body and are still different from the Value dots. Pinned: `FieldPaletteTests`, for the default theme (Dracula) only; Alucard and Nord are human-only.
+  **Observed:**
+- [ ] **FI-core-2 The recipe row.** Select the Multiply: the inspector's last section is "Field" with the recipe under its label:
+  `remap(distance(solid), 0…20 → 1…0) × noise(seed 0, scale 10, octaves 1)`. A long recipe wraps inside the panel, is not clipped
+  and does not push the panel wider; the text is the secondary text colour. Select the Noise Field, then the Extrude: the section
+  follows (`noise(seed 0, scale 10, octaves 1)`; no section for the Extrude). Change the Noise Field's seed: the row follows within
+  the evaluation. **If the recipe does not wrap, that is a MetalUI gap: log it in `docs/metalui-gaps.md` (entry and summary row) and
+  send it to the MetalUI session; do not work around it here.** Pinned: `FieldDisplayTests`. **Observed:**
+- [ ] **FI-core-3 The tooltip.** Rest the pointer on the Multiply's output dot: the tooltip is the recipe above. Rest on its `a` input
+  dot: the Remap's recipe. A chain of eight Adds ends in a tooltip cut at 80 characters with "…". An unwired `b` with a typed number
+  has no tooltip. Pinned: `anOutputAndTheInputItIsWiredIntoShowTheRecipe`, `aLongRecipeIsCutToEightyCharacters`. **Observed:**
+- [ ] **FI-core-4 The library and the palette.** The node library has a "Fields" section after "Lists & Trees" and before "Output",
+  with Distance Field, Linear Gradient, Radial Gradient, Noise Field, Add, Multiply, Min / Max, Remap, Clamp, Smooth Blend, Sample
+  Field and Cull by Field; its header colour is the Feature orange. Typing "cull" in the add-node palette lists Cull by Field last,
+  after the Patterns cull nodes. Pinned: `FieldsLibraryTests`. **Observed:**
+- [ ] **FI-core-5 Wiring and typing.** Drag a Radial Gradient's output onto a Circle's `diameter`: the wire is refused, the caption
+  reads "A field can't connect to a number input." and the Circle shakes. Type 0.5 into the Multiply's `b`: the Edit menu reads
+  "Undo Change B" and the recipe ends `× 0.5`. Wire a Number node into the Multiply's `a`: it connects (the recipe starts with
+  the number). Pinned: `aFieldCannotBeWiredIntoANumberInput`, `aNumberTypedIntoAFieldSocketIsStoredAsANumberAndNamedByItsLabel`.
+  **Observed:**
+- [ ] **FI-core-6 Sampling and culling in the viewport.** Build a Grid Points (6 × 4, 10 mm) into Points to Placements into a Hole
+  Pattern (Ø5, depth 6) on the plate, with a Cull by Field between (placements, field = a Radial Gradient of radius 30 at the
+  origin, Threshold, keep Above 0.5): the holes within 15 mm of the centre are gone and the rest are where they were. Switch to
+  Probability with a Noise Field: about half the holes remain, and changing the seed changes which, with no hole moving and no
+  badge. Pinned: `CullByFieldNodeTests`, `CulledByFieldPickTests`. **Observed:**
 
 ## Group C23 — MetalUI C23: text measured, not estimated (Adopt C23)
 

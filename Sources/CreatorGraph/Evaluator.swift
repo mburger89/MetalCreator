@@ -7,11 +7,14 @@ public actor Evaluator {
     let registry: NodeRegistry
     let kernel: any Kernel
     private var cache: ResultCache
+    /// Kernel distances for fields (fields spec §2.2), kept across evaluations so re-sampling the same points costs nothing.
+    public nonisolated let fieldDistances: FieldDistanceCache
 
     public init(registry: NodeRegistry, kernel: any Kernel, cacheBudgetBytes: Int = 512 * 1024 * 1024) {
         self.registry = registry
         self.kernel = kernel
         self.cache = ResultCache(budgetBytes: cacheBudgetBytes)
+        self.fieldDistances = FieldDistanceCache()
     }
 
     public var cachedEntryCount: Int { cache.count }
@@ -25,7 +28,8 @@ public actor Evaluator {
         // Entries of nodes no longer anywhere (deleted, or inside a group node that's gone) leave the cache.
         cache.removeEntries(notIn: graph.scopedNodeIDs(definitions: definitions))
         let parameters = Dictionary(graph.parameters.map { ($0.id, $0.value) }, uniquingKeysWith: { first, _ in first })
-        let setup = EvaluationSetup(registry: registry.withGroups(definitions), parameters: parameters, inspected: level)
+        let setup = EvaluationSetup(registry: registry.withGroups(definitions), parameters: parameters, inspected: level,
+                                    fieldDistances: fieldDistances)
         var trace = EvaluationTrace()
         var demand = demand
         if let first = level.first, graph.nodes[first] != nil { demand.insert(first) }

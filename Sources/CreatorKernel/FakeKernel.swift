@@ -148,6 +148,12 @@ public actor FakeKernel: Kernel {
         )
     }
 
+    public func distances(from points: [Vector3], to target: DistanceTarget, signed: Bool) throws -> [Double] {
+        try Task.checkCancellation()
+        operationLog.append("distances")
+        return try Self.measure(points, to: target, signed: signed)
+    }
+
     // MARK: - Fake construction
 
     private func blend(_ solid: Solid, edges: [EdgeID], size: Double, tag: NodeTag) throws -> Solid {

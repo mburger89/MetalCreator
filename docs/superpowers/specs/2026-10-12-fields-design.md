@@ -237,3 +237,20 @@ Measured by a new `FieldBench` suite (`Tests/CreatorAppTests/Bench`, release, id
 Scatter over curved surfaces or through a volume; vector fields (directions); fields as geometry (isosurfaces: 7c);
 displacement (7d); Metal compilation of fields (7c); colour images (grey only); image formats beyond what ImageIO reads
 as PNG and JPEG.
+
+## Errata (7b-1: the fields core)
+
+- **Graded sizes: Remap comes before Sample Field (§3.3, §8).** Remap takes and returns a field and there is no numeric Remap, so
+  "Sample Field → Remap → a shortcut's size socket" cannot be wired (a field into a number socket is refused, field → number).
+  The chain is a field → **Remap → Sample Field** → the size socket. §8's acceptance test (Sample Field → Remap → Hole Pattern
+  sizes) is built in that order; `GradedHolesTests` (7b-1) already does it on OCCT.
+- **A list of fields into Sample Field or Cull by Field is refused (§2.1).** The maths nodes broadcast a list or tree of fields;
+  these two work on a whole tree through a `tree`-access socket, which cannot also broadcast, so any list in any of their inputs
+  is refused in the layouts' words ("… takes single values, not lists: …"). A field per branch is a later change to both nodes.
+- **A group's interface cannot carry a field under format 6 (D4, §5).** `"field"` in a format-6 file would not decode in an older
+  build (CLAUDE.md: that bumps the format), so `GraphContent` refuses a `.field` interface socket; 7b-2's format 7 lifts it. A
+  field chain wholly inside a group works.
+- **The 100 ms of §7 row 2 is for analytic solids (planes, cylinders).** A smooth loft's B-spline faces cost about forty times a
+  plate's per point; `field-2b` records it without a budget.
+- **The distance cache (§2.2) counts the solids it keeps alive** (`Solid.estimatedBytes`) with its points and distances, so its
+  64 MB bounds what it pins.

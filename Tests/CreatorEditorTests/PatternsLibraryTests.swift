@@ -12,7 +12,8 @@ struct PatternsLibraryTests {
     }
 
     @Test func thePatternsSectionFollowsFeatureAndPrecedesOutput() {
-        #expect(sections.map(\.title) == ["Value", "Profile", "Solid", "Selection", "Feature", "Patterns", "Lists & Trees", "Output"])
+        #expect(sections.map(\.title)
+            == ["Value", "Profile", "Solid", "Selection", "Feature", "Patterns", "Lists & Trees", "Fields", "Output"])
     }
 
     @Test func thePatternsSectionHoldsThePatternNodes() {

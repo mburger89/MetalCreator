@@ -172,6 +172,15 @@ occt_shape *occt_transform(const occt_shape *shape, const double translation[3],
                            const double axis_origin[3], const double axis_direction[3], double angle,
                            occt_history *history, occt_status *status);
 
+/// FOR TESTS ONLY. A copy of `shape` carrying a non-identity TopLoc_Location (`shape.Moved(loc)`: the geometry is shared and
+/// unchanged, only the location is set, as a STEP import can give): a rotation about Z by `angle_z` radians, then a translation.
+/// Reports failure in `status` and returns null; throws nothing; the caller frees the result with occt_shape_free.
+occt_shape *occt_test_located_copy(const occt_shape *shape, const double translation[3], double angle_z, occt_status *status);
+
+/// FOR TESTS ONLY. The largest BRep_Tool::Tolerance over the vertices of `shape` in millimetres, or -1 if anything throws.
+/// Reads only; allocates nothing the caller must free.
+double occt_test_max_vertex_tolerance(const occt_shape *shape);
+
 /// Fillets the edges (1-based indices) with `radius`. History operand 0 = shape:
 /// OCCT_FROM_FACE for kept/modified faces, OCCT_FROM_EDGE (index = input edge) for blend faces.
 occt_shape *occt_fillet(const occt_shape *shape, const int *edge_indices, int count, double radius,
@@ -197,6 +206,16 @@ typedef struct {
 
 int occt_tessellate(const occt_shape *shape, double tolerance, occt_mesh *out, occt_status *status);
 void occt_mesh_free(occt_mesh *mesh);
+/// Distances in millimetres from `point_count` points (x, y, z triples in `points`) to part of `shape`, written to
+/// `out` (one per point; the caller owns it, the shim allocates nothing). `kind` 0 measures to the surface of the whole
+/// shape (every face), 1 to the faces and 2 to the edges at the 1-based `indices` (OCCT's indexed face and edge maps,
+/// as in occt_fillet). With `signed_distance` and kind 0, a point inside the shape gets a negative distance. Returns 1.
+int occt_distances(const occt_shape *shape, int kind, const int *indices, int index_count, const double *points,
+                   int point_count, int signed_distance, double *out, occt_status *status);
+/// The same measurement with BRepExtrema alone, no analytic fast path for planes and cylinders: the reference the fast
+/// path is tested against. Same arguments and result as occt_distances.
+int occt_distances_reference(const occt_shape *shape, int kind, const int *indices, int index_count, const double *points,
+                             int point_count, int signed_distance, double *out, occt_status *status);
 /// A compound of copies-by-reference of the given shapes.
 occt_shape *occt_make_compound(const occt_shape *const *shapes, int count, occt_status *status);
 /// Reads a STEP file into one shape (a compound for several bodies).

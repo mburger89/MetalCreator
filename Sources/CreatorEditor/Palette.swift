@@ -59,6 +59,8 @@ public struct Palette: Hashable, Sendable {
         case .feature, .patterns: colors.featureHeader
         // Lists & Trees shares the Value colour: the theme files have no role of its own.
         case .lists: colors.valueHeader
+        // Fields borrows the Feature colour until the theme gains a role of its own (7b-3 adds the preview ramp's three).
+        case .fields: colors.featureHeader
         case .output: colors.outputHeader
         }
     }
@@ -73,6 +75,7 @@ public struct Palette: Hashable, Sendable {
         case .solid: header(for: .solid)
         case .edgeSet, .faceSet: header(for: .selection)
         case .number, .integer, .bool, .vector, .plane: header(for: .value)
+        case .field: header(for: .fields)
         case .any: header(for: .lists)
         }
     }

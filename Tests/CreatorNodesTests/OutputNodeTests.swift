@@ -8,11 +8,14 @@ struct OutputNodeTests {
     /// The slice's 26 (spec §7.1) plus Plane from Face and Sketch (S4), the tree nodes (7a-1), and the 17 Patterns nodes:
     /// the five layouts (Linear, Grid, Circular, Curve, Face; 7a-3), Place, Points to Placements and the four shortcuts
     /// (Hole, Boss, Slot, Pattern Feature; 7a-2), and the variation nodes (Cull Pattern, Cull Index, Cull by Region,
-    /// Random Reduce, Random Values, Jitter; 7a-3b).
-    @Test func theBuiltInsAreTheSliceTheSketcherTheTreeNodesAndThePatternNodesInEightCategories() {
-        #expect(BuiltInNodes.all.count == 52)
+    /// Random Reduce, Random Values, Jitter; 7a-3b), and the Fields nodes (fields spec §3).
+    @Test func theBuiltInsAreTheSliceTheSketcherTheTreeNodesThePatternNodesAndTheFieldNodesInNineCategories() {
+        #expect(BuiltInNodes.all.count == 64)
         let counts = Dictionary(grouping: BuiltInNodes.all, by: { $0.category }).mapValues(\.count)
-        #expect(counts == [.value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .patterns: 17, .lists: 7, .output: 1])
+        let expected: [NodeCategory: Int] = [
+            .value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .patterns: 17, .lists: 7, .fields: 12, .output: 1,
+        ]
+        #expect(counts == expected)
     }
 
     /// The palette path (M5) is `registry.makeNode(typeID, at:)`, so that is what is tested.

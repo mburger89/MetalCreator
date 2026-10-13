@@ -5,7 +5,8 @@ import Foundation
 /// any future Swift kernel, live behind it (spec §5.1). Calls are serialized by the actor.
 ///
 /// Conformers must call `try Task.checkCancellation()` on entry to every operation, so calls
-/// queued by a superseded evaluation are skipped.
+/// queued by a superseded evaluation are skipped. `FakeKernel` checks only on entry, never inside an operation; a long
+/// `distances` call there is not interrupted part-way (the OCCT kernel checks between its chunks of points).
 public protocol Kernel: Actor {
     func extrude(_ profile: Profile2D, distance: Double, mode: ExtrudeMode, tag: NodeTag) throws -> Solid
     func revolve(_ profile: Profile2D, axis: Axis, angle: Angle, tag: NodeTag) throws -> Solid
@@ -31,4 +32,10 @@ public protocol Kernel: Actor {
     func export(_ solids: [Solid], format: ExportFormat, to url: URL) throws
     /// Volume, surface area and centroid. Used by inspectors and the conformance suite.
     func properties(of solid: Solid) throws -> SolidProperties
+    /// The distance in millimetres from each of `points` to `target`, in the order of `points` (fields spec §3.1). To a
+    /// `.solid` it is to the surface: with `signed`, negative inside and 0 on it; unsigned it is the size of that (so a
+    /// point inside is as far from the solid as its nearest wall). `signed` is ignored for `.faces` and `.edges`. Empty
+    /// `points` give no distances; an empty or dangling selection is `KernelError.invalidInput` (`DistanceTarget.validate`).
+    /// Like every operation it checks for cancellation on entry, and a long batch again between chunks.
+    func distances(from points: [Vector3], to target: DistanceTarget, signed: Bool) throws -> [Double]
 }
