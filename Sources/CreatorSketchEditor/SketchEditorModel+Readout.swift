@@ -39,9 +39,10 @@ extension SketchEditorModel {
         }
     }
 
-    /// The readout placed by the pointer on screen (`ReadoutChip`), or `nil` with no readout or no pointer over the view.
-    public var readoutChip: ReadoutChip? {
+    /// The readout placed by the pointer on screen (`ReadoutChip`), sized to its text by `measure`, or `nil` with no readout
+    /// or no pointer over the view.
+    public func readoutChip(measuring measure: TextMeasure) -> ReadoutChip? {
         guard let text = pointerReadout, let pointer = pointerOnScreen, !viewSize.isEmpty else { return nil }
-        return ReadoutChip(text: text, pointer: pointer, in: viewSize, modelArea: modelArea)
+        return ReadoutChip(text: text, pointer: pointer, in: viewSize, modelArea: modelArea, measuring: measure)
     }
 }

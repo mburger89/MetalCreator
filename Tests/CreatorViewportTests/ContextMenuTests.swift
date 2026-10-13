@@ -243,14 +243,14 @@ struct ContextMenuTests {
                            ViewportHandle(id: "d", anchor: .zero, direction: .unitZ, value: 12.5, range: 0...50,
                                           style: .linear, tint: .solid),
         ])
-        let labels = model.handleLabels()
+        let labels = model.handleLabels(measuring: .fake)
         #expect(labels.map(\.text) == ["R 3 mm", "12.5 mm"])
         // The 3 mm knob is 22.5 points above the centre of a 300-point-tall, 40 mm view.
         #expect(isClose(labels[0].position, ScreenPoint(200 + 14, 150 - 22.5 - 14)))
         #expect(model.triadLabels().map(\.text) == ["X", "Z"])
         #expect(model.gridLabel == "mm · grid 10 mm", "0.13 mm per point: 1 mm lines would be 7.5 points apart")
         model.perform(.view(.top))
-        #expect(model.triadLabels().isEmpty && model.handleLabels().isEmpty,
+        #expect(model.triadLabels().isEmpty && model.handleLabels(measuring: .fake).isEmpty,
                 "overlay labels can't follow a running animation, so they're hidden (the cube's are painted on it)")
     }
 }

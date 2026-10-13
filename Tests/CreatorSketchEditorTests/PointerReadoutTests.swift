@@ -107,22 +107,23 @@ struct PointerReadoutTests {
         let size = ViewportSize(width: 400, height: 300)
         let projector = ViewportProjector(pose: CameraPose(target: .zero, distance: 100, pitch: .pi / 2,
                                                            projection: .orthographic), size: size)
-        #expect(model.readoutChip == nil)
+        #expect(model.readoutChip(measuring: .fake) == nil)
         model.pointerMoved(to: ScreenPoint(200, 150), modifiers: [], projector: projector)
-        let chip = try #require(model.readoutChip)
+        let chip = try #require(model.readoutChip(measuring: .fake))
         #expect(chip.text == "0.0, 0.0")
-        #expect(chip == ReadoutChip(text: "0.0, 0.0", pointer: ScreenPoint(200, 150), in: size))
+        #expect(chip == ReadoutChip(text: "0.0, 0.0", pointer: ScreenPoint(200, 150), in: size, measuring: .fake))
         let inset = ViewportProjector(pose: projector.pose, size: size, modelArea: ViewportInsets(top: 200))
         model.pointerMoved(to: ScreenPoint(200, 220), modifiers: [], projector: inset)
-        #expect(model.readoutChip == ReadoutChip(text: model.pointerReadout ?? "", pointer: ScreenPoint(200, 220), in: size,
-                                                 modelArea: ViewportInsets(top: 200)), "kept in the model area")
+        let kept = ReadoutChip(text: model.pointerReadout ?? "", pointer: ScreenPoint(200, 220), in: size,
+                               modelArea: ViewportInsets(top: 200), measuring: .fake)
+        #expect(model.readoutChip(measuring: .fake) == kept, "kept in the model area")
         model.pointerMoved(to: nil, modifiers: [], projector: projector)
-        #expect(model.readoutChip == nil, "the pointer left the view")
+        #expect(model.readoutChip(measuring: .fake) == nil, "the pointer left the view")
     }
 
     @Test func theChipSitsCentredAboveThePointer() throws {
         let size = ViewportSize(width: 400, height: 300)
-        let chip = try #require(ReadoutChip(text: "24.5 mm · 30.0°", pointer: ScreenPoint(200, 150), in: size))
+        let chip = try #require(ReadoutChip(text: "24.5 mm · 30.0°", pointer: ScreenPoint(200, 150), in: size, measuring: .fake))
         #expect(abs(chip.origin.x + chip.size.width / 2 - 200) < 1e-9, "centred on the pointer")
         #expect(abs(chip.origin.y + chip.size.height - (150 - ReadoutChip.gap)) < 1e-9, "a gap above it")
         #expect(chip.size.width > 0 && chip.size.height > 0)
@@ -130,7 +131,7 @@ struct PointerReadoutTests {
 
     @Test func theChipFlipsBelowThePointerAtTheTop() throws {
         let size = ViewportSize(width: 400, height: 300)
-        let chip = try #require(ReadoutChip(text: "⌀ 20.0 mm", pointer: ScreenPoint(200, 20), in: size))
+        let chip = try #require(ReadoutChip(text: "⌀ 20.0 mm", pointer: ScreenPoint(200, 20), in: size, measuring: .fake))
         #expect(abs(chip.origin.y - (20 + ReadoutChip.gap)) < 1e-9)
     }
 
@@ -138,15 +139,15 @@ struct PointerReadoutTests {
     @Test func theChipFlipsBelowThePointerUnderATopInset() throws {
         let size = ViewportSize(width: 400, height: 300)
         let chip = try #require(ReadoutChip(text: "⌀ 20.0 mm", pointer: ScreenPoint(200, 80), in: size,
-                                            modelArea: ViewportInsets(top: 60)))
+                                            modelArea: ViewportInsets(top: 60), measuring: .fake))
         #expect(abs(chip.origin.y - (80 + ReadoutChip.gap)) < 1e-9, "below the pointer")
     }
 
     @Test func theChipStaysInsideTheViewAtTheSides() throws {
         let size = ViewportSize(width: 400, height: 300)
-        let left = try #require(ReadoutChip(text: "24.5 mm · 30.0°", pointer: ScreenPoint(3, 150), in: size))
+        let left = try #require(ReadoutChip(text: "24.5 mm · 30.0°", pointer: ScreenPoint(3, 150), in: size, measuring: .fake))
         #expect(abs(left.origin.x - ReadoutChip.margin) < 1e-9)
-        let right = try #require(ReadoutChip(text: "24.5 mm · 30.0°", pointer: ScreenPoint(398, 150), in: size))
+        let right = try #require(ReadoutChip(text: "24.5 mm · 30.0°", pointer: ScreenPoint(398, 150), in: size, measuring: .fake))
         #expect(abs(right.origin.x + right.size.width - (400 - ReadoutChip.margin)) < 1e-9)
     }
 
@@ -155,25 +156,38 @@ struct PointerReadoutTests {
         let size = ViewportSize(width: 400, height: 300)
         let insets = ViewportInsets(leading: 100, trailing: 80)
         let left = try #require(ReadoutChip(text: "24.5 mm · 30.0°", pointer: ScreenPoint(102, 150), in: size,
-                                            modelArea: insets))
+                                            modelArea: insets, measuring: .fake))
         #expect(abs(left.origin.x - (100 + ReadoutChip.margin)) < 1e-9)
         let right = try #require(ReadoutChip(text: "24.5 mm · 30.0°", pointer: ScreenPoint(318, 150), in: size,
-                                             modelArea: insets))
+                                             modelArea: insets, measuring: .fake))
         #expect(abs(right.origin.x + right.size.width - (320 - ReadoutChip.margin)) < 1e-9)
     }
 
     /// A model area too small to hold the chip and its margins shows none, rather than one spilling over the panels
     /// or off the view.
     @Test func aViewTooSmallForTheChipShowsNone() {
-        #expect(ReadoutChip(text: "24.5 mm · 30.0°", pointer: ScreenPoint(30, 15), in: ViewportSize(width: 60, height: 30)) == nil)
-        #expect(ReadoutChip(text: "1.0, 2.0", pointer: ScreenPoint(30, 15), in: ViewportSize(width: 400, height: 30)) == nil,
+        #expect(ReadoutChip(text: "24.5 mm · 30.0°", pointer: ScreenPoint(30, 15), in: ViewportSize(width: 60, height: 30),
+                measuring: .fake) == nil)
+        #expect(ReadoutChip(text: "1.0, 2.0", pointer: ScreenPoint(30, 15), in: ViewportSize(width: 400, height: 30),
+                measuring: .fake) == nil,
                 "too short for the chip above or below")
+    }
+
+    /// The width is the measure's, never the character count's: one wide letter is wider than a long run of narrow ones.
+    @Test func theChipIsAsWideAsItsTextIsMeasuredToBe() throws {
+        let size = ViewportSize(width: 400, height: 300)
+        let measure = TextMeasure { text in ViewportSize(width: text == "W" ? 90 : 3, height: 12) }
+        let wide = try #require(ReadoutChip(text: "W", pointer: ScreenPoint(200, 150), in: size, measuring: measure))
+        let narrow = try #require(ReadoutChip(text: "iiiiiiiiii", pointer: ScreenPoint(200, 150), in: size, measuring: measure))
+        #expect(wide.size.width == 90 + 2 * ReadoutChip.padding)
+        #expect(narrow.size.width == 3 + 2 * ReadoutChip.padding)
+        #expect(wide.size.height == ReadoutChip.height && narrow.size.height == ReadoutChip.height)
     }
 
     @Test func aLongerTextMakesAWiderChip() throws {
         let size = ViewportSize(width: 400, height: 300)
-        let short = try #require(ReadoutChip(text: "R 1.0 mm", pointer: ScreenPoint(200, 150), in: size))
-        let long = try #require(ReadoutChip(text: "R 1.0 mm · 90.0°", pointer: ScreenPoint(200, 150), in: size))
+        let short = try #require(ReadoutChip(text: "R 1.0 mm", pointer: ScreenPoint(200, 150), in: size, measuring: .fake))
+        let long = try #require(ReadoutChip(text: "R 1.0 mm · 90.0°", pointer: ScreenPoint(200, 150), in: size, measuring: .fake))
         #expect(long.size.width > short.size.width)
     }
 }

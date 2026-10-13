@@ -13,15 +13,15 @@ stopgap as they were. The sections below keep each gap's full use case.
 | Gap | What | MetalUI item | Status |
 |---|---|---|---|
 | 1–5 | Scroll wheel, pinch/rotate, middle and right drags, tap location, cursor and drag modifiers | C7 | ✅ fixed (c62d6ba), adopted by the viewport and the graph panel |
-| M4-a | An element's size (`onGeometryChange`), focus on click | C9 | ✅ size: fixed by C9 (`onGeometryChange`, KF-J) and adopted (plan `2026-10-12-adopt-c15`): `ViewportView` records the viewport's size from its layout (`AppWindowTests.theViewportLearnsTheWindowsSizeFromItsLayout`, `aResizedWindowResizesTheViewport`, `aDocumentLoadedIntoTheWindowLearnsTheSizeToo`, `ViewSizeObservationTests`); the draw-time record and `observedViewSize` are gone. Focus on click: C9's key regions are adopted for the graph canvas (M5-b, M5-g); the viewport's pointer veto and `releaseTextFocus` stay (see those rows) |
-| M4-b | Opaque helper inside a builder `for`; redraw labels during a camera animation (`TimelineView`) | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
+| M4-a | An element's size (`onGeometryChange`), focus on click | C9 | ✅ size: fixed by C9 (`onGeometryChange`, KF-J) and adopted (plan `2026-10-12-adopt-c15`): `ViewportView` records the viewport's size from its layout (`AppWindowTests.theViewportLearnsTheWindowsSizeFromItsLayout`, `aResizedWindowResizesTheViewport`, `aDocumentLoadedIntoTheWindowLearnsTheSizeToo`, `ViewSizeObservationTests`); the draw-time record and `observedViewSize` are gone. Focus on click: C9's key regions are adopted for the graph canvas (M5-b, M5-g); the viewport's pointer veto stays (M5-b); its press-resigns-focus hook (`releaseTextFocus`) is gone, `AppWindowRoot` resigns on a press (CT-a, MetalUI C24) |
+| M4-b | Opaque helper inside a builder `for`; redraw labels during a camera animation (`TimelineView`) | C9 | 🔄 half fixed: C9 is on MetalUI master and has `TimelineView(.animation)` (api-overview, "Animation"), not adopted: the labels are still hidden while the camera animates (S5-c); the opaque-helper half is not re-checked, the viewport's label loops are still written inline |
 | M5-a | `Slider` `onEditingChanged` | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M5-b | Hover- or region-scoped key bindings | C9 | ✅ fixed by C9 (`feat/key-focus`: `hoverKeyRegion`, `onKeyPress`), adopted for the graph canvas (Comments typing plan); the viewport still runs its pointer veto (M4-a) |
 | M5-c | Materials and blur | C10 | ✅ fixed (2155f1e) as a flat tint, adopted by decision (the glass kept the theme's tint); the backdrop blur came with C21 and is adopted (C10-a) |
 | M5-d | Gradients | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M5-e | Modifiers on a press | C7 | ✅ fixed (c62d6ba), adopted |
 | M5-f | Canvas scroll and pinch | C7 | ✅ fixed (c62d6ba), adopted |
-| M5-g | A press elsewhere ends text editing | C9 | ✅ fixed by C9 (`feat/key-focus`: a key region clears a field's focus on a press), adopted for the graph canvas (Comments typing plan); viewport presses still call `AppModel.releaseTextFocus` (M4-a); a press outside every region resigns nothing, by design (CT-a) |
+| M5-g | A press elsewhere ends text editing | C9 | ✅ fixed by C9 (`feat/key-focus`: a key region clears a field's focus on a press), adopted for the graph canvas (Comments typing plan); a press outside every region now resigns too, since the app's root is a resign region (CT-a, MetalUI C24): `AppModel.releaseTextFocus` is gone |
 | M5-h | ↑/↓ in a focused single-line field | C9 | ✅ fixed by C9 (`onKeyPress(keys:)` on the field), not adopted: the palette's ↑/↓ stay a keymap action (`PaletteMove`) until the palette is moved onto it |
 | M5-i | Keyframe animation | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M5-j | `ProgressView` | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
@@ -48,14 +48,14 @@ stopgap as they were. The sections below keep each gap's full use case.
 | TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `MenuEvaluation`, `TestApp.menuBar`), adopted (plan `2026-10-12-adopt-test-harness`): `ThemeMenuEvaluationTests` |
 | S5-a | Modifiers on a hover (and a tap, GI-a) | C16 (with GI-a) | ✅ fixed (MetalUI a720fba: `.onModifierKeysChanged(mask:initial:_:)`, also while the pointer is still and on key loss), adopted (plan `2026-10-12-adopt-c16`): `ViewportView` watches ⌘, `ViewportModel.modifiersChanged(_:)` replays the tool's hover with it (`ViewportTool.pointerMoved(to:modifiers:projector:)`), and the sketch editor's rubber band and glyphs drop inference while ⌘ is held, with no mouse move (`InferenceGlyphTests`, `ViewportModifiersWindowTests`); human check C16-2 |
 | S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ✅ fixed (MetalUI a720fba: `DragGesture.Value.clickCount`), adopted (plan `2026-10-12-adopt-c16`): `EditorModel` pairs a click counted 1 and one counted 2 on one target; its own 0.4 s / 4 pt timer, `RecentClick` and the injectable `now` are gone, and the user's double-click speed decides (`DoubleClickTests`, `CanvasDoubleClickWindowTests`); human check C16-3 |
-| S5-c | A `MetalView` draw can't draw text (world-anchored labels) | MetalUI session (with M4-b) | ⏳ reported 2026-10-09, sent to the MetalUI session |
+| S5-c | A `MetalView` draw can't draw text (world-anchored labels), and a text's size can't be asked | C23 | ✅ measuring fixed by C23 and adopted; ➖ `drawText` deferred by MetalUI to C14's close-out (GT-F), labels stay views (see entry) |
 | M7-a | `ForEach` identity is an id's description | C20 | ✅ fixed by C20 (MetalUI master 5f35df6: identity by `Hashable` equality); nothing to adopt, the canvas's `\.id.rawValue` keys stay correct |
 | M7-b | No warm headless frame for measuring | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `TestWindow` warm frames and `FrameWork`), adopted for work counts (plan `2026-10-12-adopt-test-harness`): `WarmFrameTests`; the release benchmarks (`Bench`) still report cold-frame milliseconds until they are moved onto it |
 | C10-a | No backdrop blur behind a material | C21 (was C10-c) | ✅ fixed by C21 (MetalUI master d6a815c: a material blurs what MetalUI drew beneath it, GPU surfaces included; divergences 245 to 248), adopted (plan `2026-10-12-adopt-c21.md`): every glass panel is a material under the theme's tint (`GlassStyle`); human checks C21 pending |
 | C21-a | A `Material`'s tint opacity can't be read, so a theme's tint can't be sized against it | C27 | ⏳ found by the C21 adoption (plan `2026-10-12-adopt-c21.md`); queued as MetalUI C27 (material follow-ups) |
 | C21-b | Reduce Transparency is neither readable by an app nor honoured by materials | C27 | ⏳ found by the C21 adoption; queued as MetalUI C27 (with C21-a); no stopgap: panels blur whatever the setting says until MetalUI provides it |
 | CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | C9 | ✅ fixed by C9 (KF-Z/KF-AA: ⌘↩ is no editing key of a `TextEditor`, so an `onKeyPress` for it commits), adopted by the inspector's note box and the canvas editor (Comments typing plan) |
-| CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan); C24 in progress (`feat/resign-on-press`, 2026-10-12) |
+| CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 | ✅ fixed (MetalUI 0fb2ea6e, PR #74, record §98, rulings RF-A…RF-I: `.resignsFocusOnPress(_ isEnabled: Bool = true)`, an opt-in container modifier: a primary press inside it resigns a focused field and routes no key by hover), ✅ adopted (plan `2026-10-13-adopt-c24`): `AppWindowRoot` (and `GraphPanelPreview`'s root) carry it; the viewport's `releaseTextFocus` hook is gone; a press on inert chrome ends a canvas edit and commits a typed inspector value (`CanvasResignOnPressWindowTests`, `InspectorFieldResignWindowTests`) |
 | CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 | ✅ fixed by C25 (MetalUI master 3fce05f: `TextField(_:text:selection:)` and `TextEditor(_:text:selection:)` over `Binding<TextSelection?>`; divergences 265, 266), adopted (plan `2026-10-12-adopt-c25.md`): a frame's title opens with all of it selected and a note with the caret at its end (`CommentEdit.selection`); human checks C25 pending |
 | CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | ✅ fixed (MetalUI 280d706), adopted (plan `2026-10-12-adopt-test-harness`): `CanvasNoteTypingWindowTests`, `CanvasTitleTypingWindowTests`, `CanvasTypingKeysWindowTests`, `CanvasTypingFocusWindowTests`, `CanvasTypingUndoWindowTests`; CT-1..CT-11 keep only their visual and machine-specific parts |
 | CT-d | The test harness can't drive an input method, so a field's composing (marked text) next to a selection write has no automated test | C28 | ⏳ found by the C25 adoption (plan `2026-10-12-adopt-c25.md`); queued as MetalUI C28 (an input-method driver for `TestWindow`, and ⌘Z after a selection write documented) |
@@ -228,8 +228,9 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
   **Fixed by MetalUI C9** as an opt-in, not a default (KF-G keeps SwiftUI's rule that a press elsewhere resigns nothing):
   a primary press inside a `hoverKeyRegion` clears a field's focus, unless it lands on a text field. **Adopted for the
   graph canvas** (Comments typing plan Task 4): the canvas surface is a key region, `GraphPanelInput.releaseTextFocus` is
-  gone, and a canvas press ends a typed value and a canvas edit. Viewport presses still call `AppModel.releaseTextFocus`
-  (the viewport adopts C9 with M4-a). A press outside every region still resigns nothing: gap CT-a.
+  gone, and a canvas press ends a typed value and a canvas edit. A press outside every region resigned nothing (gap CT-a),
+  so viewport presses called `AppModel.releaseTextFocus` until **MetalUI C24** (entry CT-a): the app's root now resigns on
+  every primary press and that hook is gone.
 - **M5-h. A focused single-line field claims ↑/↓** (mac: caret to start/end, `TextEditing.key`) before the raw key
   bubble and `onInput`. The add-node palette needs ↑/↓ to move its highlight while its search field is focused.
   Stopgap: `GraphPanelInput.keymap` binds `up`/`down` to `PaletteMove`, and `handleAction` runs it only while the
@@ -880,22 +881,36 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
 ## Hit by the sketch editor (S5c), 2026-10-09
 
 - **S5-c. A `MetalView` draw can't draw text, so labels anchored in the 3D scene are element-tree text, rebuilt on every
-  camera change.** Sketcher spec §8: a sketch's dimension values are shown in the view, at the dimension
-  (`ViewportOverlay.labels`, drawn from `ViewportModel.overlayLabels()`). They follow the camera (a pan, a zoom, the Look
+  camera change, and a text's size could not be asked.** Sketcher spec §8: a sketch's dimension values are shown in the view, at the dimension
+  (`ViewportOverlay.labels`, drawn from `ViewportModel.overlayLabels(measuring:)`). They follow the camera (a pan, a zoom, the Look
   At onto the plane) and a sketch has dozens. MetalUI draws text only as elements in the tree, never inside a `MetalView`'s
   draw (`MetalDrawContext` offers the target, the command buffer, `clear(…)` and the scale factor, and no text), so
   `ViewportView` places one `ProposalText` per label from a function that reads the pose: the tree is rebuilt on every
   camera change (PERF-b's cost), and a camera animation doesn't rebuild it (M4-b), so the labels are hidden for the 250 ms
-  Look At that opens a sketch. A text box's size can't be asked either, so the box is computed from the text (7 points a
-  character, `PlacedLabel.size(of:)`, as the S5a readout chip is). Stopgap: exactly that, which is how the handle values
-  (`handleLabels()`) and the triad's axis names are drawn. Wanted: text drawn into a `MetalView` pass, such as a
-  `MetalDrawContext.drawText(_:at:style:)` positioned in the view's points and batched with the frame's glyph atlas, so
-  scene-anchored text moves with the frame it is drawn in, needs no tree rebuild and shows during animations; and a way
-  to measure a string from a component. M4-b (a redraw during an animation) would remove the hiding but not the
-  rebuilds. Human check S5c-6 records it. Not measured: a sketch with 20 or more labels pays the rebuild for each on every
-  camera change; S5c-6 is where that is looked at, and the labels are not capped or culled by count (a silent cap would hide
-  dimensions). Sent to the MetalUI session (the standing rule: every MetalUI gap goes to that session to implement); the
-  repository is never edited from here.
+  Look At that opens a sketch. A text box's size couldn't be asked either, so the box was computed from the text (7 points a
+  character, `PlacedLabel.size(of:)`, as the S5a readout chip's was), which clips a wide string and wastes room on a narrow one.
+  **Measuring: fixed by MetalUI C23 and adopted** (merged to MetalUI master 7f891629, PR #73, record §99, rulings
+  GT-A…GT-I, divergences 295 and 296; plan `2026-10-12-adopt-c23`): `@Environment(\.textMeasurer)` is a get-only `TextMeasurer`,
+  and `measurer.resolve(Text or ProposalText).measure(in: proposal)` is the unrounded size layout gives the text. `ViewportView` and
+  `PointerReadoutView` read it, wrap it as a `TextMeasure` (`TextMeasure+MetalUI.swift`: `ProposalText` in `.caption`, no wrapping) and
+  hand it to the models as a parameter, so the placement stays in the models and a unit test passes a deterministic measure
+  (`ViewportModel.overlayLabels(measuring:)`, `handleLabels(measuring:)`, `SketchEditorModel.readoutChip(measuring:)`,
+  `inferenceChip(measuring:)`). A box is the measured width rounded up plus padding at each side; no fallback estimate is left
+  (`PlacedLabel.size(of:)`, `PlacedLabel.characterWidth` and `ReadoutChip.characterWidth` are gone). The triad's axis names keep
+  their fixed 16-point box: one capital letter, centred on a fixed spot, not an estimate from a length. Pinned:
+  `TextMeasureWindowTests` (MetalUI's own `docs/testing.md` pattern: the real measurer equals the laid-out frame, and ten
+  capital Ws get a wider box than the old estimate), `OverlayLabelTests`, `HandleLabelTests`, `ChipMeasureTests`.
+  **Drawing text in a `MetalView` pass: deferred by MetalUI, and not needed.** MetalUI measured the element path first (GT-A:
+  20 and 100 `Text` overlays over a `GPUSurface` cost linear in their number, with no raster or upload after the first frame)
+  and deferred `MetalDrawContext.drawText` to C14's close-out (GT-F; the trigger is that after C14 a 100-label overlay still scales
+  with N through anything but the labels' own paint and human check S5c-6 reports a missing frame budget). It recommends keeping
+  labels as views over the surface, which is what MetalCreator does: that is the design, not a workaround. What is left of this
+  gap's first complaint is not S5-c's: the tree rebuild on every camera change is PERF-b's (C14, queued), and the hiding of the
+  labels during the 250 ms Look At that opens a sketch is M4-b's (`TimelineView(.animation)` is on MetalUI master since C9 and is not
+  adopted here: labels still hide while the camera animates, `ViewportModel.overlayLabels` and its test say so). Human checks S5c-6
+  (the camera, and the trigger's frame budget) and C23 (the sizes). Not measured: a sketch with 20 or more labels pays the rebuild
+  for each on every camera change; S5c-6 is where that is looked at, and the labels are not capped or culled by count (a silent cap
+  would hide dimensions). Reported and answered by MetalUI (C23, GT-F); nothing outstanding from MetalCreator.
 
 ## Typing on the canvas (Comments typing plan), 2026-10-10
 
@@ -913,6 +928,22 @@ Labelled CT-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   `.resignsFocusOnPress()` (or `hoverKeyRegion(routesKeys: false)`), which MetalCreator would put on the app's root. Human
   check CT-11 records what a press on inert chrome does. Status: queued as MetalUI C24 (after C9, which merged to MetalUI master 0a9eb36; the spelling is still open) (the
   standing rule: every MetalUI gap goes to that session to implement); the repository is never edited from here.
+  **Adopted (2026-10-13, plan `2026-10-13-adopt-c24.md`):** C24 is on MetalUI master 0fb2ea6e (PR #74, record §98, rulings
+  RF-A…RF-I; it adds no divergence). The spelling is `.resignsFocusOnPress(_ isEnabled: Bool = true)`, on any element group
+  (MetalUI-only: SwiftUI has no such modifier, RF-A). `AppWindowRoot` carries it (and `GraphPanelPreview`'s `PreviewRoot`;
+  `ViewportHarness` hosts no field and does not). MetalUI's rules, which the code relies on: a primary press inside the region
+  clears focus and routes no key by hover (unlike `hoverKeyRegion`, so `CanvasSurface` is unchanged); a press on a text field or
+  a click-focusable element moves focus straight to it (A→B, no nil in between); a press on inert chrome resigns;
+  `allowsHitTesting(false)`, `.disabled` and `.hidden()` withdraw the region; a `Deferred` presentation's press does not resign
+  through a region below it; a secondary or other press resigns nothing; `@FocusState` observes the resign. What changed
+  here: a press on the graph panel's glass or its header gaps now ends a canvas edit (one
+  "Edit Note" or "Edit Frame" step) and commits a typed inspector value (one step) (a press on the inspector's empty glass
+  already ended it, through the viewport beneath, so the tests do not count it as a root-modifier spot); `AppModel.releaseTextFocus` and its install
+  in `AppInput` are gone (the viewport's press still commits a pending entry, which is a model commit); the inspector's accent
+  swatch is a button, so a press on it now ends the edit too (the text commits a frame after the accent changes: two undo
+  steps). Model-driven ends are untouched (selection or level change, hiding the panel, undo, save, export, another field
+  typed into). Pinned: `CanvasResignOnPressWindowTests`, `InspectorFieldResignWindowTests`, `CanvasTypingFocusWindowTests`.
+  Human checks CT-11 (rewritten) and C24-1 to C24-5.
 - **CT-b. No way to set a text field's selection or caret, so an editor opened from code cannot open with its text
   selected or its caret at the end.** A double click that starts editing a note or a title in place wants the title's
   whole text selected (as a rename does) and a note's caret at the end of its text. `TextField` and `TextEditor` have no
@@ -956,9 +987,8 @@ Labelled CT-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   arrows, Space, F, the ⌘ chords, ⌘A, Tab) and afterwards act again over the canvas but not over the viewport (M5-b).
   `CanvasTypingFocusWindowTests`: a double click on another comment commits the first and focuses the next; the
   inspector's note box breaks lines on Return and commits on the primary-modifier Return (CM-a); clicking into it commits
-  a canvas edit first; a press on the panel's glass resigns nothing (CT-a, by design) and the next canvas press commits;
-  a press on the 3D viewport commits at once; the inspector's accent swatch changes the accent without ending the edit
-  (pinned as measured, decision D4). `CanvasTypingUndoWindowTests`: ⌘Z and ⇧⌘Z undo and redo a committed note edit in one
+  a canvas edit first; a press on the panel's glass ends the edit (CT-a, adopted from MetalUI C24: `CanvasResignOnPressWindowTests`);
+  a press on the 3D viewport commits at once; the inspector's accent swatch changes the accent and ends the edit (C24). `CanvasTypingUndoWindowTests`: ⌘Z and ⇧⌘Z undo and redo a committed note edit in one
   step each, and ⌘Z while an editor is focused undoes the typing in the field and leaves the document alone (KF-C).
   A field's focus-loss commit (`onChange(of:)`) runs in the frame after the click, so that test runs `runUntilIdle()`.
   Human checks CT-1..CT-11 keep what a person must judge (CT-1's look, CT-6's softness, CT-7, CT-12), a physical

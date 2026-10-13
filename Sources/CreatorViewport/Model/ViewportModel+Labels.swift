@@ -12,23 +12,26 @@ extension ViewportModel {
     }
 
     /// Each handle's value beside its knob (spec §6.5), in viewport points. "R 3 mm" for a radial handle. The size is
-    /// read from the tracked `viewSize`, so labels built before the first layout reported it are rebuilt after it.
-    public func handleLabels() -> [ViewportLabel] {
+    /// read from the tracked `viewSize`, so labels built before the first layout reported it are rebuilt after it. Each
+    /// label's box is as wide as `measure` says its text is.
+    public func handleLabels(measuring measure: TextMeasure) -> [HandleLabel] {
         let size = viewSize
         guard !size.isEmpty, !isAnimating else { return [] }
         return handles.compactMap { handle in
             guard let knob = CameraMath.project(handle.knob, pose, size: size)?.point else { return nil }
             let amount = handle.value.formatted(.number.precision(.fractionLength(0...2)))
             let text = handle.style == .radial ? "R \(amount) mm" : "\(amount) mm"
-            return ViewportLabel(text: text, position: ScreenPoint(knob.x + 14, knob.y - 14))
+            let box = ViewportSize(width: measure(text).width.rounded(.up), height: HandleLabel.height)
+            return HandleLabel(text: text, position: ScreenPoint(knob.x + 14, knob.y - 14), size: box)
         }
     }
 
     /// The overlay's labels on screen (`ViewportOverlay.labels`): each box centred on its anchor projected with the camera,
     /// moved `OverlayLabel.nudgeDistance` points along its nudge as that looks on screen. Left out: all of them while
     /// the camera animates (as the handle labels are), an anchor at or behind a perspective eye, and a box wholly
-    /// outside the view. Gap S5-c: this is element-tree text, not text in the Metal pass.
-    public func overlayLabels() -> [PlacedLabel] {
+    /// outside the view. Each box is `measure`'s width for its text (`PlacedLabel.box(of:measuring:)`). Gap S5-c: this is
+    /// element-tree text, not text in the Metal pass; MetalUI keeps scene text as views over the surface (C23, GT-F).
+    public func overlayLabels(measuring measure: TextMeasure) -> [PlacedLabel] {
         let size = viewSize
         guard !size.isEmpty, !isAnimating, !overlay.labels.isEmpty else { return [] }
         return overlay.labels.compactMap { label in
@@ -42,7 +45,7 @@ extension ViewportModel {
                                          anchor.y + dy / length * OverlayLabel.nudgeDistance)
                 }
             }
-            let box = PlacedLabel.size(of: label.text)
+            let box = PlacedLabel.box(of: label.text, measuring: measure)
             let origin = ScreenPoint(centre.x - box.width / 2, centre.y - box.height / 2)
             guard origin.x + box.width > 0, origin.y + box.height > 0, origin.x < size.width, origin.y < size.height else {
                 return nil

@@ -2,7 +2,7 @@ import CreatorGeometry
 
 /// A piece of text the host anchors in world space (a sketch dimension's value, sketcher spec §8). The viewport projects
 /// the anchor with the camera every frame and draws the text over the surface in a small glass box
-/// (`ViewportModel.overlayLabels()`). It never takes the pointer.
+/// (`ViewportModel.overlayLabels(measuring:)`). It never takes the pointer.
 public struct OverlayLabel: Hashable, Sendable {
     /// How far (points) a label with a `nudge` sits from its anchor.
     public static let nudgeDistance = 16.0

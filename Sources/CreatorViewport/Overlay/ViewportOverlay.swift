@@ -8,7 +8,7 @@ public struct ViewportOverlay: Hashable, Sendable {
     public var points: [OverlayPoint]
     /// Filled triangles, drawn under the lines and points.
     public var fills: [OverlayFill]
-    /// Text anchored in world space, drawn over the surface (`ViewportModel.overlayLabels()`).
+    /// Text anchored in world space, drawn over the surface (`ViewportModel.overlayLabels(measuring:)`).
     public var labels: [OverlayLabel]
     /// The plane whose grid is drawn instead of the ground grid, or `nil` for the ground grid.
     public var gridPlane: Plane?

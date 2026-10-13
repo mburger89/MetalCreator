@@ -293,8 +293,8 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   50, the second is unchanged. Type a value and press Tab: it's committed. Type 80 into Width without Return and
   press ⌘Z (and, separately, the top bar's Undo): Width goes back to its previous value, ⇧⌘Z brings 80 back, and
   clicking elsewhere afterwards changes nothing. Pinned: `PendingEntryTests`, `aViewportPressCommitsATypedInspectorValue`,
-  `undoAndRedoCommitATypedValueFirst`; the focus-loss path is this check only (`NumberEntry`'s `@State` draft
-  isn't reachable from a test). Type "abc" into Width and press Tab: the field shows Width's value again, not
+  `undoAndRedoCommitATypedValueFirst`; the focus-loss path is pinned through the window by
+  `InspectorFieldResignWindowTests` (a press on inert chrome, on the viewport or on another field), so this check is only the real mouse. Type "abc" into Width and press Tab: the field shows Width's value again, not
   "abc"; type Width's current value and press Tab: the field shows it formatted as before. **Observed:**
 - [ ] **M6-7 Layout.** The viewport fills the window; the top bar, graph panel and inspector float over it as glass
   (a blur of the viewport under the theme's tint, gap C10-a, group C21). The view cube sits at the top-left of the uncovered area, right of the panel; the triad at its
@@ -929,8 +929,8 @@ drive the double click, the focus and the keys through the app's real window: `C
   empty canvas commits (one ⌘Z), and so does a press on the 3D viewport (`CanvasNoteTypingWindowTests`,
   `CanvasTypingFocusWindowTests`); for a frame's title, Return commits, Esc cancels, a click away commits
   (`CanvasTitleTypingWindowTests`). **By hand:** type and click another node: it commits (one ⌘Z). Type and click the
-  inspector's accent swatch and **record what happens** (through the headless window the accent changes and the edit stays
-  open with its draft until the next canvas press: decision D4, `anAccentSwatchPressChangesTheAccentAndLeavesTheEditOpenWithNothingLost`).
+  inspector's accent swatch and **record what happens** (through the headless window the swatch press ends the edit and the accent
+  changes: MetalUI C24, `anAccentSwatchPressEndsTheEditThenChangesTheAccent`).
   Type, then ⌘S: the saved file has the text. Pinned: `CommentTypingTests`. **Observed:**
 - [ ] **CT-3 A frame's title (what is left).** **Automated, no manual step:** a double click on the title bar opens a
   focused one-line field over the bar with the title in it; Return commits (one ⌘Z undoes it); Esc cancels; clearing it
@@ -971,11 +971,12 @@ drive the double click, the focus and the keys through the app's real window: `C
   has the focus in its field (and Tab opens no palette, `tabOpensNoPalette`). **By hand:** the caret is visible
   in each new field, and Tab in an editor moves focus to the next control. Pinned: `CommentDoubleClickTests`.
   **Observed:**
-- [ ] **CT-11 Inert chrome (gap CT-a).** While a note is being edited, press the graph panel's header gap, the glass
-  padding and an empty area of the inspector. **Record** whether the editor stays open (the expected, documented
-  behaviour: User decision 2) and what the next canvas press does. **Automated:** a press on the panel's glass padding
-  leaves the editor open and focused, typing continues, and the next canvas press commits
-  (`CanvasTypingFocusWindowTests`); **by hand:** the header gap and the inspector's empty area. **Observed:**
+- [ ] **CT-11 Inert chrome (gap CT-a, adopted from MetalUI C24).** While a note is being edited, press the graph panel's
+  header gap, the glass padding and an empty area of the inspector (one at a time, starting a new edit each time). **Expected:**
+  each press ends the edit at once, the text is in the note (one ⌘Z undoes the whole edit) and no caret is left blinking.
+  **Automated:** the same three spots, for a note and for a frame's title, and a typed inspector value
+  (`CanvasResignOnPressWindowTests`, `InspectorFieldResignWindowTests`); **by hand:** the real pointer on the real chrome, and the
+  look of the field as it loses the focus. **Observed:**
 - [ ] **CT-12 Groups and saving.** Enter a group, double click a note there and type, then leave the group with ⌘↑: the
   text is in the definition's note. Save, quit, reopen: the text persists, the edit marked the document edited, and ⌘Z
   has nothing to undo. Pinned: `CommentTypingTests`. **Observed:**
@@ -1090,7 +1091,10 @@ there is a box, then a Sketch (select it, "Edit sketch").
   under it. Pinned: `DimensionLabelTests`, `OverlayLabelTests`. **Observed:**
 - [ ] **S5c-6 Labels and the camera** (gap S5-c). Open a sketch with dimensions: the labels appear after the camera has
   turned onto the plane, not during the turn. Pan and zoom: they stay on their dimensions with no lag you can see, and
-  stay legible in the other themes. Note whether panning a sketch with many labels (20 or more) stays smooth. **Observed:**
+  stay legible in the other themes. Note whether panning a sketch with many labels (20 or more) stays smooth: MetalUI keeps scene
+  text as views over the surface (C23, ruling GT-F) and builds `drawText` only if a 100-label overlay still misses its frame budget
+  after C14, so **record the frame feel and the label count** here, it is that decision's input. The labels are still hidden while the
+  camera animates (M4-b). Their sizes are group C23's. **Observed:**
 - [ ] **S5c-7 Region fill.** Draw a closed shape: a faint green fill appears inside it, under the lines and points. A shape
   with a hole (a circle inside a rectangle) is filled around the hole; a small circle inside the hole is filled again.
   Open the shape (delete a line): the fill goes. Construction geometry is never filled. Drag a corner: the fill follows live.
@@ -1571,3 +1575,65 @@ Noise Field into a Multiply's `b`; wire the Remap into the Multiply's `a`.
   origin, Threshold, keep Above 0.5): the holes within 15 mm of the centre are gone and the rest are where they were. Switch to
   Probability with a Noise Field: about half the holes remain, and changing the seed changes which, with no hole moving and no
   badge. Pinned: `CullByFieldNodeTests`, `CulledByFieldPickTests`. **Observed:**
+
+## Group C23 — MetalUI C23: text measured, not estimated (Adopt C23)
+
+**Status: NOT RUN.** Plan `2026-10-12-adopt-c23.md`. Run `swift run MetalCreatorApp` on a Mac with a display. The tests pin the
+sizes against the text system (`TextMeasureWindowTests`, `OverlayLabelTests.theViewDrawsEachLabelsTextInsideItsBox`,
+`HandleLabelTests`, `SketchViewTests.theChipHoldsItsText`): every glyph lies inside its box. What a screen shows is whether the boxes
+look right: even padding, no clipping, no overlap. Boxes are the measured width rounded up plus padding, so a wide string gets a wider
+box and a narrow one a tighter box than the old 7 points a character gave. MetalUI's own check for this is GT (its
+`docs/verification/human-checks.md`).
+
+- [ ] **C23-1 Dimension labels fit their text.** Draw a rectangle and dimension it; then set values of very different widths in the
+  inspector: 1, 60, 1234.5, 0.001 and a long name via Expose as input ("a_rather_long_input_name = 60 mm"). Each label's glass
+  box hugs its text with the same padding at both ends, nothing is clipped, and two neighbouring labels (two dimensions on
+  adjacent sides of a small shape) do not overlap more than their anchors make them. Compare a label of "WWW" widths (an exposed input
+  named in capitals) with "iii" widths. Pinned: `OverlayLabelTests`, `TextMeasureWindowTests`. **Observed:**
+- [ ] **C23-2 Handle labels fit their value.** Select a node with a radial handle (Fillet) and one with a linear handle (Extrude): the
+  value beside each knob ("R 3 mm", "12.5 mm") is not clipped, also at a wide value whose knob stays on screen (a few hundred mm, zooming out first if the knob
+  leaves the view: a very large value moves the knob itself off screen, so the widest strings are pinned by the fake-measure test
+  `HandleLabelTests`, not looked at here) and at a long negative one. The text stays beside the knob as you orbit. Pinned: `HandleLabelTests`. **Observed:**
+- [ ] **C23-3 The sketch chips fit their text.** With the Line tool draw a long line: the pointer readout ("24.5 mm · 30.0°") hugs its
+  text; make it the widest it gets (a 12345.6 mm line at 359.9°, or "R 1234.5 mm · 359.9°" with Arc). Hover so an inference shows
+  (Horizontal, "Point on · Tangent"): the inference chip hugs its names and never touches the readout chip. Near the viewport's
+  edge both chips stay inside the model area, and a chip too wide for it is dropped rather than clipped. Pinned: `ChipMeasureTests`,
+  `PointerReadoutTests`, `SketchViewTests.theChipHoldsItsText`. **Observed:**
+- [ ] **C23-4 Other themes.** Repeat C23-1 and C23-3 in a light theme and with a custom theme that changes
+  the Glass role's opacity: boxes keep their size (they depend on the text, not the theme). **Observed:**
+
+## Group C24 — MetalUI C24: a press on inert chrome resigns focus (Adopt C24)
+
+**Status: NOT RUN.** Plan `2026-10-13-adopt-c24.md`. `AppWindowRoot` is a `.resignsFocusOnPress()` region. The tests drive the
+real window (`CanvasResignOnPressWindowTests`, `InspectorFieldResignWindowTests`); these checks are the real pointer.
+Run `swift run MetalCreatorApp` on a saved bracket with a note, a frame and a Rectangle node.
+
+- [ ] **C24-1 Inert chrome ends typing.** Double click a note, type, and press (a) the graph panel's header between the title
+  and the Add button, (b) the panel's glass padding at its edge, (c) the inspector's empty space beside a section title, (d)
+  the top bar between its controls. Each ends the edit at once: the text is in the note, ⌘Z removes it as one step, no caret
+  is left. Repeat on a frame's title. Pinned: `aPressOnInertChromeEndsANoteEditInOneStep`,
+  `aPressOnInertChromeEndsAFrameTitleEditInOneStep`. **Observed:**
+- [ ] **C24-2 A typed inspector value.** Select the Rectangle, click Width's number field, type 33 and press the panel's glass:
+  Width becomes 33 and the field shows it without a caret; ⌘Z undoes it as one step. Repeat with a press on the viewport.
+  Pinned: `aPressOnInertChromeCommitsATypedValueInOneStep`, `aPressOnTheViewportCommitsATypedValueAndClearsTheFocus`. **Observed:**
+- [ ] **C24-3 From one field to another.** Type in Width, then click Height: the caret moves to Height with no flash of an
+  unfocused field, and Width committed once (one ⌘Z undoes it, a second undoes nothing more). The same from a canvas note
+  into the inspector's note box. Pinned: `aPressIntoAnotherFieldCommitsTheFirstOnceAndMovesTheFocus`,
+  `aPressIntoTheInspectorsBoxMovesFocusAndCommitsTheCanvasEditOnce`. **Observed:**
+- [ ] **C24-4 A secondary press resigns nothing.** While editing a note, right-click (and ⌃-click) the panel's glass and the
+  inspector's empty space: the editor stays open with its caret, typing carries on. Pinned:
+  `aSecondaryPressOnInertChromeResignsNothing`, `aSecondaryPressOnInertChromeLeavesATypedValuePending`. **Observed:**
+- [ ] **C24-5 The accent swatch and the keys.** While editing a note press an accent swatch: the note re-tints and the editor
+  closes with the text kept (user decision U1 of the plan: a swatch press ends the edit). Then, with nothing focused, hover
+  the graph canvas: Delete and F act on the graph; hover the viewport: F frames the viewport, Delete does nothing to the
+  graph. A press on the glass first changes none of this (the root routes no keys). Pinned:
+  `anAccentSwatchPressEndsTheEditThenChangesTheAccent`, `CanvasTypingKeysWindowTests`. **Observed:**
+- [ ] **C24-6 The theme editor.** Open the theme editor, click into its theme-name field, type, and press the editor's
+  empty chrome and then the viewport: the name is committed (its focus-loss handler, `ThemeEditorControls.swift:35`) and the
+  caret goes (the editor is under the same root). **Observed:**
+- [ ] **C24-7 The other fields under the root.** (a) Sketch mode: click a dimension field (`DimensionField`), type a new
+  value and press the sketch toolbar's glass, then repeat pressing the viewport: the value is submitted once (it commits on
+  focus loss) and the caret goes; before this change only the viewport press resigned. A refused value snaps back. (b) Type in
+  the node library's search field and press the glass or the viewport: the query text stays and the list stays filtered (the
+  field sends every keystroke to the model and has no focus-loss action). (c) Open the add-node palette, type, and press its
+  glass: the query stays and the palette stays open. **Observed:**
