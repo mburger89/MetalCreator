@@ -17,8 +17,12 @@ done; its human checks (group MS) are pending.
 MetalUI C10's looks and controls are adopted (plan `docs/superpowers/plans/2026-10-09-adopt-c10.md`; human checks group C10
 pending): the inspector's sliders end an undo step with `Slider(onEditingChanged:)` (`EditorModel.sliderEditingChanged(_:)`),
 a refused node shakes with `keyframeAnimator` (`RefusalShake`, `EditorModel.shakeCount(of:)`), an evaluating node's badge is
-a `ProgressView`, the preview window's background is a `LinearGradient` (`WindowBackground`), and the glass panels keep the
-theme's flat tint on purpose (no backdrop blur exists, gap C10-a).
+a `ProgressView`, the preview window's background is a `LinearGradient` (`WindowBackground`), and the glass panels kept the
+theme's flat tint until MetalUI C21 gave materials a backdrop blur (next paragraph).
+MetalUI C21's backdrop blur is adopted (gap C10-a; plan `docs/superpowers/plans/2026-10-12-adopt-c21.md`; human checks group C21
+pending): every glass panel and sketch chip is a MetalUI material that blurs the viewport under the theme's `glass` tint
+(`GlassStyle` in `CreatorStyle`: `GlassSurface` picks the thickness, the tint's opacity is lowered so the pair hides what the
+role's opacity says, `GlassPanel(_ surface:)` and `glassBackground(_:in:)` draw it). Reduce Transparency is not honoured (MetalUI divergence 249, gap C21-b, sent to MetalUI; no stopgap here). `SketchChrome` keeps its opaque backdrop (a material paints, it takes no pointer).
 Themes (custom themes, `.mctheme` files, the theme editor) code is done; its human checks (group TH) are pending. Each role is edited with MetalUI C10's `ColorPicker` (plan Task 11).
 M7 (measure and record) code is done: spec §7.3's numbers are in `docs/verification/performance.md`, taken by the
 release benchmarks in `Tests/CreatorAppTests/Bench` (`scripts/bench.sh`); `docs/metalui-gaps.md` opens with a summary
@@ -201,7 +205,10 @@ the seventeen
   injected `ThemePreferences` (`UserDefaultsThemePreferences` in the app). `ThemeFile` is the `.mctheme` format
   (version 1; missing roles are Dracula's, unknown ones ignored, a bad colour refused naming its role); custom themes'
   colours are always `quantized` (opacity to a byte) so a file round-trips exactly. `ColorTheme.controlTheme` maps
-  roles onto MetalUI's control tokens. Editor and app views read `@Environment(ThemeStore.self) var themes:
+  roles onto MetalUI's control tokens. Glass (MetalUI C21): `GlassSurface` (which floating surface) gives `GlassThickness` (a
+  MetalUI material), `GlassStyle` is the material plus the theme's `glassFill` at the opacity that keeps the role's meaning
+  (`tintOpacity(glass:materialOpacity:)`; `materialOpacity` copies MetalUI's table, pinned by `GlassMaterialTableTests`, gap
+  C21-a), `glassBackground(_:in:)` draws it. Editor and app views read `@Environment(ThemeStore.self) var themes:
   ThemeStore?` and draw `Palette(themes)` (Dracula without a store); the viewport draws `ViewportModel.theme`, which the
   app shell sets. Themes are app-level, never in `.mcgraph`. Tests: `swift test --filter CreatorStyleTests`.
 - `CreatorViewport`: the 3D viewport on MetalUI's `MetalView`.
