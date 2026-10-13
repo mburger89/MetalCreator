@@ -55,8 +55,9 @@ stopgap as they were. The sections below keep each gap's full use case.
 | C21-b | Reduce Transparency is neither readable by an app nor honoured by materials | C27 | ⏳ found by the C21 adoption; queued as MetalUI C27 (with C21-a); no stopgap: panels blur whatever the setting says until MetalUI provides it |
 | CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | C9 | ✅ fixed by C9 (KF-Z/KF-AA: ⌘↩ is no editing key of a `TextEditor`, so an `onKeyPress` for it commits), adopted by the inspector's note box and the canvas editor (Comments typing plan) |
 | CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan); C24 in progress (`feat/resign-on-press`, 2026-10-12) |
-| CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C25 |
+| CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 | ✅ fixed by C25 (MetalUI master 3fce05f: `TextField(_:text:selection:)` and `TextEditor(_:text:selection:)` over `Binding<TextSelection?>`; divergences 265, 266), adopted (plan `2026-10-12-adopt-c25.md`): a frame's title opens with all of it selected and a note with the caret at its end (`CommentEdit.selection`); human checks C25 pending |
 | CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | ✅ fixed (MetalUI 280d706), adopted (plan `2026-10-12-adopt-test-harness`): `CanvasNoteTypingWindowTests`, `CanvasTitleTypingWindowTests`, `CanvasTypingKeysWindowTests`, `CanvasTypingFocusWindowTests`, `CanvasTypingUndoWindowTests`; CT-1..CT-11 keep only their visual and machine-specific parts |
+| CT-d | The test harness can't drive an input method, so a field's composing (marked text) next to a selection write has no automated test | none yet (a `TestWindow` composition driver) | ⏳ found by the C25 adoption (plan `2026-10-12-adopt-c25.md`); sent to the MetalUI session 2026-10-12 |
 
 ## Reported 2026-10-07 (C7)
 
@@ -886,10 +887,25 @@ Labelled CT-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   whole text selected (as a rename does) and a note's caret at the end of its text. `TextField` and `TextEditor` have no
   selection binding (SwiftUI's `TextField(text:selection:)` with `TextSelection`, macOS 15), and a field focused from code
   (`FocusState` written in `onAppear`) opens with its caret at the start of its text and nothing selected (measured in the
-  C9 probe: a `.textInput("X")` into a freshly focused field gives `Xhello`). MetalCreator works around nothing: the editor
-  opens as MetalUI opens it, and the user presses ⌘A or ⌘→ (or clicks) to select or move the caret. Wanted: a selection
+  C9 probe: a `.textInput("X")` into a freshly focused field gives `Xhello`). Before C25, MetalCreator worked around nothing: the editor
+  opened as MetalUI opened it, and the user pressed ⌘A or ⌘→ (or clicks) to select or move the caret. Wanted: a selection
   binding on both fields, or `FocusState`-style `selectAll()` / caret-position on focus. Human check CT-1 records what the
   user sees. Status: queued as MetalUI C25 (after C9, merged to MetalUI master 0a9eb36; a `selection` binding or a selectAll/caret-on-focus hook); the repository is never edited from here.
+  **Adopted (2026-10-12, plan `2026-10-12-adopt-c25.md`):** C25 is on MetalUI master 3fce05f. The canvas editor binds the selection
+  (the controlled spellings `TextField(_:text:selection:onChange:onSelectionChange:)` and the `TextEditor` one, over
+  `CommentEdit.selection`): `beginEditing` sets it, a frame's title opens with its whole text selected (typing replaces it,
+  as a rename does) and a note opens with the caret at the end of its text (typing appends), and the field's own
+  selections (typing, a click, a double click, shift-arrows, ⌘A, Delete) are stored back with
+  `EditorModel.commentSelectionChanged`. MetalUI's rules, which the code relies on: a write applies before the next frame
+  and wins over the focus in the same turn (divergence 265), nothing is written at focus or resign (divergence 266), the
+  field's own echo is ignored, a write while an input method composes is held back (the model writes only when the edit
+  begins, so a composition is never raced), a stale index reads safely (`CommentEdit.selectedOffsets` clamps it), a
+  multi-selection acts on its first range, and the undo history is untouched except that the open typing group ends.
+  Pinned: `CommentEditSelectionTests`, `CanvasTypingSelectionWindowTests`; the typing tests that assumed a caret at the
+  start (gap CT-b's old measurement) now expect typing to append to a note. Other fields focused from code (the palette's
+  search, which opens empty) and the click-focused fields (inspector names, the theme name, dimension fields) are not
+  changed: a click puts the caret where it lands, and there is nothing to select in an empty field (user decision U3 of
+  the plan). Composing has no automated test (new gap CT-d). Human checks CT-1 (updated) and C25-1 to C25-7.
 - **CT-c. The comment editor's C9-dependent behaviour has no automated test.** The field's Return, Esc and ⌘↩ handlers,
   the focus-loss commit, `onAppear` focus, a canvas press clearing focus (M5-g), the hovered key region and a focused field
   winning over hover are `onKeyPress` / `FocusState` / key-region behaviour that exists only inside a real `Window`.
@@ -936,3 +952,18 @@ Labelled C21-a… so they don't clash with the labels above. Checked against Met
   are fixed in MetalUI, so the panels blur whatever the setting says until MetalUI provides it. Wanted:
   `\.accessibilityReduceTransparency` (the reduce-motion pattern: two `PlatformWindow` requirements), and materials that fall
   back to an opaque tint when it is on. Human check C21-5 waits on it.
+
+## Found by the C25 adoption, 2026-10-12
+
+Labelled CT-d so it stays beside CT-b and CT-c. Checked against MetalUI `3fce05f`.
+
+- **CT-d. `MetalUITesting` cannot drive an input method, so how the canvas editor behaves while text is composing has no
+  automated test.** MetalUI holds a selection write back while an input method composes (marked text; divergence 266 and
+  ruling `SL-H`) and publishes the selection after the composition commits, but `TestWindow` types only committed text
+  (`typeText`) and keys (`typeKey`): no public call starts, updates or commits marked text. The canvas editor opens a
+  title with all of it selected and a note with its caret at the end, and it writes the selection only when an edit begins,
+  so nothing in MetalCreator can race a composition; but a regression in how the field takes a composition into the
+  model's draft, or a model that later writes the selection mid-edit, would pass every test. MetalCreator works around
+  nothing: human check C25-3 (an input source such as Japanese Hiragana) is the only cover. Likewise the undo granularity around a selection write (MetalUI ends the open typing group when a selection is written) has no automated test, because what MetalUI restores after ⌘Z in the field is not documented and a test would pin a guess: human check C25-7 is its only cover. Wanted: a `TestWindow`
+  composition driver, for example `setMarkedText(_:selectedRange:)` and `commitMarkedText()` beside `typeText`, with the
+  field's accessibility value or `focusedElement` reading the marked text. Sent to the MetalUI session 2026-10-12.
