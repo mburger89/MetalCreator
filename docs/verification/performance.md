@@ -209,29 +209,30 @@ and `aBatchGivesWhatEachPointGivesOnItsOwn` pins batch equals single on OCCT.
 numbers in 0…1, the points are the same every time, row 2's plate and row 2b's loft give the right signed distances on OCCT, row
 3's tree is 2,000 placements in 40 branches.
 
-**Results: not measured.** No `FieldBench` run has been taken during execution: the Mac was loaded (load averages above 180 when
-Task 11 was implemented), and a saturated run is no verdict either way (orchestrator ruling R3). The figures below come from the run
-that verified the plan, on a MacBookPro18,2 (10 cores, macOS 27.0.1) that other builds had saturated (load averages 120.51
-160.05 156.74 before, 136.45 162.56 160.51 after), so every number is an upper bound and none is a verdict:
+**Results** (`scripts/bench.sh FieldBench`, release build, MacBookPro18,2, 10 cores, macOS 27.0.1; the raw lines are under Raw output):
 
-```text
-BENCH field-1 five nodes × 10,000 points (no kernel): median 0.86 ms, p95 1.32 ms, max 2.31 ms (n 60); budget 5.00 ms: met
-BENCH field-2 signed distance to a plate × 10,000 points, first (OCCT): median 850.80 ms, p95 1081.93 ms, max 1133.94 ms (n 22); budget 100.00 ms: missed
-BENCH field-2 signed distance to a plate × 10,000 points, cached: median 4.18 ms, p95 74.11 ms, max 114.87 ms (n 22)
-BENCH field-3 Sample Field + Cull by Field × 2,000 placements: median 0.43 ms, p95 1.29 ms, max 1.57 ms (n 40); budget 50.00 ms: met
-```
+| Row | Median | p95 | n | Budget | Verdict |
+|---|---|---|---|---|---|
+| `field-1` | 0.64 ms | 0.66 ms | 60 | 5 ms | met |
+| `field-2`, first (OCCT) | 70.61 ms | 73.04 ms | 22 | 100 ms | met |
+| `field-2`, cached | 0.20 ms | 0.21 ms | 22 | none | n/a |
+| `field-2b`, first (OCCT, smooth loft) | 868.20 ms | 892.38 ms | 8 | none | recorded |
+| `field-3` | 0.35 ms | 0.36 ms | 40 | 50 ms | met |
 
-**Row 2 (`field-2`) is unmeasured on an idle Mac, and it gates the merge.** The branch is not merged until an idle run
-(`scripts/bench.sh FieldBench`, all three load averages under 3) puts row 2's median under 100 ms and its lines replace the ones
-above. If it misses, pull the levers in this order, re-running after each: (1) a fast path for planar faces in the shim (a
-point-to-plane distance and a point-in-face test in place of `Extrema_ExtPS`; `DistanceConformanceTests` must still pass
-unchanged), (2) a coarser classifier tolerance, and then stop and ask the user (decision 13): the budget is not edited and a miss
-is not called met. Rows 1 and 3, idle, are expected well under their budgets; `field-2b` is recorded whatever it is.
+**Row 2 needed lever 1.** An idle run before it measured `field-2` at a median of 585.37 ms (p95 589.87, n 22; load before 2.85
+7.32 10.89), which missed the 100 ms gate. Lever 1 is the analytic fast path for planar and cylindrical faces in
+`Sources/COCCT/cocct_distance_analytic.hpp` (commits b3e6684, c3c2294 and ae5cb93). In a single-thread profile, `Extrema` on the six
+planar faces cost about 23 µs of the roughly 25 µs a point. After the change a point costs about 3.5 µs unsigned and 5.3 µs signed.
+Lever 2 (a coarser classifier tolerance) was not needed and was not pulled.
 
-**Final review, 2026-10-13.** The gate is still open: the Mac never fell under load average 3 (45.48 38.63 69.51 at the last
-look, other sessions building), so no idle `FieldBench` run exists and the figures above remain upper bounds. The `field-2b` line is
-still missing for the same reason. Merge only after the idle run described above. The full suite was green (exit 0, no issues, 11
-"Test run with" lines, 3,407 tests) against `../MetalUI` at `0fb2ea6e` (PR #74), not the `7f891629` that R1 names.
+**Row 2 after lever 1** measured 75.31 ms (machine saturated, load about 10 to 20), 75.33 ms (1-minute load 2.81, 5- and 15-minute
+11.16 and 15.21), and 70.61 ms (load 4.16 3.69 4.95 before, 5.51 4.00 5.04 after). The gate asked for all three load averages
+under 3, and no run reached that: other sessions kept the Mac busy. The gate is recorded as met on these runs anyway, because every run
+is under 100 ms by 25 ms or more, and the number barely moves between load 20 and load 4. A run with all three averages under 3 has
+not been taken.
+
+**Row 2b is slow, as expected.** The smooth loft's B-spline faces still go through `Extrema`, so 10,000 points take 868.20 ms. It has
+no budget and is recorded as it is. Rows 1 and 3 met their budgets.
 
 ## Raw output
 
@@ -283,4 +284,18 @@ BENCH orbit-panel-left nodes built: all 20
 BENCH pan-50 window-cpu: median 26.63 ms, p95 28.83 ms, max 29.84 ms (n 120); budget 16.67 ms: missed
 BENCH zoom-50 window-cpu: median 26.53 ms, p95 29.86 ms, max 30.92 ms (n 120); budget 16.67 ms: missed
 BENCH orbit-panel-left window-cpu: median 15.96 ms, p95 18.01 ms, max 19.08 ms (n 100); budget 16.67 ms: met
+```
+
+The `FieldBench` run the Fields results come from (`scripts/bench.sh FieldBench`; the machine and load lines were not in the saved
+log and are copied from the run's notes, load before 4.16 3.69 4.95 and after 5.51 4.00 5.04):
+
+```text
+BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
+BENCH load before: 4.16 3.69 4.95
+BENCH field-1 five nodes × 10,000 points (no kernel): median 0.64 ms, p95 0.66 ms, max 0.77 ms (n 60); budget 5.00 ms: met
+BENCH field-2 signed distance to a plate × 10,000 points, first (OCCT): median 70.61 ms, p95 73.04 ms, max 80.97 ms (n 22); budget 100.00 ms: met
+BENCH field-2 signed distance to a plate × 10,000 points, cached: median 0.20 ms, p95 0.21 ms, max 0.21 ms (n 22)
+BENCH field-2b signed distance to a smooth loft × 10,000 points, first (OCCT): median 868.20 ms, p95 892.38 ms, max 892.38 ms (n 8)
+BENCH field-3 Sample Field + Cull by Field × 2,000 placements: median 0.35 ms, p95 0.36 ms, max 0.38 ms (n 40); budget 50.00 ms: met
+BENCH load after: 5.51 4.00 5.04
 ```

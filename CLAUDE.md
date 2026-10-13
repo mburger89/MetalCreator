@@ -56,7 +56,7 @@ checks (group VA) are pending. The layouts, previews and acceptance test are par
 Fields, sub-project 7b-1 (the fields core: the `Field` value and `.field` sockets, `FieldSampler` and `FieldDistanceCache`,
 `Kernel.distances`, the four sources, the six maths nodes, Sample Field and Cull by Field, the `Fields` library category and
 `FieldBench` rows 1 to 3; plan `docs/superpowers/plans/2026-10-12-7b-core.md`, spec `docs/superpowers/specs/2026-10-12-fields-design.md`
-§2 to §4, §7 and §9) code is done; its human checks (group FI-core) are pending and its benchmark numbers await an idle run. Images
+§2 to §4, §7 and §9) code is done; its human checks (group FI-core) are pending and its benchmark numbers are recorded in `docs/verification/performance.md`. Images
 (7b-2, format 7) and Field Scatter with the previews (7b-3) are planned after it merges.
 
 Module boundaries (dependency order):
