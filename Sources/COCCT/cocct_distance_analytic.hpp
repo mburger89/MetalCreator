@@ -16,6 +16,7 @@
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Edge.hxx>
+#include <TopoDS_Vertex.hxx>
 #include <TopoDS_Face.hxx>
 #include <gp_Ax3.hxx>
 #include <gp_Pnt.hxx>
@@ -36,6 +37,8 @@ struct AnalyticEdge {
     bool line = true;
     gp_Pnt start;       // the segment's start, or the arc's start
     gp_Pnt end;         // the segment's end, or the arc's end
+    gp_Pnt cornerStart; // the shared vertex's point at `start`: the outline test reads this, so neighbours agree to the bit
+    gp_Pnt cornerEnd;   // the same at `end`
     gp_Pnt mid;         // the point halfway along the parameter range
     gp_Pnt center;      // arc only
     gp_Dir axis;        // arc: the circle's normal
@@ -94,8 +97,8 @@ inline double wrap_angle(double a) {
 template <typename ToUV>
 void add_outline(std::vector<OutlinePiece> &pieces, const AnalyticEdge &edge, ToUV toUV) {
     double x0 = 0, y0 = 0, x1 = 0, y1 = 0, xm = 0, ym = 0;
-    toUV(edge.start, x0, y0);
-    toUV(edge.end, x1, y1);
+    toUV(edge.cornerStart, x0, y0);
+    toUV(edge.cornerEnd, x1, y1);
     if (edge.line) {
         OutlinePiece piece;
         piece.x0 = x0; piece.y0 = y0; piece.x1 = x1; piece.y1 = y1;
@@ -188,8 +191,31 @@ struct AnalyticTarget {
     bool hasRest = false;
 };
 
-inline bool analytic_edge(const TopoDS_Edge &edge, AnalyticEdge &out) {
+/// One point per TopoDS_Vertex, taken once from BRep_Tool::Pnt. Every edge that ends at a vertex reads its corner from here,
+/// so two neighbouring edges place a shared corner at bit-identical coordinates (the curves' own end values differ in the
+/// last bits, or by the vertex tolerance after a Boolean, and the half-open v ranges of the outline test would then not cancel).
+struct VertexPoints {
+    TopTools_IndexedMapOfShape map;
+    std::vector<gp_Pnt> points;
+
+    gp_Pnt at(const TopoDS_Vertex &vertex) {
+        const int index = map.Add(vertex);
+        if (index > static_cast<int>(points.size())) {
+            points.push_back(BRep_Tool::Pnt(vertex));
+        }
+        return points[static_cast<std::size_t>(index) - 1];
+    }
+};
+
+inline bool analytic_edge(const TopoDS_Edge &edge, AnalyticEdge &out, VertexPoints &corners) {
     if (BRep_Tool::Degenerated(edge)) {
+        return false;
+    }
+    // The vertices at the curve's first and last parameter. Not cumulative in the edge's orientation: a reversed edge
+    // still has its curve running first to last, and `start` and `end` below follow the curve.
+    TopoDS_Vertex firstVertex, lastVertex;
+    TopExp::Vertices(edge, firstVertex, lastVertex, false);
+    if (firstVertex.IsNull() || lastVertex.IsNull()) {
         return false;
     }
     const BRepAdaptor_Curve curve(edge);
@@ -203,6 +229,8 @@ inline bool analytic_edge(const TopoDS_Edge &edge, AnalyticEdge &out) {
         out.start = curve.Value(first);
         out.end = curve.Value(last);
         out.mid = curve.Value(0.5 * (first + last));
+        out.cornerStart = corners.at(firstVertex);
+        out.cornerEnd = corners.at(lastVertex);
         return true;
     }
     if (curve.GetType() == GeomAbs_Circle) {
@@ -211,6 +239,8 @@ inline bool analytic_edge(const TopoDS_Edge &edge, AnalyticEdge &out) {
         out.start = curve.Value(first);
         out.end = curve.Value(last);
         out.mid = curve.Value(0.5 * (first + last));
+        out.cornerStart = corners.at(firstVertex);
+        out.cornerEnd = corners.at(lastVertex);
         out.center = circle.Location();
         out.axis = circle.Axis().Direction();
         out.xAxis = circle.XAxis().Direction();
@@ -230,6 +260,7 @@ inline AnalyticTarget split_target(const std::vector<TopoDS_Face> &faces, bool e
     BRep_Builder builder;
     builder.MakeCompound(target.rest);
     TopTools_IndexedMapOfShape seen;
+    VertexPoints corners;
     for (const TopoDS_Face &face : faces) {
         bool analytic = false;
         AnalyticFace entry;
@@ -254,7 +285,7 @@ inline AnalyticTarget split_target(const std::vector<TopoDS_Face> &faces, bool e
             if (analytic) {
                 for (TopExp_Explorer it(face, TopAbs_EDGE); it.More() && analytic; it.Next()) {
                     AnalyticEdge edge;
-                    if (analytic_edge(TopoDS::Edge(it.Current()), edge)) {
+                    if (analytic_edge(TopoDS::Edge(it.Current()), edge, corners)) {
                         edges.push_back(edge);
                         fresh.push_back(seen.FindIndex(it.Current()) == 0);
                     } else {
