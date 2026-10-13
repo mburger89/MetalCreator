@@ -1590,6 +1590,55 @@ Noise Field into a Multiply's `b`; wire the Remap into the Multiply's `a`.
   Probability with a Noise Field: about half the holes remain, and changing the seed changes which, with no hole moving and no
   badge. Pinned: `CullByFieldNodeTests`, `CulledByFieldPickTests`. **Observed:**
 
+## Group FI — field previews and Field Scatter (7b-3)
+
+**Status: NOT RUN.** Plan `2026-10-13-7b-3-scatter-previews.md`, spec `2026-10-12-fields-design.md` §3.3 and §6. Run
+`swift run MetalCreatorApp`. The tests pin the sampling, the range rules, the tint and the slice on a real GPU, the legend's
+numbers and buttons and the scatter; these check how it looks and feels. (7b-2's image and relink checks are its own, FI-img.)
+Build: a Rectangle (60 × 40) into an Extrude (6) into an Output; beside it a Distance Field whose `target` is the Extrude's solid,
+into a Remap (from 0…20, to 0…1); and a Radial Gradient (radius 30) at the origin.
+
+- [ ] **FI-1 The tint.** Select the Radial Gradient: the plate takes colours from the theme's cool end (cyan in Dracula) near the
+  middle to the warm end (red) at the corners, through yellow, shaded by the light so its form still reads; its edges are still
+  drawn over the tint; hovering a face still lightens it and a selected face still glows. Orbit and zoom: smooth, no flicker, the
+  colours do not swim. Select the Extrude: the tint goes at once. Select the Remap: the tint follows the distance (the middle
+  colour on the surface where the distance is 0). Pinned: `FieldTintRenderTests`, `AppFieldPreviewTests`. **Observed:**
+- [ ] **FI-2 The ramp follows the theme.** View > Theme > Alucard, then Nord: the tint and the legend's bar change to each theme's
+  three field colours at once, with no new sampling pause. Open the theme editor: a "Field preview" group is last, with Field low,
+  Field middle and Field high; change Field high: the tint and the bar follow. Export the theme and import it: the colours
+  survive; an older `.mctheme` file without the three roles reads Dracula's. Pinned: `FieldRampRoleTests`,
+  `aThemeChangeRecoloursTheTintWithoutSamplingAgain`. **Observed:**
+- [ ] **FI-3 The slice.** With the Radial Gradient selected there is a translucent quad through the plate, on the axis plane nearest
+  your view (look from above: XY), coloured by the field and covering the plate with a margin. It is drawn over the plate, so you
+  can read the field inside it. A handle (the same arrow as an Extrude's) sits in its middle: drag it along the quad's normal; the
+  quad follows without a pause you notice, the legend's numbers follow, and nothing is added to Undo (the Edit menu does not change,
+  the title bar shows no edit). Select a Linear Gradient: the slice starts on its own plane. Pinned: `ViewportSliceRenderTests`,
+  `FieldPreviewSliceTests`, `theLegendsToggleChangesTheRampAndTheSliceHandleEditsNoDocument`. **Observed:**
+- [ ] **FI-4 The legend.** A small glass card stands above the axis triad at the viewport's lower left, clear of the docked graph
+  panel (move the panel to the bottom and hide it: the card keeps clear of the triad and the show button). It shows the ramp as a
+  bar, three numbers under it (for the Remap or the Radial Gradient plain numbers; for a Distance Field "… mm"; for a signed
+  distance to a solid the middle number is 0 and the ends are the same size), the "0…1" toggle and the slice buttons XY, YZ, XZ and
+  Off (and Plane for a Linear Gradient). Pressing XY/YZ/XZ moves the quad to that plane through the plate; Off removes it and its
+  handle and keeps the tint; "0…1" fixes the numbers to 0, 0.5, 1 at once. The card goes when you select a node with no field. The
+  text is legible in all three themes. Pinned: `FieldLegendWindowTests`, `FieldLegendLabelsTests`. **Observed:**
+- [ ] **FI-5 A failure and a big part.** Wire a Distance Field into a Remap, then delete the solid it measures to (so the field
+  can't be sampled): the legend shows the reason in red instead of numbers and the tint goes. For a part over 200,000 vertices
+  ("Preview sampled coarsely") use a Hole Pattern of 2,000 holes on a thick plate and select a field: the legend says so and the tint
+  appears without a long wait. Pinned: `aFailedSamplingSaysSoInTheKernelsWordsAndKeepsNoTint`,
+  `aBigMeshIsSampledCoarselyAndTheLegendSaysSo`. **Observed:**
+- [ ] **FI-6 Field Scatter.** Right-click the plate's top face: the menu offers Scatter on Face after Pattern on Face; choose it.
+  A Field Scatter appears beside the Extrude, selected, wired to it, and its points show as small axis triads over the face, none
+  nearer than its Min spacing and all clear of the edge by its margin, with the area they fill dashed. Wire the Radial Gradient into
+  its `field` with Min spacing 5 and Max spacing 12: the points are close together in the middle and sparse towards the corners
+  (a field of 0 is the densest). Change the seed: a different scatter. Its inspector ends with the note about renumbering. Wire a
+  Hole Pattern after it, pick a hole's rim with an Edges by Tag, then change a spacing so there are fewer points than the pick's
+  number: the Edges by Tag warns "Instance {n} no longer exists". Pinned: `ScatterOnFaceTests`, `ScatterPreviewTests`,
+  `FieldScatterPickTests`. **Observed:**
+- [ ] **FI-7 The vented plate.** Build the acceptance part by hand: Field Scatter on the top face with a Distance Field of the
+  outline (Remap 0…14 mm to 0…1), a Remap 0…14 mm to Ø2…Ø4 into a Sample Field at a Cull by Field's survivors (Probability, a Noise
+  Field), and a Hole Pattern: holes are small at the edges, larger towards the middle, thinned at random; a second run of the same
+  file gives the same part. Pinned: `FieldsAcceptanceTests`. **Observed:**
+
 ## Group C23 — MetalUI C23: text measured, not estimated (Adopt C23)
 
 **Status: NOT RUN.** Plan `2026-10-12-adopt-c23.md`. Run `swift run MetalCreatorApp` on a Mac with a display. The tests pin the
