@@ -20,7 +20,8 @@ struct CatalogTests {
     /// The socket types each control can edit. `nil` means a setting is required.
     func acceptedTypes(of control: InspectorControl) -> Set<SocketType> {
         switch control {
-        case .slider, .number: [.number]
+        // A number typed into a field socket is a constant field (fields spec D4), so a number control edits one too.
+        case .slider, .number: [.number, .field]
         case .integer, .segmented, .anchorGrid: [.integer]
         case .toggle: [.bool]
         case .planePicker: [.plane]

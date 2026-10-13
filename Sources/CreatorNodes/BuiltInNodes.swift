@@ -24,6 +24,8 @@ public enum BuiltInNodes {
         RandomValuesNode.self,
         JitterNode.self,
         DistanceFieldNode.self, LinearGradientNode.self, RadialGradientNode.self, NoiseFieldNode.self,
+        FieldAddNode.self, FieldMultiplyNode.self, FieldMinMaxNode.self, FieldRemapNode.self, FieldClampNode.self,
+        FieldSmoothBlendNode.self,
         OutputNode.self,
     ]
 
