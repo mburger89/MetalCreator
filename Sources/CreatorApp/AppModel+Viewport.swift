@@ -22,12 +22,9 @@ extension AppModel {
         // the editor, which reads its dock and canvas transform from it (M4 carry-over, spec §7.3).
         viewport.events.cameraSettled = { events()?.document.viewState.camera = $0 }
         viewport.events.homeChanged = { events()?.document.viewState.homeCamera = $0 }
-        // A viewport press gives the keys back, as a canvas press does (gap M5-g), and commits a typed value.
-        viewport.events.pressed = {
-            guard let model = events() else { return }
-            model.editor.commitPendingEntry()
-            model.releaseTextFocus?()
-        }
+        // A viewport press commits a typed value (a model commit). Giving the keys back is the window's: its root
+        // resigns focus on a press (`AppWindowRoot`, MetalUI C24, gap CT-a).
+        viewport.events.pressed = { events()?.editor.commitPendingEntry() }
     }
 
     /// This model while `viewport` is its current viewport, else nil.

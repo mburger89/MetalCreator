@@ -21,6 +21,9 @@ public struct AppWindowRoot: Component {
             ThemeEditorDock(model: themeEditor,
                             bottom: ThemeEditorLayout.bottom(dock: model.editor.dock, panelHeight: model.panelHeight))
         }
+        // A primary press on anything inside that is not a text field or a click-focusable control resigns the focus
+        // (MetalUI C24, gap CT-a), so typing ends on "a press elsewhere" (spec 2026-10-09 section 8). It routes no keys.
+        .resignsFocusOnPress()
         .environment(model.themes)
         .theme(model.themes.current.controlTheme)
     }
