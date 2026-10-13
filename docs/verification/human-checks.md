@@ -531,9 +531,9 @@ the window half; no test does yet). The window drag is pinned only as far as the
 (`TestWindow.windowDrags`, MetalUI C22's `performWindowDrag`); that AppKit then moves the window is AS-5.
 
 Product decisions behind these checks (the user approved the recommended default of each on 2026-10-09/10): (1) the
-hidden title bar (not merged; the window is standard) ships only if AS-5 shows the window drags, as its own commit (amended by
-the C22 plan `2026-10-12-adopt-c22`: it ships now with MetalUI C22's window drag and stays only if AS-5 shows the window
-drags; the amendment is pending the user's answer to that plan's User decision 3, so until then it is not approved); (2)
+hidden title bar ships with MetalUI C22's window drag (amended 2026-10-12 by the C22 plan `2026-10-12-adopt-c22`, User
+decision 3, approved by the user: merged before AS-5) and stays only if AS-5 shows the window drags; if it doesn't, the
+one `windowStyle` line (that plan's Task 3 commit) is reverted alone; (2)
 a Finder open of the file already open does nothing; (3) a typed but uncommitted inspector value counts as a change when
 a Finder open arrives; (4) the top bar keeps the name and "— Edited"; (5) close and quit share one alert; (6) an open
 onto edited work asks "Discard unsaved changes?". Gap C8-a was reported to the MetalUI session on 2026-10-10 and is fixed by C22.
