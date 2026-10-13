@@ -429,10 +429,11 @@ Already reported to the MetalUI session and queued there as item **C7 "Input API
   Themes milestone it isn't remembered between launches either. Custom themes and `.mctheme` files: roadmap row
   "Themes".
 - §6.1's window title and close prompt are done on MetalUI C8 (docs/metalui-gaps.md M6-a, M6-b; plan
-  `2026-10-09-adopt-c8`); the full-size glass top bar (M6-c) is not: the title bar stays standard until human check AS-5
-  shows a hidden one still drags (gap C8-a). The title bar names the document and shows the edited dot, closing the window or
-  quitting with unsaved changes asks Save / Don't Save / Cancel, and the top bar's content is already
-  padded to clear the window buttons for when the title bar is hidden. The top bar shows the name and "— Edited". New and Open… ask "Discard unsaved changes?".
+  `2026-10-09-adopt-c8`), and the full-size glass top bar (M6-c) on C8 and C22 (plan `2026-10-12-adopt-c22`): the window opens with a
+  hidden title bar and is dragged by the top bar's empty space and a strip above it (`WindowDragHandle`, SwiftUI's
+  `WindowDragGesture`; gap C8-a), pending human check AS-5. The title bar draws no title and no proxy icon now: the top bar
+  names the document, shows "— Edited", and is padded to clear the window buttons (`AppLayout.topBarClearance`); closing the window or
+  quitting with unsaved changes asks Save / Don't Save / Cancel. New and Open… ask "Discard unsaved changes?".
 - §6.1's "Selected node" preview shows exactly one selected node's outputs; with none or several selected the viewport
   is empty. An edge set previews as its solid with the set's edges selected.
 - §6.5's handles are shown for the selected nodes, for unwired number inputs only.

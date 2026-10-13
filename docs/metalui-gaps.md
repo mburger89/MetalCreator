@@ -27,9 +27,9 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M5-j | `ProgressView` | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M6-a | Window title and edited marker | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
 | M6-b | Close and quit veto | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
-| M6-c | Full-size content view | C8 | 🔄 open: fixed in MetalUI 70e9389 (PR #61) but not adopted; the window keeps its standard title bar until human check AS-5 shows it drags (C8-a) |
+| M6-c | Full-size content view | C8, C22 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-12-adopt-c22`, with C8-a): the window opens with `windowStyle: AppLayout.windowStyle` (`.hiddenTitleBar`), pending human check AS-5, the live test of the drag |
 | M6-d | Open-document events | C8 | ✅ fixed (MetalUI 70e9389, PR #61), adopted (plan `2026-10-09-adopt-c8`) |
-| C8-a | Window drag region for a hidden title bar under a gesture-carrying view | none yet | ⏳ reported to the MetalUI session 2026-10-10, not yet queued; predicted from reading MetalUI, AS-5 not run (it would confirm or refute) |
+| C8-a | Window drag region for a hidden title bar under a gesture-carrying view | C22 | ✅ fixed (MetalUI 930db4a, PR #70: `WindowDragGesture`), adopted (plan `2026-10-12-adopt-c22`), pending human check AS-5: `WindowDragHandle` marks the top bar's empty space and the strip above it (`WindowDragWindowTests`, `SketchWindowDragWindowTests`, `TitleBarClearanceWindowTests`); the real AppKit drag is unproven live (MetalUI's WD1–WD7) |
 | M6-e | Public headless test window | item 8 (test harness) | ✅ fixed (MetalUI 280d706, PR #65: `MetalUITesting`), adopted in the test targets (plan `2026-10-12-adopt-test-harness`): `AppWindow` opens the app's real root in a `TestWindow` (`AppWindowTests`), and the observable key routing is pinned by the window tests (`ViewportKeyRoutingWindowTests`, `EditMenuRoutingWindowTests`, `PaletteKeyRoutingWindowTests`), while the canvas hover veto and the `Panel` key context stay pinned only by mapping tests (`AppInputTests`); MetalCreator had no platform fake of its own to replace; the harness's one limit for this app (no `MetalView` draw, so no window size) is gone: the size and the panel's frame come from `onGeometryChange` (M4-a, EP-a) |
 | M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
 | M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
@@ -254,7 +254,7 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
 - ✅ **Fixed in MetalUI 70e9389 (PR #61, rulings AS-D), adopted:** `WindowChromeSync` sets `Window.title`,
   `Window.isDocumentEdited` and `Window.representedURL` from the document (`AppModel.windowChrome`), so the title bar
   reads the file's name, the close button shows the edited dot and the proxy icon names the file. The top bar keeps
-  its name and "— Edited". The window keeps its standard title bar (M6-c is open), so AppKit draws the title and the proxy icon.
+  its name and "— Edited". Under the hidden title bar (M6-c, adopted) AppKit draws neither the title nor the proxy icon; the Window menu still names the document.
   **M6-a. No window title API.** The title is fixed by `App.openWindow(title:…)`. `PlatformWindow.title` is settable,
   but `Window` doesn't expose it, and there's no represented file or edited marker (AppKit's `representedURL` and
   `isDocumentEdited`). The app wants "bracket.mcgraph — Edited" in the title bar. Stopgap: the glass top bar shows the
@@ -268,11 +268,11 @@ Labelled M6-a… so they don't clash with the C7 items 1–5, M4-a… or M5-a…
   to save (AppKit: `windowShouldClose(_:)`, `applicationShouldTerminate(_:)`; SwiftUI document apps get it from
   `DocumentGroup`). Stopgap: none. New and Open ask before discarding unsaved changes; close and quit don't. Wanted: a
   window-close veto and an app terminate hook that can show an alert first.
-- 🔄 **Fixed in MetalUI 70e9389 (PR #61, rulings AS-E, AS-F, AS-J), not adopted:** `windowStyle: .hiddenTitleBar` is
-  held back (plan Task 4b) until human check AS-5 shows the window drags by its top bar (gap C8-a predicts it doesn't).
-  `TopBar` already pads its content by `AppLayout.topBarClearance(titleBarInsets:)` (`AppRoot` reads
-  `@Environment(\.titleBarInsets)`); the inset is zero in a standard window. To adopt: run AS-5 with the
-  `windowStyle: .hiddenTitleBar` argument added in `Sources/MetalCreatorApp/main.swift`, record the result, then commit it.
+- ✅ **Fixed in MetalUI 70e9389 (PR #61, rulings AS-E, AS-F, AS-J) and C22 (930db4a), adopted (plan `2026-10-12-adopt-c22`), pending
+  human check AS-5:** `MetalCreatorApp` opens the window with `windowStyle: AppLayout.windowStyle` (`.hiddenTitleBar`), so the glass top
+  bar is drawn under the window buttons. `TopBar` pads its content by `AppLayout.topBarClearance(titleBarInsets:)` (`AppRoot` reads
+  `@Environment(\.titleBarInsets)`; zero in full screen and in a standard window; `TitleBarClearanceWindowTests` sets the insets as
+  AppKit reports them). The window is dragged by the top bar (gap C8-a). AS-5 runs it live.
   **M6-c. No full-size content view.** Spec §6.1 draws the glass top bar under the traffic lights (AppKit
   `.fullSizeContentView` with a transparent title bar; SwiftUI `.windowStyle(.hiddenTitleBar)`). Stopgap: the top bar
   sits below the standard title bar.
@@ -803,7 +803,15 @@ Labelled C10-a… so they don't clash with the labels above. Checked against Met
 
 Labelled C8-a… so they don't clash with the labels above. Checked against MetalUI `70e9389`.
 
-- **C8-a. No window-drag region for a hidden title bar under a gesture-carrying view.** With
+- ✅ **Fixed in MetalUI 930db4a (C22, PR #70: SwiftUI's `WindowDragGesture`), adopted (plan `2026-10-12-adopt-c22`), pending human
+  check AS-5:** `WindowDragHandle` (CreatorStyle) is `Color.clear.contentShape(Rectangle()).gesture(WindowDragGesture())`. It fills the
+  top bar's empty space (the label and the gap beside the controls; the sketch toolbar's too) and `AppRoot` lays one across the window's
+  top for `AppLayout.windowDragStripHeight`. It wins the press over the viewport's gestures, which are cancelled when the drag starts
+  (divergence 275); a click in it moves nothing and doesn't reach the viewport; a double click doesn't zoom. This entry
+  predicted the failure below (the viewport's gestures form an arena over the band, so MetalUI's unclaimed-press drag never
+  fired); C22 gives the band a gesture of its own that joins that arena and wins it. AppKit's real move is MetalUI's WD1–WD7
+  and our AS-5.
+  **C8-a. No window-drag region for a hidden title bar under a gesture-carrying view.** With
   `windowStyle: .hiddenTitleBar` MetalUI drags the window from a press in the title-bar band only when nothing claims
   the press: no opaque hitbox and no gesture arena (ruling AS-J, `Window.answerUnclaimedTitleBarPress`).
   MetalCreator's viewport fills the whole window (spec §6.1) and carries gestures over all of it
@@ -811,8 +819,7 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
   band, including one on the empty glass of the top bar (glass only paints, divergence 141), forms an arena, and the
   window can't be dragged by its top bar. Found by reading MetalUI 70e9389; human check AS-5 confirms or refutes it.
   Stopgap: none (a claiming view over the band would not drag the window either, and the viewport stays full-bleed).
-  Until AS-5 shows otherwise the window keeps its standard title bar (plan Task 4b: the one `windowStyle:` line is not
-  merged; the top bar's clearance code stays, it is zero in a standard window), and M6-c stays open.
+  (Superseded: the hidden title bar is on, with C22's `WindowDragGesture`; see the first lines of this entry.)
   Wanted: a way to mark a region as the window's drag handle that wins over the gestures beneath it, as SwiftUI's
   `WindowDragGesture` / `.windowBackgroundDragBehavior(.enabled)` (macOS 15) or a `.windowDragArea()` modifier; the
   top bar's glass would carry it.

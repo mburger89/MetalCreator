@@ -16,7 +16,8 @@ func runApp(opening path: String?) throws {
     let input = AppInput(model: model)
     AppCommands.install(on: app, model: model, themeEditor: themeEditor)
     let window = try app.openWindow(title: "MetalCreator", size: Size(width: Pixels(1440), height: Pixels(900)),
-                                    minSize: Size(width: Pixels(1000), height: Pixels(640))) {
+                                    minSize: Size(width: Pixels(1000), height: Pixels(640)),
+                                    windowStyle: AppLayout.windowStyle) {
         // A window's root must be an Element, and a Component is a group, so it's wrapped.
         ZStack { AppWindowRoot(model: model, input: input, themeEditor: themeEditor) }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

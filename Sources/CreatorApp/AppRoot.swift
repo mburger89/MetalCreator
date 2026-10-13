@@ -1,5 +1,6 @@
 import CreatorEditor
 import CreatorSketchEditor
+import CreatorStyle
 import CreatorViewport
 import MetalUI
 
@@ -31,6 +32,12 @@ public struct AppRoot: Component {
                 PanelArea(model: model)
             }
             .padding(Edges(all: AppLayout.margin.px))
+            // Under a hidden title bar the window is dragged by its top bar (gap M6-c): this strip, and the bar's empty space.
+            // Drawn above the panels so a sketch's chrome backdrop (a drag gesture from y = 12) cannot take a press in it;
+            // it ends where the bar's controls start, so it covers none of them.
+            WindowDragHandle()
+                .frame(maxWidth: .infinity)
+                .frame(height: AppLayout.windowDragStripHeight.px)
             if let pick = model.pick {
                 HStack {
                     Spacer()

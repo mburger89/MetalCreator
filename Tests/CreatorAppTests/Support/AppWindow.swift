@@ -9,7 +9,8 @@ import Testing
 @testable import CreatorApp
 
 /// `MetalCreatorApp`'s window without a screen: `AppWindowRoot` over `FakeKernel` in a `TestWindow`, with the app's
-/// menu bar and input hooks installed as `main.swift` installs them (`AppCommands`, `AppInput`). Clicks and keys reach it
+/// menu bar and input hooks installed as `main.swift` installs them (`AppCommands`, `AppInput`) and its hidden title bar
+/// (`AppLayout.windowStyle`; the headless title bar insets are zero until a test sets them). Clicks and keys reach it
 /// through MetalUI's own routing, so key regions, focus and gestures run as in the app.
 ///
 /// MetalUI does not run a `MetalView`'s draw headless (its ruling HT-Q), so nothing here depends on one: the panel and
@@ -29,7 +30,8 @@ struct AppWindow {
     /// the first frame drawn. A double click is `TestWindow.doubleClick(at:)`, whose second press carries click count 2, as
     /// the platform's does.
     static func open(_ graph: Graph = Graph(), dock: DockSide = .bottom, zoom: Double = 1,
-                     recordsLayout: Bool = true) async throws -> AppWindow {
+                     recordsLayout: Bool = true, windowStyle: WindowStyle = AppLayout.windowStyle,
+                     options: HeadlessPlatformWindow.Options? = nil) async throws -> AppWindow {
         let size = defaultSize
         let viewState = ViewState(dock: dock, canvasZoom: zoom, showsLibrary: false)
         let model = AppModel(kernel: FakeKernel(), file: GraphFile(graph: graph, viewState: viewState))
@@ -40,7 +42,7 @@ struct AppWindow {
         AppCommands.install(on: testApp.app, model: model, themeEditor: themeEditor)
         let window = try testApp.openWindow(
             title: "MetalCreator", size: Size(width: Pixels(Float(size.x)), height: Pixels(Float(size.y))),
-            recordsLayout: recordsLayout
+            windowStyle: windowStyle, options: options, recordsLayout: recordsLayout
         ) {
             ZStack { AppWindowRoot(model: model, input: input, themeEditor: themeEditor) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
