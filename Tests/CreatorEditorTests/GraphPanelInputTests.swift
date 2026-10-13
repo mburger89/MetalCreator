@@ -8,10 +8,29 @@ import Testing
 @MainActor
 struct GraphPanelInputTests {
     /// A canvas drag value as MetalUI reports it, in canvas-local points.
-    func value(_ start: Vector2, _ location: Vector2, _ modifiers: Modifiers = []) -> DragGesture.Value {
+    func value(_ start: Vector2, _ location: Vector2, _ modifiers: Modifiers = [], clickCount: Int = 1) -> DragGesture.Value {
         DragGesture.Value(startLocation: Point(x: Pixels(Float(start.x)), y: Pixels(Float(start.y))),
                           location: Point(x: Pixels(Float(location.x)), y: Pixels(Float(location.y))),
-                          modifiers: modifiers)
+                          modifiers: modifiers, clickCount: clickCount)
+    }
+
+    /// The press's click count (MetalUI C16's `DragGesture.Value.clickCount`, gap S5-b) reaches the model, so a second
+    /// click counted 2 opens the sketch, from the gesture's own values and whichever of them reports first.
+    @Test func theCanvasGestureReadsTheClickCountFromItsValues() {
+        let sketch = testNode(SketchTestNode.self, id: 1, at: .zero, registry: sketchTestRegistry)
+        let editor = makeEditor([sketch], registry: sketchTestRegistry)
+        let input = GraphPanelInput(model: editor)
+        let point = editor.screenPoint(in: sketch.id)
+        input.canvasChanged(value(point, point))
+        input.canvasEnded(value(point, point))
+        #expect(editor.inspectorRequest == nil)
+        input.canvasChanged(value(point, point, clickCount: 2))
+        input.canvasEnded(value(point, point, clickCount: 2))
+        #expect(editor.inspectorRequest?.action == .editSketch)
+        let again = editor.inspectorRequest?.serial
+        input.canvasEnded(value(point + Vector2(0, 1), point + Vector2(0, 1), clickCount: 1))
+        input.canvasEnded(value(point + Vector2(0, 2), point + Vector2(0, 2), clickCount: 2))
+        #expect(editor.inspectorRequest?.serial != again, "a click that reports only its end carries its count too")
     }
 
     /// The window's modifier events are neither claimed nor kept: a press reads its own (MetalUI C7), so a ⇧

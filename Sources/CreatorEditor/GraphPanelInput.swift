@@ -128,13 +128,15 @@ public final class GraphPanelInput {
     /// canvas surface is a key region (MetalUI C9, gap M5-g).
     func canvasChanged(_ value: DragGesture.Value) {
         let start = Self.vector(value.startLocation)
-        model.pointerDragged(from: start, to: Self.vector(value.location), modifiers: Self.canvasModifiers(value.modifiers))
+        model.pointerDragged(from: start, to: Self.vector(value.location), modifiers: Self.canvasModifiers(value.modifiers),
+                             clickCount: value.clickCount)
     }
 
     /// The gesture ended: a release, or a click's only report when no change came first.
     func canvasEnded(_ value: DragGesture.Value) {
         let start = Self.vector(value.startLocation)
-        model.pointerReleased(from: start, at: Self.vector(value.location), modifiers: Self.canvasModifiers(value.modifiers))
+        model.pointerReleased(from: start, at: Self.vector(value.location), modifiers: Self.canvasModifiers(value.modifiers),
+                              clickCount: value.clickCount)
     }
 
     /// The canvas's middle-button drag: pans. A zero minimum distance, so the closed hand shows from the press (a

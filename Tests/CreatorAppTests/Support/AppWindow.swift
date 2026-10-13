@@ -26,16 +26,14 @@ struct AppWindow {
     let size: Vector2
 
     /// The app showing `graph` (docked as `dock`, the node library hidden, the canvas zoomed as given), evaluated, with
-    /// the first frame drawn. The editor's double-click recogniser reads a clock that never moves, so two clicks in a row
-    /// are always a double click, however loaded the machine is.
+    /// the first frame drawn. A double click is `TestWindow.doubleClick(at:)`, whose second press carries click count 2, as
+    /// the platform's does.
     static func open(_ graph: Graph = Graph(), dock: DockSide = .bottom, zoom: Double = 1,
                      recordsLayout: Bool = true) async throws -> AppWindow {
         let size = defaultSize
         let viewState = ViewState(dock: dock, canvasZoom: zoom, showsLibrary: false)
         let model = AppModel(kernel: FakeKernel(), file: GraphFile(graph: graph, viewState: viewState))
         await model.settle()
-        let instant = ContinuousClock.now
-        model.editor.now = { instant }
         let themeEditor = ThemeEditorModel(themes: model.themes)
         let input = AppInput(model: model)
         let testApp = try TestApp()
