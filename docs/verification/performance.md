@@ -93,7 +93,8 @@ orbit step), and building each node view's inputs about 0.01 ms (PERF-b's 0.19 m
 rebuilding, laying out and painting the whole window on every observed change, whether or not the view's inputs
 changed. With the panel hidden an orbit frame costs 1.98 ms; with it shown, 16.01 ms, though nothing on the panel
 changed; MetalCreator can't tell MetalUI to skip the unchanged panel (PERF-b's request). If either verdict is a miss
-on an idle run, it waits for MetalUI C14-b (PERF-b: rebuild only what changed; slice 1, which skips unchanged content getters, is adopted); its entry cites this file. Both are
+on an idle run, it waits for MetalUI C14-b (PERF-b: rebuild only what changed; slice 1, which skips unchanged content getters, is
+adopted); its entry cites this file. Both are
 judged on an idle run, which is still to do: the machine stayed loaded while this was recorded.
 
 **C14 slice 1 adopted (plan `2026-10-13-adopt-c14`), not timed.** The canvas's node, wire and comment views skip their

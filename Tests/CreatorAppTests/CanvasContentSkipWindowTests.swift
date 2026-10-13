@@ -88,6 +88,27 @@ struct CanvasContentSkipWindowTests {
         #expect(app.picture == app.pictureAfterRebuildingEverything(), "the skipped views drew what a full rebuild draws")
     }
 
+    /// A wire's value is its geometry and one colour, no `Palette`: only a window built afresh on the moved graph tells a
+    /// wire skipped while its endpoint moved from one drawn right.
+    @Test func aWireFollowsItsMovedEndpointAndDrawsWhatAFreshWindowDraws() async throws {
+        let fixture = try await open()
+        let app = fixture.app
+        _ = app.steadyWork()
+        let from = try pressAndMove(fixture)
+        let moved = Point(x: from.x + Pixels(60), y: from.y + Pixels(40))
+        _ = app.window.send(.mouseDragged(MouseEvent(position: moved)))
+        app.window.tick()
+        _ = app.window.send(.mouseUp(MouseEvent(position: moved)))
+        app.window.tick()
+        app.editor.selection = []
+        app.redraw()
+        let node = try #require(app.editor.graph.nodes[fixture.middle.extrude.id])
+        #expect(node.position != fixture.middle.extrude.position, "the extrude moved, and so did its wire's end")
+        let fresh = try await AppWindow.open(app.editor.graph, recordsLayout: false)
+        try await fresh.window.runUntilIdle()
+        #expect(app.picture == fresh.picture, "the wire was redrawn to the node's new place")
+    }
+
     @Test func aThemeChangeEvaluatesEveryViewAndDrawsTheNewColours() async throws {
         let fixture = try await open()
         let app = fixture.app

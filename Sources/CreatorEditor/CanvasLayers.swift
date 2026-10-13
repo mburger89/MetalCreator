@@ -40,7 +40,8 @@ struct CanvasLayers: Component {
                          origin: model.displayOrigin(of: node), flow: flow,
                          isSelected: model.selection.contains(node.id),
                          state: model.result(of: node.id)?.state,
-                         shakes: model.shakeCount(of: node.id), palette: palette, socketHelp: model.socketHelp(of: node.id))
+                         shakes: model.shakeCount(of: node.id), palette: palette,
+                         socketHelp: model.socketHelp(of: node.id))
                     .equatable()
             }
             ForEach(Self.ghosts(model), id: \.id.rawValue) { node in
@@ -50,7 +51,8 @@ struct CanvasLayers: Component {
                     .equatable()
             }
             ForEach(commentGhosts.frames, id: \.id.rawValue) { box in
-                CommentFrameView(box: box, rect: model.frame(of: box), isSelected: true, palette: palette, isGhost: true)
+                CommentFrameView(box: box, rect: model.frame(of: box), isSelected: true, palette: palette,
+                                 isGhost: true)
                     .equatable()
             }
             ForEach(commentGhosts.notes, id: \.id.rawValue) { note in

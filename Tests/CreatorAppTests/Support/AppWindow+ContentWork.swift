@@ -23,7 +23,7 @@ extension AppWindow {
     }
 
     /// What the last frame drew on the canvas, as numbers: every rect's bounds, fill and border, every glyph's position and
-    /// colour, for what lies from the canvas's top edge down (the viewport above it and its cube are drawn from the
+    /// colour, every image's bounds (a wire is drawn as one), for what lies from the canvas's top edge down (the viewport above it and its cube are drawn from the
     /// viewport's own theme, which a live theme switch reaches by another path). Sorted, because two windows on the same graph
     /// may build its nodes in different orders (the graph's nodes are a dictionary); two equal summaries are the same picture.
     var picture: [[Float]] {
@@ -38,12 +38,16 @@ extension AppWindow {
         let glyphs = scene.glyphs.filter { $0.bounds.origin.y >= top }.map { glyph in
             [glyph.bounds.origin.x, glyph.bounds.origin.y, glyph.color.h, glyph.color.s, glyph.color.l, glyph.color.a]
         }
-        return (rects + glyphs).sorted { $0.lexicographicallyPrecedes($1) }
+        let images = scene.images.filter { $0.bounds.origin.y >= top }.map { image in
+            [image.bounds.origin.x, image.bounds.origin.y, image.bounds.size.width, image.bounds.size.height, 1]
+        }
+        return (rects + glyphs + images).sorted { $0.lexicographicallyPrecedes($1) }
     }
 
     /// Makes every canvas view evaluate its content afresh by showing another theme and then the one it had, and
-    /// returns the picture of the last frame: what the window should look like if no skipped view were stale. The
-    /// themes' palettes differ in every `Palette`-carrying view, so each of those re-evaluates twice.
+    /// returns the picture of the last frame: what the window should look like if no skipped view were stale. It forces
+    /// the views that carry a `Palette` to re-evaluate (the themes' palettes differ), and a wire too if its one colour
+    /// differs between the themes; a wire's geometry is not forced, so a stale wire needs a fresh window to show.
     func pictureAfterRebuildingEverything() -> [[Float]] {
         let theme = model.themes.current.id
         model.themes.select(theme == "alucard" ? "dracula" : "alucard")

@@ -39,7 +39,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | GI-a | Modifiers on a tap | C16 (with S5-a) | ✅ fixed (MetalUI a720fba: `SpatialTapGesture.Value.modifiers`), adopted (plan `2026-10-12-adopt-c16`): the viewport's click passes its tap's modifiers (`ViewportModifiersWindowTests.aCommandClickReachesTheToolWithCommandAndAPlainOneWithout`); the graph canvas needs nothing, since its one zero-distance drag already carries them and must stay a drag |
 | GI-b | Wheel latching (`CI-AD`) | C16 | ✅ fixed (MetalUI a720fba: a scroll latches to the element under its `.began`, momentum included; synthesized `.cancelled` on key loss), adopted (plan `2026-10-12-adopt-c16`) with no code to remove (the entry's stopgap was none): `ScrollLatchWindowTests` pins the canvas's glide staying on the canvas, the viewport's staying off it and key loss mid-glide; human check C16-1 |
 | PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | ✅ fixed (MetalUI ebcf3c7, PR #63), adopted with no code change; idle re-measure pending |
-| PERF-b | Every observed change rebuilds, lays out and paints the whole window | C14 | 🔄 partly fixed (MetalUI e85cb07a, PR #82: C14 slice 1, the automatic layout memo and `Component.equatable()`), adopted (plan `2026-10-13-adopt-c14`): the canvas's node, wire and comment views skip their content getter when their value is unchanged (`CanvasContentSkipWindowTests`); the build recursion, prepaint and paint still run whole (C14-b, queued, with a MetalCreator-shaped drag fixture); `@Environment` readers can't skip (C14-c, divergence 346; `BoxSelectionView` keeps its `@Environment(ThemeStore)` because it is not `.equatable()` and is rebuilt anyway); the timing re-take is owed (idle Mac); measured by M7 (below) |
+| PERF-b | Every observed change rebuilds, lays out and paints the whole window | C14 | 🔄 partly fixed (MetalUI e85cb07a, C14 slice 1), adopted: unchanged canvas views skip their content getter; build, prepaint and paint still run whole (C14-b queued); timing re-take owed; measured by M7 (below) |
 | EP-a | Element frame in window coordinates, hover coordinate space, window size | C15 | ✅ fixed (MetalUI 0abce86, PR #66: `CoordinateSpace.named`, `onGeometryChange` with `.global`/`.named`, `onContinuousHover(coordinateSpace:)`, `\.windowSize`), adopted (plan `2026-10-12-adopt-c15`): the graph panel measures itself (`PanelPlacementTests.theEditorIsToldWhereItsCanvasIs`, `aGrownWindowRebuildsTheCanvasWithWhatItUncovers`, `hidingThePanelClearsThePlacementAndShowingItBringsItBack`, `aNewDocumentIsPlacedToo`) and the palette opens at the canvas's `.global` hover (`PaletteOverlayWindowTests.itOpensWithItsTopLeftCornerAtThePointerWhateverTheViewportHasDrawn`, `FloatingPaletteTests`) |
 | EP-b | Chrome-less point-anchored popover that closes on an outside press | C15 | ✅ fixed (MetalUI 0abce86, PR #66: `.anchoredOverlay(isPresented:at:in:anchor:content:)`), adopted (plan `2026-10-12-adopt-c15`): `SearchPaletteOverlay` is an `anchoredOverlay`, and the stopgap's known limits are pinned fixed (`PaletteOverlayWindowTests.aPressIntoATextFieldClosesItAndTheFieldGetsFocus`, `aRightClickThatOpensAContextMenuClosesItAndTheMenuStillOpens`, `aScrollOverItDoesNotReachTheCanvasOrTheViewport`, `itFlipsLeftAtTheRightEdgeAndUpAtTheBottom`) |
 | P-a | Third-party notices | C17 | ✅ fixed (67a579e), adopted |
@@ -807,8 +807,9 @@ Labelled M7-a… so they don't clash with the labels above. Checked against Meta
   the editor with `recordsLayout: false` and pins what is stable on any machine, never a time: an idle window draws no
   frame at all, a warm redraw uploads no atlas pixels, rasterizes and blurs no pixels and makes no texture, and a second
   unchanged frame does exactly the work of the first. It does **not** pin zero layout work: a forced redraw of the
-  whole window re-measures it (hundreds of layout cache misses at 1440 × 900), which is PERF-b (C14 slice 1 adopted, C14-b queued), so the
-  test leaves that number to PERF-b's own adoption. Not done: moving `Tests/CreatorAppTests/Bench` onto the warm
+  whole window re-measures it (hundreds of layout cache misses at 1440 × 900), which is PERF-b (C14 slice 1 adopted, C14-b
+  queued), so the test leaves that number to PERF-b's own adoption. Not done: moving `Tests/CreatorAppTests/Bench`
+  onto the warm
   window (the release benchmark is never run in this plan); `docs/verification/performance.md` still says cold frames.
 
 ## Used again by the C10 adoption, 2026-10-09
@@ -928,8 +929,9 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
   and deferred `MetalDrawContext.drawText` to C14's close-out (GT-F; the trigger is that after C14 a 100-label overlay still scales
   with N through anything but the labels' own paint and human check S5c-6 reports a missing frame budget). It recommends keeping
   labels as views over the surface, which is what MetalCreator does: that is the design, not a workaround. What is left of this
-  gap's first complaint is not S5-c's: the tree rebuild on every camera change is PERF-b's (C14 slice 1 adopted, C14-b queued), and the hiding of the
-  labels during the 250 ms Look At that opens a sketch is M4-b's (`TimelineView(.animation)` is on MetalUI master since C9 and is not
+  gap's first complaint is not S5-c's: the tree rebuild on every camera change is PERF-b's (C14 slice 1 adopted, C14-b
+  queued), and the hiding of the labels
+  during the 250 ms Look At that opens a sketch is M4-b's (`TimelineView(.animation)` is on MetalUI master since C9 and is not
   adopted here: labels still hide while the camera animates, `ViewportModel.overlayLabels` and its test say so). Human checks S5c-6
   (the camera, and the trigger's frame budget) and C23 (the sizes). Not measured: a sketch with 20 or more labels pays the rebuild
   for each on every camera change; S5c-6 is where that is looked at, and the labels are not capped or culled by count (a silent cap

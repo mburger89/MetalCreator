@@ -56,7 +56,9 @@ struct NodeView: Component, Equatable {
         .overlay(alignment: .topLeading) {
             // A Component is legacy content; inside a ZStack it is adopted, so the result stays
             // proposal content and takes the modifiers below.
-            ZStack(alignment: .topLeading) { SocketLayer(shape: shape, flow: flow, palette: palette, help: socketHelp).equatable() }
+            ZStack(alignment: .topLeading) {
+                SocketLayer(shape: shape, flow: flow, palette: palette, help: socketHelp).equatable()
+            }
         }
         .opacity(isGhost ? 0.4 : 1)
         // Only a new refusal runs the keyframes (the trigger is the count), so dragging and panning stay immediate and a

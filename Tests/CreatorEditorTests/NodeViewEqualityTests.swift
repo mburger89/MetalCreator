@@ -19,7 +19,7 @@ struct NodeViewEqualityTests {
             NodeView(shape: shape ?? self.shape, rows: rows, origin: origin, flow: flow, isSelected: isSelected, state: state,
                      shakes: shakes, palette: palette, isGhost: isGhost, socketHelp: socketHelp)
         }
-        expectEqualityCovers(node(), [
+        expectEqualityCovers(node(), equalTo: node(), [
             "shape": node(shape: NodeShape(title: "Rib", category: .solid, inputs: [], outputs: [])),
             "rows": node(rows: [row]),
             "origin": node(origin: Vector2(1, 0)),
@@ -38,7 +38,7 @@ struct NodeViewEqualityTests {
                     palette: Palette = .dracula) -> NodeHeaderView {
             NodeHeaderView(title: title, accent: accent, state: state, palette: palette)
         }
-        expectEqualityCovers(header(), [
+        expectEqualityCovers(header(), equalTo: header(), [
             "title": header(title: "Extrude"),
             "accent": header(accent: Palette.dracula.header(for: .solid)),
             "state": header(state: .error("No")),
@@ -49,14 +49,14 @@ struct NodeViewEqualityTests {
     @Test func aRowIsEqualOnlyWhenEveryInputIs() {
         var moved = row
         moved.value = "12 mm"
-        expectEqualityCovers(NodeRowView(row: row, palette: .dracula), [
+        expectEqualityCovers(NodeRowView(row: row, palette: .dracula), equalTo: NodeRowView(row: row, palette: .dracula), [
             "row": NodeRowView(row: moved, palette: .dracula),
             "palette": NodeRowView(row: row, palette: Palette(.alucard)),
         ])
     }
 
     @Test func aBadgeIsEqualOnlyWhenEveryInputIs() {
-        expectEqualityCovers(StatusBadgeView(state: nil, palette: .dracula), [
+        expectEqualityCovers(StatusBadgeView(state: nil, palette: .dracula), equalTo: StatusBadgeView(state: nil, palette: .dracula), [
             "state": StatusBadgeView(state: .evaluating, palette: .dracula),
             "palette": StatusBadgeView(state: nil, palette: Palette(.alucard)),
         ])
@@ -67,7 +67,7 @@ struct NodeViewEqualityTests {
                    help: [String: String] = [:]) -> SocketLayer {
             SocketLayer(shape: shape ?? self.shape, flow: flow, palette: palette, help: help)
         }
-        expectEqualityCovers(layer(), [
+        expectEqualityCovers(layer(), equalTo: layer(), [
             "shape": layer(shape: NodeShape(title: "Rib", category: .solid, inputs: [], outputs: [])),
             "flow": layer(flow: .vertical),
             "palette": layer(palette: Palette(.alucard)),
