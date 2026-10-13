@@ -169,6 +169,12 @@ public actor OCCTKernel: Kernel {
         }
     }
 
+    /// A placeholder until Task 2 of the fields core plan: the OCCT distances.
+    public func distances(from points: [Vector3], to target: DistanceTarget, signed: Bool) throws -> [Double] {
+        try Task.checkCancellation()
+        throw KernelError.unsupported("distances")
+    }
+
     // MARK: - Shared plumbing
 
     /// The OCCT shape behind a solid made by this kernel.

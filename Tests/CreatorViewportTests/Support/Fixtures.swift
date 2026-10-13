@@ -72,6 +72,10 @@ actor StubMeshKernel: Kernel {
     func properties(of solid: Solid) throws -> SolidProperties {
         throw KernelError.unsupported("properties")
     }
+
+    func distances(from points: [Vector3], to target: DistanceTarget, signed: Bool) throws -> [Double] {
+        throw KernelError.unsupported("distances")
+    }
 }
 
 /// Storage for hand-built solids in tests.

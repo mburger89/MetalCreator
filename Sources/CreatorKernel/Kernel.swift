@@ -31,4 +31,10 @@ public protocol Kernel: Actor {
     func export(_ solids: [Solid], format: ExportFormat, to url: URL) throws
     /// Volume, surface area and centroid. Used by inspectors and the conformance suite.
     func properties(of solid: Solid) throws -> SolidProperties
+    /// The distance in millimetres from each of `points` to `target`, in the order of `points` (fields spec §3.1). To a
+    /// `.solid` it is to the surface: with `signed`, negative inside and 0 on it; unsigned it is the size of that (so a
+    /// point inside is as far from the solid as its nearest wall). `signed` is ignored for `.faces` and `.edges`. Empty
+    /// `points` give no distances; an empty or dangling selection is `KernelError.invalidInput` (`DistanceTarget.validate`).
+    /// Like every operation it checks for cancellation on entry, and a long batch again between chunks.
+    func distances(from points: [Vector3], to target: DistanceTarget, signed: Bool) throws -> [Double]
 }
