@@ -1508,6 +1508,7 @@ looks, the feel of the caret, an input method composing, and the keys of a real 
   again, not at the middle. Open a note, move the caret to the start, press ⌘↩, open it again: the caret is at the end. Pinned:
   `eachEditOpensFreshNotWhereTheLastOneEnded`. **Observed:**
 - [ ] **C25-7 Undo inside the field.** Open a title, type a letter (it replaces the title), press ⌘Z while the field is focused:
-  **record** what the field shows and where the selection is (MetalUI restores the selection with the text; the open typing
-  group ended when the edit began). Then Esc: the frame keeps its old title and the document has nothing to undo.
+  **record** what the field shows and where the selection is (MetalUI ends the open typing group when the selection is
+  written at the edit's start; what ⌘Z restores is not documented yet, gap CT-d, so record it, don't judge it). Pass: then Esc,
+  and the frame keeps its old title and the document has nothing to undo.
   **Observed:**
