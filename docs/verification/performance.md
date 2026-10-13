@@ -228,6 +228,11 @@ point-to-plane distance and a point-in-face test in place of `Extrema_ExtPS`; `D
 unchanged), (2) a coarser classifier tolerance, and then stop and ask the user (decision 13): the budget is not edited and a miss
 is not called met. Rows 1 and 3, idle, are expected well under their budgets; `field-2b` is recorded whatever it is.
 
+**Final review, 2026-10-13.** The gate is still open: the Mac never fell under load average 3 (45.48 38.63 69.51 at the last
+look, other sessions building), so no idle `FieldBench` run exists and the figures above remain upper bounds. The `field-2b` line is
+still missing for the same reason. Merge only after the idle run described above. The full suite was green (exit 0, no issues, 11
+"Test run with" lines, 3,407 tests) against `../MetalUI` at `0fb2ea6e` (PR #74), not the `7f891629` that R1 names.
+
 ## Raw output
 
 The run the tables above come from (`scripts/bench.sh`, every suite):
