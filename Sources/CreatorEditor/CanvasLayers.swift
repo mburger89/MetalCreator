@@ -20,13 +20,17 @@ struct CanvasLayers: Component {
         let commentGhosts = Self.commentGhosts(model)
         return ZStack(alignment: .topLeading) {
             ForEach(model.drawnFrames, id: \.id.rawValue) { box in
-                CommentFrameView(box: box, rect: model.frame(of: box), isSelected: selectedComments.contains(box.id))
+                CommentFrameView(box: box, rect: model.frame(of: box), isSelected: selectedComments.contains(box.id),
+                                 palette: palette)
+                    .equatable()
             }
             ForEach(Self.wires(model, palette: palette), id: \.id) { wire in
-                WireView(geometry: wire.geometry, color: wire.color)
+                WireView(geometry: wire.geometry, color: wire.color).equatable()
             }
             ForEach(model.drawnNotes, id: \.id.rawValue) { note in
-                StickyView(note: note, rect: model.frame(of: note), isSelected: selectedComments.contains(note.id))
+                StickyView(note: note, rect: model.frame(of: note), isSelected: selectedComments.contains(note.id),
+                           palette: palette)
+                    .equatable()
             }
             ForEach(model.drawnNodes, id: \.id.rawValue) { node in
                 let shape = model.shape(of: node)
@@ -36,24 +40,30 @@ struct CanvasLayers: Component {
                          origin: model.displayOrigin(of: node), flow: flow,
                          isSelected: model.selection.contains(node.id),
                          state: model.result(of: node.id)?.state,
-                         shakes: model.shakeCount(of: node.id), socketHelp: model.socketHelp(of: node.id))
+                         shakes: model.shakeCount(of: node.id), palette: palette,
+                         socketHelp: model.socketHelp(of: node.id))
+                    .equatable()
             }
             ForEach(Self.ghosts(model), id: \.id.rawValue) { node in
                 let shape = model.shape(of: node)
                 NodeView(shape: shape, rows: [], origin: flow.display(node.position), flow: flow,
-                         isSelected: true, state: nil, shakes: 0, isGhost: true)
+                         isSelected: true, state: nil, shakes: 0, palette: palette, isGhost: true)
+                    .equatable()
             }
             ForEach(commentGhosts.frames, id: \.id.rawValue) { box in
-                CommentFrameView(box: box, rect: model.frame(of: box), isSelected: true, isGhost: true)
+                CommentFrameView(box: box, rect: model.frame(of: box), isSelected: true, palette: palette,
+                                 isGhost: true)
+                    .equatable()
             }
             ForEach(commentGhosts.notes, id: \.id.rawValue) { note in
-                StickyView(note: note, rect: model.frame(of: note), isSelected: true, isGhost: true)
+                StickyView(note: note, rect: model.frame(of: note), isSelected: true, palette: palette, isGhost: true)
+                    .equatable()
             }
             if case .connecting(let drag)? = model.interaction, let anchor = model.anchor(of: drag.from) {
                 let geometry = drag.from.isInput
                     ? WireGeometry(from: drag.current, to: anchor, flow: flow)
                     : WireGeometry(from: anchor, to: drag.current, flow: flow)
-                WireView(geometry: geometry, color: palette.focus)
+                WireView(geometry: geometry, color: palette.focus).equatable()
             }
             if case .boxSelecting(let start, let current, _, _)? = model.interaction {
                 BoxSelectionView(rect: CanvasRect(corner: start, current))

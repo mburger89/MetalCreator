@@ -6,16 +6,15 @@ import MetalUI
 /// title bar `CommentLayout.titleBarHeight` tall, drawn behind the wires and the nodes; thicker when selected, with
 /// a resize handle then. `rect` is where it is drawn, in display canvas points. No shadows (PERF-a), few elements
 /// (PERF-b).
-struct CommentFrameView: Component {
+struct CommentFrameView: Component, Equatable {
     let box: CommentFrame
     let rect: CanvasRect
     let isSelected: Bool
+    let palette: Palette
     /// Drawn at reduced opacity: an ⌥-drag ghost.
     var isGhost = false
-    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
-        let palette = Palette(themes)
         let accent = palette.accent(box.accent)
         let bar = CommentLayout.titleBar(of: CanvasRect(origin: .zero, size: rect.size))
         return ZStack(alignment: .topLeading) {
@@ -32,7 +31,7 @@ struct CommentFrameView: Component {
             .clipped()
             Rectangle().strokeBorder(isSelected ? accent.color : accent.opacity(0.6).color,
                                      lineWidth: Pixels(isSelected ? 2 : 1))
-            if isSelected { CommentHandleView(size: rect) }
+            if isSelected { CommentHandleView(size: rect, palette: palette) }
         }
         .frame(width: rect.size.x.px, height: rect.size.y.px, alignment: .topLeading)
         .opacity(isGhost ? 0.4 : 1)

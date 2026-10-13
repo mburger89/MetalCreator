@@ -32,7 +32,8 @@ code is done; its human checks (group CM) are pending.
 Typing on the canvas (spec §8: a double click on a note or a frame's title bar edits it in place; plan
 `2026-10-10-comments-canvas-typing.md`; the graph's keys and text focus on MetalUI C9's key regions) code is done; its human
 checks (group CT) are pending. The field opens with a frame's title all selected and a note's caret at its end (MetalUI C25,
-gap CT-b adopted by plan `2026-10-12-adopt-c25.md`; checks C25 pending).
+gap CT-b adopted by plan `2026-10-12-adopt-c25.md`; checks C25 pending). The canvas's node, wire and comment views skip their content while unchanged (MetalUI C14
+slice 1, gap PERF-b partly fixed, plan `2026-10-13-adopt-c14.md`; checks C14 pending).
 Groups C1 (model and evaluation, `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` §4–§5) is done.
 Groups C2 (the editor, §6: entering a group, breadcrumbs, the + sockets, the group inspector, the library's Groups
 section, the viewport and the clipboard inside groups) code is done; its human checks (group GR) are pending.
@@ -290,7 +291,15 @@ the fourteen `Fields` nodes below, the seventeen
   MetalUI material), `GlassStyle` is the material plus the theme's `glassFill` at the opacity that keeps the role's meaning
   (`tintOpacity(glass:materialOpacity:)`; `materialOpacity` reads MetalUI's `Material.tint(in:)`, gap C21-a; Reduce Transparency
   makes the tint opaque, gap C21-b), `glassBackground(_:in:)` draws it. Editor and app views read `@Environment(ThemeStore.self) var themes:
-  ThemeStore?` and draw `Palette(themes)` (Dracula without a store); the viewport draws `ViewportModel.theme`, which the
+  ThemeStore?` and draw `Palette(themes)` (Dracula without a store), except the canvas's own views (node, header, row, status
+  badge, socket layer, wire, comment frame, note, handle): `CanvasLayers` makes the `Palette` and passes it down as a stored
+  value, and each of those is `Equatable` and `.equatable()` where `CanvasLayers` and `NodeView` build it (MetalUI C14 slice 1,
+  gap PERF-b), so an unchanged node's `content` getter is skipped. A view that reads `@Environment` is refused by
+  `.equatable()` (MetalUI divergence 346), so an `.equatable()` canvas view never declares one (`BoxSelectionView` is the
+  one canvas view that still reads `@Environment(ThemeStore)`: it is not `.equatable()` and is rebuilt anyway); its `==`
+  must cover every stored property the getter reads (the synthesized one does; a hand-written one is
+  `nonisolated static func ==`), and `expectEqualityCovers` (`CreatorEditorTests`) fails when a view gains a property its
+  test has no variant for. The viewport draws `ViewportModel.theme`, which the
   app shell sets. Themes are app-level, never in `.mcgraph`. Tests: `swift test --filter CreatorStyleTests`.
 - `CreatorViewport`: the 3D viewport on MetalUI's `MetalView`.
   - A host takes the primary pointer through `ViewportModel.tool` (`ViewportTool`: hover, clicks, and plain primary
@@ -575,6 +584,7 @@ swift test --filter CreatorEditorTests       # editor model + headless render te
 swift run GraphPanelPreview                   # graph panel + inspector, for docs/verification/human-checks.md (M5)
 swift run MetalCreatorApp [file.mcgraph]   # the app (docs/verification/human-checks.md, group M6)
 swift test --filter CreatorAppTests        # app model, scene, handles, picking, files, export, input; AppAcceptanceTests runs §7.2 on OCCT
+swift test --filter CanvasContentSkipWindowTests   # the canvas's .equatable() views: what a drag, theme or selection change evaluates
 swift test --filter CreatorStyleTests      # colour themes: built-ins, roles, .mctheme files, the folder, ThemeStore
 swift test --filter CreatorSketchEditorTests   # the sketch editor: tools, inference, constraints, dimensions, overlay
 scripts/package-app.sh                     # dist/MetalCreator.app: release build, OCCT bundled, signed ad hoc, verified (docs/packaging.md)

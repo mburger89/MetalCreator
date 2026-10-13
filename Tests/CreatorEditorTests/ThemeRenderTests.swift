@@ -59,19 +59,22 @@ struct ThemeRenderTests {
         let views: [(String, (ThemeStore?) -> [[Float]])] = [
             ("node", { store in
                 self.paint(store) {
-                    NodeView(shape: shape, rows: [], origin: .zero, flow: .horizontal, isSelected: true, state: nil, shakes: 0)
+                    NodeView(shape: shape, rows: [], origin: .zero, flow: .horizontal, isSelected: true, state: nil, shakes: 0,
+                             palette: Palette(store))
                 }
             }),
             ("note", { store in
-                self.paint(store) { StickyView(note: StickyNote(text: "Hi", frame: rect), rect: rect, isSelected: false) }
+                self.paint(store) { StickyView(note: StickyNote(text: "Hi", frame: rect), rect: rect, isSelected: false,
+                                      palette: Palette(store)) }
             }),
             ("frame", { store in
-                self.paint(store) { CommentFrameView(box: CommentFrame(title: "Frame", frame: rect), rect: rect, isSelected: false) }
+                self.paint(store) { CommentFrameView(box: CommentFrame(title: "Frame", frame: rect), rect: rect, isSelected: false,
+                                             palette: Palette(store)) }
             }),
             ("header", { store in self.paint(store) { GraphPanelHeader(model: editor) } }),
             ("library", { store in self.paint(store) { NodeLibraryView(model: editor, input: GraphPanelInput(model: editor)) } }),
             ("inspector", { store in self.paint(store) { InspectorPanel(model: editor) } }),
-            ("status", { store in self.paint(store) { StatusBadgeView(state: .error("No")) } }),
+            ("status", { store in self.paint(store) { StatusBadgeView(state: .error("No"), palette: Palette(store)) } }),
         ]
         editor.selection = [grouped.group]
         for (name, draw) in views {

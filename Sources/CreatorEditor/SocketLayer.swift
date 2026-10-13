@@ -3,15 +3,14 @@ import CreatorStyle
 import MetalUI
 
 /// A node's socket dots, coloured by type, placed by `NodeLayout` for the current flow.
-struct SocketLayer: Component {
+struct SocketLayer: Component, Equatable {
     let shape: NodeShape
     let flow: CanvasFlow
+    let palette: Palette
     /// Tooltips by dot ID ("in.tree", "out.values"): the shape of a tree on the socket (`EditorModel.socketHelp(of:)`).
     var help: [String: String] = [:]
-    @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
-        let palette = Palette(themes)
         let size = NodeLayout.size(shape)
         let dots = Self.dots(shape: shape, flow: flow, palette: palette, help: help)
         return ZStack(alignment: .topLeading) {

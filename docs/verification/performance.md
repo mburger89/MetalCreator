@@ -93,8 +93,16 @@ orbit step), and building each node view's inputs about 0.01 ms (PERF-b's 0.19 m
 rebuilding, laying out and painting the whole window on every observed change, whether or not the view's inputs
 changed. With the panel hidden an orbit frame costs 1.98 ms; with it shown, 16.01 ms, though nothing on the panel
 changed; MetalCreator can't tell MetalUI to skip the unchanged panel (PERF-b's request). If either verdict is a miss
-on an idle run, it waits for MetalUI C14 (PERF-b: rebuild only what changed); its entry cites this file. Both are
+on an idle run, it waits for MetalUI C14-b (PERF-b: rebuild only what changed; slice 1, which skips unchanged content getters, is
+adopted); its entry cites this file. Both are
 judged on an idle run, which is still to do: the machine stayed loaded while this was recorded.
+
+**C14 slice 1 adopted (plan `2026-10-13-adopt-c14`), not timed.** The canvas's node, wire and comment views skip their
+`content` getter while their value is unchanged (gap PERF-b), which saves the getters of every node that did not change
+in a drag step or a camera change; the build recursion, prepaint and paint still run whole (C14-b). The counts are pinned
+by `CanvasContentSkipWindowTests` (a drag move evaluates one node and its wires and skips the rest). **Owed:** the
+drag, pan, zoom-50 and orbit rows above and the `Bench` window-cpu figures re-taken on an idle Mac; nothing in this file
+is re-measured, so every number above is still the pre-C14 one.
 
 ## Carry-over items (the M0–M1 carry-over note, M7)
 

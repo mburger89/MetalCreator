@@ -80,8 +80,8 @@ struct TreeDisplayTests {
         let shape = editor.shape(of: node)
         let help = editor.socketHelp(of: node.id)
         #expect(!help.isEmpty)
-        let with = renderHeadless { SocketLayer(shape: shape, flow: editor.flow, help: help) }
-        let without = renderHeadless { SocketLayer(shape: shape, flow: editor.flow) }
+        let with = renderHeadless { SocketLayer(shape: shape, flow: editor.flow, palette: .dracula, help: help) }
+        let without = renderHeadless { SocketLayer(shape: shape, flow: editor.flow, palette: .dracula) }
         #expect(!with.rects.isEmpty)
         #expect(with.rects.count == without.rects.count)
     }

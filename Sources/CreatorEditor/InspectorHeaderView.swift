@@ -12,7 +12,7 @@ struct InspectorHeaderView: Component {
         return HStack(spacing: Pixels(8)) {
             Text(header.title).font(.headline).foregroundStyle(palette.textOnAccent.color)
             Spacer()
-            StatusBadgeView(state: header.state)
+            StatusBadgeView(state: header.state, palette: palette)
         }
         .padding(Edges(top: Pixels(6), right: Pixels(10), bottom: Pixels(6), left: Pixels(10)))
         .background(palette.header(for: header.category).color, in: RoundedRectangle(cornerRadius: Pixels(6)))
