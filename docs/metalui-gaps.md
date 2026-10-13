@@ -922,8 +922,9 @@ Labelled CT-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   a click-focusable element moves focus straight to it (A→B, no nil in between); a press on inert chrome resigns;
   `allowsHitTesting(false)`, `.disabled` and `.hidden()` withdraw the region; a `Deferred` presentation's press does not resign
   through a region below it; a secondary or other press resigns nothing; `@FocusState` observes the resign. What changed
-  here: a press on the graph panel's glass, its header gaps or the inspector's empty areas now ends a canvas edit (one
-  "Edit Note" or "Edit Frame" step) and commits a typed inspector value (one step); `AppModel.releaseTextFocus` and its install
+  here: a press on the graph panel's glass or its header gaps now ends a canvas edit (one
+  "Edit Note" or "Edit Frame" step) and commits a typed inspector value (one step) (a press on the inspector's empty glass
+  already ended it, through the viewport beneath, so the tests do not count it as a root-modifier spot); `AppModel.releaseTextFocus` and its install
   in `AppInput` are gone (the viewport's press still commits a pending entry, which is a model commit); the inspector's accent
   swatch is a button, so a press on it now ends the edit too (the text commits a frame after the accent changes: two undo
   steps). Model-driven ends are untouched (selection or level change, hiding the panel, undo, save, export, another field
