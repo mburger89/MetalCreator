@@ -16,8 +16,9 @@ import Foundation
 ///
 /// Every draw is `SeededRandom(seed:stream:purpose: .scatter)`: stream 0 for seeds, parent index + 1 for a parent's
 /// candidates, the draw index counting that stream's draws. A draw depends on the seed and the place alone, never on how the
-/// candidates were batched, so the same inputs give the same points on the same platform (libm `cos` and `sin` may differ in the last bit across architectures or OS versions). A spacing is at least `minSpacing`, so
-/// no two points are ever closer than that.
+/// candidates were batched, so the same inputs give the same points on the same platform (libm `cos` and `sin` may differ in
+/// the last bit across architectures or OS versions). A spacing is at least `minSpacing`, so no two points are ever closer than
+/// that.
 struct PoissonScatter: Sendable {
     /// Candidates tried round an active point before it is retired.
     static let candidatesPerPoint = 30

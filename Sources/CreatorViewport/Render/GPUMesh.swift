@@ -45,7 +45,8 @@ final class GPUMesh {
     }
 
     /// The tint's value buffer, one float per de-indexed corner, rebuilt only when the values change (comparing two arrays that
-    /// share storage costs nothing). `nil` when the values are not one per vertex of `mesh`.
+    /// share storage costs nothing). `nil` when the values are not one per vertex of `mesh`. It assumes one tint per mesh (a mesh
+    /// is one solid and a solid has one tint), so the buffer is a single cached entry, not a table.
     func fieldValues(_ values: [Float], mesh: DisplayMesh, ramp: FieldRamp, device: any MTLDevice) -> (any MTLBuffer)? {
         if let cached = fieldBuffer, cached.middle == ramp.midValue, cached.values == values { return cached.buffer }
         guard let corners = GPUGeometry.fieldCorners(mesh, values: values, ramp: ramp), corners.count == vertexCount,

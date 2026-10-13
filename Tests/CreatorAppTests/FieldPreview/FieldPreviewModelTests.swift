@@ -7,52 +7,6 @@ import CreatorViewport
 import Testing
 @testable import CreatorApp
 
-/// Holds the preview's mesh lookup back until a test opens the gate, so a test can look at the model while it samples.
-actor SamplingGate {
-    private var isOpen = false
-    private var waiting: [CheckedContinuation<Void, Never>] = []
-
-    func wait() async {
-        if isOpen { return }
-        await withCheckedContinuation { waiting.append($0) }
-    }
-
-    func open() {
-        isOpen = true
-        for continuation in waiting { continuation.resume() }
-        waiting = []
-    }
-}
-
-/// The gate a test's meshes wait at, and how many meshes were asked for.
-@MainActor
-final class PreviewHarness {
-    var gate: SamplingGate?
-    private(set) var asked = 0
-    var meshes: [ObjectIdentifier: DisplayMesh] = [:]
-
-    @discardableResult
-    func part(width: Double = 20, depth: Double = 10, height: Double = 6) async throws -> Solid {
-        let kernel = FakeKernel()
-        let solid = try await kernel.extrude(.rectangle(width: width, height: depth, plane: .xy), distance: height, mode: .oneSided,
-                                             tag: NodeTag(node: NodeID(), item: 0))
-        meshes[ObjectIdentifier(solid)] = try await kernel.tessellate(solid, tolerance: 0.05)
-        return solid
-    }
-
-    func model(limit: Int = CoarseSampling.vertexLimit) -> FieldPreviewModel {
-        FieldPreviewModel(kernel: FakeKernel(), distances: FieldDistanceCache(), vertexLimit: limit) { [self] solid in
-            asked += 1
-            if let gate { await gate.wait() }
-            return meshes[ObjectIdentifier(solid)]
-        }
-    }
-
-    func request(_ node: NodeID, _ field: Field, _ solids: [Solid], toEye: Vector3 = .unitZ) -> FieldPreviewRequest {
-        FieldPreviewRequest(node: node, field: field, solids: solids, toEye: toEye)
-    }
-}
-
 /// Following a field, sampling it for the tint and the slice, and what the model hands the scene (fields spec §6).
 @MainActor
 struct FieldPreviewModelTests {
@@ -118,6 +72,20 @@ struct FieldPreviewModelTests {
         let mesh = try #require(harness.meshes[ObjectIdentifier(part)])
         let values = try #require(model.tints[ObjectIdentifier(part)]?.tint.values)
         #expect(values[0] == Float(mesh.positions[0].length / 40), "the second request's field, never the first's")
+    }
+
+    @Test func stoppingWhileASamplingIsInFlightPublishesNoTint() async throws {
+        let harness = PreviewHarness()
+        let part = try await harness.part()
+        let model = harness.model()
+        let gate = SamplingGate()
+        harness.gate = gate
+        model.follow(harness.request(node, radial, [part]))
+        #expect(model.isSampling)
+        model.stop()
+        await gate.open()
+        await model.waitForSampling()
+        #expect(model.tints.isEmpty && model.grid == nil && !model.isSampling)
     }
 
     @Test func noRequestStopsEverythingAndIsQuietWhenThereWasNothing() async throws {

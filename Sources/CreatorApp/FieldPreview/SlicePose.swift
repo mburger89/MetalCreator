@@ -24,7 +24,7 @@ struct SlicePose: Equatable, Sendable {
     /// How a preview of `field` starts: on the field's own plane when it has one, else on the axis plane nearest the view
     /// direction `toEye` (the axis whose normal is most nearly along it; ties XY, YZ, XZ).
     static func startingChoice(for field: Field, toEye: Vector3) -> SliceChoice {
-        if let own = field.ownPlane, own.normal.normalized != nil { return .own }
+        if let own = field.ownPlane, own.normal.normalized?.isFinite == true { return .own }
         return .axis(SliceAxis.allCases.max { abs(toEye.dot($0.plane.normal)) < abs(toEye.dot($1.plane.normal)) } ?? .xy)
     }
 
@@ -37,7 +37,9 @@ struct SlicePose: Equatable, Sendable {
     /// plane, or `nil` when hidden. Its offset is 0.
     static func pose(for choice: SliceChoice, field: Field, bounds: BoundingBox) -> SlicePose? {
         switch choice {
-        case .own: field.ownPlane.map { fitted($0, choice: .own, bounds: bounds) }
+        case .own:
+            // A plane whose normal cannot be normalised (zero length, not finite) is no plane to draw on.
+            field.ownPlane.flatMap { $0.normal.normalized?.isFinite == true ? fitted($0, choice: .own, bounds: bounds) : nil }
         case .axis(let axis): through(axis, bounds: bounds)
         case .hidden: nil
         }
@@ -64,9 +66,9 @@ struct SlicePose: Equatable, Sendable {
                          offsetLimit: max(reach(normal, from: origin), 1))
     }
 
-    /// The same pose at `offset` along the normal, held to the limit; a number that is not one leaves it where it is.
+    /// The same pose at `offset` along the normal, held to the limit (infinity too); NaN leaves it where it is.
     func moved(to offset: Double) -> SlicePose {
-        guard offset.isFinite else { return self }
+        guard !offset.isNaN else { return self }
         var moved = self
         moved.offset = min(max(offset, -offsetLimit), offsetLimit)
         return moved

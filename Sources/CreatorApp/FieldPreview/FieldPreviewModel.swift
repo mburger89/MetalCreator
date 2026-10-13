@@ -95,6 +95,9 @@ final class FieldPreviewModel {
         guard node != nil || !tints.isEmpty || grid != nil else { return }
         tintTask?.cancel()
         sliceTask?.cancel()
+        // A sampling that already finished may still be on its way to `finish…`; a new generation turns it away.
+        tintGeneration += 1
+        sliceGeneration += 1
         (tintRunning, sliceRunning) = (false, false)
         (node, field, bounds, solids) = (nil, nil, nil, [])
         (tintFailure, sliceFailure) = (nil, nil)

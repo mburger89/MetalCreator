@@ -64,6 +64,14 @@ struct SlicePoseTests {
         }
     }
 
+    @Test func anOwnPlaneWithoutAUsableNormalGivesNoPose() {
+        for normal in [Vector3.zero, Vector3(.nan, 0, 1), Vector3(.infinity, 0, 0)] {
+            let plane = Plane(origin: .zero, normal: normal, xAxis: .unitX)
+            let field = Field.linearGradient(plane: plane, length: 10)
+            #expect(SlicePose.pose(for: .own, field: field, bounds: bounds) == nil, "\(normal)")
+        }
+    }
+
     func isOnCentre(_ point: Vector3) -> Bool { (point - bounds.center).length < 1e-9 }
 
     @Test func movingAddsTheOffsetAlongTheNormalAndHoldsItToTheLimit() {
@@ -72,6 +80,7 @@ struct SlicePoseTests {
         #expect(moved.offset == 2 && moved.worldPlane.origin == Vector3(0, 0, -1) && moved.halfWidth == pose.halfWidth)
         #expect(pose.moved(to: 1_000).offset == pose.offsetLimit && pose.moved(to: -1_000).offset == -pose.offsetLimit)
         #expect(pose.moved(to: .nan).offset == 0, "not a number: stays put")
+        #expect(pose.moved(to: .infinity).offset == pose.offsetLimit && pose.moved(to: -.infinity).offset == -pose.offsetLimit)
     }
 
     @Test func aFlatBoxStillMakesAUsableQuad() {

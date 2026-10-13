@@ -18,10 +18,11 @@ enum FieldPreviewSelection {
             return firstField(result.outputs?[output.name])
         }
         for input in registry.inputs(for: node) where input.type == .field {
-            guard let link = graph.incomingLink(to: Endpoint(node: node.id, socket: input.name)),
-                  let upstream = results[link.from.node], upstream.state.isSuccess,
-                  let field = firstField(upstream.outputs?[link.from.socket]) else { continue }
-            return field
+            guard let link = graph.incomingLink(to: Endpoint(node: node.id, socket: input.name)) else { continue }
+            // The first wired field input decides: if its upstream failed there is no field to take, and a later input is not
+            // a stand-in. (No node that only takes fields has two, so no test builds this; the three that do have one each.)
+            guard let upstream = results[link.from.node], upstream.state.isSuccess else { return nil }
+            if let field = firstField(upstream.outputs?[link.from.socket]) { return field }
         }
         return nil
     }
