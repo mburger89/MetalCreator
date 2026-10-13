@@ -10,7 +10,8 @@ import Testing
 @MainActor
 struct ChipGlassTests {
     func readoutScene(_ store: ThemeStore? = nil) throws -> (scene: Scene, chip: ReadoutChip) {
-        let chip = try #require(ReadoutChip(text: "12.5 mm", pointer: ScreenPoint(600, 350), in: ViewportSize(width: 1200, height: 700)))
+        let chip = try #require(ReadoutChip(text: "12.5 mm", pointer: ScreenPoint(600, 350), in: ViewportSize(width: 1200, height: 700),
+                measuring: .fake))
         let scene = renderHeadless {
             ZStack(alignment: .topLeading) { ReadoutChipView(chip: chip) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -21,7 +22,7 @@ struct ChipGlassTests {
 
     func inferenceScene() throws -> (scene: Scene, chip: InferenceChip) {
         let chip = try #require(InferenceChip(kinds: [.coincident, .tangent], pointer: ScreenPoint(300, 300),
-                                              in: ViewportSize(width: 1200, height: 700)))
+                                              in: ViewportSize(width: 1200, height: 700), measuring: .fake))
         let scene = renderHeadless {
             ZStack(alignment: .topLeading) { InferenceChipView(chip: chip) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

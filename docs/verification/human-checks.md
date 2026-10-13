@@ -1091,7 +1091,10 @@ there is a box, then a Sketch (select it, "Edit sketch").
   under it. Pinned: `DimensionLabelTests`, `OverlayLabelTests`. **Observed:**
 - [ ] **S5c-6 Labels and the camera** (gap S5-c). Open a sketch with dimensions: the labels appear after the camera has
   turned onto the plane, not during the turn. Pan and zoom: they stay on their dimensions with no lag you can see, and
-  stay legible in the other themes. Note whether panning a sketch with many labels (20 or more) stays smooth. **Observed:**
+  stay legible in the other themes. Note whether panning a sketch with many labels (20 or more) stays smooth: MetalUI keeps scene
+  text as views over the surface (C23, ruling GT-F) and builds `drawText` only if a 100-label overlay still misses its frame budget
+  after C14, so **record the frame feel and the label count** here, it is that decision's input. The labels are still hidden while the
+  camera animates (M4-b). Their sizes are group C23's. **Observed:**
 - [ ] **S5c-7 Region fill.** Draw a closed shape: a faint green fill appears inside it, under the lines and points. A shape
   with a hole (a circle inside a rectangle) is filled around the hole; a small circle inside the hole is filled again.
   Open the shape (delete a line): the fill goes. Construction geometry is never filled. Drag a corner: the fill follows live.
@@ -1535,6 +1538,32 @@ cannot show is the OS really taking the button away.
   note or a frame's title bar: it edits once. Double-click in the viewport: two clicks, and nothing is dragged or cancelled (no
   flash of the closed hand, the camera does not move). Pinned: `aDoubleClickOverTheViewportCancelsNothing`,
   `CanvasDoubleClickWindowTests`. **Observed:**
+
+## Group C23 — MetalUI C23: text measured, not estimated (Adopt C23)
+
+**Status: NOT RUN.** Plan `2026-10-12-adopt-c23.md`. Run `swift run MetalCreatorApp` on a Mac with a display. The tests pin the
+sizes against the text system (`TextMeasureWindowTests`, `OverlayLabelTests.theViewDrawsEachLabelsTextInsideItsBox`,
+`HandleLabelTests`, `SketchViewTests.theChipHoldsItsText`): every glyph lies inside its box. What a screen shows is whether the boxes
+look right: even padding, no clipping, no overlap. Boxes are the measured width rounded up plus padding, so a wide string gets a wider
+box and a narrow one a tighter box than the old 7 points a character gave. MetalUI's own check for this is GT (its
+`docs/verification/human-checks.md`).
+
+- [ ] **C23-1 Dimension labels fit their text.** Draw a rectangle and dimension it; then set values of very different widths in the
+  inspector: 1, 60, 1234.5, 0.001 and a long name via Expose as input ("a_rather_long_input_name = 60 mm"). Each label's glass
+  box hugs its text with the same padding at both ends, nothing is clipped, and two neighbouring labels (two dimensions on
+  adjacent sides of a small shape) do not overlap more than their anchors make them. Compare a label of "WWW" widths (an exposed input
+  named in capitals) with "iii" widths. Pinned: `OverlayLabelTests`, `TextMeasureWindowTests`. **Observed:**
+- [ ] **C23-2 Handle labels fit their value.** Select a node with a radial handle (Fillet) and one with a linear handle (Extrude): the
+  value beside each knob ("R 3 mm", "12.5 mm") is not clipped, also at a wide value whose knob stays on screen (a few hundred mm, zooming out first if the knob
+  leaves the view: a very large value moves the knob itself off screen, so the widest strings are pinned by the fake-measure test
+  `HandleLabelTests`, not looked at here) and at a long negative one. The text stays beside the knob as you orbit. Pinned: `HandleLabelTests`. **Observed:**
+- [ ] **C23-3 The sketch chips fit their text.** With the Line tool draw a long line: the pointer readout ("24.5 mm · 30.0°") hugs its
+  text; make it the widest it gets (a 12345.6 mm line at 359.9°, or "R 1234.5 mm · 359.9°" with Arc). Hover so an inference shows
+  (Horizontal, "Point on · Tangent"): the inference chip hugs its names and never touches the readout chip. Near the viewport's
+  edge both chips stay inside the model area, and a chip too wide for it is dropped rather than clipped. Pinned: `ChipMeasureTests`,
+  `PointerReadoutTests`, `SketchViewTests.theChipHoldsItsText`. **Observed:**
+- [ ] **C23-4 Other themes.** Repeat C23-1 and C23-3 in a light theme and with a custom theme that changes
+  the Glass role's opacity: boxes keep their size (they depend on the text, not the theme). **Observed:**
 
 ## Group C24 — MetalUI C24: a press on inert chrome resigns focus (Adopt C24)
 

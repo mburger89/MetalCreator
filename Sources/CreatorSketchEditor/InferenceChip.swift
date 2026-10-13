@@ -4,20 +4,21 @@ import CreatorViewport
 /// "Point on · Tangent"), `ReadoutChip.gap` below and right of the pointer; else below left, above right, above left
 /// (near the model area's trailing side and bottom); else stacked `ReadoutChip.margin` beyond the readout's chip, on
 /// its far side from the pointer. Never over the readout's chip (`readout`, placed first): a spot that would touch it
-/// is skipped. Sized like the readout's chip (`ReadoutChip`'s height, character width and padding), never measured;
-/// none when no spot fits in the model area.
+/// is skipped. Sized like the readout's chip (`ReadoutChip.size(of:measuring:)`: the text's measured width, the same height
+/// and padding); none when no spot fits in the model area.
 public struct InferenceChip: Hashable, Sendable {
     public var text: String
     /// The chip's top-left corner.
     public var origin: ScreenPoint
     public var size: ViewportSize
 
+    @MainActor
     public init?(kinds: [SketchConstraintKind], pointer: ScreenPoint, in view: ViewportSize,
-                 modelArea: ViewportInsets = ViewportInsets(), avoiding readout: ReadoutChip? = nil) {
+                 modelArea: ViewportInsets = ViewportInsets(), avoiding readout: ReadoutChip? = nil,
+                 measuring measure: TextMeasure) {
         guard !kinds.isEmpty else { return nil }
         let text = kinds.map(\.title).joined(separator: " · ")
-        let size = ViewportSize(width: Double(text.count) * ReadoutChip.characterWidth + 2 * ReadoutChip.padding,
-                                height: ReadoutChip.height)
+        let size = ReadoutChip.size(of: text, measuring: measure)
         let area = (left: modelArea.leading + ReadoutChip.margin, right: view.width - modelArea.trailing - ReadoutChip.margin,
                     top: modelArea.top + ReadoutChip.margin, bottom: view.height - modelArea.bottom - ReadoutChip.margin)
         let fits = { (p: ScreenPoint) in
