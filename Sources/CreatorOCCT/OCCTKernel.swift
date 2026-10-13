@@ -169,10 +169,53 @@ public actor OCCTKernel: Kernel {
         }
     }
 
-    /// A placeholder until Task 2 of the fields core plan: the OCCT distances.
+    /// How many points one call into the shim measures; the batch checks for cancellation between chunks.
+    static let distanceChunk = 1024
+
+    /// Distances to a solid's surface, faces or edges (fields spec §3.1): `BRepExtrema_DistShapeShape` from each point and,
+    /// for a signed solid distance, a `BRepClass3d_SolidClassifier` for the sign, under `serialized`.
     public func distances(from points: [Vector3], to target: DistanceTarget, signed: Bool) throws -> [Double] {
+        try distances(from: points, to: target, signed: signed, afterChunk: {})
+    }
+
+    /// `distances(from:to:signed:)` with a hook that runs after each chunk is measured, before the loop's next check for
+    /// cancellation. The conformance tests cancel from it to prove the loop stops between chunks.
+    func distances(from points: [Vector3], to target: DistanceTarget, signed: Bool,
+                   afterChunk: @Sendable () -> Void) throws -> [Double] {
         try Task.checkCancellation()
-        throw KernelError.unsupported("distances")
+        try target.validate()
+        guard points.allSatisfy(\.isFinite) else {
+            throw KernelError.invalidInput("A point to measure from is not a finite position.")
+        }
+        let source = try shape(of: target.solid)
+        let kind: OCCTShape.DistanceKind
+        let indices: [Int32]
+        switch target {
+        case .solid:
+            (kind, indices) = (.surface, [])
+        case .faces(let set):
+            (kind, indices) = (.faces, set.faces.map { Int32($0.rawValue + 1) })
+        case .edges(let set):
+            (kind, indices) = (.edges, set.edges.map { Int32($0.rawValue + 1) })
+        }
+        var result: [Double] = []
+        result.reserveCapacity(points.count)
+        var start = 0
+        while start < points.count {
+            try Task.checkCancellation()
+            let chunk = points[start..<min(start + Self.distanceChunk, points.count)]
+            do {
+                // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure. Revert once fixed.
+                result += try Self.serialized { () throws -> [Double] in
+                    try source.distances(from: chunk, kind: kind, indices: indices, signed: signed)
+                }
+            } catch let error as OCCTError {
+                throw KernelError.occt("distance", error)
+            }
+            start += chunk.count
+            afterChunk()
+        }
+        return result
     }
 
     // MARK: - Shared plumbing

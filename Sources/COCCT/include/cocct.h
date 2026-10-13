@@ -197,6 +197,12 @@ typedef struct {
 
 int occt_tessellate(const occt_shape *shape, double tolerance, occt_mesh *out, occt_status *status);
 void occt_mesh_free(occt_mesh *mesh);
+/// Distances in millimetres from `point_count` points (x, y, z triples in `points`) to part of `shape`, written to
+/// `out` (one per point; the caller owns it, the shim allocates nothing). `kind` 0 measures to the surface of the whole
+/// shape (every face), 1 to the faces and 2 to the edges at the 1-based `indices` (OCCT's indexed face and edge maps,
+/// as in occt_fillet). With `signed_distance` and kind 0, a point inside the shape gets a negative distance. Returns 1.
+int occt_distances(const occt_shape *shape, int kind, const int *indices, int index_count, const double *points,
+                   int point_count, int signed_distance, double *out, occt_status *status);
 /// A compound of copies-by-reference of the given shapes.
 occt_shape *occt_make_compound(const occt_shape *const *shapes, int count, occt_status *status);
 /// Reads a STEP file into one shape (a compound for several bodies).
