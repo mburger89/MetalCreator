@@ -239,7 +239,7 @@ the thirteen `Fields` nodes below, the seventeen
     (the SHA-256 of the file's bytes) or `.linked(relativePath:absolutePath:)`. **Images are untrusted input**: `ImageLimits` (16 MB, 8,192 px
     a side, PNG and JPEG only) are checked from the header before a pixel is decoded (`GreyImageDecoder.inspect`, the only ImageIO user, with
     `PNGStructure.isWhole` because ImageIO reads a cut-short PNG as black), `decode` works in 32 MB bands off the caller's actor and checks
-    for cancellation (a PNG is decoded once up front, because ImageIO would decode it whole again for every band), a linked path must be
+    for cancellation (a PNG is decoded once up front and the whole `CGImage` is kept, because ImageIO would decode it whole again for every band: at 8,192² that is about 256 MB 8-bit RGBA or 512 MB 16-bit beside the 32 MB band and the 128 MB result, so a PNG peaks near 0.4 to 0.7 GB; a JPEG has no full-size bitmap), a linked path must be
     a regular file, opened without blocking and checked again on the descriptor, and is read at most 16 MB + 1 byte (`ImageResolver`),
     and every failure is an `ImageProblem` with its sentence. Colour becomes Rec. 709 luminance of the colour composited against black; EXIF orientation is
     applied. `DocumentModel.images` is the session's pool of embedded bytes by hash (`addImage`; unused ones are dropped on save, not

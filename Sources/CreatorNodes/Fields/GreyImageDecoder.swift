@@ -8,8 +8,10 @@ import UniformTypeIdentifiers
 ///
 /// Images are untrusted input. `inspect` reads only the header and refuses a file over `ImageLimits.maxBytes`, a side over
 /// `ImageLimits.maxSide`, any type but PNG and JPEG, and anything ImageIO cannot make sense of, all before a pixel is
-/// decoded; `decode` then converts in bands of about 32 MB, so a legal 8,192 × 8,192 picture needs its 128 MB result and
-/// not a second full-size bitmap, and checks for cancellation between bands.
+/// decoded; `decode` then converts in bands of about 32 MB and checks for cancellation between bands. Memory for a legal
+/// 8,192 × 8,192 picture: the 128 MB result and one 32 MB band, plus, for a PNG, the whole decoded `CGImage` that `decodeOnce`
+/// keeps (ImageIO would otherwise decode it again for every band): about 256 MB for 8-bit RGBA and 512 MB for 16-bit, so a
+/// PNG peaks near 0.4 GB (8-bit) to 0.7 GB (16-bit). A JPEG is read band by band and needs no full-size bitmap.
 ///
 /// Grey comes from the picture's own values: a monochrome file is read as it is; colour is converted to sRGB and then to
 /// Rec. 709 luminance (0.2126 R + 0.7152 G + 0.0722 B) of the colour premultiplied by alpha, i.e. composited against black.
