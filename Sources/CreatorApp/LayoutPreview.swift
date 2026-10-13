@@ -5,7 +5,7 @@ import CreatorNodes
 import CreatorViewport
 
 /// What a selected layout node draws in the viewport (patterns spec §8): its placements as small axis triads (x, y and z in
-/// the theme's axis colours), and for Face Pattern the outline of the area it fills, dashed. It is an overlay, drawn over the
+/// the theme's axis colours), and for Face Pattern and Field Scatter on a face the outline of the area it fills, dashed. It is an overlay, drawn over the
 /// scene like the sketch editor's lines, so it never picks, frames the view or opens a menu (it is no part of the model).
 public enum LayoutPreview {
     /// The nodes whose placements are previewed.
@@ -19,7 +19,7 @@ public enum LayoutPreview {
     /// A triad's axes are this much of the distance between neighbouring placements, so triads never touch.
     static let triadShare = 0.4
 
-    /// The overlay for `node`: its `placements` output as triads, with Face Pattern's clipped area. Empty for any other node,
+    /// The overlay for `node`: its `placements` output as triads, with the clipped area of a Face Pattern or Field Scatter. Empty for any other node,
     /// for one that has no good result, and for one with no placements.
     public static func overlay(for node: Node, graph: Graph, results: [NodeID: NodeResult]) -> ViewportOverlay {
         guard layoutTypes.contains(node.typeID), let result = results[node.id], result.state.isSuccess,
@@ -54,8 +54,8 @@ public enum LayoutPreview {
         return nearest * triadShare
     }
 
-    /// The dashed outline of the area a Face Pattern fills: its solid and margin read the way the node reads them (from the
-    /// wire, else the typed value), its face the node's pick.
+    /// The dashed outline of the area a Face Pattern or Field Scatter fills: its solid and margin read the way the node reads
+    /// them (from the wire, else the typed value), its face the node's pick.
     static func clippedArea(of node: Node, graph: Graph, results: [NodeID: NodeResult]) -> [OverlayLine] {
         guard case .facePick(let pick)? = node.inputValues[NodeSetting.face],
               case .solid(let solid)? = input("solid", of: node, graph: graph, results: results)?.items.first else { return [] }

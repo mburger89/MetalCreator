@@ -4,6 +4,7 @@ import CreatorKernel
 import CreatorNodes
 import Testing
 @testable import CreatorApp
+@testable import CreatorViewport
 
 /// A selected Field Scatter shows its points as axis triads (fields spec §6), sized by the nearest neighbours.
 @MainActor
@@ -67,5 +68,28 @@ struct ScatterPreviewTests {
         app.editor.selection = [scatter.id]
         await app.settle()
         #expect(app.viewport.overlay.isEmpty)
+    }
+
+    @Test func aFieldScatterOnAFaceOutlinesTheClippedAreaDashedBesideItsTriads() async throws {
+        var builder = GraphBuilder()
+        let box = builder.box()
+        let app = await makeApp(builder.graph)
+        app.viewport.recordViewSize(ViewportSize(width: 1400, height: 900))
+        await app.viewport.waitForMeshes()
+        app.viewport.pick = { _ in .face(solid: 0, FaceID(1)) }
+        let items = app.viewport.contextMenuItems(at: ScreenPoint(700, 450))
+        let item = try #require(items.first { if case .scatterOnFace = $0 { true } else { false } })
+        app.viewport.choose(item)
+        await app.settle()
+        let scatter = try #require(app.document.graph.nodes.values.first { $0.typeID == FieldScatterNode.typeID })
+        #expect(app.document.graph.links.contains { $0.from.node == box.extrude.id && $0.to.node == scatter.id })
+        app.editor.selection = [scatter.id]
+        await app.settle()
+        let points = app.document.results[scatter.id]?.outputs?["placements"]?.items.count ?? 0
+        let lines = app.viewport.overlay.lines
+        let dashed = lines.filter(\.isDashed)
+        #expect(points > 0 && !dashed.isEmpty)
+        #expect(dashed.allSatisfy { $0.tint == .construction })
+        #expect(lines.count == 3 * points + dashed.count)
     }
 }
