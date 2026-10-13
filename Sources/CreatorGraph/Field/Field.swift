@@ -6,8 +6,8 @@ import CreatorKernel
 /// `Profile2D`, a `Plane`) and which holds no samples: `FieldSampler` (CreatorNodes) evaluates it over a batch of points.
 /// It is computed, never saved, so it is not `Codable`; `description` is its readable recipe.
 ///
-/// Adding a case (Image Field in 7b-2) means adding it to `children`, to `description` and to the sampler, none of which
-/// has a `default`, so the compiler lists the places.
+/// Adding a case means adding it to `children`, to `description` and to the sampler, none of which has a `default`, so the
+/// compiler lists the places (Image Field, 7b-2, was the first).
 public indirect enum Field: Sendable {
     /// What a distance field measures from. A point or a profile is plain Swift maths; anything on a solid asks the kernel.
     public enum DistanceSource: Sendable {
@@ -29,6 +29,10 @@ public indirect enum Field: Sendable {
     case radialGradient(center: Vector3, radius: Double)
     /// Smooth fractal gradient noise in 0…1, hashed from `seed` (fields spec §3.1); `scale` is the feature size in mm.
     case noise(seed: Int, scale: Double, octaves: Int)
+    /// A picture projected along `plane`'s normal (fields spec §5): the point's plane coordinates, centred on the plane's origin
+    /// and scaled by `width` and `height` millimetres, pick a position in the picture (row 0 at the top, plane +y up), and
+    /// the value is the bilinear grey in 0…1. `plane` has unit axes. `edges` says what lies outside the rectangle.
+    case image(GreyImage, plane: Plane, width: Double, height: Double, edges: ImageEdges)
 
     // MARK: Maths
 
