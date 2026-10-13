@@ -62,7 +62,7 @@ struct GroupFieldTests {
         #expect(document.definitions[definition.id]?.interface == definition.interface, "nothing changed")
     }
 
-    @Test func nodesThatKeepTheFieldWireInsideGroupEvaluateAndSaveAsFormatSix() async throws {
+    @Test func nodesThatKeepTheFieldWireInsideGroupEvaluateAndSaveAsFormatSeven() async throws {
         let document = document()
         try group([source.id, sink.id, after.id], in: document)
         let definition = try #require(document.definitions.values.first)
@@ -79,7 +79,7 @@ struct GroupFieldTests {
         }
         #expect(field.description == "4.5 × 3")
         let file = GraphFile(graph: document.graph, definitions: document.definitions)
-        #expect(file.formatVersion == 6)
+        #expect(file.formatVersion == 7)
         #expect(try GraphFileIO.decode(try GraphFileIO.encode(file), registry: Self.registry) == file)
     }
 }

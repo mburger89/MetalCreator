@@ -8,7 +8,7 @@ import Testing
 
 /// 7a spec §9, headless: a plate with holes laid out by a data tree. Grid Points → Partition (rows) → Circle → Extrude
 /// → Boolean, whose `tools` gets one branch per run, so each row of holes cuts its own copy of the plate. A Path Mapper
-/// transposes the rows, a parameter changes the row length, and the file is saved (format 6), reopened and exported.
+/// transposes the rows, a parameter changes the row length, and the file is saved (format 7), reopened and exported.
 @MainActor
 struct TreesAcceptanceTests {
     struct Plate {
@@ -110,7 +110,7 @@ struct TreesAcceptanceTests {
         #expect(hasHole(columns[1], plate.holes, item: 2) && !hasHole(columns[1], plate.holes, item: 0))
     }
 
-    @Test func changingTheRowLengthReshapesTheResultAndTheFileRoundTripsAsFormatSix() async throws {
+    @Test func changingTheRowLengthReshapesTheResultAndTheFileRoundTripsAsFormatSeven() async throws {
         let kernel = OCCTKernel()
         let plate = Self.makePlate()
         let document = DocumentModel(file: GraphFile(graph: plate.graph), registry: BuiltInNodes.registry, kernel: kernel)
@@ -128,14 +128,14 @@ struct TreesAcceptanceTests {
         // Save and reopen.
         let data = try document.fileData()
         let text = try #require(String(bytes: data, encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 6"#))
+        #expect(text.contains(#""formatVersion" : 7"#))
         let reopened = try DocumentModel(data: data, registry: BuiltInNodes.registry, kernel: kernel)
         await reopened.waitForEvaluation()
         expectAllOK(reopened, "reopened")
         #expect(try solids(reopened, plate.cut).count == 4)
 
         // The same file marked format 5 opens and evaluates the same: nothing in it needs 6.
-        let asFive = try #require(String(bytes: data, encoding: .utf8)).replacing(#""formatVersion" : 6"#, with: #""formatVersion" : 5"#)
+        let asFive = try #require(String(bytes: data, encoding: .utf8)).replacing(#""formatVersion" : 7"#, with: #""formatVersion" : 5"#)
         let older = try DocumentModel(data: Data(asFive.utf8), registry: BuiltInNodes.registry, kernel: kernel)
         await older.waitForEvaluation()
         expectAllOK(older, "format 5")
