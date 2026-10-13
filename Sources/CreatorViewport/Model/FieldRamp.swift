@@ -1,7 +1,8 @@
 /// The colours a field's value is drawn in (fields spec §6, D13): `low` at `lowValue`, `mid` at `midValue` and `high` at
 /// `highValue`, blended in straight lines between them and held beyond the ends. The viewport knows nothing of fields: this is
 /// numbers and colours only, the colours in the gamma-space RGBA the GPU takes (`HexColor.rgba`). The shader's `field_ramp`
-/// does the same sum, and `FieldTintRenderTests` checks the two agree on screen.
+/// does the same sum; `FieldTintRenderTests` checks on screen that the tint is drawn from the ramp's colours (ends and middle,
+/// roughly), not that the two agree to the last bit.
 public struct FieldRamp: Hashable, Sendable {
     public var low: SIMD4<Float>
     public var mid: SIMD4<Float>

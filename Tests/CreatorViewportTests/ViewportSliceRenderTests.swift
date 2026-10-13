@@ -87,6 +87,26 @@ struct ViewportSliceRenderTests {
         #expect(middle[1] > 180 && middle[0] < 90, "green everywhere: \(middle)")
     }
 
+    @Test func aRangeChangeWithoutANewGenerationRefillsTheNonNumbersAndInfinitiesGoToTheEnds() throws {
+        let device = try #require(MTLCreateSystemDefaultDevice())
+        let textures = SliceTextures()
+        var odd = slice()
+        odd.values = [Float](repeating: 0, count: 64 * 64)
+        (odd.values[0], odd.values[1], odd.values[2]) = (.nan, .infinity, -.infinity)
+        func stored(_ slice: ViewportSlice) throws -> [Float] {
+            let texture = try #require(textures.texture(for: slice, device: device))
+            var out = [Float](repeating: 0, count: 3)
+            texture.getBytes(&out, bytesPerRow: 64 * 4, from: MTLRegionMake2D(0, 0, 3, 1), mipmapLevel: 0)
+            return out
+        }
+        #expect(try stored(odd) == [0, 1, -1], "the middle of -1…1, then the ends")
+        _ = try stored(odd)
+        #expect(textures.uploads == 1)
+        odd.ramp = FieldRamp(low: odd.ramp.low, mid: odd.ramp.mid, high: odd.ramp.high, range: 0...10)
+        #expect(try stored(odd) == [5, 10, 0], "same generation, new range: filled again")
+        #expect(textures.uploads == 2)
+    }
+
     @Test func theModelCarriesTheSliceIntoTheFrameAndTheRenderKey() {
         let model = ViewportModel(kernel: StubMeshKernel(), clock: ManualClock())
         model.viewSize = ViewportSize(width: 400, height: 300)
@@ -110,8 +130,27 @@ struct ViewportSliceRenderTests {
     @Test func aSliceIsNoPartOfTheScene() async throws {
         let model = ViewportModel(kernel: StubMeshKernel(), clock: ManualClock())
         model.viewSize = ViewportSize(width: 400, height: 300)
+        model.show([ViewportItem(solid: try await fakeBox())])
+        await model.waitForMeshes()
+        let bounds = try #require(model.sceneBounds)
+        let items = model.items.count
+        let without = model.frame(at: 0)
         model.showSlice(slice())
-        #expect(model.sceneBounds == nil && model.items.isEmpty)
+        #expect(model.sceneBounds == bounds && model.items.count == items, "the slice neither widens nor adds to the scene")
+        let with = model.frame(at: 0)
+        #expect(with.slice != nil && without.slice == nil)
+        let device = try #require(MTLCreateSystemDefaultDevice())
+        let picker = try ViewportPicker(renderer: try ViewportRenderer(device: device))
+        var hits = 0
+        for x in stride(from: 20.0, to: 380.0, by: 20.0) {
+            for y in stride(from: 20.0, to: 280.0, by: 20.0) {
+                let point = ScreenPoint(x, y)
+                let picked = picker.pick(at: point, in: with)
+                if picked != nil { hits += 1 }
+                #expect(picked == picker.pick(at: point, in: without), "(\(x), \(y)): the slice is never under a pick")
+            }
+        }
+        #expect(hits > 0, "the part itself is still picked")
         #expect(MemoryLayout<SliceUniforms>.stride == 64)
         let uniforms = SliceUniforms(slice())
         #expect(uniforms.across == SIMD4<Float>(10, 0, 0, 0) && uniforms.up == SIMD4<Float>(0, 0, 10, 0))
