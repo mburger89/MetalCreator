@@ -68,8 +68,8 @@ struct ViewportGlueTests {
         let old = app.viewport
         let id = try #require(old.handles.first?.id)
         app.newDocument()
-        var released = 0
-        app.releaseTextFocus = { released += 1 }
+        var committed: [Double] = []
+        app.editor.notePendingEntry(PendingEntry(text: "7", commit: { committed.append($0) }))
         old.events.cameraSettled(CameraPose(target: Vector3(1, 2, 3), distance: 50))
         old.events.homeChanged(CameraPose(target: Vector3(1, 2, 3), distance: 50))
         old.events.handleChanged(id, 30, .ended)
@@ -78,10 +78,10 @@ struct ViewportGlueTests {
         #expect(old.events.nodeName(box.extrude.id) == nil)
         #expect(app.document.viewState.camera == nil && app.document.viewState.homeCamera == nil)
         #expect(!app.document.canUndo && !app.isEdited)
-        #expect(released == 0)
+        #expect(committed.isEmpty, "the old viewport's press commits nothing")
         #expect(app.editor.selection.isEmpty)
         app.viewport.events.pressed()
-        #expect(released == 1, "the new viewport's events still arrive")
+        #expect(committed == [7], "the new viewport's events still arrive")
     }
 
     @Test func showProducingNodeSelectsItAndScrollsTheGraphToIt() async throws {
@@ -133,17 +133,6 @@ struct ViewportGlueTests {
         try app.document.perform(.setInput(box.extrude.id, "distance", .number(25)))
         await app.settle()
         #expect(app.viewport.sceneGeneration == generation + 1, "a new result still shows")
-    }
-
-    /// A press on the canvas clears text focus by itself (a MetalUI C9 key region, gap M5-g); the viewport's press still
-    /// goes through the shell's hook (gap M4-a).
-    @Test func aPressOnTheViewportReleasesTextFocus() async {
-        let app = await makeApp()
-        var released = 0
-        app.releaseTextFocus = { released += 1 }
-        app.viewport.pointerDown(at: ScreenPoint(500, 400), modifiers: [])
-        app.viewport.pointerUp(at: ScreenPoint(500, 400))
-        #expect(released == 1)
     }
 
     @Test func aViewportPressCommitsATypedInspectorValue() async throws {

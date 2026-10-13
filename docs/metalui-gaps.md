@@ -13,7 +13,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | Gap | What | MetalUI item | Status |
 |---|---|---|---|
 | 1–5 | Scroll wheel, pinch/rotate, middle and right drags, tap location, cursor and drag modifiers | C7 | ✅ fixed (c62d6ba), adopted by the viewport and the graph panel |
-| M4-a | An element's size (`onGeometryChange`), focus on click | C9 | ✅ size: fixed by C9 (`onGeometryChange`, KF-J) and adopted (plan `2026-10-12-adopt-c15`): `ViewportView` records the viewport's size from its layout (`AppWindowTests.theViewportLearnsTheWindowsSizeFromItsLayout`, `aResizedWindowResizesTheViewport`, `aDocumentLoadedIntoTheWindowLearnsTheSizeToo`, `ViewSizeObservationTests`); the draw-time record and `observedViewSize` are gone. Focus on click: C9's key regions are adopted for the graph canvas (M5-b, M5-g); the viewport's pointer veto and `releaseTextFocus` stay (see those rows) |
+| M4-a | An element's size (`onGeometryChange`), focus on click | C9 | ✅ size: fixed by C9 (`onGeometryChange`, KF-J) and adopted (plan `2026-10-12-adopt-c15`): `ViewportView` records the viewport's size from its layout (`AppWindowTests.theViewportLearnsTheWindowsSizeFromItsLayout`, `aResizedWindowResizesTheViewport`, `aDocumentLoadedIntoTheWindowLearnsTheSizeToo`, `ViewSizeObservationTests`); the draw-time record and `observedViewSize` are gone. Focus on click: C9's key regions are adopted for the graph canvas (M5-b, M5-g); the viewport's pointer veto stays (M5-b); its press-resigns-focus hook (`releaseTextFocus`) is gone, `AppWindowRoot` resigns on a press (CT-a, MetalUI C24) |
 | M4-b | Opaque helper inside a builder `for`; redraw labels during a camera animation (`TimelineView`) | C9 | 🔄 open; C9 in progress (`feat/key-focus`) |
 | M5-a | `Slider` `onEditingChanged` | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M5-b | Hover- or region-scoped key bindings | C9 | ✅ fixed by C9 (`feat/key-focus`: `hoverKeyRegion`, `onKeyPress`), adopted for the graph canvas (Comments typing plan); the viewport still runs its pointer veto (M4-a) |
@@ -21,7 +21,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M5-d | Gradients | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M5-e | Modifiers on a press | C7 | ✅ fixed (c62d6ba), adopted |
 | M5-f | Canvas scroll and pinch | C7 | ✅ fixed (c62d6ba), adopted |
-| M5-g | A press elsewhere ends text editing | C9 | ✅ fixed by C9 (`feat/key-focus`: a key region clears a field's focus on a press), adopted for the graph canvas (Comments typing plan); viewport presses still call `AppModel.releaseTextFocus` (M4-a); a press outside every region resigns nothing, by design (CT-a) |
+| M5-g | A press elsewhere ends text editing | C9 | ✅ fixed by C9 (`feat/key-focus`: a key region clears a field's focus on a press), adopted for the graph canvas (Comments typing plan); a press outside every region now resigns too, since the app's root is a resign region (CT-a, MetalUI C24): `AppModel.releaseTextFocus` is gone |
 | M5-h | ↑/↓ in a focused single-line field | C9 | ✅ fixed by C9 (`onKeyPress(keys:)` on the field), not adopted: the palette's ↑/↓ stay a keymap action (`PaletteMove`) until the palette is moved onto it |
 | M5-i | Keyframe animation | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
 | M5-j | `ProgressView` | C10 | ✅ fixed (2155f1e), adopted (Adopt C10) |
@@ -55,7 +55,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | C21-a | A `Material`'s tint opacity can't be read, so a theme's tint can't be sized against it | C27 | ⏳ found by the C21 adoption (plan `2026-10-12-adopt-c21.md`); queued as MetalUI C27 (material follow-ups) |
 | C21-b | Reduce Transparency is neither readable by an app nor honoured by materials | C27 | ⏳ found by the C21 adoption; queued as MetalUI C27 (with C21-a); no stopgap: panels blur whatever the setting says until MetalUI provides it |
 | CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | C9 | ✅ fixed by C9 (KF-Z/KF-AA: ⌘↩ is no editing key of a `TextEditor`, so an `onKeyPress` for it commits), adopted by the inspector's note box and the canvas editor (Comments typing plan) |
-| CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan); C24 in progress (`feat/resign-on-press`, 2026-10-12) |
+| CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 | ✅ fixed (MetalUI 0fb2ea6e, PR #74, record §98, rulings RF-A…RF-I: `.resignsFocusOnPress(_ isEnabled: Bool = true)`, an opt-in container modifier: a primary press inside it resigns a focused field and routes no key by hover), ✅ adopted (plan `2026-10-13-adopt-c24`): `AppWindowRoot` (and `GraphPanelPreview`'s root) carry it; the viewport's `releaseTextFocus` hook is gone; a press on inert chrome ends a canvas edit and commits a typed inspector value (`CanvasResignOnPressWindowTests`, `InspectorFieldResignWindowTests`) |
 | CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 | ✅ fixed by C25 (MetalUI master 3fce05f: `TextField(_:text:selection:)` and `TextEditor(_:text:selection:)` over `Binding<TextSelection?>`; divergences 265, 266), adopted (plan `2026-10-12-adopt-c25.md`): a frame's title opens with all of it selected and a note with the caret at its end (`CommentEdit.selection`); human checks C25 pending |
 | CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | ✅ fixed (MetalUI 280d706), adopted (plan `2026-10-12-adopt-test-harness`): `CanvasNoteTypingWindowTests`, `CanvasTitleTypingWindowTests`, `CanvasTypingKeysWindowTests`, `CanvasTypingFocusWindowTests`, `CanvasTypingUndoWindowTests`; CT-1..CT-11 keep only their visual and machine-specific parts |
 | CT-d | The test harness can't drive an input method, so a field's composing (marked text) next to a selection write has no automated test | C28 | ⏳ found by the C25 adoption (plan `2026-10-12-adopt-c25.md`); queued as MetalUI C28 (an input-method driver for `TestWindow`, and ⌘Z after a selection write documented) |
@@ -228,8 +228,9 @@ These are labelled M5-a… so they don't clash with the C7 items 1–5 or M4's M
   **Fixed by MetalUI C9** as an opt-in, not a default (KF-G keeps SwiftUI's rule that a press elsewhere resigns nothing):
   a primary press inside a `hoverKeyRegion` clears a field's focus, unless it lands on a text field. **Adopted for the
   graph canvas** (Comments typing plan Task 4): the canvas surface is a key region, `GraphPanelInput.releaseTextFocus` is
-  gone, and a canvas press ends a typed value and a canvas edit. Viewport presses still call `AppModel.releaseTextFocus`
-  (the viewport adopts C9 with M4-a). A press outside every region still resigns nothing: gap CT-a.
+  gone, and a canvas press ends a typed value and a canvas edit. A press outside every region resigned nothing (gap CT-a),
+  so viewport presses called `AppModel.releaseTextFocus` until **MetalUI C24** (entry CT-a): the app's root now resigns on
+  every primary press and that hook is gone.
 - **M5-h. A focused single-line field claims ↑/↓** (mac: caret to start/end, `TextEditing.key`) before the raw key
   bubble and `onInput`. The add-node palette needs ↑/↓ to move its highlight while its search field is focused.
   Stopgap: `GraphPanelInput.keymap` binds `up`/`down` to `PaletteMove`, and `handleAction` runs it only while the
@@ -913,6 +914,22 @@ Labelled CT-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   `.resignsFocusOnPress()` (or `hoverKeyRegion(routesKeys: false)`), which MetalCreator would put on the app's root. Human
   check CT-11 records what a press on inert chrome does. Status: queued as MetalUI C24 (after C9, which merged to MetalUI master 0a9eb36; the spelling is still open) (the
   standing rule: every MetalUI gap goes to that session to implement); the repository is never edited from here.
+  **Adopted (2026-10-13, plan `2026-10-13-adopt-c24.md`):** C24 is on MetalUI master 0fb2ea6e (PR #74, record §98, rulings
+  RF-A…RF-I; it adds no divergence). The spelling is `.resignsFocusOnPress(_ isEnabled: Bool = true)`, on any element group
+  (MetalUI-only: SwiftUI has no such modifier, RF-A). `AppWindowRoot` carries it (and `GraphPanelPreview`'s `PreviewRoot`;
+  `ViewportHarness` hosts no field and does not). MetalUI's rules, which the code relies on: a primary press inside the region
+  clears focus and routes no key by hover (unlike `hoverKeyRegion`, so `CanvasSurface` is unchanged); a press on a text field or
+  a click-focusable element moves focus straight to it (A→B, no nil in between); a press on inert chrome resigns;
+  `allowsHitTesting(false)`, `.disabled` and `.hidden()` withdraw the region; a `Deferred` presentation's press does not resign
+  through a region below it; a secondary or other press resigns nothing; `@FocusState` observes the resign. What changed
+  here: a press on the graph panel's glass or its header gaps now ends a canvas edit (one
+  "Edit Note" or "Edit Frame" step) and commits a typed inspector value (one step) (a press on the inspector's empty glass
+  already ended it, through the viewport beneath, so the tests do not count it as a root-modifier spot); `AppModel.releaseTextFocus` and its install
+  in `AppInput` are gone (the viewport's press still commits a pending entry, which is a model commit); the inspector's accent
+  swatch is a button, so a press on it now ends the edit too (the text commits a frame after the accent changes: two undo
+  steps). Model-driven ends are untouched (selection or level change, hiding the panel, undo, save, export, another field
+  typed into). Pinned: `CanvasResignOnPressWindowTests`, `InspectorFieldResignWindowTests`, `CanvasTypingFocusWindowTests`.
+  Human checks CT-11 (rewritten) and C24-1 to C24-5.
 - **CT-b. No way to set a text field's selection or caret, so an editor opened from code cannot open with its text
   selected or its caret at the end.** A double click that starts editing a note or a title in place wants the title's
   whole text selected (as a rename does) and a note's caret at the end of its text. `TextField` and `TextEditor` have no
@@ -956,9 +973,8 @@ Labelled CT-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   arrows, Space, F, the ⌘ chords, ⌘A, Tab) and afterwards act again over the canvas but not over the viewport (M5-b).
   `CanvasTypingFocusWindowTests`: a double click on another comment commits the first and focuses the next; the
   inspector's note box breaks lines on Return and commits on the primary-modifier Return (CM-a); clicking into it commits
-  a canvas edit first; a press on the panel's glass resigns nothing (CT-a, by design) and the next canvas press commits;
-  a press on the 3D viewport commits at once; the inspector's accent swatch changes the accent without ending the edit
-  (pinned as measured, decision D4). `CanvasTypingUndoWindowTests`: ⌘Z and ⇧⌘Z undo and redo a committed note edit in one
+  a canvas edit first; a press on the panel's glass ends the edit (CT-a, adopted from MetalUI C24: `CanvasResignOnPressWindowTests`);
+  a press on the 3D viewport commits at once; the inspector's accent swatch changes the accent and ends the edit (C24). `CanvasTypingUndoWindowTests`: ⌘Z and ⇧⌘Z undo and redo a committed note edit in one
   step each, and ⌘Z while an editor is focused undoes the typing in the field and leaves the document alone (KF-C).
   A field's focus-loss commit (`onChange(of:)`) runs in the frame after the click, so that test runs `runUntilIdle()`.
   Human checks CT-1..CT-11 keep what a person must judge (CT-1's look, CT-6's softness, CT-7, CT-12), a physical

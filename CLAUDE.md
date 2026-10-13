@@ -431,6 +431,10 @@ began, glide included, gap GI-b) and `MagnifyGesture`
 focus are MetalUI C9's: `CanvasSurface` is a `hoverKeyRegion` whose one `onKeyPress` runs the graph's keys
 (`GraphPanelInput.keyPressed(_:)`), so with nothing focused they act where the pointer is, a focused field (the inspector's,
 the library's, the canvas's comment editor) keeps every key wherever the pointer is, and a canvas press clears a field's focus.
+A press anywhere else does too: `AppWindowRoot` (and `GraphPanelPreview`'s root) carries MetalUI C24's `.resignsFocusOnPress()`
+(gap CT-a), which resigns on a primary press on inert chrome, the viewport included, and routes no keys; it is why a canvas edit
+and a typed inspector value end, committing through their focus-loss handlers, on a press on the glass, a header gap or the
+viewport. The shell has no `window.focus(nil)` hook of its own any more; a viewport press only commits a pending entry.
 The open palette's ↑/↓ (a keymap action, gap M5-h) and its keys on `onInput` are the stopgap left in `GraphPanelInput`, and
 `install(on:)` chains onto the window's existing handlers.
 The app installs the window's input through `AppInput`, never `GraphPanelInput.install(on:)` (only

@@ -11,9 +11,10 @@ import MetalUI
 ///   canvas: there F, + and − fall through to the graph's own keys (F frames the graph's selection, + and − zoom
 ///   the canvas; spec 2026-10-09 §3). The graph's keys are scoped by MetalUI C9 (the canvas is a key region whose
 ///   `onKeyPress` runs them), so this veto is only the viewport's side of M4-a, left until the viewport adopts C9;
-/// - `onInput`: the open palette's keys and its click-outside;
-/// - text focus: `AppModel.releaseTextFocus` clears the window's focus for a viewport press (gap M4-a); the canvas
-///   clears it itself, as a key region (gap M5-g).
+/// - `onInput`: the open palette's keys and its click-outside.
+///
+/// Giving the keys back from a text field on a press is not here: `AppWindowRoot` resigns focus on any primary press
+/// (MetalUI C24, gap CT-a), the canvas's key region having done it for the canvas alone before (gap M5-g).
 @MainActor
 public final class AppInput {
     public let model: AppModel
@@ -31,7 +32,6 @@ public final class AppInput {
         window.keymap = Self.keymap
         window.onAction = { [weak self] action in self?.handleAction(action) ?? false }
         window.onInput = { [weak self] event in self?.handleInput(event) ?? false }
-        model.releaseTextFocus = { [weak window] in window?.focus(nil) }
     }
 
     /// A keymap action. Unclaimed (`false`), MetalUI passes the key on as if it were unbound.

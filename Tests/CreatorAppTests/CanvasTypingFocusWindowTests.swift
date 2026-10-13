@@ -65,25 +65,9 @@ struct CanvasTypingFocusWindowTests {
         #expect(text.contains("Canvas") && text.contains("!"), "the inspector box took the next keystroke")
     }
 
-    @Test func aPressOnThePanelsGlassLeavesTheEditorOpenAndTheNextCanvasPressCommits() async throws {
-        let app = try await open()
-        app.window.doubleClick(at: app.centre(ofComment: fixture.note.id))
-        app.window.typeText("Kept ")
-        let panel = try #require(app.model.panelPlacement).panel
-        app.window.click(at: app.windowPoint(panel.origin + Vector2(4, 4)))
-        #expect(app.editor.commentEdit != nil, "a press on the panel's glass resigns nothing (gap CT-a)")
-        #expect(try app.window.focusedElement?.role == .textArea)
-        app.window.typeText("more ")
-        #expect(app.editor.commentEdit?.draft.hasSuffix("Kept more ") == true)
-        app.window.click(at: app.point(inCanvasView: Vector2(900, 120)))
-        #expect(app.editor.commentEdit == nil)
-        #expect(app.editor.graph.stickies[fixture.note.id]?.text.hasSuffix("Kept more ") == true)
-    }
-
-    /// Human check CT-2's swatch (decision D4 in the plan): the inspector's accent swatch is a model edit that does not end a canvas
-    /// edit. The accent changes at once, the edit stays open with its draft, and the next canvas press commits the text, so
-    /// nothing is lost; the two changes are two undo steps. Pinned as measured; D4 may change it.
-    @Test func anAccentSwatchPressChangesTheAccentAndLeavesTheEditOpenWithNothingLost() async throws {
+    /// Human check CT-2's swatch: a swatch is a button, and a press on a control that takes no text resigns the focus
+    /// (MetalUI C24), so the press commits the canvas edit and then changes the accent: two undo steps (the accent applies on the click, the commit a frame later).
+    @Test func anAccentSwatchPressEndsTheEditThenChangesTheAccent() async throws {
         let app = try await open()
         app.window.doubleClick(at: app.centre(ofComment: fixture.note.id))
         app.window.typeText("Sw ")
@@ -92,27 +76,13 @@ struct CanvasTypingFocusWindowTests {
         }
         try app.window.click(try #require(swatches.dropFirst().first))
         try await app.window.runUntilIdle()
+        #expect(app.editor.commentEdit == nil, "the press ended the edit")
+        #expect(app.editor.graph.stickies[fixture.note.id]?.text.hasSuffix("Sw ") == true, "and wrote the draft")
         #expect(app.editor.graph.stickies[fixture.note.id]?.accent != fixture.note.accent, "the accent changed")
-        #expect(app.editor.commentEdit?.draft.hasSuffix("Sw ") == true, "and the edit is still open with its draft")
-        app.window.click(at: app.point(inCanvasView: Vector2(900, 120)))
-        #expect(app.editor.commentEdit == nil)
-        #expect(app.editor.graph.stickies[fixture.note.id]?.text.hasSuffix("Sw ") == true)
         app.editor.document.undo()
-        #expect(app.editor.graph.stickies[fixture.note.id]?.text == "Line one" && app.editor.document.canUndo)
+        #expect(app.editor.graph.stickies[fixture.note.id]?.text == "Line one" && app.editor.document.canUndo,
+                "the text is the later step: the focus-loss commit runs in the frame after the press")
         app.editor.document.undo()
         #expect(app.editor.graph.stickies[fixture.note.id]?.accent == fixture.note.accent && !app.editor.document.canUndo)
-    }
-
-    /// Human check CT-2's viewport press: it goes through `AppModel+Viewport`, which commits the edit and releases focus
-    /// (gap M4-a's stopgap), not through the viewport's draw, so it runs headless.
-    @Test func aPressOnTheViewportCommitsTheEditAndClearsFocus() async throws {
-        let app = try await open()
-        app.window.doubleClick(at: app.centre(ofComment: fixture.note.id))
-        app.window.typeText("Vp ")
-        app.window.click(at: Point(x: Pixels(700), y: Pixels(300)))
-        #expect(app.editor.commentEdit == nil)
-        #expect(app.editor.graph.stickies[fixture.note.id]?.text.hasSuffix("Vp ") == true)
-        #expect(try app.window.focusedElement == nil)
-        #expect(app.editor.document.undoName == "Edit Note")
     }
 }

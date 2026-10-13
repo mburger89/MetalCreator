@@ -46,8 +46,6 @@ public final class AppModel {
     @ObservationIgnored let kernel: any Kernel
     /// The window's open and save panels. The app sets it once the window is open.
     @ObservationIgnored public var filePicker: (any FilePicker)?
-    /// Clears the window's text focus. `AppInput.install(on:)` sets it.
-    @ObservationIgnored public var releaseTextFocus: (@MainActor () -> Void)?
     /// Answers the window's pending close request (`Window.replyToCloseRequest`). The app sets it once the window is open.
     @ObservationIgnored public var replyToCloseRequest: (@MainActor (Bool) -> Void)?
     @ObservationIgnored var pendingDiscard: DiscardAction?
