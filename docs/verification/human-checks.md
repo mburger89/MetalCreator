@@ -147,7 +147,7 @@ Run `swift run MetalCreatorApp` on a saved bracket, with a trackpad and a wheel 
   the fingers; a flick glides to a stop. A wheel mouse pans up and down a step at a time. Nothing else moves: the
   viewport doesn't zoom and the inspector doesn't scroll. Flick, then move the pointer off the canvas mid-glide, onto
   the viewport and then onto the node library: record whether the glide stops and whether the library scrolls
-  (gap GI-b). Pinned: `aWheelStepPansTheCanvasByItsDelta`, `aTrackpadScrollPansAndItsGlideKeepsPanning`,
+  (gap GI-b, answered by C16-1). Pinned: `aWheelStepPansTheCanvasByItsDelta`, `aTrackpadScrollPansAndItsGlideKeepsPanning`,
   `scrollEventsMapToCanvasPhases`. **Observed:** 2026-10-09 PASS (user: "pan and pinch both work well").
 - [ ] **GI-2 ⌘-scroll zooms about the pointer.** Hold ⌘ and scroll over a node: the node stays under the pointer as
   the canvas zooms. One way zooms in, the other out; note which way feels wrong, if one does (the sign is
@@ -642,8 +642,8 @@ that into an Output. Select the Sketch.
   cyan while it can move; the rubber band follows the pointer; a near-horizontal or near-vertical line snaps and the
   readout drops. The last click closes the loop on the first point. Press Esc: the chain ends. The Extrude shows a
   ghosted box under the sketch. **Observed:**
-- [ ] **S5-3 Inference and ⌘.** Draw a nearly horizontal line holding ⌘. Known (gap S5-a): it still snaps.
-  **Observed:**
+- [ ] **S5-3 Inference and ⌘.** Draw a nearly horizontal line holding ⌘: it doesn't snap (gap S5-a is adopted; C16-2 checks the
+  still-pointer half). **Observed:**
 - [ ] **S5-4 Constraints and dimensions.** Choose Select, click two lines (both turn green); the inspector's
   Perpendicular, Parallel and Equal buttons are enabled, the rest dimmed with a tooltip saying what to select. Press D,
   click the bottom line, then empty space: "Length d1" appears with its value. Type 80 in its value field and press
@@ -717,10 +717,10 @@ that into an Output, select the Sketch and press "Edit sketch".
   tangent when the arc is dragged. Near the right or bottom of the view, the chip moves left or up. Pinned by
   `InferenceTests`, `InferenceGlyphTests`. **Observed:**
 - [ ] **S5b-7 Double-click to edit.** Finish the sketch. Double-click the Sketch node on the graph canvas: sketch mode
-  opens as with "Edit sketch". Two slow clicks (0.4 s apart or more), or a double click on another node, only
+  opens as with "Edit sketch". Two clicks too slow for the system's double-click speed, or a double click on another node, only
   select. While sketching, draw a line's first point and double-click the Sketch node: nothing changes (the line in
-  progress, the selection and the view stay). Known (gap S5-b): the system's double-click speed isn't honoured; the
-  interval is a fixed 0.4 s (the groups spec's). Pinned by `DoubleClickTests`, `SketchDoubleClickTests`.
+  progress, the selection and the view stay). The system's double-click speed decides (gap S5-b is adopted; C16-3 checks
+  it). Pinned by `DoubleClickTests`, `SketchDoubleClickTests`, `CanvasDoubleClickWindowTests`.
   **Observed:**
 - [ ] **S5b-8 The toolbar fits.** At the default window size, every tool (Select … Pattern), Construction, Delete and
   Finish are visible in the top bar, none clipped. Not pinned (a toolbar's width against the window's is measured only
@@ -1365,3 +1365,41 @@ Pattern (Ø5, depth 6) into an Output; then put the nodes below between Points t
   stays (per branch, one item each). Set Scope to Overall: every other vent goes. Cull Index `1`: nothing goes; `{0;1}` removes
   one vent and the others have not moved; a pick on a vent follows it through that cull. Random Reduce (defaults) removes one vent.
   Pinned on a hand-made `{row;column;0}` tree: `CellTreeTests`, `CellTreePickTests`. **Observed:**
+
+## Group C16 — MetalUI C16: click counts, cancellation, wheel latching and held modifiers (Adopt C16)
+
+**Status: NOT RUN.** Plan `2026-10-12-adopt-c16.md`. Run `swift run MetalCreatorApp` with a trackpad, and a mouse with a middle
+button for C16-5. The tests drive the real window with synthesized event sequences (`ViewportModifiersWindowTests`,
+`ViewportCancelWindowTests`, `CanvasCancelWindowTests`, `ScrollLatchWindowTests`, `CanvasDoubleClickWindowTests`); these checks
+are what a sequence cannot show: the feel of a glide, a real ⌘ key, the system's double-click setting, and the OS taking an
+input away mid-gesture.
+
+- [ ] **C16-1 A glide stays where it began.** (Completes GI-1.) Flick-pan the graph canvas hard and, while it glides, move the
+  pointer onto the viewport, then the inspector, then (library shown) the node library's list: the canvas glides on to a stop
+  at its usual rate; the viewport doesn't zoom, the inspector and the library don't scroll. Flick the library's list and move
+  onto the canvas mid-glide: the list glides on and the canvas doesn't pan. Flick-zoom the viewport and move onto the canvas:
+  the canvas doesn't pan. Pinned: `ScrollLatchWindowTests`. **Observed:**
+- [ ] **C16-2 ⌘ over a still pointer.** (Completes S5-3.) In a sketch choose the Line tool and click a start point. Move the pointer
+  so the rubber band snaps horizontal (the chip reads "Horizontal"), then hold ⌘ without moving the mouse: the chip goes and the
+  band sits exactly under the pointer at once; let ⌘ go: the snap and the chip return. Hold ⌘ and click: the end lands unsnapped.
+  Hold ⌘, ⌘-Tab to another app and back with ⌘ let go: the chip is back, not stuck off. ⇧ and ⌥ change nothing. Pinned:
+  `commandOverAStillPointerSuppressesTheGlyphsAndReleasingBringsThemBack`, `ViewportModifiersWindowTests`. **Observed:**
+- [ ] **C16-3 The system's double-click speed.** (Completes S5b-7.) In System Settings > Mouse set the double-click speed to its
+  slowest: a slow double click on a Sketch node opens its sketch, on a note it edits the text, on a group node it enters; a pair
+  of clicks slower than the setting only selects. Set it to its fastest: a quick double click still works and a medium one
+  doesn't. Two clicks on two different nodes never open anything; ⇧- or ⌘-double-click only changes the selection; a triple
+  click opens once. Pinned: `DoubleClickTests`, `CommentDoubleClickTests`, `CanvasDoubleClickWindowTests`. **Observed:**
+- [ ] **C16-4 A pinch cut short.** Start a pinch on the graph canvas, ⌘-Tab away mid-pinch, come back and pinch again at the same
+  spot: it zooms from the zoom the canvas has, with no jump back. Same on the viewport. Pinned: `aPinchCutShortByLosingKey…`
+  in `CanvasCancelWindowTests` and `ViewportCancelWindowTests`. **Observed:**
+- [ ] **C16-5 An input lost mid-drag.** Middle-drag the canvas (and, separately, the viewport), open Mission Control or a native
+  menu while holding the button, release elsewhere and come back: at the first plain pointer move the closed hand is gone and
+  the camera has settled. Do the same with a left drag of a node (a gap, VI-b, in MetalUI: record what you see; the drag ends
+  by the next press or drag, see `aPrimaryPressOnTheSameElementLeavesTheLostDragToTheNextDragValues`). **Observed:**
+- [ ] **C16-6 A scroll cut short.** ⌘-scroll the canvas and ⌘-Tab away mid-glide; come back: a plain scroll pans, a ⌘-scroll
+  zooms, nothing is stuck ignoring a glide. Scroll the viewport and ⌘-Tab away mid-scroll: the next scroll zooms from where
+  the camera is. Pinned: `keyLossDuringAZoomsGlideLeavesNothingIgnoredForTheNextScroll`, `aScrollCutShortByLosingKeySettlesTheCamera`.
+  **Observed:**
+- [ ] **C16-7 The panel's edge.** Drag the graph panel's inner edge, take the release away as in C16-5, come back and move the
+  pointer: the panel doesn't follow it; a new drag of the edge starts from the panel's size. Pinned:
+  `aPanelResizeWhoseReleaseWasLostEndsWhenAnotherElementIsPressed`. **Observed:**

@@ -233,11 +233,11 @@ the seventeen
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
   behaviour (selection, canvas transform, dock transpose, hit testing, wiring, clipboard, palette, inspector edits);
   views are thin MetalUI `Component`s. Depends on Graph/Kernel/Geometry, CreatorStyle and MetalUI — **not** on `CreatorNodes`.
-  Its input (MetalUI C7 gestures, C9 key scoping, and the palette's stopgaps) lives only in `GraphPanelInput`. A double
-  click on a node (two plain clicks on its body at most `EditorModel.doubleClickInterval`, 0.4 s as the groups spec's §6
-  says, not macOS's 500 ms default, and `doubleClickSlop`, 4 points, apart, timed by the injectable `now`; gap S5-b)
-  presses its first inspector button in `doubleClickActions` ("Edit sketch"; `nodeDoubleClicked(_:)`); the same pairing on
-  a note or a frame's title bar, not its edge band (a `ClickTarget`, kept in `lastClick`), starts editing it in place
+  Its input (MetalUI C7 gestures, C9 key scoping, C16 click counts and cancellation, and the palette's stopgaps) lives only
+  in `GraphPanelInput`. A double click on a node (a plain second click on its body that the platform counts 2:
+  `DragGesture.Value.clickCount`, so the user's double-click speed decides, not a time of ours; gap S5-b) presses its first
+  inspector button in `doubleClickActions` ("Edit sketch"; `nodeDoubleClicked(_:)`); the same on a note or a frame's title
+  bar, not its edge band (a `ClickTarget`, kept in `lastClick` by the first click), starts editing it in place
   (`beginEditing(_:)`). While a sketch is open the app ignores it (`AppModel.handle(_:)`'s guard).
   The canvas builds only what can show (`EditorModel.drawnNodes`, `drawnCanvasRect`: the visible canvas grown by
   `cullingMargin`, everything while unplaced), and below zoom `rowsMinimumZoom` draws nodes without their rows
@@ -385,9 +385,12 @@ build)); a refused blend costs tens of milliseconds more than one that works (`B
 MetalUI exports its own `Angle`: a file importing both MetalUI and CreatorGeometry writes `CreatorGeometry.Angle`.
 The GPU structs in `Sources/CreatorViewport/Render` mirror the MSL in `ViewportShaders.swift`, and `GPUDataTests` pins their strides, so change both together.
 The viewport's pointer input is MetalUI C7's (spec §9): its bindings live in `ViewportInputMap`, its behaviour in
-`ViewportModel` (`dragChanged`/`dragEnded`, `click(at:)`, `contextMenuItems(at:)`, `scrolled(by:at:phase:)`,
-`pinchChanged`, `cursor`), and `ViewportView` only forwards gesture values. Its keys stay window-wide stopgaps in
-`ViewportKeyBindings` until MetalUI scopes keys to an element (C9).
+`ViewportModel` (`dragChanged`/`dragEnded`/`dragCancelled(button:)`, `click(at:modifiers:)`, `modifiersChanged(_:)`,
+`contextMenuItems(at:)`, `scrolled(by:at:phase:)`, `pinchChanged`/`pinchEnded`, `cursor`), and `ViewportView` only forwards
+gesture values. MetalUI C16 adds a tap's modifiers, `onModifierKeysChanged` (⌘ over a still pointer reaches a tool through
+`ViewportTool.pointerMoved(to:modifiers:projector:)`: the sketch editor drops its inference while ⌘ is held), `onCancelled`
+on drags and pinches (a dropped gesture ends where it was; one gap is left, VI-b) and wheel latching. Its keys stay
+window-wide stopgaps in `ViewportKeyBindings` until MetalUI scopes keys to an element (C9).
 Editor geometry is computed by `NodeLayout`, never measured; views are framed to it so
 drawing and hit testing agree. Node positions are stored left-to-right; the left dock draws their transpose.
 The graph panel's insides (header, node library, canvas) are computed by `GraphPanelLayout` and the palette's size
@@ -403,11 +406,14 @@ on it from what lies beneath; the model holds no palette geometry. A library row
 click from a drag (`LibraryDrag.threshold`); never MetalUI drag and drop (it becomes a system drag outside the
 window). The library's visibility is `ViewState.showsLibrary` (an optional key: no format bump).
 The graph canvas's pointer input is MetalUI C7's, turned into `EditorModel` calls by `GraphPanelInput`: one
-`DragGesture(minimumDistance: 0)` for clicks and drags, whose `value.modifiers` the model reads (a `SpatialTapGesture`
-has none, gap GI-a; a drag on empty canvas box-selects and never pans), a `DragGesture(minimumDistance: 0, button:
+`DragGesture(minimumDistance: 0)` for clicks and drags, whose `value.modifiers` and `value.clickCount` the model reads (it
+stays a drag though a `SpatialTapGesture` carries modifiers since C16, gap GI-a: a press must be able to become a box, a wire
+or a move; a drag on empty canvas box-selects and never pans; a press MetalUI drops ends through `onCancelled` →
+`pointerCancelled()`), a `DragGesture(minimumDistance: 0, button:
 .middle)` (`middlePanGesture()` → `middleDragged`: pans, as the viewport's middle drag does; the user's Gate G answer
-(b), 2026-10-09), `.onScrollWheel` (`scrolled(by:at:modifiers:phase:)`: pan, ⌘ zooms) and `MagnifyGesture`
-(`pinchChanged`); the cursor is `EditorModel.canvasCursor` (a closed hand while a middle drag pans). Its keys and text
+(b), 2026-10-09), `.onScrollWheel` (`scrolled(by:at:modifiers:phase:)`: pan, ⌘ zooms; MetalUI latches a scroll to where it
+began, glide included, gap GI-b) and `MagnifyGesture`
+(`pinchChanged`/`pinchEnded`); the cursor is `EditorModel.canvasCursor` (a closed hand while a middle drag pans). Its keys and text
 focus are MetalUI C9's: `CanvasSurface` is a `hoverKeyRegion` whose one `onKeyPress` runs the graph's keys
 (`GraphPanelInput.keyPressed(_:)`), so with nothing focused they act where the pointer is, a focused field (the inspector's,
 the library's, the canvas's comment editor) keeps every key wherever the pointer is, and a canvas press clears a field's focus.

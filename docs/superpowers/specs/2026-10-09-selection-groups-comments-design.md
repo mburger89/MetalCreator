@@ -410,3 +410,13 @@ Plan `2026-10-10-followups-editor.md` (the final review's leftover editor and gr
   nothing. A comment menu item chosen mid-drag does nothing.
 - §4/§5 Undo and Redo replay without the new-definition and interface rules (`GraphContent.apply(_:registry:replaying:)`),
   so a hand-edited file that already repeats a group name can still undo an Ungroup.
+
+## Errata (C16 adoption)
+
+Plan `2026-10-12-adopt-c16.md` (MetalUI C16: gaps S5-b, VI-a).
+
+- §6 "double-click the group node ... two primary clicks within 0.4 s and 4 pt with no modifiers", and §8 "Canvas double-click
+  (GI-a, MetalUI C16): `EditorModel` synthesises it until MetalUI offers one": MetalUI offers it. A double click is a plain
+  second click on the same node, note or frame title that the platform counts 2 (`DragGesture.Value.clickCount`); the 0.4 s
+  and 4 pt are gone, and the user's double-click speed decides (user decision U1 of the plan). Errata (C2) item 14's order
+  (the click selects, then the double click acts) is unchanged.
