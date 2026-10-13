@@ -6,20 +6,20 @@ import CreatorOCCT
 import Testing
 @testable import CreatorApp
 
-/// Fields spec §7, rows 1 to 3 (row 4, the tinted preview, comes with the previews in 7b-3). Release, idle Mac; prints
+/// Fields spec §7, rows 1 to 3 (row 4, the tinted preview, is `FieldBenchPreview`). Release, idle Mac; prints
 /// `BENCH field-…` lines, with each row's budget judged on the median:
 /// 1. a five-node field (a source, a remap, noise, a multiply, a clamp) over 10,000 points, no kernel distance: under 5 ms;
 /// 2. the signed distance from a plate to 10,000 points on OCCT: under 100 ms the first time, about nothing cached (a plate is
 ///    planes and cylinders; 2b is the same points against a smooth loft, recorded and not gated);
-/// 3. the fields spec puts Field Scatter's 2,000 points on a face here; Field Scatter arrives in 7b-3, so this row measures the
-///    work it will start with at the same size and budget, Sample Field and then Cull by Field over a tree of 2,000
-///    placements (50 ms). 7b-3 adds the Field Scatter row beside it.
+/// 3. Field Scatter's about 2,000 points on a face, with a radial-gradient field: under 50 ms; 3b is 7b-1's stand-in for this
+///    row, Sample Field and then Cull by Field over a tree of 2,000 placements, kept under the same budget.
 @MainActor
 @Suite(.serialized, .enabled(if: Bench.isRequested, "set METALCREATOR_BENCH=1 (scripts/bench.sh)"))
 struct FieldBench {
     static let fiveNodeBudget = 5.0
     static let distanceBudget = 100.0
     static let placementsBudget = 50.0
+    static let scatterBudget = 50.0
 
     @Test func aFiveNodeFieldOverTenThousandPoints() async throws {
         guard Bench.requireRelease() else { return }
@@ -81,6 +81,24 @@ struct FieldBench {
         print(first.line())
     }
 
+    @Test func fieldScatterOverAFaceOfAboutTwoThousandPoints() async throws {
+        guard Bench.requireRelease() else { return }
+        let (solid, pick) = try await FieldBenchFixtures.scatterPlate(OCCTKernel())
+        let inputs = FieldBenchFixtures.scatterInputs(solid)
+        let context = FieldBenchFixtures.scatterContext(pick: pick)
+        let kernel = FakeKernel()  // the field is a gradient: the kernel is never asked
+        let clock = ContinuousClock()
+        var samples = BenchSamples("field-3 Field Scatter × about 2,000 points on a face")
+        for round in 0..<25 {
+            let start = clock.now
+            let placed = try await FieldScatterNode.evaluate(inputs, kernel: kernel, context: context)
+            guard round >= 3 else { continue }
+            samples.append(from: start, to: clock.now)
+            #expect((placed.trees["placements"]?.itemCount ?? 0) > 1_500)
+        }
+        print(samples.line(budget: Self.scatterBudget))
+    }
+
     @Test func sampleFieldAndCullByFieldOverTwoThousandPlacements() async throws {
         guard Bench.requireRelease() else { return }
         let tree = FieldBenchFixtures.placements(rows: 40, columns: 50)
@@ -95,7 +113,7 @@ struct FieldBench {
         ])
         let kernel = FakeKernel()
         let clock = ContinuousClock()
-        var samples = BenchSamples("field-3 Sample Field + Cull by Field × 2,000 placements")
+        var samples = BenchSamples("field-3b Sample Field + Cull by Field × 2,000 placements")
         for round in 0..<45 {
             let start = clock.now
             let sampled = try await SampleFieldNode.evaluate(sampleInputs, kernel: kernel, context: sampleContext)
