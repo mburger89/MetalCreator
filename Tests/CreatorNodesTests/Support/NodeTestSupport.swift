@@ -49,8 +49,10 @@ struct Harness {
         return extrude
     }
 
-    func run(_ demand: [Node], kernel: any Kernel = FakeKernel()) async throws -> EvaluationReport {
-        try await Evaluator(registry: BuiltInNodes.registry, kernel: kernel).evaluate(graph, demand: Set(demand.map(\.id)))
+    func run(_ demand: [Node], kernel: any Kernel = FakeKernel(),
+             images: ImageResolver = ImageResolver()) async throws -> EvaluationReport {
+        try await Evaluator(registry: BuiltInNodes.registry, kernel: kernel)
+            .evaluate(graph, demand: Set(demand.map(\.id)), images: images)
     }
 }
 
