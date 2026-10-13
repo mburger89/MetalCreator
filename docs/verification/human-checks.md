@@ -1493,12 +1493,19 @@ looks, the feel of the caret, an input method composing, and the keys of a real 
   highlighted, the caret blinks after the last character (on the last line), and typing appends there. With a note whose
   text ends in a line break the caret is on the empty last line. An empty note opens with the caret at its start. Pinned:
   `aNoteOpensWithTheCaretAtItsEndAndTypingAppends`, `aNoteEndingInALineBreakOpensOnItsEmptyLastLine`. **Observed:**
-- [ ] **C25-3 An input method composing (the feel).** With a composing input source, open a title (all selected) and start
-  composing: the underlined marked text replaces the selection, and committing it (Space or Return as the input source
-  does) leaves the composed text as the title; Return after that commits the title, and the first Return of a composition
-  must commit the composition, not the title. In a note, compose at the end and mid-line (click first), then press ⌘↩.
-  The model writes the selection only when an edit begins, so nothing can race a composition: **record** any caret jump,
-  lost marked text or doubled character. **Observed:**
+- [ ] **C25-3 An input method composing (the feel).** Composing is automated (MetalUI C28, gap CT-d adopted, plan
+  `2026-10-13-adopt-c28.md`): marked text stays out of the draft, a committed candidate is one undo step, a cancel changes
+  nothing, the opening selection survives, and a press elsewhere drops the composition. Pinned: `CanvasTypingCompositionWindowTests`,
+  `InspectorFieldCompositionWindowTests`. What is left is what a real input source does that the driver cannot: with one
+  (Japanese Hiragana, Pinyin), open a title (all selected) and start composing: the underlined marked text replaces the
+  highlight, committing it (Space or Return as the input source does) leaves the composed text as the title; Return after
+  that commits the title, and the **first Return of a composition must commit the composition, not the title** (the
+  harness's Return is a key, not the input method's). In a note, compose at the end and mid-line (click first), then press
+  ⌘↩. **Record** any caret jump, lost marked text or doubled character, and what a click on the graph panel does while
+  composing: MetalUI drops the composition uncommitted (`IM-I`), so the marked text is lost. `IM-I` is MetalUI hygiene
+  (stale marked text must not return on refocus), **not a platform measurement**; AppKit text fields normally commit
+  marked text when focus leaves. **If losing the marked text feels wrong, report it: it becomes a MetalUI request for
+  commit-on-resign.** **Observed:**
 - [ ] **C25-4 Select all and the selection keys.** In a title and in a note: ⌘A highlights all of it and typing replaces it;
   ⇧← and ⇧→ extend from the caret, ⇧⌥← selects a word, ⌥← moves a word, ⌘← and ⌘→ go to the line's ends, Delete removes the
   selection, and a double click on a word selects the word. After each, typing acts on what is highlighted. **Record** a key
@@ -1510,10 +1517,10 @@ looks, the feel of the caret, an input method composing, and the keys of a real 
 - [ ] **C25-6 Every edit opens fresh.** Open a title, move the caret to the middle, press Esc; open it again: it is all selected
   again, not at the middle. Open a note, move the caret to the start, press ⌘↩, open it again: the caret is at the end. Pinned:
   `eachEditOpensFreshNotWhereTheLastOneEnded`. **Observed:**
-- [ ] **C25-7 Undo inside the field.** Open a title, type a letter (it replaces the title), press ⌘Z while the field is focused:
-  **record** what the field shows and where the selection is (MetalUI ends the open typing group when the selection is
-  written at the edit's start; what ⌘Z restores is not documented yet, gap CT-d, so record it, don't judge it). Pass: then Esc,
-  and the frame keeps its old title and the document has nothing to undo.
+- [ ] **C25-7 Undo inside the field.** Documented by MetalUI C28 (`docs/testing.md`, "Undo after a selection write") and pinned:
+  `commandZInTheFieldAfterTheOpeningSelectionRestoresTheTitleAndItsSelection`. Open a title, type a letter (it replaces the
+  title), press ⌘Z while the field is focused: the old title is back, all of it highlighted. **Record** anything else. Pass:
+  then Esc, and the frame keeps its old title and the document has nothing to undo.
   **Observed:**
 
 ## Group C26 — MetalUI C26: a press that finds its arena still pressing is a lost release (Adopt C26)
