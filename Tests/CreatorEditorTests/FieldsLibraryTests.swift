@@ -21,12 +21,25 @@ struct FieldsLibraryTests {
         #expect(names == [
             "Distance Field", "Linear Gradient", "Radial Gradient", "Noise Field",
             "Add", "Multiply", "Min / Max", "Remap", "Clamp", "Smooth Blend",
+            "Sample Field", "Cull by Field",
         ])
     }
 
-    @Test func everyFieldNodeHasAFieldOutputAndTheFieldsCategory() {
+    /// Cull by Field lives under Fields but is found by the palette's search beside the other cull nodes: the patterns ones
+    /// first (their category comes earlier), then it.
+    @Test func searchingCullFindsCullByFieldBesideTheOtherCullNodes() {
+        let found = PaletteSearch.entries(in: BuiltInNodes.registry, matching: "cull")
+        #expect(found.map(\.displayName) == ["Cull by Region", "Cull Index", "Cull Pattern", "Cull by Field"])
+        #expect(found.last?.category == .fields)
+    }
+
+    @Test func everyFieldNodeMakesAFieldExceptTheTwoThatUseOne() {
+        let users = ["Sample Field", "Cull by Field"]
         for definition in BuiltInNodes.all where definition.category == .fields {
-            #expect(definition.outputs.contains { $0.type == .field }, "\(definition.displayName)")
+            let makesField = definition.outputs.contains { $0.type == .field }
+            let takesField = definition.inputs.contains { $0.type == .field }
+            #expect(makesField == !users.contains(definition.displayName), "\(definition.displayName)")
+            #expect(takesField || makesField, "\(definition.displayName) works with fields")
         }
     }
 }
