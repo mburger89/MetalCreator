@@ -1620,7 +1620,10 @@ into a Remap (from 0…20, to 0…1); and a Radial Gradient (radius 30) at the o
   distance to a solid the middle number is 0 and the ends are the same size), the "0…1" toggle and the slice buttons XY, YZ, XZ and
   Off (and Plane for a Linear Gradient). Pressing XY/YZ/XZ moves the quad to that plane through the plate; Off removes it and its
   handle and keeps the tint; "0…1" fixes the numbers to 0, 0.5, 1 at once. The card goes when you select a node with no field. The
-  text is legible in all three themes. Pinned: `FieldLegendWindowTests`, `FieldLegendLabelsTests`. **Observed:**
+  text is legible in all three themes. **Pass-through:** with the legend visible, orbit, pick a face and hover starting
+  from the viewport's lower-left corner and from beside the card (the dock is a full-window layer; only the card may take
+  input). If MetalUI has no pass-through for an empty Spacer layer, log it in `docs/metalui-gaps.md` and do not work around it.
+  Pinned: `FieldLegendWindowTests`, `FieldLegendLabelsTests`. **Observed:**
 - [ ] **FI-5 A failure and a big part.** Wire a Distance Field into a Remap, then delete the solid it measures to (so the field
   can't be sampled): the legend shows the reason in red instead of numbers and the tint goes. For a part over 200,000 vertices
   ("Preview sampled coarsely") use a Hole Pattern of 2,000 holes on a thick plate and select a field: the legend says so and the tint
