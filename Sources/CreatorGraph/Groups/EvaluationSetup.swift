@@ -9,6 +9,8 @@ struct EvaluationSetup: Sendable {
     /// Every node of that level is evaluated, whether or not it feeds Group Output, so each shows its state and can
     /// be previewed.
     var inspected: [NodeID] = []
+    /// The evaluator's cache of kernel distances for fields, handed to every `EvalContext`.
+    var fieldDistances = FieldDistanceCache()
 
     /// The nodes of `graph`, the inside of the group node at instance path `path`, that the inspected level asks for:
     /// all of them when `path` is the level, else the one group node on the way down to it.
