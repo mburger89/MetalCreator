@@ -25,8 +25,10 @@ final class FieldPreviewModel {
     private(set) var offset = 0.0
     private(set) var tints: [ObjectIdentifier: SolidTint] = [:]
     private(set) var grid: SliceGrid?
-    /// The kernel's words when the last sampling failed.
-    private(set) var failure: String?
+    /// The kernel's words when the tint's last sampling failed, and when the slice's did. Each is cleared only by its own
+    /// sampling (starting or succeeding), so one succeeding never hides the other's explanation.
+    private(set) var tintFailure: String?
+    private(set) var sliceFailure: String?
     private var tintRunning = false
     private var sliceRunning = false
 
@@ -48,6 +50,9 @@ final class FieldPreviewModel {
         self.vertexLimit = vertexLimit
         self.meshes = meshes
     }
+
+    /// The words for whichever sampling failed (the tint's first).
+    var failure: String? { tintFailure ?? sliceFailure }
 
     /// True while a tint or a slice is being sampled.
     var isSampling: Bool { tintRunning || sliceRunning }
@@ -74,7 +79,7 @@ final class FieldPreviewModel {
         if sameNode, request.field == field, box == bounds,
            request.solids.map(ObjectIdentifier.init) == solids.map(ObjectIdentifier.init) { return }
         let restartsSlice = !sameNode || (choice == .own && request.field.ownPlane == nil)
-        (node, field, solids, bounds, failure) = (request.node, request.field, request.solids, box, nil)
+        (node, field, solids, bounds) = (request.node, request.field, request.solids, box)
         if restartsSlice {
             choice = SlicePose.startingChoice(for: request.field, toEye: request.toEye)
             offset = 0
@@ -91,7 +96,8 @@ final class FieldPreviewModel {
         tintTask?.cancel()
         sliceTask?.cancel()
         (tintRunning, sliceRunning) = (false, false)
-        (node, field, bounds, solids, failure) = (nil, nil, nil, [], nil)
+        (node, field, bounds, solids) = (nil, nil, nil, [])
+        (tintFailure, sliceFailure) = (nil, nil)
         (tints, grid, choice, offset) = ([:], nil, .hidden, 0)
         revision += 1
     }
@@ -137,6 +143,7 @@ final class FieldPreviewModel {
         tintTask?.cancel()
         tintGeneration += 1
         let generation = tintGeneration
+        tintFailure = nil
         guard let field, !solids.isEmpty else {
             tintRunning = false
             tints = [:]
@@ -167,7 +174,7 @@ final class FieldPreviewModel {
         guard generation == tintGeneration else { return }
         tintRunning = false
         tints = found
-        if let problem { failure = problem } else if !sliceRunning { failure = nil }
+        tintFailure = problem
         revision += 1
     }
 
@@ -175,6 +182,7 @@ final class FieldPreviewModel {
         sliceTask?.cancel()
         sliceGeneration += 1
         let generation = sliceGeneration
+        sliceFailure = nil
         guard let field, let pose else {
             sliceRunning = false
             grid = nil
@@ -205,7 +213,7 @@ final class FieldPreviewModel {
         guard generation == sliceGeneration else { return }
         sliceRunning = false
         self.grid = grid
-        if let problem { failure = problem } else if !tintRunning { failure = nil }
+        sliceFailure = problem
         revision += 1
     }
 

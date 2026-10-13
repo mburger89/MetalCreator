@@ -157,6 +157,28 @@ struct FieldPreviewModelTests {
         #expect(model.failure == nil && model.tints.count == 1, "and the next field samples again")
     }
 
+    @Test func aSliceThatSamplesFineDoesNotHideTheTintsFailureNorTheOtherWayRound() async throws {
+        let harness = PreviewHarness()
+        let part = try await harness.part()
+        // The tint's batch (the part's few vertices) fails; the slice's grid is bigger and succeeds.
+        let model = FieldPreviewModel(kernel: SmallBatchFailingKernel(minimum: 50), distances: nil) { solid in
+            harness.meshes[ObjectIdentifier(solid)]
+        }
+        model.follow(harness.request(node, .distance(.kernel(.solid(part)), signed: true), [part]))
+        await model.waitForSampling()
+        let words = "The batch is too small."
+        #expect(model.tintFailure == words && model.sliceFailure == nil && model.grid != nil, "the slice sampled fine")
+        #expect(model.failure == words && model.legend?.failure == words, "the explanation stays while the slice succeeds")
+        // Ruling: a failure does not clear the other half (the slice stays drawn); moving the slice keeps the words.
+        model.moveSlice(to: 1)
+        await model.waitForSampling()
+        #expect(model.failure == words && model.grid != nil)
+        // A tint that samples again clears its own words.
+        model.follow(harness.request(node, radial, [part]))
+        await model.waitForSampling()
+        #expect(model.failure == nil)
+    }
+
     @Test func aDistanceFieldIsSampledThroughTheEvaluatorsCacheInMillimetres() async throws {
         let harness = PreviewHarness()
         let part = try await harness.part()
