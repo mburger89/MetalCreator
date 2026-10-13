@@ -10,6 +10,8 @@ struct ViewportPipelines {
 
     let background: any MTLRenderPipelineState
     let mesh: any MTLRenderPipelineState
+    /// The surface coloured by a field's values (`field_mesh_*`).
+    let fieldMesh: any MTLRenderPipelineState
     let ghost: any MTLRenderPipelineState
     /// The ghosts' depth-only prepass: no colour is written.
     let ghostDepth: any MTLRenderPipelineState
@@ -30,7 +32,7 @@ struct ViewportPipelines {
     let depthBehind: any MTLDepthStencilState
 
     init(device: any MTLDevice) throws {
-        let library = try device.makeLibrary(source: ViewportShaders.source, options: nil)
+        let library = try device.makeLibrary(source: ViewportShaders.source + FieldShaders.source, options: nil)
         func function(_ name: String) throws -> any MTLFunction {
             guard let function = library.makeFunction(name: name) else { throw ViewportRenderError.missingShader(name) }
             return function
@@ -68,6 +70,7 @@ struct ViewportPipelines {
         }
         background = try pipeline("background_vertex", "background_fragment", blended: false)
         mesh = try pipeline("mesh_vertex", "mesh_fragment", blended: false)
+        fieldMesh = try pipeline("field_mesh_vertex", "field_mesh_fragment", blended: false)
         ghost = try pipeline("mesh_vertex", "mesh_fragment", blended: true)
         ghostDepth = try pipeline("mesh_vertex", "mesh_fragment", blended: false, writesColor: false)
         line = try pipeline("line_vertex", "line_fragment", blended: true)
