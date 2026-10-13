@@ -127,6 +127,61 @@ struct ViewportToolTests {
         #expect(tool.lastProjector?.size == ViewportSize(width: 400, height: 300))
     }
 
+    /// Sketcher spec §8, gap S5-a (MetalUI C16's `onModifierKeysChanged`): a key pressed over a still pointer tells the
+    /// tool at once, at the same point, with the key held; releasing it tells it again.
+    @Test func aModifierOverAStillPointerReplaysTheHoverWithIt() {
+        let tool = RecordingTool()
+        let model = makeModel(tool: tool)
+        model.pointerHovered(at: ScreenPoint(100, 100))
+        model.modifiersChanged(.command)
+        model.modifiersChanged([])
+        #expect(tool.calls == ["moved 100,100", "moved 100,100", "moved 100,100"])
+        #expect(tool.movedModifiers == [[], .command, []])
+    }
+
+    @Test func aHoverCarriesTheModifiersHeldNow() {
+        let tool = RecordingTool()
+        let model = makeModel(tool: tool)
+        model.modifiersChanged(.command)
+        model.pointerHovered(at: ScreenPoint(10, 20))
+        model.pointerHovered(at: nil)
+        #expect(tool.movedModifiers == [.command, .command], "a move, and the pointer leaving, both with ⌘")
+    }
+
+    /// Review Focus 1: a modifier with the pointer elsewhere or a drag under way tells the tool nothing, and the same
+    /// modifiers twice tell it once.
+    @Test func aModifierWithNoPointerOverTheViewOrDuringADragTellsTheToolNothing() {
+        let tool = RecordingTool()
+        tool.claims = false
+        let model = makeModel(tool: tool)
+        model.modifiersChanged(.command)
+        model.modifiersChanged([])
+        #expect(tool.calls.isEmpty, "the pointer isn't over the view")
+        model.pointerHovered(at: ScreenPoint(100, 100))
+        model.modifiersChanged(.command)
+        model.modifiersChanged(.command)
+        #expect(tool.calls == ["moved 100,100", "moved 100,100"], "the repeat is not reported")
+        model.dragChanged(from: ScreenPoint(100, 100), to: ScreenPoint(120, 100), modifiers: .command, button: .primary)
+        model.modifiersChanged([])
+        #expect(tool.calls.count == 2, "a drag is under way: nothing hovers")
+        model.dragEnded(from: ScreenPoint(100, 100), at: ScreenPoint(120, 100), modifiers: [], button: .primary)
+        #expect(tool.movedModifiers.last == [], "its end hovers again with what is held now")
+    }
+
+    @Test func aViewWithoutAToolIgnoresModifiers() {
+        let model = makeModel(tool: nil)
+        model.pointerHovered(at: ScreenPoint(100, 100))
+        model.modifiersChanged(.command)
+        #expect(model.hovered == nil)
+    }
+
+    @Test func aClicksModifiersReachTheTool() {
+        let tool = RecordingTool()
+        let model = makeModel(tool: tool)
+        model.click(at: ScreenPoint(200, 150), modifiers: .command)
+        #expect(tool.clickedModifiers == [.command])
+    }
+
     /// "Edit sketch" turns the camera while the user may already be drawing: when the turn ends, the tool is told the
     /// pointer is where it still is (re-mapped under the settled camera), so a rubber band in progress isn't dropped.
     @Test func theEndOfACameraTurnTellsTheToolThePointerIsStillThere() async {

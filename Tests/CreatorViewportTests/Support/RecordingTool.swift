@@ -16,6 +16,10 @@ final class RecordingTool: ViewportTool {
     /// What F frames while this tool is set.
     var framingBounds: BoundingBox?
     private(set) var calls: [String] = []
+    /// The modifiers each `pointerMoved` carried, in order.
+    private(set) var movedModifiers: [ViewportModifiers] = []
+    /// The modifiers each `clicked` carried, in order.
+    private(set) var clickedModifiers: [ViewportModifiers] = []
     private(set) var lastProjector: ViewportProjector?
 
     private func record(_ verb: String, _ point: ScreenPoint?, _ projector: ViewportProjector) {
@@ -23,10 +27,14 @@ final class RecordingTool: ViewportTool {
         lastProjector = projector
     }
 
-    func pointerMoved(to point: ScreenPoint?, projector: ViewportProjector) { record("moved", point, projector) }
+    func pointerMoved(to point: ScreenPoint?, modifiers: ViewportModifiers, projector: ViewportProjector) {
+        record("moved", point, projector)
+        movedModifiers.append(modifiers)
+    }
 
     func clicked(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) -> Bool {
         record("clicked", point, projector)
+        clickedModifiers.append(modifiers)
         return claims
     }
 

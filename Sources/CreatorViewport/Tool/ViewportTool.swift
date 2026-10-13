@@ -11,9 +11,12 @@ public protocol ViewportTool: AnyObject {
     var navigation: ViewportNavigation { get }
     /// What F frames while this tool is set, instead of the selection or the scene (default: `nil`, the usual).
     var framingBounds: BoundingBox? { get }
-    /// The pointer moved over the viewport with no drag under way (`nil`: it left the view).
-    func pointerMoved(to point: ScreenPoint?, projector: ViewportProjector)
-    /// A click off the view cube and the handles. Return true to claim it; unclaimed, the viewport reports the pick
+    /// The pointer is over `point` with no drag under way (`nil`: it left the view), with `modifiers` held: it moved, the
+    /// camera moved under it, or a modifier changed while it stayed still (`ViewportModel.modifiersChanged(_:)`, MetalUI
+    /// C16's `onModifierKeysChanged`). Only `ViewportModifiers.hoverMask` is reported.
+    func pointerMoved(to point: ScreenPoint?, modifiers: ViewportModifiers, projector: ViewportProjector)
+    /// A click off the view cube and the handles, with the modifiers held at its press (MetalUI C16's
+    /// `SpatialTapGesture.Value.modifiers`). Return true to claim it; unclaimed, the viewport reports the pick
     /// under it as usual (`ViewportEvents.clicked`).
     func clicked(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) -> Bool
     /// A click `clicked(at:…)` declined, with the face or edge the ID pass found under it (`nil`: empty space), for a

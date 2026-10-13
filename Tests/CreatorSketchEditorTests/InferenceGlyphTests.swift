@@ -67,6 +67,25 @@ struct InferenceGlyphTests {
         #expect(InferenceChip(kinds: [], pointer: ScreenPoint(200, 150), in: size) == nil)
     }
 
+    /// Sketcher spec §8, gap S5-a: ⌘ held over a pointer that doesn't move suppresses the glyph and the snap the rubber
+    /// band previews, and releasing it brings them back, each through the tool's own `pointerMoved`.
+    @Test func commandOverAStillPointerSuppressesTheGlyphsAndReleasingBringsThemBack() throws {
+        let model = makeModel(.line)
+        let size = ViewportSize(width: 400, height: 300)
+        let projector = ViewportProjector(pose: CameraPose(target: .zero, distance: 100, pitch: .pi / 2,
+                                                           projection: .orthographic), size: size)
+        model.click(at: .zero, tolerance: 1, modifiers: [])
+        let pointer = ScreenPoint(300, 151)
+        model.pointerMoved(to: pointer, modifiers: [], projector: projector)
+        #expect(model.preview.inferred == [.horizontal])
+        let snapped = model.preview
+        model.pointerMoved(to: pointer, modifiers: .command, projector: projector)
+        #expect(model.preview.inferred.isEmpty, "⌘ suppresses the glyph with no move")
+        #expect(model.preview != snapped, "and the rubber band no longer snaps")
+        model.pointerMoved(to: pointer, modifiers: [], projector: projector)
+        #expect(model.preview == snapped)
+    }
+
     @Test func theChipMovesLeftAndUpAtTheModelAreasEdges() throws {
         let size = ViewportSize(width: 400, height: 300)
         let chip = try #require(InferenceChip(kinds: [.vertical], pointer: ScreenPoint(390, 290), in: size))
@@ -84,12 +103,12 @@ struct InferenceGlyphTests {
         let projector = ViewportProjector(pose: CameraPose(target: .zero, distance: 100, pitch: .pi / 2,
                                                            projection: .orthographic), size: size)
         model.click(at: .zero, tolerance: 1, modifiers: [])
-        model.pointerMoved(to: ScreenPoint(300, 151), projector: projector)
+        model.pointerMoved(to: ScreenPoint(300, 151), modifiers: [], projector: projector)
         let chip = try #require(model.inferenceChip, "a pointer just below the start's height infers horizontal")
         #expect(chip == InferenceChip(kinds: [.horizontal], pointer: ScreenPoint(300, 151), in: size))
         #expect(chip == InferenceChip(kinds: [.horizontal], pointer: ScreenPoint(300, 151), in: size,
                                       avoiding: model.readoutChip), "the readout above the pointer is already clear")
-        model.pointerMoved(to: nil, projector: projector)
+        model.pointerMoved(to: nil, modifiers: [], projector: projector)
         #expect(model.inferenceChip == nil)
     }
 
@@ -117,7 +136,7 @@ struct InferenceGlyphTests {
                                                            projection: .orthographic), size: size)
         model.click(at: .zero, tolerance: 1, modifiers: [])
         for pointer in [ScreenPoint(200.4, 292), ScreenPoint(200.4, 8)] {
-            model.pointerMoved(to: pointer, projector: projector)
+            model.pointerMoved(to: pointer, modifiers: [], projector: projector)
             let readout = try #require(model.readoutChip, "a line's length and angle")
             let chip = try #require(model.inferenceChip, "straight above or below the start infers vertical")
             #expect(chip.text == "Vertical")

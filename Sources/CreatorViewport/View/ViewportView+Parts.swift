@@ -54,7 +54,9 @@ extension ViewportView {
         .onScrollWheel { event in
             model.scrolled(by: Double(event.delta.y.value), at: ScreenPoint(event.location), phase: ViewportScrollPhase(event))
         }
-        .gesture(SpatialTapGesture().onEnded { model.click(at: ScreenPoint($0.location)) })
+        .gesture(SpatialTapGesture().onEnded {
+            model.click(at: ScreenPoint($0.location), modifiers: ViewportModifiers($0.modifiers))
+        })
         .gesture(drag(.primary, model: model))
         .gesture(drag(.secondary, model: model))
         .gesture(drag(.middle, model: model))

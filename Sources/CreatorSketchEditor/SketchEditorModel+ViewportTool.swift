@@ -25,9 +25,12 @@ extension SketchEditorModel: ViewportTool {
         Self.pickRadius * projector.millimetresPerPoint
     }
 
-    public func pointerMoved(to point: ScreenPoint?, projector: ViewportProjector) {
+    /// The rubber band and the glyphs of what a click would infer follow the pointer and ⌘, which suppresses inference
+    /// (sketcher spec §8), also under a pointer that stays still.
+    public func pointerMoved(to point: ScreenPoint?, modifiers: ViewportModifiers, projector: ViewportProjector) {
         follow(point, projector)
-        hover(at: point.flatMap { projector.planePoint(under: $0, on: plane) }, tolerance: tolerance(projector), modifiers: [])
+        hover(at: point.flatMap { projector.planePoint(under: $0, on: plane) }, tolerance: tolerance(projector),
+              modifiers: modifiers)
     }
 
     public func clicked(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) -> Bool {

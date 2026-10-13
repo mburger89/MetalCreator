@@ -108,8 +108,8 @@ extension ViewportModel {
     /// A click: a primary press released within MetalUI's tap slop (`SpatialTapGesture`, its location the
     /// release). On the view cube it looks at the region under the pointer; on a handle's knob it does nothing;
     /// elsewhere the `tool` may claim it, and otherwise the face or edge under the pointer (or `nil` for empty space)
-    /// is offered to the tool (`clickedModel`) and, unclaimed, reported. `modifiers` are the click's (MetalUI's tap
-    /// reports none yet: docs/metalui-gaps.md S5-a).
+    /// is offered to the tool (`clickedModel`) and, unclaimed, reported. `modifiers` are the click's own, held at its
+    /// press (MetalUI's `SpatialTapGesture.Value.modifiers`, C16: docs/metalui-gaps.md GI-a).
     ///
     /// A drag still under way ends first, where it was: a click is a primary press and release, so a primary drag
     /// under way lost its release, and the primary button wins over another (`beginDragIfNeeded`).
@@ -141,7 +141,7 @@ extension ViewportModel {
     /// animates (the end of the animation picks once, `refreshHover()`).
     public func pointerHovered(at point: ScreenPoint?) {
         lastHoverPoint = point
-        if drag == nil { tool?.pointerMoved(to: point, projector: projector) }
+        if drag == nil { tool?.pointerMoved(to: point, modifiers: heldModifiers, projector: projector) }
         guard drag == nil, animation == nil else { return }
         var newHovered: PickTarget?
         var newCubeRegion: ViewCubeRegion?
