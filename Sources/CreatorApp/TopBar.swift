@@ -6,7 +6,8 @@ import MetalUI
 
 /// The glass top bar (spec §6.1): the document's name, the Preview menu, Undo, Redo (each titled by its step,
 /// `AppModel.undoTitle`) and Export. While a sketch is open it holds the sketch toolbar instead (sketcher spec §8:
-/// "Toolbar (glass, top)"), in chrome opaque to the pointer.
+/// "Toolbar (glass, top)"), in chrome opaque to the pointer. The name and the gap beside the controls are window drag
+/// handles (gap M6-c, `WindowDragHandle`): the window has no title bar to drag it by.
 struct TopBar: Component {
     let model: AppModel
     @Environment(ThemeStore.self) var themes: ThemeStore?
@@ -24,7 +25,8 @@ struct TopBar: Component {
                     Text(model.isEdited ? "\(model.displayName) — Edited" : model.displayName)
                         .font(.headline)
                         .foregroundStyle(Palette(themes).primaryText.color)
-                    Spacer()
+                        .background { WindowDragHandle() }
+                    WindowDragHandle()
                     Picker("Preview", selection: Binding(get: { model.previewMode }, set: { model.previewMode = $0 })) {
                         ForEach(PreviewMode.allCases, id: \.self) { mode in
                             Text(mode.title).tag(mode)

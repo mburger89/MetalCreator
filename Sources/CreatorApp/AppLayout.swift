@@ -24,6 +24,15 @@ public enum AppLayout {
     /// The space between the window buttons' right edge and the top bar's first control.
     public static let titleBarGap = 8.0
 
+    /// The window's title-bar style (gap M6-c, MetalUI C8): hidden, so the glass top bar is drawn under the window
+    /// buttons (spec §6.1). `MetalCreatorApp` and the tests' window both open with it.
+    public static let windowStyle = WindowStyle.hiddenTitleBar
+
+    /// The strip along the window's top that moves the window (gap M6-c, MetalUI C22): the margin above the top bar
+    /// and the glass's padding, down to where the bar's controls start. Across it the whole width is a handle; below
+    /// it only the bar's empty space is (`TopBar`), because a press that starts on a control must not move the window.
+    public static let windowDragStripHeight = margin + GraphPanelLayout.glassPadding
+
     /// How far the top bar's content starts in from the glass's inner edge so that it clears the window buttons under
     /// a hidden title bar (gap M6-c): `titleBarInsets.left` is the buttons' right edge in the window, the glass starts
     /// at `margin` and pads its content by `GraphPanelLayout.glassPadding`. Zero in a standard window, whose
