@@ -151,18 +151,19 @@ struct ViewportInputTests {
     }
 
     /// A click while another button's drag is still under way ends that drag where it was, and the hover picks again:
-    /// a click is a primary press and release, and the primary button wins over another's (`beginDragIfNeeded`).
-    @Test func aClickWhileADragIsUnderWayEndsItAndHoversAgain() {
+    /// a click is a primary press and release, and the primary button wins over another's (`beginDragIfNeeded`). A primary
+    /// drag can't be under way at a click: MetalUI cancels one whose release was lost at the next press (gap VI-b).
+    @Test func aClickWhileAnotherButtonsDragIsUnderWayEndsItAndHoversAgain() {
         let model = makeModel(pose: CameraPose(target: .zero, distance: 100, yaw: 0.2, pitch: 0.3))
         model.pick = { _ in .face(solid: 0, FaceID(1)) }
         var settled: [CameraPose] = []
         model.events.cameraSettled = { settled.append($0) }
-        model.dragChanged(from: ScreenPoint(200, 150), to: ScreenPoint(230, 150), modifiers: [], button: .primary)
+        model.dragChanged(from: ScreenPoint(200, 150), to: ScreenPoint(230, 150), modifiers: [], button: .secondary)
         let orbited = model.pose
         #expect(model.hovered == nil, "nothing is picked during a drag")
         model.click(at: ScreenPoint(300, 220))
         #expect(!model.isPointerDown)
-        #expect(settled == [orbited], "the lost drag settled where it was")
+        #expect(settled == [orbited], "the right drag settled where it was")
         #expect(model.hovered == .face(solid: 0, FaceID(1)))
     }
 

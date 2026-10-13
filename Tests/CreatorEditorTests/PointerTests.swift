@@ -50,19 +50,40 @@ struct PointerTests {
         #expect(!editor.document.canUndo)
     }
 
-    @Test func aPressThatNeverEndedDoesNotLeakIntoTheNext() {
+    /// A press whose release was lost is cancelled by MetalUI when the next press begins (C26, gap VI-b), so nothing of it
+    /// leaks into the next.
+    @Test func aCancelledPressDoesNotLeakIntoTheNext() {
         let a = testNode(NumberTestNode.self, id: 1, at: .zero)
         let b = testNode(NumberTestNode.self, id: 2, at: Vector2(300, 0))
         let editor = makeEditor([a, b])
         let start = editor.screenPoint(in: a.id)
         editor.pointerDragged(from: start, to: start)
         editor.pointerDragged(from: start, to: start + Vector2(50, 0))
-        // No release: the window lost the gesture. The next press starts afresh.
+        // No release: the window lost the gesture; the next press cancels it (`onCancelled`) and starts afresh.
+        editor.pointerCancelled()
         editor.click(editor.screenPoint(in: b.id))
         #expect(editor.selection == [b.id])
         #expect(editor.graph.nodes[a.id]?.position == Vector2(50, 0))
         #expect(editor.graph.nodes[b.id]?.position == Vector2(300, 0))
         #expect(editor.interaction == nil)
+    }
+
+    /// No stopgap for a lost release is left (gap VI-b): later values of any start belong to the press in progress, because
+    /// MetalUI cancels a lost press before the next press's values can arrive.
+    @Test func aPressInProgressIsContinuedByLaterValuesWhateverStartTheyCarry() {
+        let a = testNode(NumberTestNode.self, id: 1, at: .zero)
+        let b = testNode(NumberTestNode.self, id: 2, at: Vector2(300, 0))
+        let editor = makeEditor([a, b])
+        let start = editor.screenPoint(in: a.id)
+        editor.pointerDragged(from: start, to: start)
+        editor.pointerDragged(from: start, to: start + Vector2(50, 0))
+        let other = editor.screenPoint(in: b.id)
+        editor.pointerDragged(from: other, to: other + Vector2(10, 0))
+        #expect(editor.currentPress?.point == start, "the press in progress wasn't replaced")
+        guard case .moving? = editor.interaction else {
+            Issue.record("the move goes on")
+            return
+        }
     }
 
     /// The user's Gate G answer (b), 2026-10-09: the middle button pans; a plain drag on empty canvas box-selects.

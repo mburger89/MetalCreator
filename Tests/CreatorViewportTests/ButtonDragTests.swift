@@ -115,18 +115,32 @@ struct ButtonDragTests {
         #expect(isClose(target, ScreenPoint(250, 150)), "both pans moved the scene: 20 + 30 points")
     }
 
-    /// A primary drag whose release was lost, followed by a press on the same element, is dropped by MetalUI without
-    /// a cancel (its arena continues and fails the drag, gap VI-b): the viewport ends it itself when a primary value
-    /// arrives from another press.
-    @Test func aPrimaryDragWhoseReleaseWasLostEndsWhenTheNextPressDrags() throws {
+    /// No stopgap for a lost primary release is left (gap VI-b): the values of a primary drag under way are that drag's,
+    /// whatever start they carry, because MetalUI cancels a lost one before the next press's values can arrive.
+    @Test func valuesOfAPrimaryDragUnderWayContinueItWhateverStartTheyCarry() {
+        let start = CameraPose(target: .zero, distance: 100, yaw: 0.2, pitch: 0.3)
+        let model = makeModel(pose: start)
+        var settled: [CameraPose] = []
+        model.events.cameraSettled = { settled.append($0) }
+        model.dragChanged(from: ScreenPoint(200, 150), to: ScreenPoint(230, 150), modifiers: [], button: .primary)
+        let first = model.pose
+        model.dragChanged(from: ScreenPoint(100, 100), to: ScreenPoint(250, 150), modifiers: [], button: .primary)
+        #expect(model.isPointerDown && settled.isEmpty)
+        #expect(isClose(model.pose.yaw, first.yaw - 20 * ViewportInputMap.orbitRadiansPerPoint), "20 points further, from the same drag")
+    }
+
+    /// A primary drag whose release was lost is cancelled by MetalUI at the next press on the element (C26, gap VI-b): it
+    /// ends where it was, and the next press's drag orbits alone.
+    @Test func aCancelledPrimaryDragLeavesTheNextPressAFreshOrbit() throws {
         let start = CameraPose(target: .zero, distance: 100, yaw: 0.2, pitch: 0.3)
         let model = makeModel(pose: start)
         var settled: [CameraPose] = []
         model.events.cameraSettled = { settled.append($0) }
         model.dragChanged(from: ScreenPoint(200, 150), to: ScreenPoint(230, 150), modifiers: [], button: .primary)
         let lost = model.pose
+        model.dragCancelled(button: .primary)
+        #expect(settled == [lost] && !model.isPointerDown, "the stale drag settled where it was, at the cancel")
         drag(model, .primary, from: ScreenPoint(100, 100), through: [ScreenPoint(130, 100)])
-        #expect(settled.first == lost, "the stale drag settled where it was")
         #expect(settled.count == 2 && !model.isPointerDown)
         #expect(isClose(model.pose.yaw, lost.yaw - 30 * ViewportInputMap.orbitRadiansPerPoint), "and the new drag orbited alone")
     }

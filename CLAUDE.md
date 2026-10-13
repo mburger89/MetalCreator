@@ -402,7 +402,8 @@ The viewport's pointer input is MetalUI C7's (spec §9): its bindings live in `V
 `contextMenuItems(at:)`, `scrolled(by:at:phase:)`, `pinchChanged`/`pinchEnded`, `cursor`), and `ViewportView` only forwards
 gesture values. MetalUI C16 adds a tap's modifiers, `onModifierKeysChanged` (⌘ over a still pointer reaches a tool through
 `ViewportTool.pointerMoved(to:modifiers:projector:)`: the sketch editor drops its inference while ⌘ is held), `onCancelled`
-on drags and pinches (a dropped gesture ends where it was; one gap is left, VI-b) and wheel latching. Its keys stay
+on drags and pinches (a dropped gesture ends where it was, a lost primary release too since MetalUI C26: the next press cancels it; one gap is left,
+VI-c, a plain pointer move doesn't) and wheel latching. Its keys stay
 window-wide stopgaps in `ViewportKeyBindings` until MetalUI scopes keys to an element (C9).
 Editor geometry is computed by `NodeLayout`, never measured; views are framed to it so
 drawing and hit testing agree. Node positions are stored left-to-right; the left dock draws their transpose.

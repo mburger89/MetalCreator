@@ -59,23 +59,40 @@ struct ViewportCancelWindowTests {
         #expect(!app.model.viewport.isPointerDown, "the lost drag ended when the next press began")
     }
 
-    /// Gap VI-b: a press on the same element continues MetalUI's arena, which drops the drag without a cancel. The viewport's
-    /// own stopgap ends it when the next drag's values arrive (`ViewportModel.beginDragIfNeeded`).
-    @Test func aPrimaryPressOnTheSameElementLeavesTheLostDragToTheNextDragValues() async throws {
+    /// Gap VI-b, fixed by MetalUI C26: a primary press that finds the arena still pressing is a lost release, so the arena is
+    /// abandoned through `cancel()` at that press (not later, when the next drag's values arrive): the lost drag ends where it
+    /// was, once, with its mode, closed hand and settling gone, and the new press forms a fresh arena whose drag starts normally.
+    @Test func aPrimaryPressOnTheSameElementCancelsTheLostDragAndTheNewDragStartsFresh() async throws {
         let app = try await AppWindow.open()
         let viewport = app.model.viewport
-        primaryDrag(app)
-        _ = app.window.send(.mouseDown(MouseEvent(position: at(0, 60))))
-        app.window.tick()
-        #expect(viewport.isPointerDown, "MetalUI told nobody (gap VI-b)")
-        _ = app.window.send(.mouseUp(MouseEvent(position: at(0, 60))))
-        app.window.tick()
         var settled = 0
         let previous = viewport.events.cameraSettled
         viewport.events.cameraSettled = { settled += 1; previous($0) }
-        app.window.drag(from: at(100, 100), to: at(140, 100))
-        #expect(!viewport.isPointerDown)
-        #expect(settled == 2, "the lost drag settled where it was, then the new drag settled once")
+        primaryDrag(app)
+        #expect(viewport.activeDragMode == .orbit && viewport.cursor == .grabbing)
+        let lost = viewport.pose
+        _ = app.window.send(.mouseDown(MouseEvent(position: at(0, 60))))
+        app.window.tick()
+        #expect(!viewport.isPointerDown && viewport.activeDragMode == nil && viewport.cursor == nil,
+                "the lost drag ended at the press: no drag value has arrived yet")
+        #expect(settled == 1 && viewport.pose == lost, "and settled where it was, once")
+        _ = app.window.send(.mouseUp(MouseEvent(position: at(0, 60))))
+        app.window.tick()
+        #expect(settled == 1, "the late release cancels nothing again")
+        // A fresh arena: the minimum distance applies from the new press, and the orbit moves from there.
+        _ = app.window.send(.mouseDown(MouseEvent(position: at(100, 100))))
+        app.window.tick()
+        _ = app.window.send(.mouseDragged(MouseEvent(position: at(102, 100))))
+        app.window.tick()
+        #expect(!viewport.isPointerDown, "2 points are under the 5-point minimum distance")
+        _ = app.window.send(.mouseDragged(MouseEvent(position: at(140, 100))))
+        app.window.tick()
+        #expect(viewport.activeDragMode == .orbit)
+        _ = app.window.send(.mouseUp(MouseEvent(position: at(140, 100))))
+        app.window.tick()
+        #expect(!viewport.isPointerDown && settled == 2)
+        #expect(abs(viewport.pose.yaw - (lost.yaw - 40 * ViewportInputMap.orbitRadiansPerPoint)) < 1e-9,
+                "40 points of the new drag, from its own press")
     }
 
     /// A pinch the window cut short (⌘-Tab away mid-pinch) is cancelled, so a pinch at the same spot afterwards zooms from

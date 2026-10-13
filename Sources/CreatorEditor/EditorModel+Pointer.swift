@@ -91,13 +91,11 @@ extension EditorModel {
         return true
     }
 
-    /// Starts a press at `start` unless one with that start is in progress. A recorded press with another start is a
-    /// gesture that never ended and that MetalUI didn't cancel: a press on the same element continues its arena, which
-    /// fails the lost drag without a word (gap VI-b). It is dropped, so its hit, modifiers and interaction don't leak
-    /// into this one. A press MetalUI does cancel arrives as `pointerCancelled()`.
+    /// Starts a press at `start` unless one is in progress. A press whose release was lost never reaches here: MetalUI
+    /// cancels its arena when the next press begins (`pointerCancelled()`, C26: gap VI-b), so a press in progress is the
+    /// same press still going.
     private func ensurePress(at start: Vector2, modifiers: CanvasModifiers, clickCount: Int) {
-        guard currentPress?.point != start else { return }
-        if currentPress != nil { endPress() }
+        guard currentPress == nil else { return }
         pointerPressed(at: start, modifiers: modifiers, clickCount: clickCount)
     }
 

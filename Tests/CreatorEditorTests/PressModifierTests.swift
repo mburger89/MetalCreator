@@ -71,13 +71,14 @@ struct PressModifierTests {
         #expect(editor.transform.offset == .zero)
     }
 
-    /// A press whose release was lost and that MetalUI didn't cancel (a press on the same element continues its arena,
-    /// gap VI-b; a press it does cancel is `pointerCancelled()`'s) takes its ⇧ with it.
-    @Test func aLostPressTakesItsModifiersWithIt() {
+    /// A press whose release was lost is cancelled by MetalUI when the next press begins (`onCancelled`, C26: gap VI-b), so
+    /// it takes its ⇧ with it and the next press starts from nothing.
+    @Test func aCancelledPressTakesItsModifiersWithIt() {
         let editor = makeEditor([a, b])
         editor.selection = [a.id]
         let start = editor.screenPoint(in: a.id)
         editor.pointerDragged(from: start, to: start, modifiers: .shift)
+        editor.pointerCancelled()
         editor.click(editor.screenPoint(in: b.id))
         #expect(editor.selection == [b.id])
     }

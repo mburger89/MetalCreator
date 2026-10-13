@@ -1421,8 +1421,7 @@ input away mid-gesture.
   in `CanvasCancelWindowTests` and `ViewportCancelWindowTests`. **Observed:**
 - [ ] **C16-5 An input lost mid-drag.** Middle-drag the canvas (and, separately, the viewport), open Mission Control or a native
   menu while holding the button, release elsewhere and come back: at the first plain pointer move the closed hand is gone and
-  the camera has settled. Do the same with a left drag of a node (a gap, VI-b, in MetalUI: record what you see; the drag ends
-  by the next press or drag, see `aPrimaryPressOnTheSameElementLeavesTheLostDragToTheNextDragValues`). **Observed:**
+  the camera has settled. The same with a left drag is C26-1. **Observed:**
 - [ ] **C16-6 A scroll cut short.** ⌘-scroll the canvas and ⌘-Tab away mid-glide; come back: a plain scroll pans, a ⌘-scroll
   zooms, nothing is stuck ignoring a glide. Scroll the viewport and ⌘-Tab away mid-scroll: the next scroll zooms from where
   the camera is. Pinned: `keyLossDuringAZoomsGlideLeavesNothingIgnoredForTheNextScroll`, `aScrollCutShortByLosingKeySettlesTheCamera`.
@@ -1512,3 +1511,26 @@ looks, the feel of the caret, an input method composing, and the keys of a real 
   written at the edit's start; what ⌘Z restores is not documented yet, gap CT-d, so record it, don't judge it). Pass: then Esc,
   and the frame keeps its old title and the document has nothing to undo.
   **Observed:**
+
+## Group C26 — MetalUI C26: a press that finds its arena still pressing is a lost release (Adopt C26)
+
+**Status: NOT RUN.** Plan `2026-10-12-adopt-c26.md`. These two mirror MetalUI's own human checks GC1 and GC2 (its
+`docs/verification/human-checks.md`), run in MetalCreator: `swift run MetalCreatorApp` with a mouse or trackpad. The tests drive
+the real window with a synthesized lost release (`ContinuingPressCancelWindowTests`, `ViewportCancelWindowTests`); what a sequence
+cannot show is the OS really taking the button away.
+
+- [ ] **C26-1 A left drag whose release is lost, then pressed again (MetalUI GC1).** (Completes C16-5.) Orbit the viewport with
+  the left button and, mid-drag, open Mission Control (or a native menu) and let go of the button there; come back. The closed
+  hand stays while the pointer moves: a plain move doesn't end a lost left drag (gap VI-c, pinned by
+  `aPlainMoveDoesntEndALostPrimaryDragOnlyTheNextPressDoes`; **record** if it does end it). Press on the viewport again without
+  moving first: the closed hand goes at once, the camera has settled where the lost drag left it, and the new press does nothing
+  until it has moved a few points, then orbits from where it began. Repeat with (a) a handle's knob: after the second press the
+  value is where the edit got to and one ⌘Z undoes the whole edit; (b) a node dragged on the graph canvas, then a press on empty
+  canvas: the node stays where it got to (one ⌘Z moves it back) and the click clears the selection; (c) a box on empty canvas: the
+  selection it began with comes back at the press. Pinned: `aPrimaryPressOnTheSameElementCancelsTheLostDragAndTheNewDragStartsFresh`,
+  `aHandleEditWhoseReleaseWasLostEndsAtTheNextPressOnTheViewport`, `aNodeMoveWhoseReleaseWasLostEndsAtTheNextPressOnTheCanvas`,
+  `aBoxWhoseReleaseWasLostIsCancelledByTheNextPressOnTheCanvas`. **Observed:**
+- [ ] **C26-2 A real double click (MetalUI GC2).** Double-click a Sketch node on the canvas: its sketch opens once; double-click a
+  note or a frame's title bar: it edits once. Double-click in the viewport: two clicks, and nothing is dragged or cancelled (no
+  flash of the closed hand, the camera does not move). Pinned: `aDoubleClickOverTheViewportCancelsNothing`,
+  `CanvasDoubleClickWindowTests`. **Observed:**

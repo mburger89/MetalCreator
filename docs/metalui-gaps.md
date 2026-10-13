@@ -33,8 +33,9 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M6-e | Public headless test window | item 8 (test harness) | ✅ fixed (MetalUI 280d706, PR #65: `MetalUITesting`), adopted in the test targets (plan `2026-10-12-adopt-test-harness`): `AppWindow` opens the app's real root in a `TestWindow` (`AppWindowTests`), and the observable key routing is pinned by the window tests (`ViewportKeyRoutingWindowTests`, `EditMenuRoutingWindowTests`, `PaletteKeyRoutingWindowTests`), while the canvas hover veto and the `Panel` key context stay pinned only by mapping tests (`AppInputTests`); MetalCreator had no platform fake of its own to replace; the harness's one limit for this app (no `MetalView` draw, so no window size) is gone: the size and the panel's frame come from `onGeometryChange` (M4-a, EP-a) |
 | M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
 | M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
-| VI-a | A dropped gesture's end | C16 | ✅ fixed (MetalUI a720fba, PR #67: `.onCancelled` on Drag/Magnify/Rotate gestures; a synthesized `.cancelled` scroll when the window stops being key), adopted (plan `2026-10-12-adopt-c16`): the viewport's three button drags and pinch, the canvas's press, middle pan and pinch, the library row's drag and the panel's resize edge end through it (`ViewportCancelWindowTests`, `CanvasCancelWindowTests`, `PointerCancelTests`); the lost-pinch guesses are gone. A primary drag whose next press lands on the same element is dropped by MetalUI without a cancel and keeps its stopgap (VI-b) |
-| VI-b | A press that continues a gesture arena fails a drag that had reported, without `onCancelled` | C26 (queued after C22) | ⏳ found by the C16 adoption (plan `2026-10-12-adopt-c16`), queued as MetalUI C26 |
+| VI-a | A dropped gesture's end | C16 | ✅ fixed (MetalUI a720fba, PR #67: `.onCancelled` on Drag/Magnify/Rotate gestures; a synthesized `.cancelled` scroll when the window stops being key), adopted (plan `2026-10-12-adopt-c16`): the viewport's three button drags and pinch, the canvas's press, middle pan and pinch, the library row's drag and the panel's resize edge end through it (`ViewportCancelWindowTests`, `CanvasCancelWindowTests`, `PointerCancelTests`); the lost-pinch guesses are gone. A primary drag whose release was lost ends at the next press, through VI-b's fix (MetalUI C26); a plain move still doesn't end it (VI-c) |
+| VI-b | A press that continues a gesture arena fails a drag that had reported, without `onCancelled` | C26 | ✅ fixed (MetalUI ff8a1ea4, PR #72: a primary press that finds the arena still pressing is a lost release, so that arena is abandoned through `cancel()` and a fresh arena forms; `press(… continuing: true)` also cancels a reported drag it fails), ✅ adopted (plan `2026-10-12-adopt-c26`): the three stopgaps are gone (the same-button branch of `ViewportModel.beginDragIfNeeded`, the primary half of the drag-ending line in `click(at:)`, `EditorModel.ensurePress`'s drop) and window tests show the viewport's orbit, a handle edit's end and the canvas's move and box ending at the press (`ContinuingPressCancelWindowTests`, `ViewportCancelWindowTests`) |
+| VI-c | A lost primary release is not cancelled by the pointer's next plain move, only by the next press | none (MetalUI ruling `GC-C`; SwiftUI behaves the same) | ➖ accepted divergence, found by the C26 adoption (plan `2026-10-12-adopt-c26`); not sent; no stopgap; pinned by `ContinuingPressCancelWindowTests.aPlainMoveDoesntEndALostPrimaryDragOnlyTheNextPressDoes` |
 | GI-a | Modifiers on a tap | C16 (with S5-a) | ✅ fixed (MetalUI a720fba: `SpatialTapGesture.Value.modifiers`), adopted (plan `2026-10-12-adopt-c16`): the viewport's click passes its tap's modifiers (`ViewportModifiersWindowTests.aCommandClickReachesTheToolWithCommandAndAPlainOneWithout`); the graph canvas needs nothing, since its one zero-distance drag already carries them and must stay a drag |
 | GI-b | Wheel latching (`CI-AD`) | C16 | ✅ fixed (MetalUI a720fba: a scroll latches to the element under its `.began`, momentum included; synthesized `.cancelled` on key loss), adopted (plan `2026-10-12-adopt-c16`) with no code to remove (the entry's stopgap was none): `ScrollLatchWindowTests` pins the canvas's glide staying on the canvas, the viewport's staying off it and key loss mid-glide; human check C16-1 |
 | PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | ✅ fixed (MetalUI ebcf3c7, PR #63), adopted with no code change; idle re-measure pending |
@@ -366,10 +367,9 @@ Labelled VI-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   through `EditorModel.pointerCancelled()` (as Esc ends a drag, and never a click), `middleCancelled()`,
   `cancelLibraryDrag()` and `AppModel.endPanelResize()`. A lost right or middle release now ends at the next plain
   move, and a scroll or pinch the window cut short ends on its own (`ViewportCancelWindowTests`,
-  `CanvasCancelWindowTests`, `PointerCancelTests`, `ScrollLatchWindowTests`). **What is left is VI-b:** a primary drag
-  whose release was lost and whose next press lands on the same element is dropped by MetalUI without a cancel, so
-  `ViewportModel.beginDragIfNeeded` and `click(at:)` and `EditorModel.ensurePress` still end it, for the primary button
-  only. Human checks C16-4 to C16-7.
+  `CanvasCancelWindowTests`, `PointerCancelTests`, `ScrollLatchWindowTests`). **The last piece was VI-b** (a primary drag
+  whose release was lost and whose next press lands on the same element): MetalUI C26 fixed it and its three stopgaps are gone
+  (entry VI-b below). Human checks C16-4 to C16-7, and C26-1.
 
 ## Hit by the graph panel's C7 adoption, 2026-10-09
 
@@ -408,11 +408,12 @@ Labelled GI-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   centre while one is under way, or finds the canvas moved since that one's last change, ends it first
   (`aPinchThatLostItsEndDoesntPullTheNextOneBack`, `aPinchThatLostItsEndDoesntUndoWhatMovedTheCanvasSince`); a lost
   pinch end followed by a pinch at the same centre, with nothing moving the canvas between, zooms from the lost
-  pinch's start. A canvas press already drops a press that lost its release (`EditorModel.ensurePress`), its
-  modifiers with it (`aLostPressTakesItsModifiersWithIt`).
+  pinch's start. A canvas press that lost its release was dropped by `EditorModel.ensurePress`, its
+  modifiers with it, until MetalUI C26; now MetalUI cancels it at the next press (`pointerCancelled()`), its modifiers
+  with it (`aCancelledPressTakesItsModifiersWithIt`).
   **Adopted with VI-a** (plan `2026-10-12-adopt-c16`): the canvas's pinch ends through `onCancelled`, and the two guesses and
-  their tests are replaced by `aCancelledPinchDoesntPullTheNextOneBack`; `ensurePress` stays for the primary press VI-b
-  describes.
+  their tests are replaced by `aCancelledPinchDoesntPullTheNextOneBack`; `ensurePress`'s drop of a press with another
+  start stayed for VI-b and went with it (plan `2026-10-12-adopt-c26`).
 
 ## Found by the C16 adoption, 2026-10-12
 
@@ -426,16 +427,46 @@ Labelled VI-b so it stays beside VI-a.
   it; C16 cancels a button arena on the next `.mouseMoved`, `IF-F` item 3, but not the primary arena) is therefore dropped
   by the next primary press on the same element with neither `onEnded` nor the `onCancelled` C16 added for this. A press on
   another element does abandon and cancel
-  (`ViewportCancelWindowTests.aPrimaryPressOnAnotherElementThatReplacesALostDragEndsIt`); the same element does not
-  (`aPrimaryPressOnTheSameElementLeavesTheLostDragToTheNextDragValues` pins the stopgap). Stopgap, kept from VI-a:
+  (`ViewportCancelWindowTests.aPrimaryPressOnAnotherElementThatReplacesALostDragEndsIt`); the same element did not until C26
+  (its pin is now `aPrimaryPressOnTheSameElementCancelsTheLostDragAndTheNewDragStartsFresh`). Stopgap, kept from VI-a and removed by the C26 adoption:
   `ViewportModel.beginDragIfNeeded` ends a primary drag, where it was, when a primary value arrives from another press, and
   `click(at:)` ends any drag under way; `EditorModel.ensurePress` drops a canvas press whose start differs. Until then the
   drag's mode, closed hand and a handle edit's end linger. Wanted: `GestureArena.press(… continuing: true)` runs the leaves
   it fails through the same `cancel()` as `abandon()` (a leaf that reported owes its `onCancelled`), or the primary arena
-  is cancelled on a plain `.mouseMoved` as the button arenas are. When MetalUI fixes it: invert the pin test `aPrimaryPressOnTheSameElementLeavesTheLostDragToTheNextDragValues`
-  and the matching `PressModifierTests` pin, and remove the stopgap with it: `ViewportModel.beginDragIfNeeded`'s primary
-  branch, the drag-ending line in `click(at:)` and `EditorModel.ensurePress`'s drop. Sent to the MetalUI session with this entry; queued there as C26, after C22 (both edit
+  is cancelled on a plain `.mouseMoved` as the button arenas are. Done by the C26 adoption (below): the pin test was inverted and renamed
+  `aPrimaryPressOnTheSameElementCancelsTheLostDragAndTheNewDragStartsFresh`, the matching `PressModifierTests` pin is now
+  `aCancelledPressTakesItsModifiersWithIt`, and the stopgaps are removed. Sent to the MetalUI session with this entry; queued there as C26, after C22 (both edit
   the gesture arena), leaning to the first fix.
+  **Fixed by MetalUI C26** (master ff8a1ea4, PR #72, rulings `GC-B` to `GC-G`, record 100; no API change): a primary press that
+  finds the arena still pressing is a lost release, so that arena is abandoned through `cancel()` (a drag that had reported gets
+  `onCancelled` once), a fresh arena forms for the new press (its minimum distance included) and the late release cancels
+  nothing again; `press(… continuing: true)` also cancels a reported drag it fails. Real double clicks are unchanged.
+  **Adopted** (plan `2026-10-12-adopt-c26`): window tests drive the lost release through the app's real window and show the
+  viewport's orbit (closed hand and settling), a handle edit's end (`.ended` once, one undo step) and the canvas's node move and
+  box ending at the press itself, before any value of the new press arrives
+  (`ContinuingPressCancelWindowTests`, `ViewportCancelWindowTests.aPrimaryPressOnTheSameElementCancelsTheLostDragAndTheNewDragStartsFresh`).
+  The pin tests were inverted (`PressModifierTests.aCancelledPressTakesItsModifiersWithIt`) and the stopgaps removed:
+  `ViewportModel.beginDragIfNeeded`'s same-button branch, `click(at:)`'s ending of a primary drag and `EditorModel.ensurePress`'s
+  drop. What stays: a primary value or a click still ends a *right or middle* drag under way (`CI-F` item 3; a held button, not a
+  lost release; `aClickWhileAnotherButtonsDragIsUnderWayEndsItAndHoversAgain`). No model guard is kept for a direct model call that
+  skips `onCancelled`: the only callers are `ViewportView` and `GraphPanelInput`, which go through MetalUI, and a skipped cancel
+  only continues the press in progress, with nothing leaking and nothing crashing
+  (`valuesOfAPrimaryDragUnderWayContinueItWhateverStartTheyCarry`,
+  `aPressInProgressIsContinuedByLaterValuesWhateverStartTheyCarry`). Human checks C26-1 and C26-2.
+
+## Found by the C26 adoption, 2026-10-12
+
+Labelled VI-c so it stays beside VI-a and VI-b.
+
+- **VI-c. A lost primary release is not cancelled by the pointer's next plain move.** MetalUI cancels a *button* arena (right,
+  middle) at the next `.mouseMoved` (`IF-F` item 3), since AppKit sends a plain move only while no button is held, but it leaves
+  the primary arena alone: C26's ruling `GC-C` built the next-press cancel only, and SwiftUI behaves the same (MetalUI's probe `L3`: it does not cancel on a bare move either). So this is parity with SwiftUI, and the request is for MetalUI to change a ruling, not to fix a bug. A primary drag
+  (the viewport's orbit, a handle edit, the canvas's move, wire or box) whose release was lost therefore stays under way after the
+  pointer moves freely again, until the next primary press: the viewport keeps the closed hand and a camera that has not settled
+  (nothing is hover-picked meanwhile), a handle edit stays open, the canvas keeps its wire, ghosts or box.
+  `ContinuingPressCancelWindowTests.aPlainMoveDoesntEndALostPrimaryDragOnlyTheNextPressDoes` pins it. Stopgap: none (ending a drag
+  on a plain move in the models would work around MetalUI). If the ruling is ever revisited: cancel the primary arena on a plain
+  `.mouseMoved` too, through the same `abandon()` (option (b) of C26's design), and invert the pin test. Not blocking. Not sent to the MetalUI session: MetalUI declined this by ruling GC-C, as SwiftUI behaves; accepted as a divergence, no stopgap.
 
 ## Node-drag performance, 2026-10-08
 
