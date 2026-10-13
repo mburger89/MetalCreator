@@ -9,6 +9,8 @@ public enum ViewportMenuItem: Hashable, Sendable {
     case newSketchOnFace(ViewportFaceRef)
     /// A Face Pattern on the face, wired from the solid (patterns spec §3). Only on a flat face with a normal, like New Sketch.
     case patternOnFace(ViewportFaceRef)
+    /// A Field Scatter on the face, wired from the solid (fields spec §3.3). Offered with the same faces as Pattern on Face.
+    case scatterOnFace(ViewportFaceRef)
     /// One item per producing node. The title names the node when a face has several.
     case showProducingNode(NodeID, title: String)
 
@@ -18,6 +20,7 @@ public enum ViewportMenuItem: Hashable, Sendable {
         case .selectEdgesOfFace: "Select Edges of Face"
         case .newSketchOnFace: "New Sketch on Face"
         case .patternOnFace: "Pattern on Face"
+        case .scatterOnFace: "Scatter on Face"
         case .showProducingNode(_, let title): title
         }
     }

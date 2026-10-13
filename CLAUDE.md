@@ -56,11 +56,17 @@ checks (group VA) are pending. The layouts, previews and acceptance test are par
 Fields, sub-project 7b-1 (the fields core: the `Field` value and `.field` sockets, `FieldSampler` and `FieldDistanceCache`,
 `Kernel.distances`, the four sources, the six maths nodes, Sample Field and Cull by Field, the `Fields` library category and
 `FieldBench` rows 1 to 3; plan `docs/superpowers/plans/2026-10-12-7b-core.md`, spec `docs/superpowers/specs/2026-10-12-fields-design.md`
-§2 to §4, §7 and §9) code is done; its human checks (group FI-core) are pending and its benchmark numbers await an idle run.
+§2 to §4, §7 and §9) is merged; its human checks (group FI-core) are pending and its benchmark numbers are recorded in
+`docs/verification/performance.md`.
 Fields, sub-project 7b-2 (images: the Image Field, `ImageReference` and `NodeSetting.image`, the document's `images` table,
 `GreyImageDecoder`, choosing, linking, relinking and embedding a picture, file format 7, and a `field` socket on a group's edge; plan
 `docs/superpowers/plans/2026-10-13-7b-2-images.md`, spec `docs/superpowers/specs/2026-10-12-fields-design.md` §5 and the 7b-1 Errata)
-code is done; its human checks (group FI-img) are pending. Field Scatter with the previews (7b-3) is built beside it.
+code is done; its human checks (group FI-img) are pending.
+Fields, sub-project 7b-3 (Field Scatter, the surface tint, the slice plane and the legend, the three theme roles `fieldLow`,
+`fieldMid` and `fieldHigh`, the acceptance test and `FieldBench` rows 3 and 4; plan
+`docs/superpowers/plans/2026-10-13-7b-3-scatter-previews.md`, spec `docs/superpowers/specs/2026-10-12-fields-design.md` §3.3, §6, §7
+and §8 and its Errata (7b-3)) code is done; its human checks (group FI) are pending and its benchmark numbers are recorded in
+`docs/verification/performance.md`.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -85,8 +91,9 @@ Module boundaries (dependency order):
 - `COCCT` + `CreatorOCCT`: the OpenCascade C shim and `OCCTKernel: Kernel` (topology tables, face tags carried through
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
   `*_free`; no C++ exception crosses into Swift. `occt_distances` (`cocct_distance.cpp`) measures points to a solid's faces,
-  picked faces or picked edges with `BRepExtrema_DistShapeShape` (to the faces, not the solid: OCCT answers 0 for a point
-  inside a solid) and signs a solid's distance with `BRepClass3d_SolidClassifier`, only for a point inside the solid's bounds; it
+  picked faces or picked edges: planes and cylinders bounded by lines and circle arcs by exact formulas (`cocct_distance_analytic.hpp`),
+  every other face with `BRepExtrema_DistShapeShape` (to the faces, not the solid: OCCT answers 0 for a point
+  inside a solid; `occt_distances_reference` is the Extrema-only path `DistanceFastPathTests` compares to at 1e-9) and signs a solid's distance with `BRepClass3d_SolidClassifier`, only for a point inside the solid's bounds; it
   shares the points out in blocks of 64 over OCCT's thread pool while `OCCTKernel.serialized` is held, and the caller's buffer
   is the output, so it allocates nothing to free. `OCCTKernel` calls it 1,024 points at a time, checking for cancellation between.
 - `CreatorGraph`: graph model, sockets, broadcasting, `Evaluator` (cached, cancellable), commands and undo,
@@ -149,8 +156,8 @@ Module boundaries (dependency order):
     the survivors in order, as a rank, and a `tree` socket gets the tree whole with its indices, which is how `InstanceGrid` reads
     them. Reshaping nodes (Flatten, Graft, Partition, Path Mapper) renumber, as reshaping does, and List Item, Branch by Path and
     Tree Statistics count a culled list's survivors by rank; Cull Index alone names the places items had.
-- `CreatorNodes`: the 65 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
-the thirteen `Fields` nodes below, the seventeen
+- `CreatorNodes`: the 66 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
+the fourteen `Fields` nodes below, the seventeen
   `Patterns` nodes below, and the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
   Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
   parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, cullPattern, cullIndices, image, and `projection(reference)` per projected edge) live in
@@ -231,8 +238,9 @@ the thirteen `Fields` nodes below, the seventeen
     would not decode in an older build, so 7b-1 refused it with `GroupRefusal.fieldSocket`, now gone). The distance cache counts the
     solids its entries keep alive. `FieldBench`
     (`Tests/CreatorAppTests/Bench`): rows 1 and 2 are the spec's (row 2's 100 ms is for analytic solids and gates the merge;
-    `field-2b` records a smooth loft); row 3 measures Sample Field and Cull by Field over 2,000 placements until Field Scatter
-    (7b-3) can be measured at the same size.
+    `field-2b` records a smooth loft); row 3 is Field Scatter over a face (`field-3b` keeps 7b-1's Sample Field and Cull by Field
+    over 2,000 placements); row 4 (`FieldBenchPreview`) is the edit to a tinted preview on the bracket. Timings taken on a loaded
+    Mac are recorded as saturated, never as a verdict.
   - Images (fields spec §5; plan `2026-10-13-7b-2-images`): the Image Field (`Fields/Sources/ImageFieldNode`) projects a picture along a
     plane (centred, `width` × `height` mm, row 0 at the plane's +y, Tile or Clamp, bilinear grey in 0…1) as `Field.image(GreyImage,
     plane:width:height:edges:)`. The picture is the node's `NodeSetting.image`, a `ConstantValue.image(ImageReference)`: `.embedded(ImageHash)`
@@ -253,10 +261,23 @@ the thirteen `Fields` nodes below, the seventeen
     dimension may not take), so one called "image" in an older file keeps working. The inspector's `.image` control makes a
     status line and the buttons that fit (Choose Image…, Link Image…, Relink…, Embed Image: `InspectorAction`s carried out by
     `AppModel.performImage`, which owns the panels); the clipboard carries the embedded pictures its nodes use.
+    Field Scatter (7b-3, `Using/FieldScatterNode`) is the layout node for density: `solid` (a picked flat face, the `face` setting, read
+    as Face Pattern reads it, holes and margin respected) or `profile` (exactly one), `field` (a number is a constant field),
+    `minSpacing`, `maxSpacing`, `margin` and `seed`. `PoissonScatter` is variable-radius Bridson sampling: rounds of candidates in
+    the annulus `r`…`2r` round each active point, the field asked once per round for all that survive the cheap tests, each active
+    point taking its first candidate at least its own spacing from every placed point, a new seed drawn when nothing is active (islands,
+    jumps in spacing), every draw `SeededRandom` under `Purpose.scatter`; the spacing at a point is
+    `minSpacing + clamp(field, 0, 1) × (maxSpacing − minSpacing)`, so no two points are closer than `minSpacing`. It makes one flat
+    list of placements on the region's plane in generation order, refuses over 2,000 ("Field Scatter would place N points; …", "more
+    than 8,000" when it stopped at its ceiling) and renumbers when the field, region or seed changes: a pick on a scattered instance
+    then warns "Instance {n} no longer exists". `InspectorControl.note(_:)` carries its help line, and the face menu's Scatter on Face
+    (`AppModel.scatterOnFace`, `FaceLayout`) inserts one wired to the part.
 - `CreatorStyle`: colour themes (spec §6.6, Dracula by default), the only place colour hex values are written.
   `ThemeColors` is a colour per role (never a hue); `ColorTheme` (not `Theme`: MetalUI exports one) has the built-ins
   `.dracula`, `.alucard` and `.nord` (read-only); `ThemeRole` names each role (`ThemeColors[role]`; the names are the
-  `.mctheme` keys; `ThemeRoleTests` pins them to the stored properties). `@MainActor @Observable ThemeStore` holds
+  `.mctheme` keys; `ThemeRoleTests` pins them to the stored properties). The field preview's ramp is three roles, `fieldLow`,
+  `fieldMid` and `fieldHigh` (group `ThemeRoleGroup.fieldPreview`, last in `ThemeRole.all`); a `.mctheme` without them reads
+  Dracula's. `@MainActor @Observable ThemeStore` holds
   `current`, `select(_:)` and the custom themes (`customs`: duplicate, rename, `setColor`, `setDark`, delete, import,
   export), saving each change to an injected `ThemeFolder` before showing it (`nil`: memory only, every test's; a colour
   picker's drag is the one exception: `previewColor` shows each sample and `saveColors()` writes once, driven by
@@ -299,6 +320,14 @@ the thirteen `Fields` nodes below, the seventeen
     `TextMeasure` (`ProposalText` in `.caption`) and pass it into the model calls that place labels and chips; a model test passes a
     fake measure, a view test the real one (`TextMeasure.real()` in each test target's `Support/TextMeasureSupport.swift`).
     There is no default measure and no fallback estimate. Every scroll or pinch event stops a camera animation started mid-gesture.
+    The field preview's half of the viewport knows numbers and colours only. A `ViewportItem` may carry `fieldValues` (one per vertex
+    of `ViewportModel.displayMesh(of:)`) and a `FieldRamp` (three colours at three values; `FieldRamp.color(at:)` is the Swift twin of
+    the shader's `field_ramp`): the renderer draws it with a second pipeline (`FieldShaders`: `field_mesh_*`, a float per de-indexed
+    corner in a buffer `GPUMesh` keeps until the values change, `GPUGeometry.fieldCorners`), lit like the plain surface, never on a
+    ghost, and wrong-sized values draw the plain surface. A `ViewportSlice` (`ViewportModel.showSlice`) is a translucent quad over the
+    scene showing a grid of values (`r32Float`, read with a bilinear blend in `slice_fragment`, kept by `SliceTextures` until its
+    `generation` changes); it is equal and hashed by `generation`, never by its values, is drawn ignoring depth (it passes through the
+    part) and is never in the ID pass or `sceneBounds`. The viewport's shader source is `ViewportShaders.source + FieldShaders.source`.
   - It depends on Kernel, Geometry, CreatorStyle and MetalUI only, never CreatorGraph. The app shell turns graph outputs into
     `ViewportItem`s and `HandleSpec`s into `ViewportHandle`s.
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
@@ -335,7 +364,8 @@ the thirteen `Fields` nodes below, the seventeen
   Fields show the same way: a socket carrying a field has a tooltip with its recipe cut to 80 characters (`Value.fieldSummary(limit:)`,
   "3 fields" for a list), and a node with a field output gets a last "Field" section (`InspectorRow.recipe`, which puts the text
   under its label so a long recipe wraps; `InspectorBuilder.fieldSection`). A field socket's dot borrows the Feature header colour
-  (`Palette.header(for: .fields)`) until the theme has a role of its own.
+  (`Palette.header(for: .fields)`) until the theme has a role of its own. A node's `InspectorControl.note(_:)` is a line of help
+  (Field Scatter's note on renumbering), shown as an `InspectorRow.recipe(label: "Note", …)`.
   The selection is `canvasSelection` (`CanvasSelection`: nodes and comments); `selection`
   is its nodes, and assigning it replaces the whole selection (selected comments too). Every gesture and key goes through
   `EditorModel+Selection` (`select(_:mode:)` with `SelectionMode`: none replaces, ⇧ adds, ⌘ toggles; `allItems`,
@@ -409,7 +439,23 @@ the thirteen `Fields` nodes below, the seventeen
   which never
   picks, frames or opens a menu; the face menu's Pattern on Face (`AppModel.patternOnFace`) inserts a Face Pattern
   holding the
-  face's pick, wired from the part. Inside a group `AppModel` reads the level through `editor.graph`/`levelResults`:
+  face's pick, wired from the part (Scatter on Face does the same for a Field Scatter; `FaceLayout` is what the two differ by).
+  The field preview (`AppModel.fieldPreview`, a `FieldPreviewModel` replaced with the document) follows the one selected Fields node:
+  `refreshScene()` hands it `fieldPreviewRequest(for:)` (`FieldPreviewSelection`: the field a node makes, or the first field wired
+  into one that takes a field; nothing while picking or sketching), tints the opaque items it has a tint for
+  (`tinted(_:colors:)`; `ViewportItem.drawsTheSame` compares tints), shows its slice (`viewportSlice(colors:)`) and appends the
+  slice's handle (`FieldPreviewModel.sliceHandleID`; `handleChanged` moves it as view state: no command, no undo step, not an edit).
+  Sampling runs off the main actor in two tasks, the tint (every shown solid's mesh vertices from `ViewportModel.displayMesh(of:)`)
+  and the slice grid (256² or, for a field that measures with the kernel, 64²: `SlicePose.resolution`), through the evaluator's
+  distance cache (`DocumentModel.fieldDistances`) so an orbit, a toggle or an edit downstream of a distance asks the kernel for
+  nothing; a newer request cancels the older and the old tint and slice stay until the new are ready; over 200,000 vertices a
+  deterministic subset is sampled and the rest take the nearest's value (`CoarseSampling`); a failed sampling is the kernel's own
+  words in the legend. The range is automatic, centred on 0 for a signed distance, or fixed 0…1 (`FieldPreviewRange`); the slice
+  starts shown, on the field's own plane (`Field.ownPlane`) or the axis plane nearest the camera (`SlicePose`). The legend
+  (`FieldLegendView` in `FieldLegendDock`, placed above the axis triad by `AppLayout.legendInsets`) draws the ramp, three numbers
+  with "mm" for a distance (`Field.unit`), the "0…1" toggle, the slice buttons and "Preview sampled coarsely". `Field` is `Hashable`
+  (a distance to a solid, faces or edges by `DistanceTarget.identity`), which is how the preview tells an edit from a repeat.
+  `settle()` also waits for the sampling. Inside a group `AppModel` reads the level through `editor.graph`/`levelResults`:
   Selected
   node previews the level's selected node, handles and picking work there, and a pick is written through
   `GraphContent.relativeToLevel` (Done and a viewport click drop a pick whose level is no longer the one shown); Final

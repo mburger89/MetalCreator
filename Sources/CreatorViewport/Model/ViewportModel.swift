@@ -43,6 +43,9 @@ public final class ViewportModel {
     public internal(set) var handles: [ViewportHandle] = []
     /// Lines and points the host draws over the scene (`showOverlay(_:)`): the sketch editor's geometry.
     public private(set) var overlay = ViewportOverlay()
+    /// The field slice drawn through the scene (`showSlice(_:)`), or `nil`. It is no part of the scene: it never picks, frames
+    /// or widens `sceneBounds`.
+    public private(set) var slice: ViewportSlice?
     public internal(set) var hovered: PickTarget?
     public internal(set) var hoveredCubeRegion: ViewCubeRegion?
     /// What the drag under way does, or `nil` between drags. It's written once at each press and release (never per
@@ -105,7 +108,7 @@ public final class ViewportModel {
         ViewportRenderKey(pose: pose, isAnimating: isAnimating, shading: shading, hovered: hovered,
                           hoveredCubeRegion: hoveredCubeRegion, sceneGeneration: sceneGeneration, handles: handles,
                           cube: cubeLayout, triad: triadLayout, palette: palette, overlay: overlay,
-                          showsViewCube: showsViewCube)
+                          showsViewCube: showsViewCube, slice: slice)
     }
 
     /// The union of every shown solid's bounds, ghosts included and guides left out.
@@ -159,6 +162,11 @@ public final class ViewportModel {
     /// The overlay to draw over the scene (the sketch editor's geometry and plane grid); an equal one changes nothing.
     public func showOverlay(_ newOverlay: ViewportOverlay) {
         if overlay != newOverlay { overlay = newOverlay }
+    }
+
+    /// The slice to draw through the scene, or `nil` for none. An equal slice (the same `generation`) changes nothing.
+    public func showSlice(_ newSlice: ViewportSlice?) {
+        if slice != newSlice { slice = newSlice }
     }
 
     /// Returns once the most recent `show(_:)` has finished loading.

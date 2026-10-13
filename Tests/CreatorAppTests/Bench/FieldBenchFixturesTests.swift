@@ -41,7 +41,21 @@ struct FieldBenchFixturesTests {
         #expect(abs(found[1] - 17) < 0.5 && abs(found[2] - 10) < 1e-6, "outside, beside the waist and above the top: \(found)")
     }
 
-    @Test func rowThreeIsTwoThousandPlacementsInFortyBranches() {
+    @Test func rowThreeIsAFaceThatFieldScatterFillsWithAboutTwoThousandPoints() async throws {
+        let (solid, pick) = try await FieldBenchFixtures.scatterPlate(OCCTKernel())
+        let placed = try await FieldScatterNode.evaluate(FieldBenchFixtures.scatterInputs(solid), kernel: FakeKernel(),
+                                                         context: FieldBenchFixtures.scatterContext(pick: pick))
+        let planes = (placed.trees["placements"]?.items ?? []).compactMap { scalar -> Plane? in
+            if case .plane(let plane) = scalar { plane } else { nil }
+        }
+        #expect(planes.count > 1_500 && planes.count <= 2_000, "\(planes.count) points")
+        #expect(planes.allSatisfy { abs($0.origin.z) < 1e-9 && abs($0.origin.x) <= 57 + 1e-6 && abs($0.origin.y) <= 57 + 1e-6 })
+        let denser = planes.filter { $0.origin.length < 20 }.count
+        #expect(Double(denser) / (Double.pi * 400) > Double(planes.count - denser) / (114 * 114 - Double.pi * 400),
+                "closer together near the middle, where the field is low")
+    }
+
+    @Test func rowThreeBIsTwoThousandPlacementsInFortyBranches() {
         let tree = FieldBenchFixtures.placements(rows: 40, columns: 50)
         #expect(tree.itemCount == 2000 && tree.depth == 2 && tree.leaves.count == 40)
     }

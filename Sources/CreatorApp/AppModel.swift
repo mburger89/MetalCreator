@@ -24,6 +24,9 @@ public final class AppModel {
     public private(set) var editor: EditorModel
     public private(set) var graphInput: GraphPanelInput
     public private(set) var viewport: ViewportModel
+    /// The field preview of the selected node (fields spec §6): the tint on the shown parts and the slice through them. It
+    /// belongs to the open document and is replaced with it; its toggles are view state, never saved.
+    private(set) var fieldPreview: FieldPreviewModel
     /// Where the document was last opened from or saved to; `nil` for a new one.
     public internal(set) var fileURL: URL?
     /// The graph and its group definitions as they were last opened or saved. The document is edited while they differ.
@@ -73,6 +76,7 @@ public final class AppModel {
         editor = parts.editor
         graphInput = parts.input
         viewport = parts.viewport
+        fieldPreview = Self.makeFieldPreview(kernel: kernel, parts: parts)
         self.fileURL = fileURL
         savedContent = GraphContent(graph: file.graph, definitions: file.definitions)
         connectParts()
@@ -92,10 +96,12 @@ public final class AppModel {
         sketch?.stop()
         sketch = nil
         previewMode = .final
+        fieldPreview.stop()
         document = parts.document
         editor = parts.editor
         graphInput = parts.input
         viewport = parts.viewport
+        fieldPreview = Self.makeFieldPreview(kernel: kernel, parts: parts)
         fileURL = url
         savedContent = GraphContent(graph: file.graph, definitions: file.definitions)
         requestedScene = []
@@ -113,7 +119,8 @@ public final class AppModel {
         repeat {
             await document.waitForEvaluation()
             if let sceneTask { await sceneTask.value }
-        } while document.isEvaluating || sceneTask != nil
+            await fieldPreview.waitForSampling()
+        } while document.isEvaluating || sceneTask != nil || fieldPreview.isSampling
         await viewport.waitForMeshes()
     }
 }

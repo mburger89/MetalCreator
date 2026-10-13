@@ -15,6 +15,7 @@ extension ColorTheme {
         axisX: HexColor(0xff5555), axisY: HexColor(0x50fa7b), axisZ: HexColor(0x8be9fd),
         sketchUnderConstrained: HexColor(0x8be9fd), sketchFullyConstrained: HexColor(0xf8f8f2),
         sketchConflicting: HexColor(0xff5555), sketchConstruction: HexColor(0x6272a4),
-        sketchProjected: HexColor(0xbd93f9)
+        sketchProjected: HexColor(0xbd93f9),
+        fieldLow: HexColor(0x8be9fd), fieldMid: HexColor(0xf1fa8c), fieldHigh: HexColor(0xff5555)
     ))
 }

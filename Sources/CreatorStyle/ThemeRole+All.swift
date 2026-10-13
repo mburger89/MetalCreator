@@ -39,5 +39,8 @@ extension ThemeRole {
         ThemeRole("sketchConflicting", "Conflicting", .sketcher, \.sketchConflicting),
         ThemeRole("sketchConstruction", "Construction", .sketcher, \.sketchConstruction),
         ThemeRole("sketchProjected", "Projected", .sketcher, \.sketchProjected),
+        ThemeRole("fieldLow", "Field low", .fieldPreview, \.fieldLow),
+        ThemeRole("fieldMid", "Field middle", .fieldPreview, \.fieldMid),
+        ThemeRole("fieldHigh", "Field high", .fieldPreview, \.fieldHigh),
     ]
 }

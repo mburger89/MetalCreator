@@ -32,6 +32,8 @@ struct SeededRandom: Sendable {
         case fieldNoise = 0x464E_6F69_7365_5F31
         /// Cull by Field, Probability: "FCull__1".
         case fieldCull = 0x4643_756C_6C5F_5F31
+        /// Field Scatter: "Scattr_1".
+        case scatter = 0x5363_6174_7472_5F31
     }
 
     private let start: UInt64

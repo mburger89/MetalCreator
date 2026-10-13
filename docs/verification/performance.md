@@ -185,8 +185,11 @@ where a located shape (`TopoDS_Shape::Moved`) would share it; measure before cha
 | `field-1` | a five-node field (a radial gradient, a remap, noise, a multiply, a clamp), no kernel distance, 10,000 points | under **5 ms** |
 | `field-2` | the signed distance from a 60 × 40 × 6 plate (R4 corners) to 10,000 points on OCCT, the first time and cached | first under **100 ms** (a gate: see below), cached about nothing |
 | `field-2b` | the same points against a smooth loft through three circles (B-spline faces), first | recorded, no budget |
-| `field-3` | Sample Field then Cull by Field (Probability) over 2,000 placements in 40 branches; stands in for Field Scatter's row (7b-3) at its size and budget | under **50 ms** |
-| `field-4` | the edit to a tinted preview on the bracket | 7b-3 |
+| `field-3` | Field Scatter on a 120 × 120 mm face with a radial-gradient field (spacing 1.4 to 2.4 mm, 3 mm margin): about 2,000 points (7b-3) | under **50 ms** |
+| `field-3b` | Sample Field then Cull by Field (Probability) over 2,000 placements in 40 branches (7b-1's stand-in for row 3, kept) | under **50 ms** |
+| `field-4` | the edit to a tinted preview on the bracket: a Remap of the signed distance to it selected and its range edited, to the frame (7b-3) | under **150 ms** (parent §7.3's edit-to-preview budget) |
+| `field-4b` | the same with a Radial Gradient (no kernel distance) | under **150 ms** |
+| `field-4c` | the first tint of the bracket by its signed distance (the kernel measures its mesh and the slice's grid) | recorded, no budget |
 
 **The 100 ms is for analytic solids.** The plate is planes and cylinders. A point against a smooth loft's B-spline faces cost about
 0.9 ms on a saturated machine (3,000 points took 2.7 s at a load of about 168), roughly forty times the plate's, so 10,000 points
@@ -207,31 +210,64 @@ and `aBatchGivesWhatEachPointGivesOnItsOwn` pins batch equals single on OCCT.
 
 **Fixture checks** run in a plain `swift test` (`FieldBenchFixturesTests`): row 1's field has five nodes and gives varied
 numbers in 0…1, the points are the same every time, row 2's plate and row 2b's loft give the right signed distances on OCCT, row
-3's tree is 2,000 placements in 40 branches.
+3's face gets about 2,000 points denser in the middle, row 3b's tree is 2,000 placements in 40 branches; `FieldBenchAppTests`
+checks row 4's bracket and field nodes (selecting a field tints the bracket and shows the slice, an edit changes the tint, and
+the Remap's edit asks the kernel for nothing new).
 
-**Results: not measured.** No `FieldBench` run has been taken during execution: the Mac was loaded (load averages above 180 when
-Task 11 was implemented), and a saturated run is no verdict either way (orchestrator ruling R3). The figures below come from the run
-that verified the plan, on a MacBookPro18,2 (10 cores, macOS 27.0.1) that other builds had saturated (load averages 120.51
-160.05 156.74 before, 136.45 162.56 160.51 after), so every number is an upper bound and none is a verdict:
+**Rows 3 and 4 (7b-3).** `field-3` calls `FieldScatterNode.evaluate` on the Fake kernel (the field has no kernel distance) over an
+OCCT plate's picked top face. `field-4`, `field-4b` and `field-4c` (`FieldBenchPreview`, fixture `FieldBenchApp`) drive the
+§7.2 bracket's app as `FilletDragBench` does: each step edits the selected field node to a value not seen before (the Remap's
+`fromHigh` 20.1 … 24 mm, the gradient's radius 40.5 … 60 mm), waits for `AppModel.settle()` (evaluation, scene, meshes, the tint's
+sampling over the bracket's vertices and the slice's grid) and draws the window's frame and both GPU passes. The slice is
+a 256 × 256 grid for a field with no kernel distance (`field-4b`) and 64 × 64 for one that measures a solid (`field-4`; 65,536 kernel distances would take
+seconds on OCCT); `field-4c` records what the first tint costs.
 
-```text
-BENCH field-1 five nodes × 10,000 points (no kernel): median 0.86 ms, p95 1.32 ms, max 2.31 ms (n 60); budget 5.00 ms: met
-BENCH field-2 signed distance to a plate × 10,000 points, first (OCCT): median 850.80 ms, p95 1081.93 ms, max 1133.94 ms (n 22); budget 100.00 ms: missed
-BENCH field-2 signed distance to a plate × 10,000 points, cached: median 4.18 ms, p95 74.11 ms, max 114.87 ms (n 22)
-BENCH field-3 Sample Field + Cull by Field × 2,000 placements: median 0.43 ms, p95 1.29 ms, max 1.57 ms (n 40); budget 50.00 ms: met
-```
+**Results.** Two runs of `scripts/bench.sh FieldBench` (release build, MacBookPro18,2, 10 cores, macOS 27.0.1); the raw lines are under Raw output. Idle means all three load averages under 3, and **neither run met
+that**: the first (7b-1, after lever 1) ran at load 4.16 3.69 4.95 before and 5.51 4.00 5.04 after; the second (7b-3) at 2.85 7.32
+10.89 before and 4.74 7.31 10.74 after, so its 1-minute load was under 3 but its 5- and 15-minute averages were not. Rows 1, 2, 2b and
+3b come from the first run; rows 3, 4, 4b and 4c from the second.
 
-**Row 2 (`field-2`) is unmeasured on an idle Mac, and it gates the merge.** The branch is not merged until an idle run
-(`scripts/bench.sh FieldBench`, all three load averages under 3) puts row 2's median under 100 ms and its lines replace the ones
-above. If it misses, pull the levers in this order, re-running after each: (1) a fast path for planar faces in the shim (a
-point-to-plane distance and a point-in-face test in place of `Extrema_ExtPS`; `DistanceConformanceTests` must still pass
-unchanged), (2) a coarser classifier tolerance, and then stop and ask the user (decision 13): the budget is not edited and a miss
-is not called met. Rows 1 and 3, idle, are expected well under their budgets; `field-2b` is recorded whatever it is.
+| Row | Median | p95 | max | n | Budget | Verdict |
+|---|---|---|---|---|---|---|
+| `field-1` | 0.64 ms | 0.66 ms | 0.77 ms | 60 | 5 ms | met |
+| `field-2`, first (OCCT) | 70.61 ms | 73.04 ms | 80.97 ms | 22 | 100 ms | met |
+| `field-2`, cached | 0.20 ms | 0.21 ms | 0.21 ms | 22 | none | n/a |
+| `field-2b`, first (OCCT, smooth loft) | 868.20 ms | 892.38 ms | 892.38 ms | 8 | none | recorded |
+| `field-3`, Field Scatter × about 2,000 points on a face | 46.41 ms | 47.17 ms | 47.59 ms | 22 | 50 ms | met |
+| `field-3b`, Sample Field then Cull by Field | 0.35 ms | 0.36 ms | 0.38 ms | 40 | 50 ms | met |
+| `field-4`, edit to a tinted bracket (Remap of the signed distance) | 31.70 ms | 36.88 ms | 480.13 ms | 40 | 150 ms | met |
+| `field-4b`, the same with a Radial Gradient | 34.71 ms | 36.12 ms | 61.04 ms | 40 | 150 ms | met |
+| `field-4c`, first tint of the bracket by its signed distance (kernel) | 572.60 ms | 572.60 ms | 572.60 ms | 1 | none | recorded |
 
-**Final review, 2026-10-13.** The gate is still open: the Mac never fell under load average 3 (45.48 38.63 69.51 at the last
-look, other sessions building), so no idle `FieldBench` run exists and the figures above remain upper bounds. The `field-2b` line is
-still missing for the same reason. Merge only after the idle run described above. The full suite was green (exit 0, no issues, 11
-"Test run with" lines, 3,407 tests) against `../MetalUI` at `0fb2ea6e` (PR #74), not the `7f891629` that R1 names.
+(The first run's log called row 3b `field-3`, the name it had in 7b-1; its raw line keeps that name.)
+
+**Watch `field-3`.** It sits 3.6 ms under its 50 ms budget, so it is the row most likely to flip on a slower or busier machine, and
+its numbers come from a run whose 5- and 15-minute load averages were not under 3.
+
+**`field-4c` is before the fast path.** The 7b-3 run was taken on a branch that did not yet have the analytic distance fast path
+(lever 1 below). The first tint measures the bracket's mesh and the slice's grid with the kernel, which the fast path should cut; the
+572.60 ms is the number without it, and `field-2`'s 585.37 ms to 70.61 ms drop is the size of change to expect. It has not been
+re-measured with the fast path.
+
+**Row 2 needed lever 1.** An idle run before it measured `field-2` at a median of 585.37 ms (p95 589.87, n 22; load before 2.85
+7.32 10.89), which missed the 100 ms gate. Lever 1 is the analytic fast path for planar and cylindrical faces in
+`Sources/COCCT/cocct_distance_analytic.hpp` (commits b3e6684, c3c2294 and ae5cb93). In a single-thread profile, `Extrema` on the six
+planar faces cost about 23 µs of the roughly 25 µs a point. After the change a point costs about 3.5 µs unsigned and 5.3 µs signed.
+Lever 2 (a coarser classifier tolerance) was not needed and was not pulled.
+
+**Row 2 after lever 1** measured 75.31 ms (machine saturated, load about 10 to 20), 75.33 ms (1-minute load 2.81, 5- and 15-minute
+11.16 and 15.21), and 70.61 ms (load 4.16 3.69 4.95 before, 5.51 4.00 5.04 after). The gate asked for all three load averages
+under 3, and no run reached that: other sessions kept the Mac busy. The gate is recorded as met on these runs anyway, because every run
+is under 100 ms by 25 ms or more, and the number barely moves between load 20 and load 4. A run with all three averages under 3 has
+not been taken.
+
+**Row 2b is slow, as expected.** The smooth loft's B-spline faces still go through `Extrema`, so 10,000 points take 868.20 ms. It has
+no budget and is recorded as it is.
+
+If a later run puts `field-3` over 50 ms, the levers, in the order to pull them and re-measure: (1) key the point grid by one packed
+`Int` instead of a hashed two-field struct (`PoissonScatter.Cell`), (2) fewer candidates per point (`candidatesPerPoint` 30 to 20,
+which loosens the packing a little and changes every scatter, so `FieldScatterNodeTests` and `FieldsAcceptanceTests` re-pin their
+counts), (3) stop and ask. The budget is not edited and a miss is not called met.
 
 ## Raw output
 
@@ -283,4 +319,32 @@ BENCH orbit-panel-left nodes built: all 20
 BENCH pan-50 window-cpu: median 26.63 ms, p95 28.83 ms, max 29.84 ms (n 120); budget 16.67 ms: missed
 BENCH zoom-50 window-cpu: median 26.53 ms, p95 29.86 ms, max 30.92 ms (n 120); budget 16.67 ms: missed
 BENCH orbit-panel-left window-cpu: median 15.96 ms, p95 18.01 ms, max 19.08 ms (n 100); budget 16.67 ms: met
+```
+
+The `FieldBench` run the Fields results come from (`scripts/bench.sh FieldBench`; the machine and load lines were not in the saved
+log and are copied from the run's notes, load before 4.16 3.69 4.95 and after 5.51 4.00 5.04):
+
+```text
+BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
+BENCH load before: 4.16 3.69 4.95
+BENCH field-1 five nodes × 10,000 points (no kernel): median 0.64 ms, p95 0.66 ms, max 0.77 ms (n 60); budget 5.00 ms: met
+BENCH field-2 signed distance to a plate × 10,000 points, first (OCCT): median 70.61 ms, p95 73.04 ms, max 80.97 ms (n 22); budget 100.00 ms: met
+BENCH field-2 signed distance to a plate × 10,000 points, cached: median 0.20 ms, p95 0.21 ms, max 0.21 ms (n 22)
+BENCH field-2b signed distance to a smooth loft × 10,000 points, first (OCCT): median 868.20 ms, p95 892.38 ms, max 892.38 ms (n 8)
+BENCH field-3 Sample Field + Cull by Field × 2,000 placements: median 0.35 ms, p95 0.36 ms, max 0.38 ms (n 40); budget 50.00 ms: met
+BENCH load after: 5.51 4.00 5.04
+```
+
+The 7b-3 `FieldBench` run (`scripts/bench.sh FieldBench`, taken before the distance fast path existed; every BENCH line of the saved log):
+
+```text
+BENCH field-1 five nodes × 10,000 points (no kernel): median 0.68 ms, p95 0.70 ms, max 0.72 ms (n 60); budget 5.00 ms: met
+BENCH field-2 signed distance to a plate × 10,000 points, first (OCCT): median 585.37 ms, p95 589.87 ms, max 592.60 ms (n 22); budget 100.00 ms: missed
+BENCH field-2 signed distance to a plate × 10,000 points, cached: median 0.21 ms, p95 0.23 ms, max 0.24 ms (n 22)
+BENCH field-2b signed distance to a smooth loft × 10,000 points, first (OCCT): median 857.71 ms, p95 863.63 ms, max 863.63 ms (n 8)
+BENCH field-3 Field Scatter × about 2,000 points on a face: median 46.41 ms, p95 47.17 ms, max 47.59 ms (n 22); budget 50.00 ms: met
+BENCH field-3b Sample Field + Cull by Field × 2,000 placements: median 0.35 ms, p95 0.38 ms, max 0.40 ms (n 40); budget 50.00 ms: met
+BENCH field-4c first tint of the bracket by its signed distance (kernel): median 572.60 ms, p95 572.60 ms, max 572.60 ms (n 1)
+BENCH field-4 edit to a tinted bracket preview (Remap of the signed distance): median 31.70 ms, p95 36.88 ms, max 480.13 ms (n 40); budget 150.00 ms: met
+BENCH field-4b edit to a tinted bracket preview (Radial Gradient): median 34.71 ms, p95 36.12 ms, max 61.04 ms (n 40); budget 150.00 ms: met
 ```

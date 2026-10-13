@@ -11,9 +11,12 @@
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Vertex.hxx>
 #include <gp_Ax1.hxx>
+#include <BRep_Tool.hxx>
+#include <TopLoc_Location.hxx>
 #include <gp_Trsf.hxx>
 #include <gp_Vec.hxx>
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 
@@ -137,6 +140,27 @@ occt_shape *occt_boolean(int op, const occt_shape *a, const occt_shape *const *t
         }
         records.move_into(history);
         return new occt_shape{result};
+    });
+}
+
+occt_shape *occt_test_located_copy(const occt_shape *shape, const double translation[3], double angle_z, occt_status *status) {
+    return guarded(status, [&]() -> occt_shape * {
+        gp_Trsf rotation;
+        rotation.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), angle_z);
+        gp_Trsf move;
+        move.SetTranslation(gp_Vec(translation[0], translation[1], translation[2]));
+        const TopLoc_Location location(move.Multiplied(rotation));
+        return new occt_shape{shape->shape.Moved(location)};
+    });
+}
+
+double occt_test_max_vertex_tolerance(const occt_shape *shape) {
+    return queried([&]() -> double {
+        double largest = 0;
+        for (TopExp_Explorer it(shape->shape, TopAbs_VERTEX); it.More(); it.Next()) {
+            largest = std::max(largest, BRep_Tool::Tolerance(TopoDS::Vertex(it.Current())));
+        }
+        return largest;
     });
 }
 

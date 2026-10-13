@@ -1,6 +1,6 @@
 /// What an Image Field does outside its picture's rectangle (fields spec §5). The raw value is the index of the inspector's
 /// segmented control, stored in an integer socket.
-public enum ImageEdges: Int, Sendable, CaseIterable {
+public enum ImageEdges: Int, Hashable, Sendable, CaseIterable {
     /// The picture repeats.
     case tile = 0
     /// The nearest edge pixel is held.

@@ -124,6 +124,7 @@ public enum InspectorBuilder {
                     results: [NodeID: NodeResult]) -> InspectorRow {
         guard let socket = control.socket else {
             if case .button(let title, let action) = control { return .button(title: title, action: action) }
+            if case .note(let text) = control { return .recipe(label: "Note", text: text) }
             return .readOnly(label: "", text: "")
         }
         let label = InspectorLabel.text(for: socket)

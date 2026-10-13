@@ -22,14 +22,16 @@ extension AppModel {
 
     /// "Selected node" previews the one selected node of the level shown; Final, or anything but one selected node, previews none,
     /// except that a selected layout node is always evaluated (Final preview shows its placements as an overlay,
-    /// `layoutOverlay`, even before anything is wired to it).
+    /// `layoutOverlay`, even before anything is wired to it), and so is a selected Fields node (its field tints the part and
+    /// lights the slice, `fieldPreview`).
     func applyPreview() {
         // Inside a group the document evaluates the whole level (`DocumentModel.inspectedLevel`), so the selected node
         // needs no demand of its own there.
         var wanted: NodeID?
         if editor.selection.count == 1, !editor.isInsideGroup, let selected = editor.selection.first {
             let isLayout = editor.graph.nodes[selected].map { LayoutPreview.layoutTypes.contains($0.typeID) } ?? false
-            wanted = previewMode == .selectedNode || isLayout ? selected : nil
+            let isField = editor.graph.nodes[selected].map { FieldPreviewSelection.previews($0, registry: registry) } ?? false
+            wanted = previewMode == .selectedNode || isLayout || isField ? selected : nil
         }
         if document.previewNode != wanted { document.previewNode = wanted }
     }
@@ -60,18 +62,20 @@ extension AppModel {
         }
         sources = Dictionary(scene.compactMap { entry in entry.source.map { (ObjectIdentifier(entry.item.solid), $0) } },
                              uniquingKeysWith: { first, _ in first })
-        let items = scene.map(\.item)
+        fieldPreview.follow(fieldPreviewRequest(for: scene))
+        let items = fieldPreview.tinted(scene.map(\.item), colors: themes.current.colors)
         if !ViewportItem.sameScene(items, requestedScene) {
             requestedScene = items
             viewport.show(items)
         }
         // The sketch editor draws its own overlay while a sketch is open; otherwise a selected layout node shows its placements.
         if sketch == nil { viewport.showOverlay(pick == nil ? layoutOverlay : ViewportOverlay()) }
+        viewport.showSlice(fieldPreview.viewportSlice(colors: themes.current.colors))
         let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
             : []
         handleTargets = Dictionary(handles.map { ($0.handle.id, $0.target) }, uniquingKeysWith: { first, _ in first })
-        let shownHandles = handles.map(\.handle)
+        let shownHandles = handles.map(\.handle) + (fieldPreview.sliceHandle.map { [$0] } ?? [])
         if viewport.handles != shownHandles { viewport.showHandles(shownHandles) }
     }
 
@@ -104,6 +108,7 @@ extension AppModel {
             _ = document.definitions
             _ = editor.enteredGroups
             _ = document.previewNode
+            _ = fieldPreview.revision
             _ = editor.selection
             _ = editor.dock
             _ = previewMode

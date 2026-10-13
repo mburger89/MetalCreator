@@ -16,6 +16,7 @@ extension AppModel {
         viewport.events.showProducingNode = { events()?.showProducingNode($0) }
         viewport.events.newSketchOnFace = { face, pick in events()?.newSketchOnFace(face, pick) }
         viewport.events.patternOnFace = { face, pick in events()?.patternOnFace(face, pick) }
+        viewport.events.scatterOnFace = { face, pick in events()?.scatterOnFace(face, pick) }
         viewport.events.handleChanged = { id, value, phase in events()?.handleChanged(id, value, phase) }
         viewport.events.nodeName = { id in events()?.producingNode(id)?.name }
         // The camera reaches the file only when it comes to rest, never per frame: writing `viewState` invalidates
@@ -36,6 +37,11 @@ extension AppModel {
     /// leaves the value as it is (a click on the knob without moving) records nothing, so it neither adds an undo
     /// step nor clears redo.
     func handleChanged(_ id: String, _ value: Double, _ phase: HandleDragPhase) {
+        // The field slice's handle moves view state, not the document: no command, no undo step, nothing to save.
+        if id == FieldPreviewModel.sliceHandleID {
+            fieldPreview.moveSlice(to: value)
+            return
+        }
         guard let target = handleTargets[id] else { return }
         if value != currentNumber(target) {
             do {

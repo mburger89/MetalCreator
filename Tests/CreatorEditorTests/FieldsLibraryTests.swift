@@ -21,7 +21,7 @@ struct FieldsLibraryTests {
         #expect(names == [
             "Distance Field", "Linear Gradient", "Radial Gradient", "Noise Field", "Image Field",
             "Add", "Multiply", "Min / Max", "Remap", "Clamp", "Smooth Blend",
-            "Sample Field", "Cull by Field",
+            "Sample Field", "Cull by Field", "Field Scatter",
         ])
     }
 
@@ -33,8 +33,8 @@ struct FieldsLibraryTests {
         #expect(found.last?.category == .fields)
     }
 
-    @Test func everyFieldNodeMakesAFieldExceptTheTwoThatUseOne() {
-        let users = ["Sample Field", "Cull by Field"]
+    @Test func everyFieldNodeMakesAFieldExceptTheThreeThatUseOne() {
+        let users = ["Sample Field", "Cull by Field", "Field Scatter"]
         for definition in BuiltInNodes.all where definition.category == .fields {
             let makesField = definition.outputs.contains { $0.type == .field }
             let takesField = definition.inputs.contains { $0.type == .field }

@@ -90,6 +90,9 @@ public final class DocumentModel {
     public var definitions: [GroupID: GroupDefinition] { content.definitions }
     /// The registry carrying this document's definitions, so group nodes have their sockets.
     public var registry: NodeRegistry { baseRegistry.withGroups(content.definitions) }
+    /// The evaluator's cache of kernel distances for fields (fields spec §2.2), shared with the field preview so a tint reuses
+    /// the distances a node measured.
+    public var fieldDistances: FieldDistanceCache { evaluator.fieldDistances }
 
     public var canUndo: Bool { undoStack.canUndo }
     public var canRedo: Bool { undoStack.canRedo }
