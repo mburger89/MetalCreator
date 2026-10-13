@@ -24,6 +24,8 @@ final class ViewportRenderer {
     var overlayBuffer: (key: OverlayBufferKey, buffer: any MTLBuffer, count: Int)?
     /// The overlay's fill triangles, kept until the fills or the palette change, and dropped once a frame has none.
     var fillBuffer: (key: FillBufferKey, buffer: any MTLBuffer, count: Int)?
+    /// The field slice's grid as a texture, kept until the slice's generation or size changes.
+    let sliceTextures = SliceTextures()
     /// The triad's instances, which depend only on the pixel scale and the palette: an orbit turns the widget's camera.
     var triadBuffer: (scale: Float, palette: ViewportPalette, buffer: any MTLBuffer, count: Int)?
     private let cube: ViewCubeResources
@@ -72,6 +74,7 @@ final class ViewportRenderer {
         drawEdges(frame, uniforms, scale: pixelScale, encoder)
         drawSolids(frame, ghosts: true, uniforms, encoder)
         drawGuides(frame, uniforms, scale: pixelScale, encoder)
+        drawSlice(frame, uniforms, encoder)
         drawOverlay(frame, uniforms, scale: pixelScale, encoder)
         if let handles = handleInstances(for: frame, scale: pixelScale) {
             drawLines(handles.buffer, count: handles.count, uniforms, depth: pipelines.depthAlways, style: Self.plainLines,

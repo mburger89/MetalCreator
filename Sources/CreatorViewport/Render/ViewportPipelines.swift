@@ -12,6 +12,8 @@ struct ViewportPipelines {
     let mesh: any MTLRenderPipelineState
     /// The surface coloured by a field's values (`field_mesh_*`).
     let fieldMesh: any MTLRenderPipelineState
+    /// The field slice's translucent quad: blended.
+    let slice: any MTLRenderPipelineState
     let ghost: any MTLRenderPipelineState
     /// The ghosts' depth-only prepass: no colour is written.
     let ghostDepth: any MTLRenderPipelineState
@@ -31,18 +33,20 @@ struct ViewportPipelines {
     /// A guide's edges behind the part: pass only where something nearer already wrote depth, without writing.
     let depthBehind: any MTLDepthStencilState
 
+    /// The shader function called `name` in `library`.
+    private static func function(_ name: String, in library: any MTLLibrary) throws -> any MTLFunction {
+        guard let function = library.makeFunction(name: name) else { throw ViewportRenderError.missingShader(name) }
+        return function
+    }
+
     init(device: any MTLDevice) throws {
         let library = try device.makeLibrary(source: ViewportShaders.source + FieldShaders.source, options: nil)
-        func function(_ name: String) throws -> any MTLFunction {
-            guard let function = library.makeFunction(name: name) else { throw ViewportRenderError.missingShader(name) }
-            return function
-        }
         func pipeline(_ vertex: String, _ fragment: String, color: MTLPixelFormat = Self.colorFormat,
                       samples: Int = Self.sampleCount, blended: Bool,
                       writesColor: Bool = true) throws -> any MTLRenderPipelineState {
             let descriptor = MTLRenderPipelineDescriptor()
-            descriptor.vertexFunction = try function(vertex)
-            descriptor.fragmentFunction = try function(fragment)
+            descriptor.vertexFunction = try Self.function(vertex, in: library)
+            descriptor.fragmentFunction = try Self.function(fragment, in: library)
             descriptor.colorAttachments[0].pixelFormat = color
             if !writesColor { descriptor.colorAttachments[0].writeMask = [] }
             descriptor.depthAttachmentPixelFormat = Self.depthFormat
@@ -71,6 +75,7 @@ struct ViewportPipelines {
         background = try pipeline("background_vertex", "background_fragment", blended: false)
         mesh = try pipeline("mesh_vertex", "mesh_fragment", blended: false)
         fieldMesh = try pipeline("field_mesh_vertex", "field_mesh_fragment", blended: false)
+        slice = try pipeline("slice_vertex", "slice_fragment", blended: true)
         ghost = try pipeline("mesh_vertex", "mesh_fragment", blended: true)
         ghostDepth = try pipeline("mesh_vertex", "mesh_fragment", blended: false, writesColor: false)
         line = try pipeline("line_vertex", "line_fragment", blended: true)

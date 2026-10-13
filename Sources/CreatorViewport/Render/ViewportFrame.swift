@@ -19,6 +19,8 @@ struct ViewportFrame {
     var overlay = ViewportOverlay()
     /// Whether the view cube is drawn (`ViewportModel.showsViewCube`: not while navigation is planar).
     var showsViewCube = true
+    /// The field slice (`ViewportModel.slice`).
+    var slice: ViewportSlice?
 
     /// Half the scene's diagonal (at least 1 mm), used for depth ranges.
     var sceneRadius: Double { sceneBounds.map { max($0.size.length / 2, 1) } ?? 1 }
