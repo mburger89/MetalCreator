@@ -1,6 +1,6 @@
 /// The headings the theme editor lists roles under, in `ThemeColors`' order.
 public enum ThemeRoleGroup: String, CaseIterable, Identifiable, Sendable {
-    case surfaces, text, interaction, nodes, status, model, widgets, sketcher
+    case surfaces, text, interaction, nodes, status, model, widgets, sketcher, fieldPreview
 
     public var id: String { rawValue }
 
@@ -15,6 +15,7 @@ public enum ThemeRoleGroup: String, CaseIterable, Identifiable, Sendable {
         case .model: "The model"
         case .widgets: "Viewport widgets"
         case .sketcher: "Sketcher"
+        case .fieldPreview: "Field preview"
         }
     }
 

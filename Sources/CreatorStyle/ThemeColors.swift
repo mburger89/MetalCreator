@@ -78,4 +78,11 @@ public struct ThemeColors: Hashable, Sendable {
     public var sketchConstruction: HexColor
     /// Geometry projected from the model.
     public var sketchProjected: HexColor
+
+    // The field preview (fields spec §6, D13): the ramp a field's value is drawn in on the part's surface, on the slice plane
+    // and in the legend, from its lowest value to its highest.
+    public var fieldLow: HexColor
+    /// The middle of the ramp: the range's midpoint, or 0 for a signed distance.
+    public var fieldMid: HexColor
+    public var fieldHigh: HexColor
 }
