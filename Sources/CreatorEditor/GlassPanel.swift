@@ -13,6 +13,7 @@ public struct GlassPanel<Body: ElementGroup>: Component {
     let surface: GlassSurface
     let body: Body
     @Environment(ThemeStore.self) var themes: ThemeStore?
+    @Environment(\.accessibilityReduceTransparency) var reducesTransparency
 
     public init(_ surface: GlassSurface, @ElementBuilder _ body: () -> Body) {
         self.surface = surface
@@ -21,7 +22,7 @@ public struct GlassPanel<Body: ElementGroup>: Component {
 
     public var content: some ElementGroup {
         let palette = Palette(themes)
-        let style = GlassStyle(themes: themes, surface: surface)
+        let style = GlassStyle(themes: themes, surface: surface, reducesTransparency: reducesTransparency)
         let shape = RoundedRectangle(cornerRadius: Pixels(10))
         return ZStack(alignment: .topLeading) { body }
             .padding(Edges(all: GraphPanelLayout.glassPadding.px))

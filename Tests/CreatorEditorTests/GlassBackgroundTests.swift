@@ -52,9 +52,10 @@ struct GlassBackgroundTests {
         #expect(dark.tint.l < light.tint.l, "dark grey beneath Dracula, light grey beneath Alucard")
     }
 
-    @Test func aStyleThatReducesTransparencyDrawsOnlyTheOpaqueTint() throws {
+    @Test func aStyleThatReducesTransparencyDrawsTheTintOpaque() throws {
+        // `renderFrame` cannot set Reduce Transparency (the environment value is MetalUI's alone to stamp), so the material
+        // is still a backdrop record here; that MetalUI turns it into a grey rect is `GlassReduceTransparencyWindowTests`.
         let scene = frame(GlassStyle(theme: .dracula, surface: .topBar, reducesTransparency: true))
-        #expect(scene.backdrops.isEmpty)
         let tint = try #require(tintRects(scene).first).background
         #expect(tintRects(scene).count == 1 && abs(tint.a - 1) < 0.01)
     }

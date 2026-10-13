@@ -6,6 +6,7 @@ import MetalUI
 struct InferenceChipView: Component {
     let chip: InferenceChip
     @Environment(ThemeStore.self) var themes: ThemeStore?
+    @Environment(\.accessibilityReduceTransparency) var reducesTransparency
 
     var content: some ElementGroup {
         let colors = SketchColors(themes)
@@ -14,7 +15,7 @@ struct InferenceChipView: Component {
             .font(.caption)
             .foregroundStyle(colors.inferred)
             .frame(width: Pixels(Float(chip.size.width)), height: Pixels(Float(chip.size.height)))
-            .glassBackground(GlassStyle(themes: themes, surface: .chip), in: shape)
+            .glassBackground(GlassStyle(themes: themes, surface: .chip, reducesTransparency: reducesTransparency), in: shape)
             .overlay { shape.strokeBorder(colors.hairline, lineWidth: Pixels(1)) }
             .offset(x: Pixels(Float(chip.origin.x)), y: Pixels(Float(chip.origin.y)))
     }
