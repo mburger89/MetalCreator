@@ -18,7 +18,7 @@ struct ThemeEditorPanel: Component {
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: Pixels(0)))
                 .onScrollWheel { _ in true }
-            GlassPanel {
+            GlassPanel(.themeEditor) {
                 VStack(alignment: .leading, spacing: ThemeEditorLayout.spacing.px) {
                     ThemeEditorHeader(model: model)
                     ThemeEditorControls(model: model)

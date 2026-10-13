@@ -200,7 +200,7 @@ Run `swift run GraphPanelPreview`.
 - [ ] **M5-2 Selection outline.** Click Extrude: it gets a 2-pt outline in *purple*, its own header colour, and no
   glow. Click Fillet: the outline is orange. Pinned: `selectionOutlineIsTheNodesOwnHeaderColour`. **Observed:**
 - [ ] **M5-3 Glass panels.** The panel and inspector are translucent dark with a faint 1-pt light hairline and rounded
-  corners, a flat tint with no blur (gap C10-a; check C10-1). **Observed:**
+  corners, over a blur of the viewport (gap C10-a, adopted with MetalUI C21; checks C21-1 to C21-3). **Observed:**
 - [ ] **M5-4 Wires.** Wires are smooth curves leaving outputs forwards and entering inputs forwards, coloured by the
   source socket (green from Rectangle, purple from Extrude, pink from All Edges). Socket dots use the same colours.
   Pinned: `WireGeometryTests`, `wiresRunBetweenTheirSocketAnchors`. **Observed:**
@@ -297,7 +297,7 @@ Run `swift run MetalCreatorApp` (or `swift run MetalCreatorApp path/to/file.mcgr
   isn't reachable from a test). Type "abc" into Width and press Tab: the field shows Width's value again, not
   "abc"; type Width's current value and press Tab: the field shows it formatted as before. **Observed:**
 - [ ] **M6-7 Layout.** The viewport fills the window; the top bar, graph panel and inspector float over it as glass
-  (a flat tint, no blur, gap C10-a). The view cube sits at the top-left of the uncovered area, right of the panel; the triad at its
+  (a blur of the viewport under the theme's tint, gap C10-a, group C21). The view cube sits at the top-left of the uncovered area, right of the panel; the triad at its
   bottom-left and "mm · grid" at its bottom-right, clear of the panels. Press Bottom, then Hide, then "Show graph":
   the cube, triad and label move with the panels. Drag the panel's inner edge (the faint strip): it resizes, within
   limits, and the cube follows. Pinned: `theViewportOverlaysMoveOutFromUnderThePanels`,
@@ -377,7 +377,7 @@ turning and for how things look. Run `swift run MetalCreatorApp`, and `swift run
 for C10-5.
 
 - [ ] **C10-1 Glass panels.** The top bar, graph panel and inspector are the theme's translucent fill with a faint 1-pt
-  hairline and rounded corners; the viewport shows through unblurred (there is no backdrop blur, gap C10-a). Switch
+  hairline and rounded corners; the viewport shows through blurred (MetalUI C21, group C21). Switch
   View ▸ Theme to Alucard and Nord: each panel takes that theme's glass colour (light in Alucard). In the theme editor change
   the Glass role's colour and opacity: every panel follows. Pinned: `GlassFillTests`. **Observed:**
 - [ ] **C10-2 Refusal shake.** Drag Number's output onto Extrude's profile input: Extrude jumps 6 points right, 6 left and
@@ -1403,3 +1403,45 @@ input away mid-gesture.
 - [ ] **C16-7 The panel's edge.** Drag the graph panel's inner edge, take the release away as in C16-5, come back and move the
   pointer: the panel doesn't follow it; a new drag of the edge starts from the panel's size. Pinned:
   `aPanelResizeWhoseReleaseWasLostEndsWhenAnotherElementIsPressed`. **Observed:**
+
+## Group C21 — MetalUI C21: the glass blur (Adopt C21)
+
+**Status: NOT RUN.** Plan `2026-10-12-adopt-c21.md`. Run `swift run MetalCreatorApp` on a Mac with a display, and open a document
+with a visible model (File > Open on a saved bracket, or the demo). The tests pin what a frame holds (one material record per
+panel, painted after the viewport's surface, under the theme's tint at the opacity `GlassStyle` computes: `GlassFillTests`,
+`GlassBackgroundTests`, `ChipGlassTests`, `GlassBlursViewportTests`); these checks are what only a screen shows: whether the
+blur is there and looks right over a moving viewport, how it reads at each thickness, how it costs (the system's Reduce
+Transparency, C21-5, waits on MetalUI). **MetalUI's own checks BB1 to BB6 are unrun**, so a fault here may be MetalUI's: run the same thing in
+MetalUI's demo (`METALUI_LOOKS_DEMO=1 swift run MetalUIDemo`, BB1 with a panel over the MetalView demo) before logging a gap. At
+Dracula's 86% glass the blur is faint by design (the role says the panel hides 86% of what is behind it); to see it plainly,
+lower the Glass role's opacity in the theme editor to about 40% for C21-1 and put it back.
+
+- [ ] **C21-1 The blur over a moving viewport.** With the top bar, graph panel and inspector showing, orbit, pan and zoom the
+  model: behind each panel the model, grid and gradient are blurred (soft, no edges), outside the panels the viewport stays
+  sharp; the panel's colour is the theme's tint, with the hairline. No tearing, no ghost of an earlier frame and no one-frame lag
+  between a panel and what it blurs (MetalUI BB2). Switch View > Theme to Alucard and Nord: the tint and the material go light in
+  Alucard, and each panel follows. Lower the Glass role's opacity in the theme editor: the blur shows more, and every panel
+  follows at once. Pinned: `GlassBlursViewportTests`, `GlassFillTests`. **Observed:**
+- [ ] **C21-2 Thickness and legibility.** Look at each surface: the top bar, graph panel, inspector, theme editor, pick banner (start a
+  pick), the Show graph button (hide the panel with Tab), the palette (Space over the canvas) and the sketch chips (draw a line in a
+  sketch: the readout chip and an inference chip). Every text is easy to read over a busy part of the model; the palette is
+  slightly stronger than the panels. Write down any surface that wants a thicker or thinner material (user decision 1 of the plan).
+  Pinned: `eachSurfaceHasTheThicknessTheDecisionGaveIt`. **Observed:**
+- [ ] **C21-3 Smoothness.** Orbit and pan with every panel showing, and again with the panels hidden (Tab, so no blur is drawn): the orbit
+  stays as smooth with the blur as without (spec §9 risk "the cost of glass blur over a continuously redrawing
+  `MetalView`"), also on a document with the 200-instance pattern. Note the GPU use in Activity Monitor for both. **Observed:**
+- [ ] **C21-4 The sketch chrome is still opaque to the pointer.** In a sketch, click in the gaps between the toolbar's buttons and on
+  an inspector label: nothing is drawn, the selection does not change, and the rubber band does not follow the pointer under the
+  panel (the material paints and takes no pointer, so the backdrop still does). Pinned: none (a pointer test through a material is
+  C21-4 alone). **Observed:**
+- [ ] **C21-5 Reduce Transparency (waits on MetalUI).** MetalUI does not honour the setting (gap C21-b, sent to the
+  MetalUI session 2026-10-12) and there is no stopgap here, so this check cannot run yet: the panels blur whatever System Settings >
+  Accessibility > Display says. Run it once MetalUI provides `\.accessibilityReduceTransparency` and the app adopts it. **Observed:** n/a
+- [ ] **C21-6 Glass over glass.** Open the palette over the graph panel, the theme editor over the inspector, and draw with a chip over a
+  panel: the upper glass blurs the lower (blurred twice, MetalUI BB3), stays legible and has clean edges. **Observed:**
+- [ ] **C21-7 Resize and docks.** Resize the window, move it between a Retina and a non-Retina display if you have one, drag the
+  graph panel's inner edge, and switch the dock (Left, Bottom, Hide): the blur follows with no stale or stretched blur and no
+  flash of an unblurred frame (MetalUI BB4). **Observed:**
+- [ ] **C21-8 Small glass.** The Show graph button and the chips are small: each blurs only its own box (MetalUI divergence 247), so
+  it reads as a soft frosted patch of the backdrop's average colour. Judge whether that reads as glass or as an odd flat patch; if
+  odd, the chips can go back to the flat tint (user decision 3 of the plan). **Observed:**

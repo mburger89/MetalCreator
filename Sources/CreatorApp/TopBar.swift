@@ -17,9 +17,9 @@ struct TopBar: Component {
     var content: some ElementGroup {
         let clearButtons = Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0), left: clearance)
         if let sketch = model.sketch {
-            SketchChrome { ZStack(alignment: .topLeading) { SketchToolbar(model: sketch.editor) }.padding(clearButtons) }
+            SketchChrome(.topBar) { ZStack(alignment: .topLeading) { SketchToolbar(model: sketch.editor) }.padding(clearButtons) }
         } else {
-            GlassPanel {
+            GlassPanel(.topBar) {
                 HStack(spacing: Pixels(10)) {
                     Text(model.isEdited ? "\(model.displayName) — Edited" : model.displayName)
                         .font(.headline)

@@ -18,7 +18,7 @@ struct SearchPaletteView: Component {
         let highlightedID = all.indices.contains(highlighted) ? all[highlighted].id : nil
         let size = PaletteLayout.size
         return ZStack(alignment: .topLeading) {
-            GlassPanel {
+            GlassPanel(.palette) {
                 VStack(alignment: .leading, spacing: PaletteLayout.spacing.px) {
                     TextField("Add node", text: model.palette?.query ?? "", onChange: { model.setPaletteQuery($0) })
                         .onSubmit { model.confirmPalette() }
