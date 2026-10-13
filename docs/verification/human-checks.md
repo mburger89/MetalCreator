@@ -1434,7 +1434,7 @@ lower the Glass role's opacity in the theme editor to about 40% for C21-1 and pu
   an inspector label: nothing is drawn, the selection does not change, and the rubber band does not follow the pointer under the
   panel (the material paints and takes no pointer, so the backdrop still does). Pinned: none (a pointer test through a material is
   C21-4 alone). **Observed:**
-- [ ] **C21-5 Reduce Transparency (waits on MetalUI).** MetalUI does not honour the setting (divergence 249, gap C21-b, sent to the
+- [ ] **C21-5 Reduce Transparency (waits on MetalUI).** MetalUI does not honour the setting (gap C21-b, sent to the
   MetalUI session 2026-10-12) and there is no stopgap here, so this check cannot run yet: the panels blur whatever System Settings >
   Accessibility > Display says. Run it once MetalUI provides `\.accessibilityReduceTransparency` and the app adopts it. **Observed:** n/a
 - [ ] **C21-6 Glass over glass.** Open the palette over the graph panel, the theme editor over the inspector, and draw with a chip over a

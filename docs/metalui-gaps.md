@@ -50,9 +50,9 @@ stopgap as they were. The sections below keep each gap's full use case.
 | S5-c | A `MetalView` draw can't draw text (world-anchored labels) | MetalUI session (with M4-b) | ⏳ reported 2026-10-09, sent to the MetalUI session |
 | M7-a | `ForEach` identity is an id's description | C20 | ✅ fixed by C20 (MetalUI master 5f35df6: identity by `Hashable` equality); nothing to adopt, the canvas's `\.id.rawValue` keys stay correct |
 | M7-b | No warm headless frame for measuring | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `TestWindow` warm frames and `FrameWork`), adopted for work counts (plan `2026-10-12-adopt-test-harness`): `WarmFrameTests`; the release benchmarks (`Bench`) still report cold-frame milliseconds until they are moved onto it |
-| C10-a | No backdrop blur behind a material | C21 (was C10-c) | ✅ fixed by C21 (MetalUI master d6a815c: a material blurs what MetalUI drew beneath it, GPU surfaces included; divergences 245 to 249), adopted (plan `2026-10-12-adopt-c21.md`): every glass panel is a material under the theme's tint (`GlassStyle`); human checks C21 pending |
+| C10-a | No backdrop blur behind a material | C21 (was C10-c) | ✅ fixed by C21 (MetalUI master d6a815c: a material blurs what MetalUI drew beneath it, GPU surfaces included; divergences 245 to 248), adopted (plan `2026-10-12-adopt-c21.md`): every glass panel is a material under the theme's tint (`GlassStyle`); human checks C21 pending |
 | C21-a | A `Material`'s tint opacity can't be read, so a theme's tint can't be sized against it | none yet | ⏳ found by the C21 adoption (plan `2026-10-12-adopt-c21.md`); sent to the MetalUI session 2026-10-12 |
-| C21-b | Reduce Transparency is neither readable by an app nor honoured by materials | MetalUI divergence 249 (a platform-services follow-up, none scheduled) | ⏳ found by the C21 adoption; sent to the MetalUI session 2026-10-12; no stopgap: panels blur whatever the setting says until MetalUI provides it |
+| C21-b | Reduce Transparency is neither readable by an app nor honoured by materials | MetalUI provides no `\.accessibilityReduceTransparency` (a platform-services follow-up, none scheduled) | ⏳ found by the C21 adoption; sent to the MetalUI session 2026-10-12; no stopgap: panels blur whatever the setting says until MetalUI provides it |
 | CM-a | `TextEditor` has no commit key (⌘↩ or `onSubmit`) | C9 | ✅ fixed by C9 (KF-Z/KF-AA: ⌘↩ is no editing key of a `TextEditor`, so an `onKeyPress` for it commits), adopted by the inspector's note box and the canvas editor (Comments typing plan) |
 | CT-a | A press outside every key region resigns no focus, and nothing asks it to without taking over key routing | C24 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan); C24 in progress (`feat/resign-on-press`, 2026-10-12) |
 | CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 (queued after C9; C9 is on MetalUI master 0a9eb36) | ⏳ reported 2026-10-10 (Comments typing plan), queued as C25 |
@@ -795,7 +795,7 @@ Labelled C10-a… so they don't clash with the labels above. Checked against Met
   content (the viewport is that, the desktop is not); 246 no saturation lift (a blurred backdrop is plainer than SwiftUI's);
   247 the blur region is the shape's bounding box (a small panel, a chip, blurs only what is in its own box, edge-clamped);
   248 a material inside `.shadow`, `.blur` or `.compositingGroup()` draws flat (no panel here uses them,
-  `aPanelHasNoImagesSoNothingIsRasterised`); 249 Reduce Transparency is not honoured (C21-b, no stopgap). MetalUI's own human checks
+  `aPanelHasNoImagesSoNothingIsRasterised`); Reduce Transparency is not honoured (C21-b, no stopgap). MetalUI's own human checks
   BB1 to BB6 are unrun; C21-1 and C21-3 are the first real-window sight of the blur over a viewport, and a result that
   looks like a MetalUI fault should be run against BB1 and BB2 in MetalUI's demo before it is logged here.
 

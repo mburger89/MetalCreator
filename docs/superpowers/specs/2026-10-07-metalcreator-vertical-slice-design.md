@@ -726,6 +726,6 @@ Plan `2026-10-10-7a-place.md`, patterns spec `2026-10-10-patterns-trees-design.m
   hides, so the tint's own opacity is `1 - (1 - glass) / (1 - material)` (Dracula's 86% over `.ultraThinMaterial` is a 72% tint).
   The "86%" in §6.6's table is the role's value; the pixels over it are the tint at about 72% over the material.
 - The thickness of each surface is `GlassSurface.thickness`: the thinnest material everywhere except the palette (one step thicker).
-- Reduce Transparency is not honoured (MetalUI divergence 249, gap C21-b, sent to the MetalUI session): panels blur whatever the setting says until MetalUI provides it.
+- Reduce Transparency is not honoured (gap C21-b, sent to the MetalUI session): panels blur whatever the setting says until MetalUI provides it.
 - MetalUI's limits stay visible: the blur sees only the window's own content (245), has no saturation lift (246), covers the shape's
   bounding box (247), and a material inside `.shadow`/`.blur`/`.compositingGroup()` is flat (248), which no panel uses.

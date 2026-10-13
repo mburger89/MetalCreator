@@ -22,7 +22,7 @@ theme's flat tint until MetalUI C21 gave materials a backdrop blur (next paragra
 MetalUI C21's backdrop blur is adopted (gap C10-a; plan `docs/superpowers/plans/2026-10-12-adopt-c21.md`; human checks group C21
 pending): every glass panel and sketch chip is a MetalUI material that blurs the viewport under the theme's `glass` tint
 (`GlassStyle` in `CreatorStyle`: `GlassSurface` picks the thickness, the tint's opacity is lowered so the pair hides what the
-role's opacity says, `GlassPanel(_ surface:)` and `glassBackground(_:in:)` draw it). Reduce Transparency is not honoured (MetalUI divergence 249, gap C21-b, sent to MetalUI; no stopgap here). `SketchChrome` keeps its opaque backdrop (a material paints, it takes no pointer).
+role's opacity says, `GlassPanel(_ surface:)` and `glassBackground(_:in:)` draw it). Reduce Transparency is not honoured (gap C21-b, sent to MetalUI; no stopgap here). `SketchChrome` keeps its opaque backdrop (a material paints, it takes no pointer).
 Themes (custom themes, `.mctheme` files, the theme editor) code is done; its human checks (group TH) are pending. Each role is edited with MetalUI C10's `ColorPicker` (plan Task 11).
 M7 (measure and record) code is done: spec §7.3's numbers are in `docs/verification/performance.md`, taken by the
 release benchmarks in `Tests/CreatorAppTests/Bench` (`scripts/bench.sh`); `docs/metalui-gaps.md` opens with a summary

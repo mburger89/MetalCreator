@@ -12,8 +12,8 @@ public struct GlassStyle: Hashable, Sendable {
     public let fill: HexColor
     /// Whether the theme is a dark one; the material's grey and the controls follow it.
     public let isDark: Bool
-    /// Reduce Transparency (divergence 249 in MetalUI: it does not honour the setting itself): no material, no blur, the
-    /// theme's colour fully opaque.
+    /// Reduce Transparency: no material, no blur, the theme's colour fully opaque. Wired and tested; nothing sets it yet; waits on
+    /// MetalUI providing `\.accessibilityReduceTransparency` (C21-b, sent to the MetalUI session 2026-10-12).
     public let reducesTransparency: Bool
 
     public init(theme: ColorTheme, surface: GlassSurface, reducesTransparency: Bool = false) {
