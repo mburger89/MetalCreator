@@ -74,10 +74,10 @@ struct CanvasTypingFocusWindowTests {
         #expect(app.editor.commentEdit != nil, "a press on the panel's glass resigns nothing (gap CT-a)")
         #expect(try app.window.focusedElement?.role == .textArea)
         app.window.typeText("more ")
-        #expect(app.editor.commentEdit?.draft.hasPrefix("Kept more ") == true)
+        #expect(app.editor.commentEdit?.draft.hasSuffix("Kept more ") == true)
         app.window.click(at: app.point(inCanvasView: Vector2(900, 120)))
         #expect(app.editor.commentEdit == nil)
-        #expect(app.editor.graph.stickies[fixture.note.id]?.text.hasPrefix("Kept more ") == true)
+        #expect(app.editor.graph.stickies[fixture.note.id]?.text.hasSuffix("Kept more ") == true)
     }
 
     /// Human check CT-2's swatch (decision D4 in the plan): the inspector's accent swatch is a model edit that does not end a canvas
@@ -93,10 +93,10 @@ struct CanvasTypingFocusWindowTests {
         try app.window.click(try #require(swatches.dropFirst().first))
         try await app.window.runUntilIdle()
         #expect(app.editor.graph.stickies[fixture.note.id]?.accent != fixture.note.accent, "the accent changed")
-        #expect(app.editor.commentEdit?.draft.hasPrefix("Sw ") == true, "and the edit is still open with its draft")
+        #expect(app.editor.commentEdit?.draft.hasSuffix("Sw ") == true, "and the edit is still open with its draft")
         app.window.click(at: app.point(inCanvasView: Vector2(900, 120)))
         #expect(app.editor.commentEdit == nil)
-        #expect(app.editor.graph.stickies[fixture.note.id]?.text.hasPrefix("Sw ") == true)
+        #expect(app.editor.graph.stickies[fixture.note.id]?.text.hasSuffix("Sw ") == true)
         app.editor.document.undo()
         #expect(app.editor.graph.stickies[fixture.note.id]?.text == "Line one" && app.editor.document.canUndo)
         app.editor.document.undo()
@@ -111,7 +111,7 @@ struct CanvasTypingFocusWindowTests {
         app.window.typeText("Vp ")
         app.window.click(at: Point(x: Pixels(700), y: Pixels(300)))
         #expect(app.editor.commentEdit == nil)
-        #expect(app.editor.graph.stickies[fixture.note.id]?.text.hasPrefix("Vp ") == true)
+        #expect(app.editor.graph.stickies[fixture.note.id]?.text.hasSuffix("Vp ") == true)
         #expect(try app.window.focusedElement == nil)
         #expect(app.editor.document.undoName == "Edit Note")
     }

@@ -23,27 +23,26 @@ extension ViewportModel {
         pointerUp(at: point)
     }
 
-    /// A drag MetalUI dropped without an end (a press that replaced it, a release it never saw: its `CI-AB` and
-    /// `IF-E`) tells its owner: `onCancelled`, from C16 (docs/metalui-gaps.md VI-a). The drag of `button` under way ends
-    /// where it was, as a release there would, so its mode, closed hand and settling don't outlive it. The edit is kept,
-    /// as one undo step (a sketch tool's drag is committed, a handle's edit ends): consistent with Esc on a move and with
-    /// a release, and it needs no revert path (user decision U4). Another button's drag, and a cancel with no drag under
-    /// way, change nothing.
+    /// A drag MetalUI dropped without an end (a press that replaced it, a release it never saw: its `CI-AB`, `IF-E` and,
+    /// for a primary press that finds the arena still pressing, `GC-C` of C26) tells its owner: `onCancelled`
+    /// (docs/metalui-gaps.md VI-a, VI-b). The drag of `button` under way ends where it was, as a release there would, so its
+    /// mode, closed hand and settling don't outlive it. The edit is kept, as one undo step (a sketch tool's drag is
+    /// committed, a handle's edit ends): consistent with Esc on a move and with a release, and it needs no revert path (user
+    /// decision U4). Another button's drag, and a cancel with no drag under way, change nothing.
     public func dragCancelled(button: ViewportPointerButton) {
         guard let state = drag, state.button == button else { return }
         pointerUp(at: state.last)
     }
 
-    /// Begins the drag a value belongs to. The drag under way ends first, where it was, when a primary value arrives:
-    /// - from another button's drag: MetalUI forms the primary arena on every primary press, apart from the button arena
-    ///   (`CI-F` item 3), so the primary button always gets its drag;
-    /// - from another press of the primary button: that drag's release must have been lost, and MetalUI tells nobody
-    ///   when the next press lands on the same element (its arena continues, failing the drag silently: gap VI-b). A
-    ///   right or middle drag MetalUI drops tells `dragCancelled(button:)` instead.
-    /// A right or middle value while another drag is under way is ignored, as MetalUI ignores that press (`CI-AA`
-    /// item 4).
+    /// Begins the drag a value belongs to. A primary value that arrives while another button's drag is under way ends that
+    /// drag first, where it was: MetalUI forms the primary arena on every primary press, apart from the button arena
+    /// (`CI-F` item 3), so the primary button always gets its drag. A right or middle value while another drag is under way
+    /// is ignored, as MetalUI ignores that press (`CI-AA` item 4).
+    ///
+    /// A primary drag whose release was lost never reaches here: the next primary press cancels its arena first
+    /// (`dragCancelled(button:)`, MetalUI C26: gap VI-b), so a primary drag under way means the same press is still going.
     private func beginDragIfNeeded(from start: ScreenPoint, modifiers: ViewportModifiers, button: ViewportPointerButton) {
-        if let state = drag, button == .primary, state.button != .primary || state.start != start {
+        if let state = drag, button == .primary, state.button != .primary {
             pointerUp(at: state.last)
         }
         if drag == nil { pointerDown(at: start, modifiers: modifiers, button: button) }
@@ -122,11 +121,11 @@ extension ViewportModel {
     /// is offered to the tool (`clickedModel`) and, unclaimed, reported. `modifiers` are the click's own, held at its
     /// press (MetalUI's `SpatialTapGesture.Value.modifiers`, C16: docs/metalui-gaps.md GI-a).
     ///
-    /// A drag still under way ends first, where it was: a click is a primary press and release, so a primary drag under
-    /// way lost its release (`beginDragIfNeeded`, gap VI-b), and the primary button wins over another. A drag MetalUI
-    /// dropped has been cancelled already (`dragCancelled(button:)`).
+    /// A right or middle drag still under way ends first, where it was: the primary button wins over another, as it does for
+    /// a drag value (`beginDragIfNeeded`). A primary drag cannot be under way: one whose release was lost has been
+    /// cancelled by this press (`dragCancelled(button:)`, MetalUI C26: gap VI-b).
     public func click(at point: ScreenPoint, modifiers: ViewportModifiers = []) {
-        if let state = drag { pointerUp(at: state.last) }
+        if let state = drag, state.button != .primary { pointerUp(at: state.last) }
         events.pressed()
         stopAnimation()
         if showsViewCube, cubeLayout.contains(point) {

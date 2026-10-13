@@ -420,3 +420,14 @@ Plan `2026-10-12-adopt-c16.md` (MetalUI C16: gaps S5-b, VI-a).
   second click on the same node, note or frame title that the platform counts 2 (`DragGesture.Value.clickCount`); the 0.4 s
   and 4 pt are gone, and the user's double-click speed decides (user decision U1 of the plan). Errata (C2) item 14's order
   (the click selects, then the double click acts) is unchanged.
+
+## Errata (C25 adoption)
+
+Plan `2026-10-12-adopt-c25.md` (MetalUI C25, master `3fce05f`: gap CT-b).
+
+- §8 Typing on the canvas, Errata (B: typing on the canvas) "The comment becomes the whole selection" is about the canvas
+  selection and is unchanged. The editor's own text selection is now set when it opens: a frame's title opens with all of its
+  text selected (typing replaces it, as a rename does) and a note opens with the caret at the end of its text (typing
+  appends); an empty text opens with the caret in it. Each edit opens afresh, whatever an earlier edit left. The field's
+  selection is view state like the draft (`CommentEdit.selection`): never undone, never saved, it writes nothing to the graph.
+  The inspector's fields are unchanged: they take their caret from the click that focuses them.

@@ -31,7 +31,8 @@ Canvas comments (sub-project B of the same spec, §7: sticky notes and comment f
 code is done; its human checks (group CM) are pending.
 Typing on the canvas (spec §8: a double click on a note or a frame's title bar edits it in place; plan
 `2026-10-10-comments-canvas-typing.md`; the graph's keys and text focus on MetalUI C9's key regions) code is done; its human
-checks (group CT) are pending.
+checks (group CT) are pending. The field opens with a frame's title all selected and a note's caret at its end (MetalUI C25,
+gap CT-b adopted by plan `2026-10-12-adopt-c25.md`; checks C25 pending).
 Groups C1 (model and evaluation, `docs/superpowers/specs/2026-10-09-selection-groups-comments-design.md` §4–§5) is done.
 Groups C2 (the editor, §6: entering a group, breadcrumbs, the + sockets, the group inspector, the library's Groups
 section, the viewport and the clipboard inside groups) code is done; its human checks (group GR) are pending.
@@ -290,10 +291,12 @@ the seventeen
   Typing on the canvas: `EditorModel.commentEdit` (`CommentEdit`) is the comment being edited in place, `commentEditor`
   (`CommentEditor`) where its field goes (a note's rectangle, a frame's title bar, in display canvas points). Its draft
   rides the model's one `pendingEntry` (`EditorModel+CommentEditing`: `beginEditing`, `commentDraftChanged`,
-  `commitCommentEdit`, `cancelCommentEdit`), so a canvas press, a selection or level change, hiding the panel, undo, save
+  `commitCommentEdit`, `cancelCommentEdit`, `commentSelectionChanged`), so a canvas press, a selection or level change, hiding the panel, undo, save
   and export commit it, as one `setNoteText` / `setFrameTitle` step (the inspector's own paths), and a field typed into
   elsewhere (`notePendingEntry`) commits it first. `CommentEditorLayer` draws the field (`CommentEditorField`: a
-  `TextEditor`, ⌘↩ commits, or a `TextField`, Return commits; Esc cancels; losing focus commits) under the canvas's own
+  `TextEditor`, ⌘↩ commits, or a `TextField`, Return commits; Esc cancels; losing focus commits; both bind
+  `CommentEdit.selection`, which `beginEditing` sets to the whole title or the end of the note, `Kind.openingSelection(in:)`,
+  and the field writes back, `commentSelectionChanged`; read it as Character offsets with `selectedOffsets`) under the canvas's own
   zoom and pan, as the sibling of `CanvasSurface`, the canvas's key region: never inside it, or the field's keys would
   reach the canvas's handler. Comment views draw no shadows and few rects (`StickyView`, `CommentFrameView`). Make Unique copies a definition's
   comments (`GroupCommands+MakeUnique`); Ungroup splices them into the level. ⌘A, arrows (one undo step per key-down run) and F act only while the
@@ -399,7 +402,8 @@ The viewport's pointer input is MetalUI C7's (spec §9): its bindings live in `V
 `contextMenuItems(at:)`, `scrolled(by:at:phase:)`, `pinchChanged`/`pinchEnded`, `cursor`), and `ViewportView` only forwards
 gesture values. MetalUI C16 adds a tap's modifiers, `onModifierKeysChanged` (⌘ over a still pointer reaches a tool through
 `ViewportTool.pointerMoved(to:modifiers:projector:)`: the sketch editor drops its inference while ⌘ is held), `onCancelled`
-on drags and pinches (a dropped gesture ends where it was; one gap is left, VI-b) and wheel latching. Its keys stay
+on drags and pinches (a dropped gesture ends where it was, a lost primary release too since MetalUI C26: the next press cancels it; one gap is left,
+VI-c, a plain pointer move doesn't) and wheel latching. Its keys stay
 window-wide stopgaps in `ViewportKeyBindings` until MetalUI scopes keys to an element (C9).
 Editor geometry is computed by `NodeLayout`, never measured; views are framed to it so
 drawing and hit testing agree. Node positions are stored left-to-right; the left dock draws their transpose.
