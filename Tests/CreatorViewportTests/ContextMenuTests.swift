@@ -37,8 +37,9 @@ struct ContextMenuTests {
         let cap = ViewportFaceRef(solidIndex: 0, face: FaceID(1))
         model.pick = { _ in .face(solid: 0, FaceID(1)) }
         let items = model.contextMenuItems(at: ScreenPoint(300, 200))
-        #expect(items.prefix(4).map(\.title) == ["Look At", "Select Edges of Face", "New Sketch on Face", "Pattern on Face"])
-        #expect(items.contains(.newSketchOnFace(cap)) && items.contains(.patternOnFace(cap)))
+        #expect(items.prefix(5).map(\.title)
+            == ["Look At", "Select Edges of Face", "New Sketch on Face", "Pattern on Face", "Scatter on Face"])
+        #expect(items.contains(.newSketchOnFace(cap)) && items.contains(.patternOnFace(cap)) && items.contains(.scatterOnFace(cap)))
         model.pick = { _ in .face(solid: 0, FaceID(2)) }
         #expect(!model.contextMenuItems(at: ScreenPoint(301, 200)).contains { item in
             if case .newSketchOnFace = item { true } else { false }
@@ -85,6 +86,19 @@ struct ContextMenuTests {
         #expect(reported.map(\.face) == [ref])
         #expect(reported.first?.pick == solid.topology.facePick(for: FaceID(1)))
         model.choose(.patternOnFace(ViewportFaceRef(solidIndex: 5, face: FaceID(1))))
+        #expect(reported.count == 1, "a face of a solid that is gone reports nothing")
+    }
+
+    @Test func choosingScatterOnFaceReportsTheFaceAndItsRememberedPick() async throws {
+        let solid = try await fakeBox()
+        let model = await model(showing: [solid])
+        var reported: [(face: ViewportFaceRef, pick: FacePick)] = []
+        model.events.scatterOnFace = { reported.append(($0, $1)) }
+        let ref = ViewportFaceRef(solidIndex: 0, face: FaceID(1))
+        model.choose(.scatterOnFace(ref))
+        #expect(reported.map(\.face) == [ref])
+        #expect(reported.first?.pick == solid.topology.facePick(for: FaceID(1)))
+        model.choose(.scatterOnFace(ViewportFaceRef(solidIndex: 5, face: FaceID(1))))
         #expect(reported.count == 1, "a face of a solid that is gone reports nothing")
     }
 
@@ -206,10 +220,10 @@ struct ContextMenuTests {
         let expected = sorted.map {
             $0 == nodeA ? "Show Producing Node (Extrude)" : "Show Producing Node (\(nodeB.description))"
         }
-        #expect(Array(titles.dropFirst(4)) == expected)
+        #expect(Array(titles.dropFirst(5)) == expected)
         var shown: [NodeID] = []
         model.events.showProducingNode = { shown.append($0) }
-        for item in model.contextMenuItems(at: ScreenPoint(300, 200)).dropFirst(4) { model.choose(item) }
+        for item in model.contextMenuItems(at: ScreenPoint(300, 200)).dropFirst(5) { model.choose(item) }
         #expect(shown == sorted)
     }
 

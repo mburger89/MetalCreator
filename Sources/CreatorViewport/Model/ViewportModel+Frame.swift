@@ -13,12 +13,12 @@ extension ViewportModel {
             frameItems.append(FrameItem(meshSerial: cached.serial, mesh: cached.mesh, solidIndex: index,
                                         isGhost: item.isGhost, hoveredFace: hoveredFace,
                                         selectedFaces: item.selectedFaces, selectedEdges: item.selectedEdges,
-                                        isGuide: item.isGuide))
+                                        isGuide: item.isGuide, fieldValues: item.fieldValues, fieldRamp: item.fieldRamp))
         }
         return ViewportFrame(pose: shown, size: viewSize, sceneBounds: sceneBounds, items: frameItems, shading: shading,
                              gridSpacing: gridSpacing(for: shown), handles: handles, cube: cubeLayout,
                              hoveredCubeRegion: hoveredCubeRegion, triad: triadLayout, palette: palette, overlay: overlay,
-                             showsViewCube: showsViewCube)
+                             showsViewCube: showsViewCube, slice: slice)
     }
 
     /// 1, 10 or 100 mm for this pose in this view.

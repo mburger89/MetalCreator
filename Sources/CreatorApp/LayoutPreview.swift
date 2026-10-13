@@ -5,12 +5,13 @@ import CreatorNodes
 import CreatorViewport
 
 /// What a selected layout node draws in the viewport (patterns spec §8): its placements as small axis triads (x, y and z in
-/// the theme's axis colours), and for Face Pattern the outline of the area it fills, dashed. It is an overlay, drawn over the
+/// the theme's axis colours), and for Face Pattern and Field Scatter on a face the outline of the area it fills, dashed. It is an overlay, drawn over the
 /// scene like the sketch editor's lines, so it never picks, frames the view or opens a menu (it is no part of the model).
 public enum LayoutPreview {
     /// The nodes whose placements are previewed.
     public static let layoutTypes: Set<String> = [
         LinearPatternNode.typeID, GridPatternNode.typeID, CircularPatternNode.typeID, CurvePatternNode.typeID, FacePatternNode.typeID,
+        FieldScatterNode.typeID,
     ]
 
     /// How long a triad's axes are when there is a single placement, in millimetres.
@@ -18,7 +19,7 @@ public enum LayoutPreview {
     /// A triad's axes are this much of the distance between neighbouring placements, so triads never touch.
     static let triadShare = 0.4
 
-    /// The overlay for `node`: its `placements` output as triads, with Face Pattern's clipped area. Empty for any other node,
+    /// The overlay for `node`: its `placements` output as triads, with the clipped area of a Face Pattern or Field Scatter. Empty for any other node,
     /// for one that has no good result, and for one with no placements.
     public static func overlay(for node: Node, graph: Graph, results: [NodeID: NodeResult]) -> ViewportOverlay {
         guard layoutTypes.contains(node.typeID), let result = results[node.id], result.state.isSuccess,
@@ -26,16 +27,17 @@ public enum LayoutPreview {
         let planes = value.items.compactMap { scalar -> Plane? in
             if case .plane(let plane) = scalar { plane } else { nil }
         }
-        var overlay = ViewportOverlay(lines: triads(of: planes))
-        if node.typeID == FacePatternNode.typeID {
+        let isScatter = node.typeID == FieldScatterNode.typeID
+        var overlay = ViewportOverlay(lines: triads(of: planes, length: isScatter ? scatterTriadLength(of: planes) : nil))
+        if node.typeID == FacePatternNode.typeID || isScatter {
             overlay.lines += clippedArea(of: node, graph: graph, results: results)
         }
         return overlay
     }
 
-    /// An x, y and z line for each placement.
-    static func triads(of planes: [Plane]) -> [OverlayLine] {
-        let length = triadLength(of: planes)
+    /// An x, y and z line for each placement, `length` long, or sized by the steps between placements.
+    static func triads(of planes: [Plane], length: Double? = nil) -> [OverlayLine] {
+        let length = length ?? triadLength(of: planes)
         return planes.flatMap { plane in
             [OverlayLine(plane.origin, plane.origin + plane.xAxis * length, tint: .axisX),
              OverlayLine(plane.origin, plane.origin + plane.yAxis * length, tint: .axisY),
@@ -52,8 +54,8 @@ public enum LayoutPreview {
         return nearest * triadShare
     }
 
-    /// The dashed outline of the area a Face Pattern fills: its solid and margin read the way the node reads them (from the
-    /// wire, else the typed value), its face the node's pick.
+    /// The dashed outline of the area a Face Pattern or Field Scatter fills: its solid and margin read the way the node reads
+    /// them (from the wire, else the typed value), its face the node's pick.
     static func clippedArea(of node: Node, graph: Graph, results: [NodeID: NodeResult]) -> [OverlayLine] {
         guard case .facePick(let pick)? = node.inputValues[NodeSetting.face],
               case .solid(let solid)? = input("solid", of: node, graph: graph, results: results)?.items.first else { return [] }
@@ -71,7 +73,7 @@ public enum LayoutPreview {
         if let link = graph.incomingLink(to: Endpoint(node: node.id, socket: socket)) {
             return results[link.from.node]?.outputs?[link.from.socket]
         }
-        let spec = FacePatternNode.inputs.first { $0.name == socket }
+        let spec = (node.typeID == FieldScatterNode.typeID ? FieldScatterNode.inputs : FacePatternNode.inputs).first { $0.name == socket }
         guard let constant = node.inputValues[socket] ?? spec?.defaultValue, let type = spec?.type else { return nil }
         return Scalar(constant)?.converted(to: type).map(Value.one)
     }

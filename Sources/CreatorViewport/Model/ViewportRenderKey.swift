@@ -19,4 +19,6 @@ public struct ViewportRenderKey: Hashable, Sendable {
     var overlay: ViewportOverlay
     /// Whether the view cube is drawn: entering or leaving planar navigation redraws.
     var showsViewCube: Bool
+    /// The field slice: moving it or changing its values redraws (equal by `generation`, so the numbers are not hashed).
+    var slice: ViewportSlice?
 }

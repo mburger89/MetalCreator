@@ -24,6 +24,8 @@ final class ViewportRenderer {
     var overlayBuffer: (key: OverlayBufferKey, buffer: any MTLBuffer, count: Int)?
     /// The overlay's fill triangles, kept until the fills or the palette change, and dropped once a frame has none.
     var fillBuffer: (key: FillBufferKey, buffer: any MTLBuffer, count: Int)?
+    /// The field slice's grid as a texture, kept until the slice's generation or size changes.
+    let sliceTextures = SliceTextures()
     /// The triad's instances, which depend only on the pixel scale and the palette: an orbit turns the widget's camera.
     var triadBuffer: (scale: Float, palette: ViewportPalette, buffer: any MTLBuffer, count: Int)?
     private let cube: ViewCubeResources
@@ -72,6 +74,7 @@ final class ViewportRenderer {
         drawEdges(frame, uniforms, scale: pixelScale, encoder)
         drawSolids(frame, ghosts: true, uniforms, encoder)
         drawGuides(frame, uniforms, scale: pixelScale, encoder)
+        drawSlice(frame, uniforms, encoder)
         drawOverlay(frame, uniforms, scale: pixelScale, encoder)
         if let handles = handleInstances(for: frame, scale: pixelScale) {
             drawLines(handles.buffer, count: handles.count, uniforms, depth: pipelines.depthAlways, style: Self.plainLines,
@@ -151,19 +154,20 @@ final class ViewportRenderer {
         var shade = ShadeUniforms(frame.palette)
         encoder.setFragmentBytes(&shade, length: MemoryLayout<ShadeUniforms>.stride, index: 2)
         if ghosts {
-            encoder.setRenderPipelineState(pipelines.ghostDepth)
             encoder.setDepthStencilState(pipelines.depthWrite)
-            drawMeshes(items, ghost: true, encoder)
+            drawMeshes(items, ghost: true, pipeline: pipelines.ghostDepth, encoder)
         }
-        encoder.setRenderPipelineState(ghosts ? pipelines.ghost : pipelines.mesh)
         encoder.setDepthStencilState(ghosts ? pipelines.depthTest : pipelines.depthWrite)
-        drawMeshes(items, ghost: ghosts, encoder)
+        drawMeshes(items, ghost: ghosts, pipeline: ghosts ? pipelines.ghost : pipelines.mesh, encoder)
     }
 
-    private func drawMeshes(_ items: [FrameItem], ghost: Bool, _ encoder: any MTLRenderCommandEncoder) {
+    /// Draws each item with `pipeline`, or with the field pipeline when it is an opaque item with a tint to show (fields spec §6).
+    private func drawMeshes(_ items: [FrameItem], ghost: Bool, pipeline: any MTLRenderPipelineState,
+                            _ encoder: any MTLRenderCommandEncoder) {
         for item in items {
             guard let gpu = meshes[item.meshSerial], let vertices = gpu.vertexBuffer else { continue }
             var draw = DrawUniforms(pickBase: 0, ghost: ghost ? 1 : 0, faceCount: UInt32(gpu.faceCount), padding: 0)
+            if ghost || !bindFieldTint(of: item, on: gpu, encoder) { encoder.setRenderPipelineState(pipeline) }
             encoder.setVertexBuffer(vertices, offset: 0, index: 0)
             encoder.setFragmentBytes(&draw, length: MemoryLayout<DrawUniforms>.stride, index: 0)
             bindFaceFlags(gpu, item, encoder)

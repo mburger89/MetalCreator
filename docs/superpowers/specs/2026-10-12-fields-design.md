@@ -254,3 +254,33 @@ as PNG and JPEG.
   plate's per point; `field-2b` records it without a budget.
 - **The distance cache (§2.2) counts the solids it keeps alive** (`Solid.estimatedBytes`) with its points and distances, so its
   64 MB bounds what it pins.
+
+## Errata (7b-3: Field Scatter and the previews)
+
+- **Field Scatter's region and margin (§3.3).** The inputs are `solid` (with the existing `face` setting) or `profile`, exactly one
+  of them, then `field`, `minSpacing`, `maxSpacing`, `margin` (default 3 mm, as Face Pattern's) and `seed`; §3.3 says "holes and a
+  `margin` respected" but lists no margin input. A profile's holes are respected as a face's are.
+- **Field Scatter's sampling (§3.3).** A point is placed only if it is at least its *own* spacing from every point placed before it
+  (not the larger of the two spacings), which keeps every pair at least `minSpacing` apart. A new seed is drawn whenever no point is
+  active, so islands the margin cuts off, and parts of the region a jump in the spacing puts out of the annuli's reach, are filled.
+  The search stops at 8,000 points so that the refusal can name the count: "Field Scatter would place 2,431 points; patterns are
+  limited to 2,000 instances." up to that, "… would place more than 8,000 points; …" beyond. An empty result is an error ("found no
+  room for a point"), never an empty list.
+- **Scatter on Face (§3.3).** A picked face is only ever made by a face-menu item (Face Pattern's "Pattern on Face"), so a Field
+  Scatter gets "Scatter on Face": it inserts the node holding the face's pick, wired from the part, as one undo step.
+- **The inspector's help (§4)** is a new `InspectorControl.note(_:)`, shown read-only under the node's controls.
+- **The slice grid (§6)** is 256 × 256 for a field with no kernel distance and 64 × 64 for one that measures a solid, faces or
+  edges: 65,536 kernel distances take seconds on OCCT, and the slice resamples on every step of its handle's drag.
+- **The slice is shown when a field node is selected (§6)** and is drawn over the part ignoring depth, because it passes through it
+  (a depth test would hide the half that lies inside the solid). Its handle moves view state, not the document: no command, no
+  undo step, the document is not edited.
+- **The tint is lit (§6):** the ramp colour is shaded by the same light as the plain surface (hover and selection blend in as
+  before), so the part's form still reads under it.
+- **The legend stands above the axis triad (§6)**, which already occupies the viewport's lower left, clear of the docked graph panel.
+  Its slice buttons are Plane (only when the field has a plane of its own), XY, YZ, XZ and Off.
+- **The three theme roles (§6)** are in a group of their own, "Field preview", last in the theme editor.
+- **`FieldBench` rows (§7).** Row 3 is Field Scatter on a face; 7b-1's Sample Field and Cull by Field row is kept as `field-3b`. Row
+  4 is `field-4` (a Remap of the bracket's signed distance), with `field-4b` (a Radial Gradient, no kernel) and `field-4c` (the
+  first tint, recorded). A timing taken on a loaded machine is recorded as saturated and is no verdict.
+- **A pick on a renumbered scattered instance (§8)** warns by the existing rule, "Instance {n} no longer exists, so the edge picked on
+  it isn't selected." (`FieldScatterPickTests`).

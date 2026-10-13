@@ -12,4 +12,7 @@ struct FrameItem {
     var selectedEdges: Set<EdgeID>
     /// Only the selected edges are drawn, over everything else (`ViewportItem.isGuide`).
     var isGuide = false
+    /// The field tint (`ViewportItem.fieldValues`, `fieldRamp`).
+    var fieldValues: [Float]?
+    var fieldRamp: FieldRamp?
 }

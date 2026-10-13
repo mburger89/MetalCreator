@@ -44,6 +44,14 @@ public enum AppLayout {
     /// Where "Show Producing Node" puts the node's top-left corner on the canvas, in canvas-local points.
     public static let revealPoint = Vector2(24, 24)
 
+    /// The field legend's room (fields spec §6): it stands at the model area's lower left like the axis triad, one gap above it
+    /// (the triad is 16 points from the model area's edges and 64 points square), so its left and bottom are the model
+    /// area's plus those. The top and trailing insets are 0.
+    public static func legendInsets(dock: DockSide, panelWidth: Double, panelHeight: Double) -> ViewportInsets {
+        let area = modelArea(dock: dock, panelWidth: panelWidth, panelHeight: panelHeight)
+        return ViewportInsets(top: 0, leading: area.leading + 16, bottom: area.bottom + 16 + TriadLayout().side + 12, trailing: 0)
+    }
+
     /// The part of the viewport the panels leave uncovered, for `ViewportModel.setModelArea(_:)`.
     public static func modelArea(dock: DockSide, panelWidth: Double, panelHeight: Double) -> ViewportInsets {
         let top = margin + topBarHeight

@@ -48,6 +48,7 @@ public struct AppRoot: Component {
                                bottom: Pixels(0), left: Pixels(0)))
             }
             if let session = model.sketch { PointerReadoutView(model: session.editor) }
+            FieldLegendDock(model: model)
             PaletteDock(model: model)
             LibraryDragOverlay(model: model.editor)
         }
