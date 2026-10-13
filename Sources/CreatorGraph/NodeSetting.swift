@@ -32,9 +32,17 @@ public enum NodeSetting {
     /// Cull Index: the indices and paths to take out, as `.text("1, 4, {0;3}")`; empty takes nothing out.
     public static let cullIndices: SocketName = "cullIndices"
 
+    /// Image Field: its picture, as `.image(ImageReference)` (fields spec §5). Absent until one is chosen.
+    public static let image: SocketName = "image"
+
     public static let all: Set<SocketName> = [
-        parameter, picks, showHandle, sketch, face, group, pathRule, branchPath, itemPath, cullPattern, cullIndices
+        parameter, picks, showHandle, sketch, face, group, pathRule, branchPath, itemPath, cullPattern, cullIndices, image
     ]
+
+    /// The setting names no group socket and no exposed Sketch dimension may use, because those nodes keep their settings beside
+    /// their inputs' values. `image` is left out on purpose: only Image Field has it, and a Sketch node or a group whose socket
+    /// is called "image" (a file made before 7b-2 may have one) keeps working exactly as it did.
+    public static let reservedForSockets: Set<SocketName> = all.subtracting([image])
 
     /// The start of every projection setting's name, which no exposed dimension may use.
     public static let projectionPrefix = "projection."

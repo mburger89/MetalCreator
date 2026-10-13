@@ -17,6 +17,8 @@ public enum ConstantValue: Hashable, Sendable {
     case sketch(Sketch)
     /// The face a Plane from Face node is on (sketcher spec §7). A setting, never a socket value.
     case facePick(FacePick)
+    /// An Image Field's picture, embedded or linked (fields spec §5). A setting, never a socket value.
+    case image(ImageReference)
 
     /// False for NaN or ±∞ anywhere. JSON can't store those, so commands reject them.
     public var isFinite: Bool {
@@ -25,14 +27,14 @@ public enum ConstantValue: Hashable, Sendable {
         case .vector(let vector): vector.isFinite
         case .plane(let plane): plane.origin.isFinite && plane.normal.isFinite && plane.xAxis.isFinite
         case .sketch(let sketch): sketch.isFinite
-        case .integer, .bool, .text, .edgePicks, .facePick: true
+        case .integer, .bool, .text, .edgePicks, .facePick, .image: true
         }
     }
 }
 
 extension ConstantValue: Codable {
     private enum CodingKeys: String, CodingKey { case type, value }
-    private enum Kind: String, Codable { case number, integer, bool, vector, plane, text, edgePicks, sketch, facePick }
+    private enum Kind: String, Codable { case number, integer, bool, vector, plane, text, edgePicks, sketch, facePick, image }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -46,6 +48,7 @@ extension ConstantValue: Codable {
         case .edgePicks: self = .edgePicks(try container.decode([EdgePick].self, forKey: .value))
         case .sketch: self = .sketch(try container.decode(Sketch.self, forKey: .value))
         case .facePick: self = .facePick(try container.decode(FacePick.self, forKey: .value))
+        case .image: self = .image(try container.decode(ImageReference.self, forKey: .value))
         }
     }
 
@@ -61,6 +64,7 @@ extension ConstantValue: Codable {
         case .edgePicks(let value): try container.encode(Kind.edgePicks, forKey: .type); try container.encode(value, forKey: .value)
         case .sketch(let value): try container.encode(Kind.sketch, forKey: .type); try container.encode(value, forKey: .value)
         case .facePick(let value): try container.encode(Kind.facePick, forKey: .type); try container.encode(value, forKey: .value)
+        case .image(let value): try container.encode(Kind.image, forKey: .type); try container.encode(value, forKey: .value)
         }
     }
 }
