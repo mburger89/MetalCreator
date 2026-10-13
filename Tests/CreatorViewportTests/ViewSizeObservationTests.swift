@@ -45,10 +45,12 @@ struct ViewSizeObservationTests {
                                           style: .radial, tint: .feature),
         ])
         let observer = Observer()
-        withObservationTracking { _ = model.handleLabels() } onChange: { MainActor.assumeIsolated { observer.changes += 1 } }
-        #expect(model.handleLabels().isEmpty, "no size yet")
+        withObservationTracking { _ = model.handleLabels(measuring: .fake) } onChange: {
+            MainActor.assumeIsolated { observer.changes += 1 }
+        }
+        #expect(model.handleLabels(measuring: .fake).isEmpty, "no size yet")
         model.recordViewSize(ViewportSize(width: 400, height: 300))
         #expect(observer.changes == 1, "the labels' reader is invalidated by the first size")
-        #expect(model.handleLabels().map(\.text) == ["R 3 mm"])
+        #expect(model.handleLabels(measuring: .fake).map(\.text) == ["R 3 mm"])
     }
 }

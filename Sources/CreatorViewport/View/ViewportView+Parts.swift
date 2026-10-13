@@ -3,20 +3,20 @@ import MetalUI
 extension ViewportView {
     /// The surface, the handle labels and the view cube's controls, which are hidden with the cube while navigation is
     /// planar (the renderer paints the cube's face names on it). The label loop is written inline: MetalUI's builder can't infer an opaque element returned by a helper
-    /// inside a `for` (docs/metalui-gaps.md gap M4-b).
+    /// inside a `for` (docs/metalui-gaps.md gap M4-b). `measure` sizes the labels' boxes to their text (gap S5-c).
     @MainActor
-    static func stack(model: ViewportModel) -> some Element {
+    static func stack(model: ViewportModel, measure: TextMeasure) -> some Element {
         ZStack(alignment: .topLeading) {
             surface(model: model)
-            for label in model.handleLabels() {
+            for label in model.handleLabels(measuring: measure) {
                 ProposalText(label.text)
                     .foregroundStyle(model.labelColor)
                     .font(.caption)
-                    .frame(width: Pixels(96), height: Pixels(18), alignment: .leading)
-                    .offset(x: Pixels(Float(label.position.x)), y: Pixels(Float(label.position.y - 9)))
+                    .frame(width: Pixels(Float(label.size.width)), height: Pixels(Float(label.size.height)), alignment: .leading)
+                    .offset(x: Pixels(Float(label.origin.x)), y: Pixels(Float(label.origin.y)))
                     .allowsHitTesting(false)
             }
-            for label in model.overlayLabels() {
+            for label in model.overlayLabels(measuring: measure) {
                 ProposalText(label.text)
                     .font(.caption)
                     .foregroundStyle(model.textColor(for: label.tint))
