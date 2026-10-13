@@ -137,7 +137,6 @@ extension EditorModel {
     /// nodes follow them). Returns the copies, to select, or `nil` if the graph refused or there was nothing to add.
     func insert(_ clipboard: NodeClipboard, offset: Vector2, named name: String) -> CanvasSelection? {
         guard !clipboard.isEmpty else { return nil }
-        for data in clipboard.images.values { document.addImage(data) }
         let merge = GroupMerge.plan(importing: clipboard.definitions, into: document.content)
         var mapping: [NodeID: NodeID] = [:]
         var commands: [GraphCommand] = []
@@ -169,6 +168,8 @@ extension EditorModel {
             // The definitions are added to the document, the nodes and comments to the level shown.
             try document.perform(.batch(merge.additions.map { .addDefinition($0) } + [GraphCommand.batch(commands).at(graphPath)]),
                                  name: name)
+            // The pictures the copies use join the document only once the paste took, so a refused paste leaves none behind.
+            for data in clipboard.images.values { document.addImage(data) }
             clearRefusal()
             return CanvasSelection(nodes: Set(mapping.values), comments: comments)
         } catch {

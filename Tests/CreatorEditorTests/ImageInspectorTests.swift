@@ -91,6 +91,16 @@ struct ImageInspectorTests {
         #expect(other.graph.nodes[copy]?.inputValues[NodeSetting.image] == .image(.embedded(hash)))
     }
 
+    @Test func aRefusedPasteAddsNoPictures() throws {
+        let hash = ImageHash(of: picture)
+        var node = imageField(.embedded(hash))
+        node.position = Vector2(.infinity, 0)  // the graph refuses a node that is not finite
+        let editor = makeEditor([], registry: registry)
+        editor.setClipboard(NodeClipboard(nodes: [node], links: [], images: [hash: picture]))
+        editor.paste()
+        #expect(editor.graph.nodes.isEmpty && editor.document.images.isEmpty, "nothing was pasted, so no picture was kept")
+    }
+
     @Test func aLinkedPictureTravelsAsItsPathAlone() throws {
         let node = imageField(.linked(relativePath: nil, absolutePath: "/x/y.png"))
         let editor = makeEditor([node], registry: registry)

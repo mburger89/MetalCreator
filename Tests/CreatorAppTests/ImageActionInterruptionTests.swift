@@ -50,4 +50,22 @@ struct ImageActionInterruptionTests {
         #expect(second.asked.isEmpty, "the second panel is never opened")
         #expect(app.document.images.count == 1 && app.document.images[ImageHash(of: picture)] == picture)
     }
+
+    @Test func aNewDocumentsImageButtonsWorkWhileAnOldDocumentsPanelIsStillOpen() async throws {
+        let (app, node) = await imageApp()
+        let file = try folder.write(picture, to: "vent.png")
+        let otherPicture = AppTestImages.png(level: 200)
+        let other = try folder.write(otherPicture, to: "other.png")
+        let second = ScriptedPicker([other])
+        let picker = InterruptedPicker(answer: file) {
+            app.newDocument()
+            #expect(app.editor.addNode(ImageFieldNode.typeID, atScreen: .zero))
+            guard let fresh = app.editor.graph.nodes.keys.first else { return }
+            await app.performImage(.chooseImage, on: fresh, using: second)
+        }
+        await app.performImage(.chooseImage, on: node.id, using: picker)
+        #expect(second.asked.count == 1, "the new document's panel opened although the old document's was pending")
+        #expect(app.document.images == [ImageHash(of: otherPicture): otherPicture], "only the new document's own answer was used")
+        #expect(app.alert == nil)
+    }
 }

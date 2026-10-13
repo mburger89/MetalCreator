@@ -29,10 +29,12 @@ extension AppModel {
     /// 8,192 px on a side, or not a PNG or JPEG, and the setting stays as it was (fields spec D10).
     public func performImage(_ action: InspectorAction, on node: NodeID, using picker: any FilePicker) async {
         editor.commitPendingEntry()
-        guard editor.graph.nodes[node] != nil, !isImageActionInFlight else { return }
-        isImageActionInFlight = true
-        defer { isImageActionInFlight = false }
+        let key = ObjectIdentifier(document)
+        guard editor.graph.nodes[node] != nil, !imageActionDocuments.contains(key) else { return }
+        imageActionDocuments.insert(key)
+        // The target holds the document until the action ends, so its identity cannot be reused meanwhile.
         let target = ImageTarget(document: document, path: editor.graphPath, levels: editor.levelPath, node: node)
+        defer { imageActionDocuments.remove(key) }
         do {
             switch action {
             case .chooseImage: try await chooseImage(target, using: picker)
