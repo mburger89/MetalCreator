@@ -210,6 +210,7 @@ extension GraphContent {
         }
         for sockets in [interface.inputs, interface.outputs] {
             if let problem = GroupNaming.problem(with: sockets) { throw .invalidValue(problem) }
+            if sockets.contains(where: { $0.type == .field }) { throw GroupRefusal.fieldSocket }
         }
     }
 }

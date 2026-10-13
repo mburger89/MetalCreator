@@ -5,6 +5,9 @@ public enum NodeCategory: String, Sendable, Codable, CaseIterable {
     case patterns
     /// Lists & Trees: the nodes that reshape, pick from and describe nested lists. Before `output`, which stays last.
     case lists
+    /// Fields (fields spec §3): values that vary over space, the maths that combines them and the nodes that sample them.
+    /// After Lists & Trees, before `output`.
+    case fields
     case output
 
     /// The name the node library shows: "Value", "Lists & Trees".

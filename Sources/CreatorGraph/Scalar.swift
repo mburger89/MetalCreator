@@ -12,6 +12,8 @@ public enum Scalar: Sendable {
     case solid(Solid)
     case edgeSet(EdgeSet)
     case faceSet(FaceSet)
+    /// A value that varies over space (fields spec §2.1). Never saved.
+    case field(Field)
 
     public var type: SocketType {
         switch self {
@@ -24,6 +26,7 @@ public enum Scalar: Sendable {
         case .solid: .solid
         case .edgeSet: .edgeSet
         case .faceSet: .faceSet
+        case .field: .field
         }
     }
 
@@ -45,6 +48,9 @@ public enum Scalar: Sendable {
         switch (self, target) {
         case (.integer(let value), .number): return .number(Double(value))
         case (.vector(let value), .plane): return .plane(.through(value))
+        // A number is a constant field (fields spec D4). Nothing converts back: a sampling node turns a field into numbers.
+        case (.number(let value), .field): return .field(.constant(value))
+        case (.integer(let value), .field): return .field(.constant(Double(value)))
         default: return nil
         }
     }
@@ -55,6 +61,7 @@ public enum Scalar: Sendable {
         case .profile(let profile): 64 + profile.segmentCount * 48
         case .edgeSet(let set): 32 + set.edges.count * 8
         case .faceSet(let set): 32 + set.faces.count * 8
+        case .field(let field): field.estimatedBytes
         case .number, .integer, .bool, .vector, .plane: 32
         }
     }

@@ -92,4 +92,9 @@ public struct NodeInputs: Sendable {
         guard case .edgeSet(let value) = try scalar(name) else { throw NodeError.typeMismatch(name, expected: .edgeSet) }
         return value
     }
+
+    public func field(_ name: SocketName) throws -> Field {
+        guard case .field(let value) = try scalar(name) else { throw NodeError.typeMismatch(name, expected: .field) }
+        return value
+    }
 }
