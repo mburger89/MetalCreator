@@ -116,10 +116,15 @@ extension EditorModel {
         let ids = Set(nodes.map(\.id))
         let links = graph.links.filter { ids.contains($0.from.node) && ids.contains($0.to.node) }
         let comments = items.comments.sorted()
-        return NodeClipboard(nodes: nodes, links: links,
-                             definitions: GroupMerge.definitions(used: nodes, in: document.content),
+        let definitions = GroupMerge.definitions(used: nodes, in: document.content)
+        var hashes = Set(nodes.flatMap { $0.inputValues.values.compactMap { value -> ImageHash? in
+            if case .image(.embedded(let hash)) = value { hash } else { nil }
+        } })
+        for definition in definitions.values { hashes.formUnion(definition.graph.embeddedImageHashes) }
+        return NodeClipboard(nodes: nodes, links: links, definitions: definitions,
                              stickies: comments.compactMap { graph.stickies[$0] },
-                             frames: comments.compactMap { graph.frames[$0] })
+                             frames: comments.compactMap { graph.frames[$0] },
+                             images: document.images.filter { hashes.contains($0.key) })
     }
 
     /// Whether `id` is Group Input or Group Output of the level shown.
@@ -132,6 +137,7 @@ extension EditorModel {
     /// nodes follow them). Returns the copies, to select, or `nil` if the graph refused or there was nothing to add.
     func insert(_ clipboard: NodeClipboard, offset: Vector2, named name: String) -> CanvasSelection? {
         guard !clipboard.isEmpty else { return nil }
+        for data in clipboard.images.values { document.addImage(data) }
         let merge = GroupMerge.plan(importing: clipboard.definitions, into: document.content)
         var mapping: [NodeID: NodeID] = [:]
         var commands: [GraphCommand] = []

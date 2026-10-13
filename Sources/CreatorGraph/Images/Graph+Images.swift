@@ -12,7 +12,7 @@ extension Graph {
     }
 
     /// The hash of every embedded image a node of this graph points at.
-    var embeddedImageHashes: Set<ImageHash> {
+    public var embeddedImageHashes: Set<ImageHash> {
         var hashes: Set<ImageHash> = []
         for node in nodes.values {
             for value in node.inputValues.values {

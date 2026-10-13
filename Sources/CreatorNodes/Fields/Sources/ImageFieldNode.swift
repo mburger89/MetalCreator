@@ -18,6 +18,7 @@ public enum ImageFieldNode: NodeDefinition {
     ]
     public static let outputs = [SocketSpec("field", .field)]
     public static let inspector = [
+        InspectorSection(title: "Image", controls: [.image(NodeSetting.image)]),
         InspectorSection(title: "Projection", controls: [
             .planePicker("plane"), .slider("width"), .slider("height"), .segmented("edges", options: ImageEdges.options),
         ]),

@@ -15,5 +15,8 @@ public enum InspectorControl: Sendable, Equatable {
     /// A line of text for a `.text` setting (the Path Mapper's rule, Branch by Path's path), committed on Return or when
     /// the field loses focus.
     case text(SocketName)
+    /// An image setting's picture (the Image Field's `NodeSetting.image`): what it is (embedded or linked) and the buttons that
+    /// choose, link, relink and embed it, which depend on that (fields spec §5).
+    case image(SocketName)
     case button(title: String, action: InspectorAction)
 }

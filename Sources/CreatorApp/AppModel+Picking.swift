@@ -24,6 +24,8 @@ extension AppModel {
                 return
             }
             beginSketch(for: request.node)
+        case .chooseImage, .linkImage, .relinkImage, .embedImage:
+            break  // The image buttons need the window's file panels; Task 9 of the 7b-2 plan carries them out.
         case .editGroup, .makeUnique, .ungroup:
             break  // The graph panel carries these out itself (`EditorModel.press`); they are never recorded.
         }

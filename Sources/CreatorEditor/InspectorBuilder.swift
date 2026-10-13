@@ -28,9 +28,8 @@ public enum InspectorBuilder {
             ? fallbackSections(inputs)
             : definition.inspector + fallbackSections(inputs.filter { !fixed.contains($0.name) })
         var sections = declared.map { section in
-            InspectorSectionRows(title: section.title, rows: section.controls.map {
-                row(for: $0, node: node, inputs: inputs, outputs: registry.outputs(for: node), graph: graph,
-                    results: results)
+            InspectorSectionRows(title: section.title, rows: section.controls.flatMap {
+                rows(for: $0, node: node, inputs: inputs, outputs: registry.outputs(for: node), graph: graph, results: results)
             })
         }
         if let data = dataSection(node: node, graph: graph, registry: registry, results: results, expanded: expandedShapes) {
@@ -91,6 +90,34 @@ public enum InspectorBuilder {
             }
         }
         return controls.isEmpty ? [] : [InspectorSection(title: "Inputs", controls: controls)]
+    }
+
+    /// The rows one control makes: one, except an image control, which is a line saying what the picture is and the buttons
+    /// that fit it.
+    static func rows(for control: InspectorControl, node: Node, inputs: [SocketSpec], outputs: [SocketSpec], graph: Graph,
+                     results: [NodeID: NodeResult]) -> [InspectorRow] {
+        if case .image(let setting) = control { return imageRows(setting, node: node) }
+        return [row(for: control, node: node, inputs: inputs, outputs: outputs, graph: graph, results: results)]
+    }
+
+    /// An image setting's rows (fields spec §5): "No image chosen", "Embedded · a1b2c3d4" or "Linked · vent-mask.png", then
+    /// the buttons for that state. An embedded picture is shown by the start of its hash, which is all it has for a name.
+    static func imageRows(_ setting: SocketName, node: Node) -> [InspectorRow] {
+        let reference: ImageReference? = if case .image(let stored)? = node.inputValues[setting] { stored } else { nil }
+        let status: String
+        let buttons: [(title: String, action: InspectorAction)]
+        switch reference {
+        case nil:
+            status = "No image chosen"
+            buttons = [("Choose Image…", .chooseImage), ("Link to File…", .linkImage)]
+        case .embedded(let hash)?:
+            status = "Embedded · \(hash.short)"
+            buttons = [("Choose Image…", .chooseImage), ("Link Image…", .linkImage)]
+        case .linked?:
+            status = "Linked · \(reference?.fileName ?? "")"
+            buttons = [("Relink…", .relinkImage), ("Embed Image", .embedImage)]
+        }
+        return [.readOnly(label: "Image", text: status)] + buttons.map { .button(title: $0.title, action: $0.action) }
     }
 
     static func row(for control: InspectorControl, node: Node, inputs: [SocketSpec], outputs: [SocketSpec], graph: Graph,
