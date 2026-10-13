@@ -71,7 +71,7 @@ struct ContinuingPressCancelWindowTests {
 
     /// Gap VI-c: MetalUI cancels a button arena at the pointer's next plain move (`IF-F` item 3) but not the primary arena (its
     /// ruling `GC-C` leaves the bare move alone, as SwiftUI does), so a lost primary release leaves the drag, its closed hand and
-    /// its unsettled camera in place until the next press ends them. When MetalUI cancels on the move, invert this.
+    /// its unsettled camera in place until the next press ends them. Accepted (gap VI-c) and pinned here.
     @Test func aPlainMoveDoesntEndALostPrimaryDragOnlyTheNextPressDoes() async throws {
         let app = try await AppWindow.open()
         let viewport = app.model.viewport
