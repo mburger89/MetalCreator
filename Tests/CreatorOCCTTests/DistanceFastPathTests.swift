@@ -80,8 +80,10 @@ struct DistanceFastPathTests {
             .line(Vector2(-20, -5), Vector2(-14, -5)), .line(Vector2(-14, -5), Vector2(-14, 4)),
             .line(Vector2(-14, 4), Vector2(-20, 4)), .line(Vector2(-20, 4), Vector2(-20, -5)),
         ]
-        let shape = try await plate(OCCTKernel(), holes: [circleLoop(at: Vector2(10, 5), radius: 3), rectangle,
-                                                    circleLoop(at: Vector2(24, -14), radius: 2)])
+        let shape = try await plate(OCCTKernel(), holes: [
+            circleLoop(at: Vector2(10, 5), radius: 3), rectangle,
+            circleLoop(at: Vector2(24, -14), radius: 2),
+        ])
         try expectAgreement(shape, grid(x: -36...36, y: -26...26, z: -3...9, step: 1), signed: signed)
         var rings: [Vector3] = []
         // Points in a ring round the round hole's rim, projecting just inside and just outside its edge.

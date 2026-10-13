@@ -82,8 +82,9 @@ Module boundaries (dependency order):
 - `COCCT` + `CreatorOCCT`: the OpenCascade C shim and `OCCTKernel: Kernel` (topology tables, face tags carried through
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
   `*_free`; no C++ exception crosses into Swift. `occt_distances` (`cocct_distance.cpp`) measures points to a solid's faces,
-  picked faces or picked edges with `BRepExtrema_DistShapeShape` (to the faces, not the solid: OCCT answers 0 for a point
-  inside a solid) and signs a solid's distance with `BRepClass3d_SolidClassifier`, only for a point inside the solid's bounds; it
+  picked faces or picked edges: planes and cylinders bounded by lines and circle arcs by exact formulas (`cocct_distance_analytic.hpp`),
+  every other face with `BRepExtrema_DistShapeShape` (to the faces, not the solid: OCCT answers 0 for a point
+  inside a solid; `occt_distances_reference` is the Extrema-only path `DistanceFastPathTests` compares to at 1e-9) and signs a solid's distance with `BRepClass3d_SolidClassifier`, only for a point inside the solid's bounds; it
   shares the points out in blocks of 64 over OCCT's thread pool while `OCCTKernel.serialized` is held, and the caller's buffer
   is the output, so it allocates nothing to free. `OCCTKernel` calls it 1,024 points at a time, checking for cancellation between.
 - `CreatorGraph`: graph model, sockets, broadcasting, `Evaluator` (cached, cancellable), commands and undo,

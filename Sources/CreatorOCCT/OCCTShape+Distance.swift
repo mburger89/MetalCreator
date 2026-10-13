@@ -29,7 +29,7 @@ extension OCCTShape {
                                  UnsafeMutablePointer<Double>?, UnsafeMutablePointer<occt_status>?) -> Int32
 
     private func run(from points: ArraySlice<Vector3>, kind: DistanceKind, indices: [Int32], signed: Bool,
-                         call: Measure) throws(OCCTError) -> [Double] {
+                     call: Measure) throws(OCCTError) -> [Double] {
         guard !points.isEmpty else { return [] }
         var coordinates: [Double] = []
         coordinates.reserveCapacity(points.count * 3)
