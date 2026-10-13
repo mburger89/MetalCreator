@@ -1,5 +1,6 @@
 import CreatorEditor
 import CreatorSketchEditor
+import CreatorStyle
 import MetalUI
 
 /// The context inspector, contributing the `AppKeyContext.panel` key context so the viewport's F, + and − type
@@ -11,7 +12,7 @@ struct InspectorDock: Component {
     var content: some ElementGroup {
         Stack(alignment: .topLeading) {
             if let sketch = model.sketch {
-                SketchChrome { SketchInspector(model: sketch.editor) }
+                SketchChrome(.inspector) { SketchInspector(model: sketch.editor) }
             } else {
                 InspectorPanel(model: model.editor)
             }

@@ -14,7 +14,7 @@ public struct InspectorPanel: Component {
 
     public var content: some ElementGroup {
         let page = model.inspectorPage
-        return GlassPanel {
+        return GlassPanel(.inspector) {
             VStack(alignment: .leading, spacing: Pixels(10)) {
                 if let header = page.header {
                     InspectorHeaderView(header: header)

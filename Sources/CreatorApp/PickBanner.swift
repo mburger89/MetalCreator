@@ -10,7 +10,7 @@ struct PickBanner: Component {
     @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {
-        GlassPanel {
+        GlassPanel(.pickBanner) {
             HStack(spacing: Pixels(10)) {
                 Text("Click edges to pick them · \(picked) picked")
                     .font(.callout)

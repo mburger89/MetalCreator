@@ -7,7 +7,7 @@ import Testing
 @MainActor
 struct GlassPanelRenderTests {
     @Test func aGlassPanelDrawsItsContent() {
-        let scene = renderHeadless { GlassPanel { Text("Graph") } }
+        let scene = renderHeadless { GlassPanel(.graphPanel) { Text("Graph") } }
         #expect(!scene.glyphs.isEmpty)
         #expect(!scene.isEmpty)
     }

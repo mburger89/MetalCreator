@@ -29,7 +29,7 @@ public struct GraphPanel: Component {
                 .contentShape(Rectangle())
                 .gesture(DragGesture(minimumDistance: Pixels(0)))
                 .onScrollWheel { _ in true }
-            GlassPanel {
+            GlassPanel(.graphPanel) {
                 VStack(alignment: .leading, spacing: GraphPanelLayout.spacing.px) {
                     GraphPanelHeader(model: model)
                         .frame(height: GraphPanelLayout.headerHeight.px)

@@ -1,3 +1,4 @@
+import CreatorStyle
 import MetalUI
 
 /// The hidden graph panel's way back (spec §6.1, "Hidden (⇥ toggles it)"). The shell shows it
@@ -11,7 +12,7 @@ public struct GraphShowButton: Component {
     }
 
     public var content: some ElementGroup {
-        GlassPanel {
+        GlassPanel(.showButton) {
             Button("Show graph") { model.toggleHidden() }
                 .keyboardShortcut(.tab, modifiers: [])
                 .help("Show the graph (Tab)")
