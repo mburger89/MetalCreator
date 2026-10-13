@@ -21,7 +21,19 @@ struct FieldPreviewSamplerTests {
         let tint = try await FieldPreviewSampler.tint(of: .radialGradient(center: .zero, radius: 10), at: points, limit: 25,
                                                       kernel: FakeKernel())
         #expect(tint.isCoarse && tint.values.count == 100)
-        #expect(tint.values[0] == 0 && tint.values[4] == tint.values[3] || tint.values[4] != 0, "neighbours share a value")
+        // Sampled: every 4th vertex (0, 4, ..., 96), valued x / 10. The rest take the nearest sampled one, ties to the lower.
+        func expected(_ vertex: Int) -> Float {
+            let nearest: Int
+            switch vertex % 4 {
+            case 0: nearest = vertex
+            case 1, 2: nearest = vertex - vertex % 4
+            default: nearest = min(vertex + 1, 96)
+            }
+            return Float(Double(nearest) / 10)
+        }
+        #expect(tint.values == (0..<100).map(expected))
+        #expect(Array(tint.values[0..<9]) == [0, 0, 0, 0.4, 0.4, 0.4, 0.4, 0.8, 0.8], "vertex 1 takes 0, 2 ties to 0, 3 takes 4")
+        #expect(Array(tint.values[96...]) == [9.6, 9.6, 9.6, 9.6], "past the last sampled vertex, that one's value")
         #expect(tint.extent?.lowerBound == 0 && (tint.extent?.upperBound ?? 0) > 9)
         let whole = try await FieldPreviewSampler.tint(of: .radialGradient(center: .zero, radius: 10), at: points, limit: 100,
                                                        kernel: FakeKernel())
@@ -34,7 +46,8 @@ struct FieldPreviewSamplerTests {
         let some = try await FieldPreviewSampler.tint(of: .remap(.radialGradient(center: .zero, radius: 1), fromLow: 0, fromHigh: 0,
                                                                  toLow: 0, toHigh: 1, clamped: false),
                                                       at: [.zero], kernel: FakeKernel())
-        #expect(some.values.count == 1)
+        // A zero-width input range gives the output's low end (toLow = 0), a finite value with a one-point extent.
+        #expect(some.values == [0] && some.extent == 0...0)
     }
 
     @Test func noVerticesGiveNoValues() async throws {
