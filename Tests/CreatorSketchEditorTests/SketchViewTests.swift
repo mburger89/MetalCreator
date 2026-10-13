@@ -33,7 +33,7 @@ struct SketchViewTests {
         #expect(!renderHeadless { SketchInspector(model: empty) }.glyphs.isEmpty)
     }
 
-    /// The chip's computed width holds its text: every glyph of the widest plausible readouts lies inside the chip.
+    /// The chip's measured width holds its text: every glyph of the widest plausible readouts lies inside the chip.
     @Test(arguments: ["R 1234.5 mm · 359.9°", "-12345.6, -98765.4", "⌀ 99999.9 mm", "12345.6 mm · 359.9°"])
     func theChipHoldsItsText(_ text: String) throws {
         let chip = try #require(ReadoutChip(text: text, pointer: ScreenPoint(600, 350), in: ViewportSize(width: 1200, height: 700),

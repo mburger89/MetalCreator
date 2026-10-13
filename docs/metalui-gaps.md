@@ -881,7 +881,7 @@ Labelled C8-a… so they don't clash with the labels above. Checked against Meta
 
 - **S5-c. A `MetalView` draw can't draw text, so labels anchored in the 3D scene are element-tree text, rebuilt on every
   camera change, and a text's size could not be asked.** Sketcher spec §8: a sketch's dimension values are shown in the view, at the dimension
-  (`ViewportOverlay.labels`, drawn from `ViewportModel.overlayLabels()`). They follow the camera (a pan, a zoom, the Look
+  (`ViewportOverlay.labels`, drawn from `ViewportModel.overlayLabels(measuring:)`). They follow the camera (a pan, a zoom, the Look
   At onto the plane) and a sketch has dozens. MetalUI draws text only as elements in the tree, never inside a `MetalView`'s
   draw (`MetalDrawContext` offers the target, the command buffer, `clear(…)` and the scale factor, and no text), so
   `ViewportView` places one `ProposalText` per label from a function that reads the pose: the tree is rebuilt on every

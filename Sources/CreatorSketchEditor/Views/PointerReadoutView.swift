@@ -1,7 +1,7 @@
 import CreatorViewport
 import MetalUI
 
-/// The pointer readout's chip (`SketchEditorModel.readoutChip`), when there is one. The host draws it over the
+/// The pointer readout's chip (`SketchEditorModel.readoutChip(measuring:)`), when there is one. The host draws it over the
 /// viewport and its chrome, whose points are the window's; it never takes the pointer. This is glue: the text and
 /// the placement are the model's.
 public struct PointerReadoutView: Component {
