@@ -68,9 +68,9 @@ struct CanvasScrollTests {
         #expect(editor.transform == zoomed.panned(by: Vector2(0, 8)))
     }
 
-    /// MetalUI sends each scroll event to what is under the pointer at that event (gap GI-b), so a scroll that began
-    /// over something else reaches the canvas with a `.changed` and no `.began`. It is taken up as it is then (no ⌘:
-    /// a pan), never as the last canvas scroll was (a zoom), and keeps that until it ends.
+    /// MetalUI latches a scroll to the element under its `.began` (C16, gap GI-b), so a scroll reaches the canvas with a
+    /// `.changed` and no `.began` only when its latch fell back to the pointer (its canvas was rebuilt mid-scroll). It is
+    /// taken up as it is then (no ⌘: a pan), never as the last canvas scroll was (a zoom), and keeps that until it ends.
     @Test func aScrollThatBeganElsewhereIsTakenUpAsItIsNow() {
         let editor = makeEditor([])
         let pointer = Vector2(200, 100)

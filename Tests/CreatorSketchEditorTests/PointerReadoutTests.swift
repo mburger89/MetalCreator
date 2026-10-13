@@ -108,15 +108,15 @@ struct PointerReadoutTests {
         let projector = ViewportProjector(pose: CameraPose(target: .zero, distance: 100, pitch: .pi / 2,
                                                            projection: .orthographic), size: size)
         #expect(model.readoutChip == nil)
-        model.pointerMoved(to: ScreenPoint(200, 150), projector: projector)
+        model.pointerMoved(to: ScreenPoint(200, 150), modifiers: [], projector: projector)
         let chip = try #require(model.readoutChip)
         #expect(chip.text == "0.0, 0.0")
         #expect(chip == ReadoutChip(text: "0.0, 0.0", pointer: ScreenPoint(200, 150), in: size))
         let inset = ViewportProjector(pose: projector.pose, size: size, modelArea: ViewportInsets(top: 200))
-        model.pointerMoved(to: ScreenPoint(200, 220), projector: inset)
+        model.pointerMoved(to: ScreenPoint(200, 220), modifiers: [], projector: inset)
         #expect(model.readoutChip == ReadoutChip(text: model.pointerReadout ?? "", pointer: ScreenPoint(200, 220), in: size,
                                                  modelArea: ViewportInsets(top: 200)), "kept in the model area")
-        model.pointerMoved(to: nil, projector: projector)
+        model.pointerMoved(to: nil, modifiers: [], projector: projector)
         #expect(model.readoutChip == nil, "the pointer left the view")
     }
 

@@ -33,9 +33,10 @@ stopgap as they were. The sections below keep each gap's full use case.
 | M6-e | Public headless test window | item 8 (test harness) | ✅ fixed (MetalUI 280d706, PR #65: `MetalUITesting`), adopted in the test targets (plan `2026-10-12-adopt-test-harness`): `AppWindow` opens the app's real root in a `TestWindow` (`AppWindowTests`), and the observable key routing is pinned by the window tests (`ViewportKeyRoutingWindowTests`, `EditMenuRoutingWindowTests`, `PaletteKeyRoutingWindowTests`), while the canvas hover veto and the `Panel` key context stay pinned only by mapping tests (`AppInputTests`); MetalCreator had no platform fake of its own to replace; the harness's one limit for this app (no `MetalView` draw, so no window size) is gone: the size and the panel's frame come from `onGeometryChange` (M4-a, EP-a) |
 | M6-f | `ColorPicker` | C10 | ✅ fixed (2155f1e), adopted (Themes Task 11) |
 | M6 resize cursor | Column/row resize cursor | C7 | ✅ fixed (c62d6ba), adopted |
-| VI-a | A dropped gesture's end | C16 | 🟡 landed in MetalUI master a720fba (C16: `.onCancelled` on Drag/Magnify/Rotate gestures); adoption here pending |
-| GI-a | Modifiers on a tap | none yet (with S5-a) | 🟡 landed in MetalUI master a720fba (C16: `SpatialTapGesture.Value.modifiers`); adoption here pending |
-| GI-b | Wheel latching (`CI-AD`) | none yet | 🟡 landed in MetalUI master a720fba (C16: a scroll latches to the element under its `.began`, momentum included; synthesized `.cancelled` on key loss); adoption here pending |
+| VI-a | A dropped gesture's end | C16 | ✅ fixed (MetalUI a720fba, PR #67: `.onCancelled` on Drag/Magnify/Rotate gestures; a synthesized `.cancelled` scroll when the window stops being key), adopted (plan `2026-10-12-adopt-c16`): the viewport's three button drags and pinch, the canvas's press, middle pan and pinch, the library row's drag and the panel's resize edge end through it (`ViewportCancelWindowTests`, `CanvasCancelWindowTests`, `PointerCancelTests`); the lost-pinch guesses are gone. A primary drag whose next press lands on the same element is dropped by MetalUI without a cancel and keeps its stopgap (VI-b) |
+| VI-b | A press that continues a gesture arena fails a drag that had reported, without `onCancelled` | C26 (queued after C22) | ⏳ found by the C16 adoption (plan `2026-10-12-adopt-c16`), queued as MetalUI C26 |
+| GI-a | Modifiers on a tap | C16 (with S5-a) | ✅ fixed (MetalUI a720fba: `SpatialTapGesture.Value.modifiers`), adopted (plan `2026-10-12-adopt-c16`): the viewport's click passes its tap's modifiers (`ViewportModifiersWindowTests.aCommandClickReachesTheToolWithCommandAndAPlainOneWithout`); the graph canvas needs nothing, since its one zero-distance drag already carries them and must stay a drag |
+| GI-b | Wheel latching (`CI-AD`) | C16 | ✅ fixed (MetalUI a720fba: a scroll latches to the element under its `.began`, momentum included; synthesized `.cancelled` on key loss), adopted (plan `2026-10-12-adopt-c16`) with no code to remove (the entry's stopgap was none): `ScrollLatchWindowTests` pins the canvas's glide staying on the canvas, the viewport's staying off it and key loss mid-glide; human check C16-1 |
 | PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | ✅ fixed (MetalUI ebcf3c7, PR #63), adopted with no code change; idle re-measure pending |
 | PERF-b | Every observed change rebuilds, lays out and paints the whole window | C14 | ⏳ queued; measured by M7 (below) |
 | EP-a | Element frame in window coordinates, hover coordinate space, window size | C15 | ✅ fixed (MetalUI 0abce86, PR #66: `CoordinateSpace.named`, `onGeometryChange` with `.global`/`.named`, `onContinuousHover(coordinateSpace:)`, `\.windowSize`), adopted (plan `2026-10-12-adopt-c15`): the graph panel measures itself (`PanelPlacementTests.theEditorIsToldWhereItsCanvasIs`, `aGrownWindowRebuildsTheCanvasWithWhatItUncovers`, `hidingThePanelClearsThePlacementAndShowingItBringsItBack`, `aNewDocumentIsPlacedToo`) and the palette opens at the canvas's `.global` hover (`PaletteOverlayWindowTests.itOpensWithItsTopLeftCornerAtThePointerWhateverTheViewportHasDrawn`, `FloatingPaletteTests`) |
@@ -44,8 +45,8 @@ stopgap as they were. The sections below keep each gap's full use case.
 | LF-a | A clip inside an `offset` or uniform `scaleEffect` | C18 | ✅ fixed (0b400b4) |
 | LF-b | A clip inside nested flattening effects (LF-a's regression) | C19 | ✅ fixed (9ad2254) |
 | TH-a | Menu content can't be evaluated outside MetalUI | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `MenuEvaluation`, `TestApp.menuBar`), adopted (plan `2026-10-12-adopt-test-harness`): `ThemeMenuEvaluationTests` |
-| S5-a | Modifiers on a hover (and a tap, GI-a) | none yet (with GI-a) | 🟡 landed in MetalUI master a720fba (C16: `.onModifierKeysChanged(mask:initial:_:)` on a still pointer); adoption here pending |
-| S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | 🟡 landed in MetalUI master a720fba (C16: `DragGesture.Value.clickCount`); adoption here pending |
+| S5-a | Modifiers on a hover (and a tap, GI-a) | C16 (with GI-a) | ✅ fixed (MetalUI a720fba: `.onModifierKeysChanged(mask:initial:_:)`, also while the pointer is still and on key loss), adopted (plan `2026-10-12-adopt-c16`): `ViewportView` watches ⌘, `ViewportModel.modifiersChanged(_:)` replays the tool's hover with it (`ViewportTool.pointerMoved(to:modifiers:projector:)`), and the sketch editor's rubber band and glyphs drop inference while ⌘ is held, with no mouse move (`InferenceGlyphTests`, `ViewportModifiersWindowTests`); human check C16-2 |
+| S5-b | No click count on a drag's value (canvas double click) | C16 (with GI-a) | ✅ fixed (MetalUI a720fba: `DragGesture.Value.clickCount`), adopted (plan `2026-10-12-adopt-c16`): `EditorModel` pairs a click counted 1 and one counted 2 on one target; its own 0.4 s / 4 pt timer, `RecentClick` and the injectable `now` are gone, and the user's double-click speed decides (`DoubleClickTests`, `CanvasDoubleClickWindowTests`); human check C16-3 |
 | S5-c | A `MetalView` draw can't draw text (world-anchored labels) | MetalUI session (with M4-b) | ⏳ reported 2026-10-09, sent to the MetalUI session |
 | M7-a | `ForEach` identity is an id's description | C20 | ✅ fixed by C20 (MetalUI master 5f35df6: identity by `Hashable` equality); nothing to adopt, the canvas's `\.id.rawValue` keys stay correct |
 | M7-b | No warm headless frame for measuring | none yet (with M6-e) | ✅ fixed (MetalUI 280d706, `TestWindow` warm frames and `FrameWork`), adopted for work counts (plan `2026-10-12-adopt-test-harness`): `WarmFrameTests`; the release benchmarks (`Bench`) still report cold-frame milliseconds until they are moved onto it |
@@ -352,6 +353,19 @@ Labelled VI-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   the camera unsettled into the document and the hover un-picked until a later scroll ends; and a pinch that lost its
   end followed by one at the same centre reuses the stale start camera. Wanted: an `onEnded` (or a separate cancellation callback) for a gesture its arena drops, or
   `@GestureState`.
+  **Fixed by MetalUI C16** (master a720fba, PR #67, rulings `IF-E`, `IF-F`, `IF-H`: `onCancelled` on `DragGesture`,
+  `MagnifyGesture` and `RotateGesture`, once and only for a gesture that had reported; a synthesized `.cancelled` scroll
+  on key loss) **and adopted** (plan `2026-10-12-adopt-c16`): `ViewportView`'s button drags call `ViewportModel.dragCancelled(button:)`
+  (the drag ends where it was: mode, closed hand, handle edit and settling included) and both pinches call `pinchEnded()`,
+  so the viewport's and the canvas's lost-pinch guesses (a pinch at another centre; a canvas moved since the last change,
+  `CanvasPinch.applied`) are gone; the canvas's press, middle pan, library-row drag and the panel's resize edge end
+  through `EditorModel.pointerCancelled()` (as Esc ends a drag, and never a click), `middleCancelled()`,
+  `cancelLibraryDrag()` and `AppModel.endPanelResize()`. A lost right or middle release now ends at the next plain
+  move, and a scroll or pinch the window cut short ends on its own (`ViewportCancelWindowTests`,
+  `CanvasCancelWindowTests`, `PointerCancelTests`, `ScrollLatchWindowTests`). **What is left is VI-b:** a primary drag
+  whose release was lost and whose next press lands on the same element is dropped by MetalUI without a cancel, so
+  `ViewportModel.beginDragIfNeeded` and `click(at:)` and `EditorModel.ensurePress` still end it, for the primary button
+  only. Human checks C16-4 to C16-7.
 
 ## Hit by the graph panel's C7 adoption, 2026-10-09
 
@@ -366,18 +380,58 @@ Labelled GI-a… so they don't clash with the C7 items 1–5 or the M4-a…, M5-
   5-point tap slop. Every value is C7's, so nothing here is undone later, but the canvas can't recognise a double
   click. Wanted: `modifiers` on `SpatialTapGesture.Value` (MetalUI-only, as `DragGesture.Value.modifiers` is,
   divergence 140), or `onModifierKeysChanged`.
+  **Fixed by MetalUI C16** (master a720fba, `IF-B`: `SpatialTapGesture.Value.modifiers`, the last press's) **and adopted**
+  (plan `2026-10-12-adopt-c16`): `ViewportView`'s `SpatialTapGesture` passes `ViewportModifiers($0.modifiers)` to
+  `ViewportModel.click(at:modifiers:)`, so a ⌘-click in the sketch editor suppresses inference at its press
+  (`ViewportModifiersWindowTests.aCommandClickReachesTheToolWithCommandAndAPlainOneWithout`). **The graph canvas needs
+  nothing:** its one `DragGesture(minimumDistance: 0)` already carries the modifiers of the press and of each change, and
+  it has to stay a drag, because a press becomes a box, a wire or a move, which a tap beside a drag can't follow; its
+  3-point click threshold stays beside MetalUI's 5-point tap slop. The double-click half is S5-b.
 - **GI-b. No wheel latching, met by a canvas pan's glide** (MetalUI `CI-AD`, stated, not built). A flick that pans
   the graph canvas glides on through momentum events, and MetalUI sends each to whatever is under the pointer at that
   event. If the pointer drifts off the canvas mid-glide, the canvas stops and the rest of the glide scrolls the node
   library's list or the inspector, if the pointer is over one (the viewport ignores momentum, and the graph panel's
   chrome claims every scroll). Stopgap: none. Wanted: `CI-AD`'s latch (a scroll gesture's events, momentum included,
   go to the element under its `.began`). Human check GI-1 records what happens.
+  **Fixed by MetalUI C16** (master a720fba, `IF-G`, `IF-H`: a scroll latches to the element under its `.began`,
+  momentum included; a synthesized `.cancelled` reaches the latched handlers on key loss) **and adopted** (plan
+  `2026-10-12-adopt-c16`): nothing to remove, since this entry's stopgap was none. The canvas's pan glide stays on the canvas when the
+  pointer drifts onto the viewport, the library or the inspector, a viewport zoom's glide stays off the canvas, and key loss
+  mid-glide leaves no stuck "ignore the zoom's glide" state (`ScrollLatchWindowTests`). `EditorModel.scrolled`'s
+  `.changed`-with-no-`.began` fallback stays for a latch whose canvas was rebuilt mid-scroll
+  (`aScrollThatBeganElsewhereIsTakenUpAsItIsNow`). Human check C16-1.
 - **VI-a, met again.** The canvas's pinch keeps its start in `EditorModel` too, so a pinch that changes at another
   centre while one is under way, or finds the canvas moved since that one's last change, ends it first
   (`aPinchThatLostItsEndDoesntPullTheNextOneBack`, `aPinchThatLostItsEndDoesntUndoWhatMovedTheCanvasSince`); a lost
   pinch end followed by a pinch at the same centre, with nothing moving the canvas between, zooms from the lost
   pinch's start. A canvas press already drops a press that lost its release (`EditorModel.ensurePress`), its
   modifiers with it (`aLostPressTakesItsModifiersWithIt`).
+  **Adopted with VI-a** (plan `2026-10-12-adopt-c16`): the canvas's pinch ends through `onCancelled`, and the two guesses and
+  their tests are replaced by `aCancelledPinchDoesntPullTheNextOneBack`; `ensurePress` stays for the primary press VI-b
+  describes.
+
+## Found by the C16 adoption, 2026-10-12
+
+Labelled VI-b so it stays beside VI-a.
+
+- **VI-b. A press that continues a gesture arena fails a drag that had reported, without `onCancelled`.** MetalUI treats
+  a primary press on the element the live arena belongs to as the second press of a tap sequence (`Window.dispatchGestures`
+  passes `continuing: true`; `GestureArena.press(at:clickCount:continuing:modifiers:)`), and fails every undecided leaf that
+  is not a tap, a drag among them, through `fail(_:)` and not through `cancel()`. A drag that had reported (the viewport's
+  orbit, a handle edit, the canvas's move, wire or box) and whose release was lost (Mission Control or a native menu took
+  it; C16 cancels a button arena on the next `.mouseMoved`, `IF-F` item 3, but not the primary arena) is therefore dropped
+  by the next primary press on the same element with neither `onEnded` nor the `onCancelled` C16 added for this. A press on
+  another element does abandon and cancel
+  (`ViewportCancelWindowTests.aPrimaryPressOnAnotherElementThatReplacesALostDragEndsIt`); the same element does not
+  (`aPrimaryPressOnTheSameElementLeavesTheLostDragToTheNextDragValues` pins the stopgap). Stopgap, kept from VI-a:
+  `ViewportModel.beginDragIfNeeded` ends a primary drag, where it was, when a primary value arrives from another press, and
+  `click(at:)` ends any drag under way; `EditorModel.ensurePress` drops a canvas press whose start differs. Until then the
+  drag's mode, closed hand and a handle edit's end linger. Wanted: `GestureArena.press(… continuing: true)` runs the leaves
+  it fails through the same `cancel()` as `abandon()` (a leaf that reported owes its `onCancelled`), or the primary arena
+  is cancelled on a plain `.mouseMoved` as the button arenas are. When MetalUI fixes it: invert the pin test `aPrimaryPressOnTheSameElementLeavesTheLostDragToTheNextDragValues`
+  and the matching `PressModifierTests` pin, and remove the stopgap with it: `ViewportModel.beginDragIfNeeded`'s primary
+  branch, the drag-ending line in `click(at:)` and `EditorModel.ensurePress`'s drop. Sent to the MetalUI session with this entry; queued there as C26, after C22 (both edit
+  the gesture arena), leaning to the first fix.
 
 ## Node-drag performance, 2026-10-08
 
@@ -634,6 +688,13 @@ Labelled S5-a… so they don't clash with the labels above.
   and the editor take modifiers, and `ViewportView` passes `[]`, so ⌘ doesn't suppress inference yet (human check
   S5-3 records it). The Select tool's clicks toggle membership instead of needing ⇧. Wanted, as one request with GI-a:
   tap modifiers (GI-a), and modifiers on hover or SwiftUI's `onModifierKeysChanged(mask:initial:_:)`.
+  **Fixed by MetalUI C16** (master a720fba, `IF-B`, `IF-D`: `SpatialTapGesture.Value.modifiers` and
+  `onModifierKeysChanged(mask:initial:_:)`, which also fires while the pointer is still and reports the keys released when
+  the window stops being key) **and adopted** (plan `2026-10-12-adopt-c16`): `ViewportView` watches ⌘ only
+  (`ViewportModifiers.hoverMask`, so ⇧ and ⌥ wake nothing) and calls `ViewportModel.modifiersChanged(_:)`, which replays
+  the tool's last hover with the modifiers held (`ViewportTool.pointerMoved(to:modifiers:projector:)`); the sketch editor's
+  rubber band and inference glyphs drop the snap while ⌘ is held, with no mouse move, and a click carries ⌘ from its tap
+  (GI-a). The Select tool keeps toggling membership (user decision U2). Human check C16-2 answers S5-3's "known".
 
 ## Hit by the sketch editor (S5b), 2026-10-09
 
@@ -652,6 +713,11 @@ Labelled S5-a… so they don't clash with the labels above.
   file's record of it. Wanted: `clickCount` on `DragGesture.Value` (the press's `MouseEvent.clickCount`), as
   SwiftUI-on-AppKit apps read `NSEvent.clickCount`; then the model reads the count, the user's double-click speed is
   honoured, and the stopgap goes. Human check S5b-7 records it. Sent to the MetalUI session with this entry.
+  **Fixed by MetalUI C16** (master a720fba, `IF-C`: `DragGesture.Value.clickCount`, the press's, the same in every value of
+  one press) **and adopted** (plan `2026-10-12-adopt-c16`, user decision U1): `GraphPanelInput` passes the press's count and
+  `EditorModel` pairs a click counted 1 with one counted 2 on the same target (a node's body, a note, a frame's title bar,
+  no modifiers on either); `RecentClick`, `EditorModel.now`, `doubleClickInterval` (0.4 s), `doubleClickSlop` (4 pt) and
+  the tests' `TestClock` are gone, so the user's double-click speed decides. Human check C16-3.
 
 ## Hit by M7 (measure and record), 2026-10-09
 

@@ -43,31 +43,26 @@ struct CanvasPinchTests {
         #expect(editor.transform == before)
     }
 
-    /// MetalUI drops a pinch that lost its end without a word (VI-a); the next one, elsewhere, must zoom from the
-    /// canvas as it is, not snap back to where the lost one began.
-    @Test func aPinchThatLostItsEndDoesntPullTheNextOneBack() {
+    /// MetalUI drops a pinch that lost its end (a new pinch replaced it, the window stopped being key) and tells the
+    /// gesture's owner (`onCancelled`, C16, gap VI-a: `pinchEnded()`); the next one, at any centre, zooms from the canvas
+    /// as it is, not from where the cancelled one began, and not over a pan or a zoom made since.
+    @Test(arguments: [Vector2(400, 300), Vector2(200, 150)])
+    func aCancelledPinchDoesntPullTheNextOneBack(next: Vector2) {
         let editor = makeEditor([])
         editor.pinchChanged(magnification: 2, centre: centre)
-        let zoomed = editor.transform
-        editor.pinchChanged(magnification: 1.25, centre: Vector2(400, 300))
-        #expect(abs(editor.transform.zoom - 2.5) < 1e-12)
-        #expect(editor.transform == zoomed.zoomed(by: 1.25, around: Vector2(400, 300)))
+        editor.middleDrag(Vector2(600, 600), Vector2(640, 620))
+        editor.zoom(in: true)
+        let moved = editor.transform
+        editor.pinchEnded()
+        editor.pinchChanged(magnification: 1.25, centre: next)
+        #expect(editor.transform == moved.zoomed(by: 1.25, around: next))
     }
 
-    /// Nor may a lost pinch, at the same centre, snap the canvas back over a pan or a zoom made since.
-    @Test func aPinchThatLostItsEndDoesntUndoWhatMovedTheCanvasSince() {
+    @Test func aPinchEndedWithNoPinchChangesNothing() {
         let editor = makeEditor([])
-        editor.pinchChanged(magnification: 1.2, centre: centre)
-        editor.middleDrag(Vector2(600, 600), Vector2(640, 620))
-        let panned = editor.transform
-        #expect(panned.offset != .zero, "the middle drag panned")
-        editor.pinchChanged(magnification: 1.25, centre: centre)
-        #expect(editor.transform == panned.zoomed(by: 1.25, around: centre))
-        editor.zoom(in: true)
-        let stepped = editor.transform
-        editor.pinchChanged(magnification: 1.2, centre: centre)
-        #expect(editor.transform == stepped.zoomed(by: 1.2, around: centre))
-        #expect(abs(editor.transform.zoom - 2.25) < 1e-12)
+        let before = editor.transform
+        editor.pinchEnded()
+        #expect(editor.transform == before && editor.pinchStart == nil)
     }
 
     @Test func aPinchClosesThePalette() {

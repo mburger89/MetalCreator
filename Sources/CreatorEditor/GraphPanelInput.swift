@@ -5,17 +5,19 @@ import MetalUI
 /// close, in one place (docs/metalui-gaps.md). The canvas's pointer input is MetalUI C7's; the behaviour is the
 /// model's (`EditorModel+Pointer`), and this type only turns MetalUI values into the model's:
 /// - `canvasGesture()`: one `DragGesture(minimumDistance: 0)` carries clicks, moves, box selection and
-///   wiring. Its values give the press point (`startLocation`) and the modifiers held at each change
-///   (`DragGesture.Value.modifiers`, the press's at the first), so Shift-click and ⇧/⌥-drag read the press's own
-///   modifiers, and the model tells a click from a drag (`EditorModel.dragThreshold`). It isn't a
-///   `SpatialTapGesture` plus a drag, as the viewport's is: a tap's value has no modifiers, and a click must know
-///   whether ⇧ was held (gap GI-a).
+///   wiring. Its values give the press point (`startLocation`), the press's click count (`clickCount`, for double
+///   clicks: gap S5-b) and the modifiers held at each change (`DragGesture.Value.modifiers`, the press's at the first),
+///   so Shift-click and ⇧/⌥-drag read the press's own modifiers, and the model tells a click from a drag
+///   (`EditorModel.dragThreshold`). It stays one drag, though a tap's value carries modifiers since C16 (gap GI-a): a
+///   press must be able to become a box, a wire or a move, which a `SpatialTapGesture` beside a drag can't follow.
+///   A press MetalUI drops without a release ends through `onCancelled` (`EditorModel.pointerCancelled()`, gap VI-a).
 /// - `middlePanGesture()`: a `DragGesture(minimumDistance: 0, button: .middle)` pans (`EditorModel.middleDragged`),
 ///   in the middle button's own arena (MetalUI `CI-F`), as the viewport's middle drag does (VC3). A plain drag
 ///   box-selects (the user's Gate G answer (b), 2026-10-09), so this and two-finger scroll are the canvas's pans.
 /// - `scrolled(_:)`, from the canvas's `.onScrollWheel`: two-finger scroll and the wheel pan, ⌘-scroll zooms
 ///   about the pointer (`EditorModel.scrolled(by:at:modifiers:phase:)`, phases from `scrollPhase(of:)`).
-/// - `pinchGesture()`: a `MagnifyGesture` zooms about where the pinch began (`EditorModel.pinchChanged`).
+/// - `pinchGesture()`: a `MagnifyGesture` zooms about where the pinch began (`EditorModel.pinchChanged`); a pinch
+///   MetalUI drops ends through `onCancelled`.
 /// - The cursor is the model's (`EditorModel.canvasCursor`, a closed hand while a middle drag pans); `GraphCanvas`
 ///   sets it.
 ///
@@ -122,19 +124,22 @@ public final class GraphPanelInput {
         DragGesture(minimumDistance: Pixels(0))
             .onChanged { [self] value in canvasChanged(value) }
             .onEnded { [self] value in canvasEnded(value) }
+            .onCancelled { [model] in model.pointerCancelled() }
     }
 
     /// The gesture moved (its first change is the press). A press also clears a focused field's focus, because the
     /// canvas surface is a key region (MetalUI C9, gap M5-g).
     func canvasChanged(_ value: DragGesture.Value) {
         let start = Self.vector(value.startLocation)
-        model.pointerDragged(from: start, to: Self.vector(value.location), modifiers: Self.canvasModifiers(value.modifiers))
+        model.pointerDragged(from: start, to: Self.vector(value.location), modifiers: Self.canvasModifiers(value.modifiers),
+                             clickCount: value.clickCount)
     }
 
     /// The gesture ended: a release, or a click's only report when no change came first.
     func canvasEnded(_ value: DragGesture.Value) {
         let start = Self.vector(value.startLocation)
-        model.pointerReleased(from: start, at: Self.vector(value.location), modifiers: Self.canvasModifiers(value.modifiers))
+        model.pointerReleased(from: start, at: Self.vector(value.location), modifiers: Self.canvasModifiers(value.modifiers),
+                              clickCount: value.clickCount)
     }
 
     /// The canvas's middle-button drag: pans. A zero minimum distance, so the closed hand shows from the press (a
@@ -143,6 +148,7 @@ public final class GraphPanelInput {
         DragGesture(minimumDistance: Pixels(0), button: .middle)
             .onChanged { [self] value in middleChanged(value) }
             .onEnded { [self] value in middleEnded(value) }
+            .onCancelled { [model] in model.middleCancelled() }
     }
 
     /// The middle drag moved (its first change is the press).
@@ -169,6 +175,7 @@ public final class GraphPanelInput {
                 model.pinchChanged(magnification: value.magnification, centre: Self.vector(value.startLocation))
             }
             .onEnded { [model] _ in model.pinchEnded() }
+            .onCancelled { [model] in model.pinchEnded() }
     }
 
     /// A MetalUI scroll event's place in its gesture. Momentum wins over the gesture phase, and its end (or
@@ -198,6 +205,7 @@ public final class GraphPanelInput {
             .onEnded { [model] value in
                 model.endLibraryDrag(typeID, from: Self.vector(value.startLocation), at: Self.vector(value.location))
             }
+            .onCancelled { [model] in model.cancelLibraryDrag() }
     }
 
     /// The pointer over the canvas, in canvas-local points, from `.onContinuousHover`.

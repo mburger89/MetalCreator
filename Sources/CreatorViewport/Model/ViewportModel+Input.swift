@@ -23,17 +23,28 @@ extension ViewportModel {
         pointerUp(at: point)
     }
 
-    /// Begins the drag a value belongs to. The drag under way ends first, where it was, when its release must have
-    /// been lost (MetalUI drops such an arena without a word, its `CI-AB`; docs/metalui-gaps.md VI-a):
-    /// - a value of the same button from another press;
-    /// - a primary value while another button's drag is under way: MetalUI forms the primary arena on every primary
-    ///   press, apart from the button arena (`CI-F` item 3), so the primary button always gets its drag.
+    /// A drag MetalUI dropped without an end (a press that replaced it, a release it never saw: its `CI-AB` and
+    /// `IF-E`) tells its owner: `onCancelled`, from C16 (docs/metalui-gaps.md VI-a). The drag of `button` under way ends
+    /// where it was, as a release there would, so its mode, closed hand and settling don't outlive it. The edit is kept,
+    /// as one undo step (a sketch tool's drag is committed, a handle's edit ends): consistent with Esc on a move and with
+    /// a release, and it needs no revert path (user decision U4). Another button's drag, and a cancel with no drag under
+    /// way, change nothing.
+    public func dragCancelled(button: ViewportPointerButton) {
+        guard let state = drag, state.button == button else { return }
+        pointerUp(at: state.last)
+    }
+
+    /// Begins the drag a value belongs to. The drag under way ends first, where it was, when a primary value arrives:
+    /// - from another button's drag: MetalUI forms the primary arena on every primary press, apart from the button arena
+    ///   (`CI-F` item 3), so the primary button always gets its drag;
+    /// - from another press of the primary button: that drag's release must have been lost, and MetalUI tells nobody
+    ///   when the next press lands on the same element (its arena continues, failing the drag silently: gap VI-b). A
+    ///   right or middle drag MetalUI drops tells `dragCancelled(button:)` instead.
     /// A right or middle value while another drag is under way is ignored, as MetalUI ignores that press (`CI-AA`
     /// item 4).
     private func beginDragIfNeeded(from start: ScreenPoint, modifiers: ViewportModifiers, button: ViewportPointerButton) {
-        if let state = drag {
-            let lostItsRelease = state.button == button ? state.start != start : button == .primary
-            if lostItsRelease { pointerUp(at: state.last) }
+        if let state = drag, button == .primary, state.button != .primary || state.start != start {
+            pointerUp(at: state.last)
         }
         if drag == nil { pointerDown(at: start, modifiers: modifiers, button: button) }
     }
@@ -108,11 +119,12 @@ extension ViewportModel {
     /// A click: a primary press released within MetalUI's tap slop (`SpatialTapGesture`, its location the
     /// release). On the view cube it looks at the region under the pointer; on a handle's knob it does nothing;
     /// elsewhere the `tool` may claim it, and otherwise the face or edge under the pointer (or `nil` for empty space)
-    /// is offered to the tool (`clickedModel`) and, unclaimed, reported. `modifiers` are the click's (MetalUI's tap
-    /// reports none yet: docs/metalui-gaps.md S5-a).
+    /// is offered to the tool (`clickedModel`) and, unclaimed, reported. `modifiers` are the click's own, held at its
+    /// press (MetalUI's `SpatialTapGesture.Value.modifiers`, C16: docs/metalui-gaps.md GI-a).
     ///
-    /// A drag still under way ends first, where it was: a click is a primary press and release, so a primary drag
-    /// under way lost its release, and the primary button wins over another (`beginDragIfNeeded`).
+    /// A drag still under way ends first, where it was: a click is a primary press and release, so a primary drag under
+    /// way lost its release (`beginDragIfNeeded`, gap VI-b), and the primary button wins over another. A drag MetalUI
+    /// dropped has been cancelled already (`dragCancelled(button:)`).
     public func click(at point: ScreenPoint, modifiers: ViewportModifiers = []) {
         if let state = drag { pointerUp(at: state.last) }
         events.pressed()
@@ -141,7 +153,7 @@ extension ViewportModel {
     /// animates (the end of the animation picks once, `refreshHover()`).
     public func pointerHovered(at point: ScreenPoint?) {
         lastHoverPoint = point
-        if drag == nil { tool?.pointerMoved(to: point, projector: projector) }
+        if drag == nil { tool?.pointerMoved(to: point, modifiers: heldModifiers, projector: projector) }
         guard drag == nil, animation == nil else { return }
         var newHovered: PickTarget?
         var newCubeRegion: ViewCubeRegion?

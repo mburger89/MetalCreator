@@ -3,35 +3,28 @@ import CreatorGraph
 import CreatorKernel
 
 /// Double-clicking (sketcher spec §8: "Enter by double-clicking a Sketch node"; the groups spec's §6 enters a group the
-/// same way; the comments typing plan, spec 2026-10-09 §8, edits a note or a frame's title). The canvas's one
-/// zero-distance drag reports each click alone, without the click count (docs/metalui-gaps.md S5-b, the double-click
-/// half of GI-a), so the model pairs them: a click with no modifiers on the same target within `doubleClickInterval`
-/// and `doubleClickSlop` of the one before. A target is a node's body, a note, or a frame's title bar.
+/// same way; the comments typing plan, spec 2026-10-09 §8, edits a note or a frame's title). The click count is the
+/// platform's, from the press's `DragGesture.Value.clickCount` (MetalUI C16, docs/metalui-gaps.md S5-b), so when two
+/// clicks make a double click, and how far apart they may land, is the user's System Settings > Mouse setting, not a
+/// time of ours. The model adds only what the platform can't know: both clicks have no modifiers and land on the same
+/// target, which is a node's body, a note, or a frame's title bar.
 extension EditorModel {
-    /// The longest gap between a double click's two clicks (the groups spec's 0.4 s, §6).
-    public static let doubleClickInterval = Duration.milliseconds(400)
-    /// How far apart a double click's two clicks may land, in screen points.
-    public static let doubleClickSlop = 4.0
     /// The inspector buttons a double click on a node presses; the first of them a node's inspector has wins: a Sketch
     /// node's "Edit sketch", a group node's "Edit Group" (groups spec §6).
     static let doubleClickActions: [InspectorAction] = [.editSketch, .editGroup]
 
-    /// A press released without a drag, on `hit` at `point` with `modifiers` held: the second click with no modifiers
-    /// on one target is a double click (`doubleClicked`); any other click on a target starts a new pair, and a socket,
-    /// a frame's edge band, empty canvas or a modifier starts none.
-    func pairClick(on hit: CanvasHit, at point: Vector2, modifiers: CanvasModifiers) {
+    /// A press released without a drag, on `hit` at `point` with `modifiers` held and the platform's `clickCount`. A
+    /// first click (count 1) on a target remembers it; a second (count 2) on the same target is a double click
+    /// (`doubleClicked`). A third or later click (count 3 and up) is neither, and a socket, a frame's edge band, empty
+    /// canvas or a modifier forgets the first.
+    func countClick(on hit: CanvasHit, at point: Vector2, modifiers: CanvasModifiers, clickCount: Int) {
         guard modifiers.isEmpty, let target = clickTarget(for: hit, at: point) else {
             lastClick = nil
             return
         }
-        let time = now()
-        if let last = lastClick, last.target == target, (point - last.point).length <= Self.doubleClickSlop,
-           last.time.duration(to: time) <= Self.doubleClickInterval {
-            lastClick = nil
-            doubleClicked(target)
-        } else {
-            lastClick = RecentClick(target: target, point: point, time: time)
-        }
+        let first = lastClick
+        lastClick = clickCount == 1 ? target : nil
+        if clickCount == 2, first == target { doubleClicked(target) }
     }
 
     /// The target a press on `hit` at `point` (canvas-local screen points) can double-click: a node, a note, or a

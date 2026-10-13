@@ -70,6 +70,9 @@ public final class EditorModel {
     @ObservationIgnored private var pressHit: CanvasHit = .empty
     /// The modifiers held at the press (MetalUI's `DragGesture.Value.modifiers` at its first change).
     @ObservationIgnored private var pressModifiers: CanvasModifiers = []
+    /// The press's click count: the platform's (MetalUI's `DragGesture.Value.clickCount`, the same for every value of a
+    /// press, which honours the user's double-click speed), 1 for a press made without one.
+    @ObservationIgnored private var pressClickCount = 1
     /// Esc cancelled the press's drag (`cancelPress()`): the rest of the press, to its release, is ignored.
     @ObservationIgnored private var pressCancelled = false
     /// Where the middle-button press now panning, or last panning, the canvas began (`EditorModel+MiddlePan`); `nil`
@@ -95,11 +98,9 @@ public final class EditorModel {
     @ObservationIgnored var pinchStart: CanvasPinch?
     /// A ⌘-scroll ended and its glide, until its momentum ends, is ignored (`EditorModel+Scroll`).
     @ObservationIgnored var scrollGlideIgnored = false
-    /// The time now, for telling a double click from two clicks (`EditorModel+DoubleClick`); tests set their own.
-    @ObservationIgnored public var now: @MainActor () -> ContinuousClock.Instant = { ContinuousClock.now }
-    /// The last plain click on a node, a note or a frame's title bar: which, where on the canvas (screen points) and
-    /// when.
-    @ObservationIgnored var lastClick: RecentClick?
+    /// What the last release clicked, if it was a first plain click on a node, a note or a frame's title bar: the target
+    /// a second click (click count 2) must land on to be a double click (`EditorModel+DoubleClick`).
+    @ObservationIgnored var lastClick: ClickTarget?
 
     public init(document: DocumentModel) {
         self.document = document
@@ -251,21 +252,23 @@ public final class EditorModel {
 
     // MARK: - Press bookkeeping (used by EditorModel+Pointer)
 
-    func beginPress(at screen: Vector2, modifiers: CanvasModifiers) {
+    func beginPress(at screen: Vector2, modifiers: CanvasModifiers, clickCount: Int) {
         pressStart = screen
         pressHit = hitTest(screen)
         pressModifiers = modifiers
+        pressClickCount = clickCount
         pressCancelled = false
     }
 
-    var currentPress: (point: Vector2, hit: CanvasHit, modifiers: CanvasModifiers)? {
-        pressStart.map { ($0, pressHit, pressModifiers) }
+    var currentPress: (point: Vector2, hit: CanvasHit, modifiers: CanvasModifiers, clickCount: Int)? {
+        pressStart.map { ($0, pressHit, pressModifiers, pressClickCount) }
     }
 
     func endPress() {
         pressStart = nil
         pressHit = .empty
         pressModifiers = []
+        pressClickCount = 1
         pressCancelled = false
         interaction = nil
     }

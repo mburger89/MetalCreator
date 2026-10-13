@@ -21,6 +21,7 @@ struct PanelResizeHandle: Component {
                         model.resizePanel(by: Double(translation.value))
                     }
                     .onEnded { _ in model.endPanelResize() }
+                    .onCancelled { model.endPanelResize() }
             )
             .pointerStyle(Self.pointerStyle(alongWidth: alongWidth))
             .help("Drag to resize the graph panel")

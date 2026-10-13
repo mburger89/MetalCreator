@@ -161,7 +161,7 @@ struct DrawingTests {
         let edgeOn = ViewportProjector(pose: CameraPose(distance: 100, pitch: 0, projection: .orthographic),
                                        size: ViewportSize(width: 400, height: 300))
         #expect(model.clicked(at: ScreenPoint(200, 150), modifiers: [], projector: edgeOn))
-        model.pointerMoved(to: ScreenPoint(210, 150), projector: edgeOn)
+        model.pointerMoved(to: ScreenPoint(210, 150), modifiers: [], projector: edgeOn)
         #expect(host.commits.isEmpty && model.preview == .none)
     }
 }

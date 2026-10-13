@@ -54,13 +54,16 @@ extension ViewportView {
         .onScrollWheel { event in
             model.scrolled(by: Double(event.delta.y.value), at: ScreenPoint(event.location), phase: ViewportScrollPhase(event))
         }
-        .gesture(SpatialTapGesture().onEnded { model.click(at: ScreenPoint($0.location)) })
+        .gesture(SpatialTapGesture().onEnded {
+            model.click(at: ScreenPoint($0.location), modifiers: ViewportModifiers($0.modifiers))
+        })
         .gesture(drag(.primary, model: model))
         .gesture(drag(.secondary, model: model))
         .gesture(drag(.middle, model: model))
         .gesture(MagnifyGesture()
             .onChanged { model.pinchChanged(magnification: $0.magnification, centre: ScreenPoint($0.startLocation)) }
-            .onEnded { _ in model.pinchEnded() })
+            .onEnded { _ in model.pinchEnded() }
+            .onCancelled { model.pinchEnded() })
         .onContinuousHover { phase in
             switch phase {
             case .active(let point): model.pointerHovered(at: ScreenPoint(point))
@@ -74,7 +77,8 @@ extension ViewportView {
         }
     }
 
-    /// A drag with `button` that reports its values, and the modifiers held at each, to the model.
+    /// A drag with `button` that reports its values, and the modifiers held at each, to the model, and its cancellation
+    /// (a drag MetalUI dropped without an end: docs/metalui-gaps.md VI-a).
     @MainActor
     static func drag(_ button: ViewportPointerButton, model: ViewportModel) -> DragGesture {
         DragGesture(minimumDistance: Pixels(Float(ViewportInputMap.dragThreshold)), button: button.mouseButton)
@@ -86,6 +90,7 @@ extension ViewportView {
                 model.dragEnded(from: ScreenPoint(value.startLocation), at: ScreenPoint(value.location),
                                 modifiers: ViewportModifiers(value.modifiers), button: button)
             }
+            .onCancelled { model.dragCancelled(button: button) }
     }
 
     /// Triad axis names in a widget-sized box at the bottom-left, matching where the renderer draws the triad.

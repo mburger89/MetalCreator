@@ -465,3 +465,16 @@ All tests use Swift Testing.
   face projects all its edges, one part per sketch (refused in words), read-only labels, the label texts above, New Sketch on
   Face unwired with a 100 mm frame and no Extrude, the fill at 18% of the header green, a deleted projected curve keeps
   its wire, no hover feedback for edges, Project stays active, nodes placed at fixed offsets, projected edges are real geometry.
+
+## Errata (C16 adoption)
+
+Plan `2026-10-12-adopt-c16.md` (MetalUI C16: gaps GI-a, S5-a, S5-b, VI-a).
+
+- §8 "Enter by double-clicking a Sketch node" (S5b's erratum above): the graph canvas no longer pairs two clicks within 0.4 s
+  and 4 points. A second plain click on the same node's body that the platform counts 2 (`DragGesture.Value.clickCount`)
+  opens it, so the user's double-click speed decides.
+- §8 "holding ⌘ suppresses inference": it now holds for the rubber band and its glyphs under a pointer that stays still
+  (`onModifierKeysChanged`) and for the click (a tap's modifiers). S5a's "⌘ can't suppress inference until S5-a is fixed"
+  is superseded.
+- §8 selection: Select-tool clicks still toggle an entity in the selection; the toggle no longer stands in for a missing
+  modifier, it is the behaviour (user decision U2 of the plan).

@@ -11,7 +11,7 @@ extension ViewportModel {
     /// zoom drag step, a scroll, a pinch), so its rubber band and readout follow.
     func refreshToolPointer(at point: ScreenPoint) {
         guard isPlanar else { return }
-        tool?.pointerMoved(to: point, projector: projector)
+        tool?.pointerMoved(to: point, modifiers: heldModifiers, projector: projector)
     }
 
     /// True while the tool asks for planar navigation: nothing turns the camera.

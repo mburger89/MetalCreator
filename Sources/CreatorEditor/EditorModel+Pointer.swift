@@ -11,9 +11,10 @@ extension EditorModel {
     /// held at this change (MetalUI's `DragGesture.Value.modifiers`). The first call of a press records what it
     /// landed on and the modifiers held at the press; a drag starts once it moves `dragThreshold`, and the
     /// modifiers held then decide what it does (on empty canvas the box's mode: none replaces, ⇧ adds, ⌘ toggles;
-    /// ⌥ duplicates the selection).
-    public func pointerDragged(from start: Vector2, to location: Vector2, modifiers: CanvasModifiers = []) {
-        ensurePress(at: start, modifiers: modifiers)
+    /// ⌥ duplicates the selection). `clickCount` is the press's (`DragGesture.Value.clickCount`); only the press's first
+    /// call reads it.
+    public func pointerDragged(from start: Vector2, to location: Vector2, modifiers: CanvasModifiers = [], clickCount: Int = 1) {
+        ensurePress(at: start, modifiers: modifiers, clickCount: clickCount)
         guard let press = currentPress, !isPressCancelled else { return }
         if interaction == nil {
             guard (location - press.point).length >= Self.dragThreshold else { return }
@@ -23,9 +24,10 @@ extension EditorModel {
     }
 
     /// The press ended at `location`. Without a drag this is a click, which selects by the modifiers held at the
-    /// press (`SelectionMode`). `modifiers` (held at the release) count only for a press that reported no change before.
-    public func pointerReleased(from start: Vector2, at location: Vector2, modifiers: CanvasModifiers = []) {
-        ensurePress(at: start, modifiers: modifiers)
+    /// press (`SelectionMode`). `modifiers` (held at the release) and `clickCount` count only for a press that reported
+    /// no change before.
+    public func pointerReleased(from start: Vector2, at location: Vector2, modifiers: CanvasModifiers = [], clickCount: Int = 1) {
+        ensurePress(at: start, modifiers: modifiers, clickCount: clickCount)
         guard let press = currentPress, !isPressCancelled else {
             // A press whose drag Esc cancelled ends here: no click, no wire, and no half of a double click.
             lastClick = nil
@@ -38,7 +40,7 @@ extension EditorModel {
             click(press.hit, mode: SelectionMode(press.modifiers))
             // After the click: a double click on a group node enters it and one on a note or a frame's title bar edits
             // it, and the click must not select it afterwards.
-            pairClick(on: press.hit, at: press.point, modifiers: press.modifiers)
+            countClick(on: press.hit, at: press.point, modifiers: press.modifiers, clickCount: press.clickCount)
         case .moving, .resizing: document.endCoalescing()
         case .duplicating(let start, let delta): finishDuplicate(start: start, delta: delta)
         case .connecting(let wire): finishWire(wire, at: location)
@@ -49,15 +51,28 @@ extension EditorModel {
         endPress()
     }
 
-    /// A press began, with `modifiers` held. Commits a typed inspector value, ends any slider drag's undo step and
+    /// MetalUI dropped the press under way without a release (`onCancelled`, C16: another press replaced it, a button's
+    /// release went unseen; docs/metalui-gaps.md VI-a). It ends as Esc would end it, apart from being final: a wire being
+    /// dragged is dropped, ⌥-drag ghosts vanish, a box puts back the selection it began with, a move or a resize
+    /// stays where it got to and its undo step ends (kept, not reverted: user decision U4). It never clicks, and it is no
+    /// half of a double click. No press under way: nothing happens.
+    public func pointerCancelled() {
+        guard currentPress != nil else { return }
+        _ = cancelInteraction()
+        document.endCoalescing()
+        lastClick = nil
+        endPress()
+    }
+
+    /// A press began, with `modifiers` held and the platform's `clickCount`. Commits a typed inspector value, ends any slider drag's undo step and
     /// closes the palette. A middle-button pan under way ends: the primary button always gets its drag (MetalUI
     /// `CI-F` item 3), and the rest of that middle press is ignored (`middleDragged`).
-    public func pointerPressed(at screen: Vector2, modifiers: CanvasModifiers = []) {
+    public func pointerPressed(at screen: Vector2, modifiers: CanvasModifiers = [], clickCount: Int = 1) {
         commitPendingEntry()
         document.endCoalescing()
         palette = nil
         if case .panning? = interaction { setInteraction(nil) }
-        beginPress(at: screen, modifiers: modifiers)
+        beginPress(at: screen, modifiers: modifiers, clickCount: clickCount)
     }
 
     /// Esc during a drag (spec 2026-10-09 §3). A drag that hasn't changed the document is cancelled and the rest of
@@ -76,13 +91,14 @@ extension EditorModel {
         return true
     }
 
-    /// Starts a press at `start` unless one with that start is in progress. A recorded press
-    /// with another start is a gesture that never ended (say the window lost key status
-    /// mid-drag); it is dropped, so its hit, modifiers and interaction don't leak into this one.
-    private func ensurePress(at start: Vector2, modifiers: CanvasModifiers) {
+    /// Starts a press at `start` unless one with that start is in progress. A recorded press with another start is a
+    /// gesture that never ended and that MetalUI didn't cancel: a press on the same element continues its arena, which
+    /// fails the lost drag without a word (gap VI-b). It is dropped, so its hit, modifiers and interaction don't leak
+    /// into this one. A press MetalUI does cancel arrives as `pointerCancelled()`.
+    private func ensurePress(at start: Vector2, modifiers: CanvasModifiers, clickCount: Int) {
         guard currentPress?.point != start else { return }
         if currentPress != nil { endPress() }
-        pointerPressed(at: start, modifiers: modifiers)
+        pointerPressed(at: start, modifiers: modifiers, clickCount: clickCount)
     }
 
     /// A press that didn't move selects what it landed on as `mode` says (spec 2026-10-09 §3). On an item already

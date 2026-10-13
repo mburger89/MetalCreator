@@ -53,27 +53,21 @@ struct EditorGroupEntryTests {
     @Test func aDoubleClickOnAGroupNodeEntersItAndSelectsNothingInside() throws {
         let grouped = try GroupedEditor()
         let editor = grouped.editor
-        let clock = TestClock()
-        editor.now = { clock.now }
         let point = editor.screenPoint(in: grouped.group)
         editor.click(point)
         #expect(editor.levelPath.isEmpty && editor.selection == [grouped.group], "one click only selects")
-        clock.advance(by: .milliseconds(200))
-        editor.click(point + Vector2(2, 1))
+        editor.click(point + Vector2(2, 1), clickCount: 2)
         #expect(editor.levelPath == [grouped.group])
         #expect(editor.selection.isEmpty, "the click that entered didn't select the group node in its own inside")
     }
 
+    /// A slow or wandering pair is one the platform counts 1 and 1, whatever the user's speed setting is.
     @Test func aSlowOrWanderingDoubleClickDoesNotEnter() throws {
         let grouped = try GroupedEditor()
         let editor = grouped.editor
-        let clock = TestClock()
-        editor.now = { clock.now }
         let point = editor.screenPoint(in: grouped.group)
         editor.click(point)
-        clock.advance(by: .milliseconds(450))
         editor.click(point)
-        clock.advance(by: .milliseconds(100))
         editor.click(point + Vector2(8, 0))
         #expect(editor.levelPath.isEmpty)
     }

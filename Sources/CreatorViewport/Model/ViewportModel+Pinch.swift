@@ -5,11 +5,11 @@ extension ViewportModel {
     /// `magnification` is cumulative from 1 since the pinch began, and `centre` is where it began (the pointer
     /// doesn't move during a pinch). The camera zooms by `magnification` from where it was when the pinch began,
     /// toward `centre`. A pinch-in to zero or below holds at `ViewportInputMap.minimumMagnification` rather than
-    /// springing back; a non-finite value changes nothing. A pinch that begins somewhere else while one is under
-    /// way means that one lost its end (MetalUI drops such a pinch without a word, its `CI-AB`): it ends first.
+    /// springing back; a non-finite value changes nothing. A pinch MetalUI drops without an end (a new pinch replaces
+    /// it, or the window stops being key) arrives as `pinchEnded()` through the gesture's `onCancelled` (C16, gap
+    /// VI-a), so the next one starts from the camera as it is.
     public func pinchChanged(magnification: Double, centre: ScreenPoint) {
         guard magnification.isFinite else { return }
-        if let start = pinchStart, start.centre != centre { pinchEnded() }
         stopAnimation()   // also one started mid-pinch by F, an arrow or the cube
         if pinchStart == nil { pinchStart = PinchStart(pose: pose, centre: centre) }
         guard let start = pinchStart else { return }
@@ -18,7 +18,7 @@ extension ViewportModel {
         refreshToolPointer(at: centre)
     }
 
-    /// The pinch ended: the camera settles where it is, once.
+    /// The pinch ended, or MetalUI dropped it (`onCancelled`): the camera settles where it is, once.
     public func pinchEnded() {
         guard let start = pinchStart else { return }
         pinchStart = nil

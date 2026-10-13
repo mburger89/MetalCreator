@@ -71,7 +71,8 @@ struct PressModifierTests {
         #expect(editor.transform.offset == .zero)
     }
 
-    /// A press whose release was lost (the window resigned mid-drag) takes its ⇧ with it.
+    /// A press whose release was lost and that MetalUI didn't cancel (a press on the same element continues its arena,
+    /// gap VI-b; a press it does cancel is `pointerCancelled()`'s) takes its ⇧ with it.
     @Test func aLostPressTakesItsModifiersWithIt() {
         let editor = makeEditor([a, b])
         editor.selection = [a.id]

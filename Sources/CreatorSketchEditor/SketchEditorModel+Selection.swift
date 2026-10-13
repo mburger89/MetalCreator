@@ -4,7 +4,7 @@ import CreatorViewport
 
 extension SketchEditorModel {
     /// A Select-tool click: toggles the entity under it in the selection (additive, so two-entity constraints need no
-    /// modifier key, which MetalUI's taps don't report yet: docs/metalui-gaps.md S5-a); a click on nothing clears it.
+    /// modifier key, though MetalUI's taps report them since C16: docs/metalui-gaps.md S5-a); a click on nothing clears it.
     func select(at p: Vector2, tolerance: Double) {
         guard let picked = SketchPicker(sketch: sketch, solution: solution).entity(near: p, tolerance: tolerance) else {
             if !selection.isEmpty { selection = [] }
