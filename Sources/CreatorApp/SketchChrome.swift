@@ -7,8 +7,8 @@ import MetalUI
 /// toolbar's buttons or on an inspector label would reach the viewport beneath, which the sketch editor claims: it
 /// would draw hidden geometry, or clear the selection, and hover would drive the rubber band under the panel. (The
 /// glass's blurring material only paints too: MetalUI's `Material` background registers no hitbox either, so the
-/// backdrop stays after the blur, human check C21-4.) The backdrop is the graph panel's (a content shape with an empty drag, claiming every scroll), sized to the glass by
-/// `.background`. The buttons and fields are drawn above it and take their own input.
+/// backdrop stays after the blur, human check C21-4.) The backdrop is the graph panel's (a content shape with an empty
+/// drag, claiming every scroll), sized to the glass by `.background`. The buttons and fields are drawn above it and take their own input.
 struct SketchChrome<Body: ElementGroup>: Component {
     let surface: GlassSurface
     let body: Body
