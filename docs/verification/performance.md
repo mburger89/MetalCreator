@@ -8,7 +8,7 @@ viewport or the kernel, and replace the numbers here (keep the machine, load and
 
 ```sh
 scripts/bench.sh                      # every benchmark: about 10 minutes, most of it the release build
-scripts/bench.sh GraphPanZoomBench    # one suite (also OrbitBench, FilletDragBench, KernelBench, BlendRefusalBench, PatternBench)
+scripts/bench.sh GraphPanZoomBench    # one suite (also OrbitBench, FilletDragBench, KernelBench, BlendRefusalBench, PatternBench, FieldBench)
 ```
 
 The benchmarks are Swift Testing suites in `Tests/CreatorAppTests/Bench`. A plain `swift test` skips them
@@ -174,6 +174,59 @@ and commits: cold build and edit median / p95 / max for each of the three, the v
 Place + Boolean path costs more than the shortcut (it should not: they make the same two kernel calls). If the budget is
 missed, the first lever is the copies: `OCCTKernel.place` copies each tool's geometry (`BRepBuilderAPI_Transform` with copy),
 where a located shape (`TopoDS_Shape::Moved`) would share it; measure before changing the shim.
+
+## Fields (fields spec §7, sub-project 7b-1)
+
+**Targets**, release build on an idle Mac, the median of each row judged against its budget (`FieldBench.fiveNodeBudget`,
+`distanceBudget`, `placementsBudget`). A miss is recorded with its numbers, never hidden (parent spec §7.3).
+
+| Row | Case | Target |
+|---|---|---|
+| `field-1` | a five-node field (a radial gradient, a remap, noise, a multiply, a clamp), no kernel distance, 10,000 points | under **5 ms** |
+| `field-2` | the signed distance from a 60 × 40 × 6 plate (R4 corners) to 10,000 points on OCCT, the first time and cached | first under **100 ms** (a gate: see below), cached about nothing |
+| `field-2b` | the same points against a smooth loft through three circles (B-spline faces), first | recorded, no budget |
+| `field-3` | Sample Field then Cull by Field (Probability) over 2,000 placements in 40 branches; stands in for Field Scatter's row (7b-3) at its size and budget | under **50 ms** |
+| `field-4` | the edit to a tinted preview on the bracket | 7b-3 |
+
+**The 100 ms is for analytic solids.** The plate is planes and cylinders. A point against a smooth loft's B-spline faces cost about
+0.9 ms on a saturated machine (3,000 points took 2.7 s at a load of about 168), roughly forty times the plate's, so 10,000 points
+against such a solid will not meet 100 ms on any machine this plan knows of, and `field-2b` records what it does. Nobody should read
+the plate's number as the cost of every solid.
+
+**What is measured** (`Tests/CreatorAppTests/Bench/FieldBench.swift`, fixtures `FieldBenchFixtures`): row 1 and 3 call
+`FieldSampler.sample` and the two nodes' `evaluate` directly on the Fake kernel; row 2 samples a plate extruded by `OCCTKernel`
+with a new `FieldDistanceCache` each round (so the first sampling always asks the kernel) and then again with the same cache
+(the cached time is the cache's lookup: hashing 10,000 points and comparing them).
+
+**How row 2 is kept fast.** `BRepExtrema_DistShapeShape` costs about 28 µs a point on this plate (CPU time on one thread,
+measured with the fixture's plate and points in a standalone program), and a solid classification about 18 µs more. So
+`occt_distances` asks the classifier only about points inside the solid's bounds (9% of the fixture's points) and shares the
+points out in blocks of 64 over OCCT's thread pool: one thread is about 280 ms for 10,000 points, so the 100 ms target needs
+about four cores working. The threads change no number: serial and threaded results were identical in the standalone program
+and `aBatchGivesWhatEachPointGivesOnItsOwn` pins batch equals single on OCCT.
+
+**Fixture checks** run in a plain `swift test` (`FieldBenchFixturesTests`): row 1's field has five nodes and gives varied
+numbers in 0…1, the points are the same every time, row 2's plate and row 2b's loft give the right signed distances on OCCT, row
+3's tree is 2,000 placements in 40 branches.
+
+**Results: not measured.** No `FieldBench` run has been taken during execution: the Mac was loaded (load averages above 180 when
+Task 11 was implemented), and a saturated run is no verdict either way (orchestrator ruling R3). The figures below come from the run
+that verified the plan, on a MacBookPro18,2 (10 cores, macOS 27.0.1) that other builds had saturated (load averages 120.51
+160.05 156.74 before, 136.45 162.56 160.51 after), so every number is an upper bound and none is a verdict:
+
+```text
+BENCH field-1 five nodes × 10,000 points (no kernel): median 0.86 ms, p95 1.32 ms, max 2.31 ms (n 60); budget 5.00 ms: met
+BENCH field-2 signed distance to a plate × 10,000 points, first (OCCT): median 850.80 ms, p95 1081.93 ms, max 1133.94 ms (n 22); budget 100.00 ms: missed
+BENCH field-2 signed distance to a plate × 10,000 points, cached: median 4.18 ms, p95 74.11 ms, max 114.87 ms (n 22)
+BENCH field-3 Sample Field + Cull by Field × 2,000 placements: median 0.43 ms, p95 1.29 ms, max 1.57 ms (n 40); budget 50.00 ms: met
+```
+
+**Row 2 (`field-2`) is unmeasured on an idle Mac, and it gates the merge.** The branch is not merged until an idle run
+(`scripts/bench.sh FieldBench`, all three load averages under 3) puts row 2's median under 100 ms and its lines replace the ones
+above. If it misses, pull the levers in this order, re-running after each: (1) a fast path for planar faces in the shim (a
+point-to-plane distance and a point-in-face test in place of `Extrema_ExtPS`; `DistanceConformanceTests` must still pass
+unchanged), (2) a coarser classifier tolerance, and then stop and ask the user (decision 13): the budget is not edited and a miss
+is not called met. Rows 1 and 3, idle, are expected well under their budgets; `field-2b` is recorded whatever it is.
 
 ## Raw output
 
