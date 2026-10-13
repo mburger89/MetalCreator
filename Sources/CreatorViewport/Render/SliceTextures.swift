@@ -5,7 +5,15 @@ import Metal
 /// the key: a range change without a new generation must refill them), and an infinity is held to the ramp's end it lies beyond.
 @MainActor
 final class SliceTextures {
-    private var cached: (generation: Int, columns: Int, rows: Int, middle: Float, texture: any MTLTexture)?
+    private struct Entry {
+        let generation: Int
+        let columns: Int
+        let rows: Int
+        let middle: Float
+        let texture: any MTLTexture
+    }
+
+    private var cached: Entry?
     /// Textures made so far. Tests use it to tell "kept" from "rebuilt".
     private(set) var uploads = 0
 
@@ -25,7 +33,8 @@ final class SliceTextures {
             texture.replace(region: MTLRegionMake2D(0, 0, slice.columns, slice.rows), mipmapLevel: 0, withBytes: base,
                             bytesPerRow: slice.columns * MemoryLayout<Float>.stride)
         }
-        cached = (slice.generation, slice.columns, slice.rows, slice.ramp.midValue, texture)
+        cached = Entry(generation: slice.generation, columns: slice.columns, rows: slice.rows, middle: slice.ramp.midValue,
+                       texture: texture)
         uploads += 1
         return texture
     }
