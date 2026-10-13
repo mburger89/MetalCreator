@@ -37,6 +37,11 @@ extension AppModel {
     /// leaves the value as it is (a click on the knob without moving) records nothing, so it neither adds an undo
     /// step nor clears redo.
     func handleChanged(_ id: String, _ value: Double, _ phase: HandleDragPhase) {
+        // The field slice's handle moves view state, not the document: no command, no undo step, nothing to save.
+        if id == FieldPreviewModel.sliceHandleID {
+            fieldPreview.moveSlice(to: value)
+            return
+        }
         guard let target = handleTargets[id] else { return }
         if value != currentNumber(target) {
             do {
