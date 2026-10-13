@@ -18,12 +18,14 @@ public enum GlassSurface: String, CaseIterable, Sendable {
     case themeEditor
     /// The sketch editor's small readout and inference chips.
     case chip
+    /// The field preview's legend (fields spec §6): a small persistent card at the viewport's lower left.
+    case fieldLegend
 
     /// The material this surface is built on.
     public var thickness: GlassThickness {
         switch self {
         case .palette: .thin
-        case .graphPanel, .inspector, .topBar, .pickBanner, .showButton, .themeEditor, .chip: .ultraThin
+        case .graphPanel, .inspector, .topBar, .pickBanner, .showButton, .themeEditor, .chip, .fieldLegend: .ultraThin
         }
     }
 }

@@ -84,7 +84,7 @@ struct GlassStyleTests {
         let thicknesses = Dictionary(uniqueKeysWithValues: GlassSurface.allCases.map { ($0, $0.thickness) })
         #expect(thicknesses == [
             .graphPanel: .ultraThin, .inspector: .ultraThin, .topBar: .ultraThin, .pickBanner: .ultraThin,
-            .showButton: .ultraThin, .palette: .thin, .themeEditor: .ultraThin, .chip: .ultraThin,
+            .showButton: .ultraThin, .palette: .thin, .themeEditor: .ultraThin, .chip: .ultraThin, .fieldLegend: .ultraThin,
         ])
     }
 
