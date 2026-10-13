@@ -90,6 +90,17 @@ struct FieldSamplerTests {
         #expect(try await sample(.maximum(x, .constant(0)), points) == [1, 0, 4])
     }
 
+    @Test func aNaNOperandGivesNaNInEitherOrder() async throws {
+        let nan = Field.constant(.nan), one = Field.constant(1)
+        for (a, b) in [(nan, one), (one, nan), (nan, nan)] {
+            #expect(try await at(.minimum(a, b), .zero).isNaN)
+            #expect(try await at(.maximum(a, b), .zero).isNaN)
+            #expect(try await at(.smoothMinimum(a, b, width: 2), .zero).isNaN)
+            #expect(try await at(.smoothMinimum(a, b, width: 0), .zero).isNaN)
+        }
+        #expect(try await at(.clamp(nan, low: 0, high: 1), .zero).isNaN)
+    }
+
     @Test func remapMapsTheRangeAndClampsToTheOutputRange() async throws {
         let x = Field.linearGradient(plane: Plane.yz, length: 1)
         let points = [Vector3(0, 0, 0), Vector3(10, 0, 0), Vector3(20, 0, 0), Vector3(30, 0, 0), Vector3(-10, 0, 0)]

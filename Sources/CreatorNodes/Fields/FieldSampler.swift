@@ -49,15 +49,17 @@ struct Sampling {
         case .multiply(let a, let b):
             return try FieldSampler.combine(try await values(of: a, at: points), try await values(of: b, at: points), *)
         case .minimum(let a, let b):
-            return try FieldSampler.combine(try await values(of: a, at: points), try await values(of: b, at: points)) { min($0, $1) }
+            return try FieldSampler.combine(try await values(of: a, at: points), try await values(of: b, at: points),
+                                         FieldSampler.minimum)
         case .maximum(let a, let b):
-            return try FieldSampler.combine(try await values(of: a, at: points), try await values(of: b, at: points)) { max($0, $1) }
+            return try FieldSampler.combine(try await values(of: a, at: points), try await values(of: b, at: points),
+                                         FieldSampler.maximum)
         case .remap(let inner, let fromLow, let fromHigh, let toLow, let toHigh, let clamped):
             return try FieldSampler.map(try await values(of: inner, at: points)) {
                 FieldSampler.remap($0, fromLow: fromLow, fromHigh: fromHigh, toLow: toLow, toHigh: toHigh, clamped: clamped)
             }
         case .clamp(let inner, let low, let high):
-            return try FieldSampler.map(try await values(of: inner, at: points)) { min(max($0, low), high) }
+            return try FieldSampler.map(try await values(of: inner, at: points)) { FieldSampler.clamp($0, low: low, high: high) }
         case .smoothMinimum(let a, let b, let width):
             return try FieldSampler.combine(try await values(of: a, at: points), try await values(of: b, at: points)) {
                 FieldSampler.smoothMinimum($0, $1, width: width)
