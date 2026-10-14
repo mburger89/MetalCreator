@@ -344,3 +344,21 @@ meshing (dual contouring); mesh booleans; surface textures and displacement (7d,
   - Nothing outside that implementation imports Metal, simd, CoreGraphics or another Apple-only framework. The GPU
     agreement suite is skipped where no GPU evaluator exists.
   - §6's i-1, i-2 and i-4 targets are for the Metal path on this Mac; the CPU path records its numbers without a budget.
+- **D12. Export streams to the file** (user decision on the 7c-1 plan's U5, 2026-10-14). A whole 0.1 mm lattice mesh is
+  about 150 million triangles, roughly 22 GB in memory. Export at export resolution therefore never holds it:
+  - Bricks are meshed in a fixed order, and each brick's triangles go straight to the STL or 3MF writer. Shared-edge
+    vertices are merged within a window of neighbouring bricks, so the file stays watertight.
+  - Decimate and the checks run during export on that stream per brick: Decimate collapses inside each brick and never
+    moves a brick-boundary vertex. Otherwise they run on an in-memory copy at preview resolution, which is labelled
+    "approximate (preview resolution)".
+  - i-4 keeps its targets (under 60 s, under 4 GB). The streaming writer belongs to 7c-3.
+- **D13. Meshing runs on the GPU too** (user decision on U6, 2026-10-14). Marching cubes, including the shared-edge
+  merge and the Newton snap, gets a GPU implementation behind the same protocol as the evaluator. The protocol becomes
+  `ImplicitGPUEngine`: evaluate bricks and mesh bricks.
+  - `MetalImplicitEngine` comes first.
+  - An **SDL3 GPU compute** implementation for Linux and Windows follows, once MetalUI exposes SDL GPU compute to apps
+    (gaps XP-G1 and XP-G2, MetalUI S5 and S6). The user asked for it explicitly.
+  - The CPU mesher stays the complete reference and fallback. GPU and CPU meshes must agree: the same topology class,
+    and vertices within 1e-4 mm after the snap. i-1 and i-2 keep their budgets, measured on the GPU path.
+  - Build: a lane "7c-1g GPU meshing" after the Metal evaluator task. The SDL3 engine is its own track, "xp-c", after
+    MetalUI S5 and S6.
