@@ -1,4 +1,3 @@
-#if canImport(CoreGraphics)
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
@@ -61,7 +60,7 @@ struct ImageActionTests {
         let text = try folder.write(Data("not a picture".utf8), to: "notes.png")
         await app.performImage(.chooseImage, on: node.id, using: ScriptedPicker([text]))
         #expect(app.alert == .problem(AppProblem("“notes.png” can't be used as an image", ImageProblem.undecodable.message)))
-        let gif = try folder.write(AppTestImages.png(type: .gif), to: "loop.gif")
+        let gif = try folder.write(AppTestImages.gif(), to: "loop.gif")
         await app.performImage(.chooseImage, on: node.id, using: ScriptedPicker([gif]))
         #expect(app.alert == .problem(AppProblem("“loop.gif” can't be used as an image", ImageProblem.unsupportedType.message)))
         let wide = try folder.write(AppTestImages.png(8_193, 1), to: "wide.png")
@@ -252,4 +251,3 @@ struct ImageActionTests {
         #expect(image.pixels.allSatisfy { $0 == 100 * 257 }, "the picture beside the first folder, not the look-alike")
     }
 }
-#endif

@@ -42,7 +42,7 @@ unchanged in look and behaviour.
 | Today | xp-1 |
 |---|---|
 | `CryptoKit.SHA256` (`ImageHash`, `NodeID+Scoped`) | our own `SHA256` in `CreatorGraph` (pure Swift), used on every platform, pinned by the NIST test vectors and by equality with CryptoKit's output on macOS |
-| `GreyImageDecoder` (ImageIO, CoreGraphics, UTType) | MetalUI S2's public decode (grey pixels plus EXIF orientation, stb_image) on every platform once it lands, pinned against ImageIO's result on macOS for the existing fixtures; until then ImageIO stays on macOS and Image Field off macOS reports "Images need a newer MetalUI on this platform." (XP-G4) |
+| `GreyImageDecoder` (ImageIO, CoreGraphics, UTType) | MetalUI S2's public decode (`DecodedImage`, stb_image) on every platform, with our own grey conversion and orientation; adopted (erratum E4): ImageIO is gone and the Image Field works everywhere |
 | Test image fixtures written with CoreGraphics (`TestImages`, `AppTestImages`) | checked-in PNG/JPEG bytes, or written by a tiny PNG encoder in the test support |
 | `SelfTest`'s Metal check | `#if canImport(Metal)`; off macOS it checks the SDL shader directory instead |
 | `main.swift` `try App()` | `#if canImport(MetalUISDL)` → `App(platform: try SDLPlatform(), textSystem: …PortableTextSystem…)` as `metalui new --cross-platform` generates |
@@ -112,7 +112,7 @@ unchanged in look and behaviour.
 | XP-G1 | App access to SDL_GPU through `GPUSurface` (CSDL types or a portable GPU API), a shader build path for apps, MSAA resolve, depth targets, instanced draws, storage buffers, mipmapped r8 textures, texture readback | xp-3 |
 | XP-G2 | Portable compute (SDL GPU compute) for 7c's implicit engine | after xp-3 |
 | XP-G3 | Custom chrome or hidden title bar on SDL (divergence 276) | polish; xp-1 accepts the system title bar. **MetalUI S1 in progress** (borderless window, `SDL_SetWindowHitTest` drag, resize edges; record §112, `CW-`): adopt when it lands |
-| XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO | xp-1 (Image Field). **MetalUI S2 in progress** (public RGBA8/grey decode with size, stride and EXIF orientation over its stb_image; record §113, `IB-`): `GreyImageDecoder` uses it on every platform and xp-1 writes no EXIF reader of its own; until S2 lands, Image Field off macOS reports "Images need a newer MetalUI on this platform." |
+| XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO | xp-1 (Image Field). **Fixed by MetalUI S2** (record §113, `IB-`) and adopted after xp-1 (erratum E4); a header-only read is still wanted (XP-G10) |
 | XP-G5 | Open-document events on SDL (divergence 176) | xp-2. **Answered:** `Platform.onOpenURLs` (SDL drop with window 0) → `.onOpenURL` routing; command-line files via `app.open(…)` after the first window (MetalUI `docs/packaging.md`, "Launch arguments"); `.desktop` `Exec=… %F` + `MimeType=` |
 | XP-G6 | ContentType filtering by extension (divergence 129) | xp-1. **Answered:** `ContentType("…", conformingTo: [.json], filenameExtensions: ["mcgraph"])` in `allowedContentTypes` |
 | XP-G7 | Clipboard types beyond text (graph fragments) | xp-1 copies graph fragments as marked JSON text on every platform without custom types (MetalUI's interim pattern); MetalUI S3 (queued) adds custom types later |
@@ -139,3 +139,12 @@ beyond what MetalUI provides; macOS CI; Intel macOS.
 - **E3 (xp-1, section 2.4). `Window.drawnChromeHeight` is not read.** Nothing in `CreatorApp` sizes against the window height or
   the top edge, so the drawn menu strip needs no offset from MetalCreator, and no code reads the property. Confirmed by human check
   XP (the root is not clipped by the drawn strip on a real SDL window), not by a test.
+- **E4 (adopt-s2, sections 2.2 and 5, XP-G4). `GreyImageDecoder` decodes through MetalUI S2 on every platform.** After xp-1, MetalUI
+  S2 (record §113, master `dea698ca`) landed and `GreyImageDecoder` adopted it: `DecodedImage(data:format: .rgba)`, then our own
+  conversion (Rec. 709 luminance of the straight-alpha colour composited against black; S2's `.grey` is Rec. 601 with alpha dropped and
+  is not used) and the EXIF orientation applied while the grey grid is built. `GreyImageDecoder+ImageIO.swift`, the `canImport(ImageIO)`
+  fence, `ImageProblem.platformUnsupported` and "Images need a newer MetalUI on this platform." are gone; the Image Field and its tests
+  run on Linux and Windows. Section 2.2's "xp-1 writes no EXIF reader of its own" no longer holds: `ImageHeader` reads the header's size
+  and orientation because S2 offers them only after a full decode and the limits must run first (gap XP-G10). Before ImageIO was
+  removed every image fixture was decoded by both paths: PNG grids agreed within 128 of 65,535 (16-bit samples round to 8 bits), JPEG
+  grids within 441; the values are pinned in `GreyImageDecoderPinnedTests`.

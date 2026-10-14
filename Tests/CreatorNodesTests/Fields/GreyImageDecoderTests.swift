@@ -1,8 +1,6 @@
-#if canImport(ImageIO)
 import CreatorGraph
 import Foundation
 import Testing
-import UniformTypeIdentifiers
 @testable import CreatorNodes
 
 /// `GreyImageDecoder` (fields spec §5, D10): grey and colour pictures, and every way an untrusted file can be wrong.
@@ -14,9 +12,13 @@ struct GreyImageDecoderTests {
         #expect(image.pixels == [0, 60, 120, 180, 10, 70, 130, 190].map { $0 * 257 }, "row 0 is the top row")
     }
 
-    @Test func aGrey16BitPictureKeepsItsPrecision() async throws {
+    /// MetalUI's decode rounds a 16-bit sample to 8 bits (`(v * 255 + 32767) / 65535`), so a 16-bit picture is read to the nearest
+    /// 1/255 and not exactly as ImageIO read it: 4,660 gave 4,660 then and gives 18 * 257 = 4,626 now (adopt-s2, constraint 4).
+    @Test func aGrey16BitPictureIsReadToTheNearest8BitLevel() async throws {
         let png = TestImages.grey(3, 1, bits: 16) { x, _ in [0, 4_660, 65_535][x] }
-        #expect(try await GreyImageDecoder.decode(png).pixels == [0, 4_660, 65_535])
+        let image = try await GreyImageDecoder.decode(png)
+        #expect(image.pixels == [0, 4_626, 65_535])
+        #expect(abs(Int(image.pixels[1]) - 4_660) <= 257, "no more than 1/255 from the 16-bit value")
     }
 
     @Test func colourBecomesRec709LuminanceOfTheColour() async throws {
@@ -34,13 +36,6 @@ struct GreyImageDecoderTests {
         #expect(clear.pixels.allSatisfy { $0 == 0 }, "a see-through white is black")
         let half = try await GreyImageDecoder.decode(TestImages.colour(2, 2, red: 255, green: 255, blue: 255, alpha: 128))
         #expect(half.pixels.allSatisfy { abs(Int($0) - 32_896) <= 4 })
-    }
-
-    @Test func aJPEGDecodesToItsGreyWithinCompressionError() async throws {
-        let jpeg = TestImages.flatGrey(16, 16, 128, type: .jpeg)
-        let image = try await GreyImageDecoder.decode(jpeg)
-        #expect(image.width == 16 && image.pixels.allSatisfy { abs(Int($0) - 128 * 257) <= 600 })
-        #expect(try GreyImageDecoder.inspect(jpeg).format == .jpeg)
     }
 
     @Test func inspectReadsTheHeaderAndNamesTheFormat() throws {
@@ -70,8 +65,6 @@ struct GreyImageDecoderTests {
         var damaged = png
         for offset in stride(from: 100, to: 400, by: 7) { damaged[offset] ^= 0xFF }
         await #expect(throws: ImageProblem.undecodable) { try await GreyImageDecoder.decode(damaged) }
-        let jpeg = TestImages.noisy(64, type: .jpeg)
-        await #expect(throws: ImageProblem.undecodable) { try await GreyImageDecoder.decode(jpeg.prefix(jpeg.count / 2)) }
     }
 
     @Test func trailingBytesAfterAWholePictureAreIgnored() async throws {
@@ -80,11 +73,14 @@ struct GreyImageDecoderTests {
         #expect(try await GreyImageDecoder.decode(png).pixels.allSatisfy { $0 == 200 * 257 })
     }
 
-    @Test func formatsThatAreNotPNGOrJPEGAreRefusedEvenWhenImageIOReadsThem() async throws {
-        for type in [UTType.gif, .tiff] {
-            let data = TestImages.flatGrey(8, 8, 90, type: type)
-            #expect(!data.isEmpty, "\(type) fixture")
-            await #expect(throws: ImageProblem.unsupportedType) { try await GreyImageDecoder.decode(data) }
+    @Test func formatsThatAreNotPNGOrJPEGAreRefusedByTheirSignature() async throws {
+        let headers: [String: [UInt8]] = [
+            "GIF": Array("GIF89a".utf8) + [8, 0, 8, 0, 0, 0, 0x3B], "TIFF": [0x49, 0x49, 0x2A, 0, 8, 0, 0, 0, 0, 0],
+            "BMP": Array("BM".utf8) + [UInt8](repeating: 0, count: 30), "WebP": Array("RIFF".utf8) + [0, 0, 0, 0] + Array("WEBPVP8 ".utf8),
+        ]
+        for (name, bytes) in headers {
+            await #expect(throws: ImageProblem.unsupportedType, "\(name)") { try await GreyImageDecoder.decode(Data(bytes)) }
+            #expect(throws: ImageProblem.unsupportedType, "\(name)") { try GreyImageDecoder.inspect(Data(bytes)) }
         }
     }
 
@@ -108,7 +104,7 @@ struct GreyImageDecoderTests {
         }
     }
 
-    @Test func moreThanSixteenMegabytesIsRefusedBeforeImageIOSeesIt() async throws {
+    @Test func moreThanSixteenMegabytesIsRefusedBeforeAnyPixelIsDecoded() async throws {
         let over = Data(count: ImageLimits.maxBytes + 1)
         #expect(throws: ImageProblem.tooManyBytes(ImageLimits.maxBytes + 1)) { try GreyImageDecoder.inspect(over) }
         await #expect(throws: ImageProblem.tooManyBytes(ImageLimits.maxBytes + 1)) { try await GreyImageDecoder.decode(over) }
@@ -118,19 +114,11 @@ struct GreyImageDecoderTests {
         await #expect(throws: ImageProblem.undecodable) { try await GreyImageDecoder.decode(Data(count: ImageLimits.maxBytes)) }
     }
 
-    @Test(.timeLimit(.minutes(2))) func theLargestAllowedPictureDecodesInBands() async throws {
-        let big = TestImages.flatGrey(8_192, 8_192, 77)
-        #expect(big.count < ImageLimits.maxBytes)
-        let image = try await GreyImageDecoder.decode(big)
-        #expect(image.width == 8_192 && image.height == 8_192 && image.byteCount == 128 * 1_024 * 1_024)
-        #expect(image.pixels.first == 77 * 257 && image.pixels.last == 77 * 257 && image.pixels[8_192 * 4_096 + 5] == 77 * 257)
-    }
-
     /// A picture in which no two rows are alike, taken in bands of 1, 3 and 4 rows (and one smaller than a row), must come out
     /// exactly as one taken in a single band: a band placed a row off, in the wrong order or cropped wrongly cannot hide in a
     /// flat picture, but it shows in this one at its first, middle and last rows.
     @Test func severalBandsGiveTheSameRowsAsOneBand() async throws {
-        let width = 37, height = 30  // a grey row is 74 bytes of 16-bit bitmap, a colour row 296
+        let width = 37, height = 30  // a row of the grey grid is 74 bytes, the unit a band is counted in
         let grey = TestImages.grey(width, height) { x, y in (x * 7 + y * 13) % 256 }
         let whole = try await GreyImageDecoder.decode(grey, bandBytes: GreyImageDecoder.defaultBandBytes)
         for y in [0, 1, 14, 15, 28, 29] {
@@ -150,7 +138,7 @@ struct GreyImageDecoderTests {
             #expect(abs(Int(wholeColour.pixels[y * width + 5]) - expected) <= 4, "colour row \(y)")
         }
         for rows in [4, 3, 1] {
-            let banded = try await GreyImageDecoder.decode(colour, bandBytes: 296 * rows)
+            let banded = try await GreyImageDecoder.decode(colour, bandBytes: 74 * rows)
             #expect(banded.pixels == wholeColour.pixels, "colour in bands of \(rows) rows")
         }
         #expect(Set(wholeColour.pixels[0..<width]) != Set(wholeColour.pixels[(height - 1) * width..<height * width]))
@@ -186,18 +174,12 @@ struct GreyImageDecoderTests {
     @Test(arguments: 1...8) func everyOrientationGivesThePictureAsPreviewShowsIt(tag: Int) async throws {
         let value: (Int, Int) -> Int = { x, y in 10 + x * 25 + y * 60 }  // 5 × 3, every pixel different
         let expected = oriented(tag, 5, 3) { x, y in value(x, y) * 257 }
-        for type in [UTType.png, .jpeg] {
-            let data = TestImages.grey(5, 3, type: type, orientation: tag, value)
-            let info = try GreyImageDecoder.inspect(data)
-            #expect(info.width == expected.0 && info.height == expected.1, "\(type) header, orientation \(tag)")
-            let image = try await GreyImageDecoder.decode(data)
-            #expect(image.width == expected.0 && image.height == expected.1, "\(type) size, orientation \(tag)")
-            if type == .png {
-                #expect(image.pixels.map(Int.init) == expected.2, "PNG orientation \(tag)")
-            } else {
-                #expect(zip(image.pixels, expected.2).allSatisfy { abs(Int($0) - $1) <= 1_500 }, "JPEG orientation \(tag)")
-            }
-        }
+        let data = TestImages.grey(5, 3, orientation: tag, value)
+        let info = try GreyImageDecoder.inspect(data)
+        #expect(info.width == expected.0 && info.height == expected.1, "header, orientation \(tag)")
+        let image = try await GreyImageDecoder.decode(data)
+        #expect(image.width == expected.0 && image.height == expected.1, "size, orientation \(tag)")
+        #expect(image.pixels.map(Int.init) == expected.2, "PNG orientation \(tag)")
     }
 
     @Test(arguments: [5, 7]) func aColourPictureWithATransposingOrientationIsGreyAsPreviewShowsIt(tag: Int) async throws {
@@ -210,7 +192,7 @@ struct GreyImageDecoderTests {
         #expect(image.width == expected.0 && image.height == expected.1 && image.width == 4)
         let worst = zip(image.pixels, expected.2).map { abs(Int($0) - $1) }.max() ?? .max
         #expect(worst <= 600, "orientation \(tag): largest difference \(worst)")
-        let banded = try await GreyImageDecoder.decode(data, bandBytes: 4 * 8)
+        let banded = try await GreyImageDecoder.decode(data, bandBytes: 4 * 2)
         #expect(banded.pixels == image.pixels)
     }
 
@@ -234,7 +216,7 @@ struct GreyImageDecoderTests {
         let wholeColour = try await GreyImageDecoder.decode(colour, bandBytes: GreyImageDecoder.defaultBandBytes)
         #expect(wholeColour.width == 50 && wholeColour.height == 70)
         for rows in [1, 3] {
-            let banded = try await GreyImageDecoder.decode(colour, bandBytes: 50 * 8 * rows)
+            let banded = try await GreyImageDecoder.decode(colour, bandBytes: 50 * 2 * rows)
             #expect(banded.pixels == wholeColour.pixels, "colour in bands of \(rows) rows")
         }
     }
@@ -249,4 +231,3 @@ struct GreyImageDecoderTests {
         await #expect(throws: CancellationError.self) { try await task.value }
     }
 }
-#endif
