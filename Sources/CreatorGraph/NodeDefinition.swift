@@ -20,6 +20,9 @@ public protocol NodeDefinition: Sendable {
     static var handles: [HandleSpec] { get }
     /// True if `evaluate` reads `context.parameters`, so parameter edits invalidate its cache.
     static var readsParameters: Bool { get }
+    /// True if `evaluate` reads `context.meshQuality` (the Mesh node, and the Output node that meshes an implicit wired into it), so a
+    /// preview and an export don't share a cached result.
+    static var readsMeshQuality: Bool { get }
     /// True if `evaluate` places copies of a tool (`Kernel.place`), whose faces are named by the node and the tool's
     /// tag nodes (patterns spec §6, `NodeID.instanceScoped`), so a group instance must rename those pairs too.
     static var placesInstances: Bool { get }
@@ -44,6 +47,7 @@ extension NodeDefinition {
     public static var inspector: [InspectorSection] { [] }
     public static var handles: [HandleSpec] { [] }
     public static var readsParameters: Bool { false }
+    public static var readsMeshQuality: Bool { false }
     public static var placesInstances: Bool { false }
     public static var singleValuesRefusal: String? { nil }
     public static var defaultSettings: [SocketName: ConstantValue] { [:] }

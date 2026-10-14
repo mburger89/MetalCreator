@@ -1,5 +1,7 @@
 import CreatorKernel
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Foundation
 import Testing
 @testable import CreatorApp
@@ -8,6 +10,7 @@ import Testing
 /// scratch folder is removed. The packaged run, with Homebrew unreadable, is `scripts/verify-app.sh`.
 @MainActor
 struct SelfTestTests {
+    #if canImport(CreatorOCCT)
     @Test func onOCCTEveryCheckPassesAndTheScratchFolderIsRemoved() async {
         let scratch = Self.scratch()
         let report = await SelfTest.run(kernel: OCCTKernel(), scratch: scratch)
@@ -16,6 +19,7 @@ struct SelfTestTests {
         #expect(report.results.first?.detail.hasPrefix("a 10 mm cube, 1000 mm³, meshed into ") == true)
         #expect(!FileManager.default.fileExists(atPath: scratch.path))
     }
+    #endif
 
     @Test func aFailingCheckIsReportedInWordsFailsTheRunAndStillRemovesTheScratchFolder() async {
         struct NoBundle: Error, CustomStringConvertible {
@@ -57,6 +61,24 @@ struct SelfTestTests {
     @Test func aReportWithNoChecksHasNotPassed() {
         #expect(!SelfTestReport(results: []).passed)
     }
+
+    /// Linux and Windows have no OpenCascade until xp-2: the geometry checks are left out, not failed, so the run still tells
+    /// whether the rest ships.
+    @Test func onAPlatformWithoutAKernelTheGeometryChecksAreSkippedAndTheRunPasses() async {
+        let scratch = Self.scratch()
+        let report = await SelfTest.run(kernel: KernelUnavailable(), scratch: scratch) { }
+        #expect(report.passed, "\(report.text)")
+        #expect(report.results.map(\.name) == ["kernel", "STEP export", "STL export", "shaders"])
+        let skipped = "skipped: Geometry isn't available on this platform yet."
+        #expect(report.results.prefix(3).map(\.detail) == [skipped, skipped, skipped])
+        #expect(!FileManager.default.fileExists(atPath: scratch.path))
+    }
+
+    #if !canImport(Metal)
+    @Test func offMacOSTheShaderCheckFindsTheSDLBackendsCompiledShaders() throws {
+        try SelfTest.compileShaders()
+    }
+    #endif
 
     private static func scratch() -> URL {
         URL.temporaryDirectory.appending(path: "SelfTestTests-\(UUID().uuidString)")

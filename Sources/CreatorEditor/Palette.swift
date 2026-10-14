@@ -61,6 +61,9 @@ public struct Palette: Hashable, Sendable {
         case .lists: colors.valueHeader
         // Fields borrows the Feature colour until the theme gains a role of its own (7b-3 adds the preview ramp's three).
         case .fields: colors.featureHeader
+        // Implicit solids and meshes have roles of their own (implicit spec §2.1, §2.2).
+        case .implicit: colors.implicitHeader
+        case .mesh: colors.meshHeader
         case .output: colors.outputHeader
         }
     }
@@ -76,6 +79,8 @@ public struct Palette: Hashable, Sendable {
         case .edgeSet, .faceSet: header(for: .selection)
         case .number, .integer, .bool, .vector, .plane: header(for: .value)
         case .field: header(for: .fields)
+        case .implicit: header(for: .implicit)
+        case .mesh: header(for: .mesh)
         case .any: header(for: .lists)
         }
     }

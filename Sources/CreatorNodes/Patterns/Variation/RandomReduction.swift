@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorGraph
 
 /// Which items a Random Reduce drops (patterns spec §4). Every item gets a key from the seeded generator (purpose

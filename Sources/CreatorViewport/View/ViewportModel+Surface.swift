@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import Metal
 import MetalUI
 
@@ -36,3 +37,4 @@ extension ViewportModel {
         }
     }
 }
+#endif

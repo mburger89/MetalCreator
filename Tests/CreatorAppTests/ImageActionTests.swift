@@ -60,7 +60,7 @@ struct ImageActionTests {
         let text = try folder.write(Data("not a picture".utf8), to: "notes.png")
         await app.performImage(.chooseImage, on: node.id, using: ScriptedPicker([text]))
         #expect(app.alert == .problem(AppProblem("“notes.png” can't be used as an image", ImageProblem.undecodable.message)))
-        let gif = try folder.write(AppTestImages.png(type: .gif), to: "loop.gif")
+        let gif = try folder.write(AppTestImages.gif(), to: "loop.gif")
         await app.performImage(.chooseImage, on: node.id, using: ScriptedPicker([gif]))
         #expect(app.alert == .problem(AppProblem("“loop.gif” can't be used as an image", ImageProblem.unsupportedType.message)))
         let wide = try folder.write(AppTestImages.png(8_193, 1), to: "wide.png")

@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import CreatorGeometry
 import CreatorKernel
 import Metal
@@ -65,3 +66,4 @@ final class GPUMesh {
         return buffer
     }
 }
+#endif

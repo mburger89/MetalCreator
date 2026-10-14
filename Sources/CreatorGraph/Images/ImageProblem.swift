@@ -10,7 +10,7 @@ public enum ImageProblem: Error, Equatable, Sendable {
     case tooManyBytes(Int)
     /// A side beyond `ImageLimits.maxSide`.
     case tooManyPixels(width: Int, height: Int)
-    /// A format ImageIO reads that is not PNG or JPEG.
+    /// A picture format (GIF, TIFF, BMP, WebP, HEIF) that is not PNG or JPEG.
     case unsupportedType
     /// Not an image at all, or one that is damaged or cut short.
     case undecodable

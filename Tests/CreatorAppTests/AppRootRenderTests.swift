@@ -4,7 +4,6 @@ import CreatorNodes
 import CreatorStyle
 import Foundation
 import MetalUI
-import MetalUIText
 import Testing
 @testable import CreatorApp
 @testable import CreatorViewport
@@ -17,9 +16,10 @@ struct AppRootRenderTests {
     func render(_ app: AppModel) -> Scene {
         let input = AppInput(model: app)
         return renderFrame({ ZStack { AppRoot(model: app, input: input) } }, size: Size(width: Pixels(1400), height: Pixels(900)),
-                           scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+                           scaleFactor: 2, textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
     }
 
+    #if canImport(Metal)
     @Test(arguments: [DockSide.left, .bottom, .hidden])
     func theWindowDrawsInEveryDock(_ dock: DockSide) async {
         var builder = GraphBuilder()
@@ -30,6 +30,7 @@ struct AppRootRenderTests {
         #expect(scene.surfaces.count == 1, "the viewport's Metal surface")
         #expect(!scene.glyphs.isEmpty)
     }
+    #endif
 
     @Test func theWindowDrawsWhileTheSaveChangesAlertIsUp() async throws {
         let app = await makeApp()
@@ -54,6 +55,7 @@ struct AppRootRenderTests {
         #expect(abs(widest - app.panelWidth) < 1, "drawn \(widest) pt wide for a \(app.panelWidth) pt panel")
     }
 
+    #if canImport(Metal)
     /// Resizing the dock moves the triad (spec §6.3). Its letters (MetalUI text) and its lines (the GPU, at
     /// `TriadLayout.origin` in the surface) must move together: before and after each resize every axis letter is
     /// drawn where the renderer puts that axis' tip, and the surface's redraw value changes, because an on-demand
@@ -73,6 +75,7 @@ struct AppRootRenderTests {
         #expect(app.viewport.renderKey != before, "the surface redraws, so the triad's lines move too")
         try expectTriadLettersOnTheirAxes(app)
     }
+    #endif
 
     /// Every triad letter's glyph is centred where `TriadLayout` puts that axis' label in the surface's frame.
     func expectTriadLettersOnTheirAxes(_ app: AppModel, sourceLocation: SourceLocation = #_sourceLocation) throws {

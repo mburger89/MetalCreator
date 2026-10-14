@@ -87,7 +87,7 @@ struct ImageFieldNodeTests {
         let junk = Data("this is not a picture".utf8)
         let (h, node, images) = embedded(junk)
         #expect(try await h.run([node], images: images).error(node) == ImageProblem.undecodable.message)
-        let (hg, gif, gifImages) = embedded(TestImages.flatGrey(8, 8, 3, type: .gif))
+        let (hg, gif, gifImages) = embedded(Data(Array("GIF89a".utf8) + [8, 0, 8, 0, 0, 0, 0x3B]))
         #expect(try await hg.run([gif], images: gifImages).error(gif) == ImageProblem.unsupportedType.message)
         let (hw, wide, wideImages) = embedded(TestImages.flatGrey(9_000, 1, 3))
         #expect(try await hw.run([wide], images: wideImages).error(wide) == ImageProblem.tooManyPixels(width: 9_000, height: 1).message)

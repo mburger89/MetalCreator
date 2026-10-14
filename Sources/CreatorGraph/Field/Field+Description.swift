@@ -40,6 +40,8 @@ extension Field: CustomStringConvertible {
         case .image(let image, _, let width, let height, let edges):
             let pixels = "\(image.width.formatted(.number.locale(.messages))) × \(image.height.formatted(.number.locale(.messages)))"
             return "image(\(pixels) px over \(Self.number(width)) × \(Self.number(height)) mm, \(edges.name))"
+        case .implicit(let solid):
+            return "implicit(\(solid.payload.summary))"
         case .add(let a, let b):
             let text = "\(a.recipe(inside: .top)) + \(b.recipe(inside: .top))"
             return context == .factor ? "(\(text))" : text

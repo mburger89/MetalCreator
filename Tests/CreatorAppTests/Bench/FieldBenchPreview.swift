@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import Testing
 @testable import CreatorApp
 
@@ -66,3 +67,4 @@ struct FieldBenchPreview {
         print(samples.line(budget: Self.budget))
     }
 }
+#endif

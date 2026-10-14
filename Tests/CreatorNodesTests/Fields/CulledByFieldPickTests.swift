@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Patterns spec §6 and §9 through Cull by Field: a pick on one instance survives a field cull of another, and a pick on a
@@ -69,6 +71,7 @@ struct CulledByFieldPickTests {
         }
     }
 
+    #if canImport(CreatorOCCT)
     @Test func aPickOnOneInstanceSurvivesAFieldCullOfAnother() async throws {
         let kernel = OCCTKernel()
         var f = Fixture()
@@ -110,4 +113,5 @@ struct CulledByFieldPickTests {
         #expect(report.warning(f.rule) == "Instance {1} no longer exists, so the edge picked on it isn't selected.")
         #expect(try f.selected(report).edges.isEmpty, "never a neighbour's rim")
     }
+    #endif
 }

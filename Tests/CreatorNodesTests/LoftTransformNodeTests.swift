@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 struct LoftTransformNodeTests {
@@ -21,6 +23,7 @@ struct LoftTransformNodeTests {
         return loft
     }
 
+    #if canImport(CreatorOCCT)
     @Test func ruledLoftOfBroadcastSquaresIsAFrustum() async throws {
         let kernel = OCCTKernel()
         var h = Harness()
@@ -99,6 +102,7 @@ struct LoftTransformNodeTests {
         #expect(report.error(turn) == "Set “axisDirection” to rotate by 30°.")
         #expect(report.error(zero) == "The rotation axis direction can't be zero.")
     }
+    #endif
 
     @Test func movingOverAPointListMakesOneCopyPerPoint() async throws {
         var h = Harness()

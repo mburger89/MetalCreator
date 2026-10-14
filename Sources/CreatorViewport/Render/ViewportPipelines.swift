@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import Metal
 
 /// The viewport's compiled pipelines and depth states, made once per device. Main-pass pipelines render 4× MSAA
@@ -90,3 +91,4 @@ struct ViewportPipelines {
         depthBehind = try depth(.greater, write: false)
     }
 }
+#endif

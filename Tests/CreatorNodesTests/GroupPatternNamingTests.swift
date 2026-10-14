@@ -3,7 +3,9 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 /// Patterns spec §6 with groups spec §5: a "Drilled plate" definition holds a plate, a Hole Pattern and a Fillet on the
 /// rim of hole {4}, picked as if the definition were the top level. Placed twice, each instance names its holes by its
@@ -88,6 +90,7 @@ struct GroupPatternNamingTests {
                        first: first, second: second)
     }
 
+    #if canImport(CreatorOCCT)
     func evaluate(_ drilled: Drilled) async throws -> EvaluationReport {
         try await Evaluator(registry: BuiltInNodes.registry, kernel: OCCTKernel())
             .evaluate(drilled.content.graph, definitions: drilled.content.definitions, demand: [drilled.first.id, drilled.second.id])
@@ -120,6 +123,7 @@ struct GroupPatternNamingTests {
             #expect(solid.topology.faces.contains { face in face.tags.contains { if case .blend = $0.role { true } else { false } } })
         }
     }
+    #endif
 
     @Test func aPickMadeInsideAnInstanceIsStoredRelativeToTheDefinition() {
         let drilled = Self.make()

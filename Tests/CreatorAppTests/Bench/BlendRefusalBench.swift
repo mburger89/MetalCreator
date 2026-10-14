@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
@@ -93,3 +94,4 @@ struct BlendRefusalBench {
         print(refused.line())
     }
 }
+#endif

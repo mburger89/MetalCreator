@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 // Test fixture file: the §7.2 bracket on OCCT, its chamfer's edges picked, for the §7.3 benchmarks.
 import Testing
 @testable import CreatorApp
@@ -24,3 +25,4 @@ func makeBracketBenchApp() async throws -> (app: AppModel, bracket: AppBracket) 
     await app.settle()
     return (app, bracket)
 }
+#endif

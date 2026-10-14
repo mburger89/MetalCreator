@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
@@ -60,3 +61,4 @@ struct FieldBenchFixturesTests {
         #expect(tree.itemCount == 2000 && tree.depth == 2 && tree.leaves.count == 40)
     }
 }
+#endif

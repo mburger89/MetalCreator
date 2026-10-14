@@ -14,6 +14,21 @@ struct LaunchCommandTests {
         #expect(LaunchCommand(arguments: ["--info-plist", "27.0"]) == .infoPlist(minimumSystemVersion: "27.0"))
     }
 
+    @Test func theSmokeTestTakesAnOptionalNumberOfSeconds() {
+        #expect(LaunchCommand(arguments: ["--smoke-test"]) == .smokeTest(seconds: 5))
+        #expect(LaunchCommand(arguments: ["--smoke-test", "2.5"]) == .smokeTest(seconds: 2.5))
+    }
+
+    @Test(arguments: ["0", "-1", "soon", "601", "nan", "inf"])
+    func aBadSmokeTestDurationIsAUsageError(_ seconds: String) {
+        #expect(LaunchCommand(arguments: ["--smoke-test", seconds])
+            == .usageError("--smoke-test takes a number of seconds between 0 and 600."))
+    }
+
+    @Test func aSecondValueAfterTheSmokeTestIsAUsageError() {
+        #expect(LaunchCommand(arguments: ["--smoke-test", "5", "6"]) == .usageError("--smoke-test takes at most one number of seconds."))
+    }
+
     @Test(arguments: ["26", "26.0", "26.0.1"])
     func infoPlistTakesAMacOSVersion(_ version: String) {
         #expect(LaunchCommand(arguments: ["--info-plist", version]) == .infoPlist(minimumSystemVersion: version))

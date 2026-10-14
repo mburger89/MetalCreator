@@ -44,7 +44,7 @@ func temporaryURL(_ name: String) -> URL {
 
 /// Builds graphs from built-in nodes, created as the app creates them (`NodeRegistry.makeNode`).
 struct GraphBuilder {
-    private(set) var graph = Graph()
+    var graph = Graph()
 
     @discardableResult
     mutating func add(_ definition: any NodeDefinition.Type, _ values: [SocketName: ConstantValue] = [:],
@@ -53,6 +53,11 @@ struct GraphBuilder {
         node.inputValues.merge(values) { _, given in given }
         graph.nodes[node.id] = node
         return node
+    }
+
+    /// Puts `node` back in the graph in place of the node with its ID (after a test renamed it).
+    mutating func replace(_ node: Node) {
+        graph.nodes[node.id] = node
     }
 
     mutating func wire(_ from: Node, _ output: SocketName, to: Node, _ input: SocketName,

@@ -59,6 +59,15 @@ stopgap as they were. The sections below keep each gap's full use case.
 | CT-b | No way to set a text field's selection or caret (a field focused from code opens with its caret at the start) | C25 | ✅ fixed by C25 (MetalUI master 3fce05f: `TextField(_:text:selection:)` and `TextEditor(_:text:selection:)` over `Binding<TextSelection?>`; divergences 265, 266), adopted (plan `2026-10-12-adopt-c25.md`): a frame's title opens with all of it selected and a note with the caret at its end (`CommentEdit.selection`); human checks C25 pending |
 | CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | ✅ fixed (MetalUI 280d706), adopted (plan `2026-10-12-adopt-test-harness`): `CanvasNoteTypingWindowTests`, `CanvasTitleTypingWindowTests`, `CanvasTypingKeysWindowTests`, `CanvasTypingFocusWindowTests`, `CanvasTypingUndoWindowTests`; CT-1..CT-11 keep only their visual and machine-specific parts |
 | CT-d | The test harness can't drive an input method, so a field's composing (marked text) next to a selection write has no automated test | C28 | ✅ fixed by C28 (MetalUI master f6f865c1, PR #75, record §102: `TestWindow.setMarkedText`, `commitMarkedText`, `cancelMarkedText`; divergences 325 and 326), adopted (plan `2026-10-13-adopt-c28.md`): `CanvasTypingCompositionWindowTests`, `InspectorFieldCompositionWindowTests`; ⌘Z after a selection write is documented and pinned; C25-3 keeps only the feel |
+| XP-G3 | Custom chrome or a hidden title bar on SDL (divergence 276) | MetalUI S1 (in progress, record §112, `CW-`) | ✅ fixed by MetalUI S1 (master `ceca59f6`, record §112, `CW-`), adopted (branch `xp-adopt-s1`): the window is borderless on SDL, MetalUI draws minimise, zoom and close, `TopBar` clears `titleBarInsets` at both ends, Close reaches `AppModel.closeRequested()`. **But the drag regions are not published while a real (gesture-taking) viewport is behind the bar: see XP-G11, which bites at xp-3** (human checks XP-11..XP-14) |
+| XP-G11 | A window-drag handle above a full-window pointer-taking view gets no SDL drag region (S1, divergence 426) | open (new, forward to MetalUI) | 🔄 open at MetalUI. `ChromeRegions.compute` carves every handle and the band by every opaque pointer-taking hitbox in the window whatever its depth. MetalCreator's real viewport (a `SpatialTapGesture` and three `DragGesture`s, `ViewportView+Parts`) fills the window behind the bar, so `windowDragRegions` is empty on an SDL-shaped headless window on macOS. **Today** Linux and Windows run `ViewportPlaceholder` (no gestures), so CI sees regions and the drag works; the gap bites when xp-3 puts the SDL GPU viewport there (the glass bar, the strip and the band could not move the window, and the band's double-click zoom would be lost). Pinned as a known issue where `canImport(Metal)` in `SDLChromeWindowTests` (`withKnownIssue`, XP-G11) |
+| XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO | MetalUI S2 (record §113, `IB-`, PR #84) | ✅ fixed by MetalUI S2 (master `dea698ca`), adopted (branch `adopt-s2`): `GreyImageDecoder` decodes through `DecodedImage(data:format: .rgba)` on every platform, so the Image Field works on Linux and Windows; ImageIO is gone from `Sources`, and so are `GreyImageDecoder+ImageIO.swift`, `ImageProblem.platformUnsupported` and its sentence. Left open at MetalUI: XP-G10 (a header-only read) |
+| XP-G5 | Open-document events on SDL (divergence 176) | answered | ✅ answered by MetalUI (`Platform.onOpenURLs` → `.onOpenURL`; command-line files via `app.open(…)` after the first window; `.desktop` `Exec=… %F` + `MimeType=`); xp-2's (packaging), not adopted in xp-1 |
+| XP-G6 | `ContentType` filtering by extension (divergence 129) | answered | ✅ answered and already in use: every `ContentType` the file panels use declares `filenameExtensions` (`ContentType+MetalCreator`, `+Images`, `+Theme`), pinned by `ContentTypeTests`; nothing to change for xp-1 |
+| XP-G7 | Clipboard types beyond text (graph fragments) | MetalUI S3 (queued) | 🔄 queued at MetalUI. Nothing to do in xp-1: MetalCreator's graph-fragment clipboard is in memory (`NodeClipboard`) and never reaches the system pasteboard on any platform; a system clipboard (marked JSON text now, S3's custom types later) is a feature of its own |
+| XP-G8 | Hand and zoom cursor fallbacks | MetalUI S4 (queued) | ➖ accepted: MetalUI's fallback (`.link` hand, grab → move, zoom → arrow) is used as is; S4 adds image cursors (human check XP-8) |
+| XP-G9 | `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks)` | open (new) | 🔄 open at MetalUI. `MetalCreatorApp --smoke-test` (the CI launch check, `main.swift`) imports it with `@_spi(Checks) import MetalUISDL`; promote it to public API or name a supported headless-launch entry point |
+| XP-G10 | A header-only read of a picture's size and orientation (before any pixel is decoded) | open (new, forward to MetalUI) | 🔄 open at MetalUI. `DecodedImage` reports size and orientation only after it decodes the whole picture, but `ImageLimits` must refuse an oversize one first; MetalCreator keeps a small `ImageHeader` reader (PNG IHDR and `eXIf`, JPEG SOF and APP1) for that. Needed: a public `ImageInfo(data:)` (format, stored size, orientation, no pixel work) |
 
 ## Reported 2026-10-07 (C7)
 
@@ -1097,3 +1106,71 @@ Labelled CT-d so it stays beside CT-b and CT-c. Checked against MetalUI `3fce05f
   it for a title (typing replaces it, ⌘Z brings the old title back all selected, nothing reaches the document).
   Human check C25-7 is now that pin plus a look; C25-3 keeps what only a real input method shows. No MetalCreator
   production code changed.
+
+## Hit by the cross-platform port (xp-1), 2026-10-13
+
+Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan and XP-G10 by the S2 adoption, after the spec's table (`docs/superpowers/specs/2026-10-13-cross-platform-design.md` §5); XP-G1 and XP-G2
+(SDL GPU for the viewport, portable compute) belong to xp-3 and are logged there. Checked against MetalUI `fb9a7e42` (the pin in `.github/workflows/xp.yml` is now `ceca59f6`, which has S1 and S2), the commit
+`.github/workflows/xp.yml` pins. None of these is worked around in a way MetalUI will have to undo: each stopgap is one switch
+(`#if`) or one sentence.
+
+- **XP-G3. A hidden title bar or custom chrome on SDL.** The window opens with `windowStyle: AppLayout.windowStyle`
+  (`.hiddenTitleBar`, gap M6-c). SDL ignores it and keeps its system title bar (divergence 276), `titleBarInsets` reads zero and
+  `WindowDragHandle` is a no-op there, so `TopBar` sits under the system bar with no clearance to make and nothing to drag.
+  Needed: a borderless window with MetalUI-drawn controls and a drag region. **Fixed by MetalUI S1** (record §112, `CW-`, master
+  `ceca59f6`) and adopted on branch `xp-adopt-s1`: `.hiddenTitleBar` is a borderless window on SDL, `titleBarInsets` reads a 32-point
+  band plus MetalUI's drawn cluster (right 138 on Linux and Windows), `AppLayout.topBarClearance` and `topBarTrailingClearance` pad
+  the top bar's content by `.left` and `.right`, and `drawsWindowControls` stays at its default so MetalUI draws the buttons; Close
+  goes through `onCloseRequest` (`AppModel.installCloseHandling`). macOS is unchanged (`SDLChromeWindowTests.macLayoutIsWhatItWas`).
+  Human checks XP-11..XP-14. The drag works with today's placeholder viewport on Linux and Windows and will not once the real viewport arrives, while XP-G11 is open.
+- **XP-G11. A drag handle above a full-window pointer-taking view gets no SDL drag region.** S1's `ChromeRegions.compute` takes the
+  band and each `WindowDragGesture` handle as candidates and subtracts every opaque pointer-taking hitbox in the window, with no
+  regard for depth (a scratch window with a full-window `DragGesture` view behind a handle: regions `[]`; without it, the handle's
+  rect). MetalCreator's viewport is exactly that view: it fills the window behind the glass bar, so on an SDL-shaped headless window
+  (`HeadlessPlatformWindow.Options.sdlChrome`) on macOS `windowDragRegions` is empty. Linux and Windows run `ViewportPlaceholder` until
+  xp-3, which has no gestures, so CI sees the regions there; once the SDL GPU viewport arrives the bar, the strip and the band cannot
+  move the window, and the band's double-click zoom is lost; resize edges are unaffected. Divergence 426 documents the case of a handle *under* a
+  control; here the pointer-taking view is *under the handle*. Needed: blockers ranked by depth (only a hitbox above the candidate
+  carves it), or an API to say a handle wins over what is behind it. Not worked around. Pinned as a known issue
+  (`withKnownIssue`, macOS only) in `SDLChromeWindowTests`; remove the guards when MetalUI fixes it.
+- **XP-G4. Grey pixels and the EXIF orientation of a PNG or JPEG without ImageIO.** Fixed by MetalUI S2 (record §113, `IB-`,
+  PR #84, master `dea698ca`) and adopted on branch `adopt-s2`. `GreyImageDecoder` now decodes through `DecodedImage(data:format: .rgba)` on
+  every platform (stb_image, the same bytes in as out on macOS, Linux and Windows), then does its own grey conversion and orientation:
+  Rec. 709 luminance of the straight-alpha colour composited against black (not S2's `.grey`, which is Rec. 601 with alpha dropped), and
+  the EXIF tag from `DecodedImage.orientation` applied while the grey grid is built (no oriented copy of the RGBA). The Image Field works
+  off macOS; "Images need a newer MetalUI on this platform.", `ImageProblem.platformUnsupported` and the macOS-only fence are gone, and no
+  file in `Sources` imports ImageIO. Measured against ImageIO on every existing fixture before it was removed: PNG grids agree within
+  128 of 65,535 (the only moves are 16-bit samples, which S2 rounds to 8 bits); JPEG grids within 441 (under two levels, a colour JPEG:
+  stb's IDCT and chroma upsampling are not ImageIO's). Differences to know: MetalUI refuses a PNG with a bad CRC on any chunk (libpng
+  tolerated an ancillary one), a side over 16,384 px, and a truncated JPEG, which is stricter than ImageIO and never looser; a 16-bit PNG
+  is read to the nearest 1/255 (`aGrey16BitPictureIsReadToTheNearest8BitLevel` replaces the exact-precision test). Peak memory for a legal
+  8,192 × 8,192 picture: the 16 MB file, MetalUI's decode (up to 256 MB of RGBA, plus whatever it holds while decoding) and the 128 MB result.
+  The 32 MB band survives only as the unit of cancellation checks.
+- **XP-G5. Open-document events on SDL.** Answered: `Platform.onOpenURLs` (an SDL drop with window 0) routes to `.onOpenURL`;
+  command-line files go through `app.open(…)` after the first window (MetalUI `docs/packaging.md`, "Launch arguments"); the
+  `.desktop` file carries `Exec=… %F` and `MimeType=`. Linux and Windows packaging is xp-2, so xp-1 adopts nothing; the
+  command-line path already reaches the app the same way (`MetalCreatorApp [file.mcgraph]`).
+- **XP-G6. `ContentType` filtering by extension.** Answered (`ContentType("…", conformingTo: [.json], filenameExtensions: ["mcgraph"])`
+  in `allowedContentTypes`), and MetalCreator had it already: `mcgraph`, `step`, `stl`, `png`, `jpeg` and `mctheme` declare their
+  extensions, because macOS's panels matched them by extension too. `ContentTypeTests` pins each.
+- **XP-G7. Clipboard types beyond text.** MetalCreator's graph-fragment clipboard (`NodeClipboard`, ⌘C ⌘V ⌘D on the canvas) is held
+  in memory and never reaches the system pasteboard on any platform, so there is nothing to port and nothing lost off macOS. A
+  system clipboard is a feature of its own: it would write the fragment as marked JSON text (MetalUI's interim pattern) and move to
+  MetalUI S3's custom types when they land. Not an xp-1 task.
+- **XP-G8. Hand and zoom cursors.** SDL has no hand or zoom cursor. MetalUI maps the hand to the link cursor, grab to move and zoom
+  to the default arrow; the viewport's `ViewportCursor` and the canvas's `CanvasCursor` already go through `PointerStyle`, so they
+  take the fallback with no change. MetalUI S4 adds image cursors. Human check XP-8.
+- **XP-G9. The headless launch used by CI is SPI.** `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks) public`
+  (`Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`), meant for MetalUI's own checks. `MetalCreatorApp --smoke-test` (Task 7)
+  opens the real window on hidden windows and offscreen renderers (Direct3D 12 on WARP on Windows, Mesa software on Linux) and
+  exits 0 only after a `.task` ran inside the first frame, which is how CI proves a launch with no display. It uses the SPI because
+  MetalUI offers no public way to do that. Needed: a public headless-launch initializer or flag on `SDLPlatform`, so CI does not
+  depend on a symbol MetalUI may rename without notice. Until then a MetalUI bump can break `main.swift` at compile time, loudly,
+  and the fix is one line. The smoke test passes in CI on Linux and Windows (run 38535917146) (human
+  check XP-9).
+- **XP-G10. A header-only read of a picture's size and orientation.** `DecodedImage` reports the stored size and the orientation after the
+  whole picture is decoded (`IB-C`), but `ImageLimits` (16 MB, 8,192 px a side, PNG and JPEG only) must refuse an oversize picture before
+  a pixel is decoded, and the limit is on the oriented size. So `ImageHeader` (`Sources/CreatorNodes/Fields`) reads the PNG IHDR and
+  `eXIf` chunk and the JPEG SOF and APP1 segment itself, the one EXIF reader xp-1 hoped not to write; `decode` refuses a picture whose
+  decoded size disagrees with it. Needed from MetalUI: a public `ImageInfo(data:)` (format, stored size, orientation) that does no pixel
+  work, after which `ImageHeader` goes. To be forwarded to the MetalUI session.

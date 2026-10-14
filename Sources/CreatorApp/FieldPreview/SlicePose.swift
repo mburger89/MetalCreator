@@ -25,8 +25,16 @@ struct SlicePose: Equatable, Sendable {
     /// direction `toEye` (the axis whose normal is most nearly along it; ties XY, YZ, XZ).
     static func startingChoice(for field: Field, toEye: Vector3) -> SliceChoice {
         if let own = field.ownPlane, own.normal.normalized?.isFinite == true { return .own }
-        return .axis(SliceAxis.allCases.max { abs(toEye.dot($0.plane.normal)) < abs(toEye.dot($1.plane.normal)) } ?? .xy)
+        // The default camera looks along (1, 1, 1), where the three axes tie. The camera's own sines and cosines differ in the last
+        // bits between platforms' maths libraries, so a tie is any difference below `tieTolerance`, not exact equality: the
+        // first axis in `allCases` order (XY, YZ, XZ) within it wins everywhere.
+        let alignments = SliceAxis.allCases.map { (axis: $0, alignment: abs(toEye.dot($0.plane.normal))) }
+        let best = alignments.map(\.alignment).max() ?? 0
+        return .axis(alignments.first { $0.alignment >= best - tieTolerance }?.axis ?? .xy)
     }
+
+    /// How much closer to the view direction one axis may be and still tie with another (see `startingChoice`).
+    static let tieTolerance = 1e-9
 
     /// Where a preview of `field` starts for a part inside `bounds` seen from the direction `toEye`.
     static func starting(for field: Field, bounds: BoundingBox, toEye: Vector3) -> SlicePose {

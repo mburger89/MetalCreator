@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import Testing
 @testable import CreatorApp
 
@@ -50,3 +51,4 @@ struct FilletDragBench {
         print(total.line(budget: Bench.dragBudget))
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 // Test fixture file: the patterns spec §7 benchmark's plate, built in an app on OCCT.
 import CreatorGeometry
 import CreatorGraph
@@ -121,3 +122,4 @@ struct PatternBenchApp {
         try app.document.perform(.connect(Link(from: Endpoint(node: from.id, socket: output), to: Endpoint(node: to.id, socket: input))))
     }
 }
+#endif

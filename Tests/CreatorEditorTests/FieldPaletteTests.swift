@@ -9,7 +9,7 @@ struct FieldPaletteTests {
     @Test func theFieldsCategoryIsTitledFieldsAndComesLastBeforeOutput() {
         #expect(NodeCategory.fields.title == "Fields")
         #expect(LibrarySection.title(for: .fields) == "Fields")
-        #expect(NodeCategory.allCases.suffix(2) == [.fields, .output])
+        #expect(NodeCategory.allCases.suffix(4) == [.fields, .implicit, .mesh, .output])
     }
 
     @Test func aFieldSocketHasItsCategorysColourAndNotTheValueColour() {

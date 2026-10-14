@@ -39,6 +39,19 @@ struct SlicePoseTests {
         #expect(SlicePose.starting(for: noise, bounds: bounds, toEye: xz).choice == .axis(.xz))
     }
 
+    /// The default camera looks along (1, 1, 1) up to the last bits of its sines and cosines, which differ between platforms'
+    /// maths libraries (the Windows suite chose YZ). Last-bit differences are still a tie.
+    @Test(arguments: [Vector3(1 + 1e-13, 1, 1), Vector3(1, 1 + 1e-13, 1), Vector3(1, 1, 1 - 1e-13), Vector3(1 + 2e-13, 1 + 1e-13, 1)])
+    func aTieWithinTheLastBitsStillGoesToXY(toEye: Vector3) {
+        #expect(SlicePose.startingChoice(for: noise, toEye: toEye) == .axis(.xy))
+        #expect(SlicePose.starting(for: noise, bounds: bounds, toEye: toEye).choice == .axis(.xy))
+    }
+
+    @Test func aRealDifferenceIsNotATie() {
+        #expect(SlicePose.startingChoice(for: noise, toEye: Vector3(1.001, 1, 1)) == .axis(.yz))
+        #expect(SlicePose.startingChoice(for: noise, toEye: Vector3(1, 1.001, 1)) == .axis(.xz))
+    }
+
     @Test func theStartingChoiceNeedsNoBox() {
         let plane = Plane(origin: .zero, normal: .unitX, xAxis: .unitY)
         #expect(SlicePose.startingChoice(for: .linearGradient(plane: plane, length: 5), toEye: eye(yaw: 0, pitch: 0)) == .own)

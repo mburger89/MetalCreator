@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Foundation
 import Testing
 
@@ -41,6 +43,7 @@ struct VariationPipelineTests {
         }
     }
 
+    #if canImport(CreatorOCCT)
     @Test func theGraphMakesTheHolesItsRandomChoicesSay() async throws {
         let kernel = OCCTKernel()
         let p = Pipeline(seed: 5)
@@ -91,6 +94,7 @@ struct VariationPipelineTests {
         #expect(!isClose(try await volume(a, kernel), try await volume(c, kernel), relative: 1e-9))
         #expect(otherReport.isOK(other.holes) && otherReport.isOK(other.reduce) && otherReport.isOK(other.jitter))
     }
+    #endif
 
     /// With every random node on the default seed 0, Random Reduce and Random Values must not draw the same numbers at the same place
     /// (User decision U7): unsalted, the three items dropped here would be exactly the three smallest random values.

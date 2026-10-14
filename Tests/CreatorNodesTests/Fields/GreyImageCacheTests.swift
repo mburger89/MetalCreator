@@ -89,8 +89,8 @@ struct GreyImageCacheTests {
         let folder = TempFolderForNodes()
         let cache = GreyImageCache(budgetBytes: 1_000_000)
         let counter = CountingDecoder()
-        let whole = TestImages.noisy(64, type: .jpeg)
-        let file = try folder.write(whole.prefix(whole.count / 2), to: "cut.jpg")
+        let whole = TestImages.noisy(64)
+        let file = try folder.write(whole.prefix(whole.count / 2), to: "cut.png")
         try folder.touch(file, Date(timeIntervalSince1970: 1_000))
         let reference = ImageReference.linked(relativePath: nil, absolutePath: file.path(percentEncoded: false))
         for _ in 0..<3 {
@@ -101,7 +101,7 @@ struct GreyImageCacheTests {
         #expect(counter.count == 1, "the cut-short JPEG was read and decoded once; the next two evaluations failed from memory")
         #expect(cache.problemCount == 1 && cache.count == 0)
         // Saving the whole picture changes the file's date and size, so the stamp changes and the file is tried again.
-        try folder.write(whole, to: "cut.jpg")
+        try folder.write(whole, to: "cut.png")
         try folder.touch(file, Date(timeIntervalSince1970: 2_000))
         let image = try await ImageLoader.image(for: reference, resolver: ImageResolver(), cache: cache, decode: counter.decode)
         #expect(counter.count == 2 && image.width == 64)
@@ -122,7 +122,17 @@ struct GreyImageCacheTests {
         #expect(counter.count == 1)
     }
 
-    @Test func aFileThatCouldNotBeReadIsTriedAgainBecauseFixingThatChangesNoStamp() async throws {
+    /// Whether a file with no permissions is really unreadable here: not as root (a CI container's user), and not on Windows.
+    private static let canDenyReading: Bool = {
+        #if os(Windows)
+        false
+        #else
+        geteuid() != 0
+        #endif
+    }()
+
+    @Test(.enabled(if: canDenyReading, "root and Windows read a file whose permissions are 000"))
+    func aFileThatCouldNotBeReadIsTriedAgainBecauseFixingThatChangesNoStamp() async throws {
         let folder = TempFolderForNodes()
         let cache = GreyImageCache(budgetBytes: 1_000_000)
         let counter = CountingDecoder()

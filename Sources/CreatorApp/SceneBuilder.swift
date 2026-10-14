@@ -1,4 +1,5 @@
 import CreatorGraph
+import CreatorImplicit
 import CreatorKernel
 import CreatorViewport
 
@@ -19,6 +20,23 @@ public enum SceneBuilder {
     public static func scene(shown: [NodeID], graph: Graph, results: [NodeID: NodeResult],
                              lastGood: [NodeID: [SocketName: Value]], selection: Set<NodeID>,
                              showsGuides: Bool = false) -> [SceneItem] {
+        scene(shown: shown, graph: graph, results: results, lastGood: lastGood,
+              options: Options(selection: selection, showsGuides: showsGuides, meshes: MeshScene(solids: MeshSolids())))
+    }
+
+    /// What the scene shows besides the nodes' own items.
+    struct Options {
+        var selection: Set<NodeID>
+        var showsGuides: Bool
+        /// The meshes the scene shows: a mesh is a display-only solid (`MeshSolids`), replaced by its refinement when
+        /// `MeshRefinementModel` has made one (implicit spec §5.1).
+        var meshes: MeshScene
+    }
+
+    /// The same, with the options spelled out.
+    static func scene(shown: [NodeID], graph: Graph, results: [NodeID: NodeResult],
+                      lastGood: [NodeID: [SocketName: Value]], options: Options) -> [SceneItem] {
+        let (selection, showsGuides, meshes) = (options.selection, options.showsGuides, options.meshes)
         var scene: [SceneItem] = []
         for id in shown {
             guard let node = graph.nodes[id] else { continue }
@@ -32,7 +50,7 @@ public enum SceneBuilder {
             } else {
                 continue
             }
-            scene += items(of: node, outputs: outputs, isGhost: isGhost, graph: graph)
+            scene += items(of: node, outputs: outputs, isGhost: isGhost, graph: graph, meshes: meshes)
         }
         let selectedSets = selection.sorted().flatMap { edgeSets(results[$0]) }
         let highlighted = highlighting(scene, selectedSets: selectedSets)
@@ -40,7 +58,8 @@ public enum SceneBuilder {
     }
 
     /// The items one node's outputs make, socket by socket in name order.
-    static func items(of node: Node, outputs: [SocketName: Value], isGhost: Bool, graph: Graph) -> [SceneItem] {
+    static func items(of node: Node, outputs: [SocketName: Value], isGhost: Bool, graph: Graph,
+                      meshes: MeshScene = MeshScene(solids: MeshSolids())) -> [SceneItem] {
         // An Output node passes its input through, so the solid's source is what's wired into it.
         let passThrough = node.isOutput ? graph.incomingLink(to: Endpoint(node: node.id, socket: "solid"))?.from : nil
         let ruleSolid = graph.incomingLink(to: Endpoint(node: node.id, socket: "solid"))?.from
@@ -54,12 +73,29 @@ public enum SceneBuilder {
                 case .edgeSet(let set):
                     items.append(SceneItem(item: ViewportItem(solid: set.solid, isGhost: isGhost,
                                                               selectedEdges: Set(set.edges)), source: ruleSolid))
+                case .mesh(let payload):
+                    guard let mesh = payload as? TriangleMesh else { continue }
+                    items.append(SceneItem(item: ViewportItem(solid: meshes.solids.solid(for: meshes.shown(mesh)), isGhost: isGhost),
+                                           source: Endpoint(node: node.id, socket: socket)))
                 default:
                     continue
                 }
             }
         }
         return items
+    }
+
+    /// The preview meshes the shown nodes' current results hold that can be refined (`TriangleMesh.source`), in node order. A stale
+    /// result is never refined: the evaluator is about to replace it.
+    static func previewMeshes(shown: [NodeID], results: [NodeID: NodeResult]) -> [TriangleMesh] {
+        shown.flatMap { id -> [TriangleMesh] in
+            guard let result = results[id], result.state.isSuccess, let outputs = result.outputs else { return [] }
+            return outputs.sorted { $0.key < $1.key }.flatMap { _, value in
+                value.items.compactMap { scalar -> TriangleMesh? in
+                    if case .mesh(let payload) = scalar, let mesh = payload as? TriangleMesh, mesh.source != nil { mesh } else { nil }
+                }
+            }
+        }
     }
 
     static func edgeSets(_ result: NodeResult?) -> [EdgeSet] {

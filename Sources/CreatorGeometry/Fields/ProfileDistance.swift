@@ -1,9 +1,8 @@
-import CreatorGeometry
 import Foundation
 
 /// The distance from a point to a profile's loops (fields spec §3.1): to its edges, not its area, measured in 3D, so a
 /// point above the plane adds its height. Plain Swift; it never reaches the kernel.
-struct ProfileDistance: Sendable {
+public struct ProfileDistance: Sendable {
     private enum Piece: Sendable {
         case line(Vector2, Vector2)
         /// An arc is the part of its circle from `lowest` through `sweep` radians, counter-clockwise (a clockwise arc is the
@@ -14,7 +13,7 @@ struct ProfileDistance: Sendable {
     private let plane: Plane
     private let pieces: [Piece]
 
-    init(_ profile: Profile2D) {
+    public init(_ profile: Profile2D) {
         plane = profile.plane
         pieces = profile.loops.joined().map { segment in
             switch segment {
@@ -27,7 +26,7 @@ struct ProfileDistance: Sendable {
     }
 
     /// Millimetres from `point` to the nearest of the loops' pieces.
-    func distance(from point: Vector3) -> Double {
+    public func distance(from point: Vector3) -> Double {
         let offset = point - plane.origin
         let local = Vector2(offset.dot(plane.xAxis), offset.dot(plane.yAxis))
         let height = offset.dot(plane.normal)

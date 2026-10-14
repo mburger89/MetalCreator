@@ -1,0 +1,157 @@
+# Cross-platform CI (sub-project XP, spec docs/superpowers/specs/2026-10-13-cross-platform-design.md section 2.6):
+# MetalCreator builds, tests and launches on Linux (x86_64, aarch64) and Windows (x64). macOS stays verified locally (the
+# full suite, OpenCascade, Metal), not here. A red run here never blocks a local macOS merge in xp-1, but it is reported.
+#
+# MetalUI is a sibling checkout (Package.swift's path dependency is ../MetalUI) at the commit pinned below; bump METALUI_COMMIT
+# when MetalCreator adopts a MetalUI change.
+#
+# The Linux jobs run scripts/linux-test.sh, the script a developer runs in Docker on a Mac: build, the suite (exit 0, no
+# "recorded an issue" or "failed after" line, eleven "Test run with" lines), the app's --self-test, and --smoke-test 20.
+#
+# The Windows job is modelled on MetalUI's own Windows job (.github/workflows/sdl-gpu-linux.yml). Run 38546048595 was green: it builds, passes the
+# suite (11 "Test run with" lines) and passes the app's --self-test and --smoke-test. It stays continue-on-error, so it does not hide the Linux
+# result, and the last step marks a red Windows run with a warning and a summary line (the run itself shows green); read its log on every run.
+
+name: XP cross-platform
+
+on:
+  push:
+    branches: [main, 'xp-*']
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same ref cancels the run in progress (the matrix has 90-minute jobs).
+concurrency:
+  group: xp-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  METALUI_REPOSITORY: mburger89/MetalUI
+  METALUI_COMMIT: ceca59f6e417631bb0f856f885eeac7a7ddb3f7a
+
+jobs:
+  linux:
+    name: Linux ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: MetalCreator
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.METALUI_REPOSITORY }}
+          ref: ${{ env.METALUI_COMMIT }}
+          path: MetalUI
+      - uses: docker/setup-buildx-action@v4
+      - name: Build MetalUI's Linux image (Swift, SDL3 from source, Mesa, AccessKit)
+        uses: docker/build-push-action@v7
+        with:
+          context: MetalUI/Backends/SDL
+          file: MetalUI/Backends/SDL/linux/Dockerfile
+          tags: metalui-portable:latest
+          load: true
+          cache-from: type=gha,scope=xp-portable-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=xp-portable-${{ matrix.arch }}
+      - name: Build, test, self-test and launch
+        working-directory: MetalCreator
+        run: scripts/linux-test.sh all
+
+  windows:
+    name: Windows x64 (unverified until it runs)
+    # Never run yet: a red first run must not mask the Linux result. Read this job's log on every run (a failure here shows as a
+    # green check); remove this line once the job has been green once.
+    continue-on-error: true
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      SDL_VERSION: 3.4.16
+      EXPECTED_TEST_RUNS: 11
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: MetalCreator
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.METALUI_REPOSITORY }}
+          ref: ${{ env.METALUI_COMMIT }}
+          path: MetalUI
+      - uses: compnerd/gha-setup-swift@v0.5.0
+        with:
+          swift-version: swift-6.4.0-release
+          swift-build: 6.4.0-RELEASE
+      - name: Install SDL3 (prebuilt VC package)
+        run: |
+          $zip = "$env:RUNNER_TEMP\sdl3.zip"
+          Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL_VERSION/SDL3-devel-$env:SDL_VERSION-VC.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $root = "$env:RUNNER_TEMP\SDL3-$env:SDL_VERSION"
+          "SDL3_INCLUDE=$root\include" >> $env:GITHUB_ENV
+          "SDL3_LIB=$root\lib\x64" >> $env:GITHUB_ENV
+          "$root\lib\x64" >> $env:GITHUB_PATH   # SDL3.dll at run time
+      - name: Fetch AccessKit
+        working-directory: MetalUI/Backends/SDL
+        # One SwiftPM flag per line: -Xcc -I<include> -Xswiftc -L<lib> (MetalUI PX-I item 2).
+        run: |
+          python scripts/fetch-accesskit.py --print-flags > "$env:RUNNER_TEMP\accesskit-flags.txt"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt"
+      - name: Build
+        working-directory: MetalCreator
+        # No pkg-config on Windows: hand SwiftPM SDL's include and library paths.
+        run: |
+          $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB") +
+                   @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
+          swift build @flags
+          exit $LASTEXITCODE
+      - name: Test
+        id: test
+        working-directory: MetalCreator
+        # The pass rule (spec 2.5): exit 0, no "recorded an issue" or "failed after" line, EXPECTED_TEST_RUNS "Test run with" lines.
+        run: |
+          # Windows threads get the executable's stack reserve (1 MB by default); the deepest layout trees in CreatorAppTests
+          # overflow it (run 38532786786), so the test executables reserve 16 MB, as macOS and Linux threads effectively have.
+          $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB", "-Xlinker", "/STACK:16777216") +
+                   @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
+          $log = "$env:RUNNER_TEMP\test.log"
+          swift test @flags 2>&1 | Tee-Object -FilePath $log
+          $code = $LASTEXITCODE
+          $text = Get-Content $log -Raw
+          $runs = ([regex]::Matches($text, "Test run with")).Count
+          if ($code -ne 0 -or $text -match "recorded an issue|failed after" -or $runs -ne [int]$env:EXPECTED_TEST_RUNS) {
+            Write-Error "Windows: FAIL (exit $code, $runs of $env:EXPECTED_TEST_RUNS 'Test run with' lines)"
+            exit 1
+          }
+          "Windows: PASS ($runs 'Test run with' lines)"
+      - name: Self-test and launch smoke
+        id: smoke
+        working-directory: MetalCreator
+        # Runs even when Test is red, so one run reports both.
+        if: ${{ !cancelled() }}
+        # --smoke-test opens the real window over SDL's offscreen renderers (Direct3D 12 on WARP) for 20 s and fails unless it
+        # drew a first frame.
+        run: |
+          $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB") +
+                   @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
+          $bin = (swift build @flags --show-bin-path)
+          & "$bin\MetalCreatorApp.exe" --self-test
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          & "$bin\MetalCreatorApp.exe" --smoke-test 20
+          exit $LASTEXITCODE
+      - name: Mark a red Windows suite
+        # The job is continue-on-error, so a red Windows run still shows a green check: say so where it is read.
+        if: ${{ !cancelled() && (steps.test.outcome == 'failure' || steps.smoke.outcome == 'failure') }}
+        run: |
+          Write-Output "::warning::Windows suite red (continue-on-error)"
+          "### Windows suite red (continue-on-error)`n`nTest step: ${{ steps.test.outcome }}; self-test and launch smoke: ${{ steps.smoke.outcome }}. The run shows green because this job does not fail it; read the Windows log." >> $env:GITHUB_STEP_SUMMARY

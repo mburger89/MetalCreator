@@ -2,12 +2,15 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Foundation
 import Testing
 
 /// Face Pattern (patterns spec §3): a grid on a picked flat face, clipped to the face, its holes and an edge margin.
 struct FacePatternNodeTests {
+    #if canImport(CreatorOCCT)
     /// A Face Pattern on the top of the 60 × 40 × 6 plate (z = 0), with a Ø20 hole through its middle when `drilled`.
     struct Fixture {
         var plate: PatternPlate
@@ -230,4 +233,5 @@ struct FacePatternNodeTests {
         let perRow = Dictionary(grouping: tree.leaves, by: { $0.path.indices[0] }).sorted { $0.key < $1.key }
         #expect(perRow.map { $0.value.reduce(0) { $0 + $1.items.count } } == [0, 5, 5, 5, 0])
     }
+    #endif
 }

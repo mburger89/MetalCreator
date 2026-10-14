@@ -33,7 +33,7 @@ though `Package.swift` says 26; the script prints a note saying so.
 The binary's headless flags also work on their own:
 
 ```sh
-dist/MetalCreator.app/Contents/MacOS/MetalCreator --version     # MetalCreator 0.1.0 (1)
+dist/MetalCreator.app/Contents/MacOS/MetalCreator --version     # MetalCreator 0.1.0 (2)
 dist/MetalCreator.app/Contents/MacOS/MetalCreator --self-test   # OCCT, STEP/STL export, MetalUI's shaders
 swift run MetalCreatorApp --self-test                           # the same checks, unpackaged
 ```

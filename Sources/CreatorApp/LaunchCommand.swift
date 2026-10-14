@@ -14,6 +14,9 @@ public enum LaunchCommand: Equatable, Sendable {
     case selfTest
     /// `--info-plist <minimum macOS>`: print the bundle's `Info.plist` (``AppBundleInfo``).
     case infoPlist(minimumSystemVersion: String)
+    /// `--smoke-test [seconds]` (CI): open the window over SDL's offscreen renderers for `seconds`, print whether it reached
+    /// its first frame, and exit 0 when it did and 1 when not (``LaunchSmoke``). Only a build with the SDL backend can.
+    case smokeTest(seconds: Double)
     /// A flag this program doesn't take, or one missing its value: print the message and ``usage``, exit 64.
     case usageError(String)
 
@@ -24,6 +27,7 @@ public enum LaunchCommand: Equatable, Sendable {
                MetalCreator --version
                MetalCreator --self-test
                MetalCreator --info-plist <minimum macOS, e.g. 26.0>
+               MetalCreator --smoke-test [seconds]   (Linux and Windows builds; default 5 seconds)
         """
 
     public init(arguments: [String]) {
@@ -44,6 +48,8 @@ public enum LaunchCommand: Equatable, Sendable {
                 return
             }
             self = .infoPlist(minimumSystemVersion: minimum)
+        case "--smoke-test":
+            self = Self.smokeTest(arguments: arguments)
         default:
             if first.hasPrefix("--") {
                 self = .usageError("Unknown option \(first).")
@@ -52,6 +58,21 @@ public enum LaunchCommand: Equatable, Sendable {
                 // `-NSSomeDefault value` pair), not a file.
                 self = .run(path: first.hasPrefix("-") ? nil : first)
             }
+        }
+    }
+
+    /// `--smoke-test` with its optional number of seconds (`arguments` starts with the flag).
+    private static func smokeTest(arguments: [String]) -> LaunchCommand {
+        switch arguments.count {
+        case 1:
+            return .smokeTest(seconds: LaunchSmoke.defaultSeconds)
+        case 2:
+            guard let seconds = Double(arguments[1]), seconds.isFinite, seconds > 0, seconds <= 600 else {
+                return .usageError("--smoke-test takes a number of seconds between 0 and 600.")
+            }
+            return .smokeTest(seconds: seconds)
+        default:
+            return .usageError("--smoke-test takes at most one number of seconds.")
         }
     }
 }

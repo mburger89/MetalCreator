@@ -28,6 +28,8 @@ extension Evaluator {
             // are read at every evaluation, so a file edited on disk runs the node again and an untouched one does not.
             if case .image(let reference) = value { hasher.combine(setup.images.stamp(of: reference)) }
         }
+        // A node that meshes works differently for a preview and for an export, so the two don't share a cached result.
+        if definition.readsMeshQuality { hasher.combine(setup.meshQuality) }
         if definition.readsParameters {
             for (id, value) in setup.parameters.sorted(by: { $0.key < $1.key }) {
                 hasher.combine(id)
@@ -78,7 +80,9 @@ extension Evaluator {
             for item in 0..<plan.iterations {
                 try Task.checkCancellation()
                 let context = EvalContext(node: node, item: item, parameters: setup.parameters, isTreeRun: plan.isTreeRun,
-                                          fieldDistances: setup.fieldDistances, images: setup.images)
+                                          fieldDistances: setup.fieldDistances, images: setup.images,
+                                          meshQuality: setup.meshQuality, implicitEngine: setup.implicitEngine,
+                                          meshProgress: setup.meshProgress)
                 let outputs = try await definition.evaluate(plan.inputs(at: item), kernel: kernel, context: context)
                 try collector.record(outputs, specs: outputSpecs, iterations: plan.iterations)
             }

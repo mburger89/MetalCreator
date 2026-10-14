@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import Foundation

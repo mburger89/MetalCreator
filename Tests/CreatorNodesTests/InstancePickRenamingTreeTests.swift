@@ -3,7 +3,9 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 /// User decision 3 (7a-2) with trees: Group, Ungroup and Make Unique rename a pick on the instance at `{1;1}` exactly as they
 /// rename any node's, because they change the identities its tags name and leave the path alone.
@@ -12,6 +14,7 @@ struct InstancePickRenamingTreeTests {
     let registry = BuiltInNodes.registry
     let item = InstancePath.item(for: [1, 1])
 
+    #if canImport(CreatorOCCT)
     func fixture() async throws -> PatternTreePickTests.Fixture {
         var part = PatternTreePickTests.Fixture()
         try await part.pick([[1, 1]], kernel: OCCTKernel())
@@ -109,4 +112,5 @@ struct InstancePickRenamingTreeTests {
         #expect(state == .warning(message), "renaming never invents a target")
         #expect(items.isEmpty)
     }
+    #endif
 }

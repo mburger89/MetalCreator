@@ -2,9 +2,12 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 extension BracketAcceptanceTests {
+    #if canImport(CreatorOCCT)
     /// The bracket with its chamfer's top-cap outline picked, as the viewport would.
     func pickedBracket(_ kernel: OCCTKernel) async throws -> (Bracket, Graph) {
         let bracket = Self.makeBracket()
@@ -70,4 +73,5 @@ extension BracketAcceptanceTests {
         })
         expectAllOK(document, "plate grouped")
     }
+    #endif
 }

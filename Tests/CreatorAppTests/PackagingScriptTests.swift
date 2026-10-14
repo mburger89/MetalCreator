@@ -3,6 +3,7 @@ import Testing
 
 /// The packaging scripts parse and are executable. What they build is checked by running them: `scripts/verify-app.sh`
 /// (which `scripts/package-app.sh` ends with) and human check P1.
+#if !os(Windows)  // bash scripts: Windows has no /bin/bash
 struct PackagingScriptTests {
     @Test(arguments: ["package-app.sh", "verify-app.sh"])
     func theScriptParsesAndIsExecutable(_ name: String) throws {
@@ -21,3 +22,4 @@ struct PackagingScriptTests {
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appending(path: "scripts")
 }
+#endif

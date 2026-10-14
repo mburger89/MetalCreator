@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Patterns spec §6 and §9 for culling a tree of placements: an instance is named by its tree path, culling keeps the path of
@@ -99,6 +101,7 @@ struct CulledTreePickTests {
         }
     }
 
+    #if canImport(CreatorOCCT)
     @Test(arguments: ["0", "2", "{0;0}", "{1;0}", "{0}", "0, {1;2}"], Stage.allCases)
     func aPickOnOneInstanceSurvivesACullOfAnother(_ cull: String, _ stage: Stage) async throws {
         let kernel = OCCTKernel()
@@ -182,4 +185,5 @@ struct CulledTreePickTests {
         let (solid, edges) = try f.selected(report)
         #expect(edges.count == 1 && edges.allSatisfy { f.touches([1, 1], $0, in: solid) })
     }
+    #endif
 }

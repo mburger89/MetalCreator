@@ -4,7 +4,9 @@ import CreatorKernel
 import CreatorNodes
 import Foundation
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 /// Fields spec §8, "Acceptance (headless, OCCT)": a vented plate. Field Scatter on its top face with a distance field (denser
 /// near the edges), Remap → Sample Field → Hole Pattern sizes (larger towards the centre), Cull by Field (Probability, noise)
@@ -89,6 +91,7 @@ struct FieldsAcceptanceTests {
     /// A point's distance to the plate's outline.
     static func edgeDistance(_ point: Vector3) -> Double { min(halfWidth - abs(point.x), halfDepth - abs(point.y)) }
 
+    #if canImport(CreatorOCCT)
     @Test func aVentedPlateGetsGradedHolesAtThinnedScatteredPoints() async throws {
         let kernel = OCCTKernel()
         let (result, solid) = try await Self.run(try await Self.makePart(kernel: kernel), kernel: kernel)
@@ -134,6 +137,7 @@ struct FieldsAcceptanceTests {
         #expect(first == second)
         #expect(!first.kept.isEmpty)
     }
+    #endif
 }
 
 /// A fresh path in the temporary directory.

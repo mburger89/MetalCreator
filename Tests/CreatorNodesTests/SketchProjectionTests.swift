@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import CreatorSketch
 import Testing
 
@@ -167,6 +169,7 @@ struct SketchProjectionTests {
         #expect(EdgeTagMatch.drift([(1, 2)]) == "Matched 1 edge, expected 2.")
     }
 
+    #if canImport(CreatorOCCT)
     // MARK: - On OCCT (sketcher spec §10, Integration)
 
     @Test func aProjectedEdgeSurvivesAnUpstreamWidthChangeOnOCCT() async throws {
@@ -213,6 +216,7 @@ struct SketchProjectionTests {
             #expect(isClose(try await volume(try onlySolid(report, extrude), kernel), 2 * 20 * (5 + depth / 2)))
         }
     }
+    #endif
 
     /// The edge of `solid` between the faces tagged `first` and `second` by `node`.
     func edge(of solid: Solid, _ node: Node, between first: TopoRole, and second: TopoRole) throws -> EdgeInfo {
@@ -222,6 +226,7 @@ struct SketchProjectionTests {
         })
     }
 
+    #if canImport(CreatorOCCT)
     /// A Ø6 cylinder on (4, −3), picked at either rim (OCCT may run one of them about −Z): the rim
     /// projects to its circle, which bounds a region and is measured by a reference radius.
     @Test(arguments: [TopoRole.startCap, .endCap])
@@ -288,4 +293,5 @@ struct SketchProjectionTests {
         #expect(report.value(sketch, "measurements")?.numbers.map { $0.map { $0.rounded() } } == [2])
         #expect(isClose(try await volume(try onlySolid(report, extrude), kernel), 2 * Double.pi))
     }
+    #endif
 }

@@ -13,7 +13,8 @@ import MetalUI
 public struct AppRoot: Component {
     public let model: AppModel
     public let input: AppInput
-    /// The window buttons' space under a hidden title bar (gap M6-c); zero in a standard window. `TopBar` clears it.
+    /// The window buttons' space under a hidden title bar (gap M6-c; at the right on SDL, MetalUI S1); zero in a standard
+    /// window. `TopBar` clears it at both ends.
     @Environment(\.titleBarInsets) var titleBarInsets
 
     public init(model: AppModel, input: AppInput) {
@@ -23,10 +24,12 @@ public struct AppRoot: Component {
 
     public var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
-            ViewportView(model: model.viewport)
+            ViewportPane(model: model.viewport)
             VStack(alignment: .leading, spacing: AppLayout.margin.px) {
                 ZStack {
-                    TopBar(model: model, clearance: Pixels(Float(AppLayout.topBarClearance(titleBarInsets: titleBarInsets))))
+                    TopBar(model: model,
+                           clearance: Pixels(Float(AppLayout.topBarClearance(titleBarInsets: titleBarInsets))),
+                           trailingClearance: Pixels(Float(AppLayout.topBarTrailingClearance(titleBarInsets: titleBarInsets))))
                 }
                 .frame(height: AppLayout.topBarHeight.px)
                 PanelArea(model: model)
@@ -49,6 +52,8 @@ public struct AppRoot: Component {
             }
             if let session = model.sketch { PointerReadoutView(model: session.editor) }
             FieldLegendDock(model: model)
+            MeshBadgeDock(model: model)
+            ExportSheetDock(model: model)
             PaletteDock(model: model)
             LibraryDragOverlay(model: model.editor)
         }
