@@ -2,10 +2,22 @@ import CreatorGeometry
 import CreatorGraph
 import Foundation
 
+/// Where a mesh was made.
+public enum MeshingPath: Sendable, Equatable {
+    /// By the CPU mesher over the evaluator's values: the reference, and the fall-back.
+    case cpu
+    /// By the evaluator's GPU engine (Errata D13).
+    case gpu
+}
+
 /// Meshes an implicit solid by marching cubes over the sparse bricks of a `BrickPlan` (implicit spec §4.3). The mesh is watertight and
 /// manifold by construction: the table (`MarchingCubesTable`) draws the same outline on a face from either side, and a vertex on an edge
 /// of the lattice is made once, whichever brick or cube reaches it first, by a global key. Each vertex then takes one Newton step
 /// towards f = 0 along the gradient (central differences), at most half a voxel, and the gradient gives its normal.
+///
+/// When the evaluator can mesh bricks itself (`ImplicitBatchEvaluator.meshBricks`, which a GPU engine implements: Errata D13) the
+/// bricks go to it and the CPU does none of this; when it cannot, or fails, or returns arrays that do not fit together, the CPU
+/// mesher below does, so it is the reference and the fall-back.
 public struct ImplicitMesher: Sendable {
     public let evaluator: any ImplicitBatchEvaluator
     public let budget: MeshingBudget
@@ -27,11 +39,27 @@ public struct ImplicitMesher: Sendable {
     /// - Throws: `ImplicitMeshingError` and `CancellationError`.
     public func mesh(_ solid: ImplicitSolid, resolution: Double, quality: MeshQuality, snap: Bool = true,
                      source: MeshSource? = nil, progress: @Sendable (Double) -> Void = { _ in }) async throws -> TriangleMesh {
+        try await meshReportingPath(solid, resolution: resolution, quality: quality, snap: snap, source: source, progress: progress).mesh
+    }
+
+    /// `mesh`, and which path made it: the benchmarks and the tests say so, since a fall-back to the CPU is silent.
+    public func meshReportingPath(_ solid: ImplicitSolid, resolution: Double, quality: MeshQuality, snap: Bool = true,
+                                  source: MeshSource? = nil, progress: @Sendable (Double) -> Void = { _ in })
+        async throws -> (mesh: TriangleMesh, path: MeshingPath) {
         let start = ContinuousClock.now
         progress(0)
         if quality == .export { try await budget.check(solid, resolution: resolution, using: evaluator) }
         let plan = try await BrickPlan.build(for: solid, resolution: resolution, using: evaluator)
         guard !plan.bricks.isEmpty else { throw ImplicitMeshingError.empty }
+        if let fromEngine = try await evaluator.meshBricks(BrickMeshRequest(plan: plan, snap: snap), progress: progress),
+           fromEngine.isConsistent {
+            guard !fromEngine.triangles.isEmpty else { throw ImplicitMeshingError.empty }
+            progress(1)
+            let mesh = TriangleMesh(positions: fromEngine.positions, normals: fromEngine.normals, triangles: fromEngine.triangles,
+                                    resolution: resolution, quality: quality, source: source,
+                                    meshingSeconds: start.duration(to: .now) / .seconds(1))
+            return (mesh, .gpu)
+        }
         var builder = MeshBuilder(plan: plan)
         let total = plan.bricks.count
         for start in stride(from: 0, to: total, by: bricksPerBatch) {
@@ -45,8 +73,9 @@ public struct ImplicitMesher: Sendable {
         var normals = [SIMD3<Float>](repeating: .zero, count: positions.count)
         if snap { try await Self.snap(&positions, &normals, resolution: resolution, evaluator: evaluator) { progress(0.9 + 0.1 * $0) } }
         progress(1)
-        return TriangleMesh(positions: positions, normals: normals, triangles: builder.triangles, resolution: resolution,
-                            quality: quality, source: source, meshingSeconds: start.duration(to: .now) / .seconds(1))
+        let mesh = TriangleMesh(positions: positions, normals: normals, triangles: builder.triangles, resolution: resolution,
+                                quality: quality, source: source, meshingSeconds: start.duration(to: .now) / .seconds(1))
+        return (mesh, .cpu)
     }
 
     /// Moves each vertex one Newton step towards f = 0 and sets its normal from the gradient. The gradient is the central difference
