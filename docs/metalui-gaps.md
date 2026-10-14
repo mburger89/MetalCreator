@@ -1109,7 +1109,7 @@ Labelled CT-d so it stays beside CT-b and CT-c. Checked against MetalUI `3fce05f
 ## Hit by the cross-platform port (xp-1), 2026-10-13
 
 Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan and XP-G10 by the S2 adoption, after the spec's table (`docs/superpowers/specs/2026-10-13-cross-platform-design.md` §5); XP-G1 and XP-G2
-(SDL GPU for the viewport, portable compute) belong to xp-3 and are logged there. Checked against MetalUI `fb9a7e42`, the commit
+(SDL GPU for the viewport, portable compute) belong to xp-3 and are logged there. Checked against MetalUI `fb9a7e42` (the pin in `.github/workflows/xp.yml` is now `dea698ca`, which has S2), the commit
 `.github/workflows/xp.yml` pins. None of these is worked around in a way MetalUI will have to undo: each stopgap is one switch
 (`#if`) or one sentence.
 
