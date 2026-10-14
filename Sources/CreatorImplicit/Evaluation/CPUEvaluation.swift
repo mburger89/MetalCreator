@@ -60,11 +60,10 @@ final class CPUEvaluation {
         }
     }
 
-    /// The polynomial smooth minimum of `a` and `b` over `width`; 0 is the plain minimum.
+    /// The polynomial smooth minimum of `a` and `b` over `width`; 0 is the plain minimum. It is `FieldMath`'s, the one smooth minimum
+    /// the fields use, so a solid's blend and a field's Smooth Blend agree (and a NaN stays NaN) in the GPU agreement tests.
     static func smoothMinimum(_ a: Double, _ b: Double, width: Double) -> Double {
-        guard width > 0 else { return min(a, b) }
-        let blend = max(width - abs(a - b), 0) / width
-        return min(a, b) - blend * blend * width / 4
+        FieldMath.smoothMinimum(a, b, width: width)
     }
 
     /// The signed distance to the box: negative inside.

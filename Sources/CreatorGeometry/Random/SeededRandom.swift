@@ -37,6 +37,10 @@ public struct SeededRandom: Sendable {
     }
 
     private let start: UInt64
+
+    /// Where draw 0 of this stream starts: draw `k` is `mix(streamStart + (k + 1) × step)`. A shader that draws the same numbers is
+    /// given this and `step`.
+    public var streamStart: UInt64 { start }
     private var drawn = 0
 
     public init(seed: Int, stream: Int = 0, purpose: Purpose = .plain) {
