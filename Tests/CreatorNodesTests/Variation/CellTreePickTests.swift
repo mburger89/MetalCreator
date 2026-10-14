@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Patterns spec §6 and §9 for a culled tree three deep, `{row;column;0}` (one placement per cell, the shape Face Pattern gives
@@ -76,6 +78,7 @@ struct CellTreePickTests {
 
     static let every: Set<[Int]> = [[0, 0, 0], [0, 1, 0], [0, 2, 0], [1, 0, 0], [1, 1, 0], [1, 2, 0]]
 
+    #if canImport(CreatorOCCT)
     @Test func everyCellMakesAHoleAtItsThreeIndexPath() async throws {
         var f = Fixture()
         f.cull("")
@@ -127,4 +130,5 @@ struct CellTreePickTests {
         #expect(edges.count == 1 && edges.allSatisfy { f.touches([1, 1, 0], $0, in: solid) }, "still the rim of {1;1;0}")
         #expect(before.edges.count == 1)
     }
+    #endif
 }

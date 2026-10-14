@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import Metal
 
 extension CubeLabelAtlas {
@@ -21,3 +22,4 @@ extension CubeLabelAtlas {
         return texture
     }
 }
+#endif

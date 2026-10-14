@@ -41,6 +41,7 @@ struct WindowDragWindowTests {
         }
     }
 
+    #if canImport(Metal)
     @Test func thePaddingBelowTheControlsIsNotAHandle() async throws {
         // By design (User decision 1): handles sit beside the controls, so the 10-point glass padding under them is not a
         // handle either. A press-drag there reaches the viewport beneath, as it always did.
@@ -50,6 +51,7 @@ struct WindowDragWindowTests {
         #expect(app.windowDragRequests(draggingFrom: below) == 0)
         #expect(app.model.viewport.pose != pose)
     }
+    #endif
 
     @Test func aClickOnAControlStillClicks() async throws {
         let app = try await AppWindow.open()
@@ -65,12 +67,14 @@ struct WindowDragWindowTests {
         #expect(try #require(tops.min()) >= Float(AppLayout.windowDragStripHeight))
     }
 
+    #if canImport(Metal)
     @Test func aDragBelowTheBarStillOrbitsTheViewportAndDoesNotAsk() async throws {
         let app = try await AppWindow.open()
         let pose = app.model.viewport.pose
         #expect(app.windowDragRequests(draggingFrom: viewportSpot) == 0)
         #expect(app.model.viewport.pose != pose, "the viewport's drag still moves the camera")
     }
+    #endif
 
     @Test func aDragStartedInTheBarLeavesTheViewportAlone() async throws {
         let app = try await AppWindow.open()
@@ -82,6 +86,7 @@ struct WindowDragWindowTests {
         #expect(!app.model.viewport.isPointerDown && app.model.viewport.activeDragMode == nil)
     }
 
+    #if canImport(Metal)
     @Test func aClickInTheBandDoesNotReachTheViewportAndOneBelowDoes() async throws {
         let app = try await AppWindow.open()
         let tool = ModifierProbeTool()
@@ -93,6 +98,7 @@ struct WindowDragWindowTests {
         #expect(tool.clicks.count == 1)
         #expect(app.window.windowDrags == 0, "a click is not a drag")
     }
+    #endif
 
     @Test func aSecondaryPressOrADoubleClickDoesNotMoveOrZoomTheWindow() async throws {
         let app = try await AppWindow.open()

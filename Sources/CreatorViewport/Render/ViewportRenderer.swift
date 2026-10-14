@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import CreatorGeometry
 import CreatorKernel
 import Metal
@@ -303,3 +304,4 @@ final class ViewportRenderer {
         }
     }
 }
+#endif

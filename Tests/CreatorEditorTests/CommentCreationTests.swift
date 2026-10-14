@@ -108,12 +108,12 @@ struct CommentCreationTests {
 
     @Test func theChordsAreCommandShiftNAndCommandShiftC() {
         func command(_ key: KeyEvent) -> GraphKeyCommand? { GraphKeyBindings.command(for: key, paletteOpen: false) }
-        #expect(command(key("N", [.command, .shift])) == .addNote)
-        #expect(command(key("C", [.command, .shift])) == .addFrame)
-        #expect(command(key("c", .command)) == .copy, "⌘C is still copy")
-        #expect(command(key("n", .command)) == nil)
-        #expect(command(key("N", [.command, .shift, .option])) == nil)
-        #expect(GraphKeyBindings.command(for: key("N", [.command, .shift]), paletteOpen: true) == nil)
+        #expect(command(key("N", [.primary, .shift])) == .addNote)
+        #expect(command(key("C", [.primary, .shift])) == .addFrame)
+        #expect(command(key("c", .primary)) == .copy, "⌘C is still copy")
+        #expect(command(key("n", .primary)) == nil)
+        #expect(command(key("N", [.primary, .shift, .option])) == nil)
+        #expect(GraphKeyBindings.command(for: key("N", [.primary, .shift]), paletteOpen: true) == nil)
     }
 
     @Test func theKeysActOnlyWhileThePanelShowsAndNotDuringADrag() {

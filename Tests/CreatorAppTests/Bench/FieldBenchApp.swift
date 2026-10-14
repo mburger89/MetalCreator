@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 // Test fixture file: the §7.2 bracket with field nodes beside it, for the field preview's benchmark (fields spec §7, row 4).
 import CreatorGeometry
 import CreatorGraph
@@ -53,3 +54,4 @@ struct FieldBenchApp {
         try app.document.perform(.connect(Link(from: Endpoint(node: from.id, socket: output), to: Endpoint(node: to.id, socket: input))))
     }
 }
+#endif

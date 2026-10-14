@@ -3,7 +3,9 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 /// Groups spec §5's naming-stability tests, on OCCT: a "Rib" definition placed twice on a plate, a fillet picked on
 /// each rib's top. Editing the definition keeps both picks; Make Unique on one, then editing it, leaves the other's
@@ -112,6 +114,7 @@ struct GroupNamingStabilityTests {
         if case .ok? = document.results[node.id]?.state { true } else { false }
     }
 
+    #if canImport(CreatorOCCT)
     /// Opens the part and picks each rib's top outline, as the viewport would.
     func pickedPart() async throws -> (Part, DocumentModel) {
         let part = Self.makePart()
@@ -235,4 +238,5 @@ struct GroupNamingStabilityTests {
             #expect(report.innerResults[[node, edges.id]]?.outputs?["edges"]?.edgeSets?.first?.edges.count == 4)
         }
     }
+    #endif
 }

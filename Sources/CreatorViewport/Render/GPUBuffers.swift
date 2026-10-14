@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import Metal
 
 enum GPUBuffers {
@@ -9,3 +10,4 @@ enum GPUBuffers {
         }
     }
 }
+#endif

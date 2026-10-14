@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Sketcher spec §7, Plane from Face.
@@ -21,6 +23,7 @@ struct PlaneFromFaceNodeTests {
         return (h, box, plane)
     }
 
+    #if canImport(CreatorOCCT)
     @Test func aTopFacePlaneSitsOnItsCentroidFacingOut() async throws {
         let kernel = OCCTKernel()
         let (h, _, plane) = try await plane(on: .endCap, kernel: kernel)
@@ -64,6 +67,7 @@ struct PlaneFromFaceNodeTests {
         h.wire(rod, "solid", to: plane, "solid")
         #expect(try await h.run([plane], kernel: kernel).error(plane) == PlaneFromFaceNode.notFlat)
     }
+    #endif
 
     @Test func aMissingUnreadableOrStalePickIsAPlainError() async throws {
         var h = Harness()

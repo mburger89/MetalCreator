@@ -1,3 +1,4 @@
+#if canImport(ImageIO)
 import CreatorGraph
 import Foundation
 import Testing
@@ -248,3 +249,4 @@ struct GreyImageDecoderTests {
         await #expect(throws: CancellationError.self) { try await task.value }
     }
 }
+#endif

@@ -23,7 +23,7 @@ public struct AppRoot: Component {
 
     public var content: some ElementGroup {
         ZStack(alignment: .topLeading) {
-            ViewportView(model: model.viewport)
+            ViewportPane(model: model.viewport)
             VStack(alignment: .leading, spacing: AppLayout.margin.px) {
                 ZStack {
                     TopBar(model: model, clearance: Pixels(Float(AppLayout.topBarClearance(titleBarInsets: titleBarInsets))))

@@ -1794,3 +1794,50 @@ a graph of 50 nodes.
 - [ ] **C14-7 Note and frame handles.** Select a note, then a frame: each shows its resize handles and ring only while
   selected, and a handle drag resizes it. Pinned: `selectingACommentEvaluatesOnlyThatComment`,
   `aHandleAndAWireAreEqualOnlyWhenEveryInputIs`. **Observed:**
+
+## Group XP — MetalCreator on Linux and Windows (xp-1)
+
+**Status: NOT RUN.** Plan `2026-10-13-xp-1.md`; spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §2. The suite is
+green on Linux in CI (GitHub Actions, x86_64 and aarch64; `scripts/linux-test.sh` runs it in Docker too) and the app reaches its
+first frame under SDL's offscreen renderers (`--smoke-test`) on Linux and Windows; these checks are what a person sees on a real
+desktop, which CI cannot show. Linux: SDL 3.4 and AccessKit on
+the compiler's default paths (MetalUI `docs/getting-started.md`, "Linux and Windows"), then `swift run MetalCreatorApp`. Windows:
+the same with the `-Xcc -I… -Xswiftc -L…` flags `.github/workflows/xp.yml` hands SwiftPM; the Windows CI job builds, passes the whole suite (run 38546048595), self-tests and launches; it stays `continue-on-error`, with a
+warning step when red. macOS needs no check here: its test count and its look are unchanged.
+
+- [ ] **XP-1 Launch.** `swift run MetalCreatorApp` opens a window titled "MetalCreator" with the system title bar, a menu bar
+  strip drawn across its top (File, Edit, View) above the glass top bar, the graph panel docked at the bottom and the inspector
+  on the right, in Dracula. Quitting (the window's close button, and File's quit where the platform has one) asks nothing on an
+  unedited document. The top bar's top edge is fully visible below the strip (the root is not clipped by it: nothing in MetalCreator reads
+  `Window.drawnChromeHeight`, spec erratum E3). Pinned: `--smoke-test` (`LaunchSmokeTests`). **Observed:**
+- [ ] **XP-2 The viewport card.** The area behind the panels shows the theme's gradient and one glass card, centred, reading "The
+  3D view isn't available on this platform yet."; the window's size changes keep the layout. Pinned: `ViewportPaneTests`.
+  **Observed:**
+- [ ] **XP-3 Geometry badges.** Wire Rectangle → Extrude → Output: the Extrude's badge is the error and its text reads "Geometry
+  isn't available on this platform yet."; the Rectangle's is fine. Editing a parameter, wiring, undo and redo, groups, notes and
+  frames, and Save then Open all work. Pinned: `KernelUnavailableNodeTests`, `KernelUnavailableTests`. **Observed:**
+- [ ] **XP-4 Shortcuts use Ctrl.** In the menus File shows Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S and Edit shows Ctrl+Z and
+  Ctrl+Shift+Z (never ⌘ or Super). On the canvas Ctrl+A selects all, Ctrl+C then Ctrl+V pastes, Ctrl+D duplicates, a Ctrl-click
+  toggles one node in and out of the selection and Ctrl-scroll zooms the canvas. Pinned: `AppShortcutTests`, `KeyCommandTests`.
+  **Observed:**
+- [ ] **XP-5 Files and the themes folder.** Save As… offers `.mcgraph` and its dialog filters to it; the file opens on macOS and
+  the other way round. Edit Themes…, duplicate a theme and quit: the theme file is in `~/.local/share/MetalCreator/Themes` (Linux,
+  or `$XDG_DATA_HOME`) or `%APPDATA%\MetalCreator\Themes` (Windows) and is still there on the next launch. Pinned:
+  `ContentTypeTests`, `ThemeFolderTests`. **Observed:**
+- [ ] **XP-6 The Image Field.** Add an Image Field and choose a PNG: the alert reads "Images need a newer MetalUI on this
+  platform." and the setting is unchanged. A graph saved on macOS with an embedded picture opens, and that node's badge shows the
+  same sentence. Pinned: `ImagePlatformActionTests`, `ImagePlatformTests`. **Observed:**
+- [ ] **XP-7 Text.** Menus, nodes, the inspector and the sketch inspector are readable in the installed font (DejaVu Sans on a
+  stock Ubuntu, Segoe UI on Windows) with no missing-glyph boxes, and a wrapped hint (the Mirror tool's, in the sketch inspector)
+  shows all its words: DejaVu is wider than macOS's font and wraps it to more lines. Pinned: `TextMeasureWindowTests`.
+  **Observed:**
+- [ ] **XP-8 Title bar and cursors.** The system title bar moves the window and the top bar's empty space does not (MetalUI
+  divergence 276, gap XP-G3); panning the canvas shows the move cursor in place of the hand, and the panels' resize handles show
+  the system resize cursors (XP-G8). Pinned: `PanelResizeCursorTests` (the intent; the platform's shape is SDL's). **Observed:**
+- [ ] **XP-9 Self-test and smoke test.** `MetalCreatorApp --self-test` prints four `ok` lines (the kernel and both exports
+  "skipped: Geometry isn't available on this platform yet.", the shaders found) and exits 0; `--smoke-test 5` prints "reached the
+  first frame" and exits 0 on a desktop with a display too. Both pass in CI on Linux and Windows (Direct3D 12 on WARP; the
+  smoke test uses MetalUI SPI, gap XP-G9); a desktop with a display is what is left to see. Pinned: `SelfTestTests`, `LaunchSmokeTests`. **Observed:**
+- [ ] **XP-10 A screen reader (optional).** With Orca on Linux or Narrator on Windows running, the top bar's buttons and the
+  graph panel's nodes are announced by name (MetalUI's `AccessKit` trait). Not pinned: MetalUI's own tests cover the bridge.
+  **Observed:**

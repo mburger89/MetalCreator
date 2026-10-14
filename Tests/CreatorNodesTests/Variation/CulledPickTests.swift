@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Patterns spec §6 and §9 for culling: a pick on an instance survives a cull of another instance, and a pick on a culled
@@ -88,6 +90,7 @@ struct CulledPickTests {
         edge.faces.compactMap { solid.topology.face($0) }.contains { $0.tags.contains(f.bore(index)) }
     }
 
+    #if canImport(CreatorOCCT)
     @Test(arguments: ["1", "0", "2, 3", "{3}", "5"], Stage.allCases)
     func aPickOnOneInstanceSurvivesACullOfAnother(_ cull: String, _ stage: Stage) async throws {
         let kernel = OCCTKernel()
@@ -161,4 +164,5 @@ struct CulledPickTests {
         let (solid, edges) = try f.selected(report)
         #expect(edges.count == 1 && edges.allSatisfy { touchesHole(4, $0, in: solid, f) })
     }
+    #endif
 }

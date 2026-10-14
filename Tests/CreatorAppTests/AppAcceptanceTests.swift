@@ -5,7 +5,9 @@ import CreatorNodes
 import Foundation
 import Testing
 @testable import CreatorApp
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 /// Spec §7.2, the slice's acceptance demo, through the app shell on OCCT: the bracket built in the app (the chamfer's
 /// edges picked in the viewport's pick mode), saved, reopened and exported as STEP and STL; then Width 60 → 90 and
@@ -13,6 +15,7 @@ import Testing
 /// the exports in FreeCAD and a slicer, are human checks M6-1 and M6-2.
 @MainActor
 struct AppAcceptanceTests {
+    #if canImport(CreatorOCCT)
     @Test func theBracketIsBuiltPickedSavedReopenedReparameterisedAndExported() async throws {
         let kernel = OCCTKernel()
         let app = AppModel(kernel: kernel)
@@ -79,4 +82,5 @@ struct AppAcceptanceTests {
         #expect(counts.values.allSatisfy { $0 == 2 }, "every STL edge is shared by exactly two triangles",
                 sourceLocation: sourceLocation)
     }
+    #endif
 }

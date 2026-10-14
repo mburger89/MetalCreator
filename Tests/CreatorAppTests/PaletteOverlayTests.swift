@@ -4,7 +4,6 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import MetalUI
-import MetalUIText
 import Testing
 @testable import CreatorApp
 @testable import CreatorViewport
@@ -15,6 +14,7 @@ import Testing
 /// lay out.
 @MainActor
 struct PaletteOverlayTests {
+    #if canImport(Metal)
     @Test func thePaletteIsPaintedOverEverythingWhereItWasPlaced() async throws {
         let app = try await AppWindow.open(dock: .bottom)
         let pointer = app.point(inCanvasView: Vector2(200, 40))
@@ -53,7 +53,9 @@ struct PaletteOverlayTests {
         #expect(!others.isEmpty)
         #expect(others.allSatisfy { $0 < position }, "something outside the palette is painted over it")
     }
+    #endif
 
+    #if canImport(Metal)
     /// A node-library type dragged out over the viewport is drawn at the pointer, over the viewport and the panel.
     @Test func aDraggedLibraryTypeIsPaintedOverTheWindow() async throws {
         let app = AppModel(kernel: FakeKernel(), file: GraphFile(graph: Graph(), viewState: ViewState(dock: .bottom)))
@@ -66,7 +68,7 @@ struct PaletteOverlayTests {
         let input = AppInput(model: app)
         let scene = renderFrame({ ZStack { AppRoot(model: app, input: input) } },
                                 size: Size(width: Pixels(1400), height: Pixels(900)), scaleFactor: 2,
-                                textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+                                textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
         let index = try #require(scene.rects.firstIndex { (frame(of: $0).origin - pointer).length < 0.5 },
                                  "the ghost is drawn at the pointer")
         let position = try #require(paintPosition(of: .rect, at: index, in: scene))
@@ -74,4 +76,5 @@ struct PaletteOverlayTests {
         let panelGlass = try #require(scene.rects.firstIndex { (frame(of: $0).origin - panel.origin).length < 0.5 })
         #expect(try #require(paintPosition(of: .rect, at: panelGlass, in: scene)) < position, "over the graph panel")
     }
+    #endif
 }

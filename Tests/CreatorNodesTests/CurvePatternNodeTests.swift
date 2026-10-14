@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Foundation
 import Testing
 
@@ -23,6 +25,7 @@ struct CurvePatternNodeTests {
         return (report.error(node) == nil ? try rows(report, node) : [], report, node)
     }
 
+    #if canImport(CreatorOCCT)
     /// The four edges of a 40 × 20 × 6 box that run along X, as an edge set wired into a Curve Pattern.
     func boxEdges(_ settings: [SocketName: ConstantValue]) async throws -> (rows: [[Plane]], report: EvaluationReport, node: Node) {
         var h = Harness()
@@ -34,6 +37,7 @@ struct CurvePatternNodeTests {
         let report = try await h.run([node], kernel: OCCTKernel())
         return (report.error(node) == nil ? try rows(report, node) : [], report, node)
     }
+    #endif
 
     @Test func aClosedOutlineGetsItsPlacementsEvenlyRoundWithoutRepeatingTheStart() async throws {
         let (rows, _, _) = try await outline(["count": .integer(6)])
@@ -61,6 +65,7 @@ struct CurvePatternNodeTests {
         #expect(isClose(second.origin, Vector3(5, -10, 0)))
     }
 
+    #if canImport(CreatorOCCT)
     @Test func theEdgesOfAFilteredSetFormOneBranchPerChainAndOpenChainsRunEndToEnd() async throws {
         let (rows, report, node) = try await boxEdges(["count": .integer(3)])
         #expect(report.isOK(node), "\(String(describing: report.state(node)))")
@@ -93,6 +98,7 @@ struct CurvePatternNodeTests {
             #expect(isClose(row[0].origin, -row[2].origin + Vector3(0, 0, 2 * row[0].origin.z)), "opposite quarter-turns")
         }
     }
+    #endif
 
     @Test func nothingToFollowOrTwoThingsToFollowIsRefused() async throws {
         var h = Harness()

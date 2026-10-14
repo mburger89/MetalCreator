@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Foundation
 import Testing
 
@@ -51,6 +53,7 @@ struct ImageAcceptanceTests {
         (placements?.items ?? []).compactMap { item in if case .plane(let plane) = item { plane.origin } else { nil } }
     }
 
+    #if canImport(CreatorOCCT)
     @Test func aPictureSizesTheHolesAndTheHolesCutAreThoseSizes() async throws {
         let kernel = OCCTKernel()
         let hash = ImageHash(of: ramp)
@@ -122,4 +125,5 @@ struct ImageAcceptanceTests {
         let again = try await part.plate.h.run([part.holes], kernel: kernel)
         #expect(again.isOK(part.holes), "the file appeared: the next evaluation uses it")
     }
+    #endif
 }

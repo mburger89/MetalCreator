@@ -28,19 +28,24 @@ struct AppWindowTests {
         #expect(app.editor.pointerLocation == nil, "and sees it leave over the viewport")
     }
 
+    #if canImport(Metal)
     /// Gap M4-a: the viewport fills the window, and learns its size from its layout (`onGeometryChange`) rather than from
     /// a draw the headless platform does not run.
     @Test func theViewportLearnsTheWindowsSizeFromItsLayout() async throws {
         let app = try await AppWindow.open()
         #expect(app.model.viewport.viewSize == ViewportSize(width: app.size.x, height: app.size.y))
     }
+    #endif
 
+    #if canImport(Metal)
     @Test func aResizedWindowResizesTheViewport() async throws {
         let app = try await AppWindow.open()
         app.window.resize(to: Size(width: Pixels(1100), height: Pixels(700)))
         #expect(app.model.viewport.viewSize == ViewportSize(width: 1100, height: 700))
     }
+    #endif
 
+    #if canImport(Metal)
     /// New and Open build a fresh `ViewportModel` under the same view: it is told the size again at once.
     @Test func aDocumentLoadedIntoTheWindowLearnsTheSizeToo() async throws {
         let app = try await AppWindow.open()
@@ -50,4 +55,5 @@ struct AppWindowTests {
         try #require(app.model.viewport !== first)
         #expect(app.model.viewport.viewSize == ViewportSize(width: app.size.x, height: app.size.y))
     }
+    #endif
 }

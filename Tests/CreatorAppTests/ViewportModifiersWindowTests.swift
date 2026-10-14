@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import CreatorGeometry
 import MetalUI
 import MetalUITesting
@@ -25,7 +26,7 @@ struct ViewportModifiersWindowTests {
         let (app, tool) = try await open()
         app.window.hover(at: spot)
         let hovers = tool.hovers.count
-        app.window.pressModifiers(.command)
+        app.window.pressModifiers(.primary)
         #expect(tool.hovers.count == hovers + 1, "one replay, with the pointer not moved")
         #expect(tool.hovers.last == .init(point: screenSpot, modifiers: .command))
         app.window.pressModifiers([])
@@ -34,7 +35,7 @@ struct ViewportModifiersWindowTests {
 
     @Test func aMoveWhileCommandIsHeldCarriesIt() async throws {
         let (app, tool) = try await open()
-        app.window.pressModifiers(.command)
+        app.window.pressModifiers(.primary)
         app.window.hover(at: spot)
         #expect(tool.hovers.last == .init(point: screenSpot, modifiers: .command))
     }
@@ -54,7 +55,7 @@ struct ViewportModifiersWindowTests {
     @Test func losingKeyReleasesCommandAtTheTool() async throws {
         let (app, tool) = try await open()
         app.window.hover(at: spot)
-        app.window.pressModifiers(.command)
+        app.window.pressModifiers(.primary)
         #expect(tool.hovers.last?.modifiers == .command)
         app.window.setControlActiveState(.inactive)
         #expect(tool.hovers.last == .init(point: screenSpot, modifiers: []))
@@ -62,7 +63,7 @@ struct ViewportModifiersWindowTests {
 
     @Test func aCommandClickReachesTheToolWithCommandAndAPlainOneWithout() async throws {
         let (app, tool) = try await open()
-        app.window.click(at: spot, modifierFlags: .command)
+        app.window.click(at: spot, modifierFlags: .primary)
         app.window.click(at: spot)
         #expect(tool.clicks == [.command, []])
     }
@@ -73,3 +74,4 @@ struct ViewportModifiersWindowTests {
         #expect(tool.clicks == [.shift])
     }
 }
+#endif

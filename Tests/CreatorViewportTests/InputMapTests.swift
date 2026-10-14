@@ -43,8 +43,12 @@ struct InputMapTests {
 
     @Test func metalUIModifiersConvert() {
         #expect(ViewportModifiers(Modifiers([.shift, .option])) == [.shift, .option])
-        #expect(ViewportModifiers(Modifiers.command) == .command)
-        #expect(ViewportModifiers(Modifiers.control) == .control)
+        // The platform's shortcut key (MetalUI's `.primary`: ⌘ on macOS, Ctrl elsewhere) is the model's `.command`.
+        #expect(ViewportModifiers(Modifiers.primary).contains(.command))
+        // Control is the model's `.control` only where it is not the shortcut key (see `ViewportModifiersMappingTests`).
+        #expect(ViewportModifiers(Modifiers.control).contains(.control) == (Modifiers.primary != .control))
+        let superIsShortcut = ViewportModifiers(Modifiers.command).contains(.command)
+        #expect(superIsShortcut == (Modifiers.primary == .command), "Super is not the shortcut key off Apple")
         #expect(ViewportModifiers(Modifiers()) == [])
     }
 

@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import CreatorSketch
 import Testing
 
@@ -10,6 +12,7 @@ import Testing
 /// with downstream picks keeping their keys, and a sketch on a face following the face. The projected
 /// edge across an upstream change is in `SketchProjectionTests`.
 struct SketchIntegrationTests {
+    #if canImport(CreatorOCCT)
     @Test func aSketchWithAHoleExtrudesToItsAnalyticVolume() async throws {
         let kernel = OCCTKernel()
         var rectangle = RectangleSketch(width: 60, height: 40)
@@ -104,4 +107,5 @@ struct SketchIntegrationTests {
             #expect(isClose(try await volume(try onlySolid(report, union), kernel), 20 * 10 * height + 16 * Double.pi))
         }
     }
+    #endif
 }

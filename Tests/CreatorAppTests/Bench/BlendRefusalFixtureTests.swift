@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 import CreatorKernel
 import Testing
 @testable import CreatorOCCT
@@ -17,3 +18,4 @@ struct BlendRefusalFixtureTests {
         #expect(error?.userMessage == "Radius 3 mm is too large for the selected edges (max ≈ 2.5 mm).")
     }
 }
+#endif

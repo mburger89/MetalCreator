@@ -100,10 +100,10 @@ struct GlassReduceTransparencyWindowTests {
     func chipScene(_ options: HeadlessPlatformWindow.Options) throws -> Scene {
         let chip = try #require(ReadoutChip(text: "12.5 mm", pointer: ScreenPoint(300, 200),
                                             in: ViewportSize(width: 700, height: 500), measuring: .fake))
-        let window = try TestWindow(options: options) {
+        let window = try TestWindow(options: options, textSystem: { testTextSystem() }, content: {
             ZStack(alignment: .topLeading) { ReadoutChipView(chip: chip) }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        }
+        })
         return window.scene
     }
 

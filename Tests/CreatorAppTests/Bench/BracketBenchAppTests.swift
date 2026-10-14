@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 import Testing
 @testable import CreatorApp
 
@@ -14,3 +15,4 @@ struct BracketBenchAppTests {
         #expect(app.viewport.handles.count == 1, "the selected Fillet shows its radius handle")
     }
 }
+#endif

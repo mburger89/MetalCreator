@@ -69,6 +69,34 @@ Fields, sub-project 7b-3 (Field Scatter, the surface tint, the slice plane and t
 and §8 and its Errata (7b-3)) code is done; its human checks (group FI) are pending and its benchmark numbers are recorded in
 `docs/verification/performance.md`.
 
+Cross-platform, sub-project xp-1 (Linux and Windows on MetalUI's SDL backend: everything but the 3D view and OpenCascade; plan
+`docs/superpowers/plans/2026-10-13-xp-1.md`, spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §2) code is done and
+the suite is green on Linux in CI (GitHub Actions, `.github/workflows/xp.yml`, x86_64 and aarch64; `scripts/linux-test.sh` runs the
+same in Docker); its human checks (group XP) are pending. The Windows job (CI run 38546048595) is green once: it builds, the suite passes (10 "Test run with" lines), and `--self-test` and
+`--smoke-test 20` pass. Two failures that had been Windows-only were MetalCreator's own: the slice's starting axis chose YZ over XY on a
+last-bit tie of the default camera's view direction (`SlicePose.startingChoice` now treats near-equal alignments as a tie), and the window
+root, taller than the window with Windows' text metrics, was centred upward by the window's wrapper, so the top bar and the drag strip
+sat 3 points high (`AppWindowRoot` now pins the root to the window's top left). The Windows job stays `continue-on-error`, with a
+`::warning::` step and a summary line when its suite is red. On the way: `ImageResolver.read` has a Windows branch, the named-pipe and
+device tests and `PackagingScriptTests` are not run on Windows, and the test executables reserve a 16 MB stack (`-Xlinker /STACK:16777216`;
+a layout tree overflowed Windows' 1 MB default thread stack).
+`Package.swift` has two lists, like MetalUI's: the targets that import no Apple
+framework are declared everywhere (`CreatorViewport` too: its model, camera and tools are portable and only the Metal renderer files
+are behind `#if canImport(Metal)`); `COCCT`, `CreatorOCCT`, `ViewportHarness`, `GraphPanelPreview` and `CreatorOCCTTests` are
+declared on macOS only until xp-2. On Linux and Windows the MetalUI dependency asks for the `SDL` and `AccessKit` traits and
+`MetalCreatorApp` links `MetalUISDL` (`main.swift` picks `SDLPlatform` with `PortableTextSystem` over the installed fonts under
+`canImport(MetalUISDL)`). Off macOS the app runs over `KernelUnavailable` (every operation answers "Geometry isn't available on this
+platform yet."), the viewport's place shows `ViewportPlaceholder` ("The 3D view isn't available on this platform yet.") and the
+Image Field reports "Images need a newer MetalUI on this platform." (`ImageProblem.platformUnsupported`, MetalUI gap XP-G4). Rules
+for new code: no CryptoKit (use `SHA256`/`SHA1` in `CreatorGraph/Hashing`), no CoreGraphics, ImageIO, CoreText or Metal outside a
+`#if canImport(…)` file or block, keyboard shortcuts and modifier checks on MetalUI events say `.primary` (⌘ on macOS, Ctrl
+elsewhere), and a file dialog's `ContentType` declares its `filenameExtensions`. Tests: a test that needs Metal, OpenCascade,
+CoreText or ImageIO is gated with `#if canImport(Metal)`, `canImport(CreatorOCCT)`, `canImport(CoreText)` or `canImport(ImageIO)`
+and so is absent from the Linux count, never from macOS's; render tests take their text system from `testTextSystem()` in each
+target's `Support/TestTextSystem.swift`; picture fixtures come from `TestImages` (ImageIO on macOS, `PNGWriter` elsewhere). Pass
+rules: macOS, exit 0 and 12 "Test run with" lines; Linux, exit 0 and 11 (`CreatorOCCTTests` is macOS's twelfth; `CreatorImplicitTests` joined in 7c), and neither
+may print "recorded an issue" or "failed after".
+
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
 - `CreatorSketch`: the constraint sketch model, `SketchSolver` (numeric Levenberg–Marquardt with analytic Jacobians,
@@ -97,6 +125,10 @@ Module boundaries (dependency order):
   inside a solid; `occt_distances_reference` is the Extrema-only path `DistanceFastPathTests` compares to at 1e-9) and signs a solid's distance with `BRepClass3d_SolidClassifier`, only for a point inside the solid's bounds; it
   shares the points out in blocks of 64 over OCCT's thread pool while `OCCTKernel.serialized` is held, and the caller's buffer
   is the output, so it allocates nothing to free. `OCCTKernel` calls it 1,024 points at a time, checking for cancellation between.
+- `CreatorImplicit`: implicit solids and meshes (implicit spec §2 to §4): the `ImplicitSolid` value, the CPU batch evaluator, the Metal
+  compiler (gated with `#if canImport(Metal)`), the sparse octree (`BrickPlan`), `MeshingBudget` and the mesher. Portable (declared on every
+  platform); depends on `CreatorGraph` for `Field`, which holds these only as `ImplicitPayload` and `MeshPayload`. Tests:
+  `swift test --filter CreatorImplicitTests`.
 - `CreatorGraph`: graph model, sockets, broadcasting, `Evaluator` (cached, cancellable), commands and undo,
   `.mcgraph` files, `DocumentModel`. Depends on `CreatorSketch` for the `ConstantValue.sketch` setting. A node's sockets
   are `NodeRegistry.inputs(for:)`/`outputs(for:)`: `NodeDefinition.inputs(for:)`/`outputs(for:)` of its type
@@ -592,6 +624,8 @@ scripts/verify-app.sh [path.app]           # re-check a packaged app: signature,
 swift run MetalCreatorApp --self-test      # the same headless checks, unpackaged
 scripts/bench.sh [suite]                   # spec §7.3 benchmarks, release build; numbers go in docs/verification/performance.md
 scripts/bench.sh PatternBench              # patterns spec §7: 200 holes in a plate, edit-to-preview (idle Mac only)
+scripts/linux-test.sh [build|test|smoke|all]   # the suite on Linux in Docker (OrbStack): swift build, swift test (11 "Test run with" lines), --self-test, --smoke-test 20
+swift run MetalCreatorApp --smoke-test 5   # a Linux or Windows build: the real window over SDL's offscreen renderers; exit 0 if a first frame was drawn
 ```
 
 Benchmarks (`Tests/CreatorAppTests/Bench`) are Swift Testing suites that print `BENCH …` lines and assert no time; a
@@ -607,7 +641,10 @@ SwiftLint is configured in `.swiftlint.yml` (each non-default setting is documen
 
 - `swift-tools-version: 6.4`, `swiftLanguageModes: [.v6]` — full Swift 6 strict concurrency checking is on. Data-race violations are compile **errors**, not warnings. Shared mutable state needs an actor, `Sendable` conformance, or an explicit global-actor annotation; do not reach for `@unchecked Sendable` or `nonisolated(unsafe)` to silence a diagnostic without understanding it.
 - Tests use **Swift Testing** (`import Testing`, `@Test`, `#expect`), not XCTest. Keep new tests on Swift Testing.
-- Local toolchain: Apple Swift 6.4, arm64 macOS.
+- Local toolchain: Apple Swift 6.4, arm64 macOS. Linux runs in Docker on this Mac (`scripts/linux-test.sh`: MetalUI's `metalui-portable`
+  image, built from `../MetalUI/Backends/SDL/linux/Dockerfile`, plus a font, `scripts/linux/Dockerfile`); build products live in a Docker
+  volume named for the track (`XP_TRACK`, default `xp-1`), and a run stops only its own container. MetalUI must be a sibling checkout.
+  Windows cannot be run here: it is CI's job (`.github/workflows/xp.yml`; it builds and launches, two tests are red, see the xp-1 paragraph).
 - Swift 6.4 crashes in SILGen on a key path applied to an existential metatype (`BuiltInNodes.all.map(\.typeID)`); use a closure.
 - OpenCascade 7.9 comes from Homebrew (`brew install opencascade`) and is linked from `/opt/homebrew/opt/opencascade`.
   Linker warnings about dylibs built for a newer macOS are expected.

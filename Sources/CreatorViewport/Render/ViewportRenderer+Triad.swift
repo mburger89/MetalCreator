@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import Metal
 
 extension ViewportRenderer {
@@ -13,3 +14,4 @@ extension ViewportRenderer {
         return (buffer, instances.count)
     }
 }
+#endif

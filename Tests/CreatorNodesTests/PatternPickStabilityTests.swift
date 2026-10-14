@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import CreatorSketch
 import Testing
 
@@ -68,6 +70,7 @@ struct PatternPickStabilityTests {
         edge.faces.compactMap { solid.topology.face($0) }.contains { $0.tags.contains(f.bore(index)) }
     }
 
+    #if canImport(CreatorOCCT)
     @Test(arguments: [
         Edit(what: "the spacing", onGrid: true, socket: "spacingX", value: .number(18)),
         Edit(what: "the diameter", onGrid: false, socket: "diameter", value: .number(6)),
@@ -176,4 +179,5 @@ struct PatternPickStabilityTests {
         let gone = try await plate.h.run([face], kernel: kernel)
         #expect(gone.error(face) == "Instance {2} no longer exists, so the picked face isn't there any more. Pick the face again.")
     }
+    #endif
 }
