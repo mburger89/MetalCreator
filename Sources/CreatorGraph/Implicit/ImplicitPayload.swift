@@ -16,12 +16,16 @@ public protocol ImplicitPayload: Sendable {
     func signedDistance(at point: Vector3) -> Double
     /// The same at each of `points`. A payload that has set-up work to share between points overrides it.
     func signedDistances(at points: [Vector3]) -> [Double]
+    /// What the inspector shows besides the recipe: for a solid made by To Implicit, how long the bake took and how much memory it
+    /// holds (implicit spec §5.2).
+    var inspectorFacts: [PayloadFact] { get }
     /// Whether `other` is the same solid (the previews ask "is this what I last sampled?").
     func isEqual(to other: any ImplicitPayload) -> Bool
     func hashPayload(into hasher: inout Hasher)
 }
 
 extension ImplicitPayload {
+    public var inspectorFacts: [PayloadFact] { [] }
     public func signedDistances(at points: [Vector3]) -> [Double] { points.map { signedDistance(at: $0) } }
 }
 

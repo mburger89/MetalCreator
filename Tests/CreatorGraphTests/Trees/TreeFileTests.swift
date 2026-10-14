@@ -10,10 +10,10 @@ struct TreeFileTests {
         try GraphFileIO.decode(Data(json.utf8), registry: testRegistry)
     }
 
-    @Test func savedFilesAreFormatSeven() throws {
-        #expect(GraphFile.currentFormatVersion == 7)
+    @Test func savedFilesAreTheCurrentFormat() throws {
+        #expect(GraphFile.currentFormatVersion == 8)
         let text = try #require(String(bytes: try GraphFileIO.encode(GraphFile()), encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 7"#))
+        #expect(text.contains(#""formatVersion" : 8"#))
     }
 
     @Test(arguments: [1, 2, 3, 4, 5])
@@ -39,7 +39,7 @@ struct TreeFileTests {
         #expect(file.definitions.isEmpty && file.graph.stickies.isEmpty && file.graph.frames.isEmpty)
     }
 
-    @Test func savingAnOldFileWritesFormatSevenAndKeepsEverythingElse() throws {
+    @Test func savingAnOldFileWritesTheCurrentFormatAndKeepsEverythingElse() throws {
         let id = NodeID()
         let json = """
         {"formatVersion": 5, "graph": {"nodes": [{"id": "\(id.rawValue.uuidString)", "typeID": "test.constant",
@@ -49,7 +49,7 @@ struct TreeFileTests {
         let old = try decode(json)
         let saved = GraphFile(graph: old.graph, definitions: old.definitions, viewState: old.viewState)
         let reopened = try GraphFileIO.decode(try GraphFileIO.encode(saved), registry: testRegistry)
-        #expect(reopened.formatVersion == 7)
+        #expect(reopened.formatVersion == 8)
         #expect(reopened.graph == old.graph)
     }
 
@@ -67,8 +67,8 @@ struct TreeFileTests {
     }
 
     @Test func aNewerFileIsStillRefusedWithItsVersion() {
-        #expect(throws: GraphFileError.newerFormat(8)) {
-            try decode(#"{"formatVersion": 8, "graph": {"nodes": []}}"#)
+        #expect(throws: GraphFileError.newerFormat(9)) {
+            try decode(#"{"formatVersion": 9, "graph": {"nodes": []}}"#)
         }
     }
 

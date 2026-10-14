@@ -22,8 +22,12 @@ extension Field {
     /// the usual rules for the maths: sums add, a product weighs each side's slope by the other's largest value, a remap scales by its
     /// range ratio, an extremum or a clamp keeps the larger. A product with a side of unknown range, or a part with no bound, makes
     /// the whole bound unknown, and then it is at least `unknownSlope`.
-    public var slopeBound: FieldSlope {
-        let bound = slope
+    public var slopeBound: FieldSlope { slopeBound(distanceSlope: { _, _ in 1 }) }
+
+    /// `slopeBound` with each distance leaf's slope given by `distanceSlope` instead of the exact distance's 1: a baked grid
+    /// interpolates trilinearly and can be steeper, and a gain on the field scales that steepness.
+    public func slopeBound(distanceSlope: (DistanceSource, Bool) -> Double) -> FieldSlope {
+        let bound = slope(distanceSlope)
         return bound.known ? FieldSlope(value: bound.value) : FieldSlope(value: max(bound.value, Self.unknownSlope), isKnown: false)
     }
 
@@ -67,13 +71,14 @@ extension Field {
         }
     }
 
-    // The slope with a flag for "some part had no bound". One branch per case, with no `default`.
-    private var slope: (value: Double, known: Bool) {
+    // The slope with a flag for "some part had no bound". One branch per case, with no `default`. A new case is a compile error.
+    // swiftlint:disable:next cyclomatic_complexity
+    private func slope(_ leaf: (DistanceSource, Bool) -> Double) -> (value: Double, known: Bool) {
         switch self {
         case .constant:
             return (0, true)
-        case .distance:
-            return (1, true)
+        case .distance(let source, let signed):
+            return (leaf(source, signed), true)
         case .linearGradient(_, let length):
             return (1 / abs(length), true)
         case .radialGradient(_, let radius):
@@ -85,23 +90,34 @@ extension Field {
         case .implicit(let solid):
             return (solid.payload.lipschitz, true)
         case .add(let a, let b):
-            let (x, y) = (a.slope, b.slope)
+            let (x, y) = (a.slope(leaf), b.slope(leaf))
             return (x.value + y.value, x.known && y.known)
         case .multiply(let a, let b):
-            let (x, y) = (a.slope, b.slope)
-            guard let rangeA = a.valueRange, let rangeB = b.valueRange else { return (x.value + y.value, false) }
-            let (largestA, largestB) = (max(abs(rangeA.lowerBound), abs(rangeA.upperBound)),
-                                        max(abs(rangeB.lowerBound), abs(rangeB.upperBound)))
-            return (largestB * x.value + largestA * y.value, x.known && y.known)
+            let (x, y) = (a.slope(leaf), b.slope(leaf))
+            let largest = { (range: ClosedRange<Double>) in max(abs(range.lowerBound), abs(range.upperBound)) }
+            switch (a.valueRange, b.valueRange) {
+            case (let rangeA?, nil):
+                // Only A is bounded. A side that does not change (a constant gain) makes this exact: largest(A) x slope(B).
+                // A side that changes times an unbounded one has no bound, but still scales B by A's size.
+                let gain = x.value == 0 ? largest(rangeA) : max(largest(rangeA), 1)
+                return (gain * y.value + x.value, x.value == 0 && x.known && y.known)
+            case (nil, let rangeB?):
+                let gain = y.value == 0 ? largest(rangeB) : max(largest(rangeB), 1)
+                return (gain * x.value + y.value, y.value == 0 && x.known && y.known)
+            case (nil, nil):
+                return (x.value + y.value, false)
+            case (let rangeA?, let rangeB?):
+                return (largest(rangeB) * x.value + largest(rangeA) * y.value, x.known && y.known)
+            }
         case .minimum(let a, let b), .maximum(let a, let b), .smoothMinimum(let a, let b, _):
-            let (x, y) = (a.slope, b.slope)
+            let (x, y) = (a.slope(leaf), b.slope(leaf))
             return (max(x.value, y.value), x.known && y.known)
         case .remap(let inner, let fromLow, let fromHigh, let toLow, let toHigh, _):
-            let slope = inner.slope
+            let slope = inner.slope(leaf)
             guard fromHigh != fromLow else { return (0, true) }
             return (slope.value * abs((toHigh - toLow) / (fromHigh - fromLow)), slope.known)
         case .clamp(let inner, _, _):
-            return inner.slope
+            return inner.slope(leaf)
         }
     }
 }

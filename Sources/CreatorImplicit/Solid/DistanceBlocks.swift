@@ -26,8 +26,11 @@ public final class DistanceBlocks: Hashable, Sendable {
     /// samples the trilinear gradient is largest at a corner, so the bound is the largest vector of sample differences over `spacing`
     /// there, over the cells near the surface.
     public let lipschitz: Double
+    /// How long baking took, 0 when unknown (shown in the inspector; not part of the value).
+    public let bakeSeconds: Double
 
-    public init(origin: Vector3, spacing: Double, blockCounts: [Int], table: [Int32], pool: [Float], coarse: [Float], band: Double) {
+    public init(origin: Vector3, spacing: Double, blockCounts: [Int], table: [Int32], pool: [Float], coarse: [Float],
+                band: Double, bakeSeconds: Double = 0, lipschitz known: Double? = nil) {
         precondition(blockCounts.count == 3 && table.count == blockCounts.reduce(1, *) && coarse.count == table.count,
                      "DistanceBlocks needs one table and one coarse entry per block")
         self.origin = origin
@@ -37,8 +40,9 @@ public final class DistanceBlocks: Hashable, Sendable {
         self.pool = pool
         self.coarse = coarse
         self.band = band
-        self.lipschitz = Self.interpolationSlope(blockCounts: blockCounts, table: table, pool: pool, coarse: coarse, spacing: spacing,
-                                              band: band)
+        self.bakeSeconds = bakeSeconds
+        self.lipschitz = known ?? Self.interpolationSlope(blockCounts: blockCounts, table: table, pool: pool, coarse: coarse,
+                                                          spacing: spacing, band: band)
     }
 
     /// The bound `lipschitz` describes. The squared gradient of a trilinear cell is convex in position, so its largest value is at a
@@ -75,6 +79,12 @@ public final class DistanceBlocks: Hashable, Sendable {
             }
         }
         return max(1, Double(worst).squareRoot() / spacing)
+    }
+
+    /// The same blocks recording another bake time. A new object, so it is not equal to this one.
+    public func timed(_ seconds: Double) -> DistanceBlocks {
+        DistanceBlocks(origin: origin, spacing: spacing, blockCounts: blockCounts, table: table, pool: pool, coarse: coarse, band: band,
+                       bakeSeconds: seconds, lipschitz: lipschitz)
     }
 
     public static func == (lhs: DistanceBlocks, rhs: DistanceBlocks) -> Bool { lhs === rhs }

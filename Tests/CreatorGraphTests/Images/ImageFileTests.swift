@@ -31,10 +31,10 @@ struct ImageFileTests {
 
     // MARK: Format 7
 
-    @Test func filesAreWrittenAsFormatSevenAndAnImageFreeFileHasNoImagesKey() throws {
-        #expect(GraphFile.currentFormatVersion == 7)
+    @Test func filesAreWrittenAsTheCurrentFormatAndAnImageFreeFileHasNoImagesKey() throws {
+        #expect(GraphFile.currentFormatVersion == 8)
         let object = try json(try document([]).fileData())
-        #expect(object["formatVersion"] as? Int == 7)
+        #expect(object["formatVersion"] as? Int == 8)
         #expect(object["images"] == nil, "written only when there are images")
     }
 
@@ -197,12 +197,12 @@ struct ImageFileTests {
     }
     """
 
-    @Test func aFormatSixFileOpensUnchangedAndIsSavedAsSeven() throws {
+    @Test func aFormatSixFileOpensUnchangedAndIsSavedAsTheCurrentFormat() throws {
         let file = try reopened(Data(Self.formatSix.utf8))
         #expect(file.formatVersion == 6 && file.images.isEmpty && file.graph.nodes.count == 1)
         let document = DocumentModel(file: file, registry: Self.registry, kernel: FakeKernel())
         let saved = try reopened(try document.fileData())
-        #expect(saved.formatVersion == 7)
+        #expect(saved.formatVersion == 8)
         #expect(saved.graph == file.graph && saved.definitions == file.definitions, "nothing in a format-6 file changes")
     }
 
@@ -214,8 +214,8 @@ struct ImageFileTests {
     }
 
     @Test func aNewerFormatIsRefusedWithTheExistingMessage() throws {
-        let text = Self.formatSix.replacing("\"formatVersion\" : 6", with: "\"formatVersion\" : 8")
-        #expect(throws: GraphFileError.newerFormat(8)) { try reopened(Data(text.utf8)) }
-        #expect(GraphFileError.newerFormat(8).message.hasPrefix("This file was saved by a newer version of MetalCreator (file format 8)."))
+        let text = Self.formatSix.replacing("\"formatVersion\" : 6", with: "\"formatVersion\" : 9")
+        #expect(throws: GraphFileError.newerFormat(9)) { try reopened(Data(text.utf8)) }
+        #expect(GraphFileError.newerFormat(9).message.hasPrefix("This file was saved by a newer version of MetalCreator (file format 9)."))
     }
 }
