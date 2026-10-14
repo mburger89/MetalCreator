@@ -43,5 +43,25 @@ enum LatticeFixtures {
         ("diamond struts, noisy radius", struts(.diamond, cells: cells(9), radius: ImplicitFixtures.noisy)),
     ]
 
-    static var all: [(name: String, solid: ImplicitSolid)] { tpmsAll + strutsAll }
+    /// `count` seeds spread through `box` by a seeded generator.
+    static func seeds(_ count: Int, in box: BoundingBox = region, seed: Int) -> [Vector3] {
+        let random = SeededRandom(seed: seed, stream: 3)
+        return (0..<count).map { index in
+            Vector3(box.min.x + box.size.x * random.unit(at: 3 * index), box.min.y + box.size.y * random.unit(at: 3 * index + 1),
+                    box.min.z + box.size.z * random.unit(at: 3 * index + 2))
+        }
+    }
+
+    static func voronoi(_ points: [Vector3], _ form: VoronoiForm, thickness: Grading, radius: Double? = nil,
+                        in box: BoundingBox = region) -> ImplicitSolid {
+        let seeds = VoronoiSeeds(points: points, radius: radius ?? VoronoiSeeds.searchRadius(count: points.count, in: box))
+        return .voronoi(VoronoiLattice(seeds: seeds, form: form, thickness: thickness, region: box))
+    }
+
+    static let voronoiAll: [(name: String, solid: ImplicitSolid)] = [
+        ("voronoi struts", voronoi(seeds(36, seed: 1), .struts, thickness: .constant(1))),
+        ("voronoi foam, graded wall", voronoi(seeds(36, seed: 2), .foam, thickness: ImplicitFixtures.graded)),
+    ]
+
+    static var all: [(name: String, solid: ImplicitSolid)] { tpmsAll + strutsAll + voronoiAll }
 }

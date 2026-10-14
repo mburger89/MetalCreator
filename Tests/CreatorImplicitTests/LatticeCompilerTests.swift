@@ -50,4 +50,26 @@ struct LatticeCompilerTests {
         #expect(after.pool.count == 512 + 1 + 8 * 6)
         #expect(after.integers.suffix(2) == [513, 8], "the struts follow the baked block in the pool")
     }
+
+    @Test func aVoronoiLatticesSeedsAndFormAreNotInTheSource() throws {
+        let a = LatticeFixtures.voronoi(LatticeFixtures.seeds(10, seed: 1), .struts, thickness: .constant(1))
+        let b = LatticeFixtures.voronoi(LatticeFixtures.seeds(500, seed: 9), .foam, thickness: .constant(0.2))
+        #expect(try source(a) == source(b))
+        #expect(try source(a).contains("voronoiLattice(e,"))
+    }
+
+    @Test func theSeedsGoToThePoolAndTheGridToTheTables() throws {
+        let points = LatticeFixtures.seeds(40, seed: 4)
+        let solid = LatticeFixtures.voronoi(points, .foam, thickness: .constant(0.5))
+        let program = try ImplicitCompiler.compile(solid)
+        guard case .voronoi(let lattice) = solid else { Issue.record("not a Voronoi lattice"); return }
+        let seeds = lattice.seeds
+        #expect(program.pool.count == 40 * 3)
+        #expect(program.tables == seeds.starts + seeds.entries)
+        let grid = seeds.counts.map { Int32($0) }
+        #expect(program.integers == [0, 0, Int32(seeds.starts.count)] + grid + [Int32(VoronoiForm.foam.rawValue)])
+        // The thickness comes first, then the grid's corner and cell size.
+        let corner = [seeds.origin.x, seeds.origin.y, seeds.origin.z, seeds.radius].map { Float($0) }
+        #expect(Array(program.parameters[1..<5]) == corner)
+    }
 }

@@ -42,6 +42,8 @@ extension ImplicitSolid {
             return lattice.region
         case .struts(let lattice):
             return lattice.region
+        case .voronoi(let lattice):
+            return lattice.region
         }
     }
 

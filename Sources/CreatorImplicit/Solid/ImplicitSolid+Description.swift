@@ -38,6 +38,8 @@ extension ImplicitSolid: CustomStringConvertible {
             let joint = lattice.blend > 0 ? ", blend \(Self.mm(lattice.blend))" : ""
             return "\(lattice.cell.name.lowercased())(cell \(Self.text(lattice.cells.size)), r = \(Self.text(lattice.radius))"
                 + "\(joint)\(Self.stretchText(lattice.cells)))"
+        case .voronoi(let lattice):
+            return "voronoi \(lattice.form.name.lowercased())(\(lattice.seeds.points.count) seeds, t = \(Self.text(lattice.thickness)))"
         }
     }
 

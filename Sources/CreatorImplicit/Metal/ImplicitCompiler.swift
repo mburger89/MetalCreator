@@ -130,6 +130,8 @@ public enum ImplicitCompiler {
                 return try tpms(lattice, at: p)
             case .struts(let lattice):
                 return try struts(lattice, at: p)
+            case .voronoi(let lattice):
+                return try voronoi(lattice, at: p)
             }
         }
 
@@ -156,6 +158,24 @@ public enum ImplicitCompiler {
             let blend = number(lattice.blend)
             let (centre, half) = (vector(lattice.region.center), vector(lattice.region.size * 0.5))
             return declare("strutLattice(e, \(offset), \(count), \(p), \(cell), \(stretch), \(radius), \(blend), \(centre), \(half))")
+        }
+
+        /// A Voronoi lattice: the seeds go to the `pool` buffer (three floats each), the grid to the `tables` buffer (cell starts, then
+        /// seed numbers), where they are and how big the grid is to the integers, the grid's corner and cell size to the floats.
+        mutating func voronoi(_ lattice: VoronoiLattice, at p: String) throws(ImplicitCompileError) -> String {
+            let seeds = lattice.seeds
+            let wall = try grading(lattice.thickness, at: p)
+            let slot = (integers: integers.count, parameters: parameters.count)
+            integers += [Int32(pool.count), Int32(tables.count), Int32(tables.count + seeds.starts.count)]
+            integers += seeds.counts.map { Int32($0) }
+            pool += seeds.points.flatMap { [Float($0.x), Float($0.y), Float($0.z)] }
+            tables += seeds.starts
+            tables += seeds.entries
+            parameters += [Float(seeds.origin.x), Float(seeds.origin.y), Float(seeds.origin.z), Float(seeds.radius)]
+            let form = integer(lattice.form.rawValue)
+            let scale = number(VoronoiLattice.strutScale)
+            let (centre, half) = (vector(lattice.region.center), vector(lattice.region.size * 0.5))
+            return declare("voronoiLattice(e, \(slot.integers), \(slot.parameters), \(p), \(wall), \(form), \(scale), \(centre), \(half))")
         }
 
         /// Union, intersect and subtract: the children folded left to right with `join(result, next, width)`; `empty` is the value

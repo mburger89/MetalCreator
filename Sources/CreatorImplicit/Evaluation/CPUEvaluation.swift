@@ -61,6 +61,8 @@ final class CPUEvaluation {
             return tpms(lattice, at: p)
         case .struts(let lattice):
             return struts(lattice, at: p)
+        case .voronoi(let lattice):
+            return voronoi(lattice, at: p)
         }
     }
 

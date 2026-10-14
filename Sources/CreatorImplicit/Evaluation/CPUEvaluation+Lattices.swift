@@ -54,4 +54,42 @@ extension CPUEvaluation {
         let t = length2 > 0 ? min(max((p - a).dot(along) / length2, 0), 1) : 0
         return (p - a - along * t).length
     }
+
+    // MARK: Voronoi
+
+    func voronoi(_ lattice: VoronoiLattice, at p: Vector3) -> Double {
+        let seeds = lattice.seeds
+        let radius = seeds.radius
+        var (d1, d2, d3) = (Double.infinity, Double.infinity, Double.infinity)
+        var nearest = -1
+        seeds.forEachSeed(near: p) { seed, position in
+            let d = (p - position).length
+            if d < d1 {
+                (d3, d2, d1, nearest) = (d2, d1, d, seed)
+            } else if d < d2 {
+                (d3, d2) = (d2, d)
+            } else if d < d3 {
+                d3 = d
+            }
+        }
+        let wall = max(0, value(lattice.thickness, at: p))
+        let body: Double
+        switch lattice.form {
+        case .struts:
+            body = (min(d3, radius) - min(d1, radius)) / VoronoiLattice.strutScale - wall / 2
+        case .foam:
+            var distance = max(0, (radius - d1) / 2)
+            if nearest >= 0 {
+                let first = seeds.points[nearest]
+                seeds.forEachSeed(near: p) { seed, position in
+                    let across = position - first
+                    let length = across.length
+                    guard seed != nearest, length > 1e-9 else { return }
+                    distance = min(distance, across.dot((first + position) * 0.5 - p) / length)
+                }
+            }
+            body = distance - wall / 2
+        }
+        return max(body, Self.boxDistance(p, lattice.region))
+    }
 }

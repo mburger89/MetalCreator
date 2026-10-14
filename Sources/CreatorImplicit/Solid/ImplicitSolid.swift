@@ -50,4 +50,6 @@ public indirect enum ImplicitSolid: Hashable, Sendable {
     case tpms(TPMSLattice)
     /// Straight struts of one of the unit cells, with rounded joints if asked.
     case struts(StrutLattice)
+    /// The cell edges or the cell walls of a Voronoi diagram of seed points.
+    case voronoi(VoronoiLattice)
 }
