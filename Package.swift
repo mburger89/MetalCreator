@@ -34,9 +34,14 @@ let package = Package(
         .target(name: "CreatorGeometry"),
         .target(name: "CreatorSketch", dependencies: ["CreatorGeometry"]),
         .target(name: "CreatorKernel", dependencies: ["CreatorGeometry"]),
+        // Implicit solids and meshes (implicit spec §2 to §4): the value types, the CPU evaluator, the Metal compiler, the sparse
+        // octree and the mesher. Depends on CreatorGraph for `Field`; CreatorGraph holds them only as `ImplicitPayload` and
+        // `MeshPayload`.
+        .target(name: "CreatorImplicit", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
         // CreatorSketch: `ConstantValue.sketch` (S4). The Sketch node in CreatorNodes solves it.
         .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
-        .target(name: "CreatorNodes", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
+        .target(name: "CreatorNodes",
+                dependencies: ["CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
         // Colour themes (spec §6.6, Dracula by default): the roles, the built-in themes and the `ThemeStore` that
         // the editor's views and the viewport's GPU colours read.
         .target(name: "CreatorStyle", dependencies: [metalUI]),
@@ -88,6 +93,8 @@ let package = Package(
         ),
         .testTarget(name: "CreatorOCCTTests", dependencies: ["CreatorOCCT", "CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
+        .testTarget(name: "CreatorImplicitTests",
+                    dependencies: ["CreatorImplicit", "CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorSketchTests", dependencies: ["CreatorSketch", "CreatorGeometry"]),
         .testTarget(name: "CreatorKernelTests", dependencies: ["CreatorKernel", "CreatorGeometry"]),
         .testTarget(name: "CreatorGraphTests", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
