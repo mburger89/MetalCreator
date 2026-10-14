@@ -34,6 +34,8 @@ public struct SeededRandom: Sendable {
         case fieldCull = 0x4643_756C_6C5F_5F31
         /// Field Scatter: "Scattr_1".
         case scatter = 0x5363_6174_7472_5F31
+        /// Voronoi Lattice's built-in seeds: "Voronoi_".
+        case voronoi = 0x566F_726F_6E6F_695F
     }
 
     private let start: UInt64

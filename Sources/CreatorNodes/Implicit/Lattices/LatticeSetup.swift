@@ -61,7 +61,11 @@ enum LatticeSetup {
 
     /// "Cells are smaller than the preview resolution; the preview may look solid." when a cell is under two voxels.
     static func cellWarnings(_ cells: LatticeCells, voxel: (size: Double, name: String)) -> [String] {
-        let smallestEdge = cells.smallest * cells.smallestStretch
+        cellWarnings(spacing: cells.smallest * cells.smallestStretch, voxel: voxel)
+    }
+
+    /// The same, for cells about `spacing` millimetres across.
+    static func cellWarnings(spacing smallestEdge: Double, voxel: (size: Double, name: String)) -> [String] {
         guard smallestEdge < 2 * voxel.size else { return [] }
         let result = voxel.name == "preview" ? "the preview may look solid" : "the mesh may look solid"
         return ["Cells are smaller than the \(voxel.name) resolution; \(result)."]

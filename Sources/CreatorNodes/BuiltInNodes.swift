@@ -30,7 +30,7 @@ public enum BuiltInNodes {
         FieldSmoothBlendNode.self, SampleFieldNode.self, CullByFieldNode.self, FieldScatterNode.self,
         ImplicitSphereNode.self, ImplicitBoxNode.self, ImplicitCylinderNode.self, ImplicitUnionNode.self, ImplicitSubtractNode.self,
         ImplicitIntersectNode.self, ImplicitShellNode.self, ImplicitOffsetNode.self, ToImplicitNode.self, IsosurfaceNode.self,
-        TPMSNode.self, StrutLatticeNode.self,
+        TPMSNode.self, StrutLatticeNode.self, VoronoiLatticeNode.self,
         MeshNode.self,
         OutputNode.self,
     ]
