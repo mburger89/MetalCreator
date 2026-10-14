@@ -60,12 +60,13 @@ stopgap as they were. The sections below keep each gap's full use case.
 | CT-c | The canvas typing's key, focus and press routing can't be driven from a test (the C9-dependent behaviour is pinned only by human checks CT-1..CT-9) | M6-e (public headless `Window` with `simulateInput`) | ✅ fixed (MetalUI 280d706), adopted (plan `2026-10-12-adopt-test-harness`): `CanvasNoteTypingWindowTests`, `CanvasTitleTypingWindowTests`, `CanvasTypingKeysWindowTests`, `CanvasTypingFocusWindowTests`, `CanvasTypingUndoWindowTests`; CT-1..CT-11 keep only their visual and machine-specific parts |
 | CT-d | The test harness can't drive an input method, so a field's composing (marked text) next to a selection write has no automated test | C28 | ✅ fixed by C28 (MetalUI master f6f865c1, PR #75, record §102: `TestWindow.setMarkedText`, `commitMarkedText`, `cancelMarkedText`; divergences 325 and 326), adopted (plan `2026-10-13-adopt-c28.md`): `CanvasTypingCompositionWindowTests`, `InspectorFieldCompositionWindowTests`; ⌘Z after a selection write is documented and pinned; C25-3 keeps only the feel |
 | XP-G3 | Custom chrome or a hidden title bar on SDL (divergence 276) | MetalUI S1 (in progress, record §112, `CW-`) | 🔄 open at MetalUI. xp-1 accepts the system title bar: `windowStyle: .hiddenTitleBar` is ignored on SDL and `titleBarInsets` reads zero, so `TopBar` sits under it; adopt when S1 lands (human check XP-8) |
-| XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO | MetalUI S2 (in progress, record §113, `IB-`) | 🔄 open at MetalUI. macOS keeps ImageIO (`GreyImageDecoder+ImageIO.swift`); off macOS the Image Field reports "Images need a newer MetalUI on this platform." (`ImageProblem.platformUnsupported`); S2's public decode replaces both |
+| XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO | MetalUI S2 (record §113, `IB-`, PR #84) | ✅ fixed by MetalUI S2 (master `dea698ca`), adopted (branch `adopt-s2`): `GreyImageDecoder` decodes through `DecodedImage(data:format: .rgba)` on every platform, so the Image Field works on Linux and Windows; ImageIO is gone from `Sources`, and so are `GreyImageDecoder+ImageIO.swift`, `ImageProblem.platformUnsupported` and its sentence. Left open at MetalUI: XP-G10 (a header-only read) |
 | XP-G5 | Open-document events on SDL (divergence 176) | answered | ✅ answered by MetalUI (`Platform.onOpenURLs` → `.onOpenURL`; command-line files via `app.open(…)` after the first window; `.desktop` `Exec=… %F` + `MimeType=`); xp-2's (packaging), not adopted in xp-1 |
 | XP-G6 | `ContentType` filtering by extension (divergence 129) | answered | ✅ answered and already in use: every `ContentType` the file panels use declares `filenameExtensions` (`ContentType+MetalCreator`, `+Images`, `+Theme`), pinned by `ContentTypeTests`; nothing to change for xp-1 |
 | XP-G7 | Clipboard types beyond text (graph fragments) | MetalUI S3 (queued) | 🔄 queued at MetalUI. Nothing to do in xp-1: MetalCreator's graph-fragment clipboard is in memory (`NodeClipboard`) and never reaches the system pasteboard on any platform; a system clipboard (marked JSON text now, S3's custom types later) is a feature of its own |
 | XP-G8 | Hand and zoom cursor fallbacks | MetalUI S4 (queued) | ➖ accepted: MetalUI's fallback (`.link` hand, grab → move, zoom → arrow) is used as is; S4 adds image cursors (human check XP-8) |
 | XP-G9 | `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks)` | open (new) | 🔄 open at MetalUI. `MetalCreatorApp --smoke-test` (the CI launch check, `main.swift`) imports it with `@_spi(Checks) import MetalUISDL`; promote it to public API or name a supported headless-launch entry point |
+| XP-G10 | A header-only read of a picture's size and orientation (before any pixel is decoded) | open (new, forward to MetalUI) | 🔄 open at MetalUI. `DecodedImage` reports size and orientation only after it decodes the whole picture, but `ImageLimits` must refuse an oversize one first; MetalCreator keeps a small `ImageHeader` reader (PNG IHDR and `eXIf`, JPEG SOF and APP1) for that. Needed: a public `ImageInfo(data:)` (format, stored size, orientation, no pixel work) |
 
 ## Reported 2026-10-07 (C7)
 
@@ -1107,7 +1108,7 @@ Labelled CT-d so it stays beside CT-b and CT-c. Checked against MetalUI `3fce05f
 
 ## Hit by the cross-platform port (xp-1), 2026-10-13
 
-Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan, after the spec's table (`docs/superpowers/specs/2026-10-13-cross-platform-design.md` §5); XP-G1 and XP-G2
+Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan and XP-G10 by the S2 adoption, after the spec's table (`docs/superpowers/specs/2026-10-13-cross-platform-design.md` §5); XP-G1 and XP-G2
 (SDL GPU for the viewport, portable compute) belong to xp-3 and are logged there. Checked against MetalUI `fb9a7e42`, the commit
 `.github/workflows/xp.yml` pins. None of these is worked around in a way MetalUI will have to undo: each stopgap is one switch
 (`#if`) or one sentence.
@@ -1118,14 +1119,19 @@ Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan, after the spec's table (
   Needed: a borderless window with MetalUI-drawn controls and a drag region, which MetalUI S1 is building (borderless window,
   `SDL_SetWindowHitTest` drag, resize edges; record §112, `CW-`). MetalCreator accepts the system title bar in xp-1 and adopts S1
   when it lands. Human check XP-8.
-- **XP-G4. Grey pixels and the EXIF orientation of a PNG or JPEG without ImageIO.** `GreyImageDecoder` needs a picture's size from
-  its header, its grey values (a monochrome file as it is, colour as Rec. 709 luminance of the colour composited against black) and
-  the orientation tag. MetalUI decodes PNG and JPEG with its own stb_image on every platform but offers the pixels only to its own
-  `Image` (`ImageBitmap(contentsOfFile:)`), not as RGBA with size, stride and orientation. MetalUI S2 is adding exactly that
-  (public RGBA8 and grey decode, record §113, `IB-`). Until it lands macOS keeps ImageIO and every other platform's Image Field
-  reports "Images need a newer MetalUI on this platform."; choosing a picture there raises the same sentence in the "That image
-  can't be used" alert and leaves the setting alone. xp-1 writes no EXIF reader of its own. When S2 lands `GreyImageDecoder` uses it
-  on every platform and `GreyImageDecoderTests` pin it against ImageIO's result on macOS for the existing fixtures.
+- **XP-G4. Grey pixels and the EXIF orientation of a PNG or JPEG without ImageIO.** Fixed by MetalUI S2 (record §113, `IB-`,
+  PR #84, master `dea698ca`) and adopted on branch `adopt-s2`. `GreyImageDecoder` now decodes through `DecodedImage(data:format: .rgba)` on
+  every platform (stb_image, the same bytes in as out on macOS, Linux and Windows), then does its own grey conversion and orientation:
+  Rec. 709 luminance of the straight-alpha colour composited against black (not S2's `.grey`, which is Rec. 601 with alpha dropped), and
+  the EXIF tag from `DecodedImage.orientation` applied while the grey grid is built (no oriented copy of the RGBA). The Image Field works
+  off macOS; "Images need a newer MetalUI on this platform.", `ImageProblem.platformUnsupported` and the macOS-only fence are gone, and no
+  file in `Sources` imports ImageIO. Measured against ImageIO on every existing fixture before it was removed: PNG grids agree within
+  128 of 65,535 (the only moves are 16-bit samples, which S2 rounds to 8 bits); JPEG grids within 441 (under two levels, a colour JPEG:
+  stb's IDCT and chroma upsampling are not ImageIO's). Differences to know: MetalUI refuses a PNG with a bad CRC on any chunk (libpng
+  tolerated an ancillary one), a side over 16,384 px, and a truncated JPEG, which is stricter than ImageIO and never looser; a 16-bit PNG
+  is read to the nearest 1/255 (`aGrey16BitPictureIsReadToTheNearest8BitLevel` replaces the exact-precision test). Peak memory for a legal
+  8,192 × 8,192 picture: the 16 MB file, MetalUI's decode (up to 256 MB of RGBA, plus whatever it holds while decoding) and the 128 MB result.
+  The 32 MB band survives only as the unit of cancellation checks.
 - **XP-G5. Open-document events on SDL.** Answered: `Platform.onOpenURLs` (an SDL drop with window 0) routes to `.onOpenURL`;
   command-line files go through `app.open(…)` after the first window (MetalUI `docs/packaging.md`, "Launch arguments"); the
   `.desktop` file carries `Exec=… %F` and `MimeType=`. Linux and Windows packaging is xp-2, so xp-1 adopts nothing; the
@@ -1148,3 +1154,9 @@ Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan, after the spec's table (
   depend on a symbol MetalUI may rename without notice. Until then a MetalUI bump can break `main.swift` at compile time, loudly,
   and the fix is one line. The smoke test passes in CI on Linux and Windows (run 38535917146) (human
   check XP-9).
+- **XP-G10. A header-only read of a picture's size and orientation.** `DecodedImage` reports the stored size and the orientation after the
+  whole picture is decoded (`IB-C`), but `ImageLimits` (16 MB, 8,192 px a side, PNG and JPEG only) must refuse an oversize picture before
+  a pixel is decoded, and the limit is on the oriented size. So `ImageHeader` (`Sources/CreatorNodes/Fields`) reads the PNG IHDR and
+  `eXIf` chunk and the JPEG SOF and APP1 segment itself, the one EXIF reader xp-1 hoped not to write; `decode` refuses a picture whose
+  decoded size disagrees with it. Needed from MetalUI: a public `ImageInfo(data:)` (format, stored size, orientation) that does no pixel
+  work, after which `ImageHeader` goes. To be forwarded to the MetalUI session.
