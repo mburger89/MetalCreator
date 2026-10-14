@@ -111,7 +111,7 @@ unchanged in look and behaviour.
 |---|---|---|
 | XP-G1 | App access to SDL_GPU through `GPUSurface` (CSDL types or a portable GPU API), a shader build path for apps, MSAA resolve, depth targets, instanced draws, storage buffers, mipmapped r8 textures, texture readback | xp-3 |
 | XP-G2 | Portable compute (SDL GPU compute) for 7c's implicit engine | after xp-3 |
-| XP-G3 | Custom chrome or hidden title bar on SDL (divergence 276) | polish; xp-1 accepted the system title bar. **Fixed by MetalUI S1** (record §112, `CW-`, master `ceca59f6`) and adopted after xp-1 (erratum E5); the drag regions wait on XP-G11 |
+| XP-G3 | Custom chrome or hidden title bar on SDL (divergence 276) | polish; xp-1 accepted the system title bar. **Fixed by MetalUI S1** (record §112, `CW-`, master `ceca59f6`) and adopted after xp-1 (erratum E5); the drag regions need XP-G11 before xp-3 |
 | XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO | xp-1 (Image Field). **Fixed by MetalUI S2** (record §113, `IB-`) and adopted after xp-1 (erratum E4); a header-only read is still wanted (XP-G10) |
 | XP-G5 | Open-document events on SDL (divergence 176) | xp-2. **Answered:** `Platform.onOpenURLs` (SDL drop with window 0) → `.onOpenURL` routing; command-line files via `app.open(…)` after the first window (MetalUI `docs/packaging.md`, "Launch arguments"); `.desktop` `Exec=… %F` + `MimeType=` |
 | XP-G6 | ContentType filtering by extension (divergence 129) | xp-1. **Answered:** `ContentType("…", conformingTo: [.json], filenameExtensions: ["mcgraph"])` in `allowedContentTypes` |
@@ -157,4 +157,4 @@ beyond what MetalUI provides; macOS CI; Intel macOS.
   at 68 points or more, below the 32-point band, and the bar stays at the margin inside the band as on macOS (macOS is unchanged,
   pinned by `SDLChromeWindowTests.macLayoutIsWhatItWas`). The drawn Close button goes through `onCloseRequest` to
   `AppModel.closeRequested()` (`installCloseHandling`). `WindowDragHandle` stays and is now an SDL drag region where MetalUI publishes
-  one; it publishes none while the viewport is behind the bar (gap XP-G11). Human checks XP-11..XP-14; XP-8 keeps the cursors only.
+  one; it will publish none once a gesture-taking viewport is behind the bar (gap XP-G11: the real Metal viewport on macOS's headless test, the SDL GPU viewport at xp-3; the Linux and Windows placeholder has none). Human checks XP-11..XP-14; XP-8 keeps the cursors only.

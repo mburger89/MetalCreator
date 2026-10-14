@@ -18,6 +18,17 @@ struct SDLChromeWindowTests {
     /// The sketch bar's invisible Escape carrier: zero-size, opacity 0, not hit-testable (`EscapeKey`), so it is no control.
     let invisible = ["Escape"]
 
+    /// Runs `body`, a drag-region expectation, as a known issue where the viewport is the real Metal one (XP-G11: its gestures fill
+    /// the window behind the bar and MetalUI carves every region away); where `ViewportPlaceholder` stands in (Linux, Windows) it
+    /// holds as written. When MetalUI ranks blockers by depth the guard fails ("known issue not recorded") and comes off.
+    func whileTheViewportIsReal(_ body: () -> Void) {
+        #if canImport(Metal)
+        withKnownIssue("XP-G11: the viewport behind the bar carves every drag region away", body)
+        #else
+        body()
+        #endif
+    }
+
     /// The rectangle of an element, as a `CanvasRect`.
     func rect(_ element: TestElement) -> CanvasRect {
         let frame = element.frame
@@ -130,7 +141,7 @@ struct SDLChromeWindowTests {
         // XP-G11: MetalUI carves a handle by every pointer-taking hitbox in the window whatever its depth, and the
         // viewport under the whole window takes the pointer (its orbit and pick gestures), so no region is published.
         // Known issue until MetalUI ranks blockers by depth; this reddens when it does, and the guard comes off.
-        withKnownIssue("XP-G11: the viewport behind the bar carves every drag region away") {
+        whileTheViewportIsReal {
             #expect(covered(app.point(600, 34)), "the bar's empty space")
             #expect(covered(app.point(600, 5)), "the strip above the bar")
             #expect(covered(app.point(30, 34)), "and the document's name")
@@ -154,7 +165,7 @@ struct SDLChromeWindowTests {
         for control in try barControls(app) {
             #expect(!regions.contains { $0.contains(app.centre(of: control)) }, "\(control.label ?? "a control")")
         }
-        withKnownIssue("XP-G11: the viewport behind the bar carves every drag region away") {
+        whileTheViewportIsReal {
             #expect(regions.contains { $0.contains(app.point(600, 5)) }, "the strip is still a handle")
         }
     }
@@ -186,10 +197,13 @@ struct SDLChromeWindowTests {
     @Test func macLayoutIsWhatItWas() async throws {
         let app = try await AppWindow.open()
         app.setTitleBarInsets(AppWindow.standardButtonInsets)
+        #if canImport(Metal)
         let expected: [[Float]] = [[77, 26, 52, 16], [1078, 22, 123, 24], [1211, 22, 57, 24], [1278, 22, 55, 24], [1343, 22, 75, 24]]
         let found = try [app.topBarLabel()] + app.topBarControls().sorted { $0.frame.origin.x.value < $1.frame.origin.x.value }
         #expect(found.map { [$0.frame.origin.x.value, $0.frame.origin.y.value, $0.frame.size.width.value, $0.frame.size.height.value] }
                 == expected)
+        #endif
+        #expect(abs(try app.topBarLabel().frame.origin.x.value - Float(69 + AppLayout.titleBarGap)) < 0.5, "text metrics aside, the name")
         #expect(app.window.platformWindow.titleBarInsets.right.value == 0, "the traffic lights are at the left only")
         #expect(try app.window.elements(where: { _ in true }).allSatisfy { !drawnLabels.contains($0.label ?? "") },
                 "AppKit has its own buttons: MetalUI draws none")

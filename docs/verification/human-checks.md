@@ -1848,8 +1848,8 @@ warning step when red. macOS needs no check here: its test count and its look ar
   Save closes it; an unedited document closes at once. In a sketch the sketch toolbar's Finish ends left of the buttons too. The theme
   editor and inspector at the top right start below the buttons. Pinned: `SDLChromeWindowTests` (the layout, Close through the model).
   **Observed:**
-- [ ] **XP-12 Drag, edges and zoom, Linux X11.** Needs MetalUI XP-G11 first: until then pressing the top bar, the strip above it or
-  the band moves nothing. After it: pressing the bar's empty space, the strip and the document's name moves the window; pressing
+- [ ] **XP-12 Drag, edges and zoom, Linux X11.** With today's placeholder viewport the regions are published; once xp-3's viewport is there it needs
+  MetalUI XP-G11 or the bar moves nothing. Pressing the bar's empty space, the strip and the document's name moves the window; pressing
   on a bar control (Undo, Export, Finish in a sketch) never does (MetalUI divergence 426); the six-point edges and twelve-point
   corners resize the window, and the viewport still orbits with a drag below the bar. Double-clicking the band zooms the window
   (MetalUI CW6: not promised on Linux; log it if not). Hover, tooltips and the wheel over the bar do nothing (divergence 425; nothing
