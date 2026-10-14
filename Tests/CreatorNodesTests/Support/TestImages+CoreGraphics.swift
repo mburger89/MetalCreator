@@ -46,7 +46,7 @@ extension TestImages {
 
     /// A `width` × `height` sRGB PNG whose every row differs from its neighbours and whose every column does too, opaque; `pixel(_:_:)`
     /// gives the 8-bit colour of the pixel at (x, y), so a test can say what any row must decode to.
-    static func colourRows(_ width: Int, _ height: Int, orientation: Int? = nil) -> Data {
+    static func colourRows(_ width: Int, _ height: Int, type: UTType = .png, orientation: Int? = nil) -> Data {
         guard let space = CGColorSpace(name: CGColorSpace.sRGB),
               let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
                                       space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
@@ -59,7 +59,7 @@ extension TestImages {
                 (bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]) = (UInt8(red), UInt8(green), UInt8(blue), 255)
             }
         }
-        return encode(context.makeImage(), as: .png, orientation: orientation)
+        return encode(context.makeImage(), as: type, orientation: orientation)
     }
 
     /// A picture whose pixels look like noise, so its PNG does not shrink to a few bytes and can be cut or damaged mid-stream.

@@ -1824,9 +1824,10 @@ warning step when red. macOS needs no check here: its test count and its look ar
   the other way round. Edit Themes…, duplicate a theme and quit: the theme file is in `~/.local/share/MetalCreator/Themes` (Linux,
   or `$XDG_DATA_HOME`) or `%APPDATA%\MetalCreator\Themes` (Windows) and is still there on the next launch. Pinned:
   `ContentTypeTests`, `ThemeFolderTests`. **Observed:**
-- [ ] **XP-6 The Image Field.** Add an Image Field and choose a PNG: the alert reads "Images need a newer MetalUI on this
-  platform." and the setting is unchanged. A graph saved on macOS with an embedded picture opens, and that node's badge shows the
-  same sentence. Pinned: `ImagePlatformActionTests`, `ImagePlatformTests`. **Observed:**
+- [ ] **XP-6 The Image Field.** Add an Image Field and choose a PNG and a JPEG: the field takes them (no error badge), a rotated
+  phone photo (EXIF orientation) comes out upright, and a GIF raises "Only PNG and JPEG images can be used." A graph saved on macOS
+  with an embedded picture opens and gives the same field. Pinned: `GreyImageDecoderTests`, `GreyImageDecoderPinnedTests`,
+  `ImageActionTests`. **Observed:**
 - [ ] **XP-7 Text.** Menus, nodes, the inspector and the sketch inspector are readable in the installed font (DejaVu Sans on a
   stock Ubuntu, Segoe UI on Windows) with no missing-glyph boxes, and a wrapped hint (the Mirror tool's, in the sketch inspector)
   shows all its words: DejaVu is wider than macOS's font and wraps it to more lines. Pinned: `TextMeasureWindowTests`.

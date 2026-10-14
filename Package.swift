@@ -46,8 +46,9 @@ var targets: [Target] = [
     // octree and the mesher. Depends on CreatorGraph for `Field`; CreatorGraph holds them only as `ImplicitPayload` and
     // `MeshPayload`. Portable: the Metal compiler is gated with `#if canImport(Metal)`.
     .target(name: "CreatorImplicit", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
+    // MetalUI only for `DecodedImage`, the picture decoder (`GreyImageDecoder+MetalUI.swift`, the one file that imports it).
     .target(name: "CreatorNodes",
-            dependencies: ["CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
+            dependencies: ["CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry", "CreatorSketch", metalUI]),
     // Colour themes (spec §6.6, Dracula by default): the roles, the built-in themes and the `ThemeStore` that
     // the editor's views and the viewport's GPU colours read.
     .target(name: "CreatorStyle", dependencies: [metalUI]),

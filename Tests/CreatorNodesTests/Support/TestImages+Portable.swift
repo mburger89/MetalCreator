@@ -1,17 +1,27 @@
-// Test fixture file: the PNGs the image tests can make without CoreGraphics (every platform but macOS). JPEG, GIF, TIFF, 16-bit
-// and rotated pictures need ImageIO, and the tests that use them are macOS-only.
+// Test fixture file: the PNGs the image tests can make without CoreGraphics (every platform but macOS): 8-bit and 16-bit grey,
+// RGBA, with an EXIF orientation if asked. JPEG, GIF and TIFF need ImageIO; the tests that use them are macOS-only, and
+// `GreyImageDecoderPinnedTests` carries a few JPEGs as bytes.
 #if !canImport(CoreGraphics)
 import Foundation
 
 extension TestImages {
-    /// A `width` × `height` monochrome PNG; `value(x, y)` is 0…255.
-    static func grey(_ width: Int, _ height: Int, _ value: (Int, Int) -> Int) -> Data {
-        PNGWriter.encode(width: width, height: height, color: .grey) { x, y in [UInt8(clamping: value(x, y))] }
+    /// A `width` × `height` monochrome PNG of `bits` (8 or 16) per pixel; `value(x, y)` is 0…255 or 0…65,535. `orientation`
+    /// (1 to 8) is written as the EXIF orientation tag; the pixels are stored as given.
+    static func grey(_ width: Int, _ height: Int, bits: Int = 8, orientation: Int? = nil, _ value: (Int, Int) -> Int) -> Data {
+        if bits == 16 {
+            return PNGWriter.encode(width: width, height: height, color: .grey16, orientation: orientation) { x, y in
+                let sample = UInt16(clamping: value(x, y))
+                return [UInt8(sample >> 8), UInt8(sample & 0xFF)]
+            }
+        }
+        return PNGWriter.encode(width: width, height: height, color: .grey, orientation: orientation) { x, y in
+            [UInt8(clamping: value(x, y))]
+        }
     }
 
     /// One grey (0…255) over the whole picture.
-    static func flatGrey(_ width: Int, _ height: Int, _ level: Double) -> Data {
-        grey(width, height) { _, _ in Int(level.rounded()) }
+    static func flatGrey(_ width: Int, _ height: Int, _ level: Double, orientation: Int? = nil) -> Data {
+        grey(width, height, orientation: orientation) { _, _ in Int(level.rounded()) }
     }
 
     /// A single sRGB colour (components 0…255) with `alpha` (0…255) over a `width` × `height` PNG.
@@ -22,8 +32,8 @@ extension TestImages {
 
     /// A `width` × `height` PNG whose every row differs from its neighbours and every column does too, opaque; `pixel(_:_:)`
     /// gives the colour of the pixel at (x, y).
-    static func colourRows(_ width: Int, _ height: Int) -> Data {
-        PNGWriter.encode(width: width, height: height, color: .rgba) { x, y in
+    static func colourRows(_ width: Int, _ height: Int, orientation: Int? = nil) -> Data {
+        PNGWriter.encode(width: width, height: height, color: .rgba, orientation: orientation) { x, y in
             let (red, green, blue) = pixel(x, y)
             return [UInt8(red), UInt8(green), UInt8(blue), 255]
         }

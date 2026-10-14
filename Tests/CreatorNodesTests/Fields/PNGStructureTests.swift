@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CreatorNodes
 
-/// `PNGStructure`: ImageIO decodes a PNG cut short as a black picture without complaint, so completeness is checked here.
+/// `PNGStructure`: a PNG cut short is refused before any pixel is decoded, so completeness is checked here.
 struct PNGStructureTests {
     @Test func aWholePNGPasses() {
         let png = TestImages.noisy(32)

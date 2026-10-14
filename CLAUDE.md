@@ -86,14 +86,16 @@ are behind `#if canImport(Metal)`); `COCCT`, `CreatorOCCT`, `ViewportHarness`, `
 declared on macOS only until xp-2. On Linux and Windows the MetalUI dependency asks for the `SDL` and `AccessKit` traits and
 `MetalCreatorApp` links `MetalUISDL` (`main.swift` picks `SDLPlatform` with `PortableTextSystem` over the installed fonts under
 `canImport(MetalUISDL)`). Off macOS the app runs over `KernelUnavailable` (every operation answers "Geometry isn't available on this
-platform yet."), the viewport's place shows `ViewportPlaceholder` ("The 3D view isn't available on this platform yet.") and the
-Image Field reports "Images need a newer MetalUI on this platform." (`ImageProblem.platformUnsupported`, MetalUI gap XP-G4). Rules
+platform yet.") and the viewport's place shows `ViewportPlaceholder` ("The 3D view isn't available on this platform yet."). The Image
+Field works everywhere: `GreyImageDecoder` decodes through MetalUI's `DecodedImage` (S2, gap XP-G4) on every platform. Rules
 for new code: no CryptoKit (use `SHA256`/`SHA1` in `CreatorGraph/Hashing`), no CoreGraphics, ImageIO, CoreText or Metal outside a
 `#if canImport(…)` file or block, keyboard shortcuts and modifier checks on MetalUI events say `.primary` (⌘ on macOS, Ctrl
 elsewhere), and a file dialog's `ContentType` declares its `filenameExtensions`. Tests: a test that needs Metal, OpenCascade,
-CoreText or ImageIO is gated with `#if canImport(Metal)`, `canImport(CreatorOCCT)`, `canImport(CoreText)` or `canImport(ImageIO)`
-and so is absent from the Linux count, never from macOS's; render tests take their text system from `testTextSystem()` in each
-target's `Support/TestTextSystem.swift`; picture fixtures come from `TestImages` (ImageIO on macOS, `PNGWriter` elsewhere). Pass
+CoreText is gated with `#if canImport(Metal)`, `canImport(CreatorOCCT)` or `canImport(CoreText)` and so is absent from the Linux
+count, never from macOS's; render tests take their text system from `testTextSystem()` in each target's
+`Support/TestTextSystem.swift`; picture fixtures come from `TestImages` (ImageIO on macOS, `PNGWriter` elsewhere; JPEG, GIF and
+TIFF fixtures need ImageIO, so those tests are `#if canImport(CoreGraphics)`, and `GreyImageDecoderPinnedTests` carries JPEGs as
+bytes for every platform) and `AppTestImages` (plain Swift). Pass
 rules: macOS, exit 0 and 12 "Test run with" lines; Linux, exit 0 and 11 (`CreatorOCCTTests` is macOS's twelfth; `CreatorImplicitTests` joined in 7c), and neither
 may print "recorded an issue" or "failed after".
 
@@ -278,12 +280,16 @@ the fourteen `Fields` nodes below, the seventeen
     plane (centred, `width` × `height` mm, row 0 at the plane's +y, Tile or Clamp, bilinear grey in 0…1) as `Field.image(GreyImage,
     plane:width:height:edges:)`. The picture is the node's `NodeSetting.image`, a `ConstantValue.image(ImageReference)`: `.embedded(ImageHash)`
     (the SHA-256 of the file's bytes) or `.linked(relativePath:absolutePath:)`. **Images are untrusted input**: `ImageLimits` (16 MB, 8,192 px
-    a side, PNG and JPEG only) are checked from the header before a pixel is decoded (`GreyImageDecoder.inspect`, the only ImageIO user, with
-    `PNGStructure.isWhole` because ImageIO reads a cut-short PNG as black), `decode` works in 32 MB bands off the caller's actor and checks
-    for cancellation (a PNG is decoded once up front and the whole `CGImage` is kept, because ImageIO would decode it whole again for every band: at 8,192² that is about 256 MB 8-bit RGBA or 512 MB 16-bit beside the 32 MB band and the 128 MB result, so a PNG peaks near 0.4 to 0.7 GB; a JPEG has no full-size bitmap), a linked path must be
+    a side, PNG and JPEG only) are checked from the header before a pixel is decoded (`GreyImageDecoder.inspect` over `ImageHeader`, our own PNG IHDR/`eXIf` and
+    JPEG SOF/APP1 reader, gap XP-G10; `PNGStructure.isWhole` still refuses a cut-short PNG), `decode` runs off the caller's actor and
+    decodes through MetalUI's `DecodedImage(data:format: .rgba)` on every platform (S2, gap XP-G4; ImageIO is not used anywhere in `Sources`),
+    then converts to grey in 32 MB bands, checking for cancellation between them and applying the orientation as it indexes the stored
+    pixels (no oriented copy). Peak memory at 8,192²: the file (16 MB), MetalUI's whole decoded RGBA (256 MB, whatever the bit depth) and the 128 MB result,
+    so about 0.4 GB, plus any transient copy inside MetalUI's decode; the decode itself cannot be cancelled. A 16-bit PNG is read to the
+    nearest 8-bit level (S2 rounds), a PNG with a bad CRC and a truncated JPEG are refused. A linked path must be
     a regular file, opened without blocking and checked again on the descriptor, and is read at most 16 MB + 1 byte (`ImageResolver`),
-    and every failure is an `ImageProblem` with its sentence. Colour becomes Rec. 709 luminance of the colour composited against black; EXIF orientation is
-    applied. `DocumentModel.images` is the session's pool of embedded bytes by hash (`addImage`; unused ones are dropped on save, not
+    and every failure is an `ImageProblem` with its sentence. Colour becomes Rec. 709 luminance of the straight-alpha colour composited against black (our conversion, not S2's `.grey`, which is Rec. 601
+    with alpha dropped); EXIF orientation is applied. `DocumentModel.images` is the session's pool of embedded bytes by hash (`addImage`; unused ones are dropped on save, not
     before, so undo works); `ImageResolver` (the pool and the document's folder) goes to every evaluation, and `gather` adds
     `ImageStamp` (a linked file's path, modification date and size, or an embedded hash) to a node's cache key, so a file edited on disk
     runs the node again at the next evaluation and nothing else does. `GreyImageCache` keeps decoded pictures by that stamp (256 MB, LRU) and, under the same stamp, the pictures that
