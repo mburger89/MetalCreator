@@ -18,17 +18,6 @@ struct SDLChromeWindowTests {
     /// The sketch bar's invisible Escape carrier: zero-size, opacity 0, not hit-testable (`EscapeKey`), so it is no control.
     let invisible = ["Escape"]
 
-    /// Runs `body`, a drag-region expectation, as a known issue where the viewport is the real Metal one (XP-G11: its gestures fill
-    /// the window behind the bar and MetalUI carves every region away); where `ViewportPlaceholder` stands in (Linux, Windows) it
-    /// holds as written. When MetalUI ranks blockers by depth the guard fails ("known issue not recorded") and comes off.
-    func whileTheViewportIsReal(_ body: () -> Void) {
-        #if canImport(Metal)
-        withKnownIssue("XP-G11: the viewport behind the bar carves every drag region away", body)
-        #else
-        body()
-        #endif
-    }
-
     /// The rectangle of an element, as a `CanvasRect`.
     func rect(_ element: TestElement) -> CanvasRect {
         let frame = element.frame
@@ -138,14 +127,13 @@ struct SDLChromeWindowTests {
         func covered(_ point: Point<Pixels>) -> Bool {
             regions.contains { $0.contains(point) }
         }
-        // XP-G11: MetalUI carves a handle by every pointer-taking hitbox in the window whatever its depth, and the
-        // viewport under the whole window takes the pointer (its orbit and pick gestures), so no region is published.
-        // Known issue until MetalUI ranks blockers by depth; this reddens when it does, and the guard comes off.
-        whileTheViewportIsReal {
-            #expect(covered(app.point(600, 34)), "the bar's empty space")
-            #expect(covered(app.point(600, 5)), "the strip above the bar")
-            #expect(covered(app.point(30, 34)), "and the document's name")
-        }
+        // The viewport under the whole window takes the pointer (its orbit and pick gestures) on macOS; since MetalUI S1b
+        // (gap XP-G11) a hitbox carves a handle only if it ranks above the handle, and a window-wide blocker reaching
+        // below the band does not carve the band, so the regions are published with the viewport behind the bar.
+        #expect(!regions.isEmpty, "the drag regions are published")
+        #expect(covered(app.point(600, 34)), "the bar's empty space")
+        #expect(covered(app.point(600, 5)), "the strip above the bar")
+        #expect(covered(app.point(30, 34)), "and the document's name")
         for control in try barControls(app) {
             #expect(!covered(app.centre(of: control)), "\(control.label ?? "a control") takes its own press (divergence 426)")
         }
@@ -165,9 +153,7 @@ struct SDLChromeWindowTests {
         for control in try barControls(app) {
             #expect(!regions.contains { $0.contains(app.centre(of: control)) }, "\(control.label ?? "a control")")
         }
-        whileTheViewportIsReal {
-            #expect(regions.contains { $0.contains(app.point(600, 5)) }, "the strip is still a handle")
-        }
+        #expect(regions.contains { $0.contains(app.point(600, 5)) }, "the strip is still a handle")
     }
 
     // MARK: Close
