@@ -47,6 +47,8 @@ public final class AppModel {
         didSet { editor.isLevelLocked = sketch != nil }
     }
     public var alert: AppAlert?
+    /// The export in progress, shown in the export sheet, or `nil` (implicit spec §5.3).
+    public internal(set) var exportRun: ExportRun?
     /// The close or quit question in progress (`AppModel+Closing`).
     public internal(set) var closeRequest = CloseRequestState.idle
     /// The docked graph panel's width (docked left) and height (docked at the bottom), in points.
