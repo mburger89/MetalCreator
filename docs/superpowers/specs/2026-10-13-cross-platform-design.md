@@ -124,3 +124,12 @@ Each is logged in `docs/metalui-gaps.md` by the track that reaches it, entry and
 
 Linux and Windows packaging in xp-1 (it is xp-2); signing for Windows; Wayland-specific or X11-specific behaviour
 beyond what MetalUI provides; macOS CI; Intel macOS.
+
+## Errata
+
+- **E1 (xp-1, section 2.1). `CreatorViewport` is declared on every platform.** Section 2.1 lists it among the targets declared under
+  `#if os(macOS)`. `CreatorApp` and `CreatorSketchEditor` import it in about 79 files (the viewport model, camera, tools and
+  `ViewportCursor`), so declaring it macOS-only would fence the whole app. xp-1 declares the target in the portable list and fences
+  only its Metal renderer files (`#if canImport(Metal)`; off macOS `ViewportPlaceholder` takes the viewport's place). The macOS-only
+  list is `CreatorOCCT`/`COCCT`, `ViewportHarness`, `GraphPanelPreview` and `CreatorOCCTTests`. Section 4 (the SDL GPU viewport, xp-3)
+  fills the placeholder.
