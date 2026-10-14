@@ -70,7 +70,10 @@ struct MeshContextTests {
         let progress = MeshProgress { fraction in seen.withLock { $0.append(fraction) } }
         progress(-1)
         progress(2)
-        #expect(seen.withLock { $0 } == [0, 1])
+        progress(.nan)
+        progress(.infinity)
+        progress(-.infinity)
+        #expect(seen.withLock { $0 } == [0, 1, 0, 0, 0], "a non-finite fraction is 0")
     }
 
     @MainActor

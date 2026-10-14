@@ -49,6 +49,9 @@ enum GPUFixtures {
             } ?? .constant(0), range: 0...1))),
             ("maths", .union([sphere, ImplicitFixtures.cylinder], blend: graded(maths, range: -5...5))),
             ("kernel distance", .shell(sphere, thickness: bakedGrading, side: .centred)),
+            ("empty union", .union([], blend: .constant(0))),
+            ("empty intersect", .intersect([], blend: .constant(0))),
+            ("empty subtract", .subtract([], blend: .constant(0))),
             ("implicit leaf", .offset(sphere, distance: graded(.implicit(ImplicitSolid.sphere(radius: 4).reference), range: -4...30))),
         ]
         return fixtures

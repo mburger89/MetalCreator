@@ -104,11 +104,11 @@ public enum ImplicitCompiler {
                 let local = declareVector("float3(dot(\(p) - \(origin), \(x)), dot(\(p) - \(origin), \(y)), dot(\(p) - \(origin), \(z)))")
                 return try self.solid(child, at: local)
             case .union(let children, let blend):
-                return try combine(children, blend, at: p, join: { "smoothMin(\($0), \($1), \($2))" })
+                return try combine(children, blend, at: p, empty: "1e30", join: { "smoothMin(\($0), \($1), \($2))" })
             case .intersect(let children, let blend):
-                return try combine(children, blend, at: p, join: { "-smoothMin(-\($0), -\($1), \($2))" })
+                return try combine(children, blend, at: p, empty: "-1e30", join: { "-smoothMin(-\($0), -\($1), \($2))" })
             case .subtract(let children, let blend):
-                return try combine(children, blend, at: p, join: { "-smoothMin(-\($0), \($1), \($2))" })
+                return try combine(children, blend, at: p, empty: "1e30", join: { "-smoothMin(-\($0), \($1), \($2))" })
             case .offset(let child, let distance):
                 let inner = try self.solid(child, at: p)
                 return declare("\(inner) - \(try grading(distance, at: p))")
@@ -129,13 +129,14 @@ public enum ImplicitCompiler {
             }
         }
 
-        /// Union, intersect and subtract: the children folded left to right with `join(result, next, width)`.
-        mutating func combine(_ children: [ImplicitSolid], _ blend: Grading, at p: String,
+        /// Union, intersect and subtract: the children folded left to right with `join(result, next, width)`; `empty` is the value
+        /// with no children (the same as `CPUEvaluation.emptySentinel`).
+        mutating func combine(_ children: [ImplicitSolid], _ blend: Grading, at p: String, empty: String,
                               join: (String, String, String) -> String) throws(ImplicitCompileError) -> String {
             let width = declare("max(0.0, \(try grading(blend, at: p)))")
             var names: [String] = []
             for child in children { names.append(try solid(child, at: p)) }
-            guard var result = names.first else { return declare("1e30") }
+            guard var result = names.first else { return declare(empty) }
             for name in names.dropFirst() { result = declare(join(result, name, width)) }
             return result
         }

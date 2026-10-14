@@ -41,16 +41,16 @@ public struct ImplicitMesher: Sendable {
         guard !builder.triangles.isEmpty else { throw ImplicitMeshingError.empty }
         var positions = builder.positions
         var normals = [SIMD3<Float>](repeating: .zero, count: positions.count)
-        if snap { try await Self.snap(&positions, &normals, solid: solid, resolution: resolution, evaluator: evaluator) }
+        if snap { try await Self.snap(&positions, &normals, resolution: resolution, evaluator: evaluator) { progress(0.9 + 0.1 * $0) } }
         progress(1)
         return TriangleMesh(positions: positions, normals: normals, triangles: builder.triangles, resolution: resolution,
                             quality: quality)
     }
 
     /// Moves each vertex one Newton step towards f = 0 and sets its normal from the gradient. The gradient is the central difference
-    /// over a quarter of a voxel; the move is limited to half a voxel.
-    private static func snap(_ positions: inout [SIMD3<Float>], _ normals: inout [SIMD3<Float>], solid: ImplicitSolid,
-                             resolution: Double, evaluator: any ImplicitBatchEvaluator) async throws {
+    /// over a quarter of a voxel; the move is limited to half a voxel. `progress` gets the fraction snapped, after each batch.
+    private static func snap(_ positions: inout [SIMD3<Float>], _ normals: inout [SIMD3<Float>], resolution: Double,
+                             evaluator: any ImplicitBatchEvaluator, progress: (Double) -> Void) async throws {
         let step = Float(resolution / 4)
         let limit = Float(resolution / 2)
         let offsets: [SIMD3<Float>] = [
@@ -79,6 +79,7 @@ public struct ImplicitMesher: Sendable {
                 if length > limit { move *= limit / length }
                 positions[index] += move
             }
+            progress(Double(range.upperBound) / Double(positions.count))
         }
     }
 }

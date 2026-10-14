@@ -96,11 +96,18 @@ struct ImplicitMesherTests {
         _ = try await small.mesh(solid, resolution: 1, quality: .preview)
     }
 
-    @Test func cancellingStopsTheMesher() async {
-        let solid = ImplicitFixtures.sphere
-        let task = Task { try await mesher(solid).mesh(solid, resolution: 0.1, quality: .preview) }
-        task.cancel()
+    @Test func cancellingFromTheProgressCallbackAfterTheFirstBatchStopsTheMesher() async {
+        let solid = ImplicitSolid.sphere(radius: 6)
+        let seen = ProgressLog()
+        let task = Task {
+            try await mesher(solid, bricks: 10).mesh(solid, resolution: 0.5, quality: .preview) { fraction in
+                seen.append(fraction)
+                // The first batch has been meshed: cancel this very task, so the check before the second batch must throw.
+                if fraction > 0 { withUnsafeCurrentTask { $0?.cancel() } }
+            }
+        }
         await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(seen.values.count == 2, "progress(0) and the first batch, then nothing: \(seen.values)")
     }
 }
 

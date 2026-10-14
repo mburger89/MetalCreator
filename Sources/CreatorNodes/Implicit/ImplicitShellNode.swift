@@ -27,7 +27,8 @@ public enum ImplicitShellNode: NodeDefinition {
                                                      over: ImplicitGrading.region(around: child.bounds), holdsAtZero: true,
                                                      kernel: kernel, context: context)
         let result = ImplicitSolid.shell(child, thickness: setting.grading, side: side)
+        let reach = ImplicitReach.shellReach(thickness: setting.grading.magnitude, side: side)
         return NodeOutputs(["implicit": .implicit(result.reference)],
-                           warnings: setting.warnings + ImplicitReach.warnings(for: child, reachedBy: setting.grading.magnitude))
+                           warnings: setting.warnings + ImplicitReach.warnings(for: child, reachedBy: reach))
     }
 }

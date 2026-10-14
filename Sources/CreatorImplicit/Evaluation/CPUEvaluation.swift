@@ -35,17 +35,17 @@ final class CPUEvaluation {
             return distance(child, at: move.toLocal(p))
         case .union(let children, let blend):
             let width = max(0, value(blend, at: p))
-            return children.dropFirst().reduce(children.first.map { distance($0, at: p) } ?? .infinity) {
+            return children.dropFirst().reduce(children.first.map { distance($0, at: p) } ?? Self.emptySentinel) {
                 Self.smoothMinimum($0, distance($1, at: p), width: width)
             }
         case .intersect(let children, let blend):
             let width = max(0, value(blend, at: p))
-            return children.dropFirst().reduce(children.first.map { distance($0, at: p) } ?? -.infinity) {
+            return children.dropFirst().reduce(children.first.map { distance($0, at: p) } ?? -Self.emptySentinel) {
                 -Self.smoothMinimum(-$0, -distance($1, at: p), width: width)
             }
         case .subtract(let children, let blend):
             let width = max(0, value(blend, at: p))
-            return children.dropFirst().reduce(children.first.map { distance($0, at: p) } ?? .infinity) {
+            return children.dropFirst().reduce(children.first.map { distance($0, at: p) } ?? Self.emptySentinel) {
                 -Self.smoothMinimum(-$0, distance($1, at: p), width: width)
             }
         case .offset(let child, let amount):
@@ -60,8 +60,13 @@ final class CPUEvaluation {
         }
     }
 
+    /// What an empty union or subtract gives (an empty intersect gives its negative): finite, and the same on the GPU, so the two
+    /// agree exactly (it is the Float nearest 1e30, which is the GPU's literal) and a float conversion cannot overflow.
+    static let emptySentinel = Double(Float(1e30))
+
     /// The polynomial smooth minimum of `a` and `b` over `width`; 0 is the plain minimum. It is `FieldMath`'s, the one smooth minimum
-    /// the fields use, so a solid's blend and a field's Smooth Blend agree (and a NaN stays NaN) in the GPU agreement tests.
+    /// the fields use, so a solid's blend and a field's Smooth Blend agree in the GPU agreement tests. A NaN stays NaN on the CPU
+    /// only: trees that could yield NaN are rejected before they reach the GPU.
     static func smoothMinimum(_ a: Double, _ b: Double, width: Double) -> Double {
         FieldMath.smoothMinimum(a, b, width: width)
     }

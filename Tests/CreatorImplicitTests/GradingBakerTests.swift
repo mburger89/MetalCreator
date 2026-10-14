@@ -48,6 +48,7 @@ struct GradingBakerTests {
         // Signed distance over the region runs from −5 (the cube's middle) to the far corner: (15, 15, 15) is √(10² + 10² + 5²) = 15 away.
         #expect(grading.range.lowerBound <= -4.5 && grading.range.upperBound >= 14.5)
         #expect(grading.slope >= 1)
+        // Each baked leaf's slope of 1 is replaced by max(1, lipschitz). This sum equals that only for a single leaf at unit gain.
         #expect(grading.slope == field.slopeBound.value + max(0, grading.baked[0].blocks.lipschitz - 1))
     }
 
@@ -119,6 +120,7 @@ struct GradingBakerTests {
         let grading = try await GradingBaker.grading(for: field, over: wide, kernel: kernel)
         let lipschitz = try #require(grading.baked.first?.blocks.lipschitz)
         #expect(lipschitz > 1, "the grid is coarse enough to be steeper than the exact distance")
+        // The sum equals the replacement of the leaf's 1 by its lipschitz only because this clamp has unit gain.
         #expect(abs(grading.slope - (field.slopeBound.value + lipschitz - 1)) < 1e-12)
         let thickness = try await GradingBaker.grading(
             for: .clamp(.distance(.kernel(.solid(solid)), signed: false), low: 0.5, high: 6), over: wide, kernel: kernel)

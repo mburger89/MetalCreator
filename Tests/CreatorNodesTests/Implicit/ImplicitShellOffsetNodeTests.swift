@@ -122,4 +122,10 @@ struct ImplicitShellOffsetNodeTests {
             == ["The distance reaches 5 mm from the surface, past the 3 mm To Implicit measured exactly, so it may be inaccurate."])
         #expect(ImplicitReach.warnings(for: .sphere(radius: 3), reachedBy: 500).isEmpty, "an analytic solid is exact everywhere")
     }
+
+    @Test func aCentredWallReachesHalfItsThickness() {
+        #expect(ImplicitReach.shellReach(thickness: 4, side: .centred) == 2)
+        #expect(ImplicitReach.shellReach(thickness: 4, side: .inward) == 4)
+        #expect(ImplicitReach.shellReach(thickness: 4, side: .outward) == 4)
+    }
 }

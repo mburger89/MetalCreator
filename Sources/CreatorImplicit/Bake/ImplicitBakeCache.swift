@@ -31,7 +31,16 @@ public actor ImplicitBakeCache {
         var used: Int
     }
 
+    /// A bake under way, and how many callers wait for it (`leaving` of them have been cancelled).
+    private struct Flight {
+        var id: UUID
+        var task: Task<Baked, any Error>
+        var waiters: Int
+        var leaving = 0
+    }
+
     public let capacity: Int
+    private var inFlight: [Key: Flight] = [:]
     private var entries: [Key: Entry] = [:]
     private var clock = 0
     /// How many bakes have run (a hit doesn't count).
@@ -55,6 +64,54 @@ public actor ImplicitBakeCache {
             entries[key] = hit
             return hit.baked
         }
+        // Callers asking for a key that is being baked share that bake. It runs in a task of its own, so one caller's cancellation
+        // doesn't end it for the others; only when every caller has left is it cancelled (and forgotten, so a caller that comes
+        // after starts a bake of its own rather than inherit the cancelled one).
+        let id: UUID
+        if let running = inFlight[key] {
+            id = running.id
+            inFlight[key]?.waiters += 1
+        } else {
+            id = UUID()
+            let task = Task { [self] in
+                do {
+                    let baked = try await bake(solid, tolerance: tolerance, key: key, kernel: kernel)
+                    finish(key, id)
+                    return baked
+                } catch {
+                    finish(key, id)
+                    throw error
+                }
+            }
+            inFlight[key] = Flight(id: id, task: task, waiters: 1)
+        }
+        guard let task = inFlight[key]?.task else { throw CancellationError() }
+        let baked = try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            Task { await self.leave(key, id) }
+        }
+        try Task.checkCancellation()
+        return baked
+    }
+
+    /// A cancelled caller leaves its flight; the last to leave cancels the bake.
+    private func leave(_ key: Key, _ id: UUID) {
+        guard var flight = inFlight[key], flight.id == id else { return }
+        flight.leaving += 1
+        inFlight[key] = flight
+        if flight.leaving >= flight.waiters {
+            flight.task.cancel()
+            inFlight[key] = nil
+        }
+    }
+
+    /// The bake is over, however it ended: forget the flight, unless it was replaced.
+    private func finish(_ key: Key, _ id: UUID) {
+        if inFlight[key]?.id == id { inFlight[key] = nil }
+    }
+
+    private func bake(_ solid: Solid, tolerance: Double, key: Key, kernel: any Kernel) async throws -> Baked {
         let clockStart = ContinuousClock.now
         let mesh = try await kernel.tessellate(solid, tolerance: tolerance)
         let distance = try SignedDistanceMesh(positions: mesh.positions, indices: mesh.indices)

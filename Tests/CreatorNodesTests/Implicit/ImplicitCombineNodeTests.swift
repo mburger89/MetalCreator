@@ -50,7 +50,7 @@ struct ImplicitCombineNodeTests {
         h.wire(spheres(&h), "implicit", to: union, "shapes")
         let solid = try #require(try await h.run([union]).implicitSolid(union))
         #expect(solid.description == "union(sphere(radius 10 mm), sphere(radius 5 mm), blend 2 mm)")
-        // Both spheres read −5 at 5 mm from the centre along... the smaller one's surface: it is inside the bigger by 5, so no dip.
+        // The smaller sphere lies wholly inside the bigger one, so it adds no dip at the centre: the union reads −10 there.
         #expect(solid.distance(0, 0, 0) == -10)
         #expect(solid.bounds.max.x == 10.5, "a smooth union may bulge a quarter of the blend radius")
     }

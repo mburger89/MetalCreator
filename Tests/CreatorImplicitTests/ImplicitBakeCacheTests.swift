@@ -45,4 +45,47 @@ struct ImplicitBakeCacheTests {
         #expect(first.blocks !== again.blocks)
         #expect(await cache.bakeCount == 3)
     }
+
+    @Test func concurrentCallsForOneKeyBakeOnce() async throws {
+        let cache = ImplicitBakeCache()
+        let solid = try await block(10)
+        let kernel = kernel
+        let results = try await withThrowingTaskGroup(of: DistanceBlocks.self) { group in
+            for _ in 0..<4 { group.addTask { try await cache.baked(for: solid, tolerance: 0.01, kernel: kernel).blocks } }
+            return try await group.reduce(into: []) { $0.append($1) }
+        }
+        #expect(results.count == 4 && results.dropFirst().allSatisfy { $0 === results[0] })
+        #expect(await cache.bakeCount == 1)
+    }
+
+    @Test func aCancelledCallerDoesNotSpoilTheOthers() async throws {
+        let cache = ImplicitBakeCache()
+        let solid = try await block(10)
+        let kernel = kernel
+        // One caller is cancelled before it asks, the other is not: the second still gets its bake.
+        let cancelled = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await cache.baked(for: solid, tolerance: 0.01, kernel: kernel)
+        }
+        let patient = Task { try await cache.baked(for: solid, tolerance: 0.01, kernel: kernel) }
+        await #expect(throws: CancellationError.self) { _ = try await cancelled.value }
+        let baked = try await patient.value
+        #expect(baked.blocks.value(at: Vector3(8, 0, 5)) > 2.9)
+        // And the cache is not left holding a cancelled bake: a later call works.
+        let again = try await cache.baked(for: solid, tolerance: 0.01, kernel: kernel)
+        #expect(again.blocks === baked.blocks)
+    }
+
+    @Test func aSoleCancelledCallerEndsTheBakeAndTheNextOneStartsFresh() async throws {
+        let cache = ImplicitBakeCache()
+        let solid = try await block(10)
+        let kernel = kernel
+        let cancelled = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await cache.baked(for: solid, tolerance: 0.01, kernel: kernel)
+        }
+        await #expect(throws: CancellationError.self) { _ = try await cancelled.value }
+        let baked = try await cache.baked(for: solid, tolerance: 0.01, kernel: kernel)
+        #expect(baked.spacing > 0)
+    }
 }

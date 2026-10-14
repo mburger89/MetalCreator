@@ -10,7 +10,8 @@ public struct MeshProgress: Sendable {
     /// Progress that goes nowhere.
     public static let none = MeshProgress { _ in }
 
+    /// Reports `fraction` held between 0 and 1; a NaN or other non-finite one is 0.
     public func callAsFunction(_ fraction: Double) {
-        report(min(max(fraction, 0), 1))
+        report(fraction.isFinite ? min(max(fraction, 0), 1) : 0)
     }
 }

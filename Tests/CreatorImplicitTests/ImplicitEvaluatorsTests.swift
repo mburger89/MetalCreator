@@ -42,6 +42,13 @@ struct ImplicitEvaluatorsTests {
         let selection = await ImplicitEvaluators.make(for: ImplicitFixtures.sphere, choice: .automatic, engine: engine)
         #expect(selection.evaluator.engineName == "CPU" && selection.warning == ImplicitEvaluators.cpuWarning)
     }
+
+    @Test func aMeshFromTheCPUEngineIsClosedAndManifold() async throws {
+        let solid = ImplicitFixtures.all[5].solid
+        let selection = await ImplicitEvaluators.make(for: solid, choice: .cpu)
+        let mesh = try await ImplicitMesher(evaluator: selection.evaluator).mesh(solid, resolution: 0.5, quality: .preview)
+        #expect(MeshTopology(mesh).isClosedManifold)
+    }
 }
 
 #if canImport(Metal)
@@ -56,6 +63,17 @@ struct MetalEvaluatorsTests {
     @Test func aDistanceToAProfileRunsOnTheCPUWithAWarning() async {
         let selection = await ImplicitEvaluators.make(for: ImplicitEvaluatorsTests.profileSolid, choice: .automatic)
         #expect(selection.evaluator.engineName == "CPU" && selection.warning == "Running on the CPU")
+    }
+
+    @Test func aMeshFromTheGPUIsAsGoodAsOneFromTheCPU() async throws {
+        let solid = ImplicitFixtures.all[5].solid
+        let gpu = await ImplicitEvaluators.make(for: solid, choice: .automatic)
+        #expect(gpu.evaluator.engineName == "Metal")
+        let fromGPU = try await ImplicitMesher(evaluator: gpu.evaluator).mesh(solid, resolution: 0.5, quality: .preview)
+        let fromCPU = try await ImplicitMesher(evaluator: CPUBatchEvaluator(solid)).mesh(solid, resolution: 0.5, quality: .preview)
+        #expect(MeshTopology(fromGPU).isClosedManifold)
+        #expect(abs(Double(fromGPU.triangleCount - fromCPU.triangleCount)) / Double(fromCPU.triangleCount) < 0.01)
+        #expect(abs(fromGPU.signedVolume - fromCPU.signedVolume) / fromCPU.signedVolume < 0.002)
     }
 }
 #endif

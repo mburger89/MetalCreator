@@ -19,8 +19,13 @@ public struct PreviewSchedule: Sendable {
 
     public let target: Target
 
+    /// A `.fixed` size at or below zero, or NaN, would never be reached and could go below `finest`: it is clamped to `finest`.
     public init(_ target: Target) {
-        self.target = target
+        if case .fixed(let wanted) = target {
+            self.target = .fixed(wanted.isNaN ? Self.finest : max(wanted, Self.finest))
+        } else {
+            self.target = target
+        }
     }
 
     /// The first pass's voxel size for a solid in `box`.

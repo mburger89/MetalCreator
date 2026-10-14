@@ -29,4 +29,18 @@ struct PreviewScheduleTests {
         #expect(schedule.next(after: 0.8, seconds: 0.3) == nil, "four times 0.3 s is over a second")
         #expect(schedule.next(after: 0.05, seconds: 0.001) == nil, "nothing finer than 0.05 mm")
     }
+
+    @Test(arguments: [0.0, -1.0, Double.nan, 0.001])
+    func aFixedTargetBelowTheFinestIsClampedAndTerminates(wanted: Double) {
+        let schedule = PreviewSchedule(.fixed(wanted))
+        #expect(schedule.target == .fixed(PreviewSchedule.finest))
+        var resolution = schedule.firstResolution(for: box)
+        var passes = 1
+        while let next = schedule.next(after: resolution, seconds: 0.01), passes < 100 {
+            #expect(next >= PreviewSchedule.finest)
+            resolution = next
+            passes += 1
+        }
+        #expect(passes < 100 && resolution >= PreviewSchedule.finest)
+    }
 }

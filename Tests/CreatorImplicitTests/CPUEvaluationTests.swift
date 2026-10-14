@@ -16,6 +16,13 @@ struct CPUEvaluationTests {
 
     func near(_ a: Double, _ b: Double, _ tolerance: Double = 1e-9) -> Bool { abs(a - b) <= tolerance }
 
+    @Test func anEmptyCombinationGivesTheSameFiniteSentinelAsTheGPU() {
+        let sentinel = Double(Float(1e30))
+        #expect(distance(.union([], blend: .constant(0)), 1, 2, 3) == sentinel)
+        #expect(distance(.subtract([], blend: .constant(0)), 1, 2, 3) == sentinel)
+        #expect(distance(.intersect([], blend: .constant(0)), 1, 2, 3) == -sentinel, "an empty intersect is everything")
+    }
+
     @Test func aSphereIsTheDistanceFromItsCentreLessItsRadius() {
         let sphere = ImplicitSolid.sphere(radius: 10)
         #expect(distance(sphere, 0, 0, 0) == -10)

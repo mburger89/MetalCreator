@@ -2,7 +2,7 @@ import CreatorGraph
 
 /// The built-in node types in palette order: the vertical slice's 26 (spec §7.1), the sketcher's Plane from Face and
 /// Sketch (sketcher spec §7, S4), the Lists & Trees nodes (7a spec §4), the Patterns nodes, the Fields nodes (fields spec §3) and the
-/// Implicit and Mesh nodes (implicit spec §3).
+/// Implicit nodes (implicit spec §3); the Mesh nodes follow in a later task.
 public enum BuiltInNodes {
     public static let all: [any NodeDefinition.Type] = [
         NumberNode.self, IntegerNode.self, VectorNode.self, PlaneNode.self, PlaneFromFaceNode.self, GraphParameterNode.self,

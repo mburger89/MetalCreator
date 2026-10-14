@@ -1,5 +1,6 @@
 #if canImport(Metal)
 import CreatorGeometry
+import Synchronization
 import Testing
 @testable import CreatorImplicit
 
@@ -50,26 +51,40 @@ struct GPUAgreementTests {
         let engine = try #require(MetalImplicitEngine.shared)
         let evaluator = GPUBatchEvaluator(engine: engine, program: try ImplicitCompiler.compile(.sphere(radius: 5)))
         #expect(try await evaluator.evaluate([]).isEmpty)
-        let task = Task { try await evaluator.evaluate([SIMD3(1, 2, 3)]) }
-        task.cancel()
+        // The task cancels itself before it asks, so the answer cannot depend on timing.
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await evaluator.evaluate([SIMD3(1, 2, 3)])
+        }
         await #expect(throws: CancellationError.self) { try await task.value }
     }
 
-    @Test func cancelEndsTheBatchesInFlightAndNotTheOnesAfter() async throws {
-        let engine = try #require(MetalImplicitEngine())
+    @Test func cancelEndsABatchAtItsNextDispatchAndNotTheOnesAfter() async throws {
+        let engine = try #require(MetalImplicitEngine(dispatchSize: 1_000))
         let program = try ImplicitCompiler.compile(.sphere(radius: 5))
-        let points = (0..<(MetalImplicitEngine.pointsPerDispatch * 3)).map { SIMD3<Float>(Float($0 % 100), 0, 0) }
-        let running = Task { try await engine.evaluate(program, at: points) }
-        await engine.cancel()
-        // Either the cancel came before the batch started (it ran whole) or after its first dispatch (it ended): never a wrong answer.
-        do {
-            let values = try await running.value
-            #expect(values.count == points.count)
-        } catch {
-            #expect(error is CancellationError)
+        let points = (0..<3_500).map { SIMD3<Float>(Float($0 % 100), 0, 0) }
+        let dispatches = Mutex(0)
+        // Cancel after the first dispatch, from the hook, so the second must not run.
+        await engine.setAfterDispatch { count in
+            dispatches.withLock { $0 = count }
+            if count == 1 { await engine.cancel() }
         }
+        await #expect(throws: CancellationError.self) { _ = try await engine.evaluate(program, at: points) }
+        #expect(dispatches.withLock { $0 } == 1, "the second dispatch did not run")
+        await engine.setAfterDispatch(nil)
+        let whole = try await engine.evaluate(program, at: points)
+        #expect(whole.count == points.count && abs(whole[3_499] - Float(3_499 % 100 - 5)) < 1e-5, "a later batch runs whole")
         let after = try await engine.evaluate(program, at: [SIMD3(7, 0, 0)])
         #expect(after.count == 1 && abs(after[0] - 2) < 1e-5)
+    }
+
+    @Test func aBatchOfSeveralSmallDispatchesIsAnsweredInOrder() async throws {
+        let engine = try #require(MetalImplicitEngine(dispatchSize: 1_000))
+        let program = try ImplicitCompiler.compile(.sphere(radius: 5))
+        let points = (0..<2_500).map { SIMD3<Float>(Float($0 % 100), 0, 0) }
+        let values = try await engine.evaluate(program, at: points)
+        #expect(values.count == points.count)
+        for index in [0, 999, 1_000, 2_499] { #expect(abs(values[index] - Float(index % 100 - 5)) < 1e-5) }
     }
 }
 #endif

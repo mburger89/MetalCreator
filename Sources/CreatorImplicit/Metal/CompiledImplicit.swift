@@ -19,8 +19,42 @@ public struct CompiledImplicit: Sendable {
     /// Picture pixels, 0 to 65,535.
     public let images: [Float]
 
+    /// The pipeline cache's key, with the source's hash computed once, here.
+    public let shape: ShapeKey
+
+    init(source: String, parameters: [Float], integers: [Int32], tables: [Int32], pool: [Float], images: [Float]) {
+        self.source = source
+        self.parameters = parameters
+        self.integers = integers
+        self.tables = tables
+        self.pool = pool
+        self.images = images
+        shape = ShapeKey(source)
+    }
+
     /// The name of the kernel in `source`.
     public static let kernelName = "evaluateImplicit"
+}
+
+/// A compiled source as a dictionary key: hashing a long string on every lookup is the cost this avoids.
+public struct ShapeKey: Hashable, Sendable {
+    public let source: String
+    private let digest: Int
+
+    public init(_ source: String) {
+        self.source = source
+        var hasher = Hasher()
+        hasher.combine(source)
+        digest = hasher.finalize()
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(digest)
+    }
+
+    public static func == (lhs: ShapeKey, rhs: ShapeKey) -> Bool {
+        lhs.digest == rhs.digest && lhs.source == rhs.source
+    }
 }
 
 /// Why a solid can't run on the GPU.

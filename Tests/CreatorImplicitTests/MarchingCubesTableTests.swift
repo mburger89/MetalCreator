@@ -28,7 +28,7 @@ struct MarchingCubesTableTests {
         }
     }
 
-    @Test func swappingInsideAndOutsideFlipsTheTriangles() {
+    @Test func complementUsesTheSameCrossingEdges() {
         for pattern in 1..<255 {
             let a = MarchingCubesTable.triangles[pattern], b = MarchingCubesTable.triangles[255 - pattern]
             // The same crossing edges are used; the complement is the same surface seen from the other side.
