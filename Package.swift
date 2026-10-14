@@ -105,7 +105,7 @@ var targets: [Target] = [
     .testTarget(name: "CreatorGraphTests", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
     .testTarget(
         name: "CreatorNodesTests",
-        dependencies: ["CreatorNodes", "CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch"] + occt
+        dependencies: ["CreatorNodes", "CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry", "CreatorSketch"] + occt
     ),
     // CreatorOCCT is a test-only dependency: the offscreen ID-pass test renders a real OCCT box (spec §8).
     .testTarget(
