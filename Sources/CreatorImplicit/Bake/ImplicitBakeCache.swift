@@ -61,8 +61,8 @@ public actor ImplicitBakeCache {
         let result = try await DistanceBaker.bake(bounds: distance.bounds, spacing: DistanceBaker.spacing(forTolerance: tolerance)) {
             distance.signedDistance(at: $0)
         }
-        let baked = Baked(blocks: result.blocks, spacing: result.spacing, seconds: clockStart.duration(to: .now) / .seconds(1),
-                          tolerance: tolerance)
+        let seconds = clockStart.duration(to: .now) / .seconds(1)
+        let baked = Baked(blocks: result.blocks.timed(seconds), spacing: result.spacing, seconds: seconds, tolerance: tolerance)
         bakeCount += 1
         clock += 1
         entries[key] = Entry(solid: solid, baked: baked, used: clock)

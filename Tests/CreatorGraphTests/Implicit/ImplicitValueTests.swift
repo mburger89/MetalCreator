@@ -87,3 +87,29 @@ struct ImplicitValueTests {
         #expect(NodeCategory.allCases.suffix(4) == [.fields, .implicit, .mesh, .output])
     }
 }
+
+/// What tooltips and the inspector say about implicit solids (implicit spec §2.1).
+struct ImplicitSummaryTests {
+    @Test func oneSolidShowsItsRecipeCutToTheLimit() {
+        let one = Value.one(.implicit(StubImplicit(radius: 5).reference))
+        #expect(one.implicitSummary() == "stub(radius 5.0)")
+        #expect(one.implicitSummary(limit: 8) == "stub(ra…")
+        #expect(one.implicitSummary(limit: 80) == "stub(radius 5.0)")
+    }
+
+    @Test func severalSolidsAreCounted() {
+        let list = Value.list([.implicit(StubImplicit(radius: 1).reference), .implicit(StubImplicit(radius: 2).reference)])
+        #expect(list.implicitSummary() == "2 implicit solids")
+    }
+
+    @Test func anythingElseHasNoSummary() {
+        #expect(Value.one(.number(1)).implicitSummary() == nil)
+        #expect(Value.list([]).implicitSummary() == nil)
+        #expect(Value.list([.implicit(StubImplicit(radius: 1).reference), .number(2)]).implicitSummary() == nil)
+    }
+
+    @Test func aPayloadHasNoFactsUnlessItSaysSo() {
+        #expect(StubImplicit(radius: 1).inspectorFacts.isEmpty && StubMesh(triangleCount: 3).inspectorFacts.isEmpty)
+        #expect(PayloadFact("Triangles", "12") == PayloadFact("Triangles", "12"))
+    }
+}

@@ -34,6 +34,11 @@ struct Harness {
         links.append(Link(from: source, to: target))
     }
 
+    /// Gives `node` a name of the person's choosing.
+    mutating func rename(_ node: Node, _ name: String) {
+        nodes[node.id]?.name = name
+    }
+
     mutating func set(_ node: Node, _ socket: SocketName, _ value: ConstantValue?) {
         nodes[node.id]?.inputValues[socket] = value
     }
