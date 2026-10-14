@@ -19,8 +19,8 @@ public struct AppWindowRoot: Component {
         // The root takes the window's size and no more, and what needs more (panels, taller fonts) runs off the bottom. A root
         // that sized itself to its content would be centred by the window's wrapper, which moves an overflowing root up by half
         // the overflow, so the top bar and the drag strip would no longer start where `AppLayout` puts them (the Windows suite's
-        // fonts overflowed by 6 points). An overlay does not change its host's size.
-        Color.clear
+        // fonts overflowed by 6 points). An overlay does not change its host's size, and a Spacer draws nothing.
+        Spacer()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .topLeading) {
                 ZStack(alignment: .topLeading) {
