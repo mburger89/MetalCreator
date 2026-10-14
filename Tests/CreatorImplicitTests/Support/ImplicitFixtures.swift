@@ -11,6 +11,12 @@ enum ImplicitFixtures {
     /// 1 + z / 20: between 0.5 and 1.5 for |z| ≤ 10, slope 0.05 per mm.
     static let graded = Grading(field: .add(.constant(1), .linearGradient(plane: .xy, length: 20)), range: 0.5...1.5, slope: 0.05)
 
+    /// Noise remapped to 0.6 ... 1.6 mm, with the slope `Field.slopeBound` declares for it.
+    static var noisy: Grading {
+        let field = Field.remap(.noise(seed: 4, scale: 6, octaves: 2), fromLow: 0, fromHigh: 1, toLow: 0.6, toHigh: 1.6, clamped: true)
+        return Grading(field: field, range: 0.6...1.6, slope: field.slopeBound.value)
+    }
+
     static var moved: ImplicitSolid {
         let move = RigidMove(plane: Plane(origin: Vector3(12, -3, 5), normal: Vector3(1, 1, 0.5), xAxis: Vector3(0, 0, 1)))
         return .moved(box, move ?? .identity)
@@ -41,6 +47,8 @@ enum ImplicitFixtures {
         ("inward shell", .shell(sphere, thickness: .constant(2), side: .inward)),
         ("outward shell", .shell(box, thickness: .constant(1.5), side: .outward)),
         ("graded centred shell", .shell(sphere, thickness: graded, side: .centred)),
+        ("noisy shell", .shell(box, thickness: noisy, side: .inward)),
+        ("noisy smooth union", .union([sphere, cylinder], blend: noisy)),
         ("baked", baked), ("isosurface", isosurface),
     ]
 }
