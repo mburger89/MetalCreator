@@ -346,6 +346,46 @@ If a later run puts `field-3` over 50 ms, the levers, in the order to pull them 
 which loosens the packing a little and changes every scatter, so `FieldScatterNodeTests` and `FieldsAcceptanceTests` re-pin their
 counts), (3) stop and ask. The budget is not edited and a miss is not called met.
 
+## Implicit (implicit spec §6, sub-project 7c-1)
+
+`scripts/bench.sh ImplicitBench` runs rows i-1 to i-4 (i-5 and i-6, the decimation and Mesh to Solid, belong to 7c-3). Release, an idle Mac
+with a GPU. The fixture is a sheet through a 100 mm cube: the band of a 50 mm noise field between two levels (one isosurface cut
+from another), because the lattice nodes (7c-2) do not exist yet; 7c-2 swaps in the gyroid and keeps the rows. A gyroid of 8 mm cells
+has about 150 million triangles at 0.1 mm, which no in-memory mesh holds in 4 GB, so row i-4 is only reachable for a sparse sheet.
+Per the spec's Errata, the budgets of i-1 and i-2 are for the Metal path measured with Metal meshing (D13, plan 7c-1g), and the streamed
+export that i-4 needs (D12) belongs to 7c-3. **Until then these rows measure Metal evaluation with the CPU mesher, and i-2 and i-4 are
+expected to miss;** the CPU engine records its numbers without a budget (D11).
+
+| Row | Case | Target |
+|---|---|---|
+| i-1 | the sheet's first preview pass, on a fresh evaluator with the shaders compiled | under 1 s |
+| i-2 | a thickness edit (the gap between the two levels), warm, no recompile: one coarse pass | under 100 ms |
+| i-3 | To Implicit of the slice's filleted bracket (OCCT), bake cache emptied each time | under 500 ms |
+| i-4 | the sheet exported at 0.1 mm to STL, the whole pipeline | under 60 s and a peak memory under 4 GB |
+
+The run recorded here (2026-10-14, release build, 7c-core) was taken while other sessions kept the Mac at a load average of 130 to 270 on 10 cores (so none of these numbers is a measurement of the
+code; they show the benchmarks run, and the order of magnitude). **Re-run on an idle Mac and replace them, keeping the load lines.**
+
+```text
+BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
+BENCH load before: 265.76 238.70 211.00
+BENCH i-1 first preview pass of a 100 mm sheet, cold (shaders compiled): median 254.21 ms, p95 254.21 ms, max 254.21 ms (n 1)
+BENCH i-1 first preview pass of a 100 mm sheet: median 482.25 ms, p95 548.29 ms, max 548.29 ms (n 6); budget 1000.00 ms: met
+BENCH i-2 thickness edit of a 100 mm sheet (one coarse pass, no recompile): median 307.57 ms, p95 373.58 ms, max 407.83 ms (n 22); budget 100.00 ms: missed
+BENCH i-3 To Implicit of the bracket (bake, OCCT): median 1010.14 ms, p95 1106.43 ms, max 1106.43 ms (n 10); budget 500.00 ms: missed
+BENCH i-4 export of the 100 mm sheet at 0.1 mm (STL, whole pipeline): median 86628.62 ms, p95 86628.62 ms, max 86628.62 ms (n 1); budget 60000.00 ms: missed
+BENCH i-4 peak memory 4.53 GB (file 1599 MB); budget 4.00 GB: missed
+BENCH load after: 127.82 167.82 184.74
+```
+
+Where the misses are likely to stay on an idle Mac, and who owns them: **i-2** is the first coarse pass again (128 cells across, marching
+cubes and the Newton snap on the CPU), so it is about as long as i-1 and cannot be under 100 ms without a coarser first pass or marching
+cubes on the GPU (D13, plan 7c-1g, which re-measures it); the spec's targets for i-1 and i-2 are not consistent with each other while
+the first pass is the same pass. **i-3** is the tessellation, the BVH and 600 to
+2,000 blocks of samples in parallel on the CPU. **i-4** holds the whole mesh and its vertex map in memory (about 150 bytes a triangle);
+streaming bricks to the STL, which the user decided on (D12) and 7c-3 builds, cuts the memory; the time is the mesher's, so GPU
+meshing (7c-1g) is what moves it.
+
 ## Raw output
 
 The 2026-10-13 run (`scripts/bench.sh`, every suite; MetalCreator `d734684`, MetalUI `e85cb07a`; the machine and load lines are
