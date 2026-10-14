@@ -29,7 +29,7 @@ public enum BuiltInNodes {
         FieldAddNode.self, FieldMultiplyNode.self, FieldMinMaxNode.self, FieldRemapNode.self, FieldClampNode.self,
         FieldSmoothBlendNode.self, SampleFieldNode.self, CullByFieldNode.self, FieldScatterNode.self,
         ImplicitSphereNode.self, ImplicitBoxNode.self, ImplicitCylinderNode.self, ImplicitUnionNode.self, ImplicitSubtractNode.self,
-        ImplicitIntersectNode.self,
+        ImplicitIntersectNode.self, ImplicitShellNode.self, ImplicitOffsetNode.self,
         OutputNode.self,
     ]
 
