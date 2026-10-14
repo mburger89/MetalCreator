@@ -2,8 +2,8 @@ import Foundation
 import Testing
 @testable import CreatorNodes
 
-/// `PNGWriter`, the test fixtures' own PNG encoder for platforms without CoreGraphics: its chunks are the standard ones, and on
-/// macOS ImageIO reads what it writes.
+/// `PNGWriter`, the test fixtures' own PNG encoder for platforms without CoreGraphics: its chunks are the standard ones, and
+/// MetalUI's decoder reads what it writes.
 struct PNGWriterTests {
     @Test func theCRCOfTheStandardCheckStringIsTheStandardOne() {
         #expect(PNGWriter.crc32(Data("123456789".utf8)) == 0xCBF4_3926)
@@ -25,7 +25,13 @@ struct PNGWriterTests {
         #expect(PNGStructure.isWhole(png))
     }
 
-    #if canImport(ImageIO)
+    @Test func aSixteenBitPictureAndAnOrientationTagAreWholeAndSaySo() throws {
+        let png = PNGWriter.encode(width: 3, height: 2, color: .grey16, orientation: 6) { x, _ in [UInt8(x), 0xFF] }
+        #expect(PNGStructure.isWhole(png))
+        let header = try #require(ImageHeader.read(png))
+        #expect(header == ImageHeader(kind: .png, width: 3, height: 2, orientation: 6))
+    }
+
     @Test func theDecoderReadsWhatTheWriterWrote() async throws {
         let grey = PNGWriter.encode(width: 4, height: 2, color: .grey) { x, y in [UInt8(x * 60 + y * 10)] }
         #expect(try await GreyImageDecoder.decode(grey).pixels == [0, 60, 120, 180, 10, 70, 130, 190].map { $0 * 257 })
@@ -34,5 +40,4 @@ struct PNGWriterTests {
         #expect(image.width == 2 && image.height == 1)
         #expect(image.pixels[0] == 65_535 && image.pixels[1] == 0)
     }
-    #endif
 }

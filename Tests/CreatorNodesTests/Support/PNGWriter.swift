@@ -1,20 +1,37 @@
 // Test fixture file: a PNG encoder in plain Swift, so the image tests can make pictures where CoreGraphics does not exist.
 import Foundation
 
-/// Writes 8-bit PNGs with no compression: the pixel rows go into "stored" deflate blocks. The files are larger than ImageIO's but
-/// valid, which is all a fixture needs (`PNGWriterTests` decodes them with ImageIO on macOS and checks their chunks everywhere).
+/// Writes 8-bit (and 16-bit grey) PNGs with no compression: the pixel rows go into "stored" deflate blocks. The files are larger
+/// than ImageIO's but valid, which is all a fixture needs (`PNGWriterTests` decodes them with MetalUI's decoder and checks their
+/// chunks). An EXIF orientation goes in as an `eXIf` chunk before the data, where MetalUI and `ImageHeader` read it.
 enum PNGWriter {
     /// The PNG colour types this writer makes.
     enum ColorType: UInt8 {
         case grey = 0
         case rgba = 6
+        /// Monochrome at 16 bits per sample (big-endian, two bytes per pixel).
+        case grey16 = 100
 
-        /// Bytes per pixel at 8 bits per sample.
-        var bytesPerPixel: Int { self == .grey ? 1 : 4 }
+        /// The PNG colour type byte.
+        var pngType: UInt8 { self == .rgba ? 6 : 0 }
+
+        /// The bits in a sample.
+        var bitDepth: UInt8 { self == .grey16 ? 16 : 8 }
+
+        /// Bytes per pixel.
+        var bytesPerPixel: Int {
+            switch self {
+            case .grey: 1
+            case .grey16: 2
+            case .rgba: 4
+            }
+        }
     }
 
-    /// A `width` × `height` picture of `color`; `pixel(x, y)` gives its samples (one for grey, four for RGBA), each 0…255.
-    static func encode(width: Int, height: Int, color: ColorType, pixel: (Int, Int) -> [UInt8]) -> Data {
+    /// A `width` × `height` picture of `color`; `pixel(x, y)` gives its bytes (one for grey, two for 16-bit grey, four for RGBA).
+    /// `orientation` (1 to 8) is written as the EXIF orientation tag; the pixels are stored as given.
+    static func encode(width: Int, height: Int, color: ColorType, orientation: Int? = nil,
+                       pixel: (Int, Int) -> [UInt8]) -> Data {
         var raw: [UInt8] = []
         raw.reserveCapacity(height * (1 + width * color.bytesPerPixel))
         for y in 0..<height {
@@ -27,9 +44,14 @@ enum PNGWriter {
         for side in [UInt32(width), UInt32(height)] {
             header.append(contentsOf: bigEndian(side))
         }
-        header.append(contentsOf: [8, color.rawValue, 0, 0, 0])
+        header.append(contentsOf: [color.bitDepth, color.pngType, 0, 0, 0])
         var file = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])
         file.append(chunk("IHDR", header))
+        if let orientation {
+            // A big-endian TIFF block with one IFD0 entry: tag 0x0112, type SHORT, count 1, the value.
+            let tiff: [UInt8] = [0x4D, 0x4D, 0, 42, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, UInt8(orientation), 0, 0, 0, 0, 0, 0]
+            file.append(chunk("eXIf", tiff))
+        }
         file.append(chunk("IDAT", zlibStored(raw)))
         file.append(chunk("IEND", []))
         return file

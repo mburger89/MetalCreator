@@ -38,8 +38,6 @@ struct GreyImageCacheTests {
         #expect(cache.count == 0)
     }
 
-    // The loader tests decode real pictures, which only macOS can until MetalUI's public decode lands (gap XP-G4).
-    #if canImport(ImageIO)
     @Test func theLoaderDecodesOnceAndReusesThePictureUntilTheStampChanges() async throws {
         let folder = TempFolderForNodes()
         let cache = GreyImageCache(budgetBytes: 1_000_000)
@@ -141,7 +139,6 @@ struct GreyImageCacheTests {
         let image = try await ImageLoader.image(for: reference, resolver: ImageResolver(), cache: cache, decode: counter.decode)
         #expect(image.pixels.allSatisfy { $0 == 90 * 257 })
     }
-    #endif
 
     @Test func theRememberedProblemsAreBoundedAndTheOldestGoFirst() {
         let cache = GreyImageCache(budgetBytes: 1_000)

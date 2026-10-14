@@ -20,9 +20,9 @@ extension GreyImageDecoder {
 
     /// `decode(_:)` with the size of a band chosen, so a test can make a small picture take several bands.
     @concurrent
-    static func decode(_ data: Data, bandBytes: Int) async throws -> GreyImage {
+    static func decodeWithImageIO(_ data: Data, bandBytes: Int) async throws -> GreyImage {
         try Task.checkCancellation()
-        let info = try inspect(data)
+        let info = try inspectWithImageIO(data)
         // ImageIO decodes a PNG whole each time a band is drawn from it (16 passes for a large colour picture, measured), so a PNG
         // is decoded once, up front, and the bands are drawn from that; a JPEG is read a band at a time and needs no such copy.
         let decodeOnce = info.format == .png
