@@ -8,3 +8,8 @@
 Verification: focused suites pass (14 tests); full `swift test` and swiftlint results below.
 
 Results: full `swift test` exit 0, 12 "Test run with" lines, 601 tests in 115 suites passed, no "recorded an issue"/"failed after". The only change after that run was a pure helper extraction in BrickPlan (`brickCounts`) to satisfy function_body_length; the focused suites were re-run (14 pass). `swiftlint lint --strict`: 0 violations.
+
+## Lane C final review round 2
+1. Missing join tests. Added `join-checklist.md` (committed) listing both omitted Task 9 tests with their verbatim source from task-9-brief.md, to restore from Task 13 onward once Task 7 (ImplicitMesher) is merged; the note no longer lives only in the uncommitted task-9-report.md (which now points at it).
+   Ruling: the tests stay out of this lane (they cannot compile without lane B's ImplicitMesher); restoring them is a join step, not a code fix here.
+Verification: documentation-only change; no source touched, so the earlier full `swift test` (601 tests, exit 0) and swiftlint results stand. Full `swift test` re-run: exit 0, no issues, last run 619 tests in 120 suites passed.
