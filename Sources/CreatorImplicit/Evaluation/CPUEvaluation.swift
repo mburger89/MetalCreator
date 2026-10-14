@@ -59,6 +59,8 @@ final class CPUEvaluation {
             return max((value(grading, at: p) - level) / maxSlope, Self.boxDistance(p, region))
         case .tpms(let lattice):
             return tpms(lattice, at: p)
+        case .struts(let lattice):
+            return struts(lattice, at: p)
         }
     }
 

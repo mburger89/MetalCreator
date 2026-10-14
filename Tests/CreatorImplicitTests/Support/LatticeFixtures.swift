@@ -30,5 +30,18 @@ enum LatticeFixtures {
         ("lidinoid network, graded wall", tpms(.lidinoid, .network, cells: cells(8), thickness: ImplicitFixtures.graded)),
     ]
 
-    static var all: [(name: String, solid: ImplicitSolid)] { tpmsAll }
+    static func struts(_ cell: StrutCell, cells: LatticeCells, radius: Grading, blend: Double = 0) -> ImplicitSolid {
+        .struts(StrutLattice(cell: cell, cells: cells, radius: radius, blend: blend, region: region))
+    }
+
+    static let strutsAll: [(name: String, solid: ImplicitSolid)] = [
+        ("cubic struts", struts(.cubic, cells: cells(6), radius: .constant(0.6))),
+        ("bcc struts, graded cell, blended", struts(.bcc, cells: gradedCell, radius: .constant(0.5), blend: 0.3)),
+        ("fcc struts", struts(.fcc, cells: cells(7), radius: .constant(0.5))),
+        ("octet struts, graded radius", struts(.octet, cells: cells(8), radius: ImplicitFixtures.graded)),
+        ("kelvin struts, stretched", struts(.kelvin, cells: cells(8, stretch: Vector3(2, 1, 1)), radius: .constant(0.5))),
+        ("diamond struts, noisy radius", struts(.diamond, cells: cells(9), radius: ImplicitFixtures.noisy)),
+    ]
+
+    static var all: [(name: String, solid: ImplicitSolid)] { tpmsAll + strutsAll }
 }

@@ -40,6 +40,8 @@ extension ImplicitSolid {
             return region
         case .tpms(let lattice):
             return lattice.region
+        case .struts(let lattice):
+            return lattice.region
         }
     }
 

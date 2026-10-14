@@ -30,4 +30,24 @@ struct LatticeCompilerTests {
         #expect(program.parameters.count == 1 + 1 + 3 + 1 + 6)
         #expect(program.integers == [Int32(TPMSType.diamond.rawValue), Int32(TPMSForm.network.rawValue)])
     }
+
+    @Test func aStrutLatticesCellKindAndNumbersAreNotInTheSource() throws {
+        let a = LatticeFixtures.struts(.cubic, cells: LatticeFixtures.cells(6), radius: .constant(0.5))
+        let b = LatticeFixtures.struts(.kelvin, cells: LatticeFixtures.cells(2, stretch: Vector3(3, 1, 1)), radius: .constant(0.1),
+                                       blend: 0.4)
+        #expect(try source(a) == source(b))
+        #expect(try source(a).contains("strutLattice(e,"))
+    }
+
+    @Test func theStrutsGoToThePoolSixFloatsEach() throws {
+        let program = try ImplicitCompiler.compile(LatticeFixtures.struts(.octet, cells: LatticeFixtures.cells(6), radius: .constant(0.5)))
+        #expect(program.pool.count == 24 * 6)
+        #expect(program.integers == [0, 24], "where the struts start in the pool, and how many there are")
+        let after = try ImplicitCompiler.compile(.union([
+            .baked(BlocksFixture.make(origin: .zero, spacing: 1, blocks: 1) { $0.x }, label: "a"),
+            LatticeFixtures.struts(.bcc, cells: LatticeFixtures.cells(6), radius: .constant(0.5)),
+        ], blend: .constant(0)))
+        #expect(after.pool.count == 512 + 1 + 8 * 6)
+        #expect(after.integers.suffix(2) == [513, 8], "the struts follow the baked block in the pool")
+    }
 }

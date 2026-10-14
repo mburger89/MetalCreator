@@ -34,6 +34,10 @@ extension ImplicitSolid: CustomStringConvertible {
         case .tpms(let lattice):
             return "\(lattice.type.name.lowercased())(cell \(Self.text(lattice.cells.size)), \(lattice.form.name.lowercased()), "
                 + "t = \(Self.text(lattice.thickness))\(Self.stretchText(lattice.cells)))"
+        case .struts(let lattice):
+            let joint = lattice.blend > 0 ? ", blend \(Self.mm(lattice.blend))" : ""
+            return "\(lattice.cell.name.lowercased())(cell \(Self.text(lattice.cells.size)), r = \(Self.text(lattice.radius))"
+                + "\(joint)\(Self.stretchText(lattice.cells)))"
         }
     }
 

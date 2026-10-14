@@ -21,6 +21,8 @@ extension ImplicitSolid {
             return max(1, grading.slope / maxSlope)
         case .tpms(let lattice):
             return lattice.lipschitz
+        case .struts(let lattice):
+            return lattice.lipschitz
         }
     }
 
@@ -29,7 +31,7 @@ extension ImplicitSolid {
     /// when their distance reaches past it.
     public var exactReach: Double {
         switch self {
-        case .sphere, .box, .cylinder, .isosurface, .tpms:
+        case .sphere, .box, .cylinder, .isosurface, .tpms, .struts:
             return .infinity
         case .moved(let child, _):
             return child.exactReach

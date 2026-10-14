@@ -21,4 +21,37 @@ extension CPUEvaluation {
         }
         return max(body, Self.boxDistance(p, lattice.region))
     }
+
+    func struts(_ lattice: StrutLattice, at p: Vector3) -> Double {
+        let (_, edges) = cellScale(lattice.cells, at: p)
+        let index = Vector3(floor(p.x / edges.x), floor(p.y / edges.y), floor(p.z / edges.z))
+        let radius = max(0, value(lattice.radius, at: p))
+        let blend = lattice.blend
+        var nearest = 1e30
+        for dz in -1...1 {
+            for dy in -1...1 {
+                for dx in -1...1 {
+                    let base = index + Vector3(Double(dx), Double(dy), Double(dz))
+                    for strut in lattice.cell.struts {
+                        let start = Vector3((base.x + strut.start.x) * edges.x, (base.y + strut.start.y) * edges.y,
+                                            (base.z + strut.start.z) * edges.z)
+                        let end = Vector3((base.x + strut.end.x) * edges.x, (base.y + strut.end.y) * edges.y,
+                                          (base.z + strut.end.z) * edges.z)
+                        let gap = Self.segmentDistance(p, start, end)
+                        nearest = blend > 0 ? Self.smoothMinimum(nearest, gap, width: blend) : min(nearest, gap)
+                    }
+                }
+            }
+        }
+        let reach = StrutLattice.reachInCells * min(edges.x, edges.y, edges.z)
+        return max(min(nearest, reach) - radius, Self.boxDistance(p, lattice.region))
+    }
+
+    /// The distance from `p` to the segment from `a` to `b`.
+    static func segmentDistance(_ p: Vector3, _ a: Vector3, _ b: Vector3) -> Double {
+        let along = b - a
+        let length2 = along.dot(along)
+        let t = length2 > 0 ? min(max((p - a).dot(along) / length2, 0), 1) : 0
+        return (p - a - along * t).length
+    }
 }

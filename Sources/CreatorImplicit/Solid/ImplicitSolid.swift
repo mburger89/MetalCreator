@@ -48,4 +48,6 @@ public indirect enum ImplicitSolid: Hashable, Sendable {
 
     /// A triply periodic minimal surface, a sheet or a network.
     case tpms(TPMSLattice)
+    /// Straight struts of one of the unit cells, with rounded joints if asked.
+    case struts(StrutLattice)
 }

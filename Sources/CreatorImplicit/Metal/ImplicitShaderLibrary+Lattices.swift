@@ -28,5 +28,37 @@ extension ImplicitShaderLibrary {
         float body = form == 0 ? abs(core) - wall * 0.5 : core - wall * 0.5;
         return max(body, regionDistance(p, centre, halfSize));
     }
+
+    // MARK: strut lattices (StrutLattice)
+
+    inline float segmentDistance(float3 p, float3 a, float3 b) {
+        float3 along = b - a;
+        float length2 = dot(along, along);
+        float t = length2 > 0.0 ? clamp(dot(p - a, along) / length2, 0.0, 1.0) : 0.0;
+        return length(p - a - along * t);
+    }
+
+    inline float strutLattice(const thread Env& e, int offset, int count, float3 p, float cell, float3 stretch, float radius,
+                              float blend, float3 centre, float3 halfSize) {
+        float size = max(cell, 0.000001);
+        float3 edges = size * stretch;
+        float3 index = floor(p / edges);
+        float nearest = 1e30;
+        for (int dz = -1; dz <= 1; dz++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    float3 base = index + float3(float(dx), float(dy), float(dz));
+                    for (int s = 0; s < count; s++) {
+                        int at = offset + 6 * s;
+                        float3 start = (base + float3(e.pool[at], e.pool[at + 1], e.pool[at + 2])) * edges;
+                        float3 end = (base + float3(e.pool[at + 3], e.pool[at + 4], e.pool[at + 5])) * edges;
+                        nearest = smoothMin(nearest, segmentDistance(p, start, end), blend);
+                    }
+                }
+            }
+        }
+        float reach = 0.85 * min(edges.x, min(edges.y, edges.z));
+        return max(min(nearest, reach) - max(radius, 0.0), regionDistance(p, centre, halfSize));
+    }
     """
 }

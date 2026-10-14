@@ -128,6 +128,8 @@ public enum ImplicitCompiler {
                 return declare("max((\(value) - \(levelName)) / \(slopeName), regionDistance(\(p), \(centre), \(half)))")
             case .tpms(let lattice):
                 return try tpms(lattice, at: p)
+            case .struts(let lattice):
+                return try struts(lattice, at: p)
             }
         }
 
@@ -140,6 +142,20 @@ public enum ImplicitCompiler {
             let scale = number(lattice.type.wallScale)
             let (centre, half) = (vector(lattice.region.center), vector(lattice.region.size * 0.5))
             return declare("tpmsLattice(\(p), \(cell), \(stretch), \(wall), \(type), \(form), \(scale), \(centre), \(half))")
+        }
+
+        /// A strut lattice: the cell's struts go to the `pool` buffer (six floats each), their place and number to the integers.
+        mutating func struts(_ lattice: StrutLattice, at p: String) throws(ImplicitCompileError) -> String {
+            let cell = try grading(lattice.cells.size, at: p)
+            let radius = try grading(lattice.radius, at: p)
+            let stretch = vector(lattice.cells.stretch)
+            let (offset, count) = (integer(pool.count), integer(lattice.cell.struts.count))
+            for strut in lattice.cell.struts {
+                pool += [strut.start, strut.end].flatMap { [Float($0.x), Float($0.y), Float($0.z)] }
+            }
+            let blend = number(lattice.blend)
+            let (centre, half) = (vector(lattice.region.center), vector(lattice.region.size * 0.5))
+            return declare("strutLattice(e, \(offset), \(count), \(p), \(cell), \(stretch), \(radius), \(blend), \(centre), \(half))")
         }
 
         /// Union, intersect and subtract: the children folded left to right with `join(result, next, width)`; `empty` is the value
