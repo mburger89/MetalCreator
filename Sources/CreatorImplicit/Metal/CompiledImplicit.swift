@@ -25,8 +25,8 @@ public struct CompiledImplicit: Sendable {
 
 /// Why a solid can't run on the GPU.
 public enum ImplicitCompileError: Error, Equatable, Sendable {
-    /// Some part of the tree has no Metal form; the evaluation runs on the CPU instead.
+    /// Some part of the tree has no GPU form; the evaluation runs on the CPU instead.
     case unsupported(String)
-    /// Metal refused the generated source, which is a bug here; the text is Metal's.
-    case metal(String)
+    /// The GPU engine refused the generated source or a buffer, which is a bug here; the text is the engine's (Metal's, today).
+    case engine(String)
 }

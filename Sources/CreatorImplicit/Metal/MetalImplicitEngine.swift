@@ -56,7 +56,7 @@ public actor MetalImplicitEngine: ImplicitGPUEngine {
         do {
             let library = try await device.makeLibrary(source: program.source, options: nil)
             guard let function = library.makeFunction(name: CompiledImplicit.kernelName) else {
-                throw ImplicitCompileError.metal("the kernel \(CompiledImplicit.kernelName) is missing")
+                throw ImplicitCompileError.engine("the kernel \(CompiledImplicit.kernelName) is missing")
             }
             let pipeline = try await device.makeComputePipelineState(function: function)
             compileCount += 1
@@ -67,7 +67,7 @@ public actor MetalImplicitEngine: ImplicitGPUEngine {
         } catch let error as ImplicitCompileError {
             throw error
         } catch {
-            throw .metal(error.localizedDescription)
+            throw .engine(error.localizedDescription)
         }
     }
 
@@ -104,7 +104,7 @@ public actor MetalImplicitEngine: ImplicitGPUEngine {
         guard let input = device.makeBuffer(bytes: flat, length: flat.count * MemoryLayout<Float>.stride, options: .storageModeShared),
               let output = device.makeBuffer(length: count * MemoryLayout<Float>.stride, options: .storageModeShared),
               let commands = queue.makeCommandBuffer(), let encoder = commands.makeComputeCommandEncoder() else {
-            throw ImplicitCompileError.metal("a GPU buffer could not be made")
+            throw ImplicitCompileError.engine("a GPU buffer could not be made")
         }
         var total = UInt32(count)
         encoder.setComputePipelineState(pipeline)
@@ -124,7 +124,7 @@ public actor MetalImplicitEngine: ImplicitGPUEngine {
             commands.addCompletedHandler { _ in continuation.resume() }
             commands.commit()
         }
-        if let error = commands.error { throw ImplicitCompileError.metal(error.localizedDescription) }
+        if let error = commands.error { throw ImplicitCompileError.engine(error.localizedDescription) }
         return Array(UnsafeBufferPointer(start: output.contents().bindMemory(to: Float.self, capacity: count), count: count))
     }
 
@@ -139,7 +139,7 @@ public actor MetalImplicitEngine: ImplicitGPUEngine {
         func upload<T>(_ values: [T]) throws -> any MTLBuffer {
             // Metal won't make an empty buffer: a kind of data this shape doesn't use gets four bytes.
             guard let buffer = device.makeBuffer(length: max(values.count * MemoryLayout<T>.stride, 4), options: .storageModeShared)
-            else { throw ImplicitCompileError.metal("a GPU buffer could not be made") }
+            else { throw ImplicitCompileError.engine("a GPU buffer could not be made") }
             values.withUnsafeBytes { bytes in
                 if let base = bytes.baseAddress { buffer.contents().copyMemory(from: base, byteCount: bytes.count) }
             }

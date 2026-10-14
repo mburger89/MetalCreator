@@ -14,15 +14,27 @@ public struct EvalContext: Sendable {
     /// Where a node finds the bytes behind an `ImageReference` (fields spec §5): the document's embedded images and the folder
     /// it is saved in. A context made by hand (tests) has none, so every image is absent.
     public let images: ImageResolver
+    /// How finely Mesh nodes work (implicit spec §4.3): `preview` for the viewport, `export` for a file. A context made by hand
+    /// previews.
+    public let meshQuality: MeshQuality
+    /// Which engine evaluates implicit solids. A context made by hand uses the CPU, so tests never depend on a GPU.
+    public let implicitEngine: ImplicitEngineChoice
+    /// Where a node that takes long reports its progress; a context made by hand ignores it.
+    public let meshProgress: MeshProgress
 
     public init(node: Node, item: Int, parameters: [ParameterID: ConstantValue], isTreeRun: Bool = false,
-                fieldDistances: FieldDistanceCache = FieldDistanceCache(), images: ImageResolver = ImageResolver()) {
+                fieldDistances: FieldDistanceCache = FieldDistanceCache(), images: ImageResolver = ImageResolver(),
+                meshQuality: MeshQuality = .preview, implicitEngine: ImplicitEngineChoice = .cpu,
+                meshProgress: MeshProgress = .none) {
         self.node = node
         self.item = item
         self.parameters = parameters
         self.isTreeRun = isTreeRun
         self.fieldDistances = fieldDistances
         self.images = images
+        self.meshQuality = meshQuality
+        self.implicitEngine = implicitEngine
+        self.meshProgress = meshProgress
     }
 
     /// The tag kernel calls should use, so created faces are named after this node and item.

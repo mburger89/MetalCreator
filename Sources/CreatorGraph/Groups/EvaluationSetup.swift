@@ -13,6 +13,10 @@ struct EvaluationSetup: Sendable {
     var fieldDistances: FieldDistanceCache
     /// The document's embedded images and its folder (fields spec §5), the same for every level and every node.
     var images: ImageResolver
+    /// What this run is for: the viewport's preview or an export's full resolution (`EvalContext.meshQuality`).
+    var meshQuality: MeshQuality = .preview
+    var implicitEngine: ImplicitEngineChoice = .cpu
+    var meshProgress: MeshProgress = .none
 
     /// The nodes of `graph`, the inside of the group node at instance path `path`, that the inspected level asks for:
     /// all of them when `path` is the level, else the one group node on the way down to it.
