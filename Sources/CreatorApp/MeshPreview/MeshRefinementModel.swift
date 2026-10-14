@@ -106,7 +106,7 @@ final class MeshRefinementModel {
         let mesher = ImplicitMesher(evaluator: selection.evaluator)
         var resolution = base.resolution
         var seconds = base.meshingSeconds
-        guard var next = schedule.next(after: resolution, seconds: seconds) else {
+        guard var next = schedule.next(after: resolution, seconds: seconds, triangles: base.triangleCount) else {
             await deliver(nil, true)
             return
         }
@@ -115,7 +115,7 @@ final class MeshRefinementModel {
                 let pass = try await mesher.mesh(source.solid, resolution: next, quality: .preview)
                 guard !Task.isCancelled else { return }
                 (resolution, seconds) = (next, pass.meshingSeconds)
-                let following = schedule.next(after: resolution, seconds: seconds)
+                let following = schedule.next(after: resolution, seconds: seconds, triangles: pass.triangleCount)
                 await deliver(pass, following == nil)
                 guard let following else { return }
                 next = following

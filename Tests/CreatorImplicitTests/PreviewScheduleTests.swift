@@ -30,6 +30,16 @@ struct PreviewScheduleTests {
         #expect(schedule.next(after: 0.05, seconds: 0.001) == nil, "nothing finer than 0.05 mm")
     }
 
+    @Test func automaticStopsBeforeAPassOverTheTriangleCap() {
+        let schedule = PreviewSchedule(.automatic)
+        #expect(schedule.next(after: 0.8, seconds: 0.01, triangles: 500_000) == 0.4, "four times 500,000 is exactly the cap")
+        #expect(schedule.next(after: 0.8, seconds: 0.01, triangles: 500_001) == nil, "over two million triangles")
+        #expect(schedule.next(after: 0.8, seconds: 0.01, triangles: 1_000_000) == nil)
+        #expect(PreviewSchedule(.fixed(0.2)).next(after: 0.8, seconds: 0.01, triangles: 5_000_000) == 0.4, "a fixed target is the user's")
+        // Both limits apply: a slow pass stops it even when the triangles are few.
+        #expect(schedule.next(after: 0.8, seconds: 0.3, triangles: 10) == nil)
+    }
+
     @Test(arguments: [0.0, -1.0, Double.nan, 0.001])
     func aFixedTargetBelowTheFinestIsClampedAndTerminates(wanted: Double) {
         let schedule = PreviewSchedule(.fixed(wanted))
