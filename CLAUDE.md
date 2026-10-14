@@ -72,14 +72,14 @@ and §8 and its Errata (7b-3)) code is done; its human checks (group FI) are pen
 Cross-platform, sub-project xp-1 (Linux and Windows on MetalUI's SDL backend: everything but the 3D view and OpenCascade; plan
 `docs/superpowers/plans/2026-10-13-xp-1.md`, spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §2) code is done and
 the suite is green on Linux in CI (GitHub Actions, `.github/workflows/xp.yml`, x86_64 and aarch64; `scripts/linux-test.sh` runs the
-same in Docker); its human checks (group XP) are pending. The Windows job (CI run 38535917146) builds, `--self-test` and `--smoke-test 5` pass,
-and the suite runs to the end with 10 "Test run with" lines and 2 failures out of about 3,880 tests, both Windows-only and not yet understood:
-`SketchWindowDragWindowTests.theToolbarsLabelGapAndStripMoveTheWindow` (the strip's last row, y = `windowDragStripHeight - 1`, gets 0
-drag requests, not 1) and `AppFieldPreviewTests.theLegendsToggleChangesTheRampAndTheSliceHandleEditsNoDocument` (after the slice handle
-moves to 2, `viewport.slice.origin.z` is 5.0, not 7.0, though `fieldPreview.offset` and the handle read 2). The Windows job stays
-`continue-on-error` and red until they are fixed. On the way: `ImageResolver.read` has a Windows branch, the named-pipe and device tests
-and `PackagingScriptTests` are not run on Windows, and the test executables reserve a 16 MB stack (`-Xlinker /STACK:16777216`; a layout
-tree overflowed Windows' 1 MB default thread stack).
+same in Docker); its human checks (group XP) are pending. The Windows job (CI run 38546048595) is green once: it builds, the suite passes (10 "Test run with" lines), and `--self-test` and
+`--smoke-test 20` pass. Two failures that had been Windows-only were MetalCreator's own: the slice's starting axis chose YZ over XY on a
+last-bit tie of the default camera's view direction (`SlicePose.startingChoice` now treats near-equal alignments as a tie), and the window
+root, taller than the window with Windows' text metrics, was centred upward by the window's wrapper, so the top bar and the drag strip
+sat 3 points high (`AppWindowRoot` now pins the root to the window's top left). The Windows job stays `continue-on-error`, with a
+`::warning::` step and a summary line when its suite is red. On the way: `ImageResolver.read` has a Windows branch, the named-pipe and
+device tests and `PackagingScriptTests` are not run on Windows, and the test executables reserve a 16 MB stack (`-Xlinker /STACK:16777216`;
+a layout tree overflowed Windows' 1 MB default thread stack).
 `Package.swift` has two lists, like MetalUI's: the targets that import no Apple
 framework are declared everywhere (`CreatorViewport` too: its model, camera and tools are portable and only the Metal renderer files
 are behind `#if canImport(Metal)`); `COCCT`, `CreatorOCCT`, `ViewportHarness`, `GraphPanelPreview` and `CreatorOCCTTests` are

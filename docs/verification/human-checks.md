@@ -1802,11 +1802,8 @@ green on Linux in CI (GitHub Actions, x86_64 and aarch64; `scripts/linux-test.sh
 first frame under SDL's offscreen renderers (`--smoke-test`) on Linux and Windows; these checks are what a person sees on a real
 desktop, which CI cannot show. Linux: SDL 3.4 and AccessKit on
 the compiler's default paths (MetalUI `docs/getting-started.md`, "Linux and Windows"), then `swift run MetalCreatorApp`. Windows:
-the same with the `-Xcc -I… -Xswiftc -L…` flags `.github/workflows/xp.yml` hands SwiftPM; **the Windows CI job builds, self-tests and launches but is
-not green** (CI run 38535917146): the suite runs to the end with 10 "Test run with" lines and 2 failures, both Windows-only and not
-yet understood: `SketchWindowDragWindowTests.theToolbarsLabelGapAndStripMoveTheWindow` (the strip's last row gets 0 drag requests)
-and `AppFieldPreviewTests.theLegendsToggleChangesTheRampAndTheSliceHandleEditsNoDocument` (`viewport.slice.origin.z` is 5.0, not
-7.0). The job stays `continue-on-error` until they are fixed. macOS needs no check here: its test count and its look are unchanged.
+the same with the `-Xcc -I… -Xswiftc -L…` flags `.github/workflows/xp.yml` hands SwiftPM; the Windows CI job builds, passes the whole suite (run 38546048595), self-tests and launches; it stays `continue-on-error`, with a
+warning step when red. macOS needs no check here: its test count and its look are unchanged.
 
 - [ ] **XP-1 Launch.** `swift run MetalCreatorApp` opens a window titled "MetalCreator" with the system title bar, a menu bar
   strip drawn across its top (File, Edit, View) above the glass top bar, the graph panel docked at the bottom and the inspector

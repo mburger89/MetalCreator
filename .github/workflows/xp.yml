@@ -8,10 +8,9 @@
 # The Linux jobs run scripts/linux-test.sh, the script a developer runs in Docker on a Mac: build, the suite (exit 0, no
 # "recorded an issue" or "failed after" line, ten "Test run with" lines), the app's --self-test, and --smoke-test 20.
 #
-# The Windows job is modelled on MetalUI's own Windows job (.github/workflows/sdl-gpu-linux.yml). Run 38535917146: it builds, the
-# app's --self-test and --smoke-test 5 pass, and the suite runs to the end (10 "Test run with" lines) with 2 Windows-only failures
-# (SketchWindowDragWindowTests.theToolbarsLabelGapAndStripMoveTheWindow, AppFieldPreviewTests.theLegendsToggleChangesTheRampAndTheSliceHandleEditsNoDocument).
-# It stays continue-on-error until it is green, so it does not hide the Linux result; read its log on every run.
+# The Windows job is modelled on MetalUI's own Windows job (.github/workflows/sdl-gpu-linux.yml). Run 38546048595 was green: it builds, passes the
+# suite (10 "Test run with" lines) and passes the app's --self-test and --smoke-test. It stays continue-on-error, so it does not hide the Linux
+# result, and the last step marks a red Windows run with a warning and a summary line (the run itself shows green); read its log on every run.
 
 name: XP cross-platform
 
