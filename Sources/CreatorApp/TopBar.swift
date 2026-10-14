@@ -14,9 +14,12 @@ struct TopBar: Component {
     /// How far the content starts in so that it clears the window buttons under a hidden title bar (gap M6-c): the
     /// window root passes `AppLayout.topBarClearance` of the window's `titleBarInsets`; zero in a standard window.
     var clearance = Pixels(0)
+    /// The same at the trailing end, for the buttons MetalUI draws at the window's right on Linux and Windows (MetalUI S1,
+    /// `AppLayout.topBarTrailingClearance`); zero on macOS.
+    var trailingClearance = Pixels(0)
 
     var content: some ElementGroup {
-        let clearButtons = Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0), left: clearance)
+        let clearButtons = Edges(top: Pixels(0), right: trailingClearance, bottom: Pixels(0), left: clearance)
         if let sketch = model.sketch {
             SketchChrome(.topBar) { ZStack(alignment: .topLeading) { SketchToolbar(model: sketch.editor) }.padding(clearButtons) }
         } else {

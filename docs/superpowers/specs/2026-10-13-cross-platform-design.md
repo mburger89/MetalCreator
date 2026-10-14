@@ -111,7 +111,7 @@ unchanged in look and behaviour.
 |---|---|---|
 | XP-G1 | App access to SDL_GPU through `GPUSurface` (CSDL types or a portable GPU API), a shader build path for apps, MSAA resolve, depth targets, instanced draws, storage buffers, mipmapped r8 textures, texture readback | xp-3 |
 | XP-G2 | Portable compute (SDL GPU compute) for 7c's implicit engine | after xp-3 |
-| XP-G3 | Custom chrome or hidden title bar on SDL (divergence 276) | polish; xp-1 accepts the system title bar. **MetalUI S1 in progress** (borderless window, `SDL_SetWindowHitTest` drag, resize edges; record §112, `CW-`): adopt when it lands |
+| XP-G3 | Custom chrome or hidden title bar on SDL (divergence 276) | polish; xp-1 accepted the system title bar. **Fixed by MetalUI S1** (record §112, `CW-`, master `ceca59f6`) and adopted after xp-1 (erratum E5); the drag regions need XP-G11 before xp-3 |
 | XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO | xp-1 (Image Field). **Fixed by MetalUI S2** (record §113, `IB-`) and adopted after xp-1 (erratum E4); a header-only read is still wanted (XP-G10) |
 | XP-G5 | Open-document events on SDL (divergence 176) | xp-2. **Answered:** `Platform.onOpenURLs` (SDL drop with window 0) → `.onOpenURL` routing; command-line files via `app.open(…)` after the first window (MetalUI `docs/packaging.md`, "Launch arguments"); `.desktop` `Exec=… %F` + `MimeType=` |
 | XP-G6 | ContentType filtering by extension (divergence 129) | xp-1. **Answered:** `ContentType("…", conformingTo: [.json], filenameExtensions: ["mcgraph"])` in `allowedContentTypes` |
@@ -148,3 +148,13 @@ beyond what MetalUI provides; macOS CI; Intel macOS.
   and orientation because S2 offers them only after a full decode and the limits must run first (gap XP-G10). Before ImageIO was
   removed every image fixture was decoded by both paths: PNG grids agreed within 128 of 65,535 (16-bit samples round to 8 bits), JPEG
   grids within 441; the values are pinned in `GreyImageDecoderPinnedTests`.
+- **E5 (adopt-s1, sections 2.4 and 5, XP-G3). The system title bar is no longer used on SDL.** Section 2.4's first bullet no longer
+  holds. After xp-1, MetalUI S1 (record §112, master `ceca59f6`) made `windowStyle: .hiddenTitleBar` a borderless window on SDL (not on
+  the offscreen driver, which stays standard): `titleBarInsets` reads a 32-point band plus the cluster MetalUI draws (minimise, zoom
+  and close, 138 points at the right on Linux and Windows, 70 at the left on macOS under SDL). MetalCreator keeps the default
+  `drawsWindowControls = true`. `TopBar` pads its content by `titleBarInsets.left` and `.right` (`AppLayout.topBarClearance` and
+  `topBarTrailingClearance`), so the right end of the glass bar clears the buttons; the theme dock, the panels and the pick banner start
+  at 68 points or more, below the 32-point band, and the bar stays at the margin inside the band as on macOS (macOS is unchanged,
+  pinned by `SDLChromeWindowTests.macLayoutIsWhatItWas`). The drawn Close button goes through `onCloseRequest` to
+  `AppModel.closeRequested()` (`installCloseHandling`). `WindowDragHandle` stays and is now an SDL drag region where MetalUI publishes
+  one; it will publish none once a gesture-taking viewport is behind the bar (gap XP-G11: the real Metal viewport on macOS's headless test, the SDL GPU viewport at xp-3; the Linux and Windows placeholder has none). Human checks XP-11..XP-14; XP-8 keeps the cursors only.
