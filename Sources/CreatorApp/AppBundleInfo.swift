@@ -15,7 +15,7 @@ public enum AppBundleInfo {
     /// The marketing version, `CFBundleShortVersionString`.
     public static let version = "0.1.0"
     /// The build number, `CFBundleVersion`: raise it for every packaged build that is handed to someone.
-    public static let build = "1"
+    public static let build = "2"
     /// How Finder names a `.mcgraph` file's kind.
     public static let documentTypeName = "MetalCreator Graph"
 
