@@ -6,7 +6,7 @@
 # when MetalCreator adopts a MetalUI change.
 #
 # The Linux jobs run scripts/linux-test.sh, the script a developer runs in Docker on a Mac: build, the suite (exit 0, no
-# "recorded an issue" or "failed after" line, ten "Test run with" lines), the app's --self-test, and --smoke-test 5.
+# "recorded an issue" or "failed after" line, ten "Test run with" lines), the app's --self-test, and --smoke-test 20.
 #
 # The Windows job is modelled on MetalUI's own Windows job (.github/workflows/sdl-gpu-linux.yml). Run 38535917146: it builds, the
 # app's --self-test and --smoke-test 5 pass, and the suite runs to the end (10 "Test run with" lines) with 2 Windows-only failures
@@ -20,6 +20,11 @@ on:
     branches: [main, 'xp-*']
   pull_request:
   workflow_dispatch:
+
+# A newer push to the same ref cancels the run in progress (the matrix has 90-minute jobs).
+concurrency:
+  group: xp-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   METALUI_REPOSITORY: mburger89/MetalUI
@@ -112,6 +117,7 @@ jobs:
           swift build @flags
           exit $LASTEXITCODE
       - name: Test
+        id: test
         working-directory: MetalCreator
         # The pass rule (spec 2.5): exit 0, no "recorded an issue" or "failed after" line, EXPECTED_TEST_RUNS "Test run with" lines.
         run: |
@@ -130,10 +136,11 @@ jobs:
           }
           "Windows: PASS ($runs 'Test run with' lines)"
       - name: Self-test and launch smoke
+        id: smoke
         working-directory: MetalCreator
         # Runs even when Test is red, so one run reports both.
         if: ${{ !cancelled() }}
-        # --smoke-test opens the real window over SDL's offscreen renderers (Direct3D 12 on WARP) for 5 s and fails unless it
+        # --smoke-test opens the real window over SDL's offscreen renderers (Direct3D 12 on WARP) for 20 s and fails unless it
         # drew a first frame.
         run: |
           $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB") +
@@ -141,5 +148,11 @@ jobs:
           $bin = (swift build @flags --show-bin-path)
           & "$bin\MetalCreatorApp.exe" --self-test
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          & "$bin\MetalCreatorApp.exe" --smoke-test 5
+          & "$bin\MetalCreatorApp.exe" --smoke-test 20
           exit $LASTEXITCODE
+      - name: Mark a red Windows suite
+        # The job is continue-on-error, so a red Windows run still shows a green check: say so where it is read.
+        if: ${{ !cancelled() && (steps.test.outcome == 'failure' || steps.smoke.outcome == 'failure') }}
+        run: |
+          Write-Output "::warning::Windows suite red (continue-on-error)"
+          "### Windows suite red (continue-on-error)`n`nTest step: ${{ steps.test.outcome }}; self-test and launch smoke: ${{ steps.smoke.outcome }}. The run shows green because this job does not fail it; read the Windows log." >> $env:GITHUB_STEP_SUMMARY

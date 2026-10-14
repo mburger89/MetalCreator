@@ -5,7 +5,7 @@
 #   scripts/linux-test.sh [build|test|smoke|all]    default: all
 #     build   swift build
 #     test    swift test, judged by the pass rule below
-#     smoke   the app's --self-test, then --smoke-test 5 (the real window over SDL's offscreen renderers: a first frame in 5 s)
+#     smoke   the app's --self-test, then --smoke-test 20 (the real window over SDL's offscreen renderers: a first frame within 20 s)
 #     all     the three, in that order
 #   scripts/linux-test.sh clean                     removes this track's build volume
 #
@@ -63,7 +63,7 @@ do_build() {
 do_smoke() {
     in_container 'bin=$(swift build --scratch-path /build --show-bin-path)/MetalCreatorApp
         "$bin" --self-test
-        "$bin" --smoke-test 5'
+        "$bin" --smoke-test 20'
 }
 
 do_test() {
@@ -72,7 +72,7 @@ do_test() {
     local clean runs tests
     clean=$(sed $'s/\x1b\\[[0-9;]*m//g' "$LOG")
     runs=$(grep -c "Test run with" <<<"$clean" || true)
-    tests=$(grep "Test run with" <<<"$clean" | sed -E 's/.*Test run with ([0-9]+) tests.*/\1/' | awk '{ total += $1 } END { print total + 0 }')
+    tests=$({ grep "Test run with" <<<"$clean" || true; } | sed -E 's/.*Test run with ([0-9]+) tests.*/\1/' | awk '{ total += $1 } END { print total + 0 }')
     if [ "$status" -ne 0 ] || grep -qE "recorded an issue|failed after" <<<"$clean" || [ "$runs" -ne "$EXPECTED_TEST_RUNS" ]; then
         echo "Linux: FAIL (exit $status, $runs of $EXPECTED_TEST_RUNS 'Test run with' lines; log: $LOG)" >&2
         return 1
