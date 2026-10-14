@@ -50,6 +50,7 @@ public struct AppRoot: Component {
             if let session = model.sketch { PointerReadoutView(model: session.editor) }
             FieldLegendDock(model: model)
             MeshBadgeDock(model: model)
+            ExportSheetDock(model: model)
             PaletteDock(model: model)
             LibraryDragOverlay(model: model.editor)
         }

@@ -20,11 +20,13 @@ public enum GlassSurface: String, CaseIterable, Sendable {
     case chip
     /// The field preview's legend (fields spec §6): a small persistent card at the viewport's lower left.
     case fieldLegend
+    /// The export sheet (implicit spec §5.3): a card with a progress bar and Cancel over the viewport.
+    case exportSheet
 
     /// The material this surface is built on.
     public var thickness: GlassThickness {
         switch self {
-        case .palette: .thin
+        case .palette, .exportSheet: .thin
         case .graphPanel, .inspector, .topBar, .pickBanner, .showButton, .themeEditor, .chip, .fieldLegend: .ultraThin
         }
     }
