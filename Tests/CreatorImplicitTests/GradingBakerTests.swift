@@ -61,6 +61,10 @@ struct GradingBakerTests {
         let lipschitz = try #require(grading.baked.first?.blocks.lipschitz)
         #expect(lipschitz > 1)
         #expect(grading.slope >= 3 * lipschitz - 1e-9, "slope \(grading.slope) must cover 3 x the baked lipschitz \(lipschitz)")
+        // A gain whose product with the grid's slope is above the unknown-slope floor of 10.
+        let twenty = Field.multiply(.constant(20), distance)
+        let steep = try await GradingBaker.grading(for: twenty, over: wide, kernel: kernel)
+        #expect(steep.slope >= 20 * lipschitz - 1e-9, "slope \(steep.slope) must cover 20 x the baked lipschitz \(lipschitz)")
         let remapped = Field.remap(distance, fromLow: 0, fromHigh: 1, toLow: 0, toHigh: 4, clamped: false)
         let regrading = try await GradingBaker.grading(for: remapped, over: wide, kernel: kernel)
         #expect(regrading.slope >= 4 * lipschitz - 1e-9)

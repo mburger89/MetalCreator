@@ -94,10 +94,21 @@ extension Field {
             return (x.value + y.value, x.known && y.known)
         case .multiply(let a, let b):
             let (x, y) = (a.slope(leaf), b.slope(leaf))
-            guard let rangeA = a.valueRange, let rangeB = b.valueRange else { return (x.value + y.value, false) }
-            let (largestA, largestB) = (max(abs(rangeA.lowerBound), abs(rangeA.upperBound)),
-                                        max(abs(rangeB.lowerBound), abs(rangeB.upperBound)))
-            return (largestB * x.value + largestA * y.value, x.known && y.known)
+            let largest = { (range: ClosedRange<Double>) in max(abs(range.lowerBound), abs(range.upperBound)) }
+            switch (a.valueRange, b.valueRange) {
+            case (let rangeA?, nil):
+                // Only A is bounded. A side that does not change (a constant gain) makes this exact: largest(A) x slope(B).
+                // A side that changes times an unbounded one has no bound, but still scales B by A's size.
+                let gain = x.value == 0 ? largest(rangeA) : max(largest(rangeA), 1)
+                return (gain * y.value + x.value, x.value == 0 && x.known && y.known)
+            case (nil, let rangeB?):
+                let gain = y.value == 0 ? largest(rangeB) : max(largest(rangeB), 1)
+                return (gain * x.value + y.value, y.value == 0 && x.known && y.known)
+            case (nil, nil):
+                return (x.value + y.value, false)
+            case (let rangeA?, let rangeB?):
+                return (largest(rangeB) * x.value + largest(rangeA) * y.value, x.known && y.known)
+            }
         case .minimum(let a, let b), .maximum(let a, let b), .smoothMinimum(let a, let b, _):
             let (x, y) = (a.slope(leaf), b.slope(leaf))
             return (max(x.value, y.value), x.known && y.known)
