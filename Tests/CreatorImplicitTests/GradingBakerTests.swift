@@ -51,6 +51,21 @@ struct GradingBakerTests {
         #expect(grading.slope == field.slopeBound.value + max(0, grading.baked[0].blocks.lipschitz - 1))
     }
 
+    @Test func aGainOnABakedDistanceScalesItsInterpolationSlope() async throws {
+        let solid = try await cube()
+        // A coarse grid (3 mm cells), so the baked distance is steeper than 1.
+        let wide = BoundingBox(min: Vector3(-60, -60, -60), max: Vector3(60, 60, 60))
+        let distance = Field.distance(.kernel(.solid(solid)), signed: true)
+        let tripled = Field.multiply(.constant(3), distance)
+        let grading = try await GradingBaker.grading(for: tripled, over: wide, kernel: kernel)
+        let lipschitz = try #require(grading.baked.first?.blocks.lipschitz)
+        #expect(lipschitz > 1)
+        #expect(grading.slope >= 3 * lipschitz - 1e-9, "slope \(grading.slope) must cover 3 x the baked lipschitz \(lipschitz)")
+        let remapped = Field.remap(distance, fromLow: 0, fromHigh: 1, toLow: 0, toHigh: 4, clamped: false)
+        let regrading = try await GradingBaker.grading(for: remapped, over: wide, kernel: kernel)
+        #expect(regrading.slope >= 4 * lipschitz - 1e-9)
+    }
+
     @Test func aClampedDistanceHasItsClampAsRange() async throws {
         let solid = try await cube()
         let field = Field.clamp(.distance(.kernel(.solid(solid)), signed: false), low: 0, high: 4)

@@ -25,9 +25,14 @@ public enum GradingBaker {
             baked.append(Grading.Baked(target: target.identity, signed: signed,
                                        blocks: try await bake(target, signed: signed, over: region, kernel: kernel, cache: cache)))
         }
-        // `Field.slopeBound` counts a distance leaf as slope 1, but a baked grid interpolates trilinearly and may be steeper; each
-        // baked leaf adds what it exceeds 1 by, so the bound stays conservative and `BrickPlan` never prunes a crossed brick.
-        let slope = field.slopeBound.value + baked.reduce(0) { $0 + max(0, $1.blocks.lipschitz - 1) }
+        // `Field.slopeBound` counts a distance leaf as slope 1, but a baked grid interpolates trilinearly and may be steeper, and a
+        // gain in the field (a product, a remap) scales that. So each baked leaf is given its own lipschitz (at least 1) in place of 1,
+        // and the bound stays conservative: `BrickPlan` never prunes a crossed brick.
+        let slope = field.slopeBound { source, signed in
+            guard case .kernel(let target) = source,
+                  let leaf = baked.first(where: { $0.target == target.identity && $0.signed == signed }) else { return 1 }
+            return max(1, leaf.blocks.lipschitz)
+        }.value
         var grading = Grading(field: field, baked: baked, range: 0...0, slope: slope)
         if let known = field.valueRange {
             grading.range = known
