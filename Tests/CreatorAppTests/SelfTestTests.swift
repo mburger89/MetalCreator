@@ -58,6 +58,24 @@ struct SelfTestTests {
         #expect(!SelfTestReport(results: []).passed)
     }
 
+    /// Linux and Windows have no OpenCascade until xp-2: the geometry checks are left out, not failed, so the run still tells
+    /// whether the rest ships.
+    @Test func onAPlatformWithoutAKernelTheGeometryChecksAreSkippedAndTheRunPasses() async {
+        let scratch = Self.scratch()
+        let report = await SelfTest.run(kernel: KernelUnavailable(), scratch: scratch) { }
+        #expect(report.passed, "\(report.text)")
+        #expect(report.results.map(\.name) == ["kernel", "STEP export", "STL export", "shaders"])
+        let skipped = "skipped: Geometry isn't available on this platform yet."
+        #expect(report.results.prefix(3).map(\.detail) == [skipped, skipped, skipped])
+        #expect(!FileManager.default.fileExists(atPath: scratch.path))
+    }
+
+    #if !canImport(Metal)
+    @Test func offMacOSTheShaderCheckFindsTheSDLBackendsCompiledShaders() throws {
+        try SelfTest.compileShaders()
+    }
+    #endif
+
     private static func scratch() -> URL {
         URL.temporaryDirectory.appending(path: "SelfTestTests-\(UUID().uuidString)")
     }
