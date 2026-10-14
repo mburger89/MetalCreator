@@ -366,3 +366,9 @@ meshing (dual contouring); mesh booleans; surface textures and displacement (7d,
   - **Voronoi Struts is the third-nearest seed distance minus the nearest (d3 − d1),** not §3.4's "second-nearest minus nearest". d2 − d1 is zero on every cell wall, so it would draw Foam again; d3 − d1 is small only along the edges where three cells meet. `thickness` is the strut diameter, exact where three equal cells meet.
   - **Where no seed is in range,** for example where a density field falls to 0, the lattice is left **solid** and the node warns.
   - **`cell size` is a field** (a number or graded), **plus a separate `cell stretch` vector** (default 1, 1, 1) for non-uniform cells.
+- **D15. GPU meshing details** (the user's answers on the 7c-1g plan, 2026-10-14). These amend D13.
+  - **Agreement between GPU and CPU is two checks.**
+    - The mesher alone, on identical samples: vertices agree within 1e-4 mm.
+    - The whole pipeline: surfaces agree within 1e-4 mm and vertices within 2e-3 mm. A vertex can move further where an edge runs nearly tangent to the surface.
+    - Both hold for parts within a few hundred mm of the origin, because positions are stored as Float.
+  - **The Auto preview is capped.** It refines until the next pass would exceed about 2,000,000 triangles, or until the time budget runs out, whichever comes first. Export resolution is unaffected.
