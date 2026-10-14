@@ -16,9 +16,9 @@ struct GraphKeyEventTests {
     }
 
     @Test func theEventCarriesTheKeysPartsUnchanged() {
-        let event = GraphPanelInput.keyEvent(key: KeyEquivalent("n"), characters: "N", modifiers: [.command, .shift], isRepeat: true)
+        let event = GraphPanelInput.keyEvent(key: KeyEquivalent("n"), characters: "N", modifiers: [.primary, .shift], isRepeat: true)
         #expect(event.charactersIgnoringModifiers == "n" && event.characters == "N")
-        #expect(event.modifiers == [.command, .shift] && event.isRepeat)
+        #expect(event.modifiers == [.primary, .shift] && event.isRepeat)
         let plain = GraphPanelInput.keyEvent(key: .space, characters: " ", modifiers: [], isRepeat: false)
         #expect(plain.charactersIgnoringModifiers == " " && plain.modifiers.isEmpty && !plain.isRepeat)
     }
@@ -47,12 +47,12 @@ struct GraphKeyEventTests {
     }
 
     @Test func theCommandChordsKeepTheirModifiers() {
-        #expect(command(KeyEquivalent("a"), nil, .command) == .selectAll)
-        #expect(command(KeyEquivalent("N"), "N", [.command, .shift]) == .addNote, "AppKit reports a shifted letter upper-case")
-        #expect(command(KeyEquivalent("n"), "N", [.command, .shift]) == .addNote)
-        #expect(command(KeyEquivalent("c"), nil, [.command, .shift]) == .addFrame)
-        #expect(command(.downArrow, nil, .command) == .enterGroup)
-        #expect(command(.upArrow, nil, .command) == .exitGroup)
+        #expect(command(KeyEquivalent("a"), nil, .primary) == .selectAll)
+        #expect(command(KeyEquivalent("N"), "N", [.primary, .shift]) == .addNote, "AppKit reports a shifted letter upper-case")
+        #expect(command(KeyEquivalent("n"), "N", [.primary, .shift]) == .addNote)
+        #expect(command(KeyEquivalent("c"), nil, [.primary, .shift]) == .addFrame)
+        #expect(command(.downArrow, nil, .primary) == .enterGroup)
+        #expect(command(.upArrow, nil, .primary) == .exitGroup)
         #expect(command(KeyEquivalent("a"), nil, .option) == nil)
     }
 }

@@ -14,10 +14,10 @@ struct EditorGroupEntryTests {
     }
 
     @Test func commandDownAndUpAreTheEnterAndExitKeys() {
-        #expect(GraphKeyBindings.command(for: key("\u{f701}", .command), paletteOpen: false) == .enterGroup)
-        #expect(GraphKeyBindings.command(for: key("\u{f700}", .command), paletteOpen: false) == .exitGroup)
-        #expect(GraphKeyBindings.command(for: key("\u{f701}", [.command, .shift]), paletteOpen: false) == nil)
-        #expect(GraphKeyBindings.command(for: key("\u{f701}", .command), paletteOpen: true) == nil)
+        #expect(GraphKeyBindings.command(for: key("\u{f701}", .primary), paletteOpen: false) == .enterGroup)
+        #expect(GraphKeyBindings.command(for: key("\u{f700}", .primary), paletteOpen: false) == .exitGroup)
+        #expect(GraphKeyBindings.command(for: key("\u{f701}", [.primary, .shift]), paletteOpen: false) == nil)
+        #expect(GraphKeyBindings.command(for: key("\u{f701}", .primary), paletteOpen: true) == nil)
         #expect(GraphKeyBindings.command(for: key("\u{f701}", []), paletteOpen: false) == .nudge(Vector2(0, 1), isRepeat: false),
                 "a plain arrow still nudges")
     }
