@@ -2,10 +2,13 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 struct BooleanNodeTests {
+    #if canImport(CreatorOCCT)
     @Test func broadcastHolesAreSubtractedInOneBoolean() async throws {
         let kernel = OCCTKernel()
         var h = Harness()
@@ -94,6 +97,7 @@ struct BooleanNodeTests {
         #expect(isClose(try await volume(try onlySolid(report, cut), kernel), 60 * 40 * 6))
         #expect(report.error(intersect) == "Connect at least one tool solid.")
     }
+    #endif
 
     @Test func pieceCountFollowsSharedEdges() {
         let tag = TopoTag(node: NodeID(), item: 0, role: .startCap)

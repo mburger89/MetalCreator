@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import CreatorGeometry
 import MetalUI
 import MetalUITesting
@@ -132,3 +133,4 @@ struct ViewportCancelWindowTests {
         #expect(viewport.scrollStartPose == nil, "and over, with the camera settled")
     }
 }
+#endif

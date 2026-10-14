@@ -3,7 +3,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Hole Pattern (patterns spec §5): a hole cut from each placement's origin into the part, against the normal.
@@ -18,6 +20,7 @@ struct HolePatternNodeTests {
         return (plate, node)
     }
 
+    #if canImport(CreatorOCCT)
     func removed(_ report: EvaluationReport, _ node: Node, _ kernel: OCCTKernel) async throws -> Double {
         PatternPlate.plateVolume - (try await volume(try onlySolid(report, node), kernel))
     }
@@ -180,6 +183,7 @@ struct HolePatternNodeTests {
         let (plate, node) = holes(settings)
         #expect(try await plate.h.run([node], kernel: OCCTKernel()).error(node) == message)
     }
+    #endif
 
     @Test func noPlacementsLeaveThePartAsItIs() async throws {
         var (plate, node) = holes()
@@ -195,6 +199,7 @@ struct HolePatternNodeTests {
         #expect(try await plate.h.run([node]).error(node) == "Patterns are limited to 2,000 instances.")
     }
 
+    #if canImport(CreatorOCCT)
     @Test func fourHolesRemoveFourCylindersFromTheBracket() async throws {
         let kernel = OCCTKernel()
         let (plate, node) = holes(["diameter": .number(5), "depth": .number(6)])
@@ -216,4 +221,5 @@ struct HolePatternNodeTests {
             + "or the operation first.")
         #expect(report.value(node, "solid") == nil)
     }
+    #endif
 }

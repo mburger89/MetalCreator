@@ -1,3 +1,4 @@
+#if canImport(CoreGraphics)
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
@@ -251,3 +252,4 @@ struct ImageActionTests {
         #expect(image.pixels.allSatisfy { $0 == 100 * 257 }, "the picture beside the first folder, not the look-alike")
     }
 }
+#endif

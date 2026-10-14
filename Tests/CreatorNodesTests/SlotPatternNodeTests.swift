@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Slot Pattern (patterns spec §5): a slot with rounded ends cut along each placement's X axis.
@@ -22,6 +24,7 @@ struct SlotPatternNodeTests {
         (length - width) * width + Double.pi * width * width / 4
     }
 
+    #if canImport(CreatorOCCT)
     func removed(_ report: EvaluationReport, _ node: Node, _ kernel: OCCTKernel) async throws -> Double {
         PatternPlate.plateVolume - (try await volume(try onlySolid(report, node), kernel))
     }
@@ -111,6 +114,7 @@ struct SlotPatternNodeTests {
         let (plate, node) = slots(settings)
         #expect(try await plate.h.run([node], kernel: OCCTKernel()).error(node) == message)
     }
+    #endif
 
     @Test func moreThanTwoThousandInstancesAreRefused() async throws {
         var (plate, node) = slots(columns: 1, rows: 1)

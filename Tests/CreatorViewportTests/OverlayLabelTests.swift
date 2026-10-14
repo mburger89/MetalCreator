@@ -1,7 +1,6 @@
 import CreatorGeometry
 import Foundation
 import MetalUI
-import MetalUIText
 import Testing
 @testable import CreatorViewport
 
@@ -104,13 +103,14 @@ struct OverlayLabelTests {
         #expect(model.renderKey != before)
     }
 
+    #if canImport(Metal)
     @Test func theViewDrawsEachLabelsTextInsideItsBox() throws {
         let model = makeModel([OverlayLabel("12.5 mm", at: .zero)])
         let big = ViewportSize(width: 1400, height: 900)
         model.viewSize = big
         let placed = try #require(model.overlayLabels(measuring: .real()).first)
         let scene = renderFrame({ ZStack { ViewportView(model: model) } }, size: Size(width: Pixels(1400), height: Pixels(900)),
-                                scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+                                scaleFactor: 2, textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
         let inside = scene.glyphs.filter { glyph in
             let x = Double(glyph.bounds.origin.x + glyph.bounds.size.width / 2) / 2
             let y = Double(glyph.bounds.origin.y + glyph.bounds.size.height / 2) / 2
@@ -119,4 +119,5 @@ struct OverlayLabelTests {
         }
         #expect(inside.count == 6, "1 2 . 5 m m: the glyphs of the text, without its space")
     }
+    #endif
 }

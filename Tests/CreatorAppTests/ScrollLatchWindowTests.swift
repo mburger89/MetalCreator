@@ -42,6 +42,7 @@ struct ScrollLatchWindowTests {
         #expect(app.model.viewport.pose == pose, "the viewport never saw it")
     }
 
+    #if canImport(Metal)
     @Test func aViewportZoomsGlideDoesNotReachTheCanvasWhenThePointerDriftsOntoIt() async throws {
         let app = try await AppWindow.open()
         let canvas = app.point(inCanvasView: Vector2(600, 100))
@@ -55,7 +56,9 @@ struct ScrollLatchWindowTests {
         scroll(app, at: canvas, dy: 0, momentum: .ended)
         #expect(app.editor.transform == transform, "the glide began on the viewport, which ignores it, and ends there")
     }
+    #endif
 
+    #if canImport(Metal)
     /// The glide's end releases the latch: the next wheel step, with no phase, goes to what is under the pointer.
     @Test func aWheelStepAfterAGlideGoesToWhatIsUnderThePointer() async throws {
         let app = try await AppWindow.open()
@@ -71,7 +74,9 @@ struct ScrollLatchWindowTests {
         #expect(app.editor.transform == transform, "the latch is over")
         #expect(app.model.viewport.pose != pose, "a wheel step over the viewport zooms it")
     }
+    #endif
 
+    #if canImport(Metal)
     /// Review Focus 5: key loss in the middle of a ⌘-scroll's glide leaves no stuck "ignore the glide" state, so the next
     /// glide pans.
     @Test func keyLossDuringAZoomsGlideLeavesNothingIgnoredForTheNextScroll() async throws {
@@ -90,4 +95,5 @@ struct ScrollLatchWindowTests {
         scroll(app, at: canvas, phase: .changed)
         #expect(app.editor.transform.offset != offset, "the next scroll pans")
     }
+    #endif
 }

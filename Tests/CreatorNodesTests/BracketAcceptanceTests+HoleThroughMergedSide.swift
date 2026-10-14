@@ -3,9 +3,12 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 extension BracketAcceptanceTests {
+    #if canImport(CreatorOCCT)
     /// Roadmap "Naming: face picks on merged faces", the edge half: a 5 mm hole drilled along X at y = 16, z = 3
     /// through the bracket's union, so its rim on the left side is an edge between a face the union merged (the
     /// plate's side and the flange's, `{plate.side, flange.side}`) and the hole's wall, which shares no node call
@@ -65,6 +68,7 @@ extension BracketAcceptanceTests {
             #expect(keys(try edgeSetOutput(document, rule)) == [flushKey])
         }
     }
+    #endif
 
     /// Drills the hole (a Circle on a YZ plane through (0, 16, 3), a symmetric Extrude, a subtracting Boolean on the
     /// union) and adds an Edges by Tag on the result, shown in the preview and evaluated.

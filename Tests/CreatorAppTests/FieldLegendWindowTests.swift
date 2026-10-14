@@ -44,6 +44,7 @@ struct FieldLegendWindowTests {
         #expect(try controls("XZ", in: app) == 0 && controls("0…1", in: app) == 0)
     }
 
+    #if canImport(Metal)
     @Test func aSelectedFieldNodeShowsTheLegendWithItsNumbersAndButtons() async throws {
         let (app, radial) = try await open()
         try await select(radial, in: app)
@@ -58,6 +59,7 @@ struct FieldLegendWindowTests {
         #expect(try controls("Plane", in: app) == 0, "a radial gradient has no plane of its own")
         #expect(try control("XY", in: app).isSelected, "the slice starts on the axis plane nearest the camera")
     }
+    #endif
 
     @Test func thePicksReachTheModel() async throws {
         let (app, radial) = try await open()

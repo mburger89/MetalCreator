@@ -1,6 +1,8 @@
 import CreatorGeometry
 import Foundation
+#if canImport(simd)
 import simd
+#endif
 import Testing
 @testable import CreatorViewport
 
@@ -74,12 +76,14 @@ struct CameraMathTests {
     }
 
     @Test func floatConversionKeepsTheColumns() {
+        #if canImport(simd)
         #expect(Matrix4.identity.float == matrix_identity_float4x4)
         let asymmetric = Matrix4(c0: [1, 2, 3, 4], c1: [5, 6, 7, 8], c2: [9, 10, 11, 12], c3: [13, 14, 15, 16])
         let converted = asymmetric.float
         #expect(converted.columns.0 == SIMD4<Float>(1, 2, 3, 4))
         #expect(converted.columns.1 == SIMD4<Float>(5, 6, 7, 8))
         #expect(converted.columns.3 == SIMD4<Float>(13, 14, 15, 16))
+        #endif
         let product = Matrix4.identity * Matrix4.identity
         #expect(product == .identity)
     }

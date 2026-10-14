@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import CreatorGraph
 import CreatorViewport
 import Testing
@@ -51,3 +52,4 @@ struct OrbitBench {
         print(gpu.line(budget: Bench.frameBudget))
     }
 }
+#endif

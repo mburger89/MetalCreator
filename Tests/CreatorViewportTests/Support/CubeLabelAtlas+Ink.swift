@@ -1,3 +1,4 @@
+#if canImport(CoreText)
 // Test fixture file: reading the cube label atlas's ink back.
 @testable import CreatorViewport
 
@@ -43,3 +44,4 @@ extension CubeLabelAtlas {
         return box
     }
 }
+#endif

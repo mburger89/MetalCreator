@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// The shortcut nodes over trees (patterns spec §5 and §6, 7a-3): placements in rows, sizes per instance or per row, still one
@@ -38,6 +40,7 @@ struct PatternTreeShortcutTests {
         #expect(pathsNamed(in: part, by: node) == [[0, 0], [0, 1], [1, 0], [1, 1]])
     }
 
+    #if canImport(CreatorOCCT)
     @Test func aTreeOfPlacementsNamesEveryHoleByItsPath() async throws {
         let (plate, node) = rowed(HolePatternNode.self, ["diameter": .number(5), "depth": .number(3)])
         let part = try onlySolid(try await plate.h.run([node], kernel: OCCTKernel()), node)
@@ -112,6 +115,7 @@ struct PatternTreeShortcutTests {
         let items = Set(try onlySolid(featured, feature).topology.faces.flatMap(\.tags).filter { $0.node == qualifier }.map(\.item))
         #expect(Set(items.compactMap { InstancePath.indices(ofItem: $0) }) == [[0, 0], [0, 1], [1, 0], [1, 1]])
     }
+    #endif
 
     @Test func aTreeOnThePartIsRefusedAndNothingIsPlaced() async throws {
         var plate = PatternPlate(columns: 2, rows: 2)

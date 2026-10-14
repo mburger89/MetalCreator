@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 import CreatorKernel
 import Testing
 @testable import CreatorApp
@@ -48,3 +49,4 @@ struct PatternBenchAppTests {
         #expect(abs(try await bench.kernel.properties(of: part).volume - (PatternBenchApp.plateVolume - 15 * Double.pi * 4 * 6)) < 1e-3)
     }
 }
+#endif

@@ -1,7 +1,6 @@
 // Test fixture file: the two measures the tests place labels and chips with.
 import CreatorViewport
 import MetalUI
-import MetalUIText
 
 /// Captures the measurer a component reads from its environment.
 @MainActor
@@ -30,7 +29,7 @@ extension TextMeasure {
     static func real() throws -> TextMeasure {
         let box = MeasurerBox()
         _ = renderFrame({ ZStack { MeasurerProbe(box: box) } }, size: Size(width: Pixels(100), height: Pixels(100)),
-                        scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 256, height: 256))
+                        scaleFactor: 2, textSystem: testTextSystem(), atlas: GlyphAtlas(width: 256, height: 256))
         guard let measurer = box.measurer else { throw MeasurerNotCaptured() }
         return TextMeasure(measurer)
     }

@@ -2,10 +2,13 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 struct ExtrudeRevolveNodeTests {
+    #if canImport(CreatorOCCT)
     @Test func boxVolumeIsExact() async throws {
         let kernel = OCCTKernel()
         var h = Harness()
@@ -87,6 +90,7 @@ struct ExtrudeRevolveNodeTests {
         #expect(isClose(try await volume(try onlySolid(report, revolve), kernel), Double.pi * (100 - 25) * 10))
         #expect(isClose(try await volume(try onlySolid(report, quarter), kernel), Double.pi * (100 - 25) * 10 / 4))
     }
+    #endif
 
     @Test func kernelErrorsReachTheNodeInPlainWords() async throws {
         var h = Harness()

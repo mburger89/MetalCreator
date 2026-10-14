@@ -3,7 +3,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Boss / Pin Pattern (patterns spec §5): a boss standing on each placement and growing along its normal.
@@ -18,6 +20,7 @@ struct BossPatternNodeTests {
         return (plate, node)
     }
 
+    #if canImport(CreatorOCCT)
     func added(_ report: EvaluationReport, _ node: Node, _ kernel: OCCTKernel) async throws -> Double {
         (try await volume(try onlySolid(report, node), kernel)) - PatternPlate.plateVolume
     }
@@ -125,6 +128,7 @@ struct BossPatternNodeTests {
         let (plate, node) = bosses(settings)
         #expect(try await plate.h.run([node], kernel: OCCTKernel()).error(node) == message)
     }
+    #endif
 
     @Test func moreThanTwoThousandInstancesAreRefused() async throws {
         var (plate, node) = bosses(columns: 1, rows: 1)

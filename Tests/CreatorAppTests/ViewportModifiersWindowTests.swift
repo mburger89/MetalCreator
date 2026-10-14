@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import CreatorGeometry
 import MetalUI
 import MetalUITesting
@@ -73,3 +74,4 @@ struct ViewportModifiersWindowTests {
         #expect(tool.clicks == [.shift])
     }
 }
+#endif

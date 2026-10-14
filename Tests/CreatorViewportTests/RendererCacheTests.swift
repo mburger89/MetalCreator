@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import CreatorGeometry
 import Foundation
 import Metal
@@ -134,3 +135,4 @@ struct RendererCacheTests {
         #expect(rig.renderer.fillBuffer == nil, "leaving sketch mode frees it")
     }
 }
+#endif

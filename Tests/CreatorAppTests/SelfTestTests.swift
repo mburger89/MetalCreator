@@ -1,5 +1,7 @@
 import CreatorKernel
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Foundation
 import Testing
 @testable import CreatorApp
@@ -8,6 +10,7 @@ import Testing
 /// scratch folder is removed. The packaged run, with Homebrew unreadable, is `scripts/verify-app.sh`.
 @MainActor
 struct SelfTestTests {
+    #if canImport(CreatorOCCT)
     @Test func onOCCTEveryCheckPassesAndTheScratchFolderIsRemoved() async {
         let scratch = Self.scratch()
         let report = await SelfTest.run(kernel: OCCTKernel(), scratch: scratch)
@@ -16,6 +19,7 @@ struct SelfTestTests {
         #expect(report.results.first?.detail.hasPrefix("a 10 mm cube, 1000 mm³, meshed into ") == true)
         #expect(!FileManager.default.fileExists(atPath: scratch.path))
     }
+    #endif
 
     @Test func aFailingCheckIsReportedInWordsFailsTheRunAndStillRemovesTheScratchFolder() async {
         struct NoBundle: Error, CustomStringConvertible {

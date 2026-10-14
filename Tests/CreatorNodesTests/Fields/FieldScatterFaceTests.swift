@@ -2,11 +2,14 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Field Scatter on a picked flat face (fields spec §3.3): the same face pick, holes and margin as Face Pattern.
 struct FieldScatterFaceTests {
+    #if canImport(CreatorOCCT)
     /// The 60 × 40 × 6 plate (top on z = 0) with an optional Ø20 hole, and a Field Scatter wired to its solid.
     struct Fixture {
         var plate = PatternPlate()
@@ -74,4 +77,5 @@ struct FieldScatterFaceTests {
         let second = try #require(try await f.plate.h.run([f.scatter], kernel: OCCTKernel()).value(f.scatter, "placements")?.planes)
         #expect(first == second && !first.isEmpty)
     }
+    #endif
 }

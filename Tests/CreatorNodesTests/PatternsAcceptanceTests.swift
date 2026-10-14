@@ -4,7 +4,9 @@ import CreatorKernel
 import CreatorNodes
 import Foundation
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 /// Patterns spec §9, headless, in the spirit of the bracket: a 120 × 80 × 8 plate with a circular bolt pattern in two rings
 /// whose holes are a diameter per ring, a staggered vent grid of slots on its top face with an edge margin (the Face Pattern
@@ -94,6 +96,7 @@ struct PatternsAcceptanceTests {
         }
     }
 
+    #if canImport(CreatorOCCT)
     @Test func theWholePartBuildsEditsSavesReopensAndExports() async throws {
         let kernel = OCCTKernel()
         let part = try await Self.makePart(kernel: kernel)
@@ -254,4 +257,5 @@ struct PatternsAcceptanceTests {
         let solid = try finalSolid(document, part)
         #expect(isFilleted(solid, hole: [1, 3], bolts: part.bolts), "the same hole, turned with the ring")
     }
+    #endif
 }

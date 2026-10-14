@@ -39,7 +39,7 @@ struct AppWindow {
         await model.settle()
         let themeEditor = ThemeEditorModel(themes: model.themes)
         let input = AppInput(model: model)
-        let testApp = try TestApp()
+        let testApp = try TestApp(textSystem: { testTextSystem() })
         AppCommands.install(on: testApp.app, model: model, themeEditor: themeEditor)
         let window = try testApp.openWindow(
             title: "MetalCreator", size: Size(width: Pixels(Float(size.x)), height: Pixels(Float(size.y))),

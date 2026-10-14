@@ -4,7 +4,9 @@ import CreatorKernel
 import CreatorNodes
 import Foundation
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 /// 7a spec §9, headless: a plate with holes laid out by a data tree. Grid Points → Partition (rows) → Circle → Extrude
 /// → Boolean, whose `tools` gets one branch per run, so each row of holes cuts its own copy of the plate. A Path Mapper
@@ -57,6 +59,7 @@ struct TreesAcceptanceTests {
         solid.topology.faces.contains { $0.tags.contains(TopoTag(node: holes.id, item: item, role: .side(segment: 0))) }
     }
 
+    #if canImport(CreatorOCCT)
     @Test func eachRowOfHolesCutsItsOwnCopyOfThePlate() async throws {
         let kernel = OCCTKernel()
         let plate = Self.makePlate()
@@ -165,4 +168,5 @@ struct TreesAcceptanceTests {
         #expect(message.hasPrefix("The rule's source {A;B;C} names 3 levels, but this tree (2 × 4) has 1 level of branches."))
         guard case .idle? = document.results[plate.cut.id]?.state else { Issue.record("the cut should wait"); return }
     }
+    #endif
 }
