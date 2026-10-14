@@ -69,7 +69,11 @@ struct ImageResolverTests {
 
     @Test func aFolderOrADeviceIsNotAFileAndIsNeverOpened() throws {
         try folder.write(png, to: "maps/inside.png")
-        for path in [folder.url.appending(path: "maps").path(percentEncoded: false), "/dev/zero", "/dev/null"] {
+        var paths = [folder.url.appending(path: "maps").path(percentEncoded: false)]
+        #if !os(Windows)
+        paths += ["/dev/zero", "/dev/null"]
+        #endif
+        for path in paths {
             let reference = ImageReference.linked(relativePath: nil, absolutePath: path)
             let standard = URL(filePath: path).standardizedFileURL.path(percentEncoded: false)
             #expect(ImageResolver().stamp(of: reference) == .notAFile(path: standard))
@@ -80,6 +84,7 @@ struct ImageResolverTests {
     /// The stamp saw a file, then the path became a named pipe: `read` opens without blocking and checks what it opened, so it
     /// answers at once instead of waiting for a writer that never comes. (A regular file and a pipe cannot be told apart by a
     /// test that goes through `bytes(of:)`, which checks the path first; this one calls the reader itself.)
+    #if !os(Windows)
     @Test(.timeLimit(.minutes(1))) func aPathSwappedForANamedPipeAfterTheCheckIsRefusedNotWaitedOn() throws {
         let pipe = folder.url.appending(path: "swapped.png")
         #expect(mkfifo(pipe.path(percentEncoded: false), 0o644) == 0)
@@ -88,6 +93,7 @@ struct ImageResolverTests {
         #expect(try ImageResolver.read(real, name: "real.png") == png)
         #expect(throws: ImageProblem.self) { try ImageResolver.read(folder.url.appending(path: "none.png"), name: "none.png") }
     }
+    #endif
 
     @Test func aSymbolicLinkToAFileIsFollowed() throws {
         let target = try folder.write(png, to: "real.png")
