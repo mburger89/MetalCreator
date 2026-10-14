@@ -72,7 +72,7 @@ and §8 and its Errata (7b-3)) code is done; its human checks (group FI) are pen
 Cross-platform, sub-project xp-1 (Linux and Windows on MetalUI's SDL backend: everything but the 3D view and OpenCascade; plan
 `docs/superpowers/plans/2026-10-13-xp-1.md`, spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §2) code is done and
 the suite is green on Linux in CI (GitHub Actions, `.github/workflows/xp.yml`, x86_64 and aarch64; `scripts/linux-test.sh` runs the
-same in Docker); its human checks (group XP) are pending. The Windows job (CI run 38546048595) is green once: it builds, the suite passes (10 "Test run with" lines), and `--self-test` and
+same in Docker); its human checks (group XP) are pending. Window chrome on SDL (MetalUI S1, gap XP-G3, branch `xp-adopt-s1`, CI pin `ceca59f6`): the window is borderless and MetalUI draws minimise, zoom and close (`drawsWindowControls` stays at its default), `TopBar` pads by `titleBarInsets.left` (`AppLayout.topBarClearance`, macOS's traffic lights) and `.right` (`topBarTrailingClearance`, SDL's 138-point cluster), the bar stays at the margin inside the 32-point band as on macOS, and the drawn Close reaches `AppModel.closeRequested()` through `installCloseHandling`; `SDLChromeWindowTests` pins both shapes (MetalUI's `Options.sdlChrome`); the drag regions wait on gap XP-G11 (the viewport behind the bar carves them all away), human checks XP-11..XP-14. The Windows job (CI run 38546048595) is green once: it builds, the suite passes (10 "Test run with" lines), and `--self-test` and
 `--smoke-test 20` pass. Two failures that had been Windows-only were MetalCreator's own: the slice's starting axis chose YZ over XY on a
 last-bit tie of the default camera's view direction (`SlicePose.startingChoice` now treats near-equal alignments as a tie), and the window
 root, taller than the window with Windows' text metrics, was centred upward by the window's wrapper, so the top bar and the drag strip
@@ -511,7 +511,7 @@ the fourteen `Fields` nodes below, the seventeen
   through `replyToCloseRequest`; ⌘Q asks the same handler because the app sets no `onTerminateRequest`),
   `WindowChromeSync` keeps `Window.title`, `isDocumentEdited` and `representedURL` on the document
   (`AppModel.windowChrome`), the window opens with the hidden title bar (`AppLayout.windowStyle`, gap M6-c; check AS-5): `TopBar` pads
-  by `AppLayout.topBarClearance` of the window's `titleBarInsets` (zero in full screen), and the window is dragged by `WindowDragHandle`
+  by `AppLayout.topBarClearance` and `topBarTrailingClearance` of the window's `titleBarInsets` (left: AppKit's traffic lights; right: MetalUI's drawn buttons on SDL; zero in full screen), and the window is dragged by `WindowDragHandle`
   (CreatorStyle; MetalUI C22's `WindowDragGesture`, gap C8-a): the strip `AppLayout.windowDragStripHeight` along the top, and the top
   bar's empty space (its label and the gap beside the controls; the sketch toolbar's too), never behind a control (a disabled one would
   pass the press to a handle behind it), and
