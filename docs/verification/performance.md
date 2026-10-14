@@ -48,8 +48,8 @@ What headless can't show, so the numbers are an upper bound for the CPU and a lo
 ## Results
 
 Figures in this file that did not come from one controlled run (the same machine, load and commit for both sides of a
-comparison) are labelled as such where they appear. They are indicative only. An idle-machine re-run is pending and will
-replace them.
+comparison) are labelled as such where they appear. They are indicative only. The 2026-10-13 run below is the first
+near-idle one; the 2026-10-09 table is kept for comparison.
 
 2026-10-09, MacBook Pro (MacBookPro18,2, Apple M1 Max, 10 cores), macOS 27.0.1, MetalUI `2155f1e`, MetalCreator
 `71ec6fc` (branch `m7-measure`). Load averages (1, 5, 15 minutes) 22.54 / 33.70 / 58.73 before the run and 11.92 / 26.99 / 53.35
@@ -95,14 +95,49 @@ changed. With the panel hidden an orbit frame costs 1.98 ms; with it shown, 16.0
 changed; MetalCreator can't tell MetalUI to skip the unchanged panel (PERF-b's request). If either verdict is a miss
 on an idle run, it waits for MetalUI C14-b (PERF-b: rebuild only what changed; slice 1, which skips unchanged content getters, is
 adopted); its entry cites this file. Both are
-judged on an idle run, which is still to do: the machine stayed loaded while this was recorded.
+judged on the 2026-10-13 run below.
 
-**C14 slice 1 adopted (plan `2026-10-13-adopt-c14`), not timed.** The canvas's node, wire and comment views skip their
+**C14 slice 1 adopted (plan `2026-10-13-adopt-c14`).** The canvas's node, wire and comment views skip their
 `content` getter while their value is unchanged (gap PERF-b), which saves the getters of every node that did not change
 in a drag step or a camera change; the build recursion, prepaint and paint still run whole (C14-b). The counts are pinned
-by `CanvasContentSkipWindowTests` (a drag move evaluates one node and its wires and skips the rest). **Owed:** the
-drag, pan, zoom-50 and orbit rows above and the `Bench` window-cpu figures re-taken on an idle Mac; nothing in this file
-is re-measured, so every number above is still the pre-C14 one.
+by `CanvasContentSkipWindowTests` (a drag move evaluates one node and its wires and skips the rest).
+
+### Idle re-time after C14 slice 1 (2026-10-13)
+
+2026-10-13, MacBook Pro (MacBookPro18,2, Apple M1 Max, 10 cores), macOS 27.0.1, MetalUI `e85cb07a` (C14 slice 1; C14b is not in
+this checkout), MetalCreator `d734684` (master). `scripts/bench.sh`, every suite, release build. Load averages (1, 5, 15 minutes)
+2.32 / 4.61 / 6.49 before the run and 2.22 / 3.89 / 5.94 after. **Near idle, not idle by this file's rule** (all three under 3):
+the 1-minute load was under 3 but the 5- and 15-minute averages were not, because the release build ran just before (the load
+fell from 8.62 to 2.32 in the two minutes waited). Nothing else was started by this session. Full log: `.build/bench.log`.
+
+| §7.3 target | Benchmark | 2026-10-09 (loaded) | 2026-10-13 (median, p95) | Budget | Verdict |
+|---|---|---|---|---|---|
+| Panning a 50-node graph at 60 fps | `pan-50` | CPU 13.09 ms, GPU 3.25 ms | CPU 17.05 ms (p95 18.33), GPU 4.07 ms; 16 of 50 nodes built (max 20) | 16.67 ms | **Missed** (CPU; GPU met). It was Met on the loaded run and is slower now |
+| Zooming a 50-node graph at 60 fps | `zoom-50` | CPU 15.03 ms (not judged), GPU 3.38 ms | CPU 18.64 ms (p95 21.48, max 23.73), GPU 4.49 ms; 25 of 50 built | 16.67 ms | **Missed** (CPU; GPU met) |
+| Fillet radius drag, within 100 ms | `fillet-drag` | command-to-frame 43.14 ms: evaluate + mesh 20.44, window CPU 16.91, GPU 5.44 | command-to-frame 54.77 ms (p95 58.79): evaluate + mesh 25.38, window CPU 21.96 (p95 24.65), GPU 7.05; 75 of 75 steps showed a new part | 100 ms | **Met** |
+| Orbiting the bracket at 60 fps | `orbit-panel-left` | CPU 16.01 ms (not judged), GPU 5.11 ms | CPU 20.56 ms (p95 21.97), GPU 5.73 ms; 19 of 20 nodes built | 16.67 ms | **Missed** (CPU; GPU met) |
+| (the same, graph panel hidden) | `orbit-panel-hidden` | CPU 1.98 ms, GPU 2.06 ms | CPU 1.84 ms (p95 2.01), GPU 2.17 ms | 16.67 ms | **Met** |
+
+**Three rows miss their budget on the near-idle run, and the two that were Met on the loaded run (`pan-50`) or at its edge
+(`orbit-panel-left`) now miss too.** Every window-cpu figure here is higher than the 2026-10-09 one (pan +3.96 ms, zoom +3.61
+ms, orbit +4.55 ms, fillet-drag +5.05 ms), though the model step is unchanged (0.10 ms, 0.10 ms, 0.01 ms) and the first run was
+the heavily loaded one. So C14 slice 1 did not make the window CPU frame cheaper in this measurement, and the two runs differ
+in more than that commit (MetalUI `2155f1e` against `e85cb07a`, MetalCreator `71ec6fc` on `m7-measure` against master
+`d734684`, the fields and pattern work between them), so this run does not say whether slice 1 helped or what raised the frames.
+The panel-hidden orbit frame is unchanged (1.84 ms), which again puts the cost in the panel's rebuild, painting and layout. The
+three misses are MetalUI's, C14-b (PERF-b: rebuild only what changed); the entry cites this file. The 5- and 15-minute loads were
+above 3 for this run, so a run with all three under 3 could move the figures; a 4 ms gap against a load that low is not
+expected to close.
+
+The same run's other rows:
+
+| Row | 2026-10-13 (median, p95) | Budget | Verdict |
+|---|---|---|---|
+| `pan-50` model / window-gpu | 0.10 ms / GPU 4.07 ms (p95 5.13) | 16.67 ms (GPU) | GPU **Met** |
+| `kernel-bracket re-evaluation` (Width 60 to 90, wall) | 54.86 ms (was 46.91 ms) | none | recorded |
+| `kernel-main-actor gap` | 0.01 ms, max 0.10 ms (n 45,745) | 16.67 ms | **Met** |
+| `kernel-extrude`, `-revolve`, `-loft` | 0.48 ms, 0.48 ms, 2.09 ms | none | recorded |
+| `kernel-lock`, `kernel-hop` | 0.74 ms per 100,000 calls, 0.94 ms per 100 calls | none | recorded |
 
 ## Carry-over items (the M0–M1 carry-over note, M7)
 
@@ -150,6 +185,11 @@ Against the 100 ms budget for the fillet drag (spec §7.3), the bracket's refuse
 255.27 ms) sits at the budget's edge, but the run was at a load of about 150, far from idle, so it is **not judged**:
 neither inside nor outside the budget until the idle re-run replaces these figures. (The “works” cases are well inside it.)
 
+**Re-run 2026-10-13** (near idle: load 2.32 / 4.61 / 6.49 before, 2.22 / 3.89 / 5.94 after; MetalCreator `d734684`): the flange
+fillet R2.5 works in 11.75 ms (p95 12.86), R3 refused in 79.28 ms (p95 80.57), the search alone 60.42 ms, the checker alone
+1.96 ms; the bracket's Fillet node R3.x works in 23.82 ms (p95 24.40) and R8.x is refused in 75.13 ms (p95 78.22). So the refused
+bracket evaluation is **inside** the 100 ms budget on a near-idle machine (75.13 ms), and the verdict above is no longer open.
+
 ## Patterns (patterns spec §7, sub-project 7a-2)
 
 **Target:** about 200 instances, edit-to-preview within a second or two, release build on an idle Mac: the median of an
@@ -176,12 +216,21 @@ the Place + Boolean variant the same part as the shortcut, one blend face for th
 was also built once in a debug test run while writing the plan (all three variants, every node OK, the removed volume
 equal to 200 holes' to 1e-9), which says nothing about speed.
 
-**Results: not measured yet.** The numbers are for an idle run: `scripts/bench.sh PatternBench` (the script prints the machine
-and its load average before and after; idle means all three load averages under 3). Record here, with the machine, load
-and commits: cold build and edit median / p95 / max for each of the three, the verdict against 2,000 ms, and whether the
-Place + Boolean path costs more than the shortcut (it should not: they make the same two kernel calls). If the budget is
-missed, the first lever is the copies: `OCCTKernel.place` copies each tool's geometry (`BRepBuilderAPI_Transform` with copy),
-where a located shape (`TopoDS_Shape::Moved`) would share it; measure before changing the shim.
+**Results.** `scripts/bench.sh`, 2026-10-13, MacBookPro18,2 (Apple M1 Max, 10 cores), macOS 27.0.1, release build,
+MetalCreator `d734684`, MetalUI `e85cb07a`. Load averages 2.32 / 4.61 / 6.49 before and 2.22 / 3.89 / 5.94 after: near idle (the
+1-minute load under 3; the 5- and 15-minute averages not). This is the first measurement of these three; the cold build is one
+run, the edit is 40.
+
+| Benchmark | Cold build | Edit median | p95 | max | Budget | Verdict |
+|---|---|---|---|---|---|---|
+| `pattern-200 Hole Pattern` | 651.24 ms | 637.26 ms | 660.52 ms | 672.35 ms | 2,000 ms | **Met** |
+| `pattern-200 Hole Pattern + Fillet on one hole` | 1,143.08 ms | 824.27 ms | 848.56 ms | 851.43 ms | 2,000 ms | **Met** |
+| `pattern-200 Place + Boolean` | 645.08 ms | 622.77 ms | 653.79 ms | 658.11 ms | 2,000 ms | **Met** |
+
+No edit median is over 2,000 ms; the slowest (the filleted variant) is 824.27 ms, 41% of the budget. The Place + Boolean path
+costs no more than the shortcut (622.77 ms against 637.26 ms: the same two kernel calls), and the Fillet on one hole adds about
+190 ms to the edit (it re-fillets after every edit) and about 490 ms to the cold build. The copies lever (`TopoDS_Shape::Moved`)
+was not needed and was not pulled.
 
 ## Fields (fields spec §7, sub-project 7b-1)
 
@@ -249,13 +298,33 @@ that**: the first (7b-1, after lever 1) ran at load 4.16 3.69 4.95 before and 5.
 
 (The first run's log called row 3b `field-3`, the name it had in 7b-1; its raw line keeps that name.)
 
-**Watch `field-3`.** It sits 3.6 ms under its 50 ms budget, so it is the row most likely to flip on a slower or busier machine, and
-its numbers come from a run whose 5- and 15-minute load averages were not under 3.
+**Re-taken 2026-10-13** (`scripts/bench.sh`, every suite; MetalCreator `d734684`; load 2.32 / 4.61 / 6.49 before, 2.22 / 3.89 /
+5.94 after: near idle, 1-minute load under 3, the longer averages not; the lines are under Raw output):
 
-**`field-4c` is before the fast path.** The 7b-3 run was taken on a branch that did not yet have the analytic distance fast path
-(lever 1 below). The first tint measures the bracket's mesh and the slice's grid with the kernel, which the fast path should cut; the
-572.60 ms is the number without it, and `field-2`'s 585.37 ms to 70.61 ms drop is the size of change to expect. It has not been
-re-measured with the fast path.
+| Row | Median | p95 | max | n | Budget | Verdict | Before |
+|---|---|---|---|---|---|---|---|
+| `field-1` | 0.70 ms | 0.73 ms | 0.80 ms | 60 | 5 ms | met | 0.64 ms |
+| `field-2`, first (OCCT) | 73.79 ms | 74.57 ms | 74.89 ms | 22 | 100 ms | met | 70.61 ms |
+| `field-2`, cached | 0.20 ms | 0.22 ms | 0.22 ms | 22 | none | n/a | 0.20 ms |
+| `field-2b`, first (OCCT, smooth loft) | 850.74 ms | 866.87 ms | 866.87 ms | 8 | none | recorded | 868.20 ms |
+| `field-3`, Field Scatter × about 2,000 points on a face | 45.20 ms | 45.98 ms | 46.68 ms | 22 | 50 ms | met | 46.41 ms |
+| `field-3b`, Sample Field then Cull by Field | 0.35 ms | 0.39 ms | 0.43 ms | 40 | 50 ms | met | 0.35 ms |
+| `field-4`, edit to a tinted bracket (Remap of the signed distance) | 32.04 ms | 35.45 ms | 238.65 ms | 40 | 150 ms | met | 31.70 ms |
+| `field-4b`, the same with a Radial Gradient | 34.71 ms | 35.99 ms | 61.11 ms | 40 | 150 ms | met | 34.71 ms |
+| `field-4c`, first tint of the bracket by its signed distance (kernel) | 184.64 ms | 184.64 ms | 184.64 ms | 1 | none | recorded | 572.60 ms |
+
+**`field-3` still meets 50 ms:** 45.20 ms, 4.80 ms under the budget (it was 46.41 ms, 3.59 ms under), so the watch is not lifted
+but it is not worse; 9.6% headroom on a near-idle machine. Keep watching it: it is the row nearest its budget, and the 5- and
+15-minute loads of this run were above 3.
+
+**`field-4c` fell from 572.60 ms to 184.64 ms with the analytic distance fast path** (3.1 times faster, one run, n 1, so read the
+ratio loosely). The 572.60 ms was taken before the fast path; this run has it. `field-2` is unchanged by the re-run (70.61 ms to
+73.79 ms, both under 100 ms), and its gate stays met. `field-4`'s max of 238.65 ms is a single outlier step in 40 (the median is
+32.04 ms); the 480.13 ms max of the earlier run was the same kind.
+
+**`field-4c` in the table above is before the fast path.** The 7b-3 run was taken on a branch that did not yet have the analytic
+distance fast path (lever 1 below). The 572.60 ms is the number without it; the 2026-10-13 re-take above, with the fast path, is
+184.64 ms.
 
 **Row 2 needed lever 1.** An idle run before it measured `field-2` at a median of 585.37 ms (p95 589.87, n 22; load before 2.85
 7.32 10.89), which missed the 100 ms gate. Lever 1 is the analytic fast path for planar and cylindrical faces in
@@ -279,7 +348,66 @@ counts), (3) stop and ask. The budget is not edited and a miss is not called met
 
 ## Raw output
 
-The run the tables above come from (`scripts/bench.sh`, every suite):
+The 2026-10-13 run (`scripts/bench.sh`, every suite; MetalCreator `d734684`, MetalUI `e85cb07a`; the machine and load lines are
+the script's, copied from its output):
+
+```text
+BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
+BENCH load before: 2.32 4.61 6.49
+BENCH blend-flange fillet R2.5 (works: build + check): median 11.75 ms, p95 12.86 ms, max 13.19 ms (n 25)
+BENCH blend-flange fillet R3 (refused: build + check + search): median 79.28 ms, p95 80.57 ms, max 82.46 ms (n 25)
+BENCH blend-flange search alone (largestValidBlend below R3): median 60.42 ms, p95 62.41 ms, max 62.52 ms (n 25)
+BENCH blend-flange checker alone (BRepCheck_Analyzer on the union): median 1.96 ms, p95 2.06 ms, max 2.06 ms (n 25)
+BENCH blend-bracket message: Radius 9.2 mm is too large for the selected edges (max ≈ 3.9 mm).
+BENCH blend-bracket Fillet node R3.x (works; evaluation of the Fillet and what follows): median 23.82 ms, p95 24.40 ms, max 24.82 ms (n 20)
+BENCH blend-bracket Fillet node R8.x (refused; evaluation of the Fillet and what follows): median 75.13 ms, p95 78.22 ms, max 78.85 ms (n 20)
+BENCH field-1 five nodes × 10,000 points (no kernel): median 0.70 ms, p95 0.73 ms, max 0.80 ms (n 60); budget 5.00 ms: met
+BENCH field-2 signed distance to a plate × 10,000 points, first (OCCT): median 73.79 ms, p95 74.57 ms, max 74.89 ms (n 22); budget 100.00 ms: met
+BENCH field-2 signed distance to a plate × 10,000 points, cached: median 0.20 ms, p95 0.22 ms, max 0.22 ms (n 22)
+BENCH field-2b signed distance to a smooth loft × 10,000 points, first (OCCT): median 850.74 ms, p95 866.87 ms, max 866.87 ms (n 8)
+BENCH field-3 Field Scatter × about 2,000 points on a face: median 45.20 ms, p95 45.98 ms, max 46.68 ms (n 22); budget 50.00 ms: met
+BENCH field-3b Sample Field + Cull by Field × 2,000 placements: median 0.35 ms, p95 0.39 ms, max 0.43 ms (n 40); budget 50.00 ms: met
+BENCH field-4c first tint of the bracket by its signed distance (kernel): median 184.64 ms, p95 184.64 ms, max 184.64 ms (n 1)
+BENCH field-4 edit to a tinted bracket preview (Remap of the signed distance): median 32.04 ms, p95 35.45 ms, max 238.65 ms (n 40); budget 150.00 ms: met
+BENCH field-4b edit to a tinted bracket preview (Radial Gradient): median 34.71 ms, p95 35.99 ms, max 61.11 ms (n 40); budget 150.00 ms: met
+BENCH fillet-drag: 75 of 75 steps showed a new part
+BENCH fillet-drag evaluate+mesh: median 25.38 ms, p95 26.77 ms, max 27.39 ms (n 75)
+BENCH fillet-drag window-cpu: median 21.96 ms, p95 24.65 ms, max 37.05 ms (n 75)
+BENCH fillet-drag gpu (viewport + window): median 7.05 ms, p95 8.50 ms, max 18.89 ms (n 75)
+BENCH fillet-drag command-to-frame: median 54.77 ms, p95 58.79 ms, max 79.88 ms (n 75); budget 100.00 ms: met
+BENCH pan-50 nodes built of 50: median 16, max 20
+BENCH pan-50 model: median 0.10 ms, p95 0.12 ms, max 0.14 ms (n 120)
+BENCH pan-50 window-cpu: median 17.05 ms, p95 18.33 ms, max 21.66 ms (n 120); budget 16.67 ms: missed
+BENCH pan-50 window-gpu: median 4.07 ms, p95 5.13 ms, max 6.87 ms (n 120); budget 16.67 ms: met
+BENCH zoom-50 nodes built of 50: median 25, max 50
+BENCH zoom-50 model: median 0.10 ms, p95 0.11 ms, max 0.13 ms (n 120)
+BENCH zoom-50 window-cpu: median 18.64 ms, p95 21.48 ms, max 23.73 ms (n 120); budget 16.67 ms: missed
+BENCH zoom-50 window-gpu: median 4.49 ms, p95 5.22 ms, max 5.93 ms (n 120); budget 16.67 ms: met
+BENCH kernel-extrude (60 × 40 × 6 plate): median 0.48 ms, p95 0.50 ms, max 0.53 ms (n 50)
+BENCH kernel-revolve (tube): median 0.48 ms, p95 0.51 ms, max 0.51 ms (n 50)
+BENCH kernel-loft (two rectangles): median 2.09 ms, p95 2.13 ms, max 2.25 ms (n 50)
+BENCH kernel-lock (uncontended, per 100,000 calls): median 0.74 ms, p95 0.75 ms, max 0.78 ms (n 50)
+BENCH kernel-hop (refused calls: an actor round trip each, no OCCT; per 100 calls): median 0.94 ms, p95 0.99 ms, max 1.04 ms (n 50)
+BENCH kernel-bracket re-evaluation (Width 60 ↔ 90, wall): median 54.86 ms, p95 56.05 ms, max 56.05 ms (n 8)
+BENCH kernel-main-actor gap during re-evaluation: median 0.01 ms, p95 0.01 ms, max 0.10 ms (n 45745); budget 16.67 ms: met
+BENCH orbit-panel-left: the canvas builds 19 of 20 nodes
+BENCH orbit-panel-left model: median 0.01 ms, p95 0.01 ms, max 0.01 ms (n 100)
+BENCH orbit-panel-left window-cpu: median 20.56 ms, p95 21.97 ms, max 24.20 ms (n 100); budget 16.67 ms: missed
+BENCH orbit-panel-left gpu (viewport + window): median 5.73 ms, p95 6.80 ms, max 7.91 ms (n 100); budget 16.67 ms: met
+BENCH orbit-panel-hidden: the graph panel is hidden (20 nodes)
+BENCH orbit-panel-hidden model: median 0.00 ms, p95 0.00 ms, max 0.01 ms (n 100)
+BENCH orbit-panel-hidden window-cpu: median 1.84 ms, p95 2.01 ms, max 2.24 ms (n 100); budget 16.67 ms: met
+BENCH orbit-panel-hidden gpu (viewport + window): median 2.17 ms, p95 2.56 ms, max 3.21 ms (n 100); budget 16.67 ms: met
+BENCH pattern-200 Hole Pattern cold build (every node, scene and meshes): median 651.24 ms, p95 651.24 ms, max 651.24 ms (n 1)
+BENCH pattern-200 Hole Pattern edit diameter (evaluate+scene+meshes): median 637.26 ms, p95 660.52 ms, max 672.35 ms (n 40); budget 2000.00 ms: met
+BENCH pattern-200 Hole Pattern + Fillet on one hole cold build (every node, scene and meshes): median 1143.08 ms, p95 1143.08 ms, max 1143.08 ms (n 1)
+BENCH pattern-200 Hole Pattern + Fillet on one hole edit diameter (evaluate+scene+meshes): median 824.27 ms, p95 848.56 ms, max 851.43 ms (n 40); budget 2000.00 ms: met
+BENCH pattern-200 Place + Boolean cold build (every node, scene and meshes): median 645.08 ms, p95 645.08 ms, max 645.08 ms (n 1)
+BENCH pattern-200 Place + Boolean edit diameter (evaluate+scene+meshes): median 622.77 ms, p95 653.79 ms, max 658.11 ms (n 40); budget 2000.00 ms: met
+BENCH load after: 2.22 3.89 5.94
+```
+
+The 2026-10-09 run the first table comes from (`scripts/bench.sh`, every suite):
 
 ```text
 BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
