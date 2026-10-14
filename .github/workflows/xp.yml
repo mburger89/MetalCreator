@@ -130,6 +130,8 @@ jobs:
           "Windows: PASS ($runs 'Test run with' lines)"
       - name: Self-test and launch smoke
         working-directory: MetalCreator
+        # Runs even when Test is red, so one run reports both.
+        if: ${{ !cancelled() }}
         # --smoke-test opens the real window over SDL's offscreen renderers (Direct3D 12 on WARP) for 5 s and fails unless it
         # drew a first frame.
         run: |
