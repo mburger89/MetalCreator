@@ -81,14 +81,31 @@ public struct ImageResolver: Sendable {
     /// without blocking (a named pipe would otherwise hold the caller until someone wrote to it) and its descriptor must
     /// be a regular file, whatever the path was.
     static func read(_ url: URL, name: String) throws(ImageProblem) -> Data {
+        let handle: FileHandle
+        #if os(Windows)
+        // No POSIX descriptors here: the attributes say whether it is a regular file, then it is opened for reading.
+        let attributes: [FileAttributeKey: Any]
+        do {
+            attributes = try FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))
+            guard attributes[.type] as? FileAttributeType == .typeRegular else { throw ImageProblem.notAFile(name: name) }
+            if let size = (attributes[.size] as? NSNumber)?.intValue, size > ImageLimits.maxBytes { throw ImageProblem.tooManyBytes(size) }
+            handle = try FileHandle(forReadingFrom: url)
+        } catch let problem as ImageProblem {
+            throw problem
+        } catch {
+            throw .unreadable(name: name, reason: error.localizedDescription)
+        }
+        defer { try? handle.close() }
+        #else
         let descriptor = open(url.path(percentEncoded: false), O_RDONLY | O_NONBLOCK | O_CLOEXEC)
-        guard descriptor >= 0 else { throw .unreadable(name: name, reason: String(cString: strerror(errno)) + ".") }
-        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        guard descriptor >= 0 else { throw .unreadable(name: name, reason: Self.message(forErrno: errno)) }
+        handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
         defer { try? handle.close() }
         var status = stat()
-        guard fstat(descriptor, &status) == 0 else { throw .unreadable(name: name, reason: String(cString: strerror(errno)) + ".") }
-        guard status.st_mode & S_IFMT == S_IFREG else { throw .notAFile(name: name) }
+        guard fstat(descriptor, &status) == 0 else { throw .unreadable(name: name, reason: Self.message(forErrno: errno)) }
+        guard status.st_mode & mode_t(S_IFMT) == mode_t(S_IFREG) else { throw .notAFile(name: name) }
         guard status.st_size <= ImageLimits.maxBytes else { throw .tooManyBytes(Int(status.st_size)) }
+        #endif
         let data: Data
         do {
             data = try handle.read(upToCount: ImageLimits.maxBytes + 1) ?? Data()
@@ -98,6 +115,13 @@ public struct ImageResolver: Sendable {
         guard data.count <= ImageLimits.maxBytes else { throw .tooManyBytes(data.count) }
         return data
     }
+
+    #if !os(Windows)
+    /// The system's message for an `errno` value, with a full stop, as the problem text wants.
+    private static func message(forErrno code: Int32) -> String {
+        String(cString: strerror(code)) + "."
+    }
+    #endif
 
     /// The bytes of the file at `url` as an image to choose or embed, with the same bounds as `bytes(of:)`.
     public static func bytes(ofFileAt url: URL) throws(ImageProblem) -> Data {
