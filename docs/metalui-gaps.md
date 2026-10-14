@@ -1146,5 +1146,5 @@ Labelled XP-G3 to XP-G8 after the spec's table (`docs/superpowers/specs/2026-10-
   exits 0 only after a `.task` ran inside the first frame, which is how CI proves a launch with no display. It uses the SPI because
   MetalUI offers no public way to do that. Needed: a public headless-launch initializer or flag on `SDLPlatform`, so CI does not
   depend on a symbol MetalUI may rename without notice. Until then a MetalUI bump can break `main.swift` at compile time, loudly,
-  and the fix is one line. The smoke test is verified on Linux only (Docker); on Windows it is unverified until CI runs (human
+  and the fix is one line. The smoke test passes in CI on Linux and Windows (run 38535917146) (human
   check XP-9).

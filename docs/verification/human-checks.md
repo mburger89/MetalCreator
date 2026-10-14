@@ -1798,11 +1798,15 @@ a graph of 50 nodes.
 ## Group XP — MetalCreator on Linux and Windows (xp-1)
 
 **Status: NOT RUN.** Plan `2026-10-13-xp-1.md`; spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §2. The suite is
-green on Linux in Docker (`scripts/linux-test.sh`) and the app reaches its first frame under SDL's offscreen renderers
-(`--smoke-test`); these checks are what a person sees on a real desktop, which Docker cannot show. Linux: SDL 3.4 and AccessKit on
+green on Linux in CI (GitHub Actions, x86_64 and aarch64; `scripts/linux-test.sh` runs it in Docker too) and the app reaches its
+first frame under SDL's offscreen renderers (`--smoke-test`) on Linux and Windows; these checks are what a person sees on a real
+desktop, which CI cannot show. Linux: SDL 3.4 and AccessKit on
 the compiler's default paths (MetalUI `docs/getting-started.md`, "Linux and Windows"), then `swift run MetalCreatorApp`. Windows:
-the same with the `-Xcc -I… -Xswiftc -L…` flags `.github/workflows/xp.yml` hands SwiftPM; **the Windows CI job has never run**, so
-XP-1 on Windows is also the first proof that it builds. macOS needs no check here: its test count and its look are unchanged.
+the same with the `-Xcc -I… -Xswiftc -L…` flags `.github/workflows/xp.yml` hands SwiftPM; **the Windows CI job builds, self-tests and launches but is
+not green** (CI run 38535917146): the suite runs to the end with 10 "Test run with" lines and 2 failures, both Windows-only and not
+yet understood: `SketchWindowDragWindowTests.theToolbarsLabelGapAndStripMoveTheWindow` (the strip's last row gets 0 drag requests)
+and `AppFieldPreviewTests.theLegendsToggleChangesTheRampAndTheSliceHandleEditsNoDocument` (`viewport.slice.origin.z` is 5.0, not
+7.0). The job stays `continue-on-error` until they are fixed. macOS needs no check here: its test count and its look are unchanged.
 
 - [ ] **XP-1 Launch.** `swift run MetalCreatorApp` opens a window titled "MetalCreator" with the system title bar, a menu bar
   strip drawn across its top (File, Edit, View) above the glass top bar, the graph panel docked at the bottom and the inspector
@@ -1834,8 +1838,8 @@ XP-1 on Windows is also the first proof that it builds. macOS needs no check her
   the system resize cursors (XP-G8). Pinned: `PanelResizeCursorTests` (the intent; the platform's shape is SDL's). **Observed:**
 - [ ] **XP-9 Self-test and smoke test.** `MetalCreatorApp --self-test` prints four `ok` lines (the kernel and both exports
   "skipped: Geometry isn't available on this platform yet.", the shaders found) and exits 0; `--smoke-test 5` prints "reached the
-  first frame" and exits 0 on a desktop with a display too. On Windows this is the first time either runs (the smoke test's SPI and
-  Direct3D 12 offscreen path are proven on Linux only, gap XP-G9). Pinned: `SelfTestTests`, `LaunchSmokeTests`. **Observed:**
+  first frame" and exits 0 on a desktop with a display too. Both pass in CI on Linux and Windows (Direct3D 12 on WARP; the
+  smoke test uses MetalUI SPI, gap XP-G9); a desktop with a display is what is left to see. Pinned: `SelfTestTests`, `LaunchSmokeTests`. **Observed:**
 - [ ] **XP-10 A screen reader (optional).** With Orca on Linux or Narrator on Windows running, the top bar's buttons and the
   graph panel's nodes are announced by name (MetalUI's `AccessKit` trait). Not pinned: MetalUI's own tests cover the bridge.
   **Observed:**
