@@ -13,8 +13,10 @@ public final class ExportRun {
     public private(set) var fraction = 0.0
     /// True once Cancel has been pressed and the work has not yet stopped.
     public private(set) var isCancelling = false
-    /// What stops the work; set by whoever started it.
-    @ObservationIgnored var onCancel: (@MainActor () -> Void)?
+    /// What stops the work; set by whoever started it. A Cancel pressed before it is set is replayed when it is.
+    @ObservationIgnored var onCancel: (@MainActor () -> Void)? {
+        didSet { if isCancelling { onCancel?() } }
+    }
 
     public init(title: String) {
         self.title = title

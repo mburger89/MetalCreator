@@ -121,13 +121,17 @@ extension AppModel {
         } catch {
             throw AppProblem("The part couldn't be exported", Evaluator.message(for: error))
         }
+        // A Cancel that arrived as the evaluation finished still leaves no file.
+        if run.isCancelling || Task.isCancelled { return }
         do {
             var writer = STLWriter()
             for solid in collected.solids {
                 let mesh = try await kernel.tessellate(solid, tolerance: Self.stlTolerance)
                 writer.add(positions: mesh.positions, indices: mesh.indices)
+                if run.isCancelling { return }
             }
             for mesh in collected.meshes { writer.add(mesh) }
+            if run.isCancelling { return }
             try writer.data().write(to: url, options: .atomic)
         } catch {
             throw AppProblem("The STL file couldn't be written", Evaluator.message(for: error))
