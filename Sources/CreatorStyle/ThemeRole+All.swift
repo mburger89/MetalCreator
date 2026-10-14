@@ -20,6 +20,8 @@ extension ThemeRole {
         ThemeRole("selectionHeader", "Selection rules", .nodes, \.selectionHeader),
         ThemeRole("featureHeader", "Feature nodes", .nodes, \.featureHeader),
         ThemeRole("outputHeader", "Output node", .nodes, \.outputHeader),
+        ThemeRole("implicitHeader", "Implicit nodes", .nodes, \.implicitHeader),
+        ThemeRole("meshHeader", "Mesh nodes", .nodes, \.meshHeader),
         ThemeRole("success", "Success", .status, \.success),
         ThemeRole("warning", "Warning", .status, \.warning),
         ThemeRole("error", "Error", .status, \.error),

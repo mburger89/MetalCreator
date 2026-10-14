@@ -9,6 +9,7 @@ struct PaletteTests {
     @Test(arguments: [
         (NodeCategory.value, UInt32(0x6272a4)), (.profile, 0x50fa7b), (.solid, 0xbd93f9),
         (.selection, 0xff79c6), (.feature, 0xffb86c), (.patterns, 0xffb86c), (.lists, 0x6272a4), (.output, 0x8be9fd),
+        (.implicit, 0xf1fa8c), (.mesh, 0xc5c8de),
     ])
     func headerColoursFollowTheSpecTable(_ category: NodeCategory, _ rgb: UInt32) {
         #expect(Palette.dracula.header(for: category) == HexColor(rgb))
@@ -30,6 +31,10 @@ struct PaletteTests {
         #expect(Palette.dracula.socket(.edgeSet) == Palette.dracula.header(for: .selection))
         #expect(Palette.dracula.socket(.faceSet) == Palette.dracula.header(for: .selection))
         #expect(Palette.dracula.socket(.number) == Palette.dracula.header(for: .value))
+        #expect(Palette.dracula.socket(.implicit) == Palette.dracula.header(for: .implicit))
+        #expect(Palette.dracula.socket(.mesh) == Palette.dracula.header(for: .mesh))
+        #expect(Palette.dracula.socket(.implicit) != Palette.dracula.socket(.field))
+        #expect(Palette.dracula.socket(.mesh) != Palette.dracula.socket(.implicit))
     }
 
     @Test func glassAndHairlineHaveTheirOpacities() {

@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import CreatorSketch
 import CreatorViewport
 import Testing
@@ -87,6 +89,7 @@ struct LayoutPreviewTests {
         #expect(app.viewport.overlay.isEmpty)
     }
 
+    #if canImport(CreatorOCCT)
     @Test func theShortcutsAndPlaceShowNothingOfTheirOwn() async throws {
         var builder = GraphBuilder()
         let grid = builder.add(GridPointsNode.self, ["countX": .integer(2), "countY": .integer(2)])
@@ -131,6 +134,7 @@ struct LayoutPreviewTests {
         await app.settle()
         #expect(app.viewport.overlay.lines.count == 9, "and back after it")
     }
+    #endif
 
     @Test func anOpenSketchKeepsItsOwnLinesWhileALayoutNodeIsSelected() async throws {
         var sketch = Sketch(plane: .fixed(.xy))
@@ -160,6 +164,7 @@ struct LayoutPreviewTests {
         #expect(app.viewport.overlay.lines.count == 36)
     }
 
+    #if canImport(CreatorOCCT)
     // MARK: Face Pattern
 
     @Test func aFacePatternAlsoOutlinesTheAreaItFillsWithDashedLines() async throws {
@@ -193,4 +198,5 @@ struct LayoutPreviewTests {
             if case .solid(let solid) = scalar { solid } else { nil }
         }.first)
     }
+    #endif
 }

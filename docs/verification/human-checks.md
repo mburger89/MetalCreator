@@ -1794,3 +1794,124 @@ a graph of 50 nodes.
 - [ ] **C14-7 Note and frame handles.** Select a note, then a frame: each shows its resize handles and ring only while
   selected, and a handle drag resizes it. Pinned: `selectingACommentEvaluatesOnlyThatComment`,
   `aHandleAndAWireAreEqualOnlyWhenEveryInputIs`. **Observed:**
+
+## Group XP — MetalCreator on Linux and Windows (xp-1)
+
+**Status: NOT RUN.** Plan `2026-10-13-xp-1.md`; spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §2. The suite is
+green on Linux in CI (GitHub Actions, x86_64 and aarch64; `scripts/linux-test.sh` runs it in Docker too) and the app reaches its
+first frame under SDL's offscreen renderers (`--smoke-test`) on Linux and Windows; these checks are what a person sees on a real
+desktop, which CI cannot show. Linux: SDL 3.4 and AccessKit on
+the compiler's default paths (MetalUI `docs/getting-started.md`, "Linux and Windows"), then `swift run MetalCreatorApp`. Windows:
+the same with the `-Xcc -I… -Xswiftc -L…` flags `.github/workflows/xp.yml` hands SwiftPM; the Windows CI job builds, passes the whole suite (run 38546048595), self-tests and launches; it stays `continue-on-error`, with a
+warning step when red. macOS needs no check here: its test count and its look are unchanged.
+
+- [ ] **XP-1 Launch.** `swift run MetalCreatorApp` opens a window titled "MetalCreator" with no system title bar (MetalUI draws minimise, zoom and close at the top right, see XP-11), a menu bar
+  strip drawn across its top (File, Edit, View) above the glass top bar, the graph panel docked at the bottom and the inspector
+  on the right, in Dracula. Quitting (the window's close button, and File's quit where the platform has one) asks nothing on an
+  unedited document. The top bar's top edge is fully visible below the strip (the root is not clipped by it: nothing in MetalCreator reads
+  `Window.drawnChromeHeight`, spec erratum E3). Pinned: `--smoke-test` (`LaunchSmokeTests`). **Observed:**
+- [ ] **XP-2 The viewport card.** The area behind the panels shows the theme's gradient and one glass card, centred, reading "The
+  3D view isn't available on this platform yet."; the window's size changes keep the layout. Pinned: `ViewportPaneTests`.
+  **Observed:**
+- [ ] **XP-3 Geometry badges.** Wire Rectangle → Extrude → Output: the Extrude's badge is the error and its text reads "Geometry
+  isn't available on this platform yet."; the Rectangle's is fine. Editing a parameter, wiring, undo and redo, groups, notes and
+  frames, and Save then Open all work. Pinned: `KernelUnavailableNodeTests`, `KernelUnavailableTests`. **Observed:**
+- [ ] **XP-4 Shortcuts use Ctrl.** In the menus File shows Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S and Edit shows Ctrl+Z and
+  Ctrl+Shift+Z (never ⌘ or Super). On the canvas Ctrl+A selects all, Ctrl+C then Ctrl+V pastes, Ctrl+D duplicates, a Ctrl-click
+  toggles one node in and out of the selection and Ctrl-scroll zooms the canvas. Pinned: `AppShortcutTests`, `KeyCommandTests`.
+  **Observed:**
+- [ ] **XP-5 Files and the themes folder.** Save As… offers `.mcgraph` and its dialog filters to it; the file opens on macOS and
+  the other way round. Edit Themes…, duplicate a theme and quit: the theme file is in `~/.local/share/MetalCreator/Themes` (Linux,
+  or `$XDG_DATA_HOME`) or `%APPDATA%\MetalCreator\Themes` (Windows) and is still there on the next launch. Pinned:
+  `ContentTypeTests`, `ThemeFolderTests`. **Observed:**
+- [ ] **XP-6 The Image Field.** Add an Image Field and choose a PNG and a JPEG: the field takes them (no error badge), a rotated
+  phone photo (EXIF orientation) comes out upright, and a GIF raises "Only PNG and JPEG images can be used." A graph saved on macOS
+  with an embedded picture opens and gives the same field. Pinned: `GreyImageDecoderTests`, `GreyImageDecoderPinnedTests`,
+  `ImageActionTests`. **Observed:**
+- [ ] **XP-7 Text.** Menus, nodes, the inspector and the sketch inspector are readable in the installed font (DejaVu Sans on a
+  stock Ubuntu, Segoe UI on Windows) with no missing-glyph boxes, and a wrapped hint (the Mirror tool's, in the sketch inspector)
+  shows all its words: DejaVu is wider than macOS's font and wraps it to more lines. Pinned: `TextMeasureWindowTests`.
+  **Observed:**
+- [ ] **XP-8 Cursors.** (The title bar half moved to XP-11..XP-14 with MetalUI S1.) Panning the canvas shows the move cursor in place of the hand, and the panels' resize handles show
+  the system resize cursors (XP-G8). Pinned: `PanelResizeCursorTests` (the intent; the platform's shape is SDL's). **Observed:**
+- [ ] **XP-9 Self-test and smoke test.** `MetalCreatorApp --self-test` prints four `ok` lines (the kernel and both exports
+  "skipped: Geometry isn't available on this platform yet.", the shaders found) and exits 0; `--smoke-test 5` prints "reached the
+  first frame" and exits 0 on a desktop with a display too. Both pass in CI on Linux and Windows (Direct3D 12 on WARP; the
+  smoke test uses MetalUI SPI, gap XP-G9); a desktop with a display is what is left to see. Pinned: `SelfTestTests`, `LaunchSmokeTests`. **Observed:**
+- [ ] **XP-10 A screen reader (optional).** With Orca on Linux or Narrator on Windows running, the top bar's buttons and the
+  graph panel's nodes are announced by name (MetalUI's `AccessKit` trait). Not pinned: MetalUI's own tests cover the bridge.
+  **Observed:**
+- [ ] **XP-11 Borderless chrome, Linux X11.** On an X11 session (GNOME or KDE): the window has no system title bar; MetalUI's minimise,
+  zoom and close are drawn at the top right and the glass top bar's Export menu ends left of them with a gap (not under them);
+  the Preview picker, Undo, Redo and Export still click. Minimise iconifies, zoom maximises and reads "Restore" after, and each
+  works twice. A file with changes and the drawn Close: the Save / Don't Save / Cancel alert asks, Cancel keeps the window, Don't
+  Save closes it; an unedited document closes at once. In a sketch the sketch toolbar's Finish ends left of the buttons too. The theme
+  editor and inspector at the top right start below the buttons. Pinned: `SDLChromeWindowTests` (the layout, Close through the model).
+  **Observed:**
+- [ ] **XP-12 Drag, edges and zoom, Linux X11.** With today's placeholder viewport the regions are published; once xp-3's viewport is there it needs
+  MetalUI XP-G11 or the bar moves nothing. Pressing the bar's empty space, the strip and the document's name moves the window; pressing
+  on a bar control (Undo, Export, Finish in a sketch) never does (MetalUI divergence 426); the six-point edges and twelve-point
+  corners resize the window, and the viewport still orbits with a drag below the bar. Double-clicking the band zooms the window
+  (MetalUI CW6: not promised on Linux; log it if not). Hover, tooltips and the wheel over the bar do nothing (divergence 425; nothing
+  there needs them). Resize edges work today. **Observed:**
+- [ ] **XP-13 Borderless chrome, Wayland.** The same as XP-11 and XP-12 on a Wayland session (GNOME, KDE), including the resize edges
+  and, where the compositor draws none, the missing shadow (not MetalCreator's). **Observed:**
+- [ ] **XP-14 Borderless chrome, Windows 11.** The same as XP-11 and XP-12 on Windows 11: the three drawn buttons at the top right,
+  drag, resize edges, double-click zoom, and the close veto with unsaved changes. The snap-layout flyout over zoom, the DWM shadow
+  and the rounded corners are not there for a borderless window (MetalUI CW9: platform); note what is missing. **Observed:**
+
+## Group IM — implicit geometry: sockets, nodes, meshes, the progressive preview and export (7c-1)
+
+**Status: NOT RUN.** Plan `2026-10-13-7c-core.md`, spec `2026-10-13-implicit-lattices-design.md` §2 to §6. Run `swift run MetalCreatorApp` on a
+Mac with a GPU. The tests pin the values, the maths, the Metal-against-CPU agreement, the octree, the mesher's invariants, the bakes,
+the nodes, the export and the file; these check only what a real window, a real GPU and a real slicer show. Build: a Sphere (radius 20)
+into a Union's `shapes` beside a Box (30 × 30 × 30, corner radius 3) placed 15 mm along X by a Place (`implicit`), the Union (blend
+radius 4) into a Shell (inward, 2), the Shell into a Mesh, the Mesh into an Output.
+
+- [ ] **IM-1 Colours and the library.** The Implicit sockets and wires are one colour (the Dracula yellow), the Mesh sockets another
+  (a pale grey), both easy to tell from the Value blue-grey, the Solid purple, the Selection pink, the Feature orange and the Fields
+  orange. The node library has "Implicit" (Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit,
+  Isosurface) after "Fields" and "Mesh" (Mesh) after that, then "Output". Switch View > Theme to Alucard and Nord: the dots and wires
+  stay legible, and the theme editor lists "Implicit nodes" and "Mesh nodes" under Node categories. Pinned: `PaletteTests`,
+  `ImplicitLibraryTests`, `ThemeTests`, for the default theme only; Alucard and Nord are human-only. **Observed:**
+- [ ] **IM-2 The recipe and the tooltip.** Select the Shell: the inspector's "Implicit" section reads
+  `shell(union(sphere(radius 20 mm), place(box(30 × 30 × 30 mm, corner radius 3 mm)), blend 4 mm), inward 2 mm)`, wrapped inside the
+  panel and not clipped. Rest the pointer on the Shell's output dot: the same, cut to 80 characters with "…". Select the Mesh: its
+  "Mesh" section lists the triangle count, "Preview … mm", the meshing time and the memory. Pinned: `ImplicitDisplayTests`,
+  `MeshNodeTests`. **Observed:**
+- [ ] **IM-3 The first pass and the refinement.** Wire the Output and look at the viewport: a rounded, smooth-shaded shell appears at
+  once (no faceting, no black patches), a "Preview 0.78 mm"-style badge sits at the lower right with a spinner, and over the next second
+  or two the surface gets finer, the badge number falling, until the spinner goes and the badge keeps its last number. Orbit while it
+  refines: the view stays smooth. Pinned: `AppMeshPreviewTests`, `MeshBadgeWindowTests`; the feel is human-only. **Observed:**
+- [ ] **IM-4 An edit stops the passes.** While the badge shows a spinner, drag the Sphere's radius slider: the old surface is replaced
+  by the new one's first pass, never by a finished pass of the old shape arriving late, and the spinner restarts. A dragged radius feels
+  live. Pinned: `anEditStopsThePassesForTheOldShapeAndStartsTheNewOne`; the feel is human-only. **Observed:**
+- [ ] **IM-5 Blends and fields.** Set the Union's blend radius to 0: the join becomes sharp. Wire a Linear Gradient into the Shell's
+  `thickness`: the wall thickens along Z and the Shell shows "“thickness” is below 0 in places; it is held at 0 there." when the
+  gradient goes negative. Wire a Distance Field of the bracket (OCCT) through a Clamp into the Union's blend radius: it grades and the
+  preview stays interactive. Pinned: `ImplicitCombineNodeTests`, `ImplicitShellOffsetNodeTests`. **Observed:**
+- [ ] **IM-6 To Implicit and the bracket.** Build the slice's bracket and wire its solid into a To Implicit (tolerance 0.01), then a
+  Shell (1.5, inward) and a Mesh into the Output. The bracket appears hollow with its fillets; the To Implicit inspector shows the bake
+  time and memory; editing the Shell's thickness does not bake again (the preview follows within a fraction of a second). An open
+  solid (a Loft of one open profile, if the build can make one) says "This solid isn't closed, so inside and outside are undefined."
+  Pinned: `ToImplicitNodeTests`, `SignedDistanceMeshTests`. **Observed:**
+- [ ] **IM-7 Isosurface.** Wire a Noise Field (scale 12) into an Isosurface (level 0.5, max slope 0.45) with a 60 mm Box as `bounds`
+  and the Isosurface into a Mesh: a blobby solid fills the box. Lower max slope to 0.05: the node warns that the field can change by
+  more than max slope and the preview shows holes, as the help text says. Pinned: `IsosurfaceNodeTests`. **Observed:**
+- [ ] **IM-8 STEP refuses a mesh.** With the Output holding a mesh and named "Insole", File > Export STEP…: an alert reads
+  "Output 'Insole' is a mesh; STEP needs solids. Export STL or 3MF, or convert it with Mesh to Solid." and no save panel appears.
+  Pinned: `stepRefusesAMeshInTheSpecsWords`. **Observed:**
+- [ ] **IM-9 The export sheet and STL.** Set the Mesh's export resolution to 0.2 and choose File > Export STL…: after the save panel a
+  card in the middle of the window reads "Exporting “Insole”" with a bar that fills and a Cancel button (Escape too). Let it finish: the
+  card goes, the file exists, and Quick Look or a slicer shows the shell at the right size in millimetres with no holes. Export again
+  and press Cancel part way: the card says "Cancelling…", then goes, and no file is left. Pinned: `ExportMeshTests`,
+  `ExportSheetWindowTests`; the look is human-only. **Observed:**
+- [ ] **IM-10 The warnings summary.** Make the Union's blend radius a Linear Gradient (it goes below 0) and export an STL: after the
+  file is written an alert reads "Exported with 1 warning" and lists "Union: “blend radius” is below 0 in places; it is held at 0
+  there." Pinned: `warningsAreSummarisedAfterTheFile`. **Observed:**
+- [ ] **IM-11 Too big for memory.** Set a Sphere's radius to 1,000 and the Mesh's export resolution to 0.01, then export an STL: the
+  alert reads "This needs about N GB at 0.01 mm; coarsen to X mm or split the part." (N and X numbers, N above half this Mac's
+  memory) and no file is written. Pinned: `aMeshTooBigForMemoryIsRefusedWithTheNodeThatSaysSo`. **Observed:**
+- [ ] **IM-12 Files.** Save the document, quit, reopen it: the same graph, the same shape, the same badge. Open a file saved before
+  this build (any earlier .mcgraph): it opens unchanged and the next save writes `"formatVersion" : 8`. Pinned: `ImplicitFileTests`,
+  `ImplicitDocumentFileTests`. **Observed:**

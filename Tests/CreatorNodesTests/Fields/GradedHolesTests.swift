@@ -2,12 +2,15 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// The graded-sizes path (fields spec §3.3) in the one order that wires: a field → Remap → Sample Field → a shortcut's size
 /// socket. Remap takes and returns a field, so a Remap after the sampling would put a field into a number socket.
 struct GradedHolesTests {
+    #if canImport(CreatorOCCT)
     /// A Radial Gradient of radius 40 centred on one hole of the plate's 2 × 2 grid (at (±20, ±10)), remapped 0…1 → Ø3…Ø5 and
     /// held there, sampled at the four placements into a Hole Pattern's `diameter`. The holes are 0, 0.5, 1 and 1.118 radii
     /// from the centre: Ø3, Ø4, Ø5 and (clamped) Ø5.
@@ -46,4 +49,5 @@ struct GradedHolesTests {
         let removed = PatternPlate.plateVolume - (try await volume(try onlySolid(report, holes), kernel))
         #expect(isClose(removed, want), "removed \(removed), wanted \(want)")
     }
+    #endif
 }

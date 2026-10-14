@@ -4,7 +4,9 @@ import CreatorKernel
 import CreatorNodes
 import Foundation
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 /// 7a spec §9, headless: a plate with holes laid out by a data tree. Grid Points → Partition (rows) → Circle → Extrude
 /// → Boolean, whose `tools` gets one branch per run, so each row of holes cuts its own copy of the plate. A Path Mapper
@@ -57,6 +59,7 @@ struct TreesAcceptanceTests {
         solid.topology.faces.contains { $0.tags.contains(TopoTag(node: holes.id, item: item, role: .side(segment: 0))) }
     }
 
+    #if canImport(CreatorOCCT)
     @Test func eachRowOfHolesCutsItsOwnCopyOfThePlate() async throws {
         let kernel = OCCTKernel()
         let plate = Self.makePlate()
@@ -110,7 +113,7 @@ struct TreesAcceptanceTests {
         #expect(hasHole(columns[1], plate.holes, item: 2) && !hasHole(columns[1], plate.holes, item: 0))
     }
 
-    @Test func changingTheRowLengthReshapesTheResultAndTheFileRoundTripsAsFormatSeven() async throws {
+    @Test func changingTheRowLengthReshapesTheResultAndTheFileRoundTripsInTheCurrentFormat() async throws {
         let kernel = OCCTKernel()
         let plate = Self.makePlate()
         let document = DocumentModel(file: GraphFile(graph: plate.graph), registry: BuiltInNodes.registry, kernel: kernel)
@@ -128,14 +131,14 @@ struct TreesAcceptanceTests {
         // Save and reopen.
         let data = try document.fileData()
         let text = try #require(String(bytes: data, encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 7"#))
+        #expect(text.contains(#""formatVersion" : 8"#))
         let reopened = try DocumentModel(data: data, registry: BuiltInNodes.registry, kernel: kernel)
         await reopened.waitForEvaluation()
         expectAllOK(reopened, "reopened")
         #expect(try solids(reopened, plate.cut).count == 4)
 
         // The same file marked format 5 opens and evaluates the same: nothing in it needs 6.
-        let asFive = try #require(String(bytes: data, encoding: .utf8)).replacing(#""formatVersion" : 7"#, with: #""formatVersion" : 5"#)
+        let asFive = try #require(String(bytes: data, encoding: .utf8)).replacing(#""formatVersion" : 8"#, with: #""formatVersion" : 5"#)
         let older = try DocumentModel(data: Data(asFive.utf8), registry: BuiltInNodes.registry, kernel: kernel)
         await older.waitForEvaluation()
         expectAllOK(older, "format 5")
@@ -165,4 +168,5 @@ struct TreesAcceptanceTests {
         #expect(message.hasPrefix("The rule's source {A;B;C} names 3 levels, but this tree (2 × 4) has 1 level of branches."))
         guard case .idle? = document.results[plate.cut.id]?.state else { Issue.record("the cut should wait"); return }
     }
+    #endif
 }

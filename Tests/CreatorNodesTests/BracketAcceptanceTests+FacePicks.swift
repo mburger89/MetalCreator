@@ -3,9 +3,12 @@ import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 extension BracketAcceptanceTests {
+    #if canImport(CreatorOCCT)
     /// Roadmap "Naming: face picks on merged faces", the Plane from Face half. A plane is picked on the plate's
     /// left side, which the union merged with the flange's coplanar side (it names both operands' tags), while
     /// the flange is as wide as the plate. Then the flange alone changes width, narrower (40) or wider (70)
@@ -100,6 +103,7 @@ extension BracketAcceptanceTests {
         #expect(isOK(document, plane), "flush flange")
         return (document, bracket, plane)
     }
+    #endif
 
     /// The union's face on the plate's left side that carries both the plate's and the flange's tags.
     func mergedLeftSide(_ union: Solid, _ bracket: Bracket) throws -> FaceID {

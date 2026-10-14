@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 import CreatorGeometry
 import CreatorKernel
 import CreatorOCCT
@@ -200,3 +201,4 @@ struct OffscreenRenderTests {
         #expect(renderer.encodedPasses == 0)
     }
 }
+#endif

@@ -1,7 +1,8 @@
 import Foundation
 
-/// A PNG file's chunk chain, walked without decoding anything. ImageIO reads a PNG cut short in the middle of its data as an
-/// all-black picture and says nothing, so a file is only trusted when its chunks lead to IEND.
+/// A PNG file's chunk chain, walked without decoding anything. A file is only trusted when its chunks lead to IEND, so `inspect`
+/// refuses a PNG cut short before any pixel is decoded (ImageIO, which this once guarded against, read such a file as an all-black
+/// picture and said nothing; MetalUI's decoder refuses it too, and this keeps the refusal ahead of the decode).
 enum PNGStructure {
     private static let signature: [UInt8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
     private static let end: [UInt8] = Array("IEND".utf8)

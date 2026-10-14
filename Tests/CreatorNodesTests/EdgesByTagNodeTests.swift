@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 struct EdgesByTagNodeTests {
@@ -40,6 +42,7 @@ struct EdgesByTagNodeTests {
         return solid.topology.edges(matching: EdgeKey([top], [front])).map(\.id)
     }
 
+    #if canImport(CreatorOCCT)
     @Test func pickedEdgesSurviveAnUnrelatedChange() async throws {
         var notched = Notched()
         let first = try await notched.h.run([notched.rule], kernel: OCCTKernel())
@@ -69,6 +72,7 @@ struct EdgesByTagNodeTests {
         #expect(split.warning(notched.rule) == "Matched 2 edges, expected 1.")
         #expect(split.value(notched.rule, "edges")?.edgeSets?.first?.edges.count == 2)
     }
+    #endif
 
     @Test func noPicksAsksForOne() async throws {
         var h = Harness()

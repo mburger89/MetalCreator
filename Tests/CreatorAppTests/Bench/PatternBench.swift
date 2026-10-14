@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 import CreatorKernel
 import Testing
 @testable import CreatorApp
@@ -42,3 +43,4 @@ struct PatternBench {
         print(edit.line(budget: Bench.patternBudget))
     }
 }
+#endif

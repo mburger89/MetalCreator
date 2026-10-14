@@ -70,13 +70,15 @@ public final class DocumentModel {
     @ObservationIgnored private var generation = 0
 
     public init(file: GraphFile = GraphFile(), registry: NodeRegistry, kernel: any Kernel,
-                cacheBudgetBytes: Int = 512 * 1024 * 1024, documentURL: URL? = nil) {
+                cacheBudgetBytes: Int = 512 * 1024 * 1024, documentURL: URL? = nil,
+                implicitEngine: ImplicitEngineChoice = .cpu) {
         self.content = GraphContent(graph: file.graph, definitions: file.definitions)
         self.images = file.images
         self.documentURL = documentURL
         self.viewState = file.viewState
         self.baseRegistry = registry
-        self.evaluator = Evaluator(registry: registry, kernel: kernel, cacheBudgetBytes: cacheBudgetBytes)
+        self.evaluator = Evaluator(registry: registry, kernel: kernel, cacheBudgetBytes: cacheBudgetBytes,
+                                  implicitEngine: implicitEngine)
         scheduleEvaluation()
     }
 

@@ -2,14 +2,18 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Culling keeps paths (patterns spec §4, §6): an instance whose placement survived a cull keeps its path in its tags,
 /// its messages and its tool, so a pick on it follows it. Place and the shortcuts read culled placements here; the
 /// Cull nodes that make them have their own tests.
 struct CulledInstancesTests {
+    #if canImport(CreatorOCCT)
     let kernel = OCCTKernel()
+    #endif
 
     func plane(_ x: Double) -> Plane { .through(Vector3(x, 0, 0)) }
 
@@ -21,10 +25,12 @@ struct CulledInstancesTests {
 
     func plain(_ count: Int) -> Value { .list((0..<count).map { .plane(plane(Double($0) * 20)) }) }
 
+    #if canImport(CreatorOCCT)
     func block(height: Double = 10) async throws -> Solid {
         try await kernel.extrude(.rectangle(width: 10, height: 10, plane: .xy), distance: height, mode: .oneSided,
                                  tag: NodeTag(node: NodeID(), item: 0))
     }
+    #endif
 
     /// The inputs the evaluator would hand a node: every socket's default unless `given` sets it.
     func inputs(_ definition: any NodeDefinition.Type, _ given: [SocketName: Value]) -> NodeInputs {
@@ -55,6 +61,7 @@ struct CulledInstancesTests {
         Set(solid.topology.faces.flatMap(\.tags).filter(\.node.isInstanceQualified).map(\.item))
     }
 
+    #if canImport(CreatorOCCT)
     // MARK: Place
 
     @Test func placeTagsEachCopyWithItsOriginalIndex() async throws {
@@ -239,6 +246,7 @@ struct CulledInstancesTests {
         let solid = try resultSolid(outputs)
         #expect(items(of: solid) == [0, 1, 2], "got \(items(of: solid).sorted())")
     }
+    #endif
 
     // MARK: trees
 
@@ -255,6 +263,7 @@ struct CulledInstancesTests {
         Set(items(of: solid).compactMap { InstancePath.indices(ofItem: $0) })
     }
 
+    #if canImport(CreatorOCCT)
     @Test func aCulledTreeOfPlacementsKeepsEveryTreePath() async throws {
         let placements = try rows { leaf, k in leaf.path == TreePath([0]) && k == 1 }
         let outputs = try await HolePatternNode.evaluate(
@@ -297,4 +306,5 @@ struct CulledInstancesTests {
         }
         #expect(message == "Hole {1;1}: the diameter must be greater than 0 mm.", "got \(String(describing: message))")
     }
+    #endif
 }

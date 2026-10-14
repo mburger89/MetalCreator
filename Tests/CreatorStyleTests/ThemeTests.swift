@@ -19,6 +19,7 @@ struct ThemeTests {
             (c.axisX, 0xff5555), (c.axisY, 0x50fa7b), (c.axisZ, 0x8be9fd), (c.sketchUnderConstrained, 0x8be9fd),
             (c.sketchFullyConstrained, 0xf8f8f2), (c.sketchConflicting, 0xff5555), (c.sketchConstruction, 0x6272a4),
             (c.sketchProjected, 0xbd93f9), (c.fieldLow, 0x8be9fd), (c.fieldMid, 0xf1fa8c), (c.fieldHigh, 0xff5555),
+            (c.implicitHeader, 0xf1fa8c), (c.meshHeader, 0xc5c8de),
         ]
     }()
 
@@ -57,7 +58,9 @@ struct ThemeTests {
         let c = theme.colors
         #expect(Self.contrast(c.foreground, c.panelBase) >= 7 && Self.contrast(c.foreground, c.nodeBody) >= 7)
         #expect(Self.contrast(c.comment, c.panelBase) >= 3)
-        for header in [c.valueHeader, c.profileHeader, c.solidHeader, c.selectionHeader, c.featureHeader, c.outputHeader] {
+        for header in [c.valueHeader, c.profileHeader, c.solidHeader, c.selectionHeader, c.featureHeader, c.outputHeader,
+                       c.implicitHeader, c.meshHeader,
+            ] {
             #expect(Self.contrast(c.textOnAccent, header) >= 3, "\(theme.name): text on #\(String(header.rgb, radix: 16))")
         }
     }

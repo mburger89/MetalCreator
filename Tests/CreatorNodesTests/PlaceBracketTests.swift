@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// The bracket's holes (spec §7.2) cut two ways on OCCT: by moving the tool with Transform, which keeps working, and
@@ -23,6 +25,7 @@ struct PlaceBracketTests {
 
     static let expectedVolume = 60.0 * 40 * 6 - 4 * Double.pi * 6.25 * 6
 
+    #if canImport(CreatorOCCT)
     @Test func theTransformPathStillCutsTheBracketsHoles() async throws {
         let kernel = OCCTKernel()
         var b = Bracket()
@@ -58,4 +61,5 @@ struct PlaceBracketTests {
             #expect(solid.topology.faces.filter { $0.tags.contains(wall) }.count == 1)
         }
     }
+    #endif
 }

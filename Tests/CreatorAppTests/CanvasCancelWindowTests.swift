@@ -72,7 +72,7 @@ struct CanvasCancelWindowTests {
         app.window.hover(at: spot)
         for phase in [InputPhase.began, .changed] {
             _ = app.window.send(.scrollWheel(ScrollEvent(
-                position: spot, delta: Point(x: Pixels(0), y: Pixels(20)), modifiers: .command, phase: phase,
+                position: spot, delta: Point(x: Pixels(0), y: Pixels(20)), modifiers: .primary, phase: phase,
                 momentumPhase: .none, isPrecise: true, timestamp: app.window.now)))
             app.window.tick()
         }

@@ -18,18 +18,18 @@ public enum AppCommands {
                 Button("Save") { model.withFilePicker { await model.saveDocument(using: $0) } }
                     .keyboardShortcut("s")
                 Button("Save As…") { model.withFilePicker { await model.saveDocumentAs(using: $0) } }
-                    .keyboardShortcut("s", modifiers: [.command, .shift])
+                    .keyboardShortcut("s", modifiers: [.primary, .shift])
                 Button("Export STEP…") { model.withFilePicker { await model.exportDocument(.step, using: $0) } }
                     .keyboardShortcut("e")
                 Button("Export STL…") { model.withFilePicker { await model.exportDocument(.stl, using: $0) } }
-                    .keyboardShortcut("e", modifiers: [.command, .shift])
+                    .keyboardShortcut("e", modifiers: [.primary, .shift])
             }
             CommandGroup(replacing: .undoRedo) {
                 Button(model.undoTitle) { model.undo() }
                     .keyboardShortcut("z")
                     .disabled(!model.document.canUndo)
                 Button(model.redoTitle) { model.redo() }
-                    .keyboardShortcut("z", modifiers: [.command, .shift])
+                    .keyboardShortcut("z", modifiers: [.primary, .shift])
                     .disabled(!model.document.canRedo)
             }
             // MetalUI puts a command menu before Window (it builds no View menu of its own).

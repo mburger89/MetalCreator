@@ -36,6 +36,10 @@ public indirect enum Field: Hashable, Sendable {
     /// (`GreyImage.value`) has value 0, with either edge mode.
     case image(GreyImage, plane: Plane, width: Double, height: Double, edges: ImageEdges)
 
+    /// An implicit solid read as a field (implicit spec §2.3): its signed distance, in millimetres, negative inside. It is how
+    /// Sample Field, Cull by Field, Field Scatter and the previews take an implicit. A leaf: the sampler asks the payload.
+    case implicit(ImplicitReference)
+
     // MARK: Maths
 
     case add(Field, Field)

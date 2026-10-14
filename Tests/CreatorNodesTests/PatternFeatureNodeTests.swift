@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Pattern Feature (patterns spec §5): any tool, unioned or subtracted at every placement, by Place + Boolean.
@@ -36,6 +38,7 @@ struct PatternFeatureNodeTests {
         #expect(!log.contains("transform"))
     }
 
+    #if canImport(CreatorOCCT)
     @Test func subtractingCutsEveryInstanceOnOCCT() async throws {
         let kernel = OCCTKernel()
         let (plate, _, feature) = subtracting()
@@ -108,6 +111,7 @@ struct PatternFeatureNodeTests {
         let message = try #require(report.warning(feature))
         #expect(message.contains("2 of 5 features miss the part."))
     }
+    #endif
 
     @Test func noPlacementsLeavesThePartAsItIs() async throws {
         let (plate, _, feature) = subtracting()
@@ -127,6 +131,7 @@ struct PatternFeatureNodeTests {
         #expect(report.error(feature) == "Patterns are limited to 2,000 instances.")
     }
 
+    #if canImport(CreatorOCCT)
     @Test func aPartThatTheCutSplitsStillWarnsAboutPieces() async throws {
         let kernel = OCCTKernel()
         var plate = PatternPlate(columns: 1, rows: 1)
@@ -160,4 +165,5 @@ struct PatternFeatureNodeTests {
         let report = try await plate.h.run([feature], kernel: OCCTKernel())
         #expect(report.error(feature) == "Subtract failed: the result is empty.")
     }
+    #endif
 }

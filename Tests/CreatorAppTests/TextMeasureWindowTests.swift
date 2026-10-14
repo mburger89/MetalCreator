@@ -32,7 +32,7 @@ struct TextMeasureWindowTests {
 
     func open() throws -> (window: TestWindow, measure: TextMeasure) {
         let box = MeasurerBox()
-        let window = try TestWindow { ZStack { Probe(box: box) } }
+        let window = try TestWindow(textSystem: { testTextSystem() }, content: { ZStack { Probe(box: box) } })
         guard let measurer = box.measurer else { throw MeasurerNotCaptured() }
         return (window, TextMeasure(measurer))
     }

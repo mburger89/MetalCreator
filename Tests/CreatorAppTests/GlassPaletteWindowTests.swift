@@ -8,6 +8,7 @@ import Testing
 /// it, which includes the viewport and the graph panel's glass, so its material must be painted after both.
 @MainActor
 struct GlassPaletteWindowTests {
+    #if canImport(Metal)
     @Test func thePalettesGlassBlursTheViewportAndTheGraphPanelBeneathIt() async throws {
         let app = try await AppWindow.open(dock: .bottom)
         app.window.hover(at: app.point(inCanvasView: Vector2(200, 40)))
@@ -29,4 +30,5 @@ struct GlassPaletteWindowTests {
         #expect(abs(Double(scene.backdrops[palette].tint.a) - GlassThickness.thin.materialOpacity(isDark: true)) < 1e-4,
                 "the palette is one step thicker than the panels")
     }
+    #endif
 }

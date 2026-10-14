@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Cull by Region (patterns spec §4): placements kept inside or outside a profile, or within or beyond a distance from a
@@ -114,6 +116,7 @@ struct CullByRegionNodeTests {
         #expect(try await f.message() == "“distance” can't be negative.")
     }
 
+    #if canImport(CreatorOCCT)
     // MARK: edges
 
     /// A 20 × 20 × 10 box on z = 0…10 (OCCT, for its exact edges), its edges wired into `edges`.
@@ -136,6 +139,7 @@ struct CullByRegionNodeTests {
         boxEdges(&f)
         #expect(try await f.kept(OCCTKernel()) == [0, 2, 4])
     }
+    #endif
 
     @Test func edgesOfNoExactShapeAreRefusedWithTheCount() async throws {
         let spline = EdgeInfo(id: EdgeID(0), kind: .bspline, direction: nil, length: 5, midpoint: .zero, convexity: .convex, faces: [])
@@ -166,6 +170,7 @@ struct CullByRegionNodeTests {
         #expect(isClose(RegionDistance.distance(from: Vector3(-3, 10, 0), to: arc), 3), "past the end: the end counts")
     }
 
+    #if canImport(CreatorOCCT)
     @Test func aCircularEdgeIsMeasuredToTheCircleNotTheCentre() async throws {
         // A circle of radius 10 on z = 0: the placements at x = ±10 are on it, the one at 0 is 10 from it, ±20 are 10 outside.
         let kernel = OCCTKernel()
@@ -218,6 +223,7 @@ struct CullByRegionNodeTests {
         let outputs = try await CullByRegionNode.evaluate(inputs, kernel: kernel, context: context)
         #expect(try #require(outputs.trees["placements"]).itemCount == 5, "all are 6 mm below the top face, within 7")
     }
+    #endif
 
     // MARK: shape
 

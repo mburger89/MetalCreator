@@ -2,7 +2,6 @@ import CreatorEditor
 import CreatorKernel
 import CreatorStyle
 import MetalUI
-import MetalUIText
 import Testing
 @testable import CreatorApp
 
@@ -31,7 +30,7 @@ struct ThemeEditorRenderTests {
                     AppRoot(model: app, input: input)
                 }
             }
-        }, size: Self.window, scaleFactor: Float(Self.scale), textSystem: CoreTextTextSystem(),
+        }, size: Self.window, scaleFactor: Float(Self.scale), textSystem: testTextSystem(),
            atlas: GlyphAtlas(width: 1024, height: 1024))
         return scene.rects.map { rect in
             let fill = rect.background

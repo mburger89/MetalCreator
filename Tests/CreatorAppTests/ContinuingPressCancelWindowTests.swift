@@ -36,6 +36,7 @@ struct ContinuingPressCancelWindowTests {
 
     // MARK: - The viewport
 
+    #if canImport(Metal)
     /// A handle edit whose release was lost ends at the next press on the viewport, with the phase `.ended` reported once and
     /// the value it got to kept as one undo step; the press that ended it then starts an ordinary orbit.
     @Test func aHandleEditWhoseReleaseWasLostEndsAtTheNextPressOnTheViewport() async throws {
@@ -68,7 +69,9 @@ struct ContinuingPressCancelWindowTests {
         app.model.document.undo()
         #expect(app.model.document.graph.nodes[box.extrude.id]?.inputValues["distance"] == .number(10), "as one undo step")
     }
+    #endif
 
+    #if canImport(Metal)
     /// Gap VI-c: MetalUI cancels a button arena at the pointer's next plain move (`IF-F` item 3) but not the primary arena (its
     /// ruling `GC-C` leaves the bare move alone, as SwiftUI does), so a lost primary release leaves the drag, its closed hand and
     /// its unsettled camera in place until the next press ends them. Accepted (gap VI-c) and pinned here.
@@ -84,7 +87,9 @@ struct ContinuingPressCancelWindowTests {
         press(app, at: spot(60, 20))
         #expect(!viewport.isPointerDown && viewport.cursor == nil, "the press did")
     }
+    #endif
 
+    #if canImport(Metal)
     /// A real double click (platform count 2) over the viewport fires no cancel: it settles nothing, ends no drag and reports
     /// two clicks, as it did before C26 (`GC2`: the continuing branch is kept for a press that finds the arena released).
     @Test func aDoubleClickOverTheViewportCancelsNothing() async throws {
@@ -100,6 +105,7 @@ struct ContinuingPressCancelWindowTests {
         #expect(settled == 0 && !viewport.isPointerDown)
         #expect(clicks == 2, "both clicks arrive as clicks")
     }
+    #endif
 
     // MARK: - The canvas
 

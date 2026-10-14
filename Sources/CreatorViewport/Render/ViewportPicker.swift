@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import Metal
 
 /// Answers "what is under this point?" from the ID pass (spec §6.3). It renders the ID buffer at the view's size
@@ -61,3 +62,4 @@ final class ViewportPicker {
         return pixels
     }
 }
+#endif

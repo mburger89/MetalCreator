@@ -2,12 +2,15 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// The layouts met by the inputs a person is likely to give them (the plan's Review Focus): other nodes' trees, edges that
 /// aren't straight or round, a pick on a face of a copy that is gone.
 struct LayoutReviewTests {
+    #if canImport(CreatorOCCT)
     @Test func aLinearPatternNamesItsHolesByIndexAndACircularOneByRingAndIndex() async throws {
         for (layout, expected) in [(LinearPatternNode.self as any NodeDefinition.Type, Set([[0], [1], [2], [3]])),
                                    (CircularPatternNode.self, Set([[0, 0], [0, 1], [0, 2], [0, 3]])),
@@ -24,6 +27,7 @@ struct LayoutReviewTests {
             #expect(Set(items.compactMap { InstancePath.indices(ofItem: $0) }) == expected, "\(layout.displayName)")
         }
     }
+    #endif
 
     /// A layout makes one tree of placements: it doesn't run once per value of a Series, so each says so in its own words
     /// (`NodeDefinition.singleValuesRefusal`), before it does any work.
@@ -78,6 +82,7 @@ struct LayoutReviewTests {
         }
     }
 
+    #if canImport(CreatorOCCT)
     @Test func aFacePatternOnTheFloorOfAHoleThatIsGoneNamesTheHole() async throws {
         let kernel = OCCTKernel()
         var plate = PatternPlate()
@@ -101,6 +106,7 @@ struct LayoutReviewTests {
         let report = try await plate.h.run([pattern], kernel: kernel)
         #expect(report.error(pattern) == "Instance {1;2} no longer exists, so the picked face isn't there any more. Pick the face again.")
     }
+    #endif
 
     // MARK: Review findings of Tasks 1 to 8
 

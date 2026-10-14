@@ -61,7 +61,7 @@ struct CommentFileTests {
     }
 
     @Test func commentsAddNoFormatBump() {
-        #expect(GraphFile.currentFormatVersion == 7, "5 held the comments' keys, 6 the tree nodes' text settings and 7 the images")
+        #expect(GraphFile.currentFormatVersion == 8, "5: the comments' keys; 6: tree nodes' text settings; 7: images; 8: implicit sockets")
     }
 
     @Test func anUnknownAccentReadsAsMuted() throws {

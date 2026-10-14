@@ -225,12 +225,13 @@ public final class GraphPanelInput {
         }
     }
 
-    /// The canvas's modifiers from MetalUI's. Control isn't one: the canvas binds nothing to it.
+    /// The canvas's modifiers from MetalUI's. The platform's shortcut key (`.primary`: ⌘ on macOS, Ctrl elsewhere) is the
+    /// canvas's `.command`; Control isn't a modifier of its own: the canvas binds nothing to it.
     public static func canvasModifiers(_ modifiers: Modifiers) -> CanvasModifiers {
         var result: CanvasModifiers = []
         if modifiers.contains(.shift) { result.insert(.shift) }
         if modifiers.contains(.option) { result.insert(.option) }
-        if modifiers.contains(.command) { result.insert(.command) }
+        if modifiers.contains(.primary) { result.insert(.command) }
         return result
     }
 

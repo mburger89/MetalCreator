@@ -25,9 +25,9 @@ struct GroupKeyTests {
     }
 
     @Test func commandGGroupsAndShiftCommandGUngroups() {
-        #expect(GraphKeyBindings.command(for: key("g", .command), paletteOpen: false) == .group)
-        #expect(GraphKeyBindings.command(for: key("G", [.command, .shift]), paletteOpen: false) == .ungroup)
-        #expect(GraphKeyBindings.command(for: key("g", .command), paletteOpen: true) == nil)
+        #expect(GraphKeyBindings.command(for: key("g", .primary), paletteOpen: false) == .group)
+        #expect(GraphKeyBindings.command(for: key("G", [.primary, .shift]), paletteOpen: false) == .ungroup)
+        #expect(GraphKeyBindings.command(for: key("g", .primary), paletteOpen: true) == nil)
     }
 
     @Test func groupingSelectsTheGroupNodeAndUngroupingSelectsWhatCameBack() throws {

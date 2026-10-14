@@ -2,7 +2,6 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import MetalUI
-import MetalUIText
 import Testing
 @testable import CreatorApp
 
@@ -16,7 +15,7 @@ struct TopBarClearanceRenderTests {
         let scale = 2.0
         let bar = TopBar(model: app, clearance: Pixels(Float(clearance)))
         let scene = renderFrame({ ZStack { bar } }, size: Size(width: Pixels(1400), height: Pixels(100)), scaleFactor: 2,
-                                textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+                                textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
         return scene.glyphs.map { Double($0.bounds.origin.x) / scale }.min() ?? .nan
     }
 

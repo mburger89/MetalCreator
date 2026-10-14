@@ -25,6 +25,8 @@ struct ToolOptionsViewTests {
         text.filter { !$0.isWhitespace }.count
     }
 
+    #if canImport(CoreText)
+    // Glyph counts depend on how the font wraps the hint (SF here; DejaVu Sans off macOS wraps it differently), so macOS only.
     /// The fillet and pattern options add their rows under the hint: the inspector draws at least the hint's glyphs
     /// and the fields' labels' more than with no tool hint (the fields' values come on top); Mirror shows only its hint.
     @Test(arguments: [(SketchTool.fillet, ["Radius"]), (.pattern, ["Instances", "Spacing"])])
@@ -40,6 +42,7 @@ struct ToolOptionsViewTests {
         let hintOnly = renderHeadless { SketchInspector(model: model) }.glyphs.count
         #expect(hintOnly == plain + glyphs(try #require(SketchTool.mirror.hint)), "only the hint")
     }
+    #endif
 
     @Test func aToolsOptionReadsInMillimetres() {
         #expect(DimensionText.millimetres(5) == "5 mm")

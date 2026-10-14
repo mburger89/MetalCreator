@@ -3,7 +3,6 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import MetalUI
-import MetalUIText
 import MetalUITesting
 import Testing
 @testable import CreatorApp
@@ -24,7 +23,7 @@ struct PanelPlacementTests {
         let input = AppInput(model: app)
         let scene = renderFrame({ ZStack { AppRoot(model: app, input: input) } },
                                 size: Size(width: Pixels(1400), height: Pixels(900)), scaleFactor: 2,
-                                textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+                                textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
         let scale = 2.0
         let drawn = scene.rects.contains { rect in
             abs(Double(rect.bounds.origin.x) / scale - frame.origin.x) < 1

@@ -13,7 +13,7 @@ struct FieldsLibraryTests {
 
     @Test func theFieldsSectionFollowsListsAndTreesAndPrecedesOutput() {
         #expect(sections.map(\.title)
-            == ["Value", "Profile", "Solid", "Selection", "Feature", "Patterns", "Lists & Trees", "Fields", "Output"])
+            == ["Value", "Profile", "Solid", "Selection", "Feature", "Patterns", "Lists & Trees", "Fields", "Implicit", "Mesh", "Output"])
     }
 
     @Test func theFieldsSectionHoldsTheFieldNodesInOrder() {

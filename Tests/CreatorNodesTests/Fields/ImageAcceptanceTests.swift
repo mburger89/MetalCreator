@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Foundation
 import Testing
 
@@ -51,6 +53,7 @@ struct ImageAcceptanceTests {
         (placements?.items ?? []).compactMap { item in if case .plane(let plane) = item { plane.origin } else { nil } }
     }
 
+    #if canImport(CreatorOCCT)
     @Test func aPictureSizesTheHolesAndTheHolesCutAreThoseSizes() async throws {
         let kernel = OCCTKernel()
         let hash = ImageHash(of: ramp)
@@ -78,7 +81,7 @@ struct ImageAcceptanceTests {
         await document.waitForEvaluation()
         let first = try #require(document.results[part.sample.id]?.outputs?["values"]?.numbers)
         let data = try document.fileData()
-        #expect(try #require(String(bytes: data, encoding: .utf8)).contains("\"formatVersion\" : 7"))
+        #expect(try #require(String(bytes: data, encoding: .utf8)).contains("\"formatVersion\" : 8"))
         let reopened = try DocumentModel(data: data, registry: BuiltInNodes.registry, kernel: kernel)
         await reopened.waitForEvaluation()
         #expect(reopened.results[part.sample.id]?.outputs?["values"]?.numbers == first, "identical on a second run")
@@ -122,4 +125,5 @@ struct ImageAcceptanceTests {
         let again = try await part.plate.h.run([part.holes], kernel: kernel)
         #expect(again.isOK(part.holes), "the file appeared: the next evaluation uses it")
     }
+    #endif
 }

@@ -196,6 +196,10 @@ struct InstanceGrid {
         try typed(name, .solid) { if case .solid(let value) = $0 { value } else { nil } }
     }
 
+    func implicits(_ name: SocketName) throws -> [ImplicitReference] {
+        try typed(name, .implicit) { if case .implicit(let value) = $0 { value } else { nil } }
+    }
+
     private func typed<T>(_ name: SocketName, _ type: SocketType, _ extract: (Scalar) -> T?) throws -> [T] {
         try (columns[name] ?? []).map { scalar in
             guard let value = extract(scalar) else { throw NodeError.typeMismatch(name, expected: type) }

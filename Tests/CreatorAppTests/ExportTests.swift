@@ -35,7 +35,7 @@ struct ExportTests {
         var builder = GraphBuilder()
         builder.add(OutputNode.self)
         let unwired = await makeApp(builder.graph)
-        #expect(throws: AppProblem("“Output” can't be exported", "Connect or set “solid”.")) {
+        #expect(throws: AppProblem("Nothing to export", "No solid is wired into an Output node.")) {
             try unwired.exportSolids()
         }
         // A grid of no points moves the box to no places: the Output gets an empty list and only warns.

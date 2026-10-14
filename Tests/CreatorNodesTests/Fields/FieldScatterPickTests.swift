@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Fields spec D7 and §8 (Paths): a pick on a scattered instance follows its number, and when the field, region or seed
@@ -38,6 +40,7 @@ struct FieldScatterPickTests {
         }
     }
 
+    #if canImport(CreatorOCCT)
     @Test func aPickOnTheLastScatteredPointWarnsOnceFewerPointsExist() async throws {
         let kernel = OCCTKernel()
         var f = Fixture()
@@ -58,4 +61,5 @@ struct FieldScatterPickTests {
         #expect(fewer < count)
         #expect(after.warning(f.rule) == "Instance {\(last)} no longer exists, so the edge picked on it isn't selected.")
     }
+    #endif
 }

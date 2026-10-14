@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
@@ -125,3 +126,4 @@ struct FieldBench {
         print(samples.line(budget: Self.placementsBudget))
     }
 }
+#endif

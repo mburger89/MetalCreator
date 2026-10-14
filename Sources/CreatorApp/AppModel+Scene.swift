@@ -1,6 +1,8 @@
 import CreatorGraph
+import CreatorImplicit
 import CreatorKernel
 import CreatorViewport
+import Foundation
 import Observation
 
 extension AppModel {
@@ -84,15 +86,40 @@ extension AppModel {
     /// a group, from the results inside it (`EditorModel.levelResults`; there is no last good result to ghost).
     private func shownScene() -> [SceneItem] {
         if previewMode == .final {
+            let meshes = followMeshes(shown: outputNodes, results: document.results)
+            let options = SceneBuilder.Options(selection: editor.isInsideGroup ? [] : editor.selection, showsGuides: sketch == nil,
+                                               meshes: meshes)
             return SceneBuilder.scene(shown: outputNodes, graph: document.graph, results: document.results,
-                                      lastGood: document.lastGoodOutputs, selection: editor.isInsideGroup ? [] : editor.selection,
-                                      showsGuides: sketch == nil)
+                                      lastGood: document.lastGoodOutputs, options: options)
         }
         let shown = editor.isInsideGroup
             ? (editor.selection.count == 1 ? Array(editor.selection) : [])
             : (document.previewNode.map { [$0] } ?? [])
+        let meshes = followMeshes(shown: shown, results: editor.levelResults)
+        let options = SceneBuilder.Options(selection: editor.selection, showsGuides: false, meshes: meshes)
         return SceneBuilder.scene(shown: shown, graph: editor.graph, results: editor.levelResults,
-                                  lastGood: editor.isInsideGroup ? [:] : document.lastGoodOutputs, selection: editor.selection)
+                                  lastGood: editor.isInsideGroup ? [:] : document.lastGoodOutputs, options: options)
+    }
+
+    /// Hands the preview meshes of the shown nodes to the progressive preview (an edit that replaced one stops its passes), prunes the
+    /// display solids of meshes no longer shown, and returns what the scene needs to show the meshes.
+    private func followMeshes(shown: [NodeID], results: [NodeID: NodeResult]) -> MeshScene {
+        let bases = SceneBuilder.previewMeshes(shown: shown, results: results)
+        meshRefinement.follow(bases)
+        let scene = MeshScene(solids: meshSolids, refined: meshRefinement.refined)
+        meshSolids.keep(Set(bases.map(\.id)).union(meshRefinement.refined.values.map(\.id)).union(Self.meshIDs(in: results, shown: shown)))
+        return scene
+    }
+
+    /// The IDs of every mesh in the shown nodes' results, so a mesh that cannot be refined keeps its solid.
+    private static func meshIDs(in results: [NodeID: NodeResult], shown: [NodeID]) -> Set<UUID> {
+        var ids: Set<UUID> = []
+        for id in shown {
+            for value in results[id]?.outputs?.values ?? [:].values {
+                for case .mesh(let payload) in value.items { if let mesh = payload as? TriangleMesh { ids.insert(mesh.id) } }
+            }
+        }
+        return ids
     }
 
     /// Follows what the scene is made from, once; the first change schedules one refresh, which follows again. A
@@ -109,6 +136,7 @@ extension AppModel {
             _ = editor.enteredGroups
             _ = document.previewNode
             _ = fieldPreview.revision
+            _ = meshRefinement.revision
             _ = editor.selection
             _ = editor.dock
             _ = previewMode

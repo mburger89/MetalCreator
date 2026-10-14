@@ -9,7 +9,7 @@ extension Field {
         switch self {
         case .linearGradient(let plane, _), .image(_, let plane, _, _, _):
             plane
-        case .constant, .distance, .radialGradient, .noise:
+        case .constant, .distance, .radialGradient, .noise, .implicit:
             nil
         case .add, .multiply, .minimum, .maximum, .remap, .clamp, .smoothMinimum:
             children.lazy.compactMap(\.ownPlane).first

@@ -10,9 +10,30 @@ public struct ThemeFolder: Hashable, Sendable {
         self.url = url
     }
 
-    /// `~/Library/Application Support/MetalCreator/Themes`.
+    /// The app's own themes folder: `~/Library/Application Support/MetalCreator/Themes` on macOS,
+    /// `$XDG_DATA_HOME/MetalCreator/Themes` (`~/.local/share` when unset) on Linux and `%APPDATA%\MetalCreator\Themes`
+    /// on Windows.
     public static var applicationSupport: ThemeFolder {
-        ThemeFolder(URL.applicationSupportDirectory.appending(path: "MetalCreator/Themes", directoryHint: .isDirectory))
+        ThemeFolder(userDataDirectory.appending(path: "MetalCreator/Themes", directoryHint: .isDirectory))
+    }
+
+    /// The person's per-user application data folder on this platform.
+    static var userDataDirectory: URL {
+        #if os(macOS)
+        URL.applicationSupportDirectory
+        #elseif os(Windows)
+        if let appData = ProcessInfo.processInfo.environment["APPDATA"] {
+            URL(filePath: appData, directoryHint: .isDirectory)
+        } else {
+            URL.homeDirectory.appending(path: "AppData/Roaming", directoryHint: .isDirectory)
+        }
+        #else
+        if let data = ProcessInfo.processInfo.environment["XDG_DATA_HOME"], data.hasPrefix("/") {
+            URL(filePath: data, directoryHint: .isDirectory)
+        } else {
+            URL.homeDirectory.appending(path: ".local/share", directoryHint: .isDirectory)
+        }
+        #endif
     }
 
     /// Whether `id` can be a file's name in this folder: it holds no "/" and isn't "." or "..".

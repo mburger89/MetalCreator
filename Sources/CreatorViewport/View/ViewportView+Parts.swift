@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import MetalUI
 
 extension ViewportView {
@@ -145,3 +146,4 @@ extension ViewportView {
                 y: Pixels(Float(model.cubeLayout.origin.y + model.cubeLayout.side + 6)))
     }
 }
+#endif

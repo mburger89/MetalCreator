@@ -8,6 +8,11 @@ public enum NodeCategory: String, Sendable, Codable, CaseIterable {
     /// Fields (fields spec §3): values that vary over space, the maths that combines them and the nodes that sample them.
     /// After Lists & Trees, before `output`.
     case fields
+    /// Implicit solids (implicit spec §3): signed distance functions, the nodes that make, combine and shell them. After
+    /// Fields, before `output`.
+    case implicit
+    /// Meshes (implicit spec §3.6): the Mesh node, and in later sub-projects the mesh tools and checks. After Implicit.
+    case mesh
     case output
 
     /// The name the node library shows: "Value", "Lists & Trees".

@@ -9,7 +9,8 @@ extension EditorModel {
 
     /// The tooltip of each socket of `node` that carries a data tree, keyed like `NodeRowModel.id` ("in.tree",
     /// "out.values"): "Tree 3 × 8". An input shows the tree wired into it. A socket that carries a field shows its recipe, cut
-    /// to 80 characters ("3 fields" for a list of them), on the output and on the input it is wired into (fields spec §2.1).
+    /// to 80 characters ("3 fields" for a list of them), on the output and on the input it is wired into (fields spec §2.1); one that
+    /// carries an implicit solid does the same with the solid's recipe (implicit spec §2.1).
     /// Sockets carrying one item or a flat list of anything else have no entry, and neither does a node with no result yet.
     public func socketHelp(of node: NodeID) -> [String: String] {
         var help: [String: String] = [:]
@@ -18,12 +19,16 @@ extension EditorModel {
                 help["in.\(link.to.socket.rawValue)"] = "Tree \(tree.shapeText)"
             } else if let recipe = result(of: link.from.node)?.outputs?[link.from.socket]?.fieldSummary(limit: Self.tooltipLimit) {
                 help["in.\(link.to.socket.rawValue)"] = recipe
+            } else if let recipe = result(of: link.from.node)?.outputs?[link.from.socket]?.implicitSummary(limit: Self.tooltipLimit) {
+                help["in.\(link.to.socket.rawValue)"] = recipe
             }
         }
         for (socket, value) in result(of: node)?.outputs ?? [:] {
             if case .tree(let tree) = value {
                 help["out.\(socket.rawValue)"] = "Tree \(tree.shapeText)"
             } else if let recipe = value.fieldSummary(limit: Self.tooltipLimit) {
+                help["out.\(socket.rawValue)"] = recipe
+            } else if let recipe = value.implicitSummary(limit: Self.tooltipLimit) {
                 help["out.\(socket.rawValue)"] = recipe
             }
         }

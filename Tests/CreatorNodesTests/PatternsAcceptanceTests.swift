@@ -4,7 +4,9 @@ import CreatorKernel
 import CreatorNodes
 import Foundation
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 /// Patterns spec §9, headless, in the spirit of the bracket: a 120 × 80 × 8 plate with a circular bolt pattern in two rings
 /// whose holes are a diameter per ring, a staggered vent grid of slots on its top face with an edge margin (the Face Pattern
@@ -94,6 +96,7 @@ struct PatternsAcceptanceTests {
         }
     }
 
+    #if canImport(CreatorOCCT)
     @Test func theWholePartBuildsEditsSavesReopensAndExports() async throws {
         let kernel = OCCTKernel()
         let part = try await Self.makePart(kernel: kernel)
@@ -132,7 +135,7 @@ struct PatternsAcceptanceTests {
         // Save and reopen: format 7, every pick holds.
         let data = try document.fileData()
         let text = try #require(String(bytes: data, encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 7"#))
+        #expect(text.contains(#""formatVersion" : 8"#))
         let reopened = try DocumentModel(data: data, registry: BuiltInNodes.registry, kernel: kernel)
         await reopened.waitForEvaluation()
         expectAllOK(reopened, "reopened")
@@ -149,7 +152,7 @@ struct PatternsAcceptanceTests {
         #expect(isClose(readVolume, try await volume(again, kernel), relative: 1e-3))
 
         // The same file marked format 5 opens and evaluates the same: nothing in it needs 6 (it holds no Path Mapper).
-        let asFive = text.replacing(#""formatVersion" : 7"#, with: #""formatVersion" : 5"#)
+        let asFive = text.replacing(#""formatVersion" : 8"#, with: #""formatVersion" : 5"#)
         let older = try DocumentModel(data: Data(asFive.utf8), registry: BuiltInNodes.registry, kernel: kernel)
         await older.waitForEvaluation()
         expectAllOK(older, "format 5")
@@ -177,7 +180,7 @@ struct PatternsAcceptanceTests {
         #expect(document.results[rule.id]?.outputs?["edges"]?.edgeSets?.first?.edges.count == 7, "the seven picked edges")
 
         let text = try #require(String(bytes: try document.fileData(), encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 7"#))
+        #expect(text.contains(#""formatVersion" : 8"#))
         let saved = try DocumentModel(data: Data(text.utf8), registry: BuiltInNodes.registry, kernel: kernel)
         await saved.waitForEvaluation()
         expectAllOK(saved, "format 5 saved as 6")
@@ -254,4 +257,5 @@ struct PatternsAcceptanceTests {
         let solid = try finalSolid(document, part)
         #expect(isFilleted(solid, hole: [1, 3], bolts: part.bolts), "the same hole, turned with the ring")
     }
+    #endif
 }

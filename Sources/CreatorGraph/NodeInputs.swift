@@ -97,4 +97,9 @@ public struct NodeInputs: Sendable {
         guard case .field(let value) = try scalar(name) else { throw NodeError.typeMismatch(name, expected: .field) }
         return value
     }
+
+    public func implicit(_ name: SocketName) throws -> ImplicitReference {
+        guard case .implicit(let value) = try scalar(name) else { throw NodeError.typeMismatch(name, expected: .implicit) }
+        return value
+    }
 }

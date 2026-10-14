@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import CreatorSketch
 import Foundation
 import Testing
@@ -72,6 +74,7 @@ struct PatternTreePickTests {
         var testDescription: String { what }
     }
 
+    #if canImport(CreatorOCCT)
     @Test(arguments: [
         Edit(what: "the spacing", target: .grid, socket: "spacingX", value: .number(18)),
         Edit(what: "the diameter", target: .holes, socket: "diameter", value: .number(6)),
@@ -183,4 +186,5 @@ struct PatternTreePickTests {
         let edge = try #require(set.edges.first.flatMap { set.solid.topology.edge($0) })
         #expect(edge.faces.compactMap { set.solid.topology.face($0) }.contains { $0.tags.contains(bore) })
     }
+    #endif
 }

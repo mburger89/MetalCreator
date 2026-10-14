@@ -68,6 +68,44 @@ Fields, sub-project 7b-3 (Field Scatter, the surface tint, the slice plane and t
 `docs/superpowers/plans/2026-10-13-7b-3-scatter-previews.md`, spec `docs/superpowers/specs/2026-10-12-fields-design.md` §3.3, §6, §7
 and §8 and its Errata (7b-3)) code is done; its human checks (group FI) are pending and its benchmark numbers are recorded in
 `docs/verification/performance.md`.
+Implicit geometry, sub-project 7c-1 (the core: the `CreatorImplicit` module, the `implicit` and `mesh` socket types, the CPU and Metal
+evaluators, the sparse octree, the manifold mesher, baked distances, the eleven Implicit and Mesh nodes, mesh items and the progressive
+preview in the viewport, STL of meshes with the export sheet, file format 8 and `ImplicitBench` rows i-1 to i-4; plan
+`docs/superpowers/plans/2026-10-13-7c-core.md`, spec `docs/superpowers/specs/2026-10-13-implicit-lattices-design.md` §2 to §6 and the
+7c-1 errata in the plan's header) code is done; its human checks (group IM) are pending and its benchmark numbers are recorded in
+`docs/verification/performance.md`. Lattices (7c-2), the mesh tools, checks and 3MF (7c-3) and the mappings (7c-4) are not built, nor
+are meshing on the GPU (spec Errata D13, plan 7c-1g) and the streamed export (D12, with 7c-3); until they are, meshing runs on the CPU
+and row i-4 is expected to miss.
+
+Cross-platform, sub-project xp-1 (Linux and Windows on MetalUI's SDL backend: everything but the 3D view and OpenCascade; plan
+`docs/superpowers/plans/2026-10-13-xp-1.md`, spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §2) code is done and
+the suite is green on Linux in CI (GitHub Actions, `.github/workflows/xp.yml`, x86_64 and aarch64; `scripts/linux-test.sh` runs the
+same in Docker); its human checks (group XP) are pending. Window chrome on SDL (MetalUI S1, gap XP-G3, branch `xp-adopt-s1`, CI pin `ceca59f6`): the window is borderless and MetalUI draws minimise, zoom and close (`drawsWindowControls` stays at its default), `TopBar` pads by `titleBarInsets.left` (`AppLayout.topBarClearance`, macOS's traffic lights) and `.right` (`topBarTrailingClearance`, SDL's 138-point cluster), the bar stays at the margin inside the 32-point band as on macOS, and the drawn Close reaches `AppModel.closeRequested()` through `installCloseHandling`; `SDLChromeWindowTests` pins both shapes (MetalUI's `Options.sdlChrome`); the drag regions work with the Linux and Windows placeholder viewport but need gap XP-G11 fixed before xp-3 (a gesture-taking viewport behind the bar carves them all away; pinned as a known issue on macOS), human checks XP-11..XP-14. The Windows job (CI run 38546048595) is green once: it builds, the suite passes (10 "Test run with" lines), and `--self-test` and
+`--smoke-test 20` pass. Two failures that had been Windows-only were MetalCreator's own: the slice's starting axis chose YZ over XY on a
+last-bit tie of the default camera's view direction (`SlicePose.startingChoice` now treats near-equal alignments as a tie), and the window
+root, taller than the window with Windows' text metrics, was centred upward by the window's wrapper, so the top bar and the drag strip
+sat 3 points high (`AppWindowRoot` now pins the root to the window's top left). The Windows job stays `continue-on-error`, with a
+`::warning::` step and a summary line when its suite is red. On the way: `ImageResolver.read` has a Windows branch, the named-pipe and
+device tests and `PackagingScriptTests` are not run on Windows, and the test executables reserve a 16 MB stack (`-Xlinker /STACK:16777216`;
+a layout tree overflowed Windows' 1 MB default thread stack).
+`Package.swift` has two lists, like MetalUI's: the targets that import no Apple
+framework are declared everywhere (`CreatorViewport` too: its model, camera and tools are portable and only the Metal renderer files
+are behind `#if canImport(Metal)`); `COCCT`, `CreatorOCCT`, `ViewportHarness`, `GraphPanelPreview` and `CreatorOCCTTests` are
+declared on macOS only until xp-2. On Linux and Windows the MetalUI dependency asks for the `SDL` and `AccessKit` traits and
+`MetalCreatorApp` links `MetalUISDL` (`main.swift` picks `SDLPlatform` with `PortableTextSystem` over the installed fonts under
+`canImport(MetalUISDL)`). Off macOS the app runs over `KernelUnavailable` (every operation answers "Geometry isn't available on this
+platform yet.") and the viewport's place shows `ViewportPlaceholder` ("The 3D view isn't available on this platform yet."). The Image
+Field works everywhere: `GreyImageDecoder` decodes through MetalUI's `DecodedImage` (S2, gap XP-G4) on every platform. Rules
+for new code: no CryptoKit (use `SHA256`/`SHA1` in `CreatorGraph/Hashing`), no CoreGraphics, ImageIO, CoreText or Metal outside a
+`#if canImport(…)` file or block, keyboard shortcuts and modifier checks on MetalUI events say `.primary` (⌘ on macOS, Ctrl
+elsewhere), and a file dialog's `ContentType` declares its `filenameExtensions`. Tests: a test that needs Metal, OpenCascade,
+CoreText is gated with `#if canImport(Metal)`, `canImport(CreatorOCCT)` or `canImport(CoreText)` and so is absent from the Linux
+count, never from macOS's; render tests take their text system from `testTextSystem()` in each target's
+`Support/TestTextSystem.swift`; picture fixtures come from `TestImages` (ImageIO on macOS, `PNGWriter` elsewhere; JPEG, GIF and
+TIFF fixtures need ImageIO, so those tests are `#if canImport(CoreGraphics)`, and `GreyImageDecoderPinnedTests` carries JPEGs as
+bytes for every platform) and `AppTestImages` (plain Swift). Pass
+rules: macOS, exit 0 and 12 "Test run with" lines; Linux, exit 0 and 11 (`CreatorOCCTTests` is macOS's twelfth; `CreatorImplicitTests` joined in 7c), and neither
+may print "recorded an issue" or "failed after".
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -97,6 +135,10 @@ Module boundaries (dependency order):
   inside a solid; `occt_distances_reference` is the Extrema-only path `DistanceFastPathTests` compares to at 1e-9) and signs a solid's distance with `BRepClass3d_SolidClassifier`, only for a point inside the solid's bounds; it
   shares the points out in blocks of 64 over OCCT's thread pool while `OCCTKernel.serialized` is held, and the caller's buffer
   is the output, so it allocates nothing to free. `OCCTKernel` calls it 1,024 points at a time, checking for cancellation between.
+- `CreatorImplicit`: implicit solids and meshes (implicit spec §2 to §4): the `ImplicitSolid` value, the CPU batch evaluator, the Metal
+  compiler (gated with `#if canImport(Metal)`), the sparse octree (`BrickPlan`), `MeshingBudget` and the mesher. Portable (declared on every
+  platform); depends on `CreatorGraph` for `Field`, which holds these only as `ImplicitPayload` and `MeshPayload`. Tests:
+  `swift test --filter CreatorImplicitTests`.
 - `CreatorGraph`: graph model, sockets, broadcasting, `Evaluator` (cached, cancellable), commands and undo,
   `.mcgraph` files, `DocumentModel`. Depends on `CreatorSketch` for the `ConstantValue.sketch` setting. A node's sockets
   are `NodeRegistry.inputs(for:)`/`outputs(for:)`: `NodeDefinition.inputs(for:)`/`outputs(for:)` of its type
@@ -157,8 +199,33 @@ Module boundaries (dependency order):
     the survivors in order, as a rank, and a `tree` socket gets the tree whole with its indices, which is how `InstanceGrid` reads
     them. Reshaping nodes (Flatten, Graft, Partition, Path Mapper) renumber, as reshaping does, and List Item, Branch by Path and
     Tree Statistics count a culled list's survivors by rank; Cull Index alone names the places items had.
-- `CreatorNodes`: the 66 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
-the fourteen `Fields` nodes below, the seventeen
+- `CreatorImplicit` (depends on Graph, Kernel and Geometry; implicit spec §2 to §4): `ImplicitSolid` (an indirect enum of sphere, box,
+  cylinder, rigid move, union / subtract / intersect with a graded blend, offset, shell, baked distance blocks and isosurface; every
+  case has `bounds`, `lipschitz`, `exactReach` and a one-line `description`, in `Solid/`), `Grading` (a setting that may vary over space:
+  a `Field` with the kernel distances in it baked, and its range and slope), `DistanceBlocks` (sparse 8³ blocks of `Float` distances,
+  trilinear, with a conservative bound for unstored blocks) and `TriangleMesh` (positions, normals, triangles, `resolution`, `quality`,
+  optional `MeshSource` for the progressive preview; `MeshTopology` checks closed, oriented and manifold). `CPUEvaluation` (`Double`) is
+  a complete engine on every platform, and the reference the GPU is held to; `ImplicitCompiler` generates Metal source whose text depends
+  on the tree's shape only (numbers go in the buffers) and imports nothing. **The module builds on Linux and Windows (Errata D11):** the
+  GPU sits behind `ImplicitGPUEngine` (`GPU/`: prepare, compile, evaluate a batch, cancel; D13 adds meshing bricks), whose only
+  implementation is `MetalImplicitEngine` (an actor that compiles each shape once; the one file that imports Metal, compiled only under
+  `#if canImport(Metal)`), `ImplicitGPUEngines.platformDefault` is the machine's engine or `nil`, and `ImplicitPortabilityTests` fails
+  on an Apple-only import or a Metal type anywhere else in the module. The agreement suite `GPUAgreementTests` holds Metal to the CPU
+  within 1e-4 mm (skipped without a Metal device). `ImplicitEvaluators.make` picks the engine and falls back to the CPU, warning
+  "Running on the CPU" when a solid will not compile (the reason is `Selection.diagnostic`, not shown). `BrickPlan` is the sparse octree (prune by |f| / lipschitz; 8³-voxel
+  bricks), `MarchingCubesTable` is generated by a fixed rule (never join inside corners across a face; no triangle flat in a face), and
+  `ImplicitMesher` meshes brick batches into a watertight, manifold mesh (global edge keys, a Newton snap, the memory refusal
+  `MeshingBudget`); `PreviewSchedule` is the passes of the progressive preview. `SignedDistanceMesh` (BVH, pseudonormal sign),
+  `DistanceBaker`, `ImplicitBakeCache` (actor, 512 MB, LRU, keyed by solid identity and tolerance) and `GradingBaker` bake a solid or a
+  field's kernel distances. `STLWriter` writes binary STL. CreatorGraph cannot name `ImplicitSolid` (it depends on Graph for `Field`), so
+  a value on a wire is an `ImplicitPayload` in an `ImplicitReference` (`Scalar.implicit`, `Field.implicit`) and a mesh a `MeshPayload`
+  (`Scalar.mesh`); `ImplicitReference.solid` reads the solid back. `Scalar.converted(to: .mesh)` leaves an implicit as it is: the node
+  that takes a mesh socket meshes it (`MeshInput` in CreatorNodes). `EvalContext` carries `meshQuality` (`.preview` / `.export`;
+  `NodeDefinition.readsMeshQuality` puts it in a node's cache key), `implicitEngine` and `meshProgress`. Tests:
+  `swift test --filter CreatorImplicitTests`.
+- `CreatorNodes`: the 77 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
+the fourteen `Fields` nodes below, the ten `Implicit` nodes and the Mesh node (`Implicit/`, categories `NodeCategory.implicit` and
+`.mesh`: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit, Isosurface, Mesh), the seventeen
   `Patterns` nodes below, and the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
   Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
   parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, cullPattern, cullIndices, image, and `projection(reference)` per projected edge) live in
@@ -246,12 +313,16 @@ the fourteen `Fields` nodes below, the seventeen
     plane (centred, `width` × `height` mm, row 0 at the plane's +y, Tile or Clamp, bilinear grey in 0…1) as `Field.image(GreyImage,
     plane:width:height:edges:)`. The picture is the node's `NodeSetting.image`, a `ConstantValue.image(ImageReference)`: `.embedded(ImageHash)`
     (the SHA-256 of the file's bytes) or `.linked(relativePath:absolutePath:)`. **Images are untrusted input**: `ImageLimits` (16 MB, 8,192 px
-    a side, PNG and JPEG only) are checked from the header before a pixel is decoded (`GreyImageDecoder.inspect`, the only ImageIO user, with
-    `PNGStructure.isWhole` because ImageIO reads a cut-short PNG as black), `decode` works in 32 MB bands off the caller's actor and checks
-    for cancellation (a PNG is decoded once up front and the whole `CGImage` is kept, because ImageIO would decode it whole again for every band: at 8,192² that is about 256 MB 8-bit RGBA or 512 MB 16-bit beside the 32 MB band and the 128 MB result, so a PNG peaks near 0.4 to 0.7 GB; a JPEG has no full-size bitmap), a linked path must be
+    a side, PNG and JPEG only) are checked from the header before a pixel is decoded (`GreyImageDecoder.inspect` over `ImageHeader`, our own PNG IHDR/`eXIf` and
+    JPEG SOF/APP1 reader, gap XP-G10; `PNGStructure.isWhole` still refuses a cut-short PNG), `decode` runs off the caller's actor and
+    decodes through MetalUI's `DecodedImage(data:format: .rgba)` on every platform (S2, gap XP-G4; ImageIO is not used anywhere in `Sources`),
+    then converts to grey in 32 MB bands, checking for cancellation between them and applying the orientation as it indexes the stored
+    pixels (no oriented copy). Peak memory at 8,192²: the file (16 MB), MetalUI's whole decoded RGBA (256 MB, whatever the bit depth) and the 128 MB result,
+    so about 0.4 GB, plus any transient copy inside MetalUI's decode; the decode itself cannot be cancelled. A 16-bit PNG is read to the
+    nearest 8-bit level (S2 rounds), a PNG with a bad CRC and a truncated JPEG are refused. A linked path must be
     a regular file, opened without blocking and checked again on the descriptor, and is read at most 16 MB + 1 byte (`ImageResolver`),
-    and every failure is an `ImageProblem` with its sentence. Colour becomes Rec. 709 luminance of the colour composited against black; EXIF orientation is
-    applied. `DocumentModel.images` is the session's pool of embedded bytes by hash (`addImage`; unused ones are dropped on save, not
+    and every failure is an `ImageProblem` with its sentence. Colour becomes Rec. 709 luminance of the straight-alpha colour composited against black (our conversion, not S2's `.grey`, which is Rec. 601
+    with alpha dropped); EXIF orientation is applied. `DocumentModel.images` is the session's pool of embedded bytes by hash (`addImage`; unused ones are dropped on save, not
     before, so undo works); `ImageResolver` (the pool and the document's folder) goes to every evaluation, and `gather` adds
     `ImageStamp` (a linked file's path, modification date and size, or an embedded hash) to a node's cache key, so a file edited on disk
     runs the node again at the next evaluation and nothing else does. `GreyImageCache` keeps decoded pictures by that stamp (256 MB, LRU) and, under the same stamp, the pictures that
@@ -477,7 +548,7 @@ the fourteen `Fields` nodes below, the seventeen
   through `replyToCloseRequest`; ⌘Q asks the same handler because the app sets no `onTerminateRequest`),
   `WindowChromeSync` keeps `Window.title`, `isDocumentEdited` and `representedURL` on the document
   (`AppModel.windowChrome`), the window opens with the hidden title bar (`AppLayout.windowStyle`, gap M6-c; check AS-5): `TopBar` pads
-  by `AppLayout.topBarClearance` of the window's `titleBarInsets` (zero in full screen), and the window is dragged by `WindowDragHandle`
+  by `AppLayout.topBarClearance` and `topBarTrailingClearance` of the window's `titleBarInsets` (left: AppKit's traffic lights; right: MetalUI's drawn buttons on SDL; zero in full screen), and the window is dragged by `WindowDragHandle`
   (CreatorStyle; MetalUI C22's `WindowDragGesture`, gap C8-a): the strip `AppLayout.windowDragStripHeight` along the top, and the top
   bar's empty space (its label and the gap beside the controls; the sketch toolbar's too), never behind a control (a disabled one would
   pass the press to a handle behind it), and
@@ -495,8 +566,8 @@ Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.
 never worked around here. Graph links are kept canonically sorted by destination; result caching is keyed by node identity.
 Edge/face IDs are OCCT map order. A circle edge's `direction` is its axis, so direction rules must also check `kind == .line`.
 All OCCT work runs under `OCCTKernel.serialized` (process-wide lock) because OCCT shapes share geometry across solids and meshing mutates it; never call the shim outside it (tests included).
-Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a run is edges that continue each other end to end, ends within 1e-4 mm leaving that point in opposite directions to within 0.01 rad, so two edges meeting at a corner are two runs; a pick without one counts each recorded edge as a run) and warns only when both changed; a key that still matches nothing is split by operand (`EdgeKey.operandKeys`, for an edge between a merged face and a third operand's face) and warns when two operands both fit; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 7 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
-4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode; canvas comments' `stickies` and `frames` keys, written only when present and optional on decode, are also under 5; 6 added the tree nodes' text settings `pathRule`, `branchPath` and `itemPath`; trees themselves are computed, never saved; 7 added the Image Field's `image` setting, the optional top-level `images` table (base64 bytes keyed by SHA-256, sorted, written only when used; a damaged entry is dropped on reading) and the `field` socket type in group interfaces; files of format 1 to 6 open unchanged and are written as 7).
+Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a run is edges that continue each other end to end, ends within 1e-4 mm leaving that point in opposite directions to within 0.01 rad, so two edges meeting at a corner are two runs; a pick without one counts each recorded edge as a run) and warns only when both changed; a key that still matches nothing is split by operand (`EdgeKey.operandKeys`, for an edge between a merged face and a third operand's face) and warns when two operands both fit; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 8 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
+4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode; canvas comments' `stickies` and `frames` keys, written only when present and optional on decode, are also under 5; 6 added the tree nodes' text settings `pathRule`, `branchPath` and `itemPath`; trees themselves are computed, never saved; 7 added the Image Field's `image` setting, the optional top-level `images` table (base64 bytes keyed by SHA-256, sorted, written only when used; a damaged entry is dropped on reading) and the `field` socket type in group interfaces; 8 added the `implicit` and `mesh` socket types in group interfaces and the Implicit and Mesh nodes' settings (Shell's `side`, Mesh's resolutions: existing integer and number kinds); implicit solids and meshes are computed, never saved; files of format 1 to 7 open unchanged and are written as 8).
 A `Segment2D.arc` with `end < start` runs clockwise (a sketch region's notch); the shim builds it reversed and
 `length` is positive. Edges carry `EdgeInfo.curve` (`EdgeCurve`, lines and circles) for sketch projection; a
 `FacePick` names faces by tag subset like `EdgePick`; one that matches nothing is retried per operand and ranked by the normal and centroid it recorded (optional keys, no format bump; `Topology.resolution(of:)`), and warns when it can only guess. The Sketch node solves on every evaluation from the stored
@@ -572,7 +643,7 @@ camera reaches `ViewState` only through `cameraSettled`/`homeChanged`, never per
 ```sh
 swift build                                  # build the library
 swift build -c release
-swift test                                   # run all tests
+swift test                                   # run all tests (twelve test targets: twelve "Test run with" lines)
 swift test --filter CreatorGraphTests        # one test target (also CreatorOCCTTests, CreatorGeometryTests, CreatorKernelTests, CreatorViewportTests)
 swift test --filter CreatorOCCTTests         # kernel conformance + naming stability (needs OCCT)
 swift test --filter 'CreatorGraphTests.EvaluatorTests/wiredValuesFlowDownstream'   # one test
@@ -587,11 +658,14 @@ swift test --filter CreatorAppTests        # app model, scene, handles, picking,
 swift test --filter CanvasContentSkipWindowTests   # the canvas's .equatable() views: what a drag, theme or selection change evaluates
 swift test --filter CreatorStyleTests      # colour themes: built-ins, roles, .mctheme files, the folder, ThemeStore
 swift test --filter CreatorSketchEditorTests   # the sketch editor: tools, inference, constraints, dimensions, overlay
+swift test --filter CreatorImplicitTests       # implicit solids: evaluators, octree, mesher, bakes, the GPU agreement suite (Metal device)
 scripts/package-app.sh                     # dist/MetalCreator.app: release build, OCCT bundled, signed ad hoc, verified (docs/packaging.md)
 scripts/verify-app.sh [path.app]           # re-check a packaged app: signature, no Homebrew links, self-test with Homebrew unreadable
 swift run MetalCreatorApp --self-test      # the same headless checks, unpackaged
 scripts/bench.sh [suite]                   # spec §7.3 benchmarks, release build; numbers go in docs/verification/performance.md
 scripts/bench.sh PatternBench              # patterns spec §7: 200 holes in a plate, edit-to-preview (idle Mac only)
+scripts/linux-test.sh [build|test|smoke|all]   # the suite on Linux in Docker (OrbStack): swift build, swift test (11 "Test run with" lines), --self-test, --smoke-test 20
+swift run MetalCreatorApp --smoke-test 5   # a Linux or Windows build: the real window over SDL's offscreen renderers; exit 0 if a first frame was drawn
 ```
 
 Benchmarks (`Tests/CreatorAppTests/Bench`) are Swift Testing suites that print `BENCH …` lines and assert no time; a
@@ -607,7 +681,10 @@ SwiftLint is configured in `.swiftlint.yml` (each non-default setting is documen
 
 - `swift-tools-version: 6.4`, `swiftLanguageModes: [.v6]` — full Swift 6 strict concurrency checking is on. Data-race violations are compile **errors**, not warnings. Shared mutable state needs an actor, `Sendable` conformance, or an explicit global-actor annotation; do not reach for `@unchecked Sendable` or `nonisolated(unsafe)` to silence a diagnostic without understanding it.
 - Tests use **Swift Testing** (`import Testing`, `@Test`, `#expect`), not XCTest. Keep new tests on Swift Testing.
-- Local toolchain: Apple Swift 6.4, arm64 macOS.
+- Local toolchain: Apple Swift 6.4, arm64 macOS. Linux runs in Docker on this Mac (`scripts/linux-test.sh`: MetalUI's `metalui-portable`
+  image, built from `../MetalUI/Backends/SDL/linux/Dockerfile`, plus a font, `scripts/linux/Dockerfile`); build products live in a Docker
+  volume named for the track (`XP_TRACK`, default `xp-1`), and a run stops only its own container. MetalUI must be a sibling checkout.
+  Windows cannot be run here: it is CI's job (`.github/workflows/xp.yml`; it builds and launches, two tests are red, see the xp-1 paragraph).
 - Swift 6.4 crashes in SILGen on a key path applied to an existential metatype (`BuiltInNodes.all.map(\.typeID)`); use a closure.
 - OpenCascade 7.9 comes from Homebrew (`brew install opencascade`) and is linked from `/opt/homebrew/opt/opencascade`.
   Linker warnings about dylibs built for a newer macOS are expected.

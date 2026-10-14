@@ -1,9 +1,9 @@
+#if canImport(Metal)
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import CreatorStyle
 import MetalUI
-import MetalUIText
 import Testing
 @testable import CreatorApp
 
@@ -22,7 +22,7 @@ struct GlassBlursViewportTests {
                     AppRoot(model: app, input: input)
                 }
             }
-        }, size: Size(width: Pixels(1400), height: Pixels(900)), scaleFactor: 2, textSystem: CoreTextTextSystem(),
+        }, size: Size(width: Pixels(1400), height: Pixels(900)), scaleFactor: 2, textSystem: testTextSystem(),
            atlas: GlyphAtlas(width: 1024, height: 1024))
     }
 
@@ -78,3 +78,4 @@ struct GlassBlursViewportTests {
         try expectEveryBlurSeesTheViewport(sketching)
     }
 }
+#endif

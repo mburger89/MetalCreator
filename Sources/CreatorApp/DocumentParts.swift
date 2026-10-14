@@ -13,8 +13,9 @@ struct DocumentParts {
     let viewport: ViewportModel
 
     /// The viewport starts at the file's saved camera and home view; without one it frames the first scene.
-    init(_ file: GraphFile, registry: NodeRegistry, kernel: any Kernel, documentURL: URL? = nil) {
-        document = DocumentModel(file: file, registry: registry, kernel: kernel, documentURL: documentURL)
+    init(_ file: GraphFile, registry: NodeRegistry, kernel: any Kernel, documentURL: URL? = nil,
+         implicitEngine: ImplicitEngineChoice = .cpu) {
+        document = DocumentModel(file: file, registry: registry, kernel: kernel, documentURL: documentURL, implicitEngine: implicitEngine)
         editor = EditorModel(document: document)
         input = GraphPanelInput(model: editor)
         viewport = ViewportModel(kernel: kernel, pose: file.viewState.camera)
