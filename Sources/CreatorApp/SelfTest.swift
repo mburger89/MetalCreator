@@ -78,6 +78,9 @@ public enum SelfTest {
         _ = try ShaderLibrary.make(device: device)
         #elseif canImport(MetalUISDL)
         _ = try SDLWindowRenderer.defaultShaderDirectory()
+        #else
+        // Neither Metal nor MetalUI's SDL backend: nothing here could draw, so the check must not pass silently.
+        throw Failure("this build has neither Metal nor MetalUI's SDL backend, so there are no shaders to find.")
         #endif
     }
 

@@ -66,8 +66,9 @@ struct ImageFieldNodeTests {
         #expect(try await sampled(h.run([node], images: images).field(node), at: [Vector3.zero]) == [1])
     }
 
-    // MARK: Refusals
     #endif
+
+    // MARK: Refusals
 
     @Test func noImageChosenIsAnErrorThatSaysWhatToDo() async throws {
         var h = Harness()

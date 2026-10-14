@@ -268,13 +268,3 @@ struct ContextMenuTests {
                 "overlay labels can't follow a running animation, so they're hidden (the cube's are painted on it)")
     }
 }
-
-/// What the pointer is over, which a test changes while the model's pick closure reads it.
-@MainActor
-private final class PointerSpot {
-    var target: PickTarget?
-
-    init(_ target: PickTarget?) {
-        self.target = target
-    }
-}

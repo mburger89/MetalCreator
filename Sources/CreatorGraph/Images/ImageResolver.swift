@@ -83,7 +83,10 @@ public struct ImageResolver: Sendable {
     static func read(_ url: URL, name: String) throws(ImageProblem) -> Data {
         let handle: FileHandle
         #if os(Windows)
-        // No POSIX descriptors here: the attributes say whether it is a regular file, then it is opened for reading.
+        // No POSIX descriptors here: the attributes say whether it is a regular file, then it is opened for reading. Unlike the
+        // descriptor check below, this is NOT race-free: the path can be swapped between the attributes and the open (the size
+        // is still bounded by the read below). A symlink reports `.typeSymbolicLink`, not `.typeRegular`, so the caller resolves
+        // symlinks first (`URL.resolvingSymlinksInPath`, in `bytes(of:)`), which makes this answer as POSIX `open` does: it follows them.
         let attributes: [FileAttributeKey: Any]
         do {
             attributes = try FileManager.default.attributesOfItem(atPath: url.path(percentEncoded: false))
