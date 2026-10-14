@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import simd
 
 /// Per-pass camera data for every vertex shader.
@@ -11,3 +12,4 @@ struct FrameUniforms {
     var isOrthographic: UInt32
     var padding: Float
 }
+#endif

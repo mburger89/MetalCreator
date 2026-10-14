@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import Metal
 
 /// The field slice's grid as an `r32Float` texture, kept until the slice's generation, size or ramp middle changes, so a redraw
@@ -47,3 +48,4 @@ final class SliceTextures {
         return value
     }
 }
+#endif

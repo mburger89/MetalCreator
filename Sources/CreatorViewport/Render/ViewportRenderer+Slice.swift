@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import Metal
 
 extension ViewportRenderer {
@@ -18,3 +19,4 @@ extension ViewportRenderer {
         encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import CreatorGeometry
 import Metal
 
@@ -34,3 +35,4 @@ final class ViewCubeResources {
         return labels
     }
 }
+#endif
