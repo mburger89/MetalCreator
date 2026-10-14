@@ -122,7 +122,17 @@ struct GreyImageCacheTests {
         #expect(counter.count == 1)
     }
 
-    @Test func aFileThatCouldNotBeReadIsTriedAgainBecauseFixingThatChangesNoStamp() async throws {
+    /// Whether a file with no permissions is really unreadable here: not as root (a CI container's user), and not on Windows.
+    private static let canDenyReading: Bool = {
+        #if os(Windows)
+        false
+        #else
+        geteuid() != 0
+        #endif
+    }()
+
+    @Test(.enabled(if: canDenyReading, "root and Windows read a file whose permissions are 000"))
+    func aFileThatCouldNotBeReadIsTriedAgainBecauseFixingThatChangesNoStamp() async throws {
         let folder = TempFolderForNodes()
         let cache = GreyImageCache(budgetBytes: 1_000_000)
         let counter = CountingDecoder()
