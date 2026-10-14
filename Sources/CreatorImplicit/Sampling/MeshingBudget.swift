@@ -46,6 +46,7 @@ public struct MeshingBudget: Sendable {
     static func coarseEstimate(for solid: ImplicitSolid, resolution: Double,
                                using evaluator: any ImplicitBatchEvaluator) async throws -> (bytes: Int, isEmpty: Bool) {
         precondition(resolution.isFinite && resolution > 0, "the meshing resolution must be positive and finite")
+        guard solid.bounds.hasFiniteCorners else { throw ImplicitMeshingError.empty }
         let size = solid.bounds.size
         let coarse = max(resolution, max(size.x, size.y, size.z) / 64)
         let plan = try await BrickPlan.build(for: solid, resolution: coarse, using: evaluator)

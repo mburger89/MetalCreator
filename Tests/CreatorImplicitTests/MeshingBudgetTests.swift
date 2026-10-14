@@ -64,6 +64,20 @@ struct MeshingBudgetTests {
         }
     }
 
+    @Test func boundsThatAreNotFiniteAreEmptyNotATrap() async throws {
+        let budget = MeshingBudget(physicalMemory: 64_000_000_000)
+        for coordinate in [Double.infinity, .nan] {
+            let move = RigidMove(origin: Vector3(coordinate, 0, 0), xAxis: .unitX, yAxis: .unitY, zAxis: .unitZ)
+            let far = ImplicitSolid.moved(.sphere(radius: 3), move)
+            do {
+                try await budget.check(far, resolution: 0.5, using: CPUBatchEvaluator(far))
+                Issue.record("the job should have been refused for \(coordinate)")
+            } catch let error as ImplicitMeshingError {
+                #expect(error == .empty)
+            }
+        }
+    }
+
     @Test func theMessagesAreTheSpecs() {
         #expect(ImplicitMeshingError.tooBig(bytes: 12_340_000_000, resolution: 0.1, suggestion: 0.35).userMessage
             == "This needs about 12.3 GB at 0.1 mm; coarsen to 0.35 mm or split the part.")

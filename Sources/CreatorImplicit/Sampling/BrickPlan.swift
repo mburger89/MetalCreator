@@ -30,9 +30,7 @@ public struct BrickPlan: Sendable {
         let size = brickSize
         let box = solid.bounds
         // Bounds that aren't finite (an empty intersection built from NaN, an unbounded region) hold nothing to mesh.
-        guard [box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z].allSatisfy(\.isFinite) else {
-            throw ImplicitMeshingError.empty
-        }
+        guard box.hasFiniteCorners else { throw ImplicitMeshingError.empty }
         let origin = box.min - Vector3(resolution, resolution, resolution)
         let span = box.max + Vector3(resolution, resolution, resolution) - origin
         let counts = try brickCounts(span: span, resolution: resolution)
@@ -79,10 +77,14 @@ public struct BrickPlan: Sendable {
 
     /// How many bricks cover `span` on each axis. A grid too large to index is refused like an over-budget job (`Int(_:)` would trap).
     private static func brickCounts(span: Vector3, resolution: Double) throws -> [Int] {
-        try [span.x, span.y, span.z].map { extent in
+        let limit = Double(1 << 30)
+        return try [span.x, span.y, span.z].map { extent in
             let bricks = (extent / (resolution * Double(brickSize))).rounded(.up)
-            guard bricks.isFinite, bricks < Double(1 << 30) else {
-                throw ImplicitMeshingError.tooBig(bytes: Int.max / 2, resolution: resolution, suggestion: resolution * 2)
+            guard bricks.isFinite, bricks < limit else {
+                // The coarsest resolution that still indexes the longest axis, rounded up to 0.01 mm.
+                let longest = max(span.x, span.y, span.z)
+                let fitting = (longest / (Double(brickSize) * (limit / 2)) * 100).rounded(.up) / 100
+                throw ImplicitMeshingError.tooBig(bytes: Int.max / 2, resolution: resolution, suggestion: max(fitting, resolution * 2))
             }
             return max(1, Int(bricks))
         }
@@ -129,5 +131,12 @@ public struct BrickPlan: Sendable {
             }
         }
         return try await evaluator.evaluate(points)
+    }
+}
+
+extension BoundingBox {
+    /// Whether every corner coordinate is finite: an empty intersection built from NaN or an unbounded region holds nothing to mesh.
+    var hasFiniteCorners: Bool {
+        [min.x, min.y, min.z, max.x, max.y, max.z].allSatisfy(\.isFinite)
     }
 }
