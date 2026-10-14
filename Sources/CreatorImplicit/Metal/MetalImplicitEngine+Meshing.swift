@@ -62,15 +62,26 @@ extension MetalImplicitEngine {
         var indices: any MTLBuffer
     }
 
-    /// How many bricks are sampled and meshed in one pair of dispatches (4,096 as in implicit spec §4.2: 12 MB of samples).
-    static let meshBatchBricks = 4096
-    /// The first table has this many slots for each brick; a table that proves too small is doubled.
-    static let tableSlotsPerBrick = 256
-    /// The most slots a table gets (8 bytes each); a mesh needing more is left to the CPU.
-    static let largestTable = 1 << 27
-    /// How many table slots one command buffer numbers or places: a slot costs up to nine evaluations of the solid, so this keeps one
-    /// buffer to the same order of work as the evaluator's (`pointsPerDispatch` points).
-    static let slotsPerDispatch = 1 << 20
+    /// The sizes meshing works in. The defaults are the engine's; the tests turn them down to reach the paths a small mesh never takes.
+    struct MeshTuning {
+        /// How many bricks are sampled and meshed in one pair of dispatches (4,096 as in implicit spec §4.2: 12 MB of samples).
+        var batchBricks = 4096
+        /// The first table has this many slots for each brick; a table that proves too small is doubled.
+        var slotsPerBrick = 256
+        /// The most slots a table gets (8 bytes each); a mesh needing more is left to the CPU.
+        var largestTable = 1 << 27
+        /// How many table slots one command buffer numbers or places: a slot costs up to nine evaluations of the solid, so this keeps
+        /// one buffer to the same order of work as the evaluator's (`pointsPerDispatch` points).
+        var slotsPerDispatch = 1 << 20
+        /// Called with the number of the batch just run (from 1), after its command buffer and before the check for a cancel: the
+        /// tests cancel from it, at a known point. Nothing in the engine sets it.
+        var afterBatch: (@Sendable (Int) async -> Void)?
+    }
+
+    /// Replaces the sizes meshing works in, for the tests.
+    func tune(_ tuning: MeshTuning) {
+        meshTuning = tuning
+    }
 
     public func meshBricks(_ program: CompiledImplicit, _ request: BrickMeshRequest,
                            progress: @Sendable (Double) -> Void) async throws -> BrickMesh {
@@ -90,13 +101,14 @@ extension MetalImplicitEngine {
             pipelines: pipelines, solid: try buffers(for: program), bricks: try meshUpload(lattice.relativeBricks(request.bricks)),
             axes: try meshUpload(lattice.axisCoordinates(origin: request.origin, resolution: request.resolution)),
             cube: try meshUpload(MarchingCubesBuffers.words), parameters: parameters, brickCount: request.bricks.count, started: started,
-            slotsPerDispatch: Self.slotsPerDispatch)
-        var slots = 1 << max(12, Int.bitWidth - (request.bricks.count * Self.tableSlotsPerBrick - 1).leadingZeroBitCount)
+            slotsPerDispatch: meshTuning.slotsPerDispatch)
+        let tuning = meshTuning
+        var slots = 1 << max(12, Int.bitWidth - (request.bricks.count * tuning.slotsPerBrick - 1).leadingZeroBitCount)
         while true {
-            guard slots <= Self.largestTable else {
-                throw ImplicitCompileError.unsupported("the edge table would pass \(Self.largestTable) slots")
+            guard slots <= tuning.largestTable else {
+                throw ImplicitCompileError.unsupported("the edge table would pass \(tuning.largestTable) slots")
             }
-            if let mesh = try await meshAttempt(job, slots: slots, batch: Self.meshBatchBricks, progress: progress) {
+            if let mesh = try await meshAttempt(job, slots: slots, batch: tuning.batchBricks, progress: progress) {
                 meshesMade += 1
                 return mesh
             }
@@ -159,6 +171,7 @@ extension MetalImplicitEngine {
                 dispatch(encoder, run.job.pipelines.sample, threads: count * 729)
                 dispatch(encoder, emitting ? run.job.pipelines.emit : run.job.pipelines.classify, threads: count * 512)
             }
+            await meshTuning.afterBatch?(first / run.batch + 1)
             try checkRunning(run.job)
             progress(from + (to - from) * Double(first + count) / Double(total))
         }

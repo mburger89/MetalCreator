@@ -39,6 +39,8 @@ public actor MetalImplicitEngine: ImplicitGPUEngine {
 
     /// The meshing kernels of each shape (`MetalImplicitEngine+Meshing.swift`).
     var meshPipelines: [ShapeKey: MeshPipelines] = [:]
+    /// The sizes meshing works in.
+    var meshTuning = MeshTuning()
     /// How many sets of meshing pipelines were compiled.
     public internal(set) var meshCompileCount = 0
     /// How many meshes `meshBricks` has made: the benchmarks use it to see that a row's meshes were made on the GPU.
