@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 /// The SHA-256 of an image file's bytes, as 64 lowercase hexadecimal digits: the key of the document's `images` table
@@ -9,10 +8,7 @@ public struct ImageHash: Hashable, Sendable, Comparable, Codable, CustomStringCo
 
     /// The hash of `data`.
     public init(of data: Data) {
-        hex = SHA256.hash(data: data).map { byte in
-            let digits = String(byte, radix: 16)
-            return byte < 16 ? "0" + digits : digits
-        }.joined()
+        hex = SHA256.hex(of: data)
     }
 
     /// The hash written as `hex`, or `nil` unless it is exactly 64 lowercase hexadecimal digits (anything else in a file
