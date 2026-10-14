@@ -330,3 +330,17 @@ A new `ImplicitBench` suite (release, idle Mac, `BENCH` lines into `docs/verific
 
 Importing STL or 3MF as inputs; colour and multi-material 3MF; fitting smooth NURBS to meshes; feature-preserving
 meshing (dual contouring); mesh booleans; surface textures and displacement (7d, which will reuse this engine).
+
+## Errata (2026-10-13: portability, user decision)
+
+- **D11. 7c stays portable to Linux and Windows** (user, 2026-10-13, alongside the cross-platform port track). This
+  amends D4, D6 and §4.1:
+  - The CPU evaluator (`ImplicitEvaluator.cpu`) is a **complete engine**, not only a reference. Every feature (sparse
+    evaluation, meshing, preview passes, export) works on it, and it is what runs wherever no GPU evaluator exists.
+  - GPU evaluation sits behind a protocol, `ImplicitGPUEvaluator` (compile a tree, evaluate a batch of points or
+    bricks, cancel), that the rest of the engine depends on. `MetalImplicitEvaluator` is its only implementation in
+    7c and lives in its own file or target, compiled only where Metal is available (`#if canImport(Metal)`). An SDL
+    GPU compute implementation comes later, when MetalUI exposes one (gap forwarded 2026-10-13).
+  - Nothing outside that implementation imports Metal, simd, CoreGraphics or another Apple-only framework. The GPU
+    agreement suite is skipped where no GPU evaluator exists.
+  - §6's i-1, i-2 and i-4 targets are for the Metal path on this Mac; the CPU path records its numbers without a budget.
