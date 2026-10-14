@@ -43,4 +43,9 @@ public indirect enum ImplicitSolid: Hashable, Sendable {
     /// Where `grading.field` is below `level`: the value is (field − level) ÷ `maxSlope`, so lipschitz is 1 when the slope bound is
     /// honest (Isosurface). `region` bounds the surface.
     case isosurface(Grading, level: Double, maxSlope: Double, region: BoundingBox)
+
+    // MARK: Lattices (implicit spec §3.4; each is cut to its region's box, the lattice nodes intersect it with the region itself)
+
+    /// A triply periodic minimal surface, a sheet or a network.
+    case tpms(TPMSLattice)
 }

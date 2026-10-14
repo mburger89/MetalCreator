@@ -126,7 +126,20 @@ public enum ImplicitCompiler {
                 let (levelName, slopeName) = (number(level), number(maxSlope))
                 let (centre, half) = (vector(region.center), vector(region.size * 0.5))
                 return declare("max((\(value) - \(levelName)) / \(slopeName), regionDistance(\(p), \(centre), \(half)))")
+            case .tpms(let lattice):
+                return try tpms(lattice, at: p)
             }
+        }
+
+        /// A TPMS lattice: `tpmsLattice` of the cell size, the stretch and the thickness at `p`, its type and form as integers.
+        mutating func tpms(_ lattice: TPMSLattice, at p: String) throws(ImplicitCompileError) -> String {
+            let cell = try grading(lattice.cells.size, at: p)
+            let wall = try grading(lattice.thickness, at: p)
+            let stretch = vector(lattice.cells.stretch)
+            let (type, form) = (integer(lattice.type.rawValue), integer(lattice.form.rawValue))
+            let scale = number(lattice.type.wallScale)
+            let (centre, half) = (vector(lattice.region.center), vector(lattice.region.size * 0.5))
+            return declare("tpmsLattice(\(p), \(cell), \(stretch), \(wall), \(type), \(form), \(scale), \(centre), \(half))")
         }
 
         /// Union, intersect and subtract: the children folded left to right with `join(result, next, width)`; `empty` is the value

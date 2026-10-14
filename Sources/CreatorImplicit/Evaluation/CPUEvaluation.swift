@@ -57,6 +57,8 @@ final class CPUEvaluation {
             return blocks.value(at: p)
         case .isosurface(let grading, let level, let maxSlope, let region):
             return max((value(grading, at: p) - level) / maxSlope, Self.boxDistance(p, region))
+        case .tpms(let lattice):
+            return tpms(lattice, at: p)
         }
     }
 

@@ -4,7 +4,7 @@ extension ImplicitSolid {
     /// The solids this one is made from, in order. No `default`: a new case must say what its operands are.
     public var children: [ImplicitSolid] {
         switch self {
-        case .sphere, .box, .cylinder, .baked, .isosurface:
+        case .sphere, .box, .cylinder, .baked, .isosurface, .tpms:
             []
         case .moved(let child, _), .offset(let child, _), .shell(let child, _, _):
             [child]
@@ -26,6 +26,8 @@ extension ImplicitSolid {
             [thickness]
         case .isosurface(let grading, _, _, _):
             [grading]
+        case .tpms(let lattice):
+            [lattice.cells.size, lattice.thickness]
         }
     }
 
