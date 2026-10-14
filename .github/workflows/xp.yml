@@ -114,7 +114,9 @@ jobs:
         working-directory: MetalCreator
         # The pass rule (spec 2.5): exit 0, no "recorded an issue" or "failed after" line, EXPECTED_TEST_RUNS "Test run with" lines.
         run: |
-          $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB") +
+          # Windows threads get the executable's stack reserve (1 MB by default); the deepest layout trees in CreatorAppTests
+          # overflow it (run 38532786786), so the test executables reserve 16 MB, as macOS and Linux threads effectively have.
+          $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB", "-Xlinker", "/STACK:16777216") +
                    @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
           $log = "$env:RUNNER_TEMP\test.log"
           swift test @flags 2>&1 | Tee-Object -FilePath $log
