@@ -157,4 +157,4 @@ beyond what MetalUI provides; macOS CI; Intel macOS.
   at 68 points or more, below the 32-point band, and the bar stays at the margin inside the band as on macOS (macOS is unchanged,
   pinned by `SDLChromeWindowTests.macLayoutIsWhatItWas`). The drawn Close button goes through `onCloseRequest` to
   `AppModel.closeRequested()` (`installCloseHandling`). `WindowDragHandle` stays and is now an SDL drag region where MetalUI publishes
-  one; it will publish none once a gesture-taking viewport is behind the bar (gap XP-G11: the real Metal viewport on macOS's headless test, the SDL GPU viewport at xp-3; the Linux and Windows placeholder has none). Human checks XP-11..XP-14; XP-8 keeps the cursors only.
+  one; a gesture-taking viewport behind the bar no longer empties it (gap XP-G11, fixed by MetalUI S1b, PR #87, master `a4ebe288`). Human checks XP-11..XP-14; XP-8 keeps the cursors only.
