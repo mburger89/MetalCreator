@@ -1,4 +1,3 @@
-import CreatorGeometry
 import Foundation
 
 /// Smooth fractal gradient noise in 0…1 (fields spec §3.1): 3D simplex noise (Gustavson, "Simplex noise demystified"), summed
@@ -7,21 +6,33 @@ import Foundation
 /// system's generator, so a seed gives the same field on every machine and release. A value depends on the point and the
 /// settings alone, never on which other points are sampled with it. At the origin every octave is 0, so the value is exactly
 /// 0.5 whatever the seed.
-struct FieldNoise: Sendable {
-    let scale: Double
-    let octaves: Int
+public struct FieldNoise: Sendable {
+    public let scale: Double
+    public let octaves: Int
     private let generators: [SeededRandom]
 
     /// `scale` is the size in mm of the first octave's features; `octaves` is 1 or more.
-    init(seed: Int, scale: Double, octaves: Int) {
+    public init(seed: Int, scale: Double, octaves: Int) {
         precondition(octaves >= 1 && scale > 0, "FieldNoise needs 1 or more octaves and a scale above 0")
         self.scale = scale
         self.octaves = octaves
         self.generators = (0..<octaves).map { SeededRandom(seed: seed, stream: $0, purpose: .fieldNoise) }
     }
 
+    /// The declared bound on how fast one octave of size 1 mm changes, in value per millimetre (implicit spec §3.3: "a declared bound
+    /// for noise"). Measured at 3.15 over 4 million random directions and seeds, and declared a little higher; it is not proved, and
+    /// `FieldSlopeTests` checks it again. An octave of size `s` mm changes `unitSlope / s` as fast.
+    public static let unitSlope = 4.0
+
+    /// A bound on how fast the noise changes, in value per millimetre: each octave halves in size and amplitude, so every octave's
+    /// slope is `unitSlope / scale` before the sum is divided by the total amplitude.
+    public static func slopeBound(scale: Double, octaves: Int) -> Double {
+        let total = 2 * (1 - pow(0.5, Double(octaves)))
+        return unitSlope * Double(octaves) / (total * scale)
+    }
+
     /// The noise at `point`, in 0…1.
-    func value(at point: Vector3) -> Double {
+    public func value(at point: Vector3) -> Double {
         var sum = 0.0
         var total = 0.0
         var amplitude = 1.0

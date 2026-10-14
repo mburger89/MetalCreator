@@ -9,10 +9,16 @@ public actor Evaluator {
     private var cache: ResultCache
     /// Kernel distances for fields (fields spec §2.2), kept across evaluations so re-sampling the same points costs nothing.
     public nonisolated let fieldDistances: FieldDistanceCache
+    /// The engine implicit solids run on (implicit spec §4.1). It is fixed for the Evaluator's life and is not part of any cache key, so
+    /// a cached mesh was always made by this engine; a runtime toggle must build a new Evaluator (the app picks it when it makes the
+    /// document, `DocumentModel.init`), never change this.
+    private let implicitEngine: ImplicitEngineChoice
 
-    public init(registry: NodeRegistry, kernel: any Kernel, cacheBudgetBytes: Int = 512 * 1024 * 1024) {
+    public init(registry: NodeRegistry, kernel: any Kernel, cacheBudgetBytes: Int = 512 * 1024 * 1024,
+                implicitEngine: ImplicitEngineChoice = .cpu) {
         self.registry = registry
         self.kernel = kernel
+        self.implicitEngine = implicitEngine
         self.cache = ResultCache(budgetBytes: cacheBudgetBytes)
         self.fieldDistances = FieldDistanceCache()
     }
@@ -23,14 +29,18 @@ public actor Evaluator {
     /// the group nodes entered from the top level down to the level the graph panel shows (groups spec §6), every
     /// node of that level is evaluated too, so each has a state in `innerResults` even when nothing downstream
     /// wants it; a node there that fails doesn't fail the group node unless it feeds Group Output. `images` is the document's
-    /// embedded images and folder: an image setting adds what it points at now to its node's cache key (`gather`).
+    /// embedded images and folder: an image setting adds what it points at now to its node's cache key (`gather`). `meshQuality` says
+    /// whether Mesh nodes work for the viewport or for an export (a node that reads it adds it to its cache key), and `progress`
+    /// hears how far a long meshing has got.
     public func evaluate(_ graph: Graph, definitions: [GroupID: GroupDefinition] = [:], demand: Set<NodeID>,
-                         inspecting level: [NodeID] = [], images: ImageResolver = ImageResolver()) async throws -> EvaluationReport {
+                         inspecting level: [NodeID] = [], images: ImageResolver = ImageResolver(),
+                         meshQuality: MeshQuality = .preview, progress: MeshProgress = .none) async throws -> EvaluationReport {
         // Entries of nodes no longer anywhere (deleted, or inside a group node that's gone) leave the cache.
         cache.removeEntries(notIn: graph.scopedNodeIDs(definitions: definitions))
         let parameters = Dictionary(graph.parameters.map { ($0.id, $0.value) }, uniquingKeysWith: { first, _ in first })
         let setup = EvaluationSetup(registry: registry.withGroups(definitions), parameters: parameters, inspected: level,
-                                    fieldDistances: fieldDistances, images: images)
+                                    fieldDistances: fieldDistances, images: images, meshQuality: meshQuality,
+                                    implicitEngine: implicitEngine, meshProgress: progress)
         var trace = EvaluationTrace()
         var demand = demand
         if let first = level.first, graph.nodes[first] != nil { demand.insert(first) }

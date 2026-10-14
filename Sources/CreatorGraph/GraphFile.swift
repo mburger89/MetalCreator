@@ -11,8 +11,11 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// files still load unchanged. Canvas comments (`Graph.stickies`, `Graph.frames`) add optional keys under 5: no bump.
     /// 7: the Image Field's `image` setting (`ConstantValue.image`) and the optional top-level `images` table of embedded
     /// pictures (fields spec §5), and a group interface may now carry a `field` socket (7b-1 refused it under 6); a
-    /// version-6 reader can decode none of these. Version-1 to -6 files open unchanged and are written as 7.
-    public static let currentFormatVersion = 7
+    /// version-6 reader can decode none of these. 8: the `implicit` and `mesh` socket types may appear on a group's interface
+    /// (implicit spec §5.4), and the Implicit and Mesh nodes keep their settings (Shell's side, Mesh's resolutions) as the existing
+    /// integer and number settings; a version-7 reader would show them as sockets it cannot type. Implicit solids and meshes are
+    /// computed, never saved. Version-1 to -7 files open unchanged and are written as 8.
+    public static let currentFormatVersion = 8
 
     public var formatVersion: Int
     public var graph: Graph

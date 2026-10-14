@@ -71,6 +71,13 @@ public enum AppLayout {
         return ViewportInsets(top: 0, leading: area.leading + 16, bottom: area.bottom + 16 + TriadLayout().side + 12, trailing: 0)
     }
 
+    /// The mesh preview badge's room (implicit spec §5.1): it stands at the model area's lower right, 16 points in from its edges. The
+    /// top and leading insets are 0.
+    public static func badgeInsets(dock: DockSide, panelWidth: Double, panelHeight: Double) -> ViewportInsets {
+        let area = modelArea(dock: dock, panelWidth: panelWidth, panelHeight: panelHeight)
+        return ViewportInsets(top: 0, leading: 0, bottom: area.bottom + 16, trailing: area.trailing + 16)
+    }
+
     /// The part of the viewport the panels leave uncovered, for `ViewportModel.setModelArea(_:)`.
     public static func modelArea(dock: DockSide, panelWidth: Double, panelHeight: Double) -> ViewportInsets {
         let top = margin + topBarHeight

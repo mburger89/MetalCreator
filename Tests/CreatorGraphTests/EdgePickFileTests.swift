@@ -28,9 +28,9 @@ struct EdgePickFileTests {
     /// 7 since the images (7b-2; 6 since the tree nodes, 7a; 5 since groups, C1; 4 since S4's `sketch` and `facePick` settings). Whichever
     /// format-bumping branch merges second takes the next number and updates both literals here.
     @Test func savedFilesCarryTheCurrentFormatVersion() throws {
-        #expect(GraphFile.currentFormatVersion == 7)
+        #expect(GraphFile.currentFormatVersion == 8)
         let text = try #require(String(bytes: try GraphFileIO.encode(GraphFile()), encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 7"#))
+        #expect(text.contains(#""formatVersion" : 8"#))
     }
 
     @Test func versionTwoEdgePicksDecodeAsOuterWalls() throws {

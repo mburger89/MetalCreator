@@ -1,4 +1,5 @@
 import CreatorApp
+import CreatorGraph
 import CreatorKernel
 import Foundation
 import MetalUI
@@ -44,7 +45,7 @@ func makeKernel() -> any Kernel {
 func runApp(opening path: String?, smoke: LaunchSmoke? = nil) throws {
     let app = try makeApp(offscreen: smoke != nil)
     app.preferredColorScheme = .dark
-    let model = AppModel(kernel: makeKernel(), themes: AppThemes.store())
+    let model = AppModel(kernel: makeKernel(), themes: AppThemes.store(), implicitEngine: .automatic)
     let themeEditor = ThemeEditorModel(themes: model.themes)
     let input = AppInput(model: model)
     AppCommands.install(on: app, model: model, themeEditor: themeEditor)

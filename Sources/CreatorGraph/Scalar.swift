@@ -14,6 +14,10 @@ public enum Scalar: Sendable {
     case faceSet(FaceSet)
     /// A value that varies over space (fields spec §2.1). Never saved.
     case field(Field)
+    /// A signed distance function (implicit spec §2.1). Computed, never saved.
+    case implicit(ImplicitReference)
+    /// A triangle mesh (implicit spec §2.2). Computed, never saved.
+    case mesh(any MeshPayload)
 
     public var type: SocketType {
         switch self {
@@ -27,6 +31,8 @@ public enum Scalar: Sendable {
         case .edgeSet: .edgeSet
         case .faceSet: .faceSet
         case .field: .field
+        case .implicit: .implicit
+        case .mesh: .mesh
         }
     }
 
@@ -51,6 +57,11 @@ public enum Scalar: Sendable {
         // A number is a constant field (fields spec D4). Nothing converts back: a sampling node turns a field into numbers.
         case (.number(let value), .field): return .field(.constant(value))
         case (.integer(let value), .field): return .field(.constant(Double(value)))
+        // An implicit is its own signed distance (implicit spec §2.3).
+        case (.implicit(let solid), .field): return .field(.implicit(solid))
+        // Meshing is work, and needs the run's quality and cancellation, so this conversion can't happen here: an implicit
+        // wired into a mesh socket passes as it is, and the node that takes it meshes it (`MeshInput` in CreatorNodes).
+        case (.implicit, .mesh): return self
         default: return nil
         }
     }
@@ -62,6 +73,8 @@ public enum Scalar: Sendable {
         case .edgeSet(let set): 32 + set.edges.count * 8
         case .faceSet(let set): 32 + set.faces.count * 8
         case .field(let field): field.estimatedBytes
+        case .implicit(let solid): solid.payload.estimatedBytes
+        case .mesh(let mesh): mesh.estimatedBytes
         case .number, .integer, .bool, .vector, .plane: 32
         }
     }

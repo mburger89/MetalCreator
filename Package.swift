@@ -42,8 +42,13 @@ var targets: [Target] = [
     .target(name: "CreatorKernel", dependencies: ["CreatorGeometry"]),
     // CreatorSketch: `ConstantValue.sketch` (S4). The Sketch node in CreatorNodes solves it.
     .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
+    // Implicit solids and meshes (implicit spec §2 to §4): the value types, the CPU evaluator, the Metal compiler, the sparse
+    // octree and the mesher. Depends on CreatorGraph for `Field`; CreatorGraph holds them only as `ImplicitPayload` and
+    // `MeshPayload`. Portable: the Metal compiler is gated with `#if canImport(Metal)`.
+    .target(name: "CreatorImplicit", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
     // MetalUI only for `DecodedImage`, the picture decoder (`GreyImageDecoder+MetalUI.swift`, the one file that imports it).
-    .target(name: "CreatorNodes", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch", metalUI]),
+    .target(name: "CreatorNodes",
+            dependencies: ["CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry", "CreatorSketch", metalUI]),
     // Colour themes (spec §6.6, Dracula by default): the roles, the built-in themes and the `ThemeStore` that
     // the editor's views and the viewport's GPU colours read.
     .target(name: "CreatorStyle", dependencies: [metalUI]),
@@ -59,19 +64,19 @@ var targets: [Target] = [
     .target(
         name: "CreatorApp",
         dependencies: [
-            "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorKernel", "CreatorGeometry",
+            "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry",
             "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", metalUI, metalUISDL,
         ]
     ),
     .executableTarget(
         name: "MetalCreatorApp",
-        dependencies: ["CreatorApp", "CreatorKernel", metalUI, metalUISDL, metalUIPortableText, metalUISystemFonts] + occt
+        dependencies: ["CreatorApp", "CreatorGraph", "CreatorKernel", metalUI, metalUISDL, metalUIPortableText, metalUISystemFonts] + occt
     ),
     // CreatorOCCT is a test-only dependency: the app-level acceptance test runs the §7.2 bracket on OCCT.
     .testTarget(
         name: "CreatorAppTests",
         dependencies: [
-            "CreatorApp", "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorKernel",
+            "CreatorApp", "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorImplicit", "CreatorKernel",
             "CreatorGeometry", "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", metalUI, metalUITesting,
             metalUIPortableText, metalUISystemFonts,
         ] + occt
@@ -95,11 +100,13 @@ var targets: [Target] = [
     ),
     .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
     .testTarget(name: "CreatorSketchTests", dependencies: ["CreatorSketch", "CreatorGeometry"]),
+    .testTarget(name: "CreatorImplicitTests",
+                dependencies: ["CreatorImplicit", "CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
     .testTarget(name: "CreatorKernelTests", dependencies: ["CreatorKernel", "CreatorGeometry"]),
     .testTarget(name: "CreatorGraphTests", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
     .testTarget(
         name: "CreatorNodesTests",
-        dependencies: ["CreatorNodes", "CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch"] + occt
+        dependencies: ["CreatorNodes", "CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry", "CreatorSketch"] + occt
     ),
     // CreatorOCCT is a test-only dependency: the offscreen ID-pass test renders a real OCCT box (spec §8).
     .testTarget(

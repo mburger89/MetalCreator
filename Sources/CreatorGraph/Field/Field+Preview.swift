@@ -8,7 +8,7 @@ extension Field {
         switch self {
         case .distance(.kernel, _):
             true
-        case .distance, .constant, .linearGradient, .radialGradient, .noise, .image:
+        case .distance, .constant, .linearGradient, .radialGradient, .noise, .image, .implicit:
             false
         case .add, .multiply, .minimum, .maximum, .remap, .clamp, .smoothMinimum:
             children.contains { $0.measuresWithKernel }
@@ -19,7 +19,7 @@ extension Field {
     /// two such, or one held to a range.
     public var isSignedDistance: Bool {
         switch self {
-        case .distance(.kernel(.solid), signed: true):
+        case .distance(.kernel(.solid), signed: true), .implicit:
             true
         case .minimum(let a, let b), .maximum(let a, let b), .smoothMinimum(let a, let b, _):
             a.isSignedDistance && b.isSignedDistance
@@ -35,7 +35,7 @@ extension Field {
     /// plain numbers.
     public var unit: FieldUnit {
         switch self {
-        case .distance:
+        case .distance, .implicit:
             .millimetres
         case .add(let a, let b), .minimum(let a, let b), .maximum(let a, let b), .smoothMinimum(let a, let b, _):
             Self.combinedUnit(a, b)

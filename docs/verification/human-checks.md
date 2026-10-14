@@ -1859,3 +1859,59 @@ warning step when red. macOS needs no check here: its test count and its look ar
 - [ ] **XP-14 Borderless chrome, Windows 11.** The same as XP-11 and XP-12 on Windows 11: the three drawn buttons at the top right,
   drag, resize edges, double-click zoom, and the close veto with unsaved changes. The snap-layout flyout over zoom, the DWM shadow
   and the rounded corners are not there for a borderless window (MetalUI CW9: platform); note what is missing. **Observed:**
+
+## Group IM — implicit geometry: sockets, nodes, meshes, the progressive preview and export (7c-1)
+
+**Status: NOT RUN.** Plan `2026-10-13-7c-core.md`, spec `2026-10-13-implicit-lattices-design.md` §2 to §6. Run `swift run MetalCreatorApp` on a
+Mac with a GPU. The tests pin the values, the maths, the Metal-against-CPU agreement, the octree, the mesher's invariants, the bakes,
+the nodes, the export and the file; these check only what a real window, a real GPU and a real slicer show. Build: a Sphere (radius 20)
+into a Union's `shapes` beside a Box (30 × 30 × 30, corner radius 3) placed 15 mm along X by a Place (`implicit`), the Union (blend
+radius 4) into a Shell (inward, 2), the Shell into a Mesh, the Mesh into an Output.
+
+- [ ] **IM-1 Colours and the library.** The Implicit sockets and wires are one colour (the Dracula yellow), the Mesh sockets another
+  (a pale grey), both easy to tell from the Value blue-grey, the Solid purple, the Selection pink, the Feature orange and the Fields
+  orange. The node library has "Implicit" (Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit,
+  Isosurface) after "Fields" and "Mesh" (Mesh) after that, then "Output". Switch View > Theme to Alucard and Nord: the dots and wires
+  stay legible, and the theme editor lists "Implicit nodes" and "Mesh nodes" under Node categories. Pinned: `PaletteTests`,
+  `ImplicitLibraryTests`, `ThemeTests`, for the default theme only; Alucard and Nord are human-only. **Observed:**
+- [ ] **IM-2 The recipe and the tooltip.** Select the Shell: the inspector's "Implicit" section reads
+  `shell(union(sphere(radius 20 mm), place(box(30 × 30 × 30 mm, corner radius 3 mm)), blend 4 mm), inward 2 mm)`, wrapped inside the
+  panel and not clipped. Rest the pointer on the Shell's output dot: the same, cut to 80 characters with "…". Select the Mesh: its
+  "Mesh" section lists the triangle count, "Preview … mm", the meshing time and the memory. Pinned: `ImplicitDisplayTests`,
+  `MeshNodeTests`. **Observed:**
+- [ ] **IM-3 The first pass and the refinement.** Wire the Output and look at the viewport: a rounded, smooth-shaded shell appears at
+  once (no faceting, no black patches), a "Preview 0.78 mm"-style badge sits at the lower right with a spinner, and over the next second
+  or two the surface gets finer, the badge number falling, until the spinner goes and the badge keeps its last number. Orbit while it
+  refines: the view stays smooth. Pinned: `AppMeshPreviewTests`, `MeshBadgeWindowTests`; the feel is human-only. **Observed:**
+- [ ] **IM-4 An edit stops the passes.** While the badge shows a spinner, drag the Sphere's radius slider: the old surface is replaced
+  by the new one's first pass, never by a finished pass of the old shape arriving late, and the spinner restarts. A dragged radius feels
+  live. Pinned: `anEditStopsThePassesForTheOldShapeAndStartsTheNewOne`; the feel is human-only. **Observed:**
+- [ ] **IM-5 Blends and fields.** Set the Union's blend radius to 0: the join becomes sharp. Wire a Linear Gradient into the Shell's
+  `thickness`: the wall thickens along Z and the Shell shows "“thickness” is below 0 in places; it is held at 0 there." when the
+  gradient goes negative. Wire a Distance Field of the bracket (OCCT) through a Clamp into the Union's blend radius: it grades and the
+  preview stays interactive. Pinned: `ImplicitCombineNodeTests`, `ImplicitShellOffsetNodeTests`. **Observed:**
+- [ ] **IM-6 To Implicit and the bracket.** Build the slice's bracket and wire its solid into a To Implicit (tolerance 0.01), then a
+  Shell (1.5, inward) and a Mesh into the Output. The bracket appears hollow with its fillets; the To Implicit inspector shows the bake
+  time and memory; editing the Shell's thickness does not bake again (the preview follows within a fraction of a second). An open
+  solid (a Loft of one open profile, if the build can make one) says "This solid isn't closed, so inside and outside are undefined."
+  Pinned: `ToImplicitNodeTests`, `SignedDistanceMeshTests`. **Observed:**
+- [ ] **IM-7 Isosurface.** Wire a Noise Field (scale 12) into an Isosurface (level 0.5, max slope 0.45) with a 60 mm Box as `bounds`
+  and the Isosurface into a Mesh: a blobby solid fills the box. Lower max slope to 0.05: the node warns that the field can change by
+  more than max slope and the preview shows holes, as the help text says. Pinned: `IsosurfaceNodeTests`. **Observed:**
+- [ ] **IM-8 STEP refuses a mesh.** With the Output holding a mesh and named "Insole", File > Export STEP…: an alert reads
+  "Output 'Insole' is a mesh; STEP needs solids. Export STL or 3MF, or convert it with Mesh to Solid." and no save panel appears.
+  Pinned: `stepRefusesAMeshInTheSpecsWords`. **Observed:**
+- [ ] **IM-9 The export sheet and STL.** Set the Mesh's export resolution to 0.2 and choose File > Export STL…: after the save panel a
+  card in the middle of the window reads "Exporting “Insole”" with a bar that fills and a Cancel button (Escape too). Let it finish: the
+  card goes, the file exists, and Quick Look or a slicer shows the shell at the right size in millimetres with no holes. Export again
+  and press Cancel part way: the card says "Cancelling…", then goes, and no file is left. Pinned: `ExportMeshTests`,
+  `ExportSheetWindowTests`; the look is human-only. **Observed:**
+- [ ] **IM-10 The warnings summary.** Make the Union's blend radius a Linear Gradient (it goes below 0) and export an STL: after the
+  file is written an alert reads "Exported with 1 warning" and lists "Union: “blend radius” is below 0 in places; it is held at 0
+  there." Pinned: `warningsAreSummarisedAfterTheFile`. **Observed:**
+- [ ] **IM-11 Too big for memory.** Set a Sphere's radius to 1,000 and the Mesh's export resolution to 0.01, then export an STL: the
+  alert reads "This needs about N GB at 0.01 mm; coarsen to X mm or split the part." (N and X numbers, N above half this Mac's
+  memory) and no file is written. Pinned: `aMeshTooBigForMemoryIsRefusedWithTheNodeThatSaysSo`. **Observed:**
+- [ ] **IM-12 Files.** Save the document, quit, reopen it: the same graph, the same shape, the same badge. Open a file saved before
+  this build (any earlier .mcgraph): it opens unchanged and the next save writes `"formatVersion" : 8`. Pinned: `ImplicitFileTests`,
+  `ImplicitDocumentFileTests`. **Observed:**

@@ -38,6 +38,12 @@ public enum InspectorBuilder {
         if let recipe = fieldSection(node: node, registry: registry, results: results) {
             sections.append(recipe)
         }
+        if let recipe = implicitSection(node: node, registry: registry, results: results) {
+            sections.append(recipe)
+        }
+        if let facts = meshSection(node: node, registry: registry, results: results) {
+            sections.append(facts)
+        }
         return InspectorPage(header: header, sections: sections, parameters: parameters)
     }
 
