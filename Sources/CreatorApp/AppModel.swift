@@ -1,5 +1,6 @@
 import CreatorEditor
 import CreatorGraph
+import CreatorImplicit
 import CreatorKernel
 import CreatorNodes
 import CreatorStyle
@@ -27,6 +28,12 @@ public final class AppModel {
     /// The field preview of the selected node (fields spec §6): the tint on the shown parts and the slice through them. It
     /// belongs to the open document and is replaced with it; its toggles are view state, never saved.
     private(set) var fieldPreview: FieldPreviewModel
+    /// The progressive preview of meshes (implicit spec §4.3): finer passes for the meshes on screen, and the "Preview 0.4 mm" badge.
+    let meshRefinement: MeshRefinementModel
+    /// The solids that display the meshes of the scene, one per mesh.
+    @ObservationIgnored let meshSolids = MeshSolids()
+    /// The engine implicit solids run on: Metal in the app, the CPU in tests.
+    @ObservationIgnored let implicitEngine: ImplicitEngineChoice
     /// Where the document was last opened from or saved to; `nil` for a new one.
     public internal(set) var fileURL: URL?
     /// The graph and its group definitions as they were last opened or saved. The document is edited while they differ.
@@ -67,11 +74,13 @@ public final class AppModel {
     /// `kernel` evaluates the document and tessellates for the viewport (`OCCTKernel` in the app, `FakeKernel`
     /// in tests). `file` is the document to start with, `fileURL` where it came from, `themes` the app's themes.
     public init(kernel: any Kernel, registry: NodeRegistry = BuiltInNodes.registry, file: GraphFile = GraphFile(),
-                fileURL: URL? = nil, themes: ThemeStore = ThemeStore()) {
+                fileURL: URL? = nil, themes: ThemeStore = ThemeStore(), implicitEngine: ImplicitEngineChoice = .cpu) {
         self.kernel = kernel
         self.registry = registry
         self.themes = themes
-        let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: fileURL)
+        self.implicitEngine = implicitEngine
+        meshRefinement = MeshRefinementModel(engine: implicitEngine)
+        let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: fileURL, implicitEngine: implicitEngine)
         document = parts.document
         editor = parts.editor
         graphInput = parts.input
@@ -91,7 +100,8 @@ public final class AppModel {
 
     /// Replaces the open document (New, Open). The pick and the preview mode start over.
     func load(_ file: GraphFile, from url: URL?) {
-        let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: url)
+        let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: url, implicitEngine: implicitEngine)
+        meshRefinement.reset()
         pick = nil
         sketch?.stop()
         sketch = nil

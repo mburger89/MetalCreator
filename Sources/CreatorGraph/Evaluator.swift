@@ -9,7 +9,9 @@ public actor Evaluator {
     private var cache: ResultCache
     /// Kernel distances for fields (fields spec §2.2), kept across evaluations so re-sampling the same points costs nothing.
     public nonisolated let fieldDistances: FieldDistanceCache
-    /// The engine implicit solids run on (implicit spec §4.1).
+    /// The engine implicit solids run on (implicit spec §4.1). It is fixed for the Evaluator's life and is not part of any cache key, so
+    /// a cached mesh was always made by this engine; a runtime toggle must build a new Evaluator (the app picks it when it makes the
+    /// document, `DocumentModel.init`), never change this.
     private let implicitEngine: ImplicitEngineChoice
 
     public init(registry: NodeRegistry, kernel: any Kernel, cacheBudgetBytes: Int = 512 * 1024 * 1024,

@@ -75,5 +75,25 @@ struct MetalEvaluatorsTests {
         #expect(abs(Double(fromGPU.triangleCount - fromCPU.triangleCount)) / Double(fromCPU.triangleCount) < 0.01)
         #expect(abs(fromGPU.signedVolume - fromCPU.signedVolume) / fromCPU.signedVolume < 0.002)
     }
+
+    /// Cross-brick watertightness assumes both sides of a brick face sample the same value there (implicit spec §4.2). The mesher cannot
+    /// check that, so every fixture spans several bricks (8 voxels, 4 mm at 0.5 mm) and must come out of the GPU as the CPU's topology.
+    @Test func everyFixtureMeshesToTheSameTopologyOnTheGPUAsOnTheCPU() async throws {
+        for (name, solid) in ImplicitFixtures.all {
+            let gpu = await ImplicitEvaluators.make(for: solid, choice: .automatic)
+            guard gpu.evaluator.engineName == "Metal" else { continue }
+            let bricks = Double(BrickPlan.brickSize) * 0.5
+            #expect(solid.bounds.size.x > 2 * bricks, "\(name) spans several bricks")
+            let fromGPU = try await ImplicitMesher(evaluator: gpu.evaluator).mesh(solid, resolution: 0.5, quality: .preview)
+            let fromCPU = try await ImplicitMesher(evaluator: CPUBatchEvaluator(solid)).mesh(solid, resolution: 0.5, quality: .preview)
+            let (topologyGPU, topologyCPU) = (MeshTopology(fromGPU), MeshTopology(fromCPU))
+            #expect(topologyGPU.openEdgeCount == topologyCPU.openEdgeCount, "\(name): open edges")
+            #expect(topologyGPU.overfullEdgeCount == topologyCPU.overfullEdgeCount, "\(name): overfull edges")
+            #expect(topologyGPU.isClosedManifold == topologyCPU.isClosedManifold, "\(name): closed and manifold")
+            if topologyCPU.isClosedManifold {
+                #expect(topologyGPU.eulerCharacteristic == topologyCPU.eulerCharacteristic, "\(name): Euler characteristic")
+            }
+        }
+    }
 }
 #endif

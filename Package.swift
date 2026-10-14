@@ -64,19 +64,19 @@ var targets: [Target] = [
     .target(
         name: "CreatorApp",
         dependencies: [
-            "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorKernel", "CreatorGeometry",
+            "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry",
             "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", metalUI, metalUISDL,
         ]
     ),
     .executableTarget(
         name: "MetalCreatorApp",
-        dependencies: ["CreatorApp", "CreatorKernel", metalUI, metalUISDL, metalUIPortableText, metalUISystemFonts] + occt
+        dependencies: ["CreatorApp", "CreatorGraph", "CreatorKernel", metalUI, metalUISDL, metalUIPortableText, metalUISystemFonts] + occt
     ),
     // CreatorOCCT is a test-only dependency: the app-level acceptance test runs the §7.2 bracket on OCCT.
     .testTarget(
         name: "CreatorAppTests",
         dependencies: [
-            "CreatorApp", "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorKernel",
+            "CreatorApp", "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorImplicit", "CreatorKernel",
             "CreatorGeometry", "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", metalUI, metalUITesting,
             metalUIPortableText, metalUISystemFonts,
         ] + occt

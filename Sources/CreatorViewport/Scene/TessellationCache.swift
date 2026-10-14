@@ -12,7 +12,7 @@ final class TessellationCache {
 
     private var entries: [ObjectIdentifier: Entry] = [:]
     private var nextSerial = 1
-    /// Kernel tessellations so far. A cache hit doesn't count.
+    /// Kernel tessellations so far. A cache hit doesn't count, and neither does a mesh shown as it is.
     private(set) var tessellationCount = 0
 
     /// Meshes every solid in `solids` at `tolerance`, reusing cached meshes, then drops the entries of solids not
@@ -22,9 +22,15 @@ final class TessellationCache {
         for solid in solids {
             let key = ObjectIdentifier(solid)
             if let entry = entries[key], entry.tolerance == tolerance { continue }
-            let mesh = try await kernel.tessellate(solid, tolerance: tolerance)
+            // A solid that is only a mesh on display (a Mesh node's result) is drawn as it is; the kernel tessellates the rest.
+            let mesh: DisplayMesh
+            if let shown = solid.displayedMesh {
+                mesh = shown
+            } else {
+                mesh = try await kernel.tessellate(solid, tolerance: tolerance)
+                tessellationCount += 1
+            }
             try Task.checkCancellation()
-            tessellationCount += 1
             entries[key] = Entry(solid: solid, tolerance: tolerance, cached: CachedMesh(serial: nextSerial, mesh: mesh))
             nextSerial += 1
         }
