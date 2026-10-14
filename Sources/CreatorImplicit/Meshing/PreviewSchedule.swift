@@ -42,7 +42,7 @@ public struct PreviewSchedule: Sendable {
     /// The voxel size of the pass after one at `resolution` that took `seconds`, or `nil` when the preview is as fine as it goes.
     /// Halving the voxel size makes four times as many surface voxels, so the next pass is estimated at four times as long and, in
     /// Auto, at four times the `triangles` of this one, which must stay within `maximumTriangles`.
-    public func next(after resolution: Double, seconds: Double, triangles: Int = 0) -> Double? {
+    public func next(after resolution: Double, seconds: Double, triangles: Int) -> Double? {
         let finer = resolution / 2
         switch target {
         case .fixed(let wanted):

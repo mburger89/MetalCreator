@@ -15,7 +15,7 @@ struct PreviewScheduleTests {
         let schedule = PreviewSchedule(.fixed(0.2))
         var resolution = schedule.firstResolution(for: box)
         var passes = [resolution]
-        while let next = schedule.next(after: resolution, seconds: 0.01) {
+        while let next = schedule.next(after: resolution, seconds: 0.01, triangles: 0) {
             passes.append(next)
             resolution = next
         }
@@ -25,9 +25,9 @@ struct PreviewScheduleTests {
 
     @Test func automaticKeepsGoingWhileThePassesAreFast() {
         let schedule = PreviewSchedule(.automatic)
-        #expect(schedule.next(after: 0.8, seconds: 0.1) == 0.4)
-        #expect(schedule.next(after: 0.8, seconds: 0.3) == nil, "four times 0.3 s is over a second")
-        #expect(schedule.next(after: 0.05, seconds: 0.001) == nil, "nothing finer than 0.05 mm")
+        #expect(schedule.next(after: 0.8, seconds: 0.1, triangles: 0) == 0.4)
+        #expect(schedule.next(after: 0.8, seconds: 0.3, triangles: 0) == nil, "four times 0.3 s is over a second")
+        #expect(schedule.next(after: 0.05, seconds: 0.001, triangles: 0) == nil, "nothing finer than 0.05 mm")
     }
 
     @Test func automaticStopsBeforeAPassOverTheTriangleCap() {
@@ -46,7 +46,7 @@ struct PreviewScheduleTests {
         #expect(schedule.target == .fixed(PreviewSchedule.finest))
         var resolution = schedule.firstResolution(for: box)
         var passes = 1
-        while let next = schedule.next(after: resolution, seconds: 0.01), passes < 100 {
+        while let next = schedule.next(after: resolution, seconds: 0.01, triangles: 0), passes < 100 {
             #expect(next >= PreviewSchedule.finest)
             resolution = next
             passes += 1
