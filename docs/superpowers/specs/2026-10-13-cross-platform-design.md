@@ -133,3 +133,9 @@ beyond what MetalUI provides; macOS CI; Intel macOS.
   only its Metal renderer files (`#if canImport(Metal)`; off macOS `ViewportPlaceholder` takes the viewport's place). The macOS-only
   list is `CreatorOCCT`/`COCCT`, `ViewportHarness`, `GraphPanelPreview` and `CreatorOCCTTests`. Section 4 (the SDL GPU viewport, xp-3)
   fills the placeholder.
+- **E2 (xp-1, section 5, XP-G7). `NodeClipboard` stays in memory.** The XP-G7 row has xp-1 copy graph fragments as marked JSON text on
+  the system clipboard. xp-1 keeps `NodeClipboard` in memory instead (`docs/metalui-gaps.md` XP-G7: a system clipboard is out of scope
+  there); the marked-JSON system clipboard is deferred. Copy and paste work inside one app run, and nothing leaves the process.
+- **E3 (xp-1, section 2.4). `Window.drawnChromeHeight` is not read.** Nothing in `CreatorApp` sizes against the window height or
+  the top edge, so the drawn menu strip needs no offset from MetalCreator, and no code reads the property. Confirmed by human check
+  XP (the root is not clipped by the drawn strip on a real SDL window), not by a test.

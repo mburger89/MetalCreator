@@ -1811,7 +1811,8 @@ and `AppFieldPreviewTests.theLegendsToggleChangesTheRampAndTheSliceHandleEditsNo
 - [ ] **XP-1 Launch.** `swift run MetalCreatorApp` opens a window titled "MetalCreator" with the system title bar, a menu bar
   strip drawn across its top (File, Edit, View) above the glass top bar, the graph panel docked at the bottom and the inspector
   on the right, in Dracula. Quitting (the window's close button, and File's quit where the platform has one) asks nothing on an
-  unedited document. Pinned: `--smoke-test` (`LaunchSmokeTests`). **Observed:**
+  unedited document. The top bar's top edge is fully visible below the strip (the root is not clipped by it: nothing in MetalCreator reads
+  `Window.drawnChromeHeight`, spec erratum E3). Pinned: `--smoke-test` (`LaunchSmokeTests`). **Observed:**
 - [ ] **XP-2 The viewport card.** The area behind the panels shows the theme's gradient and one glass card, centred, reading "The
   3D view isn't available on this platform yet."; the window's size changes keep the layout. Pinned: `ViewportPaneTests`.
   **Observed:**
