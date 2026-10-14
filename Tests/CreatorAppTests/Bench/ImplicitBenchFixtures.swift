@@ -59,7 +59,7 @@ enum ImplicitBenchFixtures {
         return Int(usage.ru_maxrss)  // bytes on macOS
         #elseif canImport(Glibc)
         var usage = rusage()
-        getrusage(RUSAGE_SELF, &usage)
+        getrusage(__rusage_who_t(RUSAGE_SELF.rawValue), &usage)
         return Int(usage.ru_maxrss) * 1024  // kilobytes on Linux
         #else
         return 0

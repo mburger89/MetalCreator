@@ -17,7 +17,7 @@
 # "Test run with" (one per test target that has tests on Linux; macOS has one more, CreatorOCCTTests).
 #
 # Environment: XP_TRACK names the track (default xp-1), which names the container and the volume, so a script run kills only
-# its own container. EXPECTED_TEST_RUNS overrides the count (10 today).
+# its own container. EXPECTED_TEST_RUNS overrides the count (11 today).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -29,7 +29,7 @@ fi
 METALUI=$(cd ../MetalUI && pwd -P)
 
 TRACK=${XP_TRACK:-xp-1}
-EXPECTED_TEST_RUNS=${EXPECTED_TEST_RUNS:-10}
+EXPECTED_TEST_RUNS=${EXPECTED_TEST_RUNS:-11}
 BASE_IMAGE=metalui-portable:latest
 IMAGE=metalcreator-linux:latest
 NAME=$TRACK-linux

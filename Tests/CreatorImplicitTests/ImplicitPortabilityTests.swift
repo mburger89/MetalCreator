@@ -18,7 +18,7 @@ struct ImplicitPortabilityTests {
         var files: [(String, [String])] = []
         for case let url as URL in walker where url.pathExtension == "swift" {
             let text = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-            files.append((url.lastPathComponent, text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)))
+            files.append((url.lastPathComponent, text.split(whereSeparator: \.isNewline).map { String($0).trimmingCharacters(in: .whitespaces) }))
         }
         return files.sorted { $0.0 < $1.0 }
     }()
