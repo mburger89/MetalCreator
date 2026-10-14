@@ -33,10 +33,13 @@ public enum PlaceNode: NodeDefinition {
         var trees: [SocketName: DataTree] = [:]
         if inputs.has("tool") {
             let grid = try InstanceGrid(inputs, ["placements", "tool"])
-            guard grid.count > 0 else { return NodeOutputs(trees: ["solids": grid.tree(of: [])]) }
-            let copies = try await PlacementMoves.place(try grid.solids("tool"), planes: try grid.planes("placements"),
-                                                        items: grid.items, placedBy: context.node.id, kernel: kernel, tag: context.tag)
-            trees["solids"] = grid.tree(of: copies.map(Scalar.solid))
+            if grid.count > 0 {
+                let copies = try await PlacementMoves.place(try grid.solids("tool"), planes: try grid.planes("placements"),
+                                                            items: grid.items, placedBy: context.node.id, kernel: kernel, tag: context.tag)
+                trees["solids"] = grid.tree(of: copies.map(Scalar.solid))
+            } else {
+                trees["solids"] = grid.tree(of: [])
+            }
         }
         if inputs.has("implicit") { trees["implicits"] = try placedImplicits(inputs) }
         return NodeOutputs(trees: trees)

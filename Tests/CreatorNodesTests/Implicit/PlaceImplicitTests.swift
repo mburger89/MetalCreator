@@ -59,6 +59,20 @@ struct PlaceImplicitTests {
         #expect(report.value(f.place, "implicits")?.implicitSolids?.count == 2)
     }
 
+    @Test func anEmptyToolListStillPlacesAWiredImplicit() async throws {
+        var f = Fixture()
+        // A tool list of no solids: a box moved to the points of a grid of none.
+        let none = f.h.add(GridPointsNode.self, ["total": .integer(0)])
+        let moved = f.h.add(TransformNode.self)
+        f.h.wire(f.h.box(10, 10, 10), "solid", to: moved, "solid")
+        f.h.wire(none, "points", to: moved, "move")
+        f.h.wire(moved, "solid", to: f.place, "tool")
+        let report = try await f.h.run([f.place])
+        #expect(report.isOK(f.place))
+        #expect(report.value(f.place, "solids")?.solids?.isEmpty == true)
+        #expect(report.value(f.place, "implicits")?.implicitSolids?.count == 2, "the implicit is placed though the tool list is empty")
+    }
+
     @Test func aPlaceNeedsAToolOrAnImplicit() async throws {
         var h = Harness()
         let grid = h.add(GridPointsNode.self)
