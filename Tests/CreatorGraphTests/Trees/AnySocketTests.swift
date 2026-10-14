@@ -29,6 +29,8 @@ struct AnySocketTests {
         #expect(NodeCategory.lists.title == "Lists & Trees")
         #expect(NodeCategory.value.title == "Value")
         #expect(NodeCategory.allCases.last == .output)
-        #expect(NodeCategory.allCases == [.value, .profile, .solid, .selection, .feature, .patterns, .lists, .fields, .output])
+        #expect(NodeCategory.allCases == [
+            .value, .profile, .solid, .selection, .feature, .patterns, .lists, .fields, .implicit, .mesh, .output,
+        ])
     }
 }

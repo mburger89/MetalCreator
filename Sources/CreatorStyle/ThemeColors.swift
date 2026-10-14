@@ -44,6 +44,10 @@ public struct ThemeColors: Hashable, Sendable {
     /// Feature nodes (Fillet, Chamfer), and in-view handles of feature nodes.
     public var featureHeader: HexColor
     public var outputHeader: HexColor
+    /// Implicit-solid nodes (implicit spec §3), and their sockets and wires.
+    public var implicitHeader: HexColor
+    /// Mesh nodes (implicit spec §3.6), and their sockets and wires.
+    public var meshHeader: HexColor
 
     // Status
     public var success: HexColor

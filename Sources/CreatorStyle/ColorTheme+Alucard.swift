@@ -11,6 +11,7 @@ extension ColorTheme {
         accent: HexColor(0x644ac9), focus: HexColor(0x036a96), selection: HexColor(0xa3144d),
         valueHeader: HexColor(0x6c664b), profileHeader: HexColor(0x14710a), solidHeader: HexColor(0x644ac9),
         selectionHeader: HexColor(0xa3144d), featureHeader: HexColor(0xa34d14), outputHeader: HexColor(0x036a96),
+        implicitHeader: HexColor(0x846e15), meshHeader: HexColor(0x5a6b73),
         success: HexColor(0x14710a), warning: HexColor(0x846e15), error: HexColor(0xcb3a2a),
         shadeLight: HexColor(0xcfcfde), shadeDark: HexColor(0x6c664b), edge: HexColor(0x1f1f1f, opacity: 0.9),
         gridMinor: HexColor(0xcfcfde), gridMajor: HexColor(0x6c664b),

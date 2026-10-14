@@ -50,6 +50,8 @@ struct Sampling {
                 let offset = point - plane.origin
                 return image.value(u: offset.dot(across) / width + 0.5, v: 0.5 - offset.dot(up) / height, edges: edges)
             }
+        case .implicit(let solid):
+            return try FieldSampler.map(points) { solid.payload.signedDistance(at: $0) }
         case .add(let a, let b):
             return try FieldSampler.combine(try await values(of: a, at: points), try await values(of: b, at: points), +)
         case .multiply(let a, let b):
