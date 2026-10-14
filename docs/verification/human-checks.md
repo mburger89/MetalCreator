@@ -1954,5 +1954,12 @@ window and a real GPU show. Build: a Box (40 × 40 × 40) into a TPMS node's `re
 - [ ] **IL-8 Warnings.** Set the TPMS `cell size` to 0.5 in the 40 mm box: it warns "Cells are smaller than the preview resolution; the
   preview may look solid." Set `thickness` to 0.1: "Walls are thinner than the preview resolution; the preview may show gaps." With
   no region wired: "Connect a region to fill." Pinned: `TPMSNodeTests`. **Observed:**
+- [ ] **IL-8a Cell stretch.** On the TPMS and on the Strut Lattice set `cell stretch` to (2, 1, 1): the cells are twice as long on X and
+  the same on Y and Z (the cell size is unchanged). Set a 0 on any axis: the node says “cell stretch” must be greater than 0 on every
+  axis. Pinned: `TPMSNodeTests`, `StrutLatticeNodeTests`. **Observed:**
+- [ ] **IL-8b Voronoi Struts are uniform.** A Voronoi Lattice in Struts form shows struts of one thickness along every cell edge, with no gaps
+  and none of the thin foam-like walls (they are built from d3 - d1). Pinned: `VoronoiLatticeTests`. **Observed:**
+- [ ] **IL-8c Solid where there are no seeds.** Wire a density field that falls to 0 over part of the box: that region is solid, not empty,
+  and the node warns "The seeds leave gaps in the region; the lattice is solid there." Pinned: `VoronoiLatticeNodeTests`. **Observed:**
 - [ ] **IL-9 A slicer.** Export an STL of the gyroid at 0.2 mm (IM-9): the part opens in a slicer, the sheet is the thickness set, and no
   hole or non-manifold edge is reported. **Observed:**
