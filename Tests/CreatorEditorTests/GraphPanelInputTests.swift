@@ -61,7 +61,7 @@ struct GraphPanelInputTests {
         input.canvasChanged(value(point, point, [.shift, .control]))
         input.canvasEnded(value(point, point))
         #expect(editor.selection == [a.id, b.id])
-        #expect(GraphPanelInput.canvasModifiers([.shift, .option, .command, .control]) == [.shift, .option, .command])
+        #expect(GraphPanelInput.canvasModifiers([.shift, .option, .primary, .control]) == [.shift, .option, .command])
     }
 
     @Test func anOptionDragThroughTheGestureDuplicates() {
@@ -176,7 +176,7 @@ struct GraphPanelInputTests {
         let editor = makeEditor([])
         let input = GraphPanelInput(model: editor)
         var event = ScrollEvent(position: Point(x: Pixels(700), y: Pixels(500)), delta: Point(x: Pixels(0), y: Pixels(10)),
-                                modifiers: .command, phase: .none, momentumPhase: .none, isPrecise: false, timestamp: 0)
+                                modifiers: .primary, phase: .none, momentumPhase: .none, isPrecise: false, timestamp: 0)
         event.location = Point(x: Pixels(200), y: Pixels(100))
         let under = editor.transform.toCanvas(Vector2(200, 100))
         #expect(input.scrolled(event))

@@ -3,7 +3,6 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import MetalUI
-import MetalUIText
 import Testing
 @testable import CreatorApp
 
@@ -59,7 +58,7 @@ struct UndoTitleTests {
     @Test func theTopBarDrawsTheTitle() async throws {
         func glyphs(_ app: AppModel) -> Int {
             let scene = renderFrame({ ZStack { TopBar(model: app) } }, size: Size(width: Pixels(1400), height: Pixels(100)),
-                                    scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+                                    scaleFactor: 2, textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
             return scene.glyphs.count
         }
         func edited(named name: String) async throws -> AppModel {

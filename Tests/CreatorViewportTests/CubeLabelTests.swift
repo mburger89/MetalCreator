@@ -5,8 +5,9 @@ import Testing
 /// The view cube's face names are a texture painted on the faces: the atlas they're rasterized into, and the UVs
 /// that map them onto the cube so each reads upright and unmirrored from outside.
 struct CubeLabelTests {
-    // MARK: Atlas
+    // MARK: Atlas (rasterized with CoreText, so macOS only)
 
+    #if canImport(CoreText)
     @Test func theAtlasHasSixDisjointRectsWithInkInsideEach() throws {
         let atlas = try #require(CubeLabelAtlas.rasterize())
         #expect(atlas.pixels.count == atlas.width * atlas.height)
@@ -46,6 +47,7 @@ struct CubeLabelTests {
         let stem = (left.minY...left.maxY).count { atlas.pixel(x: left.minX + 1, y: $0) > 127 }
         #expect(Double(stem) > 0.8 * Double(left.maxY - left.minY), "the L's stem runs down the left side")
     }
+    #endif
 
     // MARK: Mapping onto the cube
 

@@ -32,6 +32,22 @@ struct SketchWindowDragWindowTests {
         #expect(app.windowDragRequests(draggingFrom: app.point(600, lastRow)) == 1, "the strip's last row")
     }
 
+    /// A window shorter than its panels need: the content overflows the bottom, and the top bar and the strip stay at the top
+    /// (an overflowing root used to be centred in the window, which moved them up by half the overflow: the Windows suite's text,
+    /// taller than CoreText's, overflowed a 900-point window by 6 points and the strip's last 3 rows ended above the controls).
+    @Test func aWindowTooShortForItsPanelsKeepsTheTopBarAndTheStripAtTheTop() async throws {
+        let app = try await openSketch()
+        app.window.resize(to: Size(width: Pixels(1440), height: Pixels(300)))
+        try await app.window.runUntilIdle()
+        let bottom = Float(AppLayout.margin + AppLayout.topBarHeight)
+        let buttons = try app.window.elements(where: { $0.role == .button && $0.frame.origin.y.value < bottom })
+        let top = try #require(buttons.map(\.frame.origin.y.value).min())
+        #expect(top >= Float(AppLayout.windowDragStripHeight), "the controls start below the strip")
+        let lastRow = Float(AppLayout.windowDragStripHeight) - 1
+        #expect(app.windowDragRequests(draggingFrom: app.point(600, lastRow)) == 1, "the strip's last row")
+        #expect(app.windowDragRequests(draggingFrom: app.point(600, 0)) == 1, "the strip's first row")
+    }
+
     @Test func noToolbarButtonMovesTheWindow() async throws {
         let app = try await openSketch()
         let controls = try app.topBarControls()

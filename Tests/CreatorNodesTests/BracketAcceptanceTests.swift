@@ -4,7 +4,9 @@ import CreatorKernel
 import CreatorNodes
 import Foundation
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 /// Spec §7.2, headless: the parametric mounting bracket built only from the 26 nodes, evaluated
 /// by a `DocumentModel` on `OCCTKernel`, re-parameterised, saved, reopened and exported.
@@ -137,6 +139,7 @@ struct BracketAcceptanceTests {
         #expect(chamferSet.edges.count == 7, sourceLocation: sourceLocation)
     }
 
+    #if canImport(CreatorOCCT)
     @Test func bracketKeepsItsEdgeSelectionsAcrossParameterChangesAndExports() async throws {
         let kernel = OCCTKernel()
         let bracket = Self.makeBracket()
@@ -194,6 +197,7 @@ struct BracketAcceptanceTests {
         #expect(!counts.isEmpty)
         #expect(counts.values.allSatisfy { $0 == 2 }, "every STL edge is shared by exactly two triangles")
     }
+    #endif
 
     /// Counts how many triangles use each undirected edge, after welding vertices to 1e-6 mm.
     func edgeUseCounts(stl: String) -> [String: Int] {

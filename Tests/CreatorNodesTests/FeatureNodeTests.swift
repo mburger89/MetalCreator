@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 struct FeatureNodeTests {
@@ -17,6 +19,7 @@ struct FeatureNodeTests {
         return node
     }
 
+    #if canImport(CreatorOCCT)
     @Test func filletRemovesTheAnalyticVolumeAndNamesBlends() async throws {
         let kernel = OCCTKernel()
         var h = Harness()
@@ -62,6 +65,7 @@ struct FeatureNodeTests {
         #expect(report.warning(vertical) == "This rule matched no edges.")
         #expect(report.error(fillet) == "No edges are selected.")
     }
+    #endif
 
     @Test func handlesAndInspectorMatchTheSpec() {
         #expect(FilletNode.handles == [.radial("radius")])

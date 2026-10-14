@@ -1,3 +1,4 @@
+#if canImport(CoreGraphics)
 // Test fixture file: small PNGs for the tests that choose, link and embed pictures through the app.
 import CoreGraphics
 import Foundation
@@ -21,3 +22,4 @@ enum AppTestImages {
         return data as Data
     }
 }
+#endif

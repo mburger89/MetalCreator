@@ -1,17 +1,50 @@
 import CreatorApp
-import CreatorOCCT
+import CreatorKernel
 import Foundation
 import MetalUI
+#if canImport(CreatorOCCT)
+import CreatorOCCT
+#endif
+#if canImport(MetalUISDL)
+import MetalUIPortableText
+@_spi(Checks) import MetalUISDL
+import MetalUISystemFonts
+#endif
+
+/// The app over the platform's own backend, chosen at compile time as `metalui new --cross-platform` generates it:
+/// AppKit and Metal on macOS, SDL3 with MetalUI's portable text over the installed fonts on Linux and Windows.
+/// With `offscreen` (the smoke test) every window is hidden and draws into an offscreen target, so it builds frames without a
+/// display; elsewhere than SDL the flag has no meaning and the app opens as usual.
+@MainActor
+func makeApp(offscreen: Bool = false) throws -> App {
+    #if canImport(MetalUISDL)
+    let resolver = try SystemFonts.resolver()
+    let platform = offscreen ? try SDLPlatform(hiddenWindows: true, offscreenRenderers: true) : try SDLPlatform()
+    return App(platform: platform, textSystem: { PortableTextSystem(resolver: resolver) })
+    #else
+    return try App()
+    #endif
+}
+
+/// OpenCascade where the package has it (macOS until xp-2); elsewhere a kernel that says geometry isn't available.
+func makeKernel() -> any Kernel {
+    #if canImport(CreatorOCCT)
+    OCCTKernel()
+    #else
+    KernelUnavailable()
+    #endif
+}
 
 /// `swift run MetalCreatorApp [path.mcgraph]`: the app (spec §6.1, M6). It loads the app's themes (the remembered
-/// one and the person's own), opens the window over the OCCT kernel, installs the menu bar and the window's input
-/// hooks, and opens the file named on the command line, if any.
+/// one and the person's own), opens the window over the platform's kernel, installs the menu bar and the window's input
+/// hooks, and opens the file named on the command line, if any. With a `smoke` (CI) the window is offscreen and the process
+/// exits when the smoke's time is up, with the verdict.
 /// `app.run()` is called from synchronous top-level code, as MetalUI requires.
 @MainActor
-func runApp(opening path: String?) throws {
-    let app = try App()
+func runApp(opening path: String?, smoke: LaunchSmoke? = nil) throws {
+    let app = try makeApp(offscreen: smoke != nil)
     app.preferredColorScheme = .dark
-    let model = AppModel(kernel: OCCTKernel(), themes: AppThemes.store())
+    let model = AppModel(kernel: makeKernel(), themes: AppThemes.store())
     let themeEditor = ThemeEditorModel(themes: model.themes)
     let input = AppInput(model: model)
     AppCommands.install(on: app, model: model, themeEditor: themeEditor)
@@ -19,8 +52,12 @@ func runApp(opening path: String?) throws {
                                     minSize: Size(width: Pixels(1000), height: Pixels(640)),
                                     windowStyle: AppLayout.windowStyle) {
         // A window's root must be an Element, and a Component is a group, so it's wrapped.
-        ZStack { AppWindowRoot(model: model, input: input, themeEditor: themeEditor) }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack {
+            AppWindowRoot(model: model, input: input, themeEditor: themeEditor)
+            // The smoke test's mark: MetalUI starts a `.task` inside the first frame.
+            if let smoke { Spacer().task { smoke.frameReached() } }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     input.install(on: window)
     // Close and quit (gap M6-b): ⌘Q asks each window's `onCloseRequest` in turn when the app sets no
@@ -41,6 +78,13 @@ func runApp(opening path: String?) throws {
     if let path {
         app.open([URL(fileURLWithPath: path)])
     }
+    if let smoke {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(smoke.seconds))
+            print(smoke.report)
+            exit(smoke.passed ? 0 : 1)
+        }
+    }
     app.run()
 }
 
@@ -50,7 +94,7 @@ func runApp(opening path: String?) throws {
 func runSelfTest() -> Never {
     Task { @MainActor in
         let scratch = URL.temporaryDirectory.appending(path: "MetalCreator-self-test-\(UUID().uuidString)")
-        let report = await SelfTest.run(kernel: OCCTKernel(), scratch: scratch)
+        let report = await SelfTest.run(kernel: makeKernel(), scratch: scratch)
         print(report.text)
         exit(report.passed ? 0 : 1)
     }
@@ -83,6 +127,17 @@ case .help:
     print(LaunchCommand.usage)
 case .selfTest:
     runSelfTest()
+case .smokeTest(let seconds):
+    #if canImport(MetalUISDL)
+    do {
+        try runApp(opening: nil, smoke: LaunchSmoke(seconds: seconds))
+    } catch {
+        fail("MetalCreator couldn't start", error)
+    }
+    #else
+    printError("--smoke-test needs the SDL backend (a Linux or Windows build).")
+    exit(64)
+    #endif
 case .infoPlist(let minimum):
     do {
         FileHandle.standardOutput.write(try AppBundleInfo.infoPlistData(minimumSystemVersion: minimum))

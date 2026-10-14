@@ -22,6 +22,8 @@ public enum ImageProblem: Error, Equatable, Sendable {
     case notFound(name: String, folder: String)
     /// An embedded image whose bytes the document does not hold (a damaged file).
     case embeddedMissing
+    /// This platform cannot decode pictures yet: only macOS can until MetalUI's public decode lands (gap XP-G4).
+    case platformUnsupported
 
     public var message: String {
         switch self {
@@ -45,6 +47,8 @@ public enum ImageProblem: Error, Equatable, Sendable {
             "Image '\(name)' wasn't found at \(folder). Relink it in the inspector."
         case .embeddedMissing:
             "This embedded image's data is missing from the file, or damaged. Choose the image again in the inspector."
+        case .platformUnsupported:
+            "Images need a newer MetalUI on this platform."
         }
     }
 }

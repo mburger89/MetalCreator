@@ -1,8 +1,8 @@
+#if canImport(Metal)
 // Test fixture file: draws the app's window and its viewport headless, CPU and GPU, for the §7.3 benchmarks.
 import CreatorGeometry
 import Metal
 import MetalUI
-import MetalUIText
 import simd
 import Testing
 @testable import CreatorApp
@@ -21,7 +21,7 @@ final class BenchRenderer {
     private let windowTarget: any MTLTexture
     private let viewportTarget: any MTLTexture
     private let atlas = GlyphAtlas(width: 2048, height: 2048)
-    private let textSystem = CoreTextTextSystem()
+    private let textSystem = testTextSystem()
 
     init() throws {
         device = try #require(MTLCreateSystemDefaultDevice(), "the benchmarks need a Metal device")
@@ -79,3 +79,4 @@ final class BenchRenderer {
         commandBuffer.waitUntilCompleted()
     }
 }
+#endif

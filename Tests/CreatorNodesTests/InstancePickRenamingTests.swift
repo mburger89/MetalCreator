@@ -3,7 +3,9 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 /// User decision 3, fixed in 7a-2: Group, Ungroup and Make Unique rename a pick on a pattern instance's faces exactly as
 /// they rename a pick on any node's, because they change the identities the instance's tags name (the placer and the
@@ -12,6 +14,7 @@ import Testing
 struct InstancePickRenamingTests {
     let registry = BuiltInNodes.registry
 
+    #if canImport(CreatorOCCT)
     /// A plate, a Hole Pattern on it, an Edges by Tag `rule` picking hole {2}'s rim, and a Fillet on it.
     struct Part {
         var plate: PatternPlate
@@ -175,4 +178,5 @@ struct InstancePickRenamingTests {
         #expect(state == .warning(message), "renaming never invents a target")
         #expect(rims.isEmpty)
     }
+    #endif
 }

@@ -17,16 +17,16 @@ struct KeyCommandTests {
         #expect(GraphKeyBindings.command(for: key("\t", .shift), paletteOpen: false) == nil)
         #expect(GraphKeyBindings.command(for: key("\u{7f}"), paletteOpen: false) == .deleteSelection)
         #expect(GraphKeyBindings.command(for: key("\u{f728}"), paletteOpen: false) == .deleteSelection)
-        #expect(GraphKeyBindings.command(for: key("c", .command), paletteOpen: false) == .copy)
-        #expect(GraphKeyBindings.command(for: key("v", .command), paletteOpen: false) == .paste)
-        #expect(GraphKeyBindings.command(for: key("d", .command), paletteOpen: false) == .duplicate)
-        #expect(GraphKeyBindings.command(for: key("z", .command), paletteOpen: false) == .undo)
-        #expect(GraphKeyBindings.command(for: key("Z", [.command, .shift]), paletteOpen: false) == .redo)
+        #expect(GraphKeyBindings.command(for: key("c", .primary), paletteOpen: false) == .copy)
+        #expect(GraphKeyBindings.command(for: key("v", .primary), paletteOpen: false) == .paste)
+        #expect(GraphKeyBindings.command(for: key("d", .primary), paletteOpen: false) == .duplicate)
+        #expect(GraphKeyBindings.command(for: key("z", .primary), paletteOpen: false) == .undo)
+        #expect(GraphKeyBindings.command(for: key("Z", [.primary, .shift]), paletteOpen: false) == .redo)
         #expect(GraphKeyBindings.command(for: key("="), paletteOpen: false) == .zoomIn)
         #expect(GraphKeyBindings.command(for: key("+", .shift), paletteOpen: false) == .zoomIn)
         #expect(GraphKeyBindings.command(for: key("-"), paletteOpen: false) == .zoomOut)
         #expect(GraphKeyBindings.command(for: key("c"), paletteOpen: false) == nil)
-        #expect(GraphKeyBindings.command(for: key("c", [.command, .option]), paletteOpen: false) == nil)
+        #expect(GraphKeyBindings.command(for: key("c", [.primary, .option]), paletteOpen: false) == nil)
     }
 
     @Test func whileThePaletteIsOpenOnlyItsNavigationKeysAreTaken() {

@@ -17,16 +17,16 @@ struct SelectionKeyTests {
     }
 
     @Test func commandAIsSelectAll() {
-        #expect(GraphKeyBindings.command(for: key("a", .command), paletteOpen: false) == .selectAll)
-        #expect(GraphKeyBindings.command(for: key("A", [.command, .shift]), paletteOpen: false) == nil)
+        #expect(GraphKeyBindings.command(for: key("a", .primary), paletteOpen: false) == .selectAll)
+        #expect(GraphKeyBindings.command(for: key("A", [.primary, .shift]), paletteOpen: false) == nil)
         #expect(GraphKeyBindings.command(for: key("a"), paletteOpen: false) == nil)
-        #expect(GraphKeyBindings.command(for: key("a", .command), paletteOpen: true) == nil, "the palette's field keeps ⌘A")
+        #expect(GraphKeyBindings.command(for: key("a", .primary), paletteOpen: true) == nil, "the palette's field keeps ⌘A")
     }
 
     @Test func selectAllSelectsEveryNodeThroughTheInputFallback() {
         let editor = makeEditor([a, b])
         let input = GraphPanelInput(model: editor)
-        #expect(input.handleKey(key("a", .command)))
+        #expect(input.handleKey(key("a", .primary)))
         #expect(editor.selection == [a.id, b.id])
     }
 

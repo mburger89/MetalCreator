@@ -129,8 +129,8 @@ struct CommentEditingTests {
         func key(_ characters: String, _ modifiers: Modifiers = []) -> KeyEvent {
             KeyEvent(charactersIgnoringModifiers: characters, characters: characters, modifiers: modifiers, timestamp: 0)
         }
-        #expect(GraphKeyBindings.command(for: key("x", .command), paletteOpen: false) == .cut)
+        #expect(GraphKeyBindings.command(for: key("x", .primary), paletteOpen: false) == .cut)
         #expect(GraphKeyBindings.command(for: key("x"), paletteOpen: false) == nil)
-        #expect(GraphKeyBindings.command(for: key("x", .command), paletteOpen: true) == nil)
+        #expect(GraphKeyBindings.command(for: key("x", .primary), paletteOpen: true) == nil)
     }
 }

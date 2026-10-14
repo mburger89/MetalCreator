@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import CreatorGeometry
 import CreatorKernel
 import Metal
@@ -87,3 +88,4 @@ struct FieldTintRenderTests {
         #expect(picker.pick(at: ScreenPoint(100, 100), in: tinted) == .face(solid: 0, FaceID(2)), "the front face, as untinted")
     }
 }
+#endif

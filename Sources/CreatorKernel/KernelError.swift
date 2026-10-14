@@ -11,6 +11,9 @@ public enum KernelError: Error, Equatable, Sendable {
     /// The refusal every kernel gives a loft through profiles with holes, and the Loft node gives it first.
     public static let loftWithHoles = KernelError.invalidInput("A loft can't use profiles with holes yet.")
 
+    /// What `KernelUnavailable` answers to every operation: this platform has no geometry kernel yet.
+    public static let unavailable = KernelError.invalidInput("Geometry isn't available on this platform yet.")
+
     /// The message, with its numbers in `Locale.messages`.
     public var userMessage: String { message(locale: .messages) }
 

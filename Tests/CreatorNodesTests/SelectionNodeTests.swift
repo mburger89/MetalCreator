@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 struct SelectionNodeTests {
@@ -22,6 +24,7 @@ struct SelectionNodeTests {
         return cut
     }
 
+    #if canImport(CreatorOCCT)
     @Test func allEdgesSkipsSeams() async throws {
         var h = Harness()
         let cut = drilledBox(&h)
@@ -61,6 +64,7 @@ struct SelectionNodeTests {
         #expect(report.warning(strict) == "This rule matched no edges.")
         #expect(try edges(report, loose).edges.count == 4)
     }
+    #endif
 
     @Test func aZeroDirectionIsExplained() async throws {
         var h = Harness()
@@ -70,6 +74,7 @@ struct SelectionNodeTests {
         #expect(try await h.run([rule]).error(rule) == "The direction can't be zero.")
     }
 
+    #if canImport(CreatorOCCT)
     @Test func filterByConvexityAndLength() async throws {
         var h = Harness()
         let low = h.box(20, 10, 5)
@@ -88,6 +93,7 @@ struct SelectionNodeTests {
         #expect(try edges(report, convex).edges.count == inner.solid.topology.edges.count - 1)
         #expect(try edges(report, long).edges.count == 2)
     }
+    #endif
 
     @Test func aReversedLengthRangeIsExplained() async throws {
         var h = Harness()
@@ -97,6 +103,7 @@ struct SelectionNodeTests {
         #expect(try await h.run([rule]).error(rule) == "“minLength” (5 mm) is more than “maxLength” (2 mm).")
     }
 
+    #if canImport(CreatorOCCT)
     @Test func setOpsDedupeAndKeepOrder() async throws {
         var h = Harness()
         let box = h.box(10, 20, 30)
@@ -121,6 +128,7 @@ struct SelectionNodeTests {
         #expect(Set(try edges(report, intersect).edges) == Set(verticalEdges))
         #expect(report.warning(empty) == "This rule matched no edges.")
     }
+    #endif
 
     @Test func setsFromDifferentSolidsAreRefused() async throws {
         var h = Harness()

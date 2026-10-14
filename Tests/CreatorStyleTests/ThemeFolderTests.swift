@@ -13,8 +13,12 @@ struct ThemeFolderTests {
         ColorTheme(id: id, name: name, isDark: true, colors: ColorTheme.nord.colors.quantized)
     }
 
-    @Test func theAppsFolderIsInApplicationSupport() {
-        #expect(ThemeFolder.applicationSupport.url.path(percentEncoded: false).hasSuffix("Application Support/MetalCreator/Themes/"))
+    @Test func theAppsFolderIsInTheUsersApplicationData() {
+        let path = ThemeFolder.applicationSupport.url.path(percentEncoded: false)
+        #expect(path.hasSuffix("MetalCreator/Themes/"))
+        #if os(macOS)
+        #expect(path.hasSuffix("Application Support/MetalCreator/Themes/"))
+        #endif
     }
 
     @Test func aFolderThatDoesntExistHoldsNoThemes() {

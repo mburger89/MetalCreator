@@ -3,9 +3,12 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 extension BracketAcceptanceTests {
+    #if canImport(CreatorOCCT)
     /// Spec §8's third naming-stability case (spec Errata (M3), (M6), (naming: merged faces), (Kernel: invalid blends)):
     /// the L-flange's Rectangle swapped for a Regular Polygon on the same plane, a hexagon of radius 15 turned 30° so
     /// two of its sides stand parallel to Z, lifted 15 mm by a Transform so it stands on the plate. What holds, pinned
@@ -71,6 +74,7 @@ extension BracketAcceptanceTests {
         #expect(keys(try edgeSet(document, bracket.filletEdges)) == filletKeys)
         #expect(keys(try edgeSet(document, bracket.chamferEdges)) == chamferKeys)
     }
+    #endif
 
     /// Replaces the flange's Rectangle with a hexagon (r 15, turned 30°) lifted 15 mm, as one undo step:
     /// removing the Rectangle drops its three wires, and the lifted flange replaces the old one in the union's

@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import Testing
 
 /// Distance Field (fields spec §3.1): a point, edges, a profile, faces or a solid; signed for a solid, negative inside.
@@ -122,6 +124,7 @@ struct DistanceFieldNodeTests {
         #expect(await message(.faceSet(FaceSet(solid: solid, faces: [FaceID(0)]))) == nil)
     }
 
+    #if canImport(CreatorOCCT)
     // MARK: faces, on OCCT
 
     @Test func aFaceSetIsMeasuredToThoseFacesOnOCCT() async throws {
@@ -138,4 +141,5 @@ struct DistanceFieldNodeTests {
         let found = try await FieldSampler.sample(field, at: [Vector3(1, 2, 3), Vector3(0, 0, 10)], kernel: kernel)
         #expect(abs(found[0] - 7) < 1e-7 && abs(found[1]) < 1e-7)
     }
+    #endif
 }

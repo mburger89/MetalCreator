@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 import CreatorGeometry
 import CreatorGraph
 import Testing
@@ -36,3 +37,4 @@ struct FieldBenchAppTests {
         #expect(await bench.app.document.fieldDistances.misses == 0)
     }
 }
+#endif

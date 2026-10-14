@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 import CreatorGeometry
 import CreatorKernel
 import CreatorOCCT
@@ -103,3 +104,4 @@ struct GuideRenderTests {
         #expect(color(with, 100, 100) == color(without, 100, 100), "the part's face between the edges is as before")
     }
 }
+#endif

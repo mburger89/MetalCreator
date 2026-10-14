@@ -2,7 +2,9 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+#if canImport(CreatorOCCT)
 import CreatorOCCT
+#endif
 import CreatorSketch
 import Testing
 
@@ -33,6 +35,7 @@ struct NodeEdgeCaseTests {
         #expect(report.error(transform) == "The rotation axis direction can't be zero.")
     }
 
+    #if canImport(CreatorOCCT)
     /// A 10 × 10 × 10 box on XY (centre (0, 0, 5)), turned 90° about the vertical line through (10, 0), then moved (1, 2, 3):
     /// the centre goes (0, 0) → (10, −10) by the turn, then to (11, −8, 8).
     @Test func rotationAboutAnOffOriginAxisIsFollowedByTheMove() async throws {
@@ -66,6 +69,7 @@ struct NodeEdgeCaseTests {
         #expect(smooth > Double.pi * 16 * 20 && smooth < Double.pi * 100 * 20)
         #expect(isClose(solid.bounds.size.z, 20, relative: 1e-4))
     }
+    #endif
 
     @Test func anOutputOfAnEmptyListWarnsThereIsNothingToExport() async throws {
         var h = Harness()
@@ -80,6 +84,7 @@ struct NodeEdgeCaseTests {
         #expect(report.warning(output) == "There is nothing to preview or export.")
     }
 
+    #if canImport(CreatorOCCT)
     /// A circle tangent to a plate's edge from inside gives the plate's region a self-touching outer loop (the circle runs
     /// along it as a notch) and the circle its own region. OCCT builds both faces: the two solids have the analytic volumes.
     @Test func aCircleTangentInsideAPlateExtrudesToTheAnalyticVolumes() async throws {
@@ -96,6 +101,7 @@ struct NodeEdgeCaseTests {
         #expect(isClose(try await volume(solids[0], kernel), 3 * (400 - 25 * Double.pi), relative: 1e-6))
         #expect(isClose(try await volume(solids[1], kernel), 3 * 25 * Double.pi, relative: 1e-6))
     }
+    #endif
 
     // MARK: Called directly, with inputs no wire produces
 

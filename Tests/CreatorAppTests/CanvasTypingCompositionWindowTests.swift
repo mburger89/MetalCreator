@@ -127,6 +127,7 @@ struct CanvasTypingCompositionWindowTests {
         #expect(app.editor.graph.stickies[fixture.note.id]?.text == "Line one" && !app.editor.document.canUndo)
     }
 
+    #if canImport(CoreText)
     @Test func aCandidateCommittedMidLineLandsAtTheCaretAndPublishesTheCaretAfterIt() async throws {
         let app = try await noteEditor()
         app.window.typeKey(.leftArrow, modifierFlags: .option)
@@ -141,6 +142,7 @@ struct CanvasTypingCompositionWindowTests {
         #expect(app.editor.graph.stickies[fixture.note.id]?.text == "Line 你one")
         #expect(app.editor.document.undoName == "Edit Note")
     }
+    #endif
 
     @Test func aCancelledCompositionInANoteLeavesItsTextAndCaret() async throws {
         let app = try await noteEditor()

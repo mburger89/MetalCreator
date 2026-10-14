@@ -1,3 +1,4 @@
+#if canImport(CreatorOCCT)
 import CreatorGeometry
 import CreatorKernel
 import Testing
@@ -92,3 +93,4 @@ struct KernelBench {
         print(gaps.line(budget: Bench.frameBudget))
     }
 }
+#endif

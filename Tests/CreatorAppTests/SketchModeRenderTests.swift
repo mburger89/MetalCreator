@@ -4,7 +4,6 @@ import CreatorKernel
 import CreatorNodes
 import CreatorSketchEditor
 import MetalUI
-import MetalUIText
 import Testing
 @testable import CreatorApp
 @testable import CreatorViewport
@@ -20,6 +19,7 @@ struct SketchModeRenderTests {
         measure = try .real()
     }
 
+    #if canImport(Metal)
     @Test(arguments: [DockSide.left, .bottom, .hidden])
     func theWindowDrawsInSketchMode(_ dock: DockSide) async throws {
         var builder = GraphBuilder()
@@ -31,10 +31,11 @@ struct SketchModeRenderTests {
         #expect(app.sketch != nil)
         let input = AppInput(model: app)
         let scene = renderFrame({ ZStack { AppRoot(model: app, input: input) } }, size: Size(width: Pixels(1400), height: Pixels(900)),
-                                scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+                                scaleFactor: 2, textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
         #expect(scene.surfaces.count == 1, "the viewport's Metal surface")
         #expect(!scene.glyphs.isEmpty)
     }
+    #endif
 
     /// The top bar and the inspector swap their views in sketch mode, and back when it ends: each draws other text
     /// (the toolbar's buttons for the document's name and menus; the sketch's lists for the node's rows).
@@ -54,6 +55,7 @@ struct SketchModeRenderTests {
         #expect(glyphCount { InspectorDock(model: app) } == before.inspector)
     }
 
+    #if canImport(Metal)
     /// The view cube's arrows, Home button and View menu are hidden while sketching (the camera is locked to the
     /// plane), and come back when the sketch ends.
     @Test func theViewCubesControlsAreHiddenWhileSketching() async throws {
@@ -67,6 +69,7 @@ struct SketchModeRenderTests {
         app.finishSketch()
         #expect(cubeControlGlyphs(app) > 0)
     }
+    #endif
 
     /// The pointer readout's chip is drawn just above the pointer while drawing, and goes when the sketch ends.
     @Test func theReadoutIsDrawnAboveThePointer() async throws {
@@ -131,7 +134,7 @@ struct SketchModeRenderTests {
         let chip = try #require(editor.readoutChip(measuring: measure))
         let input = AppInput(model: app)
         let scene = renderFrame({ ZStack { AppRoot(model: app, input: input) } }, size: Size(width: Pixels(1400), height: Pixels(900)),
-                                scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+                                scaleFactor: 2, textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
         func inChip(_ bounds: MUIBounds) -> Bool {
             let drawn = frame(of: bounds)
             return drawn.origin.x >= chip.origin.x - 0.5 && drawn.origin.y >= chip.origin.y - 0.5
@@ -150,7 +153,7 @@ struct SketchModeRenderTests {
     func glyphs(in chip: ReadoutChip, of app: AppModel) -> Int {
         let input = AppInput(model: app)
         let scene = renderFrame({ ZStack { AppRoot(model: app, input: input) } }, size: Size(width: Pixels(1400), height: Pixels(900)),
-                                scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+                                scaleFactor: 2, textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
         return scene.glyphs.filter { glyph in
             let x = Double(glyph.bounds.origin.x + glyph.bounds.size.width / 2) / 2
             let y = Double(glyph.bounds.origin.y + glyph.bounds.size.height / 2) / 2
@@ -159,11 +162,12 @@ struct SketchModeRenderTests {
         }.count
     }
 
+    #if canImport(Metal)
     /// Glyphs drawn where the viewport puts the cube's controls: just below the cube, at its left.
     func cubeControlGlyphs(_ app: AppModel) -> Int {
         let viewport = app.viewport
         let scene = renderFrame({ ZStack { ViewportView(model: viewport) } }, size: Size(width: Pixels(1400), height: Pixels(900)),
-                                scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+                                scaleFactor: 2, textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
         let cube = viewport.cubeLayout
         let top = cube.origin.y + cube.side
         return scene.glyphs.filter { glyph in
@@ -172,10 +176,11 @@ struct SketchModeRenderTests {
             return x >= cube.origin.x && x <= cube.origin.x + 240 && y >= top && y <= top + 80
         }.count
     }
+    #endif
 
     func glyphCount<View: ElementGroup>(_ view: () -> View) -> Int {
         let content = view()
         return renderFrame({ ZStack { content } }, size: Size(width: Pixels(1400), height: Pixels(900)), scaleFactor: 2,
-                           textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024)).glyphs.count
+                           textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024)).glyphs.count
     }
 }

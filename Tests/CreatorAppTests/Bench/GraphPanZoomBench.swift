@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import CreatorEditor
 import CreatorGeometry
 import CreatorGraph
@@ -70,3 +71,4 @@ struct GraphPanZoomBench {
         try await run("zoom-50", transforms: transforms)
     }
 }
+#endif

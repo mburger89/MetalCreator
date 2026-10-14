@@ -1,5 +1,4 @@
 import CreatorKernel
-import CryptoKit
 import Foundation
 
 extension NodeID {
@@ -24,7 +23,7 @@ extension NodeID {
         for id in path {
             withUnsafeBytes(of: id.rawValue.uuid) { bytes += $0 }
         }
-        var digest = Array(Insecure.SHA1.hash(data: bytes).prefix(16))
+        var digest = Array(SHA1.hash(bytes).prefix(16))
         digest[6] = (digest[6] & 0x0F) | version
         digest[8] = (digest[8] & 0x3F) | 0x80  // The RFC 4122 variant.
         return NodeID(rawValue: digest.withUnsafeBytes { UUID(uuid: $0.loadUnaligned(as: uuid_t.self)) })

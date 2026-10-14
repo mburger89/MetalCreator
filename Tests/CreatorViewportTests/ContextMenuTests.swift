@@ -140,13 +140,13 @@ struct ContextMenuTests {
 
     @Test func movingTheCameraUnderAStillPointerRepicks() async throws {
         let model = await model(showing: [try await fakeBox()])
-        var underPointer: PickTarget? = .face(solid: 0, FaceID(2))
-        model.pick = { _ in underPointer }
+        let underPointer = PointerSpot(.face(solid: 0, FaceID(2)))
+        model.pick = { _ in underPointer.target }
         model.pointerHovered(at: ScreenPoint(300, 200))
         #expect(model.hovered == .face(solid: 0, FaceID(2)))
 
         // An orbit drag, with no hover events while it runs: the release re-picks where the pointer is.
-        underPointer = .face(solid: 0, FaceID(3))
+        underPointer.target = .face(solid: 0, FaceID(3))
         model.pointerDown(at: ScreenPoint(300, 200), modifiers: [])
         model.pointerDragged(to: ScreenPoint(340, 180))
         #expect(model.hovered == .face(solid: 0, FaceID(2)), "nothing is picked during a drag")
@@ -154,17 +154,17 @@ struct ContextMenuTests {
         #expect(model.hovered == .face(solid: 0, FaceID(3)))
 
         // A key zoom and a projection switch move the camera under a still pointer.
-        underPointer = nil
+        underPointer.target = nil
         model.performKey(.zoomIn)
         #expect(model.hovered == nil, "the face that was under the pointer has moved away")
-        underPointer = .face(solid: 0, FaceID(1))
+        underPointer.target = .face(solid: 0, FaceID(1))
         model.perform(.projection(.orthographic))
         #expect(model.hovered == .face(solid: 0, FaceID(1)))
 
         // An animation re-picks when it ends.
         var picks = 0
-        model.pick = { _ in picks += 1; return underPointer }
-        underPointer = .face(solid: 0, FaceID(4))
+        model.pick = { _ in picks += 1; return underPointer.target }
+        underPointer.target = .face(solid: 0, FaceID(4))
         model.perform(.view(.top))
         #expect(model.isAnimating)
         model.pointerHovered(at: ScreenPoint(300, 200))

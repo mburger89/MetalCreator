@@ -1,3 +1,4 @@
+#if canImport(CoreGraphics)
 import CreatorGraph
 import CreatorNodes
 import Foundation
@@ -69,3 +70,4 @@ struct ImageActionInterruptionTests {
         #expect(app.alert == nil)
     }
 }
+#endif

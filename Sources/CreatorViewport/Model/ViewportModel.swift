@@ -78,8 +78,10 @@ public final class ViewportModel {
     /// The `ViewportModifiers.hoverMask` modifiers held now, from `ViewportView`'s `onModifierKeysChanged`
     /// (`modifiersChanged(_:)`): what a hover tells the tool beside the pointer.
     @ObservationIgnored var heldModifiers: ViewportModifiers = []
+    #if canImport(Metal)
     @ObservationIgnored var gpuRenderer: ViewportRenderer?
     @ObservationIgnored var gpuFailure: String?
+    #endif
     @ObservationIgnored private var meshTask: Task<Void, Never>?
     @ObservationIgnored private var animationTask: Task<Void, Never>?
     @ObservationIgnored private var needsFirstFraming: Bool

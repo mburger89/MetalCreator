@@ -3,9 +3,12 @@ import CreatorGraph
 import CreatorKernel
 import CreatorNodes
 import Testing
+#if canImport(CreatorOCCT)
 @testable import CreatorOCCT
+#endif
 
 extension BracketAcceptanceTests {
+    #if canImport(CreatorOCCT)
     /// Roadmap "Naming: picks on merged faces", the case that comes out whole: the chamfer is picked on the
     /// plate's top outline while the flange is as wide as the plate (so the union merged each plate side with a
     /// flange side, and the flange's fillet split each side's top edge in two). Then the flange alone changes
@@ -49,4 +52,5 @@ extension BracketAcceptanceTests {
         #expect(keys(try edgeSet(document, bracket.chamferEdges)) == flushKeys)
         #expect(try edgeSet(document, bracket.chamferEdges).edges.count == 7)
     }
+    #endif
 }

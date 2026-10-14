@@ -1,7 +1,6 @@
 import CreatorGeometry
 import Foundation
 import MetalUI
-import MetalUIText
 import Testing
 @testable import CreatorViewport
 
@@ -35,6 +34,7 @@ struct HandleLabelTests {
         #expect(long.text.hasSuffix(" mm"))
     }
 
+    #if canImport(Metal)
     /// The real measure: every glyph of a long value lies inside the box the view gives it.
     @Test(arguments: [3.0, 12.5, 9.99])
     func theViewDrawsTheValueInsideItsBox(_ value: Double) throws {
@@ -42,7 +42,7 @@ struct HandleLabelTests {
         model.viewSize = ViewportSize(width: 1400, height: 900)
         let label = try #require(model.handleLabels(measuring: .real()).first)
         let scene = renderFrame({ ZStack { ViewportView(model: model) } }, size: Size(width: Pixels(1400), height: Pixels(900)),
-                                scaleFactor: 2, textSystem: CoreTextTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
+                                scaleFactor: 2, textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
         let inside = scene.glyphs.filter { glyph in
             let x0 = Double(glyph.bounds.origin.x) / 2, x1 = Double(glyph.bounds.origin.x + glyph.bounds.size.width) / 2
             let y0 = Double(glyph.bounds.origin.y) / 2, y1 = Double(glyph.bounds.origin.y + glyph.bounds.size.height) / 2
@@ -51,4 +51,5 @@ struct HandleLabelTests {
         }
         #expect(inside.count == label.text.filter { !$0.isWhitespace }.count, "every glyph of \(label.text)")
     }
+    #endif
 }

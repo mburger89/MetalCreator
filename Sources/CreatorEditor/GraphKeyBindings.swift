@@ -20,7 +20,7 @@ public enum GraphKeyBindings {
         if modifiers.isEmpty, let delta = nudge(for: character, shifted: shifted) {
             return .nudge(delta, isRepeat: key.isRepeat)
         }
-        if modifiers == .command {
+        if modifiers == .primary {
             return commandChord(for: character.lowercased(), shifted: shifted)
         }
         return modifiers.isEmpty ? plainCommand(for: character, shifted: shifted) : nil

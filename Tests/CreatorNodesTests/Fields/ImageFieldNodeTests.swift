@@ -19,6 +19,8 @@ struct ImageFieldNodeTests {
         return (h, node, ImageResolver(embedded: [hash: data]))
     }
 
+    // The tests that read a picture's grey need a decoder, which only macOS has until MetalUI's public decode lands (gap XP-G4).
+    #if canImport(ImageIO)
     @Test func itMakesAFieldOfThePicturesGreyCentredOnThePlane() async throws {
         let (h, node, images) = embedded(ramp, ["width": .number(8), "height": .number(4)])
         let report = try await h.run([node], images: images)
@@ -64,6 +66,8 @@ struct ImageFieldNodeTests {
         #expect(try await sampled(h.run([node], images: images).field(node), at: [Vector3.zero]) == [1])
     }
 
+    #endif
+
     // MARK: Refusals
 
     @Test func noImageChosenIsAnErrorThatSaysWhatToDo() async throws {
@@ -83,6 +87,7 @@ struct ImageFieldNodeTests {
         #expect(report.error(absent) == ImageProblem.embeddedMissing.message)
     }
 
+    #if canImport(ImageIO)
     @Test func aFileThatIsNotAnImageIsAnErrorNotACrash() async throws {
         let junk = Data("this is not a picture".utf8)
         let (h, node, images) = embedded(junk)
@@ -97,6 +102,7 @@ struct ImageFieldNodeTests {
         let (h, node, images) = embedded(TestImages.colour(2, 2, red: 255, green: 255, blue: 255))
         #expect(try await sampled(h.run([node], images: images).field(node), at: [Vector3.zero]) == [1])
     }
+    #endif
 
     @Test func aBadSizeEdgeOrPlaneIsRefusedWithItsOwnSentence() async throws {
         let cases: [(SocketName, ConstantValue, String)] = [

@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import CreatorGeometry
 import CreatorKernel
 import Metal
@@ -157,3 +158,4 @@ struct ViewportSliceRenderTests {
         #expect(uniforms.origin == SIMD4<Float>(0, 0, 15, 1) && uniforms.style.x == 0.85)
     }
 }
+#endif

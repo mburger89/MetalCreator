@@ -1,3 +1,4 @@
+#if canImport(Metal)
 import Testing
 @testable import CreatorApp
 
@@ -21,3 +22,4 @@ struct BenchRendererTests {
         #expect(renderer.viewportPasses == drawn + 1, "the viewport drew a frame")
     }
 }
+#endif
