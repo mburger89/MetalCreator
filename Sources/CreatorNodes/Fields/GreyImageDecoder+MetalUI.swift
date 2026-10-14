@@ -54,17 +54,7 @@ extension GreyImageDecoder {
                 while top < height {
                     try Task.checkCancellation()
                     for y in top..<min(top + bandRows, height) {
-                        // The stored pixel index of (0, y) and the step for each x: the orientation tag's definition (EXIF 2.32).
-                        let (start, step): (Int, Int) = switch tag {
-                        case 2: (y * storedWidth + storedWidth - 1, -1)
-                        case 3: ((storedHeight - 1 - y) * storedWidth + storedWidth - 1, -1)
-                        case 4: ((storedHeight - 1 - y) * storedWidth, 1)
-                        case 5: (y, storedWidth)
-                        case 6: (y + (storedHeight - 1) * storedWidth, -storedWidth)
-                        case 7: (storedWidth - 1 - y + (storedHeight - 1) * storedWidth, -storedWidth)
-                        case 8: (storedWidth - 1 - y, storedWidth)
-                        default: (y * storedWidth, 1)
-                        }
+                        let (start, step) = storedRow(tag: tag, y: y, width: storedWidth, height: storedHeight)
                         var offset = start * 4
                         let advance = step * 4
                         for x in 0..<width {
@@ -82,6 +72,21 @@ extension GreyImageDecoder {
             }
         }
         return pixels
+    }
+
+    /// Where upright row `y` starts in the stored pixels, and the step from one upright pixel to the next, in pixels: the orientation
+    /// tag's definition (EXIF 2.32), for a stored picture `width` × `height`.
+    private static func storedRow(tag: Int, y: Int, width: Int, height: Int) -> (start: Int, step: Int) {
+        switch tag {
+        case 2: (y * width + width - 1, -1)
+        case 3: ((height - 1 - y) * width + width - 1, -1)
+        case 4: ((height - 1 - y) * width, 1)
+        case 5: (y, width)
+        case 6: (y + (height - 1) * width, -width)
+        case 7: (width - 1 - y + (height - 1) * width, -width)
+        case 8: (width - 1 - y, width)
+        default: (y * width, 1)
+        }
     }
 
     /// Rec. 709 luminance (0.2126 R + 0.7152 G + 0.0722 B) of the colour premultiplied by its alpha, i.e. composited against

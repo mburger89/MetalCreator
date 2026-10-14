@@ -95,13 +95,27 @@ struct GreyImageDecoderPinnedTests {
         #expect(image.pixels.count == fixture.grid.count && worst <= 257, "\(name): largest difference \(worst)")
     }
 
-    /// ImageIO's values for a colour picture with alpha, composited against black: exact in both decoders.
+    /// A straight-alpha RGBA pixel (what a PNG stores) is composited against black and weighted by Rec. 709; each premultiplied
+    /// component is rounded to the nearest 16-bit value first. Written out by hand from that rule, on every platform.
+    @Test(arguments: [
+        (200, 90, 30, 64, 7034), (200, 90, 30, 200, 21982), (12, 200, 99, 128, 19704), (255, 255, 255, 128, 32_896), (255, 255, 255, 0, 0),
+        (10, 20, 30, 255, 4779),
+    ]) func straightAlphaIsCompositedAgainstBlack(red: Int, green: Int, blue: Int, alpha: Int, grey: Int) async throws {
+        let png = PNGWriter.encode(width: 1, height: 1, color: .rgba) { _, _ in [red, green, blue, alpha].map { UInt8($0) } }
+        #expect(Int(try await GreyImageDecoder.decode(png).pixels[0]) == grey)
+        #expect(Int(GreyImageDecoder.grey(red: UInt8(red), green: UInt8(green), blue: UInt8(blue), alpha: UInt8(alpha))) == grey)
+    }
+
+    #if canImport(CoreGraphics)
+    /// ImageIO's values for CoreGraphics' premultiplied fixtures (`TestImages.colour` stores them through a premultiplied context, so
+    /// the PNG holds the 8-bit round trip of the colour, not the colour itself): exact in both decoders.
     @Test(arguments: [
         (200, 90, 30, 64, 7_122), (200, 90, 30, 200, 22_141), (12, 200, 99, 128, 19_621),
     ]) func transparencyGivesImageIOsGrey(red: Int, green: Int, blue: Int, alpha: Int, grey: Int) async throws {
         let image = try await GreyImageDecoder.decode(TestImages.colour(1, 1, red: red, green: green, blue: blue, alpha: alpha))
         #expect(Int(image.pixels[0]) == grey)
     }
+    #endif
 
     /// ImageIO read these 16-bit samples exactly (0, 1, 4,660, 32,768, 40,000, 65,535); MetalUI rounds them to 8 bits, so each moves
     /// by at most 128 of 65,535, under 1/255 (adopt-s2, constraint 4).

@@ -100,9 +100,8 @@ struct ImageHeader: Equatable {
             if (0xC0...0xCF).contains(marker), ![0xC4, 0xC8, 0xCC].contains(marker), size == nil, length >= 8 {
                 size = (read16(bytes, payload + 3), read16(bytes, payload + 1))
             }
-            if marker == 0xE1, tag == nil, length >= 8, bytes[payload..<(payload + 6)].elementsEqual([0x45, 0x78, 0x69, 0x66, 0, 0]) {
-                tag = tiffOrientation(UnsafeRawBufferPointer(rebasing: bytes[(payload + 6)..<(offset + 2 + length)]))
-                if tag == nil { tag = 1 }  // the first Exif segment decides, even when it holds no usable tag
+            if marker == 0xE1, tag == nil, let found = exifOrientation(inSegment: bytes, payload: payload, end: offset + 2 + length) {
+                tag = found
             }
             offset += 2 + length
         }
@@ -112,12 +111,25 @@ struct ImageHeader: Equatable {
 
     // MARK: EXIF
 
+    /// The orientation of an APP1 segment (`payload` to `end`) if it is an `Exif` one, 1 when it is but holds no usable tag, else
+    /// `nil` (some other APP1, such as XMP, so the walk goes on: the first `Exif` segment decides).
+    private static func exifOrientation(inSegment bytes: UnsafeRawBufferPointer, payload: Int, end: Int) -> Int? {
+        guard end - payload >= 6, bytes[payload..<(payload + 6)].elementsEqual([0x45, 0x78, 0x69, 0x66, 0, 0]) else { return nil }
+        return tiffOrientation(UnsafeRawBufferPointer(rebasing: bytes[(payload + 6)..<end])) ?? 1
+    }
+
     /// Orientation tag 0x0112 of IFD0 in a TIFF block (`II*\0` or `MM\0*`): type SHORT, count 1, value 1 to 8; otherwise `nil`.
     /// Only IFD0 is read and the entry count is clamped to the bytes left, so no loop and no read past the block is possible.
     private static func tiffOrientation(_ bytes: UnsafeRawBufferPointer) -> Int? {
         guard bytes.count >= 8 else { return nil }
         let little: Bool
-        if bytes[0] == 0x49, bytes[1] == 0x49 { little = true } else if bytes[0] == 0x4D, bytes[1] == 0x4D { little = false } else { return nil }
+        if bytes[0] == 0x49, bytes[1] == 0x49 {
+            little = true
+        } else if bytes[0] == 0x4D, bytes[1] == 0x4D {
+            little = false
+        } else {
+            return nil
+        }
         func short(_ offset: Int) -> Int? {
             guard offset >= 0, offset <= bytes.count - 2 else { return nil }
             return little ? Int(bytes[offset + 1]) << 8 | Int(bytes[offset]) : Int(bytes[offset]) << 8 | Int(bytes[offset + 1])
