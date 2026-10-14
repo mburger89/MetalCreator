@@ -10,7 +10,7 @@ public actor MetalImplicitEngine: ImplicitGPUEngine {
     public static let shared: MetalImplicitEngine? = MetalImplicitEngine()
 
     /// A solid's uploaded parameters.
-    private struct Prepared {
+    struct Prepared {
         var parameters: any MTLBuffer
         var integers: any MTLBuffer
         var tables: any MTLBuffer
@@ -19,8 +19,8 @@ public actor MetalImplicitEngine: ImplicitGPUEngine {
         var used: Int
     }
 
-    private let device: any MTLDevice
-    private let queue: any MTLCommandQueue
+    let device: any MTLDevice
+    let queue: any MTLCommandQueue
     private var pipelines: [ShapeKey: (state: any MTLComputePipelineState, used: Int)] = [:]
     private var prepared: [UUID: Prepared] = [:]
     private var clock = 0
@@ -37,8 +37,15 @@ public actor MetalImplicitEngine: ImplicitGPUEngine {
 
     public nonisolated let name = "Metal"
 
+    /// The meshing kernels of each shape (`MetalImplicitEngine+Meshing.swift`).
+    var meshPipelines: [ShapeKey: MeshPipelines] = [:]
+    /// How many sets of meshing pipelines were compiled.
+    public internal(set) var meshCompileCount = 0
+    /// How many meshes `meshBricks` has made: the benchmarks use it to see that a row's meshes were made on the GPU.
+    public internal(set) var meshesMade = 0
+
     /// Bumped by `cancel()`: a batch that started before it ends at its next dispatch.
-    private var epoch = 0
+    var epoch = 0
 
     /// How many points one dispatch takes: `pointsPerDispatch`, less in tests that need several dispatches without millions of points.
     private let dispatchSize: Int
@@ -160,7 +167,7 @@ public actor MetalImplicitEngine: ImplicitGPUEngine {
     }
 
     /// The solid's buffers, uploaded on first use; the least recently used solid's are dropped past `preparedLimit`.
-    private func buffers(for program: CompiledImplicit) throws -> Prepared {
+    func buffers(for program: CompiledImplicit) throws -> Prepared {
         clock += 1
         if var known = prepared[program.id] {
             known.used = clock
