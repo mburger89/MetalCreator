@@ -42,7 +42,7 @@ unchanged in look and behaviour.
 | Today | xp-1 |
 |---|---|
 | `CryptoKit.SHA256` (`ImageHash`, `NodeID+Scoped`) | our own `SHA256` in `CreatorGraph` (pure Swift), used on every platform, pinned by the NIST test vectors and by equality with CryptoKit's output on macOS |
-| `GreyImageDecoder` (ImageIO, CoreGraphics, UTType) | on every platform: MetalUI's public `ImageBitmap(data:)` (stb_image, PNG and JPEG, already MetalUI's one decoder) plus our own EXIF-orientation reader (JPEG APP1 and PNG `eXIf`), then the existing grey conversion; pinned against ImageIO's result on macOS for the existing fixtures. If `ImageBitmap` cannot expose what the decoder needs, the gap goes to MetalUI (XP-G4) and Image Field off macOS reports "Images need a newer MetalUI on this platform." until it lands. |
+| `GreyImageDecoder` (ImageIO, CoreGraphics, UTType) | MetalUI S2's public decode (grey pixels plus EXIF orientation, stb_image) on every platform once it lands, pinned against ImageIO's result on macOS for the existing fixtures; until then ImageIO stays on macOS and Image Field off macOS reports "Images need a newer MetalUI on this platform." (XP-G4) |
 | Test image fixtures written with CoreGraphics (`TestImages`, `AppTestImages`) | checked-in PNG/JPEG bytes, or written by a tiny PNG encoder in the test support |
 | `SelfTest`'s Metal check | `#if canImport(Metal)`; off macOS it checks the SDL shader directory instead |
 | `main.swift` `try App()` | `#if canImport(MetalUISDL)` → `App(platform: try SDLPlatform(), textSystem: …PortableTextSystem…)` as `metalui new --cross-platform` generates |
@@ -111,12 +111,12 @@ unchanged in look and behaviour.
 |---|---|---|
 | XP-G1 | App access to SDL_GPU through `GPUSurface` (CSDL types or a portable GPU API), a shader build path for apps, MSAA resolve, depth targets, instanced draws, storage buffers, mipmapped r8 textures, texture readback | xp-3 |
 | XP-G2 | Portable compute (SDL GPU compute) for 7c's implicit engine | after xp-3 |
-| XP-G3 | Custom chrome or hidden title bar on SDL (divergence 276) | polish; xp-1 accepts the system title bar |
-| XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO, if `ImageBitmap(data:)` doesn't cover it | xp-1 (Image Field) |
-| XP-G5 | Open-document events on SDL (divergence 176) | xp-2 (file associations) |
-| XP-G6 | ContentType filtering by extension (divergence 129): confirm the pattern | xp-1 |
-| XP-G7 | Clipboard types beyond text (graph fragments) | xp-1 (copy/paste falls back to text if needed) |
-| XP-G8 | Hand and zoom cursor fallbacks | xp-1 accepts MetalUI's fallback |
+| XP-G3 | Custom chrome or hidden title bar on SDL (divergence 276) | polish; xp-1 accepts the system title bar. **MetalUI S1 in progress** (borderless window, `SDL_SetWindowHitTest` drag, resize edges; record §112, `CW-`): adopt when it lands |
+| XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO | xp-1 (Image Field). **MetalUI S2 in progress** (public RGBA8/grey decode with size, stride and EXIF orientation over its stb_image; record §113, `IB-`): `GreyImageDecoder` uses it on every platform and xp-1 writes no EXIF reader of its own; until S2 lands, Image Field off macOS reports "Images need a newer MetalUI on this platform." |
+| XP-G5 | Open-document events on SDL (divergence 176) | xp-2. **Answered:** `Platform.onOpenURLs` (SDL drop with window 0) → `.onOpenURL` routing; command-line files via `app.open(…)` after the first window (MetalUI `docs/packaging.md`, "Launch arguments"); `.desktop` `Exec=… %F` + `MimeType=` |
+| XP-G6 | ContentType filtering by extension (divergence 129) | xp-1. **Answered:** `ContentType("…", conformingTo: [.json], filenameExtensions: ["mcgraph"])` in `allowedContentTypes` |
+| XP-G7 | Clipboard types beyond text (graph fragments) | xp-1 copies graph fragments as marked JSON text on every platform without custom types (MetalUI's interim pattern); MetalUI S3 (queued) adds custom types later |
+| XP-G8 | Hand and zoom cursor fallbacks | xp-1 accepts MetalUI's fallback (`.link` hand, grab → move, zoom → arrow); MetalUI S4 (queued) adds image cursors |
 
 Each is logged in `docs/metalui-gaps.md` by the track that reaches it, entry and summary row.
 
