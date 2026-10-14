@@ -58,8 +58,11 @@ struct TPMSNodeTests {
         // 0.8 mm inside a face is in the skin; 3 mm inside, where the gyroid has a gap, is not solid.
         #expect(solid.distance(19.2, 3, 3) < 0)
         #expect(solid.distance(17, 0.7, 0.9) > 0, "inside, away from the skin and the lattice")
+        h.set(tpms, "skin", .number(0))
         let withoutSkin = try #require(try await h.run([tpms]).implicitSolid(tpms))
-        #expect(withoutSkin.signedDistance(at: Vector3(19.2, 3, 3)) == solid.signedDistance(at: Vector3(19.2, 3, 3)))
+        #expect(withoutSkin.distance(19.2, 3, 3) > 0, "no wall at 19.2 mm without a skin")
+        #expect(withoutSkin.signedDistance(at: Vector3(19.2, 3, 3)) != solid.signedDistance(at: Vector3(19.2, 3, 3)))
+        #expect(!withoutSkin.description.hasPrefix("union(shell("))
         h.set(tpms, "skin", .number(-1))
         #expect(try await h.run([tpms]).error(tpms) == "“skin” must be 0 or more.")
     }

@@ -52,6 +52,8 @@ enum LatticeSetup {
 
     /// The voxel size the lattice is first drawn at, and what to call it: the first preview pass in the viewport, the Mesh node's
     /// default export resolution in an export (the lattice does not know the Mesh node's setting).
+    /// Because the result differs by quality, every node that calls this must set `readsMeshQuality = true`, or the evaluator cache
+    /// serves a preview's warnings to an export.
     static func voxel(over box: BoundingBox, context: EvalContext) -> (size: Double, name: String) {
         switch context.meshQuality {
         case .preview: (PreviewSchedule(.automatic).firstResolution(for: box), "preview")

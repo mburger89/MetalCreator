@@ -21,6 +21,8 @@ public enum VoronoiLatticeNode: NodeDefinition {
         SocketSpec("seed", .integer, defaultValue: .integer(0)),
     ]
     public static let outputs = [SocketSpec("implicit", .implicit)]
+    /// The warnings about cells and walls depend on the voxel size, which differs between preview and export.
+    public static let readsMeshQuality = true
     public static let help = "Wire points into “seeds”, or leave it unconnected for “count” seeds placed at random where “density” "
         + "(a field, 0 to 1) says. Changing the seed or the density moves every seed."
     public static let inspector = [

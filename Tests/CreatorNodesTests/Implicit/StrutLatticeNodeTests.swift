@@ -100,6 +100,20 @@ struct StrutLatticeNodeTests {
         #expect(try await h.run([struts]).error(struts) == "“cell stretch” must be greater than 0 on every axis.")
     }
 
+    @Test func aPreviewAndAnExportAreNotTheSameResult() async throws {
+        var h = Harness()
+        // 0.5 mm cells are under two preview voxels (0.3125 mm) but not under two export voxels (0.1 mm): only the preview warns.
+        let struts = cube(&h, ["cell size": .number(0.5), "strut radius": .number(0.1)])
+        let evaluator = Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel())
+        let preview = try await evaluator.evaluate(h.graph, demand: [struts.id])
+        let export = try await evaluator.evaluate(h.graph, demand: [struts.id], meshQuality: .export)
+        #expect(export.evaluatedNodes.contains(struts.id), "an export is not served the preview's result")
+        #expect(preview.warning(struts)?.contains("preview resolution") == true)
+        #expect(export.warning(struts)?.contains("preview resolution") != true)
+        let again = try await evaluator.evaluate(h.graph, demand: [struts.id])
+        #expect(!again.evaluatedNodes.contains(struts.id), "the preview is still cached")
+    }
+
     @Test func cellsAndStrutsUnderTheResolutionWarn() async throws {
         var h = Harness()
         // A 40 mm cube previews at 0.3125 mm: a strut of radius 0.1 is 0.2 across.

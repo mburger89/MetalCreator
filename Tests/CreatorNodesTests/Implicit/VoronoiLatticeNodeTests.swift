@@ -24,6 +24,17 @@ struct VoronoiLatticeNodeTests {
         return try #require(lattice(solid))
     }
 
+    @Test func aPreviewAndAnExportAreNotTheSameResult() async throws {
+        var h = Harness()
+        let voronoi = cube(&h)
+        let evaluator = Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel())
+        _ = try await evaluator.evaluate(h.graph, demand: [voronoi.id])
+        let export = try await evaluator.evaluate(h.graph, demand: [voronoi.id], meshQuality: .export)
+        #expect(export.evaluatedNodes.contains(voronoi.id), "an export is not served the preview's result")
+        let again = try await evaluator.evaluate(h.graph, demand: [voronoi.id])
+        #expect(!again.evaluatedNodes.contains(voronoi.id), "the preview is still cached")
+    }
+
     @Test func withoutARegionItSaysWhatToConnect() async throws {
         var h = Harness()
         let voronoi = h.add(VoronoiLatticeNode.self)

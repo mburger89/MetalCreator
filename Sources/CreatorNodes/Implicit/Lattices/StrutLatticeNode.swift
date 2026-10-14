@@ -19,6 +19,8 @@ public enum StrutLatticeNode: NodeDefinition {
         SocketSpec("node blend", .number, defaultValue: .number(0), unit: .millimetres, range: 0...5),
     ]
     public static let outputs = [SocketSpec("implicit", .implicit)]
+    /// The warnings about cells and walls depend on the voxel size, which differs between preview and export.
+    public static let readsMeshQuality = true
     public static let help = "Where the cell size field changes fast the pattern stretches, and the preview gets slower: the "
         + "lipschitz bound grows with the field's slope. A node blend of up to a quarter of the smallest cell is allowed."
     public static let inspector = [
