@@ -20,7 +20,7 @@ struct ImplicitLibraryTests {
         let names = sections.first { $0.category == .implicit }?.entries.map(\.displayName)
         #expect(names == [
             "Sphere", "Box", "Cylinder", "Union", "Subtract", "Intersect", "Shell",
-            "Offset", "To Implicit", "Isosurface", "TPMS",
+            "Offset", "To Implicit", "Isosurface", "TPMS", "Strut Lattice",
         ])
     }
 
