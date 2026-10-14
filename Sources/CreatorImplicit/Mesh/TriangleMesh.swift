@@ -18,9 +18,12 @@ public struct TriangleMesh: MeshPayload, Sendable {
     public var highlights: [MeshHighlight]
     /// What a preview refinement meshes, when this mesh is a preview of an implicit.
     public var source: MeshSource?
+    /// How long meshing took, in seconds (shown in the inspector); 0 when unknown.
+    public var meshingSeconds: Double
 
     public init(positions: [SIMD3<Float>], normals: [SIMD3<Float>] = [], triangles: [UInt32], resolution: Double = 0,
-                quality: MeshQuality = .preview, highlights: [MeshHighlight] = [], source: MeshSource? = nil, id: UUID = UUID()) {
+                quality: MeshQuality = .preview, highlights: [MeshHighlight] = [], source: MeshSource? = nil, meshingSeconds: Double = 0,
+                id: UUID = UUID()) {
         self.id = id
         self.positions = positions
         self.normals = normals
@@ -29,6 +32,7 @@ public struct TriangleMesh: MeshPayload, Sendable {
         self.quality = quality
         self.highlights = highlights
         self.source = source
+        self.meshingSeconds = meshingSeconds
     }
 
     public var vertexCount: Int { positions.count }
@@ -68,6 +72,21 @@ public struct TriangleMesh: MeshPayload, Sendable {
             sum += (b - a).cross(c - a).length / 2
         }
         return sum
+    }
+
+    /// Triangle count, resolution, meshing time and memory (implicit spec §5.2).
+    public var inspectorFacts: [PayloadFact] {
+        var facts = [PayloadFact("Triangles", triangleCount.formatted(.number.locale(.messages)))]
+        if resolution > 0 {
+            let size = resolution.formatted(.number.precision(.fractionLength(0...3)).locale(.messages))
+            facts.append(PayloadFact("Resolution", (quality == .preview ? "Preview " : "") + "\(size) mm"))
+        }
+        if meshingSeconds > 0 {
+            let seconds = meshingSeconds.formatted(.number.precision(.fractionLength(2)).locale(.messages))
+            facts.append(PayloadFact("Meshing time", "\(seconds) s"))
+        }
+        facts.append(PayloadFact("Memory", Int64(estimatedBytes).formatted(.byteCount(style: .memory).locale(.messages))))
+        return facts
     }
 
     /// This mesh with other highlights (checks return their input flagged).

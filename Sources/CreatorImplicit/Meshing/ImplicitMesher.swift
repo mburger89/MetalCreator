@@ -22,10 +22,12 @@ public struct ImplicitMesher: Sendable {
     /// - Parameters:
     ///   - quality: recorded on the mesh. An export is first checked against the memory budget (`MeshingBudget`).
     ///   - snap: whether vertices take the Newton step (tests turn it off to see what it does).
+    ///   - source: recorded on the mesh when it is the first pass of a progressive preview, so the viewport can refine it.
     ///   - progress: the fraction done, 0 to 1, from any thread.
     /// - Throws: `ImplicitMeshingError` and `CancellationError`.
     public func mesh(_ solid: ImplicitSolid, resolution: Double, quality: MeshQuality, snap: Bool = true,
-                     progress: @Sendable (Double) -> Void = { _ in }) async throws -> TriangleMesh {
+                     source: MeshSource? = nil, progress: @Sendable (Double) -> Void = { _ in }) async throws -> TriangleMesh {
+        let start = ContinuousClock.now
         progress(0)
         if quality == .export { try await budget.check(solid, resolution: resolution, using: evaluator) }
         let plan = try await BrickPlan.build(for: solid, resolution: resolution, using: evaluator)
@@ -44,7 +46,7 @@ public struct ImplicitMesher: Sendable {
         if snap { try await Self.snap(&positions, &normals, resolution: resolution, evaluator: evaluator) { progress(0.9 + 0.1 * $0) } }
         progress(1)
         return TriangleMesh(positions: positions, normals: normals, triangles: builder.triangles, resolution: resolution,
-                            quality: quality)
+                            quality: quality, source: source, meshingSeconds: start.duration(to: .now) / .seconds(1))
     }
 
     /// Moves each vertex one Newton step towards f = 0 and sets its normal from the gradient. The gradient is the central difference

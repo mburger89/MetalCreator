@@ -6,17 +6,18 @@ import Foundation
 import Testing
 @testable import CreatorNodes
 
-/// A document of Implicit nodes saved and reopened (implicit spec §5.4): their settings are the existing integer and number
-/// settings, and the solids themselves are recomputed, never saved.
-///
-/// Lane A of 7c-core has no Mesh node and no Output `mesh` socket yet (Tasks 13 and 14, after the join), so this file holds the
-/// parts of the brief that do not need them; the join adds the Mesh node to `graph` and the Output's empty `mesh` socket check.
+/// A document of Implicit and Mesh nodes saved and reopened (implicit spec §5.4): their settings are the existing integer and number
+/// settings, and the solids and meshes themselves are recomputed, never saved.
 struct ImplicitDocumentFileTests {
-    func graph(_ h: inout Harness) -> (sphere: Node, shell: Node) {
+    func graph(_ h: inout Harness) -> (sphere: Node, shell: Node, mesh: Node, output: Node) {
         let sphere = h.add(ImplicitSphereNode.self, ["radius": .number(7)])
-        let shell = h.add(ImplicitShellNode.self, ["thickness": .number(1.5), "side": .integer(2)], output: true)
+        let shell = h.add(ImplicitShellNode.self, ["thickness": .number(1.5), "side": .integer(2)])
+        let mesh = h.add(MeshNode.self, ["export resolution": .number(0.25), "preview resolution": .number(2)])
+        let output = h.add(OutputNode.self, output: true)
         h.wire(sphere, "implicit", to: shell, "implicit")
-        return (sphere, shell)
+        h.wire(shell, "implicit", to: mesh, "implicit")
+        h.wire(mesh, "mesh", to: output, "mesh")
+        return (sphere, shell, mesh, output)
     }
 
     @Test func theSettingsSurviveASaveAndReopen() async throws {
@@ -27,19 +28,19 @@ struct ImplicitDocumentFileTests {
         #expect(file.formatVersion == 8 && file.graph.nodes == h.graph.nodes)
         #expect(Set(file.graph.links) == Set(h.graph.links), "the links are kept in an order of their own")
         #expect(file.graph.nodes[nodes.shell.id]?.inputValues["side"] == .integer(2))
-        #expect(file.graph.nodes[nodes.sphere.id]?.inputValues["radius"] == .number(7))
+        #expect(file.graph.nodes[nodes.mesh.id]?.inputValues["export resolution"] == .number(0.25))
         let report = try await Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel())
-            .evaluate(file.graph, demand: [nodes.shell.id])
-        let solid = try #require(report.implicitSolid(nodes.shell))
-        #expect(solid.distance(0, 0, 0) > 0, "the shell is hollow at the centre")
+            .evaluate(file.graph, demand: [nodes.output.id])
+        let mesh = try #require(report.value(nodes.output, "mesh")?.triangleMeshes?.first)
+        #expect(mesh.resolution == 2 && MeshTopology(mesh).isClosedManifold)
     }
 
-    @Test func noSolidIsWrittenToTheFile() throws {
+    @Test func noSolidOrMeshIsWrittenToTheFile() throws {
         var h = Harness()
         _ = graph(&h)
         let text = try #require(String(bytes: try GraphFileIO.encode(GraphFile(graph: h.graph)), encoding: .utf8))
         #expect(!text.contains("positions") && !text.contains("triangles") && !text.contains("halfSize"))
-        #expect(text.contains("creator.implicitSphere") && text.contains("creator.implicitShell"))
+        #expect(text.contains("creator.implicitSphere") && text.contains("creator.mesh"))
     }
 
     @Test func aFormatSevenFileWithoutImplicitNodesOpensAndEvaluatesAsBefore() async throws {
@@ -53,5 +54,6 @@ struct ImplicitDocumentFileTests {
         let report = try await Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel())
             .evaluate(file.graph, demand: [output.id])
         #expect(report.value(output, "solid")?.solids?.count == 1)
+        #expect(report.value(output, "mesh")?.items.isEmpty == true, "the Output's new socket is simply empty")
     }
 }
