@@ -1805,7 +1805,7 @@ the compiler's default paths (MetalUI `docs/getting-started.md`, "Linux and Wind
 the same with the `-Xcc -I… -Xswiftc -L…` flags `.github/workflows/xp.yml` hands SwiftPM; the Windows CI job builds, passes the whole suite (run 38546048595), self-tests and launches; it stays `continue-on-error`, with a
 warning step when red. macOS needs no check here: its test count and its look are unchanged.
 
-- [ ] **XP-1 Launch.** `swift run MetalCreatorApp` opens a window titled "MetalCreator" with the system title bar, a menu bar
+- [ ] **XP-1 Launch.** `swift run MetalCreatorApp` opens a window titled "MetalCreator" with no system title bar (MetalUI draws minimise, zoom and close at the top right, see XP-11), a menu bar
   strip drawn across its top (File, Edit, View) above the glass top bar, the graph panel docked at the bottom and the inspector
   on the right, in Dracula. Quitting (the window's close button, and File's quit where the platform has one) asks nothing on an
   unedited document. The top bar's top edge is fully visible below the strip (the root is not clipped by it: nothing in MetalCreator reads
@@ -1832,8 +1832,7 @@ warning step when red. macOS needs no check here: its test count and its look ar
   stock Ubuntu, Segoe UI on Windows) with no missing-glyph boxes, and a wrapped hint (the Mirror tool's, in the sketch inspector)
   shows all its words: DejaVu is wider than macOS's font and wraps it to more lines. Pinned: `TextMeasureWindowTests`.
   **Observed:**
-- [ ] **XP-8 Title bar and cursors.** The system title bar moves the window and the top bar's empty space does not (MetalUI
-  divergence 276, gap XP-G3); panning the canvas shows the move cursor in place of the hand, and the panels' resize handles show
+- [ ] **XP-8 Cursors.** (The title bar half moved to XP-11..XP-14 with MetalUI S1.) Panning the canvas shows the move cursor in place of the hand, and the panels' resize handles show
   the system resize cursors (XP-G8). Pinned: `PanelResizeCursorTests` (the intent; the platform's shape is SDL's). **Observed:**
 - [ ] **XP-9 Self-test and smoke test.** `MetalCreatorApp --self-test` prints four `ok` lines (the kernel and both exports
   "skipped: Geometry isn't available on this platform yet.", the shaders found) and exits 0; `--smoke-test 5` prints "reached the
@@ -1842,3 +1841,21 @@ warning step when red. macOS needs no check here: its test count and its look ar
 - [ ] **XP-10 A screen reader (optional).** With Orca on Linux or Narrator on Windows running, the top bar's buttons and the
   graph panel's nodes are announced by name (MetalUI's `AccessKit` trait). Not pinned: MetalUI's own tests cover the bridge.
   **Observed:**
+- [ ] **XP-11 Borderless chrome, Linux X11.** On an X11 session (GNOME or KDE): the window has no system title bar; MetalUI's minimise,
+  zoom and close are drawn at the top right and the glass top bar's Export menu ends left of them with a gap (not under them);
+  the Preview picker, Undo, Redo and Export still click. Minimise iconifies, zoom maximises and reads "Restore" after, and each
+  works twice. A file with changes and the drawn Close: the Save / Don't Save / Cancel alert asks, Cancel keeps the window, Don't
+  Save closes it; an unedited document closes at once. In a sketch the sketch toolbar's Finish ends left of the buttons too. The theme
+  editor and inspector at the top right start below the buttons. Pinned: `SDLChromeWindowTests` (the layout, Close through the model).
+  **Observed:**
+- [ ] **XP-12 Drag, edges and zoom, Linux X11.** With today's placeholder viewport the regions are published; once xp-3's viewport is there it needs
+  MetalUI XP-G11 or the bar moves nothing. Pressing the bar's empty space, the strip and the document's name moves the window; pressing
+  on a bar control (Undo, Export, Finish in a sketch) never does (MetalUI divergence 426); the six-point edges and twelve-point
+  corners resize the window, and the viewport still orbits with a drag below the bar. Double-clicking the band zooms the window
+  (MetalUI CW6: not promised on Linux; log it if not). Hover, tooltips and the wheel over the bar do nothing (divergence 425; nothing
+  there needs them). Resize edges work today. **Observed:**
+- [ ] **XP-13 Borderless chrome, Wayland.** The same as XP-11 and XP-12 on a Wayland session (GNOME, KDE), including the resize edges
+  and, where the compositor draws none, the missing shadow (not MetalCreator's). **Observed:**
+- [ ] **XP-14 Borderless chrome, Windows 11.** The same as XP-11 and XP-12 on Windows 11: the three drawn buttons at the top right,
+  drag, resize edges, double-click zoom, and the close veto with unsaved changes. The snap-layout flyout over zoom, the DWM shadow
+  and the rounded corners are not there for a borderless window (MetalUI CW9: platform); note what is missing. **Observed:**

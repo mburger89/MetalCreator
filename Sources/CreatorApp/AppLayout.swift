@@ -36,9 +36,28 @@ public enum AppLayout {
     /// How far the top bar's content starts in from the glass's inner edge so that it clears the window buttons under
     /// a hidden title bar (gap M6-c): `titleBarInsets.left` is the buttons' right edge in the window, the glass starts
     /// at `margin` and pads its content by `GraphPanelLayout.glassPadding`. Zero in a standard window, whose
-    /// insets are zero.
+    /// insets are zero, and on SDL, whose drawn buttons are at the right (`topBarTrailingClearance`).
     public static func topBarClearance(titleBarInsets: Edges<Pixels>) -> Double {
         max(0, Double(titleBarInsets.left.value) + titleBarGap - margin - GraphPanelLayout.glassPadding)
+    }
+
+    /// How far the top bar's content ends in from the glass's inner trailing edge so that it clears the buttons MetalUI
+    /// draws at the window's right on Linux and Windows (MetalUI S1, gap XP-G3): `titleBarInsets.right` is their width,
+    /// the glass ends at `margin` from the window's edge and pads its content. Zero on macOS, whose insets have no right.
+    public static func topBarTrailingClearance(titleBarInsets: Edges<Pixels>) -> Double {
+        max(0, Double(titleBarInsets.right.value) + titleBarGap - margin - GraphPanelLayout.glassPadding)
+    }
+
+    /// The window-coordinate rectangle the platform's buttons cover at the window's top edge: the band's height, and
+    /// from the left or the right edge in by the matching inset. `nil` where the insets reserve none. The cluster is
+    /// at one side only (right on SDL, left on macOS); the larger inset wins if a platform reports both.
+    public static func buttonCluster(titleBarInsets: Edges<Pixels>, windowWidth: Double) -> CanvasRect? {
+        let left = Double(titleBarInsets.left.value)
+        let right = Double(titleBarInsets.right.value)
+        let band = Double(titleBarInsets.top.value)
+        guard band > 0, left > 0 || right > 0 else { return nil }
+        if right >= left { return CanvasRect(origin: Vector2(windowWidth - right, 0), size: Vector2(right, band)) }
+        return CanvasRect(origin: Vector2(0, 0), size: Vector2(left, band))
     }
 
     /// Where "Show Producing Node" puts the node's top-left corner on the canvas, in canvas-local points.

@@ -62,11 +62,7 @@ func runApp(opening path: String?, smoke: LaunchSmoke? = nil) throws {
     input.install(on: window)
     // Close and quit (gap M6-b): ⌘Q asks each window's `onCloseRequest` in turn when the app sets no
     // `onTerminateRequest`, and this app has one window, so one handler and one reply route serve both.
-    window.onCloseRequest = {
-        themeEditor.flush()   // a colour dragged just now is saved before the window can go
-        return model.closeRequested()
-    }
-    model.replyToCloseRequest = { window.replyToCloseRequest($0) }
+    model.installCloseHandling(on: window) { themeEditor.flush() }   // a colour dragged just now is saved first
     // Title, edited dot and proxy icon (gap M6-a) follow the document. The task lives as long as the app.
     let chrome = WindowChromeSync(model: model, chrome: window)
     Task { await chrome.follow() }
