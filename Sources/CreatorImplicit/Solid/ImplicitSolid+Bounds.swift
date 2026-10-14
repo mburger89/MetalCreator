@@ -43,7 +43,7 @@ extension ImplicitSolid {
 
     private static func box(_ half: Vector3) -> BoundingBox { BoundingBox(min: -half, max: half) }
 
-    static func grown(_ box: BoundingBox, by amount: Double) -> BoundingBox {
+    public static func grown(_ box: BoundingBox, by amount: Double) -> BoundingBox {
         let pad = Vector3(amount, amount, amount)
         return BoundingBox(min: box.min - pad, max: box.max + pad)
     }

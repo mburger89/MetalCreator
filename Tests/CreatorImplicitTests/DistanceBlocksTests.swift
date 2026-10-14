@@ -31,6 +31,20 @@ struct DistanceBlocksTests {
         #expect(abs(blocks.value(at: Vector3(7.5, 3, 3)) - 5) < 1e-9)
     }
 
+    @Test func theSlopeBoundIsTheInterpolantsOwn() {
+        let flat = BlocksFixture.make(origin: .zero, spacing: 0.5, blocks: 2) { $0.x }
+        #expect(abs(flat.lipschitz - 1) < 1e-6)
+        let steep = BlocksFixture.make(origin: .zero, spacing: 0.5, blocks: 2) { 3 * $0.x + 4 * $0.y }
+        #expect(abs(steep.lipschitz - 5) < 1e-4)
+        let constant = BlocksFixture.make(origin: .zero, spacing: 0.5, blocks: 1) { _ in 2 }
+        #expect(constant.lipschitz == 1, "never below 1")
+        // A ball's distance is a cone at its centre, whose cell reads a slope of √3; cells near the surface read about 1.
+        let everywhere = BlocksFixture.make(origin: Vector3(-16, -16, -16), spacing: 1, blocks: 4) { $0.length - 9 }
+        #expect(everywhere.lipschitz > 1.7 && everywhere.lipschitz < 1.75)
+        let nearSurface = BlocksFixture.make(origin: Vector3(-16, -16, -16), spacing: 1, blocks: 4, band: 6) { $0.length - 9 }
+        #expect(nearSurface.lipschitz >= 1 && nearSurface.lipschitz < 1.3)
+    }
+
     @Test func sizesAndEquality() {
         let a = BlocksFixture.make(origin: .zero, spacing: 1, blocks: 1) { $0.x }
         let b = BlocksFixture.make(origin: .zero, spacing: 1, blocks: 1) { $0.x }

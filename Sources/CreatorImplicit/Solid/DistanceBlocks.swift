@@ -22,6 +22,10 @@ public final class DistanceBlocks: Hashable, Sendable {
     public let coarse: [Float]
     /// Distances up to this size from the surface are stored exactly; beyond it the value is a bound.
     public let band: Double
+    /// A bound on how fast the interpolated value changes: at least 1, and for a baked distance close to it. Inside one cell of
+    /// samples the trilinear gradient is largest at a corner, so the bound is the largest vector of sample differences over `spacing`
+    /// there, over the cells near the surface.
+    public let lipschitz: Double
 
     public init(origin: Vector3, spacing: Double, blockCounts: [Int], table: [Int32], pool: [Float], coarse: [Float], band: Double) {
         precondition(blockCounts.count == 3 && table.count == blockCounts.reduce(1, *) && coarse.count == table.count,
@@ -33,6 +37,44 @@ public final class DistanceBlocks: Hashable, Sendable {
         self.pool = pool
         self.coarse = coarse
         self.band = band
+        self.lipschitz = Self.interpolationSlope(blockCounts: blockCounts, table: table, pool: pool, coarse: coarse, spacing: spacing,
+                                              band: band)
+    }
+
+    /// The bound `lipschitz` describes. The squared gradient of a trilinear cell is convex in position, so its largest value is at a
+    /// corner, where the gradient is the three sample differences along the edges that meet there. Only cells within half the band of
+    /// the surface count: deeper in, the true distance has ridges (the medial axis) that no pruning decision depends on.
+    private static func interpolationSlope(blockCounts: [Int], table: [Int32], pool: [Float], coarse: [Float], spacing: Double,
+                                           band: Double) -> Double {
+        let size = blockSize
+        let counts = blockCounts.map { $0 * size }
+        func sample(_ i: Int, _ j: Int, _ k: Int) -> Float {
+            let block = ((k / size) * blockCounts[1] + j / size) * blockCounts[0] + i / size
+            let slot = Int(table[block])
+            guard slot >= 0 else { return coarse[block] }
+            return pool[slot * size * size * size + ((k % size) * size + j % size) * size + i % size]
+        }
+        let reach = Float(band / 2)
+        var worst: Float = 0
+        for k in 0..<counts[2] - 1 {
+            for j in 0..<counts[1] - 1 {
+                for i in 0..<counts[0] - 1 {
+                    var nearest = Float.infinity
+                    for corner in 0..<8 {
+                        nearest = min(nearest, abs(sample(i + (corner & 1), j + ((corner >> 1) & 1), k + (corner >> 2))))
+                    }
+                    guard nearest <= reach else { continue }
+                    for corner in 0..<8 {
+                        let (a, b, c) = (corner & 1, (corner >> 1) & 1, corner >> 2)
+                        let dx = sample(i + 1, j + b, k + c) - sample(i, j + b, k + c)
+                        let dy = sample(i + a, j + 1, k + c) - sample(i + a, j, k + c)
+                        let dz = sample(i + a, j + b, k + 1) - sample(i + a, j + b, k)
+                        worst = max(worst, dx * dx + dy * dy + dz * dz)
+                    }
+                }
+            }
+        }
+        return max(1, Double(worst).squareRoot() / spacing)
     }
 
     public static func == (lhs: DistanceBlocks, rhs: DistanceBlocks) -> Bool { lhs === rhs }

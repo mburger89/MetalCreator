@@ -1,4 +1,3 @@
-import CreatorGeometry
 import Foundation
 
 /// Smooth fractal gradient noise in 0…1 (fields spec §3.1): 3D simplex noise (Gustavson, "Simplex noise demystified"), summed
@@ -7,13 +6,13 @@ import Foundation
 /// system's generator, so a seed gives the same field on every machine and release. A value depends on the point and the
 /// settings alone, never on which other points are sampled with it. At the origin every octave is 0, so the value is exactly
 /// 0.5 whatever the seed.
-struct FieldNoise: Sendable {
-    let scale: Double
-    let octaves: Int
+public struct FieldNoise: Sendable {
+    public let scale: Double
+    public let octaves: Int
     private let generators: [SeededRandom]
 
     /// `scale` is the size in mm of the first octave's features; `octaves` is 1 or more.
-    init(seed: Int, scale: Double, octaves: Int) {
+    public init(seed: Int, scale: Double, octaves: Int) {
         precondition(octaves >= 1 && scale > 0, "FieldNoise needs 1 or more octaves and a scale above 0")
         self.scale = scale
         self.octaves = octaves
@@ -21,7 +20,7 @@ struct FieldNoise: Sendable {
     }
 
     /// The noise at `point`, in 0…1.
-    func value(at point: Vector3) -> Double {
+    public func value(at point: Vector3) -> Double {
         var sum = 0.0
         var total = 0.0
         var amplitude = 1.0

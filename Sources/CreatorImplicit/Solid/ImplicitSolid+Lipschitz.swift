@@ -1,12 +1,14 @@
 extension ImplicitSolid {
-    /// A constant L ≥ 1 with |f(a) − f(b)| ≤ L · |a − b| (implicit spec §2.1, §3.3). Primitives, moves and baked distances are
-    /// exact. A smooth blend takes the largest of its children's plus a quarter of the blend radius's slope (the blend term
+    /// A constant L ≥ 1 with |f(a) − f(b)| ≤ L · |a − b| (implicit spec §2.1, §3.3). Primitives and moves are exact; a baked
+    /// distance has the slope bound of its interpolation (`DistanceBlocks.lipschitz`). A smooth blend takes the largest of its children's plus a quarter of the blend radius's slope (the blend term
     /// k·h²/4 changes by at most a quarter per unit of k). An offset or a shell takes its child's times one plus the slope of its
     /// distance. An isosurface divides the field's slope by `maxSlope`.
     public var lipschitz: Double {
         switch self {
-        case .sphere, .box, .cylinder, .baked:
+        case .sphere, .box, .cylinder:
             return 1
+        case .baked(let blocks, _):
+            return blocks.lipschitz
         case .moved(let child, _):
             return child.lipschitz
         case .union(let children, let blend), .intersect(let children, let blend), .subtract(let children, let blend):

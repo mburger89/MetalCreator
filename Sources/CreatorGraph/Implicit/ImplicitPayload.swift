@@ -14,9 +14,15 @@ public protocol ImplicitPayload: Sendable {
     var lipschitz: Double { get }
     /// The signed distance in millimetres at `point`: negative inside, 0 on the surface (the reference evaluation, in Double).
     func signedDistance(at point: Vector3) -> Double
+    /// The same at each of `points`. A payload that has set-up work to share between points overrides it.
+    func signedDistances(at points: [Vector3]) -> [Double]
     /// Whether `other` is the same solid (the previews ask "is this what I last sampled?").
     func isEqual(to other: any ImplicitPayload) -> Bool
     func hashPayload(into hasher: inout Hasher)
+}
+
+extension ImplicitPayload {
+    public func signedDistances(at points: [Vector3]) -> [Double] { points.map { signedDistance(at: $0) } }
 }
 
 extension ImplicitPayload where Self: Hashable {
