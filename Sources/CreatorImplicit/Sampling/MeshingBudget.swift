@@ -38,16 +38,27 @@ public struct MeshingBudget: Sendable {
     /// surface needs there; surface area grows with the square of the finer resolution.
     public static func estimate(for solid: ImplicitSolid, resolution: Double,
                                 using evaluator: any ImplicitBatchEvaluator) async throws -> Int {
+        try await coarseEstimate(for: solid, resolution: resolution, using: evaluator).bytes
+    }
+
+    /// The estimate, and whether the coarse pass found any brick at all. Computed in Double and clamped, so a tiny resolution gives a
+    /// huge estimate (refused by `check`) rather than a trap in the conversion.
+    static func coarseEstimate(for solid: ImplicitSolid, resolution: Double,
+                               using evaluator: any ImplicitBatchEvaluator) async throws -> (bytes: Int, isEmpty: Bool) {
+        precondition(resolution.isFinite && resolution > 0, "the meshing resolution must be positive and finite")
         let size = solid.bounds.size
         let coarse = max(resolution, max(size.x, size.y, size.z) / 64)
         let plan = try await BrickPlan.build(for: solid, resolution: coarse, using: evaluator)
         let scale = (coarse / resolution) * (coarse / resolution)
-        return Int((Double(plan.bricks.count) * scale * Double(bytesPerBrick)).rounded(.up))
+        let bytes = (Double(plan.bricks.count) * scale * Double(bytesPerBrick)).rounded(.up)
+        return (Int(min(bytes, Double(Int.max / 2))), plan.bricks.isEmpty)
     }
 
     /// Throws `ImplicitMeshingError.tooBig` when meshing `solid` at `resolution` is estimated over the limit.
     public func check(_ solid: ImplicitSolid, resolution: Double, using evaluator: any ImplicitBatchEvaluator) async throws {
-        let bytes = try await Self.estimate(for: solid, resolution: resolution, using: evaluator)
+        let (bytes, isEmpty) = try await Self.coarseEstimate(for: solid, resolution: resolution, using: evaluator)
+        // The coarse pass prunes conservatively, so no coarse brick means no surface at the finer resolution either.
+        if isEmpty { throw ImplicitMeshingError.empty }
         guard bytes > limit else { return }
         // Bytes follow 1 / resolution², so the resolution that fits the limit is this much coarser.
         let suggestion = (resolution * (Double(bytes) / Double(max(limit, 1))).squareRoot() * 100).rounded(.up) / 100

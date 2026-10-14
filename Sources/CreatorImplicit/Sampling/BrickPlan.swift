@@ -26,11 +26,16 @@ public struct BrickPlan: Sendable {
 
     public static func build(for solid: ImplicitSolid, resolution: Double,
                              using evaluator: any ImplicitBatchEvaluator) async throws -> BrickPlan {
+        precondition(resolution.isFinite && resolution > 0, "BrickPlan needs a positive, finite resolution")
         let size = brickSize
         let box = solid.bounds
+        // Bounds that aren't finite (an empty intersection built from NaN, an unbounded region) hold nothing to mesh.
+        guard [box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z].allSatisfy(\.isFinite) else {
+            throw ImplicitMeshingError.empty
+        }
         let origin = box.min - Vector3(resolution, resolution, resolution)
         let span = box.max + Vector3(resolution, resolution, resolution) - origin
-        let counts = [span.x, span.y, span.z].map { max(1, Int(($0 / (resolution * Double(size))).rounded(.up))) }
+        let counts = try brickCounts(span: span, resolution: resolution)
         let longest = counts.max() ?? 1
         var cellBricks = 1
         while cellBricks < longest { cellBricks *= 2 }
@@ -70,6 +75,17 @@ public struct BrickPlan: Sendable {
         }
         survivors.sort { ($0.x, $0.y, $0.z) < ($1.x, $1.y, $1.z) }
         return BrickPlan(origin: origin, resolution: resolution, brickCounts: counts, bricks: survivors, evaluatedCells: evaluated)
+    }
+
+    /// How many bricks cover `span` on each axis. A grid too large to index is refused like an over-budget job (`Int(_:)` would trap).
+    private static func brickCounts(span: Vector3, resolution: Double) throws -> [Int] {
+        try [span.x, span.y, span.z].map { extent in
+            let bricks = (extent / (resolution * Double(brickSize))).rounded(.up)
+            guard bricks.isFinite, bricks < Double(1 << 30) else {
+                throw ImplicitMeshingError.tooBig(bytes: Int.max / 2, resolution: resolution, suggestion: resolution * 2)
+            }
+            return max(1, Int(bricks))
+        }
     }
 
     /// The cells whose centre value can't rule the surface out: |f| ÷ lipschitz is not more than half the cell's diagonal.
