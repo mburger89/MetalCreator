@@ -14,12 +14,26 @@ struct MeshComparison {
     /// at a right angle, -1 when inside out. Vertices without a normal on either side (a mesh made without the snap) are not counted;
     /// 1 when none is.
     var smallestNormalDot: Float = 1
+    /// The largest ratio of a candidate vertex's distance along the reference's normal to its allowed distance
+    /// (`allowance(slope:)`), over the vertices with a slope; 0 when `slopes` is empty. At most 1 passes (spec erratum D17).
+    var worstScaledSurface: Float = 0
+    /// That vertex's distance along the normal and its allowed distance, for the report.
+    var worstScaledDetail: (along: Float, allowed: Float) = (0, 1e-4)
     /// Vertices of either mesh with none of the other's within `searchRadius`.
     var unmatched = 0
 
-    init(reference: TriangleMesh, candidate: TriangleMesh, searchRadius: Float = 0.01) {
-        let forward = Self.directed(from: candidate, to: reference, radius: searchRadius)
-        let backward = Self.directed(from: reference, to: candidate, radius: searchRadius)
+    /// The surface distance allowed where the field's slope (the magnitude of its gradient) is `slope`: 1e-4 mm divided by the slope,
+    /// never less than 1e-4 mm (a value difference of 1e-4 moves the surface 1e-4 / slope).
+    static func allowance(slope: Float) -> Float {
+        1e-4 * max(1, 1 / max(slope, 1e-6))
+    }
+
+    /// `slopes` holds the field's slope at each of the reference's vertices (same order), for the scaled surface check.
+    init(reference: TriangleMesh, candidate: TriangleMesh, searchRadius: Float = 0.01, slopes: [Float] = []) {
+        let forward = Self.directed(from: candidate, to: reference, radius: searchRadius, slopes: slopes)
+        worstScaledSurface = forward.scaled.ratio
+        worstScaledDetail = (forward.scaled.along, forward.scaled.allowed)
+        let backward = Self.directed(from: reference, to: candidate, radius: searchRadius, slopes: [])
         farthest = max(forward.farthest, backward.farthest)
         farthestAlongNormal = forward.alongNormal
         smallestNormalDot = forward.smallestDot
@@ -41,10 +55,12 @@ struct MeshComparison {
 
     /// Each vertex of `source` against the nearest vertex of `target`.
     private static func directed(from source: TriangleMesh, to target: TriangleMesh,
-                                 radius: Float) -> (farthest: Float, alongNormal: Float, smallestDot: Float, unmatched: Int) {
+                                 radius: Float, slopes: [Float]) -> (farthest: Float, alongNormal: Float, smallestDot: Float, unmatched: Int,
+                                                                scaled: (ratio: Float, along: Float, allowed: Float)) {
         var grid: [SIMD3<Int32>: [Int]] = [:]
         for (index, point) in target.positions.enumerated() { grid[cell(point, radius), default: []].append(index) }
-        var result: (farthest: Float, alongNormal: Float, smallestDot: Float, unmatched: Int) = (0, 0, 1, 0)
+        var result: (farthest: Float, alongNormal: Float, smallestDot: Float, unmatched: Int,
+                     scaled: (ratio: Float, along: Float, allowed: Float)) = (0, 0, 1, 0, (0, 0, 1e-4))
         for (at, point) in source.positions.enumerated() {
             let home = cell(point, radius)
             var nearest: (index: Int, distance: Float)?
@@ -64,6 +80,10 @@ struct MeshComparison {
             if target.normals.indices.contains(nearest.index) {
                 let along = abs(((point - target.positions[nearest.index]) * target.normals[nearest.index]).sum())
                 result.alongNormal = max(result.alongNormal, along)
+                if slopes.indices.contains(nearest.index) {
+                    let allowed = allowance(slope: slopes[nearest.index])
+                    if along / allowed > result.scaled.ratio { result.scaled = (along / allowed, along, allowed) }
+                }
                 if let dot = normalDot(source, at, target, nearest.index) { result.smallestDot = min(result.smallestDot, dot) }
             }
         }

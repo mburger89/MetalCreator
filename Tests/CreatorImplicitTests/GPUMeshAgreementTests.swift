@@ -25,12 +25,26 @@ struct GPUMeshAgreementTests {
     static let vertexTolerance: Float = 1e-4
     /// The whole pipeline's slide along the surface (see above).
     static let slideTolerance: Float = 2e-3
-    /// The whole pipeline's surfaces for the lattices whose cells or wall are graded: a lattice's value is a distance only to within
-    /// its wall scale, and a graded cell or a noisy wall turns that scale (the field's gradient at the surface) below 1, so the
-    /// evaluators' 1e-4 agreement in value (`GPUAgreementTests`) moves the surface by 1e-4 / gradient: 1.1e-4 mm on the graded diamond
-    /// and 2.5e-4 mm on the stretched, noisy neovius. The mesher alone still agrees within `vertexTolerance` on them (spec D15 amended).
-    static let gradedLatticeSurfaceTolerance: Float = 5e-4
-    static let gradedLattices: Set<String> = ["diamond sheet, graded cell", "neovius sheet, stretched, noisy wall"]
+    /// Spec erratum D17: the whole pipeline's surfaces agree within 1e-4 mm divided by the field's local slope (the magnitude of its
+    /// gradient at the surface point, by central differences on the CPU evaluator), never less than 1e-4 mm. The evaluators agree to
+    /// 1e-4 in value (`GPUAgreementTests`), and a value difference of that moves the surface by 1e-4 / slope: a graded cell or a noisy
+    /// wall has a slope below 1 (measured: graded diamond 1.1e-4 mm, noisy neovius 2.5e-4 mm). A plain shape has slope about 1 and
+    /// keeps 1e-4 mm. The mesher alone keeps `vertexTolerance` everywhere.
+    static let slopeStep: Float = 0.01
+
+    /// The slope of `solid`'s field at each of `points`, by central differences on the CPU evaluator.
+    static func slopes(of solid: ImplicitSolid, at points: [SIMD3<Float>]) async throws -> [Float] {
+        let h = slopeStep
+        let axes: [SIMD3<Float>] = [SIMD3(h, 0, 0), SIMD3(0, h, 0), SIMD3(0, 0, h)]
+        let samples = points.flatMap { point in axes.flatMap { [point + $0, point - $0] } }
+        let values = try await CPUBatchEvaluator(solid).evaluate(samples)
+        return points.indices.map { index in
+            let base = index * 6
+            let gradient = SIMD3((values[base] - values[base + 1]), (values[base + 2] - values[base + 3]),
+                                 (values[base + 4] - values[base + 5])) / (2 * h)
+            return (gradient * gradient).sum().squareRoot()
+        }
+    }
     /// The normals of the two meshers on the same samples: the dot product of a vertex's two normals, at least. They are the snap's
     /// gradient, so the same values give the same direction to rounding.
     static let mesherNormalDot: Float = 0.9999
@@ -91,10 +105,11 @@ struct GPUMeshAgreementTests {
         // The whole pipeline: the CPU evaluator is the reference.
         let reference = try await ImplicitMesher(evaluator: CPUBatchEvaluator(solid)).mesh(solid, resolution: resolution, quality: .preview)
         Self.expectSameTopology(gpu.mesh, reference, name)
-        let pipeline = MeshComparison(reference: reference, candidate: gpu.mesh)
+        let slopes = try await Self.slopes(of: solid, at: reference.positions)
+        let pipeline = MeshComparison(reference: reference, candidate: gpu.mesh, slopes: slopes)
         #expect(pipeline.unmatched == 0, "\(name): vertices without a match")
-        let surfaceTolerance = Self.gradedLattices.contains(name) ? Self.gradedLatticeSurfaceTolerance : Self.vertexTolerance
-        #expect(pipeline.farthestAlongNormal <= surfaceTolerance, "\(name): the surfaces are \(pipeline.farthestAlongNormal) mm apart")
+        let detail = pipeline.worstScaledDetail
+        #expect(pipeline.worstScaledSurface <= 1, "\(name): the surfaces are \(detail.along) mm apart where \(detail.allowed) mm is allowed")
         #expect(pipeline.farthest <= Self.slideTolerance, "\(name): the largest vertex difference is \(pipeline.farthest) mm")
         #expect(pipeline.smallestNormalDot >= Self.pipelineNormalDot, "\(name): a normal differs: dot \(pipeline.smallestNormalDot)")
     }
