@@ -61,7 +61,14 @@ struct CanvasContentSkipWindowTests {
         #expect(fixture.app.editor.drawnNotes.count == 1 && fixture.app.editor.drawnFrames.count == 1)
         let steady = fixture.app.steadyWork()
         #expect(steady.contentEvaluations == 0)
-        #expect(steady.contentSkips > 6 + 3 + 2, "every node, wire and comment, and the views inside the nodes, skipped")
+        // MetalUI C14b-2 (record §110): an unchanged outermost `.equatable()` occurrence skips its whole build recursion and
+        // its layout rows are grafted, so the views inside a node are no longer visited, let alone counted as skips. A steady
+        // frame counts exactly one skip per outermost canvas view (6 nodes + 3 wires + 2 comments = 11) and one graft each.
+        let canvasViews = 6 + 3 + 2
+        #expect(steady.contentSkips >= canvasViews, "every node, wire and comment skipped (more if a graft were refused)")
+        #expect(steady.retainedGrafts == canvasViews, "each skipped canvas view was grafted, not built")
+        #expect(steady.retainedGraftIneligible == 0 && steady.retainedRedos == 0, "no graft refused, no frame redone")
+        #expect(steady.retainedSkippedRequests > 0, "the grafts stood for element requests the build did not make")
         #expect(steady.contentRefusals == 0, "no canvas view reads the environment")
         #expect(fixture.app.picture.count > 100, "the canvas picture holds the nodes")
     }
@@ -81,8 +88,8 @@ struct CanvasContentSkipWindowTests {
         let work = app.work
         #expect(app.window.frameWork.count == 1, "one pointer move, one frame")
         #expect(work.contentEvaluations == 1 + wires, "the dragged node's view and its wires' views")
-        // Not tied to MetalUI's exact visit count: C14-b (retained subtrees) is expected to change how many inner views a
-        // skipped node still visits. What matters is that every other node, wire and comment skipped.
+        // Not tied to MetalUI's exact visit count: C14b-2 skips a skipped node's whole build recursion, so its inner views
+        // are no longer visited. What matters is that every other node, wire and comment skipped.
         #expect(work.contentSkips >= (6 - 1) + (3 - wires) + 2, "every other node, wire and comment skipped")
         #expect(work.contentRefusals == 0)
         #expect(app.picture == app.pictureAfterRebuildingEverything(), "the skipped views drew what a full rebuild draws")

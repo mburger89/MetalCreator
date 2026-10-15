@@ -379,7 +379,10 @@ the fourteen `Fields` nodes below, the ten `Implicit` nodes and the Mesh node (`
   ThemeStore?` and draw `Palette(themes)` (Dracula without a store), except the canvas's own views (node, header, row, status
   badge, socket layer, wire, comment frame, note, handle): `CanvasLayers` makes the `Palette` and passes it down as a stored
   value, and each of those is `Equatable` and `.equatable()` where `CanvasLayers` and `NodeView` build it (MetalUI C14 slice 1,
-  gap PERF-b), so an unchanged node's `content` getter is skipped. A view that reads `@Environment` is refused by
+  gap PERF-b), so an unchanged node's `content` getter is skipped, and (MetalUI C14b-2, record §110) an unchanged outermost
+  occurrence also skips its whole build recursion, grafts its retained layout nodes and replays its prepaint and paint, so a
+  steady frame counts one `contentSkips` per outermost canvas view (inner views are no longer visited) and one
+  `retainedGrafts` each. A view that reads `@Environment` is refused by
   `.equatable()` (MetalUI divergence 346), so an `.equatable()` canvas view never declares one (`BoxSelectionView` is the
   one canvas view that still reads `@Environment(ThemeStore)`: it is not `.equatable()` and is rebuilt anyway); its `==`
   must cover every stored property the getter reads (the synthesized one does; a hand-written one is
