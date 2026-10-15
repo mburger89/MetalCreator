@@ -11,10 +11,10 @@ struct OutputNodeTests {
     /// Random Reduce, Random Values, Jitter; 7a-3b), the Fields nodes (fields spec §3; Image Field, 7b-2), and the Implicit nodes
     /// (implicit spec §3: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit and Isosurface) and the Mesh node.
     @Test func theBuiltInsAreTheSliceTheSketcherTheTreeNodesThePatternNodesTheFieldNodesAndTheImplicitNodesInElevenCategories() {
-        #expect(BuiltInNodes.all.count == 77)
+        #expect(BuiltInNodes.all.count == 78)
         let counts = Dictionary(grouping: BuiltInNodes.all, by: { $0.category }).mapValues(\.count)
         let expected: [NodeCategory: Int] = [
-            .value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .patterns: 17, .lists: 7, .fields: 14, .implicit: 10, .mesh: 1,
+            .value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .patterns: 17, .lists: 7, .fields: 14, .implicit: 10, .mesh: 2,
             .output: 1,
         ]
         #expect(counts == expected)
