@@ -80,8 +80,8 @@ public struct ImplicitMesher: Sendable {
 
     /// Moves each vertex one Newton step towards f = 0 and sets its normal from the gradient. The gradient is the central difference
     /// over a quarter of a voxel; the move is limited to half a voxel. `progress` gets the fraction snapped, after each batch.
-    private static func snap(_ positions: inout [SIMD3<Float>], _ normals: inout [SIMD3<Float>], resolution: Double,
-                             evaluator: any ImplicitBatchEvaluator, progress: (Double) -> Void) async throws {
+    static func snap(_ positions: inout [SIMD3<Float>], _ normals: inout [SIMD3<Float>], resolution: Double,
+                     evaluator: any ImplicitBatchEvaluator, progress: (Double) -> Void) async throws {
         let step = Float(resolution / 4)
         let limit = Float(resolution / 2)
         let offsets: [SIMD3<Float>] = [
