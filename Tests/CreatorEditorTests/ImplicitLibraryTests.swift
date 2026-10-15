@@ -23,6 +23,6 @@ struct ImplicitLibraryTests {
 
     @Test func theMeshSectionHoldsTheMeshNode() {
         let names = sections.first { $0.category == .mesh }?.entries.map(\.displayName)
-        #expect(names == ["Mesh", "Decimate"])
+        #expect(names == ["Mesh", "Decimate", "Check Thin Walls"])
     }
 }
