@@ -8,21 +8,24 @@ final class RawDeflater {
     private var stream: compression_stream
     private let output: UnsafeMutablePointer<UInt8>
     private let placeholder: UnsafeMutablePointer<UInt8>
+    /// Whether `compression_stream_init` succeeded: only then is there a stream to destroy.
+    private var initialised = false
 
-    init() throws {
+    /// `algorithm` is a parameter so a test can make the initialiser fail.
+    init(algorithm: compression_algorithm = COMPRESSION_ZLIB) throws {
         output = UnsafeMutablePointer<UInt8>.allocate(capacity: Self.bufferSize)
         placeholder = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
         stream = compression_stream(dst_ptr: output, dst_size: Self.bufferSize, src_ptr: UnsafePointer(placeholder), src_size: 0,
                                     state: nil)
-        guard compression_stream_init(&stream, COMPRESSION_STREAM_ENCODE, COMPRESSION_ZLIB) == COMPRESSION_STATUS_OK else {
-            output.deallocate()
-            placeholder.deallocate()
+        guard compression_stream_init(&stream, COMPRESSION_STREAM_ENCODE, algorithm) == COMPRESSION_STATUS_OK else {
+            // The buffers are freed by `deinit`, which runs for a class that throws after all its properties are set.
             throw ZipError.compressionFailed
         }
+        initialised = true
     }
 
     deinit {
-        compression_stream_destroy(&stream)
+        if initialised { compression_stream_destroy(&stream) }
         output.deallocate()
         placeholder.deallocate()
     }

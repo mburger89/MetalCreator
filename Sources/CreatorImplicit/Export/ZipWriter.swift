@@ -81,10 +81,12 @@ public struct ZipWriter {
         header.append(contentsOf: Self.u16(UInt16(nameBytes.count)))
         header.append(contentsOf: Self.u16(0))
         header.append(contentsOf: nameBytes)
-        current = Current(name: name, method: method, offset: offset)
+        // The deflater first: if it can't be made the writer is still between entries, not stuck on an open one.
+        var entry = Current(name: name, method: method, offset: offset)
         #if canImport(Compression)
-        if method == .deflated { current?.deflater = try RawDeflater() }
+        if method == .deflated { entry.deflater = try RawDeflater() }
         #endif
+        current = entry
         try put(header)
     }
 
