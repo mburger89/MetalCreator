@@ -21,6 +21,15 @@ enum CheckWording {
         return sentence(count == 1 ? "\(number) enclosed void can't drain" : "\(number) enclosed voids can't drain", label: label)
     }
 
+    /// The warning of a part so large that the grid's cells are coarser than 0.5 mm: a drain hole of the default 2 mm is then smaller
+    /// than the cells can see through, so the check may report a void that is drained. Empty for the usual cell
+    /// (`OccupancyGrid.largestCell`).
+    static func coarseGrid(cell: Double) -> [String] {
+        guard cell > OccupancyGrid.largestCell else { return [] }
+        let (edge, hole) = (cell.millimetreText(locale: .messages), (4 * cell).millimetreText(locale: .messages))
+        return ["The part is large: the check's cells are \(edge) mm, so holes under \(hole) mm may not count as open."]
+    }
+
     /// `text`, then the label in brackets when there is one, then the full stop.
     private static func sentence(_ text: String, label: String?) -> String {
         label.map { "\(text) (\($0))." } ?? "\(text)."
