@@ -30,6 +30,15 @@ enum CheckWording {
         return ["The part is large: the check's cells are \(edge) mm, so holes under \(hole) mm may not count as open."]
     }
 
+    /// The warning of a drain hole smaller than the check's grid can see through (`OccupancyGrid.smallestSeenHole`); empty when it is not.
+    static func smallHole(diameter: Double, seen: Double) -> [String] {
+        guard diameter < seen else { return [] }
+        let (size, limit) = (diameter.millimetreText(locale: .messages), seen.millimetreText(locale: .messages))
+        let text = "A hole of \(size) mm is smaller than Check Trapped Volumes can see through (\(limit) mm for this part), "
+            + "so it may still report the void."
+        return [text]
+    }
+
     /// `text`, then the label in brackets when there is one, then the full stop.
     private static func sentence(_ text: String, label: String?) -> String {
         label.map { "\(text) (\($0))." } ?? "\(text)."
