@@ -349,9 +349,12 @@ counts), (3) stop and ask. The budget is not edited and a miss is not called met
 ## Implicit (implicit spec §6, sub-project 7c-1)
 
 `scripts/bench.sh ImplicitBench` runs rows i-1 to i-4 (i-5 and i-6, the decimation and Mesh to Solid, belong to 7c-3). Release, an idle Mac
-with a GPU. The fixture is a sheet through a 100 mm cube: the band of a 50 mm noise field between two levels (one isosurface cut
-from another), because the lattice nodes (7c-2) do not exist yet; 7c-2 swaps in the gyroid and keeps the rows. A gyroid of 8 mm cells
-has about 150 million triangles at 0.1 mm, which no in-memory mesh holds in 4 GB, so row i-4 is only reachable for a sparse sheet.
+with a GPU. The fixture is a gyroid sheet filling a 100 mm cube: a TPMS node (gyroid, sheet, one cell of 100 mm, 3 mm wall) on an
+Implicit Box, meshed and sent to an Output (7c-1 measured a noise sheet of the same cost class until the lattice nodes existed; 7c-2
+swapped in the gyroid and kept the rows). A gyroid of 8 mm cells has about 150 million triangles at 0.1 mm, which no in-memory mesh
+holds in 4 GB, so the fixture is one cell: its surface is 3.09 × 100² mm² twice over, about 196,000 triangles at 1.0 mm and so about
+19.6 million at 0.1 mm (an estimate, not yet measured: 3 GB at the 155 bytes a triangle of the 7c-1 run), and its wall volume was 9.2% of the cube, the 9.3% a 3 mm wall
+on that surface has.
 Per the spec's Errata, the budgets of i-1 and i-2 are for the Metal path measured with Metal meshing (D13, plan 7c-1g), and the streamed
 export that i-4 needs (D12) belongs to 7c-3. The first run below measured Metal evaluation with the CPU mesher; **the 7c-1g run after it
 measures i-1 and i-2 with the GPU mesher**, which is what the budgets are for. Row i-4 was not re-measured by 7c-1g: it is 7c-3's row,
@@ -361,12 +364,14 @@ gate (7c-1's ruling U6): a miss is written down as a miss.
 | Row | Case | Target |
 |---|---|---|
 | i-1 | the sheet's first preview pass, on a fresh evaluator with the shaders compiled | under 1 s |
-| i-2 | a thickness edit (the gap between the two levels), warm, no recompile: one coarse pass | under 100 ms |
+| i-2 | a thickness edit (the TPMS node's `thickness`), warm, no recompile: one coarse pass | under 100 ms |
 | i-3 | To Implicit of the slice's filleted bracket (OCCT), bake cache emptied each time | under 500 ms |
 | i-4 | the sheet exported at 0.1 mm to STL, the whole pipeline | under 60 s and a peak memory under 4 GB |
 
 The run recorded here (2026-10-14, release build, 7c-core) was taken while other sessions kept the Mac at a load average of 130 to 270 on 10 cores (so none of these numbers is a measurement of the
-code; they show the benchmarks run, and the order of magnitude). **Re-run on an idle Mac and replace them, keeping the load lines.**
+code; they show the benchmarks run, and the order of magnitude). It measured the noise sheet of 7c-1; **the gyroid fixture of 7c-2 has not
+been run** (the Mac was not idle). **Re-run on an idle Mac with `scripts/bench.sh ImplicitBench` and replace these lines, keeping the load
+lines.**
 
 ```text
 BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1

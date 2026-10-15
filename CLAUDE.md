@@ -73,12 +73,18 @@ evaluators, the sparse octree, the manifold mesher, baked distances, the eleven 
 preview in the viewport, STL of meshes with the export sheet, file format 8 and `ImplicitBench` rows i-1 to i-4; plan
 `docs/superpowers/plans/2026-10-13-7c-core.md`, spec `docs/superpowers/specs/2026-10-13-implicit-lattices-design.md` §2 to §6 and the
 7c-1 errata in the plan's header) code is done; its human checks (group IM) are pending and its benchmark numbers are recorded in
-`docs/verification/performance.md`. Lattices (7c-2), the mesh tools, checks and 3MF (7c-3) and the mappings (7c-4) are not built, nor
+`docs/verification/performance.md`. The mesh tools, checks and 3MF (7c-3) and the mappings (7c-4) are not built, nor
 is the streamed export (D12, with 7c-3); until it is, row i-4 is expected to miss.
 Implicit geometry, sub-project 7c-1g (meshing on the GPU, spec Errata D13: `ImplicitGPUEngine.meshBricks`, the Metal marching-cubes
 kernels with a CPU-against-GPU mesh agreement suite, and rows i-1 and i-2 measured on that path; plan
 `docs/superpowers/plans/2026-10-14-7c-1g-gpu-meshing.md`) code is done; its human check (IM-13) is pending and its benchmark numbers are
 recorded in `docs/verification/performance.md`. The SDL3 engine for Linux and Windows is track xp-c.
+Implicit lattices, sub-project 7c-2 (the TPMS, Strut Lattice and Voronoi Lattice nodes with the Straight mapping only, a region and a
+skin, field grading of cell size, thickness and strut radius, a separate cell stretch vector, their warnings, and `ImplicitBench`'s sheet
+swapped to a gyroid; plan `docs/superpowers/plans/2026-10-14-7c-2-lattices.md`, spec
+`docs/superpowers/specs/2026-10-13-implicit-lattices-design.md` §3.4 and Errata D14) code is done; its human checks (group IL) are pending
+and the benchmark rows have not been re-run with the gyroid. The mappings (7c-4) are not built, so the lattice nodes have no `mapping`
+input yet.
 
 Cross-platform, sub-project xp-1 (Linux and Windows on MetalUI's SDL backend: everything but the 3D view and OpenCascade; plan
 `docs/superpowers/plans/2026-10-13-xp-1.md`, spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §2) code is done and
@@ -203,7 +209,9 @@ Module boundaries (dependency order):
     them. Reshaping nodes (Flatten, Graft, Partition, Path Mapper) renumber, as reshaping does, and List Item, Branch by Path and
     Tree Statistics count a culled list's survivors by rank; Cull Index alone names the places items had.
 - `CreatorImplicit` (depends on Graph, Kernel and Geometry; implicit spec §2 to §4): `ImplicitSolid` (an indirect enum of sphere, box,
-  cylinder, rigid move, union / subtract / intersect with a graded blend, offset, shell, baked distance blocks and isosurface; every
+  cylinder, rigid move, union / subtract / intersect with a graded blend, offset, shell, baked distance blocks, isosurface and the three
+  lattices `tpms`, `struts` and `voronoi` (`Lattice/`: `TPMSLattice`, `StrutLattice`, `VoronoiLattice` with their `LatticeCells`,
+  `TPMSType`, `StrutCell` and `VoronoiSeeds`; each is cut to its region's box and the lattice nodes intersect it with the region); every
   case has `bounds`, `lipschitz`, `exactReach` and a one-line `description`, in `Solid/`), `Grading` (a setting that may vary over space:
   a `Field` with the kernel distances in it baked, and its range and slope), `DistanceBlocks` (sparse 8³ blocks of `Float` distances,
   trilinear, with a conservative bound for unstored blocks) and `TriangleMesh` (positions, normals, triangles, `resolution`, `quality`,
@@ -237,9 +245,11 @@ Module boundaries (dependency order):
   that takes a mesh socket meshes it (`MeshInput` in CreatorNodes). `EvalContext` carries `meshQuality` (`.preview` / `.export`;
   `NodeDefinition.readsMeshQuality` puts it in a node's cache key), `implicitEngine` and `meshProgress`. Tests:
   `swift test --filter CreatorImplicitTests`.
-- `CreatorNodes`: the 77 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
-the fourteen `Fields` nodes below, the ten `Implicit` nodes and the Mesh node (`Implicit/`, categories `NodeCategory.implicit` and
-`.mesh`: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit, Isosurface, Mesh), the seventeen
+- `CreatorNodes`: the 80 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
+the fourteen `Fields` nodes below, the thirteen `Implicit` nodes and the Mesh node (`Implicit/`, categories `NodeCategory.implicit` and
+`.mesh`: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit, Isosurface, TPMS, Strut Lattice, Voronoi Lattice
+(`Implicit/Lattices/`: they share `LatticeSetup` and `LatticeFill`; the built-in Voronoi seeds are `VoronoiSeedSource`, drawn with
+`SeededRandom.Purpose.voronoi`), Mesh), the seventeen
   `Patterns` nodes below, and the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
   Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
   parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, cullPattern, cullIndices, image, and `projection(reference)` per projected edge) live in
@@ -379,7 +389,10 @@ the fourteen `Fields` nodes below, the ten `Implicit` nodes and the Mesh node (`
   ThemeStore?` and draw `Palette(themes)` (Dracula without a store), except the canvas's own views (node, header, row, status
   badge, socket layer, wire, comment frame, note, handle): `CanvasLayers` makes the `Palette` and passes it down as a stored
   value, and each of those is `Equatable` and `.equatable()` where `CanvasLayers` and `NodeView` build it (MetalUI C14 slice 1,
-  gap PERF-b), so an unchanged node's `content` getter is skipped. A view that reads `@Environment` is refused by
+  gap PERF-b), so an unchanged node's `content` getter is skipped, and (MetalUI C14b-2, record §110) an unchanged outermost
+  occurrence also skips its whole build recursion, grafts its retained layout nodes and replays its prepaint and paint, so a
+  steady frame counts one `contentSkips` per outermost canvas view (inner views are no longer visited) and one
+  `retainedGrafts` each. A view that reads `@Environment` is refused by
   `.equatable()` (MetalUI divergence 346), so an `.equatable()` canvas view never declares one (`BoxSelectionView` is the
   one canvas view that still reads `@Environment(ThemeStore)`: it is not `.equatable()` and is rebuilt anyway); its `==`
   must cover every stored property the getter reads (the synthesized one does; a hand-written one is

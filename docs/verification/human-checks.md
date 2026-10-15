@@ -1922,3 +1922,52 @@ radius 4) into a Shell (inward, 2), the Shell into a Mesh, the Mesh into an Outp
   500,000 triangles in the first pass) it may stop after the first or second pass; check that it stops there, that the badge and the
   look are acceptable at that resolution, and that a fixed preview resolution (the Mesh node's) still goes finer. Pinned:
   `GPUMeshAgreementTests`, `MetalMeshingLimitsTests`, `PreviewScheduleTests`; the look is human-only. **Observed:**
+
+## Group IL — implicit lattices: TPMS, Strut Lattice and Voronoi Lattice (7c-2)
+
+**Status: NOT RUN.** Plan `2026-10-14-7c-2-lattices.md`, spec `2026-10-13-implicit-lattices-design.md` §3.4. Run `swift run MetalCreatorApp` on a
+Mac with a GPU. The tests pin the values (every surface, every strut cell, the Voronoi distances), the wall thickness, the lipschitz
+constants on random pairs, the Metal-against-CPU agreement, the nodes, their warnings and the file; these check only what a real
+window and a real GPU show. Build: a Box (40 × 40 × 40) into a TPMS node's `region`, the TPMS into a Mesh, the Mesh into an Output.
+
+- [ ] **IL-0 The benchmark rows, first.** Before anything else, and before merging: on an idle Mac run `scripts/bench.sh ImplicitBench`
+  (rows i-1 to i-4 on the gyroid sheet) and replace the lines in `docs/verification/performance.md`, keeping the load lines. The 19.6
+  million triangles, about 3 GB and about 55 s are estimates scaled from the 1.0 mm run and 7c-1's noise sheet, against i-4's 60 s and
+  4 GB. If peak memory goes over the budget, change `ImplicitBenchFixtures.cellSize` to 50 (U7's option b) and record the miss.
+  **Observed:**
+- [ ] **IL-1 The library.** The Implicit section lists TPMS, Strut Lattice and Voronoi Lattice after Isosurface. Pinned: `CatalogTests`,
+  `OutputNodeTests`. **Observed:**
+- [ ] **IL-2 A gyroid.** The viewport shows a gyroid sheet of 8 mm cells cut square by the box, one mm thick, smooth shaded, and the badge
+  refines as for any implicit (IM-3). Segment the type through Schwarz P, Diamond, Neovius and Lidinoid and the form through Network: each
+  looks like its surface, and a network at thickness 0 fills about half the box. Pinned: `TPMSLatticeTests`, `TPMSNodeTests`.
+  **Observed:**
+- [ ] **IL-3 Editing does not stall.** Drag the TPMS's `thickness` slider and `cell size` slider: the preview follows live (a number edit
+  recompiles nothing). Pinned: `LatticeCompilerTests`; the feel is human-only. **Observed:**
+- [ ] **IL-4 A skin.** Set `skin` to 1.5: the box keeps a solid 1.5 mm wall and the gyroid fills the inside. Swap the box for a Sphere
+  (radius 20): the same, round. Pinned: `TPMSNodeTests`. **Observed:**
+- [ ] **IL-5 Grading by a field.** Wire a Linear Gradient (length 40) through an Add (b 8) into `cell size`: the cells grow along Z and the
+  pattern stretches smoothly; the preview stays interactive. Wire a Noise Field into `thickness`: the wall varies and the node warns
+  that thickness is below 0 in places where the noise goes negative after a Remap to -0.5 ... 1. Pinned: `TPMSNodeTests`,
+  `ImplicitSolidPropertyTests`. **Observed:**
+- [ ] **IL-6 Struts.** A Strut Lattice in the same box shows cubic struts of radius 0.6; step the `cell` control through BCC, FCC, Octet,
+  Kelvin and Diamond: each is a recognisable truss. Set `node blend` to 1.5: the joints round. Set it to 3: the node says the blend
+  can be at most a quarter of the smallest cell (2 mm). Set `cell size` to 2 and `strut radius` to 2: "Struts are thicker than the cells;
+  the lattice is solid." Pinned: `StrutLatticeTests`, `StrutLatticeNodeTests`. **Observed:**
+- [ ] **IL-7 Voronoi.** A Voronoi Lattice with `count` 100 shows the cell edges as struts 0.8 mm across; Foam shows closed cell walls. Change
+  `seed`: the seeds move. Wire a Linear Gradient (length 40) into `density`: the seeds crowd towards +Z, and the -Z half, where the gradient is
+  below 0, has none, so it is a solid slab and the node warns "The seeds leave gaps in the region; the lattice is solid there." (U5; the
+  radius comes from `count`). Wire a Grid Points list into
+  `seeds`: `count` is ignored and the cells follow the grid. Pinned: `VoronoiLatticeTests`, `VoronoiLatticeNodeTests`,
+  `VoronoiSeedSourceTests`. **Observed:**
+- [ ] **IL-8 Warnings.** Set the TPMS `cell size` to 0.5 in the 40 mm box: it warns "Cells are smaller than the preview resolution; the
+  preview may look solid." Set `thickness` to 0.1: "Walls are thinner than the preview resolution; the preview may show gaps." With
+  no region wired: "Connect a region to fill." Pinned: `TPMSNodeTests`. **Observed:**
+- [ ] **IL-8a Cell stretch.** On the TPMS and on the Strut Lattice set `cell stretch` to (2, 1, 1): the cells are twice as long on X and
+  the same on Y and Z (the cell size is unchanged). Set a 0 on any axis: the node says “cell stretch” must be greater than 0 on every
+  axis. Pinned: `TPMSNodeTests`, `StrutLatticeNodeTests`. **Observed:**
+- [ ] **IL-8b Voronoi Struts are uniform.** A Voronoi Lattice in Struts form shows struts of one thickness along every cell edge, with no gaps
+  and none of the thin foam-like walls (they are built from d3 - d1). Pinned: `VoronoiLatticeTests`. **Observed:**
+- [ ] **IL-8c Solid where there are no seeds.** Wire a density field that falls to 0 over part of the box: that region is solid, not empty,
+  and the node warns "The seeds leave gaps in the region; the lattice is solid there." Pinned: `VoronoiLatticeNodeTests`. **Observed:**
+- [ ] **IL-9 A slicer.** Export an STL of the gyroid at 0.2 mm (IM-9): the part opens in a slicer, the sheet is the thickness set, and no
+  hole or non-manifold edge is reported. **Observed:**

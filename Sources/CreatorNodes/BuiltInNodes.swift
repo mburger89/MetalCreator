@@ -31,6 +31,7 @@ public enum BuiltInNodes {
         ImplicitSphereNode.self, ImplicitBoxNode.self, ImplicitCylinderNode.self, ImplicitUnionNode.self, ImplicitSubtractNode.self,
         ImplicitIntersectNode.self, ImplicitShellNode.self, ImplicitOffsetNode.self, ToImplicitNode.self, IsosurfaceNode.self,
         DrainHolesNode.self,
+        TPMSNode.self, StrutLatticeNode.self, VoronoiLatticeNode.self,
         MeshNode.self, DecimateNode.self, CheckThinWallsNode.self, CheckTrappedVolumesNode.self, MeshToSolidNode.self,
         OutputNode.self,
     ]

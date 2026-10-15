@@ -6,7 +6,10 @@
 /// seeds), `pool` (block samples) and `images` (pixels). A compiled tree's source names slots in them but never holds a number, so
 /// editing a value changes the buffers and not the source.
 enum ImplicitShaderLibrary {
-    static let source = """
+    static let source = core + "\n\n" + lattices
+
+    /// Everything but the lattices (`ImplicitShaderLibrary+Lattices`).
+    static let core = """
     #include <metal_stdlib>
     using namespace metal;
 
