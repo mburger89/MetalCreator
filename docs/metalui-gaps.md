@@ -40,6 +40,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | GI-b | Wheel latching (`CI-AD`) | C16 | ✅ fixed (MetalUI a720fba: a scroll latches to the element under its `.began`, momentum included; synthesized `.cancelled` on key loss), adopted (plan `2026-10-12-adopt-c16`) with no code to remove (the entry's stopgap was none): `ScrollLatchWindowTests` pins the canvas's glide staying on the canvas, the viewport's staying off it and key loss mid-glide; human check C16-1 |
 | PERF-a | Shadow re-rasterized and re-blurred every frame its content moves | C13 | ✅ fixed (MetalUI ebcf3c7, PR #63), adopted with no code change; idle re-measure pending |
 | PERF-b | Every observed change rebuilds, lays out and paints the whole window | C14 | 🔄 partly fixed (MetalUI e85cb07a, C14 slice 1), adopted: unchanged canvas views skip their content getter; build, prepaint and paint still run whole (C14-b queued); timing re-take owed; measured by M7 (below) |
+| PERF-c | A memoized (`.equatable()`) component keeps the `@Observable` objects it read alive after its window or `renderFrame` is released (a strong cycle through the observation's `onChange`) | none yet (to be forwarded to the MetalUI session) | ❌ open: found by the preview sweep (entry "Found by the preview sweep"); no stopgap in MetalCreator |
 | EP-a | Element frame in window coordinates, hover coordinate space, window size | C15 | ✅ fixed (MetalUI 0abce86, PR #66: `CoordinateSpace.named`, `onGeometryChange` with `.global`/`.named`, `onContinuousHover(coordinateSpace:)`, `\.windowSize`), adopted (plan `2026-10-12-adopt-c15`): the graph panel measures itself (`PanelPlacementTests.theEditorIsToldWhereItsCanvasIs`, `aGrownWindowRebuildsTheCanvasWithWhatItUncovers`, `hidingThePanelClearsThePlacementAndShowingItBringsItBack`, `aNewDocumentIsPlacedToo`) and the palette opens at the canvas's `.global` hover (`PaletteOverlayWindowTests.itOpensWithItsTopLeftCornerAtThePointerWhateverTheViewportHasDrawn`, `FloatingPaletteTests`) |
 | EP-b | Chrome-less point-anchored popover that closes on an outside press | C15 | ✅ fixed (MetalUI 0abce86, PR #66: `.anchoredOverlay(isPresented:at:in:anchor:content:)`), adopted (plan `2026-10-12-adopt-c15`): `SearchPaletteOverlay` is an `anchoredOverlay`, and the stopgap's known limits are pinned fixed (`PaletteOverlayWindowTests.aPressIntoATextFieldClosesItAndTheFieldGetsFocus`, `aRightClickThatOpensAContextMenuClosesItAndTheMenuStillOpens`, `aScrollOverItDoesNotReachTheCanvasOrTheViewport`, `itFlipsLeftAtTheRightEdgeAndUpAtTheBottom`) |
 | P-a | Third-party notices | C17 | ✅ fixed (67a579e), adopted |
@@ -1174,3 +1175,47 @@ Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan and XP-G10 by the S2 adop
   `eXIf` chunk and the JPEG SOF and APP1 segment itself, the one EXIF reader xp-1 hoped not to write; `decode` refuses a picture whose
   decoded size disagrees with it. Needed from MetalUI: a public `ImageInfo(data:)` (format, stored size, orientation) that does no pixel
   work, after which `ImageHeader` goes. To be forwarded to the MetalUI session.
+
+## Found by the preview sweep, 2026-10-14
+
+- **PERF-c. A memoized component's observed objects outlive their window.** `PreviewSweepBench` (Errata D15) saw `phys_footprint` climb
+  by about 1.2 GB per 4M-triangle rung after each rung's `AppModel` and renderer were released. Weak references to the `AppModel`, the
+  `ViewportModel`, the renderer and the mesh's `DisplayMeshStorage` were all nil after every rung (`PreviewSweepReleaseTests` pins it
+  for the app, the viewport and the mesh), `leaks` reported 0 leaks, and `MTLDevice.currentAllocatedSize` was 1 MB, so MetalCreator
+  holds no mesh. Two things were left. One is malloc keeping freed large blocks resident for some seconds (the footprint of a rung
+  fell from 2.2 GB to 1.0 GB within 15 s with nothing running; `heap` showed "Malloc Large (empty)" 934 MB resident): not a leak, and
+  the benchmark now waits for it (`PreviewSweepFixtures.settledFootprint`). The other is real, small and unrelated to the mesh's size:
+  `heap` after a rung lists tens of thousands of live `MetalUI.ContentMemoStore`, `RetainedHandle`, `RetainedRecord`,
+  `PrepaintLedger` and `ObservationRegistrar` objects, about 100 MB for every 140 frames of the node graph's window, still reachable
+  after the app is gone. The cause, from `ContentMemoStore.materialize` (`ContentMemo.swift`): the getter runs in
+  `withObservationTracking { … } onChange: { handle.fire() }`, and the `ContentMemoHandle` holds the store strongly. The observed
+  object's registrar holds that closure until the object changes, and the store's `Entry.pristine` holds the component's content,
+  which holds the object (any view that keeps its model). So object → registrar → `onChange` → handle → store → entry → content →
+  object is a cycle that nothing breaks while the object never changes again, and the window's end does not break it.
+  MetalUI-only repro (no MetalCreator type; a temporary test, not checked in):
+
+  ```swift
+  @MainActor @Observable final class ProbeModel { var title = "x" }
+  private struct ProbeCard: Component, @MainActor Equatable {
+      let model: ProbeModel
+      var content: some ElementGroup { Text(model.title).frame(width: Pixels(80), height: Pixels(14)) }
+      static func == (l: ProbeCard, r: ProbeCard) -> Bool { l.model === r.model }
+  }
+  weak var weak: ProbeModel?
+  do {
+      let model = ProbeModel(); weak = model
+      _ = renderFrame({ ZStack { ProbeCard(model: model).equatable() } }, size: Size(width: Pixels(200), height: Pixels(100)),
+                      scaleFactor: 1, textSystem: testTextSystem(), atlas: GlyphAtlas(width: 512, height: 512))
+  }
+  // weak == nil is false. The same with `ProbeCard(model: model)` (no `.equatable()`) frees the model, and so does
+  // `TestWindow(size:) { ZStack { ProbeCard(model: model).equatable() } }` released after three ticks: it does not.
+  ```
+
+  What it costs MetalCreator: `NodeView`, `NodeRowView`, `StatusBadgeView` and `SocketLayer` are `.equatable()` (divergence 346), so the
+  models their content reads are kept after a document window closes, as the benchmark's per-frame `renderFrame` makes visible
+  (`renderFrame` starts a fresh `ContentMemoStore` every call, so every frame leaves one). In the app proper the retired session of a
+  re-evaluated entry is fired by its token write (`IV-L`), so only the last frame's sessions remain per window: bounded, but a closed
+  document's models and what they hold (a graph's nodes, a mesh) could stay in memory. Not yet measured in the running app (it needs
+  a window opened and closed in a release run; human check). Needed from MetalUI: break the cycle when the store is torn down (the
+  window's end or `renderFrame`'s return clears the entries and spends the armed sessions) or make the `onChange` closure hold the
+  store weakly. No stopgap in MetalCreator. To be forwarded to the MetalUI session.

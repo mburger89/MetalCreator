@@ -441,8 +441,22 @@ counts). At each rung the run records:
    48-byte corners per triangle; the renderer does not expose its buffers), and the process's `phys_footprint` (`task_info`, what
    Activity Monitor calls Memory) with the mesh in the viewport after the first frame, less the footprint of the same renderer after it
    drew an empty app: the mesh, its refinement, the viewport's display copy of it (doubles, 48 bytes a vertex plus the indices), the GPU
-   copy, and the app. A `teardown` line also prints the footprint after the rung's app and renderer are released; it should fall back,
-   and if it keeps climbing from rung to rung something retains the meshes.
+   copy, and the app. Both readings are **settled**: malloc keeps freed large blocks resident for some seconds after a rung's app is
+   released (a dry run saw a rung's footprint fall from 2.2 GB to 1.0 GB within 15 s with nothing running), so
+   `PreviewSweepFixtures.settledFootprint` trims, then reads every 0.5 s until three readings agree within 2% (at most 30 s). A
+   `teardown` line prints, per rung, whether the `AppModel`, `ViewportModel`, renderer and mesh storage were freed (weak references),
+   `MTLDevice.currentAllocatedSize`, the footprint at once and settled, and the live malloc heap. **What the dry runs found** (a
+   saturated Mac, release): every object was freed and Metal held 1 MB, `leaks` found 0 leaks, and the footprint a rung left behind
+   was malloc's freed-but-resident blocks plus about 100 MB of live heap per rung that does not grow with the mesh: MetalUI's
+   `ContentMemoStore` of every `renderFrame` of the orbit stays alive with the models its `.equatable()` content read (a retain cycle
+   through the observation's `onChange`, reproduced without MetalCreator; `docs/metalui-gaps.md` PERF-c). So MetalCreator retains no
+   mesh (`PreviewSweepReleaseTests` pins that an app's mesh is freed, before and after frames), the memory column is the settled
+   footprint of the rung's own app less the settled footprint of the same renderer with an empty app (so what earlier rungs left
+   behind is subtracted), and a rung's footprint is read before its orbit, which is where the leaked frames come from. Across three
+   dry runs the added column agreed within 2% (rung 6: 2,325, 2,329 and 2,329 MB; rung 3: 299, 295 and 302 MB) while the footprint
+   under it climbed from 355 MB to 3,487 MB, which is why the figure is the difference and not the reading. The teardown reading
+   waits 14 s for malloc's timer (rung 6 took 28 s and fell from 2.5 GB to 2.2 GB in the last 14); the live malloc heap grew by a
+   steady 102 MB a rung (107 to 616 MB) whatever the mesh, which is PERF-c.
 4. **The triangle count** the viewport shows.
 
 | Row | Rung | Voxel | Triangles | Mesh, GPU (median of 3) | Mesh, CPU (median of 3) | Orbit GPU p95, panel shown / hidden | Window CPU p95, panel shown / hidden | Footprint added |
@@ -454,16 +468,20 @@ counts). At each rung the run records:
 | 5 | 4M | 0.65 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
 | 6 | 8M | 0.46 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
 
-**The decision rule** (proposed; `PreviewSweepRule`, and it is applied to both panel states). The cap is the largest rung where all four hold:
+**The decision rule** (proposed; `PreviewSweepRule`, and it is applied to both panel states). A rung passes when all four hold:
 
 - (a) the orbit's GPU p95 is at most 8 ms, half a 60 fps frame, which leaves room for MetalUI's own pass;
 - (b) the window CPU p95 is unchanged from the smallest rung, within 1 ms;
 - (c) the footprint the mesh adds is at most 1 GB;
 - (d) the GPU meshing of that pass takes at most about 1 s (1,000 ms).
 
+The cap is the **last rung before the first rung that fails**, scanning up the ladder from the smallest; if the smallest fails there is
+none. A rung that passes above a failure never counts: a noisy pass on a rung that should have failed is not a size the preview shows
+smoothly (`PreviewSweepRule.capCandidate`, pinned by `aPassAboveAFailureNeverCounts`).
+
 The run prints `BENCH preview-sweep rung N rule: …` for each rung, with the four values and `PASS` or `FAIL`, and one line
-`BENCH preview-sweep cap-candidate N`, N the triangle count of the largest passing rung (`none` if the smallest fails too). The rule
-reads each rung alone, so a pass above a fail is possible on a noisy run: read the rung lines before setting the cap.
+`BENCH preview-sweep cap-candidate N`, N the triangle count of the cap (`none` if the smallest fails). Read the rung lines before
+setting the cap: a failure caused by a busy Mac moves it.
 
 | Result | Value |
 |---|---|

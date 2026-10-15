@@ -53,11 +53,21 @@ struct PreviewSweepFixturesTests {
                                 panelShown: orbit, panelHidden: orbit, addedFootprint: footprint)
     }
 
-    @Test func theCapIsTheLargestRungMeetingAllFourTests() {
+    @Test func theCapIsTheLastRungBeforeTheFirstFailingRung() {
         let rungs = [rung(250_000), rung(1_000_000), rung(2_000_000, gpu: 7.9), rung(4_000_000, gpu: 8.1), rung(8_000_000)]
-        // The 8M rung meets all four again, and is the largest rung that does: the rule reads each rung alone.
-        #expect(PreviewSweepRule.capCandidate(rungs)?.triangles == 8_000_000)
+        // The 8M rung meets all four again, but it is a pass above a failure: a noisy run, not a cap.
+        #expect(PreviewSweepRule.capCandidate(rungs)?.triangles == 2_000_000)
         #expect(PreviewSweepRule.capCandidate(Array(rungs.dropLast()))?.triangles == 2_000_000)
+        // Every rung passing: the largest is the cap.
+        #expect(PreviewSweepRule.capCandidate(Array(rungs.prefix(3)))?.triangles == 2_000_000)
+    }
+
+    @Test func aPassAboveAFailureNeverCounts() {
+        // The first rung fails, a later one passes: nothing is the cap, because a rung below the passing one failed.
+        #expect(PreviewSweepRule.capCandidate([rung(250_000, gpu: 9), rung(500_000), rung(1_000_000)]) == nil)
+        // A failure in the middle ends the scan, whatever comes after it.
+        let rungs = [rung(250_000), rung(500_000, footprint: 2_000_000_000), rung(1_000_000), rung(2_000_000)]
+        #expect(PreviewSweepRule.capCandidate(rungs)?.triangles == 250_000)
     }
 
     @Test func eachTestCanFailARungAlone() {

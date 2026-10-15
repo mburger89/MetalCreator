@@ -21,7 +21,7 @@ struct PreviewSweepRung {
     var addedFootprint: Int
 }
 
-/// The rule that turns the rungs into a cap (proposed; the cap is the largest rung that meets all four).
+/// The rule that turns the rungs into a cap (proposed; the cap is the last rung before the first one that misses any of the four).
 enum PreviewSweepRule {
     /// (a) The orbit's GPU p95, half a 60 fps frame: the rest is MetalUI's own pass.
     static let gpuP95Budget = 8.0
@@ -52,9 +52,16 @@ enum PreviewSweepRule {
             meshing: rung.gpuMeshMilliseconds <= meshBudget)
     }
 
-    /// The largest rung (by triangles) that passes, or `nil` when none does. `rungs` are in ladder order, the smallest first.
+    /// The cap: scanning the ladder upwards, the last rung that passes before the first rung that fails, or `nil` when the smallest
+    /// fails. A rung that passes above a failure never counts: it is noise on a rung that should have failed too, not a size the
+    /// preview can show smoothly. `rungs` are in ladder order, the smallest first.
     static func capCandidate(_ rungs: [PreviewSweepRung]) -> PreviewSweepRung? {
         guard let smallest = rungs.first else { return nil }
-        return rungs.filter { verdict(of: $0, smallest: smallest).passes }.max { $0.triangles < $1.triangles }
+        var cap: PreviewSweepRung?
+        for rung in rungs {
+            guard verdict(of: rung, smallest: smallest).passes else { break }
+            cap = rung
+        }
+        return cap
     }
 }

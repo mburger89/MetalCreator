@@ -72,4 +72,43 @@ enum PreviewSweepFixtures {
         return 0
         #endif
     }
+
+    /// A footprint reading and how long it took to settle.
+    struct Settled: Equatable {
+        /// The footprint at the call, in bytes.
+        var immediate: Int
+        /// The footprint once it stopped falling, in bytes.
+        var settled: Int
+        var seconds: Double
+        /// Bytes malloc has handed out and not had back (the live heap) when it settled.
+        var heapInUse: Int
+    }
+
+    /// The footprint once freed memory has left the process. malloc keeps freed large blocks resident until a timer of about 10 s
+    /// returns them (a dry run saw a rung's footprint fall from 1,444 MB to 1,025 MB 12 s after the rung, with nothing running and the
+    /// live heap unchanged), so a reading taken at once includes the last rung's frees. This asks malloc to trim, then reads every
+    /// `interval` until `stableReadings` readings in a row are within `tolerance` of each other (or `limit` seconds pass). The
+    /// defaults settle what a mesh *adds* (the difference of two readings, which the timer moves alike); a reading of what is left
+    /// behind needs `stableReadings` to span more than the timer.
+    static func settledFootprint(interval: Duration = .milliseconds(500), stableReadings: Int = 3, tolerance: Double = 0.02,
+                                 limit: Double = 30) async -> Settled {
+        let immediate = footprint
+        let clock = ContinuousClock()
+        let start = clock.now
+        var recent: [Int] = []
+        while true {
+            PreviewSweepRelease.returnFreedMemory()
+            try? await Task.sleep(for: interval)
+            recent.append(footprint)
+            if recent.count > stableReadings { recent.removeFirst() }
+            let seconds = (clock.now - start) / .seconds(1)
+            if let high = recent.max(), let low = recent.min(), recent.count == stableReadings,
+               Double(high - low) <= tolerance * Double(high) {
+                return Settled(immediate: immediate, settled: recent.last ?? 0, seconds: seconds, heapInUse: PreviewSweepRelease.heapInUse)
+            }
+            if seconds >= limit {
+                return Settled(immediate: immediate, settled: recent.last ?? 0, seconds: seconds, heapInUse: PreviewSweepRelease.heapInUse)
+            }
+        }
+    }
 }

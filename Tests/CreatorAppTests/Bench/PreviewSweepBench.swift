@@ -43,8 +43,12 @@ struct PreviewSweepBench {
             rungs.append(rung)
             // What the rung's app, renderer and meshes left behind: the next rung's footprint starts from it.
             await Task.yield()
-            print("BENCH preview-sweep \(label) teardown: footprint \(Self.megabytes(PreviewSweepFixtures.footprint)) after the rung's "
-                + "app and renderer are released")
+            // malloc returns freed blocks on a timer of about 10 s (measured), so the teardown reading waits longer than that.
+            let settled = await PreviewSweepFixtures.settledFootprint(interval: .seconds(1), stableReadings: 14, limit: 45)
+            print("BENCH preview-sweep \(label) teardown: \(shown.watch.describe()); Metal allocated "
+                + "\(Self.megabytes(PreviewSweepRelease.metalAllocated)); footprint \(Self.megabytes(settled.immediate)) at once, "
+                + "\(Self.megabytes(settled.settled)) settled after \(Self.milliseconds(settled.seconds)) s; live malloc heap "
+                + "\(Self.megabytes(settled.heapInUse))")
             let verdict = PreviewSweepRule.verdict(of: rung, smallest: rungs[0])
             print("BENCH preview-sweep \(label) rule: \(Self.describe(verdict, rung: rung, smallest: rungs[0]))")
         }
@@ -89,6 +93,7 @@ struct PreviewSweepBench {
 
     /// What the app showing the mesh at `resolution` measured.
     private struct Shown {
+        var watch: PreviewSweepRelease
         var triangles: Int
         var panelShown: PreviewSweepRung.Orbit
         var panelHidden: PreviewSweepRung.Orbit
@@ -107,7 +112,7 @@ struct PreviewSweepBench {
         let emptyInput = AppInput(model: empty)
         try renderer.drawViewport(empty.viewport)
         try renderer.composite(renderer.windowScene(empty, input: emptyInput))
-        let before = PreviewSweepFixtures.footprint
+        let before = await PreviewSweepFixtures.settledFootprint().settled
         let graph = PreviewSweepFixtures.previewing(sheet.graph, at: resolution)
         let app = AppModel(kernel: FakeKernel(), file: GraphFile(graph: graph), implicitEngine: .automatic)
         await app.settle()
@@ -115,11 +120,12 @@ struct PreviewSweepBench {
         await app.settle()
         await app.viewport.waitForMeshes()
         let triangles = try #require(app.viewport.items.first?.solid.displayedMesh).indices.count / 3
+        let watch = PreviewSweepRelease(app: app, renderer: renderer, solids: app.viewport.items.map(\.solid))
         renderer.place(app)
         let input = AppInput(model: app)
         // The first frame uploads the mesh to the GPU.
         try renderer.drawViewport(app.viewport)
-        let after = PreviewSweepFixtures.footprint
+        let after = await PreviewSweepFixtures.settledFootprint().settled
         let added = max(0, after - before)
         let gpuBuffer = 3 * triangles * MemoryLayout<MeshVertex>.stride
         print("BENCH preview-sweep \(label) memory: footprint \(megabytes(before)) with an empty app drawn, "
@@ -132,7 +138,7 @@ struct PreviewSweepBench {
         app.editor.setDock(.hidden)
         await app.settle()
         let hidden = try await orbit(app, renderer: renderer, input: input, name: "preview-sweep \(label) panel-hidden")
-        return Shown(triangles: triangles, panelShown: shown, panelHidden: hidden, addedFootprint: added)
+        return Shown(watch: watch, triangles: triangles, panelShown: shown, panelHidden: hidden, addedFootprint: added)
     }
 
     /// Orbits as `OrbitBench` does (a right-drag of small steps; each frame is the step, the window's frame and both GPU passes) and
@@ -205,7 +211,7 @@ struct PreviewSweepBench {
         if let cap = PreviewSweepRule.capCandidate(rungs) {
             print("BENCH preview-sweep cap-candidate \(cap.triangles)")
         } else {
-            print("BENCH preview-sweep cap-candidate none (no rung meets the rule, the smallest included)")
+            print("BENCH preview-sweep cap-candidate none (the smallest rung misses the rule)")
         }
     }
 }
