@@ -1,7 +1,8 @@
 import CreatorGeometry
 
 /// The passes of a progressive preview (implicit spec §4.3): the first at 128 cells across the largest dimension, then the voxel size
-/// halves each pass until the preview resolution. With `.automatic` that is the finest the last pass says meshes in under a second.
+/// halves each pass until the preview resolution. With `.automatic` that is the finest the last pass says meshes in under a second,
+/// capped (spec Errata D15): it stops before a pass estimated over about two million triangles, whichever comes first.
 public struct PreviewSchedule: Sendable {
     /// What the passes work towards.
     public enum Target: Hashable, Sendable {
@@ -12,6 +13,8 @@ public struct PreviewSchedule: Sendable {
     }
 
     public static let budgetSeconds = 1.0
+    /// The most triangles an Auto pass may be estimated to make (Errata D15): the preview stops refining before a pass over it.
+    public static let maximumTriangles = 2_000_000
     /// The cells across the largest dimension in the first pass.
     public static let firstPassCells = 128.0
     /// The finest resolution a preview pass uses on its own.
@@ -37,15 +40,16 @@ public struct PreviewSchedule: Sendable {
     }
 
     /// The voxel size of the pass after one at `resolution` that took `seconds`, or `nil` when the preview is as fine as it goes.
-    /// Halving the voxel size makes four times as many surface voxels, so the next pass is estimated at four times as long.
-    public func next(after resolution: Double, seconds: Double) -> Double? {
+    /// Halving the voxel size makes four times as many surface voxels, so the next pass is estimated at four times as long and, in
+    /// Auto, at four times the `triangles` of this one, which must stay within `maximumTriangles`.
+    public func next(after resolution: Double, seconds: Double, triangles: Int) -> Double? {
         let finer = resolution / 2
         switch target {
         case .fixed(let wanted):
             guard resolution > wanted * (1 + 1e-9) else { return nil }
             return max(finer, wanted)
         case .automatic:
-            guard finer >= Self.finest, 4 * seconds < Self.budgetSeconds else { return nil }
+            guard finer >= Self.finest, 4 * seconds < Self.budgetSeconds, 4 * triangles <= Self.maximumTriangles else { return nil }
             return finer
         }
     }

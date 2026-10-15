@@ -1914,3 +1914,11 @@ radius 4) into a Shell (inward, 2), the Shell into a Mesh, the Mesh into an Outp
 - [ ] **IM-12 Files.** Save the document, quit, reopen it: the same graph, the same shape, the same badge. Open a file saved before
   this build (any earlier .mcgraph): it opens unchanged and the next save writes `"formatVersion" : 8`. Pinned: `ImplicitFileTests`,
   `ImplicitDocumentFileTests`. **Observed:**
+- [ ] **IM-13 The GPU mesher shows no seams (7c-1g).** On the build above, watch the finished refinement and orbit it: smooth shading
+  everywhere, no dark specks (a vertex without a normal), no cracks or doubled lines where bricks meet (a brick is 8 voxels, 6 mm at the
+  first pass), no holes. Export an STL at 0.2 and open it in a slicer: no open or non-manifold edges. Export it again: the same triangle
+  count and size (the order of triangles in the file may differ from run to run, which is expected). Also watch the Auto preview: it is
+  capped (Errata D15) and stops before a pass estimated over about 2,000,000 triangles, so on a part like the benchmark sheet (about
+  500,000 triangles in the first pass) it may stop after the first or second pass; check that it stops there, that the badge and the
+  look are acceptable at that resolution, and that a fixed preview resolution (the Mesh node's) still goes finer. Pinned:
+  `GPUMeshAgreementTests`, `MetalMeshingLimitsTests`, `PreviewScheduleTests`; the look is human-only. **Observed:**

@@ -10,6 +10,16 @@ public protocol ImplicitBatchEvaluator: Sendable {
 
     /// "CPU" or the GPU engine's name ("Metal"), for the preview badge and the inspector.
     var engineName: String { get }
+
+    /// The mesh of `request`'s bricks when this evaluator can mesh them itself (a GPU engine can, Errata D13); `nil` when it cannot,
+    /// or will not for this request, and the CPU mesher meshes them over `evaluate`. Throws `CancellationError`.
+    func meshBricks(_ request: BrickMeshRequest, progress: @Sendable (Double) -> Void) async throws -> BrickMesh?
+}
+
+extension ImplicitBatchEvaluator {
+    public func meshBricks(_ request: BrickMeshRequest, progress: @Sendable (Double) -> Void) async throws -> BrickMesh? {
+        nil
+    }
 }
 
 /// The reference evaluation, in `Double`, spread over the processors.
