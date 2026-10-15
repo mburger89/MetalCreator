@@ -44,6 +44,10 @@ public actor KernelUnavailable: Kernel {
         try refuse()
     }
 
+    public func meshToSolid(positions: [SIMD3<Float>], triangles: [UInt32], tag: NodeTag) throws -> Solid {
+        try refuse()
+    }
+
     public func export(_ solids: [Solid], format: ExportFormat, to url: URL) throws {
         try refuse()
     }
