@@ -8,7 +8,7 @@ struct ImplicitPortabilityTests {
     /// Frameworks that exist on Apple platforms only.
     static let appleOnly = [
         "Metal", "MetalKit", "MetalPerformanceShaders", "simd", "CoreGraphics", "os", "Accelerate", "QuartzCore", "AppKit", "UIKit",
-        "Darwin", "CoreFoundation", "ImageIO", "CoreImage", "Security",
+        "Darwin", "CoreFoundation", "ImageIO", "CoreImage", "Security", "Compression",
     ]
 
     static let sources: [(name: String, lines: [String])] = {
@@ -37,8 +37,13 @@ struct ImplicitPortabilityTests {
 
     @Test func nothingButTheMetalEngineImportsAnAppleOnlyFramework() {
         for (name, lines) in Self.sources {
-            for line in lines {
+            for (index, line) in lines.enumerated() {
                 guard let framework = Self.imports(line), Self.appleOnly.contains(framework) else { continue }
+                // The zip's deflate is Apple's Compression framework, and only where it exists (implicit spec §5.3, Errata D11).
+                if framework == "Compression" {
+                    #expect(index > 0 && lines[index - 1] == "#if canImport(Compression)", "\(name) imports Compression unguarded")
+                    continue
+                }
                 #expect(name.hasPrefix("Metal") && framework == "Metal", "\(name) imports \(framework)")
             }
         }
