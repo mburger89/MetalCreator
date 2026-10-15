@@ -59,4 +59,11 @@ struct DrainHolesTests {
             try await DrainHoles.drainPoints(of: unbounded, direction: .unitZ, using: CPUBatchEvaluator(unbounded))
         }
     }
+
+    @Test func aSolidWithNoFiniteBoundsIsNotDrilledInAnyMode() {
+        let unbounded = ImplicitSolid.isosurface(.constant(0), level: 0, maxSlope: 1,
+                                                 region: BoundingBox(min: Vector3(-.infinity, 0, 0), max: Vector3(1, 1, 1)))
+        #expect(!DrainHoles.hasFiniteBounds(unbounded) && DrainHoles.hasFiniteBounds(ball))
+        #expect(DrainHoles.drilled(unbounded, at: [.zero], diameter: 1, direction: .unitZ) == unbounded, "no NaN cylinders")
+    }
 }

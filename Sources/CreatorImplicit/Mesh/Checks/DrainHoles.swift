@@ -21,10 +21,16 @@ public enum DrainHoles {
         }
     }
 
+    /// Whether `solid` has a box of finite size: a hole's length comes from it, so a solid without one can't be drilled.
+    public static func hasFiniteBounds(_ solid: ImplicitSolid) -> Bool {
+        let size = solid.bounds.size
+        return size.x.isFinite && size.y.isFinite && size.z.isFinite
+    }
+
     /// `solid` with a cylinder of `diameter` taken out of it at each of `points`, running from the point along `direction` until it
-    /// has left the solid's box. `solid` itself when there are no points or `direction` has no length.
+    /// has left the solid's box. `solid` itself when there are no points, `direction` has no length or the box is not finite.
     public static func drilled(_ solid: ImplicitSolid, at points: [Vector3], diameter: Double, direction: Vector3) -> ImplicitSolid {
-        guard !points.isEmpty, let axis = direction.normalized else { return solid }
+        guard !points.isEmpty, hasFiniteBounds(solid), let axis = direction.normalized else { return solid }
         let reach = solid.bounds.size.length + diameter
         let holes = points.map { point -> ImplicitSolid in
             let centre = point + axis * (reach / 2)

@@ -33,11 +33,10 @@ public enum DrainHolesNode: NodeDefinition {
             throw NodeError.invalidValue("“direction” can't be zero.")
         }
         let mode = DrainMode(rawValue: try inputs.choice("mode", options: DrainMode.options)) ?? .automatic
-        var warnings: [String] = []
-        let size = solid.bounds.size
-        if size.x.isFinite, size.y.isFinite, size.z.isFinite {
-            warnings += CheckWording.smallHole(diameter: diameter, seen: OccupancyGrid.smallestSeenHole(forSize: size))
+        guard DrainHoles.hasFiniteBounds(solid) else {
+            throw NodeError.invalidValue("The shape has no finite size to drill into. Give it a bounded shape.")
         }
+        var warnings = CheckWording.smallHole(diameter: diameter, seen: OccupancyGrid.smallestSeenHole(forSize: solid.bounds.size))
         var points: [Vector3]
         switch mode {
         case .atPoints:
