@@ -23,6 +23,7 @@ public enum AppCommands {
                     .keyboardShortcut("e")
                 Button("Export STL…") { model.withFilePicker { await model.exportDocument(.stl, using: $0) } }
                     .keyboardShortcut("e", modifiers: [.primary, .shift])
+                Button("Export 3MF…") { model.withFilePicker { await model.exportDocument(.threeMF, using: $0) } }
             }
             CommandGroup(replacing: .undoRedo) {
                 Button(model.undoTitle) { model.undo() }

@@ -7,6 +7,9 @@ enum CheckWording {
     /// The label a check run on a coarse copy carries before the full stop (implicit spec §3.6, Errata D12).
     static let previewLabel = "approximate: preview resolution"
 
+    /// The label a check of a streamed export carries when the copy it ran on is coarser than the file.
+    static let coarseLabel = "approximate: coarser than the export"
+
     /// "Walls thinner than 0.4 mm in 3 places (thinnest 0.21 mm)." (spec §3.6; one place is "1 place").
     static func thinWalls(minimum: Double, places: Int, thinnest: Double, label: String?) -> String {
         let count = places.formatted(.number.locale(.messages))

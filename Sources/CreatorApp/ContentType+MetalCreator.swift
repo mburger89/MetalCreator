@@ -11,11 +11,15 @@ extension ContentType {
     public static let stl = ContentType("public.standard-tesselated-geometry-format", conformingTo: [.data],
                                         filenameExtensions: ["stl"])
 
+    /// 3D Manufacturing Format, for 3D printing (implicit spec §5.3).
+    public static let threeMF = ContentType("org.3mf.3mf", conformingTo: [.data], filenameExtensions: ["3mf"])
+
     /// The file type an export format writes.
-    public static func exported(_ format: ExportFormat) -> ContentType {
-        switch format {
+    public static func exported(_ kind: ExportKind) -> ContentType {
+        switch kind {
         case .step: .step
         case .stl: .stl
+        case .threeMF: .threeMF
         }
     }
 }

@@ -42,42 +42,43 @@ extension AppModel {
     }
 
     /// STEP needs solids (implicit spec §5.3): an Output holding a mesh is refused, in the words the spec gives.
-    static func requireSolids(for format: ExportFormat, _ plan: ExportPlan) throws(AppProblem) {
-        guard format == .step, let name = plan.meshOutputs.first else { return }
+    static func requireSolids(for kind: ExportKind, _ plan: ExportPlan) throws(AppProblem) {
+        guard kind == .step, let name = plan.meshOutputs.first else { return }
         throw AppProblem("The part can't be exported as STEP",
                          "Output '\(name)' is a mesh; STEP needs solids. Export STL or 3MF, or convert it with Mesh to Solid.")
     }
 
-    /// Writes every Output node's solids and meshes to `url` as STEP or STL (spec §7.2 step 5), once the document has evaluated. An
-    /// Output that holds a mesh is evaluated again at export resolution, in a sheet with a progress bar and Cancel
-    /// (`exportRun`), and the file is STL; a cancelled export leaves no file. Afterwards a summary lists the warnings of the
-    /// nodes the export came from.
-    public func export(_ format: ExportFormat, to url: URL) async throws(AppProblem) {
+    /// Writes every Output node's solids and meshes to `url` as STEP, STL or 3MF (spec §7.2 step 5), once the document has evaluated.
+    /// STEP, and STL of solids alone, are the kernel's. Anything with a mesh in it, and every 3MF, is streamed: the graph is
+    /// evaluated for export (Mesh nodes hand over a stream instead of a mesh), and each stream is meshed window by window straight
+    /// into the file, in a sheet with a progress bar and Cancel (`exportRun`); a cancelled export leaves no file. Afterwards a summary
+    /// lists the warnings of the nodes the export came from.
+    public func export(_ kind: ExportKind, to url: URL) async throws(AppProblem) {
         editor.commitPendingEntry()
         await document.waitForEvaluation()
         let plan = try exportPlan()
-        try Self.requireSolids(for: format, plan)
-        if plan.hasMeshes {
-            try await exportMeshes(to: url)
+        try Self.requireSolids(for: kind, plan)
+        if let format = kind.kernelFormat, !(kind == .stl && plan.hasMeshes) {
+            do {
+                try await kernel.export(plan.solids, format: format, to: url)
+            } catch {
+                throw AppProblem("The \(kind.title) file couldn't be written", Evaluator.message(for: error))
+            }
+            summarize(Self.warnings(in: document.results, graph: document.graph, outputs: outputNodes))
             return
         }
-        do {
-            try await kernel.export(plan.solids, format: format, to: url)
-        } catch {
-            throw AppProblem("The \(format.rawValue.uppercased()) file couldn't be written", Evaluator.message(for: error))
-        }
-        summarize(Self.warnings(in: document.results, graph: document.graph, outputs: outputNodes))
+        try await exportStreamed(kind, to: url)
     }
 
-    /// Export STEP… or STL…: says what's wrong before asking where, then the save panel, then the file.
-    public func exportDocument(_ format: ExportFormat, using picker: any FilePicker) async {
+    /// Export STEP…, STL… or 3MF…: says what's wrong before asking where, then the save panel, then the file.
+    public func exportDocument(_ kind: ExportKind, using picker: any FilePicker) async {
         editor.commitPendingEntry()
         await document.waitForEvaluation()
         do {
-            try Self.requireSolids(for: format, try exportPlan())
-            guard let url = try await picker.chooseDestination([.exported(format)],
-                                                               defaultName: "\(exportName).\(format.rawValue)") else { return }
-            try await export(format, to: url)
+            try Self.requireSolids(for: kind, try exportPlan())
+            guard let url = try await picker.chooseDestination([.exported(kind)],
+                                                               defaultName: "\(exportName).\(kind.rawValue)") else { return }
+            try await export(kind, to: url)
         } catch {
             report(error, title: "The part couldn't be exported")
         }
@@ -93,60 +94,49 @@ extension AppModel {
         }
     }
 
-    // MARK: Meshes
+    // MARK: Streaming
 
-    /// What an export run of the graph made.
+    /// What an export run of the graph made: the Output nodes' contents, and the warnings of the nodes they come from.
     private struct Collected {
-        var solids: [Solid] = []
-        var meshes: [TriangleMesh] = []
+        var outputs: [StreamedExport.Output] = []
         var warnings: [String] = []
     }
 
-    /// The tolerance solids are tessellated at when they share an STL file with meshes, in millimetres.
-    private static let stlTolerance = 0.01
-
-    private func exportMeshes(to url: URL) async throws(AppProblem) {
+    private func exportStreamed(_ kind: ExportKind, to url: URL) async throws(AppProblem) {
         let run = ExportRun(title: "Exporting “\(exportName)”")
         exportRun = run
         defer { exportRun = nil }
-        let work = Task { try await evaluateForExport(run) }
+        let work = Task { try await streamToFile(kind, to: url, run) }
         run.onCancel = { work.cancel() }
-        let collected: Collected
+        let warnings: [String]
         do {
-            collected = try await work.value
+            warnings = try await work.value
         } catch is CancellationError {
             return
         } catch let problem as AppProblem {
             throw problem
         } catch {
-            throw AppProblem("The part couldn't be exported", Evaluator.message(for: error))
+            throw AppProblem("The \(kind.title) file couldn't be written", Self.exportMessage(for: error))
         }
-        // A Cancel that arrived as the evaluation finished still leaves no file.
-        if run.isCancelling || Task.isCancelled { return }
-        do {
-            var writer = STLWriter()
-            for solid in collected.solids {
-                let mesh = try await kernel.tessellate(solid, tolerance: Self.stlTolerance)
-                writer.add(positions: mesh.positions, indices: mesh.indices)
-                if run.isCancelling { return }
-            }
-            for mesh in collected.meshes { writer.add(mesh) }
-            if run.isCancelling { return }
-            try writer.data().write(to: url, options: .atomic)
-        } catch {
-            throw AppProblem("The STL file couldn't be written", Evaluator.message(for: error))
-        }
-        summarize(collected.warnings)
+        summarize(warnings)
     }
 
-    /// Evaluates the graph to the Output nodes at export quality on an evaluator of its own (the document's keeps its preview results),
-    /// reporting meshing progress to `run`.
-    private func evaluateForExport(_ run: ExportRun) async throws -> Collected {
+    /// Evaluates the graph for export, then writes the file; the warnings of the nodes it came from.
+    private func streamToFile(_ kind: ExportKind, to url: URL, _ run: ExportRun) async throws -> [String] {
+        let collected = try await evaluateForExport()
+        try Task.checkCancellation()
+        let progress: @Sendable (Double) -> Void = { fraction in Task { @MainActor in run.report(fraction) } }
+        try await StreamedExport.write(collected.outputs, as: kind, to: url, kernel: kernel, engine: implicitEngine, progress: progress)
+        return collected.warnings
+    }
+
+    /// Evaluates the graph to the Output nodes for a streamed export on an evaluator of its own (the document's keeps its preview
+    /// results). A Mesh node hands over a `MeshStream`, not a mesh (`MeshQuality.streamedExport`).
+    private func evaluateForExport() async throws -> Collected {
         let evaluator = Evaluator(registry: document.registry, kernel: kernel, implicitEngine: implicitEngine)
-        let progress = MeshProgress { fraction in Task { @MainActor in run.report(fraction) } }
         let outputs = outputNodes
         let report = try await evaluator.evaluate(document.graph, definitions: document.definitions, demand: Set(outputs),
-                                                  images: document.imageResolver, meshQuality: .export, progress: progress)
+                                                  images: document.imageResolver, meshQuality: .streamedExport)
         let graph = document.graph
         var collected = Collected()
         for id in outputs {
@@ -160,13 +150,23 @@ extension AppModel {
                 throw AppProblem("“\(failed?.0.name ?? output.name)” can't be exported",
                                  failed?.1 ?? Self.reason(report.results[id]?.state))
             }
-            for case .solid(let solid) in result.outputs?["solid"]?.items ?? [] { collected.solids.append(solid) }
-            for case .mesh(let payload) in result.outputs?["mesh"]?.items ?? [] {
-                if let mesh = payload as? TriangleMesh { collected.meshes.append(mesh) }
-            }
+            var content = StreamedExport.Output(name: output.name, solids: [], meshes: [])
+            for case .solid(let solid) in result.outputs?["solid"]?.items ?? [] { content.solids.append(solid) }
+            for case .mesh(let payload) in result.outputs?["mesh"]?.items ?? [] { content.meshes.append(payload) }
+            collected.outputs.append(content)
         }
         collected.warnings = Self.warnings(in: report.results, graph: graph, outputs: outputs)
         return collected
+    }
+
+    /// Plain words for what can go wrong while a file is written.
+    static func exportMessage(for error: any Error) -> String {
+        switch error {
+        case let error as ImplicitMeshingError: error.userMessage
+        case let error as ZipError: error.userMessage
+        case let error as MeshDecimator.Failure: error.userMessage
+        default: Evaluator.message(for: error)
+        }
     }
 
     // MARK: Warnings
