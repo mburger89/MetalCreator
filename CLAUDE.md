@@ -74,13 +74,16 @@ preview in the viewport, STL of meshes with the export sheet, file format 8 and 
 `docs/superpowers/plans/2026-10-13-7c-core.md`, spec `docs/superpowers/specs/2026-10-13-implicit-lattices-design.md` §2 to §6 and the
 7c-1 errata in the plan's header) code is done; its human checks (group IM) are pending and its benchmark numbers are recorded in
 `docs/verification/performance.md`. Lattices (7c-2), the mesh tools, checks and 3MF (7c-3) and the mappings (7c-4) are not built, nor
-are meshing on the GPU (spec Errata D13, plan 7c-1g) and the streamed export (D12, with 7c-3); until they are, meshing runs on the CPU
-and row i-4 is expected to miss.
+is the streamed export (D12, with 7c-3); until it is, row i-4 is expected to miss.
+Implicit geometry, sub-project 7c-1g (meshing on the GPU, spec Errata D13: `ImplicitGPUEngine.meshBricks`, the Metal marching-cubes
+kernels with a CPU-against-GPU mesh agreement suite, and rows i-1 and i-2 measured on that path; plan
+`docs/superpowers/plans/2026-10-14-7c-1g-gpu-meshing.md`) code is done; its human check (IM-13) is pending and its benchmark numbers are
+recorded in `docs/verification/performance.md`. The SDL3 engine for Linux and Windows is track xp-c.
 
 Cross-platform, sub-project xp-1 (Linux and Windows on MetalUI's SDL backend: everything but the 3D view and OpenCascade; plan
 `docs/superpowers/plans/2026-10-13-xp-1.md`, spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §2) code is done and
 the suite is green on Linux in CI (GitHub Actions, `.github/workflows/xp.yml`, x86_64 and aarch64; `scripts/linux-test.sh` runs the
-same in Docker); its human checks (group XP) are pending. Window chrome on SDL (MetalUI S1, gap XP-G3, branch `xp-adopt-s1`, CI pin `ceca59f6`): the window is borderless and MetalUI draws minimise, zoom and close (`drawsWindowControls` stays at its default), `TopBar` pads by `titleBarInsets.left` (`AppLayout.topBarClearance`, macOS's traffic lights) and `.right` (`topBarTrailingClearance`, SDL's 138-point cluster), the bar stays at the margin inside the 32-point band as on macOS, and the drawn Close reaches `AppModel.closeRequested()` through `installCloseHandling`; `SDLChromeWindowTests` pins both shapes (MetalUI's `Options.sdlChrome`); the drag regions work with the Linux and Windows placeholder viewport but need gap XP-G11 fixed before xp-3 (a gesture-taking viewport behind the bar carves them all away; pinned as a known issue on macOS), human checks XP-11..XP-14. The Windows job (CI run 38546048595) is green once: it builds, the suite passes (10 "Test run with" lines), and `--self-test` and
+same in Docker); its human checks (group XP) are pending. Window chrome on SDL (MetalUI S1, gap XP-G3, branch `xp-adopt-s1`, CI pin `ceca59f6`): the window is borderless and MetalUI draws minimise, zoom and close (`drawsWindowControls` stays at its default), `TopBar` pads by `titleBarInsets.left` (`AppLayout.topBarClearance`, macOS's traffic lights) and `.right` (`topBarTrailingClearance`, SDL's 138-point cluster), the bar stays at the margin inside the 32-point band as on macOS, and the drawn Close reaches `AppModel.closeRequested()` through `installCloseHandling`; `SDLChromeWindowTests` pins both shapes (MetalUI's `Options.sdlChrome`); the drag regions are published with the real viewport behind the bar (gap XP-G11 fixed by MetalUI S1b, PR #87, branch `xp-adopt-s1b`, CI pin `a4ebe288`: a hitbox carves a handle only if it ranks above it, and a window-wide backdrop does not carve the band; divergence 425 amended, a viewport press inside the 32-point band drags the window, which nothing relies on), human checks XP-11..XP-14. The Windows job (CI run 38546048595) is green once: it builds, the suite passes (10 "Test run with" lines), and `--self-test` and
 `--smoke-test 20` pass. Two failures that had been Windows-only were MetalCreator's own: the slice's starting axis chose YZ over XY on a
 last-bit tie of the default camera's view direction (`SlicePose.startingChoice` now treats near-equal alignments as a tie), and the window
 root, taller than the window with Windows' text metrics, was centred upward by the window's wrapper, so the top bar and the drag strip
@@ -207,7 +210,7 @@ Module boundaries (dependency order):
   optional `MeshSource` for the progressive preview; `MeshTopology` checks closed, oriented and manifold). `CPUEvaluation` (`Double`) is
   a complete engine on every platform, and the reference the GPU is held to; `ImplicitCompiler` generates Metal source whose text depends
   on the tree's shape only (numbers go in the buffers) and imports nothing. **The module builds on Linux and Windows (Errata D11):** the
-  GPU sits behind `ImplicitGPUEngine` (`GPU/`: prepare, compile, evaluate a batch, cancel; D13 adds meshing bricks), whose only
+  GPU sits behind `ImplicitGPUEngine` (`GPU/`: prepare, compile, evaluate a batch, mesh bricks, cancel), whose only
   implementation is `MetalImplicitEngine` (an actor that compiles each shape once; the one file that imports Metal, compiled only under
   `#if canImport(Metal)`), `ImplicitGPUEngines.platformDefault` is the machine's engine or `nil`, and `ImplicitPortabilityTests` fails
   on an Apple-only import or a Metal type anywhere else in the module. The agreement suite `GPUAgreementTests` holds Metal to the CPU
@@ -215,7 +218,18 @@ Module boundaries (dependency order):
   "Running on the CPU" when a solid will not compile (the reason is `Selection.diagnostic`, not shown). `BrickPlan` is the sparse octree (prune by |f| / lipschitz; 8³-voxel
   bricks), `MarchingCubesTable` is generated by a fixed rule (never join inside corners across a face; no triangle flat in a face), and
   `ImplicitMesher` meshes brick batches into a watertight, manifold mesh (global edge keys, a Newton snap, the memory refusal
-  `MeshingBudget`); `PreviewSchedule` is the passes of the progressive preview. `SignedDistanceMesh` (BVH, pseudonormal sign),
+  `MeshingBudget`); `PreviewSchedule` is the passes of the progressive preview (Auto goes on while four times the last pass is under a
+  second and four times its triangles are within `maximumTriangles`, 2,000,000: the cap of Errata D15). **Meshing on the GPU (Errata D13):** `ImplicitMesher`
+  first offers the plan's bricks to the evaluator (`ImplicitBatchEvaluator.meshBricks`, which `GPUBatchEvaluator` passes to
+  `ImplicitGPUEngine.meshBricks(_:_:progress:)`: a `BrickMeshRequest` in, a `BrickMesh` of flat arrays out, no GPU type in either). The
+  default requirement returns `nil`, and the mesher then meshes on the CPU, which stays the reference and the fall-back: it also
+  takes over when the engine fails, returns arrays that do not fit (`BrickMesh.isConsistent`), or a request is beyond the engine's
+  limits (a window of more than 32-bit edge keys, a table over `largestTable`). **That fall-back is silent: test and measure
+  `ImplicitMesher.meshReportingPath(...).path` (or `MetalImplicitEngine.meshesMade`), never just the mesh.**
+  `MetalImplicitEngine+Meshing` runs the five kernels of `ImplicitMeshShaderLibrary` (Metal source as text, so an SDL3 engine
+  translates it) over `BrickLattice`'s window with `MarchingCubesBuffers`, the CPU's table as a buffer; the order of vertices and
+  triangles is the threads', the set is fixed. `GPUMeshAgreementTests` holds the GPU mesher to the CPU mesher's topology, triangle
+  count, vertices (1e-4 mm on the same samples, for parts near the origin), normals and enclosed volume. `SignedDistanceMesh` (BVH, pseudonormal sign),
   `DistanceBaker`, `ImplicitBakeCache` (actor, 512 MB, LRU, keyed by solid identity and tolerance) and `GradingBaker` bake a solid or a
   field's kernel distances. `STLWriter` writes binary STL. CreatorGraph cannot name `ImplicitSolid` (it depends on Graph for `Field`), so
   a value on a wire is an `ImplicitPayload` in an `ImplicitReference` (`Scalar.implicit`, `Field.implicit`) and a mesh a `MeshPayload`

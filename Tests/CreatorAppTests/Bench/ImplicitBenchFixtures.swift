@@ -18,6 +18,8 @@ enum ImplicitBenchFixtures {
         var graph: Graph
         /// The Series node that makes the two levels, outer then inner: its `step` is the sheet's thickness in noise units.
         var levels: Node
+        /// The Subtract node that cuts the lower level from the upper: the sheet as an implicit solid.
+        var band: Node
         var output: Node
     }
 
@@ -48,7 +50,18 @@ enum ImplicitBenchFixtures {
         builder.wire(iso, "implicit", to: band, "shapes")
         builder.wire(band, "implicit", to: mesh, "implicit")
         builder.wire(mesh, "mesh", to: output, "mesh")
-        return Sheet(graph: builder.graph, levels: levels, output: output)
+        return Sheet(graph: builder.graph, levels: levels, band: band, output: output)
+    }
+
+    /// The sheet as the implicit solid the Mesh node meshes, evaluated on the CPU (an implicit is a tree, and builds the same on any engine).
+    static func solid(of sheet: Sheet) async throws -> ImplicitSolid {
+        let report = try await Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel())
+            .evaluate(sheet.graph, demand: [sheet.band.id])
+        guard case .implicit(let reference)? = report.results[sheet.band.id]?.outputs?["implicit"]?.items.first,
+              let solid = reference.solid else {
+            throw BenchFixtureError.noSolid(String(describing: report.results[sheet.band.id]?.state))
+        }
+        return solid
     }
 
     /// The process's peak resident memory so far, in bytes (0 where the platform has no `getrusage`).
@@ -65,4 +78,9 @@ enum ImplicitBenchFixtures {
         return 0
         #endif
     }
+}
+
+/// Why a benchmark fixture could not be made.
+enum BenchFixtureError: Error {
+    case noSolid(String)
 }

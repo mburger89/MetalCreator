@@ -353,8 +353,10 @@ with a GPU. The fixture is a sheet through a 100 mm cube: the band of a 50 mm no
 from another), because the lattice nodes (7c-2) do not exist yet; 7c-2 swaps in the gyroid and keeps the rows. A gyroid of 8 mm cells
 has about 150 million triangles at 0.1 mm, which no in-memory mesh holds in 4 GB, so row i-4 is only reachable for a sparse sheet.
 Per the spec's Errata, the budgets of i-1 and i-2 are for the Metal path measured with Metal meshing (D13, plan 7c-1g), and the streamed
-export that i-4 needs (D12) belongs to 7c-3. **Until then these rows measure Metal evaluation with the CPU mesher, and i-2 and i-4 are
-expected to miss;** the CPU engine records its numbers without a budget (D11).
+export that i-4 needs (D12) belongs to 7c-3. The first run below measured Metal evaluation with the CPU mesher; **the 7c-1g run after it
+measures i-1 and i-2 with the GPU mesher**, which is what the budgets are for. Row i-4 was not re-measured by 7c-1g: it is 7c-3's row,
+and its run below predates GPU meshing. The CPU engine records its numbers without a budget (D11). A budget is a record here, never a
+gate (7c-1's ruling U6): a miss is written down as a miss.
 
 | Row | Case | Target |
 |---|---|---|
@@ -378,7 +380,32 @@ BENCH i-4 peak memory 4.53 GB (file 1599 MB); budget 4.00 GB: missed
 BENCH load after: 127.82 167.82 184.74
 ```
 
-Where the misses are likely to stay on an idle Mac, and who owns them: **i-2** is the first coarse pass again (128 cells across, marching
+The 7c-1g run (2026-10-14): `scripts/bench.sh "ImplicitBench/(theFirstPreview|aThicknessEdit|theFirstPassOnTheGPU)"`, rows i-1 and i-2
+with marching cubes and the Newton snap on the GPU (`MetalImplicitEngine.meshBricks`), and the comparison `i-1m`: the same first pass by
+the GPU mesher and by the CPU mesher over the GPU's values, which is how i-1 and i-2 were made before. **The Mac was not idle: the load
+average was 32 at the start and 49 at the end, with other sessions running**, so these are not idle-Mac numbers; the GPU rows are
+GPU-bound and the CPU comparison row is the one the load inflates. **Re-run on an idle Mac and replace them, keeping the load lines.**
+
+```text
+BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
+BENCH load before: 32.32 86.74 106.78
+BENCH i-1 first preview pass of a 100 mm sheet, cold (shaders compiled): median 288.29 ms, p95 288.29 ms, max 288.29 ms (n 1)
+BENCH i-1 first preview pass of a 100 mm sheet: median 19.50 ms, p95 20.37 ms, max 20.37 ms (n 6); budget 1000.00 ms: met
+BENCH i-2 thickness edit of a 100 mm sheet (one coarse pass, no recompile): median 22.62 ms, p95 25.29 ms, max 25.47 ms (n 22); budget 100.00 ms: met
+BENCH i-1m first pass of the sheet at 0.78 mm, GPU mesher: median 28.92 ms, p95 29.64 ms, max 29.64 ms (n 6)
+BENCH i-1m the same pass, CPU mesher over the GPU's values (before D13): median 106.28 ms, p95 108.76 ms, max 108.76 ms (n 6)
+BENCH i-1m triangles: GPU 507760, CPU 507760
+BENCH load after: 49.02 82.63 100.10
+```
+
+Both meshers made 507,760 triangles. The GPU mesh orders its vertices and triangles by thread timing, so the same shape is not the same
+file twice (the set is the same). These rows time the first pass only. The Auto preview is capped (Errata D15): it stops before a pass
+estimated over 2,000,000 triangles (four times the last pass's), so for this sheet, whose first pass has 507,760 triangles (four times
+that is 2,031,040), it ends after the first pass; IM-13 asks a person to watch it. The cold row includes the compile of the meshing
+kernels, a second library of the same source, which happens on the first mesh of a shape; later passes and edits of that shape reuse it.
+
+The first run's reading of the misses, kept for the record (i-2 has since met its budget with GPU meshing; i-4 was not re-measured
+by 7c-1g, and an export meshes on the GPU only while its edge table fits, `largestTable`, 2^27 slots, and falls back to the CPU otherwise): **i-2** is the first coarse pass again (128 cells across, marching
 cubes and the Newton snap on the CPU), so it is about as long as i-1 and cannot be under 100 ms without a coarser first pass or marching
 cubes on the GPU (D13, plan 7c-1g, which re-measures it); the spec's targets for i-1 and i-2 are not consistent with each other while
 the first pass is the same pass. **i-3** is the tessellation, the BVH and 600 to
