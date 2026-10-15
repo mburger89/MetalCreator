@@ -372,3 +372,9 @@ meshing (dual contouring); mesh booleans; surface textures and displacement (7d,
     - The whole pipeline: surfaces agree within 1e-4 mm and vertices within 2e-3 mm. A vertex can move further where an edge runs nearly tangent to the surface.
     - Both hold for parts within a few hundred mm of the origin, because positions are stored as Float.
   - **The Auto preview is capped.** It refines until the next pass would exceed about 2,000,000 triangles, or until the time budget runs out, whichever comes first. Export resolution is unaffected.
+- **D16. Mesh tools** (the user's answers on the 7c-3 plan, 2026-10-14).
+  - **3MF uses Zip64** whenever an entry, an offset or the file passes 4 GB, and plain zip below that. Writing a 3MF needs about twice its XML size free on disk.
+  - **Check Trapped Volumes uses a 0.5 mm grid cell within a 32-million-cell budget.** The cell is coarser only for parts over about 150 mm (0.96 mm at 300 mm), and the check then warns that the part is large. Drain Holes warns when a hole is under four cells across. This replaces §4.6's 2 mm / 32-across, which can't see a 2 mm drain hole.
+  - **Mesh to Solid builds its faces sharing vertices by index,** because the mesh is already watertight. It doesn't use `BRepBuilderAPI_Sewing`. It still merges coplanar faces and checks the result with `BRepCheck_Analyzer`.
+  - **The acceptance bracket's volume is asserted between 15% and 75% of the solid.** The slice's thin bracket measures 50.2% with a 1.5 mm skin.
+- **D17. Surface agreement scales with the field's slope** (user, 2026-10-14). This amends D15's whole-pipeline surface check. GPU and CPU agree on the field's value to about 1e-4. Where grading or noise makes the field's slope |∇f| at the surface less than 1, that moves the surface by 1e-4 ÷ |∇f|. So the check allows 1e-4 mm ÷ |∇f| at each compared point, and never less than 1e-4 mm. Plain shapes keep exactly 1e-4 mm.
