@@ -15,6 +15,7 @@ public struct ThreeMFWriter: MeshSink {
     }
 
     private let destination: URL
+    private let temporaryFolder: URL
     private var finished: [Object] = []
     private var open: Object?
     private var vertexBuffer: [UInt8] = []
@@ -22,13 +23,15 @@ public struct ThreeMFWriter: MeshSink {
     public private(set) var triangleCount = 0
     public private(set) var vertexCount = 0
 
-    public init(destination: URL) {
+    /// `temporaryFolder` holds the spill files while an object is open; tests pass their own to check nothing is left behind.
+    public init(destination: URL, temporaryFolder: URL = FileManager.default.temporaryDirectory) {
         self.destination = destination
+        self.temporaryFolder = temporaryFolder
     }
 
     public mutating func beginObject(name: String) throws {
         guard open == nil else { throw ZipError.misuse("the last object is still open") }
-        let folder = FileManager.default.temporaryDirectory
+        let folder = temporaryFolder
         let stem = "mc-3mf-\(UUID().uuidString)"
         let (vertices, triangles) = (folder.appending(path: "\(stem).vertices"), folder.appending(path: "\(stem).triangles"))
         guard FileManager.default.createFile(atPath: vertices.path, contents: nil),

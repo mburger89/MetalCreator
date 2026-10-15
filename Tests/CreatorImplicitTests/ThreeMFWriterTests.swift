@@ -105,13 +105,16 @@ struct ThreeMFWriterTests {
 
     @Test func aCancelledExportLeavesNoFileAndNoTemporaries() throws {
         let url = temporary()
-        var writer = ThreeMFWriter(destination: url)
+        let folder = URL.temporaryDirectory.appending(path: "mc-3mf-test-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        var writer = ThreeMFWriter(destination: url, temporaryFolder: folder)
         try writer.beginObject(name: "Half")
         try writer.add(MeshWindow(positions: MeshFixtures.cube.positions, triangles: MeshFixtures.cube.triangles, startingAt: 0))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).count == 2, "spill files exist while open")
         writer.cancel()
         #expect(!FileManager.default.fileExists(atPath: url.path))
-        let leftovers = try FileManager.default.contentsOfDirectory(atPath: URL.temporaryDirectory.path).filter { $0.hasPrefix("mc-3mf-") }
-        #expect(leftovers.isEmpty || leftovers.allSatisfy { _ in true }, "other runs may have their own")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
     }
 
     @Test func anObjectOutOfOrderIsAnErrorNotACrash() throws {

@@ -137,6 +137,40 @@ struct ZipWriterTests {
         #expect(find([0x01, 0x00, 0x10, 0x00]) != nil, "the extra field 0x0001 with two 8-byte sizes (the offset is 0, so not wide)")
     }
 
+    @Test func aWideEntryHasAn8ByteDescriptor() throws {
+        let (url, _) = try roundTrip([("big", [UInt8](repeating: 7, count: 300))], method: .stored, zip64At: 100)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let data = Array(try Data(contentsOf: url))
+        let at = try #require((0...(data.count - 4)).first { Array(data[$0..<($0 + 4)]) == [0x50, 0x4B, 0x07, 0x08] })
+        func u64(_ from: Int) -> UInt64 { (0..<8).reduce(0) { $0 | UInt64(data[from + $1]) << UInt64(8 * $1) } }
+        #expect(u64(at + 8) == 300 && u64(at + 16) == 300, "compressed and uncompressed size as u64")
+        #expect(Array(data[(at + 24)..<(at + 28)]) == [0x50, 0x4B, 0x01, 0x02], "the central directory follows the 24-byte descriptor")
+    }
+
+    /// The installed independent readers with the arguments that precede the file.
+    static let independentReaders: [(path: String, leading: [String])] = [
+        ("/opt/homebrew/bin/python3", ["-I", "-m", "zipfile", "-t"]), ("/usr/bin/unzip", ["-t"])
+    ].filter { FileManager.default.isExecutableFile(atPath: $0.0) }
+
+    /// An independent reader (Python's zipfile, then unzip) checks the Zip64 layout; skipped where neither is installed.
+    @Test(.enabled(if: ZipWriterTests.independentReaders.isEmpty == false, "no independent zip reader installed"),
+          arguments: [ZipWriter.Method.stored, ZipWriter.defaultMethod])
+    func anIndependentReaderAcceptsAZip64File(_ method: ZipWriter.Method) throws {
+        let big = (0..<400).map { UInt8(truncatingIfNeeded: $0 &* 13) }
+        let (url, _) = try roundTrip([("small", [1, 2, 3]), ("big", big), ("after", Array("tail".utf8))], method: method, zip64At: 100)
+        defer { try? FileManager.default.removeItem(at: url) }
+        for (path, leading) in Self.independentReaders {
+            let process = Process()
+            process.executableURL = URL(filePath: path)
+            process.arguments = leading + [url.path]
+            process.standardOutput = Pipe()
+            process.standardError = Pipe()
+            try process.run()
+            process.waitUntilExit()
+            #expect(process.terminationStatus == 0, "\(path) \(leading.joined(separator: " "))")
+        }
+    }
+
     @Test func manyEntriesPastSixtyFiveThousandAreCountedInZip64() throws {
         // The count field is 16 bits; the end record says so with all ones and the Zip64 record has the number.
         let url = temporary("many")
