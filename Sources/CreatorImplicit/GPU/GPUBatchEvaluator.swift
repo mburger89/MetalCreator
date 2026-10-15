@@ -13,4 +13,13 @@ public struct GPUBatchEvaluator: ImplicitBatchEvaluator {
     public func evaluate(_ points: [SIMD3<Float>]) async throws -> [Float] {
         try await engine.evaluate(program, at: points)
     }
+
+    /// The engine's mesh of the bricks, or `nil` when it does not mesh or cannot take this request: the CPU mesher then does it.
+    public func meshBricks(_ request: BrickMeshRequest, progress: @Sendable (Double) -> Void) async throws -> BrickMesh? {
+        do {
+            return try await engine.meshBricks(program, request, progress: progress)
+        } catch is ImplicitCompileError {
+            return nil
+        }
+    }
 }

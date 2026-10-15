@@ -83,6 +83,18 @@ struct MeshRefinementModelTests {
         #expect(model.badge?.text == "Preview 1 mm")
     }
 
+    @Test func anAutoPreviewStopsAfterAPassOverTheTriangleCap() async {
+        // Over 500,000 triangles: the next pass would be estimated over two million (Errata D15), however quick the pass was.
+        let solid = ImplicitSolid.sphere(radius: 6)
+        let heavy = TriangleMesh(positions: [.zero], triangles: [UInt32](repeating: 0, count: 3 * 500_001), resolution: 0.8,
+                                 source: MeshSource(solid: solid, target: .automatic), meshingSeconds: 0.001)
+        let model = MeshRefinementModel(engine: .cpu)
+        model.follow([heavy])
+        await model.waitForRefinement()
+        #expect(model.refined.isEmpty, "no finer pass is made")
+        #expect(model.badge == .init(text: "Preview 0.8 mm", isRefining: false))
+    }
+
     @Test func resetStopsEverything() async throws {
         let model = MeshRefinementModel(engine: .cpu)
         model.follow([try await firstPass(target: .fixed(0.06))])

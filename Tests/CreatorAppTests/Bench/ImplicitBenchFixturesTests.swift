@@ -54,6 +54,13 @@ struct ImplicitBenchFixturesTests {
         #expect(node?.inputValues["cell size"] == .number(100) && node?.inputValues["thickness"] == .number(3))
     }
 
+    @Test func theSheetIsAnImplicitSolidFillingTheCube() async throws {
+        let sheet = ImplicitBenchFixtures.sheet(side: 20, scale: 8, exportResolution: 0.5)
+        let solid = try await ImplicitBenchFixtures.solid(of: sheet)
+        let size = solid.bounds.size
+        #expect(size.x <= 20.01 && size.y <= 20.01 && size.z <= 20.01 && size.x > 5)
+    }
+
     #if canImport(Darwin) || canImport(Glibc)
     @Test func peakMemoryIsReadable() {
         #expect(ImplicitBenchFixtures.peakMemory > 1_000_000)
