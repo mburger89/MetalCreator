@@ -50,5 +50,5 @@ enum ImplicitFixtures {
         ("noisy shell", .shell(box, thickness: noisy, side: .inward)),
         ("noisy smooth union", .union([sphere, cylinder], blend: noisy)),
         ("baked", baked), ("isosurface", isosurface),
-    ]
+    ] + LatticeFixtures.all
 }

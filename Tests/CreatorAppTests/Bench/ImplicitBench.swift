@@ -9,11 +9,11 @@ import Testing
 
 /// Implicit spec §6, rows i-1 to i-4 (i-5 and i-6 belong to 7c-3). Release, idle Mac, `scripts/bench.sh ImplicitBench`; each prints
 /// `BENCH i-…` lines, with a row's budget judged on the median:
-/// - i-1: the first preview pass of the sheet (a noise sheet through a 100 mm cube; see `ImplicitBenchFixtures`) on a fresh
+/// - i-1: the first preview pass of the sheet (a gyroid sheet filling a 100 mm cube; see `ImplicitBenchFixtures`) on a fresh
 ///   evaluator, the GPU's pipelines already compiled: under 1 s. The very first pass of the process, which compiles them, is printed
 ///   too and not judged.
-/// - i-2: a thickness edit (the gap between the two levels) on a warm evaluator, so the noise and the cube are cached and no shader
-///   is recompiled: one coarse pass under 100 ms.
+/// - i-2: a thickness edit (the TPMS node's `thickness`) on a warm evaluator, so the cube is cached and no shader is recompiled: one
+///   coarse pass under 100 ms.
 /// - i-1m: the same first pass made by the mesher alone, on the GPU mesher and on the CPU mesher over the GPU's values (meshing
 ///   before Errata D13), to see what GPU meshing bought; i-2 is that coarse pass again. Not judged. The run also checks the pass was
 ///   made on the GPU, since a fall-back to the CPU is silent.
@@ -57,12 +57,12 @@ struct ImplicitBench {
         var samples = BenchSamples("i-2 thickness edit of a 100 mm sheet (one coarse pass, no recompile)")
         var graph = sheet.graph
         for round in 0..<25 {
-            graph.nodes[sheet.levels.id]?.inputValues["step"] = .number(-0.1 - 0.001 * Double(round + 1))
+            graph.nodes[sheet.thickness.id]?.inputValues["thickness"] = .number(ImplicitBenchFixtures.thickness + 0.01 * Double(round + 1))
             let start = clock.now
             let report = try await evaluator.evaluate(graph, demand: [sheet.output.id])
             guard round >= 3 else { continue }
             samples.append(from: start, to: clock.now)
-            #expect(report.evaluatedNodes.count == 5)
+            #expect(report.evaluatedNodes.count == 3, "the TPMS node, the Mesh and the Output; the cube is cached")
         }
         print(samples.line(budget: Self.editBudget))
         await Self.expectMeshedOnTheGPU(since: madeBefore, atLeast: 25, row: "i-2")

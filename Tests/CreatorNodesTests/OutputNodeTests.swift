@@ -9,12 +9,12 @@ struct OutputNodeTests {
     /// the five layouts (Linear, Grid, Circular, Curve, Face; 7a-3), Place, Points to Placements and the four shortcuts
     /// (Hole, Boss, Slot, Pattern Feature; 7a-2), and the variation nodes (Cull Pattern, Cull Index, Cull by Region,
     /// Random Reduce, Random Values, Jitter; 7a-3b), the Fields nodes (fields spec §3; Image Field, 7b-2), and the Implicit nodes
-    /// (implicit spec §3: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit and Isosurface) and the Mesh node.
+    /// (implicit spec §3: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit and Isosurface), the TPMS, Strut and Voronoi lattices and the Mesh node.
     @Test func theBuiltInsAreTheSliceTheSketcherTheTreeNodesThePatternNodesTheFieldNodesAndTheImplicitNodesInElevenCategories() {
-        #expect(BuiltInNodes.all.count == 77)
+        #expect(BuiltInNodes.all.count == 80)
         let counts = Dictionary(grouping: BuiltInNodes.all, by: { $0.category }).mapValues(\.count)
         let expected: [NodeCategory: Int] = [
-            .value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .patterns: 17, .lists: 7, .fields: 14, .implicit: 10, .mesh: 1,
+            .value: 9, .profile: 6, .solid: 5, .selection: 5, .feature: 2, .patterns: 17, .lists: 7, .fields: 14, .implicit: 13, .mesh: 1,
             .output: 1,
         ]
         #expect(counts == expected)
