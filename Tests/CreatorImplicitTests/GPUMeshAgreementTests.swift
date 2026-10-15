@@ -25,6 +25,12 @@ struct GPUMeshAgreementTests {
     static let vertexTolerance: Float = 1e-4
     /// The whole pipeline's slide along the surface (see above).
     static let slideTolerance: Float = 2e-3
+    /// The whole pipeline's surfaces for the lattices whose cells or wall are graded: a lattice's value is a distance only to within
+    /// its wall scale, and a graded cell or a noisy wall turns that scale (the field's gradient at the surface) below 1, so the
+    /// evaluators' 1e-4 agreement in value (`GPUAgreementTests`) moves the surface by 1e-4 / gradient: 1.1e-4 mm on the graded diamond
+    /// and 2.5e-4 mm on the stretched, noisy neovius. The mesher alone still agrees within `vertexTolerance` on them (spec D15 amended).
+    static let gradedLatticeSurfaceTolerance: Float = 5e-4
+    static let gradedLattices: Set<String> = ["diamond sheet, graded cell", "neovius sheet, stretched, noisy wall"]
     /// The normals of the two meshers on the same samples: the dot product of a vertex's two normals, at least. They are the snap's
     /// gradient, so the same values give the same direction to rounding.
     static let mesherNormalDot: Float = 0.9999
@@ -87,7 +93,8 @@ struct GPUMeshAgreementTests {
         Self.expectSameTopology(gpu.mesh, reference, name)
         let pipeline = MeshComparison(reference: reference, candidate: gpu.mesh)
         #expect(pipeline.unmatched == 0, "\(name): vertices without a match")
-        #expect(pipeline.farthestAlongNormal <= Self.vertexTolerance, "\(name): the surfaces are \(pipeline.farthestAlongNormal) mm apart")
+        let surfaceTolerance = Self.gradedLattices.contains(name) ? Self.gradedLatticeSurfaceTolerance : Self.vertexTolerance
+        #expect(pipeline.farthestAlongNormal <= surfaceTolerance, "\(name): the surfaces are \(pipeline.farthestAlongNormal) mm apart")
         #expect(pipeline.farthest <= Self.slideTolerance, "\(name): the largest vertex difference is \(pipeline.farthest) mm")
         #expect(pipeline.smallestNormalDot >= Self.pipelineNormalDot, "\(name): a normal differs: dot \(pipeline.smallestNormalDot)")
     }
