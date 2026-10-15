@@ -10,12 +10,16 @@ public struct EnclosedVoids: Sendable {
         let counts = grid.counts
         let strides = [1, counts.x, counts.x * counts.y]
         var reached = grid.isSolid
-        func fill(from start: Int, collecting: inout [Int32]) throws {
+        /// Marks everything reachable from `start`. The cells are listed in `collecting` when it is given; the outside pass gives none,
+        /// so the biggest region of the grid is never stored.
+        func fill(from start: Int, collecting: inout [Int32]?) throws {
             var stack = [Int32(start)]
+            var visited = 0
             reached[start] = true
             while let next = stack.popLast() {
-                if collecting.count & 0xFFFF == 0 { try Task.checkCancellation() }
-                collecting.append(next)
+                if visited & 0xFFFF == 0 { try Task.checkCancellation() }
+                visited += 1
+                collecting?.append(next)
                 let c = grid.coordinates(of: Int(next))
                 for axis in 0..<3 {
                     for step in [-1, 1] where c[axis] + step >= 0 && c[axis] + step < counts[axis] {
@@ -29,13 +33,14 @@ public struct EnclosedVoids: Sendable {
             }
         }
         // The corner is padding, so empty: everything the fill reaches is outside.
-        var outside: [Int32] = []
-        if !reached[0] { try fill(from: 0, collecting: &outside) }
+        var nothing: [Int32]?
+        if !reached[0] { try fill(from: 0, collecting: &nothing) }
         var label = [Int32](repeating: -1, count: grid.cellCount)
         var voids: [[Int32]] = []
         for start in 0..<grid.cellCount where !reached[start] {
-            var cells: [Int32] = []
-            try fill(from: start, collecting: &cells)
+            var listed: [Int32]? = []
+            try fill(from: start, collecting: &listed)
+            let cells = listed ?? []
             // A pocket of a single cell is below what the grid can tell from the surface.
             guard cells.count > 1 else { continue }
             for cell in cells { label[Int(cell)] = Int32(voids.count) }

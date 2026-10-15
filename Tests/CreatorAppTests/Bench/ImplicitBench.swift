@@ -10,7 +10,7 @@ import Testing
 import CreatorOCCT
 #endif
 
-/// Implicit spec §6, rows i-1 to i-6. Release, idle Mac, `scripts/bench.sh ImplicitBench`; each prints
+/// Implicit spec §6, rows i-1 to i-7. Release, idle Mac, `scripts/bench.sh ImplicitBench`; each prints
 /// `BENCH i-…` lines, with a row's budget judged on the median:
 /// - i-1: the first preview pass of the sheet (a noise sheet through a 100 mm cube; see `ImplicitBenchFixtures`) on a fresh
 ///   evaluator, the GPU's pipelines already compiled: under 1 s. The very first pass of the process, which compiles them, is printed
@@ -28,7 +28,9 @@ import CreatorOCCT
 /// - i-4z: a zip entry of 4.7 GB written through `ZipWriter` and read by the system's `unzip -t`: the Zip64 path of D12's 150-million-triangle
 ///   3MF, which no unit test can afford. Recorded, no budget; a failure of `unzip` is a miss.
 /// - i-5: Decimate of a 2,097,152-triangle sphere (a 100 mm ball, tolerance 0.01 mm), `MeshDecimator` alone: under 10 s.
-/// - i-6: Mesh to Solid of a 100,000-triangle mesh on OCCT (the welding, the sewing, the merge and the check): under 15 s.
+/// - i-7: the Check Trapped Volumes grid (`OccupancyGrid` and `EnclosedVoids`) of a hollow 150 mm cube, the largest part that keeps 0.5 mm
+///   cells (32 million cells): the time and the process's peak resident memory, which D16 budgets at about 450 MB for the flood fill.
+/// - i-6: Mesh to Solid of a 100,000-triangle mesh on OCCT (the welding, the faces built on shared vertices, the merge and the check): under 15 s.
 @MainActor
 @Suite(.serialized, .enabled(if: Bench.isRequested, "set METALCREATOR_BENCH=1 (scripts/bench.sh)"))
 struct ImplicitBench {
@@ -224,6 +226,24 @@ struct ImplicitBench {
         print(samples.line(budget: Self.decimateBudget))
         print("BENCH i-5 triangles \(sphere.triangleCount) to \(after)")
         #expect(after < sphere.triangleCount)
+    }
+
+    @Test func theTrappedVolumeGridOfAHollow150mmCube() async throws {
+        guard Bench.requireRelease() else { return }
+        let hollow = ImplicitSolid.subtract([.box(halfSize: Vector3(75, 75, 75), cornerRadius: 0),
+                                             .box(halfSize: Vector3(60, 60, 60), cornerRadius: 0),
+                                            ], blend: .constant(0))
+        let before = ImplicitBenchFixtures.peakMemory
+        let clock = ContinuousClock()
+        let start = clock.now
+        let grid = try await OccupancyGrid.of(hollow, using: CPUBatchEvaluator(hollow))
+        let found = try EnclosedVoids(grid)
+        let elapsed = clock.now - start
+        let peak = ImplicitBenchFixtures.peakMemory
+        let megabytes = { (bytes: Int) in (Double(bytes) / 1_000_000).formatted(.number.precision(.fractionLength(0))) }
+        print("BENCH i-7 \(grid.cellCount) cells, \(found.voids.count) void, \(elapsed); peak resident \(megabytes(peak)) MB "
+            + "(\(megabytes(before)) MB before the grid)")
+        #expect(found.voids.count == 1 && grid.cellCount > 20_000_000)
     }
 
     #if canImport(CreatorOCCT)

@@ -5,9 +5,11 @@ import CreatorGeometry
 /// grid, and a void or a channel has to be larger than about a cell to be seen. The grid has two empty cells of padding round the part, so
 /// its corner is always outside.
 public struct OccupancyGrid: Sendable {
-    /// The most cells a grid may have, padding included. The flood fill holds about ten bytes a cell, so this is some 300 MB. A part that
-    /// would need more gets coarser cells (`cellSize(forSize:)`): 0.5 mm holds up to a 150 mm cube; a 300 mm cube gets 1 mm cells and a
-    /// metre cube 3 mm.
+    /// The most cells a grid may have, padding included. The flood fill holds `isSolid` and `reached` (a byte each), `label` (4 bytes),
+    /// a stack that can reach 4 bytes a cell and the voids' cell lists, 4 more at worst (the outside is not listed): about 450 MB at
+    /// the largest grid in the worst case, before the process's own. `ImplicitBench` i-7 measures the peak resident size of a 150 mm
+    /// cube. A part that would need more gets coarser cells (`cellSize(forSize:)`): 0.5 mm holds up to a 150 mm cube; a 300 mm cube
+    /// gets 1 mm cells and a metre cube 3 mm.
     public static let largestCellCount = 32_000_000
 
     /// The largest edge of a cell, in millimetres. The spec says 2 mm; a drain hole of the default 2 mm is then one cell across and

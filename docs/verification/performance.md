@@ -413,6 +413,20 @@ the first pass is the same pass. **i-3** is the tessellation, the BVH and 600 to
 streaming bricks to the STL, which the user decided on (D12) and 7c-3 builds, cuts the memory; the time is the mesher's, so GPU
 meshing (7c-1g) is what moves it.
 
+### 7c-3 final fixes (streamer evaluator, trapped-volume memory)
+
+`ImplicitBench`, release, Mac shared with other sessions (not idle; the figures are for the choice between engines, not for the budgets' final word):
+
+```text
+BENCH i-4 export of the 100 mm sheet at 0.1 mm (STL, whole pipeline): median 40595.40 ms (GPU values, CPU mesher; budget 60000 ms: met)
+BENCH i-4 export of the 100 mm sheet at 0.1 mm (STL, whole pipeline): median 295403.97 ms (CPU values; budget 60000 ms: missed)
+BENCH i-7 28094464 cells, 1 void, 3.96 s; peak resident 425 MB (54 MB before the grid)
+```
+
+The streamed export therefore keeps the GPU engine's values (`StreamingMesherGPUTests` holds them to the seam welding, and a seam that
+does not weld throws `seamsDidNotJoin`); the CPU mesher builds the triangles, and `meshBricks` is not used (recorded as a deviation).
+i-7 is the flood fill of a hollow 150 mm cube at the largest grid: about 370 MB over the process's baseline.
+
 ## Raw output
 
 The 2026-10-13 run (`scripts/bench.sh`, every suite; MetalCreator `d734684`, MetalUI `e85cb07a`; the machine and load lines are
