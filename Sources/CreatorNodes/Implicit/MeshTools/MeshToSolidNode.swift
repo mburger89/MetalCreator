@@ -3,7 +3,7 @@ import CreatorImplicit
 import CreatorKernel
 import Foundation
 
-/// A faceted solid from a mesh (implicit spec §3.6, §4.7): the kernel builds a planar face per triangle, sews them, merges the faces
+/// A faceted solid from a mesh (implicit spec §3.6, §4.7): the kernel builds a planar face per triangle on shared vertices and edges, merges the faces
 /// that lie in one plane and checks the result. The solid goes to Output and exports as STEP like any other. Refused above 100,000
 /// triangles, which a boundary representation cannot take in reasonable time. While an export streams, the stream is meshed into
 /// memory first, with its Decimate stages applied (so decimating is how a big part gets under the limit).

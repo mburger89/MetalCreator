@@ -133,7 +133,7 @@ occt_shape *occt_mesh_to_solid(const double *positions, int vertex_count, const 
         if (!positions || !triangles || vertex_count < 4 || triangle_count < 4) {
             throw user_error("a mesh needs at least four triangles to make a solid");
         }
-        // The vertices, made once: a triangle that names a vertex uses that vertex, so the surface is sewn by construction.
+        // The vertices, made once: a triangle that names a vertex uses that vertex, so the faces share vertices (and edges) by index and need no sewing.
         BRep_Builder builder;
         std::vector<gp_Pnt> points;
         points.reserve(static_cast<size_t>(vertex_count));

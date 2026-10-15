@@ -1,7 +1,7 @@
 import COCCT
 
 extension OCCTShape {
-    /// A faceted solid from a closed triangle mesh (implicit spec §4.7): a planar face per triangle, sewn, same-domain faces merged,
+    /// A faceted solid from a closed triangle mesh (implicit spec §4.7): a planar face per triangle built on shared vertices and edges, same-domain faces merged,
     /// and checked. `triangles` is three indices per face, counter-clockwise seen from outside.
     static func solid(fromMesh positions: [SIMD3<Float>], triangles: [UInt32]) throws(OCCTError) -> OCCTShape {
         var coordinates: [Double] = []
