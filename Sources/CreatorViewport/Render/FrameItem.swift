@@ -15,4 +15,6 @@ struct FrameItem {
     /// The field tint (`ViewportItem.fieldValues`, `fieldRamp`).
     var fieldValues: [Float]?
     var fieldRamp: FieldRamp?
+    /// The faces drawn in the warning colour (`ViewportItem.warningFaces`).
+    var warningFaces: Set<FaceID> = []
 }

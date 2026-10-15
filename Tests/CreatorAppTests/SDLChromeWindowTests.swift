@@ -179,12 +179,13 @@ struct SDLChromeWindowTests {
     // MARK: macOS
 
     /// The frames the bar had before S1, read from master (8a943eb) with the traffic lights' insets (left 69, top 32):
-    /// the name, then Preview, Undo, Redo and Export, as x, y, width, height. Nothing moves on macOS.
+    /// the name, then Preview, Undo, Redo and Export, as x, y, width, height. Nothing moves on macOS but Preview, which the Cut View toggle
+    /// (7c-3: 75 points wide and a 10-point gap, between Preview and Undo; a switch is not one of `topBarControls`) pushes 85 points left.
     @Test func macLayoutIsWhatItWas() async throws {
         let app = try await AppWindow.open()
         app.setTitleBarInsets(AppWindow.standardButtonInsets)
         #if canImport(Metal)
-        let expected: [[Float]] = [[77, 26, 52, 16], [1078, 22, 123, 24], [1211, 22, 57, 24], [1278, 22, 55, 24], [1343, 22, 75, 24]]
+        let expected: [[Float]] = [[77, 26, 52, 16], [993, 22, 123, 24], [1211, 22, 57, 24], [1278, 22, 55, 24], [1343, 22, 75, 24]]
         let found = try [app.topBarLabel()] + app.topBarControls().sorted { $0.frame.origin.x.value < $1.frame.origin.x.value }
         #expect(found.map { [$0.frame.origin.x.value, $0.frame.origin.y.value, $0.frame.size.width.value, $0.frame.size.height.value] }
                 == expected)

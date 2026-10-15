@@ -12,6 +12,8 @@ struct ViewportPalette: Hashable, Sendable {
     /// Viewport hover, and the view cube's hovered and active regions: the theme's focus colour.
     var hover: SIMD4<Float>
     var selection: SIMD4<Float>
+    /// A mesh check's highlighted triangles: the theme's warning role.
+    var warning: SIMD4<Float>
     /// Handles of solid nodes and of feature nodes: their categories' header colours.
     var solid: SIMD4<Float>
     var feature: SIMD4<Float>
@@ -45,6 +47,7 @@ struct ViewportPalette: Hashable, Sendable {
         edge = colors.edge.rgba
         hover = colors.focus.rgba
         selection = colors.selection.rgba
+        warning = colors.warning.rgba
         solid = colors.solidHeader.rgba
         feature = colors.featureHeader.rgba
         gridMinor = colors.gridMinor.rgba

@@ -42,6 +42,11 @@ extension AppModel {
             fieldPreview.moveSlice(to: value)
             return
         }
+        // The cut view's plane is view state too.
+        if id == CutViewModel.handleID {
+            cutView.move(to: value)
+            return
+        }
         guard let target = handleTargets[id] else { return }
         if value != currentNumber(target) {
             do {

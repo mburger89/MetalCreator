@@ -41,7 +41,7 @@ struct ViewportPipelines {
     }
 
     init(device: any MTLDevice) throws {
-        let library = try device.makeLibrary(source: ViewportShaders.source + FieldShaders.source, options: nil)
+        let library = try device.makeLibrary(source: ViewportShaders.source + LineShaders.source + FieldShaders.source, options: nil)
         func pipeline(_ vertex: String, _ fragment: String, color: MTLPixelFormat = Self.colorFormat,
                       samples: Int = Self.sampleCount, blended: Bool,
                       writesColor: Bool = true) throws -> any MTLRenderPipelineState {

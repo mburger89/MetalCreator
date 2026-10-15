@@ -25,12 +25,18 @@ struct SlicePose: Equatable, Sendable {
     /// direction `toEye` (the axis whose normal is most nearly along it; ties XY, YZ, XZ).
     static func startingChoice(for field: Field, toEye: Vector3) -> SliceChoice {
         if let own = field.ownPlane, own.normal.normalized?.isFinite == true { return .own }
+        return .axis(startingAxis(toEye: toEye))
+    }
+
+    /// The axis plane nearest the view direction `toEye` (the axis whose normal is most nearly along it; ties XY, YZ, XZ): where a
+    /// slice, and the cut view, start.
+    static func startingAxis(toEye: Vector3) -> SliceAxis {
         // The default camera looks along (1, 1, 1), where the three axes tie. The camera's own sines and cosines differ in the last
         // bits between platforms' maths libraries, so a tie is any difference below `tieTolerance`, not exact equality: the
         // first axis in `allCases` order (XY, YZ, XZ) within it wins everywhere.
         let alignments = SliceAxis.allCases.map { (axis: $0, alignment: abs(toEye.dot($0.plane.normal))) }
         let best = alignments.map(\.alignment).max() ?? 0
-        return .axis(alignments.first { $0.alignment >= best - tieTolerance }?.axis ?? .xy)
+        return alignments.first { $0.alignment >= best - tieTolerance }?.axis ?? .xy
     }
 
     /// How much closer to the view direction one axis may be and still tie with another (see `startingChoice`).

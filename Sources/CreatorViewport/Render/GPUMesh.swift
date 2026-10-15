@@ -14,7 +14,7 @@ final class GPUMesh {
     private var edgeBuffers: [EdgeInstanceKey: (buffer: any MTLBuffer, count: Int)] = [:]
     /// The palette `edgeBuffers` were built in; another one (the theme changed) drops them.
     private var edgePalette = ViewportPalette.dracula
-    private var flagBuffer: (hovered: FaceID?, selected: Set<FaceID>, buffer: any MTLBuffer)?
+    private var flagBuffer: (hovered: FaceID?, selected: Set<FaceID>, warning: Set<FaceID>, buffer: any MTLBuffer)?
     /// The field values last uploaded for the tint, with the ramp middle that stood in for any that were not numbers.
     private var fieldBuffer: (values: [Float], middle: Float, buffer: any MTLBuffer)?
     /// Field value buffers made so far. Tests use it to tell "kept" from "rebuilt".
@@ -58,11 +58,13 @@ final class GPUMesh {
     }
 
     /// The face flags for a mesh too big for inline bytes, rebuilt only when the hover or selection changes.
-    func faceFlags(hovered: FaceID?, selected: Set<FaceID>, device: any MTLDevice) -> (any MTLBuffer)? {
-        if let cached = flagBuffer, cached.hovered == hovered, cached.selected == selected { return cached.buffer }
-        let flags = GPUGeometry.faceFlags(count: faceCount, hovered: hovered, selected: selected)
+    func faceFlags(hovered: FaceID?, selected: Set<FaceID>, warning: Set<FaceID>, device: any MTLDevice) -> (any MTLBuffer)? {
+        if let cached = flagBuffer, cached.hovered == hovered, cached.selected == selected, cached.warning == warning {
+            return cached.buffer
+        }
+        let flags = GPUGeometry.faceFlags(count: faceCount, hovered: hovered, selected: selected, warning: warning)
         guard let buffer = GPUBuffers.make(device, flags) else { return nil }
-        flagBuffer = (hovered, selected, buffer)
+        flagBuffer = (hovered, selected, warning, buffer)
         return buffer
     }
 }

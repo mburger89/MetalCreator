@@ -20,9 +20,11 @@ public struct ViewportItem: Sendable {
     /// surface; a ghost is never tinted.
     public var fieldValues: [Float]?
     public var fieldRamp: FieldRamp?
+    /// Faces drawn in the theme's warning colour: the triangles a mesh check flagged (implicit spec §5.1).
+    public var warningFaces: Set<FaceID>
 
     public init(solid: Solid, isGhost: Bool = false, selectedFaces: Set<FaceID> = [], selectedEdges: Set<EdgeID> = [],
-                isGuide: Bool = false, fieldValues: [Float]? = nil, fieldRamp: FieldRamp? = nil) {
+                isGuide: Bool = false, fieldValues: [Float]? = nil, fieldRamp: FieldRamp? = nil, warningFaces: Set<FaceID> = []) {
         self.solid = solid
         self.isGhost = isGhost
         self.selectedFaces = selectedFaces
@@ -30,5 +32,6 @@ public struct ViewportItem: Sendable {
         self.isGuide = isGuide
         self.fieldValues = fieldValues
         self.fieldRamp = fieldRamp
+        self.warningFaces = warningFaces
     }
 }
