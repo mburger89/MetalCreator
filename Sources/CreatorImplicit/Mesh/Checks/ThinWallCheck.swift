@@ -21,7 +21,7 @@ public struct ThinWallCheck: Sendable {
     private let faceNormals: [SIMD3<Double>]
     private let bvh: TriangleBVH
 
-    private init(_ mesh: TriangleMesh) {
+    init(_ mesh: TriangleMesh) {
         points = mesh.positions.map { SIMD3<Double>($0) }
         corners = (0..<mesh.triangleCount).map {
             SIMD3(Int32(mesh.triangles[3 * $0]), Int32(mesh.triangles[3 * $0 + 1]), Int32(mesh.triangles[3 * $0 + 2]))
@@ -37,15 +37,18 @@ public struct ThinWallCheck: Sendable {
     }
 
     /// How far the wall behind `vertex` is, and the triangle that is its far side, when it is thinner than `limit`.
-    private func wall(behind vertex: Int, limit: Double) -> (distance: Double, triangle: Int)? {
+    func wall(behind vertex: Int, limit: Double) -> (distance: Double, triangle: Int)? {
         var hitTriangle = -1
+        // The nearest hit this walk has seen: a leaf can hold a nearer triangle before a farther one, and only the nearer is the wall.
+        var nearest = Double.infinity
         let direction = -normals[vertex]
         let distance = bvh.nearestHit(origin: points[vertex], direction: direction, limit: limit) { index in
             let triangle = corners[index]
             guard Int(triangle.x) != vertex, Int(triangle.y) != vertex, Int(triangle.z) != vertex,
                   faceNormals[index].dot(normals[vertex]) < Self.facingLimit,
                   let t = Self.hit(points[vertex], direction, points[Int(triangle.x)], points[Int(triangle.y)], points[Int(triangle.z)]),
-                  t > 1e-9 else { return nil }
+                  t > 1e-9, t < nearest else { return nil }
+            nearest = t
             hitTriangle = index
             return t
         }

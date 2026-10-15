@@ -63,4 +63,18 @@ struct ThinWallCheckTests {
         #expect(try ThinWallCheck.run(MeshFixtures.cube, minimum: .nan).places == 0)
         #expect(try ThinWallCheck.run(MeshFixtures.cube, minimum: 0).places == 0)
     }
+
+    /// A vertex at the origin faces up; two plates face back at it, the nearer 0.1 and the farther 0.3 below. Both are inside the minimum
+    /// and both land in the one BVH leaf, so whichever the leaf lists last must not win: the wall is the nearer plate.
+    @Test(arguments: [false, true]) func theWallIsTheNearerOfTwoPlatesInOneLeaf(nearerListedLast: Bool) throws {
+        let top: [SIMD3<Float>] = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
+        let near: [SIMD3<Float>] = [[-1, -1, -0.1], [-1, 1, -0.1], [2, 0, -0.1]]
+        let far: [SIMD3<Float>] = [[-2, -2, -0.3], [-2, 2, -0.3], [3, 0, -0.3]]
+        let plates = nearerListedLast ? [far, near] : [near, far]
+        let mesh = TriangleMesh(positions: top + plates.flatMap { $0 }, triangles: Array(0..<9))
+        let nearIndex = nearerListedLast ? 2 : 1
+        let wall = try #require(ThinWallCheck(mesh).wall(behind: 0, limit: 0.4))
+        #expect(abs(wall.distance - 0.1) < 1e-6, "distance \(wall.distance)")
+        #expect(wall.triangle == nearIndex, "joined to triangle \(wall.triangle), the nearer plate is \(nearIndex)")
+    }
 }
