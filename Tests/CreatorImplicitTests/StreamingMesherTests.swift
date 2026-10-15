@@ -33,6 +33,8 @@ struct StreamingMesherTests {
         let topology = MeshTopology(streamed)
         #expect(topology.isClosedManifold && topology.eulerCharacteristic == 2)
         #expect(report.vertices == whole.vertexCount && report.triangles == whole.triangleCount)
+        #expect(report.sharedVertices > 0, "windows that touch meet in vertices written once")
+        #expect(report.vertices + report.sharedVertices > report.vertices && report.windows > 1)
         #expect(report.largestWindow < whole.triangleCount / 2, "memory is a window, not the mesh")
     }
 
@@ -105,6 +107,17 @@ struct StreamingMesherTests {
         #expect(MeshTopology(sink.mesh).isClosedManifold && MeshTopology(sink.mesh).eulerCharacteristic == 4, "two closed shells")
     }
 
+    @Test func windowsWhoseSeamVerticesDifferInTheirBitsAreRefusedNotWrittenOpen() async {
+        // An evaluator whose answers drift from one call to the next stands for one that does not return the same bits for the same
+        // point in two batches: the seam cannot be welded, and the streamer says so rather than write a file that is not watertight.
+        let solid = ImplicitSolid.sphere(radius: 10)
+        let drifting = DriftingEvaluator(CPUBatchEvaluator(solid))
+        var sink = CollectingSink()
+        await #expect(throws: ImplicitMeshingError.seamsDidNotJoin) {
+            try await StreamingMesher(evaluator: drifting, windowBricks: 6, bricksPerBatch: 5).stream(solid, resolution: 0.5, into: &sink)
+        }
+    }
+
     @Test func aSolidWithNoSurfaceIsRefused() async {
         let solid = ImplicitSolid.sphere(radius: 0.01)
         var sink = CollectingSink()
@@ -138,5 +151,22 @@ struct StreamingMesherTests {
         let mesh = TriangleMesh(positions: object.vertices.map { SIMD3(Float($0.x), Float($0.y), Float($0.z)) },
                                 triangles: object.triangles.flatMap { $0.map { UInt32($0) } })
         #expect(MeshTopology(mesh).isClosedManifold && MeshTopology(mesh).eulerCharacteristic == 2)
+    }
+}
+
+/// Answers of the wrapped evaluator, each call shifted a little further than the last.
+private final class DriftingEvaluator: ImplicitBatchEvaluator {
+    let base: CPUBatchEvaluator
+    let calls = Mutex(0)
+    var engineName: String { "drifting" }
+
+    init(_ base: CPUBatchEvaluator) { self.base = base }
+
+    func evaluate(_ points: [SIMD3<Float>]) async throws -> [Float] {
+        let call = calls.withLock { value -> Int in
+            value += 1
+            return value
+        }
+        return try await base.evaluate(points).map { $0 + 1e-3 * Float(call) }
     }
 }

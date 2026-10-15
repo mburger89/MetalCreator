@@ -7,6 +7,10 @@ import CreatorGeometry
 /// there are the same numbers, the marching cubes rule and the snap are the same arithmetic), so they are matched by bits and
 /// written once, and the file is as watertight as a mesh made whole (`StreamingMesherTests` holds it to the same triangles).
 ///
+/// The triangles are always built on the CPU (`MeshBuilder` and the snap, over `evaluate`), also when the evaluator is a GPU engine's:
+/// this type does not use `meshBricks` (the GPU mesher's output is not window-stable by construction). A window that touches the
+/// previous one and shares no vertex with it throws `ImplicitMeshingError.seamsDidNotJoin` instead of writing an open seam.
+///
 /// Each window may be decimated first (`MeshStage.decimate`). A window's open edge is the plane it shares with its neighbour; the
 /// decimator pins every vertex on an open edge, so the plane's vertices and edges come out exactly as they went in.
 public struct StreamingMesher: Sendable {
@@ -14,6 +18,8 @@ public struct StreamingMesher: Sendable {
         public var windows = 0
         public var vertices = 0
         public var triangles = 0
+        /// How many vertices were found already written by the neighbouring window: the welded seam. Zero for one window.
+        public var sharedVertices = 0
         /// The most triangles one window held: what memory scales with.
         public var largestWindow = 0
     }
@@ -77,9 +83,14 @@ public struct StreamingMesher: Sendable {
             let sharing = carriedPlane == bottom ? carried : [:]
             let first = UInt32(firstVertex + report.vertices)
             let window = Self.window(positions: positions, triangles: triangles, matching: sharing, firstNew: first)
+            let shared = window.globalIndex.filter { $0 < window.firstNew }.count
+            // Windows that touch must meet in vertices with the same bits. If they don't, the file would not be watertight: stop
+            // rather than write the window.
+            if !sharing.isEmpty, shared == 0 { throw ImplicitMeshingError.seamsDidNotJoin }
             try sink.add(window)
             report.windows += 1
-            report.vertices += positions.count - window.globalIndex.filter { $0 < window.firstNew }.count
+            report.vertices += positions.count - shared
+            report.sharedVertices += shared
             report.triangles += window.triangleCount
             report.largestWindow = max(report.largestWindow, window.triangleCount)
             // What the next window may share: the vertices near this one's top plane.

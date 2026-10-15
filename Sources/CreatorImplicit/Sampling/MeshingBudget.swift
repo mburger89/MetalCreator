@@ -8,6 +8,8 @@ public enum ImplicitMeshingError: Error, Equatable, Sendable {
     case tooBig(bytes: Int, resolution: Double, suggestion: Double)
     /// The solid has no surface: nothing to mesh.
     case empty
+    /// Two windows of a streamed export touch but share no vertex: the file would not be watertight.
+    case seamsDidNotJoin
 
     public var userMessage: String {
         switch self {
@@ -17,6 +19,8 @@ public enum ImplicitMeshingError: Error, Equatable, Sendable {
                 + "coarsen to \(suggestion.millimetreText(locale: .messages)) mm or split the part."
         case .empty:
             return "There is no surface to mesh: the shape is empty, or smaller than a voxel."
+        case .seamsDidNotJoin:
+            return "The export's pieces did not join along their seams, so the file would not be watertight. Try a different resolution."
         }
     }
 }

@@ -72,6 +72,10 @@ enum StreamedExport {
 
     private static func write(_ stream: MeshStream, into sink: inout some MeshSink, engine: ImplicitEngineChoice,
                               progress: @escaping @Sendable (Double) -> Void) async throws {
+        // The GPU engine supplies the values (the CPU mesher still builds the triangles: `StreamingMesher` does not use `meshBricks`). The
+        // windows are welded by the exact bits of their shared vertices, so the evaluator must return one answer per point whatever the
+        // batch: `StreamingMesherGPUTests` holds the GPU's to that, and the streamer refuses (`seamsDidNotJoin`) rather than write a
+        // seam that did not weld. All-CPU values cost 295 s against 40.6 s here on `ImplicitBench` i-4 (budget 60 s).
         let selection = await ImplicitEvaluators.make(for: stream.solid, choice: engine)
         let mesher = StreamingMesher(evaluator: selection.evaluator)
         _ = try await mesher.stream(stream.solid, resolution: stream.resolution, stages: stream.stages, startingAt: sink.vertexCount,
