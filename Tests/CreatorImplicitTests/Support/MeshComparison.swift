@@ -31,8 +31,8 @@ struct MeshComparison {
     /// `slopes` holds the field's slope at each of the reference's vertices (same order), for the scaled surface check.
     init(reference: TriangleMesh, candidate: TriangleMesh, searchRadius: Float = 0.01, slopes: [Float] = []) {
         let forward = Self.directed(from: candidate, to: reference, radius: searchRadius, slopes: slopes)
-        worstScaledSurface = forward.scaled.ratio
-        worstScaledDetail = (forward.scaled.along, forward.scaled.allowed)
+        worstScaledSurface = forward.ratio
+        worstScaledDetail = (forward.along, forward.allowed)
         let backward = Self.directed(from: reference, to: candidate, radius: searchRadius, slopes: [])
         farthest = max(forward.farthest, backward.farthest)
         farthestAlongNormal = forward.alongNormal
@@ -53,39 +53,52 @@ struct MeshComparison {
         return (mine * theirs).sum()
     }
 
-    /// Each vertex of `source` against the nearest vertex of `target`.
-    private static func directed(from source: TriangleMesh, to target: TriangleMesh,
-                                 radius: Float, slopes: [Float]) -> (farthest: Float, alongNormal: Float, smallestDot: Float, unmatched: Int,
-                                                                scaled: (ratio: Float, along: Float, allowed: Float)) {
-        var grid: [SIMD3<Int32>: [Int]] = [:]
-        for (index, point) in target.positions.enumerated() { grid[cell(point, radius), default: []].append(index) }
-        var result: (farthest: Float, alongNormal: Float, smallestDot: Float, unmatched: Int,
-                     scaled: (ratio: Float, along: Float, allowed: Float)) = (0, 0, 1, 0, (0, 0, 1e-4))
-        for (at, point) in source.positions.enumerated() {
-            let home = cell(point, radius)
-            var nearest: (index: Int, distance: Float)?
-            for dx in Int32(-1)...1 {
-                for dy in Int32(-1)...1 {
-                    for dz in Int32(-1)...1 {
-                        for index in grid[home &+ SIMD3(dx, dy, dz), default: []] {
-                            let offset = point - target.positions[index]
-                            let distance = (offset * offset).sum().squareRoot()
-                            if distance < (nearest?.distance ?? .infinity) { nearest = (index, distance) }
-                        }
+    /// What one direction of the comparison found.
+    private struct Directed {
+        var farthest: Float = 0
+        var alongNormal: Float = 0
+        var smallestDot: Float = 1
+        var unmatched = 0
+        var ratio: Float = 0
+        var along: Float = 0
+        var allowed: Float = 1e-4
+    }
+
+    /// The vertex of `target` nearest to `point`, with its distance, found through the grid.
+    private static func nearest(to point: SIMD3<Float>, in grid: [SIMD3<Int32>: [Int]], of target: TriangleMesh,
+                                radius: Float) -> (index: Int, distance: Float)? {
+        let home = cell(point, radius)
+        var nearest: (index: Int, distance: Float)?
+        for dx in Int32(-1)...1 {
+            for dy in Int32(-1)...1 {
+                for dz in Int32(-1)...1 {
+                    for index in grid[home &+ SIMD3(dx, dy, dz), default: []] {
+                        let offset = point - target.positions[index]
+                        let distance = (offset * offset).sum().squareRoot()
+                        if distance < (nearest?.distance ?? .infinity) { nearest = (index, distance) }
                     }
                 }
             }
-            guard let nearest else { result.unmatched += 1; continue }
+        }
+        return nearest
+    }
+
+    /// Each vertex of `source` against the nearest vertex of `target`.
+    private static func directed(from source: TriangleMesh, to target: TriangleMesh, radius: Float, slopes: [Float]) -> Directed {
+        var grid: [SIMD3<Int32>: [Int]] = [:]
+        for (index, point) in target.positions.enumerated() { grid[cell(point, radius), default: []].append(index) }
+        var result = Directed()
+        for (at, point) in source.positions.enumerated() {
+            guard let nearest = nearest(to: point, in: grid, of: target, radius: radius) else { result.unmatched += 1; continue }
             result.farthest = max(result.farthest, nearest.distance)
-            if target.normals.indices.contains(nearest.index) {
-                let along = abs(((point - target.positions[nearest.index]) * target.normals[nearest.index]).sum())
-                result.alongNormal = max(result.alongNormal, along)
-                if slopes.indices.contains(nearest.index) {
-                    let allowed = allowance(slope: slopes[nearest.index])
-                    if along / allowed > result.scaled.ratio { result.scaled = (along / allowed, along, allowed) }
-                }
-                if let dot = normalDot(source, at, target, nearest.index) { result.smallestDot = min(result.smallestDot, dot) }
+            guard target.normals.indices.contains(nearest.index) else { continue }
+            let along = abs(((point - target.positions[nearest.index]) * target.normals[nearest.index]).sum())
+            result.alongNormal = max(result.alongNormal, along)
+            if slopes.indices.contains(nearest.index) {
+                let allowed = allowance(slope: slopes[nearest.index])
+                if along / allowed > result.ratio { (result.ratio, result.along, result.allowed) = (along / allowed, along, allowed) }
             }
+            if let dot = normalDot(source, at, target, nearest.index) { result.smallestDot = min(result.smallestDot, dot) }
         }
         return result
     }

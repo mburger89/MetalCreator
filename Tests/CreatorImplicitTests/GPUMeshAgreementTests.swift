@@ -109,7 +109,7 @@ struct GPUMeshAgreementTests {
         let pipeline = MeshComparison(reference: reference, candidate: gpu.mesh, slopes: slopes)
         #expect(pipeline.unmatched == 0, "\(name): vertices without a match")
         let detail = pipeline.worstScaledDetail
-        #expect(pipeline.worstScaledSurface <= 1, "\(name): the surfaces are \(detail.along) mm apart where \(detail.allowed) mm is allowed")
+        #expect(pipeline.worstScaledSurface <= 1, "\(name): surfaces \(detail.along) mm apart, \(detail.allowed) allowed")
         #expect(pipeline.farthest <= Self.slideTolerance, "\(name): the largest vertex difference is \(pipeline.farthest) mm")
         #expect(pipeline.smallestNormalDot >= Self.pipelineNormalDot, "\(name): a normal differs: dot \(pipeline.smallestNormalDot)")
     }
