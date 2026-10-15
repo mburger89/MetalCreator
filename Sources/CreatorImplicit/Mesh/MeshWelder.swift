@@ -1,5 +1,5 @@
 /// Merges the vertices of a mesh that sit on one another (implicit spec §4.7): the mesher's snap can leave two vertices of a sliver
-/// closer than a boundary representation can tell apart. Vertices that round to the same cell of `tolerance` become one, triangles that
+/// closer than a boundary representation can tell apart. A vertex within `tolerance` (a distance) of an earlier one becomes that one, found among the 27 cells round it so a pair that straddles a cell boundary is merged too, triangles that
 /// collapse are dropped (which leaves a closed mesh closed: it is an edge collapse), and vertices nothing uses go.
 public enum MeshWelder {
     public struct Output: Sendable {
@@ -8,21 +8,22 @@ public enum MeshWelder {
     }
 
     public static func weld(positions: [SIMD3<Float>], triangles: [UInt32], tolerance: Double = 1e-6) -> Output {
-        var cells: [SIMD3<Int>: UInt32] = [:]
+        // Each cell of `tolerance` lists the vertices that stayed (were not merged into an earlier one) in it.
+        var cells: [SIMD3<Int>: [UInt32]] = [:]
         var merged: [UInt32] = []
         merged.reserveCapacity(positions.count)
-        for position in positions {
+        for (index, position) in positions.enumerated() {
             // A position that is not a number, or too far out for a cell index, is never merged: it keeps its own vertex and
             // reaches the kernel, which refuses it in words (a `Double` to `Int` conversion would trap here).
             guard let cell = cell(of: position, tolerance: tolerance) else {
-                merged.append(UInt32(merged.count))
+                merged.append(UInt32(index))
                 continue
             }
-            if let existing = cells[cell] {
+            if let existing = nearby(position, cell: cell, in: cells, positions: positions, tolerance: tolerance) {
                 merged.append(existing)
             } else {
-                cells[cell] = UInt32(merged.count)
-                merged.append(UInt32(merged.count))
+                cells[cell, default: []].append(UInt32(index))
+                merged.append(UInt32(index))
             }
         }
         var renumber = [UInt32?](repeating: nil, count: positions.count)
@@ -43,6 +44,24 @@ public enum MeshWelder {
             }
         }
         return Output(positions: kept, triangles: result)
+    }
+
+    /// The earliest kept vertex within `tolerance` of `position`, looking in the cell and the 26 round it.
+    private static func nearby(_ position: SIMD3<Float>, cell: SIMD3<Int>, in cells: [SIMD3<Int>: [UInt32]],
+                               positions: [SIMD3<Float>], tolerance: Double) -> UInt32? {
+        let here = SIMD3<Double>(position)
+        var best: UInt32?
+        for dx in -1...1 {
+            for dy in -1...1 {
+                for dz in -1...1 {
+                    for candidate in cells[cell &+ SIMD3(dx, dy, dz)] ?? [] {
+                        let offset = SIMD3<Double>(positions[Int(candidate)]) - here
+                        if (offset * offset).sum().squareRoot() <= tolerance, candidate < best ?? .max { best = candidate }
+                    }
+                }
+            }
+        }
+        return best
     }
 
     /// The cell of `tolerance` that holds `position`, or nil when a coordinate is not finite or its cell index would not fit an `Int`.
