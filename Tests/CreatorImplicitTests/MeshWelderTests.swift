@@ -38,4 +38,13 @@ struct MeshWelderTests {
         let welded = MeshWelder.weld(positions: positions, triangles: [0, 1, 2, 0, 3, 1, 0, 1, 99])
         #expect(welded.triangles == [0, 1, 2] && welded.positions.count == 3)
     }
+
+    @Test func aVertexThatIsNotAFinitePositionIsKeptUnmergedInsteadOfTrapping() {
+        let positions: [SIMD3<Float>] = [SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0, 1, 0), SIMD3(.nan, 0, 0), SIMD3(.nan, 0, 0),
+                                         SIMD3(.infinity, 0, 0), SIMD3(1e30, 0, 0),
+        ]
+        let welded = MeshWelder.weld(positions: positions, triangles: [0, 1, 2, 0, 1, 3, 0, 1, 4, 0, 1, 5, 0, 1, 6])
+        #expect(welded.triangles.count == 15 && welded.positions.count == 7, "two NaN vertices are two vertices, none merged")
+        #expect(welded.positions.filter { !$0.x.isFinite }.count == 3)
+    }
 }

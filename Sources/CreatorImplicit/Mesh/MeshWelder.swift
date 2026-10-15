@@ -12,8 +12,12 @@ public enum MeshWelder {
         var merged: [UInt32] = []
         merged.reserveCapacity(positions.count)
         for position in positions {
-            let cell = SIMD3(Int((Double(position.x) / tolerance).rounded()), Int((Double(position.y) / tolerance).rounded()),
-                             Int((Double(position.z) / tolerance).rounded()))
+            // A position that is not a number, or too far out for a cell index, is never merged: it keeps its own vertex and
+            // reaches the kernel, which refuses it in words (a `Double` to `Int` conversion would trap here).
+            guard let cell = cell(of: position, tolerance: tolerance) else {
+                merged.append(UInt32(merged.count))
+                continue
+            }
             if let existing = cells[cell] {
                 merged.append(existing)
             } else {
@@ -39,5 +43,16 @@ public enum MeshWelder {
             }
         }
         return Output(positions: kept, triangles: result)
+    }
+
+    /// The cell of `tolerance` that holds `position`, or nil when a coordinate is not finite or its cell index would not fit an `Int`.
+    private static func cell(of position: SIMD3<Float>, tolerance: Double) -> SIMD3<Int>? {
+        var cell = SIMD3<Int>()
+        for axis in 0..<3 {
+            let scaled = (Double(position[axis]) / tolerance).rounded()
+            guard scaled.isFinite, abs(scaled) < 1e18 else { return nil }
+            cell[axis] = Int(scaled)
+        }
+        return cell
     }
 }

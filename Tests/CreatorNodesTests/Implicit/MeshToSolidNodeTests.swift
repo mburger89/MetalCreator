@@ -38,6 +38,21 @@ struct MeshToSolidNodeTests {
     }
 
     #if canImport(CreatorOCCT)
+    @Test func aMeshWithAVertexThatIsNotANumberIsRefusedInWordsInsteadOfCrashing() async throws {
+        var h = Harness()
+        let node = h.add(MeshToSolidNode.self)
+        let positions: [SIMD3<Float>] = [SIMD3(.nan, 0, 0), SIMD3(1, 0, 0), SIMD3(0, 1, 0), SIMD3(0, 0, 1)]
+        let mesh = TriangleMesh(positions: positions, triangles: [0, 2, 1, 0, 1, 3, 0, 3, 2, 1, 2, 3])
+        let context = EvalContext(node: node, item: 0, parameters: [:])
+        let inputs = NodeInputs(item: 0, slots: ["mesh": .item(.mesh(mesh))])
+        do {
+            _ = try await MeshToSolidNode.evaluate(inputs, kernel: OCCTKernel(), context: context)
+            Issue.record("expected a refusal")
+        } catch {
+            #expect("\(error)".contains("not a finite position"), "\(error)")
+        }
+    }
+
     @Test func aMeshedBallBecomesAFacetedSolidOfTheSameVolumeThatExportsAsStep() async throws {
         var h = Harness()
         let (meshNode, solidNode) = solidOfASphere(&h)
