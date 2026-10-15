@@ -25,7 +25,9 @@ struct ThinWallCheckTests {
     }
 
     @Test func aSharpCornerIsNotAWall() throws {
-        // The faces of a cube meet at 90 degrees; the face beside a vertex near an edge is not the far side of a wall.
+        // The faces of a cube meet at 90 degrees; the face beside a vertex near an edge is not the far side of a wall. (This passes
+        // with or without `facingLimit`, the mesh being too clean to put an adjacent face in a ray's path; the filter is pinned by
+        // `onlyAPlateFacingBackAtTheVertexIsTheFarSideOfAWall`.)
         let small = MeshFixtures.subdividedCube(divisions: 20)
         let scaled = TriangleMesh(positions: small.positions.map { $0 * 2 }, triangles: small.triangles)
         #expect(try ThinWallCheck.run(scaled, minimum: 0.4).places == 0)
@@ -76,5 +78,24 @@ struct ThinWallCheckTests {
         let wall = try #require(ThinWallCheck(mesh).wall(behind: 0, limit: 0.4))
         #expect(abs(wall.distance - 0.1) < 1e-6, "distance \(wall.distance)")
         #expect(wall.triangle == nearIndex, "joined to triangle \(wall.triangle), the nearer plate is \(nearIndex)")
+    }
+
+    /// A vertex at the origin faces up; a plate 0.1 below lies in its ray. Only a plate that faces back at the vertex (a normal within
+    /// 60 degrees of straight down) is the far side of a wall: one that faces the same way, or sits at 90 degrees, is not. This is what
+    /// `facingLimit` is for; with the limit off, the first two arguments find a wall.
+    @Test(arguments: zip([[0.0, 0, 1], [0.954, 0, -0.3], [0.8, 0, -0.6], [0, 0, -1]], [false, false, true, true]))
+    func onlyAPlateFacingBackAtTheVertexIsTheFarSideOfAWall(_ direction: [Double], _ isWall: Bool) throws {
+        let raw = SIMD3<Double>(direction[0], direction[1], direction[2])
+        let normal = raw / raw.length
+        let tangent = SIMD3<Double>(0, 1, 0)
+        let across = normal.cross(tangent)
+        let centre = SIMD3<Double>(0, 0, -0.1)
+        let corners = [centre - tangent * 4 - across * 4, centre + tangent * 4 - across * 4, centre + across * 4]
+        // Counter-clockwise seen from along the normal, so the face's normal is the one under test.
+        let wound = (corners[1] - corners[0]).cross(corners[2] - corners[0]).dot(normal) > 0 ? corners : corners.reversed()
+        let top: [SIMD3<Float>] = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
+        let mesh = TriangleMesh(positions: top + wound.map { SIMD3<Float>($0) }, triangles: Array(0..<6))
+        let wall = ThinWallCheck(mesh).wall(behind: 0, limit: 0.4)
+        #expect((wall != nil) == isWall, "plate normal \(normal): \(String(describing: wall))")
     }
 }
