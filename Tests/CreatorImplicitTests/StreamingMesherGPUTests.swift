@@ -24,5 +24,22 @@ struct StreamingMesherGPUTests {
         let topology = MeshTopology(windows.mesh)
         #expect(topology.isClosedManifold && topology.eulerCharacteristic == 2, "\(topology)")
     }
+
+    @Test func aGyroidLatticeStreamedInSeveralWindowsOnTheGPUIsTheMeshOfOneWindow() async throws {
+        // A lattice has thousands of surface patches crossing every seam, and each has to meet its neighbour.
+        let solid = LatticeFixtures.tpmsAll[0].solid
+        let selection = await ImplicitEvaluators.make(for: solid, choice: .automatic)
+        try #require(selection.evaluator.engineName != "CPU", "the GPU evaluator was chosen")
+        var windows = CollectingSink()
+        let many = try await StreamingMesher(evaluator: selection.evaluator, windowBricks: 40, bricksPerBatch: 50)
+            .stream(solid, resolution: 0.5, into: &windows)
+        var single = CollectingSink()
+        let one = try await StreamingMesher(evaluator: selection.evaluator, windowBricks: 1_000_000)
+            .stream(solid, resolution: 0.5, into: &single)
+        #expect(many.windows >= 3 && one.windows == 1, "\(many.windows) windows against \(one.windows)")
+        #expect(many.sharedVertices > 0, "the seams were welded")
+        #expect(windows.mesh.vertexCount == single.mesh.vertexCount && windows.mesh.triangleCount == single.mesh.triangleCount)
+        #expect(MeshTopology(windows.mesh).isClosedManifold, "\(MeshTopology(windows.mesh))")
+    }
 }
 #endif

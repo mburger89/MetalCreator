@@ -118,6 +118,44 @@ struct StreamingMesherTests {
         }
     }
 
+    @Test func windowsWhoseSeamVerticesPartlyDifferInTheirBitsAreRefused() async {
+        // Half the points (those with y above 2) drift, the rest answer the same every time: some of the seam's vertices still weld, so
+        // the old "nothing welded at all" test passed, and the file would have been open where the others drifted.
+        let solid = ImplicitSolid.sphere(radius: 10)
+        let drifting = DriftingEvaluator(CPUBatchEvaluator(solid), whereY: 2)
+        var sink = CollectingSink()
+        await #expect(throws: ImplicitMeshingError.seamsDidNotJoin) {
+            try await StreamingMesher(evaluator: drifting, windowBricks: 6, bricksPerBatch: 5).stream(solid, resolution: 0.5, into: &sink)
+        }
+    }
+
+    /// A slab of the given extent in x, 6 mm square in the other two directions.
+    private func slab(from low: Double, to high: Double) -> ImplicitSolid {
+        .moved(.box(halfSize: Vector3((high - low) / 2, 3, 3), cornerRadius: 0),
+               RigidMove(origin: Vector3((low + high) / 2, 0, 0), xAxis: .unitX, yAxis: .unitY, zAxis: .unitZ))
+    }
+
+    @Test func twoBodiesOneEndingJustBelowTheSeamAndOneStartingJustAboveItAreNotARefusal() async throws {
+        // The lattice is 1 mm, so the origin is 1 mm below the bounds' minimum, and the plane between the second and third column of
+        // bricks (8 mm each) is at x = -12 - 1 + 16 = 3. One body ends 0.3 mm below it, the other starts 0.3 mm above: the windows
+        // touch, share no vertex and need to share none.
+        let solid = ImplicitSolid.union([slab(from: -12, to: 2.7), slab(from: 3.3, to: 12)], blend: .constant(0))
+        let plan = try await BrickPlan.build(for: solid, resolution: 1, using: CPUBatchEvaluator(solid))
+        try #require(plan.point(16, 0, 0).x == 3 && plan.bricks.contains { $0.x == 1 } && plan.bricks.contains { $0.x == 2 })
+        var sink = CollectingSink()
+        let report = try await streamer(solid, windowBricks: 1).stream(solid, resolution: 1, into: &sink)
+        #expect(report.windows >= 3, "\(report)")
+        #expect(MeshTopology(sink.mesh).isClosedManifold && MeshTopology(sink.mesh).eulerCharacteristic == 4, "two closed bodies")
+    }
+
+    @Test func aSurfaceThatCrossesTheSeamStillHasToWeld() async throws {
+        // The same slabs, joined across the plane: the seam is now full of vertices, and they weld.
+        let solid = slab(from: -12, to: 12)
+        var sink = CollectingSink()
+        let report = try await streamer(solid, windowBricks: 1).stream(solid, resolution: 1, into: &sink)
+        #expect(report.sharedVertices > 0 && MeshTopology(sink.mesh).isClosedManifold, "\(report)")
+    }
+
     @Test func aSolidWithNoSurfaceIsRefused() async {
         let solid = ImplicitSolid.sphere(radius: 0.01)
         var sink = CollectingSink()
@@ -160,13 +198,23 @@ private final class DriftingEvaluator: ImplicitBatchEvaluator {
     let calls = Mutex(0)
     var engineName: String { "drifting" }
 
-    init(_ base: CPUBatchEvaluator) { self.base = base }
+    /// When `whereY` is set, only the points above it drift.
+    let whereY: Float?
+
+    init(_ base: CPUBatchEvaluator, whereY: Float? = nil) {
+        self.base = base
+        self.whereY = whereY
+    }
 
     func evaluate(_ points: [SIMD3<Float>]) async throws -> [Float] {
         let call = calls.withLock { value -> Int in
             value += 1
             return value
         }
-        return try await base.evaluate(points).map { $0 + 1e-3 * Float(call) }
+        let values = try await base.evaluate(points)
+        return zip(points, values).map { point, value in
+            if let whereY, point.y <= whereY { return value }
+            return value + 1e-3 * Float(call)
+        }
     }
 }

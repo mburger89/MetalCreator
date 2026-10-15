@@ -14,6 +14,15 @@ import CreatorGeometry
 /// Each window may be decimated first (`MeshStage.decimate`). A window's open edge is the plane it shares with its neighbour; the
 /// decimator pins every vertex on an open edge, so the plane's vertices and edges come out exactly as they went in.
 public struct StreamingMesher: Sendable {
+    /// A window as meshed: its snapped vertices and triangles, and the vertices (by their snapped bits) that were made exactly on the
+    /// lattice plane at its bottom and at its top, before the snap moved them.
+    private struct Meshed {
+        var positions: [SIMD3<Float>]
+        var triangles: [UInt32]
+        var onBottomPlane: Set<VertexKey>
+        var onTopPlane: Set<VertexKey>
+    }
+
     public struct Report: Sendable {
         public var windows = 0
         public var vertices = 0
@@ -63,11 +72,13 @@ public struct StreamingMesher: Sendable {
         var report = Report()
         var carried: [VertexKey: UInt32] = [:]
         var carriedPlane: Int32?
+        var carriedOnPlane: Set<VertexKey> = []
         var done = 0
         for range in windows(of: plan.bricks) {
             try Task.checkCancellation()
             let bricks = plan.bricks[range]
-            var (positions, triangles) = try await mesh(bricks, of: plan)
+            let meshed = try await mesh(bricks, of: plan)
+            var (positions, triangles) = (meshed.positions, meshed.triangles)
             for stage in stages {
                 switch stage {
                 case .decimate(let tolerance):
@@ -80,13 +91,20 @@ public struct StreamingMesher: Sendable {
                 done += bricks.count
                 continue
             }
-            let sharing = carriedPlane == bottom ? carried : [:]
+            let touching = carriedPlane == bottom
+            let sharing = touching ? carried : [:]
             let first = UInt32(firstVertex + report.vertices)
             let window = Self.window(positions: positions, triangles: triangles, matching: sharing, firstNew: first)
             let shared = window.globalIndex.filter { $0 < window.firstNew }.count
             // Windows that touch must meet in vertices with the same bits. If they don't, the file would not be watertight: stop
-            // rather than write the window.
-            if !sharing.isEmpty, shared == 0 { throw ImplicitMeshingError.seamsDidNotJoin }
+            // rather than write the window. Only the previous window's vertices that lie exactly on the shared plane count, and only
+            // when this window has triangles there: a separate body, or a surface that stops short of the plane, shares nothing and
+            // needs nothing. A vertex the decimator removed from the previous window is not asked for.
+            if touching {
+                let now = Set(positions.lazy.map(VertexKey.init))
+                let here = meshed.onBottomPlane.intersection(now)
+                if !here.isEmpty, !carriedOnPlane.isSubset(of: now) { throw ImplicitMeshingError.seamsDidNotJoin }
+            }
             try sink.add(window)
             report.windows += 1
             report.vertices += positions.count - shared
@@ -101,6 +119,8 @@ public struct StreamingMesher: Sendable {
                 carried[VertexKey(position)] = window.globalIndex[index]
             }
             carriedPlane = top
+            let kept = Set(window.positions.lazy.map(VertexKey.init))
+            carriedOnPlane = meshed.onTopPlane.intersection(kept)
             done += bricks.count
             progress(Double(done) / Double(plan.bricks.count))
         }
@@ -126,7 +146,7 @@ public struct StreamingMesher: Sendable {
     }
 
     /// The marching cubes mesh of `bricks`, its vertices snapped to the surface.
-    private func mesh(_ bricks: ArraySlice<SIMD3<Int32>>, of plan: BrickPlan) async throws -> ([SIMD3<Float>], [UInt32]) {
+    private func mesh(_ bricks: ArraySlice<SIMD3<Int32>>, of plan: BrickPlan) async throws -> Meshed {
         var builder = MeshBuilder(plan: plan)
         for start in stride(from: bricks.startIndex, to: bricks.endIndex, by: bricksPerBatch) {
             try Task.checkCancellation()
@@ -136,7 +156,17 @@ public struct StreamingMesher: Sendable {
         var positions = builder.positions
         var normals = [SIMD3<Float>](repeating: .zero, count: positions.count)
         try await ImplicitMesher.snap(&positions, &normals, resolution: plan.resolution, evaluator: evaluator) { _ in }
-        return (positions, builder.triangles)
+        // A vertex on an edge that runs along y or z in a lattice plane is made with that plane's exact x; the snap then moves it.
+        let size = BrickPlan.brickSize
+        let bottomX = Float(plan.point(Int(bricks.first?.x ?? 0) * size, 0, 0).x)
+        let topX = Float(plan.point((Int(bricks.last?.x ?? 0) + 1) * size, 0, 0).x)
+        var onBottom: Set<VertexKey> = []
+        var onTop: Set<VertexKey> = []
+        for (made, snapped) in zip(builder.positions, positions) {
+            if made.x == bottomX { onBottom.insert(VertexKey(snapped)) }
+            if made.x == topX { onTop.insert(VertexKey(snapped)) }
+        }
+        return Meshed(positions: positions, triangles: builder.triangles, onBottomPlane: onBottom, onTopPlane: onTop)
     }
 
     /// The window with its vertices numbered: one that the neighbour already wrote takes the neighbour's number, the others count on
