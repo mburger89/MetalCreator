@@ -73,12 +73,17 @@ evaluators, the sparse octree, the manifold mesher, baked distances, the eleven 
 preview in the viewport, STL of meshes with the export sheet, file format 8 and `ImplicitBench` rows i-1 to i-4; plan
 `docs/superpowers/plans/2026-10-13-7c-core.md`, spec `docs/superpowers/specs/2026-10-13-implicit-lattices-design.md` §2 to §6 and the
 7c-1 errata in the plan's header) code is done; its human checks (group IM) are pending and its benchmark numbers are recorded in
-`docs/verification/performance.md`. The mesh tools, checks and 3MF (7c-3) and the mappings (7c-4) are not built, nor
-is the streamed export (D12, with 7c-3); until it is, row i-4 is expected to miss.
+`docs/verification/performance.md`. The mappings (7c-4) are not built.
 Implicit geometry, sub-project 7c-1g (meshing on the GPU, spec Errata D13: `ImplicitGPUEngine.meshBricks`, the Metal marching-cubes
 kernels with a CPU-against-GPU mesh agreement suite, and rows i-1 and i-2 measured on that path; plan
 `docs/superpowers/plans/2026-10-14-7c-1g-gpu-meshing.md`) code is done; its human check (IM-13) is pending and its benchmark numbers are
 recorded in `docs/verification/performance.md`. The SDL3 engine for Linux and Windows is track xp-c.
+Implicit geometry, sub-project 7c-3 (the mesh tools: Decimate, Check Thin Walls, Check Trapped Volumes, Drain Holes and Mesh to Solid;
+3MF with our own `ZipWriter`; the streamed export of spec Errata D12; the Cut view; `ImplicitBench` rows i-4b to i-7; the lightweight
+bracket acceptance test; plan `docs/superpowers/plans/2026-10-14-7c-3-mesh-tools.md`, spec `2026-10-13-implicit-lattices-design.md` §3.6,
+§4.5 to §4.7, §5 and §7 with Errata D12 and D16) code is done; its human checks (group MT) are pending and its benchmark numbers are
+recorded in `docs/verification/performance.md`. Mesh to Solid and the Cut view are macOS-only (OpenCascade, Metal); everything else runs on
+Linux and Windows.
 Implicit lattices, sub-project 7c-2 (the TPMS, Strut Lattice and Voronoi Lattice nodes with the Straight mapping only, a region and a
 skin, field grading of cell size, thickness and strut radius, a separate cell stretch vector, their warnings, and `ImplicitBench`'s sheet
 swapped to a gyroid; plan `docs/superpowers/plans/2026-10-14-7c-2-lattices.md`, spec
@@ -245,11 +250,29 @@ Module boundaries (dependency order):
   that takes a mesh socket meshes it (`MeshInput` in CreatorNodes). `EvalContext` carries `meshQuality` (`.preview` / `.export`;
   `NodeDefinition.readsMeshQuality` puts it in a node's cache key), `implicitEngine` and `meshProgress`. Tests:
   `swift test --filter CreatorImplicitTests`.
-- `CreatorNodes`: the 80 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
-the fourteen `Fields` nodes below, the thirteen `Implicit` nodes and the Mesh node (`Implicit/`, categories `NodeCategory.implicit` and
-`.mesh`: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit, Isosurface, TPMS, Strut Lattice, Voronoi Lattice
+  The mesh tools (7c-3, `Mesh/`): `MeshDecimator` is quadric error edge collapse (`Quadric`, `EdgeHeap`, `MeshDecimationState`): a
+  collapse is refused when it breaks the link condition, flips a face or costs more than the tolerance (the cost is the quadric error
+  at the new vertex, so its square root bounds the distance to every triangle plane absorbed), vertices on an open edge are pinned, and
+  a closed mesh stops at a tetrahedron. `ThinWallCheck` (a ray inwards from each vertex against `TriangleBVH`, the far side must
+  face back; the two sides of a wall are one place), `TrappedVolumeCheck` over `OccupancyGrid` (0.5 mm cells within a 32-million-cell
+  budget, Errata D16; solid within half a cell of the surface) and `EnclosedVoids` (flood fill from the padded corner), and `DrainHoles`
+  (the same test on the implicit; a hole is `subtract` of a moved `cylinder`, so no new `ImplicitSolid` case). `MeshWelder` merges
+  vertices before `Kernel.meshToSolid` (the OCCT shim `occt_mesh_to_solid`: a planar face per triangle sharing vertices by index,
+  `ShapeUpgrade_UnifySameDomain`, voids as inner shells, `BRepCheck_Analyzer`; no `BRepBuilderAPI_Sewing`). Export (spec Errata D12):
+  `StreamingMesher` takes the plan's bricks in runs of whole columns (windows), meshes and snaps each on the CPU over the evaluator's
+  values (GPU values when the engine is a GPU's), may decimate it (`MeshStage`), and hands it to a `MeshSink` as a `MeshWindow` whose
+  vertices carry their number in the file; a vertex on the plane two windows share is matched by its bits and written once, and when the
+  new window has triangles on that plane every vertex the previous window made exactly on it must be matched, or the export stops with
+  `seamsDidNotJoin` (a separate body that stops short of the plane needs nothing). `STLFileWriter` and `ThreeMFWriter` are the sinks (the
+  3MF writes each object's vertices and triangles to two temporaries and joins them in the zip); `ZipWriter` streams with data
+  descriptors, dates fixed, Zip64 where a size, offset or count reaches 4 GB, and deflates through `RawDeflater` where
+  `canImport(Compression)`, else stores. `MeshStream` is what a Mesh node returns while `EvalContext.meshQuality` is
+  `.streamedExport`: the implicit, the resolution and the stages.
+- `CreatorNodes`: the 85 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
+the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Mesh nodes (`Implicit/`, categories `NodeCategory.implicit` and
+`.mesh`: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit, Isosurface, Drain Holes, TPMS, Strut Lattice, Voronoi Lattice
 (`Implicit/Lattices/`: they share `LatticeSetup` and `LatticeFill`; the built-in Voronoi seeds are `VoronoiSeedSource`, drawn with
-`SeededRandom.Purpose.voronoi`), Mesh), the seventeen
+`SeededRandom.Purpose.voronoi`); Mesh, Decimate, Check Thin Walls, Check Trapped Volumes, Mesh to Solid in `Implicit/MeshTools`), the seventeen
   `Patterns` nodes below, and the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
   Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
   parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, cullPattern, cullIndices, image, and `projection(reference)` per projected edge) live in
@@ -434,7 +457,11 @@ the fourteen `Fields` nodes below, the thirteen `Implicit` nodes and the Mesh no
     ghost, and wrong-sized values draw the plain surface. A `ViewportSlice` (`ViewportModel.showSlice`) is a translucent quad over the
     scene showing a grid of values (`r32Float`, read with a bilinear blend in `slice_fragment`, kept by `SliceTextures` until its
     `generation` changes); it is equal and hashed by `generation`, never by its values, is drawn ignoring depth (it passes through the
-    part) and is never in the ID pass or `sceneBounds`. The viewport's shader source is `ViewportShaders.source + FieldShaders.source`.
+    part) and is never in the ID pass or `sceneBounds`. The viewport's shader source is `ViewportShaders.source + LineShaders.source + FieldShaders.source`.
+    The cut view (implicit spec §5.1) is a `ViewportClip` (`ViewportModel.showClip`): the fragment shaders discard what lies on the
+    side its normal points to, for faces, B-rep edges, field tints and the ID pass (`ClipUniforms` at fragment buffer 3, 4 for the
+    tint, 0 for lines, off for handles), and a back face seen while cutting is the part's colour darkened. A `ViewportItem`'s
+    `warningFaces` take the theme's warning colour (`ShadeUniforms.warning`, face-flag bit 4): a check's highlighted triangles.
   - It depends on Kernel, Geometry, CreatorStyle and MetalUI only, never CreatorGraph. The app shell turns graph outputs into
     `ViewportItem`s and `HandleSpec`s into `ViewportHandle`s.
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
@@ -540,7 +567,11 @@ the fourteen `Fields` nodes below, the thirteen `Implicit` nodes and the Mesh no
   together on New and Open), turns results into `ViewportItem`s (`SceneBuilder`; in Final preview a selected rule's edges on a solid no shown
   part holds come as guide items, Errata (Viewport: a rule's edges over the Final part)) and `HandleSpec`s into
   `ViewportHandle`s (`HandleBuilder`), turns viewport events into graph commands (picking writes Edges by Tag rules),
-  and opens, saves and exports. A selected layout node is evaluated even before anything is wired to it and shows its
+  and opens, saves and exports (`ExportKind`: STEP and STL of solids are the kernel's; any mesh, and every 3MF, is streamed by
+  `StreamedExport`: the graph is evaluated with `MeshQuality.streamedExport`, each Output node is one 3MF object, each `MeshStream` is
+  meshed window by window into the file, and the export sheet's Cancel removes the half-written file). The cut view is `CutViewModel`
+  (`AppModel.cutView`; the top bar's toggle and View ▸ Show Cut View, only where `CutViewModel.isAvailable`, which is the Metal
+  viewport): 7b's `SlicePose` and handle, view state. A selected layout node is evaluated even before anything is wired to it and shows its
   placements
   as an overlay of axis triads (`LayoutPreview`, `OverlayTint.axisX/Y/Z`; Face Pattern also dashes the area it fills),
   which never

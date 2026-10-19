@@ -53,6 +53,21 @@ struct SignedDistanceMeshTests {
         #expect(MeshDistanceError.notClosed.userMessage == "This solid isn't closed, so inside and outside are undefined.")
     }
 
+    @Test func aCollinearSliverClosesTheSurfaceItSitsInAndAddsNoDistance() throws {
+        // The bottom face's edge 0-1 gets a midpoint 8 on its far side, and the sliver (0, 1, 8), three distinct points on a line, holds
+        // the two halves to the unsplit face: the surface is closed, and the sliver has no area to measure from.
+        var positions = Self.vectors(MeshFixtures.cube)
+        positions.append(Vector3(0.5, 0, 0))
+        var triangles = MeshFixtures.cube.triangles
+        let neighbour = try #require(stride(from: 0, to: triangles.count, by: 3).first { Array(triangles[$0..<$0 + 3]) == [0, 1, 5] })
+        triangles.replaceSubrange(neighbour..<neighbour + 3, with: [0, 8, 5, 8, 1, 5])
+        triangles += [0, 1, 8]
+        let mesh = try SignedDistanceMesh(positions: positions, indices: triangles)
+        #expect(mesh.triangleCount == 13, "the sliver is not kept")
+        #expect(near(mesh.signedDistance(at: Vector3(0.5, 0.5, 0.5)), -0.5))
+        #expect(near(mesh.signedDistance(at: Vector3(2, 0.5, 0.5)), 1))
+    }
+
     @Test func aFlippedFaceIsRefused() {
         var triangles = MeshFixtures.cube.triangles
         triangles.swapAt(1, 2)

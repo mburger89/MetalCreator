@@ -100,10 +100,9 @@ public struct StreamingMesher: Sendable {
             // rather than write the window. Only the previous window's vertices that lie exactly on the shared plane count, and only
             // when this window has triangles there: a separate body, or a surface that stops short of the plane, shares nothing and
             // needs nothing. A vertex the decimator removed from the previous window is not asked for.
-            if touching {
-                let now = Set(positions.lazy.map(VertexKey.init))
-                let here = meshed.onBottomPlane.intersection(now)
-                if !here.isEmpty, !carriedOnPlane.isSubset(of: now) { throw ImplicitMeshingError.seamsDidNotJoin }
+            let now = Set(positions.lazy.map(VertexKey.init))
+            if touching, !meshed.onBottomPlane.isDisjoint(with: now), !carriedOnPlane.isSubset(of: now) {
+                throw ImplicitMeshingError.seamsDidNotJoin
             }
             try sink.add(window)
             report.windows += 1
@@ -114,18 +113,23 @@ public struct StreamingMesher: Sendable {
             // What the next window may share: the vertices near this one's top plane.
             let top = Int32(bricks.last?.x ?? 0) + 1
             let topX = Float(plan.point(Int(top) * BrickPlan.brickSize, 0, 0).x - 1.5 * resolution)
-            carried = [:]
-            for (index, position) in window.positions.enumerated() where position.x >= topX {
-                carried[VertexKey(position)] = window.globalIndex[index]
-            }
+            carried = Self.carried(from: window, atOrAbove: topX)
             carriedPlane = top
-            let kept = Set(window.positions.lazy.map(VertexKey.init))
-            carriedOnPlane = meshed.onTopPlane.intersection(kept)
+            carriedOnPlane = meshed.onTopPlane.intersection(now)
             done += bricks.count
             progress(Double(done) / Double(plan.bricks.count))
         }
         guard report.triangles > 0 else { throw ImplicitMeshingError.empty }
         return report
+    }
+
+    /// The vertices of `window` at or above `x`: what the next window may share.
+    private static func carried(from window: MeshWindow, atOrAbove x: Float) -> [VertexKey: UInt32] {
+        var result: [VertexKey: UInt32] = [:]
+        for (index, position) in window.positions.enumerated() where position.x >= x {
+            result[VertexKey(position)] = window.globalIndex[index]
+        }
+        return result
     }
 
     /// The runs of whole brick columns (all bricks of one x) that make up the windows, as ranges of the plan's bricks.
