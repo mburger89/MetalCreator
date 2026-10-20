@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorKernel
 import Foundation
 import Observation
@@ -16,14 +17,41 @@ public final class DocumentModel {
     /// The last successful outputs of each node. The viewport ghosts these when a node errors (spec §4.4).
     public private(set) var lastGoodOutputs: [NodeID: [SocketName: Value]] = [:]
     public private(set) var isEvaluating = false
-    /// Editor state saved with the file. A non-finite zoom, offset or camera is refused (the previous
-    /// value is kept), so the document can always be saved (JSON has no NaN).
+    /// Editor state saved with the file, held as separate observable properties (not one `ViewState` value) so a pan, which
+    /// writes only the canvas offset and zoom, does not invalidate a view that reads only the dock or `showsLibrary`, nor a
+    /// camera write one that reads the canvas transform (MetalUI C14-d: `GraphPanelBody` skips during a pan). `viewState`
+    /// assembles them for the file; the file's encoding is `ViewState`'s and is unchanged. A non-finite zoom, offset or
+    /// camera is refused (the previous value is kept), so the document can always be saved (JSON has no NaN).
+    public var dock: DockSide
+    public var canvasOffset: Vector2 {
+        didSet { if !canvasOffset.isFinite { canvasOffset = oldValue } }
+    }
+    public var canvasZoom: Double {
+        didSet { if !canvasZoom.isFinite { canvasZoom = oldValue } }
+    }
+    /// The viewport camera when the document was saved; `nil` until the first save that has one.
+    public var camera: CameraPose? {
+        didSet { if let camera, !camera.isFinite { self.camera = oldValue } }
+    }
+    public var homeCamera: CameraPose? {
+        didSet { if let homeCamera, !homeCamera.isFinite { self.homeCamera = oldValue } }
+    }
+    public var showsLibrary: Bool
+
+    /// All of the editor state as the file's `ViewState`. Reading it reads every piece; to observe one, read the piece.
+    /// Writing it sets only the pieces that differ, so a write that changes one field invalidates only that field's readers.
     public var viewState: ViewState {
-        didSet {
-            if !viewState.canvasZoom.isFinite { viewState.canvasZoom = oldValue.canvasZoom }
-            if !viewState.canvasOffset.isFinite { viewState.canvasOffset = oldValue.canvasOffset }
-            if let camera = viewState.camera, !camera.isFinite { viewState.camera = oldValue.camera }
-            if let home = viewState.homeCamera, !home.isFinite { viewState.homeCamera = oldValue.homeCamera }
+        get {
+            ViewState(dock: dock, canvasOffset: canvasOffset, canvasZoom: canvasZoom, camera: camera, homeCamera: homeCamera,
+                      showsLibrary: showsLibrary)
+        }
+        set {
+            if dock != newValue.dock { dock = newValue.dock }
+            if canvasOffset != newValue.canvasOffset { canvasOffset = newValue.canvasOffset }
+            if canvasZoom != newValue.canvasZoom { canvasZoom = newValue.canvasZoom }
+            if camera != newValue.camera { camera = newValue.camera }
+            if homeCamera != newValue.homeCamera { homeCamera = newValue.homeCamera }
+            if showsLibrary != newValue.showsLibrary { showsLibrary = newValue.showsLibrary }
         }
     }
 
@@ -75,7 +103,12 @@ public final class DocumentModel {
         self.content = GraphContent(graph: file.graph, definitions: file.definitions)
         self.images = file.images
         self.documentURL = documentURL
-        self.viewState = file.viewState
+        dock = file.viewState.dock
+        canvasOffset = file.viewState.canvasOffset
+        canvasZoom = file.viewState.canvasZoom
+        camera = file.viewState.camera
+        homeCamera = file.viewState.homeCamera
+        showsLibrary = file.viewState.showsLibrary
         self.baseRegistry = registry
         self.evaluator = Evaluator(registry: registry, kernel: kernel, cacheBudgetBytes: cacheBudgetBytes,
                                   implicitEngine: implicitEngine)
