@@ -77,6 +77,52 @@ struct CanvasContentSkipWindowTests {
         #expect(fixture.app.picture.count > 100, "the canvas picture holds the nodes")
     }
 
+    /// A warm pan (C14-d): the canvas transform changes and nothing a node view holds does, so no node, wire or comment view
+    /// evaluates (their positions are in canvas space; the surface applies the pan as a render effect). The surface, which
+    /// reads the transform, is the one evaluation, and the incremental picture is the one a full rebuild draws.
+    @Test func aWarmPanEvaluatesNoNodeView() async throws {
+        let fixture = try await open()
+        let app = fixture.app
+        let before = app.picture
+        // The first pan frame is redone by MetalUI (the counters of a redone frame are those of the second attempt): warm-up.
+        app.editor.transform = CanvasTransform(offset: Vector2(-3, -2), zoom: 1)
+        app.redraw()
+        for step in 2...4 {
+            app.resetWork()
+            app.editor.transform = CanvasTransform(offset: Vector2(-3 * Double(step), -2 * Double(step)), zoom: 1)
+            app.redraw()
+            #expect(app.editor.drawnNodes.count == 6, "the pan kept every node on screen")
+            #expect(app.work.contentEvaluations == 1, "step \(step): the surface alone, no node, wire or comment view")
+            #expect(app.work.contentRefusals == 0 && app.work.retainedRedos == 0)
+        }
+        #expect(app.picture != before, "the canvas moved")
+        #expect(app.picture == app.pictureAfterRebuildingEverything(), "the retained nodes drew what a full rebuild draws")
+    }
+
+    /// One node moves, and it has no wires: exactly that node's view evaluates (its origin changed; the views inside it hold the
+    /// same values, so they skip) and the other three nodes skip. The one other evaluation is the inspector, which reads the
+    /// graph the edit changed (a batch of two moves counts 3: the constant is the inspector, one more per node).
+    @Test func changingOneNodeEvaluatesExactlyThatNodeView() async throws {
+        var builder = GraphBuilder()
+        let nodes = (0..<4).map { builder.add(RectangleNode.self, at: Vector2(40, 40 + 120 * Double($0))) }
+        let app = try await AppWindow.open(builder.graph, recordsLayout: false)
+        try await app.window.runUntilIdle()
+        #expect(app.editor.drawnNodes.count == 4)
+        _ = app.steadyWork()
+        // The first frame after an edit may be redone by MetalUI (the counters of a redone frame are those of the second
+        // attempt): a first move is the warm-up and the second is counted.
+        try app.editor.edit(.move(nodes[1].id, to: Vector2(290, 160)), name: "Move")
+        try await app.window.runUntilIdle()
+        app.resetWork()
+        try app.editor.edit(.move(nodes[1].id, to: Vector2(300, 160)), name: "Move")
+        try await app.window.runUntilIdle()
+        let work = app.work
+        #expect(work.contentEvaluations == 1 + 1, "the moved node's view and the inspector, nothing else")
+        #expect(work.contentRefusals == 0)
+        #expect(work.contentSkips >= 3, "the other three nodes skipped")
+        #expect(app.picture == app.pictureAfterRebuildingEverything(), "the skipped views drew what a full rebuild draws")
+    }
+
     /// PERF-b's drag (a): the pointer moves one node; the other five nodes, the comments and the other wires skip.
     @Test func draggingOneNodeEvaluatesOnlyThatNodeAndItsWires() async throws {
         let fixture = try await open()

@@ -104,7 +104,7 @@ public final class EditorModel {
 
     public init(document: DocumentModel) {
         self.document = document
-        if document.viewState.dock != .hidden { lastVisibleDock = document.viewState.dock }
+        if document.dock != .hidden { lastVisibleDock = document.dock }
     }
 
     /// The graph the panel shows: the top level's, or the inside of the group entered (`EditorModel+Levels`).
@@ -115,7 +115,7 @@ public final class EditorModel {
 
     // MARK: - Dock and transform
 
-    public var dock: DockSide { document.viewState.dock }
+    public var dock: DockSide { document.dock }
     public var flow: CanvasFlow { CanvasFlow(dock) }
     public var isPanelVisible: Bool { dock != .hidden }
 
@@ -127,8 +127,8 @@ public final class EditorModel {
         }
         if dock != .hidden { lastVisibleDock = dock }
         // The canvas moves or unmounts, so its last hover location no longer says where the pointer is.
-        if dock != document.viewState.dock { pointerLocation = nil }
-        document.viewState.dock = dock
+        if dock != document.dock { pointerLocation = nil }
+        document.dock = dock
     }
 
     /// ⇥: hides a visible panel, or shows a hidden one on the side it was last docked.
@@ -141,13 +141,14 @@ public final class EditorModel {
     public var transform: CanvasTransform {
         get {
             let levels = levelPath
-            return levels.isEmpty ? CanvasTransform(document.viewState) : levelTransforms[levels] ?? CanvasTransform()
+            guard levels.isEmpty else { return levelTransforms[levels] ?? CanvasTransform() }
+            return CanvasTransform(offset: document.canvasOffset, zoom: document.canvasZoom)
         }
         set {
             let levels = levelPath
             if levels.isEmpty {
-                document.viewState.canvasOffset = newValue.offset
-                document.viewState.canvasZoom = newValue.zoom
+                document.canvasOffset = newValue.offset
+                document.canvasZoom = newValue.zoom
             } else if newValue.offset.isFinite {
                 levelTransforms[levels] = newValue
             }

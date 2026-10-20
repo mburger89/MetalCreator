@@ -19,10 +19,10 @@ extension AppModel {
         viewport.events.scatterOnFace = { face, pick in events()?.scatterOnFace(face, pick) }
         viewport.events.handleChanged = { id, value, phase in events()?.handleChanged(id, value, phase) }
         viewport.events.nodeName = { id in events()?.producingNode(id)?.name }
-        // The camera reaches the file only when it comes to rest, never per frame: writing `viewState` invalidates
-        // the editor, which reads its dock and canvas transform from it (M4 carry-over, spec §7.3).
-        viewport.events.cameraSettled = { events()?.document.viewState.camera = $0 }
-        viewport.events.homeChanged = { events()?.document.viewState.homeCamera = $0 }
+        // The camera reaches the file only when it comes to rest, never per frame: writing the camera invalidates
+        // only readers of the camera (`DocumentModel` holds each piece of the view state separately) (M4 carry-over, spec §7.3).
+        viewport.events.cameraSettled = { events()?.document.camera = $0 }
+        viewport.events.homeChanged = { events()?.document.homeCamera = $0 }
         // A viewport press commits a typed value (a model commit). Giving the keys back is the window's: its root
         // resigns focus on a press (`AppWindowRoot`, MetalUI C24, gap CT-a).
         viewport.events.pressed = { events()?.editor.commitPendingEntry() }

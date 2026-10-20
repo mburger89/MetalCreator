@@ -419,7 +419,7 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
   `retainedGrafts` each. The panels around the canvas are `.equatable()` too (MetalUI C14-d): `GraphPanel`, `GraphPanelBody`,
   `GraphCanvas`, `CanvasSurface`, `NodeLibraryView` and `InspectorPanel` compare their model and input by identity (`===`; both are
   final classes and the model is `@Observable`, whose reads MetalUI tracks), so the outermost occurrences of a steady frame are the
-  body and the inspector (`PanelContentSkipWindowTests`, `PanelEqualityTests`). `ViewportView` is not (`\.textMeasurer` is not
+  body and the inspector (`PanelContentSkipWindowTests`, `PanelEqualityTests`). `DocumentModel` keeps the file's view state as separate observable properties (`dock`, `canvasOffset`, `canvasZoom`, `camera`, `homeCamera`, `showsLibrary`; `viewState` assembles them, the encoding is unchanged, `ViewStateEncodingTests`), so a pan, which writes only the canvas transform, does not evaluate `GraphPanelBody`. `ViewportView` is not (`\.textMeasurer` is not
   comparable). The benchmarks' `-warm` rows (`WarmBenchWindow`, `WarmWorkPinTests`) keep one window and `Frame` alive and are
   what the 60 fps budget is judged on; the `(cold frame)` rows are a first frame. Since MetalUI C14-c
   (environment epoch, PR #96, record §120, `41a2180f`) an `.equatable()` view may read `@Environment`: it is skipped while

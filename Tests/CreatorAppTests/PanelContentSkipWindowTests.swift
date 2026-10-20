@@ -67,10 +67,10 @@ struct PanelContentSkipWindowTests {
         #expect(app.work.contentEvaluations == 2, "the inspector and the node that lost the selection")
     }
 
-    /// A pan changes the transform `CanvasSurface` reads. `GraphPanelBody` evaluates with it (it reads `showsLibrary` and the
-    /// dock, which live in `ViewState`, and a pan writes that struct whole), and re-evaluates only its cheap shell: the
+    /// A pan changes the transform `CanvasSurface` reads. `DocumentModel` holds the canvas offset and zoom apart from the dock
+    /// and `showsLibrary`, so a pan writes only the transform and `GraphPanelBody`, which reads those two, skips: the body, the
     /// library, the inspector, `GraphCanvas` and the nodes (positioned in canvas space) are skipped.
-    @Test func panningEvaluatesTheSurfaceAndTheBodyShellAndNothingElse() async throws {
+    @Test func panningEvaluatesOnlyTheSurface() async throws {
         let app = try await open().app
         let before = app.picture
         // The first pan frame is redone by MetalUI (the counters of a redone frame are those of the second attempt), so it is
@@ -81,7 +81,7 @@ struct PanelContentSkipWindowTests {
         app.editor.transform = CanvasTransform(offset: Vector2(-6, -4), zoom: 1)
         app.redraw()
         #expect(app.work.retainedRedos == 0)
-        #expect(app.work.contentEvaluations == 2, "the surface, which reads the transform, and the body shell")
+        #expect(app.work.contentEvaluations == 1, "the surface, which reads the transform, and nothing else")
         #expect(app.picture != before, "the canvas moved")
         #expect(app.picture == app.pictureAfterRebuildingEverything())
     }

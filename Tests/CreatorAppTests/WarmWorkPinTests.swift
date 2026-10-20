@@ -13,8 +13,9 @@ import Testing
 /// frame and can never see this.
 @MainActor
 struct WarmWorkPinTests {
-    /// The measured element requests of a steady orbit-panel-left step were 332 (a cold frame: 4,572); the bound is twice that.
-    static let elementRequestBound = 2 * 332
+    /// The measured element requests of a steady orbit-panel-left step are 199 (scripts/bench.sh, the 2026-10-20 C14-d run; the
+    /// bound was 2 × 332 until then; a cold frame: 4,572); the bound is twice that.
+    static let elementRequestBound = 2 * 199
 
     @Test func aSteadyWarmOrbitStepWithThePanelDockedLeftDoesAlmostNoWork() async throws {
         let (app, _) = try await makeBracketBenchApp()

@@ -67,7 +67,7 @@ extension AppModel {
     /// committed first, and once the camera has settled its current pose is saved with it.
     public func save(to url: URL) throws(AppProblem) {
         editor.commitPendingEntry()
-        if document.viewState.camera != nil { document.viewState.camera = viewport.pose }
+        if document.camera != nil { document.camera = viewport.pose }
         do {
             try document.fileData(savingTo: url).write(to: url, options: .atomic)
         } catch {

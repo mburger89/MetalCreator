@@ -8,11 +8,11 @@ extension EditorModel {
     static let maxLibraryRings = 40
 
     /// Whether the graph panel shows its node library. Saved with the document's view state; not an edit.
-    public var showsLibrary: Bool { document.viewState.showsLibrary }
+    public var showsLibrary: Bool { document.showsLibrary }
 
     /// The panel header's "Library" button.
     public func toggleLibrary() {
-        document.viewState.showsLibrary.toggle()
+        document.showsLibrary.toggle()
     }
 
     public func setLibraryQuery(_ query: String) {

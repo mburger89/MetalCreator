@@ -64,6 +64,7 @@ struct OrbitBench {
         let warm = try await WarmBenchWindow(model: app)
         let name = "orbit-\(dock == .hidden ? "panel-hidden" : "panel-left")-warm"
         var cpu = BenchSamples("\(name) window-cpu (warm frame)")
+        var counters = WarmCounters()
         var requests = BenchSamples("\(name) element-requests")
         let start = ScreenPoint(900, 450)
         for step in 0..<(Self.warmUp + 100) {
@@ -74,8 +75,10 @@ struct OrbitBench {
             guard step >= Self.warmUp else { continue }
             cpu.append(milliseconds)
             requests.append(Double(warm.window.frameWork.reduce(0) { $0 + $1.elementRequests }))
+            counters.add(warm.window.frameWork)
         }
         app.viewport.dragEnded(from: start, at: ScreenPoint(1340, 560), modifiers: [], button: .secondary)
+        counters.report(name)
         print("BENCH \(name): element requests per frame, median \(Int(requests.median)), max \(Int(requests.maximum))")
         print(cpu.line(budget: Bench.frameBudget))
     }
