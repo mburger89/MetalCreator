@@ -100,7 +100,7 @@ judged on the 2026-10-13 run below.
 **C14 slice 1 adopted (plan `2026-10-13-adopt-c14`).** The canvas's node, wire and comment views skip their
 `content` getter while their value is unchanged (gap PERF-b), which saves the getters of every node that did not change
 in a drag step or a camera change; the build recursion, prepaint and paint still run whole (C14-b). The counts are pinned
-by `CanvasContentSkipWindowTests` (a drag move evaluates one node and its wires and skips the rest).
+by `CanvasContentSkipWindowTests` (a drag move evaluates one node and its wires and skips the rest). C14-c (MetalUI `41a2180f`) adopted: the selection box, the one canvas view that read `@Environment`, is skipped too while its rect and the theme are unchanged; nothing timed.
 
 ### Idle re-time after C14 slice 1 (2026-10-13)
 
