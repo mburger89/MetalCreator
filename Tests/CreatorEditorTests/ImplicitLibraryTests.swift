@@ -20,12 +20,12 @@ struct ImplicitLibraryTests {
         let names = sections.first { $0.category == .implicit }?.entries.map(\.displayName)
         #expect(names == [
             "Sphere", "Box", "Cylinder", "Union", "Subtract", "Intersect", "Shell",
-            "Offset", "To Implicit", "Isosurface", "TPMS", "Strut Lattice", "Voronoi Lattice",
+            "Offset", "To Implicit", "Isosurface", "Drain Holes", "TPMS", "Strut Lattice", "Voronoi Lattice",
         ])
     }
 
     @Test func theMeshSectionHoldsTheMeshNode() {
         let names = sections.first { $0.category == .mesh }?.entries.map(\.displayName)
-        #expect(names == ["Mesh"])
+        #expect(names == ["Mesh", "Decimate", "Check Thin Walls", "Check Trapped Volumes", "Mesh to Solid"])
     }
 }

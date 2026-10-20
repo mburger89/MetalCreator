@@ -57,7 +57,7 @@ enum LatticeSetup {
     static func voxel(over box: BoundingBox, context: EvalContext) -> (size: Double, name: String) {
         switch context.meshQuality {
         case .preview: (PreviewSchedule(.automatic).firstResolution(for: box), "preview")
-        case .export: (MeshNode.defaultExportResolution, "export")
+        case .export, .streamedExport: (MeshNode.defaultExportResolution, "export")
         }
     }
 

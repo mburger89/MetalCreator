@@ -11,7 +11,7 @@ and its own plans in `docs/superpowers/plans/`. The order below is the build ord
 | — | Selection, groups, canvas comments | `2026-10-09-selection-groups-comments-design.md` | done |
 | 7a | Data trees and feature patterns | `2026-10-10-patterns-trees-design.md` | done |
 | 7b | Fields | `2026-10-12-fields-design.md` | done |
-| 7c | Implicit geometry and lattices | `2026-10-13-implicit-lattices-design.md` | in progress: 7c-1 core and 7c-1g GPU meshing are merged; 7c-2 lattices and 7c-3 mesh tools are running; 7c-4 conformal is next |
+| 7c | Implicit geometry and lattices | `2026-10-13-implicit-lattices-design.md` | in progress: 7c-1, 7c-1g, 7c-2 and 7c-3 are merged; 7c-3's acceptance has 2 known issues (trapped voids and thin walls, see erratum M5) with a follow-up lane (7c-3f); 7c-4 conformal is next |
 | 7d | Surface textures (knurl, hex, voronoi, embossed skins by displacement) | not written | after 7c |
 | XP | Cross-platform: Linux and Windows on MetalUI's SDL backend | `2026-10-13-cross-platform-design.md` | xp-1 (everything but the viewport and OCCT) merged; then xp-2 (OCCT), xp-c (GPU meshing on SDL3) and xp-3 (the viewport on SDL GPU) |
 | 8 | Variants and versions UI | not written (graph parameters are already designed for it, slice spec §4.1) | after 7 |

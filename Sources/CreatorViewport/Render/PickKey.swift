@@ -7,4 +7,6 @@ struct PickKey: Hashable {
     var size: ViewportSize
     /// (mesh serial, solid index) for each drawn item, flattened.
     var items: [Int]
+    /// The cut view's plane: what it cuts away cannot be picked.
+    var clip: ViewportClip?
 }

@@ -38,4 +38,15 @@ public protocol Kernel: Actor {
     /// `points` give no distances; an empty or dangling selection is `KernelError.invalidInput` (`DistanceTarget.validate`).
     /// Like every operation it checks for cancellation on entry, and a long batch again between chunks.
     func distances(from points: [Vector3], to target: DistanceTarget, signed: Bool) throws -> [Double]
+    /// A faceted solid made from a closed triangle mesh (Mesh to Solid, implicit spec §4.7): `positions` in millimetres and `triangles`,
+    /// three indices per face, counter-clockwise seen from outside. Every face carries the operation tag (`TopoRole.unnamed`), so a
+    /// face pick on the result works like on any solid. The mesh must be closed and manifold; a failure names what is wrong with it.
+    /// The default refuses: only a kernel with a B-rep can.
+    func meshToSolid(positions: [SIMD3<Float>], triangles: [UInt32], tag: NodeTag) throws -> Solid
+}
+
+extension Kernel {
+    public func meshToSolid(positions: [SIMD3<Float>], triangles: [UInt32], tag: NodeTag) throws -> Solid {
+        throw KernelError.unsupported("mesh to solid")
+    }
 }
