@@ -68,6 +68,9 @@ struct CanvasContentSkipWindowTests {
         #expect(steady.contentSkips >= canvasViews, "every node, wire and comment skipped (more if a graft were refused)")
         #expect(steady.retainedGrafts == canvasViews, "each skipped canvas view was grafted, not built")
         #expect(steady.retainedGraftIneligible == 0 && steady.retainedRedos == 0, "no graft refused, no frame redone")
+        // MetalUI C14b-3 (record §121): reading control state is not a write, so nothing in a steady frame is ineligible.
+        #expect(steady.retainedIneligible == 0 && steady.retainedPrepaintIneligible == 0, "no replay ineligible")
+        #expect(steady.retainedIneligibleReasons.isEmpty, "no ineligible reason recorded: \(steady.retainedIneligibleReasons)")
         #expect(steady.retainedSkippedRequests > 0, "the grafts stood for element requests the build did not make")
         #expect(steady.contentRefusals == 0, "no canvas view reads the environment")
         #expect(fixture.app.picture.count > 100, "the canvas picture holds the nodes")
