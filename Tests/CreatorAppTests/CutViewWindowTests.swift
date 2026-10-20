@@ -37,7 +37,8 @@ struct CutViewWindowTests {
     #else
     @Test func withoutAMetalViewportThereIsNoToggle() async throws {
         let app = try await open()
-        #expect(!CutViewModel.isAvailable && (try toggles(in: app)).isEmpty)
+        let found = try toggles(in: app)
+        #expect(!CutViewModel.isAvailable && found.isEmpty)
     }
     #endif
 }
