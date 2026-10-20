@@ -294,7 +294,7 @@ extension ImplicitBench {
 }
 
 /// The CPU mesher over a GPU engine's values: an evaluator that only evaluates, so `ImplicitMesher` does not ask it to mesh.
-private struct SamplesOnlyEvaluator: ImplicitBatchEvaluator {
+struct SamplesOnlyEvaluator: ImplicitBatchEvaluator {
     let inner: any ImplicitBatchEvaluator
 
     var engineName: String { inner.engineName }

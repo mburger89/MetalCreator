@@ -9,6 +9,7 @@ viewport or the kernel, and replace the numbers here (keep the machine, load and
 ```sh
 scripts/bench.sh                      # every benchmark: about 10 minutes, most of it the release build
 scripts/bench.sh GraphPanZoomBench    # one suite (also OrbitBench, FilletDragBench, KernelBench, BlendRefusalBench, PatternBench, FieldBench)
+scripts/preview-sweep.sh              # the preview triangle cap sweep (PreviewSweepBench); about a minute after the build, on an idle Mac
 ```
 
 The benchmarks are Swift Testing suites in `Tests/CreatorAppTests/Bench`. A plain `swift test` skips them
@@ -211,6 +212,8 @@ Implicit section below are superseded by these.
 The raw lines of all of these are under Raw output.
 
 ### Preview triangle cap sweep (2026-10-20)
+
+Decision (user, 2026-10-20): 1M, spec erratum D19.
 
 `scripts/preview-sweep.sh` (Errata D15) on branch `xp-preview-sweep`, after `git merge master` (master `5e4069e`, MetalUI `711ab9c4`), release build,
 load 1.63 / 2.20 / 2.98 before and 2.17 / 2.32 / 2.85 after. The merge changed `ImplicitBenchFixtures` to build a TPMS gyroid, which broke
@@ -517,6 +520,82 @@ the first pass is the same pass. **i-3** is the tessellation, the BVH and 600 to
 2,000 blocks of samples in parallel on the CPU. **i-4** holds the whole mesh and its vertex map in memory (about 150 bytes a triangle);
 streaming bricks to the STL, which the user decided on (D12) and 7c-3 builds, cuts the memory; the time is the mesher's, so GPU
 meshing (7c-1g) is what moves it.
+
+## Preview triangle cap (D15): measured
+
+`PreviewSchedule.maximumTriangles` (Errata D15) stops the Auto preview before a pass estimated over 2,000,000 triangles. That number
+was a guess; `scripts/preview-sweep.sh` (`PreviewSweepBench`, a filter on `scripts/bench.sh`) measures what the app shows smoothly.
+Release, an **idle** Mac with a GPU: any other build, test or render running at the same time inflates every frame time and moves the
+cap, so a run taken on a busy Mac says only that the benchmark works. The run takes about a minute once the release build is done
+(the build itself is several minutes, so run `swift test -c release --no-parallel --filter ZZNoSuchTestZZ` first, or let the script do it).
+
+```sh
+scripts/preview-sweep.sh     # = scripts/bench.sh PreviewSweepBench; the log is .build/bench.log
+```
+
+**The fixture** is `ImplicitBenchFixtures`' sheet (a thin curved wall through a 100 mm cube) with its noise features 8 mm across and a
+wall of about 1 mm, standing in for a gyroid of 8 mm cells until the TPMS node exists (7c-2); it has several times row i-1's triangles
+at one resolution. **The ladder** is six voxel sizes making about 0.25M, 0.5M, 1M, 2M, 4M and 8M triangles (`PreviewSweepFixtures.ladder`;
+a thin wall's count falls short of the area law at coarse sizes, so the rungs are measured, not computed, and the run prints the real
+counts). At each rung the run records:
+
+1. **Meshing**: the first-pass time, plan and meshing, on the GPU mesher (`MetalImplicitEngine.meshBricks`) and on the CPU mesher over
+   the GPU's values (as row i-1m), the median of 3.
+2. **Orbit**: the sheet previewed down to the rung's resolution in the app (the app's own meshing and refinement, so the viewport holds
+   what the app would show), orbited as `OrbitBench` does, with the panel docked left and hidden: model step, window CPU and GPU
+   (viewport and window) per frame, median and p95 over 60 steps after 10 warm-up frames.
+3. **Memory**: the mesh's own bytes (positions, normals and indices), the GPU vertex buffer derived from the renderer's layout (three
+   48-byte corners per triangle; the renderer does not expose its buffers), and the process's `phys_footprint` (`task_info`, what
+   Activity Monitor calls Memory) with the mesh in the viewport after the first frame, less the footprint of the same renderer after it
+   drew an empty app: the mesh, its refinement, the viewport's display copy of it (doubles, 48 bytes a vertex plus the indices), the GPU
+   copy, and the app. Both readings are **settled**: malloc keeps freed large blocks resident for some seconds after a rung's app is
+   released (a dry run saw a rung's footprint fall from 2.2 GB to 1.0 GB within 15 s with nothing running), so
+   `PreviewSweepFixtures.settledFootprint` trims, then reads every 0.5 s until three readings agree within 2% (at most 30 s). A
+   `teardown` line prints, per rung, whether the `AppModel`, `ViewportModel`, renderer and mesh storage were freed (weak references),
+   `MTLDevice.currentAllocatedSize`, the footprint at once and settled, and the live malloc heap. **What the dry runs found** (a
+   saturated Mac, release): every object was freed and Metal held 1 MB, `leaks` found 0 leaks, and the footprint a rung left behind
+   was malloc's freed-but-resident blocks plus about 100 MB of live heap per rung that does not grow with the mesh: MetalUI's
+   `ContentMemoStore` of every `renderFrame` of the orbit stays alive with the models its `.equatable()` content read (a retain cycle
+   through the observation's `onChange`, reproduced without MetalCreator; `docs/metalui-gaps.md` PERF-c). So MetalCreator retains no
+   mesh (`PreviewSweepReleaseTests` pins that an app's mesh is freed, before and after frames), the memory column is the settled
+   footprint of the rung's own app less the settled footprint of the same renderer with an empty app (so what earlier rungs left
+   behind is subtracted), and a rung's footprint is read before its orbit, which is where the leaked frames come from. Across three
+   dry runs the added column agreed within 2% (rung 6: 2,325, 2,329 and 2,329 MB; rung 3: 299, 295 and 302 MB) while the footprint
+   under it climbed from 355 MB to 3,487 MB, which is why the figure is the difference and not the reading. The teardown reading
+   waits 14 s for malloc's timer (rung 6 took 28 s and fell from 2.5 GB to 2.2 GB in the last 14); the live malloc heap grew by a
+   steady 102 MB a rung (107 to 616 MB) whatever the mesh, which is PERF-c.
+4. **The triangle count** the viewport shows.
+
+| Row | Rung | Voxel | Triangles | Mesh, GPU (median of 3) | Mesh, CPU (median of 3) | Orbit GPU p95, panel shown / hidden | Window CPU p95, panel shown / hidden | Footprint added |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 0.25M | 1.90 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
+| 2 | 0.5M | 1.55 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
+| 3 | 1M | 1.22 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
+| 4 | 2M | 0.93 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
+| 5 | 4M | 0.65 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
+| 6 | 8M | 0.46 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
+
+**The decision rule** (proposed; `PreviewSweepRule`, and it is applied to both panel states). A rung passes when all four hold:
+
+- (a) the orbit's GPU p95 is at most 8 ms, half a 60 fps frame, which leaves room for MetalUI's own pass;
+- (b) the window CPU p95 is unchanged from the smallest rung, within 1 ms;
+- (c) the footprint the mesh adds is at most 1 GB;
+- (d) the GPU meshing of that pass takes at most about 1 s (1,000 ms).
+
+The cap is the **last rung before the first rung that fails**, scanning up the ladder from the smallest; if the smallest fails there is
+none. A rung that passes above a failure never counts: a noisy pass on a rung that should have failed is not a size the preview shows
+smoothly (`PreviewSweepRule.capCandidate`, pinned by `aPassAboveAFailureNeverCounts`).
+
+The run prints `BENCH preview-sweep rung N rule: …` for each rung, with the four values and `PASS` or `FAIL`, and one line
+`BENCH preview-sweep cap-candidate N`, N the triangle count of the cap (`none` if the smallest fails). Read the rung lines before
+setting the cap: a failure caused by a busy Mac moves it.
+
+| Result | Value |
+|---|---|
+| Machine, load before and after | `<pending idle run>` |
+| MetalCreator commit | `<pending idle run>` |
+| `BENCH preview-sweep cap-candidate` | `<pending idle run>` |
+| The cap set in `PreviewSchedule.maximumTriangles` | `<pending idle run>` (2,000,000 until the idle run; do not change it before) |
 
 ### 7c-3 final fixes (streamer evaluator, trapped-volume memory)
 
