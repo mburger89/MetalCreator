@@ -308,6 +308,44 @@ has n 3 for the mesh timings and n 60 for the frame timings, so the p95 of the m
 GPU p95 is above the panel-hidden one by 2.4 to 3.3 ms up to 2M and converges above that, where the viewport pass dominates. Process peak
 resident was 5.11 GB. `PreviewSchedule.maximumTriangles` is **not** changed; the decision is the owner's.
 
+### P4 adopted: raster overscan (MetalUI 679f5d7d, 2026-10-20)
+
+MetalUI P4 (raster overscan for shadows, blurs and gradients; pooled rasterizer scratch) replaced the pin 711ab9c4 with 679f5d7d. It
+has no API change, and no MetalCreator code changed. The warm benches (`OrbitBench`, `GraphPanZoomBench`, `FilletDragBench`; release)
+were run against both MetalUI commits with the same temporary instrumentation, which printed every `FrameWork` counter per timed
+warm frame (the committed benches print only `elementRequests`). Median per frame, then the worst frame:
+
+| Row | elementRequests | rasterizedPixels | newTextures | newTexturePixels |
+| --- | --- | --- | --- | --- |
+| fillet-drag-warm | 888 / 888 | 0 / 0 | 0 / 0 | 0 / 0 |
+| pan-50-warm | 1409 / 1697 | 0 / 5,618 | 0 / 1 | 0 / 5,618 |
+| zoom-50-warm | 1857 / 2,879 | 13,289 / 24,767 | 16 / 28 | 14,454 / 23,195 |
+| orbit-panel-left-warm | 199 / 199 | 0 / 0 | 0 / 0 | 0 / 0 |
+| orbit-panel-hidden-warm | 161 / 161 | 0 / 0 | 0 / 0 | 0 / 0 |
+
+These values are identical at 711ab9c4 and 679f5d7d. So are the other counters (`blurredPixels` 0 everywhere, `elementPrepaints`,
+`elementPaints`, `contentEvaluations`, `contentSkips`, `retained*`, `rects`, `glyphs`, `images`). The one difference is the worst
+frame's `atlasUploadPixels` on fillet-drag-warm: 338 at 711ab9c4, 26,416 at 679f5d7d (median 0 in both). P4 does not lower the
+warm raster work of these scenes: the 50-node zoom still re-rasterizes about 13,000 px a frame.
+
+Window-CPU medians (indicative only; the Mac was loaded, load averages before/after: P4 13.53 30.01 25.78 / 5.94 21.15 22.89,
+711 5.94 21.15 22.89 / 6.42 14.57 19.67; P4 ran first):
+
+| Row | 711ab9c4 ms | 679f5d7d ms |
+| --- | --- | --- |
+| fillet-drag cold | 30.26 | 31.06 |
+| fillet-drag-warm | 21.99 | 21.85 |
+| pan-50 cold | 24.40 | 24.38 |
+| pan-50-warm | 13.01 | 13.08 |
+| zoom-50 cold | 29.53 | 28.07 |
+| zoom-50-warm | 25.00 | 23.64 |
+| orbit-panel-left cold | 31.62 | 30.36 |
+| orbit-panel-left-warm | 6.27 | 6.10 |
+| orbit-panel-hidden cold | 2.36 | 2.31 |
+| orbit-panel-hidden-warm | 1.92 | 1.88 |
+
+The cold rows use `BenchRenderer`, which does not expose `FrameWork`, so they have times only.
+
 ## Carry-over items (the M0–M1 carry-over note, M7)
 
 | Item | Benchmark | Measured (median) | Verdict |
