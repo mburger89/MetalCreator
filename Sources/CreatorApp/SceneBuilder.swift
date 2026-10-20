@@ -75,7 +75,10 @@ public enum SceneBuilder {
                                                               selectedEdges: Set(set.edges)), source: ruleSolid))
                 case .mesh(let payload):
                     guard let mesh = payload as? TriangleMesh else { continue }
-                    items.append(SceneItem(item: ViewportItem(solid: meshes.solids.solid(for: meshes.shown(mesh)), isGhost: isGhost),
+                    let shown = meshes.shown(mesh)
+                    let flagged: Set<FaceID> = shown.highlights.contains { !$0.triangles.isEmpty } ? [TriangleMesh.warningFace] : []
+                    items.append(SceneItem(item: ViewportItem(solid: meshes.solids.solid(for: shown), isGhost: isGhost,
+                                                              warningFaces: flagged),
                                            source: Endpoint(node: node.id, socket: socket)))
                 default:
                     continue

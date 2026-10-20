@@ -24,7 +24,8 @@ struct GPUDataTests {
         #expect(MemoryLayout<FrameUniforms>.offset(of: \FrameUniforms.viewportPixels) == 160)
         #endif
         #expect(MemoryLayout<DrawUniforms>.stride == 16)
-        #expect(MemoryLayout<ShadeUniforms>.stride == 64)
+        #expect(MemoryLayout<ShadeUniforms>.stride == 80)
+        #expect(MemoryLayout<ClipUniforms>.stride == 32)
         #expect(MemoryLayout<BackgroundUniforms>.stride == 32)
         #expect(MemoryLayout<LineUniforms>.stride == 16)
         #expect(MemoryLayout<GridUniforms>.stride == 48)

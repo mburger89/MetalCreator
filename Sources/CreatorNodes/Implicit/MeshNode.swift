@@ -46,9 +46,10 @@ public enum MeshNode: NodeDefinition {
         return NodeOutputs(["mesh": .mesh(made.mesh)], warnings: made.warnings)
     }
 
-    /// The mesh of `solid` for this run, and what is worth saying about how it was made. `previewResolution` 0 is Auto.
+    /// The mesh of `solid` for this run (a `MeshStream` while an export streams), and what is worth saying about how it was made.
+    /// `previewResolution` 0 is Auto.
     static func mesh(_ solid: ImplicitSolid, exportResolution: Double, previewResolution: Double,
-                     context: EvalContext) async throws -> (mesh: TriangleMesh, warnings: [String]) {
+                     context: EvalContext) async throws -> (mesh: any MeshPayload, warnings: [String]) {
         let selection = await ImplicitEvaluators.make(for: solid, choice: context.implicitEngine)
         let mesher = ImplicitMesher(evaluator: selection.evaluator)
         var warnings = selection.warning.map { [$0] } ?? []
@@ -66,6 +67,12 @@ public enum MeshNode: NodeDefinition {
             case .export:
                 let mesh = try await mesher.mesh(solid, resolution: exportResolution, quality: .export) { progress($0) }
                 return (mesh, warnings)
+            case .streamedExport:
+                // Nothing is meshed here: the writer meshes the stream window by window, so the mesh is not the limit, but the
+                // octree of bricks it walks still has to fit.
+                try await MeshingBudget().check(solid, resolution: exportResolution, using: selection.evaluator,
+                                                bytesPerBrick: MeshingBudget.streamedBytesPerBrick)
+                return (MeshStream(solid: solid, resolution: exportResolution), warnings)
             case .preview:
                 let target: PreviewSchedule.Target = previewResolution > 0 ? .fixed(previewResolution) : .automatic
                 let first = PreviewSchedule(target).firstResolution(for: solid.bounds)

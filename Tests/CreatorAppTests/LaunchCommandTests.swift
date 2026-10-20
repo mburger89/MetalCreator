@@ -69,4 +69,10 @@ struct LaunchCommandTests {
         #expect(LaunchCommand(arguments: ["a.mcgraph", "b.mcgraph"]) == .run(path: "a.mcgraph"))
         #expect(LaunchCommand(arguments: ["a.mcgraph", "-NSDocumentRevisionsDebugMode", "YES"]) == .run(path: "a.mcgraph"))
     }
+
+    @Test func onlyAnExistingDocumentIsForwardedToTheRunningInstance() {
+        #expect(LaunchCommand.forwardedDocuments(path: "a.mcgraph") { _ in true } == ["a.mcgraph"])
+        #expect(LaunchCommand.forwardedDocuments(path: "gone.mcgraph") { _ in false }.isEmpty)
+        #expect(LaunchCommand.forwardedDocuments(path: nil) { _ in true }.isEmpty)
+    }
 }

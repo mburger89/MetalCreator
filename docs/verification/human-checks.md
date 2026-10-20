@@ -1858,6 +1858,7 @@ warning step when red. macOS needs no check here: its test count and its look ar
 - [ ] **XP-14 Borderless chrome, Windows 11.** The same as XP-11 and XP-12 on Windows 11: the three drawn buttons at the top right,
   drag, resize edges, double-click zoom, and the close veto with unsaved changes. The snap-layout flyout over zoom, the DWM shadow
   and the rounded corners are not there for a borderless window (MetalUI CW9: platform); note what is missing. **Observed:**
+- [ ] **XP-15 One instance, Linux and Windows.** With MetalCreator running, open a second `.mcgraph` document (`MetalCreator other.mcgraph` from a terminal, or the file manager's Open With): no second process or window appears, the document opens in the running instance (the unsaved-changes check applies as for any open), and its window comes to the front. Pinned: `LaunchCommandTests` (the forwarded document); the IPC is MetalUI's. **Observed:**
 
 ## Group IM — implicit geometry: sockets, nodes, meshes, the progressive preview and export (7c-1)
 
@@ -1922,3 +1923,99 @@ radius 4) into a Shell (inward, 2), the Shell into a Mesh, the Mesh into an Outp
   500,000 triangles in the first pass) it may stop after the first or second pass; check that it stops there, that the badge and the
   look are acceptable at that resolution, and that a fixed preview resolution (the Mesh node's) still goes finer. Pinned:
   `GPUMeshAgreementTests`, `MetalMeshingLimitsTests`, `PreviewScheduleTests`; the look is human-only. **Observed:**
+
+## Group IL — implicit lattices: TPMS, Strut Lattice and Voronoi Lattice (7c-2)
+
+**Status: NOT RUN.** Plan `2026-10-14-7c-2-lattices.md`, spec `2026-10-13-implicit-lattices-design.md` §3.4. Run `swift run MetalCreatorApp` on a
+Mac with a GPU. The tests pin the values (every surface, every strut cell, the Voronoi distances), the wall thickness, the lipschitz
+constants on random pairs, the Metal-against-CPU agreement, the nodes, their warnings and the file; these check only what a real
+window and a real GPU show. Build: a Box (40 × 40 × 40) into a TPMS node's `region`, the TPMS into a Mesh, the Mesh into an Output.
+
+- [ ] **IL-0 The benchmark rows, first.** Before anything else, and before merging: on an idle Mac run `scripts/bench.sh ImplicitBench`
+  (rows i-1 to i-4 on the gyroid sheet) and replace the lines in `docs/verification/performance.md`, keeping the load lines. The 19.6
+  million triangles, about 3 GB and about 55 s are estimates scaled from the 1.0 mm run and 7c-1's noise sheet, against i-4's 60 s and
+  4 GB. If peak memory goes over the budget, change `ImplicitBenchFixtures.cellSize` to 50 (U7's option b) and record the miss.
+  **Observed:**
+- [ ] **IL-1 The library.** The Implicit section lists TPMS, Strut Lattice and Voronoi Lattice after Isosurface. Pinned: `CatalogTests`,
+  `OutputNodeTests`. **Observed:**
+- [ ] **IL-2 A gyroid.** The viewport shows a gyroid sheet of 8 mm cells cut square by the box, one mm thick, smooth shaded, and the badge
+  refines as for any implicit (IM-3). Segment the type through Schwarz P, Diamond, Neovius and Lidinoid and the form through Network: each
+  looks like its surface, and a network at thickness 0 fills about half the box. Pinned: `TPMSLatticeTests`, `TPMSNodeTests`.
+  **Observed:**
+- [ ] **IL-3 Editing does not stall.** Drag the TPMS's `thickness` slider and `cell size` slider: the preview follows live (a number edit
+  recompiles nothing). Pinned: `LatticeCompilerTests`; the feel is human-only. **Observed:**
+- [ ] **IL-4 A skin.** Set `skin` to 1.5: the box keeps a solid 1.5 mm wall and the gyroid fills the inside. Swap the box for a Sphere
+  (radius 20): the same, round. Pinned: `TPMSNodeTests`. **Observed:**
+- [ ] **IL-5 Grading by a field.** Wire a Linear Gradient (length 40) through an Add (b 8) into `cell size`: the cells grow along Z and the
+  pattern stretches smoothly; the preview stays interactive. Wire a Noise Field into `thickness`: the wall varies and the node warns
+  that thickness is below 0 in places where the noise goes negative after a Remap to -0.5 ... 1. Pinned: `TPMSNodeTests`,
+  `ImplicitSolidPropertyTests`. **Observed:**
+- [ ] **IL-6 Struts.** A Strut Lattice in the same box shows cubic struts of radius 0.6; step the `cell` control through BCC, FCC, Octet,
+  Kelvin and Diamond: each is a recognisable truss. Set `node blend` to 1.5: the joints round. Set it to 3: the node says the blend
+  can be at most a quarter of the smallest cell (2 mm). Set `cell size` to 2 and `strut radius` to 2: "Struts are thicker than the cells;
+  the lattice is solid." Pinned: `StrutLatticeTests`, `StrutLatticeNodeTests`. **Observed:**
+- [ ] **IL-7 Voronoi.** A Voronoi Lattice with `count` 100 shows the cell edges as struts 0.8 mm across; Foam shows closed cell walls. Change
+  `seed`: the seeds move. Wire a Linear Gradient (length 40) into `density`: the seeds crowd towards +Z, and the -Z half, where the gradient is
+  below 0, has none, so it is a solid slab and the node warns "The seeds leave gaps in the region; the lattice is solid there." (U5; the
+  radius comes from `count`). Wire a Grid Points list into
+  `seeds`: `count` is ignored and the cells follow the grid. Pinned: `VoronoiLatticeTests`, `VoronoiLatticeNodeTests`,
+  `VoronoiSeedSourceTests`. **Observed:**
+- [ ] **IL-8 Warnings.** Set the TPMS `cell size` to 0.5 in the 40 mm box: it warns "Cells are smaller than the preview resolution; the
+  preview may look solid." Set `thickness` to 0.1: "Walls are thinner than the preview resolution; the preview may show gaps." With
+  no region wired: "Connect a region to fill." Pinned: `TPMSNodeTests`. **Observed:**
+- [ ] **IL-8a Cell stretch.** On the TPMS and on the Strut Lattice set `cell stretch` to (2, 1, 1): the cells are twice as long on X and
+  the same on Y and Z (the cell size is unchanged). Set a 0 on any axis: the node says “cell stretch” must be greater than 0 on every
+  axis. Pinned: `TPMSNodeTests`, `StrutLatticeNodeTests`. **Observed:**
+- [ ] **IL-8b Voronoi Struts are uniform.** A Voronoi Lattice in Struts form shows struts of one thickness along every cell edge, with no gaps
+  and none of the thin foam-like walls (they are built from d3 - d1). Pinned: `VoronoiLatticeTests`. **Observed:**
+- [ ] **IL-8c Solid where there are no seeds.** Wire a density field that falls to 0 over part of the box: that region is solid, not empty,
+  and the node warns "The seeds leave gaps in the region; the lattice is solid there." Pinned: `VoronoiLatticeNodeTests`. **Observed:**
+- [ ] **IL-9 A slicer.** Export an STL of the gyroid at 0.2 mm (IM-9): the part opens in a slicer, the sheet is the thickness set, and no
+  hole or non-manifold edge is reported. **Observed:**
+
+## Group MT — mesh tools, 3MF, the streamed export and the Cut view (7c-3)
+
+**Status: NOT RUN.** Plan `2026-10-14-7c-3-mesh-tools.md`, spec `2026-10-13-implicit-lattices-design.md` §3.6, §4.5 to §4.7, §5 and Errata D12.
+Run `swift run MetalCreatorApp` on a Mac with a GPU, a slicer (PrusaSlicer, Bambu Studio or Cura) and FreeCAD. The tests pin the maths, the
+meshes, the files and the model state; these check what a real window, a real GPU and real programs show. Build: the IM group's part (a
+Sphere, radius 20, with a smaller Sphere, radius 8, cut from it by a Subtract, into a Mesh at export resolution 0.2, into an Output
+named "Insole").
+
+- [ ] **MT-1 Decimate.** Wire a Decimate (tolerance 0.01) between the Mesh and the Output. The inspector reads "Decimated: N → M
+  triangles" with M well under N, the shape looks the same (no flat patches or dents on the curved wall at 0.01), and raising the
+  tolerance to 0.5 makes the wall visibly faceted. Pinned: `DecimateNodeTests`, `MeshDecimatorTests`; the look is human-only. **Observed:**
+- [ ] **MT-2 The check highlights.** Wire a Check Trapped Volumes after the Mesh: the cavity's wall turns the theme's warning colour (try
+  Alucard and Nord too), the node shows the warning "1 enclosed void can't drain.", and on the preview it ends with "(approximate:
+  preview resolution)". Replace the cavity by a 0.2 mm shell and wire a Check Thin Walls (0.4): the whole thin wall is highlighted and
+  the warning reads "Walls thinner than 0.4 mm in 1 place (thinnest 0.2 mm)." Pinned: `CheckTrappedVolumesNodeTests`,
+  `CheckThinWallsNodeTests`, `ViewportClipRenderTests` (the colour on Dracula). **Observed:**
+- [ ] **MT-3 Drain Holes.** Wire a Drain Holes (Automatic, diameter 2) between the Subtract and the Mesh: the trapped-volumes warning
+  goes, a round hole runs from the cavity's lowest point straight down to the outside, and At Points with a Vector node at (0, 0, -4)
+  drills one hole from there. Pinned: `DrainHolesNodeTests`, `DrainHolesTests`. **Observed:**
+- [ ] **MT-4 The Cut view.** Switch on "Cut View" in the top bar: the near half of the part is cut away, the cut shows the inside of the
+  far wall in the part's colour darkened (no holes, no flicker while orbiting), the B-rep edges of a solid in the scene are cut too, and a
+  handle on the plane slides it through the part. Hover and click on the cut part pick what is left, never what is cut away. View ▸ Show
+  Cut View and Flip Cut View do the same and cut the other side; switching it off restores the part; New or Open starts uncut. On Linux or
+  Windows the toggle and the menu items are not there. Pinned: `ViewportClipRenderTests`, `CutViewModelTests`, `CutViewWindowTests`; the
+  look and the feel are human-only. **Observed:**
+- [ ] **MT-5 3MF in a slicer.** File > Export 3MF… on the Insole: the sheet appears and finishes, and
+  the file opens in a slicer as one object named "Insole", in millimetres (20 mm radius means 40 mm across), with no repair prompt. Add a
+  second Output with another part: the slicer lists two objects, each with its Output's name. Pinned: `ExportStreamedTests`,
+  `ThreeMFWriterTests`. The top bar's Export menu has no 3MF entry (decision 9). **Observed:**
+- [ ] **MT-6 The streamed export.** Wire a very fine Mesh (export resolution 0.05, a 60 mm part) and export 3MF or STL while watching
+  Activity Monitor: memory stays far below the size of the file, the bar fills steadily, and Cancel part way leaves no file and no
+  hidden ".partial" file beside it. Pinned: `cancelStopsTheExportAndLeavesNoFile`, `aCancelledExportLeavesNothingInTheFolder`;
+  the memory is human-only until `ImplicitBench` i-4 is run on an idle Mac. A 3MF whose XML passes 4 GB is written as Zip64 (`ImplicitBench` i-4z
+  pins the format with the system's `unzip -t`); if you can make one, a slicer should open it. **Observed:**
+- [ ] **MT-7 Decimate and the checks in an export.** With a Decimate after the Mesh, export 3MF and open it in the slicer: the part
+  has fewer triangles than without, no cracks along the lines where the export's windows meet (look for them across the part, in
+  the slicer's x-ray or error view). A check in the graph shows its warning in the export summary ("Exported with 1 warning"). Pinned:
+  `decimatingEachWindowKeepsTheWholeClosedAndTheShapeWithinTheTolerance`, `aCheckWarningReachesTheSummary`. **Observed:**
+- [ ] **MT-8 Mesh to Solid.** Wire a Decimate (tolerance 0.05) then a Mesh to Solid into the Output: the part shows faceted, File >
+  Export STEP… works and the STEP opens in FreeCAD as one solid with the same volume as the mesh. With the Mesh at a fine resolution and
+  no Decimate the node says "Mesh has N triangles; Mesh to Solid takes at most 100,000. Decimate it first or coarsen the resolution."
+  Pinned: `MeshToSolidTests`, `MeshToSolidNodeTests`. **Observed:**
+- [ ] **MT-9 The lightweight bracket.** The slice's bracket into a To Implicit, a TPMS (Gyroid, Sheet, skin 1.5,
+  thickness graded by a Distance Field), Drain Holes, Mesh (0.3), the two checks and an Output: export 3MF and open it in the slicer:
+  a lattice bracket with a solid skin, drain holes in the bottom, and no warnings in the summary. Pinned:
+  `LightweightBracketAcceptanceTests`. **Observed:**

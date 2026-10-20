@@ -61,7 +61,17 @@ struct CanvasContentSkipWindowTests {
         #expect(fixture.app.editor.drawnNotes.count == 1 && fixture.app.editor.drawnFrames.count == 1)
         let steady = fixture.app.steadyWork()
         #expect(steady.contentEvaluations == 0)
-        #expect(steady.contentSkips > 6 + 3 + 2, "every node, wire and comment, and the views inside the nodes, skipped")
+        // MetalUI C14b-2 (record §110): an unchanged outermost `.equatable()` occurrence skips its whole build recursion and
+        // its layout rows are grafted, so the views inside a node are no longer visited, let alone counted as skips. A steady
+        // frame counts exactly one skip per outermost canvas view (6 nodes + 3 wires + 2 comments = 11) and one graft each.
+        let canvasViews = 6 + 3 + 2
+        #expect(steady.contentSkips >= canvasViews, "every node, wire and comment skipped (more if a graft were refused)")
+        #expect(steady.retainedGrafts == canvasViews, "each skipped canvas view was grafted, not built")
+        #expect(steady.retainedGraftIneligible == 0 && steady.retainedRedos == 0, "no graft refused, no frame redone")
+        // MetalUI C14b-3 (record §121): reading control state is not a write, so nothing in a steady frame is ineligible.
+        #expect(steady.retainedIneligible == 0 && steady.retainedPrepaintIneligible == 0, "no replay ineligible")
+        #expect(steady.retainedIneligibleReasons.isEmpty, "no ineligible reason recorded: \(steady.retainedIneligibleReasons)")
+        #expect(steady.retainedSkippedRequests > 0, "the grafts stood for element requests the build did not make")
         #expect(steady.contentRefusals == 0, "no canvas view reads the environment")
         #expect(fixture.app.picture.count > 100, "the canvas picture holds the nodes")
     }
@@ -81,8 +91,8 @@ struct CanvasContentSkipWindowTests {
         let work = app.work
         #expect(app.window.frameWork.count == 1, "one pointer move, one frame")
         #expect(work.contentEvaluations == 1 + wires, "the dragged node's view and its wires' views")
-        // Not tied to MetalUI's exact visit count: C14-b (retained subtrees) is expected to change how many inner views a
-        // skipped node still visits. What matters is that every other node, wire and comment skipped.
+        // Not tied to MetalUI's exact visit count: C14b-2 skips a skipped node's whole build recursion, so its inner views
+        // are no longer visited. What matters is that every other node, wire and comment skipped.
         #expect(work.contentSkips >= (6 - 1) + (3 - wires) + 2, "every other node, wire and comment skipped")
         #expect(work.contentRefusals == 0)
         #expect(app.picture == app.pictureAfterRebuildingEverything(), "the skipped views drew what a full rebuild draws")
@@ -183,5 +193,58 @@ struct CanvasContentSkipWindowTests {
         #expect(app.work.contentEvaluations >= 3, "the Rectangle, the Extrude and the new wire")
         #expect(app.window.scene.glyphs.count > glyphs, "the badge shows the time it took")
         #expect(app.picture == app.pictureAfterRebuildingEverything())
+    }
+
+    /// MetalUI C14-c (environment epoch): the box reads the `ThemeStore` from the environment and is `.equatable()`. A frame
+    /// where its rect and the theme it read are unchanged skips and grafts it; a new rect or a new theme evaluates it.
+    @Test func theSelectionBoxIsSkippedWhileItsRectAndTheThemeAreUnchanged() async throws {
+        let fixture = try await open()
+        let app = fixture.app
+        let start = app.point(inCanvas: Vector2(500, 60))
+        app.window.hover(at: start)
+        _ = app.window.send(.mouseDown(MouseEvent(position: start)))
+        app.window.tick()
+        let moved = Point(x: start.x + Pixels(40), y: start.y + Pixels(30))
+        _ = app.window.send(.mouseDragged(MouseEvent(position: moved)))
+        app.window.tick()
+        guard case .boxSelecting? = app.editor.interaction else {
+            Issue.record("expected a box")
+            return
+        }
+        // The first steady frame settles anything still pending; the second is the one measured.
+        _ = app.steadyWork()
+        let steady = app.steadyWork()
+        let canvasViews = 6 + 3 + 2 + 1
+        #expect(steady.contentEvaluations == 0, "the box's rect and the theme it read are unchanged")
+        #expect(steady.contentRefusals == 0, "reading the environment no longer refuses .equatable()")
+        #expect(steady.contentSkips >= canvasViews, "the box is skipped with the other canvas views")
+        #expect(steady.retainedGrafts == canvasViews, "and grafted, not built")
+
+        app.resetWork()
+        _ = app.window.send(.mouseDragged(MouseEvent(position: Point(x: moved.x + Pixels(20), y: moved.y))))
+        app.window.tick()
+        #expect(app.work.contentEvaluations == 1, "a new rect evaluates the box and nothing else")
+        #expect(app.work.contentRefusals == 0)
+
+        app.resetWork()
+        app.model.themes.select("alucard")
+        app.redraw()
+        // Not `contentSkips == 0`: whether a view that did not read the theme is skipped while others evaluate depends on
+        // the platform's frame order (CI: Linux and Windows skipped some). What must hold is that the box is not stale:
+        // the picture equals a window that started in the theme and drew the same box.
+        #expect(app.work.contentEvaluations > 0, "a theme change reaches the box")
+        let alucard = ThemeStore()
+        alucard.select("alucard")
+        let reference = try await open(themes: alucard)
+        let from = reference.app.point(inCanvas: Vector2(500, 60))
+        reference.app.window.hover(at: from)
+        _ = reference.app.window.send(.mouseDown(MouseEvent(position: from)))
+        reference.app.window.tick()
+        let first = Point(x: from.x + Pixels(40), y: from.y + Pixels(30))
+        _ = reference.app.window.send(.mouseDragged(MouseEvent(position: first)))
+        reference.app.window.tick()
+        _ = reference.app.window.send(.mouseDragged(MouseEvent(position: Point(x: first.x + Pixels(20), y: first.y))))
+        reference.app.window.tick()
+        #expect(app.picture == reference.app.picture, "the box is drawn in the new theme, as a fresh window draws it")
     }
 }

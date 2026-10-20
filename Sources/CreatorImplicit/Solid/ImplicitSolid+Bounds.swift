@@ -38,6 +38,12 @@ extension ImplicitSolid {
             return blocks.bounds
         case .isosurface(_, _, _, let region):
             return region
+        case .tpms(let lattice):
+            return lattice.region
+        case .struts(let lattice):
+            return lattice.region
+        case .voronoi(let lattice):
+            return lattice.region
         }
     }
 

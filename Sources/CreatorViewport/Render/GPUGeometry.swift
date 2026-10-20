@@ -100,11 +100,12 @@ enum GPUGeometry {
     /// A region is active when the view direction is within about 0.5° of it.
     static let activeRegionCosine = 0.99996
 
-    /// One entry per face: bit 1 hovered, bit 2 selected. IDs outside `count` are ignored.
-    static func faceFlags(count: Int, hovered: FaceID?, selected: Set<FaceID>) -> [UInt32] {
+    /// One entry per face: bit 1 hovered, bit 2 selected, bit 4 warning (a check's highlight). IDs outside `count` are ignored.
+    static func faceFlags(count: Int, hovered: FaceID?, selected: Set<FaceID>, warning: Set<FaceID> = []) -> [UInt32] {
         var flags = [UInt32](repeating: 0, count: max(count, 0))
         if let hovered, flags.indices.contains(hovered.rawValue) { flags[hovered.rawValue] |= 1 }
         for face in selected where flags.indices.contains(face.rawValue) { flags[face.rawValue] |= 2 }
+        for face in warning where flags.indices.contains(face.rawValue) { flags[face.rawValue] |= 4 }
         return flags
     }
 

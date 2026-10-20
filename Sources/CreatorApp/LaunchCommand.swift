@@ -14,6 +14,13 @@ public enum LaunchCommand: Equatable, Sendable {
     case selfTest
     /// `--info-plist <minimum macOS>`: print the bundle's `Info.plist` (``AppBundleInfo``).
     case infoPlist(minimumSystemVersion: String)
+    /// The documents a second launch hands to the running instance (Linux and Windows): the path `run(path:)` names, when
+    /// `exists` says there is a file there, which is what the app opens from its own command line.
+    public static func forwardedDocuments(path: String?, exists: (String) -> Bool) -> [String] {
+        guard let path, exists(path) else { return [] }
+        return [path]
+    }
+
     /// `--smoke-test [seconds]` (CI): open the window over SDL's offscreen renderers for `seconds`, print whether it reached
     /// its first frame, and exit 0 when it did and 1 when not (``LaunchSmoke``). Only a build with the SDL backend can.
     case smokeTest(seconds: Double)

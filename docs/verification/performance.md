@@ -101,7 +101,9 @@ judged on the 2026-10-13 run below.
 **C14 slice 1 adopted (plan `2026-10-13-adopt-c14`).** The canvas's node, wire and comment views skip their
 `content` getter while their value is unchanged (gap PERF-b), which saves the getters of every node that did not change
 in a drag step or a camera change; the build recursion, prepaint and paint still run whole (C14-b). The counts are pinned
-by `CanvasContentSkipWindowTests` (a drag move evaluates one node and its wires and skips the rest).
+by `CanvasContentSkipWindowTests` (a drag move evaluates one node and its wires and skips the rest). C14-c (MetalUI `41a2180f`) adopted: the selection box, the one canvas view that read `@Environment`, is skipped too while its rect and the theme are unchanged; nothing timed.
+
+**C14b-3 adopted (MetalUI `711ab9c4`, record §121):** reading control state no longer counts as a write, so unfocused fields, unscrolled scroll views and unmoved lists no longer make an `.equatable()` subtree ineligible; timings come in the quiet window.
 
 ### Idle re-time after C14 slice 1 (2026-10-13)
 
@@ -349,12 +351,15 @@ counts), (3) stop and ask. The budget is not edited and a miss is not called met
 
 ## Implicit (implicit spec §6, sub-project 7c-1)
 
-`scripts/bench.sh ImplicitBench` runs rows i-1 to i-4 (i-5 and i-6, the decimation and Mesh to Solid, belong to 7c-3). Release, an idle Mac
-with a GPU. The fixture is a sheet through a 100 mm cube: the band of a 50 mm noise field between two levels (one isosurface cut
-from another), because the lattice nodes (7c-2) do not exist yet; 7c-2 swaps in the gyroid and keeps the rows. A gyroid of 8 mm cells
-has about 150 million triangles at 0.1 mm, which no in-memory mesh holds in 4 GB, so row i-4 is only reachable for a sparse sheet.
+`scripts/bench.sh ImplicitBench` runs rows i-1 to i-7. Release, an idle Mac
+with a GPU. The fixture is a gyroid sheet filling a 100 mm cube: a TPMS node (gyroid, sheet, one cell of 100 mm, 3 mm wall) on an
+Implicit Box, meshed and sent to an Output (7c-1 measured a noise sheet of the same cost class until the lattice nodes existed; 7c-2
+swapped in the gyroid and kept the rows). A gyroid of 8 mm cells has about 150 million triangles at 0.1 mm, which no in-memory mesh
+holds in 4 GB, so the fixture is one cell: its surface is 3.09 × 100² mm² twice over, about 196,000 triangles at 1.0 mm and so about
+19.6 million at 0.1 mm (an estimate, not yet measured: 3 GB at the 155 bytes a triangle of the 7c-1 run), and its wall volume was 9.2% of the cube, the 9.3% a 3 mm wall
+on that surface has.
 Per the spec's Errata, the budgets of i-1 and i-2 are for the Metal path measured with Metal meshing (D13, plan 7c-1g), and the streamed
-export that i-4 needs (D12) belongs to 7c-3. The first run below measured Metal evaluation with the CPU mesher; **the 7c-1g run after it
+export that i-4 needs (D12, built by 7c-3: the file is written window by window and the mesh is never held) is what row i-4 measures from 7c-3 on. The first run below measured Metal evaluation with the CPU mesher; **the 7c-1g run after it
 measures i-1 and i-2 with the GPU mesher**, which is what the budgets are for. Row i-4 was not re-measured by 7c-1g: it is 7c-3's row,
 and its run below predates GPU meshing. The CPU engine records its numbers without a budget (D11). A budget is a record here, never a
 gate (7c-1's ruling U6): a miss is written down as a miss.
@@ -362,12 +367,19 @@ gate (7c-1's ruling U6): a miss is written down as a miss.
 | Row | Case | Target |
 |---|---|---|
 | i-1 | the sheet's first preview pass, on a fresh evaluator with the shaders compiled | under 1 s |
-| i-2 | a thickness edit (the gap between the two levels), warm, no recompile: one coarse pass | under 100 ms |
+| i-2 | a thickness edit (the TPMS node's `thickness`), warm, no recompile: one coarse pass | under 100 ms |
 | i-3 | To Implicit of the slice's filleted bracket (OCCT), bake cache emptied each time | under 500 ms |
-| i-4 | the sheet exported at 0.1 mm to STL, the whole pipeline | under 60 s and a peak memory under 4 GB |
+| i-4 | the sheet exported at 0.1 mm to STL, the whole pipeline (streamed, D12) | under 60 s and a peak memory under 4 GB |
+| i-4b | the same sheet exported to a 3MF (7c-3): file size, model XML size, time | recorded, no budget |
+| i-4z | a 4.7 GB zip entry through `ZipWriter` read by `unzip -t` (macOS; Zip64) | valid, recorded |
+| i-5 | Decimate of a 2,097,152-triangle sphere (a 100 mm ball) at 0.01 mm: `MeshDecimator` alone | under 10 s |
+| i-6 | Mesh to Solid of a 100,000-triangle mesh on OCCT: the weld, the faces, the merge and the check | under 15 s |
+| i-7 | the trapped-volume flood fill of a hollow 150 mm cube at the largest grid (28 million cells): time and peak resident memory | recorded |
 
 The run recorded here (2026-10-14, release build, 7c-core) was taken while other sessions kept the Mac at a load average of 130 to 270 on 10 cores (so none of these numbers is a measurement of the
-code; they show the benchmarks run, and the order of magnitude). **Re-run on an idle Mac and replace them, keeping the load lines.**
+code; they show the benchmarks run, and the order of magnitude). It measured the noise sheet of 7c-1; **the gyroid fixture of 7c-2 has not
+been run** (the Mac was not idle). **Re-run on an idle Mac with `scripts/bench.sh ImplicitBench` and replace these lines, keeping the load
+lines.**
 
 ```text
 BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
@@ -489,6 +501,50 @@ setting the cap: a failure caused by a busy Mac moves it.
 | MetalCreator commit | `<pending idle run>` |
 | `BENCH preview-sweep cap-candidate` | `<pending idle run>` |
 | The cap set in `PreviewSchedule.maximumTriangles` | `<pending idle run>` (2,000,000 until the idle run; do not change it before) |
+
+### 7c-3 final fixes (streamer evaluator, trapped-volume memory)
+
+`ImplicitBench`, release, Mac shared with other sessions (not idle; the figures are for the choice between engines, not for the budgets' final word):
+
+```text
+BENCH i-4 export of the 100 mm sheet at 0.1 mm (STL, whole pipeline): median 40595.40 ms (GPU values, CPU mesher; budget 60000 ms: met)
+BENCH i-4 export of the 100 mm sheet at 0.1 mm (STL, whole pipeline): median 295403.97 ms (CPU values; budget 60000 ms: missed)
+BENCH i-7 28094464 cells, 1 void, 3.96 s; peak resident 425 MB (54 MB before the grid)
+```
+
+The streamed export therefore keeps the GPU engine's values (`StreamingMesherGPUTests` holds them to the seam welding, and a seam that
+does not weld throws `seamsDidNotJoin`); the CPU mesher builds the triangles, and `meshBricks` is not used (recorded as a deviation).
+i-7 is the flood fill of a hollow 150 mm cube at the largest grid: about 370 MB over the process's baseline.
+
+### Rows i-4 to i-7 with the mesh tools (7c-3)
+
+Taken 2026-10-19 on a MacBookPro18,2, release build of 7c-3 after merging master, on a Mac that was NOT idle (load 9.7 before, 8.7 after on 10 cores, other sessions running): a record, not a verdict. Every budget was met even so. The streamed export meshes on the CPU over the GPU engine's values.
+
+```text
+BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
+BENCH load before: 9.72 15.46 12.32
+BENCH i-1 first preview pass of a 100 mm sheet, cold (shaders compiled): median 423.11 ms, p95 423.11 ms, max 423.11 ms (n 1)
+BENCH i-1 first preview pass of a 100 mm sheet: median 9.89 ms, p95 10.63 ms, max 10.63 ms (n 6); budget 1000.00 ms: met
+BENCH i-2 thickness edit of a 100 mm sheet (one coarse pass, no recompile): median 8.06 ms, p95 8.27 ms, max 9.08 ms (n 22); budget 100.00 ms: met
+BENCH i-1m first pass of the sheet at 0.78 mm, GPU mesher: median 12.61 ms, p95 12.64 ms, max 12.64 ms (n 6)
+BENCH i-1m the same pass, CPU mesher over the GPU's values (before D13): median 57.77 ms, p95 59.36 ms, max 59.36 ms (n 6)
+BENCH i-1m triangles: GPU 323808, CPU 323808
+BENCH i-3 To Implicit of the bracket (bake, OCCT): median 288.96 ms, p95 301.32 ms, max 301.32 ms (n 10); budget 500.00 ms: met
+BENCH i-4 export of the 100 mm sheet at 0.1 mm (STL, whole pipeline): median 18850.45 ms, p95 18850.45 ms, max 18850.45 ms (n 1); budget 60000.00 ms: met
+BENCH i-4 peak memory 0.86 GB (file 1008 MB); budget 4.00 GB: met
+BENCH i-4b export of the 100 mm sheet at 0.1 mm (3MF, whole pipeline): median 36838.25 ms, p95 36838.25 ms, max 36838.25 ms (n 1)
+BENCH i-4b 3MF file 177 MB, model XML 1436 MB; peak memory of the process so far 2.00 GB
+BENCH i-4z a 4794 MB zip entry (deflated): median 22879.88 ms, p95 22879.88 ms, max 22879.88 ms (n 1)
+BENCH i-4z unzip -t: exit 0 No errors detected in compressed data of /var/folders/_h/phx9n5sd01dd8sf4h76clcc80000gn/T/10BF6732-685E-4A6B-B169-2E6F69FFCB04.zip.
+BENCH i-5 decimate a 2097152 triangle sphere (0.01 mm): median 6804.42 ms, p95 6813.99 ms, max 6813.99 ms (n 3); budget 10000.00 ms: met
+BENCH i-5 triangles 2097152 to 290730
+BENCH i-7 28094464 cells, 1 void, 4.180774292 seconds; peak resident 2,271 MB (2,271 MB before the grid)
+BENCH i-6 Mesh to Solid of a 100000 triangle mesh (OCCT): median 14143.10 ms, p95 14214.17 ms, max 14214.17 ms (n 2); budget 15000.00 ms: met
+BENCH i-6 faces 100000
+BENCH load after: 8.69 11.16 11.15
+```
+
+**i-4** was 86.6 s and 4.53 GB in 7c-core's in-memory export; streamed it is 18.9 s and 0.86 GB (the file is 1,008 MB at this sheet). **i-4b**: the 3MF is 177 MB from 1,436 MB of model XML in 36.8 s, under 4 GB of XML so a plain zip; **i-4z** writes a 4.8 GB entry as Zip64 and `unzip -t` accepts it. **i-5**: 6.8 s against 10 s. **i-6**: 14.1 s against 15 s (close: a busy Mac misses it, re-run on an idle one). **i-7**'s resident figures are polluted by the bench process holding earlier rows (2,271 MB before the grid); the earlier isolated run measured 425 MB peak.
 
 ## Raw output
 

@@ -6,19 +6,31 @@ import CreatorNodes
 import Foundation
 import Testing
 @testable import CreatorApp
+#if canImport(CreatorOCCT)
+import CreatorOCCT
+#endif
 
-/// Implicit spec §6, rows i-1 to i-4 (i-5 and i-6 belong to 7c-3). Release, idle Mac, `scripts/bench.sh ImplicitBench`; each prints
+/// Implicit spec §6, rows i-1 to i-7. Release, idle Mac, `scripts/bench.sh ImplicitBench`; each prints
 /// `BENCH i-…` lines, with a row's budget judged on the median:
-/// - i-1: the first preview pass of the sheet (a noise sheet through a 100 mm cube; see `ImplicitBenchFixtures`) on a fresh
+/// - i-1: the first preview pass of the sheet (a gyroid sheet filling a 100 mm cube; see `ImplicitBenchFixtures`) on a fresh
 ///   evaluator, the GPU's pipelines already compiled: under 1 s. The very first pass of the process, which compiles them, is printed
 ///   too and not judged.
-/// - i-2: a thickness edit (the gap between the two levels) on a warm evaluator, so the noise and the cube are cached and no shader
-///   is recompiled: one coarse pass under 100 ms.
+/// - i-2: a thickness edit (the TPMS node's `thickness`) on a warm evaluator, so the cube is cached and no shader is recompiled: one
+///   coarse pass under 100 ms.
 /// - i-1m: the same first pass made by the mesher alone, on the GPU mesher and on the CPU mesher over the GPU's values (meshing
 ///   before Errata D13), to see what GPU meshing bought; i-2 is that coarse pass again. Not judged. The run also checks the pass was
 ///   made on the GPU, since a fall-back to the CPU is silent.
 /// - i-3: To Implicit of the slice's bracket on OCCT at the default tolerance, the bake cache emptied each time: under 500 ms.
-/// - i-4: the export of i-1 at 0.1 mm to an STL, the whole pipeline: under 60 s and a peak memory under 4 GB.
+/// - i-4: the export of i-1 at 0.1 mm to an STL, the whole pipeline: under 60 s and a peak memory under 4 GB. The export streams
+///   (Errata D12): the bricks are meshed a window at a time into the file, so the memory is a window and the plan, not the mesh.
+/// - i-4b: the same export to a 3MF: the file's size, the model XML's size and the time are recorded, with no budget (the XML is a few
+///   times the STL, and deflate is the Mac's alone). Past 4 GB of XML the zip is Zip64 (`i-4z` below).
+/// - i-4z: a zip entry of 4.7 GB written through `ZipWriter` and read by the system's `unzip -t`: the Zip64 path of D12's 150-million-triangle
+///   3MF, which no unit test can afford. Recorded, no budget; a failure of `unzip` is a miss.
+/// - i-5: Decimate of a 2,097,152-triangle sphere (a 100 mm ball, tolerance 0.01 mm), `MeshDecimator` alone: under 10 s.
+/// - i-7: the Check Trapped Volumes grid (`OccupancyGrid` and `EnclosedVoids`) of a hollow 150 mm cube, the largest part that keeps 0.5 mm
+///   cells (32 million cells): the time and the process's peak resident memory, which D16 budgets at about 450 MB for the flood fill.
+/// - i-6: Mesh to Solid of a 100,000-triangle mesh on OCCT (the welding, the faces built on shared vertices, the merge and the check): under 15 s.
 @MainActor
 @Suite(.serialized, .enabled(if: Bench.isRequested, "set METALCREATOR_BENCH=1 (scripts/bench.sh)"))
 struct ImplicitBench {
@@ -27,6 +39,8 @@ struct ImplicitBench {
     static let bakeBudget = 500.0
     static let exportBudget = 60_000.0
     static let memoryBudget = 4_000_000_000
+    static let decimateBudget = 10_000.0
+    static let solidBudget = 15_000.0
 
     @Test func theFirstPreviewPassOfASheetFillingACube() async throws {
         guard Bench.requireRelease() else { return }
@@ -57,12 +71,12 @@ struct ImplicitBench {
         var samples = BenchSamples("i-2 thickness edit of a 100 mm sheet (one coarse pass, no recompile)")
         var graph = sheet.graph
         for round in 0..<25 {
-            graph.nodes[sheet.levels.id]?.inputValues["step"] = .number(-0.1 - 0.001 * Double(round + 1))
+            graph.nodes[sheet.thickness.id]?.inputValues["thickness"] = .number(ImplicitBenchFixtures.thickness + 0.01 * Double(round + 1))
             let start = clock.now
             let report = try await evaluator.evaluate(graph, demand: [sheet.output.id])
             guard round >= 3 else { continue }
             samples.append(from: start, to: clock.now)
-            #expect(report.evaluatedNodes.count == 5)
+            #expect(report.evaluatedNodes.count == 3, "the TPMS node, the Mesh and the Output; the cube is cached")
         }
         print(samples.line(budget: Self.editBudget))
         await Self.expectMeshedOnTheGPU(since: madeBefore, atLeast: 25, row: "i-2")
@@ -140,6 +154,120 @@ struct ImplicitBench {
         let verdict = peak <= Self.memoryBudget ? "met" : "missed"
         print("BENCH i-4 peak memory \(gigabytes) GB (file \(size / 1_000_000) MB); budget 4.00 GB: \(verdict)")
     }
+
+    @Test func exportingTheSheetAsA3MFAtATenthOfAMillimetre() async throws {
+        guard Bench.requireRelease() else { return }
+        let sheet = ImplicitBenchFixtures.sheet(exportResolution: 0.1)
+        let app = AppModel(kernel: FakeKernel(), file: GraphFile(graph: sheet.graph), implicitEngine: .automatic)
+        await app.settle()
+        let url = URL.temporaryDirectory.appending(path: "\(UUID().uuidString).3mf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let clock = ContinuousClock()
+        let start = clock.now
+        try await app.export(.threeMF, to: url)
+        var samples = BenchSamples("i-4b export of the 100 mm sheet at 0.1 mm (3MF, whole pipeline)")
+        samples.append(from: start, to: clock.now)
+        let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
+        let model = try #require(try ZipReader.listing(of: url).first { $0.name == "3D/3dmodel.model" })
+        print(samples.line())
+        let gigabytes = (Double(ImplicitBenchFixtures.peakMemory) / 1_000_000_000).formatted(.number.precision(.fractionLength(2)))
+        print("BENCH i-4b 3MF file \(size / 1_000_000) MB, model XML \(model.size / 1_000_000) MB; "
+            + "peak memory of the process so far \(gigabytes) GB")
+        #expect(size > 1_000 && model.size > size / 100)
+    }
+
+    #if os(macOS)
+    @Test func aZipEntryPastFourGigabytesIsValidZip64() throws {
+        guard Bench.requireRelease() else { return }
+        let url = URL.temporaryDirectory.appending(path: "\(UUID().uuidString).zip")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let line = Array("<triangle v1=\"1234567\" v2=\"1234568\" v3=\"1234569\"/>\n".utf8)
+        let chunk = [[UInt8]](repeating: line, count: 20_000).flatMap { $0 }
+        let chunks = 4_700
+        let clock = ContinuousClock()
+        let start = clock.now
+        var zip = try ZipWriter(destination: url)
+        try zip.beginEntry("3D/3dmodel.model")
+        for _ in 0..<chunks { try zip.write(chunk) }
+        try zip.endEntry()
+        try zip.finish()
+        var samples = BenchSamples("i-4z a \(chunk.count * chunks / 1_000_000) MB zip entry (\(ZipWriter.defaultMethod))")
+        samples.append(from: start, to: clock.now)
+        print(samples.line())
+        let entry = try #require(try ZipReader.listing(of: url).first)
+        #expect(entry.size == chunk.count * chunks && entry.size > 0xFFFF_FFFF, "the size is read from the Zip64 extra")
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/unzip")
+        process.arguments = ["-tq", url.path]
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = output
+        try process.run()
+        process.waitUntilExit()
+        let said = String(data: output.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        print("BENCH i-4z unzip -t: exit \(process.terminationStatus) \(said.trimmingCharacters(in: .whitespacesAndNewlines))")
+        #expect(process.terminationStatus == 0, "\(said)")
+    }
+    #endif
+
+    @Test func decimatingTwoMillionTriangles() throws {
+        guard Bench.requireRelease() else { return }
+        let sphere = ImplicitBenchMeshes.sphere(subdivisions: 9, radius: 50)
+        let clock = ContinuousClock()
+        var samples = BenchSamples("i-5 decimate a \(sphere.triangleCount.formatted(.number.grouping(.never))) triangle sphere (0.01 mm)")
+        var after = 0
+        for round in 0..<4 {
+            let start = clock.now
+            let output = try MeshDecimator.decimate(positions: sphere.positions, triangles: sphere.triangles, tolerance: 0.01)
+            let end = clock.now
+            if round >= 1 { samples.append(from: start, to: end) }
+            after = output.triangles.count / 3
+        }
+        print(samples.line(budget: Self.decimateBudget))
+        print("BENCH i-5 triangles \(sphere.triangleCount) to \(after)")
+        #expect(after < sphere.triangleCount)
+    }
+
+    @Test func theTrappedVolumeGridOfAHollow150mmCube() async throws {
+        guard Bench.requireRelease() else { return }
+        let hollow = ImplicitSolid.subtract([.box(halfSize: Vector3(75, 75, 75), cornerRadius: 0),
+                                             .box(halfSize: Vector3(60, 60, 60), cornerRadius: 0),
+                                            ], blend: .constant(0))
+        let before = ImplicitBenchFixtures.peakMemory
+        let clock = ContinuousClock()
+        let start = clock.now
+        let grid = try await OccupancyGrid.of(hollow, using: CPUBatchEvaluator(hollow))
+        let found = try EnclosedVoids(grid)
+        let elapsed = clock.now - start
+        let peak = ImplicitBenchFixtures.peakMemory
+        let megabytes = { (bytes: Int) in (Double(bytes) / 1_000_000).formatted(.number.precision(.fractionLength(0))) }
+        print("BENCH i-7 \(grid.cellCount) cells, \(found.voids.count) void, \(elapsed); peak resident \(megabytes(peak)) MB "
+            + "(\(megabytes(before)) MB before the grid)")
+        #expect(found.voids.count == 1 && grid.cellCount > 20_000_000)
+    }
+
+    #if canImport(CreatorOCCT)
+    @Test func meshToSolidOfAHundredThousandTriangles() async throws {
+        guard Bench.requireRelease() else { return }
+        let ball = ImplicitBenchMeshes.uvSphere(segments: 400, rings: 126)
+        let kernel = OCCTKernel()
+        let clock = ContinuousClock()
+        var samples = BenchSamples("i-6 Mesh to Solid of a \(ball.triangleCount.formatted(.number.grouping(.never))) triangle mesh (OCCT)")
+        var faces = 0
+        for round in 0..<3 {
+            let start = clock.now
+            let welded = MeshWelder.weld(positions: ball.positions, triangles: ball.triangles)
+            let solid = try await kernel.meshToSolid(positions: welded.positions, triangles: welded.triangles,
+                                                     tag: NodeTag(node: NodeID(), item: 0))
+            let end = clock.now
+            if round >= 1 { samples.append(from: start, to: end) }
+            faces = solid.topology.faces.count
+        }
+        print(samples.line(budget: Self.solidBudget))
+        print("BENCH i-6 faces \(faces)")
+        #expect(faces > 0)
+    }
+    #endif
 }
 
 extension ImplicitBench {

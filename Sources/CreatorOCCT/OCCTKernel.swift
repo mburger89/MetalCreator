@@ -158,6 +158,23 @@ public actor OCCTKernel: Kernel {
         }
     }
 
+    public func meshToSolid(positions: [SIMD3<Float>], triangles: [UInt32], tag: NodeTag) throws -> Solid {
+        try Task.checkCancellation()
+        guard triangles.count >= 12, triangles.count % 3 == 0 else {
+            throw KernelError.invalidInput("A mesh needs at least four triangles to make a solid.")
+        }
+        let shape: OCCTShape
+        do {
+            // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure. Revert once fixed.
+            shape = try Self.serialized { () throws -> OCCTShape in try OCCTShape.solid(fromMesh: positions, triangles: triangles) }
+        } catch let error as OCCTError {
+            // OpenCascade's own reason is the point of the message here, so it is not smoothed over.
+            let reason = error.message.hasPrefix("occt: ") ? String(error.message.dropFirst(6)) : error.message
+            throw KernelError.operationFailed(operation: "mesh to solid", reason: reason.hasSuffix(".") ? reason : reason + ".")
+        }
+        return try solid(from: shape, history: [], inputs: [], tag: tag, operation: "mesh to solid")
+    }
+
     public func properties(of solid: Solid) throws -> SolidProperties {
         try Task.checkCancellation()
         do {

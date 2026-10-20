@@ -31,6 +31,15 @@ extension ImplicitSolid: CustomStringConvertible {
         case .isosurface(let grading, let level, let maxSlope, _):
             return "isosurface(\(grading.field.description), level \(level.millimetreText(locale: .messages)), "
                 + "max slope \(maxSlope.millimetreText(locale: .messages)))"
+        case .tpms(let lattice):
+            return "\(lattice.type.name.lowercased())(cell \(Self.text(lattice.cells.size)), \(lattice.form.name.lowercased()), "
+                + "t = \(Self.text(lattice.thickness))\(Self.stretchText(lattice.cells)))"
+        case .struts(let lattice):
+            let joint = lattice.blend > 0 ? ", blend \(Self.mm(lattice.blend))" : ""
+            return "\(lattice.cell.name.lowercased())(cell \(Self.text(lattice.cells.size)), r = \(Self.text(lattice.radius))"
+                + "\(joint)\(Self.stretchText(lattice.cells)))"
+        case .voronoi(let lattice):
+            return "voronoi \(lattice.form.name.lowercased())(\(lattice.seeds.points.count) seeds, t = \(Self.text(lattice.thickness)))"
         }
     }
 
@@ -48,12 +57,20 @@ extension ImplicitSolid: CustomStringConvertible {
     }
 
     /// A setting: a constant in millimetres, else the field's recipe.
-    private static func text(_ grading: Grading) -> String {
+    static func text(_ grading: Grading) -> String {
         grading.constantValue.map(mm) ?? grading.field.description
     }
 
     /// A size in millimetres, with a true minus sign.
-    private static func mm(_ value: Double) -> String {
+    static func mm(_ value: Double) -> String {
         "\(value.millimetreText(locale: .messages).replacing("-", with: "−")) mm"
+    }
+
+    /// ", stretch x : y : z" for cells that are not cubes, else nothing.
+    static func stretchText(_ cells: LatticeCells) -> String {
+        let stretch = cells.stretch
+        guard abs(stretch.x - 1) > 1e-9 || abs(stretch.y - 1) > 1e-9 || abs(stretch.z - 1) > 1e-9 else { return "" }
+        let parts = [stretch.x, stretch.y, stretch.z].map { $0.millimetreText(locale: .messages) }
+        return ", stretch " + parts.joined(separator: " : ")
     }
 }

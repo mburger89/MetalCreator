@@ -8,58 +8,46 @@ import Foundation
 import Testing
 @testable import CreatorApp
 
-/// What `ImplicitBench` measures. Row i-1's "gyroid sheet" is a sheet of the same cost class until the lattice nodes exist (7c-2): the
-/// band of a noise field between two levels (one isosurface cut from another), held to a cube: a thin curved sheet through a 100 mm cube,
-/// where each point costs two noise evaluations and a gyroid's costs one trigonometric sum. 7c-2 swaps this for the TPMS node and keeps
-/// the rows' ids and targets.
+/// What `ImplicitBench` measures. Row i-1's "gyroid sheet filling a 100 mm cube" is a TPMS node (a gyroid sheet) filling an Implicit Box
+/// of that size, meshed and sent to an Output. (7c-1 benchmarked a noise sheet of the same cost class until the lattice nodes existed.)
 @MainActor
 enum ImplicitBenchFixtures {
     struct Sheet {
         var graph: Graph
-        /// The Series node that makes the two levels, outer then inner: its `step` is the sheet's thickness in noise units.
-        var levels: Node
-        /// The Subtract node that cuts the lower level from the upper: the sheet as an implicit solid.
-        var band: Node
+        /// The TPMS node: a thickness edit is a change to its `thickness` input.
+        var thickness: Node
         var output: Node
     }
 
-    /// The noise the sheet follows: features 50 mm across, one octave, so a 100 mm cube holds a sheet or two. (A gyroid of 8 mm cells
-    /// has about 150 million triangles at 0.1 mm, more than any in-memory mesh holds in 4 GB: row i-4's target needs a sparse sheet, and
-    /// 7c-2 must choose its cell size knowing that.)
-    static let noiseScale = 50.0
-    static let noiseOctaves = 1
-    static let outerLevel = 0.55
-    static let thickness = 0.1
+    /// One gyroid cell across the cube. A gyroid sheet's surface is 3.09 cell² per cell, so a cube of 100 mm cells has about 61,800 mm²
+    /// of wall faces: 196,128 triangles measured at 1.0 mm, so about 19.6 million at 0.1 mm (an estimate), about 3 GB in memory against
+    /// the 4 GB budget; if a run goes over, a cell of 50 mm is the fallback. (8 mm cells have about 150 million,
+    /// which no in-memory mesh holds: row i-4's target needs a sparse sheet, and the streamed export of D12 belongs to 7c-3.)
+    static let cellSize = 100.0
+    /// The wall, in millimetres.
+    static let thickness = 3.0
 
-    /// A sheet through a cube of `side` millimetres, its noise features `scale` across, meshed at `exportResolution` for export.
-    static func sheet(side: Double = 100, scale: Double = noiseScale, exportResolution: Double = 0.1) -> Sheet {
+    /// A gyroid sheet through a cube of `side` millimetres, `cell` millimetres per gyroid cell and `wall` thick, meshed at
+    /// `exportResolution` for export.
+    static func sheet(side: Double = 100, cell: Double = cellSize, wall: Double = thickness, exportResolution: Double = 0.1) -> Sheet {
         var builder = GraphBuilder()
-        let noise = builder.add(NoiseFieldNode.self, ["seed": .integer(1), "scale": .number(scale), "octaves": .integer(noiseOctaves)])
         let cube = builder.add(ImplicitBoxNode.self, ["size": .vector(Vector3(side, side, side))])
-        let levels = builder.add(SeriesNode.self, ["start": .number(outerLevel), "step": .number(-thickness), "count": .integer(2)])
-        // The slope the noise declares, held a little above so each isosurface's lipschitz bound is 1.
-        let slope = (FieldNoise.slopeBound(scale: scale, octaves: noiseOctaves) * 100).rounded(.up) / 100
-        let iso = builder.add(IsosurfaceNode.self, ["max slope": .number(slope)])
-        let band = builder.add(ImplicitSubtractNode.self)
+        let gyroid = builder.add(TPMSNode.self, ["cell size": .number(cell), "thickness": .number(wall)])
         let mesh = builder.add(MeshNode.self, ["export resolution": .number(exportResolution)])
         let output = builder.add(OutputNode.self)
-        builder.wire(noise, "field", to: iso, "field")
-        builder.wire(cube, "implicit", to: iso, "bounds")
-        // Two levels make a list of two isosurfaces; Subtract cuts the second (the lower level) from the first.
-        builder.wire(levels, "values", to: iso, "level")
-        builder.wire(iso, "implicit", to: band, "shapes")
-        builder.wire(band, "implicit", to: mesh, "implicit")
+        builder.wire(cube, "implicit", to: gyroid, "region")
+        builder.wire(gyroid, "implicit", to: mesh, "implicit")
         builder.wire(mesh, "mesh", to: output, "mesh")
-        return Sheet(graph: builder.graph, levels: levels, band: band, output: output)
+        return Sheet(graph: builder.graph, thickness: gyroid, output: output)
     }
 
     /// The sheet as the implicit solid the Mesh node meshes, evaluated on the CPU (an implicit is a tree, and builds the same on any engine).
     static func solid(of sheet: Sheet) async throws -> ImplicitSolid {
         let report = try await Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel())
-            .evaluate(sheet.graph, demand: [sheet.band.id])
-        guard case .implicit(let reference)? = report.results[sheet.band.id]?.outputs?["implicit"]?.items.first,
+            .evaluate(sheet.graph, demand: [sheet.thickness.id])
+        guard case .implicit(let reference)? = report.results[sheet.thickness.id]?.outputs?["implicit"]?.items.first,
               let solid = reference.solid else {
-            throw BenchFixtureError.noSolid(String(describing: report.results[sheet.band.id]?.state))
+            throw BenchFixtureError.noSolid(String(describing: report.results[sheet.thickness.id]?.state))
         }
         return solid
     }
