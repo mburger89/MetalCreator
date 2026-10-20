@@ -88,7 +88,7 @@ struct LightweightBracketAcceptanceTests {
         let first = temporaryURL("lightweight-1.3mf"), second = temporaryURL("lightweight-2.3mf")
         defer { for url in [first, second] { try? FileManager.default.removeItem(at: url) } }
         try await app.export(.threeMF, to: first)
-        // The summary lists the warnings of the nodes the file came from. 
+        // The summary lists the warnings of the nodes the file came from.
         let summary: String
         if case .problem(let problem)? = app.alert { summary = problem.message } else { summary = "" }
         app.alert = nil
