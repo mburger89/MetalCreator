@@ -24,7 +24,7 @@ draws the frame headless:
 
 - **model**: the step itself (a canvas transform, an orbit drag step, a handle value) and `AppModel.settle()`, which
   waits for any evaluation, the scene refresh and the meshes.
-- **window-cpu**: the whole window built, laid out and painted by MetalUI (`renderFrame` over `AppRoot`, 1440 × 900
+- **window-cpu (cold frame)**: the whole window built, laid out and painted by MetalUI (`renderFrame` over `AppRoot`, 1440 × 900
   points at scale 2, the graph panel docked left at its default size). This is the work a pan, a zoom or an orbit
   causes in the app: each changes observed state, and MetalUI rebuilds the whole window on every observed change
   (gap PERF-b).
@@ -37,13 +37,57 @@ of a run are warm-up and not counted (the drag counts every step: each is a new 
 
 What headless can't show, so the numbers are an upper bound for the CPU and a lower bound for latency:
 
-- `renderFrame` draws a fresh window's first frame every time: no text shaping cache, raster cache or state table
-  survives between frames (MetalUI exposes no warm headless frame: gap M7-b). A real window keeps them, so its CPU
-  frame is cheaper. MetalUI's own warm-loop figures for the 20-node bracket are in PERF-b (12–13 ms release with
+- The **cold** rows (`renderFrame` draws a fresh window's first frame every time: no text shaping cache, raster cache,
+  retained `Frame` or state table survives between frames). A real window keeps them, so its CPU frame is cheaper. The
+  **warm** rows below measure that. MetalUI's own warm-loop figures for the 20-node bracket are in PERF-b (12–13 ms release with
   nothing moving).
 - A real window overlaps a frame's GPU work with the next frame's build, so its frame time is about the larger of CPU
   and GPU, not their sum; here they run one after the other.
 - No display link: the fillet drag's command-to-frame leaves out waiting for the next vsync (up to 16.7 ms more).
+
+## Warm interaction rows (judge the 16.67 ms budget here)
+
+The `window-cpu` rows above time a **cold frame**: `BenchRenderer.windowScene` calls `renderFrame`, which builds a fresh
+`Frame` every call, so MetalUI's retained skip and graft (C14b, C14b-2, C14-c, C14b-3) can never pay off. That is the
+cost of a first frame (window open, resize, theme switch), and until 2026-10-20 it was what the 60 fps budget was judged
+on. Steady interaction (an orbit, a pan, a zoom, a drag) is **warm**: the window and its `Frame` live across the steps.
+A work-count bisect (`FrameWork` per orbit step, graph panel docked left) found 332 element requests per warm frame
+against 4,572 per cold frame.
+
+So each interaction bench has a `-warm` row: `WarmBenchWindow` keeps one `TestWindow` over `AppWindowRoot` alive, the step
+is applied (a drag step, a canvas transform, a handle value), `settle()` waits, and the frame redrawn by the window
+(`setNeedsRedraw` then `tick`) is timed alone. The first 10 steps are warm-up, the rest are counted (100 orbit steps,
+120 pan or zoom steps, 65 fillet steps). Each row also prints `element-requests` per frame. The cold rows stay as the
+reference for a first frame. The CPU side only: the GPU rows are unchanged, and a real window overlaps them with the next
+build. `WarmWorkPinTests` pins the work of a steady warm orbit-panel-left step with no timing, in plain `swift test`: no
+ineligible replay, no redo, no rasterized pixel, and fewer than 2 x 332 element requests.
+
+**Relative numbers only.** These were taken on a heavily loaded Mac (load averages 60.24 / 52.00 / 70.37 before and
+18.67 / 40.21 / 60.24 after; idle means all three under 3), so the absolute milliseconds are inflated and no verdict
+here is final. Final judged numbers come from the next idle window.
+
+2026-10-20, MacBook Pro (MacBookPro18,2), macOS 27.0.1, branch `warm-bench` before the `.equatable()` panels:
+
+```text
+BENCH orbit-panel-left window-cpu (cold frame): median 29.89 ms, p95 33.17 ms, max 41.81 ms (n 100); budget 16.67 ms: missed
+BENCH orbit-panel-left-warm window-cpu (warm frame): median 7.67 ms, p95 9.31 ms, max 10.09 ms (n 100); budget 16.67 ms: met
+BENCH orbit-panel-left-warm: element requests per frame, median 332, max 332
+BENCH orbit-panel-hidden window-cpu (cold frame): median 2.61 ms, p95 3.00 ms, max 3.17 ms (n 100); budget 16.67 ms: met
+BENCH orbit-panel-hidden-warm window-cpu (warm frame): median 1.99 ms, p95 2.01 ms, max 2.04 ms (n 100); budget 16.67 ms: met
+BENCH orbit-panel-hidden-warm: element requests per frame, median 161, max 161
+BENCH pan-50 window-cpu (cold frame): median 25.16 ms, p95 28.62 ms, max 30.57 ms (n 120); budget 16.67 ms: missed
+BENCH pan-50-warm window-cpu (warm frame): median 14.11 ms, p95 22.23 ms, max 27.70 ms (n 120); budget 16.67 ms: met
+BENCH pan-50-warm: element requests per frame, median 1409, max 1697
+BENCH zoom-50 window-cpu (cold frame): median 29.18 ms, p95 34.58 ms, max 36.32 ms (n 120); budget 16.67 ms: missed
+BENCH zoom-50-warm window-cpu (warm frame): median 25.23 ms, p95 38.22 ms, max 49.90 ms (n 120); budget 16.67 ms: missed
+BENCH zoom-50-warm: element requests per frame, median 1857, max 2879
+BENCH fillet-drag window-cpu (cold frame): median 31.52 ms, p95 33.01 ms, max 98.77 ms (n 75)
+BENCH fillet-drag-warm window-cpu (warm frame): median 21.57 ms, p95 22.54 ms, max 23.33 ms (n 65)
+BENCH fillet-drag-warm: element requests per frame, median 888, max 888
+```
+
+Pan and zoom still rebuild most of the canvas each step (the transform is read by every node view), so their warm
+requests stay high; the `.equatable()` panels (below) do not change that.
 
 ## Results
 

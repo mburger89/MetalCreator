@@ -19,7 +19,7 @@ struct FilletDragBench {
         let input = AppInput(model: app)
         let renderer = try BenchRenderer()
         renderer.place(app)
-        var evaluate = BenchSamples("fillet-drag evaluate+mesh"), cpu = BenchSamples("fillet-drag window-cpu")
+        var evaluate = BenchSamples("fillet-drag evaluate+mesh"), cpu = BenchSamples("fillet-drag window-cpu (cold frame)")
         var gpu = BenchSamples("fillet-drag gpu (viewport + window)"), total = BenchSamples("fillet-drag command-to-frame")
         var shown = 0
         let clock = ContinuousClock()
@@ -49,6 +49,31 @@ struct FilletDragBench {
         print(cpu.line())
         print(gpu.line())
         print(total.line(budget: Bench.dragBudget))
+    }
+
+    /// The warm row: the same drag over a window and `Frame` kept alive across the steps (a real window keeps them), so
+    /// MetalUI's retained skip and graft apply. 10 warm-up steps then 65 timed; prints `BENCH fillet-drag-warm …`.
+    @Test func draggingTheFilletRadiusWarm() async throws {
+        guard Bench.requireRelease() else { return }
+        let (app, bracket) = try await makeBracketBenchApp()
+        app.editor.selection = [bracket.fillet.id]
+        await app.settle()
+        let handle = try #require(app.viewport.handles.first, "the selected Fillet shows its radius handle")
+        let warm = try await WarmBenchWindow(model: app)
+        var cpu = BenchSamples("fillet-drag-warm window-cpu (warm frame)")
+        var requests = BenchSamples("fillet-drag-warm element-requests")
+        for step in 0..<75 {
+            app.handleChanged(handle.id, 2 + Double(step) * 0.02, .changed)
+            await app.settle()
+            let milliseconds = warm.timedFrame()
+            guard step >= 10 else { continue }
+            cpu.append(milliseconds)
+            requests.append(Double(warm.window.frameWork.reduce(0) { $0 + $1.elementRequests }))
+        }
+        app.handleChanged(handle.id, 3.48, .ended)
+        await app.settle()
+        print("BENCH fillet-drag-warm: element requests per frame, median \(Int(requests.median)), max \(Int(requests.maximum))")
+        print(cpu.line())
     }
 }
 #endif
