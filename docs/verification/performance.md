@@ -445,7 +445,7 @@ counts), (3) stop and ask. The budget is not edited and a miss is not called met
 
 ## Implicit (implicit spec §6, sub-project 7c-1)
 
-`scripts/bench.sh ImplicitBench` runs rows i-1 to i-7. Release, an idle Mac
+`scripts/bench.sh ImplicitBench` runs rows i-1 to i-8. Release, an idle Mac
 with a GPU. The fixture is a gyroid sheet filling a 100 mm cube: a TPMS node (gyroid, sheet, one cell of 100 mm, 3 mm wall) on an
 Implicit Box, meshed and sent to an Output (7c-1 measured a noise sheet of the same cost class until the lattice nodes existed; 7c-2
 swapped in the gyroid and kept the rows). A gyroid of 8 mm cells has about 150 million triangles at 0.1 mm, which no in-memory mesh
@@ -469,6 +469,8 @@ gate (7c-1's ruling U6): a miss is written down as a miss.
 | i-5 | Decimate of a 2,097,152-triangle sphere (a 100 mm ball) at 0.01 mm: `MeshDecimator` alone | under 10 s |
 | i-6 | Mesh to Solid of a 100,000-triangle mesh on OCCT: the weld, the faces, the merge and the check | under 15 s |
 | i-7 | the trapped-volume flood fill of a hollow 150 mm cube at the largest grid (28 million cells): time and peak resident memory | recorded |
+| i-7s, i-7h | `TrappedVolumeCheck.run` of a solid and of a hollow 150 mm cube: time and peak resident memory against D16's 450 MB (7c-3f) | recorded |
+| i-8 | Check Trapped Volumes and Check Thin Walls of a 30 mm cube with a 1.5 mm skin and a 1.2 mm gyroid sheet, meshed at 0.3 mm (7c-3f) | recorded |
 
 The run recorded here (2026-10-14, release build, 7c-core) was taken while other sessions kept the Mac at a load average of 130 to 270 on 10 cores (so none of these numbers is a measurement of the
 code; they show the benchmarks run, and the order of magnitude). It measured the noise sheet of 7c-1; **the gyroid fixture of 7c-2 has not
@@ -638,6 +640,32 @@ BENCH load after: 8.69 11.16 11.15
 ```
 
 **i-4** was 86.6 s and 4.53 GB in 7c-core's in-memory export; streamed it is 18.9 s and 0.86 GB (the file is 1,008 MB at this sheet). **i-4b**: the 3MF is 177 MB from 1,436 MB of model XML in 36.8 s, under 4 GB of XML so a plain zip; **i-4z** writes a 4.8 GB entry as Zip64 and `unzip -t` accepts it. **i-5**: 6.8 s against 10 s. **i-6**: 14.1 s against 15 s (close: a busy Mac misses it, re-run on an idle one). **i-7**'s resident figures are polluted by the bench process holding earlier rows (2,271 MB before the grid); the earlier isolated run measured 425 MB peak.
+
+### Rows i-5 to i-8 with the robust checks (7c-3f)
+
+Taken 2026-10-20 on a MacBookPro18,2, release build of 7c-3f, on a Mac that was NOT idle (load 3 to 8 on 10 cores, other sessions running): a record, not a verdict. The rows run were i-5, i-6, i-7 and the new i-8 (`scripts/bench.sh ImplicitBench`), and i-7s and i-7h, each alone in its own process (`scripts/bench.sh theChecksOfASolid150mmCube`, then `theChecksOfAHollow150mmCube`). Nothing 7c-3f changed is in i-5 (Decimate) or i-6 (Mesh to Solid), so their budgets are re-checked, not re-argued: both are still met, and i-6 is as close to its budget as in 7c-3.
+
+```text
+BENCH i-5 decimate a 2097152 triangle sphere (0.01 mm): median 7039.09 ms, p95 7264.74 ms, max 7264.74 ms (n 3); budget 10000.00 ms: met
+BENCH i-5 triangles 2097152 to 290730
+BENCH i-7 28094464 cells, 1 void, 3.645953917 seconds; peak resident 738 MB (692 MB before the grid)
+BENCH i-6 Mesh to Solid of a 100000 triangle mesh (OCCT): median 14358.38 ms, p95 14416.84 ms, max 14416.84 ms (n 2); budget 15000.00 ms: met
+BENCH i-6 faces 100000
+BENCH i-8 Check Trapped Volumes of a 554960 triangle sheet: median 2054.87 ms, p95 2061.66 ms, max 2061.66 ms (n 2)
+BENCH i-8 Check Thin Walls of the same mesh: median 1267.62 ms, p95 1293.01 ms, max 1293.01 ms (n 2)
+BENCH i-8 voids 2, thin places 0
+BENCH i-7s 5288 triangles, 0 void, 2.169670875 seconds; peak resident 395 MB (57 MB before the check)
+BENCH i-7h 8752 triangles, 1 void, 5.204713291000001 seconds; peak resident 425 MB (57 MB before the check)
+```
+
+i-8's two voids are the two gyroid channels the skin closes; the phantom void of Errata M5 is gone. **i-7s and i-7h** (each run alone, so the peak is the check's own on top of the process's 57 MB) put the whole check, the unsigned-distance fill and the winding number included, on a solid and on a hollow 150 mm cube, 28 million cells each: 395 MB and 425 MB resident, inside D16's 450 MB, in 2.2 s and 5.2 s. They exist because the unsigned grid makes the interior of a thick solid part one pocket of 27 million cells: the first version of the check listed all of it before calling it material and peaked at **603 MB** on the solid cube (2.24 s), past the budget. `EnclosedVoids` now judges a pocket from its first 4,096 listed cells and stops listing one judged material (`aPocketBiggerThanTheJudgingSizeIsJudgedBeforeItIsListedInFull`). **The choice of inside test** (Errata D18) was measured on the same sheet and on a larger one, release, with the `SignedDistanceMesh` already built:
+
+| Mesh | Triangles | Grid cells | `SignedDistanceMesh` built | Pseudonormal sign, every cell | Winding number, every cell | Unsigned distance, winding number once per pocket (shipped) |
+|---|---|---|---|---|---|---|
+| 30 mm cube, skin and sheet | 554,960 | 274,625 | 1.20 s | 0.81 s | 18.5 s | 0.81 s |
+| 50 mm cube, skin and sheet | 2,550,048 | 1,157,625 | 7.00 s | 3.92 s | 138.6 s | 3.91 s |
+
+A winding number at every cell is 23 to 35 times the pseudonormal's cost, which the 50 mm cube makes minutes, so Check Trapped Volumes fills the grid from the unsigned distance and asks the winding number about five cells of each pocket the flood fill leaves. All three find the same voids on these two meshes (2 and 8); the phantom shows on the 8 mm fixture of `TrappedVolumePhantomTests`, where the pseudonormal sign finds a third. The winding-number clusters (about 80 bytes a BVH node, plus their build time) are built on the first `isInside` and not with the `SignedDistanceMesh`, so To Implicit's bake, which only asks for the pseudonormal sign, never builds them and row i-3 is unaffected.
 
 ## Raw output
 

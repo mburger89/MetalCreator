@@ -24,6 +24,24 @@ enum LatticeSetup {
         return skin
     }
 
+    /// The `blend` radius of the join between the skin and the lattice, in millimetres.
+    static func blend(_ inputs: NodeInputs) throws -> Double {
+        let blend = try inputs.number("blend")
+        guard blend.isFinite, blend >= 0 else { throw NodeError.invalidValue("“blend” must be 0 or more.") }
+        return blend
+    }
+
+    /// The socket the three lattice nodes share for the radius of the skin's join (Errata D18): 1 mm on a new node.
+    static let blendSocket = SocketSpec("blend", .number, defaultValue: .number(1), unit: .millimetres, range: 0...5)
+
+    /// The migration of a lattice node saved before `typeVersion` 2 (7c-3f): it had a sharp join, so it keeps one. A node that already
+    /// stores a blend is left alone.
+    static func sharpJoin(_ node: Node) -> Node {
+        var migrated = node
+        if migrated.inputValues["blend"] == nil { migrated.inputValues["blend"] = .number(0) }
+        return migrated
+    }
+
     /// The `cell size` field and the `cell stretch` of a lattice over `box`.
     static func cells(_ inputs: NodeInputs, over box: BoundingBox, kernel: any Kernel,
                       context: EvalContext) async throws -> (cells: LatticeCells, warnings: [String]) {

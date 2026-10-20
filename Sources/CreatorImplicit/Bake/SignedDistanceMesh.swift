@@ -10,11 +10,18 @@ public enum MeshDistanceError: Error, Equatable, Sendable {
     public var userMessage: String { "This solid isn't closed, so inside and outside are undefined." }
 }
 
-/// The signed distance to a closed triangle mesh (implicit spec §4.4): the unsigned distance is the nearest triangle, found by a BVH;
-/// the sign comes from the angle-weighted pseudonormal of the nearest feature (Bærentzen and Aanæs, 2005), which is exact for any
-/// closed, consistently oriented mesh, with no ray casting and no tolerance. The mesh may be a soup of per-face meshes, as OCCT
-/// makes: vertices closer than `weldTolerance` are one vertex first. Negative is inside. Triangles must be counter-clockwise seen from
-/// outside, as `Kernel.tessellate` gives them.
+/// The signed distance to a closed triangle mesh (implicit spec §4.4): the unsigned distance is the nearest triangle, found by a BVH.
+/// There are two signs (Errata D18):
+/// - `signedDistance(at:)` takes it from the angle-weighted pseudonormal of the nearest feature (Bærentzen and Aanæs, 2005), which is
+///   exact for a closed, consistently oriented mesh that does not overlap itself, with no ray casting and no tolerance. It is kept for the
+///   bake (`DistanceBaker`, To Implicit), whose meshes are the kernel's tessellations, clean and finer than the part's details, and where
+///   a second query per sample would double the cost. Where a mesh folds over itself (a sheet meeting a slab tangentially, meshed coarser
+///   than the wedge between them) the nearest feature's normal can point the wrong way and the sign flips.
+/// - `robustSignedDistance(at:)` and `isInside(_:)` take it from the generalized winding number (`WindingNumber`), inside when it is at
+///   least ½. Check Trapped Volumes decides what is inside with this one (it asks once per region of cells, see `EnclosedVoids`).
+///
+/// The mesh may be a soup of per-face meshes, as OCCT makes: vertices closer than `weldTolerance` are one vertex first. Negative is
+/// inside. Triangles must be counter-clockwise seen from outside, as `Kernel.tessellate` gives them.
 public struct SignedDistanceMesh: Sendable {
     private let vertices: [SIMD3<Double>]
     private let triangles: [SIMD3<Int32>]
@@ -24,6 +31,8 @@ public struct SignedDistanceMesh: Sendable {
     /// For each triangle, the normal of each of its edges (a, b), (b, c), (c, a): the sum of the two faces' normals.
     private let edgeNormals: [SIMD3<Double>]
     private let bvh: TriangleBVH
+    /// Built on the first `windingNumber(at:)` or `isInside(_:)`, so the bake never pays for it.
+    private let winding: LazyWindingNumber
 
     /// The box around the mesh.
     public let bounds: BoundingBox
@@ -42,7 +51,9 @@ public struct SignedDistanceMesh: Sendable {
         self.faceNormals = normals.faces
         self.vertexNormals = normals.vertices
         self.edgeNormals = normals.edges
-        self.bvh = TriangleBVH(vertices: welded, triangles: kept)
+        let bvh = TriangleBVH(vertices: welded, triangles: kept)
+        self.bvh = bvh
+        self.winding = LazyWindingNumber(vertices: welded, triangles: kept, bvh: bvh)
         let low = welded.dropFirst().reduce(welded[0]) { pointwiseMin($0, $1) }
         let high = welded.dropFirst().reduce(welded[0]) { pointwiseMax($0, $1) }
         self.bounds = BoundingBox(min: Vector3(low.x, low.y, low.z), max: Vector3(high.x, high.y, high.z))
@@ -137,9 +148,8 @@ public struct SignedDistanceMesh: Sendable {
     /// How many triangles remain after welding and dropping slivers.
     public var triangleCount: Int { triangles.count }
 
-    /// The signed distance from `point` to the surface: negative inside.
-    public func signedDistance(at point: Vector3) -> Double {
-        let p = SIMD3(point.x, point.y, point.z)
+    /// The nearest point of the surface to `p`, with the squared distance and the normal that gives the pseudonormal sign.
+    private func nearest(to p: SIMD3<Double>) -> (squared: Double, point: SIMD3<Double>, normal: SIMD3<Double>) {
         var best = Double.infinity
         var bestPoint = p
         var bestNormal = SIMD3<Double>.zero
@@ -158,10 +168,43 @@ public struct SignedDistanceMesh: Sendable {
             case .edge(let side): bestNormal = edgeNormals[3 * index + side]
             }
         })
-        guard best.isFinite else { return .infinity }
-        let distance = best.squareRoot()
-        let side = ((p - bestPoint) * bestNormal).sum()
+        return (best, bestPoint, bestNormal)
+    }
+
+    /// The signed distance from `point` to the surface: negative inside, by the nearest feature's pseudonormal.
+    public func signedDistance(at point: Vector3) -> Double {
+        let p = SIMD3(point.x, point.y, point.z)
+        let found = nearest(to: p)
+        guard found.squared.isFinite else { return .infinity }
+        let distance = found.squared.squareRoot()
+        let side = ((p - found.point) * found.normal).sum()
         return side < 0 ? -distance : distance
+    }
+
+    /// The distance from `point` to the surface, with no sign.
+    public func unsignedDistance(at point: Vector3) -> Double {
+        let squared = nearest(to: SIMD3(point.x, point.y, point.z)).squared
+        return squared.isFinite ? squared.squareRoot() : .infinity
+    }
+
+    /// Whether the winding number's clusters have been built (the first question builds them).
+    var hasBuiltWindingNumber: Bool { winding.isBuilt }
+
+    /// The generalized winding number at `point`: about 1 inside the mesh, 0 outside.
+    public func windingNumber(at point: Vector3) -> Double {
+        winding.number.value(at: SIMD3(point.x, point.y, point.z))
+    }
+
+    /// Whether `point` is inside: the winding number is at least ½. Unlike the pseudonormal sign this does not depend on which feature
+    /// of the surface happens to be nearest, so a mesh that overlaps itself still has an inside.
+    public func isInside(_ point: Vector3) -> Bool {
+        winding.number.contains(SIMD3(point.x, point.y, point.z))
+    }
+
+    /// The signed distance from `point` to the surface with the sign from the winding number: negative when `isInside`.
+    public func robustSignedDistance(at point: Vector3) -> Double {
+        let distance = unsignedDistance(at: point)
+        return isInside(point) ? -distance : distance
     }
 
     // MARK: Closest point on a triangle

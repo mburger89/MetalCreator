@@ -2,6 +2,12 @@
 /// back at it is the other side of the wall. A vertex whose wall is thinner than `minimum` is flagged, with its faces. Flagged faces
 /// that touch, and the two sides of one wall, make one place. A surface that meets the ray edge-on (the next face of a sharp corner) is
 /// not the far side of a wall and is passed over, as is any triangle the vertex belongs to.
+///
+/// A hit closer than `selfHitLimit` on a face that touches the vertex's one-ring (the vertex, its neighbours) is the surface folding back
+/// on itself where a sheet closes on a skin, not a wall behind it, and is passed over too: the ray goes on (Errata D18). A knife edge
+/// still shows, a little farther along it, where the two sides are a hit's distance apart or more.
+/// The accepted limit of the rule: a real wall under `selfHitLimit` whose far face shares a vertex with the one-ring is not told from
+/// the fold and is not reported (`aFoldBesideTheVertexIsPassedOverAndTheRayGoesOnToTheWall` pins it).
 public struct ThinWallCheck: Sendable {
     public struct Result: Sendable {
         /// The triangles with a flagged vertex, in order.
@@ -15,11 +21,17 @@ public struct ThinWallCheck: Sendable {
     /// A far side must face back against the vertex normal within 60 degrees.
     static let facingLimit = -0.5
 
+    /// A hit nearer than this (millimetres) on a face that touches the start vertex's one-ring is the mesh folding on itself.
+    static let selfHitLimit = 0.05
+
     private let points: [SIMD3<Double>]
     private let corners: [SIMD3<Int32>]
     private let normals: [SIMD3<Double>]
     private let faceNormals: [SIMD3<Double>]
     private let bvh: TriangleBVH
+    /// The triangles at vertex `v` are `incident[firstIncident[v]..<firstIncident[v + 1]]`.
+    private let firstIncident: [Int32]
+    private let incident: [Int32]
 
     init(_ mesh: TriangleMesh) {
         points = mesh.positions.map { SIMD3<Double>($0) }
@@ -34,6 +46,31 @@ public struct ThinWallCheck: Sendable {
         }
         normals = MeshVertexNormals.of(mesh)
         bvh = TriangleBVH(vertices: points, triangles: corners)
+        var counts = [Int32](repeating: 0, count: points.count + 1)
+        for triangle in corners {
+            for corner in [triangle.x, triangle.y, triangle.z] { counts[Int(corner) + 1] += 1 }
+        }
+        for index in 1..<counts.count { counts[index] += counts[index - 1] }
+        var next = counts
+        var listed = [Int32](repeating: 0, count: Int(counts[counts.count - 1]))
+        for (index, triangle) in corners.enumerated() {
+            for corner in [triangle.x, triangle.y, triangle.z] {
+                listed[Int(next[Int(corner)])] = Int32(index)
+                next[Int(corner)] += 1
+            }
+        }
+        firstIncident = counts
+        incident = listed
+    }
+
+    /// `vertex` and the vertices that share a triangle with it.
+    private func oneRing(of vertex: Int) -> [Int32] {
+        var ring = [Int32(vertex)]
+        for slot in Int(firstIncident[vertex])..<Int(firstIncident[vertex + 1]) {
+            let triangle = corners[Int(incident[slot])]
+            for corner in [triangle.x, triangle.y, triangle.z] where !ring.contains(corner) { ring.append(corner) }
+        }
+        return ring
     }
 
     /// How far the wall behind `vertex` is, and the triangle that is its far side, when it is thinner than `limit`.
@@ -42,12 +79,15 @@ public struct ThinWallCheck: Sendable {
         // The nearest hit this walk has seen: a leaf can hold a nearer triangle before a farther one, and only the nearer is the wall.
         var nearest = Double.infinity
         let direction = -normals[vertex]
+        let ring = oneRing(of: vertex)
         let distance = bvh.nearestHit(origin: points[vertex], direction: direction, limit: limit) { index in
             let triangle = corners[index]
             guard Int(triangle.x) != vertex, Int(triangle.y) != vertex, Int(triangle.z) != vertex,
                   faceNormals[index].dot(normals[vertex]) < Self.facingLimit,
                   let t = Self.hit(points[vertex], direction, points[Int(triangle.x)], points[Int(triangle.y)], points[Int(triangle.z)]),
                   t > 1e-9, t < nearest else { return nil }
+            // Close to the vertex, on a face that touches its neighbourhood: the surface folding back, not a wall. The ray goes on.
+            if t < Self.selfHitLimit, ring.contains(triangle.x) || ring.contains(triangle.y) || ring.contains(triangle.z) { return nil }
             nearest = t
             hitTriangle = index
             return t

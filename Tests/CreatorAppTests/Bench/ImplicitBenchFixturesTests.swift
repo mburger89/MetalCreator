@@ -54,6 +54,22 @@ struct ImplicitBenchFixturesTests {
         #expect(node?.inputValues["cell size"] == .number(100) && node?.inputValues["thickness"] == .number(3))
     }
 
+    @Test func aSkinnedSheetMeshesToAClosedSurfaceTheChecksCanRun() async throws {
+        let part = ImplicitBenchFixtures.sheet(side: 12, cell: 10, wall: 1.2, skin: 1.5, exportResolution: 0.5)
+        let node = part.graph.nodes[part.thickness.id]
+        #expect(node?.inputValues["skin"] == .number(1.5) && node?.inputValues["blend"] == nil, "the node's own default blend")
+        let report = try await Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel())
+            .evaluate(part.graph, demand: [part.output.id], meshQuality: .export)
+        guard case .mesh(let payload)? = report.results[part.output.id]?.outputs?["mesh"]?.items.first,
+              let mesh = payload as? TriangleMesh else {
+            Issue.record("no mesh: \(String(describing: report.results[part.output.id]?.state))")
+            return
+        }
+        #expect(MeshTopology(mesh).isClosedManifold)
+        _ = try TrappedVolumeCheck.run(mesh)
+        _ = try ThinWallCheck.run(mesh, minimum: 0.4)
+    }
+
     @Test func theSheetIsAnImplicitSolidFillingTheCube() async throws {
         let sheet = ImplicitBenchFixtures.sheet(side: 20, cell: 8, exportResolution: 0.5)
         let solid = try await ImplicitBenchFixtures.solid(of: sheet)
