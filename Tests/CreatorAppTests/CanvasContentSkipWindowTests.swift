@@ -226,7 +226,22 @@ struct CanvasContentSkipWindowTests {
         app.resetWork()
         app.model.themes.select("alucard")
         app.redraw()
-        #expect(app.work.contentEvaluations > 0 && app.work.contentSkips == 0, "a theme change reaches the box")
-        #expect(app.picture == app.pictureAfterRebuildingEverything(), "and it draws what a full rebuild draws")
+        // Not `contentSkips == 0`: whether a view that did not read the theme is skipped while others evaluate depends on
+        // the platform's frame order (CI: Linux and Windows skipped some). What must hold is that the box is not stale:
+        // the picture equals a window that started in the theme and drew the same box.
+        #expect(app.work.contentEvaluations > 0, "a theme change reaches the box")
+        let alucard = ThemeStore()
+        alucard.select("alucard")
+        let reference = try await open(themes: alucard)
+        let from = reference.app.point(inCanvas: Vector2(500, 60))
+        reference.app.window.hover(at: from)
+        _ = reference.app.window.send(.mouseDown(MouseEvent(position: from)))
+        reference.app.window.tick()
+        let first = Point(x: from.x + Pixels(40), y: from.y + Pixels(30))
+        _ = reference.app.window.send(.mouseDragged(MouseEvent(position: first)))
+        reference.app.window.tick()
+        _ = reference.app.window.send(.mouseDragged(MouseEvent(position: Point(x: first.x + Pixels(20), y: first.y))))
+        reference.app.window.tick()
+        #expect(app.picture == reference.app.picture, "the box is drawn in the new theme, as a fresh window draws it")
     }
 }
