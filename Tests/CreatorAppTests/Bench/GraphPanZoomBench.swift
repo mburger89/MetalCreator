@@ -26,7 +26,7 @@ struct GraphPanZoomBench {
         let input = AppInput(model: app)
         let renderer = try BenchRenderer()
         renderer.place(app)
-        var model = BenchSamples("\(name) model"), cpu = BenchSamples("\(name) window-cpu")
+        var model = BenchSamples("\(name) model"), cpu = BenchSamples("\(name) window-cpu (cold frame)")
         var gpu = BenchSamples("\(name) window-gpu"), built = BenchSamples("\(name) nodes-built")
         let clock = ContinuousClock()
         for (index, transform) in transforms.enumerated() {
@@ -50,25 +50,61 @@ struct GraphPanZoomBench {
         print(gpu.line(budget: Bench.frameBudget))
     }
 
+    /// The warm row of `run`: one window and `Frame` kept alive across the steps (10 warm-up, then the rest timed), so MetalUI's
+    /// retained skip and graft apply. Prints `BENCH <name>-warm window-cpu (warm frame) …`.
+    func runWarm(_ name: String, transforms: [CanvasTransform]) async throws {
+        guard Bench.requireRelease() else { return }
+        let app = await makeApp(FiftyNodeGraph.make())
+        try #require(app.editor.dock == .left, "the paths below are drawn for the left dock's flow (rows run across)")
+        let warm = try await WarmBenchWindow(model: app)
+        var cpu = BenchSamples("\(name)-warm window-cpu (warm frame)")
+        var requests = BenchSamples("\(name)-warm element-requests")
+        for (index, transform) in transforms.enumerated() {
+            app.editor.transform = transform
+            await app.settle()
+            let milliseconds = warm.timedFrame()
+            guard index >= Self.warmUp else { continue }
+            cpu.append(milliseconds)
+            requests.append(Double(warm.window.frameWork.reduce(0) { $0 + $1.elementRequests }))
+        }
+        print("BENCH \(name)-warm: element requests per frame, median \(Int(requests.median)), max \(Int(requests.maximum))")
+        print(cpu.line(budget: Bench.frameBudget))
+    }
+
     /// 130 frames at zoom 1, panning along the rows (docked left, they run across the canvas) 16 points a frame and
     /// drifting down 2 points a frame: 2,080 and 260 points in all, which is not the whole graph.
     @Test func panningFiftyNodes() async throws {
-        let transforms = (0..<130).map { step in
+        try await run("pan-50", transforms: Self.panTransforms)
+    }
+
+    @Test func panningFiftyNodesWarm() async throws {
+        try await runWarm("pan-50", transforms: Self.panTransforms)
+    }
+
+    static var panTransforms: [CanvasTransform] {
+        (0..<130).map { step in
             CanvasTransform(offset: Vector2(-Double(step) * 16, -Double(step) * 2), zoom: 1)
         }
-        try await run("pan-50", transforms: transforms)
     }
 
     /// 130 frames zooming about the canvas's top-left corner from 1 down to 0.25 (most of the graph in view) and back
     /// up to 1.
     @Test func zoomingFiftyNodes() async throws {
+        try await run("zoom-50", transforms: Self.zoomTransforms)
+    }
+
+    @Test func zoomingFiftyNodesWarm() async throws {
+        try await runWarm("zoom-50", transforms: Self.zoomTransforms)
+    }
+
+    static var zoomTransforms: [CanvasTransform] {
         var transform = CanvasTransform()
         var transforms: [CanvasTransform] = []
         for step in 0..<130 {
             transform = transform.zoomed(by: step < 65 ? 0.979 : 1 / 0.979, around: .zero)
             transforms.append(transform)
         }
-        try await run("zoom-50", transforms: transforms)
+        return transforms
     }
 }
 #endif

@@ -23,7 +23,7 @@ struct OrbitBench {
         let renderer = try BenchRenderer()
         renderer.place(app)
         let name = "orbit-\(dock == .hidden ? "panel-hidden" : "panel-left")"
-        var model = BenchSamples("\(name) model"), cpu = BenchSamples("\(name) window-cpu")
+        var model = BenchSamples("\(name) model"), cpu = BenchSamples("\(name) window-cpu (cold frame)")
         var gpu = BenchSamples("\(name) gpu (viewport + window)")
         let clock = ContinuousClock()
         let start = ScreenPoint(900, 450)
@@ -50,6 +50,34 @@ struct OrbitBench {
         print(model.line())
         print(cpu.line(budget: Bench.frameBudget))
         print(gpu.line(budget: Bench.frameBudget))
+    }
+
+    /// The warm row: the same drag, but the window and its `Frame` live across the steps, so MetalUI's retained skip and graft
+    /// apply (the cold row above builds a fresh `Frame` every step and cannot benefit). 10 warm-up steps, then 100 timed.
+    /// Prints `BENCH orbit-…-warm window-cpu (warm frame) …`, judged against the 60 fps budget.
+    @Test(arguments: [DockSide.left, .hidden])
+    func orbitingTheBracketWarm(dock: DockSide) async throws {
+        guard Bench.requireRelease() else { return }
+        let (app, _) = try await makeBracketBenchApp()
+        app.editor.setDock(dock)
+        await app.settle()
+        let warm = try await WarmBenchWindow(model: app)
+        let name = "orbit-\(dock == .hidden ? "panel-hidden" : "panel-left")-warm"
+        var cpu = BenchSamples("\(name) window-cpu (warm frame)")
+        var requests = BenchSamples("\(name) element-requests")
+        let start = ScreenPoint(900, 450)
+        for step in 0..<(Self.warmUp + 100) {
+            app.viewport.dragChanged(from: start, to: ScreenPoint(900 + Double(step) * 4, 450 + Double(step)), modifiers: [],
+                                     button: .secondary)
+            await app.settle()
+            let milliseconds = warm.timedFrame()
+            guard step >= Self.warmUp else { continue }
+            cpu.append(milliseconds)
+            requests.append(Double(warm.window.frameWork.reduce(0) { $0 + $1.elementRequests }))
+        }
+        app.viewport.dragEnded(from: start, at: ScreenPoint(1340, 560), modifiers: [], button: .secondary)
+        print("BENCH \(name): element requests per frame, median \(Int(requests.median)), max \(Int(requests.maximum))")
+        print(cpu.line(budget: Bench.frameBudget))
     }
 }
 #endif

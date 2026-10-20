@@ -6,9 +6,13 @@ import MetalUI
 /// canvas to add it there; hover it for its inputs → outputs. Kept cheap for MetalUI's whole-window rebuilds
 /// (docs/metalui-gaps.md PERF-b): one windowed `List` of uniform rows (only those in view are built), flat fills,
 /// no shadows, rows keyed by type.
-struct NodeLibraryView: Component {
+struct NodeLibraryView: Component, Equatable {
     let model: EditorModel
     let input: GraphPanelInput
+
+    /// Compares the models by identity: they are final `@Observable` classes, so MetalUI re-evaluates this view when a
+    /// property its content read changes, and `==` need only say the inputs are the same objects (the theme it reads from the environment is covered by MetalUI's environment epoch).
+    nonisolated static func == (lhs: NodeLibraryView, rhs: NodeLibraryView) -> Bool { lhs.model === rhs.model && lhs.input === rhs.input }
     @Environment(ThemeStore.self) var themes: ThemeStore?
 
     var content: some ElementGroup {

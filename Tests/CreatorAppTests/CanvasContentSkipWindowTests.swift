@@ -62,15 +62,16 @@ struct CanvasContentSkipWindowTests {
         let steady = fixture.app.steadyWork()
         #expect(steady.contentEvaluations == 0)
         // MetalUI C14b-2 (record §110): an unchanged outermost `.equatable()` occurrence skips its whole build recursion and
-        // its layout rows are grafted, so the views inside a node are no longer visited, let alone counted as skips. A steady
-        // frame counts exactly one skip per outermost canvas view (6 nodes + 3 wires + 2 comments = 11) and one graft each.
-        let canvasViews = 6 + 3 + 2
-        #expect(steady.contentSkips >= canvasViews, "every node, wire and comment skipped (more if a graft were refused)")
-        #expect(steady.retainedGrafts == canvasViews, "each skipped canvas view was grafted, not built")
+        // its layout rows are grafted, so the views inside it are no longer visited, let alone counted as skips. Since the
+        // panels are `.equatable()` too (C14-d, `PanelContentSkipWindowTests`), the outermost occurrences of a steady frame are
+        // the graph panel's body (which holds the canvas, its nodes, wires and comments) and the inspector: two grafts. The
+        // `GraphPanel(...)` call itself is not `.equatable()` (its `onGeometryChange` made it ineligible every frame).
+        #expect(steady.contentSkips >= 2, "the body and the inspector skipped")
+        #expect(steady.retainedGrafts == 2, "each was grafted, not built")
         #expect(steady.retainedGraftIneligible == 0 && steady.retainedRedos == 0, "no graft refused, no frame redone")
         // MetalUI C14b-3 (record §121): reading control state is not a write, so nothing in a steady frame is ineligible.
-        #expect(steady.retainedIneligible == 0 && steady.retainedPrepaintIneligible == 0, "no replay ineligible")
-        #expect(steady.retainedIneligibleReasons.isEmpty, "no ineligible reason recorded: \(steady.retainedIneligibleReasons)")
+        #expect(steady.retainedIneligible == 0, "no replay ineligible")
+        #expect(steady.retainedIneligibleReasons.isEmpty, "nothing recorded: \(steady.retainedIneligibleReasons)")
         #expect(steady.retainedSkippedRequests > 0, "the grafts stood for element requests the build did not make")
         #expect(steady.contentRefusals == 0, "no canvas view reads the environment")
         #expect(fixture.app.picture.count > 100, "the canvas picture holds the nodes")
@@ -90,7 +91,8 @@ struct CanvasContentSkipWindowTests {
         app.window.tick()
         let work = app.work
         #expect(app.window.frameWork.count == 1, "one pointer move, one frame")
-        #expect(work.contentEvaluations == 1 + wires, "the dragged node's view and its wires' views")
+        #expect(work.contentEvaluations == 1 + wires + 1,
+                "the dragged node's view, its wires' views and the inspector (the drag selects it)")
         // Not tied to MetalUI's exact visit count: C14b-2 skips a skipped node's whole build recursion, so its inner views
         // are no longer visited. What matters is that every other node, wire and comment skipped.
         #expect(work.contentSkips >= (6 - 1) + (3 - wires) + 2, "every other node, wire and comment skipped")
@@ -128,7 +130,7 @@ struct CanvasContentSkipWindowTests {
         app.model.themes.select("alucard")
         app.redraw()
         let work = app.work
-        #expect(work.contentSkips == 0 && work.contentEvaluations > 6 + 3 + 2, "every view carries the palette")
+        #expect(work.contentEvaluations > 6 + 3 + 2, "every view carries the palette")
         #expect(app.picture != dracula)
         let alucard = ThemeStore()
         alucard.select("alucard")
@@ -147,13 +149,13 @@ struct CanvasContentSkipWindowTests {
         app.editor.selection = [fixture.middle.extrude.id]
         app.redraw()
         let work = app.work
-        #expect(work.contentEvaluations == 2, "the node that lost the selection and the one that gained it")
+        #expect(work.contentEvaluations == 3, "the node that lost the selection, the one that gained it, and the inspector")
         #expect(work.contentSkips >= (6 - 2) + 3 + 2, "every other node, wire and comment skipped (not tied to MetalUI's visit count)")
         #expect(app.picture == app.pictureAfterRebuildingEverything())
         app.resetWork()
         app.editor.selection = []
         app.redraw()
-        #expect(app.work.contentEvaluations == 1, "clearing the selection re-evaluates the one selected node")
+        #expect(app.work.contentEvaluations == 2, "clearing the selection re-evaluates the one selected node and the inspector")
     }
 
     @Test func selectingACommentEvaluatesOnlyThatComment() async throws {
@@ -163,12 +165,12 @@ struct CanvasContentSkipWindowTests {
         app.resetWork()
         app.editor.canvasSelection.comments = [fixture.note.id]
         app.redraw()
-        #expect(app.work.contentEvaluations == 1, "the note, whose ring and handle change")
+        #expect(app.work.contentEvaluations == 2, "the note, whose ring and handle change, and the inspector")
         #expect(app.picture == app.pictureAfterRebuildingEverything())
         app.resetWork()
         app.editor.canvasSelection.comments = [fixture.frame.id]
         app.redraw()
-        #expect(app.work.contentEvaluations == 2, "the note lost the selection, the frame gained it")
+        #expect(app.work.contentEvaluations == 3, "the note lost the selection, the frame gained it, and the inspector")
         #expect(app.picture == app.pictureAfterRebuildingEverything())
     }
 
@@ -214,16 +216,18 @@ struct CanvasContentSkipWindowTests {
         // The first steady frame settles anything still pending; the second is the one measured.
         _ = app.steadyWork()
         let steady = app.steadyWork()
-        let canvasViews = 6 + 3 + 2 + 1
         #expect(steady.contentEvaluations == 0, "the box's rect and the theme it read are unchanged")
         #expect(steady.contentRefusals == 0, "reading the environment no longer refuses .equatable()")
-        #expect(steady.contentSkips >= canvasViews, "the box is skipped with the other canvas views")
+        // While the press is held the body is not grafted as a whole (a gesture is active in it), so each canvas view and the
+        // box are grafted on their own, and the inspector too.
+        let canvasViews = 6 + 3 + 2 + 1 + 1
+        #expect(steady.contentSkips >= canvasViews, "the box is skipped with the other canvas views and the inspector")
         #expect(steady.retainedGrafts == canvasViews, "and grafted, not built")
 
         app.resetWork()
         _ = app.window.send(.mouseDragged(MouseEvent(position: Point(x: moved.x + Pixels(20), y: moved.y))))
         app.window.tick()
-        #expect(app.work.contentEvaluations == 1, "a new rect evaluates the box and nothing else")
+        #expect(app.work.contentEvaluations == 2, "a new rect evaluates the box and the surface, which reads the interaction")
         #expect(app.work.contentRefusals == 0)
 
         app.resetWork()

@@ -4,13 +4,18 @@ import MetalUI
 
 /// The context inspector (spec §6.4): the selected node's header and sections, then the document
 /// parameters, which are always listed. The app shell (M6) docks it on the right.
-public struct InspectorPanel: Component {
+public struct InspectorPanel: Component, Equatable {
     public let model: EditorModel
     @Environment(ThemeStore.self) var themes: ThemeStore?
 
     public init(model: EditorModel) {
         self.model = model
     }
+
+    /// Compares the model by identity: it is a final `@Observable` class, so MetalUI re-evaluates the panel when a property
+    /// its content read (the selection, the results, the parameters) changes; the theme comes from the environment, which
+    /// MetalUI's environment epoch covers.
+    public nonisolated static func == (lhs: InspectorPanel, rhs: InspectorPanel) -> Bool { lhs.model === rhs.model }
 
     public var content: some ElementGroup {
         let page = model.inspectorPage
