@@ -12,7 +12,8 @@ import Testing
 /// Implicit spec §7's acceptance test, headless on OCCT: a lightweight bracket. The slice's bracket (spec §7.2, as `makeBracketBenchApp` builds
 /// it) → To Implicit → TPMS (Gyroid, Sheet, thickness graded by a distance field, skin 1.5 mm) → Drain Holes (Automatic) → Mesh (0.3 mm) →
 /// Check Thin Walls → Check Trapped Volumes → Output, exported as 3MF. It asserts a closed manifold, no enclosed void, no wall under the
-/// minimum, a volume between 15% and 75% of the solid's (the spec says 40%; see Task 12), and identical bytes on a second run.
+/// minimum, a volume between 15% and 75% of the solid's (the spec says 40%; see Task 12), and identical bytes on a second run. The TPMS
+/// node joins its skin and its sheet with the default `blend` of 1 mm (Errata D18).
 ///
 /// **It needs 7c-2's TPMS node** (`TPMSNode`, `TPMSType`, `TPMSForm`), so it joins the plan only after 7c-2 has merged; whichever of 7c-2 and 7c-3
 /// merges second adds this file.
@@ -87,7 +88,7 @@ struct LightweightBracketAcceptanceTests {
         let first = temporaryURL("lightweight-1.3mf"), second = temporaryURL("lightweight-2.3mf")
         defer { for url in [first, second] { try? FileManager.default.removeItem(at: url) } }
         try await app.export(.threeMF, to: first)
-        // The summary lists the warnings of the nodes the file came from. Measured: Check Thin Walls warns (see the known issue below).
+        // The summary lists the warnings of the nodes the file came from. 
         let summary: String
         if case .problem(let problem)? = app.alert { summary = problem.message } else { summary = "" }
         app.alert = nil
@@ -98,20 +99,14 @@ struct LightweightBracketAcceptanceTests {
         #expect(objects.map(\.name) == ["Lightweight Bracket"])
         let mesh = try #require(objects.first?.mesh)
         #expect(MeshTopology(mesh).isClosedManifold, "\(MeshTopology(mesh))")
-        // KNOWN ISSUE (reported, spec §7 asks for 0): measured on the file, the gyroid sheet meeting the 1.5 mm skin leaves about 100
-        // pockets of 2 to 12 cells (about 1 mm wide chambers) that Drain Holes' grid does not see, and some 130 places under 0.4 mm
-        // where the sheet closes on the skin. Drain Holes does drain the 40 or so large chambers. The expectations stay, so the day the
-        // pipeline meets them this test says the issue is fixed.
+        // Spec §7 asks for 0 of each. Errata M5 measured 103 voids and 127 thin places here; Errata D18 found them to be phantoms of the
+        // sharp skin join and of the checks, and the lattice's default 1 mm blend and the robust checks removed them.
         let voids = try TrappedVolumeCheck.run(mesh).voidCount
         let thinPlaces = try ThinWallCheck.run(mesh, minimum: Self.minimumWall).places
         print("LIGHTWEIGHT voids \(voids), thin places \(thinPlaces), volume fraction \(mesh.signedVolume / solidVolume)")
-        withKnownIssue("Drain Holes and Check Trapped Volumes disagree on pockets about a cell across", isIntermittent: false) {
-            #expect(voids == 0, "the drain holes opened every void")
-        }
-        withKnownIssue("the sheet closes on the skin in thin wedges", isIntermittent: false) {
-            #expect(thinPlaces == 0, "no wall under \(Self.minimumWall) mm")
-            #expect(!summary.contains("Walls thinner"), "\(summary)")
-        }
+        #expect(voids == 0, "the drain holes opened every void")
+        #expect(thinPlaces == 0, "no wall under \(Self.minimumWall) mm")
+        #expect(!summary.contains("Walls thinner"), "\(summary)")
         let fraction = mesh.signedVolume / solidVolume
         #expect(fraction > 0.15 && fraction < 0.75, "the part is \(fraction) of the solid's volume")
     }

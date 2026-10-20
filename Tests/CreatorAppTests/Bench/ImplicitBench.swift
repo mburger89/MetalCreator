@@ -10,7 +10,7 @@ import Testing
 import CreatorOCCT
 #endif
 
-/// Implicit spec §6, rows i-1 to i-7. Release, idle Mac, `scripts/bench.sh ImplicitBench`; each prints
+/// Implicit spec §6, rows i-1 to i-8. Release, idle Mac, `scripts/bench.sh ImplicitBench`; each prints
 /// `BENCH i-…` lines, with a row's budget judged on the median:
 /// - i-1: the first preview pass of the sheet (a gyroid sheet filling a 100 mm cube; see `ImplicitBenchFixtures`) on a fresh
 ///   evaluator, the GPU's pipelines already compiled: under 1 s. The very first pass of the process, which compiles them, is printed
@@ -31,6 +31,10 @@ import CreatorOCCT
 /// - i-7: the Check Trapped Volumes grid (`OccupancyGrid` and `EnclosedVoids`) of a hollow 150 mm cube, the largest part that keeps 0.5 mm
 ///   cells (32 million cells): the time and the process's peak resident memory, which D16 budgets at about 450 MB for the flood fill.
 /// - i-6: Mesh to Solid of a 100,000-triangle mesh on OCCT (the welding, the faces built on shared vertices, the merge and the check): under 15 s.
+/// - i-7s and i-7h: Check Trapped Volumes (`TrappedVolumeCheck.run`, so the winding number once per pocket) of a solid and of a hollow 150 mm
+///   cube (`ImplicitBenchChecks.swift`): the time and the process's peak resident memory; run each alone for a peak of its own.
+/// - i-8: Check Trapped Volumes and Check Thin Walls of a 30 mm cube with a 1.5 mm skin and a 1.2 mm gyroid sheet, meshed at 0.3 mm (Errata
+///   D18's robust inside test and self-hit rule): the time of each, recorded with no budget.
 @MainActor
 @Suite(.serialized, .enabled(if: Bench.isRequested, "set METALCREATOR_BENCH=1 (scripts/bench.sh)"))
 struct ImplicitBench {

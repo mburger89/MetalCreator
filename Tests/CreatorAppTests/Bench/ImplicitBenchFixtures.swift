@@ -28,11 +28,13 @@ enum ImplicitBenchFixtures {
     static let thickness = 3.0
 
     /// A gyroid sheet through a cube of `side` millimetres, `cell` millimetres per gyroid cell and `wall` thick, meshed at
-    /// `exportResolution` for export.
-    static func sheet(side: Double = 100, cell: Double = cellSize, wall: Double = thickness, exportResolution: Double = 0.1) -> Sheet {
+    /// `exportResolution` for export. With a `skin` the cube keeps a wall of that thickness (joined to the sheet by the node's default
+    /// blend, Errata D18).
+    static func sheet(side: Double = 100, cell: Double = cellSize, wall: Double = thickness, skin: Double = 0,
+                      exportResolution: Double = 0.1) -> Sheet {
         var builder = GraphBuilder()
         let cube = builder.add(ImplicitBoxNode.self, ["size": .vector(Vector3(side, side, side))])
-        let gyroid = builder.add(TPMSNode.self, ["cell size": .number(cell), "thickness": .number(wall)])
+        let gyroid = builder.add(TPMSNode.self, ["cell size": .number(cell), "thickness": .number(wall), "skin": .number(skin)])
         let mesh = builder.add(MeshNode.self, ["export resolution": .number(exportResolution)])
         let output = builder.add(OutputNode.self)
         builder.wire(cube, "implicit", to: gyroid, "region")
