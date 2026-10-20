@@ -17,10 +17,21 @@ import MetalUISystemFonts
 /// With `offscreen` (the smoke test) every window is hidden and draws into an offscreen target, so it builds frames without a
 /// display; elsewhere than SDL the flag has no meaning and the app opens as usual.
 @MainActor
-func makeApp(offscreen: Bool = false) throws -> App {
+func makeApp(offscreen: Bool = false, forwarding documents: [String] = []) throws -> App {
     #if canImport(MetalUISDL)
     let resolver = try SystemFonts.resolver()
-    let platform = offscreen ? try SDLPlatform(hiddenWindows: true, offscreenRenderers: true) : try SDLPlatform()
+    let platform: SDLPlatform
+    if offscreen {
+        // The smoke test and headless runs never claim the single-instance lock.
+        platform = try SDLPlatform(hiddenWindows: true, offscreenRenderers: true)
+    } else {
+        // One instance on Linux and Windows (MetalUI S7): a second launch hands its documents to the running instance, whose
+        // `onOpenURL` opens them, and exits. macOS's LaunchServices does this itself.
+        guard let primary = try SDLPlatform.launchingSingleInstance(id: AppBundleInfo.identifier, forwarding: documents) else {
+            exit(0)
+        }
+        platform = primary
+    }
     return App(platform: platform, textSystem: { PortableTextSystem(resolver: resolver) })
     #else
     return try App()
@@ -43,7 +54,8 @@ func makeKernel() -> any Kernel {
 /// `app.run()` is called from synchronous top-level code, as MetalUI requires.
 @MainActor
 func runApp(opening path: String?, smoke: LaunchSmoke? = nil) throws {
-    let app = try makeApp(offscreen: smoke != nil)
+    let app = try makeApp(offscreen: smoke != nil,
+                          forwarding: LaunchCommand.forwardedDocuments(path: path) { FileManager.default.fileExists(atPath: $0) })
     app.preferredColorScheme = .dark
     let model = AppModel(kernel: makeKernel(), themes: AppThemes.store(), implicitEngine: .automatic)
     let themeEditor = ThemeEditorModel(themes: model.themes)

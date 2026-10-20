@@ -21,4 +21,6 @@ public struct ViewportRenderKey: Hashable, Sendable {
     var showsViewCube: Bool
     /// The field slice: moving it or changing its values redraws (equal by `generation`, so the numbers are not hashed).
     var slice: ViewportSlice?
+    /// The cut view's plane: moving or flipping it redraws.
+    var clip: ViewportClip?
 }

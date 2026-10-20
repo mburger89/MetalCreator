@@ -1858,6 +1858,7 @@ warning step when red. macOS needs no check here: its test count and its look ar
 - [ ] **XP-14 Borderless chrome, Windows 11.** The same as XP-11 and XP-12 on Windows 11: the three drawn buttons at the top right,
   drag, resize edges, double-click zoom, and the close veto with unsaved changes. The snap-layout flyout over zoom, the DWM shadow
   and the rounded corners are not there for a borderless window (MetalUI CW9: platform); note what is missing. **Observed:**
+- [ ] **XP-15 One instance, Linux and Windows.** With MetalCreator running, open a second `.mcgraph` document (`MetalCreator other.mcgraph` from a terminal, or the file manager's Open With): no second process or window appears, the document opens in the running instance (the unsaved-changes check applies as for any open), and its window comes to the front. Pinned: `LaunchCommandTests` (the forwarded document); the IPC is MetalUI's. **Observed:**
 
 ## Group IM — implicit geometry: sockets, nodes, meshes, the progressive preview and export (7c-1)
 
@@ -1971,3 +1972,50 @@ window and a real GPU show. Build: a Box (40 × 40 × 40) into a TPMS node's `re
   and the node warns "The seeds leave gaps in the region; the lattice is solid there." Pinned: `VoronoiLatticeNodeTests`. **Observed:**
 - [ ] **IL-9 A slicer.** Export an STL of the gyroid at 0.2 mm (IM-9): the part opens in a slicer, the sheet is the thickness set, and no
   hole or non-manifold edge is reported. **Observed:**
+
+## Group MT — mesh tools, 3MF, the streamed export and the Cut view (7c-3)
+
+**Status: NOT RUN.** Plan `2026-10-14-7c-3-mesh-tools.md`, spec `2026-10-13-implicit-lattices-design.md` §3.6, §4.5 to §4.7, §5 and Errata D12.
+Run `swift run MetalCreatorApp` on a Mac with a GPU, a slicer (PrusaSlicer, Bambu Studio or Cura) and FreeCAD. The tests pin the maths, the
+meshes, the files and the model state; these check what a real window, a real GPU and real programs show. Build: the IM group's part (a
+Sphere, radius 20, with a smaller Sphere, radius 8, cut from it by a Subtract, into a Mesh at export resolution 0.2, into an Output
+named "Insole").
+
+- [ ] **MT-1 Decimate.** Wire a Decimate (tolerance 0.01) between the Mesh and the Output. The inspector reads "Decimated: N → M
+  triangles" with M well under N, the shape looks the same (no flat patches or dents on the curved wall at 0.01), and raising the
+  tolerance to 0.5 makes the wall visibly faceted. Pinned: `DecimateNodeTests`, `MeshDecimatorTests`; the look is human-only. **Observed:**
+- [ ] **MT-2 The check highlights.** Wire a Check Trapped Volumes after the Mesh: the cavity's wall turns the theme's warning colour (try
+  Alucard and Nord too), the node shows the warning "1 enclosed void can't drain.", and on the preview it ends with "(approximate:
+  preview resolution)". Replace the cavity by a 0.2 mm shell and wire a Check Thin Walls (0.4): the whole thin wall is highlighted and
+  the warning reads "Walls thinner than 0.4 mm in 1 place (thinnest 0.2 mm)." Pinned: `CheckTrappedVolumesNodeTests`,
+  `CheckThinWallsNodeTests`, `ViewportClipRenderTests` (the colour on Dracula). **Observed:**
+- [ ] **MT-3 Drain Holes.** Wire a Drain Holes (Automatic, diameter 2) between the Subtract and the Mesh: the trapped-volumes warning
+  goes, a round hole runs from the cavity's lowest point straight down to the outside, and At Points with a Vector node at (0, 0, -4)
+  drills one hole from there. Pinned: `DrainHolesNodeTests`, `DrainHolesTests`. **Observed:**
+- [ ] **MT-4 The Cut view.** Switch on "Cut View" in the top bar: the near half of the part is cut away, the cut shows the inside of the
+  far wall in the part's colour darkened (no holes, no flicker while orbiting), the B-rep edges of a solid in the scene are cut too, and a
+  handle on the plane slides it through the part. Hover and click on the cut part pick what is left, never what is cut away. View ▸ Show
+  Cut View and Flip Cut View do the same and cut the other side; switching it off restores the part; New or Open starts uncut. On Linux or
+  Windows the toggle and the menu items are not there. Pinned: `ViewportClipRenderTests`, `CutViewModelTests`, `CutViewWindowTests`; the
+  look and the feel are human-only. **Observed:**
+- [ ] **MT-5 3MF in a slicer.** File > Export 3MF… on the Insole: the sheet appears and finishes, and
+  the file opens in a slicer as one object named "Insole", in millimetres (20 mm radius means 40 mm across), with no repair prompt. Add a
+  second Output with another part: the slicer lists two objects, each with its Output's name. Pinned: `ExportStreamedTests`,
+  `ThreeMFWriterTests`. The top bar's Export menu has no 3MF entry (decision 9). **Observed:**
+- [ ] **MT-6 The streamed export.** Wire a very fine Mesh (export resolution 0.05, a 60 mm part) and export 3MF or STL while watching
+  Activity Monitor: memory stays far below the size of the file, the bar fills steadily, and Cancel part way leaves no file and no
+  hidden ".partial" file beside it. Pinned: `cancelStopsTheExportAndLeavesNoFile`, `aCancelledExportLeavesNothingInTheFolder`;
+  the memory is human-only until `ImplicitBench` i-4 is run on an idle Mac. A 3MF whose XML passes 4 GB is written as Zip64 (`ImplicitBench` i-4z
+  pins the format with the system's `unzip -t`); if you can make one, a slicer should open it. **Observed:**
+- [ ] **MT-7 Decimate and the checks in an export.** With a Decimate after the Mesh, export 3MF and open it in the slicer: the part
+  has fewer triangles than without, no cracks along the lines where the export's windows meet (look for them across the part, in
+  the slicer's x-ray or error view). A check in the graph shows its warning in the export summary ("Exported with 1 warning"). Pinned:
+  `decimatingEachWindowKeepsTheWholeClosedAndTheShapeWithinTheTolerance`, `aCheckWarningReachesTheSummary`. **Observed:**
+- [ ] **MT-8 Mesh to Solid.** Wire a Decimate (tolerance 0.05) then a Mesh to Solid into the Output: the part shows faceted, File >
+  Export STEP… works and the STEP opens in FreeCAD as one solid with the same volume as the mesh. With the Mesh at a fine resolution and
+  no Decimate the node says "Mesh has N triangles; Mesh to Solid takes at most 100,000. Decimate it first or coarsen the resolution."
+  Pinned: `MeshToSolidTests`, `MeshToSolidNodeTests`. **Observed:**
+- [ ] **MT-9 The lightweight bracket.** The slice's bracket into a To Implicit, a TPMS (Gyroid, Sheet, skin 1.5,
+  thickness graded by a Distance Field), Drain Holes, Mesh (0.3), the two checks and an Output: export 3MF and open it in the slicer:
+  a lattice bracket with a solid skin, drain holes in the bottom, and no warnings in the summary. Pinned:
+  `LightweightBracketAcceptanceTests`. **Observed:**

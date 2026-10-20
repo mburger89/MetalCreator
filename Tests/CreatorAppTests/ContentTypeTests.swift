@@ -6,7 +6,7 @@ import Testing
 /// declares its extensions.
 struct ContentTypeTests {
     @Test(arguments: [
-        (ContentType.mcgraph, "mcgraph"), (ContentType.step, "step"), (ContentType.stl, "stl"),
+        (ContentType.mcgraph, "mcgraph"), (ContentType.step, "step"), (ContentType.stl, "stl"), (ContentType.threeMF, "3mf"),
         (ContentType.png, "png"), (ContentType.jpeg, "jpg"), (ContentType.mctheme, "mctheme"),
     ])
     func everyTypeTheFilePanelsFilterByNamesItsExtension(_ type: ContentType, _ fileExtension: String) {

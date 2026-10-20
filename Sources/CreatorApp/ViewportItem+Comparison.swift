@@ -8,6 +8,7 @@ extension ViewportItem {
     func drawsTheSame(as other: ViewportItem) -> Bool {
         solid === other.solid && isGhost == other.isGhost && isGuide == other.isGuide && selectedFaces == other.selectedFaces
             && selectedEdges == other.selectedEdges && fieldValues == other.fieldValues && fieldRamp == other.fieldRamp
+            && warningFaces == other.warningFaces
     }
 
     /// True when the two scenes draw the same items in the same order.

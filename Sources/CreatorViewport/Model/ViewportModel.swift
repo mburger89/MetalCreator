@@ -46,6 +46,9 @@ public final class ViewportModel {
     /// The field slice drawn through the scene (`showSlice(_:)`), or `nil`. It is no part of the scene: it never picks, frames
     /// or widens `sceneBounds`.
     public private(set) var slice: ViewportSlice?
+    /// The cut view's plane (`showClip(_:)`), or `nil`: everything on one side of it is cut away. It is no part of the scene: it
+    /// never picks, frames or widens `sceneBounds`.
+    public private(set) var clip: ViewportClip?
     public internal(set) var hovered: PickTarget?
     public internal(set) var hoveredCubeRegion: ViewCubeRegion?
     /// What the drag under way does, or `nil` between drags. It's written once at each press and release (never per
@@ -110,7 +113,7 @@ public final class ViewportModel {
         ViewportRenderKey(pose: pose, isAnimating: isAnimating, shading: shading, hovered: hovered,
                           hoveredCubeRegion: hoveredCubeRegion, sceneGeneration: sceneGeneration, handles: handles,
                           cube: cubeLayout, triad: triadLayout, palette: palette, overlay: overlay,
-                          showsViewCube: showsViewCube, slice: slice)
+                          showsViewCube: showsViewCube, slice: slice, clip: clip)
     }
 
     /// The union of every shown solid's bounds, ghosts included and guides left out.
@@ -169,6 +172,13 @@ public final class ViewportModel {
     /// The slice to draw through the scene, or `nil` for none. An equal slice (the same `generation`) changes nothing.
     public func showSlice(_ newSlice: ViewportSlice?) {
         if slice != newSlice { slice = newSlice }
+    }
+
+    /// The plane to cut the scene by (the cut view), or `nil` for none. A plane with no usable normal or a position that is not a number
+    /// is none; an equal plane changes nothing.
+    public func showClip(_ newClip: ViewportClip?) {
+        let valid = newClip.flatMap { $0.isValid ? $0 : nil }
+        if clip != valid { clip = valid }
     }
 
     /// Returns once the most recent `show(_:)` has finished loading.
