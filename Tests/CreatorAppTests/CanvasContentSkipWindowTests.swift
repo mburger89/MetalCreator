@@ -191,4 +191,42 @@ struct CanvasContentSkipWindowTests {
         #expect(app.window.scene.glyphs.count > glyphs, "the badge shows the time it took")
         #expect(app.picture == app.pictureAfterRebuildingEverything())
     }
+
+    /// MetalUI C14-c (environment epoch): the box reads the `ThemeStore` from the environment and is `.equatable()`. A frame
+    /// where its rect and the theme it read are unchanged skips and grafts it; a new rect or a new theme evaluates it.
+    @Test func theSelectionBoxIsSkippedWhileItsRectAndTheThemeAreUnchanged() async throws {
+        let fixture = try await open()
+        let app = fixture.app
+        let start = app.point(inCanvas: Vector2(500, 60))
+        app.window.hover(at: start)
+        _ = app.window.send(.mouseDown(MouseEvent(position: start)))
+        app.window.tick()
+        let moved = Point(x: start.x + Pixels(40), y: start.y + Pixels(30))
+        _ = app.window.send(.mouseDragged(MouseEvent(position: moved)))
+        app.window.tick()
+        guard case .boxSelecting? = app.editor.interaction else {
+            Issue.record("expected a box")
+            return
+        }
+        // The first steady frame settles anything still pending; the second is the one measured.
+        _ = app.steadyWork()
+        let steady = app.steadyWork()
+        let canvasViews = 6 + 3 + 2 + 1
+        #expect(steady.contentEvaluations == 0, "the box's rect and the theme it read are unchanged")
+        #expect(steady.contentRefusals == 0, "reading the environment no longer refuses .equatable()")
+        #expect(steady.contentSkips >= canvasViews, "the box is skipped with the other canvas views")
+        #expect(steady.retainedGrafts == canvasViews, "and grafted, not built")
+
+        app.resetWork()
+        _ = app.window.send(.mouseDragged(MouseEvent(position: Point(x: moved.x + Pixels(20), y: moved.y))))
+        app.window.tick()
+        #expect(app.work.contentEvaluations == 1, "a new rect evaluates the box and nothing else")
+        #expect(app.work.contentRefusals == 0)
+
+        app.resetWork()
+        app.model.themes.select("alucard")
+        app.redraw()
+        #expect(app.work.contentEvaluations > 0 && app.work.contentSkips == 0, "a theme change reaches the box")
+        #expect(app.picture == app.pictureAfterRebuildingEverything(), "and it draws what a full rebuild draws")
+    }
 }

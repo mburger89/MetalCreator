@@ -33,6 +33,14 @@ struct NodeViewEqualityTests {
         ])
     }
 
+    /// The box reads the theme from the environment, which MetalUI's environment epoch (C14-c) tracks; `==` is its rect.
+    @Test func aBoxSelectionIsEqualOnlyWhenItsRectIs() {
+        let rect = CanvasRect(origin: Vector2(1, 2), size: Vector2(30, 40))
+        #expect(BoxSelectionView(rect: rect) == BoxSelectionView(rect: rect))
+        #expect(BoxSelectionView(rect: rect) != BoxSelectionView(rect: CanvasRect(origin: Vector2(1, 2), size: Vector2(31, 40))))
+        #expect(BoxSelectionView(rect: rect) != BoxSelectionView(rect: CanvasRect(origin: Vector2(2, 2), size: Vector2(30, 40))))
+    }
+
     @Test func aHeaderIsEqualOnlyWhenEveryInputIs() {
         func header(title: String = "Rib", accent: HexColor = Palette.dracula.header(for: .feature), state: NodeState? = nil,
                     palette: Palette = .dracula) -> NodeHeaderView {
