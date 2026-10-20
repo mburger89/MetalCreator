@@ -102,6 +102,8 @@ judged on the 2026-10-13 run below.
 in a drag step or a camera change; the build recursion, prepaint and paint still run whole (C14-b). The counts are pinned
 by `CanvasContentSkipWindowTests` (a drag move evaluates one node and its wires and skips the rest). C14-c (MetalUI `41a2180f`) adopted: the selection box, the one canvas view that read `@Environment`, is skipped too while its rect and the theme are unchanged; nothing timed.
 
+**C14b-3 adopted (MetalUI `711ab9c4`, record §121):** reading control state no longer counts as a write, so unfocused fields, unscrolled scroll views and unmoved lists no longer make an `.equatable()` subtree ineligible; timings come in the quiet window.
+
 ### Idle re-time after C14 slice 1 (2026-10-13)
 
 2026-10-13, MacBook Pro (MacBookPro18,2, Apple M1 Max, 10 cores), macOS 27.0.1, MetalUI `e85cb07a` (C14 slice 1; C14b is not in
