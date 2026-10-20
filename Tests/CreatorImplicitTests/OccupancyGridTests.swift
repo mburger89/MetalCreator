@@ -65,6 +65,57 @@ struct OccupancyGridTests {
         #expect(found.label[grid.index(8, 8, 8)] == 0 && found.label[grid.index(0, 0, 0)] == -1)
     }
 
+    /// A grid of the cells near a surface only, as one made from an unsigned distance is: the block in the shell is then the inside of the
+    /// material or a cavity, and `isInside` says which (Errata D18).
+    @Test func aRegionTheCallerSaysIsInsideIsMaterialAndNotAVoid() throws {
+        let grid = shell()
+        var asked: [Vector3] = []
+        let material = try EnclosedVoids(grid, isInside: { point in asked.append(point); return true })
+        #expect(material.voids.isEmpty && material.label.allSatisfy { $0 == -1 })
+        #expect(asked.count == EnclosedVoids.samples, "once per region, a few cells of it: \(asked.count)")
+        let box = BoundingBox(min: grid.center(of: grid.index(5, 5, 5)), max: grid.center(of: grid.index(12, 12, 12)))
+        #expect(asked.allSatisfy { $0.x >= box.min.x && $0.x <= box.max.x && $0.y >= box.min.y && $0.y <= box.max.y
+            && $0.z >= box.min.z && $0.z <= box.max.z }, "only cells of the pocket")
+        let cavity = try EnclosedVoids(grid, isInside: { _ in false })
+        #expect(cavity.voids.count == 1 && cavity.voids[0].count == 8 * 8 * 8)
+        #expect(try EnclosedVoids(grid).voids.count == 1, "with no test, every pocket is a void, as before")
+    }
+
+    /// A pocket of more than `judgedAt` cells, the inside of a thick part: it is judged from the first cells listed, and when it is material
+    /// it is not listed any further (a solid 150 mm cube has 27 million such cells). A cavity of the same size is still one whole void.
+    @Test func aPocketBiggerThanTheJudgingSizeIsJudgedBeforeItIsListedInFull() throws {
+        var grid = OccupancyGrid(bounds: BoundingBox(min: .zero, max: Vector3(10, 10, 10)))
+        for index in 0..<grid.cellCount { grid.setSolid(true, at: index) }
+        grid.setSolid(false, at: grid.index(0, 0, 0))
+        var pocket = 0
+        for k in 6..<26 {
+            for j in 6..<26 {
+                for i in 6..<26 {
+                    grid.setSolid(false, at: grid.index(i, j, k))
+                    pocket += 1
+                }
+            }
+        }
+        #expect(pocket > EnclosedVoids.judgedAt)
+        var asked = 0
+        let material = try EnclosedVoids(grid, isInside: { _ in asked += 1; return true })
+        #expect(material.voids.isEmpty && material.label.allSatisfy { $0 == -1 } && asked == EnclosedVoids.samples, "asked \(asked) times")
+        asked = 0
+        let cavity = try EnclosedVoids(grid, isInside: { _ in asked += 1; return false })
+        #expect(cavity.voids.count == 1 && cavity.voids[0].count == pocket && asked == EnclosedVoids.samples)
+        #expect(cavity.label.filter { $0 == 0 }.count == pocket)
+    }
+
+    @Test func theOutsideAndAOneCellPocketAreNeverAsked() throws {
+        var grid = OccupancyGrid(bounds: BoundingBox(min: .zero, max: Vector3(10, 10, 10)))
+        for index in 0..<grid.cellCount { grid.setSolid(true, at: index) }
+        grid.setSolid(false, at: grid.index(8, 8, 8))
+        grid.setSolid(false, at: grid.index(0, 0, 0))
+        var asked = 0
+        _ = try EnclosedVoids(grid, isInside: { _ in asked += 1; return false })
+        #expect(asked == 0)
+    }
+
     @Test func aHoleInTheShellLetsTheOutsideIn() throws {
         #expect(try EnclosedVoids(shell(openAt: shell().index(8, 8, 13))).voids.isEmpty)
     }

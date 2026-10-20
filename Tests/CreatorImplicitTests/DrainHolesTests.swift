@@ -66,4 +66,23 @@ struct DrainHolesTests {
         #expect(!DrainHoles.hasFiniteBounds(unbounded) && DrainHoles.hasFiniteBounds(ball))
         #expect(DrainHoles.drilled(unbounded, at: [.zero], diameter: 1, direction: .unitZ) == unbounded, "no NaN cylinders")
     }
+
+    /// Drain Holes and Check Trapped Volumes see the same voids of these sheets on a skin (Errata D18): the implicit's inside is its own
+    /// field's sign, which is exact, and the mesh's is the winding number, so each finds the channels the skin closes and neither finds the
+    /// wedge where the sheet meets the skin. Drilling the channels leaves nothing for the check to find. Three sizes, cell sizes and
+    /// positions of the region (the lattice's phase and the grids' alignment differ between them). This is not a guarantee: the two grids
+    /// are laid over different bounds (the implicit's loose box, the mesh's), and a sheet of 6 mm cells shows them disagreeing (see D18).
+    @Test(arguments: [
+        (4.0, 10.0, Vector3.zero, 0.6), (6.0, 10.0, Vector3(1.1, 0, 0), 0.7), (5.0, 8.0, Vector3.zero, 0.5),
+    ])
+    func drainHolesAndTheCheckFindTheSameVoidsOfASheetOnASkin(_ half: Double, _ cell: Double, _ offset: Vector3,
+                                                              _ resolution: Double) async throws {
+        let (solid, mesh) = try await TrappedVolumePhantomTests.skinnedSheet(half: half, cell: cell, offset: offset, resolution: resolution)
+        let points = try await DrainHoles.drainPoints(of: solid, direction: Vector3(0, 0, -1), using: CPUBatchEvaluator(solid))
+        let found = try TrappedVolumeCheck.run(mesh).voidCount
+        #expect(points.count == found && found >= 2, "Drain Holes \(points.count), the check \(found)")
+        let drilled = DrainHoles.drilled(solid, at: points, diameter: 2, direction: Vector3(0, 0, -1))
+        let after = try await ImplicitMesher(evaluator: CPUBatchEvaluator(drilled)).mesh(drilled, resolution: resolution, quality: .export)
+        #expect(try TrappedVolumeCheck.run(after).voidCount == 0, "the holes opened every void")
+    }
 }

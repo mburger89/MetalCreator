@@ -5,7 +5,10 @@ import CreatorGeometry
 public enum DrainHoles {
     /// The lowest point of each enclosed void of `solid` along `direction` (the cell centre farthest in that direction, the middle one
     /// of those in the lowest layer), one per void, in the order of the voids. The voids are found on the coarse grid of the
-    /// trapped-volume check, evaluated on the implicit itself.
+    /// trapped-volume check, evaluated on the implicit itself. Its inside test is the field's own sign, which is exact, so it needs no
+    /// winding number: a cell is solid by the same definition as in Check Trapped Volumes (inside, or within half a cell of the surface).
+    /// The grid is not the same one, though: it is laid over the implicit's bounds, not the mesh's, and a field value is not a distance, so
+    /// the two may disagree about a pocket a cell or two across (Errata D18; the mismatch of M5 is not fixed).
     /// - Throws: `ImplicitMeshingError.empty` for a solid with no finite bounds, and `CancellationError`.
     public static func drainPoints(of solid: ImplicitSolid, direction: Vector3,
                                    using evaluator: any ImplicitBatchEvaluator) async throws -> [Vector3] {
