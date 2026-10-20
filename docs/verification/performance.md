@@ -100,7 +100,9 @@ judged on the 2026-10-13 run below.
 **C14 slice 1 adopted (plan `2026-10-13-adopt-c14`).** The canvas's node, wire and comment views skip their
 `content` getter while their value is unchanged (gap PERF-b), which saves the getters of every node that did not change
 in a drag step or a camera change; the build recursion, prepaint and paint still run whole (C14-b). The counts are pinned
-by `CanvasContentSkipWindowTests` (a drag move evaluates one node and its wires and skips the rest).
+by `CanvasContentSkipWindowTests` (a drag move evaluates one node and its wires and skips the rest). C14-c (MetalUI `41a2180f`) adopted: the selection box, the one canvas view that read `@Environment`, is skipped too while its rect and the theme are unchanged; nothing timed.
+
+**C14b-3 adopted (MetalUI `711ab9c4`, record §121):** reading control state no longer counts as a write, so unfocused fields, unscrolled scroll views and unmoved lists no longer make an `.equatable()` subtree ineligible; timings come in the quiet window.
 
 ### Idle re-time after C14 slice 1 (2026-10-13)
 
@@ -138,6 +140,98 @@ The same run's other rows:
 | `kernel-main-actor gap` | 0.01 ms, max 0.10 ms (n 45,745) | 16.67 ms | **Met** |
 | `kernel-extrude`, `-revolve`, `-loft` | 0.48 ms, 0.48 ms, 2.09 ms | none | recorded |
 | `kernel-lock`, `kernel-hop` | 0.74 ms per 100,000 calls, 0.94 ms per 100 calls | none | recorded |
+
+### Quiet-window idle run (2026-10-20)
+
+2026-10-20, MacBook Pro (MacBookPro18,2, Apple M1 Max, 10 cores), macOS 27.0.1, MetalCreator `5e4069e` (master), MetalUI `711ab9c4`
+(C14b-2, P3, C14-c and C14b-3 adopted). MetalUI had paused its builds for the window. Release builds through `scripts/bench.sh`, one
+suite at a time. The release build ran first and the Mac was left until all three load averages were under 3 (it took about 35 minutes
+after the builds), then each suite started with all three under 3, except FieldBench, whose 1-minute load was 2.78 and the rest under 3
+too (so **idle by this file's rule at the start of every suite**). The loads after a suite include the suite's own work.
+
+| Suite | Load before (1, 5, 15 min) | Load after |
+|---|---|---|
+| preview sweep (`xp-preview-sweep`, merged with master) | 1.63 / 2.20 / 2.98 | 2.17 / 2.32 / 2.85 |
+| GraphPanZoomBench | 2.21 / 2.33 / 2.85 | 2.02 / 2.28 / 2.82 |
+| OrbitBench | 2.02 / 2.28 / 2.82 | 1.87 / 2.23 / 2.80 |
+| FilletDragBench | 1.87 / 2.23 / 2.80 | 1.81 / 2.21 / 2.78 |
+| ImplicitBench (i-1 to i-7, which includes IL-0) | 1.74 / 2.19 / 2.77 | 2.92 / 2.40 / 2.74 |
+| FieldBench | 2.78 / 2.39 / 2.73 | 3.69 / 2.62 / 2.81 |
+
+**Pan, zoom, orbit and fillet drag (re-time after MetalUI C14b-2, P3, C14-c, C14b-3).**
+
+| §7.3 target | Benchmark | 2026-10-13 (near idle) | 2026-10-20 (idle; median, p95) | Budget | Verdict |
+|---|---|---|---|---|---|
+| Panning a 50-node graph at 60 fps | `pan-50` | CPU 17.05 ms (p95 18.33), GPU 4.07 ms | CPU 21.35 ms (p95 24.11), GPU 4.47 ms (p95 5.12); 16 of 50 nodes built (max 20) | 16.67 ms | **Missed** (CPU; GPU met) |
+| Zooming a 50-node graph at 60 fps | `zoom-50` | CPU 18.64 ms (p95 21.48), GPU 4.49 ms | CPU 24.45 ms (p95 28.55), GPU 4.73 ms (p95 5.34); 25 of 50 built (max 50) | 16.67 ms | **Missed** (CPU; GPU met) |
+| Orbiting the bracket at 60 fps | `orbit-panel-left` | CPU 20.56 ms (p95 21.97), GPU 5.73 ms | CPU 25.80 ms (p95 26.61), GPU 6.55 ms (p95 6.93); 19 of 20 nodes built | 16.67 ms | **Missed** (CPU; GPU met) |
+| (the same, graph panel hidden) | `orbit-panel-hidden` | CPU 1.84 ms, GPU 2.17 ms | CPU 1.96 ms (p95 2.07), GPU 2.19 ms (p95 2.65) | 16.67 ms | **Met** |
+| Fillet radius drag, within 100 ms | `fillet-drag` | command-to-frame 54.77 ms (p95 58.79) | command-to-frame 60.15 ms (p95 62.94, max 134.41): evaluate + mesh 25.30 ms, window CPU 27.27 ms (p95 29.47), GPU 7.17 ms; 75 of 75 steps showed a new part | 100 ms | **Met** |
+
+The idle numbers are higher than 2026-10-13's for every row whose window includes the graph panel (pan +4.30 ms, zoom +5.81 ms, orbit
++5.24 ms, fillet-drag window CPU +5.31 ms), with the model step unchanged (0.12, 0.11 and 0.01 ms) and the panel-hidden orbit frame
+unchanged (1.96 ms). So the three adopted MetalUI changes did not bring these rows under budget in this measurement; the cost is still
+the panel's rebuild, layout and painting, and the misses stay with MetalUI C14-b. The two runs differ in more than those adoptions
+(MetalCreator `d734684` against `5e4069e`, MetalUI `e85cb07a` against `711ab9c4`, and the pattern, field and implicit work between), so this run does not say
+which change raised the frames. Not investigated during the window.
+
+**Implicit (IL-0 included).** `scripts/bench.sh ImplicitBench` on the 100 mm gyroid cell (`ImplicitBenchFixtures.cellSize` 100); the
+50 mm fallback was not needed, because i-4's peak memory was 0.94 GB against 4 GB (the 19.6 million triangle, 3 GB estimate was high).
+
+| Row | Measured (median) | Budget | Verdict |
+|---|---|---|---|
+| i-1 first preview pass, warm | 13.31 ms (p95 13.74; cold, shaders compiled: 22.13 ms) | 1000 ms | **Met** |
+| i-2 thickness edit | 8.37 ms (p95 12.12) | 100 ms | **Met** |
+| i-1m first pass at 0.78 mm | GPU mesher 12.76 ms, CPU mesher over the GPU's values 58.00 ms; 323,808 triangles from each | recorded | n/a |
+| i-3 To Implicit of the bracket | 281.66 ms (p95 287.21) | 500 ms | **Met** |
+| i-4 export to STL, 0.1 mm | 18.60 s (n 1); peak memory 0.94 GB; file 1008 MB | 60 s, 4 GB | **Met** (both) |
+| i-4b 3MF export | 36.48 s; file 177 MB from 1436 MB of model XML; process peak so far 1.81 GB | recorded | n/a |
+| i-4z 4794 MB Zip64 entry | 22.38 s; `unzip -t` exit 0, no errors | valid | **Met** |
+| i-5 decimate 2,097,152 triangles | 6.84 s (p95 6.86); 2,097,152 to 290,730 triangles | 10 s | **Met** |
+| i-6 Mesh to Solid, 100,000 triangles | 14.06 s (p95 14.09), 100,000 faces | 15 s | **Met** (6% headroom; the nearest row to its budget) |
+| i-7 trapped-volume fill | 28,094,464 cells, 1 void, 4.23 s; peak resident 2,261 MB (2,261 MB before the grid: the process holds earlier rows) | recorded | n/a |
+
+IL-0 is satisfied by this run (the rows i-1 to i-4 are in budget with the 100 mm cell). The earlier non-idle ImplicitBench figures in the
+Implicit section below are superseded by these.
+
+**Fields.** `scripts/bench.sh FieldBench`:
+
+| Row | Measured (median, p95) | Budget | Verdict |
+|---|---|---|---|
+| field-1 five nodes x 10,000 points | 0.71 ms (0.71) | 5 ms | **Met** |
+| field-2 signed distance to a plate x 10,000 points, first (OCCT) | 73.14 ms (73.85) | 100 ms | **Met** (27% headroom) |
+| field-2 cached | 0.20 ms (0.21) | recorded | n/a |
+| field-2b smooth loft x 10,000 points | 860.41 ms (865.68) | recorded | n/a |
+| field-3 Field Scatter, about 2,000 points | 45.84 ms (46.17) | 50 ms | **Met** (8% headroom; still the row nearest its budget) |
+| field-3b Sample Field + Cull by Field x 2,000 | 0.34 ms (0.35) | 50 ms | **Met** |
+| field-4c first tint (kernel) | 179.66 ms (n 1) | recorded | n/a |
+| field-4 edit to a tinted bracket (Remap) | 37.44 ms (38.17; max 290.55) | 150 ms | **Met** |
+| field-4b edit to a tinted bracket (Radial Gradient) | 40.23 ms (41.44) | 150 ms | **Met** |
+
+The raw lines of all of these are under Raw output.
+
+### Preview triangle cap sweep (2026-10-20)
+
+`scripts/preview-sweep.sh` (Errata D15) on branch `xp-preview-sweep`, after `git merge master` (master `5e4069e`, MetalUI `711ab9c4`), release build,
+load 1.63 / 2.20 / 2.98 before and 2.17 / 2.32 / 2.85 after. The merge changed `ImplicitBenchFixtures` to build a TPMS gyroid, which broke
+the sweep's fixture; the sweep keeps the noise sheet it was calibrated on (a copy of the old builder in `PreviewSweepFixtures`), so the
+rungs are comparable to the ladder's design. The rules: (a) GPU p95 of an orbit frame, graph panel shown, at most 8 ms; (b) window CPU p95
+within 1 ms of the smallest rung; (c) footprint added at most 1 GB; (d) GPU mesh at most 1 s.
+
+| Rung | Triangles | Voxel | GPU p95, shown / hidden | Window CPU p95 (vs smallest rung) | Footprint added | GPU mesh (CPU mesh) | Footprint at once / settled | Result |
+|---|---|---|---|---|---|---|---|---|
+| 1 (0.25M) | 324,604 | 1.90 mm | 7.02 / 3.70 ms | 16.57 ms (0.00) | 91 MB | 17.05 ms (48.88) | 561 / 153 MB | **PASS** |
+| 2 (0.5M) | 570,700 | 1.55 mm | 7.55 / 3.58 ms | 16.88 ms (+0.31) | 160 MB | 22.54 ms (83.06) | 814 / 300 MB | **PASS** |
+| 3 (1M) | 1,039,236 | 1.22 mm | **9.31** / 4.42 ms | 16.67 ms (+0.09) | 302 MB | 24.68 ms (149.73) | 1240 / 538 MB | **FAIL** (a) |
+| 4 (2M) | 1,979,960 | 0.93 mm | **11.14** / 5.72 ms | 17.48 ms (+0.91) | 589 MB | 35.92 ms (292.21) | 2109 / 1022 MB | **FAIL** (a) |
+| 5 (4M) | 4,060,684 | 0.65 mm | **10.77** / **8.59** ms | 17.02 ms (+0.45) | **1196 MB** | 65.32 ms (636.99) | 3906 / 1986 MB | **FAIL** (a, c) |
+| 6 (8M) | 8,083,708 | 0.46 mm | **13.96** / **13.87** ms | 16.48 ms (-0.09) | **2329 MB** | 113.40 ms (1386.79) | 6439 / 2743 MB | **FAIL** (a, c) |
+
+**Cap candidate: 570,700 triangles (rung 2, the last rung before the first failure).** Rung 3 misses only (a), by 1.31 ms (9.31 ms against
+8 ms); the other three rules hold through rung 4, and the window CPU rule (b) and the mesh rule (d) hold at every rung. Each rung's mesh
+has n 3 for the mesh timings and n 60 for the frame timings, so the p95 of the mesh rows is a max of three. The graph-panel-shown
+GPU p95 is above the panel-hidden one by 2.4 to 3.3 ms up to 2M and converges above that, where the viewport pass dominates. Process peak
+resident was 5.11 GB. `PreviewSchedule.maximumTriangles` is **not** changed; the decision is the owner's.
 
 ## Carry-over items (the M0–M1 carry-over note, M7)
 
@@ -377,8 +471,7 @@ gate (7c-1's ruling U6): a miss is written down as a miss.
 
 The run recorded here (2026-10-14, release build, 7c-core) was taken while other sessions kept the Mac at a load average of 130 to 270 on 10 cores (so none of these numbers is a measurement of the
 code; they show the benchmarks run, and the order of magnitude). It measured the noise sheet of 7c-1; **the gyroid fixture of 7c-2 has not
-been run** (the Mac was not idle). **Re-run on an idle Mac with `scripts/bench.sh ImplicitBench` and replace these lines, keeping the load
-lines.**
+been run** (the Mac was not idle). **Superseded by the idle run of 2026-10-20 (Results, "Quiet-window idle run"); the lines below are kept as the history.**
 
 ```text
 BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
@@ -396,7 +489,7 @@ The 7c-1g run (2026-10-14): `scripts/bench.sh "ImplicitBench/(theFirstPreview|aT
 with marching cubes and the Newton snap on the GPU (`MetalImplicitEngine.meshBricks`), and the comparison `i-1m`: the same first pass by
 the GPU mesher and by the CPU mesher over the GPU's values, which is how i-1 and i-2 were made before. **The Mac was not idle: the load
 average was 32 at the start and 49 at the end, with other sessions running**, so these are not idle-Mac numbers; the GPU rows are
-GPU-bound and the CPU comparison row is the one the load inflates. **Re-run on an idle Mac and replace them, keeping the load lines.**
+GPU-bound and the CPU comparison row is the one the load inflates. **Superseded by the idle run of 2026-10-20.**
 
 ```text
 BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
@@ -496,6 +589,191 @@ i-8's two voids are the two gyroid channels the skin closes; the phantom void of
 A winding number at every cell is 23 to 35 times the pseudonormal's cost, which the 50 mm cube makes minutes, so Check Trapped Volumes fills the grid from the unsigned distance and asks the winding number about five cells of each pocket the flood fill leaves. All three find the same voids on these two meshes (2 and 8); the phantom shows on the 8 mm fixture of `TrappedVolumePhantomTests`, where the pseudonormal sign finds a third. The winding-number clusters (about 80 bytes a BVH node, plus their build time) are built on the first `isInside` and not with the `SignedDistanceMesh`, so To Implicit's bake, which only asks for the pseudonormal sign, never builds them and row i-3 is unaffected.
 
 ## Raw output
+
+The 2026-10-20 idle run (MetalCreator `5e4069e`, MetalUI `711ab9c4`; the machine and load lines are the scripts', copied from their
+output; the sweep ran in `MetalCreator-sweep` on `xp-preview-sweep` merged with master):
+
+Preview sweep (`scripts/preview-sweep.sh`):
+
+```text
+BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
+BENCH load before: 1.63 2.20 2.98
+BENCH preview-sweep rung 1 (0.25M) mesh: res 1.9 mm, 324604 triangles, 165248 vertices; own bytes 9 MB (positions 3 MB, normals 3 MB, indices 4 MB)
+BENCH preview-sweep rung 1 (0.25M) mesh-gpu: median 17.05 ms, p95 17.26 ms, max 17.26 ms (n 3)
+BENCH preview-sweep rung 1 (0.25M) mesh-cpu: median 48.88 ms, p95 50.77 ms, max 50.77 ms (n 3)
+BENCH preview-sweep rung 1 (0.25M) memory: footprint 352 MB with an empty app drawn, 443 MB with the mesh in the viewport, added 91 MB; GPU vertex buffer 47 MB (de-indexed, derived from the layout)
+BENCH preview-sweep rung 1 (0.25M) viewport: 324604 triangles shown
+BENCH preview-sweep rung 1 (0.25M) panel-left model: median 0.01 ms, p95 0.01 ms, max 0.01 ms (n 60)
+BENCH preview-sweep rung 1 (0.25M) panel-left window-cpu: median 16.31 ms, p95 16.57 ms, max 17.43 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 1 (0.25M) panel-left gpu (viewport + window): median 5.59 ms, p95 7.02 ms, max 7.65 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 1 (0.25M) panel-hidden model: median 0.00 ms, p95 0.01 ms, max 0.01 ms (n 60)
+BENCH preview-sweep rung 1 (0.25M) panel-hidden window-cpu: median 1.68 ms, p95 2.03 ms, max 2.20 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 1 (0.25M) panel-hidden gpu (viewport + window): median 3.25 ms, p95 3.70 ms, max 3.78 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 1 (0.25M) teardown: AppModel, renderer and mesh storage freed; Metal allocated 1 MB; footprint 561 MB at once, 153 MB settled after 15.77 s; live malloc heap 5 MB
+BENCH preview-sweep rung 1 (0.25M) rule: (a) gpu p95 7.02 shown / 3.70 hidden ms (<= 8.00): met; (b) window cpu p95 0.00 / 0.00 ms over the smallest rung (<= 1.00): met; (c) footprint added 91 MB (<= 1000 MB): met; (d) gpu mesh 17.05 ms (<= 1000.00): met => PASS
+BENCH preview-sweep rung 2 (0.5M) mesh: res 1.55 mm, 570700 triangles, 282572 vertices; own bytes 16 MB (positions 5 MB, normals 5 MB, indices 7 MB)
+BENCH preview-sweep rung 2 (0.5M) mesh-gpu: median 22.54 ms, p95 37.25 ms, max 37.25 ms (n 3)
+BENCH preview-sweep rung 2 (0.5M) mesh-cpu: median 83.06 ms, p95 101.32 ms, max 101.32 ms (n 3)
+BENCH preview-sweep rung 2 (0.5M) memory: footprint 472 MB with an empty app drawn, 632 MB with the mesh in the viewport, added 160 MB; GPU vertex buffer 82 MB (de-indexed, derived from the layout)
+BENCH preview-sweep rung 2 (0.5M) viewport: 570700 triangles shown
+BENCH preview-sweep rung 2 (0.5M) panel-left model: median 0.01 ms, p95 0.01 ms, max 0.01 ms (n 60)
+BENCH preview-sweep rung 2 (0.5M) panel-left window-cpu: median 16.28 ms, p95 16.88 ms, max 17.10 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 2 (0.5M) panel-left gpu (viewport + window): median 5.52 ms, p95 7.55 ms, max 8.22 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 2 (0.5M) panel-hidden model: median 0.00 ms, p95 0.00 ms, max 0.01 ms (n 60)
+BENCH preview-sweep rung 2 (0.5M) panel-hidden window-cpu: median 1.62 ms, p95 1.72 ms, max 1.93 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 2 (0.5M) panel-hidden gpu (viewport + window): median 3.49 ms, p95 3.58 ms, max 3.96 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 2 (0.5M) teardown: AppModel, renderer and mesh storage freed; Metal allocated 1 MB; footprint 814 MB at once, 300 MB settled after 15.72 s; live malloc heap 5 MB
+BENCH preview-sweep rung 2 (0.5M) rule: (a) gpu p95 7.55 shown / 3.58 hidden ms (<= 8.00): met; (b) window cpu p95 0.31 / -0.30 ms over the smallest rung (<= 1.00): met; (c) footprint added 160 MB (<= 1000 MB): met; (d) gpu mesh 22.54 ms (<= 1000.00): met => PASS
+BENCH preview-sweep rung 3 (1M) mesh: res 1.22 mm, 1039236 triangles, 500984 vertices; own bytes 29 MB (positions 8 MB, normals 8 MB, indices 12 MB)
+BENCH preview-sweep rung 3 (1M) mesh-gpu: median 24.68 ms, p95 52.12 ms, max 52.12 ms (n 3)
+BENCH preview-sweep rung 3 (1M) mesh-cpu: median 149.73 ms, p95 173.33 ms, max 173.33 ms (n 3)
+BENCH preview-sweep rung 3 (1M) memory: footprint 632 MB with an empty app drawn, 934 MB with the mesh in the viewport, added 302 MB; GPU vertex buffer 150 MB (de-indexed, derived from the layout)
+BENCH preview-sweep rung 3 (1M) viewport: 1039236 triangles shown
+BENCH preview-sweep rung 3 (1M) panel-left model: median 0.01 ms, p95 0.01 ms, max 0.01 ms (n 60)
+BENCH preview-sweep rung 3 (1M) panel-left window-cpu: median 16.28 ms, p95 16.67 ms, max 17.26 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 3 (1M) panel-left gpu (viewport + window): median 6.20 ms, p95 9.31 ms, max 10.25 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 3 (1M) panel-hidden model: median 0.00 ms, p95 0.00 ms, max 0.01 ms (n 60)
+BENCH preview-sweep rung 3 (1M) panel-hidden window-cpu: median 1.62 ms, p95 1.69 ms, max 1.83 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 3 (1M) panel-hidden gpu (viewport + window): median 4.30 ms, p95 4.42 ms, max 4.47 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 3 (1M) teardown: AppModel, renderer and mesh storage freed; Metal allocated 1 MB; footprint 1240 MB at once, 538 MB settled after 14.67 s; live malloc heap 5 MB
+BENCH preview-sweep rung 3 (1M) rule: (a) gpu p95 9.31 shown / 4.42 hidden ms (<= 8.00): missed; (b) window cpu p95 0.09 / -0.34 ms over the smallest rung (<= 1.00): met; (c) footprint added 302 MB (<= 1000 MB): met; (d) gpu mesh 24.68 ms (<= 1000.00): met => FAIL
+BENCH preview-sweep rung 4 (2M) mesh: res 0.93 mm, 1979960 triangles, 945482 vertices; own bytes 54 MB (positions 15 MB, normals 15 MB, indices 24 MB)
+BENCH preview-sweep rung 4 (2M) mesh-gpu: median 35.92 ms, p95 71.31 ms, max 71.31 ms (n 3)
+BENCH preview-sweep rung 4 (2M) mesh-cpu: median 292.21 ms, p95 310.23 ms, max 310.23 ms (n 3)
+BENCH preview-sweep rung 4 (2M) memory: footprint 968 MB with an empty app drawn, 1557 MB with the mesh in the viewport, added 589 MB; GPU vertex buffer 285 MB (de-indexed, derived from the layout)
+BENCH preview-sweep rung 4 (2M) viewport: 1979960 triangles shown
+BENCH preview-sweep rung 4 (2M) panel-left model: median 0.01 ms, p95 0.01 ms, max 0.01 ms (n 60)
+BENCH preview-sweep rung 4 (2M) panel-left window-cpu: median 16.27 ms, p95 17.48 ms, max 17.60 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 4 (2M) panel-left gpu (viewport + window): median 7.09 ms, p95 11.14 ms, max 12.40 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 4 (2M) panel-hidden model: median 0.00 ms, p95 0.00 ms, max 0.01 ms (n 60)
+BENCH preview-sweep rung 4 (2M) panel-hidden window-cpu: median 1.62 ms, p95 1.74 ms, max 1.80 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 4 (2M) panel-hidden gpu (viewport + window): median 5.60 ms, p95 5.72 ms, max 5.92 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 4 (2M) teardown: AppModel, renderer and mesh storage freed; Metal allocated 1 MB; footprint 2109 MB at once, 1022 MB settled after 14.69 s; live malloc heap 5 MB
+BENCH preview-sweep rung 4 (2M) rule: (a) gpu p95 11.14 shown / 5.72 hidden ms (<= 8.00): missed; (b) window cpu p95 0.91 / -0.29 ms over the smallest rung (<= 1.00): met; (c) footprint added 589 MB (<= 1000 MB): met; (d) gpu mesh 35.92 ms (<= 1000.00): met => FAIL
+BENCH preview-sweep rung 5 (4M) mesh: res 0.65 mm, 4060684 triangles, 1983220 vertices; own bytes 112 MB (positions 32 MB, normals 32 MB, indices 49 MB)
+BENCH preview-sweep rung 5 (4M) mesh-gpu: median 65.32 ms, p95 98.00 ms, max 98.00 ms (n 3)
+BENCH preview-sweep rung 5 (4M) mesh-cpu: median 636.99 ms, p95 647.60 ms, max 647.60 ms (n 3)
+BENCH preview-sweep rung 5 (4M) memory: footprint 1622 MB with an empty app drawn, 2818 MB with the mesh in the viewport, added 1196 MB; GPU vertex buffer 585 MB (de-indexed, derived from the layout)
+BENCH preview-sweep rung 5 (4M) viewport: 4060684 triangles shown
+BENCH preview-sweep rung 5 (4M) panel-left model: median 0.01 ms, p95 0.01 ms, max 0.01 ms (n 60)
+BENCH preview-sweep rung 5 (4M) panel-left window-cpu: median 16.25 ms, p95 17.02 ms, max 18.19 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 5 (4M) panel-left gpu (viewport + window): median 8.88 ms, p95 10.77 ms, max 11.40 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 5 (4M) panel-hidden model: median 0.00 ms, p95 0.00 ms, max 0.01 ms (n 60)
+BENCH preview-sweep rung 5 (4M) panel-hidden window-cpu: median 1.62 ms, p95 1.65 ms, max 1.90 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 5 (4M) panel-hidden gpu (viewport + window): median 8.33 ms, p95 8.59 ms, max 8.65 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 5 (4M) teardown: AppModel, renderer and mesh storage freed; Metal allocated 1 MB; footprint 3906 MB at once, 1986 MB settled after 14.68 s; live malloc heap 5 MB
+BENCH preview-sweep rung 5 (4M) rule: (a) gpu p95 10.77 shown / 8.59 hidden ms (<= 8.00): missed; (b) window cpu p95 0.45 / -0.38 ms over the smallest rung (<= 1.00): met; (c) footprint added 1196 MB (<= 1000 MB): missed; (d) gpu mesh 65.32 ms (<= 1000.00): met => FAIL
+BENCH preview-sweep rung 6 (8M) mesh: res 0.46 mm, 8083708 triangles, 4027652 vertices; own bytes 226 MB (positions 64 MB, normals 64 MB, indices 97 MB)
+BENCH preview-sweep rung 6 (8M) mesh-gpu: median 113.40 ms, p95 201.76 ms, max 201.76 ms (n 3)
+BENCH preview-sweep rung 6 (8M) mesh-cpu: median 1386.79 ms, p95 1391.24 ms, max 1391.24 ms (n 3)
+BENCH preview-sweep rung 6 (8M) memory: footprint 2957 MB with an empty app drawn, 5286 MB with the mesh in the viewport, added 2329 MB; GPU vertex buffer 1164 MB (de-indexed, derived from the layout)
+BENCH preview-sweep rung 6 (8M) viewport: 8083708 triangles shown
+BENCH preview-sweep rung 6 (8M) panel-left model: median 0.01 ms, p95 0.01 ms, max 0.01 ms (n 60)
+BENCH preview-sweep rung 6 (8M) panel-left window-cpu: median 16.25 ms, p95 16.48 ms, max 17.38 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 6 (8M) panel-left gpu (viewport + window): median 11.84 ms, p95 13.96 ms, max 14.59 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 6 (8M) panel-hidden model: median 0.00 ms, p95 0.01 ms, max 0.01 ms (n 60)
+BENCH preview-sweep rung 6 (8M) panel-hidden window-cpu: median 1.63 ms, p95 1.79 ms, max 2.03 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 6 (8M) panel-hidden gpu (viewport + window): median 13.38 ms, p95 13.87 ms, max 14.00 ms (n 60); budget 16.67 ms: met
+BENCH preview-sweep rung 6 (8M) teardown: AppModel, renderer and mesh storage freed; Metal allocated 1 MB; footprint 6439 MB at once, 2743 MB settled after 27.46 s; live malloc heap 5 MB
+BENCH preview-sweep rung 6 (8M) rule: (a) gpu p95 13.96 shown / 13.87 hidden ms (<= 8.00): missed; (b) window cpu p95 -0.09 / -0.24 ms over the smallest rung (<= 1.00): met; (c) footprint added 2329 MB (<= 1000 MB): missed; (d) gpu mesh 113.40 ms (<= 1000.00): met => FAIL
+BENCH preview-sweep row: 324604 triangles at 1.90 mm; mesh gpu 17.05 ms, cpu 48.88 ms; orbit gpu p95 7.02 ms shown, 3.70 ms hidden; window cpu p95 16.57 ms shown, 2.03 ms hidden; footprint added 91 MB
+BENCH preview-sweep row: 570700 triangles at 1.55 mm; mesh gpu 22.54 ms, cpu 83.06 ms; orbit gpu p95 7.55 ms shown, 3.58 ms hidden; window cpu p95 16.88 ms shown, 1.72 ms hidden; footprint added 160 MB
+BENCH preview-sweep row: 1039236 triangles at 1.22 mm; mesh gpu 24.68 ms, cpu 149.73 ms; orbit gpu p95 9.31 ms shown, 4.42 ms hidden; window cpu p95 16.67 ms shown, 1.69 ms hidden; footprint added 302 MB
+BENCH preview-sweep row: 1979960 triangles at 0.93 mm; mesh gpu 35.92 ms, cpu 292.21 ms; orbit gpu p95 11.14 ms shown, 5.72 ms hidden; window cpu p95 17.48 ms shown, 1.74 ms hidden; footprint added 589 MB
+BENCH preview-sweep row: 4060684 triangles at 0.65 mm; mesh gpu 65.32 ms, cpu 636.99 ms; orbit gpu p95 10.77 ms shown, 8.59 ms hidden; window cpu p95 17.02 ms shown, 1.65 ms hidden; footprint added 1196 MB
+BENCH preview-sweep row: 8083708 triangles at 0.46 mm; mesh gpu 113.40 ms, cpu 1386.79 ms; orbit gpu p95 13.96 ms shown, 13.87 ms hidden; window cpu p95 16.48 ms shown, 1.79 ms hidden; footprint added 2329 MB
+BENCH preview-sweep process peak resident 5.11 GB
+BENCH preview-sweep cap-candidate 570700
+BENCH load after: 2.17 2.32 2.85
+```
+
+GraphPanZoomBench:
+
+```text
+BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
+BENCH load before: 2.21 2.33 2.85
+BENCH pan-50 nodes built of 50: median 16, max 20
+BENCH pan-50 model: median 0.12 ms, p95 0.13 ms, max 0.15 ms (n 120)
+BENCH pan-50 window-cpu: median 21.35 ms, p95 24.11 ms, max 24.68 ms (n 120); budget 16.67 ms: missed
+BENCH pan-50 window-gpu: median 4.47 ms, p95 5.12 ms, max 5.98 ms (n 120); budget 16.67 ms: met
+BENCH zoom-50 nodes built of 50: median 25, max 50
+BENCH zoom-50 model: median 0.11 ms, p95 0.13 ms, max 0.16 ms (n 120)
+BENCH zoom-50 window-cpu: median 24.45 ms, p95 28.55 ms, max 30.39 ms (n 120); budget 16.67 ms: missed
+BENCH zoom-50 window-gpu: median 4.73 ms, p95 5.34 ms, max 5.42 ms (n 120); budget 16.67 ms: met
+BENCH load after: 2.02 2.28 2.82
+```
+
+OrbitBench:
+
+```text
+BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
+BENCH load before: 2.02 2.28 2.82
+BENCH orbit-panel-left: the canvas builds 19 of 20 nodes
+BENCH orbit-panel-left model: median 0.01 ms, p95 0.01 ms, max 0.01 ms (n 100)
+BENCH orbit-panel-left window-cpu: median 25.80 ms, p95 26.61 ms, max 28.59 ms (n 100); budget 16.67 ms: missed
+BENCH orbit-panel-left gpu (viewport + window): median 6.55 ms, p95 6.93 ms, max 7.98 ms (n 100); budget 16.67 ms: met
+BENCH orbit-panel-hidden: the graph panel is hidden (20 nodes)
+BENCH orbit-panel-hidden model: median 0.00 ms, p95 0.00 ms, max 0.01 ms (n 100)
+BENCH orbit-panel-hidden window-cpu: median 1.96 ms, p95 2.07 ms, max 2.30 ms (n 100); budget 16.67 ms: met
+BENCH orbit-panel-hidden gpu (viewport + window): median 2.19 ms, p95 2.65 ms, max 3.68 ms (n 100); budget 16.67 ms: met
+BENCH load after: 1.87 2.23 2.80
+```
+
+FilletDragBench:
+
+```text
+BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
+BENCH load before: 1.87 2.23 2.80
+BENCH fillet-drag: 75 of 75 steps showed a new part
+BENCH fillet-drag evaluate+mesh: median 25.30 ms, p95 26.87 ms, max 28.72 ms (n 75)
+BENCH fillet-drag window-cpu: median 27.27 ms, p95 29.47 ms, max 85.62 ms (n 75)
+BENCH fillet-drag gpu (viewport + window): median 7.17 ms, p95 8.49 ms, max 24.01 ms (n 75)
+BENCH fillet-drag command-to-frame: median 60.15 ms, p95 62.94 ms, max 134.41 ms (n 75); budget 100.00 ms: met
+BENCH load after: 1.81 2.21 2.78
+```
+
+ImplicitBench:
+
+```text
+BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
+BENCH load before: 1.74 2.19 2.77
+BENCH i-1 first preview pass of a 100 mm sheet, cold (shaders compiled): median 22.13 ms, p95 22.13 ms, max 22.13 ms (n 1)
+BENCH i-1 first preview pass of a 100 mm sheet: median 13.31 ms, p95 13.74 ms, max 13.74 ms (n 6); budget 1000.00 ms: met
+BENCH i-2 thickness edit of a 100 mm sheet (one coarse pass, no recompile): median 8.37 ms, p95 12.12 ms, max 13.55 ms (n 22); budget 100.00 ms: met
+BENCH i-1m first pass of the sheet at 0.78 mm, GPU mesher: median 12.76 ms, p95 12.95 ms, max 12.95 ms (n 6)
+BENCH i-1m the same pass, CPU mesher over the GPU's values (before D13): median 58.00 ms, p95 58.95 ms, max 58.95 ms (n 6)
+BENCH i-1m triangles: GPU 323808, CPU 323808
+BENCH i-3 To Implicit of the bracket (bake, OCCT): median 281.66 ms, p95 287.21 ms, max 287.21 ms (n 10); budget 500.00 ms: met
+BENCH i-4 export of the 100 mm sheet at 0.1 mm (STL, whole pipeline): median 18600.08 ms, p95 18600.08 ms, max 18600.08 ms (n 1); budget 60000.00 ms: met
+BENCH i-4 peak memory 0.94 GB (file 1008 MB); budget 4.00 GB: met
+BENCH i-4b export of the 100 mm sheet at 0.1 mm (3MF, whole pipeline): median 36482.31 ms, p95 36482.31 ms, max 36482.31 ms (n 1)
+BENCH i-4b 3MF file 177 MB, model XML 1436 MB; peak memory of the process so far 1.81 GB
+BENCH i-4z a 4794 MB zip entry (deflated): median 22378.96 ms, p95 22378.96 ms, max 22378.96 ms (n 1)
+BENCH i-4z unzip -t: exit 0 No errors detected in compressed data of /var/folders/_h/phx9n5sd01dd8sf4h76clcc80000gn/T/52748003-389A-4F31-91DD-95626A15F99B.zip.
+BENCH i-5 decimate a 2097152 triangle sphere (0.01 mm): median 6837.89 ms, p95 6863.57 ms, max 6863.57 ms (n 3); budget 10000.00 ms: met
+BENCH i-5 triangles 2097152 to 290730
+BENCH i-7 28094464 cells, 1 void, 4.226632625 seconds; peak resident 2,261 MB (2,261 MB before the grid)
+BENCH i-6 Mesh to Solid of a 100000 triangle mesh (OCCT): median 14057.18 ms, p95 14091.19 ms, max 14091.19 ms (n 2); budget 15000.00 ms: met
+BENCH i-6 faces 100000
+BENCH load after: 2.92 2.40 2.74
+```
+
+FieldBench:
+
+```text
+BENCH machine: MacBookPro18,2, 10 cores, macOS 27.0.1
+BENCH load before: 2.78 2.39 2.73
+BENCH field-1 five nodes × 10,000 points (no kernel): median 0.71 ms, p95 0.71 ms, max 0.75 ms (n 60); budget 5.00 ms: met
+BENCH field-2 signed distance to a plate × 10,000 points, first (OCCT): median 73.14 ms, p95 73.85 ms, max 73.87 ms (n 22); budget 100.00 ms: met
+BENCH field-2 signed distance to a plate × 10,000 points, cached: median 0.20 ms, p95 0.21 ms, max 0.22 ms (n 22)
+BENCH field-2b signed distance to a smooth loft × 10,000 points, first (OCCT): median 860.41 ms, p95 865.68 ms, max 865.68 ms (n 8)
+BENCH field-3 Field Scatter × about 2,000 points on a face: median 45.84 ms, p95 46.17 ms, max 46.40 ms (n 22); budget 50.00 ms: met
+BENCH field-3b Sample Field + Cull by Field × 2,000 placements: median 0.34 ms, p95 0.35 ms, max 0.39 ms (n 40); budget 50.00 ms: met
+BENCH field-4c first tint of the bracket by its signed distance (kernel): median 179.66 ms, p95 179.66 ms, max 179.66 ms (n 1)
+BENCH field-4 edit to a tinted bracket preview (Remap of the signed distance): median 37.44 ms, p95 38.17 ms, max 290.55 ms (n 40); budget 150.00 ms: met
+BENCH field-4b edit to a tinted bracket preview (Radial Gradient): median 40.23 ms, p95 41.44 ms, max 67.81 ms (n 40); budget 150.00 ms: met
+BENCH load after: 3.69 2.62 2.81
+```
 
 The 2026-10-13 run (`scripts/bench.sh`, every suite; MetalCreator `d734684`, MetalUI `e85cb07a`; the machine and load lines are
 the script's, copied from its output):

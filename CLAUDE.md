@@ -416,9 +416,12 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
   gap PERF-b), so an unchanged node's `content` getter is skipped, and (MetalUI C14b-2, record §110) an unchanged outermost
   occurrence also skips its whole build recursion, grafts its retained layout nodes and replays its prepaint and paint, so a
   steady frame counts one `contentSkips` per outermost canvas view (inner views are no longer visited) and one
-  `retainedGrafts` each. A view that reads `@Environment` is refused by
-  `.equatable()` (MetalUI divergence 346), so an `.equatable()` canvas view never declares one (`BoxSelectionView` is the
-  one canvas view that still reads `@Environment(ThemeStore)`: it is not `.equatable()` and is rebuilt anyway); its `==`
+  `retainedGrafts` each. Since MetalUI C14-c
+  (environment epoch, PR #96, record §120, `41a2180f`) an `.equatable()` view may read `@Environment`: it is skipped while
+  the values it read are unchanged (an `@Environment(Type.self)` object by instance plus the observation session over the
+  properties read, an Equatable custom key by `==`, a reference by identity); closures and `@FocusState` are still refused
+  (divergence 346 now covers only those). `BoxSelectionView` reads `@Environment(ThemeStore)` and is `.equatable()` on
+  its `rect` alone (`CanvasContentSkipWindowTests` pins it); the other canvas views still take the `Palette` by value. Its `==`
   must cover every stored property the getter reads (the synthesized one does; a hand-written one is
   `nonisolated static func ==`), and `expectEqualityCovers` (`CreatorEditorTests`) fails when a view gains a property its
   test has no variant for. The viewport draws `ViewportModel.theme`, which the

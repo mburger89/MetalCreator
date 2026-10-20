@@ -16,7 +16,7 @@ struct NodeView: Component, Equatable {
     /// How many refusals this node has had (`EditorModel.shakeCount(of:)`): each new one shakes it (`RefusalShake`).
     let shakes: Int
     /// The theme's colours, passed as a value so `==` covers them (a view that read the `ThemeStore` environment could not be
-    /// `.equatable()`, MetalUI divergence 346).
+    /// `.equatable()` before MetalUI C14-c; the canvas views still pass it down by value).
     let palette: Palette
     /// Drawn at reduced opacity: an ⌥-drag ghost.
     var isGhost = false
