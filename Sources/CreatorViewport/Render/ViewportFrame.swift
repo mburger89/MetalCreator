@@ -21,11 +21,13 @@ struct ViewportFrame {
     var showsViewCube = true
     /// The field slice (`ViewportModel.slice`).
     var slice: ViewportSlice?
+    /// The cut view's plane (`ViewportModel.clip`).
+    var clip: ViewportClip?
 
     /// Half the scene's diagonal (at least 1 mm), used for depth ranges.
     var sceneRadius: Double { sceneBounds.map { max($0.size.length / 2, 1) } ?? 1 }
 
     var pickKey: PickKey {
-        PickKey(pose: pose, size: size, items: items.flatMap { [$0.meshSerial, $0.solidIndex] })
+        PickKey(pose: pose, size: size, items: items.flatMap { [$0.meshSerial, $0.solidIndex] }, clip: clip)
     }
 }

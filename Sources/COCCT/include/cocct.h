@@ -216,6 +216,13 @@ int occt_distances(const occt_shape *shape, int kind, const int *indices, int in
 /// path is tested against. Same arguments and result as occt_distances.
 int occt_distances_reference(const occt_shape *shape, int kind, const int *indices, int index_count, const double *points,
                              int point_count, int signed_distance, double *out, occt_status *status);
+/// A faceted solid from a closed triangle mesh (implicit spec §4.7): `positions` is `vertex_count` x, y, z triples in millimetres and
+/// `triangles` three vertex numbers per face, counter-clockwise seen from outside. A planar face is built per triangle on vertices and edges shared by index
+/// (no BRepBuilderAPI_Sewing), same-domain faces are merged (ShapeUpgrade_UnifySameDomain), a shell facing inwards becomes a
+/// void of the solid that contains it, and BRepCheck_Analyzer must accept the result. A mesh that is not closed, not a manifold, wound
+/// inside out or rejected by the checker fails with the reason in `status`. Several outer surfaces give a compound of solids.
+occt_shape *occt_mesh_to_solid(const double *positions, int vertex_count, const unsigned int *triangles, int triangle_count,
+                               occt_status *status);
 /// A compound of copies-by-reference of the given shapes.
 occt_shape *occt_make_compound(const occt_shape *const *shapes, int count, occt_status *status);
 /// Reads a STEP file into one shape (a compound for several bodies).

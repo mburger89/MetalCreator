@@ -11,6 +11,7 @@ struct FieldRampUniforms { float4 low; float4 mid; float4 high; float4 range; };
 struct FieldOut {
     float4 position [[position]];
     float3 viewNormal;
+    float3 world;
     uint face [[flat]];
     float value;
 };
@@ -25,6 +26,7 @@ vertex FieldOut field_mesh_vertex(uint vid [[vertex_id]],
     out.viewNormal = (uniforms.view * float4(v.normal, 0.0)).xyz;
     out.face = v.face;
     out.value = values[vid];
+    out.world = v.position;
     return out;
 }
 
@@ -44,7 +46,11 @@ fragment float4 field_mesh_fragment(FieldOut in [[stage_in]],
                                     constant DrawUniforms &draw [[buffer(0)]],
                                     device const uint *faceFlags [[buffer(1)]],
                                     constant ShadeUniforms &shade [[buffer(2)]],
-                                    constant FieldRampUniforms &ramp [[buffer(3)]]) {
+                                    constant FieldRampUniforms &ramp [[buffer(3)]],
+                                    constant ClipUniforms &clip [[buffer(4)]]) {
+    if (clipped(clip, in.world)) {
+        discard_fragment();
+    }
     float3 n = normalize(in.viewNormal);
     float3 key = normalize(float3(-0.4, 0.7, 0.6));
     float diffuse = saturate(dot(n, key));

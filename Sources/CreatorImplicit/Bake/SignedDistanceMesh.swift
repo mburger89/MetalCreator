@@ -34,8 +34,8 @@ public struct SignedDistanceMesh: Sendable {
     ///   - weldTolerance: vertices closer than this (per axis, after rounding to a grid of it) are merged.
     /// - Throws: `MeshDistanceError.notClosed`.
     public init(positions: [Vector3], indices: [UInt32], weldTolerance: Double = 1e-6) throws(MeshDistanceError) {
-        let (welded, kept) = Self.weld(positions, indices, tolerance: weldTolerance)
-        guard !kept.isEmpty, Self.isClosed(kept) else { throw .notClosed }
+        let (welded, kept, joined) = Self.weld(positions, indices, tolerance: weldTolerance)
+        guard !kept.isEmpty, Self.isClosed(joined) else { throw .notClosed }
         let normals = Self.normals(vertices: welded, triangles: kept)
         self.vertices = welded
         self.triangles = kept
@@ -59,8 +59,10 @@ public struct SignedDistanceMesh: Sendable {
     }
 
     /// Merges vertices that round to the same cell of `tolerance` and drops the triangles that merging collapsed or that have no area.
+    /// `joined` is the triangles merging left, arealess ones included: a collinear sliver (three distinct points on a line, which a
+    /// 3MF's six digits make of a thin triangle) closes the surface it sits in, so it counts for `isClosed`, not for the distance.
     private static func weld(_ positions: [Vector3], _ indices: [UInt32],
-                             tolerance: Double) -> ([SIMD3<Double>], [SIMD3<Int32>]) {
+                             tolerance: Double) -> (welded: [SIMD3<Double>], kept: [SIMD3<Int32>], joined: [SIMD3<Int32>]) {
         struct Cell: Hashable {
             var x: Int
             var y: Int
@@ -81,14 +83,16 @@ public struct SignedDistanceMesh: Sendable {
             }
         }
         var kept: [SIMD3<Int32>] = []
+        var joined: [SIMD3<Int32>] = []
         for base in stride(from: 0, to: indices.count - 2, by: 3) {
             let triangle = SIMD3(remap[Int(indices[base])], remap[Int(indices[base + 1])], remap[Int(indices[base + 2])])
             guard triangle.x != triangle.y, triangle.y != triangle.z, triangle.z != triangle.x else { continue }
+            joined.append(triangle)
             let (a, b, c) = (welded[Int(triangle.x)], welded[Int(triangle.y)], welded[Int(triangle.z)])
             let area = cross(b - a, c - a)
             if (area * area).sum() > 1e-24 { kept.append(triangle) }
         }
-        return (welded, kept)
+        return (welded, kept, joined)
     }
 
     /// Whether every edge is shared by two faces that run along it in opposite directions.

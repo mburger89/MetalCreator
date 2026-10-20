@@ -106,6 +106,8 @@ final class ViewportRenderer {
         encoder.setRenderPipelineState(pipelines.idMesh)
         encoder.setDepthStencilState(pipelines.depthWrite)
         bind(uniforms, encoder)
+        var clip = ClipUniforms(frame.clip)
+        encoder.setFragmentBytes(&clip, length: MemoryLayout<ClipUniforms>.stride, index: 3)
         for item in frame.items where !item.isGuide {
             guard let gpu = meshes[item.meshSerial], let vertices = gpu.vertexBuffer,
                   let base = PickID.base(kind: PickID.faceKind, solid: item.solidIndex) else { continue }
@@ -118,7 +120,7 @@ final class ViewportRenderer {
         for item in frame.items where !item.isGuide {
             let key = EdgeInstanceKey(solid: item.solidIndex, selected: [], selectedOnly: false, scale: 1)
             guard let edges = meshes[item.meshSerial]?.edges(key, palette: frame.palette, device: device) else { continue }
-            drawLines(edges.buffer, count: edges.count, uniforms, depth: pipelines.depthTest, style: style,
+            drawLines(edges.buffer, count: edges.count, uniforms, depth: pipelines.depthTest, style: style, clip: clip,
                       pipeline: pipelines.idLine, encoder)
         }
         encoder.endEncoding()
@@ -136,14 +138,6 @@ final class ViewportRenderer {
         encoder.setVertexBytes(&copy, length: MemoryLayout<FrameUniforms>.stride, index: 1)
     }
 
-    private func drawBackground(_ palette: ViewportPalette, _ encoder: any MTLRenderCommandEncoder) {
-        var colors = BackgroundUniforms(top: palette.backgroundTop, bottom: palette.backgroundBottom)
-        encoder.setRenderPipelineState(pipelines.background)
-        encoder.setDepthStencilState(pipelines.depthAlways)
-        encoder.setFragmentBytes(&colors, length: MemoryLayout<BackgroundUniforms>.stride, index: 0)
-        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
-    }
-
     /// Opaque solids, or ghosts. Ghosts take two steps so each pixel blends once, at its nearest ghost surface
     /// (spec §6.3's 40%, with no back faces or interior showing through): a depth-only prepass, then the blended
     /// colour pass, which passes only where its depth equals the prepass's (`lessEqual`, no write).
@@ -154,21 +148,28 @@ final class ViewportRenderer {
         bind(uniforms, encoder)
         var shade = ShadeUniforms(frame.palette)
         encoder.setFragmentBytes(&shade, length: MemoryLayout<ShadeUniforms>.stride, index: 2)
+        // The meshes are wound counter-clockwise seen from outside, so a face seen from inside is a back face (the cut view's cap).
+        encoder.setFrontFacing(.counterClockwise)
+        let clip = ClipUniforms(frame.clip)
         if ghosts {
             encoder.setDepthStencilState(pipelines.depthWrite)
-            drawMeshes(items, ghost: true, pipeline: pipelines.ghostDepth, encoder)
+            drawMeshes(items, ghost: true, pipeline: pipelines.ghostDepth, clip: clip, encoder)
         }
         encoder.setDepthStencilState(ghosts ? pipelines.depthTest : pipelines.depthWrite)
-        drawMeshes(items, ghost: ghosts, pipeline: ghosts ? pipelines.ghost : pipelines.mesh, encoder)
+        drawMeshes(items, ghost: ghosts, pipeline: ghosts ? pipelines.ghost : pipelines.mesh, clip: clip, encoder)
     }
 
     /// Draws each item with `pipeline`, or with the field pipeline when it is an opaque item with a tint to show (fields spec §6).
-    private func drawMeshes(_ items: [FrameItem], ghost: Bool, pipeline: any MTLRenderPipelineState,
+    private func drawMeshes(_ items: [FrameItem], ghost: Bool, pipeline: any MTLRenderPipelineState, clip: ClipUniforms,
                             _ encoder: any MTLRenderCommandEncoder) {
         for item in items {
             guard let gpu = meshes[item.meshSerial], let vertices = gpu.vertexBuffer else { continue }
             var draw = DrawUniforms(pickBase: 0, ghost: ghost ? 1 : 0, faceCount: UInt32(gpu.faceCount), padding: 0)
-            if ghost || !bindFieldTint(of: item, on: gpu, encoder) { encoder.setRenderPipelineState(pipeline) }
+            let isTinted = !ghost && bindFieldTint(of: item, on: gpu, encoder)
+            if !isTinted { encoder.setRenderPipelineState(pipeline) }
+            // The tint's pipeline takes the ramp at buffer 3, so its clip goes to 4.
+            var plane = clip
+            encoder.setFragmentBytes(&plane, length: MemoryLayout<ClipUniforms>.stride, index: isTinted ? 4 : 3)
             encoder.setVertexBuffer(vertices, offset: 0, index: 0)
             encoder.setFragmentBytes(&draw, length: MemoryLayout<DrawUniforms>.stride, index: 0)
             bindFaceFlags(gpu, item, encoder)
@@ -184,12 +185,14 @@ final class ViewportRenderer {
     private func bindFaceFlags(_ gpu: GPUMesh, _ item: FrameItem, _ encoder: any MTLRenderCommandEncoder) {
         let length = gpu.faceCount * MemoryLayout<UInt32>.stride
         if length > 0, length <= Self.inlineBytesLimit {
-            let flags = GPUGeometry.faceFlags(count: gpu.faceCount, hovered: item.hoveredFace, selected: item.selectedFaces)
+            let flags = GPUGeometry.faceFlags(count: gpu.faceCount, hovered: item.hoveredFace, selected: item.selectedFaces,
+                                              warning: item.warningFaces)
             flags.withUnsafeBytes { bytes in
                 if let base = bytes.baseAddress { encoder.setFragmentBytes(base, length: bytes.count, index: 1) }
             }
         } else {
-            let buffer = gpu.faceFlags(hovered: item.hoveredFace, selected: item.selectedFaces, device: device)
+            let buffer = gpu.faceFlags(hovered: item.hoveredFace, selected: item.selectedFaces, warning: item.warningFaces,
+                                       device: device)
             encoder.setFragmentBuffer(buffer ?? placeholder, offset: 0, index: 1)
         }
     }
@@ -213,15 +216,18 @@ final class ViewportRenderer {
             let key = EdgeInstanceKey(solid: item.solidIndex, selected: item.selectedEdges, selectedOnly: selectedOnly,
                                       scale: scale)
             guard let edges = meshes[item.meshSerial]?.edges(key, palette: frame.palette, device: device) else { continue }
-            drawLines(edges.buffer, count: edges.count, uniforms, depth: pipelines.depthTest, style: style, encoder)
+            drawLines(edges.buffer, count: edges.count, uniforms, depth: pipelines.depthTest, style: style,
+                      clip: ClipUniforms(frame.clip), encoder)
         }
     }
 
     func drawLines(_ buffer: any MTLBuffer, count: Int, _ uniforms: FrameUniforms,
-                   depth: any MTLDepthStencilState, style: LineUniforms,
+                   depth: any MTLDepthStencilState, style: LineUniforms, clip: ClipUniforms = .off,
                    pipeline: (any MTLRenderPipelineState)? = nil, _ encoder: any MTLRenderCommandEncoder) {
         guard count > 0 else { return }
         var style = style
+        var plane = clip
+        encoder.setFragmentBytes(&plane, length: MemoryLayout<ClipUniforms>.stride, index: 0)
         encoder.setRenderPipelineState(pipeline ?? pipelines.line)
         encoder.setDepthStencilState(depth)
         encoder.setVertexBuffer(buffer, offset: 0, index: 0)

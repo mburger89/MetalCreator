@@ -21,10 +21,10 @@ public enum OutputNode: NodeDefinition {
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let solids = inputs.has("solid") ? try inputs.solids("solid") : []
         let made = inputs.has("mesh")
-            ? try await MeshInput.meshes(try inputs.list("mesh"), socket: "mesh", context: context) : (meshes: [], warnings: [])
+            ? try await MeshInput.payloads(try inputs.list("mesh"), socket: "mesh", context: context) : (payloads: [], warnings: [])
         var warnings = made.warnings
-        if solids.isEmpty, made.meshes.isEmpty { warnings.append("There is nothing to preview or export.") }
-        var output = NodeOutputs(lists: ["solid": solids.map(Scalar.solid), "mesh": made.meshes.map(Scalar.mesh)])
+        if solids.isEmpty, made.payloads.isEmpty { warnings.append("There is nothing to preview or export.") }
+        var output = NodeOutputs(lists: ["solid": solids.map(Scalar.solid), "mesh": made.payloads.map(Scalar.mesh)])
         output.warnings = warnings
         return output
     }

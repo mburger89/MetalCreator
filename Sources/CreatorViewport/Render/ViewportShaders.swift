@@ -17,13 +17,19 @@ struct FrameUniforms {
 };
 struct MeshVertex { float3 position; float3 normal; uint face; };
 struct DrawUniforms { uint pickBase; uint ghost; uint faceCount; float padding; };
-struct ShadeUniforms { float4 light; float4 dark; float4 hover; float4 selection; };
+struct ShadeUniforms { float4 light; float4 dark; float4 hover; float4 selection; float4 warning; };
 struct BackgroundUniforms { float4 top; float4 bottom; };
 struct LineInstance { float3 a; float3 b; float4 color; float width; uint id; };
 struct LineUniforms { float widthOverride; float depthBias; float padding0; float padding1; };
 struct GridUniforms { float2 center; float extent; float spacing; float4 minorColor; float4 majorColor; };
 struct CubeVertex { float3 position; float4 color; float2 uv; float4 labelRect; };
 struct FillVertex { float3 position; float4 color; };
+// The cut view's plane: a point is cut away when dot(plane.xyz, p) + plane.w > 0.
+struct ClipUniforms { float4 plane; uint enabled; uint padding0; uint padding1; uint padding2; };
+
+bool clipped(constant ClipUniforms &clip, float3 world) {
+    return clip.enabled != 0u && dot(clip.plane.xyz, world) + clip.plane.w > 0.0;
+}
 
 // MARK: Background
 
@@ -47,6 +53,7 @@ fragment float4 background_fragment(BackgroundOut in [[stage_in]],
 struct MeshOut {
     float4 position [[position]];
     float3 viewNormal;
+    float3 world;
     uint face [[flat]];
 };
 
@@ -58,13 +65,19 @@ vertex MeshOut mesh_vertex(uint vid [[vertex_id]],
     out.position = uniforms.viewProjection * float4(v.position, 1.0);
     out.viewNormal = (uniforms.view * float4(v.normal, 0.0)).xyz;
     out.face = v.face;
+    out.world = v.position;
     return out;
 }
 
 fragment float4 mesh_fragment(MeshOut in [[stage_in]],
                               constant DrawUniforms &draw [[buffer(0)]],
                               device const uint *faceFlags [[buffer(1)]],
-                              constant ShadeUniforms &shade [[buffer(2)]]) {
+                              constant ShadeUniforms &shade [[buffer(2)]],
+                              constant ClipUniforms &clip [[buffer(3)]],
+                              bool front [[front_facing]]) {
+    if (clipped(clip, in.world)) {
+        discard_fragment();
+    }
     float3 n = normalize(in.viewNormal);
     float3 key = normalize(float3(-0.4, 0.7, 0.6));
     float diffuse = saturate(dot(n, key));
@@ -77,6 +90,13 @@ fragment float4 mesh_fragment(MeshOut in [[stage_in]],
     } else if ((flags & 1u) != 0u) {
         color = mix(color, shade.hover.rgb, 0.18);
     }
+    if ((flags & 4u) != 0u) {
+        color = mix(color, shade.warning.rgb, 0.7);
+    }
+    // Looking into a cut part, the inside of its far wall stands for the cut face: the part's colour, darkened and flat.
+    if (clip.enabled != 0u && !front) {
+        color = mix(shade.dark.rgb, shade.light.rgb, 0.5) * 0.55;
+    }
     color = saturate(color);
     if (draw.ghost != 0u) {
         float grey = dot(color, float3(0.299, 0.587, 0.114));
@@ -86,74 +106,15 @@ fragment float4 mesh_fragment(MeshOut in [[stage_in]],
     return float4(color, 1.0);
 }
 
-fragment uint id_mesh_fragment(MeshOut in [[stage_in]], constant DrawUniforms &draw [[buffer(0)]]) {
+fragment uint id_mesh_fragment(MeshOut in [[stage_in]], constant DrawUniforms &draw [[buffer(0)]],
+                               constant ClipUniforms &clip [[buffer(3)]]) {
+    if (clipped(clip, in.world)) {
+        discard_fragment();
+    }
     return draw.pickBase | in.face;
 }
 
-// MARK: Lines (B-rep edges, handles, the triad)
 
-struct LineOut {
-    float4 position [[position]];
-    float across;
-    float halfWidth [[flat]];
-    float4 color [[flat]];
-    uint id [[flat]];
-};
-
-vertex LineOut line_vertex(uint vid [[vertex_id]], uint iid [[instance_id]],
-                           device const LineInstance *lines [[buffer(0)]],
-                           constant FrameUniforms &uniforms [[buffer(1)]],
-                           constant LineUniforms &style [[buffer(2)]]) {
-    LineInstance line = lines[iid];
-    float3 a = line.a;
-    float3 b = line.b;
-    if (style.depthBias > 0.0) {
-        float3 towardA = uniforms.isOrthographic != 0u ? -uniforms.forward : normalize(uniforms.eye - a);
-        float3 towardB = uniforms.isOrthographic != 0u ? -uniforms.forward : normalize(uniforms.eye - b);
-        a += towardA * style.depthBias;
-        b += towardB * style.depthBias;
-    }
-    float4 clipA = uniforms.viewProjection * float4(a, 1.0);
-    float4 clipB = uniforms.viewProjection * float4(b, 1.0);
-    LineOut out;
-    out.color = line.color;
-    out.id = line.id;
-    float width = style.widthOverride > 0.0 ? style.widthOverride : line.width;
-    out.halfWidth = width * 0.5;
-    if (clipA.w <= 1e-6 || clipB.w <= 1e-6) {
-        out.position = float4(0.0, 0.0, 2.0, 1.0);   // behind the eye: outside the clip volume
-        out.across = 0.0;
-        return out;
-    }
-    float2 halfViewport = 0.5 * uniforms.viewportPixels;
-    float2 screenA = clipA.xy / clipA.w * halfViewport;
-    float2 screenB = clipB.xy / clipB.w * halfViewport;
-    float2 delta = screenB - screenA;
-    float length = metal::length(delta);
-    float2 along = length > 1e-4 ? delta / length : float2(1.0, 0.0);
-    float2 normal = float2(-along.y, along.x);
-    bool atB = (vid & 1u) != 0u;
-    float side = (vid & 2u) != 0u ? 1.0 : -1.0;
-    float reach = out.halfWidth + 1.0;
-    float2 offset = normal * side * reach + along * (atB ? 1.0 : -1.0) * out.halfWidth;
-    float4 clip = atB ? clipB : clipA;
-    out.position = float4(clip.xy + offset / halfViewport * clip.w, clip.z, clip.w);
-    out.across = side * reach;
-    return out;
-}
-
-fragment float4 line_fragment(LineOut in [[stage_in]]) {
-    float coverage = saturate(in.halfWidth + 0.5 - abs(in.across));
-    float alpha = in.color.a * coverage;
-    return float4(in.color.rgb * alpha, alpha);
-}
-
-fragment uint id_line_fragment(LineOut in [[stage_in]]) {
-    if (abs(in.across) > in.halfWidth) {
-        discard_fragment();
-    }
-    return in.id;
-}
 
 // MARK: Ground grid
 

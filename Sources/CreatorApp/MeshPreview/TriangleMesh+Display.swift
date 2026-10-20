@@ -14,8 +14,19 @@ extension TriangleMesh {
                 shading[index] = Vector3(Double(normal.x), Double(normal.y), Double(normal.z))
             }
         }
-        return DisplayMesh(positions: points, normals: shading, indices: triangles,
-                           triangleFaces: [FaceID](repeating: FaceID(0), count: triangleCount), edgePolylines: [:])
+        return DisplayMesh(positions: points, normals: shading, indices: triangles, triangleFaces: displayFaces, edgePolylines: [:])
+    }
+
+    /// The face a mesh's flagged triangles are drawn as (`displayFaces`): face 0 is the surface, face 1 what a check highlighted.
+    static let warningFace = FaceID(1)
+
+    /// The face of each triangle: 0, or `warningFace` for the triangles a check highlighted.
+    var displayFaces: [FaceID] {
+        var faces = [FaceID](repeating: FaceID(0), count: triangleCount)
+        for highlight in highlights {
+            for triangle in highlight.triangles where faces.indices.contains(triangle) { faces[triangle] = Self.warningFace }
+        }
+        return faces
     }
 
     /// A normal the mesher set: finite and not the zero it keeps when the gradient was degenerate.

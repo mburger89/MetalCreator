@@ -23,6 +23,7 @@ public enum AppCommands {
                     .keyboardShortcut("e")
                 Button("Export STL…") { model.withFilePicker { await model.exportDocument(.stl, using: $0) } }
                     .keyboardShortcut("e", modifiers: [.primary, .shift])
+                Button("Export 3MF…") { model.withFilePicker { await model.exportDocument(.threeMF, using: $0) } }
             }
             CommandGroup(replacing: .undoRedo) {
                 Button(model.undoTitle) { model.undo() }
@@ -35,6 +36,11 @@ public enum AppCommands {
             // MetalUI puts a command menu before Window (it builds no View menu of its own).
             CommandMenu("View") {
                 Menu("Theme") { ThemeMenu.items(themeEditor) }
+                if CutViewModel.isAvailable {
+                    Button(model.cutView.isOn ? "Hide Cut View" : "Show Cut View") { model.setCutView(!model.cutView.isOn) }
+                    Button("Flip Cut View") { model.cutView.flip() }
+                        .disabled(!model.cutView.isOn)
+                }
             }
         }
     }
