@@ -109,7 +109,9 @@ requests (1409, 1857, 888): a pan or zoom writes the document's `ViewState` and 
 neither is something a panel can skip. Pan and zoom rebuild most of the canvas each step (the transform is read by
 every node view); that, not the panels, is what their warm figures are made of. `GraphPanel`'s `onGeometryChange` records a
 `geometryChange` ineligible reason each frame when it is `.equatable()` (about 23 more element requests in the orbit step than
-without it: 222 against 199), which MetalUI may be able to clear. The pan, zoom and fillet-drag medians above are over the
+without it: 222 against 199), which MetalUI may be able to clear. The call-site `.equatable()` on `GraphPanel(...)` is
+therefore dropped (`GraphPanel` keeps its `==` and `Equatable`); the warm orbit-panel-left step now measures
+`BENCH orbit-panel-left-warm: element requests per frame, median 199, max 199`. The pan, zoom and fillet-drag medians above are over the
 judged budget in these loaded runs and are **not judged**; the idle re-run decides them.
 
 **Final judged numbers come from the next idle window** (all three load averages under 3); none of the figures in this

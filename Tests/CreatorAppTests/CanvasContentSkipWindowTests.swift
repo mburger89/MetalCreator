@@ -64,15 +64,14 @@ struct CanvasContentSkipWindowTests {
         // MetalUI C14b-2 (record §110): an unchanged outermost `.equatable()` occurrence skips its whole build recursion and
         // its layout rows are grafted, so the views inside it are no longer visited, let alone counted as skips. Since the
         // panels are `.equatable()` too (C14-d, `PanelContentSkipWindowTests`), the outermost occurrences of a steady frame are
-        // the graph panel's body (which holds the canvas, its nodes, wires and comments) and the inspector: two grafts, and
-        // the panel itself, a third skip, which is not grafted (its `onGeometryChange` makes it ineligible).
+        // the graph panel's body (which holds the canvas, its nodes, wires and comments) and the inspector: two grafts. The
+        // `GraphPanel(...)` call itself is not `.equatable()` (its `onGeometryChange` made it ineligible every frame).
         #expect(steady.contentSkips >= 2, "the body and the inspector skipped")
         #expect(steady.retainedGrafts == 2, "each was grafted, not built")
         #expect(steady.retainedGraftIneligible == 0 && steady.retainedRedos == 0, "no graft refused, no frame redone")
         // MetalUI C14b-3 (record §121): reading control state is not a write, so nothing in a steady frame is ineligible.
         #expect(steady.retainedIneligible == 0, "no replay ineligible")
-        #expect(steady.retainedIneligibleReasons.keys.allSatisfy { $0 == "geometryChange" },
-                "only the graph panel's onGeometryChange is recorded: \(steady.retainedIneligibleReasons)")
+        #expect(steady.retainedIneligibleReasons.isEmpty, "nothing recorded: \(steady.retainedIneligibleReasons)")
         #expect(steady.retainedSkippedRequests > 0, "the grafts stood for element requests the build did not make")
         #expect(steady.contentRefusals == 0, "no canvas view reads the environment")
         #expect(fixture.app.picture.count > 100, "the canvas picture holds the nodes")
