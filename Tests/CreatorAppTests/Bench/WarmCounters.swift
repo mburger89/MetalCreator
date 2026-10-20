@@ -5,10 +5,10 @@ import MetalUITesting
 /// line (median / max per frame) plus the summed `retainedTranslationRefusedReasons`. The warm rows print these next to
 /// their element requests so a change of retained work shows up in docs/verification/performance.md.
 struct WarmCounters {
-    private static let keys: [(String, KeyPath<FrameWork, Int>)] = [
+    private static var keys: [(String, KeyPath<FrameWork, Int>)] { [
         ("elementRequests", \.elementRequests), ("elementPrepaints", \.elementPrepaints), ("elementPaints", \.elementPaints),
         ("rasterizedPixels", \.rasterizedPixels), ("retainedHits", \.retainedHits), ("retainedMisses", \.retainedMisses),
-        ("retainedGrafts", \.retainedGrafts), ("contentEvaluations", \.contentEvaluations), ("contentSkips", \.contentSkips)]
+        ("retainedGrafts", \.retainedGrafts), ("contentEvaluations", \.contentEvaluations), ("contentSkips", \.contentSkips)] }
     private var samples: [[Int]] = Array(repeating: [], count: keys.count)
     private var refused: [String: Int] = [:]
     private var frames = 0
