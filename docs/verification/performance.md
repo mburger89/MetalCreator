@@ -9,6 +9,7 @@ viewport or the kernel, and replace the numbers here (keep the machine, load and
 ```sh
 scripts/bench.sh                      # every benchmark: about 10 minutes, most of it the release build
 scripts/bench.sh GraphPanZoomBench    # one suite (also OrbitBench, FilletDragBench, KernelBench, BlendRefusalBench, PatternBench, FieldBench)
+scripts/preview-sweep.sh              # the preview triangle cap sweep (PreviewSweepBench); about a minute after the build, on an idle Mac
 ```
 
 The benchmarks are Swift Testing suites in `Tests/CreatorAppTests/Bench`. A plain `swift test` skips them
@@ -284,6 +285,8 @@ The raw lines of all of these are under Raw output.
 
 ### Preview triangle cap sweep (2026-10-20)
 
+Decision (user, 2026-10-20): 1M, spec erratum D19.
+
 `scripts/preview-sweep.sh` (Errata D15) on branch `xp-preview-sweep`, after `git merge master` (master `5e4069e`, MetalUI `711ab9c4`), release build,
 load 1.63 / 2.20 / 2.98 before and 2.17 / 2.32 / 2.85 after. The merge changed `ImplicitBenchFixtures` to build a TPMS gyroid, which broke
 the sweep's fixture; the sweep keeps the noise sheet it was calibrated on (a copy of the old builder in `PreviewSweepFixtures`), so the
@@ -514,7 +517,7 @@ counts), (3) stop and ask. The budget is not edited and a miss is not called met
 
 ## Implicit (implicit spec §6, sub-project 7c-1)
 
-`scripts/bench.sh ImplicitBench` runs rows i-1 to i-7. Release, an idle Mac
+`scripts/bench.sh ImplicitBench` runs rows i-1 to i-8. Release, an idle Mac
 with a GPU. The fixture is a gyroid sheet filling a 100 mm cube: a TPMS node (gyroid, sheet, one cell of 100 mm, 3 mm wall) on an
 Implicit Box, meshed and sent to an Output (7c-1 measured a noise sheet of the same cost class until the lattice nodes existed; 7c-2
 swapped in the gyroid and kept the rows). A gyroid of 8 mm cells has about 150 million triangles at 0.1 mm, which no in-memory mesh
@@ -538,6 +541,8 @@ gate (7c-1's ruling U6): a miss is written down as a miss.
 | i-5 | Decimate of a 2,097,152-triangle sphere (a 100 mm ball) at 0.01 mm: `MeshDecimator` alone | under 10 s |
 | i-6 | Mesh to Solid of a 100,000-triangle mesh on OCCT: the weld, the faces, the merge and the check | under 15 s |
 | i-7 | the trapped-volume flood fill of a hollow 150 mm cube at the largest grid (28 million cells): time and peak resident memory | recorded |
+| i-7s, i-7h | `TrappedVolumeCheck.run` of a solid and of a hollow 150 mm cube: time and peak resident memory against D16's 450 MB (7c-3f) | recorded |
+| i-8 | Check Trapped Volumes and Check Thin Walls of a 30 mm cube with a 1.5 mm skin and a 1.2 mm gyroid sheet, meshed at 0.3 mm (7c-3f) | recorded |
 
 The run recorded here (2026-10-14, release build, 7c-core) was taken while other sessions kept the Mac at a load average of 130 to 270 on 10 cores (so none of these numbers is a measurement of the
 code; they show the benchmarks run, and the order of magnitude). It measured the noise sheet of 7c-1; **the gyroid fixture of 7c-2 has not
@@ -588,6 +593,82 @@ the first pass is the same pass. **i-3** is the tessellation, the BVH and 600 to
 streaming bricks to the STL, which the user decided on (D12) and 7c-3 builds, cuts the memory; the time is the mesher's, so GPU
 meshing (7c-1g) is what moves it.
 
+## Preview triangle cap (D15): measured
+
+`PreviewSchedule.maximumTriangles` (Errata D15) stops the Auto preview before a pass estimated over 2,000,000 triangles. That number
+was a guess; `scripts/preview-sweep.sh` (`PreviewSweepBench`, a filter on `scripts/bench.sh`) measures what the app shows smoothly.
+Release, an **idle** Mac with a GPU: any other build, test or render running at the same time inflates every frame time and moves the
+cap, so a run taken on a busy Mac says only that the benchmark works. The run takes about a minute once the release build is done
+(the build itself is several minutes, so run `swift test -c release --no-parallel --filter ZZNoSuchTestZZ` first, or let the script do it).
+
+```sh
+scripts/preview-sweep.sh     # = scripts/bench.sh PreviewSweepBench; the log is .build/bench.log
+```
+
+**The fixture** is `ImplicitBenchFixtures`' sheet (a thin curved wall through a 100 mm cube) with its noise features 8 mm across and a
+wall of about 1 mm, standing in for a gyroid of 8 mm cells until the TPMS node exists (7c-2); it has several times row i-1's triangles
+at one resolution. **The ladder** is six voxel sizes making about 0.25M, 0.5M, 1M, 2M, 4M and 8M triangles (`PreviewSweepFixtures.ladder`;
+a thin wall's count falls short of the area law at coarse sizes, so the rungs are measured, not computed, and the run prints the real
+counts). At each rung the run records:
+
+1. **Meshing**: the first-pass time, plan and meshing, on the GPU mesher (`MetalImplicitEngine.meshBricks`) and on the CPU mesher over
+   the GPU's values (as row i-1m), the median of 3.
+2. **Orbit**: the sheet previewed down to the rung's resolution in the app (the app's own meshing and refinement, so the viewport holds
+   what the app would show), orbited as `OrbitBench` does, with the panel docked left and hidden: model step, window CPU and GPU
+   (viewport and window) per frame, median and p95 over 60 steps after 10 warm-up frames.
+3. **Memory**: the mesh's own bytes (positions, normals and indices), the GPU vertex buffer derived from the renderer's layout (three
+   48-byte corners per triangle; the renderer does not expose its buffers), and the process's `phys_footprint` (`task_info`, what
+   Activity Monitor calls Memory) with the mesh in the viewport after the first frame, less the footprint of the same renderer after it
+   drew an empty app: the mesh, its refinement, the viewport's display copy of it (doubles, 48 bytes a vertex plus the indices), the GPU
+   copy, and the app. Both readings are **settled**: malloc keeps freed large blocks resident for some seconds after a rung's app is
+   released (a dry run saw a rung's footprint fall from 2.2 GB to 1.0 GB within 15 s with nothing running), so
+   `PreviewSweepFixtures.settledFootprint` trims, then reads every 0.5 s until three readings agree within 2% (at most 30 s). A
+   `teardown` line prints, per rung, whether the `AppModel`, `ViewportModel`, renderer and mesh storage were freed (weak references),
+   `MTLDevice.currentAllocatedSize`, the footprint at once and settled, and the live malloc heap. **What the dry runs found** (a
+   saturated Mac, release): every object was freed and Metal held 1 MB, `leaks` found 0 leaks, and the footprint a rung left behind
+   was malloc's freed-but-resident blocks plus about 100 MB of live heap per rung that does not grow with the mesh: MetalUI's
+   `ContentMemoStore` of every `renderFrame` of the orbit stays alive with the models its `.equatable()` content read (a retain cycle
+   through the observation's `onChange`, reproduced without MetalCreator; `docs/metalui-gaps.md` PERF-c). So MetalCreator retains no
+   mesh (`PreviewSweepReleaseTests` pins that an app's mesh is freed, before and after frames), the memory column is the settled
+   footprint of the rung's own app less the settled footprint of the same renderer with an empty app (so what earlier rungs left
+   behind is subtracted), and a rung's footprint is read before its orbit, which is where the leaked frames come from. Across three
+   dry runs the added column agreed within 2% (rung 6: 2,325, 2,329 and 2,329 MB; rung 3: 299, 295 and 302 MB) while the footprint
+   under it climbed from 355 MB to 3,487 MB, which is why the figure is the difference and not the reading. The teardown reading
+   waits 14 s for malloc's timer (rung 6 took 28 s and fell from 2.5 GB to 2.2 GB in the last 14); the live malloc heap grew by a
+   steady 102 MB a rung (107 to 616 MB) whatever the mesh, which is PERF-c.
+4. **The triangle count** the viewport shows.
+
+| Row | Rung | Voxel | Triangles | Mesh, GPU (median of 3) | Mesh, CPU (median of 3) | Orbit GPU p95, panel shown / hidden | Window CPU p95, panel shown / hidden | Footprint added |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 0.25M | 1.90 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
+| 2 | 0.5M | 1.55 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
+| 3 | 1M | 1.22 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
+| 4 | 2M | 0.93 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
+| 5 | 4M | 0.65 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
+| 6 | 8M | 0.46 mm | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` | `<pending idle run>` |
+
+**The decision rule** (proposed; `PreviewSweepRule`, and it is applied to both panel states). A rung passes when all four hold:
+
+- (a) the orbit's GPU p95 is at most 8 ms, half a 60 fps frame, which leaves room for MetalUI's own pass;
+- (b) the window CPU p95 is unchanged from the smallest rung, within 1 ms;
+- (c) the footprint the mesh adds is at most 1 GB;
+- (d) the GPU meshing of that pass takes at most about 1 s (1,000 ms).
+
+The cap is the **last rung before the first rung that fails**, scanning up the ladder from the smallest; if the smallest fails there is
+none. A rung that passes above a failure never counts: a noisy pass on a rung that should have failed is not a size the preview shows
+smoothly (`PreviewSweepRule.capCandidate`, pinned by `aPassAboveAFailureNeverCounts`).
+
+The run prints `BENCH preview-sweep rung N rule: …` for each rung, with the four values and `PASS` or `FAIL`, and one line
+`BENCH preview-sweep cap-candidate N`, N the triangle count of the cap (`none` if the smallest fails). Read the rung lines before
+setting the cap: a failure caused by a busy Mac moves it.
+
+| Result | Value |
+|---|---|
+| Machine, load before and after | `<pending idle run>` |
+| MetalCreator commit | `<pending idle run>` |
+| `BENCH preview-sweep cap-candidate` | `<pending idle run>` |
+| The cap set in `PreviewSchedule.maximumTriangles` | `<pending idle run>` (2,000,000 until the idle run; do not change it before) |
+
 ### 7c-3 final fixes (streamer evaluator, trapped-volume memory)
 
 `ImplicitBench`, release, Mac shared with other sessions (not idle; the figures are for the choice between engines, not for the budgets' final word):
@@ -631,6 +712,32 @@ BENCH load after: 8.69 11.16 11.15
 ```
 
 **i-4** was 86.6 s and 4.53 GB in 7c-core's in-memory export; streamed it is 18.9 s and 0.86 GB (the file is 1,008 MB at this sheet). **i-4b**: the 3MF is 177 MB from 1,436 MB of model XML in 36.8 s, under 4 GB of XML so a plain zip; **i-4z** writes a 4.8 GB entry as Zip64 and `unzip -t` accepts it. **i-5**: 6.8 s against 10 s. **i-6**: 14.1 s against 15 s (close: a busy Mac misses it, re-run on an idle one). **i-7**'s resident figures are polluted by the bench process holding earlier rows (2,271 MB before the grid); the earlier isolated run measured 425 MB peak.
+
+### Rows i-5 to i-8 with the robust checks (7c-3f)
+
+Taken 2026-10-20 on a MacBookPro18,2, release build of 7c-3f, on a Mac that was NOT idle (load 3 to 8 on 10 cores, other sessions running): a record, not a verdict. The rows run were i-5, i-6, i-7 and the new i-8 (`scripts/bench.sh ImplicitBench`), and i-7s and i-7h, each alone in its own process (`scripts/bench.sh theChecksOfASolid150mmCube`, then `theChecksOfAHollow150mmCube`). Nothing 7c-3f changed is in i-5 (Decimate) or i-6 (Mesh to Solid), so their budgets are re-checked, not re-argued: both are still met, and i-6 is as close to its budget as in 7c-3.
+
+```text
+BENCH i-5 decimate a 2097152 triangle sphere (0.01 mm): median 7039.09 ms, p95 7264.74 ms, max 7264.74 ms (n 3); budget 10000.00 ms: met
+BENCH i-5 triangles 2097152 to 290730
+BENCH i-7 28094464 cells, 1 void, 3.645953917 seconds; peak resident 738 MB (692 MB before the grid)
+BENCH i-6 Mesh to Solid of a 100000 triangle mesh (OCCT): median 14358.38 ms, p95 14416.84 ms, max 14416.84 ms (n 2); budget 15000.00 ms: met
+BENCH i-6 faces 100000
+BENCH i-8 Check Trapped Volumes of a 554960 triangle sheet: median 2054.87 ms, p95 2061.66 ms, max 2061.66 ms (n 2)
+BENCH i-8 Check Thin Walls of the same mesh: median 1267.62 ms, p95 1293.01 ms, max 1293.01 ms (n 2)
+BENCH i-8 voids 2, thin places 0
+BENCH i-7s 5288 triangles, 0 void, 2.169670875 seconds; peak resident 395 MB (57 MB before the check)
+BENCH i-7h 8752 triangles, 1 void, 5.204713291000001 seconds; peak resident 425 MB (57 MB before the check)
+```
+
+i-8's two voids are the two gyroid channels the skin closes; the phantom void of Errata M5 is gone. **i-7s and i-7h** (each run alone, so the peak is the check's own on top of the process's 57 MB) put the whole check, the unsigned-distance fill and the winding number included, on a solid and on a hollow 150 mm cube, 28 million cells each: 395 MB and 425 MB resident, inside D16's 450 MB, in 2.2 s and 5.2 s. They exist because the unsigned grid makes the interior of a thick solid part one pocket of 27 million cells: the first version of the check listed all of it before calling it material and peaked at **603 MB** on the solid cube (2.24 s), past the budget. `EnclosedVoids` now judges a pocket from its first 4,096 listed cells and stops listing one judged material (`aPocketBiggerThanTheJudgingSizeIsJudgedBeforeItIsListedInFull`). **The choice of inside test** (Errata D18) was measured on the same sheet and on a larger one, release, with the `SignedDistanceMesh` already built:
+
+| Mesh | Triangles | Grid cells | `SignedDistanceMesh` built | Pseudonormal sign, every cell | Winding number, every cell | Unsigned distance, winding number once per pocket (shipped) |
+|---|---|---|---|---|---|---|
+| 30 mm cube, skin and sheet | 554,960 | 274,625 | 1.20 s | 0.81 s | 18.5 s | 0.81 s |
+| 50 mm cube, skin and sheet | 2,550,048 | 1,157,625 | 7.00 s | 3.92 s | 138.6 s | 3.91 s |
+
+A winding number at every cell is 23 to 35 times the pseudonormal's cost, which the 50 mm cube makes minutes, so Check Trapped Volumes fills the grid from the unsigned distance and asks the winding number about five cells of each pocket the flood fill leaves. All three find the same voids on these two meshes (2 and 8); the phantom shows on the 8 mm fixture of `TrappedVolumePhantomTests`, where the pseudonormal sign finds a third. The winding-number clusters (about 80 bytes a BVH node, plus their build time) are built on the first `isInside` and not with the `SignedDistanceMesh`, so To Implicit's bake, which only asks for the pseudonormal sign, never builds them and row i-3 is unaffected.
 
 ## Raw output
 

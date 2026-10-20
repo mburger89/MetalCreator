@@ -1,4 +1,5 @@
 import CreatorGeometry
+import Foundation
 import Testing
 @testable import CreatorImplicit
 
@@ -97,5 +98,52 @@ struct ThinWallCheckTests {
         let mesh = TriangleMesh(positions: top + wound.map { SIMD3<Float>($0) }, triangles: Array(0..<6))
         let wall = ThinWallCheck(mesh).wall(behind: 0, limit: 0.4)
         #expect((wall != nil) == isWall, "plate normal \(normal): \(String(describing: wall))")
+    }
+
+    // MARK: Hits on the mesh's own fold (Errata D18)
+
+    /// A vertex at the origin faces up (triangle 0). Triangle 1 shares the vertex's neighbours (1, 0, 0) and (0, 1, 0) and its third
+    /// corner is placed so that the ray (x = y = 0) crosses it `foldDepth` below: the surface folding back on itself. Triangle 2 is a
+    /// plate 0.2 mm down.
+    func foldBesideTheVertex(foldDepth: Float) -> TriangleMesh {
+        let positions: [SIMD3<Float>] = [
+            [0, 0, 0], [1, 0, 0], [0, 1, 0], [-1, -1, -3 * foldDepth], [-1, -1, -0.2], [-1, 1, -0.2], [2, 0, -0.2],
+        ]
+        return TriangleMesh(positions: positions, triangles: [0, 1, 2, 1, 3, 2, 4, 5, 6])
+    }
+
+    /// Also the accepted limit of the rule: a real wall 0.01 mm thick whose far face is this triangle, on the vertex's neighbours, is
+    /// indistinguishable from the fold and is not reported.
+    @Test func aFoldBesideTheVertexIsPassedOverAndTheRayGoesOnToTheWall() throws {
+        let wall = try #require(ThinWallCheck(foldBesideTheVertex(foldDepth: 0.01)).wall(behind: 0, limit: 0.4))
+        #expect(abs(wall.distance - 0.2) < 1e-6 && wall.triangle == 2, "\(wall)")
+    }
+
+    @Test func aFoldBesideTheVertexFartherThanTheLimitIsTheWall() throws {
+        let wall = try #require(ThinWallCheck(foldBesideTheVertex(foldDepth: 0.06)).wall(behind: 0, limit: 0.4))
+        #expect(abs(wall.distance - 0.06) < 1e-6 && wall.triangle == 1, "\(wall)")
+        #expect(ThinWallCheck.selfHitLimit == 0.05)
+    }
+
+    @Test func aPlateOutsideTheNeighbourhoodIsAWallHoweverClose() throws {
+        // The same fold, but on vertices of its own: not the vertex's neighbours, so a real wall 0.01 mm thick.
+        let positions: [SIMD3<Float>] = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [-1, -1, -0.01], [-1, 1, -0.01], [2, 0, -0.01]]
+        let wall = try #require(ThinWallCheck(TriangleMesh(positions: positions, triangles: Array(0..<6))).wall(behind: 0, limit: 0.4))
+        #expect(abs(wall.distance - 0.01) < 1e-6 && wall.triangle == 1, "\(wall)")
+    }
+
+    /// A wedge 15 degrees either side of its edge: the faces are `2 x sin(15 degrees)` apart at distance x from the edge. The vertex
+    /// 0.04 mm out on the top face looks across 0.02 mm at the bottom's first strip, which shares the edge's vertices with its
+    /// neighbourhood: that is the mesh closing on the edge. The rows 0.3 and 0.6 mm out see walls of 0.18 and 0.36 mm along their rays,
+    /// which are real and under the 0.4 mm minimum: the knife edge is still reported.
+    @Test func aKnifeEdgeIsStillReportedAwayFromItsTip() throws {
+        let wedge = MeshFixtures.wedge(topSteps: [0, 0.04, 0.3, 0.6, 1.2, 2], bottomSteps: [0, 0.3, 0.6, 1.2, 2], halfAngle: .pi / 12)
+        let result = try ThinWallCheck.run(wedge, minimum: 0.4)
+        #expect(result.places == 1, "one knife edge")
+        let thinnest = try #require(result.thinnest)
+        #expect(thinnest > ThinWallCheck.selfHitLimit, "the tip's own closing is not a wall: \(thinnest)")
+        // 0.3 mm out the faces are 2 × 0.3 × sin 15° = 0.155 mm apart; the ray leaves the top face at 15° to the bottom's normal, 30° in all.
+        #expect(abs(thinnest - 2 * 0.3 * sin(Double.pi / 12) / cos(Double.pi / 6)) < 1e-3, "the wall 0.3 mm out: \(thinnest)")
+        #expect(result.triangles.count > 4, "the faces beside the thin rows are flagged")
     }
 }

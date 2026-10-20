@@ -7,11 +7,14 @@ import CreatorKernel
 /// cell size and the strut radius are fields; `node blend` rounds the joints. With a `skin` the region keeps a wall of that thickness.
 public enum StrutLatticeNode: NodeDefinition {
     public static let typeID = "creator.strutLattice"
+    /// 2: `blend` (7c-3f, Errata D18). A node saved as version 1 reads it as 0, the sharp join it was made with.
+    public static let typeVersion = 2
     public static let displayName = "Strut Lattice"
     public static let category = NodeCategory.implicit
     public static let inputs = [
         SocketSpec("region", .implicit, optional: true),
         SocketSpec("skin", .number, defaultValue: .number(0), unit: .millimetres, range: 0...20),
+        LatticeSetup.blendSocket,
         SocketSpec("cell", .integer, defaultValue: .integer(StrutCell.cubic.rawValue)),
         SocketSpec("cell size", .field, defaultValue: .number(8), unit: .millimetres, range: 1...50),
         SocketSpec("cell stretch", .vector, defaultValue: .vector(Vector3(1, 1, 1))),
@@ -22,16 +25,22 @@ public enum StrutLatticeNode: NodeDefinition {
     /// The warnings about cells and walls depend on the voxel size, which differs between preview and export.
     public static let readsMeshQuality = true
     public static let help = "Where the cell size field changes fast the pattern stretches, and the preview gets slower: the "
-        + "lipschitz bound grows with the field's slope. A node blend of up to a quarter of the smallest cell is allowed."
+        + "lipschitz bound grows with the field's slope. A node blend of up to a quarter of the smallest cell is allowed. "
+        + "“blend” rounds the join between the skin and the lattice; it does nothing without a skin."
     public static let inspector = [
         InspectorSection(title: "Cell", controls: [.segmented("cell", options: StrutCell.options)]),
         InspectorSection(title: "Size", controls: [.number("cell size"), .vector("cell stretch")]),
-        InspectorSection(title: "Struts", controls: [.number("strut radius"), .number("node blend"), .number("skin"), .note(help)]),
+        InspectorSection(title: "Struts", controls: [
+            .number("strut radius"), .number("node blend"), .number("skin"), .number("blend"), .note(help),
+        ]),
     ]
+
+    public static func migrate(_ node: Node, from version: Int) -> Node { LatticeSetup.sharpJoin(node) }
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let region = try LatticeSetup.region(inputs)
         let skin = try LatticeSetup.skin(inputs)
+        let join = try LatticeSetup.blend(inputs)
         let cell = StrutCell(rawValue: try inputs.choice("cell", options: StrutCell.options)) ?? .cubic
         let box = region.bounds
         let (cells, cellWarnings) = try await LatticeSetup.cells(inputs, over: box, kernel: kernel, context: context)
@@ -52,7 +61,7 @@ public enum StrutLatticeNode: NodeDefinition {
             warnings.append("Struts are thicker than the cells; the lattice is solid.")
         }
         warnings += ImplicitReach.warnings(for: region, reachedBy: skin)
-        let result = LatticeFill.fill(region: region, lattice: lattice, skin: skin)
+        let result = LatticeFill.fill(region: region, lattice: lattice, skin: skin, blend: join)
         return NodeOutputs(["implicit": .implicit(result.reference)], warnings: warnings)
     }
 }

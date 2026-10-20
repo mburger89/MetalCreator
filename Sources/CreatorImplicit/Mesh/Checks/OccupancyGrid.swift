@@ -4,6 +4,12 @@ import CreatorGeometry
 /// solid when its centre is inside the part or within half a cell of the surface, so a wall thinner than a cell is never a gap in the
 /// grid, and a void or a channel has to be larger than about a cell to be seen. The grid has two empty cells of padding round the part, so
 /// its corner is always outside.
+///
+/// How "inside" is decided depends on where the grid comes from (Errata D18). A solid's own field says it exactly, by its sign, so
+/// `of(_:using:)` (Drain Holes) marks every cell the field puts at most half a cell out. A mesh has no field: `TrappedVolumeCheck` fills
+/// the cells near the surface from the unsigned distance and `EnclosedVoids(_:isInside:)` asks the mesh's winding number about each
+/// region of cells farther away. Both use the same definition of solid, but not the same grid (the implicit's bounds against the mesh's), so
+/// they may disagree about a pocket a cell or two across.
 public struct OccupancyGrid: Sendable {
     /// The most cells a grid may have, padding included. The flood fill holds `isSolid` and `reached` (a byte each), `label` (4 bytes),
     /// a stack that can reach 4 bytes a cell and the voids' cell lists, 4 more at worst (the outside is not listed): about 450 MB at
