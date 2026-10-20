@@ -126,3 +126,50 @@ struct SignedDistanceMeshTests {
         }.min() ?? .infinity
     }
 }
+
+/// The sign from the winding number (implicit spec Errata D18).
+extension SignedDistanceMeshTests {
+    /// Two cubes of 2 mm, the second 1 mm to the right of the first, as the two shells of a part that was not merged: each is closed, and
+    /// they overlap in x from 1 to 2.
+    func overlappingCubes() throws -> SignedDistanceMesh {
+        let unit = MeshFixtures.cube
+        let positions = Self.vectors(unit).map { $0 * 2 } + Self.vectors(unit).map { $0 * 2 + Vector3(1, 0, 0) }
+        let indices = unit.triangles + unit.triangles.map { $0 + UInt32(unit.vertexCount) }
+        return try SignedDistanceMesh(positions: positions, indices: indices)
+    }
+
+    @Test func theRobustSignAgreesWithThePseudonormalOnACleanMesh() throws {
+        let cube = try cube()
+        for point in [Vector3(0.5, 0.5, 0.5), Vector3(2, 0.5, 0.5), Vector3(0.99, 0.99, 0.5), Vector3(1.01, 1.01, 1.01),
+                      Vector3(-1, -1, -1), Vector3(0.2, 0.1, 0.05),
+        ] {
+            #expect(near(cube.robustSignedDistance(at: point), cube.signedDistance(at: point)), "at \(point)")
+            #expect(near(cube.unsignedDistance(at: point), abs(cube.signedDistance(at: point))))
+            #expect(cube.isInside(point) == (cube.signedDistance(at: point) < 0))
+        }
+        #expect(abs(cube.windingNumber(at: Vector3(0.5, 0.5, 0.5)) - 1) < 1e-9)
+    }
+
+    @Test func aMeshThatOverlapsItselfStillHasAnInside() throws {
+        let mesh = try overlappingCubes()
+        // Inside the first cube, 0.1 mm from the second cube's face (x = 1): that face is the nearest feature, and the point is on its
+        // outer side. The pseudonormal sign reads outside; this is the misread Check Trapped Volumes must not trust.
+        let inFirstOnly = Vector3(0.9, 1, 1)
+        #expect(mesh.signedDistance(at: inFirstOnly) > 0, "the pseudonormal sign is fooled here")
+        #expect(mesh.isInside(inFirstOnly) && mesh.robustSignedDistance(at: inFirstOnly) < 0)
+        #expect(near(mesh.robustSignedDistance(at: inFirstOnly), -0.1))
+        #expect(abs(mesh.windingNumber(at: inFirstOnly) - 1) < 1e-9)
+        // In both cubes the winding number is 2, and outside both it is 0.
+        #expect(abs(mesh.windingNumber(at: Vector3(1.5, 1, 1)) - 2) < 1e-9 && mesh.isInside(Vector3(1.5, 1, 1)))
+        #expect(!mesh.isInside(Vector3(4, 1, 1)) && mesh.robustSignedDistance(at: Vector3(4, 1, 1)) > 0)
+    }
+
+    @Test func theWindingNumberIsBuiltOnlyWhenAskedFor() throws {
+        let cube = try cube()
+        _ = cube.signedDistance(at: Vector3(0.5, 0.5, 0.5))
+        _ = cube.unsignedDistance(at: Vector3(2, 2, 2))
+        #expect(!cube.hasBuiltWindingNumber, "the bake's questions leave the clusters unbuilt")
+        #expect(cube.isInside(Vector3(0.5, 0.5, 0.5)) && cube.hasBuiltWindingNumber)
+        #expect(!cube.isInside(Vector3(3, 3, 3)), "and a second question reuses them")
+    }
+}
