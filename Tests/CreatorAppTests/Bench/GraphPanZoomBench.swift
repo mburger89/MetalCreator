@@ -58,6 +58,7 @@ struct GraphPanZoomBench {
         try #require(app.editor.dock == .left, "the paths below are drawn for the left dock's flow (rows run across)")
         let warm = try await WarmBenchWindow(model: app)
         var cpu = BenchSamples("\(name)-warm window-cpu (warm frame)")
+        var counters = WarmCounters()
         var requests = BenchSamples("\(name)-warm element-requests")
         for (index, transform) in transforms.enumerated() {
             app.editor.transform = transform
@@ -66,7 +67,9 @@ struct GraphPanZoomBench {
             guard index >= Self.warmUp else { continue }
             cpu.append(milliseconds)
             requests.append(Double(warm.window.frameWork.reduce(0) { $0 + $1.elementRequests }))
+            counters.add(warm.window.frameWork)
         }
+        counters.report("\(name)-warm")
         print("BENCH \(name)-warm: element requests per frame, median \(Int(requests.median)), max \(Int(requests.maximum))")
         print(cpu.line(budget: Bench.frameBudget))
     }

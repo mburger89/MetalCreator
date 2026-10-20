@@ -61,6 +61,7 @@ struct FilletDragBench {
         let handle = try #require(app.viewport.handles.first, "the selected Fillet shows its radius handle")
         let warm = try await WarmBenchWindow(model: app)
         var cpu = BenchSamples("fillet-drag-warm window-cpu (warm frame)")
+        var counters = WarmCounters()
         var requests = BenchSamples("fillet-drag-warm element-requests")
         for step in 0..<75 {
             app.handleChanged(handle.id, 2 + Double(step) * 0.02, .changed)
@@ -69,9 +70,11 @@ struct FilletDragBench {
             guard step >= 10 else { continue }
             cpu.append(milliseconds)
             requests.append(Double(warm.window.frameWork.reduce(0) { $0 + $1.elementRequests }))
+            counters.add(warm.window.frameWork)
         }
         app.handleChanged(handle.id, 3.48, .ended)
         await app.settle()
+        counters.report("fillet-drag-warm")
         print("BENCH fillet-drag-warm: element requests per frame, median \(Int(requests.median)), max \(Int(requests.maximum))")
         print(cpu.line())
     }
