@@ -213,6 +213,8 @@ The raw lines of all of these are under Raw output.
 
 ### Preview triangle cap sweep (2026-10-20)
 
+Decision (user, 2026-10-20): 1M, spec erratum D19.
+
 `scripts/preview-sweep.sh` (Errata D15) on branch `xp-preview-sweep`, after `git merge master` (master `5e4069e`, MetalUI `711ab9c4`), release build,
 load 1.63 / 2.20 / 2.98 before and 2.17 / 2.32 / 2.85 after. The merge changed `ImplicitBenchFixtures` to build a TPMS gyroid, which broke
 the sweep's fixture; the sweep keeps the noise sheet it was calibrated on (a copy of the old builder in `PreviewSweepFixtures`), so the
