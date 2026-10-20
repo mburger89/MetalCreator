@@ -84,6 +84,7 @@ bracket acceptance test; plan `docs/superpowers/plans/2026-10-14-7c-3-mesh-tools
 §4.5 to §4.7, §5 and §7 with Errata D12 and D16) code is done; its human checks (group MT) are pending and its benchmark numbers are
 recorded in `docs/verification/performance.md`. Mesh to Solid and the Cut view are macOS-only (OpenCascade, Metal); everything else runs on
 Linux and Windows.
+Implicit geometry, sub-project 7c-3f (spec Errata D18, resolving M5: the TPMS, Strut Lattice and Voronoi Lattice nodes gain a `blend` input, default 1 mm, the radius of the smooth union that joins the skin and the lattice, `typeVersion` 2 with a migration that gives a saved graph's node a blend of 0; Check Trapped Volumes decides inside by the mesh's generalized winding number, asked once per region of cells; Check Thin Walls skips a hit under 0.05 mm on a face of the start vertex's one-ring; the lightweight bracket acceptance test asserts 0 voids and 0 thin places, its `withKnownIssue`s gone; plan `docs/superpowers/plans/2026-10-20-7c-3f-skin-blend-and-robust-checks.md`) code is done; its human check IL-10 is pending.
 Implicit lattices, sub-project 7c-2 (the TPMS, Strut Lattice and Voronoi Lattice nodes with the Straight mapping only, a region and a
 skin, field grading of cell size, thickness and strut radius, a separate cell stretch vector, their warnings, and `ImplicitBench`'s sheet
 swapped to a gyroid; plan `docs/superpowers/plans/2026-10-14-7c-2-lattices.md`, spec
@@ -242,7 +243,7 @@ Module boundaries (dependency order):
   `MetalImplicitEngine+Meshing` runs the five kernels of `ImplicitMeshShaderLibrary` (Metal source as text, so an SDL3 engine
   translates it) over `BrickLattice`'s window with `MarchingCubesBuffers`, the CPU's table as a buffer; the order of vertices and
   triangles is the threads', the set is fixed. `GPUMeshAgreementTests` holds the GPU mesher to the CPU mesher's topology, triangle
-  count, vertices (1e-4 mm on the same samples, for parts near the origin), normals and enclosed volume. `SignedDistanceMesh` (BVH, pseudonormal sign),
+  count, vertices (1e-4 mm on the same samples, for parts near the origin), normals and enclosed volume. `SignedDistanceMesh` (BVH; `signedDistance(at:)` takes its sign from the pseudonormal, for the bake, and `isInside(_:)`, `robustSignedDistance(at:)` and `windingNumber(at:)` from `WindingNumber`, the generalized winding number summed exactly near the point and as dipoles of BVH clusters far from it, which the checks use; `LazyWindingNumber` builds its clusters on the first such question, so the bake never does),
   `DistanceBaker`, `ImplicitBakeCache` (actor, 512 MB, LRU, keyed by solid identity and tolerance) and `GradingBaker` bake a solid or a
   field's kernel distances. `STLWriter` writes binary STL. CreatorGraph cannot name `ImplicitSolid` (it depends on Graph for `Field`), so
   a value on a wire is an `ImplicitPayload` in an `ImplicitReference` (`Scalar.implicit`, `Field.implicit`) and a mesh a `MeshPayload`
@@ -254,9 +255,9 @@ Module boundaries (dependency order):
   collapse is refused when it breaks the link condition, flips a face or costs more than the tolerance (the cost is the quadric error
   at the new vertex, so its square root bounds the distance to every triangle plane absorbed), vertices on an open edge are pinned, and
   a closed mesh stops at a tetrahedron. `ThinWallCheck` (a ray inwards from each vertex against `TriangleBVH`, the far side must
-  face back; the two sides of a wall are one place), `TrappedVolumeCheck` over `OccupancyGrid` (0.5 mm cells within a 32-million-cell
-  budget, Errata D16; solid within half a cell of the surface) and `EnclosedVoids` (flood fill from the padded corner), and `DrainHoles`
-  (the same test on the implicit; a hole is `subtract` of a moved `cylinder`, so no new `ImplicitSolid` case). `MeshWelder` merges
+  face back; the two sides of a wall are one place; a hit under 0.05 mm on a face that touches the vertex's one-ring is the mesh folding on itself and is skipped, Errata D18), `TrappedVolumeCheck` over `OccupancyGrid` (0.5 mm cells within a 32-million-cell
+  budget, Errata D16; solid within half a cell of the surface, the cells near the surface from `unsignedDistance`) and `EnclosedVoids` (flood fill from the padded corner; with `isInside` it asks the winding number about five cells of each pocket, judged once the pocket has 4,096 cells listed, and drops a pocket that is inside the material, once per pocket and never per cell: per cell it is 23 to 35 times slower, Errata D18), and `DrainHoles`
+  (the same test on the implicit, whose inside is the sign of its own field; a hole is `subtract` of a moved `cylinder`, so no new `ImplicitSolid` case). `MeshWelder` merges
   vertices before `Kernel.meshToSolid` (the OCCT shim `occt_mesh_to_solid`: a planar face per triangle sharing vertices by index,
   `ShapeUpgrade_UnifySameDomain`, voids as inner shells, `BRepCheck_Analyzer`; no `BRepBuilderAPI_Sewing`). Export (spec Errata D12):
   `StreamingMesher` takes the plan's bricks in runs of whole columns (windows), meshes and snaps each on the CPU over the evaluator's
@@ -271,7 +272,7 @@ Module boundaries (dependency order):
 - `CreatorNodes`: the 85 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
 the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Mesh nodes (`Implicit/`, categories `NodeCategory.implicit` and
 `.mesh`: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit, Isosurface, Drain Holes, TPMS, Strut Lattice, Voronoi Lattice
-(`Implicit/Lattices/`: they share `LatticeSetup` and `LatticeFill`; the built-in Voronoi seeds are `VoronoiSeedSource`, drawn with
+(`Implicit/Lattices/`: they share `LatticeSetup` and `LatticeFill`, which joins the skin and the lattice by a smooth union of the `blend` input, 0 on a graph saved before 7c-3f; the built-in Voronoi seeds are `VoronoiSeedSource`, drawn with
 `SeededRandom.Purpose.voronoi`); Mesh, Decimate, Check Thin Walls, Check Trapped Volumes, Mesh to Solid in `Implicit/MeshTools`), the seventeen
   `Patterns` nodes below, and the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
   Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
@@ -694,7 +695,7 @@ App-shell input stopgaps live only in `AppInput`: the viewport's keys carry the 
 and the inspector contribute `Panel`), and over the graph canvas F, + and − are declined so the graph's own keys work
 (F frames the graph's selection there). The
 camera reaches `ViewState` only through `cameraSettled`/`homeChanged`, never per frame. Regular Polygon is
-`typeVersion` 2 (`rotation`).
+`typeVersion` 2 (`rotation`), and so are TPMS, Strut Lattice and Voronoi Lattice (`blend`: their `migrate` stores 0, the sharp join they were saved with, while a new node reads the socket's 1 mm).
 
 ## Commands
 

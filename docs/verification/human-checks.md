@@ -1971,6 +1971,7 @@ window and a real GPU show. Build: a Box (40 × 40 × 40) into a TPMS node's `re
   and the node warns "The seeds leave gaps in the region; the lattice is solid there." Pinned: `VoronoiLatticeNodeTests`. **Observed:**
 - [ ] **IL-9 A slicer.** Export an STL of the gyroid at 0.2 mm (IM-9): the part opens in a slicer, the sheet is the thickness set, and no
   hole or non-manifold edge is reported. **Observed:**
+- [ ] **IL-10 The blended skin join (7c-3f).** In the IL-4 part (skin 1.5) the TPMS inspector shows `blend`, 1 mm on a new node. Orbit to where the gyroid sheet meets the skin's inner face: the join is smooth, a small fillet with no sharp crease or sliver, where `blend` 0 shows the old sharp crease. Drag `blend` from 0 to 3: the fillet grows live and the preview stays responsive. Do the same on a Strut Lattice (its `node blend` rounds the struts' joints, `blend` the skin's) and a Voronoi Lattice. With `skin` 0 `blend` changes nothing. Open a graph saved before 7c-3f that has a lattice with a skin: it looks as it did (its `blend` reads 0). Pinned: `LatticeSkinBlendTests`; the look is human-only. **Observed:**
 
 ## Group MT — mesh tools, 3MF, the streamed export and the Cut view (7c-3)
 
@@ -2016,5 +2017,5 @@ named "Insole").
   Pinned: `MeshToSolidTests`, `MeshToSolidNodeTests`. **Observed:**
 - [ ] **MT-9 The lightweight bracket.** The slice's bracket into a To Implicit, a TPMS (Gyroid, Sheet, skin 1.5,
   thickness graded by a Distance Field), Drain Holes, Mesh (0.3), the two checks and an Output: export 3MF and open it in the slicer:
-  a lattice bracket with a solid skin, drain holes in the bottom, and no warnings in the summary. Pinned:
+  a lattice bracket with a solid skin, drain holes in the bottom, and no warnings in the summary (7c-3f: 0 voids and 0 thin places, at the TPMS's default `blend`). Pinned:
   `LightweightBracketAcceptanceTests`. **Observed:**
