@@ -27,7 +27,7 @@ concurrency:
 
 env:
   METALUI_REPOSITORY: mburger89/MetalUI
-  METALUI_COMMIT: b50a1902250c0eaf6784733880ec3eba3c2a4561
+  METALUI_COMMIT: 4d91f27f21c5b717fbb6a1fc0dbed7c5e3089602
 
 jobs:
   linux:

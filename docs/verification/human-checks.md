@@ -1858,6 +1858,7 @@ warning step when red. macOS needs no check here: its test count and its look ar
 - [ ] **XP-14 Borderless chrome, Windows 11.** The same as XP-11 and XP-12 on Windows 11: the three drawn buttons at the top right,
   drag, resize edges, double-click zoom, and the close veto with unsaved changes. The snap-layout flyout over zoom, the DWM shadow
   and the rounded corners are not there for a borderless window (MetalUI CW9: platform); note what is missing. **Observed:**
+- [ ] **XP-15 One instance, Linux and Windows.** With MetalCreator running, open a second `.mcgraph` document (`MetalCreator other.mcgraph` from a terminal, or the file manager's Open With): no second process or window appears, the document opens in the running instance (the unsaved-changes check applies as for any open), and its window comes to the front. Pinned: `LaunchCommandTests` (the forwarded document); the IPC is MetalUI's. **Observed:**
 
 ## Group IM — implicit geometry: sockets, nodes, meshes, the progressive preview and export (7c-1)
 
