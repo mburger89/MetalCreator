@@ -8,11 +8,14 @@ import CreatorKernel
 /// `density` and `seed` (`VoronoiSeedSource`). `thickness` is the strut diameter or the wall thickness, a field.
 public enum VoronoiLatticeNode: NodeDefinition {
     public static let typeID = "creator.voronoiLattice"
+    /// 2: `blend` (7c-3f, Errata D18). A node saved as version 1 reads it as 0, the sharp join it was made with.
+    public static let typeVersion = 2
     public static let displayName = "Voronoi Lattice"
     public static let category = NodeCategory.implicit
     public static let inputs = [
         SocketSpec("region", .implicit, optional: true),
         SocketSpec("skin", .number, defaultValue: .number(0), unit: .millimetres, range: 0...20),
+        LatticeSetup.blendSocket,
         SocketSpec("seeds", .plane, access: .list, optional: true),
         SocketSpec("form", .integer, defaultValue: .integer(VoronoiForm.struts.rawValue)),
         SocketSpec("thickness", .field, defaultValue: .number(0.8), unit: .millimetres, range: 0...10),
@@ -28,12 +31,15 @@ public enum VoronoiLatticeNode: NodeDefinition {
     public static let inspector = [
         InspectorSection(title: "Form", controls: [.segmented("form", options: VoronoiForm.options), .number("thickness")]),
         InspectorSection(title: "Seeds", controls: [.integer("count"), .number("density"), .integer("seed"), .note(help)]),
-        InspectorSection(title: "Skin", controls: [.number("skin")]),
+        InspectorSection(title: "Skin", controls: [.number("skin"), .number("blend")]),
     ]
+
+    public static func migrate(_ node: Node, from version: Int) -> Node { LatticeSetup.sharpJoin(node) }
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let region = try LatticeSetup.region(inputs)
         let skin = try LatticeSetup.skin(inputs)
+        let join = try LatticeSetup.blend(inputs)
         let form = VoronoiForm(rawValue: try inputs.choice("form", options: VoronoiForm.options)) ?? .struts
         let box = region.bounds
         let wall = try await LatticeSetup.grading(inputs, "thickness", over: box, kernel: kernel, context: context)
@@ -50,7 +56,7 @@ public enum VoronoiLatticeNode: NodeDefinition {
         let noun = form == .struts ? "Struts" : "Walls"
         warnings += LatticeSetup.thinWarnings(noun, thickest: wall.grading.range.upperBound, voxel: voxel)
         warnings += ImplicitReach.warnings(for: region, reachedBy: skin)
-        let result = LatticeFill.fill(region: region, lattice: lattice, skin: skin)
+        let result = LatticeFill.fill(region: region, lattice: lattice, skin: skin, blend: join)
         return NodeOutputs(["implicit": .implicit(result.reference)], warnings: warnings)
     }
 
