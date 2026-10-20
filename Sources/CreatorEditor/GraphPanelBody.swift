@@ -7,33 +7,37 @@ import MetalUI
 /// edge goes under the library's opaque background rather than over it. The canvas's own clip should already stop
 /// it there, but a node's `clipShape` under the canvas's pan and zoom loses that clip (gap LF-a); drawing the library
 /// last is right either way.
-struct GraphPanelBody: Component {
+struct GraphPanelBody: Component, Equatable {
     let model: EditorModel
     let input: GraphPanelInput
+
+    /// Compares the models by identity: they are final `@Observable` classes, so MetalUI re-evaluates this view when a
+    /// property its content read changes, and `==` need only say the inputs are the same objects.
+    nonisolated static func == (lhs: GraphPanelBody, rhs: GraphPanelBody) -> Bool { lhs.model === rhs.model && lhs.input === rhs.input }
 
     var content: some ElementGroup {
         let extent = GraphPanelLayout.libraryExtent.px
         let inset = (GraphPanelLayout.libraryExtent + GraphPanelLayout.spacing).px
         if !model.showsLibrary {
-            GraphCanvas(model: model, input: input)
+            GraphCanvas(model: model, input: input).equatable()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if model.flow == .horizontal {
             ZStack(alignment: .topLeading) {
                 // In a ZStack the canvas (a Component) is adopted as proposal content, which takes edge padding.
-                ZStack { GraphCanvas(model: model, input: input) }
+                ZStack { GraphCanvas(model: model, input: input).equatable() }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0), left: inset))
-                NodeLibraryView(model: model, input: input)
+                NodeLibraryView(model: model, input: input).equatable()
                     .frame(width: extent)
                     .frame(maxHeight: .infinity)
             }
         } else {
             ZStack(alignment: .topLeading) {
                 // In a ZStack the canvas (a Component) is adopted as proposal content, which takes edge padding.
-                ZStack { GraphCanvas(model: model, input: input) }
+                ZStack { GraphCanvas(model: model, input: input).equatable() }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .padding(Edges(top: inset, right: Pixels(0), bottom: Pixels(0), left: Pixels(0)))
-                NodeLibraryView(model: model, input: input)
+                NodeLibraryView(model: model, input: input).equatable()
                     .frame(height: extent)
                     .frame(maxWidth: .infinity)
             }

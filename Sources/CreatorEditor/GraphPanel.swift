@@ -7,7 +7,7 @@ import MetalUI
 /// `GraphPanelLayout`, and it tells the editor where it is in the window itself (`EditorModel.panelPlacement`, from
 /// `onGeometryChange` and the window's size in the environment), so a host only gives it room. The app shell (M6)
 /// sizes and places it per dock and installs the input with `input.install(on:)`.
-public struct GraphPanel: Component {
+public struct GraphPanel: Component, Equatable {
     public let model: EditorModel
     public let input: GraphPanelInput
     @Environment(ThemeStore.self) var themes: ThemeStore?
@@ -16,6 +16,14 @@ public struct GraphPanel: Component {
     public init(model: EditorModel, input: GraphPanelInput) {
         self.model = model
         self.input = input
+    }
+
+    /// Compares the model and the input by identity (final classes; the model is `@Observable`, so MetalUI re-evaluates the
+    /// panel when a property its content read changes). The `onGeometryChange` closure is left out: MetalUI runs a modifier's
+    /// action from the lifecycle drain whether or not the content is skipped, and the window size it captures
+    /// (`\.windowSize`) and the theme are environment values MetalUI's environment epoch compares.
+    public nonisolated static func == (lhs: GraphPanel, rhs: GraphPanel) -> Bool {
+        lhs.model === rhs.model && lhs.input === rhs.input
     }
 
     public var content: some ElementGroup {
@@ -33,7 +41,7 @@ public struct GraphPanel: Component {
                 VStack(alignment: .leading, spacing: GraphPanelLayout.spacing.px) {
                     GraphPanelHeader(model: model)
                         .frame(height: GraphPanelLayout.headerHeight.px)
-                    GraphPanelBody(model: model, input: input)
+                    GraphPanelBody(model: model, input: input).equatable()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     if let refusal = model.refusal {
                         Text(refusal.message).font(.caption).foregroundStyle(Palette(themes).statusError.color)

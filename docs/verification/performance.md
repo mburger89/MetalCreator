@@ -86,8 +86,34 @@ BENCH fillet-drag-warm window-cpu (warm frame): median 21.57 ms, p95 22.54 ms, m
 BENCH fillet-drag-warm: element requests per frame, median 888, max 888
 ```
 
-Pan and zoom still rebuild most of the canvas each step (the transform is read by every node view), so their warm
-requests stay high; the `.equatable()` panels (below) do not change that.
+After Task B (the panels `.equatable()`: `GraphPanel`, `GraphPanelBody`, `GraphCanvas`, `CanvasSurface`, `NodeLibraryView`,
+`InspectorPanel`; MetalUI C14-d), same Mac, **load averages 14.61 / 18.23 / 39.50 before and 59.48 / 35.62 / 40.83 after**
+(other sessions started builds during the run; the milliseconds below are noisier than the first run's, and their
+distribution tails are load, not the code). Element requests are deterministic and are the comparison to trust:
+
+```text
+BENCH orbit-panel-left-warm: element requests per frame, median 222, max 222
+BENCH orbit-panel-left-warm window-cpu (warm frame): median 9.21 ms, p95 36.36 ms, max 125.77 ms (n 100); budget 16.67 ms: met
+BENCH orbit-panel-hidden-warm: element requests per frame, median 161, max 161
+BENCH orbit-panel-hidden-warm window-cpu (warm frame): median 2.21 ms, p95 12.94 ms, max 71.44 ms (n 100); budget 16.67 ms: met
+BENCH pan-50-warm: element requests per frame, median 1409, max 1697
+BENCH pan-50-warm window-cpu (warm frame): median 22.65 ms, p95 39.21 ms, max 59.32 ms (n 120); budget 16.67 ms: missed
+BENCH zoom-50-warm: element requests per frame, median 1857, max 2879
+BENCH zoom-50-warm window-cpu (warm frame): median 63.71 ms, p95 154.41 ms, max 247.35 ms (n 120); budget 16.67 ms: missed
+BENCH fillet-drag-warm: element requests per frame, median 888, max 888
+BENCH fillet-drag-warm window-cpu (warm frame): median 26.01 ms, p95 33.18 ms, max 40.11 ms (n 65)
+```
+
+The panels cut a warm orbit-panel-left step from 332 to 222 element requests. Pan, zoom and the fillet drag are unchanged in
+requests (1409, 1857, 888): a pan or zoom writes the document's `ViewState` and a fillet drag changes the scene, and
+neither is something a panel can skip. Pan and zoom rebuild most of the canvas each step (the transform is read by
+every node view); that, not the panels, is what their warm figures are made of. `GraphPanel`'s `onGeometryChange` records a
+`geometryChange` ineligible reason each frame when it is `.equatable()` (about 23 more element requests in the orbit step than
+without it: 222 against 199), which MetalUI may be able to clear. The pan, zoom and fillet-drag medians above are over the
+judged budget in these loaded runs and are **not judged**; the idle re-run decides them.
+
+**Final judged numbers come from the next idle window** (all three load averages under 3); none of the figures in this
+section are final.
 
 ## Results
 

@@ -14,7 +14,7 @@ struct InspectorDock: Component {
             if let sketch = model.sketch {
                 SketchChrome(.inspector) { SketchInspector(model: sketch.editor) }
             } else {
-                InspectorPanel(model: model.editor)
+                InspectorPanel(model: model.editor).equatable()
             }
         }
         .keyContext(AppKeyContext.panel)

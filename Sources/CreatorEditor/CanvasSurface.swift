@@ -10,9 +10,13 @@ import MetalUI
 /// focused field anywhere keeps its keys; and a primary press on the canvas clears a field's focus, which commits a
 /// typed value. A field inside this subtree would pass its keys up to the handler, so the comment editor is the
 /// surface's sibling (`GraphCanvas`).
-struct CanvasSurface: Component {
+struct CanvasSurface: Component, Equatable {
     let model: EditorModel
     let input: GraphPanelInput
+
+    /// Compares the models by identity: they are final `@Observable` classes, so MetalUI re-evaluates this view when a
+    /// property its content read changes, and `==` need only say the inputs are the same objects.
+    nonisolated static func == (lhs: CanvasSurface, rhs: CanvasSurface) -> Bool { lhs.model === rhs.model && lhs.input === rhs.input }
 
     var content: some ElementGroup {
         let transform = model.transform
