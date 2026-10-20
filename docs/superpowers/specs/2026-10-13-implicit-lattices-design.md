@@ -379,6 +379,16 @@ meshing (dual contouring); mesh booleans; surface textures and displacement (7d,
   - **The acceptance bracket's volume is asserted between 15% and 75% of the solid.** The slice's thin bracket measures 50.2% with a 1.5 mm skin.
 - **D17. Surface agreement scales with the field's slope** (user, 2026-10-14). This amends D15's whole-pipeline surface check. GPU and CPU agree on the field's value to about 1e-4. Where grading or noise makes the field's slope |∇f| at the surface less than 1, that moves the surface by 1e-4 ÷ |∇f|. So the check allows 1e-4 mm ÷ |∇f| at each compared point, and never less than 1e-4 mm. Plain shapes keep exactly 1e-4 mm.
 
+- **D19. The Auto preview cap is 1M triangles** (user, 2026-10-20, measured; amends D15's "about 2M"). The idle sweep (performance.md, 2026-10-20, MetalUI 711ab9c4, graph panel shown):
+
+  | Triangles | GPU p95 |
+  |---|---|
+  | 0.57M | 7.55 ms |
+  | 1.04M | 9.31 ms |
+  | 1.98M | 11.14 ms |
+
+  Window CPU, added footprint and GPU mesh time held at every rung up to 2M. The sweep's strict rule (GPU p95 ≤ 8 ms) picks 0.57M. The user chose 1M for detail, because 9.3 ms leaves headroom in a 16.7 ms frame. Above the cap the preview coarsens; export is always full resolution.
+
 ### Errata (7c-3 acceptance, measured)
 
 - **M5. The lightweight bracket does not yet meet "0 voids, no thin walls".** Measured on the exported 3MF (gyroid sheet, cell 10 mm, wall 1.2 mm at the skin to 0.8 mm eight millimetres in, skin 1.5 mm, Drain Holes Automatic 2 mm, Mesh 0.3 mm): a closed manifold, identical bytes on a second run, 67.1% of the solid's volume (D16's 15% to 75%), but Check Trapped Volumes still finds 103 voids of 2 to 12 cells (chambers about 1 mm wide where the sheet meets the skin) and Check Thin Walls 127 places. Drain Holes does drain the 41 larger chambers; its grid (laid over the implicit's loose bounds) and the check's (over the mesh) fall differently on a pocket a cell across, and neither grid's classification is exact for a field that is not a distance. `LightweightBracketAcceptanceTests` keeps the two spec expectations inside `withKnownIssue`, so it fails the day they hold. Fixing it needs Drain Holes and the check to see pockets the same way (a decision for the user).

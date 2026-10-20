@@ -13,8 +13,9 @@ public struct PreviewSchedule: Sendable {
     }
 
     public static let budgetSeconds = 1.0
-    /// The most triangles an Auto pass may be estimated to make (Errata D15): the preview stops refining before a pass over it.
-    public static let maximumTriangles = 2_000_000
+    /// The most triangles an Auto pass may be estimated to make: the preview stops refining before a pass over it.
+    /// 1M was measured, not guessed (Errata D19, idle preview sweep 2026-10-20): GPU p95 9.3 ms at 1.04M triangles, inside a 16.7 ms frame.
+    public static let maximumTriangles = 1_000_000
     /// The cells across the largest dimension in the first pass.
     public static let firstPassCells = 128.0
     /// The finest resolution a preview pass uses on its own.

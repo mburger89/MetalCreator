@@ -32,8 +32,8 @@ struct PreviewScheduleTests {
 
     @Test func automaticStopsBeforeAPassOverTheTriangleCap() {
         let schedule = PreviewSchedule(.automatic)
-        #expect(schedule.next(after: 0.8, seconds: 0.01, triangles: 500_000) == 0.4, "four times 500,000 is exactly the cap")
-        #expect(schedule.next(after: 0.8, seconds: 0.01, triangles: 500_001) == nil, "over two million triangles")
+        #expect(schedule.next(after: 0.8, seconds: 0.01, triangles: 250_000) == 0.4, "four times 250,000 is exactly the cap")
+        #expect(schedule.next(after: 0.8, seconds: 0.01, triangles: 250_001) == nil, "over one million triangles (the measured cap, D19)")
         #expect(schedule.next(after: 0.8, seconds: 0.01, triangles: 1_000_000) == nil)
         #expect(PreviewSchedule(.fixed(0.2)).next(after: 0.8, seconds: 0.01, triangles: 5_000_000) == 0.4, "a fixed target is the user's")
         // Both limits apply: a slow pass stops it even when the triangles are few.
