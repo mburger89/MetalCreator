@@ -35,7 +35,7 @@ struct LatticeSkinBlendTests {
         (-15...15).flatMap { j in (-15...15).map { k in Vector3(18.5 + Double(layer) * 0.25, Double(j) * 1.1, Double(k) * 1.1) } }
     }
 
-    /// Whether two solids agree at every sample, and where the first differs: the points and values.
+    /// Whether two solids agree at every sample.
     static func agree(_ a: ImplicitSolid, _ b: ImplicitSolid) -> Bool {
         samples.allSatisfy { abs(a.signedDistance(at: $0) - b.signedDistance(at: $0)) < 1e-12 }
     }

@@ -27,7 +27,8 @@ public enum VoronoiLatticeNode: NodeDefinition {
     /// The warnings about cells and walls depend on the voxel size, which differs between preview and export.
     public static let readsMeshQuality = true
     public static let help = "Wire points into “seeds”, or leave it unconnected for “count” seeds placed at random where “density” "
-        + "(a field, 0 to 1) says. Changing the seed or the density moves every seed."
+        + "(a field, 0 to 1) says. Changing the seed or the density moves every seed. "
+        + "“blend” rounds the join between the skin and the lattice; it does nothing without a skin."
     public static let inspector = [
         InspectorSection(title: "Form", controls: [.segmented("form", options: VoronoiForm.options), .number("thickness")]),
         InspectorSection(title: "Seeds", controls: [.integer("count"), .number("density"), .integer("seed"), .note(help)]),
