@@ -10,6 +10,12 @@ public enum DrainHoles {
     public static func drainPoints(of solid: ImplicitSolid, direction: Vector3,
                                    using evaluator: any ImplicitBatchEvaluator) async throws -> [Vector3] {
         let grid = try await OccupancyGrid.of(solid, using: evaluator)
+        return try lowestPoints(of: grid, direction: direction)
+    }
+
+    /// The lowest point of each enclosed void of `grid`. Kept out of the async function above: the Windows 6.4 toolchain asserts in its
+    /// coroutine splitting (`CoroFrame.cpp`) when the loop's locals live in the async frame.
+    private static func lowestPoints(of grid: OccupancyGrid, direction: Vector3) throws -> [Vector3] {
         let found = try EnclosedVoids(grid)
         return found.voids.map { cells in
             let centres = cells.map { grid.center(of: Int($0)) }

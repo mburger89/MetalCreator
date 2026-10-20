@@ -743,6 +743,7 @@ SwiftLint is configured in `.swiftlint.yml` (each non-default setting is documen
   image, built from `../MetalUI/Backends/SDL/linux/Dockerfile`, plus a font, `scripts/linux/Dockerfile`); build products live in a Docker
   volume named for the track (`XP_TRACK`, default `xp-1`), and a run stops only its own container. MetalUI must be a sibling checkout.
   Windows cannot be run here: it is CI's job (`.github/workflows/xp.yml`; it builds and launches, two tests are red, see the xp-1 paragraph).
+- The Windows Swift 6.4 toolchain asserts in LLVM's coroutine splitting (`CoroFrame.cpp`, "Layout->getElementOffset") on an `async` function that holds a loop's locals across an `await` (`DrainHoles.drainPoints` did); keep the synchronous work in a non-async helper.
 - Swift 6.4 crashes in SILGen on a key path applied to an existential metatype (`BuiltInNodes.all.map(\.typeID)`); use a closure.
 - OpenCascade 7.9 comes from Homebrew (`brew install opencascade`) and is linked from `/opt/homebrew/opt/opencascade`.
   Linker warnings about dylibs built for a newer macOS are expected.
