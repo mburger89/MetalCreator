@@ -8,7 +8,10 @@ struct WarmCounters {
     private static var keys: [(String, KeyPath<FrameWork, Int>)] { [
         ("elementRequests", \.elementRequests), ("elementPrepaints", \.elementPrepaints), ("elementPaints", \.elementPaints),
         ("rasterizedPixels", \.rasterizedPixels), ("retainedHits", \.retainedHits), ("retainedMisses", \.retainedMisses),
-        ("retainedGrafts", \.retainedGrafts), ("contentEvaluations", \.contentEvaluations), ("contentSkips", \.contentSkips)] }
+        ("retainedGrafts", \.retainedGrafts), ("retainedTranslated", \.retainedTranslated),
+        ("retainedTranslationRefused", \.retainedTranslationRefused), ("contentEvaluations", \.contentEvaluations),
+        ("contentSkips", \.contentSkips),
+    ] }
     private var samples: [[Int]] = Array(repeating: [], count: keys.count)
     private var refused: [String: Int] = [:]
     private var frames = 0

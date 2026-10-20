@@ -346,6 +346,55 @@ Window-CPU medians (indicative only; the Mac was loaded, load averages before/af
 
 The cold rows use `BenchRenderer`, which does not expose `FrameWork`, so they have times only.
 
+### C14-d adopted (MetalUI 99b21a1c, PR #104, 2026-10-20)
+
+MetalUI's C14-d makes the `.equatable()` Component the retention unit, replays an `.equatable()` occurrence that moved through
+layout or a scroll/offset shifted (whole device pixels; rects, glyphs and images only), counts what refuses translation by name in
+`FrameWork.retainedTranslationRefusedReasons`, and lets a graft under comparable custom environment keys hit
+(`METALUI_RETAINED_TRANSLATION=0` turns the layout translation off for an A/B). What MetalCreator did for it:
+
+- **The per-node view was already the retention unit.** `NodeView` (and `CommentFrameView`, `StickyView`, `WireView`, the header, rows,
+  badge and socket layer inside it) are `.equatable()` with all inputs by value (`NodeViewEqualityTests`), so there was nothing to
+  convert; the new window tests pin it (`aWarmPanEvaluatesNoNodeView`, `changingOneNodeEvaluatesExactlyThatNodeView`).
+- **The pan state is split out of `ViewState`.** `DocumentModel` held the file's `ViewState` as one observable value, so a pan (which
+  writes the canvas offset and zoom) invalidated `GraphPanelBody`, which reads `dock` and `showsLibrary`. It now holds `dock`,
+  `canvasOffset`, `canvasZoom`, `camera`, `homeCamera` and `showsLibrary` as separate observable properties, and `viewState`
+  assembles them for the file. `ViewState` itself, its coding keys and the file encoding are unchanged
+  (`ViewStateEncodingTests`: an old view state re-encodes to its own bytes; a document opened on a file saves that file's bytes).
+  A pan now evaluates one view (the surface), was two (the surface and the `GraphPanelBody` shell).
+
+Same Mac (MacBookPro18,2), release, `scripts/bench.sh Warm`. "Before" is this repository at master with MetalUI already at 99b21a1c
+(the counter printing is the only change); "after" adds the split. **The machine was not idle** (load averages 54.18 / 45.47 / 25.13
+before the first run, 38.18 / 43.19 / 30.52 before the second), so milliseconds are noisy; the counters are deterministic and are
+the comparison to trust. Counters are per frame, median / max over the timed warm frames.
+
+| Row | | elementRequests | elementPrepaints | elementPaints | rasterizedPixels | contentEvaluations | window-cpu median |
+|---|---|---|---|---|---|---|---|
+| pan-50-warm | before | 1409 / 1697 | 1494 / 1800 | 247 / 615 | 0 / 5618 | 2 / 34 | 24.59 ms |
+| | after | 1409 / 1697 | 1494 / 1800 | 247 / 615 | 0 / 5618 | 1 / 33 | 13.44 to 14.65 ms |
+| zoom-50-warm | before | 1857 / 2879 | 1999 / 3094 | 2391 / 3815 | 13289 / 24767 | 2 / 122 | 39.27 ms |
+| | after | 1857 / 2879 | 1999 / 3094 | 2383 / 3815 | 13289 / 24767 | 1 / 121 | 26.05 ms |
+| orbit-panel-left-warm | before | 199 / 199 | 184 / 184 | 213 / 213 | 0 / 0 | 0 / 0 | 7.35 ms |
+| | after | 199 / 199 | 184 / 184 | 213 / 213 | 0 / 0 | 0 / 0 | 6.75 ms |
+| fillet-drag-warm | before | 888 / 888 | 966 / 966 | 1138 / 1138 | 0 / 0 | 12 / 12 | 27.59 ms |
+| | after | 888 / 888 | 966 / 966 | 1138 / 1138 | 0 / 0 | 12 / 12 | 25.49 ms |
+
+`retainedTranslationRefusedReasons` on pan-50-warm, summed over the 120 timed frames: **none** (and `retainedTranslationRefused` 0 on
+every frame). The pan moves the whole canvas by a render effect (`scaleEffect` and `offset` on `CanvasSurface`), so each node view
+is translated by the older render-effect rule (`retainedTranslated` 25 / 35 per frame, `retainedHits` 27 / 37, `retainedMisses`
+3 / 35, `retainedGrafts` 0), not through layout. With `METALUI_TRACE_RETAINED=1` the untimed first frames do log refusals, all
+`accessibilityRecords` (the nodes' socket dots and rows carry accessibility records, `ax 1/0` to `ax 12/1`); they do not reach the
+timed frames. Wires are paths, which would refuse translation by rule; none was refused in a timed frame.
+
+A/B, pan-50-warm with `METALUI_RETAINED_TRANSLATION=0`: identical counters (1409 element requests, 25 translated per frame) and
+14.57 ms median against 13.44 ms with it on (noise). The switch turns off the layout translation only ("RK-G's render-effect
+translation stays"), and the pan never moves a node through layout, so C14-d's new path is not exercised by this row.
+
+What is left in pan-50-warm's 1409 element requests per frame is not explained by this run: only 3 retained misses per frame, yet
+`elementPaints` 247 and the requests stay high. It is MetalUI's to read (`retainedSkippedRequests` and the prepaint/paint split);
+the row now prints enough counters (`WarmCounters`) to chase it. Zoom changes the scale of every node, which is not a translation, so
+zoom-50-warm still misses (171 retained misses per frame) and rasterizes.
+
 ## Carry-over items (the M0–M1 carry-over note, M7)
 
 | Item | Benchmark | Measured (median) | Verdict |
