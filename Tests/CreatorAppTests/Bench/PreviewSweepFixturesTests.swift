@@ -20,7 +20,7 @@ struct PreviewSweepFixturesTests {
     }
 
     @Test func theSheetIsAClosedSurfaceWhoseTrianglesGrowAsTheVoxelsShrink() async throws {
-        let solid = try await ImplicitBenchFixtures.solid(of: PreviewSweepFixtures.sheet(side: 20))
+        let solid = try await PreviewSweepFixtures.solid(of: PreviewSweepFixtures.sheet(side: 20))
         let mesher = ImplicitMesher(evaluator: CPUBatchEvaluator(solid))
         let coarse = try await mesher.mesh(solid, resolution: 0.8, quality: .preview)
         let fine = try await mesher.mesh(solid, resolution: 0.4, quality: .preview)
@@ -41,7 +41,7 @@ struct PreviewSweepFixturesTests {
     @Test func theWallIsThinnerThanTheFixtureOfRowI1() {
         let sheet = PreviewSweepFixtures.sheet()
         #expect(sheet.graph.nodes[sheet.levels.id]?.inputValues["step"] == .number(-PreviewSweepFixtures.wall))
-        #expect(PreviewSweepFixtures.cell < ImplicitBenchFixtures.noiseScale)
+        #expect(PreviewSweepFixtures.cell < 50)
     }
 
     // MARK: The rule

@@ -23,7 +23,7 @@ struct PreviewSweepBench {
     @Test func theLadderOfPreviewMeshes() async throws {
         guard Bench.requireRelease() else { return }
         let sheet = PreviewSweepFixtures.sheet()
-        let solid = try await ImplicitBenchFixtures.solid(of: sheet)
+        let solid = try await PreviewSweepFixtures.solid(of: sheet)
         let selection = await ImplicitEvaluators.make(for: solid, choice: .automatic)
         guard selection.evaluator.engineName != "CPU" else {
             print("BENCH preview-sweep skipped: this machine has no GPU engine")
@@ -104,7 +104,7 @@ struct PreviewSweepBench {
     /// hidden. The footprint is read after the first frame has drawn, so the GPU's copy of the mesh is in it, and is compared with the
     /// footprint of the same renderer after it has drawn an empty app's frame (its pipelines, atlas and textures are made by then), so
     /// the difference is the mesh, its refinement, its display copy and its GPU copy, and the app that holds them.
-    private static func inViewport(_ sheet: ImplicitBenchFixtures.Sheet, resolution: Double, label: String) async throws -> Shown {
+    private static func inViewport(_ sheet: PreviewSweepFixtures.Sheet, resolution: Double, label: String) async throws -> Shown {
         let renderer = try BenchRenderer()
         let empty = AppModel(kernel: FakeKernel())
         await empty.settle()

@@ -1,7 +1,12 @@
 // Test fixture file: the sheet, the resolution ladder and the memory reading of the preview triangle cap benchmark (Errata D15).
+import CreatorGeometry
 import CreatorGraph
+import CreatorImplicit
+import CreatorKernel
 import CreatorNodes
 import Foundation
+import Testing
+@testable import CreatorApp
 #if canImport(Darwin)
 import Darwin
 #endif
@@ -39,11 +44,46 @@ enum PreviewSweepFixtures {
     /// The wall's thickness in noise units: about a millimetre across the sheet (measured; the noise's slope varies).
     static let wall = 0.2
 
+    /// The noise sheet: master's `ImplicitBenchFixtures` now builds a TPMS gyroid, so the sweep keeps the noise sheet it was calibrated on.
+    struct Sheet {
+        var graph: Graph
+        var levels: Node
+        var band: Node
+        var output: Node
+    }
+
+    static let noiseOctaves = 1
+    static let outerLevel = 0.55
+
     /// The sheet through a cube of `side` millimetres, its features `scale` across and its wall `thickness` in noise units.
-    static func sheet(side: Double = 100, scale: Double = cell, thickness: Double = wall) -> ImplicitBenchFixtures.Sheet {
-        var sheet = ImplicitBenchFixtures.sheet(side: side, scale: scale)
-        sheet.graph.nodes[sheet.levels.id]?.inputValues["step"] = .number(-thickness)
-        return sheet
+    static func sheet(side: Double = 100, scale: Double = cell, thickness: Double = wall) -> Sheet {
+        var builder = GraphBuilder()
+        let noise = builder.add(NoiseFieldNode.self, ["seed": .integer(1), "scale": .number(scale), "octaves": .integer(noiseOctaves)])
+        let cube = builder.add(ImplicitBoxNode.self, ["size": .vector(Vector3(side, side, side))])
+        let levels = builder.add(SeriesNode.self, ["start": .number(outerLevel), "step": .number(-thickness), "count": .integer(2)])
+        let slope = (FieldNoise.slopeBound(scale: scale, octaves: noiseOctaves) * 100).rounded(.up) / 100
+        let iso = builder.add(IsosurfaceNode.self, ["max slope": .number(slope)])
+        let band = builder.add(ImplicitSubtractNode.self)
+        let mesh = builder.add(MeshNode.self, ["export resolution": .number(0.1)])
+        let output = builder.add(OutputNode.self)
+        builder.wire(noise, "field", to: iso, "field")
+        builder.wire(cube, "implicit", to: iso, "bounds")
+        builder.wire(levels, "values", to: iso, "level")
+        builder.wire(iso, "implicit", to: band, "shapes")
+        builder.wire(band, "implicit", to: mesh, "implicit")
+        builder.wire(mesh, "mesh", to: output, "mesh")
+        return Sheet(graph: builder.graph, levels: levels, band: band, output: output)
+    }
+
+    /// The sheet as the implicit solid the Mesh node meshes, evaluated on the CPU.
+    static func solid(of sheet: Sheet) async throws -> ImplicitSolid {
+        let report = try await Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel())
+            .evaluate(sheet.graph, demand: [sheet.band.id])
+        guard case .implicit(let reference)? = report.results[sheet.band.id]?.outputs?["implicit"]?.items.first,
+              let solid = reference.solid else {
+            throw BenchFixtureError.noSolid(String(describing: report.results[sheet.band.id]?.state))
+        }
+        return solid
     }
 
     /// `graph` with the Mesh node previewing at `resolution`: the first pass is at the larger of that and 128 cells across, and the
