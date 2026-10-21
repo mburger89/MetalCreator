@@ -12,6 +12,8 @@ public actor FaceChartCache {
         var solid: ObjectIdentifier
         var face: Int
         var tolerance: Double
+        /// The box the chart covers: blocks of one solid and tolerance can still cover different boxes (grown for a bake).
+        var bounds: BoundingBox
     }
 
     private struct Entry {
@@ -46,7 +48,7 @@ public actor FaceChartCache {
     /// - Throws: `KernelError.invalidInput` for blocks that were not baked from a solid, and anything the kernel throws.
     public func chart(for blocks: DistanceBlocks, face: FaceID, kernel: any Kernel) async throws -> FaceChart {
         guard let source = blocks.source else { throw KernelError.invalidInput("These distances were not baked from a solid.") }
-        let key = Key(solid: ObjectIdentifier(source.solid), face: face.rawValue, tolerance: source.tolerance)
+        let key = Key(solid: ObjectIdentifier(source.solid), face: face.rawValue, tolerance: source.tolerance, bounds: blocks.bounds)
         clock += 1
         if var hit = entries[key] {
             hit.used = clock

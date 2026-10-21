@@ -55,6 +55,18 @@ struct FaceChartBakingTests {
         #expect(await cache.totalBytes > 0)
     }
 
+    @Test func aWiderBoxOfTheSameSolidAndToleranceIsAnotherChart() async throws {
+        let cache = FaceChartCache()
+        let solid = part()
+        let small = blocks(of: solid)
+        let grown = BlocksFixture.make(origin: Vector3(-20, -20, -20), spacing: 1, blocks: 6) { $0.length }
+            .timed(0.1, source: BakeSource(solid: solid, tolerance: 0.01))
+        let first = try await cache.chart(for: small, face: FaceID(0), kernel: kernel)
+        let second = try await cache.chart(for: grown, face: FaceID(0), kernel: kernel)
+        #expect(first !== second && second.bounds.min.x <= -20 + 1e-9, "the chart covers the box it was asked for")
+        #expect(await cache.bakeCount == 2)
+    }
+
     @Test func callersAskingTogetherShareOneMeasurement() async throws {
         let cache = FaceChartCache()
         let source = blocks(of: part())
