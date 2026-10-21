@@ -18,6 +18,9 @@ public enum AppBundleInfo {
     public static let build = "2"
     /// How Finder names a `.mcgraph` file's kind.
     public static let documentTypeName = "MetalCreator Graph"
+    /// The `.mcgraph` file's MIME type on Linux: the desktop entry's `MimeType=` and the shared-mime-info file in `packaging/linux`
+    /// (`DesktopEntryTests` holds both to this name).
+    public static let mimeType = "application/x-metalcreator-graph"
 
     /// What `--version` prints, e.g. `MetalCreator 0.1.0 (1)`.
     public static var versionLine: String { "\(name) \(version) (\(build))" }

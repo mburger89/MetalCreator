@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=MetalCreator
+GenericName=Parametric 3D modeller
+Comment=Build solid models from a graph of nodes
+Exec=MetalCreator %F
+Icon=com.metalcreator.MetalCreator
+Terminal=false
+Categories=Graphics;3DGraphics;Engineering;
+MimeType=application/x-metalcreator-graph;
+StartupWMClass=com.metalcreator.MetalCreator

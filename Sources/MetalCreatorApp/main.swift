@@ -41,15 +41,15 @@ func makeKernel() -> any Kernel {
     OCCTKernel()
 }
 
-/// `swift run MetalCreatorApp [path.mcgraph]`: the app (spec §6.1, M6). It loads the app's themes (the remembered
+/// `swift run MetalCreatorApp [path.mcgraph …]`: the app (spec §6.1, M6). It loads the app's themes (the remembered
 /// one and the person's own), opens the window over the platform's kernel, installs the menu bar and the window's input
-/// hooks, and opens the file named on the command line, if any. With a `smoke` (CI) the window is offscreen and the process
+/// hooks, and opens the files named on the command line, if any (a Linux file manager's `%F`, Explorer's `"%1"`). With a `smoke` (CI) the window is offscreen and the process
 /// exits when the smoke's time is up, with the verdict.
 /// `app.run()` is called from synchronous top-level code, as MetalUI requires.
 @MainActor
-func runApp(opening path: String?, smoke: LaunchSmoke? = nil) throws {
+func runApp(opening paths: [String], smoke: LaunchSmoke? = nil) throws {
     let app = try makeApp(offscreen: smoke != nil,
-                          forwarding: LaunchCommand.forwardedDocuments(path: path) { FileManager.default.fileExists(atPath: $0) })
+                          forwarding: LaunchCommand.forwardedDocuments(paths: paths) { FileManager.default.fileExists(atPath: $0) })
     app.preferredColorScheme = .dark
     let model = AppModel(kernel: makeKernel(), themes: AppThemes.store(), implicitEngine: .automatic)
     let themeEditor = ThemeEditorModel(themes: model.themes)
@@ -76,10 +76,12 @@ func runApp(opening path: String?, smoke: LaunchSmoke? = nil) throws {
     model.filePicker = WindowFilePicker(window: window)
     themeEditor.filePicker = model.filePicker
     // Opening documents (gap M6-d): Finder, the Dock and `open -a` reach `App.onOpenURL` while the app runs, so it is
-    // set before `app.run()`. AppKit delivers no command-line path, so the path argument is handed over the same way.
+    // set before `app.run()`; on Linux and Windows an SDL drop on the application itself (`Platform.onOpenURLs`, gap XP-G5) and
+    // a second launch's forwarded documents (MetalUI S7) arrive there too. AppKit and SDL deliver no command-line path, so the
+    // path arguments are handed over the same way.
     app.onOpenURL = { model.openRequested($0) }
-    if let path {
-        app.open([URL(fileURLWithPath: path)])
+    if !paths.isEmpty {
+        app.open(paths.map { URL(fileURLWithPath: $0) })
     }
     if let smoke {
         Task { @MainActor in
@@ -118,9 +120,9 @@ func fail(_ action: String, _ error: any Error) -> Never {
 }
 
 switch LaunchCommand(arguments: Array(CommandLine.arguments.dropFirst())) {
-case .run(let path):
+case .run(let paths):
     do {
-        try runApp(opening: path)
+        try runApp(opening: paths)
     } catch {
         fail("MetalCreator couldn't start", error)
     }
@@ -133,7 +135,7 @@ case .selfTest:
 case .smokeTest(let seconds):
     #if canImport(MetalUISDL)
     do {
-        try runApp(opening: nil, smoke: LaunchSmoke(seconds: seconds))
+        try runApp(opening: [], smoke: LaunchSmoke(seconds: seconds))
     } catch {
         fail("MetalCreator couldn't start", error)
     }

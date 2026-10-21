@@ -4,8 +4,8 @@ import Testing
 /// The executable's command line (packaging): a file to open, or a headless flag the packaging script uses.
 struct LaunchCommandTests {
     @Test func noArgumentsOpensAnEmptyWindowAndAPathOpensThatFile() {
-        #expect(LaunchCommand(arguments: []) == .run(path: nil))
-        #expect(LaunchCommand(arguments: ["bracket.mcgraph"]) == .run(path: "bracket.mcgraph"))
+        #expect(LaunchCommand(arguments: []) == .run(paths: []))
+        #expect(LaunchCommand(arguments: ["bracket.mcgraph"]) == .run(paths: ["bracket.mcgraph"]))
     }
 
     @Test func theHeadlessFlags() {
@@ -49,7 +49,7 @@ struct LaunchCommandTests {
     /// app opens its window rather than refusing them or opening one as a file.
     @Test(arguments: [["-psn_0_1234567"], ["-NSDocumentRevisionsDebugMode", "YES"], ["-AppleLanguages", "(de)"]])
     func theSystemsOwnArgumentsOpenAnEmptyWindow(_ arguments: [String]) {
-        #expect(LaunchCommand(arguments: arguments) == .run(path: nil))
+        #expect(LaunchCommand(arguments: arguments) == .run(paths: []))
     }
 
     /// `\d` matches any script's digits; a macOS version is ASCII ("٢٦" is Arabic-Indic 26, "２６" fullwidth).
@@ -64,15 +64,24 @@ struct LaunchCommandTests {
         #expect(LaunchCommand.usage.contains("--help") && LaunchCommand.usage.contains("--self-test"))
     }
 
-    /// Only the first file is opened; later arguments (Xcode appends its own after the file) are not files.
-    @Test func argumentsAfterTheFileAreIgnored() {
-        #expect(LaunchCommand(arguments: ["a.mcgraph", "b.mcgraph"]) == .run(path: "a.mcgraph"))
-        #expect(LaunchCommand(arguments: ["a.mcgraph", "-NSDocumentRevisionsDebugMode", "YES"]) == .run(path: "a.mcgraph"))
+    /// A Linux file manager runs `MetalCreator %F` and Explorer `MetalCreator.exe "%1"`: every leading argument is a document
+    /// (xp-2, gap XP-G5). The app opens each in turn and the last stays open. Arguments from the first flag on (Xcode appends
+    /// its own after the file) are not files.
+    @Test func everyLeadingArgumentIsADocumentAndTheFirstFlagEndsThem() {
+        #expect(LaunchCommand(arguments: ["a.mcgraph", "b.mcgraph"]) == .run(paths: ["a.mcgraph", "b.mcgraph"]))
+        #expect(LaunchCommand(arguments: ["a.mcgraph", "-NSDocumentRevisionsDebugMode", "YES"]) == .run(paths: ["a.mcgraph"]))
     }
 
-    @Test func onlyAnExistingDocumentIsForwardedToTheRunningInstance() {
-        #expect(LaunchCommand.forwardedDocuments(path: "a.mcgraph") { _ in true } == ["a.mcgraph"])
-        #expect(LaunchCommand.forwardedDocuments(path: "gone.mcgraph") { _ in false }.isEmpty)
-        #expect(LaunchCommand.forwardedDocuments(path: nil) { _ in true }.isEmpty)
+    /// Review focus: a path with spaces or non-ASCII letters arrives as one argument and stays one document.
+    @Test func aPathWithSpacesAndAccentsIsOneDocument() {
+        let path = "/home/zoë/My Parts/Halterung Größe 2.mcgraph"
+        #expect(LaunchCommand(arguments: [path]) == .run(paths: [path]))
+    }
+
+    @Test func onlyExistingDocumentsAreForwardedToTheRunningInstance() {
+        let existing: Set<String> = ["a.mcgraph", "b.mcgraph"]
+        #expect(LaunchCommand.forwardedDocuments(paths: ["a.mcgraph", "gone.mcgraph", "b.mcgraph"]) { existing.contains($0) }
+            == ["a.mcgraph", "b.mcgraph"])
+        #expect(LaunchCommand.forwardedDocuments(paths: []) { _ in true }.isEmpty)
     }
 }
