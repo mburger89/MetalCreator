@@ -454,6 +454,60 @@ Pinned: `aSteadyWarmPanOfFiftyNodesGraftsAndNeverRedoes` (steady steps: retained
 requests under 2 x 192) and `aWarmPanEvaluatesNoNodeView` (retainedGrafts > 0, element requests under 2 x 189 for the six-node
 fixture, picture still equal to a full rebuild).
 
+### C14-f and C14-h adopted (MetalUI 1bdead8d, 2026-10-21)
+
+MetalUI C14-f (c55d44e8: geometry-observer replay, per-shelf atlas dirty rects, placement-memo translation) and C14-h (1bdead8d:
+`onModifierKeysChanged`, lifecycle and, through a recomputed geometry note on a translated replay, `onGeometryChange` no longer
+make an `.equatable()` component ineligible; `surface`, a `GPUSurface` or `MetalView`, still does). The bench report now also
+prints `retainedIneligible`, `retainedGraftIneligible`, `retainedPrepaintIneligible`, `retainedRedos`, `retainedBackoffFrames` and the
+worst-frame `atlasUploadPixels` (the max of the median/max pair), and `BENCH refused` / `BENCH ineligible` give the translation
+refusal and ineligibility reasons as median/max per frame. Before: MetalUI b15e038c (C14-g), after: 1bdead8d, same MetalCreator
+bench otherwise. The Mac was heavily loaded (load average 75 before, over 200 after), so the milliseconds are indicative only and
+the counts are exact. Raw output: the "before" and "after" runs of this adoption.
+
+| Row | Counter (median / max per frame) | Before | After |
+| --- | --- | --- | --- |
+| pan-50-warm | element requests / prepaints / paints | 192 / 212 / 247 | 192 / 212 / 247 |
+|  | retainedGrafts / Hits / Misses / Redos | 27 / 27 / 3 / 0 | 27 / 27 / 4 / 0 |
+|  | contentEvaluations; worst atlasUploadPixels | 1; 0 | 1; 0 |
+|  | window-cpu median / p95 (ms) | 8.74 / 12.19 | 13.79 / 52.39 (loaded) |
+| zoom-50-warm | element requests / prepaints / paints | 1857 / 1999 / 2383 | 1857 / 1999 / 2383 |
+|  | retainedGrafts / Hits / Misses / Redos | 0 / 2 / 171 / 0 (max 1) | 0 / 2 / 172 / 0 (max 1) |
+|  | contentEvaluations; worst atlasUploadPixels | 1; 0 | 1; 0 |
+|  | window-cpu median / p95 (ms) | 28.83 / 45.54 | 63.37 / 185.87 (loaded) |
+| orbit-panel-left-warm | element requests / prepaints / paints | 199 / 184 / 213 | 130 / 145 / 170 |
+|  | retainedGrafts / Hits / Misses / Redos | 1 / 2 / 0 / 0 | 2 / 2 / 0 / 0 |
+|  | contentEvaluations; worst atlasUploadPixels | 0; 0 | 0; 0 |
+|  | window-cpu median / p95 (ms) | 6.88 / 7.60 | 6.98 / 32.47 (loaded) |
+| orbit-panel-hidden-warm | element requests / prepaints / paints | 161 / 144 / 166 | 131 / 144 / 166 |
+|  | retainedGrafts / Hits / Misses / Redos | 0 / 1 / 0 / 0 | 1 / 1 / 0 / 0 |
+|  | contentEvaluations; worst atlasUploadPixels | 0; 0 | 0; 0 |
+|  | window-cpu median / p95 (ms) | 1.99 / 2.45 | 1.92 / 9.42 (loaded) |
+| fillet-drag-warm | element requests / prepaints / paints | 888 / 966 / 1138 | 888 / 966 / 1138 |
+|  | retainedGrafts / Hits / Misses / Redos | 94 / 94 / 30 / 0 | 94 / 94 / 32 / 0 |
+|  | contentEvaluations; worst atlasUploadPixels | 12; 26,572 | 12; 396 |
+|  | window-cpu median / p95 (ms) | 26.40 / 28.67 | 43.40 / 100.91 (loaded) |
+
+`retainedBackoffFrames` is 0 on every row except zoom-50-warm (median 1, max 1, both runs), and `retainedIneligible` is 0 on every
+row in both runs. The ineligibility reasons per frame: before, `lifecycle` 2/2 on fillet-drag-warm and 1/1 on orbit-panel-left-warm
+and orbit-panel-hidden-warm (the lifecycle hooks of the panels), none on pan and zoom; after, none on any row, and no translation
+refusal on any row either. The `geometryChange` reason that made `GraphPanel` ineligible is gone.
+
+Decisions:
+
+- **Call-site `.equatable()` on `GraphPanel`: kept.** Orbit-panel-left went from 199 to 130 element requests per step (grafts 1 to 2), the
+  hidden panel row, pan, zoom and fillet are unchanged in requests, and every existing pin passes. The price is one more
+  retained node in the rows that rebuild the panel: `retainedMisses` +1 on pan and zoom and +2 on the fillet drag, with the same
+  number of extra `contentSkips`.
+- **Call-site `.equatable()` on `ViewportView`: not kept.** Tried on all five rows with `GraphPanel` already `.equatable()`: element
+  requests, prepaints, paints, grafts and hits are identical to without it on every row, `contentEvaluations` rises by 1 per frame on
+  orbit-panel-left, orbit-panel-hidden and fillet-drag (0 to 1, 12 to 13) and `retainedIneligible` rises to 1 (2 on the fillet drag), every
+  one with the reason `surface`. It still does not pay while `GPUSurface` is refused.
+- **Atlas upload.** The fillet drag's worst frame uploaded 26,572 atlas pixels before (the single dirty rect, step 51) and 338 to 442
+  across the 2026-10-21 runs. `WarmWorkPinTests.filletAtlasUploadBound` (900, a little over twice the largest measurement) pins it in
+  `swift test` and the fillet bench asserts the same bound.
+- Tightened: the orbit-panel-left element request bound is now 2 x 130 (was 2 x 199). The pan bound (2 x 192) did not move.
+
 ## Carry-over items (the M0–M1 carry-over note, M7)
 
 | Item | Benchmark | Measured (median) | Verdict |

@@ -8,9 +8,9 @@ struct ViewportPane: Component {
 
     var content: some ElementGroup {
         #if canImport(Metal)
-        // `ViewportView` has a `==`, but no `.equatable()` here yet: its `onGeometryChange` makes an `.equatable()` Component
-        // ineligible every frame until MetalUI C14-e (c) lands, which cost one content evaluation per frame and broke the
-        // `retainedIneligible == 0` pin in the orbit-panel-left-warm bench (docs/verification/performance.md, "C14-e adopted").
+        // `ViewportView` has a `==`, but no `.equatable()` here: its `GPUSurface` makes an `.equatable()` Component ineligible
+        // ("surface") even since MetalUI C14-h, so it only adds a content evaluation and a retainedIneligible per frame (measured
+        // 2026-10-21 on every warm row; element requests unchanged, docs/verification/performance.md, "C14-f and C14-h adopted").
         ViewportView(model: model)
         #else
         ViewportPlaceholder()

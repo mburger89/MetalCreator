@@ -76,7 +76,8 @@ struct GreyImageDecoderTests {
     @Test func formatsThatAreNotPNGOrJPEGAreRefusedByTheirSignature() async throws {
         let headers: [String: [UInt8]] = [
             "GIF": Array("GIF89a".utf8) + [8, 0, 8, 0, 0, 0, 0x3B], "TIFF": [0x49, 0x49, 0x2A, 0, 8, 0, 0, 0, 0, 0],
-            "BMP": Array("BM".utf8) + [UInt8](repeating: 0, count: 30), "WebP": Array("RIFF".utf8) + [0, 0, 0, 0] + Array("WEBPVP8 ".utf8),
+            "BMP": Array("BM".utf8) + [UInt8](repeating: 0, count: 12) + [40, 0, 0, 0] + [UInt8](repeating: 0, count: 14),
+            "WebP": Array("RIFF".utf8) + [0, 0, 0, 0] + Array("WEBPVP8 ".utf8),
         ]
         for (name, bytes) in headers {
             await #expect(throws: ImageProblem.unsupportedType, "\(name)") { try await GreyImageDecoder.decode(Data(bytes)) }

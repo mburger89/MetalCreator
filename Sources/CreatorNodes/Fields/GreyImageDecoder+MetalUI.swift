@@ -9,7 +9,7 @@ extension GreyImageDecoder {
     static func inspectHeader(_ data: Data) throws(ImageProblem) -> Info {
         guard data.count <= ImageLimits.maxBytes else { throw .tooManyBytes(data.count) }
         // MetalUI's header-only read (S9, gap XP-G10): PNG and JPEG, the stored size and the EXIF orientation, no pixel work.
-        guard let header = ImageInfo(data: data) else { throw OtherPictureSignature.matches(data) ? .unsupportedType : .undecodable }
+        guard let header = ImageInfo(data: data) else { throw refusal(whenNoHeader: data) }
         let format: Format = header.format == .png ? .png : .jpeg
         // Sizes (and the limit) are those of the oriented picture.
         let (width, height) = header.orientedSize
@@ -17,6 +17,17 @@ extension GreyImageDecoder {
         // A PNG cut short in the middle of its data must not be trusted, whatever the decoder makes of it.
         guard format != .png || PNGStructure.isWhole(data) else { throw .undecodable }
         return Info(width: width, height: height, format: format)
+    }
+
+    /// Why `ImageInfo` read no header from `data`, from MetalUI's header-only format sniff (gap XP-G12): a PNG or JPEG signature
+    /// with no header is a damaged picture; any other recognised format is a picture type we refuse; no signature at all is not a
+    /// picture, which is refused the same way as a damaged one.
+    private static func refusal(whenNoHeader data: Data) -> ImageProblem {
+        switch ImageInfo.sniffedFormat(of: data) {
+        case .png, .jpeg, .unknown: .undecodable
+        // GIF, TIFF, BMP, WebP, HEIF and AVIF today; the enum may gain cases, and any other named format is one we do not read.
+        default: .unsupportedType
+        }
     }
 
     /// `decode(_:)` with the size of a band chosen, so a test can make a small picture take several bands.

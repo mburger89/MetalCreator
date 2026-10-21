@@ -1,10 +1,11 @@
+import CreatorGraph
 import Foundation
 import MetalUI
 import Testing
 @testable import CreatorNodes
 
 /// MetalUI's `ImageInfo` (S9) as `GreyImageDecoder.inspect` relies on it: the size and orientation read from a picture's first
-/// bytes, before any pixel is decoded, and `OtherPictureSignature` for the formats it does not read.
+/// bytes, before any pixel is decoded, and `ImageInfo.sniffedFormat(of:)` (XP-G12) for the formats it does not read.
 struct ImageInfoHeaderTests {
     /// The `eXIf` chunk's bytes for orientation `tag`, as `PNGWriter` writes them.
     private func exif(_ tag: Int) -> Data {
@@ -75,10 +76,39 @@ struct ImageInfoHeaderTests {
         }
     }
 
-    @Test func otherPictureFormatsAreRecognisedByTheirSignatures() {
-        #expect(ImageInfo(data: Data("GIF89a".utf8) + Data(count: 10)) == nil)
-        #expect(OtherPictureSignature.matches(Data("GIF89a".utf8) + Data(count: 10)))
-        #expect(!OtherPictureSignature.matches(Data("hello, not a picture".utf8)))
-        #expect(!OtherPictureSignature.matches(Data()))
+    /// A `BM` file with a 40-byte DIB header (BITMAPINFOHEADER), the shortest prefix MetalUI's sniff names a BMP from.
+    private static let bmpPrefix: [UInt8] = Array("BM".utf8) + [UInt8](repeating: 0, count: 12) + [40, 0, 0, 0]
+
+    /// The `ftyp` box of an AVIF (`avif` major brand), eight bytes of box header and the brand.
+    private static let avifPrefix: [UInt8] = [0, 0, 0, 0x1C] + Array("ftypavif".utf8)
+
+    @Test func otherPictureFormatsAreNamedByTheSniffAndRefusedAsUnsupported() throws {
+        let formats: [(String, [UInt8], ImageFileFormat)] = [
+            ("GIF", Array("GIF89a".utf8) + [8, 0, 8, 0, 0, 0, 0x3B], .gif),
+            ("TIFF", [0x49, 0x49, 0x2A, 0, 8, 0, 0, 0, 0, 0], .tiff),
+            ("BMP", Self.bmpPrefix, .bmp),
+            ("WebP", Array("RIFF".utf8) + [0, 0, 0, 0] + Array("WEBPVP8 ".utf8), .webp),
+            ("HEIF", [0, 0, 0, 0x18] + Array("ftypheic".utf8), .heif),
+            ("AVIF", Self.avifPrefix, .avif),
+        ]
+        for (name, bytes, format) in formats {
+            let data = Data(bytes)
+            #expect(ImageInfo(data: data) == nil, "\(name)")
+            #expect(ImageInfo.sniffedFormat(of: data) == format, "\(name)")
+            #expect(throws: ImageProblem.unsupportedType, "\(name)") { try GreyImageDecoder.inspect(data) }
+        }
+    }
+
+    @Test func notAPictureAndADamagedPNGOrJPEGAreUndecodable() {
+        let garbage: [(String, Data)] = [
+            ("text", Data("hello, not a picture".utf8)), ("empty", Data()), ("a lone BM", Data("BM".utf8)),
+            ("a cut PNG signature", Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3])),
+            ("a JPEG signature alone", Data([0xFF, 0xD8, 0xFF])),
+        ]
+        for (name, data) in garbage {
+            #expect(throws: ImageProblem.undecodable, "\(name)") { try GreyImageDecoder.inspect(data) }
+        }
+        #expect(ImageInfo.sniffedFormat(of: Data("hello, not a picture".utf8)) == .unknown)
+        #expect(ImageInfo.sniffedFormat(of: Data()) == .unknown)
     }
 }
