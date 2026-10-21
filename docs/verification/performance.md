@@ -395,6 +395,39 @@ What is left in pan-50-warm's 1409 element requests per frame is not explained b
 the row now prints enough counters (`WarmCounters`) to chase it. Zoom changes the scale of every node, which is not a translation, so
 zoom-50-warm still misses (171 retained misses per frame) and rasterizes.
 
+### C14-e adopted (MetalUI c502f14c, PR #105, 2026-10-20)
+
+No API change. MetalUI's C14-e settles the first warm frames (CF-E): from the frame after the records exist, `warm[n] == warm[n+1]`
+on every `FrameWork` counter. What MetalCreator did for it:
+
+- **The exact warm check starts at redraw 1.** `unchangedFramesAfterTheFirstRedrawDoExactlyTheSameWork` (was `...AfterSettling...`)
+  skipped the first two redraws because the second carried a one-off `layoutMeasureCalls` spike (C14-e (e)); it now skips only redraw 0
+  and passes.
+- **`ViewportView` has a `==` (the model by identity) and a `PanelEqualityTests`-style test, but no `.equatable()` at the call
+  site.** Measured with `.equatable()` on `ViewportPane`: element requests did not rise (orbit-panel-left-warm 199, orbit-panel-hidden-warm
+  161, both as without), but `contentEvaluations` went from 0 to 1 per frame on both rows and `retainedIneligible` was no longer 0, so
+  `aSteadyWarmOrbitStepWithThePanelDockedLeftDoesAlmostNoWork` failed. The `onGeometryChange` in its body makes an `.equatable()`
+  Component ineligible every frame until MetalUI C14-e (c) lands, which is not in this merge; the call site waits for it.
+
+Same Mac, release, `scripts/bench.sh`. "Before" is the C14-d table above (MetalUI 99b21a1c); "after" is this repository on c502f14c.
+Counters are per frame, median / max.
+
+| Row | | elementRequests | elementPaints | contentEvaluations |
+|---|---|---|---|---|
+| pan-50-warm | before | 1409 / 1697 | 247 / 615 | 1 / 33 |
+| | after | 1409 / 1697 | 247 / 615 | 1 / 33 |
+| zoom-50-warm | before | 1857 / 2879 | 2383 / 3815 | 1 / 121 |
+| | after | 1857 / 2879 | 2383 / 3815 | 1 / 121 |
+| orbit-panel-left-warm | before | 199 / 199 | 213 / 213 | 0 / 0 |
+| | after | 199 / 199 | 213 / 213 | 0 / 0 |
+| orbit-panel-hidden-warm | before | 161 / 161 | 166 / 166 | 0 / 0 |
+| | after | 161 / 161 | 166 / 166 | 0 / 0 |
+| fillet-drag-warm | before | 888 / 888 | 1138 / 1138 | 12 / 12 |
+| | after | 888 / 888 | 1138 / 1138 | 12 / 12 |
+
+The counters did not move on any row, and no count assertion changed. MetalUI notes that a redo frame's `contentEvaluations` may now be
+higher (CF-C); none of these rows has a redo frame in its timed window, so it is not visible here.
+
 ## Carry-over items (the M0–M1 carry-over note, M7)
 
 | Item | Benchmark | Measured (median) | Verdict |
