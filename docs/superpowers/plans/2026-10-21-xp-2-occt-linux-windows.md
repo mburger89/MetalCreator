@@ -38,7 +38,7 @@
 - The shim (`Sources/COCCT/cocct_*.cpp`) must compile with GCC/Clang on Linux and with Clang (MSVC ABI) on Windows: no Apple or POSIX-only headers, no `M_PI`, no `std::filesystem`, no `__attribute__`.
 - The Swift 6.4 Windows compiler crashes in coroutine splitting on an `async` function that holds a heavy loop across an `await`: keep such loops in non-async helpers. **Nothing in this plan adds an `async` loop** (all new Swift code is synchronous or a one-line `await`).
 - OCCT's thread pool (`OSD_Parallel`) and `OCCTKernel.serialized` keep working: no change to the shim's threading, and the 196 OCCT conformance tests (including the distance fast-path suites that use the pool) pass on Linux.
-- MetalUI gaps go in `docs/metalui-gaps.md` (the entry and the summary-table row) and are never worked around. This plan adds one: XP-G12.
+- MetalUI gaps go in `docs/metalui-gaps.md` (the entry and the summary-table row) and are never worked around. This plan adds one: XP-G13.
 - Text a test reads or a script runs is LF on every platform: `.gitattributes` (Task 1) sets `eol=lf`, and the tests that read repository files replace `"\r\n"` with `"\n"` (Swift reads `"\r\n"` as **one** `Character`, so a split on `"\n"` or a match ending in `"\n"` finds nothing in a CRLF file, which is what `actions/checkout` writes on `windows-latest` unless told otherwise).
 - On Windows the debug suite links vcpkg's debug OpenCascade and the release zip its release one (user decision 8): one C runtime on both sides of the DLL boundary, no compile flag guessed.
 - Never commit secrets; the repository is public. No secret is needed: vcpkg, OCCT and SDL are fetched anonymously.
@@ -97,7 +97,7 @@ macOS: **master (4656) + 20 = 4676** (Task 1 +2, Task 3 +2, Task 4 +1, Task 5 +8
 | `scripts/package-linux.sh` (new) | 6 | the tarball (the executable's RUNPATH is `$ORIGIN/lib` only) |
 | `scripts/package-windows.ps1` (new), `packaging/windows/vcpkg.json` (new), `.github/workflows/xp.yml` | 7 | the zip, vcpkg, CI |
 | `Tests/CreatorAppTests/CIPinTests.swift` (new), `PackagingScriptTests.swift` | 6, 7 | scripts parse; pinned numbers agree |
-| `CLAUDE.md`, `docs/packaging.md`, `docs/metalui-gaps.md`, `docs/verification/human-checks.md`, `docs/roadmap.md` | 8 | documentation, XP-G12 |
+| `CLAUDE.md`, `docs/packaging.md`, `docs/metalui-gaps.md`, `docs/verification/human-checks.md`, `docs/roadmap.md` | 8 | documentation, XP-G13 |
 
 ## Interfaces (what a task hands the next)
 
@@ -1251,7 +1251,7 @@ New-Item -Force -Path "$classes\$progId\shell\open\command" -Value "`"$exe`" `"%
 Write-Output "Registered $exe for .mcgraph files."
 ```
 
-(`StartupWMClass=com.metalcreator.MetalCreator` is what gap XP-G12 is about: nothing sets SDL's application id, so a desktop shell cannot yet match the window to this entry. The entry names no `Icon=`: there is no app icon yet.)
+(`StartupWMClass=com.metalcreator.MetalCreator` is what gap XP-G13 is about: nothing sets SDL's application id, so a desktop shell cannot yet match the window to this entry. The entry names no `Icon=`: there is no app icon yet.)
 
 - [ ] **Step 5: Edit `main.swift` to hand over every path**
 
@@ -2027,11 +2027,11 @@ Tests added: **+7** (`CIPinTests`).
 **Files:**
 - Modify: `CLAUDE.md`, `docs/packaging.md`, `docs/metalui-gaps.md`, `docs/verification/human-checks.md`, `docs/roadmap.md`
 
-**New MetalUI gap: XP-G12 — no way to set SDL's application id.** Found while writing the desktop entry: a Linux shell matches a running window to its `.desktop` file by the Wayland `app_id` / X11 `WM_CLASS`, which SDL takes from its `SDL_APP_ID` hint; MetalUI sets none (checked: no `APP_ID` in `Backends/SDL/Sources` or `Sources/MetalUIPlatform`; MetalUI's own `docs/packaging.md` says so). Per the rules it is logged (entry and summary row) and **not worked around** (no `setenv` in `main.swift`, no `env SDL_APP_ID=` in `Exec=`). XP-G5's entry and row are amended to say xp-2 adopted it.
+**New MetalUI gap: XP-G13 — no way to set SDL's application id.** Found while writing the desktop entry: a Linux shell matches a running window to its `.desktop` file by the Wayland `app_id` / X11 `WM_CLASS`, which SDL takes from its `SDL_APP_ID` hint; MetalUI sets none (checked: no `APP_ID` in `Backends/SDL/Sources` or `Sources/MetalUIPlatform`; MetalUI's own `docs/packaging.md` says so). Per the rules it is logged (entry and summary row) and **not worked around** (no `setenv` in `main.swift`, no `env SDL_APP_ID=` in `Exec=`). XP-G5's entry and row are amended to say xp-2 adopted it.
 
 - [ ] **Step 1: Apply the documentation edits**
 
-The unified diffs below are the edits. `CLAUDE.md`: the manifest paragraph, `KernelUnavailable`, the pass rules (12 everywhere, the `canImport(Metal) && canImport(CreatorOCCT)` rule), the command list (`linux-test.sh` options and `package`), and the toolchain notes (OpenCascade per OS, the portable shim rule). `docs/packaging.md`: new sections "Linux: a tarball", "Windows: a zip", "Documents on Linux and Windows", "Signing". `docs/metalui-gaps.md`: XP-G5 amended, XP-G12 row and entry. `docs/verification/human-checks.md`: group XP2 with XP-16 (Linux tarball and file type), XP-17 (Windows zip and file type), XP-18 (geometry from a Mac file on Linux and Windows). `docs/roadmap.md`: the XP row.
+The unified diffs below are the edits. `CLAUDE.md`: the manifest paragraph, `KernelUnavailable`, the pass rules (12 everywhere, the `canImport(Metal) && canImport(CreatorOCCT)` rule), the command list (`linux-test.sh` options and `package`), and the toolchain notes (OpenCascade per OS, the portable shim rule). `docs/packaging.md`: new sections "Linux: a tarball", "Windows: a zip", "Documents on Linux and Windows", "Signing". `docs/metalui-gaps.md`: XP-G5 amended, XP-G13 row and entry. `docs/verification/human-checks.md`: group XP2 with XP-16 (Linux tarball and file type), XP-17 (Windows zip and file type), XP-18 (geometry from a Mac file on Linux and Windows). `docs/roadmap.md`: the XP row.
 
 ````diff
 diff --git a/CLAUDE.md b/CLAUDE.md
@@ -2118,7 +2118,7 @@ index f6ff2a1..e4dad6a 100644
 @@ -72,4 +72,5 @@ stopgap as they were. The sections below keep each gap's full use case.
  | XP-G9 | `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks)` | open (new) | 🔄 open at MetalUI. `MetalCreatorApp --smoke-test` (the CI launch check, `main.swift`) imports it with `@_spi(Checks) import MetalUISDL`; promote it to public API or name a supported headless-launch entry point |
  | XP-G10 | A header-only read of a picture's size and orientation (before any pixel is decoded) | open (new, forward to MetalUI) | 🔄 open at MetalUI. `DecodedImage` reports size and orientation only after it decodes the whole picture, but `ImageLimits` must refuse an oversize one first; MetalCreator keeps a small `ImageHeader` reader (PNG IHDR and `eXIf`, JPEG SOF and APP1) for that. Needed: a public `ImageInfo(data:)` (format, stored size, orientation, no pixel work) |
-+| XP-G12 | SDL's application id (`SDL_APP_ID`, Wayland `app_id`, X11 `WM_CLASS`) cannot be set by an app | open (new, forward to MetalUI) | 🔄 open at MetalUI. See the entry "Found by the xp-2 packaging" |
++| XP-G13 | SDL's application id (`SDL_APP_ID`, Wayland `app_id`, X11 `WM_CLASS`) cannot be set by an app | open (new, forward to MetalUI) | 🔄 open at MetalUI. See the entry "Found by the xp-2 packaging" |
  
  ## Reported 2026-10-07 (C7)
 @@ -1155,5 +1156,9 @@ Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan and XP-G10 by the S2 adop
@@ -2138,7 +2138,7 @@ index f6ff2a1..e4dad6a 100644
 +
 +## Found by the xp-2 packaging, 2026-10-21
 +
-+- **XP-G12. No way to set SDL's application id.** A Linux desktop shell matches a running window to its `.desktop` entry (for the
++- **XP-G13. No way to set SDL's application id.** A Linux desktop shell matches a running window to its `.desktop` entry (for the
 +  launcher's icon, grouping and "keep in dock") by the window's application id: the Wayland `app_id`, or the X11 `WM_CLASS`, which the
 +  entry's `StartupWMClass=` names. SDL3 takes that id from its `SDL_APP_ID` hint, set before SDL initialises (MetalUI
 +  `docs/packaging.md`, "Linux: a `.desktop` file", section 3: "MetalUI's SDL platform does not set an application id itself"). The
@@ -2169,7 +2169,7 @@ index 1e3f1aa..46205a4 100644
 +  `./install.sh`, then double-click a `.mcgraph` file in the file manager: MetalCreator opens with that file; with it running, double-click
 +  a second one: no second window, the running one opens it. Select two `.mcgraph` files and Open With MetalCreator: the last one is
 +  open. `./MetalCreator --self-test` prints `ok` for the kernel and both exports. Note whether the launcher shows a generic icon and groups
-+  the window under "MetalCreator" (gap XP-G12 predicts it does on Wayland). `./install.sh --remove` takes the entry away. **Observed:**
++  the window under "MetalCreator" (gap XP-G13 predicts it does on Wayland). `./install.sh --remove` takes the entry away. **Observed:**
 +- [ ] **XP-17 Windows zip and file type.** Unzip `MetalCreator-<version>-windows-x64.zip` on a machine with no Swift, SDL or vcpkg,
 +  run `MetalCreator.exe --self-test` (all `ok`), run `register-mcgraph.ps1`, double-click a `.mcgraph` in Explorer: it opens;
 +  double-click a second: the running instance opens it. Windows warns about an unsigned download (spec section 6). **Observed:**
@@ -2295,7 +2295,7 @@ index a0ca982..3166203 100644
 +at the folder's `MetalCreator`, and the MIME type `application/x-metalcreator-graph` (glob `*.mcgraph`, a kind of `application/json`)
 +to `~/.local/share/mime/packages`, then runs `update-mime-database` and `update-desktop-database` where they exist.
 +`install.sh --remove` undoes it. The entry names no icon (there is none yet) and `StartupWMClass=com.metalcreator.MetalCreator`, which
-+a desktop shell can match to the window only when SDL's application id is that name; MetalUI sets none (gap XP-G12).
++a desktop shell can match to the window only when SDL's application id is that name; MetalUI sets none (gap XP-G13).
 +
 +On Windows, `register-mcgraph.ps1` (run from the unpacked folder, no administrator rights) writes the `.mcgraph` association under
 +`HKEY_CURRENT_USER\Software\Classes`; `-Remove` deletes it. Neither script is verified on a desktop: human checks XP-16 and XP-17.
@@ -2331,7 +2331,7 @@ Pass only if the exit code is 0, nothing says "recorded an issue" or "failed aft
 
 ```bash
 git add CLAUDE.md docs
-git commit -m "docs: xp-2 packaging, OpenCascade per OS, XP-G5 adopted, gap XP-G12, human checks XP-16..XP-18" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>" -m "Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS"
+git commit -m "docs: xp-2 packaging, OpenCascade per OS, XP-G5 adopted, gap XP-G13, human checks XP-16..XP-18" -m "Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>" -m "Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS"
 ```
 
 Tests added: **0**.
