@@ -48,4 +48,21 @@ struct MeshComparisonTests {
         #expect(comparison.unmatched == 1)
         #expect(MeshComparison(reference: extra, candidate: Self.cube).unmatched == 1)
     }
+
+    @Test func verticesInTheExcludedRegionAreLeftOutAndTheRestStillCount() {
+        let normals = [SIMD3<Float>](repeating: SIMD3(0, 0, 1), count: 8)
+        let reference = TriangleMesh(positions: Self.cube.positions, normals: normals, triangles: Self.cube.triangles)
+        var candidate = reference
+        candidate.positions[0] += SIMD3(0, 0, 0.002)
+        candidate.positions[6] += SIMD3(0, 0, 0.003)
+        let corner = reference.positions[0]
+        let nearCorner: (SIMD3<Float>) -> Bool = { point in ((point - corner) * (point - corner)).sum() < 0.25 }
+        #expect(abs(MeshComparison(reference: reference, candidate: candidate).farthest - 0.003) < 1e-6)
+        let leftOut = MeshComparison(reference: reference, candidate: candidate, excluding: nearCorner)
+        #expect(abs(leftOut.farthest - 0.003) < 1e-6 && abs(leftOut.farthestAlongNormal - 0.003) < 1e-6, "vertex 6 still counts")
+        candidate.positions[6] = reference.positions[6]
+        let onlyTheExcluded = MeshComparison(reference: reference, candidate: candidate, excluding: nearCorner)
+        #expect(onlyTheExcluded.farthest == 0 && onlyTheExcluded.unmatched == 0, "vertex 0 is not compared from either side")
+        #expect(abs(MeshComparison(reference: reference, candidate: candidate).farthest - 0.002) < 1e-6)
+    }
 }

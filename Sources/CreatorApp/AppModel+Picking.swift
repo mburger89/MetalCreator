@@ -12,7 +12,7 @@ extension AppModel {
         case .pickEdgesInView:
             beginPick(for: request.node)
         case .pickFacesInView:
-            alert = .problem(AppProblem("Faces can't be picked yet", "No node in this version selects faces."))
+            beginFacePick(for: request.node)
         case .editSketch:
             // Only a double click on the graph canvas can ask while a sketch is open (the inspector shows the
             // sketch's lists then): it changes nothing, so the stroke, selection and camera stay (Errata (S5b)).
@@ -70,6 +70,8 @@ extension AppModel {
         pick = nil
         // The level changed and `refreshScene` hasn't cancelled the pick yet: its nodes belong to another graph.
         guard session.level == editor.levelPath else { return }
+        // A face pick (for a lattice's region) never writes an Edges by Tag rule.
+        guard session.lattice == nil else { return }
         let picks = ConstantValue.edgePicks(session.solid.topology.picks(for: session.picked))
         do {
             if let rule = session.rule {
@@ -96,6 +98,10 @@ extension AppModel {
             pick = nil
             return
         }
+        if let lattice = session.lattice {
+            finishFacePick(for: lattice, session, target)
+            return
+        }
         guard case .edge(let index, let edge)? = target, viewport.items.indices.contains(index),
               viewport.items[index].solid === session.solid else { return }
         session.toggle(edge)
@@ -108,7 +114,7 @@ extension AppModel {
         guard viewport.items.indices.contains(face.solidIndex) else { return }
         let solid = viewport.items[face.solidIndex].solid
         if var session = pick {
-            guard solid === session.solid else { return }
+            guard session.lattice == nil, solid === session.solid else { return }
             session.add(edges)
             pick = session
             return
@@ -177,7 +183,7 @@ extension AppModel {
         return nil
     }
 
-    private func refusePick(_ message: String) {
+    func refusePick(_ message: String) {
         alert = .problem(AppProblem("Nothing to pick on", message))
     }
 }

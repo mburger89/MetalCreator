@@ -20,20 +20,26 @@ public enum StrutLatticeNode: NodeDefinition {
         SocketSpec("cell stretch", .vector, defaultValue: .vector(Vector3(1, 1, 1))),
         SocketSpec("strut radius", .field, defaultValue: .number(0.6), unit: .millimetres, range: 0...5),
         SocketSpec("node blend", .number, defaultValue: .number(0), unit: .millimetres, range: 0...5),
-    ]
+    ] + LatticeMappingSetup.sockets
     public static let outputs = [SocketSpec("implicit", .implicit)]
     /// The warnings about cells and walls depend on the voxel size, which differs between preview and export.
     public static let readsMeshQuality = true
     public static let help = "Where the cell size field changes fast the pattern stretches, and the preview gets slower: the "
         + "lipschitz bound grows with the field's slope. A node blend of up to a quarter of the smallest cell is allowed. "
         + "“blend” rounds the join between the skin and the lattice; it does nothing without a skin."
-    public static let inspector = [
+    private static let sections = [
         InspectorSection(title: "Cell", controls: [.segmented("cell", options: StrutCell.options)]),
         InspectorSection(title: "Size", controls: [.number("cell size"), .vector("cell stretch")]),
         InspectorSection(title: "Struts", controls: [
             .number("strut radius"), .number("node blend"), .number("skin"), .number("blend"), .note(help),
         ]),
     ]
+    public static let inspector = LatticeMappingSetup.inspector(base: sections, kind: .straight)
+
+    /// The Mapping section shows the inputs of the mapping this node is set to and no others.
+    public static func inspector(for node: Node) -> [InspectorSection] {
+        LatticeMappingSetup.inspector(base: sections, kind: LatticeMappingSetup.kind(of: node))
+    }
 
     public static func migrate(_ node: Node, from version: Int) -> Node { LatticeSetup.sharpJoin(node) }
 
@@ -52,9 +58,12 @@ public enum StrutLatticeNode: NodeDefinition {
                 + "(\(limit.millimetreText(locale: .messages)) mm).")
         }
 
-        let lattice = ImplicitSolid.struts(StrutLattice(cell: cell, cells: cells, radius: radius.grading, blend: blend, region: box))
+        let mapped = try await LatticeMappingSetup.make(inputs, region: region, cells: cells, kernel: kernel, context: context)
+
+        let lattice = ImplicitSolid.struts(StrutLattice(cell: cell, cells: cells, radius: radius.grading, blend: blend, region: box,
+                                                        mapping: mapped.mapping))
         let voxel = LatticeSetup.voxel(over: box, context: context)
-        var warnings = cellWarnings + radius.warnings + LatticeSetup.cellWarnings(cells, voxel: voxel)
+        var warnings = cellWarnings + radius.warnings + mapped.warnings + LatticeSetup.cellWarnings(cells, voxel: voxel)
         warnings += LatticeSetup.thinWarnings("Struts", thickest: 2 * radius.grading.range.upperBound, voxel: voxel)
         // A radius past `reachInCells` of the smallest cell edge makes `min(nearest, reach) - radius` negative everywhere: solid.
         if radius.grading.range.upperBound >= StrutLattice.reachInCells * cells.smallest * cells.smallestStretch {

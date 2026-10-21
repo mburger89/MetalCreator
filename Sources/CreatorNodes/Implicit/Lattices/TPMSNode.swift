@@ -21,20 +21,26 @@ public enum TPMSNode: NodeDefinition {
         SocketSpec("cell size", .field, defaultValue: .number(8), unit: .millimetres, range: 1...50),
         SocketSpec("cell stretch", .vector, defaultValue: .vector(Vector3(1, 1, 1))),
         SocketSpec("thickness", .field, defaultValue: .number(1), unit: .millimetres, range: 0...10),
-    ]
+    ] + LatticeMappingSetup.sockets
     public static let outputs = [SocketSpec("implicit", .implicit)]
     /// The resolution warnings differ between a preview and an export, so the cache keys the node by the mesh quality.
     public static let readsMeshQuality = true
     public static let help = "Where the cell size field changes fast the pattern stretches, and the preview gets slower: the "
         + "lipschitz bound grows with the field's slope. A network's thickness moves the level, so 0 fills half the region. "
         + "“blend” rounds the join between the skin and the lattice; it does nothing without a skin."
-    public static let inspector = [
+    private static let sections = [
         InspectorSection(title: "Surface", controls: [
             .segmented("type", options: TPMSType.options), .segmented("form", options: TPMSForm.options),
         ]),
         InspectorSection(title: "Cells", controls: [.number("cell size"), .vector("cell stretch")]),
         InspectorSection(title: "Wall", controls: [.number("thickness"), .number("skin"), .number("blend"), .note(help)]),
     ]
+    public static let inspector = LatticeMappingSetup.inspector(base: sections, kind: .straight)
+
+    /// The Mapping section shows the inputs of the mapping this node is set to and no others.
+    public static func inspector(for node: Node) -> [InspectorSection] {
+        LatticeMappingSetup.inspector(base: sections, kind: LatticeMappingSetup.kind(of: node))
+    }
 
     public static func migrate(_ node: Node, from version: Int) -> Node { LatticeSetup.sharpJoin(node) }
 
@@ -47,10 +53,12 @@ public enum TPMSNode: NodeDefinition {
         let box = region.bounds
         let (cells, cellWarnings) = try await LatticeSetup.cells(inputs, over: box, kernel: kernel, context: context)
         let wall = try await LatticeSetup.grading(inputs, "thickness", over: box, kernel: kernel, context: context)
+        let mapped = try await LatticeMappingSetup.make(inputs, region: region, cells: cells, kernel: kernel, context: context)
 
-        let lattice = ImplicitSolid.tpms(TPMSLattice(type: type, form: form, cells: cells, thickness: wall.grading, region: box))
+        let lattice = ImplicitSolid.tpms(TPMSLattice(type: type, form: form, cells: cells, thickness: wall.grading, region: box,
+                                                     mapping: mapped.mapping))
         let voxel = LatticeSetup.voxel(over: box, context: context)
-        var warnings = cellWarnings + wall.warnings + LatticeSetup.cellWarnings(cells, voxel: voxel)
+        var warnings = cellWarnings + wall.warnings + mapped.warnings + LatticeSetup.cellWarnings(cells, voxel: voxel)
         if form == .sheet { warnings += LatticeSetup.thinWarnings("Walls", thickest: wall.grading.range.upperBound, voxel: voxel) }
         warnings += ImplicitReach.warnings(for: region, reachedBy: skin)
         let result = LatticeFill.fill(region: region, lattice: lattice, skin: skin, blend: join)

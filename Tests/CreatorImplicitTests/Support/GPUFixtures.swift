@@ -28,6 +28,18 @@ enum GPUFixtures {
         return graded(field, range: 0.4...1.6, baked: [baked])
     }
 
+    /// Fixtures that agree in value (`GPUAgreementTests`, 1e-4 mm) but whose meshes sit up to 1.7 times past D17's allowance in the GPU
+    /// mesh comparison, which therefore allows them twice it: their lattice coordinates reach 40 to 70 mm (a mapping about an axis 30 mm
+    /// to the side of the region, or round a cylinder 20 mm to its side), where Float rounds a coordinate by up to 4e-6 mm and a
+    /// near-tangent mesh edge turns that into a slide of 1.1e-4 to 1.7e-4 mm along the surface's normal (spec Errata D20).
+    static let meshMarginal: Set<String> = [
+        "bcc struts, graded cell, blended, cylindrical beside", "diamond, graded cell, spherical beside the region",
+        "voronoi foam, face outside a cylinder",
+    ]
+
+    /// What the pipeline comparison multiplies D17's allowance by for the fixture `name`.
+    static func meshAllowanceFactor(_ name: String) -> Float { meshMarginal.contains(name) ? 2 : 1 }
+
     static var all: [(name: String, solid: ImplicitSolid)] {
         let sphere = ImplicitSolid.sphere(radius: 10)
         let noise = Field.noise(seed: 21, scale: 7, octaves: 3)
@@ -37,7 +49,7 @@ enum GPUFixtures {
                       .radialGradient(center: Vector3(1, 2, 3), radius: 9)),
             .remap(.distance(.point(Vector3(-2, 0, 4)), signed: false), fromLow: 0, fromHigh: 20, toLow: 1.5, toHigh: 0.5, clamped: false),
             width: 0.7)
-        var fixtures = ImplicitFixtures.all
+        var fixtures = ImplicitFixtures.all + LatticeFixtures.mappedAll + LatticeFixtures.faceOutsideAll
         fixtures += [
             ("noise offset", .offset(sphere, distance: graded(stretched))),
             ("noise tile image", .shell(sphere, thickness: graded(.add(.constant(0.5), picture.map {

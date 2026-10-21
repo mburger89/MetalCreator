@@ -154,6 +154,23 @@ public actor FakeKernel: Kernel {
         return try Self.measure(points, to: target, signed: signed)
     }
 
+    public func faceParametrization(of face: FaceID, in solid: Solid) throws -> FaceParametrization {
+        try Task.checkCancellation()
+        operationLog.append("faceParametrization")
+        _ = try Self.planarFrame(of: face, in: solid)
+        return FaceParametrization(kind: .plane, uMid: 0, vMid: 0, uScale: 1, vScale: 1)
+    }
+
+    public func faceCoordinates(of points: [Vector3], on face: FaceID, in solid: Solid) throws -> [FaceSample] {
+        try Task.checkCancellation()
+        operationLog.append("faceCoordinates")
+        let frame = try Self.planarFrame(of: face, in: solid)
+        return points.map { point in
+            let offset = point - frame.origin
+            return FaceSample(u: offset.dot(frame.xAxis), v: offset.dot(frame.yAxis), depth: offset.dot(frame.normal))
+        }
+    }
+
     // MARK: - Fake construction
 
     private func blend(_ solid: Solid, edges: [EdgeID], size: Double, tag: NodeTag) throws -> Solid {
