@@ -4,27 +4,30 @@
 
 **Goal:** `CreatorViewport` draws the real 3D view on Linux and Windows, over MetalUI's SDL GPU layer, with the passes the Metal renderer draws; macOS is unchanged in look, behaviour and test count.
 
-**Architecture:** `ViewportModel` stops knowing which GPU API draws for it: it talks to a `ViewportBackend` (draw count, pick, pending pick). `MetalViewportBackend` wraps the existing `ViewportRenderer` and `ViewportPicker` untouched. `SDLViewportBackend` wraps a new `SDLViewportRenderer`, which plans a frame (every buffer made and every copy recorded, because SDL_GPU cannot copy inside a render pass), records the 4x-MSAA colour+depth pass into the surface's own command buffer, and an `SDLViewportPicker`, which renders the ID pass in a batch after the draw that follows a change and reads the `r32Uint` words back with `SDLGPUDevice.download`. The shaders are HLSL (`Shaders/viewport`) built once by MetalUI's `compile-app-shaders.py` into checked-in SPIR-V, DXIL and MSL blobs, found beside the executable as `MetalUIAppShaders` or in the source tree. What the typed layer lacks (MetalUI gaps XP-G14 to XP-G19; XP-G12 and XP-G13 are already on master) is logged, never worked around: the four layers XP-G15 to XP-G18 block are the plan's last three tasks, and XP-G14 (a synchronous readback) and XP-G19 (a pipeline's failure reason) block nothing.
+**Architecture:** `ViewportModel` stops knowing which GPU API draws for it: it talks to a `ViewportBackend` (draw count, pick, pending pick). `MetalViewportBackend` wraps the existing `ViewportRenderer` and `ViewportPicker` untouched. `SDLViewportBackend` wraps a new `SDLViewportRenderer`, which plans a frame (every buffer made and every copy recorded, because SDL_GPU cannot copy inside a render pass), records the 4x-MSAA colour+depth pass into the surface's own command buffer, and an `SDLViewportPicker`, which renders the ID pass in a batch after the draw that follows a change and reads the `r32Uint` words back with `SDLGPUDevice.download`. The shaders are HLSL (`Shaders/viewport`), **compiled at build time on Linux and Windows** (user decision U1(b)) by MetalUI's `compile-app-shaders.py` through a pinned SDL_shadercross into SPIR-V, DXIL and MSL files in `Shaders/viewport/compiled`, which is generated, git-ignored and never checked in; the SDL renderer finds it beside the executable as `MetalUIAppShaders` or in the source tree. `scripts/build-shaders.sh` (Linux; `scripts/build-shaders.ps1` on Windows) does the compiling, and `scripts/linux-test.sh` and the CI jobs run it before `swift build`. What the typed layer lacks (MetalUI gaps XP-G14 to XP-G19; XP-G12 and XP-G13 are already on master) is logged, never worked around: the four layers XP-G15 to XP-G18 block are the plan's last three tasks, and XP-G14 (a synchronous readback) and XP-G19 (a pipeline's failure reason) block nothing. XP-G14 to XP-G19 were forwarded to MetalUI on 2026-10-21; **XP-G20** (MetalUI has no build-time shader path of its own) is logged beside them and blocks nothing.
 
-**Tech Stack:** Swift 6.4 strict concurrency, Swift Testing, MetalUI (`MetalUI`, `MetalUISDLGPU`, `MetalUIPortableText`, `MetalUISystemFonts`), HLSL through SDL_shadercross, Mesa lavapipe (Linux, a CPU Vulkan driver) and Direct3D 12 WARP (Windows) for the render tests.
+**Tech Stack:** Swift 6.4 strict concurrency, Swift Testing, MetalUI (`MetalUI`, `MetalUISDLGPU`, `MetalUIPortableText`, `MetalUISystemFonts`), HLSL through SDL_shadercross (a build tool on Linux and Windows, pinned to `libsdl-org/SDL_shadercross` commit `1ff05bec573988a98ef9e0260b4da44f512b8367`; macOS needs none), Mesa lavapipe (Linux, a CPU Vulkan driver) and Direct3D 12 WARP (Windows) for the render tests.
 
 **Spec:** `docs/superpowers/specs/2026-10-13-cross-platform-design.md` section 4 (the viewport on SDL GPU) and erratum E1 (`CreatorViewport` is declared everywhere; only its renderers are fenced), under the parent spec `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md` with all its Errata. This plan adds erratum E6 to the cross-platform spec (task 9).
+
+**Revision of 2026-10-21 (user decisions).** U1 is now option (b): the HLSL is **compiled at build time** on Linux and Windows by a pinned SDL_shadercross, and **no compiled shader, hash file or blob is checked in** (Task 4, Task 9). U2, U3, U4, U5, U6, U7 and U8 are decided as recommended. XP-G14 to XP-G19 were forwarded to MetalUI on 2026-10-21; **XP-G20** (MetalUI has no build-time shader path) is new. The tests that used to recompute checked-in hashes are replaced by tests that the build produced every shader and that `--self-test` fails plainly without them; test counts, the CI time, the Risks and the shared-files rows follow.
 
 **Branch:** `xp-3` (worktree `../MetalCreator-xp-3`), off master `11aab8e` (4656 tests). MetalUI is the sibling `../MetalUI`, read-only; the plan was written and checked against MetalUI master `b15e038c` and `.github/workflows/xp.yml` pins `c502f14c` (which has MetalUI S5 and S6, `MetalUISDLGPU`, master `34491ff4` and later).
 
 ## Global Constraints
 
 - **Rebase on master at execution start.** Master has moved past `11aab8e` (it now carries XP-G12 and XP-G13 in `docs/metalui-gaps.md`); take its test counts as the baseline.
-- **MetalUI's gap queue is empty, so XP-G14 to XP-G19 are forwarded to MetalUI immediately.** If they land before execution, Tasks 10 to 12 do not wait.
+- **XP-G14 to XP-G19 were forwarded to MetalUI on 2026-10-21** (the user's decision U5: ship Tasks 0 to 9, then 10 to 12 once MetalUI answers XP-G15 to XP-G18). If they land before execution, Tasks 10 to 12 do not wait. XP-G20 (no build-time shader path in MetalUI) was logged by the same revision and is not forwarded as a blocker: see Task 0 and U1.
 - Swift 6 strict concurrency; Swift Testing; `@MainActor @Observable` models; behaviour in models and thin views; one type per file; no force unwraps or force `try`; no GCD; no `String(format:)` or legacy formatters (`CLAUDE.md`, `AGENTS.md`).
 - `swiftlint lint --strict` reports zero violations before every commit.
+- **The compiled shaders are never committed.** `Shaders/viewport/compiled` is git-ignored and made by `scripts/build-shaders.sh` (`.ps1` on Windows); `git status` after a build shows nothing new. macOS never runs the script and its 12 test lines do not change.
 - Portability (`CLAUDE.md`, "Cross-platform"): no Metal outside `#if canImport(Metal)`, no SDL_GPU outside `#if canImport(MetalUISDLGPU)`, no CoreText, CoreGraphics, ImageIO, CryptoKit or `simd` outside a `#if canImport(…)` file or block.
 - The Swift 6.4 Windows compiler crashes on `async` functions that hold a loop's locals across an `await`: every heavy loop stays in a non-async helper.
 - A MetalUI gap goes in `docs/metalui-gaps.md` (the entry and the summary-table row) and is never worked around; MetalUI itself is never modified; `Package.swift`'s `.package(path: "../MetalUI", …)` line is never edited.
 - A full `swift test` passes only if the exit code is 0, no line says "recorded an issue" or "failed after" (Swift Testing uses glyphs, not ✘), and the number of "Test run with" lines is 12 on macOS, and **11 on Linux and Windows until xp-2 merges, 12 after** (xp-2 puts `CreatorOCCTTests` on them; whichever branch lands second updates the sentence in `CLAUDE.md` and the comments in `scripts/linux-test.sh`). The macOS count stays 12. **The hard checks are the exit code, the issue lines and that line count.** Test totals are not: every "Test run with N tests" figure in this plan was measured on master `11aab8e` and is given with what the task adds (`baseline + n`); take the baselines at the start of task 0 (step 3) and compare the delta, because another track's merge (7c-4 adds tests) moves the absolute figure.
 - Linux is verified with `scripts/linux-test.sh` in Docker (OrbStack), `XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3` (the build volume and the image are this track's own; a run never replaces another track's image); Windows is verified only in CI on `xp-*` branches (`.github/workflows/xp.yml`).
 - Never `pkill`/`killall` by a broad pattern (swift-test, swift test, swift-build, xctest): other sessions run `swift test` on this Mac. Kill only your own processes, by captured PID or a pattern containing your own worktree path.
-- No third-party code without asking (`AGENTS.md`): the one tool this plan adds, SDL_shadercross, runs only when a shader changes, is the one MetalUI requires, and is user decision U1.
+- No third-party code without asking (`AGENTS.md`): the one tool this plan adds, SDL_shadercross, is the one MetalUI requires. It is a **build dependency of Linux and Windows** (not of the package, and never of macOS): user decision U1(b), decided 2026-10-21, pinned in `scripts/shadercross.env`, built in the Linux image and in Windows CI, and a missing or failing one stops the build or test step with a message naming it and its pinned commit.
 
 ## Review Focus
 
@@ -35,6 +38,7 @@ The inputs this plan's tasks would not meet unless asked, most likely to bite fi
 3. **A new camera or a resize while an ID pass is wanted.** An orbit asks for a pass every frame: a newer request replaces an older one that has not started, a resize is a view of its own, an older view can be asked for again, nothing waits forever, and a pick outside a smaller view is empty space. Task 7, `SDLPickerTests.aNewCameraOrSizeSupersedesOlderRequestsAndAnOlderViewCanBeAskedForAgain` (and `theQuietBeforeAPassIsShortAndStartsItWithoutAnyoneAsking`).
 4. **More than 256 solids in the scene.** `PickID` holds 256 (8 bits); a solid past that is drawn and simply not pickable, and the others keep working. Task 7, `SDLPickerTests.aSolidPastTheTwoHundredFiftyFifthIsDrawnButNotPickable`.
 5. **A machine with no installed font.** A minimal container or Windows Server Core has nothing to rasterize the cube's names with: the cube still draws, unlabelled, and the app starts. Task 10, `SDLWidgetTests.aBlankAtlasLeavesTheCubeDrawnButUnlabelled` (the fallback itself, `CubeLabelFonts.atlas()`, is task 3).
+6. **A checkout whose shaders were never built, or were built before an HLSL edit.** `swift build` alone compiles no shader (U1(b)), so the tree can compile and then draw nothing. The SDL tests and `--self-test` fail with a message that names the script and the pinned tool; a stale build fails `ShaderSourceTests`. Task 4 `ShaderSourceTests.theBuildCompiledEveryStageIntoTheDirectoryTheRendererReads`, task 8 `ViewportShaderDirectoryTests.aMissingDirectoryFailsTheSelfTestCheckWithAMessageThatSaysWhatToRun`.
 
 ---
 
@@ -45,11 +49,12 @@ Another track also edits each of these. The side that merges second keeps everyt
 | File | Other track | Edited by xp-3 | The second merge must keep |
 |---|---|---|---|
 | `Package.swift` | xp-2 (OpenCascade flags per OS, `CreatorOCCT`, `COCCT`) | a `metalUISDLGPU` constant before the `occt` constant; `CreatorViewport`'s dependency list (now `metalUIPortableText`, `metalUISystemFonts`, `metalUISDL`, `metalUISDLGPU`; `metalUISDL` already exists for the app); `CreatorViewportTests`' list (`metalUISDL`, `metalUISDLGPU`, `"CreatorGraph"`) | all of these lines, and xp-2's per-OS OCCT blocks. No xp-3 line is inside the `#if os(macOS)` block. |
-| `.github/workflows/xp.yml` | xp-2 (packaging jobs, OCCT in the image) | `XP_REQUIRE_GPU: 1` and the comments in the Windows job (task 9) | `XP_REQUIRE_GPU`, and xp-2's jobs and steps. A MetalUI pin bump by either side applies to both; xp-3 does not change `METALUI_COMMIT` until tasks 10 to 12 adopt a MetalUI commit that answers XP-G15 to XP-G18. |
-| `scripts/linux-test.sh` | xp-2 (image, OCCT, packaging steps) | `-e XP_REQUIRE_GPU=1` on `docker run`; `test` taking swift-test arguments (`test --filter NAME`, count rule off); `IMAGE=${IMAGE:-metalcreator-linux:latest}`; header comments (task 0) | xp-2 makes the same three changes in its own words (its default count 12, `IMAGE`, `OCCT_IMAGE`, `OCCT_JOBS`, `TEST_ARGS`, a `package` step). **The side that merges second keeps xp-2's text for all of them and drops xp-3's duplicate** (one `IMAGE` line, one argument form, no `filter` verb), keeps `-e XP_REQUIRE_GPU=1`, and rewrites the two count sentences in the header and `CLAUDE.md`: the count is **11 on Linux and Windows until xp-2 merges and 12 after** (`CreatorOCCTTests`), 12 on macOS throughout. |
-| `scripts/linux/Dockerfile` | xp-2 (OCCT) | none | n/a |
+| `.github/workflows/xp.yml` | xp-2 (packaging jobs, OCCT in the image, vcpkg steps) | `XP_REQUIRE_GPU: 1` and the comments in the Windows job (task 9); **the shadercross steps (task 4): a buildx step for the `shadercross` image on the Linux jobs, and on Windows an `actions/cache/restore` + build + `actions/cache/save` of shadercross and a `scripts/build-shaders.ps1` step before `swift build`** | `XP_REQUIRE_GPU`, the shadercross steps, and xp-2's jobs and steps (its vcpkg steps stay as they are; the two caches have different keys). A MetalUI pin bump by either side applies to both; xp-3 does not change `METALUI_COMMIT` until tasks 10 to 12 adopt a MetalUI commit that answers XP-G15 to XP-G18. |
+| `scripts/linux-test.sh` | xp-2 (image, OCCT, packaging steps) | `-e XP_REQUIRE_GPU=1` on `docker run`; `test` taking swift-test arguments (`test --filter NAME`, count rule off); `IMAGE=${IMAGE:-metalcreator-linux:latest}`; header comments (task 0); **`scripts/build-shaders.sh` run inside the container before `swift build`, `swift test` and the smoke step, and `SHADERCROSS_IMAGE` passed as a build argument when set (task 4)** | xp-2 makes the same three changes in its own words (its default count 12, `IMAGE`, `OCCT_IMAGE`, `OCCT_JOBS`, `TEST_ARGS`, a `package` step). **The side that merges second keeps xp-2's text for all of them and drops xp-3's duplicate** (one `IMAGE` line, one argument form, no `filter` verb), keeps `-e XP_REQUIRE_GPU=1` and the `build-shaders.sh` calls, and rewrites the two count sentences in the header and `CLAUDE.md`: the count is **11 on Linux and Windows until xp-2 merges and 12 after** (`CreatorOCCTTests`), 12 on macOS throughout. |
+| `scripts/linux/Dockerfile` | xp-2 (an `occt` stage, `FROM ${OCCT_IMAGE} AS occt-source`, `/opt/occt`, `patchelf`, `desktop-file-utils` in the final stage) | **a `shadercross` stage of its own (an amd64 image with SDL3 and SDL_shadercross built from the pinned commit into `/opt/shadercross`, task 4); the final stage is untouched** (the stage is never copied into it; `scripts/linux-test.sh` runs the compile in it) | **both stages, each in a layer set of its own** (a change of the OCCT pin must not rebuild shadercross, nor the reverse); the `ARG SHADERCROSS_COMMIT` value must equal `scripts/shadercross.env` (`ShaderToolchainTests` pins it). Docker's last stage is the default target, so the final stage stays last. |
 | `CLAUDE.md` | xp-2, 7c-4, the adoption track | the xp-3 paragraph after xp-1's, five one-line edits (Package list, placeholder sentence, `CreatorViewport` bullet, GPU structs line, two commands) (task 9) | both sides' paragraphs; the xp-3 edits are independent sentences. |
-| `docs/metalui-gaps.md` | xp-2 (an amendment of the XP-G5 row, plan Task 8; its "no way to set SDL's application id" gap is XP-G13, already on master), the adoption track | eight summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G14 to XP-G19 new) and one section at the end (task 0) | all of xp-2's and xp-3's rows and sections. **The numbers are agreed: xp-2 owns no gap (XP-G12, the image-format sniff, and XP-G13, the SDL application id, are already on master); xp-3 owns XP-G14 to XP-G19; a gap either branch finds later takes XP-G20.** xp-3's rows come after master's XP-G13 row; if xp-2 amends the XP-G5 row too, the second merge is a textual conflict to resolve by keeping every row, in numeric order, not a renumbering. |
+| `docs/metalui-gaps.md` | xp-2 (an amendment of the XP-G5 row, plan Task 8; its "no way to set SDL's application id" gap is XP-G13, already on master), the adoption track | nine summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G14 to XP-G20 new) and one section at the end (task 0) | all of xp-2's and xp-3's rows and sections. **The numbers are agreed: xp-2 owns no gap (XP-G12, the image-format sniff, and XP-G13, the SDL application id, are already on master); xp-3 owns XP-G14 to XP-G20; a gap either branch finds later takes XP-G21.** xp-3's rows come after master's XP-G13 row; if xp-2 amends the XP-G5 row too, the second merge is a textual conflict to resolve by keeping every row, in numeric order, not a renumbering. |
+| `scripts/package-linux.sh`, `scripts/package-windows.ps1`, `packaging/` | xp-2 (the tarball, the AppImage, the Windows zip) | none | xp-2 copies the **build output** `Shaders/viewport/compiled` to `MetalUIAppShaders` beside the executable (U7(a)); it runs after `scripts/build-shaders.sh`/`.ps1` and its self-test fails with the message of `ViewportShaderCheck` if the directory is absent. Whichever branch merges second checks that copy line exists (task 9 step 1b). |
 | `docs/verification/human-checks.md` | xp-2 (XP-16, XP-17 and XP-18, plan Task 8) | XP-19 to XP-25 in group XP, XP-2 and XP-9 reworded (task 9) | all of them. The numbers are agreed already: xp-2 owns XP-16 to XP-18, xp-3 XP-19 to XP-25, so whichever merges second adds its block after the other's without renumbering. If either branch has to add one more, it takes the next free number after both blocks and renumbers its own references (XP-n in the plan text, in `SDL*Tests` comments and in `CLAUDE.md`). |
 | `docs/superpowers/specs/2026-10-13-cross-platform-design.md` | xp-2 | erratum E6 (task 9) | E6, or renumber if xp-2 took the number. |
 | `Sources/MetalCreatorApp/main.swift` | the MetalUI adoption track (ImageHeader, main.swift, cursors) | one line, `smoke?.viewport = { … }` after the `AppModel` is made (task 8) | that line and the adoption track's changes. |
@@ -61,43 +66,47 @@ Not shared: `CreatorImplicit` and the lattice nodes (7c-4), the bracket tests; x
 
 ## User decisions
 
-Product and process choices the spec leaves open. The plan is written for the **recommended** option of each; a different answer changes only what is named.
+Product and process choices the spec leaves open. **All eight were decided on 2026-10-21**: U1 is option (b), the others are the recommended option (a). Each entry says what was decided and keeps the alternatives that were not taken, for the record.
 
-**U1. The shader source language and build path.**
-- (a) **HLSL, built once with MetalUI's `compile-app-shaders.py` through SDL_shadercross; the SPIR-V, DXIL and MSL blobs and `SOURCE.sha256` are checked in; a test recomputes the hashes with no shadercross.** *Recommended:* it is the path MetalUI documents and tests (`packaging.md` section 4a, `GA-F`), CI needs no extra tool, and an edited source that was not rebuilt fails everywhere.
-- (b) The same HLSL compiled in CI (and by every developer) at build time: no blobs in the repository, but shadercross becomes a build dependency of every platform and of `swift build`.
-- (c) Hand-written GLSL/SPIR-V and a separate DXIL: two sources to keep in step, no MetalUI support.
-- SDL_shadercross is a third-party tool; the plan asks you to approve it as a tool you run when a shader changes (not a dependency of the package).
+**U1. The shader source language and build path. DECIDED 2026-10-21: option (b).**
+- (a) *Not taken.* HLSL, built once with MetalUI's `compile-app-shaders.py` through SDL_shadercross; the SPIR-V, DXIL and MSL blobs and `SOURCE.sha256` checked in; a test recomputes the hashes with no shadercross. (It was this plan's first recommendation: it is the path MetalUI documents and tests, `packaging.md` section 4a, `GA-F`, and CI needs no extra tool. The user preferred no generated binaries in the repository.)
+- (b) **DECIDED. The same HLSL compiled at build time, in CI and by every developer on Linux and Windows. No compiled blob is checked in, and SDL_shadercross becomes a build dependency of the platforms that use the SDL renderer (Linux and Windows; macOS builds Metal only, U6(a), and needs none).** What follows from it, all in Task 4 and Task 9:
+  - **Where compilation happens: a script step before `swift build`, not a SwiftPM plugin.** MetalUI has neither a build-tool plugin nor a documented build-time path (no `Plugins` directory; `docs/packaging.md` section 4a describes only the script run by hand and tells the app to check its output in; `Experiments/SDLGPU/README.md` says "no SDL_shadercross release exists to fetch in CI"; its own CI never runs shadercross). That is gap **XP-G20**, logged in `docs/metalui-gaps.md`. A plugin of our own is not a sensible fit: a build-tool plugin runs sandboxed and may write only into its own work directory, which is neither beside the executable nor in the source tree where MetalUI's `SDLGPUShaderLibrary.locate` looks, it would be applied on macOS too (where it must do nothing), and Swift 6.4 on Windows runs plugins no better than the rest of its toolchain. So the compile is **`scripts/build-shaders.sh`** (Linux, and macOS if someone ever wants it) and **`scripts/build-shaders.ps1`** (Windows). `scripts/linux-test.sh` runs the first inside the container before `swift build`, `swift test` and the smoke step; the CI Windows job runs the second before `swift build`; a developer on Windows runs it once and again after editing a `.hlsl` file. The honest consequence: **`swift build` alone does not compile shaders**. A checkout that skipped the script finds no shaders and says so: the SDL tests and `--self-test` fail with a message that names the script and the pinned tool (Task 4, `ViewportShaderCheck`), and a stale directory (an `.hlsl` edited after the last build) is caught by `ShaderSourceTests`.
+  - **Where shadercross comes from.** `libsdl-org/SDL_shadercross` has **no release and no tag** (checked 2026-10-21: `gh api repos/libsdl-org/SDL_shadercross/releases` and `/tags` are both empty; its CI uploads short-lived Actions artifacts only), so the pin is a **full commit**: `1ff05bec573988a98ef9e0260b4da44f512b8367` (2026-09-03, the head of `main` and its latest green `Build` run), recorded once in `scripts/shadercross.env`. Its submodules (SPIRV-Cross, SPIRV-Headers, SPIRV-Tools) are pinned by that commit; its prebuilt DirectXShaderCompiler is pinned by URL and SHA-256 inside the commit (`build-scripts/download-prebuilt-DirectXShaderCompiler.cmake`: Microsoft `v1.9.2602`, Linux x86_64 and Windows x86/x64/arm64 only). Linux: built in its own stage of `scripts/linux/Dockerfile` (cached in that layer locally and by buildx in CI). Windows: built in CI and cached with `actions/cache` (the same restore, build, save pattern as xp-2's vcpkg). **There is no prebuilt DXC for Linux aarch64, so the Linux stage is an `amd64` image everywhere** (native on x86_64 runners, Rosetta or QEMU on aarch64 hosts); the compiled shaders are byte-for-byte independent of the host, so the aarch64 job loses nothing but speed (Task 4 has the numbers and Risk 13 the alternative).
+  - **Failure is loud.** A missing, mispinned or failing shadercross stops `scripts/build-shaders.sh`/`.ps1` (and with it the `linux-test.sh` step and the CI step) with a plain message naming the tool and the pinned commit, e.g. `SDL_shadercross (libsdl-org/SDL_shadercross commit 1ff05bec573988a98ef9e0260b4da44f512b8367, pinned in scripts/shadercross.env) was not found ...`.
+  - **Shipping is U7(a):** xp-2's packaging (the tarball, the AppImage and the Windows zip) copies the build output `Shaders/viewport/compiled` to `MetalUIAppShaders`; nothing is read from the repository at run time in a shipped app.
+- (c) *Not taken.* Hand-written GLSL/SPIR-V and a separate DXIL: two sources to keep in step, no MetalUI support.
+- SDL_shadercross is a third-party tool (`AGENTS.md`: ask first). The user approved it on 2026-10-21 **as a build tool of the Linux and Windows builds** (not a SwiftPM dependency, never linked into the app).
 
-**U2. One HLSL source shared with Metal, or MSL kept separately.**
-- (a) **Keep the Metal renderer's MSL strings (`ViewportShaders`, `LineShaders`, `FieldShaders`) and add HLSL beside them; pin both to the same Swift structs.** *Recommended:* macOS is untouched (its look, its 12 test lines, no shadercross for a macOS contributor), and `GPUDataTests` plus `ShaderSourceTests` catch the struct drift that is the realistic danger. The two sources are about 600 lines each.
+**U2. One HLSL source shared with Metal, or MSL kept separately. DECIDED 2026-10-21: option (a).**
+- (a) **Keep the Metal renderer's MSL strings (`ViewportShaders`, `LineShaders`, `FieldShaders`) and add HLSL beside them; pin both to the same Swift structs.** *Recommended:* macOS is untouched (its look, its 12 test lines, no shadercross for a macOS contributor, which U1(b) keeps true), and `GPUDataTests` plus `ShaderSourceTests` catch the struct drift that is the realistic danger. The two sources are about 600 lines each.
 - (b) HLSL as the single source, the macOS renderer loading the MSL shadercross generates: no duplicated shading maths, but it rewrites a renderer that works, makes every shader edit need shadercross, and risks a visible change on the Mac.
 - (c) (a) now, and a generated-MSL comparison as an oracle test later.
 
-**U3. CI GPU strategy.**
+**U3. CI GPU strategy. DECIDED 2026-10-21: option (a).**
 - (a) **Linux: the existing Docker image's Mesa lavapipe (a CPU Vulkan driver, x86_64 and aarch64, the way MetalUI's own `sdl-gpu-linux.yml` renders); Windows: Direct3D 12 on WARP. The render and pick suites run on both; `XP_REQUIRE_GPU=1` turns "no device" from a silent skip into a failure.** *Recommended:* no new runner, the tests that matter (the ID pass, the picks, the pixels) run on every push, and the skip policy follows MetalUI's `METALUI_REQUIRE_GPU`.
 - (b) Skip the renderer suites in CI and rely on human checks (group XP): fast, but nothing guards the shaders or the picker after this merge.
 - (c) A self-hosted GPU runner: real hardware, a machine to look after.
 
-**U4. Picking on SDL is asynchronous.**
+**U4. Picking on SDL is asynchronous. DECIDED 2026-10-21: option (a).**
 - (a) **Render the ID buffer ahead (after the draw that follows a change of camera or scene) and answer from it; while it is on its way a hover keeps its face and a click waits a few milliseconds.** *Recommended:* the typed layer offers only async readback, and this is Metal's behaviour but for those milliseconds.
 - (b) Wait for MetalUI to add a synchronous readback (gap XP-G14) and block on it, exactly as Metal's picker does.
 - (c) Call raw `SDL_` functions for a blocking wait: works today, but it is the workaround the project forbids.
 
-**U5. How gap-blocked layers are handled.** XP-G15 (viewport and scissor), XP-G16 (colour write mask), XP-G17 (`r32Float`) and XP-G18 (anisotropy) block the view cube and triad, the ghost prepass and the slice.
+**U5. How gap-blocked layers are handled. DECIDED 2026-10-21: option (a).** XP-G15 (viewport and scissor), XP-G16 (colour write mask), XP-G17 (`r32Float`) and XP-G18 (anisotropy) block the view cube and triad, the ghost prepass and the slice.
 - (a) **Tasks 0 to 9 ship the working viewport first (solids, edges, grid, guides, overlay, handles, field tint, clip, warning faces, ID-pass picking). Tasks 10 to 12 wait for MetalUI to answer and are written against the signatures requested in `docs/metalui-gaps.md` and checked against a local copy of MetalUI that has them.** *Recommended:* it respects "never work around" and lands the 90% that does not need MetalUI. Until 10 to 12 land the SDL viewport has no view cube or triad (and, so that nothing invisible acts, the model does not hit-test the cube's corner: hover and click there reach the scene; the cube's arrow buttons and View menu stay), blends ghosts in one pass (an interior can show through) and draws no slice.
 - (b) Use the raw escape hatch MetalUI documents (`SDL_SetGPUViewport(pass.raw, …)`, one line) and shader-side imitations (a zero-output ghost prepass, an `r32Uint` bit-cast) now: everything draws today, with code that MetalUI's answer will make obsolete.
 - (c) Hold the whole merge until MetalUI answers.
 
-**U6. Does macOS also build the SDL renderer?**
+**U6. Does macOS also build the SDL renderer? DECIDED 2026-10-21: option (a).**
 - (a) **No: macOS builds Metal only; Linux (Docker, CI) and Windows (CI) verify the SDL renderer.** *Recommended:* macOS needs no SDL3 install, keeps its test count, and avoids the MetalUI `SG-D` module-map hazard of a conditional dependency.
 - (b) Also ask for the `SDL` trait on macOS (Homebrew SDL3) so `swift run` can drive the SDL renderer on the Mac's GPU: handy for debugging, but it changes the shared `Package.swift` trait line and every macOS build.
 
-**U7. Where the compiled shaders ship.**
-- (a) **`MetalUIAppShaders` beside the executable, then the source tree (MetalUI's lookup order); xp-2's packaging copies `Shaders/viewport/compiled` there.** *Recommended:* the documented recipe; `--self-test` fails if the directory is missing.
+**U7. Where the compiled shaders ship. DECIDED 2026-10-21: option (a).**
+- (a) **`MetalUIAppShaders` beside the executable, then the source tree (MetalUI's lookup order); xp-2's packaging copies the build output `Shaders/viewport/compiled` there.** *Recommended:* the documented recipe; `--self-test` fails if the directory is missing. With U1(b) the packaging scripts run `build-shaders` first if the directory is absent and copy what it made.
 - (b) SwiftPM resources (`Bundle.module`): turns `CreatorViewport` into a resource target on macOS too.
 
-**U8. The cube's face names on macOS.**
+**U8. The cube's face names on macOS. DECIDED 2026-10-21: option (a).**
 - (a) **One rasterizer for both platforms through MetalUI's `TextSystem`; macOS passes `CoreTextTextSystem()`.** *Recommended:* it is the spec's "through MetalUI's portable text, not CoreText" with no second code path; the names may antialias a hair differently from the old direct `CTLineDraw` (human check XP-25).
 - (b) Keep the CoreText rasterizer for macOS and add the portable one beside it: zero macOS change, two paths to keep equal.
 
@@ -117,7 +126,9 @@ Product and process choices the spec leaves open. The plan is written for the **
 - **The model hit-tests the view cube only while the backend draws it** (`ViewportBackend.drawsWidgets`, `ViewportModel.cubeCatches(_:)`): SDL says `false` until task 10, so no invisible control turns the camera.
 - **A click that waited for the ID buffer is the click of the press**: the tool and the projector it was made with, not those of the moment the buffer lands.
 - **The device is the window renderer's, borrowed from the first draw** (`SDLGPUDevice(borrowing:)` through `ctx.view`); the viewport model must not outlive its window.
-- **`.gitattributes` pins `*.hlsl`, `*.hlsli`, `*.sha256` and `*.json` to LF** (rule `GA-Q`: a CRLF checkout changes the hashes).
+- **`.gitattributes` pins `*.hlsl`, `*.hlsli` and `scripts/shadercross.env` to LF** (a CRLF checkout changes the sources' hashes, which the build writes to `SOURCE.sha256` and the freshness test compares, and the env file is read by `sh`).
+- **The compiled directory is a build product.** `/Shaders/viewport/compiled` is in `.gitignore`. `compile-app-shaders.py` still writes `SOURCE.sha256` there (MetalUI's `SDLGPUShaderLibrary.locate` uses it as the marker that the directory is a shader directory), and `scripts/build-shaders.sh` adds `INCLUDES.sha256` for the shared header; neither is committed.
+- **One pin, in `scripts/shadercross.env`** (`SHADERCROSS_COMMIT`, `SHADERCROSS_REPOSITORY`); the Dockerfile, the Linux and Windows CI steps, both scripts and their error messages read or repeat it, and `ShaderToolchainTests` fails if the Dockerfile or the workflow disagree with it.
 
 ## File structure
 
@@ -137,7 +148,7 @@ Each file has one job. New files under `Sources/CreatorViewport/RenderSDL/` are 
 | `View/ViewportModel+Surface.swift` (changed) | the Metal `draw`, now through `MetalViewportBackend` |
 | `View/ViewportModel+SDLSurface.swift` | the SDL `draw` (`GPUSurface` closure, `SDLGPUDrawContext`) |
 | `Render/CubeLabelAtlas+TextSystem.swift`, `Render/CubeLabelFonts.swift` | the cube's six names rasterized through MetalUI's `TextSystem` (replaces `CubeLabelAtlas+CoreText.swift`) |
-| `ViewportShaderCheck.swift` | `--self-test` asks the viewport whether its shaders ship |
+| `ViewportShaderCheck.swift` | `--self-test` asks the viewport whether its shaders were built and ship; a missing directory is reported with the script to run |
 
 **SDL renderer, `Sources/CreatorViewport/RenderSDL`**
 
@@ -159,9 +170,12 @@ Each file has one job. New files under `Sources/CreatorViewport/RenderSDL/` are 
 | File | Responsibility |
 |---|---|
 | `Shaders/viewport/*.hlsl`, `common.hlsli` | the viewport's vertex and fragment stages and their shared structs |
-| `Shaders/viewport/compiled/*` | SPIR-V, DXIL, MSL, reflection JSON, `SOURCE.sha256`, `INCLUDES.sha256` (generated, checked in) |
-| `scripts/build-viewport-shaders.sh` | rebuilds `compiled` through MetalUI's `compile-app-shaders.py` and SDL_shadercross |
-| `.gitattributes` | pins the shader files' line endings |
+| `Shaders/viewport/compiled/*` | SPIR-V, DXIL, MSL, reflection JSON, `SOURCE.sha256`, `INCLUDES.sha256` (**generated by the build, git-ignored, not checked in**) |
+| `scripts/shadercross.env` | the one pin: SDL_shadercross repository and commit |
+| `scripts/build-shaders.sh` | compiles `Shaders/viewport` into `compiled` through MetalUI's `compile-app-shaders.py` and the pinned SDL_shadercross (Linux; run by `linux-test.sh` and CI before `swift build`); stops with a message naming the tool and its pin when it is missing or fails |
+| `scripts/build-shaders.ps1` | the same on Windows (CI and developers), finding shadercross in `SHADERCROSS` or the CI cache |
+| `scripts/linux/Dockerfile` (changed) | a `shadercross` stage: SDL3 and the pinned SDL_shadercross built into `/opt/shadercross` (amd64) |
+| `.gitattributes`, `.gitignore` | pin the shader sources' line endings; ignore the compiled directory |
 
 **App**
 
@@ -170,7 +184,7 @@ Each file has one job. New files under `Sources/CreatorViewport/RenderSDL/` are 
 | `CreatorApp/ViewportPane.swift` (changed), `ViewportPlaceholder.swift` (deleted) | the real viewport on every platform |
 | `CreatorApp/LaunchSmoke.swift`, `SelfTest.swift`, `MetalCreatorApp/main.swift` (changed) | the smoke test passes only if the viewport drew; the self-test checks its shaders |
 
-**Tests, `Tests/CreatorViewportTests`**: `ViewportBackendTests`, `ShaderSourceTests`, `CubeLabelTests` (now portable), and, SDL-only and skipped without an SDL_GPU device, `SDLGPUAvailabilityTests`, `SDLRenderTests`, `SDLFieldGuideClipTests`, `SDLPickerTests`, `SDLWidgetTests`, `SDLSliceTests`, with `Support/RenderFixtures.swift`, `SDLTestDevice.swift`, `SDLRenderRig.swift`, `TestMeshes+Sheet.swift`. `Tests/CreatorAppTests`: `LaunchSmokeTests`, `ViewportPaneTests`.
+**Tests, `Tests/CreatorViewportTests`**: `ViewportBackendTests`, `ShaderSourceTests` (struct sizes everywhere; on Linux and Windows also that the build produced every shader and is current), `ShaderToolchainTests` (the pin agrees everywhere it is written), `CubeLabelTests` (now portable), and, SDL-only and skipped without an SDL_GPU device, `SDLGPUAvailabilityTests`, `SDLRenderTests`, `SDLFieldGuideClipTests`, `SDLPickerTests`, `SDLWidgetTests`, `SDLSliceTests`, with `Support/RenderFixtures.swift`, `SDLTestDevice.swift`, `SDLRenderRig.swift`, `TestMeshes+Sheet.swift`. `Tests/CreatorAppTests`: `LaunchSmokeTests`, `ViewportPaneTests`.
 
 ---
 
@@ -180,7 +194,7 @@ Tasks 0 to 9 need only MetalUI as it is (the CI pin `c502f14c`, and `b15e038c`, 
 
 ### Task 0: Log the MetalUI gaps; give the Linux script test arguments, an image of its own and a GPU promise
 
-MetalUI answered XP-G1 (S5 and S6: `MetalUISDLGPU`). This task records that, logs the six things the typed layer still lacks (`XP-G14` to `XP-G19`, entry and summary row each, as `docs/metalui-gaps.md` asks; XP-G12 and XP-G13 are already on master, see the shared-files table), and makes `scripts/linux-test.sh` able to run one suite (every later task checks its own tests on Linux this way: `scripts/linux-test.sh test --filter NAME`, the argument form xp-2 also adds), run in an image of the track's own (`IMAGE`), and promise the SDL render suites a GPU. No Swift changes. **Forward the six new entries to the MetalUI session now** (they are small: the patch at the end of this plan answers XP-G15 to XP-G18; XP-G14 and XP-G19 are wishes, not blockers); tasks 1 to 9 do not wait for the answer.
+MetalUI answered XP-G1 (S5 and S6: `MetalUISDLGPU`). This task records that, logs the six things the typed layer still lacks (`XP-G14` to `XP-G19`, entry and summary row each, as `docs/metalui-gaps.md` asks; XP-G12 and XP-G13 are already on master, see the shared-files table) and the one thing MetalUI lacks outside the typed layer (`XP-G20`: a build-time path for app shaders, the reason user decision U1(b) carries its own pin, Docker stage and scripts), and makes `scripts/linux-test.sh` able to run one suite (every later task checks its own tests on Linux this way: `scripts/linux-test.sh test --filter NAME`, the argument form xp-2 also adds), run in an image of the track's own (`IMAGE`), and promise the SDL render suites a GPU. No Swift changes. **XP-G14 to XP-G19 were forwarded to the MetalUI session on 2026-10-21** (they are small: the patch at the end of this plan answers XP-G15 to XP-G18; XP-G14 and XP-G19 are wishes, not blockers); **XP-G20 is new in this revision and still to forward** (a wish, not a blocker); tasks 1 to 9 do not wait for any answer.
 
 **Files:**
 - Modify: `docs/metalui-gaps.md`
@@ -192,14 +206,14 @@ MetalUI answered XP-G1 (S5 and S6: `MetalUISDLGPU`). This task records that, log
 
 - [ ] **Step 1: Add the gaps to `docs/metalui-gaps.md`**
 
-Eight summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G14 to XP-G19 new; XP-G12 and XP-G13, already on master, come before them) and one section at the end of the file, with the use case and what xp-3 does meanwhile. These entries are the text to send MetalUI.
+Nine summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G14 to XP-G20 new; XP-G12 and XP-G13, already on master, come before them) and one section at the end of the file, with the use case and what xp-3 does meanwhile. These entries are the text to send MetalUI.
 
 `docs/metalui-gaps.md` (change; apply with `git apply` or by hand):
 
 ```diff
 --- a/docs/metalui-gaps.md
 +++ b/docs/metalui-gaps.md
-@@ -71,6 +71,14 @@
+@@ -71,6 +71,15 @@
  | XP-G8 | Hand and zoom cursor fallbacks | MetalUI S4 (queued) | ➖ accepted: MetalUI's fallback (`.link` hand, grab → move, zoom → arrow) is used as is; S4 adds image cursors (human check XP-8) |
  | XP-G9 | `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks)` | open (new) | 🔄 open at MetalUI. `MetalCreatorApp --smoke-test` (the CI launch check, `main.swift`) imports it with `@_spi(Checks) import MetalUISDL`; promote it to public API or name a supported headless-launch entry point |
  | XP-G10 | A header-only read of a picture's size and orientation (before any pixel is decoded) | open (new, forward to MetalUI) | 🔄 open at MetalUI. `DecodedImage` reports size and orientation only after it decodes the whole picture, but `ImageLimits` must refuse an oversize one first; MetalCreator keeps a small `ImageHeader` reader (PNG IHDR and `eXIf`, JPEG SOF and APP1) for that. Needed: a public `ImageInfo(data:)` (format, stored size, orientation, no pixel work) |
@@ -211,10 +225,11 @@ Eight summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G14 to XP-G19 ne
 +| XP-G17 | `SDLGPUTextureFormat.r32Float` | open (new, forward to MetalUI) | 🔄 open at MetalUI, **blocks the field slice** (xp-3 task 12): its grid is an `r32Float` texture read with a nearest sampler |
 +| XP-G18 | Anisotropic filtering on `SDLGPUSamplerDescription` | open (new, forward to MetalUI) | 🔄 open at MetalUI, wanted with XP-G15: the view cube's face names are read through a sampler with `max_anisotropy(8)` on Metal, since the cube is seen at a slant |
 +| XP-G19 | The reason `makeGraphicsPipeline` refused (it answers `nil`; its doc says the message is `SDL_GetError()`) | open (new, forward to MetalUI) | 🔄 open at MetalUI, not blocking. xp-3 names the vertex/fragment pair in its error and reads no raw `SDL_GetError()` (the project's rule is no raw `SDL_` call); on a Direct3D 12 driver the reason is what tells a bad register from a missing feature |
++| XP-G20 | A build-time path for an app's SDL_GPU shaders: a plugin or a documented, pinned SDL_shadercross for CI | open (new, forward to MetalUI) | 🔄 open at MetalUI, not blocking. `packaging.md` section 4a has the app run `compile-app-shaders.py` by hand and check the compiled directory in; MetalUI has no build-tool plugin, runs no shadercross in its CI, and SDL_shadercross has no release or tag (checked 2026-10-21). xp-3 (user decision U1(b)) compiles at build time with a pin of its own: `scripts/shadercross.env`, a Docker stage, `scripts/build-shaders.sh`/`.ps1` |
  
  ## Reported 2026-10-07 (C7)
  
-@@ -1223,3 +1231,52 @@
+@@ -1223,3 +1232,62 @@
    a window opened and closed in a release run; human check). Needed from MetalUI: break the cycle when the store is torn down (the
    window's end or `renderFrame`'s return clears the entries and spends the armed sessions) or make the `onChange` closure hold the
    store weakly. No stopgap in MetalCreator. To be forwarded to the MetalUI session.
@@ -263,6 +278,16 @@ Eight summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G14 to XP-G19 ne
 +  the reason matters, but reading it means a raw `SDL_GetError()` call, which this project does not make. Needed: either
 +  `makeGraphicsPipeline` throws or returns a `Result` with the message, or `SDLGPUDevice.lastFailure` also records pipeline failures.
 +  Wanted, not blocking: xp-3's error names the vertex and fragment shader of the pair that was refused and points here.
++- **XP-G20. A build-time path for an app's SDL_GPU shaders.** `docs/packaging.md` section 4a tells an app to run `Backends/SDL/scripts/compile-app-shaders.py` by hand
++  and to **check the compiled directory in**; MetalUI has no SwiftPM build-tool or command plugin (no `Plugins` directory), its own CI never runs SDL_shadercross
++  (`Experiments/SDLGPU/README.md`: "no SDL_shadercross release exists to fetch in CI"), `libsdl-org/SDL_shadercross` still has no release and no tag (checked
++  2026-10-21; `main` and short-lived Actions artifacts only), and Microsoft publishes DirectXShaderCompiler for Linux x86_64 and Windows only, so there is no pinned
++  way to get the tool on Linux aarch64. An app that compiles at build time (xp-3's user decision U1(b): no compiled file in the repository, SDL_shadercross a build
++  dependency of Linux and Windows) therefore carries its own pin (`scripts/shadercross.env`), Docker stage, Windows build (`scripts/install-shadercross.ps1`) and
++  scripts (`scripts/build-shaders.sh`, `.ps1`), and `swift build` alone compiles nothing. Needed, wanted and not blocking: (1) a build-tool or command plugin in
++  MetalUI that compiles an app's `*.{vert,frag,comp}.hlsl` and ships the result where `SDLGPUShaderLibrary.locate` looks, or a documented recipe that does the same;
++  (2) a pinned, documented SDL_shadercross for CI on Linux x86_64 and aarch64 and on Windows (a release asset or a published container); (3) `SDLGPUShaderLibrary`
++  accepting a build product without a `SOURCE.sha256` marker (today the script writes it, and xp-3 relies on that). Nothing is worked around inside MetalUI.
 +
 +What the viewport does not need, and so does not ask for: fragment-stage storage buffers (a face's flags are read in the vertex stage and reach
 +the fragment stage as a flat interpolant), a vertex format of `uint` (every vertex stream is a storage buffer), a sampled `r8Unorm` mip chain
@@ -382,7 +407,7 @@ Expected: `syntax-ok`, no issue line, and one `Test run with N tests in S suites
 swiftlint lint --strict --quiet   # no output
 git add docs/metalui-gaps.md \
   scripts/linux-test.sh
-git commit -m "docs: log MetalUI gaps XP-G14 to XP-G19; linux-test.sh takes test arguments and IMAGE, XP_REQUIRE_GPU"
+git commit -m "docs: log MetalUI gaps XP-G14 to XP-G20; linux-test.sh takes test arguments and IMAGE, XP_REQUIRE_GPU"
 ```
 
 
@@ -1592,11 +1617,15 @@ git commit -m "viewport: cube face names rasterized through MetalUI's TextSystem
 ```
 
 
-### Task 4: The HLSL shaders, their build script and the checks that keep them honest
+### Task 4: The HLSL shaders, compiled at build time by a pinned SDL_shadercross, and the checks that keep them honest
 
 The viewport's SDL shaders are 16 HLSL stage files and a shared header, one pair per pipeline: `background`, `mesh` (opaque solids and ghosts), `field_mesh`, `fill`, `line`, `grid`, and the ID pass's own `id_mesh` and `id_line` (they declare only the vertex outputs they read, because Direct3D 12 links stages by register, MetalUI rule `GA-Q`). They are line-for-line the Metal shaders' maths (`ViewportShaders`, `LineShaders`, `FieldShaders`) in HLSL: `mix` is `lerp`, `fract` is `frac`, `discard_fragment()` is `discard`, `[[front_facing]]` is `SV_IsFrontFace`; `fwidth`, `saturate` and `pow` are the same. Differences that are not syntax: vertex data comes from `StructuredBuffer`s read by `SV_VertexID`/`SV_InstanceID`; the face flags are read in the vertex stage and reach the fragment stage as a flat interpolant; a ghost is `ghost == 1` in the same `mesh` fragment; and every vector in a struct is a `float4`/`uint4` so the layout is the Swift one.
 
-`scripts/build-viewport-shaders.sh` runs MetalUI's `compile-app-shaders.py` (HLSL to SPIR-V, then SPIR-V to MSL, DXIL and a reflection JSON each) and writes `INCLUDES.sha256` for the header, which `SOURCE.sha256` does not cover. The compiled directory is **checked in**: `ShaderSourceTests` recomputes every source's SHA-256 against it with no shadercross, and computes each HLSL struct's size to compare with the Swift struct's `MemoryLayout.stride`, so an edited source that was not rebuilt, or a struct that drifted, fails on every platform. (This is user decision U1/U2.)
+**User decision U1(b), decided 2026-10-21: the HLSL is compiled at build time, in CI and by every developer on Linux and Windows. Nothing compiled is checked in.** `scripts/build-shaders.sh` (Linux) and `scripts/build-shaders.ps1` (Windows) run MetalUI's `compile-app-shaders.py` (HLSL to SPIR-V, then SPIR-V to MSL, DXIL and a reflection JSON each) through the pinned SDL_shadercross into `Shaders/viewport/compiled`, which is **git-ignored**. `scripts/linux-test.sh` and the CI jobs run the script before `swift build`; macOS runs nothing (U6(a): Metal only). A SwiftPM build-tool plugin was looked for first and rejected (U1, gap XP-G20: MetalUI has none and documents none; a plugin's output cannot land beside the executable or in the source tree, which are the two places `SDLGPUShaderLibrary.locate` looks), so **`swift build` alone does not compile shaders**; a checkout that skipped the script finds no shaders, and says so (below).
+
+**The pinned tool.** `scripts/shadercross.env` holds the one pin: `libsdl-org/SDL_shadercross` commit `1ff05bec573988a98ef9e0260b4da44f512b8367`. The repository has no release and no tag (checked 2026-10-21), so a full commit is the only pin there is; the commit fixes its three submodules (SPIRV-Cross, SPIRV-Headers, SPIRV-Tools) and, through `build-scripts/download-prebuilt-DirectXShaderCompiler.cmake`, Microsoft's DirectXShaderCompiler `v1.9.2602` by URL and SHA-256 (Linux x86_64 and Windows only). Linux builds it in a `shadercross` stage of `scripts/linux/Dockerfile`, an **amd64** image everywhere because there is no Linux aarch64 DXC (the blobs do not depend on the host's architecture); Windows builds it with `scripts/install-shadercross.ps1`, cached by `actions/cache`. See "Measured here" in Step 4 for what was built and run.
+
+**What guards what, with no checked-in hashes.** `ShaderSourceTests` has two kinds of check. On every platform it computes each HLSL struct's size and compares it with the Swift struct's `MemoryLayout.stride`, so a struct that drifted fails on macOS too. On Linux and Windows only it checks that **the build produced every expected compiled shader** in the directory the renderer reads at run time (MetalUI's lookup order: `MetalUIAppShaders` beside the executable if one is there, else the source tree's `Shaders/viewport/compiled`; task 5's `ViewportShaderDirectoryTests` ask MetalUI's own `SDLGPUShaderLibrary` the same question), that the build is **current** (the `SOURCE.sha256` the build wrote matches the sources now: an `.hlsl` edited after the last build fails with "run scripts/build-shaders.sh") and that every message names the script. `ViewportShaderDirectoryTests` loads each stage for the platform's driver, and a new test there pins that **`--self-test`'s check fails with a plain message when the directory is missing** (`ViewportShaderCheck`, task 8). `ShaderToolchainTests` pins that the pin is written the same everywhere (the env file, the Dockerfile, the workflow, both scripts' messages) and that the script stops, naming the tool and its commit, when shadercross is missing. (This is user decisions U1(b) and U2(a).)
 
 **Files:**
 - Create: `.gitattributes`
@@ -1618,18 +1647,26 @@ The viewport's SDL shaders are 16 HLSL stage files and a shared header, one pair
 - Create: `Shaders/viewport/mesh.frag.hlsl`
 - Create: `Shaders/viewport/mesh.vert.hlsl`
 - Create: `Tests/CreatorViewportTests/ShaderSourceTests.swift`
-- Create: `scripts/build-viewport-shaders.sh`
+- Create: `scripts/shadercross.env`
+- Create: `scripts/build-shaders.sh`
+- Create: `scripts/build-shaders.ps1`
+- Create: `scripts/install-shadercross.ps1`
+- Create: `Tests/CreatorViewportTests/ShaderToolchainTests.swift`
+- Modify: `.gitignore`
 - Modify: `Package.swift`
+- Modify: `scripts/linux/Dockerfile` (the `shadercross` stage)
+- Modify: `scripts/linux-test.sh` (build the stage's image, run `build-shaders.sh` before `swift build`, `swift test` and the smoke step)
+- Modify: `.github/workflows/xp.yml` (the shadercross steps on the Linux and Windows jobs)
 
-**Generated (not shown):** `Shaders/viewport/compiled/` holds, for each of the 16 stage files, `NAME.{spv,dxil,msl,json}`, plus `SOURCE.sha256` and `INCLUDES.sha256`: 66 files, built in step 5.
+**Generated and never committed:** `Shaders/viewport/compiled/` holds, for each of the 16 stage files, `NAME.{spv,dxil,msl,json}`, plus `SOURCE.sha256` (MetalUI's marker file) and `INCLUDES.sha256`: 66 files, made by `scripts/build-shaders.sh` in step 4. It is in `.gitignore`, so `git add` of the task's files never includes it.
 
 **Interfaces:**
 - Consumes: `CreatorGraph`'s `SHA256` (a test-target dependency; `@testable import`), the Swift structs `FrameUniforms`, `MeshVertex`, `DrawUniforms`, `ShadeUniforms`, `LineInstance`, `LineUniforms`, `GridUniforms`, `FillVertex`, `ClipUniforms`, `FieldRampUniforms`.
-- Produces: `Shaders/viewport/NAME.vert.hlsl` and `NAME.frag.hlsl` for `background`, `mesh`, `field_mesh`, `fill`, `line`, `grid`, `id_mesh`, `id_line`; the binding convention every later task relies on: vertex storage buffers `register(tN, space0)`, vertex uniforms `register(bN, space1)`, fragment samplers `register(tN/sN, space2)`, fragment uniforms `register(bN, space3)`, N in declaration order; `Shaders/viewport/compiled` with `SOURCE.sha256` and `INCLUDES.sha256`.
+- Produces: `Shaders/viewport/NAME.vert.hlsl` and `NAME.frag.hlsl` for `background`, `mesh`, `field_mesh`, `fill`, `line`, `grid`, `id_mesh`, `id_line`; the binding convention every later task relies on: vertex storage buffers `register(tN, space0)`, vertex uniforms `register(bN, space1)`, fragment samplers `register(tN/sN, space2)`, fragment uniforms `register(bN, space3)`, N in declaration order; `scripts/build-shaders.sh` / `.ps1` (exit 0 and `Shaders/viewport/compiled` with 66 files, or exit 69 and a message naming `SDL_shadercross` and its pinned commit); `scripts/shadercross.env` (`SHADERCROSS_REPOSITORY`, `SHADERCROSS_COMMIT`); `SHADERCROSS_IMAGE` in `scripts/linux-test.sh`; `ShaderSourceTests.compiledDirectory` helpers used by task 5's tests.
 
 - [ ] **Step 1: Write the failing tests**
 
-The tests read `Shaders/viewport` from the test file's own path, so they need no GPU.
+The tests read `Shaders/viewport` from the test file's own path, so they need no GPU and no shadercross: they look at what the build left, and at the sources.
 
 `Tests/CreatorViewportTests/ShaderSourceTests.swift` (new):
 
@@ -1639,29 +1676,18 @@ import Testing
 @testable import CreatorGraph
 @testable import CreatorViewport
 
-/// The HLSL shaders in `Shaders/viewport` and what is checked in beside them, read with no GPU and no shadercross: a source edited
-/// without a rebuild (`scripts/build-viewport-shaders.sh`) fails here on every platform, and the HLSL structs the shaders read have the
-/// sizes of the Swift structs that fill them (`GPUDataTests` pins those; this pins the HLSL side to the same numbers).
+/// The HLSL shaders in `Shaders/viewport` and what the build made of them. The HLSL structs the shaders read have the sizes of the
+/// Swift structs that fill them (every platform: `GPUDataTests` pins the Swift side, this pins the HLSL side to the same numbers).
+/// On Linux and Windows the compiled shaders are a build product (`scripts/build-shaders.sh`, user decision U1(b)), so the tests also
+/// check that the build made every one of them where the renderer looks and that it is current. Nothing compiled is checked in.
 struct ShaderSourceTests {
     /// `Shaders/viewport`, found from this file: `Tests/CreatorViewportTests/ShaderSourceTests.swift` is three directories below the root.
     static let directory = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         .appending(path: "Shaders/viewport")
-    static var compiled: URL { directory.appending(path: "compiled") }
 
     static func hexDigest(of url: URL) throws -> String {
         SHA256.hash(try Data(contentsOf: url)).map { ($0 < 16 ? "0" : "") + String($0, radix: 16) }.joined()
-    }
-
-    /// `<sha256>  <name>` lines as a dictionary of name to digest.
-    static func hashes(in file: String) throws -> [String: String] {
-        let text = try String(contentsOf: compiled.appending(path: file), encoding: .utf8)
-        var table: [String: String] = [:]
-        for line in text.split(separator: "\n") {
-            let parts = line.split(separator: " ", omittingEmptySubsequences: true)
-            if parts.count == 2 { table[String(parts[1])] = String(parts[0]) }
-        }
-        return table
     }
 
     static var stageSources: [URL] {
@@ -1669,34 +1695,7 @@ struct ShaderSourceTests {
         return names.filter { $0.hasSuffix(".vert.hlsl") || $0.hasSuffix(".frag.hlsl") }.sorted().map { directory.appending(path: $0) }
     }
 
-    @Test func everyStageSourceHasItsCheckedInHashAndBlobs() throws {
-        let sources = Self.stageSources
-        #expect(sources.count >= 16, "the viewport's vertex and fragment stages are found")
-        let table = try Self.hashes(in: "SOURCE.sha256")
-        #expect(Set(table.keys) == Set(sources.map(\.lastPathComponent)), "SOURCE.sha256 lists exactly the stage sources")
-        for source in sources {
-            #expect(table[source.lastPathComponent] == (try Self.hexDigest(of: source)),
-                    "\(source.lastPathComponent) changed since scripts/build-viewport-shaders.sh ran")
-            let stem = String(source.lastPathComponent.dropLast(".hlsl".count))
-            for blob in ["spv", "dxil", "msl", "json"] {
-                let url = Self.compiled.appending(path: "\(stem).\(blob)")
-                let size = (try? Data(contentsOf: url).count) ?? 0
-                #expect(size > 0, "\(stem).\(blob) is checked in and not empty")
-            }
-        }
-    }
-
-    @Test func theSharedHeaderHasItsCheckedInHash() throws {
-        let table = try Self.hashes(in: "INCLUDES.sha256")
-        let headers = try FileManager.default.contentsOfDirectory(atPath: Self.directory.path).filter { $0.hasSuffix(".hlsli") }
-        #expect(Set(table.keys) == Set(headers))
-        for header in headers {
-            #expect(table[header] == (try Self.hexDigest(of: Self.directory.appending(path: header))),
-                    "\(header) changed since scripts/build-viewport-shaders.sh ran")
-        }
-    }
-
-    // MARK: The HLSL structs have the Swift structs' sizes
+    // MARK: The HLSL structs have the Swift structs' sizes (every platform)
 
     /// The size in bytes of each HLSL type the header uses. There is no float3: it packs differently in a constant buffer, a
     /// structured buffer and Swift, which is why the header spells every vector as a float4.
@@ -1755,8 +1754,126 @@ struct ShaderSourceTests {
         }
         #expect(Set(sizes.keys) == Set(swift.keys), "a struct added to the header needs its Swift twin pinned here")
     }
+
+    #if os(Linux) || os(Windows)
+    // MARK: The build made the shaders (Linux and Windows)
+
+    /// Where a running app looks for its compiled shaders, in MetalUI's order (`SDLGPUShaderLibrary.locate`, `docs/packaging.md` section
+    /// 4a): `MetalUIAppShaders` beside the executable, then the source tree's `Shaders/viewport/compiled`. The first that holds the
+    /// `SOURCE.sha256` the build writes is the one. (Task 5's `ViewportShaderDirectoryTests` ask MetalUI's own lookup the same.)
+    static var runtimeDirectory: URL? {
+        let executable = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments.first ?? ".")
+        let candidates = [executable.deletingLastPathComponent().appending(path: "MetalUIAppShaders"), directory.appending(path: "compiled")]
+        return candidates.first { FileManager.default.fileExists(atPath: $0.appending(path: "SOURCE.sha256").path) }
+    }
+
+    /// What a missing or stale result of the build tells the person who sees it.
+    static let remedy = "Run scripts/build-shaders.sh (scripts/build-shaders.ps1 on Windows; scripts/linux-test.sh does it for you): the shaders are compiled at build time by the pinned SDL_shadercross, scripts/shadercross.env."
+
+    /// `<sha256>  <name>` lines of a file the build wrote, as a dictionary of name to digest.
+    static func hashes(in file: String, of directory: URL) throws -> [String: String] {
+        let text = try String(contentsOf: directory.appending(path: file), encoding: .utf8)
+        var table: [String: String] = [:]
+        for line in text.split(separator: "\n") {
+            let parts = line.split(separator: " ", omittingEmptySubsequences: true)
+            if parts.count == 2 { table[String(parts[1])] = String(parts[0]) }
+        }
+        return table
+    }
+
+    /// The build produced every stage's four files where the renderer reads them, and the build is current: the `SOURCE.sha256` and
+    /// `INCLUDES.sha256` it wrote match the sources and the header now. A source edited after the last build fails here and says so.
+    @Test func theBuildCompiledEveryStageIntoTheDirectoryTheRendererReads() throws {
+        let sources = Self.stageSources
+        #expect(sources.count >= 16, "the viewport's vertex and fragment stages are found")
+        let compiled = try #require(Self.runtimeDirectory, "no compiled shader directory beside the executable or in the source tree. \(Self.remedy)")
+        for source in sources {
+            let stem = String(source.lastPathComponent.dropLast(".hlsl".count))
+            for blob in ["spv", "dxil", "msl", "json"] {
+                let size = (try? Data(contentsOf: compiled.appending(path: "\(stem).\(blob)")).count) ?? 0
+                #expect(size > 0, "\(stem).\(blob) is missing or empty in \(compiled.path). \(Self.remedy)")
+            }
+        }
+        let table = try Self.hashes(in: "SOURCE.sha256", of: compiled)
+        #expect(Set(table.keys) == Set(sources.map(\.lastPathComponent)), "SOURCE.sha256 lists exactly the stage sources. \(Self.remedy)")
+        for source in sources {
+            #expect(table[source.lastPathComponent] == (try Self.hexDigest(of: source)),
+                    "\(source.lastPathComponent) changed after the last build. \(Self.remedy)")
+        }
+        let includes = try Self.hashes(in: "INCLUDES.sha256", of: compiled)
+        let headers = try FileManager.default.contentsOfDirectory(atPath: Self.directory.path).filter { $0.hasSuffix(".hlsli") }
+        #expect(Set(includes.keys) == Set(headers), "INCLUDES.sha256 lists exactly the shared headers. \(Self.remedy)")
+        for header in headers {
+            #expect(includes[header] == (try Self.hexDigest(of: Self.directory.appending(path: header))),
+                    "\(header) changed after the last build. \(Self.remedy)")
+        }
+    }
+    #endif
 }
 ```
+
+`Tests/CreatorViewportTests/ShaderToolchainTests.swift` (new):
+
+```swift
+import Foundation
+import Testing
+
+/// The shader compiler is pinned once, in `scripts/shadercross.env`, and written again in the Dockerfile, the workflow and the
+/// scripts' messages. This pins that they agree, and that the build script stops with a plain message, naming the tool and its pinned
+/// commit, when it cannot find it. Read from the source tree (`#filePath`), so macOS runs them too.
+struct ShaderToolchainTests {
+    static let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+
+    /// A text file of the repository with Windows line endings read as Unix ones (a CRLF checkout must not change the answer).
+    static func text(_ path: String) throws -> String {
+        try String(contentsOf: root.appending(path: path), encoding: .utf8).replacing("\r\n", with: "\n")
+    }
+
+    static func pin() throws -> (repository: String, commit: String) {
+        let env = try text("scripts/shadercross.env")
+        let commit = try #require(env.firstMatch(of: /(?m)^SHADERCROSS_COMMIT=([0-9a-f]{40})$/)?.1, "scripts/shadercross.env names a 40-digit commit")
+        let repository = try #require(env.firstMatch(of: /(?m)^SHADERCROSS_REPOSITORY=(\S+)$/)?.1, "scripts/shadercross.env names the repository")
+        return (String(repository), String(commit))
+    }
+
+    @Test func thePinIsTheSameInTheEnvFileTheDockerfileAndTheWorkflow() throws {
+        let pin = try Self.pin()
+        #expect(pin.repository == "https://github.com/libsdl-org/SDL_shadercross")
+        let dockerfile = try Self.text("scripts/linux/Dockerfile")
+        let docker = try #require(dockerfile.firstMatch(of: /(?m)^ARG SHADERCROSS_COMMIT=([0-9a-f]{40})$/)?.1, "the Dockerfile's shadercross stage has the ARG")
+        #expect(String(docker) == pin.commit, "scripts/linux/Dockerfile's SHADERCROSS_COMMIT differs from scripts/shadercross.env")
+        let workflow = try Self.text(".github/workflows/xp.yml")
+        #expect(workflow.contains("scripts/shadercross.env"), "the workflow keys the Windows cache on the env file, not on a copy of the commit")
+        #expect(!workflow.contains("SHADERCROSS_COMMIT:"), "the workflow reads the pin from scripts/shadercross.env and does not repeat it")
+        let ps = try Self.text("scripts/install-shadercross.ps1")
+        #expect(ps.contains("shadercross.env"), "install-shadercross.ps1 reads the pin from the env file")
+    }
+
+    /// The scripts' plain failure: no shadercross, exit 69, a line that names the tool, the repository and the pinned commit.
+    #if !os(Windows)
+    @Test func aMissingShadercrossStopsTheBuildNamingTheToolAndItsPin() throws {
+        let pin = try Self.pin()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [Self.root.appending(path: "scripts/build-shaders.sh").path]
+        process.environment = ["SHADERCROSS": "/nonexistent/shadercross", "PATH": "/usr/bin:/bin"]
+        let errors = Pipe()
+        process.standardError = errors
+        process.standardOutput = Pipe()
+        try process.run()
+        process.waitUntilExit()
+        let message = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        #expect(process.terminationStatus == 69)
+        #expect(message.contains("SDL_shadercross"), "the message names the tool: \(message)")
+        #expect(message.contains(pin.commit), "the message names the pinned commit: \(message)")
+        #expect(message.contains("scripts/shadercross.env"), "the message says where the pin is written: \(message)")
+    }
+    #endif
+}
+```
+
+Both files are portable: macOS runs `ShaderToolchainTests` and the struct-size test (the Linux-and-Windows test looks for a build product macOS never makes, so it is compiled out there).
 
 - [ ] **Step 2: Run the tests: they fail**
 
@@ -1769,20 +1886,32 @@ Expected: the build fails. `Unable to find module dependency: 'CreatorGraph'` in
 
 - [ ] **Step 3: Implement**
 
-`Package.swift` gives `CreatorViewportTests` the dependency. The shaders and the script follow.
+`Package.swift` gives `CreatorViewportTests` the dependency. The shaders, the build scripts, the pin, the Docker stage, the `linux-test.sh` step and the CI steps follow. **Nothing compiled is added.**
 
 `.gitattributes` (new):
 
 ```
-# The viewport's shaders (Shaders/viewport): the hashes of their sources are checked in beside the compiled blobs, so a checkout must not
-# change their bytes (MetalUI docs/packaging.md section 4a, rule GA-Q: a CRLF checkout on Windows changes the hashes).
+# The viewport's shader sources (Shaders/viewport) and the compiler pin are read as text by the build, by its freshness check and by the
+# tests: a checkout must not change their bytes (MetalUI docs/packaging.md section 4a, rule GA-Q: a CRLF checkout on Windows changes the
+# sources' hashes, which the build writes to SOURCE.sha256 and ShaderSourceTests compares). The compiled files are not in git at all.
 /Shaders/viewport/*.hlsl text eol=lf
 /Shaders/viewport/*.hlsli text eol=lf
-/Shaders/viewport/compiled/*.sha256 text eol=lf
-/Shaders/viewport/compiled/*.json text eol=lf
-/Shaders/viewport/compiled/*.msl text eol=lf
-/Shaders/viewport/compiled/*.dxil binary
-/Shaders/viewport/compiled/*.spv binary
+/scripts/shadercross.env text eol=lf
+```
+
+`.gitignore` (change; apply with `git apply` or by hand):
+
+```diff
+--- a/.gitignore
++++ b/.gitignore
+@@ -13,3 +13,7 @@
+ 
+ # scripts/package-app.sh writes the packaged app here.
+ /dist
++
++# The viewport's SDL_GPU shaders are compiled at build time by scripts/build-shaders.sh (.ps1 on Windows) from Shaders/viewport/*.hlsl;
++# nothing compiled is checked in (plan xp-3, user decision U1(b)).
++/Shaders/viewport/compiled
 ```
 
 `Shaders/viewport/background.frag.hlsl` (new):
@@ -2369,39 +2498,103 @@ Out main(uint vid : SV_VertexID) {
 }
 ```
 
-`scripts/build-viewport-shaders.sh` (new):
+`scripts/shadercross.env` (new):
+
+```sh
+# The one pin of the shader compiler (plan xp-3, user decision U1(b)). Read by scripts/build-shaders.sh and build-shaders.ps1,
+# scripts/install-shadercross.ps1 and scripts/linux-test.sh; the Dockerfile's ARG repeats the commit and ShaderToolchainTests fails if
+# it differs. libsdl-org/SDL_shadercross has no release and no tag, so the pin is a commit: the head of `main` on 2026-10-21, whose
+# latest `Build` run was green. The commit fixes the submodules (SPIRV-Cross, SPIRV-Headers, SPIRV-Tools) and Microsoft's prebuilt
+# DirectXShaderCompiler v1.9.2602 (URL and SHA-256 in build-scripts/download-prebuilt-DirectXShaderCompiler.cmake).
+# To move the pin: change the commit here and in the Dockerfile, run scripts/linux-test.sh all and a Windows CI run.
+SHADERCROSS_REPOSITORY=https://github.com/libsdl-org/SDL_shadercross
+SHADERCROSS_COMMIT=1ff05bec573988a98ef9e0260b4da44f512b8367
+```
+
+`scripts/build-shaders.sh` (new, mode 755):
 
 ```bash
 #!/bin/bash
-# Rebuilds the viewport's SDL_GPU shaders (cross-platform spec section 4, plan xp-3): the HLSL in Shaders/viewport becomes SPIR-V (Vulkan),
-# DXIL (Direct3D 12) and MSL, a reflection JSON each, and SOURCE.sha256, in Shaders/viewport/compiled, which is checked in. MetalUI's
-# compile-app-shaders.py does the work (MetalUI docs/packaging.md, section 4a); its one dependency is SDL_shadercross
-# (https://github.com/libsdl-org/SDL_shadercross: a release binary, or a source build), which nothing but this script needs: a test
-# recomputes the sources' hashes against the checked-in files with no shadercross, so a source edited without a rebuild fails anywhere.
+# Compiles the viewport's SDL_GPU shaders (cross-platform spec section 4, plan xp-3, user decision U1(b)): the HLSL in Shaders/viewport
+# becomes SPIR-V (Vulkan), DXIL (Direct3D 12) and MSL, a reflection JSON each, plus SOURCE.sha256 (MetalUI's marker: its
+# SDLGPUShaderLibrary.locate accepts only a directory that holds it) and INCLUDES.sha256, in Shaders/viewport/compiled. Nothing
+# compiled is checked in (the directory is git-ignored): every Linux and Windows build makes it. MetalUI's compile-app-shaders.py
+# (docs/packaging.md section 4a) does the work; its one dependency is SDL_shadercross, pinned in scripts/shadercross.env.
 #
-#   scripts/build-viewport-shaders.sh /path/to/shadercross        (or SHADERCROSS=/path/to/shadercross scripts/build-viewport-shaders.sh)
+#   scripts/build-shaders.sh                  uses $SHADERCROSS, else /opt/shadercross/bin/shadercross (the Docker image), else PATH
+#   SHADERCROSS=/path/to/shadercross scripts/build-shaders.sh
 #
-# Needs MetalUI beside this repository (../MetalUI, as Package.swift expects) and python3. HLSL `#include` resolves against the working
-# directory, so the compiler runs from Shaders/viewport. SOURCE.sha256 hashes only the stage files, so INCLUDES.sha256 hashes the shared
-# header the same way.
+# On Linux scripts/linux-test.sh runs this inside the shadercross image before swift build, swift test and the smoke step; CI does the
+# same through it. Windows has scripts/build-shaders.ps1. macOS builds Metal only (MSL strings) and never runs this.
+#
+# Exit codes: 0 the directory is built (or was already current); 69 shadercross is missing or is not the pinned commit; 1 a shader
+# failed to compile (the directory is removed, so the tests and --self-test fail loudly rather than run on a half-built one);
+# 2 MetalUI is not beside this repository. Needs python3. A rerun with unchanged sources does nothing.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT=$PWD
-SHADERCROSS=${1:-${SHADERCROSS:-}}
+# shellcheck source=scripts/shadercross.env
+. scripts/shadercross.env
+TOOL="SDL_shadercross ($SHADERCROSS_REPOSITORY, commit $SHADERCROSS_COMMIT, pinned in scripts/shadercross.env)"
+fail() { echo "scripts/build-shaders.sh: $2" >&2; exit "$1"; }
+
+SHADERCROSS=${SHADERCROSS:-}
+if [ -z "$SHADERCROSS" ]; then
+    for candidate in /opt/shadercross/bin/shadercross "$(command -v shadercross || true)"; do
+        if [ -n "$candidate" ] && [ -x "$candidate" ]; then SHADERCROSS=$candidate; break; fi
+    done
+fi
 if [ -z "$SHADERCROSS" ] || [ ! -x "$SHADERCROSS" ]; then
-    echo "usage: scripts/build-viewport-shaders.sh /path/to/shadercross" >&2
-    exit 64
+    fail 69 "$TOOL was not found. Set SHADERCROSS=/path/to/shadercross, or on Linux run this through scripts/linux-test.sh, whose Docker image builds it (scripts/linux/Dockerfile, stage shadercross). The viewport's shaders are compiled at build time and cannot be built without it."
+fi
+# The image records the commit it built beside the binary; any other build is refused, so a stale image cannot pass for the pin.
+BUILT=$(cat "$(dirname "$SHADERCROSS")/../COMMIT" 2>/dev/null || true)
+if [ -n "$BUILT" ] && [ "$BUILT" != "$SHADERCROSS_COMMIT" ]; then
+    fail 69 "$SHADERCROSS was built from commit $BUILT, but $TOOL is required. Rebuild it (docker image rm the old shadercross image, then rerun)."
 fi
 COMPILER="$ROOT/../MetalUI/Backends/SDL/scripts/compile-app-shaders.py"
-if [ ! -f "$COMPILER" ]; then
-    echo "scripts/build-viewport-shaders.sh: MetalUI must be checked out beside this repository (../MetalUI)." >&2
-    exit 2
-fi
+[ -f "$COMPILER" ] || fail 2 "MetalUI must be checked out beside this repository (../MetalUI), as Package.swift expects."
 
 cd Shaders/viewport
+# Current already? The directory is current when its marker files list exactly the present sources and header with their digests and
+# every expected file is there (ShaderSourceTests asks the same question).
+if python3 - <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+def table(pattern):
+    return {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(Path(".").glob(pattern))}
+
+def listed(name):
+    try:
+        lines = [line.split() for line in Path("compiled", name).read_text().splitlines() if line.strip()]
+    except OSError:
+        return None
+    return {fields[1]: fields[0] for fields in lines if len(fields) == 2}
+
+def size(name, kind):
+    try:
+        return Path("compiled", name[: -len(".hlsl")] + "." + kind).stat().st_size
+    except OSError:
+        return 0
+
+stages = {name: digest for name, digest in table("*.hlsl").items() if name.split(".")[-2] in ("vert", "frag")}
+complete = bool(stages) and all(size(name, kind) > 0 for name in stages for kind in ("spv", "dxil", "msl", "json"))
+sys.exit(0 if complete and listed("SOURCE.sha256") == stages and listed("INCLUDES.sha256") == table("*.hlsli") else 1)
+PY
+then
+    echo "Shaders/viewport/compiled is current."
+    exit 0
+fi
+
 rm -rf compiled
-python3 "$COMPILER" --shadercross "$SHADERCROSS" --source . --out compiled
+echo "Compiling Shaders/viewport with $TOOL..."
+if ! python3 "$COMPILER" --shadercross "$SHADERCROSS" --source . --out compiled; then
+    rm -rf compiled
+    fail 1 "$TOOL failed to compile a shader of Shaders/viewport (the lines above name the file and the compiler's complaint). Shaders/viewport/compiled was removed."
+fi
 python3 - <<'PY'
 import hashlib
 from pathlib import Path
@@ -2409,7 +2602,137 @@ from pathlib import Path
 lines = [f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n" for path in sorted(Path(".").glob("*.hlsli"))]
 Path("compiled/INCLUDES.sha256").write_text("".join(lines))
 PY
-echo "Rebuilt Shaders/viewport/compiled."
+echo "Built Shaders/viewport/compiled ($(ls compiled | wc -l | tr -d ' ') files)."
+```
+
+`scripts/build-shaders.ps1` (new; the Windows twin, run by CI and by a developer on Windows):
+
+```powershell
+<#
+.SYNOPSIS
+Compiles the viewport's SDL_GPU shaders on Windows (plan xp-3, user decision U1(b)): the HLSL in Shaders\viewport becomes SPIR-V,
+DXIL and MSL, a reflection JSON each, SOURCE.sha256 (MetalUI's marker file) and INCLUDES.sha256, in Shaders\viewport\compiled.
+Nothing compiled is checked in; CI runs this before `swift build`, and so does a developer, once and after editing an .hlsl file.
+
+.DESCRIPTION
+MetalUI's compile-app-shaders.py (docs/packaging.md section 4a) does the work through SDL_shadercross, pinned in
+scripts\shadercross.env (scripts\install-shadercross.ps1 builds that commit; CI caches the result). Python 3 and MetalUI beside this
+repository (..\MetalUI) are needed. Exit 69 when shadercross is missing or is not the pinned commit, 1 when a shader fails to
+compile (the compiled directory is removed so the tests and --self-test fail loudly), 2 when MetalUI is missing.
+
+    scripts\build-shaders.ps1 -ShaderCross C:\tools\shadercross\bin\shadercross.exe     (or set $env:SHADERCROSS)
+#>
+param([string]$ShaderCross = $env:SHADERCROSS)
+$ErrorActionPreference = 'Stop'
+$root = Split-Path -Parent $PSScriptRoot
+$pin = @{}
+foreach ($line in Get-Content (Join-Path $PSScriptRoot 'shadercross.env')) {
+    if ($line -match '^([A-Z_]+)=(.*)$') { $pin[$Matches[1]] = $Matches[2].Trim() }
+}
+$tool = "SDL_shadercross ($($pin.SHADERCROSS_REPOSITORY), commit $($pin.SHADERCROSS_COMMIT), pinned in scripts/shadercross.env)"
+function Stop-Build([int]$code, [string]$message) {
+    [Console]::Error.WriteLine("scripts/build-shaders.ps1: $message")
+    exit $code
+}
+
+if (-not $ShaderCross) {
+    $found = Get-Command shadercross.exe -ErrorAction SilentlyContinue
+    if ($found) { $ShaderCross = $found.Source }
+}
+if (-not $ShaderCross -or -not (Test-Path $ShaderCross)) {
+    Stop-Build 69 "$tool was not found. Pass -ShaderCross C:\path\shadercross.exe or set SHADERCROSS; scripts\install-shadercross.ps1 builds the pinned one. The viewport's shaders are compiled at build time and cannot be built without it."
+}
+# install-shadercross.ps1 records the commit it built beside bin\; any other build is refused.
+$recorded = Join-Path (Split-Path -Parent (Split-Path -Parent $ShaderCross)) 'COMMIT'
+if ((Test-Path $recorded) -and ((Get-Content $recorded -Raw).Trim() -ne $pin.SHADERCROSS_COMMIT)) {
+    Stop-Build 69 "$ShaderCross was built from another commit than the one required: $tool. Rebuild it with scripts\install-shadercross.ps1."
+}
+$compiler = Join-Path $root '..\MetalUI\Backends\SDL\scripts\compile-app-shaders.py'
+if (-not (Test-Path $compiler)) { Stop-Build 2 'MetalUI must be checked out beside this repository (..\MetalUI), as Package.swift expects.' }
+
+Push-Location (Join-Path $root 'Shaders\viewport')
+try {
+    if (Test-Path compiled) { Remove-Item compiled -Recurse -Force }
+    Write-Output "Compiling Shaders\viewport with $tool..."
+    python $compiler --shadercross $ShaderCross --source . --out compiled
+    if ($LASTEXITCODE) {
+        if (Test-Path compiled) { Remove-Item compiled -Recurse -Force }
+        Stop-Build 1 "$tool failed to compile a shader of Shaders\viewport (the lines above name the file). Shaders\viewport\compiled was removed."
+    }
+    $lines = Get-ChildItem *.hlsli | Sort-Object Name | ForEach-Object {
+        "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+    }
+    [IO.File]::WriteAllText((Join-Path (Get-Location) 'compiled\INCLUDES.sha256'), (($lines -join "`n") + "`n"))
+    Write-Output "Built Shaders\viewport\compiled ($((Get-ChildItem compiled).Count) files)."
+} finally {
+    Pop-Location
+}
+```
+
+`scripts/install-shadercross.ps1` (new; builds the pinned SDL_shadercross on Windows. **CI-only: PowerShell is not installed on the Mac the plan was written on, and nothing here runs a Windows build, so this script is parsed by nobody until the first Windows run; Risk 14**):
+
+```powershell
+<#
+.SYNOPSIS
+Builds the pinned SDL_shadercross for Windows x64 (plan xp-3, user decision U1(b)) into -Prefix, so scripts\build-shaders.ps1 can
+compile the viewport's shaders. CI runs it once per pin and caches the prefix with actions/cache; a developer runs it once.
+
+.DESCRIPTION
+The repository has no release or tag, so the pin is the commit in scripts\shadercross.env; the commit fixes the SPIRV-Cross,
+SPIRV-Headers and SPIRV-Tools submodules and Microsoft's prebuilt DirectXShaderCompiler (downloaded by the commit's own cmake script,
+by URL and SHA-256). Run it from an x64 Visual Studio developer shell (cl, cmake, ninja, git on PATH). SDL3's development package
+(its cmake files) is -Sdl3Root.
+
+    scripts\install-shadercross.ps1 -Prefix C:\tools\shadercross -Sdl3Root C:\SDL3-3.4.16
+
+It leaves <Prefix>\bin\shadercross.exe with its DLLs and <Prefix>\COMMIT, which build-shaders.ps1 compares with the pin.
+#>
+param(
+    [Parameter(Mandatory)][string]$Prefix,
+    [Parameter(Mandatory)][string]$Sdl3Root,
+    [string]$Work = (Join-Path $env:TEMP 'shadercross-src')
+)
+$ErrorActionPreference = 'Stop'
+$pin = @{}
+foreach ($line in Get-Content (Join-Path $PSScriptRoot 'shadercross.env')) {
+    if ($line -match '^([A-Z_]+)=(.*)$') { $pin[$Matches[1]] = $Matches[2].Trim() }
+}
+function Invoke-Step([string]$what, [scriptblock]$command) {
+    & $command
+    if ($LASTEXITCODE) {
+        [Console]::Error.WriteLine("scripts/install-shadercross.ps1: $what failed (exit $LASTEXITCODE) while building SDL_shadercross $($pin.SHADERCROSS_COMMIT) ($($pin.SHADERCROSS_REPOSITORY), pinned in scripts/shadercross.env).")
+        exit 1
+    }
+}
+
+if (Test-Path $Work) { Remove-Item $Work -Recurse -Force }
+New-Item -ItemType Directory $Work | Out-Null
+Invoke-Step 'git init' { git init $Work }
+Invoke-Step 'git remote' { git -C $Work remote add origin $pin.SHADERCROSS_REPOSITORY }
+Invoke-Step 'git fetch of the pinned commit' { git -C $Work fetch --depth 1 origin $pin.SHADERCROSS_COMMIT }
+Invoke-Step 'git checkout' { git -C $Work checkout FETCH_HEAD }
+Invoke-Step 'git submodules' { git -C $Work submodule update --init --depth 1 external/SPIRV-Cross external/SPIRV-Headers external/SPIRV-Tools }
+Push-Location $Work
+try {
+    Invoke-Step 'the DirectXShaderCompiler download' { cmake -P build-scripts/download-prebuilt-DirectXShaderCompiler.cmake }
+    $spirvPrefix = Join-Path $Work 'spirv_cross_prefix'
+    Invoke-Step 'SPIRV-Cross (configure)' { cmake -S external/SPIRV-Cross -B spirv_cross_build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPIRV_CROSS_SHARED=ON -DSPIRV_CROSS_STATIC=ON -DSPIRV_CROSS_CLI=OFF -DSPIRV_CROSS_ENABLE_TESTS=OFF "-DCMAKE_INSTALL_PREFIX=$spirvPrefix" }
+    Invoke-Step 'SPIRV-Cross (build)' { cmake --build spirv_cross_build }
+    Invoke-Step 'SPIRV-Cross (install)' { cmake --install spirv_cross_build }
+    $dxc = Join-Path $Work 'external/DirectXShaderCompiler-binaries'
+    Invoke-Step 'SDL_shadercross (configure)' {
+        cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DSDLSHADERCROSS_VENDORED=OFF -DSDLSHADERCROSS_CLI=ON `
+            -DSDLSHADERCROSS_SHARED=ON -DSDLSHADERCROSS_STATIC=OFF -DSDLSHADERCROSS_INSTALL=ON -DSDLSHADERCROSS_INSTALL_RUNTIME=ON `
+            "-DCMAKE_PREFIX_PATH=$Sdl3Root" "-DDirectXShaderCompiler_ROOT=$dxc" `
+            "-Dspirv_cross_c_shared_ROOT=$spirvPrefix;$spirvPrefix/share/spirv_cross_c_shared" "-DCMAKE_INSTALL_PREFIX=$Prefix"
+    }
+    Invoke-Step 'SDL_shadercross (build)' { cmake --build build }
+    Invoke-Step 'SDL_shadercross (install)' { cmake --install build }
+} finally {
+    Pop-Location
+}
+Set-Content -Path (Join-Path $Prefix 'COMMIT') -Value $pin.SHADERCROSS_COMMIT
+Write-Output "SDL_shadercross $($pin.SHADERCROSS_COMMIT) is in $Prefix."
 ```
 
 `Package.swift` (change; apply with `git apply` or by hand):
@@ -2421,36 +2744,260 @@ echo "Rebuilt Shaders/viewport/compiled."
          name: "CreatorViewportTests",
          dependencies: [
              "CreatorViewport", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI, metalUIPortableText, metalUISystemFonts,
-+            "CreatorGraph",   // CreatorGraph's SHA256, which checks the shader sources against their checked-in hashes
++            "CreatorGraph",   // CreatorGraph's SHA256, which hashes the shader sources for the freshness check against the build's SOURCE.sha256
          ] + occt
      ),
  ]
 ```
 
-- [ ] **Step 4: Build the compiled shaders**
+`scripts/linux/Dockerfile` (change; apply with `git apply` or by hand). The `shadercross` stage is a layer set of its own: it never meets xp-2's `occt` stage (which this diff does not touch; whichever branch merges second keeps both stages and both header paragraphs):
 
-Get SDL_shadercross 3.0.0 (the version MetalUI rebuilt its own blobs with) into an empty directory **outside the repository**. If `libsdl-org/SDL_shadercross` has a release for your platform use it; otherwise take the CI artifact of its latest main run (`gh` is signed in on this Mac):
-
-```bash
-mkdir -p ~/shadercross && cd ~/shadercross
-RUN=$(gh api "repos/libsdl-org/SDL_shadercross/actions/artifacts?per_page=20" --jq '[.artifacts[] | select(.name == "SDL3_shadercross-macos-arm64" and .expired == false)][0].id')
-gh api "repos/libsdl-org/SDL_shadercross/actions/artifacts/$RUN/zip" > shadercross.zip
-unzip -q shadercross.zip && mkdir -p unpacked && tar xzf SDL3_shadercross-*.tar.gz -C unpacked
-SHADERCROSS=$(echo ~/shadercross/unpacked/*/bin/shadercross)
-"$SHADERCROSS" --help 2>&1 | head -3
+```diff
+--- a/scripts/linux/Dockerfile
++++ b/scripts/linux/Dockerfile
+@@ -3,7 +3,51 @@
+ # The base is MetalUI's own image (Swift 6.4, SDL 3.4 built from source, Mesa lavapipe for Vulkan on the CPU, AccessKit's
+ # C bindings; recipe: ../MetalUI/Backends/SDL/linux/Dockerfile), built by scripts/linux-test.sh when it is not on the machine.
+ # The render tests draw text with MetalUI's portable text system over the machine's installed fonts, so the image names one.
++#
++# The `shadercross` stage is a second, separate image (`docker build --target shadercross`): SDL_shadercross, the compiler for the
++# viewport's HLSL shaders (plan xp-3, user decision U1(b)), built from the commit pinned in scripts/shadercross.env. It is never copied
++# into the final image: Microsoft publishes DirectXShaderCompiler for Linux x86_64 only, so the stage is amd64 whatever the host is
++# (the compiled shaders do not depend on the host), and scripts/linux-test.sh runs scripts/build-shaders.sh in it. Each stage is its
++# own set of layers (xp-2's `occt` stage is another), so a new OpenCascade pin never rebuilds shadercross, nor the reverse.
+ ARG BASE=metalui-portable:latest
++ARG SHADERCROSS_PLATFORM=linux/amd64
++
++FROM --platform=${SHADERCROSS_PLATFORM} ubuntu:24.04 AS shadercross
++ARG SDL_TAG=release-3.4.16
++# The value must equal scripts/shadercross.env (ShaderToolchainTests); linux-test.sh passes the env file's value as a build argument.
++ARG SHADERCROSS_COMMIT=1ff05bec573988a98ef9e0260b4da44f512b8367
++RUN apt-get update \
++    && apt-get install -y --no-install-recommends git ca-certificates cmake ninja-build g++ make python3 pkg-config \
++       bison flex libjson-perl patchelf libvulkan-dev libxrandr-dev \
++    && rm -rf /var/lib/apt/lists/*
++# SDL3 (SDL_shadercross links it), as MetalUI's own image builds it.
++RUN git clone --depth 1 --branch ${SDL_TAG} https://github.com/libsdl-org/SDL.git /tmp/SDL \
++    && cmake -S /tmp/SDL -B /tmp/SDL/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
++         -DSDL_UNIX_CONSOLE_BUILD=ON -DSDL_X11=OFF -DSDL_WAYLAND=OFF -DSDL_AUDIO=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF \
++    && cmake --build /tmp/SDL/build && cmake --install /tmp/SDL/build && ldconfig && rm -rf /tmp/SDL
++# SDL_shadercross at the pinned commit (the repository has no release or tag): its SPIRV-Cross, SPIRV-Headers and SPIRV-Tools
++# submodules are fixed by the commit, and so is Microsoft's prebuilt DirectXShaderCompiler (URL and SHA-256 in the commit's
++# build-scripts/download-prebuilt-DirectXShaderCompiler.cmake). The commit is recorded beside the binary for build-shaders.sh to check.
++# -DSDLSHADERCROSS_INSTALL_RUNTIME stays OFF: it would clone Vulkan-Loader and the Khronos headers at `main` and build vkd3d, for a Direct3D
++# bytecode path the viewport does not use (its DXIL comes from DXC); the three runtime libraries are copied beside the binary instead.
++RUN git init /tmp/sc && cd /tmp/sc && git remote add origin https://github.com/libsdl-org/SDL_shadercross.git \
++    && git fetch --depth 1 origin ${SHADERCROSS_COMMIT} && git checkout FETCH_HEAD \
++    && git submodule update --init --depth 1 external/SPIRV-Cross external/SPIRV-Headers external/SPIRV-Tools \
++    && cmake -P build-scripts/download-prebuilt-DirectXShaderCompiler.cmake \
++    && cmake -S external/SPIRV-Cross -B /tmp/spvx -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPIRV_CROSS_SHARED=ON -DSPIRV_CROSS_STATIC=ON \
++         -DSPIRV_CROSS_CLI=OFF -DSPIRV_CROSS_ENABLE_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/tmp/spvx-prefix \
++    && cmake --build /tmp/spvx && cmake --install /tmp/spvx \
++    && cmake -S . -B /tmp/scb -G Ninja -DCMAKE_BUILD_TYPE=Release -DSDLSHADERCROSS_VENDORED=OFF -DSDLSHADERCROSS_CLI=ON \
++         -DSDLSHADERCROSS_SHARED=ON -DSDLSHADERCROSS_STATIC=OFF -DSDLSHADERCROSS_INSTALL=ON -DSDLSHADERCROSS_INSTALL_RUNTIME=OFF \
++         -DDirectXShaderCompiler_ROOT=/tmp/sc/external/DirectXShaderCompiler-binaries -Dspirv_cross_c_shared_ROOT=/tmp/spvx-prefix \
++         -DCMAKE_INSTALL_PREFIX=/opt/shadercross "-DCMAKE_INSTALL_RPATH=\$ORIGIN/../lib" \
++    && cmake --build /tmp/scb && cmake --install /tmp/scb \
++    && cp -a /tmp/sc/external/DirectXShaderCompiler-binaries/linux/lib/libdxcompiler.so /tmp/sc/external/DirectXShaderCompiler-binaries/linux/lib/libdxil.so \
++         /tmp/spvx-prefix/lib/libspirv-cross-c-shared.so* /opt/shadercross/lib/ \
++    && echo "${SHADERCROSS_COMMIT}" > /opt/shadercross/COMMIT \
++    && rm -rf /tmp/sc /tmp/spvx /tmp/spvx-prefix /tmp/scb
++ENV LD_LIBRARY_PATH=/opt/shadercross/lib
++
+ FROM ${BASE}
+ RUN apt-get update \
+     && apt-get install -y --no-install-recommends fonts-dejavu-core \
 ```
 
-(On Linux the artifact is `SDL3_shadercross-linux-x64`, on Windows `SDL3_shadercross-VC-x64`; its `lib` directory beside `bin` is put on the loader path by `compile-app-shaders.py`.) Downloaded files are untrusted data: keep them where they are, run nothing else from there.
+`scripts/linux-test.sh` (change; apply with `git apply` or by hand; it applies after task 0's change to the same file):
 
-Then, from the repository root:
+```diff
+--- a/scripts/linux-test.sh
++++ b/scripts/linux-test.sh
+@@ -19,13 +19,21 @@
+ # "Test run with" (one per test target that has tests on Linux: 11 until xp-2 puts CreatorOCCTTests on Linux and Windows, 12 after;
+ # macOS has had 12 all along).
+ #
++# The viewport's HLSL shaders are compiled at build time (plan xp-3, user decision U1(b)): before `swift build`, `swift test` and the
++# smoke step this script runs scripts/build-shaders.sh in an amd64 image that holds the pinned SDL_shadercross (scripts/shadercross.env;
++# the `shadercross` stage of scripts/linux/Dockerfile, built once and cached). The output, Shaders/viewport/compiled in the worktree,
++# is git-ignored; a run with nothing to recompile takes a second. If shadercross cannot be built or fails, the step stops with a
++# message that names the tool and its pinned commit.
++#
+ # The image draws on Mesa's lavapipe, a CPU Vulkan driver, so the SDL_GPU viewport renders here with no GPU in the machine. The container
+ # sets XP_REQUIRE_GPU=1: the viewport's renderer suites skip when no SDL_GPU device answers, and with this set a missing device fails
+ # SDLGPUAvailabilityTests instead, so a runner that lost its driver cannot pass by running none of them (MetalUI's METALUI_REQUIRE_GPU).
+ #
+ # Environment: XP_TRACK names the track (default xp-1), which names the container and the volume, so a script run kills only
+ # its own container. IMAGE names the image this script builds and runs (default metalcreator-linux:latest): a track sets its own
+-# (xp-3 uses metalcreator-linux:xp-3) so it never replaces another track's image. EXPECTED_TEST_RUNS overrides the count.
++# (xp-3 uses metalcreator-linux:xp-3) so it never replaces another track's image. SHADERCROSS_IMAGE names the shadercross image
++# (default metalcreator-shadercross:<12 digits of the pinned commit>; CI builds it with buildx and passes it in). EXPECTED_TEST_RUNS
++# overrides the count.
+ set -euo pipefail
+ 
+ cd "$(dirname "$0")/.."
+@@ -57,6 +65,27 @@
+ fi
+ docker build -q -t "$IMAGE" --build-arg "BASE=$BASE_IMAGE" - < scripts/linux/Dockerfile >/dev/null
+ 
++# SDL_shadercross, pinned in scripts/shadercross.env, built in an amd64 image of its own (Microsoft publishes DirectXShaderCompiler for
++# Linux x86_64 only, and the compiled shaders do not depend on the host: on an aarch64 Mac it runs emulated).
++. scripts/shadercross.env
++SHADERCROSS_IMAGE=${SHADERCROSS_IMAGE:-metalcreator-shadercross:${SHADERCROSS_COMMIT:0:12}}
++if ! docker image inspect "$SHADERCROSS_IMAGE" >/dev/null 2>&1; then
++    echo "Building SDL_shadercross $SHADERCROSS_COMMIT into $SHADERCROSS_IMAGE (once; Docker caches it)..."
++    docker build -q --platform linux/amd64 --target shadercross -t "$SHADERCROSS_IMAGE" \
++        --build-arg "SHADERCROSS_COMMIT=$SHADERCROSS_COMMIT" - < scripts/linux/Dockerfile >/dev/null || {
++        echo "scripts/linux-test.sh: building SDL_shadercross ($SHADERCROSS_REPOSITORY, commit $SHADERCROSS_COMMIT, pinned in scripts/shadercross.env) failed; run 'docker build --target shadercross - < scripts/linux/Dockerfile' to see why." >&2
++        exit 1
++    }
++fi
++
++# Compiles Shaders/viewport into Shaders/viewport/compiled in the worktree (git-ignored); a second when nothing changed.
++compile_shaders() {
++    docker rm -f "$NAME-shaders" >/dev/null 2>&1 || true
++    docker run --rm --platform linux/amd64 --name "$NAME-shaders" \
++        -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -w /work/MetalCreator \
++        "$SHADERCROSS_IMAGE" scripts/build-shaders.sh
++}
++
+ # Runs `$1` in the image, from the repository, with the build volume; stops only this track's own container.
+ in_container() {
+     docker rm -f "$NAME" >/dev/null 2>&1 || true
+@@ -66,10 +95,12 @@
+ }
+ 
+ do_build() {
++    compile_shaders || return 1
+     in_container 'swift build --scratch-path /build'
+ }
+ 
+ do_smoke() {
++    compile_shaders || return 1
+     in_container 'bin=$(swift build --scratch-path /build --show-bin-path)/MetalCreatorApp
+         "$bin" --self-test
+         "$bin" --smoke-test 20'
+@@ -79,6 +110,7 @@
+ # the whole suite. printf %q keeps a filter like 'A|B' one word through the container's shell.
+ do_test() {
+     local status=0 args=""
++    compile_shaders || return 1
+     if [ "$#" -gt 0 ]; then args=$(printf ' %q' "$@"); fi
+     in_container "swift test --scratch-path /build$args" 2>&1 | tee "$LOG" || status=$?
+     local clean runs tests
+```
+
+`.github/workflows/xp.yml` (change; apply with `git apply` or by hand). Task 9 changes the same file again, after this task:
+
+```diff
+--- a/.github/workflows/xp.yml
++++ b/.github/workflows/xp.yml
+@@ -8,6 +8,12 @@
+ # The Linux jobs run scripts/linux-test.sh, the script a developer runs in Docker on a Mac: build, the suite (exit 0, no
+ # "recorded an issue" or "failed after" line, eleven "Test run with" lines), the app's --self-test, and --smoke-test 20.
+ #
++# The viewport's HLSL shaders are compiled at build time (plan xp-3, user decision U1(b)); nothing compiled is checked in. SDL_shadercross, pinned
++# by commit in scripts/shadercross.env (its repository has no release or tag), is built by the Linux image's `shadercross` stage (an amd64 image
++# on every runner, cached by buildx) and, on Windows, by scripts/install-shadercross.ps1 (cached by actions/cache/restore and /save, keyed by the
++# pin). scripts/linux-test.sh and scripts/build-shaders.ps1 run the compile before `swift build`; a failure stops the job with a message that names
++# the tool and its commit.
++#
+ # The Windows job is modelled on MetalUI's own Windows job (.github/workflows/sdl-gpu-linux.yml). Run 38546048595 was green: it builds, passes the
+ # suite (11 "Test run with" lines) and passes the app's --self-test and --smoke-test. It stays continue-on-error, so it does not hide the Linux
+ # result, and the last step marks a red Windows run with a warning and a summary line (the run itself shows green); read its log on every run.
+@@ -52,6 +58,11 @@
+           ref: ${{ env.METALUI_COMMIT }}
+           path: MetalUI
+       - uses: docker/setup-buildx-action@v4
++      - name: Emulate amd64 (the shader compiler's image is amd64; no Linux aarch64 DirectXShaderCompiler exists)
++        if: ${{ matrix.arch == 'aarch64' }}
++        uses: docker/setup-qemu-action@v3
++        with:
++          platforms: amd64
+       - name: Build MetalUI's Linux image (Swift, SDL3 from source, Mesa, AccessKit)
+         uses: docker/build-push-action@v7
+         with:
+@@ -61,8 +72,21 @@
+           load: true
+           cache-from: type=gha,scope=xp-portable-${{ matrix.arch }}
+           cache-to: type=gha,mode=max,scope=xp-portable-${{ matrix.arch }}
+-      - name: Build, test, self-test and launch
++      - name: Build SDL_shadercross (amd64 image, the commit of scripts/shadercross.env)
++        uses: docker/build-push-action@v7
++        with:
++          context: MetalCreator/scripts/linux
++          file: MetalCreator/scripts/linux/Dockerfile
++          target: shadercross
++          platforms: linux/amd64
++          tags: metalcreator-shadercross:ci
++          load: true
++          cache-from: type=gha,scope=xp-shadercross-${{ matrix.arch }}
++          cache-to: type=gha,mode=max,scope=xp-shadercross-${{ matrix.arch }}
++      - name: Compile the shaders, build, test, self-test and launch
+         working-directory: MetalCreator
++        env:
++          SHADERCROSS_IMAGE: metalcreator-shadercross:ci
+         run: scripts/linux-test.sh all
+ 
+   windows:
+@@ -97,9 +121,39 @@
+           Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL_VERSION/SDL3-devel-$env:SDL_VERSION-VC.zip" -OutFile $zip
+           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+           $root = "$env:RUNNER_TEMP\SDL3-$env:SDL_VERSION"
++          "SDL3_ROOT=$root" >> $env:GITHUB_ENV
+           "SDL3_INCLUDE=$root\include" >> $env:GITHUB_ENV
+           "SDL3_LIB=$root\lib\x64" >> $env:GITHUB_ENV
+           "$root\lib\x64" >> $env:GITHUB_PATH   # SDL3.dll at run time
++      - name: Set up the Visual C++ build environment (for SDL_shadercross)
++        uses: ilammy/msvc-dev-cmd@v1
++        with:
++          arch: x64
++      - name: Restore SDL_shadercross
++        id: shadercross
++        uses: actions/cache/restore@v4
++        with:
++          path: ${{ runner.temp }}\shadercross
++          key: shadercross-windows-x64-${{ hashFiles('MetalCreator/scripts/shadercross.env', 'MetalCreator/scripts/install-shadercross.ps1') }}
++      - name: Build SDL_shadercross (the pinned commit; about 10 minutes, once per pin)
++        if: ${{ steps.shadercross.outputs.cache-hit != 'true' }}
++        working-directory: MetalCreator
++        run: |
++          scripts\install-shadercross.ps1 -Prefix "$env:RUNNER_TEMP\shadercross" -Sdl3Root $env:SDL3_ROOT
++          exit $LASTEXITCODE
++      - name: Save SDL_shadercross
++        # Right after a whole build: actions/cache's own post step saves only when the whole job is green, and the Windows job is not yet.
++        if: ${{ steps.shadercross.outputs.cache-hit != 'true' }}
++        uses: actions/cache/save@v4
++        with:
++          path: ${{ runner.temp }}\shadercross
++          key: ${{ steps.shadercross.outputs.cache-primary-key }}
++      - name: Compile the viewport's shaders
++        working-directory: MetalCreator
++        # Stops with a message naming SDL_shadercross and its pinned commit if the tool is missing or a shader fails.
++        run: |
++          scripts\build-shaders.ps1 -ShaderCross "$env:RUNNER_TEMP\shadercross\bin\shadercross.exe"
++          exit $LASTEXITCODE
+       - name: Fetch AccessKit
+         working-directory: MetalUI/Backends/SDL
+         # One SwiftPM flag per line: -Xcc -I<include> -Xswiftc -L<lib> (MetalUI PX-I item 2).
+```
+
+- [ ] **Step 4: Build the shadercross image and compile the shaders**
+
+macOS needs nothing and builds nothing here (U6(a)); its run in step 5 covers the struct sizes and the toolchain pin. On Linux, `scripts/linux-test.sh` builds the `shadercross` image on first use (a few minutes natively, longer emulated on an aarch64 Mac; Docker caches it) and compiles before it builds:
 
 ```bash
-scripts/build-viewport-shaders.sh "$SHADERCROSS" 2>&1 | grep -v '^20' | tail -3
+XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh build 2>&1 | grep -v '^20' | tail -4
 ls Shaders/viewport/compiled | wc -l
 cat Shaders/viewport/compiled/INCLUDES.sha256
+git status --short Shaders      # lists the new sources, never compiled/
+XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh build 2>&1 | grep -E 'current|Built'
 ```
 
-Expected: `Compiled 16 shader(s) to SPIR-V, MSL, DXIL and reflection JSON: compiled` and `Rebuilt Shaders/viewport/compiled.`; `66`; one line, the SHA-256 of `common.hlsli`. Each stage's `NAME.*.json` lists its resource counts: for example `mesh.vert.json` says `"storage_buffers": 2, "uniform_buffers": 2` and `cube`/`slice` (tasks 10 and 12) will say `"samplers": 1`. A second run gives byte-identical files.
+Expected: the first run ends with `Built Shaders/viewport/compiled (66 files).` (`Compiled 16 shader(s) to SPIR-V, MSL, DXIL and reflection JSON: compiled` is MetalUI's own last line before it); `66`; one line, the SHA-256 of `common.hlsli`; `git status` shows the HLSL files and no `compiled` entry; the second run prints `Shaders/viewport/compiled is current.` and rebuilds nothing. Each stage's `NAME.*.json` lists its resource counts: for example `mesh.vert.json` says `"storage_buffers": 2, "uniform_buffers": 2` and the cube and slice shaders (tasks 10 and 12) will say `"samplers": 1`. A second compile after `rm -r Shaders/viewport/compiled` gives byte-identical files.
+
+**Measured here: see "Measured here" at the end of this task.**
 
 - [ ] **Step 5: Run the tests: they pass**
 
@@ -2460,27 +3007,45 @@ swift test --filter 'CreatorViewportTests' 2>&1 | grep -E 'recorded an issue|fai
 XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter 'CreatorViewportTests' 2>&1 | grep -E 'error:|warning:|recorded an issue|failed after|Test run with'
 ```
 Expected:
-- macOS: no `recorded an issue` or `failed after` line, and `Test run with 317 tests in 43 suites passed` (baseline 304/41 + 13 tests, + 2 suites).
-- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 275 tests in 36 suites passed` (baseline 259/34 + 16 tests, + 2 suites).
+- macOS: no `recorded an issue` or `failed after` line, and `Test run with 317 tests in 44 suites passed` (baseline 304/41 + 13 tests, + 3 suites).
+- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 276 tests in 37 suites passed` (baseline 259/34 + 17 tests, + 3 suites).
 
-`ShaderSourceTests` has 3 tests (the sources against `SOURCE.sha256`, the header against `INCLUDES.sha256`, the HLSL struct sizes against the Swift strides).
+The new tests: `ShaderSourceTests` has 1 test on macOS (the HLSL struct sizes against the Swift strides) and 2 on Linux and Windows (plus that the build produced every stage's four files where the renderer reads them and is current); `ShaderToolchainTests` has 2 (the pin agrees everywhere it is written; a missing shadercross stops `build-shaders.sh` with exit 69 and a message naming the tool, the repository and the pinned commit; that one is compiled out on Windows, where `build-shaders.ps1` has the same message and CI is its check). The old plan had 3 tests here (the struct sizes and two hash checks), so the macOS figures are the old ones and Linux gains one.
+
 - [ ] **Step 6: Prove the checks bite**
 
+The build step runs by itself in `linux-test.sh`, so these use the image directly to keep it from repairing what is being broken. `$V` and `$I` are this track's volume and image.
+
 ```bash
+V=xp-3-linux-build; I=metalcreator-linux:xp-3
+run() { docker run --rm -e XP_REQUIRE_GPU=1 -v "$PWD":/work/MetalCreator -v "$PWD/../MetalUI":/work/MetalUI:ro -v $V:/build $I bash -ec "$1"; }
+# 1. A source edited after the last build is caught, with the remedy in the message.
 cp Shaders/viewport/mesh.frag.hlsl /tmp/mesh.frag.hlsl.bak
 echo '// edited' >> Shaders/viewport/mesh.frag.hlsl
-swift test --filter ShaderSourceTests 2>&1 | grep -E 'changed since|Test run with'
+run 'swift test --scratch-path /build --filter ShaderSourceTests' 2>&1 | grep -E 'changed after the last build|Test run with'
 mv /tmp/mesh.frag.hlsl.bak Shaders/viewport/mesh.frag.hlsl
-swift test --filter ShaderSourceTests 2>&1 | grep -E 'Test run with'
+# 2. No build at all is caught, naming the script and the tool.
+mv Shaders/viewport/compiled /tmp/compiled.bak
+run 'swift test --scratch-path /build --filter ShaderSourceTests' 2>&1 | grep -E 'no compiled shader directory|Test run with'
+mv /tmp/compiled.bak Shaders/viewport/compiled
+# 3. No shadercross stops the script, exit 69, naming the tool and its commit.
+SHADERCROSS=/nonexistent scripts/build-shaders.sh; echo "exit $?"
+# 4. A shader the compiler rejects stops it (exit 1) and leaves no half-built directory.
+cp Shaders/viewport/grid.frag.hlsl /tmp/grid.bak && echo 'syntax error here' >> Shaders/viewport/grid.frag.hlsl
+XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh build; echo "exit $?"; ls Shaders/viewport/compiled 2>&1 | head -1
+mv /tmp/grid.bak Shaders/viewport/grid.frag.hlsl
+XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh build 2>&1 | grep -E 'Built|current'
 ```
 
-Expected: first `mesh.frag.hlsl changed since scripts/build-viewport-shaders.sh ran` and a failed run; after restoring the file, a passing run of 3 tests.
+Expected: (1) `mesh.frag.hlsl changed after the last build. Run scripts/build-shaders.sh …` and a failed run, (2) `no compiled shader directory beside the executable or in the source tree. Run scripts/build-shaders.sh …`, (3) `scripts/build-shaders.sh: SDL_shadercross (https://github.com/libsdl-org/SDL_shadercross, commit 1ff05bec573988a98ef9e0260b4da44f512b8367, pinned in scripts/shadercross.env) was not found. …` and `exit 69`, (4) the compiler's complaint naming `grid.frag.hlsl`, `SDL_shadercross (…, commit 1ff05bec…) failed to compile a shader of Shaders/viewport`, a non-zero exit, and `No such file or directory` for `compiled`; after the file is restored the build prints `Built Shaders/viewport/compiled (66 files).`.
 
 - [ ] **Step 7: Lint and commit**
 
 ```bash
 swiftlint lint --strict --quiet   # no output
-git add .gitattributes \
+bash -n scripts/build-shaders.sh scripts/linux-test.sh && echo syntax-ok
+git status --short                # no Shaders/viewport/compiled line: it is ignored
+git add .gitattributes .gitignore \
   Package.swift \
   Shaders/viewport/background.frag.hlsl \
   Shaders/viewport/background.vert.hlsl \
@@ -2500,10 +3065,20 @@ git add .gitattributes \
   Shaders/viewport/mesh.frag.hlsl \
   Shaders/viewport/mesh.vert.hlsl \
   Tests/CreatorViewportTests/ShaderSourceTests.swift \
-  scripts/build-viewport-shaders.sh \
-  Shaders/viewport/compiled
-git commit -m "viewport: HLSL shaders, build script, checked-in blobs and the checks that keep them honest"
+  Tests/CreatorViewportTests/ShaderToolchainTests.swift \
+  scripts/shadercross.env \
+  scripts/build-shaders.sh \
+  scripts/build-shaders.ps1 \
+  scripts/install-shadercross.ps1 \
+  scripts/linux/Dockerfile \
+  scripts/linux-test.sh \
+  .github/workflows/xp.yml
+chmod +x scripts/build-shaders.sh && git update-index --chmod=+x scripts/build-shaders.sh
+git commit -m "viewport: HLSL shaders compiled at build time by a pinned SDL_shadercross; no compiled files in git"
 ```
+
+**Measured here (2026-10-21).** The stage and the script were run for real while this revision was written, outside the repository (the session's scratchpad), on an aarch64 Mac with the image emulated as amd64: the stage builds in about 12 minutes cold (4 min 06 s on top of a cached SDL layer, 214 MB); `scripts/build-shaders.sh`, as written above, compiles the 16 stage files into 66 files in 1 min 40 s (emulated), prints `Shaders/viewport/compiled is current.` on a second run, rebuilds after a source edit, exits 69 naming the tool and the commit when shadercross is missing, and exits 1 with the compiler's complaint (`unknown type name 'syntax'`, `grid.frag.hlsl`) and no half-built directory when a shader does not compile. A second compile and the first variant's image give byte-identical files. The PowerShell scripts, the Windows build and `scripts/linux-test.sh` end to end were not run (see Verification and Risks 13 and 14).
+
 
 
 ### Task 5: The SDL device layer: shader library, uploads, meshes, pipelines
@@ -2608,9 +3183,9 @@ enum SDLTestDevice {
  import Testing
  @testable import CreatorGraph
  @testable import CreatorViewport
-@@ -120,3 +123,18 @@
-         #expect(Set(sizes.keys) == Set(swift.keys), "a struct added to the header needs its Swift twin pinned here")
+@@ -137,3 +140,18 @@
      }
+     #endif
  }
 +
 +#if canImport(MetalUISDLGPU)
@@ -2809,9 +3384,10 @@ struct SDLViewportPipelines: Sendable {
 import Foundation
 import MetalUISDLGPU
 
-/// Finds the viewport's compiled shaders (cross-platform spec section 4): HLSL in `Shaders/viewport`, built by
-/// `scripts/build-viewport-shaders.sh` through MetalUI's `compile-app-shaders.py` into `Shaders/viewport/compiled` (SPIR-V for
-/// Vulkan, DXIL for Direct3D 12, MSL, a reflection file each, `SOURCE.sha256`), and checked in.
+/// Finds the viewport's compiled shaders (cross-platform spec section 4): HLSL in `Shaders/viewport`, compiled at build time by
+/// `scripts/build-shaders.sh` (`.ps1` on Windows) through MetalUI's `compile-app-shaders.py` and the pinned SDL_shadercross into
+/// `Shaders/viewport/compiled` (SPIR-V for Vulkan, DXIL for Direct3D 12, MSL, a reflection file each, `SOURCE.sha256`). The directory is a
+/// build product: git-ignored, never checked in (user decision U1(b)).
 enum SDLViewportShaders {
     /// The source tree's compiled directory: this file is `Sources/CreatorViewport/RenderSDL/SDLViewportShaders.swift`, so the
     /// repository root is four directories up. Valid on the machine that built the app; a shipped app carries a copy as
@@ -2822,8 +3398,9 @@ enum SDLViewportShaders {
             .appending(path: "Shaders/viewport/compiled")
     }
 
-    /// The viewport's shader library, or an error naming the directories tried.
-    static func library() throws -> SDLGPUShaderLibrary {
+    /// The viewport's shader library, or an error naming the directories tried. `sourceTree` is a parameter so a test (and
+    /// `ViewportShaderCheck`'s test) can point it at an empty directory.
+    static func library(sourceTree: URL = sourceTree) throws -> SDLGPUShaderLibrary {
         try SDLGPUShaderLibrary.locate(sourceTree: sourceTree)
     }
 
@@ -2841,8 +3418,8 @@ enum SDLViewportShaders {
 
     /// Loads every blob for `driver`, which proves the directory and each stage's file and reflection are there, and returns how many
     /// stages that was.
-    static func verify(driver: String = platformDriver) throws -> Int {
-        let library = try library()
+    static func verify(driver: String = platformDriver, sourceTree: URL = sourceTree) throws -> Int {
+        let library = try library(sourceTree: sourceTree)
         for name in names {
             _ = try library.vertex(name, driver: driver)
             _ = try library.fragment(name, driver: driver)
@@ -2923,7 +3500,7 @@ func uniformBytes<T>(_ value: T) -> [UInt8] {
          dependencies: [
              "CreatorViewport", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI, metalUIPortableText, metalUISystemFonts,
 +            metalUISDL, metalUISDLGPU,
-             "CreatorGraph",   // CreatorGraph's SHA256, which checks the shader sources against their checked-in hashes
+             "CreatorGraph",   // CreatorGraph's SHA256, which hashes the shader sources for the freshness check against the build's SOURCE.sha256
          ] + occt
      ),
 ```
@@ -2936,8 +3513,8 @@ swift test --filter 'CreatorViewportTests' 2>&1 | grep -E 'recorded an issue|fai
 XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter 'CreatorViewportTests' 2>&1 | grep -E 'error:|warning:|recorded an issue|failed after|Test run with'
 ```
 Expected: the clean macOS build ends `Build complete!` with no `error:` and no new `warning:`. If instead it fails with a missing module (`MetalUISDL` or `CSDL`) the conditional products have hit `SG-D` (MetalUI record `89-smk-gaps.md`: SwiftPM drops the module maps of a conditional product that a test target also names). Do not work around it in the manifest: the CreatorViewport suites that import SDL are `#if canImport(MetalUISDLGPU)` and the cure MetalUI chose for its portable products (name the product on every platform) is MetalUI's to give. Stop, log it in `docs/metalui-gaps.md` and move the SDL-only test files to a Linux/Windows-only test target in the same commit. Then
-- macOS: no `recorded an issue` or `failed after` line, and `Test run with 317 tests in 43 suites passed` (baseline 304/41 + 13 tests, + 2 suites).
-- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 279 tests in 38 suites passed` (baseline 259/34 + 20 tests, + 4 suites).
+- macOS: no `recorded an issue` or `failed after` line, and `Test run with 317 tests in 44 suites passed` (baseline 304/41 + 13 tests, + 3 suites).
+- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 280 tests in 39 suites passed` (baseline 259/34 + 21 tests, + 5 suites).
 
 On Linux the new tests are `theShaderLibraryAndEveryPipelineAreMade`, `aDeviceAnswersWhereTheEnvironmentPromisesOne` and `ViewportShaderDirectoryTests` (2). `scripts/linux-test.sh` sets `XP_REQUIRE_GPU=1`, so a missing lavapipe fails the first of them.
 - [ ] **Step 5: Lint and commit**
@@ -3890,8 +4467,8 @@ swift test --filter 'CreatorViewportTests' 2>&1 | grep -E 'recorded an issue|fai
 XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter 'CreatorViewportTests' 2>&1 | grep -E 'error:|warning:|recorded an issue|failed after|Test run with'
 ```
 Expected:
-- macOS: no `recorded an issue` or `failed after` line, and `Test run with 317 tests in 43 suites passed` (baseline 304/41 + 13 tests, + 2 suites).
-- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 303 tests in 40 suites passed` (baseline 259/34 + 44 tests, + 6 suites).
+- macOS: no `recorded an issue` or `failed after` line, and `Test run with 317 tests in 44 suites passed` (baseline 304/41 + 13 tests, + 3 suites).
+- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 304 tests in 41 suites passed` (baseline 259/34 + 45 tests, + 7 suites).
 
 On Linux the draws render on lavapipe: `SDLRenderTests` and `SDLFieldGuideClipTests`. macOS is unaffected (all new files are `#if canImport(MetalUISDLGPU)`); its count does not change.
 - [ ] **Step 5: Lint and commit**
@@ -4441,8 +5018,8 @@ swift test --filter 'CreatorViewportTests' 2>&1 | grep -E 'recorded an issue|fai
 XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter 'CreatorViewportTests' 2>&1 | grep -E 'error:|warning:|recorded an issue|failed after|Test run with'
 ```
 Expected:
-- macOS: no `recorded an issue` or `failed after` line, and `Test run with 317 tests in 43 suites passed` (baseline 304/41 + 13 tests, + 2 suites).
-- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 315 tests in 41 suites passed` (baseline 259/34 + 56 tests, + 7 suites).
+- macOS: no `recorded an issue` or `failed after` line, and `Test run with 317 tests in 44 suites passed` (baseline 304/41 + 13 tests, + 3 suites).
+- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 316 tests in 42 suites passed` (baseline 259/34 + 57 tests, + 8 suites).
 
 `SDLPickerTests` covers: the face and edge IDs under chosen pixels, outside-the-view and not-a-number points, the buffer reused until the camera moves, pending then landed, a frame whose meshes were never uploaded, an empty scene, a guide never picked, the cut view, two solids told apart, a new camera or size superseding older requests, the settle delay, and the 257th solid.
 - [ ] **Step 5: Lint and commit**
@@ -4566,14 +5143,33 @@ Everything joins. `SDLViewportBackend` is the `ViewportBackend` over the rendere
 ```diff
 --- a/Tests/CreatorViewportTests/ShaderSourceTests.swift
 +++ b/Tests/CreatorViewportTests/ShaderSourceTests.swift
-@@ -130,6 +130,7 @@
+@@ -147,8 +147,26 @@
  struct ViewportShaderDirectoryTests {
      @Test func everyStageLoadsForThePlatformsDriver() throws {
          #expect(try SDLViewportShaders.verify() == 16)
 +        #expect(try ViewportShaderCheck.run() == "the viewport's 16 SDL_GPU shader stages were found")
      }
  
++    /// `--self-test` asks the viewport whether its shaders were built. With no directory it fails, and the message says which directory
++    /// it looked in, that the shaders are built and not checked in, and what to run (user decision U1(b)).
++    @Test func aMissingDirectoryFailsTheSelfTestCheckWithAMessageThatSaysWhatToRun() {
++        let nowhere = FileManager.default.temporaryDirectory.appending(path: "no-viewport-shaders-\(UUID().uuidString)")
++        do {
++            _ = try ViewportShaderCheck.run(sourceTree: nowhere)
++            Issue.record("the check passed with no compiled shaders anywhere")
++        } catch let failure as ViewportShaderCheck.Failure {
++            #expect(failure.description.contains(nowhere.path), "it names the directory it looked in: \(failure)")
++            #expect(failure.description.contains("scripts/build-shaders.sh"), "it names the script to run: \(failure)")
++            #expect(failure.description.contains("SDL_shadercross"), "it names the tool the script needs: \(failure)")
++            #expect(failure.description.contains("scripts/shadercross.env"), "it says where the pin is: \(failure)")
++        } catch {
++            Issue.record("the check threw \(error), not a ViewportShaderCheck.Failure")
++        }
++    }
++
      @Test func aStageThatIsMissingIsNamed() throws {
+         let library = try SDLViewportShaders.library()
+         #expect(throws: (any Error).self) { try library.vertex("no_such_shader", driver: SDLViewportShaders.platformDriver) }
 ```
 
 - [ ] **Step 2: Run the tests: they fail**
@@ -4666,15 +5262,39 @@ final class SDLViewportBackend: ViewportBackend {
 `Sources/CreatorViewport/ViewportShaderCheck.swift` (new):
 
 ```swift
-/// `MetalCreator --self-test` asks the viewport whether its shaders ship (packaging): Metal compiles its source at run time, so
-/// there is nothing to find on macOS; on Linux and Windows the SDL_GPU renderer needs its compiled blobs (`Shaders/viewport/compiled`,
-/// `MetalUIAppShaders` beside the executable in a shipped app), and a build without them draws nothing.
+import Foundation
+
+/// `MetalCreator --self-test` asks the viewport whether its shaders were built and ship: Metal compiles its source at run time, so
+/// there is nothing to find on macOS; on Linux and Windows the SDL_GPU renderer needs the shaders compiled at build time
+/// (`Shaders/viewport/compiled`, made by `scripts/build-shaders.sh` and git-ignored; `MetalUIAppShaders` beside the executable in a
+/// shipped app, where packaging copied the build output), and a build without them draws nothing.
 public enum ViewportShaderCheck {
-    /// What a passing check reports, or `nil` where the viewport has no shader files to find. Throws naming the directories tried.
+    /// The check failed: the message says where it looked and what to run, in words a person new to the project can follow.
+    public struct Failure: Error, CustomStringConvertible, LocalizedError, Equatable {
+        public let description: String
+        public var errorDescription: String? { description }
+    }
+
+    /// What a passing check reports, or `nil` where the viewport has no shader files to find. Throws a ``Failure``.
     public static func run() throws -> String? {
         #if canImport(MetalUISDLGPU)
-        let stages = try SDLViewportShaders.verify()
-        return "the viewport's \(stages.formatted()) SDL_GPU shader stages were found"
+        try run(sourceTree: SDLViewportShaders.sourceTree)
+        #else
+        nil
+        #endif
+    }
+
+    /// The same check against another source-tree directory (the test points it at an empty one).
+    static func run(sourceTree: URL) throws -> String? {
+        #if canImport(MetalUISDLGPU)
+        do {
+            let stages = try SDLViewportShaders.verify(sourceTree: sourceTree)
+            return "the viewport's \(stages.formatted()) SDL_GPU shader stages were found"
+        } catch {
+            throw Failure(description: "The viewport's compiled SDL_GPU shaders are missing or incomplete (\(error)). They are compiled at build time and are not in the repository: "
+                + "run scripts/build-shaders.sh (scripts/build-shaders.ps1 on Windows), which needs SDL_shadercross at the commit pinned in scripts/shadercross.env, "
+                + "and in a shipped app copy the result to MetalUIAppShaders beside the executable.")
+        }
         #else
         return nil
         #endif
@@ -4901,8 +5521,8 @@ swift test --filter 'CreatorViewportTests|LaunchSmokeTests|ViewportPaneTests|Sel
 XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter 'CreatorViewportTests|LaunchSmokeTests|ViewportPaneTests|SelfTestTests' 2>&1 | grep -E 'error:|warning:|recorded an issue|failed after|Test run with'
 ```
 Expected:
-- macOS: no `recorded an issue` or `failed after` line, and `Test run with 317 tests in 43 suites passed` (baseline 304/41 + 13 tests, + 2 suites); plus `11 tests in 3 suites` for the app filter.
-- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 316 tests in 42 suites passed` (baseline 259/34 + 57 tests, + 8 suites); plus `11 tests in 3 suites` for the app filter.
+- macOS: no `recorded an issue` or `failed after` line, and `Test run with 317 tests in 44 suites passed` (baseline 304/41 + 13 tests, + 3 suites); plus `11 tests in 3 suites` for the app filter.
+- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 318 tests in 43 suites passed` (baseline 259/34 + 59 tests, + 9 suites); plus `11 tests in 3 suites` for the app filter.
 
 The CreatorAppTests run is the second line.
 - [ ] **Step 5: Run the app's own checks on Linux**
@@ -4965,9 +5585,9 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
 +# "recorded an issue" or "failed after" line, eleven "Test run with" lines), the app's --self-test, and --smoke-test 20. The image draws
 +# on Mesa's lavapipe (a CPU Vulkan driver), so the SDL_GPU viewport's render and pick tests run on these GPU-less runners (xp-3).
  #
- # The Windows job is modelled on MetalUI's own Windows job (.github/workflows/sdl-gpu-linux.yml). Run 38546048595 was green: it builds, passes the
- # suite (11 "Test run with" lines) and passes the app's --self-test and --smoke-test. It stays continue-on-error, so it does not hide the Linux
-@@ -75,6 +76,8 @@
+ # The viewport's HLSL shaders are compiled at build time (plan xp-3, user decision U1(b)); nothing compiled is checked in. SDL_shadercross, pinned
+ # by commit in scripts/shadercross.env (its repository has no release or tag), is built by the Linux image's `shadercross` stage (an amd64 image
+@@ -99,6 +100,8 @@
      env:
        SDL_VERSION: 3.4.16
        EXPECTED_TEST_RUNS: 11
@@ -4976,7 +5596,7 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
      defaults:
        run:
          shell: pwsh
-@@ -140,7 +143,7 @@
+@@ -194,7 +197,7 @@
          # Runs even when Test is red, so one run reports both.
          if: ${{ !cancelled() }}
          # --smoke-test opens the real window over SDL's offscreen renderers (Direct3D 12 on WARP) for 20 s and fails unless it
@@ -4992,7 +5612,7 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
 ````diff
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
-@@ -103,13 +103,36 @@
+@@ -103,13 +103,38 @@
  `::warning::` step and a summary line when its suite is red. On the way: `ImageResolver.read` has a Windows branch, the named-pipe and
  device tests and `PackagingScriptTests` are not run on Windows, and the test executables reserve a 16 MB stack (`-Xlinker /STACK:16777216`;
  a layout tree overflowed Windows' 1 MB default thread stack).
@@ -5004,11 +5624,13 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
 +The SDL renderer plans a frame first (`SDLFramePlan`: every buffer made and every copy recorded, because a copy pass cannot run inside a render
 +pass) and then records the pass; solids, lines, fills, the cube and the slice read their data as vertex-stage storage buffers. Its pipelines
 +carry their own depth test (`SDLViewportPipelines`). The shaders are HLSL in `Shaders/viewport` (`common.hlsli` mirrors the Swift structs, every
-+member a `float4`, `uint4` or scalar, never a `float3`), built by `scripts/build-viewport-shaders.sh /path/to/shadercross` into
-+`Shaders/viewport/compiled` (SPIR-V, DXIL, MSL, reflection, `SOURCE.sha256`, `INCLUDES.sha256`), which is checked in: `ShaderSourceTests` recomputes the
-+hashes with no shadercross and pins the HLSL struct sizes to the Swift strides (`GPUDataTests`), so edit the HLSL, the Swift struct and the MSL
-+together. The compiled directory is found beside the executable as `MetalUIAppShaders` first, then in the source tree (`SDLViewportShaders`);
-+packaging it is xp-2's, and `--self-test` fails without it (`ViewportShaderCheck`). Picking on SDL is asynchronous (MetalUI gap XP-G14):
++member a `float4`, `uint4` or scalar, never a `float3`), **compiled at build time on Linux and Windows, never checked in**: `scripts/build-shaders.sh`
++(`.ps1` on Windows; `scripts/linux-test.sh` and CI run it before `swift build`) runs MetalUI's `compile-app-shaders.py` through the SDL_shadercross
++commit pinned in `scripts/shadercross.env` into `Shaders/viewport/compiled` (SPIR-V, DXIL, MSL, reflection; git-ignored), so **`swift build` alone compiles no
++shader** and a missing tool stops the script naming the tool and the pin. `ShaderSourceTests` pins the HLSL struct sizes to the Swift strides (`GPUDataTests`)
++and, on Linux and Windows, that the build produced every stage and is current; edit the HLSL, the Swift struct and the MSL together. The compiled directory is
++found beside the executable as `MetalUIAppShaders` first, then in the source tree (`SDLViewportShaders`); packaging copies the build output (xp-2's), and
++`--self-test` fails without it, saying what to run (`ViewportShaderCheck`). Picking on SDL is asynchronous (MetalUI gap XP-G14):
 +`SDLViewportPicker` renders the ID pass in a batch after the draw that follows a change and reads it back with `SDLGPUDevice.download`; until it lands
 +a hover keeps its face and a click waits (`ViewportModel.isPickPending`, `pickWhenReady`, `ViewportBackendTests`). `Matrix4.float` is a
 +`FloatMatrix4` and `FrameUniforms` is plain SIMD (no `simd`), so both exist everywhere. The cube's face names are rasterized by
@@ -5032,7 +5654,7 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
  Field works everywhere: `GreyImageDecoder` decodes through MetalUI's `DecodedImage` (S2, gap XP-G4) on every platform. Rules
  for new code: no CryptoKit (use `SHA256`/`SHA1` in `CreatorGraph/Hashing`), no CoreGraphics, ImageIO, CoreText or Metal outside a
  `#if canImport(…)` file or block, keyboard shortcuts and modifier checks on MetalUI events say `.primary` (⌘ on macOS, Ctrl
-@@ -431,7 +454,7 @@
+@@ -431,7 +456,7 @@
    `nonisolated static func ==`), and `expectEqualityCovers` (`CreatorEditorTests`) fails when a view gains a property its
    test has no variant for. The viewport draws `ViewportModel.theme`, which the
    app shell sets. Themes are app-level, never in `.mcgraph`. Tests: `swift test --filter CreatorStyleTests`.
@@ -5041,7 +5663,7 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
    - A host takes the primary pointer through `ViewportModel.tool` (`ViewportTool`: hover, clicks, and plain primary
      drags it claims, each with a `ViewportProjector` for screen → plane), and draws over the scene with
      `showOverlay(_:)` (`ViewportOverlay`: world-space lines and points in `OverlayTint` roles, dashed construction, and
-@@ -448,7 +471,8 @@
+@@ -448,7 +473,8 @@
      the camera animates: gap S5-c; each box is its text's measured width, MetalUI C23: see below). The face menu adds New Sketch on Face (`ViewportEvents.newSketchOnFace`) on a flat
      face that has a normal, outside sketch mode.
    - `ViewportModel` (`@MainActor @Observable`, testable without a GPU) owns the camera, picking, the view cube,
@@ -5051,7 +5673,7 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
      MetalUI glue. A `ViewportItem` with `isGuide` is no part of the scene: only its selected edges are drawn, after the
      solids and ghosts (faded where the part hides them), and it never frames, orbits, picks or opens the face menu
      (`ViewportRenderer+Guides`). The renderer keeps the triad's, the overlay's and the region fills' GPU buffers between
-@@ -466,7 +490,8 @@
+@@ -466,7 +492,8 @@
      ghost, and wrong-sized values draw the plain surface. A `ViewportSlice` (`ViewportModel.showSlice`) is a translucent quad over the
      scene showing a grid of values (`r32Float`, read with a bilinear blend in `slice_fragment`, kept by `SliceTextures` until its
      `generation` changes); it is equal and hashed by `generation`, never by its values, is drawn ignoring depth (it passes through the
@@ -5061,36 +5683,42 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
      The cut view (implicit spec §5.1) is a `ViewportClip` (`ViewportModel.showClip`): the fragment shaders discard what lies on the
      side its normal points to, for faces, B-rep edges, field tints and the ID pass (`ClipUniforms` at fragment buffer 3, 4 for the
      tint, 0 for lines, off for handles), and a back face seen while cutting is the part's colour darkened. A `ViewportItem`'s
-@@ -656,7 +681,8 @@
+@@ -656,7 +683,8 @@
  build)); a refused blend costs tens of milliseconds more than one that works (`BlendRefusalBench`,
  `docs/verification/performance.md`).
  MetalUI exports its own `Angle`: a file importing both MetalUI and CreatorGeometry writes `CreatorGeometry.Angle`.
 -The GPU structs in `Sources/CreatorViewport/Render` mirror the MSL in `ViewportShaders.swift`, and `GPUDataTests` pins their strides, so change both together.
 +The GPU structs in `Sources/CreatorViewport/Render` mirror the MSL in `ViewportShaders.swift` and the HLSL in `Shaders/viewport/common.hlsli`; `GPUDataTests`
-+pins their strides and `ShaderSourceTests` the HLSL's, so change all three together and rebuild the blobs (`scripts/build-viewport-shaders.sh`).
++pins their strides and `ShaderSourceTests` the HLSL's, so change all three together; the next build recompiles the HLSL (`scripts/build-shaders.sh`).
  The viewport's pointer input is MetalUI C7's (spec §9): its bindings live in `ViewportInputMap`, its behaviour in
  `ViewportModel` (`dragChanged`/`dragEnded`/`dragCancelled(button:)`, `click(at:modifiers:)`, `modifiersChanged(_:)`,
  `contextMenuItems(at:)`, `scrolled(by:at:phase:)`, `pinchChanged`/`pinchEnded`, `cursor`), and `ViewportView` only forwards
-@@ -716,7 +742,7 @@
+@@ -716,7 +744,7 @@
  swift test --filter 'CreatorGraphTests.EvaluatorTests/wiredValuesFlowDownstream'   # one test
  swift test --filter CreatorNodesTests        # node definitions through the real Evaluator (OCCT where geometry matters)
  swift test --filter BracketAcceptanceTests   # the §7.2 bracket, headless
 -swift test --filter CreatorViewportTests   # viewport model, maths and the offscreen ID pass (needs a Metal device)
-+swift test --filter CreatorViewportTests   # viewport model, maths, the shaders' hashes and the offscreen render and ID passes (a GPU: Metal, or SDL_GPU on Linux and Windows)
++swift test --filter CreatorViewportTests   # viewport model, maths, the HLSL struct sizes, the build's shaders (Linux, Windows) and the offscreen render and ID passes (a GPU: Metal, or SDL_GPU on Linux and Windows)
  swift run ViewportHarness                  # dev window for docs/verification/human-checks.md group V
  swift test --filter CreatorEditorTests       # editor model + headless render tests
  swift run GraphPanelPreview                   # graph panel + inspector, for docs/verification/human-checks.md (M5)
-@@ -732,7 +758,8 @@
+@@ -732,7 +760,8 @@
  scripts/bench.sh [suite]                   # spec §7.3 benchmarks, release build; numbers go in docs/verification/performance.md
  scripts/bench.sh PatternBench              # patterns spec §7: 200 holes in a plate, edit-to-preview (idle Mac only)
  scripts/linux-test.sh [build|test|smoke|all]   # the suite on Linux in Docker (OrbStack): swift build, swift test (11 "Test run with" lines; 12 once xp-2 puts `CreatorOCCTTests` on Linux), --self-test, --smoke-test 20
 -swift run MetalCreatorApp --smoke-test 5   # a Linux or Windows build: the real window over SDL's offscreen renderers; exit 0 if a first frame was drawn
 +swift run MetalCreatorApp --smoke-test 5   # a Linux or Windows build: the real window over SDL's offscreen renderers; exit 0 if a first frame was drawn and the 3D viewport drew
-+scripts/build-viewport-shaders.sh /path/to/shadercross   # rebuild Shaders/viewport/compiled from the HLSL (needs SDL_shadercross; the checked-in blobs need nothing)
++scripts/build-shaders.sh                  # Linux: compile Shaders/viewport into Shaders/viewport/compiled (git-ignored) with the pinned SDL_shadercross (scripts/shadercross.env); linux-test.sh runs it. Windows: scripts/build-shaders.ps1
  ```
  
  Benchmarks (`Tests/CreatorAppTests/Bench`) are Swift Testing suites that print `BENCH …` lines and assert no time; a
 ````
+
+- [ ] **Step 1b: Packaging copies the build output (U7(a)), and CI time**
+
+xp-2's packaging scripts (`scripts/package-linux.sh`, `scripts/package-windows.ps1`) copy the directory the build made, `Shaders/viewport/compiled`, to `MetalUIAppShaders` beside the executable; nothing in a shipped app reads the repository. With U1(b) that directory exists only after `scripts/build-shaders.sh`/`.ps1` ran, so the packaging steps run after it (the Linux packaging runs through `scripts/linux-test.sh`, which compiles first; the Windows job's compile step precedes its packaging steps) and the packaged app's `--self-test`, run with the repository renamed aside, fails with `ViewportShaderCheck`'s message if the copy is missing. xp-3 edits neither script: **if xp-2 has merged**, check `grep -n 'MetalUIAppShaders' scripts/package-linux.sh scripts/package-windows.ps1` finds a copy of `Shaders/viewport/compiled` and add it if not; **if xp-2 has not**, tell its executor (the shared-files table has the row). The Windows zip's `MetalUISDLShaders` (MetalUI's own shaders, xp-2) is a different directory and stays.
+
+**CI time, added by this revision (estimates; only the Linux numbers below were measured, on this Mac, and only the emulated one):** the Linux x86_64 job gains about 6 minutes once (the shadercross image, built by buildx and cached in the GitHub Actions cache under `xp-shadercross-x86_64`, about 215 MB) and about 1.5 to 2 minutes on every push after (restoring and loading the cached image, compiling 16 shaders natively in well under a minute); the aarch64 job gains about 25 minutes once and 5 to 8 minutes per push (QEMU: cache restore, the emulated compile of 1 min 40 s here, more under QEMU), the cost of there being no Linux aarch64 DXC (Risk 13); the Windows job gains about 10 minutes once per pin (SPIRV-Cross and SDL_shadercross with MSVC, an estimate nobody has run) and about 1 to 2 minutes per push (cache restore, then the compile). The existing timeouts (90 minutes for Linux, 120 to 180 for Windows) cover all of it. If the aarch64 per-push cost matters, cache `Shaders/viewport/compiled` with `actions/cache`, keyed by `hashFiles('Shaders/viewport/*.hls*', 'scripts/shadercross.env', 'scripts/build-shaders.sh')` (not done: it is a second cache to evict and the compile is the thing U1(b) wants exercised).
 
 - [ ] **Step 2: Docs**
 
@@ -5108,8 +5736,8 @@ The human checks XP-19 to XP-25 and E6 are numbered after xp-2's XP-16 to XP-18 
 +- **E6 (xp-3, section 4). The SDL GPU viewport.** Section 4 is implemented as follows. `CreatorViewport`'s renderer is behind
 +  `ViewportBackend`; the Metal implementation is unchanged and the SDL one (`SDLViewportBackend`) lives in `Sources/CreatorViewport/RenderSDL`
 +  behind `#if canImport(MetalUISDLGPU)`. The shaders are HLSL (`Shaders/viewport`, one source for the SDL renderer; the Metal renderer keeps its MSL
-+  strings, so macOS is untouched), compiled by MetalUI's `compile-app-shaders.py` through SDL_shadercross into SPIR-V, DXIL and MSL blobs that are
-+  checked in. XP-G1 was answered by MetalUI S5 and S6; the typed layer lacks XP-G14 (a synchronous readback), XP-G15 (viewport and scissor), XP-G16 (a
++  strings, so macOS is untouched), compiled at build time on Linux and Windows by MetalUI's `compile-app-shaders.py` through a pinned SDL_shadercross into
++  SPIR-V, DXIL and MSL files that are not checked in (user decision U1(b); MetalUI has no build-time path of its own, gap XP-G20). XP-G1 was answered by MetalUI S5 and S6; the typed layer lacks XP-G14 (a synchronous readback), XP-G15 (viewport and scissor), XP-G16 (a
 +  colour write mask), XP-G17 (`r32Float`), XP-G18 (anisotropy) and XP-G19 (a refused pipeline's reason), logged in `docs/metalui-gaps.md`. Picking differs from Metal in one way a person can
 +  see: SDL's readback is asynchronous, so the ID buffer is rendered after the draw that follows a change and a hover keeps its face for the few
 +  milliseconds until it lands (a click waits for it). The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G15 to XP-G18
@@ -5396,16 +6024,7 @@ struct SDLWidgetTests {
 ```diff
 --- a/Tests/CreatorViewportTests/ShaderSourceTests.swift
 +++ b/Tests/CreatorViewportTests/ShaderSourceTests.swift
-@@ -38,7 +38,7 @@
- 
-     @Test func everyStageSourceHasItsCheckedInHashAndBlobs() throws {
-         let sources = Self.stageSources
--        #expect(sources.count >= 16, "the viewport's vertex and fragment stages are found")
-+        #expect(sources.count >= 18, "the viewport's vertex and fragment stages are found")
-         let table = try Self.hashes(in: "SOURCE.sha256")
-         #expect(Set(table.keys) == Set(sources.map(\.lastPathComponent)), "SOURCE.sha256 lists exactly the stage sources")
-         for source in sources {
-@@ -115,6 +115,7 @@
+@@ -77,6 +77,7 @@
              "LineInstance": MemoryLayout<LineInstance>.stride, "LineUniforms": MemoryLayout<LineUniforms>.stride,
              "GridUniforms": MemoryLayout<GridUniforms>.stride, "FillVertex": MemoryLayout<FillVertex>.stride,
              "ClipUniforms": MemoryLayout<ClipUniforms>.stride, "FieldRampUniforms": MemoryLayout<FieldRampUniforms>.stride,
@@ -5413,7 +6032,16 @@ struct SDLWidgetTests {
          ]
          #expect(sizes.count == (try Self.structs().count), "every struct in the header is made of float4, uint4, float2, float and uint")
          for (name, expected) in swift {
-@@ -129,8 +130,8 @@
+@@ -115,7 +116,7 @@
+     /// `INCLUDES.sha256` it wrote match the sources and the header now. A source edited after the last build fails here and says so.
+     @Test func theBuildCompiledEveryStageIntoTheDirectoryTheRendererReads() throws {
+         let sources = Self.stageSources
+-        #expect(sources.count >= 16, "the viewport's vertex and fragment stages are found")
++        #expect(sources.count >= 18, "the viewport's vertex and fragment stages are found")
+         let compiled = try #require(Self.runtimeDirectory, "no compiled shader directory beside the executable or in the source tree. \(Self.remedy)")
+         for source in sources {
+             let stem = String(source.lastPathComponent.dropLast(".hlsl".count))
+@@ -146,8 +147,8 @@
  /// the source tree's, holds every stage for the platform's driver, with its reflection.
  struct ViewportShaderDirectoryTests {
      @Test func everyStageLoadsForThePlatformsDriver() throws {
@@ -5423,7 +6051,7 @@ struct SDLWidgetTests {
 +        #expect(try ViewportShaderCheck.run() == "the viewport's 18 SDL_GPU shader stages were found")
      }
  
-     @Test func aStageThatIsMissingIsNamed() throws {
+     /// `--self-test` asks the viewport whether its shaders were built. With no directory it fails, and the message says which directory
 ```
 
 `Tests/CreatorViewportTests/Support/SDLRenderRig.swift` (change; apply with `git apply` or by hand):
@@ -5945,9 +6573,9 @@ extension SDLViewportRenderer {
      static var platformDriver: String {
 ```
 
-- [ ] **Step 5: Build the compiled shaders**
+- [ ] **Step 5: The shaders build**
 
-Run `scripts/build-viewport-shaders.sh "$SHADERCROSS"` as in task 4. Expected: `Compiled 18 shader(s) …`; `Shaders/viewport/compiled` now has 74 files (`cube.vert/frag.{spv,dxil,msl,json}` added; every other file is byte-identical).
+Nothing to run by hand: `scripts/linux-test.sh` compiles first (the sources changed, so it recompiles). Expected: `Built Shaders/viewport/compiled (74 files).` and `git status` shows no compiled file; `Shaders/viewport/compiled` now has 74 files (`cube.vert/frag.{spv,dxil,msl,json}` added; every other file is byte-identical).
 
 - [ ] **Step 6: Run the tests: they pass**
 
@@ -5955,7 +6583,7 @@ Run `scripts/build-viewport-shaders.sh "$SHADERCROSS"` as in task 4. Expected: `
 XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter 'CreatorViewportTests' 2>&1 | grep -E 'error:|warning:|recorded an issue|failed after|Test run with'
 ```
 Expected:
-- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 323 tests in 43 suites passed` (baseline 259/34 + 64 tests, + 9 suites).
+- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 325 tests in 44 suites passed` (baseline 259/34 + 66 tests, + 10 suites).
 
 `SDLWidgetTests` has 7 tests: the FRONT label painted on the FRONT face (and BACK's from behind), the cube inside its square and hidden when asked, a hovered region, the triad's three axis colours, the triad and cube buffers surviving an orbit, a widget that does not fit, and the blank atlas.
 - [ ] **Step 7: Record the answer**
@@ -5984,8 +6612,7 @@ git add Shaders/viewport/common.hlsli \
   Tests/CreatorViewportTests/SDLViewportBackendTests.swift \
   Tests/CreatorViewportTests/SDLWidgetTests.swift \
   Tests/CreatorViewportTests/ShaderSourceTests.swift \
-  Tests/CreatorViewportTests/Support/SDLRenderRig.swift \
-  Shaders/viewport/compiled
+  Tests/CreatorViewportTests/Support/SDLRenderRig.swift
 git commit -m "viewport: the view cube and the triad on SDL_GPU"
 ```
 
@@ -6181,7 +6808,7 @@ Expected: the build fails. Run against task 10's code (it compiles); `aGhostBlen
 XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter 'CreatorViewportTests' 2>&1 | grep -E 'error:|warning:|recorded an issue|failed after|Test run with'
 ```
 Expected:
-- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 324 tests in 43 suites passed` (baseline 259/34 + 65 tests, + 9 suites).
+- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 326 tests in 44 suites passed` (baseline 259/34 + 67 tests, + 10 suites).
 
 - [ ] **Step 6: Record the answer**
 
@@ -6353,16 +6980,7 @@ struct SDLSliceTests {
 ```diff
 --- a/Tests/CreatorViewportTests/ShaderSourceTests.swift
 +++ b/Tests/CreatorViewportTests/ShaderSourceTests.swift
-@@ -38,7 +38,7 @@
- 
-     @Test func everyStageSourceHasItsCheckedInHashAndBlobs() throws {
-         let sources = Self.stageSources
--        #expect(sources.count >= 18, "the viewport's vertex and fragment stages are found")
-+        #expect(sources.count >= 20, "the viewport's vertex and fragment stages are found")
-         let table = try Self.hashes(in: "SOURCE.sha256")
-         #expect(Set(table.keys) == Set(sources.map(\.lastPathComponent)), "SOURCE.sha256 lists exactly the stage sources")
-         for source in sources {
-@@ -116,6 +116,7 @@
+@@ -78,6 +78,7 @@
              "GridUniforms": MemoryLayout<GridUniforms>.stride, "FillVertex": MemoryLayout<FillVertex>.stride,
              "ClipUniforms": MemoryLayout<ClipUniforms>.stride, "FieldRampUniforms": MemoryLayout<FieldRampUniforms>.stride,
              "CubeVertex": MemoryLayout<CubeVertex>.stride,
@@ -6370,7 +6988,16 @@ struct SDLSliceTests {
          ]
          #expect(sizes.count == (try Self.structs().count), "every struct in the header is made of float4, uint4, float2, float and uint")
          for (name, expected) in swift {
-@@ -130,8 +131,8 @@
+@@ -116,7 +117,7 @@
+     /// `INCLUDES.sha256` it wrote match the sources and the header now. A source edited after the last build fails here and says so.
+     @Test func theBuildCompiledEveryStageIntoTheDirectoryTheRendererReads() throws {
+         let sources = Self.stageSources
+-        #expect(sources.count >= 18, "the viewport's vertex and fragment stages are found")
++        #expect(sources.count >= 20, "the viewport's vertex and fragment stages are found")
+         let compiled = try #require(Self.runtimeDirectory, "no compiled shader directory beside the executable or in the source tree. \(Self.remedy)")
+         for source in sources {
+             let stem = String(source.lastPathComponent.dropLast(".hlsl".count))
+@@ -147,8 +148,8 @@
  /// the source tree's, holds every stage for the platform's driver, with its reflection.
  struct ViewportShaderDirectoryTests {
      @Test func everyStageLoadsForThePlatformsDriver() throws {
@@ -6380,7 +7007,7 @@ struct SDLSliceTests {
 +        #expect(try ViewportShaderCheck.run() == "the viewport's 20 SDL_GPU shader stages were found")
      }
  
-     @Test func aStageThatIsMissingIsNamed() throws {
+     /// `--self-test` asks the viewport whether its shaders were built. With no directory it fails, and the message says which directory
 ```
 
 `Tests/CreatorViewportTests/ViewportSliceTests.swift` (change; apply with `git apply` or by hand):
@@ -6775,9 +7402,9 @@ final class SDLSliceTextures: @unchecked Sendable {
      static var platformDriver: String {
 ```
 
-- [ ] **Step 5: Build the compiled shaders**
+- [ ] **Step 5: The shaders build**
 
-Run `scripts/build-viewport-shaders.sh "$SHADERCROSS"`. Expected: `Compiled 20 shader(s) …`; `compiled` has 82 files; `slice.frag.json` says `"samplers": 1`.
+As in task 10, `scripts/linux-test.sh` compiles first. Expected: `Built Shaders/viewport/compiled (82 files).`; `compiled` has 82 files; `slice.frag.json` says `"samplers": 1`.
 
 - [ ] **Step 6: Run the tests: they pass**
 
@@ -6785,7 +7412,7 @@ Run `scripts/build-viewport-shaders.sh "$SHADERCROSS"`. Expected: `Compiled 20 s
 XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter 'CreatorViewportTests' 2>&1 | grep -E 'error:|warning:|recorded an issue|failed after|Test run with'
 ```
 Expected:
-- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 333 tests in 45 suites passed` (baseline 259/34 + 74 tests, + 11 suites); plus `11 tests in 3 suites` for the app filter.
+- Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 335 tests in 46 suites passed` (baseline 259/34 + 76 tests, + 12 suites); plus `11 tests in 3 suites` for the app filter.
 
 `SDLSliceTests` has 8 tests, `SliceTextureValuesTests` 1.
 - [ ] **Step 7: Record the answer**
@@ -6816,8 +7443,7 @@ git add Shaders/viewport/common.hlsli \
   Sources/CreatorViewport/RenderSDL/SDLViewportShaders.swift \
   Tests/CreatorViewportTests/SDLSliceTests.swift \
   Tests/CreatorViewportTests/ShaderSourceTests.swift \
-  Tests/CreatorViewportTests/ViewportSliceTests.swift \
-  Shaders/viewport/compiled
+  Tests/CreatorViewportTests/ViewportSliceTests.swift
 git commit -m "viewport: the field slice on SDL_GPU"
 ```
 
@@ -6826,7 +7452,7 @@ git commit -m "viewport: the field slice on SDL_GPU"
 
 ## Verification
 
-Written and checked in a scratch copy of the worktree (the session's scratchpad), with a sibling `MetalUI` symlink to `/Users/maxburger/Developer/MetalUI` (read-only; master `b15e038c`). Every code block above is a file read from, or a diff between, the scratch trees "master plus tasks 0 to N", so applying the tasks in order reproduces them (blobs aside: they are built by the task's own step). For each task: `swift build --build-tests` on macOS with no new warning (Linux builds print none either), `swift test --filter` on macOS and, through `XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter …`, on Linux (Docker, OrbStack, Mesa lavapipe), and `swiftlint lint --strict` with zero violations. Tasks 10 to 12 were built and tested on Linux against a copy of MetalUI patched as in the appendix; everything else against MetalUI as it is.
+Written and checked in a scratch copy of the worktree (the session's scratchpad), with a sibling `MetalUI` symlink to `/Users/maxburger/Developer/MetalUI` (read-only; master `b15e038c`). Every code block above is a file read from, or a diff between, the scratch trees "master plus tasks 0 to N", so applying the tasks in order reproduces them (the compiled shaders aside: they are not in the repository, the build makes them). For each task: `swift build --build-tests` on macOS with no new warning (Linux builds print none either), `swift test --filter` on macOS and, through `XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter …`, on Linux (Docker, OrbStack, Mesa lavapipe), and `swiftlint lint --strict` with zero violations. Tasks 10 to 12 were built and tested on Linux against a copy of MetalUI patched as in the appendix; everything else against MetalUI as it is.
 
 The second review round (cube hit-testing, `metalUISDL`, no raw `SDL_GetError()`, the waiting-click tests, gap and check numbering, the script's argument form and `IMAGE`) was applied to the finished tree (tasks 0 to 12) and checked there: `swift package clean` then `swift build --build-tests` on macOS (the `SG-D` check: 999 build steps, no `error:`, no `warning:`), `swiftlint lint --strict` with no output on both trees, the macOS full run and the Linux `all` run by the pass rule (below), and the new tests mutated: with the click's tool capture reverted `aWaitingClickGoesToTheToolItWasMadeWithAndNotTheOneSetWhileItWaited` fails, with `drawsWidgets` left out of `cubeCatches` `aBackendThatDrawsNoCubeLeavesItsCornerToTheScene` fails. The task 8 variant (`SDLViewportBackend.drawsWidgets` false, its test expecting false) was run on Linux (`ViewportBackendTests` and `SDLViewportBackendTests`, 10 tests passed); the intermediate trees of tasks 1 to 7 were not rebuilt one by one this round (their diffs are unchanged except the lines named above).
 
@@ -6836,15 +7462,15 @@ The second review round (cube hit-testing, `metalUISDL`, no raw `SDL_GetError()`
 | 1 | `t1` | baseline + 0 (304 in 41) | baseline + 1 (260 in 34) | b15e038c |
 | 2 | `t2` | baseline + 9 (313 in 42) | baseline + 10 (269 in 35) | b15e038c |
 | 3 | `t3` | baseline + 10 (314 in 42) | baseline + 13 (272 in 35) | b15e038c |
-| 4 | `t4` | baseline + 13 (317 in 43) | baseline + 16 (275 in 36) | b15e038c |
-| 5 | `t5` | baseline + 13 (317 in 43) | baseline + 20 (279 in 38) | b15e038c |
-| 6 | `t6` | baseline + 13 (317 in 43) | baseline + 44 (303 in 40) | b15e038c |
-| 7 | `t7` | baseline + 13 (317 in 43) | baseline + 56 (315 in 41) | b15e038c |
-| 8 | `t8` | baseline + 13 (317 in 43) | baseline + 57 (316 in 42) | b15e038c |
-| 9 | `t9` | baseline + 13 (317 in 43) | baseline + 57 (316 in 42) | b15e038c |
-| 10 | `g1` | unchanged (only SDL files change) | baseline + 64 (323 in 43) | patched copy (the request below) |
-| 11 | `g2` | unchanged (only SDL files change) | baseline + 65 (324 in 43) | patched copy (the request below) |
-| 12 | `g3` | baseline + 14 (318 in 44) | baseline + 74 (333 in 45) | patched copy (the request below) |
+| 4 | `t4` | baseline + 13 (317 in 44) | baseline + 17 (276 in 37) | b15e038c |
+| 5 | `t5` | baseline + 13 (317 in 44) | baseline + 21 (280 in 39) | b15e038c |
+| 6 | `t6` | baseline + 13 (317 in 44) | baseline + 45 (304 in 41) | b15e038c |
+| 7 | `t7` | baseline + 13 (317 in 44) | baseline + 57 (316 in 42) | b15e038c |
+| 8 | `t8` | baseline + 13 (317 in 44) | baseline + 59 (318 in 43) | b15e038c |
+| 9 | `t9` | baseline + 13 (317 in 44) | baseline + 59 (318 in 43) | b15e038c |
+| 10 | `g1` | unchanged (only SDL files change) | baseline + 66 (325 in 44) | patched copy (the request below) |
+| 11 | `g2` | unchanged (only SDL files change) | baseline + 67 (326 in 44) | patched copy (the request below) |
+| 12 | `g3` | baseline + 14 (318 in 45) | baseline + 76 (335 in 46) | patched copy (the request below) |
 
 The figures in brackets are the absolute counts measured on master `11aab8e`; **judge by the delta from the baseline you took in task 0**, since another track's merge (7c-4) moves the absolute figure. The new tests per task are the differences between rows. The macOS app tests (`LaunchSmokeTests`, `ViewportPaneTests`, `SelfTestTests`) run 11 tests after task 8 (master: `LaunchSmokeTests` 2 and `ViewportPaneTests` 3 are 5 of them, so +2 and -1, and `SelfTestTests` unchanged); on Linux the same filter runs 11.
 
@@ -6855,6 +7481,13 @@ Full suites, by the pass rule (exit 0, no "recorded an issue" or "failed after",
 - macOS, end of task 12 (`swift test` once): exit 0, 12 "Test run with" lines, 4671 tests, 0 issue lines. Master: 12 lines, 4656 tests.
 
 Also checked: the finished tasks 0 to 9 on Linux against MetalUI at the CI pin `c502f14c` (`CreatorViewportTests`, the app tests above, `--self-test` and `--smoke-test 20` all pass, as against `b15e038c`). Not verified, and why: Windows and Direct3D 12 (CI only; see Risks), a real GPU (human checks XP-19 to XP-24), and tasks 10 to 12 against a MetalUI that has landed the verbs (the signatures are the request's; adopt and rerun).
+
+**Revision of 2026-10-21 (U1(b)): what was checked and what was not.** Planning only; no product code was written into the repository. Checked, in a scratch directory outside the repository (the session's scratchpad), against SDL_shadercross commit `1ff05bec573988a98ef9e0260b4da44f512b8367`: 
+  (1) **The pin exists and is the only pin there is.** `gh api repos/libsdl-org/SDL_shadercross/releases` and `/tags` return nothing and `git ls-remote --tags` is empty; `main` is at `1ff05bec573988a98ef9e0260b4da44f512b8367` (2026-09-03T17:00:18Z) and its latest successful `Build` run (33781992136) is on that commit. Its CMake script fixes Microsoft's DirectXShaderCompiler `v1.9.2602` (`linux_dxc_2026_02_20.x86_64.tar.gz`, `dxc_2026_02_20.zip`, SHA-256 in the script; no Linux aarch64 build exists).
+  (2) **It builds in the plan's Dockerfile stage.** An `amd64` `ubuntu:24.04` stage on this aarch64 Mac (OrbStack, emulated): SDL3 `release-3.4.16` from source, then SDL_shadercross at the pinned commit with its three submodules, the prebuilt DXC, SPIRV-Cross built shared, and `-DSDLSHADERCROSS_VENDORED=OFF -DSDLSHADERCROSS_INSTALL_RUNTIME=OFF`. First variant (with `INSTALL_RUNTIME=ON`, which also builds vkd3d and clones three repositories at `main`): 18 min 41 s cold, 867 MB. The plan's variant (runtime libraries copied beside the binary instead): 4 min 06 s on top of the cached SDL layer, 214 MB, so about 12 minutes cold (apt 3 min 40 s, SDL3 4 min). Both images produce the same output.
+  (3) **It compiles the plan's HLSL.** The 16 stage files and `common.hlsli` of Task 4 (extracted from this plan) compiled with `scripts/build-shaders.sh` as written here, inside the image, with MetalUI mounted read-only: `Compiled 16 shader(s) to SPIR-V, MSL, DXIL and reflection JSON`, 66 files (`.spv` starts `03 02 23 07`, `.dxil` is a `DXBC` container, `.msl` is Metal source, `mesh.vert.json` says 2 storage and 2 uniform buffers as this task says), 1 min 40 s emulated, 336 KB; a second run is byte-identical (`diff -r`), and the two images' outputs are byte-identical. The scripts' failure paths were run too: unchanged sources print `Shaders/viewport/compiled is current.`; an edited source rebuilds; no shadercross exits 69 with the message that names the tool, the repository and the pinned commit; a source that does not compile exits 1 with the compiler's complaint, the file and the same naming, and removes the half-built directory. Nothing was written into the repository: the scratch tree, the images and the outputs are in the session's scratchpad and were not committed.
+  Not checked: the PowerShell scripts (no `pwsh` here) and the Windows build (CI only), `scripts/linux-test.sh` end to end (`bash -n` only; the diff is made against task 0's version and needs the rest of the tasks applied to run), the workflow (YAML parsed, not run), and any native aarch64 or x86_64 timing.
+Not re-measured: every test count after Task 4 is recalculated by arithmetic from the figures measured on master `11aab8e` (macOS: the old three shader tests become three; Linux: one more at task 4, one at task 8, plus the new suite), not by a run; the tasks 4 to 12 trees were not rebuilt after this revision. Rebuild and re-measure when executing (task 4 step 5 and the deltas). The `ShaderSourceTests`, `ShaderToolchainTests` and `ViewportShaderCheck` code in this revision was written against the tree of tasks 1 to 3 by reading, not compiled.
 
 A first full Linux run, made before the shared pipelines of task 5 existed, failed once on `ScrollZoomTests.theWheelSettlesOnlyOnceItHasBeenStillForTheWholeDelay`, a real-clock test; an immediate rerun passed. The likely cause is a main actor held by tests that each compiled their own pipelines (about a second each on lavapipe) on a Mac that other sessions were also loading, which task 5 removes by sharing one set; both later full runs (end of task 9, end of task 12) passed with it.
 
@@ -6875,7 +7508,14 @@ A first full Linux run, made before the shared pipelines of task 5 existed, fail
 
 10. **The SDL products on macOS (`SG-D`).** `CreatorViewport` and its tests name `metalUISDL` and `metalUISDLGPU`, both conditional on Linux and Windows. Task 5 builds the macOS tests from a clean state straight after the manifest change and it passed here (MetalUI `b15e038c`); a MetalUI or SwiftPM change that drops the module maps again would show as a missing `MetalUISDL` or `CSDL` module on macOS first, and the stop-and-decide note in task 5 says what to do.
 11. **A pipeline refused on a real driver names only its shaders.** The reason is MetalUI gap XP-G19; until it is answered, a Direct3D 12 failure is diagnosed by the shader pair in the message and by running the same pipeline on Vulkan.
-12. **Two branches number the same things.** xp-2 owns no gap (XP-G12 and XP-G13 are already on master) and owns human checks XP-16 to XP-18; xp-3 owns XP-G14 to XP-G19 and XP-19 to XP-25 (see "Shared files"). The agreement lives in both plans; a gap or check either side adds later takes the next free number after both blocks.
+12. **Two branches number the same things.** xp-2 owns no gap (XP-G12 and XP-G13 are already on master) and owns human checks XP-16 to XP-18; xp-3 owns XP-G14 to XP-G20 and XP-19 to XP-25 (see "Shared files"). The agreement lives in both plans; a gap or check either side adds later takes the next free number after both blocks. **xp-2's plan reserved XP-G20 for "a gap found later"; this revision uses it (a build-time shader path), so xp-2's next is XP-G21: tell it.**
+
+13. **There is no DirectXShaderCompiler for Linux aarch64, so the shadercross image is amd64 everywhere.** Microsoft's `v1.9.2602` release has a Linux x86_64 tarball and a Windows zip only, and SDL_shadercross's own non-vendored Linux build downloads exactly those. On an aarch64 Mac (OrbStack) and on the `ubuntu-24.04-arm` CI runner the image therefore runs emulated: measured here, the stage built in about 12 minutes cold and the 16 shaders compiled in 1 min 40 s (OrbStack's emulation); GitHub's `ubuntu-24.04-arm` runner emulates through QEMU (`docker/setup-qemu-action`), slower than that, so budget 25 minutes for the first run and 4 to 6 per push for the compile. The compiled shaders do not depend on the host, so nothing else changes. Alternatives not taken: building DXC from SDL's `external/DirectXShaderCompiler` submodule (`-DSDLSHADERCROSS_VENDORED=ON`: an LLVM-sized build, hours, untried), or compiling on the x86_64 job and handing the directory to the aarch64 job as an artifact (a job dependency and a second path to keep in step). If the emulated first run is too slow on a CI runner, the second is the fix.
+14. **The Windows shadercross build has never run.** `scripts/install-shadercross.ps1` and the workflow steps follow SDL_shadercross's own Windows CI (`Build` workflow, MSVC row: prebuilt DXC, SPIRV-Cross built from the submodule, Ninja, `-DSDLSHADERCROSS_VENDORED=OFF`), but PowerShell is not installed on the Mac this was written on and no Windows machine ran it. Expect a fix or two on the first run: the SDL3 cmake config found through `CMAKE_PREFIX_PATH`, the runtime DLLs (`dxcompiler.dll`, `dxil.dll`, `spirv-cross-c-shared.dll`) that `-DSDLSHADERCROSS_INSTALL_RUNTIME=ON` copies beside the executable, and `ilammy/msvc-dev-cmd` exporting its `INCLUDE`/`LIB` to the later `swift build` steps (move it into a `cmd` step if Swift objects). The Windows job is `continue-on-error`, so the Linux result stays readable; its cache is `actions/cache/restore` + `save` keyed by the pin, saved right after a whole build.
+15. **`swift build` alone compiles no shader.** A developer who builds without `scripts/build-shaders.sh` (or `scripts/linux-test.sh`, which runs it) gets a binary whose SDL viewport has no shaders. It does not hide: `--self-test` and `--smoke-test` fail with a message that names the script and the pinned tool, the SDL suites fail on the first `verify()`, and a build older than an HLSL edit fails `ShaderSourceTests`. A SwiftPM plugin would remove the step but cannot write beside the executable or into the source tree, where MetalUI looks (U1, gap XP-G20); if MetalUI ever provides one, this script step goes.
+16. **The pin is a commit of a repository with no release and no tag.** GitHub serves any commit reachable from a branch by its SHA, so `git fetch origin <sha>` keeps working while it stays on `main`; if SDL force-pushed `main`, the fetch would fail and the build would stop (naming the tool and the commit). Mitigation if that happens: mirror the commit into a repository of ours and change `SHADERCROSS_REPOSITORY` (one line). Moving the pin is one commit in `scripts/shadercross.env` plus the Dockerfile's `ARG`, and `ShaderToolchainTests` fails until both agree.
+17. **SDL_shadercross's runtime option is left off on Linux, and what the stage fetches.** `-DSDLSHADERCROSS_INSTALL_RUNTIME=ON` (its own CI's setting) makes its CMake clone SPIRV-Headers, Vulkan-Headers and Vulkan-Loader at `GIT_TAG main` and download and build vkd3d 2.0, for a Direct3D-bytecode path the viewport does not use (its DXIL comes from DXC); that would make the pin partial and took 8 of the first build's 19 emulated minutes. The stage therefore leaves `INSTALL_RUNTIME` OFF and copies `libdxcompiler.so`, `libdxil.so` and `libspirv-cross-c-shared.so` beside the binary: everything it fetches is pinned (SDL by tag, SDL_shadercross by commit with its submodules, DXC by URL and SHA-256); only Ubuntu's apt packages are not. The 16 shaders compile to byte-identical files with and without the option (measured). The Windows script keeps the option ON, as SDL_shadercross's own Windows CI does, because there it only copies DLLs.
+18. **Files made by the container in the worktree.** `scripts/linux-test.sh` runs the compile in a container that mounts the repository read-write, so `Shaders/viewport/compiled` belongs to whoever Docker maps (OrbStack: the user; Docker on a Linux host: root, which the next `rm -rf` of a plain user cannot remove). It is git-ignored either way.
 
 ## Appendix: the request to MetalUI
 
@@ -7001,8 +7641,9 @@ The change that answers XP-G15, XP-G16, XP-G17 and XP-G18 (XP-G14 and XP-G19 are
 
 ## Self-review
 
+- **Revision of 2026-10-21 (U1(b)).** No compiled file, hash file or blob remains in the plan: the checked-in `compiled` directory, `SOURCE.sha256` and `INCLUDES.sha256` are build products (`.gitignore`), the hash-check tests are replaced by `ShaderSourceTests.theBuildCompiledEveryStageIntoTheDirectoryTheRendererReads` and `ViewportShaderDirectoryTests.aMissingDirectoryFailsTheSelfTestCheckWithAMessageThatSaysWhatToRun`, a missing or failing shadercross stops `scripts/build-shaders.sh`/`.ps1` naming the tool and its pinned commit (`ShaderToolchainTests`), the pin is written once (`scripts/shadercross.env`), the Dockerfile has a `shadercross` stage beside xp-2's `occt`, and tasks 10 and 12 no longer commit `compiled`. Counts, CI time, Risks 13 to 18, the shared-files rows and the decisions section follow. XP-G20 is logged.
 - **Spec coverage (section 4 and the task list).** Renderer behind a protocol, Metal kept: task 2. The same passes on SDL: 4x MSAA and depth (6), instanced lines (6), the ID-pass picker with readback (7), label texture (10), slice texture (12), field tint, `ViewportClip`, warning faces, guides, overlay fills (6), triad and cube (10), ghosts (6, 11). HLSL to SPIR-V/DXIL/MSL through MetalUI's path: 4. `Matrix4`/`FrameUniforms` off `simd`, `GPUDataTests` in sync: 1 and 4. `CubeLabelAtlas` through portable text: 3. `ViewportPlaceholder` replaced: 8. MetalUI gaps logged, never worked around: 0 and the appendix. Tests: model-side portable (2), renderer tests under lavapipe and WARP (5 to 12), the picker's readback (7), gating and `XP_REQUIRE_GPU` (0, 5, 9), human checks (9), `--smoke-test` draws the real viewport (8). Constraints: CLAUDE.md portability (every SDL file is `#if canImport(MetalUISDLGPU)`), non-async heavy loops (7), Linux via `scripts/linux-test.sh` with `XP_TRACK=xp-3` (0), Windows in CI only (9), macOS stays at 12 "Test run with" lines (no new target). Out of scope respected: no compute (xp-c), Mesh items draw (6). Erratum E1 is honoured (`CreatorViewport` stays declared everywhere).
-- **Placeholder scan.** No "TBD" or "add error handling": every step is code or a command. The only values left to the executor are facts of the outside world: the MetalUI commit adopted in tasks 10 to 12 (`git -C ../MetalUI rev-parse HEAD`) and the path to `shadercross`.
+- **Placeholder scan.** No "TBD" or "add error handling": every step is code or a command. The only values left to the executor are facts of the outside world: the MetalUI commit adopted in tasks 10 to 12 (`git -C ../MetalUI rev-parse HEAD`) and, on Windows, where the developer built shadercross (`-ShaderCross`).
 - **Type consistency.** `SDLViewportRenderer.init(device:pipelines:)` and `init(device:library:)` (task 6) become `init(device:pipelines:labelAtlas:)` and `init(device:library:labelAtlas:)` in task 10 and the callers (`SDLViewportBackend`, `SDLRenderRig`) change in the same task; `SDLFramePlan` gains `cube`, `triad` (10) and `slice` (12); `SDLViewportPipelines` gains `cube` (10), `ghostDepth` (11), `slice` (12); `SDLViewportShaders.names` grows with them and `ShaderSourceTests` counts follow (16, 18, 20); `SliceTextures.filled` (Metal) becomes `SliceTextureValues.filled` in task 12.
-- **Review Focus.** Each of the five lines has its test in the task named there.
+- **Review Focus.** Each of the six lines has its test in the task named there.
 - **Review round 2 (cross-track and cube).** Gap and human-check numbers are agreed with xp-2 (XP-G12 and XP-G13 are already on master, XP-16 to XP-18 are xp-2's; this plan uses XP-G14 to XP-G19 and XP-19 to XP-25) and the shared-files table says what the second merge keeps. The Linux script uses xp-2's argument form (`test --filter NAME`), an `IMAGE` of its own and the count rule 11-then-12. `ViewportBackend.drawsWidgets` and `ViewportModel.cubeCatches(_:)` stop the model hit-testing a cube that is not drawn (task 2, switched on in task 10). `CreatorViewport` and its tests name `metalUISDL` as well as `metalUISDLGPU`, with a clean macOS build as the `SG-D` check (task 5). No raw `SDL_GetError()` call remains: the reason a pipeline was refused is gap XP-G19. A waiting click keeps the tool and projector of its press, and the waiting path has tests that fail without it. Test totals are baseline-plus-delta.
