@@ -74,12 +74,12 @@ struct LightweightBracketAcceptanceTests {
                            all: [toImplicit, distance, grading, lattice, drain, mesh, thin, traps, output])
     }
 
-    nonisolated static func voidCount(of mesh: TriangleMesh) throws -> Int {
-        try TrappedVolumeCheck.run(mesh).voidCount
+    nonisolated static func voidCount(of mesh: TriangleMesh) async throws -> Int {
+        try await TrappedVolumeCheck.runConcurrently(mesh).voidCount
     }
 
-    nonisolated static func thinPlaces(of mesh: TriangleMesh) throws -> Int {
-        try ThinWallCheck.run(mesh, minimum: minimumWall).places
+    nonisolated static func thinPlaces(of mesh: TriangleMesh) async throws -> Int {
+        try await ThinWallCheck.runConcurrently(mesh, minimum: minimumWall).places
     }
 
     @Test func aLightweightBracketIsDrainedCheckedAndExportedAs3MF() async throws {

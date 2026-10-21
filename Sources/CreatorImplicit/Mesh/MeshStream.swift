@@ -1,6 +1,7 @@
 import CreatorGraph
 import CreatorKernel
 import Foundation
+import Synchronization
 
 /// A mesh that is not made yet (implicit spec Errata D12): what a Mesh node returns while an export streams to its file. It is the
 /// implicit solid, the voxel size to mesh it at, and the stages (Decimate) to apply to every window on the way; nothing is meshed
@@ -103,26 +104,27 @@ public struct MeshStream: MeshPayload, Hashable, Sendable {
 }
 
 /// The check copy of a `MeshStream`: one mesh, kept for as long as the checks that follow one another need it.
-private final class CheckCopies: @unchecked Sendable {
-    private let lock = NSLock()
-    private var kept: (budget: Int, mesh: TriangleMesh, isExact: Bool)?
+private final class CheckCopies: Sendable {
+    private struct Kept {
+        var budget: Int
+        var mesh: TriangleMesh
+        var isExact: Bool
+    }
+
+    private let kept = Mutex<Kept?>(nil)
 
     func copy(for budget: Int) -> (mesh: TriangleMesh, isExact: Bool)? {
-        lock.lock()
-        defer { lock.unlock() }
-        guard let kept, kept.budget == budget else { return nil }
-        return (kept.mesh, kept.isExact)
+        kept.withLock { kept in
+            guard let kept, kept.budget == budget else { return nil }
+            return (kept.mesh, kept.isExact)
+        }
     }
 
     func keep(_ made: (mesh: TriangleMesh, isExact: Bool), for budget: Int) {
-        lock.lock()
-        kept = (budget, made.mesh, made.isExact)
-        lock.unlock()
+        kept.withLock { $0 = Kept(budget: budget, mesh: made.mesh, isExact: made.isExact) }
     }
 
     func clear() {
-        lock.lock()
-        kept = nil
-        lock.unlock()
+        kept.withLock { $0 = nil }
     }
 }
