@@ -67,9 +67,9 @@ struct AnalyticEdge {
         if (rho < 1e-14) {
             return std::hypot(radius, height); // on the axis: every point of the arc is equally near
         }
-        double relative = std::fmod(std::atan2(y, x) - first, 2 * M_PI);
+        double relative = std::fmod(std::atan2(y, x) - first, 2 * kPi);
         if (relative < 0) {
-            relative += 2 * M_PI;
+            relative += 2 * kPi;
         }
         if (relative <= span) {
             return std::hypot(rho - radius, height);
@@ -89,8 +89,8 @@ struct OutlinePiece {
 };
 
 inline double wrap_angle(double a) {
-    a = std::fmod(a, 2 * M_PI);
-    return a < 0 ? a + 2 * M_PI : a;
+    a = std::fmod(a, 2 * kPi);
+    return a < 0 ? a + 2 * kPi : a;
 }
 
 /// Appends the pieces of `edge`, given in (u, v) by `toUV`.
@@ -112,9 +112,9 @@ void add_outline(std::vector<OutlinePiece> &pieces, const AnalyticEdge &edge, To
     toUV(edge.center, cx, cy);
     const double a0 = std::atan2(y0 - cy, x0 - cx);
     double lo = a0;
-    double span = 2 * M_PI;
+    double span = 2 * kPi;
     double yFirst = y0, yLast = y0; // the v of the range's two ends, exactly as the neighbouring edges have them
-    if (edge.span < 2 * M_PI - 1e-9) {
+    if (edge.span < 2 * kPi - 1e-9) {
         const double s = wrap_angle(std::atan2(y1 - cy, x1 - cx) - a0);
         const double m = wrap_angle(std::atan2(ym - cy, xm - cx) - a0);
         if (m < s) {
@@ -128,8 +128,8 @@ void add_outline(std::vector<OutlinePiece> &pieces, const AnalyticEdge &edge, To
     }
     // Cut the angle range [lo, lo + span] where sin has an extremum (pi/2 and 3 pi/2), so each piece is monotone in v.
     std::vector<double> cuts{lo};
-    for (double k = std::ceil((lo - M_PI / 2) / M_PI); M_PI / 2 + k * M_PI < lo + span; k += 1) {
-        const double at = M_PI / 2 + k * M_PI;
+    for (double k = std::ceil((lo - kPi / 2) / kPi); kPi / 2 + k * kPi < lo + span; k += 1) {
+        const double at = kPi / 2 + k * kPi;
         if (at > lo + 1e-12) {
             cuts.push_back(at);
         }
@@ -247,7 +247,7 @@ inline bool analytic_edge(const TopoDS_Edge &edge, AnalyticEdge &out, VertexPoin
         out.yAxis = circle.YAxis().Direction();
         out.radius = circle.Radius();
         out.first = first;
-        out.span = std::min(last - first, 2 * M_PI);
+        out.span = std::min(last - first, 2 * kPi);
         return out.span >= 0;
     }
     return false;
@@ -348,10 +348,10 @@ inline double analytic_distance(const AnalyticTarget &target, const gp_Pnt &p, d
             }
             across = std::abs(rho - entry.radius);
             while (u < entry.uMin - 1e-9) {
-                u += 2 * M_PI;
+                u += 2 * kPi;
             }
-            while (u >= entry.uMin + 2 * M_PI - 1e-9) {
-                u -= 2 * M_PI;
+            while (u >= entry.uMin + 2 * kPi - 1e-9) {
+                u -= 2 * kPi;
             }
         } else {
             ElSLib::PlaneParameters(entry.position, p, u, v);

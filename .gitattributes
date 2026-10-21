@@ -1,0 +1,10 @@
+# Files the tests read and the scripts run are checked out with LF on every platform. On windows-latest, actions/checkout writes
+# CRLF unless told otherwise (Git for Windows sets core.autocrlf), and Swift reads "\r\n" as ONE Character: a test that splits
+# a file on "\n" or matches "...\n" then finds nothing, and bash refuses a script with CRs. CIPinTests names these patterns.
+packaging/** text eol=lf
+scripts/** text eol=lf
+.github/** text eol=lf
+Sources/COCCT/** text eol=lf
+CLAUDE.md text eol=lf
+# The icon is binary: the rule above would rewrite its bytes.
+packaging/**/*.png binary
