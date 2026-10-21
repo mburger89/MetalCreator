@@ -12,19 +12,21 @@ extension CPUEvaluation {
 
     func tpms(_ lattice: TPMSLattice, at p: Vector3) -> Double {
         let (size, edges) = cellScale(lattice.cells, at: p)
-        let q = Vector3(p.x / edges.x, p.y / edges.y, p.z / edges.z) * (2 * Double.pi)
+        let m = lattice.mapping.coordinates(at: p)
+        let q = Vector3(m.x / edges.x, m.y / edges.y, m.z / edges.z) * (2 * Double.pi)
         let core = lattice.type.value(at: q) * size / (2 * Double.pi * lattice.type.wallScale)
         let wall = max(0, value(lattice.thickness, at: p))
         let body = switch lattice.form {
         case .sheet: abs(core) - wall / 2
         case .network: core - wall / 2
         }
-        return max(body, Self.boxDistance(p, lattice.region))
+        return max(lattice.mapping.join(body, at: p), Self.boxDistance(p, lattice.region))
     }
 
     func struts(_ lattice: StrutLattice, at p: Vector3) -> Double {
         let (_, edges) = cellScale(lattice.cells, at: p)
-        let index = Vector3(floor(p.x / edges.x), floor(p.y / edges.y), floor(p.z / edges.z))
+        let m = lattice.mapping.coordinates(at: p)
+        let index = Vector3(floor(m.x / edges.x), floor(m.y / edges.y), floor(m.z / edges.z))
         let radius = max(0, value(lattice.radius, at: p))
         let blend = lattice.blend
         var nearest = 1e30
@@ -37,14 +39,14 @@ extension CPUEvaluation {
                                             (base.z + strut.start.z) * edges.z)
                         let end = Vector3((base.x + strut.end.x) * edges.x, (base.y + strut.end.y) * edges.y,
                                           (base.z + strut.end.z) * edges.z)
-                        let gap = Self.segmentDistance(p, start, end)
+                        let gap = Self.segmentDistance(m, start, end)
                         nearest = blend > 0 ? Self.smoothMinimum(nearest, gap, width: blend) : min(nearest, gap)
                     }
                 }
             }
         }
         let reach = StrutLattice.reachInCells * min(edges.x, edges.y, edges.z)
-        return max(min(nearest, reach) - radius, Self.boxDistance(p, lattice.region))
+        return max(lattice.mapping.join(min(nearest, reach) - radius, at: p), Self.boxDistance(p, lattice.region))
     }
 
     /// The distance from `p` to the segment from `a` to `b`.
@@ -60,10 +62,11 @@ extension CPUEvaluation {
     func voronoi(_ lattice: VoronoiLattice, at p: Vector3) -> Double {
         let seeds = lattice.seeds
         let radius = seeds.radius
+        let m = lattice.mapping.coordinates(at: p)
         var (d1, d2, d3) = (Double.infinity, Double.infinity, Double.infinity)
         var nearest = -1
-        seeds.forEachSeed(near: p) { seed, position in
-            let d = (p - position).length
+        seeds.forEachSeed(near: m) { seed, position in
+            let d = (m - position).length
             if d < d1 {
                 (d3, d2, d1, nearest) = (d2, d1, d, seed)
             } else if d < d2 {
@@ -81,15 +84,15 @@ extension CPUEvaluation {
             var distance = max(0, (radius - d1) / 2)
             if nearest >= 0 {
                 let first = seeds.points[nearest]
-                seeds.forEachSeed(near: p) { seed, position in
+                seeds.forEachSeed(near: m) { seed, position in
                     let across = position - first
                     let length = across.length
                     guard seed != nearest, length > 1e-9 else { return }
-                    distance = min(distance, across.dot((first + position) * 0.5 - p) / length)
+                    distance = min(distance, across.dot((first + position) * 0.5 - m) / length)
                 }
             }
             body = distance - wall / 2
         }
-        return max(body, Self.boxDistance(p, lattice.region))
+        return max(lattice.mapping.join(body, at: p), Self.boxDistance(p, lattice.region))
     }
 }

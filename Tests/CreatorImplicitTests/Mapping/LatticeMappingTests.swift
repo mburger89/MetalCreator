@@ -193,6 +193,22 @@ struct LatticeMappingTests {
         }
     }
 
+    @Test func theJoinChangesNoFasterThanItsBoundSays() throws {
+        // A body that is the same large number everywhere: all of the change is the fade from solid to body.
+        let map = try cylinder()
+        let body = 5.0
+        let bound = map.lipschitz(base: 0, valueBound: body)
+        var worst = 0.0
+        var previous = map.join(body, at: Vector3(0, 0, 0))
+        for step in 1...3000 {
+            let x = Double(step) * 0.001
+            let value = map.join(body, at: Vector3(x, 0, 0))
+            worst = max(worst, abs(value - previous) / 0.001)
+            previous = value
+        }
+        #expect(worst > 5 && worst <= bound, "measured \(worst) against \(bound)")
+    }
+
     // MARK: Radius
 
     @Test func theMeanRadiusOfASolidSphereAboutItsCentreIsThreeQuartersOfItsRadius() {

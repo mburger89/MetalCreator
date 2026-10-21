@@ -12,25 +12,36 @@ public struct StrutLattice: Hashable, Sendable {
     /// The width of the smooth minimum over the struts, 0 for sharp joints.
     public var blend: Double
     public var region: BoundingBox
+    /// How the cells are laid on the region (implicit spec §3.5); Straight evaluates the struts at the point itself.
+    public var mapping: LatticeMapping
 
     /// How far, in cells, the window of 27 cells sees from any point: every strut outside it is at least `1 - StrutCell.spill`
     /// cells away, and the value is capped a little short of that.
     public static let reachInCells = 0.85
 
-    public init(cell: StrutCell, cells: LatticeCells, radius: Grading, blend: Double, region: BoundingBox) {
+    public init(cell: StrutCell, cells: LatticeCells, radius: Grading, blend: Double, region: BoundingBox,
+                mapping: LatticeMapping = .straight) {
         self.cell = cell
         self.cells = cells
         self.radius = radius
         self.blend = blend
         self.region = region
+        self.mapping = mapping
     }
 
     /// The distance to the lattice is 1-Lipschitz for a fixed cell size; a graded size moves the struts by their coordinates times the
     /// size field's slope over the size (`LatticeCells.warp`, with the window's reach added to the region's), and the radius field's
-    /// slope is added.
+    /// slope is added. A mapping multiplies the distance by its stretch (the struts sit in lattice coordinates) and a mapping that can
+    /// reach its singular set adds what `LatticeMapping.lipschitz` says.
     public var lipschitz: Double {
         let largest = max(cells.size.range.upperBound, cells.smallest) * max(cells.stretch.x, cells.stretch.y, cells.stretch.z)
-        let warp = cells.warp(reach: LatticeCells.reach(of: region) + 2 * largest)
-        return max(1, warp + radius.slope)
+        let warp = cells.warp(reach: mapping.reach(straight: LatticeCells.reach(of: region)) + 2 * largest, stretch: mapping.stretch)
+        return mapping.lipschitz(base: max(1, warp + radius.slope), valueBound: valueBound)
+    }
+
+    /// A bound on |value| before the region cut: the cap of the window's reach, or the radius if that is more.
+    public var valueBound: Double {
+        let largest = max(cells.size.range.upperBound, cells.smallest) * max(cells.stretch.x, cells.stretch.y, cells.stretch.z)
+        return max(Self.reachInCells * largest, radius.magnitude)
     }
 }
