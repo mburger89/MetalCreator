@@ -4,7 +4,7 @@
 
 **Goal:** `CreatorViewport` draws the real 3D view on Linux and Windows, over MetalUI's SDL GPU layer, with the passes the Metal renderer draws; macOS is unchanged in look, behaviour and test count.
 
-**Architecture:** `ViewportModel` stops knowing which GPU API draws for it: it talks to a `ViewportBackend` (draw count, pick, pending pick). `MetalViewportBackend` wraps the existing `ViewportRenderer` and `ViewportPicker` untouched. `SDLViewportBackend` wraps a new `SDLViewportRenderer`, which plans a frame (every buffer made and every copy recorded, because SDL_GPU cannot copy inside a render pass), records the 4x-MSAA colour+depth pass into the surface's own command buffer, and an `SDLViewportPicker`, which renders the ID pass in a batch after the draw that follows a change and reads the `r32Uint` words back with `SDLGPUDevice.download`. The shaders are HLSL (`Shaders/viewport`) built once by MetalUI's `compile-app-shaders.py` into checked-in SPIR-V, DXIL and MSL blobs, found beside the executable as `MetalUIAppShaders` or in the source tree. What the typed layer lacks (MetalUI gaps XP-G13 to XP-G18; xp-2 owns XP-G12) is logged, never worked around: the four layers XP-G14 to XP-G17 block are the plan's last three tasks, and XP-G13 (a synchronous readback) and XP-G18 (a pipeline's failure reason) block nothing.
+**Architecture:** `ViewportModel` stops knowing which GPU API draws for it: it talks to a `ViewportBackend` (draw count, pick, pending pick). `MetalViewportBackend` wraps the existing `ViewportRenderer` and `ViewportPicker` untouched. `SDLViewportBackend` wraps a new `SDLViewportRenderer`, which plans a frame (every buffer made and every copy recorded, because SDL_GPU cannot copy inside a render pass), records the 4x-MSAA colour+depth pass into the surface's own command buffer, and an `SDLViewportPicker`, which renders the ID pass in a batch after the draw that follows a change and reads the `r32Uint` words back with `SDLGPUDevice.download`. The shaders are HLSL (`Shaders/viewport`) built once by MetalUI's `compile-app-shaders.py` into checked-in SPIR-V, DXIL and MSL blobs, found beside the executable as `MetalUIAppShaders` or in the source tree. What the typed layer lacks (MetalUI gaps XP-G14 to XP-G19; XP-G12 and XP-G13 are already on master) is logged, never worked around: the four layers XP-G15 to XP-G18 block are the plan's last three tasks, and XP-G14 (a synchronous readback) and XP-G19 (a pipeline's failure reason) block nothing.
 
 **Tech Stack:** Swift 6.4 strict concurrency, Swift Testing, MetalUI (`MetalUI`, `MetalUISDLGPU`, `MetalUIPortableText`, `MetalUISystemFonts`), HLSL through SDL_shadercross, Mesa lavapipe (Linux, a CPU Vulkan driver) and Direct3D 12 WARP (Windows) for the render tests.
 
@@ -14,6 +14,8 @@
 
 ## Global Constraints
 
+- **Rebase on master at execution start.** Master has moved past `11aab8e` (it now carries XP-G12 and XP-G13 in `docs/metalui-gaps.md`); take its test counts as the baseline.
+- **MetalUI's gap queue is empty, so XP-G14 to XP-G19 are forwarded to MetalUI immediately.** If they land before execution, Tasks 10 to 12 do not wait.
 - Swift 6 strict concurrency; Swift Testing; `@MainActor @Observable` models; behaviour in models and thin views; one type per file; no force unwraps or force `try`; no GCD; no `String(format:)` or legacy formatters (`CLAUDE.md`, `AGENTS.md`).
 - `swiftlint lint --strict` reports zero violations before every commit.
 - Portability (`CLAUDE.md`, "Cross-platform"): no Metal outside `#if canImport(Metal)`, no SDL_GPU outside `#if canImport(MetalUISDLGPU)`, no CoreText, CoreGraphics, ImageIO, CryptoKit or `simd` outside a `#if canImport(…)` file or block.
@@ -43,11 +45,11 @@ Another track also edits each of these. The side that merges second keeps everyt
 | File | Other track | Edited by xp-3 | The second merge must keep |
 |---|---|---|---|
 | `Package.swift` | xp-2 (OpenCascade flags per OS, `CreatorOCCT`, `COCCT`) | a `metalUISDLGPU` constant before the `occt` constant; `CreatorViewport`'s dependency list (now `metalUIPortableText`, `metalUISystemFonts`, `metalUISDL`, `metalUISDLGPU`; `metalUISDL` already exists for the app); `CreatorViewportTests`' list (`metalUISDL`, `metalUISDLGPU`, `"CreatorGraph"`) | all of these lines, and xp-2's per-OS OCCT blocks. No xp-3 line is inside the `#if os(macOS)` block. |
-| `.github/workflows/xp.yml` | xp-2 (packaging jobs, OCCT in the image) | `XP_REQUIRE_GPU: 1` and the comments in the Windows job (task 9) | `XP_REQUIRE_GPU`, and xp-2's jobs and steps. A MetalUI pin bump by either side applies to both; xp-3 does not change `METALUI_COMMIT` until tasks 10 to 12 adopt a MetalUI commit that answers XP-G14 to XP-G17. |
+| `.github/workflows/xp.yml` | xp-2 (packaging jobs, OCCT in the image) | `XP_REQUIRE_GPU: 1` and the comments in the Windows job (task 9) | `XP_REQUIRE_GPU`, and xp-2's jobs and steps. A MetalUI pin bump by either side applies to both; xp-3 does not change `METALUI_COMMIT` until tasks 10 to 12 adopt a MetalUI commit that answers XP-G15 to XP-G18. |
 | `scripts/linux-test.sh` | xp-2 (image, OCCT, packaging steps) | `-e XP_REQUIRE_GPU=1` on `docker run`; `test` taking swift-test arguments (`test --filter NAME`, count rule off); `IMAGE=${IMAGE:-metalcreator-linux:latest}`; header comments (task 0) | xp-2 makes the same three changes in its own words (its default count 12, `IMAGE`, `OCCT_IMAGE`, `OCCT_JOBS`, `TEST_ARGS`, a `package` step). **The side that merges second keeps xp-2's text for all of them and drops xp-3's duplicate** (one `IMAGE` line, one argument form, no `filter` verb), keeps `-e XP_REQUIRE_GPU=1`, and rewrites the two count sentences in the header and `CLAUDE.md`: the count is **11 on Linux and Windows until xp-2 merges and 12 after** (`CreatorOCCTTests`), 12 on macOS throughout. |
 | `scripts/linux/Dockerfile` | xp-2 (OCCT) | none | n/a |
 | `CLAUDE.md` | xp-2, 7c-4, the adoption track | the xp-3 paragraph after xp-1's, five one-line edits (Package list, placeholder sentence, `CreatorViewport` bullet, GPU structs line, two commands) (task 9) | both sides' paragraphs; the xp-3 edits are independent sentences. |
-| `docs/metalui-gaps.md` | xp-2 (its XP-G12, "no way to set SDL's application id", and an amendment of the XP-G5 row, plan Task 8), the adoption track | eight summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G13 to XP-G18 new) and one section at the end (task 0) | all of xp-2's and xp-3's rows and sections. **The numbers are agreed: xp-2 owns XP-G12, xp-3 owns XP-G13 to XP-G18; a gap either branch finds later takes XP-G19.** The two branches edit neighbouring summary lines (xp-3's rows after XP-G10, xp-2's XP-G12 row and XP-G5 amendment), so the second merge is a textual conflict to resolve by keeping every row, in numeric order, not a renumbering. |
+| `docs/metalui-gaps.md` | xp-2 (an amendment of the XP-G5 row, plan Task 8; its "no way to set SDL's application id" gap is XP-G13, already on master), the adoption track | eight summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G14 to XP-G19 new) and one section at the end (task 0) | all of xp-2's and xp-3's rows and sections. **The numbers are agreed: xp-2 owns no gap (XP-G12, the image-format sniff, and XP-G13, the SDL application id, are already on master); xp-3 owns XP-G14 to XP-G19; a gap either branch finds later takes XP-G20.** xp-3's rows come after master's XP-G13 row; if xp-2 amends the XP-G5 row too, the second merge is a textual conflict to resolve by keeping every row, in numeric order, not a renumbering. |
 | `docs/verification/human-checks.md` | xp-2 (XP-16, XP-17 and XP-18, plan Task 8) | XP-19 to XP-25 in group XP, XP-2 and XP-9 reworded (task 9) | all of them. The numbers are agreed already: xp-2 owns XP-16 to XP-18, xp-3 XP-19 to XP-25, so whichever merges second adds its block after the other's without renumbering. If either branch has to add one more, it takes the next free number after both blocks and renumbers its own references (XP-n in the plan text, in `SDL*Tests` comments and in `CLAUDE.md`). |
 | `docs/superpowers/specs/2026-10-13-cross-platform-design.md` | xp-2 | erratum E6 (task 9) | E6, or renumber if xp-2 took the number. |
 | `Sources/MetalCreatorApp/main.swift` | the MetalUI adoption track (ImageHeader, main.swift, cursors) | one line, `smoke?.viewport = { … }` after the `AppModel` is made (task 8) | that line and the adoption track's changes. |
@@ -79,10 +81,10 @@ Product and process choices the spec leaves open. The plan is written for the **
 
 **U4. Picking on SDL is asynchronous.**
 - (a) **Render the ID buffer ahead (after the draw that follows a change of camera or scene) and answer from it; while it is on its way a hover keeps its face and a click waits a few milliseconds.** *Recommended:* the typed layer offers only async readback, and this is Metal's behaviour but for those milliseconds.
-- (b) Wait for MetalUI to add a synchronous readback (gap XP-G13) and block on it, exactly as Metal's picker does.
+- (b) Wait for MetalUI to add a synchronous readback (gap XP-G14) and block on it, exactly as Metal's picker does.
 - (c) Call raw `SDL_` functions for a blocking wait: works today, but it is the workaround the project forbids.
 
-**U5. How gap-blocked layers are handled.** XP-G14 (viewport and scissor), XP-G15 (colour write mask), XP-G16 (`r32Float`) and XP-G17 (anisotropy) block the view cube and triad, the ghost prepass and the slice.
+**U5. How gap-blocked layers are handled.** XP-G15 (viewport and scissor), XP-G16 (colour write mask), XP-G17 (`r32Float`) and XP-G18 (anisotropy) block the view cube and triad, the ghost prepass and the slice.
 - (a) **Tasks 0 to 9 ship the working viewport first (solids, edges, grid, guides, overlay, handles, field tint, clip, warning faces, ID-pass picking). Tasks 10 to 12 wait for MetalUI to answer and are written against the signatures requested in `docs/metalui-gaps.md` and checked against a local copy of MetalUI that has them.** *Recommended:* it respects "never work around" and lands the 90% that does not need MetalUI. Until 10 to 12 land the SDL viewport has no view cube or triad (and, so that nothing invisible acts, the model does not hit-test the cube's corner: hover and click there reach the scene; the cube's arrow buttons and View menu stay), blends ghosts in one pass (an interior can show through) and draws no slice.
 - (b) Use the raw escape hatch MetalUI documents (`SDL_SetGPUViewport(pass.raw, …)`, one line) and shader-side imitations (a zero-output ghost prepass, an `r32Uint` bit-cast) now: everything draws today, with code that MetalUI's answer will make obsolete.
 - (c) Hold the whole merge until MetalUI answers.
@@ -111,7 +113,7 @@ Product and process choices the spec leaves open. The plan is written for the **
 - **The frame's camera is pushed after every pipeline bind** (`SDLPassRecorder`), so no draw depends on what the previous pipeline left in a uniform slot.
 - **Each uniform slot is the cbuffer's register index**, vertex uniforms in `space1`, fragment uniforms in `space3`, fragment samplers in `space2`, vertex storage in `space0` (SDL_GPU's convention, MetalUI `packaging.md` 4a).
 - **A fragment stage reads every vertex output it declares** (MetalUI ruling `GA-Q`: Direct3D 12 links stages by register), which is why the ID pass has vertex shaders of its own.
-- **No raw `SDL_` call in app code.** The one thing the typed layer does not give, the reason a pipeline was refused, is MetalUI gap XP-G18: the error names the vertex and fragment shader and points at the gap, and reads no `SDL_GetError()`.
+- **No raw `SDL_` call in app code.** The one thing the typed layer does not give, the reason a pipeline was refused, is MetalUI gap XP-G19: the error names the vertex and fragment shader and points at the gap, and reads no `SDL_GetError()`.
 - **The model hit-tests the view cube only while the backend draws it** (`ViewportBackend.drawsWidgets`, `ViewportModel.cubeCatches(_:)`): SDL says `false` until task 10, so no invisible control turns the camera.
 - **A click that waited for the ID buffer is the click of the press**: the tool and the projector it was made with, not those of the moment the buffer lands.
 - **The device is the window renderer's, borrowed from the first draw** (`SDLGPUDevice(borrowing:)` through `ctx.view`); the viewport model must not outlive its window.
@@ -178,7 +180,7 @@ Tasks 0 to 9 need only MetalUI as it is (the CI pin `c502f14c`, and `b15e038c`, 
 
 ### Task 0: Log the MetalUI gaps; give the Linux script test arguments, an image of its own and a GPU promise
 
-MetalUI answered XP-G1 (S5 and S6: `MetalUISDLGPU`). This task records that, logs the six things the typed layer still lacks (`XP-G13` to `XP-G18`, entry and summary row each, as `docs/metalui-gaps.md` asks; xp-2 has taken `XP-G12`, see the shared-files table), and makes `scripts/linux-test.sh` able to run one suite (every later task checks its own tests on Linux this way: `scripts/linux-test.sh test --filter NAME`, the argument form xp-2 also adds), run in an image of the track's own (`IMAGE`), and promise the SDL render suites a GPU. No Swift changes. **Forward the six new entries to the MetalUI session now** (they are small: the patch at the end of this plan answers XP-G14 to XP-G17; XP-G13 and XP-G18 are wishes, not blockers); tasks 1 to 9 do not wait for the answer.
+MetalUI answered XP-G1 (S5 and S6: `MetalUISDLGPU`). This task records that, logs the six things the typed layer still lacks (`XP-G14` to `XP-G19`, entry and summary row each, as `docs/metalui-gaps.md` asks; XP-G12 and XP-G13 are already on master, see the shared-files table), and makes `scripts/linux-test.sh` able to run one suite (every later task checks its own tests on Linux this way: `scripts/linux-test.sh test --filter NAME`, the argument form xp-2 also adds), run in an image of the track's own (`IMAGE`), and promise the SDL render suites a GPU. No Swift changes. **Forward the six new entries to the MetalUI session now** (they are small: the patch at the end of this plan answers XP-G15 to XP-G18; XP-G14 and XP-G19 are wishes, not blockers); tasks 1 to 9 do not wait for the answer.
 
 **Files:**
 - Modify: `docs/metalui-gaps.md`
@@ -186,11 +188,11 @@ MetalUI answered XP-G1 (S5 and S6: `MetalUISDLGPU`). This task records that, log
 
 **Interfaces:**
 - Consumes: nothing.
-- Produces: `scripts/linux-test.sh test --filter NAME` (swift test's arguments after `test`; the count rule is off, the exit code and the issue lines are still judged), used by every later task, and `IMAGE` (default `metalcreator-linux:latest`; xp-3's runs use `IMAGE=metalcreator-linux:xp-3 XP_TRACK=xp-3`); `XP_REQUIRE_GPU=1` in the container, read by task 5's `SDLGPUAvailabilityTests`; gap numbers XP-G13 to XP-G18, referenced by tasks 5, 7, 10, 11 and 12.
+- Produces: `scripts/linux-test.sh test --filter NAME` (swift test's arguments after `test`; the count rule is off, the exit code and the issue lines are still judged), used by every later task, and `IMAGE` (default `metalcreator-linux:latest`; xp-3's runs use `IMAGE=metalcreator-linux:xp-3 XP_TRACK=xp-3`); `XP_REQUIRE_GPU=1` in the container, read by task 5's `SDLGPUAvailabilityTests`; gap numbers XP-G14 to XP-G19, referenced by tasks 5, 7, 10, 11 and 12.
 
 - [ ] **Step 1: Add the gaps to `docs/metalui-gaps.md`**
 
-Eight summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G13 to XP-G18 new; xp-2's XP-G12 sits between, whichever branch merges second keeps both) and one section at the end of the file, with the use case and what xp-3 does meanwhile. These entries are the text to send MetalUI.
+Eight summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G14 to XP-G19 new; XP-G12 and XP-G13, already on master, come before them) and one section at the end of the file, with the use case and what xp-3 does meanwhile. These entries are the text to send MetalUI.
 
 `docs/metalui-gaps.md` (change; apply with `git apply` or by hand):
 
@@ -201,14 +203,14 @@ Eight summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G13 to XP-G18 ne
  | XP-G8 | Hand and zoom cursor fallbacks | MetalUI S4 (queued) | ➖ accepted: MetalUI's fallback (`.link` hand, grab → move, zoom → arrow) is used as is; S4 adds image cursors (human check XP-8) |
  | XP-G9 | `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks)` | open (new) | 🔄 open at MetalUI. `MetalCreatorApp --smoke-test` (the CI launch check, `main.swift`) imports it with `@_spi(Checks) import MetalUISDL`; promote it to public API or name a supported headless-launch entry point |
  | XP-G10 | A header-only read of a picture's size and orientation (before any pixel is decoded) | open (new, forward to MetalUI) | 🔄 open at MetalUI. `DecodedImage` reports size and orientation only after it decodes the whole picture, but `ImageLimits` must refuse an oversize one first; MetalCreator keeps a small `ImageHeader` reader (PNG IHDR and `eXIf`, JPEG SOF and APP1) for that. Needed: a public `ImageInfo(data:)` (format, stored size, orientation, no pixel work) |
-+| XP-G1 | App access to SDL_GPU through `GPUSurface`, a shader build path for apps, MSAA resolve, depth targets, instanced draws, storage buffers, mipmapped r8 textures, texture readback | MetalUI S5 and S6 (`MetalUISDLGPU`, master `34491ff4` and later; record §114, rulings `GA-`) | ✅ answered, and used by xp-3 (plan `2026-10-21-xp-3-sdl-gpu-viewport.md`): every item exists in the typed layer and the viewport draws with them. What the layer still lacks for the viewport is XP-G13 to XP-G18 below |
++| XP-G1 | App access to SDL_GPU through `GPUSurface`, a shader build path for apps, MSAA resolve, depth targets, instanced draws, storage buffers, mipmapped r8 textures, texture readback | MetalUI S5 and S6 (`MetalUISDLGPU`, master `34491ff4` and later; record §114, rulings `GA-`) | ✅ answered, and used by xp-3 (plan `2026-10-21-xp-3-sdl-gpu-viewport.md`): every item exists in the typed layer and the viewport draws with them. What the layer still lacks for the viewport is XP-G14 to XP-G19 below |
 +| XP-G2 | Portable compute (SDL GPU compute) for 7c's implicit engine | MetalUI S5 (`SDLGPUComputePipeline`, `submitBatch`, append buffers) | ✅ answered; not used by xp-3 (xp-c's: implicit evaluation and meshing stay on the CPU off macOS until then) |
-+| XP-G13 | A synchronous readback of a texture outside a draw (the ID pass the viewport picks from) | open (new, forward to MetalUI) | 🔄 open at MetalUI, not blocking. SDL's readback is async only (`submitBatch`, `fence.wait()`, `download`), and `ViewportModel.pick` is asked at once by every hover and click. xp-3 renders the ID buffer ahead of the pick and answers from it (`SDLViewportPicker`); a hover keeps its face and a click waits while the buffer is on its way |
-+| XP-G14 | `setViewport` and `setScissor` on a render pass | open (new, forward to MetalUI) | 🔄 open at MetalUI, **blocks the view cube and the triad** (xp-3 task 10): each draws in a square of the target with a camera of its own, as Metal's `setViewport` does |
-+| XP-G15 | A colour write mask on a graphics pipeline | open (new, forward to MetalUI) | 🔄 open at MetalUI, **blocks the ghosts' depth-only prepass** (xp-3 task 11): without it a ghost box blends its back faces over its front ones |
-+| XP-G16 | `SDLGPUTextureFormat.r32Float` | open (new, forward to MetalUI) | 🔄 open at MetalUI, **blocks the field slice** (xp-3 task 12): its grid is an `r32Float` texture read with a nearest sampler |
-+| XP-G17 | Anisotropic filtering on `SDLGPUSamplerDescription` | open (new, forward to MetalUI) | 🔄 open at MetalUI, wanted with XP-G14: the view cube's face names are read through a sampler with `max_anisotropy(8)` on Metal, since the cube is seen at a slant |
-+| XP-G18 | The reason `makeGraphicsPipeline` refused (it answers `nil`; its doc says the message is `SDL_GetError()`) | open (new, forward to MetalUI) | 🔄 open at MetalUI, not blocking. xp-3 names the vertex/fragment pair in its error and reads no raw `SDL_GetError()` (the project's rule is no raw `SDL_` call); on a Direct3D 12 driver the reason is what tells a bad register from a missing feature |
++| XP-G14 | A synchronous readback of a texture outside a draw (the ID pass the viewport picks from) | open (new, forward to MetalUI) | 🔄 open at MetalUI, not blocking. SDL's readback is async only (`submitBatch`, `fence.wait()`, `download`), and `ViewportModel.pick` is asked at once by every hover and click. xp-3 renders the ID buffer ahead of the pick and answers from it (`SDLViewportPicker`); a hover keeps its face and a click waits while the buffer is on its way |
++| XP-G15 | `setViewport` and `setScissor` on a render pass | open (new, forward to MetalUI) | 🔄 open at MetalUI, **blocks the view cube and the triad** (xp-3 task 10): each draws in a square of the target with a camera of its own, as Metal's `setViewport` does |
++| XP-G16 | A colour write mask on a graphics pipeline | open (new, forward to MetalUI) | 🔄 open at MetalUI, **blocks the ghosts' depth-only prepass** (xp-3 task 11): without it a ghost box blends its back faces over its front ones |
++| XP-G17 | `SDLGPUTextureFormat.r32Float` | open (new, forward to MetalUI) | 🔄 open at MetalUI, **blocks the field slice** (xp-3 task 12): its grid is an `r32Float` texture read with a nearest sampler |
++| XP-G18 | Anisotropic filtering on `SDLGPUSamplerDescription` | open (new, forward to MetalUI) | 🔄 open at MetalUI, wanted with XP-G15: the view cube's face names are read through a sampler with `max_anisotropy(8)` on Metal, since the cube is seen at a slant |
++| XP-G19 | The reason `makeGraphicsPipeline` refused (it answers `nil`; its doc says the message is `SDL_GetError()`) | open (new, forward to MetalUI) | 🔄 open at MetalUI, not blocking. xp-3 names the vertex/fragment pair in its error and reads no raw `SDL_GetError()` (the project's rule is no raw `SDL_` call); on a Direct3D 12 driver the reason is what tells a bad register from a missing feature |
  
  ## Reported 2026-10-07 (C7)
  
@@ -221,7 +223,7 @@ Eight summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G13 to XP-G18 ne
 +
 +Plan `docs/superpowers/plans/2026-10-21-xp-3-sdl-gpu-viewport.md`, checked against MetalUI master `b15e038c` (the CI pin in `.github/workflows/xp.yml`
 +is `c502f14c`, which has MetalUI S5 and S6, `MetalUISDLGPU`, master `34491ff4` and later). The viewport's SDL renderer draws every pass of the
-+Metal one except what the gaps below block (XP-G14 to XP-G17), and uses no raw `SDL_` call and no shader-side imitation of a missing verb: a layer a gap
++Metal one except what the gaps below block (XP-G15 to XP-G18), and uses no raw `SDL_` call and no shader-side imitation of a missing verb: a layer a gap
 +blocks is a task of the plan that waits for MetalUI's answer (tasks 10 to 12), written against the signature requested here and checked against
 +a local copy of MetalUI that has exactly that signature.
 +
@@ -231,7 +233,7 @@ Eight summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G13 to XP-G18 ne
 +  `r32Uint` and a mip chain (`levelCount`, `generateMipmaps`), pipelines take a blend, a cull mode and a depth test, a pass draws instanced
 +  (`draw(vertexCount:instanceCount:)`) over vertex-stage storage buffers, and `SDLGPUDevice.download(_:)` reads a texture back. Nothing was
 +  worked around: the viewport's two passes, the ID pass and the label atlas use exactly these.
-+- **XP-G13. A synchronous readback outside a draw.** `ViewportModel.pick` is called by every pointer move over the viewport and by every
++- **XP-G14. A synchronous readback outside a draw.** `ViewportModel.pick` is called by every pointer move over the viewport and by every
 +  click, and answers at once: on Metal `ViewportPicker` renders the ID buffer and waits for the GPU (`waitUntilCompleted`). On SDL the typed
 +  readback is `await device.submitBatch { … }`, `await fence.wait()`, `await device.download(texture)`, and `waitForIdle`, `fence.wait` and
 +  `submitBatch` trap in a debug build inside a draw. So `SDLViewportPicker` renders the ID pass in a batch right after the draw that follows a
@@ -241,21 +243,21 @@ Eight summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G13 to XP-G18 ne
 +  which a hover can name the face the old camera showed. Wanted, not blocking: a blocking `SDLGPUDevice.downloadSynchronously(_ texture:)`
 +  usable from the main actor outside a draw, or `SDLGPUFence.waitBlocking()`, which would give Metal's exact behaviour and delete the
 +  pending state.
-+- **XP-G14. `setViewport` and `setScissor` on a render pass.** The view cube (96 × 96 points at the top left) and the axis triad (64 × 64
++- **XP-G15. `setViewport` and `setScissor` on a render pass.** The view cube (96 × 96 points at the top left) and the axis triad (64 × 64
 +  points at the bottom left) each draw in a square of the target with a camera of their own, as Metal's `setViewport` lets them. Needed on
 +  `SDLGPURenderPass`: `setViewport(x:y:width:height:minDepth:maxDepth:)` (`SDL_SetGPUViewport`) and `setScissor(x:y:width:height:)`
 +  (`SDL_SetGPUScissor`), in target pixels from the top left. Blocks xp-3 task 10.
-+- **XP-G15. A colour write mask on a graphics pipeline.** A ghost (another node's preview, drawn 40% blended) takes two steps so each pixel blends
++- **XP-G16. A colour write mask on a graphics pipeline.** A ghost (another node's preview, drawn 40% blended) takes two steps so each pixel blends
 +  once at its nearest surface: a depth-only prepass, then the blended colour pass, which passes only where its depth equals the prepass's.
 +  Metal's prepass pipeline writes no colour (`colorAttachments[0].writeMask = []`). Needed on `SDLGPUGraphicsPipelineDescription`:
 +  `writesColor: Bool = true` (`SDL_GPUColorTargetBlendState.enable_color_write_mask` with an empty `color_write_mask`). Blocks xp-3 task 11.
-+- **XP-G16. `SDLGPUTextureFormat.r32Float`.** The field slice's grid (up to 256 × 256 numbers) is an `r32Float` texture on Metal, read at texel
++- **XP-G17. `SDLGPUTextureFormat.r32Float`.** The field slice's grid (up to 256 × 256 numbers) is an `r32Float` texture on Metal, read at texel
 +  centres and blended in the shader. Needed: the case `r32Float` (`SDL_GPU_TEXTUREFORMAT_R32_FLOAT`, 4 bytes a texel) beside `r32Uint`,
 +  usable with the sampler usage and with `upload`. Blocks xp-3 task 12.
-+- **XP-G17. Anisotropic filtering on a sampler.** The cube's face names are an `r8` atlas with a full mip chain, drawn at a slant, through a
++- **XP-G18. Anisotropic filtering on a sampler.** The cube's face names are an `r8` atlas with a full mip chain, drawn at a slant, through a
 +  sampler with `max_anisotropy(8)` on Metal. Needed on `SDLGPUSamplerDescription`: `maxAnisotropy: Float = 1` (`enable_anisotropy` when above 1,
-+  `max_anisotropy`). Cosmetic (names blur a little at a slant without it); requested with XP-G14 and used by xp-3 task 10.
-+- **XP-G18. The reason a graphics pipeline was refused.** `SDLGPUDevice.makeGraphicsPipeline(_:)` answers `nil` and its documentation says the
++  `max_anisotropy`). Cosmetic (names blur a little at a slant without it); requested with XP-G15 and used by xp-3 task 10.
++- **XP-G19. The reason a graphics pipeline was refused.** `SDLGPUDevice.makeGraphicsPipeline(_:)` answers `nil` and its documentation says the
 +  message is `SDL_GetError()`; `SDLGPUDevice.lastFailure` covers only a device that could not be made. The viewport builds many pipelines
 +  and a driver that refuses one (Direct3D 12 on `E_INVALIDARG`, a sample count the driver lacks) is the failure its users will report, so
 +  the reason matters, but reading it means a raw `SDL_GetError()` call, which this project does not make. Needed: either
@@ -380,7 +382,7 @@ Expected: `syntax-ok`, no issue line, and one `Test run with N tests in S suites
 swiftlint lint --strict --quiet   # no output
 git add docs/metalui-gaps.md \
   scripts/linux-test.sh
-git commit -m "docs: log MetalUI gaps XP-G13 to XP-G18; linux-test.sh takes test arguments and IMAGE, XP_REQUIRE_GPU"
+git commit -m "docs: log MetalUI gaps XP-G14 to XP-G19; linux-test.sh takes test arguments and IMAGE, XP_REQUIRE_GPU"
 ```
 
 
@@ -2776,7 +2778,7 @@ struct SDLViewportPipelines: Sendable {
                 vertex: try library.vertex(vertex, for: device), fragment: try library.fragment(fragment, for: device),
                 primitiveType: primitive, cullMode: .none, colorFormat: color, blend: blend, sampleCount: samples, depth: depth)
             guard let made = device.makeGraphicsPipeline(description) else {
-                throw ViewportRenderError.deviceRefused("the \(vertex)/\(fragment) pipeline was refused (SDL's reason: MetalUI gap XP-G18)")
+                throw ViewportRenderError.deviceRefused("the \(vertex)/\(fragment) pipeline was refused (SDL's reason: MetalUI gap XP-G19)")
             }
             return made
         }
@@ -3911,7 +3913,7 @@ git commit -m "viewport: the SDL_GPU renderer's main pass"
 
 ### Task 7: The ID pass and the picker with its read-back
 
-Picking on SDL. `SDLIDPassInputs` is what the ID pass draws (each solid's vertex buffer and pick base, each solid's edge instances, the camera and the cut plane), gathered on the main actor by `idPassInputs(for:width:height:)`, so the batch that records the pass on the device's worker thread reads none of the renderer's state. `encodeIDs` is static and records into `r32Uint` (one texel per point) with a single-sample depth target: faces write `pickBase | face`, edges their pick ID, 6 points wide and biased towards the camera. `SDLViewportPicker` runs it as a batch (`submitBatch`), awaits the fence, downloads the words and keeps them until the camera or the scene changes (`PickKey`, as Metal's picker does). It works ahead: the draw calls `schedule(frame)`; `pick` reads the landed words with no wait; `isPending` says when they are not for this view; `pickWhenReady` waits; a pass that cannot run counts as landed and empty, so nothing waits forever, and the next draw retries. This is the MetalUI gap XP-G13 behaviour, user decision U4. Review Focus 3 and 4 are tests here.
+Picking on SDL. `SDLIDPassInputs` is what the ID pass draws (each solid's vertex buffer and pick base, each solid's edge instances, the camera and the cut plane), gathered on the main actor by `idPassInputs(for:width:height:)`, so the batch that records the pass on the device's worker thread reads none of the renderer's state. `encodeIDs` is static and records into `r32Uint` (one texel per point) with a single-sample depth target: faces write `pickBase | face`, edges their pick ID, 6 points wide and biased towards the camera. `SDLViewportPicker` runs it as a batch (`submitBatch`), awaits the fence, downloads the words and keeps them until the camera or the scene changes (`PickKey`, as Metal's picker does). It works ahead: the draw calls `schedule(frame)`; `pick` reads the landed words with no wait; `isPending` says when they are not for this view; `pickWhenReady` waits; a pass that cannot run counts as landed and empty, so nothing waits forever, and the next draw retries. This is the MetalUI gap XP-G14 behaviour, user decision U4. Review Focus 3 and 4 are tests here.
 
 The Metal ID-pass test needs OpenCascade (`OffscreenRenderTests`), so the same checks run here on `TestMeshes.box`, which has the same face and edge numbering as the prism OpenCascade builds in the test: the readback needs a test (spec section 4) and gets one on Linux and Windows.
 
@@ -5006,7 +5008,7 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
 +`Shaders/viewport/compiled` (SPIR-V, DXIL, MSL, reflection, `SOURCE.sha256`, `INCLUDES.sha256`), which is checked in: `ShaderSourceTests` recomputes the
 +hashes with no shadercross and pins the HLSL struct sizes to the Swift strides (`GPUDataTests`), so edit the HLSL, the Swift struct and the MSL
 +together. The compiled directory is found beside the executable as `MetalUIAppShaders` first, then in the source tree (`SDLViewportShaders`);
-+packaging it is xp-2's, and `--self-test` fails without it (`ViewportShaderCheck`). Picking on SDL is asynchronous (MetalUI gap XP-G13):
++packaging it is xp-2's, and `--self-test` fails without it (`ViewportShaderCheck`). Picking on SDL is asynchronous (MetalUI gap XP-G14):
 +`SDLViewportPicker` renders the ID pass in a batch after the draw that follows a change and reads it back with `SDLGPUDevice.download`; until it lands
 +a hover keeps its face and a click waits (`ViewportModel.isPickPending`, `pickWhenReady`, `ViewportBackendTests`). `Matrix4.float` is a
 +`FloatMatrix4` and `FrameUniforms` is plain SIMD (no `simd`), so both exist everywhere. The cube's face names are rasterized by
@@ -5014,8 +5016,8 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
 +`CubeLabelFonts` choosing. The render and pick suites (`SDLRenderTests`, `SDLFieldGuideClipTests`, `SDLPickerTests`, `SDLWidgetTests`,
 +`SDLSliceTests`) run under Mesa's lavapipe in the Linux image and Direct3D 12's WARP in CI; they skip when no SDL_GPU device answers, and with
 +`XP_REQUIRE_GPU=1` (`scripts/linux-test.sh`, the Windows job) `SDLGPUAvailabilityTests` fails instead. `--smoke-test` passes only if the viewport
-+drew (`LaunchSmoke.viewport`). Four layers wait for MetalUI (docs/metalui-gaps.md): the view cube and the triad (XP-G14, XP-G17), the ghosts'
-+depth-only prepass (XP-G15) and the field slice (XP-G16); until they land the SDL viewport draws neither widget, blends ghosts in one pass and
++drew (`LaunchSmoke.viewport`). Four layers wait for MetalUI (docs/metalui-gaps.md): the view cube and the triad (XP-G15, XP-G18), the ghosts'
++depth-only prepass (XP-G16) and the field slice (XP-G17); until they land the SDL viewport draws neither widget, blends ghosts in one pass and
 +draws no slice. Keep SDL's async calls out of loops that hold locals across an `await` (the Windows compiler assert below).
  `Package.swift` has two lists, like MetalUI's: the targets that import no Apple
 -framework are declared everywhere (`CreatorViewport` too: its model, camera and tools are portable and only the Metal renderer files
@@ -5107,10 +5109,10 @@ The human checks XP-19 to XP-25 and E6 are numbered after xp-2's XP-16 to XP-18 
 +  `ViewportBackend`; the Metal implementation is unchanged and the SDL one (`SDLViewportBackend`) lives in `Sources/CreatorViewport/RenderSDL`
 +  behind `#if canImport(MetalUISDLGPU)`. The shaders are HLSL (`Shaders/viewport`, one source for the SDL renderer; the Metal renderer keeps its MSL
 +  strings, so macOS is untouched), compiled by MetalUI's `compile-app-shaders.py` through SDL_shadercross into SPIR-V, DXIL and MSL blobs that are
-+  checked in. XP-G1 was answered by MetalUI S5 and S6; the typed layer lacks XP-G13 (a synchronous readback), XP-G14 (viewport and scissor), XP-G15 (a
-+  colour write mask), XP-G16 (`r32Float`), XP-G17 (anisotropy) and XP-G18 (a refused pipeline's reason), logged in `docs/metalui-gaps.md`. Picking differs from Metal in one way a person can
++  checked in. XP-G1 was answered by MetalUI S5 and S6; the typed layer lacks XP-G14 (a synchronous readback), XP-G15 (viewport and scissor), XP-G16 (a
++  colour write mask), XP-G17 (`r32Float`), XP-G18 (anisotropy) and XP-G19 (a refused pipeline's reason), logged in `docs/metalui-gaps.md`. Picking differs from Metal in one way a person can
 +  see: SDL's readback is asynchronous, so the ID buffer is rendered after the draw that follows a change and a hover keeps its face for the few
-+  milliseconds until it lands (a click waits for it). The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G14 to XP-G17
++  milliseconds until it lands (a click waits for it). The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G15 to XP-G18
 +  and are tasks 10 to 12 of the plan. `Matrix4.float` and `FrameUniforms` use plain SIMD types (`FloatMatrix4`), `CubeLabelAtlas` rasterizes through
 +  MetalUI's `TextSystem`, `ViewportPlaceholder` is gone, `--smoke-test` requires the viewport to have drawn, and `--self-test` checks the viewport's
 +  compiled shaders. Section 2.3's second bullet (the card) and human check XP-2 no longer hold. Implicit evaluation and meshing stay on the CPU off
@@ -5213,9 +5215,9 @@ git commit -m "docs, CI: Windows renders on WARP, CLAUDE.md, human checks XP-19.
 ```
 
 
-### Task 10: The view cube and the triad (waits for MetalUI XP-G14 and XP-G17)
+### Task 10: The view cube and the triad (waits for MetalUI XP-G15 and XP-G18)
 
-The view cube (96 x 96 points at the top left; its tiles, hover and active region cyan, and its six face names from the label atlas, mipmapped) and the axis triad (64 x 64 points at the bottom left) each draw in a square of the target with a camera of their own, as Metal's `setViewport` lets them: `SDLGPURenderPass.setViewport(x:y:width:height:)` (gap XP-G14). The face names are an `r8Unorm` texture with a full mip chain (`levelCount`, `generateMipmaps(of:)`, which needs `sampler` and `colorTarget` usage and runs outside a pass, so it is part of the plan), read through a linear sampler with 8x anisotropy (`maxAnisotropy`, gap XP-G17). The cube is convex, so back-face culling replaces a depth test and a face turned away hides its name. The cube hides with `showsViewCube`; a widget that does not fit the target is left out, as in Metal. Review Focus 5 is a test here: with a blank atlas (no installed font) the cube still draws, unlabelled.
+The view cube (96 x 96 points at the top left; its tiles, hover and active region cyan, and its six face names from the label atlas, mipmapped) and the axis triad (64 x 64 points at the bottom left) each draw in a square of the target with a camera of their own, as Metal's `setViewport` lets them: `SDLGPURenderPass.setViewport(x:y:width:height:)` (gap XP-G15). The face names are an `r8Unorm` texture with a full mip chain (`levelCount`, `generateMipmaps(of:)`, which needs `sampler` and `colorTarget` usage and runs outside a pass, so it is part of the plan), read through a linear sampler with 8x anisotropy (`maxAnisotropy`, gap XP-G18). The cube is convex, so back-face culling replaces a depth test and a face turned away hides its name. The cube hides with `showsViewCube`; a widget that does not fit the target is left out, as in Metal. Review Focus 5 is a test here: with a blank atlas (no installed font) the cube still draws, unlabelled.
 
 This task's code was checked against a local copy of MetalUI that has exactly the signatures requested in `docs/metalui-gaps.md` (the patch at the end of this plan), not against a MetalUI that has landed them.
 
@@ -5241,7 +5243,7 @@ This task's code was checked against a local copy of MetalUI that has exactly th
 - Consumes: task 6's plan and recorder; `CubeLabelFonts.atlas()` (task 3); `GPUGeometry.cubeVertices/triadInstances`; `ViewCubeLayout`, `TriadLayout`; MetalUI `SDLGPURenderPass.setViewport(x:y:width:height:minDepth:maxDepth:)`, `SDLGPUSamplerDescription(…, maxAnisotropy:)`, `SDLGPUCommandBuffer.generateMipmaps(of:)`.
 - Produces: `SDLViewportRenderer.init(device:pipelines:labelAtlas:)` and the convenience `init(device:library:labelAtlas:)`; `SDLViewportCube`; `SDLFramePlan.Cube/Triad/WidgetViewport`; pipelines `cube`; shaders `cube.vert/frag` and `CubeVertex` in `common.hlsli`; `SDLRenderRig.init(labelAtlas:)`; `renderer.triadBuffer`.
 
-- [ ] **Step 1: Gate: MetalUI has answered XP-G14 and XP-G17**
+- [ ] **Step 1: Gate: MetalUI has answered XP-G15 and XP-G18**
 
 Do not start this task until MetalUI has the verbs `setViewport` on `SDLGPURenderPass` and `maxAnisotropy` on `SDLGPUSamplerDescription`. Check the sibling checkout and adopt the commit:
 
@@ -5792,7 +5794,7 @@ extension SDLViewportRenderer {
 -                primitiveType: primitive, cullMode: .none, colorFormat: color, blend: blend, sampleCount: samples, depth: depth)
 +                primitiveType: primitive, cullMode: cull, colorFormat: color, blend: blend, sampleCount: samples, depth: depth)
              guard let made = device.makeGraphicsPipeline(description) else {
-                 throw ViewportRenderError.deviceRefused("the \(vertex)/\(fragment) pipeline was refused (SDL's reason: MetalUI gap XP-G18)")
+                 throw ViewportRenderError.deviceRefused("the \(vertex)/\(fragment) pipeline was refused (SDL's reason: MetalUI gap XP-G19)")
              }
 @@ -54,6 +56,7 @@
          lineAlways = try pipeline("line", "line", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: always)
@@ -5958,10 +5960,10 @@ Expected:
 `SDLWidgetTests` has 7 tests: the FRONT label painted on the FRONT face (and BACK's from behind), the cube inside its square and hidden when asked, a hovered region, the triad's three axis colours, the triad and cube buffers surviving an orbit, a widget that does not fit, and the blank atlas.
 - [ ] **Step 7: Record the answer**
 
-In `docs/metalui-gaps.md` change, for XP-G14 and XP-G17, the summary row's status from `🔄 open at MetalUI, …` to `✅ fixed by MetalUI <commit> (<what MetalUI called it>), adopted by xp-3 task 10`, and add one sentence to the entry in the "Hit by the 3D viewport on SDL GPU (xp-3)" section saying so. `<commit>` is the MetalUI commit set as `METALUI_COMMIT` above. In `CLAUDE.md`'s xp-3 paragraph, shorten the sentence beginning "Four layers wait for MetalUI" to the layers still waiting. In `docs/superpowers/specs/2026-10-13-cross-platform-design.md` erratum E6 do the same to the sentence "The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G14 to XP-G17". The rows:
+In `docs/metalui-gaps.md` change, for XP-G15 and XP-G18, the summary row's status from `🔄 open at MetalUI, …` to `✅ fixed by MetalUI <commit> (<what MetalUI called it>), adopted by xp-3 task 10`, and add one sentence to the entry in the "Hit by the 3D viewport on SDL GPU (xp-3)" section saying so. `<commit>` is the MetalUI commit set as `METALUI_COMMIT` above. In `CLAUDE.md`'s xp-3 paragraph, shorten the sentence beginning "Four layers wait for MetalUI" to the layers still waiting. In `docs/superpowers/specs/2026-10-13-cross-platform-design.md` erratum E6 do the same to the sentence "The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G15 to XP-G18". The rows:
 
-- `| XP-G14 | `setViewport` and `setScissor` on a render pass |`
-- `| XP-G17 | Anisotropic filtering on `SDLGPUSamplerDescription` |`
+- `| XP-G15 | `setViewport` and `setScissor` on a render pass |`
+- `| XP-G18 | Anisotropic filtering on `SDLGPUSamplerDescription` |`
 
 - [ ] **Step 8: Lint and commit**
 
@@ -5988,9 +5990,9 @@ git commit -m "viewport: the view cube and the triad on SDL_GPU"
 ```
 
 
-### Task 11: The ghosts' depth-only prepass (waits for MetalUI XP-G15)
+### Task 11: The ghosts' depth-only prepass (waits for MetalUI XP-G16)
 
-A ghost (another node's preview, blended at 40%) takes two steps so each pixel blends once, at its nearest ghost surface: a depth-only prepass, then the blended colour pass, which passes only where its depth equals the prepass's (less-or-equal, no write). Metal's prepass pipeline writes no colour. SDL needs the pipeline's colour write mask (`writesColor: false`, gap XP-G15). Until then (tasks 0 to 9) the ghost pass blends every layer it is not hidden by. The test is the one that fails without the prepass: a ghost box looks, in the middle of its front face, as a ghost of that face alone does. The prepass runs the same `mesh` fragment (`ghost == 1`) as the colour pass, exactly as Metal does.
+A ghost (another node's preview, blended at 40%) takes two steps so each pixel blends once, at its nearest ghost surface: a depth-only prepass, then the blended colour pass, which passes only where its depth equals the prepass's (less-or-equal, no write). Metal's prepass pipeline writes no colour. SDL needs the pipeline's colour write mask (`writesColor: false`, gap XP-G16). Until then (tasks 0 to 9) the ghost pass blends every layer it is not hidden by. The test is the one that fails without the prepass: a ghost box looks, in the middle of its front face, as a ghost of that face alone does. The prepass runs the same `mesh` fragment (`ghost == 1`) as the colour pass, exactly as Metal does.
 
 **Files:**
 - Modify: `Sources/CreatorViewport/RenderSDL/SDLViewportPipelines.swift`
@@ -6001,7 +6003,7 @@ A ghost (another node's preview, blended at 40%) takes two steps so each pixel b
 - Consumes: task 6's `drawSolids`; MetalUI `SDLGPUGraphicsPipelineDescription(…, writesColor:)`.
 - Produces: `SDLViewportPipelines.ghostDepth`; the ghost colour pipeline now tests less-or-equal.
 
-- [ ] **Step 1: Gate: MetalUI has answered XP-G15**
+- [ ] **Step 1: Gate: MetalUI has answered XP-G16**
 
 Do not start this task until MetalUI has the verbs a colour write mask on `SDLGPUGraphicsPipelineDescription`. Check the sibling checkout and adopt the commit:
 
@@ -6093,7 +6095,7 @@ Expected: the build fails. Run against task 10's code (it compiles); `aGhostBlen
 +                primitiveType: primitive, cullMode: cull, colorFormat: color, blend: blend, sampleCount: samples, depth: depth,
 +                writesColor: writesColor)
              guard let made = device.makeGraphicsPipeline(description) else {
-                 throw ViewportRenderError.deviceRefused("the \(vertex)/\(fragment) pipeline was refused (SDL's reason: MetalUI gap XP-G18)")
+                 throw ViewportRenderError.deviceRefused("the \(vertex)/\(fragment) pipeline was refused (SDL's reason: MetalUI gap XP-G19)")
              }
 @@ -51,7 +54,8 @@
          fill = try pipeline("fill", "fill", blend: .premultipliedAlpha, depth: always)
@@ -6183,9 +6185,9 @@ Expected:
 
 - [ ] **Step 6: Record the answer**
 
-In `docs/metalui-gaps.md` change, for XP-G15, the summary row's status from `🔄 open at MetalUI, …` to `✅ fixed by MetalUI <commit> (<what MetalUI called it>), adopted by xp-3 task 11`, and add one sentence to the entry in the "Hit by the 3D viewport on SDL GPU (xp-3)" section saying so. `<commit>` is the MetalUI commit set as `METALUI_COMMIT` above. In `CLAUDE.md`'s xp-3 paragraph, shorten the sentence beginning "Four layers wait for MetalUI" to the layers still waiting. In `docs/superpowers/specs/2026-10-13-cross-platform-design.md` erratum E6 do the same to the sentence "The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G14 to XP-G17". The rows:
+In `docs/metalui-gaps.md` change, for XP-G16, the summary row's status from `🔄 open at MetalUI, …` to `✅ fixed by MetalUI <commit> (<what MetalUI called it>), adopted by xp-3 task 11`, and add one sentence to the entry in the "Hit by the 3D viewport on SDL GPU (xp-3)" section saying so. `<commit>` is the MetalUI commit set as `METALUI_COMMIT` above. In `CLAUDE.md`'s xp-3 paragraph, shorten the sentence beginning "Four layers wait for MetalUI" to the layers still waiting. In `docs/superpowers/specs/2026-10-13-cross-platform-design.md` erratum E6 do the same to the sentence "The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G15 to XP-G18". The rows:
 
-- `| XP-G15 | A colour write mask on a graphics pipeline |`
+- `| XP-G16 | A colour write mask on a graphics pipeline |`
 
 - [ ] **Step 7: Lint and commit**
 
@@ -6198,9 +6200,9 @@ git commit -m "viewport: the ghosts' depth-only prepass on SDL_GPU"
 ```
 
 
-### Task 12: The field slice (waits for MetalUI XP-G16)
+### Task 12: The field slice (waits for MetalUI XP-G17)
 
-The slice (fields spec section 6) is a translucent quad through the scene showing a grid of values, drawn ignoring depth because it passes through the part. Its grid is an `r32Float` texture (gap XP-G16), kept until the slice's generation, size or ramp middle changes (`SDLSliceTextures`; the stored numbers are `SliceTextureValues`, now shared with Metal's `SliceTextures`: NaN becomes the ramp's middle, an infinity the end it lies beyond). The shader reads it at texel centres through a nearest sampler (a texel fetch) and blends bilinearly itself, so no support for filtering a float texture is assumed. The slice is never in the ID pass; `SDLSliceTests.aSliceIsNeverUnderAPick` pins it.
+The slice (fields spec section 6) is a translucent quad through the scene showing a grid of values, drawn ignoring depth because it passes through the part. Its grid is an `r32Float` texture (gap XP-G17), kept until the slice's generation, size or ramp middle changes (`SDLSliceTextures`; the stored numbers are `SliceTextureValues`, now shared with Metal's `SliceTextures`: NaN becomes the ramp's middle, an infinity the end it lies beyond). The shader reads it at texel centres through a nearest sampler (a texel fetch) and blends bilinearly itself, so no support for filtering a float texture is assumed. The slice is never in the ID pass; `SDLSliceTests.aSliceIsNeverUnderAPick` pins it.
 
 **Files:**
 - Create: `Shaders/viewport/slice.frag.hlsl`
@@ -6223,7 +6225,7 @@ The slice (fields spec section 6) is a translucent quad through the scene showin
 - Consumes: task 6's plan; `ViewportSlice`, `SliceUniforms`, `FieldRampUniforms`; MetalUI `SDLGPUTextureFormat.r32Float`.
 - Produces: `SliceTextureValues.filled(_:ramp:)`, `.texels(of:)`; `SDLSliceTextures`; `SDLFramePlan.Slice`; pipeline `slice`; shaders `slice.vert/frag` and `SliceUniforms` in `common.hlsli`; `renderer.sliceTextures.uploads`.
 
-- [ ] **Step 1: Gate: MetalUI has answered XP-G16**
+- [ ] **Step 1: Gate: MetalUI has answered XP-G17**
 
 Do not start this task until MetalUI has the verbs the format `r32Float` on `SDLGPUTextureFormat`. Check the sibling checkout and adopt the commit:
 
@@ -6788,9 +6790,9 @@ Expected:
 `SDLSliceTests` has 8 tests, `SliceTextureValuesTests` 1.
 - [ ] **Step 7: Record the answer**
 
-In `docs/metalui-gaps.md` change, for XP-G16, the summary row's status from `🔄 open at MetalUI, …` to `✅ fixed by MetalUI <commit> (<what MetalUI called it>), adopted by xp-3 task 12`, and add one sentence to the entry in the "Hit by the 3D viewport on SDL GPU (xp-3)" section saying so. `<commit>` is the MetalUI commit set as `METALUI_COMMIT` above. In `CLAUDE.md`'s xp-3 paragraph, shorten the sentence beginning "Four layers wait for MetalUI" to the layers still waiting. In `docs/superpowers/specs/2026-10-13-cross-platform-design.md` erratum E6 do the same to the sentence "The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G14 to XP-G17". The rows:
+In `docs/metalui-gaps.md` change, for XP-G17, the summary row's status from `🔄 open at MetalUI, …` to `✅ fixed by MetalUI <commit> (<what MetalUI called it>), adopted by xp-3 task 12`, and add one sentence to the entry in the "Hit by the 3D viewport on SDL GPU (xp-3)" section saying so. `<commit>` is the MetalUI commit set as `METALUI_COMMIT` above. In `CLAUDE.md`'s xp-3 paragraph, shorten the sentence beginning "Four layers wait for MetalUI" to the layers still waiting. In `docs/superpowers/specs/2026-10-13-cross-platform-design.md` erratum E6 do the same to the sentence "The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G15 to XP-G18". The rows:
 
-- `| XP-G16 | `SDLGPUTextureFormat.r32Float` |`
+- `| XP-G17 | `SDLGPUTextureFormat.r32Float` |`
 
 - [ ] **Step 8: The final check**
 
@@ -6863,7 +6865,7 @@ A first full Linux run, made before the shared pipelines of task 5 existed, fail
 1. **Direct3D 12 is unverified until the Windows job runs.** The SPIR-V path (Vulkan on lavapipe) is what these tests exercised. DXIL comes from the same SPIR-V through spirv-cross and DXC. The known trap, MetalUI rule `GA-Q` (a fragment stage must read every vertex output it declares), is respected: every fragment shader reads all its inputs, and the ID pass has vertex shaders of its own for that reason. If `CreateGraphicsPipelineState` still answers `E_INVALIDARG`, the pipeline name is in the error (`SDLViewportPipelines`' message names the vertex and fragment shader).
 2. **A real GPU is stricter than lavapipe** about descriptor bindings, storage-buffer alignment and MSAA formats. Human checks XP-19 to XP-24 are where that shows.
 3. **The borrowed device.** `SDLViewportBackend` keeps the window renderer's `SDLGPUDevice` and every buffer made on it; the viewport model must not outlive its window (MetalUI: "keep it no longer than the window"). The app has one window, and `New`/`Open` replace the model inside it, which releases the old buffers on the live device.
-4. **Pick latency.** A hover can name the previous camera's face for the 40 ms settle plus a few milliseconds of readback after an orbit stops (gap XP-G13); a click never does (it waits). A scene that changes on every frame for a long time (a fillet drag) never settles, so its hover freezes until it stops.
+4. **Pick latency.** A hover can name the previous camera's face for the 40 ms settle plus a few milliseconds of readback after an orbit stops (gap XP-G14); a click never does (it waits). A scene that changes on every frame for a long time (a fillet drag) never settles, so its hover freezes until it stops.
 5. **Large meshes.** A mesh's vertex buffer is `3 × triangles × 48` bytes; SDL_GPU buffers are limited to 4 GiB (`UInt32`), so a mesh of about 29 million triangles fails to upload and its solid is skipped silently (`SDLViewportUploader.storageBuffer` answers `nil`). 7c's previews are far below that (4 M triangles is 576 MB).
 6. **macOS look.** The cube's face names now go through `CoreTextTextSystem` instead of a direct `CTLineDraw`: the test that reads the pixels passes, the antialiasing may differ by a hair (XP-25).
 7. **The Windows Swift 6.4 compiler** asserts on an `async` function that holds a loop's locals across an `await`. The picker's loop is split into synchronous helpers and no test has a loop around an `await`; if Windows CI still crashes, the stack trace names the function.
@@ -6872,12 +6874,12 @@ A first full Linux run, made before the shared pipelines of task 5 existed, fail
 9. **Real-clock tests on a loaded machine.** `ScrollZoomTests.theWheelSettlesOnlyOnceItHasBeenStillForTheWholeDelay` failed once in a full Linux run (see Verification). Task 5 removes the likeliest cause; if it recurs on a busy runner, the test (not xp-3's) needs a yield-based wait instead of a wall-clock one.
 
 10. **The SDL products on macOS (`SG-D`).** `CreatorViewport` and its tests name `metalUISDL` and `metalUISDLGPU`, both conditional on Linux and Windows. Task 5 builds the macOS tests from a clean state straight after the manifest change and it passed here (MetalUI `b15e038c`); a MetalUI or SwiftPM change that drops the module maps again would show as a missing `MetalUISDL` or `CSDL` module on macOS first, and the stop-and-decide note in task 5 says what to do.
-11. **A pipeline refused on a real driver names only its shaders.** The reason is MetalUI gap XP-G18; until it is answered, a Direct3D 12 failure is diagnosed by the shader pair in the message and by running the same pipeline on Vulkan.
-12. **Two branches number the same things.** xp-2 owns gap XP-G12 and human checks XP-16 to XP-18; xp-3 owns XP-G13 to XP-G18 and XP-19 to XP-25 (see "Shared files"). The agreement lives in both plans; a gap or check either side adds later takes the next free number after both blocks.
+11. **A pipeline refused on a real driver names only its shaders.** The reason is MetalUI gap XP-G19; until it is answered, a Direct3D 12 failure is diagnosed by the shader pair in the message and by running the same pipeline on Vulkan.
+12. **Two branches number the same things.** xp-2 owns no gap (XP-G12 and XP-G13 are already on master) and owns human checks XP-16 to XP-18; xp-3 owns XP-G14 to XP-G19 and XP-19 to XP-25 (see "Shared files"). The agreement lives in both plans; a gap or check either side adds later takes the next free number after both blocks.
 
 ## Appendix: the request to MetalUI
 
-The change that answers XP-G14, XP-G15, XP-G16 and XP-G17 (XP-G13 and XP-G18 are not in it), as a patch against MetalUI `b15e038c`, `Backends/SDL/Sources/MetalUISDLGPU`. Tasks 10 to 12 were built and tested against a copy of MetalUI with exactly this patch applied (never against `../MetalUI`, which this repository does not modify). It carries no MetalUI tests; MetalUI will want some.
+The change that answers XP-G15, XP-G16, XP-G17 and XP-G18 (XP-G14 and XP-G19 are not in it), as a patch against MetalUI `b15e038c`, `Backends/SDL/Sources/MetalUISDLGPU`. Tasks 10 to 12 were built and tested against a copy of MetalUI with exactly this patch applied (never against `../MetalUI`, which this repository does not modify). It carries no MetalUI tests; MetalUI will want some.
 
 ```diff
 --- a/Backends/SDL/Sources/MetalUISDLGPU/SDLGPUTexture.swift
@@ -7003,4 +7005,4 @@ The change that answers XP-G14, XP-G15, XP-G16 and XP-G17 (XP-G13 and XP-G18 are
 - **Placeholder scan.** No "TBD" or "add error handling": every step is code or a command. The only values left to the executor are facts of the outside world: the MetalUI commit adopted in tasks 10 to 12 (`git -C ../MetalUI rev-parse HEAD`) and the path to `shadercross`.
 - **Type consistency.** `SDLViewportRenderer.init(device:pipelines:)` and `init(device:library:)` (task 6) become `init(device:pipelines:labelAtlas:)` and `init(device:library:labelAtlas:)` in task 10 and the callers (`SDLViewportBackend`, `SDLRenderRig`) change in the same task; `SDLFramePlan` gains `cube`, `triad` (10) and `slice` (12); `SDLViewportPipelines` gains `cube` (10), `ghostDepth` (11), `slice` (12); `SDLViewportShaders.names` grows with them and `ShaderSourceTests` counts follow (16, 18, 20); `SliceTextures.filled` (Metal) becomes `SliceTextureValues.filled` in task 12.
 - **Review Focus.** Each of the five lines has its test in the task named there.
-- **Review round 2 (cross-track and cube).** Gap and human-check numbers are agreed with xp-2 (XP-G12 and XP-16 to XP-18 are xp-2's; this plan uses XP-G13 to XP-G18 and XP-19 to XP-25) and the shared-files table says what the second merge keeps. The Linux script uses xp-2's argument form (`test --filter NAME`), an `IMAGE` of its own and the count rule 11-then-12. `ViewportBackend.drawsWidgets` and `ViewportModel.cubeCatches(_:)` stop the model hit-testing a cube that is not drawn (task 2, switched on in task 10). `CreatorViewport` and its tests name `metalUISDL` as well as `metalUISDLGPU`, with a clean macOS build as the `SG-D` check (task 5). No raw `SDL_GetError()` call remains: the reason a pipeline was refused is gap XP-G18. A waiting click keeps the tool and projector of its press, and the waiting path has tests that fail without it. Test totals are baseline-plus-delta.
+- **Review round 2 (cross-track and cube).** Gap and human-check numbers are agreed with xp-2 (XP-G12 and XP-G13 are already on master, XP-16 to XP-18 are xp-2's; this plan uses XP-G14 to XP-G19 and XP-19 to XP-25) and the shared-files table says what the second merge keeps. The Linux script uses xp-2's argument form (`test --filter NAME`), an `IMAGE` of its own and the count rule 11-then-12. `ViewportBackend.drawsWidgets` and `ViewportModel.cubeCatches(_:)` stop the model hit-testing a cube that is not drawn (task 2, switched on in task 10). `CreatorViewport` and its tests name `metalUISDL` as well as `metalUISDLGPU`, with a clean macOS build as the `SG-D` check (task 5). No raw `SDL_GetError()` call remains: the reason a pipeline was refused is gap XP-G19. A waiting click keeps the tool and projector of its press, and the waiting path has tests that fail without it. Test totals are baseline-plus-delta.
