@@ -7,13 +7,20 @@ import MetalUI
 /// - the held ⌘, which the sketch's rubber band reads under a still pointer (`onModifierKeysChanged`, gap S5-a)
 /// - overlays for labels, each box measured to its text (`TextMeasure`, gap S5-c), and the view cube's buttons
 /// All behaviour lives in `ViewportModel`. This is glue.
-public struct ViewportView: Component {
+public struct ViewportView: Component, Equatable {
     let model: ViewportModel
     /// MetalUI's text measurer (C23), which sizes the labels' boxes to their text (gap S5-c).
     @Environment(\.textMeasurer) var measurer
 
     public init(model: ViewportModel) {
         self.model = model
+    }
+
+    /// Equal when it shows the same model: a final class whose observed reads MetalUI tracks itself, and the measurer is a
+    /// comparable environment reading (CF-A). The `onGeometryChange` and `onModifierKeysChanged` closures capture only the
+    /// model, so they are left out.
+    public nonisolated static func == (lhs: ViewportView, rhs: ViewportView) -> Bool {
+        lhs.model === rhs.model
     }
 
     public var content: some ElementGroup {

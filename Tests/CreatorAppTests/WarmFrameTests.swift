@@ -56,15 +56,15 @@ struct WarmFrameTests {
         }
     }
 
-    @Test func unchangedFramesAfterSettlingDoExactlyTheSameWork() async throws {
+    @Test func unchangedFramesAfterTheFirstRedrawDoExactlyTheSameWork() async throws {
         let app = try await idleEditor()
         app.window.resetFrameWork()
         for _ in 0..<7 { app.redraw() }
         let warm = app.window.frameWork
         #expect(warm.count == 7)
-        // The first two redraws after `resetFrameWork()` are skipped: the second one carries a one-off settle cost (a spike
-        // in `layoutMeasureCalls`), tracked upstream as MetalUI C14-e (e). Move the comparison back to frame 0 once that lands.
-        let settled = Array(warm.dropFirst(2))
+        // Only redraw 0 is skipped: it builds the records the later frames reuse. From the frame after that MetalUI C14-e (e)
+        // (CF-E) guarantees `warm[n] == warm[n+1]` on every `FrameWork` counter.
+        let settled = Array(warm.dropFirst(1))
         for work in settled {
             #expect(work == settled[0], "a settled warm frame does exactly the work of the one before: \(work)")
             #expect(work.atlasUploadPixels == 0 && work.rasterizedPixels == 0 && work.newTextures == 0)
