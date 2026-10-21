@@ -46,6 +46,22 @@ extension ImplicitSolid {
         var own = gradings.reduce(0) { $0 + $1.estimatedBytes }
         if case .baked(let blocks, _) = self { own += blocks.estimatedBytes }
         if case .voronoi(let lattice) = self { own += lattice.seeds.estimatedBytes }
+        own += mappingBytes
         return own + children.reduce(0) { $0 + $1.heldBytes }
+    }
+}
+
+extension ImplicitSolid {
+    /// The memory a lattice's mapping holds: a Face mapping's chart (implicit spec §3.5).
+    var mappingBytes: Int {
+        let mapping: LatticeMapping
+        switch self {
+        case .tpms(let lattice): mapping = lattice.mapping
+        case .struts(let lattice): mapping = lattice.mapping
+        case .voronoi(let lattice): mapping = lattice.mapping
+        default: return 0
+        }
+        if case .face(let map) = mapping { return map.chart.estimatedBytes }
+        return 0
     }
 }

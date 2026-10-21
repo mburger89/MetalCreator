@@ -141,4 +141,27 @@ struct PickingTests {
         #expect(app.pick?.picked == [EdgeID(3), EdgeID(1)])
         #expect(!app.document.canUndo, "nothing is written until Done")
     }
+
+    @Test func aFacePickNeverWritesAnEdgesByTagRule() async throws {
+        var builder = GraphBuilder()
+        let box = builder.solid()
+        let implicit = builder.add(ToImplicitNode.self)
+        let lattice = builder.add(TPMSNode.self)
+        builder.wire(box.extrude, "solid", to: implicit, "solid")
+        let mesh = builder.add(MeshNode.self)
+        let output = builder.add(OutputNode.self)
+        builder.wire(implicit, "implicit", to: lattice, "region")
+        builder.wire(lattice, "implicit", to: mesh, "implicit")
+        builder.wire(mesh, "mesh", to: output, "mesh")
+        let app = await makeApp(builder.graph)
+        let count = app.document.graph.nodes.count
+        app.beginFacePick(for: lattice.id)
+        await app.settle()
+        #expect(app.pick?.lattice == lattice.id)
+        app.selectEdgesOfFace(ViewportFaceRef(solidIndex: 0, face: FaceID(1)), [], [EdgeID(3)])
+        #expect(app.pick?.picked.isEmpty == true, "a face pick takes no edges")
+        app.finishPick()
+        #expect(app.document.graph.nodes.count == count, "no rule was added")
+        #expect(!app.document.canUndo)
+    }
 }

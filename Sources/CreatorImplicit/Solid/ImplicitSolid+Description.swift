@@ -33,13 +33,14 @@ extension ImplicitSolid: CustomStringConvertible {
                 + "max slope \(maxSlope.millimetreText(locale: .messages)))"
         case .tpms(let lattice):
             return "\(lattice.type.name.lowercased())(cell \(Self.text(lattice.cells.size)), \(lattice.form.name.lowercased()), "
-                + "t = \(Self.text(lattice.thickness))\(Self.stretchText(lattice.cells)))"
+                + "t = \(Self.text(lattice.thickness))\(Self.stretchText(lattice.cells))\(Self.mappingText(lattice.mapping)))"
         case .struts(let lattice):
             let joint = lattice.blend > 0 ? ", blend \(Self.mm(lattice.blend))" : ""
             return "\(lattice.cell.name.lowercased())(cell \(Self.text(lattice.cells.size)), r = \(Self.text(lattice.radius))"
-                + "\(joint)\(Self.stretchText(lattice.cells)))"
+                + "\(joint)\(Self.stretchText(lattice.cells))\(Self.mappingText(lattice.mapping)))"
         case .voronoi(let lattice):
-            return "voronoi \(lattice.form.name.lowercased())(\(lattice.seeds.points.count) seeds, t = \(Self.text(lattice.thickness)))"
+            return "voronoi \(lattice.form.name.lowercased())(\(lattice.seeds.realCount) seeds, "
+                + "t = \(Self.text(lattice.thickness))\(Self.mappingText(lattice.mapping)))"
         }
     }
 
@@ -64,6 +65,16 @@ extension ImplicitSolid: CustomStringConvertible {
     /// A size in millimetres, with a true minus sign.
     static func mm(_ value: Double) -> String {
         "\(value.millimetreText(locale: .messages).replacing("-", with: "−")) mm"
+    }
+
+    /// ", cylindrical" or ", spherical" for a mapped lattice, else nothing.
+    static func mappingText(_ mapping: LatticeMapping) -> String {
+        switch mapping {
+        case .straight: ""
+        case .cylindrical: ", cylindrical"
+        case .spherical: ", spherical"
+        case .face: ", face"
+        }
     }
 
     /// ", stretch x : y : z" for cells that are not cubes, else nothing.

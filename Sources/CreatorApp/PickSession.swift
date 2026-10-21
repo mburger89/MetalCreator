@@ -3,7 +3,8 @@ import CreatorKernel
 
 /// "Pick edges in view…" in progress (spec §5.3 rule 5): the viewport shows only `solid`, and clicking its edges
 /// toggles them. Done writes the picks into an Edges by Tag rule: `rule` when there is one, else a new rule wired
-/// from `source` into `consumer`.
+/// from `source` into `consumer`. With `lattice` it is "Pick Face in View…" instead (implicit spec §3.5): one click on a face of
+/// `solid` sets that lattice node's Face mapping to it.
 public struct PickSession {
     /// The solid being picked on.
     public var solid: Solid
@@ -18,14 +19,18 @@ public struct PickSession {
     /// The level of the graph panel the pick began on (`EditorModel.levelPath`): `source`, `rule` and `consumer` are
     /// nodes of that level's graph, and Done writes there.
     public var level: [NodeID]
+    /// The lattice node a face is being picked for, or `nil` when this picks edges.
+    public var lattice: NodeID?
 
-    public init(solid: Solid, source: Endpoint, rule: NodeID?, consumer: Endpoint?, picked: [EdgeID], level: [NodeID] = []) {
+    public init(solid: Solid, source: Endpoint, rule: NodeID?, consumer: Endpoint?, picked: [EdgeID], level: [NodeID] = [],
+                lattice: NodeID? = nil) {
         self.solid = solid
         self.source = source
         self.rule = rule
         self.consumer = consumer
         self.picked = picked
         self.level = level
+        self.lattice = lattice
     }
 
     /// Adds `edge`, or removes it if it's already picked.

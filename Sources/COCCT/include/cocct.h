@@ -216,6 +216,22 @@ int occt_distances(const occt_shape *shape, int kind, const int *indices, int in
 /// path is tested against. Same arguments and result as occt_distances.
 int occt_distances_reference(const occt_shape *shape, int kind, const int *indices, int index_count, const double *points,
                              int point_count, int signed_distance, double *out, occt_status *status);
+/// How a face is parametrized (implicit spec §3.5, Face mapping): the range of its u and v, the millimetres of surface per unit of
+/// each (the mean of |dS/du| and |dS/dv| over the range), the period of a coordinate in which the face closes on itself (0 when it
+/// does not), and whether the face has a degenerate edge (a pole or an apex).
+typedef struct {
+    double u_min, u_max, v_min, v_max;
+    double u_scale, v_scale;
+    double u_period, v_period;
+    int degenerate;
+} occt_face_chart_info;
+/// The parametrization of the face at the 1-based `face_index` (OCCT's indexed face map, as in occt_distances). Returns 1.
+int occt_face_chart_info_of(const occt_shape *shape, int face_index, occt_face_chart_info *out, occt_status *status);
+/// Where `point_count` points (x, y, z triples in `points`) stand against that face: three numbers per point in `out` (u, v and the
+/// signed distance along the face's outward normal, negative on the solid's side), where (u, v) belong to the nearest point of the
+/// face, kept within half a period of the face's middle on a periodic surface. The caller owns `out`. Returns 1.
+int occt_face_coordinates(const occt_shape *shape, int face_index, const double *points, int point_count, double *out,
+                          occt_status *status);
 /// A faceted solid from a closed triangle mesh (implicit spec §4.7): `positions` is `vertex_count` x, y, z triples in millimetres and
 /// `triangles` three vertex numbers per face, counter-clockwise seen from outside. A planar face is built per triangle on vertices and edges shared by index
 /// (no BRepBuilderAPI_Sewing), same-domain faces are merged (ShapeUpgrade_UnifySameDomain), a shell facing inwards becomes a

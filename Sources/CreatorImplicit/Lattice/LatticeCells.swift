@@ -41,5 +41,12 @@ public struct LatticeCells: Hashable, Sendable {
 
     /// 1 plus how much the size field's change moves a lattice coordinate, over a region at most `reach` from the origin: the factor
     /// the distance to the pattern's surface is multiplied by (implicit spec §3.4: "the lipschitz bound grows with the field's slope").
-    public func warp(reach: Double) -> Double { 1 + reach * size.slope / smallest }
+    ///
+    /// - Parameter stretch: the largest stretch of the lattice's mapping (`LatticeMapping.stretch`, 1 for Straight): the lattice coordinates
+    ///   move that much faster than the point does, and the change of the size field adds to that.
+    public func warp(reach: Double, stretch: Double = 1) -> Double { stretch + reach * size.slope / smallest }
+
+    /// The size of a cell used where one number is wanted (the whole turns of a mapping, the warnings): the size if it is the same
+    /// everywhere, else the middle of its range.
+    public var nominalSize: Double { max((size.range.lowerBound + size.range.upperBound) / 2, Self.minimumSize) }
 }

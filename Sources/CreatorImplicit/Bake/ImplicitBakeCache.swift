@@ -119,7 +119,8 @@ public actor ImplicitBakeCache {
             distance.signedDistance(at: $0)
         }
         let seconds = clockStart.duration(to: .now) / .seconds(1)
-        let baked = Baked(blocks: result.blocks.timed(seconds), spacing: result.spacing, seconds: seconds, tolerance: tolerance)
+        let blocks = result.blocks.timed(seconds, source: BakeSource(solid: solid, tolerance: tolerance))
+        let baked = Baked(blocks: blocks, spacing: result.spacing, seconds: seconds, tolerance: tolerance)
         bakeCount += 1
         clock += 1
         entries[key] = Entry(solid: solid, baked: baked, used: clock)

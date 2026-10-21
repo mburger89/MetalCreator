@@ -28,9 +28,14 @@ public final class DistanceBlocks: Hashable, Sendable {
     public let lipschitz: Double
     /// How long baking took, 0 when unknown (shown in the inspector; not part of the value).
     public let bakeSeconds: Double
+    /// The solid these were baked from (To Implicit), when they were: the lattice nodes' Face mapping checks a face pick against it.
+    public let source: BakeSource?
+    /// Samples along each axis: `blockCounts` times `blockSize`, kept so a query (made for every point the mesher asks about) does not
+    /// build the array again.
+    private let sampleCounts: [Int]
 
     public init(origin: Vector3, spacing: Double, blockCounts: [Int], table: [Int32], pool: [Float], coarse: [Float],
-                band: Double, bakeSeconds: Double = 0, lipschitz known: Double? = nil) {
+                band: Double, bakeSeconds: Double = 0, lipschitz known: Double? = nil, source: BakeSource? = nil) {
         precondition(blockCounts.count == 3 && table.count == blockCounts.reduce(1, *) && coarse.count == table.count,
                      "DistanceBlocks needs one table and one coarse entry per block")
         self.origin = origin
@@ -41,6 +46,8 @@ public final class DistanceBlocks: Hashable, Sendable {
         self.coarse = coarse
         self.band = band
         self.bakeSeconds = bakeSeconds
+        self.source = source
+        self.sampleCounts = blockCounts.map { $0 * Self.blockSize }
         self.lipschitz = known ?? Self.interpolationSlope(blockCounts: blockCounts, table: table, pool: pool, coarse: coarse,
                                                           spacing: spacing, band: band)
     }
@@ -81,10 +88,10 @@ public final class DistanceBlocks: Hashable, Sendable {
         return max(1, Double(worst).squareRoot() / spacing)
     }
 
-    /// The same blocks recording another bake time. A new object, so it is not equal to this one.
-    public func timed(_ seconds: Double) -> DistanceBlocks {
+    /// The same blocks recording another bake time, and the solid they were baked from. A new object, so it is not equal to this one.
+    public func timed(_ seconds: Double, source: BakeSource? = nil) -> DistanceBlocks {
         DistanceBlocks(origin: origin, spacing: spacing, blockCounts: blockCounts, table: table, pool: pool, coarse: coarse, band: band,
-                       bakeSeconds: seconds, lipschitz: lipschitz)
+                       bakeSeconds: seconds, lipschitz: lipschitz, source: source ?? self.source)
     }
 
     public static func == (lhs: DistanceBlocks, rhs: DistanceBlocks) -> Bool { lhs === rhs }
@@ -106,8 +113,6 @@ public final class DistanceBlocks: Hashable, Sendable {
     /// The memory the tables take (implicit spec §2.1: baked blocks count towards `estimatedBytes`).
     public var estimatedBytes: Int { pool.count * 4 + table.count * 8 + 128 }
 
-    private var sampleCounts: [Int] { blockCounts.map { $0 * Self.blockSize } }
-
     private func blockNumber(_ bx: Int, _ by: Int, _ bz: Int) -> Int { (bz * blockCounts[1] + by) * blockCounts[0] + bx }
 
     /// The sample at integer grid position (i, j, k), held to the grid; where its block is not stored, the block's bound.
@@ -125,10 +130,21 @@ public final class DistanceBlocks: Hashable, Sendable {
     /// The baked signed distance at `point`. Inside the grid: trilinear between samples. Outside it: the value at the nearest point of
     /// the grid plus the distance to it (the grid is padded past the surface, so outside it is outside the solid).
     public func value(at point: Vector3) -> Double {
+        let held = held(point)
+        return trilinear(at: held) + (point - held).length
+    }
+
+    /// The value at `point` held to the grid, with nothing added for the distance to it: for blocks that hold a coordinate and not a
+    /// distance (the face charts of Face mapping), whose value outside the grid is the one at its edge.
+    public func channelValue(at point: Vector3) -> Double { trilinear(at: held(point)) }
+
+    private func held(_ point: Vector3) -> Vector3 {
         let box = bounds
-        let held = Vector3(min(max(point.x, box.min.x), box.max.x), min(max(point.y, box.min.y), box.max.y),
-                           min(max(point.z, box.min.z), box.max.z))
-        let outside = (point - held).length
+        return Vector3(min(max(point.x, box.min.x), box.max.x), min(max(point.y, box.min.y), box.max.y),
+                       min(max(point.z, box.min.z), box.max.z))
+    }
+
+    private func trilinear(at held: Vector3) -> Double {
         let grid = (held - origin) * (1 / spacing)
         let counts = sampleCounts
         // Sample centres sit on grid points; clamp the cell so the last sample's neighbour is itself.
@@ -141,6 +157,6 @@ public final class DistanceBlocks: Hashable, Sendable {
         let x10 = mix(sample(ix, iy + 1, iz), sample(ix + 1, iy + 1, iz), tx)
         let x01 = mix(sample(ix, iy, iz + 1), sample(ix + 1, iy, iz + 1), tx)
         let x11 = mix(sample(ix, iy + 1, iz + 1), sample(ix + 1, iy + 1, iz + 1), tx)
-        return mix(mix(x00, x10, ty), mix(x01, x11, ty), tz) + outside
+        return mix(mix(x00, x10, ty), mix(x01, x11, ty), tz)
     }
 }

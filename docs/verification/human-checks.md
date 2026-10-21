@@ -1925,6 +1925,39 @@ radius 4) into a Shell (inward, 2), the Shell into a Mesh, the Mesh into an Outp
   500,000 triangles in the first pass) it may stop after the first or second pass; check that it stops there, that the badge and the
   look are acceptable at that resolution, and that a fixed preview resolution (the Mesh node's) still goes finer. Pinned:
   `GPUMeshAgreementTests`, `MetalMeshingLimitsTests`, `PreviewScheduleTests`; the look is human-only. **Observed:**
+- [ ] **IM-14 Cylindrical cells (7c-4).** Plan `2026-10-21-7c-4-conformal-mappings.md`, spec §3.5 and Errata D20. Build: a Cylinder (radius 20, height 40)
+  into a TPMS (cell size 6, thickness 1) into a Mesh into an Output, then set the TPMS `mapping` to Cylindrical. The gyroid's cells wrap
+  round the Z axis in rings: no two rings differ in size, the pattern meets itself with no seam where the angle wraps (the half-plane
+  towards -X) and no jump in the cell size going round, the cells shrink towards the axis and are left solid within about 1 mm of it,
+  and the node warns "The mapping is singular near the axis; cells there are left solid." and, with a stretch over 10, that the preview
+  may be slow. Move `axis` to the XZ plane (the inspector's plane picker): the rings turn to wrap the Y axis. Switch the Strut Lattice and
+  the Voronoi Lattice to Cylindrical: the struts and cell walls wrap too, the Voronoi cells meet across the cut. Set a graded cell size
+  (a Linear Gradient through a Remap into `cell size`): the node warns that the cells may not meet where the angle wraps round, and a
+  seam is visible at the cut. Only the active mapping's inputs show in the inspector. Pinned: `LatticeMappingTests`,
+  `MappedLatticePropertyTests`, `GPUAgreementTests`, `LatticeMappingNodeTests`, `LatticeMappingInspectorTests`; the look is human-only.
+  The canvas node shows `mapping`, `axis` and `centre` rows even when Straight (user decision U12); check that it still looks acceptable.
+  **Observed:**
+- [ ] **IM-15 Spherical cells (7c-4).** A Sphere (radius 20) into a TPMS set to Spherical about the origin: the cells wrap as a globe, with a
+  whole number round the equator and a solid needle along Z (the polar axis) with the singular warning. Move `centre` to (5, 0, 0): the
+  pattern moves with it. **Observed:**
+- [ ] **IM-16 Face mapping on a cylinder and on a fillet (7c-4).** Build the slice's bracket, or a 40 × 40 × 10 block with its vertical edges
+  filleted at 4 mm, into To Implicit, into a TPMS, and set the TPMS to Face. With nothing picked the node says "Pick a face for the mapping:
+  use “Pick Face in View…” on the part the region was made from." Press Pick Face in View…: the viewport shows only the solid, the banner
+  reads "Click a face of the part to map the lattice to it" with only Cancel, and a click on a fillet sets the mapping and ends the pick
+  (Escape cancels it, leaving the graph as it was). The gyroid's cells follow the fillet's curve and keep their size going over the flat
+  faces; the inspector reads "Picked". Do the same on a Circle extruded to a cylinder, picking its side: the cells wrap round the side in
+  rings of the same size at every depth, solid within a millimetre or two of the axis, with the singular warning for the cylinder's axis.
+  Undo (Cmd+Z) once returns the TPMS to its previous mapping and clears the face. Pinned: `FaceMappingOCCTTests`, `MapLatticeToFaceTests`,
+  `LatticeFaceMappingNodeTests`, `FaceChartTests`; the look and the feel of the pick are human-only. **Observed:**
+- [ ] **IM-17 Face mapping errors (7c-4).** Pick a face on a second, unrelated solid's To Implicit and then change the TPMS's region to the
+  first: "The picked face isn't on the solid this region came from. Pick it again on that solid." Put a Place between To Implicit and the
+  TPMS: "The region was moved after it left its solid…". Wire a Sphere (an implicit primitive) as the region: "Face mapping needs a region
+  made from a solid with To Implicit…". Unite two To Implicit solids into the TPMS's region and press Pick Face in View…: only the first
+  solid is shown (a known limit, plan 7c-4 user decision U8). Pinned: `LatticeFaceMappingNodeTests`. **Observed:**
+- [ ] **IM-18 The mapping benchmark rows (7c-4).** On an idle Mac run `scripts/bench.sh ImplicitBench` and record rows i-9 (a gyroid wrapped
+  round a 90 mm post, first preview pass), i-10c (the first evaluation of a Face-mapped lattice: To Implicit and the face's chart on OCCT)
+  and i-10 (a thickness edit on it, chart cached) in `docs/verification/performance.md`. The proposed budgets are 1 s, 10 s and 250 ms;
+  the plan's user decision U9 says whether they stand. **Observed:**
 
 ## Group IL — implicit lattices: TPMS, Strut Lattice and Voronoi Lattice (7c-2)
 

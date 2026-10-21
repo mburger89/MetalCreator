@@ -28,12 +28,15 @@ struct MeshComparison {
         1e-4 * max(1, 1 / max(slope, 1e-6))
     }
 
-    /// `slopes` holds the field's slope at each of the reference's vertices (same order), for the scaled surface check.
-    init(reference: TriangleMesh, candidate: TriangleMesh, searchRadius: Float = 0.01, slopes: [Float] = []) {
-        let forward = Self.directed(from: candidate, to: reference, radius: searchRadius, slopes: slopes)
+    /// `slopes` holds the field's slope at each of the reference's vertices (same order), for the scaled surface check. A vertex of
+    /// either mesh for which `excluding` is true is not compared (its match is not looked for, and it is not counted as unmatched): the
+    /// GPU mesh comparison leaves out the neighbourhood of a mapping's singular set (spec Errata D20).
+    init(reference: TriangleMesh, candidate: TriangleMesh, searchRadius: Float = 0.01, slopes: [Float] = [],
+         excluding: (SIMD3<Float>) -> Bool = { _ in false }) {
+        let forward = Self.directed(from: candidate, to: reference, radius: searchRadius, slopes: slopes, excluding: excluding)
         worstScaledSurface = forward.ratio
         worstScaledDetail = (forward.along, forward.allowed)
-        let backward = Self.directed(from: reference, to: candidate, radius: searchRadius, slopes: [])
+        let backward = Self.directed(from: reference, to: candidate, radius: searchRadius, slopes: [], excluding: excluding)
         farthest = max(forward.farthest, backward.farthest)
         farthestAlongNormal = forward.alongNormal
         smallestNormalDot = forward.smallestDot
@@ -83,12 +86,13 @@ struct MeshComparison {
         return nearest
     }
 
-    /// Each vertex of `source` against the nearest vertex of `target`.
-    private static func directed(from source: TriangleMesh, to target: TriangleMesh, radius: Float, slopes: [Float]) -> Directed {
+    /// Each vertex of `source` against the nearest vertex of `target`, except those `excluding` says to leave out.
+    private static func directed(from source: TriangleMesh, to target: TriangleMesh, radius: Float, slopes: [Float],
+                                 excluding: (SIMD3<Float>) -> Bool) -> Directed {
         var grid: [SIMD3<Int32>: [Int]] = [:]
         for (index, point) in target.positions.enumerated() { grid[cell(point, radius), default: []].append(index) }
         var result = Directed()
-        for (at, point) in source.positions.enumerated() {
+        for (at, point) in source.positions.enumerated() where !excluding(point) {
             guard let nearest = nearest(to: point, in: grid, of: target, radius: radius) else { result.unmatched += 1; continue }
             result.farthest = max(result.farthest, nearest.distance)
             guard target.normals.indices.contains(nearest.index) else { continue }

@@ -717,7 +717,7 @@ counts), (3) stop and ask. The budget is not edited and a miss is not called met
 
 ## Implicit (implicit spec §6, sub-project 7c-1)
 
-`scripts/bench.sh ImplicitBench` runs rows i-1 to i-8. Release, an idle Mac
+`scripts/bench.sh ImplicitBench` runs rows i-1 to i-10. Release, an idle Mac
 with a GPU. The fixture is a gyroid sheet filling a 100 mm cube: a TPMS node (gyroid, sheet, one cell of 100 mm, 3 mm wall) on an
 Implicit Box, meshed and sent to an Output (7c-1 measured a noise sheet of the same cost class until the lattice nodes existed; 7c-2
 swapped in the gyroid and kept the rows). A gyroid of 8 mm cells has about 150 million triangles at 0.1 mm, which no in-memory mesh
@@ -743,6 +743,11 @@ gate (7c-1's ruling U6): a miss is written down as a miss.
 | i-7 | the trapped-volume flood fill of a hollow 150 mm cube at the largest grid (28 million cells): time and peak resident memory | recorded |
 | i-7s, i-7h | `TrappedVolumeCheck.run` of a solid and of a hollow 150 mm cube: time and peak resident memory against D16's 450 MB (7c-3f) | recorded |
 | i-8 | Check Trapped Volumes and Check Thin Walls of a 30 mm cube with a 1.5 mm skin and a 1.2 mm gyroid sheet, meshed at 0.3 mm (7c-3f) | recorded |
+| i-9 | a gyroid (10 mm cells, 1.5 mm wall) wrapped round the axis of a 90 mm × 100 mm post, Cylindrical: the first preview pass on a fresh evaluator (7c-4) | proposed: under 1 s |
+| i-10c | the first evaluation of a Face-mapped lattice on an OpenCascade cylinder of 90 mm: To Implicit and the face's chart (125,000 samples through the kernel) (7c-4) | proposed: under 10 s (the chart alone is about 5 s) |
+| i-10 | a thickness edit of that lattice, warm, chart cached: one coarse pass (7c-4) | proposed: under 250 ms |
+
+Rows i-9, i-10c and i-10 are 7c-4's. They have **not been run**: the planning and the verification of 7c-4 took place on a Mac at a load average over 100, where a release timing is meaningless, and the budgets are proposals until the plan's user decision U9 settles them (IM-18). A wrapped lattice's lipschitz bound is its own times the mapping's stretch (about the mean radius over the 1 mm exclusion where the region holds the axis), so the sparse evaluation prunes far fewer bricks than a straight one: expect i-9 to be the dearest first pass of the suite, and the node says "the preview may be slow" from a stretch of 10.
 
 The run recorded here (2026-10-14, release build, 7c-core) was taken while other sessions kept the Mac at a load average of 130 to 270 on 10 cores (so none of these numbers is a measurement of the
 code; they show the benchmarks run, and the order of magnitude). It measured the noise sheet of 7c-1; **the gyroid fixture of 7c-2 has not

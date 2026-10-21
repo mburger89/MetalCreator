@@ -24,7 +24,7 @@ public enum CheckTrappedVolumesNode: NodeDefinition {
         let work = try await MeshInput.checkable(try inputs.scalar("mesh"), socket: "mesh", context: context)
         let result: TrappedVolumeCheck.Result
         do {
-            result = try TrappedVolumeCheck.run(work.mesh)
+            result = try await TrappedVolumeCheck.runConcurrently(work.mesh)
         } catch let error as MeshDistanceError {
             throw NodeError.invalidValue(error.userMessage.replacing("This solid", with: "This mesh"))
         }

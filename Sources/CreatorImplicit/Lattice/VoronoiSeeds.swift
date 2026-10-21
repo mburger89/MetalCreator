@@ -19,11 +19,14 @@ public final class VoronoiSeeds: Hashable, Sendable {
     public let starts: [Int32]
     /// Seed numbers, grouped by cell.
     public let entries: [Int32]
+    /// How many of `points` are copies across a mapping's cut (`mapped`), at the end of `points`; the others are the real seeds.
+    public let ghostCount: Int
 
     /// - Parameters:
     ///   - points: the seeds, at least one, all finite.
     ///   - radius: how far to look for seeds from a point, at least this; made larger if the grid would pass `maximumCells`.
-    public init(points: [Vector3], radius requested: Double) {
+    ///   - ghostCount: how many of the last points are copies (see `ghostCount`).
+    public init(points: [Vector3], radius requested: Double, ghostCount: Int = 0) {
         precondition(!points.isEmpty && requested > 0, "VoronoiSeeds needs a seed and a radius")
         let box = BoundingBox(points: points) ?? BoundingBox(min: .zero, max: .zero)
         var size = requested
@@ -32,6 +35,7 @@ public final class VoronoiSeeds: Hashable, Sendable {
         }
         while counts(size).reduce(1, *) > Self.maximumCells { size *= 1.5 }
         self.points = points
+        self.ghostCount = ghostCount
         self.radius = size
         self.origin = box.min
         let found = counts(size)
@@ -93,19 +97,24 @@ public final class VoronoiSeeds: Hashable, Sendable {
     /// The fraction of a `steps`³ grid of points in `box` that is farther than three quarters of `radius` from every seed: where the
     /// lattice would be solid because the seeds don't reach (implicit spec §3.4's gaps). Poisson-like seeds from `searchRadius` leave
     /// essentially none.
-    public func uncoveredFraction(in box: BoundingBox, steps: Int = 12) -> Double {
+    ///
+    /// - Parameter mapping: the lattice's mapping: the seeds are in lattice coordinates, so a point of `box` is put through it first.
+    public func uncoveredFraction(in box: BoundingBox, steps: Int = 12, mapping: LatticeMapping = .straight) -> Double {
         var uncovered = 0
         for i in 0..<steps {
             for j in 0..<steps {
                 for k in 0..<steps {
                     let fraction = Vector3(Double(i) + 0.5, Double(j) + 0.5, Double(k) + 0.5) * (1 / Double(steps))
                     let point = box.min + Vector3(box.size.x * fraction.x, box.size.y * fraction.y, box.size.z * fraction.z)
-                    if (nearestDistance(to: point) ?? .infinity) > 0.75 * radius { uncovered += 1 }
+                    if (nearestDistance(to: mapping.coordinates(at: point)) ?? .infinity) > 0.75 * radius { uncovered += 1 }
                 }
             }
         }
         return Double(uncovered) / Double(steps * steps * steps)
     }
+
+    /// The number of real seeds.
+    public var realCount: Int { points.count - ghostCount }
 
     public var estimatedBytes: Int { points.count * 24 + starts.count * 4 + entries.count * 4 }
 

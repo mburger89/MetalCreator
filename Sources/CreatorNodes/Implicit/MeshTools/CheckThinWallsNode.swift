@@ -32,7 +32,7 @@ public enum CheckThinWallsNode: NodeDefinition {
             throw NodeError.invalidValue("“minimum” must be at least \(minimumMinimum.millimetreText(locale: .messages)) mm.")
         }
         let work = try await MeshInput.checkable(try inputs.scalar("mesh"), socket: "mesh", context: context)
-        let result = try ThinWallCheck.run(work.mesh, minimum: minimum)
+        let result = try await ThinWallCheck.runConcurrently(work.mesh, minimum: minimum)
         let limit = minimum.millimetreText(locale: .messages)
         var found = work.warnings
         var facts = [PayloadFact("Thin walls", "none under \(limit) mm")]

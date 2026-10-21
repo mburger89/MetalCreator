@@ -7,7 +7,7 @@ extension InspectorControl {
         switch self {
         case .slider(let socket), .number(let socket), .integer(let socket), .planePicker(let socket),
              .vector(let socket), .anchorGrid(let socket), .ruleSummary(let socket), .parameterPicker(let socket),
-             .text(let socket), .image(let socket):
+             .text(let socket), .image(let socket), .faceStatus(let socket):
             socket
         case .toggle(let socket, _), .segmented(let socket, _):
             socket
