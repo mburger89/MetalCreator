@@ -47,6 +47,20 @@ struct ShimPortabilityTests {
         #expect(offenders.isEmpty, "\(construct.token) at \(offenders.joined(separator: ", ")); use \(construct.instead)")
     }
 
+    /// OCCT's headers pull in <windows.h> on Windows, whose `min` and `max` macros break `std::min(a, b)`.
+    @Test func theManifestDefinesNOMINMAXOnWindows() throws {
+        let manifest = try String(contentsOf: Self.repository.appending(path: "Package.swift"), encoding: .utf8)
+        #expect(manifest.contains(#".define("NOMINMAX", .when(platforms: [.windows]))"#))
+    }
+
+    /// A debug build (`swift test`) links vcpkg's debug libraries and a release build its release ones, so the C runtime of the
+    /// shim and of OpenCascade's DLLs is the same one in each (user decision 8). The workflow installs both sets (`CIPinTests`).
+    @Test func theManifestLinksAWindowsDebugBuildAgainstTheDebugLibraries() throws {
+        let manifest = try String(contentsOf: Self.repository.appending(path: "Package.swift"), encoding: .utf8)
+        #expect(manifest.contains(#".unsafeFlags(["-L\(occtPrefix)/debug/lib"], .when(platforms: [.windows], configuration: .debug))"#))
+        #expect(manifest.contains(#".unsafeFlags(["-L\(occtPrefix)/lib"], .when(platforms: [.windows], configuration: .release))"#))
+    }
+
     /// `<repo>`, found from this file (`Tests/CreatorOCCTTests/ShimPortabilityTests.swift`).
     private static let repository = URL(filePath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
