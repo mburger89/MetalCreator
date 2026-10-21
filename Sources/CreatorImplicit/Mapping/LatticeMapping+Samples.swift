@@ -9,6 +9,7 @@ extension LatticeMapping {
         case .straight: return []
         case .cylindrical(let map): line = (map.origin, map.axis)
         case .spherical(let map): line = (map.centre, .unitZ)
+        case .face(let map): return map.chart.singularPoints.filter { Self.contains(box, $0) }
         }
         let along = BoxProjection.corners(of: box).map { ($0 - line.origin).dot(line.direction) }
         guard let low = along.min(), let high = along.max() else { return [] }
@@ -21,7 +22,7 @@ extension LatticeMapping {
     public func cutSamples(in box: BoundingBox, steps: Int = 16) -> [Vector3] {
         let frame: (origin: Vector3, away: Vector3, along: Vector3)
         switch self {
-        case .straight: return []
+        case .straight, .face: return []
         case .cylindrical(let map): frame = (map.origin, -map.reference, map.axis)
         case .spherical(let map): frame = (map.centre, -.unitX, .unitZ)
         }

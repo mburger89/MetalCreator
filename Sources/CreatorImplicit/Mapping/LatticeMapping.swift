@@ -12,6 +12,7 @@ public enum LatticeMapping: Hashable, Sendable {
     case straight
     case cylindrical(CylindricalMap)
     case spherical(SphericalMap)
+    case face(FaceMap)
 
     /// How near the singular set the lattice is left solid, in millimetres (spec §3.5).
     public static let exclusion = 1.0
@@ -27,6 +28,7 @@ public enum LatticeMapping: Hashable, Sendable {
         case .straight: p
         case .cylindrical(let map): map.coordinates(at: p)
         case .spherical(let map): map.coordinates(at: p)
+        case .face(let map): map.coordinates(at: p)
         }
     }
 
@@ -36,6 +38,7 @@ public enum LatticeMapping: Hashable, Sendable {
         case .straight: .infinity
         case .cylindrical(let map): map.singularDistance(at: p)
         case .spherical(let map): map.singularDistance(at: p)
+        case .face(let map): map.singularDistance(at: p)
         }
     }
 
@@ -46,6 +49,7 @@ public enum LatticeMapping: Hashable, Sendable {
         case .straight: 1
         case .cylindrical(let map): map.stretch
         case .spherical(let map): map.stretch
+        case .face(let map): map.stretch
         }
     }
 
@@ -56,6 +60,7 @@ public enum LatticeMapping: Hashable, Sendable {
         case .straight: straight
         case .cylindrical(let map): map.reach
         case .spherical(let map): map.reach
+        case .face(let map): map.reach
         }
     }
 
@@ -65,6 +70,7 @@ public enum LatticeMapping: Hashable, Sendable {
         case .straight: false
         case .cylindrical(let map): map.reachesSingularity
         case .spherical(let map): map.reachesSingularity
+        case .face(let map): map.chart.hasSingular
         }
     }
 
@@ -74,6 +80,7 @@ public enum LatticeMapping: Hashable, Sendable {
         case .straight: nil
         case .cylindrical: "the axis"
         case .spherical: "the polar axis"
+        case .face(let map): map.chart.hasSingular ? map.chart.singularNoun : nil
         }
     }
 
@@ -84,6 +91,7 @@ public enum LatticeMapping: Hashable, Sendable {
         case .straight: (nil, nil)
         case .cylindrical(let map): (map.turn, nil)
         case .spherical(let map): (map.turn, nil)
+        case .face(let map): map.turns
         }
     }
 
@@ -106,6 +114,11 @@ public enum LatticeMapping: Hashable, Sendable {
     /// - Parameter valueBound: a bound of |body| on the lattice.
     public func lipschitz(base: Double, valueBound: Double) -> Double {
         guard reachesSingularity else { return base }
-        return base + 1 + (valueBound + Self.fadeWidth) / Self.fadeWidth
+        return base + singularSlope + (valueBound + Self.fadeWidth) * singularSlope / Self.fadeWidth
+    }
+
+    /// How fast the distance to the singular set can change per millimetre: 1 for a distance to a line, a little more for a chart's.
+    var singularSlope: Double {
+        if case .face(let map) = self { map.singularSlope } else { 1 }
     }
 }

@@ -2,14 +2,14 @@ import CreatorGeometry
 import Testing
 @testable import CreatorImplicit
 
-/// What every lattice must keep under every mapping (implicit spec §7: "a Lipschitz property test on random point pairs for every node
+/// What every lattice must keep under every mapping, Face included (implicit spec §7: "a Lipschitz property test on random point pairs for every node
 /// and every mapping"): the surface stays inside the bounds, and the constant holds on random pairs, on pairs across the cut of the
 /// angle, and on pairs next to the singular set, where the lattice fades into the solid.
 struct MappedLatticePropertyTests {
-    static var names: [String] { LatticeFixtures.mappedAll.map(\.name) }
+    static var names: [String] { LatticeFixtures.everyMapped.map(\.name) }
 
     func solid(_ name: String) throws -> ImplicitSolid {
-        try #require(LatticeFixtures.mappedAll.first { $0.name == name }?.solid)
+        try #require(LatticeFixtures.everyMapped.first { $0.name == name }?.solid)
     }
 
     @Test(arguments: MappedLatticePropertyTests.names)

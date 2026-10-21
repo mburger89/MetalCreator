@@ -73,6 +73,7 @@ extension ImplicitSolid: CustomStringConvertible {
         case .straight: ""
         case .cylindrical: ", cylindrical"
         case .spherical: ", spherical"
+        case .face: ", face"
         }
     }
 

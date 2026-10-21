@@ -102,6 +102,9 @@ enum LatticeFixtures {
         case .struts(var lattice):
             lattice.mapping = mapping
             return .struts(lattice)
+        case .voronoi(var lattice):
+            lattice.mapping = mapping
+            return .voronoi(lattice)
         default:
             return solid
         }
@@ -128,4 +131,45 @@ enum LatticeFixtures {
             ("voronoi foam, spherical beside the region", mappedVoronoi(36, .foam, seed: 2, mapping: sphere(at: beside, cell: nil))),
         ]
     }
+
+    // MARK: Face mapping (implicit spec §3.5)
+
+    /// The side of a cylinder of 14 mm about the Z axis through the point the other mappings cross, charted over the region and its
+    /// margin: made once, because measuring it takes a second or two.
+    static let cylinderChart = SyntheticFace.cylinder(
+        radius: 14, axis: Vector2(crossing.x, crossing.y), covering: ImplicitSolid.grown(region, by: 8), spacing: 0.7)
+
+    static func face(cell: Double?) -> LatticeMapping {
+        .face(FaceMap(chart: cylinderChart, firstCell: cell, secondCell: cell))
+    }
+
+    /// Every node under the Face mapping on a cylinder's side that the region's axis crosses, so the seam, the singular cells and the
+    /// cells that follow the skin are all in play.
+    static var faceAll: [(name: String, solid: ImplicitSolid)] {
+        [
+            ("gyroid, face of a cylinder", mapped(tpmsAll[0].solid, face(cell: 8))),
+            ("cubic struts, face of a cylinder", mapped(strutsAll[0].solid, face(cell: 6))),
+            ("voronoi struts, face of a cylinder", mappedVoronoi(36, .struts, seed: 3, mapping: face(cell: nil))),
+        ]
+    }
+
+    /// The same cylinder charted with its axis 28 mm to the side of the region, so the region is outside it (fins on a pipe): the face's
+    /// depth is positive throughout, there is no centre of curvature in the region, and the chart has no singular cell.
+    static let outsideChart = SyntheticFace.cylinder(
+        radius: 14, axis: Vector2(-20, crossing.y), covering: ImplicitSolid.grown(region, by: 8), spacing: 0.7)
+
+    /// The Face mapping with no singular cell in the region: what the GPU mesh comparison runs on. (Within a few millimetres of a
+    /// singular set the map stretches the GPU's float rounding, 2e-5 mm in value, into slides of up to 2e-3 mm along near-tangent mesh
+    /// edges, past D17's allowance; the values still agree to 1e-4 there, which `GPUAgreementTests` checks on `faceAll`.)
+    static var faceOutsideAll: [(name: String, solid: ImplicitSolid)] {
+        let cells = LatticeMapping.face(FaceMap(chart: outsideChart, firstCell: 8, secondCell: 8))
+        let seeds = LatticeMapping.face(FaceMap(chart: outsideChart, firstCell: nil, secondCell: nil))
+        return [
+            ("gyroid, face outside a cylinder", mapped(tpmsAll[0].solid, cells)),
+            ("voronoi foam, face outside a cylinder", mappedVoronoi(36, .foam, seed: 4, mapping: seeds)),
+        ]
+    }
+
+    /// The mapped fixtures and the face-mapped ones.
+    static var everyMapped: [(name: String, solid: ImplicitSolid)] { mappedAll + faceAll + faceOutsideAll }
 }
