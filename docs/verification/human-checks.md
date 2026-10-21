@@ -1832,8 +1832,10 @@ warning step when red. macOS needs no check here: its test count and its look ar
   stock Ubuntu, Segoe UI on Windows) with no missing-glyph boxes, and a wrapped hint (the Mirror tool's, in the sketch inspector)
   shows all its words: DejaVu is wider than macOS's font and wraps it to more lines. Pinned: `TextMeasureWindowTests`.
   **Observed:**
-- [ ] **XP-8 Cursors.** (The title bar half moved to XP-11..XP-14 with MetalUI S1.) Panning the canvas shows the move cursor in place of the hand, and the panels' resize handles show
-  the system resize cursors (XP-G8). Pinned: `PanelResizeCursorTests` (the intent; the platform's shape is SDL's). **Observed:**
+- [ ] **XP-8 Cursors.** (The title bar half moved to XP-11..XP-14 with MetalUI S1.) Panning the canvas (middle drag or Space-drag) and orbiting
+  the viewport by a drag show the drawn closed hand (`GrabCursor`, a white fist with a dark outline, 24 points, MetalUI S4's image cursor,
+  gap XP-G8) and not the move cursor, sharp on a 1x and a 2x display, and the panels' resize handles show the system resize cursors.
+  On macOS the system closed hand is unchanged. Pinned: `GrabCursorTests`, `PanelResizeCursorTests` (the intent; the platform's shape is SDL's). **Observed:**
 - [ ] **XP-9 Self-test and smoke test.** `MetalCreatorApp --self-test` prints four `ok` lines (the kernel and both exports
   "skipped: Geometry isn't available on this platform yet.", the shaders found) and exits 0; `--smoke-test 5` prints "reached the
   first frame" and exits 0 on a desktop with a display too. Both pass in CI on Linux and Windows (Direct3D 12 on WARP; the
