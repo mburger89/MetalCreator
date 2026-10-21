@@ -29,6 +29,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# The jobs only read the repository (checkout) and upload artifacts, which uses the runner's artifact token, not the GITHUB_TOKEN's
+# scopes; the caches likewise. No secrets are used. Every action is pinned to a full commit SHA (the # comment is the tag it was).
+permissions:
+  contents: read
+
 # A newer push to the same ref cancels the run in progress (the matrix has 90-minute jobs).
 concurrency:
   group: xp-${{ github.ref }}
@@ -55,17 +60,17 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 150
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: MetalCreator
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: ${{ env.METALUI_REPOSITORY }}
           ref: ${{ env.METALUI_COMMIT }}
           path: MetalUI
-      - uses: docker/setup-buildx-action@v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - name: Build MetalUI's Linux image (Swift, SDL3 from source, Mesa, AccessKit)
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: MetalUI/Backends/SDL
           file: MetalUI/Backends/SDL/linux/Dockerfile
@@ -74,7 +79,7 @@ jobs:
           cache-from: type=gha,scope=xp-portable-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=xp-portable-${{ matrix.arch }}
       - name: Build OpenCascade 7.9 (cached)
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: MetalCreator/scripts/linux
           file: MetalCreator/scripts/linux/Dockerfile
@@ -93,7 +98,7 @@ jobs:
         env:
           OCCT_IMAGE: metalcreator-occt:latest
         run: scripts/linux-test.sh package
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: MetalCreator-linux-${{ matrix.arch }}
           path: |
@@ -110,20 +115,22 @@ jobs:
     timeout-minutes: 180
     env:
       SDL_VERSION: 3.4.16
+      # sha256 of SDL3-devel-3.4.16-VC.zip (computed by downloading the release asset once); bump it with SDL_VERSION.
+      SDL_SHA256: 1a784cb2a5c64d56fe7a62090fe9d242d9865f235e4ea9678f1a6ba4e693e7de
       EXPECTED_TEST_RUNS: 12
     defaults:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           path: MetalCreator
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: ${{ env.METALUI_REPOSITORY }}
           ref: ${{ env.METALUI_COMMIT }}
           path: MetalUI
-      - uses: compnerd/gha-setup-swift@v0.5.0
+      - uses: compnerd/gha-setup-swift@bbae8ce86bac5a3449f3992b3d88bc4ca25f2057 # v0.5.0
         with:
           swift-version: swift-6.4.0-release
           swift-build: 6.4.0-RELEASE
@@ -131,6 +138,9 @@ jobs:
         run: |
           $zip = "$env:RUNNER_TEMP\sdl3.zip"
           Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL_VERSION/SDL3-devel-$env:SDL_VERSION-VC.zip" -OutFile $zip
+          $actual = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $env:SDL_SHA256) { throw "SDL3-devel-$env:SDL_VERSION-VC.zip is not the pinned file: sha256 $actual, expected $env:SDL_SHA256" }
+          "SDL3 zip sha256 OK ($actual)"
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $root = "$env:RUNNER_TEMP\SDL3-$env:SDL_VERSION"
           "SDL3_INCLUDE=$root\include" >> $env:GITHUB_ENV
@@ -149,7 +159,7 @@ jobs:
         id: vcpkg-cache
         # Not actions/cache: its post step saves only when the whole job is green, and the first Windows runs are expected to be
         # red. The save step below runs as soon as the install is done.
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ runner.temp }}\vcpkg-cache
           key: ${{ steps.vcpkg-key.outputs.key }}
@@ -185,7 +195,7 @@ jobs:
         # Only after a whole install (a partial one would fill the key for good: a cache entry is never replaced), and whatever
         # the later steps do.
         if: ${{ always() && steps.occt.outcome == 'success' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ${{ runner.temp }}\vcpkg-cache
           key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
@@ -259,7 +269,7 @@ jobs:
                    @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
           scripts\package-windows.ps1 -NoBuild -BuildFlags $flags -SdlRoot $env:SDL3_ROOT
           exit $LASTEXITCODE
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         with:
           name: MetalCreator-windows-x64
