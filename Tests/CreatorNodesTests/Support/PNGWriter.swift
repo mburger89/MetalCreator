@@ -3,7 +3,7 @@ import Foundation
 
 /// Writes 8-bit (and 16-bit grey) PNGs with no compression: the pixel rows go into "stored" deflate blocks. The files are larger
 /// than ImageIO's but valid, which is all a fixture needs (`PNGWriterTests` decodes them with MetalUI's decoder and checks their
-/// chunks). An EXIF orientation goes in as an `eXIf` chunk before the data, where MetalUI and `ImageHeader` read it.
+/// chunks). An EXIF orientation goes in as an `eXIf` chunk before the data, where MetalUI's `ImageInfo` and decoder read it.
 enum PNGWriter {
     /// The PNG colour types this writer makes.
     enum ColorType: UInt8 {

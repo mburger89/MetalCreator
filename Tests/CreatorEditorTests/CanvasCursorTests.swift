@@ -1,5 +1,6 @@
 import CreatorGeometry
 import CreatorGraph
+import CreatorStyle
 import MetalUI
 import Testing
 @testable import CreatorEditor
@@ -15,7 +16,7 @@ struct CanvasCursorTests {
         #expect(editor.canvasCursor == .grabbing)
         editor.middleDragged(from: Vector2(500, 500), to: Vector2(530, 500))
         #expect(editor.canvasCursor == .grabbing)
-        #expect(editor.canvasCursor?.pointerStyle == .grabActive)
+        #expect(editor.canvasCursor?.pointerStyle == GrabCursor.pointerStyle())
         editor.middleReleased(from: Vector2(500, 500), at: Vector2(530, 500))
         #expect(editor.canvasCursor == nil)
     }
