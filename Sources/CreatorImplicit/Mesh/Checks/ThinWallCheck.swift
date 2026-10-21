@@ -96,6 +96,9 @@ public struct ThinWallCheck: Sendable {
         return (distance, hitTriangle)
     }
 
+    /// How many vertices go out to the cores together.
+    private static let batch = 1 << 16
+
     /// - Throws: `CancellationError`.
     public static func run(_ mesh: TriangleMesh, minimum: Double) throws -> Result {
         guard mesh.triangleCount > 0, minimum.isFinite, minimum > 0 else { return Result(triangles: [], places: 0, thinnest: nil) }
@@ -103,14 +106,19 @@ public struct ThinWallCheck: Sendable {
         var clusters = VertexClusters(count: scan.points.count)
         var flagged = [Bool](repeating: false, count: scan.points.count)
         var thinnest = Double.infinity
-        let used = Set(scan.corners.flatMap { [Int($0.x), Int($0.y), Int($0.z)] })
-        for (count, vertex) in used.sorted().enumerated() where scan.normals[vertex] != .zero {
-            if count & 0xFFF == 0 { try Task.checkCancellation() }
-            guard let found = scan.wall(behind: vertex, limit: minimum) else { continue }
-            flagged[vertex] = true
-            thinnest = min(thinnest, found.distance)
-            // The two sides of a wall are one place.
-            clusters.join(vertex, Int(scan.corners[found.triangle].x))
+        let vertices = Set(scan.corners.flatMap { [Int($0.x), Int($0.y), Int($0.z)] }).sorted().filter { scan.normals[$0] != .zero }
+        // The rays are independent, so batches of them go out side by side; the walls are applied in vertex order.
+        for start in stride(from: 0, to: vertices.count, by: Self.batch) {
+            try Task.checkCancellation()
+            let walls = ParallelMap.map(Array(vertices[start..<min(start + Self.batch, vertices.count)])) { vertex in
+                scan.wall(behind: vertex, limit: minimum).map { (vertex: vertex, distance: $0.distance, triangle: $0.triangle) }
+            }
+            for case let found? in walls {
+                flagged[found.vertex] = true
+                thinnest = min(thinnest, found.distance)
+                // The two sides of a wall are one place.
+                clusters.join(found.vertex, Int(scan.corners[found.triangle].x))
+            }
         }
         var triangles: [Int] = []
         var anchors: [Int] = []

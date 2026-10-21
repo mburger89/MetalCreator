@@ -46,7 +46,7 @@ public enum TrappedVolumeCheck {
     /// number, which a mesh that folds over itself cannot fool (Errata D18).
     static func findVoids(in distances: SignedDistanceMesh, bounds: BoundingBox) throws -> (grid: OccupancyGrid, found: EnclosedVoids) {
         var grid = OccupancyGrid(bounds: bounds)
-        try grid.fill { points in points.map { distances.unsignedDistance(at: $0) } }
+        try grid.fill { points in ParallelMap.map(points) { distances.unsignedDistance(at: $0) } }
         return (grid, try EnclosedVoids(grid, isInside: { distances.isInside($0) }))
     }
 }

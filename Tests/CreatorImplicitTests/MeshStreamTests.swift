@@ -45,6 +45,20 @@ struct MeshStreamTests {
         #expect(copy.mesh.triangleCount < 12_000, "about the budget, not the 120,000 an exact copy needs")
     }
 
+    @Test func theChecksOfOneRunShareOneCheckCopyUntilItIsReleased() async throws {
+        let stream = MeshStream(solid: ball, resolution: 0.4)
+        let evaluator = CPUBatchEvaluator(ball)
+        let first = try await stream.checkCopy(using: evaluator)
+        let again = try await stream.appending(.decimate(tolerance: 0.05)).checkCopy(using: evaluator)
+        #expect(again.mesh.meshingSeconds == first.mesh.meshingSeconds, "the second check took the first one's copy")
+        #expect(stream == MeshStream(solid: ball, resolution: 0.4), "the kept copy is not part of what a stream is")
+        let coarser = try await stream.checkCopy(using: evaluator, triangleBudget: 1_000)
+        #expect(coarser.mesh.meshingSeconds != first.mesh.meshingSeconds, "another budget is another copy")
+        stream.releaseCheckCopy()
+        let remade = try await stream.checkCopy(using: evaluator)
+        #expect(remade.mesh.positions == first.mesh.positions && remade.mesh.triangles == first.mesh.triangles, "the same mesh again")
+    }
+
     @Test func aStreamOfNothingIsRefused() async {
         let tiny = ImplicitSolid.sphere(radius: 0.01)
         await #expect(throws: ImplicitMeshingError.empty) {
