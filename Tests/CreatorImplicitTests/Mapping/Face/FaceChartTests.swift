@@ -78,9 +78,19 @@ struct FaceChartTests {
         #expect(map.singularDistance(at: Vector3(9, 0, 3)) == FaceChart.singularCap, "far from it the distance is held to the cap")
         #expect(map.singularDistance(at: Vector3(6, 0, 3)) > 3, "and grows with the distance from the cells next to the axis")
         let near = chart.singularPoints
-        #expect(!near.isEmpty && near.count <= 64 && near.allSatisfy { Vector3($0.x, $0.y, 0).length < 2 })
+        let limit = FaceChartAssembler.maximumSingularPoints
+        #expect(!near.isEmpty && near.count <= limit && near.allSatisfy { Vector3($0.x, $0.y, 0).length < 2 })
         // 14 mm over 25 (the limit) is 0.56 mm: only the cells that touch the axis stretch that far.
         #expect(map.stretch > 5 && map.stretch < 40, "stretch \(map.stretch)")
+    }
+
+    @Test func aSmallBoxAroundOnlyAFewSingularCellsStillFindsThem() {
+        let chart = SyntheticFace.cylinder(radius: 14)
+        let mapping = LatticeMapping.face(FaceMap(chart: chart, firstCell: nil, secondCell: nil))
+        let box = BoundingBox(min: Vector3(-0.5, -0.5, 2), max: Vector3(0.5, 0.5, 3))
+        #expect(!mapping.singularSamples(in: box).isEmpty, "a 1 mm box on the axis holds singular cells")
+        let away = BoundingBox(min: Vector3(8, 8, 2), max: Vector3(9, 9, 3))
+        #expect(mapping.singularSamples(in: away).isEmpty)
     }
 
     @Test func aSteeperSurfaceHasMoreSingularCellsAndAPlaneHasNone() {

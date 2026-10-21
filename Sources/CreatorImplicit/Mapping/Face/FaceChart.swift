@@ -40,7 +40,7 @@ public final class FaceChart: Hashable, Sendable {
     public let firstExtent: Double
     public let secondExtent: Double
     public let depthExtent: Double
-    /// A few positions on the singular cells (at most 64), for asking the region whether it holds any.
+    /// A coarse set of positions on the singular cells (every one, thinned past 4096), for asking a region box whether it holds any.
     public let singularPoints: [Vector3]
 
     public init(bounds: BoundingBox, spacing: Double, kind: SurfaceKind, hasDegenerateEdge: Bool, first: DistanceBlocks,

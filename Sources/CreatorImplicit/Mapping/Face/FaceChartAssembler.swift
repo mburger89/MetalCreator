@@ -25,9 +25,7 @@ public enum FaceChartAssembler {
             let distances = FaceChartAnalysis.distances(from: analysis.singularVertices, grid: grid, cap: FaceChart.singularCap)
             singular = grid.blocks(distances, lipschitz: 3.0.squareRoot())
             let flagged = analysis.singularVertices.indices.filter { analysis.singularVertices[$0] }
-            let step = max(1, flagged.count / 64)
-            let all = grid.points
-            points = stride(from: 0, to: flagged.count, by: step).map { all[flagged[$0]] }
+            points = coarsePoints(of: flagged, grid: grid)
         }
         func blocks(_ values: [Float]) -> DistanceBlocks { grid.blocks(values.map { $0.isFinite ? $0 : 0 }, lipschitz: 1) }
         func extent(_ values: [Float]) -> Double { values.filter(\.isFinite).map { Double(abs($0)) }.max() ?? 0 }
@@ -38,6 +36,33 @@ public enum FaceChartAssembler {
                          first: blocks(first.primary), firstSine: first.sine.map(blocks), second: blocks(second.primary),
                          secondSine: second.sine.map(blocks), depth: blocks(depth), singular: singular, firstTurn: periods.first,
                          secondTurn: periods.second, slopes: analysis.slopes, extents: extents, singularPoints: points)
+    }
+
+    /// The most singular positions kept.
+    static let maximumSingularPoints = 4096
+
+    /// A position for each singular sample, thinned only when there are more than `maximumSingularPoints`: then one per bucket of
+    /// 2³, 4³, … samples, the smallest bucket that fits. So a region box that holds only a few singular cells still finds one (a
+    /// stride over the whole chart could skip them all) and the set is as fine as the cap allows.
+    private static func coarsePoints(of flagged: [Int], grid: FaceChartGrid) -> [Vector3] {
+        let counts = grid.counts
+        var bucket = 1
+        while true {
+            var seen = Set<Int>()
+            var kept: [Int] = []
+            for index in flagged {
+                let (i, j, k) = (index % counts[0], index / counts[0] % counts[1], index / (counts[0] * counts[1]))
+                let key = ((k / bucket) * counts[1] + j / bucket) * counts[0] + i / bucket
+                if seen.insert(key).inserted { kept.append(index) }
+            }
+            if kept.count <= maximumSingularPoints || bucket >= counts.max() ?? 1 {
+                return kept.prefix(maximumSingularPoints).map { index in
+                    grid.origin + Vector3(Double(index % counts[0]), Double(index / counts[0] % counts[1]),
+                                          Double(index / (counts[0] * counts[1]))) * grid.spacing
+                }
+            }
+            bucket *= 2
+        }
     }
 
     /// The length of a radian of a periodic coordinate in millimetres: the turn over 2π; 1 for a coordinate that is not periodic.

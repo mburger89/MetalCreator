@@ -2,7 +2,7 @@ import CreatorGeometry
 
 extension LatticeMapping {
     /// Points along the mapping's singular set that lie in `box`: where to look to see whether a region holds any of it (and the node
-    /// should warn that cells there are left solid). Straight has none.
+    /// should warn that cells there are left solid). Straight has none. A Face mapping gives its coarse singular set, filtered to `box`.
     public func singularSamples(in box: BoundingBox, count: Int = 64) -> [Vector3] {
         let line: (origin: Vector3, direction: Vector3)
         switch self {
