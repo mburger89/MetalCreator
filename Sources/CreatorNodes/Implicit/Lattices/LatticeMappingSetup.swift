@@ -47,7 +47,8 @@ enum LatticeMappingSetup {
     /// The mapping the inputs choose, for a lattice filling `region`.
     /// - Parameter cells: the lattice's cells, which a turn is rounded to a whole number of; `nil` for a lattice without cells
     ///   (Voronoi), whose seeds are copied across the cut instead.
-    static func make(_ inputs: NodeInputs, region: ImplicitSolid, cells: LatticeCells?) throws -> Built {
+    static func make(_ inputs: NodeInputs, region: ImplicitSolid, cells: LatticeCells?, kernel: any Kernel,
+                     context: EvalContext) async throws -> Built {
         let kind = LatticeMappingKind(rawValue: try inputs.choice("mapping", options: LatticeMappingKind.options)) ?? .straight
         let box = region.bounds
         let cell = cells.map { $0.nominalSize * $0.stretch.x }
@@ -76,7 +77,8 @@ enum LatticeMappingSetup {
             }
             mapping = .spherical(map)
         case .face:
-            throw NodeError.invalidValue("Face mapping is not built yet.")
+            let face = try await LatticeFaceMapping.make(context: context, region: region, cells: cells, kernel: kernel)
+            return Built(mapping: .face(face.map), warnings: face.warnings + warnings(for: .face(face.map), region: region, cells: cells))
         }
         return Built(mapping: mapping, warnings: warnings(for: mapping, region: region, cells: cells))
     }

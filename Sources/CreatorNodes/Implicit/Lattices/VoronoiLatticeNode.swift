@@ -51,7 +51,7 @@ public enum VoronoiLatticeNode: NodeDefinition {
         let box = region.bounds
         let wall = try await LatticeSetup.grading(inputs, "thickness", over: box, kernel: kernel, context: context)
         let (points, seedWarnings) = try await seeds(inputs, box: box, kernel: kernel, context: context)
-        let mapped = try LatticeMappingSetup.make(inputs, region: region, cells: nil)
+        let mapped = try await LatticeMappingSetup.make(inputs, region: region, cells: nil, kernel: kernel, context: context)
 
         // The seeds are placed in the region as before and then put through the mapping, so a density field is read where the seed is.
         let seedGrid = VoronoiSeeds.mapped(points: points, mapping: mapped.mapping, region: box)

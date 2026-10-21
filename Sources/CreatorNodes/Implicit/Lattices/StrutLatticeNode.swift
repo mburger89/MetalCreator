@@ -58,7 +58,7 @@ public enum StrutLatticeNode: NodeDefinition {
                 + "(\(limit.millimetreText(locale: .messages)) mm).")
         }
 
-        let mapped = try LatticeMappingSetup.make(inputs, region: region, cells: cells)
+        let mapped = try await LatticeMappingSetup.make(inputs, region: region, cells: cells, kernel: kernel, context: context)
 
         let lattice = ImplicitSolid.struts(StrutLattice(cell: cell, cells: cells, radius: radius.grading, blend: blend, region: box,
                                                         mapping: mapped.mapping))

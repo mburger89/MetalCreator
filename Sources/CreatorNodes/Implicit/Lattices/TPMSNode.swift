@@ -53,7 +53,7 @@ public enum TPMSNode: NodeDefinition {
         let box = region.bounds
         let (cells, cellWarnings) = try await LatticeSetup.cells(inputs, over: box, kernel: kernel, context: context)
         let wall = try await LatticeSetup.grading(inputs, "thickness", over: box, kernel: kernel, context: context)
-        let mapped = try LatticeMappingSetup.make(inputs, region: region, cells: cells)
+        let mapped = try await LatticeMappingSetup.make(inputs, region: region, cells: cells, kernel: kernel, context: context)
 
         let lattice = ImplicitSolid.tpms(TPMSLattice(type: type, form: form, cells: cells, thickness: wall.grading, region: box,
                                                      mapping: mapped.mapping))
