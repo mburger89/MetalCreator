@@ -157,6 +157,42 @@ struct LatticeMappingTests {
         #expect(try cylinder(over: ring).lipschitz(base: 10, valueBound: 5) == 10)
     }
 
+    /// The steepest change of `join` of a periodic body per millimetre of the point, over pairs that lie within the fade or just
+    /// beside it (0.01 to 2 mm apart, each within 3 mm of the singular set). The body is `valueBound · sin(2π · first / turn)` of the
+    /// mapped coordinates, so its own constant in lattice coordinates is `valueBound · 2π / turn` and it repeats across the cut.
+    func steepestJoin(_ map: LatticeMapping, turn: Double, valueBound: Double) -> Double {
+        func body(_ p: Vector3) -> Double { valueBound * sin(2 * Self.pi * map.coordinates(at: p).x / turn) }
+        let random = SeededRandom(seed: 9, stream: 3)
+        var worst = 0.0
+        for index in 0..<30000 {
+            func value(_ at: Int) -> Double { random.unit(at: 8 * index + at) }
+            let angle = 2 * Self.pi * value(0), height = 10 * value(1) - 5, ring = 3 * value(2)
+            let a = Vector3(ring * cos(angle), ring * sin(angle), height)
+            let step = 0.01 + 1.99 * value(3), heading = 2 * Self.pi * value(4), lift = 2 * value(5) - 1
+            let direction = Vector3(cos(heading), sin(heading), lift)
+            let b = a + direction * (step / direction.length)
+            let gap = (a - b).length
+            guard gap > 1e-6, !(a.x < 0 && b.x < 0 && a.y * b.y < 0) else { continue }
+            worst = max(worst, abs(map.join(body(a), at: a) - map.join(body(b), at: b)) / gap)
+        }
+        return worst
+    }
+
+    @Test(arguments: [1.0, 9.0], [true, false])
+    func theJoinChangesNoFasterThanItsBoundSays(_ radius: Double, _ cylindrical: Bool) throws {
+        let map = cylindrical ? try cylinder(radius: radius) : try sphere(radius: radius)
+        let valueBound = 5.0
+        let turn = 2 * Self.pi * radius
+        let own = valueBound * 2 * Self.pi / turn
+        let bound = map.lipschitz(base: map.stretch * own, valueBound: valueBound)
+        let worst = steepestJoin(map, turn: turn, valueBound: valueBound)
+        #expect(worst <= bound, "measured \(worst) against \(bound)")
+        // The bound without the weight's change, `base + 1`, is too small for the unit radius: the fade term is needed.
+        if radius == 1 {
+            #expect(worst > map.stretch * own + 1, "the test sees the blend: \(worst)")
+        }
+    }
+
     // MARK: Radius
 
     @Test func theMeanRadiusOfASolidSphereAboutItsCentreIsThreeQuartersOfItsRadius() {
