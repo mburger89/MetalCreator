@@ -15,6 +15,8 @@ import Testing
 ///   value difference of 1e-6 slides the vertex along the surface by 1e-4 or more: on the fixtures up to 9e-4 mm, with the surfaces
 ///   themselves within 2e-5 mm. So the surfaces must agree within 1e-4 mm (along the reference's normal), the vertices within 2e-3.
 ///
+/// A mapped lattice whose lattice coordinates reach 40 to 70 mm is allowed twice D17's surface allowance (`GPUFixtures.meshMarginal`).
+///
 /// Both numbers are for parts within a few hundred millimetres of the origin: positions are `Float`, and one unit in the last place
 /// is 5e-4 mm at 4 m, so D13's 1e-4 mm cannot hold for a far part (`MetalMeshingLimitsTests` checks that one's bounds to 1 mm).
 /// The normals (dot product at least 0.9999 on the same samples, 0.999 whole) and the enclosed volume (1e-3, and positive: a
@@ -109,7 +111,9 @@ struct GPUMeshAgreementTests {
         let pipeline = MeshComparison(reference: reference, candidate: gpu.mesh, slopes: slopes)
         #expect(pipeline.unmatched == 0, "\(name): vertices without a match")
         let detail = pipeline.worstScaledDetail
-        #expect(pipeline.worstScaledSurface <= 1, "\(name): surfaces \(detail.along) mm apart, \(detail.allowed) allowed")
+        let factor = GPUFixtures.meshAllowanceFactor(name)
+        let apart = "surfaces \(detail.along) mm apart, \(detail.allowed) allowed (× \(factor))"
+        #expect(pipeline.worstScaledSurface <= factor, "\(name): \(apart)")
         #expect(pipeline.farthest <= Self.slideTolerance, "\(name): the largest vertex difference is \(pipeline.farthest) mm")
         #expect(pipeline.smallestNormalDot >= Self.pipelineNormalDot, "\(name): a normal differs: dot \(pipeline.smallestNormalDot)")
     }

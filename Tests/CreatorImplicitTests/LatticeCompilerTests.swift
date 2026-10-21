@@ -14,7 +14,7 @@ struct LatticeCompilerTests {
         let b = LatticeFixtures.tpms(.lidinoid, .network, cells: LatticeFixtures.cells(3, stretch: Vector3(1, 2, 3)),
                                      thickness: .constant(0.2))
         #expect(try source(a) == source(b))
-        #expect(try source(a).contains("tpmsLattice(p,"))
+        #expect(try source(a).contains("tpmsBody(p,"))
     }
 
     @Test func aGradedCellSizeIsAnotherShapeFromAConstantOne() throws {
@@ -36,7 +36,7 @@ struct LatticeCompilerTests {
         let b = LatticeFixtures.struts(.kelvin, cells: LatticeFixtures.cells(2, stretch: Vector3(3, 1, 1)), radius: .constant(0.1),
                                        blend: 0.4)
         #expect(try source(a) == source(b))
-        #expect(try source(a).contains("strutLattice(e,"))
+        #expect(try source(a).contains("strutBody(e,"))
     }
 
     @Test func theStrutsGoToThePoolSixFloatsEach() throws {
@@ -55,7 +55,7 @@ struct LatticeCompilerTests {
         let a = LatticeFixtures.voronoi(LatticeFixtures.seeds(10, seed: 1), .struts, thickness: .constant(1))
         let b = LatticeFixtures.voronoi(LatticeFixtures.seeds(500, seed: 9), .foam, thickness: .constant(0.2))
         #expect(try source(a) == source(b))
-        #expect(try source(a).contains("voronoiLattice(e,"))
+        #expect(try source(a).contains("voronoiBody(e,"))
     }
 
     @Test func theSeedsGoToThePoolAndTheGridToTheTables() throws {
@@ -71,5 +71,25 @@ struct LatticeCompilerTests {
         // The thickness comes first, then the grid's corner and cell size.
         let corner = [seeds.origin.x, seeds.origin.y, seeds.origin.z, seeds.radius].map { Float($0) }
         #expect(Array(program.parameters[1..<5]) == corner)
+    }
+
+    // MARK: Mappings
+
+    @Test func aMappingIsAnotherShapeAndItsNumbersAreInTheBuffers() throws {
+        let gyroid = LatticeFixtures.tpmsAll[0].solid
+        let straight = try source(gyroid)
+        let cylinder = try source(LatticeFixtures.mapped(gyroid, LatticeFixtures.cylinder(through: LatticeFixtures.crossing, cell: 8)))
+        let moved = try source(LatticeFixtures.mapped(gyroid, LatticeFixtures.cylinder(through: LatticeFixtures.beside, cell: 5)))
+        let sphere = try source(LatticeFixtures.mapped(gyroid, LatticeFixtures.sphere(at: LatticeFixtures.crossing, cell: 8)))
+        #expect(straight != cylinder && cylinder != sphere)
+        #expect(cylinder == moved, "another axis or radius is only other numbers")
+        #expect(cylinder.contains("mapCylindrical(p,") && cylinder.contains("singularCylindrical(p,") && cylinder.contains("mappingJoin("))
+        #expect(sphere.contains("mapSpherical(p,") && !sphere.contains("mapCylindrical(p,"))
+        #expect(!straight.contains("mapCylindrical(p,") && !straight.contains("mappingJoin(v"), "Straight reads the point itself")
+    }
+
+    @Test func aMappedLatticeKeepsTheRegionCutAtTheRealPoint() throws {
+        let program = try ImplicitCompiler.compile(LatticeFixtures.mappedAll[0].solid)
+        #expect(program.source.contains("regionDistance(p,"), "the box is a box of the world, not of the lattice coordinates")
     }
 }

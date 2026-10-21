@@ -24,6 +24,29 @@ struct GPUAgreementTests {
         #expect(evaluator.engineName == "Metal")
     }
 
+    /// The mapped lattices where the mapping is hardest: next to the singular set (the exclusion and its fade) and on both sides of
+    /// the cut of the angle.
+    @Test(arguments: LatticeFixtures.mappedAll.map(\.name))
+    func mappedLatticesAgreeNextToTheSingularSetAndTheCut(_ name: String) async throws {
+        let solid = try #require(LatticeFixtures.mappedAll.first { $0.name == name }?.solid)
+        let engine = try #require(MetalImplicitEngine.shared)
+        let centre = LatticeFixtures.crossing
+        let random = SeededRandom(seed: 17, stream: 6)
+        var points: [SIMD3<Float>] = (0..<400).map { index in
+            SIMD3(Float(centre.x + 6 * random.unit(at: 3 * index) - 3), Float(centre.y + 6 * random.unit(at: 3 * index + 1) - 3),
+                  Float(28 * random.unit(at: 3 * index + 2) - 14))
+        }
+        points += (0..<200).map { index in
+            SIMD3(Float(centre.x) - 0.5 - Float(index) * 0.05, Float(centre.y) + (index % 2 == 0 ? 1e-3 : -1e-3), Float(index % 20) - 10)
+        }
+        let evaluator = GPUBatchEvaluator(engine: engine, program: try ImplicitCompiler.compile(solid))
+        let gpu = try await evaluator.evaluate(points)
+        let cpu = solid.signedDistances(at: points.map { Vector3(Double($0.x), Double($0.y), Double($0.z)) })
+        var worst = 0.0
+        for index in cpu.indices { worst = max(worst, abs(Double(gpu[index]) - cpu[index])) }
+        #expect(worst < Self.tolerance, "\(name): the largest difference is \(worst) mm")
+    }
+
     @Test func shapesShareOnePipeline() async throws {
         let engine = try #require(MetalImplicitEngine())
         let first = try ImplicitCompiler.compile(.sphere(radius: 5))

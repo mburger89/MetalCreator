@@ -135,15 +135,45 @@ public enum ImplicitCompiler {
             }
         }
 
-        /// A TPMS lattice: `tpmsLattice` of the cell size, the stretch and the thickness at `p`, its type and form as integers.
+        /// The lattice coordinates of `p` under `mapping`, and the name of the distance to its singular set (`nil` for Straight, whose
+        /// coordinates are `p` itself).
+        mutating func mapped(_ mapping: LatticeMapping, at p: String) -> (coordinates: String, singular: String?) {
+            switch mapping {
+            case .straight:
+                return (p, nil)
+            case .cylindrical(let map):
+                let (origin, reference, side) = (vector(map.origin), vector(map.reference), vector(map.side))
+                let (axis, radius) = (vector(map.axis), number(map.radius))
+                let coordinates = declareVector("mapCylindrical(\(p), \(origin), \(reference), \(side), \(axis), \(radius))")
+                return (coordinates, declare("singularCylindrical(\(p), \(origin), \(reference), \(side))"))
+            case .spherical(let map):
+                let (centre, radius) = (vector(map.centre), number(map.radius))
+                return (declareVector("mapSpherical(\(p), \(centre), \(radius))"), declare("singularSpherical(\(p), \(centre))"))
+            }
+        }
+
+        /// A lattice's `body`, left solid at the mapping's singular set (`singular`, from `mapped`) and cut to the region at `p`.
+        mutating func cut(_ body: String, singular: String?, at p: String, region: BoundingBox) -> String {
+            var joined = body
+            if let singular {
+                let (exclusion, fade) = (number(LatticeMapping.exclusion), number(LatticeMapping.fadeWidth))
+                joined = declare("mappingJoin(\(body), \(singular), \(exclusion), \(fade))")
+            }
+            let (centre, half) = (vector(region.center), vector(region.size * 0.5))
+            return declare("max(\(joined), regionDistance(\(p), \(centre), \(half)))")
+        }
+
+        /// A TPMS lattice: `tpmsBody` of the cell size, the stretch and the thickness at `p`, its type and form as integers, read at the
+        /// mapped coordinates.
         mutating func tpms(_ lattice: TPMSLattice, at p: String) throws(ImplicitCompileError) -> String {
             let cell = try grading(lattice.cells.size, at: p)
             let wall = try grading(lattice.thickness, at: p)
             let stretch = vector(lattice.cells.stretch)
             let (type, form) = (integer(lattice.type.rawValue), integer(lattice.form.rawValue))
             let scale = number(lattice.type.wallScale)
-            let (centre, half) = (vector(lattice.region.center), vector(lattice.region.size * 0.5))
-            return declare("tpmsLattice(\(p), \(cell), \(stretch), \(wall), \(type), \(form), \(scale), \(centre), \(half))")
+            let (coordinates, singular) = mapped(lattice.mapping, at: p)
+            let body = declare("tpmsBody(\(coordinates), \(cell), \(stretch), \(wall), \(type), \(form), \(scale))")
+            return cut(body, singular: singular, at: p, region: lattice.region)
         }
 
         /// A strut lattice: the cell's struts go to the `pool` buffer (six floats each), their place and number to the integers.
@@ -156,12 +186,14 @@ public enum ImplicitCompiler {
                 pool += [strut.start, strut.end].flatMap { [Float($0.x), Float($0.y), Float($0.z)] }
             }
             let blend = number(lattice.blend)
-            let (centre, half) = (vector(lattice.region.center), vector(lattice.region.size * 0.5))
-            return declare("strutLattice(e, \(offset), \(count), \(p), \(cell), \(stretch), \(radius), \(blend), \(centre), \(half))")
+            let (coordinates, singular) = mapped(lattice.mapping, at: p)
+            let body = declare("strutBody(e, \(offset), \(count), \(coordinates), \(cell), \(stretch), \(radius), \(blend))")
+            return cut(body, singular: singular, at: p, region: lattice.region)
         }
 
         /// A Voronoi lattice: the seeds go to the `pool` buffer (three floats each), the grid to the `tables` buffer (cell starts, then
-        /// seed numbers), where they are and how big the grid is to the integers, the grid's corner and cell size to the floats.
+        /// seed numbers), where they are and how big the grid is to the integers, the grid's corner and cell size to the floats. The seeds
+        /// are in lattice coordinates, so the body reads the mapped coordinates.
         mutating func voronoi(_ lattice: VoronoiLattice, at p: String) throws(ImplicitCompileError) -> String {
             let seeds = lattice.seeds
             let wall = try grading(lattice.thickness, at: p)
@@ -174,8 +206,9 @@ public enum ImplicitCompiler {
             parameters += [Float(seeds.origin.x), Float(seeds.origin.y), Float(seeds.origin.z), Float(seeds.radius)]
             let form = integer(lattice.form.rawValue)
             let scale = number(VoronoiLattice.strutScale)
-            let (centre, half) = (vector(lattice.region.center), vector(lattice.region.size * 0.5))
-            return declare("voronoiLattice(e, \(slot.integers), \(slot.parameters), \(p), \(wall), \(form), \(scale), \(centre), \(half))")
+            let (coordinates, singular) = mapped(lattice.mapping, at: p)
+            let body = declare("voronoiBody(e, \(slot.integers), \(slot.parameters), \(coordinates), \(wall), \(form), \(scale))")
+            return cut(body, singular: singular, at: p, region: lattice.region)
         }
 
         /// Union, intersect and subtract: the children folded left to right with `join(result, next, width)`; `empty` is the value
