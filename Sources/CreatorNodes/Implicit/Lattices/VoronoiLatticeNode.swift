@@ -22,18 +22,24 @@ public enum VoronoiLatticeNode: NodeDefinition {
         SocketSpec("count", .integer, defaultValue: .integer(100), unit: .count),
         SocketSpec("density", .field, defaultValue: .number(1), range: 0...1),
         SocketSpec("seed", .integer, defaultValue: .integer(0)),
-    ]
+    ] + LatticeMappingSetup.sockets
     public static let outputs = [SocketSpec("implicit", .implicit)]
     /// The warnings about cells and walls depend on the voxel size, which differs between preview and export.
     public static let readsMeshQuality = true
     public static let help = "Wire points into “seeds”, or leave it unconnected for “count” seeds placed at random where “density” "
         + "(a field, 0 to 1) says. Changing the seed or the density moves every seed. "
         + "“blend” rounds the join between the skin and the lattice; it does nothing without a skin."
-    public static let inspector = [
+    private static let sections = [
         InspectorSection(title: "Form", controls: [.segmented("form", options: VoronoiForm.options), .number("thickness")]),
         InspectorSection(title: "Seeds", controls: [.integer("count"), .number("density"), .integer("seed"), .note(help)]),
         InspectorSection(title: "Skin", controls: [.number("skin"), .number("blend")]),
     ]
+    public static let inspector = LatticeMappingSetup.inspector(base: sections, kind: .straight)
+
+    /// The Mapping section shows the inputs of the mapping this node is set to and no others.
+    public static func inspector(for node: Node) -> [InspectorSection] {
+        LatticeMappingSetup.inspector(base: sections, kind: LatticeMappingSetup.kind(of: node))
+    }
 
     public static func migrate(_ node: Node, from version: Int) -> Node { LatticeSetup.sharpJoin(node) }
 
@@ -45,11 +51,14 @@ public enum VoronoiLatticeNode: NodeDefinition {
         let box = region.bounds
         let wall = try await LatticeSetup.grading(inputs, "thickness", over: box, kernel: kernel, context: context)
         let (points, seedWarnings) = try await seeds(inputs, box: box, kernel: kernel, context: context)
+        let mapped = try LatticeMappingSetup.make(inputs, region: region, cells: nil)
 
-        let seedGrid = VoronoiSeeds(points: points, radius: VoronoiSeeds.searchRadius(count: points.count, in: box))
-        let lattice = ImplicitSolid.voronoi(VoronoiLattice(seeds: seedGrid, form: form, thickness: wall.grading, region: box))
-        var warnings = seedWarnings + wall.warnings
-        if seedGrid.uncoveredFraction(in: box) > 0 {
+        // The seeds are placed in the region as before and then put through the mapping, so a density field is read where the seed is.
+        let seedGrid = VoronoiSeeds.mapped(points: points, mapping: mapped.mapping, region: box)
+        let lattice = ImplicitSolid.voronoi(VoronoiLattice(seeds: seedGrid, form: form, thickness: wall.grading, region: box,
+                                                           mapping: mapped.mapping))
+        var warnings = seedWarnings + wall.warnings + mapped.warnings
+        if seedGrid.uncoveredFraction(in: box, mapping: mapped.mapping) > 0 {
             warnings.append("The seeds leave gaps in the region; the lattice is solid there.")
         }
         let voxel = LatticeSetup.voxel(over: box, context: context)

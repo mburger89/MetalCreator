@@ -9,7 +9,7 @@ struct CatalogTests {
         switch control {
         case .slider(let name), .number(let name), .integer(let name), .planePicker(let name),
              .anchorGrid(let name), .ruleSummary(let name), .vector(let name), .parameterPicker(let name), .text(let name),
-             .image(let name):
+             .image(let name), .faceStatus(let name):
             name
         case .toggle(let name, _), .segmented(let name, _):
             name
@@ -28,7 +28,7 @@ struct CatalogTests {
         case .planePicker: [.plane]
         case .ruleSummary: [.edgeSet]
         case .vector: [.vector]
-        case .parameterPicker, .text, .image, .button, .note: []
+        case .parameterPicker, .text, .image, .faceStatus, .button, .note: []
         }
     }
 
