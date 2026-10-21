@@ -117,6 +117,27 @@ toolkits are listed there. Raising the version means changing `OCCT_COMMIT` and 
 this Mac). Locally Docker's layer cache keeps it; in CI buildx's cache in the GitHub Actions cache does (scope `xp-occt-<arch>`;
 GitHub evicts an entry unused for seven days, and the least recently used ones when the repository passes 10 GB, and the next run then
 builds it again; a branch's caches are visible to that branch and the default branch only).
+The base images are not digest-pinned (`swift:6.4-noble` in `scripts/linux/Dockerfile`, `ubuntu:24.04` in `scripts/linux-test.sh`, and
+MetalUI's own image): buildx's cache keeps serving a stale `occt` stage after a base moves, until `OCCT_COMMIT`, `OCCT_JOBS` or the
+Dockerfile changes. Accepted for now.
+
+## Licences in the packages
+
+Every package carries `NOTICE.txt` (Linux `share/doc/metalcreator/`, Windows `licenses\`) next to the licence texts. It says that
+OpenCascade 7.9 is LGPL-2.1 with the OCCT exception, where its source is (Linux: tag `V7_9_3`, the Dockerfile's `OCCT_COMMIT`, read
+by the script; Windows: vcpkg's `opencascade` 7.9.3 port-version 1 at the manifest's `builtin-baseline`), names the shared libraries
+(`libTK*.so.7.9`, `TK*.dll`) and says they may be replaced by a modified build. The Linux packages also carry SDL3's zlib licence
+(from the image's `/usr/share/licenses/SDL3`) and the Swift runtime's (`packaging/licenses/Swift-LICENSE.txt`, Apache-2.0 with the
+Runtime Library Exception, copied from the 6.4 image; the Windows zip carries it too, and SDL3's from SDL's VC package).
+`package-linux.sh` and `package-windows.ps1` fail if a licence file is missing, and the Windows script checks that OpenCascade's
+`copyright` really holds the LGPL text and the exception.
+
+The AppImage runtime is not just "MIT": type2-runtime's `LICENSE` is MIT and says the static runtime contains musl libc, libfuse
+(LGPL-2.1), squashfuse (BSD-2-Clause), libzstd and zlib; its `Makefile` also links mimalloc (MIT). Their licence texts are in
+`packaging/appimage/licenses/` (sources in `SOURCES.txt`), copied by `package-appimage.sh` into the AppImage's
+`usr/metalcreator/share/doc/metalcreator/AppImage-runtime/`, and listed in a section the script appends to `NOTICE.txt`.
+appimagetool is not shipped, so it needs no notice. AccessKit (static, MIT or Apache-2.0) is covered only by MetalUI's notice,
+whose own licence text is a gap there.
 
 ## Linux: an AppImage
 
