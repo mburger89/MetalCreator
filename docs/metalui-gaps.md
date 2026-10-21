@@ -68,9 +68,10 @@ stopgap as they were. The sections below keep each gap's full use case.
 | XP-G5 | Open-document events on SDL (divergence 176) | answered | ✅ answered by MetalUI (`Platform.onOpenURLs` → `.onOpenURL`; command-line files via `app.open(…)` after the first window; `.desktop` `Exec=… %F` + `MimeType=`); xp-2's (packaging), not adopted in xp-1. **Single instance (MetalUI S7, PR #99, CI pin `4d91f27f`, branch `s7-adopt`):** a second launch on Linux and Windows forwards its document to the running instance and exits (`SDLPlatform.launchingSingleInstance`, id `AppBundleInfo.identifier`; the smoke test stays offscreen and claims nothing), human check XP-15 |
 | XP-G6 | `ContentType` filtering by extension (divergence 129) | answered | ✅ answered and already in use: every `ContentType` the file panels use declares `filenameExtensions` (`ContentType+MetalCreator`, `+Images`, `+Theme`), pinned by `ContentTypeTests`; nothing to change for xp-1 |
 | XP-G7 | Clipboard types beyond text (graph fragments) | MetalUI S3 (queued) | 🔄 queued at MetalUI. Nothing to do in xp-1: MetalCreator's graph-fragment clipboard is in memory (`NodeClipboard`) and never reaches the system pasteboard on any platform; a system clipboard (marked JSON text now, S3's custom types later) is a feature of its own |
-| XP-G8 | Hand and zoom cursor fallbacks | MetalUI S4 (queued) | ➖ accepted: MetalUI's fallback (`.link` hand, grab → move, zoom → arrow) is used as is; S4 adds image cursors (human check XP-8) |
-| XP-G9 | `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks)` | open (new) | 🔄 open at MetalUI. `MetalCreatorApp --smoke-test` (the CI launch check, `main.swift`) imports it with `@_spi(Checks) import MetalUISDL`; promote it to public API or name a supported headless-launch entry point |
-| XP-G10 | A header-only read of a picture's size and orientation (before any pixel is decoded) | open (new, forward to MetalUI) | 🔄 open at MetalUI. `DecodedImage` reports size and orientation only after it decodes the whole picture, but `ImageLimits` must refuse an oversize one first; MetalCreator keeps a small `ImageHeader` reader (PNG IHDR and `eXIf`, JPEG SOF and APP1) for that. Needed: a public `ImageInfo(data:)` (format, stored size, orientation, no pixel work) |
+| XP-G8 | Hand and zoom cursor fallbacks | MetalUI S4 (record §116, `IC-A`…`IC-I`, master `565abe67`) | ✅ fixed by MetalUI S4, adopted (branch `adopt-s9-s8-s4`): S4 ships `.pointerStyle(.image(_:hotSpot:))` but no art, and SDL's hand and zoom statics stay system cursors, so the one hand the app uses (the closed hand while a drag pans) is drawn in code (`GrabCursor`, `HandArt` in `CreatorStyle`) and used on Linux and Windows; macOS keeps `.grabActive` (human check XP-8) |
+| XP-G9 | `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks)` | MetalUI S8 (record §116, `IC-J`…`IC-M`, master `565abe67`) | ✅ fixed by MetalUI S8, adopted (branch `adopt-s9-s8-s4`, CI pin `b15e038c`): `makeApp` opens `SDLPlatform(options: .headless)` and `main.swift` imports `MetalUISDL` as plain public API; no SPI is left in the app |
+| XP-G10 | A header-only read of a picture's size and orientation (before any pixel is decoded) | MetalUI S9 (record §117, `IH-`, master `d3ebfa18`) | ✅ fixed by MetalUI S9, adopted (branch `adopt-s9-s8-s4`, CI pin `b15e038c`): `GreyImageDecoder.inspect` reads format, stored size and orientation with `ImageInfo(data:)` and `ImageHeader` is gone. One part stayed: `ImageInfo` answers `nil` for a GIF or TIFF as for garbage, so the "picture type we refuse" sentence needs `OtherPictureSignature` (XP-G12) |
+| XP-G12 | `ImageInfo` cannot tell a recognised-but-unsupported picture format from a non-picture | open (new, forward to MetalUI) | 🔄 open at MetalUI. `ImageInfo(data:)` is `nil` for GIF, TIFF, BMP, WebP and HEIF and for bytes that are no picture at all; MetalCreator keeps `OtherPictureSignature` (seven signature prefixes) only to say "not a PNG or JPEG" (`ImageProblem.unsupportedType`) and not "damaged" (`.undecodable`). Needed: a way to name the format of a header MetalUI recognises but does not read (for example `ImageInfo.sniffedFormat(of:)` returning an enum with `.gif`, `.tiff`, `.bmp`, `.webp`, `.heif`, `.unknown`) |
 
 ## Reported 2026-10-07 (C7)
 
@@ -1165,6 +1166,14 @@ Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan and XP-G10 by the S2 adop
 - **XP-G8. Hand and zoom cursors.** SDL has no hand or zoom cursor. MetalUI maps the hand to the link cursor, grab to move and zoom
   to the default arrow; the viewport's `ViewportCursor` and the canvas's `CanvasCursor` already go through `PointerStyle`, so they
   take the fallback with no change. MetalUI S4 adds image cursors. Human check XP-8.
+  **Fixed by MetalUI S4** (record §116, master `565abe67`), adopted on branch `adopt-s9-s8-s4`. S4's `PointerStyle.image(_:hotSpot:)` shows a
+  bitmap as the pointer on every platform, but "no art is bundled" and SDL's `.grabIdle` and `.zoomIn` still show its move cursor and
+  arrow (`docs/guides/input.md`), so nothing maps automatically. The app only ever names `.grabActive` (the closed hand while a
+  middle or Space drag pans: `CanvasCursor.grabbing`, `ViewportCursor.grabbing`) plus the crosshair and the resize cursors, which SDL
+  has. So `GrabCursor.pointerStyle()` (`CreatorStyle`) answers `.grabActive` on macOS, unchanged, and on Linux and Windows an
+  `.image` of a 48-pixel closed hand at scale 2 (24 points, hot spot at the centre) drawn in code by `HandArt` (signed distances, no
+  asset file). The bitmap is built once, so the cursor's identity is stable. The look is for a human (XP-8); `GrabCursorTests` pins the
+  choice, the size and the bitmap's outline.
 - **XP-G9. The headless launch used by CI is SPI.** `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks) public`
   (`Backends/SDL/Sources/MetalUISDL/SDLPlatform.swift`), meant for MetalUI's own checks. `MetalCreatorApp --smoke-test` (Task 7)
   opens the real window on hidden windows and offscreen renderers (Direct3D 12 on WARP on Windows, Mesa software on Linux) and
@@ -1173,12 +1182,28 @@ Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan and XP-G10 by the S2 adop
   depend on a symbol MetalUI may rename without notice. Until then a MetalUI bump can break `main.swift` at compile time, loudly,
   and the fix is one line. The smoke test passes in CI on Linux and Windows (run 38535917146) (human
   check XP-9).
+  **Fixed by MetalUI S8** (record §116, `IC-J`…`IC-M`, master `565abe67`), adopted on branch `adopt-s9-s8-s4`: `SDLPlatform.Options`
+  (`hidesWindows`, `rendersOffscreen`; `.headless`) and the public `SDLPlatform(options:)`. `makeApp(offscreen: true)` opens
+  `SDLPlatform(options: .headless)`, which is the old `hiddenWindows: true, offscreenRenderers: true`, and `main.swift` no longer says
+  `@_spi(Checks)`. The `--smoke-test` and `--self-test` code paths are otherwise unchanged. (S8 also offers
+  `Options.headlessIfRequested()` for the `METALUI_SDL_HEADLESS=1` environment; the app keeps its explicit `--smoke-test` flag.)
 - **XP-G10. A header-only read of a picture's size and orientation.** `DecodedImage` reports the stored size and the orientation after the
   whole picture is decoded (`IB-C`), but `ImageLimits` (16 MB, 8,192 px a side, PNG and JPEG only) must refuse an oversize picture before
   a pixel is decoded, and the limit is on the oriented size. So `ImageHeader` (`Sources/CreatorNodes/Fields`) reads the PNG IHDR and
   `eXIf` chunk and the JPEG SOF and APP1 segment itself, the one EXIF reader xp-1 hoped not to write; `decode` refuses a picture whose
   decoded size disagrees with it. Needed from MetalUI: a public `ImageInfo(data:)` (format, stored size, orientation) that does no pixel
   work, after which `ImageHeader` goes. To be forwarded to the MetalUI session.
+  **Fixed by MetalUI S9** (record §117, `IH-A`…`IH-P`, master `d3ebfa18`) and adopted on branch `adopt-s9-s8-s4`: `GreyImageDecoder.inspect`
+  reads the format, stored size and orientation with `ImageInfo(data:)` and applies `orientedSize`; `ImageHeader` is deleted. Every limit
+  and sentence is as it was (`ImageLimits`, `PNGStructure.isWhole`); `ImageInfoHeaderTests` pins the orientation on the JPEG fixtures and
+  the PNG `eXIf` placements. One part stayed (XP-G12): `OtherPictureSignature`.
+- **XP-G12. `ImageInfo` cannot tell a recognised but unsupported picture format from a non-picture.** `ImageInfo(data:)` is `nil` for a GIF,
+  TIFF, BMP, WebP or HEIF file and for bytes that are no picture at all (`IH-B`). `GreyImageDecoder.inspect` must refuse the first kind
+  with "not a PNG or JPEG" (`ImageProblem.unsupportedType`) and the second with "damaged" (`.undecodable`), so
+  `OtherPictureSignature` (`Sources/CreatorNodes/Fields`) keeps the seven signature prefixes the old `ImageHeader` sniffed. Needed from
+  MetalUI: a header-only name for the format of bytes it recognises but does not read (for example
+  `ImageInfo.sniffedFormat(of:)` giving `.png`, `.jpeg`, `.gif`, `.tiff`, `.bmp`, `.webp`, `.heif` or `.unknown`), after which
+  `OtherPictureSignature` goes. To be forwarded to the MetalUI session.
 
 ## Found by the preview sweep, 2026-10-14
 

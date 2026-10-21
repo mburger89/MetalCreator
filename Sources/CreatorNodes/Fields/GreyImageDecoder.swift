@@ -4,7 +4,7 @@ import Foundation
 /// Reads PNG and JPEG bytes into a `GreyImage` (fields spec §5). On every platform MetalUI's public `DecodedImage` does the decoding
 /// (`GreyImageDecoder+MetalUI.swift`, the only file that imports it; MetalUI S2, gap XP-G4); no Apple image framework is used.
 ///
-/// Images are untrusted input. `inspect` reads only the header (`ImageHeader`) and refuses a file over `ImageLimits.maxBytes`, a side
+/// Images are untrusted input. `inspect` reads only the header (MetalUI's `ImageInfo`) and refuses a file over `ImageLimits.maxBytes`, a side
 /// over `ImageLimits.maxSide`, any type but PNG and JPEG, and anything whose header makes no sense, all before a pixel is decoded;
 /// a PNG must also be whole (`PNGStructure`). `decode` then asks MetalUI for the 8-bit straight-alpha RGBA and converts it to the
 /// grey grid in bands, checking for cancellation between bands. Memory for a legal 8,192 × 8,192 picture: the 16 MB file at most,

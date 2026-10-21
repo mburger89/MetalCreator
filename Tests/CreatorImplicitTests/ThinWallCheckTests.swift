@@ -13,6 +13,13 @@ struct ThinWallCheckTests {
         #expect(result.triangles.count == hollow.triangleCount, "every face of both shells has a thin wall behind it")
     }
 
+    @Test func theConcurrentRunGivesTheSameResultAsTheLoop() async throws {
+        let hollow = MeshFixtures.hollowCube(size: 10, wall: 0.2, divisions: 10)
+        let loop = try ThinWallCheck.run(hollow, minimum: 0.4)
+        let concurrent = try await ThinWallCheck.runConcurrently(hollow, minimum: 0.4)
+        #expect(concurrent.triangles == loop.triangles && concurrent.places == loop.places && concurrent.thinnest == loop.thinnest)
+    }
+
     @Test func aWallThickerThanTheMinimumIsLeftAlone() throws {
         let hollow = MeshFixtures.hollowCube(size: 10, wall: 0.5, divisions: 10)
         let result = try ThinWallCheck.run(hollow, minimum: 0.4)

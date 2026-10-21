@@ -125,6 +125,10 @@ extension AppModel {
     private func streamToFile(_ kind: ExportKind, to url: URL, _ run: ExportRun) async throws -> [String] {
         let collected = try await evaluateForExport()
         try Task.checkCancellation()
+        // The checks are done: a stream's check copy is not kept while its file is written.
+        for output in collected.outputs {
+            for case let stream as MeshStream in output.meshes { stream.releaseCheckCopy() }
+        }
         let progress: @Sendable (Double) -> Void = { fraction in Task { @MainActor in run.report(fraction) } }
         try await StreamedExport.write(collected.outputs, as: kind, to: url, kernel: kernel, engine: implicitEngine, progress: progress)
         return collected.warnings

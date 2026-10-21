@@ -428,6 +428,32 @@ Counters are per frame, median / max.
 The counters did not move on any row, and no count assertion changed. MetalUI notes that a redo frame's `contentEvaluations` may now be
 higher (CF-C); none of these rows has a redo frame in its timed window, so it is not visible here.
 
+### C14-g adopted (MetalUI b15e038c, PR #106, 2026-10-20)
+
+No API change. MetalUI's C14-g lets an effect-translated prepaint replay run for a ledger that carries accessibility records, so a
+warm pan of the 50-node graph now grafts instead of rebuilding. Zoom still refuses by design.
+
+Same Mac, release, `scripts/bench.sh Warm`; the Mac was heavily loaded (`uptime` before: load averages 152.43 83.96 63.29; after:
+73.13 124.89 97.68), so the ms are only indicative and the counters are the result. "Before" is the C14-e table above. Counters per
+frame, median / max.
+
+| Row | | elementRequests | elementPrepaints | elementPaints | retainedGrafts | retainedHits / Misses | contentEvaluations |
+|---|---|---|---|---|---|---|---|
+| pan-50-warm | before | 1409 / 1697 | n/a | 247 / 615 | 0 | n/a | 1 / 33 |
+| | after | 192 / 468 | 212 / 500 | 247 / 615 | 27 / 37 | 27 / 37 and 3 / 35 | 1 / 33 |
+| zoom-50-warm | after | 1857 / 2879 | 1999 / 3094 | 2383 / 3815 | 0 / 2 | 2 / 102 and 171 / 240 | 1 / 121 |
+| orbit-panel-left-warm | after | 199 / 199 | 184 / 184 | 213 / 213 | 1 / 1 | 2 / 2 and 0 / 0 | 0 / 0 |
+| orbit-panel-hidden-warm | after | 161 / 161 | 144 / 144 | 166 / 166 | 0 / 0 | 1 / 1 and 0 / 0 | 0 / 0 |
+| fillet-drag-warm | after | 888 / 888 | 966 / 966 | 1138 / 1138 | 94 / 94 | 94 / 94 and 30 / 30 | 12 / 12 |
+
+`retainedRedos` is not in the bench's report; the pan is pinned to 0 in `WarmWorkPinTests`. The pan row's window-cpu (warm frame) median
+was 8.70 ms (p95 11.57 ms), inside the 16.67 ms budget; zoom stays at 28.32 ms (missed). Only pan moved; the other rows are unchanged
+from C14-e.
+
+Pinned: `aSteadyWarmPanOfFiftyNodesGraftsAndNeverRedoes` (steady steps: retainedGrafts > 0, retainedRedos == 0, median element
+requests under 2 x 192) and `aWarmPanEvaluatesNoNodeView` (retainedGrafts > 0, element requests under 2 x 189 for the six-node
+fixture, picture still equal to a full rebuild).
+
 ## Carry-over items (the M0–M1 carry-over note, M7)
 
 | Item | Benchmark | Measured (median) | Verdict |

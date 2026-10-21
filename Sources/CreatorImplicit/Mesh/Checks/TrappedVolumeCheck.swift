@@ -25,6 +25,25 @@ public enum TrappedVolumeCheck {
         let positions = (0..<mesh.vertexCount).map { mesh.point($0) }
         let distances = try SignedDistanceMesh(positions: positions, indices: mesh.triangles)
         let (grid, found) = try findVoids(in: distances, bounds: bounds)
+        return try result(of: mesh, grid: grid, found: found)
+    }
+
+    /// `run` with the grid's distances asked on every core (a different name, so a caller that is not `async` keeps `run`). The result is the same.
+    /// - Throws: `MeshDistanceError.notClosed` when the mesh has no inside, and `CancellationError`.
+    public static func runConcurrently(_ mesh: TriangleMesh) async throws -> Result {
+        guard let bounds = mesh.bounds, mesh.triangleCount > 0 else { return Result(voidCount: 0, triangles: []) }
+        let positions = (0..<mesh.vertexCount).map { mesh.point($0) }
+        let distances = try SignedDistanceMesh(positions: positions, indices: mesh.triangles)
+        var grid = OccupancyGrid(bounds: bounds)
+        try await grid.fill(awaiting: { points in
+            try await ParallelMap.map(points) { chunk in chunk.map { distances.unsignedDistance(at: $0) } }
+        })
+        let found = try EnclosedVoids(grid, isInside: { distances.isInside($0) })
+        return try result(of: mesh, grid: grid, found: found)
+    }
+
+    /// The void count and the triangles that look into a void, from the grid and its voids.
+    private static func result(of mesh: TriangleMesh, grid: OccupancyGrid, found: EnclosedVoids) throws -> Result {
         guard !found.voids.isEmpty else { return Result(voidCount: 0, triangles: [], cell: grid.cell) }
         var facing: [Int] = []
         for index in 0..<mesh.triangleCount {

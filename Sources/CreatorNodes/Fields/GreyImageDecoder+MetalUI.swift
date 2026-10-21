@@ -8,16 +8,11 @@ extension GreyImageDecoder {
     /// `inspect(_:)`: the limits, then the header.
     static func inspectHeader(_ data: Data) throws(ImageProblem) -> Info {
         guard data.count <= ImageLimits.maxBytes else { throw .tooManyBytes(data.count) }
-        guard let header = ImageHeader.read(data) else { throw .undecodable }
-        let format: Format
-        switch header.kind {
-        case .png: format = .png
-        case .jpeg: format = .jpeg
-        case .other: throw .unsupportedType
-        }
+        // MetalUI's header-only read (S9, gap XP-G10): PNG and JPEG, the stored size and the EXIF orientation, no pixel work.
+        guard let header = ImageInfo(data: data) else { throw OtherPictureSignature.matches(data) ? .unsupportedType : .undecodable }
+        let format: Format = header.format == .png ? .png : .jpeg
         // Sizes (and the limit) are those of the oriented picture.
-        let swapped = header.orientation >= 5
-        let width = swapped ? header.height : header.width, height = swapped ? header.width : header.height
+        let (width, height) = header.orientedSize
         guard width <= ImageLimits.maxSide, height <= ImageLimits.maxSide else { throw .tooManyPixels(width: width, height: height) }
         // A PNG cut short in the middle of its data must not be trusted, whatever the decoder makes of it.
         guard format != .png || PNGStructure.isWhole(data) else { throw .undecodable }
