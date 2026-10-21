@@ -43,10 +43,25 @@ public protocol Kernel: Actor {
     /// face pick on the result works like on any solid. The mesh must be closed and manifold; a failure names what is wrong with it.
     /// The default refuses: only a kernel with a B-rep can.
     func meshToSolid(positions: [SIMD3<Float>], triangles: [UInt32], tag: NodeTag) throws -> Solid
+    /// How `face` of `solid` is parametrized (Face mapping, implicit spec §3.5). The default refuses: only a kernel with surfaces can.
+    func faceParametrization(of face: FaceID, in solid: Solid) throws -> FaceParametrization
+    /// Where each of `points` stands against `face` of `solid` (Face mapping): the (u, v) of the face's nearest point and the signed
+    /// distance along the face's outward normal there, in the order of `points`. A point whose nearest point is on the face's rim has
+    /// the rim's (u, v). Like every operation it checks for cancellation on entry, and a long batch again between chunks. An ID the
+    /// solid doesn't have is `KernelError.invalidInput`. The default refuses.
+    func faceCoordinates(of points: [Vector3], on face: FaceID, in solid: Solid) throws -> [FaceSample]
 }
 
 extension Kernel {
     public func meshToSolid(positions: [SIMD3<Float>], triangles: [UInt32], tag: NodeTag) throws -> Solid {
         throw KernelError.unsupported("mesh to solid")
+    }
+
+    public func faceParametrization(of face: FaceID, in solid: Solid) throws -> FaceParametrization {
+        throw KernelError.unsupported("face mapping")
+    }
+
+    public func faceCoordinates(of points: [Vector3], on face: FaceID, in solid: Solid) throws -> [FaceSample] {
+        throw KernelError.unsupported("face mapping")
     }
 }
