@@ -69,7 +69,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | XP-G6 | `ContentType` filtering by extension (divergence 129) | answered | ✅ answered and already in use: every `ContentType` the file panels use declares `filenameExtensions` (`ContentType+MetalCreator`, `+Images`, `+Theme`), pinned by `ContentTypeTests`; nothing to change for xp-1 |
 | XP-G7 | Clipboard types beyond text (graph fragments) | MetalUI S3 (queued) | 🔄 queued at MetalUI. Nothing to do in xp-1: MetalCreator's graph-fragment clipboard is in memory (`NodeClipboard`) and never reaches the system pasteboard on any platform; a system clipboard (marked JSON text now, S3's custom types later) is a feature of its own |
 | XP-G8 | Hand and zoom cursor fallbacks | MetalUI S4 (queued) | ➖ accepted: MetalUI's fallback (`.link` hand, grab → move, zoom → arrow) is used as is; S4 adds image cursors (human check XP-8) |
-| XP-G9 | `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks)` | open (new) | 🔄 open at MetalUI. `MetalCreatorApp --smoke-test` (the CI launch check, `main.swift`) imports it with `@_spi(Checks) import MetalUISDL`; promote it to public API or name a supported headless-launch entry point |
+| XP-G9 | `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks)` | MetalUI S8 (record §116, `IC-J`…`IC-M`, master `565abe67`) | ✅ fixed by MetalUI S8, adopted (branch `adopt-s9-s8-s4`, CI pin `b15e038c`): `makeApp` opens `SDLPlatform(options: .headless)` and `main.swift` imports `MetalUISDL` as plain public API; no SPI is left in the app |
 | XP-G10 | A header-only read of a picture's size and orientation (before any pixel is decoded) | MetalUI S9 (record §117, `IH-`, master `d3ebfa18`) | ✅ fixed by MetalUI S9, adopted (branch `adopt-s9-s8-s4`, CI pin `b15e038c`): `GreyImageDecoder.inspect` reads format, stored size and orientation with `ImageInfo(data:)` and `ImageHeader` is gone. One part stayed: `ImageInfo` answers `nil` for a GIF or TIFF as for garbage, so the "picture type we refuse" sentence needs `OtherPictureSignature` (XP-G12) |
 | XP-G12 | `ImageInfo` cannot tell a recognised-but-unsupported picture format from a non-picture | open (new, forward to MetalUI) | 🔄 open at MetalUI. `ImageInfo(data:)` is `nil` for GIF, TIFF, BMP, WebP and HEIF and for bytes that are no picture at all; MetalCreator keeps `OtherPictureSignature` (seven signature prefixes) only to say "not a PNG or JPEG" (`ImageProblem.unsupportedType`) and not "damaged" (`.undecodable`). Needed: a way to name the format of a header MetalUI recognises but does not read (for example `ImageInfo.sniffedFormat(of:)` returning an enum with `.gif`, `.tiff`, `.bmp`, `.webp`, `.heif`, `.unknown`) |
 
@@ -1174,6 +1174,11 @@ Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan and XP-G10 by the S2 adop
   depend on a symbol MetalUI may rename without notice. Until then a MetalUI bump can break `main.swift` at compile time, loudly,
   and the fix is one line. The smoke test passes in CI on Linux and Windows (run 38535917146) (human
   check XP-9).
+  **Fixed by MetalUI S8** (record §116, `IC-J`…`IC-M`, master `565abe67`), adopted on branch `adopt-s9-s8-s4`: `SDLPlatform.Options`
+  (`hidesWindows`, `rendersOffscreen`; `.headless`) and the public `SDLPlatform(options:)`. `makeApp(offscreen: true)` opens
+  `SDLPlatform(options: .headless)`, which is the old `hiddenWindows: true, offscreenRenderers: true`, and `main.swift` no longer says
+  `@_spi(Checks)`. The `--smoke-test` and `--self-test` code paths are otherwise unchanged. (S8 also offers
+  `Options.headlessIfRequested()` for the `METALUI_SDL_HEADLESS=1` environment; the app keeps its explicit `--smoke-test` flag.)
 - **XP-G10. A header-only read of a picture's size and orientation.** `DecodedImage` reports the stored size and the orientation after the
   whole picture is decoded (`IB-C`), but `ImageLimits` (16 MB, 8,192 px a side, PNG and JPEG only) must refuse an oversize picture before
   a pixel is decoded, and the limit is on the oriented size. So `ImageHeader` (`Sources/CreatorNodes/Fields`) reads the PNG IHDR and
