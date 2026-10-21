@@ -137,6 +137,14 @@ jobs:
           "SDL3_LIB=$root\lib\x64" >> $env:GITHUB_ENV
           "SDL3_ROOT=$root" >> $env:GITHUB_ENV
           "$root\lib\x64" >> $env:GITHUB_PATH   # SDL3.dll at run time
+      - name: Work out the vcpkg cache key
+        id: vcpkg-key
+        # vcpkg's package ABI hash includes the compiler hash (cl.exe version, Windows SDK), so a cache built on one runner image
+        # does not restore on another: the image version and the cl.exe version go in the key. VCPKG_COMMIT stays in it too.
+        run: |
+          $cl = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -find 'VC\Tools\MSVC\**\Hostx64\x64\cl.exe' | Select-Object -First 1
+          $msvc = (Get-Item $cl).VersionInfo.ProductVersion
+          "key=vcpkg-occt-$env:ImageVersion-msvc$msvc-${env:VCPKG_COMMIT}-${{ hashFiles('MetalCreator/packaging/windows/vcpkg.json') }}" >> $env:GITHUB_OUTPUT
       - name: Restore vcpkg's binary cache
         id: vcpkg-cache
         # Not actions/cache: its post step saves only when the whole job is green, and the first Windows runs are expected to be
@@ -144,7 +152,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ runner.temp }}\vcpkg-cache
-          key: vcpkg-occt-${{ env.VCPKG_COMMIT }}-${{ hashFiles('MetalCreator/packaging/windows/vcpkg.json') }}
+          key: ${{ steps.vcpkg-key.outputs.key }}
       - name: Install OpenCascade 7.9 (vcpkg, release and debug libraries)
         id: occt
         # The vcpkg commit is fetched alone and bootstrapped; the port builds with the runner's Visual Studio, twice (release and
