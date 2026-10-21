@@ -93,6 +93,14 @@ struct FaceMappedLatticeTests {
         #expect(uncovered < 0.5, "the seeds reach most of the mapped region: \(uncovered)")
     }
 
+    @Test func aFaceMappedLatticeCountsItsChartInItsMemory() {
+        let plain = LatticeFixtures.tpmsAll[0].solid
+        let wrapped = LatticeFixtures.faceAll[0].solid
+        #expect(wrapped.estimatedBytes - plain.estimatedBytes >= LatticeFixtures.cylinderChart.estimatedBytes)
+        let cylinder = LatticeFixtures.mappedAll[0].solid
+        #expect(cylinder.estimatedBytes - plain.estimatedBytes < 1_000, "a cylindrical mapping holds a few numbers")
+    }
+
     @Test func theLipschitzBoundIncludesTheStretchAndTheBlend() {
         let plain = LatticeFixtures.tpmsAll[0].solid
         let wrapped = LatticeFixtures.faceAll[0].solid

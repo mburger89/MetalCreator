@@ -15,23 +15,18 @@ public enum FaceChartBaker {
                             kernel: any Kernel) async throws -> FaceChart {
         let facts = try await kernel.faceParametrization(of: face, in: solid)
         let grid = FaceChartGrid(covering: bounds, spacing: DistanceBaker.spacing(forTolerance: tolerance))
-        let samples = try await project(grid.points, onto: face, of: solid, kernel: kernel)
+        let samples = try await project(grid.points[...], onto: face, of: solid, kernel: kernel, found: [])
         return FaceChartAssembler.assemble(grid: grid, facts: facts, samples: samples)
     }
 
-    private static func project(_ points: [Vector3], onto face: FaceID, of solid: Solid, kernel: any Kernel) async throws -> [FaceSample] {
-        var samples: [FaceSample] = []
-        samples.reserveCapacity(points.count)
-        return try await append(from: 0, of: points, onto: face, of: solid, kernel: kernel, into: samples)
-    }
-
-    /// One chunk per step, recursing for the next, so no loop's locals are held across the `await` (Swift 6.4 Windows `CoroFrame.cpp`).
-    private static func append(from start: Int, of points: [Vector3], onto face: FaceID, of solid: Solid, kernel: any Kernel,
-                               into samples: [FaceSample]) async throws -> [FaceSample] {
-        guard start < points.count else { return samples }
+    /// The kernel's answer for `points`, a chunk at a time. A recursion and not a loop: the Swift 6.4 Windows compiler crashes in
+    /// coroutine splitting on an async function that holds a loop's locals across an `await`.
+    private static func project(_ points: ArraySlice<Vector3>, onto face: FaceID, of solid: Solid, kernel: any Kernel,
+                                found: [FaceSample]) async throws -> [FaceSample] {
+        guard !points.isEmpty else { return found }
         try Task.checkCancellation()
-        let end = min(start + chunk, points.count)
-        let chunkSamples = try await kernel.faceCoordinates(of: Array(points[start..<end]), on: face, in: solid)
-        return try await append(from: start + chunk, of: points, onto: face, of: solid, kernel: kernel, into: samples + chunkSamples)
+        let now = points.prefix(chunk)
+        let answer = try await kernel.faceCoordinates(of: Array(now), on: face, in: solid)
+        return try await project(points.dropFirst(now.count), onto: face, of: solid, kernel: kernel, found: found + answer)
     }
 }

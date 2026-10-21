@@ -108,6 +108,40 @@ struct LatticeMappingNodeTests {
         #expect(wrapped.description.contains("40 seeds") && wrapped.description.contains("cylindrical"))
     }
 
+    // MARK: With the skin, the blend, a graded cell and a stretch
+
+    @Test(arguments: LatticeMappingNodeTests.nodes.indices)
+    func aSkinAndItsBlendWorkWithAMapping(_ index: Int) async throws {
+        let wrapped = try await solid(index, Self.cylindrical.merging(["skin": .number(1.5), "blend": .number(1)]) { _, given in given })
+        #expect(wrapped.description.hasPrefix("union(shell("), "\(wrapped.description)")
+        #expect(wrapped.description.contains("blend 1 mm") && wrapped.description.contains("cylindrical"))
+        // The 40 mm cube keeps a solid wall 1.5 mm thick: solid at 19.2 mm from its centre, whatever the lattice does inside.
+        for point in [Vector3(19.2, 3, -2), Vector3(-4, 19.4, 5), Vector3(7, -6, 19.1)] { #expect(wrapped.signedDistance(at: point) < 0) }
+        #expect(wrapped.signedDistance(at: Vector3(20.5, 0, 0)) > 0, "and nothing outside the region")
+        let without = try await solid(index, Self.cylindrical)
+        #expect(wrapped.lipschitz >= without.lipschitz - 1e-9, "the join only adds")
+    }
+
+    @Test func aStretchedGradedGyroidKeepsBothInItsBoundAndItsPattern() async throws {
+        var h = Harness()
+        let box = h.add(ImplicitBoxNode.self, ["size": .vector(Vector3(40, 40, 40))])
+        let ramp = h.add(LinearGradientNode.self, ["length": .number(40)])
+        let range: [SocketName: ConstantValue] = [
+            "fromLow": .number(-0.5), "fromHigh": .number(0.5), "toLow": .number(6), "toHigh": .number(10),
+        ]
+        let sized = h.add(FieldRemapNode.self, range)
+        let node = h.add(TPMSNode.self, Self.spherical.merging(["cell stretch": .vector(Vector3(1, 1, 2))]) { _, given in given })
+        h.wire(ramp, "field", to: sized, "field")
+        h.wire(box, "implicit", to: node, "region")
+        h.wire(sized, "field", to: node, "cell size")
+        let report = try await h.run([node])
+        let solid = try #require(report.implicitSolid(node))
+        guard case .tpms(let lattice)? = solid.firstLattice else { Issue.record("no gyroid"); return }
+        #expect(lattice.cells.size.slope > 0 && abs(lattice.cells.stretch.z / lattice.cells.stretch.x - 2) < 1e-9)
+        guard case .spherical(let map) = lattice.mapping else { Issue.record("not spherical"); return }
+        #expect(lattice.lipschitz > map.stretch, "the stretch of the mapping multiplies the lattice's own bound")
+    }
+
     // MARK: Refusals
 
     @Test func anAxisWithNoDirectionIsRefused() async throws {
