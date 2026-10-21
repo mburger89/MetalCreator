@@ -42,13 +42,12 @@ try {
 
 $exe = Join-Path $bin 'MetalCreatorApp.exe'
 if (-not (Test-Path $exe)) { throw "no release build at $exe (run swift build -c release --product MetalCreatorApp first)" }
-$versionLine = (& $exe --version)
-if ($versionLine -notmatch '^MetalCreator (\S+) ') { throw "can't read the version from: $versionLine" }
-$name = "MetalCreator-$($Matches[1])-windows-x64"
-$folder = Join-Path $work $name
+# The folder is named after the version, which is read below from the assembled executable (not from the build tree, where the
+# job's PATH holds vcpkg's debug\bin and the release exe could load debug OpenCascade DLLs); so it is staged under a plain name.
+$folder = Join-Path $work 'stage'
 New-Item -ItemType Directory -Path $folder | Out-Null
 
-Step "Assembling $name"
+Step 'Assembling'
 Copy-Item $exe (Join-Path $folder 'MetalCreator.exe')
 Copy-Item (Join-Path $root 'packaging\windows\register-mcgraph.ps1') $folder
 $shaders = Join-Path $metalUI 'Backends\SDL\Shaders\compiled'
@@ -135,6 +134,19 @@ while ($queue.Count) {
 if (-not $bundled.ContainsKey('tkernel.dll')) { throw "OpenCascade's TKernel.dll isn't among the DLLs the executable needs" }
 if (-not $bundled.ContainsKey('sdl3.dll')) { throw "SDL3.dll isn't among the DLLs the executable needs" }
 if (-not $bundled.ContainsKey('swiftcore.dll')) { throw "swiftCore.dll isn't among the DLLs the executable needs" }
+
+Step 'Reading the version from the assembled executable, with only Windows on PATH'
+$savedPath = $env:PATH
+$env:PATH = "$system;$env:SystemRoot"
+try {
+    $versionLine = (& (Join-Path $folder 'MetalCreator.exe') --version)
+    $versionCode = $LASTEXITCODE
+} finally { $env:PATH = $savedPath }
+if ($versionCode) { throw "--version failed from the assembled folder (exit $versionCode)" }
+if ($versionLine -notmatch '^MetalCreator (\S+) ') { throw "can't read the version from: $versionLine" }
+$name = "MetalCreator-$($Matches[1])-windows-x64"
+Rename-Item $folder $name
+$folder = Join-Path $work $name
 
 Step 'Copying the licences'
 $doc = Join-Path $folder 'licenses'
