@@ -14,9 +14,10 @@ import Testing
 /// frame and can never see this.
 @MainActor
 struct WarmWorkPinTests {
-    /// The measured element requests of a steady orbit-panel-left step are 199 (scripts/bench.sh, the 2026-10-20 C14-d run; the
-    /// bound was 2 × 332 until then; a cold frame: 4,572); the bound is twice that.
-    static let elementRequestBound = 2 * 199
+    /// The measured element requests of a steady orbit-panel-left step are 130 (scripts/bench.sh, the 2026-10-21 C14-f and C14-h
+    /// run, with `GraphPanel` `.equatable()` at its call site again; 199 on 2026-10-20, 332 before C14-d; a cold frame: 4,572);
+    /// the bound is twice that.
+    static let elementRequestBound = 2 * 130
 
     @Test func aSteadyWarmOrbitStepWithThePanelDockedLeftDoesAlmostNoWork() async throws {
         let (app, _) = try await makeBracketBenchApp()
@@ -59,6 +60,29 @@ struct WarmWorkPinTests {
         }
         let median = requests.sorted()[requests.count / 2]
         #expect(median < Self.panElementRequestBound, "median \(median) element requests")
+    }
+
+    /// The worst warm frame of the fillet drag uploaded 338 to 442 atlas pixels across the 2026-10-21 C14-f runs (the radius
+    /// readout's digits are the only new glyphs); before MetalUI C14-f one dirty rect spanning the atlas gave about 26,390 at
+    /// step 51. The bound is a little over twice the largest measurement, still 30 times below the old spike.
+    static let filletAtlasUploadBound = 900
+
+    @Test func aWarmFilletDragUploadsOnlyTheInsertedGlyphsToTheAtlas() async throws {
+        let (app, bracket) = try await makeBracketBenchApp()
+        app.editor.selection = [bracket.fillet.id]
+        await app.settle()
+        let handle = try #require(app.viewport.handles.first, "the selected Fillet shows its radius handle")
+        let warm = try await WarmBenchWindow(model: app)
+        var worst = 0
+        for step in 0..<75 {
+            app.handleChanged(handle.id, 2 + Double(step) * 0.02, .changed)
+            await app.settle()
+            let work = warm.frame()
+            guard step >= 10 else { continue }
+            worst = max(worst, work.atlasUploadPixels)
+        }
+        app.handleChanged(handle.id, 3.48, .ended)
+        #expect(worst < Self.filletAtlasUploadBound, "worst warm frame uploaded \(worst) atlas pixels")
     }
 }
 #endif
