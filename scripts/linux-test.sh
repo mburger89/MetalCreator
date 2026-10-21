@@ -7,8 +7,10 @@
 #     test    swift test, judged by the pass rule below. Arguments after `test` (for example `--filter CreatorOCCTTests`) go to
 #             swift test and switch the count rule off: only the exit code and the issue lines are judged.
 #     smoke   the app's --self-test, then --smoke-test 20 (the real window over SDL's offscreen renderers: a first frame within 20 s)
-#     package scripts/package-linux.sh in the image, then the tarball in dist/ is unpacked in a clean ubuntu:24.04 (no Swift, no
-#             /opt/occt, no MetalUI checkout) and must pass --version and --self-test there; the desktop entry is validated
+#     package scripts/package-linux.sh and scripts/package-appimage.sh in the image (the second downloads appimagetool and the
+#             AppImage runtime, pinned by version and sha256: it needs the network), then the tarball and the AppImage in dist/ are
+#             each run in a clean ubuntu:24.04 (no Swift, no /opt/occt, no MetalUI checkout, no FUSE) and must pass --version and
+#             --self-test there (the AppImage with --appimage-extract-and-run); the desktop entry is validated
 #     all     build, test and smoke, in that order (not package: a release build is slow)
 #   scripts/linux-test.sh clean                     removes this track's build volume
 #
@@ -82,13 +84,17 @@ do_smoke() {
         "$bin" --smoke-test 20'
 }
 
-# The release tarball, built in the image and then run where nothing of the build machine exists.
+# The release tarball and AppImage, built in the image and then run where nothing of the build machine exists (no Swift, no
+# /opt/occt, no FUSE).
 do_package() {
-    rm -f dist/MetalCreator-*-linux-"$(uname -m | sed 's/arm64/aarch64/')".tar.gz
+    local arch
+    arch=$(uname -m | sed 's/arm64/aarch64/')
+    rm -f dist/MetalCreator-*-linux-"$arch".tar.gz dist/MetalCreator-*-linux-"$arch".AppImage
     DOCKER_EXTRA="-v $VOLUME-package:/build-package" in_container '
         desktop-file-validate packaging/linux/com.metalcreator.MetalCreator.desktop
-        METALCREATOR_SCRATCH=/build-package scripts/package-linux.sh'
-    local tarball
+        METALCREATOR_SCRATCH=/build-package scripts/package-linux.sh
+        scripts/package-appimage.sh'
+    local tarball appimage
     tarball=$(ls dist/MetalCreator-*-linux-*.tar.gz | head -n 1)
     echo "Checking $tarball in a clean ubuntu:24.04..."
     docker rm -f "$NAME-clean" >/dev/null 2>&1 || true
@@ -102,7 +108,22 @@ do_package() {
         grep -q "RUNPATH from file ./MetalCreator" /tmp/ld.txt
         if grep -q /opt/occt /tmp/ld.txt; then echo "the loader searched /opt/occt" >&2; exit 1; fi
         test -f MetalUISDLShaders/SOURCE.sha256 && ls lib | grep -q "^libTKernel.so.7.9$"'
-    echo "Linux package: PASS ($tarball)"
+    echo "Linux tarball: PASS ($tarball)"
+    appimage=$(ls dist/MetalCreator-*-linux-*.AppImage | head -n 1)
+    echo "Checking $appimage in a clean ubuntu:24.04 (no FUSE: --appimage-extract-and-run)..."
+    docker rm -f "$NAME-clean" >/dev/null 2>&1 || true
+    docker run --rm --name "$NAME-clean" -v "$REPO/dist":/dist:ro ubuntu:24.04 bash -ec '
+        test ! -e /opt/occt && test ! -e /work && test ! -e /dev/fuse
+        cp /dist/'"$(basename "$appimage")"' /tmp/MetalCreator.AppImage && chmod +x /tmp/MetalCreator.AppImage
+        cd /tmp
+        ./MetalCreator.AppImage --appimage-extract-and-run --version
+        ./MetalCreator.AppImage --appimage-extract-and-run --self-test
+        LD_DEBUG=libs ./MetalCreator.AppImage --appimage-extract-and-run --version >/dev/null 2>/tmp/ld.txt
+        grep -q "RUNPATH from file .*/usr/metalcreator/MetalCreator" /tmp/ld.txt
+        if grep -q /opt/occt /tmp/ld.txt; then echo "the loader searched /opt/occt" >&2; exit 1; fi
+        ./MetalCreator.AppImage --appimage-extract "usr/metalcreator/share/mime/packages/*.xml" >/dev/null
+        test -f squashfs-root/usr/metalcreator/share/mime/packages/com.metalcreator.MetalCreator.xml'
+    echo "Linux AppImage: PASS ($appimage)"
 }
 
 do_test() {

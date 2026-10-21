@@ -8,7 +8,7 @@ import Testing
 struct PackagingScriptTests {
     @Test(arguments: [
         "scripts/package-app.sh", "scripts/verify-app.sh", "scripts/linux-test.sh", "scripts/package-linux.sh",
-        "packaging/linux/install.sh",
+        "packaging/linux/install.sh", "scripts/package-appimage.sh", "packaging/appimage/AppRun",
     ])
     func theScriptParsesAndIsExecutable(_ name: String) throws {
         let script = Self.repository.appending(path: name)
