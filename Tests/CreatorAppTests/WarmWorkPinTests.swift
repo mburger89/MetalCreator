@@ -1,4 +1,5 @@
 #if canImport(CreatorOCCT)
+import CreatorEditor
 import CreatorGeometry
 import CreatorGraph
 import CreatorViewport
@@ -36,6 +37,28 @@ struct WarmWorkPinTests {
             #expect(last.elementRequests < Self.elementRequestBound, "step \(step): \(last.elementRequests) element requests")
         }
         app.viewport.dragEnded(from: start, at: ScreenPoint(1340, 560), modifiers: [], button: .secondary)
+    }
+
+    /// The measured element requests of a warm pan of the 50-node graph are a median 192 and a max 468 (scripts/bench.sh,
+    /// the 2026-10-20 C14-g run; 1,409 / 1,697 before MetalUI C14-g, which stopped refusing the translated replay of a ledger
+    /// that carries accessibility records). The bound is twice the median.
+    static let panElementRequestBound = 2 * 192
+
+    @Test func aSteadyWarmPanOfFiftyNodesGraftsAndNeverRedoes() async throws {
+        let app = await makeApp(FiftyNodeGraph.make())
+        let warm = try await WarmBenchWindow(model: app)
+        var requests: [Int] = []
+        for step in 0..<40 {
+            app.editor.transform = CanvasTransform(offset: Vector2(-Double(step) * 16, -Double(step) * 2), zoom: 1)
+            await app.settle()
+            let work = warm.frame()
+            guard step >= 10 else { continue }
+            requests.append(work.elementRequests)
+            #expect(work.retainedGrafts > 0, "step \(step)")
+            #expect(work.retainedRedos == 0, "step \(step)")
+        }
+        let median = requests.sorted()[requests.count / 2]
+        #expect(median < Self.panElementRequestBound, "median \(median) element requests")
     }
 }
 #endif
