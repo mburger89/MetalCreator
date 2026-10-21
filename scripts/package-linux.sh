@@ -37,7 +37,7 @@ step "Building MetalCreatorApp (release)"
 swift build --package-path "$ROOT" -c release --product MetalCreatorApp --scratch-path "$SCRATCH"
 BIN_DIR="$(swift build --package-path "$ROOT" -c release --product MetalCreatorApp --scratch-path "$SCRATCH" --show-bin-path)"
 BINARY="$BIN_DIR/MetalCreatorApp"
-VERSION="$("$BINARY" --version | sed -E 's/^MetalCreator ([0-9][^ ]*) .*/\1/')"
+VERSION="$("$BINARY" --version | sed -nE 's/^MetalCreator ([0-9][^ ]*) .*/\1/p' | head -n 1)"
 [ -n "$VERSION" ] || fail "couldn't read the version from --version"
 NAME="MetalCreator-$VERSION-linux-$(uname -m)"
 FOLDER="$WORK/MetalCreator"
@@ -77,11 +77,47 @@ printf '    %s libraries\n' "$count"
 
 step "Copying the licences"
 DOC="$FOLDER/share/doc/metalcreator"
-cp "$OCCT"/share/licenses/* "$DOC/"
+for f in LICENSE_LGPL_21.txt OCCT_LGPL_EXCEPTION.txt; do
+    [ -s "$OCCT/share/licenses/$f" ] || fail "OpenCascade's $f is missing from $OCCT/share/licenses"
+    cp "$OCCT/share/licenses/$f" "$DOC/"
+done
+# SDL3 (zlib) and the Swift runtime (Apache-2.0 with the Runtime Library Exception) are bundled in lib/: their licences ship too.
+SDL_LICENSE="${SDL_LICENSE_FILE:-/usr/share/licenses/SDL3/LICENSE.txt}"
+[ -s "$SDL_LICENSE" ] || fail "SDL3's licence is missing: $SDL_LICENSE"
+cp "$SDL_LICENSE" "$DOC/SDL3-LICENSE.txt"
+[ -s "$ROOT/packaging/licenses/Swift-LICENSE.txt" ] || fail "packaging/licenses/Swift-LICENSE.txt is missing"
+cp "$ROOT/packaging/licenses/Swift-LICENSE.txt" "$DOC/Swift-LICENSE.txt"
 cp "$METALUI/THIRD-PARTY-NOTICES.md" "$DOC/MetalUI-THIRD-PARTY-NOTICES.md"
 for f in CStbImage/LICENSE CFreeType/FTL.TXT CFreeType/LICENSE.TXT CHarfBuzz/COPYING CUnibreak/LICENCE CSheenBidi/LICENSE; do
     cp "$METALUI/Sources/$f" "$DOC/$(dirname "$f")-$(basename "$f")"
 done
+
+# NOTICE.txt: where OpenCascade's source is and that its shared libraries may be replaced (LGPL-2.1 section 6). The commit is the
+# one the image was built from (the Dockerfile's OCCT_COMMIT), so the notice cannot name a different one.
+OCCT_COMMIT="$(sed -nE 's/^ARG OCCT_COMMIT=([0-9a-f]{40})$/\1/p' "$ROOT/scripts/linux/Dockerfile")"
+[ -n "$OCCT_COMMIT" ] || fail "couldn't read OCCT_COMMIT from scripts/linux/Dockerfile"
+OCCT_LIBS="$(cd "$FOLDER/lib" && ls libTK*.so.7.9 | sed 's/^/                lib\//')"
+[ -n "$OCCT_LIBS" ] || fail "no libTK*.so.7.9 in lib/"
+cat > "$DOC/NOTICE.txt" <<NOTICE
+MetalCreator $VERSION: third-party software shipped in this package
+
+OpenCascade Technology (OCCT) 7.9
+  Licence:   GNU LGPL version 2.1 with the OCCT exception (LICENSE_LGPL_21.txt and OCCT_LGPL_EXCEPTION.txt, in this folder).
+  Source:    https://github.com/Open-Cascade-SAS/OCCT, tag V7_9_3, commit $OCCT_COMMIT (built unmodified).
+  Libraries: the shared libraries
+$OCCT_LIBS
+  Relinking: OCCT is linked dynamically. You may replace those libraries with your own build of OCCT 7.9, modified or not, and
+             MetalCreator will use them: the executable looks in its own lib/ folder only (RUNPATH \$ORIGIN/lib).
+
+SDL3 (lib/libSDL3.so*): zlib licence, SDL3-LICENSE.txt. Source: https://github.com/libsdl-org/SDL, tag release-3.4.16.
+
+Swift runtime (lib/libswift*.so and the libraries Foundation needs): Apache License 2.0 with the Runtime Library Exception,
+Swift-LICENSE.txt. Source: https://github.com/swiftlang/swift, release 6.4.
+
+MetalUI and the libraries it vendors (stb_image, FreeType, HarfBuzz, libunibreak, SheenBidi): MetalUI-THIRD-PARTY-NOTICES.md and the
+licence files named after each library, in this folder. AccessKit is linked statically into the executable (MIT or Apache-2.0; its
+licence text is not shipped yet: see MetalUI-THIRD-PARTY-NOTICES.md).
+NOTICE
 
 step "Writing $DIST/$NAME.tar.gz"
 mkdir -p "$DIST"

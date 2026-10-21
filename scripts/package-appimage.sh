@@ -7,9 +7,12 @@
 # usage: scripts/package-appimage.sh [tarball]    default: the newest dist/MetalCreator-*-linux-<arch>.tar.gz
 #   METALCREATOR_DIST_DIR   where the tarball is and the AppImage is written (default: <repo>/dist).
 #   METALCREATOR_TOOLS      where the downloaded tools are kept (default: <dist>/tools).
-# appimagetool and the AppImage runtime are third-party tools fetched here, at build time, pinned by version and sha256 (both
-# MIT licensed). They are no dependency of MetalCreator: nothing links them, and only the runtime ends up in the output (it is the
-# AppImage's first bytes). The build needs no FUSE: appimagetool is itself an AppImage and runs with --appimage-extract-and-run.
+# appimagetool and the AppImage runtime are third-party tools fetched here, at build time, pinned by version and sha256. They are no
+# dependency of MetalCreator: nothing links them, and only the runtime ends up in the output (it is the AppImage's first bytes).
+# appimagetool itself is not shipped. The runtime is MIT licensed (type2-runtime's LICENSE) but is a static binary that contains
+# musl libc (MIT), libfuse3 (LGPL-2.1), squashfuse (BSD-2-Clause), libzstd (BSD), zlib and mimalloc (MIT): their licences are in
+# packaging/appimage/licenses and go into the AppImage with a section of NOTICE.txt (from type2-runtime's LICENSE and Makefile at
+# the pinned tag; mimalloc is linked per the Makefile but missing from its LICENSE list). The build needs no FUSE: appimagetool is itself an AppImage and runs with --appimage-extract-and-run.
 # Needs curl, sha256sum and `file` (appimagetool refuses to run without it).
 set -euo pipefail
 
@@ -65,6 +68,29 @@ tar -xzf "$TARBALL" -C "$WORK"
 mv "$WORK/$NAME" "$APPDIR/usr/metalcreator"
 [ -x "$APPDIR/usr/metalcreator/MetalCreator" ] || fail "the tarball has no MetalCreator executable"
 rm "$APPDIR/usr/metalcreator/install.sh"
+DOC="$APPDIR/usr/metalcreator/share/doc/metalcreator"
+[ -s "$DOC/NOTICE.txt" ] || fail "the tarball has no share/doc/metalcreator/NOTICE.txt"
+mkdir -p "$DOC/AppImage-runtime"
+for f in type2-runtime-LICENSE.txt musl-COPYRIGHT.txt libfuse-LGPL2.txt squashfuse-LICENSE.txt zstd-LICENSE.txt zlib-LICENSE.txt mimalloc-LICENSE.txt; do
+    [ -s "$ROOT/packaging/appimage/licenses/$f" ] || fail "packaging/appimage/licenses/$f is missing"
+    cp "$ROOT/packaging/appimage/licenses/$f" "$DOC/AppImage-runtime/"
+done
+cat >> "$DOC/NOTICE.txt" <<NOTICE
+
+AppImage runtime (the first bytes of this file; type2-runtime $RUNTIME_TAG)
+  Source:   https://github.com/AppImage/type2-runtime, tag $RUNTIME_TAG. Its LICENSE is MIT (AppImage-runtime/type2-runtime-LICENSE.txt).
+  The runtime is a static executable. Its LICENSE and Makefile say it contains, and its texts are in AppImage-runtime/:
+    musl libc (MIT)                      musl-COPYRIGHT.txt
+    libfuse3 3.15.0 (LGPL-2.1)           libfuse-LGPL2.txt; source https://github.com/libfuse/libfuse, tag fuse-3.15.0, with the
+                                         patch in type2-runtime's patches/libfuse
+    squashfuse 0.5.2 (BSD-2-Clause)      squashfuse-LICENSE.txt
+    libzstd (BSD)                        zstd-LICENSE.txt
+    zlib (zlib licence)                  zlib-LICENSE.txt
+    mimalloc (MIT)                       mimalloc-LICENSE.txt
+  Relinking libfuse: the runtime is a separate file that you can replace. Extract the AppImage (--appimage-extract), take the
+  squashfs image from it, and prepend a runtime you built from type2-runtime's source (with a modified libfuse if you like); an
+  AppImage is that runtime followed by the squashfs.
+NOTICE
 ID=com.metalcreator.MetalCreator
 cp "$ROOT/packaging/appimage/AppRun" "$APPDIR/AppRun"
 chmod +x "$APPDIR/AppRun"

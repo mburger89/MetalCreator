@@ -107,7 +107,10 @@ do_package() {
         LD_DEBUG=libs ./MetalCreator --version >/dev/null 2>/tmp/ld.txt
         grep -q "RUNPATH from file ./MetalCreator" /tmp/ld.txt
         if grep -q /opt/occt /tmp/ld.txt; then echo "the loader searched /opt/occt" >&2; exit 1; fi
-        test -f MetalUISDLShaders/SOURCE.sha256 && ls lib | grep -q "^libTKernel.so.7.9$"'
+        test -f MetalUISDLShaders/SOURCE.sha256 && ls lib | grep -q "^libTKernel.so.7.9$"
+        cd share/doc/metalcreator
+        for f in NOTICE.txt LICENSE_LGPL_21.txt OCCT_LGPL_EXCEPTION.txt SDL3-LICENSE.txt Swift-LICENSE.txt; do test -s "$f"; done
+        grep -q "V7_9_3" NOTICE.txt && grep -q "LGPL" NOTICE.txt'
     echo "Linux tarball: PASS ($tarball)"
     appimage=$(ls dist/MetalCreator-*-linux-*.AppImage | head -n 1)
     echo "Checking $appimage in a clean ubuntu:24.04 (no FUSE: --appimage-extract-and-run)..."
@@ -122,7 +125,13 @@ do_package() {
         grep -q "RUNPATH from file .*/usr/metalcreator/MetalCreator" /tmp/ld.txt
         if grep -q /opt/occt /tmp/ld.txt; then echo "the loader searched /opt/occt" >&2; exit 1; fi
         ./MetalCreator.AppImage --appimage-extract "usr/metalcreator/share/mime/packages/*.xml" >/dev/null
-        test -f squashfs-root/usr/metalcreator/share/mime/packages/com.metalcreator.MetalCreator.xml'
+        test -f squashfs-root/usr/metalcreator/share/mime/packages/com.metalcreator.MetalCreator.xml
+        ./MetalCreator.AppImage --appimage-extract "usr/metalcreator/share/doc/metalcreator/*" >/dev/null
+        cd squashfs-root/usr/metalcreator/share/doc/metalcreator
+        for f in NOTICE.txt LICENSE_LGPL_21.txt OCCT_LGPL_EXCEPTION.txt SDL3-LICENSE.txt Swift-LICENSE.txt \
+                 AppImage-runtime/type2-runtime-LICENSE.txt AppImage-runtime/libfuse-LGPL2.txt AppImage-runtime/squashfuse-LICENSE.txt \
+                 AppImage-runtime/zstd-LICENSE.txt; do test -s "$f"; done
+        grep -q "type2-runtime" NOTICE.txt'
     echo "Linux AppImage: PASS ($appimage)"
 }
 
@@ -135,8 +144,12 @@ do_test() {
     clean=$(sed $'s/\x1b\\[[0-9;]*m//g' "$LOG")
     runs=$(grep -c "Test run with" <<<"$clean" || true)
     tests=$({ grep "Test run with" <<<"$clean" || true; } | sed -E 's/.*Test run with ([0-9]+) tests.*/\1/' | awk '{ total += $1 } END { print total + 0 }')
-    # A filtered run has no fixed number of "Test run with" lines.
-    if [ "${#TEST_ARGS[@]}" -gt 0 ]; then EXPECTED_TEST_RUNS=$runs; fi
+    # A filtered run has no fixed number of "Test run with" lines,
+    # but it must have run something: a filter that matches nothing, or a crash before any run line, is a failure.
+    if [ "${#TEST_ARGS[@]}" -gt 0 ]; then
+        EXPECTED_TEST_RUNS=$runs
+        [ "$runs" -ge 1 ] || status=1
+    fi
     if [ "$status" -ne 0 ] || grep -qE "recorded an issue|failed after" <<<"$clean" || [ "$runs" -ne "$EXPECTED_TEST_RUNS" ]; then
         echo "Linux: FAIL (exit $status, $runs of $EXPECTED_TEST_RUNS 'Test run with' lines; log: $LOG)" >&2
         return 1

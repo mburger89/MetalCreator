@@ -144,15 +144,59 @@ try {
 } finally { $env:PATH = $savedPath }
 if ($versionCode) { throw "--version failed from the assembled folder (exit $versionCode)" }
 if ($versionLine -notmatch '^MetalCreator (\S+) ') { throw "can't read the version from: $versionLine" }
-$name = "MetalCreator-$($Matches[1])-windows-x64"
+$version = $Matches[1]
+$name = "MetalCreator-$version-windows-x64"
 Rename-Item $folder $name
 $folder = Join-Path $work $name
 
 Step 'Copying the licences'
 $doc = Join-Path $folder 'licenses'
 New-Item -ItemType Directory -Path $doc | Out-Null
-Copy-Item (Join-Path $env:OCCT_PREFIX 'share\opencascade\copyright') (Join-Path $doc 'OpenCascade-copyright.txt')
+# vcpkg's opencascade port installs LICENSE_LGPL_21.txt and OCCT_LGPL_EXCEPTION.txt as share\opencascade\copyright
+# (vcpkg_install_copyright). Say so only if it is so: the file must exist and hold both the LGPL and the exception.
+$occtCopyright = Join-Path $env:OCCT_PREFIX 'share\opencascade\copyright'
+if (-not (Test-Path $occtCopyright)) { throw "OpenCascade's licence is missing: $occtCopyright" }
+$occtText = Get-Content $occtCopyright -Raw
+if ($occtText -notmatch 'GNU LESSER GENERAL PUBLIC LICENSE' -or $occtText -notmatch 'exception') {
+    throw "$occtCopyright doesn't hold the LGPL text and the OCCT exception"
+}
+Copy-Item $occtCopyright (Join-Path $doc 'OpenCascade-LGPL-2.1-with-OCCT-exception.txt')
+$swiftLicense = Join-Path $root 'packaging\licenses\Swift-LICENSE.txt'
+if (-not (Test-Path $swiftLicense)) { throw "the Swift licence is missing: $swiftLicense" }
+Copy-Item $swiftLicense (Join-Path $doc 'Swift-LICENSE.txt')
+if (-not (Test-Path (Join-Path $SdlRoot 'LICENSE.txt'))) { throw "SDL3's licence is missing: $SdlRoot\LICENSE.txt" }
 Copy-Item (Join-Path $SdlRoot 'LICENSE.txt') (Join-Path $doc 'SDL3-LICENSE.txt')
+# NOTICE.txt: where OpenCascade's source is and that its DLLs may be replaced (LGPL-2.1 section 6). The vcpkg commit is the
+# manifest's builtin-baseline, so the notice names the one the DLLs were built from.
+$baseline = (Get-Content (Join-Path $root 'packaging\windows\vcpkg.json') -Raw | ConvertFrom-Json).'builtin-baseline'
+if ($baseline -notmatch '^[0-9a-f]{40}$') { throw "packaging\windows\vcpkg.json has no builtin-baseline commit" }
+$occtDlls = (Get-ChildItem $folder -Filter 'TK*.dll' | Sort-Object Name | ForEach-Object { "                $($_.Name)" }) -join "`n"
+if (-not $occtDlls) { throw 'no TK*.dll in the package folder' }
+@"
+MetalCreator ${version}: third-party software shipped in this package
+
+OpenCascade Technology (OCCT) 7.9
+  Licence:   GNU LGPL version 2.1 with the OCCT exception (OpenCascade-LGPL-2.1-with-OCCT-exception.txt, in this folder).
+  Source:    https://github.com/Open-Cascade-SAS/OCCT, tag V7_9_3, as built by vcpkg's "opencascade" port, version 7.9.3,
+             port-version 1, at https://github.com/microsoft/vcpkg commit $baseline (ports/opencascade; the port's patches are there).
+  Libraries: the DLLs
+$occtDlls
+             beside MetalCreator.exe.
+  Relinking: OCCT is linked dynamically. You may replace those DLLs with your own build of OCCT 7.9, modified or not, and
+             MetalCreator will use them (same names, x64, release, built with the same Visual C++ runtime).
+
+SDL3 (SDL3.dll): zlib licence, SDL3-LICENSE.txt. Source: https://github.com/libsdl-org/SDL, tag release-$env:SDL_VERSION.
+
+Swift runtime (swiftCore.dll, swift*.dll, Foundation*.dll and the DLLs they need): Apache License 2.0 with the Runtime Library
+Exception, Swift-LICENSE.txt. Source: https://github.com/swiftlang/swift, release 6.4.
+
+Visual C++ runtime (vcruntime140*.dll, msvcp140*.dll): Microsoft's redistributable, shipped app-local under Microsoft's
+Visual Studio redistribution terms.
+
+MetalUI and the libraries it vendors (stb_image, FreeType, HarfBuzz, libunibreak, SheenBidi): MetalUI-THIRD-PARTY-NOTICES.md and the
+licence files named after each library, in this folder. AccessKit is linked statically into the executable (MIT or Apache-2.0; its
+licence text is not shipped yet: see MetalUI-THIRD-PARTY-NOTICES.md).
+"@ | Set-Content -Path (Join-Path $doc 'NOTICE.txt') -Encoding utf8
 Copy-Item (Join-Path $metalUI 'THIRD-PARTY-NOTICES.md') (Join-Path $doc 'MetalUI-THIRD-PARTY-NOTICES.md')
 foreach ($f in 'CStbImage/LICENSE', 'CFreeType/FTL.TXT', 'CFreeType/LICENSE.TXT', 'CHarfBuzz/COPYING', 'CUnibreak/LICENCE', 'CSheenBidi/LICENSE') {
     Copy-Item (Join-Path $metalUI "Sources\$f") (Join-Path $doc ((Split-Path $f) + '-' + (Split-Path $f -Leaf)))

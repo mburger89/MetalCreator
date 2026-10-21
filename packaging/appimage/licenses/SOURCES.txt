@@ -1,0 +1,13 @@
+Where each licence text in this folder was fetched from (the runtime it belongs to is AppImage/type2-runtime, tag 20251108,
+commit dd6cebedcbddde9c82f89b011e8e1d40b6e43868). Its LICENSE lists musl, libfuse, squashfuse, libzstd and zlib; its
+src/runtime/Makefile also links mimalloc. Versions follow type2-runtime's scripts where they name one (libfuse 3.15.0,
+squashfuse 0.5.2); musl, zstd, zlib and mimalloc come from Alpine's packages at build time, so those texts are from a recent upstream
+tag and the licence terms (not the version) are what they record.
+
+type2-runtime-LICENSE.txt  https://raw.githubusercontent.com/AppImage/type2-runtime/20251108/LICENSE
+libfuse-LGPL2.txt          https://raw.githubusercontent.com/libfuse/libfuse/fuse-3.15.0/LGPL2.txt
+squashfuse-LICENSE.txt     https://raw.githubusercontent.com/vasi/squashfuse/0.5.2/LICENSE
+zstd-LICENSE.txt           https://raw.githubusercontent.com/facebook/zstd/v1.5.7/LICENSE
+zlib-LICENSE.txt           https://raw.githubusercontent.com/madler/zlib/v1.3.1/LICENSE
+musl-COPYRIGHT.txt         https://git.musl-libc.org/cgit/musl/plain/COPYRIGHT?h=v1.2.5
+mimalloc-LICENSE.txt       https://raw.githubusercontent.com/microsoft/mimalloc/v2.1.7/LICENSE
