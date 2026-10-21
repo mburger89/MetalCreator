@@ -1,0 +1,8 @@
+{
+  "name": "metalcreator-occt",
+  "version-string": "0",
+  "builtin-baseline": "256310531c1e57ee83f8ac01f7bea7c1e56630f5",
+  "dependencies": [
+    { "name": "opencascade", "default-features": false }
+  ]
+}

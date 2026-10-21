@@ -119,7 +119,7 @@ count, never from macOS's; render tests take their text system from `testTextSys
 `Support/TestTextSystem.swift`; picture fixtures come from `TestImages` (ImageIO on macOS, `PNGWriter` elsewhere; JPEG, GIF and
 TIFF fixtures need ImageIO, so those tests are `#if canImport(CoreGraphics)`, and `GreyImageDecoderPinnedTests` carries JPEGs as
 bytes for every platform) and `AppTestImages` (plain Swift). Pass
-rules: macOS, exit 0 and 12 "Test run with" lines; Linux, exit 0 and 11 (`CreatorOCCTTests` is macOS's twelfth; `CreatorImplicitTests` joined in 7c), and neither
+rules: macOS, exit 0 and 12 "Test run with" lines (Linux and Windows too since xp-2 put `CreatorOCCTTests` on them; `CreatorImplicitTests` joined in 7c), and neither
 may print "recorded an issue" or "failed after".
 
 Module boundaries (dependency order):
@@ -731,7 +731,7 @@ scripts/verify-app.sh [path.app]           # re-check a packaged app: signature,
 swift run MetalCreatorApp --self-test      # the same headless checks, unpackaged
 scripts/bench.sh [suite]                   # spec §7.3 benchmarks, release build; numbers go in docs/verification/performance.md
 scripts/bench.sh PatternBench              # patterns spec §7: 200 holes in a plate, edit-to-preview (idle Mac only)
-scripts/linux-test.sh [build|test|smoke|all]   # the suite on Linux in Docker (OrbStack): swift build, swift test (11 "Test run with" lines), --self-test, --smoke-test 20
+scripts/linux-test.sh [build|test|smoke|all]   # the suite on Linux in Docker (OrbStack): swift build, swift test (12 "Test run with" lines), --self-test, --smoke-test 20
 swift run MetalCreatorApp --smoke-test 5   # a Linux or Windows build: the real window over SDL's offscreen renderers; exit 0 if a first frame was drawn
 ```
 

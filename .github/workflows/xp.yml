@@ -6,10 +6,19 @@
 # when MetalCreator adopts a MetalUI change.
 #
 # The Linux jobs run scripts/linux-test.sh, the script a developer runs in Docker on a Mac: build, the suite (exit 0, no
-# "recorded an issue" or "failed after" line, eleven "Test run with" lines), the app's --self-test, and --smoke-test 20.
+# "recorded an issue" or "failed after" line, twelve "Test run with" lines), the app's --self-test, and --smoke-test 20, then
+# scripts/linux-test.sh package: a release tarball and an AppImage (packed from the tarball's tree by scripts/package-appimage.sh,
+# which downloads its pinned packer; no FUSE is needed), each unpacked or extracted and run in a clean Ubuntu.
+#
+# OpenCascade 7.9 (xp-2, spec section 3): on Linux it is built from a pinned commit in the Dockerfile's `occt` stage, which CI
+# builds alone with buildx and caches in the GitHub Actions cache (scope xp-occt-<arch>); the first run on a new key builds it
+# (about an hour on a 4-core runner), later runs restore it. On Windows it is vcpkg's `opencascade` port, pinned by the vcpkg
+# commit below (the one whose port is 7.9.3), built in release and debug (the suite is a debug build, so it links OpenCascade's debug
+# libraries: one C runtime on both sides), and vcpkg's binary cache folder is restored before and saved right after the install, so
+# a red later step does not lose it.
 #
 # The Windows job is modelled on MetalUI's own Windows job (.github/workflows/sdl-gpu-linux.yml). Run 38546048595 was green: it builds, passes the
-# suite (11 "Test run with" lines) and passes the app's --self-test and --smoke-test. It stays continue-on-error, so it does not hide the Linux
+# suite (11 "Test run with" lines; 12 since xp-2 added CreatorOCCTTests) and passes the app's --self-test and --smoke-test. It stays continue-on-error, so it does not hide the Linux
 # result, and the last step marks a red Windows run with a warning and a summary line (the run itself shows green); read its log on every run.
 
 name: XP cross-platform
@@ -28,6 +37,9 @@ concurrency:
 env:
   METALUI_REPOSITORY: mburger89/MetalUI
   METALUI_COMMIT: b15e038c0fba3eff72135eabd87e9826ed1a09e2
+  # microsoft/vcpkg at the commit whose ports/opencascade is 7.9.3 (port-version 1). packaging/windows/vcpkg.json names the same
+  # commit as its builtin-baseline; CIPinTests checks they agree.
+  VCPKG_COMMIT: 256310531c1e57ee83f8ac01f7bea7c1e56630f5
 
 jobs:
   linux:
@@ -41,7 +53,7 @@ jobs:
           - arch: aarch64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 90
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v7
         with:
@@ -61,9 +73,33 @@ jobs:
           load: true
           cache-from: type=gha,scope=xp-portable-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=xp-portable-${{ matrix.arch }}
+      - name: Build OpenCascade 7.9 (cached)
+        uses: docker/build-push-action@v7
+        with:
+          context: MetalCreator/scripts/linux
+          file: MetalCreator/scripts/linux/Dockerfile
+          target: occt
+          tags: metalcreator-occt:latest
+          load: true
+          cache-from: type=gha,scope=xp-occt-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=xp-occt-${{ matrix.arch }}
       - name: Build, test, self-test and launch
         working-directory: MetalCreator
+        env:
+          OCCT_IMAGE: metalcreator-occt:latest
         run: scripts/linux-test.sh all
+      - name: Package (tarball and AppImage), each checked in a clean Ubuntu
+        working-directory: MetalCreator
+        env:
+          OCCT_IMAGE: metalcreator-occt:latest
+        run: scripts/linux-test.sh package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MetalCreator-linux-${{ matrix.arch }}
+          path: |
+            MetalCreator/dist/MetalCreator-*-linux-*.tar.gz
+            MetalCreator/dist/MetalCreator-*-linux-*.AppImage
+          if-no-files-found: error
 
   windows:
     name: Windows x64 (unverified until it runs)
@@ -71,10 +107,10 @@ jobs:
     # green check); remove this line once the job has been green once.
     continue-on-error: true
     runs-on: windows-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
     env:
       SDL_VERSION: 3.4.16
-      EXPECTED_TEST_RUNS: 11
+      EXPECTED_TEST_RUNS: 12
     defaults:
       run:
         shell: pwsh
@@ -99,7 +135,52 @@ jobs:
           $root = "$env:RUNNER_TEMP\SDL3-$env:SDL_VERSION"
           "SDL3_INCLUDE=$root\include" >> $env:GITHUB_ENV
           "SDL3_LIB=$root\lib\x64" >> $env:GITHUB_ENV
+          "SDL3_ROOT=$root" >> $env:GITHUB_ENV
           "$root\lib\x64" >> $env:GITHUB_PATH   # SDL3.dll at run time
+      - name: Restore vcpkg's binary cache
+        id: vcpkg-cache
+        # Not actions/cache: its post step saves only when the whole job is green, and the first Windows runs are expected to be
+        # red. The save step below runs as soon as the install is done.
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}\vcpkg-cache
+          key: vcpkg-occt-${{ env.VCPKG_COMMIT }}-${{ hashFiles('MetalCreator/packaging/windows/vcpkg.json') }}
+      - name: Install OpenCascade 7.9 (vcpkg, release and debug libraries)
+        id: occt
+        # The vcpkg commit is fetched alone and bootstrapped; the port builds with the runner's Visual Studio, twice (release and
+        # debug), tens of minutes the first time. A cache hit restores the built packages, so the step takes about a minute.
+        # OCCT_PREFIX is what Package.swift reads. The suite is a debug build and links `debug\lib`, so `debug\bin` goes on
+        # PATH for the test executables; the zip is a release build and takes `bin`.
+        run: |
+          $vcpkg = "$env:RUNNER_TEMP\vcpkg"
+          git init -q $vcpkg
+          git -C $vcpkg fetch -q --depth 1 https://github.com/microsoft/vcpkg $env:VCPKG_COMMIT
+          git -C $vcpkg checkout -q FETCH_HEAD
+          & "$vcpkg\bootstrap-vcpkg.bat" -disableMetrics
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\vcpkg-cache" | Out-Null
+          $env:VCPKG_BINARY_SOURCES = "clear;files,$env:RUNNER_TEMP\vcpkg-cache,readwrite"
+          & "$vcpkg\vcpkg.exe" install --triplet x64-windows --x-manifest-root="$env:GITHUB_WORKSPACE\MetalCreator\packaging\windows" --x-install-root="$env:RUNNER_TEMP\vcpkg-installed"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $prefix = "$env:RUNNER_TEMP\vcpkg-installed\x64-windows"
+          # Package.swift links TKernel.lib from debug\lib (debug builds) and lib (release builds): say what the port really
+          # installed before the build has to guess.
+          $missing = 'lib\TKernel.lib', 'debug\lib\TKernel.lib', 'bin\TKernel.dll', 'debug\bin\TKernel.dll' |
+              Where-Object { -not (Test-Path "$prefix\$_") }
+          if ($missing) {
+            Get-ChildItem $prefix -Recurse -Filter 'TKernel*' | ForEach-Object FullName
+            throw "vcpkg did not install: $($missing -join ', ')"
+          }
+          "OCCT_PREFIX=$($prefix -replace '\\', '/')" >> $env:GITHUB_ENV
+          "$prefix\debug\bin" >> $env:GITHUB_PATH
+      - name: Save vcpkg's binary cache
+        # Only after a whole install (a partial one would fill the key for good: a cache entry is never replaced), and whatever
+        # the later steps do.
+        if: ${{ always() && steps.occt.outcome == 'success' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}\vcpkg-cache
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
       - name: Fetch AccessKit
         working-directory: MetalUI/Backends/SDL
         # One SwiftPM flag per line: -Xcc -I<include> -Xswiftc -L<lib> (MetalUI PX-I item 2).
@@ -149,9 +230,35 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           & "$bin\MetalCreatorApp.exe" --smoke-test 20
           exit $LASTEXITCODE
+      - name: Build release (for the zip)
+        id: release
+        working-directory: MetalCreator
+        # Its own step, so the first release build on Windows (a different optimiser pipeline from the debug build the suite uses,
+        # and twice the compile time) shows red here on its own and leaves the suite's result readable.
+        if: ${{ !cancelled() }}
+        run: |
+          $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB") +
+                   @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
+          swift build -c release --product MetalCreatorApp @flags
+          exit $LASTEXITCODE
+      - name: Package (zip), checked on its own
+        id: package
+        working-directory: MetalCreator
+        if: ${{ !cancelled() && steps.release.outcome == 'success' }}
+        # Unpacks the zip and runs --self-test with only Windows' folders on PATH, so a DLL missing from the zip fails here.
+        run: |
+          $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB") +
+                   @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
+          scripts\package-windows.ps1 -NoBuild -BuildFlags $flags -SdlRoot $env:SDL3_ROOT
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
+        with:
+          name: MetalCreator-windows-x64
+          path: MetalCreator/dist/MetalCreator-*-windows-x64.zip
       - name: Mark a red Windows suite
         # The job is continue-on-error, so a red Windows run still shows a green check: say so where it is read.
-        if: ${{ !cancelled() && (steps.test.outcome == 'failure' || steps.smoke.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.test.outcome == 'failure' || steps.smoke.outcome == 'failure' || steps.release.outcome == 'failure' || steps.package.outcome == 'failure') }}
         run: |
           Write-Output "::warning::Windows suite red (continue-on-error)"
-          "### Windows suite red (continue-on-error)`n`nTest step: ${{ steps.test.outcome }}; self-test and launch smoke: ${{ steps.smoke.outcome }}. The run shows green because this job does not fail it; read the Windows log." >> $env:GITHUB_STEP_SUMMARY
+          "### Windows suite red (continue-on-error)`n`nTest step: ${{ steps.test.outcome }}; self-test and launch smoke: ${{ steps.smoke.outcome }}; release build: ${{ steps.release.outcome }}; package: ${{ steps.package.outcome }}. The run shows green because this job does not fail it; read the Windows log." >> $env:GITHUB_STEP_SUMMARY
