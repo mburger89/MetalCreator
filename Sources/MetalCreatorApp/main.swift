@@ -3,9 +3,7 @@ import CreatorGraph
 import CreatorKernel
 import Foundation
 import MetalUI
-#if canImport(CreatorOCCT)
 import CreatorOCCT
-#endif
 #if canImport(MetalUISDL)
 import MetalUIPortableText
 import MetalUISDL
@@ -38,13 +36,9 @@ func makeApp(offscreen: Bool = false, forwarding documents: [String] = []) throw
     #endif
 }
 
-/// OpenCascade where the package has it (macOS until xp-2); elsewhere a kernel that says geometry isn't available.
+/// OpenCascade on every platform (macOS's Homebrew, Linux's source build, Windows' vcpkg: `Package.swift`, xp-2).
 func makeKernel() -> any Kernel {
-    #if canImport(CreatorOCCT)
     OCCTKernel()
-    #else
-    KernelUnavailable()
-    #endif
 }
 
 /// `swift run MetalCreatorApp [path.mcgraph]`: the app (spec §6.1, M6). It loads the app's themes (the remembered

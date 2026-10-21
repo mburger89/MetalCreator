@@ -1,7 +1,8 @@
 import CreatorGeometry
 import Foundation
 
-/// The kernel of a platform with no OpenCascade yet (Linux and Windows in xp-1; xp-2 brings it): every operation answers
+/// The kernel of a build with no OpenCascade (Linux and Windows in xp-1; since xp-2 the app uses `OCCTKernel` everywhere, and
+/// this stays for tests of how the editor behaves without geometry): every operation answers
 /// `KernelError.unavailable`, so a node that needs geometry shows "Geometry isn't available on this platform yet." on its
 /// badge, while the graph, the inspector, the sketcher, patterns, groups, comments, saving and opening all work.
 public actor KernelUnavailable: Kernel {
