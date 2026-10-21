@@ -22,10 +22,16 @@ public enum FaceChartBaker {
     private static func project(_ points: [Vector3], onto face: FaceID, of solid: Solid, kernel: any Kernel) async throws -> [FaceSample] {
         var samples: [FaceSample] = []
         samples.reserveCapacity(points.count)
-        for start in stride(from: 0, to: points.count, by: chunk) {
-            try Task.checkCancellation()
-            samples += try await kernel.faceCoordinates(of: Array(points[start..<min(start + chunk, points.count)]), on: face, in: solid)
-        }
-        return samples
+        return try await append(from: 0, of: points, onto: face, of: solid, kernel: kernel, into: samples)
+    }
+
+    /// One chunk per step, recursing for the next, so no loop's locals are held across the `await` (Swift 6.4 Windows `CoroFrame.cpp`).
+    private static func append(from start: Int, of points: [Vector3], onto face: FaceID, of solid: Solid, kernel: any Kernel,
+                               into samples: [FaceSample]) async throws -> [FaceSample] {
+        guard start < points.count else { return samples }
+        try Task.checkCancellation()
+        let end = min(start + chunk, points.count)
+        let chunkSamples = try await kernel.faceCoordinates(of: Array(points[start..<end]), on: face, in: solid)
+        return try await append(from: start + chunk, of: points, onto: face, of: solid, kernel: kernel, into: samples + chunkSamples)
     }
 }
