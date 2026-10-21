@@ -179,7 +179,7 @@ public actor OCCTKernel: Kernel {
         try Task.checkCancellation()
         do {
             let shape = try shape(of: solid)
-            let properties = try Self.serialized { () throws(OCCTError) in try shape.properties() }
+            let properties = try Self.serialized { () throws -> OCCTProperties in try shape.properties() }
             return SolidProperties(volume: properties.volume, surfaceArea: properties.surfaceArea, centroid: properties.centroid)
         } catch let error as OCCTError {
             throw KernelError.occt("measure", error)
