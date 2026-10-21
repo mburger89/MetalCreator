@@ -16,8 +16,10 @@ public struct CylindricalMap: Hashable, Sendable {
     public let side: Vector3
     public let axis: Vector3
     public let radius: Double
-    /// A constant S ≥ 1 with |M(a) − M(b)| ≤ S · |a − b| wherever the point is at least `LatticeMapping.exclusion` from the axis,
-    /// over the region grown by `LatticeMapping.margin`. Computed when the mapping is built.
+    /// A constant S ≥ 1 bounding the largest singular value of the Jacobian of M wherever the point is at least
+    /// `LatticeMapping.exclusion` from the axis, over the region grown by `LatticeMapping.margin`. It bounds |M(a) − M(b)| ≤ S · |a − b|
+    /// only for a segment that stays outside the exclusion (and clear of the longitude cut); it is not a global bound. Computed when
+    /// the mapping is built.
     public let stretch: Double
     /// An upper bound of the length of the mapped coordinates over the region (for the graded cell size's warp).
     public let reach: Double

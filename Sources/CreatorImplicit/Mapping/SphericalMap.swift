@@ -7,7 +7,8 @@ import Foundation
 public struct SphericalMap: Hashable, Sendable {
     public let centre: Vector3
     public let radius: Double
-    /// See `CylindricalMap.stretch`; the singular set is the polar axis.
+    /// See `CylindricalMap.stretch`: a bound of the Jacobian's largest singular value where a segment stays outside the exclusion of
+    /// the polar axis, not a global Lipschitz bound.
     public let stretch: Double
     public let reach: Double
     public let reachesSingularity: Bool

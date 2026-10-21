@@ -70,6 +70,8 @@ extension AppModel {
         pick = nil
         // The level changed and `refreshScene` hasn't cancelled the pick yet: its nodes belong to another graph.
         guard session.level == editor.levelPath else { return }
+        // A face pick (for a lattice's region) never writes an Edges by Tag rule.
+        guard session.lattice == nil else { return }
         let picks = ConstantValue.edgePicks(session.solid.topology.picks(for: session.picked))
         do {
             if let rule = session.rule {
@@ -112,7 +114,7 @@ extension AppModel {
         guard viewport.items.indices.contains(face.solidIndex) else { return }
         let solid = viewport.items[face.solidIndex].solid
         if var session = pick {
-            guard solid === session.solid else { return }
+            guard session.lattice == nil, solid === session.solid else { return }
             session.add(edges)
             pick = session
             return

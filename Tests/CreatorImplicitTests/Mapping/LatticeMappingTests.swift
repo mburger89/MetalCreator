@@ -17,6 +17,12 @@ struct LatticeMappingTests {
         .spherical(try #require(SphericalMap(centre: centre, radius: radius, over: box)))
     }
 
+    /// True when the whole segment a-b is at least the exclusion from the singular set (sampled finely; the distance is convex in
+    /// the plane transverse to the axis, so its minimum along a segment is found well by sampling).
+    func segmentStaysOutsideTheExclusion(_ map: LatticeMapping, _ a: Vector3, _ b: Vector3) -> Bool {
+        (0...64).allSatisfy { map.singularDistance(at: a + (b - a) * (Double($0) / 64)) >= LatticeMapping.exclusion }
+    }
+
     func near(_ a: Vector3, _ b: Vector3, _ tolerance: Double = 1e-9) -> Bool { (a - b).length < tolerance }
 
     // MARK: Straight
@@ -109,11 +115,13 @@ struct LatticeMappingTests {
         // A small radius over a distant region is never below 1.
         #expect(try cylinder(radius: 2, over: ring).stretch == 1)
         let ball = try sphere(radius: 12, over: ring)
-        #expect(abs(ball.stretch - 12.0 / 16) < 1e-12 || ball.stretch == 1)
+        // The spherical stretch is the same radius over the distance from the polar axis, so 12/16 floors at 1 and 24/16 does not.
+        #expect(ball.stretch == 1)
+        #expect(abs(try sphere(radius: 24, over: ring).stretch - 24.0 / 16) < 1e-12)
     }
 
     @Test func theStretchHoldsOnRandomPairsOutsideTheExclusion() throws {
-        // Both maps, over a region the axis crosses; pairs of points at least the exclusion from the singular set. The longitude's
+        // Both maps, over a region the axis crosses; pairs whose whole segment stays at least the exclusion from the singular set. The longitude's
         // cut is a full turn of jump, so pairs that straddle it are left out (the pattern repeats there).
         for map in [try cylinder(radius: 9), try sphere(radius: 9)] {
             let random = SeededRandom(seed: 5, stream: 11)
@@ -125,8 +133,7 @@ struct LatticeMappingTests {
                 }
                 let (a, b) = (point(0), point(3))
                 let gap = (a - b).length
-                guard gap > 1e-6, map.singularDistance(at: a) >= LatticeMapping.exclusion,
-                      map.singularDistance(at: b) >= LatticeMapping.exclusion,
+                guard gap > 1e-6, segmentStaysOutsideTheExclusion(map, a, b),
                       !(a.x < 0 && b.x < 0 && a.y * b.y < 0) else { continue }
                 worst = max(worst, (map.coordinates(at: a) - map.coordinates(at: b)).length / gap)
             }

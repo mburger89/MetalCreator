@@ -60,8 +60,8 @@ extension EditorModel {
 
     /// The first of `doubleClickActions` among `node`'s inspector buttons, if any.
     func doubleClickAction(for node: NodeID) -> InspectorAction? {
-        guard let typeID = graph.nodes[node]?.typeID, let definition = registry[typeID] else { return nil }
-        let buttons = definition.inspector.flatMap(\.controls).compactMap { control -> InspectorAction? in
+        guard let value = graph.nodes[node], let definition = registry[value.typeID] else { return nil }
+        let buttons = definition.inspector(for: value).flatMap(\.controls).compactMap { control -> InspectorAction? in
             if case .button(_, let action) = control { action } else { nil }
         }
         return Self.doubleClickActions.first { buttons.contains($0) }

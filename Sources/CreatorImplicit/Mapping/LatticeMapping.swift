@@ -43,7 +43,8 @@ public enum LatticeMapping: Hashable, Sendable {
     }
 
     /// The largest stretch of the mapping (the largest singular value of its Jacobian) over the region and its margin, outside the
-    /// exclusion: a constant S ≥ 1 with |M(a) − M(b)| ≤ S · |a − b|. Computed when the mapping is built; 1 for Straight.
+    /// exclusion: a constant S ≥ 1 bounding that largest singular value. It gives |M(a) − M(b)| ≤ S · |a − b| only where the segment
+    /// from a to b stays outside the exclusion, not globally. Computed when the mapping is built; 1 for Straight.
     public var stretch: Double {
         switch self {
         case .straight: 1
