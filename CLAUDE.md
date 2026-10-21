@@ -105,11 +105,13 @@ device tests and `PackagingScriptTests` are not run on Windows, and the test exe
 a layout tree overflowed Windows' 1 MB default thread stack).
 `Package.swift` has two lists, like MetalUI's: the targets that import no Apple
 framework are declared everywhere (`CreatorViewport` too: its model, camera and tools are portable and only the Metal renderer files
-are behind `#if canImport(Metal)`); `COCCT`, `CreatorOCCT`, `ViewportHarness`, `GraphPanelPreview` and `CreatorOCCTTests` are
-declared on macOS only until xp-2. On Linux and Windows the MetalUI dependency asks for the `SDL` and `AccessKit` traits and
+are behind `#if canImport(Metal)`); `ViewportHarness` and `GraphPanelPreview` are declared on macOS only, while `COCCT`,
+`CreatorOCCT` and `CreatorOCCTTests` are declared everywhere since xp-2 (OpenCascade 7.9 on every platform: `Package.swift` reads its
+install prefix from `OCCT_PREFIX`, default Homebrew's on macOS, `/opt/occt` on Linux, `C:/occt` on Windows, with per-platform linker
+flags: an `$ORIGIN/lib` rpath on Linux, DLLs on `PATH` or beside the executable on Windows). On Linux and Windows the MetalUI dependency asks for the `SDL` and `AccessKit` traits and
 `MetalCreatorApp` links `MetalUISDL` (`main.swift` picks `SDLPlatform` with `PortableTextSystem` over the installed fonts under
-`canImport(MetalUISDL)`). Off macOS the app runs over `KernelUnavailable` (every operation answers "Geometry isn't available on this
-platform yet.") and the viewport's place shows `ViewportPlaceholder` ("The 3D view isn't available on this platform yet."). The Image
+`canImport(MetalUISDL)`). The app runs over `OCCTKernel` on every platform (xp-2; `KernelUnavailable`, which answers "Geometry isn't available on this
+platform yet.", stays in `CreatorKernel` for tests of a platform without a kernel) and, off macOS, the viewport's place shows `ViewportPlaceholder` ("The 3D view isn't available on this platform yet."). The Image
 Field works everywhere: `GreyImageDecoder` decodes through MetalUI's `DecodedImage` (S2, gap XP-G4) on every platform. Rules
 for new code: no CryptoKit (use `SHA256`/`SHA1` in `CreatorGraph/Hashing`), no CoreGraphics, ImageIO, CoreText or Metal outside a
 `#if canImport(…)` file or block, keyboard shortcuts and modifier checks on MetalUI events say `.primary` (⌘ on macOS, Ctrl
@@ -119,8 +121,9 @@ count, never from macOS's; render tests take their text system from `testTextSys
 `Support/TestTextSystem.swift`; picture fixtures come from `TestImages` (ImageIO on macOS, `PNGWriter` elsewhere; JPEG, GIF and
 TIFF fixtures need ImageIO, so those tests are `#if canImport(CoreGraphics)`, and `GreyImageDecoderPinnedTests` carries JPEGs as
 bytes for every platform) and `AppTestImages` (plain Swift). Pass
-rules: macOS, exit 0 and 12 "Test run with" lines (Linux and Windows too since xp-2 put `CreatorOCCTTests` on them; `CreatorImplicitTests` joined in 7c), and neither
-may print "recorded an issue" or "failed after".
+rules: macOS, Linux and Windows, exit 0 and 12 "Test run with" lines (`CreatorOCCTTests` joined Linux and Windows in xp-2;
+`CreatorImplicitTests` joined in 7c; a shim, kernel or test that needs OpenCascade is no longer gated by `canImport(CreatorOCCT)`
+alone: one that also needs Metal says `canImport(Metal) && canImport(CreatorOCCT)`), and none may print "recorded an issue" or "failed after".
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -732,6 +735,8 @@ swift run MetalCreatorApp --self-test      # the same headless checks, unpackage
 scripts/bench.sh [suite]                   # spec §7.3 benchmarks, release build; numbers go in docs/verification/performance.md
 scripts/bench.sh PatternBench              # patterns spec §7: 200 holes in a plate, edit-to-preview (idle Mac only)
 scripts/linux-test.sh [build|test|smoke|all]   # the suite on Linux in Docker (OrbStack): swift build, swift test (12 "Test run with" lines), --self-test, --smoke-test 20
+scripts/linux-test.sh test --filter CreatorOCCTTests   # one target on Linux (no count rule); XP_TRACK=xp-2 IMAGE=metalcreator-linux:xp-2 keep a track's volume and image apart
+scripts/linux-test.sh package              # the tarball and the AppImage in dist/, each run in a clean ubuntu:24.04 (docs/packaging.md)
 swift run MetalCreatorApp --smoke-test 5   # a Linux or Windows build: the real window over SDL's offscreen renderers; exit 0 if a first frame was drawn
 ```
 
@@ -751,9 +756,18 @@ SwiftLint is configured in `.swiftlint.yml` (each non-default setting is documen
 - Local toolchain: Apple Swift 6.4, arm64 macOS. Linux runs in Docker on this Mac (`scripts/linux-test.sh`: MetalUI's `metalui-portable`
   image, built from `../MetalUI/Backends/SDL/linux/Dockerfile`, plus a font, `scripts/linux/Dockerfile`); build products live in a Docker
   volume named for the track (`XP_TRACK`, default `xp-1`), and a run stops only its own container. MetalUI must be a sibling checkout.
-  Windows cannot be run here: it is CI's job (`.github/workflows/xp.yml`; it builds and launches, two tests are red, see the xp-1 paragraph).
+  The image also holds OpenCascade 7.9 (xp-2); its first build takes minutes, then Docker's layer cache keeps it.
+  Windows cannot be run here: it is CI's job (`.github/workflows/xp.yml`; it builds, tests with OpenCascade from vcpkg, launches and packages).
 - The Windows Swift 6.4 toolchain asserts in LLVM's coroutine splitting (`CoroFrame.cpp`, "Layout->getElementOffset") on an `async` function that holds a loop's locals across an `await` (`DrainHoles.drainPoints` did); keep the synchronous work in a non-async helper.
 - Swift 6.4 crashes in SILGen on a key path applied to an existential metatype (`BuiltInNodes.all.map(\.typeID)`); use a closure.
-- OpenCascade 7.9 comes from Homebrew (`brew install opencascade`) and is linked from `/opt/homebrew/opt/opencascade`.
-  Linker warnings about dylibs built for a newer macOS are expected.
+- OpenCascade 7.9 comes from Homebrew on macOS (`brew install opencascade`, linked from `/opt/homebrew/opt/opencascade`; linker
+  warnings about dylibs built for a newer macOS are expected), from source on Linux (the `occt` stage of `scripts/linux/Dockerfile`,
+  V7_9_3 at a pinned commit, installed in `/opt/occt`) and from vcpkg on Windows (the `opencascade` port at 7.9.3 in CI, release and debug libraries, triplet `x64-windows`: a debug
+  build links `debug/lib`, a release build `lib`, so the C runtime matches; pinned by `VCPKG_COMMIT` in `.github/workflows/xp.yml` and
+  `packaging/windows/vcpkg.json`). The shim (`Sources/COCCT`) must stay portable:
+  no `M_PI` (use `cocct::kPi`), no POSIX headers, no `__attribute__`; `ShimPortabilityTests` scans for them. Release packages:
+  `scripts/package-linux.sh` (tarball), `scripts/package-appimage.sh` (AppImage, packed from the tarball's tree; its appimagetool and runtime are pinned build-time downloads, not dependencies), `scripts/package-windows.ps1` (zip, CI only). Text that a test reads or a script runs
+  (`packaging/`, `scripts/`, `.github/`, `Sources/COCCT/`, `CLAUDE.md`) is checked out with LF on Windows too (`.gitattributes`,
+  pinned by `CIPinTests`): Swift reads "\r\n" as one Character, so a test that splits on "\n" finds nothing in a CRLF file; a test
+  that reads such a file replaces "\r\n" with "\n" first.
 - Adding a `ConstantValue` kind, or any change older readers can't decode, requires bumping `GraphFile.currentFormatVersion`.
