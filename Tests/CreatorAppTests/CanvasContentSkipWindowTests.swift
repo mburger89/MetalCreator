@@ -94,6 +94,10 @@ struct CanvasContentSkipWindowTests {
             #expect(app.editor.drawnNodes.count == 6, "the pan kept every node on screen")
             #expect(app.work.contentEvaluations == 1, "step \(step): the surface alone, no node, wire or comment view")
             #expect(app.work.contentRefusals == 0 && app.work.retainedRedos == 0)
+            // MetalUI C14-g: the translated replay no longer refuses a ledger with accessibility records, so a warm pan grafts
+            // (12 here) and makes 189 element requests a frame; the bound is twice that.
+            #expect(app.work.retainedGrafts > 0, "step \(step): the pan grafted")
+            #expect(app.work.elementRequests < 2 * 189, "step \(step): \(app.work.elementRequests) element requests")
         }
         #expect(app.picture != before, "the canvas moved")
         #expect(app.picture == app.pictureAfterRebuildingEverything(), "the retained nodes drew what a full rebuild draws")
