@@ -71,7 +71,8 @@ stopgap as they were. The sections below keep each gap's full use case.
 | XP-G8 | Hand and zoom cursor fallbacks | MetalUI S4 (record §116, `IC-A`…`IC-I`, master `565abe67`) | ✅ fixed by MetalUI S4, adopted (branch `adopt-s9-s8-s4`): S4 ships `.pointerStyle(.image(_:hotSpot:))` but no art, and SDL's hand and zoom statics stay system cursors, so the one hand the app uses (the closed hand while a drag pans) is drawn in code (`GrabCursor`, `HandArt` in `CreatorStyle`) and used on Linux and Windows; macOS keeps `.grabActive` (human check XP-8) |
 | XP-G9 | `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks)` | MetalUI S8 (record §116, `IC-J`…`IC-M`, master `565abe67`) | ✅ fixed by MetalUI S8, adopted (branch `adopt-s9-s8-s4`, CI pin `b15e038c`): `makeApp` opens `SDLPlatform(options: .headless)` and `main.swift` imports `MetalUISDL` as plain public API; no SPI is left in the app |
 | XP-G10 | A header-only read of a picture's size and orientation (before any pixel is decoded) | MetalUI S9 (record §117, `IH-`, master `d3ebfa18`) | ✅ fixed by MetalUI S9, adopted (branch `adopt-s9-s8-s4`, CI pin `b15e038c`): `GreyImageDecoder.inspect` reads format, stored size and orientation with `ImageInfo(data:)` and `ImageHeader` is gone. One part stayed: `ImageInfo` answers `nil` for a GIF or TIFF as for garbage, so the "picture type we refuse" sentence needs `OtherPictureSignature` (XP-G12) |
-| XP-G12 | `ImageInfo` cannot tell a recognised-but-unsupported picture format from a non-picture | open (new, forward to MetalUI) | 🔄 open at MetalUI. `ImageInfo(data:)` is `nil` for GIF, TIFF, BMP, WebP and HEIF and for bytes that are no picture at all; MetalCreator keeps `OtherPictureSignature` (seven signature prefixes) only to say "not a PNG or JPEG" (`ImageProblem.unsupportedType`) and not "damaged" (`.undecodable`). Needed: a way to name the format of a header MetalUI recognises but does not read (for example `ImageInfo.sniffedFormat(of:)` returning an enum with `.gif`, `.tiff`, `.bmp`, `.webp`, `.heif`, `.unknown`) |
+| XP-G12 | `ImageInfo` cannot tell a recognised-but-unsupported picture format from a non-picture | MetalUI image sniff (record 130, `IS-`, master `05bb9a31`) | ✅ fixed by MetalUI `05bb9a31`, adopted (branch `adopt-fh`, CI pin `1bdead8d`): `ImageInfo.sniffedFormat(of:)` and `(ofFile:)` name the format from the first 18 bytes (`ImageFileFormat`: `.png`, `.jpeg`, `.gif`, `.tiff`, `.bmp`, `.webp`, `.heif`, `.avif`, `.unknown`; never traps). `GreyImageDecoder.inspect` maps a PNG or JPEG sniff with no `ImageInfo` to `.undecodable` (damaged), `.unknown` to `.undecodable` (not a picture), any other named format to `.unsupportedType`; `OtherPictureSignature` and its test are gone. One difference: a BMP is named only with a known DIB header size (12, 40, 52, 56, 64, 108, 124), so a bare `BM` prefix is `.unknown` now |
+| XP-G13 | No way to set SDL's application id (Wayland app_id / X11 WM_CLASS) to match the .desktop entry's StartupWMClass | MetalUI XP-G13 (record 132, `AP-`, master `b39d68d6`) | ✅ fixed by MetalUI `b39d68d6`, adopted with no code change (branch `adopt-fh`, CI pin `1bdead8d`): `SDLPlatform.Options.applicationID` defaults to the id of `launchingSingleInstance(id:)`, and `main.swift` already launches with `AppBundleInfo.identifier` (`com.metalcreator.MetalCreator`, pinned by `AppBundleInfoTests`), which is what the planned `.desktop` `StartupWMClass` will use. The xp-2 track (packaging) and human check XP-16 confirm it on a real desktop |
 
 ## Reported 2026-10-07 (C7)
 
@@ -1201,13 +1202,19 @@ Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan and XP-G10 by the S2 adop
   reads the format, stored size and orientation with `ImageInfo(data:)` and applies `orientedSize`; `ImageHeader` is deleted. Every limit
   and sentence is as it was (`ImageLimits`, `PNGStructure.isWhole`); `ImageInfoHeaderTests` pins the orientation on the JPEG fixtures and
   the PNG `eXIf` placements. One part stayed (XP-G12): `OtherPictureSignature`.
-- **XP-G12. `ImageInfo` cannot tell a recognised but unsupported picture format from a non-picture.** `ImageInfo(data:)` is `nil` for a GIF,
-  TIFF, BMP, WebP or HEIF file and for bytes that are no picture at all (`IH-B`). `GreyImageDecoder.inspect` must refuse the first kind
-  with "not a PNG or JPEG" (`ImageProblem.unsupportedType`) and the second with "damaged" (`.undecodable`), so
-  `OtherPictureSignature` (`Sources/CreatorNodes/Fields`) keeps the seven signature prefixes the old `ImageHeader` sniffed. Needed from
-  MetalUI: a header-only name for the format of bytes it recognises but does not read (for example
-  `ImageInfo.sniffedFormat(of:)` giving `.png`, `.jpeg`, `.gif`, `.tiff`, `.bmp`, `.webp`, `.heif` or `.unknown`), after which
-  `OtherPictureSignature` goes. To be forwarded to the MetalUI session.
+- **XP-G12. `ImageInfo` cannot tell a recognised but unsupported picture format from a non-picture.** Fixed by MetalUI `05bb9a31`
+  (record 130, `IS-A`…`IS-J`) and adopted on branch `adopt-fh`. `ImageInfo(data:)` is `nil` for a GIF, TIFF, BMP, WebP, HEIF or AVIF file
+  and for bytes that are no picture at all (`IH-B`); `ImageInfo.sniffedFormat(of:)` (and `ofFile:`) now names the format from the first
+  18 bytes, header-only, never trapping. `GreyImageDecoder.inspect` refuses with "damaged" (`.undecodable`) a PNG or JPEG sniff that has
+  no `ImageInfo`, and the `.unknown` sniff (not a picture) the same way as before; any other named format is "not a PNG or JPEG"
+  (`.unsupportedType`). The switch has a `default` because cases may be added. `OtherPictureSignature` is deleted; `ImageInfoHeaderTests`
+  pins GIF, TIFF, BMP, WebP, HEIF and AVIF. A BMP needs a known DIB header size to be named, so `BM` followed by zeros is `.unknown`;
+  the old fixture in `GreyImageDecoderTests` gained a real DIB size for that reason.
+- **XP-G13. No way to set SDL's application id (Wayland app_id / X11 WM_CLASS) to match the .desktop entry's StartupWMClass.** Fixed by
+  MetalUI `b39d68d6` (record 132, `AP-`): `SDLPlatform.Options.applicationID`, set as SDL's hint before `SDL_Init`, defaults to the id
+  passed to `launchingSingleInstance(id:)`. MetalCreator launches that way with `AppBundleInfo.identifier` (`Sources/MetalCreatorApp/main.swift`),
+  so there is no code change; a test pins the id as `com.metalcreator.MetalCreator`, the value the planned `.desktop` `StartupWMClass`
+  uses. The xp-2 track (packaging) and human check XP-16 confirm it on a real desktop.
 
 ## Found by the preview sweep, 2026-10-14
 

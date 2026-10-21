@@ -39,7 +39,7 @@
 - Never `pkill`/`killall` by a broad pattern (`swift-test`, `swift test`, `swift-build`, `xctest`): other sessions run `swift test` on this Mac. Kill only your own processes by captured PID (`$!`) or a pattern that contains your own worktree or scratch path.
 - The shim (`Sources/COCCT/cocct_*.cpp`) must compile with GCC/Clang on Linux and with Clang (MSVC ABI) on Windows: no Apple or POSIX-only headers, no `M_PI`, no `std::filesystem`, no `__attribute__`.
 - The Swift 6.4 Windows compiler crashes in coroutine splitting on an `async` function that holds a heavy loop across an `await`: keep such loops in non-async helpers. **Nothing in this plan adds an `async` loop** (all new Swift code is synchronous or a one-line `await`).
-- OCCT's thread pool (`OSD_Parallel`) and `OCCTKernel.serialized` keep working: no change to the shim's threading, and the 196 OCCT conformance tests (including the distance fast-path suites that use the pool) pass on Linux.
+- OCCT's thread pool (`OSD_Parallel`) and `OCCTKernel.serialized` keep working: no change to the shim's threading, and the 197 OCCT conformance tests (including the distance fast-path suites that use the pool) pass on Linux.
 - MetalUI gaps go in `docs/metalui-gaps.md` (the entry and the summary-table row) and are never worked around. This plan adds none: XP-G13 (SDL's application id) is fixed in MetalUI master `b39d68d6` and logged by the adoption track, and the plan relies on it (the window gets `AppBundleInfo.identifier` as its id with no code change; `DesktopEntryTests` pins that nothing overrides it).
 - Text a test reads or a script runs is LF on every platform: `.gitattributes` (Task 1) sets `eol=lf`, and the tests that read repository files replace `"\r\n"` with `"\n"` (Swift reads `"\r\n"` as **one** `Character`, so a split on `"\n"` or a match ending in `"\n"` finds nothing in a CRLF file, which is what `actions/checkout` writes on `windows-latest` unless told otherwise).
 - On Windows the debug suite links vcpkg's debug OpenCascade and the release zip its release one (user decision 8): one C runtime on both sides of the DLL boundary, no compile flag guessed.
@@ -716,7 +716,7 @@ scripts/linux-test.sh build
 docker run --rm -v xp-2-linux-build:/build "$IMAGE" bash -c 'b=$(find /build -name MetalCreatorApp -type f | head -1); readelf -d $b | grep RUNPATH; ldd $b | grep -c "TK.*/opt/occt"'
 scripts/linux-test.sh test --filter CreatorOCCTTests
 ```
-Expected: `RUNPATH … $ORIGIN/lib:/opt/occt/lib`; the `ldd` count is non-zero; `Linux: PASS (1 'Test run with' lines, 196 tests …)` — all of `CreatorOCCTTests`' 196 tests, including the distance fast-path suites that use OCCT's thread pool, pass on Linux.
+Expected: `RUNPATH … $ORIGIN/lib:/opt/occt/lib`; the `ldd` count is non-zero; `Linux: PASS (1 'Test run with' lines, 197 tests …)` — all of `CreatorOCCTTests`' 197 tests, including the distance fast-path suites that use OCCT's thread pool, pass on Linux.
 
 - [ ] **Step 7: Lint, commit**
 
@@ -2763,7 +2763,7 @@ Tests added: **0**.
 - Packaging: Linux tarball (Task 6), Linux AppImage (Task 7, packed from the tarball's tree), Windows zip (Task 8), all with `MetalUISDLShaders`; `docs/packaging.md` current: Task 9.
 - SDL's application id (XP-G13, answered by MetalUI `b39d68d6`): relied on, not worked around; `StartupWMClass` pinned to `AppBundleInfo.identifier` and the absence of an override pinned in `DesktopEntryTests` (Task 5); human check XP-16.
 - XP-G5: `Platform.onOpenURLs` (already routed; Task 5 comments it), command-line files (several), the `.desktop` file with `Exec=… %F` and `MimeType=`: Task 5.
-- Constraints: shim portability (Task 1 and 3, scan + `NOMINMAX`); the OCCT thread pool and `OCCTKernel.serialized` untouched (the shim's threading is unchanged and the 196 OCCT tests pass on Linux); no async loops added; CI cache proposal and user decision (above); no secrets.
+- Constraints: shim portability (Task 1 and 3, scan + `NOMINMAX`); the OCCT thread pool and `OCCTKernel.serialized` untouched (the shim's threading is unchanged and the 197 OCCT tests pass on Linux); no async loops added; CI cache proposal and user decision (above); no secrets.
 - Out of scope, as the spec says: Windows signing (decision 3), Wayland/X11 specifics, macOS CI.
 - Gap: the spec's Errata E1 to E5 touch earlier sub-projects only; none changes xp-2 beyond E1 (named in the header).
 
@@ -2782,7 +2782,7 @@ Tests added: **0**.
 These are the first authoring's measurements (the tree of Tasks 1 to 6 and 8 as first written (the numbers are today's: the AppImage task, 7, was inserted on 2026-10-21)); the review revision below changes the counts by +4.
 
 - Mac: `swift build --build-tests` with no new warnings (the only warnings are master's `ld: warning: building for macOS-26.0, but linking with dylib … built for newer version 27.0`); each task's filtered tests pass; `swiftlint lint --strict` reports nothing.
-- Linux (Docker, aarch64): OpenCascade 7.9.3 builds in 4,668 steps; `CreatorOCCTTests` 196 tests pass; the whole suite passed with 12 "Test run with" lines and 4,530 tests before Tasks 4's export test, 5's install tests and 7's pins (the filtered runs of those pass); `--self-test` and `--smoke-test 20` pass; the tarball (72 MB, 43 libraries) passes in a clean `ubuntu:24.04`; `install.sh` and `desktop-file-validate` pass.
+- Linux (Docker, aarch64): OpenCascade 7.9.3 builds in 4,668 steps; `CreatorOCCTTests` 197 tests pass; the whole suite passed with 12 "Test run with" lines and 4,530 tests before Tasks 4's export test, 5's install tests and 7's pins (the filtered runs of those pass); `--self-test` and `--smoke-test 20` pass; the tarball (72 MB, 43 libraries) passes in a clean `ubuntu:24.04`; `install.sh` and `desktop-file-validate` pass.
 - Not run (CI only): everything Windows, the buildx and `actions/cache` caches, the x86_64 Linux job, the YAML on GitHub.
 - Mac, one full `swift test` after the last task: exit 0, 12 "Test run with" lines, no failure line, **4,672 tests = master 4,656 + 16** (Task 1 +2, Task 3 +1, Task 4 +1, Task 5 +7, Task 8 +5).
 - Linux: the final tree's full suite was not re-run after Tasks 4 to 6 and 8 (the Mac was saturated); the filtered Linux runs of every test those tasks add pass (30 tests in `ExportPathTests`, `InstallScriptTests`, `DesktopEntryTests`, `LaunchCommandTests`, `CIPinTests`, `PackagingScriptTests`, `ShimPortabilityTests`). Task 9 Step 4 runs it once.

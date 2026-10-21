@@ -17,6 +17,9 @@ public protocol NodeDefinition: Sendable {
     /// `NodeRegistry.inputs(for:)`/`outputs(for:)`, which also give group nodes their definition's sockets.
     static func outputs(for node: Node) -> [SocketSpec]
     static var inspector: [InspectorSection] { get }
+    /// The inspector sections of one node. The fixed `inspector` unless a type shows different controls for different settings (the
+    /// lattice nodes show only the inputs of the mapping they are set to, implicit spec §3.5). The inspector reads this.
+    static func inspector(for node: Node) -> [InspectorSection]
     static var handles: [HandleSpec] { get }
     /// True if `evaluate` reads `context.parameters`, so parameter edits invalidate its cache.
     static var readsParameters: Bool { get }
@@ -45,6 +48,7 @@ extension NodeDefinition {
     public static func inputs(for node: Node) -> [SocketSpec] { inputs }
     public static func outputs(for node: Node) -> [SocketSpec] { outputs }
     public static var inspector: [InspectorSection] { [] }
+    public static func inspector(for node: Node) -> [InspectorSection] { inspector }
     public static var handles: [HandleSpec] { [] }
     public static var readsParameters: Bool { false }
     public static var readsMeshQuality: Bool { false }

@@ -18,6 +18,8 @@ public enum InspectorControl: Sendable, Equatable {
     /// An image setting's picture (the Image Field's `NodeSetting.image`): what it is (embedded or linked) and the buttons that
     /// choose, link, relink and embed it, which depend on that (fields spec §5).
     case image(SocketName)
+    /// A read-only line saying whether a face setting holds a pick ("Picked" or "None"): the lattice nodes' Face mapping (implicit spec §3.5).
+    case faceStatus(SocketName)
     case button(title: String, action: InspectorAction)
     /// A line of help under the node's controls, shown read-only (Field Scatter's note on renumbering). It edits nothing.
     case note(String)

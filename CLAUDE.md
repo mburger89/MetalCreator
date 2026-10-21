@@ -73,7 +73,7 @@ evaluators, the sparse octree, the manifold mesher, baked distances, the eleven 
 preview in the viewport, STL of meshes with the export sheet, file format 8 and `ImplicitBench` rows i-1 to i-4; plan
 `docs/superpowers/plans/2026-10-13-7c-core.md`, spec `docs/superpowers/specs/2026-10-13-implicit-lattices-design.md` §2 to §6 and the
 7c-1 errata in the plan's header) code is done; its human checks (group IM) are pending and its benchmark numbers are recorded in
-`docs/verification/performance.md`. The mappings (7c-4) are not built.
+`docs/verification/performance.md`.
 Implicit geometry, sub-project 7c-1g (meshing on the GPU, spec Errata D13: `ImplicitGPUEngine.meshBricks`, the Metal marching-cubes
 kernels with a CPU-against-GPU mesh agreement suite, and rows i-1 and i-2 measured on that path; plan
 `docs/superpowers/plans/2026-10-14-7c-1g-gpu-meshing.md`) code is done; its human check (IM-13) is pending and its benchmark numbers are
@@ -89,8 +89,19 @@ Implicit lattices, sub-project 7c-2 (the TPMS, Strut Lattice and Voronoi Lattice
 skin, field grading of cell size, thickness and strut radius, a separate cell stretch vector, their warnings, and `ImplicitBench`'s sheet
 swapped to a gyroid; plan `docs/superpowers/plans/2026-10-14-7c-2-lattices.md`, spec
 `docs/superpowers/specs/2026-10-13-implicit-lattices-design.md` §3.4 and Errata D14) code is done; its human checks (group IL) are pending
-and the benchmark rows have not been re-run with the gyroid. The mappings (7c-4) are not built, so the lattice nodes have no `mapping`
-input yet.
+and the benchmark rows have not been re-run with the gyroid.
+Implicit lattices, sub-project 7c-4 (conformal mappings: a `mapping` setting on the TPMS, Strut Lattice and Voronoi Lattice nodes, Straight / Cylindrical /
+Spherical / Face; `LatticeMapping` in `CreatorImplicit/Mapping`, `FaceChart` and `FaceChartCache` for the baked projections of a face,
+`Kernel.faceParametrization` and `Kernel.faceCoordinates` with the OCCT shim `cocct_face_chart.cpp`, the Metal functions `mapCylindrical`,
+`mapSpherical`, `mapFace` and `mappingJoin`, "Pick Face in View…" for a lattice node, `ImplicitBench` rows i-9 and i-10; plan
+`docs/superpowers/plans/2026-10-21-7c-4-conformal-mappings.md`, spec `docs/superpowers/specs/2026-10-13-implicit-lattices-design.md` §3.5 and Errata D20)
+code is done; its human checks (IM-14 to IM-18) are pending and its benchmark rows have not been run. `mapping`, `axis` and `centre` are ordinary inputs
+and the face is `NodeSetting.face`, all saved within format 8: a file from before 7c-4 reads Straight and its geometry is unchanged. A lattice is the
+lattice read at the mapped coordinates, with the mapping's singular set (the axis, the polar axis, the cells of a face's chart that stretch the map by more
+than 25) left solid within 1 mm and fading in over the next 0.5 mm (`LatticeMapping.join`), and its lipschitz bound is its own times the mapping's stretch
+(`LatticeMapping.stretch`, fixed when the mapping is built, over the region and a 4 mm margin) plus the join's term. The turn of a periodic coordinate is
+wound on a radius that makes a whole number of cells go round (`LatticeMapping.turnRadius`), and a Voronoi lattice copies the seeds near the cut across
+it (`VoronoiSeeds.mapped`). `NodeDefinition.inspector(for:)` is what shows only the active mapping's inputs.
 
 Cross-platform, sub-project xp-1 (Linux and Windows on MetalUI's SDL backend: everything but the 3D view and OpenCascade; plan
 `docs/superpowers/plans/2026-10-13-xp-1.md`, spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §2) code is done and
@@ -145,6 +156,10 @@ Module boundaries (dependency order):
   `DistanceTarget.validate()` gives every kernel the same refusals and `.identity` is what the field cache keys on. `FakeKernel`
   is exact for its boxes, for planar faces measured to their infinite plane and for straight or circular edges
   (`EdgeCurve.distance(from:)`, shared with Cull by Region), and throws `unsupported` for the rest.
+  `Kernel.faceParametrization(of:in:)` and `Kernel.faceCoordinates(of:on:in:)` (implicit spec §3.5, Face mapping) say how a face is parametrized
+  (`FaceParametrization`: the middle of u and v, millimetres per unit, the period of a coordinate in which the face closes on itself, a degenerate
+  edge) and where points stand against it (`FaceSample`: the nearest point's u and v, the signed distance along the outward normal); the default
+  refuses, `FakeKernel` answers for planar faces, `OCCTKernel` for any (`occt_face_chart_info_of`, `occt_face_coordinates`, `cocct_face_chart.cpp`).
 - `COCCT` + `CreatorOCCT`: the OpenCascade C shim and `OCCTKernel: Kernel` (topology tables, face tags carried through
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
   `*_free`; no C++ exception crosses into Swift. `occt_distances` (`cocct_distance.cpp`) measures points to a solid's faces,
@@ -153,7 +168,8 @@ Module boundaries (dependency order):
   inside a solid; `occt_distances_reference` is the Extrema-only path `DistanceFastPathTests` compares to at 1e-9) and signs a solid's distance with `BRepClass3d_SolidClassifier`, only for a point inside the solid's bounds; it
   shares the points out in blocks of 64 over OCCT's thread pool while `OCCTKernel.serialized` is held, and the caller's buffer
   is the output, so it allocates nothing to free. `OCCTKernel` calls it 1,024 points at a time, checking for cancellation between.
-- `CreatorImplicit`: implicit solids and meshes (implicit spec §2 to §4): the `ImplicitSolid` value, the CPU batch evaluator, the Metal
+- `CreatorImplicit`: implicit solids and meshes (implicit spec §2 to §4; `Mapping/` is §3.5: `LatticeMapping` over `CylindricalMap`, `SphericalMap` and, in
+  `Mapping/Face/`, `FaceMap` on a `FaceChart` that `FaceChartBaker` measures through the kernel and `FaceChartAssembler` builds from samples): the `ImplicitSolid` value, the CPU batch evaluator, the Metal
   compiler (gated with `#if canImport(Metal)`), the sparse octree (`BrickPlan`), `MeshingBudget` and the mesher. Portable (declared on every
   platform); depends on `CreatorGraph` for `Field`, which holds these only as `ImplicitPayload` and `MeshPayload`. Tests:
   `swift test --filter CreatorImplicitTests`.

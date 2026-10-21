@@ -8,7 +8,7 @@ struct GraphDock: Component {
 
     var content: some ElementGroup {
         Stack(alignment: .topLeading) {
-            ZStack { GraphPanel(model: model.editor, input: model.graphInput) }
+            ZStack { GraphPanel(model: model.editor, input: model.graphInput).equatable() }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .keyContext(AppKeyContext.panel)

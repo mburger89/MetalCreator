@@ -24,9 +24,10 @@ public enum InspectorBuilder {
         // sections as fallback rows.
         let inputs = registry.inputs(for: node)
         let fixed = Set(definition.inputs.map(\.name))
-        let declared = definition.inspector.isEmpty
+        let shown = definition.inspector(for: node)
+        let declared = shown.isEmpty
             ? fallbackSections(inputs)
-            : definition.inspector + fallbackSections(inputs.filter { !fixed.contains($0.name) })
+            : shown + fallbackSections(inputs.filter { !fixed.contains($0.name) })
         var sections = declared.map { section in
             InspectorSectionRows(title: section.title, rows: section.controls.flatMap {
                 rows(for: $0, node: node, inputs: inputs, outputs: registry.outputs(for: node), graph: graph, results: results)
@@ -103,7 +104,14 @@ public enum InspectorBuilder {
     static func rows(for control: InspectorControl, node: Node, inputs: [SocketSpec], outputs: [SocketSpec], graph: Graph,
                      results: [NodeID: NodeResult]) -> [InspectorRow] {
         if case .image(let setting) = control { return imageRows(setting, node: node) }
+        if case .faceStatus(let setting) = control { return [faceRow(setting, node: node)] }
         return [row(for: control, node: node, inputs: inputs, outputs: outputs, graph: graph, results: results)]
+    }
+
+    /// A face setting's row (implicit spec §3.5): "Picked" when the node holds a face pick, else "None".
+    static func faceRow(_ setting: SocketName, node: Node) -> InspectorRow {
+        if case .facePick? = node.inputValues[setting] { return .readOnly(label: InspectorLabel.text(for: setting), text: "Picked") }
+        return .readOnly(label: InspectorLabel.text(for: setting), text: "None")
     }
 
     /// An image setting's rows (fields spec §5): "No image chosen", "Embedded · a1b2c3d4" or "Linked · vent-mask.png", then

@@ -61,6 +61,14 @@ public actor KernelUnavailable: Kernel {
         try refuse()
     }
 
+    public func faceParametrization(of face: FaceID, in solid: Solid) throws -> FaceParametrization {
+        try refuse()
+    }
+
+    public func faceCoordinates(of points: [Vector3], on face: FaceID, in solid: Solid) throws -> [FaceSample] {
+        try refuse()
+    }
+
     /// Checks for cancellation on entry, as every kernel does, then refuses.
     private func refuse() throws -> Never {
         try Task.checkCancellation()

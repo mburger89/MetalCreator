@@ -56,12 +56,11 @@ enum ImplicitShaderLibrary {
         return e.pool[e.I[ioff + 1] + slot * 512 + ((k % 8) * 8 + (j % 8)) * 8 + (i % 8)];
     }
 
-    inline float bakedValue(const thread Env& e, int ioff, int poff, float3 point) {
+    // The trilinear value at a point already held to the grid.
+    inline float bakedTrilinear(const thread Env& e, int ioff, int poff, float3 held) {
         float3 origin = float3(e.P[poff], e.P[poff + 1], e.P[poff + 2]);
         float spacing = e.P[poff + 3];
         float3 last = float3(e.I[ioff + 3] * 8 - 1, e.I[ioff + 4] * 8 - 1, e.I[ioff + 5] * 8 - 1);
-        float3 held = clamp(point, origin, origin + last * spacing);
-        float outside = length(point - held);
         float3 grid = clamp((held - origin) / spacing, float3(0.0), last);
         int ix = int(floor(grid.x)), iy = int(floor(grid.y)), iz = int(floor(grid.z));
         float tx = grid.x - float(ix), ty = grid.y - float(iy), tz = grid.z - float(iz);
@@ -69,7 +68,22 @@ enum ImplicitShaderLibrary {
         float x10 = mix(bakedSample(e, ioff, ix, iy + 1, iz), bakedSample(e, ioff, ix + 1, iy + 1, iz), tx);
         float x01 = mix(bakedSample(e, ioff, ix, iy, iz + 1), bakedSample(e, ioff, ix + 1, iy, iz + 1), tx);
         float x11 = mix(bakedSample(e, ioff, ix, iy + 1, iz + 1), bakedSample(e, ioff, ix + 1, iy + 1, iz + 1), tx);
-        return mix(mix(x00, x10, ty), mix(x01, x11, ty), tz) + outside;
+        return mix(mix(x00, x10, ty), mix(x01, x11, ty), tz);
+    }
+
+    // DistanceBlocks.value(at:): the trilinear value at the point held to the grid, and the distance to the grid added.
+    inline float bakedValue(const thread Env& e, int ioff, int poff, float3 point) {
+        float3 origin = float3(e.P[poff], e.P[poff + 1], e.P[poff + 2]);
+        float3 last = float3(e.I[ioff + 3] * 8 - 1, e.I[ioff + 4] * 8 - 1, e.I[ioff + 5] * 8 - 1);
+        float3 held = clamp(point, origin, origin + last * e.P[poff + 3]);
+        return bakedTrilinear(e, ioff, poff, held) + length(point - held);
+    }
+
+    // DistanceBlocks.channelValue(at:): the same, with nothing added for the distance (a face chart's coordinates).
+    inline float bakedChannel(const thread Env& e, int ioff, int poff, float3 point) {
+        float3 origin = float3(e.P[poff], e.P[poff + 1], e.P[poff + 2]);
+        float3 last = float3(e.I[ioff + 3] * 8 - 1, e.I[ioff + 4] * 8 - 1, e.I[ioff + 5] * 8 - 1);
+        return bakedTrilinear(e, ioff, poff, clamp(point, origin, origin + last * e.P[poff + 3]));
     }
 
     // MARK: field maths

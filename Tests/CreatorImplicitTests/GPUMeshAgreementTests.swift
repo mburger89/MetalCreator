@@ -15,6 +15,8 @@ import Testing
 ///   value difference of 1e-6 slides the vertex along the surface by 1e-4 or more: on the fixtures up to 9e-4 mm, with the surfaces
 ///   themselves within 2e-5 mm. So the surfaces must agree within 1e-4 mm (along the reference's normal), the vertices within 2e-3.
 ///
+/// A mapped lattice whose lattice coordinates reach 40 to 70 mm is allowed twice D17's surface allowance (`GPUFixtures.meshMarginal`).
+///
 /// Both numbers are for parts within a few hundred millimetres of the origin: positions are `Float`, and one unit in the last place
 /// is 5e-4 mm at 4 m, so D13's 1e-4 mm cannot hold for a far part (`MetalMeshingLimitsTests` checks that one's bounds to 1 mm).
 /// The normals (dot product at least 0.9999 on the same samples, 0.999 whole) and the enclosed volume (1e-3, and positive: a
@@ -109,7 +111,35 @@ struct GPUMeshAgreementTests {
         let pipeline = MeshComparison(reference: reference, candidate: gpu.mesh, slopes: slopes)
         #expect(pipeline.unmatched == 0, "\(name): vertices without a match")
         let detail = pipeline.worstScaledDetail
-        #expect(pipeline.worstScaledSurface <= 1, "\(name): surfaces \(detail.along) mm apart, \(detail.allowed) allowed")
+        let factor = GPUFixtures.meshAllowanceFactor(name)
+        let apart = "surfaces \(detail.along) mm apart, \(detail.allowed) allowed (× \(factor))"
+        #expect(pipeline.worstScaledSurface <= factor, "\(name): \(apart)")
+        #expect(pipeline.farthest <= Self.slideTolerance, "\(name): the largest vertex difference is \(pipeline.farthest) mm")
+        #expect(pipeline.smallestNormalDot >= Self.pipelineNormalDot, "\(name): a normal differs: dot \(pipeline.smallestNormalDot)")
+    }
+
+    /// The Face fixtures that hold the cylinder's axis (`GPUFixtures.singularSetNames`), whole pipeline, away from the axis: their values
+    /// agree within 1e-4 mm everywhere (`GPUAgreementTests`), but within a few millimetres of the singular set the map multiplies the GPU's
+    /// rounding (2e-5 mm) into slides of up to 2e-3 mm along near-tangent mesh edges, so the vertices inside a cylinder of
+    /// `GPUFixtures.singularSetExclusion` about the axis are left out and the rest are held to D17's allowance (spec Errata D20). The
+    /// topology and the volume are not compared: the exclusion's inside may differ by a triangle or two.
+    @Test(arguments: GPUFixtures.singularSetNames)
+    func theGPUMeshAgreesAwayFromTheSingularSet(_ name: String) async throws {
+        let engine = try #require(MetalImplicitEngine.shared)
+        let solid = try #require(LatticeFixtures.faceAll.first { $0.name == name }?.solid)
+        let resolution = Self.resolution(of: solid)
+        let selection = await ImplicitEvaluators.make(for: solid, choice: .automatic, engine: engine)
+        let gpu = try await ImplicitMesher(evaluator: selection.evaluator)
+            .meshReportingPath(solid, resolution: resolution, quality: .preview)
+        #expect(gpu.path == .gpu, "\(name): the GPU mesher ran")
+        let reference = try await ImplicitMesher(evaluator: CPUBatchEvaluator(solid)).mesh(solid, resolution: resolution, quality: .preview)
+        let slopes = try await Self.slopes(of: solid, at: reference.positions)
+        let pipeline = MeshComparison(reference: reference, candidate: gpu.mesh, slopes: slopes, excluding: GPUFixtures.nearSingularSet)
+        #expect(pipeline.unmatched == 0, "\(name): vertices without a match")
+        let detail = pipeline.worstScaledDetail
+        let factor = GPUFixtures.singularSetAllowanceFactor(name)
+        let apart = "surfaces \(detail.along) mm apart, \(detail.allowed) allowed (× \(factor))"
+        #expect(pipeline.worstScaledSurface <= factor, "\(name): \(apart)")
         #expect(pipeline.farthest <= Self.slideTolerance, "\(name): the largest vertex difference is \(pipeline.farthest) mm")
         #expect(pipeline.smallestNormalDot >= Self.pipelineNormalDot, "\(name): a normal differs: dot \(pipeline.smallestNormalDot)")
     }

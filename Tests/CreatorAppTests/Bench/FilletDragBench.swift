@@ -75,6 +75,8 @@ struct FilletDragBench {
         app.handleChanged(handle.id, 3.48, .ended)
         await app.settle()
         counters.report("fillet-drag-warm")
+        #expect(counters.worst(\.atlasUploadPixels) < WarmWorkPinTests.filletAtlasUploadBound,
+                "worst warm frame uploaded \(counters.worst(\.atlasUploadPixels)) atlas pixels")
         print("BENCH fillet-drag-warm: element requests per frame, median \(Int(requests.median)), max \(Int(requests.maximum))")
         print(cpu.line())
     }

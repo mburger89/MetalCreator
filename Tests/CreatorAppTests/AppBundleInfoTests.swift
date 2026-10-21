@@ -11,6 +11,12 @@ struct AppBundleInfoTests {
         #expect(AppBundleInfo.versionLine == "MetalCreator \(AppBundleInfo.version) (\(AppBundleInfo.build))")
     }
 
+    /// `main.swift` launches with `launchingSingleInstance(id: AppBundleInfo.identifier, …)`, and MetalUI (XP-G13) defaults SDL's
+    /// application id (Wayland `app_id`, X11 `WM_CLASS`) to that id, so it is what the `.desktop` entry's `StartupWMClass` must say.
+    @Test func theSingleInstanceIdIsTheOneTheDesktopEntryWillNameAsItsWindowClass() {
+        #expect(AppBundleInfo.identifier == "com.metalcreator.MetalCreator")
+    }
+
     @Test func thePlistNamesTheBundleItsVersionAndTheMinimumMacOS() throws {
         let plist = try roundTripped(minimumSystemVersion: "27.0")
         #expect(plist["CFBundleExecutable"] as? String == "MetalCreator")
