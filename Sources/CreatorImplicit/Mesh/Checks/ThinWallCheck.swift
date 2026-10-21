@@ -96,25 +96,55 @@ public struct ThinWallCheck: Sendable {
         return (distance, hitTriangle)
     }
 
+    /// A wall found behind a vertex.
+    typealias Found = (vertex: Int, distance: Double, triangle: Int)
+
+    /// The vertices that start a ray, in order: those a triangle uses and that have a normal.
+    private func rayVertices() -> [Int] {
+        Set(corners.flatMap { [Int($0.x), Int($0.y), Int($0.z)] }).sorted().filter { normals[$0] != .zero }
+    }
+
+    /// The walls behind `vertices`, in their order: a plain loop, so no `async` function holds it.
+    private func walls(behind vertices: [Int], limit: Double) -> [Found] {
+        vertices.compactMap { vertex in wall(behind: vertex, limit: limit).map { (vertex, $0.distance, $0.triangle) } }
+    }
+
     /// - Throws: `CancellationError`.
     public static func run(_ mesh: TriangleMesh, minimum: Double) throws -> Result {
         guard mesh.triangleCount > 0, minimum.isFinite, minimum > 0 else { return Result(triangles: [], places: 0, thinnest: nil) }
         let scan = ThinWallCheck(mesh)
-        var clusters = VertexClusters(count: scan.points.count)
-        var flagged = [Bool](repeating: false, count: scan.points.count)
+        var found: [Found] = []
+        let vertices = scan.rayVertices()
+        for start in stride(from: 0, to: vertices.count, by: 4096) {
+            try Task.checkCancellation()
+            found += scan.walls(behind: Array(vertices[start..<min(start + 4096, vertices.count)]), limit: minimum)
+        }
+        return scan.result(from: found)
+    }
+
+    /// `run` with the rays going out to every core (a different name, so a caller that is not `async` keeps `run`). The result is the same.
+    /// - Throws: `CancellationError`.
+    public static func runConcurrently(_ mesh: TriangleMesh, minimum: Double) async throws -> Result {
+        guard mesh.triangleCount > 0, minimum.isFinite, minimum > 0 else { return Result(triangles: [], places: 0, thinnest: nil) }
+        let scan = ThinWallCheck(mesh)
+        let found = try await ParallelMap.map(scan.rayVertices()) { scan.walls(behind: $0, limit: minimum) }
+        return scan.result(from: found)
+    }
+
+    /// The flagged vertices, the places and the thinnest wall, from the walls found in vertex order.
+    private func result(from found: [Found]) -> Result {
+        var clusters = VertexClusters(count: points.count)
+        var flagged = [Bool](repeating: false, count: points.count)
         var thinnest = Double.infinity
-        let used = Set(scan.corners.flatMap { [Int($0.x), Int($0.y), Int($0.z)] })
-        for (count, vertex) in used.sorted().enumerated() where scan.normals[vertex] != .zero {
-            if count & 0xFFF == 0 { try Task.checkCancellation() }
-            guard let found = scan.wall(behind: vertex, limit: minimum) else { continue }
-            flagged[vertex] = true
-            thinnest = min(thinnest, found.distance)
+        for wall in found {
+            flagged[wall.vertex] = true
+            thinnest = min(thinnest, wall.distance)
             // The two sides of a wall are one place.
-            clusters.join(vertex, Int(scan.corners[found.triangle].x))
+            clusters.join(wall.vertex, Int(corners[wall.triangle].x))
         }
         var triangles: [Int] = []
         var anchors: [Int] = []
-        for (index, triangle) in scan.corners.enumerated() {
+        for (index, triangle) in corners.enumerated() {
             let marked = [Int(triangle.x), Int(triangle.y), Int(triangle.z)].filter { flagged[$0] }
             guard let first = marked.first else { continue }
             triangles.append(index)

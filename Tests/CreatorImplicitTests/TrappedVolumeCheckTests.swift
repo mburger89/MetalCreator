@@ -14,6 +14,13 @@ struct TrappedVolumeCheckTests {
         #expect(result.cell == 10.0 / 32, "the grid's cell is reported for the node's fact")
     }
 
+    @Test func theConcurrentRunGivesTheSameResultAsTheLoop() async throws {
+        let hollow = MeshFixtures.hollowCube(size: 10, wall: 1, divisions: 8)
+        let loop = try TrappedVolumeCheck.run(hollow)
+        let concurrent = try await TrappedVolumeCheck.runConcurrently(hollow)
+        #expect(concurrent.voidCount == loop.voidCount && concurrent.triangles == loop.triangles && concurrent.cell == loop.cell)
+    }
+
     @Test func twoVoidsAreCounted() throws {
         let part = MeshFixtures.cubeWithVoids(size: 20, divisions: 4, voids: [SIMD4(2, 2, 2, 5), SIMD4(11, 11, 11, 6)])
         #expect(try TrappedVolumeCheck.run(part).voidCount == 2)

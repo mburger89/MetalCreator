@@ -28,6 +28,9 @@ public final class DistanceBlocks: Hashable, Sendable {
     public let lipschitz: Double
     /// How long baking took, 0 when unknown (shown in the inspector; not part of the value).
     public let bakeSeconds: Double
+    /// Samples along each axis: `blockCounts` times `blockSize`, kept so a query (made for every point the mesher asks about) does not
+    /// build the array again.
+    private let sampleCounts: [Int]
 
     public init(origin: Vector3, spacing: Double, blockCounts: [Int], table: [Int32], pool: [Float], coarse: [Float],
                 band: Double, bakeSeconds: Double = 0, lipschitz known: Double? = nil) {
@@ -41,6 +44,7 @@ public final class DistanceBlocks: Hashable, Sendable {
         self.coarse = coarse
         self.band = band
         self.bakeSeconds = bakeSeconds
+        self.sampleCounts = blockCounts.map { $0 * Self.blockSize }
         self.lipschitz = known ?? Self.interpolationSlope(blockCounts: blockCounts, table: table, pool: pool, coarse: coarse,
                                                           spacing: spacing, band: band)
     }
@@ -105,8 +109,6 @@ public final class DistanceBlocks: Hashable, Sendable {
 
     /// The memory the tables take (implicit spec §2.1: baked blocks count towards `estimatedBytes`).
     public var estimatedBytes: Int { pool.count * 4 + table.count * 8 + 128 }
-
-    private var sampleCounts: [Int] { blockCounts.map { $0 * Self.blockSize } }
 
     private func blockNumber(_ bx: Int, _ by: Int, _ bz: Int) -> Int { (bz * blockCounts[1] + by) * blockCounts[0] + bx }
 

@@ -19,7 +19,7 @@ import Testing
 /// merges second adds this file.
 @MainActor
 struct LightweightBracketAcceptanceTests {
-    static let minimumWall = 0.4
+    nonisolated static let minimumWall = 0.4
 
     /// The nodes this test adds to the bracket's document.
     struct Lightweight {
@@ -74,6 +74,14 @@ struct LightweightBracketAcceptanceTests {
                            all: [toImplicit, distance, grading, lattice, drain, mesh, thin, traps, output])
     }
 
+    nonisolated static func voidCount(of mesh: TriangleMesh) async throws -> Int {
+        try await TrappedVolumeCheck.runConcurrently(mesh).voidCount
+    }
+
+    nonisolated static func thinPlaces(of mesh: TriangleMesh) async throws -> Int {
+        try await ThinWallCheck.runConcurrently(mesh, minimum: minimumWall).places
+    }
+
     @Test func aLightweightBracketIsDrainedCheckedAndExportedAs3MF() async throws {
         let (app, bracket) = try await makeBracketBenchApp()
         let solid = try #require(app.document.results[bracket.chamfer.id]?.outputs?["solid"]?.items.first)
@@ -101,8 +109,10 @@ struct LightweightBracketAcceptanceTests {
         #expect(MeshTopology(mesh).isClosedManifold, "\(MeshTopology(mesh))")
         // Spec §7 asks for 0 of each. Errata M5 measured 103 voids and 127 thin places here; Errata D18 found them to be phantoms of the
         // sharp skin join and of the checks, and the lattice's default 1 mm blend and the robust checks removed them.
-        let voids = try TrappedVolumeCheck.run(mesh).voidCount
-        let thinPlaces = try ThinWallCheck.run(mesh, minimum: Self.minimumWall).places
+        // The two checks are independent, so they run side by side (each in a plain function, off the main actor).
+        async let voidCount = Self.voidCount(of: mesh)
+        async let thinCount = Self.thinPlaces(of: mesh)
+        let (voids, thinPlaces) = try await (voidCount, thinCount)
         print("LIGHTWEIGHT voids \(voids), thin places \(thinPlaces), volume fraction \(mesh.signedVolume / solidVolume)")
         #expect(voids == 0, "the drain holes opened every void")
         #expect(thinPlaces == 0, "no wall under \(Self.minimumWall) mm")
