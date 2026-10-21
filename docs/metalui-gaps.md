@@ -70,7 +70,8 @@ stopgap as they were. The sections below keep each gap's full use case.
 | XP-G7 | Clipboard types beyond text (graph fragments) | MetalUI S3 (queued) | 🔄 queued at MetalUI. Nothing to do in xp-1: MetalCreator's graph-fragment clipboard is in memory (`NodeClipboard`) and never reaches the system pasteboard on any platform; a system clipboard (marked JSON text now, S3's custom types later) is a feature of its own |
 | XP-G8 | Hand and zoom cursor fallbacks | MetalUI S4 (queued) | ➖ accepted: MetalUI's fallback (`.link` hand, grab → move, zoom → arrow) is used as is; S4 adds image cursors (human check XP-8) |
 | XP-G9 | `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks)` | open (new) | 🔄 open at MetalUI. `MetalCreatorApp --smoke-test` (the CI launch check, `main.swift`) imports it with `@_spi(Checks) import MetalUISDL`; promote it to public API or name a supported headless-launch entry point |
-| XP-G10 | A header-only read of a picture's size and orientation (before any pixel is decoded) | open (new, forward to MetalUI) | 🔄 open at MetalUI. `DecodedImage` reports size and orientation only after it decodes the whole picture, but `ImageLimits` must refuse an oversize one first; MetalCreator keeps a small `ImageHeader` reader (PNG IHDR and `eXIf`, JPEG SOF and APP1) for that. Needed: a public `ImageInfo(data:)` (format, stored size, orientation, no pixel work) |
+| XP-G10 | A header-only read of a picture's size and orientation (before any pixel is decoded) | MetalUI S9 (record §117, `IH-`, master `d3ebfa18`) | ✅ fixed by MetalUI S9, adopted (branch `adopt-s9-s8-s4`, CI pin `b15e038c`): `GreyImageDecoder.inspect` reads format, stored size and orientation with `ImageInfo(data:)` and `ImageHeader` is gone. One part stayed: `ImageInfo` answers `nil` for a GIF or TIFF as for garbage, so the "picture type we refuse" sentence needs `OtherPictureSignature` (XP-G12) |
+| XP-G12 | `ImageInfo` cannot tell a recognised-but-unsupported picture format from a non-picture | open (new, forward to MetalUI) | 🔄 open at MetalUI. `ImageInfo(data:)` is `nil` for GIF, TIFF, BMP, WebP and HEIF and for bytes that are no picture at all; MetalCreator keeps `OtherPictureSignature` (seven signature prefixes) only to say "not a PNG or JPEG" (`ImageProblem.unsupportedType`) and not "damaged" (`.undecodable`). Needed: a way to name the format of a header MetalUI recognises but does not read (for example `ImageInfo.sniffedFormat(of:)` returning an enum with `.gif`, `.tiff`, `.bmp`, `.webp`, `.heif`, `.unknown`) |
 
 ## Reported 2026-10-07 (C7)
 
@@ -1179,6 +1180,17 @@ Labelled XP-G3 to XP-G8, plus XP-G9 added by this plan and XP-G10 by the S2 adop
   `eXIf` chunk and the JPEG SOF and APP1 segment itself, the one EXIF reader xp-1 hoped not to write; `decode` refuses a picture whose
   decoded size disagrees with it. Needed from MetalUI: a public `ImageInfo(data:)` (format, stored size, orientation) that does no pixel
   work, after which `ImageHeader` goes. To be forwarded to the MetalUI session.
+  **Fixed by MetalUI S9** (record §117, `IH-A`…`IH-P`, master `d3ebfa18`) and adopted on branch `adopt-s9-s8-s4`: `GreyImageDecoder.inspect`
+  reads the format, stored size and orientation with `ImageInfo(data:)` and applies `orientedSize`; `ImageHeader` is deleted. Every limit
+  and sentence is as it was (`ImageLimits`, `PNGStructure.isWhole`); `ImageInfoHeaderTests` pins the orientation on the JPEG fixtures and
+  the PNG `eXIf` placements. One part stayed (XP-G12): `OtherPictureSignature`.
+- **XP-G12. `ImageInfo` cannot tell a recognised but unsupported picture format from a non-picture.** `ImageInfo(data:)` is `nil` for a GIF,
+  TIFF, BMP, WebP or HEIF file and for bytes that are no picture at all (`IH-B`). `GreyImageDecoder.inspect` must refuse the first kind
+  with "not a PNG or JPEG" (`ImageProblem.unsupportedType`) and the second with "damaged" (`.undecodable`), so
+  `OtherPictureSignature` (`Sources/CreatorNodes/Fields`) keeps the seven signature prefixes the old `ImageHeader` sniffed. Needed from
+  MetalUI: a header-only name for the format of bytes it recognises but does not read (for example
+  `ImageInfo.sniffedFormat(of:)` giving `.png`, `.jpeg`, `.gif`, `.tiff`, `.bmp`, `.webp`, `.heif` or `.unknown`), after which
+  `OtherPictureSignature` goes. To be forwarded to the MetalUI session.
 
 ## Found by the preview sweep, 2026-10-14
 
