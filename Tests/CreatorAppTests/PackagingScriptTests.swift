@@ -6,7 +6,10 @@ import Testing
 /// CI's Windows job (the zip, `scripts/package-windows.ps1`) and human checks P1, XP-16 and XP-17.
 #if !os(Windows)  // bash scripts: Windows has no /bin/bash
 struct PackagingScriptTests {
-    @Test(arguments: ["scripts/package-app.sh", "scripts/verify-app.sh", "scripts/linux-test.sh", "packaging/linux/install.sh"])
+    @Test(arguments: [
+        "scripts/package-app.sh", "scripts/verify-app.sh", "scripts/linux-test.sh", "scripts/package-linux.sh",
+        "packaging/linux/install.sh",
+    ])
     func theScriptParsesAndIsExecutable(_ name: String) throws {
         let script = Self.repository.appending(path: name)
         #expect(FileManager.default.isExecutableFile(atPath: script.path))

@@ -2,12 +2,14 @@
 # Builds and tests MetalCreator on Linux in Docker (OrbStack on this Mac runs aarch64 containers; CI runs the same script
 # on x86_64 and aarch64 runners). Cross-platform spec 2.5, 2.6.
 #
-#   scripts/linux-test.sh [build|test|smoke|all] [swift test arguments]    default: all
+#   scripts/linux-test.sh [build|test|smoke|package|all] [swift test arguments]    default: all
 #     build   swift build
 #     test    swift test, judged by the pass rule below. Arguments after `test` (for example `--filter CreatorOCCTTests`) go to
 #             swift test and switch the count rule off: only the exit code and the issue lines are judged.
 #     smoke   the app's --self-test, then --smoke-test 20 (the real window over SDL's offscreen renderers: a first frame within 20 s)
-#     all     the three, in that order
+#     package scripts/package-linux.sh in the image, then the tarball in dist/ is unpacked in a clean ubuntu:24.04 (no Swift, no
+#             /opt/occt, no MetalUI checkout) and must pass --version and --self-test there; the desktop entry is validated
+#     all     build, test and smoke, in that order (not package: a release build is slow)
 #   scripts/linux-test.sh clean                     removes this track's build volume
 #
 # Needs MetalUI checked out beside this repository (../MetalUI), which Package.swift's path dependency expects. The repository
@@ -60,11 +62,13 @@ if [ "${METALCREATOR_IMAGE_PREBUILT:-}" != 1 ]; then
         ${OCCT_JOBS:+--build-arg "OCCT_JOBS=$OCCT_JOBS"} - < scripts/linux/Dockerfile >/dev/null
 fi
 
-# Runs `$1` in the image, from the repository, with the build volume; stops only this track's own container.
+# Runs `$1` in the image, from the repository, with the build volume (and `$DOCKER_EXTRA`, if set); stops only this track's own
+# container.
 in_container() {
     docker rm -f "$NAME" >/dev/null 2>&1 || true
+    # shellcheck disable=SC2086
     docker run --rm --name "$NAME" \
-        -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -v "$VOLUME":/build \
+        -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -v "$VOLUME":/build ${DOCKER_EXTRA:-} \
         "$IMAGE" bash -ec "$1"
 }
 
@@ -76,6 +80,29 @@ do_smoke() {
     in_container 'bin=$(swift build --scratch-path /build --show-bin-path)/MetalCreatorApp
         "$bin" --self-test
         "$bin" --smoke-test 20'
+}
+
+# The release tarball, built in the image and then run where nothing of the build machine exists.
+do_package() {
+    rm -f dist/MetalCreator-*-linux-"$(uname -m | sed 's/arm64/aarch64/')".tar.gz
+    DOCKER_EXTRA="-v $VOLUME-package:/build-package" in_container '
+        desktop-file-validate packaging/linux/com.metalcreator.MetalCreator.desktop
+        METALCREATOR_SCRATCH=/build-package scripts/package-linux.sh'
+    local tarball
+    tarball=$(ls dist/MetalCreator-*-linux-*.tar.gz | head -n 1)
+    echo "Checking $tarball in a clean ubuntu:24.04..."
+    docker rm -f "$NAME-clean" >/dev/null 2>&1 || true
+    docker run --rm --name "$NAME-clean" -v "$REPO/dist":/dist:ro ubuntu:24.04 bash -ec '
+        test ! -e /opt/occt && test ! -e /work
+        mkdir /tmp/unpacked && tar -xzf /dist/'"$(basename "$tarball")"' -C /tmp/unpacked
+        cd /tmp/unpacked/MetalCreator-*
+        ./MetalCreator --version
+        ./MetalCreator --self-test
+        LD_DEBUG=libs ./MetalCreator --version >/dev/null 2>/tmp/ld.txt
+        grep -q "RUNPATH from file ./MetalCreator" /tmp/ld.txt
+        if grep -q /opt/occt /tmp/ld.txt; then echo "the loader searched /opt/occt" >&2; exit 1; fi
+        test -f MetalUISDLShaders/SOURCE.sha256 && ls lib | grep -q "^libTKernel.so.7.9$"'
+    echo "Linux package: PASS ($tarball)"
 }
 
 do_test() {
@@ -100,6 +127,7 @@ case $step in
     build) do_build ;;
     test) do_test ;;
     smoke) do_smoke ;;
+    package) do_package ;;
     all) do_build && do_test && do_smoke ;;
-    *) echo "usage: scripts/linux-test.sh [build|test|smoke|all|clean]" >&2; exit 64 ;;
+    *) echo "usage: scripts/linux-test.sh [build|test|smoke|package|all|clean]" >&2; exit 64 ;;
 esac
