@@ -377,8 +377,8 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
     plane (centred, `width` × `height` mm, row 0 at the plane's +y, Tile or Clamp, bilinear grey in 0…1) as `Field.image(GreyImage,
     plane:width:height:edges:)`. The picture is the node's `NodeSetting.image`, a `ConstantValue.image(ImageReference)`: `.embedded(ImageHash)`
     (the SHA-256 of the file's bytes) or `.linked(relativePath:absolutePath:)`. **Images are untrusted input**: `ImageLimits` (16 MB, 8,192 px
-    a side, PNG and JPEG only) are checked from the header before a pixel is decoded (`GreyImageDecoder.inspect` over `ImageHeader`, our own PNG IHDR/`eXIf` and
-    JPEG SOF/APP1 reader, gap XP-G10; `PNGStructure.isWhole` still refuses a cut-short PNG), `decode` runs off the caller's actor and
+    a side, PNG and JPEG only) are checked from the header before a pixel is decoded (`GreyImageDecoder.inspect` over MetalUI's `ImageInfo(data:)`, S9, gap XP-G10, with `OtherPictureSignature` for
+    GIF and the like, gap XP-G12; `PNGStructure.isWhole` still refuses a cut-short PNG), `decode` runs off the caller's actor and
     decodes through MetalUI's `DecodedImage(data:format: .rgba)` on every platform (S2, gap XP-G4; ImageIO is not used anywhere in `Sources`),
     then converts to grey in 32 MB bands, checking for cancellation between them and applying the orientation as it indexes the stored
     pixels (no oriented copy). Peak memory at 8,192²: the file (16 MB), MetalUI's whole decoded RGBA (256 MB, whatever the bit depth) and the 128 MB result,

@@ -1,6 +1,7 @@
 import CreatorGraph
 import CreatorKernel
 import Foundation
+import Synchronization
 
 /// A mesh that is not made yet (implicit spec Errata D12): what a Mesh node returns while an export streams to its file. It is the
 /// implicit solid, the voxel size to mesh it at, and the stages (Decimate) to apply to every window on the way; nothing is meshed
@@ -10,11 +11,24 @@ public struct MeshStream: MeshPayload, Hashable, Sendable {
     public var solid: ImplicitSolid
     public var resolution: Double
     public var stages: [MeshStage]
+    /// The check copy made for this stream, shared by every copy of the value (and so by the checks one after another in a run). It is
+    /// not part of what the stream is: two streams that mesh the same way are equal.
+    private let copies = CheckCopies()
 
     public init(solid: ImplicitSolid, resolution: Double, stages: [MeshStage] = []) {
         self.solid = solid
         self.resolution = resolution
         self.stages = stages
+    }
+
+    public static func == (lhs: MeshStream, rhs: MeshStream) -> Bool {
+        lhs.solid == rhs.solid && lhs.resolution == rhs.resolution && lhs.stages == rhs.stages
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(solid)
+        hasher.combine(resolution)
+        hasher.combine(stages)
     }
 
     /// The count is not known until it is written.
@@ -34,7 +48,15 @@ public struct MeshStream: MeshPayload, Hashable, Sendable {
 
     /// This stream with one more stage.
     public func appending(_ stage: MeshStage) -> MeshStream {
-        MeshStream(solid: solid, resolution: resolution, stages: stages + [stage])
+        var next = self
+        next.stages.append(stage)
+        return next
+    }
+
+    /// Lets go of the check copy, which a stream keeps so that the checks that follow one another in a run mesh the part once. The
+    /// export calls this before it writes, so the copy is not held while the file streams.
+    public func releaseCheckCopy() {
+        copies.clear()
     }
 
     public enum Failure: Error, Equatable, Sendable {
@@ -65,6 +87,8 @@ public struct MeshStream: MeshPayload, Hashable, Sendable {
     /// says so). The stages are not applied: a decimated surface is within its tolerance of this one.
     public func checkCopy(using evaluator: any ImplicitBatchEvaluator,
                           triangleBudget: Int = 2_000_000) async throws -> (mesh: TriangleMesh, isExact: Bool) {
+        // The same solid at the same resolution meshes the same way, so a second check takes the first one's copy.
+        if let made = copies.copy(for: triangleBudget) { return made }
         let bytes = try await MeshingBudget.estimate(for: solid, resolution: resolution, using: evaluator)
         // The estimate counts about 100 bytes a triangle.
         let triangles = max(bytes / 100, 1)
@@ -73,6 +97,34 @@ public struct MeshStream: MeshPayload, Hashable, Sendable {
             used = (resolution * (Double(triangles) / Double(triangleBudget)).squareRoot() * 100).rounded(.up) / 100
         }
         let mesh = try await ImplicitMesher(evaluator: evaluator).mesh(solid, resolution: used, quality: .preview)
-        return (mesh, used == resolution)
+        let made = (mesh: mesh, isExact: used == resolution)
+        copies.keep(made, for: triangleBudget)
+        return made
+    }
+}
+
+/// The check copy of a `MeshStream`: one mesh, kept for as long as the checks that follow one another need it.
+private final class CheckCopies: Sendable {
+    private struct Kept {
+        var budget: Int
+        var mesh: TriangleMesh
+        var isExact: Bool
+    }
+
+    private let kept = Mutex<Kept?>(nil)
+
+    func copy(for budget: Int) -> (mesh: TriangleMesh, isExact: Bool)? {
+        kept.withLock { kept in
+            guard let kept, kept.budget == budget else { return nil }
+            return (kept.mesh, kept.isExact)
+        }
+    }
+
+    func keep(_ made: (mesh: TriangleMesh, isExact: Bool), for budget: Int) {
+        kept.withLock { $0 = Kept(budget: budget, mesh: made.mesh, isExact: made.isExact) }
+    }
+
+    func clear() {
+        kept.withLock { $0 = nil }
     }
 }

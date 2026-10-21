@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorStyle
 import Foundation
 import MetalUI
 import Testing
@@ -67,7 +68,7 @@ struct CursorTests {
 
     @Test func cursorsAreMetalUIPointerStyles() {
         #expect(ViewportCursor.crosshair.pointerStyle == .rectSelection)
-        #expect(ViewportCursor.grabbing.pointerStyle == .grabActive)
+        #expect(ViewportCursor.grabbing.pointerStyle == GrabCursor.pointerStyle())
     }
 
     /// The view cube's drag is its own mode: it orbits like a drag in the view, but a click on it picks a region.

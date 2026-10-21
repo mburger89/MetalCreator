@@ -112,7 +112,7 @@ unchanged in look and behaviour.
 | XP-G1 | App access to SDL_GPU through `GPUSurface` (CSDL types or a portable GPU API), a shader build path for apps, MSAA resolve, depth targets, instanced draws, storage buffers, mipmapped r8 textures, texture readback | xp-3 |
 | XP-G2 | Portable compute (SDL GPU compute) for 7c's implicit engine | after xp-3 |
 | XP-G3 | Custom chrome or hidden title bar on SDL (divergence 276) | polish; xp-1 accepted the system title bar. **Fixed by MetalUI S1** (record §112, `CW-`, master `ceca59f6`) and adopted after xp-1 (erratum E5); the drag regions need XP-G11 before xp-3 |
-| XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO | xp-1 (Image Field). **Fixed by MetalUI S2** (record §113, `IB-`) and adopted after xp-1 (erratum E4); a header-only read is still wanted (XP-G10) |
+| XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO | xp-1 (Image Field). **Fixed by MetalUI S2** (record §113, `IB-`) and adopted after xp-1 (erratum E4); the header-only read came with MetalUI S9 (XP-G10, erratum E6) |
 | XP-G5 | Open-document events on SDL (divergence 176) | xp-2. **Answered:** `Platform.onOpenURLs` (SDL drop with window 0) → `.onOpenURL` routing; command-line files via `app.open(…)` after the first window (MetalUI `docs/packaging.md`, "Launch arguments"); `.desktop` `Exec=… %F` + `MimeType=` |
 | XP-G6 | ContentType filtering by extension (divergence 129) | xp-1. **Answered:** `ContentType("…", conformingTo: [.json], filenameExtensions: ["mcgraph"])` in `allowedContentTypes` |
 | XP-G7 | Clipboard types beyond text (graph fragments) | xp-1 copies graph fragments as marked JSON text on every platform without custom types (MetalUI's interim pattern); MetalUI S3 (queued) adds custom types later |
@@ -158,3 +158,7 @@ beyond what MetalUI provides; macOS CI; Intel macOS.
   pinned by `SDLChromeWindowTests.macLayoutIsWhatItWas`). The drawn Close button goes through `onCloseRequest` to
   `AppModel.closeRequested()` (`installCloseHandling`). `WindowDragHandle` stays and is now an SDL drag region where MetalUI publishes
   one; a gesture-taking viewport behind the bar no longer empties it (gap XP-G11, fixed by MetalUI S1b, PR #87, master `a4ebe288`). Human checks XP-11..XP-14; XP-8 keeps the cursors only.
+- **E6 (adopt-s9, section 2.2 and E4, XP-G10). The header read is MetalUI's `ImageInfo`.** E4's "`ImageHeader` reads the header's size and
+  orientation" no longer holds: MetalUI S9 (record §117, master `d3ebfa18`) made the format, stored size and orientation readable without
+  a decode, `GreyImageDecoder.inspect` uses `ImageInfo(data:)`, and `ImageHeader` is deleted. A small `OtherPictureSignature` stays so a
+  GIF or TIFF is "not a PNG or JPEG" and not "damaged" (gap XP-G12).

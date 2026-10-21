@@ -1,4 +1,5 @@
 import Foundation
+import MetalUI
 import Testing
 @testable import CreatorNodes
 
@@ -28,8 +29,8 @@ struct PNGWriterTests {
     @Test func aSixteenBitPictureAndAnOrientationTagAreWholeAndSaySo() throws {
         let png = PNGWriter.encode(width: 3, height: 2, color: .grey16, orientation: 6) { x, _ in [UInt8(x), 0xFF] }
         #expect(PNGStructure.isWhole(png))
-        let header = try #require(ImageHeader.read(png))
-        #expect(header == ImageHeader(kind: .png, width: 3, height: 2, orientation: 6))
+        let info = try #require(ImageInfo(data: png))
+        #expect(info.format == .png && info.width == 3 && info.height == 2 && info.orientation.exifValue == 6)
     }
 
     @Test func theDecoderReadsWhatTheWriterWrote() async throws {

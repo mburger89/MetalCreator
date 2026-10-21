@@ -8,7 +8,7 @@ import CreatorOCCT
 #endif
 #if canImport(MetalUISDL)
 import MetalUIPortableText
-@_spi(Checks) import MetalUISDL
+import MetalUISDL
 import MetalUISystemFonts
 #endif
 
@@ -23,7 +23,7 @@ func makeApp(offscreen: Bool = false, forwarding documents: [String] = []) throw
     let platform: SDLPlatform
     if offscreen {
         // The smoke test and headless runs never claim the single-instance lock.
-        platform = try SDLPlatform(hiddenWindows: true, offscreenRenderers: true)
+        platform = try SDLPlatform(options: .headless)
     } else {
         // One instance on Linux and Windows (MetalUI S7): a second launch hands its documents to the running instance, whose
         // `onOpenURL` opens them, and exits. macOS's LaunchServices does this itself.
