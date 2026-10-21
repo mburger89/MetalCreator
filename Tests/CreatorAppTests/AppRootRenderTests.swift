@@ -113,6 +113,25 @@ struct AppRootRenderTests {
         #expect(render(app).glyphs.count > before, "the banner's text and buttons")
     }
 
+    @Test func aFacePickInProgressDrawsItsBanner() async throws {
+        var builder = GraphBuilder()
+        let box = builder.solid()
+        let implicit = builder.add(ToImplicitNode.self)
+        let lattice = builder.add(TPMSNode.self)
+        let mesh = builder.add(MeshNode.self)
+        let output = builder.add(OutputNode.self)
+        builder.wire(box.extrude, "solid", to: implicit, "solid")
+        builder.wire(implicit, "implicit", to: lattice, "region")
+        builder.wire(lattice, "implicit", to: mesh, "implicit")
+        builder.wire(mesh, "mesh", to: output, "mesh")
+        let app = await makeApp(builder.graph)
+        let before = render(app).glyphs.count
+        app.beginFacePick(for: lattice.id)
+        await app.settle()
+        #expect(app.pick?.lattice == lattice.id)
+        #expect(render(app).glyphs.count > before, "the banner's text and Cancel")
+    }
+
     /// The whole window draws the app's theme (spec §6.6): after View ▸ Theme ▸ Alucard every panel paints exactly
     /// as a window that started in Alucard, and the viewport has it too.
     @Test func theWindowRepaintsInTheChosenTheme() async {

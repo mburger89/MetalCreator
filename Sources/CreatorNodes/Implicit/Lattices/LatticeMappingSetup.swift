@@ -24,7 +24,7 @@ enum LatticeMappingSetup {
         case .straight: break
         case .cylindrical: controls.append(.planePicker("axis"))
         case .spherical: controls.append(.vector("centre"))
-        case .face: controls.append(.faceStatus(NodeSetting.face))
+        case .face: controls += [.faceStatus(NodeSetting.face), .button(title: "Pick Face in View…", action: .pickFacesInView)]
         }
         controls.append(.note(kind.help))
         return base + [InspectorSection(title: "Mapping", controls: controls)]

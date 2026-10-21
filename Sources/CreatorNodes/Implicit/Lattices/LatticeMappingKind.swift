@@ -1,16 +1,16 @@
 /// The `mapping` setting of the three lattice nodes (implicit spec §3.5): how the cells are laid on the region. The raw value is what
 /// the segmented control stores, so a file saved before 7c-4, which has no `mapping`, reads 0: Straight.
-enum LatticeMappingKind: Int, CaseIterable {
+public enum LatticeMappingKind: Int, CaseIterable, Sendable {
     case straight = 0
     case cylindrical = 1
     case spherical = 2
     case face = 3
 
     /// The names the segmented control shows, in raw-value order.
-    static let options = ["Straight", "Cylindrical", "Spherical", "Face"]
+    public static let options = ["Straight", "Cylindrical", "Spherical", "Face"]
 
     /// The line of help under the mapping's inputs.
-    var help: String {
+    public var help: String {
         switch self {
         case .straight:
             "The cells follow the world axes."

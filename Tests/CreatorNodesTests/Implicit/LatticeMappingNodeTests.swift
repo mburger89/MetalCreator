@@ -252,7 +252,8 @@ struct LatticeMappingNodeTests {
         let spherical = mappingControls(index, 2)
         #expect(spherical == [segmented, .vector("centre"), .note(LatticeMappingKind.spherical.help)])
         let face = mappingControls(index, 3)
-        #expect(face == [segmented, .faceStatus(NodeSetting.face), .note(LatticeMappingKind.face.help)])
+        let pick = InspectorControl.button(title: "Pick Face in View…", action: .pickFacesInView)
+        #expect(face == [segmented, .faceStatus(NodeSetting.face), pick, .note(LatticeMappingKind.face.help)])
     }
 
     @Test(arguments: LatticeMappingNodeTests.nodes.indices) func aNodeWithNoMappingStoredShowsStraight(_ index: Int) {
