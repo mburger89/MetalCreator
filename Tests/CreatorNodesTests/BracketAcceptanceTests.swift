@@ -208,7 +208,7 @@ struct BracketAcceptanceTests {
             }
             return "\(values[0]),\(values[1]),\(values[2])"
         }
-        let vertices = stl.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        let vertices = stl.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { $0.hasPrefix("vertex") }.map { key(Substring($0)) }
         var counts: [String: Int] = [:]
         for triangle in stride(from: 0, to: vertices.count - 2, by: 3) {

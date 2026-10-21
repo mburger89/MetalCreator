@@ -216,7 +216,7 @@ struct MeshExportConformanceTests {
             }
             return "\(values[0]),\(values[1]),\(values[2])"
         }
-        let vertices = stl.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        let vertices = stl.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { $0.hasPrefix("vertex") }.map { key(Substring($0)) }
         #expect(!vertices.isEmpty && vertices.count % 3 == 0, "vertex lines must come in whole triangles")
         var counts: [String: Int] = [:]
