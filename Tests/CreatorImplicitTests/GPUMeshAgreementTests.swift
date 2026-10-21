@@ -118,6 +118,32 @@ struct GPUMeshAgreementTests {
         #expect(pipeline.smallestNormalDot >= Self.pipelineNormalDot, "\(name): a normal differs: dot \(pipeline.smallestNormalDot)")
     }
 
+    /// The Face fixtures that hold the cylinder's axis (`GPUFixtures.singularSetNames`), whole pipeline, away from the axis: their values
+    /// agree within 1e-4 mm everywhere (`GPUAgreementTests`), but within a few millimetres of the singular set the map multiplies the GPU's
+    /// rounding (2e-5 mm) into slides of up to 2e-3 mm along near-tangent mesh edges, so the vertices inside a cylinder of
+    /// `GPUFixtures.singularSetExclusion` about the axis are left out and the rest are held to D17's allowance (spec Errata D20). The
+    /// topology and the volume are not compared: the exclusion's inside may differ by a triangle or two.
+    @Test(arguments: GPUFixtures.singularSetNames)
+    func theGPUMeshAgreesAwayFromTheSingularSet(_ name: String) async throws {
+        let engine = try #require(MetalImplicitEngine.shared)
+        let solid = try #require(LatticeFixtures.faceAll.first { $0.name == name }?.solid)
+        let resolution = Self.resolution(of: solid)
+        let selection = await ImplicitEvaluators.make(for: solid, choice: .automatic, engine: engine)
+        let gpu = try await ImplicitMesher(evaluator: selection.evaluator)
+            .meshReportingPath(solid, resolution: resolution, quality: .preview)
+        #expect(gpu.path == .gpu, "\(name): the GPU mesher ran")
+        let reference = try await ImplicitMesher(evaluator: CPUBatchEvaluator(solid)).mesh(solid, resolution: resolution, quality: .preview)
+        let slopes = try await Self.slopes(of: solid, at: reference.positions)
+        let pipeline = MeshComparison(reference: reference, candidate: gpu.mesh, slopes: slopes, excluding: GPUFixtures.nearSingularSet)
+        #expect(pipeline.unmatched == 0, "\(name): vertices without a match")
+        let detail = pipeline.worstScaledDetail
+        let factor = GPUFixtures.singularSetAllowanceFactor(name)
+        let apart = "surfaces \(detail.along) mm apart, \(detail.allowed) allowed (× \(factor))"
+        #expect(pipeline.worstScaledSurface <= factor, "\(name): \(apart)")
+        #expect(pipeline.farthest <= Self.slideTolerance, "\(name): the largest vertex difference is \(pipeline.farthest) mm")
+        #expect(pipeline.smallestNormalDot >= Self.pipelineNormalDot, "\(name): a normal differs: dot \(pipeline.smallestNormalDot)")
+    }
+
     @Test(arguments: ["sphere", "box", "smooth union", "graded offset"])
     func withoutTheSnapTheVerticesStillAgreeAndTheNormalsAreZero(_ name: String) async throws {
         let engine = try #require(MetalImplicitEngine.shared)

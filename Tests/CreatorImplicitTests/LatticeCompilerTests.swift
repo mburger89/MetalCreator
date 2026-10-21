@@ -88,6 +88,19 @@ struct LatticeCompilerTests {
         #expect(!straight.contains("mapCylindrical(p,") && !straight.contains("mappingJoin(v"), "Straight reads the point itself")
     }
 
+    @Test func aFaceMappingIsOneShapeWhateverTheFaceAndItsChartsBlocksAreRegistered() throws {
+        let gyroid = LatticeFixtures.tpmsAll[0].solid
+        let face = LatticeFixtures.mapped(gyroid, LatticeFixtures.face(cell: 8))
+        let program = try ImplicitCompiler.compile(face)
+        for call in ["mapFace(e,", "bakedChannel(e,", "mappingJoin("] { #expect(program.source.contains(call), "\(call)") }
+        #expect(try source(face) == source(LatticeFixtures.mapped(gyroid, LatticeFixtures.face(cell: 5))), "only the numbers differ")
+        #expect(try source(face) != source(LatticeFixtures.mapped(gyroid, LatticeFixtures.cylinder(through: .zero, cell: 8))))
+        // The cosine and sine of the angle, the height, the depth and the singular distance: five blocks, each stored once.
+        let chart = LatticeFixtures.cylinderChart
+        #expect(chart.allBlocks.count == 5)
+        #expect(program.pool.count >= chart.allBlocks.reduce(0) { $0 + $1.pool.count })
+    }
+
     @Test func aMappedLatticeKeepsTheRegionCutAtTheRealPoint() throws {
         let program = try ImplicitCompiler.compile(LatticeFixtures.mappedAll[0].solid)
         #expect(program.source.contains("regionDistance(p,"), "the box is a box of the world, not of the lattice coordinates")

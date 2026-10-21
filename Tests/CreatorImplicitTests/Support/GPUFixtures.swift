@@ -34,6 +34,7 @@ enum GPUFixtures {
     /// near-tangent mesh edge turns that into a slide of 1.1e-4 to 1.7e-4 mm along the surface's normal (spec Errata D20).
     static let meshMarginal: Set<String> = [
         "bcc struts, graded cell, blended, cylindrical beside", "diamond, graded cell, spherical beside the region",
+        "voronoi foam, face outside a cylinder",
     ]
 
     /// What the pipeline comparison multiplies D17's allowance by for the fixture `name`.
@@ -48,7 +49,7 @@ enum GPUFixtures {
                       .radialGradient(center: Vector3(1, 2, 3), radius: 9)),
             .remap(.distance(.point(Vector3(-2, 0, 4)), signed: false), fromLow: 0, fromHigh: 20, toLow: 1.5, toHigh: 0.5, clamped: false),
             width: 0.7)
-        var fixtures = ImplicitFixtures.all + LatticeFixtures.mappedAll
+        var fixtures = ImplicitFixtures.all + LatticeFixtures.mappedAll + LatticeFixtures.faceOutsideAll
         fixtures += [
             ("noise offset", .offset(sphere, distance: graded(stretched))),
             ("noise tile image", .shell(sphere, thickness: graded(.add(.constant(0.5), picture.map {

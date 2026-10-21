@@ -26,9 +26,9 @@ struct GPUAgreementTests {
 
     /// The mapped lattices where the mapping is hardest: next to the singular set (the exclusion and its fade) and on both sides of
     /// the cut of the angle.
-    @Test(arguments: LatticeFixtures.mappedAll.map(\.name))
+    @Test(arguments: LatticeFixtures.everyMapped.map(\.name))
     func mappedLatticesAgreeNextToTheSingularSetAndTheCut(_ name: String) async throws {
-        let solid = try #require(LatticeFixtures.mappedAll.first { $0.name == name }?.solid)
+        let solid = try #require(LatticeFixtures.everyMapped.first { $0.name == name }?.solid)
         let engine = try #require(MetalImplicitEngine.shared)
         let centre = LatticeFixtures.crossing
         let random = SeededRandom(seed: 17, stream: 6)

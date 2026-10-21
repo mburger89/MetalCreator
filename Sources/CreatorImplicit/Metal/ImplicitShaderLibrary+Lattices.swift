@@ -155,6 +155,17 @@ extension ImplicitShaderLibrary {
         return sqrt(offset.x * offset.x + offset.y * offset.y);
     }
 
+    // FaceMap.coordinates: `h` is where the chart's header is in the integers (its flags, then the slots of the first coordinate's cosine
+    // and sine, the second's and the depth); a periodic coordinate is the angle of its cosine and sine times the length of a radian.
+    inline float3 mapFace(const thread Env& e, int h, float3 p, float firstRadius, float secondRadius) {
+        int flags = e.I[h];
+        float a = bakedChannel(e, e.I[h + 1], e.I[h + 2], p);
+        if ((flags & 1) != 0) { a = precise::atan2(bakedChannel(e, e.I[h + 3], e.I[h + 4], p), a) * firstRadius; }
+        float b = bakedChannel(e, e.I[h + 5], e.I[h + 6], p);
+        if ((flags & 2) != 0) { b = precise::atan2(bakedChannel(e, e.I[h + 7], e.I[h + 8], p), b) * secondRadius; }
+        return float3(a, b, bakedChannel(e, e.I[h + 9], e.I[h + 10], p));
+    }
+
     // LatticeMapping.join: the body beyond the exclusion and its fade, solid within the exclusion, a blend between.
     inline float mappingJoin(float body, float singular, float exclusion, float fade) {
         float weight = clamp((singular - exclusion) / fade, 0.0, 1.0);
