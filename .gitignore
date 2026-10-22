@@ -11,3 +11,7 @@ DerivedData/
 
 # scripts/package-app.sh writes the packaged app here.
 /dist
+
+# The viewport's SDL_GPU shaders are compiled at build time by scripts/build-shaders.sh (.ps1 on Windows) from Shaders/viewport/*.hlsl;
+# nothing compiled is checked in (plan xp-3, user decision U1(b)).
+/Shaders/viewport/compiled

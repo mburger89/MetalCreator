@@ -17,6 +17,13 @@
 # libraries: one C runtime on both sides), and vcpkg's binary cache folder is restored before and saved right after the install, so
 # a red later step does not lose it.
 #
+# The viewport's HLSL shaders are compiled at build time (plan xp-3, user decision U1(b)); nothing compiled is checked in. SDL_shadercross,
+# pinned by commit in scripts/shadercross.env (no release or tag upstream, no binary from MetalUI), is built on Linux by the Dockerfile's
+# `shadercross` stage, natively on each runner, alone with buildx and cached (scope xp-shadercross-<arch>), and on Windows by
+# scripts/install-shadercross.ps1, cached by actions/cache/restore and save under a key of the pin and the script. scripts/linux-test.sh
+# and scripts/build-shaders.ps1 compile through MetalUI's MetalUICompileShaders before `swift build`; a failure stops the job with a
+# message that names the tool and its commit.
+#
 # The Windows job is modelled on MetalUI's own Windows job (.github/workflows/sdl-gpu-linux.yml). Run 38546048595 was green: it builds, passes the
 # suite (11 "Test run with" lines; 12 since xp-2 added CreatorOCCTTests) and passes the app's --self-test and --smoke-test. It stays continue-on-error, so it does not hide the Linux
 # result, and the last step marks a red Windows run with a warning and a summary line (the run itself shows green); read its log on every run.
@@ -88,15 +95,27 @@ jobs:
           load: true
           cache-from: type=gha,scope=xp-occt-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=xp-occt-${{ matrix.arch }}
-      - name: Build, test, self-test and launch
+      - name: Build SDL_shadercross (the commit of scripts/shadercross.env; cached)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: MetalCreator/scripts/linux
+          file: MetalCreator/scripts/linux/Dockerfile
+          target: shadercross
+          tags: metalcreator-shadercross:latest
+          load: true
+          cache-from: type=gha,scope=xp-shadercross-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=xp-shadercross-${{ matrix.arch }}
+      - name: Compile the shaders, build, test, self-test and launch
         working-directory: MetalCreator
         env:
           OCCT_IMAGE: metalcreator-occt:latest
+          SHADERCROSS_IMAGE: metalcreator-shadercross:latest
         run: scripts/linux-test.sh all
       - name: Package (tarball and AppImage), each checked in a clean Ubuntu
         working-directory: MetalCreator
         env:
           OCCT_IMAGE: metalcreator-occt:latest
+          SHADERCROSS_IMAGE: metalcreator-shadercross:latest
         run: scripts/linux-test.sh package
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -199,6 +218,26 @@ jobs:
         with:
           path: ${{ runner.temp }}\vcpkg-cache
           key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+      - name: Restore SDL_shadercross
+        id: shadercross-cache
+        # Not actions/cache, for the vcpkg cache's reason: the save step below runs as soon as the build is done.
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}\shadercross
+          key: shadercross-windows-x64-${{ hashFiles('MetalCreator/scripts/shadercross.env', 'MetalCreator/scripts/install-shadercross.ps1') }}
+      - name: Build SDL_shadercross (the pinned commit, once per pin)
+        id: shadercross
+        if: ${{ steps.shadercross-cache.outputs.cache-hit != 'true' }}
+        working-directory: MetalCreator
+        run: |
+          scripts\install-shadercross.ps1 -Prefix "$env:RUNNER_TEMP\shadercross" -Sdl3Root $env:SDL3_ROOT
+          exit $LASTEXITCODE
+      - name: Save SDL_shadercross
+        if: ${{ always() && steps.shadercross.outcome == 'success' && steps.shadercross-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ${{ runner.temp }}\shadercross
+          key: ${{ steps.shadercross-cache.outputs.cache-primary-key }}
       - name: Fetch AccessKit
         working-directory: MetalUI/Backends/SDL
         # One SwiftPM flag per line: -Xcc -I<include> -Xswiftc -L<lib> (MetalUI PX-I item 2).
@@ -206,6 +245,13 @@ jobs:
           python scripts/fetch-accesskit.py --print-flags > "$env:RUNNER_TEMP\accesskit-flags.txt"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt"
+      - name: Compile the viewport's shaders
+        working-directory: MetalCreator
+        # MetalUI's MetalUICompileShaders through the pinned SDL_shadercross; stops with a message naming the tool and its commit if it
+        # is missing or a shader fails.
+        run: |
+          scripts\build-shaders.ps1 -ShaderCross "$env:RUNNER_TEMP\shadercross\bin\shadercross.exe"
+          exit $LASTEXITCODE
       - name: Build
         working-directory: MetalCreator
         # No pkg-config on Windows: hand SwiftPM SDL's include and library paths.

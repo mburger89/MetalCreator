@@ -127,6 +127,8 @@ var targets: [Target] = [
         name: "CreatorViewportTests",
         dependencies: [
             "CreatorViewport", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI, metalUIPortableText, metalUISystemFonts,
+            // CreatorGraph's SHA256 hashes the shader sources for the freshness check against the build's SOURCE.sha256.
+            "CreatorGraph",
         ] + occt
     ),
 ]
