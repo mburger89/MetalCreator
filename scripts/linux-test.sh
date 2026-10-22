@@ -6,7 +6,8 @@
 #     build   swift build
 #     test    swift test, judged by the pass rule below. Arguments after `test` (for example `--filter CreatorOCCTTests`) go to
 #             swift test and switch the count rule off: only the exit code and the issue lines are judged.
-#     smoke   the app's --self-test, then --smoke-test 20 (the real window over SDL's offscreen renderers: a first frame within 20 s)
+#     smoke   the app's --self-test, then --smoke-test 20 (the real window over SDL's offscreen renderers: a first frame within 20 s,
+#             and the 3D viewport drew in it)
 #     package scripts/package-linux.sh and scripts/package-appimage.sh in the image (the second downloads appimagetool and the
 #             AppImage runtime, pinned by version and sha256: it needs the network), then the tarball and the AppImage in dist/ are
 #             each run in a clean ubuntu:24.04 (no Swift, no /opt/occt, no MetalUI checkout, no FUSE) and must pass --version and
@@ -21,6 +22,11 @@
 # Pass rule for `test` (spec 2.5): exit 0, no "recorded an issue" or "failed after" line, and EXPECTED_TEST_RUNS lines
 # "Test run with" (one per test target that has tests: twelve on Linux, Windows and macOS since xp-2 put CreatorOCCTTests on
 # every platform).
+#
+# The image draws on Mesa's lavapipe, a CPU Vulkan driver, so the SDL_GPU viewport renders here with no GPU in the machine. Every
+# container sets XP_REQUIRE_GPU=1: the viewport's renderer suites skip when no SDL_GPU device answers, and with this set a missing
+# device fails SDLGPUAvailabilityTests instead, so a runner that lost its driver cannot pass by running none of them (MetalUI's
+# METALUI_REQUIRE_GPU).
 #
 # Environment: XP_TRACK names the track (default xp-1), which names the container and the volume, so a script run kills only
 # its own container. EXPECTED_TEST_RUNS overrides the count (12 today). IMAGE names the image this script builds and runs
@@ -70,7 +76,7 @@ in_container() {
     docker rm -f "$NAME" >/dev/null 2>&1 || true
     # shellcheck disable=SC2086
     docker run --rm --name "$NAME" \
-        -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -v "$VOLUME":/build ${DOCKER_EXTRA:-} \
+        -e XP_REQUIRE_GPU=1 -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -v "$VOLUME":/build ${DOCKER_EXTRA:-} \
         "$IMAGE" bash -ec "$1"
 }
 
