@@ -1,0 +1,91 @@
+#if canImport(MetalUISDLGPU)
+import MetalUISDLGPU
+
+/// A render pass that pushes the frame's camera (vertex uniform slot 0 of every pipeline that reads it) each time it binds a
+/// pipeline, so no draw depends on what an earlier pipeline left in the slot.
+struct SDLPassRecorder {
+    let pass: SDLGPURenderPass
+    let camera: [UInt8]
+
+    func bind(_ pipeline: SDLGPUGraphicsPipeline) {
+        pass.bind(pipeline)
+        pass.pushVertexUniform(camera, at: 0)
+    }
+}
+
+extension SDLViewportRenderer {
+    /// Records the main pass from `plan`, in the Metal renderer's order: the background gradient, opaque solids, the ground grid
+    /// (unless the overlay has a plane grid of its own), B-rep edges, ghosts, guides, the overlay's fills, lines and points, handles.
+    func record(_ plan: SDLFramePlan, _ frame: ViewportFrame, _ uniforms: FrameUniforms, in pass: SDLGPURenderPass) {
+        let recorder = SDLPassRecorder(pass: pass, camera: uniformBytes(uniforms))
+        drawBackground(frame.palette, in: pass)
+        let shade = ShadeUniforms(frame.palette)
+        let clip = ClipUniforms(frame.clip)
+        drawSolids(plan.opaque, ghosts: false, shade: shade, clip: clip, in: recorder)
+        if frame.overlay.gridPlane == nil { drawGrid(frame, in: recorder) }
+        for edges in plan.edges { drawLines(edges, pipeline: pipelines.lineTest, in: recorder) }
+        drawSolids(plan.ghosts, ghosts: true, shade: shade, clip: clip, in: recorder)
+        for guide in plan.guides { drawLines(guide, pipeline: pipelines.lineTest, in: recorder) }
+        for faded in plan.hiddenGuides { drawLines(faded, pipeline: pipelines.lineBehind, in: recorder) }
+        if let fills = plan.fills { drawFills(fills, in: recorder) }
+        if let overlay = plan.overlay { drawLines(overlay, pipeline: pipelines.lineAlways, in: recorder) }
+        if let handles = plan.handles { drawLines(handles, pipeline: pipelines.lineAlways, in: recorder) }
+    }
+
+    /// The background gradient, drawn first and ignoring depth.
+    private func drawBackground(_ palette: ViewportPalette, in pass: SDLGPURenderPass) {
+        let colors = BackgroundUniforms(top: palette.backgroundTop, bottom: palette.backgroundBottom)
+        pass.bind(pipelines.background)
+        pass.pushFragmentUniform(uniformBytes(colors), at: 0)
+        pass.draw(vertexCount: 3)
+    }
+
+    /// Opaque solids, or ghosts (blended, tested against what is already there). A solid with a tint draws with the field pipeline.
+    private func drawSolids(_ solids: [SDLFramePlan.Solid], ghosts: Bool, shade: ShadeUniforms, clip: ClipUniforms,
+                            in recorder: SDLPassRecorder) {
+        let pass = recorder.pass
+        for solid in solids {
+            let draw = DrawUniforms(pickBase: 0, ghost: ghosts ? 1 : 0, faceCount: UInt32(solid.faceCount), padding: 0)
+            if let tint = solid.tint {
+                recorder.bind(pipelines.fieldMesh)
+                pass.pushFragmentUniform(uniformBytes(shade), at: 0)
+                pass.pushFragmentUniform(uniformBytes(tint.ramp), at: 1)
+                pass.pushFragmentUniform(uniformBytes(clip), at: 2)
+                pass.bindVertexStorageBuffers([solid.vertices, solid.flags, tint.values])
+            } else {
+                recorder.bind(ghosts ? pipelines.ghost : pipelines.mesh)
+                pass.pushFragmentUniform(uniformBytes(draw), at: 0)
+                pass.pushFragmentUniform(uniformBytes(shade), at: 1)
+                pass.pushFragmentUniform(uniformBytes(clip), at: 2)
+                pass.bindVertexStorageBuffers([solid.vertices, solid.flags])
+            }
+            pass.pushVertexUniform(uniformBytes(draw), at: 1)
+            pass.draw(vertexCount: solid.vertexCount)
+        }
+    }
+
+    private func drawGrid(_ frame: ViewportFrame, in recorder: SDLPassRecorder) {
+        let grid = uniformBytes(GPUGeometry.gridUniforms(frame))
+        recorder.bind(pipelines.grid)
+        recorder.pass.pushVertexUniform(grid, at: 1)
+        recorder.pass.pushFragmentUniform(grid, at: 0)
+        recorder.pass.draw(vertexCount: 4)
+    }
+
+    /// Instanced line quads, four vertices as a strip per instance.
+    private func drawLines(_ lines: SDLFramePlan.Lines, pipeline: SDLGPUGraphicsPipeline, in recorder: SDLPassRecorder) {
+        guard lines.count > 0 else { return }
+        recorder.bind(pipeline)
+        recorder.pass.bindVertexStorageBuffers([lines.buffer])
+        recorder.pass.pushVertexUniform(uniformBytes(lines.style), at: 1)
+        recorder.pass.pushFragmentUniform(uniformBytes(lines.clip), at: 0)
+        recorder.pass.draw(vertexCount: 4, instanceCount: lines.count)
+    }
+
+    private func drawFills(_ fills: (buffer: SDLGPUBuffer, count: Int), in recorder: SDLPassRecorder) {
+        recorder.bind(pipelines.fill)
+        recorder.pass.bindVertexStorageBuffers([fills.buffer])
+        recorder.pass.draw(vertexCount: fills.count)
+    }
+}
+#endif
