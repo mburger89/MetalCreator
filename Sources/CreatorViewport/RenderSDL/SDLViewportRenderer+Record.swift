@@ -15,7 +15,7 @@ struct SDLPassRecorder {
 
 extension SDLViewportRenderer {
     /// Records the main pass from `plan`, in the Metal renderer's order: the background gradient, opaque solids, the ground grid
-    /// (unless the overlay has a plane grid of its own), B-rep edges, ghosts, guides, the overlay's fills, lines and points, handles, the
+    /// (unless the overlay has a plane grid of its own), B-rep edges, ghosts, guides, the field slice, the overlay's fills, lines and points, handles, the
     /// view cube and the triad (each in a square of its own).
     func record(_ plan: SDLFramePlan, _ frame: ViewportFrame, _ uniforms: FrameUniforms, in pass: SDLGPURenderPass) {
         let recorder = SDLPassRecorder(pass: pass, camera: uniformBytes(uniforms))
@@ -28,6 +28,7 @@ extension SDLViewportRenderer {
         drawSolids(plan.ghosts, ghosts: true, shade: shade, clip: clip, in: recorder)
         for guide in plan.guides { drawLines(guide, pipeline: pipelines.lineTest, in: recorder) }
         for faded in plan.hiddenGuides { drawLines(faded, pipeline: pipelines.lineBehind, in: recorder) }
+        if let slice = plan.slice { drawSlice(slice, in: recorder) }
         if let fills = plan.fills { drawFills(fills, in: recorder) }
         if let overlay = plan.overlay { drawLines(overlay, pipeline: pipelines.lineAlways, in: recorder) }
         if let handles = plan.handles { drawLines(handles, pipeline: pipelines.lineAlways, in: recorder) }
@@ -95,6 +96,15 @@ extension SDLViewportRenderer {
         recorder.pass.pushVertexUniform(uniformBytes(lines.style), at: 1)
         recorder.pass.pushFragmentUniform(uniformBytes(lines.clip), at: 0)
         recorder.pass.draw(vertexCount: 4, instanceCount: lines.count)
+    }
+
+    private func drawSlice(_ slice: SDLFramePlan.Slice, in recorder: SDLPassRecorder) {
+        recorder.bind(pipelines.slice)
+        recorder.pass.pushVertexUniform(uniformBytes(slice.geometry), at: 1)
+        recorder.pass.pushFragmentUniform(uniformBytes(slice.geometry), at: 0)
+        recorder.pass.pushFragmentUniform(uniformBytes(slice.ramp), at: 1)
+        recorder.pass.bindFragmentSamplers([(texture: slice.texture, sampler: slice.sampler)])
+        recorder.pass.draw(vertexCount: 4)
     }
 
     private func drawFills(_ fills: (buffer: SDLGPUBuffer, count: Int), in recorder: SDLPassRecorder) {

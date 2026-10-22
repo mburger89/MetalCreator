@@ -37,3 +37,15 @@ struct ViewportSliceTests {
         #expect(wider != a)
     }
 }
+
+/// How a slice's numbers are stored in the GPU texture, on every platform (the Metal renderer's `SliceTextures` and the SDL one's
+/// `SDLSliceTextures` fill their texels from it): a NaN becomes the ramp's middle value, an infinity the ramp's end it lies beyond.
+struct SliceTextureValuesTests {
+    @Test func notANumberIsTheMiddleAndInfinityIsTheEndItLiesBeyond() {
+        let ramp = FieldRamp(low: SIMD4(1, 0, 0, 1), mid: SIMD4(0, 1, 0, 1), high: SIMD4(0, 0, 1, 1), range: 0...10)
+        #expect(SliceTextureValues.filled(.nan, ramp: ramp) == 5)
+        #expect(SliceTextureValues.filled(.infinity, ramp: ramp) == 10)
+        #expect(SliceTextureValues.filled(-.infinity, ramp: ramp) == 0)
+        #expect(SliceTextureValues.filled(3.5, ramp: ramp) == 3.5)
+    }
+}

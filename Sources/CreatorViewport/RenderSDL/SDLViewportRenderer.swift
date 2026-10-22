@@ -28,6 +28,8 @@ final class SDLViewportRenderer: @unchecked Sendable {
     let device: SDLGPUDevice
     let pipelines: SDLViewportPipelines
     let cube: SDLViewportCube
+    /// The field slice's grid as a texture, kept until the slice's generation or size changes.
+    let sliceTextures: SDLSliceTextures
     private(set) var meshes: [Int: SDLViewportMesh] = [:]
     private var multisample: (width: Int, height: Int, color: SDLGPUTexture, depth: SDLGPUTexture)?
     /// The handles' instances, kept until the handles, the scale or the palette change, so a frame of a continuous orbit makes no
@@ -47,6 +49,7 @@ final class SDLViewportRenderer: @unchecked Sendable {
         self.device = device
         self.pipelines = pipelines
         cube = SDLViewportCube(device: device, atlas: labelAtlas)
+        sliceTextures = SDLSliceTextures(device: device)
     }
 
     /// With pipelines made from `library`. Making them compiles every shader, which a real GPU does in milliseconds and a CPU driver in

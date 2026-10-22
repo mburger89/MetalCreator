@@ -39,6 +39,14 @@ struct SDLFramePlan {
         var viewport: WidgetViewport
     }
 
+    /// The field slice's quad: its grid texture and the sampler it is read through, the quad and the ramp.
+    struct Slice {
+        var texture: SDLGPUTexture
+        var sampler: SDLGPUSampler
+        var geometry: SliceUniforms
+        var ramp: FieldRampUniforms
+    }
+
     /// The axis triad's lines.
     struct Triad {
         var lines: Lines
@@ -51,6 +59,7 @@ struct SDLFramePlan {
     var guides: [Lines] = []
     /// A guide's faded edges, drawn only where the part hides them.
     var hiddenGuides: [Lines] = []
+    var slice: Slice?
     var fills: (buffer: SDLGPUBuffer, count: Int)?
     var overlay: Lines?
     var handles: Lines?

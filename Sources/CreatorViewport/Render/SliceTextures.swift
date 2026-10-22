@@ -28,7 +28,7 @@ final class SliceTextures {
         descriptor.usage = .shaderRead
         descriptor.storageMode = .shared
         guard let texture = device.makeTexture(descriptor: descriptor) else { return nil }
-        let values = slice.values.map { Self.filled($0, ramp: slice.ramp) }
+        let values = SliceTextureValues.texels(of: slice)
         values.withUnsafeBytes { bytes in
             guard let base = bytes.baseAddress else { return }
             texture.replace(region: MTLRegionMake2D(0, 0, slice.columns, slice.rows), mipmapLevel: 0, withBytes: base,
@@ -38,14 +38,6 @@ final class SliceTextures {
                        texture: texture)
         uploads += 1
         return texture
-    }
-
-    /// `value` as stored: NaN is the ramp's middle, ±infinity the ramp's high or low end, anything else as it is.
-    static func filled(_ value: Float, ramp: FieldRamp) -> Float {
-        if value.isNaN { return ramp.midValue }
-        if value == .infinity { return ramp.highValue }
-        if value == -.infinity { return ramp.lowValue }
-        return value
     }
 }
 #endif

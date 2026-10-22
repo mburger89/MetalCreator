@@ -139,7 +139,7 @@ press (`ViewportModel.isPickPending`, `pickWhenReady`, `ViewportBackendTests`). 
 `SDLFieldGuideClipTests`, `SDLPickerTests`, `SDLWidgetTests`, `SDLSliceTests`) run under Mesa's lavapipe in the Linux image and Direct3D 12's WARP in
 CI; they skip when no SDL_GPU device answers, and with `XP_REQUIRE_GPU=1` (`scripts/linux-test.sh`, the Windows job) `SDLGPUAvailabilityTests` fails
 instead. `--smoke-test` passes only if the viewport drew (`LaunchSmoke.viewport`). The view cube and the axis triad are drawn (task 10: `SDLViewportRenderer+Widgets`, each in its own square through `setViewport`, the cube's names a mipmapped `r8Unorm` atlas read with 8x anisotropy; `drawsWidgets` is true). The ghosts take a depth-only prepass (task 11: `SDLViewportPipelines.ghostDepth`, MetalUI S11's `writesColor: false`, then the
-blended pass at less-or-equal), so each pixel blends once. Task 12 adds the field slice (`r32Float`); until it lands the SDL viewport lacks it. Keep SDL's async calls out of loops that hold
+blended pass at less-or-equal), so each pixel blends once. Keep SDL's async calls out of loops that hold
 locals across an `await` (the Windows compiler notes below).
 `Package.swift` has two lists, like MetalUI's: the targets that import no Apple
 framework are declared everywhere (`CreatorViewport` too: its model, camera and tools are portable, its Metal renderer files

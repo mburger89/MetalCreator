@@ -105,3 +105,10 @@ float3 fieldRamp(FieldRampUniforms ramp, float value) {
     float t = span > 0.0 ? saturate((value - ramp.range.y) / span) : 1.0;
     return lerp(ramp.mid.rgb, ramp.high.rgb, t);
 }
+
+struct SliceUniforms {
+    float4 origin;
+    float4 across;
+    float4 up;
+    float4 style;
+};

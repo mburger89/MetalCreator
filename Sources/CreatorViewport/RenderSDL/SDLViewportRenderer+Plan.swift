@@ -36,6 +36,7 @@ extension SDLViewportRenderer {
                 plan.hiddenGuides.append(SDLFramePlan.Lines(buffer: faded.buffer, count: faded.count, style: edgeStyle))
             }
         }
+        plan.slice = planSlice(frame, uploader)
         plan.fills = fillVertices(for: frame, uploader)
         plan.overlay = overlayInstances(for: frame, scale: scale, uploader).map {
             SDLFramePlan.Lines(buffer: $0.buffer, count: $0.count, style: Self.plainLines)
@@ -46,6 +47,14 @@ extension SDLViewportRenderer {
         plan.cube = planCube(frame, scale: pixelScale, width: width, height: height, uploader)
         plan.triad = planTriad(frame, scale: pixelScale, width: width, height: height, uploader)
         return plan
+    }
+
+    /// The field slice (fields spec §6): a translucent quad over the scene, ignoring depth because it passes through the part (a depth
+    /// test would hide the half of it that lies inside the solid). `nil` for a slice with no valid grid.
+    private func planSlice(_ frame: ViewportFrame, _ uploader: SDLViewportUploader) -> SDLFramePlan.Slice? {
+        guard let slice = frame.slice, slice.isValid, let sampler = sliceTextures.sampler,
+              let texture = sliceTextures.texture(for: slice, uploader: uploader) else { return nil }
+        return SDLFramePlan.Slice(texture: texture, sampler: sampler, geometry: SliceUniforms(slice), ramp: FieldRampUniforms(slice.ramp))
     }
 
     static let plainLines = LineUniforms(widthOverride: 0, depthBias: 0, padding0: 0, padding1: 0)

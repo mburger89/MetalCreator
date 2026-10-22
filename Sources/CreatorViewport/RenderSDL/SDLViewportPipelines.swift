@@ -31,6 +31,8 @@ struct SDLViewportPipelines: Sendable {
     let grid: SDLGPUGraphicsPipeline
     /// The view cube: blended, never depth-tested (a cube is convex, so back-face culling does the hiding).
     let cube: SDLGPUGraphicsPipeline
+    /// The field slice's translucent quad: blended, never depth-tested (it passes through the part).
+    let slice: SDLGPUGraphicsPipeline
     let idMesh: SDLGPUGraphicsPipeline
     let idLine: SDLGPUGraphicsPipeline
 
@@ -65,6 +67,7 @@ struct SDLViewportPipelines: Sendable {
         lineBehind = try pipeline("line", "line", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: behind)
         grid = try pipeline("grid", "grid", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: tests)
         cube = try pipeline("cube", "cube", cull: .back, blend: .premultipliedAlpha, depth: always)
+        slice = try pipeline("slice", "slice", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: always)
         idMesh = try pipeline("id_mesh", "id_mesh", color: Self.idFormat, samples: .one, depth: writes)
         idLine = try pipeline("id_line", "id_line", primitive: .triangleStrip, color: Self.idFormat, samples: .one, depth: tests)
     }
