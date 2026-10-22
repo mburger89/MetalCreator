@@ -1,6 +1,6 @@
 # Builds dist\MetalCreator-<version>-windows-x64.zip: a release build of MetalCreatorApp as MetalCreator.exe, every DLL it
 # needs beside it (OpenCascade's, SDL3's, the Swift runtime's, the Visual C++ runtime's), MetalUI's compiled SDL shaders in
-# MetalUISDLShaders, the .mcgraph file-type script and the licences. The zip is then unpacked into a scratch folder and
+# MetalUISDLShaders, the 3D viewport's in MetalUIAppShaders, the .mcgraph file-type script and the licences. The zip is then unpacked into a scratch folder and
 # `MetalCreator.exe --self-test` runs from there with a PATH that holds only Windows' own folders, so a DLL that is missing
 # from the zip fails the build instead of the user's machine.
 #
@@ -13,7 +13,8 @@
 #                only look its folder up. CI does this, so that a failed release build is its own red step.
 # Environment: OCCT_PREFIX is OpenCascade's install root (bin\*.dll, share\opencascade\copyright); this script uses its release
 # set (`bin`), never `debug\bin`.
-# Needs MetalUI beside this repository (..\MetalUI). Not run outside CI.
+# Needs MetalUI beside this repository (..\MetalUI) and the viewport's shaders compiled by scripts\build-shaders.ps1 (CI runs it before
+# the build). Not run outside CI.
 param(
     [string[]]$BuildFlags = @(),
     [Parameter(Mandatory)][string]$SdlRoot,
@@ -53,6 +54,11 @@ Copy-Item (Join-Path $root 'packaging\windows\register-mcgraph.ps1') $folder
 $shaders = Join-Path $metalUI 'Backends\SDL\Shaders\compiled'
 if (-not (Test-Path (Join-Path $shaders 'SOURCE.sha256'))) { throw "MetalUI's compiled shaders are missing: $shaders" }
 Copy-Item -Recurse $shaders (Join-Path $folder 'MetalUISDLShaders')
+# The 3D viewport's own shaders (plan xp-3, user decision U7(a)): MetalUIAppShaders beside the executable, where the SDL renderer looks
+# first. A build product, never in git: scripts\build-shaders.ps1 makes them.
+$appShaders = Join-Path $root 'Shaders\viewport\compiled'
+if (-not (Test-Path (Join-Path $appShaders 'SOURCE.sha256'))) { throw "the viewport's compiled shaders are missing ($appShaders): run scripts\build-shaders.ps1 first" }
+Copy-Item -Recurse $appShaders (Join-Path $folder 'MetalUIAppShaders')
 
 Step 'Copying the DLLs it needs, transitively'
 
@@ -216,13 +222,17 @@ Expand-Archive $zip -DestinationPath $check
 $savedPath = $env:PATH
 $env:PATH = "$system;$env:SystemRoot"
 # MetalUI's SDL backend falls back to the shaders in the source tree it was built from, which would hide a zip without
-# MetalUISDLShaders; so the checkout is moved aside for the check.
+# MetalUISDLShaders, and the viewport falls back to this checkout's Shaders\viewport\compiled, which would hide one without
+# MetalUIAppShaders; so both are moved aside for the check.
 $aside = "$metalUI.aside"
+$appShadersAside = "$appShaders.aside"
 Rename-Item $metalUI $aside
+Rename-Item $appShaders $appShadersAside
 try {
     & (Join-Path $check "$name\MetalCreator.exe") --self-test
     $code = $LASTEXITCODE
 } finally {
+    Rename-Item $appShadersAside $appShaders
     Rename-Item $aside $metalUI
     $env:PATH = $savedPath
 }

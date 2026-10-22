@@ -132,6 +132,7 @@ do_package() {
         grep -q "RUNPATH from file ./MetalCreator" /tmp/ld.txt
         if grep -q /opt/occt /tmp/ld.txt; then echo "the loader searched /opt/occt" >&2; exit 1; fi
         test -f MetalUISDLShaders/SOURCE.sha256 && ls lib | grep -q "^libTKernel.so.7.9$"
+        test -f MetalUIAppShaders/SOURCE.sha256 && test -s MetalUIAppShaders/mesh.vert.spv
         cd share/doc/metalcreator
         for f in NOTICE.txt LICENSE_LGPL_21.txt OCCT_LGPL_EXCEPTION.txt SDL3-LICENSE.txt Swift-LICENSE.txt; do test -s "$f"; done
         grep -q "V7_9_3" NOTICE.txt && grep -q "LGPL" NOTICE.txt'
@@ -149,6 +150,8 @@ do_package() {
         grep -q "RUNPATH from file .*/usr/metalcreator/MetalCreator" /tmp/ld.txt
         if grep -q /opt/occt /tmp/ld.txt; then echo "the loader searched /opt/occt" >&2; exit 1; fi
         ./MetalCreator.AppImage --appimage-extract "usr/metalcreator/share/mime/packages/*.xml" >/dev/null
+        ./MetalCreator.AppImage --appimage-extract "usr/metalcreator/MetalUIAppShaders/*" >/dev/null
+        test -s squashfs-root/usr/metalcreator/MetalUIAppShaders/mesh.vert.spv
         test -f squashfs-root/usr/metalcreator/share/mime/packages/com.metalcreator.MetalCreator.xml
         ./MetalCreator.AppImage --appimage-extract "usr/metalcreator/share/doc/metalcreator/*" >/dev/null
         cd squashfs-root/usr/metalcreator/share/doc/metalcreator

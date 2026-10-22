@@ -1810,9 +1810,8 @@ warning step when red. macOS needs no check here: its test count and its look ar
   on the right, in Dracula. Quitting (the window's close button, and File's quit where the platform has one) asks nothing on an
   unedited document. The top bar's top edge is fully visible below the strip (the root is not clipped by it: nothing in MetalCreator reads
   `Window.drawnChromeHeight`, spec erratum E3). Pinned: `--smoke-test` (`LaunchSmokeTests`). **Observed:**
-- [ ] **XP-2 The viewport card.** The area behind the panels shows the theme's gradient and one glass card, centred, reading "The
-  3D view isn't available on this platform yet."; the window's size changes keep the layout. Pinned: `ViewportPaneTests`.
-  **Observed:**
+- [ ] **XP-2 (superseded by XP-20).** xp-1 showed a card where the 3D view would be; xp-3 draws the real view and the card is gone. The
+  window's size changes keep the layout. Pinned: `ViewportPaneTests` (the window has the viewport's GPU surface). **Observed:**
 - [ ] **XP-3 Geometry badges.** Wire Rectangle → Extrude → Output: the Extrude's badge is the error and its text reads "Geometry
   isn't available on this platform yet."; the Rectangle's is fine. Editing a parameter, wiring, undo and redo, groups, notes and
   frames, and Save then Open all work. Pinned: `KernelUnavailableNodeTests`, `KernelUnavailableTests`. **Observed:**
@@ -1837,8 +1836,9 @@ warning step when red. macOS needs no check here: its test count and its look ar
   gap XP-G8) and not the move cursor, sharp on a 1x and a 2x display, and the panels' resize handles show the system resize cursors.
   On macOS the system closed hand is unchanged. Pinned: `GrabCursorTests`, `PanelResizeCursorTests` (the intent; the platform's shape is SDL's). **Observed:**
 - [ ] **XP-9 Self-test and smoke test.** `MetalCreatorApp --self-test` prints four `ok` lines (the kernel and both exports
-  "skipped: Geometry isn't available on this platform yet.", the shaders found) and exits 0; `--smoke-test 5` prints "reached the
-  first frame" and exits 0 on a desktop with a display too. Both pass in CI on Linux and Windows (Direct3D 12 on WARP; the
+  "skipped: Geometry isn't available on this platform yet.", MetalUI's shaders and the viewport's found; since xp-2 the kernel and the
+  exports run on OpenCascade) and exits 0; `--smoke-test 5` prints "reached the first frame and the 3D viewport drew" and exits 0 on a
+  desktop with a display too. Both pass in CI on Linux and Windows (Direct3D 12 on WARP; the
   smoke test opens `SDLPlatform(options: .headless)`, public since MetalUI S8, gap XP-G9); a desktop with a display is what is left to see. Pinned: `SelfTestTests`, `LaunchSmokeTests`. **Observed:**
 - [ ] **XP-10 A screen reader (optional).** With Orca on Linux or Narrator on Windows running, the top bar's buttons and the
   graph panel's nodes are announced by name (MetalUI's `AccessKit` trait). Not pinned: MetalUI's own tests cover the bridge.
@@ -2085,3 +2085,40 @@ exports a cube) and, for the tarball and the AppImage, a run in a clean Ubuntu (
   path/to/part.mcgraph` opens that file. The AppImage does not register the `.mcgraph` type itself (plan decision 2): register it with
   the three commands in `docs/packaging.md` ("Linux: an AppImage") or through the integration tool, then double-click a `.mcgraph`: it
   opens, and a second double-click goes to the running instance. **Observed:**
+
+## Group XP3 — the 3D viewport on SDL GPU, Linux and Windows (xp-3)
+
+**Status: NOT RUN.** Plan `2026-10-21-xp-3-sdl-gpu-viewport.md`; spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §4 and
+erratum E7. CI renders and picks on Mesa's lavapipe (Linux) and Direct3D 12's WARP (Windows), and the packages' self-tests find the
+compiled shaders; these checks are what a real GPU, a real pointer and a person's eye show. Linux: build as for group XP after
+`scripts/build-shaders.sh` (or use the tarball or AppImage); Windows: the zip.
+
+- [ ] **XP-20 The 3D view draws (Linux and Windows).** On a real desktop GPU (Linux: Vulkan on Mesa or the vendor driver; Windows 11:
+  Direct3D 12) the area behind the panels is the theme's gradient with the ground grid fading into the distance, not a card. The §7.2
+  bracket (OpenCascade, xp-2) and a Mesh node (a TPMS lattice) show as shaded surfaces with their edges per the View menu's shading, and a
+  theme change in the theme editor recolours the gradient, the shading, the grid and the edges. The look is the macOS one: compare with a
+  Mac. **Pinned:** `SDLRenderTests` (lavapipe and WARP). **Observed:**
+- [ ] **XP-21 Orbit, pan and zoom.** Right-drag orbits, middle-drag and ⇧-drag pan, the wheel and a pinch zoom about the pointer, F frames
+  the part, with no tearing, no stale pixels after a resize or a move to a monitor of another scale, and a frame rate you cannot tell from
+  the Mac's. MSAA edges are smooth on a scale-2 display. **Pinned:** the model's tests; the feel is the check. **Observed:**
+- [ ] **XP-22 Hover and click on the SDL picker.** The face under the pointer tints cyan as it moves; it does not flicker to nothing while you
+  orbit and stop (a hover may show the old face for a frame or two after the camera stops, never a stall). A click right after an orbit
+  selects the face under the pointer, never empty space and never the face the old camera showed (it waits a few milliseconds for the ID
+  buffer of its own view), and an Edges by Tag pick made that way names the edge you clicked. In a sketch, clicks on the plane still place
+  points. **Until xp-3 task 10 lands** the top-left 96 × 96 points are the scene's, not a cube: hovering there picks the face under it,
+  clicking there selects it and does not turn the camera. **Pinned:** `ViewportBackendTests`, `SDLPickerTests`. **Observed:**
+- [ ] **XP-23 The widgets (after xp-3 task 10).** The view cube at the top left shows TOP, BOTTOM, FRONT, BACK, LEFT and RIGHT on its faces, upright
+  and readable at a slant, the hovered region cyan and the active one cyan; clicking a face, an edge or a corner turns the camera; the triad at the
+  bottom left follows the orbit with X red, Y green and Z blue. **Pinned:** `SDLWidgetTests`. **Observed:**
+- [ ] **XP-24 Ghosts, the field tint, the slice and the cut view.** A ghosted node's preview is one even, dimmed layer (no back faces showing
+  through, after task 11); a Field node's tint colours the surface by the ramp; a slice is a translucent quad coloured by the field (after
+  task 12); the Cut view removes one side of a part and shows the inside of its far wall darkened; a check's warning faces take the theme's
+  warning colour. **Pinned:** `SDLRenderTests` (ghosts), `SDLFieldGuideClipTests`, `SDLSliceTests`. **Observed:**
+- [ ] **XP-25 A shipped app finds its shaders.** Unpack the tarball (and run the AppImage, and unzip the zip on Windows) in a folder away from
+  any checkout: the viewport draws (its shaders are `MetalUIAppShaders` beside the executable), and `--self-test` says MetalUI's SDL
+  shaders and the viewport's were found. Moving the unpacked folder elsewhere keeps both working. **Pinned:** the clean-Ubuntu checks of
+  `scripts/linux-test.sh package` and the zip's self-test in `scripts/package-windows.ps1`. **Observed:**
+- [ ] **XP-26 macOS cube labels are unchanged.** On a Mac the view cube's six face names look as they did before xp-3: the same weight (semibold),
+  size and position, upright and readable at a slant. They are now rasterized through MetalUI's `CoreTextTextSystem` instead of a direct
+  `CTLineDraw`, so antialiasing may differ by a hair; anything more (a different weight, size or font) is a bug in
+  `CubeLabelAtlas.rasterize(using:)`. **Pinned:** `CubeLabelTests`, `OffscreenRenderTests.theFrontLabelIsPaintedOnTheFrontFace`. **Observed:**

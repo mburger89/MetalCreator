@@ -114,15 +114,43 @@ sat 3 points high (`AppWindowRoot` now pins the root to the window's top left). 
 `::warning::` step and a summary line when its suite is red. On the way: `ImageResolver.read` has a Windows branch, the named-pipe and
 device tests and `PackagingScriptTests` are not run on Windows, and the test executables reserve a 16 MB stack (`-Xlinker /STACK:16777216`;
 a layout tree overflowed Windows' 1 MB default thread stack).
+Cross-platform, sub-project xp-3 (the 3D viewport on SDL GPU, Linux and Windows; plan `docs/superpowers/plans/2026-10-21-xp-3-sdl-gpu-viewport.md`,
+spec §4, erratum E7) is the viewport's second renderer. `ViewportModel` talks to a `ViewportBackend` (`drawnFrames`, `pick(at:in:)`,
+`isPickPending(for:)`, `pickWhenReady`, `onPickReady`, `drawsWidgets`): `MetalViewportBackend` on macOS (`ViewportRenderer` and `ViewportPicker`,
+unchanged), `SDLViewportBackend` on Linux and Windows (`Sources/CreatorViewport/RenderSDL`, everything behind `#if canImport(MetalUISDLGPU)`, MetalUI's
+typed SDL_GPU layer, no raw `SDL_` call). `ViewportView` is the same on both and picks `MetalView` or `GPUSurface`; `ViewportModel.draw` has one
+overload per context. The SDL renderer plans a frame first (`SDLFramePlan`: every buffer made and every copy recorded, because a copy pass cannot run
+inside a render pass) and then records the pass; solids, lines, fills, the cube and the slice read their data as vertex-stage storage buffers. Its
+pipelines carry their own depth test and are made with `compileGraphicsPipeline` (`SDLViewportPipelines`), so a refused one says SDL's reason in
+`gpuFailureMessage`. The shaders are HLSL in `Shaders/viewport` (`common.hlsli` mirrors the Swift structs, every member a `float4`, `uint4` or scalar,
+never a `float3`), **compiled at build time on Linux and Windows, never checked in**: `scripts/build-shaders.sh` (`.ps1` on Windows; `scripts/linux-test.sh`
+and CI run it before `swift build`) runs MetalUI's `MetalUICompileShaders`, built from `../MetalUI` with a scratch path of ours, through the
+SDL_shadercross commit pinned in `scripts/shadercross.env` (built by the Dockerfile's `shadercross` stage and `scripts/install-shadercross.ps1`) into
+`Shaders/viewport/compiled` (SPIR-V, DXIL, MSL, reflection, `SOURCE.sha256`, `INCLUDES.sha256`; git-ignored), so **`swift build` alone compiles no
+shader** and a missing tool stops the script naming the tool and the pin. `ShaderSourceTests` pins the HLSL struct sizes to the Swift strides
+(`GPUDataTests`) and, on Linux and Windows, that the build produced every stage and is current; edit the HLSL, the Swift struct and the MSL together.
+The compiled directory is found beside the executable as `MetalUIAppShaders` first, then in the source tree (`SDLViewportShaders`); the tarball, the
+AppImage and the zip ship it, and `--self-test` fails without it, saying what to run (`ViewportShaderCheck`). Picking is user decision U4, hybrid:
+`SDLViewportPicker` renders the ID pass in a batch after the draw that follows a change and reads it back with `SDLGPUDevice.download`; until it
+lands a hover keeps its face and a click waits for the buffer of its own view (asynchronously until MetalUI gap XP-G22) and goes to the tool of its
+press (`ViewportModel.isPickPending`, `pickWhenReady`, `ViewportBackendTests`). `Matrix4.float` is a `FloatMatrix4` and `FrameUniforms` is plain SIMD
+(no `simd`), so both exist everywhere. The cube's face names are rasterized by `CubeLabelAtlas.rasterize(using:)` through MetalUI's `TextSystem`
+(CoreText's on macOS, the portable one over the installed fonts elsewhere), `CubeLabelFonts` choosing. The render and pick suites (`SDLRenderTests`,
+`SDLFieldGuideClipTests`, `SDLPickerTests`, `SDLWidgetTests`, `SDLSliceTests`) run under Mesa's lavapipe in the Linux image and Direct3D 12's WARP in
+CI; they skip when no SDL_GPU device answers, and with `XP_REQUIRE_GPU=1` (`scripts/linux-test.sh`, the Windows job) `SDLGPUAvailabilityTests` fails
+instead. `--smoke-test` passes only if the viewport drew (`LaunchSmoke.viewport`). Tasks 10 to 12 add the view cube and the triad, the ghosts'
+depth-only prepass and the field slice (MetalUI S11's `setViewport`, `maxAnisotropy`, `writesColor`, `r32Float`); until each lands the SDL viewport
+lacks it (no cube or triad, and the model then leaves the cube's corner to the scene: `drawsWidgets`). Keep SDL's async calls out of loops that hold
+locals across an `await` (the Windows compiler notes below).
 `Package.swift` has two lists, like MetalUI's: the targets that import no Apple
-framework are declared everywhere (`CreatorViewport` too: its model, camera and tools are portable and only the Metal renderer files
-are behind `#if canImport(Metal)`); `ViewportHarness` and `GraphPanelPreview` are declared on macOS only, while `COCCT`,
+framework are declared everywhere (`CreatorViewport` too: its model, camera and tools are portable, its Metal renderer files
+are behind `#if canImport(Metal)` and its SDL GPU ones behind `#if canImport(MetalUISDLGPU)`); `ViewportHarness` and `GraphPanelPreview` are declared on macOS only, while `COCCT`,
 `CreatorOCCT` and `CreatorOCCTTests` are declared everywhere since xp-2 (OpenCascade 7.9 on every platform: `Package.swift` reads its
 install prefix from `OCCT_PREFIX`, default Homebrew's on macOS, `/opt/occt` on Linux, `C:/occt` on Windows, with per-platform linker
 flags: an `$ORIGIN/lib` rpath on Linux, DLLs on `PATH` or beside the executable on Windows). On Linux and Windows the MetalUI dependency asks for the `SDL` and `AccessKit` traits and
 `MetalCreatorApp` links `MetalUISDL` (`main.swift` picks `SDLPlatform` with `PortableTextSystem` over the installed fonts under
 `canImport(MetalUISDL)`). The app runs over `OCCTKernel` on every platform (xp-2; `KernelUnavailable`, which answers "Geometry isn't available on this
-platform yet.", stays in `CreatorKernel` for tests of a platform without a kernel) and, off macOS, the viewport's place shows `ViewportPlaceholder` ("The 3D view isn't available on this platform yet."). The Image
+platform yet.", stays in `CreatorKernel` for tests of a platform without a kernel) and, off macOS, the viewport draws on SDL GPU (xp-3; `ViewportPlaceholder` is gone). The Image
 Field works everywhere: `GreyImageDecoder` decodes through MetalUI's `DecodedImage` (S2, gap XP-G4) on every platform. Rules
 for new code: no CryptoKit (use `SHA256`/`SHA1` in `CreatorGraph/Hashing`), no CoreGraphics, ImageIO, CoreText or Metal outside a
 `#if canImport(…)` file or block, keyboard shortcuts and modifier checks on MetalUI events say `.primary` (⌘ on macOS, Ctrl
@@ -450,7 +478,7 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
   `nonisolated static func ==`), and `expectEqualityCovers` (`CreatorEditorTests`) fails when a view gains a property its
   test has no variant for. The viewport draws `ViewportModel.theme`, which the
   app shell sets. Themes are app-level, never in `.mcgraph`. Tests: `swift test --filter CreatorStyleTests`.
-- `CreatorViewport`: the 3D viewport on MetalUI's `MetalView`.
+- `CreatorViewport`: the 3D viewport on MetalUI's `MetalView` (macOS) and `GPUSurface` over SDL GPU (Linux and Windows, xp-3).
   - A host takes the primary pointer through `ViewportModel.tool` (`ViewportTool`: hover, clicks, and plain primary
     drags it claims, each with a `ViewportProjector` for screen → plane), and draws over the scene with
     `showOverlay(_:)` (`ViewportOverlay`: world-space lines and points in `OverlayTint` roles, dashed construction, and
@@ -467,7 +495,8 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
     the camera animates: gap S5-c; each box is its text's measured width, MetalUI C23: see below). The face menu adds New Sketch on Face (`ViewportEvents.newSketchOnFace`) on a flat
     face that has a normal, outside sketch mode.
   - `ViewportModel` (`@MainActor @Observable`, testable without a GPU) owns the camera, picking, the view cube,
-    the context menu and handles. `ViewportRenderer`/`ViewportPicker` are the Metal side. `ViewportView` is the
+    the context menu and handles. `ViewportBackend` is what it needs from a renderer: `ViewportRenderer`/`ViewportPicker` (through
+    `MetalViewportBackend`) are the Metal side, `SDLViewportBackend` the SDL one. `ViewportView` is the
     MetalUI glue. A `ViewportItem` with `isGuide` is no part of the scene: only its selected edges are drawn, after the
     solids and ghosts (faded where the part hides them), and it never frames, orbits, picks or opens the face menu
     (`ViewportRenderer+Guides`). The renderer keeps the triad's, the overlay's and the region fills' GPU buffers between
@@ -485,7 +514,8 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
     ghost, and wrong-sized values draw the plain surface. A `ViewportSlice` (`ViewportModel.showSlice`) is a translucent quad over the
     scene showing a grid of values (`r32Float`, read with a bilinear blend in `slice_fragment`, kept by `SliceTextures` until its
     `generation` changes); it is equal and hashed by `generation`, never by its values, is drawn ignoring depth (it passes through the
-    part) and is never in the ID pass or `sceneBounds`. The viewport's shader source is `ViewportShaders.source + LineShaders.source + FieldShaders.source`.
+    part) and is never in the ID pass or `sceneBounds`. The viewport's Metal shader source is `ViewportShaders.source + LineShaders.source + FieldShaders.source` (MSL, compiled at run time);
+    the SDL renderer's is the HLSL in `Shaders/viewport`.
     The cut view (implicit spec §5.1) is a `ViewportClip` (`ViewportModel.showClip`): the fragment shaders discard what lies on the
     side its normal points to, for faces, B-rep edges, field tints and the ID pass (`ClipUniforms` at fragment buffer 3, 4 for the
     tint, 0 for lines, off for handles), and a back face seen while cutting is the part's colour darkened. A `ViewportItem`'s
@@ -675,7 +705,8 @@ the check rejects it: the blend fails naming the largest size that works (`OCCTK
 build)); a refused blend costs tens of milliseconds more than one that works (`BlendRefusalBench`,
 `docs/verification/performance.md`).
 MetalUI exports its own `Angle`: a file importing both MetalUI and CreatorGeometry writes `CreatorGeometry.Angle`.
-The GPU structs in `Sources/CreatorViewport/Render` mirror the MSL in `ViewportShaders.swift`, and `GPUDataTests` pins their strides, so change both together.
+The GPU structs in `Sources/CreatorViewport/Render` mirror the MSL in `ViewportShaders.swift` and the HLSL in `Shaders/viewport/common.hlsli`; `GPUDataTests`
+pins their strides and `ShaderSourceTests` the HLSL's, so change all three together; the next build recompiles the HLSL (`scripts/build-shaders.sh`).
 The viewport's pointer input is MetalUI C7's (spec §9): its bindings live in `ViewportInputMap`, its behaviour in
 `ViewportModel` (`dragChanged`/`dragEnded`/`dragCancelled(button:)`, `click(at:modifiers:)`, `modifiersChanged(_:)`,
 `contextMenuItems(at:)`, `scrolled(by:at:phase:)`, `pinchChanged`/`pinchEnded`, `cursor`), and `ViewportView` only forwards
@@ -735,7 +766,7 @@ swift test --filter CreatorOCCTTests         # kernel conformance + naming stabi
 swift test --filter 'CreatorGraphTests.EvaluatorTests/wiredValuesFlowDownstream'   # one test
 swift test --filter CreatorNodesTests        # node definitions through the real Evaluator (OCCT where geometry matters)
 swift test --filter BracketAcceptanceTests   # the §7.2 bracket, headless
-swift test --filter CreatorViewportTests   # viewport model, maths and the offscreen ID pass (needs a Metal device)
+swift test --filter CreatorViewportTests   # viewport model, maths, the HLSL struct sizes, the build's shaders (Linux, Windows) and the offscreen render and ID passes (a GPU: Metal, or SDL_GPU on Linux and Windows)
 swift run ViewportHarness                  # dev window for docs/verification/human-checks.md group V
 swift test --filter CreatorEditorTests       # editor model + headless render tests
 swift run GraphPanelPreview                   # graph panel + inspector, for docs/verification/human-checks.md (M5)
@@ -753,7 +784,8 @@ scripts/bench.sh PatternBench              # patterns spec §7: 200 holes in a p
 scripts/linux-test.sh [build|test|smoke|package|all|clean]   # the suite on Linux in Docker (OrbStack): swift build, swift test (12 "Test run with" lines), --self-test, --smoke-test 20
 scripts/linux-test.sh test --filter CreatorOCCTTests   # one target on Linux (no count rule); XP_TRACK=xp-2 IMAGE=metalcreator-linux:xp-2 keep a track's volume and image apart
 scripts/linux-test.sh package              # the tarball and the AppImage in dist/, each run in a clean ubuntu:24.04 (docs/packaging.md)
-swift run MetalCreatorApp --smoke-test 5   # a Linux or Windows build: the real window over SDL's offscreen renderers; exit 0 if a first frame was drawn
+swift run MetalCreatorApp --smoke-test 5   # a Linux or Windows build: the real window over SDL's offscreen renderers; exit 0 if a first frame was drawn and the 3D viewport drew
+scripts/build-shaders.sh                   # Linux: compile Shaders/viewport into Shaders/viewport/compiled (git-ignored) through MetalUI's MetalUICompileShaders and the pinned SDL_shadercross; linux-test.sh runs it. Windows: scripts/build-shaders.ps1
 ```
 
 Benchmarks (`Tests/CreatorAppTests/Bench`) are Swift Testing suites that print `BENCH …` lines and assert no time; a
@@ -774,7 +806,7 @@ SwiftLint is configured in `.swiftlint.yml` (each non-default setting is documen
   volume named for the track (`XP_TRACK`, default `xp-1`), and a run stops only its own container. MetalUI must be a sibling checkout.
   The image also holds OpenCascade 7.9 (xp-2); its first build takes minutes, then Docker's layer cache keeps it.
   Windows cannot be run here: it is CI's job (`.github/workflows/xp.yml`; it builds, tests with OpenCascade from vcpkg, launches and packages).
-- The Windows Swift 6.4 toolchain asserts in LLVM's coroutine splitting (`CoroFrame.cpp`, "Layout->getElementOffset") on an `async` function that holds a loop's locals across an `await` (`DrainHoles.drainPoints` did); keep the synchronous work in a non-async helper.
+- The Windows Swift 6.4 toolchain asserts in LLVM's coroutine splitting (`CoroFrame.cpp`, "Layout->getElementOffset") on an `async` function that holds a loop's locals across an `await` (`DrainHoles.drainPoints` did); keep the synchronous work in a non-async helper. In a release build it also crashes splitting the closure-specialised clone of an `async` function that takes a closure (`OccupancyGrid.fill(lipschitz:awaiting:)` did): mark such a thin wrapper `@_optimize(none)` with a comment and keep the heavy work in optimised synchronous helpers; pass no typed-throws closure to a generic helper. CI's Windows release build ("Build release (for the zip)") is the check; on this Mac the 6.4 asserts snapshot reproduces the crashes: `TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release`.
 - Swift 6.4 crashes in SILGen on a key path applied to an existential metatype (`BuiltInNodes.all.map(\.typeID)`); use a closure.
 - OpenCascade 7.9 comes from Homebrew on macOS (`brew install opencascade`, linked from `/opt/homebrew/opt/opencascade`; linker
   warnings about dylibs built for a newer macOS are expected), from source on Linux (the `occt` stage of `scripts/linux/Dockerfile`,

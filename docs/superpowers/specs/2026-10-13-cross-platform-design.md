@@ -162,3 +162,17 @@ beyond what MetalUI provides; macOS CI; Intel macOS.
   orientation" no longer holds: MetalUI S9 (record §117, master `d3ebfa18`) made the format, stored size and orientation readable without
   a decode, `GreyImageDecoder.inspect` uses `ImageInfo(data:)`, and `ImageHeader` is deleted. A small `OtherPictureSignature` stays so a
   GIF or TIFF is "not a PNG or JPEG" and not "damaged" (gap XP-G12).
+- **E7 (xp-3, section 4). The SDL GPU viewport.** Section 4 is implemented as follows. `CreatorViewport`'s renderer is behind
+  `ViewportBackend`; the Metal implementation is unchanged and the SDL one (`SDLViewportBackend`) lives in `Sources/CreatorViewport/RenderSDL`
+  behind `#if canImport(MetalUISDLGPU)`. The shaders are HLSL (`Shaders/viewport`, one source for the SDL renderer; the Metal renderer keeps its MSL
+  strings, so macOS is untouched), compiled at build time on Linux and Windows by MetalUI's `MetalUICompileShaders` (MetalUI S12, gap XP-G20) through a
+  pinned SDL_shadercross into SPIR-V, DXIL and MSL files that are not checked in (user decision U1(b)), and shipped beside the executable as
+  `MetalUIAppShaders` in the tarball, the AppImage and the zip. XP-G1 was answered by MetalUI S5 and S6, and what the typed layer still lacked, XP-G14 to
+  XP-G19 (a synchronous readback, viewport and scissor, a colour write mask, `r32Float`, anisotropy, a refused pipeline's reason), by MetalUI S11; all
+  are logged in `docs/metalui-gaps.md`. Picking differs from Metal in one way a person can see (user decision U4, hybrid): the ID buffer is rendered after
+  the draw that follows a change and a hover keeps its face for the few milliseconds until it lands; a click is always answered from a buffer for its own
+  view, waiting for it (asynchronously until MetalUI answers gap XP-G22, a render batch submitted without `await`). Until tasks 10 to 12 land, the
+  SDL viewport draws no view cube or triad, blends ghosts in one pass and draws no slice. `Matrix4.float` and `FrameUniforms` use plain SIMD types
+  (`FloatMatrix4`), `CubeLabelAtlas` rasterizes through MetalUI's `TextSystem`, `ViewportPlaceholder` is gone, `--smoke-test` requires the viewport to
+  have drawn, and `--self-test` checks the viewport's compiled shaders. Section 2.3's second bullet (the card) and human check XP-2 no longer hold.
+  Implicit evaluation and meshing stay on the CPU off macOS (xp-c).
