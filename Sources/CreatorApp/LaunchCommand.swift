@@ -1,11 +1,12 @@
 /// What the `MetalCreator` executable was asked to do by its command line (arguments after the program's name).
-/// Everything but ``run(path:)`` prints and exits without opening a window, so the packaging script and a terminal
+/// Everything but ``run(paths:)`` prints and exits without opening a window, so the packaging script and a terminal
 /// can use the packaged binary headlessly.
 public enum LaunchCommand: Equatable, Sendable {
-    /// Open the window, and the `.mcgraph` file at `path` if one is named (the first argument; any after it are
-    /// ignored). The file is handed to the app as Finder would (`App.open`, then `AppModel.openRequested(_:)`), so it
-    /// gets the same unsaved-changes check.
-    case run(path: String?)
+    /// Open the window, and the `.mcgraph` files at `paths`: every argument up to the first one that starts with "-" (a Linux
+    /// file manager runs `MetalCreator %F` with all the selected files, Explorer `MetalCreator.exe "%1"`; Xcode appends its own
+    /// flags after the file). Each file is handed to the app as Finder would (`App.open`, then `AppModel.openRequested(_:)`), so
+    /// it gets the same unsaved-changes check, and the last one stays open.
+    case run(paths: [String])
     /// `--version`: print ``AppBundleInfo/versionLine``.
     case version
     /// `--help`: print ``usage`` and exit 0.
@@ -14,11 +15,10 @@ public enum LaunchCommand: Equatable, Sendable {
     case selfTest
     /// `--info-plist <minimum macOS>`: print the bundle's `Info.plist` (``AppBundleInfo``).
     case infoPlist(minimumSystemVersion: String)
-    /// The documents a second launch hands to the running instance (Linux and Windows): the path `run(path:)` names, when
-    /// `exists` says there is a file there, which is what the app opens from its own command line.
-    public static func forwardedDocuments(path: String?, exists: (String) -> Bool) -> [String] {
-        guard let path, exists(path) else { return [] }
-        return [path]
+    /// The documents a second launch hands to the running instance (Linux and Windows): the paths `run(paths:)` names that
+    /// `exists` says are files, in order.
+    public static func forwardedDocuments(paths: [String], exists: (String) -> Bool) -> [String] {
+        paths.filter(exists)
     }
 
     /// `--smoke-test [seconds]` (CI): open the window over SDL's offscreen renderers for `seconds`, print whether it reached
@@ -39,7 +39,7 @@ public enum LaunchCommand: Equatable, Sendable {
 
     public init(arguments: [String]) {
         guard let first = arguments.first else {
-            self = .run(path: nil)
+            self = .run(paths: [])
             return
         }
         switch first {
@@ -62,8 +62,8 @@ public enum LaunchCommand: Equatable, Sendable {
                 self = .usageError("Unknown option \(first).")
             } else {
                 // Anything else starting with "-" is the system's (a `-psn_…` process serial number, or an
-                // `-NSSomeDefault value` pair), not a file.
-                self = .run(path: first.hasPrefix("-") ? nil : first)
+                // `-NSSomeDefault value` pair), not a file; so is everything after it.
+                self = .run(paths: Array(arguments.prefix { !$0.hasPrefix("-") }))
             }
         }
     }

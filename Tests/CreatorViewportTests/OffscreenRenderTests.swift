@@ -1,4 +1,4 @@
-#if canImport(CreatorOCCT)
+#if canImport(Metal) && canImport(CreatorOCCT)
 import CreatorGeometry
 import CreatorKernel
 import CreatorOCCT

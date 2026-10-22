@@ -238,14 +238,14 @@ occt_shape *occt_revolve(const occt_profile *profile, const double axis_origin[3
                          double angle, occt_history *history, occt_status *status) {
     return guarded(status, [&]() -> occt_shape * {
         *history = occt_history{};
-        if (!profile || !std::isfinite(angle) || angle <= 0 || angle > 2 * M_PI + 1e-9) {
+        if (!profile || !std::isfinite(angle) || angle <= 0 || angle > 2 * kPi + 1e-9) {
             set_error(status, "the revolve angle must be between 0 and 360 degrees");
             return nullptr;
         }
         const built_profile built = build_profile(*profile);
         const gp_Ax1 axis(gp_Pnt(axis_origin[0], axis_origin[1], axis_origin[2]),
                           gp_Dir(axis_direction[0], axis_direction[1], axis_direction[2]));
-        BRepPrimAPI_MakeRevol revol(built.face, axis, std::min(angle, 2 * M_PI));
+        BRepPrimAPI_MakeRevol revol(built.face, axis, std::min(angle, 2 * kPi));
         revol.Build();
         if (!revol.IsDone()) {
             set_error(status, "the revolve could not be built");

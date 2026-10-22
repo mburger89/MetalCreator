@@ -28,6 +28,9 @@ struct occt_shape {
 
 namespace cocct {
 
+/// pi. Not `M_PI`: MSVC's <cmath> defines it only under _USE_MATH_DEFINES, and C++17 has no std::numbers.
+inline constexpr double kPi = 3.14159265358979323846;
+
 inline void set_ok(occt_status *status) {
     if (status) {
         status->ok = 1;

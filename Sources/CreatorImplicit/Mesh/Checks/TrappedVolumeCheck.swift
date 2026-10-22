@@ -30,6 +30,7 @@ public enum TrappedVolumeCheck {
 
     /// `run` with the grid's distances asked on every core (a different name, so a caller that is not `async` keeps `run`). The result is the same.
     /// - Throws: `MeshDistanceError.notClosed` when the mesh has no inside, and `CancellationError`.
+    @_optimize(none) // Windows Swift 6.4 release: keeps the closure-specialised coroutine clones (compiler crash) from being made.
     public static func runConcurrently(_ mesh: TriangleMesh) async throws -> Result {
         guard let bounds = mesh.bounds, mesh.triangleCount > 0 else { return Result(voidCount: 0, triangles: []) }
         let positions = (0..<mesh.vertexCount).map { mesh.point($0) }

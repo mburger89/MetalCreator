@@ -33,7 +33,7 @@ public enum SelfTest {
             cube = solid
             return "a 10 mm cube, 1000 mm³, meshed into \(triangles) triangles"
         })
-        // A kernel that says geometry isn't available here (Linux and Windows until xp-2) skips the checks that need one.
+        // A kernel that says geometry isn't available (`KernelUnavailable`; the app itself has OpenCascade everywhere since xp-2) skips the checks that need one.
         let kernelSkipped = results[0].passed && results[0].detail.hasPrefix(Self.skippedPrefix)
         do {
             try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)

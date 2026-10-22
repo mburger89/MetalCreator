@@ -161,6 +161,25 @@ public struct OccupancyGrid: Sendable {
         return stride(from: 0, to: blocks.count, by: perBatch).map { blocks[$0..<min($0 + perBatch, blocks.count)] }
     }
 
+    /// Marks the blocks the distance at their middle shows are solid and returns those it cannot decide. A synchronous helper on
+    /// purpose: Swift 6.4's Windows compiler crashes splitting the coroutine of an `async` function that holds this loop.
+    mutating func classify(_ all: [Block], middles: [(point: Vector3, radius: Double)], values: [Double], lipschitz: Double) -> [Block] {
+        var undecided: [Block] = []
+        for (index, block) in all.enumerated() {
+            switch verdict(value: values[index], radius: middles[index].radius, lipschitz: max(lipschitz, 1)) {
+            case .solid: mark(block)
+            case .empty: break
+            case .undecided: undecided.append(block)
+            }
+        }
+        return undecided
+    }
+
+    /// Stores whether each of the cells at `indices` is within reach of the surface, given its distance (a synchronous helper, see `classify`).
+    mutating func store(_ found: [Double], at indices: [Int]) {
+        for (offset, index) in indices.enumerated() { isSolid[index] = found[offset] <= reach }
+    }
+
     /// Fills the grid from a signed distance (negative inside, `lipschitz`-Lipschitz): a cell is solid when its centre is within half a
     /// cell of the surface or inside it. Blocks of 8 × 8 × 8 cells are first classified by the distance at their middle, and only the
     /// blocks the surface may cross are asked cell by cell, so the work follows the surface and not the volume. `distances` gives the
@@ -173,23 +192,17 @@ public struct OccupancyGrid: Sendable {
             try Task.checkCancellation()
             values += try distances(middles[start..<min(start + Self.batch, middles.count)].map(\.point))
         }
-        var undecided: [Block] = []
-        for (index, block) in all.enumerated() {
-            switch verdict(value: values[index], radius: middles[index].radius, lipschitz: max(lipschitz, 1)) {
-            case .solid: mark(block)
-            case .empty: break
-            case .undecided: undecided.append(block)
-            }
-        }
+        let undecided = classify(all, middles: middles, values: values, lipschitz: lipschitz)
         for batch in batches(of: undecided) {
             try Task.checkCancellation()
             let (indices, points) = cells(of: batch)
             let found = try distances(points)
-            for (offset, index) in indices.enumerated() { isSolid[index] = found[offset] <= reach }
+            store(found, at: indices)
         }
     }
 
     /// `fill(lipschitz:from:)` for a distance that has to be waited for (the GPU).
+    @_optimize(none) // Windows Swift 6.4 release: splitting the closure-specialised clone of this coroutine crashes the compiler.
     public mutating func fill(lipschitz: Double = 1, awaiting distances: ([Vector3]) async throws -> [Double]) async throws {
         let all = blocks()
         let middles = all.map { middle(of: $0) }
@@ -198,19 +211,12 @@ public struct OccupancyGrid: Sendable {
             try Task.checkCancellation()
             values += try await distances(middles[start..<min(start + Self.batch, middles.count)].map(\.point))
         }
-        var undecided: [Block] = []
-        for (index, block) in all.enumerated() {
-            switch verdict(value: values[index], radius: middles[index].radius, lipschitz: max(lipschitz, 1)) {
-            case .solid: mark(block)
-            case .empty: break
-            case .undecided: undecided.append(block)
-            }
-        }
+        let undecided = classify(all, middles: middles, values: values, lipschitz: lipschitz)
         for batch in batches(of: undecided) {
             try Task.checkCancellation()
             let (indices, points) = cells(of: batch)
             let found = try await distances(points)
-            for (offset, index) in indices.enumerated() { isSolid[index] = found[offset] <= reach }
+            store(found, at: indices)
         }
     }
 }

@@ -1,0 +1,7 @@
+#!/bin/bash
+# What an AppImage runs. The AppDir holds the Linux tarball's folder as usr/metalcreator, so the executable keeps its $ORIGIN/lib
+# RUNPATH and finds MetalUISDLShaders beside it. Whatever the AppImage is started with (a file manager's %F) is the app's
+# argument list. The window's application id is not set here: the app hands AppBundleInfo.identifier to MetalUI, which sets
+# SDL's SDL_APP_ID hint (MetalUI docs/packaging.md, section 3).
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/metalcreator/MetalCreator" "$@"
