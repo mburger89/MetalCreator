@@ -30,7 +30,7 @@ final class ViewCubeResources {
     /// `commandBuffer`, so call it before the pass that samples it begins.
     func labelTexture(_ commandBuffer: any MTLCommandBuffer) -> (any MTLTexture)? {
         if let labels { return labels }
-        let atlas = CubeLabelAtlas.rasterize() ?? .blank
+        let atlas = CubeLabelFonts.atlas()
         labels = atlas.makeTexture(device: device, commandBuffer: commandBuffer)
         return labels
     }

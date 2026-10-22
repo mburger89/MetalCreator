@@ -1,8 +1,4 @@
-#if canImport(simd)
-import simd
-#endif
-
-/// A column-major 4×4 matrix in Double, converted to `simd_float4x4` for the GPU.
+/// A column-major 4×4 matrix in Double, converted to ``FloatMatrix4`` for the GPU.
 struct Matrix4: Equatable, Sendable {
     var c0: SIMD4<Double>
     var c1: SIMD4<Double>
@@ -19,9 +15,7 @@ struct Matrix4: Equatable, Sendable {
         Matrix4(c0: a * b.c0, c1: a * b.c1, c2: a * b.c2, c3: a * b.c3)
     }
 
-    #if canImport(simd)
-    var float: simd_float4x4 {
-        simd_float4x4(columns: (SIMD4<Float>(c0), SIMD4<Float>(c1), SIMD4<Float>(c2), SIMD4<Float>(c3)))
+    var float: FloatMatrix4 {
+        FloatMatrix4(c0: SIMD4<Float>(c0), c1: SIMD4<Float>(c1), c2: SIMD4<Float>(c2), c3: SIMD4<Float>(c3))
     }
-    #endif
 }

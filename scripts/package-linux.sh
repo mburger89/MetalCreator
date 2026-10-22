@@ -1,14 +1,16 @@
 #!/bin/bash
 # Builds dist/MetalCreator-<version>-linux-<arch>.tar.gz: a release build of MetalCreatorApp, the Swift runtime, OpenCascade, SDL3
 # and the other non-system shared libraries it needs in lib/, MetalUI's compiled SDL shaders in
-# MetalUISDLShaders beside the executable, the desktop entry, MIME type and icon for .mcgraph files, install.sh, and the licences.
+# MetalUISDLShaders and the 3D viewport's in MetalUIAppShaders beside the executable, the desktop entry, MIME type and icon for
+# .mcgraph files, install.sh, and the licences.
 # Unpacked, the folder runs from anywhere: the executable's rpath is $ORIGIN/lib (Package.swift).
 #
 # usage: scripts/package-linux.sh        (on Linux; scripts/linux-test.sh package runs it in the test image)
 #   METALCREATOR_DIST_DIR   where the tarball is written (default: <repo>/dist).
 #   METALCREATOR_SCRATCH    SwiftPM's build folder (default: <repo>/.build).
 #   OCCT_PREFIX             OpenCascade's install prefix (default /opt/occt), for its licence files.
-# Needs MetalUI beside this repository (../MetalUI), patchelf, and the libraries `ldd` names for the built executable.
+# Needs MetalUI beside this repository (../MetalUI), patchelf, the libraries `ldd` names for the built executable, and the viewport's
+# shaders compiled by scripts/build-shaders.sh (scripts/linux-test.sh package runs it first).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -58,6 +60,11 @@ cp "$ROOT/packaging/linux/com.metalcreator.MetalCreator.png" "$FOLDER/share/icon
 SHADERS="$METALUI/Backends/SDL/Shaders/compiled"
 [ -f "$SHADERS/SOURCE.sha256" ] || fail "MetalUI's compiled shaders are missing: $SHADERS/SOURCE.sha256"
 cp -R "$SHADERS" "$FOLDER/MetalUISDLShaders"
+# The 3D viewport's own shaders (plan xp-3, user decision U7(a)): MetalUIAppShaders beside the executable, where the SDL renderer looks
+# first (MetalUI's SDLGPUShaderLibrary.locate). They are a build product, never in git: scripts/build-shaders.sh makes them.
+APP_SHADERS="$ROOT/Shaders/viewport/compiled"
+[ -f "$APP_SHADERS/SOURCE.sha256" ] || fail "the viewport's compiled shaders are missing ($APP_SHADERS): run scripts/build-shaders.sh first"
+cp -R "$APP_SHADERS" "$FOLDER/MetalUIAppShaders"
 
 step "Copying the non-system libraries it links, transitively"
 ldd "$BINARY" > "$WORK/ldd.txt"

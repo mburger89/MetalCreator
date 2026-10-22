@@ -90,6 +90,12 @@ struct WarmWorkPinTests {
     /// step 51. The bound is a little over twice the largest measurement, still 30 times below the old spike.
     static let filletAtlasUploadBound = 900
 
+    /// The warm fillet drag's retained misses per frame, with MetalUI C14-j (PR #120, b1c1269f: an `.equatable()` occurrence whose
+    /// value changes costs one miss): the release bench (scripts/bench.sh, 2026-10-22) counts a median 9 and a max 14 per frame with
+    /// 44 to 47 hits, and this test, in a debug build, a worst frame of 17. Before C14-j a changed occurrence cost 16 + 16 = 32
+    /// misses. The bound leaves headroom over the debug worst and stays well below the old count.
+    static let filletRetainedMissBound = 20
+
     @Test func aWarmFilletDragUploadsOnlyTheInsertedGlyphsToTheAtlas() async throws {
         let (app, bracket) = try await makeBracketBenchApp()
         app.editor.selection = [bracket.fillet.id]
@@ -97,15 +103,18 @@ struct WarmWorkPinTests {
         let handle = try #require(app.viewport.handles.first, "the selected Fillet shows its radius handle")
         let warm = try await WarmBenchWindow(model: app)
         var worst = 0
+        var worstMisses = 0
         for step in 0..<75 {
             app.handleChanged(handle.id, 2 + Double(step) * 0.02, .changed)
             await app.settle()
             let work = warm.frame()
             guard step >= 10 else { continue }
             worst = max(worst, work.atlasUploadPixels)
+            worstMisses = max(worstMisses, work.retainedMisses)
         }
         app.handleChanged(handle.id, 3.48, .ended)
         #expect(worst < Self.filletAtlasUploadBound, "worst warm frame uploaded \(worst) atlas pixels")
+        #expect(worstMisses <= Self.filletRetainedMissBound, "worst warm frame missed \(worstMisses) retained entries (C14-j)")
     }
 }
 #endif

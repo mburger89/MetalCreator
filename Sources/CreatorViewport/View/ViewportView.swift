@@ -1,4 +1,3 @@
-#if canImport(Metal)
 import MetalUI
 
 /// The 3D viewport (spec §6.3) as a MetalUI component:
@@ -34,4 +33,3 @@ public struct ViewportView: Component, Equatable {
             }
     }
 }
-#endif

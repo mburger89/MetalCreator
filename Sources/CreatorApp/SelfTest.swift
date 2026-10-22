@@ -5,6 +5,7 @@ import MetalUI
 #if canImport(Metal)
 import Metal
 #elseif canImport(MetalUISDL)
+import CreatorViewport
 import MetalUISDL
 #endif
 
@@ -12,7 +13,8 @@ import MetalUISDL
 /// window, that the app reaches everything it ships. The kernel check models, measures and meshes a cube on OCCT; the
 /// exports write STEP and STL, which run OCCT's data-exchange libraries; the shader check finds MetalUI's shader
 /// resource bundle and compiles it on the Metal device (off macOS it finds the SDL backend's compiled shader
-/// directory). The packaging script runs it on the finished `.app` with Homebrew's directories unreadable.
+/// directory and the viewport's own, `ViewportShaderCheck`). The packaging script runs it on the finished `.app` with Homebrew's
+/// directories unreadable.
 @MainActor
 public enum SelfTest {
     /// Runs every check in order. Exports are written into `scratch`, which is created and then removed.
@@ -65,7 +67,7 @@ public enum SelfTest {
         #if canImport(Metal)
         "MetalUI's shader bundle compiled"
         #else
-        "MetalUI's SDL shaders were found"
+        "MetalUI's SDL shaders and the viewport's were found"
         #endif
     }
 
@@ -78,6 +80,7 @@ public enum SelfTest {
         _ = try ShaderLibrary.make(device: device)
         #elseif canImport(MetalUISDL)
         _ = try SDLWindowRenderer.defaultShaderDirectory()
+        _ = try ViewportShaderCheck.run()
         #else
         // Neither Metal nor MetalUI's SDL backend: nothing here could draw, so the check must not pass silently.
         throw Failure("this build has neither Metal nor MetalUI's SDL backend, so there are no shaders to find.")
