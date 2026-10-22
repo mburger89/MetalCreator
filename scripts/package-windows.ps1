@@ -91,9 +91,10 @@ function Find-DependentsTool {
 }
 
 $tool = Find-DependentsTool
+# `-CaseSensitive`: llvm-objdump prints the executable's own export table as "DLL name: <exe>", which is not a dependency.
 function Get-Dependents($file) {
     if ($tool.Kind -eq 'objdump') {
-        & $tool.Path -p $file | Select-String 'DLL Name: (.+)$' | ForEach-Object { $_.Matches[0].Groups[1].Value.Trim() }
+        & $tool.Path -p $file | Select-String -CaseSensitive 'DLL Name: (.+)$' | ForEach-Object { $_.Matches[0].Groups[1].Value.Trim() }
     } else {
         & $tool.Path /nologo /dependents $file | ForEach-Object { if ($_ -match '^\s+(\S+\.dll)\s*$') { $Matches[1] } }
     }
@@ -117,6 +118,7 @@ $bundled = @{}
 while ($queue.Count) {
     $file = $queue.Dequeue()
     foreach ($dll in Get-Dependents $file) {
+        if ($dll -notlike '*.dll') { continue }   # the executable's own export-table name, if the tool lists it
         $key = $dll.ToLowerInvariant()
         if ($bundled.ContainsKey($key) -or $key -like 'api-ms-win-*' -or $key -like 'ext-ms-*') { continue }
         $source = $searchDirs | ForEach-Object { Join-Path $_ $dll } | Where-Object { Test-Path $_ } | Select-Object -First 1
