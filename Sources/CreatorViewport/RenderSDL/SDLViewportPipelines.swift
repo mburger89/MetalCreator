@@ -18,7 +18,9 @@ struct SDLViewportPipelines: Sendable {
     let mesh: SDLGPUGraphicsPipeline
     /// The surface coloured by a field's values (`field_mesh`).
     let fieldMesh: SDLGPUGraphicsPipeline
-    /// The ghosts' blended colour pass: test against the solids without writing.
+    /// The ghosts' depth-only prepass (no colour is written), then their blended colour pass, which passes only where its depth equals the
+    /// prepass's (less-or-equal, no write): each pixel blends once, at its nearest ghost surface.
+    let ghostDepth: SDLGPUGraphicsPipeline
     let ghost: SDLGPUGraphicsPipeline
     /// Lines (premultiplied source-over): tested against the solids (less-or-equal) without writing; never tested; and only where
     /// something nearer already wrote depth (a guide's edges behind the part).
@@ -35,11 +37,12 @@ struct SDLViewportPipelines: Sendable {
     init(device: SDLGPUDevice, library: SDLGPUShaderLibrary) throws {
         func pipeline(_ vertex: String, _ fragment: String, primitive: SDLGPUPrimitiveType = .triangleList,
                       cull: SDLGPUCullMode = .none, color: SDLGPUTextureFormat = Self.colorFormat, blend: SDLGPUBlend = .none,
-                      samples: SDLGPUSampleCount = Self.sampleCount,
-                      depth: SDLGPUDepthState) throws -> SDLGPUGraphicsPipeline {
+                      samples: SDLGPUSampleCount = Self.sampleCount, depth: SDLGPUDepthState,
+                      writesColor: Bool = true) throws -> SDLGPUGraphicsPipeline {
             let description = SDLGPUGraphicsPipelineDescription(
                 vertex: try library.vertex(vertex, for: device), fragment: try library.fragment(fragment, for: device),
-                primitiveType: primitive, cullMode: cull, colorFormat: color, blend: blend, sampleCount: samples, depth: depth)
+                primitiveType: primitive, cullMode: cull, colorFormat: color, blend: blend, sampleCount: samples, depth: depth,
+                writesColor: writesColor)
             do {
                 return try device.compileGraphicsPipeline(description)
             } catch {
@@ -55,7 +58,8 @@ struct SDLViewportPipelines: Sendable {
         fill = try pipeline("fill", "fill", blend: .premultipliedAlpha, depth: always)
         mesh = try pipeline("mesh", "mesh", depth: writes)
         fieldMesh = try pipeline("field_mesh", "field_mesh", depth: writes)
-        ghost = try pipeline("mesh", "mesh", blend: .premultipliedAlpha, depth: SDLGPUDepthState(compare: .less, write: false))
+        ghostDepth = try pipeline("mesh", "mesh", depth: writes, writesColor: false)
+        ghost = try pipeline("mesh", "mesh", blend: .premultipliedAlpha, depth: tests)
         lineTest = try pipeline("line", "line", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: tests)
         lineAlways = try pipeline("line", "line", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: always)
         lineBehind = try pipeline("line", "line", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: behind)

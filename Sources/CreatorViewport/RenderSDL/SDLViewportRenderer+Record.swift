@@ -43,28 +43,40 @@ extension SDLViewportRenderer {
         pass.draw(vertexCount: 3)
     }
 
-    /// Opaque solids, or ghosts (blended, tested against what is already there). A solid with a tint draws with the field pipeline.
+    /// Opaque solids, or ghosts (blended, tested against the prepass's depth). A solid with a tint draws with the field pipeline.
     private func drawSolids(_ solids: [SDLFramePlan.Solid], ghosts: Bool, shade: ShadeUniforms, clip: ClipUniforms,
                             in recorder: SDLPassRecorder) {
-        let pass = recorder.pass
-        for solid in solids {
-            let draw = DrawUniforms(pickBase: 0, ghost: ghosts ? 1 : 0, faceCount: UInt32(solid.faceCount), padding: 0)
-            if let tint = solid.tint {
-                recorder.bind(pipelines.fieldMesh)
-                pass.pushFragmentUniform(uniformBytes(shade), at: 0)
-                pass.pushFragmentUniform(uniformBytes(tint.ramp), at: 1)
-                pass.pushFragmentUniform(uniformBytes(clip), at: 2)
-                pass.bindVertexStorageBuffers([solid.vertices, solid.flags, tint.values])
-            } else {
-                recorder.bind(ghosts ? pipelines.ghost : pipelines.mesh)
-                pass.pushFragmentUniform(uniformBytes(draw), at: 0)
-                pass.pushFragmentUniform(uniformBytes(shade), at: 1)
-                pass.pushFragmentUniform(uniformBytes(clip), at: 2)
-                pass.bindVertexStorageBuffers([solid.vertices, solid.flags])
+        if ghosts {
+            // The prepass: the nearest ghost surface's depth, with no colour.
+            for solid in solids {
+                drawSolid(solid, plain: pipelines.ghostDepth, ghosts: true, shade: shade, clip: clip, in: recorder)
             }
-            pass.pushVertexUniform(uniformBytes(draw), at: 1)
-            pass.draw(vertexCount: solid.vertexCount)
         }
+        for solid in solids {
+            drawSolid(solid, plain: ghosts ? pipelines.ghost : pipelines.mesh, ghosts: ghosts, shade: shade, clip: clip, in: recorder)
+        }
+    }
+
+    /// One solid with `plain`, or with the field pipeline when it has a tint (a ghost never does).
+    private func drawSolid(_ solid: SDLFramePlan.Solid, plain: SDLGPUGraphicsPipeline, ghosts: Bool, shade: ShadeUniforms,
+                           clip: ClipUniforms, in recorder: SDLPassRecorder) {
+        let pass = recorder.pass
+        let draw = DrawUniforms(pickBase: 0, ghost: ghosts ? 1 : 0, faceCount: UInt32(solid.faceCount), padding: 0)
+        if let tint = solid.tint {
+            recorder.bind(pipelines.fieldMesh)
+            pass.pushFragmentUniform(uniformBytes(shade), at: 0)
+            pass.pushFragmentUniform(uniformBytes(tint.ramp), at: 1)
+            pass.pushFragmentUniform(uniformBytes(clip), at: 2)
+            pass.bindVertexStorageBuffers([solid.vertices, solid.flags, tint.values])
+        } else {
+            recorder.bind(plain)
+            pass.pushFragmentUniform(uniformBytes(draw), at: 0)
+            pass.pushFragmentUniform(uniformBytes(shade), at: 1)
+            pass.pushFragmentUniform(uniformBytes(clip), at: 2)
+            pass.bindVertexStorageBuffers([solid.vertices, solid.flags])
+        }
+        pass.pushVertexUniform(uniformBytes(draw), at: 1)
+        pass.draw(vertexCount: solid.vertexCount)
     }
 
     private func drawGrid(_ frame: ViewportFrame, in recorder: SDLPassRecorder) {

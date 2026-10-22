@@ -104,6 +104,30 @@ struct SDLRenderTests {
         }
     }
 
+    /// Ghosts take two steps so each pixel blends once, at its nearest ghost surface (spec §6.3's 40%, with no back faces or interior
+    /// showing through): a depth-only prepass, then the blended colour pass. A ghost box therefore looks, in the middle of its front
+    /// face, as a ghost of that front face alone does.
+    @Test func aGhostBlendsOnceAtItsNearestSurfaceWhateverLiesBehindIt() async throws {
+        let rig = try Rig()
+        var whole = RenderFixtures.boxFrame()
+        whole.items[0].isGhost = true
+        var frontOnly = whole
+        let mesh = TestMeshes.box(RenderFixtures.bounds)
+        let keep = mesh.triangleFaces.indices.filter { mesh.triangleFaces[$0] == FaceID(2) }
+        frontOnly.items[0].mesh = DisplayMesh(
+            positions: mesh.positions, normals: mesh.normals,
+            indices: keep.flatMap { [mesh.indices[3 * $0], mesh.indices[3 * $0 + 1], mesh.indices[3 * $0 + 2]] },
+            triangleFaces: keep.map { mesh.triangleFaces[$0] }, edgePolylines: [:])
+        frontOnly.items[0].meshSerial = 2
+        let both = try await rig.draw(whole), one = try await rig.draw(frontOnly)
+        for point in [(100, 100), (85, 60), (115, 150)] {
+            #expect(Rig.color(both, point.0, point.1) == Rig.color(one, point.0, point.1),
+                    "(\(point.0), \(point.1)): \(Rig.color(both, point.0, point.1)) against \(Rig.color(one, point.0, point.1))")
+        }
+        let background = Rig.color(try await rig.draw(RenderFixtures.emptyFrame()), 100, 100)
+        #expect(Rig.color(both, 100, 100) != background, "and it is there")
+    }
+
     // MARK: Meshes at the extremes
 
     /// A Mesh node can come out empty (a scatter of nothing, a failed mesh) or bare of edges; neither may trap, and what is there draws.

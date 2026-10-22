@@ -171,8 +171,8 @@ beyond what MetalUI provides; macOS CI; Intel macOS.
   XP-G19 (a synchronous readback, viewport and scissor, a colour write mask, `r32Float`, anisotropy, a refused pipeline's reason), by MetalUI S11; all
   are logged in `docs/metalui-gaps.md`. Picking differs from Metal in one way a person can see (user decision U4, hybrid): the ID buffer is rendered after
   the draw that follows a change and a hover keeps its face for the few milliseconds until it lands; a click is always answered from a buffer for its own
-  view, waiting for it (asynchronously until MetalUI answers gap XP-G22, a render batch submitted without `await`). Until tasks 11 and 12 land, the
-  SDL viewport blends ghosts in one pass and draws no slice (the view cube and the triad are drawn since task 10). `Matrix4.float` and `FrameUniforms` use plain SIMD types
+  view, waiting for it (asynchronously until MetalUI answers gap XP-G22, a render batch submitted without `await`). Until task 12 lands, the
+  SDL viewport draws no slice (the view cube and the triad are drawn since task 10, the ghosts' depth-only prepass since task 11). `Matrix4.float` and `FrameUniforms` use plain SIMD types
   (`FloatMatrix4`), `CubeLabelAtlas` rasterizes through MetalUI's `TextSystem`, `ViewportPlaceholder` is gone, `--smoke-test` requires the viewport to
   have drawn, and `--self-test` checks the viewport's compiled shaders. Section 2.3's second bullet (the card) and human check XP-2 no longer hold.
   Implicit evaluation and meshing stay on the CPU off macOS (xp-c).
