@@ -109,7 +109,6 @@ enum GPUGeometry {
         return flags
     }
 
-    #if canImport(Metal)
     static func frameUniforms(_ pose: CameraPose, size: ViewportSize, sceneRadius: Double, pixelWidth: Int,
                               pixelHeight: Int) -> FrameUniforms {
         let view = CameraMath.view(pose)
@@ -118,7 +117,6 @@ enum GPUGeometry {
                              forward: float3(-pose.toEye), viewportPixels: SIMD2(Float(pixelWidth), Float(pixelHeight)),
                              isOrthographic: pose.projection == .orthographic ? 1 : 0, padding: 0)
     }
-    #endif
 
     /// A grid square around the target, snapped to major lines so it doesn't swim while panning, and large
     /// enough to reach the horizon.

@@ -1,8 +1,5 @@
 import CreatorGeometry
 import CreatorKernel
-#if canImport(simd)
-import simd
-#endif
 import Testing
 @testable import CreatorViewport
 
@@ -19,10 +16,13 @@ struct GPUDataTests {
         #expect(MemoryLayout<CubeVertex>.stride == 64)
         #expect(MemoryLayout<CubeVertex>.offset(of: \CubeVertex.uv) == 32)
         #expect(MemoryLayout<CubeVertex>.offset(of: \CubeVertex.labelRect) == 48)
-        #if canImport(Metal)
+        #expect(MemoryLayout<FloatMatrix4>.stride == 64)
         #expect(MemoryLayout<FrameUniforms>.stride == 176)
+        #expect(MemoryLayout<FrameUniforms>.offset(of: \FrameUniforms.view) == 64)
+        #expect(MemoryLayout<FrameUniforms>.offset(of: \FrameUniforms.eye) == 128)
+        #expect(MemoryLayout<FrameUniforms>.offset(of: \FrameUniforms.forward) == 144)
         #expect(MemoryLayout<FrameUniforms>.offset(of: \FrameUniforms.viewportPixels) == 160)
-        #endif
+        #expect(MemoryLayout<FrameUniforms>.offset(of: \FrameUniforms.isOrthographic) == 168)
         #expect(MemoryLayout<DrawUniforms>.stride == 16)
         #expect(MemoryLayout<ShadeUniforms>.stride == 80)
         #expect(MemoryLayout<ClipUniforms>.stride == 32)
@@ -131,7 +131,6 @@ struct GPUDataTests {
         #expect(!turned.contains(where: isCyan), "between regions, nothing is active")
     }
 
-    #if canImport(Metal)
     @Test func frameUniformsCarryTheViewportAndProjection() {
         let pose = CameraPose(target: .zero, distance: 10, yaw: 0, pitch: 0, projection: .orthographic)
         let uniforms = GPUGeometry.frameUniforms(pose, size: ViewportSize(width: 200, height: 100), sceneRadius: 5,
@@ -140,7 +139,6 @@ struct GPUDataTests {
         #expect(uniforms.isOrthographic == 1)
         #expect(uniforms.forward == SIMD3(0, 1, 0))
     }
-    #endif
 
     @Test func theGridIsCentredOnTheTargetSnappedToMajorLines() {
         var frame = ViewportFrame(pose: CameraPose(target: Vector3(123, -47, 9), distance: 100),
