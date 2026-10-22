@@ -1,7 +1,8 @@
 /// The view cube's six face names, rasterized once into a single-channel coverage bitmap (spec §6.3: "Faces are
 /// labelled TOP, BOTTOM, FRONT, BACK, LEFT and RIGHT"). The renderer uploads it to an `r8Unorm` texture with
 /// mipmaps, and the cube's fragment shader paints it on the faces, so the names tilt and turn with the cube.
-/// Rasterizing it needs CoreText (`CubeLabelAtlas+CoreText.swift`, macOS); the layout here is portable.
+/// `CubeLabelAtlas+TextSystem.swift` rasterizes it through MetalUI's `TextSystem` (CoreText's on macOS, the portable one
+/// elsewhere); the layout here is portable.
 ///
 /// The names are stacked one per row in `ViewCubeRegion.faces` order. Each row is a cell inset by a gutter, so
 /// mip levels don't bleed one name into the next, and each name is centred in its rect in the system font,

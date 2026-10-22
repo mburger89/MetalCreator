@@ -4,12 +4,12 @@ import Testing
 
 /// The view cube's face names are a texture painted on the faces: the atlas they're rasterized into, and the UVs
 /// that map them onto the cube so each reads upright and unmirrored from outside.
+@MainActor
 struct CubeLabelTests {
-    // MARK: Atlas (rasterized with CoreText, so macOS only)
+    // MARK: Atlas (rasterized through MetalUI's text system: CoreText's on macOS, the portable one elsewhere)
 
-    #if canImport(CoreText)
     @Test func theAtlasHasSixDisjointRectsWithInkInsideEach() throws {
-        let atlas = try #require(CubeLabelAtlas.rasterize())
+        let atlas = try #require(CubeLabelAtlas.rasterize(using: testTextSystem()))
         #expect(atlas.pixels.count == atlas.width * atlas.height)
         let rects = try ViewCubeRegion.faces.map { try #require(CubeLabelAtlas.rect(for: $0)) }
         #expect(rects.count == 6)
@@ -33,7 +33,7 @@ struct CubeLabelTests {
     /// The bitmap's first row is the top of the text (v grows downward, as in a Metal texture) and the text isn't
     /// mirrored: TOP's T has its crossbar at the top, and LEFT's L has its stem on the left.
     @Test func theAtlasTextIsUprightAndUnmirroredInTextureSpace() throws {
-        let atlas = try #require(CubeLabelAtlas.rasterize())
+        let atlas = try #require(CubeLabelAtlas.rasterize(using: testTextSystem()))
         let topRect = try #require(CubeLabelAtlas.rect(for: .top))
         let top = try #require(atlas.inkBox(in: topRect))
         let tWidth = (top.maxX - top.minX) / 3
@@ -47,7 +47,23 @@ struct CubeLabelTests {
         let stem = (left.minY...left.maxY).count { atlas.pixel(x: left.minX + 1, y: $0) > 127 }
         #expect(Double(stem) > 0.8 * Double(left.maxY - left.minY), "the L's stem runs down the left side")
     }
-    #endif
+
+    /// The six names are one size on one baseline, whatever font the platform has: each name's ink ends the same distance
+    /// below the top of its rect (all capitals, so a letter's overshoot is the only difference), and none touches its rect's edge.
+    @Test func allSixNamesShareABaselineAndStayInsideTheirRects() throws {
+        let atlas = try #require(CubeLabelAtlas.rasterize(using: testTextSystem()))
+        var bottoms: [Int] = []
+        for face in ViewCubeRegion.faces {
+            let rect = try #require(CubeLabelAtlas.rect(for: face))
+            let box = try #require(atlas.inkBox(in: rect), "\(face.label ?? "?") has ink")
+            let (xs, ys) = atlas.pixelRanges(of: rect)
+            #expect(box.minX > xs.lowerBound && box.maxX < xs.upperBound - 1, "\(face.label ?? "?") fits across its rect")
+            #expect(box.minY > ys.lowerBound && box.maxY < ys.upperBound - 1, "\(face.label ?? "?") fits down its rect")
+            bottoms.append(box.maxY - ys.lowerBound)
+        }
+        let spread = (bottoms.max() ?? 0) - (bottoms.min() ?? 0)
+        #expect(spread <= 3, "ink bottoms \(bottoms) share a baseline within a few pixels of overshoot")
+    }
 
     // MARK: Mapping onto the cube
 
