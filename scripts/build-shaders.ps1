@@ -47,7 +47,14 @@ $out = Join-Path $source 'compiled'
 
 if (Test-Path $out) { Remove-Item $out -Recurse -Force }
 Write-Output "Compiling Shaders\viewport with MetalUI's MetalUICompileShaders and $tool..."
-swift run --package-path $metalUI --scratch-path $scratch MetalUICompileShaders --shadercross $ShaderCross --source $source --out $out
+# Run from the shader directory, as build-shaders.sh does: shadercross hands DXC the source as "hlsl.hlsl" with no include path, so
+# `#include "common.hlsli"` resolves against the working directory.
+Push-Location $source
+try {
+    swift run --package-path $metalUI --scratch-path $scratch MetalUICompileShaders --shadercross $ShaderCross --source $source --out $out
+} finally {
+    Pop-Location
+}
 if ($LASTEXITCODE) {
     if (Test-Path $out) { Remove-Item $out -Recurse -Force }
     Stop-Build 1 "$tool failed to compile a shader of Shaders\viewport, or MetalUICompileShaders did not build (the lines above name the file). Shaders\viewport\compiled was removed."
