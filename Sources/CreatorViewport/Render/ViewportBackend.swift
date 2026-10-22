@@ -5,8 +5,8 @@
 /// Picking is the part the model sees (user decision U4, hybrid). Metal answers a pick at once, by rendering the ID buffer and waiting
 /// for it. The SDL_GPU backend answers a hover from the ID buffer it rendered ahead (``isPickPending(for:)`` says when that buffer is not
 /// for the camera and scene of the frame asked about yet) and calls ``onPickReady`` when a new one lands; a click asks
-/// ``pickWhenReady(at:in:)``, which answers from a buffer for the click's own view, waiting for it (asynchronously until MetalUI gap
-/// XP-G22 lets it render one synchronously).
+/// ``pickWhenReady(at:in:)``, which answers from a buffer for the click's own view, rendering it and waiting for the GPU when none has
+/// landed, as Metal does.
 @MainActor
 protocol ViewportBackend: AnyObject {
     /// Main passes drawn so far. Tests and the launch smoke test use it to tell "drew" from "bailed out".
@@ -23,8 +23,9 @@ protocol ViewportBackend: AnyObject {
     /// Whether the ID buffer for `frame` is on its way, so ``pick(at:in:)`` would answer `nil` for want of it.
     func isPickPending(for frame: ViewportFrame) -> Bool
 
-    /// The click's pick: ``pick(at:in:)`` from an ID buffer for `frame` itself, once it has landed. Never another view's answer.
-    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) async -> PickTarget?
+    /// The click's pick: ``pick(at:in:)`` from an ID buffer for `frame` itself, rendered and waited for now when none has landed (it may
+    /// stall a frame, as Metal's `waitUntilCompleted` does; only a click asks). Never another view's answer.
+    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) -> PickTarget?
 
     /// Whether this backend draws the view cube and the axis triad. The model hit-tests the cube (hover, click, drag, the context menu's
     /// exclusion) only while it is drawn: a cube nobody can see must not rotate the camera. Metal draws them; the SDL backend says
@@ -37,7 +38,7 @@ extension ViewportBackend {
 
     func isPickPending(for frame: ViewportFrame) -> Bool { false }
 
-    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) async -> PickTarget? {
+    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) -> PickTarget? {
         pick(at: point, in: frame)
     }
 }

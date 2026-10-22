@@ -6,9 +6,10 @@ import MetalUISDLGPU
 /// words downloaded. So the picker works ahead: the draw that follows a change of camera or scene calls ``schedule(_:)``, which starts
 /// the pass once the view has been still for ``settleDelay`` (an orbit draws every frame, and a read-back per frame nobody asked for
 /// would be waste), the ID buffer lands a few milliseconds after that, and ``pick(at:in:)`` reads it with no wait, as `ViewportPicker`
-/// reads Metal's: a hover's answer (user decision U4, hybrid). A click does not wait for the quiet: ``pickWhenReady(at:in:)`` starts the
-/// pass for the click's own view at once and answers from it, never from another view's buffer (asynchronously until MetalUI gap
-/// XP-G22; then synchronously, plan task 7 step 6).
+/// reads Metal's: a hover's answer (user decision U4, hybrid). A click does not wait for the quiet: ``pickWhenReady(at:in:)`` answers
+/// from the buffer for the click's own view, and when none has landed renders it now and waits for the GPU (MetalUI's
+/// `submitBatchSynchronously`, `SDLGPUFence.waitBlocking()` and `SDLGPUDevice.downloadSynchronously`: gaps XP-G22 and XP-G14), never
+/// answering from another view's buffer.
 ///
 /// A pick for a view whose buffer has not landed answers `nil` and ``isPending(for:)`` says so. The buffer is kept until the camera or
 /// the scene changes (`PickKey`), as Metal's is. A pass that fails (no GPU memory, a lost device, meshes not uploaded yet) counts as
@@ -27,6 +28,9 @@ final class SDLViewportPicker {
     private let device: SDLGPUDevice
     private let renderer: SDLViewportRenderer
     private var landed: (key: PickKey, result: Landed)?
+    /// Every pass takes a ticket when it starts; a result lands only if no later pass has landed (a click's pass can overtake a batch).
+    private var tickets = 0
+    private var landedTicket = 0
     /// The newest frame asked for; a pass in flight for an older view is followed by one for this.
     private var wanted: ViewportFrame?
     private var running = false
@@ -36,10 +40,6 @@ final class SDLViewportPicker {
     var onReady: (@MainActor () -> Void)?
     /// ID passes that have landed. Tests use it to check the read-back is reused.
     private(set) var renderCount = 0
-    /// Draws that have called ``schedule(_:)``; ``pickWhenReady(at:in:)`` watches it for the next draw.
-    private var scheduleCount = 0
-    /// How long a click whose pass failed waits for the next draw (which prepares the meshes) before giving up.
-    static let drawGrace = Duration.milliseconds(250)
 
     init(renderer: SDLViewportRenderer) {
         self.renderer = renderer
@@ -73,7 +73,6 @@ final class SDLViewportPicker {
     /// Makes sure the buffer for `frame` is on its way, once the view has been still for ``settleDelay``. The draw calls it after it
     /// encodes, once the frame's meshes are on the GPU; a newer call replaces an older one that has not started.
     func schedule(_ frame: ViewportFrame) {
-        scheduleCount += 1
         guard needsPass(for: frame, retryFailed: true) else { return }
         wanted = frame
         armSettle()
@@ -120,16 +119,14 @@ final class SDLViewportPicker {
         }
     }
 
-    /// ``pick(at:in:)`` once the buffer for `frame` has landed (at once if it has).
-    /// A pass that failed (typically a click right after an edit, before the next draw has uploaded the new meshes) is not answered
-    /// as a click on empty space: the click waits up to ``drawGrace`` for the next draw and tries once more.
-    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) async -> PickTarget? {
-        await refresh(frame)
-        if case .failed? = landed?.result, landed?.key == frame.pickKey {
-            let seen = scheduleCount
-            let deadline = ContinuousClock.now + Self.drawGrace
-            while scheduleCount == seen, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
-            if scheduleCount != seen { await refresh(frame) }
+    /// The click's pick: ``pick(at:in:)`` from the buffer for `frame`, rendered now and waited for when it has not landed (or landed
+    /// failed). It blocks the main actor for one ID pass, as Metal's picker does; it is called outside a draw (a click), never inside one.
+    /// A pass that fails (typically a click right after an edit, before the next draw has uploaded the new meshes) answers empty space at
+    /// once, and the next draw's ``schedule(_:)`` or the next click tries again.
+    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) -> PickTarget? {
+        if needsPass(for: frame, retryFailed: true) {
+            let ticket = nextTicket()
+            land(renderNow(frame), for: frame.pickKey, ticket: ticket)
         }
         return pick(at: point, in: frame)
     }
@@ -138,10 +135,16 @@ final class SDLViewportPicker {
     /// `finish`), so no loop's locals are held across an `await` (the Windows Swift 6.4 compiler asserts on that).
     private func run() async {
         if let frame = takeWanted() {
+            let ticket = nextTicket()
             let result = await render(frame)
-            land(result, for: frame.pickKey)
+            land(result, for: frame.pickKey, ticket: ticket)
         }
         finish()
+    }
+
+    private func nextTicket() -> Int {
+        tickets += 1
+        return tickets
     }
 
     private func takeWanted() -> ViewportFrame? {
@@ -149,8 +152,10 @@ final class SDLViewportPicker {
         return wanted
     }
 
-    /// Keeps `result` as the buffer for `key` and tells the model.
-    private func land(_ result: Landed, for key: PickKey) {
+    /// Keeps `result` as the buffer for `key` and tells the model, unless a pass that started later has landed already.
+    private func land(_ result: Landed, for key: PickKey, ticket: Int) {
+        guard ticket > landedTicket else { return }
+        landedTicket = ticket
         landed = (key, result)
         if case .pixels = result { renderCount += 1 }
         onReady?()
@@ -165,22 +170,61 @@ final class SDLViewportPicker {
         for waiter in waiting { waiter.resume() }
     }
 
-    private func render(_ frame: ViewportFrame) async -> Landed {
+    /// One ID pass's inputs and targets, made here on the main actor, or the answer when there is nothing to render.
+    private enum Prepared {
+        case answered(Landed)
+        case pass(width: Int, height: Int, inputs: SDLIDPassInputs, ids: SDLGPUTexture, depth: SDLGPUTexture)
+    }
+
+    private func prepare(_ frame: ViewportFrame) -> Prepared {
         let width = Int(frame.size.width.rounded(.down))
         let height = Int(frame.size.height.rounded(.down))
-        guard width > 0, height > 0, let inputs = renderer.idPassInputs(for: frame, width: width, height: height) else { return .failed }
-        if inputs.isEmpty { return .pixels(width: width, height: height, words: [UInt32](repeating: 0, count: width * height)) }
+        guard width > 0, height > 0, let inputs = renderer.idPassInputs(for: frame, width: width, height: height) else {
+            return .answered(.failed)
+        }
+        if inputs.isEmpty {
+            return .answered(.pixels(width: width, height: height, words: [UInt32](repeating: 0, count: width * height)))
+        }
         guard let ids = device.makeTexture(SDLGPUTextureDescription(width: width, height: height, format: SDLViewportPipelines.idFormat,
                                                                     usage: [.colorTarget])),
               let depth = device.makeTexture(SDLGPUTextureDescription(width: width, height: height, format: .d32Float,
-                                                                      usage: [.depthStencilTarget])),
-              let fence = try? await device.submitBatch({ commandBuffer in
-                  SDLViewportRenderer.encodeIDs(inputs, into: ids, depth: depth, commandBuffer: commandBuffer)
-              }) else { return .failed }
-        await fence.wait()
-        guard let bytes = await device.download(ids), bytes.count == width * height * MemoryLayout<UInt32>.stride else { return .failed }
-        let words = bytes.withUnsafeBytes { Array($0.bindMemory(to: UInt32.self)) }
-        return .pixels(width: width, height: height, words: words)
+                                                                      usage: [.depthStencilTarget])) else { return .answered(.failed) }
+        return .pass(width: width, height: height, inputs: inputs, ids: ids, depth: depth)
+    }
+
+    /// The words of a read-back ID texture, or `.failed` when the read-back is missing or the wrong size.
+    private static func words(_ bytes: [UInt8]?, width: Int, height: Int) -> Landed {
+        guard let bytes, bytes.count == width * height * MemoryLayout<UInt32>.stride else { return .failed }
+        return .pixels(width: width, height: height, words: bytes.withUnsafeBytes { Array($0.bindMemory(to: UInt32.self)) })
+    }
+
+    /// The pass in a batch of its own, awaited off the main actor (the ahead-of-time path a hover reads).
+    private func render(_ frame: ViewportFrame) async -> Landed {
+        switch prepare(frame) {
+        case .answered(let answer):
+            return answer
+        case .pass(let width, let height, let inputs, let ids, let depth):
+            guard let fence = try? await device.submitBatch({ commandBuffer in
+                SDLViewportRenderer.encodeIDs(inputs, into: ids, depth: depth, commandBuffer: commandBuffer)
+            }) else { return .failed }
+            await fence.wait()
+            return Self.words(await device.download(ids), width: width, height: height)
+        }
+    }
+
+    /// The pass now, on the main actor, waited for (a click's path): submitted without `await` (XP-G22), the fence waited on, the words
+    /// read back synchronously (XP-G14).
+    private func renderNow(_ frame: ViewportFrame) -> Landed {
+        switch prepare(frame) {
+        case .answered(let answer):
+            return answer
+        case .pass(let width, let height, let inputs, let ids, let depth):
+            guard let fence = try? device.submitBatchSynchronously({ commandBuffer in
+                SDLViewportRenderer.encodeIDs(inputs, into: ids, depth: depth, commandBuffer: commandBuffer)
+            }) else { return .failed }
+            fence.waitBlocking()
+            return Self.words(device.downloadSynchronously(ids), width: width, height: height)
+        }
     }
 }
 #endif

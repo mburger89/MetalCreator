@@ -3,47 +3,34 @@ import CreatorKernel
 import Testing
 @testable import CreatorViewport
 
-/// A backend that answers picks as a test tells it to, and holds them back like an SDL_GPU readback that has not landed.
+/// A backend that answers picks as a test tells it to: a hover from the buffer that has landed (nothing while one is pending, like an
+/// SDL_GPU readback on its way), a click from the ID pass of its own view (`clickAnswer` while a buffer is pending).
 @MainActor
 final class FakeBackend: ViewportBackend {
     var drawnFrames = 0
     var onPickReady: (@MainActor () -> Void)?
     var isPending = false
     var answer: PickTarget?
+    /// What the click's own ID pass finds while the hover's buffer is pending.
+    var clickAnswer: PickTarget?
     /// What a real backend answers for ``ViewportBackend/drawsWidgets``.
     var drawsWidgets = true
-    private var waiters: [CheckedContinuation<PickTarget?, Never>] = []
-    private var registration: CheckedContinuation<Void, Never>?
-
-    /// How many clicks are waiting for the ID buffer.
-    var waitersRegistered: Int { waiters.count }
+    /// Clicks that asked for their own pick.
+    private(set) var clickPicks = 0
 
     func pick(at point: ScreenPoint, in frame: ViewportFrame) -> PickTarget? { isPending ? nil : answer }
 
     func isPickPending(for frame: ViewportFrame) -> Bool { isPending }
 
-    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) async -> PickTarget? {
-        if !isPending { return answer }
-        return await withCheckedContinuation {
-            waiters.append($0)
-            registration?.resume()
-            registration = nil
-        }
+    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) -> PickTarget? {
+        clickPicks += 1
+        return isPending ? clickAnswer : answer
     }
 
-    /// Returns once a click is waiting (at once if one already is): the model's click `Task` has run and registered.
-    func untilAWaiterIsRegistered() async {
-        if !waiters.isEmpty { return }
-        await withCheckedContinuation { registration = $0 }
-    }
-
-    /// The ID buffer lands: pending ends, waiting clicks are answered and the model is told.
+    /// The ID buffer lands: pending ends and the model is told.
     func land(_ target: PickTarget?) {
         isPending = false
         answer = target
-        let waiting = waiters
-        waiters = []
-        for waiter in waiting { waiter.resume(returning: target) }
         onPickReady?()
     }
 }
@@ -108,53 +95,23 @@ struct ViewportBackendTests {
         #expect(clicked == .some(face))
     }
 
-    @Test(.timeLimit(.minutes(1)))
-    func aClickWaitsForAPendingPickAndIsThenDeliveredOnTheLandedTarget() async {
+    /// A click is exact while the hover's buffer is on its way (user decision U4, hybrid): the backend renders the click's own ID pass and
+    /// waits, so the click is delivered before `click` returns, on its own view's target and to the tool of the press.
+    @Test func aClickIsAnsweredAtOnceFromItsOwnIDPassWhileTheHoverBufferIsPending() {
         let backend = FakeBackend()
         let model = makeModel(backend)
+        let tool = RecordingTool()
+        tool.claims = false
+        model.tool = tool
+        backend.answer = edge          // the older buffer's answer, which a click must not take
         backend.isPending = true
-        var landed = false
-        var deliveredBeforeLanding = false
-        var waitersWhenLanding = 0
-        let delivered = await withCheckedContinuation { (continuation: CheckedContinuation<PickTarget?, Never>) in
-            model.events.clicked = {
-                deliveredBeforeLanding = !landed
-                continuation.resume(returning: $0)
-            }
-            model.click(at: ScreenPoint(200, 200))
-            Task {
-                await backend.untilAWaiterIsRegistered()
-                waitersWhenLanding = backend.waitersRegistered
-                landed = true
-                backend.land(face)
-            }
-        }
-        #expect(waitersWhenLanding == 1, "the click is waiting for the buffer, not already answered")
-        #expect(!deliveredBeforeLanding, "nothing was delivered while the pick was pending")
-        #expect(delivered == face, "the click was on the face, not on empty space")
-    }
-
-    @Test(.timeLimit(.minutes(1)))
-    func aWaitingClickGoesToTheToolItWasMadeWithAndNotTheOneSetWhileItWaited() async {
-        let backend = FakeBackend()
-        let model = makeModel(backend)
-        let first = RecordingTool()
-        first.claims = false
-        let second = RecordingTool()
-        second.claims = false
-        model.tool = first
-        backend.isPending = true
-        _ = await withCheckedContinuation { (continuation: CheckedContinuation<PickTarget?, Never>) in
-            model.events.clicked = { continuation.resume(returning: $0) }
-            model.click(at: ScreenPoint(200, 200))
-            model.tool = second   // the tool changes in the milliseconds before the buffer lands
-            Task {
-                await backend.untilAWaiterIsRegistered()
-                backend.land(face)
-            }
-        }
-        #expect(first.modelPicks == [face], "the press belonged to the first tool")
-        #expect(second.modelPicks.isEmpty)
+        backend.clickAnswer = face     // what the click's own pass finds
+        var clicked: PickTarget??
+        model.events.clicked = { clicked = $0 }
+        model.click(at: ScreenPoint(200, 200))
+        #expect(clicked == .some(face), "delivered before click returned, from the click's own view")
+        #expect(tool.modelPicks == [face], "offered to the tool of the press")
+        #expect(backend.clickPicks == 1)
     }
 
     @Test func aBackendThatDrawsNoCubeLeavesItsCornerToTheScene() {

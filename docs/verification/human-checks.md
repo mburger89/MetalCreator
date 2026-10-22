@@ -2103,8 +2103,8 @@ compiled shaders; these checks are what a real GPU, a real pointer and a person'
   the Mac's. MSAA edges are smooth on a scale-2 display. **Pinned:** the model's tests; the feel is the check. **Observed:**
 - [ ] **XP-22 Hover and click on the SDL picker.** The face under the pointer tints cyan as it moves; it does not flicker to nothing while you
   orbit and stop (a hover may show the old face for a frame or two after the camera stops, never a stall). A click right after an orbit
-  selects the face under the pointer, never empty space and never the face the old camera showed (it waits a few milliseconds for the ID
-  buffer of its own view), and an Edges by Tag pick made that way names the edge you clicked. In a sketch, clicks on the plane still place
+  selects the face under the pointer, never empty space and never the face the old camera showed (it renders the ID
+  pass of its own view and waits for the GPU), and an Edges by Tag pick made that way names the edge you clicked. In a sketch, clicks on the plane still place
   points. **Until xp-3 task 10 lands** the top-left 96 × 96 points are the scene's, not a cube: hovering there picks the face under it,
   clicking there selects it and does not turn the camera. **Pinned:** `ViewportBackendTests`, `SDLPickerTests`. **Observed:**
 - [ ] **XP-23 The widgets (after xp-3 task 10).** The view cube at the top left shows TOP, BOTTOM, FRONT, BACK, LEFT and RIGHT on its faces, upright

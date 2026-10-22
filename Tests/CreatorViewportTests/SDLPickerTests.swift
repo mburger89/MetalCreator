@@ -61,13 +61,31 @@ struct SDLPickerTests {
         #expect(rig.picker.pick(at: ScreenPoint(100, 100), in: frame) == nil)
         var landed = 0
         rig.picker.onReady = { landed += 1 }
-        let target = await rig.picker.pickWhenReady(at: ScreenPoint(100, 100), in: frame)
-        #expect(target == .face(solid: 0, FaceID(2)))
+        await rig.picker.refresh(frame)
+        #expect(rig.picker.pick(at: ScreenPoint(100, 100), in: frame) == .face(solid: 0, FaceID(2)))
         #expect(!rig.picker.isPending(for: frame))
         #expect(landed >= 1, "the model is told so it can look under the pointer again")
         var turned = frame
         turned.pose.yaw += 0.1
         #expect(rig.picker.isPending(for: turned), "a new camera has no buffer yet")
+    }
+
+    /// A click whose view has no landed buffer renders its own ID pass and waits for the GPU (user decision U4, hybrid; MetalUI gaps
+    /// XP-G22 and XP-G14), so it is answered before `pickWhenReady` returns; a landed buffer is not rendered again.
+    @Test func aClickRendersItsOwnIDPassWhenNoBufferHasLanded() async throws {
+        let rig = try Rig()
+        let frame = RenderFixtures.boxFrame()
+        try await rig.prepare(frame)
+        #expect(rig.picker.isPending(for: frame), "no pass has run for this view")
+        #expect(rig.picker.pickWhenReady(at: ScreenPoint(100, 100), in: frame) == .face(solid: 0, FaceID(2)), "answered at once")
+        #expect(!rig.picker.isPending(for: frame), "and a hover has the buffer now too")
+        #expect(rig.picker.renderCount == 1)
+        #expect(rig.picker.pickWhenReady(at: ScreenPoint(100, 26), in: frame) == .edge(solid: 0, EdgeID(1)))
+        #expect(rig.picker.renderCount == 1, "a landed buffer is not rendered again")
+        var turned = frame
+        turned.pose.yaw += 0.1
+        _ = rig.picker.pickWhenReady(at: ScreenPoint(100, 100), in: turned)
+        #expect(rig.picker.renderCount == 2, "a click on a new view renders that view, never answering from the old one")
     }
 
     @Test func aFrameWhoseMeshesWereNeverUploadedLandsEmptyAndIsTriedAgainOnTheNextSchedule() async throws {
@@ -81,20 +99,18 @@ struct SDLPickerTests {
         #expect(rig.picker.pick(at: ScreenPoint(100, 100), in: frame) == .face(solid: 0, FaceID(2)), "asked again, it is tried again")
     }
 
-    @Test func aClickOnAFrameNotYetPreparedWaitsForTheNextDrawInsteadOfMissing() async throws {
+    /// A click whose ID pass fails (nothing uploaded yet) answers empty space at once, without waiting for a draw; the next click, once
+    /// the draw has prepared the meshes, runs the pass again.
+    @Test func aClickWhoseIDPassFailsAnswersEmptySpaceAtOnceAndTheNextClickTriesAgain() async throws {
         let rig = try Rig()
         let frame = RenderFixtures.boxFrame()
-        let click = Task { await rig.picker.pickWhenReady(at: ScreenPoint(100, 100), in: frame) }
-        try await Task.sleep(for: .milliseconds(30))   // the pass has failed: nothing was uploaded
+        let start = ContinuousClock.now
+        #expect(rig.picker.pickWhenReady(at: ScreenPoint(100, 100), in: frame) == nil)
+        #expect(ContinuousClock.now - start < .milliseconds(200), "no wait for a next draw")
+        #expect(rig.picker.renderCount == 0)
         try await rig.prepare(frame)
-        rig.picker.schedule(frame)                      // the next draw
-        #expect(await click.value == .face(solid: 0, FaceID(2)))
-    }
-
-    @Test func aClickOnAFrameThatNeverGetsPreparedGivesUpAfterTheGraceAsEmptySpace() async throws {
-        let rig = try Rig()
-        let frame = RenderFixtures.boxFrame()
-        #expect(await rig.picker.pickWhenReady(at: ScreenPoint(100, 100), in: frame) == nil)
+        let again = rig.picker.pickWhenReady(at: ScreenPoint(100, 100), in: frame)
+        #expect(again == .face(solid: 0, FaceID(2)), "the failed pass is run again")
     }
 
     /// A newer request replaces an older one that has not started, a resize is a view of its own, and an older view can be asked for

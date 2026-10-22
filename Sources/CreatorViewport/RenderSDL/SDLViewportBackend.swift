@@ -36,8 +36,8 @@ final class SDLViewportBackend: ViewportBackend {
         picker.isPending(for: frame)
     }
 
-    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) async -> PickTarget? {
-        await picker.pickWhenReady(at: point, in: frame)
+    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) -> PickTarget? {
+        picker.pickWhenReady(at: point, in: frame)
     }
 
     /// Draws `frame` into the surface's target, in the frame's own command buffer, then starts the ID pass for it if it is for a view

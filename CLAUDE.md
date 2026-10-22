@@ -132,8 +132,8 @@ shader** and a missing tool stops the script naming the tool and the pin. `Shade
 The compiled directory is found beside the executable as `MetalUIAppShaders` first, then in the source tree (`SDLViewportShaders`); the tarball, the
 AppImage and the zip ship it, and `--self-test` fails without it, saying what to run (`ViewportShaderCheck`). Picking is user decision U4, hybrid:
 `SDLViewportPicker` renders the ID pass in a batch after the draw that follows a change and reads it back with `SDLGPUDevice.download`; until it
-lands a hover keeps its face and a click waits for the buffer of its own view (asynchronously until MetalUI gap XP-G22) and goes to the tool of its
-press (`ViewportModel.isPickPending`, `pickWhenReady`, `ViewportBackendTests`). `Matrix4.float` is a `FloatMatrix4` and `FrameUniforms` is plain SIMD
+lands a hover keeps its face and a click renders its own ID pass when none has landed and waits for it (`pickWhenReady`, MetalUI's `submitBatchSynchronously`; a failed pass answers
+empty space at once) and goes to the tool of its press (`ViewportModel.isPickPending`, `pickWhenReady`, `ViewportBackendTests`). `Matrix4.float` is a `FloatMatrix4` and `FrameUniforms` is plain SIMD
 (no `simd`), so both exist everywhere. The cube's face names are rasterized by `CubeLabelAtlas.rasterize(using:)` through MetalUI's `TextSystem`
 (CoreText's on macOS, the portable one over the installed fonts elsewhere), `CubeLabelFonts` choosing. The render and pick suites (`SDLRenderTests`,
 `SDLFieldGuideClipTests`, `SDLPickerTests`, `SDLWidgetTests`, `SDLSliceTests`) run under Mesa's lavapipe in the Linux image and Direct3D 12's WARP in

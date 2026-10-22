@@ -132,19 +132,9 @@ extension ViewportModel {
             if let region = cubeLayout.region(at: point, pose: pose) { perform(.view(region)) }
         } else if HandleMath.hit(handles, at: point, pose: pose, size: viewSize) == nil,
                   tool?.clicked(at: point, modifiers: modifiers, projector: projector) != true {
-            if isPickPending?() == true, let pickWhenReady {
-                // The ID buffer for this view is still on its way: the click is delivered when it lands, not as a click on empty space.
-                // It is the click of the press: the tool and the projector are those of the press, not of whatever the tool or an
-                // animating camera has become by the time the buffer lands.
-                let pressTool = tool
-                let pressProjector = projector
-                Task { [self] in
-                    let target = await pickWhenReady(point)
-                    deliverClick(on: target, at: point, modifiers: modifiers, tool: pressTool, projector: pressProjector)
-                }
-            } else {
-                deliverClick(on: pick?(point), at: point, modifiers: modifiers, tool: tool, projector: projector)
-            }
+            // A click is exact (user decision U4, hybrid): answered from an ID buffer for this view, which the backend renders and
+            // waits for if it has not landed, so it is delivered now, to the tool and with the projector of the press.
+            deliverClick(on: (pickWhenReady ?? pick)?(point), at: point, modifiers: modifiers, tool: tool, projector: projector)
         }
         pointerReleased(at: point)
     }

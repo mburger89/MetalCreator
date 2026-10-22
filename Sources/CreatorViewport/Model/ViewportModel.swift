@@ -71,10 +71,11 @@ public final class ViewportModel {
     /// Answers "what is under this point?". It's set when the GPU objects are made (`install(_:)`), and tests set it directly.
     @ObservationIgnored var pick: (@MainActor (ScreenPoint) -> PickTarget?)?
     /// Whether `pick` has no answer yet because the ID buffer for the view as it is now is on its way (an SDL_GPU backend reads it back
-    /// asynchronously). A hover then keeps the face it had, and a click waits for `pickWhenReady`. `nil` means never.
+    /// asynchronously). A hover then keeps the face it had. `nil` means never.
     @ObservationIgnored var isPickPending: (@MainActor () -> Bool)?
-    /// `pick`, once the ID buffer for the view as it is now has landed.
-    @ObservationIgnored var pickWhenReady: (@MainActor (ScreenPoint) async -> PickTarget?)?
+    /// A click's pick: `pick` from an ID buffer for the view as it is now, rendered and waited for when none has landed (user decision U4,
+    /// hybrid). `nil` (no backend: tests that set `pick` directly) falls back to `pick`.
+    @ObservationIgnored var pickWhenReady: (@MainActor (ScreenPoint) -> PickTarget?)?
     @ObservationIgnored var drag: DragState?
     /// The camera when the scroll under way (a trackpad scroll, or a run of wheel steps) began; `nil` between scrolls.
     @ObservationIgnored var scrollStartPose: CameraPose?

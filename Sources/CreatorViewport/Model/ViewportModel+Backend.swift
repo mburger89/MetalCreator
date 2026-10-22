@@ -26,7 +26,7 @@ extension ViewportModel {
         }
         pickWhenReady = { [weak self] point in
             guard let self else { return nil }
-            return await backend.pickWhenReady(at: point, in: frame(at: clock.now()))
+            return backend.pickWhenReady(at: point, in: frame(at: clock.now()))
         }
         backend.onPickReady = { [weak self] in self?.refreshHover() }
     }
