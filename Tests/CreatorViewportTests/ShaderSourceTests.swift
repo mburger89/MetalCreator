@@ -153,6 +153,23 @@ struct ShaderSourceTests {
 struct ViewportShaderDirectoryTests {
     @Test func everyStageLoadsForThePlatformsDriver() throws {
         #expect(try SDLViewportShaders.verify() == 16)
+        #expect(try ViewportShaderCheck.run() == "the viewport's 16 SDL_GPU shader stages were found")
+    }
+    /// `--self-test` asks the viewport whether its shaders were built. With no directory it fails, and the message says which directory
+    /// it looked in, that the shaders are built and not checked in, and what to run (user decision U1(b)).
+    @Test func aMissingDirectoryFailsTheSelfTestCheckWithAMessageThatSaysWhatToRun() {
+        let nowhere = FileManager.default.temporaryDirectory.appending(path: "no-viewport-shaders-\(UUID().uuidString)")
+        do {
+            _ = try ViewportShaderCheck.run(sourceTree: nowhere)
+            Issue.record("the check passed with no compiled shaders anywhere")
+        } catch let failure as ViewportShaderCheck.Failure {
+            #expect(failure.description.contains(nowhere.path), "it names the directory it looked in: \(failure)")
+            #expect(failure.description.contains("scripts/build-shaders.sh"), "it names the script to run: \(failure)")
+            #expect(failure.description.contains("SDL_shadercross"), "it names the tool the script needs: \(failure)")
+            #expect(failure.description.contains("scripts/shadercross.env"), "it says where the pin is: \(failure)")
+        } catch {
+            Issue.record("the check threw \(error), not a ViewportShaderCheck.Failure")
+        }
     }
 
     @Test func aStageThatIsMissingIsNamed() throws {

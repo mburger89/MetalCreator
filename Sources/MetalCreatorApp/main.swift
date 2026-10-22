@@ -52,6 +52,8 @@ func runApp(opening paths: [String], smoke: LaunchSmoke? = nil) throws {
                           forwarding: LaunchCommand.forwardedDocuments(paths: paths) { FileManager.default.fileExists(atPath: $0) })
     app.preferredColorScheme = .dark
     let model = AppModel(kernel: makeKernel(), themes: AppThemes.store(), implicitEngine: .automatic)
+    // The smoke test passes only if the real 3D viewport drew (`ViewportModel.drawnFrames`), not just the window around it.
+    smoke?.viewport = { LaunchSmoke.ViewportReport(frames: model.viewport.drawnFrames, failure: model.viewport.gpuFailureMessage) }
     let themeEditor = ThemeEditorModel(themes: model.themes)
     let input = AppInput(model: model)
     AppCommands.install(on: app, model: model, themeEditor: themeEditor)
