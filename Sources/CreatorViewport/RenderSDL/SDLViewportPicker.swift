@@ -36,6 +36,10 @@ final class SDLViewportPicker {
     var onReady: (@MainActor () -> Void)?
     /// ID passes that have landed. Tests use it to check the read-back is reused.
     private(set) var renderCount = 0
+    /// Draws that have called ``schedule(_:)``; ``pickWhenReady(at:in:)`` watches it for the next draw.
+    private var scheduleCount = 0
+    /// How long a click whose pass failed waits for the next draw (which prepares the meshes) before giving up.
+    static let drawGrace = Duration.milliseconds(250)
 
     init(renderer: SDLViewportRenderer) {
         self.renderer = renderer
@@ -69,6 +73,7 @@ final class SDLViewportPicker {
     /// Makes sure the buffer for `frame` is on its way, once the view has been still for ``settleDelay``. The draw calls it after it
     /// encodes, once the frame's meshes are on the GPU; a newer call replaces an older one that has not started.
     func schedule(_ frame: ViewportFrame) {
+        scheduleCount += 1
         guard needsPass(for: frame, retryFailed: true) else { return }
         wanted = frame
         armSettle()
@@ -116,8 +121,16 @@ final class SDLViewportPicker {
     }
 
     /// ``pick(at:in:)`` once the buffer for `frame` has landed (at once if it has).
+    /// A pass that failed (typically a click right after an edit, before the next draw has uploaded the new meshes) is not answered
+    /// as a click on empty space: the click waits up to ``drawGrace`` for the next draw and tries once more.
     func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) async -> PickTarget? {
         await refresh(frame)
+        if case .failed? = landed?.result, landed?.key == frame.pickKey {
+            let seen = scheduleCount
+            let deadline = ContinuousClock.now + Self.drawGrace
+            while scheduleCount == seen, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
+            if scheduleCount != seen { await refresh(frame) }
+        }
         return pick(at: point, in: frame)
     }
 

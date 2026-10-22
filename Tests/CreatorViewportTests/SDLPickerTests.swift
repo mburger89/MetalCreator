@@ -81,6 +81,22 @@ struct SDLPickerTests {
         #expect(rig.picker.pick(at: ScreenPoint(100, 100), in: frame) == .face(solid: 0, FaceID(2)), "asked again, it is tried again")
     }
 
+    @Test func aClickOnAFrameNotYetPreparedWaitsForTheNextDrawInsteadOfMissing() async throws {
+        let rig = try Rig()
+        let frame = RenderFixtures.boxFrame()
+        let click = Task { await rig.picker.pickWhenReady(at: ScreenPoint(100, 100), in: frame) }
+        try await Task.sleep(for: .milliseconds(30))   // the pass has failed: nothing was uploaded
+        try await rig.prepare(frame)
+        rig.picker.schedule(frame)                      // the next draw
+        #expect(await click.value == .face(solid: 0, FaceID(2)))
+    }
+
+    @Test func aClickOnAFrameThatNeverGetsPreparedGivesUpAfterTheGraceAsEmptySpace() async throws {
+        let rig = try Rig()
+        let frame = RenderFixtures.boxFrame()
+        #expect(await rig.picker.pickWhenReady(at: ScreenPoint(100, 100), in: frame) == nil)
+    }
+
     /// A newer request replaces an older one that has not started, a resize is a view of its own, and an older view can be asked for
     /// again: nothing waits forever and nothing is answered with another view's pixels.
     @Test func aNewCameraOrSizeSupersedesOlderRequestsAndAnOlderViewCanBeAskedForAgain() async throws {

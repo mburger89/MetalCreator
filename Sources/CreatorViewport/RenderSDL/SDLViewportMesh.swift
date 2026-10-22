@@ -17,7 +17,7 @@ final class SDLViewportMesh: @unchecked Sendable {
     private var flagBuffer: (hovered: FaceID?, selected: Set<FaceID>, warning: Set<FaceID>, buffer: SDLGPUBuffer)?
     private var fieldBuffer: (values: [Float], middle: Float, buffer: SDLGPUBuffer)?
     /// The ID pass's edge instances by solid index (the pick IDs name the solid), built by `pickEdges`. An entry of `nil` is a mesh
-    /// with no edges.
+    /// with no edges (a refused buffer leaves no entry).
     private var pickEdgeBuffers: [Int: (buffer: SDLGPUBuffer, count: Int)?] = [:]
     /// Field value buffers made so far. Tests use it to tell "kept" from "rebuilt".
     private(set) var fieldUploads = 0
@@ -54,7 +54,8 @@ final class SDLViewportMesh: @unchecked Sendable {
         if let cached = pickEdgeBuffers[solid] { return cached }
         let instances = GPUGeometry.edgeInstances(polylines, solid: solid, selected: [], selectedOnly: false, scale: 1)
         let built = uploader.storageBuffer(instances).map { (buffer: $0, count: instances.count) }
-        pickEdgeBuffers[solid] = .some(built)
+        // A refused buffer is not cached (the next frame asks again); only a mesh that truly has no edges is remembered as having none.
+        if built != nil || instances.isEmpty { pickEdgeBuffers[solid] = .some(built) }
         return built
     }
 
