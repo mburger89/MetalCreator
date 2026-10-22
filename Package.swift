@@ -29,6 +29,10 @@ let metalUISystemFonts: Target.Dependency = .product(name: "MetalUISystemFonts",
 /// The SDL3 backend, on Linux and Windows only.
 let metalUISDL: Target.Dependency = .product(name: "MetalUISDL", package: "MetalUI", condition: .when(platforms: [.linux, .windows]))
 
+/// MetalUI's SDL_GPU layer (`SDLGPUDevice`, textures, pipelines, render passes, shader library): the 3D viewport's renderer on Linux
+/// and Windows (xp-3). A dependency of `CreatorViewport` and its tests only.
+let metalUISDLGPU: Target.Dependency = .product(name: "MetalUISDLGPU", package: "MetalUI", condition: .when(platforms: [.linux, .windows]))
+
 /// The OpenCascade kernel (xp-2): a dependency on every platform.
 let occt: [Target.Dependency] = ["CreatorOCCT"]
 
@@ -66,7 +70,9 @@ var targets: [Target] = [
     // platform for the reason above (SG-D).
     .target(
         name: "CreatorViewport",
-        dependencies: ["CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI, metalUIPortableText, metalUISystemFonts]
+        dependencies: [
+            "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI, metalUIPortableText, metalUISystemFonts, metalUISDL, metalUISDLGPU,
+        ]
     ),
     .target(name: "CreatorEditor", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI]),
     // The in-viewport sketch editor (sketcher spec §8, S5): `SketchEditorModel`, its tools and its views. Graph-free:
@@ -127,6 +133,7 @@ var targets: [Target] = [
         name: "CreatorViewportTests",
         dependencies: [
             "CreatorViewport", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI, metalUIPortableText, metalUISystemFonts,
+            metalUISDL, metalUISDLGPU,
             // CreatorGraph's SHA256 hashes the shader sources for the freshness check against the build's SOURCE.sha256.
             "CreatorGraph",
         ] + occt

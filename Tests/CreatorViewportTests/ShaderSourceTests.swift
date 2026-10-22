@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(MetalUISDLGPU)
+import MetalUISDLGPU
+#endif
 import Testing
 @testable import CreatorGraph
 @testable import CreatorViewport
@@ -143,3 +146,18 @@ struct ShaderSourceTests {
     }
     #endif
 }
+
+#if canImport(MetalUISDLGPU)
+/// The SDL renderer finds its shaders the way a shipped app does (MetalUI `docs/packaging.md` section 4a): the compiled directory, here
+/// the source tree's, holds every stage for the platform's driver, with its reflection.
+struct ViewportShaderDirectoryTests {
+    @Test func everyStageLoadsForThePlatformsDriver() throws {
+        #expect(try SDLViewportShaders.verify() == 16)
+    }
+
+    @Test func aStageThatIsMissingIsNamed() throws {
+        let library = try SDLViewportShaders.library()
+        #expect(throws: (any Error).self) { try library.vertex("no_such_shader", driver: SDLViewportShaders.platformDriver) }
+    }
+}
+#endif
