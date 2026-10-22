@@ -68,8 +68,13 @@ public final class ViewportModel {
     /// build has been laid out). Tracked, so what is built from it (the handle and overlay labels) is rebuilt after a
     /// resize.
     public internal(set) var viewSize = ViewportSize(width: 0, height: 0)
-    /// Answers "what is under this point?". It's set when the GPU objects are made, and tests set it directly.
+    /// Answers "what is under this point?". It's set when the GPU objects are made (`install(_:)`), and tests set it directly.
     @ObservationIgnored var pick: (@MainActor (ScreenPoint) -> PickTarget?)?
+    /// Whether `pick` has no answer yet because the ID buffer for the view as it is now is on its way (an SDL_GPU backend reads it back
+    /// asynchronously). A hover then keeps the face it had, and a click waits for `pickWhenReady`. `nil` means never.
+    @ObservationIgnored var isPickPending: (@MainActor () -> Bool)?
+    /// `pick`, once the ID buffer for the view as it is now has landed.
+    @ObservationIgnored var pickWhenReady: (@MainActor (ScreenPoint) async -> PickTarget?)?
     @ObservationIgnored var drag: DragState?
     /// The camera when the scroll under way (a trackpad scroll, or a run of wheel steps) began; `nil` between scrolls.
     @ObservationIgnored var scrollStartPose: CameraPose?
@@ -81,10 +86,10 @@ public final class ViewportModel {
     /// The `ViewportModifiers.hoverMask` modifiers held now, from `ViewportView`'s `onModifierKeysChanged`
     /// (`modifiersChanged(_:)`): what a hover tells the tool beside the pointer.
     @ObservationIgnored var heldModifiers: ViewportModifiers = []
-    #if canImport(Metal)
-    @ObservationIgnored var gpuRenderer: ViewportRenderer?
+    /// The code that draws and picks for this model, made on the first draw (`install(_:)`).
+    @ObservationIgnored var backend: (any ViewportBackend)?
+    /// Why the GPU objects could not be made, if they could not (`gpuFailureMessage`).
     @ObservationIgnored var gpuFailure: String?
-    #endif
     @ObservationIgnored private var meshTask: Task<Void, Never>?
     @ObservationIgnored private var animationTask: Task<Void, Never>?
     @ObservationIgnored private var needsFirstFraming: Bool

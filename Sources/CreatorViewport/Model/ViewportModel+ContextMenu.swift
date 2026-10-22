@@ -10,7 +10,7 @@ extension ViewportModel {
     /// `tool` holds the pointer (a sketch is open) it only navigates: Look At, and nothing that edits or selects; with
     /// planar navigation it's empty, since Look At would turn the camera.
     public func contextMenuItems(at point: ScreenPoint?) -> [ViewportMenuItem] {
-        guard let point, !isPlanar, !cubeLayout.contains(point), let ref = faceRef(for: pick?(point)),
+        guard let point, !isPlanar, !cubeCatches(point), let ref = faceRef(for: pick?(point)),
               let face = items[ref.solidIndex].solid.topology.face(ref.face) else { return [] }
         guard tool == nil else { return [.lookAt(ref)] }
         var menu: [ViewportMenuItem] = [.lookAt(ref), .selectEdgesOfFace(ref)]

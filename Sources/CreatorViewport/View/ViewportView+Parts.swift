@@ -1,4 +1,3 @@
-#if canImport(Metal)
 import MetalUI
 
 extension ViewportView {
@@ -47,9 +46,7 @@ extension ViewportView {
     /// buttons drag in their own arenas (MetalUI `CI-F`).
     @MainActor
     static func surface(model: ViewportModel) -> some Element {
-        MetalView(redraw: model.isAnimating ? .continuous : .onDemand, value: model.renderKey) { context in
-            model.draw(context)
-        }
+        gpuSurface(model: model)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .pointerStyle(model.cursor?.pointerStyle)
         .onScrollWheel { event in
@@ -76,6 +73,22 @@ extension ViewportView {
                 Button(item.title) { model.choose(item) }
             }
         }
+    }
+
+    /// The GPU surface itself: `MetalView` on macOS (its closure takes the Metal context), MetalUI's portable `GPUSurface` elsewhere
+    /// (its closure takes the backend's context, `SDLGPUDrawContext` on SDL; `ViewportModel+SDLSurface`). Both redraw on demand when
+    /// `renderKey` changes, and continuously while the camera animates.
+    @MainActor
+    private static func gpuSurface(model: ViewportModel) -> some Element {
+        #if canImport(Metal)
+        return MetalView(redraw: model.isAnimating ? .continuous : .onDemand, value: model.renderKey) { context in
+            model.draw(context)
+        }
+        #else
+        return GPUSurface(redraw: model.isAnimating ? .continuous : .onDemand, value: model.renderKey) { context in
+            model.draw(context)
+        }
+        #endif
     }
 
     /// A drag with `button` that reports its values, and the modifiers held at each, to the model, and its cancellation
@@ -146,4 +159,3 @@ extension ViewportView {
                 y: Pixels(Float(model.cubeLayout.origin.y + model.cubeLayout.side + 6)))
     }
 }
-#endif

@@ -60,7 +60,7 @@ extension ViewportModel {
         var mode = ViewportInputMap.dragMode(for: modifiers, button: button)
         var pivot: Vector3?
         var handleStart = 0.0
-        if button != .middle, showsViewCube, cubeLayout.contains(point) {
+        if button != .middle, cubeCatches(point) {
             mode = .cube
         } else if button == .primary, let handle = HandleMath.hit(handles, at: point, pose: pose, size: viewSize) {
             mode = .handle(handle.id)
@@ -128,16 +128,33 @@ extension ViewportModel {
         if let state = drag, state.button != .primary { pointerUp(at: state.last) }
         events.pressed()
         stopAnimation()
-        if showsViewCube, cubeLayout.contains(point) {
+        if cubeCatches(point) {
             if let region = cubeLayout.region(at: point, pose: pose) { perform(.view(region)) }
         } else if HandleMath.hit(handles, at: point, pose: pose, size: viewSize) == nil,
                   tool?.clicked(at: point, modifiers: modifiers, projector: projector) != true {
-            let target = pick?(point)
-            if tool?.clickedModel(target, at: point, modifiers: modifiers, projector: projector) != true {
-                events.clicked(target)
+            if isPickPending?() == true, let pickWhenReady {
+                // The ID buffer for this view is still on its way: the click is delivered when it lands, not as a click on empty space.
+                // It is the click of the press: the tool and the projector are those of the press, not of whatever the tool or an
+                // animating camera has become by the time the buffer lands.
+                let pressTool = tool
+                let pressProjector = projector
+                Task { [self] in
+                    let target = await pickWhenReady(point)
+                    deliverClick(on: target, at: point, modifiers: modifiers, tool: pressTool, projector: pressProjector)
+                }
+            } else {
+                deliverClick(on: pick?(point), at: point, modifiers: modifiers, tool: tool, projector: projector)
             }
         }
         pointerReleased(at: point)
+    }
+
+    /// Offers a click on `target` (the face or edge under it, or `nil` for empty space) to the tool and, unclaimed, reports it.
+    private func deliverClick(on target: PickTarget?, at point: ScreenPoint, modifiers: ViewportModifiers,
+                              tool: (any ViewportTool)?, projector: ViewportProjector) {
+        if tool?.clickedModel(target, at: point, modifiers: modifiers, projector: projector) != true {
+            events.clicked(target)
+        }
     }
 
     /// The pointer is at the release point now. Released outside the view, it's not over it at all.
@@ -157,8 +174,10 @@ extension ViewportModel {
         var newHovered: PickTarget?
         var newCubeRegion: ViewCubeRegion?
         if let point {
-            if showsViewCube, cubeLayout.contains(point) {
+            if cubeCatches(point) {
                 newCubeRegion = cubeLayout.region(at: point, pose: currentPose())
+            } else if isPickPending?() == true {
+                newHovered = hovered   // the ID buffer for this view is on its way: keep the face until it lands (`onPickReady`)
             } else {
                 newHovered = pick?(point)
             }
