@@ -39,7 +39,7 @@ struct CanvasLayers: Component {
                              ? NodeRowModel.rows(for: node, shape: shape, graph: model.graph, registry: model.registry) : [],
                          origin: model.displayOrigin(of: node), flow: flow,
                          isSelected: model.selection.contains(node.id),
-                         state: model.result(of: node.id)?.state,
+                         state: StatusBadge.displayed(model.result(of: node.id)?.state),
                          shakes: model.shakeCount(of: node.id), palette: palette,
                          socketHelp: model.socketHelp(of: node.id))
                     .equatable()

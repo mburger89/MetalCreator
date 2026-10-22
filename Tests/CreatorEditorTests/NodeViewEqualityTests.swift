@@ -33,6 +33,25 @@ struct NodeViewEqualityTests {
         ])
     }
 
+    /// A re-evaluation carries a new `Duration` every time; the canvas passes `StatusBadge.displayed(_:)`, so a state the badge
+    /// draws the same is equal and a downstream node's content is skipped during a drag.
+    @Test func nodesWhoseStatesDifferOnlyBelowTheBadgesPrecisionAreEqual() {
+        func node(_ duration: Duration) -> NodeView {
+            NodeView(shape: shape, rows: [], origin: .zero, flow: .horizontal, isSelected: false,
+                     state: StatusBadge.displayed(.ok(duration: duration)), shakes: 0, palette: .dracula)
+        }
+        #expect(node(.microseconds(12_100)) == node(.microseconds(12_400)))
+        #expect(node(.microseconds(100)) == node(.microseconds(900)))
+        #expect(node(.microseconds(12_100)) != node(.microseconds(13_000)))
+        for duration in [Duration.microseconds(300), .microseconds(12_400), .microseconds(12_600), .milliseconds(1500)] {
+            let state = NodeState.ok(duration: duration)
+            #expect(StatusBadge.text(for: StatusBadge.displayed(state)) == StatusBadge.text(for: state))
+        }
+        #expect(StatusBadge.displayed(.evaluating) == .evaluating)
+        #expect(StatusBadge.displayed(.error("No")) == .error("No"))
+        #expect(StatusBadge.displayed(nil) == nil)
+    }
+
     /// The box reads the theme from the environment, which MetalUI's environment epoch (C14-c) tracks; `==` is its rect.
     @Test func aBoxSelectionIsEqualOnlyWhenItsRectIs() {
         let rect = CanvasRect(origin: Vector2(1, 2), size: Vector2(30, 40))

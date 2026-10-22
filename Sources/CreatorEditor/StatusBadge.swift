@@ -28,6 +28,16 @@ public enum StatusBadge {
         }
     }
 
+    /// `state` reduced to what the badge shows: an `.ok` duration keeps only its whole milliseconds (below 1 ms, none), so two
+    /// states the badge draws identically compare equal. A re-evaluation carries a new `Duration` every time, and the
+    /// canvas passes this to `NodeView` so a drag step does not make every downstream node's `==` fail for a time that reads the same.
+    public static func displayed(_ state: NodeState?) -> NodeState? {
+        guard case .ok(let duration)? = state else { return state }
+        let ms = Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15
+        guard ms >= 1, let whole = Int(exactly: ms.rounded(.toNearestOrEven)) else { return .ok(duration: .zero) }
+        return .ok(duration: .milliseconds(whole))
+    }
+
     static func milliseconds(_ duration: Duration) -> String {
         let ms = Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15
         if ms < 1 { return "<1 ms" }

@@ -62,6 +62,29 @@ struct WarmWorkPinTests {
         #expect(median < Self.panElementRequestBound, "median \(median) element requests")
     }
 
+    /// The measured element requests of a warm zoom of the 50-node graph are a median 192 and a max 962 (scripts/bench.sh,
+    /// the 2026-10-21 C14-i run, identical across two runs; 1,857 / 2,879 before MetalUI C14-i, which stopped refusing an
+    /// affine change of the render effect above an `.equatable()` occurrence). The bound is the median plus 15%.
+    static let zoomElementRequestBound = 220
+
+    @Test func aSteadyWarmZoomOfFiftyNodesGraftsAndNeverRedoes() async throws {
+        let app = await makeApp(FiftyNodeGraph.make())
+        let warm = try await WarmBenchWindow(model: app)
+        var transform = CanvasTransform()
+        var requests: [Int] = []
+        for step in 0..<130 {
+            transform = transform.zoomed(by: step < 65 ? 0.979 : 1 / 0.979, around: .zero)
+            app.editor.transform = transform
+            await app.settle()
+            let work = warm.frame()
+            guard step >= 10 else { continue }
+            requests.append(work.elementRequests)
+            #expect(work.retainedRedos == 0, "step \(step)")
+        }
+        let median = requests.sorted()[requests.count / 2]
+        #expect(median < Self.zoomElementRequestBound, "median \(median) element requests")
+    }
+
     /// The worst warm frame of the fillet drag uploaded 338 to 442 atlas pixels across the 2026-10-21 C14-f runs (the radius
     /// readout's digits are the only new glyphs); before MetalUI C14-f one dirty rect spanning the atlas gave about 26,390 at
     /// step 51. The bound is a little over twice the largest measurement, still 30 times below the old spike.
