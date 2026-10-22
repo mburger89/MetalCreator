@@ -124,6 +124,7 @@ public struct ThinWallCheck: Sendable {
 
     /// `run` with the rays going out to every core (a different name, so a caller that is not `async` keeps `run`). The result is the same.
     /// - Throws: `CancellationError`.
+    @_optimize(none) // Windows Swift 6.4 release: keeps the closure-specialised coroutine clones (compiler crash) from being made.
     public static func runConcurrently(_ mesh: TriangleMesh, minimum: Double) async throws -> Result {
         guard mesh.triangleCount > 0, minimum.isFinite, minimum > 0 else { return Result(triangles: [], places: 0, thinnest: nil) }
         let scan = ThinWallCheck(mesh)

@@ -202,6 +202,7 @@ public struct OccupancyGrid: Sendable {
     }
 
     /// `fill(lipschitz:from:)` for a distance that has to be waited for (the GPU).
+    @_optimize(none) // Windows Swift 6.4 release: splitting the closure-specialised clone of this coroutine crashes the compiler.
     public mutating func fill(lipschitz: Double = 1, awaiting distances: ([Vector3]) async throws -> [Double]) async throws {
         let all = blocks()
         let middles = all.map { middle(of: $0) }
