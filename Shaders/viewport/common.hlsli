@@ -69,6 +69,14 @@ struct FillVertex {
     float4 color;
 };
 
+struct CubeVertex {
+    float4 position;
+    float4 color;
+    float2 uv;
+    float2 padding;
+    float4 labelRect;
+};
+
 /// The cut view's plane: a point is cut away when dot(plane.xyz, p) + plane.w > 0. `enabled` is 0 for no cut.
 struct ClipUniforms {
     float4 plane;

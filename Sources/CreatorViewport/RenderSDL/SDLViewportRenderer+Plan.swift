@@ -6,7 +6,9 @@ import MetalUISDLGPU
 extension SDLViewportRenderer {
     /// Makes every buffer the main pass reads and records the copies that fill them (`commandBuffer` is the uploader's). The layers
     /// are the Metal renderer's, in the order it draws them: solids, edges, guides, overlay, handles.
-    func plan(_ frame: ViewportFrame, scale: Float, uploader: SDLViewportUploader) -> SDLFramePlan {
+    func plan(_ frame: ViewportFrame, scale pixelScale: Double, width: Int, height: Int,
+              uploader: SDLViewportUploader) -> SDLFramePlan {
+        let scale = Float(pixelScale)
         prepareMeshes(for: frame, uploader)
         var plan = SDLFramePlan()
         let clip = ClipUniforms(frame.clip)
@@ -41,6 +43,8 @@ extension SDLViewportRenderer {
         plan.handles = handleInstances(for: frame, scale: scale, uploader).map {
             SDLFramePlan.Lines(buffer: $0.buffer, count: $0.count, style: Self.plainLines)
         }
+        plan.cube = planCube(frame, scale: pixelScale, width: width, height: height, uploader)
+        plan.triad = planTriad(frame, scale: pixelScale, width: width, height: height, uploader)
         return plan
     }
 

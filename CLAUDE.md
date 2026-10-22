@@ -138,9 +138,8 @@ press (`ViewportModel.isPickPending`, `pickWhenReady`, `ViewportBackendTests`). 
 (CoreText's on macOS, the portable one over the installed fonts elsewhere), `CubeLabelFonts` choosing. The render and pick suites (`SDLRenderTests`,
 `SDLFieldGuideClipTests`, `SDLPickerTests`, `SDLWidgetTests`, `SDLSliceTests`) run under Mesa's lavapipe in the Linux image and Direct3D 12's WARP in
 CI; they skip when no SDL_GPU device answers, and with `XP_REQUIRE_GPU=1` (`scripts/linux-test.sh`, the Windows job) `SDLGPUAvailabilityTests` fails
-instead. `--smoke-test` passes only if the viewport drew (`LaunchSmoke.viewport`). Tasks 10 to 12 add the view cube and the triad, the ghosts'
-depth-only prepass and the field slice (MetalUI S11's `setViewport`, `maxAnisotropy`, `writesColor`, `r32Float`); until each lands the SDL viewport
-lacks it (no cube or triad, and the model then leaves the cube's corner to the scene: `drawsWidgets`). Keep SDL's async calls out of loops that hold
+instead. `--smoke-test` passes only if the viewport drew (`LaunchSmoke.viewport`). The view cube and the axis triad are drawn (task 10: `SDLViewportRenderer+Widgets`, each in its own square through `setViewport`, the cube's names a mipmapped `r8Unorm` atlas read with 8x anisotropy; `drawsWidgets` is true). Tasks 11 and 12 add the ghosts'
+depth-only prepass and the field slice (MetalUI S11's `writesColor`, `r32Float`); until each lands the SDL viewport lacks it. Keep SDL's async calls out of loops that hold
 locals across an `await` (the Windows compiler notes below).
 `Package.swift` has two lists, like MetalUI's: the targets that import no Apple
 framework are declared everywhere (`CreatorViewport` too: its model, camera and tools are portable, its Metal renderer files

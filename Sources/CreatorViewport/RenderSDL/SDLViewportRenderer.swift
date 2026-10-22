@@ -6,7 +6,7 @@ import MetalUISDLGPU
 /// Draws a `ViewportFrame` with SDL_GPU (cross-platform spec section 4): the Metal `ViewportRenderer`'s passes, in the same
 /// order, over the shaders in `Shaders/viewport`.
 /// - The main pass draws the background gradient, opaque solids, the ground grid, B-rep edges, ghosts, guides' selected edges,
-///   the overlay's fills, lines and points, and handles. It renders into its own 4× MSAA colour and depth targets, resolved into
+///   the overlay's fills, lines and points, handles, the view cube (its face names painted on from a label atlas) and the triad. It renders into its own 4× MSAA colour and depth targets, resolved into
 ///   the target it is given (a `GPUSurface`'s, `bgra8Unorm`).
 /// - The ID pass (`SDLViewportRenderer+IDPass`) writes `PickID`s into an `r32Uint` target.
 /// GPU meshes are cached by mesh serial and dropped once a frame no longer shows them; the buffers that bake colours in are rebuilt
@@ -27,6 +27,7 @@ final class SDLViewportRenderer: @unchecked Sendable {
 
     let device: SDLGPUDevice
     let pipelines: SDLViewportPipelines
+    let cube: SDLViewportCube
     private(set) var meshes: [Int: SDLViewportMesh] = [:]
     private var multisample: (width: Int, height: Int, color: SDLGPUTexture, depth: SDLGPUTexture)?
     /// The handles' instances, kept until the handles, the scale or the palette change, so a frame of a continuous orbit makes no
@@ -34,20 +35,24 @@ final class SDLViewportRenderer: @unchecked Sendable {
     var handleBuffer: CachedHandles?
     /// The overlay's instances, kept until what they're built from changes (dashes and the plane grid follow the zoom).
     var overlayBuffer: (key: OverlayBufferKey, buffer: SDLGPUBuffer, count: Int)?
+    /// The triad's instances, which depend only on the pixel scale and the palette: an orbit turns the widget's camera.
+    var triadBuffer: (scale: Float, palette: ViewportPalette, buffer: SDLGPUBuffer, count: Int)?
     /// The overlay's fill triangles, kept until the fills or the palette change, and dropped once a frame has none.
     var fillBuffer: (key: FillBufferKey, buffer: SDLGPUBuffer, count: Int)?
     /// Main passes encoded so far. Tests use it to tell "drew" from "bailed out".
     private(set) var encodedPasses = 0
 
-    init(device: SDLGPUDevice, pipelines: SDLViewportPipelines) {
+    /// `labelAtlas` is the view cube's six face names (`CubeLabelFonts.atlas()`), rasterized by the caller on the main actor.
+    init(device: SDLGPUDevice, pipelines: SDLViewportPipelines, labelAtlas: CubeLabelAtlas) {
         self.device = device
         self.pipelines = pipelines
+        cube = SDLViewportCube(device: device, atlas: labelAtlas)
     }
 
     /// With pipelines made from `library`. Making them compiles every shader, which a real GPU does in milliseconds and a CPU driver in
     /// a second, on whichever thread asks: make them once per device.
-    convenience init(device: SDLGPUDevice, library: SDLGPUShaderLibrary) throws {
-        self.init(device: device, pipelines: try SDLViewportPipelines(device: device, library: library))
+    convenience init(device: SDLGPUDevice, library: SDLGPUShaderLibrary, labelAtlas: CubeLabelAtlas) throws {
+        self.init(device: device, pipelines: try SDLViewportPipelines(device: device, library: library), labelAtlas: labelAtlas)
     }
 
     /// The main pass into `target` (`b8g8r8a8Unorm`, `scale` pixels per point). It does nothing for an empty view or a target in
@@ -59,7 +64,7 @@ final class SDLViewportRenderer: @unchecked Sendable {
               target.description.format == SDLViewportPipelines.colorFormat,
               let targets = multisampleTargets(width: width, height: height) else { return }
         let uploader = SDLViewportUploader(device: device, commandBuffer: commandBuffer)
-        let plan = plan(frame, scale: Float(scale), uploader: uploader)
+        let plan = plan(frame, scale: scale, width: width, height: height, uploader: uploader)
         let uniforms = GPUGeometry.frameUniforms(frame.pose, size: frame.size, sceneRadius: frame.sceneRadius,
                                                  pixelWidth: width, pixelHeight: height)
         let color = SDLGPUColorAttachment(texture: targets.color, loadOp: .clear, clearColor: (0, 0, 0, 1), storeOp: .resolve,

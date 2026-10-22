@@ -27,17 +27,19 @@ struct SDLViewportPipelines: Sendable {
     let lineBehind: SDLGPUGraphicsPipeline
     /// The ground grid: blended, tested against the solids without writing.
     let grid: SDLGPUGraphicsPipeline
+    /// The view cube: blended, never depth-tested (a cube is convex, so back-face culling does the hiding).
+    let cube: SDLGPUGraphicsPipeline
     let idMesh: SDLGPUGraphicsPipeline
     let idLine: SDLGPUGraphicsPipeline
 
     init(device: SDLGPUDevice, library: SDLGPUShaderLibrary) throws {
         func pipeline(_ vertex: String, _ fragment: String, primitive: SDLGPUPrimitiveType = .triangleList,
-                      color: SDLGPUTextureFormat = Self.colorFormat, blend: SDLGPUBlend = .none,
+                      cull: SDLGPUCullMode = .none, color: SDLGPUTextureFormat = Self.colorFormat, blend: SDLGPUBlend = .none,
                       samples: SDLGPUSampleCount = Self.sampleCount,
                       depth: SDLGPUDepthState) throws -> SDLGPUGraphicsPipeline {
             let description = SDLGPUGraphicsPipelineDescription(
                 vertex: try library.vertex(vertex, for: device), fragment: try library.fragment(fragment, for: device),
-                primitiveType: primitive, cullMode: .none, colorFormat: color, blend: blend, sampleCount: samples, depth: depth)
+                primitiveType: primitive, cullMode: cull, colorFormat: color, blend: blend, sampleCount: samples, depth: depth)
             do {
                 return try device.compileGraphicsPipeline(description)
             } catch {
@@ -58,6 +60,7 @@ struct SDLViewportPipelines: Sendable {
         lineAlways = try pipeline("line", "line", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: always)
         lineBehind = try pipeline("line", "line", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: behind)
         grid = try pipeline("grid", "grid", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: tests)
+        cube = try pipeline("cube", "cube", cull: .back, blend: .premultipliedAlpha, depth: always)
         idMesh = try pipeline("id_mesh", "id_mesh", color: Self.idFormat, samples: .one, depth: writes)
         idLine = try pipeline("id_line", "id_line", primitive: .triangleStrip, color: Self.idFormat, samples: .one, depth: tests)
     }

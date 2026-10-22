@@ -77,6 +77,7 @@ struct ShaderSourceTests {
             "LineInstance": MemoryLayout<LineInstance>.stride, "LineUniforms": MemoryLayout<LineUniforms>.stride,
             "GridUniforms": MemoryLayout<GridUniforms>.stride, "FillVertex": MemoryLayout<FillVertex>.stride,
             "ClipUniforms": MemoryLayout<ClipUniforms>.stride, "FieldRampUniforms": MemoryLayout<FieldRampUniforms>.stride,
+            "CubeVertex": MemoryLayout<CubeVertex>.stride,
         ]
         #expect(sizes.count == (try Self.structs().count), "every struct in the header is made of float4, uint4, float2, float and uint")
         for (name, expected) in swift {
@@ -120,7 +121,7 @@ struct ShaderSourceTests {
     /// U1(b)). A source edited after the last build fails here and says so.
     @Test func theBuildCompiledEveryStageIntoTheDirectoryTheRendererReads() throws {
         let sources = Self.stageSources
-        #expect(sources.count >= 16, "the viewport's vertex and fragment stages are found")
+        #expect(sources.count >= 18, "the viewport's vertex and fragment stages are found")
         let compiled = try #require(
             Self.runtimeDirectory, "no compiled shader directory beside the executable or in the source tree. \(Self.remedy)")
         for source in sources {
@@ -152,8 +153,8 @@ struct ShaderSourceTests {
 /// the source tree's, holds every stage for the platform's driver, with its reflection.
 struct ViewportShaderDirectoryTests {
     @Test func everyStageLoadsForThePlatformsDriver() throws {
-        #expect(try SDLViewportShaders.verify() == 16)
-        #expect(try ViewportShaderCheck.run() == "the viewport's 16 SDL_GPU shader stages were found")
+        #expect(try SDLViewportShaders.verify() == 18)
+        #expect(try ViewportShaderCheck.run() == "the viewport's 18 SDL_GPU shader stages were found")
     }
     /// `--self-test` asks the viewport whether its shaders were built. With no directory it fails, and the message says which directory
     /// it looked in, that the shaders are built and not checked in, and what to run (user decision U1(b)).

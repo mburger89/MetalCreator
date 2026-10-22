@@ -14,12 +14,13 @@ final class SDLRenderRig {
     let picker: SDLViewportPicker
     let target: SDLGPUTexture
 
-    init() throws {
+    /// `labelAtlas` is the cube's face names: the installed fonts' by default.
+    init(labelAtlas: CubeLabelAtlas = CubeLabelFonts.atlas()) throws {
         guard let device = SDLTestDevice.shared, let pipelines = SDLTestDevice.pipelines else {
             throw SDLRigError(description: "no SDL_GPU device: \(SDLGPUDevice.lastFailure)")
         }
         self.device = device
-        renderer = SDLViewportRenderer(device: device, pipelines: pipelines)
+        renderer = SDLViewportRenderer(device: device, pipelines: pipelines, labelAtlas: labelAtlas)
         picker = SDLViewportPicker(renderer: renderer)
         guard let target = device.makeTexture(SDLGPUTextureDescription(
             width: Self.pixels, height: Self.pixels, format: .b8g8r8a8Unorm, usage: [.colorTarget, .sampler])) else {

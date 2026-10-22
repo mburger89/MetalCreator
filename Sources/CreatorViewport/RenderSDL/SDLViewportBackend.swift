@@ -14,11 +14,12 @@ final class SDLViewportBackend: ViewportBackend {
     }
 
     convenience init(device: SDLGPUDevice) throws {
-        self.init(renderer: try SDLViewportRenderer(device: device, library: try SDLViewportShaders.library()))
+        self.init(renderer: try SDLViewportRenderer(device: device, library: try SDLViewportShaders.library(),
+                                                    labelAtlas: CubeLabelFonts.atlas()))
     }
 
-    /// No view cube or triad is drawn yet (task 10 draws them): the model must not hit-test a cube nobody can see.
-    var drawsWidgets: Bool { false }
+    /// The renderer draws the view cube and the axis triad (`SDLViewportRenderer+Widgets`), so the model hit-tests the cube.
+    var drawsWidgets: Bool { true }
 
     var drawnFrames: Int { renderer.encodedPasses }
 

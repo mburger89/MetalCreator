@@ -21,6 +21,30 @@ struct SDLFramePlan {
         var clip: ClipUniforms = .off
     }
 
+    /// A square of the target, in pixels from its top left, that a widget (the view cube, the triad) draws into with a camera of its own.
+    struct WidgetViewport {
+        var x: Float
+        var y: Float
+        var side: Float
+        var camera: FrameUniforms
+    }
+
+    /// The view cube's tiles, its face-name texture with the sampler it is read through, and the ink the names are painted in.
+    struct Cube {
+        var tiles: SDLGPUBuffer
+        var count: Int
+        var labels: SDLGPUTexture
+        var sampler: SDLGPUSampler
+        var ink: SIMD4<Float>
+        var viewport: WidgetViewport
+    }
+
+    /// The axis triad's lines.
+    struct Triad {
+        var lines: Lines
+        var viewport: WidgetViewport
+    }
+
     var opaque: [Solid] = []
     var ghosts: [Solid] = []
     var edges: [Lines] = []
@@ -30,5 +54,7 @@ struct SDLFramePlan {
     var fills: (buffer: SDLGPUBuffer, count: Int)?
     var overlay: Lines?
     var handles: Lines?
+    var cube: Cube?
+    var triad: Triad?
 }
 #endif

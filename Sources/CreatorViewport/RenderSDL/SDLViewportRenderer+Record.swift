@@ -15,7 +15,8 @@ struct SDLPassRecorder {
 
 extension SDLViewportRenderer {
     /// Records the main pass from `plan`, in the Metal renderer's order: the background gradient, opaque solids, the ground grid
-    /// (unless the overlay has a plane grid of its own), B-rep edges, ghosts, guides, the overlay's fills, lines and points, handles.
+    /// (unless the overlay has a plane grid of its own), B-rep edges, ghosts, guides, the overlay's fills, lines and points, handles, the
+    /// view cube and the triad (each in a square of its own).
     func record(_ plan: SDLFramePlan, _ frame: ViewportFrame, _ uniforms: FrameUniforms, in pass: SDLGPURenderPass) {
         let recorder = SDLPassRecorder(pass: pass, camera: uniformBytes(uniforms))
         drawBackground(frame.palette, in: pass)
@@ -30,6 +31,8 @@ extension SDLViewportRenderer {
         if let fills = plan.fills { drawFills(fills, in: recorder) }
         if let overlay = plan.overlay { drawLines(overlay, pipeline: pipelines.lineAlways, in: recorder) }
         if let handles = plan.handles { drawLines(handles, pipeline: pipelines.lineAlways, in: recorder) }
+        if let cube = plan.cube { drawCube(cube, in: pass) }
+        if let triad = plan.triad { drawTriad(triad, in: pass) }
     }
 
     /// The background gradient, drawn first and ignoring depth.
@@ -73,7 +76,7 @@ extension SDLViewportRenderer {
     }
 
     /// Instanced line quads, four vertices as a strip per instance.
-    private func drawLines(_ lines: SDLFramePlan.Lines, pipeline: SDLGPUGraphicsPipeline, in recorder: SDLPassRecorder) {
+    func drawLines(_ lines: SDLFramePlan.Lines, pipeline: SDLGPUGraphicsPipeline, in recorder: SDLPassRecorder) {
         guard lines.count > 0 else { return }
         recorder.bind(pipeline)
         recorder.pass.bindVertexStorageBuffers([lines.buffer])
