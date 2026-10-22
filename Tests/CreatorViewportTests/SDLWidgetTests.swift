@@ -114,16 +114,37 @@ struct SDLWidgetTests {
         #expect(try #require(rig.renderer.triadBuffer).buffer !== first.buffer)
     }
 
+    /// The bgra bytes of the pixels x ∈ `xs`, y ∈ `ys` of a 400-pixel-wide draw.
+    func region(_ bytes: [UInt8], xs: Range<Int>, ys: Range<Int>) -> [UInt8] {
+        ys.flatMap { y in bytes[(y * 400 + xs.lowerBound) * 4 ..< (y * 400 + xs.upperBound) * 4] }
+    }
+
+    /// A cube at x ≥ 150 points (300 pixels) or a triad at leading 150 runs past the 200-point view's right edge. Each is left out
+    /// whole: its pixels are those of a frame with no cube and a triad at the left, where it fits. A control with both widgets fitting
+    /// shows the same regions do change when a widget is drawn.
     @Test func aWidgetThatDoesNotFitTheTargetIsLeftOut() async throws {
         let rig = try Rig()
         var cramped = RenderFixtures.emptyFrame()
-        cramped.cube = ViewCubeLayout(origin: ScreenPoint(150, 16), side: 96)   // runs past the view's right edge
-        cramped.triad = TriadLayout(side: 64, leading: 150, bottom: 16)
+        cramped.cube = ViewCubeLayout(origin: ScreenPoint(150, 16), side: 96)   // pixels x 300…492, y 32…224: past the right edge
+        cramped.triad = TriadLayout(side: 64, leading: 150, bottom: 16)         // pixels x 300…428, y 240…368: past the right edge
         let drawn = try await rig.draw(cramped)
-        var hidden = cramped
-        hidden.showsViewCube = false
-        #expect(drawn[0..<64] == (try await rig.draw(hidden))[0..<64])
-        #expect(rig.renderer.encodedPasses == 2, "the pass itself still runs")
+        var reference = RenderFixtures.emptyFrame()
+        reference.showsViewCube = false   // and the default triad, which fits, at the left
+        let left = try await rig.draw(reference)
+        let cubeSquare = (xs: 300..<400, ys: 32..<224)
+        let triadSquare = (xs: 300..<400, ys: 240..<368)
+        #expect(region(drawn, xs: cubeSquare.xs, ys: cubeSquare.ys) == region(left, xs: cubeSquare.xs, ys: cubeSquare.ys),
+                "a cube that does not fit is not drawn")
+        #expect(region(drawn, xs: triadSquare.xs, ys: triadSquare.ys) == region(left, xs: triadSquare.xs, ys: triadSquare.ys),
+                "a triad that does not fit is not drawn")
+
+        var fitting = cramped
+        fitting.cube = ViewCubeLayout(origin: ScreenPoint(100, 16), side: 96)   // pixels x 200…392
+        fitting.triad = TriadLayout(side: 64, leading: 100, bottom: 16)         // pixels x 200…328
+        let control = try await rig.draw(fitting)
+        #expect(region(control, xs: 200..<400, ys: 32..<224) != region(left, xs: 200..<400, ys: 32..<224), "a fitting cube is drawn")
+        #expect(region(control, xs: 200..<400, ys: 240..<368) != region(left, xs: 200..<400, ys: 240..<368), "a fitting triad is drawn")
+        #expect(rig.renderer.encodedPasses == 3, "the pass itself still runs")
     }
 }
 #endif
