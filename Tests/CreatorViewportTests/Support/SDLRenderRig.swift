@@ -11,6 +11,7 @@ final class SDLRenderRig {
     static let pixels = 400
     let device: SDLGPUDevice
     let renderer: SDLViewportRenderer
+    let picker: SDLViewportPicker
     let target: SDLGPUTexture
 
     init() throws {
@@ -19,6 +20,7 @@ final class SDLRenderRig {
         }
         self.device = device
         renderer = SDLViewportRenderer(device: device, pipelines: pipelines)
+        picker = SDLViewportPicker(renderer: renderer)
         guard let target = device.makeTexture(SDLGPUTextureDescription(
             width: Self.pixels, height: Self.pixels, format: .b8g8r8a8Unorm, usage: [.colorTarget, .sampler])) else {
             throw SDLRigError(description: "the target texture could not be made")
@@ -38,6 +40,31 @@ final class SDLRenderRig {
         await fence.wait()
         guard let bytes = await device.download(target) else { throw SDLRigError(description: "the target could not be read back") }
         return bytes
+    }
+
+    /// Uploads the meshes `frame` shows, as a draw would, without drawing.
+    func prepare(_ frame: ViewportFrame) async throws {
+        let boxed = Handoff(value: frame)
+        let renderer = renderer
+        let device = device
+        let fence = try await device.submitBatch { commandBuffer in
+            renderer.prepareMeshes(for: boxed.value, SDLViewportUploader(device: device, commandBuffer: commandBuffer))
+        }
+        await fence.wait()
+    }
+
+    /// The face or edge under `point` in `frame`, from a read-back ID pass (the picker the app uses).
+    func pick(at point: ScreenPoint, in frame: ViewportFrame) async throws -> PickTarget? {
+        try await prepare(frame)
+        await picker.refresh(frame)
+        return picker.pick(at: point, in: frame)
+    }
+
+    /// ``pick(at:in:)`` for each of `points`, from one ID pass (no loop here holds locals across an `await`).
+    func picks(at points: [ScreenPoint], in frame: ViewportFrame) async throws -> [PickTarget?] {
+        try await prepare(frame)
+        await picker.refresh(frame)
+        return points.map { picker.pick(at: $0, in: frame) }
     }
 
     /// The colour at view point (`x`, `y`) of a 400 × 400 draw at 2 pixels per point, as red, green and blue.
