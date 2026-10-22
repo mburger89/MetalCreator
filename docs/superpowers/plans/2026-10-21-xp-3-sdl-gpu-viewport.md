@@ -4,30 +4,33 @@
 
 **Goal:** `CreatorViewport` draws the real 3D view on Linux and Windows, over MetalUI's SDL GPU layer, with the passes the Metal renderer draws; macOS is unchanged in look, behaviour and test count.
 
-**Architecture:** `ViewportModel` stops knowing which GPU API draws for it: it talks to a `ViewportBackend` (draw count, pick, pending pick). `MetalViewportBackend` wraps the existing `ViewportRenderer` and `ViewportPicker` untouched. `SDLViewportBackend` wraps a new `SDLViewportRenderer`, which plans a frame (every buffer made and every copy recorded, because SDL_GPU cannot copy inside a render pass), records the 4x-MSAA colour+depth pass into the surface's own command buffer, and an `SDLViewportPicker`, which renders the ID pass in a batch after the draw that follows a change and reads the `r32Uint` words back with `SDLGPUDevice.download`. The shaders are HLSL (`Shaders/viewport`), **compiled at build time on Linux and Windows** (user decision U1(b)) by MetalUI's `compile-app-shaders.py` through a pinned SDL_shadercross into SPIR-V, DXIL and MSL files in `Shaders/viewport/compiled`, which is generated, git-ignored and never checked in; the SDL renderer finds it beside the executable as `MetalUIAppShaders` or in the source tree. `scripts/build-shaders.sh` (Linux; `scripts/build-shaders.ps1` on Windows) does the compiling, and `scripts/linux-test.sh` and the CI jobs run it before `swift build`. What the typed layer lacks (MetalUI gaps XP-G14 to XP-G19; XP-G12 and XP-G13 are already on master) is logged, never worked around: the four layers XP-G15 to XP-G18 block are the plan's last three tasks, and XP-G14 (a synchronous readback) and XP-G19 (a pipeline's failure reason) block nothing. XP-G14 to XP-G19 were forwarded to MetalUI on 2026-10-21; **XP-G20** (MetalUI has no build-time shader path of its own) is logged beside them and blocks nothing.
+**Architecture:** `ViewportModel` stops knowing which GPU API draws for it: it talks to a `ViewportBackend` (draw count, pick, pending pick). `MetalViewportBackend` wraps the existing `ViewportRenderer` and `ViewportPicker` untouched. `SDLViewportBackend` wraps a new `SDLViewportRenderer`, which plans a frame (every buffer made and every copy recorded, because SDL_GPU cannot copy inside a render pass), records the 4x-MSAA colour+depth pass into the surface's own command buffer, and an `SDLViewportPicker`, which renders the ID pass in a batch after the draw that follows a change and reads the `r32Uint` words back with `SDLGPUDevice.download`. Picking is user decision U4, **hybrid**: a hover answers from the latest landed buffer (it may lag, it never stalls) and a click is always exact, from a buffer for its own view (see U4 for the one case that still waits asynchronously, until MetalUI gap XP-G22). The shaders are HLSL (`Shaders/viewport`), **compiled at build time on Linux and Windows** (user decision U1(b)) by **MetalUI's `MetalUICompileShaders` tool** (MetalUI S12, `d995f4b4`) through a pinned SDL_shadercross into SPIR-V, DXIL and MSL files and a reflection JSON each in `Shaders/viewport/compiled`, which is generated, git-ignored and never checked in; the SDL renderer finds it beside the executable as `MetalUIAppShaders` or in the source tree. `scripts/build-shaders.sh` (Linux; `scripts/build-shaders.ps1` on Windows) runs the tool, built from the `../MetalUI` checkout with `swift run --package-path ../MetalUI --scratch-path …`, and `scripts/linux-test.sh` and the CI jobs run the script before `swift build`. What the typed layer lacked for the viewport (MetalUI gaps XP-G14 to XP-G19) **MetalUI answered in S11 (`11dca65e`)**, and XP-G20 (a build-time shader path) in S12 (`d995f4b4`); both are in master's MetalUI pin `5f03ab7b`, so no task waits for MetalUI and xp-3 does not bump the pin. One new gap, **XP-G22** (a blocking batch submit, so a click can render its own ID pass synchronously), is logged by task 0 and blocks nothing.
 
-**Tech Stack:** Swift 6.4 strict concurrency, Swift Testing, MetalUI (`MetalUI`, `MetalUISDLGPU`, `MetalUIPortableText`, `MetalUISystemFonts`), HLSL through SDL_shadercross (a build tool on Linux and Windows, pinned to `libsdl-org/SDL_shadercross` commit `1ff05bec573988a98ef9e0260b4da44f512b8367`; macOS needs none), Mesa lavapipe (Linux, a CPU Vulkan driver) and Direct3D 12 WARP (Windows) for the render tests.
+**Tech Stack:** Swift 6.4 strict concurrency, Swift Testing, MetalUI at `5f03ab7b` (`MetalUI`, `MetalUISDLGPU`, `MetalUIPortableText`, `MetalUISystemFonts`, and the `MetalUICompileShaders` executable), HLSL through SDL_shadercross (a build tool on Linux and Windows, pinned to `libsdl-org/SDL_shadercross` commit `1ff05bec573988a98ef9e0260b4da44f512b8367`, the pin MetalUI `docs/packaging.md` section 4a documents; macOS needs none), Mesa lavapipe (Linux, a CPU Vulkan driver) and Direct3D 12 WARP (Windows) for the render tests.
 
-**Spec:** `docs/superpowers/specs/2026-10-13-cross-platform-design.md` section 4 (the viewport on SDL GPU) and erratum E1 (`CreatorViewport` is declared everywhere; only its renderers are fenced), under the parent spec `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md` with all its Errata. This plan adds erratum E6 to the cross-platform spec (task 9).
+**Spec:** `docs/superpowers/specs/2026-10-13-cross-platform-design.md` section 4 (the viewport on SDL GPU) and erratum E1 (`CreatorViewport` is declared everywhere; only its renderers are fenced), under the parent spec `docs/superpowers/specs/2026-10-07-metalcreator-vertical-slice-design.md` with all its Errata. This plan adds erratum **E7** to the cross-platform spec (task 9; E6 is adopt-s9's `ImageInfo` erratum, already on master).
 
 **Revision of 2026-10-21 (user decisions).** U1 is now option (b): the HLSL is **compiled at build time** on Linux and Windows by a pinned SDL_shadercross, and **no compiled shader, hash file or blob is checked in** (Task 4, Task 9). U2, U3, U4, U5, U6, U7 and U8 are decided as recommended. XP-G14 to XP-G19 were forwarded to MetalUI on 2026-10-21; **XP-G20** (MetalUI has no build-time shader path) is new. The tests that used to recompute checked-in hashes are replaced by tests that the build produced every shader and that `--self-test` fails plainly without them; test counts, the CI time, the Risks and the shared-files rows follow.
 
-**Branch:** `xp-3` (worktree `../MetalCreator-xp-3`), off master `11aab8e` (4656 tests). MetalUI is the sibling `../MetalUI`, read-only; the plan was written and checked against MetalUI master `b15e038c` and `.github/workflows/xp.yml` pins `c502f14c` (which has MetalUI S5 and S6, `MetalUISDLGPU`, master `34491ff4` and later).
+**Revision of 2026-10-22 (start of execution).** The branch is rebased on master `1aad412` (xp-2 merged: OpenCascade on Linux and Windows, the tarball, AppImage and zip, 12 "Test run with" lines on every platform). MetalUI answered XP-G14 to XP-G19 (S11, `11dca65e`) and XP-G20 (S12, `d995f4b4`): task 0 logs them answered; tasks 10 to 12 no longer wait and use the real API (`setViewport(…) -> Bool`, `maxAnisotropy:`, `writesColor:`, `r32Float`); pipelines are made with `compileGraphicsPipeline(_:)`, whose `SDLGPUError` is the reason in `ViewportRenderError.deviceRefused`; the appendix that patched MetalUI is gone. `compile-app-shaders.py` is deleted from MetalUI, so the scripts run `MetalUICompileShaders` (task 4), and the Linux shadercross stage is now a native build per MetalUI section 4a (the libsdl-org DXC fork from source, measured there on Linux aarch64), copied into the test image the way xp-2's OpenCascade is, with no amd64 emulation. U4 is now **hybrid** (decided 2026-10-22). The human checks are XP-20 to XP-26 (xp-2 took XP-16 to XP-19) and the erratum is E7. Task 0, task 4's CI and Docker steps and task 9 are rewritten against master's `xp.yml`, `linux-test.sh`, Dockerfile and packaging scripts, and task 9 makes the packages ship the compiled shaders, which master's do not. The Windows compiler rules xp-2 learned are in the Global Constraints.
+
+**Branch:** `xp-3` (worktree `../MetalCreator-xp-3`), rebased on master `1aad412` on 2026-10-22 (also `origin/main`). Baselines on that master: macOS full suite **4822 tests, 12 "Test run with" lines**; Linux and Windows **12 lines**; macOS `CreatorViewportTests` **304 tests in 41 suites** (re-measured on `1aad412`). MetalUI is the sibling `../MetalUI`, **read-only**; master pins `METALUI_COMMIT` `5f03ab7b0c591468bfa5d59edb5da1d5277e015e` (MetalUI S11, S12 and the XP-G21 Windows release-build fix), and every MetalUI name in this plan was checked against `5f03ab7b` (`git -C ../MetalUI show 5f03ab7b:<path>`).
 
 ## Global Constraints
 
-- **Rebase on master at execution start.** Master has moved past `11aab8e` (it now carries XP-G12 and XP-G13 in `docs/metalui-gaps.md`); take its test counts as the baseline.
-- **XP-G14 to XP-G19 were forwarded to MetalUI on 2026-10-21** (the user's decision U5: ship Tasks 0 to 9, then 10 to 12 once MetalUI answers XP-G15 to XP-G18). If they land before execution, Tasks 10 to 12 do not wait. XP-G20 (no build-time shader path in MetalUI) was logged by the same revision and is not forwarded as a blocker: see Task 0 and U1.
+- **The rebase is done** (2026-10-22, onto `1aad412`). If master moves again before a task, rebase again and take its counts as the baseline.
+- **MetalUI answered XP-G14 to XP-G20** (S11 `11dca65e`, S12 `d995f4b4`; both in the pin `5f03ab7b`). No task waits for MetalUI; xp-3 needs MetalUI `5f03ab7b` or later and does not change `METALUI_COMMIT`, except in task 7 step 6, which adopts XP-G22 if MetalUI answers it. XP-G22 (task 0) blocks nothing: until it is answered, a click whose ID buffer has not landed waits for it asynchronously (U4).
 - Swift 6 strict concurrency; Swift Testing; `@MainActor @Observable` models; behaviour in models and thin views; one type per file; no force unwraps or force `try`; no GCD; no `String(format:)` or legacy formatters (`CLAUDE.md`, `AGENTS.md`).
 - `swiftlint lint --strict` reports zero violations before every commit.
-- **The compiled shaders are never committed.** `Shaders/viewport/compiled` is git-ignored and made by `scripts/build-shaders.sh` (`.ps1` on Windows); `git status` after a build shows nothing new. macOS never runs the script and its 12 test lines do not change.
+- **The compiled shaders are never committed.** `Shaders/viewport/compiled` is git-ignored and made by `scripts/build-shaders.sh` (`.ps1` on Windows) through MetalUI's `MetalUICompileShaders`; `git status` after a build shows nothing new. macOS never runs the script and its 12 test lines do not change.
 - Portability (`CLAUDE.md`, "Cross-platform"): no Metal outside `#if canImport(Metal)`, no SDL_GPU outside `#if canImport(MetalUISDLGPU)`, no CoreText, CoreGraphics, ImageIO, CryptoKit or `simd` outside a `#if canImport(…)` file or block.
-- The Swift 6.4 Windows compiler crashes on `async` functions that hold a loop's locals across an `await`: every heavy loop stays in a non-async helper.
-- A MetalUI gap goes in `docs/metalui-gaps.md` (the entry and the summary-table row) and is never worked around; MetalUI itself is never modified; `Package.swift`'s `.package(path: "../MetalUI", …)` line is never edited.
-- A full `swift test` passes only if the exit code is 0, no line says "recorded an issue" or "failed after" (Swift Testing uses glyphs, not ✘), and the number of "Test run with" lines is 12 on macOS, and **11 on Linux and Windows until xp-2 merges, 12 after** (xp-2 puts `CreatorOCCTTests` on them; whichever branch lands second updates the sentence in `CLAUDE.md` and the comments in `scripts/linux-test.sh`). The macOS count stays 12. **The hard checks are the exit code, the issue lines and that line count.** Test totals are not: every "Test run with N tests" figure in this plan was measured on master `11aab8e` and is given with what the task adds (`baseline + n`); take the baselines at the start of task 0 (step 3) and compare the delta, because another track's merge (7c-4 adds tests) moves the absolute figure.
+- **The Windows Swift 6.4 compiler (learned in xp-1 and xp-2).** (1) Keep heavy loops out of `async` functions: put them in synchronous helpers (an `async` function that holds a loop's locals across an `await` asserts in coroutine splitting, `CoroFrame.cpp`). (2) Do not pass typed-throws closures to generic helpers. (3) In a release build, an `async` function that takes a closure and gets closure-specialised can crash the coroutine split: mark such a thin `async` wrapper `@_optimize(none)` with a comment saying why (master's `OccupancyGrid.fill(lipschitz:awaiting:)`, commit `42d1612`), and keep the heavy work in optimised synchronous helpers. (4) **Every task that changes code Windows compiles must pass CI's `swift build -c release` ("Build release (for the zip)" step), not only the debug build**; the Windows job is `continue-on-error`, so read its log. (5) The local check for Windows-sensitive portable code is the 6.4 asserts snapshot on this Mac, which reproduces these crashes: `TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release` (it compiles what macOS compiles; the `RenderSDL` files are Linux and Windows only, so CI is their check).
+- A MetalUI gap goes in `docs/metalui-gaps.md` (the entry and the summary-table row) and is never worked around. **MetalUI is never modified**: no edit, no commit, and no build products written into `../MetalUI` (MetalUI's tool is built with `--scratch-path` outside it); `Package.swift`'s `.package(path: "../MetalUI", …)` line is never edited.
+- A full `swift test` passes only if the exit code is 0, no line says "recorded an issue" or "failed after" (Swift Testing uses glyphs, not ✘), and the number of "Test run with" lines is **12 on macOS, Linux and Windows** (xp-3 adds no test target). **The hard checks are the exit code, the issue lines and that line count.** Test totals are not: every "Test run with N tests" figure in this plan was measured on master `11aab8e` and is given with what the task adds (`baseline + n`); take the baselines in task 0 (step 3) and compare the delta. Master `1aad412`'s macOS figures: full suite 4822 tests, `CreatorViewportTests` 304 in 41 suites.
 - Linux is verified with `scripts/linux-test.sh` in Docker (OrbStack), `XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3` (the build volume and the image are this track's own; a run never replaces another track's image); Windows is verified only in CI on `xp-*` branches (`.github/workflows/xp.yml`).
-- Never `pkill`/`killall` by a broad pattern (swift-test, swift test, swift-build, xctest): other sessions run `swift test` on this Mac. Kill only your own processes, by captured PID or a pattern containing your own worktree path.
-- No third-party code without asking (`AGENTS.md`): the one tool this plan adds, SDL_shadercross, is the one MetalUI requires. It is a **build dependency of Linux and Windows** (not of the package, and never of macOS): user decision U1(b), decided 2026-10-21, pinned in `scripts/shadercross.env`, built in the Linux image and in Windows CI, and a missing or failing one stops the build or test step with a message naming it and its pinned commit.
+- **Processes.** Never `pkill`, `killall` or `xargs kill` swift, swift-test, swift-build, swift-frontend or xctest: other sessions (MetalUI's among them) run `swift test` on this Mac. Kill only PIDs you started yourself (captured with `$!`), and stop a Docker run only by this track's container names (`xp-3-linux`, `xp-3-linux-clean`; `scripts/linux-test.sh` does that).
+- **Line endings.** A text file a test reads must read the same with CRLF (a Windows checkout): split lines with `split(whereSeparator: \.isNewline)` (`"\r\n"` is one `Character` and `isNewline`), or replace `"\r\n"` with `"\n"` first, never `split(separator: "\n")`.
+- No third-party code without asking (`AGENTS.md`): the one tool this plan adds, SDL_shadercross, is the one MetalUI requires (MetalUI publishes no binary of it, ruling `BS-H`). It is a **build dependency of Linux and Windows** (not of the package, and never of macOS): user decision U1(b), decided 2026-10-21, pinned in `scripts/shadercross.env`, built in the Linux image and in Windows CI, and a missing or failing one stops the build or test step with a message naming it and its pinned commit. Every new `uses:` in the workflow is pinned to a full commit SHA, as master's are.
 
 ## Review Focus
 
@@ -35,46 +38,48 @@ The inputs this plan's tasks would not meet unless asked, most likely to bite fi
 
 1. **A mesh with no triangles, no edges, or a great many triangles.** A Mesh node can come out empty or bare, and 7c's previews run to millions of triangles. Nothing traps; what is there draws; 100,352 triangles draw with every corner kept. Task 6, `SDLRenderTests.aMeshWithNoTrianglesOrNoEdgesDrawsWhatItHasAndDoesNotTrap` and `aLargeMeshDrawsAndKeepsAllItsCorners`.
 2. **A theme change while edge, overlay and handle buffers are cached.** The buffers bake the theme's colours in; the next frame must draw the new ones. Task 6, `SDLRenderTests.aNewPaletteRebuildsTheCachedEdgesInItsColours`.
-3. **A new camera or a resize while an ID pass is wanted.** An orbit asks for a pass every frame: a newer request replaces an older one that has not started, a resize is a view of its own, an older view can be asked for again, nothing waits forever, and a pick outside a smaller view is empty space. Task 7, `SDLPickerTests.aNewCameraOrSizeSupersedesOlderRequestsAndAnOlderViewCanBeAskedForAgain` (and `theQuietBeforeAPassIsShortAndStartsItWithoutAnyoneAsking`).
+3. **A new camera or a resize while an ID pass is wanted, and a click right after it (U4, hybrid).** An orbit asks for a pass every frame: a newer request replaces an older one that has not started, a resize is a view of its own, an older view can be asked for again, nothing waits forever, and a pick outside a smaller view is empty space. A hover meanwhile keeps its face (it answers from the latest landed buffer and never stalls); a click is never answered from another view's buffer: it is answered from the buffer for its own view, waiting for it when it has not landed, and goes to the tool and the projector of its press. Task 7, `SDLPickerTests.aNewCameraOrSizeSupersedesOlderRequestsAndAnOlderViewCanBeAskedForAgain` (and `theQuietBeforeAPassIsShortAndStartsItWithoutAnyoneAsking`); task 2, `ViewportBackendTests.aClickWaitsForAPendingPickAndIsThenDeliveredOnTheLandedTarget` and `aWaitingClickGoesToTheToolItWasMadeWithAndNotTheOneSetWhileItWaited` (task 7 step 6 replaces the waiting with a synchronous render once MetalUI answers XP-G22, and its tests with `aClickIsAnsweredAtOnceFromItsOwnIDPassWhileTheHoverBufferIsPending` and `SDLPickerTests.aClickRendersItsOwnIDPassWhenNoBufferHasLanded`).
 4. **More than 256 solids in the scene.** `PickID` holds 256 (8 bits); a solid past that is drawn and simply not pickable, and the others keep working. Task 7, `SDLPickerTests.aSolidPastTheTwoHundredFiftyFifthIsDrawnButNotPickable`.
 5. **A machine with no installed font.** A minimal container or Windows Server Core has nothing to rasterize the cube's names with: the cube still draws, unlabelled, and the app starts. Task 10, `SDLWidgetTests.aBlankAtlasLeavesTheCubeDrawnButUnlabelled` (the fallback itself, `CubeLabelFonts.atlas()`, is task 3).
 6. **A checkout whose shaders were never built, or were built before an HLSL edit.** `swift build` alone compiles no shader (U1(b)), so the tree can compile and then draw nothing. The SDL tests and `--self-test` fail with a message that names the script and the pinned tool; a stale build fails `ShaderSourceTests`. Task 4 `ShaderSourceTests.theBuildCompiledEveryStageIntoTheDirectoryTheRendererReads`, task 8 `ViewportShaderDirectoryTests.aMissingDirectoryFailsTheSelfTestCheckWithAMessageThatSaysWhatToRun`.
+7. **A packaged app away from the tree it was built in.** A shipped app has no source tree to fall back to, so the compiled shaders must be in the package as `MetalUIAppShaders`; master's packaging copies only MetalUI's own `MetalUISDLShaders`. The tarball and the AppImage run `--self-test` in a clean Ubuntu and the zip with the checkout's shader directories moved aside, so a package without them fails there. Task 9, step 2 (`scripts/linux-test.sh package`, `scripts/package-windows.ps1`).
 
 ---
 
 ## Shared files
 
-Another track also edits each of these. The side that merges second keeps everything listed.
+xp-2 is merged (master `fa1288d`, then `1aad412`), so its versions of these files are the base every diff below applies to. Other tracks still open (xp-c, the MetalUI adoption track, 7c follow-ups) may edit the same files; the side that merges second keeps everything listed.
 
-| File | Other track | Edited by xp-3 | The second merge must keep |
+| File | Master already has (xp-2 and earlier) | Edited by xp-3 | The second merge must keep |
 |---|---|---|---|
-| `Package.swift` | xp-2 (OpenCascade flags per OS, `CreatorOCCT`, `COCCT`) | a `metalUISDLGPU` constant before the `occt` constant; `CreatorViewport`'s dependency list (now `metalUIPortableText`, `metalUISystemFonts`, `metalUISDL`, `metalUISDLGPU`; `metalUISDL` already exists for the app); `CreatorViewportTests`' list (`metalUISDL`, `metalUISDLGPU`, `"CreatorGraph"`) | all of these lines, and xp-2's per-OS OCCT blocks. No xp-3 line is inside the `#if os(macOS)` block. |
-| `.github/workflows/xp.yml` | xp-2 (packaging jobs, OCCT in the image, vcpkg steps) | `XP_REQUIRE_GPU: 1` and the comments in the Windows job (task 9); **the shadercross steps (task 4): a buildx step for the `shadercross` image on the Linux jobs, and on Windows an `actions/cache/restore` + build + `actions/cache/save` of shadercross and a `scripts/build-shaders.ps1` step before `swift build`** | `XP_REQUIRE_GPU`, the shadercross steps, and xp-2's jobs and steps (its vcpkg steps stay as they are; the two caches have different keys). A MetalUI pin bump by either side applies to both; xp-3 does not change `METALUI_COMMIT` until tasks 10 to 12 adopt a MetalUI commit that answers XP-G15 to XP-G18. |
-| `scripts/linux-test.sh` | xp-2 (image, OCCT, packaging steps) | `-e XP_REQUIRE_GPU=1` on `docker run`; `test` taking swift-test arguments (`test --filter NAME`, count rule off); `IMAGE=${IMAGE:-metalcreator-linux:latest}`; header comments (task 0); **`scripts/build-shaders.sh` run inside the container before `swift build`, `swift test` and the smoke step, and `SHADERCROSS_IMAGE` passed as a build argument when set (task 4)** | xp-2 makes the same three changes in its own words (its default count 12, `IMAGE`, `OCCT_IMAGE`, `OCCT_JOBS`, `TEST_ARGS`, a `package` step). **The side that merges second keeps xp-2's text for all of them and drops xp-3's duplicate** (one `IMAGE` line, one argument form, no `filter` verb), keeps `-e XP_REQUIRE_GPU=1` and the `build-shaders.sh` calls, and rewrites the two count sentences in the header and `CLAUDE.md`: the count is **11 on Linux and Windows until xp-2 merges and 12 after** (`CreatorOCCTTests`), 12 on macOS throughout. |
-| `scripts/linux/Dockerfile` | xp-2 (an `occt` stage, `FROM ${OCCT_IMAGE} AS occt-source`, `/opt/occt`, `patchelf`, `desktop-file-utils` in the final stage) | **a `shadercross` stage of its own (an amd64 image with SDL3 and SDL_shadercross built from the pinned commit into `/opt/shadercross`, task 4); the final stage is untouched** (the stage is never copied into it; `scripts/linux-test.sh` runs the compile in it) | **both stages, each in a layer set of its own** (a change of the OCCT pin must not rebuild shadercross, nor the reverse); the `ARG SHADERCROSS_COMMIT` value must equal `scripts/shadercross.env` (`ShaderToolchainTests` pins it). Docker's last stage is the default target, so the final stage stays last. |
-| `CLAUDE.md` | xp-2, 7c-4, the adoption track | the xp-3 paragraph after xp-1's, five one-line edits (Package list, placeholder sentence, `CreatorViewport` bullet, GPU structs line, two commands) (task 9) | both sides' paragraphs; the xp-3 edits are independent sentences. |
-| `docs/metalui-gaps.md` | xp-2 (an amendment of the XP-G5 row, plan Task 8; its "no way to set SDL's application id" gap is XP-G13, already on master), the adoption track | nine summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G14 to XP-G20 new) and one section at the end (task 0) | all of xp-2's and xp-3's rows and sections. **The numbers are agreed: xp-2 owns no gap (XP-G12, the image-format sniff, and XP-G13, the SDL application id, are already on master); xp-3 owns XP-G14 to XP-G20; a gap either branch finds later takes XP-G21.** xp-3's rows come after master's XP-G13 row; if xp-2 amends the XP-G5 row too, the second merge is a textual conflict to resolve by keeping every row, in numeric order, not a renumbering. |
-| `scripts/package-linux.sh`, `scripts/package-windows.ps1`, `packaging/` | xp-2 (the tarball, the AppImage, the Windows zip) | none | xp-2 copies the **build output** `Shaders/viewport/compiled` to `MetalUIAppShaders` beside the executable (U7(a)); it runs after `scripts/build-shaders.sh`/`.ps1` and its self-test fails with the message of `ViewportShaderCheck` if the directory is absent. Whichever branch merges second checks that copy line exists (task 9 step 1b). |
-| `docs/verification/human-checks.md` | xp-2 (XP-16, XP-17 and XP-18, plan Task 8) | XP-19 to XP-25 in group XP, XP-2 and XP-9 reworded (task 9) | all of them. The numbers are agreed already: xp-2 owns XP-16 to XP-18, xp-3 XP-19 to XP-25, so whichever merges second adds its block after the other's without renumbering. If either branch has to add one more, it takes the next free number after both blocks and renumbers its own references (XP-n in the plan text, in `SDL*Tests` comments and in `CLAUDE.md`). |
-| `docs/superpowers/specs/2026-10-13-cross-platform-design.md` | xp-2 | erratum E6 (task 9) | E6, or renumber if xp-2 took the number. |
-| `Sources/MetalCreatorApp/main.swift` | the MetalUI adoption track (ImageHeader, main.swift, cursors) | one line, `smoke?.viewport = { … }` after the `AppModel` is made (task 8) | that line and the adoption track's changes. |
-| `Sources/CreatorApp/SelfTest.swift`, `LaunchSmoke.swift` | xp-2 (packaging self-test) | the viewport's shader check; the viewport report (task 8) | both. |
+| `Package.swift` | OpenCascade on every platform (`occt` everywhere, per-OS linker flags), `metalUISDL` for the app | a `metalUISDLGPU` constant after `metalUISDL`; `CreatorViewport`'s dependency list (`metalUIPortableText`, `metalUISystemFonts`, `metalUISDL`, `metalUISDLGPU`); `CreatorViewportTests`' list (`metalUISDL`, `metalUISDLGPU`, `"CreatorGraph"`) | all of these lines and master's OCCT blocks. No xp-3 line is inside an `#if os(…)` block. |
+| `.github/workflows/xp.yml` | every `uses:` pinned by SHA, `permissions: contents: read`, the OCCT buildx step, `scripts/linux-test.sh all` then `package`, the SDL3 zip's sha256, the vcpkg key, restore and save steps, `EXPECTED_TEST_RUNS: 12`, the release build and zip steps | the Linux job's shadercross buildx step and `SHADERCROSS_IMAGE` on its two script steps (task 4); on Windows the shadercross restore, build and save steps and the `scripts/build-shaders.ps1` step before `Build` (task 4); `XP_REQUIRE_GPU: 1` and comments (task 9) | master's jobs and steps unchanged around xp-3's; every new `uses:` SHA-pinned with its tag as a comment; the shadercross cache has its own key, apart from vcpkg's. `METALUI_COMMIT` stays `5f03ab7b…`. |
+| `scripts/linux-test.sh` | `test [swift test args]` (count rule off, at least one run), `IMAGE`, `OCCT_IMAGE`, `OCCT_JOBS`, `DOCKER_EXTRA`, the `package` step with its clean-Ubuntu checks, count 12 | `-e XP_REQUIRE_GPU=1` and the lavapipe paragraph (task 0); `SHADERCROSS_IMAGE` and `SHADERCROSS_JOBS` passed as build arguments, `compile_shaders` before build, test, smoke and package (task 4); the package checks look for `MetalUIAppShaders` (task 9) | master's text for everything it has; xp-3 adds lines, it rewrites none of master's verbs. |
+| `scripts/linux/Dockerfile` | the `occt` stage (`swift:6.4-noble`), `FROM ${OCCT_IMAGE} AS occt-source`, `/opt/occt` copied into the final stage, `patchelf`, `desktop-file-utils`, `file` | a `shadercross` stage (`swift:6.4-noble`, native, the pinned SDL_shadercross with its vendored DXC into `/opt/shadercross`), `FROM ${SHADERCROSS_IMAGE} AS shadercross-source` and one `COPY` of `/opt/shadercross` into the final stage (task 4), the same pattern as OpenCascade | both stages, each a layer set of its own (a change of the OCCT pin never rebuilds shadercross, nor the reverse); `ARG SHADERCROSS_COMMIT` equals `scripts/shadercross.env` (`ShaderToolchainTests`); the final stage stays last. |
+| `scripts/package-linux.sh`, `scripts/package-windows.ps1`, `docs/packaging.md` | the tarball, the AppImage (packed from the tarball's tree) and the zip, each shipping MetalUI's own `MetalUISDLShaders` and nothing of the viewport's | copy `Shaders/viewport/compiled` to `MetalUIAppShaders` beside the executable and stop, naming `scripts/build-shaders.sh`, if it is missing; the zip's self-test also moves the source tree's compiled directory aside (task 9) | both directories in every package. |
+| `CLAUDE.md` | the xp-2 text (OpenCascade everywhere, `KernelUnavailable` kept for tests, packaging, the Windows toolchain notes, the `linux-test.sh` lines, "exit 0 and 12 \"Test run with\" lines", pinned by `CIPinTests`) | the xp-3 paragraph after the xp-1 paragraph and short edits (task 9) | both sides' paragraphs; the xp-3 edits are independent sentences and keep `CIPinTests`' phrases. |
+| `docs/metalui-gaps.md` | rows XP-G3 to XP-G13 and XP-G21 (the Windows release-build crash, fixed by MetalUI `5f03ab7b`, adopted by xp-2; a row with no section) | rows XP-G1, XP-G2, XP-G14 to XP-G20 (answered) and XP-G22 (open), between XP-G13 and XP-G21, and one section at the end (task 0) | every row, xp-3's between XP-G13 and XP-G21. **Numbers:** XP-G21 is taken; a gap any branch finds next takes XP-G23. |
+| `docs/verification/human-checks.md` | group XP (xp-1, XP-1 to XP-15) and group XP2 (xp-2, XP-16 to XP-19, XP-19 being the AppImage) | XP-2 and XP-9 reworded in group XP; a new group XP3 after XP2 with **XP-20 to XP-26** (task 9) | all of them; a check either branch adds next takes XP-27. |
+| `docs/superpowers/specs/2026-10-13-cross-platform-design.md` | errata E1 to E6 (E6: adopt-s9's `ImageInfo`) | erratum **E7** (task 9) | E7, or renumber if another branch took the number first. |
+| `Sources/MetalCreatorApp/main.swift` | xp-2's and the adoption track's changes | one line, `smoke?.viewport = { … }` after the `AppModel` is made (task 8) | that line and the others' changes. |
+| `Sources/CreatorApp/SelfTest.swift`, `LaunchSmoke.swift` | xp-2's packaging self-test | the viewport's shader check; the viewport report (task 8) | both. |
 
-Not shared: `CreatorImplicit` and the lattice nodes (7c-4), the bracket tests; xp-3 touches none of them.
+Not shared: `CreatorImplicit` and the lattice nodes (7c), the bracket tests; xp-3 touches none of them.
 
 ---
 
 ## User decisions
 
-Product and process choices the spec leaves open. **All eight were decided on 2026-10-21**: U1 is option (b), the others are the recommended option (a). Each entry says what was decided and keeps the alternatives that were not taken, for the record.
+Product and process choices the spec leaves open. **All eight were decided on 2026-10-21**: U1 is option (b), the others are the recommended option (a). **U4 was decided again on 2026-10-22: hybrid.** U5 no longer applies (MetalUI answered the gaps it was about). Each entry says what was decided and keeps the alternatives that were not taken, for the record.
 
 **U1. The shader source language and build path. DECIDED 2026-10-21: option (b).**
 - (a) *Not taken.* HLSL, built once with MetalUI's `compile-app-shaders.py` through SDL_shadercross; the SPIR-V, DXIL and MSL blobs and `SOURCE.sha256` checked in; a test recomputes the hashes with no shadercross. (It was this plan's first recommendation: it is the path MetalUI documents and tests, `packaging.md` section 4a, `GA-F`, and CI needs no extra tool. The user preferred no generated binaries in the repository.)
 - (b) **DECIDED. The same HLSL compiled at build time, in CI and by every developer on Linux and Windows. No compiled blob is checked in, and SDL_shadercross becomes a build dependency of the platforms that use the SDL renderer (Linux and Windows; macOS builds Metal only, U6(a), and needs none).** What follows from it, all in Task 4 and Task 9:
-  - **Where compilation happens: a script step before `swift build`, not a SwiftPM plugin.** MetalUI has neither a build-tool plugin nor a documented build-time path (no `Plugins` directory; `docs/packaging.md` section 4a describes only the script run by hand and tells the app to check its output in; `Experiments/SDLGPU/README.md` says "no SDL_shadercross release exists to fetch in CI"; its own CI never runs shadercross). That is gap **XP-G20**, logged in `docs/metalui-gaps.md`. A plugin of our own is not a sensible fit: a build-tool plugin runs sandboxed and may write only into its own work directory, which is neither beside the executable nor in the source tree where MetalUI's `SDLGPUShaderLibrary.locate` looks, it would be applied on macOS too (where it must do nothing), and Swift 6.4 on Windows runs plugins no better than the rest of its toolchain. So the compile is **`scripts/build-shaders.sh`** (Linux, and macOS if someone ever wants it) and **`scripts/build-shaders.ps1`** (Windows). `scripts/linux-test.sh` runs the first inside the container before `swift build`, `swift test` and the smoke step; the CI Windows job runs the second before `swift build`; a developer on Windows runs it once and again after editing a `.hlsl` file. The honest consequence: **`swift build` alone does not compile shaders**. A checkout that skipped the script finds no shaders and says so: the SDL tests and `--self-test` fail with a message that names the script and the pinned tool (Task 4, `ViewportShaderCheck`), and a stale directory (an `.hlsl` edited after the last build) is caught by `ShaderSourceTests`.
-  - **Where shadercross comes from.** `libsdl-org/SDL_shadercross` has **no release and no tag** (checked 2026-10-21: `gh api repos/libsdl-org/SDL_shadercross/releases` and `/tags` are both empty; its CI uploads short-lived Actions artifacts only), so the pin is a **full commit**: `1ff05bec573988a98ef9e0260b4da44f512b8367` (2026-09-03, the head of `main` and its latest green `Build` run), recorded once in `scripts/shadercross.env`. Its submodules (SPIRV-Cross, SPIRV-Headers, SPIRV-Tools) are pinned by that commit; its prebuilt DirectXShaderCompiler is pinned by URL and SHA-256 inside the commit (`build-scripts/download-prebuilt-DirectXShaderCompiler.cmake`: Microsoft `v1.9.2602`, Linux x86_64 and Windows x86/x64/arm64 only). Linux: built in its own stage of `scripts/linux/Dockerfile` (cached in that layer locally and by buildx in CI). Windows: built in CI and cached with `actions/cache` (the same restore, build, save pattern as xp-2's vcpkg). **There is no prebuilt DXC for Linux aarch64, so the Linux stage is an `amd64` image everywhere** (native on x86_64 runners, Rosetta or QEMU on aarch64 hosts); the compiled shaders are byte-for-byte independent of the host, so the aarch64 job loses nothing but speed (Task 4 has the numbers and Risk 13 the alternative).
+  - **Where compilation happens: a script step before `swift build`, through MetalUI's own tool.** When U1(b) was decided MetalUI had no build-time path (gap **XP-G20**). **MetalUI S12 (`d995f4b4`, 2026-10-21, in the pin `5f03ab7b`) answered it:** the root package exports the executable **`MetalUICompileShaders`** and the command plugin `CompileShaders` (`swift package --allow-writing-to-package-directory compile-shaders --source DIR --out DIR`), both over the portable `MetalUIShaderCompile` target, which replace the deleted `Backends/SDL/scripts/compile-app-shaders.py`. The tool's arguments are `--source DIR --out DIR [--shadercross PATH] [--formats spv,msl,dxil,json] [--no-marker] [--base DIR]` (`CompileArguments.swift`); for each `NAME.<vert|frag|comp>.hlsl` it writes `NAME.<stage>.spv`, `.msl`, `.dxil` and a reflection `.json`, then **`SOURCE.sha256`** (one `<sha256>  <file>` line per stage source, sorted bytewise, LF; `SourceMarker.swift`); shadercross is found by `--shadercross`, then `METALUI_SHADERCROSS`, then `PATH`. MetalUI's ruling `BS-D` still offers no build-tool plugin (its output would not land beside the executable, and a missing shadercross would fail every consumer's build), so the compile stays a script step: **`scripts/build-shaders.sh`** (Linux) and **`scripts/build-shaders.ps1`** (Windows) check the pin, skip a current directory, and run the executable built from the `../MetalUI` checkout, `swift run --package-path ../MetalUI --scratch-path <a directory of ours> MetalUICompileShaders …` (the scratch path keeps every build product out of `../MetalUI`, which is never written to). `scripts/linux-test.sh` runs the first inside the container before `swift build`, `swift test`, the smoke step and packaging; the CI Windows job runs the second before `swift build`; a developer on Windows runs it once and again after editing a `.hlsl` file. The honest consequence stays: **`swift build` alone does not compile shaders**. A checkout that skipped the script finds no shaders and says so: the SDL tests and `--self-test` fail with a message that names the script and the pinned tool (Task 4, `ViewportShaderCheck`), and a stale directory (an `.hlsl` edited after the last build) is caught by `ShaderSourceTests`.
+  - **Where shadercross comes from.** `libsdl-org/SDL_shadercross` has **no release and no tag** (checked 2026-10-21), and MetalUI publishes no binary of it (ruling `BS-H`), so the pin is a **full commit**: `1ff05bec573988a98ef9e0260b4da44f512b8367` (2026-09-03, the head of `main` and its latest green `Build` run), recorded once in `scripts/shadercross.env` and the same commit MetalUI `docs/packaging.md` section 4a documents. **Linux:** built in its own stage of `scripts/linux/Dockerfile` with MetalUI's recipe: the four submodules the commit fixes (SPIRV-Cross, SPIRV-Headers, SPIRV-Tools and libsdl-org's DirectXShaderCompiler fork, branch `1.8.2502-SDL`), `-DSDLSHADERCROSS_VENDORED=ON`, clang. That builds natively on x86_64 and aarch64 (MetalUI measured 6 min 45 s at `-j8` on Linux aarch64 and 41 compiled files byte-identical to its own), so the stage runs on the host's architecture with no emulation, and is copied into the test image as OpenCascade's stage is (cached in that layer locally and by buildx in CI). **Windows:** `scripts/install-shadercross.ps1` builds the commit with Microsoft's prebuilt DirectXShaderCompiler `v1.9.2602` (pinned by URL and SHA-256 in the commit's `build-scripts/download-prebuilt-DirectXShaderCompiler.cmake`; Linux x86_64 and Windows only), cached with `actions/cache/restore` and `save` (xp-2's vcpkg pattern).
   - **Failure is loud.** A missing, mispinned or failing shadercross stops `scripts/build-shaders.sh`/`.ps1` (and with it the `linux-test.sh` step and the CI step) with a plain message naming the tool and the pinned commit, e.g. `SDL_shadercross (libsdl-org/SDL_shadercross commit 1ff05bec573988a98ef9e0260b4da44f512b8367, pinned in scripts/shadercross.env) was not found ...`.
-  - **Shipping is U7(a):** xp-2's packaging (the tarball, the AppImage and the Windows zip) copies the build output `Shaders/viewport/compiled` to `MetalUIAppShaders`; nothing is read from the repository at run time in a shipped app.
+  - **Freshness (decided 2026-10-22).** `MetalUICompileShaders` writes `SOURCE.sha256`, so `ShaderSourceTests` keeps its freshness check on that marker (the stage sources' digests), and `scripts/build-shaders.sh` adds `INCLUDES.sha256` for `common.hlsli`, which MetalUI's marker does not cover (it lists only `NAME.<vert|frag|comp>.hlsl`). The marker is MetalUI's own format, so `SDLGPUShaderLibrary(directory:verifyingSources:)` could check it too; the renderer does not need to (`SDLGPUShaderLibrary.locate` accepts the directory by its marker or its reflection files), and the tests are where staleness is caught.
+  - **Shipping is U7(a):** the packaging scripts (the tarball, the AppImage and the Windows zip) copy the build output `Shaders/viewport/compiled` to `MetalUIAppShaders`; xp-2 merged without that copy, so xp-3's task 9 adds it. Nothing is read from the repository at run time in a shipped app.
 - (c) *Not taken.* Hand-written GLSL/SPIR-V and a separate DXIL: two sources to keep in step, no MetalUI support.
 - SDL_shadercross is a third-party tool (`AGENTS.md`: ask first). The user approved it on 2026-10-21 **as a build tool of the Linux and Windows builds** (not a SwiftPM dependency, never linked into the app).
 
@@ -88,13 +93,14 @@ Product and process choices the spec leaves open. **All eight were decided on 20
 - (b) Skip the renderer suites in CI and rely on human checks (group XP): fast, but nothing guards the shaders or the picker after this merge.
 - (c) A self-hosted GPU runner: real hardware, a machine to look after.
 
-**U4. Picking on SDL is asynchronous. DECIDED 2026-10-21: option (a).**
-- (a) **Render the ID buffer ahead (after the draw that follows a change of camera or scene) and answer from it; while it is on its way a hover keeps its face and a click waits a few milliseconds.** *Recommended:* the typed layer offers only async readback, and this is Metal's behaviour but for those milliseconds.
-- (b) Wait for MetalUI to add a synchronous readback (gap XP-G14) and block on it, exactly as Metal's picker does.
-- (c) Call raw `SDL_` functions for a blocking wait: works today, but it is the workaround the project forbids.
+**U4. Picking on SDL. DECIDED 2026-10-22: HYBRID** (it replaces the option (a) decided on 2026-10-21).
+- **HYBRID, DECIDED. A hover answers from the latest landed ID buffer and a click is always exact.** The ID buffer is rendered ahead (in a batch after the draw that follows a change of camera or scene, as option (a) did), and a **hover** reads the newest buffer that has landed: while the buffer for the view as it is now is on its way the hover keeps the face it has and looks again when it lands (`onPickReady`), so it may lag a frame or so after an orbit and never stalls a frame. A **click** waits for the GPU, so it is exact, as on Metal: it is answered from a buffer rendered for its own camera and scene, never from another view's, and it goes to the tool and the projector of its press. On SDL that means: a buffer for the click's view has landed (nearly always, since the ahead-of-time pass ran after the last change) and the click is answered at once; or it has not, and the click renders the ID pass for its view and waits for it. MetalUI S11 gave the waiting half (`SDLGPUFence.waitBlocking()`, `SDLGPUDevice.downloadSynchronously(_:region:)`, legal on the main actor outside a draw; XP-G14), but not a render batch that can be submitted without `await` (`submitBatch` is `async`): that is **gap XP-G22** (task 0), so **until MetalUI answers it the click waits asynchronously** (it is delivered when its buffer lands, a few milliseconds later, still exact and still to the press's tool and projector: task 2's `pickWhenReady` path), and once it is answered **task 7 step 6 makes `pickWhenReady` the synchronous path** (render, `waitBlocking()`, `downloadSynchronously`) and deletes the asynchronous click. Nothing is worked around meanwhile.
+- (a) *Replaced.* Render ahead and answer from it; while it is on its way a hover keeps its face and a click waits a few milliseconds (decided 2026-10-21). The hybrid keeps (a)'s hover and its interim click, and makes the click synchronous once the typed layer can.
+- (b) *Not taken.* Block every pick, hovers included, on a synchronous render and readback, exactly as Metal's picker does: a hover would stall a frame on every pointer move after a change.
+- (c) *Not taken.* Call raw `SDL_` functions for a blocking submit: works today, but it is the workaround the project forbids.
 
-**U5. How gap-blocked layers are handled. DECIDED 2026-10-21: option (a).** XP-G15 (viewport and scissor), XP-G16 (colour write mask), XP-G17 (`r32Float`) and XP-G18 (anisotropy) block the view cube and triad, the ghost prepass and the slice.
-- (a) **Tasks 0 to 9 ship the working viewport first (solids, edges, grid, guides, overlay, handles, field tint, clip, warning faces, ID-pass picking). Tasks 10 to 12 wait for MetalUI to answer and are written against the signatures requested in `docs/metalui-gaps.md` and checked against a local copy of MetalUI that has them.** *Recommended:* it respects "never work around" and lands the 90% that does not need MetalUI. Until 10 to 12 land the SDL viewport has no view cube or triad (and, so that nothing invisible acts, the model does not hit-test the cube's corner: hover and click there reach the scene; the cube's arrow buttons and View menu stay), blends ghosts in one pass (an interior can show through) and draws no slice.
+**U5. How gap-blocked layers are handled. DECIDED 2026-10-21: option (a); moot since 2026-10-21 (MetalUI S11, `11dca65e`, answered XP-G15 to XP-G18, and master's pin `5f03ab7b` has it).** Tasks 10 to 12 no longer wait; they follow task 9 only to keep the numbering, and until each lands on this branch the SDL viewport lacks its layer, as below. XP-G15 (viewport and scissor), XP-G16 (colour write mask), XP-G17 (`r32Float`) and XP-G18 (anisotropy) were what the view cube and triad, the ghost prepass and the slice needed.
+- (a) **Tasks 0 to 9 ship the working viewport first (solids, edges, grid, guides, overlay, handles, field tint, clip, warning faces, ID-pass picking). Tasks 10 to 12 wait for MetalUI to answer and are written against the signatures requested in `docs/metalui-gaps.md` and checked against a local copy of MetalUI that has them** (decided; MetalUI then answered, and tasks 10 to 12 now use its real API). *Recommended:* it respects "never work around" and lands the 90% that does not need MetalUI. Until 10 to 12 land the SDL viewport has no view cube or triad (and, so that nothing invisible acts, the model does not hit-test the cube's corner: hover and click there reach the scene; the cube's arrow buttons and View menu stay), blends ghosts in one pass (an interior can show through) and draws no slice.
 - (b) Use the raw escape hatch MetalUI documents (`SDL_SetGPUViewport(pass.raw, …)`, one line) and shader-side imitations (a zero-output ghost prepass, an `r32Uint` bit-cast) now: everything draws today, with code that MetalUI's answer will make obsolete.
 - (c) Hold the whole merge until MetalUI answers.
 
@@ -103,11 +109,11 @@ Product and process choices the spec leaves open. **All eight were decided on 20
 - (b) Also ask for the `SDL` trait on macOS (Homebrew SDL3) so `swift run` can drive the SDL renderer on the Mac's GPU: handy for debugging, but it changes the shared `Package.swift` trait line and every macOS build.
 
 **U7. Where the compiled shaders ship. DECIDED 2026-10-21: option (a).**
-- (a) **`MetalUIAppShaders` beside the executable, then the source tree (MetalUI's lookup order); xp-2's packaging copies the build output `Shaders/viewport/compiled` there.** *Recommended:* the documented recipe; `--self-test` fails if the directory is missing. With U1(b) the packaging scripts run `build-shaders` first if the directory is absent and copy what it made.
+- (a) **`MetalUIAppShaders` beside the executable, then the source tree (MetalUI's lookup order); the packaging scripts copy the build output `Shaders/viewport/compiled` there.** *Recommended:* the documented recipe; `--self-test` fails if the directory is missing. xp-2 merged without the copy (its packages ship only MetalUI's `MetalUISDLShaders`), so task 9 adds it to `scripts/package-linux.sh` (the AppImage is packed from the tarball's tree) and `scripts/package-windows.ps1`: each stops, naming `scripts/build-shaders.sh`/`.ps1`, when the directory is missing, and the clean-environment self-tests prove the copy.
 - (b) SwiftPM resources (`Bundle.module`): turns `CreatorViewport` into a resource target on macOS too.
 
 **U8. The cube's face names on macOS. DECIDED 2026-10-21: option (a).**
-- (a) **One rasterizer for both platforms through MetalUI's `TextSystem`; macOS passes `CoreTextTextSystem()`.** *Recommended:* it is the spec's "through MetalUI's portable text, not CoreText" with no second code path; the names may antialias a hair differently from the old direct `CTLineDraw` (human check XP-25).
+- (a) **One rasterizer for both platforms through MetalUI's `TextSystem`; macOS passes `CoreTextTextSystem()`.** *Recommended:* it is the spec's "through MetalUI's portable text, not CoreText" with no second code path; the names may antialias a hair differently from the old direct `CTLineDraw` (human check XP-26).
 - (b) Keep the CoreText rasterizer for macOS and add the portable one beside it: zero macOS change, two paths to keep equal.
 
 ---
@@ -122,12 +128,13 @@ Product and process choices the spec leaves open. **All eight were decided on 20
 - **The frame's camera is pushed after every pipeline bind** (`SDLPassRecorder`), so no draw depends on what the previous pipeline left in a uniform slot.
 - **Each uniform slot is the cbuffer's register index**, vertex uniforms in `space1`, fragment uniforms in `space3`, fragment samplers in `space2`, vertex storage in `space0` (SDL_GPU's convention, MetalUI `packaging.md` 4a).
 - **A fragment stage reads every vertex output it declares** (MetalUI ruling `GA-Q`: Direct3D 12 links stages by register), which is why the ID pass has vertex shaders of its own.
-- **No raw `SDL_` call in app code.** The one thing the typed layer does not give, the reason a pipeline was refused, is MetalUI gap XP-G19: the error names the vertex and fragment shader and points at the gap, and reads no `SDL_GetError()`.
+- **No raw `SDL_` call in app code.** Pipelines are made with `SDLGPUDevice.compileGraphicsPipeline(_:)` (MetalUI S11, ruling `GB-G`, gap XP-G19 answered), which throws an `SDLGPUError` naming the stage that failed with SDL's own text; `SDLViewportPipelines` puts that reason and the vertex/fragment pair in `ViewportRenderError.deviceRefused`, so `gpuFailureMessage` and `--smoke-test` say why. No `SDL_GetError()` is read here.
 - **The model hit-tests the view cube only while the backend draws it** (`ViewportBackend.drawsWidgets`, `ViewportModel.cubeCatches(_:)`): SDL says `false` until task 10, so no invisible control turns the camera.
-- **A click that waited for the ID buffer is the click of the press**: the tool and the projector it was made with, not those of the moment the buffer lands.
+- **Picking is hybrid (U4).** A hover answers from the latest landed ID buffer and never stalls; a click is exact, answered from a buffer for its own view. **A click that waits for its buffer is the click of the press**: the tool and the projector it was made with, not those of the moment the buffer lands. The wait is asynchronous until MetalUI answers XP-G22, then synchronous (task 7 step 6), with no change to what a click selects.
 - **The device is the window renderer's, borrowed from the first draw** (`SDLGPUDevice(borrowing:)` through `ctx.view`); the viewport model must not outlive its window.
-- **`.gitattributes` pins `*.hlsl`, `*.hlsli` and `scripts/shadercross.env` to LF** (a CRLF checkout changes the sources' hashes, which the build writes to `SOURCE.sha256` and the freshness test compares, and the env file is read by `sh`).
-- **The compiled directory is a build product.** `/Shaders/viewport/compiled` is in `.gitignore`. `compile-app-shaders.py` still writes `SOURCE.sha256` there (MetalUI's `SDLGPUShaderLibrary.locate` uses it as the marker that the directory is a shader directory), and `scripts/build-shaders.sh` adds `INCLUDES.sha256` for the shared header; neither is committed.
+- **`.gitattributes` pins `Shaders/**` to LF** (a CRLF checkout changes the sources' hashes, which the build writes to `SOURCE.sha256` and the freshness test compares; MetalUI section 4a's second Windows rule); `scripts/shadercross.env` is already LF through master's `scripts/** text eol=lf`. The tests that read these files split on `isNewline` all the same.
+- **The compiled directory is a build product.** `/Shaders/viewport/compiled` is in `.gitignore`. `MetalUICompileShaders` writes `SOURCE.sha256` there (MetalUI's marker; since S12 `SDLGPUShaderLibrary` also accepts a marker-free directory that holds a reflection `.json`, ruling `BS-E`, but the plan keeps the marker because the freshness check reads it), and `scripts/build-shaders.sh` adds `INCLUDES.sha256` for the shared header, which MetalUI's marker does not list; neither is committed.
+- **MetalUI's tool is built from the sibling checkout, never in it.** `swift run --package-path ../MetalUI --scratch-path <ours> MetalUICompileShaders`: the scratch path is `.build/metalui-tools` in this repository (the default) or `/build/metalui-tools` in the Linux container's own volume, so nothing is written into `../MetalUI`, which the container mounts read-only.
 - **One pin, in `scripts/shadercross.env`** (`SHADERCROSS_COMMIT`, `SHADERCROSS_REPOSITORY`); the Dockerfile, the Linux and Windows CI steps, both scripts and their error messages read or repeat it, and `ShaderToolchainTests` fails if the Dockerfile or the workflow disagree with it.
 
 ## File structure
@@ -143,7 +150,7 @@ Each file has one job. New files under `Sources/CreatorViewport/RenderSDL/` are 
 | `Render/ViewportBackend.swift` | what `ViewportModel` needs from a renderer: draw count, `pick`, `isPickPending`, `pickWhenReady`, `onPickReady` |
 | `Render/MetalViewportBackend.swift` | the macOS backend: `ViewportRenderer` + `ViewportPicker`, unchanged |
 | `Model/ViewportModel+Backend.swift` | `install(_:)` wires picks through a backend; `gpuFailureMessage`, `drawnFrames` |
-| `Model/ViewportModel+Input.swift` (changed) | a hover keeps its face and a click waits while a pick is pending |
+| `Model/ViewportModel+Input.swift` (changed) | a hover keeps its face while a pick is pending; a click waits for the buffer of its own view (U4, hybrid) |
 | `View/ViewportView.swift`, `ViewportView+Parts.swift` (changed) | portable: `MetalView` on macOS, `GPUSurface` elsewhere |
 | `View/ViewportModel+Surface.swift` (changed) | the Metal `draw`, now through `MetalViewportBackend` |
 | `View/ViewportModel+SDLSurface.swift` | the SDL `draw` (`GPUSurface` closure, `SDLGPUDrawContext`) |
@@ -161,7 +168,7 @@ Each file has one job. New files under `Sources/CreatorViewport/RenderSDL/` are 
 | `SDLFramePlan.swift` | everything one main pass draws, with every buffer already made |
 | `SDLViewportRenderer.swift`, `+Plan`, `+Record` | caches, `encode`, the plan, the recording in Metal's order |
 | `SDLViewportRenderer+IDPass.swift` | the ID pass's inputs, gathered on the main actor, and its recording |
-| `SDLViewportPicker.swift` | renders the ID pass in a batch, reads it back, answers picks from it |
+| `SDLViewportPicker.swift` | renders the ID pass in a batch, reads it back, answers hovers from the latest landed buffer and clicks from their own view's |
 | `SDLViewportBackend.swift` | the `ViewportBackend` over the renderer and the picker |
 | `SDLViewportCube.swift`, `SDLViewportRenderer+Widgets.swift`, `SDLSliceTextures.swift` | the view cube, the triad and the slice (tasks 10, 12) |
 
@@ -172,10 +179,12 @@ Each file has one job. New files under `Sources/CreatorViewport/RenderSDL/` are 
 | `Shaders/viewport/*.hlsl`, `common.hlsli` | the viewport's vertex and fragment stages and their shared structs |
 | `Shaders/viewport/compiled/*` | SPIR-V, DXIL, MSL, reflection JSON, `SOURCE.sha256`, `INCLUDES.sha256` (**generated by the build, git-ignored, not checked in**) |
 | `scripts/shadercross.env` | the one pin: SDL_shadercross repository and commit |
-| `scripts/build-shaders.sh` | compiles `Shaders/viewport` into `compiled` through MetalUI's `compile-app-shaders.py` and the pinned SDL_shadercross (Linux; run by `linux-test.sh` and CI before `swift build`); stops with a message naming the tool and its pin when it is missing or fails |
-| `scripts/build-shaders.ps1` | the same on Windows (CI and developers), finding shadercross in `SHADERCROSS` or the CI cache |
-| `scripts/linux/Dockerfile` (changed) | a `shadercross` stage: SDL3 and the pinned SDL_shadercross built into `/opt/shadercross` (amd64) |
-| `.gitattributes`, `.gitignore` | pin the shader sources' line endings; ignore the compiled directory |
+| `scripts/build-shaders.sh` | compiles `Shaders/viewport` into `compiled` through MetalUI's `MetalUICompileShaders` (built from `../MetalUI` with `swift run --scratch-path`) and the pinned SDL_shadercross (Linux; run by `linux-test.sh` and CI before `swift build`); skips a current directory; stops with a message naming the tool and its pin when it is missing or fails |
+| `scripts/build-shaders.ps1` | the same on Windows (CI and developers), finding shadercross in `-ShaderCross`, `SHADERCROSS` or `PATH` |
+| `scripts/install-shadercross.ps1` | builds the pinned SDL_shadercross on Windows (CI, cached; a developer once) |
+| `scripts/linux/Dockerfile` (changed) | a `shadercross` stage: SDL3 and the pinned SDL_shadercross with its vendored DXC built natively into `/opt/shadercross`, copied into the test image |
+| `scripts/package-linux.sh`, `scripts/package-windows.ps1`, `docs/packaging.md` (changed) | the packages ship `Shaders/viewport/compiled` as `MetalUIAppShaders` (task 9) |
+| `.gitattributes`, `.gitignore` (changed) | pin the shader sources' line endings; ignore the compiled directory |
 
 **App**
 
@@ -190,205 +199,116 @@ Each file has one job. New files under `Sources/CreatorViewport/RenderSDL/` are 
 
 ## Tasks
 
-Tasks 0 to 9 need only MetalUI as it is (the CI pin `c502f14c`, and `b15e038c`, which they were checked against). Tasks 10 to 12 each wait for the MetalUI answer named in their first step.
+Every task needs only MetalUI as master pins it, `5f03ab7b` (MetalUI S11 and S12 included); no task waits for MetalUI. Tasks 10 to 12 come last only because the viewport is useful without them. Task 7's step 6 is the one step that waits, for gap XP-G22; if it has not been answered when task 7 is done, go on and come back to it.
 
-### Task 0: Log the MetalUI gaps; give the Linux script test arguments, an image of its own and a GPU promise
+### Task 0: Log the MetalUI gaps as answered, log XP-G22; the Linux script's GPU promise; the baselines
 
-MetalUI answered XP-G1 (S5 and S6: `MetalUISDLGPU`). This task records that, logs the six things the typed layer still lacks (`XP-G14` to `XP-G19`, entry and summary row each, as `docs/metalui-gaps.md` asks; XP-G12 and XP-G13 are already on master, see the shared-files table) and the one thing MetalUI lacks outside the typed layer (`XP-G20`: a build-time path for app shaders, the reason user decision U1(b) carries its own pin, Docker stage and scripts), and makes `scripts/linux-test.sh` able to run one suite (every later task checks its own tests on Linux this way: `scripts/linux-test.sh test --filter NAME`, the argument form xp-2 also adds), run in an image of the track's own (`IMAGE`), and promise the SDL render suites a GPU. No Swift changes. **XP-G14 to XP-G19 were forwarded to the MetalUI session on 2026-10-21** (they are small: the patch at the end of this plan answers XP-G15 to XP-G18; XP-G14 and XP-G19 are wishes, not blockers); **XP-G20 is new in this revision and still to forward** (a wish, not a blocker); tasks 1 to 9 do not wait for any answer.
+MetalUI answered XP-G1 (S5 and S6: `MetalUISDLGPU`), XP-G14 to XP-G19 (S11, `11dca65e`) and XP-G20 (S12, `d995f4b4`), all in master's pin `5f03ab7b`. This task records that in `docs/metalui-gaps.md` (a summary row each, as the file asks, and one section), logs the one new gap, **XP-G22** (a render batch submitted without `await`, which a synchronous click needs; user decision U4), and makes `scripts/linux-test.sh` promise the SDL render suites a GPU (`XP_REQUIRE_GPU=1`). Master's `scripts/linux-test.sh` already has everything else the old plan's task 0 added (xp-2): `test [swift test arguments]` with the count rule off and at least one run, `IMAGE=${IMAGE:-metalcreator-linux:latest}`, `XP_TRACK`, the count 12. No Swift changes. **XP-G22 is to be forwarded to the MetalUI session** (the entry below is the text to send); nothing waits for it but task 7's step 6.
 
 **Files:**
 - Modify: `docs/metalui-gaps.md`
 - Modify: `scripts/linux-test.sh`
 
 **Interfaces:**
-- Consumes: nothing.
-- Produces: `scripts/linux-test.sh test --filter NAME` (swift test's arguments after `test`; the count rule is off, the exit code and the issue lines are still judged), used by every later task, and `IMAGE` (default `metalcreator-linux:latest`; xp-3's runs use `IMAGE=metalcreator-linux:xp-3 XP_TRACK=xp-3`); `XP_REQUIRE_GPU=1` in the container, read by task 5's `SDLGPUAvailabilityTests`; gap numbers XP-G14 to XP-G19, referenced by tasks 5, 7, 10, 11 and 12.
+- Consumes: master's `scripts/linux-test.sh` (`test --filter NAME`, `IMAGE`, `XP_TRACK`, `in_container`).
+- Produces: `XP_REQUIRE_GPU=1` in every container `in_container` starts, read by task 5's `SDLGPUAvailabilityTests`; the gap rows XP-G1, XP-G2, XP-G14 to XP-G20 (answered) and XP-G22 (open), referenced by tasks 5, 7 and 10 to 12; the baselines every later "Expected" line is a delta from.
 
-- [ ] **Step 1: Add the gaps to `docs/metalui-gaps.md`**
+- [ ] **Step 1: Record the answers and XP-G22 in `docs/metalui-gaps.md`**
 
-Nine summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G14 to XP-G20 new; XP-G12 and XP-G13, already on master, come before them) and one section at the end of the file, with the use case and what xp-3 does meanwhile. These entries are the text to send MetalUI.
+In the summary table, insert these ten rows **between the `| XP-G13 |` row and the `| XP-G21 |` row** (numeric order; XP-G21, the Windows release-build crash MetalUI fixed in `5f03ab7b`, is master's and stays where it is):
 
-`docs/metalui-gaps.md` (change; apply with `git apply` or by hand):
-
-```diff
---- a/docs/metalui-gaps.md
-+++ b/docs/metalui-gaps.md
-@@ -71,6 +71,15 @@
- | XP-G8 | Hand and zoom cursor fallbacks | MetalUI S4 (queued) | ➖ accepted: MetalUI's fallback (`.link` hand, grab → move, zoom → arrow) is used as is; S4 adds image cursors (human check XP-8) |
- | XP-G9 | `SDLPlatform(hiddenWindows:offscreenRenderers:)` is `@_spi(Checks)` | open (new) | 🔄 open at MetalUI. `MetalCreatorApp --smoke-test` (the CI launch check, `main.swift`) imports it with `@_spi(Checks) import MetalUISDL`; promote it to public API or name a supported headless-launch entry point |
- | XP-G10 | A header-only read of a picture's size and orientation (before any pixel is decoded) | open (new, forward to MetalUI) | 🔄 open at MetalUI. `DecodedImage` reports size and orientation only after it decodes the whole picture, but `ImageLimits` must refuse an oversize one first; MetalCreator keeps a small `ImageHeader` reader (PNG IHDR and `eXIf`, JPEG SOF and APP1) for that. Needed: a public `ImageInfo(data:)` (format, stored size, orientation, no pixel work) |
-+| XP-G1 | App access to SDL_GPU through `GPUSurface`, a shader build path for apps, MSAA resolve, depth targets, instanced draws, storage buffers, mipmapped r8 textures, texture readback | MetalUI S5 and S6 (`MetalUISDLGPU`, master `34491ff4` and later; record §114, rulings `GA-`) | ✅ answered, and used by xp-3 (plan `2026-10-21-xp-3-sdl-gpu-viewport.md`): every item exists in the typed layer and the viewport draws with them. What the layer still lacks for the viewport is XP-G14 to XP-G19 below |
-+| XP-G2 | Portable compute (SDL GPU compute) for 7c's implicit engine | MetalUI S5 (`SDLGPUComputePipeline`, `submitBatch`, append buffers) | ✅ answered; not used by xp-3 (xp-c's: implicit evaluation and meshing stay on the CPU off macOS until then) |
-+| XP-G14 | A synchronous readback of a texture outside a draw (the ID pass the viewport picks from) | open (new, forward to MetalUI) | 🔄 open at MetalUI, not blocking. SDL's readback is async only (`submitBatch`, `fence.wait()`, `download`), and `ViewportModel.pick` is asked at once by every hover and click. xp-3 renders the ID buffer ahead of the pick and answers from it (`SDLViewportPicker`); a hover keeps its face and a click waits while the buffer is on its way |
-+| XP-G15 | `setViewport` and `setScissor` on a render pass | open (new, forward to MetalUI) | 🔄 open at MetalUI, **blocks the view cube and the triad** (xp-3 task 10): each draws in a square of the target with a camera of its own, as Metal's `setViewport` does |
-+| XP-G16 | A colour write mask on a graphics pipeline | open (new, forward to MetalUI) | 🔄 open at MetalUI, **blocks the ghosts' depth-only prepass** (xp-3 task 11): without it a ghost box blends its back faces over its front ones |
-+| XP-G17 | `SDLGPUTextureFormat.r32Float` | open (new, forward to MetalUI) | 🔄 open at MetalUI, **blocks the field slice** (xp-3 task 12): its grid is an `r32Float` texture read with a nearest sampler |
-+| XP-G18 | Anisotropic filtering on `SDLGPUSamplerDescription` | open (new, forward to MetalUI) | 🔄 open at MetalUI, wanted with XP-G15: the view cube's face names are read through a sampler with `max_anisotropy(8)` on Metal, since the cube is seen at a slant |
-+| XP-G19 | The reason `makeGraphicsPipeline` refused (it answers `nil`; its doc says the message is `SDL_GetError()`) | open (new, forward to MetalUI) | 🔄 open at MetalUI, not blocking. xp-3 names the vertex/fragment pair in its error and reads no raw `SDL_GetError()` (the project's rule is no raw `SDL_` call); on a Direct3D 12 driver the reason is what tells a bad register from a missing feature |
-+| XP-G20 | A build-time path for an app's SDL_GPU shaders: a plugin or a documented, pinned SDL_shadercross for CI | open (new, forward to MetalUI) | 🔄 open at MetalUI, not blocking. `packaging.md` section 4a has the app run `compile-app-shaders.py` by hand and check the compiled directory in; MetalUI has no build-tool plugin, runs no shadercross in its CI, and SDL_shadercross has no release or tag (checked 2026-10-21). xp-3 (user decision U1(b)) compiles at build time with a pin of its own: `scripts/shadercross.env`, a Docker stage, `scripts/build-shaders.sh`/`.ps1` |
- 
- ## Reported 2026-10-07 (C7)
- 
-@@ -1223,3 +1232,62 @@
-   a window opened and closed in a release run; human check). Needed from MetalUI: break the cycle when the store is torn down (the
-   window's end or `renderFrame`'s return clears the entries and spends the armed sessions) or make the `onChange` closure hold the
-   store weakly. No stopgap in MetalCreator. To be forwarded to the MetalUI session.
-+
-+## Hit by the 3D viewport on SDL GPU (xp-3), 2026-10-21
-+
-+Plan `docs/superpowers/plans/2026-10-21-xp-3-sdl-gpu-viewport.md`, checked against MetalUI master `b15e038c` (the CI pin in `.github/workflows/xp.yml`
-+is `c502f14c`, which has MetalUI S5 and S6, `MetalUISDLGPU`, master `34491ff4` and later). The viewport's SDL renderer draws every pass of the
-+Metal one except what the gaps below block (XP-G15 to XP-G18), and uses no raw `SDL_` call and no shader-side imitation of a missing verb: a layer a gap
-+blocks is a task of the plan that waits for MetalUI's answer (tasks 10 to 12), written against the signature requested here and checked against
-+a local copy of MetalUI that has exactly that signature.
-+
-+- **XP-G1. App access to SDL_GPU for the viewport.** Answered by MetalUI S5 and S6 (`MetalUISDLGPU`; record §114, `GA-`): `ctx.view` is the
-+  surface draw's frame (its own command buffer and target as an `SDLGPUTexture`), `SDLGPUShaderLibrary` loads HLSL built by
-+  `compile-app-shaders.py`, textures take a sample count (4× MSAA resolved into the surface's target by `storeOp: .resolve`), `d32Float` depth,
-+  `r32Uint` and a mip chain (`levelCount`, `generateMipmaps`), pipelines take a blend, a cull mode and a depth test, a pass draws instanced
-+  (`draw(vertexCount:instanceCount:)`) over vertex-stage storage buffers, and `SDLGPUDevice.download(_:)` reads a texture back. Nothing was
-+  worked around: the viewport's two passes, the ID pass and the label atlas use exactly these.
-+- **XP-G14. A synchronous readback outside a draw.** `ViewportModel.pick` is called by every pointer move over the viewport and by every
-+  click, and answers at once: on Metal `ViewportPicker` renders the ID buffer and waits for the GPU (`waitUntilCompleted`). On SDL the typed
-+  readback is `await device.submitBatch { … }`, `await fence.wait()`, `await device.download(texture)`, and `waitForIdle`, `fence.wait` and
-+  `submitBatch` trap in a debug build inside a draw. So `SDLViewportPicker` renders the ID pass in a batch right after the draw that follows a
-+  change of camera or scene (`schedule`) and reads the words from the buffer that landed; `ViewportBackend.isPickPending(for:)` says when the
-+  buffer is not for the camera and scene of the frame asked about, a hover then keeps the face it had, a click waits for the buffer
-+  (`pickWhenReady`), and a landed buffer looks under the pointer again (`onPickReady`, `refreshHover()`). The cost is a few milliseconds in
-+  which a hover can name the face the old camera showed. Wanted, not blocking: a blocking `SDLGPUDevice.downloadSynchronously(_ texture:)`
-+  usable from the main actor outside a draw, or `SDLGPUFence.waitBlocking()`, which would give Metal's exact behaviour and delete the
-+  pending state.
-+- **XP-G15. `setViewport` and `setScissor` on a render pass.** The view cube (96 × 96 points at the top left) and the axis triad (64 × 64
-+  points at the bottom left) each draw in a square of the target with a camera of their own, as Metal's `setViewport` lets them. Needed on
-+  `SDLGPURenderPass`: `setViewport(x:y:width:height:minDepth:maxDepth:)` (`SDL_SetGPUViewport`) and `setScissor(x:y:width:height:)`
-+  (`SDL_SetGPUScissor`), in target pixels from the top left. Blocks xp-3 task 10.
-+- **XP-G16. A colour write mask on a graphics pipeline.** A ghost (another node's preview, drawn 40% blended) takes two steps so each pixel blends
-+  once at its nearest surface: a depth-only prepass, then the blended colour pass, which passes only where its depth equals the prepass's.
-+  Metal's prepass pipeline writes no colour (`colorAttachments[0].writeMask = []`). Needed on `SDLGPUGraphicsPipelineDescription`:
-+  `writesColor: Bool = true` (`SDL_GPUColorTargetBlendState.enable_color_write_mask` with an empty `color_write_mask`). Blocks xp-3 task 11.
-+- **XP-G17. `SDLGPUTextureFormat.r32Float`.** The field slice's grid (up to 256 × 256 numbers) is an `r32Float` texture on Metal, read at texel
-+  centres and blended in the shader. Needed: the case `r32Float` (`SDL_GPU_TEXTUREFORMAT_R32_FLOAT`, 4 bytes a texel) beside `r32Uint`,
-+  usable with the sampler usage and with `upload`. Blocks xp-3 task 12.
-+- **XP-G18. Anisotropic filtering on a sampler.** The cube's face names are an `r8` atlas with a full mip chain, drawn at a slant, through a
-+  sampler with `max_anisotropy(8)` on Metal. Needed on `SDLGPUSamplerDescription`: `maxAnisotropy: Float = 1` (`enable_anisotropy` when above 1,
-+  `max_anisotropy`). Cosmetic (names blur a little at a slant without it); requested with XP-G15 and used by xp-3 task 10.
-+- **XP-G19. The reason a graphics pipeline was refused.** `SDLGPUDevice.makeGraphicsPipeline(_:)` answers `nil` and its documentation says the
-+  message is `SDL_GetError()`; `SDLGPUDevice.lastFailure` covers only a device that could not be made. The viewport builds many pipelines
-+  and a driver that refuses one (Direct3D 12 on `E_INVALIDARG`, a sample count the driver lacks) is the failure its users will report, so
-+  the reason matters, but reading it means a raw `SDL_GetError()` call, which this project does not make. Needed: either
-+  `makeGraphicsPipeline` throws or returns a `Result` with the message, or `SDLGPUDevice.lastFailure` also records pipeline failures.
-+  Wanted, not blocking: xp-3's error names the vertex and fragment shader of the pair that was refused and points here.
-+- **XP-G20. A build-time path for an app's SDL_GPU shaders.** `docs/packaging.md` section 4a tells an app to run `Backends/SDL/scripts/compile-app-shaders.py` by hand
-+  and to **check the compiled directory in**; MetalUI has no SwiftPM build-tool or command plugin (no `Plugins` directory), its own CI never runs SDL_shadercross
-+  (`Experiments/SDLGPU/README.md`: "no SDL_shadercross release exists to fetch in CI"), `libsdl-org/SDL_shadercross` still has no release and no tag (checked
-+  2026-10-21; `main` and short-lived Actions artifacts only), and Microsoft publishes DirectXShaderCompiler for Linux x86_64 and Windows only, so there is no pinned
-+  way to get the tool on Linux aarch64. An app that compiles at build time (xp-3's user decision U1(b): no compiled file in the repository, SDL_shadercross a build
-+  dependency of Linux and Windows) therefore carries its own pin (`scripts/shadercross.env`), Docker stage, Windows build (`scripts/install-shadercross.ps1`) and
-+  scripts (`scripts/build-shaders.sh`, `.ps1`), and `swift build` alone compiles nothing. Needed, wanted and not blocking: (1) a build-tool or command plugin in
-+  MetalUI that compiles an app's `*.{vert,frag,comp}.hlsl` and ships the result where `SDLGPUShaderLibrary.locate` looks, or a documented recipe that does the same;
-+  (2) a pinned, documented SDL_shadercross for CI on Linux x86_64 and aarch64 and on Windows (a release asset or a published container); (3) `SDLGPUShaderLibrary`
-+  accepting a build product without a `SOURCE.sha256` marker (today the script writes it, and xp-3 relies on that). Nothing is worked around inside MetalUI.
-+
-+What the viewport does not need, and so does not ask for: fragment-stage storage buffers (a face's flags are read in the vertex stage and reach
-+the fragment stage as a flat interpolant), a vertex format of `uint` (every vertex stream is a storage buffer), a sampled `r8Unorm` mip chain
-+(`generateMipmaps` does it) and a depth readback.
+```markdown
+| XP-G1 | App access to SDL_GPU through `GPUSurface`, a shader build path for apps, MSAA resolve, depth targets, instanced draws, storage buffers, mipmapped r8 textures, texture readback | MetalUI S5 and S6 (`MetalUISDLGPU`, master `34491ff4` and later; record §114, rulings `GA-`) | ✅ answered, and used by xp-3 (plan `2026-10-21-xp-3-sdl-gpu-viewport.md`): every item exists in the typed layer and the viewport draws with them. What it still lacked was XP-G14 to XP-G20, answered by S11 and S12 below |
+| XP-G2 | Portable compute (SDL GPU compute) for 7c's implicit engine | MetalUI S5 (`SDLGPUComputePipeline`, `submitBatch`, append buffers) | ✅ answered; not used by xp-3 (xp-c's: implicit evaluation and meshing stay on the CPU off macOS until then) |
+| XP-G14 | A synchronous readback of a texture outside a draw (the ID pass the viewport picks from) | MetalUI S11 (record §137, ruling `GB-F`, master `11dca65e`) | ✅ fixed by MetalUI S11 (in the pin `5f03ab7b`): `SDLGPUFence.waitBlocking()` and `SDLGPUDevice.downloadSynchronously(_:region:) -> [UInt8]?`, legal on the main actor outside a draw. xp-3's click uses them once it can also submit its ID pass without `await` (XP-G22); meanwhile a hover answers from the latest landed buffer and a click waits for its own, asynchronously (user decision U4, hybrid) |
+| XP-G15 | `setViewport` and `setScissor` on a render pass | MetalUI S11 (ruling `GB-B`, `11dca65e`) | ✅ fixed by MetalUI S11: `SDLGPURenderPass.setViewport(x:y:width:height:minDepth:maxDepth:) -> Bool` and `setScissor(x:y:width:height:) -> Bool` (`@discardableResult`, target pixels from the top left, the scissor clamped to the target); used by xp-3 task 10 (the view cube and the triad) |
+| XP-G16 | A colour write mask on a graphics pipeline | MetalUI S11 (ruling `GB-C`, `11dca65e`) | ✅ fixed by MetalUI S11: `SDLGPUGraphicsPipelineDescription(…, writesColor: false)`; used by xp-3 task 11 (the ghosts' depth-only prepass) |
+| XP-G17 | `SDLGPUTextureFormat.r32Float` | MetalUI S11 (ruling `GB-D`, `11dca65e`) | ✅ fixed by MetalUI S11: `.r32Float` (4 bytes a texel; linear sampling is optional hardware, so xp-3 samples it with a nearest sampler and blends in the shader); used by xp-3 task 12 (the field slice) |
+| XP-G18 | Anisotropic filtering on `SDLGPUSamplerDescription` | MetalUI S11 (ruling `GB-E`, `11dca65e`) | ✅ fixed by MetalUI S11: `SDLGPUSamplerDescription(…, maxAnisotropy:)` (1 is off, capped at 16: `effectiveMaxAnisotropy`); used by xp-3 task 10 at 8 for the cube's face names |
+| XP-G19 | The reason `makeGraphicsPipeline` refused | MetalUI S11 (ruling `GB-G`, `11dca65e`) | ✅ fixed by MetalUI S11: `SDLGPUDevice.compileGraphicsPipeline(_:) throws -> SDLGPUGraphicsPipeline` throws an `SDLGPUError` naming the stage that failed with SDL's text (and `lastPipelineFailure` records what `makeGraphicsPipeline` refused); xp-3's `SDLViewportPipelines` puts it in `ViewportRenderError.deviceRefused`, so `gpuFailureMessage` says why. No raw `SDL_GetError()` |
+| XP-G20 | A build-time path for an app's SDL_GPU shaders: a plugin or a documented, pinned SDL_shadercross for CI | MetalUI S12 (record §138, rulings `BS-`, master `d995f4b4`) | ✅ fixed by MetalUI S12: the executable `MetalUICompileShaders` and the command plugin `CompileShaders` (`swift package --allow-writing-to-package-directory compile-shaders`) replace `compile-app-shaders.py`, which is deleted; shadercross is found by `--shadercross`, `METALUI_SHADERCROSS`, then `PATH`; `SDLGPUShaderLibrary` opens a directory with `SOURCE.sha256` or a reflection `.json` (`BS-E`), and `init(directory:verifyingSources:)` still refuses a stale marker; the pin `1ff05bec…` is documented in `docs/packaging.md` §4a. ➖ The published shadercross (item 2) was declined (ruling `BS-H`), so xp-3 keeps its Docker stage, `scripts/shadercross.env` and `scripts/install-shadercross.ps1`; `scripts/build-shaders.sh` and `.ps1` run `MetalUICompileShaders` |
+| XP-G22 | A render batch submitted without `await`, so a click can render its own ID pass and wait for it (Metal's `waitUntilCompleted` picking) | open (new, 2026-10-22, forward to MetalUI) | 🔄 open at MetalUI, not blocking. `SDLGPUDevice.submitBatch` is `async`, so main-actor code outside a draw cannot render the ID pass and then `downloadSynchronously` it. Needed: `submitBatchSynchronously(_:) throws -> SDLGPUFence`, under `GB-F`'s rules. Meanwhile xp-3's click waits for its own ID buffer asynchronously (exact, delivered a few milliseconds later); xp-3 task 7 step 6 adopts the verb |
 ```
 
-- [ ] **Step 2: Give `scripts/linux-test.sh` test arguments, an `IMAGE` of its own and the GPU promise**
+Then append this section at the **end of the file** (after the "Found by the preview sweep, 2026-10-14" section, with one blank line before it):
 
-`scripts/linux-test.sh` (change; apply with `git apply` or by hand):
+````markdown
+## Hit by the 3D viewport on SDL GPU (xp-3), 2026-10-21 (answered the same day; XP-G22 added 2026-10-22)
+
+Plan `docs/superpowers/plans/2026-10-21-xp-3-sdl-gpu-viewport.md`, checked against MetalUI `5f03ab7b` (master's `METALUI_COMMIT`, which has MetalUI S11 `11dca65e` and S12 `d995f4b4`). The viewport's SDL renderer draws every pass of the Metal one and uses no raw `SDL_` call and no shader-side imitation of a missing verb.
+
+- **XP-G1. App access to SDL_GPU for the viewport.** Answered by MetalUI S5 and S6 (`MetalUISDLGPU`; record §114, `GA-`): `ctx.view` is the
+  surface draw's frame (its own command buffer and target as an `SDLGPUTexture`), `SDLGPUShaderLibrary` loads the compiled HLSL, textures take a
+  sample count (4× MSAA resolved into the surface's target by `storeOp: .resolve`), `d32Float` depth, `r32Uint` and a mip chain (`levelCount`,
+  `generateMipmaps`), pipelines take a blend, a cull mode and a depth test, a pass draws instanced (`draw(vertexCount:instanceCount:)`) over
+  vertex-stage storage buffers, and `SDLGPUDevice.download(_:)` reads a texture back. Nothing was worked around.
+- **XP-G14 to XP-G19.** Asked on 2026-10-21 (a synchronous readback; `setViewport` and `setScissor`; a colour write mask; `r32Float`; anisotropy; a refused
+  pipeline's reason) and answered the same day by MetalUI S11 (record §137, rulings `GB-B` to `GB-G`, master `11dca65e`) with the verbs the summary rows
+  name. xp-3 uses every one: tasks 10 (`setViewport`, `maxAnisotropy`), 11 (`writesColor`), 12 (`r32Float`), 5 (`compileGraphicsPipeline`) and 7
+  (`waitBlocking`, `downloadSynchronously`, once XP-G22 is answered).
+- **XP-G20. A build-time path for an app's SDL_GPU shaders.** Asked on 2026-10-21 (xp-3's user decision U1(b): no compiled file in the repository,
+  SDL_shadercross a build dependency of Linux and Windows) and answered by MetalUI S12 (record §138, rulings `BS-A` to `BS-I`, master `d995f4b4`):
+  `MetalUICompileShaders` and the `CompileShaders` command plugin, a marker-free build product accepted by `SDLGPUShaderLibrary`, and the
+  shadercross pin documented in `docs/packaging.md` §4a. MetalUI publishes no shadercross (ruling `BS-H`), so MetalCreator builds it: the
+  `shadercross` stage of `scripts/linux/Dockerfile` (MetalUI's recipe, natively on x86_64 and aarch64) and `scripts/install-shadercross.ps1` on Windows.
+- **XP-G22. A render batch submitted without `await`, so a click can render its own ID pass and wait for it.** `ViewportModel.click(at:modifiers:)` runs
+  on the main actor and must deliver the face or edge under the press. On Metal `ViewportPicker` renders the ID buffer for the view as it is and waits
+  (`waitUntilCompleted`), so a click is exact and immediate. On SDL xp-3 renders the ID buffer ahead, after the draw that follows a change of camera or
+  scene, and a click whose view has a landed buffer is answered at once from it; but a click within the few milliseconds before that buffer lands (right
+  after an orbit, a zoom, an edit or a camera animation) has no buffer for its view, and the typed layer cannot render one synchronously:
+  `SDLGPUDevice.submitBatch(_:)` is `async`, and `SDLGPUCommandBuffer` exists only inside a batch. `downloadSynchronously` and `waitBlocking`
+  (XP-G14) cover the read and the wait, not the render. Needed: `SDLGPUDevice.submitBatchSynchronously(_ record: @escaping @Sendable
+  (SDLGPUCommandBuffer) -> Void) throws -> SDLGPUFence`, which records and submits on the submit worker as `submitBatch` does and returns once the buffer is
+  submitted (the caller then `waitBlocking()`s the fence or calls `downloadSynchronously`, which the worker orders after it), with `GB-F`'s rules: legal on the
+  main actor outside a surface draw, a debug trap inside one (`GA-I`), a precondition on the device's own worker threads. `downloadSynchronously` already
+  submits this way inside MetalUI. Meanwhile (not blocking): such a click waits for its buffer asynchronously and is delivered a few milliseconds later,
+  still exact and to the tool of its press (`ViewportModel.pickWhenReady`); a hover never waits. xp-3 task 7 step 6 replaces that wait with
+  `submitBatchSynchronously`, `waitBlocking()` and `downloadSynchronously` once the verb lands. Not worked around: no raw `SDL_` call, no thread blocked
+  on a task.
+
+What the viewport does not need, and so does not ask for: fragment-stage storage buffers (a face's flags are read in the vertex stage and reach
+the fragment stage as a flat interpolant), a vertex format of `uint` (every vertex stream is a storage buffer), a sampled `r8Unorm` mip chain
+(`generateMipmaps` does it) and a depth readback.
+````
+
+- [ ] **Step 2: The GPU promise in `scripts/linux-test.sh`**
+
+`scripts/linux-test.sh` (change against master; apply with `git apply` or by hand):
 
 ```diff
 --- a/scripts/linux-test.sh
 +++ b/scripts/linux-test.sh
-@@ -4,8 +4,10 @@
- #
- #   scripts/linux-test.sh [build|test|smoke|all]    default: all
+@@ -6,7 +6,8 @@
  #     build   swift build
--#     test    swift test, judged by the pass rule below
+ #     test    swift test, judged by the pass rule below. Arguments after `test` (for example `--filter CreatorOCCTTests`) go to
+ #             swift test and switch the count rule off: only the exit code and the issue lines are judged.
 -#     smoke   the app's --self-test, then --smoke-test 20 (the real window over SDL's offscreen renderers: a first frame within 20 s)
-+#     test    swift test, judged by the pass rule below. Arguments after `test` (for example `--filter CreatorViewportTests`, a target,
-+#             a suite or a regex) go to swift test and switch the count rule off: only the exit code and the issue lines are judged.
 +#     smoke   the app's --self-test, then --smoke-test 20 (the real window over SDL's offscreen renderers: a first frame within 20 s,
 +#             and the 3D viewport drew in it)
- #     all     the three, in that order
- #   scripts/linux-test.sh clean                     removes this track's build volume
+ #     package scripts/package-linux.sh and scripts/package-appimage.sh in the image (the second downloads appimagetool and the
+ #             AppImage runtime, pinned by version and sha256: it needs the network), then the tarball and the AppImage in dist/ are
+ #             each run in a clean ubuntu:24.04 (no Swift, no /opt/occt, no MetalUI checkout, no FUSE) and must pass --version and
+@@ -22,6 +23,11 @@
+ # "Test run with" (one per test target that has tests: twelve on Linux, Windows and macOS since xp-2 put CreatorOCCTTests on
+ # every platform).
  #
-@@ -14,10 +16,16 @@
- # rerun is incremental.
- #
- # Pass rule for `test` (spec 2.5): exit 0, no "recorded an issue" or "failed after" line, and EXPECTED_TEST_RUNS lines
--# "Test run with" (one per test target that has tests on Linux; macOS has one more, CreatorOCCTTests).
-+# "Test run with" (one per test target that has tests on Linux: 11 until xp-2 puts CreatorOCCTTests on Linux and Windows, 12 after;
-+# macOS has had 12 all along).
- #
-+# The image draws on Mesa's lavapipe, a CPU Vulkan driver, so the SDL_GPU viewport renders here with no GPU in the machine. The container
-+# sets XP_REQUIRE_GPU=1: the viewport's renderer suites skip when no SDL_GPU device answers, and with this set a missing device fails
-+# SDLGPUAvailabilityTests instead, so a runner that lost its driver cannot pass by running none of them (MetalUI's METALUI_REQUIRE_GPU).
++# The image draws on Mesa's lavapipe, a CPU Vulkan driver, so the SDL_GPU viewport renders here with no GPU in the machine. Every
++# container sets XP_REQUIRE_GPU=1: the viewport's renderer suites skip when no SDL_GPU device answers, and with this set a missing
++# device fails SDLGPUAvailabilityTests instead, so a runner that lost its driver cannot pass by running none of them (MetalUI's
++# METALUI_REQUIRE_GPU).
 +#
  # Environment: XP_TRACK names the track (default xp-1), which names the container and the volume, so a script run kills only
--# its own container. EXPECTED_TEST_RUNS overrides the count (11 today).
-+# its own container. IMAGE names the image this script builds and runs (default metalcreator-linux:latest): a track sets its own
-+# (xp-3 uses metalcreator-linux:xp-3) so it never replaces another track's image. EXPECTED_TEST_RUNS overrides the count.
- set -euo pipefail
- 
- cd "$(dirname "$0")/.."
-@@ -31,12 +39,13 @@
- TRACK=${XP_TRACK:-xp-1}
- EXPECTED_TEST_RUNS=${EXPECTED_TEST_RUNS:-11}
- BASE_IMAGE=metalui-portable:latest
--IMAGE=metalcreator-linux:latest
-+IMAGE=${IMAGE:-metalcreator-linux:latest}
- NAME=$TRACK-linux
- VOLUME=$TRACK-linux-build
- LOG=${TMPDIR:-/tmp}/$TRACK-linux-test.log
- 
- step=${1:-all}
-+if [ "$#" -gt 0 ]; then shift; fi
- if [ "$step" = clean ]; then
-     docker volume rm "$VOLUME" >/dev/null 2>&1 || true
-     exit 0
-@@ -52,7 +61,7 @@
- in_container() {
+ # its own container. EXPECTED_TEST_RUNS overrides the count (12 today). IMAGE names the image this script builds and runs
+ # (default metalcreator-linux:latest; a track that must not replace another's image sets its own). OpenCascade is built from
+@@ -70,7 +76,7 @@
      docker rm -f "$NAME" >/dev/null 2>&1 || true
+     # shellcheck disable=SC2086
      docker run --rm --name "$NAME" \
--        -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -v "$VOLUME":/build \
-+        -e XP_REQUIRE_GPU=1 -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -v "$VOLUME":/build \
+-        -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -v "$VOLUME":/build ${DOCKER_EXTRA:-} \
++        -e XP_REQUIRE_GPU=1 -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -v "$VOLUME":/build ${DOCKER_EXTRA:-} \
          "$IMAGE" bash -ec "$1"
  }
  
-@@ -66,14 +75,17 @@
-         "$bin" --smoke-test 20'
- }
- 
-+# `test` with arguments (`test --filter NAME`) runs just that, with no count rule: what a change's own tests are checked with before
-+# the whole suite. printf %q keeps a filter like 'A|B' one word through the container's shell.
- do_test() {
--    local status=0
--    in_container 'swift test --scratch-path /build' 2>&1 | tee "$LOG" || status=$?
-+    local status=0 args=""
-+    if [ "$#" -gt 0 ]; then args=$(printf ' %q' "$@"); fi
-+    in_container "swift test --scratch-path /build$args" 2>&1 | tee "$LOG" || status=$?
-     local clean runs tests
-     clean=$(sed $'s/\x1b\\[[0-9;]*m//g' "$LOG")
-     runs=$(grep -c "Test run with" <<<"$clean" || true)
-     tests=$({ grep "Test run with" <<<"$clean" || true; } | sed -E 's/.*Test run with ([0-9]+) tests.*/\1/' | awk '{ total += $1 } END { print total + 0 }')
--    if [ "$status" -ne 0 ] || grep -qE "recorded an issue|failed after" <<<"$clean" || [ "$runs" -ne "$EXPECTED_TEST_RUNS" ]; then
-+    if [ "$status" -ne 0 ] || grep -qE "recorded an issue|failed after" <<<"$clean" || { [ "$#" -eq 0 ] && [ "$runs" -ne "$EXPECTED_TEST_RUNS" ]; }; then
-         echo "Linux: FAIL (exit $status, $runs of $EXPECTED_TEST_RUNS 'Test run with' lines; log: $LOG)" >&2
-         return 1
-     fi
-@@ -82,8 +94,8 @@
- 
- case $step in
-     build) do_build ;;
--    test) do_test ;;
-+    test) do_test "$@" ;;
-     smoke) do_smoke ;;
-     all) do_build && do_test && do_smoke ;;
--    *) echo "usage: scripts/linux-test.sh [build|test|smoke|all|clean]" >&2; exit 64 ;;
-+    *) echo "usage: scripts/linux-test.sh [build|test [swift test args]|smoke|all|clean]" >&2; exit 64 ;;
- esac
 ```
 
 - [ ] **Step 3: Check the script and take the baselines**
@@ -396,18 +316,18 @@ Nine summary rows after XP-G10's (XP-G1 and XP-G2 answered, XP-G14 to XP-G20 new
 ```bash
 bash -n scripts/linux-test.sh && echo syntax-ok
 swift test --filter CreatorViewportTests 2>&1 | grep -E 'recorded an issue|failed after|Test run with'   # the macOS baseline
-XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter CreatorViewportTests 2>&1 | grep -E 'recorded an issue|failed after|Test run with'   # the Linux baseline
+XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter CreatorViewportTests 2>&1 | grep -E 'recorded an issue|failed after|Test run with|Linux:'   # the Linux baseline
+XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test 2>&1 | tail -1   # the Linux full-suite baseline
 ```
 
-Expected: `syntax-ok`, no issue line, and one `Test run with N tests in S suites passed` line for each platform. **Write both down: they are this branch's baselines.** Every later "Expected" line in this plan gives the figure measured on master `11aab8e` and, beside it, what the task adds (`baseline + n`): the delta is the check, because another track's merge moves the absolute figure. Master's `CreatorViewportTests`: 304 tests in 41 suites on macOS, 259 in 34 on Linux. (The first Linux run builds MetalUI and everything else in the `xp-3-linux-build` volume, minutes; later runs are incremental.)
+Expected: `syntax-ok`, no issue line, one `Test run with N tests in S suites passed` line for each platform's `CreatorViewportTests`, and `Linux: PASS (12 'Test run with' lines, T tests; …)`. **Write them down: they are this branch's baselines**, with master `1aad412`'s macOS full suite, **4822 tests in 12 "Test run with" lines** (not re-run here: one full macOS run comes in task 9). macOS `CreatorViewportTests` was 304 tests in 41 suites on `1aad412` (measured 2026-10-22). The Linux figures in this plan's "Expected" lines were measured on master `11aab8e` (259 tests in 34 suites); judge by the delta (`baseline + n`). (The first Linux run builds the image, OpenCascade's stage and MetalUI in the `xp-3-linux-build` volume: long; later runs are incremental.)
 
 - [ ] **Step 4: Lint and commit**
 
 ```bash
 swiftlint lint --strict --quiet   # no output
-git add docs/metalui-gaps.md \
-  scripts/linux-test.sh
-git commit -m "docs: log MetalUI gaps XP-G14 to XP-G20; linux-test.sh takes test arguments and IMAGE, XP_REQUIRE_GPU"
+git add docs/metalui-gaps.md scripts/linux-test.sh
+git commit -m "docs: MetalUI gaps XP-G14 to XP-G20 answered (S11, S12), XP-G22 logged; linux-test.sh promises the GPU suites a device"
 ```
 
 
@@ -648,7 +568,7 @@ git commit -m "viewport: FloatMatrix4 and FrameUniforms in plain SIMD, on every 
 
 ### Task 2: The viewport behind a protocol: `ViewportBackend`, `MetalViewportBackend`, a portable `ViewportView`
 
-`ViewportModel` keeps a `ViewportBackend?` where it kept `ViewportRenderer?`. The protocol is only what the model needs: how many passes were drawn, what is under a point, and, for a renderer whose readback is asynchronous, whether that answer is still on its way (`isPickPending`), a way to wait for it (`pickWhenReady`) and a callback when it lands (`onPickReady`). A hover keeps its face while a pick is pending (never "empty space" for a few milliseconds); a click waits for the buffer and is delivered on the target that lands, **to the tool and with the projector the press had** (not whatever a tool change or a camera animation made of them in the milliseconds between; the tool-change test pins it). A backend also says whether it `drawsWidgets` (the view cube and the axis triad): the model hit-tests the cube (hover, click, drag, the context menu's exclusion) only while the backend draws it, through `cubeCatches(_:)`, so on SDL, between this task and task 10, the cube's corner is the scene's and nothing invisible rotates the camera (the cube's arrow buttons and View menu are MetalUI views and stay). `MetalViewportBackend` wraps `ViewportRenderer` and `ViewportPicker` as they are and never reports pending, so macOS behaves exactly as before. `ViewportView` and its parts are no longer fenced by `#if canImport(Metal)`: the surface is `MetalView` on macOS and MetalUI's portable `GPUSurface` elsewhere, with a `draw` overload per context (off Metal it only clears until task 8 installs the SDL renderer).
+`ViewportModel` keeps a `ViewportBackend?` where it kept `ViewportRenderer?`. The protocol is only what the model needs: how many passes were drawn, what is under a point, and, for a renderer whose readback is asynchronous, whether that answer is still on its way (`isPickPending`), a way to wait for it (`pickWhenReady`) and a callback when it lands (`onPickReady`). This is user decision U4, **hybrid**: a hover answers from the latest landed buffer and keeps its face while a pick is pending (never "empty space" for a few milliseconds, never a stalled frame); a click is exact: it waits for the buffer of its own view and is delivered on the target that lands, **to the tool and with the projector the press had** (not whatever a tool change or a camera animation made of them in the milliseconds between; the tool-change test pins it). The wait is asynchronous because MetalUI cannot yet submit a render batch without `await` (gap XP-G22); task 7 step 6 makes `pickWhenReady` synchronous once it can, and this task's waiting-click code and its two tests go then. A backend also says whether it `drawsWidgets` (the view cube and the axis triad): the model hit-tests the cube (hover, click, drag, the context menu's exclusion) only while the backend draws it, through `cubeCatches(_:)`, so on SDL, between this task and task 10, the cube's corner is the scene's and nothing invisible rotates the camera (the cube's arrow buttons and View menu are MetalUI views and stay). `MetalViewportBackend` wraps `ViewportRenderer` and `ViewportPicker` as they are and never reports pending, so macOS behaves exactly as before. `ViewportView` and its parts are no longer fenced by `#if canImport(Metal)`: the surface is `MetalView` on macOS and MetalUI's portable `GPUSurface` elsewhere, with a `draw` overload per context (off Metal it only clears until task 8 installs the SDL renderer).
 
 **Files:**
 - Create: `Sources/CreatorViewport/Model/ViewportModel+Backend.swift`
@@ -949,9 +869,11 @@ final class MetalViewportBackend: ViewportBackend {
 /// spec section 4): `MetalViewportBackend` on macOS, `SDLViewportBackend` on Linux and Windows. The drawing itself is not here: it
 /// takes the API's own draw context, so each backend has its own `draw` in `ViewportModel+Surface` and `+SDLSurface`.
 ///
-/// Picking is the part the model sees. Metal answers a pick at once, by rendering the ID buffer and waiting for it. SDL_GPU's
-/// readback is asynchronous, so its backend answers from the ID buffer it rendered ahead (``isPickPending(for:)`` says when
-/// that buffer is not for the camera and scene of the frame asked about yet) and calls ``onPickReady`` when a new one lands.
+/// Picking is the part the model sees (user decision U4, hybrid). Metal answers a pick at once, by rendering the ID buffer and waiting
+/// for it. The SDL_GPU backend answers a hover from the ID buffer it rendered ahead (``isPickPending(for:)`` says when that buffer is not
+/// for the camera and scene of the frame asked about yet) and calls ``onPickReady`` when a new one lands; a click asks
+/// ``pickWhenReady(at:in:)``, which answers from a buffer for the click's own view, waiting for it (asynchronously until MetalUI gap
+/// XP-G22 lets it render one synchronously).
 @MainActor
 protocol ViewportBackend: AnyObject {
     /// Main passes drawn so far. Tests and the launch smoke test use it to tell "drew" from "bailed out".
@@ -968,7 +890,7 @@ protocol ViewportBackend: AnyObject {
     /// Whether the ID buffer for `frame` is on its way, so ``pick(at:in:)`` would answer `nil` for want of it.
     func isPickPending(for frame: ViewportFrame) -> Bool
 
-    /// ``pick(at:in:)`` once the ID buffer for `frame` has landed.
+    /// The click's pick: ``pick(at:in:)`` from an ID buffer for `frame` itself, once it has landed. Never another view's answer.
     func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) async -> PickTarget?
 
     /// Whether this backend draws the view cube and the axis triad. The model hit-tests the cube (hover, click, drag, the context menu's
@@ -1253,6 +1175,13 @@ Expected:
 - Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 269 tests in 35 suites passed` (baseline 259/34 + 10 tests, + 1 suite).
 
 On Linux `ViewportView` compiles for the first time (`GPUSurface`); the build is the check.
+
+The click's `Task` and the model's async `pickWhenReady` closure are Windows-sensitive (Global Constraints): build them release with the asserts snapshot too, and read the Windows job's "Build release (for the zip)" step after the next push.
+
+```bash
+TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release 2>&1 | grep -E 'error:|Assertion|While splitting|Build complete'
+```
+Expected: `Build complete!`, no assertion and no `While splitting coroutine`.
 - [ ] **Step 5: Lint and commit**
 
 ```bash
@@ -1600,7 +1529,7 @@ Expected:
 - macOS: no `recorded an issue` or `failed after` line, and `Test run with 314 tests in 42 suites passed` (baseline 304/41 + 10 tests, + 1 suite).
 - Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 272 tests in 35 suites passed` (baseline 259/34 + 13 tests, + 1 suite).
 
-`OffscreenRenderTests.theFrontLabelIsPaintedOnTheFrontFace` (macOS only) still passes: the Metal cube's label is now rasterized through `CoreTextTextSystem`. Look at it once on a Mac (human check XP-25).
+`OffscreenRenderTests.theFrontLabelIsPaintedOnTheFrontFace` (macOS only) still passes: the Metal cube's label is now rasterized through `CoreTextTextSystem`. Look at it once on a Mac (human check XP-26).
 - [ ] **Step 5: Lint and commit**
 
 ```bash
@@ -1621,14 +1550,13 @@ git commit -m "viewport: cube face names rasterized through MetalUI's TextSystem
 
 The viewport's SDL shaders are 16 HLSL stage files and a shared header, one pair per pipeline: `background`, `mesh` (opaque solids and ghosts), `field_mesh`, `fill`, `line`, `grid`, and the ID pass's own `id_mesh` and `id_line` (they declare only the vertex outputs they read, because Direct3D 12 links stages by register, MetalUI rule `GA-Q`). They are line-for-line the Metal shaders' maths (`ViewportShaders`, `LineShaders`, `FieldShaders`) in HLSL: `mix` is `lerp`, `fract` is `frac`, `discard_fragment()` is `discard`, `[[front_facing]]` is `SV_IsFrontFace`; `fwidth`, `saturate` and `pow` are the same. Differences that are not syntax: vertex data comes from `StructuredBuffer`s read by `SV_VertexID`/`SV_InstanceID`; the face flags are read in the vertex stage and reach the fragment stage as a flat interpolant; a ghost is `ghost == 1` in the same `mesh` fragment; and every vector in a struct is a `float4`/`uint4` so the layout is the Swift one.
 
-**User decision U1(b), decided 2026-10-21: the HLSL is compiled at build time, in CI and by every developer on Linux and Windows. Nothing compiled is checked in.** `scripts/build-shaders.sh` (Linux) and `scripts/build-shaders.ps1` (Windows) run MetalUI's `compile-app-shaders.py` (HLSL to SPIR-V, then SPIR-V to MSL, DXIL and a reflection JSON each) through the pinned SDL_shadercross into `Shaders/viewport/compiled`, which is **git-ignored**. `scripts/linux-test.sh` and the CI jobs run the script before `swift build`; macOS runs nothing (U6(a): Metal only). A SwiftPM build-tool plugin was looked for first and rejected (U1, gap XP-G20: MetalUI has none and documents none; a plugin's output cannot land beside the executable or in the source tree, which are the two places `SDLGPUShaderLibrary.locate` looks), so **`swift build` alone does not compile shaders**; a checkout that skipped the script finds no shaders, and says so (below).
+**User decision U1(b), decided 2026-10-21: the HLSL is compiled at build time, in CI and by every developer on Linux and Windows. Nothing compiled is checked in.** `scripts/build-shaders.sh` (Linux) and `scripts/build-shaders.ps1` (Windows) run **MetalUI's `MetalUICompileShaders`** (MetalUI S12, `d995f4b4`: HLSL to SPIR-V, then SPIR-V to MSL, DXIL and a reflection JSON each, and `SOURCE.sha256`), built from the `../MetalUI` checkout by `swift run --package-path ../MetalUI --scratch-path <ours> MetalUICompileShaders --shadercross <the pinned tool> --source Shaders/viewport --out Shaders/viewport/compiled`, into `Shaders/viewport/compiled`, which is **git-ignored**. The scripts add what the tool leaves to its caller: the pin check, `INCLUDES.sha256` for the shared header, skipping a current directory, and removing a half-built one. `scripts/linux-test.sh` and the CI jobs run the script before `swift build`; macOS runs nothing (U6(a): Metal only). MetalUI offers no build-tool plugin (ruling `BS-D`), and its command plugin (`swift package --allow-writing-to-package-directory compile-shaders`) is the same tool behind a SwiftPM verb, so **`swift build` alone does not compile shaders**; a checkout that skipped the script finds no shaders, and says so (below).
 
-**The pinned tool.** `scripts/shadercross.env` holds the one pin: `libsdl-org/SDL_shadercross` commit `1ff05bec573988a98ef9e0260b4da44f512b8367`. The repository has no release and no tag (checked 2026-10-21), so a full commit is the only pin there is; the commit fixes its three submodules (SPIRV-Cross, SPIRV-Headers, SPIRV-Tools) and, through `build-scripts/download-prebuilt-DirectXShaderCompiler.cmake`, Microsoft's DirectXShaderCompiler `v1.9.2602` by URL and SHA-256 (Linux x86_64 and Windows only). Linux builds it in a `shadercross` stage of `scripts/linux/Dockerfile`, an **amd64** image everywhere because there is no Linux aarch64 DXC (the blobs do not depend on the host's architecture); Windows builds it with `scripts/install-shadercross.ps1`, cached by `actions/cache`. See "Measured here" in Step 4 for what was built and run.
+**The pinned tool.** `scripts/shadercross.env` holds the one pin: `libsdl-org/SDL_shadercross` commit `1ff05bec573988a98ef9e0260b4da44f512b8367`, the commit MetalUI `docs/packaging.md` §4a documents. The repository has no release and no tag (checked 2026-10-21) and MetalUI publishes no binary (ruling `BS-H`), so a full commit is the only pin there is. Linux builds it in a `shadercross` stage of `scripts/linux/Dockerfile` with MetalUI's recipe (the four submodules the commit fixes, among them libsdl-org's DirectXShaderCompiler fork on branch `1.8.2502-SDL`, `-DSDLSHADERCROSS_VENDORED=ON`, clang), natively on x86_64 and aarch64, and the test image copies `/opt/shadercross` from it as it copies `/opt/occt` from xp-2's stage. Windows builds it with `scripts/install-shadercross.ps1` (Microsoft's prebuilt DirectXShaderCompiler `v1.9.2602`, pinned by URL and SHA-256 in the commit's own cmake script), cached by `actions/cache/restore` and `save`.
 
-**What guards what, with no checked-in hashes.** `ShaderSourceTests` has two kinds of check. On every platform it computes each HLSL struct's size and compares it with the Swift struct's `MemoryLayout.stride`, so a struct that drifted fails on macOS too. On Linux and Windows only it checks that **the build produced every expected compiled shader** in the directory the renderer reads at run time (MetalUI's lookup order: `MetalUIAppShaders` beside the executable if one is there, else the source tree's `Shaders/viewport/compiled`; task 5's `ViewportShaderDirectoryTests` ask MetalUI's own `SDLGPUShaderLibrary` the same question), that the build is **current** (the `SOURCE.sha256` the build wrote matches the sources now: an `.hlsl` edited after the last build fails with "run scripts/build-shaders.sh") and that every message names the script. `ViewportShaderDirectoryTests` loads each stage for the platform's driver, and a new test there pins that **`--self-test`'s check fails with a plain message when the directory is missing** (`ViewportShaderCheck`, task 8). `ShaderToolchainTests` pins that the pin is written the same everywhere (the env file, the Dockerfile, the workflow, both scripts' messages) and that the script stops, naming the tool and its commit, when shadercross is missing. (This is user decisions U1(b) and U2(a).)
+**What guards what, with no checked-in hashes.** `ShaderSourceTests` has two kinds of check. On every platform it computes each HLSL struct's size and compares it with the Swift struct's `MemoryLayout.stride`, so a struct that drifted fails on macOS too. On Linux and Windows only it checks that **the build produced every expected compiled shader** in the directory the renderer reads at run time (MetalUI's lookup order: `MetalUIAppShaders` beside the executable if one is there, else the source tree's `Shaders/viewport/compiled`; task 5's `ViewportShaderDirectoryTests` ask MetalUI's own `SDLGPUShaderLibrary` the same question), that the build is **current** (the `SOURCE.sha256` MetalUI's tool wrote, and the `INCLUDES.sha256` the script wrote, match the sources now: an `.hlsl` or `.hlsli` edited after the last build fails with "run scripts/build-shaders.sh") and that every message names the script. **Freshness decision (2026-10-22): `MetalUICompileShaders` writes `SOURCE.sha256`, so the check stays on it**; MetalUI's marker lists only the `NAME.<vert|frag|comp>.hlsl` stage sources, so the header keeps its own `INCLUDES.sha256`. `ViewportShaderDirectoryTests` loads each stage for the platform's driver, and a new test there pins that **`--self-test`'s check fails with a plain message when the directory is missing** (`ViewportShaderCheck`, task 8). `ShaderToolchainTests` pins that the pin is written the same everywhere (the env file, the Dockerfile, the workflow, both scripts' messages), that both scripts compile through `MetalUICompileShaders` (and not the deleted `compile-app-shaders.py`), and that the script stops, naming the tool and its commit, when shadercross is missing. (This is user decisions U1(b) and U2(a).)
 
 **Files:**
-- Create: `.gitattributes`
 - Create: `Shaders/viewport/background.frag.hlsl`
 - Create: `Shaders/viewport/background.vert.hlsl`
 - Create: `Shaders/viewport/common.hlsli`
@@ -1652,17 +1580,19 @@ The viewport's SDL shaders are 16 HLSL stage files and a shared header, one pair
 - Create: `scripts/build-shaders.ps1`
 - Create: `scripts/install-shadercross.ps1`
 - Create: `Tests/CreatorViewportTests/ShaderToolchainTests.swift`
+- Modify: `.gitattributes` (master has it: add `Shaders/**`)
 - Modify: `.gitignore`
 - Modify: `Package.swift`
-- Modify: `scripts/linux/Dockerfile` (the `shadercross` stage)
-- Modify: `scripts/linux-test.sh` (build the stage's image, run `build-shaders.sh` before `swift build`, `swift test` and the smoke step)
+- Modify: `scripts/linux/Dockerfile` (the `shadercross` stage and its copy into the final stage)
+- Modify: `scripts/linux-test.sh` (`SHADERCROSS_IMAGE`, `SHADERCROSS_JOBS`; run `build-shaders.sh` before `swift build`, `swift test`, the smoke step and packaging)
 - Modify: `.github/workflows/xp.yml` (the shadercross steps on the Linux and Windows jobs)
 
-**Generated and never committed:** `Shaders/viewport/compiled/` holds, for each of the 16 stage files, `NAME.{spv,dxil,msl,json}`, plus `SOURCE.sha256` (MetalUI's marker file) and `INCLUDES.sha256`: 66 files, made by `scripts/build-shaders.sh` in step 4. It is in `.gitignore`, so `git add` of the task's files never includes it.
+**Generated and never committed:** `Shaders/viewport/compiled/` holds, for each of the 16 stage files, `NAME.{spv,dxil,msl,json}` (`mesh.vert.spv` and so on: MetalUI's tool names every output after the stage file), plus `SOURCE.sha256` (written by `MetalUICompileShaders`) and `INCLUDES.sha256` (written by the script): 66 files, made by `scripts/build-shaders.sh` in step 4. It is in `.gitignore`, so `git add` of the task's files never includes it.
 
 **Interfaces:**
 - Consumes: `CreatorGraph`'s `SHA256` (a test-target dependency; `@testable import`), the Swift structs `FrameUniforms`, `MeshVertex`, `DrawUniforms`, `ShadeUniforms`, `LineInstance`, `LineUniforms`, `GridUniforms`, `FillVertex`, `ClipUniforms`, `FieldRampUniforms`.
-- Produces: `Shaders/viewport/NAME.vert.hlsl` and `NAME.frag.hlsl` for `background`, `mesh`, `field_mesh`, `fill`, `line`, `grid`, `id_mesh`, `id_line`; the binding convention every later task relies on: vertex storage buffers `register(tN, space0)`, vertex uniforms `register(bN, space1)`, fragment samplers `register(tN/sN, space2)`, fragment uniforms `register(bN, space3)`, N in declaration order; `scripts/build-shaders.sh` / `.ps1` (exit 0 and `Shaders/viewport/compiled` with 66 files, or exit 69 and a message naming `SDL_shadercross` and its pinned commit); `scripts/shadercross.env` (`SHADERCROSS_REPOSITORY`, `SHADERCROSS_COMMIT`); `SHADERCROSS_IMAGE` in `scripts/linux-test.sh`; `ShaderSourceTests.compiledDirectory` helpers used by task 5's tests.
+- Consumes, from MetalUI `5f03ab7b`: the executable product `MetalUICompileShaders` (`--source DIR --out DIR --shadercross PATH`; exit 0, 1 for a failed compile, 2 for a bad command line) and its `SOURCE.sha256` format (`<sha256>  <file>` per stage source, sorted bytewise, LF).
+- Produces: `Shaders/viewport/NAME.vert.hlsl` and `NAME.frag.hlsl` for `background`, `mesh`, `field_mesh`, `fill`, `line`, `grid`, `id_mesh`, `id_line`; the binding convention every later task relies on: vertex storage buffers `register(tN, space0)`, vertex uniforms `register(bN, space1)`, fragment samplers `register(tN/sN, space2)`, fragment uniforms `register(bN, space3)`, N in declaration order; `scripts/build-shaders.sh` / `.ps1` (exit 0 and `Shaders/viewport/compiled` with 66 files; 69 and a message naming `SDL_shadercross` and its pinned commit when it is missing or another build; 1 when a shader fails, the directory removed; 2 when MetalUI is not beside the repository); `METALUI_TOOLS_SCRATCH` (where MetalUI's tool is built; default `.build/metalui-tools`); `scripts/shadercross.env` (`SHADERCROSS_REPOSITORY`, `SHADERCROSS_COMMIT`); `compile_shaders`, `SHADERCROSS_IMAGE` and `SHADERCROSS_JOBS` in `scripts/linux-test.sh`; the Dockerfile's `shadercross` stage and `/opt/shadercross` in the test image; `ShaderSourceTests.directory`, `stageSources` and `runtimeDirectory`, used by task 5's tests.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1706,7 +1636,7 @@ struct ShaderSourceTests {
         let text = try String(contentsOf: directory.appending(path: "common.hlsli"), encoding: .utf8)
         var result: [String: [(type: String, count: Int)]] = [:]
         var current: String?
-        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: true) {
+        for rawLine in text.split(whereSeparator: \.isNewline) {   // "\r\n" too: a Windows checkout
             // A `//` comment, whole-line or trailing, is no part of the declaration.
             let code = rawLine.components(separatedBy: "//")[0]
             let line = code.trimmingCharacters(in: .whitespaces)
@@ -1770,19 +1700,21 @@ struct ShaderSourceTests {
     /// What a missing or stale result of the build tells the person who sees it.
     static let remedy = "Run scripts/build-shaders.sh (scripts/build-shaders.ps1 on Windows; scripts/linux-test.sh does it for you): the shaders are compiled at build time by the pinned SDL_shadercross, scripts/shadercross.env."
 
-    /// `<sha256>  <name>` lines of a file the build wrote, as a dictionary of name to digest.
+    /// `<sha256>  <name>` lines of a file the build wrote (`SOURCE.sha256` by MetalUI's `MetalUICompileShaders`, `INCLUDES.sha256` by
+    /// `scripts/build-shaders.sh`), as a dictionary of name to digest.
     static func hashes(in file: String, of directory: URL) throws -> [String: String] {
         let text = try String(contentsOf: directory.appending(path: file), encoding: .utf8)
         var table: [String: String] = [:]
-        for line in text.split(separator: "\n") {
+        for line in text.split(whereSeparator: \.isNewline) {
             let parts = line.split(separator: " ", omittingEmptySubsequences: true)
             if parts.count == 2 { table[String(parts[1])] = String(parts[0]) }
         }
         return table
     }
 
-    /// The build produced every stage's four files where the renderer reads them, and the build is current: the `SOURCE.sha256` and
-    /// `INCLUDES.sha256` it wrote match the sources and the header now. A source edited after the last build fails here and says so.
+    /// The build produced every stage's four files where the renderer reads them, and the build is current: the `SOURCE.sha256` MetalUI's
+    /// tool wrote and the `INCLUDES.sha256` the script wrote match the sources and the header now (the freshness check of user decision
+    /// U1(b)). A source edited after the last build fails here and says so.
     @Test func theBuildCompiledEveryStageIntoTheDirectoryTheRendererReads() throws {
         let sources = Self.stageSources
         #expect(sources.count >= 16, "the viewport's vertex and fragment stages are found")
@@ -1837,7 +1769,7 @@ struct ShaderToolchainTests {
         return (String(repository), String(commit))
     }
 
-    @Test func thePinIsTheSameInTheEnvFileTheDockerfileAndTheWorkflow() throws {
+    @Test func thePinIsWrittenOnceAndTheScriptsCompileThroughMetalUIsTool() throws {
         let pin = try Self.pin()
         #expect(pin.repository == "https://github.com/libsdl-org/SDL_shadercross")
         let dockerfile = try Self.text("scripts/linux/Dockerfile")
@@ -1848,6 +1780,13 @@ struct ShaderToolchainTests {
         #expect(!workflow.contains("SHADERCROSS_COMMIT:"), "the workflow reads the pin from scripts/shadercross.env and does not repeat it")
         let ps = try Self.text("scripts/install-shadercross.ps1")
         #expect(ps.contains("shadercross.env"), "install-shadercross.ps1 reads the pin from the env file")
+        // Both scripts compile through MetalUI's own tool (MetalUI S12, gap XP-G20), built with a scratch path outside ../MetalUI.
+        for script in ["scripts/build-shaders.sh", "scripts/build-shaders.ps1"] {
+            let text = try Self.text(script)
+            #expect(text.contains("MetalUICompileShaders"), "\(script) runs MetalUI's MetalUICompileShaders")
+            #expect(text.contains("--scratch-path"), "\(script) builds the tool outside ../MetalUI")
+            #expect(!text.contains("compile-app-shaders.py"), "\(script) does not name MetalUI's deleted python script")
+        }
     }
 
     /// The scripts' plain failure: no shadercross, exit 69, a line that names the tool, the repository and the pinned commit.
@@ -1888,15 +1827,19 @@ Expected: the build fails. `Unable to find module dependency: 'CreatorGraph'` in
 
 `Package.swift` gives `CreatorViewportTests` the dependency. The shaders, the build scripts, the pin, the Docker stage, the `linux-test.sh` step and the CI steps follow. **Nothing compiled is added.**
 
-`.gitattributes` (new):
+`.gitattributes` (change against master; apply with `git apply` or by hand). Master pins `scripts/**` (so `scripts/shadercross.env` and both build scripts) to LF already; the shader sources join them:
 
-```
-# The viewport's shader sources (Shaders/viewport) and the compiler pin are read as text by the build, by its freshness check and by the
-# tests: a checkout must not change their bytes (MetalUI docs/packaging.md section 4a, rule GA-Q: a CRLF checkout on Windows changes the
-# sources' hashes, which the build writes to SOURCE.sha256 and ShaderSourceTests compares). The compiled files are not in git at all.
-/Shaders/viewport/*.hlsl text eol=lf
-/Shaders/viewport/*.hlsli text eol=lf
-/scripts/shadercross.env text eol=lf
+```diff
+--- a/.gitattributes
++++ b/.gitattributes
+@@ -8,3 +8,7 @@
+ CLAUDE.md text eol=lf
+ # The icon is binary: the rule above would rewrite its bytes.
+ packaging/**/*.png binary
++# The viewport's shader sources are hashed: the build writes their SHA-256s to SOURCE.sha256 and INCLUDES.sha256 and ShaderSourceTests
++# compares them (MetalUI docs/packaging.md section 4a, rule GA-Q: a CRLF checkout on Windows changes the hashes). The compiled files
++# are not in git at all (.gitignore).
++Shaders/** text eol=lf
 ```
 
 `.gitignore` (change; apply with `git apply` or by hand):
@@ -2501,12 +2444,14 @@ Out main(uint vid : SV_VertexID) {
 `scripts/shadercross.env` (new):
 
 ```sh
-# The one pin of the shader compiler (plan xp-3, user decision U1(b)). Read by scripts/build-shaders.sh and build-shaders.ps1,
-# scripts/install-shadercross.ps1 and scripts/linux-test.sh; the Dockerfile's ARG repeats the commit and ShaderToolchainTests fails if
-# it differs. libsdl-org/SDL_shadercross has no release and no tag, so the pin is a commit: the head of `main` on 2026-10-21, whose
-# latest `Build` run was green. The commit fixes the submodules (SPIRV-Cross, SPIRV-Headers, SPIRV-Tools) and Microsoft's prebuilt
-# DirectXShaderCompiler v1.9.2602 (URL and SHA-256 in build-scripts/download-prebuilt-DirectXShaderCompiler.cmake).
-# To move the pin: change the commit here and in the Dockerfile, run scripts/linux-test.sh all and a Windows CI run.
+# The one pin of the shader compiler (plan xp-3, user decision U1(b)), the commit MetalUI docs/packaging.md section 4a documents. Read by
+# scripts/build-shaders.sh (in the Linux image) and build-shaders.ps1 and scripts/install-shadercross.ps1; the Dockerfile's ARG repeats
+# the commit and ShaderToolchainTests fails if it differs. libsdl-org/SDL_shadercross has no release and no tag and MetalUI publishes no
+# binary (ruling BS-H), so the pin is a commit: the head of `main` on 2026-10-21, whose latest `Build` run was green. The commit fixes its
+# submodules (SPIRV-Cross, SPIRV-Headers, SPIRV-Tools and libsdl-org's DirectXShaderCompiler fork, which the Linux image builds) and
+# Microsoft's prebuilt DirectXShaderCompiler v1.9.2602 (URL and SHA-256 in build-scripts/download-prebuilt-DirectXShaderCompiler.cmake,
+# which the Windows build uses). To move the pin: change the commit here and in the Dockerfile, run scripts/linux-test.sh all and a
+# Windows CI run.
 SHADERCROSS_REPOSITORY=https://github.com/libsdl-org/SDL_shadercross
 SHADERCROSS_COMMIT=1ff05bec573988a98ef9e0260b4da44f512b8367
 ```
@@ -2516,20 +2461,21 @@ SHADERCROSS_COMMIT=1ff05bec573988a98ef9e0260b4da44f512b8367
 ```bash
 #!/bin/bash
 # Compiles the viewport's SDL_GPU shaders (cross-platform spec section 4, plan xp-3, user decision U1(b)): the HLSL in Shaders/viewport
-# becomes SPIR-V (Vulkan), DXIL (Direct3D 12) and MSL, a reflection JSON each, plus SOURCE.sha256 (MetalUI's marker: its
-# SDLGPUShaderLibrary.locate accepts only a directory that holds it) and INCLUDES.sha256, in Shaders/viewport/compiled. Nothing
-# compiled is checked in (the directory is git-ignored): every Linux and Windows build makes it. MetalUI's compile-app-shaders.py
-# (docs/packaging.md section 4a) does the work; its one dependency is SDL_shadercross, pinned in scripts/shadercross.env.
+# becomes SPIR-V (Vulkan), DXIL (Direct3D 12) and MSL, a reflection JSON each, and SOURCE.sha256, in Shaders/viewport/compiled, through
+# MetalUI's MetalUICompileShaders (MetalUI S12, docs/packaging.md section 4a), built from the ../MetalUI checkout; this script adds
+# INCLUDES.sha256 for the shared header, which MetalUI's marker does not list. Nothing compiled is checked in (the directory is
+# git-ignored): every Linux and Windows build makes it. The one tool outside Swift is SDL_shadercross, pinned in scripts/shadercross.env.
 #
-#   scripts/build-shaders.sh                  uses $SHADERCROSS, else /opt/shadercross/bin/shadercross (the Docker image), else PATH
+#   scripts/build-shaders.sh                  uses $SHADERCROSS, else /opt/shadercross/bin/shadercross (the Linux test image), else PATH
 #   SHADERCROSS=/path/to/shadercross scripts/build-shaders.sh
+#   METALUI_TOOLS_SCRATCH=DIR                 where MetalUI's tool is built (default .build/metalui-tools here; never inside ../MetalUI)
 #
-# On Linux scripts/linux-test.sh runs this inside the shadercross image before swift build, swift test and the smoke step; CI does the
+# On Linux scripts/linux-test.sh runs this in the test image before swift build, swift test, the smoke step and packaging; CI does the
 # same through it. Windows has scripts/build-shaders.ps1. macOS builds Metal only (MSL strings) and never runs this.
 #
 # Exit codes: 0 the directory is built (or was already current); 69 shadercross is missing or is not the pinned commit; 1 a shader
 # failed to compile (the directory is removed, so the tests and --self-test fail loudly rather than run on a half-built one);
-# 2 MetalUI is not beside this repository. Needs python3. A rerun with unchanged sources does nothing.
+# 2 MetalUI is not beside this repository. A rerun with unchanged sources compiles nothing.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -2548,61 +2494,50 @@ fi
 if [ -z "$SHADERCROSS" ] || [ ! -x "$SHADERCROSS" ]; then
     fail 69 "$TOOL was not found. Set SHADERCROSS=/path/to/shadercross, or on Linux run this through scripts/linux-test.sh, whose Docker image builds it (scripts/linux/Dockerfile, stage shadercross). The viewport's shaders are compiled at build time and cannot be built without it."
 fi
-# The image records the commit it built beside the binary; any other build is refused, so a stale image cannot pass for the pin.
+# The image records the commit it built beside bin/; any other build is refused, so a stale image cannot pass for the pin.
 BUILT=$(cat "$(dirname "$SHADERCROSS")/../COMMIT" 2>/dev/null || true)
 if [ -n "$BUILT" ] && [ "$BUILT" != "$SHADERCROSS_COMMIT" ]; then
-    fail 69 "$SHADERCROSS was built from commit $BUILT, but $TOOL is required. Rebuild it (docker image rm the old shadercross image, then rerun)."
+    fail 69 "$SHADERCROSS was built from commit $BUILT, but $TOOL is required. Rebuild it (scripts/linux-test.sh rebuilds the image when the Dockerfile's ARG changes)."
 fi
-COMPILER="$ROOT/../MetalUI/Backends/SDL/scripts/compile-app-shaders.py"
-[ -f "$COMPILER" ] || fail 2 "MetalUI must be checked out beside this repository (../MetalUI), as Package.swift expects."
+[ -f "$ROOT/../MetalUI/Package.swift" ] || fail 2 "MetalUI must be checked out beside this repository (../MetalUI), as Package.swift expects."
+METALUI=$(cd "$ROOT/../MetalUI" && pwd -P)
+SCRATCH=${METALUI_TOOLS_SCRATCH:-$ROOT/.build/metalui-tools}
 
 cd Shaders/viewport
-# Current already? The directory is current when its marker files list exactly the present sources and header with their digests and
-# every expected file is there (ShaderSourceTests asks the same question).
-if python3 - <<'PY'
-import hashlib
-import sys
-from pathlib import Path
-
-def table(pattern):
-    return {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(Path(".").glob(pattern))}
-
-def listed(name):
-    try:
-        lines = [line.split() for line in Path("compiled", name).read_text().splitlines() if line.strip()]
-    except OSError:
-        return None
-    return {fields[1]: fields[0] for fields in lines if len(fields) == 2}
-
-def size(name, kind):
-    try:
-        return Path("compiled", name[: -len(".hlsl")] + "." + kind).stat().st_size
-    except OSError:
-        return 0
-
-stages = {name: digest for name, digest in table("*.hlsl").items() if name.split(".")[-2] in ("vert", "frag")}
-complete = bool(stages) and all(size(name, kind) > 0 for name in stages for kind in ("spv", "dxil", "msl", "json"))
-sys.exit(0 if complete and listed("SOURCE.sha256") == stages and listed("INCLUDES.sha256") == table("*.hlsli") else 1)
-PY
-then
+shopt -s nullglob
+# sha256sum's "<sha256>  <name>" lines for the named files, sorted bytewise by name: the format of MetalUI's SOURCE.sha256
+# (SourceMarker.swift), so the same function says whether the directory is current and writes INCLUDES.sha256.
+digests() {
+    [ "$#" -gt 0 ] || return 0
+    local name
+    while read -r name; do sha256sum "$name"; done < <(printf '%s\n' "$@" | LC_ALL=C sort)
+}
+stages=(*.vert.hlsl *.frag.hlsl *.comp.hlsl)
+headers=(*.hlsli)
+current() {
+    [ -f compiled/SOURCE.sha256 ] && [ -f compiled/INCLUDES.sha256 ] || return 1
+    [ "$(digests "${stages[@]}")" = "$(cat compiled/SOURCE.sha256)" ] || return 1
+    [ "$(digests "${headers[@]}")" = "$(cat compiled/INCLUDES.sha256)" ] || return 1
+    local stage kind
+    for stage in "${stages[@]}"; do
+        for kind in spv msl dxil json; do [ -s "compiled/${stage%.hlsl}.$kind" ] || return 1; done
+    done
+}
+[ "${#stages[@]}" -gt 0 ] || fail 1 "no NAME.vert.hlsl or NAME.frag.hlsl in Shaders/viewport."
+if current; then
     echo "Shaders/viewport/compiled is current."
     exit 0
 fi
 
 rm -rf compiled
-echo "Compiling Shaders/viewport with $TOOL..."
-if ! python3 "$COMPILER" --shadercross "$SHADERCROSS" --source . --out compiled; then
+echo "Compiling Shaders/viewport with MetalUI's MetalUICompileShaders and $TOOL..."
+if ! swift run --package-path "$METALUI" --scratch-path "$SCRATCH" MetalUICompileShaders \
+        --shadercross "$SHADERCROSS" --source "$ROOT/Shaders/viewport" --out "$ROOT/Shaders/viewport/compiled"; then
     rm -rf compiled
-    fail 1 "$TOOL failed to compile a shader of Shaders/viewport (the lines above name the file and the compiler's complaint). Shaders/viewport/compiled was removed."
+    fail 1 "$TOOL failed to compile a shader of Shaders/viewport, or MetalUICompileShaders did not build (the lines above name the file and the complaint). Shaders/viewport/compiled was removed."
 fi
-python3 - <<'PY'
-import hashlib
-from pathlib import Path
-
-lines = [f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n" for path in sorted(Path(".").glob("*.hlsli"))]
-Path("compiled/INCLUDES.sha256").write_text("".join(lines))
-PY
-echo "Built Shaders/viewport/compiled ($(ls compiled | wc -l | tr -d ' ') files)."
+digests "${headers[@]}" > compiled/INCLUDES.sha256
+echo "Built Shaders/viewport/compiled ($(find compiled -type f | wc -l | tr -d ' ') files)."
 ```
 
 `scripts/build-shaders.ps1` (new; the Windows twin, run by CI and by a developer on Windows):
@@ -2611,16 +2546,17 @@ echo "Built Shaders/viewport/compiled ($(ls compiled | wc -l | tr -d ' ') files)
 <#
 .SYNOPSIS
 Compiles the viewport's SDL_GPU shaders on Windows (plan xp-3, user decision U1(b)): the HLSL in Shaders\viewport becomes SPIR-V,
-DXIL and MSL, a reflection JSON each, SOURCE.sha256 (MetalUI's marker file) and INCLUDES.sha256, in Shaders\viewport\compiled.
-Nothing compiled is checked in; CI runs this before `swift build`, and so does a developer, once and after editing an .hlsl file.
+DXIL and MSL, a reflection JSON each and SOURCE.sha256, in Shaders\viewport\compiled, through MetalUI's MetalUICompileShaders
+(MetalUI S12, docs/packaging.md section 4a), built from ..\MetalUI with a scratch path of ours; this script adds INCLUDES.sha256 for the
+shared header. Nothing compiled is checked in; CI runs this before `swift build`, and so does a developer, once and after editing an
+.hlsl file.
 
 .DESCRIPTION
-MetalUI's compile-app-shaders.py (docs/packaging.md section 4a) does the work through SDL_shadercross, pinned in
-scripts\shadercross.env (scripts\install-shadercross.ps1 builds that commit; CI caches the result). Python 3 and MetalUI beside this
-repository (..\MetalUI) are needed. Exit 69 when shadercross is missing or is not the pinned commit, 1 when a shader fails to
-compile (the compiled directory is removed so the tests and --self-test fail loudly), 2 when MetalUI is missing.
+SDL_shadercross is pinned in scripts\shadercross.env (scripts\install-shadercross.ps1 builds that commit; CI caches the result). Swift
+and MetalUI beside this repository (..\MetalUI) are needed. Exit 69 when shadercross is missing or is not the pinned commit, 1 when a
+shader fails to compile (the compiled directory is removed so the tests and --self-test fail loudly), 2 when MetalUI is missing.
 
-    scripts\build-shaders.ps1 -ShaderCross C:\tools\shadercross\bin\shadercross.exe     (or set $env:SHADERCROSS)
+    scripts\build-shaders.ps1 -ShaderCross C:\tools\shadercross\bin\shadercross.exe     (or set $env:SHADERCROSS, or put it on PATH)
 #>
 param([string]$ShaderCross = $env:SHADERCROSS)
 $ErrorActionPreference = 'Stop'
@@ -2647,26 +2583,26 @@ $recorded = Join-Path (Split-Path -Parent (Split-Path -Parent $ShaderCross)) 'CO
 if ((Test-Path $recorded) -and ((Get-Content $recorded -Raw).Trim() -ne $pin.SHADERCROSS_COMMIT)) {
     Stop-Build 69 "$ShaderCross was built from another commit than the one required: $tool. Rebuild it with scripts\install-shadercross.ps1."
 }
-$compiler = Join-Path $root '..\MetalUI\Backends\SDL\scripts\compile-app-shaders.py'
-if (-not (Test-Path $compiler)) { Stop-Build 2 'MetalUI must be checked out beside this repository (..\MetalUI), as Package.swift expects.' }
+$metalUI = Join-Path $root '..\MetalUI'
+if (-not (Test-Path (Join-Path $metalUI 'Package.swift'))) { Stop-Build 2 'MetalUI must be checked out beside this repository (..\MetalUI), as Package.swift expects.' }
+$metalUI = (Resolve-Path $metalUI).Path
+$scratch = if ($env:METALUI_TOOLS_SCRATCH) { $env:METALUI_TOOLS_SCRATCH } else { Join-Path $root '.build\metalui-tools' }
+$source = Join-Path $root 'Shaders\viewport'
+$out = Join-Path $source 'compiled'
 
-Push-Location (Join-Path $root 'Shaders\viewport')
-try {
-    if (Test-Path compiled) { Remove-Item compiled -Recurse -Force }
-    Write-Output "Compiling Shaders\viewport with $tool..."
-    python $compiler --shadercross $ShaderCross --source . --out compiled
-    if ($LASTEXITCODE) {
-        if (Test-Path compiled) { Remove-Item compiled -Recurse -Force }
-        Stop-Build 1 "$tool failed to compile a shader of Shaders\viewport (the lines above name the file). Shaders\viewport\compiled was removed."
-    }
-    $lines = Get-ChildItem *.hlsli | Sort-Object Name | ForEach-Object {
-        "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
-    }
-    [IO.File]::WriteAllText((Join-Path (Get-Location) 'compiled\INCLUDES.sha256'), (($lines -join "`n") + "`n"))
-    Write-Output "Built Shaders\viewport\compiled ($((Get-ChildItem compiled).Count) files)."
-} finally {
-    Pop-Location
+if (Test-Path $out) { Remove-Item $out -Recurse -Force }
+Write-Output "Compiling Shaders\viewport with MetalUI's MetalUICompileShaders and $tool..."
+swift run --package-path $metalUI --scratch-path $scratch MetalUICompileShaders --shadercross $ShaderCross --source $source --out $out
+if ($LASTEXITCODE) {
+    if (Test-Path $out) { Remove-Item $out -Recurse -Force }
+    Stop-Build 1 "$tool failed to compile a shader of Shaders\viewport, or MetalUICompileShaders did not build (the lines above name the file). Shaders\viewport\compiled was removed."
 }
+# INCLUDES.sha256 in MetalUI's marker format: "<sha256>  <name>" per header, sorted by name, LF (ShaderSourceTests reads it as a table).
+$lines = Get-ChildItem (Join-Path $source '*.hlsli') | Sort-Object Name | ForEach-Object {
+    "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+}
+[IO.File]::WriteAllText((Join-Path $out 'INCLUDES.sha256'), (($lines -join "`n") + "`n"))
+Write-Output "Built Shaders\viewport\compiled ($((Get-ChildItem $out -File).Count) files)."
 ```
 
 `scripts/install-shadercross.ps1` (new; builds the pinned SDL_shadercross on Windows. **CI-only: PowerShell is not installed on the Mac the plan was written on, and nothing here runs a Windows build, so this script is parsed by nobody until the first Windows run; Risk 14**):
@@ -2680,12 +2616,14 @@ compile the viewport's shaders. CI runs it once per pin and caches the prefix wi
 .DESCRIPTION
 The repository has no release or tag, so the pin is the commit in scripts\shadercross.env; the commit fixes the SPIRV-Cross,
 SPIRV-Headers and SPIRV-Tools submodules and Microsoft's prebuilt DirectXShaderCompiler (downloaded by the commit's own cmake script,
-by URL and SHA-256). Run it from an x64 Visual Studio developer shell (cl, cmake, ninja, git on PATH). SDL3's development package
-(its cmake files) is -Sdl3Root.
+by URL and SHA-256). It needs cmake, ninja and git on PATH (the windows-latest runner has them) and Visual Studio's C++ tools (entered below when cl is not
+on PATH). SDL3's development package (its cmake files) is -Sdl3Root.
 
     scripts\install-shadercross.ps1 -Prefix C:\tools\shadercross -Sdl3Root C:\SDL3-3.4.16
 
-It leaves <Prefix>\bin\shadercross.exe with its DLLs and <Prefix>\COMMIT, which build-shaders.ps1 compares with the pin.
+It leaves <Prefix>\bin\shadercross.exe with its DLLs and <Prefix>\COMMIT, which build-shaders.ps1 compares with the pin. Outside a developer
+shell it enters one itself (Visual Studio's DevShell module, found with vswhere), for this script's process only, so CI needs no action
+for it and the later swift steps see the environment they always saw.
 #>
 param(
     [Parameter(Mandatory)][string]$Prefix,
@@ -2696,6 +2634,12 @@ $ErrorActionPreference = 'Stop'
 $pin = @{}
 foreach ($line in Get-Content (Join-Path $PSScriptRoot 'shadercross.env')) {
     if ($line -match '^([A-Z_]+)=(.*)$') { $pin[$Matches[1]] = $Matches[2].Trim() }
+}
+if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
+    $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+    if (-not $vs) { throw 'Visual Studio was not found (vswhere): SDL_shadercross needs its C++ compiler.' }
+    Import-Module (Join-Path $vs 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll')
+    Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64' | Out-Null
 }
 function Invoke-Step([string]$what, [scriptblock]$command) {
     & $command
@@ -2750,63 +2694,73 @@ Write-Output "SDL_shadercross $($pin.SHADERCROSS_COMMIT) is in $Prefix."
  ]
 ```
 
-`scripts/linux/Dockerfile` (change; apply with `git apply` or by hand). The `shadercross` stage is a layer set of its own: it never meets xp-2's `occt` stage (which this diff does not touch; whichever branch merges second keeps both stages and both header paragraphs):
+`scripts/linux/Dockerfile` (change against master; apply with `git apply` or by hand). The `shadercross` stage is a layer set of its own, beside xp-2's `occt` stage and built the same way (from the public Swift image, its own cache key, handed to the final stage through an image name), and the final stage copies `/opt/shadercross` as it copies `/opt/occt`:
 
 ```diff
 --- a/scripts/linux/Dockerfile
 +++ b/scripts/linux/Dockerfile
-@@ -3,7 +3,51 @@
- # The base is MetalUI's own image (Swift 6.4, SDL 3.4 built from source, Mesa lavapipe for Vulkan on the CPU, AccessKit's
- # C bindings; recipe: ../MetalUI/Backends/SDL/linux/Dockerfile), built by scripts/linux-test.sh when it is not on the machine.
- # The render tests draw text with MetalUI's portable text system over the machine's installed fonts, so the image names one.
+@@ -9,8 +9,16 @@
+ # runner). It starts from the public Swift image, not from BASE, so its cache does not depend on MetalUI's image. It is its own
+ # stage so that Docker's layer cache (locally) and buildx's cache (CI, .github/workflows/xp.yml) skip it until OCCT_COMMIT,
+ # OCCT_JOBS or the flags change. CI builds it alone (`--target occt`) and hands the result to the final stage as OCCT_IMAGE.
 +#
-+# The `shadercross` stage is a second, separate image (`docker build --target shadercross`): SDL_shadercross, the compiler for the
-+# viewport's HLSL shaders (plan xp-3, user decision U1(b)), built from the commit pinned in scripts/shadercross.env. It is never copied
-+# into the final image: Microsoft publishes DirectXShaderCompiler for Linux x86_64 only, so the stage is amd64 whatever the host is
-+# (the compiled shaders do not depend on the host), and scripts/linux-test.sh runs scripts/build-shaders.sh in it. Each stage is its
-+# own set of layers (xp-2's `occt` stage is another), so a new OpenCascade pin never rebuilds shadercross, nor the reverse.
++# Stage `shadercross` builds SDL_shadercross, the compiler for the viewport's HLSL shaders (plan xp-3, user decision U1(b)), from the
++# commit pinned in scripts/shadercross.env, with MetalUI's recipe (MetalUI docs/packaging.md section 4a): natively on x86_64 and aarch64,
++# the DirectXShaderCompiler fork built from source (MetalUI measured 6 min 45 s at -j8 on Linux aarch64). Like `occt` it starts from the
++# public Swift image and is a stage of its own, so the caches skip it until SHADERCROSS_COMMIT or SHADERCROSS_JOBS change and a new
++# OpenCascade pin never rebuilds it (nor the reverse); CI builds it alone (`--target shadercross`) and hands it in as SHADERCROSS_IMAGE.
++# The final stage copies /opt/shadercross; scripts/build-shaders.sh runs it through MetalUI's MetalUICompileShaders.
  ARG BASE=metalui-portable:latest
-+ARG SHADERCROSS_PLATFORM=linux/amd64
-+
-+FROM --platform=${SHADERCROSS_PLATFORM} ubuntu:24.04 AS shadercross
-+ARG SDL_TAG=release-3.4.16
-+# The value must equal scripts/shadercross.env (ShaderToolchainTests); linux-test.sh passes the env file's value as a build argument.
+ ARG OCCT_IMAGE=occt
++ARG SHADERCROSS_IMAGE=shadercross
+ 
+ FROM swift:6.4-noble AS occt
+ # V7_9_3 (peeled commit). A commit is pinned, not the tag: a tag can be moved.
+@@ -39,14 +47,44 @@
+ # work the same way.
+ RUN for library in /opt/occt/lib/*.so.*.*.*; do patchelf --set-rpath '$ORIGIN' "$library"; done
+ 
++FROM swift:6.4-noble AS shadercross
++# The value must equal scripts/shadercross.env: ShaderToolchainTests fails if they differ (CI's buildx step builds it with this default).
 +ARG SHADERCROSS_COMMIT=1ff05bec573988a98ef9e0260b4da44f512b8367
-+RUN apt-get update \
-+    && apt-get install -y --no-install-recommends git ca-certificates cmake ninja-build g++ make python3 pkg-config \
-+       bison flex libjson-perl patchelf libvulkan-dev libxrandr-dev \
++ARG SDL_TAG=release-3.4.16
++# Part of the cache key, as OCCT_JOBS is (DirectXShaderCompiler is an LLVM build). The script passes it only when SHADERCROSS_JOBS is set.
++ARG SHADERCROSS_JOBS=6
++RUN apt-get update && apt-get install -y --no-install-recommends git cmake ninja-build python3 pkg-config ca-certificates \
 +    && rm -rf /var/lib/apt/lists/*
-+# SDL3 (SDL_shadercross links it), as MetalUI's own image builds it.
-+RUN git clone --depth 1 --branch ${SDL_TAG} https://github.com/libsdl-org/SDL.git /tmp/SDL \
-+    && cmake -S /tmp/SDL -B /tmp/SDL/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr \
-+         -DSDL_UNIX_CONSOLE_BUILD=ON -DSDL_X11=OFF -DSDL_WAYLAND=OFF -DSDL_AUDIO=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF \
-+    && cmake --build /tmp/SDL/build && cmake --install /tmp/SDL/build && ldconfig && rm -rf /tmp/SDL
-+# SDL_shadercross at the pinned commit (the repository has no release or tag): its SPIRV-Cross, SPIRV-Headers and SPIRV-Tools
-+# submodules are fixed by the commit, and so is Microsoft's prebuilt DirectXShaderCompiler (URL and SHA-256 in the commit's
-+# build-scripts/download-prebuilt-DirectXShaderCompiler.cmake). The commit is recorded beside the binary for build-shaders.sh to check.
-+# -DSDLSHADERCROSS_INSTALL_RUNTIME stays OFF: it would clone Vulkan-Loader and the Khronos headers at `main` and build vkd3d, for a Direct3D
-+# bytecode path the viewport does not use (its DXIL comes from DXC); the three runtime libraries are copied beside the binary instead.
-+RUN git init /tmp/sc && cd /tmp/sc && git remote add origin https://github.com/libsdl-org/SDL_shadercross.git \
-+    && git fetch --depth 1 origin ${SHADERCROSS_COMMIT} && git checkout FETCH_HEAD \
-+    && git submodule update --init --depth 1 external/SPIRV-Cross external/SPIRV-Headers external/SPIRV-Tools \
-+    && cmake -P build-scripts/download-prebuilt-DirectXShaderCompiler.cmake \
-+    && cmake -S external/SPIRV-Cross -B /tmp/spvx -G Ninja -DCMAKE_BUILD_TYPE=Release -DSPIRV_CROSS_SHARED=ON -DSPIRV_CROSS_STATIC=ON \
-+         -DSPIRV_CROSS_CLI=OFF -DSPIRV_CROSS_ENABLE_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/tmp/spvx-prefix \
-+    && cmake --build /tmp/spvx && cmake --install /tmp/spvx \
-+    && cmake -S . -B /tmp/scb -G Ninja -DCMAKE_BUILD_TYPE=Release -DSDLSHADERCROSS_VENDORED=OFF -DSDLSHADERCROSS_CLI=ON \
-+         -DSDLSHADERCROSS_SHARED=ON -DSDLSHADERCROSS_STATIC=OFF -DSDLSHADERCROSS_INSTALL=ON -DSDLSHADERCROSS_INSTALL_RUNTIME=OFF \
-+         -DDirectXShaderCompiler_ROOT=/tmp/sc/external/DirectXShaderCompiler-binaries -Dspirv_cross_c_shared_ROOT=/tmp/spvx-prefix \
-+         -DCMAKE_INSTALL_PREFIX=/opt/shadercross "-DCMAKE_INSTALL_RPATH=\$ORIGIN/../lib" \
-+    && cmake --build /tmp/scb && cmake --install /tmp/scb \
-+    && cp -a /tmp/sc/external/DirectXShaderCompiler-binaries/linux/lib/libdxcompiler.so /tmp/sc/external/DirectXShaderCompiler-binaries/linux/lib/libdxil.so \
-+         /tmp/spvx-prefix/lib/libspirv-cross-c-shared.so* /opt/shadercross/lib/ \
-+    && echo "${SHADERCROSS_COMMIT}" > /opt/shadercross/COMMIT \
-+    && rm -rf /tmp/sc /tmp/spvx /tmp/spvx-prefix /tmp/scb
-+ENV LD_LIBRARY_PATH=/opt/shadercross/lib
++# SDL3, which SDL_shadercross links, headless and into the same prefix, so the copy into the final stage carries it.
++RUN git clone -q --depth 1 --branch ${SDL_TAG} https://github.com/libsdl-org/SDL.git /tmp/SDL \
++    && cmake -S /tmp/SDL -B /tmp/SDL/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/shadercross \
++         -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DSDL_UNIX_CONSOLE_BUILD=ON -DSDL_X11=OFF -DSDL_WAYLAND=OFF \
++         -DSDL_AUDIO=OFF -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF \
++    && cmake --build /tmp/SDL/build --parallel ${SHADERCROSS_JOBS} && cmake --install /tmp/SDL/build && rm -rf /tmp/SDL
++# SDL_shadercross at the pinned commit (no release, no tag) with the four submodules the commit fixes (SPIRV-Cross, SPIRV-Headers,
++# SPIRV-Tools and libsdl-org's DirectXShaderCompiler fork, branch 1.8.2502-SDL), vendored, with clang (gcc refuses DXC's flags).
++# -DSDLSHADERCROSS_INSTALL_RUNTIME stays OFF: it would fetch Vulkan-Loader and the Khronos headers at `main` and build vkd3d, for a
++# Direct3D bytecode path the viewport does not use. The install leaves bin/shadercross with lib/libdxcompiler.so and lib/libdxil.so
++# beside it (MetalUICompileShaders puts that lib first on the loader path); the commit is recorded for build-shaders.sh to check.
++RUN git clone -q https://github.com/libsdl-org/SDL_shadercross.git /tmp/sc \
++    && git -C /tmp/sc checkout -q ${SHADERCROSS_COMMIT} && git -C /tmp/sc submodule update --init --depth 1 \
++    && cmake -S /tmp/sc -B /tmp/sc/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
++         -DCMAKE_PREFIX_PATH=/opt/shadercross -DSDLSHADERCROSS_VENDORED=ON -DSDLSHADERCROSS_INSTALL=ON \
++         -DSDLSHADERCROSS_INSTALL_RUNTIME=OFF -DSDLSHADERCROSS_CLI=ON "-DCMAKE_INSTALL_RPATH=\$ORIGIN/../lib" \
++    && cmake --build /tmp/sc/build --parallel ${SHADERCROSS_JOBS} && cmake --install /tmp/sc/build --prefix /opt/shadercross \
++    && echo "${SHADERCROSS_COMMIT}" > /opt/shadercross/COMMIT && rm -rf /tmp/sc
 +
+ # COPY --from takes no variable, so the stage or image to copy from is named by a FROM line.
+ FROM ${OCCT_IMAGE} AS occt-source
++FROM ${SHADERCROSS_IMAGE} AS shadercross-source
+ 
  FROM ${BASE}
  RUN apt-get update \
-     && apt-get install -y --no-install-recommends fonts-dejavu-core \
+     && apt-get install -y --no-install-recommends fonts-dejavu-core patchelf desktop-file-utils file \
+     && rm -rf /var/lib/apt/lists/*
+ COPY --from=occt-source /opt/occt /opt/occt
++# SDL_shadercross for scripts/build-shaders.sh (xp-3); nothing else in the image uses it.
++COPY --from=shadercross-source /opt/shadercross /opt/shadercross
+ # No ld.so.conf entry: the binaries must find /opt/occt/lib through the rpath Package.swift gives them, as a tarball's do.
+ ENV OCCT_PREFIX=/opt/occt
+ # patchelf and desktop-file-utils serve scripts/package-linux.sh and its checks; `file` is needed by appimagetool, which scripts/package-appimage.sh
 ```
 
 `scripts/linux-test.sh` (change; apply with `git apply` or by hand; it applies after task 0's change to the same file):
@@ -2814,60 +2768,49 @@ Write-Output "SDL_shadercross $($pin.SHADERCROSS_COMMIT) is in $Prefix."
 ```diff
 --- a/scripts/linux-test.sh
 +++ b/scripts/linux-test.sh
-@@ -19,13 +19,21 @@
- # "Test run with" (one per test target that has tests on Linux: 11 until xp-2 puts CreatorOCCTTests on Linux and Windows, 12 after;
- # macOS has had 12 all along).
+@@ -28,13 +28,20 @@
+ # device fails SDLGPUAvailabilityTests instead, so a runner that lost its driver cannot pass by running none of them (MetalUI's
+ # METALUI_REQUIRE_GPU).
  #
-+# The viewport's HLSL shaders are compiled at build time (plan xp-3, user decision U1(b)): before `swift build`, `swift test` and the
-+# smoke step this script runs scripts/build-shaders.sh in an amd64 image that holds the pinned SDL_shadercross (scripts/shadercross.env;
-+# the `shadercross` stage of scripts/linux/Dockerfile, built once and cached). The output, Shaders/viewport/compiled in the worktree,
-+# is git-ignored; a run with nothing to recompile takes a second. If shadercross cannot be built or fails, the step stops with a
-+# message that names the tool and its pinned commit.
++# The viewport's HLSL shaders are compiled at build time (plan xp-3, user decision U1(b)): before build, test, smoke and package this
++# script runs scripts/build-shaders.sh in the image, which holds the pinned SDL_shadercross (scripts/shadercross.env; the Dockerfile's
++# `shadercross` stage, built once and cached like OpenCascade's) and builds MetalUI's MetalUICompileShaders into the track's volume. The
++# output, Shaders/viewport/compiled in the worktree, is git-ignored; a run with nothing to recompile takes a second. If shadercross is
++# missing or a shader fails, the step stops with a message that names the tool and its pinned commit.
 +#
- # The image draws on Mesa's lavapipe, a CPU Vulkan driver, so the SDL_GPU viewport renders here with no GPU in the machine. The container
- # sets XP_REQUIRE_GPU=1: the viewport's renderer suites skip when no SDL_GPU device answers, and with this set a missing device fails
- # SDLGPUAvailabilityTests instead, so a runner that lost its driver cannot pass by running none of them (MetalUI's METALUI_REQUIRE_GPU).
- #
  # Environment: XP_TRACK names the track (default xp-1), which names the container and the volume, so a script run kills only
- # its own container. IMAGE names the image this script builds and runs (default metalcreator-linux:latest): a track sets its own
--# (xp-3 uses metalcreator-linux:xp-3) so it never replaces another track's image. EXPECTED_TEST_RUNS overrides the count.
-+# (xp-3 uses metalcreator-linux:xp-3) so it never replaces another track's image. SHADERCROSS_IMAGE names the shadercross image
-+# (default metalcreator-shadercross:<12 digits of the pinned commit>; CI builds it with buildx and passes it in). EXPECTED_TEST_RUNS
-+# overrides the count.
+ # its own container. EXPECTED_TEST_RUNS overrides the count (12 today). IMAGE names the image this script builds and runs
+ # (default metalcreator-linux:latest; a track that must not replace another's image sets its own). OpenCascade is built from
+ # source in an image stage, which is the slow part: OCCT_IMAGE names an image that already holds /opt/occt (CI builds the
+ # stage alone with buildx and its layer cache and passes the result), else the stage is built here and Docker's layer cache
+ # keeps it. OCCT_JOBS sets the parallelism of
+-# that OpenCascade build (default 6; a different value is a different Docker cache key and rebuilds OpenCascade).
++# that OpenCascade build (default 6; a different value is a different Docker cache key and rebuilds OpenCascade). SHADERCROSS_IMAGE
++# and SHADERCROSS_JOBS do the same for the `shadercross` stage (CI passes the image it built with buildx).
  set -euo pipefail
  
  cd "$(dirname "$0")/.."
-@@ -57,6 +65,27 @@
+@@ -67,7 +74,8 @@
  fi
- docker build -q -t "$IMAGE" --build-arg "BASE=$BASE_IMAGE" - < scripts/linux/Dockerfile >/dev/null
+ if [ "${METALCREATOR_IMAGE_PREBUILT:-}" != 1 ]; then
+     docker build -q -t "$IMAGE" --build-arg "BASE=$BASE_IMAGE" ${OCCT_IMAGE:+--build-arg "OCCT_IMAGE=$OCCT_IMAGE"} \
+-        ${OCCT_JOBS:+--build-arg "OCCT_JOBS=$OCCT_JOBS"} - < scripts/linux/Dockerfile >/dev/null
++        ${OCCT_JOBS:+--build-arg "OCCT_JOBS=$OCCT_JOBS"} ${SHADERCROSS_IMAGE:+--build-arg "SHADERCROSS_IMAGE=$SHADERCROSS_IMAGE"} \
++        ${SHADERCROSS_JOBS:+--build-arg "SHADERCROSS_JOBS=$SHADERCROSS_JOBS"} - < scripts/linux/Dockerfile >/dev/null
+ fi
  
-+# SDL_shadercross, pinned in scripts/shadercross.env, built in an amd64 image of its own (Microsoft publishes DirectXShaderCompiler for
-+# Linux x86_64 only, and the compiled shaders do not depend on the host: on an aarch64 Mac it runs emulated).
-+. scripts/shadercross.env
-+SHADERCROSS_IMAGE=${SHADERCROSS_IMAGE:-metalcreator-shadercross:${SHADERCROSS_COMMIT:0:12}}
-+if ! docker image inspect "$SHADERCROSS_IMAGE" >/dev/null 2>&1; then
-+    echo "Building SDL_shadercross $SHADERCROSS_COMMIT into $SHADERCROSS_IMAGE (once; Docker caches it)..."
-+    docker build -q --platform linux/amd64 --target shadercross -t "$SHADERCROSS_IMAGE" \
-+        --build-arg "SHADERCROSS_COMMIT=$SHADERCROSS_COMMIT" - < scripts/linux/Dockerfile >/dev/null || {
-+        echo "scripts/linux-test.sh: building SDL_shadercross ($SHADERCROSS_REPOSITORY, commit $SHADERCROSS_COMMIT, pinned in scripts/shadercross.env) failed; run 'docker build --target shadercross - < scripts/linux/Dockerfile' to see why." >&2
-+        exit 1
-+    }
-+fi
-+
-+# Compiles Shaders/viewport into Shaders/viewport/compiled in the worktree (git-ignored); a second when nothing changed.
-+compile_shaders() {
-+    docker rm -f "$NAME-shaders" >/dev/null 2>&1 || true
-+    docker run --rm --platform linux/amd64 --name "$NAME-shaders" \
-+        -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -w /work/MetalCreator \
-+        "$SHADERCROSS_IMAGE" scripts/build-shaders.sh
-+}
-+
- # Runs `$1` in the image, from the repository, with the build volume; stops only this track's own container.
- in_container() {
-     docker rm -f "$NAME" >/dev/null 2>&1 || true
-@@ -66,10 +95,12 @@
+ # Runs `$1` in the image, from the repository, with the build volume (and `$DOCKER_EXTRA`, if set); stops only this track's own
+@@ -80,11 +88,20 @@
+         "$IMAGE" bash -ec "$1"
  }
  
++# Compiles Shaders/viewport into Shaders/viewport/compiled in the worktree (git-ignored), MetalUI's tool built in the track's volume;
++# a second when nothing changed. Every step that builds the app runs it first (`|| return 1`: `set -e` is off inside a function
++# called from `&&`, as `all` calls them).
++compile_shaders() {
++    in_container 'METALUI_TOOLS_SCRATCH=/build/metalui-tools scripts/build-shaders.sh'
++}
++
  do_build() {
 +    compile_shaders || return 1
      in_container 'swift build --scratch-path /build'
@@ -2878,124 +2821,129 @@ Write-Output "SDL_shadercross $($pin.SHADERCROSS_COMMIT) is in $Prefix."
      in_container 'bin=$(swift build --scratch-path /build --show-bin-path)/MetalCreatorApp
          "$bin" --self-test
          "$bin" --smoke-test 20'
-@@ -79,6 +110,7 @@
- # the whole suite. printf %q keeps a filter like 'A|B' one word through the container's shell.
- do_test() {
-     local status=0 args=""
+@@ -96,6 +113,7 @@
+     local arch
+     arch=$(uname -m | sed 's/arm64/aarch64/')
+     rm -f dist/MetalCreator-*-linux-"$arch".tar.gz dist/MetalCreator-*-linux-"$arch".AppImage
 +    compile_shaders || return 1
-     if [ "$#" -gt 0 ]; then args=$(printf ' %q' "$@"); fi
-     in_container "swift test --scratch-path /build$args" 2>&1 | tee "$LOG" || status=$?
+     DOCKER_EXTRA="-v $VOLUME-package:/build-package" in_container '
+         desktop-file-validate packaging/linux/com.metalcreator.MetalCreator.desktop
+         METALCREATOR_SCRATCH=/build-package scripts/package-linux.sh
+@@ -145,6 +163,7 @@
+     local status=0 quoted=""
+     # printf %q keeps a filter like 'A|B' one word through the container's shell.
+     if [ "${#TEST_ARGS[@]}" -gt 0 ]; then printf -v quoted ' %q' "${TEST_ARGS[@]}"; fi
++    compile_shaders || { echo "Linux: FAIL (the viewport's shaders did not compile; see above)" >&2; return 1; }
+     in_container "swift test --scratch-path /build$quoted" 2>&1 | tee "$LOG" || status=$?
      local clean runs tests
+     clean=$(sed $'s/\x1b\\[[0-9;]*m//g' "$LOG")
 ```
 
-`.github/workflows/xp.yml` (change; apply with `git apply` or by hand). Task 9 changes the same file again, after this task:
+`.github/workflows/xp.yml` (change against master; apply with `git apply` or by hand). Every `uses:` is one master already pins by SHA (`docker/build-push-action` v7, `actions/cache/restore` and `save` v4); no new action is added (the Windows build enters Visual Studio's developer shell inside `install-shadercross.ps1`). Task 9 changes the same file again, after this task:
 
 ```diff
 --- a/.github/workflows/xp.yml
 +++ b/.github/workflows/xp.yml
-@@ -8,6 +8,12 @@
- # The Linux jobs run scripts/linux-test.sh, the script a developer runs in Docker on a Mac: build, the suite (exit 0, no
- # "recorded an issue" or "failed after" line, eleven "Test run with" lines), the app's --self-test, and --smoke-test 20.
+@@ -17,6 +17,13 @@
+ # libraries: one C runtime on both sides), and vcpkg's binary cache folder is restored before and saved right after the install, so
+ # a red later step does not lose it.
  #
-+# The viewport's HLSL shaders are compiled at build time (plan xp-3, user decision U1(b)); nothing compiled is checked in. SDL_shadercross, pinned
-+# by commit in scripts/shadercross.env (its repository has no release or tag), is built by the Linux image's `shadercross` stage (an amd64 image
-+# on every runner, cached by buildx) and, on Windows, by scripts/install-shadercross.ps1 (cached by actions/cache/restore and /save, keyed by the
-+# pin). scripts/linux-test.sh and scripts/build-shaders.ps1 run the compile before `swift build`; a failure stops the job with a message that names
-+# the tool and its commit.
++# The viewport's HLSL shaders are compiled at build time (plan xp-3, user decision U1(b)); nothing compiled is checked in. SDL_shadercross,
++# pinned by commit in scripts/shadercross.env (no release or tag upstream, no binary from MetalUI), is built on Linux by the Dockerfile's
++# `shadercross` stage, natively on each runner, alone with buildx and cached (scope xp-shadercross-<arch>), and on Windows by
++# scripts/install-shadercross.ps1, cached by actions/cache/restore and save under a key of the pin and the script. scripts/linux-test.sh
++# and scripts/build-shaders.ps1 compile through MetalUI's MetalUICompileShaders before `swift build`; a failure stops the job with a
++# message that names the tool and its commit.
 +#
  # The Windows job is modelled on MetalUI's own Windows job (.github/workflows/sdl-gpu-linux.yml). Run 38546048595 was green: it builds, passes the
- # suite (11 "Test run with" lines) and passes the app's --self-test and --smoke-test. It stays continue-on-error, so it does not hide the Linux
+ # suite (11 "Test run with" lines; 12 since xp-2 added CreatorOCCTTests) and passes the app's --self-test and --smoke-test. It stays continue-on-error, so it does not hide the Linux
  # result, and the last step marks a red Windows run with a warning and a summary line (the run itself shows green); read its log on every run.
-@@ -52,6 +58,11 @@
-           ref: ${{ env.METALUI_COMMIT }}
-           path: MetalUI
-       - uses: docker/setup-buildx-action@v4
-+      - name: Emulate amd64 (the shader compiler's image is amd64; no Linux aarch64 DirectXShaderCompiler exists)
-+        if: ${{ matrix.arch == 'aarch64' }}
-+        uses: docker/setup-qemu-action@v3
-+        with:
-+          platforms: amd64
-       - name: Build MetalUI's Linux image (Swift, SDL3 from source, Mesa, AccessKit)
-         uses: docker/build-push-action@v7
-         with:
-@@ -61,8 +72,21 @@
+@@ -88,15 +95,27 @@
            load: true
-           cache-from: type=gha,scope=xp-portable-${{ matrix.arch }}
-           cache-to: type=gha,mode=max,scope=xp-portable-${{ matrix.arch }}
+           cache-from: type=gha,scope=xp-occt-${{ matrix.arch }}
+           cache-to: type=gha,mode=max,scope=xp-occt-${{ matrix.arch }}
 -      - name: Build, test, self-test and launch
-+      - name: Build SDL_shadercross (amd64 image, the commit of scripts/shadercross.env)
-+        uses: docker/build-push-action@v7
++      - name: Build SDL_shadercross (the commit of scripts/shadercross.env; cached)
++        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
 +        with:
 +          context: MetalCreator/scripts/linux
 +          file: MetalCreator/scripts/linux/Dockerfile
 +          target: shadercross
-+          platforms: linux/amd64
-+          tags: metalcreator-shadercross:ci
++          tags: metalcreator-shadercross:latest
 +          load: true
 +          cache-from: type=gha,scope=xp-shadercross-${{ matrix.arch }}
 +          cache-to: type=gha,mode=max,scope=xp-shadercross-${{ matrix.arch }}
 +      - name: Compile the shaders, build, test, self-test and launch
          working-directory: MetalCreator
-+        env:
-+          SHADERCROSS_IMAGE: metalcreator-shadercross:ci
+         env:
+           OCCT_IMAGE: metalcreator-occt:latest
++          SHADERCROSS_IMAGE: metalcreator-shadercross:latest
          run: scripts/linux-test.sh all
- 
-   windows:
-@@ -97,9 +121,39 @@
-           Invoke-WebRequest "https://github.com/libsdl-org/SDL/releases/download/release-$env:SDL_VERSION/SDL3-devel-$env:SDL_VERSION-VC.zip" -OutFile $zip
-           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
-           $root = "$env:RUNNER_TEMP\SDL3-$env:SDL_VERSION"
-+          "SDL3_ROOT=$root" >> $env:GITHUB_ENV
-           "SDL3_INCLUDE=$root\include" >> $env:GITHUB_ENV
-           "SDL3_LIB=$root\lib\x64" >> $env:GITHUB_ENV
-           "$root\lib\x64" >> $env:GITHUB_PATH   # SDL3.dll at run time
-+      - name: Set up the Visual C++ build environment (for SDL_shadercross)
-+        uses: ilammy/msvc-dev-cmd@v1
-+        with:
-+          arch: x64
+       - name: Package (tarball and AppImage), each checked in a clean Ubuntu
+         working-directory: MetalCreator
+         env:
+           OCCT_IMAGE: metalcreator-occt:latest
++          SHADERCROSS_IMAGE: metalcreator-shadercross:latest
+         run: scripts/linux-test.sh package
+       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+         with:
+@@ -199,6 +218,26 @@
+         with:
+           path: ${{ runner.temp }}\vcpkg-cache
+           key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 +      - name: Restore SDL_shadercross
-+        id: shadercross
-+        uses: actions/cache/restore@v4
++        id: shadercross-cache
++        # Not actions/cache, for the vcpkg cache's reason: the save step below runs as soon as the build is done.
++        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
 +        with:
 +          path: ${{ runner.temp }}\shadercross
 +          key: shadercross-windows-x64-${{ hashFiles('MetalCreator/scripts/shadercross.env', 'MetalCreator/scripts/install-shadercross.ps1') }}
-+      - name: Build SDL_shadercross (the pinned commit; about 10 minutes, once per pin)
-+        if: ${{ steps.shadercross.outputs.cache-hit != 'true' }}
++      - name: Build SDL_shadercross (the pinned commit, once per pin)
++        id: shadercross
++        if: ${{ steps.shadercross-cache.outputs.cache-hit != 'true' }}
 +        working-directory: MetalCreator
 +        run: |
 +          scripts\install-shadercross.ps1 -Prefix "$env:RUNNER_TEMP\shadercross" -Sdl3Root $env:SDL3_ROOT
 +          exit $LASTEXITCODE
 +      - name: Save SDL_shadercross
-+        # Right after a whole build: actions/cache's own post step saves only when the whole job is green, and the Windows job is not yet.
-+        if: ${{ steps.shadercross.outputs.cache-hit != 'true' }}
-+        uses: actions/cache/save@v4
++        if: ${{ always() && steps.shadercross.outcome == 'success' && steps.shadercross-cache.outputs.cache-hit != 'true' }}
++        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
 +        with:
 +          path: ${{ runner.temp }}\shadercross
-+          key: ${{ steps.shadercross.outputs.cache-primary-key }}
-+      - name: Compile the viewport's shaders
-+        working-directory: MetalCreator
-+        # Stops with a message naming SDL_shadercross and its pinned commit if the tool is missing or a shader fails.
-+        run: |
-+          scripts\build-shaders.ps1 -ShaderCross "$env:RUNNER_TEMP\shadercross\bin\shadercross.exe"
-+          exit $LASTEXITCODE
++          key: ${{ steps.shadercross-cache.outputs.cache-primary-key }}
        - name: Fetch AccessKit
          working-directory: MetalUI/Backends/SDL
          # One SwiftPM flag per line: -Xcc -I<include> -Xswiftc -L<lib> (MetalUI PX-I item 2).
+@@ -206,6 +245,13 @@
+           python scripts/fetch-accesskit.py --print-flags > "$env:RUNNER_TEMP\accesskit-flags.txt"
+           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+           Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt"
++      - name: Compile the viewport's shaders
++        working-directory: MetalCreator
++        # MetalUI's MetalUICompileShaders through the pinned SDL_shadercross; stops with a message naming the tool and its commit if it
++        # is missing or a shader fails.
++        run: |
++          scripts\build-shaders.ps1 -ShaderCross "$env:RUNNER_TEMP\shadercross\bin\shadercross.exe"
++          exit $LASTEXITCODE
+       - name: Build
+         working-directory: MetalCreator
+         # No pkg-config on Windows: hand SwiftPM SDL's include and library paths.
 ```
 
-- [ ] **Step 4: Build the shadercross image and compile the shaders**
+- [ ] **Step 4: Build the shadercross stage and compile the shaders**
 
-macOS needs nothing and builds nothing here (U6(a)); its run in step 5 covers the struct sizes and the toolchain pin. On Linux, `scripts/linux-test.sh` builds the `shadercross` image on first use (a few minutes natively, longer emulated on an aarch64 Mac; Docker caches it) and compiles before it builds:
+macOS needs nothing and builds nothing here (U6(a)); its run in step 5 covers the struct sizes and the toolchain pin. On Linux, `scripts/linux-test.sh` rebuilds the test image with the new `shadercross` stage on first use (natively; MetalUI measured the DXC fork at 6 min 45 s with 8 jobs on Linux aarch64, so budget about 15 minutes with the default 6 and SDL3; Docker caches it) and compiles before it builds, building MetalUI's tool into the volume the first time (seconds):
 
 ```bash
 XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh build 2>&1 | grep -v '^20' | tail -4
 ls Shaders/viewport/compiled | wc -l
 cat Shaders/viewport/compiled/INCLUDES.sha256
 git status --short Shaders      # lists the new sources, never compiled/
+git -C ../MetalUI status --short   # nothing: MetalUI is never written to
 XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh build 2>&1 | grep -E 'current|Built'
 ```
 
-Expected: the first run ends with `Built Shaders/viewport/compiled (66 files).` (`Compiled 16 shader(s) to SPIR-V, MSL, DXIL and reflection JSON: compiled` is MetalUI's own last line before it); `66`; one line, the SHA-256 of `common.hlsli`; `git status` shows the HLSL files and no `compiled` entry; the second run prints `Shaders/viewport/compiled is current.` and rebuilds nothing. Each stage's `NAME.*.json` lists its resource counts: for example `mesh.vert.json` says `"storage_buffers": 2, "uniform_buffers": 2` and the cube and slice shaders (tasks 10 and 12) will say `"samplers": 1`. A second compile after `rm -r Shaders/viewport/compiled` gives byte-identical files.
+Expected: the first run ends with `Built Shaders/viewport/compiled (66 files).` (`Compiled 16 shader(s) to SPIRV, MSL, DXIL, JSON: /work/MetalCreator/Shaders/viewport/compiled` is `MetalUICompileShaders`' own last line before it, after one `NAME.<stage> {…}` reflection line per stage); `66`; one line, the SHA-256 of `common.hlsli`; `git status` shows the HLSL files and no `compiled` entry; `git -C ../MetalUI status --short` prints nothing (the tool was built in `/build/metalui-tools`, and `../MetalUI` is mounted read-only); the second run prints `Shaders/viewport/compiled is current.` and rebuilds nothing. Each stage's `NAME.*.json` lists its resource counts: for example `mesh.vert.json` says `"storage_buffers": 2, "uniform_buffers": 2` and the cube and slice shaders (tasks 10 and 12) will say `"samplers": 1`. A second compile after `rm -r Shaders/viewport/compiled` gives byte-identical files.
 
 **Measured here: see "Measured here" at the end of this task.**
 
@@ -3010,7 +2958,7 @@ Expected:
 - macOS: no `recorded an issue` or `failed after` line, and `Test run with 317 tests in 44 suites passed` (baseline 304/41 + 13 tests, + 3 suites).
 - Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 276 tests in 37 suites passed` (baseline 259/34 + 17 tests, + 3 suites).
 
-The new tests: `ShaderSourceTests` has 1 test on macOS (the HLSL struct sizes against the Swift strides) and 2 on Linux and Windows (plus that the build produced every stage's four files where the renderer reads them and is current); `ShaderToolchainTests` has 2 (the pin agrees everywhere it is written; a missing shadercross stops `build-shaders.sh` with exit 69 and a message naming the tool, the repository and the pinned commit; that one is compiled out on Windows, where `build-shaders.ps1` has the same message and CI is its check). The old plan had 3 tests here (the struct sizes and two hash checks), so the macOS figures are the old ones and Linux gains one.
+The new tests: `ShaderSourceTests` has 1 test on macOS (the HLSL struct sizes against the Swift strides) and 2 on Linux and Windows (plus that the build produced every stage's four files where the renderer reads them and is current); `ShaderToolchainTests` has 2 (the pin agrees everywhere it is written and both scripts run `MetalUICompileShaders` with a scratch path, never the deleted python script; a missing shadercross stops `build-shaders.sh` with exit 69 and a message naming the tool, the repository and the pinned commit; that one is compiled out on Windows, where `build-shaders.ps1` has the same message and CI is its check). The old plan had 3 tests here (the struct sizes and two hash checks), so the macOS figures are the old ones and Linux gains one.
 
 - [ ] **Step 6: Prove the checks bite**
 
@@ -3077,7 +3025,7 @@ chmod +x scripts/build-shaders.sh && git update-index --chmod=+x scripts/build-s
 git commit -m "viewport: HLSL shaders compiled at build time by a pinned SDL_shadercross; no compiled files in git"
 ```
 
-**Measured here (2026-10-21).** The stage and the script were run for real while this revision was written, outside the repository (the session's scratchpad), on an aarch64 Mac with the image emulated as amd64: the stage builds in about 12 minutes cold (4 min 06 s on top of a cached SDL layer, 214 MB); `scripts/build-shaders.sh`, as written above, compiles the 16 stage files into 66 files in 1 min 40 s (emulated), prints `Shaders/viewport/compiled is current.` on a second run, rebuilds after a source edit, exits 69 naming the tool and the commit when shadercross is missing, and exits 1 with the compiler's complaint (`unknown type name 'syntax'`, `grid.frag.hlsl`) and no half-built directory when a shader does not compile. A second compile and the first variant's image give byte-identical files. The PowerShell scripts, the Windows build and `scripts/linux-test.sh` end to end were not run (see Verification and Risks 13 and 14).
+**Measured, and what was not.** On 2026-10-21 the old variant of this task (an amd64 `ubuntu:24.04` stage with Microsoft's prebuilt DXC, and MetalUI's python script) was built and run on this Mac under emulation: 16 stage files compiled to 66 files, the "current" rerun, the edit rebuild, exit 69 and exit 1 all behaved as written. On 2026-10-22, for this revision: `MetalUICompileShaders` was built from a read-only copy of MetalUI `5f03ab7b` with `swift run --package-path <copy> --scratch-path <elsewhere>` (6 s, nothing written into the copy), and `scripts/build-shaders.sh` as written here, run on macOS against that copy with a stub shadercross that writes its `-o` file, made `NAME.<stage>.{spv,msl,dxil,json}`, MetalUI's `SOURCE.sha256` (byte-for-byte what `sha256sum` prints for the stage files, so the script's "current" test matched it) and `INCLUDES.sha256`, printed `Shaders/viewport/compiled is current.` on the rerun, and exited 69 with no shadercross and 1, removing the directory, when the compile failed. **Not run:** the native `shadercross` stage (MetalUI measured its recipe on Linux aarch64, not this Dockerfile), a real shadercross through `MetalUICompileShaders` on Linux, the PowerShell scripts, the Windows build and `scripts/linux-test.sh` end to end (see Verification and Risks 13 and 14).
 
 
 
@@ -3098,7 +3046,7 @@ Package.swift: `CreatorViewport` and its tests depend on `MetalUISDL` and `Metal
 - Modify: `Tests/CreatorViewportTests/ShaderSourceTests.swift`
 
 **Interfaces:**
-- Consumes: `Shaders/viewport/compiled` (task 4); MetalUI `SDLGPUDevice`, `SDLGPUShaderLibrary`, `SDLGPUBuffer`, `SDLGPUGraphicsPipeline`; `GPUGeometry.meshVertices/edgeInstances/faceFlags/fieldCorners`; `EdgeInstanceKey`.
+- Consumes: `Shaders/viewport/compiled` (task 4); MetalUI `SDLGPUDevice` (`compileGraphicsPipeline(_:) throws -> SDLGPUGraphicsPipeline`, whose `SDLGPUError` carries SDL's reason, ruling `GB-G`; `makeBuffer`, `makeTransferBuffer`), `SDLGPUShaderLibrary` (`locate(directoryName:sourceTree:)`, `vertex`/`fragment(_:for:)`), `SDLGPUBuffer`, `SDLGPUGraphicsPipelineDescription`; `GPUGeometry.meshVertices/edgeInstances/faceFlags/fieldCorners`; `EdgeInstanceKey`; `ViewportRenderError.deviceRefused`.
 - Produces: `SDLViewportShaders.library()`, `.names`, `.verify(driver:) -> Int`, `.platformDriver`; `SDLViewportUploader(device:, commandBuffer:)`, `.storageBuffer(_:) -> SDLGPUBuffer?`; `uniformBytes(_:) -> [UInt8]`; `SDLViewportMesh` (`vertexBuffer`, `vertexCount`, `faceCount`, `edges(_:palette:uploader:)`, `faceFlags(…)`, `fieldValues(…)`, `pickEdges(solid:uploader:)`, `cachedPickEdges`, `hasPickEdges`); `SDLViewportPipelines(device:library:)` with `background, fill, mesh, fieldMesh, ghost, lineTest, lineAlways, lineBehind, grid, idMesh, idLine`; the test support `SDLTestDevice.shared`, `SDLTestDevice.pipelines`, `Handoff`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -3319,7 +3267,9 @@ import MetalUISDLGPU
 
 /// The viewport's graphics pipelines, made once per device from the compiled shaders. SDL_GPU puts the depth test in the pipeline
 /// (Metal has separate depth states), so a draw that differs only in its depth test is a pipeline of its own. Main-pass pipelines
-/// render 4× MSAA `bgra8Unorm` (MetalUI's surface format) with `d32Float`; the ID pipelines render single-sample `r32Uint`.
+/// render 4× MSAA `bgra8Unorm` (MetalUI's surface format) with `d32Float`; the ID pipelines render single-sample `r32Uint`. A refused
+/// pipeline throws `ViewportRenderError.deviceRefused` with the shader pair and SDL's reason ("The GPU could not create the mesh/mesh
+/// pipeline (pipeline: E_INVALIDARG …)."), which `ViewportModel.gpuFailureMessage` and `--smoke-test` show.
 struct SDLViewportPipelines: Sendable {
     static let colorFormat = SDLGPUTextureFormat.b8g8r8a8Unorm
     static let idFormat = SDLGPUTextureFormat.r32Uint
@@ -3352,10 +3302,12 @@ struct SDLViewportPipelines: Sendable {
             let description = SDLGPUGraphicsPipelineDescription(
                 vertex: try library.vertex(vertex, for: device), fragment: try library.fragment(fragment, for: device),
                 primitiveType: primitive, cullMode: .none, colorFormat: color, blend: blend, sampleCount: samples, depth: depth)
-            guard let made = device.makeGraphicsPipeline(description) else {
-                throw ViewportRenderError.deviceRefused("the \(vertex)/\(fragment) pipeline was refused (SDL's reason: MetalUI gap XP-G19)")
+            do {
+                return try device.compileGraphicsPipeline(description)
+            } catch {
+                // MetalUI's `SDLGPUError` names the stage that failed with SDL's own text (ruling GB-G, gap XP-G19).
+                throw ViewportRenderError.deviceRefused("the \(vertex)/\(fragment) pipeline (\(error))")
             }
-            return made
         }
         let always = SDLGPUDepthState(compare: .always, write: false)
         let writes = SDLGPUDepthState(compare: .less, write: true)
@@ -3385,7 +3337,7 @@ import Foundation
 import MetalUISDLGPU
 
 /// Finds the viewport's compiled shaders (cross-platform spec section 4): HLSL in `Shaders/viewport`, compiled at build time by
-/// `scripts/build-shaders.sh` (`.ps1` on Windows) through MetalUI's `compile-app-shaders.py` and the pinned SDL_shadercross into
+/// `scripts/build-shaders.sh` (`.ps1` on Windows) through MetalUI's `MetalUICompileShaders` and the pinned SDL_shadercross into
 /// `Shaders/viewport/compiled` (SPIR-V for Vulkan, DXIL for Direct3D 12, MSL, a reflection file each, `SOURCE.sha256`). The directory is a
 /// build product: git-ignored, never checked in (user decision U1(b)).
 enum SDLViewportShaders {
@@ -3481,9 +3433,9 @@ func uniformBytes<T>(_ value: T) -> [UInt8] {
 +/// and Windows (xp-3). A dependency of `CreatorViewport` and its tests only.
 +let metalUISDLGPU: Target.Dependency = .product(name: "MetalUISDLGPU", package: "MetalUI", condition: .when(platforms: [.linux, .windows]))
 +
- /// The OpenCascade kernel, a dependency only where the target is declared (macOS, until xp-2).
- #if os(macOS)
+ /// The OpenCascade kernel (xp-2): a dependency on every platform.
  let occt: [Target.Dependency] = ["CreatorOCCT"]
+ 
 @@ -57,7 +61,9 @@
      // platform for the reason above (SG-D).
      .target(
@@ -4490,7 +4442,7 @@ git commit -m "viewport: the SDL_GPU renderer's main pass"
 
 ### Task 7: The ID pass and the picker with its read-back
 
-Picking on SDL. `SDLIDPassInputs` is what the ID pass draws (each solid's vertex buffer and pick base, each solid's edge instances, the camera and the cut plane), gathered on the main actor by `idPassInputs(for:width:height:)`, so the batch that records the pass on the device's worker thread reads none of the renderer's state. `encodeIDs` is static and records into `r32Uint` (one texel per point) with a single-sample depth target: faces write `pickBase | face`, edges their pick ID, 6 points wide and biased towards the camera. `SDLViewportPicker` runs it as a batch (`submitBatch`), awaits the fence, downloads the words and keeps them until the camera or the scene changes (`PickKey`, as Metal's picker does). It works ahead: the draw calls `schedule(frame)`; `pick` reads the landed words with no wait; `isPending` says when they are not for this view; `pickWhenReady` waits; a pass that cannot run counts as landed and empty, so nothing waits forever, and the next draw retries. This is the MetalUI gap XP-G14 behaviour, user decision U4. Review Focus 3 and 4 are tests here.
+Picking on SDL. `SDLIDPassInputs` is what the ID pass draws (each solid's vertex buffer and pick base, each solid's edge instances, the camera and the cut plane), gathered on the main actor by `idPassInputs(for:width:height:)`, so the batch that records the pass on the device's worker thread reads none of the renderer's state. `encodeIDs` is static and records into `r32Uint` (one texel per point) with a single-sample depth target: faces write `pickBase | face`, edges their pick ID, 6 points wide and biased towards the camera. `SDLViewportPicker` runs it as a batch (`submitBatch`), awaits the fence, downloads the words and keeps them until the camera or the scene changes (`PickKey`, as Metal's picker does). It works ahead: the draw calls `schedule(frame)`; `pick` reads the landed words with no wait (a hover's answer: the latest landed buffer, never a stall); `isPending` says when they are not for this view; `pickWhenReady` (a click's answer) waits for the buffer of the click's own view; a pass that cannot run counts as landed and empty, so nothing waits forever, and the next draw retries. This is user decision U4, **hybrid**. Steps 1 to 5 build it with the click's wait asynchronous, because MetalUI's typed layer cannot yet submit a render batch without `await` (gap XP-G22, task 0); **step 6, once MetalUI answers XP-G22, makes the click's wait synchronous** (render the ID pass, `SDLGPUFence.waitBlocking()`, `SDLGPUDevice.downloadSynchronously`: MetalUI S11's answer to XP-G14) and deletes the asynchronous click of task 2. Review Focus 3 and 4 are tests here.
 
 The Metal ID-pass test needs OpenCascade (`OffscreenRenderTests`), so the same checks run here on `TestMeshes.box`, which has the same face and edge numbering as the prism OpenCascade builds in the test: the readback needs a test (spec section 4) and gets one on Linux and Windows.
 
@@ -4501,8 +4453,8 @@ The Metal ID-pass test needs OpenCascade (`OffscreenRenderTests`), so the same c
 - Modify: `Tests/CreatorViewportTests/Support/SDLRenderRig.swift`
 
 **Interfaces:**
-- Consumes: task 6's renderer and `SDLRenderRig`; `PickID`, `PickKey`, `FrameUniforms`; MetalUI `submitBatch`, `SDLGPUFence.wait`, `SDLGPUDevice.download`.
-- Produces: `SDLIDPassInputs`; `SDLViewportRenderer.idPassInputs(for:width:height:) -> SDLIDPassInputs?`, `static encodeIDs(_:into:depth:commandBuffer:)`; `@MainActor final class SDLViewportPicker` (`init(renderer:)`, `pick(at:in:)`, `isPending(for:)`, `schedule(_:)`, `refresh(_:) async`, `pickWhenReady(at:in:) async`, `onReady`, `renderCount`); the rig's `picker`, `prepare(_:)`, `pick(at:in:)`, `picks(at:in:)`.
+- Consumes: task 6's renderer and `SDLRenderRig`; `PickID`, `PickKey`, `FrameUniforms`; MetalUI `SDLGPUDevice.submitBatch(_:) async throws -> SDLGPUFence`, `SDLGPUFence.wait() async`, `SDLGPUDevice.download(_:mipLevel:) async -> [UInt8]?`, `makeTexture`; in step 6 also `SDLGPUFence.waitBlocking()`, `SDLGPUDevice.downloadSynchronously(_:region:) -> [UInt8]?` (both in `5f03ab7b`) and the requested `submitBatchSynchronously(_:) throws -> SDLGPUFence` (XP-G22).
+- Produces: `SDLIDPassInputs`; `SDLViewportRenderer.idPassInputs(for:width:height:) -> SDLIDPassInputs?`, `static encodeIDs(_:into:depth:commandBuffer:)`; `@MainActor final class SDLViewportPicker` (`init(renderer:)`, `pick(at:in:)`, `isPending(for:)`, `schedule(_:)`, `refresh(_:) async`, `pickWhenReady(at:in:) async` (synchronous after step 6), `onReady`, `renderCount`); the rig's `picker`, `prepare(_:)`, `pick(at:in:)`, `picks(at:in:)`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -4753,7 +4705,7 @@ Expected: the build fails. Linux: `cannot find 'SDLViewportPicker' in scope`.
 
 - [ ] **Step 3: Implement**
 
-The batch's recording closure hands the renderer nothing but `SDLIDPassInputs` and the two textures. The picker's loop keeps its bookkeeping in synchronous helpers (`takeWanted`, `land`) so no loop holds locals across an `await` (the Windows Swift 6.4 compiler assert).
+The batch's recording closure hands the renderer nothing but `SDLIDPassInputs` and the two textures. The picker's loop keeps its bookkeeping in synchronous helpers (`takeWanted`, `land`) so no loop holds locals across an `await` (the Windows Swift 6.4 compiler assert), and no `async` function here takes a closure parameter, so none can be closure-specialised (Global Constraints); `idle()`'s loop holds no locals. Windows' release build of this file is CI's "Build release (for the zip)" step: read it after the push.
 
 `Sources/CreatorViewport/RenderSDL/SDLViewportPicker.swift` (new):
 
@@ -4766,7 +4718,9 @@ import MetalUISDLGPU
 /// words downloaded. So the picker works ahead: the draw that follows a change of camera or scene calls ``schedule(_:)``, which starts
 /// the pass once the view has been still for ``settleDelay`` (an orbit draws every frame, and a read-back per frame nobody asked for
 /// would be waste), the ID buffer lands a few milliseconds after that, and ``pick(at:in:)`` reads it with no wait, as `ViewportPicker`
-/// reads Metal's. A click does not wait for the quiet: ``pickWhenReady(at:in:)`` starts the pass at once.
+/// reads Metal's: a hover's answer (user decision U4, hybrid). A click does not wait for the quiet: ``pickWhenReady(at:in:)`` starts the
+/// pass for the click's own view at once and answers from it, never from another view's buffer (asynchronously until MetalUI gap
+/// XP-G22; then synchronously, plan task 7 step 6).
 ///
 /// A pick for a view whose buffer has not landed answers `nil` and ``isPending(for:)`` says so. The buffer is kept until the camera or
 /// the scene changes (`PickKey`), as Metal's is. A pass that fails (no GPU memory, a lost device, meshes not uploaded yet) counts as
@@ -5031,6 +4985,490 @@ git add Sources/CreatorViewport/RenderSDL/SDLViewportPicker.swift \
   Tests/CreatorViewportTests/SDLPickerTests.swift \
   Tests/CreatorViewportTests/Support/SDLRenderRig.swift
 git commit -m "viewport: SDL ID pass, picker and read-back"
+```
+
+
+- [ ] **Step 6 (after task 8, once MetalUI answers XP-G22): the click renders its own ID pass synchronously**
+
+**Gate.** Do this step when MetalUI has `SDLGPUDevice.submitBatchSynchronously(_:) throws -> SDLGPUFence` (gap XP-G22, the signature requested in `docs/metalui-gaps.md`) and master's `METALUI_COMMIT` includes it; until then skip it and go on (the asynchronous click of steps 1 to 5 is exact, only later). Check with `git -C ../MetalUI grep -n "func submitBatchSynchronously" HEAD -- Backends/SDL/Sources/MetalUISDLGPU`. If MetalUI spelled it differently, change only `SDLViewportPicker.renderNow`. Adopting it means bumping `METALUI_COMMIT` in `.github/workflows/xp.yml` to that commit (the one pin bump this plan makes, and only here) and saying so in the XP-G22 row. Do it after task 8, because `SDLViewportBackend` (task 8) forwards `pickWhenReady` and changes with it.
+
+**What changes.** `ViewportBackend.pickWhenReady(at:in:)` stops being `async`: Metal's default answers at once, as before; `SDLViewportPicker.pickWhenReady` answers from the landed buffer for the click's view or, when there is none, renders the ID pass now (`submitBatchSynchronously`), waits (`SDLGPUFence.waitBlocking()`) and reads it back (`SDLGPUDevice.downloadSynchronously`), landing it for hovers too. A ticket per pass keeps a slower batch from replacing a newer landed buffer. `ViewportModel.click` delivers every click at once through `(pickWhenReady ?? pick)`; the click `Task` and its tool and projector capture go, and so do `FakeBackend`'s waiters and the two waiting-click tests, replaced by `aClickIsAnsweredAtOnceFromItsOwnIDPassWhileTheHoverBufferIsPending`; `SDLPickerTests` gains `aClickRendersItsOwnIDPassWhenNoBufferHasLanded`. A hover is unchanged (Review Focus 3).
+
+`Sources/CreatorViewport/Render/ViewportBackend.swift` (change; apply with `git apply` or by hand):
+
+```diff
+--- a/Sources/CreatorViewport/Render/ViewportBackend.swift
++++ b/Sources/CreatorViewport/Render/ViewportBackend.swift
+@@ -5,8 +5,8 @@
+ /// Picking is the part the model sees (user decision U4, hybrid). Metal answers a pick at once, by rendering the ID buffer and waiting
+ /// for it. The SDL_GPU backend answers a hover from the ID buffer it rendered ahead (``isPickPending(for:)`` says when that buffer is not
+ /// for the camera and scene of the frame asked about yet) and calls ``onPickReady`` when a new one lands; a click asks
+-/// ``pickWhenReady(at:in:)``, which answers from a buffer for the click's own view, waiting for it (asynchronously until MetalUI gap
+-/// XP-G22 lets it render one synchronously).
++/// ``pickWhenReady(at:in:)``, which answers from a buffer for the click's own view, rendering it and waiting for the GPU when none has
++/// landed, as Metal does.
+ @MainActor
+ protocol ViewportBackend: AnyObject {
+     /// Main passes drawn so far. Tests and the launch smoke test use it to tell "drew" from "bailed out".
+@@ -23,8 +23,9 @@
+     /// Whether the ID buffer for `frame` is on its way, so ``pick(at:in:)`` would answer `nil` for want of it.
+     func isPickPending(for frame: ViewportFrame) -> Bool
+ 
+-    /// The click's pick: ``pick(at:in:)`` from an ID buffer for `frame` itself, once it has landed. Never another view's answer.
+-    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) async -> PickTarget?
++    /// The click's pick: ``pick(at:in:)`` from an ID buffer for `frame` itself, rendered and waited for now when none has landed (it may
++    /// stall a frame, as Metal's `waitUntilCompleted` does; only a click asks). Never another view's answer.
++    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) -> PickTarget?
+ 
+     /// Whether this backend draws the view cube and the axis triad. The model hit-tests the cube (hover, click, drag, the context menu's
+     /// exclusion) only while it is drawn: a cube nobody can see must not rotate the camera. Metal draws them; the SDL backend says
+@@ -37,7 +38,7 @@
+ 
+     func isPickPending(for frame: ViewportFrame) -> Bool { false }
+ 
+-    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) async -> PickTarget? {
++    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) -> PickTarget? {
+         pick(at: point, in: frame)
+     }
+ }
+```
+
+`Sources/CreatorViewport/Model/ViewportModel.swift` (change; apply with `git apply` or by hand):
+
+```diff
+--- a/Sources/CreatorViewport/Model/ViewportModel.swift
++++ b/Sources/CreatorViewport/Model/ViewportModel.swift
+@@ -71,10 +71,11 @@
+     /// Answers "what is under this point?". It's set when the GPU objects are made (`install(_:)`), and tests set it directly.
+     @ObservationIgnored var pick: (@MainActor (ScreenPoint) -> PickTarget?)?
+     /// Whether `pick` has no answer yet because the ID buffer for the view as it is now is on its way (an SDL_GPU backend reads it back
+-    /// asynchronously). A hover then keeps the face it had, and a click waits for `pickWhenReady`. `nil` means never.
++    /// asynchronously). A hover then keeps the face it had. `nil` means never.
+     @ObservationIgnored var isPickPending: (@MainActor () -> Bool)?
+-    /// `pick`, once the ID buffer for the view as it is now has landed.
+-    @ObservationIgnored var pickWhenReady: (@MainActor (ScreenPoint) async -> PickTarget?)?
++    /// A click's pick: `pick` from an ID buffer for the view as it is now, rendered and waited for when none has landed (user decision U4,
++    /// hybrid). `nil` (no backend: tests that set `pick` directly) falls back to `pick`.
++    @ObservationIgnored var pickWhenReady: (@MainActor (ScreenPoint) -> PickTarget?)?
+     @ObservationIgnored var drag: DragState?
+     /// The camera when the scroll under way (a trackpad scroll, or a run of wheel steps) began; `nil` between scrolls.
+     @ObservationIgnored var scrollStartPose: CameraPose?
+```
+
+`Sources/CreatorViewport/Model/ViewportModel+Backend.swift` (change; apply with `git apply` or by hand):
+
+```diff
+--- a/Sources/CreatorViewport/Model/ViewportModel+Backend.swift
++++ b/Sources/CreatorViewport/Model/ViewportModel+Backend.swift
+@@ -26,7 +26,7 @@
+         }
+         pickWhenReady = { [weak self] point in
+             guard let self else { return nil }
+-            return await backend.pickWhenReady(at: point, in: frame(at: clock.now()))
++            return backend.pickWhenReady(at: point, in: frame(at: clock.now()))
+         }
+         backend.onPickReady = { [weak self] in self?.refreshHover() }
+     }
+```
+
+`Sources/CreatorViewport/Model/ViewportModel+Input.swift` (change; apply with `git apply` or by hand):
+
+```diff
+--- a/Sources/CreatorViewport/Model/ViewportModel+Input.swift
++++ b/Sources/CreatorViewport/Model/ViewportModel+Input.swift
+@@ -132,19 +132,9 @@
+             if let region = cubeLayout.region(at: point, pose: pose) { perform(.view(region)) }
+         } else if HandleMath.hit(handles, at: point, pose: pose, size: viewSize) == nil,
+                   tool?.clicked(at: point, modifiers: modifiers, projector: projector) != true {
+-            if isPickPending?() == true, let pickWhenReady {
+-                // The ID buffer for this view is still on its way: the click is delivered when it lands, not as a click on empty space.
+-                // It is the click of the press: the tool and the projector are those of the press, not of whatever the tool or an
+-                // animating camera has become by the time the buffer lands.
+-                let pressTool = tool
+-                let pressProjector = projector
+-                Task { [self] in
+-                    let target = await pickWhenReady(point)
+-                    deliverClick(on: target, at: point, modifiers: modifiers, tool: pressTool, projector: pressProjector)
+-                }
+-            } else {
+-                deliverClick(on: pick?(point), at: point, modifiers: modifiers, tool: tool, projector: projector)
+-            }
++            // A click is exact (user decision U4, hybrid): answered from an ID buffer for this view, which the backend renders and
++            // waits for if it has not landed, so it is delivered now, to the tool and with the projector of the press.
++            deliverClick(on: (pickWhenReady ?? pick)?(point), at: point, modifiers: modifiers, tool: tool, projector: projector)
+         }
+         pointerReleased(at: point)
+     }
+```
+
+`Sources/CreatorViewport/RenderSDL/SDLViewportBackend.swift` (change; apply with `git apply` or by hand):
+
+```diff
+--- a/Sources/CreatorViewport/RenderSDL/SDLViewportBackend.swift
++++ b/Sources/CreatorViewport/RenderSDL/SDLViewportBackend.swift
+@@ -35,8 +35,8 @@
+         picker.isPending(for: frame)
+     }
+ 
+-    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) async -> PickTarget? {
+-        await picker.pickWhenReady(at: point, in: frame)
++    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) -> PickTarget? {
++        picker.pickWhenReady(at: point, in: frame)
+     }
+ 
+     /// Draws `frame` into the surface's target, in the frame's own command buffer, then starts the ID pass for it if it is for a view
+```
+
+`Sources/CreatorViewport/RenderSDL/SDLViewportPicker.swift` (change; apply with `git apply` or by hand):
+
+```diff
+--- a/Sources/CreatorViewport/RenderSDL/SDLViewportPicker.swift
++++ b/Sources/CreatorViewport/RenderSDL/SDLViewportPicker.swift
+@@ -6,9 +6,10 @@
+ /// words downloaded. So the picker works ahead: the draw that follows a change of camera or scene calls ``schedule(_:)``, which starts
+ /// the pass once the view has been still for ``settleDelay`` (an orbit draws every frame, and a read-back per frame nobody asked for
+ /// would be waste), the ID buffer lands a few milliseconds after that, and ``pick(at:in:)`` reads it with no wait, as `ViewportPicker`
+-/// reads Metal's: a hover's answer (user decision U4, hybrid). A click does not wait for the quiet: ``pickWhenReady(at:in:)`` starts the
+-/// pass for the click's own view at once and answers from it, never from another view's buffer (asynchronously until MetalUI gap
+-/// XP-G22; then synchronously, plan task 7 step 6).
++/// reads Metal's: a hover's answer (user decision U4, hybrid). A click does not wait for the quiet: ``pickWhenReady(at:in:)`` answers
++/// from the buffer for the click's own view, and when none has landed renders it now and waits for the GPU (MetalUI's
++/// `submitBatchSynchronously`, `SDLGPUFence.waitBlocking()` and `SDLGPUDevice.downloadSynchronously`: gaps XP-G22 and XP-G14), never
++/// answering from another view's buffer.
+ ///
+ /// A pick for a view whose buffer has not landed answers `nil` and ``isPending(for:)`` says so. The buffer is kept until the camera or
+ /// the scene changes (`PickKey`), as Metal's is. A pass that fails (no GPU memory, a lost device, meshes not uploaded yet) counts as
+@@ -27,6 +28,9 @@
+     private let device: SDLGPUDevice
+     private let renderer: SDLViewportRenderer
+     private var landed: (key: PickKey, result: Landed)?
++    /// Every pass takes a ticket when it starts; a result lands only if no later pass has landed (a click's pass can overtake a batch).
++    private var tickets = 0
++    private var landedTicket = 0
+     /// The newest frame asked for; a pass in flight for an older view is followed by one for this.
+     private var wanted: ViewportFrame?
+     private var running = false
+@@ -115,9 +119,13 @@
+         }
+     }
+ 
+-    /// ``pick(at:in:)`` once the buffer for `frame` has landed (at once if it has).
+-    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) async -> PickTarget? {
+-        await refresh(frame)
++    /// The click's pick: ``pick(at:in:)`` from the buffer for `frame`, rendered now and waited for when it has not landed (or landed
++    /// failed). It blocks the main actor for one ID pass, as Metal's picker does; it is called outside a draw (a click), never inside one.
++    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) -> PickTarget? {
++        if needsPass(for: frame, retryFailed: true) {
++            let ticket = nextTicket()
++            land(renderNow(frame), for: frame.pickKey, ticket: ticket)
++        }
+         return pick(at: point, in: frame)
+     }
+ 
+@@ -125,19 +133,27 @@
+     /// `finish`), so no loop's locals are held across an `await` (the Windows Swift 6.4 compiler asserts on that).
+     private func run() async {
+         if let frame = takeWanted() {
++            let ticket = nextTicket()
+             let result = await render(frame)
+-            land(result, for: frame.pickKey)
++            land(result, for: frame.pickKey, ticket: ticket)
+         }
+         finish()
+     }
+ 
++    private func nextTicket() -> Int {
++        tickets += 1
++        return tickets
++    }
++
+     private func takeWanted() -> ViewportFrame? {
+         defer { wanted = nil }
+         return wanted
+     }
+ 
+-    /// Keeps `result` as the buffer for `key` and tells the model.
+-    private func land(_ result: Landed, for key: PickKey) {
++    /// Keeps `result` as the buffer for `key` and tells the model, unless a pass that started later has landed already.
++    private func land(_ result: Landed, for key: PickKey, ticket: Int) {
++        guard ticket > landedTicket else { return }
++        landedTicket = ticket
+         landed = (key, result)
+         if case .pixels = result { renderCount += 1 }
+         onReady?()
+@@ -152,22 +168,61 @@
+         for waiter in waiting { waiter.resume() }
+     }
+ 
+-    private func render(_ frame: ViewportFrame) async -> Landed {
++    /// One ID pass's inputs and targets, made here on the main actor, or the answer when there is nothing to render.
++    private enum Prepared {
++        case answered(Landed)
++        case pass(width: Int, height: Int, inputs: SDLIDPassInputs, ids: SDLGPUTexture, depth: SDLGPUTexture)
++    }
++
++    private func prepare(_ frame: ViewportFrame) -> Prepared {
+         let width = Int(frame.size.width.rounded(.down))
+         let height = Int(frame.size.height.rounded(.down))
+-        guard width > 0, height > 0, let inputs = renderer.idPassInputs(for: frame, width: width, height: height) else { return .failed }
+-        if inputs.isEmpty { return .pixels(width: width, height: height, words: [UInt32](repeating: 0, count: width * height)) }
++        guard width > 0, height > 0, let inputs = renderer.idPassInputs(for: frame, width: width, height: height) else {
++            return .answered(.failed)
++        }
++        if inputs.isEmpty {
++            return .answered(.pixels(width: width, height: height, words: [UInt32](repeating: 0, count: width * height)))
++        }
+         guard let ids = device.makeTexture(SDLGPUTextureDescription(width: width, height: height, format: SDLViewportPipelines.idFormat,
+                                                                     usage: [.colorTarget])),
+               let depth = device.makeTexture(SDLGPUTextureDescription(width: width, height: height, format: .d32Float,
+-                                                                      usage: [.depthStencilTarget])),
+-              let fence = try? await device.submitBatch({ commandBuffer in
+-                  SDLViewportRenderer.encodeIDs(inputs, into: ids, depth: depth, commandBuffer: commandBuffer)
+-              }) else { return .failed }
+-        await fence.wait()
+-        guard let bytes = await device.download(ids), bytes.count == width * height * MemoryLayout<UInt32>.stride else { return .failed }
+-        let words = bytes.withUnsafeBytes { Array($0.bindMemory(to: UInt32.self)) }
+-        return .pixels(width: width, height: height, words: words)
++                                                                      usage: [.depthStencilTarget])) else { return .answered(.failed) }
++        return .pass(width: width, height: height, inputs: inputs, ids: ids, depth: depth)
+     }
++
++    /// The words of a read-back ID texture, or `.failed` when the read-back is missing or the wrong size.
++    private static func words(_ bytes: [UInt8]?, width: Int, height: Int) -> Landed {
++        guard let bytes, bytes.count == width * height * MemoryLayout<UInt32>.stride else { return .failed }
++        return .pixels(width: width, height: height, words: bytes.withUnsafeBytes { Array($0.bindMemory(to: UInt32.self)) })
++    }
++
++    /// The pass in a batch of its own, awaited off the main actor (the ahead-of-time path a hover reads).
++    private func render(_ frame: ViewportFrame) async -> Landed {
++        switch prepare(frame) {
++        case .answered(let answer):
++            return answer
++        case .pass(let width, let height, let inputs, let ids, let depth):
++            guard let fence = try? await device.submitBatch({ commandBuffer in
++                SDLViewportRenderer.encodeIDs(inputs, into: ids, depth: depth, commandBuffer: commandBuffer)
++            }) else { return .failed }
++            await fence.wait()
++            return Self.words(await device.download(ids), width: width, height: height)
++        }
++    }
++
++    /// The pass now, on the main actor, waited for (a click's path): submitted without `await` (XP-G22), the fence waited on, the words
++    /// read back synchronously (XP-G14).
++    private func renderNow(_ frame: ViewportFrame) -> Landed {
++        switch prepare(frame) {
++        case .answered(let answer):
++            return answer
++        case .pass(let width, let height, let inputs, let ids, let depth):
++            guard let fence = try? device.submitBatchSynchronously({ commandBuffer in
++                SDLViewportRenderer.encodeIDs(inputs, into: ids, depth: depth, commandBuffer: commandBuffer)
++            }) else { return .failed }
++            fence.waitBlocking()
++            return Self.words(device.downloadSynchronously(ids), width: width, height: height)
++        }
++    }
+ }
+ #endif
+```
+
+`Tests/CreatorViewportTests/ViewportBackendTests.swift` (change; apply with `git apply` or by hand):
+
+```diff
+--- a/Tests/CreatorViewportTests/ViewportBackendTests.swift
++++ b/Tests/CreatorViewportTests/ViewportBackendTests.swift
+@@ -3,47 +3,34 @@
+ import Testing
+ @testable import CreatorViewport
+ 
+-/// A backend that answers picks as a test tells it to, and holds them back like an SDL_GPU readback that has not landed.
++/// A backend that answers picks as a test tells it to: a hover from the buffer that has landed (nothing while one is pending, like an
++/// SDL_GPU readback on its way), a click from the ID pass of its own view (`clickAnswer` while a buffer is pending).
+ @MainActor
+ final class FakeBackend: ViewportBackend {
+     var drawnFrames = 0
+     var onPickReady: (@MainActor () -> Void)?
+     var isPending = false
+     var answer: PickTarget?
++    /// What the click's own ID pass finds while the hover's buffer is pending.
++    var clickAnswer: PickTarget?
+     /// What a real backend answers for ``ViewportBackend/drawsWidgets``.
+     var drawsWidgets = true
+-    private var waiters: [CheckedContinuation<PickTarget?, Never>] = []
+-    private var registration: CheckedContinuation<Void, Never>?
++    /// Clicks that asked for their own pick.
++    private(set) var clickPicks = 0
+ 
+-    /// How many clicks are waiting for the ID buffer.
+-    var waitersRegistered: Int { waiters.count }
+-
+     func pick(at point: ScreenPoint, in frame: ViewportFrame) -> PickTarget? { isPending ? nil : answer }
+ 
+     func isPickPending(for frame: ViewportFrame) -> Bool { isPending }
+ 
+-    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) async -> PickTarget? {
+-        if !isPending { return answer }
+-        return await withCheckedContinuation {
+-            waiters.append($0)
+-            registration?.resume()
+-            registration = nil
+-        }
++    func pickWhenReady(at point: ScreenPoint, in frame: ViewportFrame) -> PickTarget? {
++        clickPicks += 1
++        return isPending ? clickAnswer : answer
+     }
+ 
+-    /// Returns once a click is waiting (at once if one already is): the model's click `Task` has run and registered.
+-    func untilAWaiterIsRegistered() async {
+-        if !waiters.isEmpty { return }
+-        await withCheckedContinuation { registration = $0 }
+-    }
+-
+-    /// The ID buffer lands: pending ends, waiting clicks are answered and the model is told.
++    /// The ID buffer lands: pending ends and the model is told.
+     func land(_ target: PickTarget?) {
+         isPending = false
+         answer = target
+-        let waiting = waiters
+-        waiters = []
+-        for waiter in waiting { waiter.resume(returning: target) }
+         onPickReady?()
+     }
+ }
+@@ -108,55 +95,25 @@
+         #expect(clicked == .some(face))
+     }
+ 
+-    @Test(.timeLimit(.minutes(1)))
+-    func aClickWaitsForAPendingPickAndIsThenDeliveredOnTheLandedTarget() async {
++    /// A click is exact while the hover's buffer is on its way (user decision U4, hybrid): the backend renders the click's own ID pass and
++    /// waits, so the click is delivered before `click` returns, on its own view's target and to the tool of the press.
++    @Test func aClickIsAnsweredAtOnceFromItsOwnIDPassWhileTheHoverBufferIsPending() {
+         let backend = FakeBackend()
+         let model = makeModel(backend)
++        let tool = RecordingTool()
++        tool.claims = false
++        model.tool = tool
++        backend.answer = edge          // the older buffer's answer, which a click must not take
+         backend.isPending = true
+-        var landed = false
+-        var deliveredBeforeLanding = false
+-        var waitersWhenLanding = 0
+-        let delivered = await withCheckedContinuation { (continuation: CheckedContinuation<PickTarget?, Never>) in
+-            model.events.clicked = {
+-                deliveredBeforeLanding = !landed
+-                continuation.resume(returning: $0)
+-            }
+-            model.click(at: ScreenPoint(200, 200))
+-            Task {
+-                await backend.untilAWaiterIsRegistered()
+-                waitersWhenLanding = backend.waitersRegistered
+-                landed = true
+-                backend.land(face)
+-            }
+-        }
+-        #expect(waitersWhenLanding == 1, "the click is waiting for the buffer, not already answered")
+-        #expect(!deliveredBeforeLanding, "nothing was delivered while the pick was pending")
+-        #expect(delivered == face, "the click was on the face, not on empty space")
++        backend.clickAnswer = face     // what the click's own pass finds
++        var clicked: PickTarget??
++        model.events.clicked = { clicked = $0 }
++        model.click(at: ScreenPoint(200, 200))
++        #expect(clicked == .some(face), "delivered before click returned, from the click's own view")
++        #expect(tool.modelPicks == [face], "offered to the tool of the press")
++        #expect(backend.clickPicks == 1)
+     }
+ 
+-    @Test(.timeLimit(.minutes(1)))
+-    func aWaitingClickGoesToTheToolItWasMadeWithAndNotTheOneSetWhileItWaited() async {
+-        let backend = FakeBackend()
+-        let model = makeModel(backend)
+-        let first = RecordingTool()
+-        first.claims = false
+-        let second = RecordingTool()
+-        second.claims = false
+-        model.tool = first
+-        backend.isPending = true
+-        _ = await withCheckedContinuation { (continuation: CheckedContinuation<PickTarget?, Never>) in
+-            model.events.clicked = { continuation.resume(returning: $0) }
+-            model.click(at: ScreenPoint(200, 200))
+-            model.tool = second   // the tool changes in the milliseconds before the buffer lands
+-            Task {
+-                await backend.untilAWaiterIsRegistered()
+-                backend.land(face)
+-            }
+-        }
+-        #expect(first.modelPicks == [face], "the press belonged to the first tool")
+-        #expect(second.modelPicks.isEmpty)
+-    }
+-
+     @Test func aBackendThatDrawsNoCubeLeavesItsCornerToTheScene() {
+         let backend = FakeBackend()
+         backend.drawsWidgets = false
+```
+
+`Tests/CreatorViewportTests/SDLPickerTests.swift` (change; apply with `git apply` or by hand):
+
+```diff
+--- a/Tests/CreatorViewportTests/SDLPickerTests.swift
++++ b/Tests/CreatorViewportTests/SDLPickerTests.swift
+@@ -61,8 +61,8 @@
+         #expect(rig.picker.pick(at: ScreenPoint(100, 100), in: frame) == nil)
+         var landed = 0
+         rig.picker.onReady = { landed += 1 }
+-        let target = await rig.picker.pickWhenReady(at: ScreenPoint(100, 100), in: frame)
+-        #expect(target == .face(solid: 0, FaceID(2)))
++        await rig.picker.refresh(frame)
++        #expect(rig.picker.pick(at: ScreenPoint(100, 100), in: frame) == .face(solid: 0, FaceID(2)))
+         #expect(!rig.picker.isPending(for: frame))
+         #expect(landed >= 1, "the model is told so it can look under the pointer again")
+         var turned = frame
+@@ -70,6 +70,24 @@
+         #expect(rig.picker.isPending(for: turned), "a new camera has no buffer yet")
+     }
+ 
++    /// A click whose view has no landed buffer renders its own ID pass and waits for the GPU (user decision U4, hybrid; MetalUI gaps
++    /// XP-G22 and XP-G14), so it is answered before `pickWhenReady` returns; a landed buffer is not rendered again.
++    @Test func aClickRendersItsOwnIDPassWhenNoBufferHasLanded() async throws {
++        let rig = try Rig()
++        let frame = RenderFixtures.boxFrame()
++        try await rig.prepare(frame)
++        #expect(rig.picker.isPending(for: frame), "no pass has run for this view")
++        #expect(rig.picker.pickWhenReady(at: ScreenPoint(100, 100), in: frame) == .face(solid: 0, FaceID(2)), "answered at once")
++        #expect(!rig.picker.isPending(for: frame), "and a hover has the buffer now too")
++        #expect(rig.picker.renderCount == 1)
++        #expect(rig.picker.pickWhenReady(at: ScreenPoint(100, 26), in: frame) == .edge(solid: 0, EdgeID(1)))
++        #expect(rig.picker.renderCount == 1, "a landed buffer is not rendered again")
++        var turned = frame
++        turned.pose.yaw += 0.1
++        _ = rig.picker.pickWhenReady(at: ScreenPoint(100, 100), in: turned)
++        #expect(rig.picker.renderCount == 2, "a click on a new view renders that view, never answering from the old one")
++    }
++
+     @Test func aFrameWhoseMeshesWereNeverUploadedLandsEmptyAndIsTriedAgainOnTheNextSchedule() async throws {
+         let rig = try Rig()
+         let frame = RenderFixtures.boxFrame()
+```
+
+Run, as in step 4 and with the release check of task 2 step 4:
+
+```bash
+swift build --build-tests 2>&1 | tail -3
+swift test --filter 'CreatorViewportTests' 2>&1 | grep -E 'recorded an issue|failed after|Test run with'
+TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release 2>&1 | grep -E 'error:|Assertion|While splitting|Build complete'
+XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter 'CreatorViewportTests' 2>&1 | grep -E 'error:|warning:|recorded an issue|failed after|Test run with'
+```
+
+Expected: macOS one test fewer than before this step (`ViewportBackendTests` loses two and gains one), Linux the same number (`SDLPickerTests` gains one), no issue line, `Build complete!` with no assertion. If task 9 is done, also: in `CLAUDE.md`'s xp-3 paragraph, the sentence that begins "Picking is user decision U4, hybrid" says a click "waits for the buffer of its own view (asynchronously until MetalUI gap XP-G22)": make it say a click renders its own ID pass when none has landed and waits for it (`pickWhenReady`, MetalUI `submitBatchSynchronously`); in human check XP-22 drop the parenthesis that says the click "waits a few milliseconds"; in erratum E7 drop "(asynchronously until MetalUI answers gap XP-G22, a render batch submitted without `await`)"; in the XP-G22 row of `docs/metalui-gaps.md` set the status to `✅ fixed by MetalUI <commit>, adopted by xp-3 task 7 step 6`. Then lint and commit:
+
+```bash
+swiftlint lint --strict --quiet   # no output
+git add Sources/CreatorViewport/Render/ViewportBackend.swift Sources/CreatorViewport/Model/ViewportModel.swift \
+  Sources/CreatorViewport/Model/ViewportModel+Backend.swift Sources/CreatorViewport/Model/ViewportModel+Input.swift \
+  Sources/CreatorViewport/RenderSDL/SDLViewportBackend.swift Sources/CreatorViewport/RenderSDL/SDLViewportPicker.swift \
+  Tests/CreatorViewportTests/ViewportBackendTests.swift Tests/CreatorViewportTests/SDLPickerTests.swift \
+  .github/workflows/xp.yml CLAUDE.md docs/metalui-gaps.md docs/verification/human-checks.md \
+  docs/superpowers/specs/2026-10-13-cross-platform-design.md
+git commit -m "viewport: a click renders its own ID pass and waits for it on SDL (MetalUI XP-G22), as on Metal"
 ```
 
 
@@ -5430,9 +5868,9 @@ public enum ViewportShaderCheck {
  
      var content: some ElementGroup {
 -        #if canImport(Metal)
-         // `ViewportView` has a `==`, but no `.equatable()` here yet: its `onGeometryChange` makes an `.equatable()` Component
-         // ineligible every frame until MetalUI C14-e (c) lands, which cost one content evaluation per frame and broke the
-         // `retainedIneligible == 0` pin in the orbit-panel-left-warm bench (docs/verification/performance.md, "C14-e adopted").
+         // `ViewportView` has a `==`, but no `.equatable()` here: its `GPUSurface` makes an `.equatable()` Component ineligible
+         // ("surface") even since MetalUI C14-h, so it only adds a content evaluation and a retainedIneligible per frame (measured
+         // 2026-10-21 on every warm row; element requests unchanged, docs/verification/performance.md, "C14-f and C14-h adopted").
          ViewportView(model: model)
 -        #else
 -        ViewportPlaceholder()
@@ -5554,107 +5992,286 @@ git commit -m "viewport: SDL backend and surface draw, the real viewport in the 
 ```
 
 
-### Task 9: CI, CLAUDE.md, human checks and the spec's erratum
+### Task 9: CI, packaging, CLAUDE.md, human checks and the spec's erratum
 
-The Windows job runs the render suites on Direct3D 12's WARP and fails, instead of skipping, without a device (`XP_REQUIRE_GPU`); its comments and the Linux job's say so. `CLAUDE.md` gets the xp-3 paragraph and its five one-line edits; the human-check group XP gets XP-19 to XP-25 and the XP-2 and XP-9 rewording; the cross-platform spec gets erratum E6. Then the first and only full `swift test` run on each platform, by the pass rule.
+The Windows job runs the render suites on Direct3D 12's WARP and fails, instead of skipping, without a device (`XP_REQUIRE_GPU`); its comments and the Linux job's say so. **The packages ship the viewport's compiled shaders:** master's `scripts/package-linux.sh` and `scripts/package-windows.ps1` (xp-2) copy only MetalUI's own `MetalUISDLShaders`, so both now copy `Shaders/viewport/compiled` to `MetalUIAppShaders` beside the executable and stop, naming the script to run, when it was not built; the AppImage is packed from the tarball's tree and so carries it too; `scripts/linux-test.sh package` checks the directory in the clean Ubuntu, and the zip's self-test runs with the checkout's compiled directory moved aside, so the source-tree fallback cannot hide a package without it (Review Focus 7, human check XP-25). `CLAUDE.md` gets the xp-3 paragraph and its short edits; the human checks get a group XP3 (**XP-20 to XP-26**, after xp-2's XP-16 to XP-19) and XP-2 and XP-9 reworded; the cross-platform spec gets erratum **E7**. Then the first and only full `swift test` run on each platform, by the pass rule.
 
 **Files:**
 - Modify: `.github/workflows/xp.yml`
+- Modify: `scripts/package-linux.sh`
+- Modify: `scripts/package-windows.ps1`
+- Modify: `scripts/linux-test.sh` (the package checks)
+- Modify: `docs/packaging.md`
 - Modify: `CLAUDE.md`
 - Modify: `docs/superpowers/specs/2026-10-13-cross-platform-design.md`
 - Modify: `docs/verification/human-checks.md`
 
 **Interfaces:**
-- Consumes: tasks 0 to 8.
-- Produces: nothing code depends on.
+- Consumes: tasks 0 to 8; `Shaders/viewport/compiled` (task 4); `ViewportShaderCheck` in `--self-test` (task 8).
+- Produces: `MetalUIAppShaders` in the tarball, the AppImage and the zip; human checks XP-20 to XP-26; erratum E7; nothing code depends on.
 
 - [ ] **Step 1: CI**
 
-Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0).
-
-`.github/workflows/xp.yml` (change; apply with `git apply` or by hand):
+`.github/workflows/xp.yml` (change, on top of task 4's; apply with `git apply` or by hand):
 
 ```diff
 --- a/.github/workflows/xp.yml
 +++ b/.github/workflows/xp.yml
-@@ -6,7 +6,8 @@
- # when MetalCreator adopts a MetalUI change.
- #
+@@ -8,7 +8,9 @@
  # The Linux jobs run scripts/linux-test.sh, the script a developer runs in Docker on a Mac: build, the suite (exit 0, no
--# "recorded an issue" or "failed after" line, eleven "Test run with" lines), the app's --self-test, and --smoke-test 20.
-+# "recorded an issue" or "failed after" line, eleven "Test run with" lines), the app's --self-test, and --smoke-test 20. The image draws
-+# on Mesa's lavapipe (a CPU Vulkan driver), so the SDL_GPU viewport's render and pick tests run on these GPU-less runners (xp-3).
+ # "recorded an issue" or "failed after" line, twelve "Test run with" lines), the app's --self-test, and --smoke-test 20, then
+ # scripts/linux-test.sh package: a release tarball and an AppImage (packed from the tarball's tree by scripts/package-appimage.sh,
+-# which downloads its pinned packer; no FUSE is needed), each unpacked or extracted and run in a clean Ubuntu.
++# which downloads its pinned packer; no FUSE is needed), each unpacked or extracted and run in a clean Ubuntu. The image draws on
++# Mesa's lavapipe (a CPU Vulkan driver), so the SDL_GPU viewport's render and pick suites run on these GPU-less runners, and
++# XP_REQUIRE_GPU=1 (set by the script) fails them instead of skipping when no device answers (xp-3).
  #
- # The viewport's HLSL shaders are compiled at build time (plan xp-3, user decision U1(b)); nothing compiled is checked in. SDL_shadercross, pinned
- # by commit in scripts/shadercross.env (its repository has no release or tag), is built by the Linux image's `shadercross` stage (an amd64 image
-@@ -99,6 +100,8 @@
-     env:
-       SDL_VERSION: 3.4.16
-       EXPECTED_TEST_RUNS: 11
-+      # The viewport's SDL_GPU suites run on Direct3D 12's WARP (a CPU adapter) here; a runner without a device fails instead of skipping.
+ # OpenCascade 7.9 (xp-2, spec section 3): on Linux it is built from a pinned commit in the Dockerfile's `occt` stage, which CI
+ # builds alone with buildx and caches in the GitHub Actions cache (scope xp-occt-<arch>); the first run on a new key builds it
+@@ -137,6 +139,9 @@
+       # sha256 of SDL3-devel-3.4.16-VC.zip (computed by downloading the release asset once); bump it with SDL_VERSION.
+       SDL_SHA256: 1a784cb2a5c64d56fe7a62090fe9d242d9865f235e4ea9678f1a6ba4e693e7de
+       EXPECTED_TEST_RUNS: 12
++      # The viewport's SDL_GPU suites run on Direct3D 12's WARP (a CPU adapter) here; a runner without a device fails instead of
++      # skipping (SDLGPUAvailabilityTests, xp-3).
 +      XP_REQUIRE_GPU: 1
      defaults:
        run:
          shell: pwsh
-@@ -194,7 +197,7 @@
+@@ -285,7 +290,7 @@
          # Runs even when Test is red, so one run reports both.
          if: ${{ !cancelled() }}
          # --smoke-test opens the real window over SDL's offscreen renderers (Direct3D 12 on WARP) for 20 s and fails unless it
 -        # drew a first frame.
-+        # drew a first frame and the 3D viewport drew in it.
++        # drew a first frame and the 3D viewport drew in it (xp-3); --self-test also finds the viewport's compiled shaders.
          run: |
            $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB") +
                     @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
 ```
 
-`CLAUDE.md` (change; apply with `git apply` or by hand):
+- [ ] **Step 2: The packages ship the viewport's shaders (U7(a))**
+
+`scripts/package-linux.sh` (change against master; apply with `git apply` or by hand):
+
+```diff
+--- a/scripts/package-linux.sh
++++ b/scripts/package-linux.sh
+@@ -1,14 +1,16 @@
+ #!/bin/bash
+ # Builds dist/MetalCreator-<version>-linux-<arch>.tar.gz: a release build of MetalCreatorApp, the Swift runtime, OpenCascade, SDL3
+ # and the other non-system shared libraries it needs in lib/, MetalUI's compiled SDL shaders in
+-# MetalUISDLShaders beside the executable, the desktop entry, MIME type and icon for .mcgraph files, install.sh, and the licences.
++# MetalUISDLShaders and the 3D viewport's in MetalUIAppShaders beside the executable, the desktop entry, MIME type and icon for
++# .mcgraph files, install.sh, and the licences.
+ # Unpacked, the folder runs from anywhere: the executable's rpath is $ORIGIN/lib (Package.swift).
+ #
+ # usage: scripts/package-linux.sh        (on Linux; scripts/linux-test.sh package runs it in the test image)
+ #   METALCREATOR_DIST_DIR   where the tarball is written (default: <repo>/dist).
+ #   METALCREATOR_SCRATCH    SwiftPM's build folder (default: <repo>/.build).
+ #   OCCT_PREFIX             OpenCascade's install prefix (default /opt/occt), for its licence files.
+-# Needs MetalUI beside this repository (../MetalUI), patchelf, and the libraries `ldd` names for the built executable.
++# Needs MetalUI beside this repository (../MetalUI), patchelf, the libraries `ldd` names for the built executable, and the viewport's
++# shaders compiled by scripts/build-shaders.sh (scripts/linux-test.sh package runs it first).
+ set -euo pipefail
+ 
+ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+@@ -58,6 +60,11 @@
+ SHADERS="$METALUI/Backends/SDL/Shaders/compiled"
+ [ -f "$SHADERS/SOURCE.sha256" ] || fail "MetalUI's compiled shaders are missing: $SHADERS/SOURCE.sha256"
+ cp -R "$SHADERS" "$FOLDER/MetalUISDLShaders"
++# The 3D viewport's own shaders (plan xp-3, user decision U7(a)): MetalUIAppShaders beside the executable, where the SDL renderer looks
++# first (MetalUI's SDLGPUShaderLibrary.locate). They are a build product, never in git: scripts/build-shaders.sh makes them.
++APP_SHADERS="$ROOT/Shaders/viewport/compiled"
++[ -f "$APP_SHADERS/SOURCE.sha256" ] || fail "the viewport's compiled shaders are missing ($APP_SHADERS): run scripts/build-shaders.sh first"
++cp -R "$APP_SHADERS" "$FOLDER/MetalUIAppShaders"
+ 
+ step "Copying the non-system libraries it links, transitively"
+ ldd "$BINARY" > "$WORK/ldd.txt"
+```
+
+`scripts/package-windows.ps1` (change against master; apply with `git apply` or by hand). `$appShaders` is set where the folder is assembled and used again by the zip's check:
+
+```diff
+--- a/scripts/package-windows.ps1
++++ b/scripts/package-windows.ps1
+@@ -1,6 +1,6 @@
+ # Builds dist\MetalCreator-<version>-windows-x64.zip: a release build of MetalCreatorApp as MetalCreator.exe, every DLL it
+ # needs beside it (OpenCascade's, SDL3's, the Swift runtime's, the Visual C++ runtime's), MetalUI's compiled SDL shaders in
+-# MetalUISDLShaders, the .mcgraph file-type script and the licences. The zip is then unpacked into a scratch folder and
++# MetalUISDLShaders, the 3D viewport's in MetalUIAppShaders, the .mcgraph file-type script and the licences. The zip is then unpacked into a scratch folder and
+ # `MetalCreator.exe --self-test` runs from there with a PATH that holds only Windows' own folders, so a DLL that is missing
+ # from the zip fails the build instead of the user's machine.
+ #
+@@ -13,7 +13,8 @@
+ #                only look its folder up. CI does this, so that a failed release build is its own red step.
+ # Environment: OCCT_PREFIX is OpenCascade's install root (bin\*.dll, share\opencascade\copyright); this script uses its release
+ # set (`bin`), never `debug\bin`.
+-# Needs MetalUI beside this repository (..\MetalUI). Not run outside CI.
++# Needs MetalUI beside this repository (..\MetalUI) and the viewport's shaders compiled by scripts\build-shaders.ps1 (CI runs it before
++# the build). Not run outside CI.
+ param(
+     [string[]]$BuildFlags = @(),
+     [Parameter(Mandatory)][string]$SdlRoot,
+@@ -53,6 +54,11 @@
+ $shaders = Join-Path $metalUI 'Backends\SDL\Shaders\compiled'
+ if (-not (Test-Path (Join-Path $shaders 'SOURCE.sha256'))) { throw "MetalUI's compiled shaders are missing: $shaders" }
+ Copy-Item -Recurse $shaders (Join-Path $folder 'MetalUISDLShaders')
++# The 3D viewport's own shaders (plan xp-3, user decision U7(a)): MetalUIAppShaders beside the executable, where the SDL renderer looks
++# first. A build product, never in git: scripts\build-shaders.ps1 makes them.
++$appShaders = Join-Path $root 'Shaders\viewport\compiled'
++if (-not (Test-Path (Join-Path $appShaders 'SOURCE.sha256'))) { throw "the viewport's compiled shaders are missing ($appShaders): run scripts\build-shaders.ps1 first" }
++Copy-Item -Recurse $appShaders (Join-Path $folder 'MetalUIAppShaders')
+ 
+ Step 'Copying the DLLs it needs, transitively'
+ 
+@@ -216,13 +222,17 @@
+ $savedPath = $env:PATH
+ $env:PATH = "$system;$env:SystemRoot"
+ # MetalUI's SDL backend falls back to the shaders in the source tree it was built from, which would hide a zip without
+-# MetalUISDLShaders; so the checkout is moved aside for the check.
++# MetalUISDLShaders, and the viewport falls back to this checkout's Shaders\viewport\compiled, which would hide one without
++# MetalUIAppShaders; so both are moved aside for the check.
+ $aside = "$metalUI.aside"
++$appShadersAside = "$appShaders.aside"
+ Rename-Item $metalUI $aside
++Rename-Item $appShaders $appShadersAside
+ try {
+     & (Join-Path $check "$name\MetalCreator.exe") --self-test
+     $code = $LASTEXITCODE
+ } finally {
++    Rename-Item $appShadersAside $appShaders
+     Rename-Item $aside $metalUI
+     $env:PATH = $savedPath
+ }
+```
+
+`scripts/linux-test.sh` (change, on top of task 4's; apply with `git apply` or by hand): the clean-Ubuntu checks look for the directory too (the `--self-test` they already run fails without it, because no source tree exists there to fall back to):
+
+```diff
+--- a/scripts/linux-test.sh
++++ b/scripts/linux-test.sh
+@@ -132,6 +132,7 @@
+         grep -q "RUNPATH from file ./MetalCreator" /tmp/ld.txt
+         if grep -q /opt/occt /tmp/ld.txt; then echo "the loader searched /opt/occt" >&2; exit 1; fi
+         test -f MetalUISDLShaders/SOURCE.sha256 && ls lib | grep -q "^libTKernel.so.7.9$"
++        test -f MetalUIAppShaders/SOURCE.sha256 && test -s MetalUIAppShaders/mesh.vert.spv
+         cd share/doc/metalcreator
+         for f in NOTICE.txt LICENSE_LGPL_21.txt OCCT_LGPL_EXCEPTION.txt SDL3-LICENSE.txt Swift-LICENSE.txt; do test -s "$f"; done
+         grep -q "V7_9_3" NOTICE.txt && grep -q "LGPL" NOTICE.txt'
+@@ -149,6 +150,8 @@
+         grep -q "RUNPATH from file .*/usr/metalcreator/MetalCreator" /tmp/ld.txt
+         if grep -q /opt/occt /tmp/ld.txt; then echo "the loader searched /opt/occt" >&2; exit 1; fi
+         ./MetalCreator.AppImage --appimage-extract "usr/metalcreator/share/mime/packages/*.xml" >/dev/null
++        ./MetalCreator.AppImage --appimage-extract "usr/metalcreator/MetalUIAppShaders/*" >/dev/null
++        test -s squashfs-root/usr/metalcreator/MetalUIAppShaders/mesh.vert.spv
+         test -f squashfs-root/usr/metalcreator/share/mime/packages/com.metalcreator.MetalCreator.xml
+         ./MetalCreator.AppImage --appimage-extract "usr/metalcreator/share/doc/metalcreator/*" >/dev/null
+         cd squashfs-root/usr/metalcreator/share/doc/metalcreator
+```
+
+`docs/packaging.md` (change against master; apply with `git apply` or by hand):
+
+```diff
+--- a/docs/packaging.md
++++ b/docs/packaging.md
+@@ -101,7 +101,8 @@
+ write `dist/MetalCreator-<version>-linux-<arch>.tar.gz`. Unpacked, the folder holds `MetalCreator` (a release build), `lib/` (the Swift
+ runtime's libraries, OpenCascade's `libTK*.so.7.9`, `libSDL3.so.0` and whatever else `ldd` names that is not glibc or
+ the C++ runtime; linking the Swift runtime statically does not work with Foundation here), `MetalUISDLShaders/` (MetalUI's compiled SDL shaders, which the backend looks for beside the executable first,
+-ruling `PX-P`), `share/applications/com.metalcreator.MetalCreator.desktop`, `share/mime/packages/com.metalcreator.MetalCreator.xml`,
++ruling `PX-P`), `MetalUIAppShaders/` (the 3D viewport's shaders, compiled by `scripts/build-shaders.sh` and looked for there first by
++MetalUI's `SDLGPUShaderLibrary.locate`; the script stops if they were not built), `share/applications/com.metalcreator.MetalCreator.desktop`, `share/mime/packages/com.metalcreator.MetalCreator.xml`,
+ `share/icons/hicolor/256x256/apps/com.metalcreator.MetalCreator.png` (a placeholder icon), `install.sh` and `share/doc/metalcreator/` (the licences: OpenCascade's LGPL 2.1 and its exception, MetalUI's third-party notices and the
+ licence files they name). The executable's RUNPATH is set to `$ORIGIN/lib` and each bundled library's to `$ORIGIN` (`patchelf`; the
+ build's `/opt/occt/lib` and the toolchain's `/usr/lib/swift/linux` are left out), so the folder runs from anywhere and finds
+@@ -147,7 +148,7 @@
+ ```
+ 
+ write `dist/MetalCreator-<version>-linux-<arch>.AppImage`. It holds the tarball's tree (so the same libraries, the same `RUNPATH
+-$ORIGIN/lib` and `MetalUISDLShaders`) as `usr/metalcreator` in an AppDir whose root has `AppRun`, the same desktop entry and icon the
++$ORIGIN/lib`, `MetalUISDLShaders` and `MetalUIAppShaders`) as `usr/metalcreator` in an AppDir whose root has `AppRun`, the same desktop entry and icon the
+ tarball installs, and a `.DirIcon` link; appimagetool packs it. The tool is appimagetool 1.9.1 and the runtime the type2 runtime
+ 20251108, both third-party and both fetched by the script while packaging, pinned by version and sha256 and checked before they run.
+ They are no dependency of MetalCreator (nothing links them; a version bump changes the hashes in `scripts/package-appimage.sh`, whose
+@@ -181,9 +182,9 @@
+ It writes `dist\MetalCreator-<version>-windows-x64.zip` with `MetalCreator.exe`, every DLL the executable needs beside it (OpenCascade's
+ from `OCCT_PREFIX\bin`, `SDL3.dll`, the Swift runtime's and the Visual C++ runtime's, found by following the `DLL Name:` lines of
+ `llvm-objdump -p` (or `dumpbin /dependents` when the toolchain has no objdump); Windows' own DLLs are left out), `MetalUISDLShaders\`,
+-`register-mcgraph.ps1` and `licenses\`. The Swift runtime's folder is looked up (by `swiftCore.dll`, under the `Swift` folder that
++`MetalUIAppShaders\` (the viewport's shaders, from `scripts\build-shaders.ps1`), `register-mcgraph.ps1` and `licenses\`. The Swift runtime's folder is looked up (by `swiftCore.dll`, under the `Swift` folder that
+ `swift.exe` and `SDKROOT` sit in), not written down. The script then unpacks the zip and runs `--self-test` with only Windows'
+-folders on `PATH` and MetalUI's checkout moved aside (the SDL backend falls back to the shaders in its source tree), so a missing DLL
++folders on `PATH` and MetalUI's checkout and the viewport's `Shaders\viewport\compiled` moved aside (both renderers fall back to the shaders in their source trees), so a missing DLL
+ or shader directory fails the job. It packages a release build: CI makes it in its own step (`swift build -c release --product
+ MetalCreatorApp`, then `-NoBuild`), because the suite is a debug build.
+ 
+```
+
+Check it on Linux (the AppImage step downloads its pinned packer, so it needs the network; a release build, so it is slow):
+
+```bash
+XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh package 2>&1 | grep -E 'PASS|FAIL|ok |shaders|error'
+```
+
+Expected: `ok   shaders: MetalUI's SDL shaders and the viewport's were found` in both clean-Ubuntu self-tests, `Linux tarball: PASS (…)` and `Linux AppImage: PASS (…)`. To see the check bite once: `mv Shaders/viewport/compiled /tmp/xp3-compiled`, run `METALCREATOR_SCRATCH=… scripts/package-linux.sh` in the image (through `scripts/linux-test.sh package` it would recompile first), expect `package-linux: the viewport's compiled shaders are missing (…): run scripts/build-shaders.sh first`, and move the directory back. The zip is checked by CI's "Package (zip), checked on its own" step.
+
+**CI time added by this plan (estimates).** Linux: the `shadercross` stage is built once per pin and arch by buildx and cached under `xp-shadercross-<arch>` (the DXC fork is an LLVM build: MetalUI measured 6 min 45 s at `-j8` on Linux aarch64, so expect 15 to 30 minutes on a 4-core runner the first time, about a minute to restore after); compiling 16 shaders natively and building MetalUI's tool take under a minute per run. Windows: about 10 minutes once per pin for `install-shadercross.ps1` (an estimate nobody has run), then a cache restore and the compile, a minute or two. The timeouts (150 minutes for Linux, 180 for Windows) cover it.
+
+- [ ] **Step 3: Docs**
+
+`CLAUDE.md` (change against master; apply with `git apply` or by hand). It keeps `CIPinTests`' phrases ("exit 0 and 12 \"Test run with\" lines"; no "11 \"Test run with\""):
 
 ````diff
 --- a/CLAUDE.md
 +++ b/CLAUDE.md
-@@ -103,13 +103,38 @@
+@@ -114,15 +114,43 @@
  `::warning::` step and a summary line when its suite is red. On the way: `ImageResolver.read` has a Windows branch, the named-pipe and
  device tests and `PackagingScriptTests` are not run on Windows, and the test executables reserve a 16 MB stack (`-Xlinker /STACK:16777216`;
  a layout tree overflowed Windows' 1 MB default thread stack).
 +Cross-platform, sub-project xp-3 (the 3D viewport on SDL GPU, Linux and Windows; plan `docs/superpowers/plans/2026-10-21-xp-3-sdl-gpu-viewport.md`,
-+spec §4, erratum E6) is the viewport's second renderer. `ViewportModel` talks to a `ViewportBackend` (`drawnFrames`, `pick(at:in:)`,
-+`isPickPending(for:)`, `pickWhenReady`, `onPickReady`): `MetalViewportBackend` on macOS (`ViewportRenderer` and `ViewportPicker`, unchanged),
-+`SDLViewportBackend` on Linux and Windows (`Sources/CreatorViewport/RenderSDL`, everything behind `#if canImport(MetalUISDLGPU)`, MetalUI's typed
-+SDL_GPU layer). `ViewportView` is the same on both and picks `MetalView` or `GPUSurface`; `ViewportModel.draw` has one overload per context.
-+The SDL renderer plans a frame first (`SDLFramePlan`: every buffer made and every copy recorded, because a copy pass cannot run inside a render
-+pass) and then records the pass; solids, lines, fills, the cube and the slice read their data as vertex-stage storage buffers. Its pipelines
-+carry their own depth test (`SDLViewportPipelines`). The shaders are HLSL in `Shaders/viewport` (`common.hlsli` mirrors the Swift structs, every
-+member a `float4`, `uint4` or scalar, never a `float3`), **compiled at build time on Linux and Windows, never checked in**: `scripts/build-shaders.sh`
-+(`.ps1` on Windows; `scripts/linux-test.sh` and CI run it before `swift build`) runs MetalUI's `compile-app-shaders.py` through the SDL_shadercross
-+commit pinned in `scripts/shadercross.env` into `Shaders/viewport/compiled` (SPIR-V, DXIL, MSL, reflection; git-ignored), so **`swift build` alone compiles no
-+shader** and a missing tool stops the script naming the tool and the pin. `ShaderSourceTests` pins the HLSL struct sizes to the Swift strides (`GPUDataTests`)
-+and, on Linux and Windows, that the build produced every stage and is current; edit the HLSL, the Swift struct and the MSL together. The compiled directory is
-+found beside the executable as `MetalUIAppShaders` first, then in the source tree (`SDLViewportShaders`); packaging copies the build output (xp-2's), and
-+`--self-test` fails without it, saying what to run (`ViewportShaderCheck`). Picking on SDL is asynchronous (MetalUI gap XP-G14):
-+`SDLViewportPicker` renders the ID pass in a batch after the draw that follows a change and reads it back with `SDLGPUDevice.download`; until it lands
-+a hover keeps its face and a click waits (`ViewportModel.isPickPending`, `pickWhenReady`, `ViewportBackendTests`). `Matrix4.float` is a
-+`FloatMatrix4` and `FrameUniforms` is plain SIMD (no `simd`), so both exist everywhere. The cube's face names are rasterized by
-+`CubeLabelAtlas.rasterize(using:)` through MetalUI's `TextSystem` (CoreText's on macOS, the portable one over the installed fonts elsewhere),
-+`CubeLabelFonts` choosing. The render and pick suites (`SDLRenderTests`, `SDLFieldGuideClipTests`, `SDLPickerTests`, `SDLWidgetTests`,
-+`SDLSliceTests`) run under Mesa's lavapipe in the Linux image and Direct3D 12's WARP in CI; they skip when no SDL_GPU device answers, and with
-+`XP_REQUIRE_GPU=1` (`scripts/linux-test.sh`, the Windows job) `SDLGPUAvailabilityTests` fails instead. `--smoke-test` passes only if the viewport
-+drew (`LaunchSmoke.viewport`). Four layers wait for MetalUI (docs/metalui-gaps.md): the view cube and the triad (XP-G15, XP-G18), the ghosts'
-+depth-only prepass (XP-G16) and the field slice (XP-G17); until they land the SDL viewport draws neither widget, blends ghosts in one pass and
-+draws no slice. Keep SDL's async calls out of loops that hold locals across an `await` (the Windows compiler assert below).
++spec §4, erratum E7) is the viewport's second renderer. `ViewportModel` talks to a `ViewportBackend` (`drawnFrames`, `pick(at:in:)`,
++`isPickPending(for:)`, `pickWhenReady`, `onPickReady`, `drawsWidgets`): `MetalViewportBackend` on macOS (`ViewportRenderer` and `ViewportPicker`,
++unchanged), `SDLViewportBackend` on Linux and Windows (`Sources/CreatorViewport/RenderSDL`, everything behind `#if canImport(MetalUISDLGPU)`, MetalUI's
++typed SDL_GPU layer, no raw `SDL_` call). `ViewportView` is the same on both and picks `MetalView` or `GPUSurface`; `ViewportModel.draw` has one
++overload per context. The SDL renderer plans a frame first (`SDLFramePlan`: every buffer made and every copy recorded, because a copy pass cannot run
++inside a render pass) and then records the pass; solids, lines, fills, the cube and the slice read their data as vertex-stage storage buffers. Its
++pipelines carry their own depth test and are made with `compileGraphicsPipeline` (`SDLViewportPipelines`), so a refused one says SDL's reason in
++`gpuFailureMessage`. The shaders are HLSL in `Shaders/viewport` (`common.hlsli` mirrors the Swift structs, every member a `float4`, `uint4` or scalar,
++never a `float3`), **compiled at build time on Linux and Windows, never checked in**: `scripts/build-shaders.sh` (`.ps1` on Windows; `scripts/linux-test.sh`
++and CI run it before `swift build`) runs MetalUI's `MetalUICompileShaders`, built from `../MetalUI` with a scratch path of ours, through the
++SDL_shadercross commit pinned in `scripts/shadercross.env` (built by the Dockerfile's `shadercross` stage and `scripts/install-shadercross.ps1`) into
++`Shaders/viewport/compiled` (SPIR-V, DXIL, MSL, reflection, `SOURCE.sha256`, `INCLUDES.sha256`; git-ignored), so **`swift build` alone compiles no
++shader** and a missing tool stops the script naming the tool and the pin. `ShaderSourceTests` pins the HLSL struct sizes to the Swift strides
++(`GPUDataTests`) and, on Linux and Windows, that the build produced every stage and is current; edit the HLSL, the Swift struct and the MSL together.
++The compiled directory is found beside the executable as `MetalUIAppShaders` first, then in the source tree (`SDLViewportShaders`); the tarball, the
++AppImage and the zip ship it, and `--self-test` fails without it, saying what to run (`ViewportShaderCheck`). Picking is user decision U4, hybrid:
++`SDLViewportPicker` renders the ID pass in a batch after the draw that follows a change and reads it back with `SDLGPUDevice.download`; until it
++lands a hover keeps its face and a click waits for the buffer of its own view (asynchronously until MetalUI gap XP-G22) and goes to the tool of its
++press (`ViewportModel.isPickPending`, `pickWhenReady`, `ViewportBackendTests`). `Matrix4.float` is a `FloatMatrix4` and `FrameUniforms` is plain SIMD
++(no `simd`), so both exist everywhere. The cube's face names are rasterized by `CubeLabelAtlas.rasterize(using:)` through MetalUI's `TextSystem`
++(CoreText's on macOS, the portable one over the installed fonts elsewhere), `CubeLabelFonts` choosing. The render and pick suites (`SDLRenderTests`,
++`SDLFieldGuideClipTests`, `SDLPickerTests`, `SDLWidgetTests`, `SDLSliceTests`) run under Mesa's lavapipe in the Linux image and Direct3D 12's WARP in
++CI; they skip when no SDL_GPU device answers, and with `XP_REQUIRE_GPU=1` (`scripts/linux-test.sh`, the Windows job) `SDLGPUAvailabilityTests` fails
++instead. `--smoke-test` passes only if the viewport drew (`LaunchSmoke.viewport`). Tasks 10 to 12 add the view cube and the triad, the ghosts'
++depth-only prepass and the field slice (MetalUI S11's `setViewport`, `maxAnisotropy`, `writesColor`, `r32Float`); until each lands the SDL viewport
++lacks it (no cube or triad, and the model then leaves the cube's corner to the scene: `drawsWidgets`). Keep SDL's async calls out of loops that hold
++locals across an `await` (the Windows compiler notes below).
  `Package.swift` has two lists, like MetalUI's: the targets that import no Apple
 -framework are declared everywhere (`CreatorViewport` too: its model, camera and tools are portable and only the Metal renderer files
--are behind `#if canImport(Metal)`); `COCCT`, `CreatorOCCT`, `ViewportHarness`, `GraphPanelPreview` and `CreatorOCCTTests` are
+-are behind `#if canImport(Metal)`); `ViewportHarness` and `GraphPanelPreview` are declared on macOS only, while `COCCT`,
 +framework are declared everywhere (`CreatorViewport` too: its model, camera and tools are portable, its Metal renderer files
-+are behind `#if canImport(Metal)` and its SDL GPU ones behind `#if canImport(MetalUISDLGPU)`); `COCCT`, `CreatorOCCT`, `ViewportHarness`, `GraphPanelPreview` and `CreatorOCCTTests` are
- declared on macOS only until xp-2. On Linux and Windows the MetalUI dependency asks for the `SDL` and `AccessKit` traits and
++are behind `#if canImport(Metal)` and its SDL GPU ones behind `#if canImport(MetalUISDLGPU)`); `ViewportHarness` and `GraphPanelPreview` are declared on macOS only, while `COCCT`,
+ `CreatorOCCT` and `CreatorOCCTTests` are declared everywhere since xp-2 (OpenCascade 7.9 on every platform: `Package.swift` reads its
+ install prefix from `OCCT_PREFIX`, default Homebrew's on macOS, `/opt/occt` on Linux, `C:/occt` on Windows, with per-platform linker
+ flags: an `$ORIGIN/lib` rpath on Linux, DLLs on `PATH` or beside the executable on Windows). On Linux and Windows the MetalUI dependency asks for the `SDL` and `AccessKit` traits and
  `MetalCreatorApp` links `MetalUISDL` (`main.swift` picks `SDLPlatform` with `PortableTextSystem` over the installed fonts under
- `canImport(MetalUISDL)`). Off macOS the app runs over `KernelUnavailable` (every operation answers "Geometry isn't available on this
--platform yet.") and the viewport's place shows `ViewportPlaceholder` ("The 3D view isn't available on this platform yet."). The Image
-+platform yet.") and the viewport draws on SDL GPU (xp-3; `ViewportPlaceholder` is gone). The Image
+ `canImport(MetalUISDL)`). The app runs over `OCCTKernel` on every platform (xp-2; `KernelUnavailable`, which answers "Geometry isn't available on this
+-platform yet.", stays in `CreatorKernel` for tests of a platform without a kernel) and, off macOS, the viewport's place shows `ViewportPlaceholder` ("The 3D view isn't available on this platform yet."). The Image
++platform yet.", stays in `CreatorKernel` for tests of a platform without a kernel) and, off macOS, the viewport draws on SDL GPU (xp-3; `ViewportPlaceholder` is gone). The Image
  Field works everywhere: `GreyImageDecoder` decodes through MetalUI's `DecodedImage` (S2, gap XP-G4) on every platform. Rules
  for new code: no CryptoKit (use `SHA256`/`SHA1` in `CreatorGraph/Hashing`), no CoreGraphics, ImageIO, CoreText or Metal outside a
  `#if canImport(…)` file or block, keyboard shortcuts and modifier checks on MetalUI events say `.primary` (⌘ on macOS, Ctrl
-@@ -431,7 +456,7 @@
+@@ -450,7 +478,7 @@
    `nonisolated static func ==`), and `expectEqualityCovers` (`CreatorEditorTests`) fails when a view gains a property its
    test has no variant for. The viewport draws `ViewportModel.theme`, which the
    app shell sets. Themes are app-level, never in `.mcgraph`. Tests: `swift test --filter CreatorStyleTests`.
@@ -5663,7 +6280,7 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
    - A host takes the primary pointer through `ViewportModel.tool` (`ViewportTool`: hover, clicks, and plain primary
      drags it claims, each with a `ViewportProjector` for screen → plane), and draws over the scene with
      `showOverlay(_:)` (`ViewportOverlay`: world-space lines and points in `OverlayTint` roles, dashed construction, and
-@@ -448,7 +473,8 @@
+@@ -467,7 +495,8 @@
      the camera animates: gap S5-c; each box is its text's measured width, MetalUI C23: see below). The face menu adds New Sketch on Face (`ViewportEvents.newSketchOnFace`) on a flat
      face that has a normal, outside sketch mode.
    - `ViewportModel` (`@MainActor @Observable`, testable without a GPU) owns the camera, picking, the view cube,
@@ -5673,7 +6290,7 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
      MetalUI glue. A `ViewportItem` with `isGuide` is no part of the scene: only its selected edges are drawn, after the
      solids and ghosts (faded where the part hides them), and it never frames, orbits, picks or opens the face menu
      (`ViewportRenderer+Guides`). The renderer keeps the triad's, the overlay's and the region fills' GPU buffers between
-@@ -466,7 +492,8 @@
+@@ -485,7 +514,8 @@
      ghost, and wrong-sized values draw the plain surface. A `ViewportSlice` (`ViewportModel.showSlice`) is a translucent quad over the
      scene showing a grid of values (`r32Float`, read with a bilinear blend in `slice_fragment`, kept by `SliceTextures` until its
      `generation` changes); it is equal and hashed by `generation`, never by its values, is drawn ignoring depth (it passes through the
@@ -5683,7 +6300,7 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
      The cut view (implicit spec §5.1) is a `ViewportClip` (`ViewportModel.showClip`): the fragment shaders discard what lies on the
      side its normal points to, for faces, B-rep edges, field tints and the ID pass (`ClipUniforms` at fragment buffer 3, 4 for the
      tint, 0 for lines, off for handles), and a back face seen while cutting is the part's colour darkened. A `ViewportItem`'s
-@@ -656,7 +683,8 @@
+@@ -675,7 +705,8 @@
  build)); a refused blend costs tens of milliseconds more than one that works (`BlendRefusalBench`,
  `docs/verification/performance.md`).
  MetalUI exports its own `Angle`: a file importing both MetalUI and CreatorGeometry writes `CreatorGeometry.Angle`.
@@ -5693,7 +6310,7 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
  The viewport's pointer input is MetalUI C7's (spec §9): its bindings live in `ViewportInputMap`, its behaviour in
  `ViewportModel` (`dragChanged`/`dragEnded`/`dragCancelled(button:)`, `click(at:modifiers:)`, `modifiersChanged(_:)`,
  `contextMenuItems(at:)`, `scrolled(by:at:phase:)`, `pinchChanged`/`pinchEnded`, `cursor`), and `ViewportView` only forwards
-@@ -716,7 +744,7 @@
+@@ -735,7 +766,7 @@
  swift test --filter 'CreatorGraphTests.EvaluatorTests/wiredValuesFlowDownstream'   # one test
  swift test --filter CreatorNodesTests        # node definitions through the real Evaluator (OCCT where geometry matters)
  swift test --filter BracketAcceptanceTests   # the §7.2 bracket, headless
@@ -5702,65 +6319,57 @@ Only `.github/workflows/xp.yml` changes here (`scripts/linux-test.sh` was task 0
  swift run ViewportHarness                  # dev window for docs/verification/human-checks.md group V
  swift test --filter CreatorEditorTests       # editor model + headless render tests
  swift run GraphPanelPreview                   # graph panel + inspector, for docs/verification/human-checks.md (M5)
-@@ -732,7 +760,8 @@
- scripts/bench.sh [suite]                   # spec §7.3 benchmarks, release build; numbers go in docs/verification/performance.md
- scripts/bench.sh PatternBench              # patterns spec §7: 200 holes in a plate, edit-to-preview (idle Mac only)
- scripts/linux-test.sh [build|test|smoke|all]   # the suite on Linux in Docker (OrbStack): swift build, swift test (11 "Test run with" lines; 12 once xp-2 puts `CreatorOCCTTests` on Linux), --self-test, --smoke-test 20
+@@ -753,7 +784,8 @@
+ scripts/linux-test.sh [build|test|smoke|package|all|clean]   # the suite on Linux in Docker (OrbStack): swift build, swift test (12 "Test run with" lines), --self-test, --smoke-test 20
+ scripts/linux-test.sh test --filter CreatorOCCTTests   # one target on Linux (no count rule); XP_TRACK=xp-2 IMAGE=metalcreator-linux:xp-2 keep a track's volume and image apart
+ scripts/linux-test.sh package              # the tarball and the AppImage in dist/, each run in a clean ubuntu:24.04 (docs/packaging.md)
 -swift run MetalCreatorApp --smoke-test 5   # a Linux or Windows build: the real window over SDL's offscreen renderers; exit 0 if a first frame was drawn
 +swift run MetalCreatorApp --smoke-test 5   # a Linux or Windows build: the real window over SDL's offscreen renderers; exit 0 if a first frame was drawn and the 3D viewport drew
-+scripts/build-shaders.sh                  # Linux: compile Shaders/viewport into Shaders/viewport/compiled (git-ignored) with the pinned SDL_shadercross (scripts/shadercross.env); linux-test.sh runs it. Windows: scripts/build-shaders.ps1
++scripts/build-shaders.sh                   # Linux: compile Shaders/viewport into Shaders/viewport/compiled (git-ignored) through MetalUI's MetalUICompileShaders and the pinned SDL_shadercross; linux-test.sh runs it. Windows: scripts/build-shaders.ps1
  ```
  
  Benchmarks (`Tests/CreatorAppTests/Bench`) are Swift Testing suites that print `BENCH …` lines and assert no time; a
+@@ -774,7 +806,7 @@
+   volume named for the track (`XP_TRACK`, default `xp-1`), and a run stops only its own container. MetalUI must be a sibling checkout.
+   The image also holds OpenCascade 7.9 (xp-2); its first build takes minutes, then Docker's layer cache keeps it.
+   Windows cannot be run here: it is CI's job (`.github/workflows/xp.yml`; it builds, tests with OpenCascade from vcpkg, launches and packages).
+-- The Windows Swift 6.4 toolchain asserts in LLVM's coroutine splitting (`CoroFrame.cpp`, "Layout->getElementOffset") on an `async` function that holds a loop's locals across an `await` (`DrainHoles.drainPoints` did); keep the synchronous work in a non-async helper.
++- The Windows Swift 6.4 toolchain asserts in LLVM's coroutine splitting (`CoroFrame.cpp`, "Layout->getElementOffset") on an `async` function that holds a loop's locals across an `await` (`DrainHoles.drainPoints` did); keep the synchronous work in a non-async helper. In a release build it also crashes splitting the closure-specialised clone of an `async` function that takes a closure (`OccupancyGrid.fill(lipschitz:awaiting:)` did): mark such a thin wrapper `@_optimize(none)` with a comment and keep the heavy work in optimised synchronous helpers; pass no typed-throws closure to a generic helper. CI's Windows release build ("Build release (for the zip)") is the check; on this Mac the 6.4 asserts snapshot reproduces the crashes: `TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release`.
+ - Swift 6.4 crashes in SILGen on a key path applied to an existential metatype (`BuiltInNodes.all.map(\.typeID)`); use a closure.
+ - OpenCascade 7.9 comes from Homebrew on macOS (`brew install opencascade`, linked from `/opt/homebrew/opt/opencascade`; linker
+   warnings about dylibs built for a newer macOS are expected), from source on Linux (the `occt` stage of `scripts/linux/Dockerfile`,
 ````
 
-- [ ] **Step 1b: Packaging copies the build output (U7(a)), and CI time**
-
-xp-2's packaging scripts (`scripts/package-linux.sh`, `scripts/package-windows.ps1`) copy the directory the build made, `Shaders/viewport/compiled`, to `MetalUIAppShaders` beside the executable; nothing in a shipped app reads the repository. With U1(b) that directory exists only after `scripts/build-shaders.sh`/`.ps1` ran, so the packaging steps run after it (the Linux packaging runs through `scripts/linux-test.sh`, which compiles first; the Windows job's compile step precedes its packaging steps) and the packaged app's `--self-test`, run with the repository renamed aside, fails with `ViewportShaderCheck`'s message if the copy is missing. xp-3 edits neither script: **if xp-2 has merged**, check `grep -n 'MetalUIAppShaders' scripts/package-linux.sh scripts/package-windows.ps1` finds a copy of `Shaders/viewport/compiled` and add it if not; **if xp-2 has not**, tell its executor (the shared-files table has the row). The Windows zip's `MetalUISDLShaders` (MetalUI's own shaders, xp-2) is a different directory and stays.
-
-**CI time, added by this revision (estimates; only the Linux numbers below were measured, on this Mac, and only the emulated one):** the Linux x86_64 job gains about 6 minutes once (the shadercross image, built by buildx and cached in the GitHub Actions cache under `xp-shadercross-x86_64`, about 215 MB) and about 1.5 to 2 minutes on every push after (restoring and loading the cached image, compiling 16 shaders natively in well under a minute); the aarch64 job gains about 25 minutes once and 5 to 8 minutes per push (QEMU: cache restore, the emulated compile of 1 min 40 s here, more under QEMU), the cost of there being no Linux aarch64 DXC (Risk 13); the Windows job gains about 10 minutes once per pin (SPIRV-Cross and SDL_shadercross with MSVC, an estimate nobody has run) and about 1 to 2 minutes per push (cache restore, then the compile). The existing timeouts (90 minutes for Linux, 120 to 180 for Windows) cover all of it. If the aarch64 per-push cost matters, cache `Shaders/viewport/compiled` with `actions/cache`, keyed by `hashFiles('Shaders/viewport/*.hls*', 'scripts/shadercross.env', 'scripts/build-shaders.sh')` (not done: it is a second cache to evict and the compile is the thing U1(b) wants exercised).
-
-- [ ] **Step 2: Docs**
-
-The human checks XP-19 to XP-25 and E6 are numbered after xp-2's XP-16 to XP-18 (xp-2 plan, Task 8), so the two branches do not collide; E6 is xp-3's alone unless xp-2's text already took it, in which case the second merger renumbers (see "Shared files").
-
-`docs/superpowers/specs/2026-10-13-cross-platform-design.md` (change; apply with `git apply` or by hand):
+`docs/superpowers/specs/2026-10-13-cross-platform-design.md` (change against master; apply with `git apply` or by hand). E6 is adopt-s9's, so xp-3's erratum is E7:
 
 ```diff
 --- a/docs/superpowers/specs/2026-10-13-cross-platform-design.md
 +++ b/docs/superpowers/specs/2026-10-13-cross-platform-design.md
-@@ -158,3 +158,15 @@
-   pinned by `SDLChromeWindowTests.macLayoutIsWhatItWas`). The drawn Close button goes through `onCloseRequest` to
-   `AppModel.closeRequested()` (`installCloseHandling`). `WindowDragHandle` stays and is now an SDL drag region where MetalUI publishes
-   one; a gesture-taking viewport behind the bar no longer empties it (gap XP-G11, fixed by MetalUI S1b, PR #87, master `a4ebe288`). Human checks XP-11..XP-14; XP-8 keeps the cursors only.
-+- **E6 (xp-3, section 4). The SDL GPU viewport.** Section 4 is implemented as follows. `CreatorViewport`'s renderer is behind
+@@ -162,3 +162,17 @@
+   orientation" no longer holds: MetalUI S9 (record §117, master `d3ebfa18`) made the format, stored size and orientation readable without
+   a decode, `GreyImageDecoder.inspect` uses `ImageInfo(data:)`, and `ImageHeader` is deleted. A small `OtherPictureSignature` stays so a
+   GIF or TIFF is "not a PNG or JPEG" and not "damaged" (gap XP-G12).
++- **E7 (xp-3, section 4). The SDL GPU viewport.** Section 4 is implemented as follows. `CreatorViewport`'s renderer is behind
 +  `ViewportBackend`; the Metal implementation is unchanged and the SDL one (`SDLViewportBackend`) lives in `Sources/CreatorViewport/RenderSDL`
 +  behind `#if canImport(MetalUISDLGPU)`. The shaders are HLSL (`Shaders/viewport`, one source for the SDL renderer; the Metal renderer keeps its MSL
-+  strings, so macOS is untouched), compiled at build time on Linux and Windows by MetalUI's `compile-app-shaders.py` through a pinned SDL_shadercross into
-+  SPIR-V, DXIL and MSL files that are not checked in (user decision U1(b); MetalUI has no build-time path of its own, gap XP-G20). XP-G1 was answered by MetalUI S5 and S6; the typed layer lacks XP-G14 (a synchronous readback), XP-G15 (viewport and scissor), XP-G16 (a
-+  colour write mask), XP-G17 (`r32Float`), XP-G18 (anisotropy) and XP-G19 (a refused pipeline's reason), logged in `docs/metalui-gaps.md`. Picking differs from Metal in one way a person can
-+  see: SDL's readback is asynchronous, so the ID buffer is rendered after the draw that follows a change and a hover keeps its face for the few
-+  milliseconds until it lands (a click waits for it). The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G15 to XP-G18
-+  and are tasks 10 to 12 of the plan. `Matrix4.float` and `FrameUniforms` use plain SIMD types (`FloatMatrix4`), `CubeLabelAtlas` rasterizes through
-+  MetalUI's `TextSystem`, `ViewportPlaceholder` is gone, `--smoke-test` requires the viewport to have drawn, and `--self-test` checks the viewport's
-+  compiled shaders. Section 2.3's second bullet (the card) and human check XP-2 no longer hold. Implicit evaluation and meshing stay on the CPU off
-+  macOS (xp-c).
++  strings, so macOS is untouched), compiled at build time on Linux and Windows by MetalUI's `MetalUICompileShaders` (MetalUI S12, gap XP-G20) through a
++  pinned SDL_shadercross into SPIR-V, DXIL and MSL files that are not checked in (user decision U1(b)), and shipped beside the executable as
++  `MetalUIAppShaders` in the tarball, the AppImage and the zip. XP-G1 was answered by MetalUI S5 and S6, and what the typed layer still lacked, XP-G14 to
++  XP-G19 (a synchronous readback, viewport and scissor, a colour write mask, `r32Float`, anisotropy, a refused pipeline's reason), by MetalUI S11; all
++  are logged in `docs/metalui-gaps.md`. Picking differs from Metal in one way a person can see (user decision U4, hybrid): the ID buffer is rendered after
++  the draw that follows a change and a hover keeps its face for the few milliseconds until it lands; a click is always answered from a buffer for its own
++  view, waiting for it (asynchronously until MetalUI answers gap XP-G22, a render batch submitted without `await`). Until tasks 10 to 12 land, the
++  SDL viewport draws no view cube or triad, blends ghosts in one pass and draws no slice. `Matrix4.float` and `FrameUniforms` use plain SIMD types
++  (`FloatMatrix4`), `CubeLabelAtlas` rasterizes through MetalUI's `TextSystem`, `ViewportPlaceholder` is gone, `--smoke-test` requires the viewport to
++  have drawn, and `--self-test` checks the viewport's compiled shaders. Section 2.3's second bullet (the card) and human check XP-2 no longer hold.
++  Implicit evaluation and meshing stay on the CPU off macOS (xp-c).
 ```
 
-`docs/verification/human-checks.md` (change; apply with `git apply` or by hand):
+`docs/verification/human-checks.md` (change against master; apply with `git apply` or by hand). xp-2's group XP2 ends with XP-19 (the AppImage), so xp-3's checks are XP-20 to XP-26 in a group of their own after it:
 
 ```diff
 --- a/docs/verification/human-checks.md
 +++ b/docs/verification/human-checks.md
-@@ -1795,7 +1795,7 @@
-   selected, and a handle drag resizes it. Pinned: `selectingACommentEvaluatesOnlyThatComment`,
-   `aHandleAndAWireAreEqualOnlyWhenEveryInputIs`. **Observed:**
- 
--## Group XP — MetalCreator on Linux and Windows (xp-1)
-+## Group XP — MetalCreator on Linux and Windows (xp-1, xp-3)
- 
- **Status: NOT RUN.** Plan `2026-10-13-xp-1.md`; spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §2. The suite is
- green on Linux in CI (GitHub Actions, x86_64 and aarch64; `scripts/linux-test.sh` runs it in Docker too) and the app reaches its
 @@ -1810,9 +1810,8 @@
    on the right, in Dracula. Quitting (the window's close button, and File's quit where the platform has one) asks nothing on an
    unedited document. The top bar's top edge is fully visible below the strip (the root is not clipped by it: nothing in MetalCreator reads
@@ -5768,86 +6377,99 @@ The human checks XP-19 to XP-25 and E6 are numbered after xp-2's XP-16 to XP-18 
 -- [ ] **XP-2 The viewport card.** The area behind the panels shows the theme's gradient and one glass card, centred, reading "The
 -  3D view isn't available on this platform yet."; the window's size changes keep the layout. Pinned: `ViewportPaneTests`.
 -  **Observed:**
-+- [ ] **XP-2 (superseded by XP-19).** xp-1 showed a card where the 3D view will be; xp-3 draws the real view and the card is gone. The window's size
-+  changes keep the layout. Pinned: `ViewportPaneTests` (the window has the viewport's GPU surface). **Observed:**
++- [ ] **XP-2 (superseded by XP-20).** xp-1 showed a card where the 3D view would be; xp-3 draws the real view and the card is gone. The
++  window's size changes keep the layout. Pinned: `ViewportPaneTests` (the window has the viewport's GPU surface). **Observed:**
  - [ ] **XP-3 Geometry badges.** Wire Rectangle → Extrude → Output: the Extrude's badge is the error and its text reads "Geometry
    isn't available on this platform yet."; the Rectangle's is fine. Editing a parameter, wiring, undo and redo, groups, notes and
    frames, and Save then Open all work. Pinned: `KernelUnavailableNodeTests`, `KernelUnavailableTests`. **Observed:**
-@@ -1835,8 +1834,8 @@
- - [ ] **XP-8 Cursors.** (The title bar half moved to XP-11..XP-14 with MetalUI S1.) Panning the canvas shows the move cursor in place of the hand, and the panels' resize handles show
-   the system resize cursors (XP-G8). Pinned: `PanelResizeCursorTests` (the intent; the platform's shape is SDL's). **Observed:**
+@@ -1837,8 +1836,9 @@
+   gap XP-G8) and not the move cursor, sharp on a 1x and a 2x display, and the panels' resize handles show the system resize cursors.
+   On macOS the system closed hand is unchanged. Pinned: `GrabCursorTests`, `PanelResizeCursorTests` (the intent; the platform's shape is SDL's). **Observed:**
  - [ ] **XP-9 Self-test and smoke test.** `MetalCreatorApp --self-test` prints four `ok` lines (the kernel and both exports
 -  "skipped: Geometry isn't available on this platform yet.", the shaders found) and exits 0; `--smoke-test 5` prints "reached the
 -  first frame" and exits 0 on a desktop with a display too. Both pass in CI on Linux and Windows (Direct3D 12 on WARP; the
-+  "skipped: Geometry isn't available on this platform yet.", MetalUI's shaders and the viewport's found) and exits 0; `--smoke-test 5` prints "reached the
-+  first frame and the 3D viewport drew" and exits 0 on a desktop with a display too. Both pass in CI on Linux and Windows (Direct3D 12 on WARP; the
-   smoke test uses MetalUI SPI, gap XP-G9); a desktop with a display is what is left to see. Pinned: `SelfTestTests`, `LaunchSmokeTests`. **Observed:**
++  "skipped: Geometry isn't available on this platform yet.", MetalUI's shaders and the viewport's found; since xp-2 the kernel and the
++  exports run on OpenCascade) and exits 0; `--smoke-test 5` prints "reached the first frame and the 3D viewport drew" and exits 0 on a
++  desktop with a display too. Both pass in CI on Linux and Windows (Direct3D 12 on WARP; the
+   smoke test opens `SDLPlatform(options: .headless)`, public since MetalUI S8, gap XP-G9); a desktop with a display is what is left to see. Pinned: `SelfTestTests`, `LaunchSmokeTests`. **Observed:**
  - [ ] **XP-10 A screen reader (optional).** With Orca on Linux or Narrator on Windows running, the top bar's buttons and the
    graph panel's nodes are announced by name (MetalUI's `AccessKit` trait). Not pinned: MetalUI's own tests cover the bridge.
-@@ -1859,6 +1858,31 @@
-   drag, resize edges, double-click zoom, and the close veto with unsaved changes. The snap-layout flyout over zoom, the DWM shadow
-   and the rounded corners are not there for a borderless window (MetalUI CW9: platform); note what is missing. **Observed:**
- - [ ] **XP-15 One instance, Linux and Windows.** With MetalCreator running, open a second `.mcgraph` document (`MetalCreator other.mcgraph` from a terminal, or the file manager's Open With): no second process or window appears, the document opens in the running instance (the unsaved-changes check applies as for any open), and its window comes to the front. Pinned: `LaunchCommandTests` (the forwarded document); the IPC is MetalUI's. **Observed:**
+@@ -2085,3 +2085,40 @@
+   path/to/part.mcgraph` opens that file. The AppImage does not register the `.mcgraph` type itself (plan decision 2): register it with
+   the three commands in `docs/packaging.md` ("Linux: an AppImage") or through the integration tool, then double-click a `.mcgraph`: it
+   opens, and a second double-click goes to the running instance. **Observed:**
 +
-+- [ ] **XP-19 The 3D view draws (Linux and Windows).** On a real desktop GPU (Linux: Vulkan on Mesa or the vendor driver; Windows 11:
-+  Direct3D 12) the area behind the panels is the theme's gradient with the ground grid fading into the distance, not a card. A Mesh node
-+  (a TPMS lattice, Voronoi Lattice or any implicit solid; there is no OpenCascade until xp-2) shows as a shaded surface with its edges
-+  per the View menu's shading, and a theme change in the theme editor recolours the gradient, the shading, the grid and the edges. The
-+  look is the macOS one: compare with a Mac. **Pinned:** `SDLRenderTests` (lavapipe and WARP). **Observed:**
-+- [ ] **XP-20 Orbit, pan and zoom.** Right-drag orbits, middle-drag and ⇧-drag pan, the wheel and a pinch zoom about the pointer, F frames
++## Group XP3 — the 3D viewport on SDL GPU, Linux and Windows (xp-3)
++
++**Status: NOT RUN.** Plan `2026-10-21-xp-3-sdl-gpu-viewport.md`; spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §4 and
++erratum E7. CI renders and picks on Mesa's lavapipe (Linux) and Direct3D 12's WARP (Windows), and the packages' self-tests find the
++compiled shaders; these checks are what a real GPU, a real pointer and a person's eye show. Linux: build as for group XP after
++`scripts/build-shaders.sh` (or use the tarball or AppImage); Windows: the zip.
++
++- [ ] **XP-20 The 3D view draws (Linux and Windows).** On a real desktop GPU (Linux: Vulkan on Mesa or the vendor driver; Windows 11:
++  Direct3D 12) the area behind the panels is the theme's gradient with the ground grid fading into the distance, not a card. The §7.2
++  bracket (OpenCascade, xp-2) and a Mesh node (a TPMS lattice) show as shaded surfaces with their edges per the View menu's shading, and a
++  theme change in the theme editor recolours the gradient, the shading, the grid and the edges. The look is the macOS one: compare with a
++  Mac. **Pinned:** `SDLRenderTests` (lavapipe and WARP). **Observed:**
++- [ ] **XP-21 Orbit, pan and zoom.** Right-drag orbits, middle-drag and ⇧-drag pan, the wheel and a pinch zoom about the pointer, F frames
 +  the part, with no tearing, no stale pixels after a resize or a move to a monitor of another scale, and a frame rate you cannot tell from
 +  the Mac's. MSAA edges are smooth on a scale-2 display. **Pinned:** the model's tests; the feel is the check. **Observed:**
-+- [ ] **XP-21 Hover and click on the SDL picker.** The face under the pointer tints cyan as it moves; it does not flicker to nothing while you
-+  orbit and stop, and a click right after an orbit selects the face under the pointer (it waits a few milliseconds for the ID buffer), not
-+  empty space. In a sketch, clicks on the plane still place points. **Until task 10 lands** the top-left 96 × 96 points are the scene's, not a cube: hovering there picks the face under it, clicking there selects it and does not turn the camera (the model hit-tests the cube only while the backend draws it). **Pinned:** `ViewportBackendTests`, `SDLPickerTests`. **Observed:**
-+- [ ] **XP-22 The widgets (after xp-3 task 10).** The view cube at the top left shows TOP, BOTTOM, FRONT, BACK, LEFT and RIGHT on its faces, upright
++- [ ] **XP-22 Hover and click on the SDL picker.** The face under the pointer tints cyan as it moves; it does not flicker to nothing while you
++  orbit and stop (a hover may show the old face for a frame or two after the camera stops, never a stall). A click right after an orbit
++  selects the face under the pointer, never empty space and never the face the old camera showed (it waits a few milliseconds for the ID
++  buffer of its own view), and an Edges by Tag pick made that way names the edge you clicked. In a sketch, clicks on the plane still place
++  points. **Until xp-3 task 10 lands** the top-left 96 × 96 points are the scene's, not a cube: hovering there picks the face under it,
++  clicking there selects it and does not turn the camera. **Pinned:** `ViewportBackendTests`, `SDLPickerTests`. **Observed:**
++- [ ] **XP-23 The widgets (after xp-3 task 10).** The view cube at the top left shows TOP, BOTTOM, FRONT, BACK, LEFT and RIGHT on its faces, upright
 +  and readable at a slant, the hovered region cyan and the active one cyan; clicking a face, an edge or a corner turns the camera; the triad at the
 +  bottom left follows the orbit with X red, Y green and Z blue. **Pinned:** `SDLWidgetTests`. **Observed:**
-+- [ ] **XP-23 Ghosts, the field tint, the slice and the cut view.** A ghosted node's preview is one even, dimmed layer (no back faces showing
-+  through); a Field node's tint colours the surface by the ramp; a slice is a translucent quad coloured by the field; the Cut view removes one
-+  side of a part and shows the inside of its far wall darkened; a check's warning faces take the theme's warning colour. **Pinned:**
-+  `SDLRenderTests` (ghosts), `SDLFieldGuideClipTests`, `SDLSliceTests`. **Observed:**
-+- [ ] **XP-24 A shipped app finds its shaders.** After xp-2's packaging the viewport draws from a copy of the app moved to another folder (its
-+  `MetalUIAppShaders` directory beside the executable), and `--self-test` says the viewport's 20 shader stages were found. **Observed:**
-+- [ ] **XP-25 macOS cube labels are unchanged.** On a Mac the view cube's six face names look as they did before xp-3: the same weight (semibold),
++- [ ] **XP-24 Ghosts, the field tint, the slice and the cut view.** A ghosted node's preview is one even, dimmed layer (no back faces showing
++  through, after task 11); a Field node's tint colours the surface by the ramp; a slice is a translucent quad coloured by the field (after
++  task 12); the Cut view removes one side of a part and shows the inside of its far wall darkened; a check's warning faces take the theme's
++  warning colour. **Pinned:** `SDLRenderTests` (ghosts), `SDLFieldGuideClipTests`, `SDLSliceTests`. **Observed:**
++- [ ] **XP-25 A shipped app finds its shaders.** Unpack the tarball (and run the AppImage, and unzip the zip on Windows) in a folder away from
++  any checkout: the viewport draws (its shaders are `MetalUIAppShaders` beside the executable), and `--self-test` says MetalUI's SDL
++  shaders and the viewport's were found. Moving the unpacked folder elsewhere keeps both working. **Pinned:** the clean-Ubuntu checks of
++  `scripts/linux-test.sh package` and the zip's self-test in `scripts/package-windows.ps1`. **Observed:**
++- [ ] **XP-26 macOS cube labels are unchanged.** On a Mac the view cube's six face names look as they did before xp-3: the same weight (semibold),
 +  size and position, upright and readable at a slant. They are now rasterized through MetalUI's `CoreTextTextSystem` instead of a direct
 +  `CTLineDraw`, so antialiasing may differ by a hair; anything more (a different weight, size or font) is a bug in
 +  `CubeLabelAtlas.rasterize(using:)`. **Pinned:** `CubeLabelTests`, `OffscreenRenderTests.theFrontLabelIsPaintedOnTheFrontFace`. **Observed:**
- 
- ## Group IM — implicit geometry: sockets, nodes, meshes, the progressive preview and export (7c-1)
- 
 ```
 
-- [ ] **Step 3: The full suites**
+- [ ] **Step 4: The full suites**
 
-Linux first (cheap), then macOS once. Nothing else is run per task from here; the macOS full run is not repeated until task 12.
+Linux first (cheap), then macOS once, then the push that runs CI. Nothing else is run per task from here; the macOS full run is not repeated until task 12.
 
 ```bash
 XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh all 2>&1 | tail -6
-swift test 2>&1 | tee /tmp/xp3-full.log | grep -E 'recorded an issue|failed after'
-grep -c 'Test run with' /tmp/xp3-full.log
-grep 'Test run with' /tmp/xp3-full.log | sed -E 's/.*Test run with ([0-9]+) tests.*/\1/' | awk '{s += $1} END {print s}'
+swift test 2>&1 | tee "${TMPDIR:-/tmp}/xp3-full.log" | grep -E 'recorded an issue|failed after'
+grep -c 'Test run with' "${TMPDIR:-/tmp}/xp3-full.log"
+grep 'Test run with' "${TMPDIR:-/tmp}/xp3-full.log" | sed -E 's/.*Test run with ([0-9]+) tests.*/\1/' | awk '{s += $1} END {print s}'
+TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release 2>&1 | grep -E 'error:|Assertion|While splitting|Build complete'
 ```
 
-Expected: `Linux: PASS (11 'Test run with' lines, 4123 tests; …)`, `--self-test` and `--smoke-test 20` as in task 8; on macOS no issue line, `12` lines, and a total of master's plus 14 (master `11aab8e` has 4656, so 4670: 13 in `CreatorViewportTests`, +2 `LaunchSmokeTests`, -1 `ViewportPaneTests`). After task 12 the total is master + 15 (4671: task 12's `SliceTextureValuesTests`); that is the figure measured at the end of this plan's verification, and the Phase A figure is that minus the one. Compare against the total of a full run taken at the start of task 0 plus these deltas, not against the absolute figure.
+Expected: `Linux: PASS (12 'Test run with' lines, N tests; …)` with N the Linux full-suite baseline of task 0 plus 60 (59 in `CreatorViewportTests`, +2 `LaunchSmokeTests`, −1 `ViewportPaneTests`), then `--self-test` and `--smoke-test 20` as in task 8; on macOS no issue line, `12` lines, and a total of master's 4822 plus 14 = **4836** (13 in `CreatorViewportTests`, +2 `LaunchSmokeTests`, −1 `ViewportPaneTests`); the asserts release build `Build complete!`. After task 12 the macOS total is master + 15 (4837: task 12's `SliceTextureValuesTests`) and, if task 7 step 6 ran, one fewer. Then push `xp-3` and read the run: both Linux jobs green, and in the Windows job (continue-on-error) the Test step (12 lines), "Self-test and launch smoke", **"Build release (for the zip)"** and "Package (zip), checked on its own" green; a red Windows step shows as the warning step's summary line.
 
-- [ ] **Step 4: Lint and commit**
+- [ ] **Step 5: Lint and commit**
 
 ```bash
 swiftlint lint --strict --quiet   # no output
+bash -n scripts/linux-test.sh scripts/package-linux.sh && echo syntax-ok
 git add .github/workflows/xp.yml \
+  scripts/package-linux.sh scripts/package-windows.ps1 scripts/linux-test.sh docs/packaging.md \
   CLAUDE.md \
   docs/superpowers/specs/2026-10-13-cross-platform-design.md \
   docs/verification/human-checks.md
-git commit -m "docs, CI: Windows renders on WARP, CLAUDE.md, human checks XP-19..25, erratum E6"
+git commit -m "CI, packaging, docs: Windows renders on WARP, the packages ship MetalUIAppShaders, CLAUDE.md, human checks XP-20..26, erratum E7"
 ```
 
 
-### Task 10: The view cube and the triad (waits for MetalUI XP-G15 and XP-G18)
+### Task 10: The view cube and the triad (MetalUI S11: `setViewport`, `maxAnisotropy`)
 
 The view cube (96 x 96 points at the top left; its tiles, hover and active region cyan, and its six face names from the label atlas, mipmapped) and the axis triad (64 x 64 points at the bottom left) each draw in a square of the target with a camera of their own, as Metal's `setViewport` lets them: `SDLGPURenderPass.setViewport(x:y:width:height:)` (gap XP-G15). The face names are an `r8Unorm` texture with a full mip chain (`levelCount`, `generateMipmaps(of:)`, which needs `sampler` and `colorTarget` usage and runs outside a pass, so it is part of the plan), read through a linear sampler with 8x anisotropy (`maxAnisotropy`, gap XP-G18). The cube is convex, so back-face culling replaces a depth test and a face turned away hides its name. The cube hides with `showsViewCube`; a widget that does not fit the target is left out, as in Metal. Review Focus 5 is a test here: with a blank atlas (no installed font) the cube still draws, unlabelled.
 
-This task's code was checked against a local copy of MetalUI that has exactly the signatures requested in `docs/metalui-gaps.md` (the patch at the end of this plan), not against a MetalUI that has landed them.
+This task's code was first built against a local copy of MetalUI patched with the signatures requested in `docs/metalui-gaps.md`; MetalUI S11 (`11dca65e`) then landed them, and every call here was checked against MetalUI `5f03ab7b`'s source on 2026-10-22: `SDLGPURenderPass.setViewport(x:y:width:height:minDepth:maxDepth:) -> Bool` (`@discardableResult`, top-left target pixels), `SDLGPUSamplerDescription(filter:mipmapFilter:repeats:maxLevel:maxAnisotropy:)`, `SDLGPUCommandBuffer.generateMipmaps(of:)`, `SDLGPURenderPass.bindFragmentSamplers(_:firstSlot:)`, `SDLGPUTextureDescription(width:height:format:usage:sampleCount:levelCount:)`. The only difference from the patch is the `Bool` result, which the calls ignore.
 
 **Files:**
 - Create: `Shaders/viewport/cube.frag.hlsl`
@@ -5871,17 +6493,16 @@ This task's code was checked against a local copy of MetalUI that has exactly th
 - Consumes: task 6's plan and recorder; `CubeLabelFonts.atlas()` (task 3); `GPUGeometry.cubeVertices/triadInstances`; `ViewCubeLayout`, `TriadLayout`; MetalUI `SDLGPURenderPass.setViewport(x:y:width:height:minDepth:maxDepth:)`, `SDLGPUSamplerDescription(…, maxAnisotropy:)`, `SDLGPUCommandBuffer.generateMipmaps(of:)`.
 - Produces: `SDLViewportRenderer.init(device:pipelines:labelAtlas:)` and the convenience `init(device:library:labelAtlas:)`; `SDLViewportCube`; `SDLFramePlan.Cube/Triad/WidgetViewport`; pipelines `cube`; shaders `cube.vert/frag` and `CubeVertex` in `common.hlsli`; `SDLRenderRig.init(labelAtlas:)`; `renderer.triadBuffer`.
 
-- [ ] **Step 1: Gate: MetalUI has answered XP-G15 and XP-G18**
+- [ ] **Step 1: Confirm the MetalUI checkout has `setViewport` and `maxAnisotropy` (answered by MetalUI S11, `11dca65e`)**
 
-Do not start this task until MetalUI has the verbs `setViewport` on `SDLGPURenderPass` and `maxAnisotropy` on `SDLGPUSamplerDescription`. Check the sibling checkout and adopt the commit:
+No wait: master's pin `5f03ab7b` contains S11. Check that the sibling checkout the build uses does too (it is read, never changed):
 
 ```bash
-git -C ../MetalUI log --oneline -5
-grep -n "func setViewport" ../MetalUI/Backends/SDL/Sources/MetalUISDLGPU/SDLGPUGraphics.swift
-grep -n "maxAnisotropy" ../MetalUI/Backends/SDL/Sources/MetalUISDLGPU/SDLGPUGraphics.swift
+git -C ../MetalUI merge-base --is-ancestor 11dca65e HEAD && echo has-S11
+git -C ../MetalUI grep -n "public func setViewport\|public var maxAnisotropy" HEAD -- Backends/SDL/Sources/MetalUISDLGPU/SDLGPUGraphics.swift
 ```
 
-Each `grep` must print its declaration. If one does not, stop: the gap is still open (`docs/metalui-gaps.md`). If MetalUI spelled a verb differently from the signature requested there (the patch at the end of this plan), change only the call this task's code makes: they are in `SDLViewportPipelines.swift`, `SDLViewportCube.swift`, `SDLSliceTextures.swift` and `SDLViewportRenderer+Widgets.swift`, nowhere else. Then set `METALUI_COMMIT` in `.github/workflows/xp.yml` to the commit you checked (`git -C ../MetalUI rev-parse HEAD`), and note it in `docs/metalui-gaps.md` (step "Record the answer" below).
+Expected: `has-S11` and the declaration (`setViewport(x: Float, y: Float, width: Float, height: Float, minDepth: Float = 0, maxDepth: Float = 1) -> Bool`, `@discardableResult`, which this task's calls ignore; `maxAnisotropy: Float`, the last argument of `SDLGPUSamplerDescription.init`, capped at 16). If `../MetalUI` is behind `5f03ab7b`, it is not this branch's to move: ask whoever owns that checkout. `METALUI_COMMIT` in `.github/workflows/xp.yml` stays `5f03ab7b…` (no bump).
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -6402,7 +7023,7 @@ extension SDLViewportRenderer {
 ```diff
 --- a/Sources/CreatorViewport/RenderSDL/SDLViewportPipelines.swift
 +++ b/Sources/CreatorViewport/RenderSDL/SDLViewportPipelines.swift
-@@ -25,17 +25,19 @@
+@@ -27,17 +27,19 @@
      let lineBehind: SDLGPUGraphicsPipeline
      /// The ground grid: blended, tested against the solids without writing.
      let grid: SDLGPUGraphicsPipeline
@@ -6421,10 +7042,10 @@ extension SDLViewportRenderer {
                  vertex: try library.vertex(vertex, for: device), fragment: try library.fragment(fragment, for: device),
 -                primitiveType: primitive, cullMode: .none, colorFormat: color, blend: blend, sampleCount: samples, depth: depth)
 +                primitiveType: primitive, cullMode: cull, colorFormat: color, blend: blend, sampleCount: samples, depth: depth)
-             guard let made = device.makeGraphicsPipeline(description) else {
-                 throw ViewportRenderError.deviceRefused("the \(vertex)/\(fragment) pipeline was refused (SDL's reason: MetalUI gap XP-G19)")
-             }
-@@ -54,6 +56,7 @@
+             do {
+                 return try device.compileGraphicsPipeline(description)
+             } catch {
+@@ -58,6 +60,7 @@
          lineAlways = try pipeline("line", "line", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: always)
          lineBehind = try pipeline("line", "line", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: behind)
          grid = try pipeline("grid", "grid", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: tests)
@@ -6586,18 +7207,16 @@ Expected:
 - Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 325 tests in 44 suites passed` (baseline 259/34 + 66 tests, + 10 suites).
 
 `SDLWidgetTests` has 7 tests: the FRONT label painted on the FRONT face (and BACK's from behind), the cube inside its square and hidden when asked, a hovered region, the triad's three axis colours, the triad and cube buffers surviving an orbit, a widget that does not fit, and the blank atlas.
-- [ ] **Step 7: Record the answer**
+- [ ] **Step 7: Update the docs that say what is still missing**
 
-In `docs/metalui-gaps.md` change, for XP-G15 and XP-G18, the summary row's status from `🔄 open at MetalUI, …` to `✅ fixed by MetalUI <commit> (<what MetalUI called it>), adopted by xp-3 task 10`, and add one sentence to the entry in the "Hit by the 3D viewport on SDL GPU (xp-3)" section saying so. `<commit>` is the MetalUI commit set as `METALUI_COMMIT` above. In `CLAUDE.md`'s xp-3 paragraph, shorten the sentence beginning "Four layers wait for MetalUI" to the layers still waiting. In `docs/superpowers/specs/2026-10-13-cross-platform-design.md` erratum E6 do the same to the sentence "The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G15 to XP-G18". The rows:
-
-- `| XP-G15 | `setViewport` and `setScissor` on a render pass |`
-- `| XP-G18 | Anisotropic filtering on `SDLGPUSamplerDescription` |`
+`docs/metalui-gaps.md` already says XP-G15 and XP-G18 are answered (task 0); add only "used by xp-3 task 10, commit <this task's commit>" to the end of the row's status if it is not there. In `CLAUDE.md`'s xp-3 paragraph (task 9) shorten the sentence beginning "Tasks 10 to 12 add" so it no longer lists the view cube and the triad, and in `docs/superpowers/specs/2026-10-13-cross-platform-design.md` erratum E7 do the same to the sentence that begins "Until tasks 10 to 12 land". (If task 9 has not run yet, there is nothing to shorten.)
 
 - [ ] **Step 8: Lint and commit**
 
 ```bash
 swiftlint lint --strict --quiet   # no output
-git add Shaders/viewport/common.hlsli \
+git add CLAUDE.md docs/metalui-gaps.md docs/superpowers/specs/2026-10-13-cross-platform-design.md \
+  Shaders/viewport/common.hlsli \
   Shaders/viewport/cube.frag.hlsl \
   Shaders/viewport/cube.vert.hlsl \
   Sources/CreatorViewport/RenderSDL/SDLFramePlan.swift \
@@ -6617,7 +7236,7 @@ git commit -m "viewport: the view cube and the triad on SDL_GPU"
 ```
 
 
-### Task 11: The ghosts' depth-only prepass (waits for MetalUI XP-G16)
+### Task 11: The ghosts' depth-only prepass (MetalUI S11: `writesColor`)
 
 A ghost (another node's preview, blended at 40%) takes two steps so each pixel blends once, at its nearest ghost surface: a depth-only prepass, then the blended colour pass, which passes only where its depth equals the prepass's (less-or-equal, no write). Metal's prepass pipeline writes no colour. SDL needs the pipeline's colour write mask (`writesColor: false`, gap XP-G16). Until then (tasks 0 to 9) the ghost pass blends every layer it is not hidden by. The test is the one that fails without the prepass: a ghost box looks, in the middle of its front face, as a ghost of that face alone does. The prepass runs the same `mesh` fragment (`ghost == 1`) as the colour pass, exactly as Metal does.
 
@@ -6630,16 +7249,16 @@ A ghost (another node's preview, blended at 40%) takes two steps so each pixel b
 - Consumes: task 6's `drawSolids`; MetalUI `SDLGPUGraphicsPipelineDescription(…, writesColor:)`.
 - Produces: `SDLViewportPipelines.ghostDepth`; the ghost colour pipeline now tests less-or-equal.
 
-- [ ] **Step 1: Gate: MetalUI has answered XP-G16**
+- [ ] **Step 1: Confirm the MetalUI checkout has `writesColor` (answered by MetalUI S11, `11dca65e`)**
 
-Do not start this task until MetalUI has the verbs a colour write mask on `SDLGPUGraphicsPipelineDescription`. Check the sibling checkout and adopt the commit:
+No wait: master's pin `5f03ab7b` contains S11. Check that the sibling checkout the build uses does too (it is read, never changed):
 
 ```bash
-git -C ../MetalUI log --oneline -5
-grep -n "writesColor" ../MetalUI/Backends/SDL/Sources/MetalUISDLGPU/SDLGPUGraphics.swift
+git -C ../MetalUI merge-base --is-ancestor 11dca65e HEAD && echo has-S11
+git -C ../MetalUI grep -n "public var writesColor" HEAD -- Backends/SDL/Sources/MetalUISDLGPU/SDLGPUGraphics.swift
 ```
 
-Each `grep` must print its declaration. If one does not, stop: the gap is still open (`docs/metalui-gaps.md`). If MetalUI spelled a verb differently from the signature requested there (the patch at the end of this plan), change only the call this task's code makes: they are in `SDLViewportPipelines.swift`, `SDLViewportCube.swift`, `SDLSliceTextures.swift` and `SDLViewportRenderer+Widgets.swift`, nowhere else. Then set `METALUI_COMMIT` in `.github/workflows/xp.yml` to the commit you checked (`git -C ../MetalUI rev-parse HEAD`), and note it in `docs/metalui-gaps.md` (step "Record the answer" below).
+Expected: `has-S11` and the declaration (`writesColor: Bool`, the last argument of `SDLGPUGraphicsPipelineDescription.init`, default `true`). If `../MetalUI` is behind `5f03ab7b`, it is not this branch's to move: ask whoever owns that checkout. `METALUI_COMMIT` in `.github/workflows/xp.yml` stays `5f03ab7b…` (no bump).
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -6697,7 +7316,7 @@ Expected: the build fails. Run against task 10's code (it compiles); `aGhostBlen
 ```diff
 --- a/Sources/CreatorViewport/RenderSDL/SDLViewportPipelines.swift
 +++ b/Sources/CreatorViewport/RenderSDL/SDLViewportPipelines.swift
-@@ -16,7 +16,9 @@
+@@ -18,7 +18,9 @@
      let mesh: SDLGPUGraphicsPipeline
      /// The surface coloured by a field's values (`field_mesh`).
      let fieldMesh: SDLGPUGraphicsPipeline
@@ -6708,7 +7327,7 @@ Expected: the build fails. Run against task 10's code (it compiles); `aGhostBlen
      let ghost: SDLGPUGraphicsPipeline
      /// Lines (premultiplied source-over): tested against the solids (less-or-equal) without writing; never tested; and only where
      /// something nearer already wrote depth (a guide's edges behind the part).
-@@ -33,11 +35,12 @@
+@@ -35,11 +37,12 @@
      init(device: SDLGPUDevice, library: SDLGPUShaderLibrary) throws {
          func pipeline(_ vertex: String, _ fragment: String, primitive: SDLGPUPrimitiveType = .triangleList,
                        cull: SDLGPUCullMode = .none, color: SDLGPUTextureFormat = Self.colorFormat, blend: SDLGPUBlend = .none,
@@ -6721,10 +7340,10 @@ Expected: the build fails. Run against task 10's code (it compiles); `aGhostBlen
 -                primitiveType: primitive, cullMode: cull, colorFormat: color, blend: blend, sampleCount: samples, depth: depth)
 +                primitiveType: primitive, cullMode: cull, colorFormat: color, blend: blend, sampleCount: samples, depth: depth,
 +                writesColor: writesColor)
-             guard let made = device.makeGraphicsPipeline(description) else {
-                 throw ViewportRenderError.deviceRefused("the \(vertex)/\(fragment) pipeline was refused (SDL's reason: MetalUI gap XP-G19)")
-             }
-@@ -51,7 +54,8 @@
+             do {
+                 return try device.compileGraphicsPipeline(description)
+             } catch {
+@@ -55,7 +58,8 @@
          fill = try pipeline("fill", "fill", blend: .premultipliedAlpha, depth: always)
          mesh = try pipeline("mesh", "mesh", depth: writes)
          fieldMesh = try pipeline("field_mesh", "field_mesh", depth: writes)
@@ -6810,24 +7429,23 @@ XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter 
 Expected:
 - Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 326 tests in 44 suites passed` (baseline 259/34 + 67 tests, + 10 suites).
 
-- [ ] **Step 6: Record the answer**
+- [ ] **Step 6: Update the docs that say what is still missing**
 
-In `docs/metalui-gaps.md` change, for XP-G16, the summary row's status from `🔄 open at MetalUI, …` to `✅ fixed by MetalUI <commit> (<what MetalUI called it>), adopted by xp-3 task 11`, and add one sentence to the entry in the "Hit by the 3D viewport on SDL GPU (xp-3)" section saying so. `<commit>` is the MetalUI commit set as `METALUI_COMMIT` above. In `CLAUDE.md`'s xp-3 paragraph, shorten the sentence beginning "Four layers wait for MetalUI" to the layers still waiting. In `docs/superpowers/specs/2026-10-13-cross-platform-design.md` erratum E6 do the same to the sentence "The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G15 to XP-G18". The rows:
-
-- `| XP-G16 | A colour write mask on a graphics pipeline |`
+`docs/metalui-gaps.md` already says XP-G16 is answered (task 0); add only "used by xp-3 task 11, commit <this task's commit>" to the end of the row's status if it is not there. In `CLAUDE.md`'s xp-3 paragraph (task 9) shorten the sentence beginning "Tasks 10 to 12 add" so it no longer lists the ghosts' depth-only prepass, and in `docs/superpowers/specs/2026-10-13-cross-platform-design.md` erratum E7 do the same to the sentence that begins "Until tasks 10 to 12 land". (If task 9 has not run yet, there is nothing to shorten.)
 
 - [ ] **Step 7: Lint and commit**
 
 ```bash
 swiftlint lint --strict --quiet   # no output
-git add Sources/CreatorViewport/RenderSDL/SDLViewportPipelines.swift \
+git add CLAUDE.md docs/metalui-gaps.md docs/superpowers/specs/2026-10-13-cross-platform-design.md \
+  Sources/CreatorViewport/RenderSDL/SDLViewportPipelines.swift \
   Sources/CreatorViewport/RenderSDL/SDLViewportRenderer+Record.swift \
   Tests/CreatorViewportTests/SDLRenderTests.swift
 git commit -m "viewport: the ghosts' depth-only prepass on SDL_GPU"
 ```
 
 
-### Task 12: The field slice (waits for MetalUI XP-G17)
+### Task 12: The field slice (MetalUI S11: `r32Float`)
 
 The slice (fields spec section 6) is a translucent quad through the scene showing a grid of values, drawn ignoring depth because it passes through the part. Its grid is an `r32Float` texture (gap XP-G17), kept until the slice's generation, size or ramp middle changes (`SDLSliceTextures`; the stored numbers are `SliceTextureValues`, now shared with Metal's `SliceTextures`: NaN becomes the ramp's middle, an infinity the end it lies beyond). The shader reads it at texel centres through a nearest sampler (a texel fetch) and blends bilinearly itself, so no support for filtering a float texture is assumed. The slice is never in the ID pass; `SDLSliceTests.aSliceIsNeverUnderAPick` pins it.
 
@@ -6852,16 +7470,16 @@ The slice (fields spec section 6) is a translucent quad through the scene showin
 - Consumes: task 6's plan; `ViewportSlice`, `SliceUniforms`, `FieldRampUniforms`; MetalUI `SDLGPUTextureFormat.r32Float`.
 - Produces: `SliceTextureValues.filled(_:ramp:)`, `.texels(of:)`; `SDLSliceTextures`; `SDLFramePlan.Slice`; pipeline `slice`; shaders `slice.vert/frag` and `SliceUniforms` in `common.hlsli`; `renderer.sliceTextures.uploads`.
 
-- [ ] **Step 1: Gate: MetalUI has answered XP-G17**
+- [ ] **Step 1: Confirm the MetalUI checkout has `r32Float` (answered by MetalUI S11, `11dca65e`)**
 
-Do not start this task until MetalUI has the verbs the format `r32Float` on `SDLGPUTextureFormat`. Check the sibling checkout and adopt the commit:
+No wait: master's pin `5f03ab7b` contains S11. Check that the sibling checkout the build uses does too (it is read, never changed):
 
 ```bash
-git -C ../MetalUI log --oneline -5
-grep -n "case r32Float" ../MetalUI/Backends/SDL/Sources/MetalUISDLGPU/SDLGPUTexture.swift
+git -C ../MetalUI merge-base --is-ancestor 11dca65e HEAD && echo has-S11
+git -C ../MetalUI grep -n "case r32Float" HEAD -- Backends/SDL/Sources/MetalUISDLGPU/SDLGPUTexture.swift
 ```
 
-Each `grep` must print its declaration. If one does not, stop: the gap is still open (`docs/metalui-gaps.md`). If MetalUI spelled a verb differently from the signature requested there (the patch at the end of this plan), change only the call this task's code makes: they are in `SDLViewportPipelines.swift`, `SDLViewportCube.swift`, `SDLSliceTextures.swift` and `SDLViewportRenderer+Widgets.swift`, nowhere else. Then set `METALUI_COMMIT` in `.github/workflows/xp.yml` to the commit you checked (`git -C ../MetalUI rev-parse HEAD`), and note it in `docs/metalui-gaps.md` (step "Record the answer" below).
+Expected: `has-S11` and the declaration (`case r32Float`, 4 bytes a texel; linear filtering of it is optional hardware, and this task samples it with a nearest sampler). If `../MetalUI` is behind `5f03ab7b`, it is not this branch's to move: ask whoever owns that checkout. `METALUI_COMMIT` in `.github/workflows/xp.yml` stays `5f03ab7b…` (no bump).
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -7415,21 +8033,20 @@ Expected:
 - Linux: no `error:` line, no `recorded an issue` or `failed after`, and `Test run with 335 tests in 46 suites passed` (baseline 259/34 + 76 tests, + 12 suites); plus `11 tests in 3 suites` for the app filter.
 
 `SDLSliceTests` has 8 tests, `SliceTextureValuesTests` 1.
-- [ ] **Step 7: Record the answer**
+- [ ] **Step 7: Update the docs that say what is still missing**
 
-In `docs/metalui-gaps.md` change, for XP-G17, the summary row's status from `🔄 open at MetalUI, …` to `✅ fixed by MetalUI <commit> (<what MetalUI called it>), adopted by xp-3 task 12`, and add one sentence to the entry in the "Hit by the 3D viewport on SDL GPU (xp-3)" section saying so. `<commit>` is the MetalUI commit set as `METALUI_COMMIT` above. In `CLAUDE.md`'s xp-3 paragraph, shorten the sentence beginning "Four layers wait for MetalUI" to the layers still waiting. In `docs/superpowers/specs/2026-10-13-cross-platform-design.md` erratum E6 do the same to the sentence "The view cube, the triad, the ghosts' depth-only prepass and the slice wait for XP-G15 to XP-G18". The rows:
-
-- `| XP-G17 | `SDLGPUTextureFormat.r32Float` |`
+`docs/metalui-gaps.md` already says XP-G17 is answered (task 0); add only "used by xp-3 task 12, commit <this task's commit>" to the end of the row's status if it is not there. In `CLAUDE.md`'s xp-3 paragraph (task 9) shorten the sentence beginning "Tasks 10 to 12 add" so it no longer lists the field slice, and in `docs/superpowers/specs/2026-10-13-cross-platform-design.md` erratum E7 do the same to the sentence that begins "Until tasks 10 to 12 land". (If task 9 has not run yet, there is nothing to shorten.)
 
 - [ ] **Step 8: The final check**
 
-With the last gap answered, run the whole of task 9's "full suites" step again (Linux `all`, macOS `swift test` once) and confirm the pass rule: macOS 12 `Test run with` lines adding up to master + 15 tests (4671 on `11aab8e`), Linux 11 lines (baseline + 74 for `CreatorViewportTests`; 4140 tests in all on `11aab8e`), no `recorded an issue` or `failed after`. Then tick the human checks XP-19 to XP-25 that a person can do (`docs/verification/human-checks.md`, group XP).
+With the last layer in, run the whole of task 9's "full suites" step again (Linux `all`, macOS `swift test` once, the asserts release build, then the push) and confirm the pass rule: macOS 12 `Test run with` lines adding up to master + 15 tests (4837 on `1aad412`; one fewer if task 7 step 6 ran), Linux 12 lines adding up to the task 0 baseline + 77 (76 in `CreatorViewportTests`, +1 in the app tests), no `recorded an issue` or `failed after`, and CI's Windows Test and "Build release (for the zip)" steps green. Then tick the human checks XP-20 to XP-26 that a person can do (`docs/verification/human-checks.md`, group XP3).
 
 - [ ] **Step 9: Lint and commit**
 
 ```bash
 swiftlint lint --strict --quiet   # no output
-git add Shaders/viewport/common.hlsli \
+git add CLAUDE.md docs/metalui-gaps.md docs/superpowers/specs/2026-10-13-cross-platform-design.md \
+  Shaders/viewport/common.hlsli \
   Shaders/viewport/slice.frag.hlsl \
   Shaders/viewport/slice.vert.hlsl \
   Sources/CreatorViewport/Render/SliceTextureValues.swift \
@@ -7452,6 +8069,15 @@ git commit -m "viewport: the field slice on SDL_GPU"
 
 ## Verification
 
+**Revision of 2026-10-22 (start of execution): what was checked and what was not.** Planning only; no product code was written into the repository. Checked:
+  (1) **The rebase.** `git rebase master` moved the plan's three commits onto `1aad412` with no conflict (they touch only this file).
+  (2) **Every MetalUI name the plan now uses**, read at MetalUI `5f03ab7b` (`git -C ../MetalUI show 5f03ab7b:<path>`): `SDLGPURenderPass.setViewport(x:y:width:height:minDepth:maxDepth:) -> Bool` and `setScissor(x:y:width:height:) -> Bool`; `SDLGPUGraphicsPipelineDescription(…, writesColor:)`; `SDLGPUTextureFormat.r32Float`; `SDLGPUSamplerDescription(…, maxAnisotropy:)`; `SDLGPUFence.waitBlocking()`; `SDLGPUDevice.downloadSynchronously(_:region:) -> [UInt8]?`; `compileGraphicsPipeline(_:) throws` and `SDLGPUError`; `submitBatch` (still `async` only, hence XP-G22); `SDLGPUShaderLibrary(directory:)` (a marker or a reflection `.json`) and `init(directory:verifyingSources:)`; `MetalUICompileShaders`' arguments, outputs and `SOURCE.sha256` format (`CompileArguments.swift`, `ShaderPlan.swift`, `SourceMarker.swift`, `ShaderCompiler.swift`), the shadercross lookup (`ShadercrossLocator.swift`), the plugin, and `docs/packaging.md` §4a (the pin, the Linux aarch64 recipe, `BS-H`). `compile-app-shaders.py` is gone from `5f03ab7b`.
+  (3) **The scripts' logic**, on macOS: `MetalUICompileShaders` built from a read-only copy of MetalUI `5f03ab7b` with `swift run --package-path … --scratch-path …` (nothing written into the copy) and run by `scripts/build-shaders.sh` with a stub shadercross: the outputs are named `NAME.<stage>.{spv,msl,dxil,json}`, MetalUI's `SOURCE.sha256` equals what `sha256sum` prints for the stage files (so the script's "current" test accepts it), the rerun prints `Shaders/viewport/compiled is current.`, a missing shadercross exits 69 with the pin in the message, and a failed compile exits 1 and removes the directory.
+  (4) **The diffs apply.** Every code block and diff of tasks 0 to 8, applied in order to an export of `1aad412`, applied (`patch`, 86 operations, no reject), and task 7 step 6's diffs apply to the result of task 8. Task 9's diffs were made with `diff -u` from master's files (and task 4's versions); `bash -n` passes on `scripts/build-shaders.sh`, `scripts/linux-test.sh` and `scripts/package-linux.sh` as changed, and the workflow parses as YAML.
+  (5) **The baseline.** macOS `CreatorViewportTests` on `1aad412`: 304 tests in 41 suites, passed (the figure the tasks' deltas start from).
+  (6) **The finished tree builds.** In a scratch copy (all of tasks 0 to 12 applied, with a read-only export of MetalUI `5f03ab7b` as `../MetalUI`): on macOS, with task 7 step 6 too, `swift build --build-tests` with no warning beyond the linker's, and `CreatorViewportTests` 317 tests in 45 suites passed (304 + 14 − 1) and the app filter 11 tests; on Linux (the xp-2 image, without step 6, whose `submitBatchSynchronously` does not exist yet) `swift build --build-tests` built every `RenderSDL` file with no error or warning. No test ran on Linux (no shadercross in that image, so no compiled shaders).
+  Not checked: the Linux and Windows test runs; the native `shadercross` stage, a real shadercross run through `MetalUICompileShaders` on Linux, the PowerShell scripts, Windows, and `scripts/linux-test.sh` end to end. Task 4 step 4, task 5 step 4 (the clean macOS build, `SG-D`) and every task's "Expected" line are where they get checked.
+
 Written and checked in a scratch copy of the worktree (the session's scratchpad), with a sibling `MetalUI` symlink to `/Users/maxburger/Developer/MetalUI` (read-only; master `b15e038c`). Every code block above is a file read from, or a diff between, the scratch trees "master plus tasks 0 to N", so applying the tasks in order reproduces them (the compiled shaders aside: they are not in the repository, the build makes them). For each task: `swift build --build-tests` on macOS with no new warning (Linux builds print none either), `swift test --filter` on macOS and, through `XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh test --filter …`, on Linux (Docker, OrbStack, Mesa lavapipe), and `swiftlint lint --strict` with zero violations. Tasks 10 to 12 were built and tested on Linux against a copy of MetalUI patched as in the appendix; everything else against MetalUI as it is.
 
 The second review round (cube hit-testing, `metalUISDL`, no raw `SDL_GetError()`, the waiting-click tests, gap and check numbering, the script's argument form and `IMAGE`) was applied to the finished tree (tasks 0 to 12) and checked there: `swift package clean` then `swift build --build-tests` on macOS (the `SG-D` check: 999 build steps, no `error:`, no `warning:`), `swiftlint lint --strict` with no output on both trees, the macOS full run and the Linux `all` run by the pass rule (below), and the new tests mutated: with the click's tool capture reverted `aWaitingClickGoesToTheToolItWasMadeWithAndNotTheOneSetWhileItWaited` fails, with `drawsWidgets` left out of `cubeCatches` `aBackendThatDrawsNoCubeLeavesItsCornerToTheScene` fails. The task 8 variant (`SDLViewportBackend.drawsWidgets` false, its test expecting false) was run on Linux (`ViewportBackendTests` and `SDLViewportBackendTests`, 10 tests passed); the intermediate trees of tasks 1 to 7 were not rebuilt one by one this round (their diffs are unchanged except the lines named above).
@@ -7468,19 +8094,19 @@ The second review round (cube hit-testing, `metalUISDL`, no raw `SDL_GetError()`
 | 7 | `t7` | baseline + 13 (317 in 44) | baseline + 57 (316 in 42) | b15e038c |
 | 8 | `t8` | baseline + 13 (317 in 44) | baseline + 59 (318 in 43) | b15e038c |
 | 9 | `t9` | baseline + 13 (317 in 44) | baseline + 59 (318 in 43) | b15e038c |
-| 10 | `g1` | unchanged (only SDL files change) | baseline + 66 (325 in 44) | patched copy (the request below) |
-| 11 | `g2` | unchanged (only SDL files change) | baseline + 67 (326 in 44) | patched copy (the request below) |
-| 12 | `g3` | baseline + 14 (318 in 45) | baseline + 76 (335 in 46) | patched copy (the request below) |
+| 10 | `g1` | unchanged (only SDL files change) | baseline + 66 (325 in 44) | a copy patched with the request (MetalUI S11 has it since) |
+| 11 | `g2` | unchanged (only SDL files change) | baseline + 67 (326 in 44) | a copy patched with the request (MetalUI S11 has it since) |
+| 12 | `g3` | baseline + 14 (318 in 45) | baseline + 76 (335 in 46) | a copy patched with the request (MetalUI S11 has it since) |
 
-The figures in brackets are the absolute counts measured on master `11aab8e`; **judge by the delta from the baseline you took in task 0**, since another track's merge (7c-4) moves the absolute figure. The new tests per task are the differences between rows. The macOS app tests (`LaunchSmokeTests`, `ViewportPaneTests`, `SelfTestTests`) run 11 tests after task 8 (master: `LaunchSmokeTests` 2 and `ViewportPaneTests` 3 are 5 of them, so +2 and -1, and `SelfTestTests` unchanged); on Linux the same filter runs 11.
+This table is the record of the trees built before the 2026-10-22 revision (MetalUI `b15e038c`, tasks 10 to 12 on a patched copy). The figures in brackets are the absolute counts measured on master `11aab8e` (master `1aad412`'s macOS `CreatorViewportTests` is the same 304 in 41); **judge by the delta from the baseline you took in task 0**, since another track's merge (7c-4) moves the absolute figure. The new tests per task are the differences between rows. The macOS app tests (`LaunchSmokeTests`, `ViewportPaneTests`, `SelfTestTests`) run 11 tests after task 8 (master: `LaunchSmokeTests` 2 and `ViewportPaneTests` 3 are 5 of them, so +2 and -1, and `SelfTestTests` unchanged); on Linux the same filter runs 11.
 
-Full suites, by the pass rule (exit 0, no "recorded an issue" or "failed after", the number of "Test run with" lines):
+Full suites, by the pass rule, **as measured before this revision on master `11aab8e`** (11 lines on Linux then; 12 everywhere now: the expectations of task 9 step 4 replace these):
 
 - Linux, end of task 9 (`XP_TRACK=xp-3 IMAGE=metalcreator-linux:xp-3 scripts/linux-test.sh all`): PASS, 11 "Test run with" lines, 4123 tests (derived: the end-of-task-12 run below minus tasks 10 to 12's 17 Linux tests), then `--self-test` and `--smoke-test 20` ok.
 - Linux, end of task 12 (patched MetalUI): PASS, 11 lines, 4140 tests, `--self-test` and `--smoke-test 20` ok (the smoke test reports `the 3D viewport drew 1 frame`).
 - macOS, end of task 12 (`swift test` once): exit 0, 12 "Test run with" lines, 4671 tests, 0 issue lines. Master: 12 lines, 4656 tests.
 
-Also checked: the finished tasks 0 to 9 on Linux against MetalUI at the CI pin `c502f14c` (`CreatorViewportTests`, the app tests above, `--self-test` and `--smoke-test 20` all pass, as against `b15e038c`). Not verified, and why: Windows and Direct3D 12 (CI only; see Risks), a real GPU (human checks XP-19 to XP-24), and tasks 10 to 12 against a MetalUI that has landed the verbs (the signatures are the request's; adopt and rerun).
+Also checked: the finished tasks 0 to 9 on Linux against MetalUI at the CI pin `c502f14c` (`CreatorViewportTests`, the app tests above, `--self-test` and `--smoke-test 20` all pass, as against `b15e038c`). Not verified, and why: Windows and Direct3D 12 (CI only; see Risks), a real GPU (human checks XP-20 to XP-25), and tasks 10 to 12 against a MetalUI that has landed the verbs (the signatures are the request's; adopt and rerun).
 
 **Revision of 2026-10-21 (U1(b)): what was checked and what was not.** Planning only; no product code was written into the repository. Checked, in a scratch directory outside the repository (the session's scratchpad), against SDL_shadercross commit `1ff05bec573988a98ef9e0260b4da44f512b8367`: 
   (1) **The pin exists and is the only pin there is.** `gh api repos/libsdl-org/SDL_shadercross/releases` and `/tags` return nothing and `git ls-remote --tags` is empty; `main` is at `1ff05bec573988a98ef9e0260b4da44f512b8367` (2026-09-03T17:00:18Z) and its latest successful `Build` run (33781992136) is on that commit. Its CMake script fixes Microsoft's DirectXShaderCompiler `v1.9.2602` (`linux_dxc_2026_02_20.x86_64.tar.gz`, `dxc_2026_02_20.zip`, SHA-256 in the script; no Linux aarch64 build exists).
@@ -7495,155 +8121,34 @@ A first full Linux run, made before the shared pipelines of task 5 existed, fail
 
 ## Risks
 
-1. **Direct3D 12 is unverified until the Windows job runs.** The SPIR-V path (Vulkan on lavapipe) is what these tests exercised. DXIL comes from the same SPIR-V through spirv-cross and DXC. The known trap, MetalUI rule `GA-Q` (a fragment stage must read every vertex output it declares), is respected: every fragment shader reads all its inputs, and the ID pass has vertex shaders of its own for that reason. If `CreateGraphicsPipelineState` still answers `E_INVALIDARG`, the pipeline name is in the error (`SDLViewportPipelines`' message names the vertex and fragment shader).
-2. **A real GPU is stricter than lavapipe** about descriptor bindings, storage-buffer alignment and MSAA formats. Human checks XP-19 to XP-24 are where that shows.
+1. **Direct3D 12 is unverified until the Windows job runs.** The SPIR-V path (Vulkan on lavapipe) is what these tests exercised. DXIL comes from the same SPIR-V through spirv-cross and DXC. The known trap, MetalUI rule `GA-Q` (a fragment stage must read every vertex output it declares), is respected: every fragment shader reads all its inputs, and the ID pass has vertex shaders of its own for that reason. If `CreateGraphicsPipelineState` still answers `E_INVALIDARG`, the error names the vertex and fragment shader and carries SDL's reason (`compileGraphicsPipeline`, MetalUI S11).
+2. **A real GPU is stricter than lavapipe** about descriptor bindings, storage-buffer alignment and MSAA formats. Human checks XP-20 to XP-25 are where that shows.
 3. **The borrowed device.** `SDLViewportBackend` keeps the window renderer's `SDLGPUDevice` and every buffer made on it; the viewport model must not outlive its window (MetalUI: "keep it no longer than the window"). The app has one window, and `New`/`Open` replace the model inside it, which releases the old buffers on the live device.
-4. **Pick latency.** A hover can name the previous camera's face for the 40 ms settle plus a few milliseconds of readback after an orbit stops (gap XP-G14); a click never does (it waits). A scene that changes on every frame for a long time (a fillet drag) never settles, so its hover freezes until it stops.
+4. **Pick latency (U4, hybrid).** A hover can name the previous camera's face for the 40 ms settle plus a few milliseconds of readback after an orbit stops; a click never does: it is answered from its own view's buffer. Until MetalUI answers XP-G22 such a click is delivered a few milliseconds late (asynchronously, to the tool of its press); after task 7 step 6 it stalls that one frame instead, as on Metal. A scene that changes on every frame for a long time (a fillet drag) never settles, so its hover freezes until it stops.
 5. **Large meshes.** A mesh's vertex buffer is `3 × triangles × 48` bytes; SDL_GPU buffers are limited to 4 GiB (`UInt32`), so a mesh of about 29 million triangles fails to upload and its solid is skipped silently (`SDLViewportUploader.storageBuffer` answers `nil`). 7c's previews are far below that (4 M triangles is 576 MB).
-6. **macOS look.** The cube's face names now go through `CoreTextTextSystem` instead of a direct `CTLineDraw`: the test that reads the pixels passes, the antialiasing may differ by a hair (XP-25).
-7. **The Windows Swift 6.4 compiler** asserts on an `async` function that holds a loop's locals across an `await`. The picker's loop is split into synchronous helpers and no test has a loop around an `await`; if Windows CI still crashes, the stack trace names the function.
-8. **MetalUI drift.** The plan was checked against MetalUI `b15e038c`; the CI pin is `c502f14c`. Both were built and tested (see the verification section). A later MetalUI that renames a typed verb breaks the build in `SDLViewportPipelines`, `SDLViewportUploader`, `SDLViewportRenderer+Record` or `SDLViewportPicker`, loudly.
-
+6. **macOS look.** The cube's face names now go through `CoreTextTextSystem` instead of a direct `CTLineDraw`: the test that reads the pixels passes, the antialiasing may differ by a hair (XP-26).
+7. **The Windows Swift 6.4 compiler** asserts on an `async` function that holds a loop's locals across an `await`, and in release builds crashes splitting a closure-specialised `async` function that takes a closure (xp-2's `OccupancyGrid.fill`, fixed with `@_optimize(none)`). The picker's loop is split into synchronous helpers, no `async` function in `RenderSDL` takes a closure parameter, and no test has a loop around an `await`. The release build is CI's "Build release (for the zip)" step, which compiles `RenderSDL`; the asserts snapshot on this Mac (`TOOLCHAINS=org.swift.64202605271a`) covers only the portable code. If Windows still crashes, the stack trace names the function: give it the `@_optimize(none)` treatment with a comment.
+8. **MetalUI drift.** Every MetalUI name was checked against `5f03ab7b`, master's pin (S11, S12 and the XP-G21 fix in it). A later MetalUI that renames a typed verb breaks the build in `SDLViewportPipelines`, `SDLViewportUploader`, `SDLViewportRenderer+Record`, `SDLViewportPicker` or the scripts' `MetalUICompileShaders` call, loudly; `ShaderToolchainTests` names the tool the scripts must run.
 9. **Real-clock tests on a loaded machine.** `ScrollZoomTests.theWheelSettlesOnlyOnceItHasBeenStillForTheWholeDelay` failed once in a full Linux run (see Verification). Task 5 removes the likeliest cause; if it recurs on a busy runner, the test (not xp-3's) needs a yield-based wait instead of a wall-clock one.
-
-10. **The SDL products on macOS (`SG-D`).** `CreatorViewport` and its tests name `metalUISDL` and `metalUISDLGPU`, both conditional on Linux and Windows. Task 5 builds the macOS tests from a clean state straight after the manifest change and it passed here (MetalUI `b15e038c`); a MetalUI or SwiftPM change that drops the module maps again would show as a missing `MetalUISDL` or `CSDL` module on macOS first, and the stop-and-decide note in task 5 says what to do.
-11. **A pipeline refused on a real driver names only its shaders.** The reason is MetalUI gap XP-G19; until it is answered, a Direct3D 12 failure is diagnosed by the shader pair in the message and by running the same pipeline on Vulkan.
-12. **Two branches number the same things.** xp-2 owns no gap (XP-G12 and XP-G13 are already on master) and owns human checks XP-16 to XP-18; xp-3 owns XP-G14 to XP-G20 and XP-19 to XP-25 (see "Shared files"). The agreement lives in both plans; a gap or check either side adds later takes the next free number after both blocks. **xp-2's plan reserved XP-G20 for "a gap found later"; this revision uses it (a build-time shader path), so xp-2's next is XP-G21: tell it.**
-
-13. **There is no DirectXShaderCompiler for Linux aarch64, so the shadercross image is amd64 everywhere.** Microsoft's `v1.9.2602` release has a Linux x86_64 tarball and a Windows zip only, and SDL_shadercross's own non-vendored Linux build downloads exactly those. On an aarch64 Mac (OrbStack) and on the `ubuntu-24.04-arm` CI runner the image therefore runs emulated: measured here, the stage built in about 12 minutes cold and the 16 shaders compiled in 1 min 40 s (OrbStack's emulation); GitHub's `ubuntu-24.04-arm` runner emulates through QEMU (`docker/setup-qemu-action`), slower than that, so budget 25 minutes for the first run and 4 to 6 per push for the compile. The compiled shaders do not depend on the host, so nothing else changes. Alternatives not taken: building DXC from SDL's `external/DirectXShaderCompiler` submodule (`-DSDLSHADERCROSS_VENDORED=ON`: an LLVM-sized build, hours, untried), or compiling on the x86_64 job and handing the directory to the aarch64 job as an artifact (a job dependency and a second path to keep in step). If the emulated first run is too slow on a CI runner, the second is the fix.
-14. **The Windows shadercross build has never run.** `scripts/install-shadercross.ps1` and the workflow steps follow SDL_shadercross's own Windows CI (`Build` workflow, MSVC row: prebuilt DXC, SPIRV-Cross built from the submodule, Ninja, `-DSDLSHADERCROSS_VENDORED=OFF`), but PowerShell is not installed on the Mac this was written on and no Windows machine ran it. Expect a fix or two on the first run: the SDL3 cmake config found through `CMAKE_PREFIX_PATH`, the runtime DLLs (`dxcompiler.dll`, `dxil.dll`, `spirv-cross-c-shared.dll`) that `-DSDLSHADERCROSS_INSTALL_RUNTIME=ON` copies beside the executable, and `ilammy/msvc-dev-cmd` exporting its `INCLUDE`/`LIB` to the later `swift build` steps (move it into a `cmd` step if Swift objects). The Windows job is `continue-on-error`, so the Linux result stays readable; its cache is `actions/cache/restore` + `save` keyed by the pin, saved right after a whole build.
-15. **`swift build` alone compiles no shader.** A developer who builds without `scripts/build-shaders.sh` (or `scripts/linux-test.sh`, which runs it) gets a binary whose SDL viewport has no shaders. It does not hide: `--self-test` and `--smoke-test` fail with a message that names the script and the pinned tool, the SDL suites fail on the first `verify()`, and a build older than an HLSL edit fails `ShaderSourceTests`. A SwiftPM plugin would remove the step but cannot write beside the executable or into the source tree, where MetalUI looks (U1, gap XP-G20); if MetalUI ever provides one, this script step goes.
+10. **The SDL products on macOS (`SG-D`).** `CreatorViewport` and its tests name `metalUISDL` and `metalUISDLGPU`, both conditional on Linux and Windows. Task 5 builds the macOS tests from a clean state straight after the manifest change and it passed (MetalUI `b15e038c`, before this revision; re-check it at `5f03ab7b`); a MetalUI or SwiftPM change that drops the module maps again would show as a missing `MetalUISDL` or `CSDL` module on macOS first, and the stop-and-decide note in task 5 says what to do.
+11. **A refused pipeline's reason is SDL's.** `compileGraphicsPipeline` (MetalUI S11, XP-G19) puts SDL's text in the error, but some drivers leave it empty; MetalUI then names the description's key fields (`GB-G`). On a Direct3D 12 failure with no text, run the same pipeline on Vulkan (lavapipe) to tell a bad register from a missing feature.
+12. **Numbering across branches.** XP-G21 is taken (the Windows release-build crash, fixed by MetalUI `5f03ab7b`, xp-2's row); xp-3 owns XP-G14 to XP-G20 and XP-G22, and human checks XP-20 to XP-26 (xp-2 took XP-16 to XP-19, XP-19 being the AppImage); the erratum is E7 (E6 is adopt-s9's). A gap any branch finds next takes XP-G23, a check XP-27.
+13. **The Linux shadercross stage is an LLVM build.** It builds libsdl-org's DirectXShaderCompiler fork from source with MetalUI's recipe, natively on x86_64 and aarch64 (MetalUI measured 6 min 45 s at `-j8` on Linux aarch64), so the first CI run on a new pin pays 15 to 30 minutes per arch and buildx's cache serves the rest; this replaces the earlier amd64-only image (Microsoft ships no Linux aarch64 DXC), which ran emulated on aarch64 and would now also have had to run Swift emulated for `MetalUICompileShaders`. If the stage fails to build on one arch, the fallbacks are MetalUI's: `--formats spv,msl,json` (no DXIL is needed on Linux; HLSL to SPIR-V still needs DXC), or compiling on the other job and handing the directory over as an artifact.
+14. **The Windows shadercross build has never run.** `scripts/install-shadercross.ps1` and the workflow steps follow SDL_shadercross's own Windows CI (`Build` workflow, MSVC row: prebuilt DXC, SPIRV-Cross built from the submodule, Ninja, `-DSDLSHADERCROSS_VENDORED=OFF`), but PowerShell is not installed on the Mac this was written on and no Windows machine ran it. Expect a fix or two on the first run: the SDL3 cmake config found through `CMAKE_PREFIX_PATH`, the runtime DLLs (`dxcompiler.dll`, `dxil.dll`, `spirv-cross-c-shared.dll`) that `-DSDLSHADERCROSS_INSTALL_RUNTIME=ON` copies beside the executable, and `Enter-VsDevShell` from Visual Studio's DevShell module inside the script (no action, so the later `swift` steps keep their environment). The Windows job is `continue-on-error`, so the Linux result stays readable; its cache is `actions/cache/restore` + `save` keyed by the pin, saved right after a whole build.
+15. **`swift build` alone compiles no shader.** A developer who builds without `scripts/build-shaders.sh` (or `scripts/linux-test.sh`, which runs it) gets a binary whose SDL viewport has no shaders. It does not hide: `--self-test` and `--smoke-test` fail with a message that names the script and the pinned tool, the SDL suites fail on the first `verify()`, and a build older than an HLSL edit fails `ShaderSourceTests`. MetalUI's `CompileShaders` command plugin (`swift package --allow-writing-to-package-directory compile-shaders --source Shaders/viewport --out Shaders/viewport/compiled`) does the same compile from this package; MetalUI offers no build-tool plugin (ruling `BS-D`), so a step stays.
 16. **The pin is a commit of a repository with no release and no tag.** GitHub serves any commit reachable from a branch by its SHA, so `git fetch origin <sha>` keeps working while it stays on `main`; if SDL force-pushed `main`, the fetch would fail and the build would stop (naming the tool and the commit). Mitigation if that happens: mirror the commit into a repository of ours and change `SHADERCROSS_REPOSITORY` (one line). Moving the pin is one commit in `scripts/shadercross.env` plus the Dockerfile's `ARG`, and `ShaderToolchainTests` fails until both agree.
-17. **SDL_shadercross's runtime option is left off on Linux, and what the stage fetches.** `-DSDLSHADERCROSS_INSTALL_RUNTIME=ON` (its own CI's setting) makes its CMake clone SPIRV-Headers, Vulkan-Headers and Vulkan-Loader at `GIT_TAG main` and download and build vkd3d 2.0, for a Direct3D-bytecode path the viewport does not use (its DXIL comes from DXC); that would make the pin partial and took 8 of the first build's 19 emulated minutes. The stage therefore leaves `INSTALL_RUNTIME` OFF and copies `libdxcompiler.so`, `libdxil.so` and `libspirv-cross-c-shared.so` beside the binary: everything it fetches is pinned (SDL by tag, SDL_shadercross by commit with its submodules, DXC by URL and SHA-256); only Ubuntu's apt packages are not. The 16 shaders compile to byte-identical files with and without the option (measured). The Windows script keeps the option ON, as SDL_shadercross's own Windows CI does, because there it only copies DLLs.
+17. **What the Linux stage fetches.** SDL by tag, SDL_shadercross by commit and its four submodules by the commits it records; `-DSDLSHADERCROSS_INSTALL_RUNTIME` is OFF, because ON makes its CMake clone Vulkan-Headers and Vulkan-Loader at `GIT_TAG main` and build vkd3d, for a Direct3D-bytecode path the viewport does not use. Only Ubuntu's apt packages are unpinned. The Windows script keeps the option ON, as SDL_shadercross's own Windows CI does, because there it only copies DLLs.
 18. **Files made by the container in the worktree.** `scripts/linux-test.sh` runs the compile in a container that mounts the repository read-write, so `Shaders/viewport/compiled` belongs to whoever Docker maps (OrbStack: the user; Docker on a Linux host: root, which the next `rm -rf` of a plain user cannot remove). It is git-ignored either way.
-
-## Appendix: the request to MetalUI
-
-The change that answers XP-G15, XP-G16, XP-G17 and XP-G18 (XP-G14 and XP-G19 are not in it), as a patch against MetalUI `b15e038c`, `Backends/SDL/Sources/MetalUISDLGPU`. Tasks 10 to 12 were built and tested against a copy of MetalUI with exactly this patch applied (never against `../MetalUI`, which this repository does not modify). It carries no MetalUI tests; MetalUI will want some.
-
-```diff
---- a/Backends/SDL/Sources/MetalUISDLGPU/SDLGPUTexture.swift
-+++ b/Backends/SDL/Sources/MetalUISDLGPU/SDLGPUTexture.swift
-@@ -14,6 +14,8 @@
-     case b8g8r8a8Unorm
-     /// `SDL_GPU_TEXTUREFORMAT_R32_UINT`: one 32-bit integer, for an ID pass.
-     case r32Uint
-+    /// `SDL_GPU_TEXTUREFORMAT_R32_FLOAT`: one 32-bit float, for a grid of values a shader reads.
-+    case r32Float
-     /// `SDL_GPU_TEXTUREFORMAT_D32_FLOAT`: a depth target.
-     case d32Float
- 
-@@ -23,6 +25,7 @@
-         case .r8g8b8a8Unorm: return SDL_GPU_TEXTUREFORMAT_R8G8B8A8_UNORM
-         case .b8g8r8a8Unorm: return SDL_GPU_TEXTUREFORMAT_B8G8R8A8_UNORM
-         case .r32Uint: return SDL_GPU_TEXTUREFORMAT_R32_UINT
-+        case .r32Float: return SDL_GPU_TEXTUREFORMAT_R32_FLOAT
-         case .d32Float: return SDL_GPU_TEXTUREFORMAT_D32_FLOAT
-         }
-     }
-@@ -31,7 +34,7 @@
-     public var bytesPerTexel: Int {
-         switch self {
-         case .r8Unorm: return 1
--        case .r8g8b8a8Unorm, .b8g8r8a8Unorm, .r32Uint: return 4
-+        case .r8g8b8a8Unorm, .b8g8r8a8Unorm, .r32Uint, .r32Float: return 4
-         case .d32Float: return 0
-         }
-     }
---- a/Backends/SDL/Sources/MetalUISDLGPU/SDLGPUGraphics.swift
-+++ b/Backends/SDL/Sources/MetalUISDLGPU/SDLGPUGraphics.swift
-@@ -28,15 +28,18 @@
-     public var repeats: Bool
-     /// The highest mip level sampled (`max_lod`).
-     public var maxLevel: Float
-+    /// Anisotropic filtering up to this many samples (`max_anisotropy`); 1 turns it off.
-+    public var maxAnisotropy: Float
- 
-     /// A clamping sampler of `filter` that reaches every mip level.
-     public init(filter: SDLGPUFilter = .linear, mipmapFilter: SDLGPUFilter = .linear, repeats: Bool = false,
--                maxLevel: Float = 1000) {
-+                maxLevel: Float = 1000, maxAnisotropy: Float = 1) {
-         minFilter = filter
-         magFilter = filter
-         self.mipmapFilter = mipmapFilter
-         self.repeats = repeats
-         self.maxLevel = maxLevel
-+        self.maxAnisotropy = maxAnisotropy
-     }
- }
- 
-@@ -216,13 +219,15 @@
-     public var sampleCount: SDLGPUSampleCount
-     /// The depth test, or `nil` for a pipeline with no depth target.
-     public var depth: SDLGPUDepthState?
-+    /// `false` writes no colour (`SDL_GPUColorTargetBlendState.color_write_mask` empty): a depth-only draw.
-+    public var writesColor: Bool
- 
-     /// A description over two library stages.
-     public init(vertex: SDLGPUShaderBlob, fragment: SDLGPUShaderBlob,
-                 vertexBuffers: [SDLGPUVertexBufferDescription] = [], vertexAttributes: [SDLGPUVertexAttribute] = [],
-                 primitiveType: SDLGPUPrimitiveType = .triangleList, cullMode: SDLGPUCullMode = .none,
-                 colorFormat: SDLGPUTextureFormat = .b8g8r8a8Unorm, blend: SDLGPUBlend = .none,
--                sampleCount: SDLGPUSampleCount = .one, depth: SDLGPUDepthState? = nil) {
-+                sampleCount: SDLGPUSampleCount = .one, depth: SDLGPUDepthState? = nil, writesColor: Bool = true) {
-         self.vertex = vertex
-         self.fragment = fragment
-         self.vertexBuffers = vertexBuffers
-@@ -233,6 +238,7 @@
-         self.blend = blend
-         self.sampleCount = sampleCount
-         self.depth = depth
-+        self.writesColor = writesColor
-     }
- }
- 
-@@ -354,6 +360,8 @@
-         info.address_mode_w = address
-         info.min_lod = 0
-         info.max_lod = description.maxLevel
-+        info.enable_anisotropy = description.maxAnisotropy > 1
-+        info.max_anisotropy = description.maxAnisotropy
-         guard let sampler = create({ SDL_CreateGPUSampler($0, &info) }) else { return nil }
-         return SDLGPUSampler(raw: sampler, device: self)
-     }
-@@ -394,6 +402,10 @@
-             blend.src_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE
-             blend.dst_alpha_blendfactor = SDL_GPU_BLENDFACTOR_ONE_MINUS_SRC_ALPHA
-             blend.alpha_blend_op = SDL_GPU_BLENDOP_ADD
-+        }
-+        if !description.writesColor {
-+            blend.enable_color_write_mask = true
-+            blend.color_write_mask = 0
-         }
-         var color = SDL_GPUColorTargetDescription()
-         color.format = description.colorFormat.sdl
-@@ -572,6 +584,18 @@
-         }
-     }
- 
-+    /// Sets the viewport the next draws map clip space into (`SDL_SetGPUViewport`), in target pixels from the top left.
-+    public func setViewport(x: Float, y: Float, width: Float, height: Float, minDepth: Float = 0, maxDepth: Float = 1) {
-+        var viewport = SDL_GPUViewport(x: x, y: y, w: width, h: height, min_depth: minDepth, max_depth: maxDepth)
-+        SDL_SetGPUViewport(raw, &viewport)
-+    }
-+
-+    /// Sets the scissor rectangle the next draws are clipped to (`SDL_SetGPUScissor`), in target pixels from the top left.
-+    public func setScissor(x: Int, y: Int, width: Int, height: Int) {
-+        var rect = SDL_Rect(x: Int32(x), y: Int32(y), w: Int32(width), h: Int32(height))
-+        SDL_SetGPUScissor(raw, &rect)
-+    }
-+
-     /// Draws `instanceCount` instances of `vertexCount` vertices
-     /// (`SDL_DrawGPUPrimitives`); the shader reads `SV_InstanceID`.
-     public func draw(vertexCount: Int, instanceCount: Int = 1, firstVertex: Int = 0, firstInstance: Int = 0) {
-```
-
+19. **`swift run` on a read-only MetalUI.** `scripts/build-shaders.sh` builds `MetalUICompileShaders` with `swift run --package-path ../MetalUI --scratch-path …`; in the container `../MetalUI` is mounted read-only. Measured on macOS against a read-only copy of `5f03ab7b`: it builds and writes nothing there (MetalUI has no remote dependency, so no `Package.resolved`). If a SwiftPM on Linux wants to write into the package anyway, build the tool from this package's own graph instead (`swift build --product MetalUICompileShaders --scratch-path /build`, MetalUI being a path dependency) and run it from `--show-bin-path`; MetalUI's docs name `swift run --package-path .build/checkouts/MetalUI` as the certain fallback for a URL dependency.
+20. **XP-G22 may take a while.** Until MetalUI submits a render batch without `await`, a click whose buffer has not landed is delivered a few milliseconds late. That is exact (the click's own view, the press's tool and projector: task 2's tests) and blocks nothing; task 7 step 6 is ready against the requested signature and changes only `SDLViewportPicker.renderNow` if MetalUI spells it differently.
 
 ## Self-review
 
-- **Revision of 2026-10-21 (U1(b)).** No compiled file, hash file or blob remains in the plan: the checked-in `compiled` directory, `SOURCE.sha256` and `INCLUDES.sha256` are build products (`.gitignore`), the hash-check tests are replaced by `ShaderSourceTests.theBuildCompiledEveryStageIntoTheDirectoryTheRendererReads` and `ViewportShaderDirectoryTests.aMissingDirectoryFailsTheSelfTestCheckWithAMessageThatSaysWhatToRun`, a missing or failing shadercross stops `scripts/build-shaders.sh`/`.ps1` naming the tool and its pinned commit (`ShaderToolchainTests`), the pin is written once (`scripts/shadercross.env`), the Dockerfile has a `shadercross` stage beside xp-2's `occt`, and tasks 10 and 12 no longer commit `compiled`. Counts, CI time, Risks 13 to 18, the shared-files rows and the decisions section follow. XP-G20 is logged.
-- **Spec coverage (section 4 and the task list).** Renderer behind a protocol, Metal kept: task 2. The same passes on SDL: 4x MSAA and depth (6), instanced lines (6), the ID-pass picker with readback (7), label texture (10), slice texture (12), field tint, `ViewportClip`, warning faces, guides, overlay fills (6), triad and cube (10), ghosts (6, 11). HLSL to SPIR-V/DXIL/MSL through MetalUI's path: 4. `Matrix4`/`FrameUniforms` off `simd`, `GPUDataTests` in sync: 1 and 4. `CubeLabelAtlas` through portable text: 3. `ViewportPlaceholder` replaced: 8. MetalUI gaps logged, never worked around: 0 and the appendix. Tests: model-side portable (2), renderer tests under lavapipe and WARP (5 to 12), the picker's readback (7), gating and `XP_REQUIRE_GPU` (0, 5, 9), human checks (9), `--smoke-test` draws the real viewport (8). Constraints: CLAUDE.md portability (every SDL file is `#if canImport(MetalUISDLGPU)`), non-async heavy loops (7), Linux via `scripts/linux-test.sh` with `XP_TRACK=xp-3` (0), Windows in CI only (9), macOS stays at 12 "Test run with" lines (no new target). Out of scope respected: no compute (xp-c), Mesh items draw (6). Erratum E1 is honoured (`CreatorViewport` stays declared everywhere).
-- **Placeholder scan.** No "TBD" or "add error handling": every step is code or a command. The only values left to the executor are facts of the outside world: the MetalUI commit adopted in tasks 10 to 12 (`git -C ../MetalUI rev-parse HEAD`) and, on Windows, where the developer built shadercross (`-ShaderCross`).
-- **Type consistency.** `SDLViewportRenderer.init(device:pipelines:)` and `init(device:library:)` (task 6) become `init(device:pipelines:labelAtlas:)` and `init(device:library:labelAtlas:)` in task 10 and the callers (`SDLViewportBackend`, `SDLRenderRig`) change in the same task; `SDLFramePlan` gains `cube`, `triad` (10) and `slice` (12); `SDLViewportPipelines` gains `cube` (10), `ghostDepth` (11), `slice` (12); `SDLViewportShaders.names` grows with them and `ShaderSourceTests` counts follow (16, 18, 20); `SliceTextures.filled` (Metal) becomes `SliceTextureValues.filled` in task 12.
-- **Review Focus.** Each of the six lines has its test in the task named there.
-- **Review round 2 (cross-track and cube).** Gap and human-check numbers are agreed with xp-2 (XP-G12 and XP-G13 are already on master, XP-16 to XP-18 are xp-2's; this plan uses XP-G14 to XP-G19 and XP-19 to XP-25) and the shared-files table says what the second merge keeps. The Linux script uses xp-2's argument form (`test --filter NAME`), an `IMAGE` of its own and the count rule 11-then-12. `ViewportBackend.drawsWidgets` and `ViewportModel.cubeCatches(_:)` stop the model hit-testing a cube that is not drawn (task 2, switched on in task 10). `CreatorViewport` and its tests name `metalUISDL` as well as `metalUISDLGPU`, with a clean macOS build as the `SG-D` check (task 5). No raw `SDL_GetError()` call remains: the reason a pipeline was refused is gap XP-G19. A waiting click keeps the tool and projector of its press, and the waiting path has tests that fail without it. Test totals are baseline-plus-delta.
+- **Revision of 2026-10-22 (start of execution).** Rebased on master `1aad412` (xp-2 merged). MetalUI's answers are in: task 0 logs XP-G1, XP-G2 and XP-G14 to XP-G20 as answered, with S11 `11dca65e` and S12 `d995f4b4`, and XP-G22 (a render batch submitted without `await`) as the one open gap; tasks 10 to 12 have no gate and use `setViewport(…) -> Bool`, `maxAnisotropy:`, `writesColor:` and `r32Float` as MetalUI spells them; pipelines come from `compileGraphicsPipeline` with SDL's reason in `ViewportRenderError.deviceRefused` (task 5, and the pipeline diffs of tasks 10 and 11 rebuilt on it); the appendix that patched MetalUI is gone and `METALUI_COMMIT` is not bumped (except by task 7 step 6, if XP-G22 lands). The scripts run `MetalUICompileShaders` from `../MetalUI` with a scratch path of ours; the freshness check stays on the `SOURCE.sha256` it writes, plus our `INCLUDES.sha256` (U1, task 4). U4 is hybrid (U4, Key decisions, Review Focus 3, task 2's and task 7's text, task 7 step 6, Risks 4 and 20). Checks are XP-20 to XP-26 in group XP3 and the erratum is E7, everywhere (the shared-files table, task 3's and task 8's notes, CLAUDE.md, the Risks). Task 0, task 4's Docker and CI steps and task 9 are rewritten against master's files (no re-added test arguments, `IMAGE`, count, SHA pins or vcpkg steps; every `uses:` SHA-pinned), and the packages now ship `MetalUIAppShaders` with clean-environment checks (task 9, Review Focus 7). The Windows compiler rules and the process, MetalUI and CRLF rules are Global Constraints, with the asserts-snapshot release build in tasks 2, 7 step 6 and 9.
+- **Spec coverage (section 4 and the task list).** Renderer behind a protocol, Metal kept: task 2. The same passes on SDL: 4x MSAA and depth (6), instanced lines (6), the ID-pass picker with readback (7), label texture (10), slice texture (12), field tint, `ViewportClip`, warning faces, guides, overlay fills (6), triad and cube (10), ghosts (6, 11). HLSL to SPIR-V/DXIL through the path MetalUI provides (`MetalUICompileShaders`, MetalUI S12): 4. `Matrix4`/`FrameUniforms` off `simd`, `GPUDataTests` in sync: 1 and 4. `CubeLabelAtlas` through portable text: 3. `ViewportPlaceholder` replaced: 8. Packaging ships the shaders: 9. MetalUI gaps logged, never worked around: 0. Tests: model-side portable (2), renderer tests under lavapipe and WARP (5 to 12), the picker's readback (7), gating and `XP_REQUIRE_GPU` (0, 5, 9), human checks (9), `--smoke-test` draws the real viewport (8). Constraints: CLAUDE.md portability (every SDL file is `#if canImport(MetalUISDLGPU)`), non-async heavy loops and no closure-taking `async` function (7), Linux via `scripts/linux-test.sh` with `XP_TRACK=xp-3` (0), Windows in CI only, release build included (9), 12 "Test run with" lines everywhere (no new target). Out of scope respected: no compute (xp-c), Mesh items draw (6). Erratum E1 is honoured (`CreatorViewport` stays declared everywhere).
+- **Placeholder scan.** No "TBD" or "add error handling": every step is code or a command. The values left to the executor are facts of the outside world: the baselines of task 0, the MetalUI commit that answers XP-G22 (task 7 step 6), and on Windows where the developer built shadercross (`-ShaderCross`).
+- **Type consistency.** `ViewportBackend.pickWhenReady(at:in:)` is `async` from task 2 to task 8 (and `SDLViewportPicker.pickWhenReady`, `SDLViewportBackend.pickWhenReady` with it) and synchronous after task 7 step 6, which changes the protocol, its default, `ViewportModel.pickWhenReady`, `install(_:)`, `click(at:modifiers:)`, the picker, the backend and both tests together; `SDLViewportPicker`'s `land(_:for:ticket:)` takes a ticket only from step 6. `SDLViewportPipelines.init(device:library:)`'s `pipeline(…)` helper gains `cull:` (10) and `writesColor:` (11) on the `compileGraphicsPipeline` form of task 5. `SDLViewportRenderer.init(device:pipelines:)` and `init(device:library:)` (task 6) become `init(device:pipelines:labelAtlas:)` and `init(device:library:labelAtlas:)` in task 10 and the callers (`SDLViewportBackend`, `SDLRenderRig`) change in the same task; `SDLFramePlan` gains `cube`, `triad` (10) and `slice` (12); `SDLViewportPipelines` gains `cube` (10), `ghostDepth` (11), `slice` (12); `SDLViewportShaders.names` grows with them and the stage counts follow (16, 18, 20; 66, 74, 82 compiled files); `SliceTextures.filled` (Metal) becomes `SliceTextureValues.filled` in task 12. `ShaderToolchainTests`' first test is `thePinIsWrittenOnceAndTheScriptsCompileThroughMetalUIsTool`.
+- **Interfaces blocks.** Re-read for every task against the code it carries: task 0 (master's script, the gap rows), task 4 (MetalUI's tool and marker in, the scripts' exit codes, `METALUI_TOOLS_SCRATCH`, `compile_shaders`, `SHADERCROSS_IMAGE`/`JOBS` and `/opt/shadercross` out), task 5 (`compileGraphicsPipeline`), task 7 (the async verbs, and step 6's `waitBlocking`, `downloadSynchronously`, `submitBatchSynchronously`), task 9 (`MetalUIAppShaders` in the packages), tasks 10 to 12 (MetalUI S11's verbs).
+- **Review Focus.** Each of the seven lines has its test or check in the task named there.
+- **Applied, not built.** Every code block and diff of tasks 0 to 12, in order (task 7 step 6 after task 8), applies to an export of `1aad412` (136 operations, no reject); see Verification for what was built and run.
+- **Earlier rounds.** Review round 2 (cross-track and cube) and the 2026-10-21 U1(b) revision stand as amended above: `drawsWidgets` and `cubeCatches(_:)` (task 2, switched on in task 10), `metalUISDL` beside `metalUISDLGPU` with a clean macOS build as the `SG-D` check (task 5), no raw `SDL_` call, a waiting click keeping the tool and projector of its press (with tests that fail without it), baseline-plus-delta counts.
