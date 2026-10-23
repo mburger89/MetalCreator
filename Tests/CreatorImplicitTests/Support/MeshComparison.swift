@@ -1,4 +1,5 @@
 import CreatorGeometry
+import Testing
 @testable import CreatorImplicit
 
 /// How far apart two meshes' vertices are, matched by nearness: every vertex of each mesh against the nearest of the other's. Two
@@ -21,6 +22,9 @@ struct MeshComparison {
     var worstScaledDetail: (along: Float, allowed: Float) = (0, 1e-4)
     /// Vertices of either mesh with none of the other's within `searchRadius`.
     var unmatched = 0
+    /// Vertices (of either mesh) with a NaN or infinite coordinate; when not zero nothing else was compared and every figure above
+    /// is a failing one.
+    var nonFinite = 0
 
     /// The surface distance allowed where the field's slope (the magnitude of its gradient) is `slope`: 1e-4 mm divided by the slope,
     /// never less than 1e-4 mm (a value difference of 1e-4 moves the surface 1e-4 / slope).
@@ -33,6 +37,15 @@ struct MeshComparison {
     /// GPU mesh comparison leaves out the neighbourhood of a mapping's singular set (spec Errata D20).
     init(reference: TriangleMesh, candidate: TriangleMesh, searchRadius: Float = 0.01, slopes: [Float] = [],
          excluding: (SIMD3<Float>) -> Bool = { _ in false }) {
+        // A vertex that is NaN or infinite cannot be put in a grid cell (converting it to Int32 traps): say which, and fail.
+        let broken = Self.nonFiniteVertices(reference, "reference") + Self.nonFiniteVertices(candidate, "candidate")
+        if !broken.isEmpty {
+            Issue.record("MeshComparison: \(broken.count) vertices are not finite; the first is \(broken[0])")
+            (farthest, farthestAlongNormal, smallestNormalDot, worstScaledSurface) = (.infinity, .infinity, -1, .infinity)
+            unmatched = broken.count
+            nonFinite = broken.count
+            return
+        }
         let forward = Self.directed(from: candidate, to: reference, radius: searchRadius, slopes: slopes, excluding: excluding)
         worstScaledSurface = forward.ratio
         worstScaledDetail = (forward.along, forward.allowed)
@@ -41,6 +54,13 @@ struct MeshComparison {
         farthestAlongNormal = forward.alongNormal
         smallestNormalDot = forward.smallestDot
         unmatched = forward.unmatched + backward.unmatched
+    }
+
+    /// The vertices of `mesh` with a non-finite coordinate, each described by its mesh, index and position.
+    private static func nonFiniteVertices(_ mesh: TriangleMesh, _ label: String) -> [String] {
+        mesh.positions.enumerated().compactMap { index, point in
+            point.x.isFinite && point.y.isFinite && point.z.isFinite ? nil : "\(label) vertex \(index) at \(point)"
+        }
     }
 
     private static func cell(_ point: SIMD3<Float>, _ radius: Float) -> SIMD3<Int32> {

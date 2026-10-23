@@ -10,6 +10,19 @@ struct MeshComparisonTests {
         #expect(comparison.farthest == 0 && comparison.unmatched == 0)
     }
 
+    @Test func aNonFiniteVertexIsAnIssueAndAFailedComparisonNotACrash() {
+        for bad in [Float.nan, .infinity, -.infinity] {
+            var candidate = Self.cube
+            candidate.positions[2].y = bad
+            var result: MeshComparison?
+            withKnownIssue("MeshComparison records the non-finite vertex") {
+                result = MeshComparison(reference: Self.cube, candidate: candidate)
+            }
+            #expect(result?.nonFinite == 1 && result?.unmatched == 1 && result?.farthest == .infinity)
+            #expect((result?.worstScaledSurface ?? 0) > 1 && (result?.smallestNormalDot ?? 1) < 0)
+        }
+    }
+
     @Test func aSlideAlongTheSurfaceIsCountedInFarthestAndNotAlongTheNormal() {
         let normals = [SIMD3<Float>](repeating: SIMD3(0, 0, 1), count: 8)
         let reference = TriangleMesh(positions: Self.cube.positions, normals: normals, triangles: Self.cube.triangles)
