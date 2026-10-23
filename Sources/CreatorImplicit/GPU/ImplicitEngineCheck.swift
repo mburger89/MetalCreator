@@ -4,7 +4,7 @@
 public enum ImplicitEngineCheck {
     public static func run() async -> String {
         guard let engine = ImplicitGPUEngines.platformDefault else {
-            return "the CPU (no GPU engine on this platform yet: SDL_GPU run-time compilation waits for MetalUI XP-G25)"
+            return "the CPU (no GPU engine on this platform)"
         }
         switch await engine.availability {
         case .available: return "\(engine.name) on \(await engine.deviceName)"

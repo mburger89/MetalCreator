@@ -27,10 +27,10 @@ final class SDLComputeBackend: ImplicitComputeBackend {
         self.kernels = kernels
     }
 
-    /// `.absent` without a device; the provider's own reason when it cannot give kernels here.
+    /// `.absent` without a device; then the provider's own reason when it cannot give kernels here.
     static func make(kernels: any SDLKernelProvider) -> ComputeBackendState {
-        if let unavailable = kernels.unavailability { return unavailable }
         guard let device = SDLGPUDevice.make() else { return .absent("no SDL_GPU device: \(SDLGPUDevice.lastFailure)") }
+        if let unavailable = kernels.unavailability { return unavailable }
         return .ready(SDLComputeBackend(device: device, kernels: kernels))
     }
 

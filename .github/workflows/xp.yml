@@ -50,7 +50,7 @@ concurrency:
 
 env:
   METALUI_REPOSITORY: mburger89/MetalUI
-  METALUI_COMMIT: ff0db06e9cdb8d11de8ee2210f695eb08da271fe
+  METALUI_COMMIT: f1c422e52b0ae917dd5c06730dd79521e3489d15
   # microsoft/vcpkg at the commit whose ports/opencascade is 7.9.3 (port-version 1). packaging/windows/vcpkg.json names the same
   # commit as its builtin-baseline; CIPinTests checks they agree.
   VCPKG_COMMIT: 256310531c1e57ee83f8ac01f7bea7c1e56630f5
@@ -243,6 +243,10 @@ jobs:
         with:
           path: ${{ runner.temp }}\shadercross
           key: ${{ steps.shadercross-cache.outputs.cache-primary-key }}
+      - name: Point the tests at the shader compiler
+        # MetalUI's run-time compiler (XP-G25) tries METALUI_SHADERCROSS_LIB first (MetalUI docs/packaging.md 4b). The zip's own check clears it
+        # (scripts/package-windows.ps1), so a zip without the DLLs still fails there.
+        run: '"METALUI_SHADERCROSS_LIB=$env:RUNNER_TEMP\shadercross\bin" >> $env:GITHUB_ENV'
       - name: Fetch AccessKit
         working-directory: MetalUI/Backends/SDL
         # One SwiftPM flag per line: -Xcc -I<include> -Xswiftc -L<lib> (MetalUI PX-I item 2).
