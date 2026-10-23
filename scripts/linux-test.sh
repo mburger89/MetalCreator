@@ -2,7 +2,7 @@
 # Builds and tests MetalCreator on Linux in Docker (OrbStack on this Mac runs aarch64 containers; CI runs the same script
 # on x86_64 and aarch64 runners). Cross-platform spec 2.5, 2.6.
 #
-#   scripts/linux-test.sh [build|test|smoke|package|all] [swift test arguments]    default: all
+#   scripts/linux-test.sh [build|test|smoke|package|kernels|all] [swift test arguments]    default: all
 #     build   swift build
 #     test    swift test, judged by the pass rule below. Arguments after `test` (for example `--filter CreatorOCCTTests`) go to
 #             swift test and switch the count rule off: only the exit code and the issue lines are judged.
@@ -13,6 +13,7 @@
 #             each run in a clean ubuntu:24.04 (no Swift, no /opt/occt, no MetalUI checkout, no FUSE) and must pass --version and
 #             --self-test there (the AppImage with --appimage-extract-and-run); the desktop entry is validated
 #     all     build, test and smoke, in that order (not package: a release build is slow)
+#     kernels exports the implicit engine's generated HLSL kernels and compiles them offline into .build/generated-kernels (plan xp-c; until MetalUI XP-G25)
 #   scripts/linux-test.sh clean                     removes this track's build volume
 #
 # Needs MetalUI checked out beside this repository (../MetalUI), which Package.swift's path dependency expects. The repository
@@ -95,6 +96,12 @@ compile_shaders() {
     in_container 'METALUI_TOOLS_SCRATCH=/build/metalui-tools scripts/build-shaders.sh'
 }
 
+# The implicit engine's generated kernels, compiled offline for the tests (plan xp-c, task 3): export them with the test target, then compile the new ones.
+compile_kernels() {
+    in_container 'XP_EXPORT_KERNELS=1 swift test --scratch-path /build --filter GeneratedKernelExport >/dev/null \
+        && METALUI_TOOLS_SCRATCH=/build/metalui-tools scripts/compile-generated-kernels.sh'
+}
+
 do_build() {
     compile_shaders || return 1
     in_container 'swift build --scratch-path /build'
@@ -167,6 +174,7 @@ do_test() {
     # printf %q keeps a filter like 'A|B' one word through the container's shell.
     if [ "${#TEST_ARGS[@]}" -gt 0 ]; then printf -v quoted ' %q' "${TEST_ARGS[@]}"; fi
     compile_shaders || { echo "Linux: FAIL (the viewport's shaders did not compile; see above)" >&2; return 1; }
+    compile_kernels || { echo "Linux: FAIL (the generated kernels did not compile; see above)" >&2; return 1; }
     in_container "swift test --scratch-path /build$quoted" 2>&1 | tee "$LOG" || status=$?
     local clean runs tests
     clean=$(sed $'s/\x1b\\[[0-9;]*m//g' "$LOG")
@@ -189,7 +197,8 @@ case $step in
     build) do_build ;;
     test) do_test ;;
     smoke) do_smoke ;;
+    kernels) compile_shaders && compile_kernels ;;
     package) do_package ;;
     all) do_build && do_test && do_smoke ;;
-    *) echo "usage: scripts/linux-test.sh [build|test|smoke|package|all|clean]" >&2; exit 64 ;;
+    *) echo "usage: scripts/linux-test.sh [build|test|smoke|package|kernels|all|clean]" >&2; exit 64 ;;
 esac

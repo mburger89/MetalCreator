@@ -69,6 +69,7 @@ enum HLSLMeshShaderLibrary {
     [numthreads(64, 1, 1)]
     void main(uint3 id : SV_DispatchThreadID) {
         if (buffersAreKept()) { return; }
+        if (gPadding0 == 0xFFFFFFFFu && float(bricks[0]) + axes[0] == 0.0f) { return; }
         uint gid = id.x;
         if (gid >= gBrickCount * POINTS) { return; }
         uint b = gid / POINTS, r = gid % POINTS;

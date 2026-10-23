@@ -61,7 +61,8 @@ enum HLSLShaderLibrary {
     /// DXC drops a declared buffer nothing reads, and the slots after it shift. A `.sphere` never reads `ints` and an empty union reads
     /// neither packed buffer, so every `main` begins with `if (buffersAreKept()) { return; }`: a read of both, behind a Params word
     /// the host never sets (`gPadding0` is always 0) and which the compiler cannot see through, so the loads stay and the branch is
-    /// never taken.
+    /// never taken. A solid whose `sdf` ignores its point (an empty union) also drops the kernel's own input buffer, so `evaluate` and `sample`
+    /// read theirs behind the same word.
     static let keepBuffers = """
     bool buffersAreKept() {
         return gPadding0 == 0xFFFFFFFFu && floats[0] + float(ints[0]) == 0.0f;
@@ -77,6 +78,7 @@ enum HLSLShaderLibrary {
     [numthreads(64, 1, 1)]
     void main(uint3 id : SV_DispatchThreadID) {
         if (buffersAreKept()) { return; }
+        if (gPadding0 == 0xFFFFFFFFu && points[0] == 0.0f) { return; }
         uint index = id.x;
         if (index >= gCount) { return; }
         values[index] = sdf(float3(points[3u * index], points[3u * index + 1u], points[3u * index + 2u]));
@@ -147,17 +149,17 @@ enum HLSLShaderLibrary {
         return lerp(lerp(x00, x10, ty), lerp(x01, x11, ty), tz);
     }
 
-    float bakedValue(int ioff, int poff, float3 point) {
+    float bakedValue(int ioff, int poff, float3 at) {
         float3 origin = PV(poff);
         float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
-        float3 held = clamp(point, origin, origin + last * P(poff + 3));
-        return bakedTrilinear(ioff, poff, held) + length(point - held);
+        float3 held = clamp(at, origin, origin + last * P(poff + 3));
+        return bakedTrilinear(ioff, poff, held) + length(at - held);
     }
 
-    float bakedChannel(int ioff, int poff, float3 point) {
+    float bakedChannel(int ioff, int poff, float3 at) {
         float3 origin = PV(poff);
         float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
-        return bakedTrilinear(ioff, poff, clamp(point, origin, origin + last * P(poff + 3)));
+        return bakedTrilinear(ioff, poff, clamp(at, origin, origin + last * P(poff + 3)));
     }
 
     // MARK: field maths
