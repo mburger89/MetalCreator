@@ -77,7 +77,7 @@ preview in the viewport, STL of meshes with the export sheet, file format 8 and 
 Implicit geometry, sub-project 7c-1g (meshing on the GPU, spec Errata D13: `ImplicitGPUEngine.meshBricks`, the Metal marching-cubes
 kernels with a CPU-against-GPU mesh agreement suite, and rows i-1 and i-2 measured on that path; plan
 `docs/superpowers/plans/2026-10-14-7c-1g-gpu-meshing.md`) code is done; its human check (IM-13) is pending and its benchmark numbers are
-recorded in `docs/verification/performance.md`. The SDL3 engine for Linux and Windows is track xp-c.
+recorded in `docs/verification/performance.md`. Linux and Windows follow macOS since xp-c (below).
 Implicit geometry, sub-project 7c-3 (the mesh tools: Decimate, Check Thin Walls, Check Trapped Volumes, Drain Holes and Mesh to Solid;
 3MF with our own `ZipWriter`; the streamed export of spec Errata D12; the Cut view; `ImplicitBench` rows i-4b to i-7; the lightweight
 bracket acceptance test; plan `docs/superpowers/plans/2026-10-14-7c-3-mesh-tools.md`, spec `2026-10-13-implicit-lattices-design.md` §3.6,
@@ -162,6 +162,8 @@ bytes for every platform) and `AppTestImages` (plain Swift). Pass
 rules: macOS, Linux and Windows, exit 0 and 12 "Test run with" lines (`CreatorOCCTTests` joined Linux and Windows in xp-2;
 `CreatorImplicitTests` joined in 7c; a shim, kernel or test that needs OpenCascade is no longer gated by `canImport(CreatorOCCT)`
 alone: one that also needs Metal says `canImport(Metal) && canImport(CreatorOCCT)`), and none may print "recorded an issue" or "failed after".
+
+Cross-platform, sub-project xp-c (implicit evaluation and meshing on SDL GPU, Linux and Windows; plan `docs/superpowers/plans/2026-10-22-xp-c-sdl-gpu-meshing.md`, erratum E8, implicit D21): `ImplicitCompiler.Generator` has a `ShaderDialect` (the MSL is byte-identical, `MetalSourceDigests` pins it; edit a generator case once, for both). `ImplicitCompiler.compileHLSL` and `HLSLShaderLibrary`/`HLSLMeshShaderLibrary` are the HLSL side (edit the MSL library and its HLSL twin together; `HLSLSourceTests` checks the `sdf` statement for statement, the registers and the forbidden constructs). `HLSLImplicitEngine` runs over `ImplicitComputeBackend` (`SDLComputeBackend` with an `SDLKernelProvider`; `MSLComputeBackend` in the Mac's tests). The offline kernels come from `scripts/linux-test.sh kernels` into `.build/generated-kernels` and `GeneratedKernels.solids` (add a new test shape there). Engines report `availability`. Until MetalUI's XP-G25 is adopted the app's engine off macOS is the CPU. The GPU suites run over `GPUEnginesUnderTest.names`. Gaps XP-G23 to XP-G25 are open in `docs/metalui-gaps.md`; human checks XP-27 to XP-29.
 
 Module boundaries (dependency order):
 - `CreatorGeometry`: value types (vectors, planes, profiles, bounds). Millimetres.
@@ -782,6 +784,7 @@ scripts/bench.sh [suite]                   # spec §7.3 benchmarks, release buil
 scripts/bench.sh PatternBench              # patterns spec §7: 200 holes in a plate, edit-to-preview (idle Mac only)
 scripts/linux-test.sh [build|test|smoke|package|all|clean]   # the suite on Linux in Docker (OrbStack): swift build, swift test (12 "Test run with" lines), --self-test, --smoke-test 20
 scripts/linux-test.sh test --filter CreatorOCCTTests   # one target on Linux (no count rule); XP_TRACK=xp-2 IMAGE=metalcreator-linux:xp-2 keep a track's volume and image apart
+scripts/linux-test.sh kernels              # Linux: compile the generated implicit kernels offline into .build/generated-kernels (xp-c)
 scripts/linux-test.sh package              # the tarball and the AppImage in dist/, each run in a clean ubuntu:24.04 (docs/packaging.md)
 swift run MetalCreatorApp --smoke-test 5   # a Linux or Windows build: the real window over SDL's offscreen renderers; exit 0 if a first frame was drawn and the 3D viewport drew
 scripts/build-shaders.sh                   # Linux: compile Shaders/viewport into Shaders/viewport/compiled (git-ignored) through MetalUI's MetalUICompileShaders and the pinned SDL_shadercross; linux-test.sh runs it. Windows: scripts/build-shaders.ps1

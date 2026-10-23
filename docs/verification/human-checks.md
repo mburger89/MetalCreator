@@ -2122,3 +2122,19 @@ compiled shaders; these checks are what a real GPU, a real pointer and a person'
   size and position, upright and readable at a slant. They are now rasterized through MetalUI's `CoreTextTextSystem` instead of a direct
   `CTLineDraw`, so antialiasing may differ by a hair; anything more (a different weight, size or font) is a bug in
   `CubeLabelAtlas.rasterize(using:)`. **Pinned:** `CubeLabelTests`, `OffscreenRenderTests.theFrontLabelIsPaintedOnTheFrontFace`. **Observed:**
+
+## Group XPC — implicit evaluation and meshing on SDL GPU, Linux and Windows (xp-c)
+
+**Status: NOT RUN; needs plan xp-c task 11 (MetalUI XP-G25) and task 12.** Specs: cross-platform E8, implicit D21. CI holds the engine to the CPU on
+lavapipe and WARP; these checks are a real GPU, a person's eye and a stopwatch.
+
+- [ ] **XP-27 Lattice previews on a desktop GPU (Linux and Windows).** A graph with a TPMS node filling a 100 mm cube and a Mesh node: the badge says
+  "Vulkan" (Linux) or "Direct3D 12" (Windows); the very first preview, which compiles the shape's kernels, appears within about 2 s (x-4, proposed); a
+  thickness drag re-meshes within about a tenth of a second a pass (i-2) and never pauses to compile; a new shape (switch the TPMS type) pauses once,
+  then not again. The surface looks as on a Mac. For numbers, `METALCREATOR_BENCH=1 swift test -c release --no-parallel --filter "ImplicitBenchHLSL|ImplicitBench/(theFirstPreview|aThicknessEdit)"`
+  on that machine, into `docs/verification/performance.md`. **Pinned:** `GPUAgreementTests`, `GPUMeshAgreementTests`, `HLSLRuntimeCompileTests`. **Observed:**
+- [ ] **XP-28 The same export twice.** Export the Mesh as STL twice, and as 3MF twice: `cmp a.stl b.stl` (Linux), `fc /b a.stl b.stl` (Windows) say
+  identical, as on a Mac. **Pinned:** `StreamingMesherGPUTests.exportingTheSameSolidTwiceGivesTheSameBytes`. **Observed:**
+- [ ] **XP-29 A package without its compiler.** Unpack the tarball or zip, move the shader compiler's libraries out of its `lib` (or beside the `.exe`)
+  and launch it away from any checkout: the app runs, a Mesh node meshes, its badge says "Running on the CPU"; `--self-test` fails naming the missing
+  library and the paths tried. Put them back: "Vulkan" (or "Direct3D 12") after a relaunch. **Pinned:** `HLSLRuntimeCompileTests.aMissingCompilerLibraryIsBrokenAndNamesWhatItTried`, task 12's package checks. **Observed:**

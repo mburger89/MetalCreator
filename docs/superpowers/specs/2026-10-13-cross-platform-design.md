@@ -110,7 +110,7 @@ unchanged in look and behaviour.
 | # | Gap | Needed by |
 |---|---|---|
 | XP-G1 | App access to SDL_GPU through `GPUSurface` (CSDL types or a portable GPU API), a shader build path for apps, MSAA resolve, depth targets, instanced draws, storage buffers, mipmapped r8 textures, texture readback | xp-3 |
-| XP-G2 | Portable compute (SDL GPU compute) for 7c's implicit engine | after xp-3 |
+| XP-G2 | Portable compute (SDL GPU compute) for 7c's implicit engine | after xp-3. **Answered by MetalUI S5**; used by xp-c with XP-G25 (erratum E8) |
 | XP-G3 | Custom chrome or hidden title bar on SDL (divergence 276) | polish; xp-1 accepted the system title bar. **Fixed by MetalUI S1** (record §112, `CW-`, master `ceca59f6`) and adopted after xp-1 (erratum E5); the drag regions need XP-G11 before xp-3 |
 | XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO | xp-1 (Image Field). **Fixed by MetalUI S2** (record §113, `IB-`) and adopted after xp-1 (erratum E4); the header-only read came with MetalUI S9 (XP-G10, erratum E6) |
 | XP-G5 | Open-document events on SDL (divergence 176) | xp-2. **Answered:** `Platform.onOpenURLs` (SDL drop with window 0) → `.onOpenURL` routing; command-line files via `app.open(…)` after the first window (MetalUI `docs/packaging.md`, "Launch arguments"); `.desktop` `Exec=… %F` + `MimeType=` |
@@ -175,3 +175,14 @@ beyond what MetalUI provides; macOS CI; Intel macOS.
   (`FloatMatrix4`), `CubeLabelAtlas` rasterizes through MetalUI's `TextSystem`, `ViewportPlaceholder` is gone, `--smoke-test` requires the viewport to
   have drawn, and `--self-test` checks the viewport's compiled shaders. Section 2.3's second bullet (the card) and human check XP-2 no longer hold.
   Implicit evaluation and meshing stay on the CPU off macOS (xp-c).
+- **E8 (xp-c, XP-G2 and E7's last sentence). Implicit evaluation and meshing on SDL GPU, as on macOS.** The user ruled (2026-10-22) that Linux and Windows
+  follow macOS: `ImplicitCompiler`'s walk writes HLSL as well as MSL (`ShaderDialect`; the `sdf` statement for statement, the same buffers; the MSL bytes
+  unchanged, pinned by digests), one source per kernel, compiled while the app runs and cached by the source's digest (`HLSLImplicitEngine`, the twin of
+  `MetalImplicitEngine`, over MetalUI's SDL_GPU compute on an owned headless device). Run-time compilation needs MetalUI gap XP-G25 (a compiler over
+  SDL_shadercross's library and DXC, pipelines from bytes); **until it is adopted, E7's last sentence still holds for the app** (evaluation and meshing
+  on the CPU off macOS) while the engine is tested on lavapipe and on the Mac's GPU over kernels the build-time SDL_shadercross compiled offline
+  (`scripts/linux-test.sh kernels`). Once adopted (plan xp-c, task 11): no SDL_GPU device, the CPU silently; the compiler library missing (its named
+  error lists the paths tried), a pipeline refused, or a source DXC refuses, the CPU with "Running on the CPU" and the reason; the badge says "Vulkan" or
+  "Direct3D 12". The packages ship the compiler's shared libraries and their licences (task 12). Exports are byte-identical run to run on one machine, as
+  on macOS (they stream through the CPU mesher over the engine's values); bytes across machines or backends are not promised, D15's tolerances are.
+  Gaps XP-G23 (adapter name, software rasterizer) and XP-G24 (compute limits) are open; meanwhile the driver's name and 128 MiB buffers.
