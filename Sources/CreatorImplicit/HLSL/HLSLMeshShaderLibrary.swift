@@ -157,7 +157,10 @@ enum HLSLMeshShaderLibrary {
         float3 low = latticePoint(x, y, z);
         float3 high = latticePoint(x + (axis == 0u ? 1u : 0u), y + (axis == 1u ? 1u : 0u), z + (axis == 2u ? 1u : 0u));
         float fa = sdf(low), fb = sdf(high);
-        float t = fa / (fa - fb);
+        // Equal endpoint values (a surface lying on a lattice plane) must not divide 0/0 or x/0.
+        float span = fa - fb;
+        float t = span != 0.0f ? fa / span : 0.5f;
+        t = isfinite(t) ? clamp(t, 0.0f, 1.0f) : 0.5f;
         float3 position = low;
         if (axis == 0u) {
             position.x = low.x + gResolution * t;
