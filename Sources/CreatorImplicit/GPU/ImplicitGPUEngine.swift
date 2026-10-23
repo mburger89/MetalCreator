@@ -1,8 +1,8 @@
 import Foundation
 
 /// A GPU that evaluates compiled implicit solids (implicit spec §4.1, Errata D11 and D13). The rest of the engine depends on this
-/// protocol and nothing else of any GPU API: `MetalImplicitEngine` is its only implementation in 7c-1, compiled only where Metal exists,
-/// and an SDL3 GPU compute engine for Linux and Windows follows (track xp-c). Where there is no engine the CPU evaluator, which is
+/// protocol and nothing else of any GPU API: `MetalImplicitEngine` is macOS's, compiled only where Metal exists, and `HLSLImplicitEngine`
+/// Linux's and Windows', over SDL3 GPU compute (track xp-c). Where there is no engine the CPU evaluator, which is
 /// complete, does everything.
 ///
 /// D13 adds meshing bricks (plan 7c-1g): `meshBricks` is a requirement with a default that says "not supported", so an engine may
@@ -15,6 +15,9 @@ public protocol ImplicitGPUEngine: Sendable {
 
     /// The device's name, for the inspector.
     var deviceName: String { get async }
+
+    /// Whether this engine can run here (plan xp-c); asked before `compile`; the default is `.available`.
+    var availability: ImplicitEngineAvailability { get async }
 
     /// Compiles a tree: generates its source (`ImplicitCompiler`, which needs no GPU API) and prepares the pipeline. Throws
     /// `.unsupported` for a tree the GPU has no form for; the caller then uses the CPU. The default does exactly that.
@@ -39,6 +42,8 @@ public protocol ImplicitGPUEngine: Sendable {
 }
 
 extension ImplicitGPUEngine {
+    public var availability: ImplicitEngineAvailability { .available }
+
     public func compile(_ solid: ImplicitSolid) async throws(ImplicitCompileError) -> CompiledImplicit {
         let program = try ImplicitCompiler.compile(solid)
         try await prepare(program)
