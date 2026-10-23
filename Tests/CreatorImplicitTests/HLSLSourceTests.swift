@@ -119,6 +119,14 @@ struct HLSLSourceTests {
                 guard line.contains("StructuredBuffer<"), let range = line.range(of: name, options: .regularExpression) else { return nil }
                 return String(line[range])
             }
+            if !source.kernel.usesSDF {
+                // No packed buffers here, so no keep-alive: each declared buffer must be named again after its declaration.
+                for buffer in declared {
+                    let isRead = lines.contains { $0.contains("\(buffer)[") }
+                    #expect(isRead, "\(name), \(source.kernel.rawValue): \(buffer) is never read")
+                }
+                continue
+            }
             guard let keeper = lines.firstIndex(where: { $0.hasPrefix("bool buffersAreKept()") }) else {
                 Issue.record("\(name), \(source.kernel.rawValue): no buffer keep-alive")
                 continue
@@ -129,6 +137,22 @@ struct HLSLSourceTests {
             }
             let main = lines[(lines.firstIndex { $0.contains("void main(uint3 id") } ?? 0)...].joined(separator: " ")
             #expect(main.contains("if (buffersAreKept()) { return; }"), "\(name), \(source.kernel.rawValue): main skips the keep-alive")
+        }
+    }
+
+    /// The kernels that do not call `sdf` are one text for every shape (the pipeline cache makes them once); the three that do differ by shape.
+    @Test func theKernelsWithoutTheSolidAreTheSameForEveryShape() throws {
+        let sphere = try ImplicitCompiler.compileHLSL(.sphere(radius: 5))
+        let box = try ImplicitCompiler.compileHLSL(.box(halfSize: Vector3(1, 2, 3), cornerRadius: 0))
+        #expect(Set(sphere.kernels.keys) == Set(ImplicitKernel.allCases))
+        for kernel in ImplicitKernel.allCases {
+            if kernel.usesSDF {
+                #expect(sphere.kernels[kernel] != box.kernels[kernel], "\(kernel.rawValue) depends on the shape")
+                #expect(sphere.kernels[kernel]?.text.contains("float sdf(float3 p) {") == true)
+            } else {
+                #expect(sphere.kernels[kernel] == box.kernels[kernel], "\(kernel.rawValue) is shape-independent")
+                #expect(sphere.kernels[kernel]?.text.contains("sdf(") == false)
+            }
         }
     }
 
