@@ -102,7 +102,17 @@ struct GPUMeshAgreementTests {
         Self.expectSameTopology(gpu.mesh, sameSamples.mesh, name, engineName)
         let mesher = MeshComparison(reference: sameSamples.mesh, candidate: gpu.mesh)
         #expect(mesher.unmatched == 0, "\(engineName), \(name): vertices without a match")
-        #expect(mesher.farthest <= Self.vertexTolerance, "\(engineName), \(name): the largest vertex difference is \(mesher.farthest) mm")
+        // A vertex whose Newton step was clamped at half a voxel slides along the surface by up to ~40 times the ulp by which the two
+        // meshers' interpolations (Float on the GPU, Double on the CPU) put it before the step; it is held to D15's surface 1e-4 mm
+        // along the normal and the slide tolerance, every other vertex to 1e-4 mm (plan xp-c, CI ruling "clamped snap").
+        let unsnapped = try await ImplicitMesher(evaluator: SamplesOnlyEvaluator(inner: selection.evaluator))
+            .mesh(solid, resolution: resolution, quality: .preview, snap: false)
+        let clamped = MeshComparison.nearClampedVertex(unsnapped: unsnapped, snapped: sameSamples.mesh, limit: Float(resolution / 2))
+        let free = MeshComparison(reference: sameSamples.mesh, candidate: gpu.mesh, excluding: clamped)
+        let held = MeshComparison(reference: sameSamples.mesh, candidate: gpu.mesh, excluding: { !clamped($0) })
+        #expect(free.farthest <= Self.vertexTolerance, "\(engineName), \(name): the largest vertex difference is \(free.farthest) mm")
+        #expect(held.farthestAlongNormal <= Self.vertexTolerance && held.farthest <= Self.slideTolerance,
+                "\(engineName), \(name): a clamped vertex is \(held.farthestAlongNormal) mm off the surface, \(held.farthest) mm away")
         #expect(mesher.smallestNormalDot >= Self.mesherNormalDot,
                 "\(engineName), \(name): a normal differs: dot \(mesher.smallestNormalDot)")
 

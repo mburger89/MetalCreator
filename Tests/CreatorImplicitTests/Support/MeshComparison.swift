@@ -128,6 +128,29 @@ struct MeshComparison {
     }
 }
 
+extension MeshComparison {
+    /// Whether a point is within 2 µm of a vertex of `snapped` whose Newton step was clamped: it moved half a voxel (`limit`) from its
+    /// place in `unsnapped`, the same mesh made without the snap (the CPU mesher's vertices come in the same order either way). Such a
+    /// vertex is not on the surface but half a voxel along the gradient, so its place turns with the gradient's direction, which is
+    /// ill-conditioned where the field is weak (plan xp-c, CI ruling "clamped snap").
+    static func nearClampedVertex(unsnapped: TriangleMesh, snapped: TriangleMesh, limit: Float) -> (SIMD3<Float>) -> Bool {
+        let cell: Float = 0.002
+        func key(_ p: SIMD3<Float>) -> SIMD3<Int32> {
+            SIMD3(Int32((p.x / cell).rounded(.down)), Int32((p.y / cell).rounded(.down)), Int32((p.z / cell).rounded(.down)))
+        }
+        var clamped: Set<SIMD3<Int32>> = []
+        for (before, after) in zip(unsnapped.positions, snapped.positions) {
+            let move = after - before
+            if (move * move).sum().squareRoot() >= limit * 0.999 { clamped.insert(key(after)) }
+        }
+        return { point in
+            let centre = key(point)
+            let near: [Int32] = [-1, 0, 1]
+            return near.contains { dx in near.contains { dy in near.contains { dz in clamped.contains(centre &+ SIMD3(dx, dy, dz)) } } }
+        }
+    }
+}
+
 extension BrickMesh {
     /// The same arrays as a mesh, for `MeshTopology` and `MeshComparison`.
     var triangleMesh: TriangleMesh {

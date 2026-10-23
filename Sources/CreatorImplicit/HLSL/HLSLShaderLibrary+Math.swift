@@ -15,46 +15,46 @@ extension HLSLShaderLibrary {
     // far inside that.
 
     void reduceQuarter(float x, out float y, out int quadrant) {
-        float q = round(x * 0.636619772367581343f);
+        precise float q = round(x * 0.636619772367581343f);
         y = ((x - q * 1.5703125f) - q * 4.837512969970703125e-4f) - q * 7.54978995489188216e-8f;
         quadrant = int(q);
     }
 
-    float sinPolynomial(float y) {
-        float z = y * y;
+    precise float sinPolynomial(float y) {
+        precise float z = y * y;
         return ((-1.9515295891e-4f * z + 8.3321608736e-3f) * z - 1.6666654611e-1f) * z * y + y;
     }
 
-    float cosPolynomial(float y) {
-        float z = y * y;
+    precise float cosPolynomial(float y) {
+        precise float z = y * y;
         return ((2.443315711809948e-5f * z - 1.388731625493765e-3f) * z + 4.166664568298827e-2f) * z * z - 0.5f * z + 1.0f;
     }
 
-    float accSin(float x) {
-        float y;
+    precise float accSin(float x) {
+        precise float y;
         int quadrant;
         reduceQuarter(x, y, quadrant);
-        float s = sinPolynomial(y), c = cosPolynomial(y);
+        precise float s = sinPolynomial(y), c = cosPolynomial(y);
         int k = quadrant & 3;
         return k == 0 ? s : (k == 1 ? c : (k == 2 ? -s : -c));
     }
 
-    float accCos(float x) {
-        float y;
+    precise float accCos(float x) {
+        precise float y;
         int quadrant;
         reduceQuarter(x, y, quadrant);
-        float s = sinPolynomial(y), c = cosPolynomial(y);
+        precise float s = sinPolynomial(y), c = cosPolynomial(y);
         int k = quadrant & 3;
         return k == 0 ? c : (k == 1 ? -s : (k == 2 ? -c : s));
     }
 
-    float3 accSin3(float3 v) { return float3(accSin(v.x), accSin(v.y), accSin(v.z)); }
-    float3 accCos3(float3 v) { return float3(accCos(v.x), accCos(v.y), accCos(v.z)); }
+    precise float3 accSin3(float3 v) { return float3(accSin(v.x), accSin(v.y), accSin(v.z)); }
+    precise float3 accCos3(float3 v) { return float3(accCos(v.x), accCos(v.y), accCos(v.z)); }
 
-    float accAtan(float x) {
-        float sign = x < 0.0f ? -1.0f : 1.0f;
-        float t = abs(x);
-        float offset = 0.0f;
+    precise float accAtan(float x) {
+        precise float sign = x < 0.0f ? -1.0f : 1.0f;
+        precise float t = abs(x);
+        precise float offset = 0.0f;
         if (t > 2.414213562373095f) {
             offset = HALF_PI_F;
             t = -1.0f / t;
@@ -62,20 +62,20 @@ extension HLSLShaderLibrary {
             offset = QUARTER_PI_F;
             t = (t - 1.0f) / (t + 1.0f);
         }
-        float z = t * t;
-        float series = (((8.05374449538e-2f * z - 1.38776856032e-1f) * z + 1.99777106478e-1f) * z - 3.33329491539e-1f) * z * t + t;
+        precise float z = t * t;
+        precise float series = (((8.05374449538e-2f * z - 1.38776856032e-1f) * z + 1.99777106478e-1f) * z - 3.33329491539e-1f) * z * t + t;
         return sign * (offset + series);
     }
 
     // atan2 as IEEE 754 and the CPU's Double have it, signed zeros included: atan2(+0, -1) = pi, atan2(-0, -1) = -pi, atan2(+-0, +0) = +-0.
-    float accAtan2(float y, float x) {
+    precise float accAtan2(float y, float x) {
         bool yNegative = (asuint(y) & 0x80000000u) != 0u;
         bool xNegative = (asuint(x) & 0x80000000u) != 0u;
         if (x == 0.0f) {
             if (y == 0.0f) { return xNegative ? (yNegative ? -PI_F : PI_F) : y; }
             return yNegative ? -HALF_PI_F : HALF_PI_F;
         }
-        float angle = accAtan(y / x);
+        precise float angle = accAtan(y / x);
         if (xNegative) { angle += yNegative ? -PI_F : PI_F; }
         return angle;
     }

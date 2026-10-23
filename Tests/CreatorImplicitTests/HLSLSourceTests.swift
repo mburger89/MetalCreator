@@ -79,6 +79,25 @@ struct HLSLSourceTests {
         }
     }
 
+    /// IEEE arithmetic in every kernel (spec D21's erratum of 2026-10-23): DXC marks HLSL's float operations `fast` unless they are
+    /// `precise`, and reassociated a shell's `sdf` on Direct3D 12, so `sdf` is `precise` and so is every float local of the library and
+    /// the kernels (`precise` on `sdf` alone does not reach into the noise's loop). The `sdf`'s own `vN` statements are covered by the
+    /// function's `precise`; the uniform block's `gResolution` is not a local.
+    @Test(arguments: fixtures.map(\.name))
+    func everyFloatComputationIsPrecise(_ name: String) throws {
+        let solid = try #require(Self.fixtures.first { $0.name == name }?.solid)
+        guard let compiled = try? ImplicitCompiler.compileHLSL(solid) else { return }
+        let local = #"^\s+float[234]? (?!gResolution;)(?!v\d+ =)[A-Za-z_]\w*( =|,|;)"#
+        for source in compiled.kernels.values {
+            if source.kernel.usesSDF {
+                #expect(source.text.contains("\nprecise float sdf(float3 p) {\n"), "\(name), \(source.kernel.rawValue)")
+            }
+            for line in source.text.split(whereSeparator: \.isNewline) {
+                #expect(line.range(of: local, options: .regularExpression) == nil, "\(name), \(source.kernel.rawValue): \(line)")
+            }
+        }
+    }
+
     /// Each kernel's `register(tN, space0)` and `register(uN, space1)` run from 0 without a gap, as many as `bindings` says; one entry
     /// point.
     @Test(arguments: fixtures.map(\.name))

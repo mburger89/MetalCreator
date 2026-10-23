@@ -93,38 +93,38 @@ enum HLSLShaderLibrary {
     // parameters, then the
     // pool, then the pictures) and `ints` (the integer parameters, then the tables) before it includes this; the bases are in Params.
 
-    float P(int k) { return floats[k]; }
-    float3 PV(int k) { return float3(floats[k], floats[k + 1], floats[k + 2]); }
+    precise float P(int k) { return floats[k]; }
+    precise float3 PV(int k) { return float3(floats[k], floats[k + 1], floats[k + 2]); }
     int I(int k) { return ints[k]; }
     int TABLES(int k) { return ints[int(gTablesBase) + k]; }
-    float POOL(int k) { return floats[int(gPoolBase) + k]; }
-    float IMAGES(int k) { return floats[int(gImagesBase) + k]; }
+    precise float POOL(int k) { return floats[int(gPoolBase) + k]; }
+    precise float IMAGES(int k) { return floats[int(gImagesBase) + k]; }
 
-    float smoothMin(float a, float b, float k) {
+    precise float smoothMin(float a, float b, float k) {
         if (!(k > 0.0f)) { return min(a, b); }
-        float blend = max(k - abs(a - b), 0.0f) / k;
+        precise float blend = max(k - abs(a - b), 0.0f) / k;
         return min(a, b) - blend * blend * k * 0.25f;
     }
 
-    float sdBox(float3 p, float3 halfSize, float r) {
-        float3 q = abs(p) - (halfSize - r);
+    precise float sdBox(float3 p, float3 halfSize, float r) {
+        precise float3 q = abs(p) - (halfSize - r);
         return length(max(q, 0.0f)) + min(max(q.x, max(q.y, q.z)), 0.0f) - r;
     }
 
-    float regionDistance(float3 p, float3 centre, float3 halfSize) {
-        float3 q = abs(p - centre) - halfSize;
+    precise float regionDistance(float3 p, float3 centre, float3 halfSize) {
+        precise float3 q = abs(p - centre) - halfSize;
         return length(max(q, 0.0f)) + min(max(q.x, max(q.y, q.z)), 0.0f);
     }
 
-    float sdCylinder(float3 p, float r, float halfHeight) {
-        float across = length(p.xy) - r;
-        float along = abs(p.z) - halfHeight;
+    precise float sdCylinder(float3 p, float r, float halfHeight) {
+        precise float across = length(p.xy) - r;
+        precise float along = abs(p.z) - halfHeight;
         return min(max(across, along), 0.0f) + length(max(float2(across, along), 0.0f));
     }
 
     // MARK: baked distance blocks (DistanceBlocks)
 
-    float bakedSample(int ioff, int i, int j, int k) {
+    precise float bakedSample(int ioff, int i, int j, int k) {
         int nx = I(ioff + 3), ny = I(ioff + 4), nz = I(ioff + 5);
         i = clamp(i, 0, nx * 8 - 1);
         j = clamp(j, 0, ny * 8 - 1);
@@ -135,38 +135,38 @@ enum HLSLShaderLibrary {
         return POOL(I(ioff + 1) + slot * 512 + ((k % 8) * 8 + (j % 8)) * 8 + (i % 8));
     }
 
-    float bakedTrilinear(int ioff, int poff, float3 held) {
-        float3 origin = PV(poff);
-        float spacing = P(poff + 3);
-        float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
-        float3 grid = clamp((held - origin) / spacing, float3(0.0f, 0.0f, 0.0f), last);
+    precise float bakedTrilinear(int ioff, int poff, float3 held) {
+        precise float3 origin = PV(poff);
+        precise float spacing = P(poff + 3);
+        precise float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
+        precise float3 grid = clamp((held - origin) / spacing, float3(0.0f, 0.0f, 0.0f), last);
         int ix = int(floor(grid.x)), iy = int(floor(grid.y)), iz = int(floor(grid.z));
-        float tx = grid.x - float(ix), ty = grid.y - float(iy), tz = grid.z - float(iz);
-        float x00 = lerp(bakedSample(ioff, ix, iy, iz), bakedSample(ioff, ix + 1, iy, iz), tx);
-        float x10 = lerp(bakedSample(ioff, ix, iy + 1, iz), bakedSample(ioff, ix + 1, iy + 1, iz), tx);
-        float x01 = lerp(bakedSample(ioff, ix, iy, iz + 1), bakedSample(ioff, ix + 1, iy, iz + 1), tx);
-        float x11 = lerp(bakedSample(ioff, ix, iy + 1, iz + 1), bakedSample(ioff, ix + 1, iy + 1, iz + 1), tx);
+        precise float tx = grid.x - float(ix), ty = grid.y - float(iy), tz = grid.z - float(iz);
+        precise float x00 = lerp(bakedSample(ioff, ix, iy, iz), bakedSample(ioff, ix + 1, iy, iz), tx);
+        precise float x10 = lerp(bakedSample(ioff, ix, iy + 1, iz), bakedSample(ioff, ix + 1, iy + 1, iz), tx);
+        precise float x01 = lerp(bakedSample(ioff, ix, iy, iz + 1), bakedSample(ioff, ix + 1, iy, iz + 1), tx);
+        precise float x11 = lerp(bakedSample(ioff, ix, iy + 1, iz + 1), bakedSample(ioff, ix + 1, iy + 1, iz + 1), tx);
         return lerp(lerp(x00, x10, ty), lerp(x01, x11, ty), tz);
     }
 
-    float bakedValue(int ioff, int poff, float3 at) {
-        float3 origin = PV(poff);
-        float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
-        float3 held = clamp(at, origin, origin + last * P(poff + 3));
+    precise float bakedValue(int ioff, int poff, float3 at) {
+        precise float3 origin = PV(poff);
+        precise float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
+        precise float3 held = clamp(at, origin, origin + last * P(poff + 3));
         return bakedTrilinear(ioff, poff, held) + length(at - held);
     }
 
-    float bakedChannel(int ioff, int poff, float3 at) {
-        float3 origin = PV(poff);
-        float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
+    precise float bakedChannel(int ioff, int poff, float3 at) {
+        precise float3 origin = PV(poff);
+        precise float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
         return bakedTrilinear(ioff, poff, clamp(at, origin, origin + last * P(poff + 3)));
     }
 
     // MARK: field maths
 
-    float remapField(float x, float fromLow, float fromHigh, float toLow, float toHigh, int clamped) {
+    precise float remapField(float x, float fromLow, float fromHigh, float toLow, float toHigh, int clamped) {
         if (fromHigh == fromLow) { return toLow; }
-        float mapped = toLow + (x - fromLow) / (fromHigh - fromLow) * (toHigh - toLow);
+        precise float mapped = toLow + (x - fromLow) / (fromHigh - fromLow) * (toHigh - toLow);
         if (clamped == 0) { return mapped; }
         return min(max(mapped, min(toLow, toHigh)), max(toLow, toHigh));
     }
@@ -194,40 +194,40 @@ enum HLSLShaderLibrary {
         return u64Xor(z, u64Shr(z, 31u));
     }
 
-    float3 noiseGradient(int i, int j, int k, U64 start) {
+    precise float3 noiseGradient(int i, int j, int k, U64 start) {
         U64 packed = u64Or(u64Or(u64Shl(u64(0u, asuint(i) & 0x1FFFFFu), 42u), u64Shl(u64(0u, asuint(j) & 0x1FFFFFu), 21u)),
                            u64(0u, asuint(k) & 0x1FFFFFu));
         U64 draw = mix64(u64Add(start, u64Mul(u64Add(packed, u64(0u, 1u)), u64(0x9E3779B9u, 0x7F4A7C15u))));
         return noiseGradients[u64Shr(draw, 33u).lo % 12u];
     }
 
-    float simplexOctave(float x, float y, float z, U64 start) {
-        float skewed = (x + y + z) * (1.0f / 3.0f);
+    precise float simplexOctave(float x, float y, float z, U64 start) {
+        precise float skewed = (x + y + z) * (1.0f / 3.0f);
         int i = int(floor(x + skewed)), j = int(floor(y + skewed)), k = int(floor(z + skewed));
-        float back = float(i + j + k) * (1.0f / 6.0f);
-        float x0 = x - (float(i) - back), y0 = y - (float(j) - back), z0 = z - (float(k) - back);
+        precise float back = float(i + j + k) * (1.0f / 6.0f);
+        precise float x0 = x - (float(i) - back), y0 = y - (float(j) - back), z0 = z - (float(k) - back);
         int ordering;
         if (x0 >= y0) {
             ordering = y0 >= z0 ? 0 : (x0 >= z0 ? 1 : 2);
         } else {
             ordering = y0 < z0 ? 3 : (x0 < z0 ? 4 : 5);
         }
-        float sum = 0.0f;
+        precise float sum = 0.0f;
         for (int step = 0; step < 4; step++) {
             int3 corner = noiseCorners[ordering * 4 + step];
-            float shift = float(step) * (1.0f / 6.0f);
-            float dx = x0 - float(corner.x) + shift, dy = y0 - float(corner.y) + shift, dz = z0 - float(corner.z) + shift;
-            float falloff = 0.6f - dx * dx - dy * dy - dz * dz;
+            precise float shift = float(step) * (1.0f / 6.0f);
+            precise float dx = x0 - float(corner.x) + shift, dy = y0 - float(corner.y) + shift, dz = z0 - float(corner.z) + shift;
+            precise float falloff = 0.6f - dx * dx - dy * dy - dz * dz;
             if (falloff <= 0.0f) { continue; }
-            float3 gradient = noiseGradient(i + corner.x, j + corner.y, k + corner.z, start);
-            float weight = falloff * falloff;
+            precise float3 gradient = noiseGradient(i + corner.x, j + corner.y, k + corner.z, start);
+            precise float weight = falloff * falloff;
             sum += weight * weight * dot(gradient, float3(dx, dy, dz));
         }
         return 32.0f * sum;
     }
 
-    float fieldNoise(float3 p, float scale, int octaves, int seeds) {
-        float sum = 0.0f, total = 0.0f, amplitude = 1.0f, size = scale;
+    precise float fieldNoise(float3 p, float scale, int octaves, int seeds) {
+        precise float sum = 0.0f, total = 0.0f, amplitude = 1.0f, size = scale;
         for (int octave = 0; octave < octaves; octave++) {
             U64 start = u64(asuint(TABLES(seeds + 2 * octave + 1)), asuint(TABLES(seeds + 2 * octave)));
             sum += amplitude * simplexOctave(p.x / size, p.y / size, p.z / size, start);
@@ -241,10 +241,10 @@ enum HLSLShaderLibrary {
     // MARK: pictures (GreyImage)
 
     void imageTaps(float position, int count, int edges, out int low, out int high, out float fraction) {
-        float size = float(count);
-        float held;
+        precise float size = float(count);
+        precise float held;
         if (edges == 0) {
-            float folded = position - floor(position / size) * size;
+            precise float folded = position - floor(position / size) * size;
             held = min(max(folded, 0.0f), asfloat(asuint(size) - 1u));
             low = int(floor(held));
             high = (low + 1) % count;
@@ -256,16 +256,16 @@ enum HLSLShaderLibrary {
         fraction = held - float(low);
     }
 
-    float imageValue(int ioff, float u, float v) {
+    precise float imageValue(int ioff, float u, float v) {
         int offset = I(ioff), width = I(ioff + 1), height = I(ioff + 2), edges = I(ioff + 3);
-        float x = u * float(width) - 0.5f, y = v * float(height) - 0.5f;
+        precise float x = u * float(width) - 0.5f, y = v * float(height) - 0.5f;
         if (!isfinite(x) || !isfinite(y)) { return 0.0f; }
         int cl, ch, rl, rh;
-        float cf, rf;
+        precise float cf, rf;
         imageTaps(x, width, edges, cl, ch, cf);
         imageTaps(y, height, edges, rl, rh, rf);
-        float top = lerp(IMAGES(offset + rl * width + cl), IMAGES(offset + rl * width + ch), cf);
-        float bottom = lerp(IMAGES(offset + rh * width + cl), IMAGES(offset + rh * width + ch), cf);
+        precise float top = lerp(IMAGES(offset + rl * width + cl), IMAGES(offset + rl * width + ch), cf);
+        precise float bottom = lerp(IMAGES(offset + rh * width + cl), IMAGES(offset + rh * width + ch), cf);
         return lerp(top, bottom, rf) / 65535.0f;
     }
     """

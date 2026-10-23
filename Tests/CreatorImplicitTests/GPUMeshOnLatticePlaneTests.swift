@@ -17,6 +17,46 @@ struct GPUMeshOnLatticePlaneTests {
     ]
     static let names = solids.map(\.name)
 
+    /// Points on the flat of each of the box's six faces, which are the noisy shell's bounds faces and so the mesher's lattice planes
+    /// (`BrickPlan` pads the bounds by one voxel): a grid over each face's flat part, inside its rounded edges.
+    static let boundsFacePoints: [SIMD3<Float>] = {
+        let half = SIMD3<Float>(8, 6, 4), flat = half - 1.5
+        var points: [SIMD3<Float>] = []
+        for axis in 0..<3 {
+            let (u, v) = ((axis + 1) % 3, (axis + 2) % 3)
+            for side: Float in [-1, 1] {
+                for i in -4...4 {
+                    for j in -4...4 {
+                        var p = SIMD3<Float>.zero
+                        p[axis] = side * half[axis]
+                        p[u] = flat[u] * Float(i) / 4.5
+                        p[v] = flat[v] * Float(j) / 4.5
+                        points.append(p)
+                    }
+                }
+            }
+        }
+        return points
+    }()
+
+    /// The noisy shell's field on its bounds faces is classified as the CPU's 0 is (outside: `value < 0` is false) on every engine, and on
+    /// the HLSL engine it is exactly 0. On Direct3D 12 the DXC-reassociated `sdf` gave ±2.98e-8 there and the mesh grew a ragged cap on the
+    /// face (11,764 triangles against 10,288); the HLSL is `precise` since (spec D21 (7)). The Metal engine's MSL is compiled with Metal's
+    /// fast math and gives +5.96e-8 at every such point: outside, like the CPU, but by its rounding, not by construction (plan xp-c, CI rulings).
+    @Test(arguments: GPUEnginesUnderTest.names)
+    func theFieldIsExactlyTheCPUsOnTheBoundsFaces(_ engineName: String) async throws {
+        let solid = try #require(Self.solids.first { $0.name == "noisy shell" }?.solid)
+        let engine = try GPUEnginesUnderTest.engine(engineName)
+        let gpu = try await GPUBatchEvaluator(engine: engine, program: try await engine.compile(solid)).evaluate(Self.boundsFacePoints)
+        let cpu = solid.signedDistances(at: Self.boundsFacePoints.map { Vector3(Double($0.x), Double($0.y), Double($0.z)) })
+        let exact = engineName != "Metal"
+        let differing = cpu.indices.filter { cpu[$0] != 0 || (gpu[$0] < 0) != (cpu[$0] < 0) || (exact && gpu[$0] != Float(cpu[$0])) }
+        #expect(differing.isEmpty, """
+            \(engineName): \(differing.count) of \(cpu.count) points on the bounds faces differ from the CPU's 0\(exact ? "" : " in sign"); \
+            the first is \(differing.first.map { "\(Self.boundsFacePoints[$0]): GPU \(gpu[$0]), CPU \(cpu[$0])" } ?? "")
+            """)
+    }
+
     @Test(arguments: GPUEnginesUnderTest.names, names)
     func aSurfaceOnALatticePlaneMeshesFiniteAndLikeTheCPU(_ engineName: String, _ name: String) async throws {
         let fixture = try #require(Self.solids.first { $0.name == name })

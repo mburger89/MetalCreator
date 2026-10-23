@@ -116,6 +116,27 @@ No saved file format, saved setting or document changes.
 
 ---
 
+## CI rulings
+
+- Ruling: the HLSL is IEEE (`precise`), spec D21 (7) — on Direct3D 12 the noisy shell meshed 11,764 triangles against the CPU's 10,288 because
+  DXC marks every float operation `fast` and reassociated the shell's `(sdBox - centre)` into `((length - centre) + min) - r` (read in DXC's
+  disassembly of the shipped DXIL), so the box's face x = -8, which `BrickPlan`'s one-voxel padding makes a lattice plane, came out ±2.98e-8 instead
+  of the CPU's, Metal's and Vulkan's exact 0, and a ragged cap was meshed on it; `precise` on `sdf`, every library function and every float local
+  leaves no `fast` arithmetic in any of the 153 kernels' DXIL (checked with `dxc -dumpbin`, DXC 1.8.2505) — cost if wrong: WARP slower by the
+  lost reassociation (not measured), and a part whose face sits on its bounds with an inexact expression still decides its face's sign by
+  rounding, as the CPU mesher itself does (only an exact zero is the same everywhere; `theFieldIsExactlyTheCPUsOnTheBoundsFaces` holds it
+  exactly on the HLSL engine). The Metal engine (MSL compiled with Metal's default fast math, untouched here) gives +5.96e-8 on that face: outside
+  like the CPU, by its rounding; making it IEEE too would change macOS values and exports, so it is left for the user to decide.
+- Ruling: clamped snap — in the mesher-alone check (`GPUMeshAgreementTests`, D15), a vertex whose Newton step was clamped at half a voxel is
+  held to 1e-4 mm along the normal and to the 2e-3 mm slide, every other vertex to 1e-4 mm — "neovius, spherical about a point of the region" was
+  1.126e-4 mm on Direct3D 12 and is 7.6e-5 on Metal, 8.1e-5 on the Mac's HLSL, all at clamped vertices (move 0.265 mm at 0.53 mm voxels) 3 mm
+  from the polar axis and away from the cut: the GPU's pre-snap vertex (Float `low + res * t`) is up to an ulp (1.9e-6 mm) from the CPU's (Double),
+  the CPU's snap of the GPU's own pre-snap vertices matches the GPU mesh to 1.9e-6 mm, and a clamped step multiplies that ulp about 40 times
+  through the weak gradient's direction, along the surface (1.6e-5 mm along the normal); every unclamped vertex of every fixture is within 2.2e-5
+  mm on the Mac. Not WARP's transcendentals (ours are used), not our sin, cos or atan2, not the cut. Making the interpolation the CPU's bit for bit
+  needs double-float arithmetic that Metal's fast math would undo — cost if wrong: a mesher bug that moves only clamped vertices, by up to 2e-3 mm
+  along the surface, would pass this check.
+
 ## Tasks
 
 ### Task 0: Baselines, the three MetalUI gaps, a check of the API used before XP-G25

@@ -24,7 +24,7 @@ enum HLSLMeshShaderLibrary {
     /// A cube's corners and pattern (classify, emit; after `samples` is declared).
     static let cubes = """
 
-    float cornerValue(uint base, uint x, uint y, uint z, uint corner) {
+    precise float cornerValue(uint base, uint x, uint y, uint z, uint corner) {
         return samples[base + ((z + (corner >> 2)) * SIDE + y + ((corner >> 1) & 1u)) * SIDE + x + (corner & 1u)];
     }
 
@@ -41,7 +41,7 @@ enum HLSLMeshShaderLibrary {
     /// A lattice point at the CPU's coordinates (sample, place; after `axes` is declared).
     static let latticePoint = """
 
-    float3 latticePoint(uint x, uint y, uint z) {
+    precise float3 latticePoint(uint x, uint y, uint z) {
         return float3(axes[x], axes[gNX + y], axes[gNX + gNY + z]);
     }
 
@@ -154,14 +154,15 @@ enum HLSLMeshShaderLibrary {
         if (key == EMPTY_KEY) { return; }
         uint axis = key % 3u, index = key / 3u;
         uint x = index % gNX, y = (index / gNX) % gNY, z = index / (gNX * gNY);
-        float3 low = latticePoint(x, y, z);
-        float3 high = latticePoint(x + (axis == 0u ? 1u : 0u), y + (axis == 1u ? 1u : 0u), z + (axis == 2u ? 1u : 0u));
-        float fa = sdf(low), fb = sdf(high);
+        precise float3 low = latticePoint(x, y, z);
+        precise float3 high = latticePoint(x + (axis == 0u ? 1u : 0u), y + (axis == 1u ? 1u : 0u), z + (axis == 2u ? 1u : 0u));
+        precise float fa = sdf(low), fb = sdf(high);
         // Equal endpoint values (a surface lying on a lattice plane) must not divide 0/0 or x/0.
-        float span = fa - fb;
-        float t = span != 0.0f ? fa / span : 0.5f;
+        // `precise`, like `sdf`: the interpolation and the snap are the IEEE operations written, in order, as the CPU mesher does them.
+        precise float span = fa - fb;
+        precise float t = span != 0.0f ? fa / span : 0.5f;
         t = isfinite(t) ? clamp(t, 0.0f, 1.0f) : 0.5f;
-        float3 position = low;
+        precise float3 position = low;
         if (axis == 0u) {
             position.x = low.x + gResolution * t;
         } else if (axis == 1u) {
@@ -169,19 +170,19 @@ enum HLSLMeshShaderLibrary {
         } else {
             position.z = low.z + gResolution * t;
         }
-        float3 normal = float3(0.0f, 0.0f, 0.0f);
+        precise float3 normal = float3(0.0f, 0.0f, 0.0f);
         if (gSnap != 0u) {
-            float delta = gResolution / 4.0f, limit = gResolution / 2.0f;
-            float value = sdf(position);
-            float3 gradient = float3(
+            precise float delta = gResolution / 4.0f, limit = gResolution / 2.0f;
+            precise float value = sdf(position);
+            precise float3 gradient = float3(
                 (sdf(position + float3(delta, 0.0f, 0.0f)) - sdf(position - float3(delta, 0.0f, 0.0f))) / (2.0f * delta),
                 (sdf(position + float3(0.0f, delta, 0.0f)) - sdf(position - float3(0.0f, delta, 0.0f))) / (2.0f * delta),
                 (sdf(position + float3(0.0f, 0.0f, delta)) - sdf(position - float3(0.0f, 0.0f, delta))) / (2.0f * delta));
-            float squared = dot(gradient, gradient);
+            precise float squared = dot(gradient, gradient);
             if (squared > 1e-12f) {
                 normal = gradient / sqrt(squared);
-                float3 move = gradient * (-value / squared);
-                float moved = sqrt(dot(move, move));
+                precise float3 move = gradient * (-value / squared);
+                precise float moved = sqrt(dot(move, move));
                 if (moved > limit) { move *= limit / moved; }
                 position += move;
             }

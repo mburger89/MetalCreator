@@ -33,11 +33,18 @@ public enum ImplicitCompiler {
 
     /// The same solid in HLSL (plan xp-c): the same walk with the HLSL dialect, so the `sdf` is the Metal one statement for statement and the
     /// buffers are identical; one source per kernel (`HLSLKernels`).
+    ///
+    /// The `sdf` is `precise` (implicit spec D21, erratum of 2026-10-23): DXC marks every float operation of HLSL `fast` unless it is, and
+    /// reassociates under that licence. On Direct3D 12 it turned a box inside a shell, `(length + min - r) - centre`, into
+    /// `((length - centre) + min) - r`, so a point exactly on the box's face, 0 on the CPU, Metal and Vulkan, came out an ulp either side
+    /// of 0 and decided inside or outside by rounding. `precise` on the function's value makes every operation that feeds it, inlined
+    /// library functions included, the IEEE operation written, in the order written, with no contraction; the SPIR-V path decorates
+    /// them `NoContraction`.
     public static func compileHLSL(_ solid: ImplicitSolid) throws(ImplicitCompileError) -> CompiledImplicit {
         var generator = Generator()
         generator.dialect = .hlsl
         let result = try generator.solid(solid, at: "p")
-        let sdf = "float sdf(float3 p) {\n\(generator.lines.joined(separator: "\n"))\n    return \(result);\n}\n"
+        let sdf = "precise float sdf(float3 p) {\n\(generator.lines.joined(separator: "\n"))\n    return \(result);\n}\n"
         let kernels = HLSLKernels.sources(sdf: sdf)
         return CompiledImplicit(source: kernels[.evaluate]?.text ?? "", parameters: generator.parameters, integers: generator.integers,
                                 tables: generator.tables, pool: generator.pool, images: generator.images, language: .hlsl, kernels: kernels)
