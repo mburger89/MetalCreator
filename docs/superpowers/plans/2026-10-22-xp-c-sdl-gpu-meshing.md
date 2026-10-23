@@ -4,15 +4,17 @@
 
 **Goal:** On Linux and Windows, 7c's implicit evaluation and marching-cubes meshing run on the GPU through MetalUI's SDL_GPU compute, built the way macOS's `MetalImplicitEngine` is: one generated kernel source per solid shape, compiled while the app runs, pipelines cached by source; held to the CPU reference by the same suites and tolerances as Metal. macOS is unchanged.
 
-**Architecture:** `ImplicitCompiler.Generator` gains a dialect (`ShaderDialect.msl`, the default and byte-for-byte today's output, pinned by recorded digests; `.hlsl`), so one walk of the tree writes the Metal source and the HLSL source statement for statement, with the same five buffers. `HLSLShaderLibrary` and `HLSLMeshShaderLibrary` are the Swift-text HLSL twins of `ImplicitShaderLibrary` and `ImplicitMeshShaderLibrary` (line-for-line ports, plus SDL_GPU's needs: `mesh_clear` because SDL_GPU has no buffer fill, and a separate source per kernel because an SDL_GPU shader has one entry point). `HLSLImplicitEngine` is the portable actor mirroring `MetalImplicitEngine`: `prepare` makes the evaluation pipeline of a shape once, the six meshing pipelines are made on a shape's first mesh, pipelines are cached by source (64 kept, least recently used dropped), a solid's buffers by identity (8 kept), and evaluation and meshing are the same dispatches with the same tuning shape. It talks to an `ImplicitComputeBackend` that makes buffers, makes a pipeline from a `KernelSource`, and runs one batch at a time. `SDLComputeBackend` (Linux and Windows, an owned headless `SDLGPUDevice`) gets its shader bytes from a `SDLKernelProvider`: **at run time from MetalUI's compiler (gap XP-G25, which MetalUI is building on `feat/sdl-gpu-runtime-shaders`; tasks 11 and 12 wait for it)**, and, before that and in the tests, from kernels the build-time SDL_shadercross compiled offline in the Linux image (`scripts/linux-test.sh kernels`: every fixture's generated sources exported, compiled to SPIR-V, DXIL and MSL into `.build/generated-kernels`). So the generated HLSL is compiled by DXC and run against the CPU on lavapipe, and, through the MSL, on this Mac's GPU (`MSLComputeBackend`, test support), **before XP-G25 lands**. Until task 11 the app's engine off macOS stays the CPU (E7 holds); task 11 makes `HLSLImplicitEngine.sdl` the platform's engine, falling back to the CPU with the reason shown when the compiler library is missing or a source does not compile.
+**Architecture:** `ImplicitCompiler.Generator` gains a dialect (`ShaderDialect.msl`, the default and byte-for-byte today's output, pinned by recorded digests; `.hlsl`), so one walk of the tree writes the Metal source and the HLSL source statement for statement, with the same five buffers. `HLSLShaderLibrary` and `HLSLMeshShaderLibrary` are the Swift-text HLSL twins of `ImplicitShaderLibrary` and `ImplicitMeshShaderLibrary` (line-for-line ports, plus SDL_GPU's needs: `mesh_clear` because SDL_GPU has no buffer fill, and a separate source per kernel because an SDL_GPU shader has one entry point). `HLSLImplicitEngine` is the portable actor mirroring `MetalImplicitEngine`: `prepare` makes the evaluation pipeline of a shape once, the six meshing pipelines are made on a shape's first mesh, pipelines are cached by source (64 kept, least recently used dropped), a solid's buffers by identity (8 kept), and evaluation and meshing are the same dispatches with the same tuning shape. It talks to an `ImplicitComputeBackend` that makes buffers, makes a pipeline from a `KernelSource`, and runs one batch at a time. `SDLComputeBackend` (Linux and Windows, an owned headless `SDLGPUDevice`) gets its shader bytes from a `SDLKernelProvider`: **at run time from MetalUI's compiler (gap XP-G25, landed in MetalUI `722f0cd6` as `SDLGPUShaderCompiler`; tasks 11 and 12)**, and, before that and in the tests, from kernels the build-time SDL_shadercross compiled offline in the Linux image (`scripts/linux-test.sh kernels`: every fixture's generated sources exported, compiled to SPIR-V, DXIL and MSL into `.build/generated-kernels`). So the generated HLSL is compiled by DXC and run against the CPU on lavapipe, and, through the MSL, on this Mac's GPU (`MSLComputeBackend`, test support), **before XP-G25 lands**. Until task 11 the app's engine off macOS stays the CPU (E7 holds); task 11 makes `HLSLImplicitEngine.sdl` the platform's engine, falling back to the CPU with the reason shown when the compiler library is missing or a source does not compile.
 
-**Tech Stack:** Swift 6.4 strict concurrency, Swift Testing, MetalUI at the CI pin `ff0db06e9cdb8d11de8ee2210f695eb08da271fe` (`MetalUISDLGPU`; every name used before task 11 checked at the pin by task 0; the layer is the same at MetalUI master `63feea05`), then the commit that answers XP-G25 (task 11 bumps the pin), HLSL through SDL_shadercross commit `1ff05bec573988a98ef9e0260b4da44f512b8367` (`scripts/shadercross.env`, unchanged: the offline test compile now, MetalUI's run-time compiler later), Metal (macOS), Mesa lavapipe (Linux) and Direct3D 12 WARP (Windows) in CI.
+**Tech Stack:** Swift 6.4 strict concurrency, Swift Testing, MetalUI at the CI pin `ff0db06e9cdb8d11de8ee2210f695eb08da271fe` (`MetalUISDLGPU`; every name used before task 11 checked at the pin by task 0; the layer is the same at MetalUI master `63feea05`), then MetalUI master `722f0cd6fbd29e4d75b3fb71c1a60824dffd3b90` (XP-G23 and XP-G24 in `81b57417`, XP-G25 in `722f0cd6`; task 11 bumps the pin), HLSL through SDL_shadercross commit `1ff05bec573988a98ef9e0260b4da44f512b8367` (`scripts/shadercross.env`, unchanged: the offline test compile now, MetalUI's run-time compiler later), Metal (macOS), Mesa lavapipe (Linux) and Direct3D 12 WARP (Windows) in CI.
 
 **Spec:** `docs/superpowers/specs/2026-10-13-cross-platform-design.md` row XP-G2 ("Portable compute (SDL GPU compute) for 7c's implicit engine", after xp-3) and errata E1 to E7 (E7 ends "Implicit evaluation and meshing stay on the CPU off macOS (xp-c)"); `docs/superpowers/specs/2026-10-13-implicit-lattices-design.md` §4.1 to §4.3, §6, §7 and Errata D11 (the CPU is a complete engine; GPU behind a protocol), D12 (export streams, bricks meshed in a fixed order), D13 (an SDL3 GPU compute implementation follows; CPU the reference and fallback; same topology, vertices within 1e-4 mm), D15 (mesher alone 1e-4 mm; whole pipeline surfaces 1e-4 mm, vertices 2e-3 mm), D17 (surface allowance 1e-4 mm ÷ |∇f|), D20 (the amended allowance, including 7× for the Face-mapped Voronoi struts on a cylinder, an open item); the parent spec with all its Errata. This plan adds erratum **E8** to the cross-platform spec and **D21** to the implicit spec (task 10; tasks 11 and 12 finish their last sentences).
 
 **Branch:** `xp-c` (worktree `../MetalCreator-xp-c`), from master `7a010ec`. MetalUI is `../MetalUI`, **read-only**.
 
-**Revision of 2026-10-22 (user rulings; final rulings recorded the same day: X-C5 decided, always the GPU; the third-party compiler libraries approved for the packages; MetalUI on XP-G25 threading: the compile blocks, is safe from any thread and may serialize internally, so our serial worker is right; the blocking time and the `dxil.dll` answer will be in MetalUI `packaging.md` §4a).** **X-C1 is decided: Linux and Windows follow macOS** — per-solid code generation and compilation while the app runs, an HLSL generator mirroring `ImplicitCompiler.Generator`, pipelines cached by source as on Metal. The bytecode interpreter of the first revision and its limits (32 values, 8 points, 4,096 steps) are gone. MetalUI gap **XP-G25** (a run-time HLSL compute compiler and pipelines from bytes) was sent by the coordinator; the tasks that need it are last and marked. **X-C3 is decided: exports byte-identical, as on macOS** — and macOS's exports already are: an export streams through `StreamingMesher`, which meshes on the CPU over the GPU's values in a fixed order and never calls `meshBricks` (D12; `StreamedExport.swift`: "the CPU mesher still builds the triangles"), so its bytes depend only on the values, which a GPU computes the same way every run. The interpreted engine's canonical sort is dropped; the new engine mirrors Metal exactly, its `meshBricks` order being the threads' (previews only), and no macOS byte changes. XP-G23 and XP-G24 are being built by MetalUI on `feat/sdl-gpu-device-info` (planned: `SDLGPUDevice.adapterName: String?`, `isSoftwareRasterizer: Bool`, a `limits` struct); MetalUI confirms `SDLGPUDevice.make(debug:preferring:)` is nonisolated, headless and owns its device, safe off the main thread once `SDLPlatform` has initialised video on the main thread (the app does; a headless test process makes its device without a platform, as xp-3's `SDLTestDevice` already does), and that nothing may block inside a surface draw (the engine never draws).
+**Revision of 2026-10-23 (tasks 11 to 13).** MetalUI landed XP-G23 and XP-G24 (PR #130, `81b57417`) and XP-G25 (PR #131, `722f0cd6`); tasks 11 to 13 are rewritten on the real declarations (`.superpowers/sdd/2026-10-22-xp-c-sdl-gpu-meshing/metalui-landed-apis.md`), over what tasks 0 to 10 built (`SDLKernelProvider`'s `unavailability` and `pipeline(for:device:)`, `SDLComputeBackend`, `HLSLImplicitEngine`, `ImplicitEngineCheck`, `GPUEnginesUnderTest`, `GeneratedKernels`). New gaps XP-G26 (the lookup misses `lib/` beside the executable) and XP-G27 (the compiler needs MetalUI's SDL trait, so the Mac cannot compile at run time); new human check XP-30 (MetalUI RC2); RC4 is part of XP-27.
+
+**Revision of 2026-10-22 (user rulings; final rulings recorded the same day: X-C5 decided, always the GPU; the third-party compiler libraries approved for the packages; MetalUI on XP-G25 threading: the compile blocks, is safe from any thread and may serialize internally, so our serial worker is right; the blocking time and the `dxil.dll` answer are in MetalUI `packaging.md` §4b: measured on Linux and macOS, unmeasured on Windows, so the zip ships `dxil.dll`).** **X-C1 is decided: Linux and Windows follow macOS** — per-solid code generation and compilation while the app runs, an HLSL generator mirroring `ImplicitCompiler.Generator`, pipelines cached by source as on Metal. The bytecode interpreter of the first revision and its limits (32 values, 8 points, 4,096 steps) are gone. MetalUI gap **XP-G25** (a run-time HLSL compute compiler and pipelines from bytes) was sent by the coordinator; the tasks that need it are last and marked. **X-C3 is decided: exports byte-identical, as on macOS** — and macOS's exports already are: an export streams through `StreamingMesher`, which meshes on the CPU over the GPU's values in a fixed order and never calls `meshBricks` (D12; `StreamedExport.swift`: "the CPU mesher still builds the triangles"), so its bytes depend only on the values, which a GPU computes the same way every run. The interpreted engine's canonical sort is dropped; the new engine mirrors Metal exactly, its `meshBricks` order being the threads' (previews only), and no macOS byte changes. XP-G23 and XP-G24 are being built by MetalUI on `feat/sdl-gpu-device-info` (planned: `SDLGPUDevice.adapterName: String?`, `isSoftwareRasterizer: Bool`, a `limits` struct); MetalUI confirms `SDLGPUDevice.make(debug:preferring:)` is nonisolated, headless and owns its device, safe off the main thread once `SDLPlatform` has initialised video on the main thread (the app does; a headless test process makes its device without a platform, as xp-3's `SDLTestDevice` already does), and that nothing may block inside a surface draw (the engine never draws).
 
 ## User decisions
 
@@ -28,10 +30,10 @@
 - `meshBricks` (the preview and the in-memory mesh the mesh tools read) keeps Metal's order: the set is fixed, the order is the threads' (D13), on both engines. No sort is added and no macOS byte changes.
 
 **X-C4. What the person sees when the GPU engine cannot run. Recommended: (a), revised for run-time compilation.**
-- (a) **No SDL_GPU device: the CPU, silently** (D11's machine without a GPU engine). **The compiler library missing (XP-G25's named error, listing the paths it tried) or a pipeline refused: the CPU with "Running on the CPU"**, the reason in the selection's diagnostic and in `--self-test`. **A solid whose generated source does not compile** (DXC's diagnostic text) **or has no GPU form** (a distance to a profile): the CPU with the warning, as on Metal. A request beyond the 128 MiB buffer cap or the 32-bit edge keys: that request on the CPU mesher, silently, as on Metal.
+- (a) **No SDL_GPU device: the CPU, silently** (D11's machine without a GPU engine). **The compiler library missing (MetalUI's `SDLGPUShaderCompileError.compilerUnavailable(tried:)`, listing the paths it tried) or a pipeline refused: the CPU with "Running on the CPU"**, the reason in the selection's diagnostic and in `--self-test`. **A solid whose generated source does not compile** (`compileFailed(stage:diagnostics:)`, DXC's text) **or has no GPU form** (a distance to a profile): the CPU with the warning, as on Metal. A request beyond the 128 MiB buffer cap or the 32-bit edge keys: that request on the CPU mesher, silently, as on Metal.
 - (b) Silent CPU in every case.
 
-**X-C5. Software devices (lavapipe, WARP). DECIDED by the user (2026-10-22): always use the GPU, software devices included.** Lavapipe and WARP are treated like any other GPU, in the app as in CI (`XP_REQUIRE_GPU=1`); the engine never prefers the CPU because a device is a software rasterizer. Task 13 adopts the adapter's name and the limits only; `isSoftwareRasterizer` (XP-G23) may add "(software)" to the inspector's device name if MetalUI's answer gives it, and is otherwise not read.
+**X-C5. Software devices (lavapipe, WARP). DECIDED by the user (2026-10-22): always use the GPU, software devices included.** Lavapipe and WARP are treated like any other GPU, in the app as in CI (`XP_REQUIRE_GPU=1`); the engine never prefers the CPU because a device is a software rasterizer. Task 13 adopts the adapter's name and the limits only; `isSoftwareRasterizer` (XP-G23, landed) adds " (software)" to the engine's device name (`--self-test`'s line and wherever the device is named), and is otherwise not read.
 
 **X-C6. Precision. Recommended (a).** Float only, never `half`; the HLSL library's own sine, cosine and arctangent (Cody–Waite, Cephes; Vulkan promises only 2^-11 absolute for `sin`, Metal's engine uses `precise::`), and the noise's 64-bit hash in 32-bit word pairs (`uint64_t` needs `shaderInt64`, which SDL_GPU neither enables nor reports). The tolerances are the 7c spec's, unchanged.
 
@@ -50,13 +52,13 @@ No saved file format, saved setting or document changes.
 - **macOS is unchanged in behaviour and in bytes.** `ImplicitCompiler`'s MSL output is the same text for every fixture (task 1 records digests before the generator changes and pins them); `MetalImplicitEngine`, `ImplicitShaderLibrary` and `ImplicitMeshShaderLibrary` are not edited; macOS builds no SDL and links no shadercross.
 - **Portability:** no Metal outside `#if canImport(Metal)` files named `Metal*.swift` (the test backend `MSLComputeBackend.swift` likewise); no `MetalUISDLGPU` outside `Sources/CreatorImplicit/SDL/SDL*.swift`, each wholly under `#if canImport(MetalUISDLGPU)`; no `SDLGPU…` type named elsewhere (`ImplicitPortabilityTests`).
 - **Generated HLSL rules** (`HLSLSourceTests`): no `half`, `min16float`, `double`, `uint64_t`, `int64_t`, `GetDimensions` or driver trigonometry (`sin`, `cos`, `tan`, `atan`, `atan2`); read-only storage `register(tN, space0)` and read-write `register(uN, space1)` from 0 without gaps in the order `ImplicitKernel.bindings` lists, every declared buffer used (DXC drops an unused one and the slots shift); one `cbuffer Params : register(b0, space2)`; entry point `main`, `[numthreads(64, 1, 1)]`.
-- **SDL_GPU compute rules** (`SDL_gpu.h`, "A VERY IMPORTANT NOTE"): a dispatch that reads what an earlier one wrote is in a compute pass of its own (the backends give each dispatch its own pass); the engine never calls a blocking verb (`submitBatchSynchronously`, `waitBlocking`, `downloadSynchronously`, `waitForIdle`) and never runs inside a surface draw; at most 65,535 groups of 64 threads a dispatch, storage buffers of at most 128 MiB until XP-G24.
+- **SDL_GPU compute rules** (`SDL_gpu.h`, "A VERY IMPORTANT NOTE"): a dispatch that reads what an earlier one wrote is in a compute pass of its own (the backends give each dispatch its own pass); the engine never calls a blocking verb (`submitBatchSynchronously`, `waitBlocking`, `downloadSynchronously`, `waitForIdle`) and never runs inside a surface draw; at most 65,535 groups of 64 threads a dispatch, storage buffers of at most 128 MiB (SDL_GPU's guaranteed floors, `SDLGPUDevice.limits`, XP-G24).
 - **The Windows Swift 6.4 compiler** (xp-1, xp-2): heavy loops in synchronous helpers, never holding a loop's locals across an `await`; no typed-throws closures to generic helpers; every `async` method taking the `progress` closure is `@_optimize(none)` with a comment (master's `OccupancyGrid.fill(lipschitz:awaiting:)`); if an `async` loop still asserts, rewrite it as recursion over the index. Every task that changes code Windows compiles must pass CI's `swift build -c release` ("Build release (for the zip)"); the local check is `TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release` (it compiles what macOS compiles, so the `SDL*.swift` files are CI's).
 - A full `swift test` passes only if it exits 0, no line says "recorded an issue" or "failed after", and there are **12 "Test run with" lines** on macOS, Linux and Windows (xp-c adds no test target; the kernel export of task 3 runs as its own filtered invocation, not counted).
 - Linux: `scripts/linux-test.sh` with **`XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c`** on every call; Windows: CI on the pushed `xp-c` branch.
 - **Processes:** never `pkill`, `killall` or `xargs kill` swift, swift-test, swift-build, swift-frontend or xctest; kill only PIDs you started; stop Docker only by this track's container names (`xp-c-linux`, `xp-c-linux-clean`).
 - **Line endings:** split text a test reads with `split(whereSeparator: \.isNewline)`.
-- **Third-party code:** before task 12, none added. Task 12 ships SDL_shadercross, DXC (and `dxil` if MetalUI `packaging.md` §4a says it is needed), SPIRV-Cross and SPIRV-Tools shared libraries in the tarball, the AppImage and the zip, with their licence notices: **approved by the user (2026-10-22)**.
+- **Third-party code:** before task 12, none added. Task 12 ships, per MetalUI `packaging.md` §4b, SDL_shadercross, DXC and SPIRV-Cross as shared libraries (SPIRV-Tools and SPIRV-Headers are linked into them) in the tarball's and the AppImage's `lib/` and beside the zip's `.exe`, plus `dxil.dll` on Windows (shipped: whether D3D12 needs it is unmeasured, MetalUI RC1), with their licence notices: **approved by the user (2026-10-22)**.
 
 ## Review Focus
 
@@ -77,9 +79,9 @@ No saved file format, saved setting or document changes.
 | `Sources/CreatorImplicit/Metal/ImplicitCompiler.swift`, `+Mapping.swift` | the dialect: `number`, `integer` and the environment argument spelled by `dialect` (task 1); MSL text unchanged, pinned | a 7c follow-up's new case writes through the dialect too |
 | `Sources/CreatorImplicit/Metal/CompiledImplicit.swift` | `language`, `kernels` (task 1) | both |
 | `scripts/linux-test.sh` | a `kernels` verb; `test` and `all` export and compile the kernels first (task 3) | every verb |
-| `scripts/linux/Dockerfile`, `scripts/install-shadercross.ps1`, `.github/workflows/xp.yml`, packaging scripts, `docs/packaging.md` | task 12 only (after XP-G25) | xp-3's shadercross stage and caches |
-| `Sources/CreatorApp/SelfTest.swift` | the implicit engine's check (task 8; MetalUI's `selfTest()` in task 12) | both checks |
-| docs (gaps, human checks, performance, specs, `CLAUDE.md`) | tasks 0, 9, 10, 11, 12, 13 | both sides; next free: XP-G26, XP-30, E9, D22 |
+| `scripts/linux/Dockerfile`, `scripts/install-shadercross.ps1`, `.github/workflows/xp.yml`, packaging scripts, `docs/packaging.md` | the pin and `METALUI_SHADERCROSS_LIB` (task 11); the shared libraries, their licences and the package checks (task 12) | xp-3's shadercross stage and caches |
+| `Sources/CreatorApp/SelfTest.swift` | the implicit engine's check (task 8); "implicit compiler", MetalUI's `SDLGPUShaderCompiler.selfTest(for:)`, off macOS (task 12) | both checks |
+| docs (gaps, human checks, performance, specs, `CLAUDE.md`) | tasks 0, 9, 10, 11, 12, 13 | both sides; next free: XP-G28, XP-31, E9, D22 |
 | `GPUAgreementTests`, `GPUMeshAgreementTests`, `StreamingMesherGPUTests` | run over every engine (tasks 4, 7) | the fixtures and allowances |
 
 ## Key decisions (made by this plan)
@@ -88,7 +90,7 @@ No saved file format, saved setting or document changes.
 - **One source per kernel, cached by digest.** SDL_GPU compiles one entry point per shader, so where Metal compiles a shape's one library with five kernels, the HLSL side writes one source per kernel: `implicit_evaluate`, `mesh_sample` and `mesh_place` contain the shape's `sdf`; `mesh_clear`, `mesh_classify`, `mesh_number` and `mesh_emit` do not call it, so their text is the same for every shape and the pipeline cache (keyed by a stable digest of the text) makes them once. The digest is FNV-1a 64 of the UTF-8 text (`KernelSource.digest`), stable across processes, so the offline export names its files by it.
 - **The buffers are Metal's, packed in two.** floats = parameters ++ pool ++ images, ints = integers ++ tables, the bases in the uniform block, so `mesh_place` declares five read-only storage buffers, not eight.
 - **One uniform block, `KernelParameters`** (16 four-byte words) for every kernel: Metal's `count` and `MeshParams` and the bases.
-- **An owned, headless device, made on first use inside the engine** (never on the main actor); compile calls run where XP-G25's thread-safety notes allow, never inside a surface draw.
+- **An owned, headless device, made on first use inside the engine** (never on the main actor); compiles run on `SDLCompileWorker`, one thread of our own (MetalUI: the compile blocks and is safe from any thread), never inside a surface draw, and the worker never makes a device (on macOS `make` hops to the main thread).
 - **Until task 11 the app's engine off macOS is the CPU** (`platformDefault` stays `nil` there): the engine exists, is tested on lavapipe and the Mac, and is not shown to a person before it can compile at run time.
 
 ## File structure
@@ -108,9 +110,9 @@ No saved file format, saved setting or document changes.
 | `Compute/HLSLImplicitEngine.swift`, `+Meshing.swift`, `HLSLMeshRun.swift` | the actor mirroring `MetalImplicitEngine` and its meshing |
 | `GPU/ImplicitEngineAvailability.swift`, `ImplicitGPUEngine.swift`, `ImplicitEvaluators.swift`, `ImplicitGPUEngines.swift`, `ImplicitEngineCheck.swift` | availability, selection, the platform's engine, the self-test's question |
 
-**SDL, `Sources/CreatorImplicit/SDL`** (wholly under `#if canImport(MetalUISDLGPU)`): `SDLComputeBackend.swift`, `SDLComputeRecording.swift`, `SDLComputeBuffer.swift`, `SDLComputePipeline.swift`, `SDLKernelProvider.swift` (the protocol and `SDLPrecompiledKernels`), `SDLRuntimeKernels.swift` (task 11), `SDLImplicitEngine.swift` (task 11).
+**SDL, `Sources/CreatorImplicit/SDL`** (wholly under `#if canImport(MetalUISDLGPU)`): `SDLComputeBackend.swift`, `SDLComputeRecording.swift`, `SDLComputeBuffer.swift`, `SDLComputePipeline.swift`, `SDLKernelProvider.swift` (the protocol and `SDLPrecompiledKernels`), `SDLRuntimeKernels.swift`, `SDLCompileWorker.swift`, `SDLImplicitEngine.swift` (task 11), `SDLCompilerSelfTest.swift` (task 12).
 
-**Tests, `Tests/CreatorImplicitTests`**: `MetalSourceDigests` (support, recorded), `HLSLSourceTests`, `GeneratedKernelExport`, `GeneratedKernelBuildTests`, `HLSLEngineTests`, `HLSLMeshingTests`, `SDLComputeBackendTests`, `ImplicitGPUAvailabilityTests`, `ImplicitEngineCheckTests`, `MetalEngineDispatchTests` (moved), `ImplicitBenchHLSL`, `HLSLRuntimeCompileTests` (task 11); support `GeneratedKernels.swift`, `MSLComputeBackend.swift`, `MSLComputeBuffer.swift`, `GPUEnginesUnderTest.swift`; changed `GPUAgreementTests`, `GPUMeshAgreementTests`, `StreamingMesherGPUTests`, `ImplicitEvaluatorsTests`, `GPUBatchEvaluatorTests`, `ImplicitPortabilityTests`, `StubGPUEngine`.
+**Tests, `Tests/CreatorImplicitTests`**: `MetalSourceDigests` (support, recorded), `HLSLSourceTests`, `GeneratedKernelExport`, `GeneratedKernelBuildTests`, `HLSLEngineTests`, `HLSLMeshingTests`, `SDLComputeBackendTests`, `ImplicitGPUAvailabilityTests`, `ImplicitEngineCheckTests`, `MetalEngineDispatchTests` (moved), `ImplicitBenchHLSL`, `HLSLRuntimeCompileTests` (task 11); support `GeneratedKernels.swift`, `RuntimeCompileUnderTest.swift` (task 11), `MSLComputeBackend.swift`, `MSLComputeBuffer.swift`, `GPUEnginesUnderTest.swift`; changed `GPUAgreementTests`, `GPUMeshAgreementTests`, `StreamingMesherGPUTests`, `ImplicitEvaluatorsTests`, `GPUBatchEvaluatorTests`, `ImplicitPortabilityTests`, `StubGPUEngine`.
 
 ---
 
@@ -3332,91 +3334,818 @@ lavapipe and WARP; these checks are a real GPU, a person's eye and a stopwatch.
 
 ---
 
-### Task 11 (waits for MetalUI XP-G25): compile at run time; the app's engine off macOS
+### Task 11 (MetalUI XP-G25, landed): compile at run time; the app's engine off macOS
 
-Starts when `docs/metalui-gaps.md` (or the coordinator) says XP-G25 is merged in MetalUI, naming the commit. **The names below are MetalUI's planned shape (`feat/sdl-gpu-runtime-shaders`) and provisional**: before writing code, read the answering commit (`git -C ../MetalUI show <commit>:Backends/SDL/Sources/MetalUISDLGPU/…`, its record and `docs/packaging.md` §4a) and use its real names; the plan calls them `SDLGPUShaderCompiler` (nonisolated; `compileCompute(hlsl:entryPoint:defines:for:) throws -> SDLGPUShaderBlob` or bytes plus reflection), `SDLGPUShaderCompilerError` (a missing library listing the paths tried; a compile failure with DXC's text), `SDLGPUDevice.compileComputePipeline(_:)` from the compiler's output, and `SDLGPUShaderCompiler.selfTest()`.
+MetalUI master `722f0cd6` (PR #131, record 151) answers XP-G25; `81b57417` (PR #130, its parent) answers XP-G23 and XP-G24 (task 13). The names below are
+the landed declarations, read at `722f0cd6` (`.superpowers/sdd/2026-10-22-xp-c-sdl-gpu-meshing/metalui-landed-apis.md` is binding for names):
 
-**Files:** Create `Sources/CreatorImplicit/SDL/SDLRuntimeKernels.swift`, `Sources/CreatorImplicit/SDL/SDLImplicitEngine.swift`, `Tests/CreatorImplicitTests/HLSLRuntimeCompileTests.swift`; modify `Sources/CreatorImplicit/GPU/ImplicitGPUEngines.swift`, `Tests/CreatorImplicitTests/Support/GPUEnginesUnderTest.swift`, `ImplicitGPUAvailabilityTests.swift`, `GPUBatchEvaluatorTests.swift`, `ImplicitBenchHLSL.swift`, `.github/workflows/xp.yml` (`METALUI_COMMIT`), the docs.
+- `SDLGPUShaderCompiler` (`Backends/SDL/Sources/MetalUISDLGPU/SDLGPUShaderCompiler.swift`, a `Sendable` struct, only under MetalUI's `SDL` trait):
+  `static func shared(libraryPath: String? = nil) throws -> SDLGPUShaderCompiler` (loads SDL_shadercross once per process with `SDL_LoadObject`; a
+  later call with a *different* explicit path throws `.libraryAlreadyLoaded`), `static var isAvailable: Bool` (calls `shared()`, so it loads the
+  library), `libraryPath`, `compileCompute(name:hlsl:entryPoint:defines:includeDirectory:for: SDLGPUDevice) throws -> SDLGPUShaderBlob` (target
+  from the device's driver; HLSL to SPIR-V always first, so a refused source fails at stage `"HLSL to SPIR-V"`; reflection always from the SPIR-V),
+  and `static func selfTest(for: SDLGPUDevice?, libraryPath: String? = nil) async throws -> SDLGPUShaderCompilerReport` (task 12).
+- `SDLGPUShaderCompileError`: `.compilerUnavailable(tried: [String])` (one `path: reason` line per place tried), `.libraryAlreadyLoaded(loaded:requested:)`,
+  `.invalidInput`, `.unsupportedTarget`, `.compileFailed(stage:diagnostics:)` (DXC's text with file, line and column), `.malformedReflection`; never traps;
+  its `description` is what we show. DXC's warnings are not captured.
+- `SDLGPUDevice.compileComputePipeline(_ blob: SDLGPUShaderBlob) throws -> SDLGPUComputePipeline` (already used by `SDLPrecompiledKernels`); the
+  one-step `compileComputePipeline(hlsl:name:entryPoint:defines:)` always uses `shared()`'s default lookup, so we do not call it.
+- The lookup (`RuntimeLibraryLocator`, MetalUI `docs/packaging.md` §4b): the explicit `libraryPath:`, then `METALUI_SHADERCROSS_LIB` (the library file
+  or a directory holding it; a named file that is missing is an error, never a fall-through), then the executable's directory and its `../lib`, then
+  the `lib` beside `METALUI_SHADERCROSS`'s `bin`, then the bare names (`libSDL3_shadercross.so.0`, `libSDL3_shadercross.so`; `SDL3_shadercross.dll`)
+  on the loader path. For a path, `dxcompiler` and `spirv-cross` beside it are preloaded by full path first (required), `dxil` too (optional).
+- Threads (MetalUI rulings RC-D, RC-M, DL-G): every member is nonisolated, a compile **blocks** for tenths of a second to seconds and is safe from any
+  thread (compiles may run concurrently; only the library's load is locked); call it off the main actor and cache by source (the app owns the cache).
+  `SDLGPUDevice.make` is safe off the main thread once `SDLPlatform` has initialised video; **on macOS it hops to the main thread, so nothing may block
+  the main thread waiting on an off-thread `make`** (not reachable here: the SDL engine is Linux and Windows only, and the compile worker never makes a
+  device).
+- Measured (MetalUI §4b, 2026-10-22, never pinned): HLSL to SPIR-V 0.056 / 0.564 / 2.658 s at 200 / 1,000 / 2,000 lines on Linux aarch64, about 0.08 /
+  0.44 / 1.59 s on a loaded Mac; DXIL about 10 % more; the library loads in 7 ms (Linux).
 
-**Interfaces:** Produces `SDLRuntimeKernels: SDLKernelProvider`; `HLSLImplicitEngine.sdl`; `platformDefault` off macOS; rows x-3 and x-4.
+**Where the library is.** The tests and CI name it: `METALUI_SHADERCROSS_LIB=/opt/shadercross/lib` in the Linux image (`scripts/linux-test.sh`,
+step 1) and `METALUI_SHADERCROSS_LIB=<runner temp>\shadercross\bin` in the Windows job (step 1). A package needs no variable (task 12): the zip's DLLs
+are beside the `.exe` (MetalUI's lookup tries there); the tarball's and the AppImage's are in `lib/` beside the executable, which MetalUI's lookup does
+not try by path (it tries `../lib`; gap **XP-G26**, step 6), so they are found by the loader-path name through the executable's `$ORIGIN/lib` RUNPATH
+and each bundled library's `$ORIGIN` (task 12 checks it with `LD_DEBUG`). **The Mac cannot run the run-time compiler**: it lives in MetalUI's SDL
+layer and a macOS build asks for no SDL trait (Global Constraints); the Mac keeps running the generated HLSL as its offline MSL on `MSLComputeBackend`,
+and `HLSLRuntimeCompileTests` skip there by name (gap **XP-G27**, step 6, asks for the compile without the SDL trait).
 
-- [ ] **Step 1: Bump the pin** to the answering commit in `xp.yml` (`METALUI_COMMIT`) and check `../MetalUI` is at or past it (read-only: `git -C ../MetalUI merge-base --is-ancestor <commit> HEAD`).
+**Files:** Create `Sources/CreatorImplicit/SDL/SDLRuntimeKernels.swift`, `Sources/CreatorImplicit/SDL/SDLCompileWorker.swift`,
+`Sources/CreatorImplicit/SDL/SDLImplicitEngine.swift`, `Tests/CreatorImplicitTests/HLSLRuntimeCompileTests.swift`,
+`Tests/CreatorImplicitTests/Support/RuntimeCompileUnderTest.swift`; modify `Sources/CreatorImplicit/SDL/SDLComputeBackend.swift` (`make`: the device
+first), `Sources/CreatorImplicit/GPU/ImplicitGPUEngines.swift`, `Sources/CreatorImplicit/GPU/ImplicitEngineCheck.swift`,
+`Tests/CreatorImplicitTests/Support/GPUEnginesUnderTest.swift`, `ImplicitGPUAvailabilityTests.swift`, `GPUBatchEvaluatorTests.swift`,
+`ImplicitBenchHLSL.swift`, `scripts/linux-test.sh` (`in_container`'s environment), `.github/workflows/xp.yml` (`METALUI_COMMIT`; the Windows job's
+`METALUI_SHADERCROSS_LIB`), `docs/metalui-gaps.md`, both specs, `docs/verification/performance.md`, `docs/verification/human-checks.md`, `CLAUDE.md`.
 
-- [ ] **Step 2: The failing tests.** `Tests/CreatorImplicitTests/HLSLRuntimeCompileTests.swift` (wholly `#if canImport(MetalUISDLGPU)`):
+**Interfaces:** Consumes `SDLKernelProvider` (`unavailability: ComputeBackendState?`, `pipeline(for:device:) async throws -> SDLGPUComputePipeline`),
+`SDLComputeBackend.make(kernels:)` and `.platformName`, `HLSLImplicitEngine(name:backend:dispatchSize:)`, `compileCount`, `meshCompileCount`,
+`ImplicitEvaluators.make(for:choice:engine:)` and its `cpuWarning`, `GeneratedKernels`, `KernelSource(kernel:text:)`, `ImplicitKernel.bindings`.
+Produces `SDLRuntimeKernels: SDLKernelProvider` (`init(libraryPath: String? = nil)`), `SDLCompileWorker.shared.pipeline(for:libraryPath:device:)`,
+`HLSLImplicitEngine.sdl`, `ImplicitGPUEngines.platformDefault` off macOS, `RuntimeCompileUnderTest.state` / `.isAvailable` / `.hasSDLGPU`, rows x-3
+and x-4.
+
+- [ ] **Step 1: The pin and where the tests find the library.**
+```bash
+cd /Users/maxburger/Developer/MetalCreator-xp-c
+git -C ../MetalUI merge-base --is-ancestor 722f0cd6fbd29e4d75b3fb71c1a60824dffd3b90 HEAD && echo "MetalUI is at or past the pin"
+git -C ../MetalUI diff --stat ff0db06e 722f0cd6 -- Backends/SDL/Sources/MetalUISDLGPU     # additions only: DeviceInfo, ShaderCompiler, Blob+Bytes, +RuntimeCompile
+cd ../MetalUI
+for n in "public static func shared(libraryPath" "public static var isAvailable" "for device: SDLGPUDevice) throws -> SDLGPUShaderBlob" \
+         "case compilerUnavailable(tried" "case compileFailed(stage" "public static func selfTest(for device: SDLGPUDevice?, libraryPath"; do
+  git show 722f0cd6:Backends/SDL/Sources/MetalUISDLGPU/SDLGPUShaderCompiler.swift | grep -c "$n"; done          # each ≥ 1
+for n in "public var adapterName" "public var isSoftwareRasterizer" "public var limits" "maxStorageBufferBindingBytes" "maxComputeWorkgroupCount"; do
+  git show 722f0cd6:Backends/SDL/Sources/MetalUISDLGPU/SDLGPUDeviceInfo.swift | grep -c "$n"; done              # each ≥ 1
+git show 722f0cd6:Backends/SDL/Sources/MetalUISDLGPU/SDLGPUDevice.swift | grep -c "func compileComputePipeline(_ blob"   # 1
+cd ../MetalCreator-xp-c
+```
+Then: in `.github/workflows/xp.yml` set `METALUI_COMMIT: 722f0cd6fbd29e4d75b3fb71c1a60824dffd3b90` (the full SHA; the header's "bump METALUI_COMMIT"
+comment stays). In `scripts/linux-test.sh`'s `in_container`, the `docker run` line becomes
+`-e XP_REQUIRE_GPU=1 -e METALUI_SHADERCROSS_LIB=/opt/shadercross/lib -v "$REPO":/work/MetalCreator …` and the comment above it gains: "MetalUI's
+run-time shader compiler (XP-G25) is the image's SDL_shadercross build; the variable names its directory (MetalUI `docs/packaging.md` 4b). The
+package checks run in a clean ubuntu:24.04 without it." The image already holds `libSDL3_shadercross.so.0`, `libdxcompiler.so`, `libdxil.so` and
+`libspirv-cross-c-shared.so.0` in `/opt/shadercross/lib` (checked 2026-10-23; their `RUNPATH` is `$ORIGIN/../lib`). In the Windows job, after
+"Save SDL_shadercross", add:
+```yaml
+      - name: Point the tests at the shader compiler
+        # MetalUI's run-time compiler (XP-G25) tries METALUI_SHADERCROSS_LIB first (MetalUI docs/packaging.md 4b). The zip's own check clears it
+        # (scripts/package-windows.ps1), so a zip without the DLLs still fails there.
+        run: '"METALUI_SHADERCROSS_LIB=$env:RUNNER_TEMP\shadercross\bin" >> $env:GITHUB_ENV'
+```
+(`runner.temp` is not available in a job-level `env:`, hence the step.) The Windows prefix must hold `SDL3_shadercross.dll`, `dxcompiler.dll`,
+`dxil.dll` and `spirv-cross-c-shared.dll` in `bin`: task 12 step 2 makes `install-shadercross.ps1` check and complete that, so **run task 12 step 2
+before step 4's Windows run** (execution order, below). Commit with step 3.
+
+- [ ] **Step 2: The failing tests.** `Tests/CreatorImplicitTests/Support/RuntimeCompileUnderTest.swift` (portable: on a Mac it says why not):
 ```swift
-#if canImport(MetalUISDLGPU)
+import Foundation
+@testable import CreatorImplicit
+
+/// MetalUI's run-time compiler where this test process can load it (plan xp-c task 11, gap XP-G25): the Linux image and the Windows job name the library
+/// with `METALUI_SHADERCROSS_LIB`. One backend for the process, made once. A Mac never has it: MetalUI's compiler is in its SDL layer, which a macOS build
+/// does not ask for, so the Mac's HLSL runs as the offline MSL (`GeneratedKernels`, `MSLComputeBackend`; gap XP-G27).
+enum RuntimeCompileUnderTest {
+    static let hasSDLGPU: Bool = {
+        #if canImport(MetalUISDLGPU)
+        return true
+        #else
+        return false
+        #endif
+    }()
+
+    static let state: ComputeBackendState = {
+        #if canImport(MetalUISDLGPU)
+        return SDLComputeBackend.make(kernels: SDLRuntimeKernels())
+        #else
+        return .absent("MetalUI's run-time compiler is in its SDL layer, which a macOS build does not build (plan xp-c Global Constraints, gap XP-G27)")
+        #endif
+    }()
+
+    static var isAvailable: Bool {
+        if case .ready = state { return true }
+        return false
+    }
+}
+```
+`Tests/CreatorImplicitTests/HLSLRuntimeCompileTests.swift` (portable; each test skips by name where it cannot run):
+```swift
 import Foundation
 import Testing
 @testable import CreatorImplicit
 
 /// Run-time compilation of the generated HLSL (plan xp-c task 11, MetalUI XP-G25): what the app does on Linux and Windows.
 struct HLSLRuntimeCompileTests {
-    /// Review Focus 2: no compiler library → broken, naming the paths tried, so the person hears "Running on the CPU".
-    @Test func aMissingCompilerLibraryIsBrokenAndNamesWhatItTried() {
-        let state = SDLComputeBackend.make(kernels: SDLRuntimeKernels(librarySearchPath: [FileManager.default.temporaryDirectory]))
-        if case .broken(let why) = state {
-            #expect(why.contains(FileManager.default.temporaryDirectory.path), "\(why)")
-        } else if case .absent = state {
-            // no device here: nothing to say about the compiler
+    /// Review Focus 2: a compiler library that does not load is `.broken`, naming the path tried, and a solid then runs on the CPU with the warning.
+    /// MetalUI loads the library once per process: when an earlier test loaded it, the explicit path is refused as `libraryAlreadyLoaded`, which names
+    /// the requested path too; the package checks (task 12) cover a process that never had it.
+    @Test(.enabled(if: RuntimeCompileUnderTest.hasSDLGPU, "MetalUI's run-time compiler is in its SDL layer, which a macOS build does not build"))
+    func aMissingCompilerLibraryIsBrokenAndNamesWhatItTried() async {
+        #if canImport(MetalUISDLGPU)
+        let missing = FileManager.default.temporaryDirectory.appending(path: "no-shadercross-\(UUID().uuidString)")
+            .appending(path: "libSDL3_shadercross.so.0").path
+        let kernels = SDLRuntimeKernels(libraryPath: missing)
+        guard case .broken(let why) = kernels.unavailability else {
+            Issue.record("a compiler library that is not there was not reported broken")
+            return
+        }
+        #expect(why.contains(missing), "\(why)")
+        let engine = HLSLImplicitEngine(name: SDLComputeBackend.platformName, backend: { SDLComputeBackend.make(kernels: kernels) })
+        let selection = await ImplicitEvaluators.make(for: .sphere(radius: 1), choice: .automatic, engine: engine)
+        #expect(selection.evaluator.engineName == "CPU")
+        if case .absent = await engine.availability {
+            #expect(selection.warning == nil, "no SDL_GPU device: the CPU, silently (X-C4)")
         } else {
-            Issue.record("a ready backend without a compiler library")
+            #expect(selection.warning == ImplicitEvaluators.cpuWarning)
+            #expect(selection.diagnostic?.contains(missing) == true, "\(selection.diagnostic ?? "no diagnostic")")
         }
+        #endif
     }
 
-    /// Review Focus 1: a source DXC refuses is the CPU's, with DXC's text.
-    @Test(.enabled(if: SDLRuntimeKernels.isAvailable, "needs MetalUI's run-time compiler"))
+    /// Review Focus 1: a source DXC refuses is `ImplicitCompileError.engine` with DXC's own text, so the selection falls back to the CPU with it.
+    @Test(.enabled(if: RuntimeCompileUnderTest.isAvailable, "needs MetalUI's run-time compiler (the Linux image, the Windows job)"))
     func aSourceTheCompilerRefusesRunsOnTheCPUWithItsDiagnostic() async throws {
-        guard case .ready(let backend) = SDLComputeBackend.make(kernels: SDLRuntimeKernels()) else { return }
-        let broken = KernelSource(kernel: .evaluate, text: HLSLShaderLibrary.prelude + "void main( {")
-        await #expect { _ = try await backend.makePipeline(broken) } throws: { error in
-            guard case ImplicitCompileError.engine(let text) = error else { return false }
-            return !text.isEmpty
+        guard case .ready(let backend) = RuntimeCompileUnderTest.state else {
+            Issue.record("\(RuntimeCompileUnderTest.state)")
+            return
         }
+        let broken = KernelSource(kernel: .evaluate, text: HLSLShaderLibrary.prelude + "\n[numthreads(64, 1, 1)] void main( {")
+        let error = await #expect(throws: ImplicitCompileError.self) { _ = try await backend.makePipeline(broken) }
+        guard case .engine(let text) = error else {
+            Issue.record("not an engine error: \(String(describing: error))")
+            return
+        }
+        #expect(text.contains("HLSL to SPIR-V failed"), "\(text)")
+        #expect(!text.contains("the compiler gave no message"), "DXC's diagnostics were lost: \(text)")
     }
 
-    /// The app's engine compiles each fixture's kernels at run time and agrees with the CPU (the agreement suites then run on it too, step 4).
-    @Test(.enabled(if: SDLRuntimeKernels.isAvailable, "needs MetalUI's run-time compiler"))
+    /// The app's engine compiles at run time and agrees with the CPU (the agreement suites then run on it too, through `GPUEnginesUnderTest`).
+    @Test(.enabled(if: RuntimeCompileUnderTest.isAvailable, "needs MetalUI's run-time compiler (the Linux image, the Windows job)"))
     func thePlatformEngineCompilesAtRunTime() async throws {
         let engine = try #require(ImplicitGPUEngines.platformDefault)
         #expect(await engine.availability == .available)
-        let values = try await GPUBatchEvaluator(engine: engine, program: try await engine.compile(.sphere(radius: 5))).evaluate([SIMD3(8, 0, 0)])
-        #expect(abs(values[0] - 3) < 1e-5)
+        let program = try await engine.compile(.sphere(radius: 5))
+        let values = try await GPUBatchEvaluator(engine: engine, program: program).evaluate([SIMD3(8, 0, 0)])
+        #expect(values.count == 1 && abs(values[0] - 3) < 1e-5)
+    }
+
+    /// A kernel source is compiled once per engine: the same shape twice compiles nothing the second time (Review Focus 3, at run time).
+    @Test(.enabled(if: RuntimeCompileUnderTest.isAvailable, "needs MetalUI's run-time compiler (the Linux image, the Windows job)"))
+    func aSecondCompileOfTheSameShapeCompilesNothing() async throws {
+        let state = RuntimeCompileUnderTest.state
+        let engine = HLSLImplicitEngine(name: "run-time", backend: { state })
+        _ = try await engine.compile(.sphere(radius: 2))
+        _ = try await engine.compile(.sphere(radius: 7))
+        #expect(await engine.compileCount == 1)
+    }
+}
+```
+Change `GPUBatchEvaluatorTests.thePlatformEngineIsMetalOrNothing` to:
+```swift
+    @Test func thePlatformEngineIsTheMachines() async {
+        // Metal on a Mac with a device; off macOS the HLSL engine over SDL_GPU (since xp-c task 11), which says itself whether it can run here.
+        guard let engine = ImplicitGPUEngines.platformDefault else { return }
+        #if canImport(Metal)
+        #expect(engine.name == "Metal")
+        #elseif os(Windows)
+        #expect(engine.name == "Direct3D 12")
+        #else
+        #expect(engine.name == "Vulkan")
+        #endif
+    }
+```
+`ImplicitGPUAvailabilityTests.theHLSLEngineAnswersWhereTheEnvironmentPromisesAGPU` becomes `async`, its `#if` loses `&& !os(Windows)`, and it adds
+`#expect(await HLSLImplicitEngine.sdl.availability == .available, "XP_REQUIRE_GPU=1 but the app's engine cannot run: \(await HLSLImplicitEngine.sdl.availability)")`.
+`GPUEnginesUnderTest.hlslState`'s SDL branch becomes:
+```swift
+        #if canImport(MetalUISDLGPU)
+        // Compiled at run time as the app does where MetalUI's compiler loads (task 11), else the kernels compiled offline (task 3).
+        if RuntimeCompileUnderTest.isAvailable { return RuntimeCompileUnderTest.state }
+        return SDLComputeBackend.make(kernels: SDLPrecompiledKernels(directory: GeneratedKernels.compiled))
+```
+and its doc comment's "on kernels compiled offline until task 11, then compiled at run time as the app does" becomes "compiled at run time as the app
+does where MetalUI's compiler loads, else on the kernels compiled offline". On the Mac the new tests build and skip by name (they name no SDL type
+outside `#if canImport(MetalUISDLGPU)`): `swift test --filter "CreatorImplicitTests.(HLSLRuntimeCompileTests|GPUBatchEvaluatorTests)"`. The red run is
+Linux's: `XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test --filter "CreatorImplicitTests.HLSLRuntimeCompileTests"` fails to
+build (`cannot find 'SDLRuntimeKernels' in scope`).
+
+- [ ] **Step 3: Implement.** `Sources/CreatorImplicit/SDL/SDLCompileWorker.swift`:
+```swift
+#if canImport(MetalUISDLGPU)
+import Foundation
+import MetalUISDLGPU
+
+/// The thread the implicit engine's run-time compiles run on (plan xp-c task 11). MetalUI's `SDLGPUShaderCompiler` blocks for tenths of a second to
+/// seconds (its docs: "call it off the main actor"; MetalUI `docs/packaging.md` 4b: 0.06 s at 200 lines to 2.7 s at 2,000 on Linux) and is safe from
+/// any thread, so it runs here: one `Thread` of our own, jobs in order, never a thread of the cooperative pool (a blocked pool thread starves every
+/// task) and never the main thread. It never makes a device (on macOS `SDLGPUDevice.make` hops to the main thread, which must never wait on a thread
+/// that waits for it: MetalUI DL-G); the engine's backend made its device before any compile. Serial on purpose: one DXC at a time bounds the memory
+/// and the CPU taken from the preview. The pattern is MetalUI's `SDLGPUWorker`. A compile cannot be cancelled: a stale one finishes and is cached by
+/// its digest (the shape may come back). The thread lives as long as the process.
+final class SDLCompileWorker: @unchecked Sendable {
+    // @unchecked: `jobs` is read and written only while `condition` is locked; the rest is immutable.
+    static let shared = SDLCompileWorker()
+
+    private struct Job {
+        let source: KernelSource
+        let libraryPath: String?
+        let device: SDLGPUDevice
+        let continuation: CheckedContinuation<SDLGPUComputePipeline, any Error>
+    }
+
+    private let condition = NSCondition()
+    private var jobs: [Job] = []
+
+    private init() {
+        let thread = Thread { [self] in run() }
+        thread.name = "MetalCreator implicit compiler"
+        // DXC recurses deeply on a long kernel; Windows gives a new thread 1 MB unless told (the test executables reserve 16 MB, xp-1).
+        thread.stackSize = 16 << 20
+        thread.start()
+    }
+
+    /// `source` compiled for `device` (its driver's format: SPIR-V on Vulkan, DXIL on Direct3D 12), after every earlier job. Throws
+    /// `ImplicitCompileError.engine` with MetalUI's text (`compileFailed`: DXC's diagnostics) or SDL's.
+    func pipeline(for source: KernelSource, libraryPath: String?, device: SDLGPUDevice) async throws -> SDLGPUComputePipeline {
+        try await withCheckedThrowingContinuation { continuation in
+            condition.lock()
+            jobs.append(Job(source: source, libraryPath: libraryPath, device: device, continuation: continuation))
+            condition.signal()
+            condition.unlock()
+        }
+    }
+
+    private func run() {
+        while true {
+            condition.lock()
+            while jobs.isEmpty { condition.wait() }
+            let job = jobs.removeFirst()
+            condition.unlock()
+            do {
+                job.continuation.resume(returning: try Self.compile(job.source, libraryPath: job.libraryPath, device: job.device))
+            } catch {
+                job.continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    /// The blocking compile, on this worker's thread only.
+    private static func compile(_ source: KernelSource, libraryPath: String?,
+                                device: SDLGPUDevice) throws(ImplicitCompileError) -> SDLGPUComputePipeline {
+        let blob: SDLGPUShaderBlob
+        do {
+            blob = try SDLGPUShaderCompiler.shared(libraryPath: libraryPath)
+                .compileCompute(name: "\(source.kernel.rawValue)-\(source.digest)", hlsl: source.text, for: device)
+        } catch {
+            // `compileFailed(stage:diagnostics:)` carries DXC's text with file, line and column; the other cases name their problem.
+            throw .engine("\(source.kernel.rawValue) \(source.digest): \(error)")
+        }
+        let bindings = source.kernel.bindings
+        guard blob.readOnlyStorageBuffers == bindings.readOnly, blob.readWriteStorageBuffers == bindings.readWrite else {
+            throw .engine("\(source.digest)'s reflection (\(blob.readOnlyStorageBuffers) read-only, \(blob.readWriteStorageBuffers) read-write) "
+                + "does not match \(source.kernel.rawValue)'s bindings")
+        }
+        do {
+            return try device.compileComputePipeline(blob)
+        } catch {
+            throw .engine("\(source.kernel.rawValue): \(error)")
+        }
     }
 }
 #endif
 ```
-- [ ] **Step 3: Implement.** `SDLRuntimeKernels` (`SDLKernelProvider`): `unavailability` is `.broken(<MetalUI's named error>)` when the compiler library cannot be loaded, else `nil`; `pipeline(for:device:)` compiles `source.text` with entry point `main` for the device's backend and makes the pipeline from the result, mapping a compile error to `ImplicitCompileError.engine(<DXC's text>)` and a refused pipeline to `.engine(<SDL's reason>)`; it checks the reflection against `source.kernel.bindings` as `SDLPrecompiledKernels` does. **Threads:** XP-G25's compile blocks (MetalUI: safe to call from any thread, possibly serialized internally; its blocking time measured in `packaging.md` §4a), so it never runs on the actor's executor: it runs on a serial worker of our own (`SDLCompileWorker`: one `Thread` and a `CheckedContinuation` per job, the pattern of MetalUI's `SDLGPUWorker`), and the doc comment cites MetalUI's note. `SDLImplicitEngine.swift`: `extension HLSLImplicitEngine { public static let sdl = HLSLImplicitEngine(name: SDLComputeBackend.platformName, backend: { SDLComputeBackend.make(kernels: SDLRuntimeKernels()) }) }`. `ImplicitGPUEngines.platformDefault` gains `#elseif canImport(MetalUISDLGPU)` → `HLSLImplicitEngine.sdl`, and `meshesMade()` likewise; `GPUBatchEvaluatorTests.thePlatformEngineIsMetalOrNothing` becomes "…is the machine's" accepting "Metal", "Vulkan" and "Direct3D 12"; `GPUEnginesUnderTest.hlslState` uses `SDLRuntimeKernels()` when `SDLRuntimeKernels.isAvailable`, else the offline kernels; `ImplicitGPUAvailabilityTests` drops `&& !os(Windows)` and also expects `await HLSLImplicitEngine.sdl.availability == .available` under `XP_REQUIRE_GPU=1`; `ImplicitEngineCheck` loses its "waits for XP-G25" line.
-- [ ] **Step 4: Run** on Linux (`scripts/linux-test.sh all`: the agreement suites now compile at run time on lavapipe) and Windows CI (WARP, run-time compiled; the release build). If CI lacks the compiler libraries, task 12 step 3 adds them to the image and the Windows job; run task 12 first in that case.
-- [ ] **Step 5: x-3 and x-4.** Add to `ImplicitBenchHLSL` a test for the SDL engine: a fresh engine, a new shape (the sheet with a new `TPMSType` each round), the time of `compile` (x-3: the evaluation kernel), of the first `meshBricks` minus a warm one (x-3: the six meshing kernels; the four shared ones only on the first shape), and of a first `ImplicitMesher` pass compile included (x-4); `BENCH x-3 …`, `BENCH x-4 …`. Record them on Linux (lavapipe) in `performance.md` beside x-3m and x-3o, and raise in the report if x-4 would miss the proposed 2 s on a desktop GPU.
-- [ ] **Step 6: Docs.** E8's "until it is adopted…" sentence becomes "Adopted by plan xp-c task 11 (MetalUI `<commit>`)"; the gap row XP-G25 "✅ fixed by MetalUI `<commit>`, adopted by xp-c task 11"; `CLAUDE.md` likewise. Lint, commit, push.
+`Sources/CreatorImplicit/SDL/SDLRuntimeKernels.swift`:
+```swift
+#if canImport(MetalUISDLGPU)
+import Foundation
+import MetalUISDLGPU
+
+/// The implicit engine's kernels compiled while the app runs (plan xp-c task 11; MetalUI XP-G25, `SDLGPUShaderCompiler`, MetalUI `722f0cd6`): HLSL
+/// text in, a pipeline out, on `SDLCompileWorker`'s thread; the engine caches the pipelines by the source's digest. The library is found by MetalUI's
+/// lookup (`METALUI_SHADERCROSS_LIB` in the tests and CI; a zip's DLLs beside the `.exe`; a tarball's or AppImage's `lib/` through the loader path, the
+/// executable's `$ORIGIN/lib` RUNPATH: gap XP-G26). `libraryPath` names a library explicitly (a test's missing one).
+struct SDLRuntimeKernels: SDLKernelProvider {
+    let libraryPath: String?
+
+    init(libraryPath: String? = nil) {
+        self.libraryPath = libraryPath
+    }
+
+    /// `nil` when MetalUI's compiler loads (the first call loads it for the process, in a few milliseconds), else `.broken` with MetalUI's error:
+    /// `compilerUnavailable` lists every path tried (X-C4: the person hears "Running on the CPU").
+    var unavailability: ComputeBackendState? {
+        do {
+            _ = try SDLGPUShaderCompiler.shared(libraryPath: libraryPath)
+            return nil
+        } catch {
+            return .broken("the implicit engine's shader compiler did not load: \(error)")
+        }
+    }
+
+    func pipeline(for source: KernelSource, device: SDLGPUDevice) async throws -> SDLGPUComputePipeline {
+        try await SDLCompileWorker.shared.pipeline(for: source, libraryPath: libraryPath, device: device)
+    }
+}
+#endif
+```
+`Sources/CreatorImplicit/SDL/SDLImplicitEngine.swift`:
+```swift
+#if canImport(MetalUISDLGPU)
+extension HLSLImplicitEngine {
+    /// The implicit engine of Linux and Windows (plan xp-c task 11): the HLSL engine over an owned, headless SDL_GPU device, its kernels compiled while
+    /// the app runs (`SDLRuntimeKernels`). The backend is made on first use inside the actor, never on the main actor.
+    public static let sdl = HLSLImplicitEngine(name: SDLComputeBackend.platformName,
+                                               backend: { SDLComputeBackend.make(kernels: SDLRuntimeKernels()) })
+}
+#endif
+```
+`SDLComputeBackend.make(kernels:)` asks for the device first, so a machine without one is `.absent` (the CPU, silently) even when the compiler is
+missing too (X-C4):
+```swift
+    /// `.absent` without a device; then the provider's own reason when it cannot give kernels here.
+    static func make(kernels: any SDLKernelProvider) -> ComputeBackendState {
+        guard let device = SDLGPUDevice.make() else { return .absent("no SDL_GPU device: \(SDLGPUDevice.lastFailure)") }
+        if let unavailable = kernels.unavailability { return unavailable }
+        return .ready(SDLComputeBackend(device: device, kernels: kernels))
+    }
+```
+and the `SDLKernelProvider` doc comment's "at run time … (`SDLRuntimeKernels`, task 11, gap XP-G25)" stays. `ImplicitGPUEngines.platformDefault`:
+```swift
+        #if canImport(Metal)
+        MetalImplicitEngine.shared
+        #elseif canImport(MetalUISDLGPU)
+        HLSLImplicitEngine.sdl
+        #else
+        nil
+        #endif
+```
+with its doc comment "…or `nil` where there is none (a platform with neither Metal nor MetalUI's SDL_GPU layer)". `ImplicitEngineCheck.run()`'s
+`nil` line becomes `"the CPU (no GPU engine on this platform)"`. The fall-backs need no new code: `.broken` (the library does not load) is the CPU with
+`ImplicitEvaluators.cpuWarning` and the reason in `Selection.diagnostic` and in `--self-test`'s "implicit engine" line; a `compileFailed` source is the
+`catch` of `ImplicitEvaluators.make` (the CPU, the warning, "the GPU compiler failed: …" with DXC's text). The node's warning stays "Running on the CPU"
+(X-C4 (a); the diagnostic is not shown to the person, as on macOS). **Windows 6.4 rules:** `pipeline(for:libraryPath:device:)` takes no closure and
+holds no loop's locals across an `await`; the blocking work is the synchronous `compile`. Check the release build:
+`TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release` (it compiles what macOS compiles; CI's "Build release
+(for the zip)" is the check for the `SDL*.swift` files). `swiftlint lint --strict`; commit (`feat(implicit): compile the HLSL engine's kernels at run
+time; the platform's engine off macOS (xp-c task 11)`).
+
+- [ ] **Step 4: Run.** Linux: `XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh all` (12 lines; `HLSLRuntimeCompileTests` all four
+pass; the agreement suites run as "Vulkan" over kernels compiled at run time on lavapipe; `--self-test` says `ok   implicit engine: Vulkan on Vulkan`).
+On the Mac: `swift test` (12 lines; `HLSLRuntimeCompileTests` skipped by name; the MSL digests unchanged). Push `xp-c` and read the Windows job:
+debug and release build, the suite with the HLSL cases now **running** on WARP over DXIL compiled at run time (they skipped before task 11), and
+`--self-test`'s line `Direct3D 12 on Direct3D 12`. A WARP failure the Mac and lavapipe do not show is a finding to report, never a skip.
+
+- [ ] **Step 5: x-3 and x-4.** In `ImplicitBenchHLSL`, move `distinctShapes()` out of the `#if canImport(Metal)` block (it names no Metal type) and add:
+```swift
+    #if canImport(MetalUISDLGPU)
+    /// x-3 and x-4 (plan xp-c task 11, X-C7): MetalUI's run-time compiler on this machine's SDL_GPU device, as the app meets it. One engine (the app has
+    /// one), five shapes no earlier round compiled; the first round also compiles the four meshing kernels every shape shares. x-3 is the evaluation
+    /// kernel's compile, and the meshing kernels' (a first mesh minus a warm one); x-4 is a new shape's first preview pass, compile included. Run with
+    /// `MESA_SHADER_CACHE_DISABLE=true` so lavapipe's disk cache cannot answer the pipeline step (DXC itself caches nothing).
+    @Test(.enabled(if: RuntimeCompileUnderTest.isAvailable, "needs MetalUI's run-time compiler"))
+    func theRunTimeCompileOfANewShape() async throws {
+        guard Self.releaseOnly() else { return }
+        let state = RuntimeCompileUnderTest.state
+        let engine = HLSLImplicitEngine(name: SDLComputeBackend.platformName, backend: { state })
+        var rounds: [CompileRound] = []
+        for (index, solid) in Self.distinctShapes().enumerated() {
+            rounds.append(try await Self.compileRound(solid, on: engine))
+            #expect(await engine.compileCount == index + 1, "each shape compiled its evaluation kernel once")
+            #expect(await engine.meshCompileCount == 6 + 2 * index, "the four shared meshing kernels once, then two a shape")
+        }
+        let digits = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(2))
+        func summary(_ values: [Double]) -> String {
+            let later = values.dropFirst().sorted()
+            return "first \(values[0].formatted(digits)) ms, median of the rest \(later[later.count / 2].formatted(digits)) ms, "
+                + "max \((values.max() ?? 0).formatted(digits)) ms"
+        }
+        let name = SDLComputeBackend.platformName
+        print("BENCH x-3 \(name): a new shape's run-time compile: evaluation kernel \(summary(rounds.map(\.evaluation))); "
+            + "meshing kernels (first mesh minus a warm one; six on the first shape, two after) \(summary(rounds.map(\.meshing)))")
+        print("BENCH x-4 \(name): a new shape's first preview pass, compile included: \(summary(rounds.map(\.firstPass))); "
+            + "proposed budget 2000.00 ms on a desktop GPU")
+    }
+
+    struct CompileRound {
+        var evaluation: Double
+        var meshing: Double
+        var firstPass: Double
+    }
+
+    /// One new shape on `engine`: compile, a first mesh (its meshing kernels compile), a warm mesh. No loop here (the Windows 6.4 rule).
+    static func compileRound(_ solid: ImplicitSolid, on engine: HLSLImplicitEngine) async throws -> CompileRound {
+        let clock = ContinuousClock()
+        let start = clock.now
+        let program = try await engine.compile(solid)
+        let compiled = clock.now
+        let mesher = ImplicitMesher(evaluator: GPUBatchEvaluator(engine: engine, program: program))
+        let (_, firstPath) = try await mesher.meshReportingPath(solid, resolution: resolution, quality: .preview)
+        let firstDone = clock.now
+        let (_, warmPath) = try await mesher.meshReportingPath(solid, resolution: resolution, quality: .preview)
+        let warm = milliseconds(clock.now - firstDone)
+        #expect(firstPath == .gpu && warmPath == .gpu, "meshed on the GPU")
+        return CompileRound(evaluation: milliseconds(compiled - start), meshing: milliseconds(firstDone - compiled) - warm,
+                            firstPass: milliseconds(firstDone - start))
+    }
+    #endif
+```
+(If the Windows release build asserts on the `for … await` loop, rewrite it as recursion over the index, as the Global Constraints say.) Run on
+Linux, idle: `DOCKER_EXTRA="-e METALCREATOR_BENCH=1 -e MESA_SHADER_CACHE_DISABLE=true" XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test -c release --no-parallel --filter "ImplicitBenchHLSL/theRunTimeCompileOfANewShape"`.
+In `docs/verification/performance.md` replace the rows `| x-3 | | | after XP-G25 (task 11) | | |` and `| x-4 | … |` with the measured rows (machine,
+load, engine "Vulkan (lavapipe)", the figures, budget "none in CI; x-4 proposed 2 s on a desktop GPU", "recorded"), the `BENCH` lines in the log block,
+and a sentence comparing x-3 with x-3m (Metal, same shapes) and x-3o. Raise in the report if x-4's median exceeds 2 s: DXC's compile is CPU work, so a
+desktop GPU will not make it faster (MetalUI human check RC4 measures it there; ours is XP-27).
+
+- [ ] **Step 6: Docs.**
+  - **E8** (cross-platform spec): replace from "Run-time compilation needs MetalUI gap XP-G25" through "Once adopted (plan xp-c, task 11):" with:
+    "Run-time compilation is MetalUI's `SDLGPUShaderCompiler` (gap XP-G25, MetalUI `722f0cd6`, adopted by plan xp-c task 11: SDL_shadercross's library
+    and DXC, loaded while the app runs), each kernel compiled once on a compile thread of the engine's own and cached by its digest; **E7's last
+    sentence no longer holds: Linux and Windows evaluate and mesh on the GPU.** The tests compile the generated HLSL at run time on lavapipe and WARP;
+    the Mac, whose build has no SDL, runs it as the MSL kernels the build-time SDL_shadercross compiled offline (`scripts/linux-test.sh kernels`).
+    Fall-backs:" (the sentence after it, "no SDL_GPU device, the CPU silently; …", stays, with "(its named error lists the paths tried)" becoming
+    "(MetalUI's `compilerUnavailable` lists the paths tried)" and "a source DXC refuses" becoming "a source DXC refuses (`compileFailed`, DXC's text)").
+  - **D21** (implicit spec): in (1) "HLSL is compiled while the app runs (MetalUI XP-G25)" becomes "HLSL is compiled while the app runs (MetalUI XP-G25,
+    `SDLGPUShaderCompiler`, on the engine's serial compile thread)"; in (5) "x-3 (a new shape's compile) and x-4 (its first pass, compile included) are
+    recorded after XP-G25" becomes "x-3 (a new shape's compile) and x-4 (its first pass, compile included) are recorded on lavapipe (<step 5's medians>)".
+    Fill the `<…>`; none may remain.
+  - **`docs/metalui-gaps.md`**: the XP-G25 row's status becomes "✅ fixed by MetalUI `722f0cd6` (PR #131, record 151), adopted by xp-c task 11"; two rows
+    after it:
+```markdown
+| XP-G26 | The run-time compiler's lookup tries `../lib` of the executable, not `lib/` beside it | MetalUI (`RuntimeLibraryLocator`, XP-G25) | 🆕 open; MetalCreator's tarball and AppImage keep their libraries in `lib/` beside the executable (`$ORIGIN/lib`), so the compiler is found by the loader-path name through the RUNPATH, without the dependents' full-path preload and with a lookup error that lists two places the package never uses |
+| XP-G27 | Run-time HLSL compilation only under MetalUI's `SDL` trait | MetalUI (`MetalUISDLGPU`, XP-G25) | 🆕 open, low priority; a macOS build asks for no SDL, so the Mac cannot compile the generated HLSL at run time and its tests keep the offline kernels |
+```
+    and in the xp-c section, after the XP-G25 bullet:
+```markdown
+- **XP-G25, answered.** MetalUI `722f0cd6` (PR #131): `SDLGPUShaderCompiler` (`shared(libraryPath:)`, `compileCompute(name:hlsl:…:for:)`, `selfTest(for:)`),
+  `SDLGPUShaderCompileError` (`compilerUnavailable(tried:)`, `compileFailed(stage:diagnostics:)`), `SDLGPUShaderBlob`'s bytes initializer, `packaging.md` §4b.
+  Adopted by xp-c task 11 (`SDLRuntimeKernels`, `SDLCompileWorker`) and task 12 (the packages, `--self-test`).
+- **XP-G26. The lookup misses `lib/` beside the executable.** `RuntimeLibraryLocator.attempts` tries the executable's directory and its `../lib`
+  (a `bin/` + `lib/` layout). MetalCreator's tarball has `MetalCreator` and `lib/` side by side (RUNPATH `$ORIGIN/lib`, xp-2), as has the AppImage's
+  `usr/metalcreator`. The library is still found, by its bare name on the loader path (the executable's RUNPATH, then each bundled library's `$ORIGIN`),
+  so its dependents are not preloaded by full path, and a missing library's error lists `<exe>/libSDL3_shadercross.so.0` and `<exe>/../lib/…`, which
+  the package never uses. Asked: try `<executable dir>/lib` after the executable's directory. Not worked around (no `libraryPath:` from the app).
+- **XP-G27. The compiler needs the SDL trait.** `SDLGPUShaderCompiler` is compiled only under `SDL`; MetalCreator's macOS build asks for no SDL, so the
+  Mac's tests cannot compile the generated HLSL at run time (they run the offline MSL). Asked, low priority: the compile to bytes and reflection
+  (SPIR-V, MSL) in a product without the SDL trait.
+```
+  - **`CLAUDE.md`**, the xp-c paragraph: "Until MetalUI's XP-G25 is adopted the app's engine off macOS is the CPU." becomes "Off macOS the app's engine is
+    `HLSLImplicitEngine.sdl` (MetalUI XP-G25 adopted): `SDLRuntimeKernels` compiles each kernel on `SDLCompileWorker`'s thread through MetalUI's
+    `SDLGPUShaderCompiler`; the tests find the library through `METALUI_SHADERCROSS_LIB` (`scripts/linux-test.sh` and CI set it;
+    `RuntimeCompileUnderTest`), and the Mac, whose build has no SDL, keeps the offline kernels." and "Gaps XP-G23 to XP-G25 are open" becomes "XP-G25
+    is adopted; XP-G23, XP-G24, XP-G26 and XP-G27 are open".
+  - **Human checks**, group XPC's status line: "**Status: NOT RUN; needs plan xp-c task 12 (the packages).**" and "CI holds the engine to the CPU on lavapipe
+    and WARP" becomes "CI holds the engine to the CPU on lavapipe and WARP, compiling at run time".
+  - Lint, commit (`docs: XP-G25 adopted, x-3 and x-4 recorded, gaps XP-G26 and XP-G27 (xp-c task 11)`), push.
 
 ---
 
-### Task 12 (waits for MetalUI XP-G25): ship the compiler; CI; `selfTest()`
+### Task 12 (MetalUI XP-G25, landed): ship the compiler; CI; `selfTest(for:)`
 
-**Files:** `scripts/linux/Dockerfile` (the shadercross stage installs its shared libraries, not only the CLI), `scripts/install-shadercross.ps1`, `.github/workflows/xp.yml` (the caches; the Windows job's PATH), `scripts/package-linux.sh`, `scripts/package-appimage.sh`, `scripts/package-windows.ps1`, `scripts/linux-test.sh` (the clean-Ubuntu checks), `packaging/` NOTICE and licence files, `Sources/CreatorImplicit/GPU/ImplicitEngineCheck.swift`, `Sources/CreatorApp/SelfTest.swift`, `docs/packaging.md`.
+**What ships (approved by the user, 2026-10-22; MetalUI `docs/packaging.md` §4b and `THIRD-PARTY-NOTICES.md` "Optional run-time shader compiler").**
+Built from SDL_shadercross at the commit in `scripts/shadercross.env` (`1ff05bec573988a98ef9e0260b4da44f512b8367`, unchanged), all files in one directory:
 
-- [ ] **Step 1: What ships (approved by the user, 2026-10-22).** SDL_shadercross (zlib licence), DXC (the LLVM/University of Illinois licence) and `dxil` if MetalUI's `packaging.md` §4a says it is needed, SPIRV-Cross and SPIRV-Tools (Apache 2.0): the exact list and file names are §4a's. Read it before step 2.
-- [ ] **Step 2: Build what to ship** per `packaging.md` §4a: the Linux image's `shadercross` stage keeps `lib/libSDL3_shadercross*.so`, `libdxcompiler.so`, `libdxil.so`, `libspirv-cross-c-shared.so` (the names §4a gives) in `/opt/shadercross/lib`; `install-shadercross.ps1` keeps the DLLs; both cached as today.
-- [ ] **Step 3: Package them.** The tarball and the AppImage copy them into the package's `lib` (the `$ORIGIN/lib` rpath xp-2 set up), the zip beside `MetalCreator.exe`, with their licences in `share/doc/metalcreator` and lines in `NOTICE.txt`. The clean-Ubuntu checks and the zip's own check run `--self-test`, which now includes MetalUI's `selfTest()` (step 4) and so fails a package without the libraries.
-- [ ] **Step 4: `selfTest()`.** `ImplicitEngineCheck` gains `public static func compilerSelfTest() throws -> String?` calling MetalUI's `selfTest()` off macOS (`nil` on a Mac); `SelfTest`'s "implicit engine" check calls it and fails with MetalUI's error when it throws.
-- [ ] **Step 5: Run** `scripts/linux-test.sh package` (both packages pass in a clean ubuntu:24.04 and their self-test compiles a kernel) and the Windows job's "Package (zip), checked on its own"; then human check XP-29 on a real machine.
-- [ ] **Step 6: Docs, lint, commit, push** (`packaging.md` §"The implicit engine's shader compiler" filled; E8's packaging sentence says adopted).
+| | Linux tarball `lib/`, AppImage `usr/metalcreator/lib/` | Windows zip, beside `MetalCreator.exe` | Licence (text shipped) |
+|---|---|---|---|
+| SDL_shadercross | `libSDL3_shadercross.so.0` | `SDL3_shadercross.dll` | zlib (`share/licenses/SDL3_shadercross/LICENSE.txt` of the install) |
+| DXC | `libdxcompiler.so` | `dxcompiler.dll` | Linux: the libsdl-org fork's LLVM Release License (NCSA), `LICENSE.TXT` and `ThirdPartyNotices.txt`; Windows: Microsoft's prebuilt DXC v1.9.2602 (the pin's `download-prebuilt-DirectXShaderCompiler.cmake`), the licence files of that download |
+| DXIL signing | not shipped (Vulkan never uses it; MetalUI measured it unneeded on Linux and macOS) | `dxil.dll` (shipped: whether D3D12 needs it is unmeasured, MetalUI RC1) | Windows: the licence files of Microsoft's download |
+| SPIRV-Cross | `libspirv-cross-c-shared.so.0` | `spirv-cross-c-shared.dll` | Apache-2.0, `external/SPIRV-Cross/LICENSE` |
+| SPIRV-Tools, SPIRV-Headers | linked into the above, no file | same | Apache-2.0 and Khronos MIT-style: `external/SPIRV-Tools/LICENSE`, `external/SPIRV-Headers/LICENSE` |
+
+About 37 MB on Linux (MetalUI measured 74 KB + 33.3 MB + 4.0 MB on aarch64), more on Windows. Their own `SDL3` dependency is the package's: the
+tarball's `lib/libSDL3.so.0` and the zip's `SDL3.dll` (SDL 3.4.16, as the shadercross stage's), never a second copy, so the compiler and the app share
+one SDL (MetalUI RC-D).
+
+**Files:** `scripts/linux/Dockerfile` (the `shadercross` stage: the shared libraries made explicit, the licence texts kept, a check), `scripts/install-shadercross.ps1`
+(the four DLLs and the licences in the prefix, a check), `scripts/package-linux.sh`, `scripts/package-windows.ps1`, `.github/workflows/xp.yml` (the
+package step's `-ShaderCrossRoot`), `scripts/linux-test.sh` (the clean-Ubuntu checks), `Sources/CreatorImplicit/SDL/SDLCompilerSelfTest.swift` (new),
+`Sources/CreatorImplicit/GPU/ImplicitEngineCheck.swift`, `Sources/CreatorApp/SelfTest.swift`, `Tests/CreatorAppTests/SelfTestTests.swift`,
+`Tests/CreatorImplicitTests/ImplicitEngineCheckTests.swift`, `docs/packaging.md`, the cross-platform spec (E8), `docs/verification/human-checks.md`.
+`scripts/package-appimage.sh` needs no change: it packs the tarball's tree, `lib/` included (its checks are in `linux-test.sh`).
+
+**Interfaces:** Consumes `SDLGPUShaderCompiler.selfTest(for:libraryPath:) async throws -> SDLGPUShaderCompilerReport` (`driver`, `format`, `libraryPath`,
+`compiledBytes`, `entryPoint`, `seconds`, `notes`; with a device it dispatches 64 threads and reads them back, without one it checks the SPIR-V route
+only; it throws `compilerUnavailable` without the library), `SDLGPUDevice.make()`. Produces `SDLCompilerSelfTest.run() async throws -> String`,
+`ImplicitEngineCheck.hasRuntimeCompiler`, `ImplicitEngineCheck.compilerSelfTest() async throws -> String`, the self-test check "implicit compiler".
+
+- [ ] **Step 1: Read** MetalUI `git show 722f0cd6:docs/packaging.md` §4a and §4b and `git show 722f0cd6:THIRD-PARTY-NOTICES.md` ("Optional run-time
+shader compiler"). If either names a file or licence the table above lacks, the table follows MetalUI and the report says so.
+
+- [ ] **Step 2: Build what to ship** (the CI caches rebuild once: the Dockerfile stage's `RUN` and the script's hash change).
+  - `scripts/linux/Dockerfile`, stage `shadercross`: the cmake line gains `-DSDLSHADERCROSS_SHARED=ON -DSDLSHADERCROSS_SPIRVCROSS_SHARED=ON` (today's
+    defaults, made explicit: the image of 2026-10-23 has `libSDL3_shadercross.so.0.0.0` and `libspirv-cross-c-shared.so.0.68.0`), and before
+    `rm -rf /tmp/sc` the licence texts are kept:
+```dockerfile
+    && mkdir -p /opt/shadercross/share/licenses/DirectXShaderCompiler /opt/shadercross/share/licenses/SPIRV-Cross \
+         /opt/shadercross/share/licenses/SPIRV-Tools /opt/shadercross/share/licenses/SPIRV-Headers \
+    && cp /tmp/sc/external/DirectXShaderCompiler/LICENSE.TXT /tmp/sc/external/DirectXShaderCompiler/ThirdPartyNotices.txt \
+         /opt/shadercross/share/licenses/DirectXShaderCompiler/ \
+    && cp /tmp/sc/external/SPIRV-Cross/LICENSE /opt/shadercross/share/licenses/SPIRV-Cross/ \
+    && cp /tmp/sc/external/SPIRV-Tools/LICENSE /opt/shadercross/share/licenses/SPIRV-Tools/ \
+    && cp /tmp/sc/external/SPIRV-Headers/LICENSE /opt/shadercross/share/licenses/SPIRV-Headers/ \
+```
+    then a `RUN` of its own after it (cheap, so a missing file names itself without a rebuild):
+```dockerfile
+# The implicit engine's run-time compiler ships these (plan xp-c task 12, MetalUI docs/packaging.md 4b); fail here naming the one that is missing.
+RUN for f in lib/libSDL3_shadercross.so.0 lib/libdxcompiler.so lib/libspirv-cross-c-shared.so.0 share/licenses/SDL3_shadercross/LICENSE.txt \
+             share/licenses/DirectXShaderCompiler/LICENSE.TXT share/licenses/DirectXShaderCompiler/ThirdPartyNotices.txt \
+             share/licenses/SPIRV-Cross/LICENSE share/licenses/SPIRV-Tools/LICENSE share/licenses/SPIRV-Headers/LICENSE; do \
+        test -s "/opt/shadercross/$f" || { echo "the shadercross stage did not leave $f" >&2; exit 1; }; done
+```
+    The stage's comment gains a sentence: "Its shared libraries are also the implicit engine's run-time compiler (plan xp-c, MetalUI XP-G25), which the
+    tests load from /opt/shadercross/lib and the tarball ships in lib/."
+  - `scripts/install-shadercross.ps1`, after the install and before writing `COMMIT`:
+```powershell
+# The implicit engine's run-time compiler (plan xp-c task 12, MetalUI docs/packaging.md 4b) is these four DLLs, all in bin, with their licences.
+$bin = Join-Path $Prefix 'bin'
+$spirvDll = Join-Path $spirvPrefix 'bin\spirv-cross-c-shared.dll'
+if (-not (Test-Path (Join-Path $bin 'spirv-cross-c-shared.dll')) -and (Test-Path $spirvDll)) { Copy-Item $spirvDll $bin }
+foreach ($dll in 'SDL3_shadercross.dll', 'dxcompiler.dll', 'dxil.dll', 'spirv-cross-c-shared.dll') {
+    if (-not (Test-Path (Join-Path $bin $dll))) { throw "the SDL_shadercross install left no $dll in $bin" }
+}
+$licenses = Join-Path $Prefix 'share\licenses'
+New-Item -ItemType Directory -Force (Join-Path $licenses 'DirectXShaderCompiler'), (Join-Path $licenses 'SPIRV-Cross'),
+    (Join-Path $licenses 'SPIRV-Tools'), (Join-Path $licenses 'SPIRV-Headers'), (Join-Path $licenses 'SDL3_shadercross') | Out-Null
+$dxcLicences = Get-ChildItem $dxc -Recurse -File | Where-Object { $_.Name -match '^(LICENSE|ThirdPartyNotices)' }
+if (-not $dxcLicences) { throw "no licence file in the DirectXShaderCompiler download ($dxc)" }
+$dxcLicences | ForEach-Object { Copy-Item $_.FullName (Join-Path $licenses 'DirectXShaderCompiler') }
+Copy-Item (Join-Path $Work 'external\SPIRV-Cross\LICENSE') (Join-Path $licenses 'SPIRV-Cross')
+Copy-Item (Join-Path $Work 'external\SPIRV-Tools\LICENSE') (Join-Path $licenses 'SPIRV-Tools')
+Copy-Item (Join-Path $Work 'external\SPIRV-Headers\LICENSE') (Join-Path $licenses 'SPIRV-Headers')
+Copy-Item (Join-Path $Work 'LICENSE.txt') (Join-Path $licenses 'SDL3_shadercross')
+```
+    (`$spirvPrefix` and `$dxc` move above the `try` so they are in scope; the `Push-Location` block is unchanged.) Its synopsis says it also leaves the
+    run-time compiler's DLLs and licences. Verify: `XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh build` (the image rebuilds the
+    stage); the Windows job's "Build SDL_shadercross" step on the pushed branch.
+
+- [ ] **Step 3: The self-test (the failing tests first).** `SelfTestTests`' name lists gain `"implicit compiler"` after `"implicit engine"` off macOS
+(`#if !canImport(Metal)`); `ImplicitEngineCheckTests` gains:
+```swift
+    @Test func theCompilerCheckIsLinuxAndWindowsOnly() async throws {
+        #if canImport(MetalUISDLGPU)
+        #expect(ImplicitEngineCheck.hasRuntimeCompiler)
+        if RuntimeCompileUnderTest.isAvailable {
+            let line = try await ImplicitEngineCheck.compilerSelfTest()
+            #expect(line.contains("shadercross"), "\(line)")
+        }
+        #else
+        #expect(!ImplicitEngineCheck.hasRuntimeCompiler)
+        #endif
+    }
+```
+Red on Linux (`ImplicitEngineCheck` has no `hasRuntimeCompiler`). Then `Sources/CreatorImplicit/SDL/SDLCompilerSelfTest.swift`:
+```swift
+#if canImport(MetalUISDLGPU)
+import Foundation
+import MetalUISDLGPU
+
+/// `--self-test`'s "implicit compiler" line (plan xp-c task 12): MetalUI's `SDLGPUShaderCompiler.selfTest(for:)`, which loads the library, compiles a
+/// kernel and a broken one (DXC's diagnostics required), and with a device dispatches it and reads it back; without a device (a clean container) the
+/// SPIR-V route alone. It throws `compilerUnavailable`, listing the paths tried, in a package without the libraries.
+enum SDLCompilerSelfTest {
+    static func run() async throws -> String {
+        let report = try await SDLGPUShaderCompiler.selfTest(for: SDLGPUDevice.make())
+        let seconds = report.seconds.formatted(.number.precision(.fractionLength(2)))
+        return "\(report.libraryPath), \(report.format) on \(report.driver), \(report.compiledBytes.formatted()) bytes in \(seconds) s"
+    }
+}
+#endif
+```
+In `ImplicitEngineCheck` (portable; names no SDL_GPU type):
+```swift
+    /// Whether `--self-test` checks the implicit engine's run-time compiler: Linux and Windows, where the engine compiles its HLSL through MetalUI.
+    public static var hasRuntimeCompiler: Bool {
+        #if canImport(MetalUISDLGPU)
+        true
+        #else
+        false
+        #endif
+    }
+
+    /// MetalUI's compiler self-test (`SDLCompilerSelfTest`); it fails `--self-test` in a package that ships without the compiler's libraries.
+    public static func compilerSelfTest() async throws -> String {
+        #if canImport(MetalUISDLGPU)
+        try await SDLCompilerSelfTest.run()
+        #else
+        "not needed: Metal compiles the implicit engine's kernels"
+        #endif
+    }
+```
+and its type comment's "Task 12 adds MetalUI's compiler self-test, which does fail a package…" becomes "`compilerSelfTest()` is MetalUI's compiler
+self-test, which does fail a package…". `SelfTest.run`, after the "implicit engine" check:
+```swift
+        if ImplicitEngineCheck.hasRuntimeCompiler {
+            results.append(await check("implicit compiler") { try await ImplicitEngineCheck.compilerSelfTest() })
+        }
+```
+(macOS prints no new line: its self-test is unchanged.) Green on Linux: `scripts/linux-test.sh test --filter "ImplicitEngineCheckTests|SelfTestTests"`;
+the Mac: `swift test --filter "ImplicitEngineCheckTests|SelfTest"`. Lint; commit (`feat(app): --self-test runs MetalUI's shader compiler self-test off macOS (xp-c task 12)`).
+
+- [ ] **Step 4: Package them.**
+  - `scripts/package-linux.sh`, after "Copying the non-system libraries it links, transitively":
+```bash
+step "Copying the implicit engine's shader compiler (MetalUI docs/packaging.md 4b; plan xp-c task 12)"
+SC="${SHADERCROSS_PREFIX:-/opt/shadercross}"
+COMPILER_LIBS="libSDL3_shadercross.so.0 libdxcompiler.so libspirv-cross-c-shared.so.0"
+for f in $COMPILER_LIBS; do
+    [ -s "$SC/lib/$f" ] || fail "the shader compiler's $f is missing from $SC/lib (scripts/linux/Dockerfile, stage shadercross)"
+    cp -L "$SC/lib/$f" "$FOLDER/lib/$f"
+    chmod u+w "$FOLDER/lib/$f"
+    # Their RUNPATH is $ORIGIN/../lib (the install's); in the package each names its own folder, as every bundled library does, so the loader
+    # finds the compiler's dependents and the package's own libSDL3.so.0 (one SDL for the app and the compiler).
+    patchelf --set-rpath '$ORIGIN' "$FOLDER/lib/$f"
+done
+# Anything else they link that the system does not provide (the executable's copy above did not see them).
+for f in $COMPILER_LIBS; do
+    ldd "$FOLDER/lib/$f" | while read -r name arrow path _; do
+        [ "$arrow" = "=>" ] || continue
+        [ "$path" != "not" ] || fail "lib/$f needs $name, which is nowhere"
+        is_system "$name" && continue
+        [ -e "$FOLDER/lib/$name" ] && continue
+        cp -L "$path" "$FOLDER/lib/$name" && chmod u+w "$FOLDER/lib/$name" && patchelf --set-rpath '$ORIGIN' "$FOLDER/lib/$name"
+    done
+done
+```
+    the licences, in "Copying the licences": `SDL3_shadercross-LICENSE.txt`, `DirectXShaderCompiler-LICENSE.TXT`,
+    `DirectXShaderCompiler-ThirdPartyNotices.txt`, `SPIRV-Cross-LICENSE.txt`, `SPIRV-Tools-LICENSE.txt`, `SPIRV-Headers-LICENSE.txt` from
+    `$SC/share/licenses/*/` (each `[ -s … ] || fail`), and a `NOTICE.txt` section after SDL3's:
+```text
+The implicit engine's shader compiler (lib/libSDL3_shadercross.so.0, lib/libdxcompiler.so, lib/libspirv-cross-c-shared.so.0), loaded while the app
+runs to compile its generated HLSL (MetalUI's SDLGPUShaderCompiler); built from https://github.com/libsdl-org/SDL_shadercross, commit $SHADERCROSS_COMMIT,
+with the submodules that commit fixes:
+  SDL_shadercross                       zlib licence, SDL3_shadercross-LICENSE.txt
+  DirectXShaderCompiler (libsdl-org's fork, branch 1.8.2502-SDL)
+                                        LLVM Release License (University of Illinois/NCSA), DirectXShaderCompiler-LICENSE.TXT and
+                                        DirectXShaderCompiler-ThirdPartyNotices.txt
+  SPIRV-Cross                           Apache License 2.0, SPIRV-Cross-LICENSE.txt
+  SPIRV-Tools (linked into the above)   Apache License 2.0, SPIRV-Tools-LICENSE.txt
+  SPIRV-Headers (compiled in)           Khronos MIT-style licence, SPIRV-Headers-LICENSE.txt
+```
+    (`SHADERCROSS_COMMIT` read from `scripts/shadercross.env` with `.`, as `build-shaders.sh` does.) The header comment lists the compiler's libraries.
+  - `scripts/package-windows.ps1`: a mandatory `-ShaderCrossRoot` (the install prefix: `bin` holds the four DLLs, `share\licenses` their texts), documented
+    in the usage block; after the shaders are copied, each of `SDL3_shadercross.dll`, `dxcompiler.dll`, `dxil.dll`, `spirv-cross-c-shared.dll` is copied
+    from `$ShaderCrossRoot\bin` beside `MetalCreator.exe` (a missing one throws naming it) and enqueued in `$queue`, so the dependents walk bundles what
+    they need (the Visual C++ runtime) and finds `SDL3.dll` already bundled (never the prefix's own `SDL3.dll`: `$ShaderCrossRoot\bin` is not added to
+    `$searchDirs`); `share\licenses\*` is copied into `$doc\shader-compiler\` and `NOTICE.txt` gains the section above with the Windows names and
+    "DirectXShaderCompiler and dxil.dll: Microsoft's prebuilt DXC v1.9.2602, downloaded by SDL_shadercross's own build script at that commit;
+    their licence files are in shader-compiler\DirectXShaderCompiler". The zip check clears the test variable for itself:
+    `$savedLib = $env:METALUI_SHADERCROSS_LIB; Remove-Item Env:METALUI_SHADERCROSS_LIB -ErrorAction SilentlyContinue` beside the `PATH` change, restored
+    in the `finally`. After the check passes, a second arm: copy the unpacked folder, delete its `SDL3_shadercross.dll`, run `--self-test` and **throw
+    unless it fails** and its output holds `FAIL implicit compiler` and `shader compiler library not found` (MetalUI RC3 on our package).
+  - `.github/workflows/xp.yml`'s "Package (zip), checked on its own" passes `-ShaderCrossRoot "$env:RUNNER_TEMP\shadercross"`.
+
+- [ ] **Step 5: The package checks** (`scripts/linux-test.sh`, `do_package`). In the tarball's clean ubuntu:24.04, after `./MetalCreator --self-test`:
+```bash
+        ./MetalCreator --self-test | tee /tmp/self.txt
+        grep -q "^ok   implicit compiler: libSDL3_shadercross" /tmp/self.txt
+        for f in libSDL3_shadercross.so.0 libdxcompiler.so libspirv-cross-c-shared.so.0; do
+            test -s "lib/$f"
+            if ldd "lib/$f" | grep -q "not found"; then echo "lib/$f does not load: $(ldd "lib/$f" | grep "not found")" >&2; exit 1; fi
+        done
+        LD_DEBUG=libs ./MetalCreator --self-test >/dev/null 2>/tmp/ld-compiler.txt
+        grep -q "calling init: .*/lib/libdxcompiler.so" /tmp/ld-compiler.txt
+        if grep -q /opt/shadercross /tmp/ld-compiler.txt; then echo "the loader searched /opt/shadercross" >&2; exit 1; fi
+        mkdir /tmp/without && cp -a . /tmp/without/pkg && rm /tmp/without/pkg/lib/libSDL3_shadercross.so.0
+        if /tmp/without/pkg/MetalCreator --self-test >/tmp/without.txt 2>&1; then echo "--self-test passed without the shader compiler" >&2; exit 1; fi
+        grep -q "^FAIL implicit compiler: shader compiler library not found" /tmp/without.txt
+```
+and in `share/doc/metalcreator` the six compiler licences are `test -s` with the others. In the AppImage's clean container: the same `grep -q "^ok   implicit
+compiler: libSDL3_shadercross"` over its `--self-test`, the `LD_DEBUG` check against `.*/usr/metalcreator/lib/libdxcompiler.so`, and the licences
+extracted from `usr/metalcreator/share/doc/metalcreator`. The clean containers have no Vulkan, so the self-test compiles the SPIR-V route only;
+the dispatch runs in the image's own `smoke` (lavapipe) and on WARP. Run `XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh package`
+(both PASS) and `… all`, then push and read the Windows job's "Package (zip), checked on its own" (both arms). If the `LD_DEBUG` check finds the
+library elsewhere or not at all, that is XP-G26 biting: report it with the log; the fix is MetalUI's, not a `libraryPath:` here.
+
+- [ ] **Step 6: Docs, lint, commit, push.**
+  - `docs/packaging.md`: the paragraph "**The implicit engine's shader compiler (after MetalUI XP-G25).** …" becomes a section "The implicit engine's
+    shader compiler": what ships where (the table above), the licences and NOTICE lines, that the tarball and the AppImage rely on the loader path
+    through `$ORIGIN/lib` (XP-G26) and the zip on MetalUI's "beside the executable", that `METALUI_SHADERCROSS_LIB` is for tests and CI only and the
+    package checks run without it, `--self-test`'s "implicit compiler" line and what it fails with, and the sizes.
+  - E8: "The packages ship the compiler's shared libraries and their licences (task 12)." becomes "The tarball and the AppImage ship
+    `libSDL3_shadercross.so.0`, `libdxcompiler.so` and `libspirv-cross-c-shared.so.0` in `lib/`, the zip `SDL3_shadercross.dll`, `dxcompiler.dll`,
+    `dxil.dll` and `spirv-cross-c-shared.dll` beside the `.exe`, with their licences (MetalUI `packaging.md` §4b; plan xp-c task 12); `--self-test`
+    runs MetalUI's compiler self-test and fails without them."
+  - Human checks, group XPC: the status line becomes "**Status: NOT RUN.**"; XP-29 is reworded: "Unpack the tarball (or the zip), move
+    `lib/libSDL3_shadercross.so.0` (or `SDL3_shadercross.dll` beside the `.exe`) out, and launch it away from any checkout, with no
+    `METALUI_SHADERCROSS_LIB` set: the app runs, a Mesh node meshes, its badge says "Running on the CPU"; `--self-test` fails at "implicit compiler"
+    naming the paths tried. Put it back: "Vulkan" (or "Direct3D 12") after a relaunch. On Windows, also move only `dxil.dll` out and relaunch: does a Mesh
+    node still mesh on the GPU? (MetalUI RC1; we ship it either way.)" Its **Pinned:** adds "`linux-test.sh package`'s and `package-windows.ps1`'s
+    without-the-compiler arms". After XP-29:
+```markdown
+- [ ] **XP-30 The packages find their compiler on a real desktop (MetalUI RC2).** On a Linux desktop with a GPU and no SDL_shadercross installed, no
+  `LD_LIBRARY_PATH` and no `METALUI_SHADERCROSS_LIB`: unpack the tarball anywhere and run `./MetalCreator --self-test` (the "implicit compiler" line names
+  `libSDL3_shadercross.so.0` and a driver other than "none"), then `LD_DEBUG=libs ./MetalCreator --self-test 2>&1 | grep dxcompiler` shows the package's
+  own `lib/`; the same for the AppImage (double-clicked, with FUSE), its `usr/metalcreator/lib`. **Pinned:** `linux-test.sh package`'s clean-Ubuntu
+  checks (no GPU there). **Observed:**
+```
+  - Lint, commit (`build: ship the implicit engine's shader compiler in the tarball, the AppImage and the zip (xp-c task 12)`), push.
 
 ---
 
-### Task 13 (waits for MetalUI XP-G23, XP-G24): the adapter's name and the limits
+### Task 13 (MetalUI XP-G23, XP-G24, landed): the adapter's name and the limits
 
-MetalUI is building both on `feat/sdl-gpu-device-info`; planned (provisional) `SDLGPUDevice.adapterName: String?`, `isSoftwareRasterizer: Bool`, `limits` (likely SDL's guaranteed minimums). Use the answering commit's names.
+MetalUI `81b57417` (PR #130; in the pin `722f0cd6`), `Backends/SDL/Sources/MetalUISDLGPU/SDLGPUDeviceInfo.swift`: `SDLGPUDevice.adapterName`, `driverName`,
+`driverVersion`, `driverInfo` (`String?`, read live from `SDL_GetGPUDeviceProperties`, empty is `nil`; "show it, never branch on it"),
+`isSoftwareRasterizer: Bool` (a heuristic over those strings: llvmpipe, lavapipe, softpipe, SwiftShader, "Microsoft Basic Render Driver", `warp` as
+a word; Metal always `false`), and `limits: SDLGPUDeviceLimits` (`maxStorageBufferBindingBytes: Int`, `maxComputeWorkgroupCount: Dimensions(x:y:z:)`,
+`areGuaranteedFloors`), which is **always** `SDLGPUDeviceLimits.guaranteedFloors` (2^27 bytes, 65,535 groups a dimension): SDL_GPU has no limit query.
+User ruling X-C5: the GPU is always used, software devices included; `isSoftwareRasterizer` only adds " (software)" to the device's name (one property
+read: cheap, so it is done). The limits being floors, the edge table stays at 2^25 slots (`min(largestTable, largestBuffer / 4)`, 2^27 / 4), now read
+from `limits`.
 
-- [ ] **Step 1: Tests** (in `SDLComputeBackendTests`): the device name is the adapter's when MetalUI gives one (with " (software)" appended when `isSoftwareRasterizer` is true, if MetalUI's answer has it); `largestBuffer` is `limits`' storage-buffer binding size (at least 2^27); a software device is `.ready`, never `.absent` (X-C5).
-- [ ] **Step 2: Implement:** `deviceName` from `adapterName` (and the "(software)" suffix if cheap, else not); `largestBuffer` and `ComputeBytes.maximumGroups` from `limits`. No policy on software devices: they are used like any other GPU (X-C5, decided).
-- [ ] **Step 3: Run** (Linux, Windows CI; the inspector on lavapipe shows "llvmpipe (…)"), mark the gaps adopted, update E8, lint, commit, push.
+**Files:** `Sources/CreatorImplicit/SDL/SDLComputeBackend.swift`, `Tests/CreatorImplicitTests/SDLComputeBackendTests.swift`, `docs/metalui-gaps.md`, both
+specs, `CLAUDE.md`.
+
+**Interfaces:** Consumes the five `SDLGPUDevice` members above. Produces `SDLComputeBackend.deviceName` (the adapter's name, " (software)" appended
+on a software rasterizer, else the platform's name) and `largestBuffer` from `limits`; `make` is `.broken` if `limits` ever reports fewer than
+`ComputeBytes.maximumGroups` groups (it cannot while they are floors; the check pins the assumption `ComputeBatch` makes).
+
+- [ ] **Step 1: The failing tests** (`SDLComputeBackendTests`, gated like the others):
+```swift
+    /// XP-G23: the device's name is the adapter's, and a software rasterizer says so (X-C5: it is still used, never `.absent`).
+    @Test(.enabled(if: GPUEnginesUnderTest.hlsl != nil, "needs an SDL_GPU device"))
+    func theDeviceNameIsTheAdaptersAndSaysSoftware() throws {
+        let backend = try #require(try Self.readyBackend(GPUEnginesUnderTest.hlslState) as? SDLComputeBackend)
+        let adapter = backend.device.adapterName ?? SDLComputeBackend.platformName
+        #expect(backend.deviceName == (backend.device.isSoftwareRasterizer ? adapter + " (software)" : adapter))
+        if ProcessInfo.processInfo.environment["XP_REQUIRE_GPU"] == "1" {
+            // lavapipe in the Linux image, WARP in the Windows job: both software, both used.
+            #expect(backend.deviceName.hasSuffix(" (software)"), "\(backend.deviceName)")
+        }
+    }
+
+    /// XP-G24: buffers and dispatches are sized to SDL_GPU's guaranteed floors, so the edge table stays at 2^25 slots.
+    @Test(.enabled(if: GPUEnginesUnderTest.hlsl != nil, "needs an SDL_GPU device"))
+    func theLimitsAreSDLGPUsFloors() throws {
+        let backend = try #require(try Self.readyBackend(GPUEnginesUnderTest.hlslState) as? SDLComputeBackend)
+        let limits = backend.device.limits
+        #expect(backend.largestBuffer == limits.maxStorageBufferBindingBytes && backend.largestBuffer >= 1 << 27)
+        #expect(limits.maxComputeWorkgroupCount.x >= ComputeBytes.maximumGroups)
+        #expect(min(HLSLImplicitEngine.MeshTuning().largestTable, backend.largestBuffer / 4) == 1 << 25)
+    }
+```
+(`HLSLImplicitEngine.MeshTuning`, `HLSLImplicitEngine+Meshing.swift`.) Red on
+Linux: the name is "Vulkan", not "llvmpipe (…) (software)".
+
+- [ ] **Step 2: Implement** in `SDLComputeBackend`:
+```swift
+    /// The adapter's name (MetalUI XP-G23: SDL's string, shown and never parsed), " (software)" on lavapipe or WARP (X-C5: used like any GPU); the
+    /// platform's name where SDL gives none.
+    let deviceName: String
+    /// SDL_GPU's guaranteed storage-buffer floor (MetalUI XP-G24: `limits` are floors, not the device's limits; 2^27 bytes on every backend).
+    let largestBuffer: Int
+
+    private init(device: SDLGPUDevice, kernels: any SDLKernelProvider) {
+        self.device = device
+        self.kernels = kernels
+        let adapter = device.adapterName ?? SDLComputeBackend.platformName
+        deviceName = device.isSoftwareRasterizer ? adapter + " (software)" : adapter
+        largestBuffer = device.limits.maxStorageBufferBindingBytes
+    }
+```
+and in `make`, after the device: `guard device.limits.maxComputeWorkgroupCount.x >= ComputeBytes.maximumGroups else { return .broken("SDL_GPU allows
+\(device.limits.maxComputeWorkgroupCount.x) groups a dispatch, fewer than the engine's \(ComputeBytes.maximumGroups)") }`. The old `deviceName` and
+`largestBuffer` lines and their "until XP-G23/XP-G24" comments go, and `MeshTuning.largestTable`'s comment "2^25 slots of 4 bytes is the 128 MiB
+buffer cap (gap XP-G24)" becomes "2^25 slots of 4 bytes is SDL_GPU's guaranteed 128 MiB (`SDLGPUDevice.limits`, XP-G24)". No policy on software devices (X-C5). Lint; the release asserts build.
+
+- [ ] **Step 3: Run** Linux (`scripts/linux-test.sh all`: `--self-test` says `ok   implicit engine: Vulkan on llvmpipe (LLVM …) (software)`) and the
+Windows job (`Direct3D 12 on Microsoft Basic Render Driver (software)`, or WARP's name as SDL gives it). Docs:
+  - `docs/metalui-gaps.md`: rows XP-G23 and XP-G24 "✅ fixed by MetalUI `81b57417` (PR #130), adopted by xp-c task 13 (`limits` are SDL_GPU's
+    guaranteed floors; the edge table stays at 2^25 slots)".
+  - E8's last sentence ("Gaps XP-G23 … are open; meanwhile the driver's name and 128 MiB buffers.") becomes "The device's name is the adapter's
+    (MetalUI `adapterName`, XP-G23), with "(software)" on lavapipe or WARP, which are used like any GPU (X-C5); buffers and dispatches are sized to
+    SDL_GPU's guaranteed floors (`limits`, XP-G24: 128 MiB, 65,535 groups), so the edge table stays at 2^25 slots."
+  - D21 (6): "Storage buffers of at most 128 MiB until XP-G24 (an edge table of 2^25 slots, Metal's 2^27)" becomes "Storage buffers of at most SDL_GPU's
+    guaranteed 128 MiB (MetalUI `SDLGPUDevice.limits`, XP-G24: floors, since SDL_GPU reports no limit), an edge table of 2^25 slots (Metal's 2^27)".
+  - `CLAUDE.md`'s xp-c paragraph: "XP-G23, XP-G24, XP-G26 and XP-G27 are open" becomes "XP-G23 to XP-G25 are adopted (the device's name is the adapter's,
+    "(software)" on lavapipe and WARP, which are always used; `limits` are floors); XP-G26 and XP-G27 are open".
+  - Commit (`feat(implicit): the SDL engine names its adapter and sizes to SDL_GPU's floors (xp-c task 13)`), push.
 
 ---
 
 ## Execution order and verification
 
-Tasks 0 → 10 in order; none waits for MetalUI. Task 11 waits for XP-G25 (and task 12 follows it; if CI cannot compile at run time without the libraries, task 12's steps 2 and 3 come first). Task 13 waits for XP-G23 and XP-G24.
+Tasks 0 → 10 in order (done, `2c357db`). Then: task 11 steps 1 to 3; task 12 step 2 (the Windows prefix must hold the four DLLs before the Windows
+job can compile at run time; the Linux image already does); task 11 steps 4 to 6; task 12 steps 3 to 6; task 13 (independent of 12, after 11).
+MetalUI pin `722f0cd6fbd29e4d75b3fb71c1a60824dffd3b90` throughout.
 
-Done before XP-G25 (task 10's commit): macOS `swift test` exits 0 with 12 lines, the MSL digests unchanged; `swift test --filter CreatorImplicitTests` with and without `.build/generated-kernels` both pass; Linux `scripts/linux-test.sh all` passes with the agreement suites on lavapipe over the offline kernels; Windows CI builds (debug and release) and passes with the HLSL cases skipped by name; `git status` clean after a build. Done after task 12: the same, with Linux and Windows compiling at run time, the packages' self-tests passing in clean environments, and human checks XP-27 to XP-29 ready to run.
+Done before XP-G25 (task 10's commit): macOS `swift test` exits 0 with 12 lines, the MSL digests unchanged; `swift test --filter CreatorImplicitTests` with and without `.build/generated-kernels` both pass; Linux `scripts/linux-test.sh all` passes with the agreement suites on lavapipe over the offline kernels; Windows CI builds (debug and release) and passes with the HLSL cases skipped by name; `git status` clean after a build. Done after task 13: the same, with Linux (lavapipe) and Windows (WARP) compiling at run time and the HLSL cases running on both; the Mac unchanged (`HLSLRuntimeCompileTests` skipped by name, the offline MSL path as before); the packages' self-tests passing in clean environments and failing, as they must, without the compiler; human checks XP-27 to XP-30 ready to run.
