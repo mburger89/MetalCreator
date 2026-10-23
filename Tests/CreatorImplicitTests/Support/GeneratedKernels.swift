@@ -24,12 +24,17 @@ enum GeneratedKernels {
         ]
     }
 
-    /// The distinct kernel sources of `solids`.
-    static var sources: [KernelSource] {
+    /// The distinct kernel sources of `solids`. A fixture the HLSL generator refuses throws naming it (it never silently gets no kernel).
+    static func sources() throws -> [KernelSource] {
         var seen: Set<String> = []
         var all: [KernelSource] = []
-        for (_, solid) in solids {
-            guard let compiled = try? ImplicitCompiler.compileHLSL(solid) else { continue }
+        for (name, solid) in solids {
+            let compiled: CompiledImplicit
+            do {
+                compiled = try ImplicitCompiler.compileHLSL(solid)
+            } catch {
+                throw GeneratedKernelError.refused(fixture: name, reason: String(describing: error))
+            }
             for kernel in ImplicitKernel.allCases {
                 guard let source = compiled.kernels[kernel], seen.insert(source.digest).inserted else { continue }
                 all.append(source)

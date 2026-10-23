@@ -12,7 +12,7 @@ struct GeneratedKernelBuildTests {
         let required = false
         #endif
         guard required || FileManager.default.fileExists(atPath: GeneratedKernels.compiled.path) else { return }
-        for source in GeneratedKernels.sources {
+        for source in try GeneratedKernels.sources() {
             let stem = GeneratedKernels.compiled.appending(path: "\(source.digest).comp")
             for blob in ["spv", "dxil", "msl"] {
                 let size = (try? Data(contentsOf: stem.appendingPathExtension(blob)).count) ?? 0
