@@ -1267,3 +1267,50 @@ BENCH field-4c first tint of the bracket by its signed distance (kernel): median
 BENCH field-4 edit to a tinted bracket preview (Remap of the signed distance): median 31.70 ms, p95 36.88 ms, max 480.13 ms (n 40); budget 150.00 ms: met
 BENCH field-4b edit to a tinted bracket preview (Radial Gradient): median 34.71 ms, p95 36.12 ms, max 61.04 ms (n 40); budget 150.00 ms: met
 ```
+
+## Implicit engines side by side (plan xp-c)
+
+Suite `ImplicitBenchHLSL` (`scripts/bench.sh ImplicitBenchHLSL`; Linux: `DOCKER_EXTRA="-e METALCREATOR_BENCH=1" XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test -c release --no-parallel --filter ImplicitBenchHLSL`).
+Solid: a 100 mm gyroid sheet (wall 3 mm; the edit is 2.5 mm), the mesher alone at 0.78 mm, preview quality, median of six warm runs.
+Mac: MacBookPro18,2, 10 cores, macOS 27.0.1, load before 6.22 11.50 37.48 and after 17.60 14.41 32.00 (other sessions were running: the Mac was not idle, so the
+GPU figures are upper bounds). Linux: the metalcreator-linux:xp-c Docker image on the same Mac, Mesa lavapipe (a software Vulkan device, so its rows measure the CPU).
+
+| Row | Machine and load | Engine | Median | Budget | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| x-1 first pass | Mac, busy | Metal | 12.94 ms | none | recorded |
+| x-1 first pass | Mac, busy | Metal (HLSL) | 9.98 ms | none | recorded |
+| x-1 first pass | Mac, busy | CPU | 1,852.69 ms | none | recorded |
+| x-1 first pass | Docker, lavapipe | Vulkan | 62.62 ms | none | recorded |
+| x-1 first pass | Docker | CPU | 1,495.11 ms | none | recorded |
+| x-2 thickness edit | Mac, busy | Metal | 13.81 ms | none | recorded |
+| x-2 thickness edit | Mac, busy | Metal (HLSL) | 9.41 ms | none | recorded |
+| x-2 thickness edit | Mac, busy | CPU | 1,763.10 ms | none | recorded |
+| x-2 thickness edit | Docker, lavapipe | Vulkan | 62.37 ms | none | recorded |
+| x-2 thickness edit | Docker | CPU | 1,496.78 ms | none | recorded |
+| x-1h | Mac, busy | Metal (HLSL) | 9.98 ms | 1000 ms | met |
+| x-3m new shape, evaluation pipeline | Mac, busy | Metal | 0.14 ms | none | recorded |
+| x-3m new shape, meshing pipelines and a coarse mesh | Mac, busy | Metal | 3.05 ms | none | recorded |
+| x-3o offline compile, one kernel (shadercross CLI) | Docker | HLSL to SPIR-V, DXIL, MSL | 0.60 s (157 kernels in 94.7 s) | none | recorded |
+| x-3 | | | after XP-G25 (task 11) | | |
+| x-4 | | | after XP-G25 (task 11) | | |
+
+x-3o is an upper bound on XP-G25's in-process compile: it divides a whole `kernels` run (all seven targets' outputs through the MetalUICompileShaders
+tool, with `.build/generated-kernels/compiled` emptied first so every kernel compiled) by the 157 kernels. The x-3m figures look small because Metal
+caches a compiled library by the digest of its source inside the process; read them as Metal's cost for a shape it has not seen in this process only if
+that caching does not apply (see the task 9 report).
+
+```text
+BENCH x-1 Metal: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 12.94 ms
+BENCH x-2 Metal: thickness edit, warm: median 13.81 ms
+BENCH x-1 Metal (HLSL): first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 9.98 ms
+BENCH x-2 Metal (HLSL): thickness edit, warm: median 9.41 ms
+BENCH x-1h Metal (HLSL): 9.98 ms; budget 1000.00 ms: met
+BENCH x-1 CPU: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 1,852.69 ms
+BENCH x-2 CPU: thickness edit, warm: median 1,763.10 ms
+BENCH x-3m Metal: a new shape's evaluation pipeline median 0.14 ms, its meshing pipelines and a coarse mesh median 3.05 ms
+BENCH x-1 Vulkan: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 62.62 ms
+BENCH x-2 Vulkan: thickness edit, warm: median 62.37 ms
+BENCH x-1 CPU: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 1,495.11 ms
+BENCH x-2 CPU: thickness edit, warm: median 1,496.78 ms
+COMPILE-TIME 157 kernels in 94.7 s
+```

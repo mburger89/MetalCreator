@@ -20,6 +20,7 @@ enum GeneratedKernels {
         let move = RigidMove(origin: Vector3(4_000, -3_000, 2_500), xAxis: .unitX, yAxis: .unitY, zAxis: .unitZ)
         return GPUFixtures.all + LatticeFixtures.everyMapped + ImplicitFixtures.all + [
             ("sphere", ball), ("moved sphere", .moved(ball, move)), ("box", .box(halfSize: Vector3(1, 1, 1), cornerRadius: 0)),
+            ("bench sheet", ImplicitBenchHLSL.sheet(wall: 3)),
         ]
     }
 
