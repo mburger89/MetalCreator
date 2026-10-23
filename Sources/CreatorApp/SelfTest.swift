@@ -61,6 +61,9 @@ public enum SelfTest {
             return shadersDetail
         })
         results.append(await check("implicit engine") { await ImplicitEngineCheck.run() })
+        if ImplicitEngineCheck.hasRuntimeCompiler {
+            results.append(await check("implicit compiler") { try await ImplicitEngineCheck.compilerSelfTest() })
+        }
         return SelfTestReport(results: results)
     }
 

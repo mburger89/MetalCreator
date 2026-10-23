@@ -11,4 +11,16 @@ struct ImplicitEngineCheckTests {
         #expect(text.hasPrefix("the CPU") || text.hasPrefix("Vulkan") || text.hasPrefix("Direct3D 12"), "\(text)")
         #endif
     }
+
+    @Test func theCompilerCheckIsLinuxAndWindowsOnly() async throws {
+        #if canImport(MetalUISDLGPU)
+        #expect(ImplicitEngineCheck.hasRuntimeCompiler)
+        if RuntimeCompileUnderTest.isAvailable {
+            let line = try await ImplicitEngineCheck.compilerSelfTest()
+            #expect(line.contains("shadercross"), "\(line)")
+        }
+        #else
+        #expect(!ImplicitEngineCheck.hasRuntimeCompiler)
+        #endif
+    }
 }
