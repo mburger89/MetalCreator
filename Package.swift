@@ -30,7 +30,7 @@ let metalUISystemFonts: Target.Dependency = .product(name: "MetalUISystemFonts",
 let metalUISDL: Target.Dependency = .product(name: "MetalUISDL", package: "MetalUI", condition: .when(platforms: [.linux, .windows]))
 
 /// MetalUI's SDL_GPU layer (`SDLGPUDevice`, textures, pipelines, render passes, shader library): the 3D viewport's renderer on Linux
-/// and Windows (xp-3). A dependency of `CreatorViewport` and its tests only.
+/// and Windows (xp-3). A dependency of `CreatorViewport`, `CreatorImplicit` and their tests.
 let metalUISDLGPU: Target.Dependency = .product(name: "MetalUISDLGPU", package: "MetalUI", condition: .when(platforms: [.linux, .windows]))
 
 /// The OpenCascade kernel (xp-2): a dependency on every platform.
@@ -57,8 +57,9 @@ var targets: [Target] = [
     .target(name: "CreatorGraph", dependencies: ["CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
     // Implicit solids and meshes (implicit spec §2 to §4): the value types, the CPU evaluator, the Metal compiler, the sparse
     // octree and the mesher. Depends on CreatorGraph for `Field`; CreatorGraph holds them only as `ImplicitPayload` and
-    // `MeshPayload`. Portable: the Metal compiler is gated with `#if canImport(Metal)`.
-    .target(name: "CreatorImplicit", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
+    // `MeshPayload`. Portable: the Metal compiler is gated with `#if canImport(Metal)`, the SDL_GPU backend, `Sources/CreatorImplicit/SDL`
+    // (plan xp-c), with `#if canImport(MetalUISDLGPU)`.
+    .target(name: "CreatorImplicit", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUISDL, metalUISDLGPU]),
     // MetalUI only for `DecodedImage`, the picture decoder (`GreyImageDecoder+MetalUI.swift`, the one file that imports it).
     .target(name: "CreatorNodes",
             dependencies: ["CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry", "CreatorSketch", metalUI]),
@@ -121,7 +122,7 @@ var targets: [Target] = [
     .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
     .testTarget(name: "CreatorSketchTests", dependencies: ["CreatorSketch", "CreatorGeometry"]),
     .testTarget(name: "CreatorImplicitTests",
-                dependencies: ["CreatorImplicit", "CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
+                dependencies: ["CreatorImplicit", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUISDL, metalUISDLGPU]),
     .testTarget(name: "CreatorKernelTests", dependencies: ["CreatorKernel", "CreatorGeometry"]),
     .testTarget(name: "CreatorGraphTests", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
     .testTarget(

@@ -63,4 +63,20 @@ struct ImplicitPortabilityTests {
             }
         }
     }
+
+    /// SDL_GPU is reached only from `SDL*.swift` files, each wholly under `#if canImport(MetalUISDLGPU)`, and no other file names an `SDLGPU` type.
+    @Test func onlyTheSDLFilesReachSDLGPU() {
+        for (name, lines) in Self.sources {
+            let code = lines.filter { !$0.isEmpty && !$0.hasPrefix("//") }
+            if name.hasPrefix("SDL") {
+                #expect(code.first == "#if canImport(MetalUISDLGPU)" && code.last == "#endif",
+                        "\(name) must be wrapped in #if canImport(MetalUISDLGPU)")
+            } else {
+                #expect(!code.contains { Self.imports($0) == "MetalUISDLGPU" }, "\(name) imports MetalUISDLGPU")
+                for line in code {
+                    #expect(line.range(of: #"\bSDLGPU\w*"#, options: .regularExpression) == nil, "\(name) names an SDL_GPU type: \(line)")
+                }
+            }
+        }
+    }
 }

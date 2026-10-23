@@ -22,6 +22,16 @@ public enum ImplicitEvaluators {
                             engine: (any ImplicitGPUEngine)? = ImplicitGPUEngines.platformDefault) async -> Selection {
         let cpu = CPUBatchEvaluator(solid)
         guard choice == .automatic, let engine else { return Selection(evaluator: cpu, warning: nil, diagnostic: nil) }
+        switch await engine.availability {
+        case .available:
+            break
+        case .absent(let why):
+            // No GPU for this engine: like a machine with no GPU engine, the CPU is all there is (plan xp-c, X-C4).
+            return Selection(evaluator: cpu, warning: nil, diagnostic: "no GPU engine: \(why)")
+        case .broken(let why):
+            // A GPU engine that should run and cannot (its compiler library is missing, a pipeline was refused): the person is told.
+            return Selection(evaluator: cpu, warning: cpuWarning, diagnostic: "the GPU engine cannot run: \(why)")
+        }
         do {
             let program = try await engine.compile(solid)
             return Selection(evaluator: GPUBatchEvaluator(engine: engine, program: program), warning: nil, diagnostic: nil)

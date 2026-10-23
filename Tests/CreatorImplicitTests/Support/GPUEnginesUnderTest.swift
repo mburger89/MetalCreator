@@ -6,7 +6,7 @@ import Foundation
 /// then compiled at run time as the app does.
 enum GPUEnginesUnderTest {
     static let hlslState: ComputeBackendState = {
-        #if canImport(MetalUISDLGPU) && false
+        #if canImport(MetalUISDLGPU)
         return SDLComputeBackend.make(kernels: SDLPrecompiledKernels(directory: GeneratedKernels.compiled))
         #elseif canImport(Metal)
         return MSLComputeBackend.state

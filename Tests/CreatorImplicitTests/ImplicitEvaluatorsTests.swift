@@ -49,6 +49,22 @@ struct ImplicitEvaluatorsTests {
         let mesh = try await ImplicitMesher(evaluator: selection.evaluator).mesh(solid, resolution: 0.5, quality: .preview)
         #expect(MeshTopology(mesh).isClosedManifold)
     }
+
+    /// No device for the engine: the CPU, and nobody is told (X-C4).
+    @Test func anAbsentEngineRunsOnTheCPUSilently() async {
+        let engine = StubGPUEngine(availability: .absent("no SDL_GPU device"))
+        let selection = await ImplicitEvaluators.make(for: ImplicitFixtures.sphere, choice: .automatic, engine: engine)
+        #expect(selection.evaluator.engineName == "CPU" && selection.warning == nil)
+        #expect(await engine.prepared == 0, "an absent engine is not asked to compile")
+    }
+
+    /// The engine should run and cannot (the compiler library is missing, a pipeline was refused): the CPU with the warning and the reason (X-C4).
+    @Test func aBrokenEngineRunsOnTheCPUWithTheWarningAndTheReason() async {
+        let engine = StubGPUEngine(availability: .broken("the shader compiler library was not found in /opt/x, ./lib"))
+        let selection = await ImplicitEvaluators.make(for: ImplicitFixtures.sphere, choice: .automatic, engine: engine)
+        #expect(selection.evaluator.engineName == "CPU" && selection.warning == ImplicitEvaluators.cpuWarning)
+        #expect(selection.diagnostic?.contains("the shader compiler library was not found") == true)
+    }
 }
 
 #if canImport(Metal)
