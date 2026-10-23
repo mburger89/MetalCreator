@@ -1288,16 +1288,18 @@ GPU figures are upper bounds). Linux: the metalcreator-linux:xp-c Docker image o
 | x-2 thickness edit | Docker, lavapipe | Vulkan | 62.37 ms | none | recorded |
 | x-2 thickness edit | Docker | CPU | 1,496.78 ms | none | recorded |
 | x-1h | Mac, busy | Metal (HLSL) | 9.98 ms | 1000 ms | met |
-| x-3m new shape, evaluation pipeline | Mac, busy | Metal | 0.14 ms | none | recorded |
-| x-3m new shape, meshing pipelines and a coarse mesh | Mac, busy | Metal | 3.05 ms | none | recorded |
+| x-3m new shape, evaluation kernel, uncached | Mac, busy | Metal | first 68.96 ms, median 12.37 ms, max 68.96 ms (5 shapes) | none | recorded |
+| x-3m new shape, the five meshing kernels, uncached | Mac, busy | Metal | first 42.92 ms, median 32.23 ms, max 42.92 ms (5 shapes) | none | recorded |
 | x-3o offline compile, one kernel (shadercross CLI) | Docker | HLSL to SPIR-V, DXIL, MSL | 0.60 s (157 kernels in 94.7 s) | none | recorded |
 | x-3 | | | after XP-G25 (task 11) | | |
 | x-4 | | | after XP-G25 (task 11) | | |
 
 x-3o is an upper bound on XP-G25's in-process compile: it divides a whole `kernels` run (all seven targets' outputs through the MetalUICompileShaders
-tool, with `.build/generated-kernels/compiled` emptied first so every kernel compiled) by the 157 kernels. The x-3m figures look small because Metal
-caches a compiled library by the digest of its source inside the process; read them as Metal's cost for a shape it has not seen in this process only if
-that caching does not apply (see the task 9 report).
+tool, with `.build/generated-kernels/compiled` emptied first so every kernel compiled) by the 157 kernels. x-3m times Metal's own compile of five different shapes (a type or form each, none the x-1 sheet), each source given a fresh unique comment so neither
+Metal's in-process cache nor its on-disk shader cache, both keyed by the source's digest, can answer; the evaluation kernel and the five meshing kernels
+are timed apart, and the first shape is reported apart from the median because the first compile in a process pays for Metal's compiler start-up. An
+earlier version of the row reused sources Metal had already compiled and read 0.14 ms; that was a cache hit, not a compile, and is superseded. Task 11's
+x-3 (the HLSL engine's run-time compile) is compared with the first-shape figures.
 
 ```text
 BENCH x-1 Metal: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 12.94 ms
@@ -1307,7 +1309,7 @@ BENCH x-2 Metal (HLSL): thickness edit, warm: median 9.41 ms
 BENCH x-1h Metal (HLSL): 9.98 ms; budget 1000.00 ms: met
 BENCH x-1 CPU: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 1,852.69 ms
 BENCH x-2 CPU: thickness edit, warm: median 1,763.10 ms
-BENCH x-3m Metal: a new shape's evaluation pipeline median 0.14 ms, its meshing pipelines and a coarse mesh median 3.05 ms
+BENCH x-3m Metal: a new shape, uncached source: evaluation kernel first 68.96 ms, median 12.37 ms, max 68.96 ms; the five meshing kernels first 42.92 ms, median 32.23 ms, max 42.92 ms
 BENCH x-1 Vulkan: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 62.62 ms
 BENCH x-2 Vulkan: thickness edit, warm: median 62.37 ms
 BENCH x-1 CPU: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 1,495.11 ms

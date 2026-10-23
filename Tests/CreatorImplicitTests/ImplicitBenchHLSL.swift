@@ -1,6 +1,9 @@
 import CreatorGeometry
 import Foundation
 import Testing
+#if canImport(Metal)
+import Metal
+#endif
 @testable import CreatorImplicit
 
 /// Rows x-1, x-2, x-1h and x-3m (plan xp-c, X-C7): the engines side by side on one solid, the mesher alone; x-3m is Metal's own compile of a new shape,
@@ -61,26 +64,51 @@ struct ImplicitBenchHLSL {
     }
 
     #if canImport(Metal)
-    /// x-3m: Metal compiling one new shape, the evaluation pipeline and then the five meshing kernels (a fresh engine each time).
-    @Test func metalsCompileOfANewShape() async throws {
-        guard Self.releaseOnly(), MetalImplicitEngine.shared != nil else { return }
+    /// Five shapes whose generated source differs from each other and from `sheet(wall:)` (x-1 and x-2 already compiled that one in this process):
+    /// a number is not part of a shape, so each round varies the surface type or the form.
+    static func distinctShapes() -> [ImplicitSolid] {
+        let region = BoundingBox(min: Vector3(-50, -50, -50), max: Vector3(50, 50, 50))
+        let kinds: [(TPMSType, TPMSForm)] = [
+            (.schwarzP, .sheet), (.diamond, .sheet), (.neovius, .sheet), (.lidinoid, .sheet), (.gyroid, .network),
+        ]
+        return kinds.map { type, form in
+            .tpms(TPMSLattice(type: type, form: form, cells: LatticeCells(size: .constant(100)), thickness: .constant(3), region: region))
+        }
+    }
+
+    /// Metal compiling `source` to a pipeline state for each of `names`, in milliseconds. A comment with a fresh UUID makes the text unseen, so neither
+    /// Metal's in-process cache nor its on-disk shader cache (both keyed by the source's digest) can answer: this is a real compile.
+    static func compileMilliseconds(_ source: String, kernels names: [String], on device: any MTLDevice) async throws -> Double {
         let clock = ContinuousClock()
+        let start = clock.now
+        let library = try await device.makeLibrary(source: source + "\n// \(UUID().uuidString)\n", options: nil)
+        for name in names {
+            let function = try #require(library.makeFunction(name: name))
+            _ = try await device.makeComputePipelineState(function: function)
+        }
+        return milliseconds(clock.now - start)
+    }
+
+    /// x-3m: Metal compiling one new shape, uncached: the evaluation kernel, then the five meshing kernels (the evaluation source with the meshing
+    /// library appended). Five different shapes, each with unique text. Reported as first, median and max.
+    @Test func metalsCompileOfANewShape() async throws {
+        guard Self.releaseOnly(), let device = MTLCreateSystemDefaultDevice() else { return }
         var evaluation: [Double] = []
         var meshing: [Double] = []
-        for round in 0..<5 {
-            let engine = try #require(MetalImplicitEngine())
-            let solid = Self.sheet(wall: 3 + Double(round))
-            let start = clock.now
-            let program = try await engine.compile(solid)
-            let compiled = clock.now
-            let plan = try await BrickPlan.build(for: solid, resolution: 10, using: CPUBatchEvaluator(solid))
-            _ = try await engine.meshBricks(program, BrickMeshRequest(plan: plan, snap: true)) { _ in }
-            evaluation.append(Self.milliseconds(compiled - start))
-            meshing.append(Self.milliseconds(clock.now - compiled))
+        for solid in Self.distinctShapes() {
+            let program = try ImplicitCompiler.compile(solid)
+            evaluation.append(try await Self.compileMilliseconds(program.source, kernels: [CompiledImplicit.kernelName], on: device))
+            meshing.append(try await Self.compileMilliseconds(ImplicitMeshShaderLibrary.source(extending: program),
+                                                              kernels: ImplicitMeshShaderLibrary.kernelNames, on: device))
         }
         let digits = FloatingPointFormatStyle<Double>.number.precision(.fractionLength(2))
-        print("BENCH x-3m Metal: a new shape's evaluation pipeline median \(evaluation.sorted()[2].formatted(digits)) ms, "
-            + "its meshing pipelines and a coarse mesh median \(meshing.sorted()[2].formatted(digits)) ms")
+        func summary(_ values: [Double]) -> String {
+            let median = values.sorted()[2]
+            let slowest = values.max() ?? 0
+            return "first \(values[0].formatted(digits)) ms, median \(median.formatted(digits)) ms, max \(slowest.formatted(digits)) ms"
+        }
+        print("BENCH x-3m Metal: a new shape, uncached source: evaluation kernel \(summary(evaluation)); "
+            + "the five meshing kernels \(summary(meshing))")
     }
     #endif
 }
