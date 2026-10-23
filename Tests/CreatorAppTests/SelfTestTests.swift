@@ -14,7 +14,7 @@ struct SelfTestTests {
     @Test func onOCCTEveryCheckPassesAndTheScratchFolderIsRemoved() async {
         let scratch = Self.scratch()
         let report = await SelfTest.run(kernel: OCCTKernel(), scratch: scratch)
-        #expect(report.results.map(\.name) == ["kernel", "STEP export", "STL export", "shaders"])
+        #expect(report.results.map(\.name) == ["kernel", "STEP export", "STL export", "shaders", "implicit engine"])
         #expect(report.passed, "\(report.text)")
         #expect(report.results.first?.detail.hasPrefix("a 10 mm cube, 1000 mm³, meshed into ") == true)
         #expect(!FileManager.default.fileExists(atPath: scratch.path))
@@ -29,19 +29,23 @@ struct SelfTestTests {
         let report = await SelfTest.run(kernel: FakeKernel(), scratch: scratch) { throw NoBundle() }
         #expect(!report.passed)
         #expect(!FileManager.default.fileExists(atPath: scratch.path))
-        #expect(report.results == [
+        // The implicit engine's line depends on the machine and never fails a run; the others are pinned exactly.
+        #expect(report.results.filter { $0.name != "implicit engine" } == [
             SelfTestResult(name: "kernel", passed: true, detail: "a 10 mm cube, 1000 mm³, meshed into 12 triangles"),
             SelfTestResult(name: "STEP export", passed: false, detail: "Export isn't supported by this kernel yet."),
             SelfTestResult(name: "STL export", passed: false, detail: "Export isn't supported by this kernel yet."),
             SelfTestResult(name: "shaders", passed: false, detail: "no shader bundle"),
         ])
-        #expect(report.text == """
+        let lines = report.text.split(whereSeparator: \.isNewline).filter { !$0.contains("implicit engine") }
+        #expect(lines.joined(separator: "\n") == """
             MetalCreator \(AppBundleInfo.version) (\(AppBundleInfo.build)) self-test
             ok   kernel: a 10 mm cube, 1000 mm³, meshed into 12 triangles
             FAIL STEP export: Export isn't supported by this kernel yet.
             FAIL STL export: Export isn't supported by this kernel yet.
             FAIL shaders: no shader bundle
             """)
+        #expect(report.results.last?.name == "implicit engine")
+        #expect(report.results.last?.passed == true)
     }
 
     /// The scratch folder can't be made when something that is not a folder is in the way: that is a failed check of its
@@ -51,7 +55,7 @@ struct SelfTestTests {
         try Data("in the way".utf8).write(to: blocker)
         defer { try? FileManager.default.removeItem(at: blocker) }
         let report = await SelfTest.run(kernel: FakeKernel(), scratch: blocker.appending(path: "inside")) { }
-        #expect(report.results.map(\.name) == ["kernel", "scratch folder", "STEP export", "STL export", "shaders"])
+        #expect(report.results.map(\.name) == ["kernel", "scratch folder", "STEP export", "STL export", "shaders", "implicit engine"])
         #expect(!report.passed)
         let scratch = try #require(report.results.first { $0.name == "scratch folder" })
         #expect(!scratch.passed && !scratch.detail.isEmpty)
@@ -68,7 +72,7 @@ struct SelfTestTests {
         let scratch = Self.scratch()
         let report = await SelfTest.run(kernel: KernelUnavailable(), scratch: scratch) { }
         #expect(report.passed, "\(report.text)")
-        #expect(report.results.map(\.name) == ["kernel", "STEP export", "STL export", "shaders"])
+        #expect(report.results.map(\.name) == ["kernel", "STEP export", "STL export", "shaders", "implicit engine"])
         let skipped = "skipped: Geometry isn't available on this platform yet."
         #expect(report.results.prefix(3).map(\.detail) == [skipped, skipped, skipped])
         #expect(!FileManager.default.fileExists(atPath: scratch.path))

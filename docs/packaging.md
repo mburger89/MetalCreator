@@ -188,6 +188,8 @@ folders on `PATH` and MetalUI's checkout and the viewport's `Shaders\viewport\co
 or shader directory fails the job. It packages a release build: CI makes it in its own step (`swift build -c release --product
 MetalCreatorApp`, then `-NoBuild`), because the suite is a debug build.
 
+**The implicit engine's shader compiler (after MetalUI XP-G25).** Linux and Windows packages will ship SDL_shadercross, DXC and their libraries for the implicit engine's run-time compilation (plan xp-c, task 12); until then the packages are unchanged and the engine off macOS is the CPU (`--self-test`'s "implicit engine" line says so).
+
 OpenCascade on Windows is vcpkg's `opencascade` port at 7.9.3, release and debug libraries (triplet `x64-windows`), pinned by the
 vcpkg commit in `.github/workflows/xp.yml` (`VCPKG_COMMIT`), which `packaging/windows/vcpkg.json` repeats as its `builtin-baseline`
 (`CIPinTests` checks they agree). Both sets are installed because the suite is a debug build: `Package.swift` links `debug/lib` for a
