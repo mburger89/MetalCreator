@@ -2,109 +2,96 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** On Linux and Windows, 7c's implicit evaluation and marching-cubes meshing run on the GPU through MetalUI's SDL_GPU compute, held to the CPU reference by the same agreement suites and tolerances as Metal; macOS keeps `MetalImplicitEngine` unchanged, and the same HLSL also runs on the Mac's GPU in the tests.
+**Goal:** On Linux and Windows, 7c's implicit evaluation and marching-cubes meshing run on the GPU through MetalUI's SDL_GPU compute, built the way macOS's `MetalImplicitEngine` is: one generated kernel source per solid shape, compiled while the app runs, pipelines cached by source; held to the CPU reference by the same suites and tolerances as Metal. macOS is unchanged.
 
-**Architecture:** SDL_GPU only takes shaders compiled before the app runs (`SDLGPUShaderBlob` has no public initializer and is loaded only from a compiled directory; xp-3's U1(b) compiles at build time), so the Metal engine's design, one generated source per tree shape compiled at run time, cannot be carried over. Instead a solid compiles to an **`ImplicitProgram`**: fixed-size instructions (an op code, a destination register and six operands) over the same five buffers the Metal source reads, made by `ImplicitProgramCompiler`, which walks the tree exactly as `ImplicitCompiler.Generator` does, so both compilers write identical parameter, integer, table, pool and image buffers (pinned by a test). One HLSL interpreter (`Shaders/implicit/interpreter.hlsli`, a `switch` over 37 ops whose cases are line-for-line ports of `ImplicitShaderLibrary`'s MSL) is the `sdf` of seven compute kernels: `implicit_evaluate` and the five meshing kernels of 7c-1g (`mesh_sample`, `mesh_classify`, `mesh_number`, `mesh_place`, `mesh_emit`) plus `mesh_clear`, which empties the edge table because SDL_GPU has no buffer fill. The kernels are compiled at build time exactly as xp-3's viewport shaders are (`scripts/build-shaders.sh`/`.ps1`, MetalUI's `MetalUICompileShaders`, the pinned SDL_shadercross) into `Shaders/implicit/compiled`, git-ignored, shipped as `ImplicitShaders` beside the executable. **`InterpretedImplicitEngine`** (an actor, portable Swift) drives them through a small protocol, **`ImplicitComputeBackend`** (make a buffer; run one batch of uploads, dispatches, each in a compute pass of its own, and downloads; nothing else). Two backends implement it: **`SDLComputeBackend`** (Linux and Windows, `MetalUISDLGPU`, an owned headless `SDLGPUDevice`), which is `ImplicitGPUEngines.platformDefault` there, and **`MSLComputeBackend`** (macOS, test support only), which loads the MSL that SDL_shadercross made of the same HLSL and binds it the way SDL_GPU's Metal driver does. So the same HLSL and the same engine code run on the Mac's GPU, Linux's lavapipe and Windows' WARP, and `GPUAgreementTests` and `GPUMeshAgreementTests` run over every engine a machine has. The interpreted engine's meshes come back in a **canonical order** (vertices by edge key, triangles by brick, cube and table order; a radix sort on the CPU after readback), so a request meshes to the same arrays every run.
+**Architecture:** `ImplicitCompiler.Generator` gains a dialect (`ShaderDialect.msl`, the default and byte-for-byte today's output, pinned by recorded digests; `.hlsl`), so one walk of the tree writes the Metal source and the HLSL source statement for statement, with the same five buffers. `HLSLShaderLibrary` and `HLSLMeshShaderLibrary` are the Swift-text HLSL twins of `ImplicitShaderLibrary` and `ImplicitMeshShaderLibrary` (line-for-line ports, plus SDL_GPU's needs: `mesh_clear` because SDL_GPU has no buffer fill, and a separate source per kernel because an SDL_GPU shader has one entry point). `HLSLImplicitEngine` is the portable actor mirroring `MetalImplicitEngine`: `prepare` makes the evaluation pipeline of a shape once, the six meshing pipelines are made on a shape's first mesh, pipelines are cached by source (64 kept, least recently used dropped), a solid's buffers by identity (8 kept), and evaluation and meshing are the same dispatches with the same tuning shape. It talks to an `ImplicitComputeBackend` that makes buffers, makes a pipeline from a `KernelSource`, and runs one batch at a time. `SDLComputeBackend` (Linux and Windows, an owned headless `SDLGPUDevice`) gets its shader bytes from a `SDLKernelProvider`: **at run time from MetalUI's compiler (gap XP-G25, which MetalUI is building on `feat/sdl-gpu-runtime-shaders`; tasks 11 and 12 wait for it)**, and, before that and in the tests, from kernels the build-time SDL_shadercross compiled offline in the Linux image (`scripts/linux-test.sh kernels`: every fixture's generated sources exported, compiled to SPIR-V, DXIL and MSL into `.build/generated-kernels`). So the generated HLSL is compiled by DXC and run against the CPU on lavapipe, and, through the MSL, on this Mac's GPU (`MSLComputeBackend`, test support), **before XP-G25 lands**. Until task 11 the app's engine off macOS stays the CPU (E7 holds); task 11 makes `HLSLImplicitEngine.sdl` the platform's engine, falling back to the CPU with the reason shown when the compiler library is missing or a source does not compile.
 
-**Tech Stack:** Swift 6.4 strict concurrency, Swift Testing, MetalUI at the CI pin `ff0db06e9cdb8d11de8ee2210f695eb08da271fe` (`MetalUISDLGPU`: `SDLGPUDevice.make()`, `makeBuffer(size:usage:)`, `makeTransferBuffer(size:direction:)`, `compileComputePipeline(_:)`, `submitBatch(_:)`, `SDLGPUFence.wait()`, `SDLGPUCommandBuffer.beginComputePass(readWrite:)`, `copy(_:to:destinationOffset:size:)`, `copy(_:range:to:)`, `SDLGPUComputePass.bind(_:)`, `bind(readOnly:firstSlot:)`, `push(uniform:at:)`, `dispatch(x:y:z:)`, `end()`, `SDLGPUShaderLibrary.locate(directoryName:sourceTree:)`, `compute(_:for:)`; every name checked with `git -C ../MetalUI show ff0db06e:Backends/SDL/Sources/MetalUISDLGPU/…`; the layer is unchanged between `ff0db06e` and MetalUI master `63feea05`), HLSL through SDL_shadercross commit `1ff05bec573988a98ef9e0260b4da44f512b8367` (`scripts/shadercross.env`, unchanged), Metal (macOS, the existing engine and the test backend), Mesa lavapipe (Linux, a CPU Vulkan driver) and Direct3D 12 WARP (Windows) in CI.
+**Tech Stack:** Swift 6.4 strict concurrency, Swift Testing, MetalUI at the CI pin `ff0db06e9cdb8d11de8ee2210f695eb08da271fe` (`MetalUISDLGPU`; every name used before task 11 checked at the pin by task 0; the layer is the same at MetalUI master `63feea05`), then the commit that answers XP-G25 (task 11 bumps the pin), HLSL through SDL_shadercross commit `1ff05bec573988a98ef9e0260b4da44f512b8367` (`scripts/shadercross.env`, unchanged: the offline test compile now, MetalUI's run-time compiler later), Metal (macOS), Mesa lavapipe (Linux) and Direct3D 12 WARP (Windows) in CI.
 
-**Spec:** `docs/superpowers/specs/2026-10-13-cross-platform-design.md` row XP-G2 ("Portable compute (SDL GPU compute) for 7c's implicit engine", after xp-3) and errata E1 to E7, whose E7 ends "Implicit evaluation and meshing stay on the CPU off macOS (xp-c)"; and `docs/superpowers/specs/2026-10-13-implicit-lattices-design.md` §4.1 to §4.3, §6, §7 and Errata D11 (the CPU is a complete engine; GPU behind a protocol; agreement suite skipped without a GPU evaluator), D13 ("An SDL3 GPU compute implementation for Linux and Windows follows … The user asked for it explicitly"; CPU the reference and fallback; same topology, vertices within 1e-4 mm), D15 (mesher alone 1e-4 mm; whole pipeline surfaces 1e-4 mm, vertices 2e-3 mm), D17 (surface allowance 1e-4 mm ÷ |∇f|, never less than 1e-4 mm), D20 (the amended allowance: twice D17 for `GPUFixtures.meshMarginal`, no mesh comparison inside 4 mm of a Face chart's axis, 7× for the Face-mapped Voronoi struts on a cylinder, an open item), under the parent spec `2026-10-07-metalcreator-vertical-slice-design.md` with all its Errata. This plan adds erratum **E8** to the cross-platform spec and erratum **D21** to the implicit spec (task 9; their text is in task 9).
+**Spec:** `docs/superpowers/specs/2026-10-13-cross-platform-design.md` row XP-G2 ("Portable compute (SDL GPU compute) for 7c's implicit engine", after xp-3) and errata E1 to E7 (E7 ends "Implicit evaluation and meshing stay on the CPU off macOS (xp-c)"); `docs/superpowers/specs/2026-10-13-implicit-lattices-design.md` §4.1 to §4.3, §6, §7 and Errata D11 (the CPU is a complete engine; GPU behind a protocol), D12 (export streams, bricks meshed in a fixed order), D13 (an SDL3 GPU compute implementation follows; CPU the reference and fallback; same topology, vertices within 1e-4 mm), D15 (mesher alone 1e-4 mm; whole pipeline surfaces 1e-4 mm, vertices 2e-3 mm), D17 (surface allowance 1e-4 mm ÷ |∇f|), D20 (the amended allowance, including 7× for the Face-mapped Voronoi struts on a cylinder, an open item); the parent spec with all its Errata. This plan adds erratum **E8** to the cross-platform spec and **D21** to the implicit spec (task 10; tasks 11 and 12 finish their last sentences).
 
-**Branch:** `xp-c` (worktree `../MetalCreator-xp-c`), made from master `7a010ec` on 2026-10-22. MetalUI is the sibling `../MetalUI`, **read-only** (another session owns it). The CI pin `METALUI_COMMIT` stays `ff0db06e…`; xp-c does not bump it.
+**Branch:** `xp-c` (worktree `../MetalCreator-xp-c`), from master `7a010ec`. MetalUI is `../MetalUI`, **read-only**.
+
+**Revision of 2026-10-22 (user rulings).** **X-C1 is decided: Linux and Windows follow macOS** — per-solid code generation and compilation while the app runs, an HLSL generator mirroring `ImplicitCompiler.Generator`, pipelines cached by source as on Metal. The bytecode interpreter of the first revision and its limits (32 values, 8 points, 4,096 steps) are gone. MetalUI gap **XP-G25** (a run-time HLSL compute compiler and pipelines from bytes) was sent by the coordinator; the tasks that need it are last and marked. **X-C3 is decided: exports byte-identical, as on macOS** — and macOS's exports already are: an export streams through `StreamingMesher`, which meshes on the CPU over the GPU's values in a fixed order and never calls `meshBricks` (D12; `StreamedExport.swift`: "the CPU mesher still builds the triangles"), so its bytes depend only on the values, which a GPU computes the same way every run. The interpreted engine's canonical sort is dropped; the new engine mirrors Metal exactly, its `meshBricks` order being the threads' (previews only), and no macOS byte changes. X-C5 is still pending. XP-G23 and XP-G24 are being built by MetalUI on `feat/sdl-gpu-device-info` (planned: `SDLGPUDevice.adapterName: String?`, `isSoftwareRasterizer: Bool`, a `limits` struct); MetalUI confirms `SDLGPUDevice.make(debug:preferring:)` is nonisolated, headless and owns its device, safe off the main thread once `SDLPlatform` has initialised video on the main thread (the app does; a headless test process makes its device without a platform, as xp-3's `SDLTestDevice` already does), and that nothing may block inside a surface draw (the engine never draws).
 
 ## User decisions
 
-The choices below touch a spec, a file's bytes or a fallback a person sees. Each has this plan's recommendation; the tasks are written to the recommendation, and the alternative's cost is stated so the user can choose it instead.
+**X-C1. How a solid runs on SDL_GPU. DECIDED (2026-10-22): follow macOS.** Per-solid HLSL generated by the same walk as Metal's MSL, compiled at run time (MetalUI XP-G25), pipelines cached by source hash. The interpreter of the first revision is not built.
 
-**X-C1. How a solid runs on SDL_GPU. Recommended: (a).**
-- (a) **A bytecode interpreter in one set of build-time HLSL kernels** (`ImplicitProgram`, `Shaders/implicit/interpreter.hlsli`). Editing a value or changing the tree's shape never compiles a shader; nothing new ships at run time; the kernels are compiled and tested like the viewport's. Cost: an interpreted `sdf` is slower per sample than Metal's specialised one (a `switch` per instruction, registers in scratch memory); bounded by a 32-value, 8-point, 4,096-step program (beyond it: the CPU, with the warning).
-- (b) Generate HLSL per shape and compile it at run time with SDL_shadercross linked into the app: specialised speed, but shadercross and DXC (about 40 MB of DLLs and shared objects) would ship in every package, MetalUI has no runtime compile path (`SDLGPUShaderBlob` has no public initializer, so it would be a MetalUI gap first), and a compile on a user's machine can fail in ways CI never sees.
+**X-C2. Where the HLSL runs in tests. Recommended (a), unchanged in spirit.**
+- (a) **The generated HLSL is compiled offline by the build-time SDL_shadercross in the Linux image and runs against the CPU on lavapipe (SPIR-V) and on this Mac's GPU (its MSL, `MSLComputeBackend`, test support)**, from task 3 on; after XP-G25 Linux and Windows compile it at run time as the app does, and the offline path stays for the Mac. macOS's app keeps `MetalImplicitEngine`.
+- (b) Wait for XP-G25 before running any generated HLSL: simpler, but the generator would be untested on a GPU until MetalUI lands.
 
-**X-C2. One HLSL source, run on the Mac too. Recommended: (a).**
-- (a) **The HLSL kernels are the interpreted engine's only source; on macOS the app keeps `MetalImplicitEngine`, and the tests also run the interpreted engine on the Mac's GPU over the MSL SDL_shadercross made of the HLSL** (`MSLComputeBackend`, test support). The Mac gets the MSL from `scripts/linux-test.sh shaders` (the Linux image compiles into the worktree, which it mounts read-write); without it the Mac's interpreted cases are skipped, by name. macOS needs no shadercross (xp-3's U1(b), U6(a)) and its app is untouched.
-- (b) Also ship the interpreted engine as the macOS engine: one engine everywhere, but slower than Metal's specialised kernels on the Mac and a visible change there.
+**X-C3. Mesh order and export bytes. DECIDED (2026-10-22): byte-identical exports, the same as macOS.** What this plan pins, and what it cannot:
+- **Same machine, same driver, same build: byte-identical, every run.** Exports stream through `StreamingMesher` (CPU triangles in the plan's fixed brick order over the engine's values) and `STLFileWriter`/`ThreeMFWriter`/`ZipWriter` (fixed dates); the GPU's values are the same bits every run (no atomics touch a value; a point's value does not depend on its batch, which `StreamingMesherGPUTests` already pins on Metal). Pinned on every engine by task 7's `exportingTheSameSolidTwiceGivesTheSameBytes`.
+- **Across machines, drivers or backends: not promised.** Metal, Vulkan and Direct3D 12 compile the same arithmetic differently (fused multiply-adds, `sqrt` and division precision, the order a driver evaluates an expression in), so a value can differ in its last bit or two between a Mac and a Linux box, or between two Linux GPUs; a vertex then moves by up to D15's tolerances and the bytes differ. What holds across them is D11 and D15: the same topology, values within 1e-4 mm, vertices within 2e-3 mm. The CPU engine is the same bits wherever the same Swift build runs on the same architecture.
+- `meshBricks` (the preview and the in-memory mesh the mesh tools read) keeps Metal's order: the set is fixed, the order is the threads' (D13), on both engines. No sort is added and no macOS byte changes.
 
-**X-C3. The order of a mesh's vertices and triangles. Recommended: (a).**
-- (a) **Canonical on the interpreted engine**: vertices by their lattice edge key, triangles by the brick's place in the request, then the cube in the brick, then the marching-cubes table's order (an O(n) radix sort on the CPU after readback, 4 more bytes a triangle on the GPU). A request meshes to the same arrays run after run on one machine, so an STL or 3MF exported twice on Linux or Windows has the same bytes. Metal's order stays the threads' (D13: "the set is fixed"), so macOS is unchanged.
-- (b) Like Metal: the set fixed, the order the threads'. Cheaper by the sort (measured in task 8), but exported files differ from run to run in their byte order.
+**X-C4. What the person sees when the GPU engine cannot run. Recommended: (a), revised for run-time compilation.**
+- (a) **No SDL_GPU device: the CPU, silently** (D11's machine without a GPU engine). **The compiler library missing (XP-G25's named error, listing the paths it tried) or a pipeline refused: the CPU with "Running on the CPU"**, the reason in the selection's diagnostic and in `--self-test`. **A solid whose generated source does not compile** (DXC's diagnostic text) **or has no GPU form** (a distance to a profile): the CPU with the warning, as on Metal. A request beyond the 128 MiB buffer cap or the 32-bit edge keys: that request on the CPU mesher, silently, as on Metal.
+- (b) Silent CPU in every case.
 
-**X-C4. What the person sees when the GPU engine cannot run. Recommended: (a).**
-- (a) **No SDL_GPU device: the CPU, silently** (the machine has no GPU engine; D11's existing rule). **Kernels missing, or a pipeline refused: the CPU with "Running on the CPU"** and the reason in the selection's diagnostic (a broken install or driver the person should hear about), and `--self-test` fails naming the script to run. **A solid beyond the interpreter** (more than 32 values or 8 points held at once, more than 4,096 steps, a distance to a profile): the CPU with the warning, as on Metal. A request beyond the 128 MiB buffer cap or the 32-bit tables: that request on the CPU mesher, silently, as on Metal.
-- (b) Silent CPU in every case: simpler, but a package that lost its kernels would be slow with no sign why.
+**X-C5. Software devices (lavapipe, WARP). PENDING with the user. Recommended (a).**
+- (a) Tests and CI run on them (`XP_REQUIRE_GPU=1`); the app uses whatever device SDL_GPU picks until XP-G23 is adopted (task 13), then prefers the CPU on a software device unless task 9's rows show lavapipe faster than the CPU engine.
+- (b) Always use a software device.
 
-**X-C5. Software devices (Mesa lavapipe, Direct3D 12 WARP). Recommended: (a).**
-- (a) **Tests and CI run on them** (`XP_REQUIRE_GPU=1` fails a runner without one). **The app uses whatever device SDL_GPU picks until MetalUI answers gap XP-G23** (the adapter's name and whether it is a software rasterizer); then task 10 makes the app prefer the CPU engine on a software device, unless task 8's rows x-1 and x-2 show lavapipe beating the CPU engine in the Linux image, in which case task 10 keeps it and records why.
-- (b) Always use a software device: no gap needed, but a GPU-less Linux VM would run the interpreter through llvmpipe whether or not that is faster than the CPU engine.
+**X-C6. Precision. Recommended (a).** Float only, never `half`; the HLSL library's own sine, cosine and arctangent (Cody–Waite, Cephes; Vulkan promises only 2^-11 absolute for `sin`, Metal's engine uses `precise::`), and the noise's 64-bit hash in 32-bit word pairs (`uint64_t` needs `shaderInt64`, which SDL_GPU neither enables nor reports). The tolerances are the 7c spec's, unchanged.
 
-**X-C6. Precision. Recommended: (a).**
-- (a) **Float everywhere, never `half` or `min16float`; the engine's own sine, cosine and arctangent** (Cody–Waite reduction, Cephes minimax polynomials, about 1 ulp), because Vulkan guarantees only an absolute error of 2^-11 for `sin` on [-π, π] and Direct3D 12 says nothing tighter, while a TPMS wall is scaled by cell ÷ 2π, so 2^-11 would be about 4e-4 mm at a 5 mm cell, four times D11's 1e-4; **the noise's 64-bit hash in pairs of 32-bit words** (exact, so bit-for-bit the CPU's draw), because `uint64_t` needs the `shaderInt64` feature SDL_GPU neither enables nor reports. The tolerances are the 7c spec's, not loosened: 1e-4 mm values, D15, D17 and D20's amended allowance including the 7× Face-mapped Voronoi item.
-- (b) The drivers' own `sin`, `cos` and `atan2` and `uint64_t`: shorter HLSL, with agreement that depends on the driver.
+**X-C7. Performance budgets and compile cost. Recommended (a).**
+- (a) No budget in CI (lavapipe and WARP are CPU rasterizers): rows x-1 (first pass, warm pipelines) and x-2 (a thickness edit: no recompile, as on Metal) per engine; **x-3, the compile cost of one new shape** (the evaluation pipeline, then the six meshing ones), and **x-4, the first-run latency** (a new shape's first preview pass, compile included) are recorded: offline shadercross times in task 9, MetalUI's run-time compiler in task 11. x-1h (the generated HLSL as MSL on this Mac's GPU) is held to i-1's 1 s. Human check XP-27 asks for i-1 and i-2 on a desktop GPU and records x-3 and x-4 there; **proposed** budget for x-4 on a desktop GPU: under 2 s (DXC compiles a kernel of about 1,000 lines in a few hundred milliseconds by MetalUI's estimate, to be measured), confirmed by the user when task 11's numbers exist.
 
-**X-C7. Performance budgets. Recommended: (a).**
-- (a) **No budget in CI** (lavapipe and WARP are CPU rasterizers, D11's "the CPU path records its numbers without a budget" applies in spirit): rows x-1 (the first pass of a 100 mm gyroid sheet at 0.78 mm) and x-2 (a thickness edit, no recompile) are recorded per engine in `docs/verification/performance.md`. **On this Mac, the interpreted engine over Metal (x-1h) is judged against i-1's 1 s**, a proxy for a desktop GPU. **On a desktop GPU under Linux or Windows, human check XP-27 asks for i-1's 1 s and i-2's 100 ms.**
-- (b) Hold the SDL engine to i-1 and i-2 in CI: impossible on CPU rasterizers.
+**X-C8. Names a person sees.** The badge and inspector say "Vulkan" (Linux) and "Direct3D 12" (Windows), as "Metal" on a Mac; the device name is the adapter's once XP-G23 is adopted.
 
-**X-C8. Names a person sees.** The preview badge and the inspector say **"Vulkan"** on Linux and **"Direct3D 12"** on Windows where they say "Metal" on a Mac (the engine's `name`); until gap XP-G23 is answered the inspector's device name is the same word. The compiled kernels ship as **`ImplicitShaders`** beside the executable (the viewport's stay `MetalUIAppShaders`). Recommended as written.
-
-No saved file format, saved setting or document changes: the engine choice is not saved, and a graph saved on any platform evaluates the same way on every other.
+No saved file format, saved setting or document changes.
 
 ## Global Constraints
 
-- **The base is master `7a010ec`** (2026-10-22). If master moves before a task, rebase and take its counts as the baseline (task 0, step 3).
-- **MetalUI is never modified**: no edit, no checkout, no stash, no commit, and no build product written into `../MetalUI` (MetalUI's tool is built with `--scratch-path` outside it); `Package.swift`'s `.package(path: "../MetalUI", …)` line is never edited. A MetalUI gap goes in `docs/metalui-gaps.md` (the entry and the summary-table row) and is never worked around: no raw `SDL_` call in MetalCreator code (each typed object's `.raw` stays unused).
-- Swift 6 strict concurrency; Swift Testing; one type per file; no force unwraps or force `try`; no GCD; no `String(format:)` or legacy formatters (`CLAUDE.md`, `AGENTS.md`). No `@Observable` type is added.
-- `swiftlint lint --strict` reports zero violations before every commit.
-- **macOS is unchanged in behaviour**: `MetalImplicitEngine`, `ImplicitCompiler`, `ImplicitShaderLibrary` and `ImplicitMeshShaderLibrary` are not edited (task 1 adds one stored property to `CompiledImplicit`, `nil` for Metal). macOS builds no SDL and runs no shadercross.
-- **Portability** (`CLAUDE.md`, "Cross-platform"; implicit spec D11): no Metal outside `#if canImport(Metal)` files named `Metal*.swift` (test support `MSLComputeBackend.swift` is a test file, also wholly under `#if canImport(Metal)`); no `MetalUISDLGPU` outside files named `SDL*.swift` in `Sources/CreatorImplicit/SDL`, each wholly under `#if canImport(MetalUISDLGPU)`; no `SDLGPU…` type named outside them (`ImplicitPortabilityTests`, task 4).
-- **The compiled kernels are never committed.** `Shaders/implicit/compiled` is git-ignored and made by `scripts/build-shaders.sh` (`.ps1` on Windows) through MetalUI's `MetalUICompileShaders`; `git status` after a build shows nothing new.
-- **HLSL rules for `Shaders/implicit`** (pinned by `ImplicitShaderContractTests`, task 2): no `half`, `min16float`, `double`, `uint64_t` or `int64_t`; no `GetDimensions` (SPIRV-Cross would add a buffer-size binding the backends do not bind); no driver `sin`, `cos`, `tan`, `atan`, `atan2` (use `accSin`, `accCos`, `accAtan2`); every buffer a kernel declares is read or written by it (DXC drops an unused one from the reflection and every later slot would shift); read-only storage is `register(tN, space0)` and read-write `register(uN, space1)`, numbered from 0 without gaps in the order `ImplicitKernel.bindings` lists; the one uniform block is `cbuffer Params : register(b0, space2)` (SDL_GPU's compute convention, MetalUI `docs/packaging.md` §4a). Every operand an instruction reads is read before its result is written (the compiler reuses registers).
-- **SDL_GPU compute rules** (SDL's `SDL_gpu.h`, "A VERY IMPORTANT NOTE"): dispatches inside one compute pass are not synchronized, so **every dispatch that reads what an earlier one wrote is in a compute pass of its own** (the backends give each `ComputeDispatch` its own pass); no blocking verb (`submitBatchSynchronously`, `waitBlocking`, `downloadSynchronously`, `waitForIdle`) is called from the engine: it awaits `submitBatch` and `SDLGPUFence.wait()`, so no cooperative-pool thread blocks. A dispatch has at most 65,535 thread groups of 64 threads (Vulkan's guaranteed `maxComputeWorkGroupCount`); a storage buffer is at most 128 MiB (Vulkan's guaranteed `maxStorageBufferRange`, 2^27 bytes) until gap XP-G24 is answered.
-- **The Windows Swift 6.4 compiler (learned in xp-1 and xp-2).** (1) Keep heavy loops out of `async` functions: put them in synchronous helpers (an `async` function that holds a loop's locals across an `await` asserts in coroutine splitting, `CoroFrame.cpp`); the engine's `async` loops hold only a range and an index, and the byte packing, the batch building and the canonical sort are synchronous. (2) Do not pass typed-throws closures to generic helpers. (3) In a release build an `async` function that takes a closure and gets closure-specialised can crash the coroutine split: every `async` engine method that takes the `progress` closure is `@_optimize(none)` with a comment saying why (master's `OccupancyGrid.fill(lipschitz:awaiting:)`, `TrappedVolumeCheck.runConcurrently`). If an `async` loop still asserts, rewrite it as recursion over the index (`func sweep(from index: Int) async throws`), which holds no loop locals. (4) **Every task that changes code Windows compiles must pass CI's `swift build -c release` ("Build release (for the zip)" step)**; the Windows job is `continue-on-error`, so read its log. (5) The local check is the 6.4 asserts snapshot: `TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release` (it compiles what macOS compiles: `InterpretedImplicitEngine` yes, the `SDL*.swift` files no, so CI is their check).
-- A full `swift test` passes only if the exit code is 0, no line says "recorded an issue" or "failed after", and the number of "Test run with" lines is **12 on macOS, Linux and Windows** (xp-c adds no test target). Test totals are not hard checks: take the baselines in task 0 and compare deltas.
-- Linux is verified with `scripts/linux-test.sh` in Docker (OrbStack), **`XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c`** on every call (this track's own container, volume and image); Windows only in CI on the pushed `xp-c` branch (`.github/workflows/xp.yml`).
-- **Processes.** Never `pkill`, `killall` or `xargs kill` swift, swift-test, swift-build, swift-frontend or xctest: other sessions (MetalUI's among them) run `swift test` on this Mac. Kill only PIDs you started yourself (captured with `$!`), and stop a Docker run only by this track's container names (`xp-c-linux`, `xp-c-linux-clean`).
-- **Line endings.** A text file a test reads must read the same with CRLF: split lines with `split(whereSeparator: \.isNewline)`, never `split(separator: "\n")`. `.gitattributes` already pins `Shaders/**` to LF.
-- No third-party code without asking: xp-c adds none (SDL_shadercross is xp-3's approved build tool; the polynomial coefficients are Cephes', public domain, credited in a comment).
+- **The base is master `7a010ec`**; rebase if master moves and take its counts as the baseline.
+- **MetalUI is never modified** (no edit, checkout, stash, commit or build product in `../MetalUI`; its tools are built with `--scratch-path` outside it). A gap goes in `docs/metalui-gaps.md` and is never worked around: no raw `SDL_` call, no `dlopen` of shadercross by MetalCreator (XP-G25 owns loading it).
+- Swift 6 strict concurrency; Swift Testing; one type per file; no force unwraps or force `try`; no GCD; no `String(format:)` or legacy formatters; `swiftlint lint --strict` clean before every commit.
+- **macOS is unchanged in behaviour and in bytes.** `ImplicitCompiler`'s MSL output is the same text for every fixture (task 1 records digests before the generator changes and pins them); `MetalImplicitEngine`, `ImplicitShaderLibrary` and `ImplicitMeshShaderLibrary` are not edited; macOS builds no SDL and links no shadercross.
+- **Portability:** no Metal outside `#if canImport(Metal)` files named `Metal*.swift` (the test backend `MSLComputeBackend.swift` likewise); no `MetalUISDLGPU` outside `Sources/CreatorImplicit/SDL/SDL*.swift`, each wholly under `#if canImport(MetalUISDLGPU)`; no `SDLGPU…` type named elsewhere (`ImplicitPortabilityTests`).
+- **Generated HLSL rules** (`HLSLSourceTests`): no `half`, `min16float`, `double`, `uint64_t`, `int64_t`, `GetDimensions` or driver trigonometry (`sin`, `cos`, `tan`, `atan`, `atan2`); read-only storage `register(tN, space0)` and read-write `register(uN, space1)` from 0 without gaps in the order `ImplicitKernel.bindings` lists, every declared buffer used (DXC drops an unused one and the slots shift); one `cbuffer Params : register(b0, space2)`; entry point `main`, `[numthreads(64, 1, 1)]`.
+- **SDL_GPU compute rules** (`SDL_gpu.h`, "A VERY IMPORTANT NOTE"): a dispatch that reads what an earlier one wrote is in a compute pass of its own (the backends give each dispatch its own pass); the engine never calls a blocking verb (`submitBatchSynchronously`, `waitBlocking`, `downloadSynchronously`, `waitForIdle`) and never runs inside a surface draw; at most 65,535 groups of 64 threads a dispatch, storage buffers of at most 128 MiB until XP-G24.
+- **The Windows Swift 6.4 compiler** (xp-1, xp-2): heavy loops in synchronous helpers, never holding a loop's locals across an `await`; no typed-throws closures to generic helpers; every `async` method taking the `progress` closure is `@_optimize(none)` with a comment (master's `OccupancyGrid.fill(lipschitz:awaiting:)`); if an `async` loop still asserts, rewrite it as recursion over the index. Every task that changes code Windows compiles must pass CI's `swift build -c release` ("Build release (for the zip)"); the local check is `TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release` (it compiles what macOS compiles, so the `SDL*.swift` files are CI's).
+- A full `swift test` passes only if it exits 0, no line says "recorded an issue" or "failed after", and there are **12 "Test run with" lines** on macOS, Linux and Windows (xp-c adds no test target; the kernel export of task 3 runs as its own filtered invocation, not counted).
+- Linux: `scripts/linux-test.sh` with **`XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c`** on every call; Windows: CI on the pushed `xp-c` branch.
+- **Processes:** never `pkill`, `killall` or `xargs kill` swift, swift-test, swift-build, swift-frontend or xctest; kill only PIDs you started; stop Docker only by this track's container names (`xp-c-linux`, `xp-c-linux-clean`).
+- **Line endings:** split text a test reads with `split(whereSeparator: \.isNewline)`.
+- **Third-party code:** before task 12, none added. Task 12 ships SDL_shadercross, DXC (and `dxil`), SPIRV-Cross and SPIRV-Tools shared libraries in the packages, as XP-G25's `packaging.md` §4a prescribes; that is new third-party code **in the app**, not only a build tool, and needs the user's yes (asked in task 12, step 1).
 
 ## Review Focus
 
-The inputs this plan's tasks would not meet unless asked, most likely to bite first. Each has a test in the task that owns the code.
-
-1. **A tree too big for the interpreter.** A deep nest of blended unions, a lattice inside many moves, a 5,000-child union. It must run on the CPU with "Running on the CPU", never trap, never read past a register array. Task 1, `ImplicitProgramCompilerTests.aTreeThatHoldsTooManyValuesIsUnsupported` and `aProgramOfMoreThan4096StepsIsUnsupported`; task 4, `ImplicitEvaluatorsTests.aSolidBeyondTheInterpreterRunsOnTheCPUWithTheWarning`.
-2. **A checkout or package without the compiled kernels on Linux or Windows.** `swift build` alone compiles no shader (U1(b)), so the app can build and then have no kernels. It must still mesh (the CPU) and say "Running on the CPU", and `--self-test` must fail naming the script. Task 4, `SDLComputeBackendTests.aDirectoryWithoutTheKernelsIsBrokenAndSaysWhatToRun`; task 7, `ImplicitShaderCheckTests.aMissingDirectoryFailsTheSelfTestCheckWithAMessageThatSaysWhatToRun`.
-3. **A request past the buffer cap or the 32-bit tables.** A fine export window or a huge preview: that request goes to the CPU mesher and the mesh is still made. Task 6, `InterpretedMeshingTests.aMeshBeyondTheLargestTableIsLeftToTheCPU` and `aRequestPastTheBufferCapIsUnsupportedAndTheMesherFallsBack`.
-4. **An edit during a long preview.** The pass in flight ends at its next batch with `CancellationError` and the next mesh runs whole. Task 6, `InterpretedMeshingTests.cancellingTheTaskEndsAMeshAtItsNextBatchAndNotTheNextMesh` and `anEngineCancelEndsAMeshAtItsNextBatchAndNotTheNextMesh`; task 3, `InterpretedEngineTests.cancelEndsABatchAtItsNextDispatchAndNotTheOnesAfter`.
-5. **The angle's cut and the axis of a mapped lattice, and noise at negative lattice coordinates.** `atan2` on the cut (y exactly 0 on either side of the axis) and at the axis (x = y = 0), and the hash of negative cell indices, are where a port goes subtly wrong. Task 3, `InterpretedEngineTests.theAngleOnTheCutAndAtTheAxisAgreesWithTheCPU`; the noise fixtures of `GPUAgreementTests` sample from -18 to 18 mm.
-6. **The same export twice.** On Linux and Windows two exports of one graph must be byte-identical (X-C3). Task 5, `InterpretedMeshingTests.theSameRequestMeshesToTheSameArraysEveryTime`; human check XP-28.
+1. **A solid whose generated HLSL DXC refuses** (a construct the MSL accepted, an identifier clash, a too-deep expression). It must run on the CPU with "Running on the CPU" and the diagnostic, never trap. Task 3 compiles every fixture's sources offline (a refusal fails `GeneratedKernelBuildTests` naming the fixture); task 11, `HLSLRuntimeCompileTests.aSourceTheCompilerRefusesRunsOnTheCPUWithItsDiagnostic`.
+2. **A package without the compiler libraries.** The app runs, meshes on the CPU, says "Running on the CPU", and `--self-test` names the missing library and the paths tried. Task 11, `HLSLRuntimeCompileTests.aMissingCompilerLibraryIsBrokenAndNamesWhatItTried`; task 12's clean-Ubuntu and zip checks.
+3. **The first preview of a new shape.** Compiling the evaluation pipeline, then the six meshing ones, is the user's wait: it must happen off the main actor, once per shape (an edit of a number never recompiles), and a second shape compiled meanwhile must not compile the first again. Task 4, `HLSLEngineTests.shapesShareOnePipelineAndANumberEditRecompilesNothing`; task 6, `meshingASecondTimeCompilesNoMeshPipeline`; task 11, x-4.
+4. **A request past the buffer cap or the 32-bit keys, and a cancel during a long mesh.** The CPU mesher takes the request; a cancel ends at the next batch and the next mesh runs. Task 7's limit and cancel tests.
+5. **The cut and the axis of a mapped lattice, and noise at negative lattice coordinates.** Task 4, `HLSLEngineTests.theAngleOnTheCutAndAtTheAxisAgreesWithTheCPU`; `GPUAgreementTests`' noise fixtures sample from -18 to 18 mm.
+6. **The same export twice.** Byte-identical on one machine (X-C3). Task 7, `StreamingMesherGPUTests.exportingTheSameSolidTwiceGivesTheSameBytes`; human check XP-28.
 
 ---
 
 ## Shared files
 
-Other tracks still open (the MetalUI adoption track, 7c follow-ups) may edit the same files; the side that merges second keeps everything listed.
-
 | File | Edited by xp-c | The second merge must keep |
 |---|---|---|
-| `Package.swift` | `metalUISDL`, `metalUISDLGPU` added to `CreatorImplicit` and `CreatorImplicitTests`; the `metalUISDLGPU` comment (task 4) | both sides' dependency lists; no xp-c line inside an `#if os(…)` block |
-| `scripts/build-shaders.sh`, `scripts/build-shaders.ps1` | compile every set in `Shaders/` (`viewport`, `implicit`), each into its own `compiled` (task 2) | xp-3's pin checks and messages; the viewport set's output is unchanged |
-| `scripts/linux-test.sh` | a `shaders` verb (task 2) | every existing verb |
-| `scripts/package-linux.sh`, `scripts/package-windows.ps1`, `docs/packaging.md` | `Shaders/implicit/compiled` copied as `ImplicitShaders`; the zip's self-test moves it aside too (task 7) | `MetalUISDLShaders` and `MetalUIAppShaders` |
-| `Sources/CreatorApp/SelfTest.swift` | `ImplicitShaderCheck.run()` beside `ViewportShaderCheck.run()`, and its detail string (task 7) | both checks |
-| `.gitignore` | `/Shaders/implicit/compiled` (task 2) | both lines |
-| `CLAUDE.md`, `docs/metalui-gaps.md`, `docs/verification/human-checks.md`, `docs/verification/performance.md`, both specs | task 0 (gaps), task 8 (performance), task 9 (the rest) | both sides' paragraphs and rows; a gap either branch adds next takes XP-G25; a human check, XP-30; a cross-platform erratum, E9; an implicit erratum, D22 |
-| `Tests/CreatorImplicitTests/GPUAgreementTests.swift`, `GPUMeshAgreementTests.swift` | run over every engine a machine has (tasks 3 and 6); the Metal-only dispatch tests move to `MetalEngineDispatchTests.swift` unchanged | the fixtures and allowances; a 7c follow-up's new fixture runs on every engine |
+| `Package.swift` | `metalUISDL`, `metalUISDLGPU` for `CreatorImplicit` and its tests (task 5) | both sides' lists |
+| `Sources/CreatorImplicit/Metal/ImplicitCompiler.swift`, `+Mapping.swift` | the dialect: `number`, `integer` and the environment argument spelled by `dialect` (task 1); MSL text unchanged, pinned | a 7c follow-up's new case writes through the dialect too |
+| `Sources/CreatorImplicit/Metal/CompiledImplicit.swift` | `language`, `kernels` (task 1) | both |
+| `scripts/linux-test.sh` | a `kernels` verb; `test` and `all` export and compile the kernels first (task 3) | every verb |
+| `scripts/linux/Dockerfile`, `scripts/install-shadercross.ps1`, `.github/workflows/xp.yml`, packaging scripts, `docs/packaging.md` | task 12 only (after XP-G25) | xp-3's shadercross stage and caches |
+| `Sources/CreatorApp/SelfTest.swift` | the implicit engine's check (task 8; MetalUI's `selfTest()` in task 12) | both checks |
+| docs (gaps, human checks, performance, specs, `CLAUDE.md`) | tasks 0, 9, 10, 11, 12, 13 | both sides; next free: XP-G26, XP-30, E9, D22 |
+| `GPUAgreementTests`, `GPUMeshAgreementTests`, `StreamingMesherGPUTests` | run over every engine (tasks 4, 7) | the fixtures and allowances |
 
 ## Key decisions (made by this plan)
 
-- **The interpreter's operands.** An operand word `x ≥ 0` is register `x`; `x < 0` is float parameter slot `-x - 1` (for a point, slots `-x - 1` to `-x + 1`). A raw word (an integer slot, a buffer offset, a constant's bits) is the op's to read as it says. Register `v0` holds the point being evaluated; the compiler never gives it out. Registers are given back after their one read, lowest first, so a union of any number of children holds three values; the blend width of a combination and the local point of a move are held for their subtree.
-- **The buffers are Metal's.** `ImplicitProgramCompiler` appends to `parameters`, `integers`, `tables`, `pool` and `images` in exactly the order `ImplicitCompiler.Generator` does, so the library functions read the same offsets and a test proves both compilers' buffers equal on every fixture. The interpreted engine packs them into two storage buffers (floats: parameters, then pool, then images; ints: integers, then tables) with the bases in the uniform block, so no kernel declares more than six read-only storage buffers.
-- **One uniform block for every kernel**, `KernelParameters`: 16 four-byte words (64 bytes), the same in Swift and HLSL (`ImplicitShaderContractTests`).
-- **An owned, headless device.** `SDLComputeBackend` makes its own `SDLGPUDevice.make()` (no window needed, MetalUI guide "Compute needs no window") rather than borrowing the viewport's: the engine evaluates before any window draws, in headless tests and in exports, off the main actor, and its batches never wait behind a frame. Its mesh comes back to the CPU as `BrickMesh` arrays, as Metal's does.
-- **Made lazily, off the main actor.** `InterpretedImplicitEngine.sdl` is a static let that costs nothing to make; the device, the kernel library and the seven pipelines are made on the engine's first `availability`, `compile` or `evaluate` (inside the actor), and the result is kept: `ImplicitEvaluators.make`'s default argument is evaluated on the caller's actor, which may be the main one.
-- **`ImplicitGPUEngine` gains `availability`** (`.available`, `.absent(reason)`, `.broken(reason)`, default `.available`, so Metal and the stub are unchanged), which `ImplicitEvaluators.make` reads before it compiles (X-C4).
-- **Batches.** One `ComputeBatch` is one `submitBatch`: its uploads (each through a transfer buffer), its dispatches (each in its own compute pass), its downloads (into transfer buffers, mapped after the fence). An evaluation chunk is one batch (upload the points, dispatch, download the values); a meshing step is one batch per brick batch or slot range, as Metal's command buffers are.
-- **Sizes for the watchdog.** SDL's engine meshes 1,024 bricks a batch (Metal 4,096) and numbers or places 2^18 table slots a batch (Metal 2^20), and evaluates 2^20 points a dispatch (Metal 2^22): an interpreted `sdf` costs more, and Windows' TDR resets a GPU whose work runs past about 2 s. The tests tune them down further to reach the many-batch paths.
-- **The canonical order (X-C3)** is made on the CPU: `mesh_place` writes each vertex's edge key beside its position (`uint4`), `mesh_emit` writes one tag a triangle (the brick's place in the request × 512 + the cube), and `MeshCanonicalOrder` sorts by them with a stable radix sort. A request of 8,388,608 bricks or more (`UInt32.max / 512`) is the CPU's.
+- **One generator, two dialects.** `ShaderDialect` spells a parameter (`e.P[k]` / `P(k)`), an integer (`e.I[k]` / `I(k)`) and a library call's environment argument (`e, ` / nothing). Everything else the generator writes is valid in both languages (`float3`, `length`, `dot`, `max`, `abs`, `?:`, `1e30`), so the HLSL `sdf` is the MSL `sdf` statement for statement, which `HLSLSourceTests` checks after a mechanical normalisation.
+- **One source per kernel, cached by digest.** SDL_GPU compiles one entry point per shader, so where Metal compiles a shape's one library with five kernels, the HLSL side writes one source per kernel: `implicit_evaluate`, `mesh_sample` and `mesh_place` contain the shape's `sdf`; `mesh_clear`, `mesh_classify`, `mesh_number` and `mesh_emit` do not call it, so their text is the same for every shape and the pipeline cache (keyed by a stable digest of the text) makes them once. The digest is FNV-1a 64 of the UTF-8 text (`KernelSource.digest`), stable across processes, so the offline export names its files by it.
+- **The buffers are Metal's, packed in two.** floats = parameters ++ pool ++ images, ints = integers ++ tables, the bases in the uniform block, so `mesh_place` declares five read-only storage buffers, not eight.
+- **One uniform block, `KernelParameters`** (16 four-byte words) for every kernel: Metal's `count` and `MeshParams` and the bases.
+- **An owned, headless device, made on first use inside the engine** (never on the main actor); compile calls run where XP-G25's thread-safety notes allow, never inside a surface draw.
+- **Until task 11 the app's engine off macOS is the CPU** (`platformDefault` stays `nil` there): the engine exists, is tested on lavapipe and the Mac, and is not shown to a person before it can compile at run time.
 
 ## File structure
 
@@ -112,2036 +99,1464 @@ Other tracks still open (the MetalUI adoption track, 7c follow-ups) may edit the
 
 | File | Responsibility |
 |---|---|
-| `Interpreter/ImplicitOp.swift` | the 37 op codes, `Int32` raw values 1 to 37, the HLSL's `OP_…` numbers |
-| `Interpreter/ImplicitProgram.swift` | a compiled program: its words and its limits (32 values, 8 points, 4,096 steps, 8 words a step) |
-| `Interpreter/ProgramOperand.swift` | what an instruction's operand word holds, and whose register it is |
-| `Interpreter/ImplicitProgramBuilder.swift` | registers, numbers, `emit`, the solids (mirrors `ImplicitCompiler.Generator`) |
-| `Interpreter/ImplicitProgramBuilder+Lattices.swift` | TPMS, struts, Voronoi, the mappings and the cut |
-| `Interpreter/ImplicitProgramBuilder+Fields.swift` | gradings and the 14 field kinds |
-| `Interpreter/ImplicitProgramCompiler.swift` | `compile(_:)`: a `CompiledImplicit` whose `program` is set |
-| `Metal/CompiledImplicit.swift` (changed) | a `program: ImplicitProgram?` property, `nil` for Metal |
-| `GPU/ImplicitEngineAvailability.swift` | `.available`, `.absent(String)`, `.broken(String)` |
-| `GPU/ImplicitGPUEngine.swift` (changed) | the `availability` requirement and its default |
-| `GPU/ImplicitEvaluators.swift` (changed) | reads `availability` before compiling (X-C4) |
-| `GPU/ImplicitGPUEngines.swift` (changed) | `platformDefault` is the SDL engine off macOS; `meshesMade()` |
-| `GPU/ImplicitShaderCheck.swift` | `--self-test`'s question: were the implicit kernels built and shipped |
-| `Compute/ImplicitKernel.swift` | the seven kernels, their file names and their buffer counts |
-| `Compute/KernelParameters.swift` | the 64-byte uniform block |
-| `Compute/ImplicitComputeBackend.swift` | `ComputeBuffer`, `ImplicitComputeBackend`, `ComputeBackendState` |
-| `Compute/ComputeBatch.swift` | `ComputeUpload`, `ComputeDispatch`, `ComputeDownload`, `ComputeBatch` |
-| `Compute/ComputeBytes.swift` | synchronous packing and unpacking, dispatch ranges |
-| `Compute/InterpretedImplicitEngine.swift` | the actor: availability, compile, prepare, evaluate, cancel, the solid's buffers |
-| `Compute/InterpretedImplicitEngine+Meshing.swift` | `meshBricks`: the attempts, the sweeps, the readback |
-| `Compute/InterpretedMeshJob.swift` | the meshing job, run and output buffers, and the synchronous batch builders |
-| `Compute/MeshCanonicalOrder.swift`, `Compute/RadixSort.swift` | the canonical order (X-C3) |
+| `Metal/ShaderDialect.swift` | `.msl` / `.hlsl`: how the generator spells a parameter, an integer and the environment |
+| `Metal/ImplicitCompiler.swift`, `+Mapping.swift` (changed) | the walk writes through the dialect; `compileHLSL(_:)` |
+| `Metal/CompiledImplicit.swift` (changed) | `language`, `kernels` (the HLSL kernel sources by `ImplicitKernel`) |
+| `HLSL/HLSLShaderLibrary.swift`, `+Math.swift`, `+Lattices.swift` | the HLSL twin of `ImplicitShaderLibrary` (text): prelude, accurate math, 64-bit words, core, lattices |
+| `HLSL/HLSLMeshShaderLibrary.swift` | the HLSL twin of `ImplicitMeshShaderLibrary` plus `mesh_clear`, one source per kernel |
+| `HLSL/HLSLKernels.swift` | builds a solid's seven `KernelSource`s |
+| `Compute/ImplicitKernel.swift`, `KernelParameters.swift`, `KernelSource.swift` | the kernels and their bindings; the uniform block; a kernel's text and digest |
+| `Compute/ImplicitComputeBackend.swift`, `ComputeBatch.swift`, `ComputeBytes.swift` | the backend protocol, batches, synchronous byte helpers |
+| `Compute/HLSLImplicitEngine.swift`, `+Meshing.swift`, `HLSLMeshRun.swift` | the actor mirroring `MetalImplicitEngine` and its meshing |
+| `GPU/ImplicitEngineAvailability.swift`, `ImplicitGPUEngine.swift`, `ImplicitEvaluators.swift`, `ImplicitGPUEngines.swift`, `ImplicitEngineCheck.swift` | availability, selection, the platform's engine, the self-test's question |
 
-**SDL, `Sources/CreatorImplicit/SDL`** (each file wholly under `#if canImport(MetalUISDLGPU)`)
+**SDL, `Sources/CreatorImplicit/SDL`** (wholly under `#if canImport(MetalUISDLGPU)`): `SDLComputeBackend.swift`, `SDLComputeRecording.swift`, `SDLComputeBuffer.swift`, `SDLComputePipeline.swift`, `SDLKernelProvider.swift` (the protocol and `SDLPrecompiledKernels`), `SDLRuntimeKernels.swift` (task 11), `SDLImplicitEngine.swift` (task 11).
 
-| File | Responsibility |
-|---|---|
-| `SDLComputeBackend.swift` | the backend over `MetalUISDLGPU`: device, pipelines, buffers, `run` |
-| `SDLComputeRecording.swift` | one batch prepared for the worker thread (transfer buffers filled, groups counted) and its readback |
-| `SDLComputeBuffer.swift` | an `SDLGPUBuffer` as a `ComputeBuffer` |
-| `SDLImplicitShaders.swift` | where the compiled kernels are (`ImplicitShaders` beside the executable, else `Shaders/implicit/compiled`) |
-| `SDLImplicitEngine.swift` | `InterpretedImplicitEngine.sdl`, the platform's engine |
-
-**Shaders, `Shaders/implicit`**: `contract.hlsli` (op codes, limits, table offsets, counters, `cbuffer Params`), `accurate_math.hlsli`, `wide_integer.hlsli`, `library.hlsli`, `lattices.hlsli`, `interpreter.hlsli`, `mesh_common.hlsli`, `mesh_cubes.hlsli`, `mesh_lattice.hlsli`, and the kernels `implicit_evaluate.comp.hlsl`, `mesh_clear.comp.hlsl`, `mesh_sample.comp.hlsl`, `mesh_classify.comp.hlsl`, `mesh_number.comp.hlsl`, `mesh_place.comp.hlsl`, `mesh_emit.comp.hlsl`; `compiled/` is generated and git-ignored.
-
-**Tests, `Tests/CreatorImplicitTests`**: new `ImplicitProgramCompilerTests`, `ImplicitShaderContractTests`, `InterpretedEngineTests`, `InterpretedMeshingTests`, `MeshCanonicalOrderTests`, `SDLComputeBackendTests` (Linux and Windows), `ImplicitGPUAvailabilityTests`, `ImplicitShaderCheckTests`, `MetalEngineDispatchTests` (moved from `GPUAgreementTests`), `ImplicitBenchInterpreted`; support `Support/MSLComputeBackend.swift`, `Support/MSLComputeBuffer.swift` (macOS), `Support/GPUEnginesUnderTest.swift`; changed `GPUAgreementTests`, `GPUMeshAgreementTests`, `ImplicitEvaluatorsTests`, `GPUBatchEvaluatorTests`, `ImplicitPortabilityTests`, `Support/StubGPUEngine.swift`.
+**Tests, `Tests/CreatorImplicitTests`**: `MetalSourceDigests` (support, recorded), `HLSLSourceTests`, `GeneratedKernelExport`, `GeneratedKernelBuildTests`, `HLSLEngineTests`, `HLSLMeshingTests`, `SDLComputeBackendTests`, `ImplicitGPUAvailabilityTests`, `ImplicitEngineCheckTests`, `MetalEngineDispatchTests` (moved), `ImplicitBenchHLSL`, `HLSLRuntimeCompileTests` (task 11); support `GeneratedKernels.swift`, `MSLComputeBackend.swift`, `MSLComputeBuffer.swift`, `GPUEnginesUnderTest.swift`; changed `GPUAgreementTests`, `GPUMeshAgreementTests`, `StreamingMesherGPUTests`, `ImplicitEvaluatorsTests`, `GPUBatchEvaluatorTests`, `ImplicitPortabilityTests`, `StubGPUEngine`.
 
 ---
 
 ## Tasks
 
-### Task 0: Baselines, the two MetalUI gaps, and a check of the API this plan names
+### Task 0: Baselines, the three MetalUI gaps, a check of the API used before XP-G25
 
-**Files:**
-- Modify: `docs/metalui-gaps.md` (two summary rows after XP-G22's, one section at the end)
+**Files:** Modify `docs/metalui-gaps.md`.
 
-**Interfaces:**
-- Consumes: nothing.
-- Produces: the baselines every later task compares with; gap numbers XP-G23 and XP-G24, cited by tasks 4, 9 and 10.
+**Interfaces:** Produces the baselines; gap numbers XP-G23, XP-G24, XP-G25.
 
-- [ ] **Step 1: Confirm the branch and the MetalUI pin.**
-
-Run:
+- [ ] **Step 1: Branch and pin.**
 ```bash
 cd /Users/maxburger/Developer/MetalCreator-xp-c
-git log --oneline -1                     # 7a010ec docs: metalui-gaps notes the pin is now ff0db06e (or a later master after a rebase)
-grep -n "METALUI_COMMIT:" .github/workflows/xp.yml   # METALUI_COMMIT: ff0db06e9cdb8d11de8ee2210f695eb08da271fe
-git -C ../MetalUI diff --stat ff0db06e 63feea05 -- Backends/SDL/Sources/MetalUISDLGPU Sources/MetalUIShaderCompile
+git log --oneline -3; grep -n "METALUI_COMMIT:" .github/workflows/xp.yml     # ff0db06e…
+git -C ../MetalUI diff --stat ff0db06e 63feea05 -- Backends/SDL/Sources/MetalUISDLGPU Sources/MetalUIShaderCompile   # nothing
 ```
-Expected: the last command prints nothing (the typed SDL_GPU layer and the shader tool are the same at the pin and at MetalUI's master). If it prints a change, read it before tasks 3 and 4 and note in the task's commit message which name moved. Never check anything out in `../MetalUI`.
-
-- [ ] **Step 2: Check every MetalUI name this plan uses at the pin.**
-
-Run:
+- [ ] **Step 2: The names used before task 11 exist at the pin** (each count ≥ 1; a 0 is a MetalUI change to report, not to work around):
 ```bash
-cd /Users/maxburger/Developer/MetalUI
-for name in "static func make(debug" "func makeBuffer(size" "func makeTransferBuffer(size" "func compileComputePipeline" \
-            "func submitBatch(_ record" "lastFailure" "var driver"; do
-  git show ff0db06e:Backends/SDL/Sources/MetalUISDLGPU/SDLGPUDevice.swift | grep -c "$name"; done
-for name in "func beginComputePass(readWrite" "func copy(_ source: SDLGPUTransferBuffer" "func copy(_ source: SDLGPUBuffer, range" \
-            "func bind(_ pipeline" "func bind(readOnly" "func push(uniform" "func dispatch(x" "func end()"; do
-  git show ff0db06e:Backends/SDL/Sources/MetalUISDLGPU/SDLGPUCompute.swift | grep -c "$name"; done
-git show ff0db06e:Backends/SDL/Sources/MetalUISDLGPU/SDLGPUShaderLibrary.swift | grep -c "public static func locate(directoryName"
+cd ../MetalUI
+for n in "static func make(debug" "func makeBuffer(size" "func makeTransferBuffer(size" "func compileComputePipeline" "func submitBatch(_ record" "lastFailure"; do
+  git show ff0db06e:Backends/SDL/Sources/MetalUISDLGPU/SDLGPUDevice.swift | grep -c "$n"; done
+for n in "func beginComputePass(readWrite" "func copy(_ source: SDLGPUTransferBuffer" "func copy(_ source: SDLGPUBuffer, range" "func bind(readOnly" "func push(uniform" "func dispatch(x"; do
+  git show ff0db06e:Backends/SDL/Sources/MetalUISDLGPU/SDLGPUCompute.swift | grep -c "$n"; done
+git show ff0db06e:Backends/SDL/Sources/MetalUISDLGPU/SDLGPUShaderLibrary.swift | grep -c "public init(directory: URL) throws"
 git show ff0db06e:Backends/SDL/Sources/MetalUISDLGPU/SDLGPUFence.swift | grep -c "public func wait() async"
-git show ff0db06e:Backends/SDL/Sources/MetalUISDLGPU/SDLGPUBuffer.swift | grep -c "public func map()"
 ```
-Expected: every count is 1 or more. A 0 means the API moved: stop and report it (it is a MetalUI change, not something to work around).
-
-- [ ] **Step 3: Take the baselines.**
-
-Run (macOS, idle enough to finish):
-```bash
-cd /Users/maxburger/Developer/MetalCreator-xp-c
-swift test 2>&1 | tee .build/xp-c-baseline-mac.log | grep -c "Test run with"        # 12
-grep "Test run with" .build/xp-c-baseline-mac.log | sed -E 's/.*with ([0-9]+) tests.*/\1/' | paste -sd+ - | bc
-swift test --filter CreatorImplicitTests 2>&1 | grep "Test run with"
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test 2>&1 | tail -3   # Linux: PASS (12 'Test run with' lines, N tests)
-```
-Expected: 12 lines on each; write the macOS total, the `CreatorImplicitTests` count and the Linux total into the task's commit message (`Baselines: macOS N tests, CreatorImplicitTests M, Linux L`). Later tasks state their counts as `baseline + n`.
-
-- [ ] **Step 4: Log XP-G23 and XP-G24 in `docs/metalui-gaps.md`.**
-
-In the summary table, after the XP-G22 row (keep XP-G21's row where it is), add:
+- [ ] **Step 3: Baselines.** `swift test 2>&1 | tee .build/xp-c-baseline-mac.log | grep -c "Test run with"` (12), the total and `CreatorImplicitTests`' count; `XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test 2>&1 | tail -3` (12). Record them in the commit message.
+- [ ] **Step 4: Log the gaps.** Summary rows after XP-G22:
 ```markdown
-| XP-G23 | The SDL_GPU adapter's name, and whether it is a software rasterizer (lavapipe, llvmpipe, WARP) | MetalUI (SDL GPU layer) | ❌ open (xp-c): until answered, the implicit engine's device name is its driver's ("Vulkan", "Direct3D 12") and a software device is used like a hardware one |
-| XP-G24 | SDL_GPU device limits for compute: the largest storage buffer a binding may span, the most thread groups a dispatch may have | MetalUI (SDL GPU layer) | ❌ open (xp-c): until answered, the implicit engine assumes Vulkan's guaranteed minimums (2^27 bytes, 65,535 groups) |
+| XP-G23 | The SDL_GPU adapter's name, and whether it is a software rasterizer | MetalUI (SDL GPU layer; `feat/sdl-gpu-device-info`) | 🔄 being built (planned `SDLGPUDevice.adapterName`, `isSoftwareRasterizer`); until adopted the implicit engine names the driver and uses a software device |
+| XP-G24 | SDL_GPU compute limits: largest storage buffer binding, most thread groups | MetalUI (SDL GPU layer; `feat/sdl-gpu-device-info`) | 🔄 being built (planned `SDLGPUDevice.limits`); until adopted 128 MiB and 65,535 |
+| XP-G25 | A run-time HLSL compute compiler (SDL_shadercross's library, DXC) and compute pipelines from bytes | MetalUI (SDL GPU layer; `feat/sdl-gpu-runtime-shaders`) | 🔄 being built; until adopted the implicit engine off macOS is tested on kernels compiled offline and the app evaluates on the CPU |
 ```
-At the end of the file add:
+and a section at the end of the file:
 ```markdown
 ## Hit by implicit evaluation and meshing on SDL GPU (xp-c), 2026-10-22
 
-Plan `docs/superpowers/plans/2026-10-22-xp-c-sdl-gpu-meshing.md`, checked against MetalUI `ff0db06e` (the CI pin; its SDL_GPU layer is the same at
-master `63feea05`). XP-G2 (portable compute) was answered by MetalUI S5 and is what xp-c runs on: an owned headless `SDLGPUDevice.make()`,
-`compileComputePipeline`, `submitBatch` with one compute pass per dependent dispatch, `InterlockedAdd` and `InterlockedCompareExchange` on read-write
-storage buffers, transfer-buffer uploads and downloads awaited on the fence. Nothing is worked around and no raw `SDL_` call is made.
+Plan `docs/superpowers/plans/2026-10-22-xp-c-sdl-gpu-meshing.md`, MetalUI pin `ff0db06e` (its SDL_GPU layer equals master `63feea05`). XP-G2 (portable
+compute, MetalUI S5) is what the engine dispatches on. The user ruled that Linux and Windows follow macOS: one generated source per solid shape, compiled
+while the app runs, pipelines cached by source.
 
-- **XP-G23. The adapter's name, and whether it is a software rasterizer.** The Mesh node's inspector says which device meshed (`ImplicitGPUEngine.deviceName`;
-  Metal's is `MTLDevice.name`, "Apple M3 Max"), and the app should prefer its CPU engine on a software Vulkan or Direct3D 12 device (Mesa's lavapipe,
-  `llvmpipe (LLVM …)`; Microsoft's WARP, "Microsoft Basic Render Driver"), where interpreting the solid in a CPU-emulated shader can be slower than the CPU
-  engine itself (xp-c's user decision X-C5; measured by rows x-1 and x-2). `SDLGPUDevice` offers `driver` only ("vulkan", "direct3d12"). SDL 3.4 has
-  `SDL_GetGPUDeviceProperties` with `SDL_PROP_GPU_DEVICE_NAME_STRING`, `SDL_PROP_GPU_DEVICE_DRIVER_NAME_STRING` and `…_DRIVER_INFO_STRING`. Needed:
-  `SDLGPUDevice.adapterName: String?` and `SDLGPUDevice.isSoftwareRasterizer: Bool` (true for a Vulkan `VK_PHYSICAL_DEVICE_TYPE_CPU` device or
-  D3D12's WARP adapter; MetalUI's ruling decides how it is told). Meanwhile: the device name is the driver's, a software device is used, and CI is
-  unaffected (it wants the software device).
-- **XP-G24. Compute limits.** The implicit engine sizes its edge table, its sample buffer and its dispatches to what the device can bind: on Metal it
-  reads `MTLDevice.maxBufferLength`. SDL_GPU reports no limit, so the engine assumes Vulkan's guaranteed minimums: a storage buffer of 2^27 bytes
-  (`maxStorageBufferRange`) and 65,535 thread groups a dimension (`maxComputeWorkGroupCount`), which caps a mesh's edge table at 2^25 slots (Metal's
-  is 2^27) and sends a larger request to the CPU mesher. Needed: `SDLGPUDevice.limits` with at least `maxStorageBufferBindingSize` and
-  `maxComputeWorkGroupCount` (or MetalUI's documented statement of the minimum SDL_GPU guarantees on every backend, if SDL cannot report them).
-  Meanwhile the minimums above.
-
-What xp-c does not need, and so does not ask for: a runtime shader compiler (`SDLGPUShaderBlob` has no public initializer, and the interpreter's
-kernels are compiled at build time like the viewport's), indirect dispatch, storage textures, a buffer fill (the `mesh_clear` kernel empties the table),
-and a blocking submit (the engine awaits every fence).
+- **XP-G23. Adapter name, software rasterizer.** The inspector names the device that meshed (Metal: `MTLDevice.name`), and the app may prefer its CPU
+  engine on lavapipe or WARP (xp-c X-C5, pending). `SDLGPUDevice` gives `driver` only; SDL 3.4 has `SDL_GetGPUDeviceProperties`
+  (`SDL_PROP_GPU_DEVICE_NAME_STRING`, `…_DRIVER_NAME_STRING`, `…_DRIVER_INFO_STRING`). Asked: `adapterName: String?`, `isSoftwareRasterizer: Bool`.
+- **XP-G24. Compute limits.** Metal's engine sizes its edge table by `maxBufferLength`; SDL_GPU reports nothing, so xp-c assumes Vulkan's guaranteed
+  2^27-byte storage range and 65,535 groups (an edge table of at most 2^25 slots against Metal's 2^27). Asked: `SDLGPUDevice.limits`, or MetalUI's
+  statement of the minimums every SDL_GPU backend guarantees.
+- **XP-G25. Run-time HLSL compute compilation.** `MetalImplicitEngine` compiles each shape's MSL with `MTLDevice.makeLibrary(source:)` while the app runs;
+  on SDL_GPU `SDLGPUShaderBlob` has no public initializer and loads only from a directory compiled at build time, so a generated source cannot become a
+  pipeline. Asked (the coordinator's message to MetalUI, 2026-10-22): (1) a nonisolated API turning HLSL compute source (an entry point, defines) into
+  the device's format (SPIR-V on Vulkan, DXIL on Direct3D 12, MSL on Metal) with compute reflection, over SDL_shadercross's library API and DXC; (2) a
+  compute pipeline from those bytes; (3) compile errors thrown with DXC's text; (4) packaging notes for the shadercross, DXC, SPIRV-Cross and
+  SPIRV-Tools shared libraries in a tarball, an AppImage and a zip, their licences, and a self-test hook; (5) compile times. MetalUI's planned shape
+  (`feat/sdl-gpu-runtime-shaders`, names provisional): the library is loaded at run time (`dlopen`/`LoadLibrary`), an app without it builds and runs and
+  a missing one throws a named error listing the paths tried; failures never trap; `packaging.md` §4a lists what to ship and adds `selfTest()`; compile
+  times measured at about 200, 1,000 and 2,000 lines; nothing is published, apps build shadercross and DXC themselves; thread safety documented, calls
+  serialized if needed. Meanwhile xp-c compiles the generated sources offline in tests only, and the app evaluates on the CPU off macOS.
 ```
+- [ ] **Step 5: Commit** (`docs: log MetalUI gaps XP-G23 to XP-G25 for xp-c`, the baselines in the body, the two trailers below).
 
-- [ ] **Step 5: Commit.**
-
-```bash
-git add docs/metalui-gaps.md
-git commit -m "docs: log MetalUI gaps XP-G23 (adapter name, software rasterizer) and XP-G24 (compute limits) for xp-c
-
-Baselines: macOS N tests, CreatorImplicitTests M, Linux L (12 'Test run with' lines each).
-
+Every commit in this plan ends with:
+```
 Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS"
+Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS
 ```
-(Put the measured numbers in place of N, M and L.)
 
 ---
 
-### Task 1: The bytecode: `ImplicitOp`, `ImplicitProgram` and `ImplicitProgramCompiler`
+### Task 1: One generator, two dialects; the HLSL library; the evaluation kernel's source
 
-Portable Swift, no GPU: runs and is tested on all three platforms.
+Portable; tested on every platform without a GPU.
 
 **Files:**
-- Create: `Sources/CreatorImplicit/Interpreter/ImplicitOp.swift`, `ImplicitProgram.swift`, `ProgramOperand.swift`, `ImplicitProgramBuilder.swift`, `ImplicitProgramBuilder+Lattices.swift`, `ImplicitProgramBuilder+Fields.swift`, `ImplicitProgramCompiler.swift`
-- Modify: `Sources/CreatorImplicit/Metal/CompiledImplicit.swift` (one stored property, one init parameter)
-- Test: `Tests/CreatorImplicitTests/ImplicitProgramCompilerTests.swift`
+- Create: `Sources/CreatorImplicit/Metal/ShaderDialect.swift`, `Sources/CreatorImplicit/HLSL/HLSLShaderLibrary.swift`, `HLSLShaderLibrary+Math.swift`, `HLSLShaderLibrary+Lattices.swift`, `Sources/CreatorImplicit/Compute/ImplicitKernel.swift`, `KernelParameters.swift`, `KernelSource.swift`
+- Modify: `Sources/CreatorImplicit/Metal/ImplicitCompiler.swift`, `ImplicitCompiler+Mapping.swift`, `CompiledImplicit.swift`
+- Test: `Tests/CreatorImplicitTests/Support/MetalSourceDigests.swift`, `Tests/CreatorImplicitTests/HLSLSourceTests.swift`
 
 **Interfaces:**
-- Consumes: `ImplicitSolid`, `Grading`, `Field`, `DistanceBlocks`, `LatticeMapping`, `FaceMap`, `ImplicitCompileError`, `CompiledImplicit`, `ImplicitCompiler.compile(_:)` (the buffers to match).
-- Produces:
-  - `public enum ImplicitOp: Int32, CaseIterable, Sendable` (37 cases, raw values 1…37, in the order below).
-  - `public struct ImplicitProgram: Sendable, Equatable { public static let maximumScalars = 32, maximumVectors = 8, maximumInstructions = 4096, wordsPerInstruction = 8; public let words: [Int32]; public let scalarsUsed: Int; public let vectorsUsed: Int; public var instructionCount: Int }`.
-  - `CompiledImplicit.program: ImplicitProgram?` (`nil` from `ImplicitCompiler`).
-  - `public enum ImplicitProgramCompiler { public static func compile(_ solid: ImplicitSolid) throws(ImplicitCompileError) -> CompiledImplicit }` (its `source` is `""`, its buffers are `ImplicitCompiler`'s, its `program` is set).
+- Produces: `enum ShaderDialect { case msl, hlsl }`; `ImplicitCompiler.compileHLSL(_ solid:) throws(ImplicitCompileError) -> CompiledImplicit` (`language == .hlsl`, `source` = the evaluation kernel's text, `kernels[.evaluate]` set; task 2 fills the rest); `public enum ShaderLanguage { case msl, hlsl }`, `CompiledImplicit.language`, `CompiledImplicit.kernels: [ImplicitKernel: KernelSource]`; `public enum ImplicitKernel: String, CaseIterable, Sendable` (`evaluate = "implicit_evaluate"`, `clear = "mesh_clear"`, `sample = "mesh_sample"`, `classify = "mesh_classify"`, `number = "mesh_number"`, `place = "mesh_place"`, `emit = "mesh_emit"`), `bindings` evaluate (3, 1), clear (0, 1), sample (4, 1), classify (3, 2), number (1, 2), place (5, 2), emit (5, 2), `usesSDF` (evaluate, sample, place), `threadsPerGroup = 64`; `public struct KernelParameters` (16 words, `bytes`); `public struct KernelSource: Sendable, Hashable { kernel, text, digest }`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [ ] **Step 1: Record the MSL digests before anything changes.**
 
-`Tests/CreatorImplicitTests/ImplicitProgramCompilerTests.swift`:
+`Tests/CreatorImplicitTests/HLSLSourceTests.swift`, first test only:
 ```swift
 import CreatorGeometry
+import Foundation
 import Testing
 @testable import CreatorImplicit
 
-/// The interpreter's compiler (plan xp-c, task 1): it reads the same buffers as the Metal source, so the shader library's functions find the same
-/// offsets, and its programs stay within the interpreter's registers and steps, or say they cannot.
-struct ImplicitProgramCompilerTests {
-    /// Every solid the GPU suites use, by name.
-    static var fixtures: [(name: String, solid: ImplicitSolid)] {
-        GPUFixtures.all + LatticeFixtures.everyMapped + ImplicitFixtures.all
+/// The HLSL the generator writes (plan xp-c, X-C1 "follow macOS"): the same walk as the Metal source, statement for statement; the Metal source itself
+/// unchanged by the dialect; the HLSL rules of the Global Constraints.
+struct HLSLSourceTests {
+    static var fixtures: [(name: String, solid: ImplicitSolid)] { GPUFixtures.all + LatticeFixtures.everyMapped + ImplicitFixtures.all }
+
+    /// FNV-1a 64 of the UTF-8 text, as hex: stable across processes, unlike `Hasher`.
+    static func digest(_ text: String) -> String { KernelSource.fnv1a(text) }
+
+    /// Run once with `XP_RECORD_MSL_DIGESTS=1` before the generator gains its dialect, and paste the printed table into `MetalSourceDigests.swift`.
+    @Test(arguments: fixtures.map(\.name))
+    func theMetalSourceIsTheOneRecordedBeforeTheDialect(_ name: String) throws {
+        let solid = try #require(Self.fixtures.first { $0.name == name }?.solid)
+        guard let source = (try? ImplicitCompiler.compile(solid))?.source else { return }
+        if ProcessInfo.processInfo.environment["XP_RECORD_MSL_DIGESTS"] == "1" { print("MSLDIGEST \"\(name)\": \"\(Self.digest(source))\",") }
+        #expect(MetalSourceDigests.table[name] == Self.digest(source), "\(name): the Metal source changed")
+    }
+}
+```
+Before step 1 can build, `KernelSource.fnv1a` must exist: write `Sources/CreatorImplicit/Compute/KernelSource.swift` (step 4) first, then run on the **unmodified** generator:
+```bash
+XP_RECORD_MSL_DIGESTS=1 swift test --filter "CreatorImplicitTests.HLSLSourceTests/theMetalSourceIsTheOneRecordedBeforeTheDialect" 2>&1 | grep MSLDIGEST | sed 's/.*MSLDIGEST //' | sort -u
+```
+and write `Tests/CreatorImplicitTests/Support/MetalSourceDigests.swift`:
+```swift
+/// The Metal source of every GPU fixture, as `KernelSource.fnv1a` digests, recorded on master `7a010ec`'s generator before plan xp-c gave it a
+/// dialect (`HLSLSourceTests`): the MSL a Mac compiles must not change by a byte. A 7c change that alters the MSL on purpose records the table again.
+enum MetalSourceDigests {
+    static let table: [String: String] = [
+        // the printed lines, pasted
+    ]
+}
+```
+Run the test again: PASS. Commit this step alone (`test(implicit): record the Metal source digests before the HLSL dialect`).
+
+- [ ] **Step 2: Write the remaining failing tests.**
+
+Add to `HLSLSourceTests`:
+```swift
+    /// The `sdf` body: the lines between the function's opening line and its `return`.
+    static func body(_ source: String, opening: String) -> [String] {
+        let lines = source.split(whereSeparator: \.isNewline).map(String.init)
+        guard let start = lines.firstIndex(where: { $0.contains(opening) }) else { return [] }
+        let rest = lines[(start + 1)...]
+        guard let end = rest.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces).hasPrefix("return ") }) else { return [] }
+        return Array(rest[..<end]) + [rest[end]]
+    }
+
+    /// MSL's spellings turned into HLSL's: `e.P[k]` → `P(k)`, `e.I[k]` → `I(k)`, a library call's `(e, ` → `(`.
+    static func normalized(_ line: String) -> String {
+        line.replacing(/e\.P\[(\d+)\]/) { "P(\($0.1))" }
+            .replacing(/e\.I\[(\d+)\]/) { "I(\($0.1))" }
+            .replacing("(e, ", with: "(")
     }
 
     @Test(arguments: fixtures.map(\.name))
-    func everyFixtureReadsTheSameBuffersAsItsMetalSource(_ name: String) throws {
+    func theHLSLSdfIsTheMetalSdfStatementForStatementWithTheSameBuffers(_ name: String) throws {
         let solid = try #require(Self.fixtures.first { $0.name == name }?.solid)
         let metal = try? ImplicitCompiler.compile(solid)
-        let program = try? ImplicitProgramCompiler.compile(solid)
-        #expect((metal == nil) == (program == nil), "\(name): one compiler refused what the other took")
-        guard let metal, let program else { return }
-        #expect(program.parameters == metal.parameters, "\(name): the float parameters")
-        #expect(program.integers == metal.integers, "\(name): the integer parameters")
-        #expect(program.tables == metal.tables, "\(name): the tables")
-        #expect(program.pool == metal.pool, "\(name): the pool")
-        #expect(program.images == metal.images, "\(name): the pictures")
-        #expect(metal.program == nil && program.program != nil)
+        let hlsl = try? ImplicitCompiler.compileHLSL(solid)
+        #expect((metal == nil) == (hlsl == nil), "\(name): one dialect refused what the other took")
+        guard let metal, let hlsl else { return }
+        let metalBody = Self.body(metal.source, opening: "inline float sdf(").map(Self.normalized)
+        let hlslBody = Self.body(hlsl.source, opening: "float sdf(float3 p) {")
+        #expect(!metalBody.isEmpty && metalBody == hlslBody, "\(name): the bodies differ")
+        #expect(hlsl.parameters == metal.parameters && hlsl.integers == metal.integers && hlsl.tables == metal.tables
+            && hlsl.pool == metal.pool && hlsl.images == metal.images, "\(name): the buffers differ")
+        #expect(hlsl.language == .hlsl && metal.language == .msl && metal.kernels.isEmpty)
+        #expect(hlsl.source == hlsl.kernels[.evaluate]?.text)
     }
 
-    @Test(arguments: fixtures.map(\.name))
-    func everyFixtureFitsTheRegistersAndEndsInAResult(_ name: String) throws {
-        let solid = try #require(Self.fixtures.first { $0.name == name }?.solid)
-        guard let compiled = try? ImplicitProgramCompiler.compile(solid) else { return }
-        let program = try #require(compiled.program)
-        let words = ImplicitProgram.wordsPerInstruction
-        #expect(program.words.count == program.instructionCount * words)
-        #expect(program.instructionCount <= ImplicitProgram.maximumInstructions)
-        #expect(program.scalarsUsed <= ImplicitProgram.maximumScalars && program.vectorsUsed <= ImplicitProgram.maximumVectors)
-        #expect(program.words[program.words.count - words] == ImplicitOp.result.rawValue, "\(name): the last step is the result")
-        for step in 0..<program.instructionCount {
-            let op = try #require(ImplicitOp(rawValue: program.words[step * words]), "\(name): step \(step) has no op")
-            if op != .result {
-                #expect(program.words[step * words + 1] >= 0, "\(name): step \(step) writes a register")
-            }
-        }
-    }
-
-    @Test func aUnionOfAHundredSpheresHoldsAFewValuesAtOnce() throws {
-        let spheres = (0..<100).map { ImplicitSolid.moved(.sphere(radius: 1), RigidMove(origin: Vector3(Double($0), 0, 0), xAxis: Vector3(1, 0, 0), yAxis: Vector3(0, 1, 0), zAxis: Vector3(0, 0, 1))) }
-        let program = try #require(try ImplicitProgramCompiler.compile(.union(spheres, blend: .constant(0.5))).program)
-        #expect(program.scalarsUsed <= 4, "the children are folded as they come, not held")
-        #expect(program.vectorsUsed == 2, "the point and one moved point")
-    }
-
-    @Test func aTreeThatHoldsTooManyValuesIsUnsupported() {
-        // Each level's blend width is held while the level's first child, the next level, is evaluated.
-        var solid = ImplicitSolid.sphere(radius: 1)
-        for _ in 0..<40 { solid = .union([solid, .sphere(radius: 2)], blend: .constant(0.5)) }
-        #expect(throws: ImplicitCompileError.self) { try ImplicitProgramCompiler.compile(solid) }
-    }
-
-    @Test func aProgramOfMoreThan4096StepsIsUnsupported() {
-        let spheres = (0..<2_100).map { ImplicitSolid.moved(.sphere(radius: 1), RigidMove(origin: Vector3(Double($0), 0, 0), xAxis: Vector3(1, 0, 0), yAxis: Vector3(0, 1, 0), zAxis: Vector3(0, 0, 1))) }
-        #expect(throws: ImplicitCompileError.self) { try ImplicitProgramCompiler.compile(.union(spheres, blend: .constant(0))) }
-    }
-
-    @Test func aDistanceToAProfileIsUnsupportedAsOnMetal() {
-        #expect(throws: ImplicitCompileError.self) { try ImplicitProgramCompiler.compile(ImplicitEvaluatorsTests.profileSolid) }
-    }
-
-    @Test func solidsOfOneShapeHaveOneProgramAndDifferOnlyInTheirNumbers() throws {
-        let small = try ImplicitProgramCompiler.compile(.sphere(radius: 5))
-        let large = try ImplicitProgramCompiler.compile(.sphere(radius: 25))
-        #expect(small.program == large.program, "an edit of a value is not a new program")
+    @Test func solidsOfOneShapeHaveOneSourceAndDifferOnlyInTheirNumbers() throws {
+        let small = try ImplicitCompiler.compileHLSL(.sphere(radius: 5))
+        let large = try ImplicitCompiler.compileHLSL(.sphere(radius: 25))
+        #expect(small.source == large.source && small.kernels[.evaluate]?.digest == large.kernels[.evaluate]?.digest)
         #expect(small.parameters != large.parameters)
     }
 
-    @Test func theOpCodesAreOneToThirtySevenInOrder() {
-        #expect(ImplicitOp.allCases.map(\.rawValue) == Array(1...37))
-    }
-}
-```
-`RigidMove(origin:xAxis:yAxis:zAxis:)` is `Sources/CreatorImplicit/Solid/RigidMove.swift`'s initializer; `ImplicitEvaluatorsTests.profileSolid` is a `static let` of that suite.
-
-- [ ] **Step 2: Run them to see them fail.**
-
-Run: `swift test --filter CreatorImplicitTests.ImplicitProgramCompilerTests 2>&1 | tail -5`
-Expected: build failure, "cannot find 'ImplicitProgramCompiler' in scope".
-
-- [ ] **Step 3: Write the op codes and the program.**
-
-`Sources/CreatorImplicit/Interpreter/ImplicitOp.swift`:
-```swift
-/// One step of an `ImplicitProgram` (plan xp-c; implicit spec erratum D21): the HLSL interpreter's `OP_…` numbers, pinned to
-/// `Shaders/implicit/contract.hlsli` by `ImplicitShaderContractTests`. Each is a port of one statement `ImplicitCompiler.Generator` writes; the
-/// operands are listed as the interpreter reads them (S: a scalar operand, V: a point operand, raw: a word the op reads as it is, I: the
-/// integer parameter at a raw slot). Every op writes register `destination`, a scalar register unless marked "→ point".
-public enum ImplicitOp: Int32, CaseIterable, Sendable {
-    /// raw a: the bits of a `Float`.
-    case constant = 1
-    /// length(V a) − S b.
-    case sphere
-    /// sdBox(V a, V b, S c).
-    case box
-    /// sdCylinder(V a, S b, S c).
-    case cylinder
-    /// → point: (dot(V a − V b, V c), dot(…, V d), dot(…, V e)).
-    case move
-    /// max(0, S a).
-    case positive
-    /// smoothMin(S a, S b, S c).
-    case smoothUnion
-    /// −smoothMin(−S a, −S b, S c).
-    case smoothIntersect
-    /// −smoothMin(−S a, S b, S c).
-    case smoothSubtract
-    /// S a − S b.
-    case difference
-    /// The shell: |S a − centre| − S b / 2, the centre from the side I(raw c) and the wall S b.
-    case shell
-    /// bakedValue(raw a, raw b, V c).
-    case baked
-    /// max((S a − S b) / S c, regionDistance(V d, V e, V f)).
-    case isosurface
-    /// tpmsBody(V a, S b, V c, S d, I(raw e), I(raw e + 1), S f).
-    case tpms
-    /// strutBody(I(raw a), I(raw a + 1), V b, S c, V d, S e, S f).
-    case struts
-    /// voronoiBody(raw a, raw b, V c, S d, I(raw e), S f).
-    case voronoi
-    /// → point: mapCylindrical(V a, V b, V c, V d, V e, S f).
-    case mapCylindrical
-    /// singularCylindrical(V a, V b, V c, V d).
-    case singularCylindrical
-    /// → point: mapSpherical(V a, V b, S c).
-    case mapSpherical
-    /// singularSpherical(V a, V b).
-    case singularSpherical
-    /// → point: mapFace(raw a, V b, S c, S d).
-    case mapFace
-    /// bakedChannel(raw a, raw b, V c).
-    case bakedChannel
-    /// mappingJoin(S a, S b, S c, S d).
-    case mappingJoin
-    /// max(S a, regionDistance(V b, V c, V d)): a lattice cut to its region.
-    case region
-    /// length(V a − V b).
-    case pointDistance
-    /// dot(V a − V b, V c) / S d.
-    case linear
-    /// length(V a − V b) / S c.
-    case radial
-    /// fieldNoise(V a, S b, I(raw c), I(raw c + 1)).
-    case noise
-    /// → point: V a − V b.
-    case vectorDifference
-    /// imageValue(raw f, dot(V a, V b) / S d + 0.5, 0.5 − dot(V a, V c) / S e).
-    case image
-    /// S a + S b.
-    case add
-    /// S a × S b.
-    case multiply
-    /// min(S a, S b).
-    case minimum
-    /// max(S a, S b).
-    case maximum
-    /// remapField(S a, S b, S c, S d, S e, I(raw f)).
-    case remap
-    /// min(max(S a, S b), S c).
-    case clamp
-    /// The program's value is S a; nothing after it runs.
-    case result
-}
-```
-
-`Sources/CreatorImplicit/Interpreter/ImplicitProgram.swift`:
-```swift
-/// A solid compiled for the HLSL interpreter (plan xp-c; implicit spec erratum D21): `instructionCount` steps of `wordsPerInstruction` words each,
-/// an op, a destination register and six operands. An operand word `x ≥ 0` is register `x` (a scalar or a point, as the op reads it); `x < 0` is
-/// the float parameter at slot `-x - 1` (a point's three slots from there); a raw operand is the op's to read as it says (`ImplicitOp`). Point
-/// register 0 holds the point being evaluated. The words depend on the tree's shape only: the numbers are in `CompiledImplicit`'s buffers, so an
-/// edit of a value never makes a new program, and the interpreter is the same for every program.
-public struct ImplicitProgram: Sendable, Equatable {
-    /// The interpreter's scalar registers (`MAX_SCALARS`).
-    public static let maximumScalars = 32
-    /// Its point registers, the evaluated point's included (`MAX_VECTORS`).
-    public static let maximumVectors = 8
-    /// The most steps a program may have.
-    public static let maximumInstructions = 4096
-    /// Words a step (`INSTRUCTION_WORDS`): the op, the destination and six operands.
-    public static let wordsPerInstruction = 8
-
-    /// The steps, `wordsPerInstruction` words each.
-    public let words: [Int32]
-    /// How many scalar registers the program uses, at most `maximumScalars`.
-    public let scalarsUsed: Int
-    /// How many point registers it uses, the evaluated point's included.
-    public let vectorsUsed: Int
-
-    public var instructionCount: Int { words.count / Self.wordsPerInstruction }
-
-    public init(words: [Int32], scalarsUsed: Int, vectorsUsed: Int) {
-        self.words = words
-        self.scalarsUsed = scalarsUsed
-        self.vectorsUsed = vectorsUsed
-    }
-}
-```
-
-`Sources/CreatorImplicit/Interpreter/ProgramOperand.swift`:
-```swift
-/// What an operand word of an `ImplicitProgram` holds, as the builder knows it: a register it gave out (to take back once the value is read), a float
-/// parameter slot, or a raw word.
-struct ProgramOperand: Hashable {
-    /// The word: the register's index, or `-(slot + 1)` for a parameter, or the raw value.
-    let code: Int32
-    /// The register to give back, or `nil` for a parameter, a raw word and the evaluated point.
-    let register: Int?
-    /// Whether it is a point (three floats).
-    let isVector: Bool
-
-    /// The point being evaluated: point register 0, never given back.
-    static let point = ProgramOperand(code: 0, register: nil, isVector: true)
-
-    static func scalarParameter(_ slot: Int) -> ProgramOperand {
-        ProgramOperand(code: Int32(-(slot + 1)), register: nil, isVector: false)
-    }
-
-    static func vectorParameter(_ slot: Int) -> ProgramOperand {
-        ProgramOperand(code: Int32(-(slot + 1)), register: nil, isVector: true)
-    }
-
-    /// A word the op reads as it is: an integer slot, a buffer offset, a constant's bits.
-    static func raw(_ value: Int) -> ProgramOperand {
-        ProgramOperand(code: Int32(truncatingIfNeeded: value), register: nil, isVector: false)
-    }
-}
-```
-
-- [ ] **Step 4: Write the builder (registers and solids).**
-
-`Sources/CreatorImplicit/Interpreter/ImplicitProgramBuilder.swift`:
-```swift
-import CreatorGeometry
-import CreatorGraph
-import CreatorKernel
-
-/// Builds an `ImplicitProgram` (plan xp-c): the walk of `ImplicitCompiler.Generator`, case for case and in the same order, so the five buffers come
-/// out identical (`ImplicitProgramCompilerTests` checks every fixture). Where the generator declares a variable this emits a step; where it names a
-/// number this names a parameter slot. Registers are given back after their one read, so a step's result may reuse an operand's register (the
-/// interpreter reads every operand before it writes); `shared` holds the values read more than once (a combination's blend width, a move's local
-/// point) until their subtree is done.
-struct ImplicitProgramBuilder {
-    var parameters: [Float] = []
-    var integers: [Int32] = []
-    var tables: [Int32] = []
-    var pool: [Float] = []
-    var images: [Float] = []
-    var registered: [ObjectIdentifier: (integers: Int, parameters: Int)] = [:]
-
-    private(set) var words: [Int32] = []
-    private var freeScalars = Array(0..<ImplicitProgram.maximumScalars)
-    private var freeVectors = Array(1..<ImplicitProgram.maximumVectors)
-    private(set) var scalarsUsed = 0
-    private(set) var vectorsUsed = 1
-    var shared: Set<ProgramOperand> = []
-
-    // MARK: Numbers
-
-    mutating func number(_ value: Double) -> ProgramOperand {
-        parameters.append(Float(value))
-        return .scalarParameter(parameters.count - 1)
-    }
-
-    /// An integer parameter's slot.
-    mutating func integer(_ value: Int) -> Int {
-        integers.append(Int32(truncatingIfNeeded: value))
-        return integers.count - 1
-    }
-
-    mutating func vector(_ value: Vector3) -> ProgramOperand {
-        let slot = parameters.count
-        parameters += [Float(value.x), Float(value.y), Float(value.z)]
-        return .vectorParameter(slot)
-    }
-
-    /// `ImplicitCompiler.Generator.register(_:)`, word for word.
-    mutating func register(_ blocks: DistanceBlocks) -> (integers: Int, parameters: Int) {
-        if let known = registered[ObjectIdentifier(blocks)] { return known }
-        let slot = (integers: integers.count, parameters: parameters.count)
-        integers += [Int32(tables.count), Int32(pool.count), Int32(pool.count + blocks.pool.count),
-                     Int32(blocks.blockCounts[0]), Int32(blocks.blockCounts[1]), Int32(blocks.blockCounts[2]),
-        ]
-        tables += blocks.table
-        pool += blocks.pool
-        pool += blocks.coarse
-        parameters += [Float(blocks.origin.x), Float(blocks.origin.y), Float(blocks.origin.z), Float(blocks.spacing)]
-        registered[ObjectIdentifier(blocks)] = slot
-        return slot
-    }
-
-    // MARK: Steps
-
-    /// Appends `op` over `operands` (at most six) and returns its result, a scalar unless `vector`. The operands' registers are given back first.
-    mutating func emit(_ op: ImplicitOp, _ operands: [ProgramOperand], vector: Bool = false) throws(ImplicitCompileError) -> ProgramOperand {
-        guard words.count / ImplicitProgram.wordsPerInstruction < ImplicitProgram.maximumInstructions - 1 else {
-            throw .unsupported("a solid of more than \(ImplicitProgram.maximumInstructions) steps")
-        }
-        var given: Set<ProgramOperand> = []
-        for operand in operands where !given.contains(operand) {
-            given.insert(operand)
-            release(operand)
-        }
-        let destination = vector ? try allocateVector() : try allocateScalar()
-        append(op, destination: destination, operands)
-        return ProgramOperand(code: Int32(destination), register: destination, isVector: vector)
-    }
-
-    /// The last step: the program's value is `value`.
-    mutating func finish(_ value: ProgramOperand) {
-        append(.result, destination: 0, [value])
-    }
-
-    private mutating func append(_ op: ImplicitOp, destination: Int, _ operands: [ProgramOperand]) {
-        words.append(op.rawValue)
-        words.append(Int32(destination))
-        for index in 0..<6 { words.append(index < operands.count ? operands[index].code : 0) }
-    }
-
-    /// Gives `operand`'s register back, unless it is shared or not a register.
-    mutating func release(_ operand: ProgramOperand) {
-        guard let register = operand.register, !shared.contains(operand) else { return }
-        if operand.isVector {
-            freeVectors.append(register)
-            freeVectors.sort()
-        } else {
-            freeScalars.append(register)
-            freeScalars.sort()
-        }
-    }
-
-    private mutating func allocateScalar() throws(ImplicitCompileError) -> Int {
-        guard !freeScalars.isEmpty else {
-            throw .unsupported("a solid that holds more than \(ImplicitProgram.maximumScalars) values at once")
-        }
-        let register = freeScalars.removeFirst()
-        scalarsUsed = max(scalarsUsed, register + 1)
-        return register
-    }
-
-    private mutating func allocateVector() throws(ImplicitCompileError) -> Int {
-        guard !freeVectors.isEmpty else {
-            throw .unsupported("a solid that holds more than \(ImplicitProgram.maximumVectors) points at once")
-        }
-        let register = freeVectors.removeFirst()
-        vectorsUsed = max(vectorsUsed, register + 1)
-        return register
-    }
-
-    var program: ImplicitProgram {
-        ImplicitProgram(words: words, scalarsUsed: scalarsUsed, vectorsUsed: vectorsUsed)
-    }
-
-    // MARK: Solids
-
-    // One branch per case, with no `default`, so a case added later is a compile error here as in `ImplicitCompiler`.
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
-    mutating func solid(_ solid: ImplicitSolid, at p: ProgramOperand) throws(ImplicitCompileError) -> ProgramOperand {
-        switch solid {
-        case .sphere(let radius):
-            let r = number(radius)
-            return try emit(.sphere, [p, r])
-        case .box(let half, let cornerRadius):
-            let size = vector(half)
-            let corner = number(cornerRadius)
-            return try emit(.box, [p, size, corner])
-        case .cylinder(let radius, let halfHeight):
-            let r = number(radius)
-            let h = number(halfHeight)
-            return try emit(.cylinder, [p, r, h])
-        case .moved(let child, let move):
-            let origin = vector(move.origin)
-            let x = vector(move.xAxis)
-            let y = vector(move.yAxis)
-            let z = vector(move.zAxis)
-            let local = try emit(.move, [p, origin, x, y, z], vector: true)
-            shared.insert(local)
-            let result = try self.solid(child, at: local)
-            shared.remove(local)
-            release(local)
-            return result
-        case .union(let children, let blend):
-            return try combine(children, blend, at: p, empty: 1e30, join: .smoothUnion)
-        case .intersect(let children, let blend):
-            return try combine(children, blend, at: p, empty: -1e30, join: .smoothIntersect)
-        case .subtract(let children, let blend):
-            return try combine(children, blend, at: p, empty: 1e30, join: .smoothSubtract)
-        case .offset(let child, let distance):
-            let inner = try self.solid(child, at: p)
-            let amount = try grading(distance, at: p)
-            return try emit(.difference, [inner, amount])
-        case .shell(let child, let thickness, let side):
-            let inner = try self.solid(child, at: p)
-            let graded = try grading(thickness, at: p)
-            let wall = try emit(.positive, [graded])
-            let sideSlot = integer(side.rawValue)
-            return try emit(.shell, [inner, wall, .raw(sideSlot)])
-        case .baked(let blocks, _):
-            let slot = register(blocks)
-            return try emit(.baked, [.raw(slot.integers), .raw(slot.parameters), p])
-        case .isosurface(let graded, let level, let maxSlope, let region):
-            let value = try grading(graded, at: p)
-            let levelOperand = number(level)
-            let slope = number(maxSlope)
-            let centre = vector(region.center)
-            let half = vector(region.size * 0.5)
-            return try emit(.isosurface, [value, levelOperand, slope, p, centre, half])
-        case .tpms(let lattice):
-            return try tpms(lattice, at: p)
-        case .struts(let lattice):
-            return try struts(lattice, at: p)
-        case .voronoi(let lattice):
-            return try voronoi(lattice, at: p)
-        }
-    }
-
-    /// Union, intersect and subtract: the blend width first, then the children folded left to right as they come (the generator evaluates them all
-    /// first and folds after; the fold and the buffers are the same, and this holds three values, not one per child).
-    mutating func combine(_ children: [ImplicitSolid], _ blend: Grading, at p: ProgramOperand, empty: Float,
-                          join: ImplicitOp) throws(ImplicitCompileError) -> ProgramOperand {
-        let graded = try grading(blend, at: p)
-        let width = try emit(.positive, [graded])
-        guard let first = children.first else {
-            release(width)
-            return try emit(.constant, [.raw(Int(Int32(bitPattern: empty.bitPattern)))])
-        }
-        shared.insert(width)
-        var result = try solid(first, at: p)
-        for child in children.dropFirst() {
-            let next = try solid(child, at: p)
-            result = try emit(join, [result, next, width])
-        }
-        shared.remove(width)
-        release(width)
-        return result
-    }
-}
-```
-
-- [ ] **Step 5: Write the lattices, the mappings and the fields.**
-
-`Sources/CreatorImplicit/Interpreter/ImplicitProgramBuilder+Lattices.swift`:
-```swift
-import CreatorGeometry
-
-/// The lattices, their mappings and their cut (implicit spec §3.4, §3.5): `ImplicitCompiler.Generator`'s `tpms`, `struts`, `voronoi`, `mapped`,
-/// `face` and `cut`, in the same order of numbers.
-extension ImplicitProgramBuilder {
-    mutating func tpms(_ lattice: TPMSLattice, at p: ProgramOperand) throws(ImplicitCompileError) -> ProgramOperand {
-        let cell = try grading(lattice.cells.size, at: p)
-        let wall = try grading(lattice.thickness, at: p)
-        let stretch = vector(lattice.cells.stretch)
-        let typeSlot = integer(lattice.type.rawValue)
-        _ = integer(lattice.form.rawValue)
-        let scale = number(lattice.type.wallScale)
-        let mapping = try mapped(lattice.mapping, at: p)
-        let body = try emit(.tpms, [mapping.coordinates, cell, stretch, wall, .raw(typeSlot), scale])
-        return try cut(body, singular: mapping.singular, at: p, region: lattice.region)
-    }
-
-    mutating func struts(_ lattice: StrutLattice, at p: ProgramOperand) throws(ImplicitCompileError) -> ProgramOperand {
-        let cell = try grading(lattice.cells.size, at: p)
-        let radius = try grading(lattice.radius, at: p)
-        let stretch = vector(lattice.cells.stretch)
-        let offsetSlot = integer(pool.count)
-        _ = integer(lattice.cell.struts.count)
-        for strut in lattice.cell.struts {
-            pool += [strut.start, strut.end].flatMap { [Float($0.x), Float($0.y), Float($0.z)] }
-        }
-        let blend = number(lattice.blend)
-        let mapping = try mapped(lattice.mapping, at: p)
-        let body = try emit(.struts, [.raw(offsetSlot), mapping.coordinates, cell, stretch, radius, blend])
-        return try cut(body, singular: mapping.singular, at: p, region: lattice.region)
-    }
-
-    mutating func voronoi(_ lattice: VoronoiLattice, at p: ProgramOperand) throws(ImplicitCompileError) -> ProgramOperand {
-        let seeds = lattice.seeds
-        let wall = try grading(lattice.thickness, at: p)
-        let slot = (integers: integers.count, parameters: parameters.count)
-        integers += [Int32(pool.count), Int32(tables.count), Int32(tables.count + seeds.starts.count)]
-        integers += seeds.counts.map { Int32($0) }
-        pool += seeds.points.flatMap { [Float($0.x), Float($0.y), Float($0.z)] }
-        tables += seeds.starts
-        tables += seeds.entries
-        parameters += [Float(seeds.origin.x), Float(seeds.origin.y), Float(seeds.origin.z), Float(seeds.radius)]
-        let formSlot = integer(lattice.form.rawValue)
-        let scale = number(VoronoiLattice.strutScale)
-        let mapping = try mapped(lattice.mapping, at: p)
-        let body = try emit(.voronoi, [.raw(slot.integers), .raw(slot.parameters), mapping.coordinates, wall, .raw(formSlot), scale])
-        return try cut(body, singular: mapping.singular, at: p, region: lattice.region)
-    }
-
-    /// The lattice coordinates of `p` and the distance to the mapping's singular set (`nil` for Straight, whose coordinates are `p`).
-    mutating func mapped(_ mapping: LatticeMapping,
-                         at p: ProgramOperand) throws(ImplicitCompileError) -> (coordinates: ProgramOperand, singular: ProgramOperand?) {
-        switch mapping {
-        case .straight:
-            return (p, nil)
-        case .cylindrical(let map):
-            let origin = vector(map.origin)
-            let reference = vector(map.reference)
-            let side = vector(map.side)
-            let axis = vector(map.axis)
-            let radius = number(map.radius)
-            let coordinates = try emit(.mapCylindrical, [p, origin, reference, side, axis, radius], vector: true)
-            let singular = try emit(.singularCylindrical, [p, origin, reference, side])
-            return (coordinates, singular)
-        case .spherical(let map):
-            let centre = vector(map.centre)
-            let radius = number(map.radius)
-            let coordinates = try emit(.mapSpherical, [p, centre, radius], vector: true)
-            let singular = try emit(.singularSpherical, [p, centre])
-            return (coordinates, singular)
-        case .face(let map):
-            return try face(map, at: p)
-        }
-    }
-
-    mutating func face(_ map: FaceMap, at p: ProgramOperand) throws(ImplicitCompileError) -> (coordinates: ProgramOperand, singular: ProgramOperand?) {
-        let chart = map.chart
-        let slots = [chart.first, chart.firstSine ?? chart.first, chart.second, chart.secondSine ?? chart.second, chart.depth]
-            .map { register($0) }
-        let header = integers.count
-        let flags = (chart.firstSine == nil ? 0 : 1) | (chart.secondSine == nil ? 0 : 2)
-        integers += [Int32(flags)] + slots.flatMap { [Int32($0.integers), Int32($0.parameters)] }
-        let first = number(map.firstRadius ?? 1)
-        let second = number(map.secondRadius ?? 1)
-        let coordinates = try emit(.mapFace, [.raw(header), p, first, second], vector: true)
-        guard let blocks = chart.singular else { return (coordinates, nil) }
-        let slot = register(blocks)
-        let singular = try emit(.bakedChannel, [.raw(slot.integers), .raw(slot.parameters), p])
-        return (coordinates, singular)
-    }
-
-    /// A lattice's body left solid at the singular set and cut to the region at `p`.
-    mutating func cut(_ body: ProgramOperand, singular: ProgramOperand?, at p: ProgramOperand,
-                      region: BoundingBox) throws(ImplicitCompileError) -> ProgramOperand {
-        var joined = body
-        if let singular {
-            let exclusion = number(LatticeMapping.exclusion)
-            let fade = number(LatticeMapping.fadeWidth)
-            joined = try emit(.mappingJoin, [body, singular, exclusion, fade])
-        }
-        let centre = vector(region.center)
-        let half = vector(region.size * 0.5)
-        return try emit(.region, [joined, p, centre, half])
-    }
-}
-```
-
-`Sources/CreatorImplicit/Interpreter/ImplicitProgramBuilder+Fields.swift`:
-```swift
-import CreatorGeometry
-import CreatorGraph
-import CreatorKernel
-
-/// Gradings and fields: `ImplicitCompiler.Generator.grading` and `.field`, in the same order of numbers.
-extension ImplicitProgramBuilder {
-    mutating func grading(_ grading: Grading, at p: ProgramOperand) throws(ImplicitCompileError) -> ProgramOperand {
-        if let constant = grading.constantValue { return number(constant) }
-        return try field(grading.field, at: p, in: grading)
-    }
-
-    // One branch per field case, with no `default`.
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
-    mutating func field(_ field: Field, at p: ProgramOperand, in grading: Grading) throws(ImplicitCompileError) -> ProgramOperand {
-        switch field {
-        case .constant(let value):
-            return number(value)
-        case .distance(let source, let signed):
-            switch source {
-            case .point(let target):
-                let point = vector(target)
-                return try emit(.pointDistance, [p, point])
-            case .profile:
-                throw .unsupported("a distance to a profile")
-            case .kernel(let target):
-                guard let blocks = grading.blocks(for: target.identity, signed: signed) else {
-                    throw .unsupported("a distance to a solid that was not baked")
-                }
-                let slot = register(blocks)
-                return try emit(.baked, [.raw(slot.integers), .raw(slot.parameters), p])
-            }
-        case .linearGradient(let plane, let length):
-            let origin = vector(plane.origin)
-            let normal = vector(plane.normal.normalized ?? .zero)
-            let size = number(length)
-            return try emit(.linear, [p, origin, normal, size])
-        case .radialGradient(let center, let radius):
-            let centre = vector(center)
-            let size = number(radius)
-            return try emit(.radial, [p, centre, size])
-        case .noise(let seed, let scale, let octaves):
-            let seeds = tables.count
-            for octave in 0..<octaves {
-                let start = SeededRandom(seed: seed, stream: octave, purpose: .fieldNoise).streamStart
-                tables += [Int32(truncatingIfNeeded: start & 0xFFFF_FFFF), Int32(truncatingIfNeeded: start >> 32)]
-            }
-            let size = number(scale)
-            let octavesSlot = integer(octaves)
-            _ = integer(seeds)
-            return try emit(.noise, [p, size, .raw(octavesSlot)])
-        case .image(let image, let plane, let width, let height, let edges):
-            let slot = integers.count
-            integers += [Int32(images.count), Int32(image.width), Int32(image.height), Int32(edges.rawValue)]
-            images += image.pixels.map(Float.init)
-            let origin = vector(plane.origin)
-            let across = vector(plane.xAxis.normalized ?? .zero)
-            let up = vector(plane.yAxis.normalized ?? .zero)
-            let w = number(width)
-            let h = number(height)
-            let offset = try emit(.vectorDifference, [p, origin], vector: true)
-            return try emit(.image, [offset, across, up, w, h, .raw(slot)])
-        case .implicit(let reference):
-            guard let solid = reference.solid else { throw .unsupported("an implicit that is not an ImplicitSolid") }
-            return try self.solid(solid, at: p)
-        case .add(let a, let b):
-            let x = try self.field(a, at: p, in: grading)
-            let y = try self.field(b, at: p, in: grading)
-            return try emit(.add, [x, y])
-        case .multiply(let a, let b):
-            let x = try self.field(a, at: p, in: grading)
-            let y = try self.field(b, at: p, in: grading)
-            return try emit(.multiply, [x, y])
-        case .minimum(let a, let b):
-            let x = try self.field(a, at: p, in: grading)
-            let y = try self.field(b, at: p, in: grading)
-            return try emit(.minimum, [x, y])
-        case .maximum(let a, let b):
-            let x = try self.field(a, at: p, in: grading)
-            let y = try self.field(b, at: p, in: grading)
-            return try emit(.maximum, [x, y])
-        case .remap(let inner, let fromLow, let fromHigh, let toLow, let toHigh, let clamped):
-            let value = try self.field(inner, at: p, in: grading)
-            let numbers = [fromLow, fromHigh, toLow, toHigh].map { number($0) }
-            let clampedSlot = integer(clamped ? 1 : 0)
-            return try emit(.remap, [value] + numbers + [.raw(clampedSlot)])
-        case .clamp(let inner, let low, let high):
-            let value = try self.field(inner, at: p, in: grading)
-            let lowest = number(low)
-            let highest = number(high)
-            return try emit(.clamp, [value, lowest, highest])
-        case .smoothMinimum(let a, let b, let width):
-            let x = try self.field(a, at: p, in: grading)
-            let y = try self.field(b, at: p, in: grading)
-            let w = number(width)
-            return try emit(.smoothUnion, [x, y, w])
-        }
-    }
-}
-```
-If a `case` above does not match `Field`'s current cases exactly (a 7c follow-up added one), copy `ImplicitCompiler.Generator.field`'s branch for it and add the op it needs (a new `ImplicitOp` case, the HLSL `OP_` define and interpreter `case` in task 2): the compiler must mirror the generator.
-
-- [ ] **Step 6: Write the compiler and the `CompiledImplicit` property.**
-
-`Sources/CreatorImplicit/Interpreter/ImplicitProgramCompiler.swift`:
-```swift
-/// Compiles a solid for the HLSL interpreter (plan xp-c; implicit spec erratum D21). The result is a `CompiledImplicit` with no Metal source, the
-/// same five buffers `ImplicitCompiler` makes and an `ImplicitProgram`; `InterpretedImplicitEngine` runs it.
-public enum ImplicitProgramCompiler {
-    public static func compile(_ solid: ImplicitSolid) throws(ImplicitCompileError) -> CompiledImplicit {
-        var builder = ImplicitProgramBuilder()
-        let result = try builder.solid(solid, at: .point)
-        builder.finish(result)
-        return CompiledImplicit(source: "", parameters: builder.parameters, integers: builder.integers, tables: builder.tables,
-                                pool: builder.pool, images: builder.images, program: builder.program)
-    }
-}
-```
-
-In `Sources/CreatorImplicit/Metal/CompiledImplicit.swift` add after `public let images: [Float]`:
-```swift
-    /// The program the HLSL interpreter runs (`ImplicitProgramCompiler`), or `nil` for a solid compiled to Metal source.
-    public let program: ImplicitProgram?
-```
-and change the initializer to:
-```swift
-    init(source: String, parameters: [Float], integers: [Int32], tables: [Int32], pool: [Float], images: [Float],
-         program: ImplicitProgram? = nil) {
-        self.source = source
-        self.parameters = parameters
-        self.integers = integers
-        self.tables = tables
-        self.pool = pool
-        self.images = images
-        self.program = program
-        shape = ShapeKey(source)
-    }
-```
-and its doc comment's first line to "An implicit solid compiled for a GPU (implicit spec §4.1): Metal source, or an `ImplicitProgram` for the HLSL interpreter (plan xp-c), and the buffers either reads."
-
-- [ ] **Step 7: Run the tests.**
-
-Run: `swift test --filter CreatorImplicitTests.ImplicitProgramCompilerTests 2>&1 | tail -5`
-Expected: PASS. If `everyFixtureReadsTheSameBuffersAsItsMetalSource` fails for one fixture, the builder's order of `number`/`integer`/`vector` calls differs from the generator's in that case: compare the two branches line by line (Swift evaluates a tuple and an array literal left to right, so the generator's `let (a, b) = (number(x), integer(y))` is `number` first).
-
-Then: `swift test --filter CreatorImplicitTests 2>&1 | grep "Test run with"` — baseline + the new tests, no issue.
-
-- [ ] **Step 8: Lint and commit.**
-
-```bash
-swiftlint lint --strict
-git add Sources/CreatorImplicit/Interpreter Sources/CreatorImplicit/Metal/CompiledImplicit.swift Tests/CreatorImplicitTests/ImplicitProgramCompilerTests.swift
-git commit -m "feat(implicit): compile solids to ImplicitProgram, the HLSL interpreter's bytecode (xp-c task 1)
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS"
-```
-
----
-
-### Task 2: The HLSL kernels' evaluation half, the build path for a second shader set, and the contract tests
-
-**Files:**
-- Create: `Shaders/implicit/contract.hlsli`, `accurate_math.hlsli`, `wide_integer.hlsli`, `library.hlsli`, `lattices.hlsli`, `interpreter.hlsli`, `implicit_evaluate.comp.hlsl`
-- Create: `Sources/CreatorImplicit/Compute/ImplicitKernel.swift`, `Sources/CreatorImplicit/Compute/KernelParameters.swift`
-- Modify: `scripts/build-shaders.sh`, `scripts/build-shaders.ps1` (every set in `Shaders/`), `scripts/linux-test.sh` (a `shaders` verb), `.gitignore`
-- Test: `Tests/CreatorImplicitTests/ImplicitShaderContractTests.swift`
-
-**Interfaces:**
-- Consumes: `ImplicitOp`, `ImplicitProgram` (task 1); `MarchingCubesBuffers`, `ImplicitMeshShaderLibrary.Counter`, `ImplicitMeshShaderLibrary.probeLimit`, `BrickPlan.brickSize` (7c-1g).
-- Produces:
-  - `public enum ImplicitKernel: String, CaseIterable, Sendable` with cases `evaluate = "implicit_evaluate"`, `clear = "mesh_clear"`, `sample = "mesh_sample"`, `classify = "mesh_classify"`, `number = "mesh_number"`, `place = "mesh_place"`, `emit = "mesh_emit"`, and `public var bindings: (readOnly: Int, readWrite: Int)` = evaluate (4, 1), clear (0, 1), sample (5, 1), classify (3, 2), number (1, 2), place (6, 2), emit (5, 3); `public static let threadsPerGroup = 64`.
-  - `public struct KernelParameters: Sendable, Equatable` (16 four-byte fields, below) and `var bytes: [UInt8]`.
-  - The HLSL `sdf(float3 p)` (in `interpreter.hlsli`), included by every kernel that evaluates; `Shaders/implicit/compiled/implicit_evaluate.comp.{spv,dxil,msl,json}` after `scripts/build-shaders.sh`.
-  - `scripts/linux-test.sh shaders`: compiles every set into the worktree (the Mac's `MSLComputeBackend` reads the MSL from there, task 3).
-
-The five meshing kernels and `mesh_*.hlsli` are task 5's; this task's contract test already lists all seven kernels' bindings and skips a kernel whose source does not exist yet (`Shaders/implicit/<name>.comp.hlsl`), so task 5 needs no change to it.
-
-- [ ] **Step 1: Write the failing contract tests.**
-
-`Tests/CreatorImplicitTests/ImplicitShaderContractTests.swift`:
-```swift
-import Foundation
-import Testing
-@testable import CreatorGraph
-@testable import CreatorImplicit
-
-/// The HLSL of `Shaders/implicit` against the Swift that drives it (plan xp-c): the op codes, the limits, the table offsets, the counters and the
-/// uniform block are the same numbers on both sides; each kernel declares the storage buffers `ImplicitKernel.bindings` says, in order; the HLSL
-/// keeps the precision and portability rules. Reads the sources, so it runs everywhere. On Linux and Windows (and on a Mac where
-/// `scripts/linux-test.sh shaders` was run) it also checks that the build compiled every kernel and is current.
-struct ImplicitShaderContractTests {
-    static let directory = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appending(path: "Shaders/implicit")
-    static let compiled = directory.appending(path: "compiled")
-
-    static func text(_ name: String) throws -> String {
-        try String(contentsOf: directory.appending(path: name), encoding: .utf8)
-    }
-
-    static var sources: [String] {
-        ((try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? [])
-            .filter { $0.hasSuffix(".hlsl") || $0.hasSuffix(".hlsli") }.sorted()
-    }
-
-    /// `#define NAME VALUE` lines of the contract, with a trailing `u` dropped.
-    static func defines() throws -> [String: Int] {
-        var table: [String: Int] = [:]
-        for line in try text("contract.hlsli").split(whereSeparator: \.isNewline) {
-            let words = line.split(separator: " ", omittingEmptySubsequences: true)
-            guard words.count >= 3, words[0] == "#define" else { continue }
-            var value = String(words[2])
-            if value.hasSuffix("u") { value.removeLast() }
-            let number = value.hasPrefix("0x") ? Int(value.dropFirst(2), radix: 16) : Int(value)
-            if let number { table[String(words[1])] = number }
-        }
-        return table
-    }
-
-    /// `smoothUnion` → `OP_SMOOTH_UNION`.
-    static func shaderName(_ op: ImplicitOp) -> String {
-        var name = "OP_"
-        for character in String(describing: op) {
-            if character.isUppercase { name += "_" }
-            name += character.uppercased()
-        }
-        return name
-    }
-
-    @Test func theSourcesAreFound() {
-        #expect(Self.sources.contains("contract.hlsli") && Self.sources.contains("implicit_evaluate.comp.hlsl"), "\(Self.directory.path)")
-    }
-
-    @Test func everyOpCodeIsTheSwiftOne() throws {
-        let defines = try Self.defines()
-        for op in ImplicitOp.allCases {
-            #expect(defines[Self.shaderName(op)] == Int(op.rawValue), "\(Self.shaderName(op))")
-        }
-        #expect(defines.keys.filter { $0.hasPrefix("OP_") }.count == ImplicitOp.allCases.count, "no op the Swift side lacks")
-    }
-
-    @Test func theLimitsOffsetsAndCountersAreTheSwiftOnes() throws {
-        let defines = try Self.defines()
-        let expected: [String: Int] = [
-            "MAX_SCALARS": ImplicitProgram.maximumScalars, "MAX_VECTORS": ImplicitProgram.maximumVectors,
-            "INSTRUCTION_WORDS": ImplicitProgram.wordsPerInstruction, "THREADS": ImplicitKernel.threadsPerGroup,
-            "CUBE_STARTS": MarchingCubesBuffers.startsOffset, "CUBE_LOWER": MarchingCubesBuffers.lowerCornersOffset,
-            "CUBE_UPPER": MarchingCubesBuffers.upperCornersOffset, "CUBE_EDGES": MarchingCubesBuffers.edgesOffset,
-            "BRICK": BrickPlan.brickSize, "SIDE": BrickPlan.brickSize + 1,
-            "CUBES": BrickPlan.brickSize * BrickPlan.brickSize * BrickPlan.brickSize,
-            "POINTS": (BrickPlan.brickSize + 1) * (BrickPlan.brickSize + 1) * (BrickPlan.brickSize + 1),
-            "PROBE_LIMIT": ImplicitMeshShaderLibrary.probeLimit,
-            "COUNTER_VERTICES": ImplicitMeshShaderLibrary.Counter.vertices,
-            "COUNTER_TRIANGLE_TOTAL": ImplicitMeshShaderLibrary.Counter.triangleTotal,
-            "COUNTER_TRIANGLE_CURSOR": ImplicitMeshShaderLibrary.Counter.triangleCursor,
-            "COUNTER_OVERFLOW": ImplicitMeshShaderLibrary.Counter.overflow,
-            "EMPTY_KEY": Int(BrickLattice.emptyKey),
-        ]
-        for (name, value) in expected { #expect(defines[name] == value, "\(name): \(String(describing: defines[name])) against \(value)") }
-    }
-
-    /// `cbuffer Params` has sixteen four-byte members, which is `KernelParameters`.
-    @Test func theUniformBlockIsKernelParameters() throws {
-        let contract = try Self.text("contract.hlsli")
-        let start = try #require(contract.range(of: "cbuffer Params : register(b0, space2) {"))
-        let end = try #require(contract[start.upperBound...].range(of: "};"))
-        let members = contract[start.upperBound..<end.lowerBound].split(separator: ";").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        #expect(members.count == 16 && members.allSatisfy { $0.hasPrefix("uint ") || $0.hasPrefix("float ") })
-        #expect(MemoryLayout<KernelParameters>.stride == 64 && KernelParameters().bytes.count == 64)
-    }
-
-    /// Each kernel's `register(tN, space0)` and `register(uN, space1)` run from 0 without a gap, as many as `bindings` says.
-    @Test(arguments: ImplicitKernel.allCases.map(\.rawValue))
-    func eachKernelDeclaresItsBuffersInOrder(_ name: String) throws {
-        let kernel = try #require(ImplicitKernel(rawValue: name))
-        guard let source = try? Self.text("\(name).comp.hlsl") else { return }   // task 5 adds the meshing kernels
-        func slots(_ letter: String, _ space: Int) -> [Int] {
-            source.split(whereSeparator: \.isNewline).compactMap { line in
-                guard let range = line.range(of: #"register\("# + letter + #"(\d+), space\#(space)\)"#, options: .regularExpression) else { return nil }
-                return Int(line[range].dropFirst(9 + letter.count).prefix { $0.isNumber })
-            }
-        }
-        #expect(slots("t", 0) == Array(0..<kernel.bindings.readOnly), "\(name): read-only buffers")
-        #expect(slots("u", 1) == Array(0..<kernel.bindings.readWrite), "\(name): read-write buffers")
-        #expect(source.contains("[numthreads(THREADS, 1, 1)]"), "\(name): 64 threads a group")
-    }
-
-    /// No reduced precision, no 64-bit integers, no buffer size query, no driver trigonometry (spec erratum D21, plan X-C6).
-    @Test func theHLSLKeepsThePrecisionAndPortabilityRules() throws {
+    /// No reduced precision, no 64-bit integers, no buffer size query, no driver trigonometry, in any kernel of any fixture.
+    @Test(arguments: fixtures.map(\.name))
+    func theGeneratedHLSLKeepsThePrecisionAndPortabilityRules(_ name: String) throws {
+        let solid = try #require(Self.fixtures.first { $0.name == name }?.solid)
+        guard let compiled = try? ImplicitCompiler.compileHLSL(solid) else { return }
         let forbidden = [#"\bhalf\d?\b"#, #"\bmin16float"#, #"\bdouble\b"#, #"\bu?int64_t\b"#, #"GetDimensions"#,
                          #"(?<![A-Za-z])(sin|cos|tan|atan|atan2|sincos)\s*\("#]
-        for name in Self.sources {
-            let code = try Self.text(name).split(whereSeparator: \.isNewline).filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            for line in code {
+        for source in compiled.kernels.values {
+            for line in source.text.split(whereSeparator: \.isNewline) where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
                 for pattern in forbidden {
-                    #expect(line.range(of: pattern, options: .regularExpression) == nil, "\(name): \(line)")
+                    #expect(line.range(of: pattern, options: .regularExpression) == nil, "\(name), \(source.kernel.rawValue): \(line)")
                 }
             }
         }
     }
 
-    /// Where the kernels were compiled (always on Linux and Windows; on a Mac after `scripts/linux-test.sh shaders`): every stage's four files are
-    /// there, `SOURCE.sha256` and `INCLUDES.sha256` match the sources now, and each reflection has the buffers `bindings` says and one uniform block.
-    @Test func theBuildCompiledEveryKernelAndIsCurrent() throws {
-        let remedy = "Run scripts/build-shaders.sh (scripts/build-shaders.ps1 on Windows; scripts/linux-test.sh shaders from a Mac)."
-        #if canImport(MetalUISDLGPU)
-        let required = true
-        #else
-        let required = false
-        #endif
-        guard required || FileManager.default.fileExists(atPath: Self.compiled.appending(path: "SOURCE.sha256").path) else { return }
-        func digest(_ url: URL) throws -> String { SHA256.hash(try Data(contentsOf: url)).map { ($0 < 16 ? "0" : "") + String($0, radix: 16) }.joined() }
-        func table(_ file: String) throws -> [String: String] {
-            var result: [String: String] = [:]
-            for line in try String(contentsOf: Self.compiled.appending(path: file), encoding: .utf8).split(whereSeparator: \.isNewline) {
-                let parts = line.split(separator: " ", omittingEmptySubsequences: true)
-                if parts.count == 2 { result[String(parts[1])] = String(parts[0]) }
+    /// Each kernel's `register(tN, space0)` and `register(uN, space1)` run from 0 without a gap, as many as `bindings` says; one entry point.
+    @Test(arguments: fixtures.map(\.name))
+    func eachKernelDeclaresItsBuffersInOrder(_ name: String) throws {
+        let solid = try #require(Self.fixtures.first { $0.name == name }?.solid)
+        guard let compiled = try? ImplicitCompiler.compileHLSL(solid) else { return }
+        for source in compiled.kernels.values {
+            func slots(_ letter: String, _ space: Int) -> [Int] {
+                source.text.split(whereSeparator: \.isNewline).compactMap { line in
+                    guard let range = line.range(of: #"register\("# + letter + #"(\d+), space\#(space)\)"#, options: .regularExpression) else {
+                        return nil
+                    }
+                    return Int(line[range].dropFirst(9 + letter.count).prefix { $0.isNumber })
+                }
             }
-            return result
-        }
-        let stages = Self.sources.filter { $0.hasSuffix(".comp.hlsl") }
-        let marker = try table("SOURCE.sha256")
-        #expect(Set(marker.keys) == Set(stages), remedy)
-        for stage in stages { #expect(marker[stage] == (try digest(Self.directory.appending(path: stage))), "\(stage) changed. \(remedy)") }
-        let includes = try table("INCLUDES.sha256")
-        let headers = Self.sources.filter { $0.hasSuffix(".hlsli") }
-        #expect(Set(includes.keys) == Set(headers), remedy)
-        for header in headers { #expect(includes[header] == (try digest(Self.directory.appending(path: header))), "\(header) changed. \(remedy)") }
-        for stage in stages {
-            let stem = String(stage.dropLast(".hlsl".count))
-            for blob in ["spv", "dxil", "msl", "json"] {
-                let size = (try? Data(contentsOf: Self.compiled.appending(path: "\(stem).\(blob)")).count) ?? 0
-                #expect(size > 0, "\(stem).\(blob). \(remedy)")
-            }
-            let kernel = try #require(ImplicitKernel(rawValue: String(stem.dropLast(".comp".count))), "\(stem) is no ImplicitKernel")
-            let reflection = try JSONSerialization.jsonObject(with: Data(contentsOf: Self.compiled.appending(path: "\(stem).json"))) as? [String: Int]
-            #expect(reflection?["readonly_storage_buffers"] == kernel.bindings.readOnly, "\(stem): a declared read-only buffer was dropped")
-            #expect(reflection?["readwrite_storage_buffers"] == kernel.bindings.readWrite, "\(stem): a declared read-write buffer was dropped")
-            #expect(reflection?["uniform_buffers"] == 1 && reflection?["threadcount_x"] == ImplicitKernel.threadsPerGroup, "\(stem)")
+            #expect(slots("t", 0) == Array(0..<source.kernel.bindings.readOnly), "\(name), \(source.kernel.rawValue): read-only")
+            #expect(slots("u", 1) == Array(0..<source.kernel.bindings.readWrite), "\(name), \(source.kernel.rawValue): read-write")
+            #expect(source.text.components(separatedBy: "[numthreads(64, 1, 1)]").count == 2 && source.text.contains("void main(uint3 id"))
+            #expect(source.text.contains("cbuffer Params : register(b0, space2)"))
         }
     }
+
+    @Test func theUniformBlockIsSixteenWords() {
+        #expect(MemoryLayout<KernelParameters>.stride == 64 && KernelParameters().bytes.count == 64)
+        let members = HLSLShaderLibrary.prelude.split(separator: ";").filter { $0.contains("uint g") || $0.contains("float g") }
+        #expect(members.count == 16)
+    }
+```
+In this task only `.evaluate` exists in `kernels`; task 2 adds the others and these tests then cover them unchanged.
+
+- [ ] **Step 3: Run to see them fail.** `swift test --filter CreatorImplicitTests.HLSLSourceTests 2>&1 | tail -3` — build failure ("type 'ImplicitCompiler' has no member 'compileHLSL'").
+
+- [ ] **Step 4: The kernel types.**
+
+`Sources/CreatorImplicit/Compute/KernelSource.swift`:
+```swift
+/// One kernel's HLSL text and its digest (plan xp-c): what a backend compiles to a pipeline and what the pipeline cache is keyed by, as Metal's is by
+/// `ShapeKey`. The digest is FNV-1a 64 of the UTF-8 text in hex, stable across processes (the offline test compile names its files by it).
+public struct KernelSource: Sendable, Hashable {
+    public let kernel: ImplicitKernel
+    public let text: String
+    public let digest: String
+
+    public init(kernel: ImplicitKernel, text: String) {
+        self.kernel = kernel
+        self.text = text
+        digest = Self.fnv1a(text)
+    }
+
+    static func fnv1a(_ text: String) -> String {
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01B3
+        }
+        let hex = String(hash, radix: 16)
+        return String(repeating: "0", count: 16 - hex.count) + hex
+    }
+
+    public static func == (lhs: KernelSource, rhs: KernelSource) -> Bool { lhs.digest == rhs.digest && lhs.text == rhs.text }
+    public func hash(into hasher: inout Hasher) { hasher.combine(digest) }
 }
 ```
-
-- [ ] **Step 2: Run them to see them fail.**
-
-Run: `swift test --filter CreatorImplicitTests.ImplicitShaderContractTests 2>&1 | tail -5`
-Expected: build failure ("cannot find 'ImplicitKernel' in scope").
-
-- [ ] **Step 3: Write `ImplicitKernel` and `KernelParameters`.**
 
 `Sources/CreatorImplicit/Compute/ImplicitKernel.swift`:
 ```swift
-/// The interpreted engine's compute kernels (plan xp-c): `Shaders/implicit/<rawValue>.comp.hlsl`, compiled at build time. A `ComputeDispatch` lists a
-/// kernel's storage buffers in the order of its `register(tN, space0)` (read-only) and `register(uN, space1)` (read-write) declarations, which
-/// `ImplicitShaderContractTests` pins to `bindings`.
+/// The HLSL engine's compute kernels (plan xp-c), one source each (`HLSLKernels`): Metal's `evaluateImplicit` and the five meshing kernels of
+/// `ImplicitMeshShaderLibrary`, plus `mesh_clear`, because SDL_GPU has no buffer fill. A `ComputeDispatch` lists the storage buffers in declaration order.
 public enum ImplicitKernel: String, CaseIterable, Sendable {
-    /// points, program, floats, ints → values.
+    /// floats, ints, points → values.
     case evaluate = "implicit_evaluate"
-    /// → keys: the edge table emptied over `firstSlot ..< firstSlot + count`.
+    /// → keys (emptied over a range of slots).
     case clear = "mesh_clear"
-    /// bricks, axes, program, floats, ints → samples.
+    /// floats, ints, bricks, axes → samples.
     case sample = "mesh_sample"
     /// bricks, samples, cube table → keys, counters.
     case classify = "mesh_classify"
     /// keys → slot vertices, counters.
     case number = "mesh_number"
-    /// axes, program, floats, ints, keys, slot vertices → positions, normals.
+    /// floats, ints, axes, keys, slot vertices → positions, normals.
     case place = "mesh_place"
-    /// bricks, samples, cube table, keys, slot vertices → counters, indices, tags.
+    /// bricks, samples, cube table, keys, slot vertices → counters, indices.
     case emit = "mesh_emit"
 
-    /// The threads of a group (`THREADS`, `[numthreads(THREADS, 1, 1)]`).
     public static let threadsPerGroup = 64
 
-    /// How many read-only and read-write storage buffers the kernel declares.
     public var bindings: (readOnly: Int, readWrite: Int) {
         switch self {
-        case .evaluate: (4, 1)
+        case .evaluate: (3, 1)
         case .clear: (0, 1)
-        case .sample: (5, 1)
+        case .sample: (4, 1)
         case .classify: (3, 2)
         case .number: (1, 2)
-        case .place: (6, 2)
-        case .emit: (5, 3)
+        case .place: (5, 2)
+        case .emit: (5, 2)
         }
     }
+
+    /// Whether the kernel calls the solid's `sdf`, so its source depends on the shape.
+    public var usesSDF: Bool { self == .evaluate || self == .sample || self == .place }
 }
 ```
 
 `Sources/CreatorImplicit/Compute/KernelParameters.swift`:
 ```swift
-/// The one uniform block every implicit kernel reads (`cbuffer Params : register(b0, space2)` in `Shaders/implicit/contract.hlsli`): sixteen
-/// four-byte words, 64 bytes, member for member. A kernel reads the members it needs; the rest are zero.
+/// The one uniform block every HLSL kernel reads (`cbuffer Params : register(b0, space2)`, `HLSLShaderLibrary.prelude`): Metal's `count` and
+/// `MeshParams`, and where the pool, the pictures and the tables start in the two packed buffers. Sixteen four-byte words.
 public struct KernelParameters: Sendable, Equatable {
-    /// Points to evaluate (evaluate), or table slots in this range (clear, number, place).
     public var count: UInt32 = 0
-    /// The program's steps.
-    public var instructions: UInt32 = 0
-    /// Where the pool and the pictures start in the floats buffer (the parameters start at 0).
     public var poolBase: UInt32 = 0
     public var imagesBase: UInt32 = 0
-    /// Where the tables start in the ints buffer (the integer parameters start at 0).
     public var tablesBase: UInt32 = 0
-    /// The batch's first brick and how many it has (sample, classify, emit).
     public var firstBrick: UInt32 = 0
     public var brickCount: UInt32 = 0
-    /// The lattice window's points on each axis.
     public var nx: UInt32 = 0
     public var ny: UInt32 = 0
     public var nz: UInt32 = 0
-    /// The edge table's slots minus one (a power of two minus one).
     public var mask: UInt32 = 0
-    /// 1 when vertices take the Newton step.
     public var snap: UInt32 = 0
-    /// The voxel size in millimetres.
     public var resolution: Float = 0
-    /// The range's first table slot (clear, number, place).
     public var firstSlot: UInt32 = 0
     public var padding0: UInt32 = 0
     public var padding1: UInt32 = 0
+    public var padding2: UInt32 = 0
 
     public init() {}
 
-    /// The block as the GPU reads it, in declaration order.
+    /// The block as the GPU reads it, from an explicit word list (no reliance on Swift's struct layout).
     var bytes: [UInt8] {
-        let words: [UInt32] = [count, instructions, poolBase, imagesBase, tablesBase, firstBrick, brickCount, nx, ny, nz, mask, snap,
-                               resolution.bitPattern, firstSlot, padding0, padding1]
+        let words: [UInt32] = [count, poolBase, imagesBase, tablesBase, firstBrick, brickCount, nx, ny, nz, mask, snap, resolution.bitPattern,
+                               firstSlot, padding0, padding1, padding2]
         return words.withUnsafeBytes { Array($0) }
     }
 }
 ```
-(`bytes` builds from an explicit word list, so it does not depend on Swift's struct layout.)
 
-- [ ] **Step 4: Write the contract header and the two exact-arithmetic headers.**
+- [ ] **Step 5: The dialect, and the generator writing through it.**
 
-`Shaders/implicit/contract.hlsli`:
-```hlsl
-// The numbers the Swift side shares with the implicit kernels (plan xp-c). ImplicitShaderContractTests pins every one to its Swift twin:
-// ImplicitOp, ImplicitProgram, ImplicitKernel, MarchingCubesBuffers, BrickPlan, ImplicitMeshShaderLibrary.Counter and .probeLimit,
-// BrickLattice.emptyKey, KernelParameters. Change both sides together.
-#ifndef IMPLICIT_CONTRACT
-#define IMPLICIT_CONTRACT
+`Sources/CreatorImplicit/Metal/ShaderDialect.swift`:
+```swift
+/// How `ImplicitCompiler.Generator` spells what differs between Metal and HLSL (plan xp-c): a float parameter, an integer parameter, and the
+/// environment argument the library's functions take in MSL (`e`, the buffers) and do not in HLSL (the buffers are globals). Everything else the
+/// generator writes is the same text in both.
+enum ShaderDialect: Sendable {
+    case msl
+    case hlsl
 
-#define MAX_SCALARS 32
-#define MAX_VECTORS 8
-#define INSTRUCTION_WORDS 8u
-#define THREADS 64
-
-#define OP_CONSTANT 1
-#define OP_SPHERE 2
-#define OP_BOX 3
-#define OP_CYLINDER 4
-#define OP_MOVE 5
-#define OP_POSITIVE 6
-#define OP_SMOOTH_UNION 7
-#define OP_SMOOTH_INTERSECT 8
-#define OP_SMOOTH_SUBTRACT 9
-#define OP_DIFFERENCE 10
-#define OP_SHELL 11
-#define OP_BAKED 12
-#define OP_ISOSURFACE 13
-#define OP_TPMS 14
-#define OP_STRUTS 15
-#define OP_VORONOI 16
-#define OP_MAP_CYLINDRICAL 17
-#define OP_SINGULAR_CYLINDRICAL 18
-#define OP_MAP_SPHERICAL 19
-#define OP_SINGULAR_SPHERICAL 20
-#define OP_MAP_FACE 21
-#define OP_BAKED_CHANNEL 22
-#define OP_MAPPING_JOIN 23
-#define OP_REGION 24
-#define OP_POINT_DISTANCE 25
-#define OP_LINEAR 26
-#define OP_RADIAL 27
-#define OP_NOISE 28
-#define OP_VECTOR_DIFFERENCE 29
-#define OP_IMAGE 30
-#define OP_ADD 31
-#define OP_MULTIPLY 32
-#define OP_MINIMUM 33
-#define OP_MAXIMUM 34
-#define OP_REMAP 35
-#define OP_CLAMP 36
-#define OP_RESULT 37
-
-#define EMPTY_KEY 0xFFFFFFFFu
-#define CUBE_STARTS 0u
-#define CUBE_LOWER 257u
-#define CUBE_UPPER 269u
-#define CUBE_EDGES 281u
-#define BRICK 8u
-#define SIDE 9u
-#define CUBES 512u
-#define POINTS 729u
-#define PROBE_LIMIT 128u
-#define COUNTER_VERTICES 0u
-#define COUNTER_TRIANGLE_TOTAL 1u
-#define COUNTER_TRIANGLE_CURSOR 2u
-#define COUNTER_OVERFLOW 3u
-
-#define INFINITY_F asfloat(0x7F800000u)
-#define PI_F 3.14159265358979323846f
-#define HALF_PI_F 1.57079632679489661923f
-#define QUARTER_PI_F 0.78539816339744830962f
-
-// KernelParameters, word for word (64 bytes).
-cbuffer Params : register(b0, space2) {
-    uint gCount;
-    uint gInstructions;
-    uint gPoolBase;
-    uint gImagesBase;
-    uint gTablesBase;
-    uint gFirstBrick;
-    uint gBrickCount;
-    uint gNX;
-    uint gNY;
-    uint gNZ;
-    uint gMask;
-    uint gSnap;
-    float gResolution;
-    uint gFirstSlot;
-    uint gPadding0;
-    uint gPadding1;
-};
-
-#endif
-```
-
-`Shaders/implicit/accurate_math.hlsli`:
-```hlsl
-// Sine, cosine and arctangent to about one ulp on every driver (plan xp-c, user decision X-C6). Vulkan promises only an absolute 2^-11 for sin on
-// [-pi, pi] and Direct3D says less, while a TPMS wall is scaled by cell / 2pi: 2^-11 would be about 4e-4 mm at a 5 mm cell, against the 1e-4 mm the
-// GPU is held to. The reduction is Cody-Waite in three parts of pi/2 (the first two exact in a float product for |q| < 2^15); the polynomials are
-// Cephes' sinf, cosf and atanf (Stephen L. Moshier, public domain). The arguments the lattices give are under 13 (tpmsRaw's 2q), far inside that.
-#ifndef IMPLICIT_ACCURATE_MATH
-#define IMPLICIT_ACCURATE_MATH
-
-void reduceQuarter(float x, out float y, out int quadrant) {
-    float q = round(x * 0.636619772367581343f);
-    y = ((x - q * 1.5703125f) - q * 4.837512969970703125e-4f) - q * 7.54978995489188216e-8f;
-    quadrant = int(q);
-}
-
-float sinPolynomial(float y) {
-    float z = y * y;
-    return ((-1.9515295891e-4f * z + 8.3321608736e-3f) * z - 1.6666654611e-1f) * z * y + y;
-}
-
-float cosPolynomial(float y) {
-    float z = y * y;
-    return ((2.443315711809948e-5f * z - 1.388731625493765e-3f) * z + 4.166664568298827e-2f) * z * z - 0.5f * z + 1.0f;
-}
-
-float accSin(float x) {
-    float y;
-    int quadrant;
-    reduceQuarter(x, y, quadrant);
-    float s = sinPolynomial(y), c = cosPolynomial(y);
-    int k = quadrant & 3;
-    return k == 0 ? s : (k == 1 ? c : (k == 2 ? -s : -c));
-}
-
-float accCos(float x) {
-    float y;
-    int quadrant;
-    reduceQuarter(x, y, quadrant);
-    float s = sinPolynomial(y), c = cosPolynomial(y);
-    int k = quadrant & 3;
-    return k == 0 ? c : (k == 1 ? -s : (k == 2 ? -c : s));
-}
-
-float3 accSin3(float3 v) { return float3(accSin(v.x), accSin(v.y), accSin(v.z)); }
-float3 accCos3(float3 v) { return float3(accCos(v.x), accCos(v.y), accCos(v.z)); }
-
-float accAtan(float x) {
-    float sign = x < 0.0f ? -1.0f : 1.0f;
-    float t = abs(x);
-    float offset = 0.0f;
-    if (t > 2.414213562373095f) {
-        offset = HALF_PI_F;
-        t = -1.0f / t;
-    } else if (t > 0.4142135623730950f) {
-        offset = QUARTER_PI_F;
-        t = (t - 1.0f) / (t + 1.0f);
-    }
-    float z = t * t;
-    return sign * (offset + ((((8.05374449538e-2f * z - 1.38776856032e-1f) * z + 1.99777106478e-1f) * z - 3.33329491539e-1f) * z * t + t));
-}
-
-// atan2 as IEEE 754 and the CPU's Double have it, signed zeros included: atan2(+0, -1) = pi, atan2(-0, -1) = -pi, atan2(+-0, +0) = +-0.
-float accAtan2(float y, float x) {
-    bool yNegative = (asuint(y) & 0x80000000u) != 0u;
-    bool xNegative = (asuint(x) & 0x80000000u) != 0u;
-    if (x == 0.0f) {
-        if (y == 0.0f) { return xNegative ? (yNegative ? -PI_F : PI_F) : y; }
-        return yNegative ? -HALF_PI_F : HALF_PI_F;
-    }
-    float angle = accAtan(y / x);
-    if (xNegative) { angle += yNegative ? -PI_F : PI_F; }
-    return angle;
-}
-
-#endif
-```
-
-`Shaders/implicit/wide_integer.hlsli`:
-```hlsl
-// Unsigned 64-bit arithmetic in two 32-bit words (plan xp-c, user decision X-C6): the noise's SplitMix64 hash needs it, and uint64_t needs a device
-// feature (shaderInt64) SDL_GPU neither enables nor reports. Exact, so a draw is bit for bit FieldNoise's on the CPU.
-#ifndef IMPLICIT_WIDE_INTEGER
-#define IMPLICIT_WIDE_INTEGER
-
-struct U64 {
-    uint hi;
-    uint lo;
-};
-
-U64 u64(uint hi, uint lo) {
-    U64 value;
-    value.hi = hi;
-    value.lo = lo;
-    return value;
-}
-
-U64 u64Add(U64 a, U64 b) {
-    uint lo = a.lo + b.lo;
-    return u64(a.hi + b.hi + (lo < a.lo ? 1u : 0u), lo);
-}
-
-U64 u64Xor(U64 a, U64 b) { return u64(a.hi ^ b.hi, a.lo ^ b.lo); }
-U64 u64Or(U64 a, U64 b) { return u64(a.hi | b.hi, a.lo | b.lo); }
-
-// 0 < shift < 64.
-U64 u64Shr(U64 a, uint shift) {
-    if (shift >= 32u) { return u64(0u, a.hi >> (shift - 32u)); }
-    return u64(a.hi >> shift, (a.lo >> shift) | (a.hi << (32u - shift)));
-}
-
-U64 u64Shl(U64 a, uint shift) {
-    if (shift >= 32u) { return u64(a.lo << (shift - 32u), 0u); }
-    return u64((a.hi << shift) | (a.lo >> (32u - shift)), a.lo << shift);
-}
-
-// The full 64-bit product of two 32-bit words, by 16-bit halves.
-U64 u64Product(uint a, uint b) {
-    uint a0 = a & 0xFFFFu, a1 = a >> 16, b0 = b & 0xFFFFu, b1 = b >> 16;
-    uint p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
-    uint middle = (p00 >> 16) + (p01 & 0xFFFFu) + (p10 & 0xFFFFu);
-    return u64(p11 + (p01 >> 16) + (p10 >> 16) + (middle >> 16), (p00 & 0xFFFFu) | (middle << 16));
-}
-
-// The low 64 bits of a 64 x 64 product, as UInt64's &* wraps.
-U64 u64Mul(U64 a, U64 b) {
-    U64 low = u64Product(a.lo, b.lo);
-    return u64(low.hi + a.hi * b.lo + a.lo * b.hi, low.lo);
-}
-
-#endif
-```
-
-- [ ] **Step 5: Port the shader library and the lattices.**
-
-These are line-for-line ports of `ImplicitShaderLibrary.core` and `ImplicitShaderLibrary.lattices` (Swift files in `Sources/CreatorImplicit/Metal/`, MSL as text). The translation: `inline` dropped; `const thread Env& e` parameter dropped, its fields read through the accessors below; `mix` → `lerp`; `precise::sin`/`cos`/`atan2` → `accSin`/`accCos`/`accAtan2` (vector forms `accSin3`/`accCos3`); `as_type<float>(as_type<uint>(x) - 1u)` → `asfloat(asuint(x) - 1u)`; `INFINITY` → `INFINITY_F`; `thread int&` → `out int`; `ulong` → `U64`; `constant` arrays → `static const`; float literals carry an `f`.
-
-`Shaders/implicit/library.hlsli`:
-```hlsl
-// The functions every compiled implicit shares (implicit spec §4.1): a port of ImplicitShaderLibrary.core (the MSL of the Metal engine), each a
-// line-for-line port of its CPU twin (CPUEvaluation, DistanceBlocks, FieldNoise, GreyImage). The kernel declares `floats` (the parameters, then the
-// pool, then the pictures) and `ints` (the integer parameters, then the tables) before it includes this; the bases are in Params.
-#ifndef IMPLICIT_LIBRARY
-#define IMPLICIT_LIBRARY
-
-float P(int k) { return floats[k]; }
-float3 PV(int k) { return float3(floats[k], floats[k + 1], floats[k + 2]); }
-int I(int k) { return ints[k]; }
-int TABLES(int k) { return ints[int(gTablesBase) + k]; }
-float POOL(int k) { return floats[int(gPoolBase) + k]; }
-float IMAGES(int k) { return floats[int(gImagesBase) + k]; }
-
-float smoothMin(float a, float b, float k) {
-    if (!(k > 0.0f)) { return min(a, b); }
-    float blend = max(k - abs(a - b), 0.0f) / k;
-    return min(a, b) - blend * blend * k * 0.25f;
-}
-
-float sdBox(float3 p, float3 halfSize, float r) {
-    float3 q = abs(p) - (halfSize - r);
-    return length(max(q, 0.0f)) + min(max(q.x, max(q.y, q.z)), 0.0f) - r;
-}
-
-float regionDistance(float3 p, float3 centre, float3 halfSize) {
-    float3 q = abs(p - centre) - halfSize;
-    return length(max(q, 0.0f)) + min(max(q.x, max(q.y, q.z)), 0.0f);
-}
-
-float sdCylinder(float3 p, float r, float halfHeight) {
-    float across = length(p.xy) - r;
-    float along = abs(p.z) - halfHeight;
-    return min(max(across, along), 0.0f) + length(max(float2(across, along), 0.0f));
-}
-
-// MARK: baked distance blocks (DistanceBlocks)
-
-float bakedSample(int ioff, int i, int j, int k) {
-    int nx = I(ioff + 3), ny = I(ioff + 4), nz = I(ioff + 5);
-    i = clamp(i, 0, nx * 8 - 1);
-    j = clamp(j, 0, ny * 8 - 1);
-    k = clamp(k, 0, nz * 8 - 1);
-    int block = ((k / 8) * ny + (j / 8)) * nx + (i / 8);
-    int slot = TABLES(I(ioff) + block);
-    if (slot < 0) { return POOL(I(ioff + 2) + block); }
-    return POOL(I(ioff + 1) + slot * 512 + ((k % 8) * 8 + (j % 8)) * 8 + (i % 8));
-}
-
-float bakedTrilinear(int ioff, int poff, float3 held) {
-    float3 origin = PV(poff);
-    float spacing = P(poff + 3);
-    float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
-    float3 grid = clamp((held - origin) / spacing, float3(0.0f, 0.0f, 0.0f), last);
-    int ix = int(floor(grid.x)), iy = int(floor(grid.y)), iz = int(floor(grid.z));
-    float tx = grid.x - float(ix), ty = grid.y - float(iy), tz = grid.z - float(iz);
-    float x00 = lerp(bakedSample(ioff, ix, iy, iz), bakedSample(ioff, ix + 1, iy, iz), tx);
-    float x10 = lerp(bakedSample(ioff, ix, iy + 1, iz), bakedSample(ioff, ix + 1, iy + 1, iz), tx);
-    float x01 = lerp(bakedSample(ioff, ix, iy, iz + 1), bakedSample(ioff, ix + 1, iy, iz + 1), tx);
-    float x11 = lerp(bakedSample(ioff, ix, iy + 1, iz + 1), bakedSample(ioff, ix + 1, iy + 1, iz + 1), tx);
-    return lerp(lerp(x00, x10, ty), lerp(x01, x11, ty), tz);
-}
-
-float bakedValue(int ioff, int poff, float3 point) {
-    float3 origin = PV(poff);
-    float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
-    float3 held = clamp(point, origin, origin + last * P(poff + 3));
-    return bakedTrilinear(ioff, poff, held) + length(point - held);
-}
-
-float bakedChannel(int ioff, int poff, float3 point) {
-    float3 origin = PV(poff);
-    float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
-    return bakedTrilinear(ioff, poff, clamp(point, origin, origin + last * P(poff + 3)));
-}
-
-// MARK: field maths
-
-float remapField(float x, float fromLow, float fromHigh, float toLow, float toHigh, int clamped) {
-    if (fromHigh == fromLow) { return toLow; }
-    float mapped = toLow + (x - fromLow) / (fromHigh - fromLow) * (toHigh - toLow);
-    if (clamped == 0) { return mapped; }
-    return min(max(mapped, min(toLow, toHigh)), max(toLow, toHigh));
-}
-
-// MARK: simplex noise (FieldNoise)
-
-static const float3 noiseGradients[12] = {
-    float3(1, 1, 0), float3(-1, 1, 0), float3(1, -1, 0), float3(-1, -1, 0), float3(1, 0, 1), float3(-1, 0, 1),
-    float3(1, 0, -1), float3(-1, 0, -1), float3(0, 1, 1), float3(0, -1, 1), float3(0, 1, -1), float3(0, -1, -1)
-};
-
-static const int3 noiseCorners[24] = {
-    int3(0, 0, 0), int3(1, 0, 0), int3(1, 1, 0), int3(1, 1, 1),
-    int3(0, 0, 0), int3(1, 0, 0), int3(1, 0, 1), int3(1, 1, 1),
-    int3(0, 0, 0), int3(0, 0, 1), int3(1, 0, 1), int3(1, 1, 1),
-    int3(0, 0, 0), int3(0, 0, 1), int3(0, 1, 1), int3(1, 1, 1),
-    int3(0, 0, 0), int3(0, 1, 0), int3(0, 1, 1), int3(1, 1, 1),
-    int3(0, 0, 0), int3(0, 1, 0), int3(1, 1, 0), int3(1, 1, 1)
-};
-
-U64 mix64(U64 value) {
-    U64 z = value;
-    z = u64Mul(u64Xor(z, u64Shr(z, 30u)), u64(0xBF58476Du, 0x1CE4E5B9u));
-    z = u64Mul(u64Xor(z, u64Shr(z, 27u)), u64(0x94D049BBu, 0x133111EBu));
-    return u64Xor(z, u64Shr(z, 31u));
-}
-
-float3 noiseGradient(int i, int j, int k, U64 start) {
-    U64 packed = u64Or(u64Or(u64Shl(u64(0u, asuint(i) & 0x1FFFFFu), 42u), u64Shl(u64(0u, asuint(j) & 0x1FFFFFu), 21u)),
-                       u64(0u, asuint(k) & 0x1FFFFFu));
-    U64 draw = mix64(u64Add(start, u64Mul(u64Add(packed, u64(0u, 1u)), u64(0x9E3779B9u, 0x7F4A7C15u))));
-    return noiseGradients[u64Shr(draw, 33u).lo % 12u];
-}
-
-float simplexOctave(float x, float y, float z, U64 start) {
-    float skewed = (x + y + z) * (1.0f / 3.0f);
-    int i = int(floor(x + skewed)), j = int(floor(y + skewed)), k = int(floor(z + skewed));
-    float back = float(i + j + k) * (1.0f / 6.0f);
-    float x0 = x - (float(i) - back), y0 = y - (float(j) - back), z0 = z - (float(k) - back);
-    int ordering;
-    if (x0 >= y0) {
-        ordering = y0 >= z0 ? 0 : (x0 >= z0 ? 1 : 2);
-    } else {
-        ordering = y0 < z0 ? 3 : (x0 < z0 ? 4 : 5);
-    }
-    float sum = 0.0f;
-    for (int step = 0; step < 4; step++) {
-        int3 corner = noiseCorners[ordering * 4 + step];
-        float shift = float(step) * (1.0f / 6.0f);
-        float dx = x0 - float(corner.x) + shift, dy = y0 - float(corner.y) + shift, dz = z0 - float(corner.z) + shift;
-        float falloff = 0.6f - dx * dx - dy * dy - dz * dz;
-        if (falloff <= 0.0f) { continue; }
-        float3 gradient = noiseGradient(i + corner.x, j + corner.y, k + corner.z, start);
-        float weight = falloff * falloff;
-        sum += weight * weight * dot(gradient, float3(dx, dy, dz));
-    }
-    return 32.0f * sum;
-}
-
-float fieldNoise(float3 p, float scale, int octaves, int seeds) {
-    float sum = 0.0f, total = 0.0f, amplitude = 1.0f, size = scale;
-    for (int octave = 0; octave < octaves; octave++) {
-        U64 start = u64(asuint(TABLES(seeds + 2 * octave + 1)), asuint(TABLES(seeds + 2 * octave)));
-        sum += amplitude * simplexOctave(p.x / size, p.y / size, p.z / size, start);
-        total += amplitude;
-        amplitude *= 0.5f;
-        size *= 0.5f;
-    }
-    return clamp((sum / total + 1.0f) / 2.0f, 0.0f, 1.0f);
-}
-
-// MARK: pictures (GreyImage)
-
-void imageTaps(float position, int count, int edges, out int low, out int high, out float fraction) {
-    float size = float(count);
-    float held;
-    if (edges == 0) {
-        float folded = position - floor(position / size) * size;
-        held = min(max(folded, 0.0f), asfloat(asuint(size) - 1u));
-        low = int(floor(held));
-        high = (low + 1) % count;
-    } else {
-        held = min(max(position, 0.0f), size - 1.0f);
-        low = int(floor(held));
-        high = min(low + 1, count - 1);
-    }
-    fraction = held - float(low);
-}
-
-float imageValue(int ioff, float u, float v) {
-    int offset = I(ioff), width = I(ioff + 1), height = I(ioff + 2), edges = I(ioff + 3);
-    float x = u * float(width) - 0.5f, y = v * float(height) - 0.5f;
-    if (!isfinite(x) || !isfinite(y)) { return 0.0f; }
-    int cl, ch, rl, rh;
-    float cf, rf;
-    imageTaps(x, width, edges, cl, ch, cf);
-    imageTaps(y, height, edges, rl, rh, rf);
-    float top = lerp(IMAGES(offset + rl * width + cl), IMAGES(offset + rl * width + ch), cf);
-    float bottom = lerp(IMAGES(offset + rh * width + cl), IMAGES(offset + rh * width + ch), cf);
-    return lerp(top, bottom, rf) / 65535.0f;
-}
-
-#endif
-```
-
-`Shaders/implicit/lattices.hlsli`:
-```hlsl
-// The lattices and their mappings (implicit spec §3.4, §3.5): a port of ImplicitShaderLibrary.lattices, trigonometry through accurate_math.hlsli.
-#ifndef IMPLICIT_LATTICES
-#define IMPLICIT_LATTICES
-
-float tpmsRaw(int type, float3 q) {
-    float3 s = accSin3(q), c = accCos3(q);
-    if (type == 0) { return s.x * c.y + s.y * c.z + s.z * c.x; }
-    if (type == 1) { return c.x + c.y + c.z; }
-    if (type == 2) { return s.x * s.y * s.z + s.x * c.y * c.z + c.x * s.y * c.z + c.x * c.y * s.z; }
-    if (type == 3) { return 3.0f * (c.x + c.y + c.z) + 4.0f * c.x * c.y * c.z; }
-    float first = accSin(2.0f * q.x) * c.y * s.z + accSin(2.0f * q.y) * c.z * s.x + accSin(2.0f * q.z) * c.x * s.y;
-    float second = accCos(2.0f * q.x) * accCos(2.0f * q.y) + accCos(2.0f * q.y) * accCos(2.0f * q.z)
-        + accCos(2.0f * q.z) * accCos(2.0f * q.x);
-    return 0.5f * first - 0.5f * second + 0.15f;
-}
-
-float tpmsBody(float3 m, float cell, float3 stretch, float thickness, int type, int form, float wallScale) {
-    const float twoPi = 6.28318530717958647692f;
-    float size = max(cell, 0.000001f);
-    float3 u = m / (size * stretch);
-    float3 q = twoPi * (u - floor(u));
-    float core = tpmsRaw(type, q) * size / (twoPi * wallScale);
-    float wall = max(thickness, 0.0f);
-    return form == 0 ? abs(core) - wall * 0.5f : core - wall * 0.5f;
-}
-
-float segmentDistance(float3 p, float3 a, float3 b) {
-    float3 along = b - a;
-    float length2 = dot(along, along);
-    float t = length2 > 0.0f ? clamp(dot(p - a, along) / length2, 0.0f, 1.0f) : 0.0f;
-    return length(p - a - along * t);
-}
-
-float strutBody(int offset, int count, float3 m, float cell, float3 stretch, float radius, float blend) {
-    float size = max(cell, 0.000001f);
-    float3 edges = size * stretch;
-    float3 index = floor(m / edges);
-    float nearest = 1e30f;
-    for (int dz = -1; dz <= 1; dz++) {
-        for (int dy = -1; dy <= 1; dy++) {
-            for (int dx = -1; dx <= 1; dx++) {
-                float3 base = index + float3(float(dx), float(dy), float(dz));
-                for (int s = 0; s < count; s++) {
-                    int at = offset + 6 * s;
-                    float3 start = (base + float3(POOL(at), POOL(at + 1), POOL(at + 2))) * edges;
-                    float3 end = (base + float3(POOL(at + 3), POOL(at + 4), POOL(at + 5))) * edges;
-                    nearest = smoothMin(nearest, segmentDistance(m, start, end), blend);
-                }
-            }
+    func parameter(_ slot: Int) -> String {
+        switch self {
+        case .msl: "e.P[\(slot)]"
+        case .hlsl: "P(\(slot))"
         }
     }
-    float reach = 0.85f * min(edges.x, min(edges.y, edges.z));
-    return min(nearest, reach) - max(radius, 0.0f);
-}
 
-float3 seedAt(int pointsAt, int seed) {
-    return float3(POOL(pointsAt + 3 * seed), POOL(pointsAt + 3 * seed + 1), POOL(pointsAt + 3 * seed + 2));
-}
-
-float voronoiBody(int ioff, int poff, float3 m, float thickness, int form, float strutScale) {
-    int pointsAt = I(ioff), startsAt = I(ioff + 1), entriesAt = I(ioff + 2);
-    int3 counts = int3(I(ioff + 3), I(ioff + 4), I(ioff + 5));
-    float3 origin = PV(poff);
-    float radius = P(poff + 3);
-    float3 cellAt = clamp(floor((m - origin) / radius), float3(-2.0f, -2.0f, -2.0f), float3(counts) + 1.0f);
-    int3 cell = int3(cellAt);
-    float d1 = INFINITY_F, d2 = INFINITY_F, d3 = INFINITY_F;
-    int nearest = -1;
-    for (int dz = -1; dz <= 1; dz++) {
-        int z = cell.z + dz;
-        if (z < 0 || z >= counts.z) { continue; }
-        for (int dy = -1; dy <= 1; dy++) {
-            int y = cell.y + dy;
-            if (y < 0 || y >= counts.y) { continue; }
-            for (int dx = -1; dx <= 1; dx++) {
-                int x = cell.x + dx;
-                if (x < 0 || x >= counts.x) { continue; }
-                int index = (z * counts.y + y) * counts.x + x;
-                for (int k = TABLES(startsAt + index); k < TABLES(startsAt + index + 1); k++) {
-                    int seed = TABLES(entriesAt + k);
-                    float d = length(m - seedAt(pointsAt, seed));
-                    if (d < d1) { d3 = d2; d2 = d1; d1 = d; nearest = seed; }
-                    else if (d < d2) { d3 = d2; d2 = d; }
-                    else if (d < d3) { d3 = d; }
-                }
-            }
+    func integer(_ slot: Int) -> String {
+        switch self {
+        case .msl: "e.I[\(slot)]"
+        case .hlsl: "I(\(slot))"
         }
     }
-    float wall = max(thickness, 0.0f);
-    float body;
-    if (form == 0) {
-        body = (min(d3, radius) - min(d1, radius)) / strutScale - wall * 0.5f;
-    } else {
-        float distance = max(0.0f, (radius - d1) * 0.5f);
-        if (nearest >= 0) {
-            float3 first = seedAt(pointsAt, nearest);
-            for (int dz = -1; dz <= 1; dz++) {
-                int z = cell.z + dz;
-                if (z < 0 || z >= counts.z) { continue; }
-                for (int dy = -1; dy <= 1; dy++) {
-                    int y = cell.y + dy;
-                    if (y < 0 || y >= counts.y) { continue; }
-                    for (int dx = -1; dx <= 1; dx++) {
-                        int x = cell.x + dx;
-                        if (x < 0 || x >= counts.x) { continue; }
-                        int index = (z * counts.y + y) * counts.x + x;
-                        for (int k = TABLES(startsAt + index); k < TABLES(startsAt + index + 1); k++) {
-                            int seed = TABLES(entriesAt + k);
-                            float3 position = seedAt(pointsAt, seed);
-                            float3 across = position - first;
-                            float length2 = length(across);
-                            if (seed == nearest || length2 <= 0.000000001f) { continue; }
-                            distance = min(distance, dot(across, (first + position) * 0.5f - m) / length2);
-                        }
+
+    /// Written first in a library call's arguments.
+    var environment: String {
+        switch self {
+        case .msl: "e, "
+        case .hlsl: ""
+        }
+    }
+}
+```
+In `ImplicitCompiler.Generator` add `var dialect = ShaderDialect.msl` as its first stored property; make `number` return `dialect.parameter(parameters.count - 1)` and `integer` return `dialect.integer(integers.count - 1)`; and in the eight library calls replace the literal `(e, ` with `(\(dialect.environment)`: `bakedValue` (twice, in `solid` and `field`), `strutBody`, `voronoiBody`, `fieldNoise`, `imageValue` (in `ImplicitCompiler.swift`), `mapFace` and `bakedChannel` (in `+Mapping.swift`). Nothing else in the generator changes. Run `swift test --filter "CreatorImplicitTests.HLSLSourceTests/theMetalSourceIsTheOneRecordedBeforeTheDialect"`: PASS (the MSL text is unchanged).
+
+Add to `ImplicitCompiler`:
+```swift
+    /// The same solid in HLSL (plan xp-c): the same walk with the HLSL dialect, so the `sdf` is the Metal one statement for statement and the
+    /// buffers are identical; one source per kernel (`HLSLKernels`).
+    public static func compileHLSL(_ solid: ImplicitSolid) throws(ImplicitCompileError) -> CompiledImplicit {
+        var generator = Generator()
+        generator.dialect = .hlsl
+        let result = try generator.solid(solid, at: "p")
+        let sdf = "float sdf(float3 p) {\n\(generator.lines.joined(separator: "\n"))\n    return \(result);\n}\n"
+        let kernels = HLSLKernels.sources(sdf: sdf)
+        return CompiledImplicit(source: kernels[.evaluate]?.text ?? "", parameters: generator.parameters, integers: generator.integers,
+                                tables: generator.tables, pool: generator.pool, images: generator.images, language: .hlsl, kernels: kernels)
+    }
+```
+
+In `CompiledImplicit.swift` add `public enum ShaderLanguage: Sendable { case msl, hlsl }` (its own file, `Metal/ShaderLanguage.swift`), the stored properties
+```swift
+    /// Which language `source` is in.
+    public let language: ShaderLanguage
+    /// The HLSL kernels' sources (plan xp-c), empty for Metal.
+    public let kernels: [ImplicitKernel: KernelSource]
+```
+and initializer parameters `language: ShaderLanguage = .msl, kernels: [ImplicitKernel: KernelSource] = [:]` set in its body. `ImplicitCompiler.compile`'s call is unchanged.
+
+- [ ] **Step 6: The HLSL library.**
+
+`Sources/CreatorImplicit/HLSL/HLSLKernels.swift` (task 2 adds the meshing kernels):
+```swift
+/// A solid's HLSL kernel sources (plan xp-c): the prelude, then, for a kernel that calls `sdf`, the two packed buffers, the library and the shape's
+/// `sdf`, then the kernel's own buffers and `main`. SDL_GPU compiles one entry point a shader, so where Metal compiles one library a shape, this is one
+/// source a kernel; the kernels that do not call `sdf` have the same text for every shape and the pipeline cache makes them once.
+enum HLSLKernels {
+    static func sources(sdf: String) -> [ImplicitKernel: KernelSource] {
+        let shape = HLSLShaderLibrary.withSDF(sdf)
+        return [.evaluate: KernelSource(kernel: .evaluate, text: HLSLShaderLibrary.prelude + shape + HLSLShaderLibrary.evaluate)]
+    }
+}
+```
+
+`Sources/CreatorImplicit/HLSL/HLSLShaderLibrary.swift`:
+```swift
+/// The HLSL every compiled implicit shares (plan xp-c): the twin of `ImplicitShaderLibrary` (MSL), function for function, with the engine's own
+/// trigonometry (`+Math`) and the lattices (`+Lattices`). Text only: it imports nothing and builds everywhere. The buffers are two globals, `floats`
+/// (the parameters, then the pool, then the pictures) and `ints` (the integer parameters, then the tables), read through `P`, `I`, `POOL`, `IMAGES`
+/// and `TABLES`, so the generated `sdf` names a parameter `P(k)` where Metal's names `e.P[k]`.
+enum HLSLShaderLibrary {
+    /// Every kernel's start: the constants the Swift side shares and the uniform block (`KernelParameters`, word for word).
+    static let prelude = """
+    #define THREADS 64
+    #define EMPTY_KEY 0xFFFFFFFFu
+    #define CUBE_STARTS \(MarchingCubesBuffers.startsOffset)u
+    #define CUBE_LOWER \(MarchingCubesBuffers.lowerCornersOffset)u
+    #define CUBE_UPPER \(MarchingCubesBuffers.upperCornersOffset)u
+    #define CUBE_EDGES \(MarchingCubesBuffers.edgesOffset)u
+    #define BRICK \(BrickPlan.brickSize)u
+    #define SIDE \(BrickPlan.brickSize + 1)u
+    #define CUBES \(BrickPlan.brickSize * BrickPlan.brickSize * BrickPlan.brickSize)u
+    #define POINTS \((BrickPlan.brickSize + 1) * (BrickPlan.brickSize + 1) * (BrickPlan.brickSize + 1))u
+    #define PROBE_LIMIT \(ImplicitMeshShaderLibrary.probeLimit)u
+    #define COUNTER_VERTICES \(ImplicitMeshShaderLibrary.Counter.vertices)u
+    #define COUNTER_TRIANGLE_TOTAL \(ImplicitMeshShaderLibrary.Counter.triangleTotal)u
+    #define COUNTER_TRIANGLE_CURSOR \(ImplicitMeshShaderLibrary.Counter.triangleCursor)u
+    #define COUNTER_OVERFLOW \(ImplicitMeshShaderLibrary.Counter.overflow)u
+    #define INFINITY_F asfloat(0x7F800000u)
+    #define PI_F 3.14159265358979323846f
+    #define HALF_PI_F 1.57079632679489661923f
+    #define QUARTER_PI_F 0.78539816339744830962f
+
+    cbuffer Params : register(b0, space2) {
+        uint gCount;
+        uint gPoolBase;
+        uint gImagesBase;
+        uint gTablesBase;
+        uint gFirstBrick;
+        uint gBrickCount;
+        uint gNX;
+        uint gNY;
+        uint gNZ;
+        uint gMask;
+        uint gSnap;
+        float gResolution;
+        uint gFirstSlot;
+        uint gPadding0;
+        uint gPadding1;
+        uint gPadding2;
+    };
+
+    """
+
+    /// For a kernel that calls `sdf`: the packed buffers (always slots 0 and 1), the library and the shape's `sdf`.
+    static func withSDF(_ sdf: String) -> String {
+        """
+        StructuredBuffer<float> floats : register(t0, space0);
+        StructuredBuffer<int> ints : register(t1, space0);
+
+        """ + math + "\n" + core + "\n" + lattices + "\n" + sdf
+    }
+
+    /// Metal's `evaluateImplicit`: the solid at a batch of points, three floats each.
+    static let evaluate = """
+
+    StructuredBuffer<float> points : register(t2, space0);
+    RWStructuredBuffer<float> values : register(u0, space1);
+
+    [numthreads(64, 1, 1)]
+    void main(uint3 id : SV_DispatchThreadID) {
+        uint index = id.x;
+        if (index >= gCount) { return; }
+        values[index] = sdf(float3(points[3u * index], points[3u * index + 1u], points[3u * index + 2u]));
+    }
+    """
+
+    /// `ImplicitShaderLibrary.core`, ported: primitives, smooth minimum, baked blocks, field maths, simplex noise, pictures.
+    static let core = """
+    // The functions every compiled implicit shares (implicit spec §4.1): a port of ImplicitShaderLibrary.core (the MSL of the Metal engine), each a
+    // line-for-line port of its CPU twin (CPUEvaluation, DistanceBlocks, FieldNoise, GreyImage). The kernel declares `floats` (the parameters, then the
+    // pool, then the pictures) and `ints` (the integer parameters, then the tables) before it includes this; the bases are in Params.
+
+    float P(int k) { return floats[k]; }
+    float3 PV(int k) { return float3(floats[k], floats[k + 1], floats[k + 2]); }
+    int I(int k) { return ints[k]; }
+    int TABLES(int k) { return ints[int(gTablesBase) + k]; }
+    float POOL(int k) { return floats[int(gPoolBase) + k]; }
+    float IMAGES(int k) { return floats[int(gImagesBase) + k]; }
+
+    float smoothMin(float a, float b, float k) {
+        if (!(k > 0.0f)) { return min(a, b); }
+        float blend = max(k - abs(a - b), 0.0f) / k;
+        return min(a, b) - blend * blend * k * 0.25f;
+    }
+
+    float sdBox(float3 p, float3 halfSize, float r) {
+        float3 q = abs(p) - (halfSize - r);
+        return length(max(q, 0.0f)) + min(max(q.x, max(q.y, q.z)), 0.0f) - r;
+    }
+
+    float regionDistance(float3 p, float3 centre, float3 halfSize) {
+        float3 q = abs(p - centre) - halfSize;
+        return length(max(q, 0.0f)) + min(max(q.x, max(q.y, q.z)), 0.0f);
+    }
+
+    float sdCylinder(float3 p, float r, float halfHeight) {
+        float across = length(p.xy) - r;
+        float along = abs(p.z) - halfHeight;
+        return min(max(across, along), 0.0f) + length(max(float2(across, along), 0.0f));
+    }
+
+    // MARK: baked distance blocks (DistanceBlocks)
+
+    float bakedSample(int ioff, int i, int j, int k) {
+        int nx = I(ioff + 3), ny = I(ioff + 4), nz = I(ioff + 5);
+        i = clamp(i, 0, nx * 8 - 1);
+        j = clamp(j, 0, ny * 8 - 1);
+        k = clamp(k, 0, nz * 8 - 1);
+        int block = ((k / 8) * ny + (j / 8)) * nx + (i / 8);
+        int slot = TABLES(I(ioff) + block);
+        if (slot < 0) { return POOL(I(ioff + 2) + block); }
+        return POOL(I(ioff + 1) + slot * 512 + ((k % 8) * 8 + (j % 8)) * 8 + (i % 8));
+    }
+
+    float bakedTrilinear(int ioff, int poff, float3 held) {
+        float3 origin = PV(poff);
+        float spacing = P(poff + 3);
+        float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
+        float3 grid = clamp((held - origin) / spacing, float3(0.0f, 0.0f, 0.0f), last);
+        int ix = int(floor(grid.x)), iy = int(floor(grid.y)), iz = int(floor(grid.z));
+        float tx = grid.x - float(ix), ty = grid.y - float(iy), tz = grid.z - float(iz);
+        float x00 = lerp(bakedSample(ioff, ix, iy, iz), bakedSample(ioff, ix + 1, iy, iz), tx);
+        float x10 = lerp(bakedSample(ioff, ix, iy + 1, iz), bakedSample(ioff, ix + 1, iy + 1, iz), tx);
+        float x01 = lerp(bakedSample(ioff, ix, iy, iz + 1), bakedSample(ioff, ix + 1, iy, iz + 1), tx);
+        float x11 = lerp(bakedSample(ioff, ix, iy + 1, iz + 1), bakedSample(ioff, ix + 1, iy + 1, iz + 1), tx);
+        return lerp(lerp(x00, x10, ty), lerp(x01, x11, ty), tz);
+    }
+
+    float bakedValue(int ioff, int poff, float3 point) {
+        float3 origin = PV(poff);
+        float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
+        float3 held = clamp(point, origin, origin + last * P(poff + 3));
+        return bakedTrilinear(ioff, poff, held) + length(point - held);
+    }
+
+    float bakedChannel(int ioff, int poff, float3 point) {
+        float3 origin = PV(poff);
+        float3 last = float3(I(ioff + 3) * 8 - 1, I(ioff + 4) * 8 - 1, I(ioff + 5) * 8 - 1);
+        return bakedTrilinear(ioff, poff, clamp(point, origin, origin + last * P(poff + 3)));
+    }
+
+    // MARK: field maths
+
+    float remapField(float x, float fromLow, float fromHigh, float toLow, float toHigh, int clamped) {
+        if (fromHigh == fromLow) { return toLow; }
+        float mapped = toLow + (x - fromLow) / (fromHigh - fromLow) * (toHigh - toLow);
+        if (clamped == 0) { return mapped; }
+        return min(max(mapped, min(toLow, toHigh)), max(toLow, toHigh));
+    }
+
+    // MARK: simplex noise (FieldNoise)
+
+    static const float3 noiseGradients[12] = {
+        float3(1, 1, 0), float3(-1, 1, 0), float3(1, -1, 0), float3(-1, -1, 0), float3(1, 0, 1), float3(-1, 0, 1),
+        float3(1, 0, -1), float3(-1, 0, -1), float3(0, 1, 1), float3(0, -1, 1), float3(0, 1, -1), float3(0, -1, -1)
+    };
+
+    static const int3 noiseCorners[24] = {
+        int3(0, 0, 0), int3(1, 0, 0), int3(1, 1, 0), int3(1, 1, 1),
+        int3(0, 0, 0), int3(1, 0, 0), int3(1, 0, 1), int3(1, 1, 1),
+        int3(0, 0, 0), int3(0, 0, 1), int3(1, 0, 1), int3(1, 1, 1),
+        int3(0, 0, 0), int3(0, 0, 1), int3(0, 1, 1), int3(1, 1, 1),
+        int3(0, 0, 0), int3(0, 1, 0), int3(0, 1, 1), int3(1, 1, 1),
+        int3(0, 0, 0), int3(0, 1, 0), int3(1, 1, 0), int3(1, 1, 1)
+    };
+
+    U64 mix64(U64 value) {
+        U64 z = value;
+        z = u64Mul(u64Xor(z, u64Shr(z, 30u)), u64(0xBF58476Du, 0x1CE4E5B9u));
+        z = u64Mul(u64Xor(z, u64Shr(z, 27u)), u64(0x94D049BBu, 0x133111EBu));
+        return u64Xor(z, u64Shr(z, 31u));
+    }
+
+    float3 noiseGradient(int i, int j, int k, U64 start) {
+        U64 packed = u64Or(u64Or(u64Shl(u64(0u, asuint(i) & 0x1FFFFFu), 42u), u64Shl(u64(0u, asuint(j) & 0x1FFFFFu), 21u)),
+                           u64(0u, asuint(k) & 0x1FFFFFu));
+        U64 draw = mix64(u64Add(start, u64Mul(u64Add(packed, u64(0u, 1u)), u64(0x9E3779B9u, 0x7F4A7C15u))));
+        return noiseGradients[u64Shr(draw, 33u).lo % 12u];
+    }
+
+    float simplexOctave(float x, float y, float z, U64 start) {
+        float skewed = (x + y + z) * (1.0f / 3.0f);
+        int i = int(floor(x + skewed)), j = int(floor(y + skewed)), k = int(floor(z + skewed));
+        float back = float(i + j + k) * (1.0f / 6.0f);
+        float x0 = x - (float(i) - back), y0 = y - (float(j) - back), z0 = z - (float(k) - back);
+        int ordering;
+        if (x0 >= y0) {
+            ordering = y0 >= z0 ? 0 : (x0 >= z0 ? 1 : 2);
+        } else {
+            ordering = y0 < z0 ? 3 : (x0 < z0 ? 4 : 5);
+        }
+        float sum = 0.0f;
+        for (int step = 0; step < 4; step++) {
+            int3 corner = noiseCorners[ordering * 4 + step];
+            float shift = float(step) * (1.0f / 6.0f);
+            float dx = x0 - float(corner.x) + shift, dy = y0 - float(corner.y) + shift, dz = z0 - float(corner.z) + shift;
+            float falloff = 0.6f - dx * dx - dy * dy - dz * dz;
+            if (falloff <= 0.0f) { continue; }
+            float3 gradient = noiseGradient(i + corner.x, j + corner.y, k + corner.z, start);
+            float weight = falloff * falloff;
+            sum += weight * weight * dot(gradient, float3(dx, dy, dz));
+        }
+        return 32.0f * sum;
+    }
+
+    float fieldNoise(float3 p, float scale, int octaves, int seeds) {
+        float sum = 0.0f, total = 0.0f, amplitude = 1.0f, size = scale;
+        for (int octave = 0; octave < octaves; octave++) {
+            U64 start = u64(asuint(TABLES(seeds + 2 * octave + 1)), asuint(TABLES(seeds + 2 * octave)));
+            sum += amplitude * simplexOctave(p.x / size, p.y / size, p.z / size, start);
+            total += amplitude;
+            amplitude *= 0.5f;
+            size *= 0.5f;
+        }
+        return clamp((sum / total + 1.0f) / 2.0f, 0.0f, 1.0f);
+    }
+
+    // MARK: pictures (GreyImage)
+
+    void imageTaps(float position, int count, int edges, out int low, out int high, out float fraction) {
+        float size = float(count);
+        float held;
+        if (edges == 0) {
+            float folded = position - floor(position / size) * size;
+            held = min(max(folded, 0.0f), asfloat(asuint(size) - 1u));
+            low = int(floor(held));
+            high = (low + 1) % count;
+        } else {
+            held = min(max(position, 0.0f), size - 1.0f);
+            low = int(floor(held));
+            high = min(low + 1, count - 1);
+        }
+        fraction = held - float(low);
+    }
+
+    float imageValue(int ioff, float u, float v) {
+        int offset = I(ioff), width = I(ioff + 1), height = I(ioff + 2), edges = I(ioff + 3);
+        float x = u * float(width) - 0.5f, y = v * float(height) - 0.5f;
+        if (!isfinite(x) || !isfinite(y)) { return 0.0f; }
+        int cl, ch, rl, rh;
+        float cf, rf;
+        imageTaps(x, width, edges, cl, ch, cf);
+        imageTaps(y, height, edges, rl, rh, rf);
+        float top = lerp(IMAGES(offset + rl * width + cl), IMAGES(offset + rl * width + ch), cf);
+        float bottom = lerp(IMAGES(offset + rh * width + cl), IMAGES(offset + rh * width + ch), cf);
+        return lerp(top, bottom, rf) / 65535.0f;
+    }
+    """
+}
+```
+
+`Sources/CreatorImplicit/HLSL/HLSLShaderLibrary+Math.swift`:
+```swift
+/// Sine, cosine and arctangent to about one ulp on every driver, and unsigned 64-bit arithmetic in two words (plan xp-c, X-C6). Metal's engine uses
+/// `precise::` and `ulong`; Vulkan promises only an absolute 2^-11 for `sin`, and `uint64_t` needs a device feature SDL_GPU does not report. The
+/// reduction is Cody-Waite in three parts of pi/2; the polynomials are Cephes' sinf, cosf and atanf (Stephen L. Moshier, public domain).
+extension HLSLShaderLibrary {
+    static let math = """
+    // Sine, cosine and arctangent to about one ulp on every driver (plan xp-c, user decision X-C6). Vulkan promises only an absolute 2^-11 for sin on
+    // [-pi, pi] and Direct3D says less, while a TPMS wall is scaled by cell / 2pi: 2^-11 would be about 4e-4 mm at a 5 mm cell, against the 1e-4 mm the
+    // GPU is held to. The reduction is Cody-Waite in three parts of pi/2 (the first two exact in a float product for |q| < 2^15); the polynomials are
+    // Cephes' sinf, cosf and atanf (Stephen L. Moshier, public domain). The arguments the lattices give are under 13 (tpmsRaw's 2q), far inside that.
+
+    void reduceQuarter(float x, out float y, out int quadrant) {
+        float q = round(x * 0.636619772367581343f);
+        y = ((x - q * 1.5703125f) - q * 4.837512969970703125e-4f) - q * 7.54978995489188216e-8f;
+        quadrant = int(q);
+    }
+
+    float sinPolynomial(float y) {
+        float z = y * y;
+        return ((-1.9515295891e-4f * z + 8.3321608736e-3f) * z - 1.6666654611e-1f) * z * y + y;
+    }
+
+    float cosPolynomial(float y) {
+        float z = y * y;
+        return ((2.443315711809948e-5f * z - 1.388731625493765e-3f) * z + 4.166664568298827e-2f) * z * z - 0.5f * z + 1.0f;
+    }
+
+    float accSin(float x) {
+        float y;
+        int quadrant;
+        reduceQuarter(x, y, quadrant);
+        float s = sinPolynomial(y), c = cosPolynomial(y);
+        int k = quadrant & 3;
+        return k == 0 ? s : (k == 1 ? c : (k == 2 ? -s : -c));
+    }
+
+    float accCos(float x) {
+        float y;
+        int quadrant;
+        reduceQuarter(x, y, quadrant);
+        float s = sinPolynomial(y), c = cosPolynomial(y);
+        int k = quadrant & 3;
+        return k == 0 ? c : (k == 1 ? -s : (k == 2 ? -c : s));
+    }
+
+    float3 accSin3(float3 v) { return float3(accSin(v.x), accSin(v.y), accSin(v.z)); }
+    float3 accCos3(float3 v) { return float3(accCos(v.x), accCos(v.y), accCos(v.z)); }
+
+    float accAtan(float x) {
+        float sign = x < 0.0f ? -1.0f : 1.0f;
+        float t = abs(x);
+        float offset = 0.0f;
+        if (t > 2.414213562373095f) {
+            offset = HALF_PI_F;
+            t = -1.0f / t;
+        } else if (t > 0.4142135623730950f) {
+            offset = QUARTER_PI_F;
+            t = (t - 1.0f) / (t + 1.0f);
+        }
+        float z = t * t;
+        return sign * (offset + ((((8.05374449538e-2f * z - 1.38776856032e-1f) * z + 1.99777106478e-1f) * z - 3.33329491539e-1f) * z * t + t));
+    }
+
+    // atan2 as IEEE 754 and the CPU's Double have it, signed zeros included: atan2(+0, -1) = pi, atan2(-0, -1) = -pi, atan2(+-0, +0) = +-0.
+    float accAtan2(float y, float x) {
+        bool yNegative = (asuint(y) & 0x80000000u) != 0u;
+        bool xNegative = (asuint(x) & 0x80000000u) != 0u;
+        if (x == 0.0f) {
+            if (y == 0.0f) { return xNegative ? (yNegative ? -PI_F : PI_F) : y; }
+            return yNegative ? -HALF_PI_F : HALF_PI_F;
+        }
+        float angle = accAtan(y / x);
+        if (xNegative) { angle += yNegative ? -PI_F : PI_F; }
+        return angle;
+    }
+
+    // Unsigned 64-bit arithmetic in two 32-bit words (plan xp-c, user decision X-C6): the noise's SplitMix64 hash needs it, and uint64_t needs a device
+    // feature (shaderInt64) SDL_GPU neither enables nor reports. Exact, so a draw is bit for bit FieldNoise's on the CPU.
+
+    struct U64 {
+        uint hi;
+        uint lo;
+    };
+
+    U64 u64(uint hi, uint lo) {
+        U64 value;
+        value.hi = hi;
+        value.lo = lo;
+        return value;
+    }
+
+    U64 u64Add(U64 a, U64 b) {
+        uint lo = a.lo + b.lo;
+        return u64(a.hi + b.hi + (lo < a.lo ? 1u : 0u), lo);
+    }
+
+    U64 u64Xor(U64 a, U64 b) { return u64(a.hi ^ b.hi, a.lo ^ b.lo); }
+    U64 u64Or(U64 a, U64 b) { return u64(a.hi | b.hi, a.lo | b.lo); }
+
+    // 0 < shift < 64.
+    U64 u64Shr(U64 a, uint shift) {
+        if (shift >= 32u) { return u64(0u, a.hi >> (shift - 32u)); }
+        return u64(a.hi >> shift, (a.lo >> shift) | (a.hi << (32u - shift)));
+    }
+
+    U64 u64Shl(U64 a, uint shift) {
+        if (shift >= 32u) { return u64(a.lo << (shift - 32u), 0u); }
+        return u64((a.hi << shift) | (a.lo >> (32u - shift)), a.lo << shift);
+    }
+
+    // The full 64-bit product of two 32-bit words, by 16-bit halves.
+    U64 u64Product(uint a, uint b) {
+        uint a0 = a & 0xFFFFu, a1 = a >> 16, b0 = b & 0xFFFFu, b1 = b >> 16;
+        uint p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
+        uint middle = (p00 >> 16) + (p01 & 0xFFFFu) + (p10 & 0xFFFFu);
+        return u64(p11 + (p01 >> 16) + (p10 >> 16) + (middle >> 16), (p00 & 0xFFFFu) | (middle << 16));
+    }
+
+    // The low 64 bits of a 64 x 64 product, as UInt64's &* wraps.
+    U64 u64Mul(U64 a, U64 b) {
+        U64 low = u64Product(a.lo, b.lo);
+        return u64(low.hi + a.hi * b.lo + a.lo * b.hi, low.lo);
+    }
+    """
+}
+```
+
+`Sources/CreatorImplicit/HLSL/HLSLShaderLibrary+Lattices.swift`:
+```swift
+/// `ImplicitShaderLibrary.lattices`, ported (implicit spec §3.4, §3.5): TPMS, struts, Voronoi and the mappings, trigonometry through `accSin`,
+/// `accCos` and `accAtan2`.
+extension HLSLShaderLibrary {
+    static let lattices = """
+    // The lattices and their mappings (implicit spec §3.4, §3.5): a port of ImplicitShaderLibrary.lattices, trigonometry through accurate_math.hlsli.
+
+    float tpmsRaw(int type, float3 q) {
+        float3 s = accSin3(q), c = accCos3(q);
+        if (type == 0) { return s.x * c.y + s.y * c.z + s.z * c.x; }
+        if (type == 1) { return c.x + c.y + c.z; }
+        if (type == 2) { return s.x * s.y * s.z + s.x * c.y * c.z + c.x * s.y * c.z + c.x * c.y * s.z; }
+        if (type == 3) { return 3.0f * (c.x + c.y + c.z) + 4.0f * c.x * c.y * c.z; }
+        float first = accSin(2.0f * q.x) * c.y * s.z + accSin(2.0f * q.y) * c.z * s.x + accSin(2.0f * q.z) * c.x * s.y;
+        float second = accCos(2.0f * q.x) * accCos(2.0f * q.y) + accCos(2.0f * q.y) * accCos(2.0f * q.z)
+            + accCos(2.0f * q.z) * accCos(2.0f * q.x);
+        return 0.5f * first - 0.5f * second + 0.15f;
+    }
+
+    float tpmsBody(float3 m, float cell, float3 stretch, float thickness, int type, int form, float wallScale) {
+        const float twoPi = 6.28318530717958647692f;
+        float size = max(cell, 0.000001f);
+        float3 u = m / (size * stretch);
+        float3 q = twoPi * (u - floor(u));
+        float core = tpmsRaw(type, q) * size / (twoPi * wallScale);
+        float wall = max(thickness, 0.0f);
+        return form == 0 ? abs(core) - wall * 0.5f : core - wall * 0.5f;
+    }
+
+    float segmentDistance(float3 p, float3 a, float3 b) {
+        float3 along = b - a;
+        float length2 = dot(along, along);
+        float t = length2 > 0.0f ? clamp(dot(p - a, along) / length2, 0.0f, 1.0f) : 0.0f;
+        return length(p - a - along * t);
+    }
+
+    float strutBody(int offset, int count, float3 m, float cell, float3 stretch, float radius, float blend) {
+        float size = max(cell, 0.000001f);
+        float3 edges = size * stretch;
+        float3 index = floor(m / edges);
+        float nearest = 1e30f;
+        for (int dz = -1; dz <= 1; dz++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    float3 base = index + float3(float(dx), float(dy), float(dz));
+                    for (int s = 0; s < count; s++) {
+                        int at = offset + 6 * s;
+                        float3 start = (base + float3(POOL(at), POOL(at + 1), POOL(at + 2))) * edges;
+                        float3 end = (base + float3(POOL(at + 3), POOL(at + 4), POOL(at + 5))) * edges;
+                        nearest = smoothMin(nearest, segmentDistance(m, start, end), blend);
                     }
                 }
             }
         }
-        body = distance - wall * 0.5f;
+        float reach = 0.85f * min(edges.x, min(edges.y, edges.z));
+        return min(nearest, reach) - max(radius, 0.0f);
     }
-    return body;
-}
 
-float3 mapCylindrical(float3 p, float3 origin, float3 reference, float3 side, float3 axis, float radius) {
-    float3 offset = p - origin;
-    float x = dot(offset, reference), y = dot(offset, side);
-    return float3(accAtan2(y, x) * radius, dot(offset, axis), sqrt(x * x + y * y));
-}
+    float3 seedAt(int pointsAt, int seed) {
+        return float3(POOL(pointsAt + 3 * seed), POOL(pointsAt + 3 * seed + 1), POOL(pointsAt + 3 * seed + 2));
+    }
 
-float singularCylindrical(float3 p, float3 origin, float3 reference, float3 side) {
-    float3 offset = p - origin;
-    float x = dot(offset, reference), y = dot(offset, side);
-    return sqrt(x * x + y * y);
-}
-
-float3 mapSpherical(float3 p, float3 centre, float radius) {
-    float3 offset = p - centre;
-    float across = sqrt(offset.x * offset.x + offset.y * offset.y);
-    return float3(accAtan2(offset.y, offset.x) * radius, accAtan2(offset.z, across) * radius, length(offset));
-}
-
-float singularSpherical(float3 p, float3 centre) {
-    float3 offset = p - centre;
-    return sqrt(offset.x * offset.x + offset.y * offset.y);
-}
-
-float3 mapFace(int h, float3 p, float firstRadius, float secondRadius) {
-    int flags = I(h);
-    float a = bakedChannel(I(h + 1), I(h + 2), p);
-    if ((flags & 1) != 0) { a = accAtan2(bakedChannel(I(h + 3), I(h + 4), p), a) * firstRadius; }
-    float b = bakedChannel(I(h + 5), I(h + 6), p);
-    if ((flags & 2) != 0) { b = accAtan2(bakedChannel(I(h + 7), I(h + 8), p), b) * secondRadius; }
-    return float3(a, b, bakedChannel(I(h + 9), I(h + 10), p));
-}
-
-float mappingJoin(float body, float singular, float exclusion, float fade) {
-    float weight = clamp((singular - exclusion) / fade, 0.0f, 1.0f);
-    float solid = singular - exclusion;
-    if (weight >= 1.0f) { return body; }
-    return weight <= 0.0f ? solid : weight * body + (1.0f - weight) * solid;
-}
-
-#endif
-```
-Before writing these two files, open `ImplicitShaderLibrary.swift` and `ImplicitShaderLibrary+Lattices.swift` on the branch and compare function by function: if a 7c follow-up changed one since this plan was written, port the current text.
-
-- [ ] **Step 6: Write the interpreter and the evaluation kernel.**
-
-`Shaders/implicit/interpreter.hlsli`:
-```hlsl
-// The interpreter of ImplicitProgram (plan xp-c, implicit spec erratum D21): the solid's signed distance at p. The kernel declares `program` (the
-// words), `floats` and `ints` before it includes this. One case per ImplicitOp; each reads all its operands before the result is written, because
-// the compiler reuses an operand's register for the result. An operand x >= 0 is a register, x < 0 the float parameter at -x - 1; the clamps keep a
-// malformed program inside the arrays and buffers (it computes nonsense, it never reads out of bounds).
-#ifndef IMPLICIT_INTERPRETER
-#define IMPLICIT_INTERPRETER
-
-#define S(x) ((x) >= 0 ? r[min((x), MAX_SCALARS - 1)] : P(max(-(x) - 1, 0)))
-#define V(x) ((x) >= 0 ? v[min((x), MAX_VECTORS - 1)] : PV(max(-(x) - 1, 0)))
-
-float sdf(float3 p) {
-    float r[MAX_SCALARS];
-    float3 v[MAX_VECTORS];
-    for (int clearing = 0; clearing < MAX_VECTORS; clearing++) { v[clearing] = float3(0.0f, 0.0f, 0.0f); }
-    for (int zeroing = 0; zeroing < MAX_SCALARS; zeroing++) { r[zeroing] = 0.0f; }
-    v[0] = p;
-    for (uint pc = 0u; pc < gInstructions; ++pc) {
-        uint at = pc * INSTRUCTION_WORDS;
-        int op = program[at], d = program[at + 1u];
-        int o0 = program[at + 2u], o1 = program[at + 3u], o2 = program[at + 4u];
-        int o3 = program[at + 5u], o4 = program[at + 6u], o5 = program[at + 7u];
-        float x = 0.0f;
-        float3 w = float3(0.0f, 0.0f, 0.0f);
-        bool isVector = false;
-        switch (op) {
-        case OP_CONSTANT: x = asfloat(o0); break;
-        case OP_SPHERE: x = length(V(o0)) - S(o1); break;
-        case OP_BOX: x = sdBox(V(o0), V(o1), S(o2)); break;
-        case OP_CYLINDER: x = sdCylinder(V(o0), S(o1), S(o2)); break;
-        case OP_MOVE: {
-            float3 q = V(o0) - V(o1);
-            w = float3(dot(q, V(o2)), dot(q, V(o3)), dot(q, V(o4)));
-            isVector = true;
-            break;
+    float voronoiBody(int ioff, int poff, float3 m, float thickness, int form, float strutScale) {
+        int pointsAt = I(ioff), startsAt = I(ioff + 1), entriesAt = I(ioff + 2);
+        int3 counts = int3(I(ioff + 3), I(ioff + 4), I(ioff + 5));
+        float3 origin = PV(poff);
+        float radius = P(poff + 3);
+        float3 cellAt = clamp(floor((m - origin) / radius), float3(-2.0f, -2.0f, -2.0f), float3(counts) + 1.0f);
+        int3 cell = int3(cellAt);
+        float d1 = INFINITY_F, d2 = INFINITY_F, d3 = INFINITY_F;
+        int nearest = -1;
+        for (int dz = -1; dz <= 1; dz++) {
+            int z = cell.z + dz;
+            if (z < 0 || z >= counts.z) { continue; }
+            for (int dy = -1; dy <= 1; dy++) {
+                int y = cell.y + dy;
+                if (y < 0 || y >= counts.y) { continue; }
+                for (int dx = -1; dx <= 1; dx++) {
+                    int x = cell.x + dx;
+                    if (x < 0 || x >= counts.x) { continue; }
+                    int index = (z * counts.y + y) * counts.x + x;
+                    for (int k = TABLES(startsAt + index); k < TABLES(startsAt + index + 1); k++) {
+                        int seed = TABLES(entriesAt + k);
+                        float d = length(m - seedAt(pointsAt, seed));
+                        if (d < d1) { d3 = d2; d2 = d1; d1 = d; nearest = seed; }
+                        else if (d < d2) { d3 = d2; d2 = d; }
+                        else if (d < d3) { d3 = d; }
+                    }
+                }
+            }
         }
-        case OP_POSITIVE: x = max(0.0f, S(o0)); break;
-        case OP_SMOOTH_UNION: x = smoothMin(S(o0), S(o1), S(o2)); break;
-        case OP_SMOOTH_INTERSECT: x = -smoothMin(-S(o0), -S(o1), S(o2)); break;
-        case OP_SMOOTH_SUBTRACT: x = -smoothMin(-S(o0), S(o1), S(o2)); break;
-        case OP_DIFFERENCE: x = S(o0) - S(o1); break;
-        case OP_SHELL: {
-            float inner = S(o0), wall = S(o1);
-            int side = I(o2);
-            float centre = side == 0 ? -wall / 2.0f : (side == 1 ? wall / 2.0f : 0.0f);
-            x = abs(inner - centre) - wall / 2.0f;
-            break;
-        }
-        case OP_BAKED: x = bakedValue(o0, o1, V(o2)); break;
-        case OP_ISOSURFACE: x = max((S(o0) - S(o1)) / S(o2), regionDistance(V(o3), V(o4), V(o5))); break;
-        case OP_TPMS: x = tpmsBody(V(o0), S(o1), V(o2), S(o3), I(o4), I(o4 + 1), S(o5)); break;
-        case OP_STRUTS: x = strutBody(I(o0), I(o0 + 1), V(o1), S(o2), V(o3), S(o4), S(o5)); break;
-        case OP_VORONOI: x = voronoiBody(o0, o1, V(o2), S(o3), I(o4), S(o5)); break;
-        case OP_MAP_CYLINDRICAL: w = mapCylindrical(V(o0), V(o1), V(o2), V(o3), V(o4), S(o5)); isVector = true; break;
-        case OP_SINGULAR_CYLINDRICAL: x = singularCylindrical(V(o0), V(o1), V(o2), V(o3)); break;
-        case OP_MAP_SPHERICAL: w = mapSpherical(V(o0), V(o1), S(o2)); isVector = true; break;
-        case OP_SINGULAR_SPHERICAL: x = singularSpherical(V(o0), V(o1)); break;
-        case OP_MAP_FACE: w = mapFace(o0, V(o1), S(o2), S(o3)); isVector = true; break;
-        case OP_BAKED_CHANNEL: x = bakedChannel(o0, o1, V(o2)); break;
-        case OP_MAPPING_JOIN: x = mappingJoin(S(o0), S(o1), S(o2), S(o3)); break;
-        case OP_REGION: x = max(S(o0), regionDistance(V(o1), V(o2), V(o3))); break;
-        case OP_POINT_DISTANCE: x = length(V(o0) - V(o1)); break;
-        case OP_LINEAR: x = dot(V(o0) - V(o1), V(o2)) / S(o3); break;
-        case OP_RADIAL: x = length(V(o0) - V(o1)) / S(o2); break;
-        case OP_NOISE: x = fieldNoise(V(o0), S(o1), I(o2), I(o2 + 1)); break;
-        case OP_VECTOR_DIFFERENCE: w = V(o0) - V(o1); isVector = true; break;
-        case OP_IMAGE: {
-            float3 offset = V(o0);
-            x = imageValue(o5, dot(offset, V(o1)) / S(o3) + 0.5f, 0.5f - dot(offset, V(o2)) / S(o4));
-            break;
-        }
-        case OP_ADD: x = S(o0) + S(o1); break;
-        case OP_MULTIPLY: x = S(o0) * S(o1); break;
-        case OP_MINIMUM: x = min(S(o0), S(o1)); break;
-        case OP_MAXIMUM: x = max(S(o0), S(o1)); break;
-        case OP_REMAP: x = remapField(S(o0), S(o1), S(o2), S(o3), S(o4), I(o5)); break;
-        case OP_CLAMP: x = min(max(S(o0), S(o1)), S(o2)); break;
-        case OP_RESULT: return S(o0);
-        default: return 0.0f;
-        }
-        if (isVector) {
-            v[clamp(d, 0, MAX_VECTORS - 1)] = w;
+        float wall = max(thickness, 0.0f);
+        float body;
+        if (form == 0) {
+            body = (min(d3, radius) - min(d1, radius)) / strutScale - wall * 0.5f;
         } else {
-            r[clamp(d, 0, MAX_SCALARS - 1)] = x;
+            float distance = max(0.0f, (radius - d1) * 0.5f);
+            if (nearest >= 0) {
+                float3 first = seedAt(pointsAt, nearest);
+                for (int dz = -1; dz <= 1; dz++) {
+                    int z = cell.z + dz;
+                    if (z < 0 || z >= counts.z) { continue; }
+                    for (int dy = -1; dy <= 1; dy++) {
+                        int y = cell.y + dy;
+                        if (y < 0 || y >= counts.y) { continue; }
+                        for (int dx = -1; dx <= 1; dx++) {
+                            int x = cell.x + dx;
+                            if (x < 0 || x >= counts.x) { continue; }
+                            int index = (z * counts.y + y) * counts.x + x;
+                            for (int k = TABLES(startsAt + index); k < TABLES(startsAt + index + 1); k++) {
+                                int seed = TABLES(entriesAt + k);
+                                float3 position = seedAt(pointsAt, seed);
+                                float3 across = position - first;
+                                float length2 = length(across);
+                                if (seed == nearest || length2 <= 0.000000001f) { continue; }
+                                distance = min(distance, dot(across, (first + position) * 0.5f - m) / length2);
+                            }
+                        }
+                    }
+                }
+            }
+            body = distance - wall * 0.5f;
         }
+        return body;
     }
-    return 0.0f;
-}
 
-#endif
-```
-
-`Shaders/implicit/implicit_evaluate.comp.hlsl`:
-```hlsl
-// Evaluates a compiled solid at a batch of points (implicit spec §4.1; the Metal engine's evaluateImplicit): points as three floats each.
-#include "contract.hlsli"
-
-StructuredBuffer<float> points : register(t0, space0);
-StructuredBuffer<int> program : register(t1, space0);
-StructuredBuffer<float> floats : register(t2, space0);
-StructuredBuffer<int> ints : register(t3, space0);
-RWStructuredBuffer<float> values : register(u0, space1);
-
-#include "accurate_math.hlsli"
-#include "wide_integer.hlsli"
-#include "library.hlsli"
-#include "lattices.hlsli"
-#include "interpreter.hlsli"
-
-[numthreads(THREADS, 1, 1)]
-void main(uint3 id : SV_DispatchThreadID) {
-    uint index = id.x;
-    if (index >= gCount) { return; }
-    values[index] = sdf(float3(points[3u * index], points[3u * index + 1u], points[3u * index + 2u]));
-}
-```
-
-- [ ] **Step 7: Compile every shader set, not only the viewport's.**
-
-In `scripts/build-shaders.sh`, replace everything from the line `cd Shaders/viewport` to the end of the file with:
-```bash
-shopt -s nullglob
-# sha256sum's "<sha256>  <name>" lines for the named files, sorted bytewise by name: the format of MetalUI's SOURCE.sha256
-# (SourceMarker.swift), so the same function says whether a directory is current and writes INCLUDES.sha256.
-digests() {
-    [ "$#" -gt 0 ] || return 0
-    local name
-    while read -r name; do sha256sum "$name"; done < <(printf '%s\n' "$@" | LC_ALL=C sort)
-}
-
-# Compiles Shaders/$1 into Shaders/$1/compiled, or leaves it when current. Every directory of Shaders/ is a set: viewport (xp-3) and implicit
-# (xp-c, the implicit engine's compute kernels).
-build_set() {
-    local set=$1
-    cd "$ROOT/Shaders/$set"
-    local stages=(*.vert.hlsl *.frag.hlsl *.comp.hlsl)
-    local headers=(*.hlsli)
-    [ "${#stages[@]}" -gt 0 ] || fail 1 "no NAME.vert.hlsl, NAME.frag.hlsl or NAME.comp.hlsl in Shaders/$set."
-    local current=1 stage kind
-    if [ -f compiled/SOURCE.sha256 ] && [ -f compiled/INCLUDES.sha256 ] \
-        && [ "$(digests "${stages[@]}")" = "$(cat compiled/SOURCE.sha256)" ] \
-        && [ "$(digests "${headers[@]}")" = "$(cat compiled/INCLUDES.sha256)" ]; then
-        for stage in "${stages[@]}"; do
-            for kind in spv msl dxil json; do [ -s "compiled/${stage%.hlsl}.$kind" ] || current=0; done
-        done
-    else
-        current=0
-    fi
-    if [ "$current" = 1 ]; then
-        echo "Shaders/$set/compiled is current."
-        return 0
-    fi
-    rm -rf compiled
-    echo "Compiling Shaders/$set with MetalUI's MetalUICompileShaders and $TOOL..."
-    if ! swift run --package-path "$METALUI" --scratch-path "$SCRATCH" MetalUICompileShaders \
-            --shadercross "$SHADERCROSS" --source "$ROOT/Shaders/$set" --out "$ROOT/Shaders/$set/compiled"; then
-        rm -rf compiled
-        fail 1 "$TOOL failed to compile a shader of Shaders/$set, or MetalUICompileShaders did not build (the lines above name the file and the complaint). Shaders/$set/compiled was removed."
-    fi
-    digests "${headers[@]}" > compiled/INCLUDES.sha256
-    echo "Built Shaders/$set/compiled ($(find compiled -type f | wc -l | tr -d ' ') files)."
-}
-
-for set in viewport implicit; do build_set "$set"; done
-```
-and in its header comment change "Compiles the viewport's SDL_GPU shaders" to "Compiles the app's SDL_GPU shaders, every set in Shaders/ (the viewport's, xp-3, and the implicit engine's compute kernels, xp-c)", and "the HLSL in Shaders/viewport becomes" to "the HLSL in Shaders/<set> becomes … in Shaders/<set>/compiled". The set list is written out (not globbed) so a stray directory is not compiled.
-
-In `scripts/build-shaders.ps1`, replace everything from the line `$source = Join-Path $root 'Shaders\viewport'` to the end with:
-```powershell
-# Every directory of Shaders\ is a set: viewport (xp-3) and implicit (xp-c, the implicit engine's compute kernels).
-foreach ($set in @('viewport', 'implicit')) {
-    $source = Join-Path $root "Shaders\$set"
-    $out = Join-Path $source 'compiled'
-    if (Test-Path $out) { Remove-Item $out -Recurse -Force }
-    Write-Output "Compiling Shaders\$set with MetalUI's MetalUICompileShaders and $tool..."
-    # Run from the shader directory, as build-shaders.sh does: shadercross hands DXC the source as "hlsl.hlsl" with no include path, so
-    # `#include "contract.hlsli"` resolves against the working directory.
-    Push-Location $source
-    try {
-        swift run --package-path $metalUI --scratch-path $scratch MetalUICompileShaders --shadercross $ShaderCross --source $source --out $out
-    } finally {
-        Pop-Location
+    float3 mapCylindrical(float3 p, float3 origin, float3 reference, float3 side, float3 axis, float radius) {
+        float3 offset = p - origin;
+        float x = dot(offset, reference), y = dot(offset, side);
+        return float3(accAtan2(y, x) * radius, dot(offset, axis), sqrt(x * x + y * y));
     }
-    if ($LASTEXITCODE) {
-        if (Test-Path $out) { Remove-Item $out -Recurse -Force }
-        Stop-Build 1 "$tool failed to compile a shader of Shaders\$set, or MetalUICompileShaders did not build (the lines above name the file). Shaders\$set\compiled was removed."
+
+    float singularCylindrical(float3 p, float3 origin, float3 reference, float3 side) {
+        float3 offset = p - origin;
+        float x = dot(offset, reference), y = dot(offset, side);
+        return sqrt(x * x + y * y);
     }
-    # INCLUDES.sha256 in MetalUI's marker format: "<sha256>  <name>" per header, sorted by name, LF (the tests read it as a table).
-    $lines = Get-ChildItem (Join-Path $source '*.hlsli') | Sort-Object Name | ForEach-Object {
-        "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)"
+
+    float3 mapSpherical(float3 p, float3 centre, float radius) {
+        float3 offset = p - centre;
+        float across = sqrt(offset.x * offset.x + offset.y * offset.y);
+        return float3(accAtan2(offset.y, offset.x) * radius, accAtan2(offset.z, across) * radius, length(offset));
     }
-    [IO.File]::WriteAllText((Join-Path $out 'INCLUDES.sha256'), (($lines -join "`n") + "`n"))
-    Write-Output "Built Shaders\$set\compiled ($((Get-ChildItem $out -File).Count) files)."
+
+    float singularSpherical(float3 p, float3 centre) {
+        float3 offset = p - centre;
+        return sqrt(offset.x * offset.x + offset.y * offset.y);
+    }
+
+    float3 mapFace(int h, float3 p, float firstRadius, float secondRadius) {
+        int flags = I(h);
+        float a = bakedChannel(I(h + 1), I(h + 2), p);
+        if ((flags & 1) != 0) { a = accAtan2(bakedChannel(I(h + 3), I(h + 4), p), a) * firstRadius; }
+        float b = bakedChannel(I(h + 5), I(h + 6), p);
+        if ((flags & 2) != 0) { b = accAtan2(bakedChannel(I(h + 7), I(h + 8), p), b) * secondRadius; }
+        return float3(a, b, bakedChannel(I(h + 9), I(h + 10), p));
+    }
+
+    float mappingJoin(float body, float singular, float exclusion, float fade) {
+        float weight = clamp((singular - exclusion) / fade, 0.0f, 1.0f);
+        float solid = singular - exclusion;
+        if (weight >= 1.0f) { return body; }
+        return weight <= 0.0f ? solid : weight * body + (1.0f - weight) * solid;
+    }
+    """
 }
 ```
-and update its `.SYNOPSIS` the same way. Check how `build-shaders.sh` runs `swift run` relative to the shader directory before this change (it `cd`s into the set): the function above keeps that.
+These are ports of `ImplicitShaderLibrary.core` and `.lattices` (`Sources/CreatorImplicit/Metal/ImplicitShaderLibrary*.swift`); before writing them, compare function by function with the branch's MSL and port the current text if a 7c follow-up changed one. Translation: `inline` dropped; the `const thread Env& e` parameter dropped and its fields read through `P`, `I`, `TABLES`, `POOL`, `IMAGES`; `mix` → `lerp`; `precise::sin`/`cos`/`atan2` → `accSin`/`accCos`/`accAtan2`; `as_type<float>(as_type<uint>(x) - 1u)` → `asfloat(asuint(x) - 1u)`; `INFINITY` → `INFINITY_F`; `thread int&` → `out int`; `ulong` → `U64`; `constant` arrays → `static const`; float literals with `f`.
 
-In `scripts/linux-test.sh`: in the usage comment add `#     shaders compiles every shader set into the worktree (Shaders/*/compiled, git-ignored) and stops: a Mac's tests read the implicit kernels' MSL from there (plan xp-c)`; in the `case $step in` block add `    shaders) compile_shaders ;;` before `all)`; and add `shaders` to the usage line's list (`[build|test|smoke|package|shaders|all]`) and to the error message's.
+- [ ] **Step 7: Run.** `swift test --filter CreatorImplicitTests.HLSLSourceTests 2>&1 | tail -3` — PASS; `swift test --filter CreatorImplicitTests 2>&1 | grep -E "Test run with|recorded an issue"` — one line, no issue (the Metal suites still pass: the MSL is the same bytes).
 
-In `.gitignore`, under the viewport's line, add:
-```
-# The implicit engine's compute kernels, compiled the same way from Shaders/implicit/*.hlsl (plan xp-c).
-/Shaders/implicit/compiled
-```
-
-- [ ] **Step 8: Compile and run the contract tests on Linux and on the Mac.**
-
-Run:
-```bash
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh shaders
-ls Shaders/implicit/compiled                     # implicit_evaluate.comp.{dxil,json,msl,spv}, SOURCE.sha256, INCLUDES.sha256
-git status --short Shaders                        # nothing: the compiled directory is ignored
-swift test --filter CreatorImplicitTests.ImplicitShaderContractTests 2>&1 | tail -3
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test --filter ImplicitShaderContractTests 2>&1 | tail -3
-```
-Expected: shadercross compiles both sets (the viewport's is "current"); the Mac and Linux runs pass. A DXC error names the file and line: fix the HLSL, not the test. If `theBuildCompiledEveryKernelAndIsCurrent` reports a dropped buffer, the kernel declares one it never reads.
-
-- [ ] **Step 9: Lint and commit.**
-
-```bash
-swiftlint lint --strict
-git add Shaders/implicit scripts/build-shaders.sh scripts/build-shaders.ps1 scripts/linux-test.sh .gitignore \
-        Sources/CreatorImplicit/Compute/ImplicitKernel.swift Sources/CreatorImplicit/Compute/KernelParameters.swift \
-        Tests/CreatorImplicitTests/ImplicitShaderContractTests.swift
-git commit -m "feat(implicit): the HLSL interpreter and evaluation kernel, compiled with the viewport's shaders (xp-c task 2)
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS"
-```
+- [ ] **Step 8: Lint, commit** (`feat(implicit): the generator writes HLSL too, statement for statement with the MSL (xp-c task 1)`).
 
 ---
 
-### Task 3: The compute backend, `InterpretedImplicitEngine`'s evaluation, and the Mac's MSL backend
-
-After this task the interpreted engine evaluates on the Mac's GPU in the tests (over the MSL of task 2's kernel) and `GPUAgreementTests` holds it to the CPU. The SDL backend is task 4.
+### Task 2: The meshing kernels' HLSL
 
 **Files:**
-- Create: `Sources/CreatorImplicit/Compute/ImplicitComputeBackend.swift`, `ComputeBatch.swift`, `ComputeBytes.swift`, `InterpretedImplicitEngine.swift`
-- Create: `Sources/CreatorImplicit/GPU/ImplicitEngineAvailability.swift`
-- Modify: `Sources/CreatorImplicit/GPU/ImplicitGPUEngine.swift` (the `availability` requirement)
-- Create (tests): `Tests/CreatorImplicitTests/Support/MSLComputeBackend.swift`, `Support/MSLComputeBuffer.swift`, `Support/GPUEnginesUnderTest.swift`, `InterpretedEngineTests.swift`, `MetalEngineDispatchTests.swift`
-- Modify (tests): `Tests/CreatorImplicitTests/GPUAgreementTests.swift`
+- Create: `Sources/CreatorImplicit/HLSL/HLSLMeshShaderLibrary.swift`
+- Modify: `Sources/CreatorImplicit/HLSL/HLSLKernels.swift`
+- Test: `Tests/CreatorImplicitTests/HLSLSourceTests.swift` (one test added; task 1's tests now cover all seven kernels)
 
 **Interfaces:**
-- Consumes: `ImplicitProgramCompiler.compile(_:)`, `CompiledImplicit.program` (task 1); `ImplicitKernel`, `KernelParameters` (task 2).
-- Produces:
-  - `public protocol ComputeBuffer: AnyObject, Sendable { var length: Int { get } }`
-  - `public protocol ImplicitComputeBackend: Sendable { var name: String { get }; var deviceName: String { get }; var largestBuffer: Int { get }; func makeBuffer(length: Int) throws -> any ComputeBuffer; func run(_ batch: ComputeBatch) async throws -> [[UInt8]] }`
-  - `public enum ComputeBackendState: Sendable, CustomStringConvertible { case ready(any ImplicitComputeBackend), absent(String), broken(String) }`
-  - `public struct ComputeUpload`, `ComputeDispatch`, `ComputeDownload`, `ComputeBatch` (fields below), all `Sendable`.
-  - `public enum ImplicitEngineAvailability: Sendable, Equatable { case available, absent(String), broken(String) }`; `ImplicitGPUEngine.availability: ImplicitEngineAvailability { get async }`, default `.available`.
-  - `public actor InterpretedImplicitEngine: ImplicitGPUEngine` with `public init(name: String, backend: @escaping @Sendable () -> ComputeBackendState, dispatchSize: Int = pointsPerDispatch)`, `public static let pointsPerDispatch = 1 << 20`, `func setAfterDispatch(_:)`, `public internal(set) var meshesMade`, `var epoch`, `func backend() throws(ImplicitCompileError) -> any ImplicitComputeBackend`, `func buffers(for:on:) async throws -> InterpretedImplicitEngine.Prepared`, and `Prepared { program, floats, ints: any ComputeBuffer; parameters: KernelParameters; used: Int }` (task 5 meshes with them).
-  - Tests: `GPUEnginesUnderTest.names: [String]`, `.engine(_:) throws -> any ImplicitGPUEngine`, `.interpreted: InterpretedImplicitEngine?`, `.makeInterpreted(dispatchSize:) -> InterpretedImplicitEngine?`, `.interpretedName`, `.interpretedState`.
+- Consumes: `HLSLShaderLibrary.prelude`, `.withSDF(_:)` (task 1).
+- Produces: `CompiledImplicit.kernels` holds all seven `ImplicitKernel`s for an HLSL solid; `clear`, `classify`, `number` and `emit` have the same `KernelSource` for every shape.
 
-- [ ] **Step 1: Write the failing tests.**
-
-Move the four Metal-only tests out of `GPUAgreementTests` unchanged: create `Tests/CreatorImplicitTests/MetalEngineDispatchTests.swift` holding `shapesShareOnePipeline`, `aBatchLargerThanOneDispatchIsAnswered`, `anEmptyBatchAndACancelledOneAreHandled`, `cancelEndsABatchAtItsNextDispatchAndNotTheOnesAfter` and `aBatchOfSeveralSmallDispatchesIsAnsweredInOrder`, their bodies copied as they are, in:
+- [ ] **Step 1: The failing test.** Add to `HLSLSourceTests`:
 ```swift
-#if canImport(Metal)
-import CreatorGeometry
-import Synchronization
-import Testing
-@testable import CreatorImplicit
+    /// The kernels that do not call `sdf` are one text for every shape (the pipeline cache makes them once); the three that do differ by shape.
+    @Test func theKernelsWithoutTheSolidAreTheSameForEveryShape() throws {
+        let sphere = try ImplicitCompiler.compileHLSL(.sphere(radius: 5))
+        let box = try ImplicitCompiler.compileHLSL(.box(halfSize: Vector3(1, 2, 3), cornerRadius: 0))
+        #expect(Set(sphere.kernels.keys) == Set(ImplicitKernel.allCases))
+        for kernel in ImplicitKernel.allCases {
+            if kernel.usesSDF {
+                #expect(sphere.kernels[kernel] != box.kernels[kernel], "\(kernel.rawValue) depends on the shape")
+                #expect(sphere.kernels[kernel]?.text.contains("float sdf(float3 p) {") == true)
+            } else {
+                #expect(sphere.kernels[kernel] == box.kernels[kernel], "\(kernel.rawValue) is shape-independent")
+                #expect(sphere.kernels[kernel]?.text.contains("sdf(") == false)
+            }
+        }
+    }
+```
+Run: `swift test --filter CreatorImplicitTests.HLSLSourceTests 2>&1 | tail -3` — fails (only `.evaluate` exists).
 
-/// The Metal engine's own dispatching: one pipeline per shape, dispatch sizes, cancellation (moved from `GPUAgreementTests` by plan xp-c, which
-/// made that suite run over every engine; these name `MetalImplicitEngine` and stay Metal's). Skipped without a Metal device.
-@Suite(.enabled(if: MetalImplicitEngine.shared != nil, "needs a Metal device"))
-struct MetalEngineDispatchTests {
-    // the five tests, unchanged
+- [ ] **Step 2: Write the meshing kernels.** `Sources/CreatorImplicit/HLSL/HLSLMeshShaderLibrary.swift`, the twin of `ImplicitMeshShaderLibrary.kernels` (compare them line by line): the same five steps, the same table and hash, the same Newton step. The differences are SDL_GPU's: a source per kernel, `gCount` guards (SDL dispatches whole groups of 64; Metal exact counts), a strong compare-and-swap (`InterlockedCompareExchange` cannot fail spuriously, so the weak CAS's retry branch goes), and `mesh_clear` (Metal blits 0xFF).
+```swift
+/// The meshing kernels in HLSL (plan xp-c; implicit spec §4.3, Errata D13): the twin of `ImplicitMeshShaderLibrary`, one source per kernel (SDL_GPU
+/// compiles one entry point a shader), and `mesh_clear`, which empties the edge table because SDL_GPU has no buffer fill. The order of vertices and
+/// triangles is the threads', as on Metal; the set is fixed.
+enum HLSLMeshShaderLibrary {
+    /// The table's hash and the lattice edge key (shared by classify, emit and place).
+    static let common = """
+
+    uint tableHash(uint key, uint mask) {
+        uint h = key * 0x9E3779B1u;
+        h ^= h >> 16;
+        h *= 0x85EBCA6Bu;
+        h ^= h >> 13;
+        return h & mask;
+    }
+
+    uint edgeKeyOf(uint x, uint y, uint z, uint a, uint b) {
+        uint lx = x + (a & 1u), ly = y + ((a >> 1) & 1u), lz = z + ((a >> 2) & 1u);
+        uint axis = ((a ^ b) == 1u) ? 0u : (((a ^ b) == 2u) ? 1u : 2u);
+        return ((lz * gNY + ly) * gNX + lx) * 3u + axis;
+    }
+
+    """
+
+    /// A cube's corners and pattern (classify, emit; after `samples` is declared).
+    static let cubes = """
+
+    float cornerValue(uint base, uint x, uint y, uint z, uint corner) {
+        return samples[base + ((z + (corner >> 2)) * SIDE + y + ((corner >> 1) & 1u)) * SIDE + x + (corner & 1u)];
+    }
+
+    uint cubePattern(uint base, uint x, uint y, uint z) {
+        uint pattern = 0u;
+        for (uint corner = 0u; corner < 8u; ++corner) {
+            if (cornerValue(base, x, y, z, corner) < 0.0f) { pattern |= 1u << corner; }
+        }
+        return pattern;
+    }
+
+    """
+
+    /// A lattice point at the CPU's coordinates (sample, place; after `axes` is declared).
+    static let latticePoint = """
+
+    float3 latticePoint(uint x, uint y, uint z) {
+        return float3(axes[x], axes[gNX + y], axes[gNX + gNY + z]);
+    }
+
+    """
+
+    static let clear = """
+
+    RWStructuredBuffer<uint> keys : register(u0, space1);
+
+    [numthreads(64, 1, 1)]
+    void main(uint3 id : SV_DispatchThreadID) {
+        uint slot = gFirstSlot + id.x;
+        if (id.x >= gCount || slot > gMask) { return; }
+        keys[slot] = EMPTY_KEY;
+    }
+    """
+
+    static let sample = """
+
+    StructuredBuffer<uint> bricks : register(t2, space0);
+    StructuredBuffer<float> axes : register(t3, space0);
+    RWStructuredBuffer<float> samples : register(u0, space1);
+    """ + latticePoint + """
+
+    [numthreads(64, 1, 1)]
+    void main(uint3 id : SV_DispatchThreadID) {
+        uint gid = id.x;
+        if (gid >= gBrickCount * POINTS) { return; }
+        uint b = gid / POINTS, r = gid % POINTS;
+        uint x = r % SIDE, y = (r / SIDE) % SIDE, z = r / (SIDE * SIDE);
+        uint at = (gFirstBrick + b) * 3u;
+        samples[gid] = sdf(latticePoint(bricks[at] * BRICK + x, bricks[at + 1u] * BRICK + y, bricks[at + 2u] * BRICK + z));
+    }
+    """
+
+    static let classify = """
+
+    StructuredBuffer<uint> bricks : register(t0, space0);
+    StructuredBuffer<float> samples : register(t1, space0);
+    StructuredBuffer<uint> cubeTable : register(t2, space0);
+    RWStructuredBuffer<uint> keys : register(u0, space1);
+    RWStructuredBuffer<uint> counters : register(u1, space1);
+    """ + common + cubes + """
+
+    void claimSlot(uint key) {
+        uint slot = tableHash(key, gMask);
+        for (uint probe = 0u; probe < PROBE_LIMIT; ++probe) {
+            uint original;
+            InterlockedCompareExchange(keys[slot], EMPTY_KEY, key, original);
+            if (original == EMPTY_KEY || original == key) { return; }
+            slot = (slot + 1u) & gMask;
+        }
+        InterlockedOr(counters[COUNTER_OVERFLOW], 1u);
+    }
+
+    [numthreads(64, 1, 1)]
+    void main(uint3 id : SV_DispatchThreadID) {
+        uint gid = id.x;
+        if (gid >= gBrickCount * CUBES) { return; }
+        uint b = gid / CUBES, c = gid % CUBES;
+        uint x = c % BRICK, y = (c / BRICK) % BRICK, z = c / (BRICK * BRICK);
+        uint pattern = cubePattern(b * POINTS, x, y, z);
+        uint begin = cubeTable[CUBE_STARTS + pattern], end = cubeTable[CUBE_STARTS + pattern + 1u];
+        if (begin == end) { return; }
+        InterlockedAdd(counters[COUNTER_TRIANGLE_TOTAL], (end - begin) / 3u);
+        uint at = (gFirstBrick + b) * 3u;
+        uint lx = bricks[at] * BRICK + x, ly = bricks[at + 1u] * BRICK + y, lz = bricks[at + 2u] * BRICK + z;
+        for (uint edge = 0u; edge < 12u; ++edge) {
+            uint low = cubeTable[CUBE_LOWER + edge], high = cubeTable[CUBE_UPPER + edge];
+            if (((pattern >> low) & 1u) != ((pattern >> high) & 1u)) {
+                claimSlot(edgeKeyOf(lx, ly, lz, low, high));
+            }
+        }
+    }
+    """
+
+    static let number = """
+
+    StructuredBuffer<uint> keys : register(t0, space0);
+    RWStructuredBuffer<uint> slotVertex : register(u0, space1);
+    RWStructuredBuffer<uint> counters : register(u1, space1);
+
+    [numthreads(64, 1, 1)]
+    void main(uint3 id : SV_DispatchThreadID) {
+        uint slot = gFirstSlot + id.x;
+        if (id.x >= gCount || slot > gMask || keys[slot] == EMPTY_KEY) { return; }
+        uint vertexNumber;
+        InterlockedAdd(counters[COUNTER_VERTICES], 1u, vertexNumber);
+        slotVertex[slot] = vertexNumber;
+    }
+    """
+
+    static let place = """
+
+    StructuredBuffer<float> axes : register(t2, space0);
+    StructuredBuffer<uint> keys : register(t3, space0);
+    StructuredBuffer<uint> slotVertex : register(t4, space0);
+    RWStructuredBuffer<float4> positions : register(u0, space1);
+    RWStructuredBuffer<float4> normals : register(u1, space1);
+    """ + latticePoint + """
+
+    [numthreads(64, 1, 1)]
+    void main(uint3 id : SV_DispatchThreadID) {
+        uint slot = gFirstSlot + id.x;
+        if (id.x >= gCount || slot > gMask) { return; }
+        uint key = keys[slot];
+        if (key == EMPTY_KEY) { return; }
+        uint axis = key % 3u, index = key / 3u;
+        uint x = index % gNX, y = (index / gNX) % gNY, z = index / (gNX * gNY);
+        float3 low = latticePoint(x, y, z);
+        float3 high = latticePoint(x + (axis == 0u ? 1u : 0u), y + (axis == 1u ? 1u : 0u), z + (axis == 2u ? 1u : 0u));
+        float fa = sdf(low), fb = sdf(high);
+        float t = fa / (fa - fb);
+        float3 position = low;
+        if (axis == 0u) {
+            position.x = low.x + gResolution * t;
+        } else if (axis == 1u) {
+            position.y = low.y + gResolution * t;
+        } else {
+            position.z = low.z + gResolution * t;
+        }
+        float3 normal = float3(0.0f, 0.0f, 0.0f);
+        if (gSnap != 0u) {
+            float delta = gResolution / 4.0f, limit = gResolution / 2.0f;
+            float value = sdf(position);
+            float3 gradient = float3(
+                (sdf(position + float3(delta, 0.0f, 0.0f)) - sdf(position - float3(delta, 0.0f, 0.0f))) / (2.0f * delta),
+                (sdf(position + float3(0.0f, delta, 0.0f)) - sdf(position - float3(0.0f, delta, 0.0f))) / (2.0f * delta),
+                (sdf(position + float3(0.0f, 0.0f, delta)) - sdf(position - float3(0.0f, 0.0f, delta))) / (2.0f * delta));
+            float squared = dot(gradient, gradient);
+            if (squared > 1e-12f) {
+                normal = gradient / sqrt(squared);
+                float3 move = gradient * (-value / squared);
+                float moved = sqrt(dot(move, move));
+                if (moved > limit) { move *= limit / moved; }
+                position += move;
+            }
+        }
+        uint vertexNumber = slotVertex[slot];
+        positions[vertexNumber] = float4(position, 0.0f);
+        normals[vertexNumber] = float4(normal, 0.0f);
+    }
+    """
+
+    static let emit = """
+
+    StructuredBuffer<uint> bricks : register(t0, space0);
+    StructuredBuffer<float> samples : register(t1, space0);
+    StructuredBuffer<uint> cubeTable : register(t2, space0);
+    StructuredBuffer<uint> keys : register(t3, space0);
+    StructuredBuffer<uint> slotVertex : register(t4, space0);
+    RWStructuredBuffer<uint> counters : register(u0, space1);
+    RWStructuredBuffer<uint> indices : register(u1, space1);
+    """ + common + cubes + """
+
+    uint vertexOfKey(uint key) {
+        uint slot = tableHash(key, gMask);
+        for (uint probe = 0u; probe <= gMask; ++probe) {
+            if (keys[slot] == key) { return slotVertex[slot]; }
+            slot = (slot + 1u) & gMask;
+        }
+        return 0u;
+    }
+
+    [numthreads(64, 1, 1)]
+    void main(uint3 id : SV_DispatchThreadID) {
+        uint gid = id.x;
+        if (gid >= gBrickCount * CUBES) { return; }
+        uint b = gid / CUBES, c = gid % CUBES;
+        uint x = c % BRICK, y = (c / BRICK) % BRICK, z = c / (BRICK * BRICK);
+        uint pattern = cubePattern(b * POINTS, x, y, z);
+        uint begin = cubeTable[CUBE_STARTS + pattern], end = cubeTable[CUBE_STARTS + pattern + 1u];
+        if (begin == end) { return; }
+        uint at = (gFirstBrick + b) * 3u;
+        uint lx = bricks[at] * BRICK + x, ly = bricks[at + 1u] * BRICK + y, lz = bricks[at + 2u] * BRICK + z;
+        uint place;
+        InterlockedAdd(counters[COUNTER_TRIANGLE_CURSOR], (end - begin) / 3u, place);
+        for (uint corner = 0u; corner < end - begin; ++corner) {
+            uint edge = cubeTable[CUBE_EDGES + begin + corner];
+            indices[place * 3u + corner] = vertexOfKey(edgeKeyOf(lx, ly, lz, cubeTable[CUBE_LOWER + edge], cubeTable[CUBE_UPPER + edge]));
+        }
+    }
+    """
 }
-#endif
+```
+`mesh_place` and `mesh_sample` declare their own buffers from slot 2 (the packed floats and ints are 0 and 1, declared by `withSDF`). `mesh_number` names its local `vertexNumber`: `number` is not reserved in HLSL, but it shadows nothing that way.
+
+Replace `HLSLKernels.sources(sdf:)` with:
+```swift
+    static func sources(sdf: String) -> [ImplicitKernel: KernelSource] {
+        let prelude = HLSLShaderLibrary.prelude
+        let shape = HLSLShaderLibrary.withSDF(sdf)
+        let texts: [ImplicitKernel: String] = [
+            .evaluate: prelude + shape + HLSLShaderLibrary.evaluate,
+            .sample: prelude + shape + HLSLMeshShaderLibrary.sample,
+            .place: prelude + shape + HLSLMeshShaderLibrary.place,
+            .clear: prelude + HLSLMeshShaderLibrary.clear,
+            .classify: prelude + HLSLMeshShaderLibrary.classify,
+            .number: prelude + HLSLMeshShaderLibrary.number,
+            .emit: prelude + HLSLMeshShaderLibrary.emit,
+        ]
+        return texts.reduce(into: [:]) { $0[$1.key] = KernelSource(kernel: $1.key, text: $1.value) }
+    }
 ```
 
-Replace `Tests/CreatorImplicitTests/GPUAgreementTests.swift` with:
+- [ ] **Step 3: Run.** `swift test --filter CreatorImplicitTests.HLSLSourceTests 2>&1 | tail -3` — PASS (the register, rules and entry-point tests now check seven kernels per fixture).
+
+- [ ] **Step 4: Lint, commit** (`feat(implicit): the meshing kernels in HLSL, a source per kernel (xp-c task 2)`).
+
+---
+
+### Task 3: Compile the generated HLSL now, offline, with the build-time SDL_shadercross
+
+Proves DXC takes the generator's output before XP-G25 exists, and gives tasks 4 to 9 compiled kernels to run: SPIR-V on lavapipe, MSL on this Mac.
+
+**Files:**
+- Create: `Tests/CreatorImplicitTests/Support/GeneratedKernels.swift`, `Tests/CreatorImplicitTests/GeneratedKernelExport.swift`, `Tests/CreatorImplicitTests/GeneratedKernelBuildTests.swift`, `scripts/compile-generated-kernels.sh`
+- Modify: `scripts/linux-test.sh` (a `kernels` verb; `test` and `all` run it first)
+
+**Interfaces:**
+- Consumes: `ImplicitCompiler.compileHLSL`, `KernelSource.digest` (tasks 1, 2).
+- Produces: `.build/generated-kernels/source/<digest>.comp.hlsl` and `.build/generated-kernels/compiled/<digest>.comp.{spv,dxil,msl,json}` in the worktree (git-ignored by `/.build`); `GeneratedKernels.compiled: URL`, `.sources(for:) -> [KernelSource]`, `.solids` (every solid any GPU test or bench compiles, by shape).
+
+- [ ] **Step 1: The list of shapes and the export.**
+
+`Tests/CreatorImplicitTests/Support/GeneratedKernels.swift`:
+```swift
+import CreatorGeometry
+import Foundation
+@testable import CreatorImplicit
+
+/// The HLSL kernels the tests run before MetalUI's run-time compiler exists (plan xp-c, task 3; gap XP-G25): every shape a GPU test or bench uses,
+/// its seven sources exported as `<digest>.comp.hlsl` and compiled offline in the Linux image by the build-time SDL_shadercross
+/// (`scripts/linux-test.sh kernels`) into `.build/generated-kernels/compiled`. A shape not in `solids` has no compiled kernel and its test fails
+/// naming the script: add the shape here.
+enum GeneratedKernels {
+    static let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        .appending(path: ".build/generated-kernels")
+    static let source = root.appending(path: "source")
+    static let compiled = root.appending(path: "compiled")
+    static let remedy = "run XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh kernels"
+
+    /// Every solid whose shape a GPU test or bench compiles (numbers do not matter: a shape is its source).
+    static var solids: [(name: String, solid: ImplicitSolid)] {
+        let ball = ImplicitSolid.sphere(radius: 10)
+        let move = RigidMove(origin: Vector3(4_000, -3_000, 2_500), xAxis: .unitX, yAxis: .unitY, zAxis: .unitZ)
+        return GPUFixtures.all + LatticeFixtures.everyMapped + ImplicitFixtures.all + [
+            ("sphere", ball), ("moved sphere", .moved(ball, move)), ("box", .box(halfSize: Vector3(1, 1, 1), cornerRadius: 0)),
+            ("bench sheet", ImplicitBenchHLSL.sheet(wall: 3)),
+        ]
+    }
+
+    /// The distinct kernel sources of `solids`.
+    static var sources: [KernelSource] {
+        var seen: Set<String> = []
+        var all: [KernelSource] = []
+        for (_, solid) in solids {
+            guard let compiled = try? ImplicitCompiler.compileHLSL(solid) else { continue }
+            for kernel in ImplicitKernel.allCases {
+                guard let source = compiled.kernels[kernel], seen.insert(source.digest).inserted else { continue }
+                all.append(source)
+            }
+        }
+        return all
+    }
+}
+```
+`ImplicitBenchHLSL.sheet(wall:)` is task 9's; until then leave that line out and add it in task 9 step 1.
+
+`Tests/CreatorImplicitTests/GeneratedKernelExport.swift`:
+```swift
+import Foundation
+import Testing
+@testable import CreatorImplicit
+
+/// Writes `GeneratedKernels.sources` to `.build/generated-kernels/source` (only with `XP_EXPORT_KERNELS=1`: `scripts/linux-test.sh kernels` runs
+/// it), each `<digest>.comp.hlsl`. A file that exists with the same name is the same text (the name is its digest) and is left alone.
+@Suite(.enabled(if: ProcessInfo.processInfo.environment["XP_EXPORT_KERNELS"] == "1", "set XP_EXPORT_KERNELS=1"))
+struct GeneratedKernelExport {
+    @Test func exportEveryKernelSource() throws {
+        try FileManager.default.createDirectory(at: GeneratedKernels.source, withIntermediateDirectories: true)
+        for source in GeneratedKernels.sources {
+            let file = GeneratedKernels.source.appending(path: "\(source.digest).comp.hlsl")
+            if !FileManager.default.fileExists(atPath: file.path) { try Data(source.text.utf8).write(to: file) }
+        }
+    }
+}
+```
+
+- [ ] **Step 2: The offline compile.** `scripts/compile-generated-kernels.sh`:
+```bash
+#!/bin/bash
+# Compiles the implicit engine's generated HLSL kernels offline (plan xp-c, task 3), until MetalUI's run-time compiler (gap XP-G25) compiles them
+# while the app runs: the sources GeneratedKernelExport wrote to .build/generated-kernels/source become SPIR-V, DXIL, MSL and reflection JSON in
+# .build/generated-kernels/compiled, through MetalUI's MetalUICompileShaders and the pinned SDL_shadercross (scripts/shadercross.env), as
+# scripts/build-shaders.sh compiles the viewport's. Only the sources not compiled yet are compiled (a name is its text's digest). Run in the Linux image
+# by scripts/linux-test.sh kernels. A source DXC refuses stops the script naming it: that is a generator bug, never a test to skip.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+ROOT=$PWD
+. scripts/shadercross.env
+SHADERCROSS=${SHADERCROSS:-/opt/shadercross/bin/shadercross}
+[ -x "$SHADERCROSS" ] || { echo "scripts/compile-generated-kernels.sh: SDL_shadercross ($SHADERCROSS_COMMIT) was not found at $SHADERCROSS" >&2; exit 69; }
+METALUI=$(cd "$ROOT/../MetalUI" && pwd -P)
+SCRATCH=${METALUI_TOOLS_SCRATCH:-$ROOT/.build/metalui-tools}
+KERNELS=$ROOT/.build/generated-kernels
+STAGE=$KERNELS/stage
+mkdir -p "$KERNELS/compiled"
+rm -rf "$STAGE" && mkdir -p "$STAGE"
+shopt -s nullglob
+for source in "$KERNELS"/source/*.comp.hlsl; do
+    stem=$(basename "$source" .hlsl)
+    [ -s "$KERNELS/compiled/$stem.json" ] || cp "$source" "$STAGE/"
+done
+count=$(find "$STAGE" -name '*.comp.hlsl' | wc -l | tr -d ' ')
+if [ "$count" = 0 ]; then echo "The generated kernels are compiled."; exit 0; fi
+echo "Compiling $count generated kernels..."
+start=$(date +%s.%N)
+swift run --package-path "$METALUI" --scratch-path "$SCRATCH" MetalUICompileShaders --no-marker \
+    --shadercross "$SHADERCROSS" --source "$STAGE" --out "$STAGE/out"
+end=$(date +%s.%N)
+cp "$STAGE"/out/* "$KERNELS/compiled/"
+echo "COMPILE-TIME $count kernels in $(echo "$end - $start" | bc) s"
+```
+`MetalUICompileShaders` takes `--no-marker` (MetalUI `packaging.md` §4a): the merged directory has no `SOURCE.sha256`, and `SDLGPUShaderLibrary(directory:)` accepts it by its reflection files (ruling `BS-E`).
+
+In `scripts/linux-test.sh`: add to the usage comment `#     kernels exports the implicit engine's generated HLSL kernels and compiles them offline into .build/generated-kernels (plan xp-c; until MetalUI XP-G25)`; add
+```bash
+# The implicit engine's generated kernels, compiled offline for the tests (plan xp-c, task 3): export them with the test target, then compile the new ones.
+compile_kernels() {
+    in_container 'XP_EXPORT_KERNELS=1 swift test --scratch-path /build --filter GeneratedKernelExport >/dev/null \
+        && METALUI_TOOLS_SCRATCH=/build/metalui-tools scripts/compile-generated-kernels.sh'
+}
+```
+after `compile_shaders`; call `compile_kernels || return 1` after `compile_shaders` in `do_test` (before the counted run) and add `kernels) compile_shaders && compile_kernels ;;` to the `case`, and `kernels` to the usage and error lines.
+
+- [ ] **Step 3: The build check.** `Tests/CreatorImplicitTests/GeneratedKernelBuildTests.swift`:
+```swift
+import Foundation
+import Testing
+@testable import CreatorImplicit
+
+/// Every generated kernel of every test shape compiled offline (plan xp-c, task 3): DXC took the generator's output, and each reflection has the
+/// buffers `ImplicitKernel.bindings` says. Required on Linux (the test step compiles them first); on a Mac where `scripts/linux-test.sh kernels` ran.
+struct GeneratedKernelBuildTests {
+    @Test func everyGeneratedKernelCompiledWithItsBindings() throws {
+        #if canImport(MetalUISDLGPU)
+        let required = true
+        #else
+        let required = false
+        #endif
+        guard required || FileManager.default.fileExists(atPath: GeneratedKernels.compiled.path) else { return }
+        for source in GeneratedKernels.sources {
+            let stem = GeneratedKernels.compiled.appending(path: "\(source.digest).comp")
+            for blob in ["spv", "dxil", "msl"] {
+                let size = (try? Data(contentsOf: stem.appendingPathExtension(blob)).count) ?? 0
+                #expect(size > 0, "\(source.kernel.rawValue) \(source.digest).\(blob) is missing: \(GeneratedKernels.remedy)")
+            }
+            let reflection = (try? JSONSerialization.jsonObject(with: Data(contentsOf: stem.appendingPathExtension("json")))) as? [String: Int]
+            #expect(reflection?["readonly_storage_buffers"] == source.kernel.bindings.readOnly, "\(source.kernel.rawValue): a read-only buffer was dropped")
+            #expect(reflection?["readwrite_storage_buffers"] == source.kernel.bindings.readWrite, "\(source.kernel.rawValue): a read-write buffer was dropped")
+            #expect(reflection?["uniform_buffers"] == 1 && reflection?["threadcount_x"] == ImplicitKernel.threadsPerGroup)
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Run.**
+```bash
+XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh kernels 2>&1 | tail -3     # COMPILE-TIME N kernels in S s
+ls .build/generated-kernels/compiled | wc -l                                                  # 4 files a kernel
+swift test --filter CreatorImplicitTests.GeneratedKernelBuildTests 2>&1 | tail -2
+XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test --filter GeneratedKernelBuildTests 2>&1 | tail -2
+```
+Expected: PASS. A DXC error names the `<digest>.comp.hlsl`; open it in `.build/generated-kernels/source`, find the line, fix the generator or the library (never the test). Keep the `COMPILE-TIME` line for task 9 (x-3o).
+
+- [ ] **Step 5: Lint, commit** (`test(implicit): compile every generated HLSL kernel offline with the pinned shadercross (xp-c task 3)`).
+
+---
+
+### Task 4: The compute backend, `HLSLImplicitEngine`'s evaluation and pipeline cache, and the Mac's MSL backend
+
+**Files:**
+- Create: `Sources/CreatorImplicit/GPU/ImplicitEngineAvailability.swift`, `Sources/CreatorImplicit/Compute/ImplicitComputeBackend.swift`, `ComputeBatch.swift`, `ComputeBytes.swift`, `HLSLImplicitEngine.swift`, `HLSLImplicitEngine+Meshing.swift` (a placeholder until task 6)
+- Modify: `Sources/CreatorImplicit/GPU/ImplicitGPUEngine.swift` (`availability`)
+- Create (tests): `Support/MSLComputeBackend.swift`, `Support/MSLComputeBuffer.swift`, `Support/MSLComputePipeline.swift`, `Support/GPUEnginesUnderTest.swift`, `HLSLEngineTests.swift`, `MetalEngineDispatchTests.swift` (moved)
+- Modify (tests): `GPUAgreementTests.swift`
+
+**Interfaces:**
+- Consumes: `ImplicitCompiler.compileHLSL`, `CompiledImplicit.kernels`, `KernelSource`, `KernelParameters`, `ImplicitKernel` (tasks 1, 2); `GeneratedKernels.compiled` (task 3).
+- Produces:
+  - `public protocol ComputeBuffer: AnyObject, Sendable { var length: Int { get } }`; `public protocol ComputePipeline: AnyObject, Sendable {}`.
+  - `public protocol ImplicitComputeBackend: Sendable { var name: String; var deviceName: String; var largestBuffer: Int; func makeBuffer(length:) throws -> any ComputeBuffer; func makePipeline(_ source: KernelSource) async throws -> any ComputePipeline; func run(_ batch: ComputeBatch) async throws -> [[UInt8]] }`.
+  - `public enum ComputeBackendState { ready(any ImplicitComputeBackend), absent(String), broken(String) }`; `ComputeUpload`, `ComputeDispatch { kernel, pipeline, parameters, readOnly, readWrite, threads }`, `ComputeDownload`, `ComputeBatch`.
+  - `public enum ImplicitEngineAvailability { available, absent(String), broken(String) }`; `ImplicitGPUEngine.availability { get async }` (default `.available`).
+  - `public actor HLSLImplicitEngine: ImplicitGPUEngine` — `init(name:backend:dispatchSize:)`, `pointsPerDispatch = 1 << 20`, `pipelineLimit = 64`, `compileCount`, `setAfterDispatch(_:)`, `backend()`, `pipeline(for:)`, `buffers(for:on:) -> Prepared { floats, ints, parameters, used }`, `epoch`, `meshesMade`.
+  - Tests: `GPUEnginesUnderTest.names`, `.engine(_:)`, `.hlsl`, `.makeHLSL(dispatchSize:)`, `.hlslName`, `.hlslState`, `.unavailableReason`.
+
+- [ ] **Step 1: The failing tests.**
+
+Move the Metal-only tests out of `GPUAgreementTests` unchanged into `Tests/CreatorImplicitTests/MetalEngineDispatchTests.swift` (`shapesShareOnePipeline`, `aBatchLargerThanOneDispatchIsAnswered`, `anEmptyBatchAndACancelledOneAreHandled`, `cancelEndsABatchAtItsNextDispatchAndNotTheOnesAfter`, `aBatchOfSeveralSmallDispatchesIsAnsweredInOrder`), inside `#if canImport(Metal)`, `@Suite(.enabled(if: MetalImplicitEngine.shared != nil, "needs a Metal device")) struct MetalEngineDispatchTests`, with its imports (`CreatorGeometry`, `Synchronization`, `Testing`, `@testable import CreatorImplicit`).
+
+Replace `GPUAgreementTests.swift` with the suite over every engine:
 ```swift
 import CreatorGeometry
 import Testing
 @testable import CreatorImplicit
 
-/// Every GPU engine this machine has against the CPU reference (implicit spec §4.1, §7, Errata D11, D21): every node and every field kind on a
-/// fixed point set, within 1e-4 mm. The engines are `GPUEnginesUnderTest.names`: Metal on a Mac with a device, the interpreted engine over the MSL
-/// of the HLSL kernels on a Mac where `scripts/linux-test.sh shaders` was run, and the interpreted engine over SDL_GPU on Linux and Windows. With no
-/// engine the suite is skipped, by name.
+/// Every GPU engine this machine has against the CPU reference (implicit spec §4.1, §7, Errata D11, D21): every node and every field kind on a fixed
+/// point set, within 1e-4 mm. Engines: Metal (a Mac with a device); the HLSL engine as "Metal (HLSL)" on a Mac where `scripts/linux-test.sh kernels`
+/// compiled the generated kernels, as "Vulkan" on Linux and "Direct3D 12" on Windows over SDL_GPU. With none the suite is skipped, by name.
 @Suite(.enabled(if: !GPUEnginesUnderTest.names.isEmpty, "needs a GPU engine: \(GPUEnginesUnderTest.unavailableReason)"))
 struct GPUAgreementTests {
     static let tolerance = 1e-4
@@ -2160,8 +1575,6 @@ struct GPUAgreementTests {
         #expect(evaluator.engineName == engine.name)
     }
 
-    /// The mapped lattices where the mapping is hardest: next to the singular set (the exclusion and its fade) and on both sides of the cut of the
-    /// angle.
     @Test(arguments: GPUEnginesUnderTest.names, LatticeFixtures.everyMapped.map(\.name))
     func mappedLatticesAgreeNextToTheSingularSetAndTheCut(_ engineName: String, _ name: String) async throws {
         let solid = try #require(LatticeFixtures.everyMapped.first { $0.name == name }?.solid)
@@ -2184,21 +1597,34 @@ struct GPUAgreementTests {
     }
 }
 ```
-The only differences from the old suite: the engine is an argument (`engine.compile(solid)` instead of `ImplicitCompiler.compile(solid)`, so each engine compiles its own form), the messages name it, and the file is no longer under `#if canImport(Metal)`. On a Mac without the MSL the Metal cases run exactly as before.
+(The Metal cases run exactly as before: `engine.compile(solid)` is `ImplicitCompiler.compile` for Metal.)
 
-`Tests/CreatorImplicitTests/InterpretedEngineTests.swift`:
+`Tests/CreatorImplicitTests/HLSLEngineTests.swift` (mirrors `MetalEngineDispatchTests` for the HLSL engine):
 ```swift
 import CreatorGeometry
 import Synchronization
 import Testing
 @testable import CreatorImplicit
 
-/// The interpreted engine's own dispatching (plan xp-c): the same backend code on every platform (the MSL backend on a Mac, SDL_GPU on Linux and
-/// Windows), so these run wherever `GPUEnginesUnderTest.interpreted` exists, and are skipped, by name, where it does not.
-@Suite(.enabled(if: GPUEnginesUnderTest.interpreted != nil, "needs the interpreted engine: \(GPUEnginesUnderTest.unavailableReason)"))
-struct InterpretedEngineTests {
-    @Test func aBatchLargerThanOneDispatchIsAnsweredInOrder() async throws {
-        let engine = try #require(GPUEnginesUnderTest.makeInterpreted(dispatchSize: 1_000))
+/// The HLSL engine's dispatching and pipeline cache (plan xp-c), the same code over every backend; skipped, by name, where there is none.
+@Suite(.enabled(if: GPUEnginesUnderTest.hlsl != nil, "needs the HLSL engine: \(GPUEnginesUnderTest.unavailableReason)"))
+struct HLSLEngineTests {
+    /// Review Focus 3: one pipeline a shape, and a number edit compiles nothing.
+    @Test func shapesShareOnePipelineAndANumberEditRecompilesNothing() async throws {
+        let engine = try #require(GPUEnginesUnderTest.makeHLSL())
+        let first = try ImplicitCompiler.compileHLSL(.sphere(radius: 5))
+        let second = try ImplicitCompiler.compileHLSL(.sphere(radius: 25))
+        try await engine.prepare(first)
+        try await engine.prepare(second)
+        #expect(await engine.compileCount == 1)
+        let values = try await GPUBatchEvaluator(engine: engine, program: second).evaluate([SIMD3(30, 0, 0)])
+        #expect(abs(values[0] - 5) < 1e-5, "the numbers still differ")
+        try await engine.prepare(try ImplicitCompiler.compileHLSL(.box(halfSize: Vector3(1, 1, 1), cornerRadius: 0)))
+        #expect(await engine.compileCount == 2)
+    }
+
+    @Test func aBatchOfSeveralSmallDispatchesIsAnsweredInOrder() async throws {
+        let engine = try #require(GPUEnginesUnderTest.makeHLSL(dispatchSize: 1_000))
         let program = try await engine.compile(.sphere(radius: 5))
         let points = (0..<2_500).map { SIMD3<Float>(Float($0 % 100), 0, 0) }
         let values = try await engine.evaluate(program, at: points)
@@ -2207,7 +1633,7 @@ struct InterpretedEngineTests {
     }
 
     @Test func anEmptyBatchAndACancelledOneAreHandled() async throws {
-        let engine = try #require(GPUEnginesUnderTest.interpreted)
+        let engine = try #require(GPUEnginesUnderTest.hlsl)
         let evaluator = GPUBatchEvaluator(engine: engine, program: try await engine.compile(.sphere(radius: 5)))
         #expect(try await evaluator.evaluate([]).isEmpty)
         let task = Task {
@@ -2218,7 +1644,7 @@ struct InterpretedEngineTests {
     }
 
     @Test func cancelEndsABatchAtItsNextDispatchAndNotTheOnesAfter() async throws {
-        let engine = try #require(GPUEnginesUnderTest.makeInterpreted(dispatchSize: 1_000))
+        let engine = try #require(GPUEnginesUnderTest.makeHLSL(dispatchSize: 1_000))
         let program = try await engine.compile(.sphere(radius: 5))
         let points = (0..<3_500).map { SIMD3<Float>(Float($0 % 100), 0, 0) }
         let dispatches = Mutex(0)
@@ -2230,30 +1656,18 @@ struct InterpretedEngineTests {
         #expect(dispatches.withLock { $0 } == 1, "the second dispatch did not run")
         await engine.setAfterDispatch(nil)
         let whole = try await engine.evaluate(program, at: points)
-        #expect(whole.count == points.count && abs(whole[3_499] - Float(3_499 % 100 - 5)) < 1e-5, "a later batch runs whole")
+        #expect(whole.count == points.count && abs(whole[3_499] - Float(3_499 % 100 - 5)) < 1e-5)
     }
 
-    @Test func editingANumberNeedsNoNewProgramAndGivesTheNewValue() async throws {
-        let engine = try #require(GPUEnginesUnderTest.interpreted)
-        let first = try await engine.compile(.sphere(radius: 5))
-        let second = try await engine.compile(.sphere(radius: 25))
-        #expect(first.program == second.program)
-        let values = try await engine.evaluate(second, at: [SIMD3(30, 0, 0)])
-        #expect(abs(values[0] - 5) < 1e-5)
+    @Test func aMetalCompiledSolidIsNotThisEngines() async throws {
+        let engine = try #require(GPUEnginesUnderTest.hlsl)
+        await #expect(throws: ImplicitCompileError.self) { try await engine.prepare(try ImplicitCompiler.compile(.sphere(radius: 1))) }
     }
 
-    /// A Metal-compiled solid (no program) is not the interpreter's: `.unsupported`, so `ImplicitEvaluators` would use the CPU.
-    @Test func aSolidWithoutAProgramIsUnsupported() async throws {
-        let engine = try #require(GPUEnginesUnderTest.interpreted)
-        let metalForm = try ImplicitCompiler.compile(.sphere(radius: 1))
-        await #expect(throws: ImplicitCompileError.self) { try await engine.prepare(metalForm) }
-    }
-
-    /// The angle of a cylindrical or spherical mapping exactly on its cut (y = 0 on either side of the axis) and at the axis itself (x = y = 0),
-    /// where a port of atan2 goes wrong first (Review Focus 5).
+    /// Review Focus 5: the angle exactly on a mapping's cut and at its axis.
     @Test(arguments: LatticeFixtures.mappedAll.map(\.name))
     func theAngleOnTheCutAndAtTheAxisAgreesWithTheCPU(_ name: String) async throws {
-        let engine = try #require(GPUEnginesUnderTest.interpreted)
+        let engine = try #require(GPUEnginesUnderTest.hlsl)
         let solid = try #require(LatticeFixtures.mappedAll.first { $0.name == name }?.solid)
         let centre = LatticeFixtures.crossing
         var points: [SIMD3<Float>] = []
@@ -2270,73 +1684,54 @@ struct InterpretedEngineTests {
     }
 }
 ```
-`LatticeFixtures.mappedAll` and `LatticeFixtures.crossing` exist (`Support/LatticeFixtures.swift`; `everyMapped` is `mappedAll + faceAll + faceOutsideAll`).
+Run: `swift test --filter "CreatorImplicitTests.(GPUAgreementTests|HLSLEngineTests|MetalEngineDispatchTests)" 2>&1 | tail -3` — build failure.
 
-- [ ] **Step 2: Run them to see them fail.**
-
-Run: `swift test --filter "CreatorImplicitTests.(GPUAgreementTests|InterpretedEngineTests|MetalEngineDispatchTests)" 2>&1 | tail -5`
-Expected: build failure ("cannot find 'GPUEnginesUnderTest' in scope").
-
-- [ ] **Step 3: Write the backend protocol and the batch.**
+- [ ] **Step 2: The protocol, the batch and the bytes.**
 
 `Sources/CreatorImplicit/GPU/ImplicitEngineAvailability.swift`:
 ```swift
-/// Whether a GPU engine can run on this machine (plan xp-c, user decision X-C4), asked by `ImplicitEvaluators.make` before it compiles.
+/// Whether a GPU engine can run here (plan xp-c, X-C4), asked by `ImplicitEvaluators.make` before it compiles.
 public enum ImplicitEngineAvailability: Sendable, Equatable {
     case available
-    /// There is no GPU for it (no device answers): the CPU runs, and nobody is told, as on a machine with no GPU engine at all.
+    /// No GPU for it: the CPU runs and nobody is told, as on a machine with no GPU engine.
     case absent(String)
-    /// It should run and cannot (its kernels are missing, a pipeline was refused): the CPU runs and the person is told "Running on the CPU".
+    /// It should run and cannot (the compiler library is missing, a pipeline was refused): the CPU runs and the person is told, with the reason.
     case broken(String)
 }
 ```
-
-In `Sources/CreatorImplicit/GPU/ImplicitGPUEngine.swift`, add to the protocol after `deviceName`:
-```swift
-    /// Whether this engine can run here (plan xp-c). Asked before `compile`; an engine that is absent or broken is not asked to compile. The default
-    /// is `.available` (Metal's engine exists only where it has a device).
-    var availability: ImplicitEngineAvailability { get async }
-```
-and to its extension:
-```swift
-    public var availability: ImplicitEngineAvailability { .available }
-```
-and in the protocol's doc comment replace "`MetalImplicitEngine` is its only implementation in 7c-1, compiled only where Metal exists, and an SDL3 GPU compute engine for Linux and Windows follows (track xp-c)" with "`MetalImplicitEngine` is macOS's, compiled only where Metal exists; `InterpretedImplicitEngine` is Linux's and Windows' (plan xp-c), over SDL_GPU compute".
+In `ImplicitGPUEngine.swift`: add `var availability: ImplicitEngineAvailability { get async }` to the protocol (documented "Whether this engine can run here (plan xp-c); asked before `compile`; the default is `.available`") and `public var availability: ImplicitEngineAvailability { .available }` to its extension; in the doc comment say `MetalImplicitEngine` is macOS's and `HLSLImplicitEngine` Linux's and Windows' (xp-c).
 
 `Sources/CreatorImplicit/Compute/ImplicitComputeBackend.swift`:
 ```swift
-/// A GPU buffer a backend made: storage the kernels read and write, and the copies go to and from.
+/// A GPU buffer a backend made.
 public protocol ComputeBuffer: AnyObject, Sendable {
     var length: Int { get }
 }
 
-/// What `InterpretedImplicitEngine` needs from a GPU API (plan xp-c): buffers, and one batch of copies and dispatches at a time. SDL_GPU on Linux and
-/// Windows (`SDLComputeBackend`); in the tests, Metal running the MSL the same HLSL was compiled to (`MSLComputeBackend`). A backend never blocks the
-/// calling thread: `run` awaits the GPU.
+/// A compiled kernel a backend made from a `KernelSource`.
+public protocol ComputePipeline: AnyObject, Sendable {}
+
+/// What `HLSLImplicitEngine` needs from a GPU API (plan xp-c): buffers, pipelines from kernel sources, and one batch at a time. SDL_GPU on Linux and
+/// Windows (`SDLComputeBackend`); in the tests on a Mac, Metal running the MSL of the same HLSL (`MSLComputeBackend`). Nothing here blocks a thread.
 public protocol ImplicitComputeBackend: Sendable {
     /// The engine's name for the badge: "Vulkan", "Direct3D 12", "Metal (HLSL)".
     var name: String { get }
-    /// The device's name, for the inspector.
     var deviceName: String { get }
     /// The largest storage buffer, in bytes, the engine may make.
     var largestBuffer: Int { get }
-
-    /// A storage buffer the kernels may read and write, at least `length` bytes. Throws `ImplicitCompileError.unsupported` past `largestBuffer` or
-    /// when the device refuses, so the request goes to the CPU.
+    /// A storage buffer of at least `length` bytes; `ImplicitCompileError.unsupported` past `largestBuffer` (that request is the CPU's).
     func makeBuffer(length: Int) throws -> any ComputeBuffer
-
-    /// Records `batch` into one command buffer, its uploads, then each dispatch in a compute pass of its own (so a dispatch sees what the ones
-    /// before it wrote: SDL_GPU does not synchronize dispatches inside one pass), then its downloads; submits it, awaits the GPU, and returns each
-    /// download's bytes in order. Throws `ImplicitCompileError.engine` when the GPU API refuses something.
+    /// `source` compiled for this device. Throws `ImplicitCompileError.engine` with the compiler's or the driver's text.
+    func makePipeline(_ source: KernelSource) async throws -> any ComputePipeline
+    /// The batch in one command buffer: its uploads, each dispatch in a compute pass of its own (SDL_GPU does not synchronize dispatches within one
+    /// pass), its downloads; awaits the GPU and returns each download's bytes in order.
     func run(_ batch: ComputeBatch) async throws -> [[UInt8]]
 }
 
 /// A backend, or why there is none.
 public enum ComputeBackendState: Sendable, CustomStringConvertible {
     case ready(any ImplicitComputeBackend)
-    /// No device (`ImplicitEngineAvailability.absent`).
     case absent(String)
-    /// A device, but the kernels are missing or a pipeline was refused (`ImplicitEngineAvailability.broken`).
     case broken(String)
 
     public var description: String {
@@ -2351,7 +1746,6 @@ public enum ComputeBackendState: Sendable, CustomStringConvertible {
 
 `Sources/CreatorImplicit/Compute/ComputeBatch.swift`:
 ```swift
-/// Bytes copied into a buffer before a batch's dispatches.
 public struct ComputeUpload: Sendable {
     public var bytes: [UInt8]
     public var buffer: any ComputeBuffer
@@ -2364,18 +1758,19 @@ public struct ComputeUpload: Sendable {
     }
 }
 
-/// One kernel run over `threads` threads (rounded up to whole groups of `ImplicitKernel.threadsPerGroup`; the kernels ignore the extra ones), with
-/// its storage buffers in the order the kernel declares them.
+/// One kernel over `threads` threads (rounded up to groups of 64; the kernels ignore the extra ones), its storage buffers in declaration order.
 public struct ComputeDispatch: Sendable {
     public var kernel: ImplicitKernel
+    public var pipeline: any ComputePipeline
     public var parameters: KernelParameters
     public var readOnly: [any ComputeBuffer]
     public var readWrite: [any ComputeBuffer]
     public var threads: Int
 
-    public init(kernel: ImplicitKernel, parameters: KernelParameters, readOnly: [any ComputeBuffer], readWrite: [any ComputeBuffer],
-                threads: Int) {
+    public init(kernel: ImplicitKernel, pipeline: any ComputePipeline, parameters: KernelParameters, readOnly: [any ComputeBuffer],
+                readWrite: [any ComputeBuffer], threads: Int) {
         self.kernel = kernel
+        self.pipeline = pipeline
         self.parameters = parameters
         self.readOnly = readOnly
         self.readWrite = readWrite
@@ -2383,7 +1778,6 @@ public struct ComputeDispatch: Sendable {
     }
 }
 
-/// The first `length` bytes of a buffer, read back after a batch's dispatches.
 public struct ComputeDownload: Sendable {
     public var buffer: any ComputeBuffer
     public var length: Int
@@ -2394,7 +1788,7 @@ public struct ComputeDownload: Sendable {
     }
 }
 
-/// One command buffer's work (`ImplicitComputeBackend.run`).
+/// One command buffer's work.
 public struct ComputeBatch: Sendable {
     public var uploads: [ComputeUpload]
     public var dispatches: [ComputeDispatch]
@@ -2406,8 +1800,7 @@ public struct ComputeBatch: Sendable {
         self.downloads = downloads
     }
 
-    /// Whether every dispatch lists the buffers its kernel declares and fits in one dispatch's 65,535 groups (`SDLComputeBackend` and
-    /// `MSLComputeBackend` check it before they record).
+    /// Every dispatch lists the buffers its kernel declares and fits in 65,535 groups (the backends check before they record).
     var isWellFormed: Bool {
         dispatches.allSatisfy { dispatch in
             dispatch.readOnly.count == dispatch.kernel.bindings.readOnly && dispatch.readWrite.count == dispatch.kernel.bindings.readWrite
@@ -2419,8 +1812,8 @@ public struct ComputeBatch: Sendable {
 
 `Sources/CreatorImplicit/Compute/ComputeBytes.swift`:
 ```swift
-/// The engine's synchronous byte work (plan xp-c): packing values for an upload and reading them back, and cutting a count into dispatch ranges.
-/// Synchronous on purpose: the Windows Swift 6.4 compiler asserts on an `async` function that holds a loop's locals across an `await`.
+/// The engine's synchronous byte work: packing for an upload, reading back, cutting a count into ranges. Synchronous on purpose (the Windows Swift 6.4
+/// compiler asserts on an `async` function that holds a loop's locals across an `await`).
 enum ComputeBytes {
     /// The most thread groups one dispatch has (Vulkan's guaranteed `maxComputeWorkGroupCount`; gap XP-G24).
     static let maximumGroups = 65_535
@@ -2429,7 +1822,7 @@ enum ComputeBytes {
         values.withUnsafeBytes { Array($0) }
     }
 
-    /// Points as three floats each (the kernels read `float` triples; `SIMD3<Float>` is 16 bytes).
+    /// Points as three floats each (`SIMD3<Float>` is 16 bytes; Metal's kernel reads `packed_float3`).
     static func packed(_ points: ArraySlice<SIMD3<Float>>) -> [UInt8] {
         var flat: [Float] = []
         flat.reserveCapacity(points.count * 3)
@@ -2441,7 +1834,6 @@ enum ComputeBytes {
         return bytes(of: flat)
     }
 
-    /// The bytes read as `Value`s (whole values only), copied, so alignment does not matter.
     static func values<Value: BitwiseCopyable>(_ bytes: [UInt8], as type: Value.Type) -> [Value] {
         let count = bytes.count / MemoryLayout<Value>.stride
         return [Value](unsafeUninitializedCapacity: count) { buffer, initialized in
@@ -2452,28 +1844,23 @@ enum ComputeBytes {
         }
     }
 
-    /// `0 ..< count` cut into ranges of at most `size`.
     static func ranges(count: Int, size: Int) -> [Range<Int>] {
         stride(from: 0, to: count, by: max(1, size)).map { $0..<min($0 + max(1, size), count) }
     }
 }
 ```
 
-- [ ] **Step 4: Write the engine's evaluation half.**
-
-`Sources/CreatorImplicit/Compute/InterpretedImplicitEngine.swift`:
+- [ ] **Step 3: The engine, mirroring `MetalImplicitEngine`.** `Sources/CreatorImplicit/Compute/HLSLImplicitEngine.swift`:
 ```swift
 import Foundation
 
-/// The portable GPU engine (plan xp-c; cross-platform spec erratum E8, implicit spec erratum D21): a solid compiled to an `ImplicitProgram` runs in
-/// the HLSL interpreter's kernels (`Shaders/implicit`), the same kernels on every backend. Linux's and Windows' engine (`InterpretedImplicitEngine.sdl`,
-/// over SDL_GPU); on a Mac, the tests' (over Metal and the MSL of the same HLSL). The backend is made on first use, inside the actor, so making the
-/// engine costs nothing and its device is never made on the main actor. Like `MetalImplicitEngine` it keeps the buffers of the few compiled solids
-/// most recently used, so meshing batch after batch uploads a solid once; unlike it there is nothing to compile per shape.
-public actor InterpretedImplicitEngine: ImplicitGPUEngine {
-    /// A solid's uploaded program and buffers, and the uniform block's solid-specific words.
+/// The GPU engine of Linux and Windows (plan xp-c; cross-platform erratum E8, implicit erratum D21), built as `MetalImplicitEngine` is: a solid's HLSL
+/// (`ImplicitCompiler.compileHLSL`, the Metal walk in the HLSL dialect) is compiled while the app runs, one pipeline per kernel source, cached by the
+/// source's digest (the least recently used of 64 dropped, as Metal's); a few compiled solids keep their buffers. The backend is made on first use,
+/// inside the actor, so the device is never made on the main actor.
+public actor HLSLImplicitEngine: ImplicitGPUEngine {
+    /// A solid's uploaded buffers (the five of Metal's, packed in two) and the uniform block's solid-specific words.
     struct Prepared: Sendable {
-        var program: any ComputeBuffer
         var floats: any ComputeBuffer
         var ints: any ComputeBuffer
         var parameters: KernelParameters
@@ -2483,31 +1870,33 @@ public actor InterpretedImplicitEngine: ImplicitGPUEngine {
     public nonisolated let name: String
     private let makeBackend: @Sendable () -> ComputeBackendState
     private var state: ComputeBackendState?
+    private var pipelines: [String: (pipeline: any ComputePipeline, used: Int)] = [:]
     private var prepared: [UUID: Prepared] = [:]
     private var clock = 0
 
-    /// How many compiled solids keep their buffers.
     private static let preparedLimit = 8
-    /// The most points one dispatch takes (an interpreted `sdf` costs more than Metal's specialised one: Metal's is 2^22).
+    /// How many evaluation pipelines are kept (Metal's `pipelineLimit`).
+    static let pipelineLimit = 64
+    /// The most points one dispatch takes (Metal's is 2^22; an SDL dispatch has at most 65,535 groups of 64).
     public static let pointsPerDispatch = 1 << 20
 
-    /// Bumped by `cancel()`: a batch that started before it ends at its next dispatch.
+    /// Evaluation pipelines compiled (a cache hit doesn't count), as `MetalImplicitEngine.compileCount`.
+    public private(set) var compileCount = 0
+    /// The meshing pipelines by digest (`+Meshing`), kept like Metal's mesh pipelines; the four that do not call `sdf` are shared by every shape.
+    var meshPipelineCache: [String: any ComputePipeline] = [:]
+    public internal(set) var meshCompileCount = 0
+    public internal(set) var meshesMade = 0
+    var meshTuning = MeshTuning()
     var epoch = 0
     let dispatchSize: Int
     private var afterDispatch: (@Sendable (Int) async -> Void)?
-    /// The sizes meshing works in (`InterpretedImplicitEngine+Meshing.swift`).
-    var meshTuning = MeshTuning()
-    /// How many meshes `meshBricks` has made: the benchmarks use it to see a row's meshes were made on the GPU.
-    public internal(set) var meshesMade = 0
 
-    /// `backend` makes the backend, once, on first use; `dispatchSize` is `pointsPerDispatch` except in tests that need many dispatches.
     public init(name: String, backend: @escaping @Sendable () -> ComputeBackendState, dispatchSize: Int = pointsPerDispatch) {
         self.name = name
         makeBackend = backend
         self.dispatchSize = max(1, min(dispatchSize, Self.pointsPerDispatch))
     }
 
-    /// Sets (or clears) the hook called after each dispatch with how many have run in this batch: tests cancel from it, at a known point.
     func setAfterDispatch(_ hook: (@Sendable (Int) async -> Void)?) {
         afterDispatch = hook
     }
@@ -2541,21 +1930,50 @@ public actor InterpretedImplicitEngine: ImplicitGPUEngine {
     }
 
     public func compile(_ solid: ImplicitSolid) async throws(ImplicitCompileError) -> CompiledImplicit {
-        let program = try ImplicitProgramCompiler.compile(solid)
+        let program = try ImplicitCompiler.compileHLSL(solid)
         try await prepare(program)
         return program
     }
 
-    /// Nothing to compile per shape: checks that `program` is the interpreter's and that the backend exists.
+    /// Compiles `program`'s evaluation kernel if no solid of its shape has been.
     public func prepare(_ program: CompiledImplicit) async throws(ImplicitCompileError) {
-        guard program.program != nil else { throw .unsupported("a solid compiled for Metal, not for the interpreter") }
-        _ = try backend()
+        _ = try await evaluationPipeline(for: program)
+    }
+
+    private func evaluationPipeline(for program: CompiledImplicit) async throws(ImplicitCompileError) -> any ComputePipeline {
+        guard program.language == .hlsl, let source = program.kernels[.evaluate] else {
+            throw .unsupported("a solid compiled for Metal, not HLSL")
+        }
+        clock += 1
+        if let known = pipelines[source.digest] {
+            pipelines[source.digest] = (known.pipeline, clock)
+            return known.pipeline
+        }
+        let backend = try backend()
+        let made: any ComputePipeline
+        do {
+            made = try await backend.makePipeline(source)
+        } catch let error as ImplicitCompileError {
+            throw error
+        } catch {
+            throw .engine(String(describing: error))
+        }
+        // A second compile of the same shape that finished first is the one kept, and only the one kept is counted (as Metal's).
+        if let raced = pipelines[source.digest] { return raced.pipeline }
+        compileCount += 1
+        clock += 1
+        pipelines[source.digest] = (made, clock)
+        if pipelines.count > Self.pipelineLimit, let oldest = pipelines.min(by: { $0.value.used < $1.value.used })?.key {
+            pipelines[oldest] = nil
+        }
+        return made
     }
 
     public func evaluate(_ program: CompiledImplicit, at points: [SIMD3<Float>]) async throws -> [Float] {
         try Task.checkCancellation()
         guard !points.isEmpty else { return [] }
         let started = epoch
+        let pipeline = try await evaluationPipeline(for: program)
         let backend = try backend()
         let solid = try await buffers(for: program, on: backend)
         let size = min(points.count, dispatchSize)
@@ -2567,22 +1985,20 @@ public actor InterpretedImplicitEngine: ImplicitGPUEngine {
         for index in ranges.indices {
             try Task.checkCancellation()
             if epoch != started { throw CancellationError() }
-            values += try await backend.run(Self.evaluation(points[ranges[index]], solid, input, output)).first.map {
-                ComputeBytes.values($0, as: Float.self)
-            } ?? []
+            let read = try await backend.run(Self.evaluation(points[ranges[index]], pipeline, solid, input, output))
+            values += read.first.map { ComputeBytes.values($0, as: Float.self) } ?? []
             await afterDispatch?(index + 1)
         }
         return values
     }
 
-    /// One evaluation dispatch: upload the points, run, download the values.
-    private static func evaluation(_ points: ArraySlice<SIMD3<Float>>, _ solid: Prepared, _ input: any ComputeBuffer,
-                                   _ output: any ComputeBuffer) -> ComputeBatch {
+    private static func evaluation(_ points: ArraySlice<SIMD3<Float>>, _ pipeline: any ComputePipeline, _ solid: Prepared,
+                                   _ input: any ComputeBuffer, _ output: any ComputeBuffer) -> ComputeBatch {
         var parameters = solid.parameters
         parameters.count = UInt32(points.count)
         return ComputeBatch(
             uploads: [ComputeUpload(bytes: ComputeBytes.packed(points), buffer: input)],
-            dispatches: [ComputeDispatch(kernel: .evaluate, parameters: parameters, readOnly: [input, solid.program, solid.floats, solid.ints],
+            dispatches: [ComputeDispatch(kernel: .evaluate, pipeline: pipeline, parameters: parameters, readOnly: [solid.floats, solid.ints, input],
                                          readWrite: [output], threads: points.count)],
             downloads: [ComputeDownload(buffer: output, length: points.count * 4)])
     }
@@ -2599,18 +2015,15 @@ public actor InterpretedImplicitEngine: ImplicitGPUEngine {
             prepared[program.id] = known
             return known
         }
-        guard let words = program.program?.words else { throw ImplicitCompileError.unsupported("a solid compiled for Metal") }
         let floats = program.parameters + program.pool + program.images
         let ints = program.integers + program.tables
         var parameters = KernelParameters()
-        parameters.instructions = UInt32(words.count / ImplicitProgram.wordsPerInstruction)
         parameters.poolBase = UInt32(program.parameters.count)
         parameters.imagesBase = UInt32(program.parameters.count + program.pool.count)
         parameters.tablesBase = UInt32(program.integers.count)
-        let entry = Prepared(program: try backend.makeBuffer(length: words.count * 4), floats: try backend.makeBuffer(length: floats.count * 4),
-                             ints: try backend.makeBuffer(length: ints.count * 4), parameters: parameters, used: clock)
+        let entry = Prepared(floats: try backend.makeBuffer(length: floats.count * 4), ints: try backend.makeBuffer(length: ints.count * 4),
+                             parameters: parameters, used: clock)
         _ = try await backend.run(ComputeBatch(uploads: [
-            ComputeUpload(bytes: ComputeBytes.bytes(of: words), buffer: entry.program),
             ComputeUpload(bytes: ComputeBytes.bytes(of: floats), buffer: entry.floats),
             ComputeUpload(bytes: ComputeBytes.bytes(of: ints), buffer: entry.ints),
         ]))
@@ -2622,35 +2035,27 @@ public actor InterpretedImplicitEngine: ImplicitGPUEngine {
     }
 }
 ```
-`MeshTuning` is task 5's; until then add, in `InterpretedImplicitEngine+Meshing.swift`, only:
+Until task 6, `HLSLImplicitEngine+Meshing.swift` holds only `extension HLSLImplicitEngine { struct MeshTuning: Sendable {} }`. A zero-byte upload is skipped by the backends; `makeBuffer` makes at least 16 bytes.
+
+- [ ] **Step 4: The Mac's backend over the offline MSL, and the engines under test.**
+
+`Tests/CreatorImplicitTests/Support/MSLComputeBuffer.swift` and `MSLComputePipeline.swift` (both wholly under `#if canImport(Metal)`, `@preconcurrency import Metal`, `@testable import CreatorImplicit`):
 ```swift
-extension InterpretedImplicitEngine {
-    /// The sizes meshing works in (task 5 fills this in).
-    struct MeshTuning: Sendable {}
-}
-```
-An upload of zero bytes (a solid with no pool or pictures) is skipped by the backends; `makeBuffer` makes at least 16 bytes.
-
-- [ ] **Step 5: Write the Mac's MSL backend and the engines under test.**
-
-`Tests/CreatorImplicitTests/Support/MSLComputeBuffer.swift`:
-```swift
-#if canImport(Metal)
-@preconcurrency import Metal
-@testable import CreatorImplicit
-
-/// A Metal buffer as a `ComputeBuffer` (test support for `MSLComputeBackend`).
+/// A Metal buffer as a `ComputeBuffer` (test support). `@unchecked`: an `MTLBuffer` may cross threads; the engine touches its contents only between
+/// batches it awaited.
 final class MSLComputeBuffer: ComputeBuffer, @unchecked Sendable {
     let buffer: any MTLBuffer
     var length: Int { buffer.length }
-
-    init(_ buffer: any MTLBuffer) {
-        self.buffer = buffer
-    }
+    init(_ buffer: any MTLBuffer) { self.buffer = buffer }
 }
-#endif
 ```
-(`@unchecked Sendable`: an `MTLBuffer` is thread-safe to hand between threads; the engine touches its contents only between batches it awaited.)
+```swift
+/// A Metal compute pipeline as a `ComputePipeline` (test support). `MTLComputePipelineState` is thread-safe.
+final class MSLComputePipeline: ComputePipeline, @unchecked Sendable {
+    let state: any MTLComputePipelineState
+    init(_ state: any MTLComputePipelineState) { self.state = state }
+}
+```
 
 `Tests/CreatorImplicitTests/Support/MSLComputeBackend.swift`:
 ```swift
@@ -2659,56 +2064,28 @@ import Foundation
 @preconcurrency import Metal
 @testable import CreatorImplicit
 
-/// The interpreted engine on this Mac's GPU, for the tests (plan xp-c, user decision X-C2): the MSL SDL_shadercross made of `Shaders/implicit`'s HLSL
-/// (`Shaders/implicit/compiled/*.comp.msl`, made in the Linux image by `scripts/linux-test.sh shaders`), bound as SDL_GPU's Metal driver binds it:
-/// the uniform block at `[[buffer(0)]]`, then the read-only storage buffers, then the read-write ones (SDL's `SDL_CreateGPUComputePipeline` notes).
-/// So the HLSL and `InterpretedImplicitEngine` run here exactly as they do on Linux and Windows. Absent when the MSL was not built.
+/// The HLSL engine on this Mac's GPU, for the tests (plan xp-c, X-C2): a kernel source's MSL, made offline from the generated HLSL by the Linux image's
+/// SDL_shadercross (`GeneratedKernels.compiled/<digest>.comp.msl`), bound as SDL_GPU's Metal driver binds it (the uniform block at `[[buffer(0)]]`,
+/// then the read-only, then the read-write storage buffers). Absent when the kernels were not compiled; a source not compiled throws, naming the script.
 final class MSLComputeBackend: ImplicitComputeBackend, @unchecked Sendable {
-    static let directory = URL(fileURLWithPath: #filePath)
-        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appending(path: "Shaders/implicit/compiled")
-
-    /// Made once for the test process.
-    static let state: ComputeBackendState = make()
+    static let state: ComputeBackendState = {
+        guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return .absent("no Metal device") }
+        guard FileManager.default.fileExists(atPath: GeneratedKernels.compiled.path) else {
+            return .absent("the generated kernels were not compiled on this Mac: \(GeneratedKernels.remedy)")
+        }
+        return .ready(MSLComputeBackend(device: device, queue: queue))
+    }()
 
     let device: any MTLDevice
     let queue: any MTLCommandQueue
-    let pipelines: [ImplicitKernel: any MTLComputePipelineState]
     let name = "Metal (HLSL)"
     /// The SDL backends' cap (gap XP-G24), so the tests reach the same limits.
     let largestBuffer = 1 << 27
     var deviceName: String { device.name }
 
-    private init(device: any MTLDevice, queue: any MTLCommandQueue, pipelines: [ImplicitKernel: any MTLComputePipelineState]) {
+    private init(device: any MTLDevice, queue: any MTLCommandQueue) {
         self.device = device
         self.queue = queue
-        self.pipelines = pipelines
-    }
-
-    static func make() -> ComputeBackendState {
-        guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return .absent("no Metal device") }
-        guard FileManager.default.fileExists(atPath: directory.appending(path: "SOURCE.sha256").path) else {
-            return .absent("Shaders/implicit/compiled was not built on this Mac: run XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh shaders")
-        }
-        var pipelines: [ImplicitKernel: any MTLComputePipelineState] = [:]
-        for kernel in ImplicitKernel.allCases {
-            let stem = directory.appending(path: "\(kernel.rawValue).comp")
-            guard FileManager.default.fileExists(atPath: stem.appendingPathExtension("msl").path) else { continue }   // task 5 adds kernels
-            do {
-                let library = try device.makeLibrary(source: try String(contentsOf: stem.appendingPathExtension("msl"), encoding: .utf8), options: nil)
-                guard let function = library.makeFunction(name: "main0") else { return .broken("\(kernel.rawValue).comp.msl has no main0") }
-                let reflection = try JSONSerialization.jsonObject(with: Data(contentsOf: stem.appendingPathExtension("json"))) as? [String: Int]
-                guard reflection?["readonly_storage_buffers"] == kernel.bindings.readOnly,
-                      reflection?["readwrite_storage_buffers"] == kernel.bindings.readWrite, reflection?["uniform_buffers"] == 1,
-                      reflection?["threadcount_x"] == ImplicitKernel.threadsPerGroup else {
-                    return .broken("\(kernel.rawValue).comp.json does not match ImplicitKernel.bindings")
-                }
-                pipelines[kernel] = try device.makeComputePipelineState(function: function)
-            } catch {
-                return .broken("\(kernel.rawValue): \(error.localizedDescription)")
-            }
-        }
-        return .ready(MSLComputeBackend(device: device, queue: queue, pipelines: pipelines))
     }
 
     func makeBuffer(length: Int) throws -> any ComputeBuffer {
@@ -2718,10 +2095,29 @@ final class MSLComputeBackend: ImplicitComputeBackend, @unchecked Sendable {
         return MSLComputeBuffer(buffer)
     }
 
-    func run(_ batch: ComputeBatch) async throws -> [[UInt8]] {
-        guard batch.isWellFormed, let commands = queue.makeCommandBuffer() else {
-            throw ImplicitCompileError.engine("a batch the kernels do not declare, or no command buffer")
+    func makePipeline(_ source: KernelSource) async throws -> any ComputePipeline {
+        let stem = GeneratedKernels.compiled.appending(path: "\(source.digest).comp")
+        guard let text = try? String(contentsOf: stem.appendingPathExtension("msl"), encoding: .utf8) else {
+            throw ImplicitCompileError.unsupported("\(source.kernel.rawValue) \(source.digest) was not compiled offline: \(GeneratedKernels.remedy)")
         }
+        let reflection = (try? JSONSerialization.jsonObject(with: Data(contentsOf: stem.appendingPathExtension("json")))) as? [String: Int]
+        guard reflection?["readonly_storage_buffers"] == source.kernel.bindings.readOnly,
+              reflection?["readwrite_storage_buffers"] == source.kernel.bindings.readWrite else {
+            throw ImplicitCompileError.engine("\(source.digest).comp.json does not match \(source.kernel.rawValue)'s bindings")
+        }
+        do {
+            let library = try await device.makeLibrary(source: text, options: nil)
+            guard let function = library.makeFunction(name: "main0") else { throw ImplicitCompileError.engine("\(source.digest): no main0") }
+            return MSLComputePipeline(try await device.makeComputePipelineState(function: function))
+        } catch let error as ImplicitCompileError {
+            throw error
+        } catch {
+            throw ImplicitCompileError.engine(error.localizedDescription)
+        }
+    }
+
+    func run(_ batch: ComputeBatch) async throws -> [[UInt8]] {
+        guard batch.isWellFormed, let commands = queue.makeCommandBuffer() else { throw ImplicitCompileError.engine("a malformed batch") }
         try record(batch, into: commands)
         await withCheckedContinuation { continuation in
             commands.addCompletedHandler { _ in continuation.resume() }
@@ -2734,7 +2130,6 @@ final class MSLComputeBackend: ImplicitComputeBackend, @unchecked Sendable {
         }
     }
 
-    /// The uploads copied now (shared memory, and every earlier batch was awaited), then each dispatch in an encoder of its own.
     private func record(_ batch: ComputeBatch, into commands: any MTLCommandBuffer) throws {
         for upload in batch.uploads where !upload.bytes.isEmpty {
             guard let buffer = upload.buffer as? MSLComputeBuffer else { throw ImplicitCompileError.engine("a foreign buffer") }
@@ -2743,12 +2138,11 @@ final class MSLComputeBackend: ImplicitComputeBackend, @unchecked Sendable {
             }
         }
         for dispatch in batch.dispatches where dispatch.threads > 0 {
-            guard let pipeline = pipelines[dispatch.kernel], let encoder = commands.makeComputeCommandEncoder() else {
-                throw ImplicitCompileError.engine("no pipeline for \(dispatch.kernel.rawValue)")
+            guard let pipeline = dispatch.pipeline as? MSLComputePipeline, let encoder = commands.makeComputeCommandEncoder() else {
+                throw ImplicitCompileError.engine("a foreign pipeline")
             }
-            encoder.setComputePipelineState(pipeline)
-            let uniform = dispatch.parameters.bytes
-            uniform.withUnsafeBytes { bytes in
+            encoder.setComputePipelineState(pipeline.state)
+            dispatch.parameters.bytes.withUnsafeBytes { bytes in
                 guard let base = bytes.baseAddress else { return }
                 encoder.setBytes(base, length: bytes.count, index: 0)
             }
@@ -2764,46 +2158,46 @@ final class MSLComputeBackend: ImplicitComputeBackend, @unchecked Sendable {
 }
 #endif
 ```
+
 `Tests/CreatorImplicitTests/Support/GPUEnginesUnderTest.swift`:
 ```swift
 import Foundation
 @testable import CreatorImplicit
 
-/// The GPU engines this machine can test, by name (plan xp-c): "Metal" on a Mac with a Metal device; the interpreted engine as "Metal (HLSL)" on a
-/// Mac where `scripts/linux-test.sh shaders` built the MSL, as "Vulkan" on Linux and "Direct3D 12" on Windows where SDL_GPU has a device.
+/// The GPU engines this machine can test, by name (plan xp-c): "Metal" on a Mac with a device; the HLSL engine as "Metal (HLSL)" on a Mac where the
+/// generated kernels were compiled offline, as "Vulkan" (Linux) and "Direct3D 12" (Windows) over SDL_GPU: on kernels compiled offline until task 11,
+/// then compiled at run time as the app does.
 enum GPUEnginesUnderTest {
-    /// The interpreted engine's backend here, made once.
-    static let interpretedState: ComputeBackendState = {
+    static let hlslState: ComputeBackendState = {
         #if canImport(MetalUISDLGPU)
-        return SDLComputeBackend.make()
+        return SDLComputeBackend.make(kernels: SDLPrecompiledKernels(directory: GeneratedKernels.compiled))
         #elseif canImport(Metal)
         return MSLComputeBackend.state
         #else
-        return .absent("no backend for the interpreted engine on this platform")
+        return .absent("no backend for the HLSL engine on this platform")
         #endif
     }()
 
-    static var interpretedName: String {
-        if case .ready(let backend) = interpretedState { return backend.name }
-        return "interpreted"
+    static var hlslName: String {
+        if case .ready(let backend) = hlslState { return backend.name }
+        return "HLSL"
     }
 
-    /// A fresh interpreted engine over the shared backend (each has its own hooks, tuning and epoch), or `nil` without one.
-    static func makeInterpreted(dispatchSize: Int = InterpretedImplicitEngine.pointsPerDispatch) -> InterpretedImplicitEngine? {
-        guard case .ready = interpretedState else { return nil }
-        let state = interpretedState
-        return InterpretedImplicitEngine(name: interpretedName, backend: { state }, dispatchSize: dispatchSize)
+    /// A fresh HLSL engine over the shared backend (its own caches, hooks, tuning and epoch), or `nil`.
+    static func makeHLSL(dispatchSize: Int = HLSLImplicitEngine.pointsPerDispatch) -> HLSLImplicitEngine? {
+        guard case .ready = hlslState else { return nil }
+        let state = hlslState
+        return HLSLImplicitEngine(name: hlslName, backend: { state }, dispatchSize: dispatchSize)
     }
 
-    /// The interpreted engine the suites share.
-    static let interpreted: InterpretedImplicitEngine? = makeInterpreted()
+    static let hlsl: HLSLImplicitEngine? = makeHLSL()
 
     static let names: [String] = {
         var names: [String] = []
         #if canImport(Metal)
         if MetalImplicitEngine.shared != nil { names.append("Metal") }
         #endif
-        if interpreted != nil { names.append(interpretedName) }
+        if hlsl != nil { names.append(hlslName) }
         return names
     }()
 
@@ -2815,72 +2209,46 @@ enum GPUEnginesUnderTest {
         #if canImport(Metal)
         if name == "Metal", let engine = MetalImplicitEngine.shared { return engine }
         #endif
-        if name == interpretedName, let interpreted { return interpreted }
+        if name == hlslName, let hlsl { return hlsl }
         throw Missing(description: "no engine named \(name) here")
     }
 
-    /// Why the interpreted engine is missing, for a skip's message.
-    static var unavailableReason: String { interpretedState.description }
+    static var unavailableReason: String { hlslState.description }
 }
 ```
-On Linux and Windows `SDLComputeBackend` is task 4's: until then guard that branch with `#if canImport(MetalUISDLGPU) && false` and remove the `&& false` in task 4, step 6.
+`SDLComputeBackend` and `SDLPrecompiledKernels` are task 5's: until then write that branch as `#if canImport(MetalUISDLGPU) && false` and drop `&& false` in task 5.
 
-- [ ] **Step 6: Build the MSL and run the tests on the Mac.**
-
-Run:
+- [ ] **Step 5: Run on the Mac** (the kernels from task 3 must be compiled):
 ```bash
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh shaders
-swift test --filter "CreatorImplicitTests.(GPUAgreementTests|InterpretedEngineTests|MetalEngineDispatchTests)" 2>&1 | tail -8
+XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh kernels
+swift test --filter "CreatorImplicitTests.(GPUAgreementTests|HLSLEngineTests|MetalEngineDispatchTests)" 2>&1 | tail -5
 ```
-Expected: PASS, with the agreement cases run twice per fixture ("Metal" and "Metal (HLSL)"). If an "(HLSL)" case fails on a value: run that fixture alone (`--filter "theGPUAgreesWithTheCPU"` and read the message), find the op it uses, and diff its HLSL against the MSL in `ImplicitShaderLibrary*.swift`; if every case returns 0, the binding order is wrong (check the `.msl` file's `[[buffer(n)]]` against `bindings`). Then without the MSL:
-```bash
-mv Shaders/implicit/compiled /tmp/xp-c-compiled-aside
-swift test --filter "CreatorImplicitTests.(GPUAgreementTests|InterpretedEngineTests)" 2>&1 | tail -3   # Metal cases pass; InterpretedEngineTests skipped, naming the script
-mv /tmp/xp-c-compiled-aside Shaders/implicit/compiled
-```
-Then `swift test --filter CreatorImplicitTests 2>&1 | grep -E "Test run with|recorded an issue"`: one line, no issue.
+Expected: PASS, every agreement case for "Metal" and "Metal (HLSL)". A wrong value for one fixture: diff that op's HLSL against `ImplicitShaderLibrary*.swift`; every value 0: a binding order. Then with `.build/generated-kernels` moved aside: the Metal cases pass, `HLSLEngineTests` skips naming the script. `swift test --filter CreatorImplicitTests` — one line, no issue.
 
-- [ ] **Step 7: Check the Windows-sensitive code with the asserts toolchain, lint and commit.**
-
-```bash
-TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release 2>&1 | tail -3   # Build complete
-swiftlint lint --strict
-git add Sources/CreatorImplicit/Compute Sources/CreatorImplicit/GPU Tests/CreatorImplicitTests
-git commit -m "feat(implicit): InterpretedImplicitEngine evaluates through a compute backend; the Mac runs it over the HLSL's MSL (xp-c task 3)
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS"
-```
+- [ ] **Step 6: Asserts toolchain, lint, commit** (`TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release`; `feat(implicit): HLSLImplicitEngine evaluates generated kernels; the Mac runs them over their MSL (xp-c task 4)`).
 
 ---
 
-### Task 4: The SDL_GPU backend, the platform's engine, and the fallbacks a person sees
+### Task 5: The SDL_GPU backend over kernels compiled offline; availability and the fallbacks
+
+The backend the app will use, with its source of shader bytes behind a protocol: offline-compiled kernels now (lavapipe in the Linux image runs the generated HLSL against the CPU), MetalUI's run-time compiler in task 11. The app's engine off macOS stays the CPU until then.
 
 **Files:**
-- Create: `Sources/CreatorImplicit/SDL/SDLComputeBackend.swift`, `SDLComputeRecording.swift`, `SDLComputeBuffer.swift`, `SDLImplicitShaders.swift`, `SDLImplicitEngine.swift`
-- Modify: `Package.swift` (`CreatorImplicit` and `CreatorImplicitTests` gain `metalUISDL`, `metalUISDLGPU`), `Sources/CreatorImplicit/GPU/ImplicitGPUEngines.swift`, `Sources/CreatorImplicit/GPU/ImplicitEvaluators.swift`
-- Modify (tests): `Support/GPUEnginesUnderTest.swift` (drop task 3's `&& false`), `Support/StubGPUEngine.swift` (an `availability`), `ImplicitEvaluatorsTests.swift`, `GPUBatchEvaluatorTests.swift`, `ImplicitPortabilityTests.swift`
-- Create (tests): `Tests/CreatorImplicitTests/SDLComputeBackendTests.swift`, `ImplicitGPUAvailabilityTests.swift`
+- Create: `Sources/CreatorImplicit/SDL/SDLComputeBackend.swift`, `SDLComputeRecording.swift`, `SDLComputeBuffer.swift`, `SDLComputePipeline.swift`, `SDLKernelProvider.swift`
+- Modify: `Package.swift`, `Sources/CreatorImplicit/GPU/ImplicitEvaluators.swift`
+- Modify (tests): `Support/GPUEnginesUnderTest.swift` (drop `&& false`), `Support/StubGPUEngine.swift`, `ImplicitEvaluatorsTests.swift`, `ImplicitPortabilityTests.swift`
+- Create (tests): `SDLComputeBackendTests.swift`, `ImplicitGPUAvailabilityTests.swift`
 
 **Interfaces:**
-- Consumes: everything of task 3; MetalUI's `SDLGPUDevice`, `SDLGPUBuffer`, `SDLGPUTransferBuffer`, `SDLGPUComputePipeline`, `SDLGPUCommandBuffer`, `SDLGPUComputePass`, `SDLGPUShaderLibrary`, `SDLGPUFence` (names checked in task 0).
-- Produces:
-  - `SDLComputeBackend.make(sourceTree: URL = SDLImplicitShaders.sourceTree) -> ComputeBackendState`, `SDLComputeBackend.platformName` ("Vulkan" / "Direct3D 12").
-  - `SDLImplicitShaders.sourceTree`, `.directoryName` (`"ImplicitShaders"`), `.library(sourceTree:)`, `.verify(driver:sourceTree:) throws -> Int` (task 7's self-test).
-  - `InterpretedImplicitEngine.sdl` (Linux, Windows); `ImplicitGPUEngines.platformDefault` returns it there; `ImplicitGPUEngines.meshesMade() async -> Int?`.
-  - `ImplicitEvaluators.make` reads `availability` (X-C4).
+- Produces: `protocol SDLKernelProvider: Sendable { func blob(for source: KernelSource, device: SDLGPUDevice) throws -> SDLGPUShaderBlob }`; `struct SDLPrecompiledKernels: SDLKernelProvider { init(directory: URL) }`; `SDLComputeBackend.make(kernels: any SDLKernelProvider) -> ComputeBackendState`; `SDLComputeBackend.platformName` ("Vulkan" / "Direct3D 12"); `ImplicitEvaluators.make` reads `availability`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [ ] **Step 1: The failing tests.**
 
-In `Tests/CreatorImplicitTests/Support/StubGPUEngine.swift` give the stub an availability: add `private let reported: ImplicitEngineAvailability`, an `availability: ImplicitEngineAvailability = .available` parameter to its initializer (stored in `reported`), and
+`StubGPUEngine`: add an `availability: ImplicitEngineAvailability = .available` initializer parameter (last, with its default), stored, and `var availability: ImplicitEngineAvailability { reported }`.
+
+Add to `ImplicitEvaluatorsTests`:
 ```swift
-    var availability: ImplicitEngineAvailability { reported }
-```
-(Read the stub's initializer first and add the parameter last, with its default, so every existing call compiles unchanged.)
-
-Add to `ImplicitEvaluatorsTests` (the suite, not `MetalEvaluatorsTests`):
-```swift
-    /// No device for the engine: the CPU, and nobody is told (plan xp-c, X-C4).
+    /// No device for the engine: the CPU, and nobody is told (X-C4).
     @Test func anAbsentEngineRunsOnTheCPUSilently() async {
         let engine = StubGPUEngine(availability: .absent("no SDL_GPU device"))
         let selection = await ImplicitEvaluators.make(for: ImplicitFixtures.sphere, choice: .automatic, engine: engine)
@@ -2888,64 +2256,12 @@ Add to `ImplicitEvaluatorsTests` (the suite, not `MetalEvaluatorsTests`):
         #expect(await engine.prepared == 0, "an absent engine is not asked to compile")
     }
 
-    /// The engine should run and cannot (its kernels are missing, a pipeline was refused): the CPU, with the warning, and the reason for the log.
-    @Test func aBrokenEngineRunsOnTheCPUWithTheWarning() async {
-        let engine = StubGPUEngine(availability: .broken("Shaders/implicit/compiled is missing"))
+    /// The engine should run and cannot (the compiler library is missing, a pipeline was refused): the CPU with the warning and the reason (X-C4).
+    @Test func aBrokenEngineRunsOnTheCPUWithTheWarningAndTheReason() async {
+        let engine = StubGPUEngine(availability: .broken("the shader compiler library was not found in /opt/x, ./lib"))
         let selection = await ImplicitEvaluators.make(for: ImplicitFixtures.sphere, choice: .automatic, engine: engine)
         #expect(selection.evaluator.engineName == "CPU" && selection.warning == ImplicitEvaluators.cpuWarning)
-        #expect(selection.diagnostic?.contains("Shaders/implicit/compiled is missing") == true)
-    }
-
-    /// A solid beyond the interpreter's registers runs on the CPU with the warning, as one with no Metal form does (Review Focus 1).
-    @Test(.enabled(if: GPUEnginesUnderTest.interpreted != nil, "needs the interpreted engine"))
-    func aSolidBeyondTheInterpreterRunsOnTheCPUWithTheWarning() async throws {
-        let engine = try #require(GPUEnginesUnderTest.interpreted)
-        var solid = ImplicitSolid.sphere(radius: 1)
-        for _ in 0..<40 { solid = .union([solid, .sphere(radius: 2)], blend: .constant(0.5)) }
-        let selection = await ImplicitEvaluators.make(for: solid, choice: .automatic, engine: engine)
-        #expect(selection.evaluator.engineName == "CPU" && selection.warning == ImplicitEvaluators.cpuWarning)
-    }
-```
-The third test needs the interpreted engine, so it carries its own trait and the suite's other tests run without one.
-
-`Tests/CreatorImplicitTests/ImplicitGPUAvailabilityTests.swift`:
-```swift
-import Foundation
-import Testing
-@testable import CreatorImplicit
-
-/// Which engine this platform evaluates on (plan xp-c): Metal on a Mac, the interpreted engine over SDL_GPU on Linux and Windows. Where the
-/// environment promises a GPU (`XP_REQUIRE_GPU=1`: the Linux image's lavapipe, the Windows job's WARP) a missing device fails here, so a runner
-/// that lost its driver cannot pass the agreement suites by skipping them.
-struct ImplicitGPUAvailabilityTests {
-    @Test func thePlatformEngineIsMetalOnAMacAndTheInterpretedEngineElsewhere() async {
-        guard let engine = ImplicitGPUEngines.platformDefault else { return }
-        #if canImport(Metal)
-        #expect(engine.name == "Metal")
-        #elseif os(Windows)
-        #expect(engine.name == "Direct3D 12")
-        #else
-        #expect(engine.name == "Vulkan")
-        #endif
-    }
-
-    @Test func anEngineAnswersWhereTheEnvironmentPromisesOne() async {
-        guard ProcessInfo.processInfo.environment["XP_REQUIRE_GPU"] == "1" else { return }
-        #if canImport(MetalUISDLGPU)
-        let availability = await InterpretedImplicitEngine.sdl.availability
-        #expect(availability == .available, "XP_REQUIRE_GPU=1 but the implicit engine is \(availability)")
-        #expect(GPUEnginesUnderTest.interpreted != nil, "XP_REQUIRE_GPU=1 but \(GPUEnginesUnderTest.unavailableReason)")
-        #endif
-    }
-}
-```
-
-In `GPUBatchEvaluatorTests.swift` replace `thePlatformEngineIsMetalOrNothing` with:
-```swift
-    @Test func thePlatformEngineIsTheMachinesOrNothing() async {
-        // Metal on a Mac with a device; the interpreted engine over SDL_GPU on Linux and Windows (its availability is the device's); else nil.
-        guard let engine = ImplicitGPUEngines.platformDefault else { return }
-        #expect(["Metal", "Vulkan", "Direct3D 12"].contains(engine.name))
+        #expect(selection.diagnostic?.contains("the shader compiler library was not found") == true)
     }
 ```
 
@@ -2956,40 +2272,31 @@ import Foundation
 import Testing
 @testable import CreatorImplicit
 
-/// The SDL_GPU backend itself (Linux and Windows): the kernels it finds, a broken install, a batch's order.
+/// The SDL_GPU backend itself (Linux and Windows): a kernel missing from a provider, and a batch's order.
 struct SDLComputeBackendTests {
-    /// A checkout or package without the compiled kernels (`swift build` alone compiles none): broken, not absent, so the person hears "Running on
-    /// the CPU", and the reason says what to run (Review Focus 2).
-    @Test func aDirectoryWithoutTheKernelsIsBrokenAndSaysWhatToRun() throws {
-        let empty = FileManager.default.temporaryDirectory.appending(path: "xp-c-no-kernels-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: empty) }
-        switch SDLComputeBackend.make(sourceTree: empty) {
-        case .broken(let why): #expect(why.contains("scripts/build-shaders"), "\(why)")
-        case .absent: break   // no device on this runner: nothing to say about the kernels
-        case .ready: Issue.record("an empty directory gave a ready backend")
-        }
+    @Test(.enabled(if: GPUEnginesUnderTest.hlsl != nil, "needs an SDL_GPU device"))
+    func aKernelTheProviderDoesNotHaveIsUnsupportedNamingTheScript() async throws {
+        guard case .ready(let backend) = SDLComputeBackend.make(kernels: SDLPrecompiledKernels(directory: FileManager.default.temporaryDirectory))
+        else { return }
+        let source = try #require(try ImplicitCompiler.compileHLSL(.sphere(radius: 1)).kernels[.evaluate])
+        await #expect { _ = try await backend.makePipeline(source) } throws: { String(describing: $0).contains("scripts/linux-test.sh kernels") }
     }
 
-    @Test(.enabled(if: GPUEnginesUnderTest.interpreted != nil, "needs an SDL_GPU device"))
-    func everyKernelLoadsForThePlatformsDriver() throws {
-        #expect(try SDLImplicitShaders.verify() == ImplicitKernel.allCases.count)
-    }
-
-    /// A dispatch sees what the one before it in the batch wrote, because each has its own compute pass.
-    @Test(.enabled(if: GPUEnginesUnderTest.interpreted != nil, "needs an SDL_GPU device"))
+    /// A dispatch sees what the uploads before it wrote, and the download sees what it wrote: each in its own pass.
+    @Test(.enabled(if: GPUEnginesUnderTest.hlsl != nil, "needs an SDL_GPU device"))
     func aBatchsUploadsDispatchesAndDownloadsRunInOrder() async throws {
-        guard case .ready(let backend) = GPUEnginesUnderTest.interpretedState else { return }
-        let program = try ImplicitProgramCompiler.compile(.sphere(radius: 2))
-        let engine = try #require(GPUEnginesUnderTest.makeInterpreted())
+        guard case .ready(let backend) = GPUEnginesUnderTest.hlslState else { return }
+        let program = try ImplicitCompiler.compileHLSL(.sphere(radius: 2))
+        let engine = try #require(GPUEnginesUnderTest.makeHLSL())
         let solid = try await engine.buffers(for: program, on: backend)
+        let pipeline = try await backend.makePipeline(try #require(program.kernels[.evaluate]))
         let input = try backend.makeBuffer(length: 24)
         let output = try backend.makeBuffer(length: 8)
         var parameters = solid.parameters
         parameters.count = 2
         let read = try await backend.run(ComputeBatch(
             uploads: [ComputeUpload(bytes: ComputeBytes.bytes(of: [Float](arrayLiteral: 5, 0, 0, 0, 0, 1)), buffer: input)],
-            dispatches: [ComputeDispatch(kernel: .evaluate, parameters: parameters, readOnly: [input, solid.program, solid.floats, solid.ints],
+            dispatches: [ComputeDispatch(kernel: .evaluate, pipeline: pipeline, parameters: parameters, readOnly: [solid.floats, solid.ints, input],
                                          readWrite: [output], threads: 2)],
             downloads: [ComputeDownload(buffer: output, length: 8)]))
         let values = ComputeBytes.values(try #require(read.first), as: Float.self)
@@ -2999,18 +2306,35 @@ struct SDLComputeBackendTests {
 #endif
 ```
 
+`Tests/CreatorImplicitTests/ImplicitGPUAvailabilityTests.swift`:
+```swift
+import Foundation
+import Testing
+@testable import CreatorImplicit
+
+/// Where the environment promises a GPU (`XP_REQUIRE_GPU=1`: the Linux image's lavapipe, the Windows job's WARP) the HLSL engine must have a backend,
+/// so a runner that lost its driver cannot pass the agreement suites by skipping them.
+struct ImplicitGPUAvailabilityTests {
+    @Test func theHLSLEngineAnswersWhereTheEnvironmentPromisesAGPU() {
+        guard ProcessInfo.processInfo.environment["XP_REQUIRE_GPU"] == "1" else { return }
+        #if canImport(MetalUISDLGPU) && !os(Windows)
+        #expect(GPUEnginesUnderTest.hlsl != nil, "XP_REQUIRE_GPU=1 but \(GPUEnginesUnderTest.unavailableReason)")
+        #endif
+    }
+}
+```
+Windows is left out (`&& !os(Windows)`) until task 11: the offline kernels are compiled only in the Linux image, so Windows CI has none and its HLSL cases skip by name; task 11 removes it once Windows compiles at run time.
+
 Add to `ImplicitPortabilityTests`:
 ```swift
-    /// SDL_GPU is reached only from `SDL*.swift` files, each wholly under `#if canImport(MetalUISDLGPU)`, and no other file names an `SDLGPU` type
-    /// (plan xp-c): the module still builds on a Mac, which has no SDL.
+    /// SDL_GPU is reached only from `SDL*.swift` files, each wholly under `#if canImport(MetalUISDLGPU)`, and no other file names an `SDLGPU` type.
     @Test func onlyTheSDLFilesReachSDLGPU() {
         for (name, lines) in Self.sources {
             let code = lines.filter { !$0.isEmpty && !$0.hasPrefix("//") }
-            let importsIt = code.contains { Self.imports($0) == "MetalUISDLGPU" }
             if name.hasPrefix("SDL") {
                 #expect(code.first == "#if canImport(MetalUISDLGPU)" && code.last == "#endif", "\(name) must be wrapped in #if canImport(MetalUISDLGPU)")
             } else {
-                #expect(!importsIt, "\(name) imports MetalUISDLGPU")
+                #expect(!code.contains { Self.imports($0) == "MetalUISDLGPU" }, "\(name) imports MetalUISDLGPU")
                 for line in code {
                     #expect(line.range(of: #"\bSDLGPU\w*"#, options: .regularExpression) == nil, "\(name) names an SDL_GPU type: \(line)")
                 }
@@ -3019,87 +2343,78 @@ Add to `ImplicitPortabilityTests`:
     }
 ```
 
-- [ ] **Step 2: Run them to see them fail (Mac, then Linux).**
+Run on the Mac (`swift test --filter "CreatorImplicitTests.(ImplicitEvaluatorsTests|ImplicitPortabilityTests)"`): the two availability tests fail. On Linux the build fails (`SDLComputeBackend`).
 
-Run: `swift test --filter "CreatorImplicitTests.(ImplicitEvaluatorsTests|ImplicitGPUAvailabilityTests|ImplicitPortabilityTests)" 2>&1 | tail -5`
-Expected: `anAbsentEngineRunsOnTheCPUSilently` and `aBrokenEngineRunsOnTheCPUWithTheWarning` fail (the selection ignores availability); the rest pass on a Mac. On Linux (`XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test --filter CreatorImplicitTests`) the build fails: `SDLComputeBackend` does not exist.
+- [ ] **Step 2: The dependency.** In `Package.swift`, `CreatorImplicit` and `CreatorImplicitTests` gain `metalUISDL, metalUISDLGPU` (both `.when(platforms: [.linux, .windows])` already); update the comment above `CreatorImplicit` ("…the SDL_GPU backend, `Sources/CreatorImplicit/SDL`, plan xp-c, with `#if canImport(MetalUISDLGPU)`") and `metalUISDLGPU`'s ("A dependency of `CreatorViewport`, `CreatorImplicit` and their tests").
 
-- [ ] **Step 3: Declare the dependency.**
-
-In `Package.swift`:
-```swift
-    .target(name: "CreatorImplicit", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUISDL, metalUISDLGPU]),
-```
-```swift
-    .testTarget(name: "CreatorImplicitTests",
-                dependencies: ["CreatorImplicit", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUISDL, metalUISDLGPU]),
-```
-and in the comment above `CreatorImplicit` replace "Portable: the Metal compiler is gated with `#if canImport(Metal)`." with "Portable: the Metal engine is gated with `#if canImport(Metal)`, the SDL_GPU backend (`Sources/CreatorImplicit/SDL`, plan xp-c) with `#if canImport(MetalUISDLGPU)`; MetalUI's SDL products are named on Linux and Windows only." In `metalUISDLGPU`'s doc comment replace "A dependency of `CreatorViewport` and its tests only." with "A dependency of `CreatorViewport`, `CreatorImplicit` (the implicit engine's compute, xp-c) and their tests." Both constants are already `.when(platforms: [.linux, .windows])`, so a macOS build is unchanged.
-
-- [ ] **Step 4: Write the SDL backend.**
+- [ ] **Step 3: The backend.**
 
 `Sources/CreatorImplicit/SDL/SDLComputeBuffer.swift`:
 ```swift
 #if canImport(MetalUISDLGPU)
 import MetalUISDLGPU
 
-/// An `SDLGPUBuffer` as a `ComputeBuffer`.
 final class SDLComputeBuffer: ComputeBuffer {
     let buffer: SDLGPUBuffer
     var length: Int { buffer.size }
-
-    init(_ buffer: SDLGPUBuffer) {
-        self.buffer = buffer
-    }
+    init(_ buffer: SDLGPUBuffer) { self.buffer = buffer }
 }
 #endif
 ```
+`Sources/CreatorImplicit/SDL/SDLComputePipeline.swift`:
+```swift
+#if canImport(MetalUISDLGPU)
+import MetalUISDLGPU
 
-`Sources/CreatorImplicit/SDL/SDLImplicitShaders.swift`:
+final class SDLComputePipeline: ComputePipeline {
+    let pipeline: SDLGPUComputePipeline
+    init(_ pipeline: SDLGPUComputePipeline) { self.pipeline = pipeline }
+}
+#endif
+```
+`Sources/CreatorImplicit/SDL/SDLKernelProvider.swift`:
 ```swift
 #if canImport(MetalUISDLGPU)
 import Foundation
 import MetalUISDLGPU
 
-/// Where the implicit engine's compiled kernels are (plan xp-c): HLSL in `Shaders/implicit`, compiled at build time by `scripts/build-shaders.sh`
-/// (`.ps1` on Windows) into `Shaders/implicit/compiled`, git-ignored; a shipped app has them as `ImplicitShaders` beside the executable, looked for
-/// first (MetalUI's `SDLGPUShaderLibrary.locate`, the viewport's lookup with another name).
-enum SDLImplicitShaders {
-    static let directoryName = "ImplicitShaders"
+/// Where a kernel source's device bytes come from (plan xp-c): MetalUI's run-time compiler in the app (`SDLRuntimeKernels`, task 11, gap XP-G25),
+/// and, before it and in the tests, the generated kernels compiled offline (`SDLPrecompiledKernels`).
+protocol SDLKernelProvider: Sendable {
+    /// Whether this provider can give anything here; `nil` when it can, else why not (`.absent` or `.broken` of the backend).
+    var unavailability: ComputeBackendState? { get }
+    func pipeline(for source: KernelSource, device: SDLGPUDevice) async throws -> SDLGPUComputePipeline
+}
 
-    /// This file is `Sources/CreatorImplicit/SDL/SDLImplicitShaders.swift`: the repository root is four directories up.
-    static var sourceTree: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "Shaders/implicit/compiled")
+/// The generated kernels compiled offline by `scripts/linux-test.sh kernels` (task 3): `<digest>.comp.{spv,dxil,msl,json}` in one directory.
+struct SDLPrecompiledKernels: SDLKernelProvider {
+    let directory: URL
+
+    var unavailability: ComputeBackendState? {
+        FileManager.default.fileExists(atPath: directory.path) ? nil : .absent("the generated kernels were not compiled (\(directory.path))")
     }
 
-    static let remedy = "The implicit engine's kernels are compiled at build time and are not in the repository: run scripts/build-shaders.sh "
-        + "(scripts/build-shaders.ps1 on Windows), which needs SDL_shadercross at the commit pinned in scripts/shadercross.env, and in a shipped app "
-        + "copy Shaders/implicit/compiled to \(directoryName) beside the executable."
-
-    static func library(sourceTree: URL = sourceTree) throws -> SDLGPUShaderLibrary {
-        try SDLGPUShaderLibrary.locate(directoryName: directoryName, sourceTree: sourceTree)
-    }
-
-    /// The driver whose blobs this platform's SDL picks.
-    static var platformDriver: String {
-        #if os(Windows)
-        "direct3d12"
-        #else
-        "vulkan"
-        #endif
-    }
-
-    /// Loads every kernel for `driver` (its blob and its reflection) and returns how many; throws naming the first missing one.
-    static func verify(driver: String = platformDriver, sourceTree: URL = sourceTree) throws -> Int {
-        let library = try library(sourceTree: sourceTree)
-        for kernel in ImplicitKernel.allCases { _ = try library.compute(kernel.rawValue, driver: driver) }
-        return ImplicitKernel.allCases.count
+    func pipeline(for source: KernelSource, device: SDLGPUDevice) async throws -> SDLGPUComputePipeline {
+        let blob: SDLGPUShaderBlob
+        do {
+            blob = try SDLGPUShaderLibrary(directory: directory).compute("\(source.digest)", for: device)
+        } catch {
+            throw ImplicitCompileError.unsupported("\(source.kernel.rawValue) \(source.digest) was not compiled offline "
+                + "(run XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh kernels): \(error)")
+        }
+        guard blob.readOnlyStorageBuffers == source.kernel.bindings.readOnly, blob.readWriteStorageBuffers == source.kernel.bindings.readWrite else {
+            throw ImplicitCompileError.engine("\(source.digest)'s reflection does not match \(source.kernel.rawValue)'s bindings")
+        }
+        do {
+            return try device.compileComputePipeline(blob)
+        } catch {
+            throw ImplicitCompileError.engine("\(source.kernel.rawValue): \(error)")
+        }
     }
 }
 #endif
 ```
+`SDLGPUShaderLibrary.compute(_:for:)` loads `NAME.comp.<format>` with `NAME.comp.json`; the file stem is `<digest>.comp`, so the name is the digest.
 
 `Sources/CreatorImplicit/SDL/SDLComputeRecording.swift`:
 ```swift
@@ -3112,9 +2427,8 @@ final class SDLRecordingFailure: Sendable {
     let failed = Mutex(false)
 }
 
-/// One `ComputeBatch` made ready for the device's worker thread (plan xp-c): the uploads already copied into transfer buffers, each dispatch's
-/// pipeline, buffers, uniform bytes and group count worked out, the download transfer buffers made. Built and read synchronously; only `record`
-/// runs on the worker, inside `submitBatch`.
+/// One `ComputeBatch` made ready for the device's worker thread: uploads already in transfer buffers, each dispatch's buffers, uniform bytes and
+/// group count worked out, the download transfer buffers made. Built and read synchronously; only `record` runs on the worker, in `submitBatch`.
 struct SDLComputeRecording: Sendable {
     struct Upload: Sendable {
         let transfer: SDLGPUTransferBuffer
@@ -3142,8 +2456,8 @@ struct SDLComputeRecording: Sendable {
     let downloads: [Download]
     let failure = SDLRecordingFailure()
 
-    init(_ batch: ComputeBatch, device: SDLGPUDevice, pipelines: [ImplicitKernel: SDLGPUComputePipeline]) throws {
-        guard batch.isWellFormed else { throw ImplicitCompileError.engine("a dispatch lists buffers its kernel does not declare, or too many groups") }
+    init(_ batch: ComputeBatch, device: SDLGPUDevice) throws {
+        guard batch.isWellFormed else { throw ImplicitCompileError.engine("a dispatch with buffers its kernel does not declare, or too many groups") }
         func sdl(_ buffer: any ComputeBuffer) throws -> SDLGPUBuffer {
             guard let buffer = buffer as? SDLComputeBuffer else { throw ImplicitCompileError.engine("a buffer of another backend") }
             return buffer.buffer
@@ -3161,14 +2475,14 @@ struct SDLComputeRecording: Sendable {
         }
         var dispatches: [Dispatch] = []
         for dispatch in batch.dispatches where dispatch.threads > 0 {
-            guard let pipeline = pipelines[dispatch.kernel] else { throw ImplicitCompileError.engine("no pipeline for \(dispatch.kernel.rawValue)") }
-            dispatches.append(Dispatch(pipeline: pipeline, readOnly: try dispatch.readOnly.map(sdl), readWrite: try dispatch.readWrite.map(sdl),
+            guard let pipeline = dispatch.pipeline as? SDLComputePipeline else { throw ImplicitCompileError.engine("a pipeline of another backend") }
+            dispatches.append(Dispatch(pipeline: pipeline.pipeline, readOnly: try dispatch.readOnly.map(sdl), readWrite: try dispatch.readWrite.map(sdl),
                                        uniform: dispatch.parameters.bytes,
                                        groups: (dispatch.threads + ImplicitKernel.threadsPerGroup - 1) / ImplicitKernel.threadsPerGroup))
         }
         var downloads: [Download] = []
-        for download in batch.downloads where download.length > 0 {
-            guard let transfer = device.makeTransferBuffer(size: download.length, direction: .download) else {
+        for download in batch.downloads {
+            guard download.length > 0, let transfer = device.makeTransferBuffer(size: download.length, direction: .download) else {
                 throw ImplicitCompileError.engine("SDL_GPU refused a transfer buffer of \(download.length) bytes")
             }
             downloads.append(Download(buffer: try sdl(download.buffer), length: download.length, transfer: transfer))
@@ -3178,7 +2492,7 @@ struct SDLComputeRecording: Sendable {
         self.downloads = downloads
     }
 
-    /// On the worker thread, inside `submitBatch`: the uploads, each dispatch in a compute pass of its own, the downloads.
+    /// On the worker thread: the uploads, each dispatch in a compute pass of its own, the downloads.
     func record(into commandBuffer: SDLGPUCommandBuffer) {
         for upload in uploads {
             commandBuffer.copy(upload.transfer, to: upload.buffer, destinationOffset: upload.offset, size: upload.size)
@@ -3199,7 +2513,7 @@ struct SDLComputeRecording: Sendable {
         }
     }
 
-    /// After the fence: each download's bytes. The batch's downloads were all requested with a length, so a missing one is empty.
+    /// After the fence: each download's bytes.
     func read() -> [[UInt8]] {
         downloads.map { download in
             guard let memory = download.transfer.map() else { return [] }
@@ -3212,7 +2526,6 @@ struct SDLComputeRecording: Sendable {
 }
 #endif
 ```
-A download whose length is 0 is skipped above, so `read()` would return fewer arrays than requested: the engine never asks for an empty download (it returns an empty mesh before), and `run` checks the count.
 
 `Sources/CreatorImplicit/SDL/SDLComputeBackend.swift`:
 ```swift
@@ -3220,11 +2533,10 @@ A download whose length is 0 is skipped above, so `read()` would return fewer ar
 import Foundation
 import MetalUISDLGPU
 
-/// The interpreted engine over MetalUI's SDL_GPU compute (`MetalUISDLGPU`, MetalUI S5; plan xp-c): an owned, headless device (no window: the
-/// engine evaluates before a window draws, in tests and exports), the seven kernels' pipelines made once, and one `submitBatch` per batch, its
-/// fence awaited so no thread blocks. No raw `SDL_` call.
+/// The HLSL engine over MetalUI's SDL_GPU compute (MetalUI S5; plan xp-c): an owned, headless device (MetalUI: `make` is nonisolated, safe off the
+/// main thread once `SDLPlatform` has initialised video, which the app does first), pipelines from a `SDLKernelProvider`, one `submitBatch` per batch,
+/// its fence awaited so no thread blocks. No raw `SDL_` call.
 final class SDLComputeBackend: ImplicitComputeBackend {
-    /// The engine's name on this platform, for the badge.
     static var platformName: String {
         #if os(Windows)
         "Direct3D 12"
@@ -3234,42 +2546,23 @@ final class SDLComputeBackend: ImplicitComputeBackend {
     }
 
     let device: SDLGPUDevice
-    let pipelines: [ImplicitKernel: SDLGPUComputePipeline]
+    let kernels: any SDLKernelProvider
     let name = SDLComputeBackend.platformName
-    /// The driver's name until MetalUI gives the adapter's (gap XP-G23).
+    /// The driver's name until XP-G23 is adopted (task 13).
     var deviceName: String { name }
-    /// Vulkan's guaranteed `maxStorageBufferRange`: SDL_GPU reports no limit (gap XP-G24).
+    /// Vulkan's guaranteed `maxStorageBufferRange` until XP-G24 is adopted (task 13).
     let largestBuffer = 1 << 27
 
-    private init(device: SDLGPUDevice, pipelines: [ImplicitKernel: SDLGPUComputePipeline]) {
+    private init(device: SDLGPUDevice, kernels: any SDLKernelProvider) {
         self.device = device
-        self.pipelines = pipelines
+        self.kernels = kernels
     }
 
-    /// The device, the kernels and their pipelines. `.absent` when no device answers; `.broken` when the kernels are missing or SDL refuses a
-    /// pipeline, with SDL's reason or what to run.
-    static func make(sourceTree: URL = SDLImplicitShaders.sourceTree) -> ComputeBackendState {
+    /// `.absent` without a device; the provider's own reason when it cannot give kernels here.
+    static func make(kernels: any SDLKernelProvider) -> ComputeBackendState {
+        if let unavailable = kernels.unavailability { return unavailable }
         guard let device = SDLGPUDevice.make() else { return .absent("no SDL_GPU device: \(SDLGPUDevice.lastFailure)") }
-        let library: SDLGPUShaderLibrary
-        do {
-            library = try SDLImplicitShaders.library(sourceTree: sourceTree)
-        } catch {
-            return .broken("\(error). \(SDLImplicitShaders.remedy)")
-        }
-        var pipelines: [ImplicitKernel: SDLGPUComputePipeline] = [:]
-        for kernel in ImplicitKernel.allCases {
-            do {
-                let blob = try library.compute(kernel.rawValue, for: device)
-                guard blob.readOnlyStorageBuffers == kernel.bindings.readOnly, blob.readWriteStorageBuffers == kernel.bindings.readWrite,
-                      blob.uniformBuffers == 1, blob.threadCount.x == ImplicitKernel.threadsPerGroup else {
-                    return .broken("\(kernel.rawValue)'s reflection does not match ImplicitKernel.bindings. \(SDLImplicitShaders.remedy)")
-                }
-                pipelines[kernel] = try device.compileComputePipeline(blob)
-            } catch {
-                return .broken("\(kernel.rawValue): \(error). \(SDLImplicitShaders.remedy)")
-            }
-        }
-        return .ready(SDLComputeBackend(device: device, pipelines: pipelines))
+        return .ready(SDLComputeBackend(device: device, kernels: kernels))
     }
 
     func makeBuffer(length: Int) throws -> any ComputeBuffer {
@@ -3280,64 +2573,22 @@ final class SDLComputeBackend: ImplicitComputeBackend {
         return SDLComputeBuffer(buffer)
     }
 
+    func makePipeline(_ source: KernelSource) async throws -> any ComputePipeline {
+        SDLComputePipeline(try await kernels.pipeline(for: source, device: device))
+    }
+
     func run(_ batch: ComputeBatch) async throws -> [[UInt8]] {
-        let recording = try SDLComputeRecording(batch, device: device, pipelines: pipelines)
+        let recording = try SDLComputeRecording(batch, device: device)
         let fence = try await device.submitBatch { commandBuffer in recording.record(into: commandBuffer) }
         await fence.wait()
         if recording.hasFailed { throw ImplicitCompileError.engine("SDL_GPU refused a compute pass") }
-        let read = recording.read()
-        guard read.count == batch.downloads.count else { throw ImplicitCompileError.engine("a download came back empty") }
-        return read
+        return recording.read()
     }
 }
 #endif
 ```
-`SDLComputeBackend` is `Sendable` without `@unchecked`: its stored properties are `let`s of `Sendable` types (`SDLGPUDevice`, `SDLGPUComputePipeline` are `@unchecked Sendable` in MetalUI). If the compiler disagrees, read the diagnostic; do not add `@unchecked`.
 
-`Sources/CreatorImplicit/SDL/SDLImplicitEngine.swift`:
-```swift
-#if canImport(MetalUISDLGPU)
-/// The machine's implicit engine on Linux and Windows (plan xp-c; cross-platform spec erratum E8). Making it costs nothing: the device, the kernels
-/// and the pipelines are made on its first `availability`, `compile` or `evaluate`, inside the actor, and kept.
-extension InterpretedImplicitEngine {
-    public static let sdl = InterpretedImplicitEngine(name: SDLComputeBackend.platformName, backend: { SDLComputeBackend.make() })
-}
-#endif
-```
-
-- [ ] **Step 5: Make it the platform's engine and read its availability.**
-
-`Sources/CreatorImplicit/GPU/ImplicitGPUEngines.swift`:
-```swift
-/// Which GPU engine this platform has. The only place outside the engines themselves that knows a platform's GPU API, and it names no type of
-/// one: it only asks `canImport`.
-public enum ImplicitGPUEngines {
-    /// The engine for this machine's GPU: Metal on a Mac with a device; the interpreted engine over SDL_GPU on Linux and Windows (plan xp-c; whether
-    /// it has a device is its `availability`); `nil` elsewhere.
-    public static var platformDefault: (any ImplicitGPUEngine)? {
-        #if canImport(Metal)
-        MetalImplicitEngine.shared
-        #elseif canImport(MetalUISDLGPU)
-        InterpretedImplicitEngine.sdl
-        #else
-        nil
-        #endif
-    }
-
-    /// How many meshes the platform's engine has made, or `nil` where there is none: the benchmarks check a row's meshes were made on the GPU.
-    public static func meshesMade() async -> Int? {
-        #if canImport(Metal)
-        await MetalImplicitEngine.shared?.meshesMade
-        #elseif canImport(MetalUISDLGPU)
-        await InterpretedImplicitEngine.sdl.meshesMade
-        #else
-        nil
-        #endif
-    }
-}
-```
-
-In `Sources/CreatorImplicit/GPU/ImplicitEvaluators.swift`, after the `guard choice == .automatic, let engine else { … }` line add:
+- [ ] **Step 4: The selection reads availability.** In `ImplicitEvaluators.make`, after its `guard choice == .automatic, let engine else { … }`:
 ```swift
         switch await engine.availability {
         case .available:
@@ -3346,126 +2597,44 @@ In `Sources/CreatorImplicit/GPU/ImplicitEvaluators.swift`, after the `guard choi
             // No GPU for this engine: like a machine with no GPU engine, the CPU is all there is (plan xp-c, X-C4).
             return Selection(evaluator: cpu, warning: nil, diagnostic: "no GPU engine: \(why)")
         case .broken(let why):
-            // A GPU engine that should run and cannot: a broken install or driver the person should hear about.
+            // A GPU engine that should run and cannot (its compiler library is missing, a pipeline was refused): the person is told.
             return Selection(evaluator: cpu, warning: cpuWarning, diagnostic: "the GPU engine cannot run: \(why)")
         }
 ```
-and in `Selection.warning`'s and `diagnostic`'s doc comments add "or the engine is broken (`ImplicitEngineAvailability.broken`)" and "or why the engine is absent or broken".
+A compile error (DXC's diagnostic in `ImplicitCompileError.engine`) already takes the existing `catch` (warning plus "the GPU compiler failed: …"), as on Metal. `ImplicitGPUEngines.platformDefault` is **not** changed here (it stays `nil` off macOS until task 11). In `Support/GPUEnginesUnderTest.swift` drop the `&& false`.
 
-In `Tests/CreatorAppTests/Bench/ImplicitBench.swift`, replace the body of `static func meshesMade() async -> Int?` with `await ImplicitGPUEngines.meshesMade()` and its doc comment's "the platform's Metal engine" with "the platform's GPU engine".
+- [ ] **Step 5: Run.** Mac: `swift test --filter CreatorImplicitTests 2>&1 | grep -E "Test run with|recorded an issue"`. Linux: `XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test --filter CreatorImplicitTests 2>&1 | tail -3` — PASS, with `GPUAgreementTests` running "Vulkan" over lavapipe on the offline kernels; then `scripts/linux-test.sh all` (12 lines). Note the Linux `CreatorImplicitTests` time.
 
-In `Support/GPUEnginesUnderTest.swift` change `#if canImport(MetalUISDLGPU) && false` back to `#if canImport(MetalUISDLGPU)`.
-
-- [ ] **Step 6: Run on the Mac, then on Linux.**
-
-Run:
-```bash
-swift test --filter CreatorImplicitTests 2>&1 | grep -E "Test run with|recorded an issue"     # one line, no issue
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test --filter CreatorImplicitTests 2>&1 | tail -3
-```
-Expected: both PASS. On Linux `GPUAgreementTests` now runs on "Vulkan" (lavapipe), `SDLComputeBackendTests` and `ImplicitGPUAvailabilityTests` pass with `XP_REQUIRE_GPU=1`. Note the Linux `CreatorImplicitTests` wall time from the log (it is task 6's budget question: the meshing suites add more).
-
-Then the whole Linux suite, because `.automatic` now means the GPU there: `XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh all` — PASS, 12 lines. A test elsewhere that asserted `engineName == "CPU"` under `.automatic` on Linux is wrong now: it should pass its engine explicitly (`engine: nil` for the CPU), as macOS's tests already must.
-
-- [ ] **Step 7: Lint, commit, and read the Windows CI.**
-
-```bash
-swiftlint lint --strict
-git add Package.swift Sources/CreatorImplicit Tests/CreatorImplicitTests Tests/CreatorAppTests/Bench/ImplicitBench.swift
-git commit -m "feat(implicit): the SDL_GPU compute backend is Linux's and Windows' implicit engine; absent or broken engines fall back (xp-c task 4)
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS"
-git push origin xp-c
-```
-Then read the Windows job of `.github/workflows/xp.yml` for this commit (`gh run list --branch xp-c`, `gh run view <id> --log`): the debug build, the test step (12 lines; `GPUAgreementTests` on "Direct3D 12" over WARP) and **"Build release (for the zip)"** must pass. A Windows-only compiler crash in an `async` loop of `InterpretedImplicitEngine` is the Global Constraints' rule (1) or (3): apply the remedy there and push again.
+- [ ] **Step 6: Lint, commit, push, read the Windows job** (`feat(implicit): the SDL_GPU compute backend runs the generated kernels; engines report availability (xp-c task 5)`; `git push origin xp-c`; the Windows debug build, tests, and "Build release (for the zip)" must pass).
 
 ---
 
-### Task 5: Meshing on the interpreted engine: the six meshing kernels, the engine's steps, and the canonical order
+### Task 6: Meshing on the HLSL engine, mirroring `MetalImplicitEngine+Meshing`
 
 **Files:**
-- Create: `Shaders/implicit/mesh_common.hlsli`, `mesh_cubes.hlsli`, `mesh_lattice.hlsli`, `mesh_clear.comp.hlsl`, `mesh_sample.comp.hlsl`, `mesh_classify.comp.hlsl`, `mesh_number.comp.hlsl`, `mesh_place.comp.hlsl`, `mesh_emit.comp.hlsl`
-- Create: `Sources/CreatorImplicit/Compute/RadixSort.swift`, `MeshCanonicalOrder.swift`, `InterpretedMeshJob.swift`
-- Modify: `Sources/CreatorImplicit/Compute/InterpretedImplicitEngine+Meshing.swift` (task 3's placeholder becomes the meshing)
-- Test: `Tests/CreatorImplicitTests/MeshCanonicalOrderTests.swift`, `Tests/CreatorImplicitTests/InterpretedMeshingTests.swift`
+- Modify: `Sources/CreatorImplicit/Compute/HLSLImplicitEngine+Meshing.swift`
+- Create: `Sources/CreatorImplicit/Compute/HLSLMeshRun.swift`
+- Test: `Tests/CreatorImplicitTests/HLSLMeshingTests.swift`
 
 **Interfaces:**
-- Consumes: `InterpretedImplicitEngine.backend()`, `.buffers(for:on:)`, `.epoch`, `Prepared` (task 3); `BrickLattice`, `BrickMeshRequest`, `BrickMesh`, `MarchingCubesBuffers.words`, `ImplicitMeshShaderLibrary.Counter` (7c-1g).
-- Produces:
-  - `InterpretedImplicitEngine.meshBricks(_:_:progress:)` (the `ImplicitGPUEngine` requirement), `struct MeshTuning { batchBricks = 1024, slotsPerBrick = 256, largestTable = 1 << 25, slotsPerDispatch = 1 << 18, afterBatch }`, `func tune(_:)`, `static let largestBrickCount = Int(UInt32.max) / 512`.
-  - `enum RadixSort { static func order(of keys: [UInt32]) -> [UInt32] }` (stable, ascending).
-  - `enum MeshCanonicalOrder { static func mesh(positions:normals:keys:triangles:tags:) -> BrickMesh }`.
+- Consumes: `HLSLImplicitEngine` (task 4); `CompiledImplicit.kernels`; `BrickLattice`, `BrickMeshRequest`, `BrickMesh`, `MarchingCubesBuffers.words`, `ImplicitMeshShaderLibrary.Counter`.
+- Produces: `meshBricks(_:_:progress:)`; `struct MeshTuning { batchBricks = 1024, slotsPerBrick = 256, largestTable = 1 << 25, slotsPerDispatch = 1 << 18, afterBatch }`; `tune(_:)`; `meshCompileCount`.
 
-- [ ] **Step 1: Write the failing tests.**
-
-`Tests/CreatorImplicitTests/MeshCanonicalOrderTests.swift` (portable, no GPU):
-```swift
-import Testing
-@testable import CreatorImplicit
-
-/// The order the interpreted engine gives a mesh (plan xp-c, X-C3): whatever order the GPU's threads made it in, the arrays that come out are the
-/// same.
-struct MeshCanonicalOrderTests {
-    @Test func theRadixSortIsAStableAscendingOrder() {
-        let keys: [UInt32] = [7, 0xFFFF_FFFF, 3, 7, 0, 256, 3, 65_536]
-        let order = RadixSort.order(of: keys)
-        #expect(order.map { keys[Int($0)] } == keys.sorted())
-        #expect(order == [4, 2, 6, 0, 3, 5, 7, 1], "equal keys keep their order")
-        #expect(RadixSort.order(of: []).isEmpty)
-    }
-
-    /// A mesh, and the same mesh with its vertices renumbered and its cubes' triangle blocks shuffled as a GPU's atomics would: one canonical mesh.
-    @Test(arguments: [1, 2, 3, 4, 5])
-    func aShuffledMeshComesOutAsTheSameArrays(_ seed: Int) {
-        // Three cubes (tags 10, 11, 40); the second made two triangles. Vertex keys are the edge keys.
-        let keys: [UInt32] = [30, 12, 99, 51, 7, 64]
-        let positions = keys.map { SIMD3<Float>(Float($0), 0, 0) }
-        let normals = keys.map { _ in SIMD3<Float>(0, 0, 1) }
-        let triangles: [UInt32] = [0, 1, 2, 3, 4, 5, 5, 4, 1, 2, 3, 0]
-        let tags: [UInt32] = [10, 11, 11, 40]
-        let reference = MeshCanonicalOrder.mesh(positions: positions, normals: normals, keys: keys, triangles: triangles, tags: tags)
-
-        let random = SeededRandom(seed: seed, stream: 0)
-        let renumber = (0..<keys.count).sorted { random.unit(at: $0) < random.unit(at: $1) }   // new index of old vertex v is renumber.firstIndex(of: v)
-        var newOf = [Int](repeating: 0, count: keys.count)
-        for (new, old) in renumber.enumerated() { newOf[old] = new }
-        let blocks: [[Int]] = [[0], [1, 2], [3]].sorted { random.unit(at: 10 + $0[0]) < random.unit(at: 10 + $1[0]) }
-        var shuffledTriangles: [UInt32] = []
-        var shuffledTags: [UInt32] = []
-        for block in blocks {
-            for triangle in block {
-                shuffledTriangles += (0..<3).map { UInt32(newOf[Int(triangles[triangle * 3 + $0])]) }
-                shuffledTags.append(tags[triangle])
-            }
-        }
-        let shuffled = MeshCanonicalOrder.mesh(positions: renumber.map { positions[$0] }, normals: renumber.map { normals[$0] },
-                                               keys: renumber.map { keys[$0] }, triangles: shuffledTriangles, tags: shuffledTags)
-        #expect(shuffled == reference)
-        #expect(reference.positions.map(\.x) == keys.sorted().map(Float.init), "vertices by edge key")
-        #expect(reference.isConsistent)
-    }
-}
-```
-`SeededRandom(seed:stream:)` (`Sources/CreatorGeometry/Random/SeededRandom.swift`) takes an `Int` seed.
-
-`Tests/CreatorImplicitTests/InterpretedMeshingTests.swift` (the basics here; task 6 adds the limits):
+- [ ] **Step 1: The failing tests.** `Tests/CreatorImplicitTests/HLSLMeshingTests.swift`:
 ```swift
 import CreatorGeometry
-import Synchronization
 import Testing
 @testable import CreatorImplicit
 
-/// Meshing on the interpreted engine (plan xp-c; implicit spec Errata D13, D21): the basics of what comes back, and that it comes back the same
-/// every time. Its agreement with the CPU mesher is `GPUMeshAgreementTests`. Skipped, by name, where the engine has no backend.
-@Suite(.enabled(if: GPUEnginesUnderTest.interpreted != nil, "needs the interpreted engine: \(GPUEnginesUnderTest.unavailableReason)"))
-struct InterpretedMeshingTests {
+/// Meshing on the HLSL engine (plan xp-c; Errata D13): the basics, as `MetalMeshingTests` for Metal. Agreement with the CPU is `GPUMeshAgreementTests`.
+@Suite(.enabled(if: GPUEnginesUnderTest.hlsl != nil, "needs the HLSL engine: \(GPUEnginesUnderTest.unavailableReason)"))
+struct HLSLMeshingTests {
     static func request(_ solid: ImplicitSolid, resolution: Double, snap: Bool = true) async throws -> BrickMeshRequest {
         BrickMeshRequest(plan: try await BrickPlan.build(for: solid, resolution: resolution, using: CPUBatchEvaluator(solid)), snap: snap)
     }
 
-    @Test func aSphereMeshedOnTheInterpreterIsAClosedManifoldWithTheRightVolume() async throws {
-        let engine = try #require(GPUEnginesUnderTest.interpreted)
+    @Test func aSphereMeshedOnTheGPUIsAClosedManifoldWithTheRightVolume() async throws {
+        let engine = try #require(GPUEnginesUnderTest.hlsl)
         let solid = ImplicitSolid.sphere(radius: 10)
         let selection = await ImplicitEvaluators.make(for: solid, choice: .automatic, engine: engine)
         #expect(selection.evaluator.engineName == engine.name)
@@ -3474,15 +2643,14 @@ struct InterpretedMeshingTests {
         let topology = MeshTopology(mesh)
         #expect(topology.isClosedManifold && topology.eulerCharacteristic == 2)
         let exact = 4.0 / 3 * Double.pi * 1000
-        #expect(abs(mesh.signedVolume - exact) / exact < 0.005, "volume \(mesh.signedVolume) against \(exact)")
+        #expect(abs(mesh.signedVolume - exact) / exact < 0.005)
         #expect(mesh.normals.count == mesh.positions.count && mesh.normals.allSatisfy { abs(($0 * $0).sum() - 1) < 1e-4 })
     }
 
     @Test func withoutTheSnapTheNormalsAreZeroAndTheVerticesAreOnTheLattice() async throws {
-        let engine = try #require(GPUEnginesUnderTest.interpreted)
-        let solid = ImplicitFixtures.sphere
-        let program = try await engine.compile(solid)
-        let request = try await Self.request(solid, resolution: 0.53, snap: false)
+        let engine = try #require(GPUEnginesUnderTest.hlsl)
+        let program = try await engine.compile(ImplicitFixtures.sphere)
+        let request = try await Self.request(ImplicitFixtures.sphere, resolution: 0.53, snap: false)
         let mesh = try await engine.meshBricks(program, request) { _ in }
         #expect(mesh.isConsistent && !mesh.triangles.isEmpty && mesh.normals.allSatisfy { $0 == .zero })
         let step = Float(request.resolution)
@@ -3495,551 +2663,156 @@ struct InterpretedMeshingTests {
         }
     }
 
-    /// The same request meshes to the same arrays every time (X-C3), so an export made twice has the same bytes (Review Focus 6).
-    @Test func theSameRequestMeshesToTheSameArraysEveryTime() async throws {
-        let engine = try #require(GPUEnginesUnderTest.makeInterpreted())
-        var tuning = InterpretedImplicitEngine.MeshTuning()
-        tuning.batchBricks = 3
-        tuning.slotsPerDispatch = 1_000
-        await engine.tune(tuning)
-        let solid = try #require(GPUFixtures.all.first { $0.name == "smooth union" }?.solid)
-        let program = try await engine.compile(solid)
-        let request = try await Self.request(solid, resolution: 0.53)
-        let first = try await engine.meshBricks(program, request) { _ in }
-        for _ in 0..<3 {
-            #expect(try await engine.meshBricks(program, request) { _ in } == first)
-        }
-        await engine.tune(InterpretedImplicitEngine.MeshTuning())
-        #expect(try await engine.meshBricks(program, request) { _ in } == first, "the batch sizes do not change the arrays")
-    }
-
-    @Test func progressRunsFromZeroToNearlyOneInOrder() async throws {
-        let engine = try #require(GPUEnginesUnderTest.makeInterpreted())
-        var tuning = InterpretedImplicitEngine.MeshTuning()
-        tuning.batchBricks = 2
-        await engine.tune(tuning)
-        let program = try await engine.compile(ImplicitFixtures.sphere)
-        let request = try await Self.request(ImplicitFixtures.sphere, resolution: 0.53)
-        let seen = Mutex<[Double]>([])
-        _ = try await engine.meshBricks(program, request) { fraction in seen.withLock { $0.append(fraction) } }
-        let fractions = seen.withLock { $0 }
-        #expect(!fractions.isEmpty && fractions == fractions.sorted() && fractions.allSatisfy { (0...1).contains($0) })
-        #expect(await engine.meshesMade == 1)
+    /// Review Focus 3: a shape's meshing pipelines are made once; a second shape makes only its three that call `sdf` (the four others are shared).
+    @Test func meshingASecondTimeCompilesNoMeshPipeline() async throws {
+        let engine = try #require(GPUEnginesUnderTest.makeHLSL())
+        let sphere = try await engine.compile(.sphere(radius: 3))
+        let request = try await Self.request(.sphere(radius: 3), resolution: 0.5)
+        _ = try await engine.meshBricks(sphere, request) { _ in }
+        #expect(await engine.meshCompileCount == 6)
+        _ = try await engine.meshBricks(try await engine.compile(.sphere(radius: 4)), request) { _ in }
+        #expect(await engine.meshCompileCount == 6, "the same shape")
+        let box = try await engine.compile(.box(halfSize: Vector3(2, 2, 2), cornerRadius: 0))
+        _ = try await engine.meshBricks(box, try await Self.request(.box(halfSize: Vector3(2, 2, 2), cornerRadius: 0), resolution: 0.5)) { _ in }
+        #expect(await engine.meshCompileCount == 8, "sample and place for the box; clear, classify, number and emit shared")
     }
 }
 ```
+(Six, not seven: the evaluation pipeline is `compileCount`'s; meshing makes `clear`, `sample`, `classify`, `number`, `place`, `emit`.)
 
-- [ ] **Step 2: Run them to see them fail.**
+- [ ] **Step 2: Run to see it fail** (`swift test --filter CreatorImplicitTests.HLSLMeshingTests`: `meshBricks` is the protocol's default, "unsupported").
 
-Run: `swift test --filter "CreatorImplicitTests.(MeshCanonicalOrderTests|InterpretedMeshingTests)" 2>&1 | tail -5`
-Expected: build failure ("cannot find 'MeshCanonicalOrder' in scope").
-
-- [ ] **Step 3: Write the canonical order.**
-
-`Sources/CreatorImplicit/Compute/RadixSort.swift`:
+- [ ] **Step 3: The meshing, step for step Metal's.** `Sources/CreatorImplicit/Compute/HLSLMeshRun.swift`:
 ```swift
-/// A stable least-significant-digit radix sort of 32-bit keys, in four passes of eight bits (plan xp-c, X-C3): O(n), which a 2-million-triangle
-/// preview needs.
-enum RadixSort {
-    /// The indices of `keys` in ascending order of key; equal keys keep their order.
-    static func order(of keys: [UInt32]) -> [UInt32] {
-        var order = Array(0..<UInt32(keys.count))
-        var scratch = order
-        for shift in stride(from: UInt32(0), to: 32, by: 8) {
-            var counts = [Int](repeating: 0, count: 257)
-            for index in order { counts[Int((keys[Int(index)] >> shift) & 0xFF) + 1] += 1 }
-            for bucket in 1..<257 { counts[bucket] += counts[bucket - 1] }
-            for index in order {
-                let bucket = Int((keys[Int(index)] >> shift) & 0xFF)
-                scratch[counts[bucket]] = index
-                counts[bucket] += 1
-            }
-            swap(&order, &scratch)
-        }
-        return order
-    }
-}
-```
-
-`Sources/CreatorImplicit/Compute/MeshCanonicalOrder.swift`:
-```swift
-/// The order the interpreted engine gives a mesh (plan xp-c, user decision X-C3; implicit spec erratum D21). The GPU numbers vertices and places
-/// triangles in whatever order its threads run; this puts them in one order that depends only on the mesh: vertices by their lattice edge's key,
-/// triangles by the cube that made them (`tag`: the brick's place in the request × 512 + the cube) and, within a cube, as the marching-cubes table
-/// lists them (a cube's triangles are written together, in table order). So a request meshes to the same arrays run after run.
-enum MeshCanonicalOrder {
-    /// `positions`, `normals` and `keys` per vertex as the GPU numbered them; `triangles`, three indices each, and `tags`, one each, as it placed them.
-    static func mesh(positions: [SIMD3<Float>], normals: [SIMD3<Float>], keys: [UInt32], triangles: [UInt32], tags: [UInt32]) -> BrickMesh {
-        let vertexOrder = RadixSort.order(of: keys)
-        var renumbered = [UInt32](repeating: 0, count: keys.count)
-        for (new, old) in vertexOrder.enumerated() { renumbered[Int(old)] = UInt32(new) }
-        let triangleOrder = RadixSort.order(of: tags)
-        var indices: [UInt32] = []
-        indices.reserveCapacity(triangles.count)
-        for old in triangleOrder {
-            let base = Int(old) * 3
-            indices.append(renumbered[Int(triangles[base])])
-            indices.append(renumbered[Int(triangles[base + 1])])
-            indices.append(renumbered[Int(triangles[base + 2])])
-        }
-        return BrickMesh(positions: vertexOrder.map { positions[Int($0)] }, normals: vertexOrder.map { normals[Int($0)] }, triangles: indices)
-    }
-}
-```
-
-Run: `swift test --filter CreatorImplicitTests.MeshCanonicalOrderTests 2>&1 | tail -3` — PASS (the suite needs only these two files; if the build stops on `InterpretedMeshingTests`, comment that file's suite out until step 6 and say so in the commit).
-
-- [ ] **Step 4: Write the meshing kernels.**
-
-`Shaders/implicit/mesh_common.hlsli`:
-```hlsl
-// The edge table's hash and the lattice edge key every meshing kernel shares (ImplicitMeshShaderLibrary's tableHash and edgeKey, BrickLattice's
-// numbering). Needs contract.hlsli.
-#ifndef IMPLICIT_MESH_COMMON
-#define IMPLICIT_MESH_COMMON
-
-uint tableHash(uint key, uint mask) {
-    uint h = key * 0x9E3779B1u;
-    h ^= h >> 16;
-    h *= 0x85EBCA6Bu;
-    h ^= h >> 13;
-    return h & mask;
+/// The six meshing pipelines of one shape.
+struct HLSLMeshPipelines: Sendable {
+    var clear: any ComputePipeline
+    var sample: any ComputePipeline
+    var classify: any ComputePipeline
+    var number: any ComputePipeline
+    var place: any ComputePipeline
+    var emit: any ComputePipeline
 }
 
-// The key of the edge between corners a and b of the cube whose lowest lattice point is (x, y, z): the CPU's formula.
-uint edgeKeyOf(uint x, uint y, uint z, uint a, uint b) {
-    uint lx = x + (a & 1u), ly = y + ((a >> 1) & 1u), lz = z + ((a >> 2) & 1u);
-    uint axis = ((a ^ b) == 1u) ? 0u : (((a ^ b) == 2u) ? 1u : 2u);
-    return ((lz * gNY + ly) * gNX + lx) * 3u + axis;
-}
-
-#endif
-```
-
-`Shaders/implicit/mesh_cubes.hlsli`:
-```hlsl
-// A cube's corners and pattern from a batch's samples. The kernel declares `samples` before it includes this.
-#ifndef IMPLICIT_MESH_CUBES
-#define IMPLICIT_MESH_CUBES
-
-float cornerValue(uint base, uint x, uint y, uint z, uint corner) {
-    return samples[base + ((z + (corner >> 2)) * SIDE + y + ((corner >> 1) & 1u)) * SIDE + x + (corner & 1u)];
-}
-
-uint cubePattern(uint base, uint x, uint y, uint z) {
-    uint pattern = 0u;
-    for (uint corner = 0u; corner < 8u; ++corner) {
-        if (cornerValue(base, x, y, z, corner) < 0.0f) { pattern |= 1u << corner; }
-    }
-    return pattern;
-}
-
-#endif
-```
-
-`Shaders/implicit/mesh_lattice.hlsli`:
-```hlsl
-// A lattice point's world position, read from the CPU's coordinates (BrickLattice.axisCoordinates). The kernel declares `axes` before it includes this.
-#ifndef IMPLICIT_MESH_LATTICE
-#define IMPLICIT_MESH_LATTICE
-
-float3 latticePoint(uint x, uint y, uint z) {
-    return float3(axes[x], axes[gNX + y], axes[gNX + gNY + z]);
-}
-
-#endif
-```
-
-`Shaders/implicit/mesh_clear.comp.hlsl`:
-```hlsl
-// Empties the edge table over slots gFirstSlot ..< gFirstSlot + gCount: SDL_GPU has no buffer fill (Metal's engine blits 0xFF).
-#include "contract.hlsli"
-
-RWStructuredBuffer<uint> keys : register(u0, space1);
-
-[numthreads(THREADS, 1, 1)]
-void main(uint3 id : SV_DispatchThreadID) {
-    uint slot = gFirstSlot + id.x;
-    if (id.x >= gCount || slot > gMask) { return; }
-    keys[slot] = EMPTY_KEY;
-}
-```
-
-`Shaders/implicit/mesh_sample.comp.hlsl`:
-```hlsl
-// Step 1 of a mesh (ImplicitMeshShaderLibrary's meshSample): the solid's value at every lattice point of a batch of bricks, at the CPU's coordinates.
-#include "contract.hlsli"
-
-StructuredBuffer<uint> bricks : register(t0, space0);
-StructuredBuffer<float> axes : register(t1, space0);
-StructuredBuffer<int> program : register(t2, space0);
-StructuredBuffer<float> floats : register(t3, space0);
-StructuredBuffer<int> ints : register(t4, space0);
-RWStructuredBuffer<float> samples : register(u0, space1);
-
-#include "accurate_math.hlsli"
-#include "wide_integer.hlsli"
-#include "library.hlsli"
-#include "lattices.hlsli"
-#include "interpreter.hlsli"
-#include "mesh_lattice.hlsli"
-
-[numthreads(THREADS, 1, 1)]
-void main(uint3 id : SV_DispatchThreadID) {
-    uint gid = id.x;
-    if (gid >= gBrickCount * POINTS) { return; }
-    uint b = gid / POINTS, r = gid % POINTS;
-    uint x = r % SIDE, y = (r / SIDE) % SIDE, z = r / (SIDE * SIDE);
-    uint at = (gFirstBrick + b) * 3u;
-    samples[gid] = sdf(latticePoint(bricks[at] * BRICK + x, bricks[at + 1u] * BRICK + y, bricks[at + 2u] * BRICK + z));
-}
-```
-
-`Shaders/implicit/mesh_classify.comp.hlsl`:
-```hlsl
-// Step 2 (meshClassify): each cube's pattern; its triangles added to the total; a table slot claimed for each lattice edge it crosses, by compare and
-// swap on the key, so an edge shared by four cubes, or by two bricks, is one slot.
-#include "contract.hlsli"
-
-StructuredBuffer<uint> bricks : register(t0, space0);
-StructuredBuffer<float> samples : register(t1, space0);
-StructuredBuffer<uint> cubeTable : register(t2, space0);
-RWStructuredBuffer<uint> keys : register(u0, space1);
-RWStructuredBuffer<uint> counters : register(u1, space1);
-
-#include "mesh_common.hlsli"
-#include "mesh_cubes.hlsli"
-
-void claimSlot(uint key) {
-    uint slot = tableHash(key, gMask);
-    for (uint probe = 0u; probe < PROBE_LIMIT; ++probe) {
-        uint original;
-        InterlockedCompareExchange(keys[slot], EMPTY_KEY, key, original);
-        if (original == EMPTY_KEY || original == key) { return; }
-        slot = (slot + 1u) & gMask;
-    }
-    InterlockedOr(counters[COUNTER_OVERFLOW], 1u);
-}
-
-[numthreads(THREADS, 1, 1)]
-void main(uint3 id : SV_DispatchThreadID) {
-    uint gid = id.x;
-    if (gid >= gBrickCount * CUBES) { return; }
-    uint b = gid / CUBES, c = gid % CUBES;
-    uint x = c % BRICK, y = (c / BRICK) % BRICK, z = c / (BRICK * BRICK);
-    uint pattern = cubePattern(b * POINTS, x, y, z);
-    uint begin = cubeTable[CUBE_STARTS + pattern], end = cubeTable[CUBE_STARTS + pattern + 1u];
-    if (begin == end) { return; }
-    InterlockedAdd(counters[COUNTER_TRIANGLE_TOTAL], (end - begin) / 3u);
-    uint at = (gFirstBrick + b) * 3u;
-    uint lx = bricks[at] * BRICK + x, ly = bricks[at + 1u] * BRICK + y, lz = bricks[at + 2u] * BRICK + z;
-    for (uint edge = 0u; edge < 12u; ++edge) {
-        uint low = cubeTable[CUBE_LOWER + edge], high = cubeTable[CUBE_UPPER + edge];
-        if (((pattern >> low) & 1u) != ((pattern >> high) & 1u)) {
-            claimSlot(edgeKeyOf(lx, ly, lz, low, high));
-        }
-    }
-}
-```
-
-`Shaders/implicit/mesh_number.comp.hlsl`:
-```hlsl
-// Step 3 (meshNumber): each occupied slot's vertex number, from an atomic counter (the canonical order is made on the CPU afterwards).
-#include "contract.hlsli"
-
-StructuredBuffer<uint> keys : register(t0, space0);
-RWStructuredBuffer<uint> slotVertex : register(u0, space1);
-RWStructuredBuffer<uint> counters : register(u1, space1);
-
-[numthreads(THREADS, 1, 1)]
-void main(uint3 id : SV_DispatchThreadID) {
-    uint slot = gFirstSlot + id.x;
-    if (id.x >= gCount || slot > gMask || keys[slot] == EMPTY_KEY) { return; }
-    uint number;
-    InterlockedAdd(counters[COUNTER_VERTICES], 1u, number);
-    slotVertex[slot] = number;
-}
-```
-
-`Shaders/implicit/mesh_place.comp.hlsl`:
-```hlsl
-// Step 4 (meshPlace): the vertex on each slot's edge by linear interpolation, then the Newton step and the normal (ImplicitMesher.snap); its
-// position and its edge key together (the key orders the vertices on the CPU).
-#include "contract.hlsli"
-
-StructuredBuffer<float> axes : register(t0, space0);
-StructuredBuffer<int> program : register(t1, space0);
-StructuredBuffer<float> floats : register(t2, space0);
-StructuredBuffer<int> ints : register(t3, space0);
-StructuredBuffer<uint> keys : register(t4, space0);
-StructuredBuffer<uint> slotVertex : register(t5, space0);
-RWStructuredBuffer<uint4> positions : register(u0, space1);
-RWStructuredBuffer<float4> normals : register(u1, space1);
-
-#include "accurate_math.hlsli"
-#include "wide_integer.hlsli"
-#include "library.hlsli"
-#include "lattices.hlsli"
-#include "interpreter.hlsli"
-#include "mesh_lattice.hlsli"
-
-[numthreads(THREADS, 1, 1)]
-void main(uint3 id : SV_DispatchThreadID) {
-    uint slot = gFirstSlot + id.x;
-    if (id.x >= gCount || slot > gMask) { return; }
-    uint key = keys[slot];
-    if (key == EMPTY_KEY) { return; }
-    uint axis = key % 3u, index = key / 3u;
-    uint x = index % gNX, y = (index / gNX) % gNY, z = index / (gNX * gNY);
-    float3 low = latticePoint(x, y, z);
-    float3 high = latticePoint(x + (axis == 0u ? 1u : 0u), y + (axis == 1u ? 1u : 0u), z + (axis == 2u ? 1u : 0u));
-    float fa = sdf(low), fb = sdf(high);
-    float t = fa / (fa - fb);
-    float3 position = low;
-    if (axis == 0u) {
-        position.x = low.x + gResolution * t;
-    } else if (axis == 1u) {
-        position.y = low.y + gResolution * t;
-    } else {
-        position.z = low.z + gResolution * t;
-    }
-    float3 normal = float3(0.0f, 0.0f, 0.0f);
-    if (gSnap != 0u) {
-        float delta = gResolution / 4.0f, limit = gResolution / 2.0f;
-        float value = sdf(position);
-        float3 gradient = float3(
-            (sdf(position + float3(delta, 0.0f, 0.0f)) - sdf(position - float3(delta, 0.0f, 0.0f))) / (2.0f * delta),
-            (sdf(position + float3(0.0f, delta, 0.0f)) - sdf(position - float3(0.0f, delta, 0.0f))) / (2.0f * delta),
-            (sdf(position + float3(0.0f, 0.0f, delta)) - sdf(position - float3(0.0f, 0.0f, delta))) / (2.0f * delta));
-        float squared = dot(gradient, gradient);
-        if (squared > 1e-12f) {
-            normal = gradient / sqrt(squared);
-            float3 move = gradient * (-value / squared);
-            float moved = sqrt(dot(move, move));
-            if (moved > limit) { move *= limit / moved; }
-            position += move;
-        }
-    }
-    uint number = slotVertex[slot];
-    positions[number] = uint4(asuint(position), key);
-    normals[number] = float4(normal, 0.0f);
-}
-```
-
-`Shaders/implicit/mesh_emit.comp.hlsl`:
-```hlsl
-// Step 5 (meshEmit): each cube's triangles, each corner the vertex of its edge's slot, at a place in the index buffer taken from an atomic cursor;
-// one tag a triangle (the brick's place in the request x 512 + the cube) orders them on the CPU.
-#include "contract.hlsli"
-
-StructuredBuffer<uint> bricks : register(t0, space0);
-StructuredBuffer<float> samples : register(t1, space0);
-StructuredBuffer<uint> cubeTable : register(t2, space0);
-StructuredBuffer<uint> keys : register(t3, space0);
-StructuredBuffer<uint> slotVertex : register(t4, space0);
-RWStructuredBuffer<uint> counters : register(u0, space1);
-RWStructuredBuffer<uint> indices : register(u1, space1);
-RWStructuredBuffer<uint> tags : register(u2, space1);
-
-#include "mesh_common.hlsli"
-#include "mesh_cubes.hlsli"
-
-uint vertexOfKey(uint key) {
-    uint slot = tableHash(key, gMask);
-    for (uint probe = 0u; probe <= gMask; ++probe) {
-        if (keys[slot] == key) { return slotVertex[slot]; }
-        slot = (slot + 1u) & gMask;
-    }
-    return 0u;
-}
-
-[numthreads(THREADS, 1, 1)]
-void main(uint3 id : SV_DispatchThreadID) {
-    uint gid = id.x;
-    if (gid >= gBrickCount * CUBES) { return; }
-    uint b = gid / CUBES, c = gid % CUBES;
-    uint x = c % BRICK, y = (c / BRICK) % BRICK, z = c / (BRICK * BRICK);
-    uint pattern = cubePattern(b * POINTS, x, y, z);
-    uint begin = cubeTable[CUBE_STARTS + pattern], end = cubeTable[CUBE_STARTS + pattern + 1u];
-    if (begin == end) { return; }
-    uint at = (gFirstBrick + b) * 3u;
-    uint lx = bricks[at] * BRICK + x, ly = bricks[at + 1u] * BRICK + y, lz = bricks[at + 2u] * BRICK + z;
-    uint triangles = (end - begin) / 3u;
-    uint place;
-    InterlockedAdd(counters[COUNTER_TRIANGLE_CURSOR], triangles, place);
-    for (uint corner = 0u; corner < end - begin; ++corner) {
-        uint edge = cubeTable[CUBE_EDGES + begin + corner];
-        indices[place * 3u + corner] = vertexOfKey(edgeKeyOf(lx, ly, lz, cubeTable[CUBE_LOWER + edge], cubeTable[CUBE_UPPER + edge]));
-    }
-    uint tag = (gFirstBrick + b) * CUBES + c;
-    for (uint t = 0u; t < triangles; ++t) { tags[place + t] = tag; }
-}
-```
-These are line-for-line ports of `ImplicitMeshShaderLibrary.kernels`; compare them with that text before compiling. The differences are deliberate: `gCount` guards (SDL dispatches whole groups of 64, Metal exact counts), a strong compare-and-swap (HLSL's `InterlockedCompareExchange` cannot fail spuriously, so the weak CAS's retry branch is gone), the key beside the position, and the tags.
-
-Run `XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh shaders` and `swift test --filter CreatorImplicitTests.ImplicitShaderContractTests`: every kernel now has a source, so `eachKernelDeclaresItsBuffersInOrder` and the reflection check cover all seven. PASS.
-
-- [ ] **Step 5: Write the engine's meshing.**
-
-`Sources/CreatorImplicit/Compute/InterpretedMeshJob.swift`:
-```swift
-/// What one interpreted mesh works with (plan xp-c), and the synchronous builders of its batches: the async engine methods only run them.
-struct InterpretedMeshJob: Sendable {
-    var solid: InterpretedImplicitEngine.Prepared
+/// What one mesh needs that does not change from attempt to attempt (Metal's `MeshJob`).
+struct HLSLMeshJob: Sendable {
+    var pipelines: HLSLMeshPipelines
+    var solid: HLSLImplicitEngine.Prepared
     var bricks: any ComputeBuffer
     var axes: any ComputeBuffer
     var cube: any ComputeBuffer
     var parameters: KernelParameters
     var brickCount: Int
     var started: Int
-    var tuning: InterpretedImplicitEngine.MeshTuning
+    var tuning: HLSLImplicitEngine.MeshTuning
 }
 
-/// One attempt at one table size.
-struct InterpretedMeshRun: Sendable {
-    var job: InterpretedMeshJob
+/// One attempt at one table size (Metal's `MeshRun` and `MeshBuffers`), and the synchronous builders of its batches.
+struct HLSLMeshRun: Sendable {
+    var job: HLSLMeshJob
     var samples: any ComputeBuffer
     var keys: any ComputeBuffer
     var slotVertex: any ComputeBuffer
     var counters: any ComputeBuffer
-    var output: InterpretedMeshOutput?
+    var positions: any ComputeBuffer
+    var normals: any ComputeBuffer
+    var indices: any ComputeBuffer
     let slots: Int
 
-    init(_ job: InterpretedMeshJob, slots: Int, on backend: any ImplicitComputeBackend) throws {
+    init(_ job: HLSLMeshJob, slots: Int, on backend: any ImplicitComputeBackend) throws {
         self.job = job
         self.slots = slots
         samples = try backend.makeBuffer(length: job.tuning.batchBricks * 729 * 4)
         keys = try backend.makeBuffer(length: slots * 4)
         slotVertex = try backend.makeBuffer(length: slots * 4)
         counters = try backend.makeBuffer(length: ImplicitMeshShaderLibrary.Counter.count * 4)
+        positions = try backend.makeBuffer(length: 16)
+        normals = try backend.makeBuffer(length: 16)
+        indices = try backend.makeBuffer(length: 16)
         self.job.parameters.mask = UInt32(slots - 1)
     }
 
-    /// The counters zeroed and the table emptied, in ranges of at most 2^20 slots.
+    /// The counters zeroed and the table emptied (Metal: a blit of 0xFF), in ranges of at most 2^20 slots.
     func clearing() -> ComputeBatch {
         var batch = ComputeBatch(uploads: [ComputeUpload(bytes: [UInt8](repeating: 0, count: ImplicitMeshShaderLibrary.Counter.count * 4),
                                                          buffer: counters)])
         for range in ComputeBytes.ranges(count: slots, size: 1 << 20) {
             var parameters = job.parameters
             (parameters.firstSlot, parameters.count) = (UInt32(range.lowerBound), UInt32(range.count))
-            batch.dispatches.append(ComputeDispatch(kernel: .clear, parameters: parameters, readOnly: [], readWrite: [keys], threads: range.count))
+            batch.dispatches.append(ComputeDispatch(kernel: .clear, pipeline: job.pipelines.clear, parameters: parameters, readOnly: [],
+                                                    readWrite: [keys], threads: range.count))
         }
         return batch
     }
 
-    /// Steps 1 and 2 (or 1 and 5) for one batch of bricks: sample, then classify or emit, each in its own pass.
+    /// Steps 1 and 2, or 1 and 5, for one batch of bricks, each in its own pass.
     func brickBatch(_ range: Range<Int>, emitting: Bool) -> ComputeBatch {
         var parameters = job.parameters
         (parameters.firstBrick, parameters.brickCount) = (UInt32(range.lowerBound), UInt32(range.count))
-        let solid = job.solid
-        let sample = ComputeDispatch(kernel: .sample, parameters: parameters, readOnly: [job.bricks, job.axes, solid.program, solid.floats, solid.ints],
-                                     readWrite: [samples], threads: range.count * 729)
-        guard emitting, let output else {
-            return ComputeBatch(dispatches: [sample, ComputeDispatch(kernel: .classify, parameters: parameters, readOnly: [job.bricks, samples, job.cube],
-                                                                     readWrite: [keys, counters], threads: range.count * 512)])
-        }
-        return ComputeBatch(dispatches: [sample, ComputeDispatch(kernel: .emit, parameters: parameters,
-                                                                 readOnly: [job.bricks, samples, job.cube, keys, slotVertex],
-                                                                 readWrite: [counters, output.indices, output.tags], threads: range.count * 512)])
+        let sample = ComputeDispatch(kernel: .sample, pipeline: job.pipelines.sample, parameters: parameters,
+                                     readOnly: [job.solid.floats, job.solid.ints, job.bricks, job.axes], readWrite: [samples],
+                                     threads: range.count * 729)
+        let second = emitting
+            ? ComputeDispatch(kernel: .emit, pipeline: job.pipelines.emit, parameters: parameters,
+                              readOnly: [job.bricks, samples, job.cube, keys, slotVertex], readWrite: [counters, indices], threads: range.count * 512)
+            : ComputeDispatch(kernel: .classify, pipeline: job.pipelines.classify, parameters: parameters,
+                              readOnly: [job.bricks, samples, job.cube], readWrite: [keys, counters], threads: range.count * 512)
+        return ComputeBatch(dispatches: [sample, second])
     }
 
     /// Step 3 or 4 over one range of table slots.
-    func slotBatch(_ range: Range<Int>, _ kernel: ImplicitKernel) -> ComputeBatch {
+    func slotBatch(_ range: Range<Int>, placing: Bool) -> ComputeBatch {
         var parameters = job.parameters
         (parameters.firstSlot, parameters.count) = (UInt32(range.lowerBound), UInt32(range.count))
-        let solid = job.solid
-        let dispatch = switch kernel {
-        case .place:
-            ComputeDispatch(kernel: .place, parameters: parameters, readOnly: [job.axes, solid.program, solid.floats, solid.ints, keys, slotVertex],
-                            readWrite: [output?.positions ?? keys, output?.normals ?? keys], threads: range.count)
-        default:
-            ComputeDispatch(kernel: .number, parameters: parameters, readOnly: [keys], readWrite: [slotVertex, counters], threads: range.count)
-        }
+        let dispatch = placing
+            ? ComputeDispatch(kernel: .place, pipeline: job.pipelines.place, parameters: parameters,
+                              readOnly: [job.solid.floats, job.solid.ints, job.axes, keys, slotVertex], readWrite: [positions, normals],
+                              threads: range.count)
+            : ComputeDispatch(kernel: .number, pipeline: job.pipelines.number, parameters: parameters, readOnly: [keys],
+                              readWrite: [slotVertex, counters], threads: range.count)
         return ComputeBatch(dispatches: [dispatch])
     }
 
     func readingCounters() -> ComputeBatch {
         ComputeBatch(downloads: [ComputeDownload(buffer: counters, length: ImplicitMeshShaderLibrary.Counter.count * 4)])
     }
-}
 
-/// The buffers the mesh is written into, made once the counts are known.
-struct InterpretedMeshOutput: Sendable {
-    let vertices: Int
-    let triangles: Int
-    let positions: any ComputeBuffer
-    let normals: any ComputeBuffer
-    let indices: any ComputeBuffer
-    let tags: any ComputeBuffer
-
-    /// Throws `.unsupported` past the backend's largest buffer: that request is the CPU mesher's.
-    init(vertices: Int, triangles: Int, on backend: any ImplicitComputeBackend) throws {
-        self.vertices = vertices
-        self.triangles = triangles
-        positions = try backend.makeBuffer(length: vertices * 16)
-        normals = try backend.makeBuffer(length: vertices * 16)
-        indices = try backend.makeBuffer(length: triangles * 12)
-        tags = try backend.makeBuffer(length: triangles * 4)
-    }
-
-    func reading(_ counters: any ComputeBuffer) -> ComputeBatch {
+    func readingMesh(vertices: Int, triangles: Int) -> ComputeBatch {
         ComputeBatch(downloads: [
             ComputeDownload(buffer: counters, length: ImplicitMeshShaderLibrary.Counter.count * 4),
             ComputeDownload(buffer: positions, length: vertices * 16), ComputeDownload(buffer: normals, length: vertices * 16),
-            ComputeDownload(buffer: indices, length: triangles * 12), ComputeDownload(buffer: tags, length: triangles * 4),
+            ComputeDownload(buffer: indices, length: triangles * 12),
         ])
     }
 
-    /// The mesh from what `reading` brought back, in the canonical order; throws when the GPU emitted another count than it counted.
-    func mesh(from read: [[UInt8]]) throws -> BrickMesh {
+    /// The mesh from `readingMesh`'s bytes; throws when the GPU emitted another count than it counted (Metal's check).
+    static func mesh(from read: [[UInt8]], triangles: Int) throws -> BrickMesh {
         let counters = ComputeBytes.values(read[0], as: UInt32.self)
         guard counters[ImplicitMeshShaderLibrary.Counter.triangleCursor] == UInt32(triangles) else {
             throw ImplicitCompileError.engine("the GPU emitted a different number of triangles than it counted")
         }
-        let placed = ComputeBytes.values(read[1], as: UInt32.self)
-        let normalWords = ComputeBytes.values(read[2], as: Float.self)
-        var positions: [SIMD3<Float>] = []
-        var normals: [SIMD3<Float>] = []
-        var keys: [UInt32] = []
-        positions.reserveCapacity(vertices)
-        normals.reserveCapacity(vertices)
-        keys.reserveCapacity(vertices)
-        for vertex in 0..<vertices {
-            let at = vertex * 4
-            positions.append(SIMD3(Float(bitPattern: placed[at]), Float(bitPattern: placed[at + 1]), Float(bitPattern: placed[at + 2])))
-            keys.append(placed[at + 3])
-            normals.append(SIMD3(normalWords[at], normalWords[at + 1], normalWords[at + 2]))
+        func points(_ bytes: [UInt8]) -> [SIMD3<Float>] {
+            ComputeBytes.values(bytes, as: SIMD4<Float>.self).map { SIMD3($0.x, $0.y, $0.z) }
         }
-        return MeshCanonicalOrder.mesh(positions: positions, normals: normals, keys: keys, triangles: ComputeBytes.values(read[3], as: UInt32.self),
-                                       tags: ComputeBytes.values(read[4], as: UInt32.self))
+        return BrickMesh(positions: points(read[1]), normals: points(read[2]), triangles: ComputeBytes.values(read[3], as: UInt32.self))
     }
 }
 ```
-The `place` case's `?? keys` fallbacks are never taken (the engine makes `output` before step 4); they keep the builder total without a force unwrap.
 
-Replace `Sources/CreatorImplicit/Compute/InterpretedImplicitEngine+Meshing.swift` with:
+Replace `Sources/CreatorImplicit/Compute/HLSLImplicitEngine+Meshing.swift` with:
 ```swift
-/// Marching cubes on the interpreted engine (implicit spec §4.3, Errata D13, D21; plan xp-c): the seven kernels of `Shaders/implicit` over the
-/// bricks of a `BrickMeshRequest`, the same algorithm and table as the CPU mesher and `MetalImplicitEngine+Meshing`, one batch per brick batch or
-/// table range so a cancel ends a mesh between them and no batch runs long enough for a GPU watchdog. The batches are built synchronously
-/// (`InterpretedMeshRun`); the methods here only run them (the Windows Swift 6.4 rules in the plan's Global Constraints).
-extension InterpretedImplicitEngine {
-    /// The sizes meshing works in. The defaults are the engine's; the tests turn them down to reach the paths a small mesh never takes.
+/// Marching cubes on the HLSL engine (implicit spec §4.3, Errata D13; plan xp-c): `MetalImplicitEngine+Meshing`, step for step, over the HLSL
+/// kernels; the batches are built synchronously (`HLSLMeshRun`) and only run here (the Windows Swift 6.4 rules).
+extension HLSLImplicitEngine {
+    /// Metal's `MeshTuning`, with batch sizes for an SDL dispatch (65,535 groups of 64) and Windows' 2-second GPU watchdog.
     struct MeshTuning: Sendable {
-        /// Bricks sampled and meshed in one batch (Metal's is 4,096; an interpreted `sdf` costs more).
         var batchBricks = 1024
-        /// The first table has this many slots for each brick; a table that proves too small is doubled.
         var slotsPerBrick = 256
-        /// The most slots a table gets (4 bytes each: 2^25 is the 128 MiB buffer cap, gap XP-G24); a mesh needing more is the CPU's.
+        /// 2^25 slots of 4 bytes is the 128 MiB buffer cap (gap XP-G24); Metal's is 2^27.
         var largestTable = 1 << 25
-        /// Table slots one batch numbers or places (a slot costs up to nine evaluations of the solid).
         var slotsPerDispatch = 1 << 18
-        /// Called with the number of the batch just run (from 1), before the check for a cancel: the tests cancel from it. Nothing in the engine sets it.
         var afterBatch: (@Sendable (Int) async -> Void)?
     }
-
-    /// A request of this many bricks or more is the CPU's: a triangle's tag is the brick's place × 512 + the cube, in 32 bits.
-    static let largestBrickCount = Int(UInt32.max) / 512
 
     func tune(_ tuning: MeshTuning) {
         meshTuning = tuning
@@ -4053,13 +2826,10 @@ extension InterpretedImplicitEngine {
         guard let lattice = BrickLattice(request.bricks), lattice.fitsEdgeKeys else {
             throw ImplicitCompileError.unsupported("the bricks span more lattice edges than a 32-bit key numbers")
         }
-        guard request.bricks.count < Self.largestBrickCount else {
-            throw ImplicitCompileError.unsupported("more bricks than a 32-bit triangle tag numbers")
-        }
         let backend = try backend()
         let job = try await startJob(program, request, lattice, on: backend)
         let largest = min(job.tuning.largestTable, backend.largestBuffer / 4)
-        var slots = Self.firstTableSize(bricks: request.bricks.count, slotsPerBrick: job.tuning.slotsPerBrick)
+        var slots = 1 << max(12, Int.bitWidth - (request.bricks.count * job.tuning.slotsPerBrick - 1).leadingZeroBitCount)
         while true {
             guard slots <= largest else { throw ImplicitCompileError.unsupported("the edge table would pass \(largest) slots") }
             if let mesh = try await attempt(job, slots: slots, on: backend, progress: progress) {
@@ -4070,13 +2840,25 @@ extension InterpretedImplicitEngine {
         }
     }
 
-    /// The smallest power of two of at least 4,096 slots and `slotsPerBrick` a brick (`MetalImplicitEngine`'s rule).
-    static func firstTableSize(bricks: Int, slotsPerBrick: Int) -> Int {
-        1 << max(12, Int.bitWidth - (bricks * slotsPerBrick - 1).leadingZeroBitCount)
+    /// The six meshing pipelines of `program`'s shape, made once each (a pipeline whose text another shape shares is not made again).
+    private func meshPipelines(for program: CompiledImplicit, on backend: any ImplicitComputeBackend) async throws -> HLSLMeshPipelines {
+        func pipeline(_ kernel: ImplicitKernel) async throws -> any ComputePipeline {
+            guard let source = program.kernels[kernel] else { throw ImplicitCompileError.unsupported("a solid compiled for Metal, not HLSL") }
+            if let known = meshPipelineCache[source.digest] { return known }
+            let made = try await backend.makePipeline(source)
+            if let raced = meshPipelineCache[source.digest] { return raced }
+            meshCompileCount += 1
+            meshPipelineCache[source.digest] = made
+            return made
+        }
+        return HLSLMeshPipelines(clear: try await pipeline(.clear), sample: try await pipeline(.sample), classify: try await pipeline(.classify),
+                                 number: try await pipeline(.number), place: try await pipeline(.place), emit: try await pipeline(.emit))
     }
 
     private func startJob(_ program: CompiledImplicit, _ request: BrickMeshRequest, _ lattice: BrickLattice,
-                          on backend: any ImplicitComputeBackend) async throws -> InterpretedMeshJob {
+                          on backend: any ImplicitComputeBackend) async throws -> HLSLMeshJob {
+        let started = epoch
+        let pipelines = try await meshPipelines(for: program, on: backend)
         let solid = try await buffers(for: program, on: backend)
         let brickWords = lattice.relativeBricks(request.bricks)
         let axisValues = lattice.axisCoordinates(origin: request.origin, resolution: request.resolution)
@@ -4093,35 +2875,35 @@ extension InterpretedImplicitEngine {
         (parameters.nx, parameters.ny, parameters.nz) = (UInt32(size.x), UInt32(size.y), UInt32(size.z))
         parameters.snap = request.snap ? 1 : 0
         parameters.resolution = Float(request.resolution)
-        return InterpretedMeshJob(solid: solid, bricks: bricks, axes: axes, cube: cube, parameters: parameters, brickCount: request.bricks.count,
-                                  started: epoch, tuning: meshTuning)
+        return HLSLMeshJob(pipelines: pipelines, solid: solid, bricks: bricks, axes: axes, cube: cube, parameters: parameters,
+                           brickCount: request.bricks.count, started: started, tuning: meshTuning)
     }
 
-    /// One run of the steps with a table of `slots`; `nil` when the table proved too small.
+    /// One run of the steps with a table of `slots`; `nil` when the table proved too small (Metal's `meshAttempt`).
     @_optimize(none) // Windows Swift 6.4 release: takes the progress closure; see `meshBricks`.
-    private func attempt(_ job: InterpretedMeshJob, slots: Int, on backend: any ImplicitComputeBackend,
+    private func attempt(_ job: HLSLMeshJob, slots: Int, on backend: any ImplicitComputeBackend,
                          progress: @Sendable (Double) -> Void) async throws -> BrickMesh? {
-        var run = try InterpretedMeshRun(job, slots: slots, on: backend)
+        var run = try HLSLMeshRun(job, slots: slots, on: backend)
         _ = try await backend.run(run.clearing())
         try await sweep(run, emitting: false, from: 0, to: 0.4, on: backend, progress: progress)
         var counts = ComputeBytes.values(try await backend.run(run.readingCounters())[0], as: UInt32.self)
         if counts[ImplicitMeshShaderLibrary.Counter.overflow] != 0 { return nil }
         let triangles = Int(counts[ImplicitMeshShaderLibrary.Counter.triangleTotal])
-        try await sweepSlots(run, .number, on: backend)
+        try await sweepSlots(run, placing: false, on: backend)
         counts = ComputeBytes.values(try await backend.run(run.readingCounters())[0], as: UInt32.self)
         let vertices = Int(counts[ImplicitMeshShaderLibrary.Counter.vertices])
         guard vertices > 0, triangles > 0 else { return BrickMesh(positions: [], normals: [], triangles: []) }
-        run.output = try InterpretedMeshOutput(vertices: vertices, triangles: triangles, on: backend)
-        try await sweepSlots(run, .place, on: backend)
+        run.positions = try backend.makeBuffer(length: vertices * 16)
+        run.normals = try backend.makeBuffer(length: vertices * 16)
+        run.indices = try backend.makeBuffer(length: triangles * 12)
+        try await sweepSlots(run, placing: true, on: backend)
         progress(0.55)
         try await sweep(run, emitting: true, from: 0.55, to: 0.95, on: backend, progress: progress)
-        guard let output = run.output else { return nil }
-        return try output.mesh(from: try await backend.run(output.reading(run.counters)))
+        return try HLSLMeshRun.mesh(from: try await backend.run(run.readingMesh(vertices: vertices, triangles: triangles)), triangles: triangles)
     }
 
-    /// Every batch of bricks: sample, then classify (or emit); progress runs `from` to `to`.
     @_optimize(none) // Windows Swift 6.4 release: takes the progress closure; see `meshBricks`.
-    private func sweep(_ run: InterpretedMeshRun, emitting: Bool, from: Double, to: Double, on backend: any ImplicitComputeBackend,
+    private func sweep(_ run: HLSLMeshRun, emitting: Bool, from: Double, to: Double, on backend: any ImplicitComputeBackend,
                        progress: @Sendable (Double) -> Void) async throws {
         let batches = ComputeBytes.ranges(count: run.job.brickCount, size: run.job.tuning.batchBricks)
         for index in batches.indices {
@@ -4132,136 +2914,113 @@ extension InterpretedImplicitEngine {
         }
     }
 
-    /// Step 3 or 4 over the whole table, `slotsPerDispatch` slots a batch.
-    private func sweepSlots(_ run: InterpretedMeshRun, _ kernel: ImplicitKernel, on backend: any ImplicitComputeBackend) async throws {
+    private func sweepSlots(_ run: HLSLMeshRun, placing: Bool, on backend: any ImplicitComputeBackend) async throws {
         let ranges = ComputeBytes.ranges(count: run.slots, size: run.job.tuning.slotsPerDispatch)
         for index in ranges.indices {
-            _ = try await backend.run(run.slotBatch(ranges[index], kernel))
+            _ = try await backend.run(run.slotBatch(ranges[index], placing: placing))
             try checkRunning(run.job)
         }
     }
 
-    private func checkRunning(_ job: InterpretedMeshJob) throws {
+    private func checkRunning(_ job: HLSLMeshJob) throws {
         try Task.checkCancellation()
         if epoch != job.started { throw CancellationError() }
     }
 }
 ```
+`meshPipelines` takes a nested `async` function; if the Windows compiler objects, make `pipeline(_:)` a private method of the extension taking `program` and `backend`.
 
-- [ ] **Step 6: Run on the Mac and on Linux.**
+- [ ] **Step 4: Run** (Mac after `scripts/linux-test.sh kernels`; Linux): `swift test --filter CreatorImplicitTests.HLSLMeshingTests`, `XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test --filter HLSLMeshingTests` — PASS. A mesh that is not closed: a dispatch read another's output inside one pass, or a binding order (task 3's reflection check names it).
 
-Run:
-```bash
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh shaders
-swift test --filter "CreatorImplicitTests.(MeshCanonicalOrderTests|InterpretedMeshingTests|ImplicitShaderContractTests)" 2>&1 | tail -5
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test --filter "InterpretedMeshingTests|MeshCanonicalOrderTests" 2>&1 | tail -3
-```
-Expected: PASS on both. A mesh that is not closed usually means a dispatch read another's output inside one pass (check that `SDLComputeRecording.record` begins a pass per dispatch) or a binding order wrong in one kernel (the contract test names it). `theSameRequestMeshesToTheSameArraysEveryTime` failing only on its last check means the batch size changed the tags: a tag must use `gFirstBrick + b`, the brick's place in the whole request.
-
-- [ ] **Step 7: Asserts toolchain, lint, commit, push and read Windows CI.**
-
-```bash
-TOOLCHAINS=org.swift.64202605271a swift build -c release --scratch-path .build/asserts-release 2>&1 | tail -3
-swiftlint lint --strict
-git add Shaders/implicit Sources/CreatorImplicit/Compute Tests/CreatorImplicitTests
-git commit -m "feat(implicit): marching cubes on the interpreted engine, in a canonical order (xp-c task 5)
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS"
-git push origin xp-c
-```
-Then the Windows job, as in task 4 step 7 (the release build especially: `meshBricks`, `attempt` and `sweep` are the closure-taking `async` functions).
+- [ ] **Step 5: Asserts toolchain, lint, commit, push, read Windows CI** (`feat(implicit): marching cubes on the HLSL engine, as on Metal (xp-c task 6)`).
 
 ---
 
-### Task 6: The mesh agreement and the limits, over every engine; the Face-mapped Voronoi item measured on the interpreter
+### Task 7: The mesh agreement, the streamed export's bytes and the limits, over every engine
 
 **Files:**
-- Modify (tests): `Tests/CreatorImplicitTests/GPUMeshAgreementTests.swift`, `Tests/CreatorImplicitTests/StreamingMesherGPUTests.swift` (both stop being Metal-only), `Tests/CreatorImplicitTests/InterpretedMeshingTests.swift` (the limits)
+- Modify (tests): `GPUMeshAgreementTests.swift`, `StreamingMesherGPUTests.swift` (both stop being Metal-only), `HLSLMeshingTests.swift` (the limits)
 
 **Interfaces:**
-- Consumes: `GPUEnginesUnderTest` (task 3), `InterpretedImplicitEngine.meshBricks`, `MeshTuning`, `tune(_:)` (task 5); the suites' existing helpers (`SamplesOnlyEvaluator`, `MeshComparison`, `GPUFixtures.meshAllowanceFactor`, `.singularSetAllowanceFactor`, `.nearSingularSet`, `ProgressLog`, `BrickMesh.triangleMesh`).
-- Produces: the measured figures task 9's erratum D21 quotes (the interpreter's largest `worstScaledSurface` over D17's allowance on the Face-mapped Voronoi struts, and the slowest fixture's time on lavapipe).
+- Consumes: `GPUEnginesUnderTest` (task 4), `HLSLImplicitEngine.meshBricks`, `MeshTuning`, `tune(_:)` (task 6); `SamplesOnlyEvaluator`, `MeshComparison`, `GPUFixtures.meshAllowanceFactor`, `.singularSetAllowanceFactor`, `.nearSingularSet`, `ProgressLog` (in `ImplicitMesherTests.swift`), `CollectingSink`, `STLFileWriter`.
+- Produces: the measured Face-mapped Voronoi figure and the lavapipe suite time that D21 quotes (task 10).
 
-- [ ] **Step 1: Make the mesh agreement suite run over every engine.**
+- [ ] **Step 1: The mesh agreement over every engine.** In `GPUMeshAgreementTests.swift`: drop the outer `#if canImport(Metal)`/`#endif`; the suite attribute becomes `@Suite(.enabled(if: !GPUEnginesUnderTest.names.isEmpty, "needs a GPU engine: \(GPUEnginesUnderTest.unavailableReason)"))`; each of its three tests takes `GPUEnginesUnderTest.names` as its first argument list (`@Test(arguments: GPUEnginesUnderTest.names, names)`, `(…, GPUFixtures.singularSetNames)`, `(…, ["sphere", "box", "smooth union", "graded offset"])`), a first parameter `_ engineName: String`, and `let engine = try GPUEnginesUnderTest.engine(engineName)` in place of `let engine = try #require(MetalImplicitEngine.shared)`; every message gains the prefix `"\(engineName), "`. The tolerances and allowance factors are unchanged (X-C6).
 
-In `GPUMeshAgreementTests.swift`:
-- delete the first line `#if canImport(Metal)` and the last `#endif`;
-- replace the suite attribute with `@Suite(.enabled(if: !GPUEnginesUnderTest.names.isEmpty, "needs a GPU engine: \(GPUEnginesUnderTest.unavailableReason)"))`;
-- in the doc comment, after "meshed both ways.", add "Over every engine `GPUEnginesUnderTest.names` has: Metal, and the interpreted engine (plan xp-c) on the Mac's GPU, lavapipe or WARP, with the same tolerances.";
-- give each of the three tests an engine argument and take the engine from it:
-
+- [ ] **Step 2: The streamed export over every engine, and its bytes twice (X-C3).** In `StreamingMesherGPUTests.swift`: drop the `#if`, take the same suite attribute, give both tests `(arguments: GPUEnginesUnderTest.names)` and `_ engineName: String`, and select with `ImplicitEvaluators.make(for: solid, choice: .automatic, engine: try GPUEnginesUnderTest.engine(engineName))`. Add:
 ```swift
-    @Test(arguments: GPUEnginesUnderTest.names, names)
-    func theGPUMeshAgreesWithTheCPUMesh(_ engineName: String, _ name: String) async throws {
+    /// Review Focus 6, X-C3: an export streams through the CPU mesher over the engine's values, in the plan's order, so the same solid exported twice
+    /// on one machine is the same bytes, on every engine (Metal's today, and the HLSL engine's). Across machines or backends the values may differ in a
+    /// last bit and the bytes with them; D15's tolerances are what holds there.
+    @Test(arguments: GPUEnginesUnderTest.names)
+    func exportingTheSameSolidTwiceGivesTheSameBytes(_ engineName: String) async throws {
+        let solid = LatticeFixtures.tpmsAll[0].solid
         let engine = try GPUEnginesUnderTest.engine(engineName)
-        // … the body unchanged below this line, its messages prefixed "\(engineName), "
+        func export() async throws -> Data {
+            let selection = await ImplicitEvaluators.make(for: solid, choice: .automatic, engine: engine)
+            let url = FileManager.default.temporaryDirectory.appending(path: "xp-c-\(UUID().uuidString).stl")
+            defer { try? FileManager.default.removeItem(at: url) }
+            var sink = try STLFileWriter(destination: url)
+            _ = try await StreamingMesher(evaluator: selection.evaluator, windowBricks: 40, bricksPerBatch: 50)
+                .stream(solid, resolution: 0.5, into: &sink)
+            try sink.finish()
+            return try Data(contentsOf: url)
+        }
+        let first = try await export()
+        #expect(!first.isEmpty && first == (try await export()), "\(engineName): two exports differ")
+    }
 ```
-```swift
-    @Test(arguments: GPUEnginesUnderTest.names, GPUFixtures.singularSetNames)
-    func theGPUMeshAgreesAwayFromTheSingularSet(_ engineName: String, _ name: String) async throws {
-        let engine = try GPUEnginesUnderTest.engine(engineName)
-```
-```swift
-    @Test(arguments: GPUEnginesUnderTest.names, ["sphere", "box", "smooth union", "graded offset"])
-    func withoutTheSnapTheVerticesStillAgreeAndTheNormalsAreZero(_ engineName: String, _ name: String) async throws {
-        let engine = try GPUEnginesUnderTest.engine(engineName)
-```
-In each, the old first line `let engine = try #require(MetalImplicitEngine.shared)` is what these replace; `ImplicitEvaluators.make(for:choice:engine:)` already takes `engine`. Prefix every `#expect` message's `"\(name): …"` with `"\(engineName), \(name): …"` so a failure names its engine. The tolerances (`vertexTolerance`, `slideTolerance`, `slopeStep`, the normal dots, `volumeTolerance`, `triangleTolerance`) and the allowance factors are unchanged: the interpreter is held to exactly what Metal is (X-C6).
+(`STLFileWriter(destination:)` and `finish()` are its API; `stream(_:resolution:into:)` takes the sink `inout`.)
 
-In `StreamingMesherGPUTests.swift` likewise: drop the `#if canImport(Metal)`/`#endif`, take the same suite attribute, and give both tests `(arguments: GPUEnginesUnderTest.names)` and an `_ engineName: String` parameter, with `ImplicitEvaluators.make(for: solid, choice: .automatic, engine: try GPUEnginesUnderTest.engine(engineName))` in place of `ImplicitEvaluators.make(for: solid, choice: .automatic)`.
-
-- [ ] **Step 2: Write the interpreted engine's limit tests.**
-
-Add to `InterpretedMeshingTests`:
+- [ ] **Step 3: The limits on the HLSL engine.** Add to `HLSLMeshingTests` (as `MetalMeshingLimitsTests` for Metal; the comparisons are of sets, the order being the threads' on both engines):
 ```swift
-    /// A fresh engine, tuned, and the program and request for a solid (the Metal suite's `Prepared`, for the interpreter).
     struct Job {
-        let engine: InterpretedImplicitEngine
+        let engine: HLSLImplicitEngine
         let program: CompiledImplicit
         let request: BrickMeshRequest
 
         init(_ solid: ImplicitSolid = .sphere(radius: 10), resolution: Double = 0.53,
-             tuning: InterpretedImplicitEngine.MeshTuning = InterpretedImplicitEngine.MeshTuning()) async throws {
-            guard let engine = GPUEnginesUnderTest.makeInterpreted() else { throw ImplicitCompileError.engine("no interpreted engine") }
+             tuning: HLSLImplicitEngine.MeshTuning = HLSLImplicitEngine.MeshTuning()) async throws {
+            guard let engine = GPUEnginesUnderTest.makeHLSL() else { throw ImplicitCompileError.engine("no HLSL engine") }
             await engine.tune(tuning)
             self.engine = engine
             program = try await engine.compile(solid)
-            request = try await InterpretedMeshingTests.request(solid, resolution: resolution)
+            request = try await HLSLMeshingTests.request(solid, resolution: resolution)
         }
 
-        func mesh() async throws -> BrickMesh {
-            try await engine.meshBricks(program, request) { _ in }
-        }
+        func mesh() async throws -> BrickMesh { try await engine.meshBricks(program, request) { _ in } }
     }
 
-    /// With the canonical order, "the same mesh" is equality of the arrays, not of sets (Metal's tests compare sets).
+    static func sameSet(_ a: BrickMesh, _ b: BrickMesh) -> Bool {
+        let comparison = MeshComparison(reference: a.triangleMesh, candidate: b.triangleMesh)
+        return comparison.unmatched == 0 && comparison.farthest < 1e-6 && a.positions.count == b.positions.count && a.triangles.count == b.triangles.count
+    }
+
     @Test func manySmallBatchesMakeTheMeshOneBigBatchDoes() async throws {
-        var tuning = InterpretedImplicitEngine.MeshTuning()
+        var tuning = HLSLImplicitEngine.MeshTuning()
         tuning.batchBricks = 7
         let small = try await Job(tuning: tuning)
         #expect(small.request.bricks.count > 50)
-        #expect(try await small.mesh() == (try await Job().mesh()))
+        #expect(Self.sameSet(try await small.mesh(), try await Job().mesh()))
     }
 
     @Test func aTableThatIsTooSmallIsDoubledUntilItFits() async throws {
-        var tuning = InterpretedImplicitEngine.MeshTuning()
+        var tuning = HLSLImplicitEngine.MeshTuning()
         tuning.slotsPerBrick = 1
         let mesh = try await Job(tuning: tuning).mesh()
-        #expect(mesh.positions.count > 4096, "more vertices than the first table has slots")
-        #expect(mesh == (try await Job().mesh()))
+        #expect(mesh.positions.count > 4096 && Self.sameSet(mesh, try await Job().mesh()))
     }
 
     @Test func aMeshOfSeveralRangesOfSlotsIsTheMeshOneRangeMakes() async throws {
-        var tuning = InterpretedImplicitEngine.MeshTuning()
+        var tuning = HLSLImplicitEngine.MeshTuning()
         tuning.slotsPerDispatch = 1_000
         let ranges = try await Job(tuning: tuning).mesh()
-        #expect(ranges.positions.count > 1_000 && ranges == (try await Job().mesh()))
+        #expect(ranges.positions.count > 1_000 && Self.sameSet(ranges, try await Job().mesh()))
     }
 
-    /// Review Focus 3: past the largest table the request is the CPU mesher's, and the mesh is still made.
+    /// Review Focus 4.
     @Test func aMeshBeyondTheLargestTableIsLeftToTheCPU() async throws {
-        var tuning = InterpretedImplicitEngine.MeshTuning()
+        var tuning = HLSLImplicitEngine.MeshTuning()
         tuning.slotsPerBrick = 1
         tuning.largestTable = 4096
         let job = try await Job(tuning: tuning)
@@ -4271,27 +3030,22 @@ Add to `InterpretedMeshingTests`:
         #expect(path == .cpu && MeshTopology(mesh).isClosedManifold)
     }
 
-    /// Review Focus 3: a table past the backend's 128 MiB buffer cap (2^25 slots, gap XP-G24) is unsupported before any GPU work, whatever
-    /// `largestTable` allows, and the mesher then meshes on the CPU.
-    @Test func aRequestPastTheBufferCapIsUnsupportedAndTheMesherFallsBack() async throws {
-        let engine = try #require(GPUEnginesUnderTest.makeInterpreted())
-        var tuning = InterpretedImplicitEngine.MeshTuning()
+    /// Review Focus 4: past the 128 MiB buffer cap (2^25 slots), whatever `largestTable` allows.
+    @Test func aTablePastTheBufferCapIsUnsupportedBeforeAnyGPUWork() async throws {
+        let engine = try #require(GPUEnginesUnderTest.makeHLSL())
+        var tuning = HLSLImplicitEngine.MeshTuning()
         tuning.largestTable = 1 << 30
         tuning.slotsPerBrick = 1 << 25
         await engine.tune(tuning)
-        let solid = ImplicitSolid.sphere(radius: 10)
-        let program = try await engine.compile(solid)
+        let program = try await engine.compile(.sphere(radius: 10))
         let request = BrickMeshRequest(origin: .zero, resolution: 0.5, bricks: [SIMD3(0, 0, 0), SIMD3(1, 0, 0)], snap: true)
         await #expect(throws: ImplicitCompileError.unsupported("the edge table would pass \(1 << 25) slots")) {
             _ = try await engine.meshBricks(program, request) { _ in }
         }
-        let (mesh, path) = try await ImplicitMesher(evaluator: GPUBatchEvaluator(engine: engine, program: program))
-            .meshReportingPath(solid, resolution: 0.53, quality: .preview)
-        #expect(path == .cpu && MeshTopology(mesh).isClosedManifold)
     }
 
     @Test func bricksTooFarApartForThirtyTwoBitKeysAreUnsupported() async throws {
-        let engine = try #require(GPUEnginesUnderTest.interpreted)
+        let engine = try #require(GPUEnginesUnderTest.hlsl)
         let program = try await engine.compile(.sphere(radius: 10))
         let request = BrickMeshRequest(origin: .zero, resolution: 0.5, bricks: [SIMD3(0, 0, 0), SIMD3(1_200, 1_200, 1_200)], snap: true)
         await #expect(throws: ImplicitCompileError.unsupported("the bricks span more lattice edges than a 32-bit key numbers")) {
@@ -4300,34 +3054,30 @@ Add to `InterpretedMeshingTests`:
     }
 
     @Test func aPartFarFromTheOriginIsMeshedInASmallWindow() async throws {
-        let engine = try #require(GPUEnginesUnderTest.interpreted)
+        let engine = try #require(GPUEnginesUnderTest.hlsl)
         let move = RigidMove(origin: Vector3(4_000, -3_000, 2_500), xAxis: .unitX, yAxis: .unitY, zAxis: .unitZ)
         let far = ImplicitSolid.moved(.sphere(radius: 10), move)
         let selection = await ImplicitEvaluators.make(for: far, choice: .automatic, engine: engine)
         let (mesh, path) = try await ImplicitMesher(evaluator: selection.evaluator).meshReportingPath(far, resolution: 0.53, quality: .preview)
-        #expect(path == .gpu)
-        let topology = MeshTopology(mesh)
-        #expect(topology.isClosedManifold && topology.eulerCharacteristic == 2)
+        #expect(path == .gpu && MeshTopology(mesh).isClosedManifold)
         let bounds = try #require(mesh.bounds)
         #expect(abs(bounds.min.x - 3_990) < 1 && abs(bounds.max.z - 2_510) < 1)
     }
 
-    /// A mesh of many small batches, so a cancel has somewhere to land between two of them.
     static func manyBatches() async throws -> Job {
-        var tuning = InterpretedImplicitEngine.MeshTuning()
+        var tuning = HLSLImplicitEngine.MeshTuning()
         tuning.batchBricks = 4
         let job = try await Job(.sphere(radius: 20), resolution: 0.4, tuning: tuning)
-        #expect(job.request.bricks.count > 40, "ten batches or more")
+        #expect(job.request.bricks.count > 40)
         return job
     }
 
-    static func expectTheNextMeshRuns(_ engine: InterpretedImplicitEngine) async throws {
+    static func expectTheNextMeshRuns(_ engine: HLSLImplicitEngine) async throws {
         let small = try await request(.sphere(radius: 3), resolution: 0.5)
         let after = try await engine.meshBricks(try await engine.compile(.sphere(radius: 3)), small) { _ in }
         #expect(MeshTopology(after.triangleMesh).isClosedManifold)
     }
 
-    /// Review Focus 4.
     @Test func cancellingTheTaskEndsAMeshAtItsNextBatchAndNotTheNextMesh() async throws {
         let job = try await Self.manyBatches()
         let seen = ProgressLog()
@@ -4338,284 +3088,116 @@ Add to `InterpretedMeshingTests`:
             }
         }
         await #expect(throws: CancellationError.self) { _ = try await running.value }
-        #expect(seen.values.count == 1, "it ended at the next batch: \(seen.values.count) reports")
+        #expect(seen.values.count == 1)
         try await Self.expectTheNextMeshRuns(job.engine)
     }
 
-    /// Review Focus 4: an edit cancels the engine, which bumps its epoch.
     @Test func anEngineCancelEndsAMeshAtItsNextBatchAndNotTheNextMesh() async throws {
         let job = try await Self.manyBatches()
-        var tuning = InterpretedImplicitEngine.MeshTuning()
+        var tuning = HLSLImplicitEngine.MeshTuning()
         tuning.batchBricks = 4
         tuning.afterBatch = { [engine = job.engine] batch in
             if batch == 1 { await engine.cancel() }
         }
         await job.engine.tune(tuning)
         let seen = ProgressLog()
-        await #expect(throws: CancellationError.self) {
-            _ = try await job.engine.meshBricks(job.program, job.request) { seen.append($0) }
-        }
-        #expect(seen.values.isEmpty, "the first batch's check ended it before its report")
+        await #expect(throws: CancellationError.self) { _ = try await job.engine.meshBricks(job.program, job.request) { seen.append($0) } }
+        #expect(seen.values.isEmpty)
         tuning.afterBatch = nil
         await job.engine.tune(tuning)
         try await Self.expectTheNextMeshRuns(job.engine)
     }
 ```
-`ProgressLog` is the portable test helper `final class ProgressLog: Sendable` in `ImplicitMesherTests.swift`.
+The solids above are `GeneratedKernels.solids`' shapes (a sphere, a moved sphere, the TPMS fixture): no new shape needs offline compiling.
 
-In `aRequestPastTheBufferCapIsUnsupportedAndTheMesherFallsBack` two adjacent bricks at 2^25 slots a brick ask for a first table of 2^26 slots; `largestTable` is raised to 2^30, so the cap that refuses is `backend.largestBuffer / 4` = 2^25, the buffer cap, before any batch runs.
-
-- [ ] **Step 3: Run on the Mac, then on Linux, and measure.**
-
-Run:
+- [ ] **Step 4: Run and measure.**
 ```bash
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh shaders
-swift test --filter "CreatorImplicitTests.(GPUMeshAgreementTests|StreamingMesherGPUTests|InterpretedMeshingTests)" 2>&1 | tee .build/xp-c-mesh-mac.log | tail -5
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test --filter "GPUMeshAgreementTests|StreamingMesherGPUTests|InterpretedMeshingTests" 2>&1 | tee .build/xp-c-mesh-linux.log | tail -3
+XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh kernels
+swift test --filter "CreatorImplicitTests.(GPUMeshAgreementTests|StreamingMesherGPUTests|HLSLMeshingTests)" 2>&1 | tee .build/xp-c-mesh-mac.log | tail -5
+XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test --filter "GPUMeshAgreementTests|StreamingMesherGPUTests|HLSLMeshingTests" 2>&1 | tee .build/xp-c-mesh-linux.log | tail -3
 ```
-Expected: PASS on both, with the same tolerances for "Metal (HLSL)" and "Vulkan" as for "Metal". Record from the logs:
-1. **The Face-mapped Voronoi struts item (D20's open item 3).** Add a temporary `print("XPC-MEASURE \(engineName) \(name) \(pipeline.worstScaledSurface) \(detail.along)")` after `let detail = pipeline.worstScaledDetail` in `theGPUMeshAgreesAwayFromTheSingularSet`, run it on each engine, write the figures into this task's commit message, and remove the print before committing. If the interpreter's figure for "voronoi struts, face of a cylinder" is also about 6e-4 mm (factor near 6), the divergence is Float sensitivity of the face chart's map and not a Metal bug: say so in D21 (task 9). If it is within 1 (D17's allowance) the divergence is specific to Metal's compiled code, and D21 says that. Do not change the factor in either case.
-2. **The suite time on lavapipe**: the slowest test's duration from the Linux log (Swift Testing prints "passed after N seconds"). If the three suites together take more than 10 minutes in Docker, cut `GPUMeshAgreementTests.resolution(of:)`'s 60 voxels across to 40 **for the interpreted engine on Linux only** (`engineName == "Vulkan"`), re-measure, and say in the commit message which it is. Never loosen a tolerance to save time.
+Expected: PASS, the HLSL engine held to Metal's tolerances. Record: (1) **D20's open item 3**: with a temporary `print("XPC-MEASURE \(engineName) \(name) \(pipeline.worstScaledSurface)")` in `theGPUMeshAgreesAwayFromTheSingularSet`, the figure for "voronoi struts, face of a cylinder" on Metal, "Metal (HLSL)" and "Vulkan" (remove the print before committing). About 6 on all: Float sensitivity of the face chart's map, not Metal's; within 1 on HLSL: specific to Metal's compiled code. The factor is not changed either way. (2) the three suites' time on lavapipe; over 10 minutes, cut `GPUMeshAgreementTests.resolution(of:)`'s 60 voxels across to 40 for `engineName == "Vulkan"` only, and say so. Never loosen a tolerance.
 
-If an interpreted case fails a tolerance that Metal meets, it is a port error until shown otherwise: compare the fixture's values (`GPUAgreementTests` for that fixture), then the mesher alone (`theGPUMeshAgreesWithTheCPUMesh`'s first half compares the same samples), then the snap.
-
-- [ ] **Step 4: Full suites, lint, commit, push and read Windows CI.**
-
-```bash
-swift test 2>&1 | tee .build/xp-c-task6-mac.log | grep -c "Test run with"     # 12, and no "recorded an issue"
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh all 2>&1 | tail -3
-swiftlint lint --strict
-git add Tests/CreatorImplicitTests
-git commit -m "test(implicit): the mesh agreement, the streamed export and the limits over every GPU engine (xp-c task 6)
-
-Face-mapped Voronoi struts, worst scaled surface: Metal …, Metal (HLSL) …, Vulkan (lavapipe) ….
-Mesh suites on lavapipe: … s.
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS"
-git push origin xp-c
-```
-(Fill the measured figures in.) Then the Windows job: the agreement suites on "Direct3D 12" over WARP must pass, and the release build.
+- [ ] **Step 5: Full suites, lint, commit with the figures, push, read Windows CI** (`swift test` 12 lines; `scripts/linux-test.sh all`; `test(implicit): mesh agreement, export bytes and limits over every GPU engine (xp-c task 7)`, the measured figures in the body).
 
 ---
 
-### Task 7: `--self-test` checks the kernels, and every package ships them
+### Task 8: `--self-test` reports the implicit engine (interim, before XP-G25)
 
-**Files:**
-- Create: `Sources/CreatorImplicit/GPU/ImplicitShaderCheck.swift`
-- Modify: `Sources/CreatorApp/SelfTest.swift`, `scripts/package-linux.sh`, `scripts/package-windows.ps1`, `scripts/linux-test.sh` (the clean-Ubuntu checks), `docs/packaging.md`
-- Test: `Tests/CreatorImplicitTests/ImplicitShaderCheckTests.swift`
+**Files:** Create `Sources/CreatorImplicit/GPU/ImplicitEngineCheck.swift`; modify `Sources/CreatorApp/SelfTest.swift`, `docs/packaging.md`; test `Tests/CreatorImplicitTests/ImplicitEngineCheckTests.swift`.
 
-**Interfaces:**
-- Consumes: `SDLImplicitShaders.verify(driver:sourceTree:)`, `.remedy` (task 4).
-- Produces: `public enum ImplicitShaderCheck { public struct Failure: Error, CustomStringConvertible, LocalizedError, Equatable; public static func run() throws -> String?; static func run(sourceTree: URL) throws -> String? }`; packages with `ImplicitShaders/` beside the executable.
+**Interfaces:** Produces `public enum ImplicitEngineCheck { public static func run() async -> String }` — the engine and its availability, for the self-test's detail; task 12 adds MetalUI's `selfTest()` to it.
 
-- [ ] **Step 1: Write the failing test.**
-
-`Tests/CreatorImplicitTests/ImplicitShaderCheckTests.swift`:
+- [ ] **Step 1: The failing test.**
 ```swift
-import Foundation
 import Testing
 @testable import CreatorImplicit
 
-/// `MetalCreator --self-test` asks the implicit engine whether its kernels were built and ship (plan xp-c): on Linux and Windows a build without them
-/// meshes on the CPU and says "Running on the CPU"; the self-test fails, saying what to run (Review Focus 2). On a Mac there is nothing to find.
-struct ImplicitShaderCheckTests {
-    @Test func theCheckPassesOrHasNothingToFind() throws {
-        #if canImport(MetalUISDLGPU)
-        #expect(try ImplicitShaderCheck.run() == "the implicit engine's 7 SDL_GPU kernels were found")
+/// What `--self-test` says about the implicit engine (plan xp-c): which engine runs, or why it is the CPU.
+struct ImplicitEngineCheckTests {
+    @Test func theCheckNamesTheEngineOrWhyItIsTheCPU() async {
+        let text = await ImplicitEngineCheck.run()
+        #if canImport(Metal)
+        #expect(text.hasPrefix("Metal") || text.hasPrefix("the CPU"))
         #else
-        #expect(try ImplicitShaderCheck.run() == nil)
-        #endif
-    }
-
-    @Test func aMissingDirectoryFailsTheSelfTestCheckWithAMessageThatSaysWhatToRun() throws {
-        #if canImport(MetalUISDLGPU)
-        let empty = FileManager.default.temporaryDirectory.appending(path: "xp-c-no-kernels-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: empty) }
-        #expect {
-            _ = try ImplicitShaderCheck.run(sourceTree: empty)
-        } throws: { error in
-            let text = String(describing: error)
-            return text.contains("scripts/build-shaders.sh") && text.contains("ImplicitShaders") && text.contains("shadercross.env")
-        }
+        #expect(text.hasPrefix("the CPU") || text.hasPrefix("Vulkan") || text.hasPrefix("Direct3D 12"), "\(text)")
         #endif
     }
 }
 ```
-(The second test only checks off macOS; on a Mac it has nothing to find, as the first says.)
-
-- [ ] **Step 2: Run it to see it fail.**
-
-Run: `swift test --filter CreatorImplicitTests.ImplicitShaderCheckTests 2>&1 | tail -3`
-Expected: build failure ("cannot find 'ImplicitShaderCheck' in scope").
-
-- [ ] **Step 3: Write the check and call it from the self-test.**
-
-`Sources/CreatorImplicit/GPU/ImplicitShaderCheck.swift`:
+- [ ] **Step 2: Implement.** `Sources/CreatorImplicit/GPU/ImplicitEngineCheck.swift`:
 ```swift
-import Foundation
-
-/// `MetalCreator --self-test` asks the implicit engine whether its kernels were built and ship (plan xp-c): on macOS the Metal engine compiles its
-/// source at run time, so there is nothing to find; on Linux and Windows the interpreted engine needs `Shaders/implicit/compiled` (made by
-/// `scripts/build-shaders.sh`, git-ignored), shipped as `ImplicitShaders` beside the executable. Without them the app meshes on the CPU.
-public enum ImplicitShaderCheck {
-    /// The check failed: the message says where it looked and what to run.
-    public struct Failure: Error, CustomStringConvertible, LocalizedError, Equatable {
-        public let description: String
-        public var errorDescription: String? { description }
-    }
-
-    /// What a passing check reports, or `nil` where there is nothing to find. Throws a ``Failure``.
-    public static func run() throws -> String? {
-        #if canImport(MetalUISDLGPU)
-        try run(sourceTree: SDLImplicitShaders.sourceTree)
-        #else
-        nil
-        #endif
-    }
-
-    /// The same check against another source-tree directory (the test points it at an empty one).
-    static func run(sourceTree: URL) throws -> String? {
-        #if canImport(MetalUISDLGPU)
-        do {
-            let kernels = try SDLImplicitShaders.verify(sourceTree: sourceTree)
-            return "the implicit engine's \(kernels.formatted()) SDL_GPU kernels were found"
-        } catch {
-            throw Failure(description: "The implicit engine's compiled SDL_GPU kernels are missing or incomplete (\(error)). \(SDLImplicitShaders.remedy)")
+/// `MetalCreator --self-test`'s line about the implicit engine (plan xp-c): the platform's engine and its device, or why evaluation is on the CPU. It
+/// never fails the self-test by itself: a machine without a GPU engine is a supported machine (D11). Task 12 adds MetalUI's compiler self-test, which
+/// does fail a package that ships without the compiler libraries.
+public enum ImplicitEngineCheck {
+    public static func run() async -> String {
+        guard let engine = ImplicitGPUEngines.platformDefault else {
+            return "the CPU (no GPU engine on this platform yet: SDL_GPU run-time compilation waits for MetalUI XP-G25)"
         }
-        #else
-        return nil
-        #endif
+        switch await engine.availability {
+        case .available: return "\(engine.name) on \(await engine.deviceName)"
+        case .absent(let why): return "the CPU (\(why))"
+        case .broken(let why): return "the CPU, with a warning (\(why))"
+        }
     }
 }
 ```
-
-In `Sources/CreatorApp/SelfTest.swift`, in `compileShaders()`'s `#elseif canImport(MetalUISDL)` branch, after `_ = try ViewportShaderCheck.run()` add `_ = try ImplicitShaderCheck.run()` (add `import CreatorImplicit` if the file lacks it), and change `shadersDetail`'s non-Metal string to `"MetalUI's SDL shaders, the viewport's and the implicit engine's were found"`. Search for the old string first (`grep -rn "the viewport's were found" Tests Sources`) and update any test that pins it.
-
-- [ ] **Step 4: Ship the kernels in every package.**
-
-In `scripts/package-linux.sh`, after the `cp -R "$APP_SHADERS" "$FOLDER/MetalUIAppShaders"` line add:
-```bash
-# The implicit engine's compute kernels (plan xp-c): ImplicitShaders beside the executable, where SDLImplicitShaders looks first. A build product,
-# never in git: scripts/build-shaders.sh makes them with the viewport's.
-IMPLICIT_SHADERS="$ROOT/Shaders/implicit/compiled"
-[ -f "$IMPLICIT_SHADERS/SOURCE.sha256" ] || fail "the implicit engine's compiled kernels are missing ($IMPLICIT_SHADERS): run scripts/build-shaders.sh first"
-cp -R "$IMPLICIT_SHADERS" "$FOLDER/ImplicitShaders"
-```
-and in its header comment, after "the 3D viewport's in MetalUIAppShaders", add ", the implicit engine's kernels in ImplicitShaders".
-
-In `scripts/package-windows.ps1`, after `Copy-Item -Recurse $appShaders (Join-Path $folder 'MetalUIAppShaders')` add:
-```powershell
-# The implicit engine's compute kernels (plan xp-c): ImplicitShaders beside the executable. A build product: scripts\build-shaders.ps1 makes them.
-$implicitShaders = Join-Path $root 'Shaders\implicit\compiled'
-if (-not (Test-Path (Join-Path $implicitShaders 'SOURCE.sha256'))) { throw "the implicit engine's compiled kernels are missing ($implicitShaders): run scripts\build-shaders.ps1 first" }
-Copy-Item -Recurse $implicitShaders (Join-Path $folder 'ImplicitShaders')
-```
-and in its self-test block move the source tree's `Shaders\implicit\compiled` aside too, so a zip without `ImplicitShaders` fails there:
-```powershell
-$implicitShadersAside = "$implicitShaders.aside"
-```
-beside `$appShadersAside`, `Rename-Item $implicitShaders $implicitShadersAside` after `Rename-Item $appShaders $appShadersAside`, and `Rename-Item $implicitShadersAside $implicitShaders` in the `finally` block before `Rename-Item $appShadersAside $appShaders`; and extend the comment above it ("…and the implicit engine falls back to this checkout's Shaders\implicit\compiled, which would hide one without ImplicitShaders; so all three are moved aside").
-
-In `scripts/linux-test.sh`'s `do_package`, after `test -f MetalUIAppShaders/SOURCE.sha256 && test -s MetalUIAppShaders/mesh.vert.spv` add `        test -f ImplicitShaders/SOURCE.sha256 && test -s ImplicitShaders/implicit_evaluate.comp.spv`; after the two AppImage lines that extract and test `MetalUIAppShaders` add
-```bash
-        ./MetalCreator.AppImage --appimage-extract "usr/metalcreator/ImplicitShaders/*" >/dev/null
-        test -s squashfs-root/usr/metalcreator/ImplicitShaders/implicit_evaluate.comp.spv
-```
-In `docs/packaging.md`, beside each mention of `MetalUIAppShaders/` (lines about the tarball, the AppImage's AppDir and the zip), add "`ImplicitShaders/` (the implicit engine's compute kernels, from the same script; plan xp-c)".
-
-- [ ] **Step 5: Run the tests, the smoke, and the packages.**
-
-Run:
-```bash
-swift test --filter "CreatorImplicitTests.ImplicitShaderCheckTests|CreatorAppTests.SelfTest" 2>&1 | tail -3
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh smoke 2>&1 | tail -5     # the self-test lists the implicit kernels
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh package 2>&1 | tail -4   # tarball and AppImage PASS in a clean ubuntu:24.04
-```
-Expected: PASS. Then the Windows job's "Package (zip), checked on its own" step after the push in step 6.
-
-- [ ] **Step 6: Lint, commit, push.**
-
-```bash
-swiftlint lint --strict
-git add Sources/CreatorImplicit/GPU/ImplicitShaderCheck.swift Sources/CreatorApp/SelfTest.swift scripts docs/packaging.md Tests
-git commit -m "feat(app): --self-test checks the implicit kernels; the tarball, AppImage and zip ship them as ImplicitShaders (xp-c task 7)
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS"
-git push origin xp-c
-```
+In `SelfTest.swift` add a check after "shaders": `results.append(await check("implicit engine") { await ImplicitEngineCheck.run() })` (with `import CreatorImplicit`). In `docs/packaging.md`, after the Windows zip's contents, add a paragraph "**The implicit engine's shader compiler (after MetalUI XP-G25).** Linux and Windows packages will ship SDL_shadercross, DXC and their libraries for the implicit engine's run-time compilation (plan xp-c, task 12); until then the packages are unchanged and the engine off macOS is the CPU (`--self-test`'s "implicit engine" line says so)."
+- [ ] **Step 3: Run** (`swift test --filter "ImplicitEngineCheckTests|SelfTest"`, `scripts/linux-test.sh smoke`), **lint, commit** (`feat(app): --self-test names the implicit engine (xp-c task 8)`).
 
 ---
 
-### Task 8: Benchmarks: rows x-1 and x-2 on every engine, x-1h judged on this Mac
+### Task 9: Benchmarks before XP-G25: x-1, x-2 and x-1h per engine, x-3o the offline compile cost
 
-**Files:**
-- Create: `Tests/CreatorImplicitTests/ImplicitBenchInterpreted.swift`
-- Modify: `docs/verification/performance.md` (a section and its rows)
+**Files:** Create `Tests/CreatorImplicitTests/ImplicitBenchHLSL.swift`; modify `Tests/CreatorImplicitTests/Support/GeneratedKernels.swift` (the bench sheet), `docs/verification/performance.md`.
 
-**Interfaces:**
-- Consumes: `GPUEnginesUnderTest` (task 3), `ImplicitGPUEngines.meshesMade()` (task 4).
-- Produces: the measured rows task 9's erratum and human check XP-27 cite; the cost of the canonical sort (X-C3).
+**Interfaces:** Produces `ImplicitBenchHLSL.sheet(wall:)`; the rows task 10 and human check XP-27 cite.
 
-- [ ] **Step 1: Write the bench suite.**
-
-`Tests/CreatorImplicitTests/ImplicitBenchInterpreted.swift`:
+- [ ] **Step 1: The bench suite** (add `("bench sheet", ImplicitBenchHLSL.sheet(wall: 3))` to `GeneratedKernels.solids`):
 ```swift
 import CreatorGeometry
 import Foundation
 import Testing
 @testable import CreatorImplicit
 
-/// Rows x-1, x-2 and x-1h (plan xp-c, user decision X-C7): the implicit engines side by side on one solid, the mesher alone. Printed as `BENCH`
-/// lines, judged only where X-C7 says. A plain `swift test` skips it; run `scripts/bench.sh ImplicitBench` on a Mac and, on Linux,
-/// `DOCKER_EXTRA="-e METALCREATOR_BENCH=1" scripts/linux-test.sh test -c release --no-parallel --filter ImplicitBenchInterpreted`.
-/// - x-1: a gyroid sheet filling a 100 mm cube (100 mm cells, 3 mm wall), meshed at 0.78 mm (128 voxels across: the preview's first pass), on a
-///   warm engine; the median of six.
-/// - x-2: the same sheet with a 2.5 mm wall, the engine warm (a thickness edit: the interpreter compiles nothing).
-/// - x-1h: x-1 on "Metal (HLSL)", the interpreted engine on this Mac's GPU: judged against i-1's 1 s, a proxy for a desktop GPU (X-C7).
-/// - x-1s: the canonical sort's share of x-1 (`MeshCanonicalOrder.mesh` alone on x-1's arrays), the price of X-C3.
+/// Rows x-1, x-2, x-1h and x-3m (plan xp-c, X-C7): the engines side by side on one solid, the mesher alone; x-3m is Metal's own compile of a new shape,
+/// the figure the HLSL engine's run-time compile (x-3, task 11) is compared with. A plain `swift test` skips it; `scripts/bench.sh ImplicitBench` on a Mac,
+/// `DOCKER_EXTRA="-e METALCREATOR_BENCH=1" scripts/linux-test.sh test -c release --no-parallel --filter ImplicitBenchHLSL` on Linux.
 @Suite(.serialized, .enabled(if: ProcessInfo.processInfo.environment["METALCREATOR_BENCH"] == "1", "set METALCREATOR_BENCH=1"))
-struct ImplicitBenchInterpreted {
+struct ImplicitBenchHLSL {
     static func sheet(wall: Double) -> ImplicitSolid {
         .tpms(TPMSLattice(type: .gyroid, form: .sheet, cells: LatticeCells(size: .constant(100)), thickness: .constant(wall),
                           region: BoundingBox(min: Vector3(-50, -50, -50), max: Vector3(50, 50, 50))))
     }
 
     static let resolution = 100.0 / 128
-    static let firstPassBudget = 1000.0
-
-    static func median(_ samples: [Double]) -> Double {
-        let sorted = samples.sorted()
-        return sorted[sorted.count / 2]
-    }
 
     static func milliseconds(_ duration: Duration) -> Double {
         Double(duration.components.seconds) * 1000 + Double(duration.components.attoseconds) / 1e15
     }
 
-    /// The mesher on `name`'s engine ("CPU" for the CPU evaluator), six warm runs; the median in milliseconds and the triangles.
-    static func time(_ solid: ImplicitSolid, on name: String) async throws -> (milliseconds: Double, triangles: Int) {
-        let evaluator: any ImplicitBatchEvaluator = name == "CPU"
-            ? CPUBatchEvaluator(solid)
-            : await ImplicitEvaluators.make(for: solid, choice: .automatic, engine: try GPUEnginesUnderTest.engine(name)).evaluator
-        let clock = ContinuousClock()
-        var samples: [Double] = []
-        var triangles = 0
-        for round in 0..<7 {
-            let start = clock.now
-            let (mesh, path) = try await ImplicitMesher(evaluator: evaluator).meshReportingPath(solid, resolution: resolution, quality: .preview)
-            if round > 0 { samples.append(milliseconds(clock.now - start)) }
-            #expect(name == "CPU" || path == .gpu, "\(name) meshed on the GPU")
-            triangles = mesh.triangleCount
-        }
-        return (median(samples), triangles)
-    }
-
-    /// A debug build's numbers are not benchmarks (`Bench.requireRelease` in `CreatorAppTests`, which this target cannot import).
-    static func requireRelease() -> Bool {
+    static func releaseOnly() -> Bool {
         #if DEBUG
         Issue.record("Benchmarks run in a release build: scripts/bench.sh (swift test -c release).")
         return false
@@ -4624,260 +3206,219 @@ struct ImplicitBenchInterpreted {
         #endif
     }
 
+    /// The mesher on `name`'s engine ("CPU" for the CPU evaluator), warm: the median of six runs after one.
+    static func time(_ solid: ImplicitSolid, on name: String) async throws -> Double {
+        let evaluator: any ImplicitBatchEvaluator = name == "CPU"
+            ? CPUBatchEvaluator(solid)
+            : await ImplicitEvaluators.make(for: solid, choice: .automatic, engine: try GPUEnginesUnderTest.engine(name)).evaluator
+        let clock = ContinuousClock()
+        var samples: [Double] = []
+        for round in 0..<7 {
+            let start = clock.now
+            let (_, path) = try await ImplicitMesher(evaluator: evaluator).meshReportingPath(solid, resolution: resolution, quality: .preview)
+            if round > 0 { samples.append(milliseconds(clock.now - start)) }
+            #expect(name == "CPU" || path == .gpu, "\(name) meshed on the GPU")
+        }
+        return samples.sorted()[samples.count / 2]
+    }
+
     @Test(arguments: GPUEnginesUnderTest.names + ["CPU"])
     func theFirstPassAndAThicknessEditOnEachEngine(_ name: String) async throws {
-        guard Self.requireRelease() else { return }
+        guard Self.releaseOnly() else { return }
         let first = try await Self.time(Self.sheet(wall: 3), on: name)
-        print("BENCH x-1 \(name): first pass of a 100 mm gyroid sheet at 0.78 mm: median \(first.milliseconds.formatted(.number.precision(.fractionLength(2)))) ms, \(first.triangles) triangles")
         let edit = try await Self.time(Self.sheet(wall: 2.5), on: name)
-        print("BENCH x-2 \(name): thickness edit, warm: median \(edit.milliseconds.formatted(.number.precision(.fractionLength(2)))) ms")
+        print("BENCH x-1 \(name): first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median \(first.formatted(.number.precision(.fractionLength(2)))) ms")
+        print("BENCH x-2 \(name): thickness edit, warm: median \(edit.formatted(.number.precision(.fractionLength(2)))) ms")
         if name == "Metal (HLSL)" {
-            let met = first.milliseconds < Self.firstPassBudget
-            print("BENCH x-1h Metal (HLSL): \(first.milliseconds.formatted(.number.precision(.fractionLength(2)))) ms; budget 1000.00 ms: \(met ? "met" : "missed")")
-            #expect(met, "x-1h: the interpreted engine on this Mac's GPU misses i-1's 1 s")
+            print("BENCH x-1h Metal (HLSL): \(first.formatted(.number.precision(.fractionLength(2)))) ms; budget 1000.00 ms: \(first < 1000 ? "met" : "missed")")
+            #expect(first < 1000, "x-1h: the generated HLSL on this Mac's GPU misses i-1's 1 s")
         }
     }
 
-    @Test(.enabled(if: GPUEnginesUnderTest.interpreted != nil))
-    func theCanonicalSortsShareOfAFirstPass() async throws {
-        guard Self.requireRelease() else { return }
-        let engine = try #require(GPUEnginesUnderTest.interpreted)
-        let solid = Self.sheet(wall: 3)
-        let program = try await engine.compile(solid)
-        let plan = try await BrickPlan.build(for: solid, resolution: Self.resolution, using: GPUBatchEvaluator(engine: engine, program: program))
-        let mesh = try await engine.meshBricks(program, BrickMeshRequest(plan: plan, snap: true)) { _ in }
-        let keys = (0..<UInt32(mesh.positions.count)).reversed().map { $0 }
-        let tags = (0..<UInt32(mesh.triangles.count / 3)).map { $0 / 2 }
+    #if canImport(Metal)
+    /// x-3m: Metal compiling one new shape, the evaluation pipeline and then the five meshing kernels (a fresh engine each time).
+    @Test func metalsCompileOfANewShape() async throws {
+        guard Self.releaseOnly(), MetalImplicitEngine.shared != nil else { return }
         let clock = ContinuousClock()
-        let start = clock.now
-        _ = MeshCanonicalOrder.mesh(positions: mesh.positions, normals: mesh.normals, keys: Array(keys), triangles: mesh.triangles, tags: tags)
-        print("BENCH x-1s canonical order of \(mesh.triangles.count / 3) triangles: \(Self.milliseconds(clock.now - start).formatted(.number.precision(.fractionLength(2)))) ms")
+        var evaluation: [Double] = []
+        var meshing: [Double] = []
+        for round in 0..<5 {
+            let engine = try #require(MetalImplicitEngine())
+            let solid = Self.sheet(wall: 3 + Double(round))
+            let start = clock.now
+            let program = try await engine.compile(solid)
+            let compiled = clock.now
+            let plan = try await BrickPlan.build(for: solid, resolution: 10, using: CPUBatchEvaluator(solid))
+            _ = try await engine.meshBricks(program, BrickMeshRequest(plan: plan, snap: true)) { _ in }
+            evaluation.append(Self.milliseconds(compiled - start))
+            meshing.append(Self.milliseconds(clock.now - compiled))
+        }
+        print("BENCH x-3m Metal: a new shape's evaluation pipeline median \(evaluation.sorted()[2].formatted(.number.precision(.fractionLength(2)))) ms, "
+            + "its meshing pipelines and a coarse mesh median \(meshing.sorted()[2].formatted(.number.precision(.fractionLength(2)))) ms")
     }
+    #endif
 }
 ```
-The sheet is built directly (the TPMS node's graph is `CreatorAppTests`'), so x-1 is not i-1 (which evaluates the graph and joins a skin): the rows compare engines with each other, not with i-1's history. `scripts/bench.sh ImplicitBench` runs it on a Mac (the filter matches `ImplicitBenchInterpreted`).
-
-- [ ] **Step 2: Run it on the Mac and on Linux.**
-
-Run (idle machine; the first lines are its load):
+- [ ] **Step 2: Run** (idle Mac; Linux in Docker):
 ```bash
-XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh shaders
-scripts/bench.sh ImplicitBenchInterpreted
-DOCKER_EXTRA="-e METALCREATOR_BENCH=1" XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test -c release --no-parallel --filter ImplicitBenchInterpreted 2>&1 | grep BENCH
-DOCKER_EXTRA="-e METALCREATOR_BENCH=1" XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test -c release --no-parallel --filter "ImplicitBench/(theFirstPreview|aThicknessEdit)" 2>&1 | grep BENCH
+XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh kernels 2>&1 | grep COMPILE-TIME     # x-3o: the offline compile, kernels and seconds
+scripts/bench.sh ImplicitBenchHLSL
+DOCKER_EXTRA="-e METALCREATOR_BENCH=1" XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh test -c release --no-parallel --filter ImplicitBenchHLSL 2>&1 | grep BENCH
 ```
-Expected: `BENCH x-1`, `x-2` for Metal, Metal (HLSL) and CPU on the Mac, `x-1h … met`; `x-1`, `x-2` for Vulkan (lavapipe) and CPU on Linux; i-1 and i-2 on Linux (now on the SDL engine through the graph). x-1h missing its budget is a finding, not a test to loosen: record it and raise it in task 9's report (the interpreter needs work, or X-C7 needs another budget).
-
-- [ ] **Step 3: Record the numbers.**
-
-In `docs/verification/performance.md`, after the ImplicitBench section, add:
-```markdown
-## Implicit engines side by side (plan xp-c, rows x-1, x-2, x-1h, x-1s)
-
-`ImplicitBenchInterpreted` (`Tests/CreatorImplicitTests`): a gyroid sheet filling a 100 mm cube (100 mm cells, 3 mm wall) meshed at 0.78 mm by the
-mesher alone, warm, the median of six; x-2 the same with a 2.5 mm wall. Budgets (user decision X-C7): none in CI, where lavapipe and WARP are CPU
-rasterizers; x-1h, the interpreted engine on this Mac's GPU (the MSL of the HLSL kernels), is held to i-1's 1 s as a proxy for a desktop GPU; on a
-desktop GPU under Linux or Windows human check XP-27 asks for i-1's and i-2's budgets.
-
-| Row | Machine | Engine | Median | Budget | Verdict |
-|---|---|---|---|---|---|
-| x-1 | (this Mac, load …) | Metal | … ms | recorded | n/a |
-| x-1 | (this Mac) | Metal (HLSL) | … ms | 1000 ms (x-1h) | … |
-| x-1 | (this Mac) | CPU | … ms | recorded | n/a |
-| x-1 | Linux image (OrbStack, aarch64) | Vulkan (lavapipe) | … ms | recorded | n/a |
-| x-1 | Linux image | CPU | … ms | recorded | n/a |
-| x-2 | each of the above | … | … ms | recorded | n/a |
-| x-1s | (this Mac) | the canonical sort of x-1's … triangles | … ms | recorded | n/a |
-| i-1, i-2 | Linux image | Vulkan (lavapipe), through the graph | … ms, … ms | recorded (D11) | n/a |
-
-The BENCH lines of the runs:
-```
-and paste the `BENCH` lines under it in a fenced block. Fill every "…" from the runs; a cell with nothing measured says "not run" and why.
-
-- [ ] **Step 4: Commit.**
-
-```bash
-swiftlint lint --strict
-git add Tests/CreatorImplicitTests/ImplicitBenchInterpreted.swift docs/verification/performance.md
-git commit -m "bench(implicit): rows x-1, x-2, x-1h, x-1s: the implicit engines side by side (xp-c task 8)
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS"
-```
+(For x-3o, empty `.build/generated-kernels/compiled` first so every kernel compiles; divide the time by the kernels: the offline cost of one kernel through the shadercross CLI, an upper bound on XP-G25's in-process compile.) x-1h missing its budget is a finding to report, not a test to loosen.
+- [ ] **Step 3: Record** in `docs/verification/performance.md` a section "Implicit engines side by side (plan xp-c)" with a table (row, machine and load, engine, median, budget, verdict) for x-1 and x-2 (Metal, Metal (HLSL), CPU on the Mac; Vulkan on lavapipe, CPU in the Linux image), x-1h (budget 1000 ms), x-3m (Metal, recorded), x-3o (shadercross CLI per kernel, recorded), and the `BENCH` lines; x-3 and x-4 are "after XP-G25 (task 11)".
+- [ ] **Step 4: Commit** (`bench(implicit): rows x-1, x-2, x-1h, x-3m, x-3o (xp-c task 9)`).
 
 ---
 
-### Task 9: The errata, the human checks and the project notes
+### Task 10: The errata, the human checks and the project notes (the state before XP-G25, with the run-time half named)
 
-**Files:**
-- Modify: `docs/superpowers/specs/2026-10-13-cross-platform-design.md` (erratum E8; the XP-G2 row), `docs/superpowers/specs/2026-10-13-implicit-lattices-design.md` (erratum D21), `docs/verification/human-checks.md` (group XPC: XP-27 to XP-29), `docs/metalui-gaps.md` (the XP-G2 row), `CLAUDE.md`
+**Files:** Modify both specs, `docs/verification/human-checks.md`, `docs/metalui-gaps.md`, `CLAUDE.md`.
 
-**Interfaces:**
-- Consumes: the measured figures of tasks 6 and 8.
-- Produces: the spec text the user approves with the plan's decisions.
-
-- [ ] **Step 1: Add erratum E8 to the cross-platform spec.**
-
-After E7, add:
+- [ ] **Step 1: Erratum E8** after E7 in the cross-platform spec:
 ```markdown
-- **E8 (xp-c, XP-G2 and E7's last sentence). Implicit evaluation and meshing on SDL GPU.** E7's "Implicit evaluation and meshing stay on the CPU off
-  macOS (xp-c)" no longer holds. On Linux and Windows `ImplicitGPUEngines.platformDefault` is `InterpretedImplicitEngine.sdl`, MetalUI's SDL_GPU compute
-  (`MetalUISDLGPU`, S5) under an engine that runs a compiled solid as a program of fixed-size instructions (`ImplicitProgram`) through one HLSL
-  interpreter, because SDL_GPU takes only shaders compiled before the app runs (E7, U1(b)) and the Metal engine's per-shape source cannot be compiled
-  there (plan `2026-10-22-xp-c-sdl-gpu-meshing.md`, user decision X-C1). The kernels are HLSL in `Shaders/implicit`, compiled at build time with the
-  viewport's (`scripts/build-shaders.sh`, `.ps1`) into `Shaders/implicit/compiled`, git-ignored, and shipped as `ImplicitShaders` beside the
-  executable; `--self-test` checks them. The engine owns a headless device of its own, made on first use off the main actor. macOS keeps
-  `MetalImplicitEngine`; the same HLSL, compiled to MSL by SDL_shadercross, runs on the Mac's GPU in the tests only (X-C2). No SDL_GPU device: the
-  CPU, silently; missing kernels or a refused pipeline: the CPU with "Running on the CPU"; a solid beyond the interpreter (32 values or 8 points held at
-  once, 4,096 steps, a distance to a profile): the CPU with the warning, as on Metal (X-C4). The badge says "Vulkan" on Linux and "Direct3D 12" on
-  Windows (X-C8). CI runs the engine on Mesa's lavapipe and Direct3D 12's WARP with `XP_REQUIRE_GPU=1` (X-C5). Gaps XP-G23 (the adapter's name, whether
-  it is a software rasterizer) and XP-G24 (compute limits) are open; until they are answered the inspector names the driver, a software device is
-  used like a hardware one, and a storage buffer is at most 128 MiB.
+- **E8 (xp-c, XP-G2 and E7's last sentence). Implicit evaluation and meshing on SDL GPU, as on macOS.** The user ruled (2026-10-22) that Linux and Windows
+  follow macOS: `ImplicitCompiler`'s walk writes HLSL as well as MSL (`ShaderDialect`; the `sdf` statement for statement, the same buffers; the MSL bytes
+  unchanged, pinned by digests), one source per kernel, compiled while the app runs and cached by the source's digest (`HLSLImplicitEngine`, the twin of
+  `MetalImplicitEngine`, over MetalUI's SDL_GPU compute on an owned headless device). Run-time compilation needs MetalUI gap XP-G25 (a compiler over
+  SDL_shadercross's library and DXC, pipelines from bytes); **until it is adopted, E7's last sentence still holds for the app** (evaluation and meshing
+  on the CPU off macOS) while the engine is tested on lavapipe and on the Mac's GPU over kernels the build-time SDL_shadercross compiled offline
+  (`scripts/linux-test.sh kernels`). Once adopted (plan xp-c, task 11): no SDL_GPU device, the CPU silently; the compiler library missing (its named
+  error lists the paths tried), a pipeline refused, or a source DXC refuses, the CPU with "Running on the CPU" and the reason; the badge says "Vulkan" or
+  "Direct3D 12". The packages ship the compiler's shared libraries and their licences (task 12). Exports are byte-identical run to run on one machine, as
+  on macOS (they stream through the CPU mesher over the engine's values); bytes across machines or backends are not promised, D15's tolerances are.
+  Gaps XP-G23 (adapter name, software rasterizer) and XP-G24 (compute limits) are open; meanwhile the driver's name and 128 MiB buffers.
 ```
-In §5's table, replace the XP-G2 row's "Needed by" cell `after xp-3` with `after xp-3. **Answered by MetalUI S5** (\`SDLGPUComputePipeline\`, \`submitBatch\`, append buffers) and **used by xp-c** (erratum E8)`.
+In §5's table, the XP-G2 row's "Needed by" becomes `after xp-3. **Answered by MetalUI S5**; used by xp-c with XP-G25 (erratum E8)`.
 
-- [ ] **Step 2: Add erratum D21 to the implicit spec.**
-
-After D20 (before "### Errata (7c-3 acceptance, measured)"), add:
+- [ ] **Step 2: Erratum D21** after D20 in the implicit spec:
 ```markdown
-- **D21. The interpreted GPU engine (xp-c, plan `2026-10-22-xp-c-sdl-gpu-meshing.md`).** Amends §4.1, §6, D11, D13 and D15. (1) **Compilation.** §4.1's
-  "sources are cached by the tree's shape" is the Metal engine's. On Linux and Windows a solid compiles to an `ImplicitProgram` (`ImplicitProgramCompiler`,
-  which walks the tree as `ImplicitCompiler` does and writes the same five buffers, pinned by a test), run by one HLSL interpreter whose source is fixed:
-  neither an edited value nor a changed shape compiles anything. (2) **Agreement.** The interpreted engine is held to the CPU by the same suites and the
-  same tolerances as Metal, over the Mac's GPU, lavapipe and WARP: values within 1e-4 mm; D15's mesher 1e-4 mm and whole pipeline 2e-3 mm; D17's
-  slope allowance; D20's amended allowance unchanged, including its 7× for the Face-mapped Voronoi struts on a cylinder, which measured
-  <task 6's figure> on the interpreter against <Metal's> on Metal (<task 6's conclusion: the same Float sensitivity of the face chart's map on both, or
-  Metal's alone>). (3) **Precision.** Float everywhere, never half; sine, cosine and arctangent are the engine's own (Cody–Waite reduction, Cephes
-  polynomials), because Vulkan guarantees only an absolute 2^-11 for its sine; the noise's 64-bit hash is computed in pairs of 32-bit words, needing no
-  64-bit integer support from the device. (4) **Order.** The interpreted engine's meshes come in a canonical order (vertices by lattice edge key,
-  triangles by the brick's place in the request, the cube in the brick and the table's order), so a request meshes to the same arrays every run and an
-  export made twice on Linux or Windows has the same bytes; Metal's order stays the threads' (D13). (5) **Budgets.** §6's i-1 and i-2 are Metal's (D11).
-  The interpreted engine records x-1 and x-2 without a budget in CI (lavapipe and WARP rasterize on the CPU); on this Mac's GPU it is held to i-1's 1 s
-  (x-1h, measured <task 8's figure>); on a desktop GPU under Linux or Windows human check XP-27 asks for i-1's and i-2's budgets. (6) **Limits.** A
-  storage buffer is at most 128 MiB until MetalUI reports the device's limits (gap XP-G24), so the edge table has at most 2^25 slots (Metal's 2^27);
-  past it, or past 8,388,607 bricks, a request is the CPU mesher's.
+- **D21. The HLSL GPU engine (xp-c, plan `2026-10-22-xp-c-sdl-gpu-meshing.md`).** Amends §4.1, §6, D11, D13. (1) **Compilation follows Metal.** One walk of
+  the tree (`ImplicitCompiler.Generator`) writes MSL or HLSL (`ShaderDialect`), the same statements over the same five buffers; HLSL is compiled while the
+  app runs (MetalUI XP-G25), one source per kernel because an SDL_GPU shader has one entry point; the kernels that do not call `sdf` (`mesh_clear`, which
+  SDL_GPU needs for want of a buffer fill, `mesh_classify`, `mesh_number`, `mesh_emit`) are one text for every shape, so the digest-keyed cache makes them
+  once. An edited value never recompiles; a new shape compiles its evaluation kernel at `prepare` and its meshing kernels at its first mesh, as on Metal.
+  (2) **Agreement.** The same suites and tolerances as Metal, over the Mac's GPU (the HLSL's MSL), lavapipe and WARP: values 1e-4 mm; D15; D17; D20's
+  amended allowance unchanged, its Face-mapped Voronoi item measured <task 7's figures and conclusion>. (3) **Precision.** Float only; the HLSL library's
+  own sine, cosine and arctangent (Vulkan guarantees 2^-11 for `sin`); the noise hash in 32-bit word pairs. (4) **Order and bytes.** `meshBricks` keeps
+  the threads' order on both engines (D13: the set is fixed); exports stream through the CPU mesher in the plan's order (D12), so the same export on one
+  machine is the same bytes on every engine; across machines and backends only D15's tolerances hold. (5) **Budgets.** §6's i-1 and i-2 stay Metal's
+  (D11). x-1 and x-2 are recorded per engine without a budget in CI; x-1h, the HLSL on this Mac's GPU, is held to 1 s (<task 9's figure>); x-3 (a new
+  shape's compile) and x-4 (its first pass, compile included) are recorded after XP-G25, x-4 proposed under 2 s on a desktop GPU (human check XP-27).
+  (6) **Limits.** Storage buffers of at most 128 MiB until XP-G24 (an edge table of 2^25 slots, Metal's 2^27); past it the request is the CPU mesher's.
 ```
-Replace each `<…>` with the measured value or conclusion from tasks 6 and 8 (their commit messages); none may remain.
+Fill each `<…>` from tasks 7 and 9; none may remain.
 
-- [ ] **Step 3: Add the human checks.**
-
-In `docs/verification/human-checks.md`, after group XP3, add:
+- [ ] **Step 3: Human checks**, a group after XP3:
 ```markdown
 ## Group XPC — implicit evaluation and meshing on SDL GPU, Linux and Windows (xp-c)
 
-**Status: NOT RUN.** Plan `2026-10-22-xp-c-sdl-gpu-meshing.md`; specs: cross-platform erratum E8, implicit erratum D21. CI holds the engine to the CPU
-on Mesa's lavapipe (Linux) and Direct3D 12's WARP (Windows); these checks are what a real GPU, a person's eye and a stopwatch show. Linux: build as for
-group XP after `scripts/build-shaders.sh` (or use the tarball or AppImage); Windows: the zip.
+**Status: NOT RUN; needs plan xp-c task 11 (MetalUI XP-G25) and task 12.** Specs: cross-platform E8, implicit D21. CI holds the engine to the CPU on
+lavapipe and WARP; these checks are a real GPU, a person's eye and a stopwatch.
 
-- [ ] **XP-27 Lattice previews on a desktop GPU (Linux and Windows).** On a machine with a real GPU (Linux: Vulkan on Mesa or the vendor's driver;
-  Windows 11: Direct3D 12), open a graph with a TPMS node filling a 100 mm cube (the `ImplicitBench` sheet) and a Mesh node: the preview's badge says
-  "Vulkan" (Linux) or "Direct3D 12" (Windows), never "Running on the CPU"; the first pass appears in under a second; dragging the thickness slider
-  re-meshes within about a tenth of a second a pass (i-1, i-2). The surface looks as on a Mac: smooth, closed, no cracks between bricks, no flat spots.
-  For numbers: `METALCREATOR_BENCH=1 swift test -c release --no-parallel --filter "ImplicitBenchInterpreted|ImplicitBench/(theFirstPreview|aThicknessEdit)"`
-  on that machine, and add the BENCH lines to `docs/verification/performance.md`. **Pinned:** `GPUAgreementTests`, `GPUMeshAgreementTests` (lavapipe,
-  WARP). **Observed:**
-- [ ] **XP-28 The same export twice (Linux and Windows).** Export the sheet's Mesh as STL, then again to a second file without changing anything:
-  the files are byte-identical (`cmp a.stl b.stl` on Linux, `fc /b a.stl b.stl` on Windows), and the same holds for 3MF. **Pinned:**
-  `InterpretedMeshingTests.theSameRequestMeshesToTheSameArraysEveryTime`. **Observed:**
-- [ ] **XP-29 A package without its kernels.** Unpack the tarball (or the zip), rename `ImplicitShaders` beside the executable, and launch it away from
-  any checkout: the app runs, a Mesh node still meshes and its badge says "Running on the CPU"; `--self-test` fails, naming
-  `scripts/build-shaders.sh` and `ImplicitShaders`. Rename it back: the badge says "Vulkan" (or "Direct3D 12") again after a relaunch. **Pinned:**
-  `SDLComputeBackendTests.aDirectoryWithoutTheKernelsIsBrokenAndSaysWhatToRun`, `ImplicitShaderCheckTests`. **Observed:**
+- [ ] **XP-27 Lattice previews on a desktop GPU (Linux and Windows).** A graph with a TPMS node filling a 100 mm cube and a Mesh node: the badge says
+  "Vulkan" (Linux) or "Direct3D 12" (Windows); the very first preview, which compiles the shape's kernels, appears within about 2 s (x-4, proposed); a
+  thickness drag re-meshes within about a tenth of a second a pass (i-2) and never pauses to compile; a new shape (switch the TPMS type) pauses once,
+  then not again. The surface looks as on a Mac. For numbers, `METALCREATOR_BENCH=1 swift test -c release --no-parallel --filter "ImplicitBenchHLSL|ImplicitBench/(theFirstPreview|aThicknessEdit)"`
+  on that machine, into `docs/verification/performance.md`. **Pinned:** `GPUAgreementTests`, `GPUMeshAgreementTests`, `HLSLRuntimeCompileTests`. **Observed:**
+- [ ] **XP-28 The same export twice.** Export the Mesh as STL twice, and as 3MF twice: `cmp a.stl b.stl` (Linux), `fc /b a.stl b.stl` (Windows) say
+  identical, as on a Mac. **Pinned:** `StreamingMesherGPUTests.exportingTheSameSolidTwiceGivesTheSameBytes`. **Observed:**
+- [ ] **XP-29 A package without its compiler.** Unpack the tarball or zip, move the shader compiler's libraries out of its `lib` (or beside the `.exe`)
+  and launch it away from any checkout: the app runs, a Mesh node meshes, its badge says "Running on the CPU"; `--self-test` fails naming the missing
+  library and the paths tried. Put them back: "Vulkan" (or "Direct3D 12") after a relaunch. **Pinned:** `HLSLRuntimeCompileTests.aMissingCompilerLibraryIsBrokenAndNamesWhatItTried`, task 12's package checks. **Observed:**
 ```
 
-- [ ] **Step 4: The gaps file and CLAUDE.md.**
+- [ ] **Step 4: Gaps file and `CLAUDE.md`.** The XP-G2 row's status: "✅ answered (MetalUI S5); used by xp-c with XP-G25". In `CLAUDE.md`, after the xp-3 paragraph, a paragraph stating: `ImplicitCompiler.Generator` has a `ShaderDialect` (MSL byte-identical, `MetalSourceDigests` pins it; edit a generator case once, for both); `ImplicitCompiler.compileHLSL` and `HLSLShaderLibrary`/`HLSLMeshShaderLibrary` (edit the MSL library and its HLSL twin together; `HLSLSourceTests` checks the `sdf` statement for statement, the registers and the forbidden constructs); `HLSLImplicitEngine` over `ImplicitComputeBackend` (`SDLComputeBackend` with an `SDLKernelProvider`; `MSLComputeBackend` in the Mac's tests); the offline kernels (`scripts/linux-test.sh kernels`, `.build/generated-kernels`, `GeneratedKernels.solids`: add a new test shape there); `availability`; until XP-G25 the app's engine off macOS is the CPU; the GPU suites run over `GPUEnginesUnderTest.names`; gaps XP-G23 to XP-G25; human checks XP-27 to XP-29. Replace the 7c-1g paragraph's "The SDL3 engine for Linux and Windows is track xp-c." with "Linux and Windows follow macOS since xp-c (below)." Add `scripts/linux-test.sh kernels` to "Commands". Run `swift test --filter CIPinTests`.
 
-In `docs/metalui-gaps.md`'s summary table, change the XP-G2 row's status to `✅ answered (MetalUI S5); used by xp-c: implicit evaluation and meshing on SDL GPU (cross-platform erratum E8)`.
-
-In `CLAUDE.md`:
-- in the 7c-1g paragraph replace "The SDL3 engine for Linux and Windows is track xp-c." with "Linux and Windows mesh on the GPU too since xp-c (below).";
-- after the xp-3 paragraph add:
-```markdown
-Cross-platform, sub-project xp-c (implicit evaluation and meshing on SDL GPU, Linux and Windows; plan `docs/superpowers/plans/2026-10-22-xp-c-sdl-gpu-meshing.md`,
-cross-platform erratum E8, implicit erratum D21): `ImplicitGPUEngines.platformDefault` is `InterpretedImplicitEngine.sdl` off macOS. A solid compiles
-to an `ImplicitProgram` (`CreatorImplicit/Interpreter`: `ImplicitProgramCompiler` mirrors `ImplicitCompiler.Generator` case for case and writes the
-same five buffers, `ImplicitProgramCompilerTests` pins it; 37 ops, 32 scalar and 8 point registers, 4,096 steps; beyond them, `.unsupported`, the CPU
-with "Running on the CPU"), run by one HLSL interpreter (`Shaders/implicit/interpreter.hlsli`) in seven compute kernels (`ImplicitKernel`), compiled
-at build time with the viewport's shaders (`scripts/build-shaders.sh` compiles every set in `Shaders/`; `Shaders/implicit/compiled` is git-ignored,
-shipped as `ImplicitShaders`, checked by `--self-test` through `ImplicitShaderCheck`). **Edit an op, a limit or a table offset on both sides:**
-`ImplicitShaderContractTests` pins `contract.hlsli` to `ImplicitOp`, `ImplicitProgram`, `ImplicitKernel.bindings`, `KernelParameters` and the
-marching-cubes constants, and forbids `half`, 64-bit integers, `GetDimensions` and the drivers' trigonometry (`accurate_math.hlsli` has the engine's own).
-`InterpretedImplicitEngine` (`CreatorImplicit/Compute`, portable) talks to an `ImplicitComputeBackend`: `SDLComputeBackend` (`CreatorImplicit/SDL`,
-behind `#if canImport(MetalUISDLGPU)`, an owned headless `SDLGPUDevice`, made on first use; each dispatch in a compute pass of its own, because SDL_GPU
-does not synchronize dispatches inside one) and, in the tests on a Mac, `MSLComputeBackend` over the MSL shadercross made of the same HLSL (run
-`XP_TRACK=… scripts/linux-test.sh shaders` first; without it the Mac's interpreted cases skip by name). `ImplicitGPUEngine.availability` (`.absent`:
-no device, the CPU silently; `.broken`: no kernels or a refused pipeline, the CPU with the warning) is read by `ImplicitEvaluators.make`. The
-interpreted engine's meshes are in a canonical order (`MeshCanonicalOrder`: vertices by edge key, triangles by brick, cube and table order), so they are
-the same arrays every run; Metal's stay the threads'. `GPUAgreementTests`, `GPUMeshAgreementTests` and `StreamingMesherGPUTests` run over
-`GPUEnginesUnderTest.names` (Metal, "Metal (HLSL)", "Vulkan" on lavapipe, "Direct3D 12" on WARP) at the 7c tolerances; `ImplicitGPUAvailabilityTests`
-fails under `XP_REQUIRE_GPU=1` without a device. Gaps XP-G23 (adapter name, software rasterizer) and XP-G24 (compute limits: storage buffers are capped
-at 128 MiB meanwhile) are open; rows x-1, x-2, x-1h, x-1s are in `docs/verification/performance.md`; human checks XP-27 to XP-29 (group XPC) are pending.
-```
-- in the module notes for `CreatorImplicit` replace "whose only implementation is `MetalImplicitEngine` (an actor that compiles each shape once; the one file that imports Metal, compiled only under `#if canImport(Metal)`)" with "implemented by `MetalImplicitEngine` on macOS (an actor that compiles each shape once; the one file that imports Metal, compiled only under `#if canImport(Metal)`) and by `InterpretedImplicitEngine` on Linux and Windows (xp-c, over `SDLComputeBackend`)", and "The agreement suite `GPUAgreementTests` holds Metal to the CPU within 1e-4 mm (skipped without a Metal device)" with "The agreement suite `GPUAgreementTests` holds every GPU engine the machine has to the CPU within 1e-4 mm (skipped without one)";
-- in "Commands", change `scripts/build-shaders.sh`'s line to "compile every shader set (`Shaders/viewport`, `Shaders/implicit`) into its `compiled` directory (git-ignored) …", and add `scripts/linux-test.sh shaders   # compile the shader sets in the Linux image into the worktree: the Mac's tests read the implicit kernels' MSL from there` after the `linux-test.sh package` line;
-- keep every phrase `CIPinTests` pins (`grep -n "CLAUDE" Tests/CreatorAppTests/*Pin*` lists them; run that test after editing).
-
-- [ ] **Step 5: Check, commit.**
-
-Run:
-```bash
-grep -n "<task\|<Metal\|<…" docs/superpowers/specs/2026-10-13-implicit-lattices-design.md    # nothing
-swift test --filter CIPinTests 2>&1 | tail -2
-git add docs CLAUDE.md
-git commit -m "docs: errata E8 and D21, human checks XP-27 to XP-29, xp-c in CLAUDE.md (xp-c task 9)
-
-Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_0164u3kDFFDgzFW7axHFXzbS"
-```
+- [ ] **Step 5: Commit** (`docs: errata E8 and D21, human checks XP-27 to XP-29, xp-c in CLAUDE.md (xp-c task 10)`).
 
 ---
 
-### Task 10 (waits for MetalUI): adopt XP-G23 and XP-G24
+### Task 11 (waits for MetalUI XP-G25): compile at run time; the app's engine off macOS
 
-Runs only when MetalUI answers a gap (its entry in `docs/metalui-gaps.md` says so and names the commit). Until then the branch merges without it; nothing is worked around. Bump `METALUI_COMMIT` in `.github/workflows/xp.yml` to the answering commit in this task (the only xp-c change to it), after checking that commit's `MetalUISDLGPU` with `git -C ../MetalUI show <commit>:Backends/SDL/Sources/MetalUISDLGPU/SDLGPUDevice.swift`.
+Starts when `docs/metalui-gaps.md` (or the coordinator) says XP-G25 is merged in MetalUI, naming the commit. **The names below are MetalUI's planned shape (`feat/sdl-gpu-runtime-shaders`) and provisional**: before writing code, read the answering commit (`git -C ../MetalUI show <commit>:Backends/SDL/Sources/MetalUISDLGPU/…`, its record and `docs/packaging.md` §4a) and use its real names; the plan calls them `SDLGPUShaderCompiler` (nonisolated; `compileCompute(hlsl:entryPoint:defines:for:) throws -> SDLGPUShaderBlob` or bytes plus reflection), `SDLGPUShaderCompilerError` (a missing library listing the paths tried; a compile failure with DXC's text), `SDLGPUDevice.compileComputePipeline(_:)` from the compiler's output, and `SDLGPUShaderCompiler.selfTest()`.
 
-**Files:**
-- Modify: `Sources/CreatorImplicit/SDL/SDLComputeBackend.swift`, `docs/metalui-gaps.md`, `.github/workflows/xp.yml`
-- Test: `Tests/CreatorImplicitTests/SDLComputeBackendTests.swift`
+**Files:** Create `Sources/CreatorImplicit/SDL/SDLRuntimeKernels.swift`, `Sources/CreatorImplicit/SDL/SDLImplicitEngine.swift`, `Tests/CreatorImplicitTests/HLSLRuntimeCompileTests.swift`; modify `Sources/CreatorImplicit/GPU/ImplicitGPUEngines.swift`, `Tests/CreatorImplicitTests/Support/GPUEnginesUnderTest.swift`, `ImplicitGPUAvailabilityTests.swift`, `GPUBatchEvaluatorTests.swift`, `ImplicitBenchHLSL.swift`, `.github/workflows/xp.yml` (`METALUI_COMMIT`), the docs.
 
-**Interfaces:**
-- Consumes: the names MetalUI's answer gives. The plan asks for `SDLGPUDevice.adapterName: String?`, `SDLGPUDevice.isSoftwareRasterizer: Bool` and `SDLGPUDevice.limits` with `maxStorageBufferBindingSize: Int` and `maxComputeWorkGroupCount: Int`; use the answer's real names.
-- Produces: `deviceName` is the adapter's; `largestBuffer` and `ComputeBytes.maximumGroups` come from the device; the app's policy on software devices (X-C5).
+**Interfaces:** Produces `SDLRuntimeKernels: SDLKernelProvider`; `HLSLImplicitEngine.sdl`; `platformDefault` off macOS; rows x-3 and x-4.
 
-- [ ] **Step 1: Write the failing tests** (in `SDLComputeBackendTests`, enabled with a device):
+- [ ] **Step 1: Bump the pin** to the answering commit in `xp.yml` (`METALUI_COMMIT`) and check `../MetalUI` is at or past it (read-only: `git -C ../MetalUI merge-base --is-ancestor <commit> HEAD`).
+
+- [ ] **Step 2: The failing tests.** `Tests/CreatorImplicitTests/HLSLRuntimeCompileTests.swift` (wholly `#if canImport(MetalUISDLGPU)`):
 ```swift
-    @Test(.enabled(if: GPUEnginesUnderTest.interpreted != nil, "needs an SDL_GPU device"))
-    func theDeviceNameIsTheAdaptersAndTheLimitsAreTheDevices() throws {
-        guard case .ready(let backend) = GPUEnginesUnderTest.interpretedState, let sdl = backend as? SDLComputeBackend else { return }
-        #expect(sdl.deviceName != sdl.name, "the adapter's name, not the driver's: \(sdl.deviceName)")
-        #expect(sdl.largestBuffer >= 1 << 27, "at least Vulkan's guaranteed range")
+#if canImport(MetalUISDLGPU)
+import Foundation
+import Testing
+@testable import CreatorImplicit
+
+/// Run-time compilation of the generated HLSL (plan xp-c task 11, MetalUI XP-G25): what the app does on Linux and Windows.
+struct HLSLRuntimeCompileTests {
+    /// Review Focus 2: no compiler library → broken, naming the paths tried, so the person hears "Running on the CPU".
+    @Test func aMissingCompilerLibraryIsBrokenAndNamesWhatItTried() {
+        let state = SDLComputeBackend.make(kernels: SDLRuntimeKernels(librarySearchPath: [FileManager.default.temporaryDirectory]))
+        if case .broken(let why) = state {
+            #expect(why.contains(FileManager.default.temporaryDirectory.path), "\(why)")
+        } else if case .absent = state {
+            // no device here: nothing to say about the compiler
+        } else {
+            Issue.record("a ready backend without a compiler library")
+        }
     }
 
-    /// X-C5: the app prefers the CPU engine on a software device; the tests' engine still runs on it.
-    @Test func theAppsEngineIsAbsentOnASoftwareDeviceUnlessAllowed() {
-        #expect(SDLComputeBackend.policy(isSoftware: true, allowingSoftware: false) == .preferCPU)
-        #expect(SDLComputeBackend.policy(isSoftware: true, allowingSoftware: true) == .use)
-        #expect(SDLComputeBackend.policy(isSoftware: false, allowingSoftware: false) == .use)
+    /// Review Focus 1: a source DXC refuses is the CPU's, with DXC's text.
+    @Test(.enabled(if: SDLRuntimeKernels.isAvailable, "needs MetalUI's run-time compiler"))
+    func aSourceTheCompilerRefusesRunsOnTheCPUWithItsDiagnostic() async throws {
+        guard case .ready(let backend) = SDLComputeBackend.make(kernels: SDLRuntimeKernels()) else { return }
+        let broken = KernelSource(kernel: .evaluate, text: HLSLShaderLibrary.prelude + "void main( {")
+        await #expect { _ = try await backend.makePipeline(broken) } throws: { error in
+            guard case ImplicitCompileError.engine(let text) = error else { return false }
+            return !text.isEmpty
+        }
     }
+
+    /// The app's engine compiles each fixture's kernels at run time and agrees with the CPU (the agreement suites then run on it too, step 4).
+    @Test(.enabled(if: SDLRuntimeKernels.isAvailable, "needs MetalUI's run-time compiler"))
+    func thePlatformEngineCompilesAtRunTime() async throws {
+        let engine = try #require(ImplicitGPUEngines.platformDefault)
+        #expect(await engine.availability == .available)
+        let values = try await GPUBatchEvaluator(engine: engine, program: try await engine.compile(.sphere(radius: 5))).evaluate([SIMD3(8, 0, 0)])
+        #expect(abs(values[0] - 3) < 1e-5)
+    }
+}
+#endif
 ```
-- [ ] **Step 2: Run them to see them fail** (`scripts/linux-test.sh test --filter SDLComputeBackendTests`): "has no member 'policy'".
-- [ ] **Step 3: Implement.** In `SDLComputeBackend`: `deviceName` returns the adapter's name when MetalUI gives one; `largestBuffer` is `min(device's maxStorageBufferBindingSize, 1 << 31)`; `ComputeBytes.maximumGroups` stays the 65,535 floor unless the device reports less. Add
-```swift
-    enum SoftwarePolicy: Equatable { case use, preferCPU }
-    static func policy(isSoftware: Bool, allowingSoftware: Bool) -> SoftwarePolicy { isSoftware && !allowingSoftware ? .preferCPU : .use }
-```
-and `make(sourceTree:allowingSoftware: Bool = false)` returns `.absent("a software rasterizer (…): the CPU engine is faster")` under `.preferCPU`, **unless task 8's rows showed lavapipe faster than the CPU engine in the Linux image, in which case `allowingSoftware` defaults to `true` and the doc comment says why, citing the rows**. `GPUEnginesUnderTest.interpretedState` passes `allowingSoftware: true` (CI tests on lavapipe and WARP), and so does `ImplicitGPUAvailabilityTests` when it checks `InterpretedImplicitEngine.sdl`: make that test check a backend made with `allowingSoftware: true` rather than the app's engine.
-- [ ] **Step 4: Run** the Linux and Windows suites (`scripts/linux-test.sh all`, a push and the Windows job): PASS; the inspector on lavapipe shows "llvmpipe (…)".
-- [ ] **Step 5: Mark the gap adopted** in `docs/metalui-gaps.md` (its row: "✅ fixed by MetalUI <commit>, adopted by xp-c task 10"), update E8's last sentence in the cross-platform spec, lint, commit with the trailers.
+- [ ] **Step 3: Implement.** `SDLRuntimeKernels` (`SDLKernelProvider`): `unavailability` is `.broken(<MetalUI's named error>)` when the compiler library cannot be loaded, else `nil`; `pipeline(for:device:)` compiles `source.text` with entry point `main` for the device's backend and makes the pipeline from the result, mapping a compile error to `ImplicitCompileError.engine(<DXC's text>)` and a refused pipeline to `.engine(<SDL's reason>)`; it checks the reflection against `source.kernel.bindings` as `SDLPrecompiledKernels` does. **Threads:** if XP-G25's compile is synchronous it runs on the actor's executor for its duration, a cooperative-pool thread blocked for a compile; run it instead on a serial worker of our own (`SDLCompileWorker`: one `Thread` and a `CheckedContinuation` per job, the pattern of MetalUI's `SDLGPUWorker`), unless MetalUI's answer offers an `async` compile or documents that it serializes itself, and say which in the doc comment. `SDLImplicitEngine.swift`: `extension HLSLImplicitEngine { public static let sdl = HLSLImplicitEngine(name: SDLComputeBackend.platformName, backend: { SDLComputeBackend.make(kernels: SDLRuntimeKernels()) }) }`. `ImplicitGPUEngines.platformDefault` gains `#elseif canImport(MetalUISDLGPU)` → `HLSLImplicitEngine.sdl`, and `meshesMade()` likewise; `GPUBatchEvaluatorTests.thePlatformEngineIsMetalOrNothing` becomes "…is the machine's" accepting "Metal", "Vulkan" and "Direct3D 12"; `GPUEnginesUnderTest.hlslState` uses `SDLRuntimeKernels()` when `SDLRuntimeKernels.isAvailable`, else the offline kernels; `ImplicitGPUAvailabilityTests` drops `&& !os(Windows)` and also expects `await HLSLImplicitEngine.sdl.availability == .available` under `XP_REQUIRE_GPU=1`; `ImplicitEngineCheck` loses its "waits for XP-G25" line.
+- [ ] **Step 4: Run** on Linux (`scripts/linux-test.sh all`: the agreement suites now compile at run time on lavapipe) and Windows CI (WARP, run-time compiled; the release build). If CI lacks the compiler libraries, task 12 step 3 adds them to the image and the Windows job; run task 12 first in that case.
+- [ ] **Step 5: x-3 and x-4.** Add to `ImplicitBenchHLSL` a test for the SDL engine: a fresh engine, a new shape (the sheet with a new `TPMSType` each round), the time of `compile` (x-3: the evaluation kernel), of the first `meshBricks` minus a warm one (x-3: the six meshing kernels; the four shared ones only on the first shape), and of a first `ImplicitMesher` pass compile included (x-4); `BENCH x-3 …`, `BENCH x-4 …`. Record them on Linux (lavapipe) in `performance.md` beside x-3m and x-3o, and raise in the report if x-4 would miss the proposed 2 s on a desktop GPU.
+- [ ] **Step 6: Docs.** E8's "until it is adopted…" sentence becomes "Adopted by plan xp-c task 11 (MetalUI `<commit>`)"; the gap row XP-G25 "✅ fixed by MetalUI `<commit>`, adopted by xp-c task 11"; `CLAUDE.md` likewise. Lint, commit, push.
+
+---
+
+### Task 12 (waits for MetalUI XP-G25): ship the compiler; CI; `selfTest()`
+
+**Files:** `scripts/linux/Dockerfile` (the shadercross stage installs its shared libraries, not only the CLI), `scripts/install-shadercross.ps1`, `.github/workflows/xp.yml` (the caches; the Windows job's PATH), `scripts/package-linux.sh`, `scripts/package-appimage.sh`, `scripts/package-windows.ps1`, `scripts/linux-test.sh` (the clean-Ubuntu checks), `packaging/` NOTICE and licence files, `Sources/CreatorImplicit/GPU/ImplicitEngineCheck.swift`, `Sources/CreatorApp/SelfTest.swift`, `docs/packaging.md`.
+
+- [ ] **Step 1: Ask the user.** The packages will carry third-party shared libraries (SDL_shadercross, zlib licence; DXC and `dxil`, the LLVM/University of Illinois licence; SPIRV-Cross and SPIRV-Tools, Apache 2.0; the exact list is XP-G25's `packaging.md` §4a, including its answer on shipping `dxil.dll`): `AGENTS.md` requires asking before adding third-party code to the app. Stop until the user answers.
+- [ ] **Step 2: Build what to ship** per `packaging.md` §4a: the Linux image's `shadercross` stage keeps `lib/libSDL3_shadercross*.so`, `libdxcompiler.so`, `libdxil.so`, `libspirv-cross-c-shared.so` (the names §4a gives) in `/opt/shadercross/lib`; `install-shadercross.ps1` keeps the DLLs; both cached as today.
+- [ ] **Step 3: Package them.** The tarball and the AppImage copy them into the package's `lib` (the `$ORIGIN/lib` rpath xp-2 set up), the zip beside `MetalCreator.exe`, with their licences in `share/doc/metalcreator` and lines in `NOTICE.txt`. The clean-Ubuntu checks and the zip's own check run `--self-test`, which now includes MetalUI's `selfTest()` (step 4) and so fails a package without the libraries.
+- [ ] **Step 4: `selfTest()`.** `ImplicitEngineCheck` gains `public static func compilerSelfTest() throws -> String?` calling MetalUI's `selfTest()` off macOS (`nil` on a Mac); `SelfTest`'s "implicit engine" check calls it and fails with MetalUI's error when it throws.
+- [ ] **Step 5: Run** `scripts/linux-test.sh package` (both packages pass in a clean ubuntu:24.04 and their self-test compiles a kernel) and the Windows job's "Package (zip), checked on its own"; then human check XP-29 on a real machine.
+- [ ] **Step 6: Docs, lint, commit, push** (`packaging.md` §"The implicit engine's shader compiler" filled; E8's packaging sentence says adopted).
+
+---
+
+### Task 13 (waits for MetalUI XP-G23, XP-G24): the adapter's name, the limits, and software devices (X-C5, pending)
+
+MetalUI is building both on `feat/sdl-gpu-device-info`; planned (provisional) `SDLGPUDevice.adapterName: String?`, `isSoftwareRasterizer: Bool`, `limits` (likely SDL's guaranteed minimums). Use the answering commit's names.
+
+- [ ] **Step 1: Tests** (in `SDLComputeBackendTests`): the device name is the adapter's when MetalUI gives one; `largestBuffer` is `limits`' storage-buffer binding size (at least 2^27); and, **only if the user chose X-C5 (a)**, `SDLComputeBackend.policy(isSoftware: true, allowingSoftware: false) == .preferCPU`, `(true, true) == .use`, `(false, false) == .use`.
+- [ ] **Step 2: Implement:** `deviceName` from `adapterName`; `largestBuffer` and `ComputeBytes.maximumGroups` from `limits`; under X-C5 (a), `SDLRuntimeKernels`' backend is `.absent("a software rasterizer: the CPU engine is used")` on a software device in the app, unless task 9's x-1 showed lavapipe faster than the CPU in the Linux image (then the default allows it, citing the rows); the tests' backend always allows software devices.
+- [ ] **Step 3: Run** (Linux, Windows CI; the inspector on lavapipe shows "llvmpipe (…)"), mark the gaps adopted, update E8, lint, commit, push.
 
 ---
 
 ## Execution order and verification
 
-Tasks 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 in order (each consumes the one before; 1 and 2 could run in parallel, but 2's contract test reads 1's types). Task 10 waits for MetalUI.
+Tasks 0 → 10 in order; none waits for MetalUI. Task 11 waits for XP-G25 (and task 12 follows it; if CI cannot compile at run time without the libraries, task 12's steps 2 and 3 come first). Task 13 waits for XP-G23 and XP-G24, and for the user's X-C5.
 
-The branch is done when, on its last commit:
-- macOS: `swift test` exits 0 with 12 "Test run with" lines and no issue line, the total is the baseline plus the new tests; `swift test --filter CreatorImplicitTests` with and without `Shaders/implicit/compiled` present both pass (the interpreted cases skip by name without it); `swiftlint lint --strict` is clean; the asserts toolchain's release build completes.
-- Linux: `XP_TRACK=xp-c IMAGE=metalcreator-linux:xp-c scripts/linux-test.sh all` and `… package` PASS (12 lines; the agreement suites on "Vulkan").
-- Windows (CI on `xp-c`): the build, the test step (12 lines; the agreement suites on "Direct3D 12"), the self-test and smoke, "Build release (for the zip)" and the zip's own check pass.
-- `git status` is clean after a build: no compiled shader is tracked.
+Done before XP-G25 (task 10's commit): macOS `swift test` exits 0 with 12 lines, the MSL digests unchanged; `swift test --filter CreatorImplicitTests` with and without `.build/generated-kernels` both pass; Linux `scripts/linux-test.sh all` passes with the agreement suites on lavapipe over the offline kernels; Windows CI builds (debug and release) and passes with the HLSL cases skipped by name; `git status` clean after a build. Done after task 12: the same, with Linux and Windows compiling at run time, the packages' self-tests passing in clean environments, and human checks XP-27 to XP-29 ready to run.
