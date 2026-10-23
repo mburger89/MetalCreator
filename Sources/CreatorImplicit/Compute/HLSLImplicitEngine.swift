@@ -132,7 +132,9 @@ public actor HLSLImplicitEngine: ImplicitGPUEngine {
             try Task.checkCancellation()
             if epoch != started { throw CancellationError() }
             let read = try await backend.run(Self.evaluation(points[ranges[index]], pipeline, solid, input, output))
-            guard let download = read.first else { throw ImplicitCompileError.engine("the backend returned no download for dispatch \(index + 1)") }
+            guard let download = read.first else {
+                throw ImplicitCompileError.engine("the backend returned no download for dispatch \(index + 1)")
+            }
             let chunk = ComputeBytes.values(download, as: Float.self)
             guard chunk.count == ranges[index].count else {
                 throw ImplicitCompileError.engine("dispatch \(index + 1) returned \(chunk.count) values for \(ranges[index].count) points")
@@ -140,7 +142,9 @@ public actor HLSLImplicitEngine: ImplicitGPUEngine {
             values += chunk
             await afterDispatch?(index + 1)
         }
-        guard values.count == points.count else { throw ImplicitCompileError.engine("evaluated \(values.count) values for \(points.count) points") }
+        guard values.count == points.count else {
+            throw ImplicitCompileError.engine("evaluated \(values.count) values for \(points.count) points")
+        }
         return values
     }
 
