@@ -5,7 +5,7 @@ extension HLSLImplicitEngine {
     struct MeshTuning: Sendable {
         var batchBricks = 1024
         var slotsPerBrick = 256
-        /// 2^25 slots of 4 bytes is the 128 MiB buffer cap (gap XP-G24); Metal's is 2^27.
+        /// 2^25 slots of 4 bytes is SDL_GPU's guaranteed 128 MiB (`SDLGPUDevice.limits`, XP-G24); Metal's is 2^27.
         var largestTable = 1 << 25
         var slotsPerDispatch = 1 << 18
         var afterBatch: (@Sendable (Int) async -> Void)?

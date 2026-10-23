@@ -43,5 +43,27 @@ struct SDLComputeBackendTests {
         let values = ComputeBytes.values(try #require(read.first), as: Float.self)
         #expect(values.count == 2 && abs(values[0] - 3) < 1e-6 && abs(values[1] + 1) < 1e-6)
     }
+
+    /// XP-G23: the device's name is the adapter's, and a software rasterizer says so (X-C5: it is still used, never `.absent`).
+    @Test(.enabled(if: GPUEnginesUnderTest.hlsl != nil, "needs an SDL_GPU device"))
+    func theDeviceNameIsTheAdaptersAndSaysSoftware() throws {
+        let backend = try #require(try Self.readyBackend(GPUEnginesUnderTest.hlslState) as? SDLComputeBackend)
+        let adapter = backend.device.adapterName ?? SDLComputeBackend.platformName
+        #expect(backend.deviceName == (backend.device.isSoftwareRasterizer ? adapter + " (software)" : adapter))
+        if ProcessInfo.processInfo.environment["XP_REQUIRE_GPU"] == "1" {
+            // lavapipe in the Linux image, WARP in the Windows job: both software, both used.
+            #expect(backend.deviceName.hasSuffix(" (software)"), "\(backend.deviceName)")
+        }
+    }
+
+    /// XP-G24: buffers and dispatches are sized to SDL_GPU's guaranteed floors, so the edge table stays at 2^25 slots.
+    @Test(.enabled(if: GPUEnginesUnderTest.hlsl != nil, "needs an SDL_GPU device"))
+    func theLimitsAreSDLGPUsFloors() throws {
+        let backend = try #require(try Self.readyBackend(GPUEnginesUnderTest.hlslState) as? SDLComputeBackend)
+        let limits = backend.device.limits
+        #expect(backend.largestBuffer == limits.maxStorageBufferBindingBytes && backend.largestBuffer >= 1 << 27)
+        #expect(limits.maxComputeWorkgroupCount.x >= ComputeBytes.maximumGroups)
+        #expect(min(HLSLImplicitEngine.MeshTuning().largestTable, backend.largestBuffer / 4) == 1 << 25)
+    }
 }
 #endif

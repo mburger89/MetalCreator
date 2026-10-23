@@ -424,7 +424,7 @@ meshing (dual contouring); mesh booleans; surface textures and displacement (7d,
   machine is the same bytes on every engine; across machines and backends only D15's tolerances hold. (5) **Budgets.** §6's i-1 and i-2 stay Metal's
   (D11). x-1 and x-2 are recorded per engine without a budget in CI; x-1h, the HLSL on this Mac's GPU, is held to 1 s (measured 10 ms, x-1 9.98 ms on a busy Mac);
   x-3 (a new shape's compile) and x-4 (its first pass, compile included) are recorded on lavapipe under load (x-3: evaluation kernel 39 ms median, meshing kernels 589 ms median; x-4: first pass 693 ms median, 948 ms the first), x-4 proposed under 2 s on a desktop GPU (human check XP-27).
-  (6) **Limits.** Storage buffers of at most 128 MiB until XP-G24 (an edge table of 2^25 slots, Metal's 2^27); past it the request is the CPU mesher's.
+  (6) **Limits.** Storage buffers of at most SDL_GPU's guaranteed 128 MiB (MetalUI `SDLGPUDevice.limits`, XP-G24: floors, since SDL_GPU reports no limit), an edge table of 2^25 slots (Metal's 2^27); past it the request is the CPU mesher's.
 
 ### Errata (7c-3 acceptance, measured)
 
