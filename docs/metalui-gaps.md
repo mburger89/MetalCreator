@@ -83,6 +83,9 @@ stopgap as they were. The sections below keep each gap's full use case.
 | XP-G19 | The reason `makeGraphicsPipeline` refused | MetalUI S11 (ruling `GB-G`, `11dca65e`) | ✅ fixed by MetalUI S11: `SDLGPUDevice.compileGraphicsPipeline(_:) throws -> SDLGPUGraphicsPipeline` throws an `SDLGPUError` naming the stage that failed with SDL's text (and `lastPipelineFailure` records what `makeGraphicsPipeline` refused); xp-3's `SDLViewportPipelines` puts it in `ViewportRenderError.deviceRefused`, so `gpuFailureMessage` says why. No raw `SDL_GetError()` |
 | XP-G20 | A build-time path for an app's SDL_GPU shaders: a plugin or a documented, pinned SDL_shadercross for CI | MetalUI S12 (record §138, rulings `BS-`, master `d995f4b4`) | ✅ fixed by MetalUI S12: the executable `MetalUICompileShaders` and the command plugin `CompileShaders` (`swift package --allow-writing-to-package-directory compile-shaders`) replace `compile-app-shaders.py`, which is deleted; shadercross is found by `--shadercross`, `METALUI_SHADERCROSS`, then `PATH`; `SDLGPUShaderLibrary` opens a directory with `SOURCE.sha256` or a reflection `.json` (`BS-E`), and `init(directory:verifyingSources:)` still refuses a stale marker; the pin `1ff05bec…` is documented in `docs/packaging.md` §4a. ➖ The published shadercross (item 2) was declined (ruling `BS-H`), so xp-3 keeps its Docker stage, `scripts/shadercross.env` and `scripts/install-shadercross.ps1`; `scripts/build-shaders.sh` and `.ps1` run `MetalUICompileShaders` |
 | XP-G22 | A render batch submitted without `await`, so a click can render its own ID pass and wait for it (Metal's `waitUntilCompleted` picking) | MetalUI PR #122 (`1c53976d`) | ✅ fixed by MetalUI PR #122, 1c53976d, adopted by xp-3 task 7 step 6: `SDLGPUDevice.submitBatchSynchronously(_:) throws -> SDLGPUFence` records and submits on the submit worker and returns once submitted; `SDLViewportPicker.pickWhenReady` renders the click's ID pass with it, `waitBlocking()`s and `downloadSynchronously`s, so a click is exact and immediate on SDL as on Metal (the asynchronous waiting-click path and its 250 ms retry wait are gone). `METALUI_COMMIT` was `1c53976d` (now `ff0db06e`, C14-k/l) |
+| XP-G23 | The SDL_GPU adapter's name, and whether it is a software rasterizer | MetalUI (SDL GPU layer; `feat/sdl-gpu-device-info`) | 🔄 being built (planned `SDLGPUDevice.adapterName`, `isSoftwareRasterizer`); until adopted the implicit engine names the driver (software devices are always used, X-C5) |
+| XP-G24 | SDL_GPU compute limits: largest storage buffer binding, most thread groups | MetalUI (SDL GPU layer; `feat/sdl-gpu-device-info`) | 🔄 being built (planned `SDLGPUDevice.limits`); until adopted 128 MiB and 65,535 |
+| XP-G25 | A run-time HLSL compute compiler (SDL_shadercross's library, DXC) and compute pipelines from bytes | MetalUI (SDL GPU layer; `feat/sdl-gpu-runtime-shaders`) | 🔄 being built; until adopted the implicit engine off macOS is tested on kernels compiled offline and the app evaluates on the CPU |
 | XP-G21 | Windows release build crashes swift-frontend (exception 0xC000001D) in `PaintPass.withRenderEffects` | MetalUI `5f03ab7b` | ✅ fixed by MetalUI `5f03ab7b`, adopted (branch `xp-2`, CI pin `5f03ab7b`): the CI release build for the zip no longer crashes the compiler |
 
 ## Reported 2026-10-07 (C7)
@@ -1307,3 +1310,26 @@ Plan `docs/superpowers/plans/2026-10-21-xp-3-sdl-gpu-viewport.md`, checked again
 What the viewport does not need, and so does not ask for: fragment-stage storage buffers (a face's flags are read in the vertex stage and reach
 the fragment stage as a flat interpolant), a vertex format of `uint` (every vertex stream is a storage buffer), a sampled `r8Unorm` mip chain
 (`generateMipmaps` does it) and a depth readback.
+
+## Hit by implicit evaluation and meshing on SDL GPU (xp-c), 2026-10-22
+
+Plan `docs/superpowers/plans/2026-10-22-xp-c-sdl-gpu-meshing.md`, MetalUI pin `ff0db06e` (its SDL_GPU layer equals master `63feea05`). XP-G2 (portable
+compute, MetalUI S5) is what the engine dispatches on. The user ruled that Linux and Windows follow macOS: one generated source per solid shape, compiled
+while the app runs, pipelines cached by source.
+
+- **XP-G23. Adapter name, software rasterizer.** The inspector names the device that meshed (Metal: `MTLDevice.name`), and may say "(software)" for lavapipe
+  or WARP (xp-c X-C5: the GPU is always used). `SDLGPUDevice` gives `driver` only; SDL 3.4 has `SDL_GetGPUDeviceProperties`
+  (`SDL_PROP_GPU_DEVICE_NAME_STRING`, `…_DRIVER_NAME_STRING`, `…_DRIVER_INFO_STRING`). Asked: `adapterName: String?`, `isSoftwareRasterizer: Bool`.
+- **XP-G24. Compute limits.** Metal's engine sizes its edge table by `maxBufferLength`; SDL_GPU reports nothing, so xp-c assumes Vulkan's guaranteed
+  2^27-byte storage range and 65,535 groups (an edge table of at most 2^25 slots against Metal's 2^27). Asked: `SDLGPUDevice.limits`, or MetalUI's
+  statement of the minimums every SDL_GPU backend guarantees.
+- **XP-G25. Run-time HLSL compute compilation.** `MetalImplicitEngine` compiles each shape's MSL with `MTLDevice.makeLibrary(source:)` while the app runs;
+  on SDL_GPU `SDLGPUShaderBlob` has no public initializer and loads only from a directory compiled at build time, so a generated source cannot become a
+  pipeline. Asked (the coordinator's message to MetalUI, 2026-10-22): (1) a nonisolated API turning HLSL compute source (an entry point, defines) into
+  the device's format (SPIR-V on Vulkan, DXIL on Direct3D 12, MSL on Metal) with compute reflection, over SDL_shadercross's library API and DXC; (2) a
+  compute pipeline from those bytes; (3) compile errors thrown with DXC's text; (4) packaging notes for the shadercross, DXC, SPIRV-Cross and
+  SPIRV-Tools shared libraries in a tarball, an AppImage and a zip, their licences, and a self-test hook; (5) compile times. MetalUI's planned shape
+  (`feat/sdl-gpu-runtime-shaders`, names provisional): the library is loaded at run time (`dlopen`/`LoadLibrary`), an app without it builds and runs and
+  a missing one throws a named error listing the paths tried; failures never trap; `packaging.md` §4a lists what to ship and adds `selfTest()`; compile
+  times measured at about 200, 1,000 and 2,000 lines; nothing is published, apps build shadercross and DXC themselves; thread safety documented, calls
+  serialized if needed. Meanwhile xp-c compiles the generated sources offline in tests only, and the app evaluates on the CPU off macOS.
