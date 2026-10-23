@@ -131,29 +131,48 @@ do_package() {
     echo "Checking $tarball in a clean ubuntu:24.04..."
     docker rm -f "$NAME-clean" >/dev/null 2>&1 || true
     docker run --rm --name "$NAME-clean" -v "$REPO/dist":/dist:ro ubuntu:24.04 bash -ec '
+        set -o pipefail
         test ! -e /opt/occt && test ! -e /work
         mkdir /tmp/unpacked && tar -xzf /dist/'"$(basename "$tarball")"' -C /tmp/unpacked
         cd /tmp/unpacked/MetalCreator-*
         ./MetalCreator --version
-        ./MetalCreator --self-test
+        ./MetalCreator --self-test | tee /tmp/self.txt
+        grep -q "^ok   implicit compiler: .*libSDL3_shadercross" /tmp/self.txt
+        for f in libSDL3_shadercross.so.0 libdxcompiler.so libspirv-cross-c-shared.so.0; do
+            test -s "lib/$f"
+            if ldd "lib/$f" | grep -q "not found"; then echo "lib/$f does not load: $(ldd "lib/$f" | grep "not found")" >&2; exit 1; fi
+        done
+        LD_DEBUG=libs ./MetalCreator --self-test >/dev/null 2>/tmp/ld-compiler.txt
+        grep -q "calling init: .*/lib/libdxcompiler.so" /tmp/ld-compiler.txt
+        if grep -q /opt/shadercross /tmp/ld-compiler.txt; then echo "the loader searched /opt/shadercross" >&2; exit 1; fi
+        mkdir /tmp/without && cp -a . /tmp/without/pkg && rm /tmp/without/pkg/lib/libSDL3_shadercross.so.0
+        if /tmp/without/pkg/MetalCreator --self-test >/tmp/without.txt 2>&1; then echo "--self-test passed without the shader compiler" >&2; exit 1; fi
+        grep -q "^FAIL implicit compiler: shader compiler library not found" /tmp/without.txt
         LD_DEBUG=libs ./MetalCreator --version >/dev/null 2>/tmp/ld.txt
         grep -q "RUNPATH from file ./MetalCreator" /tmp/ld.txt
         if grep -q /opt/occt /tmp/ld.txt; then echo "the loader searched /opt/occt" >&2; exit 1; fi
         test -f MetalUISDLShaders/SOURCE.sha256 && ls lib | grep -q "^libTKernel.so.7.9$"
         test -f MetalUIAppShaders/SOURCE.sha256 && test -s MetalUIAppShaders/mesh.vert.spv
         cd share/doc/metalcreator
-        for f in NOTICE.txt LICENSE_LGPL_21.txt OCCT_LGPL_EXCEPTION.txt SDL3-LICENSE.txt Swift-LICENSE.txt; do test -s "$f"; done
+        for f in NOTICE.txt LICENSE_LGPL_21.txt OCCT_LGPL_EXCEPTION.txt SDL3-LICENSE.txt Swift-LICENSE.txt SDL3_shadercross-LICENSE.txt \
+                 DirectXShaderCompiler-LICENSE.TXT DirectXShaderCompiler-ThirdPartyNotices.txt SPIRV-Cross-LICENSE.txt SPIRV-Tools-LICENSE.txt \
+                 SPIRV-Headers-LICENSE.txt; do test -s "$f"; done
         grep -q "V7_9_3" NOTICE.txt && grep -q "LGPL" NOTICE.txt'
     echo "Linux tarball: PASS ($tarball)"
     appimage=$(ls dist/MetalCreator-*-linux-*.AppImage | head -n 1)
     echo "Checking $appimage in a clean ubuntu:24.04 (no FUSE: --appimage-extract-and-run)..."
     docker rm -f "$NAME-clean" >/dev/null 2>&1 || true
     docker run --rm --name "$NAME-clean" -v "$REPO/dist":/dist:ro ubuntu:24.04 bash -ec '
+        set -o pipefail
         test ! -e /opt/occt && test ! -e /work && test ! -e /dev/fuse
         cp /dist/'"$(basename "$appimage")"' /tmp/MetalCreator.AppImage && chmod +x /tmp/MetalCreator.AppImage
         cd /tmp
         ./MetalCreator.AppImage --appimage-extract-and-run --version
-        ./MetalCreator.AppImage --appimage-extract-and-run --self-test
+        ./MetalCreator.AppImage --appimage-extract-and-run --self-test | tee /tmp/self.txt
+        grep -q "^ok   implicit compiler: .*libSDL3_shadercross" /tmp/self.txt
+        LD_DEBUG=libs ./MetalCreator.AppImage --appimage-extract-and-run --self-test >/dev/null 2>/tmp/ld-compiler.txt
+        grep -q "calling init: .*/usr/metalcreator/lib/libdxcompiler.so" /tmp/ld-compiler.txt
+        if grep -q /opt/shadercross /tmp/ld-compiler.txt; then echo "the loader searched /opt/shadercross" >&2; exit 1; fi
         LD_DEBUG=libs ./MetalCreator.AppImage --appimage-extract-and-run --version >/dev/null 2>/tmp/ld.txt
         grep -q "RUNPATH from file .*/usr/metalcreator/MetalCreator" /tmp/ld.txt
         if grep -q /opt/occt /tmp/ld.txt; then echo "the loader searched /opt/occt" >&2; exit 1; fi
@@ -163,8 +182,9 @@ do_package() {
         test -f squashfs-root/usr/metalcreator/share/mime/packages/com.metalcreator.MetalCreator.xml
         ./MetalCreator.AppImage --appimage-extract "usr/metalcreator/share/doc/metalcreator/*" >/dev/null
         cd squashfs-root/usr/metalcreator/share/doc/metalcreator
-        for f in NOTICE.txt LICENSE_LGPL_21.txt OCCT_LGPL_EXCEPTION.txt SDL3-LICENSE.txt Swift-LICENSE.txt \
-                 AppImage-runtime/type2-runtime-LICENSE.txt AppImage-runtime/libfuse-LGPL2.txt AppImage-runtime/squashfuse-LICENSE.txt \
+        for f in NOTICE.txt LICENSE_LGPL_21.txt OCCT_LGPL_EXCEPTION.txt SDL3-LICENSE.txt Swift-LICENSE.txt SDL3_shadercross-LICENSE.txt \
+                 DirectXShaderCompiler-LICENSE.TXT DirectXShaderCompiler-ThirdPartyNotices.txt SPIRV-Cross-LICENSE.txt SPIRV-Tools-LICENSE.txt \
+                 SPIRV-Headers-LICENSE.txt AppImage-runtime/type2-runtime-LICENSE.txt AppImage-runtime/libfuse-LGPL2.txt AppImage-runtime/squashfuse-LICENSE.txt \
                  AppImage-runtime/zstd-LICENSE.txt; do test -s "$f"; done
         grep -q "type2-runtime" NOTICE.txt'
     echo "Linux AppImage: PASS ($appimage)"

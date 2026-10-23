@@ -188,7 +188,33 @@ folders on `PATH` and MetalUI's checkout and the viewport's `Shaders\viewport\co
 or shader directory fails the job. It packages a release build: CI makes it in its own step (`swift build -c release --product
 MetalCreatorApp`, then `-NoBuild`), because the suite is a debug build.
 
-**The implicit engine's shader compiler (after MetalUI XP-G25).** Linux and Windows packages will ship SDL_shadercross, DXC and their libraries for the implicit engine's run-time compilation (plan xp-c, task 12); until then the packages are unchanged and the engine off macOS is the CPU (`--self-test`'s "implicit engine" line says so).
+### The implicit engine's shader compiler
+
+Off macOS the implicit engine compiles its generated HLSL while the app runs, through MetalUI's `SDLGPUShaderCompiler` (MetalUI XP-G25; plan xp-c
+task 12; MetalUI `docs/packaging.md` 4b and `THIRD-PARTY-NOTICES.md`, "Optional run-time shader compiler"). The compiler is SDL_shadercross, built from
+the commit in `scripts/shadercross.env` (the `shadercross` stage of `scripts/linux/Dockerfile`, `scripts/install-shadercross.ps1`), all files in one directory:
+
+| | Linux tarball `lib/`, AppImage `usr/metalcreator/lib/` | Windows zip, beside `MetalCreator.exe` | Licence (text shipped) |
+|---|---|---|---|
+| SDL_shadercross | `libSDL3_shadercross.so.0` | `SDL3_shadercross.dll` | zlib (`SDL3_shadercross-LICENSE.txt`; Windows `licenses\shader-compiler\SDL3_shadercross`) |
+| DXC | `libdxcompiler.so` | `dxcompiler.dll` | Linux: the libsdl-org fork's LLVM Release License (NCSA), `DirectXShaderCompiler-LICENSE.TXT` and `-ThirdPartyNotices.txt`; Windows: Microsoft's prebuilt DXC v1.9.2602 (downloaded by SDL_shadercross's own script), the licence files of that download |
+| DXIL signing | not shipped (Vulkan never uses it) | `dxil.dll` (shipped; whether Direct3D 12 needs it is unmeasured, MetalUI check RC1) | Windows: the licence files of Microsoft's download |
+| SPIRV-Cross | `libspirv-cross-c-shared.so.0` | `spirv-cross-c-shared.dll` | Apache-2.0 (`SPIRV-Cross-LICENSE.txt`) |
+| SPIRV-Tools, SPIRV-Headers | linked into the above, no file | same | Apache-2.0 and Khronos MIT-style (`SPIRV-Tools-LICENSE.txt`, `SPIRV-Headers-LICENSE.txt`) |
+
+The licences are in `share/doc/metalcreator` (Windows: `licenses\shader-compiler`) and `NOTICE.txt` names the commit and each licence. The compiler's own
+`SDL3` dependency is the package's: `lib/libSDL3.so.0` and `SDL3.dll` (SDL 3.4.16), never a second copy, so the compiler and the app share one SDL
+(MetalUI RC-D). In the tarball and the AppImage each library's RUNPATH is `$ORIGIN` (`package-linux.sh`), and the loader finds them through
+the executable's `lib/` (MetalUI XP-G26 looks in `<exe>/lib` and preloads the dependents by full path); the zip relies on MetalUI's "beside the executable".
+`METALUI_SHADERCROSS_LIB` is for the tests and CI only (`scripts/linux-test.sh` and the Windows job set it); the package checks run without it
+(`linux-test.sh package` in a clean ubuntu:24.04, and `package-windows.ps1`, which clears the variable for its check).
+
+`MetalCreator --self-test` has an "implicit compiler" line off macOS (none on macOS): MetalUI's `SDLGPUShaderCompiler.selfTest(for:)` loads the library,
+compiles a kernel and a broken one, and with a GPU dispatches it and reads it back (without one, as in a clean container, the SPIR-V route alone). It
+fails with "shader compiler library not found; tried:" and the paths in a package that ships without the libraries, and the package checks require
+exactly that (both arms: the tarball with `lib/libSDL3_shadercross.so.0` removed, the zip with `SDL3_shadercross.dll` removed). The libraries add about 37 MB on Linux
+(MetalUI measured 74 KB + 33.3 MB + 4.0 MB on aarch64) and more on Windows. A package without them still runs: the engine is the CPU
+and the node says "Running on the CPU" (the reason is in `Selection.diagnostic` and `--self-test`).
 
 OpenCascade on Windows is vcpkg's `opencascade` port at 7.9.3, release and debug libraries (triplet `x64-windows`), pinned by the
 vcpkg commit in `.github/workflows/xp.yml` (`VCPKG_COMMIT`), which `packaging/windows/vcpkg.json` repeats as its `builtin-baseline`

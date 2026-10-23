@@ -184,6 +184,6 @@ beyond what MetalUI provides; macOS CI; Intel macOS.
   the Mac, whose build has no SDL, runs it as the MSL kernels the build-time SDL_shadercross compiled offline (`scripts/linux-test.sh kernels`).
   Fall-backs: no SDL_GPU device, the CPU silently; the compiler library missing (MetalUI's `compilerUnavailable`
   lists the paths tried), a pipeline refused, or a source DXC refuses (`compileFailed`, DXC's text), the CPU with "Running on the CPU" and the reason; the badge says "Vulkan" or
-  "Direct3D 12". The packages ship the compiler's shared libraries and their licences (task 12). Exports are byte-identical run to run on one machine, as
+  "Direct3D 12". The tarball and the AppImage ship `libSDL3_shadercross.so.0`, `libdxcompiler.so` and `libspirv-cross-c-shared.so.0` in `lib/`, the zip `SDL3_shadercross.dll`, `dxcompiler.dll`, `dxil.dll` and `spirv-cross-c-shared.dll` beside the `.exe`, with their licences (MetalUI `packaging.md` §4b; plan xp-c task 12); `--self-test` runs MetalUI's compiler self-test and fails without them. Exports are byte-identical run to run on one machine, as
   on macOS (they stream through the CPU mesher over the engine's values); bytes across machines or backends are not promised, D15's tolerances are.
   Gaps XP-G23 (adapter name, software rasterizer) and XP-G24 (compute limits) are open; meanwhile the driver's name and 128 MiB buffers.
