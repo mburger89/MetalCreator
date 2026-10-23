@@ -139,10 +139,12 @@ struct SDLPickerTests {
         let rig = try Rig()
         let frame = RenderFixtures.boxFrame()
         try await rig.prepare(frame)
-        rig.picker.schedule(frame)
-        #expect(rig.picker.isPending(for: frame), "not yet: the view has not been still")
+        // onReady is installed before the request is scheduled: on a loaded runner the settle delay can pass before a later install,
+        // and the continuation would never resume (Windows CI, run 39947641502).
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             rig.picker.onReady = { continuation.resume() }
+            rig.picker.schedule(frame)
+            #expect(rig.picker.isPending(for: frame), "not yet: the view has not been still")
         }
         #expect(!rig.picker.isPending(for: frame), "the pass ran by itself after \(SDLViewportPicker.settleDelay)")
         #expect(rig.picker.pick(at: ScreenPoint(100, 100), in: frame) == .face(solid: 0, FaceID(2)))

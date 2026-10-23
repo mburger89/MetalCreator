@@ -265,6 +265,20 @@ jobs:
                    @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
           swift build @flags
           exit $LASTEXITCODE
+      - name: Compile the generated kernels
+        working-directory: MetalCreator
+        # The Linux counterpart is scripts/linux-test.sh kernels: GeneratedKernelBuildTests (required where MetalUISDLGPU imports) needs every
+        # generated kernel's .spv, .dxil, .msl and .json. The test target exports their HLSL, then the pinned SDL_shadercross compiles it
+        # (which validates each kernel through DXC and DXIL).
+        run: |
+          $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB", "-Xlinker", "/STACK:16777216") +
+                   @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
+          $env:XP_EXPORT_KERNELS = "1"
+          swift test @flags --filter GeneratedKernelExport
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Remove-Item Env:XP_EXPORT_KERNELS
+          scripts\compile-generated-kernels.ps1 -ShaderCross "$env:RUNNER_TEMP\shadercross\bin\shadercross.exe"
+          exit $LASTEXITCODE
       - name: Test
         id: test
         working-directory: MetalCreator
