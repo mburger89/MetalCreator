@@ -292,4 +292,6 @@ if ($withoutText -notmatch 'FAIL implicit compiler' -or $withoutText -notmatch '
     throw "--self-test without SDL3_shadercross.dll did not fail at 'implicit compiler' naming the missing library: $withoutText"
 }
 Remove-Item -Recurse -Force $work
+# The "without the library" run above exits 1 on purpose; a caller that ends with `exit $LASTEXITCODE` (CI does) must not see it.
+$global:LASTEXITCODE = 0
 Write-Output $zip

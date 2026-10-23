@@ -337,7 +337,7 @@ jobs:
           $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB") +
                    @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
           scripts\package-windows.ps1 -NoBuild -BuildFlags $flags -SdlRoot $env:SDL3_ROOT -ShaderCrossRoot "$env:RUNNER_TEMP\shadercross"
-          exit $LASTEXITCODE
+          if (-not $?) { exit 1 }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         with:
