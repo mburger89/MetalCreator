@@ -102,6 +102,36 @@ struct HLSLSourceTests {
         }
     }
 
+    /// DXC drops a declared buffer nothing reads, shifting the slots after it: in every kernel of every shape, including those whose
+    /// `sdf` touches neither packed buffer, each declared buffer is read by a function `main` calls, and `main` calls it.
+    @Test(arguments: fixtures.map(\.name) + ["sphere", "box", "cylinder", "emptyUnion"])
+    func everyDeclaredBufferIsReadByTheKernel(_ name: String) throws {
+        let solids: [String: ImplicitSolid] = [
+            "sphere": .sphere(radius: 5), "box": .box(halfSize: Vector3(2, 2.5, 3), cornerRadius: 0),
+            "cylinder": .cylinder(radius: 3, halfHeight: 4), "emptyUnion": .union([], blend: .constant(0)),
+        ]
+        guard let solid = solids[name] ?? Self.fixtures.first(where: { $0.name == name })?.solid,
+              let compiled = try? ImplicitCompiler.compileHLSL(solid) else { return }
+        for source in compiled.kernels.values {
+            let lines = source.text.split(whereSeparator: \.isNewline).map(String.init)
+            let declared = lines.compactMap { line -> String? in
+                let name = #"\w+(?= : register)"#
+                guard line.contains("StructuredBuffer<"), let range = line.range(of: name, options: .regularExpression) else { return nil }
+                return String(line[range])
+            }
+            guard let keeper = lines.firstIndex(where: { $0.hasPrefix("bool buffersAreKept()") }) else {
+                Issue.record("\(name), \(source.kernel.rawValue): no buffer keep-alive")
+                continue
+            }
+            let keeperBody = lines[keeper...].prefix { !$0.hasPrefix("}") }.joined(separator: " ")
+            for buffer in ["floats", "ints"] where declared.contains(buffer) {
+                #expect(keeperBody.contains("\(buffer)["), "\(name), \(source.kernel.rawValue): \(buffer) is never read")
+            }
+            let main = lines[(lines.firstIndex { $0.contains("void main(uint3 id") } ?? 0)...].joined(separator: " ")
+            #expect(main.contains("if (buffersAreKept()) { return; }"), "\(name), \(source.kernel.rawValue): main skips the keep-alive")
+        }
+    }
+
     @Test func theUniformBlockIsSixteenWords() {
         #expect(MemoryLayout<KernelParameters>.stride == 64 && KernelParameters().bytes.count == 64)
         let members = HLSLShaderLibrary.prelude.split(separator: ";").filter { $0.contains("uint g") || $0.contains("float g") }

@@ -55,8 +55,18 @@ enum HLSLShaderLibrary {
         StructuredBuffer<float> floats : register(t0, space0);
         StructuredBuffer<int> ints : register(t1, space0);
 
-        """ + math + "\n" + core + "\n" + lattices + "\n" + sdf
+        """ + math + "\n" + core + "\n" + keepBuffers + "\n" + lattices + "\n" + sdf
     }
+
+    /// DXC drops a declared buffer nothing reads, and the slots after it shift. A `.sphere` never reads `ints` and an empty union reads
+    /// neither packed buffer, so every `main` begins with `if (buffersAreKept()) { return; }`: a read of both, behind a Params word
+    /// the host never sets (`gPadding0` is always 0) and which the compiler cannot see through, so the loads stay and the branch is
+    /// never taken.
+    static let keepBuffers = """
+    bool buffersAreKept() {
+        return gPadding0 == 0xFFFFFFFFu && floats[0] + float(ints[0]) == 0.0f;
+    }
+    """
 
     /// Metal's `evaluateImplicit`: the solid at a batch of points, three floats each.
     static let evaluate = """
@@ -66,6 +76,7 @@ enum HLSLShaderLibrary {
 
     [numthreads(64, 1, 1)]
     void main(uint3 id : SV_DispatchThreadID) {
+        if (buffersAreKept()) { return; }
         uint index = id.x;
         if (index >= gCount) { return; }
         values[index] = sdf(float3(points[3u * index], points[3u * index + 1u], points[3u * index + 2u]));
