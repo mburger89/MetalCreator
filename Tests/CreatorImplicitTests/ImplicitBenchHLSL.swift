@@ -76,14 +76,21 @@ struct ImplicitBenchHLSL {
         }
     }
 
-    /// Metal compiling `source` to a pipeline state for each of `names`, in milliseconds. A comment with a fresh UUID makes the text unseen, so neither
-    /// Metal's in-process cache nor its on-disk shader cache (both keyed by the source's digest) can answer: this is a real compile.
+    /// Metal compiling `source` to a pipeline state for each of `names`, in milliseconds. Every kernel gets a fresh per-run name and the library a
+    /// per-run literal, so the AIR (not only the source text) is unseen and no source, library or pipeline cache can answer: this is a real compile.
     static func compileMilliseconds(_ source: String, kernels names: [String], on device: any MTLDevice) async throws -> Double {
         let clock = ContinuousClock()
         let start = clock.now
-        let library = try await device.makeLibrary(source: source + "\n// \(UUID().uuidString)\n", options: nil)
+        // A comment only changes the source text and is gone in the AIR, so the backend (AIR to GPU binary) could still be answered by a cache an
+        // earlier run filled. So the text is made unique where it survives into the AIR: every kernel gets a per-run name, and a kernel stores a
+        // per-run literal, which changes the library's bitcode and each function's name.
+        let tag = UUID().uuidString.replacing("-", with: "")
+        var unique = source
+        for name in names { unique = unique.replacing(name, with: "\(name)_\(tag)") }
+        unique += "\nkernel void benchTag_\(tag)(device uint* out [[buffer(0)]]) { out[0] = \(UInt32.random(in: 1...UInt32.max))u; }\n"
+        let library = try await device.makeLibrary(source: unique, options: nil)
         for name in names {
-            let function = try #require(library.makeFunction(name: name))
+            let function = try #require(library.makeFunction(name: "\(name)_\(tag)"))
             _ = try await device.makeComputePipelineState(function: function)
         }
         return milliseconds(clock.now - start)
