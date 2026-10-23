@@ -85,7 +85,9 @@ stopgap as they were. The sections below keep each gap's full use case.
 | XP-G22 | A render batch submitted without `await`, so a click can render its own ID pass and wait for it (Metal's `waitUntilCompleted` picking) | MetalUI PR #122 (`1c53976d`) | ✅ fixed by MetalUI PR #122, 1c53976d, adopted by xp-3 task 7 step 6: `SDLGPUDevice.submitBatchSynchronously(_:) throws -> SDLGPUFence` records and submits on the submit worker and returns once submitted; `SDLViewportPicker.pickWhenReady` renders the click's ID pass with it, `waitBlocking()`s and `downloadSynchronously`s, so a click is exact and immediate on SDL as on Metal (the asynchronous waiting-click path and its 250 ms retry wait are gone). `METALUI_COMMIT` was `1c53976d` (now `ff0db06e`, C14-k/l) |
 | XP-G23 | The SDL_GPU adapter's name, and whether it is a software rasterizer | MetalUI (SDL GPU layer; `feat/sdl-gpu-device-info`) | 🔄 being built (planned `SDLGPUDevice.adapterName`, `isSoftwareRasterizer`); until adopted the implicit engine names the driver (software devices are always used, X-C5) |
 | XP-G24 | SDL_GPU compute limits: largest storage buffer binding, most thread groups | MetalUI (SDL GPU layer; `feat/sdl-gpu-device-info`) | 🔄 being built (planned `SDLGPUDevice.limits`); until adopted 128 MiB and 65,535 |
-| XP-G25 | A run-time HLSL compute compiler (SDL_shadercross's library, DXC) and compute pipelines from bytes | MetalUI (SDL GPU layer; `feat/sdl-gpu-runtime-shaders`) | 🔄 being built; until adopted the implicit engine off macOS is tested on kernels compiled offline and the app evaluates on the CPU |
+| XP-G25 | A run-time HLSL compute compiler (SDL_shadercross's library, DXC) and compute pipelines from bytes | MetalUI (SDL GPU layer; `feat/sdl-gpu-runtime-shaders`) | ✅ fixed by MetalUI `722f0cd6` (PR #131, record 151), adopted by xp-c task 11 |
+| XP-G26 | The run-time compiler's lookup tries `../lib` of the executable, not `lib/` beside it | MetalUI (`RuntimeLibraryLocator`, XP-G25) | ✅ fixed by MetalUI `f1c422e5` (PR #132): the lookup also tries `<exe>/lib` (order: explicit path, `METALUI_SHADERCROSS_LIB`, `<exe>`, `<exe>/lib`, `<exe>/../lib`, `METALUI_SHADERCROSS`'s sibling `lib`, loader path) with the dependents preloaded by full path, so the tarball's and the AppImage's `lib/` needs no variable; pinned by xp-c task 11 |
+| XP-G27 | Run-time HLSL compilation only under MetalUI's `SDL` trait | MetalUI (`MetalUISDLGPU`, XP-G25) | 🆕 open, low priority; a macOS build asks for no SDL, so the Mac cannot compile the generated HLSL at run time and its tests keep the offline kernels |
 | XP-G21 | Windows release build crashes swift-frontend (exception 0xC000001D) in `PaintPass.withRenderEffects` | MetalUI `5f03ab7b` | ✅ fixed by MetalUI `5f03ab7b`, adopted (branch `xp-2`, CI pin `5f03ab7b`): the CI release build for the zip no longer crashes the compiler |
 
 ## Reported 2026-10-07 (C7)
@@ -1333,3 +1335,13 @@ while the app runs, pipelines cached by source.
   a missing one throws a named error listing the paths tried; failures never trap; `packaging.md` §4a lists what to ship and adds `selfTest()`; compile
   times measured at about 200, 1,000 and 2,000 lines; nothing is published, apps build shadercross and DXC themselves; thread safety documented, calls
   serialized if needed. Meanwhile xp-c compiles the generated sources offline in tests only, and the app evaluates on the CPU off macOS.
+- **XP-G25, answered.** MetalUI `722f0cd6` (PR #131): `SDLGPUShaderCompiler` (`shared(libraryPath:)`, `compileCompute(name:hlsl:…:for:)`, `selfTest(for:)`),
+  `SDLGPUShaderCompileError` (`compilerUnavailable(tried:)`, `compileFailed(stage:diagnostics:)`), `SDLGPUShaderBlob`'s bytes initializer, `packaging.md` §4b.
+  Adopted by xp-c task 11 (`SDLRuntimeKernels`, `SDLCompileWorker`) and task 12 (the packages, `--self-test`).
+- **XP-G26. The lookup missed `lib/` beside the executable. Fixed.** `RuntimeLibraryLocator.attempts` tried the executable's directory and its `../lib`
+  (a `bin/` + `lib/` layout), while MetalCreator's tarball has `MetalCreator` and `lib/` side by side (RUNPATH `$ORIGIN/lib`, xp-2), as has the AppImage's
+  `usr/metalcreator`. MetalUI `f1c422e5` (PR #132) tries `<executable dir>/lib` after the executable's directory and preloads the dependents by full path,
+  so no `METALUI_SHADERCROSS_LIB` stopgap is needed in a package. xp-c pins `f1c422e5` (task 11).
+- **XP-G27. The compiler needs the SDL trait.** `SDLGPUShaderCompiler` is compiled only under `SDL`; MetalCreator's macOS build asks for no SDL, so the
+  Mac's tests cannot compile the generated HLSL at run time (they run the offline MSL). Asked, low priority: the compile to bytes and reflection
+  (SPIR-V, MSL) in a product without the SDL trait.

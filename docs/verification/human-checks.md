@@ -2125,8 +2125,8 @@ compiled shaders; these checks are what a real GPU, a real pointer and a person'
 
 ## Group XPC — implicit evaluation and meshing on SDL GPU, Linux and Windows (xp-c)
 
-**Status: NOT RUN; needs plan xp-c task 11 (MetalUI XP-G25) and task 12.** Specs: cross-platform E8, implicit D21. CI holds the engine to the CPU on
-lavapipe and WARP; these checks are a real GPU, a person's eye and a stopwatch.
+**Status: NOT RUN; needs plan xp-c task 12 (the packages).** Specs: cross-platform E8, implicit D21. CI holds the engine to the CPU on
+lavapipe and WARP, compiling at run time; these checks are a real GPU, a person's eye and a stopwatch.
 
 - [ ] **XP-27 Lattice previews on a desktop GPU (Linux and Windows).** A graph with a TPMS node filling a 100 mm cube and a Mesh node: the badge says
   "Vulkan" (Linux) or "Direct3D 12" (Windows); the very first preview, which compiles the shape's kernels, appears within about 2 s (x-4, proposed); a

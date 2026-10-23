@@ -1291,14 +1291,26 @@ GPU figures are upper bounds). Linux: the metalcreator-linux:xp-c Docker image o
 | x-3m new shape, evaluation kernel, uncached | Mac, busy | Metal | first 98.64 ms, median 42.84 ms, max 98.64 ms (5 shapes); second run 89.73 / 42.43 / 89.73 ms | none | recorded |
 | x-3m new shape, the five meshing kernels, uncached | Mac, busy | Metal | first 319.48 ms, median 319.47 ms, max 320.31 ms (5 shapes); second run 326.35 / 312.46 / 326.35 ms | none | recorded |
 | x-3o offline compile, one kernel (shadercross CLI) | Docker | HLSL to SPIR-V, DXIL, MSL | 0.60 s (157 kernels in 94.7 s) | none | recorded |
-| x-3 | | | after XP-G25 (task 11) | | |
-| x-4 | | | after XP-G25 (task 11) | | |
+| x-3 new shape, evaluation kernel, run-time compile | Docker on a Mac, load 150 to 670 | Vulkan (lavapipe) | first 41.20 ms, median of the rest 38.68 ms, max 41.86 ms (5 shapes) | none in CI; x-4 proposed 2 s on a desktop GPU | recorded |
+| x-3 new shape, meshing kernels (first mesh minus a warm one; six on the first shape, two after) | Docker on a Mac, load 150 to 670 | Vulkan (lavapipe) | first 832.02 ms, median of the rest 588.64 ms, max 832.02 ms (5 shapes) | none in CI; x-4 proposed 2 s on a desktop GPU | recorded |
+| x-4 a new shape's first preview pass, compile included | Docker on a Mac, load 150 to 670 | Vulkan (lavapipe) | first 947.59 ms, median of the rest 693.26 ms, max 947.59 ms (5 shapes) | none in CI; x-4 proposed 2 s on a desktop GPU | recorded |
 
 x-3o is an upper bound on XP-G25's in-process compile: it divides a whole `kernels` run (all seven targets' outputs through the MetalUICompileShaders
 tool, with `.build/generated-kernels/compiled` emptied first so every kernel compiled) by the 157 kernels. x-3m times Metal's own compile of five different shapes (a type or form each, none the x-1 sheet), each kernel given a fresh per-run name and each library a per-run literal in an added kernel, so the AIR itself is unseen (a comment is gone in the AIR and only defeats the source-to-AIR cache, leaving the AIR-to-GPU-binary step open to a pipeline or binary cache an earlier run filled; an earlier version of this row did that and read 12.37 ms median for the evaluation kernel). Two successive runs agree (second run in the rows above), which a partial cache hit would not; the evaluation kernel and the five meshing kernels
 are timed apart, and the first shape is reported apart from the median because the first compile in a process pays for Metal's compiler start-up. An
 earlier version of the row reused sources Metal had already compiled and read 0.14 ms; that was a cache hit, not a compile, and is superseded. Ruling: the x-3m rows are recorded as taken under load (6 to 37 on 10 cores), not as met figures: the evaluation kernel's 42.84 ms median was not a cache hit by the two-run check, but both rows are to be re-measured on an idle Mac after merge, and no verdict (x-3, D21) may quote them as measured until then. Task 11's
 x-3 (the HLSL engine's run-time compile) is compared with the first-shape figures.
+
+x-3 and x-4 (task 11) are MetalUI's run-time compiler (`SDLGPUShaderCompiler`, DXC to SPIR-V, then lavapipe's pipeline step; `MESA_SHADER_CACHE_DISABLE=true`)
+on one engine and five shapes whose generated HLSL differs (`ImplicitBenchHLSL.structurallyDistinctShapes`: the x-1 sheet in zero to four offsets of 0 mm).
+The x-3m shapes cannot serve: a lattice's type and form are integers in a buffer, so five TPMS types are one HLSL source and the engine's digest cache
+compiled it once (a first attempt with them read 0.27 ms for the later four and failed its compile-count expectation); x-3m's uniqueness comes from the
+per-run tag it adds. Taken with the Mac at a load average of 150 to 670 (other sessions), so the figures are saturated, recorded and not a verdict; to be
+re-measured idle. Against x-3m (Metal, a type or form each, under load too): the evaluation kernel's compile is the same order (HLSL to SPIR-V 41 ms
+first, 39 ms median, against Metal's 99 ms first and 43 ms median), and the meshing kernels cost 589 ms median after the first mesh (832 ms with the
+four shared kernels on the first shape) against Metal's 319 ms for its five, the difference being lavapipe compiling two or four SPIR-V kernels to
+CPU code per shape (x-3o's 0.60 s a kernel offline is an upper bound that includes all seven targets). x-4's median, 693 ms, is under the proposed
+2 s; DXC's compile is CPU work, so a desktop GPU will not make it faster (MetalUI human check RC4 measures it there; ours is XP-27).
 
 ```text
 BENCH x-1 Metal: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 12.94 ms
@@ -1309,6 +1321,8 @@ BENCH x-1h Metal (HLSL): 9.98 ms; budget 1000.00 ms: met
 BENCH x-1 CPU: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 1,852.69 ms
 BENCH x-2 CPU: thickness edit, warm: median 1,763.10 ms
 BENCH x-3m Metal: a new shape, uncached source: evaluation kernel first 98.64 ms, median 42.84 ms, max 98.64 ms; the five meshing kernels first 319.48 ms, median 319.47 ms, max 320.31 ms
+BENCH x-3 Vulkan: a new shape's run-time compile: evaluation kernel first 41.20 ms, median of the rest 38.68 ms, max 41.86 ms; meshing kernels (first mesh minus a warm one; six on the first shape, two after) first 832.02 ms, median of the rest 588.64 ms, max 832.02 ms
+BENCH x-4 Vulkan: a new shape's first preview pass, compile included: first 947.59 ms, median of the rest 693.26 ms, max 947.59 ms; proposed budget 2000.00 ms on a desktop GPU
 BENCH x-1 Vulkan: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 62.62 ms
 BENCH x-2 Vulkan: thickness edit, warm: median 62.37 ms
 BENCH x-1 CPU: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 1,495.11 ms

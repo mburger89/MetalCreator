@@ -178,11 +178,12 @@ beyond what MetalUI provides; macOS CI; Intel macOS.
 - **E8 (xp-c, XP-G2 and E7's last sentence). Implicit evaluation and meshing on SDL GPU, as on macOS.** The user ruled (2026-10-22) that Linux and Windows
   follow macOS: `ImplicitCompiler`'s walk writes HLSL as well as MSL (`ShaderDialect`; the `sdf` statement for statement, the same buffers; the MSL bytes
   unchanged, pinned by digests), one source per kernel, compiled while the app runs and cached by the source's digest (`HLSLImplicitEngine`, the twin of
-  `MetalImplicitEngine`, over MetalUI's SDL_GPU compute on an owned headless device). Run-time compilation needs MetalUI gap XP-G25 (a compiler over
-  SDL_shadercross's library and DXC, pipelines from bytes); **until it is adopted, E7's last sentence still holds for the app** (evaluation and meshing
-  on the CPU off macOS) while the engine is tested on lavapipe and on the Mac's GPU over kernels the build-time SDL_shadercross compiled offline
-  (`scripts/linux-test.sh kernels`). Once adopted (plan xp-c, task 11): no SDL_GPU device, the CPU silently; the compiler library missing (its named
-  error lists the paths tried), a pipeline refused, or a source DXC refuses, the CPU with "Running on the CPU" and the reason; the badge says "Vulkan" or
+  `MetalImplicitEngine`, over MetalUI's SDL_GPU compute on an owned headless device). Run-time compilation is MetalUI's `SDLGPUShaderCompiler` (gap XP-G25, MetalUI `722f0cd6`, adopted by plan xp-c task 11: SDL_shadercross's library
+  and DXC, loaded while the app runs), each kernel compiled once on a compile thread of the engine's own and cached by its digest; **E7's last
+  sentence no longer holds: Linux and Windows evaluate and mesh on the GPU.** The tests compile the generated HLSL at run time on lavapipe and WARP;
+  the Mac, whose build has no SDL, runs it as the MSL kernels the build-time SDL_shadercross compiled offline (`scripts/linux-test.sh kernels`).
+  Fall-backs: no SDL_GPU device, the CPU silently; the compiler library missing (MetalUI's `compilerUnavailable`
+  lists the paths tried), a pipeline refused, or a source DXC refuses (`compileFailed`, DXC's text), the CPU with "Running on the CPU" and the reason; the badge says "Vulkan" or
   "Direct3D 12". The packages ship the compiler's shared libraries and their licences (task 12). Exports are byte-identical run to run on one machine, as
   on macOS (they stream through the CPU mesher over the engine's values); bytes across machines or backends are not promised, D15's tolerances are.
   Gaps XP-G23 (adapter name, software rasterizer) and XP-G24 (compute limits) are open; meanwhile the driver's name and 128 MiB buffers.

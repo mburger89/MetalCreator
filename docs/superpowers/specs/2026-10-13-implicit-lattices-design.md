@@ -412,7 +412,7 @@ meshing (dual contouring); mesh booleans; surface textures and displacement (7d,
   - **Tracked follow-ups (not fixed in 7c-4).** (1) Past 4096 singular samples, `FaceChartAssembler.coarsePoints` is thinned and can miss a box smaller than a bucket, so the singular warning may not fire for a very small region. (2) `LatticeMapping.singularSamples` ignores `count` for a Face mapping (it returns the chart's coarse singular points filtered to the box); its doc comment says so. (3) The 7x Face-mapped Voronoi GPU/CPU mesh divergence has no diagnosed cause (item 3 of the amended allowance above).
 - **D21. The HLSL GPU engine (xp-c, plan `2026-10-22-xp-c-sdl-gpu-meshing.md`).** Amends §4.1, §6, D11, D13. (1) **Compilation follows Metal.** One walk of
   the tree (`ImplicitCompiler.Generator`) writes MSL or HLSL (`ShaderDialect`), the same statements over the same five buffers; HLSL is compiled while the
-  app runs (MetalUI XP-G25), one source per kernel because an SDL_GPU shader has one entry point; the kernels that do not call `sdf` (`mesh_clear`, which
+  app runs (MetalUI XP-G25, `SDLGPUShaderCompiler`, on the engine's serial compile thread), one source per kernel because an SDL_GPU shader has one entry point; the kernels that do not call `sdf` (`mesh_clear`, which
   SDL_GPU needs for want of a buffer fill, `mesh_classify`, `mesh_number`, `mesh_emit`) are one text for every shape, so the digest-keyed cache makes them
   once. An edited value never recompiles; a new shape compiles its evaluation kernel at `prepare` and its meshing kernels at its first mesh, as on Metal.
   (2) **Agreement.** The same suites and tolerances as Metal, over the Mac's GPU (the HLSL's MSL), lavapipe and WARP: values 1e-4 mm; D15; D17; D20's
@@ -423,7 +423,7 @@ meshing (dual contouring); mesh booleans; surface textures and displacement (7d,
   the threads' order on both engines (D13: the set is fixed); exports stream through the CPU mesher in the plan's order (D12), so the same export on one
   machine is the same bytes on every engine; across machines and backends only D15's tolerances hold. (5) **Budgets.** §6's i-1 and i-2 stay Metal's
   (D11). x-1 and x-2 are recorded per engine without a budget in CI; x-1h, the HLSL on this Mac's GPU, is held to 1 s (measured 10 ms, x-1 9.98 ms on a busy Mac);
-  x-3 (a new shape's compile) and x-4 (its first pass, compile included) are recorded after XP-G25, x-4 proposed under 2 s on a desktop GPU (human check XP-27).
+  x-3 (a new shape's compile) and x-4 (its first pass, compile included) are recorded on lavapipe under load (x-3: evaluation kernel 39 ms median, meshing kernels 589 ms median; x-4: first pass 693 ms median, 948 ms the first), x-4 proposed under 2 s on a desktop GPU (human check XP-27).
   (6) **Limits.** Storage buffers of at most 128 MiB until XP-G24 (an edge table of 2^25 slots, Metal's 2^27); past it the request is the CPU mesher's.
 
 ### Errata (7c-3 acceptance, measured)
