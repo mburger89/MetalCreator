@@ -5,10 +5,18 @@ import Testing
 
 /// The SDL_GPU backend itself (Linux and Windows): a kernel missing from a provider, and a batch's order.
 struct SDLComputeBackendTests {
+    /// The ready backend, or a failure saying why it is not (a backend that is not ready must not pass these tests vacuously).
+    static func readyBackend(_ state: ComputeBackendState) throws -> any ImplicitComputeBackend {
+        guard case .ready(let backend) = state else {
+            throw GeneratedKernelError.backendNotReady(String(describing: state))
+        }
+        return backend
+    }
+
     @Test(.enabled(if: GPUEnginesUnderTest.hlsl != nil, "needs an SDL_GPU device"))
     func aKernelTheProviderDoesNotHaveIsUnsupportedNamingTheScript() async throws {
         let empty = SDLPrecompiledKernels(directory: FileManager.default.temporaryDirectory)
-        guard case .ready(let backend) = SDLComputeBackend.make(kernels: empty) else { return }
+        let backend = try Self.readyBackend(SDLComputeBackend.make(kernels: empty))
         let source = try #require(try ImplicitCompiler.compileHLSL(.sphere(radius: 1)).kernels[.evaluate])
         await #expect {
             _ = try await backend.makePipeline(source)
@@ -18,7 +26,7 @@ struct SDLComputeBackendTests {
     /// A dispatch sees what the uploads before it wrote, and the download sees what it wrote: each in its own pass.
     @Test(.enabled(if: GPUEnginesUnderTest.hlsl != nil, "needs an SDL_GPU device"))
     func aBatchsUploadsDispatchesAndDownloadsRunInOrder() async throws {
-        guard case .ready(let backend) = GPUEnginesUnderTest.hlslState else { return }
+        let backend = try Self.readyBackend(GPUEnginesUnderTest.hlslState)
         let program = try ImplicitCompiler.compileHLSL(.sphere(radius: 2))
         let engine = try #require(GPUEnginesUnderTest.makeHLSL())
         let solid = try await engine.buffers(for: program, on: backend)
