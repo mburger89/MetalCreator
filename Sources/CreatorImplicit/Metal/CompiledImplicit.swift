@@ -21,8 +21,13 @@ public struct CompiledImplicit: Sendable {
 
     /// The pipeline cache's key, with the source's hash computed once, here.
     public let shape: ShapeKey
+    /// Which language `source` is in.
+    public let language: ShaderLanguage
+    /// The HLSL kernels' sources (plan xp-c), empty for Metal.
+    public let kernels: [ImplicitKernel: KernelSource]
 
-    init(source: String, parameters: [Float], integers: [Int32], tables: [Int32], pool: [Float], images: [Float]) {
+    init(source: String, parameters: [Float], integers: [Int32], tables: [Int32], pool: [Float], images: [Float],
+         language: ShaderLanguage = .msl, kernels: [ImplicitKernel: KernelSource] = [:]) {
         self.source = source
         self.parameters = parameters
         self.integers = integers
@@ -30,6 +35,8 @@ public struct CompiledImplicit: Sendable {
         self.pool = pool
         self.images = images
         shape = ShapeKey(source)
+        self.language = language
+        self.kernels = kernels
     }
 
     /// The name of the kernel in `source`.

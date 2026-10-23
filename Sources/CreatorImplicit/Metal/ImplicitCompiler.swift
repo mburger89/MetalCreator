@@ -31,8 +31,21 @@ public enum ImplicitCompiler {
                                 tables: generator.tables, pool: generator.pool, images: generator.images)
     }
 
+    /// The same solid in HLSL (plan xp-c): the same walk with the HLSL dialect, so the `sdf` is the Metal one statement for statement and the
+    /// buffers are identical; one source per kernel (`HLSLKernels`).
+    public static func compileHLSL(_ solid: ImplicitSolid) throws(ImplicitCompileError) -> CompiledImplicit {
+        var generator = Generator()
+        generator.dialect = .hlsl
+        let result = try generator.solid(solid, at: "p")
+        let sdf = "float sdf(float3 p) {\n\(generator.lines.joined(separator: "\n"))\n    return \(result);\n}\n"
+        let kernels = HLSLKernels.sources(sdf: sdf)
+        return CompiledImplicit(source: kernels[.evaluate]?.text ?? "", parameters: generator.parameters, integers: generator.integers,
+                                tables: generator.tables, pool: generator.pool, images: generator.images, language: .hlsl, kernels: kernels)
+    }
+
     /// The generator's state: statements so far and the buffers they read.
     struct Generator {
+        var dialect = ShaderDialect.msl
         var lines: [String] = []
         var parameters: [Float] = []
         var integers: [Int32] = []
@@ -59,13 +72,13 @@ public enum ImplicitCompiler {
         /// A float parameter's name in the shader.
         mutating func number(_ value: Double) -> String {
             parameters.append(Float(value))
-            return "e.P[\(parameters.count - 1)]"
+            return dialect.parameter(parameters.count - 1)
         }
 
         /// An integer parameter's name in the shader.
         mutating func integer(_ value: Int) -> String {
             integers.append(Int32(truncatingIfNeeded: value))
-            return "e.I[\(integers.count - 1)]"
+            return dialect.integer(integers.count - 1)
         }
 
         mutating func vector(_ value: Vector3) -> String {
@@ -120,7 +133,7 @@ public enum ImplicitCompiler {
                 return declare("abs(\(inner) - \(centre)) - \(wall) / 2.0")
             case .baked(let blocks, _):
                 let slot = register(blocks)
-                return declare("bakedValue(e, \(slot.integers), \(slot.parameters), \(p))")
+                return declare("bakedValue(\(dialect.environment)\(slot.integers), \(slot.parameters), \(p))")
             case .isosurface(let graded, let level, let maxSlope, let region):
                 let value = try grading(graded, at: p)
                 let (levelName, slopeName) = (number(level), number(maxSlope))
@@ -159,7 +172,8 @@ public enum ImplicitCompiler {
             }
             let blend = number(lattice.blend)
             let (coordinates, singular) = try mapped(lattice.mapping, at: p)
-            let body = declare("strutBody(e, \(offset), \(count), \(coordinates), \(cell), \(stretch), \(radius), \(blend))")
+            let body = declare("strutBody(\(dialect.environment)\(offset), \(count), \(coordinates), "
+                + "\(cell), \(stretch), \(radius), \(blend))")
             return cut(body, singular: singular, at: p, region: lattice.region)
         }
 
@@ -179,7 +193,8 @@ public enum ImplicitCompiler {
             let form = integer(lattice.form.rawValue)
             let scale = number(VoronoiLattice.strutScale)
             let (coordinates, singular) = try mapped(lattice.mapping, at: p)
-            let body = declare("voronoiBody(e, \(slot.integers), \(slot.parameters), \(coordinates), \(wall), \(form), \(scale))")
+            let body = declare("voronoiBody(\(dialect.environment)\(slot.integers), \(slot.parameters), "
+                + "\(coordinates), \(wall), \(form), \(scale))")
             return cut(body, singular: singular, at: p, region: lattice.region)
         }
 
@@ -219,7 +234,7 @@ public enum ImplicitCompiler {
                         throw .unsupported("a distance to a solid that was not baked")
                     }
                     let slot = register(blocks)
-                    return declare("bakedValue(e, \(slot.integers), \(slot.parameters), \(p))")
+                    return declare("bakedValue(\(dialect.environment)\(slot.integers), \(slot.parameters), \(p))")
                 }
             case .linearGradient(let plane, let length):
                 let (origin, normal) = (vector(plane.origin), vector(plane.normal.normalized ?? .zero))
@@ -233,7 +248,7 @@ public enum ImplicitCompiler {
                     tables += [Int32(truncatingIfNeeded: start & 0xFFFF_FFFF), Int32(truncatingIfNeeded: start >> 32)]
                 }
                 let (scaleName, octavesName, seedsName) = (number(scale), integer(octaves), integer(seeds))
-                return declare("fieldNoise(e, \(p), \(scaleName), \(octavesName), \(seedsName))")
+                return declare("fieldNoise(\(dialect.environment)\(p), \(scaleName), \(octavesName), \(seedsName))")
             case .image(let image, let plane, let width, let height, let edges):
                 let slot = (integers: integers.count, parameters: parameters.count)
                 integers += [Int32(images.count), Int32(image.width), Int32(image.height), Int32(edges.rawValue)]
@@ -242,7 +257,7 @@ public enum ImplicitCompiler {
                                             vector(plane.yAxis.normalized ?? .zero))
                 let (widthName, heightName) = (number(width), number(height))
                 let offset = declareVector("\(p) - \(origin)")
-                return declare("imageValue(e, \(slot.integers), dot(\(offset), \(across)) / \(widthName) + 0.5, "
+                return declare("imageValue(\(dialect.environment)\(slot.integers), dot(\(offset), \(across)) / \(widthName) + 0.5, "
                     + "0.5 - dot(\(offset), \(up)) / \(heightName))")
             case .implicit(let reference):
                 guard let solid = reference.solid else { throw .unsupported("an implicit that is not an ImplicitSolid") }
