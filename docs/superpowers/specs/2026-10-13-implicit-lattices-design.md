@@ -429,6 +429,10 @@ meshing (dual contouring); mesh booleans; surface textures and displacement (7d,
   of 0 instead of the CPU's exact 0. The generated `sdf`, every library function and every float local are `precise`: each operation is the IEEE one
   written, in the order written, uncontracted (SPIR-V: `NoContraction`), as Metal's engine and the CPU twin read them. The MSL of the Metal engine is
   unchanged; the Mac's HLSL path (shadercross's MSL) and lavapipe lose contraction.
+  *Erratum (2026-10-23): native Metal now compiles with safe math too.* Both of `MetalImplicitEngine`'s libraries (evaluation and meshing) are compiled with
+  `MTLCompileOptions.mathMode = .safe` and `mathFloatingPointFunctions = .precise` (`MetalImplicitEngine.exactCompileOptions`), so the Mac's field on the bounds
+  faces is the CPU's exact 0 by construction (it was +5.96e-8 under Metal's default fast math, outside only by rounding). The MSL text and its digests are
+  unchanged. macOS field values and export bytes changed once, on 2026-10-23, within D15's tolerances; exports stay byte-identical run to run.
 
 ### Errata (7c-3 acceptance, measured)
 

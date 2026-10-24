@@ -84,7 +84,7 @@ public actor MetalImplicitEngine: ImplicitGPUEngine {
             return known.state
         }
         do {
-            let library = try await device.makeLibrary(source: program.source, options: nil)
+            let library = try await device.makeLibrary(source: program.source, options: Self.exactCompileOptions())
             guard let function = library.makeFunction(name: CompiledImplicit.kernelName) else {
                 throw ImplicitCompileError.engine("the kernel \(CompiledImplicit.kernelName) is missing")
             }
