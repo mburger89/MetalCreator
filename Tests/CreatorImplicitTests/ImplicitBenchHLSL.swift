@@ -96,7 +96,7 @@ struct ImplicitBenchHLSL {
         var unique = source
         for name in names { unique = unique.replacing(name, with: "\(name)_\(tag)") }
         unique += "\nkernel void benchTag_\(tag)(device uint* out [[buffer(0)]]) { out[0] = \(UInt32.random(in: 1...UInt32.max))u; }\n"
-        let library = try await device.makeLibrary(source: unique, options: nil)
+        let library = try await device.makeLibrary(source: unique, options: MetalImplicitEngine.exactCompileOptions())
         for name in names {
             let function = try #require(library.makeFunction(name: "\(name)_\(tag)"))
             _ = try await device.makeComputePipelineState(function: function)

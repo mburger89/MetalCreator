@@ -196,7 +196,8 @@ extension MetalImplicitEngine {
     private func meshPipelines(for program: CompiledImplicit) async throws -> MeshPipelines {
         if let known = meshPipelines[program.shape] { return known }
         do {
-            let library = try await device.makeLibrary(source: ImplicitMeshShaderLibrary.source(extending: program), options: nil)
+            let source = ImplicitMeshShaderLibrary.source(extending: program)
+            let library = try await device.makeLibrary(source: source, options: Self.exactCompileOptions())
             var made: [any MTLComputePipelineState] = []
             for name in ImplicitMeshShaderLibrary.kernelNames {
                 guard let function = library.makeFunction(name: name) else {

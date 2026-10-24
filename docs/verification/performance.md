@@ -1312,6 +1312,29 @@ four shared kernels on the first shape) against Metal's 319 ms for its five, the
 CPU code per shape (x-3o's 0.60 s a kernel offline is an upper bound that includes all seven targets). x-4's median, 693 ms, is under the proposed
 2 s; DXC's compile is CPU work, so a desktop GPU will not make it faster (MetalUI human check RC4 measures it there; ours is XP-27).
 
+### Metal compiled without fast math (2026-10-23)
+
+`MetalImplicitEngine` compiles both libraries with `mathMode = .safe` and `mathFloatingPointFunctions = .precise` (the field on the bounds faces is now the CPU's exact 0).
+Medians from `scripts/bench.sh "ImplicitBench/(theFirstPreview|aThicknessEdit|theFirstPassOnTheGPU)|ImplicitBenchHLSL/theFirstPassAndAThicknessEditOnEachEngine|metalsCompileOfANewShape"`,
+release, before (master `284a727`) and after on the same Mac, which was **busy both times** (load averages 50 / 61 / 33 before, 41 / 94 / 79 after), so the differences are indicative only.
+Rows i-1 and i-2 (budgets 1000 ms and 100 ms) are still **Met**; no budget is missed. x-1h is the Metal (HLSL) engine, which this change does not touch (not printed by this filter).
+
+| Row | Before | After (no fast math) |
+|---|---|---|
+| i-1 first preview pass, warm | 7.36 ms | 9.69 ms |
+| i-1 cold (shaders compiled) | 394.90 ms | 481.72 ms |
+| i-2 thickness edit | 7.99 ms | 10.48 ms |
+| i-1m first pass at 0.78 mm, GPU mesher | 12.35 ms | 18.34 ms |
+| i-9 wrapped gyroid, Cylindrical | 28.10 ms | 33.46 ms |
+| x-1 Metal first pass | 7.23 ms | 8.24 ms |
+| x-2 Metal thickness edit | 7.10 ms | 7.85 ms |
+| x-3m evaluation kernel compile (first / median) | 56.52 / 41.94 ms | 102.88 / 44.74 ms |
+| x-3m five meshing kernels compile (first / median) | 312.77 / 302.06 ms | 367.28 / 346.44 ms |
+
+```text
+BENCH i-1 first preview pass of a 100 mm sheet: median 7.36 ms -> 9.69 ms; i-2 7.99 ms -> 10.48 ms; i-1m GPU mesher 12.35 ms -> 18.34 ms
+```
+
 ```text
 BENCH x-1 Metal: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 12.94 ms
 BENCH x-2 Metal: thickness edit, warm: median 13.81 ms

@@ -39,22 +39,21 @@ struct GPUMeshOnLatticePlaneTests {
         return points
     }()
 
-    /// The noisy shell's field on its bounds faces is classified as the CPU's 0 is (outside: `value < 0` is false) on every engine, and on
-    /// the HLSL engine it is exactly 0. On Direct3D 12 the DXC-reassociated `sdf` gave ±2.98e-8 there and the mesh grew a ragged cap on the
-    /// face (11,764 triangles against 10,288); the HLSL is `precise` since (spec D21 (7)). The Metal engine's MSL is compiled with Metal's
-    /// fast math and gives +5.96e-8 at every such point: outside, like the CPU, but by its rounding, not by construction (plan xp-c, CI rulings).
+    /// The noisy shell's field on its bounds faces is exactly the CPU's 0 on every engine. On Direct3D 12 the DXC-reassociated `sdf` gave
+    /// ±2.98e-8 there and the mesh grew a ragged cap on the face (11,764 triangles against 10,288); the HLSL is `precise` since (spec D21 (7)).
+    /// Native Metal's fast math gave +5.96e-8 at every such point (outside, like the CPU, but by rounding); its libraries are compiled with
+    /// safe math and precise functions since 2026-10-23 (`MetalImplicitEngine.exactCompileOptions`), so it is exact by construction too.
     @Test(arguments: GPUEnginesUnderTest.names)
     func theFieldIsExactlyTheCPUsOnTheBoundsFaces(_ engineName: String) async throws {
         let solid = try #require(Self.solids.first { $0.name == "noisy shell" }?.solid)
         let engine = try GPUEnginesUnderTest.engine(engineName)
         let gpu = try await GPUBatchEvaluator(engine: engine, program: try await engine.compile(solid)).evaluate(Self.boundsFacePoints)
         let cpu = solid.signedDistances(at: Self.boundsFacePoints.map { Vector3(Double($0.x), Double($0.y), Double($0.z)) })
-        let exact = engineName != "Metal"
-        let differing = cpu.indices.filter { cpu[$0] != 0 || (gpu[$0] < 0) != (cpu[$0] < 0) || (exact && gpu[$0] != Float(cpu[$0])) }
+        let differing = cpu.indices.filter { cpu[$0] != 0 || (gpu[$0] < 0) != (cpu[$0] < 0) || gpu[$0] != Float(cpu[$0]) }
         let first = differing.first.map { "\(Self.boundsFacePoints[$0]): GPU \(gpu[$0]), CPU \(cpu[$0])" } ?? ""
         #expect(differing.isEmpty, """
             \(engineName): \(differing.count) of \(cpu.count) points on the bounds faces differ \
-            from the CPU's 0\(exact ? "" : " in sign"); the first is \(first)
+            from the CPU's 0; the first is \(first)
             """)
     }
 
