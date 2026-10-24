@@ -210,7 +210,10 @@ enum ImplicitMeshShaderLibrary {
         float3 high = latticePoint(axes, m, x + (axis == 0u ? 1u : 0u), y + (axis == 1u ? 1u : 0u),
                                    z + (axis == 2u ? 1u : 0u));
         float fa = sdf(e, low), fb = sdf(e, high);
-        float t = fa / (fa - fb);
+        // Equal endpoint values (a surface lying on a lattice plane) must not divide 0/0 or x/0.
+        float span = fa - fb;
+        float t = span != 0.0 ? fa / span : 0.5;
+        t = isfinite(t) ? clamp(t, 0.0, 1.0) : 0.5;
         float3 position = low;
         position[axis] = low[axis] + m.resolution * t;
         float3 normal = float3(0.0);

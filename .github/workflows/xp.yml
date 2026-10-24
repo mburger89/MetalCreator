@@ -50,7 +50,7 @@ concurrency:
 
 env:
   METALUI_REPOSITORY: mburger89/MetalUI
-  METALUI_COMMIT: ff0db06e9cdb8d11de8ee2210f695eb08da271fe
+  METALUI_COMMIT: f1c422e52b0ae917dd5c06730dd79521e3489d15
   # microsoft/vcpkg at the commit whose ports/opencascade is 7.9.3 (port-version 1). packaging/windows/vcpkg.json names the same
   # commit as its builtin-baseline; CIPinTests checks they agree.
   VCPKG_COMMIT: 256310531c1e57ee83f8ac01f7bea7c1e56630f5
@@ -243,6 +243,10 @@ jobs:
         with:
           path: ${{ runner.temp }}\shadercross
           key: ${{ steps.shadercross-cache.outputs.cache-primary-key }}
+      - name: Point the tests at the shader compiler
+        # MetalUI's run-time compiler (XP-G25) tries METALUI_SHADERCROSS_LIB first (MetalUI docs/packaging.md 4b). The zip's own check clears it
+        # (scripts/package-windows.ps1), so a zip without the DLLs still fails there.
+        run: '"METALUI_SHADERCROSS_LIB=$env:RUNNER_TEMP\shadercross\bin" >> $env:GITHUB_ENV'
       - name: Fetch AccessKit
         working-directory: MetalUI/Backends/SDL
         # One SwiftPM flag per line: -Xcc -I<include> -Xswiftc -L<lib> (MetalUI PX-I item 2).
@@ -264,6 +268,20 @@ jobs:
           $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB") +
                    @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
           swift build @flags
+          exit $LASTEXITCODE
+      - name: Compile the generated kernels
+        working-directory: MetalCreator
+        # The Linux counterpart is scripts/linux-test.sh kernels: GeneratedKernelBuildTests (required where MetalUISDLGPU imports) needs every
+        # generated kernel's .spv, .dxil, .msl and .json. The test target exports their HLSL, then the pinned SDL_shadercross compiles it
+        # (which validates each kernel through DXC and DXIL).
+        run: |
+          $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB", "-Xlinker", "/STACK:16777216") +
+                   @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
+          $env:XP_EXPORT_KERNELS = "1"
+          swift test @flags --filter GeneratedKernelExport
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Remove-Item Env:XP_EXPORT_KERNELS
+          scripts\compile-generated-kernels.ps1 -ShaderCross "$env:RUNNER_TEMP\shadercross\bin\shadercross.exe"
           exit $LASTEXITCODE
       - name: Test
         id: test
@@ -318,8 +336,8 @@ jobs:
         run: |
           $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB") +
                    @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
-          scripts\package-windows.ps1 -NoBuild -BuildFlags $flags -SdlRoot $env:SDL3_ROOT
-          exit $LASTEXITCODE
+          scripts\package-windows.ps1 -NoBuild -BuildFlags $flags -SdlRoot $env:SDL3_ROOT -ShaderCrossRoot "$env:RUNNER_TEMP\shadercross"
+          if (-not $?) { exit 1 }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         with:

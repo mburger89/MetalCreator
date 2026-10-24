@@ -110,7 +110,7 @@ unchanged in look and behaviour.
 | # | Gap | Needed by |
 |---|---|---|
 | XP-G1 | App access to SDL_GPU through `GPUSurface` (CSDL types or a portable GPU API), a shader build path for apps, MSAA resolve, depth targets, instanced draws, storage buffers, mipmapped r8 textures, texture readback | xp-3 |
-| XP-G2 | Portable compute (SDL GPU compute) for 7c's implicit engine | after xp-3 |
+| XP-G2 | Portable compute (SDL GPU compute) for 7c's implicit engine | after xp-3. **Answered by MetalUI S5**; used by xp-c with XP-G25 (erratum E8) |
 | XP-G3 | Custom chrome or hidden title bar on SDL (divergence 276) | polish; xp-1 accepted the system title bar. **Fixed by MetalUI S1** (record §112, `CW-`, master `ceca59f6`) and adopted after xp-1 (erratum E5); the drag regions need XP-G11 before xp-3 |
 | XP-G4 | Grey pixels and EXIF orientation from PNG/JPEG without ImageIO | xp-1 (Image Field). **Fixed by MetalUI S2** (record §113, `IB-`) and adopted after xp-1 (erratum E4); the header-only read came with MetalUI S9 (XP-G10, erratum E6) |
 | XP-G5 | Open-document events on SDL (divergence 176) | xp-2. **Answered:** `Platform.onOpenURLs` (SDL drop with window 0) → `.onOpenURL` routing; command-line files via `app.open(…)` after the first window (MetalUI `docs/packaging.md`, "Launch arguments"); `.desktop` `Exec=… %F` + `MimeType=` |
@@ -175,3 +175,15 @@ beyond what MetalUI provides; macOS CI; Intel macOS.
   (`FloatMatrix4`), `CubeLabelAtlas` rasterizes through MetalUI's `TextSystem`, `ViewportPlaceholder` is gone, `--smoke-test` requires the viewport to
   have drawn, and `--self-test` checks the viewport's compiled shaders. Section 2.3's second bullet (the card) and human check XP-2 no longer hold.
   Implicit evaluation and meshing stay on the CPU off macOS (xp-c).
+- **E8 (xp-c, XP-G2 and E7's last sentence). Implicit evaluation and meshing on SDL GPU, as on macOS.** The user ruled (2026-10-22) that Linux and Windows
+  follow macOS: `ImplicitCompiler`'s walk writes HLSL as well as MSL (`ShaderDialect`; the `sdf` statement for statement, the same buffers; the MSL bytes
+  unchanged, pinned by digests), one source per kernel, compiled while the app runs and cached by the source's digest (`HLSLImplicitEngine`, the twin of
+  `MetalImplicitEngine`, over MetalUI's SDL_GPU compute on an owned headless device). Run-time compilation is MetalUI's `SDLGPUShaderCompiler` (gap XP-G25, MetalUI `722f0cd6`, adopted by plan xp-c task 11: SDL_shadercross's library
+  and DXC, loaded while the app runs), each kernel compiled once on a compile thread of the engine's own and cached by its digest; **E7's last
+  sentence no longer holds: Linux and Windows evaluate and mesh on the GPU.** The tests compile the generated HLSL at run time on lavapipe and WARP;
+  the Mac, whose build has no SDL, runs it as the MSL kernels the build-time SDL_shadercross compiled offline (`scripts/linux-test.sh kernels`).
+  Fall-backs: no SDL_GPU device, the CPU silently; the compiler library missing (MetalUI's `compilerUnavailable`
+  lists the paths tried), a pipeline refused, or a source DXC refuses (`compileFailed`, DXC's text), the CPU: the node says just "Running on the CPU", and the reason goes to `Selection.diagnostic` and `--self-test`, never to the node's text; the badge says "Vulkan" or
+  "Direct3D 12". The tarball and the AppImage ship `libSDL3_shadercross.so.0`, `libdxcompiler.so` and `libspirv-cross-c-shared.so.0` in `lib/`, the zip `SDL3_shadercross.dll`, `dxcompiler.dll`, `dxil.dll` and `spirv-cross-c-shared.dll` beside the `.exe`, with their licences (MetalUI `packaging.md` §4b; plan xp-c task 12); `--self-test` runs MetalUI's compiler self-test and fails without them. Exports are byte-identical run to run on one machine, as
+  on macOS (they stream through the CPU mesher over the engine's values); bytes across machines or backends are not promised, D15's tolerances are.
+  The device's name is the adapter's (MetalUI `adapterName`, XP-G23), with "(software)" on lavapipe or WARP, which are used like any GPU (X-C5); buffers and dispatches are sized to SDL_GPU's guaranteed floors (`limits`, XP-G24: 128 MiB, 65,535 groups), so the edge table stays at 2^25 slots.

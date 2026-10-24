@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorImplicit
 import CreatorKernel
 import Foundation
 import MetalUI
@@ -59,6 +60,10 @@ public enum SelfTest {
             try compileShaders()
             return shadersDetail
         })
+        results.append(await check("implicit engine") { await ImplicitEngineCheck.run() })
+        if ImplicitEngineCheck.hasRuntimeCompiler {
+            results.append(await check("implicit compiler") { try await ImplicitEngineCheck.compilerSelfTest() })
+        }
         return SelfTestReport(results: results)
     }
 

@@ -1,10 +1,9 @@
-#if canImport(Metal)
 import CreatorGeometry
 import Testing
 @testable import CreatorImplicit
 
 /// The GPU mesher against the CPU mesher (implicit spec §4.3, §7, Errata D13): the same fixtures as the evaluator's agreement suite,
-/// meshed both ways. Compiled only where Metal exists and skipped on a machine without a Metal device.
+/// meshed both ways. Run over every GPU engine this machine has (`GPUEnginesUnderTest`), skipped on a machine with none.
 ///
 /// Two comparisons, because there are two things that can differ:
 /// - **The mesher**, with the same sample values: the CPU mesher over the GPU engine's values (what meshing was before D13) against
@@ -21,7 +20,7 @@ import Testing
 /// is 5e-4 mm at 4 m, so D13's 1e-4 mm cannot hold for a far part (`MetalMeshingLimitsTests` checks that one's bounds to 1 mm).
 /// The normals (dot product at least 0.9999 on the same samples, 0.999 whole) and the enclosed volume (1e-3, and positive: a
 /// reversed winding is negative) are held too, because `MeshTopology` sees neither an inverted normal nor an inside-out mesh.
-@Suite(.enabled(if: MetalImplicitEngine.shared != nil, "needs a Metal device"))
+@Suite(.enabled(if: !GPUEnginesUnderTest.names.isEmpty, "needs a GPU engine: \(GPUEnginesUnderTest.unavailableReason)"))
 struct GPUMeshAgreementTests {
     /// Errata D13: vertices within 1e-4 mm after the snap.
     static let vertexTolerance: Float = 1e-4
@@ -70,52 +69,67 @@ struct GPUMeshAgreementTests {
         return max(0.53, max(size.x, size.y, size.z) / 60)
     }
 
-    static func expectSameTopology(_ gpu: TriangleMesh, _ cpu: TriangleMesh, _ name: String) {
+    static func expectSameTopology(_ gpu: TriangleMesh, _ cpu: TriangleMesh, _ name: String, _ engineName: String) {
         let (g, c) = (MeshTopology(gpu), MeshTopology(cpu))
-        #expect(g.isClosedManifold && c.isClosedManifold, "\(name): closed and manifold")
-        #expect(g.eulerCharacteristic == c.eulerCharacteristic, "\(name): Euler \(g.eulerCharacteristic) against \(c.eulerCharacteristic)")
+        #expect(g.isClosedManifold && c.isClosedManifold, "\(engineName), \(name): closed and manifold")
+        #expect(g.eulerCharacteristic == c.eulerCharacteristic,
+                "\(engineName), \(name): Euler \(g.eulerCharacteristic) against \(c.eulerCharacteristic)")
         let difference = Double(abs(g.triangleCount - c.triangleCount)) / Double(c.triangleCount)
-        #expect(difference <= triangleTolerance, "\(name): \(g.triangleCount) triangles against \(c.triangleCount)")
-        #expect(abs(gpu.vertexCount - cpu.vertexCount) <= max(1, Int(Double(cpu.vertexCount) * triangleTolerance)), "\(name): vertices")
+        #expect(difference <= triangleTolerance, "\(engineName), \(name): \(g.triangleCount) triangles against \(c.triangleCount)")
+        #expect(abs(gpu.vertexCount - cpu.vertexCount) <= max(1, Int(Double(cpu.vertexCount) * triangleTolerance)),
+                "\(engineName), \(name): vertices")
         // Triangles wind counter-clockwise seen from outside, like the CPU's: `MeshTopology` only checks that they agree with each
         // other, so the enclosed volume (negative for a mesh turned inside out) is what tells.
-        #expect(cpu.signedVolume > 0, "\(name): the reference is wound outwards")
+        #expect(cpu.signedVolume > 0, "\(engineName), \(name): the reference is wound outwards")
         #expect(gpu.signedVolume > 0 && abs(gpu.signedVolume - cpu.signedVolume) <= volumeTolerance * cpu.signedVolume,
-                "\(name): volume \(gpu.signedVolume) against \(cpu.signedVolume)")
+                "\(engineName), \(name): volume \(gpu.signedVolume) against \(cpu.signedVolume)")
     }
 
-    @Test(arguments: names)
-    func theGPUMeshAgreesWithTheCPUMesh(_ name: String) async throws {
-        let engine = try #require(MetalImplicitEngine.shared)
+    @Test(arguments: GPUEnginesUnderTest.names, names)
+    func theGPUMeshAgreesWithTheCPUMesh(_ engineName: String, _ name: String) async throws {
+        let engine = try GPUEnginesUnderTest.engine(engineName)
         let solid = try #require(GPUFixtures.all.first { $0.name == name }?.solid)
         let resolution = Self.resolution(of: solid)
         let selection = await ImplicitEvaluators.make(for: solid, choice: .automatic, engine: engine)
         let gpu = try await ImplicitMesher(evaluator: selection.evaluator)
             .meshReportingPath(solid, resolution: resolution, quality: .preview)
-        #expect(gpu.path == .gpu, "\(name): the GPU mesher ran")
+        #expect(gpu.path == .gpu, "\(engineName), \(name): the GPU mesher ran")
 
         // The mesher alone: the same sample values.
         let sameSamples = try await ImplicitMesher(evaluator: SamplesOnlyEvaluator(inner: selection.evaluator))
             .meshReportingPath(solid, resolution: resolution, quality: .preview)
         #expect(sameSamples.path == .cpu)
-        Self.expectSameTopology(gpu.mesh, sameSamples.mesh, name)
+        Self.expectSameTopology(gpu.mesh, sameSamples.mesh, name, engineName)
         let mesher = MeshComparison(reference: sameSamples.mesh, candidate: gpu.mesh)
-        #expect(mesher.unmatched == 0, "\(name): vertices without a match")
-        #expect(mesher.farthest <= Self.vertexTolerance, "\(name): the largest vertex difference is \(mesher.farthest) mm")
-        #expect(mesher.smallestNormalDot >= Self.mesherNormalDot, "\(name): a normal differs: dot \(mesher.smallestNormalDot)")
+        #expect(mesher.unmatched == 0, "\(engineName), \(name): vertices without a match")
+        // A vertex whose Newton step was clamped at half a voxel slides along the surface by up to ~40 times the ulp by which the two
+        // meshers' interpolations (Float on the GPU, Double on the CPU) put it before the step; it is held to D15's surface 1e-4 mm
+        // along the normal and the slide tolerance, every other vertex to 1e-4 mm (plan xp-c, CI ruling "clamped snap").
+        let unsnapped = try await ImplicitMesher(evaluator: SamplesOnlyEvaluator(inner: selection.evaluator))
+            .mesh(solid, resolution: resolution, quality: .preview, snap: false)
+        let clamped = MeshComparison.nearClampedVertex(unsnapped: unsnapped, snapped: sameSamples.mesh, limit: Float(resolution / 2))
+        let free = MeshComparison(reference: sameSamples.mesh, candidate: gpu.mesh, excluding: clamped)
+        let held = MeshComparison(reference: sameSamples.mesh, candidate: gpu.mesh, excluding: { !clamped($0) })
+        #expect(free.farthest <= Self.vertexTolerance, "\(engineName), \(name): the largest vertex difference is \(free.farthest) mm")
+        #expect(held.farthestAlongNormal <= Self.vertexTolerance && held.farthest <= Self.slideTolerance,
+                "\(engineName), \(name): a clamped vertex is \(held.farthestAlongNormal) mm off the surface, \(held.farthest) mm away")
+        #expect(mesher.smallestNormalDot >= Self.mesherNormalDot,
+                "\(engineName), \(name): a normal differs: dot \(mesher.smallestNormalDot)")
 
         // The whole pipeline: the CPU evaluator is the reference.
         let reference = try await ImplicitMesher(evaluator: CPUBatchEvaluator(solid)).mesh(solid, resolution: resolution, quality: .preview)
-        Self.expectSameTopology(gpu.mesh, reference, name)
+        Self.expectSameTopology(gpu.mesh, reference, name, engineName)
         let slopes = try await Self.slopes(of: solid, at: reference.positions)
         let pipeline = MeshComparison(reference: reference, candidate: gpu.mesh, slopes: slopes)
-        #expect(pipeline.unmatched == 0, "\(name): vertices without a match")
+        #expect(pipeline.unmatched == 0, "\(engineName), \(name): vertices without a match")
         let detail = pipeline.worstScaledDetail
         let factor = GPUFixtures.meshAllowanceFactor(name)
         let apart = "surfaces \(detail.along) mm apart, \(detail.allowed) allowed (× \(factor))"
-        #expect(pipeline.worstScaledSurface <= factor, "\(name): \(apart)")
-        #expect(pipeline.farthest <= Self.slideTolerance, "\(name): the largest vertex difference is \(pipeline.farthest) mm")
-        #expect(pipeline.smallestNormalDot >= Self.pipelineNormalDot, "\(name): a normal differs: dot \(pipeline.smallestNormalDot)")
+        #expect(pipeline.worstScaledSurface <= factor, "\(engineName), \(name): \(apart)")
+        #expect(pipeline.farthest <= Self.slideTolerance,
+                "\(engineName), \(name): the largest vertex difference is \(pipeline.farthest) mm")
+        #expect(pipeline.smallestNormalDot >= Self.pipelineNormalDot,
+                "\(engineName), \(name): a normal differs: dot \(pipeline.smallestNormalDot)")
     }
 
     /// The Face fixtures that hold the cylinder's axis (`GPUFixtures.singularSetNames`), whole pipeline, away from the axis: their values
@@ -123,30 +137,32 @@ struct GPUMeshAgreementTests {
     /// rounding (2e-5 mm) into slides of up to 2e-3 mm along near-tangent mesh edges, so the vertices inside a cylinder of
     /// `GPUFixtures.singularSetExclusion` about the axis are left out and the rest are held to D17's allowance (spec Errata D20). The
     /// topology and the volume are not compared: the exclusion's inside may differ by a triangle or two.
-    @Test(arguments: GPUFixtures.singularSetNames)
-    func theGPUMeshAgreesAwayFromTheSingularSet(_ name: String) async throws {
-        let engine = try #require(MetalImplicitEngine.shared)
+    @Test(arguments: GPUEnginesUnderTest.names, GPUFixtures.singularSetNames)
+    func theGPUMeshAgreesAwayFromTheSingularSet(_ engineName: String, _ name: String) async throws {
+        let engine = try GPUEnginesUnderTest.engine(engineName)
         let solid = try #require(LatticeFixtures.faceAll.first { $0.name == name }?.solid)
         let resolution = Self.resolution(of: solid)
         let selection = await ImplicitEvaluators.make(for: solid, choice: .automatic, engine: engine)
         let gpu = try await ImplicitMesher(evaluator: selection.evaluator)
             .meshReportingPath(solid, resolution: resolution, quality: .preview)
-        #expect(gpu.path == .gpu, "\(name): the GPU mesher ran")
+        #expect(gpu.path == .gpu, "\(engineName), \(name): the GPU mesher ran")
         let reference = try await ImplicitMesher(evaluator: CPUBatchEvaluator(solid)).mesh(solid, resolution: resolution, quality: .preview)
         let slopes = try await Self.slopes(of: solid, at: reference.positions)
         let pipeline = MeshComparison(reference: reference, candidate: gpu.mesh, slopes: slopes, excluding: GPUFixtures.nearSingularSet)
-        #expect(pipeline.unmatched == 0, "\(name): vertices without a match")
+        #expect(pipeline.unmatched == 0, "\(engineName), \(name): vertices without a match")
         let detail = pipeline.worstScaledDetail
         let factor = GPUFixtures.singularSetAllowanceFactor(name)
         let apart = "surfaces \(detail.along) mm apart, \(detail.allowed) allowed (× \(factor))"
-        #expect(pipeline.worstScaledSurface <= factor, "\(name): \(apart)")
-        #expect(pipeline.farthest <= Self.slideTolerance, "\(name): the largest vertex difference is \(pipeline.farthest) mm")
-        #expect(pipeline.smallestNormalDot >= Self.pipelineNormalDot, "\(name): a normal differs: dot \(pipeline.smallestNormalDot)")
+        #expect(pipeline.worstScaledSurface <= factor, "\(engineName), \(name): \(apart)")
+        #expect(pipeline.farthest <= Self.slideTolerance,
+                "\(engineName), \(name): the largest vertex difference is \(pipeline.farthest) mm")
+        #expect(pipeline.smallestNormalDot >= Self.pipelineNormalDot,
+                "\(engineName), \(name): a normal differs: dot \(pipeline.smallestNormalDot)")
     }
 
-    @Test(arguments: ["sphere", "box", "smooth union", "graded offset"])
-    func withoutTheSnapTheVerticesStillAgreeAndTheNormalsAreZero(_ name: String) async throws {
-        let engine = try #require(MetalImplicitEngine.shared)
+    @Test(arguments: GPUEnginesUnderTest.names, ["sphere", "box", "smooth union", "graded offset"])
+    func withoutTheSnapTheVerticesStillAgreeAndTheNormalsAreZero(_ engineName: String, _ name: String) async throws {
+        let engine = try GPUEnginesUnderTest.engine(engineName)
         let solid = try #require(GPUFixtures.all.first { $0.name == name }?.solid)
         let resolution = Self.resolution(of: solid)
         let selection = await ImplicitEvaluators.make(for: solid, choice: .automatic, engine: engine)
@@ -155,9 +171,9 @@ struct GPUMeshAgreementTests {
         let cpu = try await ImplicitMesher(evaluator: SamplesOnlyEvaluator(inner: selection.evaluator))
             .mesh(solid, resolution: resolution, quality: .preview, snap: false)
         #expect(gpu.path == .gpu && gpu.mesh.normals.allSatisfy { $0 == .zero })
-        Self.expectSameTopology(gpu.mesh, cpu, name)
+        Self.expectSameTopology(gpu.mesh, cpu, name, engineName)
         let comparison = MeshComparison(reference: cpu, candidate: gpu.mesh)
-        #expect(comparison.unmatched == 0 && comparison.farthest <= Self.vertexTolerance, "\(name): \(comparison.farthest) mm")
+        #expect(comparison.unmatched == 0 && comparison.farthest <= Self.vertexTolerance,
+                "\(engineName), \(name): \(comparison.farthest) mm")
     }
 }
-#endif

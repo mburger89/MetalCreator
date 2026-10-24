@@ -8,7 +8,12 @@ public struct BrickLattice: Sendable, Equatable {
     /// The lowest brick coordinates among the bricks.
     public let minBrick: SIMD3<Int32>
     /// How many bricks the window spans on each axis.
-    public let extent: SIMD3<Int>
+    public var extent: SIMD3<Int> { SIMD3(extentX, extentY, extentZ) }
+    // Stored as scalars, not a `SIMD3<Int>`: that has 32-byte alignment, Swift's async frames keep 16, and on Windows a copy of it
+    // held by an `async` function (`HLSLImplicitEngine.meshBricks`) was an aligned vector move on a 16-aligned slot (a general protection fault).
+    private let extentX: Int
+    private let extentY: Int
+    private let extentZ: Int
 
     /// The key an engine uses for "no edge here".
     public static let emptyKey = UInt32.max
@@ -22,7 +27,9 @@ public struct BrickLattice: Sendable, Equatable {
             high = high.replacing(with: brick, where: brick .> high)
         }
         minBrick = low
-        extent = SIMD3(Int(high.x) - Int(low.x) + 1, Int(high.y) - Int(low.y) + 1, Int(high.z) - Int(low.z) + 1)
+        extentX = Int(high.x) - Int(low.x) + 1
+        extentY = Int(high.y) - Int(low.y) + 1
+        extentZ = Int(high.z) - Int(low.z) + 1
     }
 
     /// The lattice points on each axis: eight voxels a brick, and the last brick's far layer.

@@ -15,7 +15,8 @@
 # the DirectXShaderCompiler fork built from source (MetalUI measured 6 min 45 s at -j8 on Linux aarch64). Like `occt` it starts from the
 # public Swift image and is a stage of its own, so the caches skip it until SHADERCROSS_COMMIT or SHADERCROSS_JOBS change and a new
 # OpenCascade pin never rebuilds it (nor the reverse); CI builds it alone (`--target shadercross`) and hands it in as SHADERCROSS_IMAGE.
-# The final stage copies /opt/shadercross; scripts/build-shaders.sh runs it through MetalUI's MetalUICompileShaders.
+# The final stage copies /opt/shadercross; scripts/build-shaders.sh runs it through MetalUI's MetalUICompileShaders. Its shared libraries are also
+# the implicit engine's run-time compiler (plan xp-c, MetalUI XP-G25), which the tests load from /opt/shadercross/lib and the tarball ships in lib/.
 ARG BASE=metalui-portable:latest
 ARG OCCT_IMAGE=occt
 ARG SHADERCROSS_IMAGE=shadercross
@@ -74,8 +75,22 @@ RUN git clone -q https://github.com/libsdl-org/SDL_shadercross.git /tmp/sc \
     && cmake -S /tmp/sc -B /tmp/sc/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
          -DCMAKE_PREFIX_PATH=/opt/shadercross -DSDLSHADERCROSS_VENDORED=ON -DSDLSHADERCROSS_INSTALL=ON \
          -DSDLSHADERCROSS_INSTALL_RUNTIME=OFF -DSDLSHADERCROSS_CLI=ON "-DCMAKE_INSTALL_RPATH=\$ORIGIN/../lib" \
+         -DSDLSHADERCROSS_SHARED=ON -DSDLSHADERCROSS_SPIRVCROSS_SHARED=ON \
     && cmake --build /tmp/sc/build --parallel ${SHADERCROSS_JOBS} && cmake --install /tmp/sc/build --prefix /opt/shadercross \
-    && echo "${SHADERCROSS_COMMIT}" > /opt/shadercross/COMMIT && rm -rf /tmp/sc
+    && echo "${SHADERCROSS_COMMIT}" > /opt/shadercross/COMMIT \
+    && mkdir -p /opt/shadercross/share/licenses/DirectXShaderCompiler /opt/shadercross/share/licenses/SPIRV-Cross \
+         /opt/shadercross/share/licenses/SPIRV-Tools /opt/shadercross/share/licenses/SPIRV-Headers \
+    && cp /tmp/sc/external/DirectXShaderCompiler/LICENSE.TXT /tmp/sc/external/DirectXShaderCompiler/ThirdPartyNotices.txt \
+         /opt/shadercross/share/licenses/DirectXShaderCompiler/ \
+    && cp /tmp/sc/external/SPIRV-Cross/LICENSE /opt/shadercross/share/licenses/SPIRV-Cross/ \
+    && cp /tmp/sc/external/SPIRV-Tools/LICENSE /opt/shadercross/share/licenses/SPIRV-Tools/ \
+    && cp /tmp/sc/external/SPIRV-Headers/LICENSE /opt/shadercross/share/licenses/SPIRV-Headers/ \
+    && rm -rf /tmp/sc
+# The implicit engine's run-time compiler ships these (plan xp-c task 12, MetalUI docs/packaging.md 4b); fail here naming the one that is missing.
+RUN for f in lib/libSDL3_shadercross.so.0 lib/libdxcompiler.so lib/libspirv-cross-c-shared.so.0 share/licenses/SDL3_shadercross/LICENSE.txt \
+             share/licenses/DirectXShaderCompiler/LICENSE.TXT share/licenses/DirectXShaderCompiler/ThirdPartyNotices.txt \
+             share/licenses/SPIRV-Cross/LICENSE share/licenses/SPIRV-Tools/LICENSE share/licenses/SPIRV-Headers/LICENSE; do \
+        test -s "/opt/shadercross/$f" || { echo "the shadercross stage did not leave $f" >&2; exit 1; }; done
 
 # COPY --from takes no variable, so the stage or image to copy from is named by a FROM line.
 FROM ${OCCT_IMAGE} AS occt-source

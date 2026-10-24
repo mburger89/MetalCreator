@@ -2122,3 +2122,27 @@ compiled shaders; these checks are what a real GPU, a real pointer and a person'
   size and position, upright and readable at a slant. They are now rasterized through MetalUI's `CoreTextTextSystem` instead of a direct
   `CTLineDraw`, so antialiasing may differ by a hair; anything more (a different weight, size or font) is a bug in
   `CubeLabelAtlas.rasterize(using:)`. **Pinned:** `CubeLabelTests`, `OffscreenRenderTests.theFrontLabelIsPaintedOnTheFrontFace`. **Observed:**
+
+## Group XPC — implicit evaluation and meshing on SDL GPU, Linux and Windows (xp-c)
+
+**Status: NOT RUN.** Specs: cross-platform E8, implicit D21. CI holds the engine to the CPU on
+lavapipe and WARP, compiling at run time; these checks are a real GPU, a person's eye and a stopwatch.
+
+- [ ] **XP-27 Lattice previews on a desktop GPU (Linux and Windows).** A graph with a TPMS node filling a 100 mm cube and a Mesh node: the badge says
+  "Vulkan" (Linux) or "Direct3D 12" (Windows); the very first preview, which compiles the shape's kernels, appears within about 2 s (x-4, proposed); a
+  thickness drag re-meshes within about a tenth of a second a pass (i-2) and never pauses to compile; a new shape (switch the TPMS type) pauses once,
+  then not again. The surface looks as on a Mac. For numbers, `METALCREATOR_BENCH=1 swift test -c release --no-parallel --filter "ImplicitBenchHLSL|ImplicitBench/(theFirstPreview|aThicknessEdit)"`
+  on that machine, into `docs/verification/performance.md`. **Pinned:** `GPUAgreementTests`, `GPUMeshAgreementTests`, `HLSLRuntimeCompileTests`. **Observed:**
+- [ ] **XP-28 The same export twice.** Export the Mesh as STL twice, and as 3MF twice: `cmp a.stl b.stl` (Linux), `fc /b a.stl b.stl` (Windows) say
+  identical, as on a Mac. **Pinned:** `StreamingMesherGPUTests.exportingTheSameSolidTwiceGivesTheSameBytes`. **Observed:**
+- [ ] **XP-29 A package without its compiler.** Unpack the tarball (or the zip), move
+  `lib/libSDL3_shadercross.so.0` (or `SDL3_shadercross.dll` beside the `.exe`) out, and launch it away from any checkout, with no
+  `METALUI_SHADERCROSS_LIB` set: the app runs, a Mesh node meshes, its badge says "Running on the CPU"; `--self-test` fails at "implicit compiler"
+  naming the paths tried. Put it back: "Vulkan" (or "Direct3D 12") after a relaunch. On Windows, also move only `dxil.dll` out and relaunch: does a Mesh
+  node still mesh on the GPU? (MetalUI RC1; we ship it either way.) **Pinned:** `HLSLRuntimeCompileTests.aMissingCompilerLibraryIsBrokenAndNamesWhatItTried`, task 12's package checks,
+  `linux-test.sh package`'s and `package-windows.ps1`'s without-the-compiler arms. **Observed:**
+- [ ] **XP-30 The packages find their compiler on a real desktop (MetalUI RC2).** On a Linux desktop with a GPU and no SDL_shadercross installed, no
+  `LD_LIBRARY_PATH` and no `METALUI_SHADERCROSS_LIB`: unpack the tarball anywhere and run `./MetalCreator --self-test` (the "implicit compiler" line names
+  `libSDL3_shadercross.so.0` and a driver other than "none"), then `LD_DEBUG=libs ./MetalCreator --self-test 2>&1 | grep dxcompiler` shows the package's
+  own `lib/`; the same for the AppImage (double-clicked, with FUSE), its `usr/metalcreator/lib`. **Pinned:** `linux-test.sh package`'s clean-Ubuntu
+  checks (no GPU there). **Observed:**

@@ -7,7 +7,15 @@ import CreatorGeometry
 /// are meshed; the surface closes across their faces because every edge of the lattice has one vertex, whichever bricks reach it.
 public struct BrickMeshRequest: Sendable, Equatable {
     /// The world position of lattice point (0, 0, 0), in millimetres.
-    public var origin: SIMD3<Double>
+    public var origin: SIMD3<Double> {
+        get { SIMD3(originX, originY, originZ) }
+        set { (originX, originY, originZ) = (newValue.x, newValue.y, newValue.z) }
+    }
+    // Scalars, not a `SIMD3<Double>` (32-byte alignment): an async frame keeps 16, and on Windows `HLSLImplicitEngine.meshBricks`,
+    // which holds the request across awaits, faulted on the aligned vector move. See `BrickLattice.extent`.
+    private var originX: Double
+    private var originY: Double
+    private var originZ: Double
     /// The voxel size in millimetres.
     public var resolution: Double
     /// Integer brick coordinates, as `BrickPlan.bricks` lists them (sorted by x, then y, then z, which an engine may rely on).
@@ -16,7 +24,7 @@ public struct BrickMeshRequest: Sendable, Equatable {
     public var snap: Bool
 
     public init(origin: SIMD3<Double>, resolution: Double, bricks: [SIMD3<Int32>], snap: Bool) {
-        self.origin = origin
+        (originX, originY, originZ) = (origin.x, origin.y, origin.z)
         self.resolution = resolution
         self.bricks = bricks
         self.snap = snap

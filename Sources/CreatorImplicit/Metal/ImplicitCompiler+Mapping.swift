@@ -44,9 +44,9 @@ extension ImplicitCompiler.Generator {
         let flags = (chart.firstSine == nil ? 0 : 1) | (chart.secondSine == nil ? 0 : 2)
         integers += [Int32(flags)] + slots.flatMap { [Int32($0.integers), Int32($0.parameters)] }
         let (first, second) = (number(map.firstRadius ?? 1), number(map.secondRadius ?? 1))
-        let coordinates = declareVector("mapFace(e, \(header), \(p), \(first), \(second))")
+        let coordinates = declareVector("mapFace(\(dialect.environment)\(header), \(p), \(first), \(second))")
         guard let blocks = chart.singular else { return (coordinates, nil) }
         let slot = register(blocks)
-        return (coordinates, declare("bakedChannel(e, \(slot.integers), \(slot.parameters), \(p))"))
+        return (coordinates, declare("bakedChannel(\(dialect.environment)\(slot.integers), \(slot.parameters), \(p))"))
     }
 }

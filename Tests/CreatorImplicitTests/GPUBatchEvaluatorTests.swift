@@ -41,12 +41,15 @@ struct GPUBatchEvaluatorTests {
         await #expect(throws: CancellationError.self) { try await task.value }
     }
 
-    @Test func thePlatformEngineIsMetalOrNothing() async {
-        // Where Metal exists and has a device this is the Metal engine; elsewhere it is nil and the CPU does everything.
-        if let engine = ImplicitGPUEngines.platformDefault {
-            #expect(engine.name == "Metal")
-        } else {
-            #expect(ImplicitGPUEngines.platformDefault == nil)
-        }
+    @Test func thePlatformEngineIsTheMachines() async {
+        // Metal on a Mac with a device; off macOS the HLSL engine over SDL_GPU (since xp-c task 11), which says itself whether it can run here.
+        guard let engine = ImplicitGPUEngines.platformDefault else { return }
+        #if canImport(Metal)
+        #expect(engine.name == "Metal")
+        #elseif os(Windows)
+        #expect(engine.name == "Direct3D 12")
+        #else
+        #expect(engine.name == "Vulkan")
+        #endif
     }
 }

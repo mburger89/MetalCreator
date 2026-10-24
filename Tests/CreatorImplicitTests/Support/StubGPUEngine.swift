@@ -26,12 +26,16 @@ actor StubGPUEngine: ImplicitGPUEngine {
     private(set) var cancels = 0
     private var solids: [UUID: ImplicitSolid] = [:]
 
+    private let reported: ImplicitEngineAvailability
+
     nonisolated let name = "Stub"
+    var availability: ImplicitEngineAvailability { reported }
     var deviceName: String { "stub device" }
 
-    init(failure: ImplicitCompileError? = nil, meshing: Meshing = .unsupported) {
+    init(failure: ImplicitCompileError? = nil, meshing: Meshing = .unsupported, availability: ImplicitEngineAvailability = .available) {
         self.failure = failure
         self.meshing = meshing
+        self.reported = availability
     }
 
     /// Remembers which solid a program came from, so `evaluate` can answer with the CPU.
