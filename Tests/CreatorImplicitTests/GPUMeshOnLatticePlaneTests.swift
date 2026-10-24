@@ -51,9 +51,10 @@ struct GPUMeshOnLatticePlaneTests {
         let cpu = solid.signedDistances(at: Self.boundsFacePoints.map { Vector3(Double($0.x), Double($0.y), Double($0.z)) })
         let exact = engineName != "Metal"
         let differing = cpu.indices.filter { cpu[$0] != 0 || (gpu[$0] < 0) != (cpu[$0] < 0) || (exact && gpu[$0] != Float(cpu[$0])) }
+        let first = differing.first.map { "\(Self.boundsFacePoints[$0]): GPU \(gpu[$0]), CPU \(cpu[$0])" } ?? ""
         #expect(differing.isEmpty, """
-            \(engineName): \(differing.count) of \(cpu.count) points on the bounds faces differ from the CPU's 0\(exact ? "" : " in sign"); \
-            the first is \(differing.first.map { "\(Self.boundsFacePoints[$0]): GPU \(gpu[$0]), CPU \(cpu[$0])" } ?? "")
+            \(engineName): \(differing.count) of \(cpu.count) points on the bounds faces differ \
+            from the CPU's 0\(exact ? "" : " in sign"); the first is \(first)
             """)
     }
 

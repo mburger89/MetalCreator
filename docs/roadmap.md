@@ -1,7 +1,7 @@
 # Roadmap
 
 This page gathers the sub-projects in one place. Each sub-project has its own spec in `docs/superpowers/specs/`, which is binding,
-and its own plans in `docs/superpowers/plans/`. The order below is the build order. Status is as of 2026-10-22.
+and its own plans in `docs/superpowers/plans/`. The order below is the build order. Status is as of 2026-10-23.
 
 | # | Sub-project | Spec | Status |
 |---|---|---|---|
@@ -13,7 +13,7 @@ and its own plans in `docs/superpowers/plans/`. The order below is the build ord
 | 7b | Fields | `2026-10-12-fields-design.md` | done |
 | 7c | Implicit geometry and lattices | `2026-10-13-implicit-lattices-design.md` | in progress (7c-4 is merged, 7d next): 7c-1, 7c-1g, 7c-2, 7c-3 and 7c-3f are merged; 7c-3's two known issues (trapped voids and thin walls, erratum M5) are resolved by 7c-3f (erratum D18: a blended skin join and robust checks; merged with the acceptance met: 0 voids, 0 thin walls; human check IL-10 pending); 7c-4 conformal (Cylindrical, Spherical and Face mappings on the three lattice nodes, Errata D20) is merged, its human checks IM-14 to IM-18 pending |
 | 7d | Surface textures (knurl, hex, voronoi, embossed skins by displacement) | not written | after 7c |
-| XP | Cross-platform: Linux and Windows on MetalUI's SDL backend | `2026-10-13-cross-platform-design.md` | xp-1 (everything but the viewport and OCCT) merged; xp-2 (OCCT on Linux and Windows, tarball, AppImage, zip; plan `2026-10-21-xp-2-occt-linux-windows.md`) merged; xp-3 (the 3D viewport on SDL GPU, Metal kept on macOS; plan `2026-10-21-xp-3-sdl-gpu-viewport.md`) merged, its human checks XP-20 to XP-26 pending; xp-c (GPU meshing on SDL3) comes next |
+| XP | Cross-platform: Linux and Windows on MetalUI's SDL backend | `2026-10-13-cross-platform-design.md` | xp-1 (everything but the viewport and OCCT) merged; xp-2 (OCCT on Linux and Windows, tarball, AppImage, zip; plan `2026-10-21-xp-2-occt-linux-windows.md`) merged; xp-3 (the 3D viewport on SDL GPU, Metal kept on macOS; plan `2026-10-21-xp-3-sdl-gpu-viewport.md`) merged, its human checks XP-20 to XP-26 pending; xp-c (implicit evaluation and meshing on SDL GPU, a shader per shape compiled at run time as on macOS; plan `2026-10-22-xp-c-sdl-gpu-meshing.md`) merged, its human checks XP-27 to XP-30 pending |
 | 8 | Variants and versions UI | not written (graph parameters are already designed for it, slice spec §4.1) | after 7 |
 | 9 | **Class A surfaces** | not written | after 8 (added 2026-10-14) |
 
