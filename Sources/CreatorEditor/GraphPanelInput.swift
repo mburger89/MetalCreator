@@ -179,8 +179,8 @@ public final class GraphPanelInput {
     }
 
     /// A MetalUI scroll event's place in its gesture. Momentum wins over the gesture phase, and its end (or
-    /// cancellation) is its own phase; no phase at all is a wheel step (and every scroll on SDL, which reports none,
-    /// MetalUI `CI-I` item 6).
+    /// cancellation) is its own phase; no phase at all is a wheel step (on SDL a trackpad stream gets synthesized
+    /// phases and `isPrecise`, MetalUI XP-G28; a notched wheel has none; there is no momentum on SDL).
     public static func scrollPhase(of event: ScrollEvent) -> CanvasScrollPhase {
         if event.isMomentum {
             return event.momentumPhase == .ended || event.momentumPhase == .cancelled ? .momentumEnded : .momentum

@@ -202,6 +202,29 @@ struct ScrollZoomTests {
         #expect(settled == [model.pose], "settled once, after the wheel was still for the whole delay")
     }
 
+    /// SDL's synthesized stream (MetalUI XP-G28): precise `.began`/`.changed` events, then one zero-delta `.ended` about
+    /// 0.15 s after the last, and never a momentum phase. It pans, and settles once, `wheelSettleDelay` after the end.
+    @Test func anSDLTrackpadStreamPansAndSettlesOnceAfterTheEnd() async {
+        let clock = GatedClock()
+        let model = ViewportModel(kernel: StubMeshKernel(), pose: start, clock: clock)
+        model.viewSize = size
+        var settled: [CameraPose] = []
+        model.events.cameraSettled = { settled.append($0) }
+        let delay = ViewportInputMap.wheelSettleDelay
+        for _ in 0..<4 { model.scrolled(dx: 6, dy: 3, at: cursor, phase: .moving) }
+        #expect(model.pose.distance == start.distance, "a trackpad stream pans and does not zoom")
+        #expect(model.pose.target != start.target)
+        await clock.advance(by: delay * 2)
+        #expect(settled.isEmpty, "no settle while the stream is open")
+        model.scrolled(dx: 0, dy: 0, at: cursor, phase: .ended)
+        await clock.advance(by: delay * 0.6)
+        #expect(settled.isEmpty, "the settle waits out the whole delay after the end")
+        await clock.advance(by: delay * 0.6)
+        #expect(settled == [model.pose], "settled once")
+        await clock.advance(by: delay * 2)
+        #expect(settled.count == 1)
+    }
+
     /// F, an arrow or a cube click during a scroll starts an animation; the next scroll event takes over from what
     /// is shown, as a drag does, instead of letting the animation finish over it.
     @Test func aScrollEventStopsAnAnimationStartedMidScroll() {

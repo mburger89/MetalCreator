@@ -1345,7 +1345,13 @@ while the app runs, pipelines cached by source.
 - **XP-G27. The compiler needs the SDL trait.** `SDLGPUShaderCompiler` is compiled only under `SDL`; MetalCreator's macOS build asks for no SDL, so the
   Mac's tests cannot compile the generated HLSL at run time (they run the offline MSL). Asked, low priority: the compile to bytes and reflection
   (SPIR-V, MSL) in a product without the SDL trait.
-- **XP-G28. SDL cannot tell a trackpad scroll from a wheel.** The SDL backend sets `isPrecise` false and every scroll phase to `.none`
+- **XP-G28. SDL cannot tell a trackpad scroll from a wheel. Fixed.** The SDL backend sets `isPrecise` false and every scroll phase to `.none`
   (`ScrollEvent` docs, ruling `CI-I` item 6), so on Linux and Windows a trackpad's two-finger scroll arrives as wheel steps. The viewport pans on a trackpad
   scroll and zooms on a wheel (user, 2026-10-24), so off macOS a two-finger scroll still zooms. Asked: report `isPrecise` (SDL 3 wheel events carry
   `SDL_MouseWheelEvent` with a precise float delta and `direction`; a touchpad is a touch device) and, where the OS gives them, gesture phases.
+
+  Closed by MetalUI `bc747b6b` (PR #135): the SDL backend sets `ScrollEvent.isPrecise` for a fractional delta or while a precise stream is open (0.15 s after its
+  last event) and synthesizes `.began`/`.changed` phases and one zero-delta `.ended` ~0.15 s later; `momentumPhase` is always `.none`; a notched wheel stays
+  imprecise with no phase. Caveat 845: a high-resolution wheel reads as precise (`SDLPlatform.Options(scrollPrecision: .disabled)` turns it off). Caveat 846: no
+  momentum on SDL. Adopted by xp-g28 (no code change: the `.moving` to `.ended` path and `wheelSettleDelay` settle once; pinned by
+  `anSDLTrackpadStreamPansAndSettlesOnceAfterTheEnd`); human check VC9.

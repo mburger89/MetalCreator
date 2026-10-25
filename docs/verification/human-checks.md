@@ -133,6 +133,8 @@ Run `swift run ViewportHarness` (VC7 also with `HARNESS_PICK=1`) with a trackpad
   `ViewportModel.scrolled(dx:dy:at:phase:)`'s `panScrolling`). Flick and lift: it keeps gliding, then stops; the hover
   tint catches up after. Pinch still zooms about its centre. A wheel mouse step still zooms toward the pointer.
   Pinned: `ScrollZoomTests`, `scrollEventsMapToScrollPhases`. Observed: pending (2026-10-24 decision).
+  On Linux and Windows (MetalUI XP-G28, bc747b6b): a two-finger trackpad drag pans, a notched wheel zooms toward the pointer, and the camera settles
+  once after the gesture. There is no glide on SDL. A high-resolution wheel may read as a trackpad (caveat 845). Observed: pending.
 
 ## Group GI — graph panel and app input on MetalUI C7
 
