@@ -730,3 +730,13 @@ Plan `2026-10-10-7a-place.md`, patterns spec `2026-10-10-patterns-trees-design.m
 - Reduce Transparency is honoured (gap C21-b, adopted with MetalUI C27, plan `2026-10-13-adopt-c27.md`): MetalUI draws every material as an opaque grey with no blur, and the panels' tint goes opaque with it.
 - MetalUI's limits stay visible: the blur sees only the window's own content (245), has no saturation lift (246), covers the shape's
   bounding box (247), and a material inside `.shadow`/`.blur`/`.compositingGroup()` is flat (248), which no panel uses.
+
+## Errata (Viewport: trackpad scroll pans)
+
+- §6.3's "Zoom goes towards the cursor" and the bindings of §9 (and the sketch mode's planar navigation, which uses the
+  same surface) are amended by the user's decision of 2026-10-24: **pinch zooms and a two-finger trackpad drag
+  (scroll) pans**, on both axes, with momentum, the model following the fingers. Before, a two-finger scroll zoomed
+  toward the cursor. A **mouse wheel** has no pinch, so a wheel step still zooms toward the cursor. Pinch, ⌥-drag zoom,
+  Shift-drag and middle-drag pan, and orbit are unchanged; there is no ⌘-scroll zoom. A trackpad is told from a wheel
+  by MetalUI's `ScrollEvent.isPrecise`, then its phase; SDL reports neither, so off macOS every scroll still zooms
+  (a MetalUI gap, docs/metalui-gaps.md).

@@ -2,24 +2,38 @@ import CreatorGeometry
 import Foundation
 
 extension ViewportModel {
-    /// A scroll over the viewport (spec §6.3: zoom goes towards the cursor): `deltaY` points of scroll at `point`.
-    /// Scrolling by a positive `deltaY` zooms in. Nothing settles per event (spec §7.3): a trackpad scroll settles
-    /// the camera once, when it ends, and a run of wheel steps once the wheel has been still for
-    /// `ViewportInputMap.wheelSettleDelay`; momentum is ignored. Returns `true`: the viewport claims every scroll over
-    /// it, so none reaches the window's other input.
+    /// A scroll over the viewport. A wheel mouse's step (`.step`) zooms toward the cursor (spec §6.3): a positive `dy`
+    /// zooms in. A trackpad's two-finger scroll (`.moving`, its momentum, and a precise device's phaseless step) pans
+    /// instead, the way a drag with the same delta would (the user's decision of 2026-10-24: pinch zooms, a two-finger
+    /// drag pans). `dx` and `dy` are MetalUI's scroll delta in points, with natural scrolling already applied by the
+    /// system, so the model follows the fingers. Nothing settles per event (spec §7.3): a run of wheel steps settles
+    /// the camera once the wheel has been still for `ViewportInputMap.wheelSettleDelay`; a trackpad gesture settles
+    /// it once, when its momentum ends, or `wheelSettleDelay` after the fingers lift when no momentum follows.
+    /// Returns `true`: the viewport claims every scroll over it, so none reaches the window's other input.
     @discardableResult
-    public func scrolled(by deltaY: Double, at point: ScreenPoint, phase: ViewportScrollPhase) -> Bool {
-        let factor = exp(deltaY * ViewportInputMap.scrollZoomPerPoint)
+    public func scrolled(dx: Double = 0, dy: Double, at point: ScreenPoint, phase: ViewportScrollPhase) -> Bool {
         switch phase {
         case .step:
-            zoomScrolling(by: factor, toward: point)
-            settleWhenTheWheelStops()
+            zoomScrolling(by: exp(dy * ViewportInputMap.scrollZoomPerPoint), toward: point)
+            settleWhenScrollingStops()
+        case .preciseStep:
+            panScrolling(dx: dx, dy: dy, at: point)
+            settleWhenScrollingStops()
         case .moving:
-            zoomScrolling(by: factor, toward: point)
-        case .ended:
-            scrollEnded()
+            panScrolling(dx: dx, dy: dy, at: point)
+            wheelSettleTask?.cancel()
+            wheelSettleTask = nil
         case .momentum:
-            break
+            panScrolling(dx: dx, dy: dy, at: point)
+            settleWhenScrollingStops()
+        case .momentumEnded:
+            panScrolling(dx: dx, dy: dy, at: point)
+            scrollEnded()
+        case .cancelled:
+            scrollEnded()
+        case .ended:
+            // Momentum may follow at once, and cancels this wait; if none does, the gesture is over.
+            settleWhenScrollingStops()
         }
         return true
     }
@@ -41,8 +55,18 @@ extension ViewportModel {
         refreshToolPointer(at: point)
     }
 
-    /// Ends the run of wheel steps once the wheel has been still for `wheelSettleDelay`: each step restarts the wait.
-    private func settleWhenTheWheelStops() {
+    /// One trackpad scroll event's pan, without settling: the model follows the fingers, as a drag pan with the same
+    /// delta does. Every event stops an animation, and the scroll's first event keeps the camera it began with.
+    private func panScrolling(dx: Double, dy: Double, at point: ScreenPoint) {
+        stopAnimation()
+        if scrollStartPose == nil { scrollStartPose = pose }
+        guard dx.isFinite, dy.isFinite else { return }
+        apply(CameraNavigation.pan(pose, dx: dx, dy: dy, size: viewSize))
+        refreshToolPointer(at: point)
+    }
+
+    /// Ends the scroll once nothing has arrived for `wheelSettleDelay`: each event restarts the wait.
+    private func settleWhenScrollingStops() {
         wheelSettleTask?.cancel()
         let clock = clock
         wheelSettleTask = Task { [weak self] in

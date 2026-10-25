@@ -358,7 +358,7 @@ All tests use Swift Testing.
   measures now, so nothing moves.
 - §8's entering, amended (user, 2026-10-09): sketch mode locks the camera to the sketch plane. The editor asks the
   viewport for planar navigation (`ViewportTool.navigation == .planar`): a primary drag that doesn't start on a sketch
-  point pans (a drag on a point still moves it), right- and middle-drags pan, scroll, pinch and ⌥-drag zoom; the view
+  point pans (a drag on a point still moves it), right- and middle-drags pan, a mouse wheel, pinch and ⌥-drag zoom and a two-finger trackpad scroll pans (user, 2026-10-24); the view
   cube, its arrows and its View menu are hidden, the commands that turn the camera (cube regions, arrows, Home,
   projection) do nothing and the face menu is empty (Look At would turn it). F frames the sketch
   (`ViewportTool.framingBounds`: its points, circles and arcs whole, with a 10% margin) without turning. Leaving
