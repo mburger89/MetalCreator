@@ -24,6 +24,6 @@ final class GatedClock: ViewportClock {
     }
 
     private func settle() async {
-        for _ in 0..<20 { await Task.yield() }
+        for _ in 0..<200 { await Task.yield() }
     }
 }
