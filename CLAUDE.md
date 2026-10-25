@@ -483,7 +483,7 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
   - A host takes the primary pointer through `ViewportModel.tool` (`ViewportTool`: hover, clicks, and plain primary
     drags it claims, each with a `ViewportProjector` for screen → plane), and draws over the scene with
     `showOverlay(_:)` (`ViewportOverlay`: world-space lines and points in `OverlayTint` roles, dashed construction, and
-    a `gridPlane` that replaces the ground grid). Navigation (right/middle drags, Shift/⌥ drags, scroll, pinch, the
+    a `gridPlane` that replaces the ground grid). Navigation (right/middle drags, Shift/⌥ drags, scroll (a two-finger trackpad scroll pans, a mouse wheel zooms), pinch, the
     cube, handles) always stays the viewport's; the face menu offers only Look At while a tool is set. A tool's
     `navigation` (`ViewportNavigation`, default `.free`) of `.planar` locks the orientation: drags that would orbit
     pan, the cube and its controls are hidden, turning commands and the face menu do nothing (`showsViewCube`,
@@ -710,7 +710,7 @@ The GPU structs in `Sources/CreatorViewport/Render` mirror the MSL in `ViewportS
 pins their strides and `ShaderSourceTests` the HLSL's, so change all three together; the next build recompiles the HLSL (`scripts/build-shaders.sh`).
 The viewport's pointer input is MetalUI C7's (spec §9): its bindings live in `ViewportInputMap`, its behaviour in
 `ViewportModel` (`dragChanged`/`dragEnded`/`dragCancelled(button:)`, `click(at:modifiers:)`, `modifiersChanged(_:)`,
-`contextMenuItems(at:)`, `scrolled(by:at:phase:)`, `pinchChanged`/`pinchEnded`, `cursor`), and `ViewportView` only forwards
+`contextMenuItems(at:)`, `scrolled(dx:dy:at:phase:)`, `pinchChanged`/`pinchEnded`, `cursor`), and `ViewportView` only forwards
 gesture values. MetalUI C16 adds a tap's modifiers, `onModifierKeysChanged` (⌘ over a still pointer reaches a tool through
 `ViewportTool.pointerMoved(to:modifiers:projector:)`: the sketch editor drops its inference while ⌘ is held), `onCancelled`
 on drags and pinches (a dropped gesture ends where it was, a lost primary release too since MetalUI C26: the next press cancels it; one gap is left,

@@ -1,7 +1,8 @@
 /// The viewport's input bindings (spec §9), in one place. Pointer input is MetalUI C7's: primary drag orbits,
-/// Shift-drag pans and ⌥-drag zooms, right-drag orbits, middle-drag pans, two-finger scroll zooms toward the cursor
-/// and a pinch zooms about its centre. The keys (F frames, + and − zoom) are still window-wide stopgaps until
-/// MetalUI scopes keys to an element (docs/metalui-gaps.md M4-a).
+/// Shift-drag pans and ⌥-drag zooms, right-drag orbits, middle-drag pans, a two-finger trackpad scroll pans (the
+/// user's decision of 2026-10-24), a mouse wheel zooms toward the cursor and a pinch zooms about its centre.
+/// The keys (F frames, + and − zoom) are still window-wide stopgaps until MetalUI scopes keys to an element
+/// (docs/metalui-gaps.md M4-a).
 public enum ViewportInputMap {
     /// Orbit speed: radians of yaw or pitch per point dragged.
     public static let orbitRadiansPerPoint = 0.008
@@ -9,11 +10,12 @@ public enum ViewportInputMap {
     public static let zoomPerPoint = 0.01
     /// One + or − key press zooms by this factor.
     public static let keyZoomFactor = 1.25
-    /// Scroll zoom: 100 points of scroll multiply or divide the camera distance by e. A wheel mouse's step is
-    /// 10 points (MetalUI reports its lines × 10), so about 10%.
+    /// Wheel zoom: 100 points of scroll multiply or divide the camera distance by e. A wheel mouse's step is
+    /// 10 points (MetalUI reports its lines × 10), so about 10%. A trackpad's scroll pans instead.
     public static let scrollZoomPerPoint = 0.01
     /// Wheel steps closer together than this many seconds are one zoom: the camera settles once, after the last
-    /// (a free-spinning wheel sends tens of steps a second, spec §7.3).
+    /// (a free-spinning wheel sends tens of steps a second, spec §7.3). A trackpad gesture whose fingers lift with no
+    /// momentum settles after the same wait.
     public static let wheelSettleDelay = 0.15
     /// The smallest pinch magnification the zoom follows. MetalUI's magnification is 1 plus the pinch's deltas, so
     /// a hard pinch-in can reach zero or below.

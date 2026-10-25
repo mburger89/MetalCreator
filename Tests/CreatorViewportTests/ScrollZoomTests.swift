@@ -3,9 +3,9 @@ import Foundation
 import Testing
 @testable import CreatorViewport
 
-/// Two-finger scroll and the wheel zoom toward the cursor (spec §6.3, docs/metalui-gaps.md C7 item 1): a run of wheel
-/// steps settles the camera once the wheel stops, a trackpad scroll settles it once at its end, and momentum is
-/// ignored.
+/// The wheel zooms toward the cursor (spec §6.3) and a two-finger trackpad scroll pans (spec erratum, 2026-10-24): a
+/// run of wheel steps settles the camera once the wheel stops; a trackpad gesture settles it once, after its momentum
+/// (or after the fingers lift, when none follows).
 @MainActor
 struct ScrollZoomTests {
     let size = ViewportSize(width: 400, height: 300)
@@ -29,13 +29,13 @@ struct ScrollZoomTests {
     @Test func aWheelStepZoomsTowardTheCursorAndSettlesWhenTheWheelStops() async throws {
         let (model, settled) = makeModel()
         let under = pointUnderTheCursor(start)
-        #expect(model.scrolled(by: 10, at: cursor, phase: .step), "the viewport claims the scroll")
+        #expect(model.scrolled(dy: 10, at: cursor, phase: .step), "the viewport claims the scroll")
         #expect(isClose(model.pose.distance, 100 / exp(0.1)))
         #expect(isClose(try #require(CameraMath.project(under, model.pose, size: size)).point, cursor, tolerance: 1e-9))
         #expect(settled().isEmpty, "the wheel may still be turning")
         await model.waitForScroll()
         #expect(settled() == [model.pose])
-        model.scrolled(by: -10, at: cursor, phase: .step)
+        model.scrolled(dy: -10, at: cursor, phase: .step)
         await model.waitForScroll()
         #expect(isClose(model.pose.distance, 100), "scrolling the other way zooms back out")
         #expect(settled().count == 2)
@@ -52,7 +52,7 @@ struct ScrollZoomTests {
         }
         model.pointerHovered(at: cursor)
         picks = 0
-        for _ in 0..<20 { model.scrolled(by: 10, at: cursor, phase: .step) }
+        for _ in 0..<20 { model.scrolled(dy: 10, at: cursor, phase: .step) }
         #expect(isClose(model.pose.distance, 100 / exp(2)))
         #expect(settled().isEmpty)
         #expect(picks == 0)
@@ -61,45 +61,126 @@ struct ScrollZoomTests {
         #expect(picks == 1)
     }
 
-    @Test func aTrackpadScrollZoomsAndSettlesOnceWhenItEnds() throws {
+    @Test func aPreciseScrollPansAndDoesNotZoom() throws {
         let (model, settled) = makeModel()
-        let under = pointUnderTheCursor(start)
-        for _ in 0..<3 { model.scrolled(by: 20, at: cursor, phase: .moving) }
-        #expect(isClose(model.pose.distance, 100 / exp(0.6)))
-        #expect(isClose(try #require(CameraMath.project(under, model.pose, size: size)).point, cursor, tolerance: 1e-9))
-        #expect(settled().isEmpty, "nothing is reported while the scroll zooms")
-        model.scrolled(by: 0, at: cursor, phase: .ended)
+        let distance = model.pose.distance
+        for _ in 0..<3 { model.scrolled(dx: 20, dy: 10, at: cursor, phase: .moving) }
+        #expect(model.pose.distance == distance, "the distance is unchanged")
+        #expect(model.pose.target != start.target, "the target moved")
+        #expect(settled().isEmpty, "nothing is reported while the scroll pans")
+    }
+
+    /// The model follows the fingers: it moves as a drag pan with the same delta does, on both axes.
+    @Test func aTrackpadScrollPansLikeADragWithTheSameDelta() {
+        let (model, _) = makeModel()
+        model.scrolled(dx: 30, dy: -12, at: cursor, phase: .moving)
+        let expected = CameraNavigation.pan(start, dx: 30, dy: -12, size: size)
+        #expect(model.pose == expected)
+        let (dragged, _) = makeModel()
+        dragged.dragChanged(from: cursor, to: ScreenPoint(cursor.x + 30, cursor.y - 12), modifiers: [], button: .middle)
+        #expect(isClose(model.pose.target, dragged.pose.target))
+    }
+
+    @Test func aWheelStepStillZoomsAndDoesNotPan() {
+        let (model, _) = makeModel()
+        model.scrolled(dx: 7, dy: 10, at: cursor, phase: .step)
+        #expect(isClose(model.pose.distance, 100 / exp(0.1)))
+        #expect(model.pose.yaw == start.yaw)
+    }
+
+    @Test func aPhaselessPreciseStepPansAndSettlesOnceAfterTheDelay() async {
+        let (model, settled) = makeModel()
+        model.scrolled(dx: 5, dy: 5, at: cursor, phase: .preciseStep)
+        #expect(model.pose.distance == start.distance)
+        #expect(model.pose.target != start.target)
+        await model.waitForScroll()
         #expect(settled() == [model.pose])
     }
 
-    @Test func momentumIsIgnored() {
-        let (model, settled) = makeModel()
-        model.scrolled(by: 20, at: cursor, phase: .moving)
-        model.scrolled(by: 0, at: cursor, phase: .ended)
-        let zoomed = model.pose
-        #expect(model.scrolled(by: 30, at: cursor, phase: .momentum), "momentum is still claimed")
-        model.scrolled(by: 10, at: cursor, phase: .momentum)
-        #expect(model.pose == zoomed)
-        #expect(settled() == [zoomed])
+    @Test func momentumKeepsPanning() {
+        let (model, _) = makeModel()
+        model.scrolled(dx: 20, dy: 0, at: cursor, phase: .moving)
+        model.scrolled(dx: 0, dy: 0, at: cursor, phase: .ended)
+        let panned = model.pose
+        #expect(model.scrolled(dx: 30, dy: 10, at: cursor, phase: .momentum), "momentum is still claimed")
+        let first = model.pose
+        #expect(first.target != panned.target)
+        model.scrolled(dx: 10, dy: 5, at: cursor, phase: .momentum)
+        #expect(model.pose.target != first.target)
+        #expect(model.pose.distance == start.distance)
     }
 
-    @Test func aScrollThatDoesntZoomReportsNothing() {
+    @Test func aGestureWithMomentumSettlesOnceWhenTheMomentumEnds() async {
         let (model, settled) = makeModel()
-        model.scrolled(by: 0, at: cursor, phase: .ended)
-        model.scrolled(by: 0, at: cursor, phase: .moving)
-        model.scrolled(by: 0, at: cursor, phase: .ended)
-        model.scrolled(by: .nan, at: cursor, phase: .step)
-        model.scrolled(by: .infinity, at: cursor, phase: .moving)
-        model.scrolled(by: 0, at: cursor, phase: .ended)
+        model.scrolled(dx: 20, dy: 4, at: cursor, phase: .moving)
+        model.scrolled(dx: 20, dy: 4, at: cursor, phase: .moving)
+        model.scrolled(dx: 0, dy: 0, at: cursor, phase: .ended)
+        model.scrolled(dx: 15, dy: 3, at: cursor, phase: .momentum)
+        model.scrolled(dx: 5, dy: 1, at: cursor, phase: .momentum)
+        #expect(settled().isEmpty, "the glide is still under way")
+        model.scrolled(dx: 0, dy: 0, at: cursor, phase: .momentumEnded)
+        #expect(settled() == [model.pose])
+        await model.waitForScroll()
+        #expect(settled().count == 1, "one settle for the whole gesture")
+    }
+
+    @Test func aGestureWithoutMomentumSettlesOnceAfterTheFingersLift() async {
+        let (model, settled) = makeModel()
+        model.scrolled(dx: 20, dy: 4, at: cursor, phase: .moving)
+        model.scrolled(dx: 0, dy: 0, at: cursor, phase: .ended)
+        await model.waitForScroll()
+        #expect(settled() == [model.pose])
+        model.scrolled(dx: 0, dy: 0, at: cursor, phase: .ended)
+        await model.waitForScroll()
+        #expect(settled().count == 1)
+    }
+
+    @Test func aCancelledScrollSettlesAtOnce() {
+        let (model, settled) = makeModel()
+        model.scrolled(dx: 20, dy: 0, at: cursor, phase: .moving)
+        model.scrolled(dy: 0, at: cursor, phase: .cancelled)
+        #expect(settled() == [model.pose])
+    }
+
+    @Test func aPanReStartedDuringTheWaitIsOneGesture() async {
+        let (model, settled) = makeModel()
+        model.scrolled(dx: 20, dy: 0, at: cursor, phase: .moving)
+        model.scrolled(dx: 0, dy: 0, at: cursor, phase: .ended)
+        model.scrolled(dx: 20, dy: 0, at: cursor, phase: .moving)
+        await model.waitForScroll()
+        #expect(settled().isEmpty, "a new scroll cancelled the wait")
+        model.scrolled(dx: 0, dy: 0, at: cursor, phase: .ended)
+        await model.waitForScroll()
+        #expect(settled() == [model.pose])
+    }
+
+    @Test func aScrollThatDoesntMoveReportsNothing() async {
+        let (model, settled) = makeModel()
+        model.scrolled(dy: 0, at: cursor, phase: .ended)
+        await model.waitForScroll()
+        model.scrolled(dy: 0, at: cursor, phase: .moving)
+        model.scrolled(dy: 0, at: cursor, phase: .ended)
+        await model.waitForScroll()
+        model.scrolled(dy: .nan, at: cursor, phase: .step)
+        await model.waitForScroll()
+        model.scrolled(dx: .nan, dy: .infinity, at: cursor, phase: .moving)
+        model.scrolled(dy: 0, at: cursor, phase: .momentumEnded)
         #expect(model.pose == start)
         #expect(settled().isEmpty)
     }
 
-    @Test func aScrollStopsACameraAnimation() {
+    @Test func aTrackpadPanStopsACameraAnimation() {
         let (model, _) = makeModel()
         model.perform(.rotate(.up))
         #expect(model.isAnimating)
-        model.scrolled(by: 20, at: cursor, phase: .moving)
+        model.scrolled(dx: 20, dy: 0, at: cursor, phase: .moving)
+        #expect(!model.isAnimating)
+    }
+
+    @Test func aWheelStepStopsACameraAnimation() {
+        let (model, _) = makeModel()
+        model.perform(.rotate(.up))
+        model.scrolled(dy: 20, at: cursor, phase: .step)
         #expect(!model.isAnimating)
     }
 
@@ -112,9 +193,9 @@ struct ScrollZoomTests {
         var settled: [CameraPose] = []
         model.events.cameraSettled = { settled.append($0) }
         let delay = ViewportInputMap.wheelSettleDelay
-        model.scrolled(by: 10, at: cursor, phase: .step)
+        model.scrolled(dy: 10, at: cursor, phase: .step)
         await clock.advance(by: delay * 0.6)
-        model.scrolled(by: 10, at: cursor, phase: .step)
+        model.scrolled(dy: 10, at: cursor, phase: .step)
         await clock.advance(by: delay * 0.6)
         #expect(settled.isEmpty, "the first step's wait ran out, but the second step restarted it")
         await clock.advance(by: delay * 0.6)
@@ -125,10 +206,10 @@ struct ScrollZoomTests {
     /// is shown, as a drag does, instead of letting the animation finish over it.
     @Test func aScrollEventStopsAnAnimationStartedMidScroll() {
         let (model, _) = makeModel()
-        model.scrolled(by: 10, at: cursor, phase: .moving)
+        model.scrolled(dx: 10, dy: 10, at: cursor, phase: .moving)
         model.perform(.view(.top))
         #expect(model.isAnimating)
-        model.scrolled(by: 10, at: cursor, phase: .moving)
+        model.scrolled(dx: 10, dy: 10, at: cursor, phase: .moving)
         #expect(!model.isAnimating, "the scroll's pose is shown, not the old interpolation")
     }
 }

@@ -50,7 +50,8 @@ extension ViewportView {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .pointerStyle(model.cursor?.pointerStyle)
         .onScrollWheel { event in
-            model.scrolled(by: Double(event.delta.y.value), at: ScreenPoint(event.location), phase: ViewportScrollPhase(event))
+            model.scrolled(dx: Double(event.delta.x.value), dy: Double(event.delta.y.value),
+                           at: ScreenPoint(event.location), phase: ViewportScrollPhase(event))
         }
         .gesture(SpatialTapGesture().onEnded {
             model.click(at: ScreenPoint($0.location), modifiers: ViewportModifiers($0.modifiers))

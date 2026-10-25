@@ -76,14 +76,13 @@ struct PlanarNavigationTests {
         ViewportProjector(pose: model.pose, size: model.viewSize).planePoint(under: point, on: plane)
     }
 
-    @Test func scrollAndPinchStillZoomTowardThePointer() throws {
+    @Test func wheelAndPinchStillZoomTowardThePointer() throws {
         let model = makeModel(tool: planarTool())
         let before = model.pose
         let plane = Plane(origin: before.target, normal: before.toEye, xAxis: before.right)
         let scrollAt = ScreenPoint(300, 100)
         let underScroll = try #require(planePoint(model, under: scrollAt, on: plane))
-        model.scrolled(by: 20, at: scrollAt, phase: .moving)
-        model.scrolled(by: 0, at: scrollAt, phase: .ended)
+        model.scrolled(dy: 20, at: scrollAt, phase: .step)
         #expect(model.pose.distance < before.distance)
         let afterScroll = try #require(planePoint(model, under: scrollAt, on: plane))
         #expect((afterScroll - underScroll).length < 1e-6, "the point under the pointer stays put")
@@ -225,7 +224,7 @@ struct PlanarNavigationTests {
         clock.time += CameraAnimation.viewCubeDuration / 2
         switch input {
         case "press": model.pointerDown(at: ScreenPoint(200, 150), modifiers: [])
-        case "scroll": model.scrolled(by: 0.001, at: ScreenPoint(200, 150), phase: .moving)
+        case "scroll": model.scrolled(dy: 0.001, at: ScreenPoint(200, 150), phase: .moving)
         case "pinch": model.pinchChanged(magnification: 1, centre: ScreenPoint(200, 150))
         default: model.performKey(.zoomIn)
         }
@@ -245,9 +244,9 @@ struct PlanarNavigationTests {
         model.dragChanged(from: ScreenPoint(200, 150), to: ScreenPoint(200, 120), modifiers: .option, button: .primary)
         #expect(tool.calls.last == "moved 200,120")
         model.dragEnded(from: ScreenPoint(200, 150), at: ScreenPoint(200, 120), modifiers: .option, button: .primary)
-        model.scrolled(by: 10, at: ScreenPoint(300, 100), phase: .moving)
+        model.scrolled(dy: 10, at: ScreenPoint(300, 100), phase: .moving)
         #expect(tool.calls.last == "moved 300,100")
-        model.scrolled(by: 0, at: ScreenPoint(300, 100), phase: .ended)
+        model.scrolled(dy: 0, at: ScreenPoint(300, 100), phase: .ended)
         model.pinchChanged(magnification: 1.2, centre: ScreenPoint(120, 80))
         #expect(tool.calls.last == "moved 120,80")
         model.pinchEnded()

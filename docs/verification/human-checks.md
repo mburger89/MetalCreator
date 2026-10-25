@@ -92,12 +92,12 @@ C7), not in the model.
 Run `swift run ViewportHarness` (VC7 also with `HARNESS_PICK=1`) with a trackpad and a three-button mouse; VC8 runs
 `swift run MetalCreatorApp` on a saved bracket. Clicks and menu choices print to the terminal.
 
-- [ ] **VC1 Scroll zoom.** Two-finger scroll over the part zooms toward the point under the pointer: that point
-  stays put. When the fingers lift the zoom stops at once (no glide). A wheel mouse zooms in steps of about 10%;
+- [ ] **VC1 Wheel zoom.** (Amended 2026-10-24: a two-finger trackpad scroll now pans, see VC9.) A wheel mouse zooms toward the point under the pointer: that point
+  stays put. It zooms in steps of about 10%;
   spinning it fast stays smooth, and the hover tint catches up just after the wheel stops.
   Scrolling one way zooms in and the other way out; note which way feels wrong, if one does (the sign is
-  `ViewportModel.scrolled(by:at:phase:)`). Pinned: `ScrollZoomTests` (`aRunOfWheelStepsSettlesOnce`),
-  `scrollEventsMapToZoomPhases`. Observed: 2026-10-09 PASS (user, release ViewportHarness).
+  `ViewportModel.scrolled(dx:dy:at:phase:)`). Pinned: `ScrollZoomTests` (`aRunOfWheelStepsSettlesOnce`),
+  `scrollEventsMapToScrollPhases`. Observed: 2026-10-09 PASS (user, release ViewportHarness).
 - [ ] **VC2 Pinch.** Pinching out zooms in about the point where the pinch began, and pinching in zooms out; a hard
   pinch-in holds instead of springing back. A twist does nothing. Pinned: `PinchZoomTests`. Observed: 2026-10-09 PASS (user, release ViewportHarness).
 - [ ] **VC3 Right and middle drags.** Middle-drag pans with the pointer, whatever is held. Right-drag orbits about the
@@ -128,6 +128,11 @@ Run `swift run ViewportHarness` (VC7 also with `HARNESS_PICK=1`) with a trackpad
   the part turns in place, centred in the area, never swinging under the inspector or the bottom panel. With the
   pointer off the window (over the menu bar), press + and −: the part stays centred. Pinned:
   `ModelAreaFramingTests`. Observed: 2026-10-09 PASS (user, release MetalCreatorApp).
+- [ ] **VC9 Trackpad scroll pans, wheel zooms.** Two-finger drag over the part (and in sketch mode) pans: the part
+  follows your fingers, left and right as well as up and down (if it goes the wrong way, the sign is
+  `ViewportModel.scrolled(dx:dy:at:phase:)`'s `panScrolling`). Flick and lift: it keeps gliding, then stops; the hover
+  tint catches up after. Pinch still zooms about its centre. A wheel mouse step still zooms toward the pointer.
+  Pinned: `ScrollZoomTests`, `scrollEventsMapToScrollPhases`. Observed: pending (2026-10-24 decision).
 
 ## Group GI — graph panel and app input on MetalUI C7
 

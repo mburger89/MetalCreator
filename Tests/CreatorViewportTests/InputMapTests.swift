@@ -25,20 +25,22 @@ struct InputMapTests {
         #expect(ViewportPointerButton.middle.mouseButton == .middle)
     }
 
-    @Test func scrollEventsMapToZoomPhases() {
-        func phase(_ phase: InputPhase, momentum: InputPhase = .none) -> ViewportScrollPhase {
+    @Test func scrollEventsMapToScrollPhases() {
+        func phase(_ phase: InputPhase, momentum: InputPhase = .none, precise: Bool = true) -> ViewportScrollPhase {
             ViewportScrollPhase(ScrollEvent(position: Point(x: Pixels(0), y: Pixels(0)), delta: Point(x: Pixels(0), y: Pixels(4)),
-                                            phase: phase, momentumPhase: momentum, isPrecise: true, timestamp: 0))
+                                            phase: phase, momentumPhase: momentum, isPrecise: precise, timestamp: 0))
         }
-        #expect(phase(.none) == .step, "a wheel mouse has no phase")
+        #expect(phase(.none, precise: false) == .step, "a wheel mouse is imprecise and has no phase")
+        #expect(phase(.none) == .preciseStep, "a precise delta with no phase still pans")
         #expect(phase(.mayBegin) == .moving)
         #expect(phase(.began) == .moving)
         #expect(phase(.changed) == .moving)
         #expect(phase(.ended) == .ended)
-        #expect(phase(.cancelled) == .ended)
+        #expect(phase(.cancelled) == .cancelled)
         #expect(phase(.none, momentum: .began) == .momentum)
         #expect(phase(.none, momentum: .changed) == .momentum)
-        #expect(phase(.none, momentum: .ended) == .momentum)
+        #expect(phase(.none, momentum: .ended) == .momentumEnded)
+        #expect(phase(.none, momentum: .cancelled) == .momentumEnded)
     }
 
     @Test func metalUIModifiersConvert() {
