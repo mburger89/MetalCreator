@@ -1360,3 +1360,7 @@ while the app runs, pipelines cached by source.
   opened at the window's top-left (user, 2026-10-26, screenshot): the presentation anchor took the label's layout bounds moved by scroll only, missing the
   render effects (`.offset`, `.scaleEffect`, `.rotationEffect`). Closed by MetalUI `aad9faf4` (PR #136, rulings MA-A..MA-I): `presentationWindowBounds` gives the
   drawn bounds for every anchor (`Menu`, menu pickers, `.popover`, `anchoredOverlay`, `.contextMenu`) on AppKit and SDL. Adopted as a pin bump; human checks MA1-MA3.
+
+- **XP-G30. An `.equatable()` occurrence whose layout moved and whose outer effect changed in the same frame was rebuilt. Fixed.** Closed by MetalUI `cba84841`
+  (PR #137, FS-O): such a combined move is now replayed from cache; the refusal name `effectAndLayoutMoved` is retired (a combined move that cannot be carried
+  reports `effectAndLayoutInner`, `geometryNamedSpace`, `presentationAnchor` or `contextMenus`). No MetalCreator code referenced the retired name. Adopted as a pin bump.
