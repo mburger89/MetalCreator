@@ -65,7 +65,7 @@ enum GPUGeometry {
     }
 
     /// Two triangles per tile. Face centres are lighter than edges and corners, and tiles facing the camera are
-    /// brighter. The focus colour (cyan in Dracula) marks the hovered region and the active one, the region the camera looks straight from
+    /// brighter. A tint of the focus colour (cyan in Dracula, see `highlight`) marks the hovered region and the active one, the region the camera looks straight from
     /// (spec §6.6: "view-cube hover and active face").
     ///
     /// Every tile also carries its face's name: the name's atlas rect and each corner's place in the face's text
@@ -79,7 +79,7 @@ enum GPUGeometry {
             let base: SIMD4<Float>
             let light: Float
             if cell.region == hovered || cell.region.direction.dot(toEye) > activeRegionCosine {
-                base = palette.hover
+                base = highlight(palette)
                 light = 1
             } else {
                 base = cell.region.kind == .face ? palette.cubeFace : palette.cubeRim
@@ -95,6 +95,17 @@ enum GPUGeometry {
             }
         }
         return vertices
+    }
+
+    /// How far a highlighted cube tile moves from the face colour to the focus colour. The face name is inked over
+    /// the tile, and the full focus colour (cyan in Dracula) is too close to a light ink to read; this much keeps
+    /// the highlight plainly tinted and the name legible.
+    static let cubeHighlightStrength: Float = 0.4
+
+    /// The colour of a hovered or active cube tile: the face colour tinted towards the theme's focus colour.
+    static func highlight(_ palette: ViewportPalette) -> SIMD4<Float> {
+        let tint = palette.hover * cubeHighlightStrength + palette.cubeFace * (1 - cubeHighlightStrength)
+        return SIMD4(tint.x, tint.y, tint.z, 1)
     }
 
     /// A region is active when the view direction is within about 0.5° of it.
