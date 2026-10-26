@@ -105,7 +105,7 @@ struct GPUDataTests {
 
     @Test func theCubeIsSixVerticesPerTileAndHighlightsTheHoveredRegion() {
         func isCyan(_ vertex: CubeVertex) -> Bool {
-            vertex.color.x == ViewportPalette.dracula.hover.x && vertex.color.z == ViewportPalette.dracula.hover.z
+            vertex.color == GPUGeometry.highlight(.dracula)
         }
         func firstVertex(of region: ViewCubeRegion, in vertices: [CubeVertex]) -> CubeVertex {
             vertices[(ViewCubeCell.all.firstIndex { $0.region == region } ?? 0) * 6]
@@ -122,7 +122,7 @@ struct GPUDataTests {
 
     @Test func theCubeTintsTheRegionTheCameraLooksFrom() {
         func isCyan(_ vertex: CubeVertex) -> Bool {
-            vertex.color.x == ViewportPalette.dracula.hover.x && vertex.color.z == ViewportPalette.dracula.hover.z
+            vertex.color == GPUGeometry.highlight(.dracula)
         }
         let tile = (ViewCubeCell.all.firstIndex { $0.region == .front } ?? 0) * 6
         let front = GPUGeometry.cubeVertices(hovered: nil, pose: CameraPose(target: .zero, distance: 10, yaw: 0, pitch: 0))
@@ -130,6 +130,20 @@ struct GPUDataTests {
         #expect(front.filter(isCyan).count == 6 * ViewCubeCell.all.filter { $0.region == .front }.count)
         let turned = GPUGeometry.cubeVertices(hovered: nil, pose: CameraPose(target: .zero, distance: 10, yaw: 0.3, pitch: 0))
         #expect(!turned.contains(where: isCyan), "between regions, nothing is active")
+    }
+
+    /// The face name is inked over a highlighted tile, so the tile must stay far from the ink (the FRONT label was
+    /// near-invisible on the full cyan of the active centre tile).
+    @Test func aHighlightedCubeTileKeepsTheFaceNameReadable() {
+        func luminance(_ c: SIMD4<Float>) -> Float { 0.2126 * c.x + 0.7152 * c.y + 0.0722 * c.z }
+        for palette in [ViewportPalette.dracula, ViewportPalette(.nord)] {
+            let tile = GPUGeometry.highlight(palette)
+            #expect(tile != palette.hover, "tinted, not the raw focus colour")
+            #expect(tile != palette.cubeFace, "still visibly highlighted")
+            let gap = abs(luminance(palette.cubeLabel) - luminance(tile))
+            let rawGap = abs(luminance(palette.cubeLabel) - luminance(palette.hover))
+            #expect(gap > 2 * rawGap && gap > 0.4, "ink \(gap) vs the raw focus colour \(rawGap)")
+        }
     }
 
     @Test func frameUniformsCarryTheViewportAndProjection() {

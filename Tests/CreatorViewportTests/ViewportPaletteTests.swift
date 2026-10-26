@@ -48,7 +48,7 @@ struct ViewportPaletteTests {
         #expect(ShadeUniforms(frame.palette).hover == Self.rgba(0x036a96))
         let cube = GPUGeometry.cubeVertices(hovered: .right, pose: frame.pose, palette: frame.palette)
         let right = (ViewCubeCell.all.firstIndex { $0.region == .right } ?? 0) * 6
-        #expect(cube[right].color == Self.rgba(0x036a96), "the hovered cube region in the theme's focus colour")
+        #expect(cube[right].color == GPUGeometry.highlight(frame.palette), "the hovered cube region in the theme's focus colour")
         #expect(model.labelColor == ColorTheme.alucard.colors.foreground.color)
         #expect(model.hintColor == ColorTheme.alucard.colors.comment.color)
     }
