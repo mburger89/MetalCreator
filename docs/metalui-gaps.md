@@ -1355,3 +1355,8 @@ while the app runs, pipelines cached by source.
   imprecise with no phase. Caveat 845: a high-resolution wheel reads as precise (`SDLPlatform.Options(scrollPrecision: .disabled)` turns it off). Caveat 846: no
   momentum on SDL. Adopted by xp-g28 (no code change: the `.moving` to `.ended` path and `wheelSettleDelay` settle once; pinned by
   `anSDLTrackpadStreamPansAndSettlesOnceAfterTheEnd`); human check VC9.
+
+- **XP-G29. A `Menu`'s pop-up opened far from its button. Fixed.** The viewport's View menu (`cubeControls`, under `.offset` in the split's right pane)
+  opened at the window's top-left (user, 2026-10-26, screenshot): the presentation anchor took the label's layout bounds moved by scroll only, missing the
+  render effects (`.offset`, `.scaleEffect`, `.rotationEffect`). Closed by MetalUI `aad9faf4` (PR #136, rulings MA-A..MA-I): `presentationWindowBounds` gives the
+  drawn bounds for every anchor (`Menu`, menu pickers, `.popover`, `anchoredOverlay`, `.contextMenu`) on AppKit and SDL. Adopted as a pin bump; human checks MA1-MA3.
