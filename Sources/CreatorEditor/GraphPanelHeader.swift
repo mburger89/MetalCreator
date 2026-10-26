@@ -12,7 +12,7 @@ struct GraphPanelHeader: Component {
     var content: some ElementGroup {
         HStack(spacing: Pixels(6)) {
             BreadcrumbBar(model: model)
-            Spacer()
+            Spacer(minLength: Pixels(0))
             Button("Add") { model.openPalette() }
                 .help("Add a node (Space)")
             Button("Library") { model.toggleLibrary() }
