@@ -11,7 +11,9 @@ struct ToolbarLabelsWindowTests {
     static let labels = ["Add", "Library", "−", "+", "Left", "Bottom", "Hide"]
 
     func widths(_ app: AppWindow) throws -> [String: Double] {
-        let buttons = try app.window.elements { $0.role == .button && Self.labels.contains($0.label ?? "") && $0.frame.origin.y < 120 && $0.frame.origin.x < 900 }
+        let buttons = try app.window.elements {
+            $0.role == .button && Self.labels.contains($0.label ?? "") && $0.frame.origin.y < 120 && $0.frame.origin.x < 900
+        }
         return Dictionary(buttons.map { ($0.label ?? "", Double($0.frame.size.width.value)) }, uniquingKeysWith: max)
     }
 
