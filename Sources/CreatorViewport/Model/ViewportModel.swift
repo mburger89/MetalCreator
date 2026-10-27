@@ -43,6 +43,13 @@ public final class ViewportModel {
     public internal(set) var handles: [ViewportHandle] = []
     /// Lines and points the host draws over the scene (`showOverlay(_:)`): the sketch editor's geometry.
     public private(set) var overlay = ViewportOverlay()
+    /// The dimensions to draw over the scene (`showDimensions(_:)`). They are no part of the scene or the render: they never pick,
+    /// frame or widen `sceneBounds`.
+    public internal(set) var dimensions: [OverlayDimension] = []
+    /// How dimensions are drawn and worded.
+    public var dimensionStyle = DimensionStyle.ansi
+    /// The dimensions as `placedDimensions(measuring:)` last placed them: what `dimension(at:)` hit-tests.
+    @ObservationIgnored var drawnDimensions: [PlacedDimension] = []
     /// The field slice drawn through the scene (`showSlice(_:)`), or `nil`. It is no part of the scene: it never picks, frames
     /// or widens `sceneBounds`.
     public private(set) var slice: ViewportSlice?
