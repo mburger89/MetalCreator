@@ -1364,3 +1364,7 @@ while the app runs, pipelines cached by source.
 - **XP-G30. An `.equatable()` occurrence whose layout moved and whose outer effect changed in the same frame was rebuilt. Fixed.** Closed by MetalUI `cba84841`
   (PR #137, FS-O): such a combined move is now replayed from cache; the refusal name `effectAndLayoutMoved` is retired (a combined move that cannot be carried
   reports `effectAndLayoutInner`, `geometryNamedSpace`, `presentationAnchor` or `contextMenus`). No MetalCreator code referenced the retired name. Adopted as a pin bump.
+
+- **XP-G31. `SDLGPUDevice.make` could deadlock, and the SDL test-process guard did not run on Windows. Fixed.** Closed by MetalUI `ccef9c11` (PR #139, WG-H):
+  video initialisation now runs before `makeLock`, so a main-thread `make` no longer waits on the lock of a thread waiting for the main queue; the test-process guard
+  now also runs on Windows. Adopted as a pin bump.
