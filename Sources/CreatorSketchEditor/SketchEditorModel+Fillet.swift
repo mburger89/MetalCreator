@@ -15,11 +15,11 @@ extension SketchEditorModel {
         apply(SketchStepName.fillet) { () throws(SketchCommandError) in try SketchCommands.fillet(current, corner: corner, radius: radius) }
     }
 
-    /// The typed fillet radius ("2.5", "2.5 mm"). Not an edit, so not an undo step; text that isn't a size more than
-    /// 0 mm is refused and the field shows the old radius.
+    /// The typed fillet radius ("2.5", "0.1 in", in the document's unit unless it names one). Not an edit, so not an
+    /// undo step; text that isn't a size more than 0 is refused and the field shows the old radius.
     public func setFilletRadius(_ text: String) {
-        guard let value = DimensionText.parse(text), value > 0 else {
-            refusal = "A fillet radius must be a number more than 0 mm."
+        guard let value = units.parse(text, quantity: .length), value > 0 else {
+            refusal = "A fillet radius must be a number more than 0 \(units.length.symbol)."
             return
         }
         refusal = nil

@@ -61,9 +61,15 @@ extension SketchEditorModel {
         return sketch.dimensionIDs.compactMap { id in
             guard let dimension = sketch.dimensions[id] else { return nil }
             let value = dimension.isDriving ? dimension.value : solution.measurements[id] ?? dimension.value
+            let quantity = dimension.kind.quantity
+            let isWired = wiredDimensions.contains(id)
+            // An editable row shows what its value box opens with; a reference or wired one, the rounded reading.
+            let text = dimension.isDriving && !isWired
+                ? units.editText(value, quantity: quantity) + units.suffix(for: quantity)
+                : units.fieldText(value, quantity: quantity)
             return DimensionRow(id: id, kind: Self.kindName(dimension.kind), name: dimension.name,
-                                value: DimensionText.format(value, kind: dimension.kind), isExposed: dimension.isExposed,
-                                isDriving: dimension.isDriving, isWired: wiredDimensions.contains(id),
+                                value: text, isExposed: dimension.isExposed,
+                                isDriving: dimension.isDriving, isWired: isWired,
                                 isConflicting: conflicts.contains(.dimension(id)))
         }
     }
@@ -103,11 +109,11 @@ extension SketchEditorModel {
             refusal = "\(dimension.name) is a reference: make it driving to set it."
             return
         }
-        guard let value = DimensionText.parse(text) else {
+        guard let value = units.parse(text, quantity: dimension.kind.quantity) else {
             refusal = "“\(text)” isn't a number."
             return
         }
-        if let problem = Self.valueProblem(value, kind: dimension.kind) {
+        if let problem = valueProblem(value, kind: dimension.kind) {
             refusal = problem
             return
         }
@@ -117,14 +123,21 @@ extension SketchEditorModel {
         commit(edited, "Change \(dimension.name)", named: SketchStepName.changeDimension)
     }
 
-    /// Why `value` can't drive a dimension of `kind` (sizes are more than 0 mm, angles 0 to 180°), or nil if it can.
-    private static func valueProblem(_ value: Double, kind: DimensionKind) -> String? {
+    /// Why `value` can't drive a dimension of `kind` (sizes are more than 0 in the document's unit, angles 0 to 180°),
+    /// or nil if it can.
+    private func valueProblem(_ value: Double, kind: DimensionKind) -> String? {
         switch kind {
         case .angle:
             return (0...180).contains(value) ? nil : "An angle must be between 0° and 180°."
         case .length, .distance, .radius, .diameter:
-            return value > 0 ? nil : "A \(kindName(kind).lowercased()) must be more than 0 mm."
+            return value > 0 ? nil : "A \(Self.kindName(kind).lowercased()) must be more than 0 \(units.length.symbol)."
         }
+    }
+
+    /// A length as a tool option's field shows and re-reads it: in the document's unit with its suffix, lossless enough
+    /// that retyping it changes nothing ("2.5 mm", "0.25 in").
+    func lengthFieldText(_ millimetres: Double) -> String {
+        units.editText(millimetres, quantity: .length) + units.suffix(for: .length)
     }
 
     /// Renames a dimension, refusing an empty or repeated name and one the Sketch node reserves (`isReservedName`).

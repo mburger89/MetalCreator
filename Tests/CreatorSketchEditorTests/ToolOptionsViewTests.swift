@@ -43,10 +43,4 @@ struct ToolOptionsViewTests {
         #expect(hintOnly == plain + glyphs(try #require(SketchTool.mirror.hint)), "only the hint")
     }
     #endif
-
-    @Test func aToolsOptionReadsInMillimetres() {
-        #expect(DimensionText.millimetres(5) == "5 mm")
-        #expect(DimensionText.millimetres(2.5) == "2.5 mm")
-        #expect(DimensionText.millimetres(1234.5) == "1234.5 mm")
-    }
 }

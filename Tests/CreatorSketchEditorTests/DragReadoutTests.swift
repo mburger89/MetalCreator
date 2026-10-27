@@ -140,7 +140,7 @@ struct DragReadoutTests {
         let model = makeModel(sketch)
         let text = drag(model, from: Vector2(0, 12), to: Vector2(1, 13))
         let solved = model.sketch.position(of: end) ?? Vector2(.nan, .nan)
-        #expect(text == ReadoutText.position(solved), "the solved position")
+        #expect(text == ReadoutText.position(solved, units: .millimetres), "the solved position")
         #expect(text?.contains("mm") == false)
     }
 
@@ -154,7 +154,9 @@ struct DragReadoutTests {
         let other = sketch.addPoint(Vector2(10, 10))
         sketch.addLine(from: end, to: other, isConstruction: true)
         let model = makeModel(sketch)
-        #expect(drag(model, from: Vector2(10, 0), to: Vector2(12, 3)) == ReadoutText.position(model.sketch.position(of: end) ?? .zero))
+        let text = drag(model, from: Vector2(10, 0), to: Vector2(12, 3))
+        let solved = model.sketch.position(of: end) ?? .zero
+        #expect(text == ReadoutText.position(solved, units: .millimetres))
         #expect(model.pointerReadout?.contains("mm") == false)
     }
 

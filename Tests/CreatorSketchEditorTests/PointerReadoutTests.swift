@@ -52,7 +52,7 @@ struct PointerReadoutTests {
         let model = makeModel(.circle)
         #expect(hover(model, 6, 8) == nil)
         model.click(at: Vector2(0, 0), tolerance: 1, modifiers: [])
-        #expect(hover(model, 6, 8) == "⌀ 20.0 mm")
+        #expect(hover(model, 6, 8) == "Ø 20.0 mm")
     }
 
     @Test func anArcReadsItsRadiusThenItsSweep() {
@@ -131,14 +131,14 @@ struct PointerReadoutTests {
 
     @Test func theChipFlipsBelowThePointerAtTheTop() throws {
         let size = ViewportSize(width: 400, height: 300)
-        let chip = try #require(ReadoutChip(text: "⌀ 20.0 mm", pointer: ScreenPoint(200, 20), in: size, measuring: .fake))
+        let chip = try #require(ReadoutChip(text: "Ø 20.0 mm", pointer: ScreenPoint(200, 20), in: size, measuring: .fake))
         #expect(abs(chip.origin.y - (20 + ReadoutChip.gap)) < 1e-9)
     }
 
     /// The top bar covers the viewport's top: the chip flips below the pointer before it would slide under it.
     @Test func theChipFlipsBelowThePointerUnderATopInset() throws {
         let size = ViewportSize(width: 400, height: 300)
-        let chip = try #require(ReadoutChip(text: "⌀ 20.0 mm", pointer: ScreenPoint(200, 80), in: size,
+        let chip = try #require(ReadoutChip(text: "Ø 20.0 mm", pointer: ScreenPoint(200, 80), in: size,
                                             modelArea: ViewportInsets(top: 60), measuring: .fake))
         #expect(abs(chip.origin.y - (80 + ReadoutChip.gap)) < 1e-9, "below the pointer")
     }

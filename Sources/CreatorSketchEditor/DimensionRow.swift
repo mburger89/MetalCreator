@@ -7,7 +7,7 @@ public struct DimensionRow: Hashable, Sendable, Identifiable {
     /// "Length", "Distance", "Radius", "Diameter" or "Angle".
     public var kind: String
     public var name: String
-    /// "12.5 mm", "30°".
+    /// In the document's unit: "12.5 mm", "2.3622 in", "30°".
     public var value: String
     public var isExposed: Bool
     public var isDriving: Bool
