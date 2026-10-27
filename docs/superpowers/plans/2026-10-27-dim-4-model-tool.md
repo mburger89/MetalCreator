@@ -60,12 +60,12 @@ Starts after DIM-2 and DIM-3 are merged to master.
    edge-to-edge and point-to-line. A circle with a line gives the distance from the circle's centre point to the line.
 4. **A trace follows only a direct wire** from a Sketch's `profiles` into the sweeping node's `profile`. Anything between
    them (List Item, Place, a group's socket) makes the pick come from "different features". Item k of the sweep is region k.
-5. **After the add, the Sketch node is selected** (`editor.selection = [sketch]`), so its dimensions show and the new one's
-   box can open even when the sketch feeds more than one feature. In Selected-node preview this also switches the preview to the
-   Sketch, as any selection does; the box still opens.
+5. **The add does not change the selection** (orchestrator's ruling, 2026-10-27). While its value box is open the new
+   dimension is shown whatever is selected (`heldModelDimension`); once the box closes it shows only if it belongs to a selected
+   feature's chain (or is pinned), as any dimension does.
 6. **Add and edit are two steps**: Esc on the opened box keeps the dimension added at its measured value ("Add Dimension");
    Return with a new value adds "Change Dimension". A reference opens no box (it isn't editable) and shows no extra message:
-   it appears grey in parentheses.
+   it appears grey in parentheses when a selected feature's chain includes its sketch.
 7. **The tool's UI** is a banner in `PickBanner`'s place: "Click two edges or holes to dimension · N picked", Cancel (Esc);
    the chip text shows as a second line until the next click. Picked items are not highlighted (the count says it).
 8. **D's binding** is a window keymap key in the `AppKeyContext.viewport` context (like F): it never fires while a panel
@@ -78,8 +78,8 @@ Starts after DIM-2 and DIM-3 are merged to master.
 10. **Merge task M comes first.** Whichever of DIM-2/DIM-3 merged second completed DIM-3 Task 9's `SketchDimensionGeometry` for
     DIM-2's four kinds and wired `SketchFlipCheck` into feature-mode sketch edits (the overview's merge task M, the
     orchestrator's). This stage starts only after it; if `SketchDimensionGeometry` lacks a DIM-2 kind, stop and report it.
-11. **A circle with a line** measures from the circle's centre point (decision 3), where the sketch D tool refuses that pair
-    (DIM-2 Task 7). Kept: the spec lists point-to-line for the model tool; flagged for the orchestrator.
+11. **A circle with a line** measures from the circle's centre point to the line (decision 3), in this tool and in the sketch
+    D tool alike (orchestrator's ruling, 2026-10-27; DIM-2 decision 5).
 
 ## Review Focus
 
@@ -270,7 +270,7 @@ public enum MeasuredDimension {
 
 **Files:**
 - Create: `Sources/CreatorApp/ModelDimension/ModelDimensionSession.swift`, `ModelDimensionText.swift`, `ModelDimensionBanner.swift` (pattern `PickBanner.swift`), `Sources/CreatorApp/AppModel+ModelDimension.swift`
-- Modify: `AppModel.swift` (`public internal(set) var modelDimension: ModelDimensionSession?`; `@ObservationIgnored var pendingValueBox: OverlayDimensionID?`), `AppModel+Picking.swift` (`viewportClicked`: the tool takes the click first, before DIM-3's `selectFeature(at:)` and the pick session), `AppModel+Dimensions.swift` (`refreshDimensions()` opens `pendingValueBox` once it is shown, then clears it), `AppRoot.swift` (the banner in `PickBanner`'s place), and wherever `pick` is cancelled (beginning sketch mode, a level change in `refreshScene`, New/Open): cancel the tool too; undo/redo clear `pendingValueBox`
+- Modify: `AppModel.swift` (`public internal(set) var modelDimension: ModelDimensionSession?`; `@ObservationIgnored var pendingValueBox: OverlayDimensionID?`; `var heldModelDimension: DimensionPin?`, the added driving dimension, shown while its box is open), `AppModel+Picking.swift` (`viewportClicked`: the tool takes the click first, before DIM-3's `selectFeature(at:)` and the pick session), `AppModel+Dimensions.swift` (`refreshDimensions()` builds `heldModelDimension`'s feature dimension as a pin is built, not marked pinned, beside the contextual ones; opens `pendingValueBox` once it is shown, then clears it), `AppDimensionEditing.swift` (`valueBoxClosed` for that ID, any ending, clears `heldModelDimension` and refreshes), `AppRoot.swift` (the banner in `PickBanner`'s place), and wherever `pick` is cancelled (beginning sketch mode, a level change in `refreshScene`, New/Open): cancel the tool too; undo/redo clear `pendingValueBox`
 - Test: `Tests/CreatorAppTests/ModelDimension/ModelDimensionToolTests.swift` (OCCT; holed plate)
 
 **Interfaces:**
@@ -300,10 +300,11 @@ extension AppModel {
   A click: on nothing, a ghost or a guide item → ignored. First pick → stored with its items. Second pick → items traced;
   same item as the first → ignored; `shared` nil, or the shared node or either entity gone from the current results, or
   `ModelDimensionKind.between` nil, or `MeasuredDimension.add` nil → `message = differentFeatures`, `first = nil`, nothing
-  written. Otherwise: one `document.perform(.batch(SketchStore.commands(storing: added.sketch, in: sketchNode, graph:
+  written. Otherwise (the selection is left as it was): one `document.perform(.batch(SketchStore.commands(storing: added.sketch, in: sketchNode, graph:
   editor.graph)), at: editor.graphPath, name: UndoName.sketch(SketchStepName.addDimension))` (`sketchNode` the Sketch `Node` of
-  `editor.graph`), `modelDimension = nil`, `editor.selection = [sketchNode.id]`, and when `added.isDriving`, `pendingValueBox =
-  FeatureDimension.overlayID(node: sketchNode.id, target: .sketchDimension(added.id))`. The measured sketch is the trace's (`results[node].sketchTrace.sketch`); the stored one is
+  `editor.graph`), `modelDimension = nil`, and when `added.isDriving`, `heldModelDimension = DimensionPin(node: sketchNode.id,
+  target: .sketchDimension(added.id))` and `pendingValueBox = FeatureDimension.overlayID(node: sketchNode.id, target:
+  .sketchDimension(added.id))`. Undo, redo, New/Open and a level change clear `heldModelDimension`. The measured sketch is the trace's (`results[node].sketchTrace.sketch`); the stored one is
   the node's `NodeSetting.sketch`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -313,12 +314,15 @@ extension AppModel {
     // begin; click rim of hole 1 → pickedCount 1, graph unchanged, undoName nil, banner text "… · 1 picked"
 @Test func twoHoleRimsAddACentreToCentreDimensionAndOpenItsBox() async throws
     // + rim of hole 2, settle → stored sketch's new dimension .centreDistance(c1, c2), value 30, driving;
-    // undoTitle "Undo Add Dimension"; modelDimension nil; selection [sketch]; viewport.valueBox?.draft == "30";
+    // undoTitle "Undo Add Dimension"; modelDimension nil; selection unchanged (empty); viewport.valueBox?.draft == "30";
     // the extruded part's rim centroids unchanged within 1e-6; camera pose unchanged
 @Test func oneUndoTakesItAway() async throws                  // undo → the Sketch node's sketch equals the one before
 @Test func returnWithANewValueIsASecondStep() async throws    // draft "35", submit, settle → value 35, "Undo Change Dimension";
                                                               // undo → 30 and still added; undo → gone
 @Test func escapeOnTheBoxKeepsTheMeasuredDimension() async throws   // cancelValueBox → value 30, undoTitle "Undo Add Dimension"
+@Test func theNewDimensionShowsWhileItsBoxIsOpenThenByTheChainRule() async throws
+    // nothing selected: shown while the box is open; after Esc → not in viewport.dimensions, selection still empty;
+    // again with the Extrude selected (its chain holds the Sketch): still shown after Esc; selection still [extrude]
 @Test func anOverDefiningPairIsAddedAsAReferenceWithNoBox() async throws
     // top edges over l0 and l2 → .lineDistance(l0, l2), isDriving false, value 40; valueBox nil
 @Test func aWallAndAHoleGiveTheDistanceFromItsCentre() async throws   // left wall + rim 1 → .distance(centre c1, l3), 15

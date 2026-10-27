@@ -317,3 +317,6 @@ this spec:
   Esc on its box keeps the measured dimension.
 - **Double-click needs MetalUI gap DIM-a** (`SpatialTapGesture.Value.clickCount`); until it lands a double-click opens no box in
   the running app (model tests pass the click count).
+- **A circle or arc with a line** gives the distance from its centre to the line, in the sketch D tool and the model tool alike.
+- **The model tool leaves the selection alone.** The new dimension shows while its box is open; afterwards only by the usual
+  rule (in a selected feature's chain, or pinned).
