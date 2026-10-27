@@ -39,4 +39,30 @@ extension EditorModel {
             .filter { $0.1 <= Self.wireHitDistance }
             .min { ($0.1, $0.0) < ($1.1, $1.0) }?.0
     }
+
+    /// The wires whose taut route crosses or lies inside `rect` (display canvas points), each with the centre of the middles
+    /// of its stretches inside it: what an ⌥-box finds (cable ties spec §4.1, §4.2).
+    func wires(intersecting rect: CanvasRect, in routing: WireRouting) -> [Endpoint: Vector2] {
+        routing.routes.values.reduce(into: [:]) { found, route in
+            let inside = route.pointsInside(rect)
+            guard !inside.isEmpty else { return }
+            found[route.wire] = inside.reduce(Vector2.zero, +) * (1 / Double(inside.count))
+        }
+    }
+
+    /// The ties whose band lies wholly inside `rect`: what a plain box picks up (cable ties spec §4.1).
+    func ties(inside rect: CanvasRect, in routing: WireRouting) -> Set<TieID> {
+        Set(routing.ties.values.filter { rect.contains($0.band.origin) && rect.contains(Vector2($0.band.maxX, $0.band.maxY)) }
+            .map(\.id))
+    }
+
+    /// The box being dragged on empty canvas, plain or ⌥ (display canvas points); `nil` while there is none.
+    public var selectionBox: CanvasRect? {
+        switch interaction {
+        case .boxSelecting(let start, let current, _, _)?, .wireBoxSelecting(let start, let current, _, _)?:
+            CanvasRect(corner: start, current)
+        default:
+            nil
+        }
+    }
 }

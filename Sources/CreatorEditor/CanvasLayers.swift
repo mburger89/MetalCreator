@@ -69,8 +69,8 @@ struct CanvasLayers: Component {
                     : WireGeometry(from: anchor, to: drag.current, flow: flow)
                 WireView(geometry: geometry, color: palette.focus).equatable()
             }
-            if case .boxSelecting(let start, let current, _, _)? = model.interaction {
-                BoxSelectionView(rect: CanvasRect(corner: start, current)).equatable()
+            if let box = model.selectionBox {
+                BoxSelectionView(rect: box).equatable()
             }
         }
     }

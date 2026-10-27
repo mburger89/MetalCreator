@@ -24,9 +24,10 @@ extension EditorModel {
         canvasSelection = CanvasSelection()
     }
 
-    /// Everything on the canvas: every node and every comment.
+    /// Everything on the canvas: every node, comment and tie. Never a wire, as a plain box never selects one (cable ties plan
+    /// ruling R6).
     public var allItems: CanvasSelection {
-        CanvasSelection(nodes: Set(graph.nodes.keys), comments: graph.commentIDs)
+        CanvasSelection(nodes: Set(graph.nodes.keys), comments: graph.commentIDs, ties: Set(graph.ties.keys))
     }
 
     /// What a press on `hit` selects: the node, or a socket's node, the comment, the wire or the tie; `nil` for empty canvas.
@@ -41,10 +42,11 @@ extension EditorModel {
         }
     }
 
-    /// What a box covers: the nodes and notes whose drawn rectangle meets `rect` (display canvas points) and the
-    /// frames whose chrome does.
+    /// What a plain box covers: the nodes and notes whose drawn rectangle meets `rect` (display canvas points), the
+    /// frames whose chrome does, and the ties whose band lies wholly inside it (cable ties spec §4.1). Never a wire.
     public func items(intersecting rect: CanvasRect) -> CanvasSelection {
-        CanvasSelection(nodes: nodes(intersecting: rect), comments: comments(intersecting: rect))
+        CanvasSelection(nodes: nodes(intersecting: rect), comments: comments(intersecting: rect),
+                        ties: ties(inside: rect, in: wireRouting))
     }
 
     /// Where `items` are now (stored coordinates; a comment's is its frame's origin), skipping any no longer on the

@@ -46,6 +46,8 @@ extension EditorModel {
         case .connecting(let wire): finishWire(wire, at: location)
         case .boxSelecting(let start, _, let base, let mode):
             applyBox(from: start, to: transform.toCanvas(location), base: base, mode: mode)
+        case .wireBoxSelecting(let start, _, let base, let mode):
+            applyWireBox(from: start, to: transform.toCanvas(location), base: base, mode: mode)
         case .panning: break
         }
         endPress()
@@ -85,7 +87,7 @@ extension EditorModel {
         case nil: return false
         case .panning?, .moving?, .resizing?: return true
         case .connecting?, .duplicating?: break
-        case .boxSelecting(_, _, let base, _)?: canvasSelection = base
+        case .boxSelecting(_, _, let base, _)?, .wireBoxSelecting(_, _, let base, _)?: canvasSelection = base
         }
         cancelPress()
         return true
@@ -142,6 +144,10 @@ extension EditorModel {
     /// pans: the middle button (`middleDragged`) and two-finger scroll do.
     private func emptyCanvasDrag(at screen: Vector2, modifiers: CanvasModifiers) -> CanvasInteraction {
         let point = transform.toCanvas(screen)
+        // ⌥ makes it a box of wires only (cable ties spec §4.1); ⇧ and ⌘ still say how it combines.
+        if modifiers.contains(.option) {
+            return .wireBoxSelecting(start: point, current: point, base: canvasSelection, mode: SelectionMode(modifiers))
+        }
         return .boxSelecting(start: point, current: point, base: canvasSelection, mode: SelectionMode(modifiers))
     }
 
@@ -162,6 +168,8 @@ extension EditorModel {
             setInteraction(.duplicating(start: start, delta: storedDelta))
         case .boxSelecting(let start, _, let base, let mode):
             applyBox(from: start, to: transform.toCanvas(location), base: base, mode: mode)
+        case .wireBoxSelecting(let start, _, let base, let mode):
+            applyWireBox(from: start, to: transform.toCanvas(location), base: base, mode: mode)
         case .connecting(var wire):
             wire.current = transform.toCanvas(location)
             setInteraction(.connecting(wire))
@@ -174,6 +182,16 @@ extension EditorModel {
     private func applyBox(from start: Vector2, to current: Vector2, base: CanvasSelection, mode: SelectionMode) {
         setInteraction(.boxSelecting(start: start, current: current, base: base, mode: mode))
         canvasSelection = base.applying(items(intersecting: CanvasRect(corner: start, current)), mode: mode)
+    }
+
+    /// The ⌥-box from `start` to `current` (display canvas points): the wires its taut routes cross, combined with the wires
+    /// the drag began with as `mode` says, the rest of the selection as it began. Each wire it finds remembers where it lay
+    /// inside the box, for ⌘⇧T (cable ties spec §4.2).
+    private func applyWireBox(from start: Vector2, to current: Vector2, base: CanvasSelection, mode: SelectionMode) {
+        setInteraction(.wireBoxSelecting(start: start, current: current, base: base, mode: mode))
+        let found = wires(intersecting: CanvasRect(corner: start, current), in: wireRouting)
+        for (wire, point) in found { wirePickPoints[wire] = flow.stored(point) }
+        canvasSelection = base.applying(wires: Set(found.keys), mode: mode)
     }
 
     /// The copies land where the ghosts were, as one undo step; the originals never moved.
