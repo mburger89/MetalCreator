@@ -13,6 +13,8 @@ public enum ViewportMenuItem: Hashable, Sendable {
     case scatterOnFace(ViewportFaceRef)
     /// One item per producing node. The title names the node when a face has several.
     case showProducingNode(NodeID, title: String)
+    /// An entry the host offers: a dimension's (over its text) or the tool's (`dimension` is `nil`).
+    case host(HostMenuAction, dimension: OverlayDimensionID?)
 
     public var title: String {
         switch self {
@@ -22,6 +24,7 @@ public enum ViewportMenuItem: Hashable, Sendable {
         case .patternOnFace: "Pattern on Face"
         case .scatterOnFace: "Scatter on Face"
         case .showProducingNode(_, let title): title
+        case .host(let action, _): action.title
         }
     }
 }

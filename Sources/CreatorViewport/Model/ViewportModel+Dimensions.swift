@@ -7,6 +7,8 @@ extension ViewportModel {
     /// The dimensions to draw, replacing the last. An equal list changes nothing.
     public func showDimensions(_ newDimensions: [OverlayDimension]) {
         if dimensions != newDimensions { dimensions = newDimensions }
+        // A box whose dimension is gone (the sketch is done, an undo, a solve that dropped it) closes with no commit.
+        if let box = valueBox, !newDimensions.contains(where: { $0.id == box.id }) { closeValueBox() }
     }
 
     /// The dimensions on screen, in list order (the last is on top). Empty while the camera animates (the element tree is
@@ -19,7 +21,12 @@ extension ViewportModel {
             return []
         }
         let camera = DimensionCamera(pose: pose, size: size)
-        let placed = dimensions.compactMap { DimensionLayout.place($0, style: dimensionStyle, camera: camera, measure: measure) }
+        var placed = dimensions.compactMap { DimensionLayout.place($0, style: dimensionStyle, camera: camera, measure: measure) }
+        // The edited dimension's text is under its value box: kept for the box to sit on, not drawn.
+        if let edited = valueBox?.id, let index = placed.firstIndex(where: { $0.id == edited }) {
+            valueBoxAnchor = ValueBoxAnchor(origin: placed[index].textOrigin, size: placed[index].textSize)
+            placed[index].showsText = false
+        }
         drawnDimensions = placed
         return placed
     }

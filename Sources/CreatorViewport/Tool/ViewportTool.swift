@@ -30,11 +30,18 @@ public protocol ViewportTool: AnyObject {
     func dragBegan(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) -> Bool
     func dragMoved(to point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector)
     func dragEnded(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector)
+    /// The entries the tool adds to a right-click at `point` (default: none). They follow the viewport's own, and also appear where
+    /// the viewport has none (off the model).
+    func menuActions(at point: ScreenPoint) -> [HostMenuAction]
+    /// Runs an entry from `menuActions(at:)` (default: nothing).
+    func performMenuAction(_ action: HostMenuAction)
 }
 
 extension ViewportTool {
     public var navigation: ViewportNavigation { .free }
     public var framingBounds: BoundingBox? { nil }
+    public func menuActions(at point: ScreenPoint) -> [HostMenuAction] { [] }
+    public func performMenuAction(_ action: HostMenuAction) {}
     public func clickedModel(_ target: PickTarget?, at point: ScreenPoint, modifiers: ViewportModifiers,
                              projector: ViewportProjector) -> Bool {
         false

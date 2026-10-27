@@ -50,6 +50,17 @@ public final class ViewportModel {
     public var dimensionStyle = DimensionStyle.ansi
     /// The dimensions as `placedDimensions(measuring:)` last placed them: what `dimension(at:)` hit-tests.
     @ObservationIgnored var drawnDimensions: [PlacedDimension] = []
+    /// Answers the dimensions' value boxes and menus (the sketch editor, through the app shell).
+    @ObservationIgnored public weak var dimensionEditor: (any DimensionEditing)?
+    /// Names the key bindings that act while a value field has the keyboard (the host's own context, for example
+    /// "sketch-dimension"); empty when none is set.
+    public var fieldKeyContext = ""
+    /// The value box of the dimension being edited, or `nil`. Tracked: the view shows it.
+    public internal(set) var valueBox: DimensionValueBox?
+    /// Where the edited dimension's text was last drawn.
+    @ObservationIgnored var valueBoxAnchor: ValueBoxAnchor?
+    /// Changes whenever a box opens or closes, so an answer for an earlier box is told apart.
+    @ObservationIgnored var valueBoxGeneration = 0
     /// The field slice drawn through the scene (`showSlice(_:)`), or `nil`. It is no part of the scene: it never picks, frames
     /// or widens `sceneBounds`.
     public private(set) var slice: ViewportSlice?
