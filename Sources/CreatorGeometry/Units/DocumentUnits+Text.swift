@@ -48,7 +48,7 @@ extension DocumentUnits {
     }
 
     /// A locale-independent number with `minimum...maximum` decimals, rounded half away from zero, never "-0".
-    static func number(_ value: Double, minimum: Int, maximum: Int) -> String {
+    public static func number(_ value: Double, minimum: Int, maximum: Int) -> String {
         let style = FloatingPointFormatStyle<Double>(locale: Locale(identifier: "en_US_POSIX"))
             .grouping(.never)
             .rounded(rule: .toNearestOrAwayFromZero)
