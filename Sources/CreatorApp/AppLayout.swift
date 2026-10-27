@@ -17,7 +17,7 @@ public enum AppLayout {
     public static let showButtonHeight = 44.0
     /// The graph panel's inner-edge resize handle.
     public static let resizeHandle = 8.0
-    public static let defaultPanelWidth = 460.0
+    public static let defaultPanelWidth = 480.0
     public static let defaultPanelHeight = 300.0
     public static let panelWidths: ClosedRange<Double> = 240...900
     public static let panelHeights: ClosedRange<Double> = 160...700

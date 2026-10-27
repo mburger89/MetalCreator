@@ -26,7 +26,27 @@ struct ToolbarLabelsWindowTests {
         let ideal = try widths(app)
         #expect(actual.count == Self.labels.count && ideal.count == Self.labels.count)
         for label in Self.labels {
-            #expect(actual[label] == ideal[label], "“\(label)” is \(actual[label] ?? 0) wide, its ideal is \(ideal[label] ?? 0)")
+            // Within a pixel: MetalUI rounds each edge, so a button's width is `round(x + w) - round(x)`.
+            #expect(abs((actual[label] ?? 0) - (ideal[label] ?? 0)) <= 1,
+                    "“\(label)” is \(actual[label] ?? 0) wide, its ideal is \(ideal[label] ?? 0)")
+        }
+    }
+
+    /// What a wide font does to the default width (DejaVu Sans on Linux): the row is short of room by a few points. The
+    /// panel is made that narrow instead, since the macOS font is narrower. The breadcrumbs give way, not a button.
+    @Test func narrowHeaderTruncatesTheBreadcrumbsBeforeAnyButton() async throws {
+        let app = try await AppWindow.open(dock: .left)
+        app.model.panelWidth = AppLayout.panelWidths.upperBound
+        try await app.window.runUntilIdle()
+        let ideal = try widths(app)
+        // The buttons and their spacing just fit in the row (390 points), the path does not.
+        app.model.panelWidth = 410
+        try await app.window.runUntilIdle()
+        let actual = try widths(app)
+        #expect(actual.count == Self.labels.count && ideal.count == Self.labels.count)
+        for label in Self.labels {
+            #expect(abs((actual[label] ?? 0) - (ideal[label] ?? 0)) <= 1,
+                    "“\(label)” is \(actual[label] ?? 0) wide, its ideal is \(ideal[label] ?? 0)")
         }
     }
 }

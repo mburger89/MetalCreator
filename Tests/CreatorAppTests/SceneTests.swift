@@ -111,8 +111,8 @@ struct SceneTests {
 
     @Test func theViewportOverlaysMoveOutFromUnderThePanels() async {
         let app = await makeApp()
-        #expect(app.viewport.modelArea == AppLayout.modelArea(dock: .left, panelWidth: 460, panelHeight: 300))
-        #expect(app.viewport.modelArea.leading == 12 + 460 + 8)
+        #expect(app.viewport.modelArea == AppLayout.modelArea(dock: .left, panelWidth: AppLayout.defaultPanelWidth, panelHeight: 300))
+        #expect(app.viewport.modelArea.leading == 12 + AppLayout.defaultPanelWidth + 8)
         app.editor.setDock(.bottom)
         await app.settle()
         #expect(app.viewport.modelArea.bottom == 12 + 300 + 8)
@@ -130,7 +130,7 @@ struct SceneTests {
         app.beginPanelResize()
         #expect(app.isResizingPanel)
         app.resizePanel(by: 40)
-        #expect(app.panelWidth == 500)
+        #expect(app.panelWidth == AppLayout.defaultPanelWidth + 40)
         app.resizePanel(by: 5_000)
         #expect(app.panelWidth == AppLayout.panelWidths.upperBound)
         app.resizePanel(by: -5_000)

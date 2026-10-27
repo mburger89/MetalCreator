@@ -11,7 +11,10 @@ struct GraphPanelHeader: Component {
 
     var content: some ElementGroup {
         HStack(spacing: Pixels(6)) {
+            // Lowest priority: when the row is short (a wide font, a narrow panel) the path is what truncates, not
+            // a button's label.
             BreadcrumbBar(model: model)
+                .layoutPriority(-1)
             Spacer(minLength: Pixels(0))
             Button("Add") { model.openPalette() }
                 .help("Add a node (Space)")
