@@ -12,8 +12,8 @@ struct CanvasLayersTests {
         let editor = makeEditor([rect, extrude], [wire(rect, "profile", extrude, "profile")])
         let wires = CanvasLayers.wires(editor)
         #expect(wires.count == 1)
-        #expect(wires.first?.geometry.start == Vector2(168, 120))
-        #expect(wires.first?.geometry.end == Vector2(300, 40))
+        #expect(wires.first?.route.pieces.first?.start == Vector2(168, 120))
+        #expect(wires.first?.route.pieces.last?.end == Vector2(300, 40))
         #expect(wires.first?.color == Palette.dracula.socket(.profile))
     }
 

@@ -46,7 +46,8 @@ struct CommentViewEqualityTests {
         let geometry = WireGeometry(from: Vector2(0, 0), to: Vector2(100, 40), flow: .horizontal)
         let color = Palette.dracula.socket(.solid)
         expectEqualityCovers(WireView(geometry: geometry, color: color), equalTo: WireView(geometry: geometry, color: color), [
-            "geometry": WireView(geometry: WireGeometry(from: Vector2(0, 0), to: Vector2(101, 40), flow: .horizontal), color: color),
+            "pieces": WireView(pieces: [geometry, WireGeometry(from: Vector2(100, 40), to: Vector2(200, 0), flow: .horizontal)],
+                               color: color),
             "color": WireView(geometry: geometry, color: Palette.dracula.socket(.profile)),
             "lineWidth": WireView(geometry: geometry, color: color, lineWidth: 3),
         ])

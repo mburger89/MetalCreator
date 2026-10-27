@@ -15,4 +15,12 @@ extension EditorModel {
         }
         return WireRouting(links: graph.links, ties: graph.ties, outputs: outputs, inputs: inputs, flow: flow)
     }
+
+    /// Ties back to front: by ID, with the selected ones raised above the rest.
+    public func drawOrderTies(in routing: WireRouting) -> [TieLayout] {
+        routing.ties.values.sorted { a, b in
+            let aSelected = canvasSelection.ties.contains(a.id), bSelected = canvasSelection.ties.contains(b.id)
+            return aSelected != bSelected ? bSelected : a.id < b.id
+        }
+    }
 }
