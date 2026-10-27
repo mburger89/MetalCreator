@@ -17,6 +17,9 @@ extension ViewportView {
                     .allowsHitTesting(false)
             }
             dimensions(model: model, measure: measure)
+            if let placed = model.placedValueBox(measuring: measure) {
+                DimensionValueBoxView(model: model, placed: placed)
+            }
             for label in model.overlayLabels(measuring: measure) {
                 ProposalText(label.text)
                     .font(.caption)
