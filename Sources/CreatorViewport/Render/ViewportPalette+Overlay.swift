@@ -13,6 +13,8 @@ extension ViewportPalette {
         case .hovered: hover
         case .preview: sketchPreview
         case .region: sketchRegion
+        case .dimensionDriving: dimensionDriving
+        case .dimensionReference: dimensionReference
         case .axisX: axisX
         case .axisY: axisY
         case .axisZ: axisZ

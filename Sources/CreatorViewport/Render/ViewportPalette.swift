@@ -37,6 +37,9 @@ struct ViewportPalette: Hashable, Sendable {
     var sketchPreview: SIMD4<Float>
     /// A closed region's fill: the Sketch node's header colour at 18% opacity.
     var sketchRegion: SIMD4<Float>
+    /// Driving and reference dimensions (dimensions spec §5).
+    var dimensionDriving: SIMD4<Float>
+    var dimensionReference: SIMD4<Float>
 
     init(_ theme: ColorTheme) {
         let colors = theme.colors
@@ -66,6 +69,8 @@ struct ViewportPalette: Hashable, Sendable {
         sketchSelected = colors.profileHeader.rgba
         sketchPreview = colors.sketchUnderConstrained.opacity(0.6).rgba
         sketchRegion = colors.profileHeader.opacity(0.18).rgba
+        dimensionDriving = colors.dimensionDriving.rgba
+        dimensionReference = colors.dimensionReference.rgba
     }
 
     /// The default theme's colours.

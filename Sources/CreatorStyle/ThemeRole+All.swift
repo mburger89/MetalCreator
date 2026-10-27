@@ -44,5 +44,7 @@ extension ThemeRole {
         ThemeRole("fieldLow", "Field low", .fieldPreview, \.fieldLow),
         ThemeRole("fieldMid", "Field middle", .fieldPreview, \.fieldMid),
         ThemeRole("fieldHigh", "Field high", .fieldPreview, \.fieldHigh),
+        ThemeRole("dimensionDriving", "Driving dimension", .dimensions, \.dimensionDriving),
+        ThemeRole("dimensionReference", "Reference dimension", .dimensions, \.dimensionReference),
     ]
 }

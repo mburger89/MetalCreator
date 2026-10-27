@@ -52,4 +52,15 @@ struct ViewportPaletteTests {
         #expect(model.labelColor == ColorTheme.alucard.colors.foreground.color)
         #expect(model.hintColor == ColorTheme.alucard.colors.comment.color)
     }
+
+    @Test func theDimensionTintsTakeTheirRoles() {
+        let model = ViewportModel(kernel: StubMeshKernel(), pose: CameraPose(target: .zero, distance: 100), clock: ManualClock())
+        model.theme = .alucard
+        let colors = ColorTheme.alucard.colors
+        #expect(model.textColor(for: .dimensionDriving) == colors.dimensionDriving.color)
+        #expect(model.textColor(for: .dimensionReference) == colors.dimensionReference.color)
+        let palette = ViewportPalette(.alucard)
+        #expect(palette.color(.dimensionDriving) == colors.dimensionDriving.rgba)
+        #expect(palette.color(.dimensionReference) == colors.dimensionReference.rgba)
+    }
 }
