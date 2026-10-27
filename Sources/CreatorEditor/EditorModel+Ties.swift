@@ -43,4 +43,22 @@ extension EditorModel {
             refuse(error.message, node: nil)
         }
     }
+
+    /// ⌥-click on tie `id`'s band at `screen` (cable ties spec §4.4): takes the wire on the nearest lane out of the tie, or
+    /// removes the tie when it would hold fewer than two (I2), as one undo step ("Untie Wire"). Returns whether there was a
+    /// wire to untie.
+    func untie(at screen: Vector2, from id: TieID) -> Bool {
+        guard var tie = graph.ties[id], let wire = laneWire(of: id, near: transform.toCanvas(screen), in: wireRouting) else {
+            return false
+        }
+        tie.wires.remove(wire)
+        let removes = tie.wires.count < CableTie.minimumWires
+        do {
+            try edit(removes ? .removeTie(id) : .setTie(tie), name: UndoName.untieWire)
+            if removes { canvasSelection.ties.remove(id) }
+        } catch {
+            refuse(error.message, node: nil)
+        }
+        return true
+    }
 }

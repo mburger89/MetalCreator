@@ -65,4 +65,9 @@ extension EditorModel {
             nil
         }
     }
+
+    /// The wire whose lane in tie `id` lies nearest `point` (display canvas points): the one an ⌥-click on the band unties.
+    func laneWire(of id: TieID, near point: Vector2, in routing: WireRouting) -> Endpoint? {
+        routing.ties[id]?.lanes.min { (($0.value - point).length, $0.key) < (($1.value - point).length, $1.key) }?.key
+    }
 }

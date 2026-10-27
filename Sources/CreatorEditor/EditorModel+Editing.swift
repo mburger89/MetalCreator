@@ -18,7 +18,8 @@ extension EditorModel {
         }
     }
 
-    /// Delete / ⌫: removes the selected nodes and their wires and the selected comments, as one undo step. A deleted
+    /// Delete / ⌫: removes the selected nodes and their wires, the selected comments and the selected ties, as one undo step;
+    /// wires alone stay (cable ties spec §4.4). A deleted
     /// frame leaves the nodes it held where they are. Group Input and Group Output stay (a group always has both); with
     /// only those selected, it says why nothing happened.
     public func deleteSelection() {
@@ -30,7 +31,9 @@ extension EditorModel {
     @discardableResult
     private func delete(named name: String) -> Bool {
         let present = canvasSelection.nodes.filter { graph.nodes[$0] != nil }
-        let commands = present.filter { !isBoundary($0) }.sorted().map { GraphCommand.removeNode($0) }
+        // Ties first: a selected tie whose last wires go with a deleted node would be gone by the time its own removal ran.
+        let ties = canvasSelection.ties.sorted().filter { graph.ties[$0] != nil }.map { GraphCommand.removeTie($0) }
+        let commands = ties + present.filter { !isBoundary($0) }.sorted().map { GraphCommand.removeNode($0) }
             + canvasSelection.comments.sorted().compactMap { id -> GraphCommand? in
                 if graph.stickies[id] != nil { return .removeSticky(id) }
                 return graph.frames[id] != nil ? .removeFrame(id) : nil
@@ -40,7 +43,8 @@ extension EditorModel {
             return false
         }
         do {
-            try edit(.batch(commands), name: name)
+            // Ties alone are "Remove Tie" (cable ties spec §4.4), by Delete or ⌘X alike.
+            try edit(.batch(commands), name: commands.count == ties.count ? UndoName.removeTie : name)
             canvasSelection = CanvasSelection()
             return true
         } catch {

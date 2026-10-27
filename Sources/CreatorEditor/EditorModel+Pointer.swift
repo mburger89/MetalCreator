@@ -106,6 +106,8 @@ extension EditorModel {
     /// keeps it. On empty canvas a plain click clears the selection and a modified one keeps it. A click on a wire also
     /// remembers where it landed, for ⌘⇧T's tie (cable ties spec §4.2).
     private func click(_ hit: CanvasHit, at screen: Vector2, modifiers: CanvasModifiers) {
+        // ⌥-click on a tie's band unties the wire on the nearest lane (cable ties spec §4.4).
+        if modifiers.contains(.option), case .tie(let id) = hit, untie(at: screen, from: id) { return }
         let mode = SelectionMode(modifiers)
         guard let items = items(for: hit) else {
             if mode == .replace { clearSelection() }
@@ -159,7 +161,7 @@ extension EditorModel {
         case .panning:
             break  // The middle button's (`middleDragged`); a primary press ends a pan first (`pointerPressed`).
         case .moving(let start, let key):
-            try? edit(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key, name: UndoName.move)
+            try? edit(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key, name: moveName(of: start))
         case .resizing(let id, let start, let key):
             if let command = resizeCommand(id, from: start, by: (location - pressPoint) * (1 / transform.zoom)) {
                 try? edit(command, coalescingKey: key, name: UndoName.resize)
