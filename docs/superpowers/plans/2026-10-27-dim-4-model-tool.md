@@ -9,10 +9,11 @@ scenario, end to end and headless, in mm and in inches, and close the project's 
 **Architecture:** The Sketch node reports how its profiles came from its entities (`SketchTrace`, carried on `NodeResult`
 the way DIM-3 carries `dimensions`). The app traces a pick through the face's `TopoTag` (`.side(loop:segment:)` of a
 node whose `profile` is wired from a Sketch's `profiles`), or through a projected entity's stored edge pick, to
-`SketchItem`s (node and entity). It picks the kind (`ModelDimensionKind`), measures it on the sketch as evaluated, and adds
-it to the stored sketch as one "Add Dimension" batch (`SketchStore.commands`), as a reference when a driving one would
-over-define (`MeasuredDimension`). The tool is an app session like `PickSession`, with a banner. The box opens on DIM-3's
-feature dimension for the new sketch dimension once evaluation shows it.
+`SketchItem`s (node and entity). It picks the kind (`ModelDimensionKind`), measures it on the sketch as evaluated with DIM-2's
+`Sketch.measuredDimension` (a reference when a driving one would over-define), and adds it to the stored sketch as one "Add
+Dimension" batch (`SketchStore.commands`, through `MeasuredDimension`). The tool is an app session like `PickSession`, with a
+banner. The box opens on DIM-3's feature dimension for the new sketch dimension (`FeatureDimension.overlayID`) once evaluation
+shows it.
 
 **Tech Stack:** Swift 6.4, MetalUI (`../MetalUI`, read only), Swift Testing, OpenCascade through `CreatorOCCT`.
 
@@ -23,28 +24,30 @@ are binding. DIM-1: `2026-10-27-dim-1-foundation.md`.
 **Branch / worktree:** `dim-4-acceptance` in `/Users/maxburger/Developer/worktrees/dim-4` (the overview's Worktrees note).
 Starts after DIM-2 and DIM-3 are merged to master.
 
-## DIM-2 / DIM-3 interfaces this plan consumes (orchestrator: reconcile once those plans land)
+## DIM-2 / DIM-3 interfaces this plan consumes (reconciled 2026-10-27 against their plans; all in the overview)
 
-| From | Interface as this plan uses it | Where used |
+| From | Interface | Where used |
 |---|---|---|
-| DIM-2 | `DimensionKind.centreDistance(SketchEntityID, SketchEntityID)`: circle or arc with circle, arc **or point**; projected circles count as circles | Tasks 4, 5 |
-| DIM-2 | `DimensionKind.lineDistance(SketchEntityID, SketchEntityID)`: two parallel lines, projected lines included; `quantity == .length` for both kinds | Tasks 4, 5 |
-| DIM-2 | §4.4 over-define → reference in the sketch D tool. If DIM-2 landed a pure helper for it, Task 4 uses that helper instead of creating `MeasuredDimension` (keep the tests); if not, Task 4 creates it and points DIM-2's D tool at it | Task 4 |
+| DIM-2 | `DimensionKind.centreDistance(SketchEntityID, SketchEntityID)`: two circles or arcs, or a circle or arc and a point (two points are refused); projected circles give their centre | Tasks 4, 5 |
+| DIM-2 | `DimensionKind.lineDistance(SketchEntityID, SketchEntityID)`: two lines, measured from the second's midpoint along the first's normal; `quantity == .length` for all four new kinds | Tasks 4, 5 |
+| DIM-2 | `Sketch.measuredDimension(_ kind:) -> (value: Double, isDriving: Bool)?` (Task 3, `Sketch+MeasuredDimension.swift`): §4.4's rule (reference when the driving solve is `.overConstrained` with the new dimension among the conflicts); nil when unmeasurable or a length under 1e-9. Task 4 builds on it; it does not re-implement it | Task 4 |
+| DIM-2 | Two lines within 0.5° of parallel are a line distance, else an angle (DIM-2 decision 5); Task 4 uses the same limit | Task 4 |
 | DIM-2 | `SketchDimension.labelPoint` is `nil` for a new dimension (the style's standoff) | Task 5 |
-| DIM-3 | `NodeOutputs.dimensions` / `NodeResult.dimensions` and how a run's are collected: `sketchTrace` copies the mechanism | Task 2 |
-| DIM-3 | Sketch declares every sketch dimension as `DimensionSpec(target: .sketchDimension(id))`; Extrude `distance`; Hole Pattern `diameter` with `count` (NX); Linear Pattern `spacing` and `count`; Fillet `radius`; Chamfer `distance` | Tasks 5, 7, 8 |
-| DIM-3 | The feature overlay ID for `(NodeID, DimensionTarget)` (instance-free). Named here `FeatureDimensionID.overlayID(node:target:)`: **rename to DIM-3's actual function** | Task 5 |
-| DIM-3 | Face-click selection inside `AppModel.viewportClicked(_:)`: a hole wall selects the Hole Pattern | Tasks 5, 7 |
-| DIM-3 | Private-chain walk: stops at a node with another consumer and at graph parameters. Task 7 assumes nothing about whether it crosses a solid input (`part`); Task 8 tests only cases that hold either way | Tasks 7, 8 |
-| DIM-3 | `AppDimensionEditing` routes `"feature/"`; `commitChecked` commits an input edit as `SketchStepName.changeDimension` ("Change Dimension") and a parameter-wired one as `UndoName.changeParameter` ("Change Parameter"); the box `note` reads "Wall (parameter, used by 1 feature)" | Tasks 7, 8 |
-| DIM-3 | `menuActions(for:)` titles "Pin Dimension" / "Unpin Dimension"; `DimensionPin`, `DimensionTarget`, `Graph.dimensionPins`; `OverlayDimension.isPinned` | Task 7 |
+| DIM-3 | `NodeOutputs.dimensions` / `NodeResult.dimensions`, collected by `IterationOutputs.record` and put on the result in `Evaluator+Running.run`; `sketchTrace` follows the same path | Task 2 |
+| DIM-3 | `SketchSolve.Output` already carries the solved `sketch` and `solution` (DIM-3 Task 9); the trace is built from them | Task 2 |
+| DIM-3 | Sketch declares `DimensionSpec(.sketchDimension(id), geometry, kind.quantity, value:)` per dimension (`SketchDimensionGeometry`); Extrude `distance`; Hole Pattern `diameter` with `count` (NX); Linear Pattern `spacing` and `count`; Fillet `radius` and Chamfer `distance`, each with `count` = the edge count when ≥ 2 | Tasks 5, 7, 8 |
+| DIM-3 | `FeatureDimension.overlayID(node:target:component:index:)`: the instance-free ID is `FeatureDimension.overlayID(node: sketch, target: .sketchDimension(id))` | Task 5 |
+| DIM-3 | `AppModel.selectFeature(at:)`, called from `viewportClicked(_:)` with no pick session and no sketch, **in Final preview only** (`previewMode == .final`, the default); a hole wall selects the Hole Pattern | Tasks 5, 7 |
+| DIM-3 | `FeatureChain.nodes(of:in:)`: stops at a node with another consumer (an `isOutput` node counts as one), at Graph Parameter and Group Input nodes, and **never crosses a body wire** (`.solid`, `.implicit`, `.mesh`) | Tasks 7, 8 |
+| DIM-3 | `AppDimensionEditing` routes `"feature/"`; `commitChecked(_:at:name:)` commits a feature input or a sketch dimension as `UndoName.changeDimension` ("Change Dimension") and a parameter-wired one as `UndoName.changeParameter` ("Change Parameter", top level); box `note` "Wall (parameter, used by 1 feature)"; out of range "Wall must be between 1 mm and 20 mm." | Tasks 7, 8 |
+| DIM-3 | `menuActions(for:)` titles "Pin Dimension" / "Unpin Dimension" (`UndoName.pinDimension`); `DimensionPin(node:target:)`, `DimensionTarget`, `Graph.dimensionPins` on the level's graph; `OverlayDimension.isPinned` | Task 7 |
 
 ## Global Constraints
 
 - The overview's Global Constraints apply to every task: Swift 6.4 strict concurrency, Swift Testing only, `@MainActor @Observable` models, portable code (`.primary`, no CoreText/CoreGraphics/Metal outside `#if canImport`), colours only in `CreatorStyle`, undo names only `UndoName`/`SketchStepName` constants (no numbers, no typed text), `swiftlint lint --strict` clean, never broad `pkill`, never modify `../MetalUI`, the two commit trailers.
 - Per task: `swift build --build-tests`, then `swift test --filter <suites named in the task>`. Task 10 runs the full suite: exit 0, exactly 12 "Test run with" lines, no "recorded an issue" or "failed after", on macOS and Linux.
 - File format stays 10 (DIM-1). This stage adds **no** file key: `SketchTrace` is evaluation output, never saved.
-- Spec §3.5 copy, verbatim: the chip "These come from different features: a measurement tool is planned"; the undo step "Add Dimension" (`SketchStepName.addDimension`, which exists).
+- Spec §3.5 copy, verbatim: the chip "These come from different features: a measurement tool is planned"; the undo step "Add Dimension" (`UndoName.sketch(SketchStepName.addDimension)`, as `AppModel.storeSketch` names sketch steps).
 - Spec §3.5: the new dimension is added at its measured value (nothing moves), then its box opens at once; over-defining → added as a reference (§4.4). Spec §7: typing changes nothing; Return commits one step; the camera does not move.
 - Tests that need real faces, tags and edge curves run on `OCCTKernel` inside `#if canImport(CreatorOCCT)` (as `AppAcceptanceTests`); OCCT is available on Linux (xp-2), so they run there too.
 
@@ -58,7 +61,8 @@ Starts after DIM-2 and DIM-3 are merged to master.
 4. **A trace follows only a direct wire** from a Sketch's `profiles` into the sweeping node's `profile`. Anything between
    them (List Item, Place, a group's socket) makes the pick come from "different features". Item k of the sweep is region k.
 5. **After the add, the Sketch node is selected** (`editor.selection = [sketch]`), so its dimensions show and the new one's
-   box can open even when the sketch feeds more than one feature.
+   box can open even when the sketch feeds more than one feature. In Selected-node preview this also switches the preview to the
+   Sketch, as any selection does; the box still opens.
 6. **Add and edit are two steps**: Esc on the opened box keeps the dimension added at its measured value ("Add Dimension");
    Return with a new value adds "Change Dimension". A reference opens no box (it isn't editable) and shows no extra message:
    it appears grey in parentheses.
@@ -69,8 +73,13 @@ Starts after DIM-2 and DIM-3 are merged to master.
    toolbar's D button still chooses the sketch Dimension tool (the keymap runs before button shortcuts; an unclaimed action
    is passed on as unbound). Checked: no viewport (`ViewportInputMap.keyBindings`: f, =, shift-+, +, -), graph
    (`GraphKeyBindings`: ⌘D only) or app menu shortcut uses plain D.
-9. **File name**: the overview's stage table calls this plan `2026-10-27-dim-4-acceptance.md`; it is
-   `2026-10-27-dim-4-model-tool.md`. Update the overview row.
+9. **File name**: this plan is `2026-10-27-dim-4-model-tool.md` (the overview's stage table says so since the 2026-10-27
+   reconciliation).
+10. **Merge task M comes first.** Whichever of DIM-2/DIM-3 merged second completed DIM-3 Task 9's `SketchDimensionGeometry` for
+    DIM-2's four kinds and wired `SketchFlipCheck` into feature-mode sketch edits (the overview's merge task M, the
+    orchestrator's). This stage starts only after it; if `SketchDimensionGeometry` lacks a DIM-2 kind, stop and report it.
+11. **A circle with a line** measures from the circle's centre point (decision 3), where the sketch D tool refuses that pair
+    (DIM-2 Task 7). Kept: the spec lists point-to-line for the model tool; flagged for the orchestrator.
 
 ## Review Focus
 
@@ -110,7 +119,7 @@ Starts after DIM-2 and DIM-3 are merged to master.
 
 **Files:**
 - Create: `Sources/CreatorSketch/Regions/SketchTrace.swift`
-- Modify: `Sources/CreatorGraph/NodeOutputs.swift`, `NodeResult.swift` and the evaluator where DIM-3 collects `dimensions` (same place, same rule); `Sources/CreatorNodes/Sketch/SketchSolve.swift` (`Output.trace`), `Profiles/SketchNode.swift` (sets `outputs.sketchTrace`); `Sources/CreatorNodes/Sketch/SketchProjections.swift` (public entry below)
+- Modify: `Sources/CreatorGraph/NodeOutputs.swift`, `NodeResult.swift`, `IterationOutputs.swift` (`record` keeps the first iteration's trace; a Sketch node runs once) and `Evaluator+Running.swift` (`run` puts it on the result), beside DIM-3's `dimensions`; `Sources/CreatorNodes/Sketch/SketchSolve.swift` (`Output.trace`, from DIM-3's `Output.sketch` and `solution`), `Profiles/SketchNode.swift` (sets `outputs.sketchTrace`); `Sources/CreatorNodes/Sketch/SketchProjections.swift` (public entry below)
 - Test: `Tests/CreatorNodesTests/SketchTraceTests.swift`
 
 **Interfaces:**
@@ -146,7 +155,7 @@ extension SketchNode {
 ```
 
 - [ ] **Step 2: Run** `swift test --filter SketchTraceTests` — Expected: FAIL.
-- [ ] **Step 3: Implement.** `SketchSolve.run` builds the trace from the `solved` copy it already makes. The trace is not part of `estimatedBytes` beyond a flat 64 per region.
+- [ ] **Step 3: Implement.** `SketchSolve.run` builds the trace from the solved sketch DIM-3 put on `Output`. The trace is not part of `estimatedBytes` beyond a flat 64 per region.
 - [ ] **Step 4: Run** `swift test --filter CreatorNodesTests` and `swift test --filter CreatorGraphTests` — Expected: PASS.
 - [ ] **Step 5: Commit** `feat(nodes): the Sketch node reports which entity made each profile segment`.
 
@@ -209,25 +218,24 @@ edge target:  faces a, b (a seam lists one face twice: use it once)
 ### Task 4: The kind and the measured add
 
 **Files:**
-- Create: `Sources/CreatorSketch/Dimensions/ModelDimensionKind.swift`, `MeasuredDimension.swift` (or reuse DIM-2's helper, see the table)
-- Modify: `Sources/CreatorSketchEditor/SketchEditorModel+Dimensions.swift` (`addMeasuredDimension` calls `MeasuredDimension.add` with the open sketch as both arguments), only if DIM-2 left its own logic there
-- Test: `Tests/CreatorSketchTests/Dimensions/ModelDimensionKindTests.swift`, `MeasuredDimensionTests.swift`
+- Create: `Sources/CreatorSketch/Dimensions/ModelDimensionKind.swift`, `MeasuredDimension.swift` (a thin wrapper over DIM-2's `Sketch.measuredDimension`; the sketch D tool is not changed)
+- Test: `Tests/CreatorSketchTests/Dimensions/ModelDimensionKindTests.swift`, `MeasuredDimensionAddTests.swift` (not `MeasuredDimensionTests`: DIM-2 owns that suite)
 
 **Interfaces:**
 
 ```swift
 public enum ModelDimensionKind {
-    /// circle|arc + circle|arc|point → .centreDistance; parallel lines (|sin| < 1e-9 on the solved positions) →
-    /// .lineDistance; other lines → .angle; point + line → .distance(point, line); circle|arc + line →
+    /// circle|arc + circle|arc|point → .centreDistance; lines within 0.5° of parallel on the solved positions (DIM-2's
+    /// limit) → .lineDistance; other lines → .angle; point + line → .distance(point, line); circle|arc + line →
     /// .distance(its centre, line); point + point → .distance; the same entity, or anything else → nil.
     /// A projected entity counts as its `ProjectedCurve`'s kind (a circle has no centre point: with a line → nil).
     public static func between(_ a: SketchEntityID, _ b: SketchEntityID, in sketch: Sketch) -> DimensionKind?
 }
 public enum MeasuredDimension {
     public struct Added: Hashable, Sendable { public var sketch: Sketch; public var id: DimensionID; public var value: Double; public var isDriving: Bool }
-    /// Measures `kind` on `evaluated` (as a reference, as the D tool does), then tries it driving at that value:
-    /// a solve that is `.overConstrained` or `.failed` keeps it a reference (spec §4.4). Adds it to `stored` with the
-    /// same ID. nil when it can't be measured (non-finite, a suspended projection).
+    /// `evaluated.measuredDimension(kind)` (DIM-2: the value as solved, and whether it can drive, spec §4.4), then adds the
+    /// dimension (that value, `isDriving`, `labelPoint` nil, the next dimension name) to `stored` under the ID `stored` assigns
+    /// next, the same ID in both. nil when `measuredDimension` is nil (unmeasurable, a suspended projection, a zero length).
     public static func add(_ kind: DimensionKind, measuredOn evaluated: Sketch, to stored: Sketch) -> Added?
 }
 ```
@@ -244,7 +252,7 @@ public enum MeasuredDimension {
 @Test func twoPointsGiveTheirDistance()
 @Test func theSameEntityTwiceGivesNothing()      // (c1, c1) → nil
 @Test func projectedCurvesCountAsTheirKind()     // a projected line parallel to l0 → .lineDistance
-// MeasuredDimensionTests:
+// MeasuredDimensionAddTests:
 @Test func aFreeDistanceIsAddedDrivingAtItsMeasuredValue()   // centreDistance(c1,c2): value 30, isDriving; solving the result
                                                              // leaves every point where it was (within 1e-9)
 @Test func anOverDefiningDimensionIsAddedAsAReference()      // lineDistance(l0, l2) with height 40: isDriving false, value 40
@@ -253,20 +261,20 @@ public enum MeasuredDimension {
 @Test func anUnmeasurableKindAddsNothing()                   // a distance to a suspended projected line → nil
 ```
 
-- [ ] **Step 2: Run** `swift test --filter ModelDimensionKindTests` and `--filter MeasuredDimensionTests` — Expected: FAIL.
+- [ ] **Step 2: Run** `swift test --filter ModelDimensionKindTests` and `--filter MeasuredDimensionAddTests` — Expected: FAIL.
 - [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** `swift test --filter CreatorSketchTests` and `swift test --filter CreatorSketchEditorTests` — Expected: PASS.
+- [ ] **Step 4: Run** `swift test --filter CreatorSketchTests` — Expected: PASS.
 - [ ] **Step 5: Commit** `feat(sketch): choose and measure a dimension between two entities, as a reference when it over-defines`.
 
 ### Task 5: The model dimension tool
 
 **Files:**
 - Create: `Sources/CreatorApp/ModelDimension/ModelDimensionSession.swift`, `ModelDimensionText.swift`, `ModelDimensionBanner.swift` (pattern `PickBanner.swift`), `Sources/CreatorApp/AppModel+ModelDimension.swift`
-- Modify: `AppModel.swift` (`public internal(set) var modelDimension: ModelDimensionSession?`; `@ObservationIgnored var pendingValueBox: OverlayDimensionID?`), `AppModel+Picking.swift` (`viewportClicked`: the tool takes the click first, before DIM-3's face selection and the pick session), `AppModel+Dimensions.swift` (`refreshDimensions()` opens `pendingValueBox` once it is shown, then clears it), `AppRoot.swift` (the banner in `PickBanner`'s place), and wherever `pick` is cancelled (beginning sketch mode, a level change in `refreshScene`, New/Open): cancel the tool too; undo/redo clear `pendingValueBox`
+- Modify: `AppModel.swift` (`public internal(set) var modelDimension: ModelDimensionSession?`; `@ObservationIgnored var pendingValueBox: OverlayDimensionID?`), `AppModel+Picking.swift` (`viewportClicked`: the tool takes the click first, before DIM-3's `selectFeature(at:)` and the pick session), `AppModel+Dimensions.swift` (`refreshDimensions()` opens `pendingValueBox` once it is shown, then clears it), `AppRoot.swift` (the banner in `PickBanner`'s place), and wherever `pick` is cancelled (beginning sketch mode, a level change in `refreshScene`, New/Open): cancel the tool too; undo/redo clear `pendingValueBox`
 - Test: `Tests/CreatorAppTests/ModelDimension/ModelDimensionToolTests.swift` (OCCT; holed plate)
 
 **Interfaces:**
-- Consumes: Tasks 3, 4; `SketchStore.commands(storing:in:graph:)`; DIM-3's `FeatureDimensionID.overlayID(node:target:)` (see the table); DIM-1's `viewport.openValueBox(for:)`.
+- Consumes: Tasks 3, 4; `SketchStore.commands(storing:in:graph:)` (takes the Sketch `Node`); DIM-3's `FeatureDimension.overlayID(node:target:)`; DIM-1's `viewport.openValueBox(for:)`.
 - Produces:
 
 ```swift
@@ -292,10 +300,10 @@ extension AppModel {
   A click: on nothing, a ghost or a guide item → ignored. First pick → stored with its items. Second pick → items traced;
   same item as the first → ignored; `shared` nil, or the shared node or either entity gone from the current results, or
   `ModelDimensionKind.between` nil, or `MeasuredDimension.add` nil → `message = differentFeatures`, `first = nil`, nothing
-  written. Otherwise: one `document.perform(.batch(SketchStore.commands(storing: added.sketch, in: node, graph:
-  editor.graph)), at: editor.graphPath, name: SketchStepName.addDimension)`, `modelDimension = nil`, `editor.selection =
-  [node]`, and when `added.isDriving`, `pendingValueBox = FeatureDimensionID.overlayID(node: node, target:
-  .sketchDimension(added.id))`. The measured sketch is the trace's (`results[node].sketchTrace.sketch`); the stored one is
+  written. Otherwise: one `document.perform(.batch(SketchStore.commands(storing: added.sketch, in: sketchNode, graph:
+  editor.graph)), at: editor.graphPath, name: UndoName.sketch(SketchStepName.addDimension))` (`sketchNode` the Sketch `Node` of
+  `editor.graph`), `modelDimension = nil`, `editor.selection = [sketchNode.id]`, and when `added.isDriving`, `pendingValueBox =
+  FeatureDimension.overlayID(node: sketchNode.id, target: .sketchDimension(added.id))`. The measured sketch is the trace's (`results[node].sketchTrace.sketch`); the stored one is
   the node's `NodeSetting.sketch`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -390,7 +398,8 @@ extension AppModel {
     // 2. pin: editor.selection = [sketch]; refreshDimensions; d = shown("100"/"3.94");
     //    perform dimensionRouter.menuActions(for: d.id) titled "Pin Dimension" →
     //    graph.dimensionPins == [DimensionPin(node: sketch.id, target: .sketchDimension(lengthID))]
-    // 3. click a hole wall: viewportClicked(.face(solid: 0, cylindrical face)) → editor.selection == [holes.id];
+    // 3. (Final preview, the default) click a hole wall: viewportClicked(.face(solid: 0, cylindrical face)) →
+    //    editor.selection == [holes.id] (DIM-3's selectFeature); the chain reaches the layout but not the plate (body wire);
     //    shown(spacing), shown(holes text) non-nil; shown(pinned)?.isPinned == true
     // 4. snapshot graph, results, extrude solid, camera pose; openValueBox(for: spacing.id) == true; draft == editText
     //    ("60" / "2.3622"); valueBoxDraftChanged(typed) → graph and pose unchanged, no evaluation started
@@ -420,14 +429,14 @@ extension AppModel {
 
 ```swift
 @Test func theChamferShowsItsDistanceButNotTheFilletsRadius() async throws
-    // selection [chamfer] → texts contain "0.5", not "R3" (the fillet has another consumer: the Edges by Tag rule)
+    // selection [chamfer] → a text contains "0.5", none "R3" (the chain never crosses the fillet's solid wire, DIM-3 decision 2)
 @Test func theFilletShowsItsRadiusWhenSelected() async throws   // selection [fillet] → "R3"
 @Test func thePlatesDepthIsTheWallParameter() async throws
     // selection [plate]: d = shown("6"), tint .dimensionDriving; dimensionRouter.valueBoxContent(for: d.id)?.note ==
     // "Wall (parameter, used by 1 feature)"; box "8", submit, settle → parameter Wall == .number(8), undoName
-    // UndoName.changeParameter, the flange's distance still .number(8) and unwired, expectAllOK; undo → 6
+    // UndoName.changeParameter ("Change Parameter"), the flange's distance still .number(8) and unwired, expectAllOK; undo → 6
 @Test func aParameterOutsideItsRangeIsRefusedInTheBox() async throws
-    // box "40" (Wall max 20) → outcome refused, the box stays open with the message, Wall still 6, no undo step
+    // box "40" (Wall 1…20) → refused("Wall must be between 1 mm and 20 mm."), the box stays open with it, Wall still 6, no undo step
 // DimensionAcceptanceTests:
 @Test func aSharedLayoutBelongsToNeitherFeature() async throws
     // AppSketchBracket plus a second Hole Pattern (Ø4, part ← the first's solid, placements ← the same layout):
@@ -440,7 +449,7 @@ extension AppModel {
 ### Task 9: Docs: human checks, CLAUDE.md, the sketcher erratum, the gaps row
 
 **Files:**
-- Modify: `docs/verification/human-checks.md` (a group at the end), `CLAUDE.md`, `docs/superpowers/specs/2026-10-08-constraint-sketcher-design.md` (Errata (S5c)), `docs/metalui-gaps.md` (DIM-a's summary row and entry: its state now), `docs/superpowers/plans/2026-10-27-dim-overview.md` (the DIM-4 row's file name)
+- Modify: `docs/verification/human-checks.md` (a group at the end), `CLAUDE.md`, `docs/superpowers/specs/2026-10-08-constraint-sketcher-design.md` (Errata (S5c)), `docs/metalui-gaps.md` (DIM-a's summary row and entry: its state now)
 
 - [ ] **Step 1: Human checks.** `## Group DIM — driving dimensions (DIM-1 to DIM-4)`, **Status: PENDING.**, plans and spec named, run `swift run MetalCreatorApp` on the sketched bracket (Task 7's recipe written out for a person). Items, each with **Pinned:** (test names from DIM-1–4's merged code) and **Observed:**
   - **DIM-1 The ANSI look**: arrows filled 3:1, text horizontal and breaking the line, extension lines with a gap and overshoot, thin lines, Ø/R/2X notation, mm "60" vs inch ".50"; compare with an ASME Y14.5 drawing.
@@ -461,4 +470,4 @@ extension AppModel {
 - [ ] **Step 1:** `swiftlint lint --strict` — Expected: 0 violations.
 - [ ] **Step 2:** `swift test 2>&1 | tee /private/tmp/claude-501/dim4-full.log`; `grep -c "Test run with" /private/tmp/claude-501/dim4-full.log` → 12; `grep -E "recorded an issue|failed after" /private/tmp/claude-501/dim4-full.log` → nothing; exit status 0.
 - [ ] **Step 3:** `XP_TRACK=dim-4 IMAGE=metalcreator-linux:dim-4 scripts/linux-test.sh test` — Expected: exit 0, 12 "Test run with" lines, neither failure phrase; `DimensionAcceptanceTests` ran (its name appears in the log).
-- [ ] **Step 4:** Report to the orchestrator: commits, any DIM-1/2/3 defect Tasks 7–8 found, the interface names reconciled from the table above, DIM-a's state.
+- [ ] **Step 4:** Report to the orchestrator: commits, any DIM-1/2/3 defect Tasks 7–8 found, any name in the table above that differed from the merged code, DIM-a's state.

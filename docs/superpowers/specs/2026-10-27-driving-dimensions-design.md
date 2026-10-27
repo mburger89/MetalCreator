@@ -286,3 +286,34 @@ A file from before this opens unchanged, in millimetres, with nothing pinned.
 ## 11. Errata to add when this lands
 
 - Sketcher spec Errata (S5c): labels take the pointer for double-click editing and are ANSI dimensions, pointing here.
+
+## Errata (plans, 2026-10-27)
+
+Decisions taken in the plans (`docs/superpowers/plans/2026-10-27-dim-overview.md`, `dim-1` to `dim-4`) that change or sharpen
+this spec:
+
+- **File format 10**, bumped once in DIM-1: new `DimensionKind` cases can't decode in a format-9 reader, and an older reader
+  would drop units, pins and label points on save. 10 covers units, the new kinds, `labelPoint` and `dimensionPins`.
+- **Units live on the top-level `Graph`** (key `units`), not `ViewState`: changing them is an undoable step ("Change Units",
+  "Change Precision") and marks the document edited.
+- Entry point: **View ▸ Units** (Millimetres, Inches) and **View ▸ Precision** (1 to 0.0001). Choosing a unit resets precision to
+  its default (1 place mm, 2 in). The app remembers the last unit for new documents.
+- A parameter edit's undo name is **"Change Parameter"** (§3.1's "Change <parameter label>" would put typed text in it).
+- **The private chain never crosses a solid, implicit or mesh wire**; an `isOutput` node counts as another consumer; the walk stops
+  at Graph Parameter and Group Input nodes.
+- **A face click selects a feature only in Final preview**; empty space clears the selection; a tagless face does nothing.
+- **Coverage (§3.2):** no B-rep Box, Cylinder, Sphere or Shell node exists, so only their implicit twins are covered. Rectangle and
+  Circle are added. A 360° Revolve or Circular sweep shows no angle. Per-instance reference dimensions stop at 24.
+- **An exposed sketch dimension wired from a graph parameter is editable** (through the parameter), not a reference.
+- **Pins are kept on their level's graph** (top level or a definition) and show only at that level. Removing a node removes its
+  pins (undo restores them). A dangling pin stays in the file and shows nothing.
+- **New theme roles** `dimensionDriving` and `dimensionReference` (group "Dimensions"). Sketch driving dimensions change colour:
+  in Dracula, from the foreground (white) to cyan.
+- **Ø is U+00D8**, replacing "⌀" (U+2300) everywhere, the readout included.
+- **Circle-pick rule (§4.3):** a circle or arc alone gives its diameter or radius at once, placed by the next click; a second
+  circle, arc or point turns it into a centre distance.
+- **A typed value locks the orientation** while placing (moving the pointer no longer switches horizontal/vertical/aligned).
+- **The model tool (§3.5) makes two undo steps:** "Add Dimension" (at the measured value), then "Change Dimension" on Return.
+  Esc on its box keeps the measured dimension.
+- **Double-click needs MetalUI gap DIM-a** (`SpatialTapGesture.Value.clickCount`); until it lands a double-click opens no box in
+  the running app (model tests pass the click count).
