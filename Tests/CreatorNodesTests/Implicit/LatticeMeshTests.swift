@@ -112,7 +112,7 @@ struct LatticeMeshTests {
         var h = Harness()
         let lattices = graph(&h)
         let file = try GraphFileIO.decode(try GraphFileIO.encode(GraphFile(graph: h.graph)), registry: BuiltInNodes.registry)
-        #expect(file.formatVersion == 9 && file.graph.nodes == h.graph.nodes)
+        #expect(file.formatVersion == GraphFile.currentFormatVersion && file.graph.nodes == h.graph.nodes)
         #expect(file.graph.nodes[lattices.struts.id]?.inputValues["cell"] == .integer(StrutCell.bcc.rawValue))
         #expect(file.graph.nodes[lattices.voronoi.id]?.inputValues["form"] == .integer(VoronoiForm.foam.rawValue))
         let evaluator = Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel())

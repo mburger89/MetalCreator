@@ -262,7 +262,7 @@ struct LatticeMappingNodeTests {
         let loaded = try #require(file.graph.nodes[node.id])
         for (key, value) in extra { #expect(loaded.inputValues[key] == value, "\(key)") }
         #expect(file.graph.nodes == h.graph.nodes)
-        #expect(GraphFile.currentFormatVersion == 9, "the mapping is an ordinary setting of format 8, written under 9")
+        #expect(GraphFile.currentFormatVersion == 10, "the mapping is an ordinary setting of format 8, written under 9")
         let report = try await Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel()).evaluate(file.graph, demand: [node.id])
         #expect(try #require(report.implicitSolid(node)).description.contains("cylindrical"))
     }

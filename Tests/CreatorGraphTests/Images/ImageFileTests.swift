@@ -32,9 +32,9 @@ struct ImageFileTests {
     // MARK: Format 7
 
     @Test func filesAreWrittenAsTheCurrentFormatAndAnImageFreeFileHasNoImagesKey() throws {
-        #expect(GraphFile.currentFormatVersion == 9)
+        #expect(GraphFile.currentFormatVersion == 10)
         let object = try json(try document([]).fileData())
-        #expect(object["formatVersion"] as? Int == 9)
+        #expect(object["formatVersion"] as? Int == GraphFile.currentFormatVersion)
         #expect(object["images"] == nil, "written only when there are images")
     }
 
@@ -202,7 +202,7 @@ struct ImageFileTests {
         #expect(file.formatVersion == 6 && file.images.isEmpty && file.graph.nodes.count == 1)
         let document = DocumentModel(file: file, registry: Self.registry, kernel: FakeKernel())
         let saved = try reopened(try document.fileData())
-        #expect(saved.formatVersion == 9)
+        #expect(saved.formatVersion == GraphFile.currentFormatVersion)
         #expect(saved.graph == file.graph && saved.definitions == file.definitions, "nothing in a format-6 file changes")
     }
 
@@ -214,9 +214,9 @@ struct ImageFileTests {
     }
 
     @Test func aNewerFormatIsRefusedWithTheExistingMessage() throws {
-        let text = Self.formatSix.replacing("\"formatVersion\" : 6", with: "\"formatVersion\" : 10")
-        #expect(throws: GraphFileError.newerFormat(10)) { try reopened(Data(text.utf8)) }
-        #expect(GraphFileError.newerFormat(10).message
-            .hasPrefix("This file was saved by a newer version of MetalCreator (file format 10)."))
+        let text = Self.formatSix.replacing("\"formatVersion\" : 6", with: "\"formatVersion\" : 11")
+        #expect(throws: GraphFileError.newerFormat(11)) { try reopened(Data(text.utf8)) }
+        #expect(GraphFileError.newerFormat(11).message
+            .hasPrefix("This file was saved by a newer version of MetalCreator (file format 11)."))
     }
 }

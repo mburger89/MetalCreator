@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorKernel
 
 /// The whole recipe: nodes, wires, document parameters, canvas comments and cable ties. Pure data.
@@ -12,21 +13,24 @@ public struct Graph: Sendable, Equatable {
     /// Cable ties (cable ties spec 2026-10-26 §3). Editor furniture like the comments. Every wire a tie holds is a link's
     /// input here, and every tie holds two or more: `apply` keeps both, and decoding repairs both.
     public var ties: [TieID: CableTie]
+    /// The document's display units (DIM-1, format 10). Internal values stay millimetres. Written only when not `.millimetres`.
+    public var units: DocumentUnits
 
     public init(nodes: [NodeID: Node] = [:], links: [Link] = [], parameters: [GraphParameter] = [],
                 stickies: [CommentID: StickyNote] = [:], frames: [CommentID: CommentFrame] = [:],
-                ties: [TieID: CableTie] = [:]) {
+                ties: [TieID: CableTie] = [:], units: DocumentUnits = .millimetres) {
         self.nodes = nodes
         self.links = links
         self.parameters = parameters
         self.stickies = stickies
         self.frames = frames
         self.ties = ties
+        self.units = units
     }
 }
 
 extension Graph: Codable {
-    private enum CodingKeys: String, CodingKey { case nodes, links, parameters, stickies, frames, ties }
+    private enum CodingKeys: String, CodingKey { case nodes, links, parameters, stickies, frames, ties, units }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -48,6 +52,8 @@ extension Graph: Codable {
         frames = boxes
         // Format 9; absent before it. Repaired against the links just read (I1, then I2).
         ties = Self.repaired(try container.decodeIfPresent([CableTie].self, forKey: .ties) ?? [], links: links)
+        // Format 10; absent before it, and a file without it is in millimetres.
+        units = try container.decodeIfPresent(DocumentUnits.self, forKey: .units) ?? .millimetres
         sortLinks()  // Canonical order, so command + undo yields an equal graph.
     }
 
@@ -62,5 +68,6 @@ extension Graph: Codable {
         if !frames.isEmpty { try container.encode(frames.values.sorted { $0.id < $1.id }, forKey: .frames) }
         // Ties likewise, each with its wires sorted (`CableTie.encode`), so the output is deterministic.
         if !ties.isEmpty { try container.encode(ties.values.sorted { $0.id < $1.id }, forKey: .ties) }
+        if units != .millimetres { try container.encode(units, forKey: .units) }
     }
 }

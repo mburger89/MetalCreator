@@ -35,9 +35,9 @@ struct GroupFileTests {
     /// 5 since groups (C1), 6 since the tree nodes (7a), 7 since the images (7b-2), 8 since the implicit sockets (7c-1). Comments (B)
     /// added their keys under 5.
     @Test func savedFilesAreTheCurrentFormat() throws {
-        #expect(GraphFile.currentFormatVersion == 9)
+        #expect(GraphFile.currentFormatVersion == 10)
         let text = try #require(String(bytes: try GraphFileIO.encode(GraphFile()), encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 9"#))
+        #expect(text.contains(#""formatVersion" : \#(GraphFile.currentFormatVersion)"#))
         #expect(text.contains(#""definitions" : ["#))
     }
 

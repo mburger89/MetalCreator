@@ -21,7 +21,7 @@ struct VariationFileTests {
         let before = try await h.run([index])
 
         let reopened = try roundTrip(GraphFile(graph: h.graph))
-        #expect(reopened.formatVersion == GraphFile.currentFormatVersion && GraphFile.currentFormatVersion == 9)
+        #expect(reopened.formatVersion == GraphFile.currentFormatVersion && GraphFile.currentFormatVersion == 10)
         #expect(reopened.graph.nodes[pattern.id]?.inputValues[NodeSetting.cullPattern] == .text("1 1 0"))
         #expect(reopened.graph.nodes[pattern.id]?.inputValues["scope"] == .integer(1))
         #expect(reopened.graph.nodes[index.id]?.inputValues[NodeSetting.cullIndices] == .text("1, {0;3}"))
