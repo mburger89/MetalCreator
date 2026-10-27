@@ -10,8 +10,8 @@ struct ImplicitFileTests {
         try GraphFileIO.decode(try GraphFileIO.encode(file), registry: testRegistry)
     }
 
-    @Test func theFormatIsEight() {
-        #expect(GraphFile.currentFormatVersion == 8)
+    @Test func theFormatIsNine() {
+        #expect(GraphFile.currentFormatVersion == 9, "9: cable ties, after 8's implicit sockets")
     }
 
     @Test func aGroupInterfaceMayCarryImplicitAndMeshSockets() throws {
@@ -20,7 +20,7 @@ struct ImplicitFileTests {
         group.definition.outputs = [SocketSpec("solid", .implicit), SocketSpec("surface", .mesh, access: .list, optional: true)]
         let file = GraphFile(graph: Graph(), definitions: [group.definition.id: group.definition])
         let back = try reopened(file)
-        #expect(back.formatVersion == 8)
+        #expect(back.formatVersion == 9)
         #expect(back.definitions[group.definition.id]?.inputs == group.definition.inputs)
         #expect(back.definitions[group.definition.id]?.outputs == group.definition.outputs)
         let text = try #require(String(bytes: try GraphFileIO.encode(file), encoding: .utf8))
@@ -44,7 +44,7 @@ struct ImplicitFileTests {
         let file = try GraphFileIO.decode(Data(json.utf8), registry: testRegistry)
         #expect(file.formatVersion == version && file.graph.nodes[id]?.inputValues["value"] == .number(4))
         let saved = try reopened(GraphFile(graph: file.graph, definitions: file.definitions, viewState: file.viewState))
-        #expect(saved.formatVersion == 8 && saved.graph == file.graph)
+        #expect(saved.formatVersion == 9 && saved.graph == file.graph)
     }
 }
 

@@ -125,6 +125,9 @@ extension Graph {
         case .setSticky, .removeSticky, .setFrame, .removeFrame:
             return try applyComment(command)
 
+        case .setTie, .removeTie:
+            return try applyTie(command)
+
         case .inDefinition, .addDefinition, .removeDefinition, .setInterface:
             throw .invalidValue("A group edit applies to the whole document, not to one graph.")
         }

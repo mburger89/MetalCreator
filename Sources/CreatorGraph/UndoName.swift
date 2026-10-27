@@ -38,6 +38,13 @@ public enum UndoName {
     public static let addFrame = "Add Frame"
     public static let editFrame = "Edit Frame"
 
+    // MARK: Cable ties (cable ties spec 2026-10-26 §3.2)
+    public static let tieWires = "Tie Wires"
+    public static let addToTie = "Add to Tie"
+    public static let moveTie = "Move Tie"
+    public static let removeTie = "Remove Tie"
+    public static let untieWire = "Untie Wire"
+
     // MARK: Groups (groups spec §5, §6)
     public static let group = "Group"
     public static let ungroup = "Ungroup"
