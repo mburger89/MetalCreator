@@ -1,6 +1,7 @@
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
+import Foundation
 import Observation
 
 /// The graph panel's state and behaviour: selection, the canvas transform, the dock, drags,
@@ -104,6 +105,21 @@ public final class EditorModel {
     /// Where each wire was last picked, by a click or an ⌥-box, in stored canvas points: where ⌘⇧T puts a new tie
     /// (`EditorModel+Ties`, cable ties spec §4.2). View state, in memory only.
     @ObservationIgnored var wirePickPoints: [Endpoint: Vector2] = [:]
+    /// The slack of the wires in motion (`EditorModel+Motion`, cable ties spec §5.2). View state, never saved. The canvas reads
+    /// it inside its timeline every frame, so it is not tracked.
+    @ObservationIgnored var wireMotion = WireMotion()
+    /// Whether some wire is slack: what puts the wires inside a `TimelineView` (`WireLayer`). Tracked, so the canvas drops
+    /// the timeline when the last wire settles.
+    public internal(set) var isWireMotionActive = false
+    /// The clock the springs run on, in seconds since the reference date, the same base as a timeline's dates. Tests set
+    /// their own.
+    @ObservationIgnored public var motionClock: @MainActor () -> Double = { Date().timeIntervalSinceReferenceDate }
+    /// Reduce Motion, as the canvas read it (`CanvasLayers`). While it is on, no wire ever goes slack.
+    @ObservationIgnored public var reducesMotion = false {
+        didSet { if reducesMotion { stopWireMotion() } }
+    }
+    /// The task that ends the motion once every wire is taut (`EditorModel+Motion`).
+    @ObservationIgnored var motionSettleTask: Task<Void, Never>?
 
     public init(document: DocumentModel) {
         self.document = document

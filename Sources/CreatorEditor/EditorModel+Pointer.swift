@@ -161,7 +161,9 @@ extension EditorModel {
         case .panning:
             break  // The middle button's (`middleDragged`); a primary press ends a pan first (`pointerPressed`).
         case .moving(let start, let key):
-            try? edit(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key, name: moveName(of: start))
+            withWireSlack {
+                _ = try? edit(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key, name: moveName(of: start))
+            }
         case .resizing(let id, let start, let key):
             if let command = resizeCommand(id, from: start, by: (location - pressPoint) * (1 / transform.zoom)) {
                 try? edit(command, coalescingKey: key, name: UndoName.resize)

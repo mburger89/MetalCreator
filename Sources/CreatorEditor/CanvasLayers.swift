@@ -13,6 +13,9 @@ import MetalUI
 struct CanvasLayers: Component {
     let model: EditorModel
     @Environment(ThemeStore.self) var themes: ThemeStore?
+    /// Reduce Motion (MetalUI's `accessibilityReduceMotion`). The canvas passes it to the model, which then never lets a wire
+    /// go slack (cable ties spec §5.2).
+    @Environment(\.accessibilityReduceMotion) var reducesMotion: Bool
 
     var content: some ElementGroup {
         let flow = model.flow
@@ -27,7 +30,8 @@ struct CanvasLayers: Component {
                                  palette: palette)
                     .equatable()
             }
-            WireLayer(model: model, routing: routing, palette: palette, animates: false)
+            WireLayer(model: model, routing: routing, palette: palette,
+                      animates: Self.animatesWires(model, reducesMotion: reducesMotion))
             ForEach(model.drawnTies(in: routing), id: \.id.rawValue) { layout in
                 TieBandView(band: layout.band, isSelected: selectedTies.contains(layout.id), palette: palette).equatable()
             }
@@ -73,6 +77,12 @@ struct CanvasLayers: Component {
                 BoxSelectionView(rect: box).equatable()
             }
         }
+        .onChange(of: reducesMotion, initial: true) { _, reduces in model.reducesMotion = reduces }
+    }
+
+    /// Whether the wires are drawn inside a timeline: only while some wire is slack and Reduce Motion is off.
+    static func animatesWires(_ model: EditorModel, reducesMotion: Bool) -> Bool {
+        model.isWireMotionActive && !reducesMotion
     }
 
     struct Wire: Identifiable {
@@ -87,8 +97,9 @@ struct CanvasLayers: Component {
 
     /// Every wire whose two sockets are on the canvas and some of whose taut route can show (`drawnCanvasRect`), coloured
     /// by its source socket's type in `palette`, or wider in the selection colour when selected. `routing` is
-    /// `model.wireRouting` when not given.
-    static func wires(_ model: EditorModel, routing: WireRouting? = nil, palette: Palette = .dracula) -> [Wire] {
+    /// `model.wireRouting` when not given. With `motion`, each route is drawn with its slack; culling still reads the taut route.
+    static func wires(_ model: EditorModel, routing: WireRouting? = nil, palette: Palette = .dracula,
+                      motion: WireMotion? = nil) -> [Wire] {
         let drawn = model.drawnCanvasRect
         let routing = routing ?? model.wireRouting
         let selected = model.canvasSelection.wires
@@ -100,7 +111,7 @@ struct CanvasLayers: Component {
             if let drawn, !drawn.intersects(taut.bounds(padding: 2 * width)) { return nil }
             let type = model.shape(of: source).outputs.first { $0.name == link.from.socket }?.type
             return Wire(id: "\(link.to.node.rawValue.uuidString).\(link.to.socket.rawValue)",
-                        route: taut,
+                        route: motion?.drawn(taut) ?? taut,
                         color: isSelected ? palette.selection : type.map(palette.socket) ?? palette.secondaryText,
                         lineWidth: width)
         }
