@@ -19,6 +19,8 @@ public enum GraphKeyCommand: Equatable, Sendable {
     case addNote
     /// ⌘⇧C: frames the selection.
     case addFrame
+    /// ⌘⇧T: ties the selected wires, or adds them to the selected tie (cable ties spec 2026-10-26 §4.2).
+    case tieWires
     case copy
     /// ⌘X: copies the selection, then deletes it.
     case cut
