@@ -37,4 +37,25 @@ extension Graph {
             return kept.wires.count >= CableTie.minimumWires ? kept : nil
         }
     }
+
+    /// Takes `wires` out of every tie that holds one, removing a tie left with fewer than two (I2), and returns the
+    /// commands that put each touched tie back as it was, in tie-ID order (cable ties spec §3.2). An inverse runs them after
+    /// it has restored the wires, so each passes (I1).
+    mutating func stripTies(holding wires: Set<Endpoint>) -> [GraphCommand] {
+        guard !wires.isEmpty else { return [] }
+        var restores: [GraphCommand] = []
+        for id in ties.keys.sorted() {
+            guard var tie = ties[id], !tie.wires.isDisjoint(with: wires) else { continue }
+            restores.append(.setTie(tie))
+            tie.wires.subtract(wires)
+            ties[id] = tie.wires.count >= CableTie.minimumWires ? tie : nil
+        }
+        return restores
+    }
+
+    /// `inverse`, followed by the tie restores when wires left ties, as one command (one undo step). With none it is
+    /// `inverse` itself, so a command that reached no tie undoes exactly as it always did.
+    static func restoring(_ inverse: GraphCommand, ties restores: [GraphCommand]) -> GraphCommand {
+        restores.isEmpty ? inverse : .batch([inverse] + restores)
+    }
 }
