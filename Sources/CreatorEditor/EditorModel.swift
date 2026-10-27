@@ -146,7 +146,11 @@ public final class EditorModel {
         }
         if dock != .hidden { lastVisibleDock = dock }
         // The canvas moves or unmounts, so its last hover location no longer says where the pointer is.
-        if dock != document.dock { pointerLocation = nil }
+        if dock != document.dock {
+            pointerLocation = nil
+            // The springs' offsets are in the old flow's display axes: snap to the new taut routes (plan R13).
+            stopWireMotion()
+        }
         document.dock = dock
     }
 

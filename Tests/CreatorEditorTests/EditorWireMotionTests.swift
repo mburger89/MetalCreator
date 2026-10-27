@@ -72,6 +72,32 @@ struct EditorWireMotionTests {
         #expect(editor.wireMotion.isAtRest)
     }
 
+    @Test func undoMidMotionSnapsTheWiresTaut() {
+        let (editor, _) = editor()
+        editor.drag(Vector2(700, 50), Vector2(700, 90))
+        #expect(editor.isWireMotionActive)
+        editor.perform(.undo)
+        #expect(editor.wireMotion.isAtRest && !editor.isWireMotionActive, "plan R13: no spring survives an undo")
+    }
+
+    @Test func aDockChangeMidMotionSnapsTheWiresTaut() {
+        let (editor, _) = editor()
+        editor.drag(Vector2(700, 50), Vector2(700, 90))
+        #expect(editor.isWireMotionActive)
+        editor.setDock(editor.dock == .bottom ? .left : .bottom)
+        #expect(editor.wireMotion.isAtRest && !editor.isWireMotionActive)
+    }
+
+    @Test func aPasteMidMotionSnapsTheWiresTaut() {
+        let (editor, _) = editor()
+        editor.selection = [scene.b1.id]
+        editor.copySelection()
+        editor.drag(Vector2(700, 50), Vector2(700, 90))
+        #expect(editor.isWireMotionActive)
+        editor.paste()
+        #expect(editor.wireMotion.isAtRest && !editor.isWireMotionActive)
+    }
+
     @Test func anArrowNudgeMakesSlackToo() {
         let (editor, _) = editor()
         editor.selection = [scene.b1.id]

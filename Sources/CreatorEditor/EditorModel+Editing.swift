@@ -75,12 +75,14 @@ extension EditorModel {
     /// and selects the copies.
     public func paste() {
         guard let clipboard else { return }
+        stopWireMotion() // Plan R13: a paste snaps the wires straight to their taut routes.
         if let copies = insert(clipboard, offset: nextPasteOffset(), named: UndoName.paste) { canvasSelection = copies }
     }
 
     /// ⌘D: duplicates the selection offset down and right, leaving the clipboard alone.
     public func duplicateSelection() {
         guard !canvasSelection.isEmpty else { return }
+        stopWireMotion() // As for a paste.
         if let copies = insert(clipboard(of: canvasSelection), offset: Vector2(24, 24), named: UndoName.duplicate) {
             canvasSelection = copies
         }
