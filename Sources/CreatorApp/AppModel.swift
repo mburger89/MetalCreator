@@ -61,6 +61,8 @@ public final class AppModel {
     let dimensionRouter = AppDimensionEditing()
 
     @ObservationIgnored let kernel: any Kernel
+    /// The last length unit chosen, which a new document starts in (`AppModel+Units`).
+    @ObservationIgnored let unitPreference: any UnitPreference
     /// The window's open and save panels. The app sets it once the window is open.
     @ObservationIgnored public var filePicker: (any FilePicker)?
     /// Answers the window's pending close request (`Window.replyToCloseRequest`). The app sets it once the window is open.
@@ -79,10 +81,12 @@ public final class AppModel {
     @ObservationIgnored var imageActionDocuments: Set<ObjectIdentifier> = []
 
     /// `kernel` evaluates the document and tessellates for the viewport (`OCCTKernel` in the app, `FakeKernel`
-    /// in tests). `file` is the document to start with, `fileURL` where it came from, `themes` the app's themes.
+    /// in tests). `unitPreference` remembers the unit for new documents. `file` is the document to start with, `fileURL` where it came from, `themes` the app's themes.
     public init(kernel: any Kernel, registry: NodeRegistry = BuiltInNodes.registry, file: GraphFile = GraphFile(),
-                fileURL: URL? = nil, themes: ThemeStore = ThemeStore(), implicitEngine: ImplicitEngineChoice = .cpu) {
+                fileURL: URL? = nil, themes: ThemeStore = ThemeStore(), implicitEngine: ImplicitEngineChoice = .cpu,
+                unitPreference: any UnitPreference = InMemoryUnitPreference()) {
         self.kernel = kernel
+        self.unitPreference = unitPreference
         self.registry = registry
         self.themes = themes
         self.implicitEngine = implicitEngine

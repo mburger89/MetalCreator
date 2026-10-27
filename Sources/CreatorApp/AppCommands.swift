@@ -3,7 +3,7 @@ import MetalUI
 
 /// The menu bar (spec §6.1): File's New, Open…, Save, Save As… and the exports, Edit's Undo and Redo bound to
 /// the document (`AppModel.undo()`, which commits a typed value first), titled "Undo Add Note" by the step
-/// (`AppModel.undoTitle`, `redoTitle`), and View ▸ Theme (`ThemeMenu`: every theme
+/// (`AppModel.undoTitle`, `redoTitle`), and View ▸ Units and Precision (`UnitsMenu`) and View ▸ Theme (`ThemeMenu`: every theme
 /// with a checkmark on the current one, and Edit Themes…, spec §6.6). Commands run when nothing in the window claims
 /// their key first (a focused field keeps its own editing keys).
 public enum AppCommands {
@@ -36,6 +36,8 @@ public enum AppCommands {
             // MetalUI puts a command menu before Window (it builds no View menu of its own).
             CommandMenu("View") {
                 Menu("Theme") { ThemeMenu.items(themeEditor) }
+                Menu("Units") { UnitsMenu.unitItems(model) }
+                Menu("Precision") { UnitsMenu.precisionItems(model) }
                 if CutViewModel.isAvailable {
                     Button(model.cutView.isOn ? "Hide Cut View" : "Show Cut View") { model.setCutView(!model.cutView.isOn) }
                     Button("Flip Cut View") { model.cutView.flip() }
