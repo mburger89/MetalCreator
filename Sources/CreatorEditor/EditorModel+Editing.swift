@@ -114,7 +114,7 @@ extension EditorModel {
     }
 
     /// What copying `items` puts on the clipboard: their nodes, the wires between them, the definitions their group
-    /// nodes use and their comments. Group Input and Group Output are never copied.
+    /// nodes use, their comments and the ties every wire of which they hold. Group Input and Group Output are never copied.
     func clipboard(of items: CanvasSelection) -> NodeClipboard {
         let nodes = items.nodes.sorted().compactMap { graph.nodes[$0] }.filter { !GroupNodes.isBoundary($0) }
         let ids = Set(nodes.map(\.id))
@@ -125,9 +125,12 @@ extension EditorModel {
             if case .image(.embedded(let hash)) = value { hash } else { nil }
         } })
         for definition in definitions.values { hashes.formUnion(definition.graph.embeddedImageHashes) }
+        // A tie travels when every wire it holds does, selected or not, as the wires between copied nodes do.
+        let copiedWires = Set(links.map(\.to))
         return NodeClipboard(nodes: nodes, links: links, definitions: definitions,
                              stickies: comments.compactMap { graph.stickies[$0] },
                              frames: comments.compactMap { graph.frames[$0] },
+                             ties: graph.ties.values.filter { $0.wires.isSubset(of: copiedWires) }.sorted { $0.id < $1.id },
                              images: document.images.filter { hashes.contains($0.key) })
     }
 
@@ -168,17 +171,29 @@ extension EditorModel {
             comments.insert(copy.id)
             commands.append(.setFrame(copy))
         }
+        let ties = tieCopies(of: clipboard.ties, mapping: mapping, offset: offset)
+        commands += ties.map { .setTie($0) }
         do {
-            // The definitions are added to the document, the nodes and comments to the level shown.
+            // The definitions are added to the document, the nodes, comments and ties to the level shown.
             try document.perform(.batch(merge.additions.map { .addDefinition($0) } + [GraphCommand.batch(commands).at(graphPath)]),
                                  name: name)
             // The pictures the copies use join the document only once the paste took, so a refused paste leaves none behind.
             for data in clipboard.images.values { document.addImage(data) }
             clearRefusal()
-            return CanvasSelection(nodes: Set(mapping.values), comments: comments)
+            return CanvasSelection(nodes: Set(mapping.values), comments: comments, ties: Set(ties.map(\.id)))
         } catch {
             refuse(error.message, node: nil)
             return nil
+        }
+    }
+
+    /// Fresh copies of `ties` on the copied wires (`mapping` takes each original node to its copy), moved by `offset`
+    /// (stored coordinates). A tie whose wires don't all map is left out.
+    private func tieCopies(of ties: [CableTie], mapping: [NodeID: NodeID], offset: Vector2) -> [CableTie] {
+        ties.compactMap { original in
+            let wires = Set(original.wires.compactMap { wire in mapping[wire.node].map { Endpoint(node: $0, socket: wire.socket) } })
+            guard wires.count == original.wires.count else { return nil }
+            return CableTie(position: original.position + offset, wires: wires)
         }
     }
 }

@@ -11,6 +11,8 @@ public struct NodeClipboard: Equatable, Sendable {
     public var definitions: [GroupID: GroupDefinition] = [:]
     public var stickies: [StickyNote] = []
     public var frames: [CommentFrame] = []
+    /// The ties every wire of which was copied (cable ties spec 2026-10-26 §3.4).
+    public var ties: [CableTie] = []
     /// The embedded pictures the copied nodes (and the copied definitions' nodes) use, so a paste finds them even where the
     /// document never held them (fields spec §5).
     public var images: [ImageHash: Data] = [:]
