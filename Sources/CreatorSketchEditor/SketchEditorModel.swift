@@ -18,6 +18,8 @@ public final class SketchEditorModel {
     public private(set) var plane: Plane
     /// The live solve of `sketch` (re-run on every edit and every drag step).
     public internal(set) var solution: SketchSolution
+    /// The document's display units, which the dimensions' text is written in. The host sets them.
+    public var units = DocumentUnits.millimetres
     /// A plain-language reason the last command was refused, until the next edit or tool change.
     public internal(set) var refusal: String?
     /// The selected entities (drawn in the selection colour; constraints and dimensions apply to them).

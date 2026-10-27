@@ -12,7 +12,10 @@ public final class SketchSession {
     public let node: NodeID
     public let editor: SketchEditorModel
     private weak var viewport: ViewportModel?
-    private var isFollowing = false
+    private(set) var isFollowing = false
+    /// Called whenever the dimensions the viewport should show may have changed (the app's `refreshDimensions`), and when
+    /// the session stops.
+    var dimensionsChanged: (@MainActor () -> Void)?
     private var refreshPending = false
     /// Whether the node's plane had a result at the last refresh (a wired plane can lose it); the app says so once
     /// when it is lost.
@@ -37,16 +40,22 @@ public final class SketchSession {
         guard let viewport else { return }
         if viewport.tool === editor { viewport.tool = nil }
         viewport.showOverlay(ViewportOverlay())
+        dimensionsChanged?()
     }
 
-    /// Shows the editor's overlay and follows it once more: the first change schedules one redraw, which follows again.
+    /// Shows the editor's overlay and dimensions and follows them once more: the first change schedules one redraw, which follows again.
     private func follow() {
         guard isFollowing, let viewport else { return }
-        let overlay = withObservationTracking { editor.overlay } onChange: { [weak self] in
+        let overlay = withObservationTracking {
+            // Both are read inside the tracking, so a change to either schedules the next follow.
+            _ = editor.dimensions
+            return editor.overlay
+        } onChange: { [weak self] in
             // Observation calls this as a tracked property is about to change, on the main actor that changes it.
             MainActor.assumeIsolated { self?.scheduleFollow() }
         }
         viewport.showOverlay(overlay)
+        dimensionsChanged?()
     }
 
     private func scheduleFollow() {

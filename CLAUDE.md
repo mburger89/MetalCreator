@@ -493,9 +493,8 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
     `framingBounds` is what F frames, and `ViewportProjector.modelArea` the area its on-screen chrome stays in.
     `lookAt(_ plane:framing:)` faces a plane, orthographic. A tool also takes the face or edge under a click it declined
     (`clickedModel`: the sketch editor's Project). `ViewportOverlay` also carries `fills` (`OverlayFill`: world triangles
-    in the `.region` tint, one blended pipeline drawn under the lines, never in the ID pass) and `labels` (`OverlayLabel`:
-    text anchored in world space, placed by `overlayLabels(measuring:)` and drawn as MetalUI text over the surface, hidden while
-    the camera animates: gap S5-c; each box is its text's measured width, MetalUI C23: see below). The face menu adds New Sketch on Face (`ViewportEvents.newSketchOnFace`) on a flat
+    in the `.region` tint, one blended pipeline drawn under the lines, never in the ID pass) (a sketch's dimension values are no longer overlay labels: they are ANSI `OverlayDimension`s, `SketchDimensionDrawing`,
+    shown with `ViewportModel.showDimensions(_:)`). The face menu adds New Sketch on Face (`ViewportEvents.newSketchOnFace`) on a flat
     face that has a normal, outside sketch mode.
   - `ViewportModel` (`@MainActor @Observable`, testable without a GPU) owns the camera, picking, the view cube,
     the context menu and handles. `ViewportBackend` is what it needs from a renderer: `ViewportRenderer`/`ViewportPicker` (through
@@ -505,7 +504,7 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
     (`ViewportRenderer+Guides`). The renderer keeps the triad's, the overlay's and the region fills' GPU buffers between
     frames: the overlay's key holds the grid's extent and the dashes' zoom, not the pose, so an orbit allocates none, and
     the fills' buffer is dropped once a frame has no fills (`RendererCacheTests`). `handleLabels(measuring:)` reads the size through
-    the tracked `viewSize`, as `overlayLabels(measuring:)` does. Text sizes are measured, never estimated from a character count:
+    the tracked `viewSize`, as `placedDimensions(measuring:)` does. Text sizes are measured, never estimated from a character count:
     `ViewportView` (and the sketch editor's `PointerReadoutView`) read MetalUI's `@Environment(\.textMeasurer)`, wrap it as a
     `TextMeasure` (`ProposalText` in `.caption`) and pass it into the model calls that place labels and chips; a model test passes a
     fake measure, a view test the real one (`TextMeasure.real()` in each test target's `Support/TextMeasureSupport.swift`).

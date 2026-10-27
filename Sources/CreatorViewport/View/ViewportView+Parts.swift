@@ -20,15 +20,6 @@ extension ViewportView {
             if let placed = model.placedValueBox(measuring: measure) {
                 DimensionValueBoxView(model: model, placed: placed)
             }
-            for label in model.overlayLabels(measuring: measure) {
-                ProposalText(label.text)
-                    .font(.caption)
-                    .foregroundStyle(model.textColor(for: label.tint))
-                    .frame(width: Pixels(Float(label.size.width)), height: Pixels(Float(label.size.height)))
-                    .background(model.labelFill, in: RoundedRectangle(cornerRadius: Pixels(4)))
-                    .offset(x: Pixels(Float(label.origin.x)), y: Pixels(Float(label.origin.y)))
-                    .allowsHitTesting(false)
-            }
             if model.showsViewCube { cubeControls(model: model) }
         }
         .overlay(alignment: .bottomLeading) {
