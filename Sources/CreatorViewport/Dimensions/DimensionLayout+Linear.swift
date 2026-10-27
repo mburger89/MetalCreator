@@ -74,7 +74,7 @@ extension DimensionLayout {
 
     /// An extension line from `point` to the dimension line at `line`: it leaves a gap at the point and runs past the line.
     /// None when the point is within the gap of the line.
-    private static func extensionLine(from point: ScreenPoint, to line: ScreenPoint, style: DimensionStyle) -> ScreenSegment? {
+    static func extensionLine(from point: ScreenPoint, to line: ScreenPoint, style: DimensionStyle) -> ScreenSegment? {
         let e = line - point
         guard e.length > style.extensionGap else { return nil }
         let unit = Vector2(e.x / e.length, e.y / e.length)
@@ -82,7 +82,7 @@ extension DimensionLayout {
     }
 }
 
-private extension ScreenPoint {
+extension ScreenPoint {
     func moved(along direction: Vector2, by distance: Double) -> ScreenPoint {
         ScreenPoint(x + direction.x * distance, y + direction.y * distance)
     }
