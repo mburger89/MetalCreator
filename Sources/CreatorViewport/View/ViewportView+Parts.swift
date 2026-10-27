@@ -16,6 +16,7 @@ extension ViewportView {
                     .offset(x: Pixels(Float(label.origin.x)), y: Pixels(Float(label.origin.y)))
                     .allowsHitTesting(false)
             }
+            dimensions(model: model, measure: measure)
             for label in model.overlayLabels(measuring: measure) {
                 ProposalText(label.text)
                     .font(.caption)
@@ -38,6 +39,19 @@ extension ViewportView {
                                bottom: Pixels(Float(model.modelArea.bottom + 12)), left: Pixels(0)))
                 .allowsHitTesting(false)
         }
+    }
+
+    /// The dimensions, drawn over the scene. The loop is written inline for `DimensionView`: MetalUI's builder can't infer an
+    /// opaque element returned by a helper inside a `for` (gap M4-b); this helper holds the whole loop instead.
+    @MainActor
+    static func dimensions(model: ViewportModel, measure: TextMeasure) -> some Element {
+        ZStack(alignment: .topLeading) {
+            for placed in model.placedDimensions(measuring: measure) {
+                DimensionView(placed: placed, style: model.dimensionStyle, ink: model.textColor(for: placed.tint),
+                              fill: model.labelFill)
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     /// The GPU surface and its input. It redraws on demand when `renderKey` changes, and continuously while the
