@@ -57,6 +57,9 @@ public final class AppModel {
     public internal(set) var panelWidth = AppLayout.defaultPanelWidth
     public internal(set) var panelHeight = AppLayout.defaultPanelHeight
 
+    /// Routes the viewport's dimension edits (value boxes, menus) to the open sketch or, later, the model.
+    let dimensionRouter = AppDimensionEditing()
+
     @ObservationIgnored let kernel: any Kernel
     /// The window's open and save panels. The app sets it once the window is open.
     @ObservationIgnored public var filePicker: (any FilePicker)?
@@ -125,6 +128,8 @@ public final class AppModel {
 
     /// Wires the current parts to this model, then shows their first scene and starts following them.
     private func connectParts() {
+        dimensionRouter.app = self
+        viewport.dimensionEditor = dimensionRouter
         connectViewportEvents()
         sceneInputsChanged()
     }
