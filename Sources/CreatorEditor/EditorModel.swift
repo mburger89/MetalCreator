@@ -101,6 +101,9 @@ public final class EditorModel {
     /// What the last release clicked, if it was a first plain click on a node, a note or a frame's title bar: the target
     /// a second click (click count 2) must land on to be a double click (`EditorModel+DoubleClick`).
     @ObservationIgnored var lastClick: ClickTarget?
+    /// Where each wire was last picked, by a click or an ⌥-box, in stored canvas points: where ⌘⇧T puts a new tie
+    /// (`EditorModel+Ties`, cable ties spec §4.2). View state, in memory only.
+    @ObservationIgnored var wirePickPoints: [Endpoint: Vector2] = [:]
 
     public init(document: DocumentModel) {
         self.document = document
@@ -188,12 +191,15 @@ public final class EditorModel {
         }
     }
 
-    /// What is under `screen` (canvas-local screen points): the frontmost node's socket within
-    /// `NodeLayout.socketHitRadius` screen points, else the frontmost node, else a comment (`commentHit(at:)`:
-    /// notes, then frames), else empty canvas.
+    /// What is under `screen` (canvas-local screen points; cable ties spec 2026-10-26 §4.1): the frontmost node's socket
+    /// within `NodeLayout.socketHitRadius` screen points, else a tie's band, else the frontmost node, else a note
+    /// (`noteHit(at:)`), else a wire within `wireHitDistance` of its taut route, else a frame's chrome (`frameHit(at:)`),
+    /// else empty canvas. A tie beats the node it lies over, so one dropped on a node can still be grabbed.
     public func hitTest(_ screen: Vector2) -> CanvasHit {
         let point = transform.toCanvas(screen)
         let radius = NodeLayout.socketHitRadius / transform.zoom
+        let routing = wireRouting
+        let tie = tieHit(at: point, in: routing)
         for node in drawOrder.reversed() {
             let shape = shape(of: node)
             let origin = displayOrigin(of: node)
@@ -205,9 +211,14 @@ public final class EditorModel {
                     }
                 }
             }
-            if CanvasRect(origin: origin, size: NodeLayout.size(shape)).contains(point) { return .node(node.id) }
+            if CanvasRect(origin: origin, size: NodeLayout.size(shape)).contains(point) {
+                return tie.map(CanvasHit.tie) ?? .node(node.id)
+            }
         }
-        return commentHit(at: point) ?? .empty
+        if let tie { return .tie(tie) }
+        if let note = noteHit(at: point) { return note }
+        if let wire = wireHit(at: point, in: routing) { return .wire(wire) }
+        return frameHit(at: point) ?? .empty
     }
 
     /// Nodes whose drawn frame meets `rect` (display canvas points).

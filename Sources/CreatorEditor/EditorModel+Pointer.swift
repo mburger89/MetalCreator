@@ -37,7 +37,7 @@ extension EditorModel {
         if interaction != nil { lastClick = nil }
         switch interaction {
         case nil:
-            click(press.hit, mode: SelectionMode(press.modifiers))
+            click(press.hit, at: press.point, modifiers: press.modifiers)
             // After the click: a double click on a group node enters it and one on a note or a frame's title bar edits
             // it, and the click must not select it afterwards.
             countClick(on: press.hit, at: press.point, modifiers: press.modifiers, clickCount: press.clickCount)
@@ -99,14 +99,17 @@ extension EditorModel {
         pointerPressed(at: start, modifiers: modifiers, clickCount: clickCount)
     }
 
-    /// A press that didn't move selects what it landed on as `mode` says (spec 2026-10-09 §3). On an item already
-    /// selected, a plain click collapses the selection to it, ⌘ toggles it out and ⇧ keeps it. On empty canvas a
-    /// plain click clears the selection and a modified one keeps it.
-    private func click(_ hit: CanvasHit, mode: SelectionMode) {
+    /// A press that didn't move selects what it landed on as the modifiers held at the press say (`SelectionMode`, spec
+    /// 2026-10-09 §3). On an item already selected, a plain click collapses the selection to it, ⌘ toggles it out and ⇧
+    /// keeps it. On empty canvas a plain click clears the selection and a modified one keeps it. A click on a wire also
+    /// remembers where it landed, for ⌘⇧T's tie (cable ties spec §4.2).
+    private func click(_ hit: CanvasHit, at screen: Vector2, modifiers: CanvasModifiers) {
+        let mode = SelectionMode(modifiers)
         guard let items = items(for: hit) else {
             if mode == .replace { clearSelection() }
             return
         }
+        if case .wire(let wire) = hit { wirePickPoints[wire] = flow.stored(transform.toCanvas(screen)) }
         select(items, mode: mode)
     }
 
@@ -114,6 +117,9 @@ extension EditorModel {
         if case .socket(let socket) = hit {
             return .connecting(WireDrag(from: socket, current: transform.toCanvas(screen)))
         }
+        // A drag that starts on a wire is a drag on empty canvas: a wire is selected by a click or an ⌥-box (cable ties
+        // spec §4.1), never moved.
+        if case .wire = hit { return emptyCanvasDrag(at: screen, modifiers: modifiers) }
         // A selected comment's handle starts a resize before anything reaches the selection (canvas comments spec
         // 2026-10-09 §7); every other hit reaches it only through `items(for:)`. An unselected item is selected
         // first: alone, or added with ⇧ or ⌘.

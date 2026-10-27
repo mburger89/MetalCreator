@@ -29,12 +29,14 @@ extension EditorModel {
         CanvasSelection(nodes: Set(graph.nodes.keys), comments: graph.commentIDs)
     }
 
-    /// What a press on `hit` selects: the node, or a socket's node, or the comment; `nil` for empty canvas.
+    /// What a press on `hit` selects: the node, or a socket's node, the comment, the wire or the tie; `nil` for empty canvas.
     public func items(for hit: CanvasHit) -> CanvasSelection? {
         switch hit {
         case .node(let id): CanvasSelection(nodes: [id])
         case .socket(let socket): CanvasSelection(nodes: [socket.endpoint.node])
         case .note(let id), .frame(let id), .resize(let id): CanvasSelection(comments: [id])
+        case .wire(let wire): CanvasSelection(wires: [wire])
+        case .tie(let id): CanvasSelection(ties: [id])
         case .empty: nil
         }
     }

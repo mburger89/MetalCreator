@@ -40,7 +40,7 @@ extension EditorModel {
                 return nil
             }
             return .frameTitle(id)
-        case .socket, .resize, .empty:
+        case .socket, .resize, .wire, .tie, .empty:
             return nil
         }
     }
