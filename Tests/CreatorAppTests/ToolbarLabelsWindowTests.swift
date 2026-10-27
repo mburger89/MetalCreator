@@ -1,3 +1,4 @@
+import CreatorEditor
 import MetalUI
 import MetalUITesting
 import Testing
@@ -32,15 +33,15 @@ struct ToolbarLabelsWindowTests {
         }
     }
 
-    /// What a wide font does to the default width (DejaVu Sans on Linux): the row is short of room by a few points. The
-    /// panel is made that narrow instead, since the macOS font is narrower. The breadcrumbs give way, not a button.
+    /// What a wide font does to the default width (DejaVu Sans on Linux): the row has no room for the path. The panel is
+    /// made that narrow instead, whatever the font: the buttons, the row's eight gaps (`GraphPanelHeader`) and the glass
+    /// padding, and 4 points for the path. The breadcrumbs give way, not a button.
     @Test func narrowHeaderTruncatesTheBreadcrumbsBeforeAnyButton() async throws {
         let app = try await AppWindow.open(dock: .left)
         app.model.panelWidth = AppLayout.panelWidths.upperBound
         try await app.window.runUntilIdle()
         let ideal = try widths(app)
-        // The buttons and their spacing just fit in the row (390 points), the path does not.
-        app.model.panelWidth = 410
+        app.model.panelWidth = ideal.values.reduce(0, +) + 8 * 6 + 2 * GraphPanelLayout.glassPadding + 4
         try await app.window.runUntilIdle()
         let actual = try widths(app)
         #expect(actual.count == Self.labels.count && ideal.count == Self.labels.count)
