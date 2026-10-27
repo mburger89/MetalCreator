@@ -2153,3 +2153,38 @@ lavapipe and WARP, compiling at run time; these checks are a real GPU, a person'
   `libSDL3_shadercross.so.0` and a driver other than "none"), then `LD_DEBUG=libs ./MetalCreator --self-test 2>&1 | grep dxcompiler` shows the package's
   own `lib/`; the same for the AppImage (double-clicked, with FUSE), its `usr/metalcreator/lib`. **Pinned:** `linux-test.sh package`'s clean-Ubuntu
   checks (no GPU there). **Observed:**
+
+## Group TIE — cable ties (wire bundling)
+
+**Status: PENDING.** Plan `2026-10-26-cable-ties.md`, spec `2026-10-26-cable-ties-design.md`. The tests pin the model, the
+file, the geometry, the gestures and the spring; these check the look and the feel in a real window. Run
+`swift run MetalCreatorApp` on a saved bracket with a busy graph, docked at the bottom; TIE-5 docks left.
+
+- [ ] **TIE-1 Slack and settling.** Drag a node with several wires about, fast and slow: its wires bow behind the motion like
+  cables, their ends stay on the sockets with no lag, and when you stop they pull taut, settled to the eye in about a third of a
+  second, with no wobble at rest. Drag a tie: the wires on both sides bow. If it feels too floppy or too stiff, note which;
+  `WireSpring`'s constants are the knobs. **Pinned:** `WireSpringTests`, `EditorWireMotionTests`. **Observed:**
+- [ ] **TIE-2 The band's look.** Tie three wires: the band is a small rounded bar across the wires, visible but quiet, in Dracula
+  and in Alucard (View ▸ Theme). Select it: it takes the selection colour. Select a wire: it draws wider in the selection
+  colour. The band sits over the wires and under nodes and notes. **Pinned:** `TieRenderTests`. **Observed:**
+- [ ] **TIE-3 ⌘⇧T end to end.** Click a wire, ⇧-click two more, press ⌘⇧T: a tie appears where you clicked (between the clicks)
+  and is the only thing selected. The Edit menu says "Undo Tie Wires". ⌥-drag a box across two other wires and press ⌘⇧T: a tie
+  where the box crossed them. Click a tie, ⇧-click a wire, ⌘⇧T: the wire joins ("Undo Add to Tie"). With one wire selected,
+  ⌘⇧T says why nothing happened. Drag the tie ("Undo Move Tie"), press an arrow, Delete it ("Undo Remove Tie"), ⌘Z, and ⌥-click
+  one wire on the band ("Undo Untie Wire"). Delete a node a tied wire comes from: the wire leaves the tie, and ⌘Z puts it back.
+  **Pinned:** `TieKeyTests`, `TieEditingTests`. **Observed:**
+- [ ] **TIE-4 Reduce Motion.** Turn on System Settings ▸ Accessibility ▸ Display ▸ Reduce motion and drag a node: the wires
+  stay taut throughout. Turn it off again: they bow. **Pinned:** `EditorWireMotionTests.withReduceMotionOnNoSlackIsEverMade`,
+  `WireMotionWindowTests`. **Observed:**
+- [ ] **TIE-5 The vertical dock.** Dock the panel left: ties sit at the transpose, their bands run across the wires (now
+  vertical), lanes are side by side left to right, and clicks, ⌥-boxes, ⌘⇧T and drags work as at the bottom. **Pinned:**
+  `inTheVerticalFlowLanesSpreadAcrossXInEndpointOrder`, `theLeftDockHitsTheTransposedRoute`,
+  `inTheLeftDockTheTieGoesToTheStoredCentre`. **Observed:**
+- [ ] **TIE-6 A busy tie.** Tie about twenty wires into one bundle and drag it about quickly: the canvas stays smooth (no
+  visible stutter), and once it stops the canvas is idle again (Activity Monitor shows the app's CPU dropping back).
+  **Observed:**
+- [ ] **TIE-7 Save and reopen.** Make two ties (one inside a group), save, close and reopen: every tie is where it was, holding
+  the same wires. Group the nodes of a tie: it goes inside; Ungroup: it comes back out. **Pinned:** `TieFileTests`,
+  `TieGroupTests`. **Observed:**
+- [ ] **TIE-8 Linux and Windows.** On a Linux or Windows build, Ctrl+Shift+T ties and Alt-drag box-selects wires.
+  **Observed:**
