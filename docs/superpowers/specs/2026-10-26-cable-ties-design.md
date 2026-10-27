@@ -247,3 +247,30 @@ The goal is slack while moving, taut at rest, and no lag.
 - Selection-groups-comments §3: `CanvasSelection` gains wires and ties. §7: draw order gains tie bands; hit-test order gains
   tie and wire.
 - The format-version history in `GraphFile.swift` gains format 9.
+
+## Errata (plan, 2026-10-26)
+
+Rulings of `docs/superpowers/plans/2026-10-26-cable-ties.md` where this spec left a choice or contradicted itself:
+
+- §3.1: `TieID` holds `rawValue`, as `NodeID` and `CommentID` do, not `raw`.
+- §3.2: an inverse that has to restore ties is `.batch([<the inverse it always returned>] + setTie(old)…)`; `restoreNode` and
+  `restoreLinks` are unchanged, and an inverse that reached no tie keeps its old shape.
+- §3.3: the `ties` key is read whatever the version; a format-8 file has none.
+- §3.4: a tie is copied whenever every wire it holds is copied, whether or not it is selected. `NodeClipboard` is in
+  `CreatorEditor`, so §6's clipboard tests are `CreatorEditorTests`.
+- §4.1: a selected comment's resize handle stays just before its own comment's body (the list's "frame, resize" order would let a
+  note hide its own handle). A drag that starts on a wire is a box. The 5-point distance and the band are display canvas points.
+  ⌘A selects ties, not wires.
+- §4.2: a wire's pick point is the click's, or the middle of where its route lies inside the ⌥-box; a wire with none counts its
+  route's middle. ⌘⇧T with one tie and only wires it already holds is refused. After Add to Tie, the selection is the tie. The
+  refusal has no node to shake: the canvas's refusal line says "Select two or more wires to tie, or one tie and the wires to add
+  to it."
+- §4.3: the editor has no snapping, so ties are nudged only. A move of ties alone is "Move Tie"; ties moved with other items make
+  "Move". A frame carries nodes, not ties.
+- §4.4: a delete of ties alone is "Remove Tie" (also by ⌘X); with other items it is "Delete" or "Cut".
+- §4.5: Ungroup's outer wires on the group node leave their ties, as Group's crossing wires do. Make Unique copies a
+  definition's ties onto the copy.
+- §5.2: only moves (drags and arrow nudges) make slack; undo, paste and a dock change snap to the new taut routes. The spring is
+  solved exactly (natural frequency 20 rad/s, damping ratio 0.8, slack 0.6, cap 0.4, rest below 0.05 pt and 1 pt/s), the
+  timeline reads it without writing the model, and a settle task ends the timeline. A selected wire is drawn 4 points wide in
+  the theme's selection colour.

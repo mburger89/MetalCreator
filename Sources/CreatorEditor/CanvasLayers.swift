@@ -3,8 +3,9 @@ import CreatorGraph
 import CreatorStyle
 import MetalUI
 
-/// Everything drawn under the canvas transform, back to front: comment frames, wires, notes, nodes (the selected last
-/// within each kind), ⌥-drag ghosts, the wire being dragged and the box selection. Positions are display canvas
+/// Everything drawn under the canvas transform, back to front: comment frames, wires, cable tie bands, notes, nodes (the
+/// selected last within each kind), ⌥-drag ghosts, the wire being dragged and the box selection (cable ties spec 2026-10-26
+/// §5.1). Positions are display canvas
 /// points; the parent applies zoom and pan as render effects. Nodes, comments and wires that can't show aren't built
 /// (`EditorModel.drawnNodes`, `drawnNotes`, `drawnFrames`, `drawnCanvasRect`), nor nodes' rows while zoomed out
 /// (`drawsNodeRows`). Nodes, comments and ghosts are keyed by their whole UUID: MetalUI's `ForEach` names an element
@@ -12,11 +13,16 @@ import MetalUI
 struct CanvasLayers: Component {
     let model: EditorModel
     @Environment(ThemeStore.self) var themes: ThemeStore?
+    /// Reduce Motion (MetalUI's `accessibilityReduceMotion`). The canvas passes it to the model, which then never lets a wire
+    /// go slack (cable ties spec §5.2).
+    @Environment(\.accessibilityReduceMotion) var reducesMotion: Bool
 
     var content: some ElementGroup {
         let flow = model.flow
         let palette = Palette(themes)
         let selectedComments = model.canvasSelection.comments
+        let selectedTies = model.canvasSelection.ties
+        let routing = model.wireRouting
         let commentGhosts = Self.commentGhosts(model)
         return ZStack(alignment: .topLeading) {
             ForEach(model.drawnFrames, id: \.id.rawValue) { box in
@@ -24,8 +30,10 @@ struct CanvasLayers: Component {
                                  palette: palette)
                     .equatable()
             }
-            ForEach(Self.wires(model, palette: palette), id: \.id) { wire in
-                WireView(geometry: wire.geometry, color: wire.color).equatable()
+            WireLayer(model: model, routing: routing, palette: palette,
+                      animates: Self.animatesWires(model, reducesMotion: reducesMotion))
+            ForEach(model.drawnTies(in: routing), id: \.id.rawValue) { layout in
+                TieBandView(band: layout.band, isSelected: selectedTies.contains(layout.id), palette: palette).equatable()
             }
             ForEach(model.drawnNotes, id: \.id.rawValue) { note in
                 StickyView(note: note, rect: model.frame(of: note), isSelected: selectedComments.contains(note.id),
@@ -65,33 +73,47 @@ struct CanvasLayers: Component {
                     : WireGeometry(from: anchor, to: drag.current, flow: flow)
                 WireView(geometry: geometry, color: palette.focus).equatable()
             }
-            if case .boxSelecting(let start, let current, _, _)? = model.interaction {
-                BoxSelectionView(rect: CanvasRect(corner: start, current)).equatable()
+            if let box = model.selectionBox {
+                BoxSelectionView(rect: box).equatable()
             }
         }
+        .onChange(of: reducesMotion, initial: true) { _, reduces in model.reducesMotion = reduces }
+    }
+
+    /// Whether the wires are drawn inside a timeline: only while some wire is slack and Reduce Motion is off.
+    static func animatesWires(_ model: EditorModel, reducesMotion: Bool) -> Bool {
+        model.isWireMotionActive && !reducesMotion
     }
 
     struct Wire: Identifiable {
         var id: String
-        var geometry: WireGeometry
+        var route: WireRoute
         var color: HexColor
+        var lineWidth: Double
     }
 
-    /// Every wire whose two sockets are on the canvas and some of whose curve can show (`drawnCanvasRect`), coloured
-    /// by its source socket's type in `palette`.
-    static func wires(_ model: EditorModel, palette: Palette = .dracula) -> [Wire] {
+    /// How wide a selected wire is drawn (cable ties spec §4.1).
+    static let selectedLineWidth = 4.0
+
+    /// Every wire whose two sockets are on the canvas and some of whose taut route can show (`drawnCanvasRect`), coloured
+    /// by its source socket's type in `palette`, or wider in the selection colour when selected. `routing` is
+    /// `model.wireRouting` when not given. With `motion`, each route is drawn with its slack; culling still reads the taut route.
+    static func wires(_ model: EditorModel, routing: WireRouting? = nil, palette: Palette = .dracula,
+                      motion: WireMotion? = nil) -> [Wire] {
         let drawn = model.drawnCanvasRect
+        let routing = routing ?? model.wireRouting
+        let selected = model.canvasSelection.wires
         return model.graph.links.compactMap { link in
-            let from = SocketRef(link.from, isInput: false), to = SocketRef(link.to, isInput: true)
-            guard let start = model.anchor(of: from), let end = model.anchor(of: to),
-                  let source = model.graph.nodes[link.from.node] else { return nil }
-            let geometry = WireGeometry(from: start, to: end, flow: model.flow)
-            // WireView's frame: the curve's bounds padded by twice its 2-point stroke.
-            if let drawn, !drawn.intersects(geometry.bounds(padding: 4)) { return nil }
+            guard let taut = routing.routes[link.to], let source = model.graph.nodes[link.from.node] else { return nil }
+            let isSelected = selected.contains(link.to)
+            let width = isSelected ? selectedLineWidth : WireView.defaultLineWidth
+            // WireView's frame: the route's bounds padded by twice its stroke.
+            if let drawn, !drawn.intersects(taut.bounds(padding: 2 * width)) { return nil }
             let type = model.shape(of: source).outputs.first { $0.name == link.from.socket }?.type
             return Wire(id: "\(link.to.node.rawValue.uuidString).\(link.to.socket.rawValue)",
-                        geometry: geometry,
-                        color: type.map(palette.socket) ?? palette.secondaryText)
+                        route: motion?.drawn(taut) ?? taut,
+                        color: isSelected ? palette.selection : type.map(palette.socket) ?? palette.secondaryText,
+                        lineWidth: width)
         }
     }
 

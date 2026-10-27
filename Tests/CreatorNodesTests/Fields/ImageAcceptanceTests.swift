@@ -81,7 +81,7 @@ struct ImageAcceptanceTests {
         await document.waitForEvaluation()
         let first = try #require(document.results[part.sample.id]?.outputs?["values"]?.numbers)
         let data = try document.fileData()
-        #expect(try #require(String(bytes: data, encoding: .utf8)).contains("\"formatVersion\" : 8"))
+        #expect(try #require(String(bytes: data, encoding: .utf8)).contains("\"formatVersion\" : 9"))
         let reopened = try DocumentModel(data: data, registry: BuiltInNodes.registry, kernel: kernel)
         await reopened.waitForEvaluation()
         #expect(reopened.results[part.sample.id]?.outputs?["values"]?.numbers == first, "identical on a second run")

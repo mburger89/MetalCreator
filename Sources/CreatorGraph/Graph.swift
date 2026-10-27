@@ -1,6 +1,6 @@
 import CreatorKernel
 
-/// The whole recipe: nodes, wires, document parameters and canvas comments. Pure data.
+/// The whole recipe: nodes, wires, document parameters, canvas comments and cable ties. Pure data.
 public struct Graph: Sendable, Equatable {
     public var nodes: [NodeID: Node]
     public var links: [Link]
@@ -9,19 +9,24 @@ public struct Graph: Sendable, Equatable {
     /// evaluation. A comment ID is in at most one of the two.
     public var stickies: [CommentID: StickyNote]
     public var frames: [CommentID: CommentFrame]
+    /// Cable ties (cable ties spec 2026-10-26 §3). Editor furniture like the comments. Every wire a tie holds is a link's
+    /// input here, and every tie holds two or more: `apply` keeps both, and decoding repairs both.
+    public var ties: [TieID: CableTie]
 
     public init(nodes: [NodeID: Node] = [:], links: [Link] = [], parameters: [GraphParameter] = [],
-                stickies: [CommentID: StickyNote] = [:], frames: [CommentID: CommentFrame] = [:]) {
+                stickies: [CommentID: StickyNote] = [:], frames: [CommentID: CommentFrame] = [:],
+                ties: [TieID: CableTie] = [:]) {
         self.nodes = nodes
         self.links = links
         self.parameters = parameters
         self.stickies = stickies
         self.frames = frames
+        self.ties = ties
     }
 }
 
 extension Graph: Codable {
-    private enum CodingKeys: String, CodingKey { case nodes, links, parameters, stickies, frames }
+    private enum CodingKeys: String, CodingKey { case nodes, links, parameters, stickies, frames, ties }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -41,6 +46,8 @@ extension Graph: Codable {
         }
         stickies = notes
         frames = boxes
+        // Format 9; absent before it. Repaired against the links just read (I1, then I2).
+        ties = Self.repaired(try container.decodeIfPresent([CableTie].self, forKey: .ties) ?? [], links: links)
         sortLinks()  // Canonical order, so command + undo yields an equal graph.
     }
 
@@ -53,5 +60,7 @@ extension Graph: Codable {
         // Comments are written, sorted by ID, only when there are some, so a graph without them is written as before.
         if !stickies.isEmpty { try container.encode(stickies.values.sorted { $0.id < $1.id }, forKey: .stickies) }
         if !frames.isEmpty { try container.encode(frames.values.sorted { $0.id < $1.id }, forKey: .frames) }
+        // Ties likewise, each with its wires sorted (`CableTie.encode`), so the output is deterministic.
+        if !ties.isEmpty { try container.encode(ties.values.sorted { $0.id < $1.id }, forKey: .ties) }
     }
 }

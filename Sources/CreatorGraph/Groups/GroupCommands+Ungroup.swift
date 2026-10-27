@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorKernel
 
 extension GroupCommands {
@@ -46,6 +47,7 @@ extension GroupCommands {
         }
         let here: [GraphCommand] = [.removeNode(id)] + splice.nodes.values.sorted { $0.id < $1.id }.map { .addNode($0) }
             + (splice.links.isEmpty ? [] : [.restoreLinks(splice.links)]) + settings + comments
+            + tiesSplicedOut(of: definition, by: splice, offset: offset)
         let lastOne = GroupDependencies.instances(of: definition.id, in: content).allSatisfy { $0.path == path && $0.node.id == id }
         let fresh = splice.fresh
         let picks = GroupScopes.renamingPicks(at: path, in: content, registry: registry, skipping: [id]) { reached in
@@ -55,6 +57,20 @@ extension GroupCommands {
         return GroupEdit(command: .batch([GraphCommand.batch(here).at(path)] + picks
                                          + (lastOne ? [.removeDefinition(definition.id)] : [])),
                          selection: Set(splice.nodes.keys))
+    }
+
+    /// The definition's ties as Ungroup brings them out (cable ties spec §4.5). Each wire is moved onto the spliced copy of
+    /// its node, and kept only where the splice wires it: a wire Group Input fed from nothing outside became a value, so it
+    /// leaves. Each tie is moved by the group node's position like the nodes and gets a fresh ID; a tie left with fewer than
+    /// two wires stays behind. The outer level's wires into and out of the group node have already left their ties with it
+    /// (`Graph.stripTies` in `removeNode`), as Group's crossing wires do.
+    static func tiesSplicedOut(of definition: GroupDefinition, by splice: GroupSplice, offset: Vector2) -> [GraphCommand] {
+        let wired = Set(splice.links.map(\.to))
+        return definition.graph.ties.values.sorted { $0.id < $1.id }.compactMap { tie in
+            let wires = Set(tie.wires.compactMap { splice.endpoint($0) }).intersection(wired)
+            guard wires.count >= CableTie.minimumWires else { return nil }
+            return .setTie(CableTie(position: tie.position + offset, wires: wires))
+        }
     }
 
     /// The graph at `path`, group node `id` in it and its definition, or a refusal naming `action`.

@@ -29,6 +29,12 @@ extension GroupCommands {
         // The definition's own canvas comments come along (an ID only has to be unique within its graph).
         copy.graph.stickies = definition.graph.stickies
         copy.graph.frames = definition.graph.frames
+        // Its ties too, each wire on the copy of its node (cable ties spec §4.5).
+        copy.graph.ties = definition.graph.ties.mapValues { tie in
+            CableTie(id: tie.id, position: tie.position, wires: Set(tie.wires.compactMap { wire in
+                fresh[wire.node].map { Endpoint(node: $0, socket: wire.socket) }
+            }))
+        }
         let here = GraphCommand.batch([.setInput(id, NodeSetting.group, .group(copyID)), .rename(id, copy.name)])
         let picks = GroupScopes.renamingPicks(at: path, in: content, registry: registry) { reached in
             guard reached.count > 1, reached.first == id, let copy = fresh[reached[1]] else { return nil }

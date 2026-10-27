@@ -431,3 +431,12 @@ Plan `2026-10-12-adopt-c25.md` (MetalUI C25, master `3fce05f`: gap CT-b).
   appends); an empty text opens with the caret in it. Each edit opens afresh, whatever an earlier edit left. The field's
   selection is view state like the draft (`CommentEdit.selection`): never undone, never saved, it writes nothing to the graph.
   The inspector's fields are unchanged: they take their caret from the click that focuses them.
+
+## Errata (cable ties)
+
+- §3: `CanvasSelection` gains `wires` (by input endpoint) and `ties`, view state like the rest. ⌘A selects every node, comment
+  and tie, never a wire. A plain box also picks up the ties whose band lies wholly inside it and never a wire. An ⌥-drag on
+  empty canvas is a box of wires only (⌥ replaces the wires, ⌥⇧ adds, ⌥⌘ toggles; Esc puts the selection back). A drag that
+  starts on a wire is a drag on empty canvas (`2026-10-26-cable-ties-design.md` §4.1).
+- §7: the draw order is frames → wires → tie bands → notes → nodes → ghosts → the wire being dragged → the box. The hit-test
+  order is socket, tie, node, note (a selected note's handle first), wire, frame (a selected frame's handle first), empty.

@@ -20,5 +20,9 @@ public enum CanvasInteraction: Equatable, Sendable {
     /// box is combined with as `mode` says: the modifiers held as the drag started ask for it (none replaces, ⇧ adds,
     /// ⌘ toggles).
     case boxSelecting(start: Vector2, current: Vector2, base: CanvasSelection, mode: SelectionMode)
+    /// An ⌥-drag on empty canvas (cable ties spec 2026-10-26 §4.1): a box that selects wires only, those whose taut route
+    /// crosses or lies inside it, combined with `base`'s wires as `mode` says (⌥ replaces, ⌥⇧ adds, ⌥⌘ toggles). Nodes,
+    /// comments and ties keep `base`'s selection.
+    case wireBoxSelecting(start: Vector2, current: Vector2, base: CanvasSelection, mode: SelectionMode)
     case connecting(WireDrag)
 }

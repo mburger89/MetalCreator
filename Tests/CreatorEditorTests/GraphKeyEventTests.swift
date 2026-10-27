@@ -55,4 +55,12 @@ struct GraphKeyEventTests {
         #expect(command(.upArrow, nil, .primary) == .exitGroup)
         #expect(command(KeyEquivalent("a"), nil, .option) == nil)
     }
+
+    /// ⌘⇧T ties wires (cable ties spec 2026-10-26 §4.2). The check is `.primary`, so it is Ctrl+Shift+T off macOS.
+    @Test func commandShiftTTiesWires() {
+        #expect(command(KeyEquivalent("t"), "T", [.primary, .shift]) == .tieWires)
+        #expect(command(KeyEquivalent("T"), "T", [.primary, .shift]) == .tieWires, "AppKit reports a shifted letter upper-case")
+        #expect(command(KeyEquivalent("t"), nil, .primary) == nil, "⌘T alone is nothing")
+        #expect(command(KeyEquivalent("t"), "T", [.option, .shift]) == nil)
+    }
 }

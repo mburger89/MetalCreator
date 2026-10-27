@@ -1,6 +1,7 @@
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
+import Foundation
 import Observation
 
 /// The graph panel's state and behaviour: selection, the canvas transform, the dock, drags,
@@ -101,6 +102,24 @@ public final class EditorModel {
     /// What the last release clicked, if it was a first plain click on a node, a note or a frame's title bar: the target
     /// a second click (click count 2) must land on to be a double click (`EditorModel+DoubleClick`).
     @ObservationIgnored var lastClick: ClickTarget?
+    /// Where each wire was last picked, by a click or an ⌥-box, in stored canvas points: where ⌘⇧T puts a new tie
+    /// (`EditorModel+Ties`, cable ties spec §4.2). View state, in memory only.
+    @ObservationIgnored var wirePickPoints: [Endpoint: Vector2] = [:]
+    /// The slack of the wires in motion (`EditorModel+Motion`, cable ties spec §5.2). View state, never saved. The canvas reads
+    /// it inside its timeline every frame, so it is not tracked.
+    @ObservationIgnored var wireMotion = WireMotion()
+    /// Whether some wire is slack: what puts the wires inside a `TimelineView` (`WireLayer`). Tracked, so the canvas drops
+    /// the timeline when the last wire settles.
+    public internal(set) var isWireMotionActive = false
+    /// The clock the springs run on, in seconds since the reference date, the same base as a timeline's dates. Tests set
+    /// their own.
+    @ObservationIgnored public var motionClock: @MainActor () -> Double = { Date().timeIntervalSinceReferenceDate }
+    /// Reduce Motion, as the canvas read it (`CanvasLayers`). While it is on, no wire ever goes slack.
+    @ObservationIgnored public var reducesMotion = false {
+        didSet { if reducesMotion { stopWireMotion() } }
+    }
+    /// The task that ends the motion once every wire is taut (`EditorModel+Motion`).
+    @ObservationIgnored var motionSettleTask: Task<Void, Never>?
 
     public init(document: DocumentModel) {
         self.document = document
@@ -127,7 +146,11 @@ public final class EditorModel {
         }
         if dock != .hidden { lastVisibleDock = dock }
         // The canvas moves or unmounts, so its last hover location no longer says where the pointer is.
-        if dock != document.dock { pointerLocation = nil }
+        if dock != document.dock {
+            pointerLocation = nil
+            // The springs' offsets are in the old flow's display axes: snap to the new taut routes (plan R13).
+            stopWireMotion()
+        }
         document.dock = dock
     }
 
@@ -188,12 +211,15 @@ public final class EditorModel {
         }
     }
 
-    /// What is under `screen` (canvas-local screen points): the frontmost node's socket within
-    /// `NodeLayout.socketHitRadius` screen points, else the frontmost node, else a comment (`commentHit(at:)`:
-    /// notes, then frames), else empty canvas.
+    /// What is under `screen` (canvas-local screen points; cable ties spec 2026-10-26 §4.1): the frontmost node's socket
+    /// within `NodeLayout.socketHitRadius` screen points, else a tie's band, else the frontmost node, else a note
+    /// (`noteHit(at:)`), else a wire within `wireHitDistance` of its taut route, else a frame's chrome (`frameHit(at:)`),
+    /// else empty canvas. A tie beats the node it lies over, so one dropped on a node can still be grabbed.
     public func hitTest(_ screen: Vector2) -> CanvasHit {
         let point = transform.toCanvas(screen)
         let radius = NodeLayout.socketHitRadius / transform.zoom
+        let routing = wireRouting
+        let tie = tieHit(at: point, in: routing)
         for node in drawOrder.reversed() {
             let shape = shape(of: node)
             let origin = displayOrigin(of: node)
@@ -205,9 +231,14 @@ public final class EditorModel {
                     }
                 }
             }
-            if CanvasRect(origin: origin, size: NodeLayout.size(shape)).contains(point) { return .node(node.id) }
+            if CanvasRect(origin: origin, size: NodeLayout.size(shape)).contains(point) {
+                return tie.map(CanvasHit.tie) ?? .node(node.id)
+            }
         }
-        return commentHit(at: point) ?? .empty
+        if let tie { return .tie(tie) }
+        if let note = noteHit(at: point) { return note }
+        if let wire = wireHit(at: point, in: routing) { return .wire(wire) }
+        return frameHit(at: point) ?? .empty
     }
 
     /// Nodes whose drawn frame meets `rect` (display canvas points).

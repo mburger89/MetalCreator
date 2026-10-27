@@ -49,3 +49,13 @@ extension EditorModel {
         return drawOrderFrames.filter { drawn.intersects(frame(of: $0)) }
     }
 }
+
+extension EditorModel {
+    /// The ties the canvas builds, back to front: `drawOrderTies(in:)` without those whose band lies wholly outside
+    /// `drawnCanvasRect` (cable ties spec §5.1). Hit testing and selection always see every tie.
+    public func drawnTies(in routing: WireRouting) -> [TieLayout] {
+        let order = drawOrderTies(in: routing)
+        guard let drawn = drawnCanvasRect else { return order }
+        return order.filter { drawn.intersects($0.band) }
+    }
+}

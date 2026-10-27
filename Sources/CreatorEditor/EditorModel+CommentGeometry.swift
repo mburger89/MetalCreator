@@ -39,15 +39,21 @@ extension EditorModel {
         }
     }
 
-    /// The comment under `point` (display canvas points), topmost first: a selected comment's resize handle, a note
-    /// anywhere on its rectangle, then a frame on its title bar or edge band. Notes beat frames, and the selected
-    /// raise within their kind, as they draw. `nil` when no comment is there; nodes are tested before this.
-    func commentHit(at point: Vector2) -> CanvasHit? {
+    /// The note under `point` (display canvas points), topmost first: a selected note's resize handle, else a note anywhere
+    /// on its rectangle; the selected raise, as they draw. `nil` when no note is there. Nodes and ties are tested before
+    /// this, wires after it (`hitTest`, cable ties spec §4.1).
+    func noteHit(at point: Vector2) -> CanvasHit? {
         for note in drawOrderNotes.reversed() {
             let rect = frame(of: note)
             if canvasSelection.comments.contains(note.id), CommentLayout.handle(of: rect).contains(point) { return .resize(note.id) }
             if rect.contains(point) { return .note(note.id) }
         }
+        return nil
+    }
+
+    /// The frame under `point`: a selected frame's resize handle, else a frame on its title bar or edge band; the selected
+    /// raise. `nil` when no frame is there. Wires are tested before this.
+    func frameHit(at point: Vector2) -> CanvasHit? {
         for box in drawOrderFrames.reversed() {
             let rect = frame(of: box)
             if canvasSelection.comments.contains(box.id), CommentLayout.handle(of: rect).contains(point) { return .resize(box.id) }

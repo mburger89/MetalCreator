@@ -32,6 +32,12 @@ struct GroupBuilder {
             definition.graph.nodes[moved.id] = moved
         }
         definition.graph.links = graph.links.filter { ids.contains($0.from.node) && ids.contains($0.to.node) }
+        // A tie goes inside when every wire it holds does, moved like the nodes (cable ties spec §4.5). Removing the grouped
+        // nodes takes their wires, inner and crossing, out of every other tie (`Graph.stripTies`).
+        let inner = Set(definition.graph.links.map(\.to))
+        for tie in graph.ties.values where tie.wires.isSubset(of: inner) {
+            definition.graph.ties[tie.id] = CableTie(id: tie.id, position: tie.position - topLeft, wires: tie.wires)
+        }
         self.graph = graph
         self.sockets = sockets
         self.input = input.id

@@ -98,6 +98,8 @@ extension EditorModel {
     /// Makes a level that no longer exists official: after Undo removes the group node entered, the panel falls back to
     /// the level around it, with nothing selected. Call it after anything that undoes or redoes.
     public func refreshLevel() {
+        // Undo and redo snap the wires straight to their new taut routes (plan R13): no slack carries over.
+        stopWireMotion()
         let existing = levelPath
         guard existing != enteredGroups else { return }
         changeLevel(to: existing)
@@ -106,6 +108,7 @@ extension EditorModel {
     /// Shows `levels`: commits a typed value for the node it was typed on, clears the selection, closes the palette,
     /// and gives the new level its own pan and zoom.
     private func changeLevel(to levels: [NodeID]) {
+        stopWireMotion()
         commitPendingEntry()
         clearSelection()
         palette = nil

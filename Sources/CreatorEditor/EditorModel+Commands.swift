@@ -11,7 +11,7 @@ extension EditorModel {
         case .deleteSelection:
             guard isPanelVisible, !canvasSelection.isEmpty else { return false }
             deleteSelection()
-        case .selectAll, .nudge, .frameSelection, .cut, .addNote, .addFrame:
+        case .selectAll, .nudge, .frameSelection, .cut, .addNote, .addFrame, .tieWires:
             return performSelectionCommand(command)
         case .group, .ungroup, .enterGroup, .exitGroup:
             return performGroupKey(command)
@@ -23,7 +23,7 @@ extension EditorModel {
         return true
     }
 
-    /// The selection's keys (spec 2026-10-09 §3), and ⌘X. They act only while the panel shows the canvas: with it hidden they
+    /// The selection's keys (spec 2026-10-09 §3), ⌘X and ⌘⇧T. They act only while the panel shows the canvas: with it hidden they
     /// would select, move or cut nodes no one can see. During a drag they are claimed and do nothing, as Esc is during a
     /// move: a nudge or a selection change would end the move's coalescing and split it into two undo steps, and F
     /// would shift the canvas under the pointer.
@@ -37,8 +37,17 @@ extension EditorModel {
         case .cut:
             guard isPanelVisible, !canvasSelection.isEmpty else { return false }
             cutSelection()
+        default: return performCommentOrTieCommand(command)
+        }
+        return true
+    }
+
+    /// ⌘⇧N, ⌘⇧C and ⌘⇧T: the commands that add a note, a frame or a tie.
+    private func performCommentOrTieCommand(_ command: GraphKeyCommand) -> Bool {
+        switch command {
         case .addNote: addNoteAtPointer()
         case .addFrame: return addFrameAroundSelection()
+        case .tieWires: tieSelectedWires()
         default: return false // `perform(_:)` routes every other command elsewhere.
         }
         return true

@@ -740,3 +740,9 @@ Plan `2026-10-10-7a-place.md`, patterns spec `2026-10-10-patterns-trees-design.m
   Shift-drag and middle-drag pan, and orbit are unchanged; there is no ⌘-scroll zoom. A trackpad is told from a wheel
   by MetalUI's `ScrollEvent.isPrecise`, then its phase; SDL reports neither, so off macOS every scroll still zooms
   (a MetalUI gap, docs/metalui-gaps.md).
+
+## Errata (cable ties)
+
+- §6.2's interactions gain wires and ties (`2026-10-26-cable-ties-design.md` §4): a click on a wire selects it (⇧ adds, ⌘
+  toggles), ⌥-drag on empty canvas box-selects wires only, and ⌘⇧T (Ctrl+Shift+T on Linux and Windows) ties the selected
+  wires. A tie is dragged like a node; ⌥-click on a wire in a tie's band unties it.

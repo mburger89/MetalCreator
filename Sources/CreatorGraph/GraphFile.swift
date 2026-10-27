@@ -14,8 +14,10 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// version-6 reader can decode none of these. 8: the `implicit` and `mesh` socket types may appear on a group's interface
     /// (implicit spec §5.4), and the Implicit and Mesh nodes keep their settings (Shell's side, Mesh's resolutions) as the existing
     /// integer and number settings; a version-7 reader would show them as sockets it cannot type. Implicit solids and meshes are
-    /// computed, never saved. Version-1 to -7 files open unchanged and are written as 8.
-    public static let currentFormatVersion = 8
+    /// computed, never saved. 9: cable ties (`Graph.ties`, cable ties spec 2026-10-26 §3.3), written only when a graph has some,
+    /// sorted by ID with each tie's wires sorted; a version-8 reader would drop them when it saved, so it refuses the file
+    /// instead. Version-1 to -8 files open unchanged and are written as 9.
+    public static let currentFormatVersion = 9
 
     public var formatVersion: Int
     public var graph: Graph

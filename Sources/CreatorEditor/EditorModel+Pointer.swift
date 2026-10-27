@@ -37,7 +37,7 @@ extension EditorModel {
         if interaction != nil { lastClick = nil }
         switch interaction {
         case nil:
-            click(press.hit, mode: SelectionMode(press.modifiers))
+            click(press.hit, at: press.point, modifiers: press.modifiers)
             // After the click: a double click on a group node enters it and one on a note or a frame's title bar edits
             // it, and the click must not select it afterwards.
             countClick(on: press.hit, at: press.point, modifiers: press.modifiers, clickCount: press.clickCount)
@@ -46,6 +46,8 @@ extension EditorModel {
         case .connecting(let wire): finishWire(wire, at: location)
         case .boxSelecting(let start, _, let base, let mode):
             applyBox(from: start, to: transform.toCanvas(location), base: base, mode: mode)
+        case .wireBoxSelecting(let start, _, let base, let mode):
+            applyWireBox(from: start, to: transform.toCanvas(location), base: base, mode: mode)
         case .panning: break
         }
         endPress()
@@ -85,7 +87,7 @@ extension EditorModel {
         case nil: return false
         case .panning?, .moving?, .resizing?: return true
         case .connecting?, .duplicating?: break
-        case .boxSelecting(_, _, let base, _)?: canvasSelection = base
+        case .boxSelecting(_, _, let base, _)?, .wireBoxSelecting(_, _, let base, _)?: canvasSelection = base
         }
         cancelPress()
         return true
@@ -99,14 +101,19 @@ extension EditorModel {
         pointerPressed(at: start, modifiers: modifiers, clickCount: clickCount)
     }
 
-    /// A press that didn't move selects what it landed on as `mode` says (spec 2026-10-09 §3). On an item already
-    /// selected, a plain click collapses the selection to it, ⌘ toggles it out and ⇧ keeps it. On empty canvas a
-    /// plain click clears the selection and a modified one keeps it.
-    private func click(_ hit: CanvasHit, mode: SelectionMode) {
+    /// A press that didn't move selects what it landed on as the modifiers held at the press say (`SelectionMode`, spec
+    /// 2026-10-09 §3). On an item already selected, a plain click collapses the selection to it, ⌘ toggles it out and ⇧
+    /// keeps it. On empty canvas a plain click clears the selection and a modified one keeps it. A click on a wire also
+    /// remembers where it landed, for ⌘⇧T's tie (cable ties spec §4.2).
+    private func click(_ hit: CanvasHit, at screen: Vector2, modifiers: CanvasModifiers) {
+        // ⌥-click on a tie's band unties the wire on the nearest lane (cable ties spec §4.4).
+        if modifiers.contains(.option), case .tie(let id) = hit, untie(at: screen, from: id) { return }
+        let mode = SelectionMode(modifiers)
         guard let items = items(for: hit) else {
             if mode == .replace { clearSelection() }
             return
         }
+        if case .wire(let wire) = hit { wirePickPoints[wire] = flow.stored(transform.toCanvas(screen)) }
         select(items, mode: mode)
     }
 
@@ -114,6 +121,9 @@ extension EditorModel {
         if case .socket(let socket) = hit {
             return .connecting(WireDrag(from: socket, current: transform.toCanvas(screen)))
         }
+        // A drag that starts on a wire is a drag on empty canvas: a wire is selected by a click or an ⌥-box (cable ties
+        // spec §4.1), never moved.
+        if case .wire = hit { return emptyCanvasDrag(at: screen, modifiers: modifiers) }
         // A selected comment's handle starts a resize before anything reaches the selection (canvas comments spec
         // 2026-10-09 §7); every other hit reaches it only through `items(for:)`. An unselected item is selected
         // first: alone, or added with ⇧ or ⌘.
@@ -136,6 +146,10 @@ extension EditorModel {
     /// pans: the middle button (`middleDragged`) and two-finger scroll do.
     private func emptyCanvasDrag(at screen: Vector2, modifiers: CanvasModifiers) -> CanvasInteraction {
         let point = transform.toCanvas(screen)
+        // ⌥ makes it a box of wires only (cable ties spec §4.1); ⇧ and ⌘ still say how it combines.
+        if modifiers.contains(.option) {
+            return .wireBoxSelecting(start: point, current: point, base: canvasSelection, mode: SelectionMode(modifiers))
+        }
         return .boxSelecting(start: point, current: point, base: canvasSelection, mode: SelectionMode(modifiers))
     }
 
@@ -147,7 +161,9 @@ extension EditorModel {
         case .panning:
             break  // The middle button's (`middleDragged`); a primary press ends a pan first (`pointerPressed`).
         case .moving(let start, let key):
-            try? edit(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key, name: UndoName.move)
+            withWireSlack {
+                _ = try? edit(.batch(moveCommands(from: start, by: storedDelta)), coalescingKey: key, name: moveName(of: start))
+            }
         case .resizing(let id, let start, let key):
             if let command = resizeCommand(id, from: start, by: (location - pressPoint) * (1 / transform.zoom)) {
                 try? edit(command, coalescingKey: key, name: UndoName.resize)
@@ -156,6 +172,8 @@ extension EditorModel {
             setInteraction(.duplicating(start: start, delta: storedDelta))
         case .boxSelecting(let start, _, let base, let mode):
             applyBox(from: start, to: transform.toCanvas(location), base: base, mode: mode)
+        case .wireBoxSelecting(let start, _, let base, let mode):
+            applyWireBox(from: start, to: transform.toCanvas(location), base: base, mode: mode)
         case .connecting(var wire):
             wire.current = transform.toCanvas(location)
             setInteraction(.connecting(wire))
@@ -168,6 +186,16 @@ extension EditorModel {
     private func applyBox(from start: Vector2, to current: Vector2, base: CanvasSelection, mode: SelectionMode) {
         setInteraction(.boxSelecting(start: start, current: current, base: base, mode: mode))
         canvasSelection = base.applying(items(intersecting: CanvasRect(corner: start, current)), mode: mode)
+    }
+
+    /// The ⌥-box from `start` to `current` (display canvas points): the wires its taut routes cross, combined with the wires
+    /// the drag began with as `mode` says, the rest of the selection as it began. Each wire it finds remembers where it lay
+    /// inside the box, for ⌘⇧T (cable ties spec §4.2).
+    private func applyWireBox(from start: Vector2, to current: Vector2, base: CanvasSelection, mode: SelectionMode) {
+        setInteraction(.wireBoxSelecting(start: start, current: current, base: base, mode: mode))
+        let found = wires(intersecting: CanvasRect(corner: start, current), in: wireRouting)
+        for (wire, point) in found { wirePickPoints[wire] = flow.stored(point) }
+        canvasSelection = base.applying(wires: Set(found.keys), mode: mode)
     }
 
     /// The copies land where the ghosts were, as one undo step; the originals never moved.

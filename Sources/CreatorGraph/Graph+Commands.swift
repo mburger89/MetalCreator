@@ -18,8 +18,10 @@ extension Graph {
             let removed = links.filter { $0.from.node == id || $0.to.node == id }
             links.removeAll { $0.from.node == id || $0.to.node == id }
             nodes[id] = nil
+            // Every wire into or out of the node leaves its ties (cable ties spec §3.2).
+            let ties = stripTies(holding: Set(removed.map(\.to)))
             sortLinks()
-            return .restoreNode(node, links: removed)
+            return Self.restoring(.restoreNode(node, links: removed), ties: ties)
 
         case .restoreNode(let node, let restoredLinks):
             guard nodes[node.id] == nil else { throw .duplicateNode(node.id) }
@@ -38,15 +40,18 @@ extension Graph {
             links.append(link)
             sortLinks()
             if let replaced {
-                return .batch([.disconnect(link), .restoreLinks([replaced])])
+                // The replaced wire leaves its ties; the new one on the same input is never tied implicitly.
+                let ties = stripTies(holding: [link.to])
+                return .batch([.disconnect(link), .restoreLinks([replaced])] + ties)
             }
             return .disconnect(link)
 
         case .disconnect(let link):
             guard links.contains(link) else { throw .linkNotFound }
             links.removeAll { $0 == link }
+            let ties = stripTies(holding: [link.to])
             sortLinks()
-            return .restoreLinks([link])
+            return Self.restoring(.restoreLinks([link]), ties: ties)
 
         case .restoreLinks(let restored):
             guard restored.allSatisfy({ !links.contains($0) }) else { throw .invalidValue("This wire already exists.") }
@@ -124,6 +129,9 @@ extension Graph {
 
         case .setSticky, .removeSticky, .setFrame, .removeFrame:
             return try applyComment(command)
+
+        case .setTie, .removeTie:
+            return try applyTie(command)
 
         case .inDefinition, .addDefinition, .removeDefinition, .setInterface:
             throw .invalidValue("A group edit applies to the whole document, not to one graph.")

@@ -49,12 +49,13 @@ public enum GraphKeyBindings {
         }
     }
 
-    /// ⌘ chords; `character` is already lowercased, and ⇧ turns ⌘Z into redo, ⌘G into ungroup, ⌘C into Frame Selection
-    /// and ⌘N into Add Note. ⌘↓ and ⌘↑ (the arrows' private-use characters) go into and out of a group.
+    /// ⌘ chords; `character` is already lowercased, and ⇧ turns ⌘Z into redo, ⌘G into ungroup, ⌘C into Frame Selection,
+    /// ⌘N into Add Note and ⌘T into Tie Wires. ⌘↓ and ⌘↑ (the arrows' private-use characters) go into and out of a group.
     static func commandChord(for character: String, shifted: Bool) -> GraphKeyCommand? {
         switch character {
         case "c": shifted ? .addFrame : .copy
         case "n": shifted ? .addNote : nil
+        case "t": shifted ? .tieWires : nil
         case "x": .cut
         case "v": .paste
         case "d": .duplicate

@@ -79,7 +79,7 @@ struct GroupFieldTests {
         try group([sink.id], in: document)
         let data = try document.fileData()
         let text = try #require(String(bytes: data, encoding: .utf8))
-        #expect(text.contains("\"formatVersion\" : 8") && text.contains("\"type\" : \"field\""))
+        #expect(text.contains("\"formatVersion\" : 9") && text.contains("\"type\" : \"field\""))
         let reopened = try GraphFileIO.decode(data, registry: Self.registry)
         #expect(reopened.definitions == document.definitions && reopened.graph == document.graph)
         let again = DocumentModel(file: reopened, registry: Self.registry, kernel: FakeKernel())
