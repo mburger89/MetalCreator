@@ -37,6 +37,9 @@ public indirect enum GraphCommand: Sendable, Equatable {
     /// each one of these carrying the tie's new value. Never affects evaluation.
     case setTie(CableTie)
     case removeTie(TieID)
+    /// Pins a feature dimension, or unpins it (DIM-3). Never affect evaluation.
+    case pinDimension(DimensionPin)
+    case unpinDimension(DimensionPin)
     /// Sets the document's display units (DIM-1). Never affects evaluation: values stay millimetres.
     case setUnits(DocumentUnits)
     /// Adds a group definition (the inverse of `removeDefinition`).
@@ -58,7 +61,7 @@ public indirect enum GraphCommand: Sendable, Equatable {
         case .connect(let link), .disconnect(let link): [link.to.node]
         case .restoreLinks(let links): Set(links.map(\.to.node))
         case .move, .rename, .addParameter, .removeParameter, .setParameter: []
-        case .setSticky, .removeSticky, .setFrame, .removeFrame, .setTie, .removeTie, .setUnits: []
+        case .setSticky, .removeSticky, .setFrame, .removeFrame, .setTie, .removeTie, .setUnits, .pinDimension, .unpinDimension: []
         case .inDefinition, .addDefinition, .removeDefinition, .setInterface: []
         case .batch(let commands): commands.reduce(into: []) { $0.formUnion($1.touchedNodes) }
         }
@@ -69,7 +72,7 @@ public indirect enum GraphCommand: Sendable, Equatable {
     public var affectsResults: Bool {
         switch self {
         case .move, .rename, .addDefinition, .removeDefinition: false
-        case .setSticky, .removeSticky, .setFrame, .removeFrame, .setTie, .removeTie, .setUnits: false
+        case .setSticky, .removeSticky, .setFrame, .removeFrame, .setTie, .removeTie, .setUnits, .pinDimension, .unpinDimension: false
         case .batch(let commands): commands.contains { $0.affectsResults }
         case .inDefinition(_, let command): command.affectsResults
         default: true

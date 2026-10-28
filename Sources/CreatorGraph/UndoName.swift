@@ -49,6 +49,11 @@ public enum UndoName {
     public static let changeUnits = "Change Units"
     public static let changePrecision = "Change Precision"
 
+    // MARK: Driving dimensions (DIM-3)
+    public static let pinDimension = "Pin Dimension"
+    public static let unpinDimension = "Unpin Dimension"
+    public static let changeDimension = "Change Dimension"
+
     // MARK: Groups (groups spec §5, §6)
     public static let group = "Group"
     public static let ungroup = "Ungroup"
