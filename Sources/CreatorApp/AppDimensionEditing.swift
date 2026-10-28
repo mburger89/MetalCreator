@@ -65,7 +65,11 @@ final class AppDimensionEditing: DimensionEditing {
         // host checks (`events.checkValueCommit`), and released on every outcome, a refusal by the editor itself included.
         guard let document = app?.document else { return .refused("That dimension is gone.") }
         document.holdResults()
-        defer { document.releaseResults() }
+        app?.sketchCheckBaseline = document.performCount
+        defer {
+            app?.sketchCheckBaseline = nil
+            document.releaseResults()
+        }
         return await editor.commitValue(text, to: id)
     }
 }

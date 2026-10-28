@@ -9,6 +9,7 @@ extension AppModel {
     /// made a new error (spec §7). The hold is released on every path.
     func commitChecked(_ command: GraphCommand, at path: GraphPath, name: String) async -> DimensionCommitOutcome {
         let document = document  // New or Open during the check replaces `self.document`; this one is released regardless
+        let baseline = document.performCount
         document.holdResults()
         do {
             try document.perform(command, at: path, name: name)
@@ -16,19 +17,22 @@ extension AppModel {
             document.releaseResults()
             return .refused(Self.message(of: error))
         }
-        let refusal = await checkLastStep(of: document)
+        let refusal = await checkLastStep(of: document, after: baseline)
         document.releaseResults()
         return refusal.map(DimensionCommitOutcome.refused) ?? .accepted
     }
 
-    /// After a step already performed: waits, and withdraws it on a new error; the refusal text or nil. A step the user
-    /// superseded meanwhile (Undo, another edit, deleting the node) is left alone and counts as accepted.
+    /// After a sketch commit already performed: waits, and withdraws its step on a new error; the refusal text or nil. Only a
+    /// step taken after `sketchCheckBaseline` counts, so a commit that made no step (the sketch did not change the graph) never
+    /// judges an older step. A step the user superseded meanwhile (Undo, another edit, deleting the node) is left alone and
+    /// counts as accepted.
     func checkLastStep() async -> String? {
-        await checkLastStep(of: document)
+        guard let baseline = sketchCheckBaseline else { return nil }
+        return await checkLastStep(of: document, after: baseline)
     }
 
-    private func checkLastStep(of document: DocumentModel) async -> String? {
-        guard let step = document.lastStep() else { return nil }
+    private func checkLastStep(of document: DocumentModel, after baseline: Int) async -> String? {
+        guard let step = document.lastStep(), step.serial > baseline else { return nil }
         await document.waitForEvaluation()
         guard let problem = document.newProblem(in: step), document.withdraw(step) else { return nil }
         return "\(label(of: problem.node, in: document)): \(problem.message)"

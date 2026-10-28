@@ -10,6 +10,8 @@ public struct TentativeStep: Sendable {
     let historyBefore: UndoStack
     /// The `.error` messages of the top-level results before the step, so an error that was already there is not new.
     let errorsBefore: [NodeID: String]
+    /// `DocumentModel.performCount` after the step, so a caller can tell whether it was taken after some earlier moment.
+    public let serial: Int
 }
 
 /// The error a tentative step caused: the node that failed and the first line of its message.

@@ -103,6 +103,9 @@ public final class DocumentModel {
     @ObservationIgnored var heldReport: EvaluationReport?
     /// The last `perform`'s step, until an undo, a redo, a withdrawal or a coalesced edit forgets it.
     @ObservationIgnored var tentativeStep: TentativeStep?
+    /// How many `perform`s have succeeded. Read before an edit, it tells `TentativeStep.serial` apart: only a step with a larger
+    /// serial was made by that edit.
+    @ObservationIgnored public private(set) var performCount = 0
 
     public init(file: GraphFile = GraphFile(), registry: NodeRegistry, kernel: any Kernel,
                 cacheBudgetBytes: Int = 512 * 1024 * 1024, documentURL: URL? = nil,
@@ -153,17 +156,18 @@ public final class DocumentModel {
         // The stale set must be taken before the edit, so dependents of removed nodes and links count.
         let stale = graph.downstreamClosure(of: content.touchedTopLevelNodes(command))
         let effect = effect(of: command)
-        let contentBefore = content
-        let historyBefore = undoStack
+        // Only a checked (uncoalesced) step needs the before-values; a slider or drag tick would otherwise keep the old content
+        // and history alive and force a full copy of both on its next mutation.
+        let before: (content: GraphContent, history: UndoStack, errors: [NodeID: String])? =
+            coalescingKey == nil ? (content, undoStack, topLevelErrors) : nil
         let inverse = try content.apply(command, registry: baseRegistry)
         undoStack.record(forward: command, inverse: inverse, coalescingKey: coalescingKey,
                          name: UndoName.cleaned(name) ?? UndoName.edit)
         heldReport = nil  // a report held from before this edit describes the old content
-        if coalescingKey == nil {
-            tentativeStep = TentativeStep(watched: stale, contentBefore: contentBefore, contentAfter: content,
-                                          historyBefore: historyBefore, errorsBefore: topLevelErrors)
-        } else {
-            tentativeStep = nil
+        performCount += 1
+        tentativeStep = before.map {
+            TentativeStep(watched: stale, contentBefore: $0.content, contentAfter: content, historyBefore: $0.history,
+                          errorsBefore: $0.errors, serial: performCount)
         }
         didChange(effect, markingStale: stale)
     }

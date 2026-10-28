@@ -93,6 +93,20 @@ struct CommitCheckedTests {
         #expect(app.document.results[box.id]?.state.isSuccess == true)
     }
 
+    @Test func aCommitThatMadeNoStepNeverJudgesAnOlderOne() async throws {
+        let (app, box) = await boxApp()
+        // An earlier step, accepted by the user, that has an error of its own.
+        try app.document.perform(setRadius(box, 30), name: UndoName.changeDimension)
+        await app.settle()
+        let before = app.document.content
+        let undoName = app.document.undoName
+        app.sketchCheckBaseline = app.document.performCount  // a sketch commit begins, and performs no graph step
+        let refusal = await app.checkLastStep()
+        #expect(refusal == nil)
+        #expect(app.document.content == before)
+        #expect(app.document.undoName == undoName)
+    }
+
     @Test func aRefusedValueNeverReachesTheViewport() async throws {
         let (app, box) = await boxApp()
         let generation = app.viewport.renderKey.sceneGeneration
