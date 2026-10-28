@@ -59,9 +59,8 @@ extension Graph: Codable {
         ties = Self.repaired(try container.decodeIfPresent([CableTie].self, forKey: .ties) ?? [], links: links)
         // Format 10; absent before it, and a file without it is in millimetres.
         units = try container.decodeIfPresent(DocumentUnits.self, forKey: .units) ?? .millimetres
-        // DIM-3; absent before it. Pins of nodes that are not here are dropped.
-        dimensionPins = Self.repairedPins(try container.decodeIfPresent([DimensionPin].self, forKey: .dimensionPins) ?? [],
-                                          nodes: nodes)
+        // DIM-3; absent before it. Sorted and unique; a pin of a node that is not here is kept and shows nothing.
+        dimensionPins = Self.repairedPins(try container.decodeIfPresent([DimensionPin].self, forKey: .dimensionPins) ?? [])
         sortLinks()  // Canonical order, so command + undo yields an equal graph.
     }
 

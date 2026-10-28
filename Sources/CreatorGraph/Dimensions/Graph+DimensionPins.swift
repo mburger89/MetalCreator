@@ -2,7 +2,8 @@ import CreatorKernel
 
 extension Graph {
     /// The two pin commands (DIM-3): `dimensionPins` stays sorted and unique. Pins never affect evaluation. A pin for a node
-    /// that is not here is not refused (a restore may put the pin before its node); decoding drops such pins instead.
+    /// that is not here is not refused (a restore may put the pin before its node), and decoding keeps it too: a dangling pin
+    /// stays in the file and shows nothing (spec Errata, plans).
     mutating func applyPin(_ command: GraphCommand) throws(GraphError) -> GraphCommand {
         switch command {
         case .pinDimension(let pin):
@@ -21,9 +22,10 @@ extension Graph {
         }
     }
 
-    /// The pins a file held, as a graph keeps them: only those of nodes in `nodes`, sorted, each once.
-    static func repairedPins(_ decoded: [DimensionPin], nodes: [NodeID: Node]) -> [DimensionPin] {
-        Array(Set(decoded.filter { nodes[$0.node] != nil })).sorted()
+    /// The pins a file held, as a graph keeps them: sorted, each once. A pin whose node is not here is kept (the node may be
+    /// missing only for now, and a group definition's pins would be lost the same way); the builder shows nothing for it.
+    static func repairedPins(_ decoded: [DimensionPin]) -> [DimensionPin] {
+        Array(Set(decoded)).sorted()
     }
 
     /// Takes every pin of `node` out and returns the commands that put each back, in pin order.

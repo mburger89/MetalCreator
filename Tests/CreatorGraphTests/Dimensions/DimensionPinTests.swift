@@ -95,12 +95,12 @@ struct DimensionPinTests {
         #expect(file.graph.dimensionPins.isEmpty)
     }
 
-    @Test func pinsOnAMissingNodeAreDroppedOnOpen() throws {
+    @Test func pinsOnAMissingNodeAreKeptOnOpen() throws {
         let gone = DimensionPin(node: NodeID(), target: .input("distance"))
         var written = scene()
         written.dimensionPins = [gone, pinA, pinA]  // unsorted, repeated, one with no node
         let decoded = try reopened(GraphFile(graph: written)).graph
-        #expect(decoded.dimensionPins == [pinA])
+        #expect(decoded.dimensionPins == [gone, pinA].sorted(), "a dangling pin stays in the file (spec Errata)")
     }
 
     @Test func pinsInsideADefinitionAreSavedWithIt() throws {
