@@ -15,6 +15,8 @@ extension AppModel {
     /// undo, where it would clear the redo stack.
     public func undo() {
         editor.commitPendingEntry()
+        pendingValueBox = nil
+        heldModelDimension = nil
         document.undo()
         editor.refreshLevel()
     }
@@ -22,6 +24,8 @@ extension AppModel {
     /// Redo. A typed value is committed first, as for Undo; it is a new edit, so nothing is left to redo.
     public func redo() {
         editor.commitPendingEntry()
+        pendingValueBox = nil
+        heldModelDimension = nil
         document.redo()
         editor.refreshLevel()
     }

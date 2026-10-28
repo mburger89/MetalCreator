@@ -43,6 +43,12 @@ public final class AppModel {
     public var previewMode: PreviewMode = .final
     /// "Pick edges in view…" in progress.
     public internal(set) var pick: PickSession?
+    /// The model dimension tool in progress (dimensions spec §3.5), or `nil`.
+    public internal(set) var modelDimension: ModelDimensionSession?
+    /// The driving dimension the tool just added, shown (not pinned) while its value box is open (`refreshDimensions()`).
+    var heldModelDimension: DimensionPin?
+    /// The overlay ID of the dimension whose value box opens once it is shown (`refreshDimensions()`), then cleared.
+    @ObservationIgnored var pendingValueBox: OverlayDimensionID?
     /// A Sketch node being edited in the viewport (sketcher spec §8), or `nil`. Sketch mode works on the top level's
     /// graph, so the graph panel keeps the level it shows while one is open (`EditorModel.isLevelLocked`).
     public internal(set) var sketch: SketchSession? {
@@ -122,6 +128,7 @@ public final class AppModel {
         let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: url, implicitEngine: implicitEngine)
         meshRefinement.reset()
         pick = nil
+        endModelDimension()
         sketch?.stop()
         sketch = nil
         previewMode = .final

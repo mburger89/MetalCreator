@@ -8,10 +8,11 @@ import CreatorViewport
 /// Turns the specs nodes declared into the dimensions the viewport shows (spec §3.1, §3.3).
 enum FeatureDimensionBuilder {
     // swiftlint:disable function_parameter_count
-    /// The dimensions of the `contextual` nodes and of each one's private chain (`FeatureChain`), then those of the `pinned`
+    /// The dimensions of the `contextual` nodes and of each one's private chain (`FeatureChain`), then the `held` one (built as a pin
+    /// is, but not marked pinned: the model dimension tool's, while its box is open), then those of the `pinned`
     /// targets, each ID once, in that order. `graph` and `results` are the level shown; `content` gives the document's
     /// parameters and group definitions. A pin whose node, target or result is gone adds nothing.
-    static func dimensions(contextual: Set<NodeID>, pinned: [DimensionPin], graph: Graph, content: GraphContent,
+    static func dimensions(contextual: Set<NodeID>, pinned: [DimensionPin], held: DimensionPin? = nil, graph: Graph, content: GraphContent,
                            results: [NodeID: NodeResult], registry: NodeRegistry, units: DocumentUnits,
                            style: DimensionStyle) -> [FeatureDimension] {
         let context = Context(graph: graph, content: content, results: results, registry: registry, units: units, style: style,
@@ -25,6 +26,7 @@ enum FeatureDimensionBuilder {
             let chain = FeatureChain.nodes(of: selected, in: graph, registry: registry)
             for id in [selected] + chain.subtracting([selected]).sorted() { add(context.entries(of: id, target: nil)) }
         }
+        if let held { add(context.entries(of: held.node, target: held.target)) }
         for pin in pinned { add(context.entries(of: pin.node, target: pin.target)) }
         return shown
     }
