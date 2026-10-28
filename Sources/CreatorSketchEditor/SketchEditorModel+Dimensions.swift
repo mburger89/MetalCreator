@@ -89,7 +89,10 @@ extension SketchEditorModel {
 
     static func kindName(_ kind: DimensionKind) -> String {
         switch kind {
-        case .distance: "Distance"
+        case .distance, .lineDistance: "Distance"
+        case .centreDistance: "Centre Distance"
+        case .horizontalDistance: "Horizontal Distance"
+        case .verticalDistance: "Vertical Distance"
         case .length: "Length"
         case .radius: "Radius"
         case .diameter: "Diameter"
@@ -145,7 +148,7 @@ extension SketchEditorModel {
         switch kind {
         case .angle:
             return (0...180).contains(value) ? nil : "An angle must be between 0° and 180°."
-        case .length, .distance, .radius, .diameter:
+        case .length, .distance, .radius, .diameter, .centreDistance, .lineDistance, .horizontalDistance, .verticalDistance:
             return value > 0 ? nil : "A \(Self.kindName(kind).lowercased()) must be more than 0 \(units.length.symbol)."
         }
     }

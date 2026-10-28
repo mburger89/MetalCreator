@@ -63,6 +63,9 @@ enum SketchDimensionDrawing {
             default:
                 return nil
             }
+        case .centreDistance, .lineDistance, .horizontalDistance, .verticalDistance:
+            // Drawn from Task 5 on.
+            return nil
         case .radius(let id), .diameter(let id):
             return radial(shape(id), on: plane)
         case .angle(let first, let second):

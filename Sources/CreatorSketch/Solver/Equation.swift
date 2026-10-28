@@ -4,6 +4,9 @@ import CreatorGeometry
 /// unknown columns or constants. Every residual is in millimetres; angle-type residuals are
 /// multiplied by the component's length scale so they weigh like millimetres (spec §4).
 enum Equation: Hashable, Sendable {
+    /// A coordinate axis of the sketch plane.
+    enum Axis: Hashable, Sendable { case x, y }
+
     /// p − q (2 rows).
     case coincident(PointOperand, PointOperand)
     /// Signed distance from p to the infinite line.
@@ -47,6 +50,10 @@ enum Equation: Hashable, Sendable {
     case distance(PointOperand, PointOperand, Double)
     /// side · distance(p, line) − d.
     case lineDistance(PointOperand, LineOperand, Double, side: Double)
+    /// side · (b − a)[axis] − d.
+    case axisDistance(PointOperand, PointOperand, axis: Axis, Double, side: Double)
+    /// side · (signedDistance(second.start, first) + signedDistance(second.end, first)) / 2 − d.
+    case lineToLineDistance(LineOperand, LineOperand, Double, side: Double)
     /// |b − a| − L.
     case length(LineOperand, Double)
     /// r − value.

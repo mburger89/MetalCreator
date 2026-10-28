@@ -54,7 +54,10 @@ extension Sketch {
     /// "Angle d4": the kind and the name, without the value.
     func title(of dimension: SketchDimension) -> String {
         let kind = switch dimension.kind {
-        case .distance: "Distance"
+        case .distance, .lineDistance: "Distance"
+        case .centreDistance: "Centre Distance"
+        case .horizontalDistance: "Horizontal Distance"
+        case .verticalDistance: "Vertical Distance"
         case .length: "Length"
         case .radius: "Radius"
         case .diameter: "Diameter"

@@ -26,6 +26,8 @@ struct ResidualTests {
         .circleTangent(circle, arc, isInternal: true, sign: -1), .equalLength(lineA, lineB), .equalRadius(circle, arc),
         .midpoint(p2, lineA), .symmetric(p2, p3, lineA), .fix(p1, Vector2(1, 1)), .distance(p0, p2, 3),
         .lineDistance(p3, lineA, 2, side: 1), .length(lineB, 4), .radius(arc, 1), .arcRadius(center: p0, start: p3, end: p1),
+        .axisDistance(p0, p2, axis: .x, 2, side: 1), .axisDistance(p1, p3, axis: .y, 1, side: -1),
+        .lineToLineDistance(lineA, lineB, 1, side: 1), .lineToLineDistance(lineB, lineA, 3, side: -1),
         .target(p2, Vector2(0, 0)), .pointOnLine(.constant(Vector2(3, 3)), LineOperand(start: p0, end: .constant(Vector2(9, 9)))),
     ]
 
@@ -60,6 +62,11 @@ struct ResidualTests {
         #expect(Equation.vertical(Self.p2, Self.p3).rows(x)[0].value == 6)
         #expect(Equation.midpoint(Self.p2, Self.lineA).rows(x).map(\.value) == [0, 5.5])
         #expect(Equation.fix(Self.p1, Vector2(1, 1)).rows(x).map(\.value) == [6, 2])
+        #expect(Equation.axisDistance(Self.p0, Self.p2, axis: .x, 2, side: 1).rows(x)[0].value == 1)        // (4 − 1) − 2
+        #expect(Equation.axisDistance(Self.p1, Self.p3, axis: .y, 1, side: -1).rows(x)[0].value == -3)      // −(5 − 3) − 1
+        // lineB's midpoint (1, 6.5) from lineA (1,2)→(7,3): cross((6,1), (0,4.5)) / √37 = 27 / √37.
+        #expect(isClose(Equation.lineToLineDistance(Self.lineA, Self.lineB, 1, side: 1).rows(x)[0].value,
+                        27 / 37.0.squareRoot() - 1, tolerance: 1e-12))
     }
 
     @Test func angleTypeResidualsAreScaledWrappedAngles() {
