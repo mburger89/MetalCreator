@@ -446,6 +446,7 @@ All tests use Swift Testing.
   measurement in brackets in the construction colour, a dimension in a conflict is red. §8 puts the editable name and value
   fields in the inspector and says nothing of editing in the view, so the labels don't take the pointer. They are
   element-tree text (docs/metalui-gaps.md S5-c) and are hidden while the camera animates.
+- Reversed by driving dimensions (spec `2026-10-27-driving-dimensions-design.md` §4.1, §4.5): sketch dimensions are drawn as ANSI dimensions (`SketchDimensionDrawing`), and a double-click on a dimension's text opens its value box in the view; the inspector's fields stay.
 - §8's "Output regions: faint green fill" is one filled triangle set per region `SketchRegions.find` returns (holes left
   empty, an island in a hole its own region), in the Sketch node's header green at 18% opacity, drawn under the curves and
   over the model, and never in the ID pass, so a click goes through it.

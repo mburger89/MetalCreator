@@ -2188,3 +2188,48 @@ file, the geometry, the gestures and the spring; these check the look and the fe
   `TieGroupTests`. **Observed:**
 - [ ] **TIE-8 Linux and Windows.** On a Linux or Windows build, Ctrl+Shift+T ties and Alt-drag box-selects wires.
   **Observed:**
+
+## Group DIM — driving dimensions (DIM-1 to DIM-4)
+
+**Status: PENDING.** Plans `2026-10-27-dim-overview.md`, `2026-10-27-dim-1-foundation.md`, `2026-10-27-dim-2-sketch.md`,
+`2026-10-27-dim-3-model.md`, `2026-10-27-dim-4-model-tool.md`; spec `2026-10-27-driving-dimensions-design.md`. The tests pin the
+model, the geometry, the file, the gestures and the tool; these check the look and the feel in a real window. Run
+`swift run MetalCreatorApp` and build the sketched bracket: a plate (a rectangle sketch, 100 × 60, extruded), a second sketch on its
+top face with two holes of diameter 8 sixty apart (the second made equal to the first), extruded as a cut. Open the view with
+the Output selected so the part is shown.
+
+- [ ] **DIM-1 The ANSI look.** Look at the sketch dimensions and the model dimensions: arrows are filled and three times as long as
+  wide, the text is horizontal and breaks its dimension line, extension lines start with a gap from the part and overshoot the
+  line, every line is thin, notation reads Ø for a diameter, R for a radius and 2X for a pair; millimetres read "60", inches
+  read ".50" (no leading zero). Compare with an ASME Y14.5 drawing. **Pinned:** `LinearDimensionLayoutTests`,
+  `RadialDimensionLayoutTests`, `AngularDimensionLayoutTests`, `DimensionTextTests`, `DimensionRenderTests`,
+  `SketchDimensionDrawingTests`, `UnitTextTests`. **Observed:**
+- [ ] **DIM-2 Sketch dimensions.** In the sketch editor press D: the tool box shows on placement. Picking two points then moving
+  the pointer chooses horizontal, vertical or aligned as the pointer sits; right-click a dimension for Radius/Diameter and
+  Driving/Reference; dimension centre to centre and edge to edge of two circles; make two circles equal: "2X Ø8" shows; add a
+  dimension that over-defines the sketch: it reads "(70)" as a reference. **Pinned:** `SketchNewDimensionTests`,
+  `NewDimensionKindTests`, `SketchDimensionDrawingKindTests`, `SketchDimensionsShownTests`, `MeasuredDimensionAddTests`.
+  **Observed:**
+- [ ] **DIM-3 Contextual and pinned.** Click the hole pattern: "60" and "2X Ø8" appear; click empty space: they go. Pin the plate's
+  length: it stays while you work on the holes, with its pin mark. From the default views no two labels overlap; a dimension
+  seen edge-on is hidden. **Pinned:** `FeatureDimensionsShownTests`, `DimensionPinMenuTests`, `DimensionPinTests`,
+  `DimensionDeclutterTests`, `DimensionVisibilityTests`, `BracketDimensionOverlapTests`. **Observed:**
+- [ ] **DIM-4 No jump.** Double-click "60" and type 70: nothing moves while typing. Return: the holes are 70 apart, the Edit menu
+  said one "Undo Change Dimension", nothing else moved, the camera stayed. Esc, and a click elsewhere, change nothing. A value that
+  flips the sketch and a value that fails are refused in the box. (The double-click needs the click count of MetalUI gap DIM-a,
+  adopted, so this runs.) **Pinned:** `FeatureValueBoxTests`, `FeatureValueBoxFlipTests`, `DimensionValueBoxWindowTests`,
+  `DimensionDoubleClickWindowTests`, `DimensionAcceptanceTests`. **Observed:**
+- [ ] **DIM-5 Inches.** View ▸ Units ▸ Inches: all dimension texts are in inches; typing "2.75" and "70 mm" are both accepted; the
+  precision menu changes the decimals; a new document remembers inches. **Pinned:** `DocumentUnitsTests`, `UnitParsingTests`,
+  `AppUnitsTests`. **Observed:**
+- [ ] **DIM-6 The model dimension tool.** Hover the view and press D (a banner shows the tool). Click two hole rims of the sketched
+  plate: a dimension is added at its measured value (nothing moves) and its box opens. Click two edges that come from different
+  features: the chip "These come from different features: a measurement tool is planned" shows. A pair that would over-define the
+  sketch adds a grey reference. D while typing in a panel field types a D. D in sketch mode is the sketch's dimension tool. The
+  face menu's Dimension starts the tool too. Edit shows "Undo Add Dimension". **Pinned:** `ModelDimensionToolTests`,
+  `ModelDimensionTraceTests`, `ModelDimensionKeyWindowTests`, `ModelDimensionKindTests`, `ContextMenuDimensionTests`,
+  `SketchTraceTests`. **Observed:**
+- [ ] **DIM-7 Files.** Save with inches, a pinned dimension and a placed sketch dimension; reopen: all three are back. An older
+  file opens in millimetres with nothing pinned. **Pinned:** `DocumentUnitsFileTests`, `DimensionCodingTests`,
+  `DimensionPinRemapTests`. **Observed:**
+- [ ] **DIM-8 Linux and Windows.** DIM-1, DIM-3, DIM-4 and DIM-6 on a Linux or Windows build (SDL viewport). **Observed:**

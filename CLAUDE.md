@@ -31,6 +31,8 @@ Canvas comments (sub-project B of the same spec, §7: sticky notes and comment f
 code is done; its human checks (group CM) are pending.
 Cable ties (wire bundling in the graph editor: spec `docs/superpowers/specs/2026-10-26-cable-ties-design.md`, plan
 `docs/superpowers/plans/2026-10-26-cable-ties.md`) code is done; its human checks (group TIE) are pending.
+Driving dimensions (spec `docs/superpowers/specs/2026-10-27-driving-dimensions-design.md`, plans `2026-10-27-dim-overview.md` and
+`dim-1`…`dim-4`) code is done; its human checks (group DIM) are pending.
 Typing on the canvas (spec §8: a double click on a note or a frame's title bar edits it in place; plan
 `2026-10-10-comments-canvas-typing.md`; the graph's keys and text focus on MetalUI C9's key regions) code is done; its human
 checks (group CT) are pending. The field opens with a frame's title all selected and a note's caret at its end (MetalUI C25,
@@ -172,6 +174,9 @@ Module boundaries (dependency order):
 - `CreatorSketch`: the constraint sketch model, `SketchSolver` (numeric Levenberg–Marquardt with analytic Jacobians,
   DOF and minimal conflicts), `SketchRegions` and `SketchCommands`. Imports only `CreatorGeometry` and Foundation;
   never iterate a dictionary where order reaches output. Tests: `swift test --filter CreatorSketchTests`.
+  Driving dimensions: `SketchRegion.sources` (each segment's source entity), `SketchTrace` (which entity made which profile segment; evaluation
+  output, never saved), `ModelDimensionKind` (the kind a pair of picked entities gets) and `MeasuredDimension` (a dimension added at its measured
+  value, as a reference when it would over-define).
 - `CreatorKernel`: the `Kernel` protocol, `Solid`, tagged topology tables, `FakeKernel` for tests (it refuses extruded holes that lie outside
   the outline's bounds, as OCCT refuses strays). `Kernel.place(_:at:qualifying:tag:)` makes every placed copy of a pattern in one
   call: copy `i` is a tool moved by a `Transform`, its tags requalified (`Topology.qualified(item:_:)`: node → `qualify(node)`,
@@ -442,6 +447,8 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
     than 8,000" when it stopped at its ceiling) and renumbers when the field, region or seed changes: a pick on a scattered instance
     then warns "Instance {n} no longer exists". `InspectorControl.note(_:)` carries its help line, and the face menu's Scatter on Face
     (`AppModel.scatterOnFace`, `FaceLayout`) inserts one wired to the part.
+  Driving dimensions: the Sketch node's `sketchTrace` (the `SketchTrace` of its evaluated profile, evaluation output only) and
+  `SketchNode.projectedEntity` (the projected entity a reference resolves to).
 - `CreatorStyle`: colour themes (spec §6.6, Dracula by default), the only place colour hex values are written.
   `ThemeColors` is a colour per role (never a hue); `ColorTheme` (not `Theme`: MetalUI exports one) has the built-ins
   `.dracula`, `.alucard` and `.nord` (read-only); `ThemeRole` names each role (`ThemeColors[role]`; the names are the
@@ -616,8 +623,8 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
   both, never a shared point. Project (P) declines the plane click and takes the viewport's pick: the host resolves it
   (`events.projection`) into `ProjectionCandidate`s, each becomes a fixed `.projected` entity with a reference `edgeN`, and
   the commit's `projections` carry the picks to store. The overlay also carries a fill per closed region
-  (`RegionTriangulator`, found again only when the sketch changes) and a read-only label per dimension
-  (`SketchDimensionLabels`). Graph-free: every edit is
+  (`RegionTriangulator`, found again only when the sketch changes) and each dimension drawn as an ANSI
+  dimension (`SketchDimensionDrawing`; a double-click on its text opens the value box). Graph-free: every edit is
   a `SketchCommit` (the whole sketch, solved and remembered) through `events.committed`, which the host stores.
   Depends on CreatorSketch, CreatorViewport, CreatorKernel (Project's `EdgePick`), CreatorGeometry, CreatorStyle and
   MetalUI only. Its keys are toolbar
@@ -626,6 +633,11 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
   `onInput` keys; the Delete button and the hidden ⌦ one are never disabled, so ⌫ and ⌦ never fall through to deleting
   nodes (the graph's selection is the Sketch node being edited). Tests: `swift test --filter CreatorSketchEditorTests`.
 - `CreatorApp` + `MetalCreatorApp`: the app shell, the only target joining Graph, Nodes, Viewport and the editors.
+  The model dimension tool (spec `2026-10-27-driving-dimensions-design.md` §3.5): `ModelDimensionSession` (`AppModel.modelDimension`) takes two picks, the
+  trace rule (`ModelDimensionTrace`) finds the sketch entity each face or edge came from through the Sketch node's `sketchTrace`, and picks from different
+  features show the chip; the dimension is added at its measured value as one "Add Dimension" step (a reference when it would over-define), then its
+  box opens through `pendingValueBox`. D is in the viewport key context (the sketch's own D wins in sketch mode; a focused text field types it) and the
+  face menu's Dimension starts the tool.
   Sketch mode is `AppModel.sketch` (`SketchSession`: the editor as the viewport's tool, its overlay followed), entered
   by the Sketch node's "Edit sketch" (`InspectorAction.editSketch`); the scene is ghosted and handle-free meanwhile,
   the top bar holds `SketchToolbar` and the inspector `SketchInspector`, each in `SketchChrome` (glass over an opaque
@@ -698,7 +710,7 @@ never worked around here. Graph links are kept canonically sorted by destination
 Edge/face IDs are OCCT map order. A circle edge's `direction` is its axis, so direction rules must also check `kind == .line`.
 All OCCT work runs under `OCCTKernel.serialized` (process-wide lock) because OCCT shapes share geometry across solids and meshing mutates it; never call the shim outside it (tests included).
 Edge picks (`EdgePick`) match by tag subsets per side, and a key that matches nothing is retried `EdgeKey.narrowed` (to the operand its edge runs along, so picks on faces a union merged survive the other operand changing); drift counts edges and runs (`EdgePick.runCount`, an optional key, so no format bump; a run is edges that continue each other end to end, ends within 1e-4 mm leaving that point in opposite directions to within 0.01 rad, so two edges meeting at a corner are two runs; a pick without one counts each recorded edge as a run) and warns only when both changed; a key that still matches nothing is split by operand (`EdgeKey.operandKeys`, for an edge between a merged face and a third operand's face) and warns when two operands both fit; selection rules never select seams. Segmented controls bind integer sockets (option index). File format is version 10 (2 added `.edgePicks`; 3 added `loop` on hole-wall side tags, written only when non-zero;
-4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode; canvas comments' `stickies` and `frames` keys, written only when present and optional on decode, are also under 5; 6 added the tree nodes' text settings `pathRule`, `branchPath` and `itemPath`; trees themselves are computed, never saved; 7 added the Image Field's `image` setting, the optional top-level `images` table (base64 bytes keyed by SHA-256, sorted, written only when used; a damaged entry is dropped on reading) and the `field` socket type in group interfaces; 8 added the `implicit` and `mesh` socket types in group interfaces and the Implicit and Mesh nodes' settings (Shell's `side`, Mesh's resolutions: existing integer and number kinds); implicit solids and meshes are computed, never saved; 9 added cable ties, a graph's optional `ties` key (written only when present, sorted by ID, each tie's wires sorted; decoding drops wires that are no link's input, then ties left with fewer than two); 10 added the document's units (optional key `units` on the top-level graph, written only when not millimetres at the default precision); files of format 1 to 9 open unchanged and are written as 10).
+4 added the `.sketch` and `.facePick` settings; 5 added `definitions`, group definitions, optional on decode; canvas comments' `stickies` and `frames` keys, written only when present and optional on decode, are also under 5; 6 added the tree nodes' text settings `pathRule`, `branchPath` and `itemPath`; trees themselves are computed, never saved; 7 added the Image Field's `image` setting, the optional top-level `images` table (base64 bytes keyed by SHA-256, sorted, written only when used; a damaged entry is dropped on reading) and the `field` socket type in group interfaces; 8 added the `implicit` and `mesh` socket types in group interfaces and the Implicit and Mesh nodes' settings (Shell's `side`, Mesh's resolutions: existing integer and number kinds); implicit solids and meshes are computed, never saved; 9 added cable ties, a graph's optional `ties` key (written only when present, sorted by ID, each tie's wires sorted; decoding drops wires that are no link's input, then ties left with fewer than two); 10 added the document's units (optional key `units` on the top-level graph, written only when not millimetres at the default precision), the new sketch-dimension kinds (radius, diameter and the distances between circles' centres or edges, in `DimensionKind`) and a sketch dimension's optional `labelPoint` (written only when set), and a graph's optional `dimensionPins` key (written only when present); files of format 1 to 9 open unchanged and are written as 10).
 A `Segment2D.arc` with `end < start` runs clockwise (a sketch region's notch); the shim builds it reversed and
 `length` is positive. Edges carry `EdgeInfo.curve` (`EdgeCurve`, lines and circles) for sketch projection; a
 `FacePick` names faces by tag subset like `EdgePick`; one that matches nothing is retried per operand and ranked by the normal and centroid it recorded (optional keys, no format bump; `Topology.resolution(of:)`), and warns when it can only guess. The Sketch node solves on every evaluation from the stored
