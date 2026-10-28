@@ -81,7 +81,20 @@ public enum SketchNode: NodeDefinition {
         ]
         var outputs = NodeOutputs(lists: lists, warnings: warnings + output.warnings)
         outputs.dimensions = dimensions(of: output, on: plane)
+        outputs.sketchTrace = output.trace
         return outputs
+    }
+
+    /// The projected entity of `trace.sketch` whose stored pick (`NodeSetting.projection(reference)` on `node`) locates
+    /// exactly `edge` on `solid`, first in entity order; nil otherwise.
+    public static func projectedEntity(for edge: EdgeID, on solid: Solid, node: Node, trace: SketchTrace) -> SketchEntityID? {
+        trace.sketch.entityIDs.first { id in
+            guard case .projected(let source)? = trace.sketch.entities[id]?.kind,
+                  case .found(let found, _) = SketchProjections.locate(
+                      node.inputValues[NodeSetting.projection(source.reference)], in: [solid])
+            else { return false }
+            return found.id == edge
+        }
     }
 
     /// One spec per dimension that has geometry on the plane: the driving value (a wired one already applied) or the

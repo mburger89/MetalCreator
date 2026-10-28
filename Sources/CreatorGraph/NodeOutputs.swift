@@ -1,3 +1,5 @@
+import CreatorSketch
+
 /// What one broadcast iteration of a node produced.
 public struct NodeOutputs: Sendable {
     /// One item per output socket for this iteration.
@@ -12,6 +14,8 @@ public struct NodeOutputs: Sendable {
     public var warnings: [String]
     /// The dimensions this iteration declares, shown in the viewport.
     public var dimensions: [DimensionSpec] = []
+    /// Which sketch entity made each profile segment; only the Sketch node sets it.
+    public var sketchTrace: SketchTrace?
 
     public init(_ values: [SocketName: Scalar] = [:], warnings: [String] = []) {
         self.values = values

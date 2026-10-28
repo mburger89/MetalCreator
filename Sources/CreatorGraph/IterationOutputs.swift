@@ -1,3 +1,5 @@
+import CreatorSketch
+
 /// What a node's iterations produced, gathered while it runs and turned into its output values afterwards.
 struct IterationOutputs {
     /// What each iteration made of each output: one entry per iteration.
@@ -8,6 +10,8 @@ struct IterationOutputs {
     var warnings: [String]
     /// Every iteration's declared dimensions, in order.
     private(set) var dimensions: [DimensionSpec] = []
+    /// The first iteration's sketch trace (a Sketch node runs once).
+    private(set) var sketchTrace: SketchTrace?
 
     init(warnings: [String]) {
         self.warnings = warnings
@@ -36,6 +40,7 @@ struct IterationOutputs {
         }
         warnings += outputs.warnings
         dimensions += outputs.dimensions
+        if sketchTrace == nil { sketchTrace = outputs.sketchTrace }
     }
 
     /// The output values. An optional output that any iteration left out is absent.
