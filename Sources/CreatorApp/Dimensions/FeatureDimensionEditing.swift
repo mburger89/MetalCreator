@@ -45,6 +45,17 @@ enum FeatureDimensionEditing {
         return .success(value)
     }
 
+    /// The largest count taken; a bigger one is refused rather than trapping an `Int` conversion.
+    private static let maxCount = 1_000_000_000.0
+    private static let tooBig = FeatureEditRefusal(message: "That number is too big.")
+
+    /// `value` as a whole number, or a refusal when it is not finite or too big for an integer.
+    private static func integer(_ value: Double) -> Result<Int, FeatureEditRefusal> {
+        let rounded = value.rounded()
+        guard let whole = Int(exactly: rounded), abs(rounded) <= maxCount else { return .failure(tooBig) }
+        return .success(whole)
+    }
+
     private static let wholeCount = FeatureEditRefusal(message: "A count must be a whole number of 1 or more.")
 
     private static func refusal(for value: Double, quantity: DimensionQuantity, units: DocumentUnits) -> FeatureEditRefusal? {
@@ -54,7 +65,7 @@ enum FeatureDimensionEditing {
         case .angle:
             value > 0 && value <= 360 ? nil : FeatureEditRefusal(message: "An angle must be more than 0° and at most 360°.")
         case .count:
-            value >= 1 && value == value.rounded() ? nil : wholeCount
+            value > maxCount ? tooBig : (value >= 1 && value == value.rounded() ? nil : wholeCount)
         }
     }
 
@@ -104,7 +115,15 @@ enum FeatureDimensionEditing {
             }
             return .failure(FeatureEditRefusal(message: "\(name) must be \(range)."))
         }
-        let constant: ConstantValue = parameter.type == .integer ? .integer(Int(stored.rounded())) : .number(stored)
+        let constant: ConstantValue
+        if parameter.type == .integer {
+            switch integer(stored) {
+            case .success(let whole): constant = .integer(whole)
+            case .failure(let refusal): return .failure(refusal)
+            }
+        } else {
+            constant = .number(stored)
+        }
         return .success((.setParameter(id, constant), nil, UndoName.changeParameter))
     }
 
@@ -117,7 +136,10 @@ enum FeatureDimensionEditing {
         let constant: ConstantValue
         switch spec.type {
         case .integer:
-            constant = .integer(Int(scaled.rounded()))
+            switch integer(scaled) {
+            case .success(let whole): constant = .integer(whole)
+            case .failure(let refusal): return .failure(refusal)
+            }
         case .vector:
             guard let component = dimension.spec.component, (0..<3).contains(component) else { return .failure(gone) }
             var current = Vector3.zero

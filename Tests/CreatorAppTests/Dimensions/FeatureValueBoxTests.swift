@@ -127,6 +127,7 @@ struct FeatureValueBoxTests {
         #expect(app.featureDimensions[count] != nil)
         #expect(await app.dimensionRouter.commitValue("6.5", to: count) == .refused("A count must be a whole number of 1 or more."))
         #expect(await app.dimensionRouter.commitValue("0", to: count) == .refused("A count must be a whole number of 1 or more."))
+        #expect(await app.dimensionRouter.commitValue("99999999999999999999999", to: count) == .refused("That number is too big."))
         #expect(!app.document.canUndo)
         #expect(await app.dimensionRouter.commitValue("6", to: count) == .accepted)
         #expect(app.document.graph.nodes[pattern.id]?.inputValues["count"] == .integer(6))
