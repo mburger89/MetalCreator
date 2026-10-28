@@ -79,6 +79,20 @@ public enum SketchNode: NodeDefinition {
             "profiles": output.profiles.map(Scalar.profile),
             "measurements": output.measurements.map(Scalar.number),
         ]
-        return NodeOutputs(lists: lists, warnings: warnings + output.warnings)
+        var outputs = NodeOutputs(lists: lists, warnings: warnings + output.warnings)
+        outputs.dimensions = dimensions(of: output, on: plane)
+        return outputs
+    }
+
+    /// One spec per dimension that has geometry on the plane: the driving value (a wired one already applied) or the
+    /// solver's measurement for a reference.
+    private static func dimensions(of output: SketchSolve.Output, on plane: Plane) -> [DimensionSpec] {
+        output.sketch.dimensionIDs.compactMap { id in
+            guard let dimension = output.sketch.dimensions[id],
+                  let geometry = SketchDimensionGeometry.geometry(of: id, in: output.sketch, solution: output.solution, plane: plane)
+            else { return nil }
+            let value = dimension.isDriving ? dimension.value : output.solution.measurements[id] ?? dimension.value
+            return DimensionSpec(.sketchDimension(id), geometry, dimension.kind.quantity, value: value)
+        }
     }
 }
