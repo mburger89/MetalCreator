@@ -69,6 +69,8 @@ public final class AppModel {
     @ObservationIgnored public var replyToCloseRequest: (@MainActor (Bool) -> Void)?
     @ObservationIgnored var pendingDiscard: DiscardAction?
     @ObservationIgnored var handleTargets: [String: HandleTarget] = [:]
+    /// The feature dimensions the viewport shows, by overlay ID (`refreshDimensions()`): what a click on one is edited as.
+    @ObservationIgnored var featureDimensions: [OverlayDimensionID: FeatureDimension] = [:]
     /// The output socket behind each shown solid, by identity.
     @ObservationIgnored var sources: [ObjectIdentifier: Endpoint] = [:]
     /// The scene last sent to the current viewport (`refreshScene()`); emptied when the parts are replaced.
