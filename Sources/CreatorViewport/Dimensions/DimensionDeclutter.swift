@@ -30,7 +30,7 @@ enum DimensionDeclutter {
                 grown.leaderLength += extra
                 if let candidate = DimensionLayout.place(dimension, style: grown, camera: camera, measure: measure) {
                     let area = overlap(candidate, with: placed, gap: style.textGap)
-                    if area < bestArea { (best, bestArea) = (candidate, area) }
+                    if area < bestArea - 1e-9 { (best, bestArea) = (candidate, area) }
                 }
                 tier += 1
             }
