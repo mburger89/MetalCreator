@@ -60,7 +60,8 @@ struct DimensionVisibilityTests {
         let onTheLine = ScreenPoint(placed.textOrigin.x - 10, centre.y)
         #expect(model.dimension(at: onTheLine) == nil, "the dimension line is not the text")
 
-        model.showDimensions([sixtyMillimetres(id: "first"), sixtyMillimetres(id: "second")])
+        // A saved placement is never moved (14 mm is the 28 point standoff at 2 points a millimetre), so the boxes do overlap.
+        model.showDimensions([sixtyMillimetres(id: "first"), sixtyMillimetres(id: "second", placement: .through(Vector3(0, 14, 0)))])
         _ = model.placedDimensions(measuring: .eightPerCharacter)
         #expect(model.dimension(at: centre) == OverlayDimensionID("second"), "boxes overlap: the later one is on top")
     }
