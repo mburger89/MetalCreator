@@ -25,7 +25,7 @@ struct ImplicitDocumentFileTests {
         let nodes = graph(&h)
         let data = try GraphFileIO.encode(GraphFile(graph: h.graph))
         let file = try GraphFileIO.decode(data, registry: BuiltInNodes.registry)
-        #expect(file.formatVersion == 9 && file.graph.nodes == h.graph.nodes)
+        #expect(file.formatVersion == GraphFile.currentFormatVersion && file.graph.nodes == h.graph.nodes)
         #expect(Set(file.graph.links) == Set(h.graph.links), "the links are kept in an order of their own")
         #expect(file.graph.nodes[nodes.shell.id]?.inputValues["side"] == .integer(2))
         #expect(file.graph.nodes[nodes.mesh.id]?.inputValues["export resolution"] == .number(0.25))

@@ -38,7 +38,9 @@ extension AppModel {
             self?.resolveProjection(target, onto: plane, for: id) ?? ProjectionResolution(candidates: [], skipped: [Self.noProjection])
         }
         sketchEditor.events.dismissHostPopup = { [weak self] in self?.closePaletteOverSketch() ?? false }
+        sketchEditor.units = document.units
         let session = SketchSession(node: id, editor: sketchEditor, viewport: viewport)
+        session.dimensionsChanged = { [weak self] in self?.refreshDimensions() }
         sketch = session
         session.start()
         if let bounds = sketchEditor.framingBounds { viewport.lookAt(plane, framing: bounds) }
@@ -100,6 +102,7 @@ extension AppModel {
         }
         let shown = shownSketch(of: node, stored)
         session.editor.reload(shown.sketch, plane: plane, wired: shown.wired)
+        if session.editor.units != document.units { session.editor.units = document.units }
         if moved, let bounds = session.editor.framingBounds { viewport.lookAt(plane, framing: bounds) }
     }
 

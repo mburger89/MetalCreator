@@ -16,6 +16,9 @@ public struct SketchEditorEvents {
     public var projection: @MainActor (PickTarget, Plane) -> ProjectionResolution = { _, _ in
         ProjectionResolution(candidates: [], skipped: ["Projecting isn't available here."])
     }
+    /// Asked after a dimension's typed value is committed (the value box): the host checks what the change did downstream and
+    /// returns a message when it must be refused (a feature the new value breaks), or `nil`.
+    public var checkValueCommit: @MainActor () async -> String? = { nil }
 
     public init() {}
 }

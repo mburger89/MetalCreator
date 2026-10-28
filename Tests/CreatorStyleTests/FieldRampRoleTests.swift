@@ -4,14 +4,14 @@ import Testing
 
 /// The field preview's ramp (fields spec §6, D13): three theme roles, not a fixed palette.
 struct FieldRampRoleTests {
-    @Test func theThreeRolesAreTheLastAndShareOneGroup() {
-        let names = ThemeRole.all.suffix(3).map(\.name)
+    @Test func theThreeRolesShareOneGroupAheadOfTheDimensionRoles() {
+        let names = ThemeRole.all.dropLast(2).suffix(3).map(\.name)
         #expect(names == ["fieldLow", "fieldMid", "fieldHigh"])
         #expect(ThemeRoleGroup.fieldPreview.roles.map(\.name) == names)
         #expect(ThemeRoleGroup.fieldPreview.title == "Field preview")
-        #expect(ThemeRoleGroup.allCases.last == .fieldPreview)
+        #expect(ThemeRoleGroup.allCases.dropLast().last == .fieldPreview)
         #expect(ThemeRole.named("fieldMid")?.title == "Field middle")
-        #expect(ThemeRole.all.suffix(3).allSatisfy { !$0.allowsOpacity })
+        #expect(ThemeRole.all.dropLast(2).suffix(3).allSatisfy { !$0.allowsOpacity })
     }
 
     @Test(arguments: ColorTheme.builtIns)

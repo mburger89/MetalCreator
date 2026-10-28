@@ -89,4 +89,10 @@ public struct ThemeColors: Hashable, Sendable {
     /// The middle of the ramp: the range's midpoint, or 0 for a signed distance.
     public var fieldMid: HexColor
     public var fieldHigh: HexColor
+
+    // Dimensions (dimensions spec §5): the annotations a sketch's dimensions are drawn in.
+    /// A driving dimension: the focus colour in the built-ins.
+    public var dimensionDriving: HexColor
+    /// A reference dimension, drawn in parentheses: the comment colour in the built-ins.
+    public var dimensionReference: HexColor
 }

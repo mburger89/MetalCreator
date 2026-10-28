@@ -124,11 +124,22 @@ extension ViewportModel {
     /// A right or middle drag still under way ends first, where it was: the primary button wins over another, as it does for
     /// a drag value (`beginDragIfNeeded`). A primary drag cannot be under way: one whose release was lost has been
     /// cancelled by this press (`dragCancelled(button:)`, MetalUI C26: gap VI-b).
-    public func click(at point: ScreenPoint, modifiers: ViewportModifiers = []) {
+    ///
+    /// A press on a drawn dimension's text is the viewport's: `clickCount` 2 or more opens its value box, and the click reaches
+    /// neither the tool nor the pick. Any other click first cancels an open box.
+    public func click(at point: ScreenPoint, modifiers: ViewportModifiers = [], clickCount: Int = 1) {
         if let state = drag, state.button != .primary { pointerUp(at: state.last) }
         events.pressed()
         stopAnimation()
-        if cubeCatches(point) {
+        let textHit = dimension(at: point)
+        if textHit == nil { cancelValueBox() }
+        if let id = textHit {
+            if valueBox?.id != id {
+                cancelValueBox()
+                if clickCount >= 2 { openValueBox(for: id) }
+            }
+            // The text is the viewport's: neither the tool nor the pick sees this click.
+        } else if cubeCatches(point) {
             if let region = cubeLayout.region(at: point, pose: pose) { perform(.view(region)) }
         } else if HandleMath.hit(handles, at: point, pose: pose, size: viewSize) == nil,
                   tool?.clicked(at: point, modifiers: modifiers, projector: projector) != true {

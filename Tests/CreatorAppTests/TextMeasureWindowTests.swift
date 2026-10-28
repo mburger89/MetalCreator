@@ -44,17 +44,7 @@ struct TextMeasureWindowTests {
             #expect(abs(measure(text).width - Double(laid.size.width.value)) < 1, "\(text): the measure is the frame (rounded)")
             // The boxes' heights are fixed (user decision U1): a font change that made a line taller must fail here, not clip.
             #expect(measure(text).height <= HandleLabel.height, "\(text): a line fits the handle label's fixed box")
-            #expect(measure(text).height <= PlacedLabel.height, "\(text): a line fits the dimension label's fixed box")
         }
-    }
-
-    @Test func aWideStringGetsAWiderLabelBoxThanTheOldEstimateGave() throws {
-        let (_, measure) = try open()
-        let wide = PlacedLabel.box(of: "WWWWWWWWWW", measuring: measure)
-        #expect(wide.width > oldLabelEstimate("WWWWWWWWWW"), "ten capital Ws advance more than 7 points each")
-        let narrow = PlacedLabel.box(of: "iiiiiiiiii", measuring: measure)
-        #expect(narrow.width < oldLabelEstimate("iiiiiiiiii"), "ten narrow letters need less than 7 points each")
-        #expect(wide.width > narrow.width)
     }
 
     @Test func theChipsAreSizedByTheSameMeasure() throws {

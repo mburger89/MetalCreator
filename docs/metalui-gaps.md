@@ -89,6 +89,8 @@ stopgap as they were. The sections below keep each gap's full use case.
 | XP-G26 | The run-time compiler's lookup tries `../lib` of the executable, not `lib/` beside it | MetalUI (`RuntimeLibraryLocator`, XP-G25) | ✅ fixed by MetalUI `f1c422e5` (PR #132): the lookup also tries `<exe>/lib` (order: explicit path, `METALUI_SHADERCROSS_LIB`, `<exe>`, `<exe>/lib`, `<exe>/../lib`, `METALUI_SHADERCROSS`'s sibling `lib`, loader path) with the dependents preloaded by full path, so the tarball's and the AppImage's `lib/` needs no variable; pinned by xp-c task 11 |
 | XP-G27 | Run-time HLSL compilation only under MetalUI's `SDL` trait | MetalUI (`MetalUISDLGPU`, XP-G25) | 🆕 open, low priority; a macOS build asks for no SDL, so the Mac cannot compile the generated HLSL at run time and its tests keep the offline kernels |
 | XP-G21 | Windows release build crashes swift-frontend (exception 0xC000001D) in `PaintPass.withRenderEffects` | MetalUI `5f03ab7b` | ✅ fixed by MetalUI `5f03ab7b`, adopted (branch `xp-2`, CI pin `5f03ab7b`): the CI release build for the zip no longer crashes the compiler |
+| DIM-a | No click count on a tap's value (double-click on a dimension's text in the viewport) | MetalUI session (sent 2026-10-27) | ✅ fixed by MetalUI `cf1b4968` (PR #144, divergence 235, ruling IF-O); adopted in DIM-1 Task 11 |
+| DIM-b | Runtime SIGSEGV (`initializeWithCopy` of a `ZStack`) when a `for` over a model array sits inline in a large `ZStack` builder | MetalUI session (sent 2026-10-27) | ❌ open: worked around by a helper in `ViewportView+Parts.swift` |
 
 ## Reported 2026-10-07 (C7)
 
@@ -1368,3 +1370,25 @@ while the app runs, pipelines cached by source.
 - **XP-G31. `SDLGPUDevice.make` could deadlock, and the SDL test-process guard did not run on Windows. Fixed.** Closed by MetalUI `ccef9c11` (PR #139, WG-H):
   video initialisation now runs before `makeLock`, so a main-thread `make` no longer waits on the lock of a thread waiting for the main queue; the test-process guard
   now also runs on Windows. Adopted as a pin bump.
+
+## Hit by driving dimensions (DIM-1), 2026-10-27
+
+- **DIM-a. `SpatialTapGesture.Value` has no click count. Fixed.** Closed by MetalUI `cf1b4968` (PR #144, divergence 235, ruling IF-O, MetalUI-only like `modifiers`):
+  `SpatialTapGesture.Value.clickCount`. Adopted in DIM-1 Task 11: `ViewportView.surface` passes it to `ViewportModel.click(at:modifiers:clickCount:)`, pinned by
+  `DimensionDoubleClickWindowTests.aDoubleClickOnADimensionsTextOpensItsBox`. The entry below is the original report. Use case: double-clicking a dimension's text in the viewport opens its value box.
+  `ViewportView.surface`'s `SpatialTapGesture` feeds `ViewportModel.click(at:modifiers:clickCount:)`, which cannot tell the second click of a
+  double-click from a new click. `DragGesture.Value.clickCount` exists (S5-b), but the viewport's primary drag has a non-zero minimum distance and
+  never reports a click. Neither alternative works: a `count: 2` tap on the surface would hold every single click for the double-click interval, and a
+  tap gesture on the dimension's text view would make that view the press's target, swallowing the right and middle drags, scroll, pinch and hover that
+  start on it (the arena is the target and its ancestors only, `Gesture.swift` `IX-D`).
+  Wanted: `SpatialTapGesture.Value.clickCount`, the platform's count of the press that ended the tap (`NSEvent.clickCount` / SDL's `clicks`),
+  MetalUI-only like `modifiers` (GI-a).
+  (Until the fix the box opened in tests through `openValueBox(for:)` and a double-click did nothing in the running app.)
+
+- **DIM-b. A `for` loop inline in `ViewportView.stack`'s `ZStack` builder crashes at run time.** Observed in DIM-1 Task 8: with the dimensions loop
+  (`for placed in model.placedDimensions(measuring:) { DimensionView(...) }`) written inline in `stack`'s `ZStack`, the first `ViewportView.content` build dies
+  with SIGSEGV in the value-witness `initializeWithCopy` for `ZStack`. It happens with zero dimensions, with a trivial shape as the loop body, and with a
+  nested `ZStack` as the body. It compiles without warnings. Moving the whole loop into its own `static func dimensions(model:measure:) -> some Element` and
+  calling it once from `stack` works. Suspected: the builder's result type (a very large nested tuple/conditional generic) or the `for` result's size makes a
+  value-witness copy go wrong. Minimal repro to try: `stack`'s `ZStack { ...existing children...; for p in model.placedDimensions(measuring: measure) { DimensionView(placed: p, ...) } }`.
+  Wanted: a fix, or a diagnostic at compile time. Meanwhile: the helper `ViewportView.dimensions(model:measure:)` holds the loop; do not inline it.

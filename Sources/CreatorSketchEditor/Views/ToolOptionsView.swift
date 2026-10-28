@@ -18,7 +18,7 @@ struct ToolOptionsView: Component {
             if model.tool == .fillet {
                 HStack(spacing: Pixels(6)) {
                     Text("Radius").font(.callout).foregroundStyle(colors.primary)
-                    DimensionField(text: DimensionText.millimetres(options.filletRadius), width: 80) { model.setFilletRadius($0) }
+                    DimensionField(text: model.lengthFieldText(options.filletRadius), width: 80) { model.setFilletRadius($0) }
                 }
             }
             if model.tool == .pattern {
@@ -26,7 +26,7 @@ struct ToolOptionsView: Component {
                     Text("Instances").font(.callout).foregroundStyle(colors.primary)
                     DimensionField(text: "\(options.patternCount)", width: 48) { model.setPatternCount($0) }
                     Text("Spacing").font(.callout).foregroundStyle(colors.primary)
-                    DimensionField(text: DimensionText.millimetres(options.patternSpacing), width: 80) { model.setPatternSpacing($0) }
+                    DimensionField(text: model.lengthFieldText(options.patternSpacing), width: 80) { model.setPatternSpacing($0) }
                 }
             }
         }

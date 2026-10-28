@@ -47,10 +47,11 @@ extension SketchEditorModel {
         options.patternCount = count
     }
 
-    /// The typed spacing of a linear pattern ("15", "15 mm"): a size more than 0 mm.
+    /// The typed spacing of a linear pattern ("15", "0.5 in", in the document's unit unless it names one): a size more
+    /// than 0.
     public func setPatternSpacing(_ text: String) {
-        guard let value = DimensionText.parse(text), value > 0 else {
-            refusal = "A pattern spacing must be a number more than 0 mm."
+        guard let value = units.parse(text, quantity: .length), value > 0 else {
+            refusal = "A pattern spacing must be a number more than 0 \(units.length.symbol)."
             return
         }
         refusal = nil

@@ -9,8 +9,21 @@ extension ViewportModel {
     /// without a pointer (`nil`: from the keyboard or accessibility) it's empty, and MetalUI opens no menu. While a
     /// `tool` holds the pointer (a sketch is open) it only navigates: Look At, and nothing that edits or selects; with
     /// planar navigation it's empty, since Look At would turn the camera.
+    ///
+    /// Over a drawn dimension's text the menu is the dimension editor's (`DimensionEditing.menuActions(for:)`), whatever the tool
+    /// or navigation. Elsewhere off the cube the tool's own entries (`ViewportTool.menuActions(at:)`) follow the face's.
     public func contextMenuItems(at point: ScreenPoint?) -> [ViewportMenuItem] {
-        guard let point, !isPlanar, !cubeCatches(point), let ref = faceRef(for: pick?(point)),
+        guard let point else { return [] }
+        if let id = dimension(at: point), let editor = dimensionEditor {
+            return editor.menuActions(for: id).map { .host($0, dimension: id) }
+        }
+        guard !cubeCatches(point) else { return [] }
+        let toolItems = (tool?.menuActions(at: point) ?? []).map { ViewportMenuItem.host($0, dimension: nil) }
+        return faceMenuItems(at: point) + toolItems
+    }
+
+    private func faceMenuItems(at point: ScreenPoint) -> [ViewportMenuItem] {
+        guard !isPlanar, let ref = faceRef(for: pick?(point)),
               let face = items[ref.solidIndex].solid.topology.face(ref.face) else { return [] }
         guard tool == nil else { return [.lookAt(ref)] }
         var menu: [ViewportMenuItem] = [.lookAt(ref), .selectEdgesOfFace(ref)]
@@ -28,6 +41,8 @@ extension ViewportModel {
 
     public func choose(_ item: ViewportMenuItem) {
         switch item {
+        case .host(let action, let dimension):
+            if let dimension { dimensionEditor?.performMenuAction(action, for: dimension) } else { tool?.performMenuAction(action) }
         case .lookAt(let ref):
             lookAt(ref)
         case .selectEdgesOfFace(let ref):
@@ -38,18 +53,20 @@ extension ViewportModel {
             events.selectEdgesOfFace(ref, topology.picks(for: ids), ids)
         case .showProducingNode(let node, _):
             events.showProducingNode(node)
-        case .newSketchOnFace(let ref):
-            guard items.indices.contains(ref.solidIndex),
-                  let pick = items[ref.solidIndex].solid.topology.facePick(for: ref.face) else { return }
-            events.newSketchOnFace(ref, pick)
-        case .patternOnFace(let ref):
-            guard items.indices.contains(ref.solidIndex),
-                  let pick = items[ref.solidIndex].solid.topology.facePick(for: ref.face) else { return }
-            events.patternOnFace(ref, pick)
-        case .scatterOnFace(let ref):
-            guard items.indices.contains(ref.solidIndex),
-                  let pick = items[ref.solidIndex].solid.topology.facePick(for: ref.face) else { return }
-            events.scatterOnFace(ref, pick)
+        case .newSketchOnFace(let ref), .patternOnFace(let ref), .scatterOnFace(let ref):
+            chooseOnFace(item, ref)
+        }
+    }
+
+    /// New Sketch, Pattern or Scatter on the flat face `ref`, with the pick of that face.
+    private func chooseOnFace(_ item: ViewportMenuItem, _ ref: ViewportFaceRef) {
+        guard items.indices.contains(ref.solidIndex),
+              let pick = items[ref.solidIndex].solid.topology.facePick(for: ref.face) else { return }
+        switch item {
+        case .newSketchOnFace: events.newSketchOnFace(ref, pick)
+        case .patternOnFace: events.patternOnFace(ref, pick)
+        case .scatterOnFace: events.scatterOnFace(ref, pick)
+        default: break
         }
     }
 

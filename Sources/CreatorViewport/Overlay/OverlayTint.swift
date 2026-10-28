@@ -21,4 +21,8 @@ public enum OverlayTint: Hashable, Sendable {
     case axisX, axisY, axisZ
     /// The fill of a closed region (sketcher spec §8's "faint green fill"): the Sketch node's header colour, faint.
     case region
+    /// A driving dimension's lines and text: the theme's dimension colour (dimensions spec §5).
+    case dimensionDriving
+    /// A reference dimension's lines and text, in parentheses.
+    case dimensionReference
 }

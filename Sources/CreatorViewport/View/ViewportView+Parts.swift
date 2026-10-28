@@ -16,14 +16,9 @@ extension ViewportView {
                     .offset(x: Pixels(Float(label.origin.x)), y: Pixels(Float(label.origin.y)))
                     .allowsHitTesting(false)
             }
-            for label in model.overlayLabels(measuring: measure) {
-                ProposalText(label.text)
-                    .font(.caption)
-                    .foregroundStyle(model.textColor(for: label.tint))
-                    .frame(width: Pixels(Float(label.size.width)), height: Pixels(Float(label.size.height)))
-                    .background(model.labelFill, in: RoundedRectangle(cornerRadius: Pixels(4)))
-                    .offset(x: Pixels(Float(label.origin.x)), y: Pixels(Float(label.origin.y)))
-                    .allowsHitTesting(false)
+            dimensions(model: model, measure: measure)
+            if let placed = model.placedValueBox(measuring: measure) {
+                DimensionValueBoxView(model: model, placed: placed)
             }
             if model.showsViewCube { cubeControls(model: model) }
         }
@@ -37,6 +32,18 @@ extension ViewportView {
                 .padding(Edges(top: Pixels(0), right: Pixels(Float(model.modelArea.trailing + 12)),
                                bottom: Pixels(Float(model.modelArea.bottom + 12)), left: Pixels(0)))
                 .allowsHitTesting(false)
+        }
+    }
+
+    /// The dimensions, drawn over the scene. Keep the whole loop in this helper: written inline in `stack`'s `ZStack` builder it
+    /// crashes at run time (SIGSEGV in `ZStack`'s `initializeWithCopy`, even with no dimensions; gap DIM-b).
+    @MainActor
+    static func dimensions(model: ViewportModel, measure: TextMeasure) -> some Element {
+        ZStack(alignment: .topLeading) {
+            for placed in model.placedDimensions(measuring: measure) {
+                DimensionView(placed: placed, style: model.dimensionStyle, ink: model.textColor(for: placed.tint),
+                              fill: model.labelFill)
+            }
         }
     }
 
@@ -54,7 +61,7 @@ extension ViewportView {
                            at: ScreenPoint(event.location), phase: ViewportScrollPhase(event))
         }
         .gesture(SpatialTapGesture().onEnded {
-            model.click(at: ScreenPoint($0.location), modifiers: ViewportModifiers($0.modifiers))
+            model.click(at: ScreenPoint($0.location), modifiers: ViewportModifiers($0.modifiers), clickCount: $0.clickCount)
         })
         .gesture(drag(.primary, model: model))
         .gesture(drag(.secondary, model: model))

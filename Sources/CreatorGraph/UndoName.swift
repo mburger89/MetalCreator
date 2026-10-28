@@ -45,6 +45,10 @@ public enum UndoName {
     public static let removeTie = "Remove Tie"
     public static let untieWire = "Untie Wire"
 
+    // MARK: Units (DIM-1)
+    public static let changeUnits = "Change Units"
+    public static let changePrecision = "Change Precision"
+
     // MARK: Groups (groups spec §5, §6)
     public static let group = "Group"
     public static let ungroup = "Ungroup"

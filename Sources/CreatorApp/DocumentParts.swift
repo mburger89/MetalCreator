@@ -20,5 +20,6 @@ struct DocumentParts {
         input = GraphPanelInput(model: editor)
         viewport = ViewportModel(kernel: kernel, pose: file.viewState.camera)
         viewport.homePose = file.viewState.homeCamera
+        viewport.fieldKeyContext = AppKeyContext.panel
     }
 }

@@ -121,6 +121,8 @@ public final class DocumentModel {
 
     /// The top-level graph.
     public var graph: Graph { content.graph }
+    /// The document's display units.
+    public var units: DocumentUnits { content.graph.units }
     /// The document's group definitions.
     public var definitions: [GroupID: GroupDefinition] { content.definitions }
     /// The registry carrying this document's definitions, so group nodes have their sockets.

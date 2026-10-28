@@ -86,12 +86,12 @@ struct TieFileTests {
         #expect(file.graph.nodes[id]?.inputValues["value"] == .number(2))
     }
 
-    @Test func filesAreWrittenAsFormatNineAndTenIsRefused() throws {
-        #expect(GraphFile.currentFormatVersion == 9, "9: cable ties")
+    @Test func filesAreWrittenAsTheCurrentFormatAndANewerOneIsRefused() throws {
+        #expect(GraphFile.currentFormatVersion == 10, "10: document units, after 9's cable ties")
         let text = try #require(String(bytes: try GraphFileIO.encode(GraphFile()), encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 9"#))
-        #expect(throws: GraphFileError.newerFormat(10)) {
-            try GraphFileIO.decode(Data(#"{"formatVersion": 10, "graph": {"nodes": []}}"#.utf8), registry: testRegistry)
+        #expect(text.contains(#""formatVersion" : \#(GraphFile.currentFormatVersion)"#))
+        #expect(throws: GraphFileError.newerFormat(GraphFile.currentFormatVersion + 1)) {
+            try GraphFileIO.decode(Data(#"{"formatVersion": 11, "graph": {"nodes": []}}"#.utf8), registry: testRegistry)
         }
     }
 }

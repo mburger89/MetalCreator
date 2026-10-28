@@ -133,6 +133,11 @@ extension Graph {
         case .setTie, .removeTie:
             return try applyTie(command)
 
+        case .setUnits(let new):
+            let old = units
+            units = new
+            return .setUnits(old)
+
         case .inDefinition, .addDefinition, .removeDefinition, .setInterface:
             throw .invalidValue("A group edit applies to the whole document, not to one graph.")
         }

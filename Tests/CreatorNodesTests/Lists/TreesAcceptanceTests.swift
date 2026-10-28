@@ -131,14 +131,15 @@ struct TreesAcceptanceTests {
         // Save and reopen.
         let data = try document.fileData()
         let text = try #require(String(bytes: data, encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 9"#))
+        #expect(text.contains(#""formatVersion" : \#(GraphFile.currentFormatVersion)"#))
         let reopened = try DocumentModel(data: data, registry: BuiltInNodes.registry, kernel: kernel)
         await reopened.waitForEvaluation()
         expectAllOK(reopened, "reopened")
         #expect(try solids(reopened, plate.cut).count == 4)
 
         // The same file marked format 5 opens and evaluates the same: nothing in it needs 6.
-        let asFive = try #require(String(bytes: data, encoding: .utf8)).replacing(#""formatVersion" : 9"#, with: #""formatVersion" : 5"#)
+        let current = #""formatVersion" : \#(GraphFile.currentFormatVersion)"#
+        let asFive = try #require(String(bytes: data, encoding: .utf8)).replacing(current, with: #""formatVersion" : 5"#)
         let older = try DocumentModel(data: Data(asFive.utf8), registry: BuiltInNodes.registry, kernel: kernel)
         await older.waitForEvaluation()
         expectAllOK(older, "format 5")

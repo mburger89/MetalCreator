@@ -13,29 +13,29 @@ extension SketchEditorModel {
         switch drawState {
         case .idle:
             guard tool == .point, let at = preview.points.first else { return nil }
-            return ReadoutText.position(at)
+            return ReadoutText.position(at, units: units)
         case .lineFrom:
             guard case .line(let start, let end)? = preview.curves.first else { return nil }
-            return ReadoutText.line(from: start, to: end)
+            return ReadoutText.line(from: start, to: end, units: units)
         case .circleAround:
             guard case .circle(_, let radius)? = preview.curves.first else { return nil }
-            return ReadoutText.diameter(radius)
+            return ReadoutText.diameter(radius, units: units)
         case .arcAround:
             guard case .line(let center, let target)? = preview.curves.first else { return nil }
-            return ReadoutText.radius((target - center).length)
+            return ReadoutText.radius((target - center).length, units: units)
         case .arcFrom(let center, let start):
             guard !preview.points.isEmpty else { return nil }
             guard case .arc(_, _, let end)? = preview.curves.first else {
-                return ReadoutText.radius((start.position - center.position).length)
+                return ReadoutText.radius((start.position - center.position).length, units: units)
             }
-            return ReadoutText.arc(center: center.position, start: start.position, end: end)
+            return ReadoutText.arc(center: center.position, start: start.position, end: end, units: units)
         case .arcThroughFrom:
             // A 3-point arc reads its chord after the start, then its radius and sweep after the end.
             guard case .line(let start, let end)? = preview.curves.first else { return nil }
-            return ReadoutText.line(from: start, to: end)
+            return ReadoutText.line(from: start, to: end, units: units)
         case .arcThrough:
             guard case .arc(let center, let start, let end)? = preview.curves.first else { return nil }
-            return ReadoutText.arc(center: center, start: start, end: end)
+            return ReadoutText.arc(center: center, start: start, end: end, units: units)
         }
     }
 

@@ -16,8 +16,10 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// integer and number settings; a version-7 reader would show them as sockets it cannot type. Implicit solids and meshes are
     /// computed, never saved. 9: cable ties (`Graph.ties`, cable ties spec 2026-10-26 §3.3), written only when a graph has some,
     /// sorted by ID with each tie's wires sorted; a version-8 reader would drop them when it saved, so it refuses the file
-    /// instead. Version-1 to -8 files open unchanged and are written as 9.
-    public static let currentFormatVersion = 9
+    /// instead. 10: the document's units (`Graph.units`), written only when not millimetres at the default precision; a version-9
+    /// reader would drop them when it saved, so it refuses the file; DIM-2 and DIM-3 add theirs under 10. Version-1 to -9 files
+    /// open unchanged and are written as 10.
+    public static let currentFormatVersion = 10
 
     public var formatVersion: Int
     public var graph: Graph

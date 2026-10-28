@@ -8,6 +8,8 @@ extension ViewportModel {
     /// An overlay label's box: the theme's glass.
     var labelFill: Color { theme.colors.glassFill.color }
 
+    // One case per tint, nothing to branch on.
+    // swiftlint:disable cyclomatic_complexity
     /// An overlay label's text colour: its tint's role in the theme, the same role the GPU draws that tint in.
     func textColor(for tint: OverlayTint) -> Color {
         let colors = theme.colors
@@ -19,9 +21,12 @@ extension ViewportModel {
         case .projected: colors.sketchProjected.color
         case .selected, .region: colors.profileHeader.color
         case .hovered: colors.focus.color
+        case .dimensionDriving: colors.dimensionDriving.color
+        case .dimensionReference: colors.dimensionReference.color
         case .axisX: colors.axisX.color
         case .axisY: colors.axisY.color
         case .axisZ: colors.axisZ.color
         }
     }
+    // swiftlint:enable cyclomatic_complexity
 }

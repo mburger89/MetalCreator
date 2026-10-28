@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorGraph
 import Foundation
 import MetalUI
@@ -11,7 +12,13 @@ extension AppModel {
             alert = .discardChanges
             return
         }
-        load(GraphFile(), from: nil)
+        startNewDocument()
+    }
+
+    /// Replaces the document with an empty one in the last unit chosen. The unit is part of what the new document is
+    /// saved as (`savedContent` is taken from the file), so a new document is not an edit.
+    private func startNewDocument() {
+        load(GraphFile(graph: Graph(units: DocumentUnits(length: unitPreference.lastLength))), from: nil)
     }
 
     /// Open…: the open panel, then the chosen file. With unsaved changes it asks first.
@@ -30,7 +37,7 @@ extension AppModel {
         guard let action = pendingDiscard else { return }
         pendingDiscard = nil
         switch action {
-        case .newDocument: load(GraphFile(), from: nil)
+        case .newDocument: startNewDocument()
         case .openDocument(let picker): await chooseAndOpen(using: picker)
         case .openURL(let url): openReportingFailure(url)
         }

@@ -21,6 +21,19 @@ final class RecordingTool: ViewportTool {
     /// The modifiers each `clicked` carried, in order.
     private(set) var clickedModifiers: [ViewportModifiers] = []
     private(set) var lastProjector: ViewportProjector?
+    /// What the tool offers in the context menu, the points it was asked at, and what it was told to perform.
+    var menu: [HostMenuAction] = []
+    private(set) var menuPoints: [ScreenPoint] = []
+    private(set) var performedMenuActions: [HostMenuAction] = []
+
+    func menuActions(at point: ScreenPoint) -> [HostMenuAction] {
+        menuPoints.append(point)
+        return menu
+    }
+
+    func performMenuAction(_ action: HostMenuAction) {
+        performedMenuActions.append(action)
+    }
 
     private func record(_ verb: String, _ point: ScreenPoint?, _ projector: ViewportProjector) {
         calls.append(point.map { "\(verb) \(Int($0.x)),\(Int($0.y))" } ?? "\(verb) nowhere")

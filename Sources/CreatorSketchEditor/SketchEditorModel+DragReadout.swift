@@ -20,19 +20,19 @@ extension SketchEditorModel {
             return false
         }
         guard curves.count == 1, !joined, let kind = sketch.entities[curves[0]]?.kind else {
-            return ReadoutText.position(position)
+            return ReadoutText.position(position, units: units)
         }
         switch kind {
         case .line(let start, let end):
             guard let from = sketch.position(of: start), let to = sketch.position(of: end) else { break }
-            return ReadoutText.line(from: from, to: to)
+            return ReadoutText.line(from: from, to: to, units: units)
         case .arc(let center, let start, let end) where point != center:
             guard let c = sketch.position(of: center), let s = sketch.position(of: start),
                   let e = sketch.position(of: end) else { break }
-            return ReadoutText.arc(center: c, start: s, end: e)
+            return ReadoutText.arc(center: c, start: s, end: e, units: units)
         default:
             break
         }
-        return ReadoutText.position(position)
+        return ReadoutText.position(position, units: units)
     }
 }
