@@ -27,8 +27,8 @@ extension AppModel {
     /// judges an older step. A step the user superseded meanwhile (Undo, another edit, deleting the node) is left alone and
     /// counts as accepted.
     func checkLastStep() async -> String? {
-        guard let baseline = sketchCheckBaseline else { return nil }
-        return await checkLastStep(of: document, after: baseline)
+        guard let baseline = sketchCheckBaseline, let held = sketchCheckDocument else { return nil }
+        return await checkLastStep(of: held, after: baseline)
     }
 
     private func checkLastStep(of document: DocumentModel, after baseline: Int) async -> String? {

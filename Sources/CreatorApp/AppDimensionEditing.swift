@@ -36,11 +36,22 @@ final class AppDimensionEditing: DimensionEditing {
         guard let app, let pin = pin(for: id) else { return }
         switch action.key {
         case "pin" where !pin.isPinned:
-            try? app.editor.edit(.pinDimension(pin.pin), name: UndoName.pinDimension)
+            edit(.pinDimension(pin.pin), name: UndoName.pinDimension, on: app)
         case "unpin" where pin.isPinned:
-            try? app.editor.edit(.unpinDimension(pin.pin), name: UndoName.unpinDimension)
+            edit(.unpinDimension(pin.pin), name: UndoName.unpinDimension, on: app)
         default:
             break
+        }
+    }
+
+    /// Pins or unpins through the editor. The pin's node can be gone by now; that refusal is not shown (the menu closes and the
+    /// dimension with it), but any other failure is a bug and stops a debug build.
+    private func edit(_ command: GraphCommand, name: String, on app: AppModel) {
+        do {
+            try app.editor.edit(command, name: name)
+        } catch {
+            if case .nodeNotFound = error { return }
+            assertionFailure("Pin edit failed: \(error)")
         }
     }
 
@@ -66,8 +77,10 @@ final class AppDimensionEditing: DimensionEditing {
         guard let document = app?.document else { return .refused("That dimension is gone.") }
         document.holdResults()
         app?.sketchCheckBaseline = document.performCount
+        app?.sketchCheckDocument = document
         defer {
             app?.sketchCheckBaseline = nil
+            app?.sketchCheckDocument = nil
             document.releaseResults()
         }
         return await editor.commitValue(text, to: id)

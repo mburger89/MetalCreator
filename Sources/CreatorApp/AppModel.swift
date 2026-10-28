@@ -71,6 +71,8 @@ public final class AppModel {
     @ObservationIgnored var handleTargets: [String: HandleTarget] = [:]
     /// `document.performCount` when a sketch value commit began: `checkLastStep()` judges only a step made after it.
     @ObservationIgnored var sketchCheckBaseline: Int?
+    /// The document held for the sketch commit being checked: the check judges this one, even if New or Open replaced `document`.
+    @ObservationIgnored var sketchCheckDocument: DocumentModel?
     /// The feature dimensions the viewport shows, by overlay ID (`refreshDimensions()`): what a click on one is edited as.
     @ObservationIgnored var featureDimensions: [OverlayDimensionID: FeatureDimension] = [:]
     /// `levelProducers()`'s last answer, for the content and level it was built for.
