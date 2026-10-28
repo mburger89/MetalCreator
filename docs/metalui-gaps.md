@@ -90,7 +90,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | XP-G27 | Run-time HLSL compilation only under MetalUI's `SDL` trait | MetalUI (`MetalUISDLGPU`, XP-G25) | 🆕 open, low priority; a macOS build asks for no SDL, so the Mac cannot compile the generated HLSL at run time and its tests keep the offline kernels |
 | XP-G21 | Windows release build crashes swift-frontend (exception 0xC000001D) in `PaintPass.withRenderEffects` | MetalUI `5f03ab7b` | ✅ fixed by MetalUI `5f03ab7b`, adopted (branch `xp-2`, CI pin `5f03ab7b`): the CI release build for the zip no longer crashes the compiler |
 | DIM-a | No click count on a tap's value (double-click on a dimension's text in the viewport) | MetalUI session (sent 2026-10-27) | ✅ fixed by MetalUI `cf1b4968` (PR #144, divergence 235, ruling IF-O); adopted in DIM-1 Task 11 |
-| DIM-b | Runtime SIGSEGV (`initializeWithCopy` of a `ZStack`) when a `for` over a model array sits inline in a large `ZStack` builder | MetalUI session (sent 2026-10-27) | ❌ open: worked around by a helper in `ViewportView+Parts.swift` |
+| DIM-b | Runtime SIGSEGV (`initializeWithCopy` of a `ZStack`) when a `for` over a model array sits inline in a large `ZStack` builder | MetalUI session (sent 2026-10-27) | ✅ closed 2026-10-27: not reproducible on MetalUI cf1b4968 (likely a stale incremental build) |
 
 ## Reported 2026-10-07 (C7)
 
@@ -1392,3 +1392,7 @@ while the app runs, pipelines cached by source.
   calling it once from `stack` works. Suspected: the builder's result type (a very large nested tuple/conditional generic) or the `for` result's size makes a
   value-witness copy go wrong. Minimal repro to try: `stack`'s `ZStack { ...existing children...; for p in model.placedDimensions(measuring: measure) { DimensionView(placed: p, ...) } }`.
   Wanted: a fix, or a diagnostic at compile time. Meanwhile: the helper `ViewportView.dimensions(model:measure:)` holds the loop; do not inline it.
+  **Closed 2026-10-27, not reproducible on cf1b4968.** With the loop inlined again, the viewport tests, the debug and release app and the harness all run
+  clean (Swift 6.4.2), and the MetalUI session cannot reproduce it either. Likely cause, not proven: a stale incremental build. MetalUI master moved ~10
+  commits under Task 8, and a value-witness SIGSEGV that compiles clean is the symptom of objects built against an old layout of a public generic type.
+  If `initializeWithCopy` or a field-offset crash appears after MetalUI moves, run `swift package clean` and rebuild before filing. The helper stays as structure.
