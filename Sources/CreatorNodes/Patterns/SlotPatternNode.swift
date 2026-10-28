@@ -54,6 +54,9 @@ public enum SlotPatternNode: NodeDefinition {
         }
         let request = PatternApply.Request(operation: .subtract, part: part, tools: plan.toolIndex.map { built[$0] }, planes: planes,
                                            grid: grid, nouns: PatternApply.Nouns(singular: "slot", plural: "slots"))
-        return try await PatternApply.run(request, kernel: kernel, context: context)
+        var outputs = try await PatternApply.run(request, kernel: kernel, context: context)
+        outputs.dimensions = PatternDimensions.slotLengths(lengths, planes: planes) + PatternDimensions.slotWidths(widths, planes: planes)
+            + PatternDimensions.depths(depths, through: through, planes: planes)
+        return outputs
     }
 }

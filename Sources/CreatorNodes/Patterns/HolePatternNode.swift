@@ -69,6 +69,9 @@ public enum HolePatternNode: NodeDefinition {
         }
         let request = PatternApply.Request(operation: .subtract, part: part, tools: plan.toolIndex.map { built[$0] }, planes: planes,
                                            grid: grid, nouns: PatternApply.Nouns(singular: "hole", plural: "holes"))
-        return try await PatternApply.run(request, kernel: kernel, context: context)
+        var outputs = try await PatternApply.run(request, kernel: kernel, context: context)
+        outputs.dimensions = PatternDimensions.diameters(diameters, planes: planes)
+            + PatternDimensions.depths(depths, through: through, planes: planes)
+        return outputs
     }
 }

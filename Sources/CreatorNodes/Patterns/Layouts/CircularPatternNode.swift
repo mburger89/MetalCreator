@@ -70,6 +70,7 @@ public enum CircularPatternNode: NodeDefinition {
         let across = axis.cross(around)
         let isFull = abs(sweep) >= 360 - 1e-9
         var branches: [DataTree] = []
+        var firstRing: [Vector3] = []
         for (ring, ringCount) in ringCounts.enumerated() {
             let ringRadius = radius + Double(ring) * step
             guard ringRadius >= 0 else {
@@ -79,10 +80,14 @@ public enum CircularPatternNode: NodeDefinition {
             let placements = (0..<ringCount).map { index -> Scalar in
                 let angle = (start + angleStep * Double(index)) * .pi / 180
                 let outwards = around * cos(angle) + across * sin(angle)
-                return LayoutChecks.placement(centre + outwards * ringRadius, normal: axis, xAxis: rotate ? outwards : around)
+                let origin = centre + outwards * ringRadius
+                if ring == 0 { firstRing.append(origin) }
+                return LayoutChecks.placement(origin, normal: axis, xAxis: rotate ? outwards : around)
             }
             branches.append(.list(placements))
         }
-        return NodeOutputs(trees: ["placements": DataTree(depth: 2, branches: branches) ?? .empty(depth: 2)])
+        var outputs = NodeOutputs(trees: ["placements": DataTree(depth: 2, branches: branches) ?? .empty(depth: 2)])
+        outputs.dimensions = LayoutDimensions.circular(centre: centre, axis: axis, radius: radius, sweep: sweep, origins: firstRing)
+        return outputs
     }
 }
