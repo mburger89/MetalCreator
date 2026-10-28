@@ -138,6 +138,77 @@ extension SketchEditorModel {
         }
     }
 
+    // MARK: Right-click while placing
+
+    static let overDefining = "That would over-define the sketch."
+
+    /// The entries of the right-click menu while the pending dimension is being placed (spec §4.2): Radius or Diameter for a
+    /// round one, Driving or Reference for any. Nothing otherwise.
+    public func menuActions(at point: ScreenPoint) -> [HostMenuAction] {
+        guard let current = pending, current.phase == .placing else { return [] }
+        var actions: [HostMenuAction] = []
+        switch current.kind {
+        case .radius: actions.append(HostMenuAction(title: "Diameter", key: "dimension.diameter"))
+        case .diameter: actions.append(HostMenuAction(title: "Radius", key: "dimension.radius"))
+        default: break
+        }
+        actions.append(current.isDriving ? HostMenuAction(title: "Reference", key: "dimension.reference")
+                                         : HostMenuAction(title: "Driving", key: "dimension.driving"))
+        return actions
+    }
+
+    /// Runs an entry of `menuActions(at:)` on the pending dimension. Radius and diameter convert the value and keep the lock;
+    /// Driving is refused when the sketch could not take it.
+    public func performMenuAction(_ action: HostMenuAction) {
+        guard var current = pending, current.phase == .placing else { return }
+        switch action.key {
+        case "dimension.diameter", "dimension.radius":
+            guard let converted = Self.convertedRound(current, toDiameter: action.key == "dimension.diameter") else { return }
+            current = converted
+        case "dimension.reference":
+            guard current.isDriving else { return }
+            makeReference(&current)
+        case "dimension.driving":
+            guard !current.isDriving else { return }
+            guard let measured = sketch.measuredDimension(current.kind), measured.isDriving else {
+                refusal = Self.overDefining
+                return
+            }
+            current.isDriving = true
+        default:
+            return
+        }
+        pending = current
+    }
+
+    /// `current` as a diameter (value ×2) or a radius (value ÷2); `nil` when it is not the other one.
+    private static func convertedRound(_ current: PendingDimension, toDiameter: Bool) -> PendingDimension? {
+        var next = current
+        switch (current.kind, toDiameter) {
+        case (.radius(let id), true):
+            next.kind = .diameter(id)
+            next.value *= 2
+        case (.diameter(let id), false):
+            next.kind = .radius(id)
+            next.value /= 2
+        default:
+            return nil
+        }
+        next.aligned = next.kind
+        return next
+    }
+
+    /// Makes `current` a reference. A typed value moved the geometry; a reference measures the geometry as it was.
+    private func makeReference(_ current: inout PendingDimension) {
+        if let origin = pendingOrigin {
+            sketch = origin.sketch
+            solution = origin.solution
+            pendingOrigin = nil
+            if let measured = sketch.measuredDimension(current.kind) { current.value = measured.value }
+        }
+        current.isDriving = false
+    }
+
     /// Re-chooses the kind from where the label is, and measures it, unless a typed value locked it.
     private func orient(_ current: inout PendingDimension, at label: Vector2) {
         guard !current.isOrientationLocked, let (a, b) = linearEnds(of: current.aligned) else { return }
