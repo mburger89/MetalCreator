@@ -28,7 +28,8 @@ extension AppModel {
         let isSketching = sketch != nil
         let graph = editor.graph
         let pins = graph.dimensionPins.filter { $0.node != excluded }
-        let built = FeatureDimensionBuilder.dimensions(contextual: isSketching ? [] : editor.selection, pinned: pins, graph: graph,
+        let built = FeatureDimensionBuilder.dimensions(contextual: isSketching ? [] : editor.selection, pinned: pins,
+                                                       held: isSketching ? nil : heldModelDimension, graph: graph,
                                                        content: document.content, results: editor.levelResults,
                                                        registry: registry, units: units, style: viewport.dimensionStyle)
         var features = built
@@ -46,5 +47,16 @@ extension AppModel {
         let (shown, table) = dimensionsToShow()
         if featureDimensions != table { featureDimensions = table }
         if viewport.dimensions != shown { viewport.showDimensions(shown) }
+        openPendingValueBox(among: shown)
+    }
+
+    /// Opens the value box of the dimension the model dimension tool just added, once the viewport shows it. A box that can't
+    /// open (the dimension is not editable after all) forgets the held dimension, so it is not left on screen.
+    private func openPendingValueBox(among shown: [OverlayDimension]) {
+        guard let id = pendingValueBox, shown.contains(where: { $0.id == id }) else { return }
+        pendingValueBox = nil
+        guard !viewport.openValueBox(for: id) else { return }
+        heldModelDimension = nil
+        refreshDimensions()
     }
 }

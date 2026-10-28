@@ -37,3 +37,35 @@ extension GraphBuilder {
         return (node, extrude)
     }
 }
+
+/// The holed plate: a 60 × 40 rectangle (lines bottom, right, top, left; corners in order) with two circles (radius 4,
+/// near (15, 20) and (45, 20), hole order). Fully constrained except the circles' centres: dimensions `width` 60,
+/// `height` 40 and the circles' radii.
+struct HoledPlate {
+    var sketch: Sketch
+    var lines: [SketchEntityID]
+    var corners: [SketchEntityID]
+    var circles: [SketchEntityID]
+}
+
+func holedPlateSketch() -> HoledPlate {
+    var sketch = Sketch(plane: .fixed(.xy))
+    let corners = [Vector2(0, 0), Vector2(60, 0), Vector2(60, 40), Vector2(0, 40)].map { sketch.addPoint($0) }
+    let lines = (0..<4).map { sketch.addLine(from: corners[$0], to: corners[($0 + 1) % 4]) }
+    sketch.add(.horizontal(lines[0]))
+    sketch.add(.horizontal(lines[2]))
+    sketch.add(.vertical(lines[1]))
+    sketch.add(.vertical(lines[3]))
+    sketch.add(.fix(corners[0], at: .zero))
+    let width = sketch.addDimension(.length(lines[0]), value: 60)
+    let height = sketch.addDimension(.length(lines[1]), value: 40)
+    sketch.renameDimension(width, to: "width")
+    sketch.renameDimension(height, to: "height")
+    var circles: [SketchEntityID] = []
+    for x in [15.0, 45.0] {
+        let circle = sketch.addCircle(center: Vector2(x, 20), radius: 4)
+        sketch.addDimension(.radius(circle), value: 4)
+        circles.append(circle)
+    }
+    return HoledPlate(sketch: sketch, lines: lines, corners: corners, circles: circles)
+}

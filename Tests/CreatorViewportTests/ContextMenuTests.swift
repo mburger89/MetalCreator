@@ -26,9 +26,10 @@ struct ContextMenuTests {
         let ref = ViewportFaceRef(solidIndex: 0, face: FaceID(2))
         let press = ScreenPoint(300, 200)
         #expect(model.contextMenuItems(at: press) == [.lookAt(ref), .selectEdgesOfFace(ref),
+                                                      .dimension(.face(solid: 0, FaceID(2))),
                                                       .showProducingNode(node, title: "Show Producing Node"),
         ])
-        #expect(model.contextMenuItems(at: press).map(\.title) == ["Look At", "Select Edges of Face", "Show Producing Node"])
+        #expect(model.contextMenuItems(at: press).map(\.title) == ["Look At", "Select Edges of Face", "Dimension", "Show Producing Node"])
     }
 
     /// `fakeBox`'s end cap (face 1) is flat and has a normal; its side faces are flat too but carry none.
@@ -37,8 +38,8 @@ struct ContextMenuTests {
         let cap = ViewportFaceRef(solidIndex: 0, face: FaceID(1))
         model.pick = { _ in .face(solid: 0, FaceID(1)) }
         let items = model.contextMenuItems(at: ScreenPoint(300, 200))
-        #expect(items.prefix(5).map(\.title)
-            == ["Look At", "Select Edges of Face", "New Sketch on Face", "Pattern on Face", "Scatter on Face"])
+        #expect(items.prefix(6).map(\.title)
+            == ["Look At", "Select Edges of Face", "Dimension", "New Sketch on Face", "Pattern on Face", "Scatter on Face"])
         #expect(items.contains(.newSketchOnFace(cap)) && items.contains(.patternOnFace(cap)) && items.contains(.scatterOnFace(cap)))
         model.pick = { _ in .face(solid: 0, FaceID(2)) }
         #expect(!model.contextMenuItems(at: ScreenPoint(301, 200)).contains { item in
@@ -53,7 +54,9 @@ struct ContextMenuTests {
         let model = await model(showing: [cylinder])
         model.pick = { _ in .face(solid: 0, FaceID(0)) }
         let ref = ViewportFaceRef(solidIndex: 0, face: FaceID(0))
-        #expect(model.contextMenuItems(at: ScreenPoint(300, 200)) == [.lookAt(ref), .selectEdgesOfFace(ref)])
+        #expect(model.contextMenuItems(at: ScreenPoint(300, 200)) == [.lookAt(ref), .selectEdgesOfFace(ref),
+                                                                        .dimension(.face(solid: 0, FaceID(0))),
+        ])
     }
 
     @Test func whileAToolHoldsThePointerTheMenuIsLookAtAlone() async throws {
@@ -220,10 +223,10 @@ struct ContextMenuTests {
         let expected = sorted.map {
             $0 == nodeA ? "Show Producing Node (Extrude)" : "Show Producing Node (\(nodeB.description))"
         }
-        #expect(Array(titles.dropFirst(5)) == expected)
+        #expect(Array(titles.dropFirst(6)) == expected)
         var shown: [NodeID] = []
         model.events.showProducingNode = { shown.append($0) }
-        for item in model.contextMenuItems(at: ScreenPoint(300, 200)).dropFirst(5) { model.choose(item) }
+        for item in model.contextMenuItems(at: ScreenPoint(300, 200)).dropFirst(6) { model.choose(item) }
         #expect(shown == sorted)
     }
 

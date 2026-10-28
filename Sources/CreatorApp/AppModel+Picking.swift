@@ -94,6 +94,11 @@ extension AppModel {
     /// A click in the viewport. While picking, a click on an edge of the picked solid adds or removes it; otherwise it selects
     /// the feature behind the part clicked (`selectFeature(at:)`).
     func viewportClicked(_ target: PickTarget?) {
+        // The model dimension tool takes the click first (before the feature selection and the pick session).
+        if modelDimension != nil {
+            modelDimensionClicked(target)
+            return
+        }
         guard var session = pick else {
             // Not picking: in the part view a click selects the feature behind it (a sketch has its own tools).
             if sketch == nil { selectFeature(at: target) }

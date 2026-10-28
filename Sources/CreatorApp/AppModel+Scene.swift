@@ -48,6 +48,11 @@ extension AppModel {
         refreshSketch()
         // A pick belongs to the level it began on: showing another cancels it.
         if let session = pick, session.level != editor.levelPath { pick = nil }
+        if let session = modelDimension, session.level != editor.levelPath { modelDimension = nil }
+        if let held = heldModelDimension, editor.graph.nodes[held.node] == nil {
+            heldModelDimension = nil
+            pendingValueBox = nil
+        }
         var scene: [SceneItem]
         if viewport.isPicking != (pick != nil) { viewport.isPicking = pick != nil }
         if let pick {

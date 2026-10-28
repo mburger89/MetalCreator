@@ -57,6 +57,14 @@ struct MeasuredDimensionTests {
         #expect(lines.measuredDimension(.lineDistance(long, degenerate)) == nil)
     }
 
+    @Test func aSuspendedProjectionMeasuresNothing() {
+        var sketch = Sketch()
+        let point = sketch.addPoint(.zero)
+        let suspended = sketch.add(SketchEntity(.projected(
+            ProjectionSource(reference: "gone", curve: .line(Vector2(0, 5), Vector2(60, 5)), isSuspended: true))))
+        #expect(sketch.measuredDimension(.distance(point, suspended)) == nil)
+    }
+
     /// A fixed base line along +x and an arm from the origin drawn at `degrees`.
     private func vee(degrees: Double) -> (sketch: Sketch, base: SketchEntityID, arm: SketchEntityID) {
         var sketch = Sketch()

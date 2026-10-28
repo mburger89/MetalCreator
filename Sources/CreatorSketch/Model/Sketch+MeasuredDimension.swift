@@ -1,8 +1,13 @@
 extension Sketch {
     /// A new dimension of `kind` measured on the geometry as solved now: its value, and whether it can drive. It is a reference
     /// when driving it at that value would over-define the sketch: the solve is `.overConstrained` with `.dimension(new)` among the
-    /// conflicts (spec §4.4). `nil` when it can't be measured or measures under 1e-9 (a length kind).
+    /// conflicts (spec §4.4). `nil` when it can't be measured or measures under 1e-9 (a length kind), or
+    /// when any of its entities is a suspended projection (a suspended edge has no geometry to measure).
     public func measuredDimension(_ kind: DimensionKind) -> (value: Double, isDriving: Bool)? {
+        let touchesSuspended = kind.entities.contains { id in
+            if case .projected(let source)? = entities[id]?.kind { source.isSuspended } else { false }
+        }
+        guard !touchesSuspended else { return nil }
         var probe = self
         // An angle is created with the value the lines make as drawn, so it takes the sense that reads that
         // value (a 120° vee measures 120, not 60); other kinds are measured from the reference solve.

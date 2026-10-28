@@ -25,7 +25,9 @@ public final class AppInput {
 
     /// The window keymap: the viewport's keys (in their context), then the graph panel's.
     public static var keymap: Keymap {
-        Keymap(ViewportKeyBindings.bindings(context: AppKeyContext.viewport) + GraphPanelInput.keymap.bindings)
+        Keymap(ViewportKeyBindings.bindings(context: AppKeyContext.viewport)
+            + [KeyBinding("d", ModelDimensionKeyAction(), context: AppKeyContext.viewport)]
+            + GraphPanelInput.keymap.bindings)
     }
 
     public func install(on window: Window) {
@@ -37,6 +39,10 @@ public final class AppInput {
     /// A keymap action. Unclaimed (`false`), MetalUI passes the key on as if it were unbound.
     public func handleAction(_ action: any Action) -> Bool {
         if model.graphInput.handleAction(action) { return true }
+        if action is ModelDimensionKeyAction {
+            if model.editor.pointerLocation != nil { return false }
+            return model.beginModelDimension()
+        }
         guard let key = action as? ViewportKeyAction else { return false }
         if model.editor.pointerLocation != nil { return false }
         return ViewportKeyBindings.handle(key, model: model.viewport)

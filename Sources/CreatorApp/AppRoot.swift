@@ -41,6 +41,15 @@ public struct AppRoot: Component {
             WindowDragHandle()
                 .frame(maxWidth: .infinity)
                 .frame(height: AppLayout.windowDragStripHeight.px)
+            if let session = model.modelDimension {
+                HStack {
+                    Spacer()
+                    ModelDimensionBanner(model: model, session: session)
+                    Spacer()
+                }
+                .padding(Edges(top: (AppLayout.margin * 2 + AppLayout.topBarHeight).px, right: Pixels(0),
+                               bottom: Pixels(0), left: Pixels(0)))
+            }
             if let pick = model.pick {
                 HStack {
                     Spacer()

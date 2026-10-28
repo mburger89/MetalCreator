@@ -50,7 +50,9 @@ struct ScatterOnFaceTests {
         let (app, _) = await open()
         app.viewport.pick = { _ in .face(solid: 0, FaceID(1)) }
         let titles = app.viewport.contextMenuItems(at: ScreenPoint(700, 450)).map(\.title)
-        #expect(titles.prefix(5) == ["Look At", "Select Edges of Face", "New Sketch on Face", "Pattern on Face", "Scatter on Face"])
+        #expect(titles.prefix(6) == ["Look At", "Select Edges of Face", "Dimension", "New Sketch on Face", "Pattern on Face",
+                                    "Scatter on Face",
+        ])
         app.viewport.pick = { _ in .face(solid: 0, FaceID(2)) }
         #expect(!app.viewport.contextMenuItems(at: ScreenPoint(701, 450)).map(\.title).contains("Scatter on Face"))
     }

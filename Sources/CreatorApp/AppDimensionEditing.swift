@@ -87,6 +87,12 @@ final class AppDimensionEditing: DimensionEditing {
     }
 
     func valueBoxClosed(_ id: OverlayDimensionID, by ending: DimensionValueBoxEnding) {
+        // The dimension the model dimension tool added is shown only while its box is open, whatever the ending.
+        if isFeature(id), let app, let held = app.heldModelDimension,
+           id == FeatureDimension.overlayID(node: held.node, target: held.target) {
+            app.heldModelDimension = nil
+            app.refreshDimensions()
+        }
         guard isSketch(id) else { return }
         sketchEditor?.valueBoxClosed(id, by: ending)
     }

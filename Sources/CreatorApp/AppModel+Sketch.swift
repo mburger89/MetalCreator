@@ -28,6 +28,7 @@ extension AppModel {
             return
         }
         pick = nil
+        endModelDimension()
         sketch?.stop()
         let shown = shownSketch(of: node, stored)
         let sketchEditor = SketchEditorModel(sketch: shown.sketch, plane: plane, wired: shown.wired,

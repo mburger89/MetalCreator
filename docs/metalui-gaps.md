@@ -89,7 +89,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | XP-G26 | The run-time compiler's lookup tries `../lib` of the executable, not `lib/` beside it | MetalUI (`RuntimeLibraryLocator`, XP-G25) | ✅ fixed by MetalUI `f1c422e5` (PR #132): the lookup also tries `<exe>/lib` (order: explicit path, `METALUI_SHADERCROSS_LIB`, `<exe>`, `<exe>/lib`, `<exe>/../lib`, `METALUI_SHADERCROSS`'s sibling `lib`, loader path) with the dependents preloaded by full path, so the tarball's and the AppImage's `lib/` needs no variable; pinned by xp-c task 11 |
 | XP-G27 | Run-time HLSL compilation only under MetalUI's `SDL` trait | MetalUI (`MetalUISDLGPU`, XP-G25) | 🆕 open, low priority; a macOS build asks for no SDL, so the Mac cannot compile the generated HLSL at run time and its tests keep the offline kernels |
 | XP-G21 | Windows release build crashes swift-frontend (exception 0xC000001D) in `PaintPass.withRenderEffects` | MetalUI `5f03ab7b` | ✅ fixed by MetalUI `5f03ab7b`, adopted (branch `xp-2`, CI pin `5f03ab7b`): the CI release build for the zip no longer crashes the compiler |
-| DIM-a | No click count on a tap's value (double-click on a dimension's text in the viewport) | MetalUI session (sent 2026-10-27) | ✅ fixed by MetalUI `cf1b4968` (PR #144, divergence 235, ruling IF-O); adopted in DIM-1 Task 11 |
+| DIM-a | No click count on a tap's value (double-click on a dimension's text in the viewport) | MetalUI session (sent 2026-10-27) | ✅ fixed by MetalUI `cf1b4968` (PR #144, divergence 235, ruling IF-O); adopted in DIM-1 Task 11 (2026-10-27) |
 | DIM-b | Runtime SIGSEGV (`initializeWithCopy` of a `ZStack`) when a `for` over a model array sits inline in a large `ZStack` builder | MetalUI session (sent 2026-10-27) | ✅ closed 2026-10-27: not reproducible on MetalUI cf1b4968 (likely a stale incremental build) |
 
 ## Reported 2026-10-07 (C7)
@@ -1374,7 +1374,7 @@ while the app runs, pipelines cached by source.
 ## Hit by driving dimensions (DIM-1), 2026-10-27
 
 - **DIM-a. `SpatialTapGesture.Value` has no click count. Fixed.** Closed by MetalUI `cf1b4968` (PR #144, divergence 235, ruling IF-O, MetalUI-only like `modifiers`):
-  `SpatialTapGesture.Value.clickCount`. Adopted in DIM-1 Task 11: `ViewportView.surface` passes it to `ViewportModel.click(at:modifiers:clickCount:)`, pinned by
+  `SpatialTapGesture.Value.clickCount`. Adopted in DIM-1 Task 11 (2026-10-27): `ViewportView.surface` passes it to `ViewportModel.click(at:modifiers:clickCount:)`, pinned by
   `DimensionDoubleClickWindowTests.aDoubleClickOnADimensionsTextOpensItsBox`. The entry below is the original report. Use case: double-clicking a dimension's text in the viewport opens its value box.
   `ViewportView.surface`'s `SpatialTapGesture` feeds `ViewportModel.click(at:modifiers:clickCount:)`, which cannot tell the second click of a
   double-click from a new click. `DragGesture.Value.clickCount` exists (S5-b), but the viewport's primary drag has a non-zero minimum distance and

@@ -204,7 +204,7 @@ struct ViewportToolTests {
         let ref = ViewportFaceRef(solidIndex: 0, face: FaceID(2))
         #expect(model.contextMenuItems(at: ScreenPoint(300, 200)) == [.lookAt(ref)])
         model.tool = nil
-        #expect(model.contextMenuItems(at: ScreenPoint(300, 200)).count == 3, "Look At, Select Edges, Show Producing Node")
+        #expect(model.contextMenuItems(at: ScreenPoint(300, 200)).count == 4, "Look At, Select Edges, Dimension, Show Producing Node")
     }
 
     @Test func theProjectorMapsScreenPointsOntoAPlaneAndBack() throws {

@@ -11,6 +11,8 @@ public enum ViewportMenuItem: Hashable, Sendable {
     case patternOnFace(ViewportFaceRef)
     /// A Field Scatter on the face, wired from the solid (fields spec §3.3). Offered with the same faces as Pattern on Face.
     case scatterOnFace(ViewportFaceRef)
+    /// A dimension on the model, started with this face or edge as its first pick (dimensions spec §3.5). Only outside sketch mode.
+    case dimension(PickTarget)
     /// One item per producing node. The title names the node when a face has several.
     case showProducingNode(NodeID, title: String)
     /// An entry the host offers: a dimension's (over its text) or the tool's (`dimension` is `nil`).
@@ -20,6 +22,7 @@ public enum ViewportMenuItem: Hashable, Sendable {
         switch self {
         case .lookAt: "Look At"
         case .selectEdgesOfFace: "Select Edges of Face"
+        case .dimension: "Dimension"
         case .newSketchOnFace: "New Sketch on Face"
         case .patternOnFace: "Pattern on Face"
         case .scatterOnFace: "Scatter on Face"

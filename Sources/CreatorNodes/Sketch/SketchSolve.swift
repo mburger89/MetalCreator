@@ -14,6 +14,8 @@ enum SketchSolve {
         /// The sketch with the solve remembered, and the solution it came from, for the dimensions' geometry.
         var sketch: Sketch
         var solution: SketchSolution
+        /// Which entity made each region segment, for the model dimension tool.
+        var trace: SketchTrace
     }
 
     static let nothingDrawn = "Draw a closed shape in the sketch to make a profile."
@@ -44,7 +46,8 @@ enum SketchSolve {
         if found.regions.isEmpty, found.openCurves.isEmpty { warnings.append(nothingDrawn) }
         let measured = measurements(sketch, solution)
         return Output(profiles: found.regions.map { $0.profile(on: plane) }, measurements: measured.values,
-                      warnings: warnings + measured.warnings, sketch: solved, solution: solution)
+                      warnings: warnings + measured.warnings, sketch: solved, solution: solution,
+                      trace: SketchTrace(sketch: solved, regionSources: found.regions.map(\.sources)))
     }
 
     /// The constraints and dimensions the solver left out because a projected edge they sit on is another kind of curve than
