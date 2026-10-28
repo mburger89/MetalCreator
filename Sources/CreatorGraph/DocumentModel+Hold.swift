@@ -4,14 +4,18 @@ import CreatorKernel
 /// keep `DocumentModel.swift` short; they work on its stored `undoStack`, `heldReport` and `tentativeStep`.
 extension DocumentModel {
     /// From now on a finished evaluation is kept back instead of published, and an edit marks nothing as evaluating: the
-    /// results on screen stay as they are while a step is checked. Pair with `releaseResults()`, also after a throw.
+    /// results on screen stay as they are while a step is checked. Pair with `releaseResults()`, also after a throw. Holds
+    /// nest: results publish again only when every hold has been released.
     public func holdResults() {
-        isHoldingResults = true
+        holdDepth += 1
     }
 
-    /// Stops holding and publishes the report held meanwhile, if one arrived. A report still to come publishes as usual.
+    /// Ends one hold; when the last one ends, publishes the report held meanwhile, if one arrived. A report still to come
+    /// publishes as usual. An unpaired release does nothing.
     public func releaseResults() {
-        isHoldingResults = false
+        guard holdDepth > 0 else { return }
+        holdDepth -= 1
+        guard holdDepth == 0 else { return }
         if let report = heldReport {
             heldReport = nil
             apply(report)
@@ -58,9 +62,11 @@ extension DocumentModel {
         return true
     }
 
-    /// The `.error` messages of the published top-level results.
+    /// The `.error` messages of the top-level results.
+    /// While holding, the held report's results are what the step started from; else the published ones.
     var topLevelErrors: [NodeID: String] {
-        results.compactMapValues { result in
+        let current = isHoldingResults ? (heldReport?.results ?? results) : results
+        return current.compactMapValues { result in
             if case .error(let message) = result.state { message } else { nil }
         }
     }

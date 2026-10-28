@@ -87,6 +87,8 @@ struct DocumentHoldTests {
         try document.perform(setValue(source, 70), name: UndoName.changeDimension)
         let step = try #require(document.lastStep())
         await document.waitForEvaluation()
+        #expect(!step.watched.contains(unrelated.id))
+        #expect(step.watched.contains(failing.id))
         #expect(document.newProblem(in: step) == nil)
     }
 
@@ -127,6 +129,35 @@ struct DocumentHoldTests {
         try document.perform(setValue(node, 20), name: UndoName.changeDimension)
         await document.waitForEvaluation()
         #expect(document.results[node.id]?.outputs?["value"]?.numbers == [20])
+    }
+
+    @Test func overlappingHoldsPublishOnlyWhenTheLastIsReleased() async throws {
+        let node = makeNode(ThresholdNode.self, ["value": .number(10)])
+        let document = await model([node])
+        document.holdResults()
+        document.holdResults()
+        try document.perform(setValue(node, 20), name: UndoName.changeDimension)
+        await document.waitForEvaluation()
+        document.releaseResults()
+        #expect(document.isHoldingResults)
+        #expect(document.results[node.id]?.outputs?["value"]?.numbers == [10])
+        document.releaseResults()
+        #expect(!document.isHoldingResults)
+        #expect(document.results[node.id]?.outputs?["value"]?.numbers == [20])
+        document.releaseResults()  // unpaired: harmless
+        #expect(!document.isHoldingResults)
+    }
+
+    @Test func aSecondStepJudgesAgainstTheHeldReportNotThePublishedOne() async throws {
+        let source = makeNode(ConstantNode.self, ["value": .number(60)], output: false)
+        let threshold = makeNode(ThresholdNode.self)
+        let document = await model([source, threshold], [link(source, "value", threshold, "value")])
+        document.holdResults()
+        try document.perform(setValue(source, 5), name: UndoName.changeDimension)
+        await document.waitForEvaluation()  // held: fine now, while the published result is still the error
+        try document.perform(setValue(source, 70), name: UndoName.changeDimension)
+        let step = try #require(document.lastStep())
+        #expect(step.errorsBefore[threshold.id] == nil)
     }
 
     @Test func aWithdrawnStepEvaluatesFromTheCache() async throws {

@@ -17,9 +17,11 @@ public final class DocumentModel {
     /// The last successful outputs of each node. The viewport ghosts these when a node errors (spec §4.4).
     public private(set) var lastGoodOutputs: [NodeID: [SocketName: Value]] = [:]
     public private(set) var isEvaluating = false
+    /// How many holds are open (`holdResults()` / `releaseResults()` nest).
+    var holdDepth = 0
     /// True while results are held (`holdResults()`): a finished evaluation is kept back instead of published, and an edit does
     /// not mark nodes as evaluating, so the old geometry stays on screen while a tentative step is checked.
-    public internal(set) var isHoldingResults = false
+    public var isHoldingResults: Bool { holdDepth > 0 }
     /// Editor state saved with the file, held as separate observable properties (not one `ViewState` value) so a pan, which
     /// writes only the canvas offset and zoom, does not invalidate a view that reads only the dock or `showsLibrary`, nor a
     /// camera write one that reads the canvas transform (MetalUI C14-d: `GraphPanelBody` skips during a pan). `viewState`
