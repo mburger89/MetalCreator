@@ -15,8 +15,10 @@ struct AppBracket {
     let app: AppModel
     let width: GraphParameter
     let holeCount: GraphParameter
+    let wall: GraphParameter
     private(set) var plate = Node(typeID: "", name: "")
     private(set) var fillet = Node(typeID: "", name: "")
+    private(set) var flange = Node(typeID: "", name: "")
     private(set) var chamferEdges = Node(typeID: "", name: "")
     private(set) var chamfer = Node(typeID: "", name: "")
     private(set) var output = Node(typeID: "", name: "")
@@ -25,7 +27,7 @@ struct AppBracket {
         self.app = app
         width = GraphParameter(name: "Width", type: .number, value: .number(60), min: 20, max: 200)
         holeCount = GraphParameter(name: "Hole count", type: .integer, value: .integer(4), min: 0, max: 20)
-        let wall = GraphParameter(name: "Wall", type: .number, value: .number(6), min: 1, max: 20)
+        wall = GraphParameter(name: "Wall", type: .number, value: .number(6), min: 1, max: 20)
         for parameter in [width, wall, holeCount] { try app.document.perform(.addParameter(parameter)) }
         let widthValue = try add(GraphParameterNode.self, [NodeSetting.parameter: .parameter(width.id)])
         let wallValue = try add(GraphParameterNode.self, [NodeSetting.parameter: .parameter(wall.id)])
@@ -52,7 +54,7 @@ struct AppBracket {
         let flangeProfile = try add(RectangleNode.self, ["height": .number(30), "anchor": .integer(7)])
         try wire(widthValue, "number", flangeProfile, "width")
         try wire(flangePlane, "plane", flangeProfile, "plane")
-        let flange = try add(ExtrudeNode.self, ["distance": .number(8)])
+        flange = try add(ExtrudeNode.self, ["distance": .number(8)])
         try wire(flangeProfile, "profile", flange, "profile")
         let bracket = try add(BooleanNode.self)
         try wire(cut, "solid", bracket, "target")

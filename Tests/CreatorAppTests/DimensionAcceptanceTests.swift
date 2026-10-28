@@ -166,5 +166,24 @@ struct DimensionAcceptanceTests {
         #expect(app.modelDimension?.message == "These come from different features: a measurement tool is planned")
         #expect(app.document.graph == graph)
     }
+
+    @Test func aSharedLayoutBelongsToNeitherFeature() async throws {
+        let app = AppModel(kernel: OCCTKernel())
+        let part = try AppSketchBracket(in: app)
+        // A second Hole Pattern (Ø4) on the first's solid, placed by the same layout.
+        var second = app.registry.makeNode(HolePatternNode.typeID, at: Vector2(900, 0))
+        second.inputValues["diameter"] = .number(4)
+        second.inputValues["throughAll"] = .bool(true)
+        try app.document.perform(.addNode(second))
+        try app.document.perform(.connect(Link(from: Endpoint(node: part.holes.id, socket: "solid"),
+                                               to: Endpoint(node: second.id, socket: "part"))))
+        try app.document.perform(.connect(Link(from: Endpoint(node: part.layout.id, socket: "placements"),
+                                               to: Endpoint(node: second.id, socket: "placements"))))
+        await app.settle()
+        app.editor.selection = [part.holes.id]
+        await app.settle()
+        #expect(part.shown(app, "2X Ø8") != nil, "\(app.viewport.dimensions.map(\.text))")
+        #expect(part.shown(app, "60") == nil, "the shared layout's spacing belongs to neither pattern")
+    }
     #endif
 }
