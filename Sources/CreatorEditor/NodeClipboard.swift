@@ -13,6 +13,8 @@ public struct NodeClipboard: Equatable, Sendable {
     public var frames: [CommentFrame] = []
     /// The ties every wire of which was copied (cable ties spec 2026-10-26 §3.4).
     public var ties: [CableTie] = []
+    /// The pinned dimensions of the copied nodes (DIM-3), so a paste pins the same dimensions on the copies.
+    public var dimensionPins: [DimensionPin] = []
     /// The embedded pictures the copied nodes (and the copied definitions' nodes) use, so a paste finds them even where the
     /// document never held them (fields spec §5).
     public var images: [ImageHash: Data] = [:]

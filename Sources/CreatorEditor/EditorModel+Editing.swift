@@ -116,7 +116,8 @@ extension EditorModel {
     }
 
     /// What copying `items` puts on the clipboard: their nodes, the wires between them, the definitions their group
-    /// nodes use, their comments and the ties every wire of which they hold. Group Input and Group Output are never copied.
+    /// nodes use, their comments, the ties every wire of which they hold and their
+    /// nodes' pins. Group Input and Group Output are never copied.
     func clipboard(of items: CanvasSelection) -> NodeClipboard {
         let nodes = items.nodes.sorted().compactMap { graph.nodes[$0] }.filter { !GroupNodes.isBoundary($0) }
         let ids = Set(nodes.map(\.id))
@@ -133,6 +134,7 @@ extension EditorModel {
                              stickies: comments.compactMap { graph.stickies[$0] },
                              frames: comments.compactMap { graph.frames[$0] },
                              ties: graph.ties.values.filter { $0.wires.isSubset(of: copiedWires) }.sorted { $0.id < $1.id },
+                             dimensionPins: graph.dimensionPins.filter { ids.contains($0.node) },
                              images: document.images.filter { hashes.contains($0.key) })
     }
 
@@ -175,6 +177,10 @@ extension EditorModel {
         }
         let ties = tieCopies(of: clipboard.ties, mapping: mapping, offset: offset)
         commands += ties.map { .setTie($0) }
+        // The copied nodes' pinned dimensions, on the copies; the batch's inverse unpins them with the one undo step.
+        commands += clipboard.dimensionPins.compactMap { pin in
+            mapping[pin.node].map { .pinDimension(DimensionPin(node: $0, target: pin.target)) }
+        }
         do {
             // The definitions are added to the document, the nodes, comments and ties to the level shown.
             try document.perform(.batch(merge.additions.map { .addDefinition($0) } + [GraphCommand.batch(commands).at(graphPath)]),

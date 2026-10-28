@@ -38,6 +38,8 @@ struct GroupBuilder {
         for tie in graph.ties.values where tie.wires.isSubset(of: inner) {
             definition.graph.ties[tie.id] = CableTie(id: tie.id, position: tie.position - topLeft, wires: tie.wires)
         }
+        // A pin goes inside with its node, which keeps its ID. Removing the node takes it out of the outer graph (`removeNode`).
+        definition.graph.dimensionPins = graph.dimensionPins.filter { ids.contains($0.node) }
         self.graph = graph
         self.sockets = sockets
         self.input = input.id
