@@ -18,7 +18,7 @@ struct ValueBoxRenderTests {
         let editor = FakeDimensionEditor()
         editor.contents[id] = DimensionValueBoxContent(text: text, note: nil)
         model.dimensionEditor = editor
-        try model.showDimensions([sixtyMillimetres()])
+        model.showDimensions([sixtyMillimetres()])
         _ = try model.placedDimensions(measuring: .real())
         #expect(model.openValueBox(for: id))
         return model
