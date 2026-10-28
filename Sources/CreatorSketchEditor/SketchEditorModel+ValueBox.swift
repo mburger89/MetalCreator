@@ -18,7 +18,7 @@ extension SketchEditorModel: DimensionEditing {
     }
 
     /// Takes the text typed into the box. The inspector's checks refuse with their own sentences; an unchanged value is
-    /// accepted with no step; the edited sketch must solve (nothing is committed otherwise); then one "Change Dimension" step
+    /// accepted with no step; the edited sketch must solve and must not flip a corner or an arc (nothing is committed otherwise); then one "Change Dimension" step
     /// is committed and the host checks what it did.
     public func commitValue(_ text: String, to id: OverlayDimensionID) async -> DimensionCommitOutcome {
         if id == SketchDimensionDrawing.pendingID { return commitPendingValue(text) }
@@ -37,6 +37,7 @@ extension SketchEditorModel: DimensionEditing {
             case .failed(let reason): return .refused(reason)
             case .solved, .underConstrained: break
             }
+            if let message = flipRefusal(of: edited) { return .refused(message) }
             commit(edited, description, named: SketchStepName.changeDimension)
             if let message = await events.checkValueCommit() { return .refused(message) }
             return .accepted

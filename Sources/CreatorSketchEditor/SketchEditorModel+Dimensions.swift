@@ -150,6 +150,13 @@ extension SketchEditorModel {
         }
     }
 
+    /// The sentence that refuses `edited` when solving it turns a corner or an arc the other way from the current solve
+    /// (spec §7), or nil. Only a usable solve is judged; `SketchFlipCheck` itself passes an unusable one.
+    func flipRefusal(of edited: Sketch) -> String? {
+        let solved = SketchSolver.solve(edited)
+        return flipCheck(solution, solved, edited) ? "This value would flip the sketch." : nil
+    }
+
     /// What text typed for a dimension of `kind` that has `current` comes to.
     enum TypedValue {
         case refused(String)
@@ -173,7 +180,12 @@ extension SketchEditorModel {
     public func setValue(_ text: String, of id: DimensionID) {
         switch checkedEdit(text, of: id) {
         case .refused(let message)?: refusal = message
-        case .change(let edited, let description)?: commit(edited, description, named: SketchStepName.changeDimension)
+        case .change(let edited, let description)?:
+            if let message = flipRefusal(of: edited) {
+                refusal = message
+            } else {
+                commit(edited, description, named: SketchStepName.changeDimension)
+            }
         case .unchanged?, nil: break
         }
     }
