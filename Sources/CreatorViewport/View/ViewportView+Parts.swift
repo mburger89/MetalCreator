@@ -35,8 +35,8 @@ extension ViewportView {
         }
     }
 
-    /// The dimensions, drawn over the scene. The loop is written inline for `DimensionView`: MetalUI's builder can't infer an
-    /// opaque element returned by a helper inside a `for` (gap M4-b); this helper holds the whole loop instead.
+    /// The dimensions, drawn over the scene. Keep the whole loop in this helper: written inline in `stack`'s `ZStack` builder it
+    /// crashes at run time (SIGSEGV in `ZStack`'s `initializeWithCopy`, even with no dimensions; gap DIM-b).
     @MainActor
     static func dimensions(model: ViewportModel, measure: TextMeasure) -> some Element {
         ZStack(alignment: .topLeading) {
@@ -45,7 +45,6 @@ extension ViewportView {
                               fill: model.labelFill)
             }
         }
-        .allowsHitTesting(false)
     }
 
     /// The GPU surface and its input. It redraws on demand when `renderKey` changes, and continuously while the
