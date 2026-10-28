@@ -6,6 +6,8 @@ struct IterationOutputs {
     private var producedList: Set<SocketName> = []
     private var absent: Set<SocketName> = []
     var warnings: [String]
+    /// Every iteration's declared dimensions, in order.
+    private(set) var dimensions: [DimensionSpec] = []
 
     init(warnings: [String]) {
         self.warnings = warnings
@@ -33,6 +35,7 @@ struct IterationOutputs {
             }
         }
         warnings += outputs.warnings
+        dimensions += outputs.dimensions
     }
 
     /// The output values. An optional output that any iteration left out is absent.

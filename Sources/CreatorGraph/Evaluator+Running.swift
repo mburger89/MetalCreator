@@ -96,7 +96,8 @@ extension Evaluator {
 
         let unique = Array(Set(collector.warnings)).sorted()
         let state: NodeState = unique.isEmpty ? .ok(duration: start.duration(to: clock.now)) : .warning(unique.joined(separator: "\n"))
-        return NodeResult(state: state, outputs: collector.values(for: outputSpecs, plan: plan))
+        return NodeResult(state: state, outputs: collector.values(for: outputSpecs, plan: plan),
+                          dimensions: collector.dimensions)
     }
 
     /// Plain-language text for any error a node can throw.
