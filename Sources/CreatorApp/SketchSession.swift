@@ -39,8 +39,8 @@ public final class SketchSession {
         isFollowing = false
         guard let viewport else { return }
         if viewport.tool === editor { viewport.tool = nil }
-        // A box open on one of this sketch's dimensions goes with the sketch (a box being checked finishes first).
-        viewport.cancelValueBox()
+        // A box open on one of this sketch's dimensions goes with the sketch, even one being checked (its late answer is dropped).
+        viewport.closeValueBox()
         viewport.showOverlay(ViewportOverlay())
         dimensionsChanged?()
     }

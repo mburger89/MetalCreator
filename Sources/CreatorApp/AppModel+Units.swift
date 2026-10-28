@@ -26,7 +26,7 @@ extension AppModel {
 
     private func change(_ new: DocumentUnits, name: String) {
         guard new != units else { return }
-        viewport.cancelValueBox()
+        viewport.closeValueBox()
         do {
             try document.perform(.setUnits(new), name: name)
         } catch {

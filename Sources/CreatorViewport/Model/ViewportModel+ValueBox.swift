@@ -85,8 +85,9 @@ extension ViewportModel {
         return PlacedValueBox(box: box, origin: origin, size: size)
     }
 
-    /// Closes the box whatever it is doing.
-    func closeValueBox() {
+    /// Closes the box whatever it is doing, even one being checked: its owner (the sketch, the document's unit) is gone, so a late
+    /// answer must change nothing. The generation bump makes `submitValueBox()` drop that answer.
+    public func closeValueBox() {
         valueBox = nil
         valueBoxAnchor = nil
         valueBoxGeneration += 1

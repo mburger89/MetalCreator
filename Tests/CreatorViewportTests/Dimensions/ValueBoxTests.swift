@@ -225,6 +225,27 @@ struct ValueBoxTests {
         #expect(model.valueBox == nil, "a late answer reopens nothing")
     }
 
+    @Test func aForcedCloseDuringACheckDropsTheLateAnswer() async throws {
+        for outcome in [DimensionCommitOutcome.accepted, .refused("No.")] {
+            let model = makeModel()
+            let editor = makeEditor()
+            editor.holdsCommits = true
+            editor.outcome = outcome
+            _ = try openBox(editor, model)
+            model.valueBoxDraftChanged("70")
+            let check = Task { await model.submitValueBox() }
+            await editor.waitUntilHeld()
+            model.cancelValueBox()
+            #expect(model.valueBox?.isChecking == true, "Esc waits for the answer")
+            model.closeValueBox()   // the sketch is done or the unit changed: the owner is gone
+            #expect(model.valueBox == nil)
+            editor.release()
+            await check.value
+            #expect(model.valueBox == nil, "a late answer reopens nothing and sets no message")
+            #expect(model.openValueBox(for: id), "the next box opens at once")
+        }
+    }
+
     @Test func theBoxSitsOverTheTextAndHidesIt() throws {
         let model = makeModel()
         let editor = makeEditor()
