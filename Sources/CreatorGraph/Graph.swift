@@ -15,10 +15,14 @@ public struct Graph: Sendable, Equatable {
     public var ties: [TieID: CableTie]
     /// The document's display units (DIM-1, format 10). Internal values stay millimetres. Written only when not `.millimetres`.
     public var units: DocumentUnits
+    /// The dimensions the user pinned (DIM-3): sorted, unique, each of a node that is here. Editor furniture: never affects
+    /// evaluation. Written only when non-empty.
+    public var dimensionPins: [DimensionPin]
 
     public init(nodes: [NodeID: Node] = [:], links: [Link] = [], parameters: [GraphParameter] = [],
                 stickies: [CommentID: StickyNote] = [:], frames: [CommentID: CommentFrame] = [:],
-                ties: [TieID: CableTie] = [:], units: DocumentUnits = .millimetres) {
+                ties: [TieID: CableTie] = [:], units: DocumentUnits = .millimetres,
+                dimensionPins: [DimensionPin] = []) {
         self.nodes = nodes
         self.links = links
         self.parameters = parameters
@@ -26,11 +30,12 @@ public struct Graph: Sendable, Equatable {
         self.frames = frames
         self.ties = ties
         self.units = units
+        self.dimensionPins = dimensionPins
     }
 }
 
 extension Graph: Codable {
-    private enum CodingKeys: String, CodingKey { case nodes, links, parameters, stickies, frames, ties, units }
+    private enum CodingKeys: String, CodingKey { case nodes, links, parameters, stickies, frames, ties, units, dimensionPins }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -54,6 +59,8 @@ extension Graph: Codable {
         ties = Self.repaired(try container.decodeIfPresent([CableTie].self, forKey: .ties) ?? [], links: links)
         // Format 10; absent before it, and a file without it is in millimetres.
         units = try container.decodeIfPresent(DocumentUnits.self, forKey: .units) ?? .millimetres
+        // DIM-3; absent before it. Sorted and unique; a pin of a node that is not here is kept and shows nothing.
+        dimensionPins = Self.repairedPins(try container.decodeIfPresent([DimensionPin].self, forKey: .dimensionPins) ?? [])
         sortLinks()  // Canonical order, so command + undo yields an equal graph.
     }
 
@@ -69,5 +76,6 @@ extension Graph: Codable {
         // Ties likewise, each with its wires sorted (`CableTie.encode`), so the output is deterministic.
         if !ties.isEmpty { try container.encode(ties.values.sorted { $0.id < $1.id }, forKey: .ties) }
         if units != .millimetres { try container.encode(units, forKey: .units) }
+        if !dimensionPins.isEmpty { try container.encode(dimensionPins, forKey: .dimensionPins) }
     }
 }

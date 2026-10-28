@@ -15,6 +15,10 @@ public enum ImplicitSphereNode: NodeDefinition {
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let radius = try inputs.number("radius")
         guard radius.isFinite, radius > 0 else { throw NodeError.invalidValue("“radius” must be greater than 0 mm.") }
-        return NodeOutputs(["implicit": .implicit(ImplicitSolid.sphere(radius: radius).reference)])
+        var outputs = NodeOutputs(["implicit": .implicit(ImplicitSolid.sphere(radius: radius).reference)])
+        let geometry = DimensionGeometry.radial(center: .zero, radius: radius, normal: .unitZ,
+                                                toward: Vector3(1, 1, 0).normalized ?? .unitX, placement: .standoff)
+        outputs.dimensions = [DimensionSpec(.input("radius"), geometry, .diameter, value: radius * 2, inputScale: 0.5)]
+        return outputs
     }
 }

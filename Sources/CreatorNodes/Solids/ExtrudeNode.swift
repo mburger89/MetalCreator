@@ -25,15 +25,30 @@ public enum ExtrudeNode: NodeDefinition {
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         var profile = try inputs.profile("profile")
+        let sourcePlane = profile.plane
         let distance = try inputs.number("distance")
         guard distance.isFinite, distance > 0 else {
             throw NodeError.invalidValue("Extrude distance must be greater than 0 mm.")
         }
         let mode: ExtrudeMode = try inputs.choice("mode", options: modes) == 0 ? .oneSided : .symmetric
-        if mode == .oneSided, try inputs.bool("reversed") {
+        let reversed = try inputs.bool("reversed")
+        if mode == .oneSided, reversed {
             profile.plane = profile.plane.offset(by: -distance)
         }
         let solid = try await kernel.extrude(profile, distance: distance, mode: mode, tag: context.tag)
-        return NodeOutputs(["solid": .solid(solid)])
+        var outputs = NodeOutputs(["solid": .solid(solid)])
+        outputs.dimensions = dimensions(profile: profile, plane: sourcePlane, distance: distance, mode: mode, reversed: reversed)
+        return outputs
+    }
+
+    /// The distance, measured up the profile's `(u₁, v₀)` corner; moved back by `distance` when reversed, by half when symmetric.
+    private static func dimensions(profile: Profile2D, plane: Plane, distance: Double, mode: ExtrudeMode,
+                                   reversed: Bool) -> [DimensionSpec] {
+        guard let bounds = DimensionSpecs.planeBounds(of: profile) else { return [] }
+        let shift: Double = mode == .symmetric ? -distance / 2 : (reversed ? -distance : 0)
+        let base = plane.point(Vector2(bounds.max.x, bounds.min.y)) + plane.normal * shift
+        let geometry = DimensionGeometry.linear(from: base, to: base + plane.normal * distance, direction: plane.normal,
+                                                side: plane.xAxis, placement: .standoff)
+        return [DimensionSpec(.input("distance"), geometry, .length, value: distance)]
     }
 }

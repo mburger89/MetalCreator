@@ -48,6 +48,8 @@ public protocol DimensionEditing: AnyObject {
     func menuActions(for id: OverlayDimensionID) -> [HostMenuAction]
     /// Runs a chosen entry (default: nothing).
     func performMenuAction(_ action: HostMenuAction, for id: OverlayDimensionID)
+    /// What to say under `id`'s text while the pointer is on it, e.g. a reference's source (default: nothing).
+    func hoverNote(for id: OverlayDimensionID) -> String?
     /// The box for `id` ended, once, by `ending` (default: nothing). Not told when the box is closed because its owner is gone
     /// (`ViewportModel.closeValueBox()`), nor for a refusal, which leaves the box open.
     func valueBoxClosed(_ id: OverlayDimensionID, by ending: DimensionValueBoxEnding)
@@ -56,5 +58,6 @@ public protocol DimensionEditing: AnyObject {
 extension DimensionEditing {
     public func menuActions(for id: OverlayDimensionID) -> [HostMenuAction] { [] }
     public func performMenuAction(_ action: HostMenuAction, for id: OverlayDimensionID) {}
+    public func hoverNote(for id: OverlayDimensionID) -> String? { nil }
     public func valueBoxClosed(_ id: OverlayDimensionID, by ending: DimensionValueBoxEnding) {}
 }

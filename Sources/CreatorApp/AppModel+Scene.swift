@@ -81,6 +81,7 @@ extension AppModel {
         handleTargets = Dictionary(handles.map { ($0.handle.id, $0.target) }, uniquingKeysWith: { first, _ in first })
         let shownHandles = handles.map(\.handle) + (fieldPreview.sliceHandle.map { [$0] } ?? []) + (cutView.handle.map { [$0] } ?? [])
         if viewport.handles != shownHandles { viewport.showHandles(shownHandles) }
+        refreshDimensions()
     }
 
     /// The scene for the preview mode: Final shows every Output node of the whole part, whichever level the graph

@@ -69,6 +69,14 @@ public final class AppModel {
     @ObservationIgnored public var replyToCloseRequest: (@MainActor (Bool) -> Void)?
     @ObservationIgnored var pendingDiscard: DiscardAction?
     @ObservationIgnored var handleTargets: [String: HandleTarget] = [:]
+    /// `document.performCount` when a sketch value commit began: `checkLastStep()` judges only a step made after it.
+    @ObservationIgnored var sketchCheckBaseline: Int?
+    /// The document held for the sketch commit being checked: the check judges this one, even if New or Open replaced `document`.
+    @ObservationIgnored var sketchCheckDocument: DocumentModel?
+    /// The feature dimensions the viewport shows, by overlay ID (`refreshDimensions()`): what a click on one is edited as.
+    @ObservationIgnored var featureDimensions: [OverlayDimensionID: FeatureDimension] = [:]
+    /// `levelProducers()`'s last answer, for the content and level it was built for.
+    @ObservationIgnored var producerCache: ProducerCache?
     /// The output socket behind each shown solid, by identity.
     @ObservationIgnored var sources: [ObjectIdentifier: Endpoint] = [:]
     /// The scene last sent to the current viewport (`refreshScene()`); emptied when the parts are replaced.

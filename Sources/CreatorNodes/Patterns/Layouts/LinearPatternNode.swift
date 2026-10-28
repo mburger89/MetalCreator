@@ -34,15 +34,18 @@ public enum LinearPatternNode: NodeDefinition {
         let facing = try LayoutChecks.direction(try inputs.vector("facing"), "facing")
         let start = try LayoutChecks.finite(try inputs.vector("start"), "start")
         let step: Double
+        var length: Double?
         if inputs.has("length") {
-            let length = try LayoutChecks.number(try inputs.number("length"), "length")
-            step = count > 1 ? length / Double(count - 1) : 0
+            length = try LayoutChecks.number(try inputs.number("length"), "length")
+            step = count > 1 ? (length ?? 0) / Double(count - 1) : 0
         } else {
             step = try LayoutChecks.number(try inputs.number("spacing"), "spacing")
         }
-        let planes = (0..<count).map { index in
-            Scalar.plane(FacePlane.plane(origin: start + direction * (Double(index) * step), normal: facing))
-        }
-        return NodeOutputs(lists: ["placements": planes])
+        let origins = (0..<count).map { start + direction * (Double($0) * step) }
+        let planes = origins.map { Scalar.plane(FacePlane.plane(origin: $0, normal: facing)) }
+        var outputs = NodeOutputs(lists: ["placements": planes])
+        outputs.dimensions = LayoutDimensions.linear(origins: origins, direction: direction, spacing: length == nil ? step : nil,
+                                                     length: length, count: count)
+        return outputs
     }
 }

@@ -24,7 +24,10 @@ public enum FilletNode: NodeDefinition {
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let set = try inputs.edgeSet("edges")
-        let solid = try await kernel.fillet(set.solid, edges: set.edges, radius: try inputs.number("radius"), tag: context.tag)
-        return NodeOutputs(["solid": .solid(solid)])
+        let radius = try inputs.number("radius")
+        let solid = try await kernel.fillet(set.solid, edges: set.edges, radius: radius, tag: context.tag)
+        var outputs = NodeOutputs(["solid": .solid(solid)])
+        outputs.dimensions = EdgeDimensions.fillet(set, radius: radius)
+        return outputs
     }
 }

@@ -47,7 +47,7 @@ extension GroupCommands {
         }
         let here: [GraphCommand] = [.removeNode(id)] + splice.nodes.values.sorted { $0.id < $1.id }.map { .addNode($0) }
             + (splice.links.isEmpty ? [] : [.restoreLinks(splice.links)]) + settings + comments
-            + tiesSplicedOut(of: definition, by: splice, offset: offset)
+            + tiesSplicedOut(of: definition, by: splice, offset: offset) + pinsSplicedOut(of: definition, by: splice)
         let lastOne = GroupDependencies.instances(of: definition.id, in: content).allSatisfy { $0.path == path && $0.node.id == id }
         let fresh = splice.fresh
         let picks = GroupScopes.renamingPicks(at: path, in: content, registry: registry, skipping: [id]) { reached in
@@ -70,6 +70,14 @@ extension GroupCommands {
             let wires = Set(tie.wires.compactMap { splice.endpoint($0) }).intersection(wired)
             guard wires.count >= CableTie.minimumWires else { return nil }
             return .setTie(CableTie(position: tie.position + offset, wires: wires))
+        }
+    }
+
+    /// The definition's pinned dimensions as Ungroup brings them out (DIM-3): each on the spliced copy of its node. The
+    /// definition keeps its own pins, so another instance, or an undo, finds them.
+    static func pinsSplicedOut(of definition: GroupDefinition, by splice: GroupSplice) -> [GraphCommand] {
+        definition.graph.dimensionPins.compactMap { pin in
+            splice.fresh[pin.node].map { .pinDimension(DimensionPin(node: $0, target: pin.target)) }
         }
     }
 

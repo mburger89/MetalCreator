@@ -9,7 +9,7 @@ import Observation
 @Observable
 public final class DocumentModel {
     /// The top-level graph and the group definitions (groups spec §4), edited together.
-    public private(set) var content: GraphContent
+    public internal(set) var content: GraphContent
     public private(set) var results: [NodeID: NodeResult] = [:]
     /// Results inside group nodes (groups spec §5), by instance path: the group nodes from the top level down, then
     /// the inner node's ID (`EvaluationReport.innerResults`). C2 draws a group's inside from these.
@@ -17,6 +17,11 @@ public final class DocumentModel {
     /// The last successful outputs of each node. The viewport ghosts these when a node errors (spec §4.4).
     public private(set) var lastGoodOutputs: [NodeID: [SocketName: Value]] = [:]
     public private(set) var isEvaluating = false
+    /// How many holds are open (`holdResults()` / `releaseResults()` nest).
+    var holdDepth = 0
+    /// True while results are held (`holdResults()`): a finished evaluation is kept back instead of published, and an edit does
+    /// not mark nodes as evaluating, so the old geometry stays on screen while a tentative step is checked.
+    public var isHoldingResults: Bool { holdDepth > 0 }
     /// Editor state saved with the file, held as separate observable properties (not one `ViewState` value) so a pan, which
     /// writes only the canvas offset and zoom, does not invalidate a view that reads only the dock or `showsLibrary`, nor a
     /// camera write one that reads the canvas transform (MetalUI C14-d: `GraphPanelBody` skips during a pan). `viewState`
@@ -92,10 +97,17 @@ public final class DocumentModel {
 
     /// The registry the document was opened with, without its definitions.
     @ObservationIgnored private let baseRegistry: NodeRegistry
-    private var undoStack = UndoStack()
+    var undoStack = UndoStack()
     @ObservationIgnored private let evaluator: Evaluator
     @ObservationIgnored private var evaluationTask: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
+    /// The report of the latest finished evaluation, kept back while results are held.
+    @ObservationIgnored var heldReport: EvaluationReport?
+    /// The last `perform`'s step, until an undo, a redo, a withdrawal or a coalesced edit forgets it.
+    @ObservationIgnored var tentativeStep: TentativeStep?
+    /// How many `perform`s have succeeded. Read before an edit, it tells `TentativeStep.serial` apart: only a step with a larger
+    /// serial was made by that edit.
+    @ObservationIgnored public private(set) var performCount = 0
 
     public init(file: GraphFile = GraphFile(), registry: NodeRegistry, kernel: any Kernel,
                 cacheBudgetBytes: Int = 512 * 1024 * 1024, documentURL: URL? = nil,
@@ -146,9 +158,19 @@ public final class DocumentModel {
         // The stale set must be taken before the edit, so dependents of removed nodes and links count.
         let stale = graph.downstreamClosure(of: content.touchedTopLevelNodes(command))
         let effect = effect(of: command)
+        // Only a checked (uncoalesced) step needs the before-values; a slider or drag tick would otherwise keep the old content
+        // and history alive and force a full copy of both on its next mutation.
+        let before: (content: GraphContent, history: UndoStack, errors: [NodeID: String])? =
+            coalescingKey == nil ? (content, undoStack, topLevelErrors) : nil
         let inverse = try content.apply(command, registry: baseRegistry)
         undoStack.record(forward: command, inverse: inverse, coalescingKey: coalescingKey,
                          name: UndoName.cleaned(name) ?? UndoName.edit)
+        heldReport = nil  // a report held from before this edit describes the old content
+        performCount += 1
+        tentativeStep = before.map {
+            TentativeStep(watched: stale, contentBefore: $0.content, contentAfter: content, historyBefore: $0.history,
+                          errorsBefore: $0.errors, serial: performCount)
+        }
         didChange(effect, markingStale: stale)
     }
 
@@ -164,11 +186,15 @@ public final class DocumentModel {
 
     public func undo() {
         guard let entry = undoStack.takeUndo() else { return }
+        tentativeStep = nil
+        heldReport = nil
         replay(entry.inverse)
     }
 
     public func redo() {
         guard let entry = undoStack.takeRedo() else { return }
+        tentativeStep = nil
+        heldReport = nil
         replay(entry.forward)
     }
 
@@ -262,6 +288,15 @@ public final class DocumentModel {
             return
         }
         let existing = Set(graph.nodes.keys)
+        if isHoldingResults {
+            // Held: the old results stay as they are and nothing is marked; only the evaluation is scheduled.
+            if let previewNode, !existing.contains(previewNode) {
+                self.previewNode = nil
+            } else {
+                scheduleEvaluation()
+            }
+            return
+        }
         results = results.filter { existing.contains($0.key) }
         lastGoodOutputs = lastGoodOutputs.filter { existing.contains($0.key) }
         let content = content
@@ -276,7 +311,7 @@ public final class DocumentModel {
         }
     }
 
-    private func scheduleEvaluation() {
+    func scheduleEvaluation() {
         evaluationTask?.cancel()
         generation += 1
         let current = generation
@@ -299,7 +334,12 @@ public final class DocumentModel {
         }
     }
 
-    private func apply(_ report: EvaluationReport) {
+    func apply(_ report: EvaluationReport) {
+        if isHoldingResults {
+            heldReport = report
+            isEvaluating = false
+            return
+        }
         // Replace, not merge: a node that left the demand must not keep a stale `.evaluating` state.
         results = report.results
         innerResults = report.innerResults

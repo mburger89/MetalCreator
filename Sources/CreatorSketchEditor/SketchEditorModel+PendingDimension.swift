@@ -118,7 +118,7 @@ extension SketchEditorModel {
             case .failed(let reason): return .refused(reason)
             case .solved, .underConstrained: break
             }
-            guard !flipCheck(base.solution, solved, edited) else { return .refused("This value would flip the sketch.") }
+            guard !flipCheck(base.solution, solved, edited) else { return .refused(SketchFlipCheck.refusal) }
             pendingOrigin = base
             solution = solved
             sketch = Self.remembering(base.sketch, solved)

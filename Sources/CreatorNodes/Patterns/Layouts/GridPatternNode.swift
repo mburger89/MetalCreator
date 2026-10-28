@@ -46,14 +46,21 @@ public enum GridPatternNode: NodeDefinition {
         let height = Double(max(rows - 1, 0)) * spacing.y
         let corner = centred ? Vector2(-width / 2, -height / 2) : .zero
         var branches: [DataTree] = []
+        var first: Vector3?
         for row in 0..<rows {
             let offset = row % 2 == 1 ? shift : 0
             let placements = (0..<columns).map { column -> Scalar in
                 let local = corner + Vector2(Double(column) * spacing.x + offset, Double(row) * spacing.y)
+                if row == 0, column == 0 { first = plane.point(local) }
                 return LayoutChecks.placement(plane.point(local), normal: plane.normal, xAxis: plane.xAxis)
             }
             branches.append(.list(placements))
         }
-        return NodeOutputs(trees: ["placements": DataTree(depth: 2, branches: branches) ?? .empty(depth: 2)])
+        var outputs = NodeOutputs(trees: ["placements": DataTree(depth: 2, branches: branches) ?? .empty(depth: 2)])
+        if let first {
+            outputs.dimensions = LayoutDimensions.grid(plane: plane, first: first, spacing: spacing, counts: (columns, rows),
+                                                    stagger: stagger)
+        }
+        return outputs
     }
 }

@@ -26,6 +26,22 @@ public enum RectangleNode: NodeDefinition {
         try ProfileChecks.positive(height, "height")
         let offset = try Anchor.offset(try inputs.integer("anchor"), width: width, height: height)
         let profile = Profile2D.rectangle(width: width, height: height, plane: try inputs.plane("plane")).translated(by: offset)
-        return NodeOutputs(["profile": .profile(profile)])
+        var outputs = NodeOutputs(["profile": .profile(profile)])
+        outputs.dimensions = dimensions(of: profile)
+        return outputs
+    }
+
+    /// Width along the bottom edge, height up the right edge.
+    private static func dimensions(of profile: Profile2D) -> [DimensionSpec] {
+        guard let bounds = DimensionSpecs.planeBounds(of: profile) else { return [] }
+        let plane = profile.plane
+        let (low, high) = (bounds.min, bounds.max)
+        let width = DimensionGeometry.linear(from: plane.point(low), to: plane.point(Vector2(high.x, low.y)),
+                                             direction: plane.xAxis, side: -plane.yAxis, placement: .standoff)
+        let height = DimensionGeometry.linear(from: plane.point(Vector2(high.x, low.y)), to: plane.point(high),
+                                              direction: plane.yAxis, side: plane.xAxis, placement: .standoff)
+        return [DimensionSpec(.input("width"), width, .length, value: high.x - low.x),
+                DimensionSpec(.input("height"), height, .length, value: high.y - low.y),
+        ]
     }
 }

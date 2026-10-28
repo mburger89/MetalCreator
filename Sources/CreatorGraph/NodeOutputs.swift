@@ -10,6 +10,8 @@ public struct NodeOutputs: Sendable {
     public var trees: [SocketName: DataTree] = [:]
     /// Non-fatal problems, such as a selection rule matching a different number of edges.
     public var warnings: [String]
+    /// The dimensions this iteration declares, shown in the viewport.
+    public var dimensions: [DimensionSpec] = []
 
     public init(_ values: [SocketName: Scalar] = [:], warnings: [String] = []) {
         self.values = values

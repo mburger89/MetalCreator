@@ -3,6 +3,9 @@ import Foundation
 
 /// Detects a solve that turns a corner or an arc of a sketch the other way (spec §7).
 public enum SketchFlipCheck {
+    /// What a refused edit says when the solve would flip the sketch; the one source for the sketch editor and the part's box.
+    public static let refusal = "This value would flip the sketch."
+
     /// The sine below which a corner or an arc has no side (1°).
     public static let straightLimit: Double = sin(Double.pi / 180)
 

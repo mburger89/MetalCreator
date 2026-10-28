@@ -28,7 +28,26 @@ public enum ImplicitShellNode: NodeDefinition {
                                                      kernel: kernel, context: context)
         let result = ImplicitSolid.shell(child, thickness: setting.grading, side: side)
         let reach = ImplicitReach.shellReach(thickness: setting.grading.magnitude, side: side)
-        return NodeOutputs(["implicit": .implicit(result.reference)],
-                           warnings: setting.warnings + ImplicitReach.warnings(for: child, reachedBy: reach))
+        var outputs = NodeOutputs(["implicit": .implicit(result.reference)],
+                                  warnings: setting.warnings + ImplicitReach.warnings(for: child, reachedBy: reach))
+        if case .constant(let thickness) = try inputs.field("thickness") {
+            outputs.dimensions = dimensions(thickness: thickness, side: side, bounds: child.bounds)
+        }
+        return outputs
+    }
+
+    /// A constant wall, drawn through the child's bounds at (max x, centre y, max z): in, out, or centred on the surface.
+    private static func dimensions(thickness: Double, side: ShellSide, bounds: BoundingBox) -> [DimensionSpec] {
+        guard thickness.isFinite, thickness > 0 else { return [] }
+        let anchor = Vector3(bounds.max.x, bounds.center.y, bounds.max.z)
+        let (start, end): (Double, Double) = switch side {
+        case .inward: (0, -thickness)
+        case .outward: (0, thickness)
+        case .centred: (-thickness / 2, thickness / 2)
+        }
+        let direction: Vector3 = end < start ? -.unitX : .unitX
+        let geometry = DimensionGeometry.linear(from: anchor + Vector3.unitX * start, to: anchor + Vector3.unitX * end,
+                                                direction: direction, side: .unitZ, placement: .standoff)
+        return [DimensionSpec(.input("thickness"), geometry, .length, value: thickness)]
     }
 }

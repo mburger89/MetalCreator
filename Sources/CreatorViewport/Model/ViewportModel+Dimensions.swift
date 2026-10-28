@@ -13,7 +13,7 @@ extension ViewportModel {
 
     /// The dimensions on screen, in list order (the last is on top). Empty while the camera animates (the element tree is
     /// not rebuilt per animation frame, gap M4-b) or the view has no size. Left out: a dimension that cannot be drawn
-    /// (`DimensionLayout.place`). Records what it returns for `dimension(at:)`.
+    /// (`DimensionLayout.place`); labels that would overlap stack apart (`DimensionDeclutter`). Records what it returns for `dimension(at:)`.
     public func placedDimensions(measuring measure: TextMeasure) -> [PlacedDimension] {
         let size = viewSize
         guard !size.isEmpty, !isAnimating else {
@@ -21,7 +21,7 @@ extension ViewportModel {
             return []
         }
         let camera = DimensionCamera(pose: pose, size: size)
-        var placed = dimensions.compactMap { DimensionLayout.place($0, style: dimensionStyle, camera: camera, measure: measure) }
+        var placed = DimensionDeclutter.place(dimensions, style: dimensionStyle, camera: camera, measure: measure)
         // The edited dimension's text is under its value box: kept for the box to sit on, not drawn.
         if let edited = valueBox?.id, let index = placed.firstIndex(where: { $0.id == edited }) {
             valueBoxAnchor = ValueBoxAnchor(origin: placed[index].textOrigin, size: placed[index].textSize)

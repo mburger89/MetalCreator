@@ -22,7 +22,10 @@ public enum ChamferNode: NodeDefinition {
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let set = try inputs.edgeSet("edges")
-        let solid = try await kernel.chamfer(set.solid, edges: set.edges, distance: try inputs.number("distance"), tag: context.tag)
-        return NodeOutputs(["solid": .solid(solid)])
+        let distance = try inputs.number("distance")
+        let solid = try await kernel.chamfer(set.solid, edges: set.edges, distance: distance, tag: context.tag)
+        var outputs = NodeOutputs(["solid": .solid(solid)])
+        outputs.dimensions = EdgeDimensions.chamfer(set, distance: distance)
+        return outputs
     }
 }

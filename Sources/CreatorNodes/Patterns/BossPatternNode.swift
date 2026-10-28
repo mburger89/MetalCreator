@@ -51,7 +51,9 @@ public enum BossPatternNode: NodeDefinition {
         }
         let request = PatternApply.Request(operation: .union, part: part, tools: plan.toolIndex.map { built[$0] }, planes: planes,
                                            grid: grid, nouns: PatternApply.Nouns(singular: "boss", plural: "bosses"))
-        return try await PatternApply.run(request, kernel: kernel, context: context)
+        var outputs = try await PatternApply.run(request, kernel: kernel, context: context)
+        outputs.dimensions = PatternDimensions.diameters(diameters, planes: planes) + PatternDimensions.heights(heights, planes: planes)
+        return outputs
     }
 
     /// The boss standing on the origin along +Z: revolved, then its tip rim rounded when `tipFillet` asks.

@@ -35,6 +35,10 @@ extension GroupCommands {
                 fresh[wire.node].map { Endpoint(node: $0, socket: wire.socket) }
             }))
         }
+        // Its pins too, each on the copy of its node (DIM-3).
+        copy.graph.dimensionPins = definition.graph.dimensionPins.compactMap { pin in
+            fresh[pin.node].map { DimensionPin(node: $0, target: pin.target) }
+        }.sorted()
         let here = GraphCommand.batch([.setInput(id, NodeSetting.group, .group(copyID)), .rename(id, copy.name)])
         let picks = GroupScopes.renamingPicks(at: path, in: content, registry: registry) { reached in
             guard reached.count > 1, reached.first == id, let copy = fresh[reached[1]] else { return nil }

@@ -20,8 +20,10 @@ extension Graph {
             nodes[id] = nil
             // Every wire into or out of the node leaves its ties (cable ties spec §3.2).
             let ties = stripTies(holding: Set(removed.map(\.to)))
+            // And its pinned dimensions go with it (DIM-3).
+            let pins = stripPins(of: id)
             sortLinks()
-            return Self.restoring(.restoreNode(node, links: removed), ties: ties)
+            return Self.restoring(.restoreNode(node, links: removed), ties: ties + pins)
 
         case .restoreNode(let node, let restoredLinks):
             guard nodes[node.id] == nil else { throw .duplicateNode(node.id) }
@@ -132,6 +134,9 @@ extension Graph {
 
         case .setTie, .removeTie:
             return try applyTie(command)
+
+        case .pinDimension, .unpinDimension:
+            return try applyPin(command)
 
         case .setUnits(let new):
             let old = units

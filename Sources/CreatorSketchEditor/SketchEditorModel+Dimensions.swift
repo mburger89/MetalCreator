@@ -154,7 +154,7 @@ extension SketchEditorModel {
     /// (spec §7), or nil. Only a usable solve is judged; `SketchFlipCheck` itself passes an unusable one.
     func flipRefusal(of edited: Sketch) -> String? {
         let solved = SketchSolver.solve(edited)
-        return flipCheck(solution, solved, edited) ? "This value would flip the sketch." : nil
+        return flipCheck(solution, solved, edited) ? SketchFlipCheck.refusal : nil
     }
 
     /// What text typed for a dimension of `kind` that has `current` comes to.

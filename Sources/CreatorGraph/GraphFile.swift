@@ -19,6 +19,7 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// instead. 10: the document's units (`Graph.units`), written only when not millimetres at the default precision; a version-9
     /// reader would drop them when it saved, so it refuses the file; DIM-2 and DIM-3 add theirs under 10. Version-1 to -9 files
     /// open unchanged and are written as 10. DIM-2: four sketch dimension kinds and a dimension's optional `labelPoint`.
+    /// DIM-3 adds `dimensionPins` on any graph, a sorted list of pinned feature dimensions.
     public static let currentFormatVersion = 10
 
     public var formatVersion: Int
