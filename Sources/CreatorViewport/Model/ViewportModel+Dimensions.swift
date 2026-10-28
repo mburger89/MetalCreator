@@ -8,7 +8,7 @@ extension ViewportModel {
     public func showDimensions(_ newDimensions: [OverlayDimension]) {
         if dimensions != newDimensions { dimensions = newDimensions }
         // A box whose dimension is gone (the sketch is done, an undo, a solve that dropped it) closes with no commit.
-        if let box = valueBox, !newDimensions.contains(where: { $0.id == box.id }) { closeValueBox() }
+        if let box = valueBox, !newDimensions.contains(where: { $0.id == box.id }) { closeBox(.cancelled) }
     }
 
     /// The dimensions on screen, in list order (the last is on top). Empty while the camera animates (the element tree is

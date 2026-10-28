@@ -21,12 +21,15 @@ extension SketchEditorModel {
 
     /// The sketch's dimensions as the viewport draws them (`ViewportModel.showDimensions(_:)`): one for each whose geometry
     /// is there (`SketchDimensionDrawing`), in `units`; a dimension in a conflict is red, a reference or wired one tinted
-    /// as a reference.
+    /// as a reference. The Dimension tool's pending one comes last, tinted selected.
     public var dimensions: [OverlayDimension] {
         let conflicting = Set(conflictRefs.compactMap { ref -> DimensionID? in
             if case .dimension(let id) = ref { id } else { nil }
         })
-        return SketchDimensionDrawing.dimensions(sketch: sketch, solution: solution, plane: plane, conflicting: conflicting,
-                                                 wired: wiredDimensions, units: units, style: .ansi)
+        let placed = SketchDimensionDrawing.dimensions(sketch: sketch, solution: solution, plane: plane, conflicting: conflicting,
+                                                       wired: wiredDimensions, units: units, style: .ansi)
+        guard let pending, let drawn = SketchDimensionDrawing.pending(pending, sketch: sketch, solution: solution, plane: plane,
+                                                                      units: units, style: .ansi) else { return placed }
+        return placed + [drawn]
     }
 }

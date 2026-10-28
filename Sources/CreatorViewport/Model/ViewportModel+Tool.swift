@@ -20,9 +20,14 @@ extension ViewportModel {
     /// Whether the view cube, its arrows and its View menu are shown: not while navigation is planar.
     public var showsViewCube: Bool { !isPlanar }
 
-    /// Offers a primary drag's press to the tool; true when the tool took it.
+    /// Offers a primary drag's press to the tool, first as a drag of a dimension's text when it is pressed on one; true when the tool took it.
     func toolTakesDrag(at point: ScreenPoint, modifiers: ViewportModifiers) -> Bool {
-        tool?.dragBegan(at: point, modifiers: modifiers, projector: projector) ?? false
+        guard let tool else { return false }
+        if let id = dimension(at: point),
+           tool.dragBegan(onDimension: id, at: point, modifiers: modifiers, projector: projector) {
+            return true
+        }
+        return tool.dragBegan(at: point, modifiers: modifiers, projector: projector)
     }
 
     /// Looks straight at `plane` (sketcher spec §8, entering a sketch): orthographic, from the plane's front, turned so

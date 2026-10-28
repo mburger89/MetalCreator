@@ -1,6 +1,7 @@
 import CreatorGeometry
 import CreatorKernel
 import CreatorSketch
+import CreatorViewport
 import Testing
 @testable import CreatorSketchEditor
 
@@ -65,7 +66,23 @@ struct SketchStepNameTests {
         let (model, host) = makeModel(rectangle.sketch, tool: .dimension)
         model.click(at: Vector2(30, 0.3), tolerance: 1, modifiers: [])
         model.click(at: Vector2(30, 20), tolerance: 1, modifiers: [])
+        acceptAndPlace(model, at: Vector2(30, 20))
         #expect(host.commits.map(\.name) == ["Add Dimension"])
+    }
+
+    @Test func placingADimensionIsNamed() throws {
+        let rectangle = RectangleSketch()
+        let model = SketchEditorModel(sketch: rectangle.sketch, plane: .xy)
+        let host = RecordingHost(model)
+        let projector = ViewportProjector(pose: CameraPose(target: .zero, distance: 100, pitch: .pi / 2, projection: .orthographic),
+                                          size: ViewportSize(width: 400, height: 300))
+        let from = try #require(projector.screenPoint(of: Plane.xy.point(Vector2(30, -5))))
+        let to = try #require(projector.screenPoint(of: Plane.xy.point(Vector2(30, -15))))
+        #expect(model.dragBegan(onDimension: SketchDimensionDrawing.overlayID(rectangle.width), at: from, modifiers: [],
+                                projector: projector))
+        model.dragEnded(at: to, modifiers: [], projector: projector)
+        #expect(host.commits.map(\.name) == ["Place Dimension"])
+        #expect(SketchStepName.placeDimension == "Place Dimension")
     }
 
     @Test func deletingAndDraggingAPointAreNamed() {

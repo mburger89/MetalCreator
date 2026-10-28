@@ -1,3 +1,5 @@
+import CreatorGeometry
+
 /// A named dimension (spec §3).
 public struct SketchDimension: Hashable, Sendable, Codable {
     public var kind: DimensionKind
@@ -13,14 +15,18 @@ public struct SketchDimension: Hashable, Sendable, Codable {
     /// chosen (`Sketch.addDimension` chooses it from the geometry; otherwise the first solve
     /// picks the one nearest the warm start, and `Sketch.remember` stores it).
     public var angleSense: AngleSense?
+    /// Where the user left the dimension's label, in sketch coordinates; `nil` until it is placed or
+    /// dragged (the view then uses its default spot). Written only when set.
+    public var labelPoint: Vector2?
 
     public init(kind: DimensionKind, name: String, value: Double, isExposed: Bool = false, isDriving: Bool = true,
-                angleSense: AngleSense? = nil) {
+                angleSense: AngleSense? = nil, labelPoint: Vector2? = nil) {
         self.kind = kind
         self.name = name
         self.value = value
         self.isExposed = isExposed
         self.isDriving = isDriving
         self.angleSense = angleSense
+        self.labelPoint = labelPoint
     }
 }

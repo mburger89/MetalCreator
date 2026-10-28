@@ -86,6 +86,22 @@ extension Equation {
             var row = Self.distanceRow(p, q, x)
             row.value -= value
             return [row]
+        case .axisDistance(let a, let b, let axis, let value, let side):
+            let (pa, pb) = (a.value(x), b.value(x))
+            let unit = axis == .x ? Vector2(1, 0) : Vector2(0, 1)
+            var row = RowBuilder(value: side * (axis == .x ? pb.x - pa.x : pb.y - pa.y) - value)
+            row.add(b, unit * side)
+            row.add(a, unit * -side)
+            return [row]
+        case .lineToLineDistance(let first, let second, let value, let side):
+            var row = Self.signedDistance(second.start, first, x)
+            let end = Self.signedDistance(second.end, first, x)
+            row.value = (row.value + end.value) / 2
+            for entry in end.entries { row.add(column: entry.column, entry.value) }
+            for index in row.entries.indices { row.entries[index].value *= 0.5 }
+            row.scale(by: side)
+            row.value -= value
+            return [row]
         case .lineDistance(let p, let line, let value, let side):
             var row = Self.signedDistance(p, line, x)
             row.scale(by: side)

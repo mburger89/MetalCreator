@@ -18,6 +18,8 @@ enum SketchMeasure {
         return values
     }
 
+    // One exhaustive case per dimension kind, with the lookups its cases share.
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func measure(_ kind: DimensionKind, _ sketch: Sketch, points: [SketchEntityID: Vector2],
                         radii: [SketchEntityID: Double], near stored: Double, sense: AngleSense? = nil) -> Double? {
         func line(_ id: SketchEntityID) -> (Vector2, Vector2)? {
@@ -46,7 +48,31 @@ enum SketchMeasure {
             default: return nil
             }
         }
+        func centre(_ id: SketchEntityID) -> Vector2? {
+            switch sketch.entities[id]?.kind {
+            case .point: return points[id]
+            case .arc(let center, _, _), .circle(let center, _): return points[center]
+            case .projected(let source):
+                switch source.curve {
+                case .arc(let center, _, _, _), .circle(let center, _): return center
+                case .line: return nil
+                }
+            default: return nil
+            }
+        }
         switch kind {
+        case .centreDistance(let a, let b):
+            guard let p = centre(a), let q = centre(b) else { return nil }
+            return (p - q).length
+        case .horizontalDistance(let a, let b):
+            guard let p = centre(a), let q = centre(b) else { return nil }
+            return abs(q.x - p.x)
+        case .verticalDistance(let a, let b):
+            guard let p = centre(a), let q = centre(b) else { return nil }
+            return abs(q.y - p.y)
+        case .lineDistance(let a, let b):
+            guard let (s1, e1) = line(a), let (s2, e2) = line(b), let unit = SketchMath.normalized(e1 - s1) else { return nil }
+            return abs(SketchMath.cross(unit, (s2 + e2) * 0.5 - s1))
         case .distance(let a, let b):
             if let p = points[a], let q = points[b] { return (p - q).length }
             let (pointID, lineID) = points[a] != nil ? (a, b) : (b, a)

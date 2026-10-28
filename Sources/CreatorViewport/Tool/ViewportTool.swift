@@ -28,6 +28,10 @@ public protocol ViewportTool: AnyObject {
     /// Return true to take it: its moves and release then come here, and the camera stays put. Declined, it orbits
     /// (pans with `.planar` navigation).
     func dragBegan(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) -> Bool
+    /// A primary drag with no navigating modifier begins on the text of the drawn dimension `id`. Offered before
+    /// `dragBegan(at:…)` (default: false). Claimed, its moves and release come to `dragMoved`/`dragEnded` as for any claimed drag.
+    func dragBegan(onDimension id: OverlayDimensionID, at point: ScreenPoint, modifiers: ViewportModifiers,
+                   projector: ViewportProjector) -> Bool
     func dragMoved(to point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector)
     func dragEnded(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector)
     /// The entries the tool adds to a right-click at `point` (default: none). They follow the viewport's own, and also appear where
@@ -40,6 +44,10 @@ public protocol ViewportTool: AnyObject {
 extension ViewportTool {
     public var navigation: ViewportNavigation { .free }
     public var framingBounds: BoundingBox? { nil }
+    public func dragBegan(onDimension id: OverlayDimensionID, at point: ScreenPoint, modifiers: ViewportModifiers,
+                          projector: ViewportProjector) -> Bool {
+        false
+    }
     public func menuActions(at point: ScreenPoint) -> [HostMenuAction] { [] }
     public func performMenuAction(_ action: HostMenuAction) {}
     public func clickedModel(_ target: PickTarget?, at point: ScreenPoint, modifiers: ViewportModifiers,

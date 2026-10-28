@@ -20,4 +20,9 @@ final class AppDimensionEditing: DimensionEditing {
         guard isSketch(id), let editor = sketchEditor else { return .refused("That dimension is gone.") }
         return await editor.commitValue(text, to: id)
     }
+
+    func valueBoxClosed(_ id: OverlayDimensionID, by ending: DimensionValueBoxEnding) {
+        guard isSketch(id) else { return }
+        sketchEditor?.valueBoxClosed(id, by: ending)
+    }
 }
