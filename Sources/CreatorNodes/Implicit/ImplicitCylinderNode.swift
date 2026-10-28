@@ -19,6 +19,15 @@ public enum ImplicitCylinderNode: NodeDefinition {
         let (radius, height) = (try inputs.number("radius"), try inputs.number("height"))
         guard radius.isFinite, radius > 0 else { throw NodeError.invalidValue("“radius” must be greater than 0 mm.") }
         guard height.isFinite, height > 0 else { throw NodeError.invalidValue("“height” must be greater than 0 mm.") }
-        return NodeOutputs(["implicit": .implicit(ImplicitSolid.cylinder(radius: radius, halfHeight: height / 2).reference)])
+        var outputs = NodeOutputs(["implicit": .implicit(ImplicitSolid.cylinder(radius: radius, halfHeight: height / 2).reference)])
+        let diameter = DimensionGeometry.radial(center: Vector3(0, 0, height / 2), radius: radius, normal: .unitZ, toward: .unitX,
+                                                placement: .standoff)
+        let length = DimensionGeometry.linear(from: Vector3(radius, 0, -height / 2), to: Vector3(radius, 0, height / 2),
+                                              direction: .unitZ, side: .unitX, placement: .standoff)
+        outputs.dimensions = [
+            DimensionSpec(.input("radius"), diameter, .diameter, value: radius * 2, inputScale: 0.5),
+            DimensionSpec(.input("height"), length, .length, value: height),
+        ]
+        return outputs
     }
 }
