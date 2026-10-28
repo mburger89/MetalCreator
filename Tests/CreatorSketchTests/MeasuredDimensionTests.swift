@@ -1,3 +1,4 @@
+import Foundation
 import CreatorGeometry
 import Testing
 @testable import CreatorSketch
@@ -54,5 +55,44 @@ struct MeasuredDimensionTests {
         let point = lines.addPoint(Vector2(5, 0))
         let degenerate = lines.addLine(from: point, to: point)
         #expect(lines.measuredDimension(.lineDistance(long, degenerate)) == nil)
+    }
+
+    /// A fixed base line along +x and an arm from the origin drawn at `degrees`.
+    private func vee(degrees: Double) -> (sketch: Sketch, base: SketchEntityID, arm: SketchEntityID) {
+        var sketch = Sketch()
+        let origin = sketch.addPoint(.zero)
+        sketch.add(.fix(origin, at: .zero))
+        let baseEnd = sketch.addPoint(Vector2(10, 0))
+        sketch.add(.fix(baseEnd, at: Vector2(10, 0)))
+        let base = sketch.addLine(from: origin, to: baseEnd)
+        let radians = degrees * .pi / 180
+        let arm = sketch.addLine(from: origin, to: sketch.addPoint(Vector2(cos(radians), sin(radians)) * 10))
+        return (sketch, base, arm)
+    }
+
+    @Test func anObtuseAngleKeepsItsValue() throws {
+        let fixture = vee(degrees: 120)
+        let measured = try #require(fixture.sketch.measuredDimension(.angle(fixture.base, fixture.arm)))
+        #expect(isClose(measured.value, 120, tolerance: 1e-6))
+    }
+
+    @Test func aNearZeroAngleIsNotNil() throws {
+        let fixture = vee(degrees: 1e-6)
+        let measured = try #require(fixture.sketch.measuredDimension(.angle(fixture.base, fixture.arm)))
+        #expect(measured.value < 1e-4)
+    }
+
+    @Test func aRepeatedAngleIsAReference() throws {
+        var fixture = vee(degrees: 120)
+        fixture.sketch.addDimension(.angle(fixture.base, fixture.arm), value: 120)
+        let measured = try #require(fixture.sketch.measuredDimension(.angle(fixture.base, fixture.arm)))
+        #expect(isClose(measured.value, 120, tolerance: 1e-6))
+        #expect(!measured.isDriving)
+    }
+
+    @Test func aFreeObtuseAngleDrives() throws {
+        let fixture = vee(degrees: 120)
+        let measured = try #require(fixture.sketch.measuredDimension(.angle(fixture.base, fixture.arm)))
+        #expect(measured.isDriving)
     }
 }
