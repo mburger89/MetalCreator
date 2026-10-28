@@ -71,6 +71,8 @@ public final class AppModel {
     @ObservationIgnored var handleTargets: [String: HandleTarget] = [:]
     /// The feature dimensions the viewport shows, by overlay ID (`refreshDimensions()`): what a click on one is edited as.
     @ObservationIgnored var featureDimensions: [OverlayDimensionID: FeatureDimension] = [:]
+    /// `levelProducers()`'s last answer, for the content and level it was built for.
+    @ObservationIgnored var producerCache: ProducerCache?
     /// The output socket behind each shown solid, by identity.
     @ObservationIgnored var sources: [ObjectIdentifier: Endpoint] = [:]
     /// The scene last sent to the current viewport (`refreshScene()`); emptied when the parts are replaced.
