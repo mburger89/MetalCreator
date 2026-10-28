@@ -17,6 +17,7 @@ extension ViewportView {
                     .allowsHitTesting(false)
             }
             dimensions(model: model, measure: measure)
+            hoverChip(model: model, measure: measure)
             if let placed = model.placedValueBox(measuring: measure) {
                 DimensionValueBoxView(model: model, placed: placed)
             }
@@ -45,6 +46,21 @@ extension ViewportView {
                               fill: model.labelFill)
             }
         }
+    }
+
+    /// The note under the hovered dimension's text (a reference's source), centred below it. A helper like `dimensions` (gap DIM-b).
+    @MainActor
+    static func hoverChip(model: ViewportModel, measure: TextMeasure) -> some Element {
+        ZStack(alignment: .topLeading) {
+            if let note = model.dimensionHoverNote {
+                let text = measure(note.text)
+                let size = ViewportSize(width: text.width.rounded(.up) + 2 * DimensionHoverChip.padding,
+                                        height: text.height + 2 * DimensionHoverChip.padding)
+                DimensionHoverChip(note: note.text, origin: ScreenPoint(note.at.x - size.width / 2, note.at.y), size: size,
+                                   ink: model.hintColor, fill: model.labelFill)
+            }
+        }
+        .allowsHitTesting(false)
     }
 
     /// The GPU surface and its input. It redraws on demand when `renderKey` changes, and continuously while the

@@ -170,6 +170,7 @@ extension ViewportModel {
     /// animates (the end of the animation picks once, `refreshHover()`).
     public func pointerHovered(at point: ScreenPoint?) {
         lastHoverPoint = point
+        refreshDimensionHover(at: point)
         if drag == nil { tool?.pointerMoved(to: point, modifiers: heldModifiers, projector: projector) }
         guard drag == nil, animation == nil else { return }
         var newHovered: PickTarget?

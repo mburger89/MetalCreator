@@ -69,6 +69,8 @@ public final class ViewportModel {
     public private(set) var clip: ViewportClip?
     public internal(set) var hovered: PickTarget?
     public internal(set) var hoveredCubeRegion: ViewCubeRegion?
+    /// The dimension whose text the pointer is on (`refreshDimensionHover(at:)`); its editor's note shows below it.
+    public internal(set) var hoveredDimension: OverlayDimensionID?
     /// What the drag under way does, or `nil` between drags. It's written once at each press and release (never per
     /// move), so the view's pointer style follows it.
     public internal(set) var activeDragMode: ViewportDragMode?

@@ -1,3 +1,4 @@
+import CreatorGraph
 import CreatorSketchEditor
 import CreatorViewport
 
@@ -21,6 +22,37 @@ final class AppDimensionEditing: DimensionEditing {
         }
         guard isSketch(id) else { return nil }
         return sketchEditor?.valueBoxContent(for: id)
+    }
+
+    /// Pin or Unpin for a feature dimension; a sketch's own dimensions have none (pins are feature dimensions).
+    func menuActions(for id: OverlayDimensionID) -> [HostMenuAction] {
+        guard let pin = pin(for: id) else { return [] }
+        let action = pin.isPinned ? HostMenuAction(title: "Unpin Dimension", key: "unpin")
+                                  : HostMenuAction(title: "Pin Dimension", key: "pin")
+        return [action]
+    }
+
+    func performMenuAction(_ action: HostMenuAction, for id: OverlayDimensionID) {
+        guard let app, let pin = pin(for: id) else { return }
+        switch action.key {
+        case "pin" where !pin.isPinned:
+            try? app.editor.edit(.pinDimension(pin.pin), name: UndoName.pinDimension)
+        case "unpin" where pin.isPinned:
+            try? app.editor.edit(.unpinDimension(pin.pin), name: UndoName.unpinDimension)
+        default:
+            break
+        }
+    }
+
+    /// A reference's source ("from Number “width”").
+    func hoverNote(for id: OverlayDimensionID) -> String? {
+        guard isFeature(id), case .reference(let source)? = app?.featureDimensions[id]?.editing else { return nil }
+        return source
+    }
+
+    private func pin(for id: OverlayDimensionID) -> (pin: DimensionPin, isPinned: Bool)? {
+        guard isFeature(id), let dimension = app?.featureDimensions[id] else { return nil }
+        return (DimensionPin(node: dimension.node, target: dimension.spec.target), dimension.isPinned)
     }
 
     func commitValue(_ text: String, to id: OverlayDimensionID) async -> DimensionCommitOutcome {

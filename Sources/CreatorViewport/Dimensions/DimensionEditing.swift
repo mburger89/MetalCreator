@@ -38,9 +38,12 @@ public protocol DimensionEditing: AnyObject {
     func menuActions(for id: OverlayDimensionID) -> [HostMenuAction]
     /// Runs a chosen entry (default: nothing).
     func performMenuAction(_ action: HostMenuAction, for id: OverlayDimensionID)
+    /// What to say under `id`'s text while the pointer is on it, e.g. a reference's source (default: nothing).
+    func hoverNote(for id: OverlayDimensionID) -> String?
 }
 
 extension DimensionEditing {
     public func menuActions(for id: OverlayDimensionID) -> [HostMenuAction] { [] }
     public func performMenuAction(_ action: HostMenuAction, for id: OverlayDimensionID) {}
+    public func hoverNote(for id: OverlayDimensionID) -> String? { nil }
 }

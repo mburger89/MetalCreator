@@ -19,6 +19,8 @@ final class FakeDimensionEditor: DimensionEditing {
     var outcome = DimensionCommitOutcome.accepted
     var holdsCommits = false
     var menus: [OverlayDimensionID: [HostMenuAction]] = [:]
+    /// What each dimension says on hover; an ID with no entry says nothing.
+    var notes: [OverlayDimensionID: String] = [:]
     private(set) var contentRequests = 0
     private(set) var commits: [Commit] = []
     private(set) var performed: [Performed] = []
@@ -37,6 +39,8 @@ final class FakeDimensionEditor: DimensionEditing {
         }
         return outcome
     }
+
+    func hoverNote(for id: OverlayDimensionID) -> String? { notes[id] }
 
     func menuActions(for id: OverlayDimensionID) -> [HostMenuAction] { menus[id] ?? [] }
 
