@@ -58,7 +58,8 @@ public enum GridPatternNode: NodeDefinition {
         }
         var outputs = NodeOutputs(trees: ["placements": DataTree(depth: 2, branches: branches) ?? .empty(depth: 2)])
         if let first {
-            outputs.dimensions = LayoutDimensions.grid(plane: plane, first: first, spacing: spacing, counts: (columns, rows))
+            outputs.dimensions = LayoutDimensions.grid(plane: plane, first: first, spacing: spacing, counts: (columns, rows),
+                                                    stagger: stagger)
         }
         return outputs
     }

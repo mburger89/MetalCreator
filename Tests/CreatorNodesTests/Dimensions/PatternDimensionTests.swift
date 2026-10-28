@@ -145,6 +145,15 @@ struct PatternDimensionTests {
         #expect(cy.value == 2 && isClose(cyLine.to, Vector3(0, 20, 0)))
     }
 
+    @Test func aStaggeredGridHasNoRowCount() async throws {
+        let specs = try await layout(GridPatternNode.self, ["countX": .integer(3), "countY": .integer(3), "spacingX": .number(10),
+                                                            "spacingY": .number(20), "centred": .bool(false), "stagger": .bool(true),
+        ])
+        #expect(specs.contains { $0.target == .input("countX") })
+        #expect(specs.contains { $0.target == .input("spacingY") })
+        #expect(!specs.contains { $0.target == .input("countY") })
+    }
+
     @Test func aCircularPatternDimensionsRadiusCountAndAPartSweep() async throws {
         let full = try await layout(CircularPatternNode.self, ["radius": .number(20), "count": .integer(6)])
         let radius = try #require(full.first { $0.target == .input("radius") })

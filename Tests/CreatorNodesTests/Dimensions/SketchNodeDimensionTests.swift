@@ -7,19 +7,19 @@ import Testing
 
 /// A Sketch node declares each of its sketch's dimensions in 3D (DIM-3 Task 9).
 struct SketchNodeDimensionTests {
-    func rectangle() -> RectangleSketch {
+    func rectangle() throws -> RectangleSketch {
         var rectangle = RectangleSketch(width: 60, height: 40)
         // The height becomes a reference, so a fixed top-left corner (instead of the left line's Vertical) holds the shape
         // and d2 measures 40.
-        let leftVertical = rectangle.sketch.constraints.first { $0.value == .vertical(rectangle.lines[3]) }?.key
-        rectangle.sketch.constraints[leftVertical ?? SketchConstraintID(0)] = nil
+        let leftVertical = try #require(rectangle.sketch.constraints.first { $0.value == .vertical(rectangle.lines[3]) }?.key)
+        rectangle.sketch.constraints[leftVertical] = nil
         rectangle.sketch.dimensions[rectangle.height]?.isDriving = false
         rectangle.sketch.add(.fix(rectangle.corners[3], at: Vector2(0, 40)))
         return rectangle
     }
 
     @Test func aSketchNodeDeclaresEveryDimension() async throws {
-        let rectangle = rectangle()
+        let rectangle = try rectangle()
         var h = Harness()
         let node = h.add(SketchNode.self, [NodeSetting.sketch: .sketch(rectangle.sketch)])
         let report = try await h.run([node])
@@ -31,7 +31,7 @@ struct SketchNodeDimensionTests {
     }
 
     @Test func anExposedWiredValueIsTheValueShown() async throws {
-        var rectangle = rectangle()
+        var rectangle = try rectangle()
         rectangle.expose(rectangle.width)
         var h = Harness()
         let number = h.add(NumberNode.self, ["value": .number(70)])

@@ -2,7 +2,7 @@ import Foundation
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
-import CreatorNodes
+@testable import CreatorNodes
 #if canImport(CreatorOCCT)
 import CreatorOCCT
 #endif
@@ -35,11 +35,12 @@ struct FeatureDimensionTests {
             return
         }
         #expect(isClose(radius, 1))
-        // A 90 degree edge: the centre is the midpoint pulled in along the bisector by r / sin(45 deg).
-        #expect(isClose(toward.length, 1) && isClose(normal.length, 1) && abs(normal.dot(toward)) < 1e-9)
-        let midpoint = center + toward * (1 / sin(Double.pi / 4))
-        let onBoundary = [isClose(abs(midpoint.x), 10), isClose(abs(midpoint.y), 5), isClose(midpoint.z, 0) || isClose(midpoint.z, 10)]
-        #expect(onBoundary.count { $0 } >= 2)
+        // The first edge is the vertical one at the (-10, -5) corner of the 20 x 10 x 10 box (z from 0 to 10). Its faces face -x and
+        // -y, so the outward bisector is (-1, -1, 0) / sqrt(2) and the arc's centre sits r / sin(45 deg) = sqrt(2) inside it.
+        let diagonal = 1 / 2.0.squareRoot()
+        #expect(isClose(center, Vector3(-9, -4, 5)))
+        #expect(isClose(toward, Vector3(-diagonal, -diagonal, 0)))
+        #expect(isClose(normal, .unitZ))
     }
 
     @Test func aChamferDimensionsItsDistanceAlongTheFirstFace() async throws {
@@ -53,28 +54,88 @@ struct FeatureDimensionTests {
             Issue.record("expected a linear dimension")
             return
         }
-        #expect(isClose((to - from).length, 2))
-        #expect(isClose(direction.length, 1) && isClose(side.length, 1))
-        #expect(abs(direction.dot(side)) < 1e-9)
-        #expect(isClose(direction, (to - from) * 0.5))
-        // `from` is the edge midpoint: on the box boundary in at least two of the three axes.
-        let onBoundary = [isClose(abs(from.x), 10), isClose(abs(from.y), 5), isClose(from.z, 0) || isClose(from.z, 10)]
-        #expect(onBoundary.count { $0 } >= 2)
+        #expect(isClose(from, Vector3(-10, -5, 5)) && isClose(to, Vector3(-8, -5, 5)))
+        #expect(isClose(direction, .unitX) && isClose(side, Vector3(0, -1, 0)))
     }
     #endif
 
-    @Test func aDegenerateEdgeSetGivesNoDimension() async throws {
+    // MARK: - Degenerate edges
+
+    /// A solid whose topology is exactly `faces` and `edges` (the guards read nothing else).
+    final class Bare: SolidStorage {
+        let estimatedBytes = 0
+    }
+
+    func set(faces: [FaceInfo], edges: [EdgeInfo]) -> EdgeSet {
+        let solid = Solid(topology: Topology(faces: faces, edges: edges),
+                          bounds: BoundingBox(min: .zero, max: Vector3(1, 1, 1)), storage: Bare())
+        return EdgeSet(solid: solid, edges: edges.map(\.id))
+    }
+
+    func face(_ id: Int, normal: Vector3?, centroid: Vector3) -> FaceInfo {
+        FaceInfo(id: FaceID(id), kind: .plane, normal: normal, area: 1, centroid: centroid, tags: [])
+    }
+
+    func edge(faces: [Int], direction: Vector3? = .unitY, midpoint: Vector3 = .zero) -> EdgeInfo {
+        EdgeInfo(id: EdgeID(0), kind: .line, direction: direction, length: 1, midpoint: midpoint, convexity: .convex,
+                 faces: faces.map(FaceID.init))
+    }
+
+    /// A right-angled edge along y at the origin between a floor (normal +z) and a wall (normal +x).
+    var rightAngle: [FaceInfo] {
+        [face(1, normal: .unitZ, centroid: Vector3(-1, 0, 0)), face(2, normal: .unitX, centroid: Vector3(0, 0, -1))]
+    }
+
+    @Test func aRightAngledEdgeHasACorner() throws {
+        let corner = try #require(EdgeDimensions.corner(of: set(faces: rightAngle, edges: [edge(faces: [1, 2])])))
+        #expect(isClose(corner.interior, Double.pi / 2))
+        #expect(isClose(corner.bisector, Vector3(1, 0, 1) * (1 / 2.0.squareRoot())))
+    }
+
+    @Test func eachGuardOfTheCornerRefuses() {
+        // No edge in the set.
+        #expect(EdgeDimensions.corner(of: set(faces: rightAngle, edges: [])) == nil)
+        // A seam: one face on both sides.
+        #expect(EdgeDimensions.corner(of: set(faces: rightAngle, edges: [edge(faces: [1, 1])])) == nil)
+        // Not two faces, or a face the table lacks.
+        #expect(EdgeDimensions.corner(of: set(faces: rightAngle, edges: [edge(faces: [1])])) == nil)
+        #expect(EdgeDimensions.corner(of: set(faces: rightAngle, edges: [edge(faces: [1, 9])])) == nil)
+        // No direction, or a midpoint that is not finite.
+        #expect(EdgeDimensions.corner(of: set(faces: rightAngle, edges: [edge(faces: [1, 2], direction: nil)])) == nil)
+        #expect(EdgeDimensions.corner(of: set(faces: rightAngle, edges: [edge(faces: [1, 2], midpoint: Vector3(.nan, 0, 0))])) == nil)
+        // A face without a normal.
+        let unnormalled = [face(1, normal: nil, centroid: Vector3(-1, 0, 0)), rightAngle[1]]
+        #expect(EdgeDimensions.corner(of: set(faces: unnormalled, edges: [edge(faces: [1, 2])])) == nil)
+        // A flat edge: both faces face the same way, so there is nothing to round.
+        let flat = [rightAngle[0], face(2, normal: .unitZ, centroid: Vector3(1, 0, 0))]
+        #expect(EdgeDimensions.corner(of: set(faces: flat, edges: [edge(faces: [1, 2])])) == nil)
+        // A knife edge: opposite normals, so the bisector vanishes.
+        let knife = [rightAngle[0], face(2, normal: -.unitZ, centroid: Vector3(1, 0, 0))]
+        #expect(EdgeDimensions.corner(of: set(faces: knife, edges: [edge(faces: [1, 2])])) == nil)
+        // A face whose centroid lies on the edge's line has no direction into the face.
+        let onTheEdge = [rightAngle[0], face(2, normal: .unitX, centroid: Vector3(0, 5, 0))]
+        #expect(EdgeDimensions.corner(of: set(faces: onTheEdge, edges: [edge(faces: [1, 2])])) == nil)
+    }
+
+    @Test func aDegenerateEdgeGivesNoFilletOrChamfer() {
+        let seam = set(faces: rightAngle, edges: [edge(faces: [1, 1])])
+        #expect(EdgeDimensions.fillet(seam, radius: 1).isEmpty)
+        #expect(EdgeDimensions.chamfer(seam, distance: 1).isEmpty)
+        let good = set(faces: rightAngle, edges: [edge(faces: [1, 2])])
+        #expect(EdgeDimensions.fillet(good, radius: 0).isEmpty)
+        #expect(EdgeDimensions.chamfer(good, distance: .nan).isEmpty)
+        #expect(EdgeDimensions.fillet(good, radius: 1).count == 1)
+    }
+
+    @Test func aFilletWithNoEdgesFailsAndDeclaresNothing() async throws {
         var h = Harness()
-        let fillet = h.add(FilletNode.self)
-        let report = try await h.run([fillet])
-        #expect(report.results[fillet.id]?.dimensions.isEmpty ?? true)
-        // A solid with no edges selected: the evaluation fails and declares nothing.
         let box = h.box(10, 10, 10)
         let chamfer = h.add(ChamferNode.self)
         let none = h.add(EdgesByDirectionNode.self, ["direction": .vector(Vector3(1, 1, 1))])
         h.wire(box, "solid", to: none, "solid")
         h.wire(none, "edges", to: chamfer, "edges")
-        let second = try await h.run([chamfer])
-        #expect(second.results[chamfer.id]?.dimensions.isEmpty ?? true)
+        let report = try await h.run([chamfer])
+        #expect(report.error(chamfer) != nil)
+        #expect(try #require(report.results[chamfer.id]).dimensions.isEmpty)
     }
 }

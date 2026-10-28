@@ -30,11 +30,13 @@ public enum RevolveNode: NodeDefinition {
     }
 
     /// The angle swept, from the profile's centre about the axis; a full turn has nothing to dimension.
-    private static func dimensions(profile: Profile2D, axis: Axis, degrees: Double) -> [DimensionSpec] {
+    static func dimensions(profile: Profile2D, axis: Axis, degrees: Double) -> [DimensionSpec] {
         guard degrees < 360, let bounds = DimensionSpecs.planeBounds(of: profile),
               let direction = axis.direction.normalized else { return [] }
         let centre = profile.plane.point(Vector2((bounds.min.x + bounds.max.x) / 2, (bounds.min.y + bounds.max.y) / 2))
         let relative = centre - axis.origin
+        // A profile centred on the axis has no sweep to show: its centre does not move.
+        guard (relative - direction * relative.dot(direction)).length > 1e-9 else { return [] }
         let vertex = axis.origin + direction * relative.dot(direction)
         let second = axis.origin + relative.rotated(about: direction, by: .degrees(degrees))
         let geometry = DimensionGeometry.angular(vertex: vertex, first: centre, second: second, normal: direction, placement: .standoff)

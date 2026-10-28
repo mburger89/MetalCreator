@@ -29,8 +29,11 @@ enum LayoutDimensions {
         return specs
     }
 
-    /// Grid: both spacings from the first placement, and the counts across the first row and the first column.
-    static func grid(plane: Plane, first: Vector3, spacing: Vector2, counts: (x: Int, y: Int)) -> [DimensionSpec] {
+    /// Grid: both spacings from the first placement, and the counts across the first row and the first column. A staggered grid
+    /// shifts every second row, so the first column is not a straight line of placements and has no count dimension.
+    /// (Spacings are never negative: the node refuses that, as Linear Pattern does, so both skip a zero one alike.)
+    static func grid(plane: Plane, first: Vector3, spacing: Vector2, counts: (x: Int, y: Int),
+                     stagger: Bool = false) -> [DimensionSpec] {
         let (x, y) = (plane.xAxis, plane.yAxis)
         var specs: [DimensionSpec?] = []
         if counts.x >= 2, spacing.x > tiny {
@@ -40,8 +43,10 @@ enum LayoutDimensions {
         }
         if counts.y >= 2, spacing.y > tiny {
             specs.append(linear(.input("spacingY"), .length, value: spacing.y, from: first, to: first + y * spacing.y, side: -x))
-            let end = first + y * (Double(counts.y - 1) * spacing.y)
-            specs.append(linear(.input("countY"), .count, value: Double(counts.y), from: first, to: end, side: x))
+            if !stagger {
+                let end = first + y * (Double(counts.y - 1) * spacing.y)
+                specs.append(linear(.input("countY"), .count, value: Double(counts.y), from: first, to: end, side: x))
+            }
         }
         return specs.compactMap { $0 }
     }

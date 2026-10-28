@@ -1,7 +1,7 @@
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
-import CreatorNodes
+@testable import CreatorNodes
 #if canImport(CreatorOCCT)
 import CreatorOCCT
 #endif
@@ -77,9 +77,19 @@ struct SolidDimensionTests {
         }
         // Centre of the profile is the origin; its projection on the axis x = −20 is (−20, 0, 0).
         #expect(isClose(vertex, Vector3(-20, 0, 0)) && isClose(first, .zero))
-        #expect(isClose(second, Vector3(-20, 0, 0) + Vector3(20, 0, 0).rotated(about: .unitZ, by: .degrees(90))))
+        // The centre, 20 mm from the axis along +x, turned 90 degrees about +z (right-handed) lands 20 mm along +y.
+        #expect(isClose(second, Vector3(-20, 20, 0)))
         #expect(isClose(normal, .unitZ) && placement == .standoff)
         #expect(report.results[full.id]?.dimensions == [])
+    }
+
+    @Test func aRevolveAboutAnAxisThroughTheProfileCentreHasNoAngle() {
+        // The kernel cannot revolve a profile that crosses its axis, so ask the node for its dimensions directly.
+        let profile = Profile2D.rectangle(width: 20, height: 10, plane: .xz)
+        let through = Axis(origin: Vector3(0, 0, 3), direction: .unitZ)
+        #expect(RevolveNode.dimensions(profile: profile, axis: through, degrees: 90).isEmpty)
+        let beside = Axis(origin: Vector3(-20, 0, 0), direction: .unitZ)
+        #expect(RevolveNode.dimensions(profile: profile, axis: beside, degrees: 90).count == 1)
     }
     #endif
 
