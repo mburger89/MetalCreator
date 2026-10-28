@@ -23,10 +23,12 @@ extension ViewportModel {
     }
 
     private func faceMenuItems(at point: ScreenPoint) -> [ViewportMenuItem] {
-        guard !isPlanar, let ref = faceRef(for: pick?(point)),
+        let pressed = pick?(point)
+        guard !isPlanar, let ref = faceRef(for: pressed),
               let face = items[ref.solidIndex].solid.topology.face(ref.face) else { return [] }
         guard tool == nil else { return [.lookAt(ref)] }
         var menu: [ViewportMenuItem] = [.lookAt(ref), .selectEdgesOfFace(ref)]
+        if let target = pressed { menu.append(.dimension(target)) }
         // Plane from Face, Face Pattern and Field Scatter take a flat face with a normal; another face would only make an error.
         if face.kind == .plane, face.normal != nil { menu += [.newSketchOnFace(ref), .patternOnFace(ref), .scatterOnFace(ref)] }
         let nodes = MeshQueries.producingNodes(of: face)
@@ -51,6 +53,8 @@ extension ViewportModel {
             let edges = MeshQueries.boundaryEdges(of: ref.face, in: topology)
             let ids = edges.map(\.id)
             events.selectEdgesOfFace(ref, topology.picks(for: ids), ids)
+        case .dimension(let target):
+            events.dimension(target)
         case .showProducingNode(let node, _):
             events.showProducingNode(node)
         case .newSketchOnFace(let ref), .patternOnFace(let ref), .scatterOnFace(let ref):

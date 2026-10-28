@@ -13,6 +13,7 @@ extension AppModel {
         let events = { [weak self, weak viewport] in self?.ifCurrent(viewport) }
         viewport.events.clicked = { events()?.viewportClicked($0) }
         viewport.events.selectEdgesOfFace = { face, picks, edges in events()?.selectEdgesOfFace(face, picks, edges) }
+        viewport.events.dimension = { events()?.beginModelDimension(from: $0) }
         viewport.events.showProducingNode = { events()?.showProducingNode($0) }
         viewport.events.newSketchOnFace = { face, pick in events()?.newSketchOnFace(face, pick) }
         viewport.events.patternOnFace = { face, pick in events()?.patternOnFace(face, pick) }
