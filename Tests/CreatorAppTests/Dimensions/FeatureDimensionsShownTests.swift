@@ -40,6 +40,21 @@ struct FeatureDimensionsShownTests {
         #expect(app.viewport.dimensions.isEmpty && app.featureDimensions.isEmpty)
     }
 
+    @Test func enteringAPickSessionEmptiesTheTable() async throws {
+        var builder = GraphBuilder()
+        let box = builder.box()
+        let rule = builder.add(EdgesByTagNode.self)
+        builder.wire(box.extrude, "solid", to: rule, "solid")
+        let app = await makeApp(builder.graph)
+        app.editor.selection = [box.extrude.id]
+        await app.settle()
+        #expect(!app.featureDimensions.isEmpty)
+        app.beginPick(for: rule.id)
+        await app.settle()
+        #expect(app.viewport.dimensions.isEmpty)
+        #expect(app.featureDimensions.isEmpty, "the table matches what is drawn")
+    }
+
     @Test func severalSelectedNodesEachShowTheirOwn() async throws {
         var builder = GraphBuilder()
         let first = builder.box()
