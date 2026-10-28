@@ -38,6 +38,7 @@ extension AppModel {
             self?.resolveProjection(target, onto: plane, for: id) ?? ProjectionResolution(candidates: [], skipped: [Self.noProjection])
         }
         sketchEditor.events.dismissHostPopup = { [weak self] in self?.closePaletteOverSketch() ?? false }
+        sketchEditor.events.checkValueCommit = { [weak self] in await self?.checkLastStep() }
         sketchEditor.units = document.units
         let session = SketchSession(node: id, editor: sketchEditor, viewport: viewport)
         session.dimensionsChanged = { [weak self] in self?.refreshDimensions() }

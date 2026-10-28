@@ -29,6 +29,11 @@ final class AppDimensionEditing: DimensionEditing {
             return await app.commitFeatureValue(text, to: id)
         }
         guard isSketch(id), let editor = sketchEditor else { return .refused("That dimension is gone.") }
+        // The sketch's value commit is a checked step like a feature's (spec §7): results are held while the editor commits and the
+        // host checks (`events.checkValueCommit`), and released on every outcome, a refusal by the editor itself included.
+        guard let document = app?.document else { return .refused("That dimension is gone.") }
+        document.holdResults()
+        defer { document.releaseResults() }
         return await editor.commitValue(text, to: id)
     }
 }
