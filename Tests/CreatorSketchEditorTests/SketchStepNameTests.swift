@@ -65,6 +65,7 @@ struct SketchStepNameTests {
         let (model, host) = makeModel(rectangle.sketch, tool: .dimension)
         model.click(at: Vector2(30, 0.3), tolerance: 1, modifiers: [])
         model.click(at: Vector2(30, 20), tolerance: 1, modifiers: [])
+        acceptAndPlace(model, at: Vector2(30, 20))
         #expect(host.commits.map(\.name) == ["Add Dimension"])
     }
 

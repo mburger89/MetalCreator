@@ -47,6 +47,15 @@ public final class SketchEditorModel {
     @ObservationIgnored var dragOrigin: Sketch?
     /// The Dimension tool's first pick, while it waits for the second.
     var dimensionPick: SketchEntityID?
+    /// The Dimension tool's new dimension between its completing pick and the click that places it. Nothing of it is in the
+    /// document until that click.
+    public internal(set) var pending: PendingDimension?
+    /// The sketch and its solve before a typed value moved the geometry for the pending dimension; dropping it puts them back.
+    @ObservationIgnored var pendingOrigin: (sketch: Sketch, solution: SketchSolution)?
+    /// The host's check of a placed dimension after a typed value, kept so a test can wait for it.
+    @ObservationIgnored var commitCheck: Task<Void, Never>?
+    /// Whether a solve turned a corner or an arc the other way (spec §7). A seam for tests.
+    @ObservationIgnored var flipCheck: @MainActor (SketchSolution, SketchSolution, Sketch) -> Bool = SketchFlipCheck.isFlipped
     /// The exposed dimensions whose value comes from a wire, so it can't be typed. The host provides it (on `init` and
     /// every `reload`), with the wired values already in the sketch.
     public private(set) var wiredDimensions: Set<DimensionID>
@@ -89,6 +98,8 @@ public final class SketchEditorModel {
         drawState = .idle
         preview = .none
         dimensionPick = nil
+        pending = nil
+        pendingOrigin = nil
         dragged = nil
         dragOrigin = nil
     }

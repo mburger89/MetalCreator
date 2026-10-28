@@ -24,6 +24,8 @@ struct DimensionTests {
         #expect(host.commits.isEmpty, "a line waits for a second pick")
         #expect(model.overlay.lines.contains { $0.tint == .selected }, "the first pick is shown")
         model.click(at: Vector2(30, 20), tolerance: 1, modifiers: [])
+        #expect(host.commits.isEmpty, "the value box comes first")
+        acceptAndPlace(model, at: Vector2(30, 20))
         let dimension = try #require(onlyDimension(model))
         #expect(dimension.kind == .length(rectangle.lines[0]) && abs(dimension.value - 60) < 1e-9 && dimension.isDriving)
         #expect(host.commits.map(\.description) == ["Dimension d1"])
@@ -35,23 +37,15 @@ struct DimensionTests {
         let (model, _) = makeModel(rectangle.sketch)
         model.click(at: Vector2(30, 0.3), tolerance: 1, modifiers: [])
         model.click(at: Vector2(60.2, 20), tolerance: 1, modifiers: [])
+        acceptAndPlace(model, at: Vector2(60.2, 20))
         let angle = try #require(onlyDimension(model))
         #expect(angle.kind == .angle(rectangle.lines[0], rectangle.lines[1]) && abs(angle.value - 90) < 1e-6)
         model.click(at: Vector2(0.2, 0.2), tolerance: 1, modifiers: [])
         model.click(at: Vector2(60.2, 40.2), tolerance: 1, modifiers: [])
+        acceptAndPlace(model, at: Vector2(30, 20))
         let distance = try #require(onlyDimension(model))
         #expect(distance.kind == .distance(rectangle.corners[0], rectangle.corners[2]))
         #expect(abs(distance.value - Vector2(60, 40).length) < 1e-6)
-    }
-
-    @Test func aCircleIsItsDiameterAtOnce() throws {
-        var sketch = Sketch()
-        sketch.addCircle(center: Vector2(0, 0), radius: 5)
-        let (model, host) = makeModel(sketch)
-        model.click(at: Vector2(5.2, 0), tolerance: 1, modifiers: [])
-        #expect(host.commits.count == 1)
-        let dimension = try #require(onlyDimension(model))
-        #expect(abs(dimension.value - 10) < 1e-9)
     }
 
     @Test func typedValuesDriveTheSketchAndNonsenseIsRefused() throws {

@@ -2,20 +2,19 @@ import CreatorGeometry
 import CreatorSketch
 
 extension SketchEditorModel {
-    /// A Dimension-tool click (sketcher spec §8: the kind follows from the picks). A circle gives a diameter and an
-    /// arc a radius at once. A line waits: another line gives an angle, a point a distance, and a click on nothing its
-    /// length. A point waits for a point or a line (a distance). The new dimension measures the geometry as it is, so
-    /// nothing moves.
+    /// A Dimension-tool click (sketcher spec §8: the kind follows from the picks). A circle gives a diameter and an arc a
+    /// radius at once, shown as a pending dimension that waits for a second click. A line waits: another line gives an angle
+    /// (or, nearly parallel, a distance), a point a distance, and a click on nothing its length. A point waits for a point
+    /// or a line (a distance). The completing pick measures the geometry as it is and opens the value box; nothing is added
+    /// until the click that places the dimension (`PendingDimension`).
     func dimension(at p: Vector2, tolerance: Double) {
+        if let pending {
+            pendingClick(pending, at: p, tolerance: tolerance)
+            return
+        }
         let picked = SketchPicker(sketch: sketch, solution: solution).entity(near: p, tolerance: tolerance)
         guard let first = dimensionPick else {
-            guard let picked else { return }
-            switch sketch.entities[picked]?.kind {
-            case .circle?: addMeasuredDimension(.diameter(picked))
-            case .arc?: addMeasuredDimension(.radius(picked))
-            case .line?, .point?: dimensionPick = picked
-            default: refusal = "Pick a line, a point, an arc or a circle to dimension."
-            }
+            if let picked { firstPick(picked, at: p) }
             return
         }
         dimensionPick = nil
@@ -23,7 +22,23 @@ extension SketchEditorModel {
             refusal = "Those can't be dimensioned together. Pick two points, a point and a line, or two lines."
             return
         }
-        addMeasuredDimension(kind)
+        beginPending(kind, at: p, phase: .entering)
+    }
+
+    /// The first pick: a circle or arc shows its diameter or radius at once; a line or point waits for the second.
+    private func firstPick(_ picked: SketchEntityID, at p: Vector2) {
+        switch sketch.entities[picked]?.kind {
+        case .circle?: beginPending(.diameter(picked), at: p, phase: .picked)
+        case .arc?: beginPending(.radius(picked), at: p, phase: .picked)
+        case .projected(let source)?:
+            switch source.curve {
+            case .circle: beginPending(.diameter(picked), at: p, phase: .picked)
+            case .arc: beginPending(.radius(picked), at: p, phase: .picked)
+            case .line: refusal = "Pick a line, a point, an arc or a circle to dimension."
+            }
+        case .line?, .point?: dimensionPick = picked
+        default: refusal = "Pick a line, a point, an arc or a circle to dimension."
+        }
     }
 
     /// The kind for a first pick and a second (nil: a click on nothing).
@@ -34,25 +49,30 @@ extension SketchEditorModel {
             return nil
         }
         switch (firstKind, sketch.entities[second]?.kind) {
-        case (.line?, .line?): return second == first ? .length(first) : .angle(first, second)
+        case (.line?, .line?):
+            if second == first { return .length(first) }
+            return areParallel(first, second) ? .lineDistance(first, second) : .angle(first, second)
         case (.point?, .point?): return second == first ? nil : .distance(first, second)
         case (.point?, .line?), (.line?, .point?): return .distance(first, second)
+        case (.point?, _) where isRound(second): return .centreDistance(first, second)
+        case (.line?, _) where isRound(second): return centrePoint(of: second).map { .distance($0, first) }
         default: return nil
         }
     }
 
-    /// Adds a driving dimension of `kind` at the value the geometry has now (measured as a reference first).
-    private func addMeasuredDimension(_ kind: DimensionKind) {
-        var edited = sketch
-        let id = edited.addDimension(kind, value: 0, isDriving: false)
-        guard let measured = SketchSolver.solve(edited).measurements[id], measured.isFinite else {
-            refusal = "That can't be measured."
-            return
+    /// Whether two lines are within half a degree of parallel (or antiparallel).
+    private func areParallel(_ first: SketchEntityID, _ second: SketchEntityID) -> Bool {
+        let direction = { (id: SketchEntityID) -> Vector2? in
+            guard case .line(let start, let end)? = self.sketch.entities[id]?.kind,
+                  let a = self.sketch.position(of: start), let b = self.sketch.position(of: end), (b - a).length > 1e-9 else { return nil }
+            return (b - a) * (1 / (b - a).length)
         }
-        edited.dimensions[id]?.value = measured
-        edited.dimensions[id]?.isDriving = true
-        commit(edited, "Dimension \(edited.dimensions[id]?.name ?? "")", named: SketchStepName.addDimension)
+        guard let u = direction(first), let v = direction(second) else { return false }
+        return abs(u.x * v.y - u.y * v.x) < Self.parallelLimit
     }
+
+    /// The sine of half a degree.
+    private static let parallelLimit = 0.0087265354983
 
     /// The inspector's dimensions, in ID order. A reference dimension shows what it measures now (its stored value is
     /// only the measurement from when it became a reference).
@@ -120,16 +140,32 @@ extension SketchEditorModel {
         guard dimension.isDriving else {
             return .refused("\(dimension.name) is a reference: make it driving to set it.")
         }
-        guard let value = units.parse(text, quantity: dimension.kind.quantity) else {
-            return .refused("“\(text)” isn't a number.")
+        switch typedValue(text, kind: dimension.kind, current: dimension.value) {
+        case .refused(let message): return .refused(message)
+        case .unchanged: return .unchanged
+        case .value(let value):
+            var edited = sketch
+            edited.dimensions[id]?.value = value
+            return .change(edited, "Change \(dimension.name)")
         }
-        if let problem = valueProblem(value, kind: dimension.kind) { return .refused(problem) }
+    }
+
+    /// What text typed for a dimension of `kind` that has `current` comes to.
+    enum TypedValue {
+        case refused(String)
+        /// The text reads as the value it has.
+        case unchanged
+        case value(Double)
+    }
+
+    /// The text is a number in the document's unit and suits the kind, and differs from `current`.
+    func typedValue(_ text: String, kind: DimensionKind, current: Double) -> TypedValue {
+        guard let value = units.parse(text, quantity: kind.quantity) else { return .refused("“\(text)” isn't a number.") }
+        if let problem = valueProblem(value, kind: kind) { return .refused(problem) }
         // The text a box opens with reads back as the value it shows, which can differ from the stored one beyond the display.
-        let opening = units.editText(dimension.value, quantity: dimension.kind.quantity)
-        guard value != dimension.value, text != opening else { return .unchanged }
-        var edited = sketch
-        edited.dimensions[id]?.value = value
-        return .change(edited, "Change \(dimension.name)")
+        let opening = units.editText(current, quantity: kind.quantity)
+        guard value != current, text != opening else { return .unchanged }
+        return .value(value)
     }
 
     /// A typed value for a dimension: one step. Text that isn't a number is refused, and the field shows the old value.

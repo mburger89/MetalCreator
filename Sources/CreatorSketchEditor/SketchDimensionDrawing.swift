@@ -16,6 +16,9 @@ enum SketchDimensionDrawing {
         case arc(center: Vector2, radius: Double, middle: Double)
     }
 
+    /// The viewport identity of the Dimension tool's pending dimension, which is in no sketch yet.
+    static let pendingID = OverlayDimensionID("sketch/new")
+
     // swiftlint:disable function_parameter_count
     /// One `OverlayDimension` for each dimension whose geometry is there. A dimension in a conflict is `.conflicting`, a
     /// reference or wired one `.dimensionReference`, any other `.dimensionDriving`.
@@ -33,6 +36,17 @@ enum SketchDimensionDrawing {
         }
     }
     // swiftlint:enable function_parameter_count
+
+    /// The pending dimension as the viewport draws it, tinted selected; `nil` when its geometry has no length to draw.
+    static func pending(_ pending: PendingDimension, sketch: Sketch, solution: SketchSolution, plane: Plane,
+                        units: DocumentUnits, style: DimensionStyle) -> OverlayDimension? {
+        let dimension = SketchDimension(kind: pending.kind, name: "", value: pending.value, isDriving: pending.isDriving,
+                                        labelPoint: pending.labelPoint)
+        guard let geometry = geometry(of: dimension, sketch: sketch, solution: solution, plane: plane) else { return nil }
+        let reading = DimensionReading(pending.value, pending.kind.quantity, count: equalCount(of: pending.kind, in: sketch),
+                                       isReference: !pending.isDriving)
+        return OverlayDimension(id: pendingID, geometry: geometry, text: style.text(reading, units: units), tint: .selected)
+    }
 
     /// The dimension's identity in the viewport: "sketch/<n>".
     static func overlayID(_ id: DimensionID) -> OverlayDimensionID {
@@ -130,7 +144,7 @@ enum SketchDimensionDrawing {
     }
 
     /// Where a point, or a circle's or arc's centre, lies; `nil` for a line.
-    private static func centre(_ shape: Shape?) -> Vector2? {
+    static func centre(_ shape: Shape?) -> Vector2? {
         switch shape {
         case .point(let p)?: p
         case .circle(let c, _)?, .arc(let c, _, _)?: c
