@@ -12,12 +12,16 @@ public struct SketchRegion: Hashable, Sendable {
     /// The outer area minus the holes' areas, mm².
     public var area: Double
     public var centroid: Vector2
+    /// The entity each segment comes from, parallel to `[outer] + holes`: `sources[loop][segment]`
+    /// (a projected curve names its projected entity). Evaluation output, never saved.
+    public var sources: [[SketchEntityID]]
 
-    public init(outer: [Segment2D], holes: [[Segment2D]], area: Double, centroid: Vector2) {
+    public init(outer: [Segment2D], holes: [[Segment2D]], area: Double, centroid: Vector2, sources: [[SketchEntityID]] = []) {
         self.outer = outer
         self.holes = holes
         self.area = area
         self.centroid = centroid
+        self.sources = sources
     }
 
     /// The region as a profile with holes: loop 0 is `outer`, loop n is `holes[n - 1]`.

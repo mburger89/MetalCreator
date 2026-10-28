@@ -42,8 +42,10 @@ public enum SketchRegions {
             let sortedHoles = holes.map { ($0, LoopMeasure.area($0), LoopMeasure.moments($0)) }
                 .map { loop, area, moments in (loop: loop, area: abs(area), centroid: moments * (1 / area)) }
                 .sorted { isOrderedBefore(area: $0.area, $0.centroid, before: $1.area, $1.centroid) }
-            regions.append(SketchRegion(outer: emitted(face.loop), holes: sortedHoles.map { emitted($0.loop) },
-                                        area: area, centroid: moments * (1 / area)))
+            let emittedLoops = ([face.loop] + sortedHoles.map(\.loop)).map { emitted($0) }
+            regions.append(SketchRegion(outer: emittedLoops[0].map(\.segment), holes: emittedLoops.dropFirst().map { $0.map(\.segment) },
+                                        area: area, centroid: moments * (1 / area),
+                                        sources: emittedLoops.map { $0.map { curves[$0.source].source } }))
         }
         regions.sort(by: isOrderedBefore)
         let used = graph.usedSources
@@ -83,14 +85,15 @@ public enum SketchRegions {
     /// An arc a counter-clockwise loop runs along clockwise (a notch cut into an outline) keeps
     /// its traversal sense, stored with `end < start`, so the loop stays continuous; the shim
     /// builds it clockwise (S4).
-    static func emitted(_ loop: [LoopSegment]) -> [Segment2D] {
+    /// Each segment keeps its source curve, so the sources follow the same reversal and rotation.
+    static func emitted(_ loop: [LoopSegment]) -> [LoopSegment] {
         let counterClockwise = LoopMeasure.area(loop) < 0 ? loop.reversed().map(\.reversed) : loop
         guard var first = counterClockwise.indices.first else { return [] }
         for index in counterClockwise.indices.dropFirst()
         where precedes(counterClockwise[index].start, counterClockwise[first].start) {
             first = index
         }
-        return (counterClockwise[first...] + counterClockwise[..<first]).map(\.segment)
+        return Array(counterClockwise[first...] + counterClockwise[..<first])
     }
 
     /// Lexicographic order on points, x then y, with `pointTolerance`.
