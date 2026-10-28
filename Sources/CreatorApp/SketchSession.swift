@@ -31,6 +31,11 @@ public final class SketchSession {
     func start() {
         isFollowing = true
         viewport?.tool = editor
+        // The D tool's second pick: the dimension is shown first, then the viewport's box opens on it.
+        editor.events.openValueBox = { [weak self] id in
+            self?.dimensionsChanged?()
+            self?.viewport?.openValueBox(for: id)
+        }
         follow()
     }
 

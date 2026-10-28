@@ -2,7 +2,8 @@ extension Equation {
     /// Every global unknown column the equation reads, in a fixed order (duplicates allowed).
     var columns: [Int] {
         switch self {
-        case .coincident(let p, let q), .horizontal(let p, let q), .vertical(let p, let q), .distance(let p, let q, _):
+        case .coincident(let p, let q), .horizontal(let p, let q), .vertical(let p, let q), .distance(let p, let q, _),
+             .axisDistance(let p, let q, _, _, _):
             Self.columns(p) + Self.columns(q)
         case .pointOnLine(let p, let line), .midpoint(let p, let line), .lineDistance(let p, let line, _, _):
             Self.columns(p) + Self.columns(line)
@@ -10,7 +11,8 @@ extension Equation {
             Self.columns(p) + Self.columns(circle)
         case .horizontalLine(let line, _), .verticalLine(let line, _):
             Self.columns(line)
-        case .parallel(let a, let b, _), .perpendicular(let a, let b, _), .angle(let a, let b, _, _), .equalLength(let a, let b):
+        case .parallel(let a, let b, _), .perpendicular(let a, let b, _), .angle(let a, let b, _, _), .equalLength(let a, let b),
+             .lineToLineDistance(let a, let b, _, _):
             Self.columns(a) + Self.columns(b)
         case .tangentAtPoint(let p, let center, let line):
             Self.columns(p) + Self.columns(center) + Self.columns(line)

@@ -10,6 +10,7 @@ public enum SketchStepName {
     public static let addConstraint = "Add Constraint"
     public static let addDimension = "Add Dimension"
     public static let changeDimension = "Change Dimension"
+    public static let placeDimension = "Place Dimension"
     public static let renameDimension = "Rename Dimension"
     public static let exposeDimension = "Expose Dimension"
     public static let stopExposingDimension = "Stop Exposing Dimension"

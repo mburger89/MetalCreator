@@ -129,6 +129,13 @@ struct TermBuilder {
         }
     }
 
+    /// A point, or the centre of a circle or arc (a projected one included).
+    func centre(_ id: SketchEntityID, ref: SketchConstraintRef?, needs: String) throws(SolveFailure) -> PointOperand {
+        if isPoint(id) { return try point(id, ref: ref, needs: needs) }
+        guard isCircular(id) else { throw wrongKind(ref, needs: needs, blaming: [id]) }
+        return try circle(id, ref: ref, needs: needs).center
+    }
+
     func isPoint(_ id: SketchEntityID) -> Bool { layout.pointColumns[id] != nil }
 
     /// The point entity both curves end at, if they share one (lines: start/end; arcs: start/end).
@@ -241,8 +248,26 @@ struct TermBuilder {
         return .circleTangent(first, second, isInternal: isInternal, sign: r1 >= r2 ? 1 : -1)
     }
 
+    // One exhaustive case per dimension kind; splitting it would scatter the dimension table.
+    // swiftlint:disable:next cyclomatic_complexity
     func equation(for dimension: SketchDimension, _ ref: SketchConstraintRef) throws(SolveFailure) -> Equation {
         switch dimension.kind {
+        case .centreDistance(let a, let b):
+            let needs = "two circles or arcs, or a circle or arc and a point"
+            guard isCircular(a) || isCircular(b) else { throw wrongKind(ref, needs: needs, blaming: [a, b]) }
+            return .distance(try centre(a, ref: ref, needs: needs), try centre(b, ref: ref, needs: needs), dimension.value)
+        case .lineDistance(let a, let b):
+            let needs = "two lines"
+            let (first, second) = (try line(a, ref: ref, needs: needs), try line(b, ref: ref, needs: needs))
+            let signed = (Equation.signedDistance(second.start, first, x0).value + Equation.signedDistance(second.end, first, x0).value) / 2
+            return .lineToLineDistance(first, second, dimension.value, side: signed < 0 ? -1 : 1)
+        case .horizontalDistance(let a, let b), .verticalDistance(let a, let b):
+            let needs = "two points, circles or arcs"
+            let axis: Equation.Axis = if case .horizontalDistance = dimension.kind { .x } else { .y }
+            let (p, q) = (try centre(a, ref: ref, needs: needs), try centre(b, ref: ref, needs: needs))
+            let delta = q.value(x0) - p.value(x0)
+            let component = axis == .x ? delta.x : delta.y
+            return .axisDistance(p, q, axis: axis, dimension.value, side: component < -1e-12 ? -1 : 1)
         case .distance(let a, let b):
             let needs = "two points, or a point and a line"
             if isPoint(a), isPoint(b) {

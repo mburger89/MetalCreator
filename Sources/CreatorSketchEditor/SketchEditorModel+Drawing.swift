@@ -10,6 +10,7 @@ extension SketchEditorModel {
     public func choose(_ newTool: SketchTool) {
         tool = newTool
         drawState = .idle
+        dropPending()
         dimensionPick = nil
         preview = .none
         refusal = nil
@@ -40,8 +41,9 @@ extension SketchEditorModel {
     /// progress; with none, clears the selection; with nothing selected, finishes the sketch.
     public func escape() {
         if events.dismissHostPopup() { return }
-        if drawState != .idle || dimensionPick != nil {
+        if drawState != .idle || dimensionPick != nil || pending != nil {
             drawState = .idle
+            dropPending()
             dimensionPick = nil
             preview = .none
         } else if !selection.isEmpty {
@@ -57,6 +59,7 @@ extension SketchEditorModel {
     public func finish() {
         if events.dismissHostPopup() { return }
         drawState = .idle
+        dropPending()
         preview = .none
         if dragged != nil, let origin = dragOrigin {
             let solved = SketchSolver.solve(origin)
@@ -94,6 +97,7 @@ extension SketchEditorModel {
             preview = .none
             return
         }
+        movePending(to: p)
         let picker = SketchPicker(sketch: sketch, solution: solution)
         let under = tool.picksCurves ? picker.curve(near: p, tolerance: tolerance) : picker.entity(near: p, tolerance: tolerance)
         if hovered != under { hovered = under }

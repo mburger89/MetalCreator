@@ -20,5 +20,9 @@ public struct SketchEditorEvents {
     /// returns a message when it must be refused (a feature the new value breaks), or `nil`.
     public var checkValueCommit: @MainActor () async -> String? = { nil }
 
+    /// Asked after the Dimension tool's completing pick: the host opens the value box for this dimension (`"sketch/new"`) over
+    /// the viewport.
+    public var openValueBox: @MainActor (OverlayDimensionID) -> Void = { _ in }
+
     public init() {}
 }

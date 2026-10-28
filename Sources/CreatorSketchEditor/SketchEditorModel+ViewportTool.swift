@@ -59,15 +59,26 @@ extension SketchEditorModel: ViewportTool {
         return true
     }
 
+    /// A drag that starts on a sketch dimension's text takes the label, in any tool, while nothing is pending (spec §4.3).
+    public func dragBegan(onDimension id: OverlayDimensionID, at point: ScreenPoint, modifiers: ViewportModifiers,
+                          projector: ViewportProjector) -> Bool {
+        guard beginLabelDrag(id, at: projector.planePoint(under: point, on: plane)) else { return false }
+        follow(point, projector)
+        return true
+    }
+
     /// One drag step. The viewport sends no hover during a drag, so the readout's chip follows the pointer here.
     public func dragMoved(to point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) {
         follow(point, projector)
-        if let p = projector.planePoint(under: point, on: plane) { drag(to: p) }
+        if draggedLabel != nil {
+            if let p = projector.planePoint(under: point, on: plane) { dragLabel(to: p) }
+        } else if let p = projector.planePoint(under: point, on: plane) { drag(to: p) }
     }
 
     public func dragEnded(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) {
         follow(point, projector)
-        endDrag(at: projector.planePoint(under: point, on: plane))
+        let p = projector.planePoint(under: point, on: plane)
+        if draggedLabel != nil { endLabelDrag(at: p) } else { endDrag(at: p) }
     }
 
     /// Records where the pointer is on screen, for the readout's chip.

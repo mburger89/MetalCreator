@@ -36,8 +36,7 @@ extension ViewportView {
         }
     }
 
-    /// The dimensions, drawn over the scene. Keep the whole loop in this helper: written inline in `stack`'s `ZStack` builder it
-    /// crashes at run time (SIGSEGV in `ZStack`'s `initializeWithCopy`, even with no dimensions; gap DIM-b).
+    /// The dimensions, drawn over the scene, kept in their own helper so `stack` stays short.
     @MainActor
     static func dimensions(model: ViewportModel, measure: TextMeasure) -> some Element {
         ZStack(alignment: .topLeading) {

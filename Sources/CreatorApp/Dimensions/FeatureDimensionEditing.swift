@@ -159,6 +159,7 @@ enum FeatureDimensionEditing {
         guard case .sketch(var sketch)? = node.inputValues[NodeSetting.sketch], sketch.dimensions[id] != nil else {
             return .failure(gone)
         }
+        let before = SketchSolver.solve(sketch)
         sketch.dimensions[id]?.value = value
         let solution = SketchSolver.solve(sketch)
         switch solution.status {
@@ -166,6 +167,7 @@ enum FeatureDimensionEditing {
         case .failed(let reason): return .failure(FeatureEditRefusal(message: reason))
         case .solved, .underConstrained: break
         }
+        if SketchFlipCheck.isFlipped(before, solution, in: sketch) { return .failure(FeatureEditRefusal(message: SketchFlipCheck.refusal)) }
         sketch.remember(solution)
         return .success(.batch(SketchStore.commands(storing: sketch, in: node, graph: graph)))
     }
