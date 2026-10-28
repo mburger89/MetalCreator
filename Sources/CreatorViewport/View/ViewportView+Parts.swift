@@ -61,7 +61,7 @@ extension ViewportView {
                            at: ScreenPoint(event.location), phase: ViewportScrollPhase(event))
         }
         .gesture(SpatialTapGesture().onEnded {
-            model.click(at: ScreenPoint($0.location), modifiers: ViewportModifiers($0.modifiers))
+            model.click(at: ScreenPoint($0.location), modifiers: ViewportModifiers($0.modifiers), clickCount: $0.clickCount)
         })
         .gesture(drag(.primary, model: model))
         .gesture(drag(.secondary, model: model))
