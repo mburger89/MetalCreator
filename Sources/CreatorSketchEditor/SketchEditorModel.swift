@@ -45,6 +45,10 @@ public final class SketchEditorModel {
     var dragged: SketchEntityID?
     /// The sketch when the drag began, so a drag that moved nothing records no step.
     @ObservationIgnored var dragOrigin: Sketch?
+    /// The dimension whose label is being dragged, between the press on its text and the release.
+    @ObservationIgnored var draggedLabel: DimensionID?
+    /// Where on the plane the label drag was pressed.
+    @ObservationIgnored var labelPress: Vector2?
     /// The Dimension tool's first pick, while it waits for the second.
     var dimensionPick: SketchEntityID?
     /// The Dimension tool's new dimension between its completing pick and the click that places it. Nothing of it is in the
@@ -102,6 +106,8 @@ public final class SketchEditorModel {
         pendingOrigin = nil
         dragged = nil
         dragOrigin = nil
+        draggedLabel = nil
+        labelPress = nil
     }
 
     /// Takes `edited` as the sketch, solved and remembered, and hands it to the host as one undo step.
