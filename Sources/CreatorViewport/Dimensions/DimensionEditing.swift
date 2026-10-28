@@ -27,6 +27,16 @@ public enum DimensionCommitOutcome: Hashable, Sendable {
     case refused(String)
 }
 
+/// How a value box ended, told to the editor so it can keep or drop a dimension it created for the box (spec §4.2).
+public enum DimensionValueBoxEnding: Hashable, Sendable {
+    /// The typed value was accepted.
+    case committed
+    /// Return with the text untouched.
+    case unchanged
+    /// Esc, focus lost, a click elsewhere, or the dimension went away.
+    case cancelled
+}
+
 /// Whoever owns the dimensions the viewport draws (the sketch editor, the app shell) answers its edits and menus through this.
 @MainActor
 public protocol DimensionEditing: AnyObject {
@@ -38,9 +48,13 @@ public protocol DimensionEditing: AnyObject {
     func menuActions(for id: OverlayDimensionID) -> [HostMenuAction]
     /// Runs a chosen entry (default: nothing).
     func performMenuAction(_ action: HostMenuAction, for id: OverlayDimensionID)
+    /// The box for `id` ended, once, by `ending` (default: nothing). Not told when the box is closed because its owner is gone
+    /// (`ViewportModel.closeValueBox()`), nor for a refusal, which leaves the box open.
+    func valueBoxClosed(_ id: OverlayDimensionID, by ending: DimensionValueBoxEnding)
 }
 
 extension DimensionEditing {
     public func menuActions(for id: OverlayDimensionID) -> [HostMenuAction] { [] }
     public func performMenuAction(_ action: HostMenuAction, for id: OverlayDimensionID) {}
+    public func valueBoxClosed(_ id: OverlayDimensionID, by ending: DimensionValueBoxEnding) {}
 }

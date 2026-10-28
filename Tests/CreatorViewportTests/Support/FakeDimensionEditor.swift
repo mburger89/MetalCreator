@@ -14,6 +14,11 @@ final class FakeDimensionEditor: DimensionEditing {
         var id: OverlayDimensionID
     }
 
+    struct Ending: Hashable {
+        var id: OverlayDimensionID
+        var ending: DimensionValueBoxEnding
+    }
+
     /// What each dimension's box opens with; an ID with no entry is not editable.
     var contents: [OverlayDimensionID: DimensionValueBoxContent] = [:]
     var outcome = DimensionCommitOutcome.accepted
@@ -22,6 +27,8 @@ final class FakeDimensionEditor: DimensionEditing {
     private(set) var contentRequests = 0
     private(set) var commits: [Commit] = []
     private(set) var performed: [Performed] = []
+    /// How each box ended, in order.
+    private(set) var endings: [Ending] = []
     private var held: CheckedContinuation<Void, Never>?
 
     func valueBoxContent(for id: OverlayDimensionID) -> DimensionValueBoxContent? {
@@ -42,6 +49,10 @@ final class FakeDimensionEditor: DimensionEditing {
 
     func performMenuAction(_ action: HostMenuAction, for id: OverlayDimensionID) {
         performed.append(Performed(action: action, id: id))
+    }
+
+    func valueBoxClosed(_ id: OverlayDimensionID, by ending: DimensionValueBoxEnding) {
+        endings.append(Ending(id: id, ending: ending))
     }
 
     /// Returns once a commit is being held.

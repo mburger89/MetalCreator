@@ -38,7 +38,7 @@ extension ViewportModel {
     public func submitValueBox() async {
         guard let box = valueBox, !box.isChecking else { return }
         guard box.draft != box.opening else {
-            closeValueBox()
+            closeBox(.unchanged)
             return
         }
         guard let editor = dimensionEditor else { return }
@@ -49,7 +49,7 @@ extension ViewportModel {
         guard valueBox?.id == box.id, valueBoxGeneration == generation else { return }
         switch outcome {
         case .accepted:
-            closeValueBox()
+            closeBox(.committed)
         case .refused(let message):
             valueBox?.message = message
             valueBox?.isChecking = false
@@ -59,7 +59,7 @@ extension ViewportModel {
     /// Esc: closes the box with no change. A box being checked stays until the answer.
     public func cancelValueBox() {
         guard valueBox?.isChecking == false else { return }
-        closeValueBox()
+        closeBox(.cancelled)
     }
 
     /// The field lost focus: cancels, unless a commit is being checked.
@@ -83,6 +83,13 @@ extension ViewportModel {
         let origin = ScreenPoint(anchor.origin.x + (anchor.size.width - width) / 2,
                                  anchor.origin.y + (anchor.size.height - size.height) / 2)
         return PlacedValueBox(box: box, origin: origin, size: size)
+    }
+
+    /// Closes the open box and tells the editor how it ended. The one path every ending of the box goes through.
+    func closeBox(_ ending: DimensionValueBoxEnding) {
+        guard let id = valueBox?.id else { return }
+        closeValueBox()
+        dimensionEditor?.valueBoxClosed(id, by: ending)
     }
 
     /// Closes the box whatever it is doing, even one being checked: its owner (the sketch, the document's unit) is gone, so a late

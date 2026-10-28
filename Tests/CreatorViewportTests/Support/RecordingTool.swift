@@ -9,6 +9,9 @@ final class RecordingTool: ViewportTool {
     var claims = true
     /// Whether the tool takes the pick under a click it declined (`clickedModel`).
     var claimsModel = false
+    /// Whether the tool takes a drag pressed on a dimension's text (`dragBegan(onDimension:)`), and the IDs it was offered.
+    var claimsDimension = false
+    private(set) var dimensionDrags: [OverlayDimensionID] = []
     /// The picks offered to `clickedModel`, in order (`nil`: empty space).
     private(set) var modelPicks: [PickTarget?] = []
     /// How the viewport navigates while this tool is set (free orbit unless a test says otherwise).
@@ -54,6 +57,13 @@ final class RecordingTool: ViewportTool {
     func dragBegan(at point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) -> Bool {
         record("began", point, projector)
         return claims
+    }
+
+    func dragBegan(onDimension id: OverlayDimensionID, at point: ScreenPoint, modifiers: ViewportModifiers,
+                   projector: ViewportProjector) -> Bool {
+        record("began-dimension", point, projector)
+        dimensionDrags.append(id)
+        return claimsDimension
     }
 
     func dragMoved(to point: ScreenPoint, modifiers: ViewportModifiers, projector: ViewportProjector) {
