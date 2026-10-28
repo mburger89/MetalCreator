@@ -21,7 +21,13 @@ public enum CircleNode: NodeDefinition {
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let diameter = try inputs.number("diameter")
         try ProfileChecks.positive(diameter, "diameter")
-        let profile = Profile2D.circle(radius: diameter / 2, center: .zero, plane: try inputs.plane("plane"))
-        return NodeOutputs(["profile": .profile(profile)])
+        let plane = try inputs.plane("plane")
+        let profile = Profile2D.circle(radius: diameter / 2, center: .zero, plane: plane)
+        var outputs = NodeOutputs(["profile": .profile(profile)])
+        let toward = (plane.xAxis + plane.yAxis).normalized ?? plane.xAxis
+        let geometry = DimensionGeometry.radial(center: plane.point(.zero), radius: diameter / 2, normal: plane.normal,
+                                                toward: toward, placement: .standoff)
+        outputs.dimensions = [DimensionSpec(.input("diameter"), geometry, .diameter, value: diameter)]
+        return outputs
     }
 }
