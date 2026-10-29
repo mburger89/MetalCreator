@@ -13,14 +13,14 @@ struct RuntimeMSLKernels: Sendable {
         self.libraryPath = libraryPath
     }
 
-    /// `nil` when MetalUI's compiler loads (the first call loads it for the process), else `.absent` with MetalUI's error, which lists every path tried.
+    /// `nil` when MetalUI's compiler loads (the first call loads it for the process), else `.absent` with MetalUI's error.
     var unavailability: ComputeBackendState? {
         do {
             _ = try RuntimeShaderCompiler.shared(libraryPath: libraryPath)
             return nil
         } catch {
-            return .absent("MetalUI's run-time shader compiler did not load (gap XP-G27; set METALUI_SHADERCROSS_LIB to a macOS SDL3_shadercross "
-                + "lib directory that also holds libSDL3.0.dylib): \(error)")
+            return .absent("MetalUI's run-time shader compiler did not load (gap XP-G27; set METALUI_SHADERCROSS_LIB to a macOS "
+                + "SDL3_shadercross lib directory that also holds libSDL3.0.dylib): \(error)")
         }
     }
 

@@ -35,7 +35,8 @@ let metalUISDLGPU: Target.Dependency = .product(name: "MetalUISDLGPU", package: 
 
 /// MetalUI's run-time shader compiler without the SDL trait (XP-G27): a macOS test dependency only, the Mac's tests compile the generated HLSL to MSL
 /// with it. Never a product's: the shipping Mac app runs native Metal.
-let metalUIShaderRuntime: Target.Dependency = .product(name: "MetalUIShaderRuntime", package: "MetalUI", condition: .when(platforms: [.macOS]))
+let metalUIShaderRuntime: Target.Dependency = .product(
+    name: "MetalUIShaderRuntime", package: "MetalUI", condition: .when(platforms: [.macOS]))
 
 /// The OpenCascade kernel (xp-2): a dependency on every platform.
 let occt: [Target.Dependency] = ["CreatorOCCT"]
@@ -125,8 +126,12 @@ var targets: [Target] = [
     ),
     .testTarget(name: "CreatorGeometryTests", dependencies: ["CreatorGeometry"]),
     .testTarget(name: "CreatorSketchTests", dependencies: ["CreatorSketch", "CreatorGeometry"]),
-    .testTarget(name: "CreatorImplicitTests",
-                dependencies: ["CreatorImplicit", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUISDL, metalUISDLGPU, metalUIShaderRuntime]),
+    .testTarget(
+        name: "CreatorImplicitTests",
+        dependencies: [
+            "CreatorImplicit", "CreatorGraph", "CreatorKernel", "CreatorGeometry", metalUISDL, metalUISDLGPU, metalUIShaderRuntime,
+        ]
+    ),
     .testTarget(name: "CreatorKernelTests", dependencies: ["CreatorKernel", "CreatorGeometry"]),
     .testTarget(name: "CreatorGraphTests", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorSketch"]),
     .testTarget(
