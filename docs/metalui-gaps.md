@@ -87,7 +87,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | XP-G24 | SDL_GPU compute limits: largest storage buffer binding, most thread groups | MetalUI (SDL GPU layer; `feat/sdl-gpu-device-info`) | ✅ fixed by MetalUI `81b57417` (PR #130), adopted by xp-c task 13 (`limits` are SDL_GPU's guaranteed floors; the edge table stays at 2^25 slots) |
 | XP-G25 | A run-time HLSL compute compiler (SDL_shadercross's library, DXC) and compute pipelines from bytes | MetalUI (SDL GPU layer; `feat/sdl-gpu-runtime-shaders`) | ✅ fixed by MetalUI `722f0cd6` (PR #131, record 151), adopted by xp-c task 11 |
 | XP-G26 | The run-time compiler's lookup tries `../lib` of the executable, not `lib/` beside it | MetalUI (`RuntimeLibraryLocator`, XP-G25) | ✅ fixed by MetalUI `f1c422e5` (PR #132): the lookup also tries `<exe>/lib` (order: explicit path, `METALUI_SHADERCROSS_LIB`, `<exe>`, `<exe>/lib`, `<exe>/../lib`, `METALUI_SHADERCROSS`'s sibling `lib`, loader path) with the dependents preloaded by full path, so the tarball's and the AppImage's `lib/` needs no variable; pinned by xp-c task 11 |
-| XP-G27 | Run-time HLSL compilation only under MetalUI's `SDL` trait | MetalUI (`MetalUISDLGPU`, XP-G25) | 🆕 open, low priority; a macOS build asks for no SDL, so the Mac cannot compile the generated HLSL at run time and its tests keep the offline kernels |
+| XP-G27 | Run-time HLSL compilation only under MetalUI's `SDL` trait | MetalUI (`MetalUISDLGPU`, XP-G25) | ✅ adopted 2026-10-29 (MetalUI `abc2bf46`, PR #146): `MetalUIShaderRuntime` (`RuntimeShaderCompiler`, `.msl` target) is a macOS-only dependency of `CreatorImplicitTests`; where the library loads, the Mac's tests compile the generated HLSL to MSL at run time and run it on `MSLComputeBackend`, else they keep the offline kernels |
 | XP-G21 | Windows release build crashes swift-frontend (exception 0xC000001D) in `PaintPass.withRenderEffects` | MetalUI `5f03ab7b` | ✅ fixed by MetalUI `5f03ab7b`, adopted (branch `xp-2`, CI pin `5f03ab7b`): the CI release build for the zip no longer crashes the compiler |
 | DIM-a | No click count on a tap's value (double-click on a dimension's text in the viewport) | MetalUI session (sent 2026-10-27) | ✅ fixed by MetalUI `cf1b4968` (PR #144, divergence 235, ruling IF-O); adopted in DIM-1 Task 11 (2026-10-27) |
 | DIM-b | Runtime SIGSEGV (`initializeWithCopy` of a `ZStack`) when a `for` over a model array sits inline in a large `ZStack` builder | MetalUI session (sent 2026-10-27) | ✅ closed 2026-10-27: not reproducible on MetalUI cf1b4968 (likely a stale incremental build) |
@@ -1344,9 +1344,14 @@ while the app runs, pipelines cached by source.
   (a `bin/` + `lib/` layout), while MetalCreator's tarball has `MetalCreator` and `lib/` side by side (RUNPATH `$ORIGIN/lib`, xp-2), as has the AppImage's
   `usr/metalcreator`. MetalUI `f1c422e5` (PR #132) tries `<executable dir>/lib` after the executable's directory and preloads the dependents by full path,
   so no `METALUI_SHADERCROSS_LIB` stopgap is needed in a package. xp-c pins `f1c422e5` (task 11).
-- **XP-G27. The compiler needs the SDL trait.** `SDLGPUShaderCompiler` is compiled only under `SDL`; MetalCreator's macOS build asks for no SDL, so the
+- **XP-G27. The compiler needs the SDL trait. Fixed.** `SDLGPUShaderCompiler` is compiled only under `SDL`; MetalCreator's macOS build asks for no SDL, so the
   Mac's tests cannot compile the generated HLSL at run time (they run the offline MSL). Asked, low priority: the compile to bytes and reflection
   (SPIR-V, MSL) in a product without the SDL trait.
+
+  Closed by MetalUI `abc2bf46` (PR #146): the `MetalUIShaderRuntime` product (`RuntimeShaderCompiler.shared(libraryPath:)`, `compileCompute(...target: .spirv/.msl/.dxil)`)
+  loads shadercross without the SDL trait (on a Mac `libSDL3.0.dylib` must sit beside it). Adopted 2026-10-29: a test-only dependency of `CreatorImplicitTests` on
+  macOS; `RuntimeCompileUnderTest` makes an `MSLComputeBackend` that compiles each kernel's HLSL to MSL at run time (entry point `main0`), `.absent` naming the
+  compiler error when the library does not load. The shipping Mac app stays on native Metal and does not link it.
 - **XP-G28. SDL cannot tell a trackpad scroll from a wheel. Fixed.** The SDL backend sets `isPrecise` false and every scroll phase to `.none`
   (`ScrollEvent` docs, ruling `CI-I` item 6), so on Linux and Windows a trackpad's two-finger scroll arrives as wheel steps. The viewport pans on a trackpad
   scroll and zooms on a wheel (user, 2026-10-24), so off macOS a two-finger scroll still zooms. Asked: report `isPrecise` (SDL 3 wheel events carry

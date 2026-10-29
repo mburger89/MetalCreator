@@ -1,9 +1,10 @@
 import Foundation
 @testable import CreatorImplicit
 
-/// MetalUI's run-time compiler where this test process can load it (plan xp-c task 11, gap XP-G25): the Linux image and the Windows job name the library
-/// with `METALUI_SHADERCROSS_LIB`. One backend for the process, made once. A Mac never has it: MetalUI's compiler is in its SDL layer, which a macOS build
-/// does not ask for, so the Mac's HLSL runs as the offline MSL (`GeneratedKernels`, `MSLComputeBackend`; gap XP-G27).
+/// MetalUI's run-time compiler where this test process can load it (plan xp-c task 11, gaps XP-G25, XP-G27): the Linux image and the Windows job name the
+/// library with `METALUI_SHADERCROSS_LIB` and run the result on SDL_GPU; a Mac names a macOS SDL3_shadercross directory (with `libSDL3.0.dylib` beside
+/// it) the same way and runs the MSL compiled at run time (`RuntimeMSLKernels`) on `MSLComputeBackend`. One backend for the process, made once. Where the
+/// library does not load, `.absent` with MetalUI's error and the tests skip: the Mac's HLSL then runs as the offline MSL (`GeneratedKernels`).
 enum RuntimeCompileUnderTest {
     static let hasSDLGPU: Bool = {
         #if canImport(MetalUISDLGPU)
@@ -16,9 +17,12 @@ enum RuntimeCompileUnderTest {
     static let state: ComputeBackendState = {
         #if canImport(MetalUISDLGPU)
         return SDLComputeBackend.make(kernels: SDLRuntimeKernels())
+        #elseif canImport(Metal) && canImport(MetalUIShaderRuntime)
+        let kernels = RuntimeMSLKernels()
+        if let unavailable = kernels.unavailability { return unavailable }
+        return MSLComputeBackend.make(runtimeKernels: kernels)
         #else
-        return .absent("MetalUI's run-time compiler is in its SDL layer, which a macOS build does not build "
-            + "(plan xp-c Global Constraints, gap XP-G27)")
+        return .absent("no run-time shader compiler on this platform")
         #endif
     }()
 

@@ -32,7 +32,7 @@ struct HLSLRuntimeCompileTests {
     }
 
     /// Review Focus 1: a source DXC refuses is `ImplicitCompileError.engine` with DXC's own text, so the selection falls back to the CPU with it.
-    @Test(.enabled(if: RuntimeCompileUnderTest.isAvailable, "needs MetalUI's run-time compiler (the Linux image, the Windows job)"))
+    @Test(.enabled(if: RuntimeCompileUnderTest.isAvailable, "needs MetalUI's run-time compiler (the Linux image, the Windows job, a Mac with METALUI_SHADERCROSS_LIB)"))
     func aSourceTheCompilerRefusesRunsOnTheCPUWithItsDiagnostic() async throws {
         guard case .ready(let backend) = RuntimeCompileUnderTest.state else {
             Issue.record("\(RuntimeCompileUnderTest.state)")
@@ -49,7 +49,7 @@ struct HLSLRuntimeCompileTests {
     }
 
     /// The app's engine compiles at run time and agrees with the CPU (the agreement suites then run on it too, through `GPUEnginesUnderTest`).
-    @Test(.enabled(if: RuntimeCompileUnderTest.isAvailable, "needs MetalUI's run-time compiler (the Linux image, the Windows job)"))
+    @Test(.enabled(if: RuntimeCompileUnderTest.isAvailable, "needs MetalUI's run-time compiler (the Linux image, the Windows job, a Mac with METALUI_SHADERCROSS_LIB)"))
     func thePlatformEngineCompilesAtRunTime() async throws {
         let engine = try #require(ImplicitGPUEngines.platformDefault)
         #expect(await engine.availability == .available)
@@ -59,7 +59,7 @@ struct HLSLRuntimeCompileTests {
     }
 
     /// A kernel source is compiled once per engine: the same shape twice compiles nothing the second time (Review Focus 3, at run time).
-    @Test(.enabled(if: RuntimeCompileUnderTest.isAvailable, "needs MetalUI's run-time compiler (the Linux image, the Windows job)"))
+    @Test(.enabled(if: RuntimeCompileUnderTest.isAvailable, "needs MetalUI's run-time compiler (the Linux image, the Windows job, a Mac with METALUI_SHADERCROSS_LIB)"))
     func aSecondCompileOfTheSameShapeCompilesNothing() async throws {
         let state = RuntimeCompileUnderTest.state
         let engine = HLSLImplicitEngine(name: "run-time", backend: { state })

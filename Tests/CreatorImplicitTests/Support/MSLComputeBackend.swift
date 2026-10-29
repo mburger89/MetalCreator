@@ -6,6 +6,7 @@ import Foundation
 /// The HLSL engine on this Mac's GPU, for the tests (plan xp-c, X-C2): a kernel source's MSL, made offline from the generated HLSL by the Linux image's
 /// SDL_shadercross (`GeneratedKernels.compiled/<digest>.comp.msl`), bound as SDL_GPU's Metal driver binds it (the uniform block at `[[buffer(0)]]`,
 /// then the read-only, then the read-write storage buffers). Absent when the kernels were not compiled; a source not compiled throws, naming the script.
+/// Given a `RuntimeMSLKernels` it takes the MSL from MetalUI's run-time compiler instead (gap XP-G27).
 final class MSLComputeBackend: ImplicitComputeBackend, @unchecked Sendable {
     static let state: ComputeBackendState = {
         guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return .absent("no Metal device") }
@@ -18,13 +19,22 @@ final class MSLComputeBackend: ImplicitComputeBackend, @unchecked Sendable {
     let device: any MTLDevice
     let queue: any MTLCommandQueue
     let name = "Metal (HLSL)"
+    /// Set when the MSL is compiled while the tests run; `nil` reads the kernels compiled offline.
+    private let runtimeKernels: RuntimeMSLKernels?
     /// The SDL backends' cap (gap XP-G24), so the tests reach the same limits.
     let largestBuffer = 1 << 27
     var deviceName: String { device.name }
 
-    private init(device: any MTLDevice, queue: any MTLCommandQueue) {
+    private init(device: any MTLDevice, queue: any MTLCommandQueue, runtimeKernels: RuntimeMSLKernels? = nil) {
         self.device = device
         self.queue = queue
+        self.runtimeKernels = runtimeKernels
+    }
+
+    /// A backend whose kernels are compiled from HLSL to MSL at run time by `kernels`; `.absent` without a Metal device.
+    static func make(runtimeKernels kernels: RuntimeMSLKernels) -> ComputeBackendState {
+        guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else { return .absent("no Metal device") }
+        return .ready(MSLComputeBackend(device: device, queue: queue, runtimeKernels: kernels))
     }
 
     func makeBuffer(length: Int) throws -> any ComputeBuffer {
@@ -35,15 +45,11 @@ final class MSLComputeBackend: ImplicitComputeBackend, @unchecked Sendable {
     }
 
     func makePipeline(_ source: KernelSource) async throws -> any ComputePipeline {
-        let stem = GeneratedKernels.compiled.appending(path: "\(source.digest).comp")
-        guard let text = try? String(contentsOf: stem.appendingPathExtension("msl"), encoding: .utf8) else {
-            throw ImplicitCompileError.unsupported(
-                "\(source.kernel.rawValue) \(source.digest) was not compiled offline: \(GeneratedKernels.remedy)")
-        }
-        let reflection = (try? JSONSerialization.jsonObject(with: Data(contentsOf: stem.appendingPathExtension("json")))) as? [String: Int]
-        guard reflection?["readonly_storage_buffers"] == source.kernel.bindings.readOnly,
-              reflection?["readwrite_storage_buffers"] == source.kernel.bindings.readWrite else {
-            throw ImplicitCompileError.engine("\(source.digest).comp.json does not match \(source.kernel.rawValue)'s bindings")
+        let text: String
+        if let runtimeKernels {
+            text = try await runtimeKernels.msl(for: source)
+        } else {
+            text = try offlineMSL(for: source)
         }
         do {
             let library = try await device.makeLibrary(source: text, options: nil)
@@ -56,6 +62,21 @@ final class MSLComputeBackend: ImplicitComputeBackend, @unchecked Sendable {
         } catch {
             throw ImplicitCompileError.engine(error.localizedDescription)
         }
+    }
+
+    /// The MSL compiled offline for `source`, after checking its reflection against the kernel's bindings.
+    private func offlineMSL(for source: KernelSource) throws -> String {
+        let stem = GeneratedKernels.compiled.appending(path: "\(source.digest).comp")
+        guard let text = try? String(contentsOf: stem.appendingPathExtension("msl"), encoding: .utf8) else {
+            throw ImplicitCompileError.unsupported(
+                "\(source.kernel.rawValue) \(source.digest) was not compiled offline: \(GeneratedKernels.remedy)")
+        }
+        let reflection = (try? JSONSerialization.jsonObject(with: Data(contentsOf: stem.appendingPathExtension("json")))) as? [String: Int]
+        guard reflection?["readonly_storage_buffers"] == source.kernel.bindings.readOnly,
+              reflection?["readwrite_storage_buffers"] == source.kernel.bindings.readWrite else {
+            throw ImplicitCompileError.engine("\(source.digest).comp.json does not match \(source.kernel.rawValue)'s bindings")
+        }
+        return text
     }
 
     func run(_ batch: ComputeBatch) async throws -> [[UInt8]] {

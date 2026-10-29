@@ -2,7 +2,7 @@ import Foundation
 @testable import CreatorImplicit
 
 /// The GPU engines this machine can test, by name (plan xp-c): "Metal" on a Mac with a device; the HLSL engine as "Metal (HLSL)" on a Mac where the
-/// generated kernels were compiled offline, as "Vulkan" (Linux) and "Direct3D 12" (Windows) over SDL_GPU: compiled at run time as the app
+/// generated kernels were compiled offline or MetalUI's run-time compiler loads, as "Vulkan" (Linux) and "Direct3D 12" (Windows) over SDL_GPU: compiled at run time as the app
 /// does where MetalUI's compiler loads, else on the kernels compiled offline.
 enum GPUEnginesUnderTest {
     static let hlslState: ComputeBackendState = {
@@ -11,6 +11,8 @@ enum GPUEnginesUnderTest {
         if RuntimeCompileUnderTest.isAvailable { return RuntimeCompileUnderTest.state }
         return SDLComputeBackend.make(kernels: SDLPrecompiledKernels(directory: GeneratedKernels.compiled))
         #elseif canImport(Metal)
+        // The same on a Mac where MetalUIShaderRuntime loads (gap XP-G27): the MSL compiled at run time, else the kernels compiled offline.
+        if RuntimeCompileUnderTest.isAvailable { return RuntimeCompileUnderTest.state }
         return MSLComputeBackend.state
         #else
         return .absent("no backend for the HLSL engine on this platform")
