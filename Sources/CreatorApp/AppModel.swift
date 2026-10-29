@@ -57,6 +57,9 @@ public final class AppModel {
     public var alert: AppAlert?
     /// The export in progress, shown in the export sheet, or `nil` (implicit spec §5.3).
     public internal(set) var exportRun: ExportRun?
+    /// A test seam: awaited by a streamed export, with its sheet showing, before any work is done. A test holds the export there so it
+    /// cannot finish before the test is done with the sheet; cancelling the export makes the wait throw.
+    @ObservationIgnored var exportHold: (@MainActor () async throws -> Void)?
     /// The close or quit question in progress (`AppModel+Closing`).
     public internal(set) var closeRequest = CloseRequestState.idle
     /// The docked graph panel's width (docked left) and height (docked at the bottom), in points.

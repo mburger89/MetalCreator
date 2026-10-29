@@ -11,7 +11,7 @@ import Testing
 /// goes when the export ends. How it looks is a human check (group IM).
 @MainActor
 struct ExportSheetWindowTests {
-    /// A sphere of radius 10 meshed at 0.05 mm on export: long enough to cancel.
+    /// A sphere of radius 10 meshed at 0.05 mm on export. Tests that need the export to still be running hold it (`holdExport`).
     func open() async throws -> AppWindow {
         var builder = GraphBuilder()
         let sphere = builder.add(ImplicitSphereNode.self, ["radius": .number(10)])
@@ -31,6 +31,21 @@ struct ExportSheetWindowTests {
         return try #require(app.model.exportRun)
     }
 
+    /// Holds every export of `app` at its start, sheet showing, until it is cancelled: however slow the machine, it cannot finish.
+    func holdExport(_ app: AppWindow) {
+        app.model.exportHold = { try await Task.sleep(for: .seconds(3600)) }
+    }
+
+    /// Draws until `title` is on the sheet; a slow machine may need more than one idle round for the sheet to be laid out.
+    func waitForSheet(titled title: String, in app: AppWindow) async throws -> Bool {
+        for _ in 0..<2000 {
+            try await app.window.runUntilIdle()
+            if try !app.window.elements(where: { $0.label == title || $0.value == title }).isEmpty { return true }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        return false
+    }
+
     func controls(_ label: String, in app: AppWindow) throws -> [TestElement] {
         try app.window.elements { $0.label == label && $0.role != .staticText }
     }
@@ -43,12 +58,12 @@ struct ExportSheetWindowTests {
 
     @Test func theSheetShowsTheExportAndItsCancelStopsIt() async throws {
         let app = try await open()
+        holdExport(app)
         let url = URL.temporaryDirectory.appending(path: "\(UUID().uuidString).stl")
         let task = Task { try await app.model.export(.stl, to: url) }
         let run = try await waitForRun(app)
-        try await app.window.runUntilIdle()
         let title = run.title
-        #expect(try app.window.elements { $0.label == title || $0.value == title }.count >= 1)
+        #expect(try await waitForSheet(titled: title, in: app))
         let cancel = try #require(try controls("Cancel", in: app).first)
         try app.window.click(cancel)
         #expect(run.isCancelling)

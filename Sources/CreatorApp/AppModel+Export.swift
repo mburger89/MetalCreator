@@ -123,6 +123,7 @@ extension AppModel {
 
     /// Evaluates the graph for export, then writes the file; the warnings of the nodes it came from.
     private func streamToFile(_ kind: ExportKind, to url: URL, _ run: ExportRun) async throws -> [String] {
+        try await exportHold?()
         let collected = try await evaluateForExport()
         try Task.checkCancellation()
         // The checks are done: a stream's check copy is not kept while its file is written.
