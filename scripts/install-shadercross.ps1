@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Builds the pinned SDL_shadercross for Windows x64 (plan xp-3, user decision U1(b)) into -Prefix, so scripts\build-shaders.ps1 can
+Builds the pinned SDL_shadercross for Windows x64 (plan xp-3, user decision U1(b)) into -Prefix, so MetalUI's CompileShadersOnBuild plugin can (METALUI_SHADERCROSS names the result)
 compile the viewport's shaders. CI runs it once per pin and caches the prefix with actions/cache; a developer runs it once.
 
 .DESCRIPTION
@@ -11,7 +11,7 @@ on PATH). SDL3's development package (its cmake files) is -Sdl3Root.
 
     scripts\install-shadercross.ps1 -Prefix C:\tools\shadercross -Sdl3Root C:\SDL3-3.4.16
 
-It leaves <Prefix>\bin\shadercross.exe with its DLLs and <Prefix>\COMMIT, which build-shaders.ps1 compares with the pin. It also leaves the
+It leaves <Prefix>\bin\shadercross.exe with its DLLs and <Prefix>\COMMIT, the commit it built. It also leaves the
 implicit engine's run-time compiler (plan xp-c task 12, MetalUI docs/packaging.md 4b): SDL3_shadercross.dll, dxcompiler.dll, dxil.dll and
 spirv-cross-c-shared.dll, all in <Prefix>\bin, and their licences in <Prefix>\share\licenses. Outside a developer
 shell it enters one itself (Visual Studio's DevShell module, found with vswhere), for this script's process only, so CI needs no action

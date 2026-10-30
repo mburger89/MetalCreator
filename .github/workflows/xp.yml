@@ -22,9 +22,10 @@
 # The viewport's HLSL shaders are compiled at build time (plan xp-3, user decision U1(b)); nothing compiled is checked in. SDL_shadercross,
 # pinned by commit in scripts/shadercross.env (no release or tag upstream, no binary from MetalUI), is built on Linux by the Dockerfile's
 # `shadercross` stage, natively on each runner, alone with buildx and cached (scope xp-shadercross-<arch>), and on Windows by
-# scripts/install-shadercross.ps1, cached by actions/cache/restore and save under a key of the pin and the script. scripts/linux-test.sh
-# and scripts/build-shaders.ps1 compile through MetalUI's MetalUICompileShaders before `swift build`; a failure stops the job with a
-# message that names the tool and its commit.
+# scripts/install-shadercross.ps1, cached by actions/cache/restore and save under a key of the pin and the script. `swift build` compiles
+# the shaders itself, through MetalUI's CompileShadersOnBuild plugin (BS-D), which finds shadercross by METALUI_SHADERCROSS (the Linux image's
+# /opt/shadercross, set by scripts/linux-test.sh; the Windows install, set below); a build without it fails with MetalUI's message naming the
+# tool and its commit.
 #
 # The Windows job is modelled on MetalUI's own Windows job (.github/workflows/sdl-gpu-linux.yml). Run 38546048595 was green: it builds, passes the
 # suite (11 "Test run with" lines; 12 since xp-2 added CreatorOCCTTests) and passes the app's --self-test and --smoke-test. It stays continue-on-error, so it does not hide the Linux
@@ -50,7 +51,7 @@ concurrency:
 
 env:
   METALUI_REPOSITORY: mburger89/MetalUI
-  METALUI_COMMIT: abc2bf4612b57aa784d7dc1d37dc42466cea9c86
+  METALUI_COMMIT: cc8995d32aaee8eaa7471ffdd765f64f6ab4644b
   # microsoft/vcpkg at the commit whose ports/opencascade is 7.9.3 (port-version 1). packaging/windows/vcpkg.json names the same
   # commit as its builtin-baseline; CIPinTests checks they agree.
   VCPKG_COMMIT: 256310531c1e57ee83f8ac01f7bea7c1e56630f5
@@ -107,7 +108,7 @@ jobs:
           load: true
           cache-from: type=gha,scope=xp-shadercross-${{ matrix.arch }}
           cache-to: type=gha,mode=max,scope=xp-shadercross-${{ matrix.arch }}
-      - name: Compile the shaders, build, test, self-test and launch
+      - name: Build (the shaders compile with it), test, self-test and launch
         working-directory: MetalCreator
         env:
           OCCT_IMAGE: metalcreator-occt:latest
@@ -243,10 +244,13 @@ jobs:
         with:
           path: ${{ runner.temp }}\shadercross
           key: ${{ steps.shadercross-cache.outputs.cache-primary-key }}
-      - name: Point the tests at the shader compiler
-        # MetalUI's run-time compiler (XP-G25) tries METALUI_SHADERCROSS_LIB first (MetalUI docs/packaging.md 4b). The zip's own check clears it
-        # (scripts/package-windows.ps1), so a zip without the DLLs still fails there.
-        run: '"METALUI_SHADERCROSS_LIB=$env:RUNNER_TEMP\shadercross\bin" >> $env:GITHUB_ENV'
+      - name: Point the build and the tests at the shader compiler
+        # METALUI_SHADERCROSS is the compiler CompileShadersOnBuild runs on every `swift build` (MetalUI docs/packaging.md 4a). MetalUI's run-time
+        # compiler (XP-G25) tries METALUI_SHADERCROSS_LIB first (4b). The zip's own check clears the second (scripts/package-windows.ps1), so a zip
+        # without the DLLs still fails there.
+        run: |
+          "METALUI_SHADERCROSS=$env:RUNNER_TEMP\shadercross\bin\shadercross.exe" >> $env:GITHUB_ENV
+          "METALUI_SHADERCROSS_LIB=$env:RUNNER_TEMP\shadercross\bin" >> $env:GITHUB_ENV
       - name: Fetch AccessKit
         working-directory: MetalUI/Backends/SDL
         # One SwiftPM flag per line: -Xcc -I<include> -Xswiftc -L<lib> (MetalUI PX-I item 2).
@@ -254,14 +258,7 @@ jobs:
           python scripts/fetch-accesskit.py --print-flags > "$env:RUNNER_TEMP\accesskit-flags.txt"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt"
-      - name: Compile the viewport's shaders
-        working-directory: MetalCreator
-        # MetalUI's MetalUICompileShaders through the pinned SDL_shadercross; stops with a message naming the tool and its commit if it
-        # is missing or a shader fails.
-        run: |
-          scripts\build-shaders.ps1 -ShaderCross "$env:RUNNER_TEMP\shadercross\bin\shadercross.exe"
-          exit $LASTEXITCODE
-      - name: Build
+      - name: Build (compiles the viewport's shaders)
         working-directory: MetalCreator
         # No pkg-config on Windows: hand SwiftPM SDL's include and library paths.
         run: |

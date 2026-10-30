@@ -38,6 +38,18 @@ let metalUISDLGPU: Target.Dependency = .product(name: "MetalUISDLGPU", package: 
 let metalUIShaderRuntime: Target.Dependency = .product(
     name: "MetalUIShaderRuntime", package: "MetalUI", condition: .when(platforms: [.macOS]))
 
+/// MetalUI's build-tool plugin `CompileShadersOnBuild` (BS-D, XP-G32): compiles `Sources/CreatorViewport/Shaders/*.hlsl` (stage sources and
+/// `common.hlsli`) to SPIR-V, DXIL, MSL and reflection JSON on a plain `swift build`, into the target's `MetalUIAppShaders` resource. It
+/// needs SDL_shadercross (`METALUI_SHADERCROSS`, else `PATH`; pinned in `scripts/shadercross.env`) and nothing compiled is checked in
+/// (user decision U1(b)), so a build without it fails with MetalUI's message. Applied on Linux and Windows only: `#if` here is evaluated
+/// on the host that builds the manifest, so a macOS build (native Metal, MSL strings) never runs it and needs no shadercross (MetalUI
+/// `docs/packaging.md` 4a).
+#if os(Linux) || os(Windows)
+let shaderPlugins: [Target.PluginUsage] = [.plugin(name: "CompileShadersOnBuild", package: "MetalUI")]
+#else
+let shaderPlugins: [Target.PluginUsage] = []
+#endif
+
 /// The OpenCascade kernel (xp-2): a dependency on every platform.
 let occt: [Target.Dependency] = ["CreatorOCCT"]
 
@@ -74,11 +86,14 @@ var targets: [Target] = [
     // The viewport's model, camera and tools are portable; its Metal renderer is gated with `#if canImport(Metal)`.
     // MetalUIPortableText and MetalUISystemFonts only for the view cube's face names off macOS (`CubeLabelFonts`), named on every
     // platform for the reason above (SG-D).
+    // `Shaders` holds the SDL renderer's HLSL: the plugin reads it from the target's directory, SwiftPM must not scan it as sources.
     .target(
         name: "CreatorViewport",
         dependencies: [
             "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI, metalUIPortableText, metalUISystemFonts, metalUISDL, metalUISDLGPU,
-        ]
+        ],
+        exclude: ["Shaders"],
+        plugins: shaderPlugins
     ),
     .target(name: "CreatorEditor", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry", "CreatorStyle", metalUI]),
     // The in-viewport sketch editor (sketcher spec §8, S5): `SketchEditorModel`, its tools and its views. Graph-free:

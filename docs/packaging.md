@@ -101,8 +101,8 @@ scripts/package-linux.sh           # on a Linux machine with Swift 6.4, SDL 3.4,
 write `dist/MetalCreator-<version>-linux-<arch>.tar.gz`. Unpacked, the folder holds `MetalCreator` (a release build), `lib/` (the Swift
 runtime's libraries, OpenCascade's `libTK*.so.7.9`, `libSDL3.so.0` and whatever else `ldd` names that is not glibc or
 the C++ runtime; linking the Swift runtime statically does not work with Foundation here), `MetalUISDLShaders/` (MetalUI's compiled SDL shaders, which the backend looks for beside the executable first,
-ruling `PX-P`), `MetalUIAppShaders/` (the 3D viewport's shaders, compiled by `scripts/build-shaders.sh` and looked for there first by
-MetalUI's `SDLGPUShaderLibrary.locate`; the script stops if they were not built), `share/applications/com.metalcreator.MetalCreator.desktop`, `share/mime/packages/com.metalcreator.MetalCreator.xml`,
+ruling `PX-P`), `MetalUIAppShaders/` (the 3D viewport's shaders, compiled by MetalUI's `CompileShadersOnBuild` plugin during the release build, copied from `MetalCreator_CreatorViewport.bundle` and looked for there first by
+MetalUI's `SDLGPUShaderLibrary.locate`; the script stops if the build did not make them), `share/applications/com.metalcreator.MetalCreator.desktop`, `share/mime/packages/com.metalcreator.MetalCreator.xml`,
 `share/icons/hicolor/256x256/apps/com.metalcreator.MetalCreator.png` (a placeholder icon), `install.sh` and `share/doc/metalcreator/` (the licences: OpenCascade's LGPL 2.1 and its exception, MetalUI's third-party notices and the
 licence files they name). The executable's RUNPATH is set to `$ORIGIN/lib` and each bundled library's to `$ORIGIN` (`patchelf`; the
 build's `/opt/occt/lib` and the toolchain's `/usr/lib/swift/linux` are left out), so the folder runs from anywhere and finds
@@ -182,7 +182,7 @@ scripts\package-windows.ps1 -BuildFlags @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswif
 It writes `dist\MetalCreator-<version>-windows-x64.zip` with `MetalCreator.exe`, every DLL the executable needs beside it (OpenCascade's
 from `OCCT_PREFIX\bin`, `SDL3.dll`, the Swift runtime's and the Visual C++ runtime's, found by following the `DLL Name:` lines of
 `llvm-objdump -p` (or `dumpbin /dependents` when the toolchain has no objdump); Windows' own DLLs are left out), `MetalUISDLShaders\`,
-`MetalUIAppShaders\` (the viewport's shaders, from `scripts\build-shaders.ps1`), `register-mcgraph.ps1` and `licenses\`. The Swift runtime's folder is looked up (by `swiftCore.dll`, under the `Swift` folder that
+`MetalUIAppShaders\` (the viewport's shaders, from the release build's `MetalCreator_CreatorViewport.bundle`), `register-mcgraph.ps1` and `licenses\`. The Swift runtime's folder is looked up (by `swiftCore.dll`, under the `Swift` folder that
 `swift.exe` and `SDKROOT` sit in), not written down. The script then unpacks the zip and runs `--self-test` with only Windows'
 folders on `PATH` and MetalUI's checkout and the viewport's `Shaders\viewport\compiled` moved aside (both renderers fall back to the shaders in their source trees), so a missing DLL
 or shader directory fails the job. It packages a release build: CI makes it in its own step (`swift build -c release --product

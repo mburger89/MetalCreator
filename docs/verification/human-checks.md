@@ -2098,7 +2098,7 @@ exports a cube) and, for the tarball and the AppImage, a run in a clean Ubuntu (
 **Status: NOT RUN.** Plan `2026-10-21-xp-3-sdl-gpu-viewport.md`; spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §4 and
 erratum E7. CI renders and picks on Mesa's lavapipe (Linux) and Direct3D 12's WARP (Windows), and the packages' self-tests find the
 compiled shaders; these checks are what a real GPU, a real pointer and a person's eye show. Linux: build as for group XP after
-`scripts/build-shaders.sh` (or use the tarball or AppImage); Windows: the zip.
+`swift build` with shadercross (the plugin compiles the shaders; or use the tarball or AppImage); Windows: the zip.
 
 - [ ] **XP-20 The 3D view draws (Linux and Windows).** On a real desktop GPU (Linux: Vulkan on Mesa or the vendor driver; Windows 11:
   Direct3D 12) the area behind the panels is the theme's gradient with the ground grid fading into the distance, not a card. The §7.2

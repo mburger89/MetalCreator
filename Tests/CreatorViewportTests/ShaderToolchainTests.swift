@@ -2,8 +2,8 @@ import Foundation
 import Testing
 
 /// The shader compiler is pinned once, in `scripts/shadercross.env`, and written again in the Dockerfile, the workflow and the
-/// scripts' messages. This pins that they agree, and that the build script stops with a plain message, naming the tool and its pinned
-/// commit, when it cannot find it. Read from the source tree (`#filePath`), so macOS runs them too.
+/// scripts' messages. This pins that they agree, and that the manifest applies MetalUI's shader plugin on Linux and Windows only and the
+/// workflow and the Linux script hand it the shader compiler. Read from the source tree (`#filePath`), so macOS runs them too.
 struct ShaderToolchainTests {
     static let root = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -22,7 +22,7 @@ struct ShaderToolchainTests {
         return (String(repository), String(commit))
     }
 
-    @Test func thePinIsWrittenOnceAndTheScriptsCompileThroughMetalUIsTool() throws {
+    @Test func thePinIsWrittenOnceAndThePluginCompilesWithIt() throws {
         let pin = try Self.pin()
         #expect(pin.repository == "https://github.com/libsdl-org/SDL_shadercross")
         let dockerfile = try Self.text("scripts/linux/Dockerfile")
@@ -35,33 +35,31 @@ struct ShaderToolchainTests {
         #expect(!workflow.contains("SHADERCROSS_COMMIT:"), "the workflow reads the pin from scripts/shadercross.env and does not repeat it")
         let ps = try Self.text("scripts/install-shadercross.ps1")
         #expect(ps.contains("shadercross.env"), "install-shadercross.ps1 reads the pin from the env file")
-        // Both scripts compile through MetalUI's own tool (MetalUI S12, gap XP-G20), built with a scratch path outside ../MetalUI.
-        for script in ["scripts/build-shaders.sh", "scripts/build-shaders.ps1"] {
-            let text = try Self.text(script)
-            #expect(text.contains("MetalUICompileShaders"), "\(script) runs MetalUI's MetalUICompileShaders")
-            #expect(text.contains("--scratch-path"), "\(script) builds the tool outside ../MetalUI")
-            #expect(!text.contains("compile-app-shaders.py"), "\(script) does not name MetalUI's deleted python script")
+        // The viewport's shaders compile through MetalUI's build-tool plugin (BS-D), which the manifest applies on Linux and Windows only, so a
+        // Mac build needs no shadercross. The scripts that ran MetalUI's tool by hand are gone.
+        let manifest = try Self.text("Package.swift")
+        #expect(manifest.contains("""
+            #if os(Linux) || os(Windows)
+            let shaderPlugins: [Target.PluginUsage] = [.plugin(name: "CompileShadersOnBuild", package: "MetalUI")]
+            #else
+            let shaderPlugins: [Target.PluginUsage] = []
+            #endif
+            """), "Package.swift applies CompileShadersOnBuild under `#if os(Linux) || os(Windows)` only")
+        #expect(manifest.contains("plugins: shaderPlugins"), "CreatorViewport opts in")
+        for gone in ["scripts/build-shaders.sh", "scripts/build-shaders.ps1"] {
+            let exists = FileManager.default.fileExists(atPath: Self.root.appending(path: gone).path)
+            #expect(!exists, "\(gone) is retired; the plugin does its work")
         }
     }
 
-    /// The scripts' plain failure: no shadercross, exit 69, a line that names the tool, the repository and the pinned commit.
-    #if !os(Windows)
-    @Test func aMissingShadercrossStopsTheBuildNamingTheToolAndItsPin() throws {
-        let pin = try Self.pin()
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [Self.root.appending(path: "scripts/build-shaders.sh").path]
-        process.environment = ["SHADERCROSS": "/nonexistent/shadercross", "PATH": "/usr/bin:/bin"]
-        let errors = Pipe()
-        process.standardError = errors
-        process.standardOutput = Pipe()
-        try process.run()
-        process.waitUntilExit()
-        let message = String(bytes: errors.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        #expect(process.terminationStatus == 69)
-        #expect(message.contains("SDL_shadercross"), "the message names the tool: \(message)")
-        #expect(message.contains(pin.commit), "the message names the pinned commit: \(message)")
-        #expect(message.contains("scripts/shadercross.env"), "the message says where the pin is written: \(message)")
+    /// The workflow's MetalUI checkout is the commit with the plugin (BS-D, XP-G32), and the Linux script hands the plugin the image's
+    /// shadercross by `METALUI_SHADERCROSS`.
+    @Test func theWorkflowAndTheLinuxScriptReachShadercrossForThePlugin() throws {
+        let workflow = try Self.text(".github/workflows/xp.yml")
+        #expect(workflow.contains("METALUI_COMMIT: cc8995d32aaee8eaa7471ffdd765f64f6ab4644b"))
+        #expect(workflow.contains(#"METALUI_SHADERCROSS=$env:RUNNER_TEMP\shadercross\bin\shadercross.exe"#),
+                "the Windows job names shadercross for the plugin")
+        let script = try Self.text("scripts/linux-test.sh")
+        #expect(script.contains("METALUI_SHADERCROSS=/opt/shadercross/bin/shadercross"), "the image's shadercross is the plugin's")
     }
-    #endif
 }

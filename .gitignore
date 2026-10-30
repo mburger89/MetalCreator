@@ -12,6 +12,7 @@ DerivedData/
 # scripts/package-app.sh writes the packaged app here.
 /dist
 
-# The viewport's SDL_GPU shaders are compiled at build time by scripts/build-shaders.sh (.ps1 on Windows) from Shaders/viewport/*.hlsl;
-# nothing compiled is checked in (plan xp-3, user decision U1(b)).
-/Shaders/viewport/compiled
+# The viewport's SDL_GPU shaders are compiled on Linux and Windows builds by MetalUI's CompileShadersOnBuild plugin from
+# Sources/CreatorViewport/Shaders/*.hlsl into the build folder; nothing compiled is checked in (plan xp-3, user decision U1(b)). This is the
+# directory MetalUI's `compile-shaders` plugin would write by hand, kept out of git for the same rule.
+/Sources/CreatorViewport/Shaders/compiled

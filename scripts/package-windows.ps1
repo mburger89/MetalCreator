@@ -16,8 +16,8 @@
 #                only look its folder up. CI does this, so that a failed release build is its own red step.
 # Environment: OCCT_PREFIX is OpenCascade's install root (bin\*.dll, share\opencascade\copyright); this script uses its release
 # set (`bin`), never `debug\bin`.
-# Needs MetalUI beside this repository (..\MetalUI) and the viewport's shaders compiled by scripts\build-shaders.ps1 (CI runs it before
-# the build). Not run outside CI.
+# Needs MetalUI beside this repository (..\MetalUI) and the viewport's shaders, which the release build compiles through MetalUI's
+# CompileShadersOnBuild plugin (METALUI_SHADERCROSS names shadercross; CI sets it for the job). Not run outside CI.
 param(
     [string[]]$BuildFlags = @(),
     [Parameter(Mandatory)][string]$SdlRoot,
@@ -66,9 +66,9 @@ $shaders = Join-Path $metalUI 'Backends\SDL\Shaders\compiled'
 if (-not (Test-Path (Join-Path $shaders 'SOURCE.sha256'))) { throw "MetalUI's compiled shaders are missing: $shaders" }
 Copy-Item -Recurse $shaders (Join-Path $folder 'MetalUISDLShaders')
 # The 3D viewport's own shaders (plan xp-3, user decision U7(a)): MetalUIAppShaders beside the executable, where the SDL renderer looks
-# first. A build product, never in git: scripts\build-shaders.ps1 makes them.
-$appShaders = Join-Path $root 'Shaders\viewport\compiled'
-if (-not (Test-Path (Join-Path $appShaders 'SOURCE.sha256'))) { throw "the viewport's compiled shaders are missing ($appShaders): run scripts\build-shaders.ps1 first" }
+# first. A build product, never in git: the release build's plugin made them in CreatorViewport's resource bundle beside the executable.
+$appShaders = Join-Path $bin 'MetalCreator_CreatorViewport.bundle\MetalUIAppShaders'
+if (-not (Test-Path (Join-Path $appShaders 'SOURCE.sha256'))) { throw "the viewport's compiled shaders are missing ($appShaders): the build needs SDL_shadercross (METALUI_SHADERCROSS)" }
 Copy-Item -Recurse $appShaders (Join-Path $folder 'MetalUIAppShaders')
 
 # The implicit engine's run-time shader compiler (plan xp-c task 12; MetalUI docs/packaging.md 4b): MetalUI finds SDL3_shadercross.dll beside the
@@ -262,7 +262,7 @@ $env:PATH = "$system;$env:SystemRoot"
 # CI sets METALUI_SHADERCROSS_LIB for the tests; the zip must find its compiler beside the executable on its own.
 Remove-Item Env:METALUI_SHADERCROSS_LIB -ErrorAction SilentlyContinue
 # MetalUI's SDL backend falls back to the shaders in the source tree it was built from, which would hide a zip without
-# MetalUISDLShaders, and the viewport falls back to this checkout's Shaders\viewport\compiled, which would hide one without
+# MetalUISDLShaders, and the viewport falls back to the build's resource bundle (SwiftPM's accessor remembers its path), which would hide a zip without
 # MetalUIAppShaders; so both are moved aside for the check.
 $aside = "$metalUI.aside"
 $appShadersAside = "$appShaders.aside"

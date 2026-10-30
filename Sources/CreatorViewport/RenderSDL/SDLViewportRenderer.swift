@@ -4,7 +4,7 @@ import CreatorKernel
 import MetalUISDLGPU
 
 /// Draws a `ViewportFrame` with SDL_GPU (cross-platform spec section 4): the Metal `ViewportRenderer`'s passes, in the same
-/// order, over the shaders in `Shaders/viewport`.
+/// order, over the shaders in `Sources/CreatorViewport/Shaders`.
 /// - The main pass draws the background gradient, opaque solids, the ground grid, B-rep edges, ghosts, guides' selected edges,
 ///   the overlay's fills, lines and points, handles, the view cube (its face names painted on from a label atlas) and the triad. It renders into its own 4× MSAA colour and depth targets, resolved into
 ///   the target it is given (a `GPUSurface`'s, `bgra8Unorm`).

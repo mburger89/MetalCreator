@@ -126,15 +126,17 @@ typed SDL_GPU layer, no raw `SDL_` call). `ViewportView` is the same on both and
 overload per context. The SDL renderer plans a frame first (`SDLFramePlan`: every buffer made and every copy recorded, because a copy pass cannot run
 inside a render pass) and then records the pass; solids, lines, fills, the cube and the slice read their data as vertex-stage storage buffers. Its
 pipelines carry their own depth test and are made with `compileGraphicsPipeline` (`SDLViewportPipelines`), so a refused one says SDL's reason in
-`gpuFailureMessage`. The shaders are HLSL in `Shaders/viewport` (`common.hlsli` mirrors the Swift structs, every member a `float4`, `uint4` or scalar,
-never a `float3`), **compiled at build time on Linux and Windows, never checked in**: `scripts/build-shaders.sh` (`.ps1` on Windows; `scripts/linux-test.sh`
-and CI run it before `swift build`) runs MetalUI's `MetalUICompileShaders`, built from `../MetalUI` with a scratch path of ours, through the
-SDL_shadercross commit pinned in `scripts/shadercross.env` (built by the Dockerfile's `shadercross` stage and `scripts/install-shadercross.ps1`) into
-`Shaders/viewport/compiled` (SPIR-V, DXIL, MSL, reflection, `SOURCE.sha256`, `INCLUDES.sha256`; git-ignored), so **`swift build` alone compiles no
-shader** and a missing tool stops the script naming the tool and the pin. `ShaderSourceTests` pins the HLSL struct sizes to the Swift strides
+`gpuFailureMessage`. The shaders are HLSL in `Sources/CreatorViewport/Shaders` (`common.hlsli` mirrors the Swift structs, every member a `float4`, `uint4` or scalar,
+never a `float3`), **compiled by `swift build` on Linux and Windows, never checked in** (MetalUI BS-D and XP-G32): `Package.swift` applies MetalUI's build-tool
+plugin `CompileShadersOnBuild` to `CreatorViewport` under `#if os(Linux) || os(Windows)` (the host's OS, so a macOS build skips it and needs no shadercross), and it runs
+the SDL_shadercross commit pinned in `scripts/shadercross.env` (`METALUI_SHADERCROSS`, else `PATH`; built by the Dockerfile's `shadercross` stage and
+`scripts/install-shadercross.ps1`; `scripts/linux-test.sh` and the CI Windows job set the variable) into the target's `MetalUIAppShaders` resource (SPIR-V, DXIL, MSL,
+reflection, `SOURCE.sha256`, `INCLUDES.sha256`; editing `common.hlsli` alone reruns it), and a build without shadercross fails with MetalUI's `error:` lines naming
+the tool and the pin (after installing it, `swift package clean`: a replaced tool does not rerun the step). `ShaderSourceTests` pins the HLSL struct sizes to the Swift strides
 (`GPUDataTests`) and, on Linux and Windows, that the build produced every stage and is current; edit the HLSL, the Swift struct and the MSL together.
-The compiled directory is found beside the executable as `MetalUIAppShaders` first, then in the source tree (`SDLViewportShaders`); the tarball, the
-AppImage and the zip ship it, and `--self-test` fails without it, saying what to run (`ViewportShaderCheck`). Picking is user decision U4, hybrid:
+The compiled directory is found beside the executable as `MetalUIAppShaders` first, then in the target's resource bundle, then the source tree
+(`SDLViewportShaders`, MetalUI's `SDLGPUShaderLibrary.locate(resourceBundle:)`); the tarball, the
+AppImage and the zip ship it (copied from the release build's `MetalCreator_CreatorViewport.bundle`), and `--self-test` fails without it, saying what to do (`ViewportShaderCheck`). Picking is user decision U4, hybrid:
 `SDLViewportPicker` renders the ID pass in a batch after the draw that follows a change and reads it back with `SDLGPUDevice.download`; until it
 lands a hover keeps its face and a click renders its own ID pass when none has landed and waits for it (`pickWhenReady`, MetalUI's `submitBatchSynchronously`; a failed pass answers
 empty space at once) and goes to the tool of its press (`ViewportModel.isPickPending`, `pickWhenReady`, `ViewportBackendTests`). `Matrix4.float` is a `FloatMatrix4` and `FrameUniforms` is plain SIMD
@@ -524,7 +526,7 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
     scene showing a grid of values (`r32Float`, read with a bilinear blend in `slice_fragment`, kept by `SliceTextures` until its
     `generation` changes); it is equal and hashed by `generation`, never by its values, is drawn ignoring depth (it passes through the
     part) and is never in the ID pass or `sceneBounds`. The viewport's Metal shader source is `ViewportShaders.source + LineShaders.source + FieldShaders.source` (MSL, compiled at run time);
-    the SDL renderer's is the HLSL in `Shaders/viewport`.
+    the SDL renderer's is the HLSL in `Sources/CreatorViewport/Shaders`.
     The cut view (implicit spec §5.1) is a `ViewportClip` (`ViewportModel.showClip`): the fragment shaders discard what lies on the
     side its normal points to, for faces, B-rep edges, field tints and the ID pass (`ClipUniforms` at fragment buffer 3, 4 for the
     tint, 0 for lines, off for handles), and a back face seen while cutting is the part's colour darkened. A `ViewportItem`'s
@@ -732,8 +734,8 @@ the check rejects it: the blend fails naming the largest size that works (`OCCTK
 build)); a refused blend costs tens of milliseconds more than one that works (`BlendRefusalBench`,
 `docs/verification/performance.md`).
 MetalUI exports its own `Angle`: a file importing both MetalUI and CreatorGeometry writes `CreatorGeometry.Angle`.
-The GPU structs in `Sources/CreatorViewport/Render` mirror the MSL in `ViewportShaders.swift` and the HLSL in `Shaders/viewport/common.hlsli`; `GPUDataTests`
-pins their strides and `ShaderSourceTests` the HLSL's, so change all three together; the next build recompiles the HLSL (`scripts/build-shaders.sh`).
+The GPU structs in `Sources/CreatorViewport/Render` mirror the MSL in `ViewportShaders.swift` and the HLSL in `Sources/CreatorViewport/Shaders/common.hlsli`; `GPUDataTests`
+pins their strides and `ShaderSourceTests` the HLSL's, so change all three together; the next Linux or Windows build recompiles the HLSL (the plugin).
 The viewport's pointer input is MetalUI C7's (spec §9): its bindings live in `ViewportInputMap`, its behaviour in
 `ViewportModel` (`dragChanged`/`dragEnded`/`dragCancelled(button:)`, `click(at:modifiers:)`, `modifiersChanged(_:)`,
 `contextMenuItems(at:)`, `scrolled(dx:dy:at:phase:)`, `pinchChanged`/`pinchEnded`, `cursor`), and `ViewportView` only forwards
@@ -813,7 +815,7 @@ scripts/linux-test.sh test --filter CreatorOCCTTests   # one target on Linux (no
 scripts/linux-test.sh kernels              # Linux: compile the generated implicit kernels offline into .build/generated-kernels (xp-c)
 scripts/linux-test.sh package              # the tarball and the AppImage in dist/, each run in a clean ubuntu:24.04 (docs/packaging.md)
 swift run MetalCreatorApp --smoke-test 5   # a Linux or Windows build: the real window over SDL's offscreen renderers; exit 0 if a first frame was drawn and the 3D viewport drew
-scripts/build-shaders.sh                   # Linux: compile Shaders/viewport into Shaders/viewport/compiled (git-ignored) through MetalUI's MetalUICompileShaders and the pinned SDL_shadercross; linux-test.sh runs it. Windows: scripts/build-shaders.ps1
+METALUI_SHADERCROSS=/path/to/shadercross swift build   # Linux or Windows: the CompileShadersOnBuild plugin compiles Sources/CreatorViewport/Shaders with the pinned SDL_shadercross (scripts/shadercross.env); macOS needs none
 ```
 
 Benchmarks (`Tests/CreatorAppTests/Bench`) are Swift Testing suites that print `BENCH …` lines and assert no time; a

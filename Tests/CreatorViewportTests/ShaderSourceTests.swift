@@ -6,15 +6,16 @@ import Testing
 @testable import CreatorGraph
 @testable import CreatorViewport
 
-/// The HLSL shaders in `Shaders/viewport` and what the build made of them. The HLSL structs the shaders read have the sizes of the
+/// The HLSL shaders in `Sources/CreatorViewport/Shaders` and what the build made of them. The HLSL structs the shaders read have the sizes of the
 /// Swift structs that fill them (every platform: `GPUDataTests` pins the Swift side, this pins the HLSL side to the same numbers).
-/// On Linux and Windows the compiled shaders are a build product (`scripts/build-shaders.sh`, user decision U1(b)), so the tests also
+/// On Linux and Windows the compiled shaders are a build product (MetalUI's `CompileShadersOnBuild` plugin, user decision U1(b)), so the tests also
 /// check that the build made every one of them where the renderer looks and that it is current. Nothing compiled is checked in.
 struct ShaderSourceTests {
-    /// `Shaders/viewport`, found from this file: `Tests/CreatorViewportTests/ShaderSourceTests.swift` is three directories below the root.
+    /// `Sources/CreatorViewport/Shaders`, found from this file: `Tests/CreatorViewportTests/ShaderSourceTests.swift` is three directories
+    /// below the root.
     static let directory = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appending(path: "Shaders/viewport")
+        .appending(path: "Sources/CreatorViewport/Shaders")
 
     static func hexDigest(of url: URL) throws -> String {
         SHA256.hash(try Data(contentsOf: url)).map { ($0 < 16 ? "0" : "") + String($0, radix: 16) }.joined()
@@ -90,23 +91,15 @@ struct ShaderSourceTests {
     #if os(Linux) || os(Windows)
     // MARK: The build made the shaders (Linux and Windows)
 
-    /// Where a running app looks for its compiled shaders, in MetalUI's order (`SDLGPUShaderLibrary.locate`, `docs/packaging.md` section
-    /// 4a): `MetalUIAppShaders` beside the executable, then the source tree's `Shaders/viewport/compiled`. The first that holds the
-    /// `SOURCE.sha256` the build writes is the one. (Task 5's `ViewportShaderDirectoryTests` ask MetalUI's own lookup the same.)
-    static var runtimeDirectory: URL? {
-        let executable = Bundle.main.executableURL ?? URL(fileURLWithPath: CommandLine.arguments.first ?? ".")
-        let candidates = [
-            executable.deletingLastPathComponent().appending(path: "MetalUIAppShaders"), directory.appending(path: "compiled"),
-        ]
-        return candidates.first { FileManager.default.fileExists(atPath: $0.appending(path: "SOURCE.sha256").path) }
-    }
+    /// Where a running app finds its compiled shaders: MetalUI's own lookup (`SDLGPUShaderLibrary.locate`, `docs/packaging.md` section 4a),
+    /// `MetalUIAppShaders` beside the executable, then the target's resource bundle the plugin filled, which `SDLViewportShaders` asks.
+    static var runtimeDirectory: URL? { try? SDLViewportShaders.library().directory }
 
     /// What a missing or stale result of the build tells the person who sees it.
-    static let remedy = "Run scripts/build-shaders.sh (scripts/build-shaders.ps1 on Windows; scripts/linux-test.sh does it for you): "
-        + "the shaders are compiled at build time by the pinned SDL_shadercross, scripts/shadercross.env."
+    static let remedy = "The shaders are compiled by `swift build` (MetalUI's CompileShadersOnBuild plugin) with the pinned "
+        + "SDL_shadercross, scripts/shadercross.env, found by METALUI_SHADERCROSS or on PATH; scripts/linux-test.sh does it in the image."
 
-    /// `<sha256>  <name>` lines of a file the build wrote (`SOURCE.sha256` by MetalUI's `MetalUICompileShaders`, `INCLUDES.sha256` by
-    /// `scripts/build-shaders.sh`), as a dictionary of name to digest.
+    /// `<sha256>  <name>` lines of a file the build wrote (`SOURCE.sha256` and `INCLUDES.sha256`, both by MetalUI's `MetalUICompileShaders`), as a dictionary of name to digest.
     static func hashes(in file: String, of directory: URL) throws -> [String: String] {
         let text = try String(contentsOf: directory.appending(path: file), encoding: .utf8)
         var table: [String: String] = [:]
@@ -117,14 +110,14 @@ struct ShaderSourceTests {
         return table
     }
 
-    /// The build produced every stage's four files where the renderer reads them, and the build is current: the `SOURCE.sha256` MetalUI's
-    /// tool wrote and the `INCLUDES.sha256` the script wrote match the sources and the header now (the freshness check of user decision
+    /// The build produced every stage's four files where the renderer reads them, and the build is current: the `SOURCE.sha256` and
+    /// `INCLUDES.sha256` MetalUI's tool wrote match the sources and the header now (the freshness check of user decision
     /// U1(b)). A source edited after the last build fails here and says so.
     @Test func theBuildCompiledEveryStageIntoTheDirectoryTheRendererReads() throws {
         let sources = Self.stageSources
         #expect(sources.count >= 20, "the viewport's vertex and fragment stages are found")
         let compiled = try #require(
-            Self.runtimeDirectory, "no compiled shader directory beside the executable or in the source tree. \(Self.remedy)")
+            Self.runtimeDirectory, "no compiled shader directory beside the executable or in the resource bundle. \(Self.remedy)")
         for source in sources {
             let stem = String(source.lastPathComponent.dropLast(".hlsl".count))
             for blob in ["spv", "dxil", "msl", "json"] {
@@ -151,23 +144,23 @@ struct ShaderSourceTests {
 
 #if canImport(MetalUISDLGPU)
 /// The SDL renderer finds its shaders the way a shipped app does (MetalUI `docs/packaging.md` section 4a): the compiled directory, here
-/// the source tree's, holds every stage for the platform's driver, with its reflection.
+/// the target's resource bundle, holds every stage for the platform's driver, with its reflection.
 struct ViewportShaderDirectoryTests {
     @Test func everyStageLoadsForThePlatformsDriver() throws {
         #expect(try SDLViewportShaders.verify() == 20)
         #expect(try ViewportShaderCheck.run() == "the viewport's 20 SDL_GPU shader stages were found")
     }
     /// `--self-test` asks the viewport whether its shaders were built. With no directory it fails, and the message says which directory
-    /// it looked in, that the shaders are built and not checked in, and what to run (user decision U1(b)).
+    /// it looked in, that the shaders are built and not checked in, and what to do (user decision U1(b)).
     @Test func aMissingDirectoryFailsTheSelfTestCheckWithAMessageThatSaysWhatToRun() {
         let nowhere = FileManager.default.temporaryDirectory.appending(path: "no-viewport-shaders-\(UUID().uuidString)")
         do {
-            _ = try ViewportShaderCheck.run(sourceTree: nowhere)
+            _ = try ViewportShaderCheck.run(sourceTree: nowhere, bundled: false)
             Issue.record("the check passed with no compiled shaders anywhere")
         } catch let failure as ViewportShaderCheck.Failure {
             #expect(failure.description.contains(nowhere.path), "it names the directory it looked in: \(failure)")
-            #expect(failure.description.contains("scripts/build-shaders.sh"), "it names the script to run: \(failure)")
-            #expect(failure.description.contains("SDL_shadercross"), "it names the tool the script needs: \(failure)")
+            #expect(failure.description.contains("METALUI_SHADERCROSS"), "it names the fix: \(failure)")
+            #expect(failure.description.contains("SDL_shadercross"), "it names the tool the build needs: \(failure)")
             #expect(failure.description.contains("scripts/shadercross.env"), "it says where the pin is: \(failure)")
         } catch {
             Issue.record("the check threw \(error), not a ViewportShaderCheck.Failure")

@@ -88,6 +88,8 @@ stopgap as they were. The sections below keep each gap's full use case.
 | XP-G25 | A run-time HLSL compute compiler (SDL_shadercross's library, DXC) and compute pipelines from bytes | MetalUI (SDL GPU layer; `feat/sdl-gpu-runtime-shaders`) | ✅ fixed by MetalUI `722f0cd6` (PR #131, record 151), adopted by xp-c task 11 |
 | XP-G26 | The run-time compiler's lookup tries `../lib` of the executable, not `lib/` beside it | MetalUI (`RuntimeLibraryLocator`, XP-G25) | ✅ fixed by MetalUI `f1c422e5` (PR #132): the lookup also tries `<exe>/lib` (order: explicit path, `METALUI_SHADERCROSS_LIB`, `<exe>`, `<exe>/lib`, `<exe>/../lib`, `METALUI_SHADERCROSS`'s sibling `lib`, loader path) with the dependents preloaded by full path, so the tarball's and the AppImage's `lib/` needs no variable; pinned by xp-c task 11 |
 | XP-G27 | Run-time HLSL compilation only under MetalUI's `SDL` trait | MetalUI (`MetalUISDLGPU`, XP-G25) | ✅ adopted 2026-10-29 (MetalUI `abc2bf46`, PR #146): `MetalUIShaderRuntime` (`RuntimeShaderCompiler`, `.msl` target) is a macOS-only dependency of `CreatorImplicitTests`; where the library loads, the Mac's tests compile the generated HLSL to MSL at run time and run it on `MSLComputeBackend`, else they keep the offline kernels |
+| BS-D | A build-tool plugin, so `swift build` compiles an app's HLSL (closes xp-3 limitation 15) | MetalUI (`CompileShadersOnBuild`, PR #147, with `MetalUICompileShaders --on-build`) | ✅ adopted 2026-10-30 (MetalUI `cc8995d3`, PR #147): the HLSL moved to `Sources/CreatorViewport/Shaders`, `CreatorViewport` applies the plugin under `#if os(Linux) \|\| os(Windows)` in `Package.swift` (a Mac build skips it and needs no shadercross), the output is the target's `MetalUIAppShaders` resource and `SDLViewportShaders` finds it with `locate(resourceBundle: .module, sourceTree:)`; `scripts/build-shaders.sh` and `.ps1` are retired; nothing compiled is checked in (U1(b)), so a build without shadercross fails with MetalUI's message |
+| XP-G32 | The plugin's inputs ignored `#include`d headers (editing `common.hlsli` reran nothing), and `INCLUDES.sha256` was the app's script's job | MetalUI (`CompileShadersOnBuild`, PR #149, rulings BT-O to BT-T) | ✅ adopted 2026-10-30 (MetalUI `cc8995d3`, PR #149): every `.hlsli` and non-stage `.hlsl` below `Shaders/` is an input of the plugin's command and the tool writes `INCLUDES.sha256`, which `SDLGPUShaderLibrary(directory:verifyingSources:)` checks; the app's own `INCLUDES.sha256` code is gone. `METALUI_COMMIT` was `abc2bf46` (now `cc8995d3`) |
 | XP-G21 | Windows release build crashes swift-frontend (exception 0xC000001D) in `PaintPass.withRenderEffects` | MetalUI `5f03ab7b` | ✅ fixed by MetalUI `5f03ab7b`, adopted (branch `xp-2`, CI pin `5f03ab7b`): the CI release build for the zip no longer crashes the compiler |
 | DIM-a | No click count on a tap's value (double-click on a dimension's text in the viewport) | MetalUI session (sent 2026-10-27) | ✅ fixed by MetalUI `cf1b4968` (PR #144, divergence 235, ruling IF-O); adopted in DIM-1 Task 11 (2026-10-27) |
 | DIM-b | Runtime SIGSEGV (`initializeWithCopy` of a `ZStack`) when a `for` over a model array sits inline in a large `ZStack` builder | MetalUI session (sent 2026-10-27) | ✅ closed 2026-10-27: not reproducible on MetalUI cf1b4968 (likely a stale incremental build) |
@@ -1375,6 +1377,19 @@ while the app runs, pipelines cached by source.
 - **XP-G31. `SDLGPUDevice.make` could deadlock, and the SDL test-process guard did not run on Windows. Fixed.** Closed by MetalUI `ccef9c11` (PR #139, WG-H):
   video initialisation now runs before `makeLock`, so a main-thread `make` no longer waits on the lock of a thread waiting for the main queue; the test-process guard
   now also runs on Windows. Adopted as a pin bump.
+
+## Hit by the shader build (BS-D, XP-G32), 2026-10-30
+
+- **BS-D. `swift build` alone compiled no shader. Fixed.** Closed by MetalUI `cc8995d3` (PR #147, ruling BS-D, BT-A to BT-M): the build-tool plugin `CompileShadersOnBuild`
+  runs `MetalUICompileShaders --on-build` over a target's `Shaders/NAME.<vert|frag|comp>.hlsl` and writes `MetalUIAppShaders` into the target's resource bundle. Adopted
+  2026-10-30 (closes xp-3 limitation 15): `CreatorViewport` opts in under `#if os(Linux) || os(Windows)` (evaluated on the host, so a Mac build runs nothing and needs no
+  shadercross), the HLSL lives in `Sources/CreatorViewport/Shaders`, `SDLViewportShaders` calls `SDLGPUShaderLibrary.locate(resourceBundle: .module, sourceTree:)`, and
+  `scripts/linux-test.sh` and the CI Windows job hand the plugin shadercross by `METALUI_SHADERCROSS`. User decision U1(b) stands: no compiled blob is checked in, so a
+  Linux or Windows build without shadercross fails with MetalUI's `error:` lines naming the pin `1ff05bec`. The packages copy `MetalCreator_CreatorViewport.bundle/MetalUIAppShaders`
+  from the release build's folder to `MetalUIAppShaders` beside the executable.
+- **XP-G32. Header edits reran nothing. Fixed.** Closed by MetalUI `cc8995d3` (PR #149, rulings BT-O to BT-T): the plugin lists every `.hlsli` (and non-stage `.hlsl`) below
+  `Shaders/` among the command's inputs and the tool writes `INCLUDES.sha256`; `SDLGPUShaderLibrary(directory:verifyingSources:)` checks it. Adopted 2026-10-30: the
+  `INCLUDES.sha256` the old script wrote is gone; `ShaderSourceTests` reads MetalUI's.
 
 ## Hit by driving dimensions (DIM-1), 2026-10-27
 
