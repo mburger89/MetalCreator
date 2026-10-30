@@ -103,5 +103,21 @@ struct OCCTSectionTests {
             await #expect(throws: KernelError.self) { _ = try await kernel.section(solid, by: plane(z: 3), tolerance: bad) }
         }
     }
+
+    @Test func aPartFarFromTheWorldOriginIsStillCut() async throws {
+        let kernel = OCCTKernel()
+        let near = try await box(kernel, 20, 10, 6)
+        let far = try await kernel.transform(near, by: Transform(translation: Vector3(500, 500, 0)), tag: newTag())
+        let section = try await kernel.section(far, by: plane(z: 3), tolerance: 0.01)
+        #expect(section.regions.count == 1)
+        #expect(abs(area(try #require(section.regions.first)) - 200) < 1e-6)
+    }
+
+    @Test func anXAxisAlongTheNormalIsRefused() async throws {
+        let kernel = OCCTKernel()
+        let solid = try await box(kernel, 20, 10, 6)
+        let bad = Plane(origin: Vector3(0, 0, 3), normal: .unitZ, xAxis: .unitZ)
+        await #expect(throws: KernelError.self) { _ = try await kernel.section(solid, by: bad, tolerance: 0.01) }
+    }
 }
 #endif

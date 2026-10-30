@@ -10,6 +10,8 @@
 #include <BRepTools.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
+#include <BRepBuilderAPI_Copy.hxx>
+#include <ElSLib.hxx>
 #include <IMeshTools_Parameters.hxx>
 #include <Precision.hxx>
 #include <Poly_Triangulation.hxx>
@@ -66,14 +68,23 @@ int occt_section(const occt_shape *shape, const double origin[3], const double n
         if (bounds.IsVoid()) {
             return 1;
         }
-        const double reach = 2.0 * std::sqrt(bounds.SquareExtent()) + 1.0;
-        const TopoDS_Face cutter = BRepBuilderAPI_MakeFace(plane, -reach, reach, -reach, reach).Face();
+        // The cutter is a window on the plane centred on the shape's bounding-box centre (projected onto the plane), so a part far
+        // from the plane's origin is still covered.
+        const double reach = std::sqrt(bounds.SquareExtent()) + 1.0;
+        const gp_Pnt lower = bounds.CornerMin(), upper = bounds.CornerMax();
+        const gp_Pnt middle(0.5 * (lower.X() + upper.X()), 0.5 * (lower.Y() + upper.Y()), 0.5 * (lower.Z() + upper.Z()));
+        double u0 = 0, v0 = 0;
+        ElSLib::Parameters(plane, middle, u0, v0);
+        const TopoDS_Face cutter = BRepBuilderAPI_MakeFace(plane, u0 - reach, u0 + reach, v0 - reach, v0 + reach).Face();
         BRepAlgoAPI_Common common(shape->shape, cutter);
         if (common.HasErrors() || !common.IsDone()) {
             throw user_error("the section could not be built");
         }
-        const TopoDS_Shape result = common.Shape();
-        if (result.IsNull()) {
+        // A copy, so meshing never touches the triangulation of a face or edge the result shares with the solid.
+        const TopoDS_Shape original = common.Shape();
+        BRepBuilderAPI_Copy copier(original);
+        const TopoDS_Shape result = copier.Shape();
+        if (original.IsNull() || result.IsNull()) {
             return 1;
         }
         const TopTools_IndexedMapOfShape result_faces = map_of(result, TopAbs_FACE);
@@ -81,6 +92,7 @@ int occt_section(const occt_shape *shape, const double origin[3], const double n
             return 1;
         }
         const TopTools_IndexedMapOfShape result_edges = map_of(result, TopAbs_EDGE);
+        const TopTools_IndexedMapOfShape original_edges = map_of(original, TopAbs_EDGE);
 
         // The solid's face each section edge lies on: what the common made out of that face.
         std::vector<int> edge_source(static_cast<size_t>(result_edges.Extent()) + 1, -1);
@@ -88,9 +100,14 @@ int occt_section(const occt_shape *shape, const double origin[3], const double n
         for (int f = 1; f <= solid_faces.Extent(); ++f) {
             for (TopTools_ListOfShape::Iterator it(common.Generated(solid_faces(f))); it.More(); it.Next()) {
                 for (TopExp_Explorer edges(it.Value(), TopAbs_EDGE); edges.More(); edges.Next()) {
-                    const int found = result_edges.FindIndex(edges.Current());
-                    if (found > 0 && edge_source[static_cast<size_t>(found)] < 0) {
-                        edge_source[static_cast<size_t>(found)] = f - 1;
+                    // `Generated` speaks of the common's own edges; the result is a copy of them.
+                    const int found = original_edges.FindIndex(edges.Current());
+                    if (found <= 0) {
+                        continue;
+                    }
+                    const int copied = result_edges.FindIndex(copier.ModifiedShape(original_edges(found)));
+                    if (copied > 0 && edge_source[static_cast<size_t>(copied)] < 0) {
+                        edge_source[static_cast<size_t>(copied)] = f - 1;
                     }
                 }
             }
@@ -115,7 +132,6 @@ int occt_section(const occt_shape *shape, const double origin[3], const double n
                 continue;
             }
             const gp_Trsf transform = location.Transformation();
-            const bool reversed = face.Orientation() == TopAbs_REVERSED;
             const unsigned int base = static_cast<unsigned int>(positions.size() / 3);
             for (int n = 1; n <= triangulation->NbNodes(); ++n) {
                 append3(positions, triangulation->Node(n).Transformed(transform));
@@ -123,9 +139,6 @@ int occt_section(const occt_shape *shape, const double origin[3], const double n
             for (int t = 1; t <= triangulation->NbTriangles(); ++t) {
                 int a = 0, b = 0, c = 0;
                 triangulation->Triangle(t).Get(a, b, c);
-                if (reversed) {
-                    std::swap(b, c);
-                }
                 // Wind the triangle counter-clockwise about the plane's normal, whatever the face's orientation.
                 const gp_Pnt pa = triangulation->Node(a).Transformed(transform);
                 const gp_Pnt pb = triangulation->Node(b).Transformed(transform);
