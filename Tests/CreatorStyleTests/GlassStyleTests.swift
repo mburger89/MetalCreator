@@ -85,6 +85,7 @@ struct GlassStyleTests {
         #expect(thicknesses == [
             .graphPanel: .ultraThin, .inspector: .ultraThin, .topBar: .ultraThin, .pickBanner: .ultraThin,
             .showButton: .ultraThin, .palette: .thin, .themeEditor: .ultraThin, .chip: .ultraThin, .fieldLegend: .ultraThin,
+            .sectionPanel: .ultraThin,
             .exportSheet: .thin,
         ])
     }
