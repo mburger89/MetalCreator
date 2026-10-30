@@ -23,7 +23,7 @@ extension SDLViewportRenderer {
         let shade = ShadeUniforms(frame.palette)
         let clip = ClipUniforms(frame.clip)
         drawSolids(plan.opaque, ghosts: false, shade: shade, clip: clip, in: recorder)
-        if frame.overlay.gridPlane == nil { drawGrid(frame, in: recorder) }
+        if GPUGeometry.drawsGroundGrid(frame) { drawGrid(frame, in: recorder) }
         for edges in plan.edges { drawLines(edges, pipeline: pipelines.lineTest, in: recorder) }
         drawSolids(plan.ghosts, ghosts: true, shade: shade, clip: clip, in: recorder)
         for guide in plan.guides { drawLines(guide, pipeline: pipelines.lineTest, in: recorder) }

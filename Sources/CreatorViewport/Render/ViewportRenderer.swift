@@ -71,7 +71,7 @@ final class ViewportRenderer {
                                                  pixelWidth: width, pixelHeight: height)
         drawBackground(frame.palette, encoder)
         drawSolids(frame, ghosts: false, uniforms, encoder)
-        if frame.overlay.gridPlane == nil { drawGrid(frame, uniforms, encoder) }
+        if GPUGeometry.drawsGroundGrid(frame) { drawGrid(frame, uniforms, encoder) }
         drawEdges(frame, uniforms, scale: pixelScale, encoder)
         drawSolids(frame, ghosts: true, uniforms, encoder)
         drawGuides(frame, uniforms, scale: pixelScale, encoder)

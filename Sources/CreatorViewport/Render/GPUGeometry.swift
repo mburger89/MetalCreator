@@ -129,6 +129,16 @@ enum GPUGeometry {
                              isOrthographic: pose.projection == .orthographic ? 1 : 0, padding: 0)
     }
 
+    /// The sine of the elevation below which the eye is taken to lie in the ground plane (about 0.06°).
+    static let edgeOnSine = 1e-3
+
+    /// Whether the ground grid is drawn: not with a plane grid of the overlay's own, and not edge-on. An empty document's camera
+    /// (`CameraPose()`: target at the origin, pitch 0) puts the eye exactly in z = 0, where the grid has no area to show; its near
+    /// corners lie behind the eye, and the perspective divide turns float noise into a viewport-sized triangle (XP-21, Linux llvmpipe).
+    static func drawsGroundGrid(_ frame: ViewportFrame) -> Bool {
+        frame.overlay.gridPlane == nil && abs(frame.pose.toEye.z) > edgeOnSine
+    }
+
     /// A grid square around the target, snapped to major lines so it doesn't swim while panning, and large
     /// enough to reach the horizon.
     static func gridUniforms(_ frame: ViewportFrame) -> GridUniforms {
