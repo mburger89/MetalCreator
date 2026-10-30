@@ -184,6 +184,43 @@ struct SectionCapModelTests {
         #expect(after.caps[0].positions != before.caps[0].positions)
     }
 
+    @Test func aBurstOfMovesOnAMeshPartStartsAtMostTwoSlices() async throws {
+        let solid = meshSolid(size: 10)
+        let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)
+        var last = ViewportClip(origin: .zero, normal: .unitZ)
+        for step in 1...20 {
+            last = ViewportClip(origin: Vector3(0, 0, Double(step) * 0.4), normal: .unitZ)
+            model.follow(clip: last, items: [ViewportItem(solid: solid)])
+        }
+        await model.waitForCaps()
+        #expect(model.slicesStarted <= 2 && !model.isComputing)
+        let section = try #require(model.section)
+        #expect(section.plane == SectionCaps.plane(for: last))
+    }
+
+    @Test func aBodyWithNoCutDoesNotShiftTheOthersHatchAngle() async throws {
+        let (far, near) = (meshSolid(size: 10), meshSolid(size: 10))
+        let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)
+        let moved = Solid(displaying: DisplayMesh(
+            positions: try #require(far.displayedMesh).positions.map { $0 + Vector3(0, 0, 100) }, normals: [],
+            indices: try #require(far.displayedMesh).indices, triangleFaces: try #require(far.displayedMesh).triangleFaces,
+            edgePolylines: [:]))
+        let clip = ViewportClip(origin: Vector3(0, 0, 5), normal: .unitZ)
+        model.follow(clip: clip, items: [ViewportItem(solid: moved), ViewportItem(solid: near)])
+        await model.waitForCaps()
+        let caps = try #require(model.section).caps
+        #expect(caps.count == 1 && caps[0].hatchAngle == ViewportSection.hatchAngle(forCap: 1))
+    }
+
+    @Test func aRegionWithOutlinesAndNoTrianglesIsAProblem() {
+        let loop = [Vector3.zero, Vector3(1, 0, 0), Vector3(1, 1, 0), .zero]
+        let piece = SectionPiece(curve: nil, polyline: loop, sourceFace: nil)
+        let unfilled = PlaneSection(regions: [SectionRegion(positions: [], triangles: [], boundary: [piece])])
+        let corners = [Vector3.zero, Vector3(1, 0, 0), Vector3(1, 1, 0)]
+        let filled = PlaneSection(regions: [SectionRegion(positions: corners, triangles: [0, 1, 2], boundary: [piece])])
+        #expect(SectionCaps.isUnfilled(unfilled) && !SectionCaps.isUnfilled(filled) && !SectionCaps.isUnfilled(PlaneSection()))
+    }
+
     @Test func nilClearsOnce() {
         let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)
         model.follow(clip: nil, items: [])

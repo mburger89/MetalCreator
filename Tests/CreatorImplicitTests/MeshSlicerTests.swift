@@ -47,6 +47,18 @@ struct MeshSlicerTests {
         return MeshSlicer.slice(positions: mesh.positions, triangles: mesh.indices, plane: plane)
     }
 
+    @Test func aSliceInACancelledTaskReturnsEarlyAndEmpty() async {
+        let cube = box(Vector3(0, 0, 0), Vector3(10, 10, 10))
+        let plane = Plane(origin: Vector3(0, 0, 5), normal: .unitZ, xAxis: .unitX)
+        let whole = MeshSlicer.slice(positions: cube.positions, triangles: cube.indices, plane: plane)
+        #expect(!whole.regions.isEmpty)
+        let task = Task { () -> PlaneSection in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return MeshSlicer.slice(positions: cube.positions, triangles: cube.indices, plane: plane)
+        }
+        #expect(await task.value.isEmpty, "cancelled before it started: nothing computed")
+    }
+
     @Test func aClosedCubeCutAcrossGivesOneSquare() {
         let section = slice(box(.zero, Vector3(10, 10, 10)), z: 5)
         #expect(section.regions.count == 1)

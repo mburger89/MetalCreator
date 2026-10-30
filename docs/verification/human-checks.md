@@ -2256,7 +2256,8 @@ the Output selected so the part is shown.
 - [ ] **SA-B-3 Section from Face.** Right-click a flat face > Section from Face with the offset at 0: the face shows as a cap, no
   coplanar flicker. **Observed:**
 - [ ] **SA-B-4 Fast drag.** Drag the handle quickly through the part: the view never stutters; the cap may lag and catches up when you stop.
-  **Observed:**
+  Also drag a refined lattice part for several seconds and confirm the cap settles within about a second of release. The hatch
+  re-spaces while you zoom (by design) and may show moire at grazing angles. **Observed:**
 - [ ] **SA-B-5 Lattice.** A TPMS or strut lattice part: the cut cells are capped and hatched (the cap is cut from the preview mesh and
   follows it as the finer passes land). Dragging stays smooth though the cap trails (`sa-2` is 48 ms on a 100 mm sheet). **Observed:**
 - [ ] **SA-B-6 Clicking the cap.** A click on the cap selects nothing and opens no face menu (it does not pick the face behind it).

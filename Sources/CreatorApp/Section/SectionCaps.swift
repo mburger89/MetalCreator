@@ -19,6 +19,11 @@ enum SectionCaps {
         return Plane(origin: clip.origin - normal * inset, normal: normal, xAxis: xAxis)
     }
 
+    /// True when a region has an outline but no triangles to fill it (the triangulator refused its loops).
+    static func isUnfilled(_ section: PlaneSection) -> Bool {
+        section.regions.contains { $0.triangles.isEmpty && !$0.boundary.isEmpty }
+    }
+
     /// One part's cap from its section, or `nil` when the section is empty.
     static func cap(from section: PlaneSection, hatchAngle: Double) -> ViewportSection.Cap? {
         guard !section.isEmpty else { return nil }

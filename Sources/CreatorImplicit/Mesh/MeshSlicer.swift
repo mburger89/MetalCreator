@@ -9,13 +9,18 @@ import Foundation
 /// hole of the loop directly around it, and each outer loop with its holes is triangulated. A chain that does not close (an open
 /// mesh) is reported as an open outline and never filled. Collinear points on a loop (the diagonals of a flat face) are dropped.
 public enum MeshSlicer {
-    /// The section of the mesh (`positions`, three `triangles` indices each) by `plane`.
+    /// How many vertices or triangles pass between two looks at `Task.isCancelled`.
+    static let cancellationStride = 4096
+
+    /// The section of the mesh (`positions`, three `triangles` indices each) by `plane`. Run in a cancelled task it returns early with
+    /// an empty section; the caller checks for cancellation and discards it.
     public static func slice(positions: [Vector3], triangles: [UInt32], plane: Plane) -> PlaneSection {
         let crossings = Crossings(positions: positions, triangles: triangles, plane: plane)
-        guard !crossings.segments.isEmpty else { return PlaneSection() }
+        guard !crossings.wasCancelled, !crossings.segments.isEmpty else { return PlaneSection() }
         var closed: [[Vector3]] = []
         var open: [[Vector3]] = []
         for chain in crossings.chains() {
+            if Task.isCancelled { return PlaneSection() }
             let points = chain.nodes.map { crossings.points[$0] }
             if chain.isClosed {
                 let kept = simplified(points, closed: true)
@@ -116,6 +121,8 @@ private struct Crossings {
     var points: [Vector3] = []
     /// Two node numbers per segment, one segment per crossing triangle.
     var segments: [(Int, Int)] = []
+    /// True when the surrounding task was cancelled part-way, so the rest is not computed.
+    private(set) var wasCancelled = false
     private var adjacent: [[Int]] = []
 
     private struct Key: Hashable {
@@ -133,7 +140,11 @@ private struct Crossings {
         var vertices: [Vector3] = []
         var remap: [Int] = []
         remap.reserveCapacity(positions.count)
-        for position in positions {
+        for (number, position) in positions.enumerated() {
+            if number % MeshSlicer.cancellationStride == 0, Task.isCancelled {
+                wasCancelled = true
+                return
+            }
             let key = Key(position)
             if let found = welded[key] {
                 remap.append(found)
@@ -156,6 +167,10 @@ private struct Crossings {
             return points.count - 1
         }
         for first in stride(from: 0, to: triangles.count - 2, by: 3) {
+            if (first / 3) % MeshSlicer.cancellationStride == 0, Task.isCancelled {
+                wasCancelled = true
+                return
+            }
             let corners = (0..<3).map { remap[Int(triangles[first + $0])] }
             guard Set(corners).count == 3 else { continue }
             let above = corners.map { distance[$0] >= 0 }
