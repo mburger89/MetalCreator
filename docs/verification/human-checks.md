@@ -2245,3 +2245,24 @@ the Output selected so the part is shown.
 - [ ] **SA-A-7 Save and reopen.** Save with a section on, reopen: the plane, offset and side are back. An older file opens with no section. **Observed:**
 - [ ] **SA-A-8 Sketch mode.** Entering a sketch hides the section; leaving brings it back. **Observed:**
 - [ ] **SA-A-9 Panel placement.** The Section panel sits left of the theme editor when both are open and never covers it. **Observed:**
+
+## Group SA-B — Section, the cap (section part B)
+
+- [ ] **SA-B-1 Bracket cap.** Open the §7.2 bracket, switch the Section on and put the plane on XY through the plate: the cut face is
+  filled with the theme's section colour and hatched with 45-degree stripes (plane-space, so they stay on the part when you orbit and
+  pan), the outline crisp in the edge colour. **Pinned:** `SectionCapModelTests`, `SDLSectionTests`. **Observed:**
+- [ ] **SA-B-2 Two bodies.** With two touching bodies (a Union is one body; use two Output nodes), the section hatches them at different
+  angles (45 and 135 degrees). **Observed:**
+- [ ] **SA-B-3 Section from Face.** Right-click a flat face > Section from Face with the offset at 0: the face shows as a cap, no
+  coplanar flicker. **Observed:**
+- [ ] **SA-B-4 Fast drag.** Drag the handle quickly through the part: the view never stutters; the cap may lag and catches up when you stop.
+  **Observed:**
+- [ ] **SA-B-5 Lattice.** A TPMS or strut lattice part: the cut cells are capped and hatched (the cap is cut from the preview mesh and
+  follows it as the finer passes land). Dragging stays smooth though the cap trails (`sa-2` is 48 ms on a 100 mm sheet). **Observed:**
+- [ ] **SA-B-6 Clicking the cap.** A click on the cap selects nothing and opens no face menu (it does not pick the face behind it).
+  **Observed:**
+- [ ] **SA-B-7 Themes.** Switch to Alucard, then Nord: the cap's fill, hatch and edge follow the theme (and appear in the theme editor's
+  Section group). **Observed:**
+- [ ] **SA-B-8 Linux and Windows.** The same on Linux and Windows (the SDL GPU renderer, XP note): the cap, hatch, outline and the
+  click behaviour match macOS. **Observed:**
+- [ ] **SA-B-9 Sketch mode.** Entering a sketch hides the section and its cap; leaving brings both back. **Observed:**
