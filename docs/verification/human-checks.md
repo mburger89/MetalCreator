@@ -2085,9 +2085,9 @@ exports a cube) and, for the tarball and the AppImage, a run in a clean Ubuntu (
 - [ ] **XP-17 Windows zip and file type.** Unzip `MetalCreator-<version>-windows-x64.zip` on a machine with no Swift, SDL or vcpkg,
   run `MetalCreator.exe --self-test` (all `ok`), double-click or run `register-mcgraph.cmd` (it runs the .ps1 past Windows 11's default execution policy; run on its own the .ps1 is blocked), double-click a `.mcgraph` in Explorer: it opens;
   double-click a second: the running instance opens it. Windows warns about an unsigned download (spec section 6). **Observed:**
-- [ ] **XP-18 Geometry.** On Linux and on Windows, open the §7.2 bracket from a `.mcgraph` saved on a Mac: every node evaluates (no
+- [ ] **XP-18 Geometry.** On Linux and on Windows, open the §7.2 bracket, `docs/examples/bracket-7.2.mcgraph` (saved by the Mac app's own save path, format 10; `BracketExampleTests` regenerates it with `MC_WRITE_EXAMPLES=1`): every node evaluates (no
   "Geometry isn't available" badge), Mesh to Solid works on a meshed solid, and Export STEP writes a file that opens in a CAD viewer.
-  Pinned: the OCCT conformance suite and `AppAcceptanceTests` on Linux (CI) and Windows (CI). **Observed:**
+  Pinned: the OCCT conformance suite, `AppAcceptanceTests` and `BracketExampleTests` (the file opens and makes the code-built bracket's part) on Linux (CI) and Windows (CI). **Observed:**
 - [ ] **XP-19 Linux AppImage.** Its `lib/libSDL3.so.0` is the same desktop SDL (XP-G33, the 2026-10-30 VM finding), so the window opens on a desktop. Copy `MetalCreator-<version>-linux-<arch>.AppImage` to a desktop with FUSE (GNOME and KDE), `chmod +x`
   it and double-click it (or run it): the window opens with the icon and grouping XP-16 describes (an integration tool such as
   AppImageLauncher may offer to add it to the menu: accept once and check the entry it makes). `./MetalCreator-….AppImage
