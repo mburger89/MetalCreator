@@ -2016,7 +2016,7 @@ window and a real GPU show. Build: a Box (40 × 40 × 40) into a TPMS node's `re
   hole or non-manifold edge is reported. **Observed:**
 - [ ] **IL-10 The blended skin join (7c-3f).** In the IL-4 part (skin 1.5) the TPMS inspector shows `blend`, 1 mm on a new node. Orbit to where the gyroid sheet meets the skin's inner face: the join is smooth, a small fillet with no sharp crease or sliver, where `blend` 0 shows the old sharp crease. Drag `blend` from 0 to 3: the fillet grows live and the preview stays responsive. Do the same on a Strut Lattice (its `node blend` rounds the struts' joints, `blend` the skin's) and a Voronoi Lattice. With `skin` 0 `blend` changes nothing. Open a graph saved before 7c-3f that has a lattice with a skin: it looks as it did (its `blend` reads 0). Pinned: `LatticeSkinBlendTests`; the look is human-only. **Observed:**
 
-## Group MT — mesh tools, 3MF, the streamed export and the Cut view (7c-3)
+## Group MT — mesh tools, 3MF, the streamed export and the Section (7c-3)
 
 **Status: NOT RUN.** Plan `2026-10-14-7c-3-mesh-tools.md`, spec `2026-10-13-implicit-lattices-design.md` §3.6, §4.5 to §4.7, §5 and Errata D12.
 Run `swift run MetalCreatorApp` on a Mac with a GPU, a slicer (PrusaSlicer, Bambu Studio or Cura) and FreeCAD. The tests pin the maths, the
@@ -2112,7 +2112,7 @@ compiled shaders; these checks are what a real GPU, a real pointer and a person'
 - [ ] **XP-23 The widgets (after xp-3 task 10).** The view cube at the top left shows TOP, BOTTOM, FRONT, BACK, LEFT and RIGHT on its faces, upright
   and readable at a slant, the hovered region cyan and the active one cyan; clicking a face, an edge or a corner turns the camera; the triad at the
   bottom left follows the orbit with X red, Y green and Z blue. **Pinned:** `SDLWidgetTests`. **Observed:**
-- [ ] **XP-24 Ghosts, the field tint, the slice and the cut view.** A ghosted node's preview is one even, dimmed layer (no back faces showing
+- [ ] **XP-24 Ghosts, the field tint, the slice and the Section.** A ghosted node's preview is one even, dimmed layer (no back faces showing
   through, after task 11); a Field node's tint colours the surface by the ramp; a slice is a translucent quad coloured by the field (after
   task 12); the Section removes one side of a part and shows the inside of its far wall darkened (SA-A); a check's warning faces take the theme's
   warning colour. **Pinned:** `SDLRenderTests` (ghosts), `SDLFieldGuideClipTests`, `SDLSliceTests`. **Observed:**
@@ -2232,7 +2232,8 @@ the Output selected so the part is shown.
 ## Group SA-A — Section, placement (section part A)
 
 - [ ] **SA-A-1 Toggle.** The top bar's "Section" toggle (macOS, Linux and Windows) cuts the near half of the part away with a handle on the
-  plane; switching it off restores the part. View ▸ Show Section / Hide Section does the same. **Pinned:** `SectionGeometryTests`,
+  plane; switching it off restores the part. View ▸ Show Section / Hide Section does the same. In part A the cut face is still the far wall
+  darkened (part B replaces it with a cap), which is what XP-24 looks at. **Pinned:** `SectionGeometryTests`,
   `SectionModelTests`. **Observed:**
 - [ ] **SA-A-2 Drag.** Dragging the handle slides the plane through the part; the range spans the part. **Observed:**
 - [ ] **SA-A-3 Typed offset.** In the Section panel, type an offset in mm and, with the document in inches, in inches: the plane moves
