@@ -74,30 +74,39 @@ public enum MeshSlicer {
 
     // MARK: - Simplifying
 
-    /// `points` without a point that repeats a neighbour or lies on the straight line between its neighbours. A closed loop
-    /// keeps no repeated first point; an open chain keeps both ends.
+    /// `points` without a point that repeats a neighbour or lies on the straight line between its neighbours, in one pass over a
+    /// stack (a point is dropped when it is flat against the kept point before it and the point after it). A closed loop is then
+    /// checked once more across its seam; it keeps at least three points and an open chain keeps both ends and at least two.
     private static func simplified(_ points: [Vector3], closed: Bool) -> [Vector3] {
-        var ring = points
+        func isFlat(_ before: Vector3, _ here: Vector3, _ after: Vector3) -> Bool {
+            let (back, forward) = (here - before, after - here)
+            let (backLength, forwardLength) = (back.length, forward.length)
+            return backLength <= 1e-12 || forwardLength <= 1e-12
+                || (back.cross(forward).length <= 1e-9 * backLength * forwardLength && back.dot(forward) > 0)
+        }
+        let minimum = closed ? 3 : 2
+        var kept: [Vector3] = []
+        kept.reserveCapacity(points.count)
+        for (index, point) in points.enumerated() {
+            while kept.count >= 2, points.count - index + kept.count > minimum, isFlat(kept[kept.count - 2], kept[kept.count - 1], point) {
+                kept.removeLast()
+            }
+            kept.append(point)
+        }
+        guard closed else { return kept }
+        var head = 0
         var changed = true
-        while changed {
+        while changed, kept.count - head > minimum {
             changed = false
-            var index = closed ? 0 : 1
-            while index < ring.count - (closed ? 0 : 1), ring.count > (closed ? 3 : 2) {
-                let count = ring.count
-                let (before, here, after) = (ring[(index + count - 1) % count], ring[index], ring[(index + 1) % count])
-                let (back, forward) = (here - before, after - here)
-                let (backLength, forwardLength) = (back.length, forward.length)
-                let flat = backLength <= 1e-12 || forwardLength <= 1e-12
-                    || (back.cross(forward).length <= 1e-9 * backLength * forwardLength && back.dot(forward) > 0)
-                if flat {
-                    ring.remove(at: index)
-                    changed = true
-                } else {
-                    index += 1
-                }
+            if isFlat(kept[kept.count - 2], kept[kept.count - 1], kept[head]) {
+                kept.removeLast()
+                changed = true
+            } else if kept.count - head > minimum, isFlat(kept[kept.count - 1], kept[head], kept[head + 1]) {
+                head += 1
+                changed = true
             }
         }
-        return ring
+        return Array(kept[head...])
     }
 }
 
@@ -181,7 +190,7 @@ private struct Crossings {
             }
             return nodes
         }
-        for start in points.indices where adjacent[start].count % 2 == 1 && adjacent[start].contains(where: { !used[$0] }) {
+        for start in points.indices where adjacent[start].filter({ !used[$0] }).count % 2 == 1 {
             result.append(Chain(nodes: walk(from: start), isClosed: false))
         }
         for start in points.indices where adjacent[start].contains(where: { !used[$0] }) {

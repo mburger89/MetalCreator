@@ -110,4 +110,36 @@ struct MeshSlicerTests {
         #expect(points.allSatisfy { $0.isFinite })
         #expect(section.regions.isEmpty || (section.regions.count == 1 && abs(area(section.regions[0]) - 100) < 1e-9))
     }
+
+    @Test func aVertexOnThePlaneWithMaterialOnBothSidesStillFills() {
+        let positions = [Vector3(10, 0, 0), Vector3(0, 10, 0), Vector3(-10, 0, 0), Vector3(0, -10, 0),
+                         Vector3(0, 0, 10), Vector3(0, 0, -10),
+        ]
+        var indices: [UInt32] = []
+        for index in 0..<4 {
+            let (a, b) = (UInt32(index), UInt32((index + 1) % 4))
+            indices += [a, b, 4, b, a, 5]
+        }
+        let section = slice((positions, indices), z: 0)
+        let points = section.regions.flatMap { $0.positions + $0.boundary.flatMap(\.polyline) } + section.openOutlines.flatMap { $0 }
+        #expect(points.allSatisfy { $0.isFinite })
+        #expect(section.regions.count == 1)
+        #expect(section.regions.first.map { abs(area($0) - 200) < 1e-9 } == true)
+        #expect(section.openOutlines.isEmpty)
+    }
+
+    @Test func twoBoxesSharingAnEdgeChainWithoutLoopingOrMislabelling() {
+        let shared = merged([box(.zero, Vector3(10, 10, 10)), box(Vector3(10, 10, 0), Vector3(20, 20, 10))])
+        let section = slice(shared, z: 5)
+        #expect(section.openOutlines.isEmpty, "every chain closes")
+        #expect(!section.regions.isEmpty)
+        let total = section.regions.reduce(0.0) { $0 + area($1) }
+        #expect(abs(total - 200) < 1e-9)
+    }
+
+    @Test func aLongCollinearRunIsDroppedInOnePass() {
+        // A 10 x 10 square cut from a box whose side faces are fanned into many collinear crossings is still four corners.
+        let section = slice(box(.zero, Vector3(10, 10, 10)), z: 2.5)
+        #expect(section.regions[0].boundary[0].polyline.count == 5)
+    }
 }
