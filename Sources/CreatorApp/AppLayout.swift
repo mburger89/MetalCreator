@@ -71,6 +71,18 @@ public enum AppLayout {
         return ViewportInsets(top: 0, leading: area.leading + 16, bottom: area.bottom + 16 + TriadLayout().side + 12, trailing: 0)
     }
 
+    /// The section panel's room (section spec §5): it stands at the model area's upper right, 16 points in from its edges and under
+    /// the top bar, clear of the view cube (upper left), the legend (lower left) and the mesh badge (lower right). While the theme
+    /// editor is open, which floats over the inspector column at the window's top right, it stands left of it, one gap away. The
+    /// leading and bottom insets are 0.
+    static func sectionPanelInsets(dock: DockSide, panelWidth: Double, panelHeight: Double,
+                                   themeEditorOpen: Bool = false) -> ViewportInsets {
+        let area = modelArea(dock: dock, panelWidth: panelWidth, panelHeight: panelHeight)
+        let own = area.trailing + 16
+        let clearOfEditor = margin + ThemeEditorLayout.width + 2 * GraphPanelLayout.glassPadding + 12
+        return ViewportInsets(top: area.top + 16, leading: 0, bottom: 0, trailing: themeEditorOpen ? max(own, clearOfEditor) : own)
+    }
+
     /// The mesh preview badge's room (implicit spec §5.1): it stands at the model area's lower right, 16 points in from its edges. The
     /// top and leading insets are 0.
     public static func badgeInsets(dock: DockSide, panelWidth: Double, panelHeight: Double) -> ViewportInsets {

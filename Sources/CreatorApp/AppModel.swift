@@ -30,8 +30,9 @@ public final class AppModel {
     private(set) var fieldPreview: FieldPreviewModel
     /// The progressive preview of meshes (implicit spec §4.3): finer passes for the meshes on screen, and the "Preview 0.4 mm" badge.
     let meshRefinement: MeshRefinementModel
-    /// The cut view (implicit spec §5.1): a plane that cuts the scene open. View state, never saved; off in a new document.
-    let cutView = CutViewModel()
+    /// The section view (section spec §3): a plane that cuts the scene open.
+    /// Its settings are `document.section`, saved in the file's view state; this holds what is shown.
+    let section = SectionModel()
     /// The solids that display the meshes of the scene, one per mesh.
     @ObservationIgnored let meshSolids = MeshSolids()
     /// The engine implicit solids run on: Metal in the app, the CPU in tests.
@@ -135,7 +136,7 @@ public final class AppModel {
         sketch?.stop()
         sketch = nil
         previewMode = .final
-        cutView.turnOff()
+        section.reset()
         fieldPreview.stop()
         document = parts.document
         editor = parts.editor

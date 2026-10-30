@@ -83,12 +83,13 @@ kernels with a CPU-against-GPU mesh agreement suite, and rows i-1 and i-2 measur
 `docs/superpowers/plans/2026-10-14-7c-1g-gpu-meshing.md`) code is done; its human check (IM-13) is pending and its benchmark numbers are
 recorded in `docs/verification/performance.md`. Linux and Windows follow macOS since xp-c (below).
 Implicit geometry, sub-project 7c-3 (the mesh tools: Decimate, Check Thin Walls, Check Trapped Volumes, Drain Holes and Mesh to Solid;
-3MF with our own `ZipWriter`; the streamed export of spec Errata D12; the Cut view; `ImplicitBench` rows i-4b to i-7; the lightweight
+3MF with our own `ZipWriter`; the streamed export of spec Errata D12; the Cut view (since replaced by the Section); `ImplicitBench` rows i-4b to i-7; the lightweight
 bracket acceptance test; plan `docs/superpowers/plans/2026-10-14-7c-3-mesh-tools.md`, spec `2026-10-13-implicit-lattices-design.md` §3.6,
 §4.5 to §4.7, §5 and §7 with Errata D12 and D16) code is done; its human checks (group MT) are pending and its benchmark numbers are
-recorded in `docs/verification/performance.md`. Mesh to Solid and the Cut view are macOS-only (OpenCascade, Metal); everything else runs on
+recorded in `docs/verification/performance.md`. Mesh to Solid is macOS-only (OpenCascade); everything else runs on
 Linux and Windows.
 Implicit geometry, sub-project 7c-3f (spec Errata D18, resolving M5: the TPMS, Strut Lattice and Voronoi Lattice nodes gain a `blend` input, default 1 mm, the radius of the smooth union that joins the skin and the lattice, `typeVersion` 2 with a migration that gives a saved graph's node a blend of 0; Check Trapped Volumes decides inside by the mesh's generalized winding number, asked once per region of cells; Check Thin Walls skips a hit under 0.05 mm on a face of the start vertex's one-ring; the lightweight bracket acceptance test asserts 0 voids and 0 thin places, its `withKnownIssue`s gone; plan `docs/superpowers/plans/2026-10-20-7c-3f-skin-blend-and-robust-checks.md`) code is done; its human check IL-10 is pending.
+Section analysis, part A (placement; spec `docs/superpowers/specs/2026-10-30-section-measure-design.md`, plan `docs/superpowers/plans/2026-10-30-section-a-placement.md`) code is done; its human checks (group SA-A) are pending. `SectionSettings`, `SectionReference` and `SectionOrigin` (`CreatorGraph/Section`) are saved as `ViewState.section` (an optional key, no format bump); `SectionGeometry`, `SectionModel`, `SectionPanel` / `SectionPanelDock` (left of the open theme editor) and `AppModel+Section` are in `CreatorApp/Section`. The Section replaces the Cut view on every platform (top bar toggle, View menu, Section from Face in the face menu) and is hidden in sketch mode; the cut face is still the old darkened back faces until part B.
 Implicit lattices, sub-project 7c-2 (the TPMS, Strut Lattice and Voronoi Lattice nodes with the Straight mapping only, a region and a
 skin, field grading of cell size, thickness and strut radius, a separate cell stretch vector, their warnings, and `ImplicitBench`'s sheet
 swapped to a gyroid; plan `docs/superpowers/plans/2026-10-14-7c-2-lattices.md`, spec
@@ -656,9 +657,7 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
   `ViewportHandle`s (`HandleBuilder`), turns viewport events into graph commands (picking writes Edges by Tag rules),
   and opens, saves and exports (`ExportKind`: STEP and STL of solids are the kernel's; any mesh, and every 3MF, is streamed by
   `StreamedExport`: the graph is evaluated with `MeshQuality.streamedExport`, each Output node is one 3MF object, each `MeshStream` is
-  meshed window by window into the file, and the export sheet's Cancel removes the half-written file). The cut view is `CutViewModel`
-  (`AppModel.cutView`; the top bar's toggle and View ▸ Show Cut View, only where `CutViewModel.isAvailable`, which is the Metal
-  viewport): 7b's `SlicePose` and handle, view state. A selected layout node is evaluated even before anything is wired to it and shows its
+  meshed window by window into the file, and the export sheet's Cancel removes the half-written file). The section is `SectionModel` (`AppModel.section`, `handleID "section-plane"`; `SectionGeometry` makes the clip, the frame and the handle from `SectionSettings`, saved in `ViewState.section`; the top bar's "Section" toggle, View ▸ Show Section and Flip Section, the face menu's Section from Face, `SectionPanel`; hidden in sketch mode, on every platform): 7b's `SlicePose` and handle, view state. A selected layout node is evaluated even before anything is wired to it and shows its
   placements
   as an overlay of axis triads (`LayoutPreview`, `OverlayTint.axisX/Y/Z`; Face Pattern also dashes the area it fills),
   which never

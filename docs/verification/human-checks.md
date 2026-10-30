@@ -2018,7 +2018,7 @@ window and a real GPU show. Build: a Box (40 × 40 × 40) into a TPMS node's `re
   hole or non-manifold edge is reported. **Observed:**
 - [ ] **IL-10 The blended skin join (7c-3f).** In the IL-4 part (skin 1.5) the TPMS inspector shows `blend`, 1 mm on a new node. Orbit to where the gyroid sheet meets the skin's inner face: the join is smooth, a small fillet with no sharp crease or sliver, where `blend` 0 shows the old sharp crease. Drag `blend` from 0 to 3: the fillet grows live and the preview stays responsive. Do the same on a Strut Lattice (its `node blend` rounds the struts' joints, `blend` the skin's) and a Voronoi Lattice. With `skin` 0 `blend` changes nothing. Open a graph saved before 7c-3f that has a lattice with a skin: it looks as it did (its `blend` reads 0). Pinned: `LatticeSkinBlendTests`; the look is human-only. **Observed:**
 
-## Group MT — mesh tools, 3MF, the streamed export and the Cut view (7c-3)
+## Group MT — mesh tools, 3MF, the streamed export and the Section (7c-3)
 
 **Status: NOT RUN.** Plan `2026-10-14-7c-3-mesh-tools.md`, spec `2026-10-13-implicit-lattices-design.md` §3.6, §4.5 to §4.7, §5 and Errata D12.
 Run `swift run MetalCreatorApp` on a Mac with a GPU, a slicer (PrusaSlicer, Bambu Studio or Cura) and FreeCAD. The tests pin the maths, the
@@ -2037,12 +2037,7 @@ named "Insole").
 - [ ] **MT-3 Drain Holes.** Wire a Drain Holes (Automatic, diameter 2) between the Subtract and the Mesh: the trapped-volumes warning
   goes, a round hole runs from the cavity's lowest point straight down to the outside, and At Points with a Vector node at (0, 0, -4)
   drills one hole from there. Pinned: `DrainHolesNodeTests`, `DrainHolesTests`. **Observed:**
-- [ ] **MT-4 The Cut view.** Switch on "Cut View" in the top bar: the near half of the part is cut away, the cut shows the inside of the
-  far wall in the part's colour darkened (no holes, no flicker while orbiting), the B-rep edges of a solid in the scene are cut too, and a
-  handle on the plane slides it through the part. Hover and click on the cut part pick what is left, never what is cut away. View ▸ Show
-  Cut View and Flip Cut View do the same and cut the other side; switching it off restores the part; New or Open starts uncut. On Linux or
-  Windows the toggle and the menu items are not there. Pinned: `ViewportClipRenderTests`, `CutViewModelTests`, `CutViewWindowTests`; the
-  look and the feel are human-only. **Observed:**
+- [ ] **MT-4 The Cut view.** Replaced by the Section (part A of the section analysis): see group SA-A. **Observed:**
 - [ ] **MT-5 3MF in a slicer.** File > Export 3MF… on the Insole: the sheet appears and finishes, and
   the file opens in a slicer as one object named "Insole", in millimetres (20 mm radius means 40 mm across), with no repair prompt. Add a
   second Output with another part: the slicer lists two objects, each with its Output's name. Pinned: `ExportStreamedTests`,
@@ -2120,9 +2115,9 @@ compiled shaders; these checks are what a real GPU, a real pointer and a person'
 - [ ] **XP-23 The widgets (after xp-3 task 10).** The view cube at the top left shows TOP, BOTTOM, FRONT, BACK, LEFT and RIGHT on its faces, upright
   and readable at a slant, the hovered region cyan and the active one cyan; clicking a face, an edge or a corner turns the camera; the triad at the
   bottom left follows the orbit with X red, Y green and Z blue. **Pinned:** `SDLWidgetTests`. **Observed:**
-- [ ] **XP-24 Ghosts, the field tint, the slice and the cut view.** A ghosted node's preview is one even, dimmed layer (no back faces showing
+- [ ] **XP-24 Ghosts, the field tint, the slice and the Section.** A ghosted node's preview is one even, dimmed layer (no back faces showing
   through, after task 11); a Field node's tint colours the surface by the ramp; a slice is a translucent quad coloured by the field (after
-  task 12); the Cut view removes one side of a part and shows the inside of its far wall darkened; a check's warning faces take the theme's
+  task 12); the Section removes one side of a part and shows the inside of its far wall darkened (SA-A); a check's warning faces take the theme's
   warning colour. **Pinned:** `SDLRenderTests` (ghosts), `SDLFieldGuideClipTests`, `SDLSliceTests`. **Observed:**
 - [ ] **XP-25 A shipped app finds its shaders.** Unpack the tarball (and run the AppImage, and unzip the zip on Windows) in a folder away from
   any checkout: the viewport draws (its shaders are `MetalUIAppShaders` beside the executable), and `--self-test` says MetalUI's SDL
@@ -2236,3 +2231,20 @@ the Output selected so the part is shown.
   file opens in millimetres with nothing pinned. **Pinned:** `DocumentUnitsFileTests`, `DimensionCodingTests`,
   `DimensionPinRemapTests`. **Observed:**
 - [ ] **DIM-8 Linux and Windows.** DIM-1, DIM-3, DIM-4 and DIM-6 on a Linux or Windows build (SDL viewport). **Observed:**
+
+## Group SA-A — Section, placement (section part A)
+
+- [ ] **SA-A-1 Toggle.** The top bar's "Section" toggle (macOS, Linux and Windows) cuts the near half of the part away with a handle on the
+  plane; switching it off restores the part. View ▸ Show Section / Hide Section does the same. In part A the cut face is still the far wall
+  darkened (part B replaces it with a cap), which is what XP-24 looks at. **Pinned:** `SectionGeometryTests`,
+  `SectionModelTests`. **Observed:**
+- [ ] **SA-A-2 Drag.** Dragging the handle slides the plane through the part; the range spans the part. **Observed:**
+- [ ] **SA-A-3 Typed offset.** In the Section panel, type an offset in mm and, with the document in inches, in inches: the plane moves
+  there, also beyond the part's range (the handle stretches). **Observed:**
+- [ ] **SA-A-4 Flip.** Flip (the panel and View ▸ Flip Section) keeps the plane and cuts the other side. **Observed:**
+- [ ] **SA-A-5 Section from Face.** Right-click a flat face > Section from Face: the plane lies on the face, the cut removes the outside
+  and a positive offset goes into the material. Edit the part (move or resize it): the plane follows the face. **Observed:**
+- [ ] **SA-A-6 A deleted face.** Delete the face's feature: the panel says the face is gone and the section keeps its last plane. **Observed:**
+- [ ] **SA-A-7 Save and reopen.** Save with a section on, reopen: the plane, offset and side are back. An older file opens with no section. **Observed:**
+- [ ] **SA-A-8 Sketch mode.** Entering a sketch hides the section; leaving brings it back. **Observed:**
+- [ ] **SA-A-9 Panel placement.** The Section panel sits left of the theme editor when both are open and never covers it. **Observed:**

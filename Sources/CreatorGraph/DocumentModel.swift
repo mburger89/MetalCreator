@@ -42,13 +42,17 @@ public final class DocumentModel {
         didSet { if let homeCamera, !homeCamera.isFinite { self.homeCamera = oldValue } }
     }
     public var showsLibrary: Bool
+    /// The section view's settings; view state, so changing them is no edit. Settings with a non-finite offset are refused.
+    public var section: SectionSettings? {
+        didSet { if let section, !section.offset.isFinite { self.section = oldValue } }
+    }
 
     /// All of the editor state as the file's `ViewState`. Reading it reads every piece; to observe one, read the piece.
     /// Writing it sets only the pieces that differ, so a write that changes one field invalidates only that field's readers.
     public var viewState: ViewState {
         get {
             ViewState(dock: dock, canvasOffset: canvasOffset, canvasZoom: canvasZoom, camera: camera, homeCamera: homeCamera,
-                      showsLibrary: showsLibrary)
+                      showsLibrary: showsLibrary, section: section)
         }
         set {
             if dock != newValue.dock { dock = newValue.dock }
@@ -57,6 +61,7 @@ public final class DocumentModel {
             if camera != newValue.camera { camera = newValue.camera }
             if homeCamera != newValue.homeCamera { homeCamera = newValue.homeCamera }
             if showsLibrary != newValue.showsLibrary { showsLibrary = newValue.showsLibrary }
+            if section != newValue.section { section = newValue.section }
         }
     }
 
@@ -121,6 +126,7 @@ public final class DocumentModel {
         camera = file.viewState.camera
         homeCamera = file.viewState.homeCamera
         showsLibrary = file.viewState.showsLibrary
+        section = file.viewState.section
         self.baseRegistry = registry
         self.evaluator = Evaluator(registry: registry, kernel: kernel, cacheBudgetBytes: cacheBudgetBytes,
                                   implicitEngine: implicitEngine)

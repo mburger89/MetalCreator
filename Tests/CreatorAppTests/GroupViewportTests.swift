@@ -30,6 +30,16 @@ struct GroupViewportTests {
         return Scene(app: app, rectangle: box.rectangle, extrude: box.extrude, output: box.output, group: group)
     }
 
+    @Test func aSectionFaceMadeInsideAGroupIsTitledByItsGroupNode() async throws {
+        let scene = try await groupedBox(enter: false)
+        let app = scene.app
+        let face = try #require(app.viewport.items.first?.solid.topology.faces.first { $0.kind == .plane && $0.normal != nil })
+        app.document.section = SectionSettings(isOn: true, reference: .face(FacePick(tags: face.tags)), offset: 0, isFlipped: false)
+        await app.settle()
+        let name = try #require(app.document.graph.nodes[scene.group]?.name)
+        #expect(app.section.shown?.faceTitle == "Face of \(name)")
+    }
+
     @Test func finalPreviewStillShowsTheWholePartInsideAGroup() async throws {
         let scene = try await groupedBox()
         let app = scene.app
