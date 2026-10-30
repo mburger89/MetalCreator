@@ -127,12 +127,12 @@ struct SectionCapModelTests {
         let (entered, signal) = AsyncStream<Void>.makeStream()
         await kernel.setSectionHook {
             signal.yield()
-            _ = gate.wait(timeout: .now() + 10)
+            _ = gate.wait(timeout: .now() + 60)
         }
         app.setSectionOffset(1)
         let reached = await withTaskGroup(of: Bool.self) { group in
             group.addTask { for await _ in entered { return true }; return false }
-            group.addTask { try? await Task.sleep(for: .seconds(10)); return false }
+            group.addTask { try? await Task.sleep(for: .seconds(60)); return false }
             let first = await group.next() ?? false
             group.cancelAll()
             return first

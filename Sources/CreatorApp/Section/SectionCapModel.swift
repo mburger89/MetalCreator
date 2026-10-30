@@ -5,8 +5,11 @@ import Foundation
 import Observation
 
 /// Computes the section's cap off the main actor and holds it for the viewport (section spec §3.4). It follows the clip and
-/// the shown parts; a newer request cancels the older, and the last cap stays until the new one lands. Nothing here is
-/// document state: no command, no undo step.
+/// the shown parts and the last cap stays until the new one lands. At most one computation runs and only the latest
+/// request waits. A request that moves only the clip lets the running one finish and publish (an older cap is fine, the
+/// viewport clips it to the current plane; a slice that takes longer than a drag step would otherwise never land); one that
+/// changes the solids or the tolerance cancels the running one, which publishes nothing. Nothing here is document state:
+/// no command, no undo step.
 @MainActor @Observable
 final class SectionCapModel {
     /// What the Section panel says when a part's cut face could not be filled.
@@ -23,6 +26,12 @@ final class SectionCapModel {
     @ObservationIgnored private var running: Task<Void, Never>?
     @ObservationIgnored private var pending: Request?
     @ObservationIgnored private var generation = 0
+    /// The generation at the last `clear()`: a computation from before it publishes nothing.
+    @ObservationIgnored private var clearedGeneration = 0
+    /// The request under way, to tell a moved clip from an edit.
+    @ObservationIgnored private var current: Request?
+    /// Set when the running computation was cancelled, so a result that slipped past its last check is dropped.
+    @ObservationIgnored private var discardsRunning = false
     @ObservationIgnored private var followed: Key?
     /// How many mesh slices have been started (for tests: a burst of moves must not start one per move).
     @ObservationIgnored private(set) var slicesStarted = 0
@@ -33,6 +42,12 @@ final class SectionCapModel {
         var plane: Plane
         var solids: [Solid]
         var tolerance: Double
+
+        /// Whether `other` cuts the same solids (by identity) at the same tolerance, whatever the plane.
+        func sameInputs(as other: Request) -> Bool {
+            tolerance == other.tolerance && solids.count == other.solids.count
+                && zip(solids, other.solids).allSatisfy { $0 === $1 }
+        }
     }
 
     private struct Key: Equatable {
@@ -67,9 +82,13 @@ final class SectionCapModel {
         isComputing = true
         let request = Request(generation: generation, plane: SectionCaps.plane(for: clip), solids: capped,
                               tolerance: tolerance ?? defaultTolerance)
-        // At most one computation runs; a newer request waits for it (cancelled) to end and is the only one that then starts.
-        if let running {
-            running.cancel()
+        // At most one computation runs; a newer request waits for it to end (cancelled only when the solids or tolerance
+        // changed) and is the only one that then starts.
+        if let running, let current {
+            if !current.sameInputs(as: request) {
+                running.cancel()
+                discardsRunning = true
+            }
             pending = request
         } else {
             start(request)
@@ -83,6 +102,8 @@ final class SectionCapModel {
 
     private func start(_ request: Request) {
         let kernel = kernel
+        current = request
+        discardsRunning = false
         running = Task { [weak self] in
             var caps: [ViewportSection.Cap] = []
             var failed = false
@@ -113,19 +134,25 @@ final class SectionCapModel {
         }
     }
 
-    /// A computation is over: publish it if it is still the latest request, then start the one queued behind it.
+    /// A computation is over: publish it unless it was cancelled or predates a clear (it may be older than the latest
+    /// request), then start the one queued behind it.
     private func ended(_ request: Request, caps: [ViewportSection.Cap]?, failed: Bool) {
         running = nil
-        if let next = pending {
-            pending = nil
-            start(next)
-            return
+        current = nil
+        let publishes = caps != nil && !discardsRunning && request.generation > clearedGeneration
+        discardsRunning = false
+        let next = pending
+        pending = nil
+        if publishes, let caps {
+            section = caps.isEmpty ? nil : ViewportSection(caps: caps, plane: request.plane, generation: request.generation)
+            problem = failed ? Self.capProblem : nil
+            revision += 1
         }
-        guard request.generation == generation, let caps else { return }
-        isComputing = false
-        section = caps.isEmpty ? nil : ViewportSection(caps: caps, plane: request.plane, generation: request.generation)
-        problem = failed ? Self.capProblem : nil
-        revision += 1
+        if let next {
+            start(next)
+        } else if publishes || request.generation == generation {
+            isComputing = false
+        }
     }
 
     /// Forgets everything, for a new or opened document.
@@ -136,8 +163,10 @@ final class SectionCapModel {
     private func clear() {
         guard followed != nil || section != nil || problem != nil || isComputing else { return }
         running?.cancel()
+        discardsRunning = true
         pending = nil
         generation += 1
+        clearedGeneration = generation
         followed = nil
         isComputing = false
         section = nil
