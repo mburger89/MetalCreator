@@ -1817,6 +1817,7 @@ warning step when red. macOS needs no check here: its test count and its look ar
   on the right, in Dracula. Quitting (the window's close button, and File's quit where the platform has one) asks nothing on an
   unedited document. The top bar's top edge is fully visible below the strip (the root is not clipped by it: nothing in MetalCreator reads
   `Window.drawnChromeHeight`, spec erratum E3). Pinned: `--smoke-test` (`LaunchSmokeTests`). **Observed:**
+  *Decision, 2026-10-30:* the app's minimum window size (1000 × 665) stays even on screens smaller than that; on an 800 × 600 screen the window opens partly off-screen, and this is accepted (not a defect to report under XP-1 or XP-14).
 - [ ] **XP-2 (superseded by XP-20).** xp-1 showed a card where the 3D view would be; xp-3 draws the real view and the card is gone. The
   window's size changes keep the layout. Pinned: `ViewportPaneTests` (the window has the viewport's GPU surface). **Observed:**
 - [ ] **XP-3 Geometry badges.** Wire Rectangle → Extrude → Output: the Extrude's badge is the error and its text reads "Geometry
@@ -2080,7 +2081,7 @@ exports a cube) and, for the tarball and the AppImage, a run in a clean Ubuntu (
   for MetalCreator's entry; if the icon or grouping is wrong, start once with `SDL_APP_ID=com.metalcreator.MetalCreator ./MetalCreator`
   and report both results to MetalUI. `./install.sh --remove` takes the entry, the type and the icon away. **Observed:**
 - [ ] **XP-17 Windows zip and file type.** Unzip `MetalCreator-<version>-windows-x64.zip` on a machine with no Swift, SDL or vcpkg,
-  run `MetalCreator.exe --self-test` (all `ok`), run `register-mcgraph.ps1`, double-click a `.mcgraph` in Explorer: it opens;
+  run `MetalCreator.exe --self-test` (all `ok`), double-click or run `register-mcgraph.cmd` (it runs the .ps1 past Windows 11's default execution policy; run on its own the .ps1 is blocked), double-click a `.mcgraph` in Explorer: it opens;
   double-click a second: the running instance opens it. Windows warns about an unsigned download (spec section 6). **Observed:**
 - [ ] **XP-18 Geometry.** On Linux and on Windows, open the §7.2 bracket from a `.mcgraph` saved on a Mac: every node evaluates (no
   "Geometry isn't available" badge), Mesh to Solid works on a meshed solid, and Export STEP writes a file that opens in a CAD viewer.

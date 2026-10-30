@@ -2,6 +2,8 @@
 # CRLF unless told otherwise (Git for Windows sets core.autocrlf), and Swift reads "\r\n" as ONE Character: a test that splits
 # a file on "\n" or matches "...\n" then finds nothing, and bash refuses a script with CRs. CIPinTests names these patterns.
 packaging/** text eol=lf
+# cmd.exe wants CRLF (it can misread LF in labels and long lines); later rules win, so this one follows the packaging/** rule.
+packaging/windows/*.cmd text eol=crlf
 scripts/** text eol=lf
 .github/** text eol=lf
 Sources/COCCT/** text eol=lf

@@ -62,6 +62,8 @@ New-Item -ItemType Directory -Path $folder | Out-Null
 Step 'Assembling'
 Copy-Item $exe (Join-Path $folder 'MetalCreator.exe')
 Copy-Item (Join-Path $root 'packaging\windows\register-mcgraph.ps1') $folder
+# The .cmd runs the .ps1 with -ExecutionPolicy Bypass: a stock Windows 11 refuses to run a downloaded .ps1 ("running scripts is disabled").
+Copy-Item (Join-Path $root 'packaging\windows\register-mcgraph.cmd') $folder
 $shaders = Join-Path $metalUI 'Backends\SDL\Shaders\compiled'
 if (-not (Test-Path (Join-Path $shaders 'SOURCE.sha256'))) { throw "MetalUI's compiled shaders are missing: $shaders" }
 Copy-Item -Recurse $shaders (Join-Path $folder 'MetalUISDLShaders')

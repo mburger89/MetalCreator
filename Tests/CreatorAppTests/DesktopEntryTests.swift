@@ -61,6 +61,19 @@ struct DesktopEntryTests {
         #expect(script.contains("MetalCreator.exe"))
     }
 
+    /// A stock Windows 11 refuses to run a downloaded .ps1, so the zip ships a .cmd that runs it with the policy bypassed, passes
+    /// `-Remove` through, exits with PowerShell's code, and `package-windows.ps1` puts it beside the .ps1.
+    @Test func theWindowsCmdWrapperRunsTheScriptPastTheExecutionPolicyAndTheZipCarriesIt() throws {
+        let wrapper = try Self.text("packaging/windows/register-mcgraph.cmd")
+        #expect(wrapper.contains(#"powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0register-mcgraph.ps1" %*"#))
+        #expect(wrapper.contains("exit /b %ERRORLEVEL%"), "PowerShell's exit code is the wrapper's")
+        let packager = try Self.text("scripts/package-windows.ps1")
+        #expect(packager.contains(#"packaging\windows\register-mcgraph.cmd') $folder"#), "the zip carries the .cmd beside the .ps1")
+        #expect(packager.contains(#"packaging\windows\register-mcgraph.ps1') $folder"#))
+        let attributes = try Self.text(".gitattributes")
+        #expect(attributes.contains("\npackaging/windows/*.cmd text eol=crlf\n"), "cmd.exe scripts are checked out with CRLF")
+    }
+
     /// A file of the repository as bytes.
     private static func bytes(_ path: String) throws -> [UInt8] {
         let repository = URL(filePath: #filePath)
