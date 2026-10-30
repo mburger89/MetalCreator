@@ -59,21 +59,71 @@ struct FakeKernelSectionTests {
         let kernel = FakeKernel()
         let part = try await box(kernel)
         for bad in [0, Double.nan] {
-            await #expect(throws: KernelError.self) { try await kernel.section(part, by: .xy.offset(by: 5), tolerance: bad) }
+            do {
+                _ = try await kernel.section(part, by: .xy.offset(by: 5), tolerance: bad)
+                Issue.record("tolerance \(bad) was accepted")
+            } catch let error as KernelError {
+                guard case .invalidInput = error else {
+                    Issue.record("expected invalidInput, got \(error)")
+                    continue
+                }
+            }
         }
+    }
+
+    /// A 10 x 20 x 30 box whose six faces are written by hand with outward normals (a Fake prism's side faces have none, so only the
+    /// caps would match).
+    func normalledBox() -> Solid {
+        let normals: [Vector3] = [.unitX, -.unitX, .unitY, -.unitY, .unitZ, -.unitZ]
+        let faces = normals.enumerated().map { index, normal in
+            FaceInfo(id: FaceID(index), kind: .plane, normal: normal, area: 1, centroid: .zero, tags: [])
+        }
+        return Solid(topology: Topology(faces: faces, edges: []), bounds: BoundingBox(min: .zero, max: Vector3(10, 20, 30)),
+                     storage: FakeStorage())
+    }
+
+    /// Every piece must name the face on its side: that face's normal is the side's outward direction, and the four faces differ.
+    func expectSourceFaces(of region: SectionRegion, in part: Solid) throws {
+        var ids: Set<FaceID> = []
+        for piece in region.boundary {
+            let id = try #require(piece.sourceFace)
+            let face = try #require(part.topology.face(id))
+            let normal = try #require(face.normal)
+            let middle = (try #require(piece.polyline.first) + (try #require(piece.polyline.last))) * 0.5
+            let offset = middle - part.bounds.center
+            var components = [offset.x, offset.y, offset.z]
+            // The plane's own axis is the one every position shares; the side lies along another.
+            let flat = components.indices.first { index in
+                let values = region.positions.map { [$0.x, $0.y, $0.z][index] }
+                return values.allSatisfy { abs($0 - values[0]) < 1e-12 }
+            }
+            if let flat { components[flat] = 0 }
+            let axis = try #require(components.indices.max { abs(components[$0]) < abs(components[$1]) })
+            var expected = [0.0, 0.0, 0.0]
+            expected[axis] = components[axis] > 0 ? 1 : -1
+            #expect((normal - Vector3(expected[0], expected[1], expected[2])).length < 1e-9)
+            ids.insert(id)
+        }
+        #expect(ids.count == 4)
     }
 
     @Test func eachPieceNamesTheFaceOnItsSide() async throws {
         let kernel = FakeKernel()
-        let part = try await box(kernel)
+        let part = normalledBox()
         let found = try await kernel.section(part, by: .xy.offset(by: 5), tolerance: 0.01)
+        try expectSourceFaces(of: try #require(found.regions.first), in: part)
+    }
+
+    @Test func aNegativeXNormalCutsTheYZRectangle() async throws {
+        let kernel = FakeKernel()
+        let part = normalledBox()
+        let plane = Plane(origin: part.bounds.center, normal: -.unitX, xAxis: .unitY)
+        let found = try await kernel.section(part, by: plane, tolerance: 0.01)
         let region = try #require(found.regions.first)
-        for piece in region.boundary {
-            guard let id = piece.sourceFace, let face = part.topology.face(id), let normal = face.normal else { continue }
-            let middle = (piece.polyline[0] + piece.polyline[1]) * 0.5
-            #expect(abs(normal.z) < 1e-9)
-            #expect(normal.dot(middle - part.bounds.center) > 0)
-        }
+        #expect(found.regions.count == 1)
+        #expect(abs(area(of: region) - 600) < 1e-9)
+        #expect(region.positions.allSatisfy { abs($0.x - part.bounds.center.x) < 1e-12 })
+        try expectSourceFaces(of: region, in: part)
     }
 
     @Test func theUnavailableKernelRefusesTheSection() async throws {
