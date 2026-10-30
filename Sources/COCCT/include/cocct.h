@@ -232,6 +232,31 @@ int occt_face_chart_info_of(const occt_shape *shape, int face_index, occt_face_c
 /// face, kept within half a period of the face's middle on a periodic surface. The caller owns `out`. Returns 1.
 int occt_face_coordinates(const occt_shape *shape, int face_index, const double *points, int point_count, double *out,
                           occt_status *status);
+/// The cross-section of a solid by a plane (section analysis part B): the solid is cut by a planar face on the plane
+/// (BRepAlgoAPI_Common) and each face of the result is a region, tessellated at `tolerance` with every triangle's normal along
+/// `normal`. All regions share `positions` / `indices`; region r owns triangles `region_triangle_offsets[r]` to `[r + 1]`.
+/// Pieces are the edges of each region's face: `piece_kind` 0 polyline only, 1 line, 2 circle; `piece_curve` holds 11 numbers
+/// per piece (line: start xyz, end xyz; circle: centre xyz, axis xyz, radius, start xyz, sweep); `piece_source_face` is the
+/// solid's 0-based face the edge lies on, -1 when unknown; `piece_points` are the polylines, `piece_point_offsets` the
+/// piece_count + 1 starts. A plane that misses the solid succeeds with zero regions. Free with occt_section_free.
+typedef struct {
+    double *positions;
+    int vertex_count;
+    unsigned int *indices;
+    int triangle_count;
+    int *region_triangle_offsets;
+    int region_count;
+    int piece_count;
+    int *piece_region;
+    int *piece_kind;
+    double *piece_curve;
+    int *piece_source_face;
+    double *piece_points;
+    int *piece_point_offsets;
+} occt_section_result;
+int occt_section(const occt_shape *shape, const double origin[3], const double normal[3], const double x_axis[3],
+                 double tolerance, occt_section_result *out, occt_status *status);
+void occt_section_free(occt_section_result *result);
 /// A faceted solid from a closed triangle mesh (implicit spec §4.7): `positions` is `vertex_count` x, y, z triples in millimetres and
 /// `triangles` three vertex numbers per face, counter-clockwise seen from outside. A planar face is built per triangle on vertices and edges shared by index
 /// (no BRepBuilderAPI_Sewing), same-domain faces are merged (ShapeUpgrade_UnifySameDomain), a shell facing inwards becomes a
