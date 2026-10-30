@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorEditor
 import CreatorGraph
 import CreatorNodes
 import MetalUI
@@ -75,11 +76,46 @@ struct SectionWindowTests {
         #expect(app.model.document.section?.isOn == false)
     }
 
+    @Test func thePanelIsHiddenInSketchModeAndComesBack() async throws {
+        var builder = GraphBuilder()
+        let box = builder.sketchedBox(rectangleSketch(on: .xz))
+        let app = try await AppWindow.open(builder.graph)
+        try app.window.click(try #require(try toggles(in: app).first))
+        try await app.window.runUntilIdle()
+        #expect(try offsetFields(in: app).count == 1)
+        app.editor.selection = [box.sketch.id]
+        app.editor.press(.editSketch, on: box.sketch.id)
+        app.model.handle(try #require(app.editor.inspectorRequest))
+        await app.model.settle()
+        try await app.window.runUntilIdle()
+        try #require(app.model.sketch != nil)
+        #expect(try offsetFields(in: app).isEmpty, "hidden while a sketch is open")
+        #expect(app.model.section.shown == nil)
+        try #require(app.model.sketch).editor.finish()
+        await app.model.settle()
+        try await app.window.runUntilIdle()
+        #expect(app.model.sketch == nil)
+        #expect(try offsetFields(in: app).count == 1, "back when the sketch closes")
+        #expect(app.model.section.shown != nil)
+    }
+
     @Test func thePanelPicksAnOriginPlane() async throws {
         let app = try await sectionOn()
         let yz = try #require(try app.window.elements { $0.role == .radioButton && $0.label == "YZ" }.first)
         try app.window.click(yz)
         try await app.window.runUntilIdle()
         #expect(app.model.document.section?.reference == .origin(.yz))
+    }
+}
+
+/// Where the section panel stands (section spec §5): clear of the theme editor while it is open.
+struct SectionPanelLayoutTests {
+    @Test func theOpenThemeEditorPushesThePanelLeftOfIt() {
+        let closed = AppLayout.sectionPanelInsets(dock: .left, panelWidth: 480, panelHeight: 300)
+        let open = AppLayout.sectionPanelInsets(dock: .left, panelWidth: 480, panelHeight: 300, themeEditorOpen: true)
+        let editorLeft = AppLayout.margin + ThemeEditorLayout.width + 2 * GraphPanelLayout.glassPadding
+        #expect(open.trailing >= editorLeft, "the panel's right edge is at or left of the editor's left edge")
+        #expect(open.trailing > closed.trailing)
+        #expect(open.top == closed.top)
     }
 }

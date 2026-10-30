@@ -4,9 +4,12 @@ import MetalUI
 /// (`AppLayout.sectionPanelInsets`). It fills the window so the card can stand in a corner; only the card itself is drawn.
 struct SectionPanelDock: Component {
     let model: AppModel
+    /// Whether the theme editor floats over the inspector column; the panel then stands left of it.
+    let themeEditorOpen: Bool
 
     var content: some ElementGroup {
-        let insets = AppLayout.sectionPanelInsets(dock: model.editor.dock, panelWidth: model.panelWidth, panelHeight: model.panelHeight)
+        let insets = AppLayout.sectionPanelInsets(dock: model.editor.dock, panelWidth: model.panelWidth, panelHeight: model.panelHeight,
+                                                themeEditorOpen: themeEditorOpen)
         VStack(alignment: .trailing, spacing: Pixels(0)) {
             HStack(spacing: Pixels(0)) {
                 Spacer()
