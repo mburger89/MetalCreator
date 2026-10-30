@@ -14,8 +14,8 @@ struct SDLPassRecorder {
 }
 
 extension SDLViewportRenderer {
-    /// Records the main pass from `plan`, in the Metal renderer's order: the background gradient, opaque solids, the ground grid
-    /// (unless the overlay has a plane grid of its own), B-rep edges, ghosts, guides, the field slice, the overlay's fills, lines and points, handles, the
+    /// Records the main pass from `plan`, in the Metal renderer's order: the background gradient, opaque solids, the section's caps, the ground grid
+    /// (unless the overlay has a plane grid of its own), B-rep edges, the cap outlines, ghosts, guides, the field slice, the overlay's fills, lines and points, handles, the
     /// view cube and the triad (each in a square of its own).
     func record(_ plan: SDLFramePlan, _ frame: ViewportFrame, _ uniforms: FrameUniforms, in pass: SDLGPURenderPass) {
         let recorder = SDLPassRecorder(pass: pass, camera: uniformBytes(uniforms))
@@ -23,17 +23,24 @@ extension SDLViewportRenderer {
         let shade = ShadeUniforms(frame.palette)
         let clip = ClipUniforms(frame.clip)
         drawSolids(plan.opaque, ghosts: false, shade: shade, clip: clip, in: recorder)
+        drawCaps(plan.caps, clip: clip, in: recorder)
         if frame.overlay.gridPlane == nil { drawGrid(frame, in: recorder) }
         for edges in plan.edges { drawLines(edges, pipeline: pipelines.lineTest, in: recorder) }
+        if let outlines = plan.outlines { drawLines(outlines, pipeline: pipelines.lineTest, in: recorder) }
         drawSolids(plan.ghosts, ghosts: true, shade: shade, clip: clip, in: recorder)
         for guide in plan.guides { drawLines(guide, pipeline: pipelines.lineTest, in: recorder) }
         for faded in plan.hiddenGuides { drawLines(faded, pipeline: pipelines.lineBehind, in: recorder) }
+        drawOverlays(plan, in: recorder)
+        if let cube = plan.cube { drawCube(cube, in: pass) }
+        if let triad = plan.triad { drawTriad(triad, in: pass) }
+    }
+
+    /// The field slice, the overlay's fills, lines and points, and the handles.
+    private func drawOverlays(_ plan: SDLFramePlan, in recorder: SDLPassRecorder) {
         if let slice = plan.slice { drawSlice(slice, in: recorder) }
         if let fills = plan.fills { drawFills(fills, in: recorder) }
         if let overlay = plan.overlay { drawLines(overlay, pipeline: pipelines.lineAlways, in: recorder) }
         if let handles = plan.handles { drawLines(handles, pipeline: pipelines.lineAlways, in: recorder) }
-        if let cube = plan.cube { drawCube(cube, in: pass) }
-        if let triad = plan.triad { drawTriad(triad, in: pass) }
     }
 
     /// The background gradient, drawn first and ignoring depth.

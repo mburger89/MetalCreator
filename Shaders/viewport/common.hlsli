@@ -112,3 +112,20 @@ struct SliceUniforms {
     float4 up;
     float4 style;
 };
+
+/// A corner of a section cap triangle: xyz is the position (SectionVertex in Swift).
+struct SectionVertex {
+    float4 position;
+};
+
+/// A cap's draw settings (SectionUniforms in Swift): the colours, the section plane's frame (the hatch's), the hatch's spacing and
+/// width (mm) with the cosine and sine of its angle, and in depthParams.x how far (mm) the cap moves towards the eye.
+struct SectionUniforms {
+    float4 fill;
+    float4 hatch;
+    float4 origin;
+    float4 axisU;
+    float4 axisV;
+    float4 hatchParams;
+    float4 depthParams;
+};

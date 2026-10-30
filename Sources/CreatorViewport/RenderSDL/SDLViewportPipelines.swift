@@ -35,6 +35,9 @@ struct SDLViewportPipelines: Sendable {
     let slice: SDLGPUGraphicsPipeline
     let idMesh: SDLGPUGraphicsPipeline
     let idLine: SDLGPUGraphicsPipeline
+    /// The section cap: opaque, no culling, tested (less) and written, so it hides what lies behind it; and its ID twin.
+    let section: SDLGPUGraphicsPipeline
+    let idSection: SDLGPUGraphicsPipeline
 
     init(device: SDLGPUDevice, library: SDLGPUShaderLibrary) throws {
         func pipeline(_ vertex: String, _ fragment: String, primitive: SDLGPUPrimitiveType = .triangleList,
@@ -70,6 +73,8 @@ struct SDLViewportPipelines: Sendable {
         slice = try pipeline("slice", "slice", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: always)
         idMesh = try pipeline("id_mesh", "id_mesh", color: Self.idFormat, samples: .one, depth: writes)
         idLine = try pipeline("id_line", "id_line", primitive: .triangleStrip, color: Self.idFormat, samples: .one, depth: tests)
+        section = try pipeline("section", "section", depth: writes)
+        idSection = try pipeline("id_section", "id_section", color: Self.idFormat, samples: .one, depth: writes)
     }
 }
 #endif

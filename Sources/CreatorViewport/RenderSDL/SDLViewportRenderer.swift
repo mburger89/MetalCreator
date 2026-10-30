@@ -41,6 +41,8 @@ final class SDLViewportRenderer: @unchecked Sendable {
     var triadBuffer: (scale: Float, palette: ViewportPalette, buffer: SDLGPUBuffer, count: Int)?
     /// The overlay's fill triangles, kept until the fills or the palette change, and dropped once a frame has none.
     var fillBuffer: (key: FillBufferKey, buffer: SDLGPUBuffer, count: Int)?
+    /// The section's caps and outlines, kept until its generation or the palette change, and dropped once a frame has no section.
+    var sectionBuffers: SDLSectionBuffers?
     /// Main passes encoded so far. Tests use it to tell "drew" from "bailed out".
     private(set) var encodedPasses = 0
 
@@ -100,6 +102,7 @@ final class SDLViewportRenderer: @unchecked Sendable {
 
     /// Uploads meshes the frame shows for the first time (and the ID pass's edges for each), and drops the ones it no longer shows.
     func prepareMeshes(for frame: ViewportFrame, _ uploader: SDLViewportUploader) {
+        prepareSection(for: frame, uploader)
         let shown = Set(frame.items.map(\.meshSerial))
         meshes = meshes.filter { shown.contains($0.key) }
         for item in frame.items {

@@ -16,6 +16,7 @@ extension SDLViewportRenderer {
             guard let solid = solid(of: item, uploader) else { continue }
             if item.isGhost { plan.ghosts.append(solid) } else { plan.opaque.append(solid) }
         }
+        planSection(frame, scale: scale, into: &plan)
         // B-rep edges of opaque solids. "Shaded" mode still shows the edges a rule selected.
         let edgeStyle = LineUniforms(widthOverride: 0, depthBias: Float(Self.edgeDepthBias(frame)), padding0: 0, padding1: 0)
         let selectedOnly = frame.shading == .shaded

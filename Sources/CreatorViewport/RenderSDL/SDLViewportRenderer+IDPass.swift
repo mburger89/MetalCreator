@@ -14,13 +14,15 @@ struct SDLIDPassInputs: @unchecked Sendable {
     var pipelines: SDLViewportPipelines
     var solids: [Solid]
     var edges: [(buffer: SDLGPUBuffer, count: Int)]
+    /// The section's caps: drawn after the faces writing 0 with depth, so a click on a cap picks nothing.
+    var caps: [(buffer: SDLGPUBuffer, count: Int, uniforms: SectionUniforms)]
     var uniforms: FrameUniforms
     var clip: ClipUniforms
     /// `SDLViewportRenderer.edgeDepthBias`: edges move this far (mm) towards the camera.
     var edgeBias: Float
 
     /// Whether anything is drawn (an empty scene has no ID pass to run).
-    var isEmpty: Bool { solids.isEmpty && edges.isEmpty }
+    var isEmpty: Bool { solids.isEmpty && edges.isEmpty && caps.isEmpty }
 }
 
 extension SDLViewportRenderer {
@@ -36,9 +38,20 @@ extension SDLViewportRenderer {
             }
             if let instances = mesh.cachedPickEdges(solid: item.solidIndex) { edges.append(instances) }
         }
+        var caps: [(buffer: SDLGPUBuffer, count: Int, uniforms: SectionUniforms)] = []
+        if let section = frame.section {
+            // Like a mesh, a section a draw has not prepared yet is not drawn here (the draw that follows prepares it).
+            guard let buffers = sectionBuffers, buffers.key.generation == section.generation,
+                  buffers.key.palette == frame.palette else { return nil }
+            for cap in buffers.caps {
+                let draw = SectionUniforms(section, angle: cap.angle, frame: frame, depthBias: Self.capDepthBias(frame))
+                caps.append((cap.buffer, cap.count, draw))
+            }
+        }
         let uniforms = GPUGeometry.frameUniforms(frame.pose, size: frame.size, sceneRadius: frame.sceneRadius,
                                                  pixelWidth: width, pixelHeight: height)
-        return SDLIDPassInputs(pipelines: pipelines, solids: solids, edges: edges, uniforms: uniforms, clip: ClipUniforms(frame.clip),
+        return SDLIDPassInputs(pipelines: pipelines, solids: solids, edges: edges, caps: caps, uniforms: uniforms,
+                               clip: ClipUniforms(frame.clip),
                                edgeBias: Float(Self.edgeDepthBias(frame)))
     }
 
@@ -58,6 +71,14 @@ extension SDLViewportRenderer {
             pass.pushFragmentUniform(clip, at: 0)
             pass.bindVertexStorageBuffers([solid.vertices])
             pass.draw(vertexCount: solid.vertexCount)
+        }
+        for cap in inputs.caps {
+            pass.bind(inputs.pipelines.idSection)
+            pass.pushVertexUniform(camera, at: 0)
+            pass.pushVertexUniform(uniformBytes(cap.uniforms), at: 1)
+            pass.pushFragmentUniform(clip, at: 0)
+            pass.bindVertexStorageBuffers([cap.buffer])
+            pass.draw(vertexCount: cap.count)
         }
         let style = LineUniforms(widthOverride: 6, depthBias: inputs.edgeBias, padding0: 0, padding1: 0)
         for edges in inputs.edges where edges.count > 0 {

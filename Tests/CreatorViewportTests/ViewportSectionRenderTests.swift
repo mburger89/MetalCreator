@@ -87,8 +87,10 @@ struct ViewportSectionRenderTests {
     @Test func outlinesDrawInTheEdgeColour() throws {
         let rig = try RendererCacheTests.Rig()
         let pixels = try rig.draw(frame(section: section(y: 1e-4), clip: nearSide(0)))
+        let without = try rig.draw(frame(clip: nearSide(0)))
         // The cap's left edge runs down x = 75 from y = 25 to 175.
         #expect(matches(color(pixels, 75, 100), ViewportPalette.dracula.sectionEdge), "\(color(pixels, 75, 100))")
+        #expect(color(pixels, 75, 100) != color(without, 75, 100))
     }
 
     @Test func aClickOnTheCapPicksNothing() throws {
