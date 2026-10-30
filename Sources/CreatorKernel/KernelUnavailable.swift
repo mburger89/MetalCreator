@@ -69,6 +69,10 @@ public actor KernelUnavailable: Kernel {
         try refuse()
     }
 
+    public func section(_ solid: Solid, by plane: Plane, tolerance: Double) throws -> PlaneSection {
+        try refuse()
+    }
+
     /// Checks for cancellation on entry, as every kernel does, then refuses.
     private func refuse() throws -> Never {
         try Task.checkCancellation()

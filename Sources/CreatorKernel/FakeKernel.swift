@@ -171,6 +171,12 @@ public actor FakeKernel: Kernel {
         }
     }
 
+    public func section(_ solid: Solid, by plane: Plane, tolerance: Double) throws -> PlaneSection {
+        try Task.checkCancellation()
+        operationLog.append("section")
+        return try Self.section(solid, by: plane, tolerance: tolerance)
+    }
+
     // MARK: - Fake construction
 
     private func blend(_ solid: Solid, edges: [EdgeID], size: Double, tag: NodeTag) throws -> Solid {

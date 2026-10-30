@@ -50,6 +50,11 @@ public protocol Kernel: Actor {
     /// the rim's (u, v). Like every operation it checks for cancellation on entry, and a long batch again between chunks. An ID the
     /// solid doesn't have is `KernelError.invalidInput`. The default refuses.
     func faceCoordinates(of points: [Vector3], on face: FaceID, in solid: Solid) throws -> [FaceSample]
+    /// The cross-section of `solid` by `plane` (section analysis part B): a region per connected piece of material, with triangles to
+    /// fill it and its boundary as pieces that keep their exact line or arc and the face they lie on. `tolerance` (millimetres) is the
+    /// chord tolerance of the polylines drawn for curved pieces. A plane that misses the solid gives an empty section. Like every
+    /// operation it checks for cancellation on entry. The default refuses.
+    func section(_ solid: Solid, by plane: Plane, tolerance: Double) throws -> PlaneSection
 }
 
 extension Kernel {
@@ -63,5 +68,9 @@ extension Kernel {
 
     public func faceCoordinates(of points: [Vector3], on face: FaceID, in solid: Solid) throws -> [FaceSample] {
         throw KernelError.unsupported("face mapping")
+    }
+
+    public func section(_ solid: Solid, by plane: Plane, tolerance: Double) throws -> PlaneSection {
+        throw KernelError.unsupported("section")
     }
 }
