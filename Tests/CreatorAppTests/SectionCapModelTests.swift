@@ -1,0 +1,151 @@
+import CreatorGeometry
+import CreatorGraph
+import CreatorKernel
+import CreatorNodes
+import CreatorViewport
+import Foundation
+import Testing
+@testable import CreatorApp
+
+/// The section's cap in the app (section spec §3.3 to §3.5): computed off the main actor, shown on the viewport, no edit.
+@MainActor
+struct SectionCapModelTests {
+    func boxApp(kernel: FakeKernel = FakeKernel()) async -> AppModel {
+        var builder = GraphBuilder()
+        _ = builder.box()
+        return await makeApp(builder.graph, kernel: kernel)
+    }
+
+    @Test func turningTheSectionOnShowsACap() async throws {
+        let app = await boxApp()
+        app.setSection(true)
+        await app.settle()
+        let section = try #require(app.viewport.section)
+        #expect(section.caps.count == 1 && !section.caps[0].triangles.isEmpty && !section.caps[0].outlines.isEmpty)
+        #expect(!app.isEdited && !app.document.canUndo)
+    }
+
+    @Test func turningItOffClearsTheCap() async {
+        let app = await boxApp()
+        app.setSection(true)
+        await app.settle()
+        #expect(app.viewport.section != nil)
+        app.setSection(false)
+        await app.settle()
+        #expect(app.viewport.section == nil && app.sectionCaps.section == nil)
+    }
+
+    @Test func sketchModeClearsTheCap() async throws {
+        var builder = GraphBuilder()
+        let box = builder.sketchedBox()
+        let app = await makeApp(builder.graph)
+        app.setSection(true)
+        await app.settle()
+        #expect(app.viewport.section != nil)
+        app.editor.selection = [box.sketch.id]
+        app.editor.press(.editSketch, on: box.sketch.id)
+        app.handle(try #require(app.editor.inspectorRequest))
+        await app.settle()
+        #expect(app.sketch != nil && app.viewport.section == nil)
+    }
+
+    @Test func aPlaneBesideThePartShowsNoCapAndNoProblem() async {
+        let app = await boxApp()
+        app.setSection(true)
+        await app.settle()
+        app.setSectionOffset(1000)
+        await app.settle()
+        #expect(app.viewport.section == nil && app.sectionCaps.problem == nil)
+    }
+
+    @Test func aBurstOfMovesPublishesOnlyTheLast() async throws {
+        let app = await boxApp()
+        app.setSection(true)
+        await app.settle()
+        let before = app.sectionCaps.revision
+        for step in 1...20 { app.setSectionOffset(Double(step) * 0.1) }
+        await app.settle()
+        let clip = try #require(app.viewport.clip)
+        let section = try #require(app.viewport.section)
+        let expected = SectionCaps.plane(for: clip)
+        #expect(section.plane == expected)
+        for position in section.caps.flatMap(\.positions) {
+            #expect(abs((position - expected.origin).dot(expected.normal)) < 1e-9)
+        }
+        #expect(app.sectionCaps.revision - before < 20)
+    }
+
+    @Test func aRefusedSectionLeavesNoCapAndSaysSo() async throws {
+        let kernel = FakeKernel()
+        let app = await boxApp(kernel: kernel)
+        await kernel.setSectionHook { throw KernelError.unsupported("section") }
+        app.setSection(true)
+        await app.settle()
+        #expect(app.viewport.section == nil)
+        #expect(app.sectionCaps.problem == SectionCapModel.capProblem)
+    }
+
+    @Test func theRefusalShowsInThePanel() async throws {
+        var builder = GraphBuilder()
+        _ = builder.box()
+        let kernel = FakeKernel()
+        let window = try await AppWindow.open(builder.graph, kernel: kernel)
+        await kernel.setSectionHook { throw KernelError.unsupported("section") }
+        window.model.setSection(true)
+        await window.model.settle()
+        try await window.window.runUntilIdle()
+        #expect(window.model.sectionCaps.problem == SectionCapModel.capProblem)
+        let text = SectionCapModel.capProblem
+        let lines = try window.window.elements { $0.label == text || $0.value == text }
+        #expect(!lines.isEmpty)
+    }
+
+    @Test func ghostItemsAreNotCapped() async throws {
+        let app = await boxApp()
+        let solid = try #require(app.viewport.items.first).solid
+        let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)
+        let clip = ViewportClip(origin: solid.bounds.center, normal: .unitZ)
+        model.follow(clip: clip, items: [ViewportItem(solid: solid, isGhost: true)])
+        await model.waitForCaps()
+        #expect(model.section == nil)
+        model.follow(clip: clip, items: [ViewportItem(solid: solid, isGuide: true)])
+        await model.waitForCaps()
+        #expect(model.section == nil && model.problem == nil)
+        model.follow(clip: clip, items: [ViewportItem(solid: solid), ViewportItem(solid: solid, isGhost: true)])
+        await model.waitForCaps()
+        #expect(model.section?.caps.count == 1)
+    }
+
+    @Test func theOldCapStaysUntilTheNewOneLands() async throws {
+        let kernel = FakeKernel()
+        let app = await boxApp(kernel: kernel)
+        app.setSection(true)
+        await app.settle()
+        let old = try #require(app.viewport.section)
+        let gate = DispatchSemaphore(value: 0)
+        await kernel.setSectionHook { _ = gate.wait(timeout: .now() + 120) }
+        app.setSectionOffset(1)
+        for _ in 0..<20 { await Task.yield() }
+        #expect(app.viewport.section == old, "the previous cap is still shown")
+        gate.signal()
+        await app.settle()
+        let new = try #require(app.viewport.section)
+        #expect(new.generation != old.generation)
+    }
+
+    @Test func planeForAClipIsInsetTowardsTheKeptSide() throws {
+        let clip = ViewportClip(origin: Vector3(1, 2, 3), normal: Vector3(0, 0, 1))
+        let plane = SectionCaps.plane(for: clip)
+        #expect(plane.normal == clip.normal)
+        #expect((plane.origin - (clip.origin - clip.normal * SectionCaps.inset)).length < 1e-12)
+        #expect(abs(plane.xAxis.length - 1) < 1e-12 && abs(plane.xAxis.dot(plane.normal)) < 1e-12)
+        let tilted = SectionCaps.plane(for: ViewportClip(origin: .zero, normal: Vector3(1, 1, 1)))
+        #expect(abs(tilted.xAxis.length - 1) < 1e-12 && abs(tilted.xAxis.dot(Vector3(1, 1, 1).normalized ?? .zero)) < 1e-12)
+    }
+
+    @Test func nilClearsOnce() {
+        let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)
+        model.follow(clip: nil, items: [])
+        #expect(model.revision == 0)
+    }
+}

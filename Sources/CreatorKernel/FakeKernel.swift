@@ -6,6 +6,7 @@ import Foundation
 /// kernel conformance suite against it (spec §5.4).
 public actor FakeKernel: Kernel {
     public private(set) var operationLog: [String] = []
+    var sectionHook: (@Sendable () throws -> Void)?
 
     public init() {}
 
@@ -172,6 +173,7 @@ public actor FakeKernel: Kernel {
     }
 
     public func section(_ solid: Solid, by plane: Plane, tolerance: Double) throws -> PlaneSection {
+        try sectionHook?()
         try Task.checkCancellation()
         operationLog.append("section")
         return try Self.section(solid, by: plane, tolerance: tolerance)

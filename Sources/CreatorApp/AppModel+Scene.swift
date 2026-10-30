@@ -81,6 +81,8 @@ extension AppModel {
         section.update(document.section, items: viewport.items, bounds: viewport.sceneBounds, hidden: sketch != nil,
                        nodeName: { [unowned self] in producingNode($0)?.name })
         viewport.showClip(section.shown?.clip)
+        sectionCaps.follow(clip: section.shown?.clip, items: viewport.items)
+        viewport.showSection(sectionCaps.section)
         let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
             : []
@@ -150,6 +152,7 @@ extension AppModel {
             // The section resolves a face against the items once they land, so its bounds matter only while it is on.
             if document.section?.isOn == true { _ = viewport.sceneBounds }
             _ = meshRefinement.revision
+            _ = sectionCaps.revision
             _ = editor.selection
             _ = editor.dock
             _ = previewMode

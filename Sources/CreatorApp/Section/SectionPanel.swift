@@ -43,6 +43,11 @@ struct SectionPanel: Component {
                             .font(.caption)
                             .foregroundStyle(palette.statusWarning.color)
                     }
+                    if let problem = model.sectionCaps.problem {
+                        Text(problem)
+                            .font(.caption)
+                            .foregroundStyle(palette.statusWarning.color)
+                    }
                     HStack(spacing: Pixels(6)) {
                         Text("Offset").font(.callout).foregroundStyle(palette.primaryText.color)
                         TextField("Offset", text: draft ?? units.editText(settings.offset, quantity: .length), onChange: { draft = $0 })

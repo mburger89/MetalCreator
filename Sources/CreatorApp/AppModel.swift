@@ -33,6 +33,8 @@ public final class AppModel {
     /// The section view (section spec §3): a plane that cuts the scene open.
     /// Its settings are `document.section`, saved in the file's view state; this holds what is shown.
     let section = SectionModel()
+    /// The cut face of the section, computed off the main actor (section spec §3.4). Not document state.
+    let sectionCaps: SectionCapModel
     /// The solids that display the meshes of the scene, one per mesh.
     @ObservationIgnored let meshSolids = MeshSolids()
     /// The engine implicit solids run on: Metal in the app, the CPU in tests.
@@ -110,6 +112,7 @@ public final class AppModel {
         self.implicitEngine = implicitEngine
         meshRefinement = MeshRefinementModel(engine: implicitEngine)
         let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: fileURL, implicitEngine: implicitEngine)
+        sectionCaps = SectionCapModel(kernel: kernel, tolerance: parts.viewport.displayTolerance)
         document = parts.document
         editor = parts.editor
         graphInput = parts.input
@@ -137,6 +140,7 @@ public final class AppModel {
         sketch = nil
         previewMode = .final
         section.reset()
+        sectionCaps.reset()
         fieldPreview.stop()
         document = parts.document
         editor = parts.editor
@@ -163,7 +167,8 @@ public final class AppModel {
             await document.waitForEvaluation()
             if let sceneTask { await sceneTask.value }
             await fieldPreview.waitForSampling()
-        } while document.isEvaluating || sceneTask != nil || fieldPreview.isSampling
+            await sectionCaps.waitForCaps()
+        } while document.isEvaluating || sceneTask != nil || fieldPreview.isSampling || sectionCaps.isComputing
         await viewport.waitForMeshes()
     }
 }

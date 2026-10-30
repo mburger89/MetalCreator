@@ -1,6 +1,12 @@
 import CreatorGeometry
 
 extension FakeKernel {
+    /// A test knob: runs at the start of every `section`, on the kernel's thread; it may throw to refuse the section or block to
+    /// hold it. `nil` (the default) does nothing.
+    public func setSectionHook(_ hook: (@Sendable () throws -> Void)?) {
+        sectionHook = hook
+    }
+
     /// Sections the solid's bounding box by an axis-aligned plane; any other plane is refused.
     static func section(_ solid: Solid, by plane: Plane, tolerance: Double) throws -> PlaneSection {
         guard tolerance.isFinite, tolerance > 0 else {
