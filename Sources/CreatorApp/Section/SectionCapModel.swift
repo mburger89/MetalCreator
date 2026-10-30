@@ -26,7 +26,12 @@ final class SectionCapModel {
 
     private struct Key: Equatable {
         var clip: ViewportClip
-        var solids: [ObjectIdentifier]
+        var solids: [Solid]
+
+        /// Solids by identity; the key holds them, so a freed address can never match a new one.
+        static func == (a: Key, b: Key) -> Bool {
+            a.clip == b.clip && a.solids.count == b.solids.count && zip(a.solids, b.solids).allSatisfy { $0 === $1 }
+        }
     }
 
     init(kernel: any Kernel, tolerance: Double) {
@@ -41,7 +46,7 @@ final class SectionCapModel {
             return
         }
         let capped = items.filter { !$0.isGhost && !$0.isGuide }.map(\.solid)
-        let key = Key(clip: clip, solids: capped.map { ObjectIdentifier($0) })
+        let key = Key(clip: clip, solids: capped)
         guard key != followed else { return }
         followed = key
         task?.cancel()

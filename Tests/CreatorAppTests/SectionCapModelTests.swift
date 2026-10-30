@@ -123,9 +123,16 @@ struct SectionCapModelTests {
         await app.settle()
         let old = try #require(app.viewport.section)
         let gate = DispatchSemaphore(value: 0)
-        await kernel.setSectionHook { _ = gate.wait(timeout: .now() + 120) }
+        let (entered, signal) = AsyncStream<Void>.makeStream()
+        await kernel.setSectionHook {
+            signal.yield()
+            _ = gate.wait(timeout: .now() + 10)
+        }
         app.setSectionOffset(1)
-        for _ in 0..<20 { await Task.yield() }
+        for await _ in entered { break }
+        #expect(app.sectionCaps.isComputing, "the new section is under way")
+        let clip = try #require(app.viewport.clip)
+        #expect(abs((clip.origin - old.plane.origin).length - 1) < 1e-3, "the viewport is clipped at the new offset")
         #expect(app.viewport.section == old, "the previous cap is still shown")
         gate.signal()
         await app.settle()
@@ -147,5 +154,18 @@ struct SectionCapModelTests {
         let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)
         model.follow(clip: nil, items: [])
         #expect(model.revision == 0)
+    }
+
+    @Test func twoNilFollowsAfterACapBumpTheRevisionOnce() async throws {
+        let app = await boxApp()
+        let solid = try #require(app.viewport.items.first).solid
+        let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)
+        model.follow(clip: ViewportClip(origin: solid.bounds.center, normal: .unitZ), items: [ViewportItem(solid: solid)])
+        await model.waitForCaps()
+        #expect(model.section != nil)
+        let before = model.revision
+        model.follow(clip: nil, items: [])
+        model.follow(clip: nil, items: [])
+        #expect(model.revision == before + 1 && model.section == nil)
     }
 }

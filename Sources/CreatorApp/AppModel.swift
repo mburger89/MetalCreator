@@ -112,6 +112,7 @@ public final class AppModel {
         self.implicitEngine = implicitEngine
         meshRefinement = MeshRefinementModel(engine: implicitEngine)
         let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: fileURL, implicitEngine: implicitEngine)
+        // `displayTolerance` is never changed after a viewport is made, so the new viewport of `load` has the same one.
         sectionCaps = SectionCapModel(kernel: kernel, tolerance: parts.viewport.displayTolerance)
         document = parts.document
         editor = parts.editor
