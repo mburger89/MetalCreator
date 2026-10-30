@@ -1,5 +1,6 @@
 import CreatorGeometry
 import CreatorGraph
+import CreatorImplicit
 import CreatorKernel
 import CreatorNodes
 import CreatorViewport
@@ -129,7 +130,14 @@ struct SectionCapModelTests {
             _ = gate.wait(timeout: .now() + 10)
         }
         app.setSectionOffset(1)
-        for await _ in entered { break }
+        let reached = await withTaskGroup(of: Bool.self) { group in
+            group.addTask { for await _ in entered { return true }; return false }
+            group.addTask { try? await Task.sleep(for: .seconds(10)); return false }
+            let first = await group.next() ?? false
+            group.cancelAll()
+            return first
+        }
+        try #require(reached, "the section hook was never reached")
         #expect(app.sectionCaps.isComputing, "the new section is under way")
         let clip = try #require(app.viewport.clip)
         #expect(abs((clip.origin - old.plane.origin).length - 1) < 1e-3, "the viewport is clipped at the new offset")
@@ -148,6 +156,32 @@ struct SectionCapModelTests {
         #expect(abs(plane.xAxis.length - 1) < 1e-12 && abs(plane.xAxis.dot(plane.normal)) < 1e-12)
         let tilted = SectionCaps.plane(for: ViewportClip(origin: .zero, normal: Vector3(1, 1, 1)))
         #expect(abs(tilted.xAxis.length - 1) < 1e-12 && abs(tilted.xAxis.dot(Vector3(1, 1, 1).normalized ?? .zero)) < 1e-12)
+    }
+
+    /// A closed box mesh from 0 to `size` on every axis, as a display-only solid.
+    private func meshSolid(size: Double) -> Solid {
+        let corners = (0..<8).map { Vector3(($0 & 1) == 0 ? 0 : size, ($0 & 2) == 0 ? 0 : size, ($0 & 4) == 0 ? 0 : size) }
+        let indices: [UInt32] = [0, 2, 1, 1, 2, 3, 4, 5, 6, 5, 7, 6, 0, 1, 4, 1, 5, 4, 2, 6, 3, 3, 6, 7, 0, 4, 2, 2, 4, 6, 1, 3, 5, 3, 7, 5]
+        return Solid(displaying: DisplayMesh(positions: corners, normals: corners.map { _ in .unitZ }, indices: indices,
+                                             triangleFaces: Array(repeating: FaceID(0), count: 12), edgePolylines: [:]))
+    }
+
+    @Test func aReplacedMeshIsCutAgain() async throws {
+        let (first, second) = (meshSolid(size: 10), meshSolid(size: 20))
+        let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)
+        let clip = ViewportClip(origin: Vector3(0, 0, 5), normal: .unitZ)
+        model.follow(clip: clip, items: [ViewportItem(solid: first)])
+        await model.waitForCaps()
+        let before = try #require(model.section)
+        model.follow(clip: clip, items: [ViewportItem(solid: second)])
+        await model.waitForCaps()
+        let after = try #require(model.section)
+        #expect(after.generation != before.generation)
+        let mesh = try #require(second.displayedMesh)
+        let direct = MeshSlicer.slice(positions: mesh.positions, triangles: mesh.indices, plane: SectionCaps.plane(for: clip))
+        let expected = try #require(SectionCaps.cap(from: direct, hatchAngle: ViewportSection.hatchAngle(forCap: 0)))
+        #expect(after.caps[0].positions == expected.positions && after.caps[0].triangles == expected.triangles)
+        #expect(after.caps[0].positions != before.caps[0].positions)
     }
 
     @Test func nilClearsOnce() {
