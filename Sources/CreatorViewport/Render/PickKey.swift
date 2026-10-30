@@ -9,4 +9,6 @@ struct PickKey: Hashable {
     var items: [Int]
     /// The cut view's plane: what it cuts away cannot be picked.
     var clip: ViewportClip?
+    /// The section's cap hides what lies behind it from the pick.
+    var section: ViewportSection?
 }

@@ -67,6 +67,9 @@ public final class ViewportModel {
     /// The cut view's plane (`showClip(_:)`), or `nil`: everything on one side of it is cut away. It is no part of the scene: it
     /// never picks, frames or widens `sceneBounds`.
     public private(set) var clip: ViewportClip?
+    /// The section's cap and outlines (`showSection(_:)`), or `nil`. It is no part of the scene: it never picks, frames or widens
+    /// `sceneBounds`.
+    public private(set) var section: ViewportSection?
     public internal(set) var hovered: PickTarget?
     public internal(set) var hoveredCubeRegion: ViewCubeRegion?
     /// The dimension whose text the pointer is on (`refreshDimensionHover(at:)`); its editor's note shows below it.
@@ -139,7 +142,7 @@ public final class ViewportModel {
         ViewportRenderKey(pose: pose, isAnimating: isAnimating, shading: shading, hovered: hovered,
                           hoveredCubeRegion: hoveredCubeRegion, sceneGeneration: sceneGeneration, handles: handles,
                           cube: cubeLayout, triad: triadLayout, palette: palette, overlay: overlay,
-                          showsViewCube: showsViewCube, slice: slice, clip: clip)
+                          showsViewCube: showsViewCube, slice: slice, clip: clip, section: section)
     }
 
     /// The union of every shown solid's bounds, ghosts included and guides left out.
@@ -205,6 +208,11 @@ public final class ViewportModel {
     public func showClip(_ newClip: ViewportClip?) {
         let valid = newClip.flatMap { $0.isValid ? $0 : nil }
         if clip != valid { clip = valid }
+    }
+
+    /// The section's cap to draw, or `nil` for none. An equal section (the same `generation`) changes nothing.
+    public func showSection(_ newSection: ViewportSection?) {
+        if section != newSection { section = newSection }
     }
 
     /// Returns once the most recent `show(_:)` has finished loading.

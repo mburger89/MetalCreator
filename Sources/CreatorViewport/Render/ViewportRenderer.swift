@@ -27,6 +27,8 @@ final class ViewportRenderer {
     var fillBuffer: (key: FillBufferKey, buffer: any MTLBuffer, count: Int)?
     /// The field slice's grid as a texture, kept until the slice's generation or size changes.
     let sliceTextures = SliceTextures()
+    /// The section's GPU buffers, kept until its generation or the palette changes.
+    var sectionCache: SectionBuffers?
     /// The triad's instances, which depend only on the pixel scale and the palette: an orbit turns the widget's camera.
     var triadBuffer: (scale: Float, palette: ViewportPalette, buffer: any MTLBuffer, count: Int)?
     private let cube: ViewCubeResources
@@ -71,8 +73,10 @@ final class ViewportRenderer {
                                                  pixelWidth: width, pixelHeight: height)
         drawBackground(frame.palette, encoder)
         drawSolids(frame, ghosts: false, uniforms, encoder)
+        drawCaps(frame, uniforms, encoder)
         if frame.overlay.gridPlane == nil { drawGrid(frame, uniforms, encoder) }
         drawEdges(frame, uniforms, scale: pixelScale, encoder)
+        drawSectionOutlines(frame, uniforms, scale: pixelScale, encoder)
         drawSolids(frame, ghosts: true, uniforms, encoder)
         drawGuides(frame, uniforms, scale: pixelScale, encoder)
         drawSlice(frame, uniforms, encoder)
@@ -116,6 +120,7 @@ final class ViewportRenderer {
             encoder.setFragmentBytes(&draw, length: MemoryLayout<DrawUniforms>.stride, index: 0)
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: gpu.vertexCount)
         }
+        drawCaps(frame, uniforms, ids: true, encoder)
         let style = LineUniforms(widthOverride: 6, depthBias: Float(edgeDepthBias(frame)), padding0: 0, padding1: 0)
         for item in frame.items where !item.isGuide {
             let key = EdgeInstanceKey(solid: item.solidIndex, selected: [], selectedOnly: false, scale: 1)
@@ -195,16 +200,6 @@ final class ViewportRenderer {
                                        device: device)
             encoder.setFragmentBuffer(buffer ?? placeholder, offset: 0, index: 1)
         }
-    }
-
-    private func drawGrid(_ frame: ViewportFrame, _ uniforms: FrameUniforms, _ encoder: any MTLRenderCommandEncoder) {
-        var grid = GPUGeometry.gridUniforms(frame)
-        encoder.setRenderPipelineState(pipelines.grid)
-        encoder.setDepthStencilState(pipelines.depthTest)
-        bind(uniforms, encoder)
-        encoder.setVertexBytes(&grid, length: MemoryLayout<GridUniforms>.stride, index: 2)
-        encoder.setFragmentBytes(&grid, length: MemoryLayout<GridUniforms>.stride, index: 2)
-        encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
     }
 
     /// B-rep edges of opaque solids. "Shaded" mode still shows the edges a rule selected.

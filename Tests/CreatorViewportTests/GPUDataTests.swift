@@ -29,6 +29,8 @@ struct GPUDataTests {
         #expect(MemoryLayout<ClipUniforms>.stride == 32)
         #expect(MemoryLayout<BackgroundUniforms>.stride == 32)
         #expect(MemoryLayout<LineUniforms>.stride == 16)
+        #expect(MemoryLayout<SectionVertex>.stride == 16)
+        #expect(MemoryLayout<SectionUniforms>.stride == 112)
         #expect(MemoryLayout<GridUniforms>.stride == 48)
         #expect(MemoryLayout<GridUniforms>.offset(of: \GridUniforms.minorColor) == 16)
     }

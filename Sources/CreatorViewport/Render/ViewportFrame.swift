@@ -23,11 +23,14 @@ struct ViewportFrame {
     var slice: ViewportSlice?
     /// The cut view's plane (`ViewportModel.clip`).
     var clip: ViewportClip?
+    /// The section's cap and outlines (`ViewportModel.section`).
+    var section: ViewportSection?
 
     /// Half the scene's diagonal (at least 1 mm), used for depth ranges.
     var sceneRadius: Double { sceneBounds.map { max($0.size.length / 2, 1) } ?? 1 }
 
     var pickKey: PickKey {
-        PickKey(pose: pose, size: size, items: items.flatMap { [$0.meshSerial, $0.solidIndex] }, clip: clip)
+        PickKey(pose: pose, size: size, items: items.flatMap { [$0.meshSerial, $0.solidIndex] }, clip: clip,
+                section: section)
     }
 }
