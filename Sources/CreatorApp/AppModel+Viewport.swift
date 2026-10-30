@@ -18,6 +18,7 @@ extension AppModel {
         viewport.events.newSketchOnFace = { face, pick in events()?.newSketchOnFace(face, pick) }
         viewport.events.patternOnFace = { face, pick in events()?.patternOnFace(face, pick) }
         viewport.events.scatterOnFace = { face, pick in events()?.scatterOnFace(face, pick) }
+        viewport.events.sectionFromFace = { face, pick in events()?.sectionFromFace(face, pick) }
         viewport.events.handleChanged = { id, value, phase in events()?.handleChanged(id, value, phase) }
         viewport.events.nodeName = { id in events()?.producingNode(id)?.name }
         // The camera reaches the file only when it comes to rest, never per frame: writing the camera invalidates

@@ -29,8 +29,10 @@ extension ViewportModel {
         guard tool == nil else { return [.lookAt(ref)] }
         var menu: [ViewportMenuItem] = [.lookAt(ref), .selectEdgesOfFace(ref)]
         if let target = pressed { menu.append(.dimension(target)) }
-        // Plane from Face, Face Pattern and Field Scatter take a flat face with a normal; another face would only make an error.
-        if face.kind == .plane, face.normal != nil { menu += [.newSketchOnFace(ref), .patternOnFace(ref), .scatterOnFace(ref)] }
+        // Plane from Face, Face Pattern, Field Scatter and Section take a flat face with a normal; another face would only make an error.
+        if face.kind == .plane, face.normal != nil {
+            menu += [.newSketchOnFace(ref), .patternOnFace(ref), .scatterOnFace(ref), .sectionFromFace(ref)]
+        }
         let nodes = MeshQueries.producingNodes(of: face)
         for node in nodes {
             let title = nodes.count == 1
@@ -57,12 +59,12 @@ extension ViewportModel {
             events.dimension(target)
         case .showProducingNode(let node, _):
             events.showProducingNode(node)
-        case .newSketchOnFace(let ref), .patternOnFace(let ref), .scatterOnFace(let ref):
+        case .newSketchOnFace(let ref), .patternOnFace(let ref), .scatterOnFace(let ref), .sectionFromFace(let ref):
             chooseOnFace(item, ref)
         }
     }
 
-    /// New Sketch, Pattern or Scatter on the flat face `ref`, with the pick of that face.
+    /// New Sketch, Pattern, Scatter or Section on the flat face `ref`, with the pick of that face.
     private func chooseOnFace(_ item: ViewportMenuItem, _ ref: ViewportFaceRef) {
         guard items.indices.contains(ref.solidIndex),
               let pick = items[ref.solidIndex].solid.topology.facePick(for: ref.face) else { return }
@@ -70,6 +72,7 @@ extension ViewportModel {
         case .newSketchOnFace: events.newSketchOnFace(ref, pick)
         case .patternOnFace: events.patternOnFace(ref, pick)
         case .scatterOnFace: events.scatterOnFace(ref, pick)
+        case .sectionFromFace: events.sectionFromFace(ref, pick)
         default: break
         }
     }

@@ -223,10 +223,10 @@ struct ContextMenuTests {
         let expected = sorted.map {
             $0 == nodeA ? "Show Producing Node (Extrude)" : "Show Producing Node (\(nodeB.description))"
         }
-        #expect(Array(titles.dropFirst(6)) == expected)
+        #expect(Array(titles.dropFirst(7)) == expected)
         var shown: [NodeID] = []
         model.events.showProducingNode = { shown.append($0) }
-        for item in model.contextMenuItems(at: ScreenPoint(300, 200)).dropFirst(6) { model.choose(item) }
+        for item in model.contextMenuItems(at: ScreenPoint(300, 200)).dropFirst(7) { model.choose(item) }
         #expect(shown == sorted)
     }
 
@@ -269,5 +269,37 @@ struct ContextMenuTests {
         model.perform(.view(.top))
         #expect(model.triadLabels().isEmpty && model.handleLabels(measuring: .fake).isEmpty,
                 "overlay labels can't follow a running animation, so they're hidden (the cube's are painted on it)")
+    }
+}
+
+extension ContextMenuTests {
+    @Test func aFlatFaceOffersSectionFromFace() async throws {
+        let solid = try await fakeBox()
+        let model = await model(showing: [solid])
+        let cap = ViewportFaceRef(solidIndex: 0, face: FaceID(1))
+        model.pick = { _ in .face(solid: 0, FaceID(1)) }
+        let items = model.contextMenuItems(at: ScreenPoint(300, 200))
+        let scatter = try #require(items.firstIndex(of: .scatterOnFace(cap)))
+        #expect(items[scatter + 1] == .sectionFromFace(cap) && items[scatter + 1].title == "Section from Face")
+        model.tool = RecordingTool()
+        #expect(!model.contextMenuItems(at: ScreenPoint(301, 200)).contains(.sectionFromFace(cap)), "a tool leaves only Look At")
+        model.tool = nil
+        var reported: [(face: ViewportFaceRef, pick: FacePick)] = []
+        model.events.sectionFromFace = { reported.append(($0, $1)) }
+        model.choose(.sectionFromFace(cap))
+        #expect(reported.map(\.face) == [cap])
+        #expect(reported.first?.pick == solid.topology.facePick(for: FaceID(1)))
+        model.choose(.sectionFromFace(ViewportFaceRef(solidIndex: 5, face: FaceID(1))))
+        #expect(reported.count == 1, "a face of a solid that is gone reports nothing")
+    }
+
+    @Test func aCurvedFaceOffersNoSection() async throws {
+        let face = FaceInfo(id: FaceID(0), kind: .cylinder, normal: .unitZ, area: 1, centroid: .zero, tags: [])
+        let cylinder = Solid(topology: Topology(faces: [face], edges: []),
+                             bounds: BoundingBox(min: .zero, max: Vector3(1, 1, 1)), storage: TestStorage())
+        let model = await model(showing: [cylinder])
+        model.pick = { _ in .face(solid: 0, FaceID(0)) }
+        let ref = ViewportFaceRef(solidIndex: 0, face: FaceID(0))
+        #expect(!model.contextMenuItems(at: ScreenPoint(300, 200)).contains(.sectionFromFace(ref)))
     }
 }

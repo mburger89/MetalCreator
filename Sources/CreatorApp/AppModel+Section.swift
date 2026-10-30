@@ -1,5 +1,7 @@
 import CreatorGeometry
 import CreatorGraph
+import CreatorKernel
+import CreatorViewport
 
 extension AppModel {
     /// Switches the section on or off (the top bar's toggle and View ▸ Show Section). The first time it starts on the axis plane
@@ -14,6 +16,14 @@ extension AppModel {
         } else {
             document.section?.isOn = false
         }
+        refreshScene()
+    }
+
+    /// "Section from Face" (section spec §3.2): the section on a flat face, at its surface and cutting the outside away. A face of a
+    /// solid that is gone does nothing, and nothing starts while a sketch is open.
+    func sectionFromFace(_ ref: ViewportFaceRef, _ pick: FacePick) {
+        guard sketch == nil, viewport.items.indices.contains(ref.solidIndex) else { return }
+        document.section = SectionSettings(isOn: true, reference: .face(pick), offset: 0, isFlipped: false)
         refreshScene()
     }
 

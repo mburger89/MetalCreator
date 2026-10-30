@@ -58,6 +58,12 @@ struct SectionGeometryTests {
         #expect(SectionGeometry.handle(frame, offset: -7, bounds: Self.bounds).range == -7...30)
     }
 
+    @Test func theHandleOfAFaceFrameRunsFromTheFaceDownThroughThePart() throws {
+        let frame = try #require(SectionGeometry.frame(ofFace: Self.face(kind: .plane, normal: .unitZ)))
+        let handle = SectionGeometry.handle(frame, offset: 0, bounds: Self.bounds)
+        #expect(handle.anchor == Vector3(0, 0, 30) && handle.range == 0...30)
+    }
+
     @Test func aFaceIsFoundInTheSceneByItsTags() async throws {
         let kernel = FakeKernel()
         func box() async throws -> Solid {

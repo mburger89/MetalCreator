@@ -18,6 +18,8 @@ public struct ViewportEvents {
     public var patternOnFace: @MainActor (ViewportFaceRef, FacePick) -> Void = { _, _ in }
     /// "Scatter on Face" (fields spec §3.3): the flat face and its remembered pick, which Field Scatter stores as Face Pattern does.
     public var scatterOnFace: @MainActor (ViewportFaceRef, FacePick) -> Void = { _, _ in }
+    /// "Section from Face" (section spec §3.2): the flat face and its remembered pick, which the section stores as a face reference.
+    public var sectionFromFace: @MainActor (ViewportFaceRef, FacePick) -> Void = { _, _ in }
     /// "Dimension" (dimensions spec §3.5): the face or edge the menu was opened on, the first pick of the model dimension tool.
     public var dimension: @MainActor (PickTarget) -> Void = { _ in }
     /// "Show Producing Node": the node that made the face, from its tags.
