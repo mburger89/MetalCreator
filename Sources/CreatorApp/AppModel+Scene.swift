@@ -78,13 +78,15 @@ extension AppModel {
         // The sketch editor draws its own overlay while a sketch is open; otherwise a selected layout node shows its placements.
         if sketch == nil { viewport.showOverlay(pick == nil ? layoutOverlay : ViewportOverlay()) }
         viewport.showSlice(fieldPreview.viewportSlice(colors: themes.current.colors))
-        cutView.follow(bounds: viewport.sceneBounds)
-        viewport.showClip(cutView.clip)
+        section.update(document.section, items: viewport.items, bounds: viewport.sceneBounds, hidden: sketch != nil,
+                       nodeName: { [document] in document.graph.nodes[$0]?.name })
+        viewport.showClip(section.shown?.clip)
         let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
             : []
         handleTargets = Dictionary(handles.map { ($0.handle.id, $0.target) }, uniquingKeysWith: { first, _ in first })
-        let shownHandles = handles.map(\.handle) + (fieldPreview.sliceHandle.map { [$0] } ?? []) + (cutView.handle.map { [$0] } ?? [])
+        let shownHandles = handles.map(\.handle) + (fieldPreview.sliceHandle.map { [$0] } ?? [])
+            + (section.shown?.handle.map { [$0] } ?? [])
         if viewport.handles != shownHandles { viewport.showHandles(shownHandles) }
         refreshDimensions()
     }
@@ -144,7 +146,8 @@ extension AppModel {
             _ = editor.enteredGroups
             _ = document.previewNode
             _ = fieldPreview.revision
-            _ = cutView.revision
+            _ = document.section
+            _ = viewport.sceneBounds
             _ = meshRefinement.revision
             _ = editor.selection
             _ = editor.dock

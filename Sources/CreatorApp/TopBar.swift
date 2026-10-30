@@ -36,9 +36,7 @@ struct TopBar: Component {
                         }
                     }
                     .pickerStyle(.menu)
-                    if CutViewModel.isAvailable {
-                        Toggle("Cut View", isOn: Binding(get: { model.cutView.isOn }, set: { model.setCutView($0) }))
-                    }
+                    Toggle("Section", isOn: Binding(get: { model.document.section?.isOn == true }, set: { model.setSection($0) }))
                     Button(model.undoTitle) { model.undo() }
                         .disabled(!model.document.canUndo)
                     Button(model.redoTitle) { model.redo() }

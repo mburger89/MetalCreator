@@ -35,9 +35,6 @@ extension SliceAxis {
 /// The section view's geometry (section spec §3.1, §3.2, §3.5): settings and the scene in, a plane, a clip and a handle out.
 /// Pure, so the model and the app can both ask it.
 enum SectionGeometry {
-    /// The handle's id (moves to `SectionModel` with the wiring).
-    static let handleID = "section-plane"
-
     /// An origin plane: through the origin, its offset along its normal.
     static func frame(of origin: SectionOrigin) -> SectionFrame {
         let normal = SliceAxis(origin).plane.normal
@@ -76,7 +73,7 @@ enum SectionGeometry {
         let anchor = centre - frame.normal * (centre - frame.origin).dot(frame.normal)
         let spans = corners(of: bounds).map { ($0 - frame.origin).dot(frame.offsetDirection) }
         let low = min(spans.min() ?? 0, offset), high = max(spans.max() ?? 0, offset)
-        return ViewportHandle(id: handleID, anchor: anchor, direction: frame.offsetDirection, value: offset,
+        return ViewportHandle(id: SectionModel.handleID, anchor: anchor, direction: frame.offsetDirection, value: offset,
                               range: low...high, style: .linear, tint: .solid)
     }
 
