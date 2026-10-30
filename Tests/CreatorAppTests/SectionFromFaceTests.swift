@@ -31,10 +31,12 @@ struct SectionFromFaceTests {
         let app = await makeApp(builder.graph, kernel: OCCTKernel())
         let (ref, pick) = try topFace(app)
         app.sectionFromFace(ref, pick)
+        await app.settle()
         #expect(app.document.section == SectionSettings(isOn: true, reference: .face(pick), offset: 0, isFlipped: false))
         let top = try #require(app.viewport.clip)
         #expect(top.origin.z == 10 && top.normal == .unitZ)
         app.setSectionOffset(4)
+        await app.settle()
         #expect(app.viewport.clip?.origin.z == 6)
     }
 
@@ -44,6 +46,7 @@ struct SectionFromFaceTests {
         let app = await makeApp(builder.graph, kernel: OCCTKernel())
         let (ref, pick) = try topFace(app)
         app.sectionFromFace(ref, pick)
+        await app.settle()
         try app.document.perform(.setInput(extrude.id, "distance", .number(25)), name: UndoName.changeInput("Distance"))
         await app.settle()
         #expect(app.viewport.clip?.origin.z == 25)
@@ -56,6 +59,7 @@ struct SectionFromFaceTests {
         let app = await makeApp(builder.graph, kernel: OCCTKernel())
         let (ref, pick) = try topFace(app, of: extrude)
         app.sectionFromFace(ref, pick)
+        await app.settle()
         let before = try #require(app.viewport.clip)
         try app.document.perform(.removeNode(output.id), name: UndoName.delete)
         await app.settle()
@@ -79,6 +83,7 @@ struct SectionFromFaceTests {
         app.beginSketch(for: sketch.id)
         await app.settle()
         app.sectionFromFace(ref, pick)
+        await app.settle()
         #expect(app.document.section == nil)
     }
 }

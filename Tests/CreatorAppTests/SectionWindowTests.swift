@@ -76,6 +76,19 @@ struct SectionWindowTests {
         #expect(app.model.document.section?.isOn == false)
     }
 
+    @Test func aMinusSignTypedInTheOffsetFieldDoesNotZoomTheCamera() async throws {
+        let app = try await sectionOn()
+        let before = app.model.viewport.pose
+        let field = try #require(try offsetFields(in: app).first)
+        try app.window.click(field)
+        app.window.typeKey("a", modifierFlags: .primary)
+        app.window.typeText("-3")
+        app.window.typeKey(.return)
+        try await app.window.runUntilIdle()
+        #expect(app.model.document.section?.offset == -3)
+        #expect(app.model.viewport.pose == before, "the key went to the field, not to the viewport's zoom")
+    }
+
     @Test func thePanelIsHiddenInSketchModeAndComesBack() async throws {
         var builder = GraphBuilder()
         let box = builder.sketchedBox(rectangleSketch(on: .xz))

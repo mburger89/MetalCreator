@@ -79,7 +79,7 @@ extension AppModel {
         if sketch == nil { viewport.showOverlay(pick == nil ? layoutOverlay : ViewportOverlay()) }
         viewport.showSlice(fieldPreview.viewportSlice(colors: themes.current.colors))
         section.update(document.section, items: viewport.items, bounds: viewport.sceneBounds, hidden: sketch != nil,
-                       nodeName: { [document] in document.graph.nodes[$0]?.name })
+                       nodeName: { [unowned self] in producingNode($0)?.name })
         viewport.showClip(section.shown?.clip)
         let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
@@ -147,7 +147,8 @@ extension AppModel {
             _ = document.previewNode
             _ = fieldPreview.revision
             _ = document.section
-            _ = viewport.sceneBounds
+            // The section resolves a face against the items once they land, so its bounds matter only while it is on.
+            if document.section?.isOn == true { _ = viewport.sceneBounds }
             _ = meshRefinement.revision
             _ = editor.selection
             _ = editor.dock

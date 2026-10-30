@@ -42,7 +42,11 @@ final class SectionModel {
                 if let found = SectionGeometry.resolveFace(pick, in: items), let resolved = SectionGeometry.frame(ofFace: found.face) {
                     frame = resolved
                     remember(pick, resolved)
-                    if found.isGuess { nextNote = "The section's face changed; this is the nearest match." }
+                    if found.isGuess {
+                        nextNote = "The picked face was merged with a face from another part of the model that has since changed, "
+                            + "so it isn't clear which part was picked. The section sits on the closest one; "
+                            + "use Section from Face again to settle it."
+                    }
                     title = Self.title(of: found.face, nodeName: nodeName)
                 } else {
                     frame = remembered.first { $0.pick == pick }?.frame

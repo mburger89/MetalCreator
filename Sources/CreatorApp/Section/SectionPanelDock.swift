@@ -18,5 +18,7 @@ struct SectionPanelDock: Component {
             Spacer()
         }
         .padding(Edges(top: insets.top.px, right: insets.trailing.px, bottom: Pixels(0), left: Pixels(0)))
+        // Typing in the Offset field must not reach the viewport's F, + and − keys.
+        .keyContext(AppKeyContext.panel)
     }
 }
