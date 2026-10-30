@@ -55,7 +55,11 @@ METALUI=$(cd ../MetalUI && pwd -P)
 
 TRACK=${XP_TRACK:-xp-1}
 EXPECTED_TEST_RUNS=${EXPECTED_TEST_RUNS:-12}
-BASE_IMAGE=metalui-portable:latest
+# MetalUI's base image is tagged with a hash of its recipe (the Dockerfile and the context files it COPYs), so a local image built from an
+# older MetalUI (XP-G33: before SDL had its X11 and Wayland drivers) is never reused for a newer pin: a new recipe is a new tag, built once.
+BASE_CONTEXT="$METALUI/Backends/SDL"
+BASE_HASH=$(cat "$BASE_CONTEXT/linux/Dockerfile" "$BASE_CONTEXT/scripts/check-video-drivers.c" "$BASE_CONTEXT/scripts/fetch-accesskit.py" | shasum -a 256 | cut -c1-12)
+BASE_IMAGE=metalui-portable:$BASE_HASH
 IMAGE=${IMAGE:-metalcreator-linux:latest}
 NAME=$TRACK-linux
 VOLUME=$TRACK-linux-build
@@ -70,8 +74,8 @@ if [ "$step" = clean ]; then
 fi
 
 if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
-    echo "Building $BASE_IMAGE from MetalUI's recipe (once; it builds SDL3 from source)..."
-    docker build -t "$BASE_IMAGE" -f "$METALUI/Backends/SDL/linux/Dockerfile" "$METALUI/Backends/SDL"
+    echo "Building $BASE_IMAGE from MetalUI's recipe (once; it builds SDL3 from source, with SDL's X11 and Wayland drivers)..."
+    docker build -t "$BASE_IMAGE" -f "$BASE_CONTEXT/linux/Dockerfile" "$BASE_CONTEXT"
 fi
 if [ "${METALCREATOR_IMAGE_PREBUILT:-}" != 1 ]; then
     docker build -q -t "$IMAGE" --build-arg "BASE=$BASE_IMAGE" ${OCCT_IMAGE:+--build-arg "OCCT_IMAGE=$OCCT_IMAGE"} \
@@ -120,7 +124,7 @@ do_package() {
     tarball=$(ls dist/MetalCreator-*-linux-*.tar.gz | head -n 1)
     echo "Checking $tarball in a clean ubuntu:24.04..."
     docker rm -f "$NAME-clean" >/dev/null 2>&1 || true
-    docker run --rm --name "$NAME-clean" -v "$REPO/dist":/dist:ro ubuntu:24.04 bash -ec '
+    docker run --rm --name "$NAME-clean" -e SDL_VIDEO_DRIVER=offscreen -v "$REPO/dist":/dist:ro ubuntu:24.04 bash -ec '
         set -o pipefail
         test ! -e /opt/occt && test ! -e /work
         mkdir /tmp/unpacked && tar -xzf /dist/'"$(basename "$tarball")"' -C /tmp/unpacked
@@ -152,7 +156,7 @@ do_package() {
     appimage=$(ls dist/MetalCreator-*-linux-*.AppImage | head -n 1)
     echo "Checking $appimage in a clean ubuntu:24.04 (no FUSE: --appimage-extract-and-run)..."
     docker rm -f "$NAME-clean" >/dev/null 2>&1 || true
-    docker run --rm --name "$NAME-clean" -v "$REPO/dist":/dist:ro ubuntu:24.04 bash -ec '
+    docker run --rm --name "$NAME-clean" -e SDL_VIDEO_DRIVER=offscreen -v "$REPO/dist":/dist:ro ubuntu:24.04 bash -ec '
         set -o pipefail
         test ! -e /opt/occt && test ! -e /work && test ! -e /dev/fuse
         cp /dist/'"$(basename "$appimage")"' /tmp/MetalCreator.AppImage && chmod +x /tmp/MetalCreator.AppImage

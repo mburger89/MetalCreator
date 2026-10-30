@@ -1830,7 +1830,8 @@ warning step when red. macOS needs no check here: its test count and its look ar
 - [ ] **XP-5 Files and the themes folder.** Save As… offers `.mcgraph` and its dialog filters to it; the file opens on macOS and
   the other way round. Edit Themes…, duplicate a theme and quit: the theme file is in `~/.local/share/MetalCreator/Themes` (Linux,
   or `$XDG_DATA_HOME`) or `%APPDATA%\MetalCreator\Themes` (Windows) and is still there on the next launch. Pinned:
-  `ContentTypeTests`, `ThemeFolderTests`. **Observed:**
+  `ContentTypeTests`, `ThemeFolderTests`. On Linux and Windows the dialog's filter reads "MetalCreator graph (*.mcgraph)", not the identifier (XP-G34;
+  `ContentTypeDescriptionTests`). **Observed:**
 - [ ] **XP-6 The Image Field.** Add an Image Field and choose a PNG and a JPEG: the field takes them (no error badge), a rotated
   phone photo (EXIF orientation) comes out upright, and a GIF raises "Only PNG and JPEG images can be used." A graph saved on macOS
   with an embedded picture opens and gives the same field. Pinned: `GreyImageDecoderTests`, `GreyImageDecoderPinnedTests`,
@@ -2070,7 +2071,8 @@ named "Insole").
 §5 (XP-G5). CI proves the suite (twelve "Test run with" lines), the app's `--self-test` (OpenCascade builds, measures, meshes and
 exports a cube) and, for the tarball and the AppImage, a run in a clean Ubuntu (the AppImage with `--appimage-extract-and-run`, no FUSE); these checks are what needs a desktop.
 
-- [ ] **XP-16 Linux tarball, file type, icon and window grouping.** Unpack `MetalCreator-<version>-linux-<arch>.tar.gz` on a desktop (GNOME and KDE), run
+- [ ] **XP-16 Linux tarball, file type, icon and window grouping.** Since the 2026-10-30 VM finding the package bundles a desktop SDL (X11 and Wayland, XP-G33;
+  `scripts/check-bundled-sdl.sh` gates the package): the window must open on a real desktop session, on X11 and on Wayland. Unpack `MetalCreator-<version>-linux-<arch>.tar.gz` on a desktop (GNOME and KDE), run
   `./install.sh`, then double-click a `.mcgraph` file in the file manager: MetalCreator opens with that file; with it running, double-click
   a second one: no second window, the running one opens it. Select two `.mcgraph` files and Open With MetalCreator: the last one is
   open. `./MetalCreator --self-test` prints `ok` for the kernel and both exports. Then start MetalCreator from the application grid (not
@@ -2086,7 +2088,7 @@ exports a cube) and, for the tarball and the AppImage, a run in a clean Ubuntu (
 - [ ] **XP-18 Geometry.** On Linux and on Windows, open the §7.2 bracket from a `.mcgraph` saved on a Mac: every node evaluates (no
   "Geometry isn't available" badge), Mesh to Solid works on a meshed solid, and Export STEP writes a file that opens in a CAD viewer.
   Pinned: the OCCT conformance suite and `AppAcceptanceTests` on Linux (CI) and Windows (CI). **Observed:**
-- [ ] **XP-19 Linux AppImage.** Copy `MetalCreator-<version>-linux-<arch>.AppImage` to a desktop with FUSE (GNOME and KDE), `chmod +x`
+- [ ] **XP-19 Linux AppImage.** Its `lib/libSDL3.so.0` is the same desktop SDL (XP-G33, the 2026-10-30 VM finding), so the window opens on a desktop. Copy `MetalCreator-<version>-linux-<arch>.AppImage` to a desktop with FUSE (GNOME and KDE), `chmod +x`
   it and double-click it (or run it): the window opens with the icon and grouping XP-16 describes (an integration tool such as
   AppImageLauncher may offer to add it to the menu: accept once and check the entry it makes). `./MetalCreator-….AppImage
   --appimage-extract-and-run --self-test` prints `ok` for the kernel, both exports and the shaders. `./MetalCreator-….AppImage

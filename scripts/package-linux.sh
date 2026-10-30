@@ -83,6 +83,9 @@ while read -r name arrow path _; do
     count=$((count + 1))
 done < "$WORK/ldd.txt"
 printf '    %s libraries\n' "$count"
+# The SDL the app ships must be a desktop SDL, not the dummy/offscreen-only one that opened no window on a real machine (XP-G33).
+[ -f "$FOLDER/lib/libSDL3.so.0" ] || fail "libSDL3.so.0 isn't among the linked libraries"
+"$ROOT/scripts/check-bundled-sdl.sh" "$FOLDER/lib/libSDL3.so.0" || fail "the bundled libSDL3.so.0 is not a desktop SDL (the image's SDL needs MetalUI's X11 and Wayland build: rebuild the image)"
 [ -f "$FOLDER/lib/libTKernel.so.7.9" ] || fail "OpenCascade's libTKernel.so.7.9 isn't among the linked libraries"
 
 step "Copying the implicit engine's shader compiler (MetalUI docs/packaging.md 4b; plan xp-c task 12)"

@@ -4,15 +4,18 @@ import MetalUI
 extension ContentType {
     /// A MetalCreator document (spec §4.5): JSON, saved as `.mcgraph`. Not registered with the system until the
     /// app is packaged, so the file panels match it by extension.
-    public static let mcgraph = ContentType("com.metalcreator.mcgraph", conformingTo: [.json], filenameExtensions: ["mcgraph"])
+    public static let mcgraph = ContentType("com.metalcreator.mcgraph", conformingTo: [.json], filenameExtensions: ["mcgraph"],
+                                           localizedDescription: "MetalCreator graph")
     /// ISO 10303 STEP, for CNC and machinists (spec §1).
-    public static let step = ContentType("public.step", conformingTo: [.data], filenameExtensions: ["step", "stp"])
+    public static let step = ContentType("public.step", conformingTo: [.data], filenameExtensions: ["step", "stp"],
+                                          localizedDescription: "STEP model")
     /// Stereolithography mesh, for 3D printing (spec §1).
     public static let stl = ContentType("public.standard-tesselated-geometry-format", conformingTo: [.data],
-                                        filenameExtensions: ["stl"])
+                                        filenameExtensions: ["stl"], localizedDescription: "STL mesh")
 
     /// 3D Manufacturing Format, for 3D printing (implicit spec §5.3).
-    public static let threeMF = ContentType("org.3mf.3mf", conformingTo: [.data], filenameExtensions: ["3mf"])
+    public static let threeMF = ContentType("org.3mf.3mf", conformingTo: [.data], filenameExtensions: ["3mf"],
+                                               localizedDescription: "3MF model")
 
     /// The file type an export format writes.
     public static func exported(_ kind: ExportKind) -> ContentType {
