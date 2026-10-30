@@ -10,7 +10,7 @@ import Testing
 
 /// Section analysis part B (section spec §3.4), the cap's three rows. Release, idle Mac; prints `BENCH sa-…` lines, with the
 /// 60 FPS frame (16.67 ms) as the budget each is judged against on the median. Recorded, not gated (spec §9).
-/// 1. the bracket's part sectioned by `Kernel.section` on OCCT at 60 planes 0.25 mm apart across its height;
+/// 1. the bracket's part sectioned by `Kernel.section` on OCCT at 60 planes spread across its height;
 /// 2. the gyroid sheet's preview mesh sliced by `MeshSlicer.slice` (which includes the cap's triangulation) at 60 planes;
 /// 3. a drag on the bracket through `AppModel`: `setSectionOffset` then `settle()`, 60 steps, to the finished cap.
 @MainActor
@@ -31,7 +31,8 @@ struct SectionBench {
         var samples = BenchSamples("sa-1 bracket section per drag step")
         var regions = 0
         for round in 0..<(Self.steps + 5) {
-            let z = bounds.min.z + 0.5 + Double(round) * Self.stride
+            let low = bounds.min.z + 0.5
+            let z = low + (bounds.max.z - 0.5 - low) * Double(round) / Double(Self.steps + 4)
             let plane = Plane(origin: Vector3(0, 0, z), normal: Vector3(0, 0, 1), xAxis: Vector3(1, 0, 0))
             let start = clock.now
             let section = try await kernel.section(solid, by: plane, tolerance: tolerance)
@@ -48,7 +49,7 @@ struct SectionBench {
         try await latticeSlice(row: "sa-2 lattice slice per drag step", skin: 0)
     }
 
-    /// The same sheet inside a 1 mm skin: the cut is a frame with a hole for every closed pocket of the gyroid, the hole-heavy case.
+    /// The same sheet inside a 1 mm skin: the cut is a frame with a hole for every closed pocket of the gyroid, more holes than sa-2.
     @Test func theSkinnedLatticeSlicePerDragStep() async throws {
         try await latticeSlice(row: "sa-2b skinned lattice slice per drag step", skin: 1)
     }

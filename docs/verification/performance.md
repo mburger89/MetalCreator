@@ -733,13 +733,13 @@ not gate (spec §9); the budget column is the 60 FPS frame, 16.67 ms. Release bu
 
 | Row | Case |
 |---|---|
-| `sa-1` | `Kernel.section` (OCCT: `BRepAlgoAPI_Common` with a planar face, meshed) of the §7.2 bracket's part at 60 planes 0.25 mm apart across its height (the first 5 rounds dropped) |
-| `sa-2` | `MeshSlicer.slice` (the crossing chains, loop simplification and the cap's ear-clipping triangulation with hole bridging) of the 100 mm gyroid sheet's first preview pass (`ImplicitBenchFixtures.sheet()`, the 7c sizes), 60 planes 0.25 mm apart from the middle |
-| `sa-2b` | the same sheet inside a 1 mm skin, so the cut is a frame with a hole for every closed pocket (the hole-heavy case a reviewer asked about) |
+| `sa-1` | `Kernel.section` (OCCT: `BRepAlgoAPI_Common` with a planar face, meshed) of the §7.2 bracket's part at 60 planes (the first 5 rounds dropped). **The recorded run used the old spacing**, planes 0.25 mm apart from 0.5 mm above the part's bottom (so 15 mm of height); the code now spreads them evenly over the part's height, and the numbers were not re-taken. The bracket is a 6 mm plate with a 30 mm flange, so by the fixture all 60 planes should have cut it (the run's largest region count was 2, and the test expects a cut) |
+| `sa-2` | `MeshSlicer.slice` (the crossing chains, loop simplification and the cap's ear-clipping triangulation with hole bridging) of the 100 mm gyroid sheet's first preview pass (`ImplicitBenchFixtures.sheet(skin: 0)`, the 7c sizes), 60 planes 0.25 mm apart from the middle |
+| `sa-2b` | the same sheet inside a 1 mm skin, so the cut is a frame with a hole for every closed pocket (more holes than sa-2; a reviewer asked about a hole-heavy cap) |
 | `sa-3` | the drag through `AppModel` on the bracket: `setSectionOffset`, then `settle()` (the cap computed and shown), 60 steps |
 
 **Reading the numbers.** The kernel path (sa-1) and the whole app path on a bracket (sa-3) are far inside a frame. A lattice's slice is
-not: sa-2 is 47.6 ms and sa-2b 96.9 ms, three and six frames. The cost is the pass over the mesh, which is 324,000 and 662,000
+not: sa-2 is 47.6 ms and sa-2b 96.9 ms, three and six frames. The cost is probably the pass over the mesh (sa-2 times the slicing and the triangulation together, so this is inferred from the triangle counts, 324,000 and 662,000, which roughly double with the time, against a cap of under 2,000 triangles), which is 324,000 and 662,000
 triangles (the slicer visits every triangle once per plane), not the triangulation: the richest cut found had 6 holes (sa-2b) and 0 (sa-2), so
 this fixture does **not** probe the ear clipper's behaviour on hundreds of holes. The cap stays drawn, clipped to the new plane, until the next
 is ready (spec §3.4), so a drag over a lattice shows a cap that lags by several frames and never stutters; a cap with hundreds of holes is not
