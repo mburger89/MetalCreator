@@ -33,6 +33,11 @@ public final class UserDefaultsUnitPreference: UnitPreference {
     /// Millimetres until a unit is chosen, and for a stored value that is not a unit.
     public var lastLength: LengthUnit {
         get { defaults.string(forKey: Self.key).flatMap(LengthUnit.init(rawValue:)) ?? .millimetres }
-        set { defaults.set(newValue.rawValue, forKey: Self.key) }
+        set {
+            defaults.set(newValue.rawValue, forKey: Self.key)
+            #if !canImport(Darwin)
+            defaults.synchronize() // off Apple's platforms the plist is written only here (see `UserDefaultsThemePreferences`)
+            #endif
+        }
     }
 }

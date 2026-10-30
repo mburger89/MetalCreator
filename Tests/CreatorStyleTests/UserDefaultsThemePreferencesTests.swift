@@ -36,4 +36,16 @@ struct UserDefaultsThemePreferencesTests {
         defaults.set(42, forKey: UserDefaultsThemePreferences.key)
         #expect(ThemeStore(preferences: UserDefaultsThemePreferences(defaults: defaults)).current == .dracula)
     }
+
+    #if os(Linux)
+    /// Linux has no preferences daemon: corelibs Foundation writes a value to its plist only on `synchronize()`, so a
+    /// choice that is never synchronised is gone at the next launch (the Linux VM's Alucard reverting to Dracula).
+    @Test func theChoiceReachesTheDefaultsFileWithoutAnyoneSynchronising() throws {
+        let (defaults, name) = try Self.suite()
+        let file = URL.homeDirectory.appending(path: ".config/\(name).plist")
+        defer { defaults.removePersistentDomain(forName: name); try? FileManager.default.removeItem(at: file) }
+        UserDefaultsThemePreferences(defaults: defaults).selectedThemeID = "alucard"
+        #expect(FileManager.default.fileExists(atPath: file.path()))
+    }
+    #endif
 }
