@@ -6,9 +6,9 @@ import Testing
 /// reference dimensions the comment colour.
 struct DimensionRoleTests {
     @Test func theDimensionRolesAreLastInTheirOwnGroup() {
-        #expect(ThemeRole.all.suffix(2).map(\.name) == ["dimensionDriving", "dimensionReference"])
+        #expect(ThemeRole.all.dropLast(3).suffix(2).map(\.name) == ["dimensionDriving", "dimensionReference"])
         #expect(ThemeRoleGroup.dimensions.title == "Dimensions")
-        #expect(ThemeRoleGroup.allCases.last == .dimensions)
+        #expect(ThemeRoleGroup.allCases.dropLast().last == .dimensions)
         #expect(ThemeRoleGroup.dimensions.roles.map(\.name) == ["dimensionDriving", "dimensionReference"])
     }
 

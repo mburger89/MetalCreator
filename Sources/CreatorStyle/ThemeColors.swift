@@ -95,4 +95,9 @@ public struct ThemeColors: Hashable, Sendable {
     public var dimensionDriving: HexColor
     /// A reference dimension, drawn in parentheses: the comment colour in the built-ins.
     public var dimensionReference: HexColor
+
+    // The section's cut face (section spec part B): its fill, the hatch lines over it and the outline of the cut.
+    public var sectionFill: HexColor
+    public var sectionHatch: HexColor
+    public var sectionEdge: HexColor
 }

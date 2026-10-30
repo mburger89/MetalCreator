@@ -40,6 +40,10 @@ struct ViewportPalette: Hashable, Sendable {
     /// Driving and reference dimensions (dimensions spec §5).
     var dimensionDriving: SIMD4<Float>
     var dimensionReference: SIMD4<Float>
+    /// The section's cut face: its fill, hatch lines and outline.
+    var sectionFill: SIMD4<Float>
+    var sectionHatch: SIMD4<Float>
+    var sectionEdge: SIMD4<Float>
 
     init(_ theme: ColorTheme) {
         let colors = theme.colors
@@ -71,6 +75,9 @@ struct ViewportPalette: Hashable, Sendable {
         sketchRegion = colors.profileHeader.opacity(0.18).rgba
         dimensionDriving = colors.dimensionDriving.rgba
         dimensionReference = colors.dimensionReference.rgba
+        sectionFill = colors.sectionFill.rgba
+        sectionHatch = colors.sectionHatch.rgba
+        sectionEdge = colors.sectionEdge.rgba
     }
 
     /// The default theme's colours.

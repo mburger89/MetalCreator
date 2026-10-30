@@ -19,6 +19,7 @@ struct ThemeTests {
             (c.axisX, 0xff5555), (c.axisY, 0x50fa7b), (c.axisZ, 0x8be9fd), (c.sketchUnderConstrained, 0x8be9fd),
             (c.sketchFullyConstrained, 0xf8f8f2), (c.sketchConflicting, 0xff5555), (c.sketchConstruction, 0x6272a4),
             (c.sketchProjected, 0xbd93f9), (c.fieldLow, 0x8be9fd), (c.fieldMid, 0xf1fa8c), (c.fieldHigh, 0xff5555),
+            (c.sectionFill, 0xbd93f9), (c.sectionHatch, 0x282a36), (c.sectionEdge, 0xf8f8f2),
             (c.implicitHeader, 0xf1fa8c), (c.meshHeader, 0xc5c8de),
         ]
     }()
