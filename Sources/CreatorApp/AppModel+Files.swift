@@ -1,5 +1,8 @@
 import CreatorGeometry
 import CreatorGraph
+import CreatorImplicit
+import CreatorKernel
+import CreatorStyle
 import Foundation
 import MetalUI
 
@@ -18,7 +21,21 @@ extension AppModel {
     /// Replaces the document with an empty one in the last unit chosen. The unit is part of what the new document is
     /// saved as (`savedContent` is taken from the file), so a new document is not an edit.
     private func startNewDocument() {
-        load(GraphFile(graph: Graph(units: DocumentUnits(length: unitPreference.lastLength))), from: nil)
+        load(Self.emptyFile(in: unitPreference.lastLength), from: nil)
+    }
+
+    /// An empty document in `length`: what New starts from, and the first document at launch.
+    static func emptyFile(in length: LengthUnit) -> GraphFile {
+        GraphFile(graph: Graph(units: DocumentUnits(length: length)))
+    }
+
+    /// The model the app starts with: an empty first document in the last unit chosen, like New. A file opened from the
+    /// command line or by a file-open event replaces it afterwards (`openRequested`) and keeps its own units.
+    public static func launching(kernel: any Kernel, themes: ThemeStore = ThemeStore(),
+                                 implicitEngine: ImplicitEngineChoice = .cpu,
+                                 unitPreference: any UnitPreference) -> AppModel {
+        AppModel(kernel: kernel, file: emptyFile(in: unitPreference.lastLength), themes: themes,
+                 implicitEngine: implicitEngine, unitPreference: unitPreference)
     }
 
     /// Open…: the open panel, then the chosen file. With unsaved changes it asks first.

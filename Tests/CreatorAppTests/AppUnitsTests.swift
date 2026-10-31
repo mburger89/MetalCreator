@@ -82,6 +82,23 @@ struct AppUnitsTests {
         #expect(!app.document.canUndo)
     }
 
+    @Test func theFirstDocumentAtLaunchUsesTheLastUnitChosen() async {
+        let preference = InMemoryUnitPreference(lastLength: .inches)
+        let app = AppModel.launching(kernel: FakeKernel(), unitPreference: preference)
+        await app.settle()
+        #expect(app.units == DocumentUnits(length: .inches))
+        #expect(!app.isEdited)
+        #expect(!app.document.canUndo)
+    }
+
+    @Test func aFileOpenedAfterLaunchKeepsItsOwnUnits() async {
+        let preference = InMemoryUnitPreference(lastLength: .inches)
+        let app = AppModel.launching(kernel: FakeKernel(), unitPreference: preference)
+        app.load(GraphFile(graph: Graph(units: .millimetres)), from: nil)
+        await app.settle()
+        #expect(app.units == .millimetres)
+    }
+
     @Test func choosingAUnitIsRememberedForNewDocuments() async {
         let preference = InMemoryUnitPreference()
         let app = AppModel(kernel: FakeKernel(), unitPreference: preference)
