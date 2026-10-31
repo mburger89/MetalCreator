@@ -1813,10 +1813,10 @@ the same with the `-Xcc -I… -Xswiftc -L…` flags `.github/workflows/xp.yml` h
 warning step when red. macOS needs no check here: its test count and its look are unchanged.
 
 - [ ] **XP-1 Launch.** `swift run MetalCreatorApp` opens a window titled "MetalCreator" with no system title bar (MetalUI draws minimise, zoom and close at the top right, see XP-11), a menu bar
-  strip drawn across its top (File, Edit, View) above the glass top bar, the graph panel docked at the bottom and the inspector
+  strip drawn across its top (File, Edit, View) above the glass top bar, the graph panel docked left and the inspector
   on the right, in Dracula. Quitting (the window's close button, and File's quit where the platform has one) asks nothing on an
   unedited document. The top bar's top edge is fully visible below the strip (the root is not clipped by it: nothing in MetalCreator reads
-  `Window.drawnChromeHeight`, spec erratum E3). Pinned: `--smoke-test` (`LaunchSmokeTests`). **Observed:**
+  `Window.drawnChromeHeight`, spec erratum E3). Pinned: `--smoke-test` (`LaunchSmokeTests`). Decision 2026-10-30 (user): the graph panel's default dock stays left on every platform. **Observed:**
   *Decision, 2026-10-30:* the app's minimum window size (1000 × 665) stays even on screens smaller than that; on an 800 × 600 screen the window opens partly off-screen, and this is accepted (not a defect to report under XP-1 or XP-14).
 - [ ] **XP-2 (superseded by XP-20).** xp-1 showed a card where the 3D view would be; xp-3 draws the real view and the card is gone. The
   window's size changes keep the layout. Pinned: `ViewportPaneTests` (the window has the viewport's GPU surface). **Observed:**
