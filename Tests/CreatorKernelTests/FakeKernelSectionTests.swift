@@ -133,3 +133,29 @@ struct FakeKernelSectionTests {
         }
     }
 }
+
+extension FakeKernelSectionTests {
+    @Test func theFakeKernelNamesThePrismSideFaces() async throws {
+        let kernel = FakeKernel()
+        let part = try await box(kernel)
+        let found = try await kernel.section(part, by: Plane(origin: Vector3(0, 0, 5), normal: .unitZ, xAxis: .unitX), tolerance: 0.01)
+        let pieces = try #require(found.regions.first).boundary
+        let named = pieces.compactMap(\.sourceFace)
+        #expect(named.count == 4 && Set(named).count == 4)
+        for piece in pieces {
+            let id = try #require(piece.sourceFace)
+            let face = try #require(part.topology.face(id))
+            #expect(face.tags.contains { if case .side = $0.role { true } else { false } })
+            // The named face is the one standing on the piece: one of its edges runs along it.
+            let (a, b) = (piece.polyline[0], piece.polyline[1])
+            let stands = part.topology.edges.contains { edge in
+                guard edge.faces.contains(id), case .line(let start, let end)? = edge.curve else { return false }
+                func onPiece(_ p: Vector3) -> Bool {
+                    abs((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)) < 1e-9
+                }
+                return onPiece(start) && onPiece(end) && abs(start.x - end.x) + abs(start.y - end.y) > 1e-9
+            }
+            #expect(stands)
+        }
+    }
+}

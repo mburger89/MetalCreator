@@ -79,11 +79,14 @@ extension AppModel {
         measure?.sceneChanged(viewport.items)
         showMeasureOverlay()
         viewport.showSlice(fieldPreview.viewportSlice(colors: themes.current.colors))
-        section.update(document.section, items: viewport.items, bounds: viewport.sceneBounds, hidden: sketch != nil,
-                       nodeName: { [unowned self] in producingNode($0)?.name })
-        viewport.showClip(section.shown?.clip)
-        sectionCaps.follow(clip: section.shown?.clip, items: viewport.items, tolerance: viewport.displayTolerance)
-        viewport.showSection(sectionCaps.section)
+        // A pick session leaves the section and its caps as they were (the scene is ghosted meanwhile).
+        if pick == nil {
+            section.update(document.section, items: viewport.items, bounds: viewport.sceneBounds, hidden: sketch != nil,
+                           isFinalPreview: previewMode == .final, nodeName: { [unowned self] in producingNode($0)?.name })
+            viewport.showClip(section.shown?.clip)
+            sectionCaps.follow(clip: section.shown?.clip, items: viewport.items, tolerance: viewport.displayTolerance)
+            viewport.showSection(sectionCaps.section)
+        }
         let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
             : []

@@ -31,8 +31,6 @@ final class SectionCapModel {
     @ObservationIgnored private var clearedGeneration = 0
     /// The request under way, to tell a moved clip from an edit.
     @ObservationIgnored private var current: Request?
-    /// Set when the running computation was cancelled, so a result that slipped past its last check is dropped.
-    @ObservationIgnored private var discardsRunning = false
     @ObservationIgnored private var followed: Key?
     /// How many mesh slices have been started (for tests: a burst of moves must not start one per move).
     @ObservationIgnored private(set) var slicesStarted = 0
@@ -94,7 +92,6 @@ final class SectionCapModel {
         if let running, let current {
             if !current.sameInputs(as: request) {
                 running.cancel()
-                discardsRunning = true
             }
             pending = request
         } else {
@@ -110,7 +107,6 @@ final class SectionCapModel {
     private func start(_ request: Request) {
         let kernel = kernel
         current = request
-        discardsRunning = false
         running = Task { [weak self] in
             var caps: [ViewportSection.Cap] = []
             var failed = false
@@ -140,7 +136,8 @@ final class SectionCapModel {
                     failed = true
                 }
             }
-            self?.ended(request, caps: cancelled ? nil : caps, failed: failed)
+            // A result that slipped past the last check of a cancelled task is dropped too.
+            self?.ended(request, caps: cancelled || Task.isCancelled ? nil : caps, failed: failed)
         }
     }
 
@@ -165,8 +162,7 @@ final class SectionCapModel {
     private func ended(_ request: Request, caps: [ViewportSection.Cap]?, failed: Bool) {
         running = nil
         current = nil
-        let publishes = caps != nil && !discardsRunning && request.generation > clearedGeneration
-        discardsRunning = false
+        let publishes = caps != nil && request.generation > clearedGeneration
         let next = pending
         pending = nil
         if publishes, let caps {
@@ -190,7 +186,6 @@ final class SectionCapModel {
     private func clear() {
         guard followed != nil || section != nil || problem != nil || isComputing else { return }
         running?.cancel()
-        discardsRunning = true
         pending = nil
         generation += 1
         clearedGeneration = generation

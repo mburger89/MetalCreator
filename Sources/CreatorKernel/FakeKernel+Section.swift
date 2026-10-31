@@ -36,7 +36,7 @@ extension FakeKernel {
         let corners = [point(axis, a, b, height, a0, b0), point(axis, a, b, height, a1, b0),
                        point(axis, a, b, height, a1, b1), point(axis, a, b, height, a0, b1),
         ]
-        // Each side's outward direction: -a, +b, +a, -b for the corner order above.
+        // Each side's outward direction: -b, +a, +b, -a for the corner order above.
         func outward(_ index: Int, _ sign: Double) -> Vector3 { point(0, index, index, 0, sign, sign) }
         let sides: [Vector3] = [outward(b, -1), outward(a, 1), outward(b, 1), outward(a, -1)]
         let pieces = (0..<4).map { index -> SectionPiece in
@@ -44,9 +44,38 @@ extension FakeKernel {
             let face = solid.topology.faces.first { face in
                 guard face.kind == .plane, let faceNormal = face.normal?.normalized else { return false }
                 return faceNormal.dot(sides[index]) > 1 - 1e-9
-            }
-            return SectionPiece(curve: .line(start: start, end: end), polyline: [start, end], sourceFace: face?.id)
+            }?.id ?? sideFace(of: solid, along: (start, end), dropping: axis)
+            return SectionPiece(curve: .line(start: start, end: end), polyline: [start, end], sourceFace: face)
         }
         return PlaneSection(regions: [SectionRegion(positions: corners, triangles: [0, 1, 2, 0, 2, 3], boundary: pieces)])
+    }
+
+    /// The planar side face of a prism that stands on the cut's `side` (for a Fake prism, whose side faces carry no normal: the
+    /// face whose top or bottom edge runs along it, seen along `axis`). `nil` for a solid that is no prism and for a curved side.
+    private static func sideFace(of solid: Solid, along side: (Vector3, Vector3), dropping axis: Int) -> FaceID? {
+        func flat(_ vector: Vector3) -> (Double, Double) {
+            let parts = [vector.x, vector.y, vector.z].enumerated().filter { $0.offset != axis }.map(\.element)
+            return (parts[0], parts[1])
+        }
+        let (from, to) = (flat(side.0), flat(side.1))
+        let length = ((to.0 - from.0) * (to.0 - from.0) + (to.1 - from.1) * (to.1 - from.1)).squareRoot()
+        func distance(_ point: (Double, Double)) -> Double {
+            abs((to.0 - from.0) * (from.1 - point.1) - (from.0 - point.0) * (to.1 - from.1)) / length
+        }
+        func isInside(_ point: (Double, Double)) -> Bool {
+            let along = ((point.0 - from.0) * (to.0 - from.0) + (point.1 - from.1) * (to.1 - from.1)) / length
+            return distance(point) < 1e-9 && along > -1e-9 && along < length + 1e-9
+        }
+        for edge in solid.topology.edges {
+            guard case .line(let start, let end)? = edge.curve else { continue }
+            let (first, second) = (flat(start), flat(end))
+            guard isInside(first), isInside(second), abs(first.0 - second.0) + abs(first.1 - second.1) > 1e-9 else { continue }
+            for id in edge.faces {
+                guard let face = solid.topology.face(id), face.kind == .plane,
+                      face.tags.contains(where: { if case .side = $0.role { true } else { false } }) else { continue }
+                return id
+            }
+        }
+        return nil
     }
 }

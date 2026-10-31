@@ -134,4 +134,43 @@ struct SectionModelTests {
             #expect(app.document.section?.isFlipped == expected.isFlipped)
         }
     }
+
+    @Test func aPickSessionLeavesTheSectionAlone() async throws {
+        var builder = GraphBuilder()
+        let box = builder.box()
+        let rule = builder.add(EdgesByTagNode.self)
+        builder.wire(box.extrude, "solid", to: rule, "solid")
+        let app = await makeApp(builder.graph)
+        app.setSection(true)
+        await app.settle()
+        let clip = try #require(app.viewport.clip)
+        let revision = app.sectionCaps.revision
+        let note = app.section.note
+        app.editor.selection = [box.extrude.id]
+        app.beginPick(for: rule.id)
+        #expect(app.pick != nil)
+        app.setSectionOffset(3)
+        app.refreshScene()
+        await app.settle()
+        #expect(app.viewport.clip == clip && app.sectionCaps.revision == revision && app.section.note == note)
+    }
+
+    @Test func aFaceOutsideTheSelectedPreviewIsNotLost() async throws {
+        var builder = GraphBuilder()
+        let (_, extrude, _) = builder.box()
+        let other = builder.box(distance: 5, at: Vector2(0, 300))
+        let app = await makeApp(builder.graph)
+        let index = try #require(app.viewport.items.firstIndex { item in
+            item.solid.topology.faces.contains { $0.tags.contains { $0.node == extrude.id } }
+        })
+        let solid = app.viewport.items[index].solid
+        let face = try #require(solid.topology.faces.first { $0.kind == .plane && $0.normal == .unitZ })
+        app.sectionFromFace(ViewportFaceRef(solidIndex: index, face: face.id), try #require(solid.topology.facePick(for: face.id)))
+        await app.settle()
+        let before = try #require(app.viewport.clip)
+        app.previewMode = .selectedNode
+        app.editor.selection = [other.extrude.id]
+        await app.settle()
+        #expect(app.viewport.clip == before && app.section.note == "The face isn't part of this preview.")
+    }
 }

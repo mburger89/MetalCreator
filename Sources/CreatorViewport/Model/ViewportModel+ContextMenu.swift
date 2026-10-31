@@ -28,14 +28,15 @@ extension ViewportModel {
               let face = items[ref.solidIndex].solid.topology.face(ref.face) else { return [] }
         if let tool {
             // A tool leaves Look At, and Section from Face on a flat face when it asks for it.
-            let flat = face.kind == .plane && face.normal != nil
+            let flat = face.kind == .plane && face.normal != nil && !items[ref.solidIndex].isGhost
             return tool.offersSectionFromFace && flat ? [.lookAt(ref), .sectionFromFace(ref)] : [.lookAt(ref)]
         }
         var menu: [ViewportMenuItem] = [.lookAt(ref), .selectEdgesOfFace(ref)]
         if let target = pressed { menu.append(.dimension(target)) }
         // Plane from Face, Face Pattern, Field Scatter and Section take a flat face with a normal; another face would only make an error.
         if face.kind == .plane, face.normal != nil {
-            menu += [.newSketchOnFace(ref), .patternOnFace(ref), .scatterOnFace(ref), .sectionFromFace(ref)]
+            menu += [.newSketchOnFace(ref), .patternOnFace(ref), .scatterOnFace(ref)]
+            if !items[ref.solidIndex].isGhost { menu.append(.sectionFromFace(ref)) }
         }
         let nodes = MeshQueries.producingNodes(of: face)
         for node in nodes {
@@ -72,6 +73,7 @@ extension ViewportModel {
     private func chooseOnFace(_ item: ViewportMenuItem, _ ref: ViewportFaceRef) {
         guard items.indices.contains(ref.solidIndex),
               let pick = items[ref.solidIndex].solid.topology.facePick(for: ref.face) else { return }
+        if case .sectionFromFace = item, items[ref.solidIndex].isGhost { return }
         switch item {
         case .newSketchOnFace: events.newSketchOnFace(ref, pick)
         case .patternOnFace: events.patternOnFace(ref, pick)
