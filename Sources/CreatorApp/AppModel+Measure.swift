@@ -29,6 +29,7 @@ extension AppModel {
     func endMeasure() {
         guard let session = measure else { return }
         measure = nil
+        session.stop()
         if viewport.tool === session { viewport.tool = nil }
         showMeasureOverlay()
         refreshDimensions()

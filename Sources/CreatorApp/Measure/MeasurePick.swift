@@ -17,11 +17,13 @@ enum MeasurePick: Hashable, Sendable {
     }
 
     /// The element the kernel measures; a corner is the point it stands at.
-    func element(in solids: [Solid]) -> MeasureElement {
-        switch self {
-        case let .face(solid, id): .face(solids[solid], id)
-        case let .edge(solid, id): .edge(solids[solid], id)
-        case let .corner(_, _, _, point): .point(point)
+    /// `nil` when the pick names a solid `solids` does not have.
+    func element(in solids: [Solid]) -> MeasureElement? {
+        guard solids.indices.contains(solidIndex) else { return nil }
+        return switch self {
+        case let .face(solid, id): MeasureElement.face(solids[solid], id)
+        case let .edge(solid, id): MeasureElement.edge(solids[solid], id)
+        case let .corner(_, _, _, point): MeasureElement.point(point)
         }
     }
 }

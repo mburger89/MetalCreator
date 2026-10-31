@@ -47,6 +47,14 @@ final class MeasureSession: ViewportTool {
 
     // MARK: - Public surface
 
+    /// Ends the session: a distance still being computed is dropped.
+    func stop() {
+        task?.cancel()
+        task = nil
+        generation += 1
+        isMeasuring = false
+    }
+
     /// Forgets the picks and the distance.
     func clear() {
         guard !picks.isEmpty || distance != nil || problem != nil || isMeasuring else { return }
@@ -122,14 +130,16 @@ final class MeasureSession: ViewportTool {
     // MARK: - Picking
 
     private func isPickable(_ target: PickTarget) -> Bool {
-        guard let items = viewport?.items, items.indices.contains(target.solidIndex) else { return false }
+        // The picks name the session's own solids; the live items only say whether the same solid is a ghost, a guide or a mesh.
+        guard let items = viewport?.items, items.indices.contains(target.solidIndex),
+              solids.indices.contains(target.solidIndex) else { return false }
         let item = items[target.solidIndex]
-        return !item.isGhost && !item.isGuide && item.solid.displayedMesh == nil
+        return item.solid === solids[target.solidIndex] && !item.isGhost && !item.isGuide && item.solid.displayedMesh == nil
     }
 
     private func snapped(_ target: PickTarget, at point: ScreenPoint, projector: ViewportProjector) -> MeasurePick? {
         guard let viewport, isPickable(target) else { return nil }
-        let solid = viewport.items[target.solidIndex].solid
+        let solid = solids[target.solidIndex]
         return MeasureSnap.pick(for: target, at: point, topology: solid.topology, mesh: viewport.displayMesh(of: solid),
                                 screenPoint: { projector.screenPoint(of: $0) })
     }
@@ -160,7 +170,7 @@ final class MeasureSession: ViewportTool {
 
     private func startDistance(_ first: MeasurePick, _ second: MeasurePick) {
         let generation = generation
-        let (a, b) = (first.element(in: solids), second.element(in: solids))
+        guard let a = first.element(in: solids), let b = second.element(in: solids) else { return }
         isMeasuring = true
         task = Task { [weak self, kernel] in
             do {

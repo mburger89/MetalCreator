@@ -118,6 +118,21 @@ struct MeasureSessionTests {
         #expect(fixture.app.measure?.picks.isEmpty == true)
     }
 
+    @Test func aClickOnItemsThatLandedBeforeTheRefreshMeasuresNothingStale() async throws {
+        let fixture = await MeasureAppFixture.open()
+        fixture.app.setMeasure(true)
+        let session = try #require(fixture.app.measure)
+        let edge = fixture.verticals[0]
+        let other = Solid(displaying: DisplayMesh(positions: [.zero, .unitX, .unitY], normals: [.unitZ, .unitZ, .unitZ],
+                                                  indices: [0, 1, 2], triangleFaces: [FaceID(0)], edgePolylines: [:]))
+        for items in [[ViewportItem](), [ViewportItem(solid: other)]] {
+            fixture.app.viewport.show(items)
+            await fixture.app.viewport.waitForMeshes()
+            #expect(session.clickedModel(fixture.target(edge), at: ScreenPoint(5, 5), modifiers: [], projector: fixture.projector))
+            #expect(session.picks.isEmpty)
+        }
+    }
+
     @Test func hoverShowsTheEdgeAndSnapsToACorner() async throws {
         let fixture = await MeasureAppFixture.open()
         fixture.app.setMeasure(true)

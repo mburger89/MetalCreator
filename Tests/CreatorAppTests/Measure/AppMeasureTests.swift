@@ -96,6 +96,37 @@ struct AppMeasureTests {
         #expect(app.viewport.tool === other)
     }
 
+    @Test func loadEndsMeasure() async throws {
+        let fixture = await MeasureAppFixture.open()
+        let app = fixture.app
+        let old = app.viewport
+        app.setMeasure(true)
+        app.newDocument()
+        await app.settle()
+        #expect(app.measure == nil && old.tool == nil && app.viewport.tool == nil)
+    }
+
+    @Test func aPickSessionEndsMeasureAndRefusesIt() async throws {
+        let fixture = await MeasureAppFixture.open()
+        let app = fixture.app
+        app.setMeasure(true)
+        let source = Endpoint(node: fixture.box.extrude.id, socket: "solid")
+        app.pick = PickSession(solid: fixture.solid, source: source, rule: nil, consumer: nil, picked: [], level: app.editor.levelPath)
+        #expect(app.measure == nil && app.viewport.tool == nil)
+        app.setMeasure(true)
+        #expect(app.measure == nil)
+    }
+
+    @Test func anEmptyClickLeavesTheSelectionAlone() async throws {
+        let fixture = await MeasureAppFixture.open()
+        let app = fixture.app
+        app.editor.selection = [fixture.box.extrude.id]
+        app.viewport.pick = { _ in nil }
+        app.setMeasure(true)
+        app.viewport.click(at: ScreenPoint(700, 450))
+        #expect(app.editor.selection == [fixture.box.extrude.id])
+    }
+
     @Test func theKeyMStartsMeasureOverTheViewportAndNotOverTheGraph() async throws {
         var builder = GraphBuilder()
         _ = builder.box(at: Vector2(40, 40))

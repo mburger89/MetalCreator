@@ -179,8 +179,8 @@ struct SDLChromeWindowTests {
     // MARK: macOS
 
     /// The frames the bar had before S1, read from master (8a943eb) with the traffic lights' insets (left 69, top 32):
-    /// the name, then Preview, Undo, Redo and Export, as x, y, width, height. Nothing moves on macOS but Preview, which the Section and Measure toggles
-    /// (a switch is not one of `topBarControls`, between Preview and Undo) pushes it left.
+    /// the name, then Preview, Undo, Redo and Export, as x, y, width, height. Nothing moves on macOS but Preview, which the Section and Measure
+    /// toggles (a switch is not one of `topBarControls`, between Preview and Undo) push left.
     @Test func macLayoutIsWhatItWas() async throws {
         let app = try await AppWindow.open()
         app.setTitleBarInsets(AppWindow.standardButtonInsets)
