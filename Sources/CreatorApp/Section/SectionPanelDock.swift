@@ -1,6 +1,6 @@
 import MetalUI
 
-/// Puts the section panel at the viewport's upper right, under the top bar and clear of the docked panels
+/// Puts the section panel, and the Measure panel under it (8 points apart), at the viewport's upper right, under the top bar and clear of the docked panels
 /// (`AppLayout.sectionPanelInsets`). It fills the window so the card can stand in a corner; only the card itself is drawn.
 struct SectionPanelDock: Component {
     let model: AppModel
@@ -15,6 +15,12 @@ struct SectionPanelDock: Component {
                 Spacer()
                 SectionPanel(model: model)
             }
+            HStack(spacing: Pixels(0)) {
+                Spacer()
+                MeasurePanel(model: model)
+            }
+            .padding(Edges(top: model.document.section?.isOn == true && model.measure != nil ? Pixels(8) : Pixels(0),
+                           right: Pixels(0), bottom: Pixels(0), left: Pixels(0)))
             Spacer()
         }
         .padding(Edges(top: insets.top.px, right: insets.trailing.px, bottom: Pixels(0), left: Pixels(0)))
