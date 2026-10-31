@@ -1812,7 +1812,7 @@ the compiler's default paths (MetalUI `docs/getting-started.md`, "Linux and Wind
 the same with the `-Xcc -I… -Xswiftc -L…` flags `.github/workflows/xp.yml` hands SwiftPM; the Windows CI job builds, passes the whole suite (run 38546048595), self-tests and launches; it stays `continue-on-error`, with a
 warning step when red. macOS needs no check here: its test count and its look are unchanged.
 
-- [ ] **XP-1 Launch.** `swift run MetalCreatorApp` opens a window titled "MetalCreator" with no system title bar (MetalUI draws minimise, zoom and close at the top right, see XP-11), a menu bar
+- [ ] **XP-1 Launch.** `swift run MetalCreatorApp` opens a window titled with the document's name ("Untitled" for a new document, as on every platform: `WindowChromeSync` follows the document) with no system title bar (MetalUI draws minimise, zoom and close at the top right, see XP-11), a menu bar
   strip drawn across its top (File, Edit, View) above the glass top bar, the graph panel docked left and the inspector
   on the right, in Dracula. Quitting (the window's close button, and File's quit where the platform has one) asks nothing on an
   unedited document. The top bar's top edge is fully visible below the strip (the root is not clipped by it: nothing in MetalCreator reads
