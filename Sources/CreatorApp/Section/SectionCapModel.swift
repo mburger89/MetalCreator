@@ -159,7 +159,7 @@ final class SectionCapModel {
             section = caps.isEmpty ? nil : ViewportSection(caps: caps, plane: request.plane, generation: request.generation)
             problem = failed ? Self.capProblem : nil
             parts = sectioned
-            plane = sectioned.isEmpty ? nil : request.plane
+            plane = request.plane
             revision += 1
         }
         if let next {

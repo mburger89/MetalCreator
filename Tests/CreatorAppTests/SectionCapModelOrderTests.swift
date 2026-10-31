@@ -111,7 +111,19 @@ struct SectionCapModelOrderTests {
         let model = SectionCapModel(kernel: kernel, tolerance: 0.05)
         model.follow(clip: ViewportClip(origin: Vector3(0, 0, 3), normal: .unitZ), items: [ViewportItem(solid: solid)])
         await model.waitForCaps()
+        #expect(!model.parts.isEmpty && model.plane != nil)
         model.follow(clip: nil, items: [ViewportItem(solid: solid)])
         #expect(model.parts.isEmpty && model.plane == nil)
+    }
+
+    @Test func aMissedPlaneStillPublishesItsPlane() async throws {
+        let kernel = FakeKernel()
+        let solid = try await boxSolid(10, kernel: kernel)
+        let model = SectionCapModel(kernel: kernel, tolerance: 0.05)
+        let clip = ViewportClip(origin: Vector3(0, 0, 500), normal: .unitZ)
+        model.follow(clip: clip, items: [ViewportItem(solid: solid)])
+        await model.waitForCaps()
+        #expect(model.parts.isEmpty)
+        #expect(model.plane == SectionCaps.plane(for: clip))
     }
 }
