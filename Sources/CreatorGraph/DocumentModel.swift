@@ -7,6 +7,8 @@ import Observation
 /// observes this. Every edit goes through `perform(_:coalescingKey:)` (or `perform(_:at:coalescingKey:)`).
 @MainActor
 @Observable
+// One view-state property over the limit: each piece is its own observable property (see `dock`), so it cannot move out.
+// swiftlint:disable:next type_body_length
 public final class DocumentModel {
     /// The top-level graph and the group definitions (groups spec §4), edited together.
     public internal(set) var content: GraphContent
@@ -46,13 +48,15 @@ public final class DocumentModel {
     public var section: SectionSettings? {
         didSet { if let section, !section.offset.isFinite { self.section = oldValue } }
     }
+    /// The measurements the person kept; view state, so changing them is no edit.
+    public var measurements: [KeptMeasurement] = []
 
     /// All of the editor state as the file's `ViewState`. Reading it reads every piece; to observe one, read the piece.
     /// Writing it sets only the pieces that differ, so a write that changes one field invalidates only that field's readers.
     public var viewState: ViewState {
         get {
             ViewState(dock: dock, canvasOffset: canvasOffset, canvasZoom: canvasZoom, camera: camera, homeCamera: homeCamera,
-                      showsLibrary: showsLibrary, section: section)
+                      showsLibrary: showsLibrary, section: section, measurements: measurements)
         }
         set {
             if dock != newValue.dock { dock = newValue.dock }
@@ -62,6 +66,7 @@ public final class DocumentModel {
             if homeCamera != newValue.homeCamera { homeCamera = newValue.homeCamera }
             if showsLibrary != newValue.showsLibrary { showsLibrary = newValue.showsLibrary }
             if section != newValue.section { section = newValue.section }
+            if measurements != newValue.measurements { measurements = newValue.measurements }
         }
     }
 
@@ -127,6 +132,7 @@ public final class DocumentModel {
         homeCamera = file.viewState.homeCamera
         showsLibrary = file.viewState.showsLibrary
         section = file.viewState.section
+        measurements = file.viewState.measurements
         self.baseRegistry = registry
         self.evaluator = Evaluator(registry: registry, kernel: kernel, cacheBudgetBytes: cacheBudgetBytes,
                                   implicitEngine: implicitEngine)

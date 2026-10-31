@@ -1,5 +1,6 @@
 import Foundation
 import CreatorGeometry
+import CreatorGraph
 import CreatorKernel
 import CreatorViewport
 

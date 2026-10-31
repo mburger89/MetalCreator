@@ -17,10 +17,12 @@ public struct ViewState: Sendable, Codable, Equatable {
     public var showsLibrary: Bool
     /// The section view's settings (section spec §3.5). `nil` in older files and while never used; a damaged entry reads as `nil`.
     public var section: SectionSettings?
+    /// The measurements the person kept. Empty in older files; a damaged entry is dropped alone.
+    public var measurements: [KeptMeasurement]
 
     public init(dock: DockSide = .left, canvasOffset: Vector2 = .zero, canvasZoom: Double = 1,
                 camera: CameraPose? = nil, homeCamera: CameraPose? = nil, showsLibrary: Bool = true,
-                section: SectionSettings? = nil) {
+                section: SectionSettings? = nil, measurements: [KeptMeasurement] = []) {
         self.dock = dock
         self.canvasOffset = canvasOffset
         self.canvasZoom = canvasZoom
@@ -28,9 +30,12 @@ public struct ViewState: Sendable, Codable, Equatable {
         self.homeCamera = homeCamera
         self.showsLibrary = showsLibrary
         self.section = section
+        self.measurements = measurements
     }
 
-    private enum CodingKeys: String, CodingKey { case dock, canvasOffset, canvasZoom, camera, homeCamera, showsLibrary, section }
+    private enum CodingKeys: String, CodingKey {
+        case dock, canvasOffset, canvasZoom, camera, homeCamera, showsLibrary, section, measurements
+    }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -41,6 +46,8 @@ public struct ViewState: Sendable, Codable, Equatable {
         homeCamera = try container.decodeIfPresent(CameraPose.self, forKey: .homeCamera)
         showsLibrary = try container.decodeIfPresent(Bool.self, forKey: .showsLibrary) ?? true
         section = (try? container.decodeIfPresent(SectionSettings.self, forKey: .section)) ?? nil
+        measurements = ((try? container.decodeIfPresent([LossyElement<KeptMeasurement>].self, forKey: .measurements)) ?? nil)?
+            .compactMap(\.value) ?? []
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -52,5 +59,6 @@ public struct ViewState: Sendable, Codable, Equatable {
         try container.encodeIfPresent(homeCamera, forKey: .homeCamera)
         try container.encode(showsLibrary, forKey: .showsLibrary)
         try container.encodeIfPresent(section, forKey: .section)
+        if !measurements.isEmpty { try container.encode(measurements, forKey: .measurements) }
     }
 }

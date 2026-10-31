@@ -1,8 +1,6 @@
 import CreatorGeometry
+import CreatorGraph
 import CreatorKernel
-
-/// Which end of an edge a corner pick is.
-enum CornerEnd: Hashable, Sendable { case start, end, centre }
 
 /// One thing the Measure tool has picked: a face, an edge or a corner (an edge's end, or a full circle's centre).
 enum MeasurePick: Hashable, Sendable {
