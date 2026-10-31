@@ -26,7 +26,9 @@ public final class AppInput {
     /// The window keymap: the viewport's keys (in their context), then the graph panel's.
     public static var keymap: Keymap {
         Keymap(ViewportKeyBindings.bindings(context: AppKeyContext.viewport)
-            + [KeyBinding("d", ModelDimensionKeyAction(), context: AppKeyContext.viewport)]
+            + [KeyBinding("d", ModelDimensionKeyAction(), context: AppKeyContext.viewport),
+               KeyBinding("m", MeasureKeyAction(), context: AppKeyContext.viewport),
+            ]
             + GraphPanelInput.keymap.bindings)
     }
 
@@ -42,6 +44,11 @@ public final class AppInput {
         if action is ModelDimensionKeyAction {
             if model.editor.pointerLocation != nil { return false }
             return model.beginModelDimension()
+        }
+        if action is MeasureKeyAction {
+            if model.editor.pointerLocation != nil || model.sketch != nil { return false }
+            model.setMeasure(true)
+            return model.measure != nil
         }
         guard let key = action as? ViewportKeyAction else { return false }
         if model.editor.pointerLocation != nil { return false }

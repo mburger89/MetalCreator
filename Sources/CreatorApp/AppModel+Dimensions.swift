@@ -37,7 +37,7 @@ extension AppModel {
             for index in features.indices { features[index].overlay.isGhosted = true }
         }
         let table = Dictionary(features.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return (sketchDimensions + features.map(\.overlay), table)
+        return (sketchDimensions + features.map(\.overlay) + measureDimensions(), table)
     }
 
     /// Hands the viewport the dimensions it should show (`shownDimensions()`), when they changed, and keeps `featureDimensions`

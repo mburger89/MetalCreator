@@ -45,7 +45,12 @@ public final class AppModel {
     var savedContent: GraphContent
     public var previewMode: PreviewMode = .final
     /// "Pick edges in view…" in progress.
-    public internal(set) var pick: PickSession?
+    public internal(set) var pick: PickSession? {
+        // A pick session takes the viewport's clicks, so Measure ends as it starts.
+        didSet { if pick != nil { endMeasure() } }
+    }
+    /// The Measure tool in progress, or `nil`. It is the viewport's tool while it runs.
+    var measure: MeasureSession?
     /// The model dimension tool in progress (dimensions spec §3.5), or `nil`.
     public internal(set) var modelDimension: ModelDimensionSession?
     /// The driving dimension the tool just added, shown (not pinned) while its value box is open (`refreshDimensions()`).
@@ -136,6 +141,7 @@ public final class AppModel {
         meshRefinement.reset()
         pick = nil
         endModelDimension()
+        endMeasure()
         sketch?.stop()
         sketch = nil
         previewMode = .final
@@ -168,6 +174,7 @@ public final class AppModel {
             if let sceneTask { await sceneTask.value }
             await fieldPreview.waitForSampling()
             await sectionCaps.waitForCaps()
+            await measure?.waitForDistance()
         } while document.isEvaluating || sceneTask != nil || fieldPreview.isSampling || sectionCaps.isComputing
         await viewport.waitForMeshes()
     }

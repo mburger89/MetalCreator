@@ -1,7 +1,14 @@
 import CreatorGeometry
 
 extension FakeKernel {
+    /// A test knob: runs at the start of every `shortestDistance`, on the kernel's thread; it may throw to refuse the measurement or
+    /// block to hold it. `nil` (the default) does nothing.
+    public func setMeasureHook(_ hook: (@Sendable () throws -> Void)?) {
+        measureHook = hook
+    }
+
     public func shortestDistance(between first: MeasureElement, and second: MeasureElement) throws -> ShapeDistance {
+        try measureHook?()
         try Task.checkCancellation()
         let a = try Self.measurable(first), b = try Self.measurable(second)
         switch (a, b) {

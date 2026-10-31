@@ -43,6 +43,8 @@ public enum AppCommands {
                 }
                 Button("Flip Section") { model.flipSection() }
                     .disabled(model.document.section?.isOn != true)
+                Button(model.measure == nil ? "Measure" : "Stop Measuring") { model.setMeasure(model.measure == nil) }
+                    .disabled(model.sketch != nil)
             }
         }
     }

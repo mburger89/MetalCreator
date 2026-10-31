@@ -7,6 +7,7 @@ import Foundation
 public actor FakeKernel: Kernel {
     public private(set) var operationLog: [String] = []
     var sectionHook: (@Sendable () throws -> Void)?
+    var measureHook: (@Sendable () throws -> Void)?
 
     public init() {}
 

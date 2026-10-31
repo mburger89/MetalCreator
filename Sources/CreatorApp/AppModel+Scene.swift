@@ -76,7 +76,8 @@ extension AppModel {
             viewport.show(items)
         }
         // The sketch editor draws its own overlay while a sketch is open; otherwise a selected layout node shows its placements.
-        if sketch == nil { viewport.showOverlay(pick == nil ? layoutOverlay : ViewportOverlay()) }
+        measure?.sceneChanged(viewport.items)
+        showMeasureOverlay()
         viewport.showSlice(fieldPreview.viewportSlice(colors: themes.current.colors))
         section.update(document.section, items: viewport.items, bounds: viewport.sceneBounds, hidden: sketch != nil,
                        nodeName: { [unowned self] in producingNode($0)?.name })
@@ -153,6 +154,8 @@ extension AppModel {
             if document.section?.isOn == true { _ = viewport.sceneBounds }
             _ = meshRefinement.revision
             _ = sectionCaps.revision
+            // Measure compares the solids that landed with the ones its picks name, once they land.
+            if measure != nil { _ = viewport.items }
             _ = editor.selection
             _ = editor.dock
             _ = previewMode

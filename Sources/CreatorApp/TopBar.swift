@@ -37,6 +37,7 @@ struct TopBar: Component {
                     }
                     .pickerStyle(.menu)
                     Toggle("Section", isOn: Binding(get: { model.document.section?.isOn == true }, set: { model.setSection($0) }))
+                    Toggle("Measure", isOn: Binding(get: { model.measure != nil }, set: { model.setMeasure($0) }))
                     Button(model.undoTitle) { model.undo() }
                         .disabled(!model.document.canUndo)
                     Button(model.redoTitle) { model.redo() }
