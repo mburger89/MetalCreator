@@ -153,6 +153,12 @@ struct SectionModelTests {
         app.refreshScene()
         await app.settle()
         #expect(app.viewport.clip == clip && app.sectionCaps.revision == revision && app.section.note == note)
+        // Once the pick ends, the section follows the offset set meanwhile.
+        app.cancelPick()
+        await app.settle()
+        #expect(app.pick == nil)
+        #expect(app.viewport.clip != clip)
+        #expect(app.sectionCaps.revision != revision)
     }
 
     @Test func aFaceOutsideTheSelectedPreviewIsNotLost() async throws {

@@ -157,6 +157,7 @@ triangles with degenerate ones removed), `MeshSlicer.prepare(positions:triangles
 - [ ] **Step 2: Fix.** #9 Ruling 5; #10 both the guard and the menu; #18 Ruling 4; #35 replace `discardsRunning` with
   `Task.isCancelled` read after the loop (the existing order tests must stay green); #7 fix the stale comment and give
   the fake's planar prism sides their outward normal so `sourceFace` resolves.
+  Done differently (2026-10-31): the fake's prism sides keep no normal, because giving them one broke six tests that use a side face as the face with no normal. FakeKernel.section matches by normal first and otherwise falls back to the planar side-tagged face whose line edge runs along the piece (FakeKernel+Section.swift, sideFace), so sourceFace resolves for a fake extrusion.
 - [ ] **Step 3:** `swift test --filter CreatorAppTests`, `--filter CreatorKernelTests`, `--filter CreatorViewportTests`.
   Commit `fix(section): leave the section alone while picking; no section from ghosts; preview note`.
 
