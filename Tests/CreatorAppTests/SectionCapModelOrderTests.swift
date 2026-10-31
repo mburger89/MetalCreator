@@ -47,11 +47,13 @@ struct SectionCapModelOrderTests {
         try #require(await gate.waitUntilEntered(), "the section hook was never reached")
         model.follow(clip: second, items: [ViewportItem(solid: solid)])
         gate.release()
-        gate.release()
-        // The first cap lands before the second computation is done.
-        while model.revision == 0 { await Task.yield() }
+        // The first cap lands while the second computation is held.
+        try #require(await gate.waitUntilEntered(), "the second section never started")
+        #expect(model.revision == 1)
         let published = try #require(model.section)
         #expect(published.plane == SectionCaps.plane(for: first))
+        #expect(model.isComputing)
+        gate.release()
         await model.waitForCaps()
         #expect(try #require(model.section).plane == SectionCaps.plane(for: second))
         #expect(!model.isComputing)
