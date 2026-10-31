@@ -7,218 +7,218 @@
     "links" : [
       {
         "from" : {
-          "node" : "FE0413BA-381B-4FBB-B18E-769EEC96151E",
+          "node" : "DE637DB2-291E-4B9C-AE06-B3784D8ECD23",
           "socket" : "integer"
         },
         "to" : {
-          "node" : "23ABD3E4-FE7A-4FAB-A6BA-67F8375AE76D",
+          "node" : "00E2CD62-0026-43AB-AEF1-CC4F6103E08D",
           "socket" : "total"
         }
       },
       {
         "from" : {
-          "node" : "FD3C0200-6EA8-428A-8CCA-5E6DB91C6571",
+          "node" : "66587070-D9D8-4680-8C36-9FF0F1601BAE",
           "socket" : "solid"
         },
         "to" : {
-          "node" : "2FE7ACE5-D06F-41E6-B390-C8A60FCF3F1F",
+          "node" : "01AE77BF-0B6A-4E06-9D6D-A9D7A9B191AB",
           "socket" : "solid"
         }
       },
       {
         "from" : {
-          "node" : "B8AD09AC-4C3B-42D5-80C8-992A13AE22DE",
-          "socket" : "solid"
-        },
-        "to" : {
-          "node" : "35A93C9A-A2AE-4C47-85B1-55E8EACC92E3",
-          "socket" : "solid"
-        }
-      },
-      {
-        "from" : {
-          "node" : "BE72BB04-6854-49AC-8063-5D73929444FC",
-          "socket" : "plane"
-        },
-        "to" : {
-          "node" : "7B96A16E-4A8E-41EF-8E25-7EAE9A14FB1D",
-          "socket" : "plane"
-        }
-      },
-      {
-        "from" : {
-          "node" : "DDCC0CEF-C1DA-410B-88B2-C446C53DA301",
+          "node" : "787EAE9B-F81D-4FB3-9D29-C77B91ADAA04",
           "socket" : "number"
         },
         "to" : {
-          "node" : "7B96A16E-4A8E-41EF-8E25-7EAE9A14FB1D",
+          "node" : "09EEC2D2-5501-4E7E-8374-C2F505C77598",
           "socket" : "width"
         }
       },
       {
         "from" : {
-          "node" : "35A93C9A-A2AE-4C47-85B1-55E8EACC92E3",
+          "node" : "FE57564A-387E-4431-8412-8D6793116347",
+          "socket" : "solid"
+        },
+        "to" : {
+          "node" : "0A624E3C-E917-4209-8C95-96D354C3C965",
+          "socket" : "solid"
+        }
+      },
+      {
+        "from" : {
+          "node" : "00E2CD62-0026-43AB-AEF1-CC4F6103E08D",
+          "socket" : "points"
+        },
+        "to" : {
+          "node" : "285156EF-8410-49CD-87F3-21A72D4A773E",
+          "socket" : "plane"
+        }
+      },
+      {
+        "from" : {
+          "node" : "BC0F8751-E6B8-46E6-9C5D-8A8D3143E4FE",
           "socket" : "edges"
         },
         "to" : {
-          "node" : "9040CA24-A52C-4EFD-B29B-BA824CF7639E",
+          "node" : "28F33566-660C-4C8D-88D0-75A2E512AA21",
           "socket" : "a"
         }
       },
       {
         "from" : {
-          "node" : "98998D90-865D-4463-97B9-5E02A4EAAE19",
+          "node" : "60F84DCF-4878-46CD-B6C8-98A5FA334516",
           "socket" : "edges"
         },
         "to" : {
-          "node" : "9040CA24-A52C-4EFD-B29B-BA824CF7639E",
+          "node" : "28F33566-660C-4C8D-88D0-75A2E512AA21",
           "socket" : "b"
         }
       },
       {
         "from" : {
-          "node" : "7B96A16E-4A8E-41EF-8E25-7EAE9A14FB1D",
-          "socket" : "profile"
-        },
-        "to" : {
-          "node" : "97807CAE-A0A2-45FB-8708-924CEA3FED18",
-          "socket" : "profile"
-        }
-      },
-      {
-        "from" : {
-          "node" : "B8AD09AC-4C3B-42D5-80C8-992A13AE22DE",
+          "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
           "socket" : "solid"
         },
         "to" : {
-          "node" : "98998D90-865D-4463-97B9-5E02A4EAAE19",
+          "node" : "42737E8B-0915-44DD-9105-DC221209C68E",
+          "socket" : "target"
+        }
+      },
+      {
+        "from" : {
+          "node" : "B4A69A60-A964-45B9-8CAB-EEB7FF63F356",
           "socket" : "solid"
+        },
+        "to" : {
+          "node" : "42737E8B-0915-44DD-9105-DC221209C68E",
+          "socket" : "tools"
         }
       },
       {
         "from" : {
-          "node" : "DDCC0CEF-C1DA-410B-88B2-C446C53DA301",
-          "socket" : "number"
+          "node" : "609CA315-2F9E-4CA3-91A6-7E3CE9258137",
+          "socket" : "profile"
         },
         "to" : {
-          "node" : "9A1FE90D-6E0F-4893-9A91-7D63A293B8D4",
-          "socket" : "width"
+          "node" : "45109183-943C-41BA-8C8E-20F02567CA71",
+          "socket" : "profile"
         }
       },
       {
         "from" : {
-          "node" : "23ABD3E4-FE7A-4FAB-A6BA-67F8375AE76D",
-          "socket" : "points"
+          "node" : "42737E8B-0915-44DD-9105-DC221209C68E",
+          "socket" : "solid"
         },
         "to" : {
-          "node" : "ABF30BC0-F885-45A3-8C74-C806E9346D33",
+          "node" : "5D3BF07C-277A-4AE1-B33B-595D0DD1EB1B",
+          "socket" : "target"
+        }
+      },
+      {
+        "from" : {
+          "node" : "45109183-943C-41BA-8C8E-20F02567CA71",
+          "socket" : "solid"
+        },
+        "to" : {
+          "node" : "5D3BF07C-277A-4AE1-B33B-595D0DD1EB1B",
+          "socket" : "tools"
+        }
+      },
+      {
+        "from" : {
+          "node" : "3ACD667E-3953-4722-9114-D5F80F4F7ACE",
+          "socket" : "plane"
+        },
+        "to" : {
+          "node" : "609CA315-2F9E-4CA3-91A6-7E3CE9258137",
           "socket" : "plane"
         }
       },
       {
         "from" : {
-          "node" : "F0E45728-CDF9-4030-9771-D1DABF0A4609",
-          "socket" : "solid"
-        },
-        "to" : {
-          "node" : "AC303E48-61A5-4861-8CC6-2314F9D3ED32",
-          "socket" : "solid"
-        }
-      },
-      {
-        "from" : {
-          "node" : "BA6D6DF7-CCA6-48A1-84A0-57543D47AA34",
-          "socket" : "solid"
-        },
-        "to" : {
-          "node" : "B8AD09AC-4C3B-42D5-80C8-992A13AE22DE",
-          "socket" : "target"
-        }
-      },
-      {
-        "from" : {
-          "node" : "97807CAE-A0A2-45FB-8708-924CEA3FED18",
-          "socket" : "solid"
-        },
-        "to" : {
-          "node" : "B8AD09AC-4C3B-42D5-80C8-992A13AE22DE",
-          "socket" : "tools"
-        }
-      },
-      {
-        "from" : {
-          "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
-          "socket" : "solid"
-        },
-        "to" : {
-          "node" : "BA6D6DF7-CCA6-48A1-84A0-57543D47AA34",
-          "socket" : "target"
-        }
-      },
-      {
-        "from" : {
-          "node" : "F7BE2F28-30F6-474F-B521-333B90C31B58",
-          "socket" : "solid"
-        },
-        "to" : {
-          "node" : "BA6D6DF7-CCA6-48A1-84A0-57543D47AA34",
-          "socket" : "tools"
-        }
-      },
-      {
-        "from" : {
-          "node" : "AA486632-A61E-412D-B2BD-1E6C1AA57765",
+          "node" : "787EAE9B-F81D-4FB3-9D29-C77B91ADAA04",
           "socket" : "number"
         },
         "to" : {
-          "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
+          "node" : "609CA315-2F9E-4CA3-91A6-7E3CE9258137",
+          "socket" : "width"
+        }
+      },
+      {
+        "from" : {
+          "node" : "5D3BF07C-277A-4AE1-B33B-595D0DD1EB1B",
+          "socket" : "solid"
+        },
+        "to" : {
+          "node" : "60F84DCF-4878-46CD-B6C8-98A5FA334516",
+          "socket" : "solid"
+        }
+      },
+      {
+        "from" : {
+          "node" : "0A624E3C-E917-4209-8C95-96D354C3C965",
+          "socket" : "edges"
+        },
+        "to" : {
+          "node" : "66587070-D9D8-4680-8C36-9FF0F1601BAE",
+          "socket" : "edges"
+        }
+      },
+      {
+        "from" : {
+          "node" : "EBC1020B-1EFE-4A6B-B4F0-0610B913665A",
+          "socket" : "number"
+        },
+        "to" : {
+          "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
           "socket" : "distance"
         }
       },
       {
         "from" : {
-          "node" : "9A1FE90D-6E0F-4893-9A91-7D63A293B8D4",
+          "node" : "09EEC2D2-5501-4E7E-8374-C2F505C77598",
           "socket" : "profile"
         },
         "to" : {
-          "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
-          "socket" : "profile"
-        }
-      },
-      {
-        "from" : {
-          "node" : "2FE7ACE5-D06F-41E6-B390-C8A60FCF3F1F",
-          "socket" : "edges"
-        },
-        "to" : {
-          "node" : "F0E45728-CDF9-4030-9771-D1DABF0A4609",
-          "socket" : "edges"
-        }
-      },
-      {
-        "from" : {
-          "node" : "ABF30BC0-F885-45A3-8C74-C806E9346D33",
-          "socket" : "profile"
-        },
-        "to" : {
-          "node" : "F7BE2F28-30F6-474F-B521-333B90C31B58",
+          "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
           "socket" : "profile"
         }
       },
       {
         "from" : {
-          "node" : "9040CA24-A52C-4EFD-B29B-BA824CF7639E",
+          "node" : "285156EF-8410-49CD-87F3-21A72D4A773E",
+          "socket" : "profile"
+        },
+        "to" : {
+          "node" : "B4A69A60-A964-45B9-8CAB-EEB7FF63F356",
+          "socket" : "profile"
+        }
+      },
+      {
+        "from" : {
+          "node" : "5D3BF07C-277A-4AE1-B33B-595D0DD1EB1B",
+          "socket" : "solid"
+        },
+        "to" : {
+          "node" : "BC0F8751-E6B8-46E6-9C5D-8A8D3143E4FE",
+          "socket" : "solid"
+        }
+      },
+      {
+        "from" : {
+          "node" : "28F33566-660C-4C8D-88D0-75A2E512AA21",
           "socket" : "edges"
         },
         "to" : {
-          "node" : "FD3C0200-6EA8-428A-8CCA-5E6DB91C6571",
+          "node" : "FE57564A-387E-4431-8412-8D6793116347",
           "socket" : "edges"
         }
       }
     ],
     "nodes" : [
       {
-        "id" : "23ABD3E4-FE7A-4FAB-A6BA-67F8375AE76D",
+        "id" : "00E2CD62-0026-43AB-AEF1-CC4F6103E08D",
         "inputValues" : {
           "countY" : {
             "type" : "integer",
@@ -236,14 +236,49 @@
         "isOutput" : false,
         "name" : "Grid Points",
         "position" : {
-          "x" : 200,
-          "y" : 0
+          "x" : 228,
+          "y" : 180
         },
         "typeID" : "creator.gridPoints",
         "typeVersion" : 1
       },
       {
-        "id" : "2FE7ACE5-D06F-41E6-B390-C8A60FCF3F1F",
+        "id" : "01AE77BF-0B6A-4E06-9D6D-A9D7A9B191AB",
+        "inputValues" : {
+
+        },
+        "isOutput" : true,
+        "name" : "Bracket",
+        "position" : {
+          "x" : 2508,
+          "y" : 0
+        },
+        "typeID" : "creator.output",
+        "typeVersion" : 1
+      },
+      {
+        "id" : "09EEC2D2-5501-4E7E-8374-C2F505C77598",
+        "inputValues" : {
+          "cornerRadius" : {
+            "type" : "number",
+            "value" : 4
+          },
+          "height" : {
+            "type" : "number",
+            "value" : 40
+          }
+        },
+        "isOutput" : false,
+        "name" : "Rounded Rectangle",
+        "position" : {
+          "x" : 228,
+          "y" : 0
+        },
+        "typeID" : "creator.roundedRectangle",
+        "typeVersion" : 1
+      },
+      {
+        "id" : "0A624E3C-E917-4209-8C95-96D354C3C965",
         "inputValues" : {
           "picks" : {
             "type" : "edgePicks",
@@ -253,7 +288,7 @@
                   "first" : [
                     {
                       "item" : 0,
-                      "node" : "97807CAE-A0A2-45FB-8708-924CEA3FED18",
+                      "node" : "45109183-943C-41BA-8C8E-20F02567CA71",
                       "role" : {
                         "role" : "side",
                         "segment" : 3
@@ -261,7 +296,7 @@
                     },
                     {
                       "item" : 0,
-                      "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
+                      "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
                       "role" : {
                         "role" : "side",
                         "segment" : 6
@@ -271,7 +306,7 @@
                   "second" : [
                     {
                       "item" : 0,
-                      "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
+                      "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
                       "role" : {
                         "role" : "endCap"
                       }
@@ -286,7 +321,7 @@
                   "first" : [
                     {
                       "item" : 0,
-                      "node" : "97807CAE-A0A2-45FB-8708-924CEA3FED18",
+                      "node" : "45109183-943C-41BA-8C8E-20F02567CA71",
                       "role" : {
                         "role" : "side",
                         "segment" : 1
@@ -294,7 +329,7 @@
                     },
                     {
                       "item" : 0,
-                      "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
+                      "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
                       "role" : {
                         "role" : "side",
                         "segment" : 2
@@ -304,7 +339,7 @@
                   "second" : [
                     {
                       "item" : 0,
-                      "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
+                      "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
                       "role" : {
                         "role" : "endCap"
                       }
@@ -319,7 +354,7 @@
                   "first" : [
                     {
                       "item" : 0,
-                      "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
+                      "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
                       "role" : {
                         "role" : "endCap"
                       }
@@ -328,7 +363,7 @@
                   "second" : [
                     {
                       "item" : 0,
-                      "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
+                      "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
                       "role" : {
                         "role" : "side",
                         "segment" : 7
@@ -343,7 +378,7 @@
                   "first" : [
                     {
                       "item" : 0,
-                      "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
+                      "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
                       "role" : {
                         "role" : "endCap"
                       }
@@ -352,7 +387,7 @@
                   "second" : [
                     {
                       "item" : 0,
-                      "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
+                      "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
                       "role" : {
                         "role" : "side",
                         "segment" : 1
@@ -367,7 +402,7 @@
                   "first" : [
                     {
                       "item" : 0,
-                      "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
+                      "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
                       "role" : {
                         "role" : "endCap"
                       }
@@ -376,7 +411,7 @@
                   "second" : [
                     {
                       "item" : 0,
-                      "node" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
+                      "node" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
                       "role" : {
                         "role" : "side",
                         "segment" : 0
@@ -392,138 +427,14 @@
         "isOutput" : false,
         "name" : "Edges by Tag",
         "position" : {
-          "x" : 680,
+          "x" : 2052,
           "y" : 0
         },
         "typeID" : "creator.edgesByTag",
         "typeVersion" : 1
       },
       {
-        "id" : "35A93C9A-A2AE-4C47-85B1-55E8EACC92E3",
-        "inputValues" : {
-
-        },
-        "isOutput" : false,
-        "name" : "Edges by Direction",
-        "position" : {
-          "x" : 520,
-          "y" : 0
-        },
-        "typeID" : "creator.edgesByDirection",
-        "typeVersion" : 1
-      },
-      {
-        "id" : "7B96A16E-4A8E-41EF-8E25-7EAE9A14FB1D",
-        "inputValues" : {
-          "anchor" : {
-            "type" : "integer",
-            "value" : 7
-          },
-          "height" : {
-            "type" : "number",
-            "value" : 30
-          }
-        },
-        "isOutput" : false,
-        "name" : "Rectangle",
-        "position" : {
-          "x" : 400,
-          "y" : 0
-        },
-        "typeID" : "creator.rectangle",
-        "typeVersion" : 1
-      },
-      {
-        "id" : "9040CA24-A52C-4EFD-B29B-BA824CF7639E",
-        "inputValues" : {
-          "operation" : {
-            "type" : "integer",
-            "value" : 2
-          }
-        },
-        "isOutput" : false,
-        "name" : "Edge Set Op",
-        "position" : {
-          "x" : 600,
-          "y" : 0
-        },
-        "typeID" : "creator.edgeSetOp",
-        "typeVersion" : 1
-      },
-      {
-        "id" : "97807CAE-A0A2-45FB-8708-924CEA3FED18",
-        "inputValues" : {
-          "distance" : {
-            "type" : "number",
-            "value" : 8
-          }
-        },
-        "isOutput" : false,
-        "name" : "Extrude",
-        "position" : {
-          "x" : 440,
-          "y" : 0
-        },
-        "typeID" : "creator.extrude",
-        "typeVersion" : 1
-      },
-      {
-        "id" : "98998D90-865D-4463-97B9-5E02A4EAAE19",
-        "inputValues" : {
-          "convexity" : {
-            "type" : "integer",
-            "value" : 1
-          }
-        },
-        "isOutput" : false,
-        "name" : "Edge Filter",
-        "position" : {
-          "x" : 560,
-          "y" : 0
-        },
-        "typeID" : "creator.edgeFilter",
-        "typeVersion" : 1
-      },
-      {
-        "id" : "9A1FE90D-6E0F-4893-9A91-7D63A293B8D4",
-        "inputValues" : {
-          "cornerRadius" : {
-            "type" : "number",
-            "value" : 4
-          },
-          "height" : {
-            "type" : "number",
-            "value" : 40
-          }
-        },
-        "isOutput" : false,
-        "name" : "Rounded Rectangle",
-        "position" : {
-          "x" : 120,
-          "y" : 0
-        },
-        "typeID" : "creator.roundedRectangle",
-        "typeVersion" : 1
-      },
-      {
-        "id" : "AA486632-A61E-412D-B2BD-1E6C1AA57765",
-        "inputValues" : {
-          "parameter" : {
-            "type" : "text",
-            "value" : "D11AFE9D-F669-43FC-811C-711066D9E69F"
-          }
-        },
-        "isOutput" : false,
-        "name" : "Graph Parameter",
-        "position" : {
-          "x" : 40,
-          "y" : 0
-        },
-        "typeID" : "creator.graphParameter",
-        "typeVersion" : 1
-      },
-      {
-        "id" : "ABF30BC0-F885-45A3-8C74-C806E9346D33",
+        "id" : "285156EF-8410-49CD-87F3-21A72D4A773E",
         "inputValues" : {
           "diameter" : {
             "type" : "number",
@@ -533,59 +444,31 @@
         "isOutput" : false,
         "name" : "Circle",
         "position" : {
-          "x" : 240,
-          "y" : 0
+          "x" : 456,
+          "y" : 160
         },
         "typeID" : "creator.circle",
         "typeVersion" : 1
       },
       {
-        "id" : "AC303E48-61A5-4861-8CC6-2314F9D3ED32",
-        "inputValues" : {
-
-        },
-        "isOutput" : true,
-        "name" : "Bracket",
-        "position" : {
-          "x" : 760,
-          "y" : 0
-        },
-        "typeID" : "creator.output",
-        "typeVersion" : 1
-      },
-      {
-        "id" : "B8AD09AC-4C3B-42D5-80C8-992A13AE22DE",
-        "inputValues" : {
-
-        },
-        "isOutput" : false,
-        "name" : "Boolean",
-        "position" : {
-          "x" : 480,
-          "y" : 0
-        },
-        "typeID" : "creator.boolean",
-        "typeVersion" : 1
-      },
-      {
-        "id" : "BA6D6DF7-CCA6-48A1-84A0-57543D47AA34",
+        "id" : "28F33566-660C-4C8D-88D0-75A2E512AA21",
         "inputValues" : {
           "operation" : {
             "type" : "integer",
-            "value" : 1
+            "value" : 2
           }
         },
         "isOutput" : false,
-        "name" : "Boolean",
+        "name" : "Edge Set Op",
         "position" : {
-          "x" : 320,
+          "x" : 1596,
           "y" : 0
         },
-        "typeID" : "creator.boolean",
+        "typeID" : "creator.edgeSetOp",
         "typeVersion" : 1
       },
       {
-        "id" : "BE72BB04-6854-49AC-8063-5D73929444FC",
+        "id" : "3ACD667E-3953-4722-9114-D5F80F4F7ACE",
         "inputValues" : {
           "offset" : {
             "type" : "number",
@@ -599,45 +482,100 @@
         "isOutput" : false,
         "name" : "Plane",
         "position" : {
-          "x" : 360,
-          "y" : 0
+          "x" : 0,
+          "y" : 420
         },
         "typeID" : "creator.plane",
         "typeVersion" : 1
       },
       {
-        "id" : "C563148F-B3F7-45BF-8C02-4A24E175E69F",
+        "id" : "42737E8B-0915-44DD-9105-DC221209C68E",
         "inputValues" : {
-
+          "operation" : {
+            "type" : "integer",
+            "value" : 1
+          }
+        },
+        "isOutput" : false,
+        "name" : "Boolean",
+        "position" : {
+          "x" : 912,
+          "y" : 0
+        },
+        "typeID" : "creator.boolean",
+        "typeVersion" : 1
+      },
+      {
+        "id" : "45109183-943C-41BA-8C8E-20F02567CA71",
+        "inputValues" : {
+          "distance" : {
+            "type" : "number",
+            "value" : 8
+          }
         },
         "isOutput" : false,
         "name" : "Extrude",
         "position" : {
-          "x" : 160,
-          "y" : 0
+          "x" : 456,
+          "y" : 280
         },
         "typeID" : "creator.extrude",
         "typeVersion" : 1
       },
       {
-        "id" : "DDCC0CEF-C1DA-410B-88B2-C446C53DA301",
+        "id" : "5D3BF07C-277A-4AE1-B33B-595D0DD1EB1B",
         "inputValues" : {
-          "parameter" : {
-            "type" : "text",
-            "value" : "84863A8A-AEF1-4B91-87B7-6066FD5A5443"
-          }
+
         },
         "isOutput" : false,
-        "name" : "Graph Parameter",
+        "name" : "Boolean",
         "position" : {
-          "x" : 0,
+          "x" : 1140,
           "y" : 0
         },
-        "typeID" : "creator.graphParameter",
+        "typeID" : "creator.boolean",
         "typeVersion" : 1
       },
       {
-        "id" : "F0E45728-CDF9-4030-9771-D1DABF0A4609",
+        "id" : "609CA315-2F9E-4CA3-91A6-7E3CE9258137",
+        "inputValues" : {
+          "anchor" : {
+            "type" : "integer",
+            "value" : 7
+          },
+          "height" : {
+            "type" : "number",
+            "value" : 30
+          }
+        },
+        "isOutput" : false,
+        "name" : "Rectangle",
+        "position" : {
+          "x" : 228,
+          "y" : 380
+        },
+        "typeID" : "creator.rectangle",
+        "typeVersion" : 1
+      },
+      {
+        "id" : "60F84DCF-4878-46CD-B6C8-98A5FA334516",
+        "inputValues" : {
+          "convexity" : {
+            "type" : "integer",
+            "value" : 1
+          }
+        },
+        "isOutput" : false,
+        "name" : "Edge Filter",
+        "position" : {
+          "x" : 1368,
+          "y" : 0
+        },
+        "typeID" : "creator.edgeFilter",
+        "typeVersion" : 1
+      },
+      {
+        "id" : "66587070-D9D8-4680-8C36-9FF0F1601BAE",
         "inputValues" : {
           "distance" : {
             "type" : "number",
@@ -651,14 +589,45 @@
         "isOutput" : false,
         "name" : "Chamfer",
         "position" : {
-          "x" : 720,
+          "x" : 2280,
           "y" : 0
         },
         "typeID" : "creator.chamfer",
         "typeVersion" : 1
       },
       {
-        "id" : "F7BE2F28-30F6-474F-B521-333B90C31B58",
+        "id" : "7098B9FE-2785-4446-BCD8-E94C9FC7DDC8",
+        "inputValues" : {
+
+        },
+        "isOutput" : false,
+        "name" : "Extrude",
+        "position" : {
+          "x" : 456,
+          "y" : 0
+        },
+        "typeID" : "creator.extrude",
+        "typeVersion" : 1
+      },
+      {
+        "id" : "787EAE9B-F81D-4FB3-9D29-C77B91ADAA04",
+        "inputValues" : {
+          "parameter" : {
+            "type" : "text",
+            "value" : "40054B08-E68E-40C6-B02B-AB0EEDD52BF9"
+          }
+        },
+        "isOutput" : false,
+        "name" : "Graph Parameter",
+        "position" : {
+          "x" : 0,
+          "y" : 0
+        },
+        "typeID" : "creator.graphParameter",
+        "typeVersion" : 1
+      },
+      {
+        "id" : "B4A69A60-A964-45B9-8CAB-EEB7FF63F356",
         "inputValues" : {
           "distance" : {
             "type" : "number",
@@ -672,14 +641,62 @@
         "isOutput" : false,
         "name" : "Extrude",
         "position" : {
-          "x" : 280,
+          "x" : 684,
           "y" : 0
         },
         "typeID" : "creator.extrude",
         "typeVersion" : 1
       },
       {
-        "id" : "FD3C0200-6EA8-428A-8CCA-5E6DB91C6571",
+        "id" : "BC0F8751-E6B8-46E6-9C5D-8A8D3143E4FE",
+        "inputValues" : {
+
+        },
+        "isOutput" : false,
+        "name" : "Edges by Direction",
+        "position" : {
+          "x" : 1368,
+          "y" : 160
+        },
+        "typeID" : "creator.edgesByDirection",
+        "typeVersion" : 1
+      },
+      {
+        "id" : "DE637DB2-291E-4B9C-AE06-B3784D8ECD23",
+        "inputValues" : {
+          "parameter" : {
+            "type" : "text",
+            "value" : "F1EE03E7-1F8B-4920-B6F0-FEF5F542953D"
+          }
+        },
+        "isOutput" : false,
+        "name" : "Graph Parameter",
+        "position" : {
+          "x" : 0,
+          "y" : 140
+        },
+        "typeID" : "creator.graphParameter",
+        "typeVersion" : 1
+      },
+      {
+        "id" : "EBC1020B-1EFE-4A6B-B4F0-0610B913665A",
+        "inputValues" : {
+          "parameter" : {
+            "type" : "text",
+            "value" : "3FD3E618-65B0-4B62-9093-7C9D79247CE8"
+          }
+        },
+        "isOutput" : false,
+        "name" : "Graph Parameter",
+        "position" : {
+          "x" : 0,
+          "y" : 280
+        },
+        "typeID" : "creator.graphParameter",
+        "typeVersion" : 1
+      },
+      {
+        "id" : "FE57564A-387E-4431-8412-8D6793116347",
         "inputValues" : {
           "radius" : {
             "type" : "number",
@@ -693,33 +710,16 @@
         "isOutput" : false,
         "name" : "Fillet",
         "position" : {
-          "x" : 640,
+          "x" : 1824,
           "y" : 0
         },
         "typeID" : "creator.fillet",
-        "typeVersion" : 1
-      },
-      {
-        "id" : "FE0413BA-381B-4FBB-B18E-769EEC96151E",
-        "inputValues" : {
-          "parameter" : {
-            "type" : "text",
-            "value" : "BAF1F791-DC3C-4030-881D-A3619CE98462"
-          }
-        },
-        "isOutput" : false,
-        "name" : "Graph Parameter",
-        "position" : {
-          "x" : 80,
-          "y" : 0
-        },
-        "typeID" : "creator.graphParameter",
         "typeVersion" : 1
       }
     ],
     "parameters" : [
       {
-        "id" : "84863A8A-AEF1-4B91-87B7-6066FD5A5443",
+        "id" : "40054B08-E68E-40C6-B02B-AB0EEDD52BF9",
         "max" : 200,
         "min" : 20,
         "name" : "Width",
@@ -730,7 +730,7 @@
         }
       },
       {
-        "id" : "D11AFE9D-F669-43FC-811C-711066D9E69F",
+        "id" : "3FD3E618-65B0-4B62-9093-7C9D79247CE8",
         "max" : 20,
         "min" : 1,
         "name" : "Wall",
@@ -741,7 +741,7 @@
         }
       },
       {
-        "id" : "BAF1F791-DC3C-4030-881D-A3619CE98462",
+        "id" : "F1EE03E7-1F8B-4920-B6F0-FEF5F542953D",
         "max" : 20,
         "min" : 0,
         "name" : "Hole count",

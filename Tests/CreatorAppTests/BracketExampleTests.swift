@@ -1,4 +1,6 @@
 #if canImport(CreatorOCCT)
+import CreatorEditor
+import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import Foundation
@@ -20,7 +22,39 @@ struct BracketExampleTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["MC_WRITE_EXAMPLES"] != nil, "set MC_WRITE_EXAMPLES=1 to regenerate"))
     func regenerateTheExample() async throws {
         let (app, _) = try await makeBracketBenchApp()
+        try Self.layOutLeftToRight(app)
         try app.save(to: Self.file)
+    }
+
+    /// Moves every node to a column by its depth in the data flow (a node sits one column right of its furthest-left
+    /// input's deepest source), and stacks each column's nodes top to bottom, ordered by the mean height of what feeds them.
+    static func layOutLeftToRight(_ app: AppModel) throws {
+        let graph = app.document.graph
+        var depth: [NodeID: Int] = [:]
+        func depthOf(_ id: NodeID) -> Int {
+            if let known = depth[id] { return known }
+            let value = graph.links.filter { $0.to.node == id }.map { depthOf($0.from.node) + 1 }.max() ?? 0
+            depth[id] = value
+            return value
+        }
+        for id in graph.nodes.keys { _ = depthOf(id) }
+        let gap = Vector2(60, 24)
+        var top: [NodeID: Double] = [:]
+        var left = 0.0
+        for column in 0...(depth.values.max() ?? 0) {
+            let members = graph.nodes.values.filter { depth[$0.id] == column }
+            func feed(_ node: Node) -> Double {
+                let sources = graph.links.filter { $0.to.node == node.id }.compactMap { top[$0.from.node] }
+                return sources.isEmpty ? 0 : sources.reduce(0, +) / Double(sources.count)
+            }
+            var y = 0.0
+            for node in members.sorted(by: { (feed($0), $0.name, $0.typeID) < (feed($1), $1.name, $1.typeID) }) {
+                try app.document.perform(.move(node.id, to: Vector2(left, y)))
+                top[node.id] = y
+                y += NodeLayout.size(app.editor.shape(of: node)).y + gap.y
+            }
+            left += NodeLayout.width + gap.x
+        }
     }
 
     @Test func theCheckedInBracketOpensAndMakesTheCodeBuiltBracketsPart() async throws {
@@ -35,6 +69,21 @@ struct BracketExampleTests {
         #expect(app.document.graph.links.count == built.document.graph.links.count)
         #expect(app.document.graph.parameters.map(\.name) == built.document.graph.parameters.map(\.name))
         #expect(app.exportName == "Bracket")
+        // Stored (left-to-right) frames: the dock only transposes how they are drawn.
+        let frames = app.document.graph.nodes.values.map {
+            (name: $0.name, frame: CanvasRect(origin: $0.position, size: NodeLayout.size(app.editor.shape(of: $0))))
+        }
+        for (index, a) in frames.enumerated() {
+            for b in frames[(index + 1)...] {
+                let apart = a.frame.maxX <= b.frame.origin.x || b.frame.maxX <= a.frame.origin.x
+                    || a.frame.maxY <= b.frame.origin.y || b.frame.maxY <= a.frame.origin.y
+                #expect(apart, "\(a.name) and \(b.name) overlap on the canvas")
+            }
+        }
+        for link in app.document.graph.links {
+            let from = try #require(app.document.graph.nodes[link.from.node]), to = try #require(app.document.graph.nodes[link.to.node])
+            #expect(from.position.x < to.position.x, "\(from.name) feeds \(to.name) from the left")
+        }
         let part = try #require(try app.exportSolids().first)
         let expected = try #require(try built.exportSolids().first)
         #expect(part.bounds == expected.bounds)
