@@ -261,6 +261,16 @@ typedef struct {
 int occt_section(const occt_shape *shape, const double origin[3], const double normal[3], const double x_axis[3],
                  double tolerance, occt_section_result *out, occt_status *status);
 void occt_section_free(occt_section_result *result);
+/// The exact shortest distance between two elements (Measure): each is a point (`kind` 0, `point` x, y, z), a face (1) or an edge (2)
+/// at the 1-based `index` of `shape`'s indexed face or edge map; `shape` is ignored for a point and `point` for a face or edge. The
+/// two shapes may be different solids. `out` holds the distance and the nearest point on each element. Nothing to free. Returns 1.
+typedef struct {
+    double distance;
+    double from[3];
+    double to[3];
+} occt_shape_distance;
+int occt_shortest_distance(const occt_shape *a, int kind_a, int index_a, const double point_a[3], const occt_shape *b, int kind_b,
+                           int index_b, const double point_b[3], occt_shape_distance *out, occt_status *status);
 /// A faceted solid from a closed triangle mesh (implicit spec §4.7): `positions` is `vertex_count` x, y, z triples in millimetres and
 /// `triangles` three vertex numbers per face, counter-clockwise seen from outside. A planar face is built per triangle on vertices and edges shared by index
 /// (no BRepBuilderAPI_Sewing), same-domain faces are merged (ShapeUpgrade_UnifySameDomain), a shell facing inwards becomes a

@@ -55,6 +55,10 @@ public protocol Kernel: Actor {
     /// chord tolerance of the polylines drawn for curved pieces. A plane that misses the solid gives an empty section. Like every
     /// operation it checks for cancellation on entry. The default refuses.
     func section(_ solid: Solid, by plane: Plane, tolerance: Double) throws -> PlaneSection
+    /// The exact shortest distance between two picked elements (faces, edges, free points; the solids may differ) and the
+    /// nearest point on each, in millimetres. An ID a solid doesn't have is `KernelError.invalidInput`. Like every operation
+    /// it checks for cancellation on entry. The default refuses.
+    func shortestDistance(between first: MeasureElement, and second: MeasureElement) throws -> ShapeDistance
 }
 
 extension Kernel {
@@ -72,5 +76,9 @@ extension Kernel {
 
     public func section(_ solid: Solid, by plane: Plane, tolerance: Double) throws -> PlaneSection {
         throw KernelError.unsupported("section")
+    }
+
+    public func shortestDistance(between first: MeasureElement, and second: MeasureElement) throws -> ShapeDistance {
+        throw KernelError.unsupported("measuring")
     }
 }
