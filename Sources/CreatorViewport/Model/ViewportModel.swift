@@ -70,7 +70,11 @@ public final class ViewportModel {
     /// The section's cap and outlines (`showSection(_:)`), or `nil`. It is no part of the scene: it never picks, frames or widens
     /// `sceneBounds`.
     public private(set) var section: ViewportSection?
-    public internal(set) var hovered: PickTarget?
+    public internal(set) var hovered: PickTarget? {
+        didSet {
+            if hovered != oldValue { tool?.hoverChanged(hovered, at: lastHoverPoint, projector: projector) }
+        }
+    }
     public internal(set) var hoveredCubeRegion: ViewCubeRegion?
     /// The dimension whose text the pointer is on (`refreshDimensionHover(at:)`); its editor's note shows below it.
     public internal(set) var hoveredDimension: OverlayDimensionID?

@@ -26,7 +26,11 @@ extension ViewportModel {
         let pressed = pick?(point)
         guard !isPlanar, let ref = faceRef(for: pressed),
               let face = items[ref.solidIndex].solid.topology.face(ref.face) else { return [] }
-        guard tool == nil else { return [.lookAt(ref)] }
+        if let tool {
+            // A tool leaves Look At, and Section from Face on a flat face when it asks for it.
+            let flat = face.kind == .plane && face.normal != nil
+            return tool.offersSectionFromFace && flat ? [.lookAt(ref), .sectionFromFace(ref)] : [.lookAt(ref)]
+        }
         var menu: [ViewportMenuItem] = [.lookAt(ref), .selectEdgesOfFace(ref)]
         if let target = pressed { menu.append(.dimension(target)) }
         // Plane from Face, Face Pattern, Field Scatter and Section take a flat face with a normal; another face would only make an error.
