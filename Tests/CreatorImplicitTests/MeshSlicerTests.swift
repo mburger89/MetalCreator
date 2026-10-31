@@ -17,6 +17,22 @@ struct MeshSlicerTests {
         return (positions, stride(from: 0, to: outward.count, by: 3).flatMap { [outward[$0], outward[$0 + 2], outward[$0 + 1]] })
     }
 
+    /// A closed prism over a counter-clockwise convex `outline`, from z = 0 to `height`.
+    func prism(_ outline: [Vector2], height: Double = 10, inward: Bool = false) -> (positions: [Vector3], indices: [UInt32]) {
+        let count = UInt32(outline.count)
+        let positions = outline.map { Vector3($0.x, $0.y, 0) } + outline.map { Vector3($0.x, $0.y, height) }
+        var indices: [UInt32] = []
+        for index in 1..<(count - 1) {
+            indices += [count, count + index, count + index + 1, 0, index + 1, index]
+        }
+        for index in 0..<count {
+            let next = (index + 1) % count
+            indices += [index, next, count + next, index, count + next, count + index]
+        }
+        guard inward else { return (positions, indices) }
+        return (positions, stride(from: 0, to: indices.count, by: 3).flatMap { [indices[$0], indices[$0 + 2], indices[$0 + 1]] })
+    }
+
     /// Several meshes in one, indices shifted.
     func merged(_ meshes: [(positions: [Vector3], indices: [UInt32])]) -> (positions: [Vector3], indices: [UInt32]) {
         var positions: [Vector3] = []
@@ -176,6 +192,33 @@ struct MeshSlicerTests {
         #expect(!section.regions.isEmpty)
         let total = section.regions.reduce(0.0) { $0 + area($1) }
         #expect(abs(total - 200) < 1e-9)
+    }
+
+    @Test func twoBoxesSharingAnEdgeGiveTwoLoops() {
+        let shared = merged([box(.zero, Vector3(10, 10, 10)), box(Vector3(10, 10, 0), Vector3(20, 20, 10))])
+        let section = slice(shared, z: 5)
+        #expect(section.openOutlines.isEmpty)
+        #expect(section.regions.count == 2, "the pinch at the shared edge splits the walk into the two squares")
+        for region in section.regions {
+            let corners = region.boundary[0].polyline.dropLast()
+            #expect(corners.count == 4)
+            #expect(Set(corners.map { [$0.x, $0.y] }).count == 4, "no node repeats within a loop")
+            #expect(abs(area(region) - 100) < 1e-9)
+        }
+    }
+
+    @Test func anIslandTouchingAHoleAtAPointIsAnIsland() {
+        let frame = prism([Vector2(-15, -15), Vector2(15, -15), Vector2(15, 15), Vector2(-15, 15)])
+        let hole = prism([Vector2(-10, -10), Vector2(10, -10), Vector2(10, 0), Vector2(10, 10), Vector2(-10, 10)], inward: true)
+        let block = prism([Vector2(0, 0), Vector2(5, -5), Vector2(10, 0), Vector2(5, 5)])
+        let section = slice(merged([frame, hole, block]), z: 5)
+        #expect(section.openOutlines.isEmpty)
+        #expect(section.regions.count == 2)
+        let byArea = section.regions.sorted { area($0) < area($1) }
+        #expect(abs(area(byArea[0]) - 50) < 1e-9, "the block is filled")
+        #expect(byArea[0].boundary.count == 1)
+        #expect(abs(area(byArea[1]) - 500) < 1e-9, "the frame keeps its hole open")
+        #expect(byArea[1].boundary.count == 2)
     }
 
     @Test func aLongCollinearRunIsDroppedInOnePass() {

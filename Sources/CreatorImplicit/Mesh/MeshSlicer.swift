@@ -112,7 +112,7 @@ public enum MeshSlicer {
             return Loop(points: points, flat: flat, area: area, low: Vector2(xs.min() ?? 0, ys.min() ?? 0),
                         high: Vector2(xs.max() ?? 0, ys.max() ?? 0))
         }
-        // The loops around each loop: bounding box first, then even-odd containment of its first point.
+        // The loops around each loop: bounding box first, then even-odd containment of a point of it off the outer outline.
         let around: [[Int]] = all.indices.map { index in
             let inner = all[index]
             return all.indices.filter { other in
@@ -120,7 +120,7 @@ public enum MeshSlicer {
                 let outer = all[other]
                 guard outer.area > inner.area, outer.low.x <= inner.low.x, outer.low.y <= inner.low.y,
                       outer.high.x >= inner.high.x, outer.high.y >= inner.high.y else { return false }
-                return PolygonTriangulator.contains(outer.flat, inner.flat[0])
+                return encloses(outer.flat, inner.flat)
             }
         }
         var holes: [Int: [Int]] = [:]
@@ -132,9 +132,29 @@ public enum MeshSlicer {
             let members = [index] + (holes[index] ?? [])
             let flats = PolygonTriangulator.triangles(outer: all[index].flat, holes: (holes[index] ?? []).map { all[$0].flat })
             return SectionRegion(
-                positions: flats.map { plane.point($0) }, triangles: (0..<UInt32(flats.count)).map { $0 },
+                positions: flats.map { plane.point($0) }, triangles: Array(0..<UInt32(flats.count)),
                 boundary: members.map { SectionPiece(curve: nil, polyline: all[$0].points + [all[$0].points[0]], sourceFace: nil) })
         }
+    }
+
+    /// Whether `inner` lies inside `outer`: the first point of `inner` farther than 1e-9 mm from `outer`'s edges decides (a point
+    /// on the outline, where two loops touch, says nothing); if every point is on it, the majority of the points does.
+    private static func encloses(_ outer: [Vector2], _ inner: [Vector2]) -> Bool {
+        func distanceToOutline(_ p: Vector2) -> Double {
+            var best = Double.infinity
+            for index in outer.indices {
+                let (a, b) = (outer[index], outer[(index + 1) % outer.count])
+                let edge = b - a
+                let lengthSquared = edge.x * edge.x + edge.y * edge.y
+                let t = lengthSquared > 0 ? min(1, max(0, ((p.x - a.x) * edge.x + (p.y - a.y) * edge.y) / lengthSquared)) : 0
+                best = min(best, (p - (a + edge * t)).length)
+            }
+            return best
+        }
+        if let point = inner.first(where: { distanceToOutline($0) > 1e-9 }) {
+            return PolygonTriangulator.contains(outer, point)
+        }
+        return inner.filter { PolygonTriangulator.contains(outer, $0) }.count * 2 > inner.count
     }
 
     // MARK: - Simplifying
@@ -160,15 +180,13 @@ public enum MeshSlicer {
         }
         guard closed else { return kept }
         var head = 0
-        var changed = true
-        while changed, kept.count - head > minimum {
-            changed = false
+        while kept.count - head > minimum {
             if isFlat(kept[kept.count - 2], kept[kept.count - 1], kept[head]) {
                 kept.removeLast()
-                changed = true
-            } else if kept.count - head > minimum, isFlat(kept[kept.count - 1], kept[head], kept[head + 1]) {
+            } else if isFlat(kept[kept.count - 1], kept[head], kept[head + 1]) {
                 head += 1
-                changed = true
+            } else {
+                break
             }
         }
         return Array(kept[head...])
@@ -278,25 +296,34 @@ private struct Crossings {
     func chains() -> [Chain] {
         var used = [Bool](repeating: false, count: segments.count)
         var result: [Chain] = []
-        func walk(from start: Int) -> [Int] {
+        // A walk that reaches a node already on its chain (a pinch, where two loops touch at a point) cuts that run off as a
+        // closed loop of its own and goes on from the node, so no loop repeats a node.
+        func walk(from start: Int, into result: inout [Chain]) -> [Int] {
             var nodes = [start]
+            var firstSeen: [Int: Int] = [start: 0]
             var current = start
             while let next = firstUnused(at: current, used) {
                 used[next] = true
                 let (a, b) = segments[next]
                 current = a == current ? b : a
-                nodes.append(current)
+                if let seen = firstSeen[current] {
+                    result.append(Chain(nodes: Array(nodes[seen...]), isClosed: true))
+                    for node in nodes[(seen + 1)...] { firstSeen[node] = nil }
+                    nodes.removeSubrange((seen + 1)...)
+                } else {
+                    firstSeen[current] = nodes.count
+                    nodes.append(current)
+                }
             }
             return nodes
         }
         for start in points.indices where unusedCount(at: start, used) % 2 == 1 {
-            result.append(Chain(nodes: walk(from: start), isClosed: false))
+            let nodes = walk(from: start, into: &result)
+            if nodes.count > 1 { result.append(Chain(nodes: nodes, isClosed: false)) }
         }
         for start in points.indices where firstUnused(at: start, used) != nil {
-            var nodes = walk(from: start)
-            let closes = nodes.count > 1 && nodes.last == start
-            if closes { nodes.removeLast() }
-            result.append(Chain(nodes: nodes, isClosed: closes))
+            let nodes = walk(from: start, into: &result)
+            if nodes.count > 1 { result.append(Chain(nodes: nodes, isClosed: false)) }
         }
         return result
     }
