@@ -4,6 +4,12 @@ import CreatorViewport
 import Foundation
 import Observation
 
+/// A shown solid and the section the plane cut out of it.
+struct SectionedPart: Sendable {
+    let solid: Solid
+    let section: PlaneSection
+}
+
 /// Computes the section's cap off the main actor and holds it for the viewport (section spec §3.4). It follows the clip and
 /// the shown parts and the last cap stays until the new one lands. At most one computation runs and only the latest
 /// request waits. A request that moves only the clip lets the running one finish and publish (an older cap is fine, the
@@ -20,6 +26,10 @@ final class SectionCapModel {
     private(set) var section: ViewportSection?
     private(set) var problem: String?
     private(set) var isComputing = false
+    /// The sectioned parts behind `section`, published with it (same request, same order), for picking its outline.
+    private(set) var parts: [SectionedPart] = []
+    /// The plane `parts` were cut at.
+    private(set) var plane: Plane?
 
     @ObservationIgnored private let kernel: any Kernel
     @ObservationIgnored private let defaultTolerance: Double
@@ -106,6 +116,7 @@ final class SectionCapModel {
         discardsRunning = false
         running = Task { [weak self] in
             var caps: [ViewportSection.Cap] = []
+            var sectioned: [SectionedPart] = []
             var failed = false
             var cancelled = false
             for (index, solid) in request.solids.enumerated() {
@@ -123,6 +134,7 @@ final class SectionCapModel {
                     if let cap = SectionCaps.cap(from: result, hatchAngle: ViewportSection.hatchAngle(forCap: index)) {
                         caps.append(cap)
                     }
+                    if !result.isEmpty { sectioned.append(SectionedPart(solid: solid, section: result)) }
                 } catch is CancellationError {
                     cancelled = true
                     break
@@ -130,13 +142,13 @@ final class SectionCapModel {
                     failed = true
                 }
             }
-            self?.ended(request, caps: cancelled ? nil : caps, failed: failed)
+            self?.ended(request, caps: cancelled ? nil : caps, parts: sectioned, failed: failed)
         }
     }
 
     /// A computation is over: publish it unless it was cancelled or predates a clear (it may be older than the latest
     /// request), then start the one queued behind it.
-    private func ended(_ request: Request, caps: [ViewportSection.Cap]?, failed: Bool) {
+    private func ended(_ request: Request, caps: [ViewportSection.Cap]?, parts sectioned: [SectionedPart], failed: Bool) {
         running = nil
         current = nil
         let publishes = caps != nil && !discardsRunning && request.generation > clearedGeneration
@@ -146,6 +158,8 @@ final class SectionCapModel {
         if publishes, let caps {
             section = caps.isEmpty ? nil : ViewportSection(caps: caps, plane: request.plane, generation: request.generation)
             problem = failed ? Self.capProblem : nil
+            parts = sectioned
+            plane = sectioned.isEmpty ? nil : request.plane
             revision += 1
         }
         if let next {
@@ -171,6 +185,8 @@ final class SectionCapModel {
         isComputing = false
         section = nil
         problem = nil
+        parts = []
+        plane = nil
         revision += 1
     }
 }

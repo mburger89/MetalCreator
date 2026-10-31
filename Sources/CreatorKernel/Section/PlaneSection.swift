@@ -47,3 +47,8 @@ public struct SectionPiece: Hashable, Sendable {
         self.sourceFace = sourceFace
     }
 }
+
+extension PlaneSection {
+    /// The boundary pieces of every region in one fixed order: regions in order, each region's boundary in order.
+    public var pieces: [SectionPiece] { regions.flatMap(\.boundary) }
+}
