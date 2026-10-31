@@ -81,5 +81,26 @@ struct ShortestDistanceTests {
             try await kernel.shortestDistance(between: .face(solid, FaceID(99)), and: .point(.zero))
         }
     }
+
+    @Test func aPointToAnArcIsExact() async throws {
+        let arc = MeasureElement.curve(.circle(center: .zero, axis: .unitZ, radius: 10, start: Vector3(10, 0, 0), sweep: .pi / 2))
+        let found = try await OCCTKernel().shortestDistance(between: arc, and: .point(Vector3(20, 0, 0)))
+        expectWitnesses(found, 10)
+        #expect((found.from - Vector3(10, 0, 0)).length < 1e-9 || (found.to - Vector3(10, 0, 0)).length < 1e-9)
+    }
+
+    @Test func aClockwiseArcIsTheSameSet() async throws {
+        let arc = MeasureElement.curve(.circle(center: .zero, axis: .unitZ, radius: 10, start: Vector3(10, 0, 0), sweep: -.pi / 2))
+        let found = try await OCCTKernel().shortestDistance(between: arc, and: .point(Vector3(0, -20, 0)))
+        expectWitnesses(found, 10)
+    }
+
+    @Test func aPolylineToAFaceIsExact() async throws {
+        let kernel = OCCTKernel()
+        let solid = try await box(kernel, 20, 20, 10)
+        let line = MeasureElement.polyline([Vector3(0, 0, 15), Vector3(5, 0, 12)])
+        let found = try await kernel.shortestDistance(between: line, and: .face(solid, try face(solid, normal: .unitZ)))
+        expectWitnesses(found, 2)
+    }
 }
 #endif

@@ -269,8 +269,22 @@ typedef struct {
     double from[3];
     double to[3];
 } occt_shape_distance;
-int occt_shortest_distance(const occt_shape *a, int kind_a, int index_a, const double point_a[3], const occt_shape *b, int kind_b,
-                           int index_b, const double point_b[3], occt_shape_distance *out, occt_status *status);
+/// One side of a shortest-distance query: kind 0 a point, 1 a face and 2 an edge of `shape` (1-based `index`), 3 a polyline of `point_count`
+/// (at least 2) x, y, z triples in `points` (borrowed for the call), 4 a circle arc from `start` about `axis` by `sweep` (a negative sweep runs clockwise).
+typedef struct {
+    const occt_shape *shape;
+    int kind;
+    int index;
+    double point[3];
+    const double *points;
+    int point_count;
+    double centre[3];
+    double axis[3];
+    double start[3];
+    double radius;
+    double sweep;
+} occt_measure_operand;
+int occt_shortest_distance(const occt_measure_operand *a, const occt_measure_operand *b, occt_shape_distance *out, occt_status *status);
 /// A faceted solid from a closed triangle mesh (implicit spec §4.7): `positions` is `vertex_count` x, y, z triples in millimetres and
 /// `triangles` three vertex numbers per face, counter-clockwise seen from outside. A planar face is built per triangle on vertices and edges shared by index
 /// (no BRepBuilderAPI_Sewing), same-domain faces are merged (ShapeUpgrade_UnifySameDomain), a shell facing inwards becomes a

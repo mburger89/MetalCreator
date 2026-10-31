@@ -47,4 +47,29 @@ struct FakeKernelMeasureTests {
             try await kernel.shortestDistance(between: .edge(solid, EdgeID(999)), and: .point(.zero))
         }
     }
+
+    @Test func aPointToAPolylineIsTheNearestSegment() async throws {
+        let line = MeasureElement.polyline([Vector3(0, 0, 0), Vector3(10, 0, 0), Vector3(10, 10, 0)])
+        let found = try await FakeKernel().shortestDistance(between: .point(Vector3(5, 3, 0)), and: line)
+        #expect(abs(found.distance - 3) < 1e-12 && found.to == Vector3(5, 0, 0))
+    }
+
+    @Test func aLineCurveMeasuresAsItsSegment() async throws {
+        let curve = MeasureElement.curve(.line(start: Vector3(0, 0, 0), end: Vector3(10, 0, 0)))
+        let found = try await FakeKernel().shortestDistance(between: curve, and: .point(Vector3(5, 4, 0)))
+        #expect(abs(found.distance - 4) < 1e-12)
+    }
+
+    @Test func anArcIsUnsupported() async throws {
+        let arc = MeasureElement.curve(.circle(center: .zero, axis: .unitZ, radius: 10, start: Vector3(10, 0, 0), sweep: .pi / 2))
+        await #expect(throws: KernelError.unsupported("measuring a curved edge")) {
+            try await FakeKernel().shortestDistance(between: arc, and: .point(.zero))
+        }
+    }
+
+    @Test func aOnePointPolylineIsRefused() async throws {
+        await #expect(throws: KernelError.invalidInput("A polyline needs at least two points.")) {
+            try await FakeKernel().shortestDistance(between: .polyline([.zero]), and: .point(.zero))
+        }
+    }
 }

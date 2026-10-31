@@ -11,6 +11,18 @@ extension FakeKernel {
         try measureHook?()
         try Task.checkCancellation()
         let a = try Self.measurable(first), b = try Self.measurable(second)
+        var best: ShapeDistance?
+        for first in a {
+            for second in b {
+                let found = Self.distance(first, second)
+                if found.distance < best?.distance ?? .infinity { best = found }
+            }
+        }
+        guard let best else { throw KernelError.invalidInput("These can't be measured.") }
+        return best
+    }
+
+    private static func distance(_ a: Measurable, _ b: Measurable) -> ShapeDistance {
         switch (a, b) {
         case (.point(let p), .point(let q)):
             return ShapeDistance(distance: (p - q).length, from: p, to: q)
@@ -31,18 +43,37 @@ extension FakeKernel {
         case segment(Vector3, Vector3)
     }
 
-    private static func measurable(_ element: MeasureElement) throws -> Measurable {
+    /// The pieces an element is made of: one point, one segment, or a polyline's segments.
+    private static func measurable(_ element: MeasureElement) throws -> [Measurable] {
         switch element {
         case .point(let point):
             guard point.isFinite else { throw KernelError.invalidInput("That point is not finite.") }
-            return .point(point)
+            return [.point(point)]
+        case .polyline, .curve:
+            return try curvePieces(element)
         case .face(let solid, let id):
             guard solid.topology.face(id) != nil else { throw KernelError.invalidInput("That face or edge no longer exists.") }
             throw KernelError.unsupported("measuring a face")
         case .edge(let solid, let id):
             guard let edge = solid.topology.edge(id) else { throw KernelError.invalidInput("That face or edge no longer exists.") }
             guard case .line(let start, let end)? = edge.curve else { throw KernelError.unsupported("measuring a curved edge") }
-            return .segment(start, end)
+            return [.segment(start, end)]
+        }
+    }
+
+    private static func curvePieces(_ element: MeasureElement) throws -> [Measurable] {
+        switch element {
+        case .polyline(let points):
+            guard points.count >= 2 else { throw KernelError.invalidInput("A polyline needs at least two points.") }
+            guard points.allSatisfy(\.isFinite) else { throw KernelError.invalidInput("That point is not finite.") }
+            return zip(points, points.dropFirst()).map { .segment($0, $1) }
+        case .curve(.line(let start, let end)):
+            guard start.isFinite, end.isFinite else { throw KernelError.invalidInput("That point is not finite.") }
+            return [.segment(start, end)]
+        case .curve(.circle):
+            throw KernelError.unsupported("measuring a curved edge")
+        default:
+            throw KernelError.invalidInput("These can't be measured.")
         }
     }
 
