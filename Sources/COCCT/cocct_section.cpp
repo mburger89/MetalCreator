@@ -7,7 +7,6 @@
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
-#include <BRepTools.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
@@ -70,13 +69,39 @@ int occt_section(const occt_shape *shape, const double origin[3], const double n
         }
         // The cutter is a window on the plane centred on the shape's bounding-box centre (projected onto the plane), so a part far
         // from the plane's origin is still covered.
+        // A plane that clears the box enlarged by the tolerance cuts nothing: skip the boolean.
+        {
+            bool below = true, above = true;
+            const double gap = tolerance;
+            for (int corner = 0; corner < 8; ++corner) {
+                const gp_Pnt c((corner & 1) ? bounds.CornerMax().X() : bounds.CornerMin().X(),
+                               (corner & 2) ? bounds.CornerMax().Y() : bounds.CornerMin().Y(),
+                               (corner & 4) ? bounds.CornerMax().Z() : bounds.CornerMin().Z());
+                const double height = gp_Vec(centre, c).Dot(gp_Vec(direction));
+                if (height - gap <= 0) above = false;
+                if (height + gap >= 0) below = false;
+            }
+            if (above || below) {
+                return 1;
+            }
+        }
         const double reach = std::sqrt(bounds.SquareExtent()) + 1.0;
         const gp_Pnt lower = bounds.CornerMin(), upper = bounds.CornerMax();
         const gp_Pnt middle(0.5 * (lower.X() + upper.X()), 0.5 * (lower.Y() + upper.Y()), 0.5 * (lower.Z() + upper.Z()));
         double u0 = 0, v0 = 0;
         ElSLib::Parameters(plane, middle, u0, v0);
         const TopoDS_Face cutter = BRepBuilderAPI_MakeFace(plane, u0 - reach, u0 + reach, v0 - reach, v0 + reach).Face();
-        BRepAlgoAPI_Common common(shape->shape, cutter);
+        // Built as `occt_boolean` builds its common: the arguments and tools as lists, and never destructive, because the solid
+        // shares geometry with other results in the graph.
+        TopTools_ListOfShape arguments;
+        arguments.Append(shape->shape);
+        TopTools_ListOfShape tools;
+        tools.Append(cutter);
+        BRepAlgoAPI_Common common;
+        common.SetArguments(arguments);
+        common.SetTools(tools);
+        common.SetNonDestructive(Standard_True);
+        common.Build();
         if (common.HasErrors() || !common.IsDone()) {
             throw user_error("the section could not be built");
         }
@@ -117,7 +142,6 @@ int occt_section(const occt_shape *shape, const double origin[3], const double n
         parameters.Deflection = tolerance;
         parameters.Angle = 0.5;
         parameters.InParallel = Standard_False;
-        BRepTools::Clean(result);
         BRepMesh_IncrementalMesh mesher(result, parameters);
 
         std::vector<double> positions, curves, points;
@@ -128,26 +152,29 @@ int occt_section(const occt_shape *shape, const double origin[3], const double n
             const TopoDS_Face face = TopoDS::Face(result_faces(i));
             TopLoc_Location location;
             const Handle(Poly_Triangulation) &triangulation = BRep_Tool::Triangulation(face, location);
-            if (triangulation.IsNull() || triangulation->NbTriangles() == 0) {
-                continue;
-            }
-            const gp_Trsf transform = location.Transformation();
-            const unsigned int base = static_cast<unsigned int>(positions.size() / 3);
-            for (int n = 1; n <= triangulation->NbNodes(); ++n) {
-                append3(positions, triangulation->Node(n).Transformed(transform));
-            }
-            for (int t = 1; t <= triangulation->NbTriangles(); ++t) {
-                int a = 0, b = 0, c = 0;
-                triangulation->Triangle(t).Get(a, b, c);
-                // Wind the triangle counter-clockwise about the plane's normal, whatever the face's orientation.
-                const gp_Pnt pa = triangulation->Node(a).Transformed(transform);
-                const gp_Pnt pb = triangulation->Node(b).Transformed(transform);
-                const gp_Pnt pc = triangulation->Node(c).Transformed(transform);
-                const gp_Vec turn = gp_Vec(pa, pb).Crossed(gp_Vec(pa, pc));
-                if (turn.Dot(normal_vector) < 0) {
-                    std::swap(b, c);
+            // A face the mesher left without triangles still gives its region, with its outline and no fill, so the caller
+            // can say the cut face could not be filled.
+            if (!triangulation.IsNull() && triangulation->NbTriangles() > 0) {
+                const gp_Trsf transform = location.Transformation();
+                const unsigned int base = static_cast<unsigned int>(positions.size() / 3);
+                const size_t first_node = positions.size();
+                for (int n = 1; n <= triangulation->NbNodes(); ++n) {
+                    append3(positions, triangulation->Node(n).Transformed(transform));
                 }
-                indices.insert(indices.end(), {base + a - 1, base + b - 1, base + c - 1});
+                for (int t = 1; t <= triangulation->NbTriangles(); ++t) {
+                    int a = 0, b = 0, c = 0;
+                    triangulation->Triangle(t).Get(a, b, c);
+                    // Wind the triangle counter-clockwise about the plane's normal, whatever the face's orientation.
+                    const double *pa = &positions[first_node + 3 * static_cast<size_t>(a - 1)];
+                    const double *pb = &positions[first_node + 3 * static_cast<size_t>(b - 1)];
+                    const double *pc = &positions[first_node + 3 * static_cast<size_t>(c - 1)];
+                    const gp_Vec turn = gp_Vec(pb[0] - pa[0], pb[1] - pa[1], pb[2] - pa[2])
+                                            .Crossed(gp_Vec(pc[0] - pa[0], pc[1] - pa[1], pc[2] - pa[2]));
+                    if (turn.Dot(normal_vector) < 0) {
+                        std::swap(b, c);
+                    }
+                    indices.insert(indices.end(), {base + a - 1, base + b - 1, base + c - 1});
+                }
             }
             region_offsets.push_back(static_cast<int>(indices.size() / 3));
 
