@@ -63,9 +63,10 @@ enum MeasureDimensions {
 
     private static func circle(center: Vector3, axis: Vector3, radius: Double, start: Vector3,
                                sweep: Double) -> (DimensionGeometry, DimensionReading) {
-        let isFull = sweep >= 2 * Double.pi - 1e-9
+        let isFull = abs(sweep) >= 2 * Double.pi - 1e-9
         let normal = axis.normalized ?? .unitZ
-        let middle = MeasureSnap.rotate(start, about: center, axis: normal, by: isFull ? 0 : sweep / 2)
+        let half = EdgeCurve.circle(center: center, axis: normal, radius: radius, start: start, sweep: sweep / 2)
+        let middle = isFull ? start : (half.ends.last ?? start)
         let toward = (middle - center).normalized ?? perpendicular(to: normal)
         let geometry = DimensionGeometry.radial(center: center, radius: radius, normal: normal, toward: toward, placement: .standoff)
         return (geometry, isFull ? DimensionReading(radius * 2, .diameter) : DimensionReading(radius, .radius))

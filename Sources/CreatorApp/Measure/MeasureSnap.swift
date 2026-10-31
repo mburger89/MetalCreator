@@ -24,23 +24,10 @@ enum MeasureSnap {
 
     /// What an edge offers to snap to: its ends, or a full circle's centre.
     static func ends(of id: EdgeID, topology: Topology?, mesh: DisplayMesh?) -> [(end: CornerEnd, at: Vector3)] {
-        switch topology?.edge(id)?.curve {
-        case let .line(start, end)?:
-            return [(.start, start), (.end, end)]
-        case let .circle(center, axis, _, start, sweep)?:
-            if sweep >= 2 * Double.pi - 1e-9 { return [(.centre, center)] }
-            return [(.start, start), (.end, rotate(start, about: center, axis: axis, by: sweep))]
-        default:
-            guard let line = mesh?.edgePolylines[id], let first = line.first, let last = line.last else { return [] }
-            return [(.start, first), (.end, last)]
-        }
-    }
-
-    /// `point` turned counter-clockwise about the axis through `center` (Rodrigues).
-    static func rotate(_ point: Vector3, about center: Vector3, axis: Vector3, by angle: Double) -> Vector3 {
-        guard let k = axis.normalized else { return point }
-        let v = point - center
-        let rotated = v * cos(angle) + k.cross(v) * sin(angle) + k * (k.dot(v) * (1 - cos(angle)))
-        return center + rotated
+        let curve = topology?.edge(id)?.curve
+        if case let .circle(center, _, _, _, sweep)? = curve, abs(sweep) >= 2 * Double.pi - 1e-9 { return [(.centre, center)] }
+        if let points = curve?.ends, points.count == 2 { return [(.start, points[0]), (.end, points[1])] }
+        guard let line = mesh?.edgePolylines[id], let first = line.first, let last = line.last else { return [] }
+        return [(.start, first), (.end, last)]
     }
 }

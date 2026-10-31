@@ -27,6 +27,21 @@ struct MeasureSnapTests {
         #expect(snap(edge, at: ScreenPoint(70, 50), edges: [circle]) == .edge(solid: 0, EdgeID(0)))
     }
 
+    @Test func aNegativeSweepArcSnapsToItsTrueEnd() {
+        let arc = MeasureFixtures.circle(0, radius: 10, sweep: -.pi / 2)
+        guard case let .corner(_, _, end, point)? = snap(edge, at: ScreenPoint(0, -10), edges: [arc]) else {
+            Issue.record("no corner")
+            return
+        }
+        #expect(end == .end && (point - Vector3(0, -10, 0)).length < 1e-9)
+        #expect(snap(edge, at: ScreenPoint(0, 10), edges: [arc]) == .edge(solid: 0, EdgeID(0)))
+    }
+
+    @Test func aFullNegativeSweepOffersItsCentre() {
+        let circle = MeasureFixtures.circle(0, centre: Vector3(50, 50, 0), radius: 20, sweep: -2 * .pi)
+        #expect(snap(edge, at: ScreenPoint(51, 50), edges: [circle]) == .corner(solid: 0, EdgeID(0), .centre, at: Vector3(50, 50, 0)))
+    }
+
     @Test func facesAndNothing() {
         #expect(snap(.face(solid: 0, FaceID(2)), at: .init(0, 0)) == .face(solid: 0, FaceID(2)))
         #expect(snap(nil, at: .init(0, 0)) == nil)
