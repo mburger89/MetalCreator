@@ -91,6 +91,7 @@ Linux and Windows.
 Implicit geometry, sub-project 7c-3f (spec Errata D18, resolving M5: the TPMS, Strut Lattice and Voronoi Lattice nodes gain a `blend` input, default 1 mm, the radius of the smooth union that joins the skin and the lattice, `typeVersion` 2 with a migration that gives a saved graph's node a blend of 0; Check Trapped Volumes decides inside by the mesh's generalized winding number, asked once per region of cells; Check Thin Walls skips a hit under 0.05 mm on a face of the start vertex's one-ring; the lightweight bracket acceptance test asserts 0 voids and 0 thin places, its `withKnownIssue`s gone; plan `docs/superpowers/plans/2026-10-20-7c-3f-skin-blend-and-robust-checks.md`) code is done; its human check IL-10 is pending.
 Section analysis, part A (placement; spec `docs/superpowers/specs/2026-10-30-section-measure-design.md`, plan `docs/superpowers/plans/2026-10-30-section-a-placement.md`) code is done; its human checks (group SA-A) are pending. `SectionSettings`, `SectionReference` and `SectionOrigin` (`CreatorGraph/Section`) are saved as `ViewState.section` (an optional key, no format bump); `SectionGeometry`, `SectionModel`, `SectionPanel` / `SectionPanelDock` (left of the open theme editor) and `AppModel+Section` are in `CreatorApp/Section`. The Section replaces the Cut view on every platform (top bar toggle, View menu, Section from Face in the face menu) and is hidden in sketch mode.
 Section analysis, part B (the cap; plan `docs/superpowers/plans/2026-10-30-section-b-cap.md`) code is done; its human checks (group SA-B) are pending and its benchmark rows `sa-1` to `sa-3` are recorded in `docs/verification/performance.md` (a lattice's slice, `sa-2`, takes 3 to 6 frames, so its cap trails a drag). `Kernel.section(_:by:tolerance:)` gives a `PlaneSection` (OCCT: `cocct_section.cpp`; `FakeKernel`: boxes), `MeshSlicer.slice` the same for a mesh, `PolygonTriangulator` (`CreatorGeometry`) fills it, `SectionCapModel` / `SectionCaps` (`CreatorApp/Section`) compute it off the main actor at the clip plane moved 1e-4 mm inward and the viewport draws it (`ViewportSection`, `showSection`; theme roles `sectionFill`, `sectionHatch`, `sectionEdge`). A failed section says "The cut face couldn't be filled for every part." in the Section panel.
+Measure, part A (the tool; plan `docs/superpowers/plans/2026-10-30-measure-a-tool.md`) code is done; its human checks (group ME-A) are pending. M, the top bar's Measure toggle or View ▸ Measure start it; picks of edges, faces and corners give radius, diameter, length, area, distances, centre distances and angles, drawn as reference-coloured dimensions. A measurement is view state: no command, no undo step, cleared by any model change.
 Implicit lattices, sub-project 7c-2 (the TPMS, Strut Lattice and Voronoi Lattice nodes with the Straight mapping only, a region and a
 skin, field grading of cell size, thickness and strut radius, a separate cell stretch vector, their warnings, and `ImplicitBench`'s sheet
 swapped to a gyroid; plan `docs/superpowers/plans/2026-10-14-7c-2-lattices.md`, spec
@@ -198,6 +199,8 @@ Module boundaries (dependency order):
   (`FaceParametrization`: the middle of u and v, millimetres per unit, the period of a coordinate in which the face closes on itself, a degenerate
   edge) and where points stand against it (`FaceSample`: the nearest point's u and v, the signed distance along the outward normal); the default
   refuses, `FakeKernel` answers for planar faces, `OCCTKernel` for any (`occt_face_chart_info_of`, `occt_face_coordinates`, `cocct_face_chart.cpp`).
+  `FaceInfo.radius` and `axisPoint` give a cylinder's radius and a point on its axis. `Kernel.shortestDistance(between:and:)` gives a `ShapeDistance`
+  (the distance and the witness points) between two picks, over `cocct_measure.cpp`'s `BRepExtrema_DistShapeShape`; `FakeKernel` is exact for points and line edges.
 - `COCCT` + `CreatorOCCT`: the OpenCascade C shim and `OCCTKernel: Kernel` (topology tables, face tags carried through
   OCCT history, tessellation, STEP/STL export). **The only code that may touch OCCT.** Every C allocation has a
   `*_free`; no C++ exception crosses into Swift. `occt_distances` (`cocct_distance.cpp`) measures points to a solid's faces,
@@ -533,6 +536,8 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
     `warningFaces` take the theme's warning colour (`ShadeUniforms.warning`, face-flag bit 4): a check's highlighted triangles.
   - It depends on Kernel, Geometry, CreatorStyle and MetalUI only, never CreatorGraph. The app shell turns graph outputs into
     `ViewportItem`s and `HandleSpec`s into `ViewportHandle`s.
+  `ViewportTool.hoverChanged(_:at:projector:)` tells a tool what is under the pointer and `offersSectionFromFace` lets the face menu offer Section from Face
+  beside Look At while a tool (Measure) is set.
 - `CreatorEditor`: the graph panel and context inspector on MetalUI. `@MainActor @Observable EditorModel` holds all
   behaviour (selection, canvas transform, dock transpose, hit testing, wiring, clipboard, palette, inspector edits);
   views are thin MetalUI `Component`s. Depends on Graph/Kernel/Geometry, CreatorStyle and MetalUI — **not** on `CreatorNodes`.
@@ -705,6 +710,9 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Me
   headless `--help`, `--version`, `--self-test` (`SelfTest`: OCCT, STEP/STL export, MetalUI's shaders) and `--info-plist`.
   `AppBundleInfo` is the version's one source; the packaged `Info.plist` is generated from it, never edited.
 
+  Measure (`CreatorApp/Measure`; `AppModel+Measure`): `MeasureSession` is a `ViewportTool` (hover draws the edge, a corner within 10 pt snaps), with
+  `MeasureReadings` (the numbers), `MeasureSnap`, `MeasureDimensions` (the drawn dimensions) and `MeasurePanel` under the Section panel. It is exclusive with
+  sketching, D and pick sessions (refused while one runs, ended by one starting), and ends on New and Open.
 Rules: keep OCCT behind `Kernel`; MetalUI gaps are logged in `docs/metalui-gaps.md` and fixed in MetalUI,
 never worked around here. Graph links are kept canonically sorted by destination; result caching is keyed by node identity.
 Edge/face IDs are OCCT map order. A circle edge's `direction` is its axis, so direction rules must also check `kind == .line`.

@@ -2267,3 +2267,26 @@ the Output selected so the part is shown.
 - [ ] **SA-B-8 Linux and Windows.** The same on Linux and Windows (the SDL GPU renderer, XP note): the cap, hatch, outline and the
   click behaviour match macOS. **Observed:**
 - [ ] **SA-B-9 Sketch mode.** Entering a sketch hides the section and its cap; leaving brings both back. **Observed:**
+
+## Group ME-A — Measure, the tool (measure part A)
+
+- [ ] **ME-A-1 Start and end.** Press M over the viewport, click the top bar's Measure toggle, or choose View > Measure: Measure starts and
+  its panel appears under the Section panel. Esc, the panel's Done, the toggle or M again ends it and the panel goes. **Observed:**
+- [ ] **ME-A-2 Hover.** Hover an edge: it is drawn over the model in the hover colour. Move within 10 points of one of its ends: the corner
+  shows as a point and snaps. A full circle offers its centre instead of an end. Faces keep the viewport's own face hover. **Observed:**
+- [ ] **ME-A-3 A hole.** Click a hole's edge or wall: Radius and Diameter show in the panel and the view draws the diameter (the reference
+  dimension colour), "Ø" for a full circle. **Observed:**
+- [ ] **ME-A-4 Wall thickness.** Click the two opposite faces of a box: the distance is exact (a 5 mm plate reads 5 mm) and is drawn between
+  the witness points. **Observed:**
+- [ ] **ME-A-5 Corner to face.** Pick a corner, then a face: the shortest distance to the face is shown and drawn. **Observed:**
+- [ ] **ME-A-6 Angle.** Pick a chamfer face, then its neighbouring face: the angle shows in 0 to 90 degrees and is drawn between the arms. **Observed:**
+- [ ] **ME-A-7 Two parts.** With two separate parts, pick a face of each: the distance between them is the shortest one (zero if they touch). **Observed:**
+- [ ] **ME-A-8 Picking rules.** Clicking a picked element removes it; a third pick starts a new measurement holding only that pick; a click on
+  empty space clears it. A click on a ghost, a guide or a mesh item does nothing. **Observed:**
+- [ ] **ME-A-9 Nodes and handles.** A click in Measure never selects a node. A handle still drags (the Section's, a node's). **Observed:**
+- [ ] **ME-A-10 Face menu.** Right-click a flat face while measuring: the menu offers Look At and Section from Face only. **Observed:**
+- [ ] **ME-A-11 Edit clears.** Change a value in the inspector while a measurement is shown: the measurement clears. Measure creates no undo
+  step and never marks the document edited. **Observed:**
+- [ ] **ME-A-12 Exclusive.** Measure is refused while sketching and during an Edges by Tag pick; starting a sketch, an Edges by Tag pick,
+  D (the model dimension tool), New or Open ends a running Measure. **Observed:**
+- [ ] **ME-A-13 Linux and Windows.** The same on Linux and Windows (hover, snap, picks, drawn dimensions). **Observed:**
