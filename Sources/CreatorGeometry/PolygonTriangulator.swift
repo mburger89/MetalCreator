@@ -31,7 +31,7 @@ public enum PolygonTriangulator {
     static func cross(_ a: Vector2, _ b: Vector2) -> Double { a.x * b.y - a.y * b.x }
 
     /// The loop's edges, each vertex to the next and the last back to the first, without copying the loop.
-    static func wrappingEdges(_ loop: [Vector2]) -> some Sequence<(Vector2, Vector2)> {
+    private static func wrappingEdges(_ loop: [Vector2]) -> some Sequence<(Vector2, Vector2)> {
         let count = loop.count
         return (0..<count).lazy.map { (loop[$0], loop[$0 + 1 == count ? 0 : $0 + 1]) }
     }
