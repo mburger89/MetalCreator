@@ -39,6 +39,14 @@ struct AppInputTests {
         #expect(!input.handleAction(ViewportKeyAction(command: .frame)), "F goes on to the graph's own F")
     }
 
+    @Test func mTogglesMeasure() async {
+        let app = await makeApp()
+        let input = AppInput(model: app)
+        #expect(input.handleAction(MeasureKeyAction()) && app.measure != nil)
+        #expect(input.handleAction(MeasureKeyAction()) && app.measure == nil)
+        #expect(app.viewport.tool == nil)
+    }
+
     /// Spec 2026-10-09 §3: "F frames the selection in the graph canvas when the pointer is over it (the viewport's F
     /// is unchanged)".
     @Test func fFramesTheGraphOverItsCanvasAndTheViewportElsewhere() async throws {

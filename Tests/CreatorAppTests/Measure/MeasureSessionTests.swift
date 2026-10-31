@@ -176,3 +176,40 @@ struct MeasureSessionTests {
         #expect(fixture.app.measure?.picks.isEmpty == true && fixture.app.measure?.distance == nil)
     }
 }
+
+@MainActor
+struct MeasureSceneChangeTests {
+    private func other(_ fixture: MeasureAppFixture) async throws -> Solid {
+        try await fixture.kernel.extrude(.rectangle(width: 3, height: 3, plane: .xy), distance: 3, mode: .oneSided,
+                                         tag: NodeTag(node: NodeID(), item: 0))
+    }
+
+    @Test func aMeasurementSurvivesChangesToOtherItemsAndClearsWhenAPickedPartChanges() async throws {
+        let fixture = await MeasureAppFixture.open()
+        fixture.app.setMeasure(true)
+        fixture.click(fixture.target(fixture.verticals[0]))
+        fixture.click(fixture.target(fixture.verticals[1]))
+        await fixture.app.settle()
+        let session = try #require(fixture.app.measure)
+        let picked = ViewportItem(solid: fixture.solid)
+        session.sceneChanged([picked, ViewportItem(solid: try await other(fixture))])
+        session.sceneChanged([picked, ViewportItem(solid: try await other(fixture))])
+        #expect(session.picks.count == 2 && session.distance != nil)
+        session.sceneChanged([picked])
+        #expect(session.picks.count == 2 && session.distance != nil)
+        #expect(!session.dimensions(style: fixture.app.viewport.dimensionStyle, units: DocumentUnits()).isEmpty)
+        session.sceneChanged([ViewportItem(solid: try await other(fixture))])
+        #expect(session.picks.isEmpty && session.distance == nil)
+    }
+
+    @Test func hoverSurvivesASceneChange() async throws {
+        let fixture = await MeasureAppFixture.open()
+        fixture.app.setMeasure(true)
+        let session = try #require(fixture.app.measure)
+        let target = fixture.target(fixture.verticals[0])
+        fixture.app.viewport.hovered = target
+        session.sceneChanged([ViewportItem(solid: fixture.solid)])
+        session.pointerMoved(to: fixture.middle(of: target), modifiers: [], projector: fixture.projector)
+        #expect(session.overlay.lines.contains { $0.tint == .hovered })
+    }
+}

@@ -2285,7 +2285,7 @@ the Output selected so the part is shown.
   empty space clears it. A click on a ghost, a guide or a mesh item does nothing. **Observed:**
 - [ ] **ME-A-9 Nodes and handles.** A click in Measure never selects a node. A handle still drags (the Section's, a node's). **Observed:**
 - [ ] **ME-A-10 Face menu.** Right-click a flat face while measuring: the menu offers Look At and Section from Face only. **Observed:**
-- [ ] **ME-A-11 Edit clears.** Change a value in the inspector while a measurement is shown: the measurement clears. Measure creates no undo
+- [ ] **ME-A-11 Edit clears.** Change a value in the inspector that changes a picked part while a measurement is shown: a change to a picked part clears the measurement (an edit to another part leaves it). Measure creates no undo
   step and never marks the document edited. **Observed:**
 - [ ] **ME-A-12 Exclusive.** Measure is refused while sketching and during an Edges by Tag pick; starting a sketch, an Edges by Tag pick,
   D (the model dimension tool), New or Open ends a running Measure. **Observed:**

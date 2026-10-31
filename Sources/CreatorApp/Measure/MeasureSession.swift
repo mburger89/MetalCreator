@@ -32,7 +32,7 @@ final class MeasureSession: ViewportTool {
     @ObservationIgnored private var generation = 0
     /// The element last heard under the pointer; `pointerMoved` snaps it again as the pointer or the camera moves.
     @ObservationIgnored private var lastTarget: PickTarget?
-    /// The solids the scene shows now, by position; picks name them by that position, so a change of any clears the measurement.
+    /// The solids the scene shows now, by position; picks name them by that position, and the measurement ends when a picked one is replaced.
     @ObservationIgnored private var solids: [Solid] = []
 
     init(kernel: any Kernel, viewport: ViewportModel) {
@@ -79,17 +79,25 @@ final class MeasureSession: ViewportTool {
                                      style: style, units: units)
     }
 
-    /// The scene changed: when its solids are not the ones the picks name, the measurement ends (part A does not follow edits).
+    /// The scene changed: the snapshot of solids is refreshed, and the measurement ends only when a picked part's solid is no
+    /// longer the identical one at the index the pick names (part A does not follow edits to the parts it measures). A change to
+    /// another item, or to how many items there are after the picked ones, keeps it.
     func sceneChanged(_ items: [ViewportItem]) {
         let now = items.map(\.solid)
-        guard now.count != solids.count || zip(now, solids).contains(where: { $0 !== $1 }) else { return }
+        let before = solids
         solids = now
-        lastTarget = nil
-        if hover != nil {
-            hover = nil
-            bumpOverlay()
+        lastTarget = viewport?.hovered
+        let keeps = picks.allSatisfy { pick in
+            before.indices.contains(pick.solidIndex) && now.indices.contains(pick.solidIndex)
+                && before[pick.solidIndex] === now[pick.solidIndex]
         }
-        clear()
+        if !keeps {
+            if hover != nil {
+                hover = nil
+                bumpOverlay()
+            }
+            clear()
+        }
     }
 
     // MARK: - ViewportTool

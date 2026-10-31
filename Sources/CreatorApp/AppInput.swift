@@ -47,8 +47,9 @@ public final class AppInput {
         }
         if action is MeasureKeyAction {
             if model.editor.pointerLocation != nil || model.sketch != nil { return false }
-            model.setMeasure(true)
-            return model.measure != nil
+            let starting = model.measure == nil
+            model.setMeasure(starting)
+            return starting ? model.measure != nil : true
         }
         guard let key = action as? ViewportKeyAction else { return false }
         if model.editor.pointerLocation != nil { return false }
