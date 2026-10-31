@@ -86,7 +86,8 @@ final class SectionCapModel {
         followed = key
         generation += 1
         isComputing = true
-        let request = Request(generation: generation, plane: SectionCaps.plane(for: clip), solids: capped,
+        let request = Request(generation: generation, plane: SectionCaps.plane(for: clip, bounds: capped.map(\.bounds)),
+                              solids: capped,
                               tolerance: tolerance ?? defaultTolerance)
         // At most one computation runs; a newer request waits for it to end (cancelled only when the solids or tolerance
         // changed) and is the only one that then starts.

@@ -23,12 +23,16 @@ extension SectionVertex {
     /// The corners of `cap`'s triangles, three per triangle. A triangle with an index outside `positions` is skipped whole, so the
     /// triangles after it keep their corners.
     static func vertices(of cap: ViewportSection.Cap) -> [SectionVertex] {
+        let count = cap.positions.count
+        let floats = cap.positions.map { SIMD4(GPUGeometry.float3($0), 1) }
         var vertices: [SectionVertex] = []
-        vertices.reserveCapacity(cap.triangles.count)
+        vertices.reserveCapacity(cap.triangles.count / 3 * 3)
         for start in stride(from: 0, to: cap.triangles.count - 2, by: 3) {
-            let corners = cap.triangles[start..<start + 3].map(Int.init)
-            guard corners.allSatisfy({ $0 < cap.positions.count }) else { continue }
-            for corner in corners { vertices.append(SectionVertex(position: SIMD4(GPUGeometry.float3(cap.positions[corner]), 1))) }
+            let a = Int(cap.triangles[start]), b = Int(cap.triangles[start + 1]), c = Int(cap.triangles[start + 2])
+            guard a < count, b < count, c < count else { continue }
+            vertices.append(SectionVertex(position: floats[a]))
+            vertices.append(SectionVertex(position: floats[b]))
+            vertices.append(SectionVertex(position: floats[c]))
         }
         return vertices
     }

@@ -158,6 +158,14 @@ struct SectionCapModelTests {
         #expect(abs(tilted.xAxis.length - 1) < 1e-12 && abs(tilted.xAxis.dot(Vector3(1, 1, 1).normalized ?? .zero)) < 1e-12)
     }
 
+    @Test func theInsetGrowsWithTheScene() {
+        let clip = ViewportClip(origin: .zero, normal: Vector3(0, 0, 1))
+        func depth(_ bounds: [BoundingBox]) -> Double { -SectionCaps.plane(for: clip, bounds: bounds).origin.z }
+        #expect(abs(depth([BoundingBox(min: .zero, max: Vector3(10, 10, 10))]) - 1e-4) < 1e-12)
+        #expect(abs(depth([BoundingBox(min: Vector3(490, 0, 0), max: Vector3(500, 10, 10))]) - 5e-4) < 1e-12)
+        #expect(abs(depth([]) - 1e-4) < 1e-12)
+    }
+
     /// A closed box mesh from 0 to `size` on every axis, as a display-only solid.
     private func meshSolid(size: Double) -> Solid {
         let corners = (0..<8).map { Vector3(($0 & 1) == 0 ? 0 : size, ($0 & 2) == 0 ? 0 : size, ($0 & 4) == 0 ? 0 : size) }

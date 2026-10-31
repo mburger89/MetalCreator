@@ -41,8 +41,7 @@ extension SDLViewportRenderer {
         var caps: [(buffer: SDLGPUBuffer, count: Int, uniforms: SectionUniforms)] = []
         if let section = frame.section {
             // Like a mesh, a section a draw has not prepared yet is not drawn here (the draw that follows prepares it).
-            guard let buffers = sectionBuffers, buffers.key.generation == section.generation,
-                  buffers.key.palette == frame.palette else { return nil }
+            guard let buffers = sectionBuffers, buffers.generation == section.generation else { return nil }
             for cap in buffers.caps {
                 let draw = SectionUniforms(section, angle: cap.angle, frame: frame, depthBias: Self.capDepthBias(frame))
                 caps.append((cap.buffer, cap.count, draw))
