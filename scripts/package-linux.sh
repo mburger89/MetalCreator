@@ -57,7 +57,11 @@ patchelf --set-rpath '$ORIGIN/lib' "$FOLDER/MetalCreator"
 cp "$ROOT/packaging/linux/install.sh" "$FOLDER/install.sh"
 cp "$ROOT/packaging/linux/com.metalcreator.MetalCreator.desktop" "$FOLDER/share/applications/"
 cp "$ROOT/packaging/linux/com.metalcreator.MetalCreator.xml" "$FOLDER/share/mime/packages/"
-cp "$ROOT/packaging/linux/com.metalcreator.MetalCreator.png" "$FOLDER/share/icons/hicolor/256x256/apps/"
+# One icon file: the app's own resource (Sources/CreatorApp/Icon), which the window icon loads too (`AppIcon`).
+cp "$ROOT/Sources/CreatorApp/Icon/com.metalcreator.MetalCreator.png" "$FOLDER/share/icons/hicolor/256x256/apps/"
+# The window icon is loaded from CreatorApp's resource bundle beside the executable (the same bundle name SwiftPM writes on every platform).
+[ -f "$BIN_DIR/MetalCreator_CreatorApp.bundle/Icon/com.metalcreator.MetalCreator.png" ] || fail "the icon's resource bundle is missing from $BIN_DIR"
+cp -R "$BIN_DIR/MetalCreator_CreatorApp.bundle" "$FOLDER/MetalCreator_CreatorApp.bundle"
 # MetalUI's SDL backend looks for its compiled shaders in MetalUISDLShaders beside the executable first (ruling PX-P).
 SHADERS="$METALUI/Backends/SDL/Shaders/compiled"
 [ -f "$SHADERS/SOURCE.sha256" ] || fail "MetalUI's compiled shaders are missing: $SHADERS/SOURCE.sha256"

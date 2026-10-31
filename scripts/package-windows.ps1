@@ -73,6 +73,11 @@ $appShaders = Join-Path $bin 'MetalCreator_CreatorViewport.bundle\MetalUIAppShad
 if (-not (Test-Path (Join-Path $appShaders 'SOURCE.sha256'))) { throw "the viewport's compiled shaders are missing ($appShaders): the build needs SDL_shadercross (METALUI_SHADERCROSS)" }
 Copy-Item -Recurse $appShaders (Join-Path $folder 'MetalUIAppShaders')
 
+# The window icon (`AppIcon`): CreatorApp's resource bundle beside the executable, where it is looked for first.
+$iconBundle = Join-Path $bin 'MetalCreator_CreatorApp.bundle'
+if (-not (Test-Path (Join-Path $iconBundle 'Icon\com.metalcreator.MetalCreator.png'))) { throw "the window icon's resource bundle is missing: $iconBundle" }
+Copy-Item -Recurse $iconBundle (Join-Path $folder 'MetalCreator_CreatorApp.bundle')
+
 # The implicit engine's run-time shader compiler (plan xp-c task 12; MetalUI docs/packaging.md 4b): MetalUI finds SDL3_shadercross.dll beside the
 # executable and preloads its dependents by full path. Each is enqueued below, so the dependents walk bundles what they need (the Visual C++
 # runtime) and finds SDL3.dll already bundled: $ShaderCrossRoot\bin is not a search directory, so the prefix's own SDL3.dll is never copied.

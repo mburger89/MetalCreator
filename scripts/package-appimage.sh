@@ -94,7 +94,7 @@ NOTICE
 ID=com.metalcreator.MetalCreator
 cp "$ROOT/packaging/appimage/AppRun" "$APPDIR/AppRun"
 chmod +x "$APPDIR/AppRun"
-cp "$ROOT/packaging/linux/$ID.desktop" "$ROOT/packaging/linux/$ID.png" "$APPDIR/"
+cp "$ROOT/packaging/linux/$ID.desktop" "$ROOT/Sources/CreatorApp/Icon/$ID.png" "$APPDIR/"
 ln -s "$ID.png" "$APPDIR/.DirIcon"
 
 step "Writing $DIST/$NAME.AppImage"

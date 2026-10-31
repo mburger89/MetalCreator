@@ -244,7 +244,7 @@ to `~/.local/share/mime/packages` and the placeholder icon to `~/.local/share/ic
 `Icon=com.metalcreator.MetalCreator` and `StartupWMClass=com.metalcreator.MetalCreator`. A desktop shell matches the running window to
 the entry by the window's application id, which is that name: MetalUI sets SDL's `SDL_APP_ID` hint from the id
 `SDLPlatform.launchingSingleInstance(id: AppBundleInfo.identifier, …)` is given (MetalUI `docs/packaging.md`, section 3; gap XP-G13,
-fixed), so MetalCreator sets nothing itself. The icon is a placeholder (`packaging/linux/com.metalcreator.MetalCreator.png`).
+fixed), so MetalCreator sets nothing itself. The icon is a placeholder (`Sources/CreatorApp/Icon/com.metalcreator.MetalCreator.png`).
 The AppImage carries the same entry and icon and leaves the file type to a manual step (see its section).
 
 On Windows, `register-mcgraph.cmd` (double-click it or run it from the unpacked folder; no administrator rights) runs `register-mcgraph.ps1` with `-ExecutionPolicy Bypass`, because a stock Windows 11 blocks the .ps1 itself ("running scripts is disabled"; found on the VM, 2026-10-30), and the script writes the `.mcgraph` association under

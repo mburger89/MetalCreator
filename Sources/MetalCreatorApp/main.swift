@@ -30,7 +30,11 @@ func makeApp(offscreen: Bool = false, forwarding documents: [String] = []) throw
         }
         platform = primary
     }
-    return App(platform: platform, textSystem: { PortableTextSystem(resolver: resolver) })
+    let app = App(platform: platform, textSystem: { PortableTextSystem(resolver: resolver) })
+    // The window icon on Linux and Windows (X11's _NET_WM_ICON, the Windows title bar and taskbar). Not on macOS, which takes
+    // the app bundle's icon and would otherwise be changed by this call (MetalUI AI-C, AI-E).
+    app.icon = AppIcon.bitmaps()
+    return app
     #else
     return try App()
     #endif

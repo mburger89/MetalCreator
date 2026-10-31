@@ -107,7 +107,9 @@ var targets: [Target] = [
         dependencies: [
             "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry",
             "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", metalUI, metalUISDL,
-        ]
+        ],
+        // The window icon (`AppIcon`); packaging/linux/install.sh and the Linux package ship the same file for the desktop entry.
+        resources: [.copy("Icon")]
     ),
     .executableTarget(
         name: "MetalCreatorApp",
