@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorImplicit
 import CreatorKernel
 import CreatorViewport
 import Foundation
@@ -35,6 +36,11 @@ final class SectionCapModel {
     @ObservationIgnored private var followed: Key?
     /// How many mesh slices have been started (for tests: a burst of moves must not start one per move).
     @ObservationIgnored private(set) var slicesStarted = 0
+    /// How many meshes have been welded (for tests: a mesh sliced at several planes is welded once).
+    @ObservationIgnored private(set) var preparesDone = 0
+    /// The weld of the last few mesh solids, least recently used first. The solid is kept so its identity cannot be reused.
+    @ObservationIgnored private var welds: [(solid: Solid, prepared: MeshSlicer.Prepared)] = []
+    private static let weldCacheSize = 8
 
     /// What one computation is asked to cut.
     private struct Request {
@@ -114,7 +120,10 @@ final class SectionCapModel {
                     let result: PlaneSection
                     if let mesh = solid.displayedMesh {
                         self?.slicesStarted += 1
-                        result = await SectionCaps.slice(mesh, by: request.plane)
+                        let prepared = await self?.weld(of: solid, mesh)
+                        try Task.checkCancellation()
+                        guard let prepared else { throw CancellationError() }
+                        result = await SectionCaps.slice(prepared, by: request.plane)
                     } else {
                         result = try await kernel.section(solid, by: request.plane, tolerance: request.tolerance)
                     }
@@ -132,6 +141,22 @@ final class SectionCapModel {
             }
             self?.ended(request, caps: cancelled ? nil : caps, failed: failed)
         }
+    }
+
+    /// The weld of a mesh solid, from the cache or made off the main actor (a cancelled weld is not kept).
+    private func weld(of solid: Solid, _ mesh: DisplayMesh) async -> MeshSlicer.Prepared {
+        if let found = welds.firstIndex(where: { $0.solid === solid }) {
+            let entry = welds.remove(at: found)
+            welds.append(entry)
+            return entry.prepared
+        }
+        preparesDone += 1
+        let prepared = await SectionCaps.prepare(mesh)
+        if !prepared.wasCancelled {
+            welds.append((solid, prepared))
+            if welds.count > Self.weldCacheSize { welds.removeFirst() }
+        }
+        return prepared
     }
 
     /// A computation is over: publish it unless it was cancelled or predates a clear (it may be older than the latest
@@ -157,6 +182,7 @@ final class SectionCapModel {
 
     /// Forgets everything, for a new or opened document.
     func reset() {
+        welds.removeAll()
         clear()
     }
 

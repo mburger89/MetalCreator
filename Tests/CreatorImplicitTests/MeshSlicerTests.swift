@@ -59,6 +59,35 @@ struct MeshSlicerTests {
         #expect(await task.value.isEmpty, "cancelled before it started: nothing computed")
     }
 
+    @Test func aPreparedSliceEqualsAFreshSlice() {
+        let tube = merged([
+            box(Vector3(-10, -10, 0), Vector3(10, 10, 10)),
+            box(Vector3(-5, -5, 0), Vector3(5, 5, 10), inward: true),
+            box(Vector3(20, 0, 0), Vector3(30, 10, 10)),
+        ])
+        for mesh in [tube, split(tube)] {
+            let prepared = MeshSlicer.prepare(positions: mesh.positions, triangles: mesh.indices)
+            for z in [0.5, 2.5, 5, 7.5, 9.5] {
+                let plane = Plane(origin: Vector3(0, 0, z), normal: .unitZ, xAxis: .unitX)
+                let fresh = MeshSlicer.slice(positions: mesh.positions, triangles: mesh.indices, plane: plane)
+                #expect(!fresh.isEmpty)
+                #expect(MeshSlicer.slice(prepared, plane: plane) == fresh)
+            }
+        }
+    }
+
+    @Test func aDegenerateTriangleIsDroppedAtPrepare() {
+        var cube = box(.zero, Vector3(10, 10, 10))
+        // A sliver with two corners at the same position, and one repeating a vertex index.
+        cube.positions.append(cube.positions[0])
+        cube.indices += [8, 0, 3, 1, 1, 2]
+        let prepared = MeshSlicer.prepare(positions: cube.positions, triangles: cube.indices)
+        #expect(prepared.triangles.count == 36)
+        #expect(prepared.vertices.count == 8)
+        #expect(!prepared.wasCancelled)
+        #expect(abs(area(slice(cube, z: 5).regions[0]) - 100) < 1e-9)
+    }
+
     @Test func aClosedCubeCutAcrossGivesOneSquare() {
         let section = slice(box(.zero, Vector3(10, 10, 10)), z: 5)
         #expect(section.regions.count == 1)

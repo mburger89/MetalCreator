@@ -184,6 +184,17 @@ struct SectionCapModelTests {
         #expect(after.caps[0].positions != before.caps[0].positions)
     }
 
+    @Test func theWeldIsBuiltOncePerMesh() async {
+        let solid = meshSolid(size: 10)
+        let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)
+        for height in [2.0, 4.0, 6.0] {
+            model.follow(clip: ViewportClip(origin: Vector3(0, 0, height), normal: .unitZ), items: [ViewportItem(solid: solid)])
+            await model.waitForCaps()
+            #expect(model.section != nil)
+        }
+        #expect(model.slicesStarted == 3 && model.preparesDone == 1)
+    }
+
     @Test func aBurstOfMovesOnAMeshPartStartsAtMostTwoSlices() async throws {
         let solid = meshSolid(size: 10)
         let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)

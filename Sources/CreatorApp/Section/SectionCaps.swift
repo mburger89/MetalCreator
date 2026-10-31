@@ -40,9 +40,15 @@ enum SectionCaps {
         return ViewportSection.Cap(positions: positions, triangles: triangles, outlines: outlines, hatchAngle: hatchAngle)
     }
 
-    /// Slices a display mesh off the calling actor.
+    /// Welds a display mesh off the calling actor.
     @concurrent
-    static func slice(_ mesh: DisplayMesh, by plane: Plane) async -> PlaneSection {
-        MeshSlicer.slice(positions: mesh.positions, triangles: mesh.indices, plane: plane)
+    static func prepare(_ mesh: DisplayMesh) async -> MeshSlicer.Prepared {
+        MeshSlicer.prepare(positions: mesh.positions, triangles: mesh.indices)
+    }
+
+    /// Slices a welded mesh off the calling actor.
+    @concurrent
+    static func slice(_ prepared: MeshSlicer.Prepared, by plane: Plane) async -> PlaneSection {
+        MeshSlicer.slice(prepared, plane: plane)
     }
 }
