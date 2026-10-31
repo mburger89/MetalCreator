@@ -18,6 +18,7 @@
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <gp_Circ.hxx>
+#include <gp_Cylinder.hxx>
 
 #include <mutex>
 
@@ -60,8 +61,12 @@ void describe_face(const TopoDS_Face &face, occt_face_info &info) {
             info.has_normal = 1;
         }
     } else if (info.kind == 1) {
-        set3(info.normal, surface.Cylinder().Axis().Direction());
+        const gp_Cylinder cylinder = surface.Cylinder();
+        set3(info.normal, cylinder.Axis().Direction());
         info.has_normal = 1;
+        info.has_axis = 1;
+        info.radius = cylinder.Radius();
+        set3(info.axis_point, cylinder.Location());
     } else if (info.kind == 2) {
         set3(info.normal, surface.Cone().Axis().Direction());
         info.has_normal = 1;

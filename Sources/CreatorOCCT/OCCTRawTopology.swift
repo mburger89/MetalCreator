@@ -10,6 +10,8 @@ struct OCCTRawTopology: Sendable {
         var normal: Vector3?
         var area: Double
         var centroid: Vector3
+        var radius: Double?
+        var axisPoint: Vector3?
     }
 
     struct Edge: Sendable {
@@ -34,7 +36,9 @@ struct OCCTRawTopology: Sendable {
         try OCCTShape.check { status in occt_read_topology(shape.raw, &raw, status) }
         let faces = UnsafeBufferPointer(start: raw.faces, count: Int(raw.face_count)).map { info in
             Face(kind: surfaceKind(info.kind), normal: info.has_normal != 0 ? vector(info.normal) : nil,
-                 area: info.area, centroid: vector(info.centroid))
+                 area: info.area, centroid: vector(info.centroid),
+                 radius: info.has_axis != 0 ? info.radius : nil,
+                 axisPoint: info.has_axis != 0 ? vector(info.axis_point) : nil)
         }
         let edges = UnsafeBufferPointer(start: raw.edges, count: Int(raw.edge_count)).map { info in
             Edge(kind: curveKind(info.kind), direction: info.has_direction != 0 ? vector(info.direction) : nil,

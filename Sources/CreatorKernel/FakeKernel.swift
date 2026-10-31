@@ -200,7 +200,8 @@ public actor FakeKernel: Kernel {
             }
             let face = FaceID(topology.faces.count)
             topology.faces.append(FaceInfo(id: face, kind: .cylinder, normal: edge.direction, area: 0,
-                                           centroid: edge.midpoint, tags: [TopoTag(tag, .blend(sourceEdge: key))]))
+                                           centroid: edge.midpoint, tags: [TopoTag(tag, .blend(sourceEdge: key))],
+                                           radius: size, axisPoint: edge.midpoint))
         }
         return Solid(topology: topology, bounds: solid.bounds, storage: FakeStorage())
     }
@@ -228,8 +229,7 @@ public actor FakeKernel: Kernel {
                 let side = first + k
                 let isLine: Bool
                 if case .line = segment { isLine = true } else { isLine = false }
-                faces.append(FaceInfo(id: FaceID(side), kind: isLine ? .plane : .cylinder, normal: nil, area: 0,
-                                      centroid: .zero, tags: [TopoTag(tag, .side(loop: loop, segment: k))]))
+                faces.append(sideFace(side, of: segment, on: profile.plane, tag: TopoTag(tag, .side(loop: loop, segment: k))))
                 let along: Vector3? = isLine
                     ? (profile.plane.point(segment.endPoint) - profile.plane.point(segment.startPoint)).normalized
                     : normal
@@ -284,5 +284,16 @@ public actor FakeKernel: Kernel {
             result.edges.append(edge)
         }
         return result
+    }
+}
+
+extension FakeKernel {
+    /// A prism's side face: a plane for a line, a cylinder (axis normal, radius, centre) for an arc.
+    fileprivate static func sideFace(_ id: Int, of segment: Segment2D, on plane: Plane, tag: TopoTag) -> FaceInfo {
+        guard case .arc(let center, let radius, _, _) = segment else {
+            return FaceInfo(id: FaceID(id), kind: .plane, normal: nil, area: 0, centroid: .zero, tags: [tag])
+        }
+        return FaceInfo(id: FaceID(id), kind: .cylinder, normal: plane.normal, area: 0, centroid: .zero, tags: [tag],
+                        radius: radius, axisPoint: plane.point(center))
     }
 }

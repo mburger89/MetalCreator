@@ -84,6 +84,10 @@ typedef struct {
     double normal[3];
     double area;
     double centroid[3];
+    /// Cylinders only: has_axis is 1 and `radius` and `axis_point` (a point on the axis) are set.
+    int has_axis;
+    double radius;
+    double axis_point[3];
 } occt_face_info;
 
 /// Curve kinds: 0 line, 1 circle, 2 ellipse, 3 bspline, 4 other.
