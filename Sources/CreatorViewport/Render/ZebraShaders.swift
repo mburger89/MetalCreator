@@ -44,10 +44,13 @@ float zebra_band(constant ZebraUniforms &zebra, float3 nView, float3 nWorld, flo
     float across = zebra.params.z != 0.0 ? axes.x : axes.y;
     float p = atan2(across, axes.z) * zebra.params.x / 6.2831853;
     float f = fract(p);
-    // The angle's seam is a whole number of periods apart, so fract is continuous there but fwidth is not: clamp it.
-    float h = 0.5 * min(fwidth(p), 0.25);
+    // The angle's seam is a whole number of periods apart, so fract is continuous there but fwidth is not: clamp it. A flat face seen
+    // orthographically has fwidth 0, which would leave the smoothstep's edges equal, so the floor keeps them apart.
+    float h = 0.5 * clamp(fwidth(p), 1e-4, 0.25);
     float share = zebra.params.y;
-    return smoothstep(share - h, share + h, f) * (1.0 - smoothstep(1.0 - h, 1.0, f));
+    // The signed distance to the nearest edge of the black interval [0, share) on the circle of f: positive inside white.
+    float s = f >= share ? min(f - share, 1.0 - f) : -min(f, share - f);
+    return smoothstep(-h, h, s);
 }
 
 fragment float4 zebra_mesh_fragment(ZebraOut in [[stage_in]],

@@ -102,7 +102,7 @@ struct ViewportZebraRenderTests {
             for x in stride(from: 56, to: 144, by: 3) {
                 guard let sample = sphereSample(Double(x), Double(y), perspective: perspective) else { continue }
                 let e = expectation(sample, zebra: zebra)
-                if e.margin > 0.1 { found.append((x, y, e.white)) }
+                if e.margin > 0.18 { found.append((x, y, e.white)) }
             }
         }
         return found
@@ -146,7 +146,7 @@ struct ViewportZebraRenderTests {
                 guard let p = sphereSample(Double(x), Double(y), perspective: true),
                       let o = sphereSample(Double(x), Double(y), perspective: false) else { continue }
                 let (ep, eo) = (expectation(p, zebra: Self.fine), expectation(o, zebra: Self.fine))
-                if ep.margin > 0.1, eo.margin > 0.1, ep.white != eo.white { differing.append((x, y, ep.white)) }
+                if ep.margin > 0.18, eo.margin > 0.18, ep.white != eo.white { differing.append((x, y, ep.white)) }
             }
         }
         #expect(differing.count >= 3)
@@ -179,13 +179,13 @@ struct ViewportZebraRenderTests {
         // Surface points visible from both poses, whose locked band is clear of an edge.
         var checked = 0
         var unlockedDiffers = 0
-        for i in 0..<40 {
-            let azimuth = -0.5 + 0.05 * Double(i), polar = 1.7 + 0.02 * Double(i % 7)
+        for i in 0..<120 {
+            let azimuth = -0.5 + 0.0175 * Double(i), polar = 1.5 + 0.03 * Double(i % 11)
             let normal = Vector3(sin(polar) * sin(azimuth), -sin(polar) * cos(azimuth), cos(polar))
             guard normal.dot(poseB.toEye) > 0.4, normal.dot(poseA.toEye) > 0.4 else { continue }
             let expected = expectation((normal: Vector3(normal.dot(lock.right), normal.dot(lock.up), normal.dot(lock.toEye)),
                                         toEye: Vector3(0, 0, 1)), zebra: locked)
-            guard expected.margin > 0.1 else { continue }
+            guard expected.margin > 0.18 else { continue }
             let pixel = project(normal * Self.radius, poseB)
             #expect(isWhite(color(lockedB, pixel.x, pixel.y)) == expected.white, "point \(i) at \(pixel)")
             if isWhite(color(unlockedB, pixel.x, pixel.y)) != expected.white { unlockedDiffers += 1 }
@@ -205,9 +205,10 @@ struct ViewportZebraRenderTests {
     @Test func theClipStillCutsAStripedPart() throws {
         let rig = try RendererCacheTests.Rig()
         let clip = ViewportClip(origin: .zero, normal: Vector3(0, -1, 0))
-        let background = try rig.draw(frame(zebra: nil, clip: clip))
         let whole = try rig.draw(frame())
         let cut = try rig.draw(frame(clip: clip))
+        // Flipping the normal on a back face leaves the band as it is (r is unchanged under n to -n) and changes only the key light,
+        // so this proves "striped, not darkened", not the flip itself.
         // The near half is gone: pixels of the sphere's front, now showing the far wall (striped, with the flipped normal).
         #expect(cut != whole)
         let palette = ViewportPalette.dracula
@@ -216,7 +217,6 @@ struct ViewportZebraRenderTests {
             let dark = [palette.shadeDark.x, palette.shadeDark.y, palette.shadeDark.z][channel]
             return Int(((light + dark) / 2 * 0.55 * 255).rounded())
         }
-        _ = background
         var checked = 0, wrong = 0, fallbackLike = 0
         for y in stride(from: 56, to: 146, by: 3) {
             for x in stride(from: 56, to: 146, by: 3) {
