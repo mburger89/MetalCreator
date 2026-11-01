@@ -38,6 +38,7 @@ extension AppModel {
     /// Whether the stripes are drawn: on, and no sketch open.
     var showsZebra: Bool { document.zebra?.isOn == true && sketch == nil }
 
+    /// Sketch mode drops back to the standard angle because the sketch scene is all ghosts, which are never striped.
     /// Applies the zebra to the viewport. The finer display meshes apply at the next `show(_:)`, so `refreshScene` calls this first.
     /// Returns whether the mesh angle changed.
     func followZebraAngle() -> Bool {

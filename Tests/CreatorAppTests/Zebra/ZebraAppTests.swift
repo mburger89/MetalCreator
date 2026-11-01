@@ -136,4 +136,19 @@ struct ZebraAppTests {
         #expect(!input.handleAction(ZebraKeyAction()) && app.document.zebra == nil)
         #expect(AppInput.keymap.bindings.contains { $0.spelling == "z" && $0.context == AppKeyContext.viewport })
     }
+
+    @Test func aPickSessionDisablesMeasureButNotZebra() async throws {
+        var builder = GraphBuilder()
+        _ = builder.box()
+        let window = try await AppWindow.open(builder.graph)
+        let solid = try #require(window.model.viewport.items.first?.solid)
+        let source = try #require(window.model.producer(of: solid))
+        window.model.pick = PickSession(solid: solid, source: source, rule: nil, consumer: nil, picked: [])
+        try await window.window.runUntilIdle()
+        func toggle(_ name: String) throws -> TestElement {
+            try #require(try window.window.elements { $0.label == name && $0.role != .staticText }.first)
+        }
+        #expect(try toggle("Measure").isEnabled == false)
+        #expect(try toggle("Zebra").isEnabled == true)
+    }
 }

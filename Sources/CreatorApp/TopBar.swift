@@ -38,8 +38,8 @@ struct TopBar: Component {
                     .pickerStyle(.menu)
                     Toggle("Section", isOn: Binding(get: { model.document.section?.isOn == true }, set: { model.setSection($0) }))
                     Toggle("Measure", isOn: Binding(get: { model.measure != nil }, set: { model.setMeasure($0) }))
-                    Toggle("Zebra", isOn: Binding(get: { model.document.zebra?.isOn == true }, set: { model.setZebra($0) }))
                         .disabled(model.pick != nil)
+                    Toggle("Zebra", isOn: Binding(get: { model.document.zebra?.isOn == true }, set: { model.setZebra($0) }))
                     Button(model.undoTitle) { model.undo() }
                         .disabled(!model.document.canUndo)
                     Button(model.redoTitle) { model.redo() }

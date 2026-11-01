@@ -48,6 +48,7 @@ struct ZebraPanel: Component {
                                           set: { model.setZebraBlackShare(($0 / 5).rounded() * 5 / 100) }),
                            in: 20...80, step: 5)
                     Toggle("Lock stripes to the part", isOn: Binding(get: { settings.lock != nil }, set: { model.setZebraLock($0) }))
+                        .toggleStyle(.checkbox)
                     Button("Done") { model.setZebra(false) }
                 }
                 .frame(width: Self.width.px)
