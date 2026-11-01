@@ -106,3 +106,8 @@ re-tessellation too slow (measure it; a benchmark row records it), and how the f
 - The tests: settings round trip, the maths against a CPU reference, a render test per backend, the panel, the key, the
   view-state encoding.
 - Human checks (a new group) and a benchmark row for the zebra tessellation and an orbiting frame.
+
+## Later
+
+- Mesh import (STL, 3MF), so imported meshes can be checked with zebra too. The user asked for it to be added later
+  (2026-11-01); not part of this work.
