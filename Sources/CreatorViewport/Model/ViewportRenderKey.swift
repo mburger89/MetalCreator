@@ -25,4 +25,6 @@ public struct ViewportRenderKey: Hashable, Sendable {
     var clip: ViewportClip?
     /// The section's cap: a new generation redraws.
     var section: ViewportSection?
+    /// The zebra stripes: changing any setting or the lock redraws.
+    var zebra: ViewportZebra?
 }

@@ -25,6 +25,8 @@ struct ViewportFrame {
     var clip: ViewportClip?
     /// The section's cap and outlines (`ViewportModel.section`).
     var section: ViewportSection?
+    /// The zebra stripes (`ViewportModel.zebra`).
+    var zebra: ViewportZebra?
 
     /// Half the scene's diagonal (at least 1 mm), used for depth ranges.
     var sceneRadius: Double { sceneBounds.map { max($0.size.length / 2, 1) } ?? 1 }

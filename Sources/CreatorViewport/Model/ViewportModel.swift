@@ -70,6 +70,8 @@ public final class ViewportModel {
     /// The section's cap and outlines (`showSection(_:)`), or `nil`. It is no part of the scene: it never picks, frames or widens
     /// `sceneBounds`.
     public private(set) var section: ViewportSection?
+    /// The zebra stripes view mode (`showZebra(_:)`), or `nil`. View state: it never picks, frames or widens `sceneBounds`.
+    public private(set) var zebra: ViewportZebra?
     public internal(set) var hovered: PickTarget? {
         didSet {
             if hovered != oldValue { tool?.hoverChanged(hovered, at: lastHoverPoint, projector: projector) }
@@ -146,7 +148,7 @@ public final class ViewportModel {
         ViewportRenderKey(pose: pose, isAnimating: isAnimating, shading: shading, hovered: hovered,
                           hoveredCubeRegion: hoveredCubeRegion, sceneGeneration: sceneGeneration, handles: handles,
                           cube: cubeLayout, triad: triadLayout, palette: palette, overlay: overlay,
-                          showsViewCube: showsViewCube, slice: slice, clip: clip, section: section)
+                          showsViewCube: showsViewCube, slice: slice, clip: clip, section: section, zebra: zebra)
     }
 
     /// The union of every shown solid's bounds, ghosts included and guides left out.
@@ -217,6 +219,11 @@ public final class ViewportModel {
     /// The section's cap to draw, or `nil` for none. An equal section (the same `generation`) changes nothing.
     public func showSection(_ newSection: ViewportSection?) {
         if section != newSection { section = newSection }
+    }
+
+    /// The zebra stripes to draw on the solids, or `nil` for none. An equal zebra changes nothing.
+    public func showZebra(_ newZebra: ViewportZebra?) {
+        if zebra != newZebra { zebra = newZebra }
     }
 
     /// Returns once the most recent `show(_:)` has finished loading.
