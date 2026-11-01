@@ -38,7 +38,7 @@ struct AppImageRecipeTests {
     @Test func theAppDirHoldsTheSharedEntryAndIconAtItsRootAndTheTarballsTreeUnderUsr() throws {
         let script = try Self.text("scripts/package-appimage.sh")
         #expect(script.contains("ID=\(AppBundleInfo.identifier)\n"))
-        #expect(script.contains(#"cp "$ROOT/packaging/linux/$ID.desktop" "$ROOT/packaging/linux/$ID.png" "$APPDIR/""#),
+        #expect(script.contains(#"cp "$ROOT/packaging/linux/$ID.desktop" "$ROOT/Sources/CreatorApp/Icon/$ID.png" "$APPDIR/""#),
                 "the tarball's own entry and icon, not copies that can drift")
         #expect(script.contains(#"mv "$WORK/$NAME" "$APPDIR/usr/metalcreator""#), "AppRun execs usr/metalcreator/MetalCreator")
         #expect(script.contains(#"rm "$APPDIR/usr/metalcreator/install.sh""#), "an AppImage is not unpacked into a folder")

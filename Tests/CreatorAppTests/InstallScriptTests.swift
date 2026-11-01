@@ -78,7 +78,7 @@ struct InstallScriptTests {
                                  to: folder.appending(path: "share/applications/\(id).desktop"))
         try fileManager.copyItem(at: repository.appending(path: "packaging/linux/\(id).xml"),
                                  to: folder.appending(path: "share/mime/packages/\(id).xml"))
-        try fileManager.copyItem(at: repository.appending(path: "packaging/linux/\(id).png"),
+        try fileManager.copyItem(at: repository.appending(path: "Sources/CreatorApp/Icon/\(id).png"),
                                  to: folder.appending(path: "share/icons/hicolor/256x256/apps/\(id).png"))
         return try run(arguments, reusing: Run(status: 0, data: scratch.appending(path: "data"), folder: folder))
     }

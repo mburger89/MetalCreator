@@ -37,7 +37,7 @@ struct DesktopEntryTests {
     /// The icon the entry names is a file of the repository: a 256 x 256 PNG, which the tarball puts in hicolor's `256x256/apps` and
     /// the AppImage at its root.
     @Test func theIconIsA256PixelPNGNamedAfterTheEntry() throws {
-        let bytes = try Self.bytes("packaging/linux/\(AppBundleInfo.identifier).png")
+        let bytes = try Self.bytes("Sources/CreatorApp/Icon/\(AppBundleInfo.identifier).png")
         #expect(Array(bytes.prefix(8)) == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
                 "a PNG (and not rewritten by a line-ending rule)")
         func bigEndian(_ range: Range<Int>) -> Int { bytes[range].reduce(0) { $0 << 8 | Int($1) } }
