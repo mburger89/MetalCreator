@@ -68,7 +68,7 @@ final class FirstCallGate: Sendable {
         }
         // Long enough that a loaded machine (a full suite, a build) never lets the hold lapse before the test has looked; a test
         // that fails before `release()` waits this long, not forever.
-        if first { _ = semaphore.wait(timeout: .now() + 120) }
+        if first { _ = semaphore.wait(timeout: .now() + 600) }
     }
 
     func release() { semaphore.signal() }

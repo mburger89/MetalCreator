@@ -127,7 +127,9 @@ struct SectionCapModelTests {
         let (entered, signal) = AsyncStream<Void>.makeStream()
         await kernel.setSectionHook {
             signal.yield()
-            _ = gate.wait(timeout: .now() + 60)
+            // Long enough that a loaded runner (Windows CI took 200 s over this test) never lets the hold lapse before the test has
+            // looked; a test that fails before `gate.signal()` waits this long, not forever.
+            _ = gate.wait(timeout: .now() + 600)
         }
         app.setSectionOffset(1)
         let reached = await withTaskGroup(of: Bool.self) { group in
