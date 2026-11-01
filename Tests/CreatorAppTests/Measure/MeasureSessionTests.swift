@@ -97,6 +97,24 @@ struct MeasureSessionTests {
         #expect(session.distance == nil && !session.isMeasuring)
     }
 
+    @Test func aFailedDistanceSaysSo() async throws {
+        let kernel = FakeKernel()
+        await kernel.setMeasureHook { throw KernelError.invalidInput("Those can't be measured.") }
+        let fixture = await MeasureAppFixture.open(kernel: kernel)
+        fixture.app.setMeasure(true)
+        fixture.click(fixture.target(fixture.verticals[0]))
+        fixture.click(fixture.target(fixture.verticals[1]))
+        await fixture.app.settle()
+        let session = try #require(fixture.app.measure)
+        let rows = MeasurePanelText.valueRows(readings: session.readings, distance: session.distance?.distance,
+                                              distanceFailed: session.distanceFailed, isApproximate: false, meshResolution: nil,
+                                              units: fixture.app.units)
+        #expect(rows.contains { $0.label == "Distance" && $0.text == MeasurePanelText.distanceFailed })
+        #expect(MeasurePanelText.distanceFailed == "Couldn't measure")
+        let drawn = session.dimensions(style: DimensionStyle.ansi, units: fixture.app.units)
+        #expect(drawn.isEmpty)
+    }
+
     @Test func aClickThatMissesAMeshPicksNothing() async throws {
         let fixture = await MeasureAppFixture.open()
         fixture.app.setMeasure(true)

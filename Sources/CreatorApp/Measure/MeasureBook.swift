@@ -18,6 +18,9 @@ final class MeasureBook {
         var picks: [MeasurePick]?
         var readings: [MeasureReading]
         var distance: ShapeDistance?
+        /// The kernel refused the distance for this basis; it reads "Couldn't measure" and is not asked again until a pick or a
+        /// solid under it changes.
+        var distanceFailed = false
         var isApproximate: Bool
         var meshResolution: Double?
         var isMeasuring: Bool
@@ -41,6 +44,8 @@ final class MeasureBook {
     /// loses a pick for one pass (a sketch closing) and finds it again does not measure it again.
     @ObservationIgnored private var settled: [UUID: (basis: Basis, distance: ShapeDistance)] = [:]
     @ObservationIgnored private var hints: [UUID: [Int]] = [:]
+    /// The basis each entry's distance failed for (the kernel threw), so it is not asked again while nothing under it changes.
+    @ObservationIgnored private var failed: [UUID: Basis] = [:]
 
     private struct Job {
         var id: UUID
@@ -77,6 +82,7 @@ final class MeasureBook {
     func remove(_ id: UUID) {
         document.measurements.removeAll { $0.id == id }
         settled[id] = nil
+        failed[id] = nil
         hints[id] = nil
         refreshFromLastScene()
     }
@@ -85,6 +91,7 @@ final class MeasureBook {
         guard !document.measurements.isEmpty else { return }
         document.measurements = []
         settled = [:]
+        failed = [:]
         hints = [:]
         refreshFromLastScene()
     }
@@ -125,6 +132,9 @@ final class MeasureBook {
                 let unchanged = measured[kept.id] == basis ? previous[kept.id] : nil
                 if let unchanged, !unchanged.isMeasuring {
                     entry.distance = unchanged.distance
+                    entry.distanceFailed = unchanged.distanceFailed
+                } else if unchanged == nil, failed[kept.id] == basis {
+                    entry.distanceFailed = true
                 } else if unchanged == nil, let again = settled[kept.id], again.basis == basis {
                     entry.distance = again.distance
                 } else if let a = resolved[0].element(in: scene.solids), let b = resolved[1].element(in: scene.solids) {
@@ -173,8 +183,10 @@ final class MeasureBook {
                 do {
                     let found = try await kernel.shortestDistance(between: job.first, and: job.second)
                     self?.landed(found, for: job, generation: generation)
+                } catch is CancellationError {
+                    return
                 } catch {
-                    // A task we cancelled has an older generation, so its result is dropped; any other failure reads as none.
+                    // Any other failure reads "Couldn't measure" until a pick or a solid under the pair changes.
                     self?.landed(nil, for: job, generation: generation)
                 }
             }
@@ -188,7 +200,13 @@ final class MeasureBook {
         guard generation == self.generation, measured[id] == job.basis,
               let index = entries.firstIndex(where: { $0.id == id }) else { return }
         entries[index].distance = found
-        if let found { settled[id] = (job.basis, found) }
+        entries[index].distanceFailed = found == nil
+        if let found {
+            settled[id] = (job.basis, found)
+            failed[id] = nil
+        } else {
+            failed[id] = job.basis
+        }
         entries[index].isMeasuring = false
         bump()
     }

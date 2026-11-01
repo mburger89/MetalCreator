@@ -13,7 +13,7 @@ struct MeasureBookTests {
     /// A box over `FakeKernel` with the two ends of a vertical edge named as a kept measurement's anchors: their distance is
     /// the box's height.
     @MainActor
-    private struct Fixture {
+    struct Fixture {
         let fixture: MeasureAppFixture
         let measurement: KeptMeasurement
 

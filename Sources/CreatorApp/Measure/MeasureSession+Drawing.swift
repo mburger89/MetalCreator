@@ -26,3 +26,8 @@ extension MeasureSession {
         return []
     }
 }
+
+extension MeasureSession {
+    /// The kernel refused the distance of the current picks; the panel says "Couldn't measure".
+    var distanceFailed: Bool { problem != nil }
+}

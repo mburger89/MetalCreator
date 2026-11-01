@@ -11,6 +11,7 @@ enum MeasurePanelText {
     static let keep = "Keep"
     static let clearAll = "Clear All"
     static let lost = "No longer found"
+    static let distanceFailed = "Couldn't measure"
 
     static let noValue = "No value"
     static let remove = "Remove Measurement"
@@ -18,7 +19,8 @@ enum MeasurePanelText {
     /// A kept measurement in one line: its distance, else the first reading in the panel's order; `lost` when its anchors don't resolve.
     static func keptSummary(_ entry: MeasureBook.Entry, units: DocumentUnits) -> String {
         guard entry.picks != nil else { return lost }
-        let rows = valueRows(readings: entry.readings, distance: entry.distance?.distance, isApproximate: entry.isApproximate,
+        let rows = valueRows(readings: entry.readings, distance: entry.distance?.distance,
+                             distanceFailed: entry.distanceFailed, isApproximate: entry.isApproximate,
                              meshResolution: entry.meshResolution, units: units)
         guard let first = rows.first else { return entry.isMeasuring ? measuring : noValue }
         return first.text
@@ -26,11 +28,14 @@ enum MeasurePanelText {
 
     /// `rows`, each value marked "≈" (with the mesh's resolution) when any pick behind it is approximate: the one rule for the
     /// current measurement and the kept ones.
-    static func valueRows(readings: [MeasureReading], distance: Double?, isApproximate: Bool, meshResolution: Double?,
-                          units: DocumentUnits) -> [(label: String, text: String)] {
-        rows(readings: readings, distance: distance, units: units).map { row in
+    /// A refused distance (`distanceFailed`) is the first row, reading "Couldn't measure".
+    static func valueRows(readings: [MeasureReading], distance: Double?, distanceFailed: Bool = false, isApproximate: Bool,
+                          meshResolution: Double?, units: DocumentUnits) -> [(label: String, text: String)] {
+        var all = rows(readings: readings, distance: distance, units: units).map { row in
             (row.label, isApproximate ? approximate(row.text, meshResolution: meshResolution, units: units) : row.text)
         }
+        if distanceFailed && distance == nil { all.insert((label(of: .distance), Self.distanceFailed), at: 0) }
+        return all
     }
 
     /// A number that came from a mesh or a polyline: "≈ 12.3 mm", with the mesh's resolution when known.
@@ -141,7 +146,8 @@ extension MeasurePanel {
     private func currentRows(_ session: MeasureSession, palette: Palette) -> some ElementGroup {
         let rows = MeasurePanelText.valueRows(
             readings: session.readings, distance: session.distance?.distance,
-            isApproximate: session.picks.contains(where: \.isApproximate), meshResolution: session.meshResolution, units: model.units)
+            distanceFailed: session.distanceFailed, isApproximate: session.picks.contains(where: \.isApproximate),
+            meshResolution: session.meshResolution, units: model.units)
         if session.picks.isEmpty {
             Text(MeasurePanelText.prompt)
                 .font(.callout)
