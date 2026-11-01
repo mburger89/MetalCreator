@@ -299,6 +299,8 @@ final class MeasureSession: ViewportTool {
     private func startDistance(_ first: MeasurePick, _ second: MeasurePick) {
         let generation = generation
         guard let a = first.element(in: solids), let b = second.element(in: solids) else { return }
+        distance = PolylineDistance.shortest(a, b)
+        guard distance == nil else { return }
         isMeasuring = true
         task = Task { [weak self, kernel] in
             do {
@@ -306,10 +308,8 @@ final class MeasureSession: ViewportTool {
                 self?.landed(found, generation: generation)
             } catch is CancellationError {
                 return
-            } catch let error as KernelError {
-                self?.refused(error.userMessage, generation: generation)
             } catch {
-                self?.refused(error.localizedDescription, generation: generation)
+                self?.refused((error as? KernelError)?.userMessage ?? error.localizedDescription, generation: generation)
             }
         }
     }

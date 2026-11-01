@@ -125,10 +125,10 @@ final class MeasureBook {
             bases[kept.id] = basis
             var entry = Entry(id: kept.id, picks: resolved,
                               readings: MeasureReadings.readings(for: resolved, topologies: topologies(of: resolved, in: scene)),
-                              distance: nil, isApproximate: resolved.contains(where: \.isApproximate),
+                              distance: Self.swiftDistance(resolved, in: scene), isApproximate: resolved.contains(where: \.isApproximate),
                               meshResolution: resolved.compactMap { MeasureResolver.meshResolution(of: $0, in: scene) }.max(),
                               isMeasuring: false)
-            if resolved.count == 2 {
+            if resolved.count == 2, entry.distance == nil {
                 let unchanged = measured[kept.id] == basis ? previous[kept.id] : nil
                 if let unchanged, !unchanged.isMeasuring {
                     entry.distance = unchanged.distance
@@ -157,6 +157,12 @@ final class MeasureBook {
             startDistances(pending)
         }
         bump()
+    }
+
+    /// Points and outlines are measured here, in Swift, at once: no kernel call and never a failure.
+    private static func swiftDistance(_ picks: [MeasurePick], in scene: MeasureScene) -> ShapeDistance? {
+        guard picks.count == 2, let a = picks[0].element(in: scene.solids), let b = picks[1].element(in: scene.solids) else { return nil }
+        return PolylineDistance.shortest(a, b)
     }
 
     /// Entries only (no scene yet): every measurement reads "no longer found" until the first evaluation.

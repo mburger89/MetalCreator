@@ -2,6 +2,7 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+import Synchronization
 import Testing
 @testable import CreatorApp
 @testable import CreatorViewport
@@ -48,6 +49,29 @@ struct MeasureSessionPickTests {
         guard case let .meshPoint(solid, at)? = session.picks.first else { Issue.record("not a mesh point"); return }
         #expect(solid == 0 && (at - expected).length < 1e-9)
         #expect(session.anchors == [.meshPoint(expected)])
+    }
+
+    @Test func twoMeshPointsMeasureWithoutTheKernel() async throws {
+        let kernel = FakeKernel()
+        let calls = Mutex(0)
+        await kernel.setMeasureHook { calls.withLock { $0 += 1 } }
+        let fixture = await MeasureAppFixture.open(kernel: kernel)
+        fixture.app.setMeasure(true)
+        let mesh = DisplayMesh(positions: [Vector3(-500, -500, 0), Vector3(500, -500, 0), Vector3(0, 500, 0)],
+                               normals: [.unitZ, .unitZ, .unitZ], indices: [0, 1, 2], triangleFaces: [FaceID(0)],
+                               edgePolylines: [:])
+        fixture.app.viewport.show([ViewportItem(solid: Solid(displaying: mesh))])
+        await fixture.app.viewport.waitForMeshes()
+        let session = try #require(fixture.app.measure)
+        session.sceneChanged(fixture.app.measureScene())
+        for point in [ScreenPoint(600, 400), ScreenPoint(800, 500)] {
+            #expect(session.clickedModel(.face(solid: 0, FaceID(0)), at: point, modifiers: [], projector: fixture.projector))
+        }
+        await session.waitForDistance()
+        let found = try #require(session.distance)
+        #expect(session.picks.count == 2 && found.distance > 0 && !session.isMeasuring)
+        #expect((found.from - found.to).length - found.distance < 1e-9)
+        #expect(calls.withLock { $0 } == 0, "points are measured in Swift")
     }
 
     @Test func hoverOverAMeshShowsNothing() async throws {

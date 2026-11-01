@@ -103,4 +103,26 @@ struct ShortestDistanceTests {
         expectWitnesses(found, 2)
     }
 }
+
+/// The Swift distances of points and outlines hold to OpenCascade's.
+struct PolylineDistanceAgreementTests {
+    @Test func agreesWithTheKernel() async throws {
+        let kernel = OCCTKernel()
+        let random = SeededRandom(seed: 20_261_031)
+        var draw = 0
+        func unit() -> Double { defer { draw += 1 }; return random.unit(at: draw) }
+        func point() -> Vector3 { Vector3(unit() * 40 - 20, unit() * 40 - 20, unit() * 40 - 20) }
+        func line() -> [Vector3] { (0..<(2 + Int(unit() * 4))).map { _ in point() } }
+        for _ in 0..<10 {
+            let a = MeasureElement.polyline(line()), b = MeasureElement.polyline(line())
+            let swift = try #require(PolylineDistance.shortest(a, b))
+            let occt = try await kernel.shortestDistance(between: a, and: b)
+            #expect(abs(swift.distance - occt.distance) < 1e-9)
+        }
+        let p = MeasureElement.point(point()), l = MeasureElement.polyline(line())
+        let swift = try #require(PolylineDistance.shortest(p, l))
+        let occt = try await kernel.shortestDistance(between: p, and: l)
+        #expect(abs(swift.distance - occt.distance) < 1e-9)
+    }
+}
 #endif

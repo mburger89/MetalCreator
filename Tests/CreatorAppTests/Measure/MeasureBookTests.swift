@@ -10,8 +10,7 @@ import Testing
 /// The kept measurements: view state that follows the model, off the undo stack, drawn with Measure on or off.
 @MainActor
 struct MeasureBookTests {
-    /// A box over `FakeKernel` with the two ends of a vertical edge named as a kept measurement's anchors: their distance is
-    /// the box's height.
+    /// A box over `FakeKernel` with a bottom and a top edge named as a kept measurement's anchors: their distance is the box's height.
     @MainActor
     struct Fixture {
         let fixture: MeasureAppFixture
@@ -26,14 +25,20 @@ struct MeasureBookTests {
         }
 
         static func heightOf(_ solid: Solid, in app: AppModel) throws -> KeptMeasurement {
-            let edge = try #require(solid.topology.edges.first { edge in
+            try heightOf(solid, index: 0, in: app.measureScene())
+        }
+
+        /// The bottom and the top edge along x on one side of a part: edges, so the kernel measures them (points are Swift's).
+        static func heightOf(_ solid: Solid, index: Int, in scene: MeasureScene) throws -> KeptMeasurement {
+            let along = solid.topology.edges.filter { edge in
                 guard case .line? = edge.curve, let direction = edge.direction else { return false }
-                return abs(abs(direction.z) - 1) < 1e-9
-            })
-            let ends = try #require(edge.curve?.ends)
-            let scene = app.measureScene()
-            let anchors = try [(CornerEnd.start, ends[0]), (.end, ends[1])].map { end, point in
-                try #require(MeasureResolver.anchor(for: .corner(solid: 0, edge.id, end, at: point), in: scene))
+                return abs(abs(direction.x) - 1) < 1e-9
+            }
+            func start(_ edge: EdgeInfo) -> Vector3 { edge.curve?.ends[0] ?? .zero }
+            let bottom = try #require(along.min { (start($0).z, start($0).y) < (start($1).z, start($1).y) })
+            let top = try #require(along.filter { abs(start($0).y - start(bottom).y) < 1e-9 }.max { start($0).z < start($1).z })
+            let anchors = try [bottom, top].map { edge in
+                try #require(MeasureResolver.anchor(for: .edge(solid: index, edge.id), in: scene))
             }
             return KeptMeasurement(anchors: anchors)
         }
@@ -231,16 +236,7 @@ struct MeasureBookTests {
             MeasureScene(solids: solids, pickable: solids.map { _ in true }, parts: [], plane: nil)
         }
         func height(of index: Int, in scene: MeasureScene) throws -> KeptMeasurement {
-            let solid = scene.solids[index]
-            let edge = try #require(solid.topology.edges.first { edge in
-                guard case .line? = edge.curve, let direction = edge.direction else { return false }
-                return abs(abs(direction.z) - 1) < 1e-9
-            })
-            let ends = try #require(edge.curve?.ends)
-            let anchors = try [(CornerEnd.start, ends[0]), (.end, ends[1])].map { end, point in
-                try #require(MeasureResolver.anchor(for: .corner(solid: index, edge.id, end, at: point), in: scene))
-            }
-            return KeptMeasurement(anchors: anchors)
+            try Fixture.heightOf(scene.solids[index], index: index, in: scene)
         }
         let sceneA = scene([try await part(xNode, 10), try await part(yNode, 7)])
         let sceneB = scene([try await part(xNode, 20), sceneA.solids[1]])
