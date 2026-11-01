@@ -27,9 +27,6 @@ final class MeasureSession: ViewportTool {
     private(set) var isMeasuring = false
     /// The kernel's refusal of the last distance, in its words.
     private(set) var problem: String?
-    /// Bumps on every change the scene must redraw.
-    private(set) var revision = 0
-
     /// The overlay (hover and picks) changed: the app shows it again.
     @ObservationIgnored var overlayChanged: (@MainActor () -> Void)?
     /// The picks, the readings or the distance changed: the app shows the dimensions again.
@@ -37,7 +34,7 @@ final class MeasureSession: ViewportTool {
     /// Takes a measurement the person leaves behind (a third click, `keepCurrent()`).
     @ObservationIgnored var keep: (@MainActor (KeptMeasurement) -> Void)?
 
-    @ObservationIgnored private weak var viewport: ViewportModel?
+    @ObservationIgnored weak var viewport: ViewportModel?
     @ObservationIgnored private let kernel: any Kernel
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
@@ -48,8 +45,10 @@ final class MeasureSession: ViewportTool {
     @ObservationIgnored private var scene: MeasureScene
     /// The solids the picks stand on, to tell an edit that rebuilt one from a scene change that left it alone.
     @ObservationIgnored private var pickedSolids: [ObjectIdentifier] = []
+    /// The full circles' centres of the pickable solids in `scene`, found once per scene.
+    @ObservationIgnored private var circleCentres: [CircleCentre]?
 
-    private var solids: [Solid] { scene.solids }
+    var solids: [Solid] { scene.solids }
 
     /// The mesh resolution behind the picks' approximate numbers in the latest scene, the coarsest of them; `nil` when no mesh made one.
     var meshResolution: Double? {
@@ -117,6 +116,7 @@ final class MeasureSession: ViewportTool {
     /// leaves the measurement lost until a later scene finds it.
     func sceneChanged(_ new: MeasureScene) {
         scene = new
+        circleCentres = nil
         lastTarget = viewport?.hovered
         if let hover, !scene.solids.indices.contains(hover.solidIndex) || identity(of: hover) != hoverSolid {
             self.hover = nil
@@ -142,7 +142,7 @@ final class MeasureSession: ViewportTool {
                       projector: ViewportProjector) -> Bool {
         // The section's outline wins over the model behind it.
         let pick: MeasurePick?
-        if let outline = sectionPick(at: point, projector: projector) {
+        if let outline = sectionPick(at: point, projector: projector) ?? centrePick(at: point, projector: projector) {
             pick = outline
         } else if let target {
             pick = clickedPick(target, at: point, projector: projector)
@@ -159,7 +159,7 @@ final class MeasureSession: ViewportTool {
             solidHints = found.map { solidHints[$0] }
         }
         // The same face on two parts is two picks: an anchor toggles off only on the part it was picked on.
-        if let index = anchors.indices.first(where: { anchors[$0] == anchor && solidHints[$0] == pick.solidIndex }) {
+        if let index = anchors.indices.first(where: { isSame(anchorAt: $0, as: anchor, pick: pick) }) {
             anchors.remove(at: index)
             solidHints.remove(at: index)
         } else if anchors.count >= 2 {
@@ -219,10 +219,33 @@ final class MeasureSession: ViewportTool {
         return .sectionEdge(solid: index, piece: piece, at: MeasureResolver.midpoint(of: piece))
     }
 
+    /// Whether the picked anchor at `index` is what `pick` (named by `anchor`) picks: the same anchor on the same part, or the
+    /// same point of the same part (one vertex reached through two edges is one pick).
+    private func isSame(anchorAt index: Int, as anchor: MeasureAnchor, pick: MeasurePick) -> Bool {
+        if anchors[index] == anchor, solidHints[index] == pick.solidIndex { return true }
+        guard case let .corner(solid, _, _, point) = pick, case .corner = anchors[index],
+              case let .corner(otherSolid, _, _, other)? = MeasureResolver.resolve(anchors[index], in: scene,
+                                                                                    preferring: solidHints[index])
+        else { return false }
+        return solid == otherSolid && (point - other).length < 1e-6
+    }
+
+    /// The centre of a full circle within reach of the pointer (`MeasureSnap.centre`), before any edge or face under it.
+    private func centrePick(at point: ScreenPoint, projector: ViewportProjector) -> MeasurePick? {
+        if circleCentres == nil {
+            circleCentres = scene.solids.indices.flatMap { index -> [CircleCentre] in
+                guard scene.pickable.indices.contains(index), scene.pickable[index],
+                      scene.solids[index].displayedMesh == nil else { return [] }
+                return MeasureSnap.circleCentres(of: scene.solids[index].topology, solid: index)
+            }
+        }
+        return MeasureSnap.centre(at: point, among: circleCentres ?? [], screenPoint: { projector.screenPoint(of: $0) })
+    }
+
     private func updateHover(at point: ScreenPoint?, projector: ViewportProjector) {
         var next: MeasurePick?
         if let point {
-            next = sectionPick(at: point, projector: projector)
+            next = sectionPick(at: point, projector: projector) ?? centrePick(at: point, projector: projector)
             if next == nil, let target = lastTarget { next = snapped(target, at: point, projector: projector) }
         }
         guard next != hover else { return }
@@ -302,7 +325,6 @@ final class MeasureSession: ViewportTool {
     }
 
     private func bumpOverlay() {
-        revision += 1
         overlayChanged?()
     }
 
@@ -310,29 +332,5 @@ final class MeasureSession: ViewportTool {
         var result: [Int: Topology] = [:]
         for pick in picks where solids.indices.contains(pick.solidIndex) { result[pick.solidIndex] = solids[pick.solidIndex].topology }
         return result
-    }
-
-    // MARK: - Drawing
-
-    private func add(_ pick: MeasurePick, tint: OverlayTint, to overlay: inout ViewportOverlay) {
-        switch pick {
-        case .face: break
-        case let .edge(solid, id):
-            let path = edgePath(solid, id)
-            for (a, b) in zip(path, path.dropFirst()) { overlay.lines.append(OverlayLine(a, b, tint: tint, width: 3)) }
-        case let .corner(_, _, _, point), let .meshPoint(_, point):
-            overlay.points.append(OverlayPoint(point, tint: tint, size: 10))
-        case let .sectionEdge(_, piece, _):
-            for (a, b) in zip(piece.polyline, piece.polyline.dropFirst()) { overlay.lines.append(OverlayLine(a, b, tint: tint, width: 3)) }
-        }
-    }
-
-    /// The polyline the viewport draws an edge along, else (a display mesh without one) the straight line between its ends.
-    private func edgePath(_ solidIndex: Int, _ id: EdgeID) -> [Vector3] {
-        guard solids.indices.contains(solidIndex) else { return [] }
-        let solid = solids[solidIndex]
-        if let line = viewport?.displayMesh(of: solid)?.edgePolylines[id], line.count >= 2 { return line }
-        if let ends = solid.topology.edge(id)?.curve?.ends, ends.count == 2 { return ends }
-        return []
     }
 }

@@ -47,7 +47,7 @@ extension AppModel {
     /// The overlay the viewport shows outside sketch mode: the selected layout's placements (nothing while picking), then Measure's.
     func showMeasureOverlay() {
         guard sketch == nil else { return }
-        var overlay = pick == nil ? layoutOverlay : ViewportOverlay()
+        var overlay = pick == nil ? layoutOverlayCache : ViewportOverlay()
         if let measured = measure?.overlay {
             overlay.lines += measured.lines
             overlay.points += measured.points

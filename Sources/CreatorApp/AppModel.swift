@@ -103,6 +103,9 @@ public final class AppModel {
     /// The scene the section last followed outside a pick session: during a pick (the scene is ghosted) the section's settings
     /// still apply to it, so its caps stay those of the real parts.
     @ObservationIgnored var sectionScene: SectionScene?
+    /// The selected layout node's placements, made by `refreshScene()` (the selection, the graph and the results it reads all
+    /// refresh the scene), so a hover over the model does not build them again.
+    @ObservationIgnored var layoutOverlayCache = ViewportOverlay()
     @ObservationIgnored var resizeStart: Double?
     @ObservationIgnored var observationGeneration = 0
     @ObservationIgnored var sceneTask: Task<Void, Never>?

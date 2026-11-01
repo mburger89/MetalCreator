@@ -12,13 +12,26 @@ enum MeasureDimensions {
             shapes.append((linear(from: distance.from, to: distance.to), DimensionReading(distance.distance, .length)))
         }
         if picks.count == 1 { shapes += single(picks[0], topologies) }
-        if picks.count == 2, let distance, let angle = readings.first(where: { $0.quantity == .angle }),
-           let geometry = angular(picks[0], picks[1], at: (distance.from + distance.to) * 0.5, topologies) {
+        // The angle is the geometry's, so it is drawn when the kernel refuses the distance: at the middle of the witness segment, else
+        // of the two picks' anchor points.
+        if picks.count == 2, let angle = readings.first(where: { $0.quantity == .angle }),
+           let vertex = distance.map({ ($0.from + $0.to) * 0.5 })
+            ?? anchorPoint(of: picks[0], topologies).flatMap({ a in anchorPoint(of: picks[1], topologies).map { (a + $0) * 0.5 } }),
+           let geometry = angular(picks[0], picks[1], at: vertex, topologies) {
             shapes.append((geometry, DimensionReading(angle.value, .angle)))
         }
         return shapes.enumerated().map { index, shape in
             OverlayDimension(id: OverlayDimensionID("measure/\(index)"), geometry: shape.0,
                              text: style.text(shape.1, units: units), tint: .dimensionReference)
+        }
+    }
+
+    /// Where a pick stands: an edge's midpoint, a face's centroid, a corner or a point itself, a section piece's pick point.
+    private static func anchorPoint(of pick: MeasurePick, _ topologies: [Int: Topology]) -> Vector3? {
+        switch pick {
+        case let .edge(solid, id): topologies[solid]?.edge(id)?.midpoint
+        case let .face(solid, id): topologies[solid]?.face(id)?.centroid
+        case let .corner(_, _, _, point), let .meshPoint(_, point), let .sectionEdge(_, _, point): point
         }
     }
 

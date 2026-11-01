@@ -75,3 +75,17 @@ struct MeasureDimensionsTests {
         #expect(perpendicular.allSatisfy { $0.id.rawValue.hasPrefix("measure/") })
     }
 }
+
+extension MeasureDimensionsTests {
+    @Test func anAngleIsDrawnWithoutADistance() {
+        let topology = MeasureFixtures.topology(faces: [
+            MeasureFixtures.face(0, normal: .unitZ, centroid: .zero),
+            MeasureFixtures.face(1, normal: .unitX, centroid: Vector3(4, 0, 2)),
+        ])
+        let made = make([.face(solid: 0, FaceID(0)), .face(solid: 0, FaceID(1))], topology)
+        let vertices = made.compactMap { dimension -> Vector3? in
+            if case let .angular(vertex, _, _, _, _) = dimension.geometry { vertex } else { nil }
+        }
+        #expect(vertices == [Vector3(2, 0, 1)], "the midpoint of the faces' centroids")
+    }
+}
