@@ -11,23 +11,58 @@ public enum FilletNode: NodeDefinition {
     public static let inputs = [
         SocketSpec("edges", .edgeSet),
         SocketSpec("radius", .number, defaultValue: .number(1), unit: .millimetres, range: 0.1...20),
+        SocketSpec("continuity", .integer, defaultValue: .integer(0), range: 0...1),
+        SocketSpec("tangency weight", .number, defaultValue: .number(1), range: 0.1...2),
     ]
+    /// The choices of `continuity`, in option order.
+    public static let continuityOptions = ["Tangent (G1)", "Curvature (G2)"]
     public static let outputs = [SocketSpec("solid", .solid)]
     public static let defaultSettings: [SocketName: ConstantValue] = [NodeSetting.showHandle: .bool(true)]
-    public static let inspector = [
-        InspectorSection(title: "Fillet", controls: [.slider("radius"), .toggle(NodeSetting.showHandle, label: "Show handle in view")]),
-        InspectorSection(title: "Edges", controls: [
-            .ruleSummary("edges"), .button(title: "Pick edges in view…", action: .pickEdgesInView),
-        ]),
-    ]
+    private static func sections(curvature: Bool) -> [InspectorSection] {
+        let fillet: [InspectorControl] = [.slider("radius"), .segmented("continuity", options: continuityOptions)]
+            + (curvature ? [.slider("tangency weight")] : [])
+            + [.toggle(NodeSetting.showHandle, label: "Show handle in view")]
+        return [
+            InspectorSection(title: "Fillet", controls: fillet),
+            InspectorSection(title: "Edges", controls: [
+                .ruleSummary("edges"), .button(title: "Pick edges in view…", action: .pickEdgesInView),
+            ]),
+        ]
+    }
+
+    /// Every control, for a reader that has no node.
+    public static let inspector = sections(curvature: true)
+
+    /// The tangency weight is shown for Curvature (G2) only.
+    public static func inspector(for node: Node) -> [InspectorSection] {
+        if case .integer(1)? = node.inputValues["continuity"] { return sections(curvature: true) }
+        return sections(curvature: false)
+    }
     public static let handles = [HandleSpec.radial("radius")]
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let set = try inputs.edgeSet("edges")
         let radius = try inputs.number("radius")
-        let solid = try await kernel.fillet(set.solid, edges: set.edges, radius: radius, tag: context.tag)
-        var outputs = NodeOutputs(["solid": .solid(solid)])
+        let profile: FilletProfile = try inputs.integer("continuity") == 1
+            ? .curvatureContinuous(weight: try inputs.number("tangency weight")) : .circular
+        let made = try await kernel.fillet(set.solid, edges: set.edges, radius: radius, profile: profile, tag: context.tag)
+        var outputs = NodeOutputs(["solid": .solid(made.solid)], warnings: warnings(for: made))
         outputs.dimensions = EdgeDimensions.fillet(set, radius: radius)
         return outputs
+    }
+
+    static func warnings(for made: FilletResult) -> [String] {
+        var warnings: [String] = []
+        if made.tangentOnlyCorners == 1 {
+            warnings.append("1 fillet corner is tangent only (G1).")
+        } else if made.tangentOnlyCorners > 1 {
+            warnings.append("\(made.tangentOnlyCorners.display) fillet corners are tangent only (G1).")
+        }
+        if made.tangentOnlyJoins == 1 {
+            warnings.append("1 fillet join is tangent only (G1) where the edges kink.")
+        } else if made.tangentOnlyJoins > 1 {
+            warnings.append("\(made.tangentOnlyJoins.display) fillet joins are tangent only (G1) where the edges kink.")
+        }
+        return warnings
     }
 }
