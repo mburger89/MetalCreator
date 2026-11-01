@@ -2290,3 +2290,18 @@ the Output selected so the part is shown.
 - [ ] **ME-A-12 Exclusive.** Measure is refused while sketching and during an Edges by Tag pick; starting a sketch, an Edges by Tag pick,
   D (the model dimension tool), New or Open ends a running Measure. **Observed:**
 - [ ] **ME-A-13 Linux and Windows.** The same on Linux and Windows (hover, snap, picks, drawn dimensions). **Observed:**
+
+## Group ME-B — Measure, keeping measurements (measure part B)
+
+- [ ] **ME-B-1 Section edges.** With a Section shown and Measure on, hover the cap's outline: the edge under the pointer is drawn in the hover colour; a click picks it. **Observed:**
+- [ ] **ME-B-2 Section arc.** Pick an arc of the cap's outline (a hole cut across): Radius and Diameter show and the view draws the diameter. **Observed:**
+- [ ] **ME-B-3 Wall thickness.** Pick a section edge, then a face of the same part: the distance reads the wall thickness. Change the wall's input in the inspector: the picks follow and the value updates. **Observed:**
+- [ ] **ME-B-4 Mesh points.** On a lattice or other mesh item, click the surface: a point is picked and every value reads "≈ … · mesh …". The same holds for any measurement with one approximate pick. **Observed:**
+- [ ] **ME-B-5 Keep.** The third click keeps the pair and starts a new measurement holding only that pick. The panel lists the kept measurement and the view draws it. **Observed:**
+- [ ] **ME-B-6 Keep button.** Keep is disabled with no picks and while a pick is lost; otherwise it keeps the current measurement. Keep a hole's diameter: it is listed and drawn. **Observed:**
+- [ ] **ME-B-7 Remove.** The row's × removes one kept measurement; Clear All removes every one. **Observed:**
+- [ ] **ME-B-8 Measure off.** Turn Measure off: kept measurements are still drawn and the panel still shows them. In sketch mode and during an Edges by Tag pick they are neither drawn nor listed; they return afterwards. **Observed:**
+- [ ] **ME-B-9 Save and Open.** Save, close and Open the file: the kept measurements come back after the first evaluation. New clears them. **Observed:**
+- [ ] **ME-B-10 Lost.** Delete the node of a measured part: the row greys and says "No longer found". Undo brings the values back. **Observed:**
+- [ ] **ME-B-11 No edit.** Keeping, removing and clearing add no undo step and do not mark the document edited. **Observed:**
+- [ ] **ME-B-12 Linux and Windows.** The same on Linux and Windows. **Observed:**
