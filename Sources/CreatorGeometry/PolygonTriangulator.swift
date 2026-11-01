@@ -1,0 +1,215 @@
+import Foundation
+
+/// Triangles for a polygon with holes (the sketch editor's region fill, the section's cap): each hole bridged into the
+/// outline by a segment to the nearest vertex it can see (a bridge touches no other
+/// vertex and runs along no edge, so a grid of aligned holes bridges cleanly), and the resulting weakly simple polygon
+/// ear-clipped after its flat and repeated vertices are dropped. Pure. Every triangle is counter-clockwise. Degenerate
+/// input (fewer than three points, or no area) gives none, and so does a region the clipper can't finish exactly: a
+/// hole that no bridge reaches, a polygon with no ear left, or triangles whose areas don't add up to the polygon's. A
+/// missing fill is the safe outcome; a fill drawn over a hole is not. The loops always end: each pass clips an ear or
+/// gives up.
+public enum PolygonTriangulator {
+    /// Areas and cross products below this (mm²) count as zero.
+    public static let epsilon = 1e-9
+
+    /// `outer` and `holes` in either winding. Three points per triangle, counter-clockwise; none when it cannot finish exactly.
+    public static func triangles(outer: [Vector2], holes: [[Vector2]]) -> [Vector2] {
+        guard outer.count >= 3 else { return [] }
+        var polygon = oriented(outer, counterClockwise: true)
+        var pending = holes.filter { $0.count >= 3 }.map { oriented($0, counterClockwise: false) }
+        pending.sort { rightmost($0).point.x > rightmost($1).point.x }
+        while !pending.isEmpty {
+            let hole = pending.removeFirst()
+            guard let merged = bridged(polygon, hole, others: pending) else { return [] }
+            polygon = merged
+        }
+        return earClip(polygon)
+    }
+
+    // MARK: - Geometry
+
+    static func cross(_ a: Vector2, _ b: Vector2) -> Double { a.x * b.y - a.y * b.x }
+
+    /// The loop's edges, each vertex to the next and the last back to the first, without copying the loop.
+    private static func wrappingEdges(_ loop: [Vector2]) -> some Sequence<(Vector2, Vector2)> {
+        let count = loop.count
+        return (0..<count).lazy.map { (loop[$0], loop[$0 + 1 == count ? 0 : $0 + 1]) }
+    }
+
+    /// Twice the polygon's signed area: positive for counter-clockwise.
+    public static func doubleArea(_ loop: [Vector2]) -> Double {
+        wrappingEdges(loop).reduce(0) { $0 + cross($1.0, $1.1) }
+    }
+
+    static func oriented(_ loop: [Vector2], counterClockwise: Bool) -> [Vector2] {
+        (doubleArea(loop) > 0) == counterClockwise ? loop : Array(loop.reversed())
+    }
+
+    static func rightmost(_ loop: [Vector2]) -> (index: Int, point: Vector2) {
+        var best = 0
+        for index in loop.indices where loop[index].x > loop[best].x { best = index }
+        return (best, loop[best])
+    }
+
+    /// Whether `p` is inside the polygon (even-odd).
+    public static func contains(_ loop: [Vector2], _ p: Vector2) -> Bool {
+        var inside = false
+        for (a, b) in wrappingEdges(loop) where (a.y > p.y) != (b.y > p.y) {
+            if p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x { inside.toggle() }
+        }
+        return inside
+    }
+
+    /// Whether the segments `a`–`b` and `c`–`d` cross at a point inside both (touching at an end doesn't count).
+    static func cross(_ a: Vector2, _ b: Vector2, _ c: Vector2, _ d: Vector2) -> Bool {
+        let d1 = cross(b - a, c - a)
+        let d2 = cross(b - a, d - a)
+        let d3 = cross(d - c, a - c)
+        let d4 = cross(d - c, b - c)
+        return ((d1 > epsilon && d2 < -epsilon) || (d1 < -epsilon && d2 > epsilon))
+            && ((d3 > epsilon && d4 < -epsilon) || (d3 < -epsilon && d4 > epsilon))
+    }
+
+    // MARK: - Bridging
+
+    /// Whether `p` lies in the open wedge at `polygon[index]` that is the polygon's inside (counter-clockwise polygon).
+    static func inCone(_ polygon: [Vector2], at index: Int, towards p: Vector2) -> Bool {
+        let count = polygon.count
+        let (before, v, after) = (polygon[(index + count - 1) % count], polygon[index], polygon[(index + 1) % count])
+        if cross(v - before, after - v) >= 0 {
+            return cross(after - v, p - v) > epsilon && cross(p - v, before - v) > epsilon
+        }
+        return !(cross(before - v, p - v) >= -epsilon && cross(p - v, after - v) >= -epsilon)
+    }
+
+    /// A loop with its bounding box, to skip a segment's test against a loop it cannot touch.
+    struct Box {
+        let loop: [Vector2]
+        let low: Vector2
+        let high: Vector2
+
+        init(of loop: [Vector2]) {
+            self.loop = loop
+            var (low, high) = (loop.first ?? Vector2(0, 0), loop.first ?? Vector2(0, 0))
+            for v in loop {
+                low = Vector2(min(low.x, v.x), min(low.y, v.y))
+                high = Vector2(max(high.x, v.x), max(high.y, v.y))
+            }
+            (self.low, self.high) = (low, high)
+        }
+
+        /// Whether the box, grown by `pad`, meets the box of the segment `from`–`to`.
+        func meets(_ from: Vector2, _ to: Vector2, pad: Double) -> Bool {
+            max(from.x, to.x) >= low.x - pad && min(from.x, to.x) <= high.x + pad
+                && max(from.y, to.y) >= low.y - pad && min(from.y, to.y) <= high.y + pad
+        }
+    }
+
+    /// Whether the segment `from`–`to` touches no loop except at its ends: it crosses no edge, passes through no vertex
+    /// and so runs along no edge.
+    static func isClear(_ from: Vector2, _ to: Vector2, loops: [Box]) -> Bool {
+        let direction = to - from
+        let length = direction.length
+        // The vertex test below accepts a vertex within epsilon * max(1, length) / length of the line.
+        let pad = epsilon * max(1, 1 / length) + epsilon
+        for box in loops where box.meets(from, to, pad: pad) {
+            let loop = box.loop
+            for (c, d) in wrappingEdges(loop) where cross(from, to, c, d) { return false }
+            for v in loop where (v - from).length > epsilon && (v - to).length > epsilon {
+                let offset = v - from
+                let along = (offset.x * direction.x + offset.y * direction.y) / (length * length)
+                if abs(cross(direction, offset)) <= epsilon * max(1, length), along > 0, along < 1 { return false }
+            }
+        }
+        return true
+    }
+
+    /// `polygon` with `hole` joined in by a bridge: from the hole's rightmost vertex (then its others, if none works) to
+    /// the nearest polygon vertex it sees (the segment is clear, leaves that vertex into the polygon's inside and runs
+    /// outside the holes), or `nil` when no vertex of the hole sees one. The bridge appears twice in the result.
+    static func bridged(_ polygon: [Vector2], _ hole: [Vector2], others: [[Vector2]]) -> [Vector2]? {
+        let loops = ([polygon, hole] + others).map { Box(of: $0) }
+        for start in hole.indices.sorted(by: { hole[$0].x > hole[$1].x }) {
+            let from = hole[start]
+            // Nearest first, taking the minimum of those left each time (the first usually works); ties go to the lower index.
+            var candidates = polygon.indices.map { (distance: (polygon[$0] - from).lengthSquared, index: $0) }
+            while !candidates.isEmpty {
+                var best = candidates.count - 1
+                for slot in candidates.indices.reversed() where candidates[slot] <= candidates[best] { best = slot }
+                let index = candidates.remove(at: best).index
+                let to = polygon[index]
+                let middle = (from + to) * 0.5
+                guard (to - from).lengthSquared > epsilon * epsilon, inCone(polygon, at: index, towards: from),
+                      isClear(from, to, loops: loops), contains(polygon, middle), !contains(hole, middle),
+                      !others.contains(where: { contains($0, middle) })
+                else { continue }
+                let turned = Array(hole[start...] + hole[..<start])
+                return Array(polygon[...index]) + turned + [from, to] + Array(polygon[(index + 1)...])
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Ear clipping
+
+    /// `points` without a vertex that repeats the next one or lies on the line through its neighbours, until none is left
+    /// (fewer than three left: none).
+    static func withoutFlatVertices(_ points: [Vector2]) -> [Vector2] {
+        var ring = points
+        var changed = true
+        while changed, ring.count >= 3 {
+            changed = false
+            var index = 0
+            while index < ring.count, ring.count >= 3 {
+                let count = ring.count
+                let (a, b, c) = (ring[(index + count - 1) % count], ring[index], ring[(index + 1) % count])
+                if (b - c).length <= epsilon || abs(cross(b - a, c - b)) <= epsilon {
+                    ring.remove(at: index)
+                    changed = true
+                } else {
+                    index += 1
+                }
+            }
+        }
+        return ring.count >= 3 ? ring : []
+    }
+
+    /// The polygon's triangles, counter-clockwise, or none when they don't cover exactly its area. A vertex coinciding
+    /// with a corner of the ear is a bridge's twin and doesn't block it; so doesn't a convex one touching the ear's edge
+    /// (where the two sides of a bridge lie along each other); a reflex or flat one in or on the ear does.
+    static func earClip(_ polygon: [Vector2]) -> [Vector2] {
+        var ring = withoutFlatVertices(polygon)
+        var triangles: [Vector2] = []
+        while ring.count > 3 {
+            guard let position = ring.indices.first(where: { isEar(ring, at: $0) }) else { return [] }
+            let count = ring.count
+            triangles += [ring[(position + count - 1) % count], ring[position], ring[(position + 1) % count]]
+            ring.remove(at: position)
+        }
+        if ring.count == 3, cross(ring[1] - ring[0], ring[2] - ring[1]) > epsilon { triangles += ring }
+        let covered = stride(from: 0, to: triangles.count, by: 3).reduce(0.0) {
+            $0 + cross(triangles[$1 + 1] - triangles[$1], triangles[$1 + 2] - triangles[$1 + 1])
+        }
+        let whole = doubleArea(polygon)
+        return abs(covered - whole) <= 1e-6 * max(1, abs(whole)) ? triangles : []
+    }
+
+    private static func isEar(_ ring: [Vector2], at position: Int) -> Bool {
+        let count = ring.count
+        let (before, after) = ((position + count - 1) % count, (position + 1) % count)
+        let (a, b, c) = (ring[before], ring[position], ring[after])
+        guard cross(b - a, c - b) > epsilon else { return false }
+        for other in ring.indices where other != before && other != position && other != after {
+            let p = ring[other]
+            if p == a || p == b || p == c { continue }
+            let inside = cross(b - a, p - a) >= -epsilon && cross(c - b, p - b) >= -epsilon && cross(a - c, p - c) >= -epsilon
+            if inside, cross(p - ring[(other + count - 1) % count], ring[(other + 1) % count] - p) <= epsilon { return false }
+        }
+        return true
+    }
+}
+
+private extension Vector2 {
+    /// The square of the length, which the bridge search compares instead of taking roots.
+    var lengthSquared: Double { x * x + y * y }
+}

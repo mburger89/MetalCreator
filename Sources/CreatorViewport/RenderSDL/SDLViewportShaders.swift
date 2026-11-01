@@ -24,7 +24,12 @@ enum SDLViewportShaders {
     }
 
     /// Every shader the viewport builds a pipeline from; each has a vertex stage and a fragment stage of the same name.
-    static let names = ["background", "fill", "mesh", "field_mesh", "line", "grid", "cube", "slice", "id_mesh", "id_line"]
+    static let names = ["background", "fill", "mesh", "field_mesh", "line", "grid", "cube", "slice", "section",
+        "id_mesh", "id_line",
+    ]
+
+    /// The fragment stages that have no vertex stage of their own: `id_section` draws the cap through `section`'s vertex stage.
+    static let fragmentOnly = ["id_section"]
 
     /// The driver whose blobs this platform's SDL picks: Direct3D 12 (DXIL) on Windows, Vulkan (SPIR-V) elsewhere.
     static var platformDriver: String {
@@ -43,7 +48,8 @@ enum SDLViewportShaders {
             _ = try library.vertex(name, driver: driver)
             _ = try library.fragment(name, driver: driver)
         }
-        return names.count * 2
+        for name in fragmentOnly { _ = try library.fragment(name, driver: driver) }
+        return names.count * 2 + fragmentOnly.count
     }
 }
 #endif

@@ -26,7 +26,8 @@ enum OCCTTagger {
         }
         let faces = raw.faces.enumerated().map { index, face in
             FaceInfo(id: FaceID(index), kind: face.kind, normal: face.normal, area: face.area, centroid: face.centroid,
-                     tags: tags[index].flatMap { $0.isEmpty ? nil : $0 } ?? [TopoTag(tag, .unnamed(face: index))])
+                     tags: tags[index].flatMap { $0.isEmpty ? nil : $0 } ?? [TopoTag(tag, .unnamed(face: index))],
+                     radius: face.radius, axisPoint: face.axisPoint)
         }
         let edges = raw.edges.enumerated().map { index, edge in
             EdgeInfo(id: EdgeID(index), kind: edge.kind, direction: edge.direction, length: edge.length,

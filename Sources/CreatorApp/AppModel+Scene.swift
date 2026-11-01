@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorGraph
 import CreatorImplicit
 import CreatorKernel
@@ -76,17 +77,39 @@ extension AppModel {
             viewport.show(items)
         }
         // The sketch editor draws its own overlay while a sketch is open; otherwise a selected layout node shows its placements.
-        if sketch == nil { viewport.showOverlay(pick == nil ? layoutOverlay : ViewportOverlay()) }
+        layoutOverlayCache = pick == nil ? layoutOverlay : ViewportOverlay()
+        showMeasureOverlay()
         viewport.showSlice(fieldPreview.viewportSlice(colors: themes.current.colors))
-        cutView.follow(bounds: viewport.sceneBounds)
-        viewport.showClip(cutView.clip)
+        followSection()
+        // Measure resolves its anchors against the items and the section's pieces as they stand after this refresh.
+        let measured = measureScene()
+        measure?.sceneChanged(measured)
+        // Kept measurements are not drawn while sketching or picking, so they are not measured again then; leaving refreshes.
+        // The dimensions are shown once, below.
+        if sketch == nil, pick == nil { measureBook.refresh(measured, notifying: false) }
         let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
             : []
         handleTargets = Dictionary(handles.map { ($0.handle.id, $0.target) }, uniquingKeysWith: { first, _ in first })
-        let shownHandles = handles.map(\.handle) + (fieldPreview.sliceHandle.map { [$0] } ?? []) + (cutView.handle.map { [$0] } ?? [])
+        let shownHandles = handles.map(\.handle) + (fieldPreview.sliceHandle.map { [$0] } ?? [])
+            + (section.shown?.handle.map { [$0] } ?? [])
         if viewport.handles != shownHandles { viewport.showHandles(shownHandles) }
         refreshDimensions()
+    }
+
+    /// Applies the section to the scene. A pick session ghosts the scene, which must not change the section or its caps: its
+    /// settings still apply, to the scene it last followed.
+    private func followSection() {
+        if pick == nil {
+            sectionScene = SectionScene(items: viewport.items, bounds: viewport.sceneBounds, tolerance: viewport.displayTolerance,
+                                        isFinalPreview: previewMode == .final)
+        }
+        guard let scene = sectionScene else { return }
+        section.update(document.section, items: scene.items, bounds: scene.bounds, hidden: sketch != nil,
+                       isFinalPreview: scene.isFinalPreview, nodeName: { [unowned self] in producingNode($0)?.name })
+        viewport.showClip(section.shown?.clip)
+        sectionCaps.follow(clip: section.shown?.clip, items: scene.items, tolerance: scene.tolerance)
+        viewport.showSection(sectionCaps.section)
     }
 
     /// The scene for the preview mode: Final shows every Output node of the whole part, whichever level the graph
@@ -144,8 +167,13 @@ extension AppModel {
             _ = editor.enteredGroups
             _ = document.previewNode
             _ = fieldPreview.revision
-            _ = cutView.revision
+            _ = document.section
+            // The section resolves a face against the items once they land, so its bounds matter only while it is on.
+            if document.section?.isOn == true { _ = viewport.sceneBounds }
             _ = meshRefinement.revision
+            _ = sectionCaps.revision
+            // Measure compares the solids that landed with the ones its picks name, once they land.
+            if measure != nil || !document.measurements.isEmpty { _ = viewport.items }
             _ = editor.selection
             _ = editor.dock
             _ = previewMode
@@ -165,4 +193,12 @@ extension AppModel {
         guard generation == observationGeneration, sceneTask == nil else { return }
         sceneTask = Task { [weak self] in self?.sceneInputsChanged() }
     }
+}
+
+/// What the section follows: the shown parts, their bounds and the viewport's tessellation tolerance.
+struct SectionScene {
+    var items: [ViewportItem]
+    var bounds: BoundingBox?
+    var tolerance: Double
+    var isFinalPreview: Bool
 }

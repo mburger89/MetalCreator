@@ -13,7 +13,7 @@ final class MeshSolids: Sendable {
     func solid(for mesh: TriangleMesh) -> Solid {
         solids.withLock { solids in
             if let known = solids[mesh.id] { return known }
-            let made = Solid(displaying: mesh.displayMesh)
+            let made = Solid(displaying: mesh.displayMesh, resolution: mesh.resolution > 0 ? mesh.resolution : nil)
             solids[mesh.id] = made
             return made
         }

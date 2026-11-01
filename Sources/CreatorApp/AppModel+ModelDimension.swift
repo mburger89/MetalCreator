@@ -14,6 +14,7 @@ extension AppModel {
     public func beginModelDimension(from target: PickTarget? = nil) -> Bool {
         guard sketch == nil, pick == nil else { return false }
         guard modelDimension == nil else { return true }
+        endMeasure()
         editor.commitPendingEntry()
         // The banner's Escape is a button shortcut, which runs before the palette's keys in `onInput`.
         editor.closePalette()

@@ -47,6 +47,13 @@ struct SDLFramePlan {
         var ramp: FieldRampUniforms
     }
 
+    /// A section cap: its triangle corners, how many, and its draw settings.
+    struct Cap {
+        var vertices: SDLGPUBuffer
+        var count: Int
+        var uniforms: SectionUniforms
+    }
+
     /// The axis triad's lines.
     struct Triad {
         var lines: Lines
@@ -56,6 +63,9 @@ struct SDLFramePlan {
     var opaque: [Solid] = []
     var ghosts: [Solid] = []
     var edges: [Lines] = []
+    var caps: [Cap] = []
+    /// The section's cap outlines, clipped by the current clip moved by the edge bias (ruling 6).
+    var outlines: Lines?
     var guides: [Lines] = []
     /// A guide's faded edges, drawn only where the part hides them.
     var hiddenGuides: [Lines] = []

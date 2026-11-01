@@ -30,8 +30,11 @@ public final class AppModel {
     private(set) var fieldPreview: FieldPreviewModel
     /// The progressive preview of meshes (implicit spec §4.3): finer passes for the meshes on screen, and the "Preview 0.4 mm" badge.
     let meshRefinement: MeshRefinementModel
-    /// The cut view (implicit spec §5.1): a plane that cuts the scene open. View state, never saved; off in a new document.
-    let cutView = CutViewModel()
+    /// The section view (section spec §3): a plane that cuts the scene open.
+    /// Its settings are `document.section`, saved in the file's view state; this holds what is shown.
+    let section = SectionModel()
+    /// The cut face of the section, computed off the main actor (section spec §3.4). Not document state.
+    let sectionCaps: SectionCapModel
     /// The solids that display the meshes of the scene, one per mesh.
     @ObservationIgnored let meshSolids = MeshSolids()
     /// The engine implicit solids run on: Metal in the app, the CPU in tests.
@@ -42,7 +45,14 @@ public final class AppModel {
     var savedContent: GraphContent
     public var previewMode: PreviewMode = .final
     /// "Pick edges in view…" in progress.
-    public internal(set) var pick: PickSession?
+    public internal(set) var pick: PickSession? {
+        // A pick session takes the viewport's clicks, so Measure ends as it starts.
+        didSet { if pick != nil { endMeasure() } }
+    }
+    /// The Measure tool in progress, or `nil`. It is the viewport's tool while it runs.
+    var measure: MeasureSession?
+    /// The measurements the person kept (`document.measurements`), followed through every evaluation. Replaced with the document.
+    private(set) var measureBook: MeasureBook
     /// The model dimension tool in progress (dimensions spec §3.5), or `nil`.
     public internal(set) var modelDimension: ModelDimensionSession?
     /// The driving dimension the tool just added, shown (not pinned) while its value box is open (`refreshDimensions()`).
@@ -90,6 +100,12 @@ public final class AppModel {
     @ObservationIgnored var sources: [ObjectIdentifier: Endpoint] = [:]
     /// The scene last sent to the current viewport (`refreshScene()`); emptied when the parts are replaced.
     @ObservationIgnored var requestedScene: [ViewportItem] = []
+    /// The scene the section last followed outside a pick session: during a pick (the scene is ghosted) the section's settings
+    /// still apply to it, so its caps stay those of the real parts.
+    @ObservationIgnored var sectionScene: SectionScene?
+    /// The selected layout node's placements, made by `refreshScene()` (the selection, the graph and the results it reads all
+    /// refresh the scene), so a hover over the model does not build them again.
+    @ObservationIgnored var layoutOverlayCache = ViewportOverlay()
     @ObservationIgnored var resizeStart: Double?
     @ObservationIgnored var observationGeneration = 0
     @ObservationIgnored var sceneTask: Task<Void, Never>?
@@ -109,11 +125,13 @@ public final class AppModel {
         self.implicitEngine = implicitEngine
         meshRefinement = MeshRefinementModel(engine: implicitEngine)
         let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: fileURL, implicitEngine: implicitEngine)
+        sectionCaps = SectionCapModel(kernel: kernel, tolerance: parts.viewport.displayTolerance)
         document = parts.document
         editor = parts.editor
         graphInput = parts.input
         viewport = parts.viewport
         fieldPreview = Self.makeFieldPreview(kernel: kernel, parts: parts)
+        measureBook = MeasureBook(kernel: kernel, document: parts.document)
         self.fileURL = fileURL
         savedContent = GraphContent(graph: file.graph, definitions: file.definitions)
         connectParts()
@@ -132,19 +150,24 @@ public final class AppModel {
         meshRefinement.reset()
         pick = nil
         endModelDimension()
+        endMeasure()
+        measureBook.stop()
         sketch?.stop()
         sketch = nil
         previewMode = .final
-        cutView.turnOff()
+        section.reset()
+        sectionCaps.reset()
         fieldPreview.stop()
         document = parts.document
         editor = parts.editor
         graphInput = parts.input
         viewport = parts.viewport
         fieldPreview = Self.makeFieldPreview(kernel: kernel, parts: parts)
+        measureBook = MeasureBook(kernel: kernel, document: parts.document)
         fileURL = url
         savedContent = GraphContent(graph: file.graph, definitions: file.definitions)
         requestedScene = []
+        sectionScene = nil
         connectParts()
     }
 
@@ -153,6 +176,7 @@ public final class AppModel {
         dimensionRouter.app = self
         viewport.dimensionEditor = dimensionRouter
         connectViewportEvents()
+        measureBook.changed = { [weak self] in self?.refreshDimensions() }
         sceneInputsChanged()
     }
 
@@ -162,7 +186,12 @@ public final class AppModel {
             await document.waitForEvaluation()
             if let sceneTask { await sceneTask.value }
             await fieldPreview.waitForSampling()
-        } while document.isEvaluating || sceneTask != nil || fieldPreview.isSampling
-        await viewport.waitForMeshes()
+            await sectionCaps.waitForCaps()
+            await measure?.waitForDistance()
+            await measureBook.waitForDistances()
+            // The meshes landing shows the scene again, which measures the kept distances again: go round once more for that.
+            await viewport.waitForMeshes()
+        } while document.isEvaluating || sceneTask != nil || fieldPreview.isSampling || sectionCaps.isComputing
+            || measureBook.entries.contains(where: \.isMeasuring)
     }
 }

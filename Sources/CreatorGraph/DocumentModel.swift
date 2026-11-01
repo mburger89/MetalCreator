@@ -42,23 +42,12 @@ public final class DocumentModel {
         didSet { if let homeCamera, !homeCamera.isFinite { self.homeCamera = oldValue } }
     }
     public var showsLibrary: Bool
-
-    /// All of the editor state as the file's `ViewState`. Reading it reads every piece; to observe one, read the piece.
-    /// Writing it sets only the pieces that differ, so a write that changes one field invalidates only that field's readers.
-    public var viewState: ViewState {
-        get {
-            ViewState(dock: dock, canvasOffset: canvasOffset, canvasZoom: canvasZoom, camera: camera, homeCamera: homeCamera,
-                      showsLibrary: showsLibrary)
-        }
-        set {
-            if dock != newValue.dock { dock = newValue.dock }
-            if canvasOffset != newValue.canvasOffset { canvasOffset = newValue.canvasOffset }
-            if canvasZoom != newValue.canvasZoom { canvasZoom = newValue.canvasZoom }
-            if camera != newValue.camera { camera = newValue.camera }
-            if homeCamera != newValue.homeCamera { homeCamera = newValue.homeCamera }
-            if showsLibrary != newValue.showsLibrary { showsLibrary = newValue.showsLibrary }
-        }
+    /// The section view's settings; view state, so changing them is no edit. Settings with a non-finite offset are refused.
+    public var section: SectionSettings? {
+        didSet { if let section, !section.offset.isFinite { self.section = oldValue } }
     }
+    /// The measurements the person kept; view state, so changing them is no edit.
+    public var measurements: [KeptMeasurement] = []
 
     /// The document's embedded images by hash (fields spec §5): everything embedded or pasted this session plus what the file
     /// held. An image stays here while the session lasts, so undo can bring back a node that uses it; a save writes only the
@@ -121,6 +110,8 @@ public final class DocumentModel {
         camera = file.viewState.camera
         homeCamera = file.viewState.homeCamera
         showsLibrary = file.viewState.showsLibrary
+        section = file.viewState.section
+        measurements = file.viewState.measurements
         self.baseRegistry = registry
         self.evaluator = Evaluator(registry: registry, kernel: kernel, cacheBudgetBytes: cacheBudgetBytes,
                                   implicitEngine: implicitEngine)
@@ -349,5 +340,26 @@ public final class DocumentModel {
             }
         }
         isEvaluating = false
+    }
+}
+
+extension DocumentModel {
+    /// All of the editor state as the file's `ViewState`. Reading it reads every piece; to observe one, read the piece.
+    /// Writing it sets only the pieces that differ, so a write that changes one field invalidates only that field's readers.
+    public var viewState: ViewState {
+        get {
+            ViewState(dock: dock, canvasOffset: canvasOffset, canvasZoom: canvasZoom, camera: camera, homeCamera: homeCamera,
+                      showsLibrary: showsLibrary, section: section, measurements: measurements)
+        }
+        set {
+            if dock != newValue.dock { dock = newValue.dock }
+            if canvasOffset != newValue.canvasOffset { canvasOffset = newValue.canvasOffset }
+            if canvasZoom != newValue.canvasZoom { canvasZoom = newValue.canvasZoom }
+            if camera != newValue.camera { camera = newValue.camera }
+            if homeCamera != newValue.homeCamera { homeCamera = newValue.homeCamera }
+            if showsLibrary != newValue.showsLibrary { showsLibrary = newValue.showsLibrary }
+            if section != newValue.section { section = newValue.section }
+            if measurements != newValue.measurements { measurements = newValue.measurements }
+        }
     }
 }

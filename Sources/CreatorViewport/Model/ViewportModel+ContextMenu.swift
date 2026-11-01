@@ -26,11 +26,18 @@ extension ViewportModel {
         let pressed = pick?(point)
         guard !isPlanar, let ref = faceRef(for: pressed),
               let face = items[ref.solidIndex].solid.topology.face(ref.face) else { return [] }
-        guard tool == nil else { return [.lookAt(ref)] }
+        if let tool {
+            // A tool leaves Look At, and Section from Face on a flat face when it asks for it.
+            let flat = face.kind == .plane && face.normal != nil && !items[ref.solidIndex].isGhost
+            return tool.offersSectionFromFace && flat ? [.lookAt(ref), .sectionFromFace(ref)] : [.lookAt(ref)]
+        }
         var menu: [ViewportMenuItem] = [.lookAt(ref), .selectEdgesOfFace(ref)]
         if let target = pressed { menu.append(.dimension(target)) }
-        // Plane from Face, Face Pattern and Field Scatter take a flat face with a normal; another face would only make an error.
-        if face.kind == .plane, face.normal != nil { menu += [.newSketchOnFace(ref), .patternOnFace(ref), .scatterOnFace(ref)] }
+        // Plane from Face, Face Pattern, Field Scatter and Section take a flat face with a normal; another face would only make an error.
+        if face.kind == .plane, face.normal != nil {
+            menu += [.newSketchOnFace(ref), .patternOnFace(ref), .scatterOnFace(ref)]
+            if !items[ref.solidIndex].isGhost { menu.append(.sectionFromFace(ref)) }
+        }
         let nodes = MeshQueries.producingNodes(of: face)
         for node in nodes {
             let title = nodes.count == 1
@@ -57,19 +64,21 @@ extension ViewportModel {
             events.dimension(target)
         case .showProducingNode(let node, _):
             events.showProducingNode(node)
-        case .newSketchOnFace(let ref), .patternOnFace(let ref), .scatterOnFace(let ref):
+        case .newSketchOnFace(let ref), .patternOnFace(let ref), .scatterOnFace(let ref), .sectionFromFace(let ref):
             chooseOnFace(item, ref)
         }
     }
 
-    /// New Sketch, Pattern or Scatter on the flat face `ref`, with the pick of that face.
+    /// New Sketch, Pattern, Scatter or Section on the flat face `ref`, with the pick of that face.
     private func chooseOnFace(_ item: ViewportMenuItem, _ ref: ViewportFaceRef) {
         guard items.indices.contains(ref.solidIndex),
               let pick = items[ref.solidIndex].solid.topology.facePick(for: ref.face) else { return }
+        if case .sectionFromFace = item, items[ref.solidIndex].isGhost { return }
         switch item {
         case .newSketchOnFace: events.newSketchOnFace(ref, pick)
         case .patternOnFace: events.patternOnFace(ref, pick)
         case .scatterOnFace: events.scatterOnFace(ref, pick)
+        case .sectionFromFace: events.sectionFromFace(ref, pick)
         default: break
         }
     }

@@ -23,4 +23,6 @@ public struct ViewportRenderKey: Hashable, Sendable {
     var slice: ViewportSlice?
     /// The cut view's plane: moving or flipping it redraws.
     var clip: ViewportClip?
+    /// The section's cap: a new generation redraws.
+    var section: ViewportSection?
 }

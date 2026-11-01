@@ -22,6 +22,9 @@ enum GPUGeometry {
         return vertices
     }
 
+    /// A B-rep edge's width in points (the section's outlines are drawn as wide).
+    static let edgeWidth: Float = 1.25
+
     /// One instance per polyline segment, in edge-ID order. Selected edges are in the selection colour (pink in
     /// Dracula) and twice as wide (spec §6.3). With `selectedOnly`, only selected edges are kept ("Shaded" mode
     /// still shows the rule's edges).
@@ -35,7 +38,7 @@ enum GPUGeometry {
             guard isSelected || !selectedOnly, let points = polylines[edge], points.count >= 2 else { continue }
             let id = PickID.encode(.edge(solid: solid, edge)) ?? 0
             let color = isSelected ? selectionColor : palette.edge
-            let width = (isSelected ? 2.5 : 1.25) * scale
+            let width = (isSelected ? 2.5 : edgeWidth) * scale
             for (a, b) in zip(points, points.dropFirst()) {
                 instances.append(LineInstance(a: float3(a), b: float3(b), color: color, width: width, id: id))
             }

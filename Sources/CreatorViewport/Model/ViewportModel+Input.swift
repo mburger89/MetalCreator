@@ -198,6 +198,15 @@ extension ViewportModel {
         return MeshRaycast.nearest(ray, in: meshes)?.point ?? sceneBounds?.center
     }
 
+    /// Where the ray through `point` first meets the display mesh of the item at `solidIndex`, or `nil` for a ray that misses it,
+    /// an item without a mesh yet, a guide, a point outside a sized view, or a hit on the side the section cuts away.
+    public func surfacePoint(at point: ScreenPoint, solidIndex: Int) -> Vector3? {
+        guard !viewSize.isEmpty, point.x.isFinite, point.y.isFinite, items.indices.contains(solidIndex),
+              !items[solidIndex].isGuide, let mesh = cache.mesh(for: items[solidIndex].solid)?.mesh else { return nil }
+        let ray = CameraMath.ray(through: point, pose, size: viewSize)
+        return MeshRaycast.nearest(ray, in: [(solidIndex: solidIndex, mesh: mesh)], skipping: clip)?.point
+    }
+
     func updateHandle(_ id: String, _ state: DragState, to point: ScreenPoint, phase: HandleDragPhase) {
         guard let index = handles.firstIndex(where: { $0.id == id }) else { return }
         let value = HandleMath.value(for: handles[index], startValue: state.handleStartValue, from: state.start,

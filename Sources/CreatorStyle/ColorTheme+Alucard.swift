@@ -21,6 +21,7 @@ extension ColorTheme {
         sketchConflicting: HexColor(0xcb3a2a), sketchConstruction: HexColor(0x6c664b),
         sketchProjected: HexColor(0x644ac9),
         fieldLow: HexColor(0x036a96), fieldMid: HexColor(0x846e15), fieldHigh: HexColor(0xcb3a2a),
-        dimensionDriving: HexColor(0x036a96), dimensionReference: HexColor(0x6c664b)
+        dimensionDriving: HexColor(0x036a96), dimensionReference: HexColor(0x6c664b),
+        sectionFill: HexColor(0x644ac9), sectionHatch: HexColor(0xfffbeb), sectionEdge: HexColor(0x1f1f1f)
     ))
 }

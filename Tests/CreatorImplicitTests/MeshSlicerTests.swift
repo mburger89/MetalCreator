@@ -1,0 +1,229 @@
+import CreatorGeometry
+import CreatorKernel
+import Foundation
+import Testing
+@testable import CreatorImplicit
+
+/// The plane section of a triangle mesh (section analysis part B): regions with holes, islands, open outlines.
+struct MeshSlicerTests {
+    /// A closed box from `low` to `high`, twelve outward-facing triangles.
+    func box(_ low: Vector3, _ high: Vector3, inward: Bool = false) -> (positions: [Vector3], indices: [UInt32]) {
+        let positions = [
+            Vector3(low.x, low.y, low.z), Vector3(high.x, low.y, low.z), Vector3(high.x, high.y, low.z), Vector3(low.x, high.y, low.z),
+            Vector3(low.x, low.y, high.z), Vector3(high.x, low.y, high.z), Vector3(high.x, high.y, high.z), Vector3(low.x, high.y, high.z),
+        ]
+        let outward: [UInt32] = [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 1, 5, 0, 5, 4, 1, 2, 6, 1, 6, 5, 2, 3, 7, 2, 7, 6, 3, 0, 4, 3, 4, 7]
+        guard inward else { return (positions, outward) }
+        return (positions, stride(from: 0, to: outward.count, by: 3).flatMap { [outward[$0], outward[$0 + 2], outward[$0 + 1]] })
+    }
+
+    /// A closed prism over a counter-clockwise convex `outline`, from z = 0 to `height`.
+    func prism(_ outline: [Vector2], height: Double = 10, inward: Bool = false) -> (positions: [Vector3], indices: [UInt32]) {
+        let count = UInt32(outline.count)
+        let positions = outline.map { Vector3($0.x, $0.y, 0) } + outline.map { Vector3($0.x, $0.y, height) }
+        var indices: [UInt32] = []
+        for index in 1..<(count - 1) {
+            indices += [count, count + index, count + index + 1, 0, index + 1, index]
+        }
+        for index in 0..<count {
+            let next = (index + 1) % count
+            indices += [index, next, count + next, index, count + next, count + index]
+        }
+        guard inward else { return (positions, indices) }
+        return (positions, stride(from: 0, to: indices.count, by: 3).flatMap { [indices[$0], indices[$0 + 2], indices[$0 + 1]] })
+    }
+
+    /// Several meshes in one, indices shifted.
+    func merged(_ meshes: [(positions: [Vector3], indices: [UInt32])]) -> (positions: [Vector3], indices: [UInt32]) {
+        var positions: [Vector3] = []
+        var indices: [UInt32] = []
+        for mesh in meshes {
+            let base = UInt32(positions.count)
+            positions += mesh.positions
+            indices += mesh.indices.map { $0 + base }
+        }
+        return (positions, indices)
+    }
+
+    /// Every triangle with its own three vertices.
+    func split(_ mesh: (positions: [Vector3], indices: [UInt32])) -> (positions: [Vector3], indices: [UInt32]) {
+        (mesh.indices.map { mesh.positions[Int($0)] }, (0..<UInt32(mesh.indices.count)).map { $0 })
+    }
+
+    func area(_ region: SectionRegion) -> Double {
+        stride(from: 0, to: region.triangles.count, by: 3).reduce(0.0) { sum, index in
+            let (a, b, c) = (region.positions[Int(region.triangles[index])], region.positions[Int(region.triangles[index + 1])],
+                             region.positions[Int(region.triangles[index + 2])])
+            return sum + (b - a).cross(c - a).length / 2
+        }
+    }
+
+    func slice(_ mesh: (positions: [Vector3], indices: [UInt32]), z: Double) -> PlaneSection {
+        let plane = Plane(origin: Vector3(0, 0, z), normal: .unitZ, xAxis: .unitX)
+        return MeshSlicer.slice(positions: mesh.positions, triangles: mesh.indices, plane: plane)
+    }
+
+    @Test func aSliceInACancelledTaskReturnsEarlyAndEmpty() async {
+        let cube = box(Vector3(0, 0, 0), Vector3(10, 10, 10))
+        let plane = Plane(origin: Vector3(0, 0, 5), normal: .unitZ, xAxis: .unitX)
+        let whole = MeshSlicer.slice(positions: cube.positions, triangles: cube.indices, plane: plane)
+        #expect(!whole.regions.isEmpty)
+        let task = Task { () -> PlaneSection in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return MeshSlicer.slice(positions: cube.positions, triangles: cube.indices, plane: plane)
+        }
+        #expect(await task.value.isEmpty, "cancelled before it started: nothing computed")
+    }
+
+    @Test func aPreparedSliceEqualsAFreshSlice() {
+        let tube = merged([
+            box(Vector3(-10, -10, 0), Vector3(10, 10, 10)),
+            box(Vector3(-5, -5, 0), Vector3(5, 5, 10), inward: true),
+            box(Vector3(20, 0, 0), Vector3(30, 10, 10)),
+        ])
+        for mesh in [tube, split(tube)] {
+            let prepared = MeshSlicer.prepare(positions: mesh.positions, triangles: mesh.indices)
+            for z in [0.5, 2.5, 5, 7.5, 9.5] {
+                let plane = Plane(origin: Vector3(0, 0, z), normal: .unitZ, xAxis: .unitX)
+                let fresh = MeshSlicer.slice(positions: mesh.positions, triangles: mesh.indices, plane: plane)
+                #expect(!fresh.isEmpty)
+                #expect(MeshSlicer.slice(prepared, plane: plane) == fresh)
+            }
+        }
+    }
+
+    @Test func aDegenerateTriangleIsDroppedAtPrepare() {
+        var cube = box(.zero, Vector3(10, 10, 10))
+        // A sliver with two corners at the same position, and one repeating a vertex index.
+        cube.positions.append(cube.positions[0])
+        cube.indices += [8, 0, 3, 1, 1, 2]
+        let prepared = MeshSlicer.prepare(positions: cube.positions, triangles: cube.indices)
+        #expect(prepared.triangles.count == 36)
+        #expect(prepared.vertices.count == 8)
+        #expect(!prepared.wasCancelled)
+        #expect(abs(area(slice(cube, z: 5).regions[0]) - 100) < 1e-9)
+    }
+
+    @Test func aClosedCubeCutAcrossGivesOneSquare() {
+        let section = slice(box(.zero, Vector3(10, 10, 10)), z: 5)
+        #expect(section.regions.count == 1)
+        #expect(abs(area(section.regions[0]) - 100) < 1e-9)
+        #expect(section.regions[0].boundary.count == 1)
+        #expect(section.regions[0].boundary[0].polyline.count == 5)
+        #expect(section.regions[0].boundary[0].curve == nil && section.regions[0].boundary[0].sourceFace == nil)
+        #expect(section.openOutlines.isEmpty)
+    }
+
+    @Test func aCubeWithSplitVerticesStillCloses() {
+        let section = slice(split(box(.zero, Vector3(10, 10, 10))), z: 5)
+        #expect(section.regions.count == 1)
+        #expect(abs(area(section.regions[0]) - 100) < 1e-9)
+        #expect(section.regions[0].boundary[0].polyline.count == 5)
+        #expect(section.openOutlines.isEmpty)
+    }
+
+    @Test func aTubeGivesARegionWithAHole() {
+        let tube = merged([box(Vector3(-10, -10, 0), Vector3(10, 10, 10)), box(Vector3(-5, -5, 0), Vector3(5, 5, 10), inward: true)])
+        let section = slice(tube, z: 5)
+        #expect(section.regions.count == 1)
+        #expect(abs(area(section.regions[0]) - 300) < 1e-9)
+        #expect(section.regions[0].boundary.count == 2)
+    }
+
+    @Test func anIslandInsideAHoleIsItsOwnRegion() {
+        let shells = merged([
+            box(Vector3(-15, -15, 0), Vector3(15, 15, 10)),
+            box(Vector3(-10, -10, 0), Vector3(10, 10, 10), inward: true),
+            box(Vector3(-5, -5, 0), Vector3(5, 5, 10)),
+        ])
+        let section = slice(shells, z: 5)
+        #expect(section.regions.count == 2)
+        let areas = section.regions.map(area).sorted()
+        #expect(abs(areas[0] - 100) < 1e-9)
+        #expect(abs(areas[1] - 500) < 1e-9)
+    }
+
+    @Test func anOpenMeshGivesAnOutlineWithoutACap() {
+        var cube = box(.zero, Vector3(10, 10, 10))
+        var kept: [UInt32] = []
+        for index in stride(from: 0, to: cube.indices.count, by: 3) {
+            let corners = (0..<3).map { cube.positions[Int(cube.indices[index + $0])] }
+            if !corners.allSatisfy({ $0.x == 10 }) { kept += cube.indices[index..<index + 3] }
+        }
+        cube.indices = kept
+        let section = slice(cube, z: 5)
+        #expect(section.regions.isEmpty)
+        #expect(section.openOutlines.count == 1)
+        #expect(section.openOutlines[0].count == 4)
+    }
+
+    @Test func aPlaneBesideTheMeshGivesNothing() {
+        #expect(slice(box(.zero, Vector3(10, 10, 10)), z: 20).isEmpty)
+    }
+
+    @Test func aPlaneThroughAVertexIsNotDegenerate() {
+        let section = slice(box(.zero, Vector3(10, 10, 10)), z: 0)
+        let points = section.regions.flatMap { $0.positions + $0.boundary.flatMap(\.polyline) } + section.openOutlines.flatMap { $0 }
+        #expect(points.allSatisfy { $0.isFinite })
+        #expect(section.regions.isEmpty || (section.regions.count == 1 && abs(area(section.regions[0]) - 100) < 1e-9))
+    }
+
+    @Test func aVertexOnThePlaneWithMaterialOnBothSidesStillFills() {
+        let positions = [Vector3(10, 0, 0), Vector3(0, 10, 0), Vector3(-10, 0, 0), Vector3(0, -10, 0),
+                         Vector3(0, 0, 10), Vector3(0, 0, -10),
+        ]
+        var indices: [UInt32] = []
+        for index in 0..<4 {
+            let (a, b) = (UInt32(index), UInt32((index + 1) % 4))
+            indices += [a, b, 4, b, a, 5]
+        }
+        let section = slice((positions, indices), z: 0)
+        let points = section.regions.flatMap { $0.positions + $0.boundary.flatMap(\.polyline) } + section.openOutlines.flatMap { $0 }
+        #expect(points.allSatisfy { $0.isFinite })
+        #expect(section.regions.count == 1)
+        #expect(section.regions.first.map { abs(area($0) - 200) < 1e-9 } == true)
+        #expect(section.openOutlines.isEmpty)
+    }
+
+    @Test func twoBoxesSharingAnEdgeChainWithoutLoopingOrMislabelling() {
+        let shared = merged([box(.zero, Vector3(10, 10, 10)), box(Vector3(10, 10, 0), Vector3(20, 20, 10))])
+        let section = slice(shared, z: 5)
+        #expect(section.openOutlines.isEmpty, "every chain closes")
+        #expect(!section.regions.isEmpty)
+        let total = section.regions.reduce(0.0) { $0 + area($1) }
+        #expect(abs(total - 200) < 1e-9)
+    }
+
+    @Test func twoBoxesSharingAnEdgeGiveTwoLoops() {
+        let shared = merged([box(.zero, Vector3(10, 10, 10)), box(Vector3(10, 10, 0), Vector3(20, 20, 10))])
+        let section = slice(shared, z: 5)
+        #expect(section.openOutlines.isEmpty)
+        #expect(section.regions.count == 2, "the pinch at the shared edge splits the walk into the two squares")
+        for region in section.regions {
+            let corners = region.boundary[0].polyline.dropLast()
+            #expect(corners.count == 4)
+            #expect(Set(corners.map { [$0.x, $0.y] }).count == 4, "no node repeats within a loop")
+            #expect(abs(area(region) - 100) < 1e-9)
+        }
+    }
+
+    @Test func anIslandTouchingAHoleAtAPointIsAnIsland() {
+        let frame = prism([Vector2(-15, -15), Vector2(15, -15), Vector2(15, 15), Vector2(-15, 15)])
+        let hole = prism([Vector2(-10, -10), Vector2(10, -10), Vector2(10, 0), Vector2(10, 10), Vector2(-10, 10)], inward: true)
+        let block = prism([Vector2(0, 0), Vector2(5, -5), Vector2(10, 0), Vector2(5, 5)])
+        let section = slice(merged([frame, hole, block]), z: 5)
+        #expect(section.openOutlines.isEmpty)
+        #expect(section.regions.count == 2)
+        let byArea = section.regions.sorted { area($0) < area($1) }
+        #expect(abs(area(byArea[0]) - 50) < 1e-9, "the block is filled")
+        #expect(byArea[0].boundary.count == 1)
+        #expect(abs(area(byArea[1]) - 500) < 1e-9, "the frame keeps its hole open")
+        #expect(byArea[1].boundary.count == 2)
+    }
+
+    @Test func aLongCollinearRunIsDroppedInOnePass() {
+        // A 10 x 10 square cut from a box whose side faces are fanned into many collinear crossings is still four corners.
+        let section = slice(box(.zero, Vector3(10, 10, 10)), z: 2.5)
+        #expect(section.regions[0].boundary[0].polyline.count == 5)
+    }
+}

@@ -23,6 +23,9 @@ struct ViewportPipelines {
     /// The overlay's filled triangles: blended, drawn under its lines.
     let fill: any MTLRenderPipelineState
     let cube: any MTLRenderPipelineState
+    /// The section cap: opaque, writes depth. Its ID twin writes 0.
+    let section: any MTLRenderPipelineState
+    let idSection: any MTLRenderPipelineState
     let idMesh: any MTLRenderPipelineState
     let idLine: any MTLRenderPipelineState
     /// No depth test or write: the background, handles, the cube and the triad.
@@ -41,7 +44,8 @@ struct ViewportPipelines {
     }
 
     init(device: any MTLDevice) throws {
-        let library = try device.makeLibrary(source: ViewportShaders.source + LineShaders.source + FieldShaders.source, options: nil)
+        let library = try device.makeLibrary(source: ViewportShaders.source + LineShaders.source + FieldShaders.source
+            + SectionShaders.source, options: nil)
         func pipeline(_ vertex: String, _ fragment: String, color: MTLPixelFormat = Self.colorFormat,
                       samples: Int = Self.sampleCount, blended: Bool,
                       writesColor: Bool = true) throws -> any MTLRenderPipelineState {
@@ -83,6 +87,8 @@ struct ViewportPipelines {
         grid = try pipeline("grid_vertex", "grid_fragment", blended: true)
         fill = try pipeline("fill_vertex", "fill_fragment", blended: true)
         cube = try pipeline("cube_vertex", "cube_fragment", blended: true)
+        section = try pipeline("section_vertex", "section_fragment", blended: false)
+        idSection = try pipeline("section_vertex", "id_section_fragment", color: Self.idFormat, samples: 1, blended: false)
         idMesh = try pipeline("mesh_vertex", "id_mesh_fragment", color: Self.idFormat, samples: 1, blended: false)
         idLine = try pipeline("line_vertex", "id_line_fragment", color: Self.idFormat, samples: 1, blended: false)
         depthAlways = try depth(.always, write: false)

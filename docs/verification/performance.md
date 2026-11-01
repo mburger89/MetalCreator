@@ -283,6 +283,28 @@ Implicit section below are superseded by these.
 
 The raw lines of all of these are under Raw output.
 
+**Section analysis.** `scripts/bench.sh SectionBench` (2026-10-30; load average 7.5 on 12 cores before the run, from the build before it, so **saturated: not a verdict**):
+
+| Row | Measured (median, p95) | Budget | Verdict |
+|---|---|---|---|
+| sa-1 bracket section per drag step (`Kernel.section`, OCCT) | 2.83 ms (4.92) | 16.67 ms, recorded | Met |
+| sa-2 gyroid sheet slice per drag step (`MeshSlicer.slice`, 323,808 triangles) | 47.55 ms (52.16) | 16.67 ms, recorded | Missed |
+| sa-2b the same sheet in a 1 mm skin (661,888 triangles) | 96.90 ms (99.91) | 16.67 ms, recorded | Missed |
+| sa-3 drag to cap on the bracket (`setSectionOffset` + `settle()`) | 1.88 ms (3.38) | 16.67 ms, recorded | Met |
+
+The raw lines of the Section rows are under Section analysis below.
+
+**Section analysis after the review fixes** (2026-10-31; load averages 2.90 4.19 3.73 before and 5.45 4.78 4.04 after, on 12 cores, so **saturated: not a verdict**; the 2026-10-30 rows above are kept). The slicer welds a mesh once (`MeshSlicer.prepare`) and slices without per-triangle allocations, and the triangulator no longer copies or fully sorts for holes:
+
+| Row | Measured (median, p95) | Was (2026-10-30) | Budget | Verdict |
+|---|---|---|---|---|
+| sa-1 bracket section per drag step | 2.92 ms (4.91) | 2.83 ms (4.92) | 16.67 ms, recorded | Met |
+| sa-2 gyroid sheet slice per drag step | 1.69 ms (6.04) | 47.55 ms (52.16) | 16.67 ms, recorded | Met |
+| sa-2b the same sheet in a 1 mm skin | 4.64 ms (5.67) | 96.90 ms (99.91) | 16.67 ms, recorded | Met |
+| sa-3 drag to cap on the bracket | 2.06 ms (3.61) | 1.88 ms (3.38) | 16.67 ms, recorded | Met |
+
+sa-2 and sa-2b run on a prepared (welded) mesh, so they time the slicing and triangulation of one plane, not the weld; the weld is paid once per mesh. The raw lines are under Section analysis below.
+
 ### Preview triangle cap sweep (2026-10-20)
 
 Decision (user, 2026-10-20): 1M, spec erratum D19.
@@ -714,6 +736,55 @@ If a later run puts `field-3` over 50 ms, the levers, in the order to pull them 
 `Int` instead of a hashed two-field struct (`PoissonScatter.Cell`), (2) fewer candidates per point (`candidatesPerPoint` 30 to 20,
 which loosens the packing a little and changes every scatter, so `FieldScatterNodeTests` and `FieldsAcceptanceTests` re-pin their
 counts), (3) stop and ask. The budget is not edited and a miss is not called met.
+
+## Section analysis (section spec §3.4)
+
+Part B's cap: the cross-section of each shown part is computed off the main actor and drawn as a hatched cap. Benchmarks record, they do
+not gate (spec §9); the budget column is the 60 FPS frame, 16.67 ms. Release build, `Tests/CreatorAppTests/Bench/SectionBench.swift`.
+
+| Row | Case |
+|---|---|
+| `sa-1` | `Kernel.section` (OCCT: `BRepAlgoAPI_Common` with a planar face, meshed) of the §7.2 bracket's part at 60 planes (the first 5 rounds dropped). **The recorded run used the old spacing**, planes 0.25 mm apart from 0.5 mm above the part's bottom (so 15 mm of height); the code now spreads them evenly over the part's height, and the numbers were not re-taken. The bracket is a 6 mm plate with a 30 mm flange, so by the fixture all 60 planes should have cut it (the run's largest region count was 2, and the test expects a cut) |
+| `sa-2` | `MeshSlicer.slice` (the crossing chains, loop simplification and the cap's ear-clipping triangulation with hole bridging) of the 100 mm gyroid sheet's first preview pass (`ImplicitBenchFixtures.sheet(skin: 0)`, the 7c sizes), 60 planes 0.25 mm apart from the middle |
+| `sa-2b` | the same sheet inside a 1 mm skin, so the cut is a frame with a hole for every closed pocket (more holes than sa-2; a reviewer asked about a hole-heavy cap) |
+| `sa-3` | the drag through `AppModel` on the bracket: `setSectionOffset`, then `settle()` (the cap computed and shown), 60 steps |
+
+**Reading the numbers (2026-10-30, before the review fixes; the slicer and triangulator have since been sped up, see the 2026-10-31 rows above and below).** The kernel path (sa-1) and the whole app path on a bracket (sa-3) are far inside a frame. A lattice's slice is
+not: sa-2 is 47.6 ms and sa-2b 96.9 ms, three and six frames. The cost is probably the pass over the mesh (sa-2 times the slicing and the triangulation together, so this is inferred from the triangle counts, 324,000 and 662,000, which roughly double with the time, against a cap of under 2,000 triangles), which is 324,000 and 662,000
+triangles (the slicer visits every triangle once per plane), not the triangulation: the richest cut found had 6 holes (sa-2b) and 0 (sa-2), so
+this fixture does **not** probe the ear clipper's behaviour on hundreds of holes. The cap stays drawn, clipped to the new plane, until the next
+is ready (spec §3.4), so a drag over a lattice shows a cap that lags by several frames and never stutters; a cap with hundreds of holes is not
+measured here. A cell-bucketed slicer (skip triangles whose box misses the plane) is the obvious next step if this proves too slow.
+
+Raw lines (the machine and load lines are the script's):
+
+```
+BENCH machine: Mac18,5, 12 cores, macOS 27.2
+BENCH load before: 7.47 7.55 7.84
+BENCH sa-1 bracket section per drag step: median 2.83 ms, p95 4.92 ms, max 6.39 ms (n 60); budget 16.67 ms: met
+BENCH sa-1 largest region count 2
+BENCH sa-2 lattice slice per drag step: median 47.55 ms, p95 52.16 ms, max 53.32 ms (n 60); budget 16.67 ms: missed
+BENCH sa-2 mesh 323808 triangles at 0.78125 mm; richest slice: 2 regions, 0 boundary loops beyond the first per region, 1812 cap triangles
+BENCH sa-2b skinned lattice slice per drag step: median 96.90 ms, p95 99.91 ms, max 103.95 ms (n 60); budget 16.67 ms: missed
+BENCH sa-2b mesh 661888 triangles at 0.78515625 mm; richest slice: 1 regions, 6 boundary loops beyond the first per region, 1928 cap triangles
+BENCH sa-3 drag to cap on the bracket: median 1.88 ms, p95 3.38 ms, max 3.41 ms (n 60); budget 16.67 ms: met
+BENCH load after: 3.99 6.57 7.46
+```
+
+Raw lines of the 2026-10-31 run (after the review fixes):
+
+```
+BENCH machine: Mac18,5, 12 cores, macOS 27.2
+BENCH load before: 2.90 4.19 3.73
+BENCH sa-1 bracket section per drag step: median 2.92 ms, p95 4.91 ms, max 6.54 ms (n 60); budget 16.67 ms: met
+BENCH sa-1 largest region count 1
+BENCH sa-2 lattice slice per drag step: median 1.69 ms, p95 6.04 ms, max 7.38 ms (n 60); budget 16.67 ms: met
+BENCH sa-2 mesh 323808 triangles at 0.78125 mm; richest slice: 2 regions, 0 boundary loops beyond the first per region, 1812 cap triangles
+BENCH sa-2b skinned lattice slice per drag step: median 4.64 ms, p95 5.67 ms, max 5.75 ms (n 60); budget 16.67 ms: met
+BENCH sa-2b mesh 661888 triangles at 0.78515625 mm; richest slice: 1 regions, 6 boundary loops beyond the first per region, 1928 cap triangles
+BENCH sa-3 drag to cap on the bracket: median 2.06 ms, p95 3.61 ms, max 3.66 ms (n 60); budget 16.67 ms: met
+BENCH load after: 5.45 4.78 4.04
+```
 
 ## Implicit (implicit spec §6, sub-project 7c-1)
 

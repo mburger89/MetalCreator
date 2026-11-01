@@ -38,11 +38,13 @@ public enum AppCommands {
                 Menu("Theme") { ThemeMenu.items(themeEditor) }
                 Menu("Units") { UnitsMenu.unitItems(model) }
                 Menu("Precision") { UnitsMenu.precisionItems(model) }
-                if CutViewModel.isAvailable {
-                    Button(model.cutView.isOn ? "Hide Cut View" : "Show Cut View") { model.setCutView(!model.cutView.isOn) }
-                    Button("Flip Cut View") { model.cutView.flip() }
-                        .disabled(!model.cutView.isOn)
+                Button(model.document.section?.isOn == true ? "Hide Section" : "Show Section") {
+                    model.setSection(model.document.section?.isOn != true)
                 }
+                Button("Flip Section") { model.flipSection() }
+                    .disabled(model.document.section?.isOn != true)
+                Button(model.measure == nil ? "Measure" : "Stop Measuring") { model.setMeasure(model.measure == nil) }
+                    .disabled(model.sketch != nil || model.pick != nil)
             }
         }
     }

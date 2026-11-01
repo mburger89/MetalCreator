@@ -25,6 +25,7 @@ public struct AppWindowRoot: Component {
             .overlay(alignment: .topLeading) {
                 ZStack(alignment: .topLeading) {
                     AppRoot(model: model, input: input)
+                    SectionPanelDock(model: model, themeEditorOpen: themeEditor.isOpen)
                     ThemeEditorDock(model: themeEditor,
                                     bottom: ThemeEditorLayout.bottom(dock: model.editor.dock, panelHeight: model.panelHeight))
                 }

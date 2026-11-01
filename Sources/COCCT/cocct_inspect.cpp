@@ -1,4 +1,5 @@
 #include "cocct_internal.hpp"
+#include "cocct_edge_curve.hpp"
 
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
@@ -17,6 +18,7 @@
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <gp_Circ.hxx>
+#include <gp_Cylinder.hxx>
 
 #include <mutex>
 
@@ -59,8 +61,12 @@ void describe_face(const TopoDS_Face &face, occt_face_info &info) {
             info.has_normal = 1;
         }
     } else if (info.kind == 1) {
-        set3(info.normal, surface.Cylinder().Axis().Direction());
+        const gp_Cylinder cylinder = surface.Cylinder();
+        set3(info.normal, cylinder.Axis().Direction());
         info.has_normal = 1;
+        info.has_axis = 1;
+        info.radius = cylinder.Radius();
+        set3(info.axis_point, cylinder.Location());
     } else if (info.kind == 2) {
         set3(info.normal, surface.Cone().Axis().Direction());
         info.has_normal = 1;
@@ -92,24 +98,21 @@ void describe_edge(const TopoDS_Edge &edge, const TopTools_IndexedMapOfShape &fa
     info.convexity = 3;
     if (!BRep_Tool::Degenerated(edge)) {
         BRepAdaptor_Curve curve(edge);
-        switch (curve.GetType()) {
-        case GeomAbs_Line:
-            info.kind = 0;
+        info.kind = edge_curve_kind(curve);
+        switch (info.kind) {
+        case 0:
             set3(info.direction, curve.Line().Direction());
             info.has_direction = 1;
             break;
-        case GeomAbs_Circle:
-            info.kind = 1;
+        case 1:
             set3(info.direction, curve.Circle().Axis().Direction());
             info.has_direction = 1;
             break;
-        case GeomAbs_Ellipse:
-            info.kind = 2;
+        case 2:
             set3(info.direction, curve.Ellipse().Axis().Direction());
             info.has_direction = 1;
             break;
-        case GeomAbs_BSplineCurve: info.kind = 3; break;
-        default: info.kind = 4; break;
+        default: break;
         }
         GProp_GProps properties;
         BRepGProp::LinearProperties(edge, properties);

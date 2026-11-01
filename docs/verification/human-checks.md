@@ -2018,7 +2018,7 @@ window and a real GPU show. Build: a Box (40 × 40 × 40) into a TPMS node's `re
   hole or non-manifold edge is reported. **Observed:**
 - [ ] **IL-10 The blended skin join (7c-3f).** In the IL-4 part (skin 1.5) the TPMS inspector shows `blend`, 1 mm on a new node. Orbit to where the gyroid sheet meets the skin's inner face: the join is smooth, a small fillet with no sharp crease or sliver, where `blend` 0 shows the old sharp crease. Drag `blend` from 0 to 3: the fillet grows live and the preview stays responsive. Do the same on a Strut Lattice (its `node blend` rounds the struts' joints, `blend` the skin's) and a Voronoi Lattice. With `skin` 0 `blend` changes nothing. Open a graph saved before 7c-3f that has a lattice with a skin: it looks as it did (its `blend` reads 0). Pinned: `LatticeSkinBlendTests`; the look is human-only. **Observed:**
 
-## Group MT — mesh tools, 3MF, the streamed export and the Cut view (7c-3)
+## Group MT — mesh tools, 3MF, the streamed export and the Section (7c-3)
 
 **Status: NOT RUN.** Plan `2026-10-14-7c-3-mesh-tools.md`, spec `2026-10-13-implicit-lattices-design.md` §3.6, §4.5 to §4.7, §5 and Errata D12.
 Run `swift run MetalCreatorApp` on a Mac with a GPU, a slicer (PrusaSlicer, Bambu Studio or Cura) and FreeCAD. The tests pin the maths, the
@@ -2037,12 +2037,7 @@ named "Insole").
 - [ ] **MT-3 Drain Holes.** Wire a Drain Holes (Automatic, diameter 2) between the Subtract and the Mesh: the trapped-volumes warning
   goes, a round hole runs from the cavity's lowest point straight down to the outside, and At Points with a Vector node at (0, 0, -4)
   drills one hole from there. Pinned: `DrainHolesNodeTests`, `DrainHolesTests`. **Observed:**
-- [ ] **MT-4 The Cut view.** Switch on "Cut View" in the top bar: the near half of the part is cut away, the cut shows the inside of the
-  far wall in the part's colour darkened (no holes, no flicker while orbiting), the B-rep edges of a solid in the scene are cut too, and a
-  handle on the plane slides it through the part. Hover and click on the cut part pick what is left, never what is cut away. View ▸ Show
-  Cut View and Flip Cut View do the same and cut the other side; switching it off restores the part; New or Open starts uncut. On Linux or
-  Windows the toggle and the menu items are not there. Pinned: `ViewportClipRenderTests`, `CutViewModelTests`, `CutViewWindowTests`; the
-  look and the feel are human-only. **Observed:**
+- [ ] **MT-4 The Cut view.** Replaced by the Section (part A of the section analysis): see group SA-A. **Observed:**
 - [ ] **MT-5 3MF in a slicer.** File > Export 3MF… on the Insole: the sheet appears and finishes, and
   the file opens in a slicer as one object named "Insole", in millimetres (20 mm radius means 40 mm across), with no repair prompt. Add a
   second Output with another part: the slicer lists two objects, each with its Output's name. Pinned: `ExportStreamedTests`,
@@ -2120,9 +2115,9 @@ compiled shaders; these checks are what a real GPU, a real pointer and a person'
 - [ ] **XP-23 The widgets (after xp-3 task 10).** The view cube at the top left shows TOP, BOTTOM, FRONT, BACK, LEFT and RIGHT on its faces, upright
   and readable at a slant, the hovered region cyan and the active one cyan; clicking a face, an edge or a corner turns the camera; the triad at the
   bottom left follows the orbit with X red, Y green and Z blue. **Pinned:** `SDLWidgetTests`. **Observed:**
-- [ ] **XP-24 Ghosts, the field tint, the slice and the cut view.** A ghosted node's preview is one even, dimmed layer (no back faces showing
+- [ ] **XP-24 Ghosts, the field tint, the slice and the Section.** A ghosted node's preview is one even, dimmed layer (no back faces showing
   through, after task 11); a Field node's tint colours the surface by the ramp; a slice is a translucent quad coloured by the field (after
-  task 12); the Cut view removes one side of a part and shows the inside of its far wall darkened; a check's warning faces take the theme's
+  task 12); the Section removes one side of a part and shows the inside of its far wall darkened (SA-A); a check's warning faces take the theme's
   warning colour. **Pinned:** `SDLRenderTests` (ghosts), `SDLFieldGuideClipTests`, `SDLSliceTests`. **Observed:**
 - [ ] **XP-25 A shipped app finds its shaders.** Unpack the tarball (and run the AppImage, and unzip the zip on Windows) in a folder away from
   any checkout: the viewport draws (its shaders are `MetalUIAppShaders` beside the executable), and `--self-test` says MetalUI's SDL
@@ -2236,3 +2231,85 @@ the Output selected so the part is shown.
   file opens in millimetres with nothing pinned. **Pinned:** `DocumentUnitsFileTests`, `DimensionCodingTests`,
   `DimensionPinRemapTests`. **Observed:**
 - [ ] **DIM-8 Linux and Windows.** DIM-1, DIM-3, DIM-4 and DIM-6 on a Linux or Windows build (SDL viewport). **Observed:**
+
+## Group SA-A — Section, placement (section part A)
+
+- [ ] **SA-A-1 Toggle.** The top bar's "Section" toggle (macOS, Linux and Windows) cuts the near half of the part away with a handle on the
+  plane; switching it off restores the part. View ▸ Show Section / Hide Section does the same. In part A the cut face is still the far wall
+  darkened (part B replaces it with a cap), which is what XP-24 looks at. **Pinned:** `SectionGeometryTests`,
+  `SectionModelTests`. **Observed:**
+- [ ] **SA-A-2 Drag.** Dragging the handle slides the plane through the part; the range spans the part. **Observed:**
+- [ ] **SA-A-3 Typed offset.** In the Section panel, type an offset in mm and, with the document in inches, in inches: the plane moves
+  there, also beyond the part's range (the handle stretches). **Observed:**
+- [ ] **SA-A-4 Flip.** Flip (the panel and View ▸ Flip Section) keeps the plane and cuts the other side. **Observed:**
+- [ ] **SA-A-5 Section from Face.** Right-click a flat face > Section from Face: the plane lies on the face, the cut removes the outside
+  and a positive offset goes into the material. Edit the part (move or resize it): the plane follows the face. **Observed:**
+- [ ] **SA-A-6 A deleted face.** Delete the face's feature: the panel says the face is gone and the section keeps its last plane. **Observed:**
+- [ ] **SA-A-7 Save and reopen.** Save with a section on, reopen: the plane, offset and side are back. An older file opens with no section. **Observed:**
+- [ ] **SA-A-8 Sketch mode.** Entering a sketch hides the section; leaving brings it back. **Observed:**
+- [ ] **SA-A-9 Panel placement.** The Section panel sits left of the theme editor when both are open and never covers it. **Observed:**
+
+## Group SA-B — Section, the cap (section part B)
+
+- [ ] **SA-B-1 Bracket cap.** Open the §7.2 bracket, switch the Section on and put the plane on XY through the plate: the cut face is
+  filled with the theme's section colour and hatched with 45-degree stripes (plane-space, so they stay on the part when you orbit and
+  pan), the outline crisp in the edge colour. **Pinned:** `SectionCapModelTests`, `SDLSectionTests`. **Observed:**
+- [ ] **SA-B-2 Two bodies.** With two touching bodies (a Union is one body; use two Output nodes), the section hatches them at different
+  angles (45 and 135 degrees). **Observed:**
+- [ ] **SA-B-3 Section from Face.** Right-click a flat face > Section from Face with the offset at 0: the face shows as a cap, no
+  coplanar flicker. **Observed:**
+- [ ] **SA-B-4 Fast drag.** Drag the handle quickly through the part: the view never stutters; the cap may lag and catches up when you stop.
+  Also drag a refined lattice part for several seconds and confirm the cap settles within about a second of release. The hatch
+  re-spaces while you zoom (by design) and may show moire at grazing angles. **Observed:**
+- [ ] **SA-B-5 Lattice.** A TPMS or strut lattice part: the cut cells are capped and hatched (the cap is cut from the preview mesh and
+  follows it as the finer passes land). Dragging stays smooth (`sa-2` is about 2 ms and `sa-2b` 5 ms on a 100 mm sheet once the mesh is welded). **Observed:**
+- [ ] **SA-B-6 Clicking the cap.** A click on the cap selects nothing and opens no face menu (it does not pick the face behind it).
+  **Observed:**
+- [ ] **SA-B-7 Themes.** Switch to Alucard, then Nord: the cap's fill, hatch and edge follow the theme (and appear in the theme editor's
+  Section group). **Observed:**
+- [ ] **SA-B-8 Linux and Windows.** The same on Linux and Windows (the SDL GPU renderer, XP note): the cap, hatch, outline and the
+  click behaviour match macOS. **Observed:**
+- [ ] **SA-B-9 Sketch mode.** Entering a sketch hides the section and its cap; leaving brings both back. **Observed:**
+- [ ] **SA-B-10 No shimmer.** Orbit and zoom a capped part slowly: the hatch has no shimmer or crawling at its edges (it is antialiased). **Observed:**
+- [ ] **SA-B-11 During a pick.** Starting an Edges by Tag pick leaves the section and its cap as they were, and moving the section during the pick still moves it. **Observed:**
+
+## Group ME-A — Measure, the tool (measure part A)
+
+- [ ] **ME-A-1 Start and end.** Press M over the viewport, click the top bar's Measure toggle, or choose View > Measure: Measure starts and
+  its panel appears under the Section panel. Esc, the panel's Done, the toggle or M again ends it and the panel goes. **Observed:**
+- [ ] **ME-A-2 Hover.** Hover an edge: it is drawn over the model in the hover colour. Move within 10 points of one of its ends: the corner
+  shows as a point and snaps. A full circle offers its centre instead of an end. Faces keep the viewport's own face hover. **Observed:**
+- [ ] **ME-A-3 A hole.** Click a hole's edge or wall: Radius and Diameter show in the panel and the view draws the diameter (the reference
+  dimension colour), "Ø" for a full circle. **Observed:**
+- [ ] **ME-A-4 Wall thickness.** Click the two opposite faces of a box: the distance is exact (a 5 mm plate reads 5 mm) and is drawn between
+  the witness points. **Observed:**
+- [ ] **ME-A-5 Corner to face.** Pick a corner, then a face: the shortest distance to the face is shown and drawn. **Observed:**
+- [ ] **ME-A-6 Angle.** Pick a chamfer face, then its neighbouring face: the angle shows in 0 to 90 degrees and is drawn between the arms. **Observed:**
+- [ ] **ME-A-7 Two parts.** With two separate parts, pick a face of each: the distance between them is the shortest one (zero if they touch). **Observed:**
+- [ ] **ME-A-8 Picking rules.** Clicking a picked element removes it; a third pick starts a new measurement holding only that pick; a click on
+  empty space clears it. A click on a ghost, a guide or a mesh item does nothing. **Observed:**
+- [ ] **ME-A-9 Nodes and handles.** A click in Measure never selects a node. A handle still drags (the Section's, a node's). **Observed:**
+- [ ] **ME-A-10 Face menu.** Right-click a flat face while measuring: the menu offers Look At and Section from Face only. **Observed:**
+- [ ] **ME-A-11 Edit clears.** Change a value in the inspector that changes a picked part while a measurement is shown: a change to a picked part clears the measurement (an edit to another part leaves it). Measure creates no undo
+  step and never marks the document edited. **Observed:**
+- [ ] **ME-A-12 Exclusive.** Measure is refused while sketching and during an Edges by Tag pick; starting a sketch, an Edges by Tag pick,
+  D (the model dimension tool), New or Open ends a running Measure. **Observed:**
+- [ ] **ME-A-14 Large hole centre.** Hover a large hole's rim: its centre snaps and picks (Diameter and Radius read as for the edge); seen end-on, the centre is the near rim's, never the far one's through the part. A small hole still picks as its edge. **Observed:**
+- [ ] **ME-A-13 Linux and Windows.** The same on Linux and Windows (hover, snap, picks, drawn dimensions). **Observed:**
+
+## Group ME-B — Measure, keeping measurements (measure part B)
+
+- [ ] **ME-B-1 Section edges.** With a Section shown and Measure on, hover the cap's outline: the edge under the pointer is drawn in the hover colour; a click picks it. **Observed:**
+- [ ] **ME-B-2 Section arc.** Pick an arc of the cap's outline (a hole cut across): Radius and Diameter show and the view draws the diameter. **Observed:**
+- [ ] **ME-B-3 Wall thickness.** Pick a section edge, then a face of the same part: the distance reads the wall thickness. Change the wall's input in the inspector: the picks follow and the value updates. **Observed:**
+- [ ] **ME-B-4 Mesh points.** On a lattice or other mesh item, click the surface: a point is picked and every value reads "≈ … · mesh …". The same holds for any measurement with one approximate pick. **Observed:**
+- [ ] **ME-B-5 Keep.** The third click keeps the pair and starts a new measurement holding only that pick. The panel lists the kept measurement and the view draws it. **Observed:**
+- [ ] **ME-B-6 Keep button.** Keep is disabled with no picks and while a pick is lost; otherwise it keeps the current measurement. Keep a hole's diameter: it is listed and drawn. **Observed:**
+- [ ] **ME-B-7 Remove.** The row's × removes one kept measurement; Clear All removes every one. **Observed:**
+- [ ] **ME-B-8 Measure off.** Turn Measure off: kept measurements are still drawn and the panel still shows them. In sketch mode and during an Edges by Tag pick they are neither drawn nor listed; they return afterwards. **Observed:**
+- [ ] **ME-B-9 Save and Open.** Save, close and Open the file: the kept measurements come back after the first evaluation. New clears them. **Observed:**
+- [ ] **ME-B-10 Couldn't measure.** A distance OpenCascade can't make reads "Couldn't measure" instead of a number (try two picks on an awkward shape, such as a lattice's surface against a curved face, or a part that has just failed to evaluate); it stays so, without the view stalling, until you change a pick or the solid under it. **Observed:**
+- [ ] **ME-B-10 Lost.** Delete the node of a measured part: the row greys and says "No longer found". Undo brings the values back. **Observed:**
+- [ ] **ME-B-11 No edit.** Keeping, removing and clearing add no undo step and do not mark the document edited. **Observed:**
+- [ ] **ME-B-13 Flicker after an edit.** A kept measurement on a section edge may read "No longer found" for a moment after an edit, until the new cap lands (known and accepted). It returns on its own. **Observed:**
+- [ ] **ME-B-12 Linux and Windows.** The same on Linux and Windows. **Observed:**

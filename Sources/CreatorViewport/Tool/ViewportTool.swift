@@ -39,6 +39,12 @@ public protocol ViewportTool: AnyObject {
     func menuActions(at point: ScreenPoint) -> [HostMenuAction]
     /// Runs an entry from `menuActions(at:)` (default: nothing).
     func performMenuAction(_ action: HostMenuAction)
+    /// The model element under the pointer changed (`nil`: nothing, or the pointer left). Called after
+    /// `ViewportModel.hovered` is set, on every platform (on SDL when a hover pick lands), with the last hover point
+    /// (default: nothing).
+    func hoverChanged(_ target: PickTarget?, at point: ScreenPoint?, projector: ViewportProjector)
+    /// Whether the face menu offers Section from Face while this tool is set; Look At is always offered (default: false).
+    var offersSectionFromFace: Bool { get }
 }
 
 extension ViewportTool {
@@ -48,6 +54,8 @@ extension ViewportTool {
                           projector: ViewportProjector) -> Bool {
         false
     }
+    public func hoverChanged(_ target: PickTarget?, at point: ScreenPoint?, projector: ViewportProjector) {}
+    public var offersSectionFromFace: Bool { false }
     public func menuActions(at point: ScreenPoint) -> [HostMenuAction] { [] }
     public func performMenuAction(_ action: HostMenuAction) {}
     public func clickedModel(_ target: PickTarget?, at point: ScreenPoint, modifiers: ViewportModifiers,

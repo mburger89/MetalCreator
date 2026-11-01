@@ -15,9 +15,10 @@ import Testing
 struct AppInputTests {
     @Test func theViewportsKeysAreOutOfScopeWhileFocusIsInAPanel() throws {
         let bindings = AppInput.keymap.bindings
-        #expect(bindings.map(\.spelling) == ["f", "=", "shift-+", "+", "-", "d", "up", "down"])
+        #expect(bindings.map(\.spelling) == ["f", "=", "shift-+", "+", "-", "d", "m", "up", "down"])
         #expect(bindings.prefix(5).allSatisfy { $0.action is ViewportKeyAction && $0.context == AppKeyContext.viewport })
         #expect(bindings[5].action is ModelDimensionKeyAction && bindings[5].context == AppKeyContext.viewport)
+        #expect(bindings[6].action is MeasureKeyAction && bindings[6].context == AppKeyContext.viewport)
         #expect(bindings.suffix(2).allSatisfy { $0.context == nil })
         let predicate = try #require(ContextPredicate.parse(AppKeyContext.viewport))
         #expect(predicate.evaluate(against: []), "nothing focused: F, + and − reach the viewport")
@@ -36,6 +37,14 @@ struct AppInputTests {
         #expect(!input.handleAction(ViewportKeyAction(command: .zoomOut)), "and − too")
         #expect(app.viewport.pose == zoomed)
         #expect(!input.handleAction(ViewportKeyAction(command: .frame)), "F goes on to the graph's own F")
+    }
+
+    @Test func mTogglesMeasure() async {
+        let app = await makeApp()
+        let input = AppInput(model: app)
+        #expect(input.handleAction(MeasureKeyAction()) && app.measure != nil)
+        #expect(input.handleAction(MeasureKeyAction()) && app.measure == nil)
+        #expect(app.viewport.tool == nil)
     }
 
     /// Spec 2026-10-09 §3: "F frames the selection in the graph canvas when the pointer is over it (the viewport's F

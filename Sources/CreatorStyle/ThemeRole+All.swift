@@ -46,5 +46,8 @@ extension ThemeRole {
         ThemeRole("fieldHigh", "Field high", .fieldPreview, \.fieldHigh),
         ThemeRole("dimensionDriving", "Driving dimension", .dimensions, \.dimensionDriving),
         ThemeRole("dimensionReference", "Reference dimension", .dimensions, \.dimensionReference),
+        ThemeRole("sectionFill", "Section fill", .section, \.sectionFill),
+        ThemeRole("sectionHatch", "Section hatch", .section, \.sectionHatch),
+        ThemeRole("sectionEdge", "Section edge", .section, \.sectionEdge),
     ]
 }
