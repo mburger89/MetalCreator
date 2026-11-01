@@ -8,13 +8,15 @@ import CreatorKernel
 public enum StrutLatticeNode: NodeDefinition {
     public static let typeID = "creator.strutLattice"
     /// 2: `blend` (7c-3f, Errata D18). A node saved as version 1 reads it as 0, the sharp join it was made with.
-    public static let typeVersion = 2
+    /// 3: `continuity`. A node saved before it reads G1.
+    public static let typeVersion = 3
     public static let displayName = "Strut Lattice"
     public static let category = NodeCategory.implicit
     public static let inputs = [
         SocketSpec("region", .implicit, optional: true),
         SocketSpec("skin", .number, defaultValue: .number(0), unit: .millimetres, range: 0...20),
         LatticeSetup.blendSocket,
+        ImplicitCombining.continuitySocket,
         SocketSpec("cell", .integer, defaultValue: .integer(StrutCell.cubic.rawValue)),
         SocketSpec("cell size", .field, defaultValue: .number(8), unit: .millimetres, range: 1...50),
         SocketSpec("cell stretch", .vector, defaultValue: .vector(Vector3(1, 1, 1))),
@@ -31,7 +33,8 @@ public enum StrutLatticeNode: NodeDefinition {
         InspectorSection(title: "Cell", controls: [.segmented("cell", options: StrutCell.options)]),
         InspectorSection(title: "Size", controls: [.number("cell size"), .vector("cell stretch")]),
         InspectorSection(title: "Struts", controls: [
-            .number("strut radius"), .number("node blend"), .number("skin"), .number("blend"), .note(help),
+            .number("strut radius"), .number("node blend"), .number("skin"), .number("blend"),
+            ImplicitCombining.continuityControl, .note(help),
         ]),
     ]
     public static let inspector = LatticeMappingSetup.inspector(base: sections, kind: .straight)
@@ -41,12 +44,18 @@ public enum StrutLatticeNode: NodeDefinition {
         LatticeMappingSetup.inspector(base: sections, kind: LatticeMappingSetup.kind(of: node))
     }
 
-    public static func migrate(_ node: Node, from version: Int) -> Node { LatticeSetup.sharpJoin(node) }
+    public static func migrate(_ node: Node, from version: Int) -> Node {
+        var migrated = node
+        if version < 2 { migrated = LatticeSetup.sharpJoin(migrated) }
+        if version < 3 { migrated = ImplicitCombining.continuityMigration(migrated) }
+        return migrated
+    }
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let region = try LatticeSetup.region(inputs)
         let skin = try LatticeSetup.skin(inputs)
         let join = try LatticeSetup.blend(inputs)
+        let continuity = try ImplicitCombining.continuity(inputs)
         let cell = StrutCell(rawValue: try inputs.choice("cell", options: StrutCell.options)) ?? .cubic
         let box = region.bounds
         let (cells, cellWarnings) = try await LatticeSetup.cells(inputs, over: box, kernel: kernel, context: context)
@@ -61,7 +70,8 @@ public enum StrutLatticeNode: NodeDefinition {
         let mapped = try await LatticeMappingSetup.make(inputs, region: region, cells: cells, kernel: kernel, context: context)
 
         let lattice = ImplicitSolid.struts(StrutLattice(cell: cell, cells: cells, radius: radius.grading, blend: blend, region: box,
-                                                        mapping: mapped.mapping))
+                                                        mapping: mapped.mapping,
+                                                        nodeContinuity: blend > 0 ? continuity : .g1))
         let voxel = LatticeSetup.voxel(over: box, context: context)
         var warnings = cellWarnings + radius.warnings + mapped.warnings + LatticeSetup.cellWarnings(cells, voxel: voxel)
         warnings += LatticeSetup.thinWarnings("Struts", thickest: 2 * radius.grading.range.upperBound, voxel: voxel)
@@ -70,7 +80,7 @@ public enum StrutLatticeNode: NodeDefinition {
             warnings.append("Struts are thicker than the cells; the lattice is solid.")
         }
         warnings += ImplicitReach.warnings(for: region, reachedBy: skin)
-        let result = LatticeFill.fill(region: region, lattice: lattice, skin: skin, blend: join)
+        let result = LatticeFill.fill(region: region, lattice: lattice, skin: skin, blend: join, continuity: continuity)
         return NodeOutputs(["implicit": .implicit(result.reference)], warnings: warnings)
     }
 }

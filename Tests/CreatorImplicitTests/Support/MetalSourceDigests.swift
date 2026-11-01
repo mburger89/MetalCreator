@@ -53,6 +53,8 @@ enum MetalSourceDigests {
         "subtract": "6c88ac3913648f71",
         "union": "0fa51c30aaceb243",
         "struts G2": "50a935caac7f7669",
+        "struts G3": "4f8630a8b88c0864",
+        "intersect G2": "17ded288a15906bc",
         "subtract G3": "2bd7388ab088bd5a",
         "three-child union G2": "6ebc2584d839f0d8",
         "three-child union G3": "b5fd39a13625ff12",

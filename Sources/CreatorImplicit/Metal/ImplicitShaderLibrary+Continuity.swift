@@ -32,6 +32,4 @@ extension ImplicitShaderLibrary {
     static func extras(smoothMinimums: Set<BlendContinuity>, struts: Set<BlendContinuity>) -> String {
         ContinuityLibrary.extras(smoothMinimums: smoothMinimums, struts: struts, smoothMinimum: smoothMinimum, strutBody: lattices)
     }
-
-    /// Everything but the lattices (`ImplicitShaderLibrary+Lattices`).
 }

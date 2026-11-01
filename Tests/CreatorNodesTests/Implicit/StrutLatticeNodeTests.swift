@@ -56,7 +56,7 @@ struct StrutLatticeNodeTests {
         let a = try #require(try await h.run([sharp]).implicitSolid(sharp))
         let b = try #require(try await h.run([rounded]).implicitSolid(rounded))
         #expect(b.distance(0, 0, 0) < a.distance(0, 0, 0) - 0.3, "the joint at the origin")
-        #expect(b.description.hasSuffix("r = 0.6 mm, blend 1.5 mm))"))
+        #expect(b.description.hasSuffix("r = 0.6 mm, blend 1.5 mm, G2))"))
         h.set(rounded, "node blend", .number(2.5))
         let refusal = "“node blend” must be between 0 and a quarter of the smallest cell (2 mm)."
         #expect(try await h.run([rounded]).error(rounded) == refusal)

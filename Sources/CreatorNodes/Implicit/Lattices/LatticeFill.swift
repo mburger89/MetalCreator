@@ -11,10 +11,11 @@ enum LatticeFill {
     ///   - lattice: the lattice, already cut to the region's box.
     ///   - skin: the wall thickness in millimetres, 0 for none.
     ///   - blend: the radius in millimetres of the smooth union that joins the skin and the lattice. It has no effect without a skin.
-    static func fill(region: ImplicitSolid, lattice: ImplicitSolid, skin: Double, blend: Double) -> ImplicitSolid {
+    static func fill(region: ImplicitSolid, lattice: ImplicitSolid, skin: Double, blend: Double,
+                     continuity: BlendContinuity = .g1) -> ImplicitSolid {
         guard skin > 0 else { return .intersect([region, lattice], blend: .constant(0)) }
         let wall = ImplicitSolid.shell(region, thickness: .constant(skin), side: .inward)
         let inside = ImplicitSolid.offset(region, distance: .constant(-skin))
-        return .union([wall, .intersect([lattice, inside], blend: .constant(0))], blend: .constant(blend))
+        return .union([wall, .intersect([lattice, inside], blend: .constant(0))], blend: .constant(blend), continuity: continuity)
     }
 }

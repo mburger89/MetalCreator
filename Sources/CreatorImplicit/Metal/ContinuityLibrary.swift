@@ -37,7 +37,7 @@ enum ContinuityLibrary {
     }
 
     /// The library's `strutBody` with its name and its `smoothMin` changed to the continuity's.
-    private static func strutCopy(in lattices: String, for continuity: BlendContinuity) -> String {
+    static func strutCopy(in lattices: String, for continuity: BlendContinuity) -> String {
         guard let name = lattices.range(of: "float strutBody("),
               let start = lattices[..<name.lowerBound].lastIndex(of: "\n"),
               let end = lattices.range(of: "\n}\n", range: name.upperBound..<lattices.endIndex) else { return "" }

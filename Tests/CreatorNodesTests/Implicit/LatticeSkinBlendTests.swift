@@ -44,7 +44,7 @@ struct LatticeSkinBlendTests {
         let definition = Self.nodes[index].definition
         let spec = try #require(definition.inputs.first { $0.name == "blend" })
         #expect(spec.type == .number && spec.defaultValue == .number(1) && spec.unit == .millimetres)
-        #expect(definition.typeVersion == 2)
+        #expect(definition.typeVersion == 3)
         #expect(definition.inspector.flatMap(\.controls).contains(.number("blend")), "the inspector shows it like the skin")
     }
 
@@ -87,7 +87,7 @@ struct LatticeSkinBlendTests {
         let data = try GraphFileIO.encode(GraphFile(graph: h.graph))
         let file = try GraphFileIO.decode(data, registry: BuiltInNodes.registry)
         let loaded = try #require(file.graph.nodes[node.id])
-        #expect(loaded.typeVersion == 2 && loaded.inputValues["blend"] == .number(2.5))
+        #expect(loaded.typeVersion == 3 && loaded.inputValues["blend"] == .number(2.5))
         #expect(file.graph.nodes == h.graph.nodes)
         let report = try await Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel()).evaluate(file.graph, demand: [node.id])
         #expect(try #require(report.implicitSolid(node)).description.contains("blend 2.5 mm"))
@@ -105,7 +105,7 @@ struct LatticeSkinBlendTests {
         let data = try GraphFileIO.encode(GraphFile(graph: graph))
         let file = try GraphFileIO.decode(data, registry: BuiltInNodes.registry)
         let loaded = try #require(file.graph.nodes[old.id])
-        #expect(loaded.typeVersion == 2)
+        #expect(loaded.typeVersion == 3)
         #expect(loaded.inputValues["blend"] == .number(0), "an old node keeps the sharp join")
         let report = try await Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel()).evaluate(file.graph, demand: [old.id])
         let reopened = try #require(report.implicitSolid(old))
