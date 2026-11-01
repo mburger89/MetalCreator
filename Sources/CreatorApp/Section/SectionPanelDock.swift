@@ -10,6 +10,7 @@ struct SectionPanelDock: Component {
     var content: some ElementGroup {
         let insets = AppLayout.sectionPanelInsets(dock: model.editor.dock, panelWidth: model.panelWidth, panelHeight: model.panelHeight,
                                                 themeEditorOpen: themeEditorOpen)
+        let sectionAboveMeasure = model.document.section?.isOn == true && (model.measure != nil || !model.measureBook.entries.isEmpty)
         VStack(alignment: .trailing, spacing: Pixels(0)) {
             HStack(spacing: Pixels(0)) {
                 Spacer()
@@ -19,7 +20,7 @@ struct SectionPanelDock: Component {
                 Spacer()
                 MeasurePanel(model: model)
             }
-            .padding(Edges(top: model.document.section?.isOn == true && model.measure != nil ? Pixels(8) : Pixels(0),
+            .padding(Edges(top: sectionAboveMeasure ? Pixels(8) : Pixels(0),
                            right: Pixels(0), bottom: Pixels(0), left: Pixels(0)))
             Spacer()
         }
