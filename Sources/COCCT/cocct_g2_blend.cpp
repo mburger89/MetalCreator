@@ -614,7 +614,15 @@ void plan_slants(StripEdges &edges, Slant slants[2]) {
         }
         const bool curved_end = !edges.end_face[nearest].IsNull() &&
                                 BRepAdaptor_Surface(edges.end_face[nearest], Standard_False).GetType() != GeomAbs_Plane;
-        if (std::abs(m) <= 0.1 * chord.Magnitude() && !curved_end) {
+        // A square section lies in the end face only if the springs run square to it: tilted by a hair, the section's
+        // sag leaves the plane by more than the edge's tolerance (a drafted wall's edge meeting the base), so any
+        // tilt is a slant.
+        bool tilted_end = false;
+        if (!edges.end_face[nearest].IsNull() && !curved_end) {
+            const gp_Dir plane_normal = BRepAdaptor_Surface(edges.end_face[nearest], Standard_False).Plane().Axis().Direction();
+            tilted_end = std::abs(gp_Vec(plane_normal).Dot(out0)) > 1e-6;
+        }
+        if (std::abs(m) <= 0.1 * chord.Magnitude() && !curved_end && !tilted_end) {
             continue;
         }
         // An end shared with a corner or the next strip of a chain is a section both must agree on; it stays square.
@@ -849,7 +857,6 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 add_blend_faces(algo.Edge(contour, j));
             }
         }
-        records.move_into(history);
 
         BRepBuilderAPI_Copy copy(g1, Standard_True, Standard_False);
         const TopoDS_Shape work = copy.Shape();
@@ -964,6 +971,7 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
         std::vector<TopoDS_Edge> mitre_edges;
         std::vector<bool> corner_done(corner_faces.size(), false);
         std::vector<TopoDS_Face> g2_new_faces;
+        std::vector<std::vector<TopoDS_Face>> corner_patches(corner_faces.size()); // the faces a replaced corner became
         std::vector<TopoDS_Edge> g2_edges;
         // The edge where a strip, built past its end, meets that end's face (or the partner strip at a mitre): the
         // surfaces' intersection between the two springs' own end points, with pcurves on both and the old vertices.
@@ -1598,6 +1606,7 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 reshape.Remove(old_corner);
                 for (int j = 0; j < 3; ++j) {
                     g2_new_faces.push_back(quads[j]);
+                    corner_patches[ci].push_back(quads[j]);
                     g2_edges.push_back(half[j][0]);
                     g2_edges.push_back(half[j][1]);
                     g2_edges.push_back(seam_edges[j]);
@@ -1972,7 +1981,16 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                     if (nc.Value(nc.FirstParameter()).Distance(fc.Value(fc.FirstParameter())) > 1e-6) {
                         throw user_error(kCornerMessage);
                     }
-                    builder.UpdateEdge(shared, pc, fill_surface, TopLoc_Location(), kEdgeTolerance);
+                    // The fill meets its boundary to its own accuracy (up to the position promise): the edge's tolerance
+                    // covers how far its pcurve's surface point is from the shared 3D curve, as BRepCheck measures it.
+                    double deviation = 0;
+                    for (int k = 0; k <= kMeasureSamples; ++k) {
+                        const double t = f2 + (l2 - f2) * k / kMeasureSamples;
+                        const gp_Pnt2d uv = pc->Value(t);
+                        const double ts = nc.FirstParameter() + (nc.LastParameter() - nc.FirstParameter()) * k / kMeasureSamples;
+                        deviation = std::max(deviation, fill_surface->Value(uv.X(), uv.Y()).Distance(nc.Value(ts)));
+                    }
+                    builder.UpdateEdge(shared, pc, fill_surface, TopLoc_Location(), std::max(kEdgeTolerance, 1.5 * deviation));
                     builder.Add(wire, shared.Oriented(it.Value().Orientation()));
                 }
                 wire.Orientation(wires.Value().Orientation());
@@ -2043,7 +2061,10 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
         }
         for (const TopoDS_Edge &edge : g2_edges) {
             const std::vector<TopoDS_Face> sides = distinct_faces(edge, result_edge_faces);
-            if (sides.size() == 2 && report->corner_seam_count < OCCT_G2_MAX_SEAMS) {
+            if (sides.size() != 2) {
+                throw user_error(kCornerMessage); // a corner's edge must border exactly two faces
+            }
+            if (report->corner_seam_count < OCCT_G2_MAX_SEAMS) {
                 report->corner_seams[report->corner_seam_count++] = measure_seam(edge, sides[0], sides[1]);
             }
         }
@@ -2058,13 +2079,80 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 if (BRep_Tool::Degenerated(e)) {
                     continue;
                 }
-                for (const TopoDS_Face &other : distinct_faces(e, result_edge_faces)) {
+                const std::vector<TopoDS_Face> around = distinct_faces(e, result_edge_faces);
+                if (around.size() != 2) {
+                    throw user_error(kCornerMessage); // a corner's edge must border exactly two faces
+                }
+                for (const TopoDS_Face &other : around) {
                     if (!other.IsSame(corner) && report->corner_seam_count < OCCT_G2_MAX_SEAMS) {
                         report->corner_seams[report->corner_seam_count++] = measure_seam(e, corner, other);
                     }
                 }
             }
         }
+        // History: the records name faces of the circular result; the final solid has its own face map (a corner that
+        // became a patch is gone from the middle of it, the patch is at the end), so each record is renumbered through
+        // what its face became: its replacement, or the patch faces of a corner.
+        {
+            const TopTools_IndexedMapOfShape final_faces = map_of(result, TopAbs_FACE);
+            auto final_index = [&](const TopoDS_Shape &face) {
+                int found = final_faces.FindIndex(face);
+                if (found == 0) {
+                    found = final_faces.FindIndex(reshape.Apply(face));
+                }
+                if (found == 0) {
+                    // A rebuilt copy of the same face: it keeps its surface.
+                    TopLoc_Location location;
+                    const Handle(Geom_Surface) surface = BRep_Tool::Surface(TopoDS::Face(face), location);
+                    for (int j = 1; j <= final_faces.Extent() && found == 0; ++j) {
+                        TopLoc_Location other_location;
+                        if (BRep_Tool::Surface(TopoDS::Face(final_faces(j)), other_location) == surface &&
+                            other_location == location) {
+                            found = j;
+                        }
+                    }
+                }
+                return found;
+            };
+            std::vector<std::vector<int>> final_of(g1_faces.Extent() + 1);
+            for (int i = 1; i <= g1_faces.Extent(); ++i) {
+                const TopoDS_Shape &original = faces(i);
+                const TopoDS_Shape replacement = reshape.IsRecorded(original) ? reshape.Value(original) : original;
+                if (replacement.IsNull()) {
+                    for (std::size_t ci = 0; ci < corner_faces.size(); ++ci) {
+                        if (corner_faces[ci].IsSame(original)) {
+                            for (const TopoDS_Face &patch : corner_patches[ci]) {
+                                const int found = final_index(patch);
+                                if (found > 0) {
+                                    final_of[i].push_back(found);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    const int found = final_index(replacement);
+                    if (found > 0) {
+                        final_of[i].push_back(found);
+                    }
+                }
+            }
+            std::vector<occt_history_record> renumbered;
+            for (const occt_history_record &record : records.records()) {
+                const std::vector<int> &now = final_of[record.out_face];
+                if (now.empty()) {
+                    continue; // a face of the circular result that the final solid no longer has (none is expected)
+                }
+                for (int index : now) {
+                    renumbered.push_back(occt_history_record{index, record.kind, record.operand, record.index});
+                }
+            }
+            records.set_records(std::move(renumbered));
+        }
+        // Never return a solid OCCT's checker rejects.
+        if (!BRepCheck_Analyzer(result).IsValid()) {
+            throw user_error(report->corners > 0 ? kCornerMessage : kStripMessage);
+        }
+        records.move_into(history);
         return new occt_shape{result};
     });
 }
