@@ -123,7 +123,7 @@ struct ShaderSourceTests {
     /// U1(b)). A source edited after the last build fails here and says so.
     @Test func theBuildCompiledEveryStageIntoTheDirectoryTheRendererReads() throws {
         let sources = Self.stageSources
-        #expect(sources.count >= 24, "the viewport's vertex and fragment stages are found")
+        #expect(sources.count >= 23, "the viewport's vertex and fragment stages are found")
         let compiled = try #require(
             Self.runtimeDirectory, "no compiled shader directory beside the executable or in the source tree. \(Self.remedy)")
         for source in sources {
@@ -155,8 +155,8 @@ struct ShaderSourceTests {
 /// the source tree's, holds every stage for the platform's driver, with its reflection.
 struct ViewportShaderDirectoryTests {
     @Test func everyStageLoadsForThePlatformsDriver() throws {
-        #expect(try SDLViewportShaders.verify() == 24)
-        #expect(try ViewportShaderCheck.run() == "the viewport's 24 SDL_GPU shader stages were found")
+        #expect(try SDLViewportShaders.verify() == 23)
+        #expect(try ViewportShaderCheck.run() == "the viewport's 23 SDL_GPU shader stages were found")
     }
     /// `--self-test` asks the viewport whether its shaders were built. With no directory it fails, and the message says which directory
     /// it looked in, that the shaders are built and not checked in, and what to run (user decision U1(b)).

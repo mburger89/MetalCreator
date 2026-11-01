@@ -29,7 +29,7 @@ final class SectionModel {
     private var remembered: [(pick: FacePick, frame: SectionFrame)] = []
 
     func update(_ settings: SectionSettings?, items: [ViewportItem], bounds: BoundingBox?, hidden: Bool,
-                nodeName: (NodeID) -> String? = { _ in nil }) {
+                isFinalPreview: Bool = true, nodeName: (NodeID) -> String? = { _ in nil }) {
         var next: SectionShown?
         var nextNote: String?
         if let settings, settings.isOn, !hidden, let bounds {
@@ -50,7 +50,8 @@ final class SectionModel {
                     title = Self.title(of: found.face, nodeName: nodeName)
                 } else {
                     frame = remembered.first { $0.pick == pick }?.frame
-                    nextNote = "The section's face no longer exists."
+                    // Outside the Final preview the scene shows one node, so a face of another part is not lost, only not shown.
+                    nextNote = isFinalPreview ? "The section's face no longer exists." : "The face isn't part of this preview."
                     if frame != nil { title = "Face" }
                 }
             }

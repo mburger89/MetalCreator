@@ -103,6 +103,17 @@ struct PolygonTriangulatorTests {
         #expect(abs(triangleAreas(points).reduce(0, +) - (side * side - Double(count * count) * 100)) < 1e-6)
     }
 
+    @Test func manyHolesTriangulateCompletely() {
+        let holes = (0..<20).flatMap { column in
+            (0..<10).map { row in square(10 + Double(column) * 20, 10 + Double(row) * 20, 10) }
+        }
+        let points = check(outer: [Vector2(0, 0), Vector2(410, 0), Vector2(410, 210), Vector2(0, 210)], holes: holes)
+        // The plate is 410 × 210 mm with 200 holes of 100 mm².
+        let covered: Double = triangleAreas(points).reduce(0, +)
+        let expected: Double = 410.0 * 210.0 - 200.0 * 100.0
+        #expect(abs(covered - expected) < 1e-9 * expected)
+    }
+
     @Test func holesSharingAnEdgeLineWithEachOtherAndTheOutlineStillFill() {
         check(outer: square(0, 0, 50), holes: [square(10, 10, 10), square(30, 10, 10), square(10, 30, 10)])
         check(outer: square(0, 0, 50), holes: [square(10, 10, 10), square(10, 30, 10), square(30, 20, 10)])

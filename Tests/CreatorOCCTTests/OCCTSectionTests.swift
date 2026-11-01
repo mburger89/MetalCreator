@@ -119,5 +119,29 @@ struct OCCTSectionTests {
         let bad = Plane(origin: Vector3(0, 0, 3), normal: .unitZ, xAxis: .unitZ)
         await #expect(throws: KernelError.self) { _ = try await kernel.section(solid, by: bad, tolerance: 0.01) }
     }
+
+    @Test func aSectionLeavesTheSolidUntouched() async throws {
+        let kernel = OCCTKernel()
+        let block = try await box(kernel, 40, 40, 10)
+        let edge = try #require(block.topology.edges.first { $0.kind == .line && isClose($0.length, 10) })
+        let rounded = try await kernel.fillet(block, edges: [edge.id], radius: 4, tag: newTag())
+        let counts = (rounded.topology.faces.count, rounded.topology.edges.count)
+        let before = try await kernel.tessellate(rounded, tolerance: 0.05)
+        let first = try await kernel.section(rounded, by: plane(z: 5), tolerance: 0.01)
+        for z in stride(from: 0.5, through: 9.5, by: 1.0) { _ = try await kernel.section(rounded, by: plane(z: z), tolerance: 0.001) }
+        let after = try await kernel.tessellate(rounded, tolerance: 0.05)
+        #expect(before.positions == after.positions && before.indices == after.indices)
+        #expect(rounded.topology.faces.count == counts.0 && rounded.topology.edges.count == counts.1)
+        #expect(try await kernel.section(rounded, by: plane(z: 5), tolerance: 0.01) == first)
+    }
+
+    @Test func aPlaneClearOfThePartIsEmpty() async throws {
+        let kernel = OCCTKernel()
+        let solid = try await box(kernel, 20, 10, 6)
+        #expect(try await kernel.section(solid, by: plane(z: 7), tolerance: 0.01).isEmpty)
+        #expect(try await kernel.section(solid, by: plane(z: -1), tolerance: 0.01).isEmpty)
+        let section = try await kernel.section(solid, by: plane(z: 6 - 1e-4), tolerance: 0.01)
+        #expect(section.regions.count == 1)
+    }
 }
 #endif

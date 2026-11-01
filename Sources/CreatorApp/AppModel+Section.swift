@@ -19,9 +19,9 @@ extension AppModel {
     }
 
     /// "Section from Face" (section spec §3.2): the section on a flat face, at its surface and cutting the outside away. A face of a
-    /// solid that is gone does nothing, and nothing starts while a sketch is open.
+    /// solid that is gone or ghosted does nothing, and nothing starts while a sketch is open.
     func sectionFromFace(_ ref: ViewportFaceRef, _ pick: FacePick) {
-        guard sketch == nil, viewport.items.indices.contains(ref.solidIndex) else { return }
+        guard sketch == nil, viewport.items.indices.contains(ref.solidIndex), !viewport.items[ref.solidIndex].isGhost else { return }
         document.section = SectionSettings(isOn: true, reference: .face(pick), offset: 0, isFlipped: false)
     }
 

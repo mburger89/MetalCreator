@@ -2,22 +2,19 @@
 import CreatorGeometry
 import Metal
 
-/// The GPU copy of a `ViewportSection`: one vertex buffer per cap and the outlines' line instances, kept until the section's
-/// generation or the palette changes, and dropped once a frame has no section.
+/// The GPU copy of a `ViewportSection`: one vertex buffer per cap, kept until the section's generation changes, and the outlines'
+/// line instances, which also follow the palette's section edge colour. Dropped once a frame has no section, so a theme change
+/// rebuilds the outlines only.
 struct SectionBuffers {
-    struct Key: Hashable {
-        var generation: Int
-        var palette: ViewportPalette
-    }
-
     struct CapBuffer {
         var buffer: any MTLBuffer
         var count: Int
         var angle: Double
     }
 
-    var key: Key
+    var generation: Int
     var caps: [CapBuffer]
+    var edgeColor: SIMD4<Float>
     var lines: (buffer: any MTLBuffer, count: Int)?
 }
 
@@ -30,19 +27,24 @@ extension ViewportRenderer {
             sectionCache = nil
             return nil
         }
-        let key = SectionBuffers.Key(generation: section.generation, palette: frame.palette)
-        if let cached = sectionCache, cached.key == key { return cached }
-        var caps: [SectionBuffers.CapBuffer] = []
-        for cap in section.caps {
-            let vertices = SectionVertex.vertices(of: cap)
-            if let buffer = GPUBuffers.make(device, vertices) {
-                caps.append(SectionBuffers.CapBuffer(buffer: buffer, count: vertices.count, angle: cap.hatchAngle))
+        var built: SectionBuffers
+        if let cached = sectionCache, cached.generation == section.generation {
+            if cached.edgeColor == frame.palette.sectionEdge { return cached }
+            built = cached
+        } else {
+            var caps: [SectionBuffers.CapBuffer] = []
+            for cap in section.caps {
+                let vertices = SectionVertex.vertices(of: cap)
+                if let buffer = GPUBuffers.make(device, vertices) {
+                    caps.append(SectionBuffers.CapBuffer(buffer: buffer, count: vertices.count, angle: cap.hatchAngle))
+                }
             }
+            built = SectionBuffers(generation: section.generation, caps: caps, edgeColor: frame.palette.sectionEdge, lines: nil)
         }
         // The width rides in the style's override, so the instances carry 1.
         let instances = GPUGeometry.sectionOutlineInstances(section, width: 1, palette: frame.palette)
-        let lines = GPUBuffers.make(device, instances).map { (buffer: $0, count: instances.count) }
-        let built = SectionBuffers(key: key, caps: caps, lines: lines)
+        built.lines = GPUBuffers.make(device, instances).map { (buffer: $0, count: instances.count) }
+        built.edgeColor = frame.palette.sectionEdge
         sectionCache = built
         return built
     }
@@ -56,7 +58,6 @@ extension ViewportRenderer {
         var clip = ClipUniforms(frame.clip)
         encoder.setRenderPipelineState(ids ? pipelines.idSection : pipelines.section)
         encoder.setDepthStencilState(pipelines.depthWrite)
-        encoder.setCullMode(.none)
         encoder.setVertexBytes(&frameUniforms, length: MemoryLayout<FrameUniforms>.stride, index: 1)
         encoder.setFragmentBytes(&clip, length: MemoryLayout<ClipUniforms>.stride, index: 1)
         for cap in buffers.caps {

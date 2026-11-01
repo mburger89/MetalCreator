@@ -46,6 +46,26 @@ struct ViewportSectionRenderTests {
         zip(colour, bytes(wanted)).allSatisfy { abs($0 - $1) <= 3 }
     }
 
+    /// Whether `colour` lies between the two colours, channel by channel (the hatch's antialiased edge is a blend).
+    func between(_ colour: [Int], _ a: SIMD4<Float>, _ b: SIMD4<Float>) -> Bool {
+        let (low, high) = (bytes(a), bytes(b))
+        return (0..<3).allSatisfy { colour[$0] >= min(low[$0], high[$0]) - 3 && colour[$0] <= max(low[$0], high[$0]) + 3 }
+    }
+
+    @Test func aPaletteChangeKeepsTheCapBuffers() throws {
+        let rig = try RendererCacheTests.Rig()
+        try rig.draw(frame(section: section(y: 1e-4), clip: nearSide(0)))
+        let before = try #require(rig.renderer.sectionCache)
+        var recoloured = frame(section: section(y: 1e-4), clip: nearSide(0))
+        recoloured.palette.sectionEdge = SIMD4(1, 0, 0, 1)
+        try rig.draw(recoloured)
+        let after = try #require(rig.renderer.sectionCache)
+        #expect(after.caps[0].buffer === before.caps[0].buffer, "the cap's vertices were kept")
+        #expect(after.lines?.buffer !== before.lines?.buffer, "the outlines were rebuilt in the new colour")
+        try rig.draw(recoloured)
+        #expect(rig.renderer.sectionCache?.lines?.buffer === after.lines?.buffer, "an unchanged frame rebuilds nothing")
+    }
+
     @Test func aCapFillsTheCutWithTheSectionColours() throws {
         let rig = try RendererCacheTests.Rig()
         let palette = ViewportPalette.dracula
@@ -55,8 +75,9 @@ struct ViewportSectionRenderTests {
         for y in 100..<140 {
             for x in 82..<122 {
                 let c = color(pixels, x, y)
-                if matches(c, palette.sectionFill) { fills += 1 } else if matches(c, palette.sectionHatch) { hatches += 1 } else {
-                    Issue.record("pixel \(x),\(y) is \(c), neither the fill nor the hatch")
+                if matches(c, palette.sectionFill) { fills += 1 } else if matches(c, palette.sectionHatch) { hatches += 1 } else if between(
+                    c, palette.sectionFill, palette.sectionHatch) { continue } else {
+                    Issue.record("pixel \(x),\(y) is \(c), neither the fill, the hatch nor a blend of them")
                     return
                 }
             }

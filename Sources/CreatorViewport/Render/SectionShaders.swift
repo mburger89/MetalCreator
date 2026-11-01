@@ -37,8 +37,14 @@ fragment float4 section_fragment(SectionOut in [[stage_in]],
     float3 d = in.world - section.origin.xyz;
     float s = dot(d, section.axisU.xyz) * section.hatchParams.z + dot(d, section.axisV.xyz) * section.hatchParams.w;
     float spacing = section.hatchParams.x;
-    bool stripe = fract(s / spacing) < section.hatchParams.y / spacing;
-    return stripe ? section.hatch : section.fill;
+    // Antialiased: the distance (mm) to the stripe's centre line, blended over a pixel's width of `s`.
+    float centre = section.hatchParams.y / (2.0 * spacing);
+    float across = abs(fract(s / spacing) - centre);
+    float distance = min(across, 1.0 - across) * spacing;
+    float half_width = section.hatchParams.y * 0.5;
+    float soft = max(fwidth(s) * 0.5, 1e-6);
+    float coverage = 1.0 - smoothstep(half_width - soft, half_width + soft, distance);
+    return mix(section.fill, section.hatch, coverage);
 }
 
 // The ID pass writes "nothing" (with depth) where the cap is, so a click on it never reaches the face behind it.

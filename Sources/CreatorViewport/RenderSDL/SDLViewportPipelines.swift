@@ -74,7 +74,7 @@ struct SDLViewportPipelines: Sendable {
         idMesh = try pipeline("id_mesh", "id_mesh", color: Self.idFormat, samples: .one, depth: writes)
         idLine = try pipeline("id_line", "id_line", primitive: .triangleStrip, color: Self.idFormat, samples: .one, depth: tests)
         section = try pipeline("section", "section", depth: writes)
-        idSection = try pipeline("id_section", "id_section", color: Self.idFormat, samples: .one, depth: writes)
+        idSection = try pipeline("section", "id_section", color: Self.idFormat, samples: .one, depth: writes)
     }
 }
 #endif

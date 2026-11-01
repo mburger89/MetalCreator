@@ -5,18 +5,26 @@ import CreatorViewport
 
 /// The pure parts of the section cap (section spec §3): where the cap's plane lies, and how a kernel section becomes a cap.
 enum SectionCaps {
-    /// How far towards the kept side the part is sectioned, in millimetres, so a section exactly on a boundary face is a
-    /// proper cross-section and the cap is not clipped by its own plane.
+    /// The smallest distance towards the kept side the part is sectioned, in millimetres, so a section exactly on a boundary
+    /// face is a proper cross-section and the cap is not clipped by its own plane. `inset(for:)` grows it with the part's
+    /// distance from the origin.
     static let inset = 1e-4
 
-    /// The plane the part is sectioned at: the clip plane moved `inset` towards the kept side, with the clip's normal.
-    static func plane(for clip: ViewportClip) -> Plane {
+    /// The inset for parts with these bounds: `inset`, or 1e-6 of the largest absolute coordinate when that is more, so a part far
+    /// from the origin (where a Float vertex has a coarser grain) is still sectioned inside its own plane.
+    static func inset(for bounds: [BoundingBox]) -> Double {
+        let reach = bounds.map { [abs($0.min.x), abs($0.min.y), abs($0.min.z), abs($0.max.x), abs($0.max.y), abs($0.max.z)].max() ?? 0 }
+        return max(inset, 1e-6 * (reach.max() ?? 0))
+    }
+
+    /// The plane the part is sectioned at: the clip plane moved `inset(for: bounds)` towards the kept side, with the clip's normal.
+    static func plane(for clip: ViewportClip, bounds: [BoundingBox] = []) -> Plane {
         let normal = clip.normal.normalized ?? clip.normal
         let components = [abs(normal.x), abs(normal.y), abs(normal.z)]
         let least = components.firstIndex(of: components.min() ?? 0) ?? 0
         let axis = [Vector3.unitX, .unitY, .unitZ][least]
         let xAxis = normal.cross(axis).normalized ?? .unitX
-        return Plane(origin: clip.origin - normal * inset, normal: normal, xAxis: xAxis)
+        return Plane(origin: clip.origin - normal * inset(for: bounds), normal: normal, xAxis: xAxis)
     }
 
     /// True when a region has an outline but no triangles to fill it (the triangulator refused its loops).
@@ -40,9 +48,15 @@ enum SectionCaps {
         return ViewportSection.Cap(positions: positions, triangles: triangles, outlines: outlines, hatchAngle: hatchAngle)
     }
 
-    /// Slices a display mesh off the calling actor.
+    /// Welds a display mesh off the calling actor.
     @concurrent
-    static func slice(_ mesh: DisplayMesh, by plane: Plane) async -> PlaneSection {
-        MeshSlicer.slice(positions: mesh.positions, triangles: mesh.indices, plane: plane)
+    static func prepare(_ mesh: DisplayMesh) async -> MeshSlicer.Prepared {
+        MeshSlicer.prepare(positions: mesh.positions, triangles: mesh.indices)
+    }
+
+    /// Slices a welded mesh off the calling actor.
+    @concurrent
+    static func slice(_ prepared: MeshSlicer.Prepared, by plane: Plane) async -> PlaneSection {
+        MeshSlicer.slice(prepared, plane: plane)
     }
 }

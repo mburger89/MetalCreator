@@ -48,7 +48,11 @@ extension OCCTShape {
         for region in 0..<Int(raw.region_count) {
             let slice = indices[(Int(triangleOffsets[region]) * 3)..<(Int(triangleOffsets[region + 1]) * 3)]
             // A region's vertices are contiguous in the shared array: take its range and renumber from zero.
-            guard let low = slice.min(), let high = slice.max() else { continue }
+            // A region without triangles (a face that could not be meshed) keeps its outline.
+            guard let low = slice.min(), let high = slice.max() else {
+                regions.append(SectionRegion(positions: [], triangles: [], boundary: pieces[region]))
+                continue
+            }
             let positions = (Int(low)...Int(high)).map { vector(coordinates, $0 * 3) }
             regions.append(SectionRegion(positions: positions, triangles: slice.map { $0 - low }, boundary: pieces[region]))
         }

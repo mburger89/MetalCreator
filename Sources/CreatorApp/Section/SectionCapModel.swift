@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorImplicit
 import CreatorKernel
 import CreatorViewport
 import Foundation
@@ -40,11 +41,16 @@ final class SectionCapModel {
     @ObservationIgnored private var clearedGeneration = 0
     /// The request under way, to tell a moved clip from an edit.
     @ObservationIgnored private var current: Request?
-    /// Set when the running computation was cancelled, so a result that slipped past its last check is dropped.
-    @ObservationIgnored private var discardsRunning = false
     @ObservationIgnored private var followed: Key?
     /// How many mesh slices have been started (for tests: a burst of moves must not start one per move).
     @ObservationIgnored private(set) var slicesStarted = 0
+    /// How many meshes have been welded (for tests: a mesh sliced at several planes is welded once).
+    @ObservationIgnored private(set) var preparesDone = 0
+    /// The weld of the last few mesh solids, least recently used first. The solid is kept so its identity cannot be reused.
+    @ObservationIgnored private var welds: [(solid: Solid, prepared: MeshSlicer.Prepared)] = []
+    private static let weldCacheSize = 8
+    /// How many welds are kept (for tests: a part that left the scene is not).
+    var weldsKept: Int { welds.count }
 
     /// What one computation is asked to cut.
     private struct Request {
@@ -85,19 +91,21 @@ final class SectionCapModel {
             return
         }
         let capped = items.filter { !$0.isGhost && !$0.isGuide }.map(\.solid)
+        // A weld of a part that is no longer shown (a preview pass replaced it) is of no use again.
+        welds.removeAll { weld in !capped.contains { $0 === weld.solid } }
         let key = Key(clip: clip, solids: capped, tolerance: tolerance ?? defaultTolerance)
         guard key != followed else { return }
         followed = key
         generation += 1
         isComputing = true
-        let request = Request(generation: generation, plane: SectionCaps.plane(for: clip), solids: capped,
+        let request = Request(generation: generation, plane: SectionCaps.plane(for: clip, bounds: capped.map(\.bounds)),
+                              solids: capped,
                               tolerance: tolerance ?? defaultTolerance)
         // At most one computation runs; a newer request waits for it to end (cancelled only when the solids or tolerance
         // changed) and is the only one that then starts.
         if let running, let current {
             if !current.sameInputs(as: request) {
                 running.cancel()
-                discardsRunning = true
             }
             pending = request
         } else {
@@ -113,7 +121,6 @@ final class SectionCapModel {
     private func start(_ request: Request) {
         let kernel = kernel
         current = request
-        discardsRunning = false
         running = Task { [weak self] in
             var caps: [ViewportSection.Cap] = []
             var sectioned: [SectionedPart] = []
@@ -125,7 +132,10 @@ final class SectionCapModel {
                     let result: PlaneSection
                     if let mesh = solid.displayedMesh {
                         self?.slicesStarted += 1
-                        result = await SectionCaps.slice(mesh, by: request.plane)
+                        let prepared = await self?.weld(of: solid, mesh)
+                        try Task.checkCancellation()
+                        guard let prepared else { throw CancellationError() }
+                        result = await SectionCaps.slice(prepared, by: request.plane)
                     } else {
                         result = try await kernel.section(solid, by: request.plane, tolerance: request.tolerance)
                     }
@@ -142,8 +152,25 @@ final class SectionCapModel {
                     failed = true
                 }
             }
-            self?.ended(request, caps: cancelled ? nil : caps, parts: sectioned, failed: failed)
+            // A result that slipped past the last check of a cancelled task is dropped too.
+            self?.ended(request, caps: cancelled || Task.isCancelled ? nil : caps, parts: sectioned, failed: failed)
         }
+    }
+
+    /// The weld of a mesh solid, from the cache or made off the main actor (a cancelled weld is not kept).
+    private func weld(of solid: Solid, _ mesh: DisplayMesh) async -> MeshSlicer.Prepared {
+        if let found = welds.firstIndex(where: { $0.solid === solid }) {
+            let entry = welds.remove(at: found)
+            welds.append(entry)
+            return entry.prepared
+        }
+        preparesDone += 1
+        let prepared = await SectionCaps.prepare(mesh)
+        if !prepared.wasCancelled {
+            welds.append((solid, prepared))
+            if welds.count > Self.weldCacheSize { welds.removeFirst() }
+        }
+        return prepared
     }
 
     /// A computation is over: publish it unless it was cancelled or predates a clear (it may be older than the latest
@@ -151,8 +178,7 @@ final class SectionCapModel {
     private func ended(_ request: Request, caps: [ViewportSection.Cap]?, parts sectioned: [SectionedPart], failed: Bool) {
         running = nil
         current = nil
-        let publishes = caps != nil && !discardsRunning && request.generation > clearedGeneration
-        discardsRunning = false
+        let publishes = caps != nil && request.generation > clearedGeneration
         let next = pending
         pending = nil
         if publishes, let caps {
@@ -171,13 +197,14 @@ final class SectionCapModel {
 
     /// Forgets everything, for a new or opened document.
     func reset() {
+        welds.removeAll()
         clear()
     }
 
     private func clear() {
+        welds.removeAll()
         guard followed != nil || section != nil || problem != nil || isComputing else { return }
         running?.cancel()
-        discardsRunning = true
         pending = nil
         generation += 1
         clearedGeneration = generation

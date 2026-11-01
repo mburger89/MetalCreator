@@ -30,9 +30,15 @@ public enum PolygonTriangulator {
 
     static func cross(_ a: Vector2, _ b: Vector2) -> Double { a.x * b.y - a.y * b.x }
 
+    /// The loop's edges, each vertex to the next and the last back to the first, without copying the loop.
+    private static func wrappingEdges(_ loop: [Vector2]) -> some Sequence<(Vector2, Vector2)> {
+        let count = loop.count
+        return (0..<count).lazy.map { (loop[$0], loop[$0 + 1 == count ? 0 : $0 + 1]) }
+    }
+
     /// Twice the polygon's signed area: positive for counter-clockwise.
     public static func doubleArea(_ loop: [Vector2]) -> Double {
-        zip(loop, loop.dropFirst() + loop.prefix(1)).reduce(0) { $0 + cross($1.0, $1.1) }
+        wrappingEdges(loop).reduce(0) { $0 + cross($1.0, $1.1) }
     }
 
     static func oriented(_ loop: [Vector2], counterClockwise: Bool) -> [Vector2] {
@@ -48,7 +54,7 @@ public enum PolygonTriangulator {
     /// Whether `p` is inside the polygon (even-odd).
     public static func contains(_ loop: [Vector2], _ p: Vector2) -> Bool {
         var inside = false
-        for (a, b) in zip(loop, loop.dropFirst() + loop.prefix(1)) where (a.y > p.y) != (b.y > p.y) {
+        for (a, b) in wrappingEdges(loop) where (a.y > p.y) != (b.y > p.y) {
             if p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x { inside.toggle() }
         }
         return inside
@@ -76,13 +82,39 @@ public enum PolygonTriangulator {
         return !(cross(before - v, p - v) >= -epsilon && cross(p - v, after - v) >= -epsilon)
     }
 
+    /// A loop with its bounding box, to skip a segment's test against a loop it cannot touch.
+    struct Box {
+        let loop: [Vector2]
+        let low: Vector2
+        let high: Vector2
+
+        init(of loop: [Vector2]) {
+            self.loop = loop
+            var (low, high) = (loop.first ?? Vector2(0, 0), loop.first ?? Vector2(0, 0))
+            for v in loop {
+                low = Vector2(min(low.x, v.x), min(low.y, v.y))
+                high = Vector2(max(high.x, v.x), max(high.y, v.y))
+            }
+            (self.low, self.high) = (low, high)
+        }
+
+        /// Whether the box, grown by `pad`, meets the box of the segment `from`–`to`.
+        func meets(_ from: Vector2, _ to: Vector2, pad: Double) -> Bool {
+            max(from.x, to.x) >= low.x - pad && min(from.x, to.x) <= high.x + pad
+                && max(from.y, to.y) >= low.y - pad && min(from.y, to.y) <= high.y + pad
+        }
+    }
+
     /// Whether the segment `from`–`to` touches no loop except at its ends: it crosses no edge, passes through no vertex
     /// and so runs along no edge.
-    static func isClear(_ from: Vector2, _ to: Vector2, loops: [[Vector2]]) -> Bool {
+    static func isClear(_ from: Vector2, _ to: Vector2, loops: [Box]) -> Bool {
         let direction = to - from
         let length = direction.length
-        for loop in loops {
-            for (c, d) in zip(loop, loop.dropFirst() + loop.prefix(1)) where cross(from, to, c, d) { return false }
+        // The vertex test below accepts a vertex within epsilon * max(1, length) / length of the line.
+        let pad = epsilon * max(1, 1 / length) + epsilon
+        for box in loops where box.meets(from, to, pad: pad) {
+            let loop = box.loop
+            for (c, d) in wrappingEdges(loop) where cross(from, to, c, d) { return false }
             for v in loop where (v - from).length > epsilon && (v - to).length > epsilon {
                 let offset = v - from
                 let along = (offset.x * direction.x + offset.y * direction.y) / (length * length)
@@ -96,15 +128,20 @@ public enum PolygonTriangulator {
     /// the nearest polygon vertex it sees (the segment is clear, leaves that vertex into the polygon's inside and runs
     /// outside the holes), or `nil` when no vertex of the hole sees one. The bridge appears twice in the result.
     static func bridged(_ polygon: [Vector2], _ hole: [Vector2], others: [[Vector2]]) -> [Vector2]? {
-        let loops = [polygon, hole] + others
+        let loops = ([polygon, hole] + others).map { Box(of: $0) }
         for start in hole.indices.sorted(by: { hole[$0].x > hole[$1].x }) {
             let from = hole[start]
-            let nearest = polygon.indices.sorted { (polygon[$0] - from).length < (polygon[$1] - from).length }
-            for index in nearest {
+            // Nearest first, taking the minimum of those left each time (the first usually works); ties go to the lower index.
+            var candidates = polygon.indices.map { (distance: (polygon[$0] - from).lengthSquared, index: $0) }
+            while !candidates.isEmpty {
+                var best = candidates.count - 1
+                for slot in candidates.indices.reversed() where candidates[slot] <= candidates[best] { best = slot }
+                let index = candidates.remove(at: best).index
                 let to = polygon[index]
                 let middle = (from + to) * 0.5
-                guard (to - from).length > epsilon, inCone(polygon, at: index, towards: from), isClear(from, to, loops: loops),
-                      contains(polygon, middle), !contains(hole, middle), !others.contains(where: { contains($0, middle) })
+                guard (to - from).lengthSquared > epsilon * epsilon, inCone(polygon, at: index, towards: from),
+                      isClear(from, to, loops: loops), contains(polygon, middle), !contains(hole, middle),
+                      !others.contains(where: { contains($0, middle) })
                 else { continue }
                 let turned = Array(hole[start...] + hole[..<start])
                 return Array(polygon[...index]) + turned + [from, to] + Array(polygon[(index + 1)...])
@@ -159,10 +196,10 @@ public enum PolygonTriangulator {
 
     private static func isEar(_ ring: [Vector2], at position: Int) -> Bool {
         let count = ring.count
-        let corners = [(position + count - 1) % count, position, (position + 1) % count]
-        let (a, b, c) = (ring[corners[0]], ring[corners[1]], ring[corners[2]])
+        let (before, after) = ((position + count - 1) % count, (position + 1) % count)
+        let (a, b, c) = (ring[before], ring[position], ring[after])
         guard cross(b - a, c - b) > epsilon else { return false }
-        for other in ring.indices where !corners.contains(other) {
+        for other in ring.indices where other != before && other != position && other != after {
             let p = ring[other]
             if p == a || p == b || p == c { continue }
             let inside = cross(b - a, p - a) >= -epsilon && cross(c - b, p - b) >= -epsilon && cross(a - c, p - c) >= -epsilon
@@ -170,4 +207,9 @@ public enum PolygonTriangulator {
         }
         return true
     }
+}
+
+private extension Vector2 {
+    /// The square of the length, which the bridge search compares instead of taking roots.
+    var lengthSquared: Double { x * x + y * y }
 }

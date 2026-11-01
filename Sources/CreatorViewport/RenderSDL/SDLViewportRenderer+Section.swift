@@ -2,21 +2,18 @@
 import MetalUISDLGPU
 
 /// The GPU copy of a `ViewportSection` (the Metal side's `SectionBuffers`): one vertex storage buffer per cap and the outlines' line
-/// instances, kept until the section's generation or the palette changes, and dropped once a frame has no section.
+/// instances, kept until the section's generation changes (the outlines also follow the palette's section edge colour), and dropped
+/// once a frame has no section.
 struct SDLSectionBuffers {
-    struct Key: Hashable {
-        var generation: Int
-        var palette: ViewportPalette
-    }
-
     struct CapBuffer {
         var buffer: SDLGPUBuffer
         var count: Int
         var angle: Double
     }
 
-    var key: Key
+    var generation: Int
     var caps: [CapBuffer]
+    var edgeColor: SIMD4<Float>
     var lines: (buffer: SDLGPUBuffer, count: Int)?
 }
 
@@ -30,19 +27,25 @@ extension SDLViewportRenderer {
             sectionBuffers = nil
             return
         }
-        let key = SDLSectionBuffers.Key(generation: section.generation, palette: frame.palette)
-        if let cached = sectionBuffers, cached.key == key { return }
-        var caps: [SDLSectionBuffers.CapBuffer] = []
-        for cap in section.caps {
-            let vertices = SectionVertex.vertices(of: cap)
-            if let buffer = uploader.storageBuffer(vertices) {
-                caps.append(SDLSectionBuffers.CapBuffer(buffer: buffer, count: vertices.count, angle: cap.hatchAngle))
+        var built: SDLSectionBuffers
+        if let cached = sectionBuffers, cached.generation == section.generation {
+            if cached.edgeColor == frame.palette.sectionEdge { return }
+            built = cached
+        } else {
+            var caps: [SDLSectionBuffers.CapBuffer] = []
+            for cap in section.caps {
+                let vertices = SectionVertex.vertices(of: cap)
+                if let buffer = uploader.storageBuffer(vertices) {
+                    caps.append(SDLSectionBuffers.CapBuffer(buffer: buffer, count: vertices.count, angle: cap.hatchAngle))
+                }
             }
+            built = SDLSectionBuffers(generation: section.generation, caps: caps, edgeColor: frame.palette.sectionEdge, lines: nil)
         }
         // The width rides in the style's override, so the instances carry 1.
         let instances = GPUGeometry.sectionOutlineInstances(section, width: 1, palette: frame.palette)
-        let lines = uploader.storageBuffer(instances).map { (buffer: $0, count: instances.count) }
-        sectionBuffers = SDLSectionBuffers(key: key, caps: caps, lines: lines)
+        built.lines = uploader.storageBuffer(instances).map { (buffer: $0, count: instances.count) }
+        built.edgeColor = frame.palette.sectionEdge
+        sectionBuffers = built
     }
 
     /// The caps and outlines of `frame` for the main pass. The outlines are clipped by the current clip with its plane moved by the

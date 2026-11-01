@@ -11,7 +11,7 @@ import Testing
 /// Section analysis part B (section spec §3.4), the cap's three rows. Release, idle Mac; prints `BENCH sa-…` lines, with the
 /// 60 FPS frame (16.67 ms) as the budget each is judged against on the median. Recorded, not gated (spec §9).
 /// 1. the bracket's part sectioned by `Kernel.section` on OCCT at 60 planes spread across its height;
-/// 2. the gyroid sheet's preview mesh sliced by `MeshSlicer.slice` (which includes the cap's triangulation) at 60 planes;
+/// 2. the gyroid sheet's preview mesh sliced by `MeshSlicer.slice` over a weld made once (which includes the cap's triangulation) at 60 planes;
 /// 3. a drag on the bracket through `AppModel`: `setSectionOffset` then `settle()`, 60 steps, to the finished cap.
 @MainActor
 @Suite(.serialized, .enabled(if: Bench.isRequested, "set METALCREATOR_BENCH=1 (scripts/bench.sh)"))
@@ -63,6 +63,8 @@ struct SectionBench {
         let mesh = try await ImplicitMesher(evaluator: selection.evaluator).mesh(solid, resolution: resolution, quality: .preview)
         let display = mesh.displayMesh
         let middle = (solid.bounds.min.z + solid.bounds.max.z) / 2
+        // The app welds a mesh once (SectionCapModel) and slices the weld at every drag step.
+        let prepared = MeshSlicer.prepare(positions: display.positions, triangles: display.indices)
         let clock = ContinuousClock()
         var samples = BenchSamples(row)
         var shape = (regions: 0, holes: 0, triangles: 0)
@@ -70,7 +72,7 @@ struct SectionBench {
             let z = middle + Double(round) * Self.stride
             let plane = Plane(origin: Vector3(0, 0, z), normal: Vector3(0, 0, 1), xAxis: Vector3(1, 0, 0))
             let start = clock.now
-            let section = MeshSlicer.slice(positions: display.positions, triangles: display.indices, plane: plane)
+            let section = MeshSlicer.slice(prepared, plane: plane)
             guard round >= 5 else { continue }
             samples.append(from: start, to: clock.now)
             let holes = section.regions.reduce(0) { $0 + max(0, $1.boundary.count - 1) }

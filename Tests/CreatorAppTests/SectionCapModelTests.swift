@@ -158,6 +158,14 @@ struct SectionCapModelTests {
         #expect(abs(tilted.xAxis.length - 1) < 1e-12 && abs(tilted.xAxis.dot(Vector3(1, 1, 1).normalized ?? .zero)) < 1e-12)
     }
 
+    @Test func theInsetGrowsWithTheScene() {
+        let clip = ViewportClip(origin: .zero, normal: Vector3(0, 0, 1))
+        func depth(_ bounds: [BoundingBox]) -> Double { -SectionCaps.plane(for: clip, bounds: bounds).origin.z }
+        #expect(abs(depth([BoundingBox(min: .zero, max: Vector3(10, 10, 10))]) - 1e-4) < 1e-12)
+        #expect(abs(depth([BoundingBox(min: Vector3(490, 0, 0), max: Vector3(500, 10, 10))]) - 5e-4) < 1e-12)
+        #expect(abs(depth([]) - 1e-4) < 1e-12)
+    }
+
     /// A closed box mesh from 0 to `size` on every axis, as a display-only solid.
     private func meshSolid(size: Double) -> Solid {
         let corners = (0..<8).map { Vector3(($0 & 1) == 0 ? 0 : size, ($0 & 2) == 0 ? 0 : size, ($0 & 4) == 0 ? 0 : size) }
@@ -182,6 +190,31 @@ struct SectionCapModelTests {
         let expected = try #require(SectionCaps.cap(from: direct, hatchAngle: ViewportSection.hatchAngle(forCap: 0)))
         #expect(after.caps[0].positions == expected.positions && after.caps[0].triangles == expected.triangles)
         #expect(after.caps[0].positions != before.caps[0].positions)
+    }
+
+    @Test func theWeldIsBuiltOncePerMesh() async {
+        let solid = meshSolid(size: 10)
+        let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)
+        for height in [2.0, 4.0, 6.0] {
+            model.follow(clip: ViewportClip(origin: Vector3(0, 0, height), normal: .unitZ), items: [ViewportItem(solid: solid)])
+            await model.waitForCaps()
+            #expect(model.section != nil)
+        }
+        #expect(model.slicesStarted == 3 && model.preparesDone == 1)
+    }
+
+    @Test func aWeldOfAPartThatLeftTheSceneIsDropped() async {
+        let (first, second) = (meshSolid(size: 10), meshSolid(size: 20))
+        let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)
+        let clip = ViewportClip(origin: Vector3(0, 0, 5), normal: .unitZ)
+        model.follow(clip: clip, items: [ViewportItem(solid: first)])
+        await model.waitForCaps()
+        #expect(model.weldsKept == 1)
+        model.follow(clip: clip, items: [ViewportItem(solid: second)])
+        await model.waitForCaps()
+        #expect(model.weldsKept == 1 && model.preparesDone == 2)
+        model.follow(clip: nil, items: [])
+        #expect(model.weldsKept == 0)
     }
 
     @Test func aBurstOfMovesOnAMeshPartStartsAtMostTwoSlices() async throws {
