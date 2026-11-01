@@ -127,4 +127,20 @@ struct BlendContinuityMigrationTests {
         #expect(solid.description.contains(skinOrder), "\(solid.description)")
         #expect(solid.description.contains(order == 0 ? "blend 0.5 mm" : "blend 0.5 mm, \(label)"), "\(solid.description)")
     }
+
+    @Test func aBlendOfZeroCompilesAsG1AndAGradedOneKeepsG2() async throws {
+        var h = Harness()
+        let plain = h.add(ImplicitUnionNode.self)
+        h.wire(Self.spheres(&h), "implicit", to: plain, "shapes")
+        let plainSolid = try #require(try await h.run([plain]).implicitSolid(plain))
+        #expect(!(try ImplicitCompiler.compile(plainSolid)).source.contains("smoothMin2"), "a default union has blend 0")
+
+        var g = Harness()
+        let gradient = g.add(LinearGradientNode.self, ["length": .number(10)])
+        let graded = g.add(ImplicitUnionNode.self)
+        g.wire(Self.spheres(&g), "implicit", to: graded, "shapes")
+        g.wire(gradient, "field", to: graded, "blend radius")
+        let gradedSolid = try #require(try await g.run([graded]).implicitSolid(graded))
+        #expect(try ImplicitCompiler.compile(gradedSolid).source.contains("smoothMin2"))
+    }
 }

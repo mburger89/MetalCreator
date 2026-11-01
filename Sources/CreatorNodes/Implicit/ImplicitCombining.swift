@@ -42,7 +42,7 @@ enum ImplicitCombining {
 
     /// The `continuity` input.
     static func continuity(_ inputs: NodeInputs) throws -> BlendContinuity {
-        BlendContinuity(rawValue: try inputs.choice("continuity", options: continuityOptions)) ?? .g2
+        BlendContinuity(rawValue: try inputs.choice("continuity", options: continuityOptions)) ?? .g1
     }
 
     static let outputs = [SocketSpec("implicit", .implicit)]
@@ -58,7 +58,8 @@ enum ImplicitCombining {
         let setting = try await ImplicitGrading.make(try inputs.field("blend radius"), named: "blend radius", over: region,
                                                      holdsAtZero: true, kernel: kernel, context: context)
         // One shape, sharp, is that shape; anything else is the combination.
-        let continuity = try continuity(inputs)
+        // A blend of 0 is the plain minimum whatever the order, so it compiles as G1 and shares that kernel.
+        let continuity = setting.grading.constantValue.map { $0 <= 0 } == true ? BlendContinuity.g1 : try continuity(inputs)
         let sharp = setting.grading.constantValue.map { $0 <= 0 } ?? false
         let result = shapes.count == 1 && sharp ? shapes[0] : kind.combine(shapes, blend: setting.grading, continuity: continuity)
         return NodeOutputs(["implicit": .implicit(result.reference)], warnings: setting.warnings)

@@ -16,6 +16,7 @@ enum LatticeFill {
         guard skin > 0 else { return .intersect([region, lattice], blend: .constant(0)) }
         let wall = ImplicitSolid.shell(region, thickness: .constant(skin), side: .inward)
         let inside = ImplicitSolid.offset(region, distance: .constant(-skin))
-        return .union([wall, .intersect([lattice, inside], blend: .constant(0))], blend: .constant(blend), continuity: continuity)
+        let order = blend > 0 ? continuity : BlendContinuity.g1
+        return .union([wall, .intersect([lattice, inside], blend: .constant(0))], blend: .constant(blend), continuity: order)
     }
 }
