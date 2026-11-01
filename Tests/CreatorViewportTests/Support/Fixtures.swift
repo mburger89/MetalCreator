@@ -14,6 +14,10 @@ func fakeBox(width: Double = 10, depth: Double = 20, height: Double = 30, node: 
 /// Nothing else is supported.
 actor StubMeshKernel: Kernel {
     private(set) var tessellations = 0
+    /// The `angle` of each tessellation, in order.
+    private(set) var angles: [Double] = []
+    /// How long a tessellation at an angle finer than `DisplayAngle.standard` takes, in milliseconds.
+    var fineDelayMilliseconds = 0
     private var failing: Bool
 
     init(failing: Bool = false) {
@@ -58,11 +62,20 @@ actor StubMeshKernel: Kernel {
         throw KernelError.unsupported("chamfer")
     }
 
-    func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh {
+    func setFineDelay(milliseconds: Int) {
+        fineDelayMilliseconds = milliseconds
+    }
+
+    /// A box whose mesh is 1 mm larger all round when `angle` is finer than the standard, so a test can tell the two apart.
+    func tessellate(_ solid: Solid, tolerance: Double, angle: Double) throws -> DisplayMesh {
         try Task.checkCancellation()
         if failing { throw KernelError.operationFailed(operation: "tessellate", reason: "the mesh could not be built.") }
+        let fine = angle < DisplayAngle.standard
+        if fine, fineDelayMilliseconds > 0 { Thread.sleep(forTimeInterval: Double(fineDelayMilliseconds) / 1000) }
         tessellations += 1
-        return TestMeshes.box(solid.bounds)
+        angles.append(angle)
+        let bounds = solid.bounds
+        return TestMeshes.box(fine ? BoundingBox(min: bounds.min - Vector3(1, 1, 1), max: bounds.max + Vector3(1, 1, 1)) : bounds)
     }
 
     func export(_ solids: [Solid], format: ExportFormat, to url: URL) throws {

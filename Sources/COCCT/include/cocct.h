@@ -208,7 +208,8 @@ typedef struct {
     int edge_count;
 } occt_mesh;
 
-int occt_tessellate(const occt_shape *shape, double tolerance, occt_mesh *out, occt_status *status);
+/// `angle` is the largest turn in radians between neighbouring triangle normals on a curved face (OCCT's angular deflection).
+int occt_tessellate(const occt_shape *shape, double tolerance, double angle, occt_mesh *out, occt_status *status);
 void occt_mesh_free(occt_mesh *mesh);
 /// Distances in millimetres from `point_count` points (x, y, z triples in `points`) to part of `shape`, written to
 /// `out` (one per point; the caller owns it, the shim allocates nothing). `kind` 0 measures to the surface of the whole

@@ -37,6 +37,9 @@ public final class ViewportModel {
     public internal(set) var modelArea = ViewportInsets()
     /// Display tolerance in mm. Meshes are cached per solid and tolerance. A change applies at the next `show(_:)`.
     public var displayTolerance = 0.05
+    /// Display angular deflection in radians (`DisplayAngle`): the finest turn between neighbouring normals on a curved
+    /// face. A change applies at the next `show(_:)`; until the finer meshes land the shown ones stay up.
+    public var displayAngle = DisplayAngle.standard
     /// The shown scene: what's drawn, picked, framed and offered in the context menu. It changes only when a
     /// requested scene's meshes are ready.
     public private(set) var items: [ViewportItem] = []
@@ -168,12 +171,13 @@ public final class ViewportModel {
         meshTask?.cancel()
         let solids = newItems.map(\.solid)
         let tolerance = displayTolerance
+        let angle = displayAngle
         meshTask = Task { [weak self] in
             guard let self else { return }
             do {
                 // The cache keeps the shown scene's meshes until this load has every new one: it prunes only at
                 // the end of a load that wasn't cancelled.
-                try await cache.load(solids, tolerance: tolerance, kernel: kernel)
+                try await cache.load(solids, tolerance: tolerance, angle: angle, kernel: kernel)
             } catch is CancellationError {
                 return
             } catch {

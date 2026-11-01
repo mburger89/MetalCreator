@@ -6,6 +6,8 @@ import Foundation
 /// kernel conformance suite against it (spec §5.4).
 public actor FakeKernel: Kernel {
     public private(set) var operationLog: [String] = []
+    /// The `angle` of each `tessellate` call, in order.
+    public private(set) var tessellationAngles: [Double] = []
     var sectionHook: (@Sendable () throws -> Void)?
     var measureHook: (@Sendable () throws -> Void)?
 
@@ -113,13 +115,12 @@ public actor FakeKernel: Kernel {
         return try blend(solid, edges: edges, size: distance, tag: tag)
     }
 
-    public func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh {
+    public func tessellate(_ solid: Solid, tolerance: Double, angle: Double) throws -> DisplayMesh {
         try Task.checkCancellation()
         operationLog.append("tessellate")
+        tessellationAngles.append(angle)
         let (lo, hi) = (solid.bounds.min, solid.bounds.max)
-        let positions = (0..<8).map { i in
-            Vector3(i & 1 == 0 ? lo.x : hi.x, i & 2 == 0 ? lo.y : hi.y, i & 4 == 0 ? lo.z : hi.z)
-        }
+        let positions = (0..<8).map { Vector3($0 & 1 == 0 ? lo.x : hi.x, $0 & 2 == 0 ? lo.y : hi.y, $0 & 4 == 0 ? lo.z : hi.z) }
         let center = solid.bounds.center
         let indices: [UInt32] = [0, 2, 1, 1, 2, 3, 4, 5, 6, 5, 7, 6, 0, 1, 4, 1, 5, 4,
                                  2, 6, 3, 3, 6, 7, 0, 4, 2, 2, 4, 6, 1, 3, 5, 3, 7, 5,

@@ -18,7 +18,7 @@ actor SmallBatchFailingKernel: Kernel {
                tag: NodeTag) throws -> [Solid] { throw unsupported }
     func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid { throw unsupported }
     func chamfer(_ solid: Solid, edges: [EdgeID], distance: Double, tag: NodeTag) throws -> Solid { throw unsupported }
-    func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh { throw unsupported }
+    func tessellate(_ solid: Solid, tolerance: Double, angle: Double) throws -> DisplayMesh { throw unsupported }
     func export(_ solids: [Solid], format: ExportFormat, to url: URL) throws { throw unsupported }
     func properties(of solid: Solid) throws -> SolidProperties { throw unsupported }
 
