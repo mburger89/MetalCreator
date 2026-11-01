@@ -34,7 +34,7 @@ final class MeasureSession: ViewportTool {
     /// Takes a measurement the person leaves behind (a third click, `keepCurrent()`).
     @ObservationIgnored var keep: (@MainActor (KeptMeasurement) -> Void)?
 
-    @ObservationIgnored weak var viewport: ViewportModel?
+    @ObservationIgnored private(set) weak var viewport: ViewportModel?
     @ObservationIgnored private let kernel: any Kernel
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
@@ -142,7 +142,7 @@ final class MeasureSession: ViewportTool {
                       projector: ViewportProjector) -> Bool {
         // The section's outline wins over the model behind it.
         let pick: MeasurePick?
-        if let outline = sectionPick(at: point, projector: projector) ?? centrePick(at: point, projector: projector) {
+        if let outline = sectionPick(at: point, projector: projector) ?? centrePick(at: point, target: target, projector: projector) {
             pick = outline
         } else if let target {
             pick = clickedPick(target, at: point, projector: projector)
@@ -231,7 +231,9 @@ final class MeasureSession: ViewportTool {
     }
 
     /// The centre of a full circle within reach of the pointer (`MeasureSnap.centre`), before any edge or face under it.
-    private func centrePick(at point: ScreenPoint, projector: ViewportProjector) -> MeasurePick? {
+    /// Only circles of the solid under the pointer (`target`) count, or of every pickable solid when nothing is under it; a centre on
+    /// the section's cut-away side is not there, and of two centres at one place the one nearer the camera wins.
+    private func centrePick(at point: ScreenPoint, target: PickTarget?, projector: ViewportProjector) -> MeasurePick? {
         if circleCentres == nil {
             circleCentres = scene.solids.indices.flatMap { index -> [CircleCentre] in
                 guard scene.pickable.indices.contains(index), scene.pickable[index],
@@ -239,13 +241,17 @@ final class MeasureSession: ViewportTool {
                 return MeasureSnap.circleCentres(of: scene.solids[index].topology, solid: index)
             }
         }
-        return MeasureSnap.centre(at: point, among: circleCentres ?? [], screenPoint: { projector.screenPoint(of: $0) })
+        let candidates = (circleCentres ?? []).filter { circle in
+            (target.map { circle.solid == $0.solidIndex } ?? true) && viewport?.clip?.removes(circle.centre) != true
+        }
+        return MeasureSnap.centre(at: point, among: candidates, screenPoint: { projector.screenPoint(of: $0) },
+                                  depth: { $0.dot(projector.pose.toEye) })
     }
 
     private func updateHover(at point: ScreenPoint?, projector: ViewportProjector) {
         var next: MeasurePick?
         if let point {
-            next = sectionPick(at: point, projector: projector) ?? centrePick(at: point, projector: projector)
+            next = sectionPick(at: point, projector: projector) ?? centrePick(at: point, target: lastTarget, projector: projector)
             if next == nil, let target = lastTarget { next = snapped(target, at: point, projector: projector) }
         }
         guard next != hover else { return }

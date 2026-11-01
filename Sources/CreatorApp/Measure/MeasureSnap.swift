@@ -41,16 +41,21 @@ enum MeasureSnap {
 
     /// A full circle's centre when the pointer is within `min(radius, 0.5 × the circle's on-screen radius)` points of it, the nearest
     /// such centre of `circles`. A centre is its own hover target: a large hole's is far from its rim.
+    /// Centres within half a point of the nearest are tied, and the one nearest the camera (greatest `depth`) wins, so a hole seen
+    /// end-on picks its near rim.
     static func centre(at point: ScreenPoint, among circles: [CircleCentre], screenPoint: (Vector3) -> ScreenPoint?,
-                       radius: Double = 10) -> MeasurePick? {
-        var best: (circle: CircleCentre, distance: Double)?
+                       depth: (Vector3) -> Double = { _ in 0 }, radius: Double = 10) -> MeasurePick? {
+        var reached: [(circle: CircleCentre, distance: Double)] = []
         for circle in circles {
             guard let screen = screenPoint(circle.centre), let onScreen = screenRadius(of: circle.curve, screenPoint: screenPoint)
             else { continue }
             let distance = screen.distance(to: point)
-            if distance <= min(radius, 0.5 * onScreen), distance < (best?.distance ?? .infinity) { best = (circle, distance) }
+            if distance <= min(radius, 0.5 * onScreen) { reached.append((circle, distance)) }
         }
-        return best.map { .corner(solid: $0.circle.solid, $0.circle.edge, .centre, at: $0.circle.centre) }
+        guard let nearest = reached.map(\.distance).min() else { return nil }
+        let tied = reached.filter { $0.distance <= nearest + 0.5 }
+        let best = tied.reduce(tied[0]) { depth($1.circle.centre) > depth($0.circle.centre) ? $1 : $0 }
+        return .corner(solid: best.circle.solid, best.circle.edge, .centre, at: best.circle.centre)
     }
 
     /// The full circles of `topology`, with the centres snapping can offer.

@@ -19,7 +19,7 @@ struct MeasureSessionCentreTests {
         var top: FaceInfo
     }
 
-    private func cylinder(radiusOnScreen: Double) async throws -> Cylinder {
+    private func cylinder(radiusOnScreen: Double, pitch: Double = .pi / 2) async throws -> Cylinder {
         var builder = GraphBuilder()
         let circle = builder.add(CircleNode.self, ["diameter": .number(40)])
         let extrude = builder.add(ExtrudeNode.self, ["distance": .number(10)])
@@ -37,7 +37,7 @@ struct MeasureSessionCentreTests {
         session.sceneChanged(app.measureScene())
         let size = ViewportSize(width: 1400, height: 900)
         func projector(distance: Double) -> ViewportProjector {
-            ViewportProjector(pose: CameraPose(target: Vector3(0, 0, 10), distance: distance, pitch: .pi / 2,
+            ViewportProjector(pose: CameraPose(target: Vector3(0, 0, 10), distance: distance, pitch: pitch,
                                                projection: .orthographic), size: size)
         }
         let probe = projector(distance: 100)
@@ -61,12 +61,30 @@ struct MeasureSessionCentreTests {
             Issue.record("no centre hover: \(String(describing: session.hover))")
             return
         }
-        #expect((at - Vector3(0, 0, 10)).length < 1e-9 || (at - .zero).length < 1e-9)
+        #expect((at - Vector3(0, 0, 10)).length < 1e-9, "the near rim, not the hidden bottom one")
         #expect(session.clickedModel(.face(solid: 0, top.id), at: centre, modifiers: [], projector: projector))
         guard case .corner(0, _, .centre, _)? = session.picks.first else { Issue.record("no centre pick"); return }
         // Away from the centre the rim and the face are still themselves.
         session.hoverChanged(.edge(solid: 0, rim.id), at: rimPoint, projector: projector)
         #expect(session.hover == .edge(solid: 0, rim.id), "\(String(describing: session.hover)) \(rimPoint)")
+    }
+
+    @Test func seenFromBelowTheNearRimWins() async throws {
+        let scene = try await cylinder(radiusOnScreen: 100, pitch: -.pi / 2)
+        defer { withExtendedLifetime(scene.fixture) {} }
+        let centre = try #require(scene.projector.screenPoint(of: Vector3(0, 0, 0)))
+        scene.session.hoverChanged(nil, at: centre, projector: scene.projector)
+        guard case let .corner(0, _, .centre, at)? = scene.session.hover else { Issue.record("no centre hover"); return }
+        #expect((at - .zero).length < 1e-9)
+    }
+
+    @Test func aCentreOnTheCutAwaySideIsNotPicked() async throws {
+        let scene = try await cylinder(radiusOnScreen: 100)
+        defer { withExtendedLifetime(scene.fixture) {} }
+        let centre = try #require(scene.projector.screenPoint(of: Vector3(0, 0, 10)))
+        scene.fixture.app.viewport.showClip(ViewportClip(origin: Vector3(0, 0, 5), normal: .unitZ))
+        scene.session.hoverChanged(.face(solid: 0, scene.top.id), at: centre, projector: scene.projector)
+        if case let .corner(_, _, _, at)? = scene.session.hover { #expect(at.z < 5, "the cut-away top rim is not offered") }
     }
 
     @Test func aSmallCircleStillPicksAsItsEdge() async throws {
