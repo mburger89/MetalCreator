@@ -99,3 +99,40 @@ extension G2FilletCoverageTests {
         base.expectSpringsG2(built, seams: 2)
     }
 }
+
+extension G2FilletCoverageTests {
+    /// The four top edges of a box meet at its vertical edges: strips meet in mitres, with no corner patch.
+    @Test func aBoxTopOutlineBuilds() throws {
+        let box = try OCCTKernel.serialized { try OCCTShape.box(20, 20, 10) }
+        let mids: [[Double]] = [[10, 0, 10], [20, 10, 10], [10, 20, 10], [0, 10, 10]]
+        let built = try base.build(box, midpoints: mids, radius: 2)
+        print("G2COVER box outline: strips \(built.report.strips) sections \(base.helper.sectionCounts(built.report))")
+        #expect(built.report.strips == 4)
+        base.expectSpringsG2(built, seams: 8)
+        expectMitres(built, count: 4)
+        try expectVolumeNearCircular(box, midpoints: mids, radius: 2, length: 80, built: built)
+    }
+
+    /// A mitre is a crease between the two strips, as the circular fillet's is (two cylinders meeting at a right
+    /// angle are tangent only where they leave the top face): only its position is promised, and it is recorded.
+    func expectMitres(_ built: G2FilletTests.Built, count: Int, sourceLocation: SourceLocation = #_sourceLocation) {
+        #expect(built.report.mitres == Int32(count), sourceLocation: sourceLocation)
+        let seams = withUnsafeBytes(of: built.report.mitre_seams) { raw in
+            Array(raw.bindMemory(to: occt_g2_seam.self).prefix(Int(built.report.mitre_seam_count)))
+        }
+        #expect(seams.count == count, sourceLocation: sourceLocation)
+        for seam in seams {
+            print("G2COVER mitre seam: position \(seam.position) angle \(seam.angle_degrees)")
+            #expect(seam.position <= 1e-4, sourceLocation: sourceLocation)
+        }
+    }
+
+    /// Two top edges that meet at a vertex.
+    @Test func twoMeetingEdgesBuild() throws {
+        let box = try OCCTKernel.serialized { try OCCTShape.box(20, 20, 10) }
+        let built = try base.build(box, midpoints: [[10, 0, 10], [20, 10, 10]], radius: 2)
+        #expect(built.report.strips == 2)
+        base.expectSpringsG2(built, seams: 4)
+        expectMitres(built, count: 1)
+    }
+}

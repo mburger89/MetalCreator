@@ -206,6 +206,9 @@ typedef struct {
     int g1_corners;            // of those, the ones that stayed tangent only (G1): the node warns
     int seam_count;            // the strips' spring seams, in strip order, two each
     occt_g2_seam seams[OCCT_G2_MAX_SEAMS];
+    int mitres;                // strip pairs that meet in a mitre, cut by one another
+    int mitre_seam_count;      // their seams: a mitre is a crease, only its position is promised
+    occt_g2_seam mitre_seams[OCCT_G2_MAX_SEAMS];
     int corner_seam_count;     // the corner patches' boundaries against their strips / faces, measured apart
     occt_g2_seam corner_seams[OCCT_G2_MAX_SEAMS];
 } occt_g2_report;

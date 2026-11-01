@@ -454,6 +454,7 @@ struct StripEdges {
     Spring spring[2];
     TopoDS_Edge ends[2];
     TopoDS_Face end_face[2]; // null where the end borders a blend face
+    TopoDS_Face end_strip[2]; // the other strip, where the end is a mitre between two strips at an angle
     bool closed = false;     // a hole edge's strip: its one seam is both ends
 };
 
@@ -508,7 +509,7 @@ StripEdges classify(const TopoDS_Face &strip, const TopTools_IndexedDataMapOfSha
                 BRep_Tool::Range(edge, first, last);
                 const double mid = 0.5 * (first + last);
                 if (std::abs(surface_point(strip, edge, mid).n.Dot(surface_point(other, edge, mid).n)) < 0.99) {
-                    throw user_error(kStripMessage);
+                    out.end_strip[ends] = other; // a mitre: both strips are built past it and meet along their intersection
                 }
             }
             out.ends[ends] = edge;
@@ -586,7 +587,7 @@ void plan_slants(StripEdges &edges, Slant slants[2]) {
                     nearest = c;
                 }
             }
-            if (edges.end_face[nearest].IsNull()) {
+            if (edges.end_face[nearest].IsNull() && edges.end_strip[nearest].IsNull()) {
                 continue;
             }
         }
@@ -845,16 +846,109 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
             TopoDS_Face strip;
         };
         std::vector<Replaced> replaced;
+        std::vector<TopoDS_Edge> mitre_edges;
+        // The edge where a strip, built past its end, meets that end's face (or the partner strip at a mitre): the
+        // surfaces' intersection between the two springs' own end points, with pcurves on both and the old vertices.
+        auto trim_edge = [&](const TopoDS_Edge &old_edge, const Handle(Geom_Surface) &surface,
+                             const Handle(Geom_Surface) &face_surface, const TopLoc_Location &face_location, const gp_Pnt &a_end,
+                             const gp_Pnt &b_end, bool &flip) -> TopoDS_Edge {
+            if (face_surface.IsNull()) {
+                throw user_error(kStripMessage);
+            }
+            // The intersection runs in global coordinates; the face keeps its own frame and location.
+            const Handle(Geom_Surface) global_face_surface =
+                face_location.IsIdentity() ? face_surface
+                                           : Handle(Geom_Surface)::DownCast(face_surface->Transformed(face_location.Transformation()));
+            GeomInt_IntSS intersection(surface, global_face_surface, 1e-7, Standard_True, Standard_True, Standard_True);
+            int line = 0;
+            double best_gap = 1e-4, pa = 0, pb = 0;
+            // The parameter and distance of the point on a line: the projection, else (a point at the very end of
+            // the curve, which the projection may miss by a hair) the nearer end.
+            auto locate = [](const Handle(Geom_Curve) &candidate, const gp_Pnt &point, double &parameter) {
+                GeomAPI_ProjectPointOnCurve project(point, candidate);
+                double distance = 1e300;
+                if (project.NbPoints() > 0) {
+                    parameter = project.LowerDistanceParameter();
+                    distance = project.LowerDistance();
+                }
+                for (double end : {candidate->FirstParameter(), candidate->LastParameter()}) {
+                    const double d = candidate->Value(end).Distance(point);
+                    if (d < distance) {
+                        distance = d;
+                        parameter = end;
+                    }
+                }
+                return distance;
+            };
+            for (int i = 1; i <= intersection.NbLines(); ++i) {
+                const Handle(Geom_Curve) candidate = intersection.Line(i);
+                double ta = 0, tb = 0;
+                const double gap = locate(candidate, a_end, ta) + locate(candidate, b_end, tb);
+                if (gap < best_gap) {
+                    best_gap = gap;
+                    line = i;
+                    pa = ta;
+                    pb = tb;
+                }
+            }
+            if (line == 0 || std::abs(pa - pb) < 1e-9) {
+                throw user_error(kStripMessage);
+            }
+            const Handle(Geom_Curve) curve = intersection.Line(line);
+            const double lo = std::min(pa, pb), hi = std::max(pa, pb);
+            TopoDS_Vertex v1, v2;
+            TopExp::Vertices(old_edge, v1, v2, Standard_False);
+            const bool first_is_v1 = BRep_Tool::Pnt(v1).Distance(curve->Value(lo)) <= BRep_Tool::Pnt(v2).Distance(curve->Value(lo));
+            // The intersection runs through the springs' end points to within its own accuracy: the vertices take that
+            // gap as tolerance, and a larger one is not a trimmed end of this strip.
+            const TopoDS_Vertex &vertex_lo = first_is_v1 ? v1 : v2, &vertex_hi = first_is_v1 ? v2 : v1;
+            const double gap_lo = BRep_Tool::Pnt(vertex_lo).Distance(curve->Value(lo));
+            const double gap_hi = BRep_Tool::Pnt(vertex_hi).Distance(curve->Value(hi));
+            if (std::max(gap_lo, gap_hi) > 1e-5) {
+                throw user_error(kStripMessage);
+            }
+            builder.UpdateVertex(vertex_lo, std::max(BRep_Tool::Tolerance(vertex_lo), gap_lo));
+            builder.UpdateVertex(vertex_hi, std::max(BRep_Tool::Tolerance(vertex_hi), gap_hi));
+            TopoDS_Edge ne;
+            builder.MakeEdge(ne, curve, 1e-5);
+            builder.Add(ne, vertex_lo.Oriented(TopAbs_FORWARD));
+            builder.Add(ne, vertex_hi.Oriented(TopAbs_REVERSED));
+            builder.Range(ne, lo, hi);
+            Handle(Geom2d_Curve) on_strip = intersection.HasLineOnS1(line) ? intersection.LineOnS1(line)
+                                                                             : GeomProjLib::Curve2d(curve, lo, hi, surface);
+            Handle(Geom2d_Curve) on_face = intersection.HasLineOnS2(line) ? intersection.LineOnS2(line)
+                                                                           : GeomProjLib::Curve2d(curve, lo, hi, global_face_surface);
+            if (on_strip.IsNull() || on_face.IsNull()) {
+                throw user_error(kStripMessage);
+            }
+            builder.UpdateEdge(ne, on_strip, surface, TopLoc_Location(), 1e-5);
+            builder.Range(ne, surface, TopLoc_Location(), lo, hi);
+            builder.UpdateEdge(ne, on_face, face_surface, face_location, 1e-5);
+            builder.Range(ne, face_surface, face_location, lo, hi);
+            flip = !first_is_v1;
+            return ne;
+        };
         // SPIKE ONLY: a weight <= 0 keeps the circular strips and just measures them (the baseline). Task 3 removes it.
         if (weight > 0) {
+            // Every strip is built first (so that two strips meeting at a mitre can be cut by each other), then the
+            // mitres, then each strip's end edges and face.
+            struct StripState {
+                Slant slants[2];
+                BuiltStrip built;
+                bool swapped = false;
+                TopoDS_Edge new_ends[2];
+                bool flip_end[2] = {false, false}; // the new end edge runs the other way from the old one
+            };
+            std::vector<StripState> states(strips.size());
             for (std::size_t s = 0; s < strips.size(); ++s) {
                 const TopoDS_Face old_face = strip_faces[s];
                 const Handle(Geom_Surface) circular = BRep_Tool::Surface(old_face);
                 StripEdges &edges = strips[s];
-                Slant slants[2];
+                StripState &state = states[s];
+                Slant(&slants)[2] = state.slants;
                 plan_slants(edges, slants);
-                BuiltStrip built;
-                bool swapped = false;
+                BuiltStrip &built = state.built;
+                bool &swapped = state.swapped;
                 // Sections start at 9 and are added where the candidate's seams miss the (halved) tolerances: a span
                 // that fails gets its middle (a closed strip doubles all of them). At 129 sections the blend fails.
                 std::vector<double> fractions(kFirstSections);
@@ -933,9 +1027,82 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                     builder.Range(spring.edge, surface, TopLoc_Location(), own_first, own_last);
                 }
 
+            }
+
+            // Mitres: two strips that meet at an angle are each built past their shared end and cut by one another;
+            // the new shared edge is their intersection, between the vertices of the old one.
+            for (std::size_t s = 0; s < strips.size(); ++s) {
+                for (int end = 0; end < 2; ++end) {
+                    StripEdges &edges = strips[s];
+                    if (edges.closed || !states[s].slants[end].slanted) {
+                        continue;
+                    }
+                    const Slant &slant = states[s].slants[end];
+                    const gp_Pnt middle((slant.a_end.XYZ() + slant.b_end.XYZ()) * 0.5);
+                    int chosen = 0;
+                    double best = 1e300;
+                    for (int c = 0; c < 2; ++c) {
+                        BRepAdaptor_Curve oc(edges.ends[c]);
+                        const double d = oc.Value(0.5 * (oc.FirstParameter() + oc.LastParameter())).Distance(middle);
+                        if (d < best) {
+                            best = d;
+                            chosen = c;
+                        }
+                    }
+                    if (edges.end_strip[chosen].IsNull() || !states[s].new_ends[chosen].IsNull()) {
+                        continue;
+                    }
+                    std::size_t partner = strips.size();
+                    for (std::size_t t = 0; t < strips.size(); ++t) {
+                        if (strip_faces[t].IsSame(edges.end_strip[chosen])) {
+                            partner = t;
+                        }
+                    }
+                    if (partner == strips.size() || partner == s) {
+                        throw user_error(kStripMessage);
+                    }
+                    // The partner's matching end: its end edge that is this very (old) edge.
+                    const TopoDS_Edge old_edge = edges.ends[chosen];
+                    int partner_chosen = -1;
+                    for (int c = 0; c < 2; ++c) {
+                        if (strips[partner].ends[c].IsSame(old_edge)) {
+                            partner_chosen = c;
+                        }
+                    }
+                    bool partner_extended = false;
+                    for (int e2 = 0; e2 < 2; ++e2) {
+                        partner_extended = partner_extended || states[partner].slants[e2].slanted;
+                    }
+                    if (partner_chosen < 0 || !partner_extended) {
+                        throw user_error(kStripMessage);
+                    }
+                    bool flip = false;
+                    const TopoDS_Edge ne = trim_edge(old_edge, states[s].built.surface, states[partner].built.surface,
+                                                     TopLoc_Location(), slant.a_end, slant.b_end, flip);
+                    const TopAbs_Orientation oriented = flip ? TopAbs::Reverse(old_edge.Orientation()) : old_edge.Orientation();
+                    reshape.Replace(old_edge, ne.Oriented(oriented));
+                    replaced.push_back({old_edge, ne, TopoDS_Face()});
+                    states[s].new_ends[chosen] = ne;
+                    states[s].flip_end[chosen] = flip;
+                    states[partner].new_ends[partner_chosen] = ne;
+                    states[partner].flip_end[partner_chosen] = flip;
+                    mitre_edges.push_back(ne);
+                    ++report->mitres;
+                }
+            }
+
+            for (std::size_t s = 0; s < strips.size(); ++s) {
+                const TopoDS_Face old_face = strip_faces[s];
+                StripEdges &edges = strips[s];
+                StripState &state = states[s];
+                Slant(&slants)[2] = state.slants;
+                const BuiltStrip &built = state.built;
+                const bool swapped = state.swapped;
+                const Handle(Geom_Surface) surface = built.surface;
+                TopoDS_Edge(&new_ends)[2] = state.new_ends;
+                bool(&flip_end)[2] = state.flip_end;
+                (void)swapped;
                 // End edges become the first and last sections (shared with the next strip of a tangent chain).
-                                TopoDS_Edge new_ends[2];
-                bool flip_end[2] = {false, false}; // the new end edge runs the other way from the old one
                 TopoDS_Edge seam_edge;       // a closed strip's one seam, both ends
                 bool seam_reversed = false;
                 for (int end = 0; end < (edges.closed ? 1 : 2); ++end) {
@@ -954,6 +1121,9 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                                 chosen = c;
                             }
                         }
+                        if (!new_ends[chosen].IsNull()) {
+                            continue; // a mitre, made with the partner strip
+                        }
                         const TopoDS_Edge old_edge = edges.ends[chosen];
                         const TopoDS_Face end_face = edges.end_face[chosen];
                         TopLoc_Location face_location;
@@ -962,62 +1132,7 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                         if (face_surface.IsNull()) {
                             throw user_error(kStripMessage);
                         }
-                        // The intersection runs in global coordinates; the face keeps its own frame and location.
-                        const Handle(Geom_Surface) global_face_surface =
-                            face_location.IsIdentity() ? face_surface
-                                                       : Handle(Geom_Surface)::DownCast(face_surface->Transformed(face_location.Transformation()));
-                        GeomInt_IntSS intersection(surface, global_face_surface, 1e-7, Standard_True, Standard_True, Standard_True);
-                        int line = 0;
-                        double best_gap = 1e-4, pa = 0, pb = 0;
-                        for (int i = 1; i <= intersection.NbLines(); ++i) {
-                            const Handle(Geom_Curve) candidate = intersection.Line(i);
-                            GeomAPI_ProjectPointOnCurve to_a(a_end, candidate), to_b(b_end, candidate);
-                            if (to_a.NbPoints() == 0 || to_b.NbPoints() == 0) {
-                                continue;
-                            }
-                            const double gap = to_a.LowerDistance() + to_b.LowerDistance();
-                            if (gap < best_gap) {
-                                best_gap = gap;
-                                line = i;
-                                pa = to_a.LowerDistanceParameter();
-                                pb = to_b.LowerDistanceParameter();
-                            }
-                        }
-                        if (line == 0 || std::abs(pa - pb) < 1e-9) {
-                            throw user_error(kStripMessage);
-                        }
-                        const Handle(Geom_Curve) curve = intersection.Line(line);
-                        const double lo = std::min(pa, pb), hi = std::max(pa, pb);
-                        TopoDS_Vertex v1, v2;
-                        TopExp::Vertices(old_edge, v1, v2, Standard_False);
-                        const bool first_is_v1 = BRep_Tool::Pnt(v1).Distance(curve->Value(lo)) <= BRep_Tool::Pnt(v2).Distance(curve->Value(lo));
-                        // The intersection runs through the springs' end points to within its own accuracy: the vertices
-                        // take that gap as tolerance, and a larger one is not a trimmed end of this strip.
-                        const TopoDS_Vertex &vertex_lo = first_is_v1 ? v1 : v2, &vertex_hi = first_is_v1 ? v2 : v1;
-                        const double gap_lo = BRep_Tool::Pnt(vertex_lo).Distance(curve->Value(lo));
-                        const double gap_hi = BRep_Tool::Pnt(vertex_hi).Distance(curve->Value(hi));
-                        if (std::max(gap_lo, gap_hi) > 1e-5) {
-                            throw user_error(kStripMessage);
-                        }
-                        builder.UpdateVertex(vertex_lo, std::max(BRep_Tool::Tolerance(vertex_lo), gap_lo));
-                        builder.UpdateVertex(vertex_hi, std::max(BRep_Tool::Tolerance(vertex_hi), gap_hi));
-                        TopoDS_Edge ne;
-                        builder.MakeEdge(ne, curve, 1e-5);
-                        builder.Add(ne, vertex_lo.Oriented(TopAbs_FORWARD));
-                        builder.Add(ne, vertex_hi.Oriented(TopAbs_REVERSED));
-                        builder.Range(ne, lo, hi);
-                        Handle(Geom2d_Curve) on_strip = intersection.HasLineOnS1(line) ? intersection.LineOnS1(line)
-                                                                                         : GeomProjLib::Curve2d(curve, lo, hi, surface);
-                        Handle(Geom2d_Curve) on_face = intersection.HasLineOnS2(line) ? intersection.LineOnS2(line)
-                                                                                       : GeomProjLib::Curve2d(curve, lo, hi, global_face_surface);
-                        if (on_strip.IsNull() || on_face.IsNull()) {
-                            throw user_error(kStripMessage);
-                        }
-                        builder.UpdateEdge(ne, on_strip, surface, TopLoc_Location(), 1e-5);
-                        builder.Range(ne, surface, TopLoc_Location(), lo, hi);
-                        builder.UpdateEdge(ne, on_face, face_surface, face_location, 1e-5);
-                        builder.Range(ne, face_surface, face_location, lo, hi);
-                        flip_end[chosen] = !first_is_v1;
+                        TopoDS_Edge ne = trim_edge(old_edge, surface, face_surface, face_location, a_end, b_end, flip_end[chosen]);
                         const TopAbs_Orientation oriented = flip_end[chosen] ? TopAbs::Reverse(old_edge.Orientation()) : old_edge.Orientation();
                         reshape.Replace(old_edge, ne.Oriented(oriented));
                         replaced.push_back({old_edge, ne, TopoDS_Face()});
@@ -1341,6 +1456,24 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 if (report->seam_count < OCCT_G2_MAX_SEAMS) {
                     report->seams[report->seam_count++] = measure_seam(spring.edge, strip, spring.neighbour);
                 }
+            }
+        }
+        // A mitre is a crease between two strips (the circular fillet has the same one): the seam must close to within
+        // the position tolerance, and its angle is recorded.
+        for (const TopoDS_Edge &edge : mitre_edges) {
+            if (!result_edge_faces.Contains(edge)) {
+                throw user_error(kStripMessage);
+            }
+            const std::vector<TopoDS_Face> sides = distinct_faces(edge, result_edge_faces);
+            if (sides.size() != 2) {
+                throw user_error(kStripMessage);
+            }
+            const occt_g2_seam seam = measure_seam(edge, sides[0], sides[1]);
+            if (seam.position > 1e-4) {
+                throw user_error(kStripMessage);
+            }
+            if (report->mitre_seam_count < OCCT_G2_MAX_SEAMS) {
+                report->mitre_seams[report->mitre_seam_count++] = seam;
             }
         }
         if (weight > 0) {
