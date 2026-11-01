@@ -5,8 +5,9 @@ import CreatorViewport
 
 /// The pure parts of the section cap (section spec §3): where the cap's plane lies, and how a kernel section becomes a cap.
 enum SectionCaps {
-    /// How far towards the kept side the part is sectioned, in millimetres, so a section exactly on a boundary face is a
-    /// proper cross-section and the cap is not clipped by its own plane.
+    /// The smallest distance towards the kept side the part is sectioned, in millimetres, so a section exactly on a boundary
+    /// face is a proper cross-section and the cap is not clipped by its own plane. `inset(for:)` grows it with the part's
+    /// distance from the origin.
     static let inset = 1e-4
 
     /// The inset for parts with these bounds: `inset`, or 1e-6 of the largest absolute coordinate when that is more, so a part far
