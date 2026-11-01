@@ -2,6 +2,7 @@ import CreatorGeometry
 import CreatorKernel
 import CreatorViewport
 import Foundation
+import Synchronization
 import Testing
 @testable import CreatorApp
 
@@ -9,22 +10,29 @@ import Testing
 @MainActor
 struct SectionCapModelOrderTests {
     /// Holds each section in the kernel until released; `entered` yields once per held section.
+    /// A hold never lapses on its own (CI runners have spent over 680 s in these tests, longer than any timeout we set): every test
+    /// opens the gate on every way out (`defer { gate.open() }`), so a failing test lets held sections go instead of hanging.
     private final class SectionGate: @unchecked Sendable {
         let semaphore = DispatchSemaphore(value: 0)
         let entered: AsyncStream<Void>
         private let signal: AsyncStream<Void>.Continuation
+        private let opened = Mutex(false)
         init() { (entered, signal) = AsyncStream<Void>.makeStream() }
         func hold() {
             signal.yield()
-            // Long enough that a loaded runner (Windows CI took 200 s over these tests) never lets the hold lapse before the test has
-            // looked; a test that fails before `release()` waits this long, not forever.
-            _ = semaphore.wait(timeout: .now() + 600)
+            if opened.withLock({ $0 }) { return }
+            semaphore.wait()
         }
         func release() { semaphore.signal() }
+        /// Lets every held and future section through.
+        func open() {
+            opened.withLock { $0 = true }
+            for _ in 0..<8 { semaphore.signal() }
+        }
         func waitUntilEntered() async -> Bool {
             await withTaskGroup(of: Bool.self) { group in
                 group.addTask { for await _ in self.entered { return true }; return false }
-                group.addTask { try? await Task.sleep(for: .seconds(60)); return false }
+                group.addTask { try? await Task.sleep(for: .seconds(900)); return false }
                 let first = await group.next() ?? false
                 group.cancelAll()
                 return first
@@ -42,6 +50,7 @@ struct SectionCapModelOrderTests {
         let solid = try await boxSolid(10, kernel: kernel)
         let model = SectionCapModel(kernel: kernel, tolerance: 0.05)
         let gate = SectionGate()
+        defer { gate.open() }
         await kernel.setSectionHook { gate.hold() }
         let first = ViewportClip(origin: Vector3(0, 0, 3), normal: .unitZ)
         let second = ViewportClip(origin: Vector3(0, 0, 6), normal: .unitZ)
@@ -66,6 +75,7 @@ struct SectionCapModelOrderTests {
         let (small, big) = (try await boxSolid(10, kernel: kernel), try await boxSolid(20, kernel: kernel))
         let model = SectionCapModel(kernel: kernel, tolerance: 0.05)
         let gate = SectionGate()
+        defer { gate.open() }
         await kernel.setSectionHook { gate.hold() }
         let clip = ViewportClip(origin: Vector3(0, 0, 3), normal: .unitZ)
         model.follow(clip: clip, items: [ViewportItem(solid: small)])
@@ -86,6 +96,7 @@ struct SectionCapModelOrderTests {
         let solid = try await boxSolid(10, kernel: kernel)
         let model = SectionCapModel(kernel: kernel, tolerance: 0.05)
         let gate = SectionGate()
+        defer { gate.open() }
         await kernel.setSectionHook { gate.hold() }
         model.follow(clip: ViewportClip(origin: Vector3(0, 0, 3), normal: .unitZ), items: [ViewportItem(solid: solid)])
         try #require(await gate.waitUntilEntered(), "the section hook was never reached")
