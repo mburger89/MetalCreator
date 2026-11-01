@@ -23,7 +23,7 @@ continuity as a number, not only by eye.
   representations of the circle), so it is G1 at both seams. `BRepOffsetAPI_MakeFilling` takes G0, G1 or G2 constraints
   along edges but is a least-squares plate fit (default curvature tolerance 0.1) and silently drops constraints it can't
   meet. `BRepOffsetAPI_ThruSections` (our loft) has no end conditions. No OCCT tool makes a curvature-continuous fillet.
-- **Implicit smooth minimum (Quilez):** quadratic is C1 (G1 isosurfaces), cubic C2 (G2), quartic C3 (G3); each is at or
+- **Implicit smooth minimum (Quilez):** quadratic is C1 (G1 isosurfaces), cubic C2 (G2), and a quartic he calls C3 (it is C2 at the blend's edge; see G-a); each is at or
   below `min(a, b)` and 1-Lipschitz when its inputs are.
 
 ## The work, in order **(call)**
@@ -75,9 +75,13 @@ documents when they come up, with the decisions recorded under "Later".
 |---|---|---|
 | G1 (today) | `min(a, b) − h² · k / 4` | `k / 4` |
 | G2 | `min(a, b) − h³ · k / 6` | `k / 6` |
-| G3 | `min(a, b) − h³ (4 − h) · k / 16` | `3k / 16` |
+| G3 | `min(a, b) − h⁴ (h² − 6h + 10) · k / 32` | `5k / 32` |
 
-These are Quilez's polynomial smooth minimums without his rescaling of `k`, so the blend starts at the same `|a − b|`
+G1 and G2 are Quilez's polynomial smooth minimums without his rescaling of `k`. G3 is not his quartic (that one,
+`h³(4 − h)k/16`, starts as `h³` and so is only C2 at the blend's edge): it is the smooth minimum whose second derivative is
+the kernel `(15/16)(1 − s²)²` over `s = |a − b|/k` (the same construction gives the G1 and G2 rows from a constant and a tent
+kernel), so it vanishes to fourth order at the edge and has no odd derivative at `a = b`: C3 (erratum 2026-11-01, found by
+G-a Task 1). All three use the same `k`, so the blend starts at the same `|a − b|`
 for every continuity and the joint is slightly shallower for G2 (**call**: equal reach rather than equal depth, so
 switching continuity never moves where the blend starts on the part). Intersect and subtract use the same function as
 today (`−smin(−a, −b)`, `−smin(−a, b)`).
@@ -86,14 +90,17 @@ today (`−smin(−a, −b)`, `−smin(−a, b)`).
   `g2`, `g3`) beside their `Grading`, so the generated GPU source differs by continuity (a function per continuity in the
   MSL library and its HLSL twin, every float `precise` as D21 requires) and numbers stay in buffers.
 - **Bounds:** the lipschitz term for a graded blend (`blend.slope / 4` today) becomes the continuity's own bound on
-  `∂(dip)/∂k`, derived and pinned by a test that samples it (the cubic's is 1/6; the builder derives the quartic's).
+  `∂(dip)/∂k`, derived and pinned by a test that samples it (the cubic's is 1/6, G3's 5/32 by the same rule; the test confirms each by sampling).
   `exactReach` is unchanged.
 - **The node:** Union, Subtract and Intersect get a `continuity` integer socket (segmented: G1, G2, G3), shown with the
   blend. The lattice nodes get the same beside `blend`; on Strut Lattice the one socket also governs its `node blend` (the
   rounding where struts meet, today a quadratic smooth minimum of its own), so the strut lattice value carries a
   `BlendContinuity` too (**call**: strut joints are where zebra gets read, and one setting per node keeps the inspector
   simple).
-- **Defaults and old files (call):** a new node defaults to **G2** (the reason the user asked); each of these node types
+- **Defaults and old files (call):** a new Union, Subtract or Intersect defaults to **G2** (the reason the user asked); a new TPMS,
+  Strut Lattice or Voronoi Lattice defaults to **G1** (erratum 2026-11-01, found by G-a Task 4: the skin join's 1 mm blend is tuned to
+  make lattices printable, and on the lightweight bracket G1 gives 0 voids and 0 thin places, G2 2 voids, G3 1 void, and G2/G3 widened
+  to G1's depth 2 thin places; G2 and G3 stay selectable); each of these node types
   goes up one `typeVersion`, and its `migrate` stores G1 in a node saved before, so old files keep their shape. TPMS,
   Strut Lattice and Voronoi Lattice go from 2 to 3 (their 2's migration still stores blend 0 first).
 - **Tests:** the CPU formulas against closed forms (value and the first, second and third derivative continuity at
@@ -118,9 +125,24 @@ today (`−smin(−a, −b)`, `−smin(−a, b)`).
   `Kernel.continuity`'s sampler. A strip seam out of tolerance makes the blend fail like an invalid one ("The fillet can't be
   made curvature continuous at this radius."), and `largestValidBlend` searches for the largest radius that passes both the
   validity check and this one. The cost is measured by the benchmark row.
-- **Where G2 can't be reached:** a corner patch where three or more fillets meet at a vertex, if the result misses G2 there
-  (below), is kept at G1 and the node warns "N fillet corners are tangent only (G1)." The strips between corners are always
-  G2 or the node fails.
+- **Coverage (erratum 2026-11-01, the user's choice "Extend, incl. G2 corners"):** a G2 fillet handles closed strips
+  (holes), chains that run into a wall, strips that end slantwise on a face (trimmed by it; the run-out stays a crease) and two
+  strips meeting in a mitre (trimmed by each other; the mitre is a crease, as it is between two circular fillets meeting at an
+  unfilleted corner, and is checked for position only: erratum 2026-11-01, found by Task 2c; filleting the corner's third edge too
+  makes it a corner patch). Corners where three or more
+  fillets meet get our own G2 patch, not OpenCascade's filling tool (whose `BRepFill_CurveConstraint` takes orders up to 2 while
+  `GeomAbs_G2` is 3, and whose order 2 measured worse than its G1); the patch is spiked behind a gate, and if it can't meet the
+  tolerances corners stay at the G1 refill below.
+- **Kinked chain joins (erratum 2026-11-01, found by Task 2c):** where OpenCascade's own spring bends at a join between two strips
+  of a chain (more than 0.01°, e.g. where a loft's draft changes), the two strips share one end section on the bisector, and the
+  spring seam's curvature can't match within 1 % right at the join; the curvature check skips the last 3.3 % of the seam next to such
+  a join (position and angle are checked everywhere), and the node warns "N fillet joins are tangent only (G1) where the edges
+  kink." (singular "1 fillet join is …"). Never silent.
+- **Where G2 can't be reached:** a corner patch where three or more fillets meet at a vertex is refilled to meet the new
+  strips (the circular corner can't be kept: the strips' ends no longer match it). If the refill misses G2 there but meets G1
+  (angle 0.01°), the node warns "N fillet corners are tangent only (G1)." A corner that misses G1 makes the G2 fillet fail
+  ("The fillet's corners can't be made smooth at this radius."): a crease is never returned (erratum 2026-11-01, found by the
+  spike review). The strips between corners are always G2 or the node fails.
 - Failure follows the existing blend rules: an invalid result is never returned, and the message names the largest radius
   that works (`largestValidBlend`, now searched with the G2 profile).
 
@@ -133,15 +155,18 @@ OpenCascade makes the topology; we replace the blend surfaces. Steps, all inside
    ends are the points where the strip meets its neighbouring faces (on the spring edges). At each end, read the
    neighbour's position, its tangent direction across the spring edge (in the neighbour's tangent plane, perpendicular to
    the spring edge, pointing into the blend) and its normal curvature in that direction.
-3. Make each cross-section a **quintic Bézier** that matches position, tangent direction and curvature at both ends (G2
+3. Sections are placed densely enough that the skinned surface meets the tolerances between them (the count is chosen per
+   strip, adaptively, by measuring; a strip that can't meet them fails), and the springs' pcurves follow the same
+   parametrization as the sections. Make each cross-section a **quintic Bézier** that matches position, tangent direction and curvature at both ends (G2
    Hermite). Its two end tangent lengths are `w × d`, where `w` is the tangency weight and `d` is the circular fillet's
    own end-tangent length for that section (so weight 1 is close to the circle's proportions); the remaining freedom
    (the component of each end's second derivative along the tangent) is zero.
 4. Skin the sections into one B-spline surface per strip (quintic across, cubic or higher along), with its two boundary
    curves along the existing spring edges, and replace the strip's surface in the solid, keeping its edges (new pcurves).
 5. Each corner patch (a face generated from a vertex) is rebuilt with `BRepOffsetAPI_MakeFilling`, its boundary edges
-   constrained G2 to the new strips and original faces, the circular corner as the initial surface. If its `G2Error`
-   exceeds the curvature tolerance below, the circular corner is kept (G1) and counted for the warning.
+   constrained G2 to the new strips and original faces, the circular corner as the initial surface. If it misses the
+   curvature tolerance, it is rebuilt with G1 constraints and counted for the warning; if that misses the angle tolerance,
+   the fillet fails (above).
 6. `BRepCheck_Analyzer`, as for every blend.
 
 Tolerances the result must meet along every G2 seam (checked at sample points by the tests and the readout): position
