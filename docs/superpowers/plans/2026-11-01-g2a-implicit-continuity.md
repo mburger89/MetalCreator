@@ -18,7 +18,7 @@ compiler from the tree's structure. Nodes expose a `continuity` integer socket; 
   lines on macOS and on Linux (`scripts/linux-test.sh test`); only the known `HLSLEngineTests.onTheCutTheHLSLEngineAgreesWithTheMetalEngine` failure.
 - Every float computation in HLSL is `precise` (D21). Edit an MSL library function and its HLSL twin together.
 - Width meaning unchanged: `h = max(k − |a − b|, 0) / k`; `k = 0` is plain min.
-- Formulas: G1 `min(a,b) − h²·k/4`; G2 `min(a,b) − h³·k/6`; G3 `min(a,b) − h³(4 − h)·k/16`.
+- Formulas: G1 `min(a,b) − h²·k/4`; G2 `min(a,b) − h³·k/6`; G3 `min(a,b) − h⁴(h² − 6h + 10)·k/32` (erratum 2026-11-01: C3, deepest dip 5k/32, dipSlope 5/32).
 - Old files evaluate to the same geometry (G1). New nodes default to G2.
 - The field Smooth Blend node stays quadratic (non-goal).
 
@@ -43,7 +43,7 @@ compiler from the tree's structure. Nodes expose a `continuity` integer socket; 
 
 **Interfaces — Produces:**
 - `public enum BlendContinuity: Int, Hashable, Sendable, Codable, CaseIterable { case g1 = 0, g2 = 1, g3 = 2 }` with
-  `public var dipSlope: Double` (the bound on ∂dip/∂k: g1 0.25, g2 1/6, g3 derived and pinned by test) and `public var label: String` ("G1", "G2", "G3").
+  `public var dipSlope: Double` (the bound on ∂dip/∂k: g1 0.25, g2 1/6, g3 5/32, pinned by test) and `public var label: String` ("G1", "G2", "G3").
 - `FieldMath.smoothMinimum(_ a: Double, _ b: Double, width k: Double, continuity: BlendContinuity = .g1) -> Double` (keep the existing
   call sites' behaviour through the default; the field node keeps calling it without a continuity).
 - `ImplicitSolid.union(_:blend:continuity:)`, `.subtract(…continuity:)`, `.intersect(…continuity:)` with `continuity: BlendContinuity`;
@@ -51,7 +51,7 @@ compiler from the tree's structure. Nodes expose a `continuity` integer socket; 
 
 - [ ] **Step 1: Failing tests** `eachContinuityMatchesItsFormula` (closed forms above at 20 points), `zeroWidthIsMin` (all three),
   `continuityAtTheBlendEdge` (finite differences at `|a − b| = k`: G1 value and first derivative continuous, G2 also the second,
-  G3 also the third; each tested to 1e-6 relative), `deepestDipIsAtEquality` (k/4, k/6, 3k/16), `dipSlopeBoundsTheSampledSlope`
+  G3 also the third; each tested to 1e-6 relative), `deepestDipIsAtEquality` (k/4, k/6, 5k/32), `dipSlopeBoundsTheSampledSlope`
   (sample ∂dip/∂k over a grid of `|a−b|/k` in [0,1]; max ≤ `dipSlope`, and within 1 % of it).
 - [ ] **Step 2:** Run `swift test --filter BlendContinuityTests`; expect compile failure.
 - [ ] **Step 3: Implement** the enum, the formulas, the cases (lipschitz: `max(1, children) + blend.slope × continuity.dipSlope`),
