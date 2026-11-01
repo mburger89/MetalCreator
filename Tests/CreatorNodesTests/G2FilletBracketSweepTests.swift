@@ -1,3 +1,4 @@
+import COCCT
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
@@ -32,6 +33,13 @@ struct G2FilletBracketSweepTests {
                 g2Built += 1
                 #expect(OCCTKernel.serialized { g2.shape.validity } == .valid, "edge \(id.rawValue)")
                 #expect(g2.history == circular.1, "edge \(id.rawValue): the history is the circular path's")
+                let report = g2.report
+                withUnsafeBytes(of: report.seams) { raw in
+                    for seam in raw.bindMemory(to: occt_g2_seam.self).prefix(Int(report.seam_count)) {
+                        #expect(seam.position <= 1e-4 && seam.angle_degrees <= 0.01 && seam.curvature_ratio <= 1,
+                                "edge \(id.rawValue): spring seam \(seam)")
+                    }
+                }
             } catch {
                 refused.append("edge \(id.rawValue): \(error)")
             }

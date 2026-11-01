@@ -136,3 +136,40 @@ extension G2FilletCoverageTests {
         expectMitres(built, count: 1)
     }
 }
+
+extension G2FilletCoverageTests {
+    func loft(_ sizes: [Double], rounded: Bool, ruled: Bool) throws -> OCCTShape {
+        let profiles = sizes.enumerated().map { index, side in
+            let plane = Plane(origin: Vector3(0, 0, 5 * Double(index)), normal: .unitZ, xAxis: .unitX)
+            return rounded ? Profile2D.roundedRectangle(width: side, height: side, radius: 3, plane: plane)
+                           : Profile2D.rectangle(width: side, height: side, plane: plane)
+        }
+        return try OCCTKernel.serialized { try OCCTShape.loft(profiles, ruled: ruled).0 }
+    }
+
+    /// One top edge of a smooth loft (20, 17, 16 squares): the strip ends square on the loft's curved side faces.
+    @Test func aSingleLoftEdgeBuilds() throws {
+        let built = try base.build(try loft([20, 17, 16], rounded: false, ruled: false), midpoints: [[0, -8, 10]], radius: 1)
+        print("G2COVER single loft edge: sections \(base.helper.sectionCounts(built.report))")
+        base.expectSpringsG2(built, seams: 2)
+    }
+
+    /// A ruled loft with rounded corners: the chain of top edges has junctions where the springs kink a little.
+    @Test func aRoundedLoftChainBuilds() throws {
+        let built = try base.build(try loft([20, 17, 16], rounded: true, ruled: true), midpoints: [[0, -8, 10]], radius: 1)
+        print("G2COVER rounded ruled loft: strips \(built.report.strips) sections \(base.helper.sectionCounts(built.report))")
+        #expect(built.report.strips == 8)
+        base.expectSpringsG2(built, seams: 16)
+    }
+
+    /// The smooth rounded loft sits at the section cap on one strip: it builds (valid, G2) or is refused with the strip
+    /// message, depending on the platform's arithmetic (macOS refuses after about 15 s in a debug build, Linux builds).
+    @Test func aSmoothRoundedLoftChainBuildsOrIsRefusedAtTheCap() throws {
+        do {
+            let built = try base.build(try loft([20, 17, 16], rounded: true, ruled: false), midpoints: [[0, -8, 10]], radius: 1)
+            base.expectSpringsG2(built, seams: 2 * Int(built.report.strips))
+        } catch let error as OCCTError {
+            #expect(error.message == "The fillet can't be made curvature continuous at this radius.")
+        }
+    }
+}

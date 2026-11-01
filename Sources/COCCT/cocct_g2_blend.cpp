@@ -59,6 +59,9 @@ constexpr int kMaxSections = 129;   // the cap: 9, 17, 33, 65, 129
 // the worst place between them.
 constexpr int kCheckSamples = 127;  // samples per spring edge when a candidate strip is judged
 constexpr int kMeasureSamples = 61;
+// Where the springs of two chained strips kink at their junction (the faces under them are only G1 there), the strip's
+// across direction is the bisector's, and the curvature comparison skips this share of the edge next to the junction.
+constexpr int kJunctionSamples = 2;
 constexpr double kEdgeTolerance = 1e-6;
 constexpr const char *kStripMessage = "The fillet can't be made curvature continuous at this radius.";
 constexpr const char *kWeightMessage = "The tangency weight is too large for this fillet.";
@@ -113,6 +116,8 @@ struct Spring {
     bool flipped = false; // sampled from its last parameter to its first
     double t_start = 0;   // the parameters sampling runs between: the edge's own, or extended past a slanted end
     double t_end = 0;
+    bool has_tangent[2] = {false, false}; // a chain junction's agreed spring tangent at the start and end
+    gp_Vec junction_tangent[2];
 };
 
 /// The edge parameter of fraction `fraction` of the way from the spring's sampling start to its sampling end.
@@ -136,6 +141,12 @@ NeighbourEnd end_condition(const Spring &spring, double t, const gp_Pnt &other, 
     gp_Pnt p;
     gp_Vec tangent;
     curve.D1(t, p, tangent);
+    // At a chain junction both strips use the bisector of the two springs' tangents, so they share one section.
+    if (spring.has_tangent[0] && std::abs(t - spring.t_start) < 1e-9) {
+        tangent = spring.junction_tangent[0];
+    } else if (spring.has_tangent[1] && std::abs(t - spring.t_end) < 1e-9) {
+        tangent = spring.junction_tangent[1];
+    }
     gp_Vec across = s.n.Crossed(tangent);
     if (across.Magnitude() < 1e-12) {
         throw user_error(kStripMessage);
@@ -455,6 +466,7 @@ struct StripEdges {
     TopoDS_Edge ends[2];
     TopoDS_Face end_face[2]; // null where the end borders a blend face
     TopoDS_Face end_strip[2]; // the other strip, where the end is a mitre between two strips at an angle
+    TopoDS_Face end_chain[2]; // the next strip of a tangent chain, where the end is their shared junction
     bool closed = false;     // a hole edge's strip: its one seam is both ends
 };
 
@@ -510,6 +522,8 @@ StripEdges classify(const TopoDS_Face &strip, const TopTools_IndexedDataMapOfSha
                 const double mid = 0.5 * (first + last);
                 if (std::abs(surface_point(strip, edge, mid).n.Dot(surface_point(other, edge, mid).n)) < 0.99) {
                     out.end_strip[ends] = other; // a mitre: both strips are built past it and meet along their intersection
+                } else {
+                    out.end_chain[ends] = other;
                 }
             }
             out.ends[ends] = edge;
@@ -571,25 +585,27 @@ void plan_slants(StripEdges &edges, Slant slants[2]) {
         gp_Vec out0 = tangent[0] * outward[0];
         out0.Normalize();
         const double m = chord.Dot(out0);
-        if (std::abs(m) <= 0.1 * chord.Magnitude()) {
+        // The end's edge, and whether it borders a face that is not a plane (a square end cannot lie on that: it is
+        // built past the end and trimmed like a slanted one).
+        const gp_Pnt middle((point[0].XYZ() + point[1].XYZ()) * 0.5);
+        int nearest = 0;
+        double nearest_gap = 1e300;
+        for (int c = 0; c < 2; ++c) {
+            BRepAdaptor_Curve oc(edges.ends[c]);
+            const double d = oc.Value(0.5 * (oc.FirstParameter() + oc.LastParameter())).Distance(middle);
+            if (d < nearest_gap) {
+                nearest_gap = d;
+                nearest = c;
+            }
+        }
+        const bool curved_end = !edges.end_face[nearest].IsNull() &&
+                                BRepAdaptor_Surface(edges.end_face[nearest], Standard_False).GetType() != GeomAbs_Plane;
+        if (std::abs(m) <= 0.1 * chord.Magnitude() && !curved_end) {
             continue;
         }
         // An end shared with a corner or the next strip of a chain is a section both must agree on; it stays square.
-        {
-            const gp_Pnt middle((point[0].XYZ() + point[1].XYZ()) * 0.5);
-            int nearest = 0;
-            double best = 1e300;
-            for (int c = 0; c < 2; ++c) {
-                BRepAdaptor_Curve oc(edges.ends[c]);
-                const double d = oc.Value(0.5 * (oc.FirstParameter() + oc.LastParameter())).Distance(middle);
-                if (d < best) {
-                    best = d;
-                    nearest = c;
-                }
-            }
-            if (edges.end_face[nearest].IsNull() && edges.end_strip[nearest].IsNull()) {
-                continue;
-            }
+        if (edges.end_face[nearest].IsNull() && edges.end_strip[nearest].IsNull()) {
+            continue;
         }
         slants[e].slanted = true;
         slants[e].a_end = point[0];
@@ -627,7 +643,8 @@ void plan_slants(StripEdges &edges, Slant slants[2]) {
 }
 
 /// Folds the gaps at one sample of a seam into `seam`; `a` and `b` are the two faces there, `tangent` the edge's.
-void accumulate(occt_g2_seam &seam, const SurfacePoint &a, const SurfacePoint &b, const gp_Vec &tangent) {
+void accumulate(occt_g2_seam &seam, const SurfacePoint &a, const SurfacePoint &b, const gp_Vec &tangent,
+                bool curvature = true) {
     gp_Vec across = a.n.Crossed(tangent);
     across.Normalize();
     gp_Vec across_b = across - b.n * across.Dot(b.n);
@@ -638,6 +655,9 @@ void accumulate(occt_g2_seam &seam, const SurfacePoint &a, const SurfacePoint &b
     seam.position = std::max(seam.position, a.p.Distance(b.p));
     const double cosine = std::clamp(a.n.Dot(b.n), -1.0, 1.0);
     seam.angle_degrees = std::max(seam.angle_degrees, std::acos(cosine) * 180 / kPi);
+    if (!curvature) {
+        return;
+    }
     seam.curvature = std::max(seam.curvature, gap);
     if (gap / allowed >= seam.curvature_ratio) {
         seam.curvature_ratio = gap / allowed;
@@ -646,7 +666,8 @@ void accumulate(occt_g2_seam &seam, const SurfacePoint &a, const SurfacePoint &b
 }
 
 /// The worst position, angle and curvature gaps along `edge` between the two faces that share it.
-occt_g2_seam measure_seam(const TopoDS_Edge &edge, const TopoDS_Face &f1, const TopoDS_Face &f2) {
+occt_g2_seam measure_seam(const TopoDS_Edge &edge, const TopoDS_Face &f1, const TopoDS_Face &f2,
+                          const bool exempt_ends[2] = nullptr) {
     occt_g2_seam seam{};
     BRepAdaptor_Curve curve(edge);
     for (int k = 0; k <= kMeasureSamples; ++k) {
@@ -654,7 +675,9 @@ occt_g2_seam measure_seam(const TopoDS_Edge &edge, const TopoDS_Face &f1, const 
         gp_Pnt p;
         gp_Vec tangent;
         curve.D1(t, p, tangent);
-        accumulate(seam, surface_point(f1, edge, t), surface_point(f2, edge, t), tangent);
+        const bool near_start = exempt_ends && exempt_ends[0] && k <= kJunctionSamples;
+        const bool near_end = exempt_ends && exempt_ends[1] && k >= kMeasureSamples - kJunctionSamples;
+        accumulate(seam, surface_point(f1, edge, t), surface_point(f2, edge, t), tangent, !(near_start || near_end));
     }
     return seam;
 }
@@ -686,12 +709,17 @@ occt_g2_seam candidate_seam(const Handle(Geom_BSplineSurface) &surface, bool rev
         gp_Vec tangent;
         curve.D1(t, p, tangent);
         occt_g2_seam here{};
-        accumulate(here, strip, surface_point(spring.neighbour, spring.edge, t), tangent);
-        accumulate(seam, strip, surface_point(spring.neighbour, spring.edge, t), tangent);
+        // The sampling start/end of the spring in parameter terms, for the junction exemption.
+        const double length = std::abs(spring.t_end - spring.t_start);
+        const bool near_start = spring.has_tangent[0] && std::abs(t - spring.t_start) < 0.0335 * length;
+        const bool near_end = spring.has_tangent[1] && std::abs(t - spring.t_end) < 0.0335 * length;
+        const bool compare_curvature = !(near_start || near_end);
+        accumulate(here, strip, surface_point(spring.neighbour, spring.edge, t), tangent, compare_curvature);
+        accumulate(seam, strip, surface_point(spring.neighbour, spring.edge, t), tangent, compare_curvature);
         const auto after = std::upper_bound(fractions.begin(), fractions.end(), uv.X());
         const std::size_t span = std::min<std::size_t>(std::max<std::ptrdiff_t>(after - fractions.begin() - 1, 0),
                                                        intervals.size() - 1);
-        intervals[span] = std::max({intervals[span], here.position / 1e-6, here.angle_degrees / 0.005,
+        intervals[span] = std::max({intervals[span], here.position / 2e-5, here.angle_degrees / 0.005,
                                     here.curvature_ratio / 0.5});
     }
     return seam;
@@ -699,7 +727,7 @@ occt_g2_seam candidate_seam(const Handle(Geom_BSplineSurface) &surface, bool rev
 
 bool within_tolerance(const occt_g2_seam &seam) {
     // Half the promised tolerances, so the final measurement at other samples still has room.
-    return seam.position <= 1e-6 && seam.angle_degrees <= 0.005 && seam.curvature_ratio <= 0.5;
+    return seam.position <= 2e-5 && seam.angle_degrees <= 0.005 && seam.curvature_ratio <= 0.5;
 }
 
 } // namespace
@@ -841,6 +869,61 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
         for (const TopoDS_Face &face : strip_faces) {
             strips.push_back(classify(face, edge_faces, blend_faces, strip_faces));
         }
+        // Tangent chains: where two strips of a chain meet, the springs on one face may kink (a drafted cone meeting a
+        // plane): both strips take the bisector of the two springs' tangents there, so they share one section.
+        {
+            auto outward_tangent = [](const Spring &spring, int end, gp_Pnt &point) {
+                BRepAdaptor_Curve curve(spring.edge);
+                const double direction = spring.t_end > spring.t_start ? 1 : -1;
+                const double t = end == 0 ? spring.t_start : spring.t_end;
+                gp_Vec tangent;
+                curve.D1(t, point, tangent);
+                tangent.Normalize();
+                return tangent * (end == 0 ? -direction : direction);
+            };
+            for (std::size_t s = 0; s < strips.size(); ++s) {
+                if (strips[s].closed) {
+                    continue;
+                }
+                for (int end = 0; end < 2; ++end) {
+                    for (int i = 0; i < 2; ++i) {
+                        Spring &mine = strips[s].spring[i];
+                        gp_Pnt point;
+                        const gp_Vec outward = outward_tangent(mine, end, point);
+                        for (std::size_t t = 0; t < strips.size(); ++t) {
+                            if (t == s || strips[t].closed) {
+                                continue;
+                            }
+                            bool chained = false;
+                            for (int c = 0; c < 2; ++c) {
+                                chained = chained || strips[s].end_chain[c].IsSame(strip_faces[t]);
+                            }
+                            if (!chained) {
+                                continue;
+                            }
+                            for (Spring &other : strips[t].spring) {
+                                for (int other_end = 0; other_end < 2; ++other_end) {
+                                    gp_Pnt other_point;
+                                    const gp_Vec other_outward = outward_tangent(other, other_end, other_point);
+                                    if (other_point.Distance(point) > 1e-6 || outward.Dot(other_outward) > 0) {
+                                        continue;
+                                    }
+                                    gp_Vec bisector = outward - other_outward;
+                                    if (bisector.Magnitude() < 1e-9) {
+                                        continue;
+                                    }
+                                    bisector.Normalize();
+                                    mine.has_tangent[end] = true;
+                                    mine.junction_tangent[end] = bisector;
+                                    other.has_tangent[other_end] = true;
+                                    other.junction_tangent[other_end] = bisector;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         struct Replaced {
             TopoDS_Edge old_edge, new_edge;
             TopoDS_Face strip;
@@ -938,6 +1021,7 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 bool swapped = false;
                 TopoDS_Edge new_ends[2];
                 bool flip_end[2] = {false, false}; // the new end edge runs the other way from the old one
+                double spring_gap[2] = {0, 0};      // the strip's worst distance from each spring, as measured
             };
             std::vector<StripState> states(strips.size());
             for (std::size_t s = 0; s < strips.size(); ++s) {
@@ -978,22 +1062,35 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                     validate_sections(built, old_face, edges.spring[swapped ? 1 : 0], edges.spring[swapped ? 0 : 1], radius);
                     const bool reversed = old_face.Orientation() == TopAbs_REVERSED;
                     std::vector<double> first_spans, second_spans;
-                    const bool first_passes = within_tolerance(candidate_seam(
-                        built.surface, reversed, edges.spring[swapped ? 1 : 0], built.pcurve[0], fractions, first_spans));
-                    const bool second_passes = within_tolerance(candidate_seam(
-                        built.surface, reversed, edges.spring[swapped ? 0 : 1], built.pcurve[1], fractions, second_spans));
-                    const bool passes = first_passes && second_passes;
+                    const occt_g2_seam first_seam = candidate_seam(
+                        built.surface, reversed, edges.spring[swapped ? 1 : 0], built.pcurve[0], fractions, first_spans);
+                    const occt_g2_seam second_seam = candidate_seam(
+                        built.surface, reversed, edges.spring[swapped ? 0 : 1], built.pcurve[1], fractions, second_spans);
+                    const bool passes = within_tolerance(first_seam) && within_tolerance(second_seam);
                     if (passes) {
+                        // The springs keep their own curves: their tolerance covers what the strip's boundary misses.
+                        state.spring_gap[0] = first_seam.position;
+                        state.spring_gap[1] = second_seam.position;
                         break;
                     }
                     if (static_cast<int>(fractions.size()) >= kMaxSections) {
                         throw user_error(kStripMessage);
                     }
+                    // A failing span gets its middle; a span too narrow to halve again means the error is not one more
+                    // sections can remove.
+                    std::vector<bool> split(fractions.size() - 1, edges.closed);
+                    for (std::size_t j = 0; j + 1 < fractions.size(); ++j) {
+                        if (first_spans[j] > 1 || second_spans[j] > 1) {
+                            if (fractions[j + 1] - fractions[j] < 1e-5) {
+                                throw user_error(kStripMessage);
+                            }
+                            split[j] = true;
+                        }
+                    }
                     std::vector<double> refined;
                     for (std::size_t j = 0; j < fractions.size(); ++j) {
                         refined.push_back(fractions[j]);
-                        if (j + 1 < fractions.size() &&
-                            (edges.closed || first_spans[j] > 1 || second_spans[j] > 1)) {
+                        if (j + 1 < fractions.size() && split[j]) {
                             refined.push_back(0.5 * (fractions[j] + fractions[j + 1]));
                         }
                     }
@@ -1021,7 +1118,8 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 const Handle(Geom_Surface) surface = built.surface;
                 for (int side = 0; side < 2; ++side) {
                     const Spring &spring = edges.spring[(side == 0) != swapped ? 0 : 1];
-                    builder.UpdateEdge(spring.edge, built.pcurve[side], surface, TopLoc_Location(), kEdgeTolerance);
+                    builder.UpdateEdge(spring.edge, built.pcurve[side], surface, TopLoc_Location(),
+                                       std::max(kEdgeTolerance, 1.5 * state.spring_gap[side]));
                     double own_first = 0, own_last = 0;
                     BRep_Tool::Range(spring.edge, own_first, own_last);
                     builder.Range(spring.edge, surface, TopLoc_Location(), own_first, own_last);
@@ -1170,13 +1268,18 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                     if (!ne.IsNull()) {
                         BRepAdaptor_Curve nc(ne);
                         reversed = nc.Value(0).Distance(bezier->Value(0)) > nc.Value(0).Distance(bezier->Value(1));
-                        // The shared section must be this strip's own: both are built from the same neighbours.
-                        for (int k = 0; k <= 8; ++k) {
-                            const double t = k / 8.0;
-                            if (nc.Value(t).Distance(bezier->Value(reversed ? 1 - t : t)) > 1e-6) {
-                                throw user_error(kStripMessage);
-                            }
+                        // The shared section is this strip's own, up to what the two neighbours' surfaces differ by at
+                        // the junction (they agree on the spring tangent; a strip-to-strip seam is promised its
+                        // position only): within 1e-4 mm, with the edge's tolerance covering the difference.
+                        double deviation = 0;
+                        for (int k = 0; k <= 16; ++k) {
+                            const double t = k / 16.0;
+                            deviation = std::max(deviation, nc.Value(t).Distance(bezier->Value(reversed ? 1 - t : t)));
                         }
+                        if (deviation > 1e-4) {
+                            throw user_error(kStripMessage);
+                        }
+                        builder.UpdateEdge(ne, std::max(BRep_Tool::Tolerance(ne), 1.5 * deviation));
                     } else {
                         TopoDS_Vertex v1, v2;
                         TopExp::Vertices(old_edge, v1, v2, Standard_False);
@@ -1190,11 +1293,6 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                         builder.Add(ne, v1.Oriented(TopAbs_FORWARD));
                         builder.Add(ne, v2.Oriented(TopAbs_REVERSED));
                         builder.Range(ne, 0, 1);
-                        if (!edges.end_face[chosen].IsNull()) {
-                            if (BRepAdaptor_Surface(edges.end_face[chosen], Standard_False).GetType() != GeomAbs_Plane) {
-                                throw user_error(kStripMessage);
-                            }
-                        }
                         // The replacement carries the old occurrence's orientation: Replace composes the two.
                         reshape.Replace(old_edge, ne.Oriented(old_edge.Orientation()));
                         replaced.push_back({old_edge, ne, TopoDS_Face()});
@@ -1211,6 +1309,9 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                                                                        : line2d(gp_Pnt2d(u_iso, 0), gp_Pnt2d(u_iso, 1), 0, 1);
                     builder.UpdateEdge(ne, pcs, surface, TopLoc_Location(), kEdgeTolerance);
                     if (!edges.end_face[chosen].IsNull()) {
+                        if (BRepAdaptor_Surface(edges.end_face[chosen], Standard_False).GetType() != GeomAbs_Plane) {
+                            throw user_error(kStripMessage);
+                        }
                         BRepLib::BuildPCurveForEdgeOnPlane(ne, edges.end_face[chosen]);
                     }
                     new_ends[chosen] = ne;
@@ -1450,11 +1551,20 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
         for (int index : corner_indices) {
             result_blend.push_back(TopoDS::Face(result_faces(index)));
         }
-        for (const TopoDS_Face &strip : result_strips) {
+        for (std::size_t s = 0; s < result_strips.size(); ++s) {
+            const TopoDS_Face &strip = result_strips[s];
             const StripEdges edges = classify(strip, result_edge_faces, result_blend, result_strips);
             for (const Spring &spring : edges.spring) {
+                // The springs' junction tangents were set on the strips as first classified (same edges).
+                bool exempt[2] = {false, false};
+                for (const Spring &known : strips[s].spring) {
+                    if (known.edge.IsSame(spring.edge)) {
+                        exempt[0] = known.flipped ? known.has_tangent[1] : known.has_tangent[0];
+                        exempt[1] = known.flipped ? known.has_tangent[0] : known.has_tangent[1];
+                    }
+                }
                 if (report->seam_count < OCCT_G2_MAX_SEAMS) {
-                    report->seams[report->seam_count++] = measure_seam(spring.edge, strip, spring.neighbour);
+                    report->seams[report->seam_count++] = measure_seam(spring.edge, strip, spring.neighbour, exempt);
                 }
             }
         }
