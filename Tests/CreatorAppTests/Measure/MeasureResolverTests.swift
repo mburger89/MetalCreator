@@ -60,7 +60,7 @@ struct MeasureResolverTests {
             Issue.record("not a corner"); return
         }
         #expect(end == .end && point == edited.topology.edge(id)?.curve?.ends.last)
-        #expect(point.z == 20 || point.z == 0)
+        #expect(point.z == 20)
         let plain = try #require(MeasureResolver.anchor(for: .edge(solid: 0, edge.id), in: scene0))
         #expect(MeasureResolver.resolve(plain, in: scene([edited])) != nil)
     }
@@ -82,6 +82,7 @@ struct MeasureResolverTests {
         let pick = try #require(solid.topology.picks(for: [edge.id]).first)
         // A key with one side empty matches every edge along the first face: several, and no ordinals to choose between them.
         let loose = EdgePick(key: EdgeKey(pick.key.first, []), matchCount: 1)
+        #expect(solid.topology.resolution(of: loose.key).edges.count > 1)
         #expect(MeasureResolver.resolve(.edge(loose), in: scene([solid])) == nil)
     }
 
