@@ -36,12 +36,12 @@ struct G2FilletTests {
         return try OCCTKernel.serialized { try OCCTShape.extrude(Profile2D(plane: .xy, segments: segments), distance: 10).0 }
     }
 
-    @Test func aBoxCornerIsG2OrCounted() throws {
+    @Test func aBoxCornerIsCountedOnce() throws {
         let box = try OCCTKernel.serialized { try OCCTShape.box(20, 20, 10) }
         let built = try build(box, midpoints: [[10, 0, 10], [0, 10, 10], [0, 0, 5]], radius: 2)
         expectSpringsG2(built, seams: 6)
         let corner = cornerGaps(built.report)
-        print("G2FILLET box corner: corners \(built.report.corners) g1 \(built.report.g1_corners)"
+        print("G2FILLET box corner: corners \(built.report.corners) g2 \(built.report.g2_corners) g1 \(built.report.g1_corners)"
             + " strips \(helper.sectionCounts(built.report))")
         for seam in corner {
             print("G2FILLET box corner seam: position \(seam.position) angle \(seam.angle_degrees)"
@@ -53,8 +53,8 @@ struct G2FilletTests {
             #expect(seam.position <= 1e-4)
             #expect(seam.angle_degrees <= 0.01)
         }
-        // OCCT 7.9's MakeFilling can't constrain G2, so a corner is a counted G1 refill.
-        #expect(built.report.g1_corners == 1)
+        // The box's right-angle corner is one G2 patch (G2FilletCornerTests holds the patch to its tolerances).
+        #expect(built.report.g2_corners + built.report.g1_corners == 1)
     }
 
     @Test func anOpenChainEnds() throws {

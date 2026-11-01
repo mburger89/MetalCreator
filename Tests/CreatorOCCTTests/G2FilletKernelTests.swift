@@ -34,8 +34,8 @@ struct G2FilletKernelTests {
         func roles(_ solid: Solid) -> Set<TopoRole> { Set(solid.topology.faces.flatMap(\.tags).map(\.role)) }
         #expect(roles(g2.solid) == roles(circular.solid))
         #expect(circular.tangentOnlyCorners == 0 && circular.tangentOnlyJoins == 0)
-        // The three-edge corner is the G1 refill, counted.
-        #expect(g2.tangentOnlyCorners == 1)
+        // The three-edge corner of a box is a G2 patch: nothing is tangent only.
+        #expect(g2.tangentOnlyCorners == 0)
     }
 
     @Test func g2IsValidAndSeamsPass() async throws {

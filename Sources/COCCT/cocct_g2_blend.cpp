@@ -1,6 +1,7 @@
-// SPIKE (G-b): curvature-continuous fillet strips. OpenCascade makes the circular fillet; each strip face is then
-// replaced by a B-spline surface skinned from quintic G2 Hermite sections between its two spring edges.
-#include "cocct_g2_corner.hpp"
+// G-b: curvature-continuous fillets. OpenCascade makes the circular fillet; each strip face is then replaced by a
+// B-spline surface skinned from quintic G2 Hermite sections between its two spring edges, and a corner where three strips
+// end by one three-sided G2 patch (cocct_g2_triangle.hpp), else a G1 refill.
+#include "cocct_g2_triangle.hpp"
 #include "cocct_g2_section.hpp"
 #include "cocct_internal.hpp"
 
@@ -46,6 +47,7 @@
 
 #include <algorithm>
 #include <cstdlib>
+#include <chrono>
 #include <cmath>
 #include <memory>
 
@@ -54,9 +56,6 @@ using namespace cocct;
 #include <BRepCheck_Result.hxx>
 
 namespace {
-
-// SPIKE (Task 2d): the G2 corner patch is off unless a test switches it on.
-bool g_g2_corner_spike = false;
 
 constexpr int kFirstSections = 9;   // cross-sections per strip to start with
 constexpr int kMaxSections = 129;   // the cap: 9, 17, 33, 65, 129
@@ -756,8 +755,6 @@ bool within_tolerance(const occt_g2_seam &seam) {
 
 extern "C" {
 
-void occt_test_g2_corner_spike(int enable) { g_g2_corner_spike = enable != 0; }
-
 double occt_g2_tangent_length(double chord, double turning_angle) {
     return g2::circular_tangent_length(chord, turning_angle);
 }
@@ -781,8 +778,10 @@ int occt_g2_section_test(const double end0[9], double len0, const double end1[9]
     return 1;
 }
 
-occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int count, double radius, double weight,
-                           occt_history *history, occt_g2_report *report, occt_status *status) {
+// One build, with corner patches tried or not. A failure leaves `report` as far as it got (g2_corners says whether a
+// patch had been committed).
+static occt_shape *fillet_g2_run(const occt_shape *shape, const int *edge_indices, int count, double radius, double weight,
+                                 bool use_patches, occt_history *history, occt_g2_report *report, occt_status *status) {
     return guarded(status, [&]() -> occt_shape * {
         *history = occt_history{};
         *report = occt_g2_report{};
@@ -1232,10 +1231,10 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
             }
         }
 
-        // SPIKE (Task 2d): G2 corner patches. A corner whose three edges are all strip ends is replaced by three
-        // quadrilateral Bezier patches (cocct_g2_corner.hpp) that join the strips and one another G2. Anything
-        // the construction cannot do leaves the corner to the G1 refill below.
-        for (std::size_t ci = 0; ci < corner_faces.size() && g_g2_corner_spike; ++ci) {
+        // G2 corner patches. A corner whose three edges are all strip ends is replaced by one three-sided Bezier patch
+        // (cocct_g2_triangle.hpp) that joins the three strips G2. A corner the patch is not accepted for (see below)
+        // is left to the G1 refill after this loop.
+        for (std::size_t ci = 0; ci < corner_faces.size() && use_patches; ++ci) {
             const TopoDS_Face old_corner = corner_faces[ci];
             try {
                 struct EndCurve {
@@ -1358,217 +1357,170 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                     curve.from = first_is_start ? v1 : v2;
                     curve.to = first_is_start ? v2 : v1;
                 }
-                // Midpoints, seam planes and the centre.
-                g2::Vec mids[3], normals[3];
+                ++report->corner_attempts;
+                const auto clock0 = std::chrono::steady_clock::now();
+                g2::TriangleSide tri_sides[3];
                 for (int j = 0; j < 3; ++j) {
-                    g2::Vec d1, d2;
-                    g2::evaluate(loop[j].poles, 0.5, mids[j], d1, d2);
-                    normals[j] = g2::scale(d1, 1 / g2::norm(d1));
+                    tri_sides[j].poles = loop[j].poles;
+                    tri_sides[j].cross1 = loop[j].cross1;
+                    tri_sides[j].cross2 = loop[j].cross2;
                 }
-                const g2::Vec centroid = g2::scale(g2::add(g2::add(mids[0], mids[1]), mids[2]), 1.0 / 3);
-                GeomAPI_ProjectPointOnSurf to_centre(gp_Pnt(centroid[0], centroid[1], centroid[2]), BRep_Tool::Surface(old_corner));
-                if (to_centre.NbPoints() == 0) {
+                // 1. The across scales: each strip's cross-boundary derivative must be the neighbouring end curve's tangent.
+                double direction_cosine = 0;
+                if (!g2::across_scales(tri_sides, direction_cosine) || direction_cosine < 0.999999) {
                     throw user_error(kStripMessage);
                 }
-                const g2::Vec centre = from_pnt(to_centre.NearestPoint());
-                for (int j = 0; j < 3; ++j) {
-                    if (std::abs(g2::dot(normals[j], g2::sub(centre, mids[j]))) > 1e-6) {
-                        throw user_error(kStripMessage); // the corner is not symmetric enough for this construction
+                g2::TriangleNet tri_net;
+                g2::TriangleStats stats;
+                if (!g2::build_triangle(tri_sides, tri_net, stats)) {
+                    throw user_error(kStripMessage);
+                }
+                // 2. lambda > 0 over every side (the reparametrisation is monotone) and the shared blocks agree.
+                if (!(stats.min_lambda > 0) || !(stats.block_mismatch <= 1e-6)) {
+                    throw user_error(kStripMessage);
+                }
+                const int n = g2::kTriangleDegree;
+                const std::vector<g2::Vec> tensor = g2::to_tensor(tri_net);
+                TColgp_Array2OfPnt tri_poles(1, n + 1, 1, n + 1);
+                for (int a = 0; a <= n; ++a) {
+                    for (int b = 0; b <= n; ++b) {
+                        const g2::Vec &v = tensor[static_cast<std::size_t>(a) * (n + 1) + b];
+                        tri_poles.SetValue(a + 1, b + 1, gp_Pnt(v[0], v[1], v[2]));
                     }
                 }
-                // The three quadrilaterals.
-                g2::Net nets[3], built_nets[3];
-                double worst_mismatch = 0;
-                for (int j = 0; j < 3; ++j) {
-                    const EndCurve &x = loop[j];
-                    const EndCurve &y = loop[(j + 2) % 3];
-                    g2::QuadInput input;
-                    // x side: first half of curve j from V_j; y side: second half of curve j-1, reversed, from V_j.
-                    const auto cx = g2::bezier_segment(x.poles, 0, 0.5);
-                    const auto f1x = g2::bezier_segment(x.cross1, 0, 0.5);
-                    const auto f2x = g2::bezier_segment(x.cross2, 0, 0.5);
-                    auto reverse_array = [](std::array<g2::Vec, 6> v) {
-                        std::reverse(v.begin(), v.end());
-                        return v;
-                    };
-                    const auto cy = reverse_array(g2::bezier_segment(y.poles, 0.5, 1));
-                    const auto f1y = reverse_array(g2::bezier_segment(y.cross1, 0.5, 1));
-                    const auto f2y = reverse_array(g2::bezier_segment(y.cross2, 0.5, 1));
-                    const g2::Vec v = cx[0];
-                    const g2::Vec leg_y = g2::sub(cy[1], v), leg_x = g2::sub(cx[1], v);
-                    const double kx = 5 * g2::norm(leg_y) / g2::norm(f1x[0]);
-                    const double ky = 5 * g2::norm(leg_x) / g2::norm(f1y[0]);
-                    if (g2::dot(f1x[0], leg_y) < 0.99 * g2::norm(f1x[0]) * g2::norm(leg_y) ||
-                        g2::dot(f1y[0], leg_x) < 0.99 * g2::norm(f1y[0]) * g2::norm(leg_x)) {
-                        throw user_error(kStripMessage); // the cross-boundary direction is not the other curve's tangent
-                    }
-                    for (int a = 0; a < 6; ++a) {
-                        input.rows_x[0][a] = cx[a];
-                        input.rows_x[1][a] = g2::add(cx[a], g2::scale(f1x[a], kx / 5));
-                        input.rows_x[2][a] = g2::add(g2::sub(g2::scale(input.rows_x[1][a], 2), cx[a]), g2::scale(f2x[a], kx * kx / 20));
-                        input.rows_y[0][a] = cy[a];
-                        input.rows_y[1][a] = g2::add(cy[a], g2::scale(f1y[a], ky / 5));
-                        input.rows_y[2][a] = g2::add(g2::sub(g2::scale(input.rows_y[1][a], 2), cy[a]), g2::scale(f2y[a], ky * ky / 20));
-                    }
-                    input.centre = centre;
-                    input.seam_x_point = mids[j];
-                    input.seam_x_normal = normals[j];
-                    input.seam_y_point = mids[(j + 2) % 3];
-                    input.seam_y_normal = normals[(j + 2) % 3];
-                    double mismatch = 0;
-                    if (!g2::build_quad(input, nets[j], mismatch, 1e-6)) {
-                        throw user_error(kStripMessage);
-                    }
-                    worst_mismatch = std::max(worst_mismatch, mismatch);
-                    built_nets[j] = nets[j];
-                }
-                // The corner is three-fold symmetric (each quadrilateral is the mirror image of its neighbour across
-                // their shared seam), which G2 across the seams needs to hold to rounding: quadrilateral 0 is made
-                // symmetric about the plane through its corner and the axis, the others are its rotations by 120
-                // degrees about the axis. Where a strip's own data differ from that, the corner is not symmetric
-                // enough for this construction.
+                const Handle(Geom_BezierSurface) tri_surface = new Geom_BezierSurface(tri_poles);
+                // 3. Regularity: a defined normal and principal curvatures within 4 / r over the interior and near the corners.
+                double min_sine = 1e300, max_interior = 0;
                 {
-                    const g2::Vec v0 = loop[0].poles[0], v1 = loop[1].poles[0], v2 = loop[2].poles[0];
-                    const g2::Vec g = g2::scale(g2::add(g2::add(v0, v1), v2), 1.0 / 3);
-                    auto cross = [](const g2::Vec &a, const g2::Vec &b) {
-                        return g2::Vec{a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
+                    auto sample = [&](double x, double y, bool interior) {
+                        gp_Pnt p;
+                        gp_Vec su, sv, suu, svv, suv;
+                        tri_surface->D2(std::min(1.0, std::max(0.0, x)), std::min(1.0, std::max(0.0, y)), p, su, sv, suu, svv, suv);
+                        const gp_Vec nv = su.Crossed(sv);
+                        const double area = nv.Magnitude();
+                        const double e = su.Dot(su), f = su.Dot(sv), g = sv.Dot(sv);
+                        min_sine = std::min(min_sine, area / std::sqrt(e * g));
+                        if (area < 1e-14) {
+                            throw user_error(kStripMessage);
+                        }
+                        if (!interior) {
+                            return;
+                        }
+                        const gp_Vec nn = nv / area;
+                        const double l = suu.Dot(nn), m = suv.Dot(nn), nq = svv.Dot(nn);
+                        const double det = e * g - f * f;
+                        const double kg = (l * nq - m * m) / det;
+                        const double hm = (e * nq - 2 * f * m + g * l) / (2 * det);
+                        const double disc = std::sqrt(std::max(0.0, hm * hm - kg));
+                        max_interior = std::max(max_interior, std::max(std::abs(hm + disc), std::abs(hm - disc)));
                     };
-                    g2::Vec axis = cross(g2::sub(v1, v0), g2::sub(v2, v0));
-                    axis = g2::scale(axis, 1 / g2::norm(axis));
-                    const g2::Vec off_axis = g2::sub(g2::sub(centre, g), g2::scale(axis, g2::dot(g2::sub(centre, g), axis)));
-                    if (g2::norm(off_axis) > 1e-6) {
-                        throw user_error(kStripMessage); // the centre is not on the axis through the corner's middle
-                    }
-                    // Mirror about the plane through g that contains the axis and v0.
-                    g2::Vec m = cross(axis, g2::sub(v0, g));
-                    m = g2::scale(m, 1 / g2::norm(m));
-                    auto mirror = [&](const g2::Vec &p) { return g2::sub(p, g2::scale(m, 2 * g2::dot(g2::sub(p, g), m))); };
-                    auto rotate = [&](const g2::Vec &p, double angle) {
-                        const g2::Vec r = g2::sub(p, g);
-                        const g2::Vec c = cross(axis, r);
-                        return g2::add(g, g2::add(g2::add(g2::scale(r, std::cos(angle)), g2::scale(c, std::sin(angle))),
-                                                  g2::scale(axis, g2::dot(axis, r) * (1 - std::cos(angle)))));
-                    };
-                    const double sign = g2::norm(g2::sub(rotate(v0, 2 * kPi / 3), v1)) < g2::norm(g2::sub(rotate(v0, -2 * kPi / 3), v1))
-                                            ? 1.0
-                                            : -1.0;
-                    g2::Net symmetric{};
-                    double asymmetry = 0;
-                    for (int a = 0; a < 6; ++a) {
-                        for (int b = 0; b < 6; ++b) {
-                            symmetric[a][b] = g2::scale(g2::add(nets[0][a][b], mirror(nets[0][b][a])), 0.5);
-                            asymmetry = std::max(asymmetry, g2::norm(g2::sub(symmetric[a][b], nets[0][a][b])));
+                    const int grid = 80;
+                    for (int a = 0; a <= grid; ++a) {
+                        for (int b = 0; a + b <= grid; ++b) {
+                            sample(static_cast<double>(a) / grid, static_cast<double>(b) / grid, a > 0 && b > 0 && a + b < grid);
                         }
                     }
-                    nets[0] = symmetric;
-                    double disagreement = 0;
-                    for (int j = 1; j < 3; ++j) {
-                        for (int a = 0; a < 6; ++a) {
-                            for (int b = 0; b < 6; ++b) {
-                                nets[j][a][b] = rotate(nets[0][a][b], sign * 2 * kPi / 3 * j);
-                            }
-                        }
-                        // The strips' own rows for this quadrilateral must be the rotated ones.
-                        for (int a = 0; a < 6; ++a) {
-                            for (int b = 0; b < 3; ++b) {
-                                disagreement = std::max({disagreement, g2::norm(g2::sub(nets[j][a][b], built_nets[j][a][b])),
-                                                         g2::norm(g2::sub(nets[j][b][a], built_nets[j][b][a]))});
-                            }
-                        }
-                    }
-                    if (disagreement > 1e-6 || asymmetry > 1e-3) {
-                        throw user_error(kStripMessage);
+                    for (double d : {1e-1, 3e-2, 1e-2, 1e-3, 1e-4}) {
+                        sample(d, d, true);
+                        sample(1 - 2 * d, d, true);
+                        sample(d, 1 - 2 * d, true);
+                        sample(d, 0, false);
+                        sample(0, d, false);
+                        sample(1 - d, d, false);
+                        sample(1 - d, 0, false);
+                        sample(d, 1 - d, false);
+                        sample(0, 1 - d, false);
                     }
                 }
-                // Topology: vertices, half edges, seams, faces.
-                auto to_pnt = [](const g2::Vec &v) { return gp_Pnt(v[0], v[1], v[2]); };
-                auto bezier_curve = [&](const std::array<g2::Vec, 6> &p) {
-                    TColgp_Array1OfPnt poles(1, 6);
+                if (!(min_sine > 0.05) || !(max_interior <= 4.0 / radius)) {
+                    throw user_error(kStripMessage); // the patch is not regular enough
+                }
+                const gp_Pnt2d domain[3] = {gp_Pnt2d(0, 0), gp_Pnt2d(1, 0), gp_Pnt2d(0, 1)};
+                // 4. The seams against the three strips, before anything is committed: the half of the promised tolerances
+                //    that strips are held to.
+                {
+                    auto on_surface = [](const Handle(Geom_Surface) &surface, const gp_Pnt2d &uv, bool reversed) {
+                        SurfacePoint point;
+                        surface->D2(uv.X(), uv.Y(), point.p, point.su, point.sv, point.suu, point.svv, point.suv);
+                        point.n = point.su.Crossed(point.sv);
+                        point.n.Normalize();
+                        if (reversed) {
+                            point.n.Reverse();
+                        }
+                        return point;
+                    };
+                    // The patch's outward side is the circular corner's, as for the face built below.
+                    bool tri_reversed = false;
+                    {
+                        gp_Pnt middle;
+                        gp_Vec da, db;
+                        tri_surface->D1(1.0 / 3, 1.0 / 3, middle, da, db);
+                        GeomAPI_ProjectPointOnSurf project(middle, BRep_Tool::Surface(old_corner));
+                        double pu = 0, pv = 0;
+                        project.LowerDistanceParameters(pu, pv);
+                        gp_Pnt on_old;
+                        gp_Vec oa, ob;
+                        BRep_Tool::Surface(old_corner)->D1(pu, pv, on_old, oa, ob);
+                        gp_Vec n_old = oa.Crossed(ob);
+                        if (old_corner.Orientation() == TopAbs_REVERSED) {
+                            n_old.Reverse();
+                        }
+                        tri_reversed = da.Crossed(db).Dot(n_old) < 0;
+                    }
+                    for (int j = 0; j < 3; ++j) {
+                        const EndCurve &curve = loop[j];
+                        const double u_end = curve.end == 0 ? 0.0 : 1.0;
+                        const bool strip_reversed = strip_faces[curve.strip].Orientation() == TopAbs_REVERSED;
+                        occt_g2_seam seam{};
+                        for (int k = 0; k <= kMeasureSamples; ++k) {
+                            const double t = static_cast<double>(k) / kMeasureSamples;
+                            const double v = curve.reversed ? 1 - t : t;
+                            const gp_Pnt2d uv_tri(domain[j].X() + t * (domain[(j + 1) % 3].X() - domain[j].X()),
+                                                  domain[j].Y() + t * (domain[(j + 1) % 3].Y() - domain[j].Y()));
+                            const g2::Vec tangent_vector = g2::bezier_derivative(curve.poles, t);
+                            gp_Vec tangent = to_vec(tangent_vector);
+                            if (tangent.Magnitude() < 1e-12) {
+                                throw user_error(kStripMessage);
+                            }
+                            accumulate(seam, on_surface(states[curve.strip].built.surface, gp_Pnt2d(u_end, v), strip_reversed),
+                                       on_surface(tri_surface, uv_tri, tri_reversed), tangent);
+                        }
+                        if (!within_tolerance(seam)) {
+                            throw user_error(kStripMessage);
+                        }
+                    }
+                }
+                TopoDS_Edge tri_edges[3];
+                for (int j = 0; j < 3; ++j) {
+                    TColgp_Array1OfPnt end_poles(1, 6);
                     for (int i = 0; i < 6; ++i) {
-                        poles.SetValue(i + 1, to_pnt(p[i]));
+                        end_poles.SetValue(i + 1, gp_Pnt(loop[j].poles[i][0], loop[j].poles[i][1], loop[j].poles[i][2]));
                     }
-                    return Handle(Geom_BezierCurve)(new Geom_BezierCurve(poles));
-                };
-                TopoDS_Vertex vertex_mid[3], vertex_centre;
-                for (int j = 0; j < 3; ++j) {
-                    builder.MakeVertex(vertex_mid[j], to_pnt(mids[j]), 1e-6);
-                }
-                builder.MakeVertex(vertex_centre, to_pnt(centre), 1e-6);
-                TopoDS_Edge half[3][2], seam_edges[3];
-                for (int j = 0; j < 3; ++j) {
-                    const auto first = g2::bezier_segment(loop[j].poles, 0, 0.5);
-                    const auto second = g2::bezier_segment(loop[j].poles, 0.5, 1);
-                    const TopoDS_Vertex &v_from = loop[j].from, &v_to = loop[j].to;
-                    builder.MakeEdge(half[j][0], bezier_curve(first), kEdgeTolerance);
-                    builder.Add(half[j][0], v_from.Oriented(TopAbs_FORWARD));
-                    builder.Add(half[j][0], vertex_mid[j].Oriented(TopAbs_REVERSED));
-                    builder.Range(half[j][0], 0, 1);
-                    builder.MakeEdge(half[j][1], bezier_curve(second), kEdgeTolerance);
-                    builder.Add(half[j][1], vertex_mid[j].Oriented(TopAbs_FORWARD));
-                    builder.Add(half[j][1], v_to.Oriented(TopAbs_REVERSED));
-                    builder.Range(half[j][1], 0, 1);
-                    // The seam from M_j to the centre: quadrilateral j's side a = 5.
-                    std::array<g2::Vec, 6> seam_points{};
-                    for (int b = 0; b < 6; ++b) {
-                        seam_points[b] = nets[j][5][b];
-                    }
-                    builder.MakeEdge(seam_edges[j], bezier_curve(seam_points), kEdgeTolerance);
-                    builder.Add(seam_edges[j], vertex_mid[j].Oriented(TopAbs_FORWARD));
-                    builder.Add(seam_edges[j], vertex_centre.Oriented(TopAbs_REVERSED));
-                    builder.Range(seam_edges[j], 0, 1);
-                }
-                // Seam consistency: quadrilateral j+1's side b = 5 is the same curve.
-                double seam_gap = 0;
-                for (int j = 0; j < 3; ++j) {
-                    for (int a = 0; a < 6; ++a) {
-                        seam_gap = std::max(seam_gap, g2::norm(g2::sub(nets[(j + 1) % 3][a][5], nets[j][5][a])));
-                    }
-                }
-                if (seam_gap > 1e-6) {
-                    throw user_error(kStripMessage);
-                }
-                // Strip side: the half edges get pcurves on the strips' surfaces.
-                for (int j = 0; j < 3; ++j) {
+                    builder.MakeEdge(tri_edges[j], Handle(Geom_BezierCurve)(new Geom_BezierCurve(end_poles)), kEdgeTolerance);
+                    builder.Add(tri_edges[j], loop[j].from.Oriented(TopAbs_FORWARD));
+                    builder.Add(tri_edges[j], loop[j].to.Oriented(TopAbs_REVERSED));
+                    builder.Range(tri_edges[j], 0, 1);
                     const EndCurve &curve = loop[j];
                     const double u_end = curve.end == 0 ? 0.0 : 1.0;
-                    const Handle(Geom_Surface) strip_surface = states[curve.strip].built.surface;
                     const double v_start = curve.reversed ? 1.0 : 0.0, v_end = curve.reversed ? 0.0 : 1.0;
-                    const double v_mid = 0.5;
-                    builder.UpdateEdge(half[j][0], line2d(gp_Pnt2d(u_end, v_start), gp_Pnt2d(u_end, v_mid), 0, 1), strip_surface,
-                                       TopLoc_Location(), kEdgeTolerance);
-                    builder.UpdateEdge(half[j][1], line2d(gp_Pnt2d(u_end, v_mid), gp_Pnt2d(u_end, v_end), 0, 1), strip_surface,
-                                       TopLoc_Location(), kEdgeTolerance);
+                    builder.UpdateEdge(tri_edges[j], line2d(gp_Pnt2d(u_end, v_start), gp_Pnt2d(u_end, v_end), 0, 1),
+                                       states[curve.strip].built.surface, TopLoc_Location(), kEdgeTolerance);
+                    builder.UpdateEdge(tri_edges[j], line2d(domain[j], domain[(j + 1) % 3], 0, 1), tri_surface, TopLoc_Location(),
+                                       kEdgeTolerance);
                 }
-                // Faces.
-                TopoDS_Face quads[3];
+                TopoDS_Face tri_face;
+                builder.MakeFace(tri_face, tri_surface, kEdgeTolerance);
+                TopoDS_Wire tri_wire;
+                builder.MakeWire(tri_wire);
                 for (int j = 0; j < 3; ++j) {
-                    TColgp_Array2OfPnt net_poles(1, 6, 1, 6);
-                    for (int a = 0; a < 6; ++a) {
-                        for (int b = 0; b < 6; ++b) {
-                            net_poles.SetValue(a + 1, b + 1, to_pnt(nets[j][a][b]));
-                        }
-                    }
-                    const Handle(Geom_Surface) quad_surface = new Geom_BezierSurface(net_poles);
-                    const int prev = (j + 2) % 3;
-                    // Edges of this quadrilateral and their lines in its (a, b) square.
-                    builder.UpdateEdge(half[j][0], line2d(gp_Pnt2d(0, 0), gp_Pnt2d(1, 0), 0, 1), quad_surface, TopLoc_Location(), kEdgeTolerance);
-                    builder.UpdateEdge(seam_edges[j], line2d(gp_Pnt2d(1, 0), gp_Pnt2d(1, 1), 0, 1), quad_surface, TopLoc_Location(), kEdgeTolerance);
-                    builder.UpdateEdge(seam_edges[prev], line2d(gp_Pnt2d(0, 1), gp_Pnt2d(1, 1), 0, 1), quad_surface, TopLoc_Location(), kEdgeTolerance);
-                    builder.UpdateEdge(half[prev][1], line2d(gp_Pnt2d(0, 1), gp_Pnt2d(0, 0), 0, 1), quad_surface, TopLoc_Location(), kEdgeTolerance);
-                    TopoDS_Face quad;
-                    builder.MakeFace(quad, quad_surface, kEdgeTolerance);
-                    TopoDS_Wire wire;
-                    builder.MakeWire(wire);
-                    builder.Add(wire, half[j][0].Oriented(TopAbs_FORWARD));
-                    builder.Add(wire, seam_edges[j].Oriented(TopAbs_FORWARD));
-                    builder.Add(wire, seam_edges[prev].Oriented(TopAbs_REVERSED));
-                    builder.Add(wire, half[prev][1].Oriented(TopAbs_FORWARD));
-                    builder.Add(quad, wire);
-                    // Outward: compare with the circular corner's normal at the nearest point.
-                    gp_Pnt centre_point;
+                    builder.Add(tri_wire, tri_edges[j].Oriented(TopAbs_FORWARD));
+                }
+                builder.Add(tri_face, tri_wire);
+                {
+                    gp_Pnt middle;
                     gp_Vec da, db;
-                    quad_surface->D1(0.5, 0.5, centre_point, da, db);
-                    GeomAPI_ProjectPointOnSurf project(centre_point, BRep_Tool::Surface(old_corner));
+                    tri_surface->D1(1.0 / 3, 1.0 / 3, middle, da, db);
+                    GeomAPI_ProjectPointOnSurf project(middle, BRep_Tool::Surface(old_corner));
                     double pu = 0, pv = 0;
                     project.LowerDistanceParameters(pu, pv);
                     gp_Pnt on_old;
@@ -1579,41 +1531,37 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                         n_old.Reverse();
                     }
                     if (da.Crossed(db).Dot(n_old) < 0) {
-                        quad.Orientation(TopAbs_REVERSED);
+                        tri_face.Orientation(TopAbs_REVERSED);
                     }
-                    quads[j] = quad;
                 }
-                // Commit: the strips' end edges become the two halves, the old corner goes, the quadrilaterals come.
+                // Commit: the strips' end edges become the patch's sides, the old corner goes, the patch comes.
                 for (int j = 0; j < 3; ++j) {
                     const EndCurve &curve = loop[j];
                     StripState &state = states[curve.strip];
-                    // In the old edge's own direction: first vertex to last.
                     TopoDS_Vertex old_first, old_last;
                     TopExp::Vertices(curve.old_edge, old_first, old_last, Standard_False);
                     const bool old_runs_with_loop = old_first.IsSame(curve.from);
-                    std::vector<std::pair<TopoDS_Edge, bool>> sequence;
-                    if (old_runs_with_loop) {
-                        sequence = {{half[j][0], false}, {half[j][1], false}};
-                    } else {
-                        sequence = {{half[j][1], true}, {half[j][0], true}};
-                    }
                     for (int c = 0; c < 2; ++c) {
                         if (strips[curve.strip].ends[c].IsSame(curve.old_edge)) {
-                            state.chain[c] = sequence;
+                            state.chain[c] = {{tri_edges[j], !old_runs_with_loop}};
                         }
                     }
                 }
                 reshape.Remove(old_corner);
+                g2_new_faces.push_back(tri_face);
+                corner_patches[ci].push_back(tri_face);
                 for (int j = 0; j < 3; ++j) {
-                    g2_new_faces.push_back(quads[j]);
-                    corner_patches[ci].push_back(quads[j]);
-                    g2_edges.push_back(half[j][0]);
-                    g2_edges.push_back(half[j][1]);
-                    g2_edges.push_back(seam_edges[j]);
+                    g2_edges.push_back(tri_edges[j]);
                 }
                 corner_done[ci] = true;
                 ++report->g2_corners;
                 ++report->corners;
+                report->corner_milliseconds +=
+                    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - clock0).count();
+                report->corner_block_mismatch = std::max(report->corner_block_mismatch, stats.block_mismatch);
+                report->corner_min_lambda = report->g2_corners == 1 ? stats.min_lambda : std::min(report->corner_min_lambda, stats.min_lambda);
+                report->corner_max_curvature = std::max(report->corner_max_curvature, max_interior);
+                report->corner_min_sine = report->g2_corners == 1 ? min_sine : std::min(report->corner_min_sine, min_sine);
             } catch (const std::exception &) {
                 // The G1 refill takes this corner.
             } catch (const Standard_Failure &) {
@@ -2155,6 +2103,17 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
         records.move_into(history);
         return new occt_shape{result};
     });
+}
+
+occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int count, double radius, double weight,
+                           occt_history *history, occt_g2_report *report, occt_status *status) {
+    occt_shape *made = fillet_g2_run(shape, edge_indices, count, radius, weight, true, history, report, status);
+    if (made || report->g2_corners == 0) {
+        return made;
+    }
+    // A patch was committed and something later failed (a strip face, the solid's validity): the same fillet with
+    // every corner refilled G1, as the corners a patch is not accepted for are.
+    return fillet_g2_run(shape, edge_indices, count, radius, weight, false, history, report, status);
 }
 
 } // extern "C"
