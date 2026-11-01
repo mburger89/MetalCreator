@@ -85,7 +85,8 @@ extension AppModel {
         let measured = measureScene()
         measure?.sceneChanged(measured)
         // Kept measurements are not drawn while sketching or picking, so they are not measured again then; leaving refreshes.
-        if sketch == nil, pick == nil { measureBook.refresh(measured) }
+        // The dimensions are shown once, below.
+        if sketch == nil, pick == nil { measureBook.refresh(measured, notifying: false) }
         let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
             : []

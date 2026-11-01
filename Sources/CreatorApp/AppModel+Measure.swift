@@ -20,7 +20,8 @@ extension AppModel {
             guard let self, let session, self.measure === session else { return }
             self.refreshDimensions()
         }
-        session.keep = { [weak self, weak session] in self?.measureBook.add($0, hints: session?.solidHints ?? []) }
+        // `keepCurrent()` clears the session next, which shows the dimensions once for both.
+        session.keep = { [weak self, weak session] in self?.measureBook.add($0, hints: session?.solidHints ?? [], notifying: false) }
         measure = session
         session.sceneChanged(measureScene())
         viewport.tool = session

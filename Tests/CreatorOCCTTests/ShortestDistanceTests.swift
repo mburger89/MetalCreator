@@ -86,7 +86,15 @@ struct ShortestDistanceTests {
         let arc = MeasureElement.curve(.circle(center: .zero, axis: .unitZ, radius: 10, start: Vector3(10, 0, 0), sweep: .pi / 2))
         let found = try await OCCTKernel().shortestDistance(between: arc, and: .point(Vector3(20, 0, 0)))
         expectWitnesses(found, 10)
-        #expect((found.from - Vector3(10, 0, 0)).length < 1e-9 || (found.to - Vector3(10, 0, 0)).length < 1e-9)
+        #expect((found.from - Vector3(10, 0, 0)).length < 1e-9, "the arc's end")
+        #expect((found.to - Vector3(20, 0, 0)).length < 1e-9, "the point itself")
+    }
+
+    @Test func anArcWhoseStartIsNotOnItsRadiusIsRefused() async throws {
+        let arc = MeasureElement.curve(.circle(center: .zero, axis: .unitZ, radius: 10, start: Vector3(12, 0, 0), sweep: .pi / 2))
+        await #expect(throws: KernelError.self) {
+            try await OCCTKernel().shortestDistance(between: arc, and: .point(Vector3(20, 0, 0)))
+        }
     }
 
     @Test func aClockwiseArcIsTheSameSet() async throws {

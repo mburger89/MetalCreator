@@ -43,6 +43,11 @@ extension OCCTKernel {
             return .polyline([start, end])
         case .curve(.circle(let centre, let axis, let radius, let start, let sweep)):
             guard centre.isFinite, axis.isFinite, start.isFinite, radius.isFinite, sweep.isFinite else { throw notFinite }
+            // The shim builds the circle from its radius and the start's direction, so a start off the radius would be
+            // measured on a different arc than the one given.
+            guard radius > 0, abs((start - centre).length - radius) <= 1e-6 * max(1, radius) else {
+                throw KernelError.invalidInput("These can't be measured.")
+            }
             return .arc(centre: centre, axis: axis, radius: radius, start: start, sweep: sweep)
         default:
             throw KernelError.invalidInput("These can't be measured.")

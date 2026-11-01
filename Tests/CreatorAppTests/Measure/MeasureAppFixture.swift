@@ -66,8 +66,17 @@ final class FirstCallGate: Sendable {
             count += 1
             return count == 1
         }
-        if first { _ = semaphore.wait(timeout: .now() + 10) }
+        // Long enough that a loaded machine (a full suite, a build) never lets the hold lapse before the test has looked; a test
+        // that fails before `release()` waits this long, not forever.
+        if first { _ = semaphore.wait(timeout: .now() + 120) }
     }
 
     func release() { semaphore.signal() }
+
+    /// Waits until the first call is inside the gate (so the work it holds is really held), up to a minute.
+    func waitUntilEntered() async -> Bool {
+        let deadline = ContinuousClock.now + .seconds(60)
+        while calls.withLock({ $0 }) == 0, ContinuousClock.now < deadline { try? await Task.sleep(for: .milliseconds(5)) }
+        return calls.withLock { $0 } > 0
+    }
 }

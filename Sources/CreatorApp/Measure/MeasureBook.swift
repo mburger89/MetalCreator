@@ -73,10 +73,11 @@ final class MeasureBook {
 
     /// Keeps `measurement`, resolved against the latest scene.
     /// `hints` are the solid indices its anchors were picked on, when known.
-    func add(_ measurement: KeptMeasurement, hints: [Int] = []) {
+    /// `notifying: false` is for a caller that shows the dimensions itself straight after (the session's `clear()` does).
+    func add(_ measurement: KeptMeasurement, hints: [Int] = [], notifying: Bool = true) {
         if hints.count == measurement.anchors.count { self.hints[measurement.id] = hints }
         document.measurements.append(measurement)
-        refreshFromLastScene()
+        refreshFromLastScene(notifying: notifying)
     }
 
     func remove(_ id: UUID) {
@@ -96,15 +97,16 @@ final class MeasureBook {
         refreshFromLastScene()
     }
 
-    private func refreshFromLastScene() {
-        if let scene { refresh(scene) } else { rebuild() }
+    private func refreshFromLastScene(notifying: Bool = true) {
+        if let scene { refresh(scene, notifying: notifying) } else { rebuild(notifying: notifying) }
     }
 
     // MARK: - Following the scene
 
     /// Resolves every kept measurement in `scene` and makes the distances of the pairs whose picks, or a solid under them,
     /// changed; a newer refresh drops an older one's results.
-    func refresh(_ scene: MeasureScene) {
+    /// `notifying: false` is for a caller that shows the dimensions itself straight after (`refreshScene()` does).
+    func refresh(_ scene: MeasureScene, notifying: Bool = true) {
         self.scene = scene
         var pending: [Job] = []
         var isNewWork = false
@@ -156,7 +158,7 @@ final class MeasureBook {
             generation += 1
             startDistances(pending)
         }
-        bump()
+        bump(notifying: notifying)
     }
 
     /// Points and outlines are measured here, in Swift, at once: no kernel call and never a failure.
@@ -166,11 +168,11 @@ final class MeasureBook {
     }
 
     /// Entries only (no scene yet): every measurement reads "no longer found" until the first evaluation.
-    private func rebuild() {
+    private func rebuild(notifying: Bool = true) {
         stop()
         measured = [:]
         entries = document.measurements.map(Self.unresolved)
-        bump()
+        bump(notifying: notifying)
     }
 
     /// Drops the distances being measured: the book is going away or has nothing to follow.
@@ -244,9 +246,9 @@ final class MeasureBook {
 
     // MARK: - Helpers
 
-    private func bump() {
+    private func bump(notifying: Bool = true) {
         revision += 1
-        changed?()
+        if notifying { changed?() }
     }
 
     private func identity(of pick: MeasurePick, in scene: MeasureScene) -> ObjectIdentifier? {

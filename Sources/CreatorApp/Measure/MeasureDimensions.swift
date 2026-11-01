@@ -55,7 +55,7 @@ enum MeasureDimensions {
             return curveShapes(edge.curve, length: edge.length)
         case let .sectionEdge(_, piece, _):
             // A polyline reads its length only; nothing is drawn for it.
-            return curveShapes(piece.curve, length: 0)
+            return curveShapes(piece.curve, length: nil)
         case let .face(solid, id):
             guard let face = topologies[solid]?.face(id), face.kind == .cylinder, let radius = face.radius,
                   let axisPoint = face.axisPoint, let axis = face.normal?.normalized else { return [] }
@@ -70,13 +70,13 @@ enum MeasureDimensions {
         }
     }
 
-    /// The dimension of an exact line or arc (an edge's or a section piece's); a line's length is `length`, or its own when 0.
-    private static func curveShapes(_ curve: EdgeCurve?, length: Double) -> [(DimensionGeometry, DimensionReading)] {
+    /// The dimension of an exact line or arc (an edge's or a section piece's); a line's length is `length`, or its own when `nil`.
+    private static func curveShapes(_ curve: EdgeCurve?, length: Double?) -> [(DimensionGeometry, DimensionReading)] {
         switch curve {
         case let .circle(center, axis, radius, start, sweep)?:
             return [circle(center: center, axis: axis, radius: radius, start: start, sweep: sweep)]
         case let .line(start, end)?:
-            return [(linear(from: start, to: end), DimensionReading(length > 0 ? length : (end - start).length, .length))]
+            return [(linear(from: start, to: end), DimensionReading(length ?? (end - start).length, .length))]
         case nil:
             return []
         }

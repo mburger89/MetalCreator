@@ -97,6 +97,7 @@ struct MeasurePanelTests {
         let projector = model.viewport.projector
         session.clickedModel(.face(solid: 0, faces[0].id), at: ScreenPoint(700, 450), modifiers: [], projector: projector)
         session.clickedModel(.face(solid: 0, faces[1].id), at: ScreenPoint(700, 450), modifiers: [], projector: projector)
+        #expect(await gate.waitUntilEntered(), "the kernel was asked")
         try await app.window.runUntilIdle()
         #expect(session.isMeasuring)
         #expect(try labels(in: app, ["Measuring…"]).count >= 1)
