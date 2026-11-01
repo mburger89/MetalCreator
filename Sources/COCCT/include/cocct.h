@@ -202,15 +202,21 @@ typedef struct {
     int strips;                // strip faces replaced
     int sections;              // the most cross-sections any strip needed
     int strip_sections[32];    // cross-sections each strip needed (strips in edge order)
-    int corners;               // corner patches refilled (G0 only: Task 2 replaces the refill with a G2 / G1 one)
-    int seam_count;
+    int corners;               // corner patches refilled
+    int g1_corners;            // of those, the ones that stayed tangent only (G1): the node warns
+    int seam_count;            // the strips' spring seams, in strip order, two each
     occt_g2_seam seams[OCCT_G2_MAX_SEAMS];
+    int corner_seam_count;     // the corner patches' boundaries against their strips / faces, measured apart
+    occt_g2_seam corner_seams[OCCT_G2_MAX_SEAMS];
 } occt_g2_report;
 /// Fillets like occt_fillet, then replaces each strip's surface with quintic G2 sections whose end tangent lengths are
 /// `weight` times the circle's. Sections start at 9 per strip and double until the strip's spring seams measure inside
 /// half the tolerances; past 129 the call fails ("The fillet can't be made curvature continuous at this radius.").
-/// CORNERS ARE ONLY A G0 REFILL here (BRepFill_Filling through the strips' new end curves, not tangent to anything);
-/// Task 2 replaces it with a G2 refill, else a G1 one with a warning, else a failure, never a crease.
+/// Each corner patch is refilled with MakeFilling constrained G2 to the strips and original faces (the circular corner
+/// is the initial surface); if that misses the tolerances it is refilled G1 and counted in g1_corners; if that misses
+/// the angle tolerance the call fails ("The fillet's corners can't be made smooth at this radius."). A crease is
+/// never returned. A tangency weight that pushes a section past the neighbours' tangent planes fails with "The
+/// tangency weight is too large for this fillet."
 /// SPIKE ONLY: a weight <= 0 skips the replacement and only measures (the circular fillet's gaps); Task 3 removes it.
 occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int count, double radius, double weight,
                            occt_history *history, occt_g2_report *report, occt_status *status);

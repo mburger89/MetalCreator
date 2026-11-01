@@ -171,11 +171,15 @@ extension G2FilletSpikeTests {
         }
     }
 
-    /// Finding: with zero curvature at both ends, a right-angle corner's quintic leaves the corner's faces once
-    /// the end tangents pass 2.5 * the chord (weight about 1.5), so the solid grows beyond the box. It stays valid
-    /// and G2 at the seams; the weight range of the spec (up to 2) needs a cap or a different end rule.
-    @Test func aWeightOfTwoOvershootsTheCornerButStaysG2AndValid() throws {
-        try run("one edge", edgeMidpoints: [[10, 0, 10]], weight: 2, staysInsideTheBox: false)
+    /// A weight of two pushes a right-angle corner's sections past the neighbours' tangent planes; the fillet refuses.
+    @Test func aWeightOfTwoIsRefusedOnARightAngle() throws {
+        let box = try OCCTShape.box(20, 20, 10)
+        let edges = try OCCTKernel.serialized { try topology(of: box) }
+        let id = try edge(edges, near: [10, 0, 10])
+        let error = #expect(throws: OCCTError.self) {
+            try OCCTKernel.serialized { try box.blendedCurvatureContinuous(edges: [id], size: 2, weight: 2) }
+        }
+        #expect(error?.message == "The tangency weight is too large for this fillet.")
     }
 }
 
@@ -192,8 +196,9 @@ extension G2FilletSpikeTests {
         let id = try edge(edges, near: midpoint)
         let built = try OCCTKernel.serialized { try plate.blendedCurvatureContinuous(edges: [id], size: 1, weight: 1) }
         let measured = gaps(built.report)
-        print("G2SPIKE \(name): sections \(sectionCounts(built.report)) gaps \(measured) validity \(built.shape.validity)")
-        #expect(OCCTKernel.serialized { built.shape.validity } == .valid)
+        let validity = OCCTKernel.serialized { built.shape.validity }
+        print("G2SPIKE \(name): sections \(sectionCounts(built.report)) gaps \(measured) validity \(validity)")
+        #expect(validity == .valid)
         #expect(built.report.seam_count == 2)
         #expect(measured.position <= 1e-4)
         #expect(measured.angle <= 0.01)
