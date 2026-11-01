@@ -118,9 +118,11 @@ today (`−smin(−a, −b)`, `−smin(−a, b)`).
   `Kernel.continuity`'s sampler. A strip seam out of tolerance makes the blend fail like an invalid one ("The fillet can't be
   made curvature continuous at this radius."), and `largestValidBlend` searches for the largest radius that passes both the
   validity check and this one. The cost is measured by the benchmark row.
-- **Where G2 can't be reached:** a corner patch where three or more fillets meet at a vertex, if the result misses G2 there
-  (below), is kept at G1 and the node warns "N fillet corners are tangent only (G1)." The strips between corners are always
-  G2 or the node fails.
+- **Where G2 can't be reached:** a corner patch where three or more fillets meet at a vertex is refilled to meet the new
+  strips (the circular corner can't be kept: the strips' ends no longer match it). If the refill misses G2 there but meets G1
+  (angle 0.01°), the node warns "N fillet corners are tangent only (G1)." A corner that misses G1 makes the G2 fillet fail
+  ("The fillet's corners can't be made smooth at this radius."): a crease is never returned (erratum 2026-11-01, found by the
+  spike review). The strips between corners are always G2 or the node fails.
 - Failure follows the existing blend rules: an invalid result is never returned, and the message names the largest radius
   that works (`largestValidBlend`, now searched with the G2 profile).
 
@@ -133,15 +135,18 @@ OpenCascade makes the topology; we replace the blend surfaces. Steps, all inside
    ends are the points where the strip meets its neighbouring faces (on the spring edges). At each end, read the
    neighbour's position, its tangent direction across the spring edge (in the neighbour's tangent plane, perpendicular to
    the spring edge, pointing into the blend) and its normal curvature in that direction.
-3. Make each cross-section a **quintic Bézier** that matches position, tangent direction and curvature at both ends (G2
+3. Sections are placed densely enough that the skinned surface meets the tolerances between them (the count is chosen per
+   strip, adaptively, by measuring; a strip that can't meet them fails), and the springs' pcurves follow the same
+   parametrization as the sections. Make each cross-section a **quintic Bézier** that matches position, tangent direction and curvature at both ends (G2
    Hermite). Its two end tangent lengths are `w × d`, where `w` is the tangency weight and `d` is the circular fillet's
    own end-tangent length for that section (so weight 1 is close to the circle's proportions); the remaining freedom
    (the component of each end's second derivative along the tangent) is zero.
 4. Skin the sections into one B-spline surface per strip (quintic across, cubic or higher along), with its two boundary
    curves along the existing spring edges, and replace the strip's surface in the solid, keeping its edges (new pcurves).
 5. Each corner patch (a face generated from a vertex) is rebuilt with `BRepOffsetAPI_MakeFilling`, its boundary edges
-   constrained G2 to the new strips and original faces, the circular corner as the initial surface. If its `G2Error`
-   exceeds the curvature tolerance below, the circular corner is kept (G1) and counted for the warning.
+   constrained G2 to the new strips and original faces, the circular corner as the initial surface. If it misses the
+   curvature tolerance, it is rebuilt with G1 constraints and counted for the warning; if that misses the angle tolerance,
+   the fillet fails (above).
 6. `BRepCheck_Analyzer`, as for every blend.
 
 Tolerances the result must meet along every G2 seam (checked at sample points by the tests and the readout): position
