@@ -189,6 +189,31 @@ double occt_test_max_vertex_tolerance(const occt_shape *shape);
 /// OCCT_FROM_FACE for kept/modified faces, OCCT_FROM_EDGE (index = input edge) for blend faces.
 occt_shape *occt_fillet(const occt_shape *shape, const int *edge_indices, int count, double radius,
                         occt_history *history, occt_status *status);
+/// SPIKE (G-b). Per-seam gaps of a curvature-continuous fillet, measured at 65 points along each strip's spring edges.
+#define OCCT_G2_MAX_SEAMS 64
+typedef struct {
+    double position;           // worst distance between the two faces, mm
+    double angle_degrees;      // worst angle between the faces' outward normals
+    double curvature;          // worst difference of the normal curvatures across the seam, 1/mm
+    double curvature_allowed;  // the tolerance at that sample: max(1 % of the larger curvature, 1e-4)
+    double curvature_ratio;    // worst gap / allowed over the samples (<= 1 passes)
+} occt_g2_seam;
+typedef struct {
+    int strips;                // strip faces replaced
+    int sections;              // cross-sections per strip
+    int corners;               // corner patches rebuilt (0 in the spike: corners stay circular)
+    int seam_count;
+    occt_g2_seam seams[OCCT_G2_MAX_SEAMS];
+} occt_g2_report;
+/// Fillets like occt_fillet, then replaces each strip's surface with quintic G2 sections whose end tangent lengths are
+/// `weight` times the circle's. A weight <= 0 skips the replacement and only measures (the circular fillet's gaps).
+occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int count, double radius, double weight,
+                           occt_history *history, occt_g2_report *report, occt_status *status);
+/// FOR TESTS ONLY. Evaluates the quintic section through two end conditions {position[3], direction[3], acceleration[3]}
+/// with end derivative lengths len0 and len1: out = position[3], d1[3], d2[3] at t. Returns 1.
+int occt_g2_section_test(const double end0[9], double len0, const double end1[9], double len1, double t, double out[9]);
+/// The circle's cubic-equivalent end derivative length for a chord and a turning angle (radians).
+double occt_g2_tangent_length(double chord, double turning_angle);
 /// Equal-distance chamfer of the edges; same history contract as occt_fillet.
 occt_shape *occt_chamfer(const occt_shape *shape, const int *edge_indices, int count, double distance,
                          occt_history *history, occt_status *status);
