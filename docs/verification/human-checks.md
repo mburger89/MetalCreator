@@ -2305,6 +2305,7 @@ the Output selected so the part is shown.
 - [ ] **ME-B-7 Remove.** The row's × removes one kept measurement; Clear All removes every one. **Observed:**
 - [ ] **ME-B-8 Measure off.** Turn Measure off: kept measurements are still drawn and the panel still shows them. In sketch mode and during an Edges by Tag pick they are neither drawn nor listed; they return afterwards. **Observed:**
 - [ ] **ME-B-9 Save and Open.** Save, close and Open the file: the kept measurements come back after the first evaluation. New clears them. **Observed:**
+- [ ] **ME-B-10 Couldn't measure.** A distance OpenCascade can't make reads "Couldn't measure" instead of a number (try two picks on an awkward shape, such as a lattice's surface against a curved face, or a part that has just failed to evaluate); it stays so, without the view stalling, until you change a pick or the solid under it. **Observed:**
 - [ ] **ME-B-10 Lost.** Delete the node of a measured part: the row greys and says "No longer found". Undo brings the values back. **Observed:**
 - [ ] **ME-B-11 No edit.** Keeping, removing and clearing add no undo step and do not mark the document edited. **Observed:**
 - [ ] **ME-B-13 Flicker after an edit.** A kept measurement on a section edge may read "No longer found" for a moment after an edit, until the new cap lands (known and accepted). It returns on its own. **Observed:**
