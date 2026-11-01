@@ -48,6 +48,10 @@ public final class DocumentModel {
     }
     /// The measurements the person kept; view state, so changing them is no edit.
     public var measurements: [KeptMeasurement] = []
+    /// The zebra stripes view's settings; view state, so changing them is no edit. A lock frame with a non-finite component is refused.
+    public var zebra: ZebraSettings? {
+        didSet { if let lock = zebra?.lock, !lock.isFinite { self.zebra = oldValue } }
+    }
 
     /// The document's embedded images by hash (fields spec §5): everything embedded or pasted this session plus what the file
     /// held. An image stays here while the session lasts, so undo can bring back a node that uses it; a save writes only the
@@ -112,6 +116,7 @@ public final class DocumentModel {
         showsLibrary = file.viewState.showsLibrary
         section = file.viewState.section
         measurements = file.viewState.measurements
+        zebra = file.viewState.zebra
         self.baseRegistry = registry
         self.evaluator = Evaluator(registry: registry, kernel: kernel, cacheBudgetBytes: cacheBudgetBytes,
                                   implicitEngine: implicitEngine)
@@ -349,7 +354,7 @@ extension DocumentModel {
     public var viewState: ViewState {
         get {
             ViewState(dock: dock, canvasOffset: canvasOffset, canvasZoom: canvasZoom, camera: camera, homeCamera: homeCamera,
-                      showsLibrary: showsLibrary, section: section, measurements: measurements)
+                      showsLibrary: showsLibrary, section: section, measurements: measurements, zebra: zebra)
         }
         set {
             if dock != newValue.dock { dock = newValue.dock }
@@ -360,6 +365,7 @@ extension DocumentModel {
             if showsLibrary != newValue.showsLibrary { showsLibrary = newValue.showsLibrary }
             if section != newValue.section { section = newValue.section }
             if measurements != newValue.measurements { measurements = newValue.measurements }
+            if zebra != newValue.zebra { zebra = newValue.zebra }
         }
     }
 }

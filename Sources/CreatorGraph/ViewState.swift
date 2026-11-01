@@ -19,10 +19,12 @@ public struct ViewState: Sendable, Codable, Equatable {
     public var section: SectionSettings?
     /// The measurements the person kept. Empty in older files; a damaged entry is dropped alone.
     public var measurements: [KeptMeasurement]
+    /// The zebra stripes view's settings. `nil` in older files and while never used; a damaged entry reads as `nil`.
+    public var zebra: ZebraSettings?
 
     public init(dock: DockSide = .left, canvasOffset: Vector2 = .zero, canvasZoom: Double = 1,
                 camera: CameraPose? = nil, homeCamera: CameraPose? = nil, showsLibrary: Bool = true,
-                section: SectionSettings? = nil, measurements: [KeptMeasurement] = []) {
+                section: SectionSettings? = nil, measurements: [KeptMeasurement] = [], zebra: ZebraSettings? = nil) {
         self.dock = dock
         self.canvasOffset = canvasOffset
         self.canvasZoom = canvasZoom
@@ -31,10 +33,11 @@ public struct ViewState: Sendable, Codable, Equatable {
         self.showsLibrary = showsLibrary
         self.section = section
         self.measurements = measurements
+        self.zebra = zebra
     }
 
     private enum CodingKeys: String, CodingKey {
-        case dock, canvasOffset, canvasZoom, camera, homeCamera, showsLibrary, section, measurements
+        case dock, canvasOffset, canvasZoom, camera, homeCamera, showsLibrary, section, measurements, zebra
     }
 
     public init(from decoder: any Decoder) throws {
@@ -48,6 +51,7 @@ public struct ViewState: Sendable, Codable, Equatable {
         section = (try? container.decodeIfPresent(SectionSettings.self, forKey: .section)) ?? nil
         measurements = ((try? container.decodeIfPresent([LossyElement<KeptMeasurement>].self, forKey: .measurements)) ?? nil)?
             .compactMap(\.value) ?? []
+        zebra = (try? container.decodeIfPresent(ZebraSettings.self, forKey: .zebra)) ?? nil
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -60,5 +64,6 @@ public struct ViewState: Sendable, Codable, Equatable {
         try container.encode(showsLibrary, forKey: .showsLibrary)
         try container.encodeIfPresent(section, forKey: .section)
         if !measurements.isEmpty { try container.encode(measurements, forKey: .measurements) }
+        try container.encodeIfPresent(zebra, forKey: .zebra)
     }
 }
