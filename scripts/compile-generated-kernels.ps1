@@ -60,7 +60,7 @@ if ($pending.Count -eq 0) { Write-Output 'The generated kernels are compiled.'; 
 $pending | Copy-Item -Destination $stage
 Write-Output "Compiling $($pending.Count) generated kernels..."
 
-# Run from the staging directory, as build-shaders.ps1 does from the shader directory: shadercross hands DXC the source with no include path.
+# Run from the staging directory, as MetalUI's tool does from a source's directory: shadercross hands DXC the source with no include path.
 $out = Join-Path $stage 'out'
 $watch = [Diagnostics.Stopwatch]::StartNew()
 Push-Location $stage

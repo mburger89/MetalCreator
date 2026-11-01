@@ -2,7 +2,7 @@
 # Compiles the implicit engine's generated HLSL kernels offline (plan xp-c, task 3), until MetalUI's run-time compiler (gap XP-G25) compiles them
 # while the app runs: the sources GeneratedKernelExport wrote to .build/generated-kernels/source become SPIR-V, DXIL, MSL and reflection JSON in
 # .build/generated-kernels/compiled, through MetalUI's MetalUICompileShaders and the pinned SDL_shadercross (scripts/shadercross.env), as
-# scripts/build-shaders.sh compiles the viewport's. Only the sources not compiled yet are compiled (a name is its text's digest). Run in the Linux image
+# MetalUI's CompileShadersOnBuild plugin compiles the viewport's. Only the sources not compiled yet are compiled (a name is its text's digest). Run in the Linux image
 # by scripts/linux-test.sh kernels. A source DXC refuses stops the script naming it: that is a generator bug, never a test to skip.
 set -euo pipefail
 cd "$(dirname "$0")/.."

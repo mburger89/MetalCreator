@@ -1813,10 +1813,11 @@ the same with the `-Xcc -I… -Xswiftc -L…` flags `.github/workflows/xp.yml` h
 warning step when red. macOS needs no check here: its test count and its look are unchanged.
 
 - [ ] **XP-1 Launch.** `swift run MetalCreatorApp` opens a window titled "MetalCreator" with no system title bar (MetalUI draws minimise, zoom and close at the top right, see XP-11), a menu bar
-  strip drawn across its top (File, Edit, View) above the glass top bar, the graph panel docked at the bottom and the inspector
+  strip drawn across its top (File, Edit, View) above the glass top bar, the graph panel docked left and the inspector
   on the right, in Dracula. Quitting (the window's close button, and File's quit where the platform has one) asks nothing on an
   unedited document. The top bar's top edge is fully visible below the strip (the root is not clipped by it: nothing in MetalCreator reads
-  `Window.drawnChromeHeight`, spec erratum E3). Pinned: `--smoke-test` (`LaunchSmokeTests`). **Observed:**
+  `Window.drawnChromeHeight`, spec erratum E3). Pinned: `--smoke-test` (`LaunchSmokeTests`). Decision 2026-10-30 (user): the graph panel's default dock stays left on every platform. **Observed:**
+  *Decision, 2026-10-30:* the app's minimum window size (1000 × 665) stays even on screens smaller than that; on an 800 × 600 screen the window opens partly off-screen, and this is accepted (not a defect to report under XP-1 or XP-14).
 - [ ] **XP-2 (superseded by XP-20).** xp-1 showed a card where the 3D view would be; xp-3 draws the real view and the card is gone. The
   window's size changes keep the layout. Pinned: `ViewportPaneTests` (the window has the viewport's GPU surface). **Observed:**
 - [ ] **XP-3 Geometry badges.** Wire Rectangle → Extrude → Output: the Extrude's badge is the error and its text reads "Geometry
@@ -1829,7 +1830,8 @@ warning step when red. macOS needs no check here: its test count and its look ar
 - [ ] **XP-5 Files and the themes folder.** Save As… offers `.mcgraph` and its dialog filters to it; the file opens on macOS and
   the other way round. Edit Themes…, duplicate a theme and quit: the theme file is in `~/.local/share/MetalCreator/Themes` (Linux,
   or `$XDG_DATA_HOME`) or `%APPDATA%\MetalCreator\Themes` (Windows) and is still there on the next launch. Pinned:
-  `ContentTypeTests`, `ThemeFolderTests`. **Observed:**
+  `ContentTypeTests`, `ThemeFolderTests`. On Linux and Windows the dialog's filter reads "MetalCreator graph (*.mcgraph)", not the identifier (XP-G34;
+  `ContentTypeDescriptionTests`). **Observed:**
 - [ ] **XP-6 The Image Field.** Add an Image Field and choose a PNG and a JPEG: the field takes them (no error badge), a rotated
   phone photo (EXIF orientation) comes out upright, and a GIF raises "Only PNG and JPEG images can be used." A graph saved on macOS
   with an embedded picture opens and gives the same field. Pinned: `GreyImageDecoderTests`, `GreyImageDecoderPinnedTests`,
@@ -2064,7 +2066,8 @@ named "Insole").
 §5 (XP-G5). CI proves the suite (twelve "Test run with" lines), the app's `--self-test` (OpenCascade builds, measures, meshes and
 exports a cube) and, for the tarball and the AppImage, a run in a clean Ubuntu (the AppImage with `--appimage-extract-and-run`, no FUSE); these checks are what needs a desktop.
 
-- [ ] **XP-16 Linux tarball, file type, icon and window grouping.** Unpack `MetalCreator-<version>-linux-<arch>.tar.gz` on a desktop (GNOME and KDE), run
+- [ ] **XP-16 Linux tarball, file type, icon and window grouping.** Since the 2026-10-30 VM finding the package bundles a desktop SDL (X11 and Wayland, XP-G33;
+  `scripts/check-bundled-sdl.sh` gates the package): the window must open on a real desktop session, on X11 and on Wayland. Unpack `MetalCreator-<version>-linux-<arch>.tar.gz` on a desktop (GNOME and KDE), run
   `./install.sh`, then double-click a `.mcgraph` file in the file manager: MetalCreator opens with that file; with it running, double-click
   a second one: no second window, the running one opens it. Select two `.mcgraph` files and Open With MetalCreator: the last one is
   open. `./MetalCreator --self-test` prints `ok` for the kernel and both exports. Then start MetalCreator from the application grid (not
@@ -2075,12 +2078,12 @@ exports a cube) and, for the tarball and the AppImage, a run in a clean Ubuntu (
   for MetalCreator's entry; if the icon or grouping is wrong, start once with `SDL_APP_ID=com.metalcreator.MetalCreator ./MetalCreator`
   and report both results to MetalUI. `./install.sh --remove` takes the entry, the type and the icon away. **Observed:**
 - [ ] **XP-17 Windows zip and file type.** Unzip `MetalCreator-<version>-windows-x64.zip` on a machine with no Swift, SDL or vcpkg,
-  run `MetalCreator.exe --self-test` (all `ok`), run `register-mcgraph.ps1`, double-click a `.mcgraph` in Explorer: it opens;
+  run `MetalCreator.exe --self-test` (all `ok`), double-click or run `register-mcgraph.cmd` (it runs the .ps1 past Windows 11's default execution policy; run on its own the .ps1 is blocked), double-click a `.mcgraph` in Explorer: it opens;
   double-click a second: the running instance opens it. Windows warns about an unsigned download (spec section 6). **Observed:**
-- [ ] **XP-18 Geometry.** On Linux and on Windows, open the §7.2 bracket from a `.mcgraph` saved on a Mac: every node evaluates (no
+- [ ] **XP-18 Geometry.** On Linux and on Windows, open the §7.2 bracket, `docs/examples/bracket-7.2.mcgraph` (saved by the Mac app's own save path, format 10; `BracketExampleTests` regenerates it with `MC_WRITE_EXAMPLES=1`): every node evaluates (no
   "Geometry isn't available" badge), Mesh to Solid works on a meshed solid, and Export STEP writes a file that opens in a CAD viewer.
-  Pinned: the OCCT conformance suite and `AppAcceptanceTests` on Linux (CI) and Windows (CI). **Observed:**
-- [ ] **XP-19 Linux AppImage.** Copy `MetalCreator-<version>-linux-<arch>.AppImage` to a desktop with FUSE (GNOME and KDE), `chmod +x`
+  Pinned: the OCCT conformance suite, `AppAcceptanceTests` and `BracketExampleTests` (the file opens and makes the code-built bracket's part) on Linux (CI) and Windows (CI). **Observed:**
+- [ ] **XP-19 Linux AppImage.** Its `lib/libSDL3.so.0` is the same desktop SDL (XP-G33, the 2026-10-30 VM finding), so the window opens on a desktop. Copy `MetalCreator-<version>-linux-<arch>.AppImage` to a desktop with FUSE (GNOME and KDE), `chmod +x`
   it and double-click it (or run it): the window opens with the icon and grouping XP-16 describes (an integration tool such as
   AppImageLauncher may offer to add it to the menu: accept once and check the entry it makes). `./MetalCreator-….AppImage
   --appimage-extract-and-run --self-test` prints `ok` for the kernel, both exports and the shaders. `./MetalCreator-….AppImage
@@ -2093,7 +2096,7 @@ exports a cube) and, for the tarball and the AppImage, a run in a clean Ubuntu (
 **Status: NOT RUN.** Plan `2026-10-21-xp-3-sdl-gpu-viewport.md`; spec `docs/superpowers/specs/2026-10-13-cross-platform-design.md` §4 and
 erratum E7. CI renders and picks on Mesa's lavapipe (Linux) and Direct3D 12's WARP (Windows), and the packages' self-tests find the
 compiled shaders; these checks are what a real GPU, a real pointer and a person's eye show. Linux: build as for group XP after
-`scripts/build-shaders.sh` (or use the tarball or AppImage); Windows: the zip.
+`swift build` with shadercross (the plugin compiles the shaders; or use the tarball or AppImage); Windows: the zip.
 
 - [ ] **XP-20 The 3D view draws (Linux and Windows).** On a real desktop GPU (Linux: Vulkan on Mesa or the vendor driver; Windows 11:
   Direct3D 12) the area behind the panels is the theme's gradient with the ground grid fading into the distance, not a card. The §7.2
