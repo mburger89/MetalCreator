@@ -46,14 +46,11 @@
 #include <gp_Vec.hxx>
 
 #include <algorithm>
-#include <cstdlib>
 #include <chrono>
 #include <cmath>
 #include <memory>
 
 using namespace cocct;
-#include <BRepCheck_Analyzer.hxx>
-#include <BRepCheck_Result.hxx>
 
 namespace {
 
@@ -746,6 +743,11 @@ occt_g2_seam candidate_seam(const Handle(Geom_BSplineSurface) &surface, bool rev
     return seam;
 }
 
+/// The promise itself: position 1e-4 mm, angle 0.01 degrees, curvature within its allowance.
+bool meets_promise(const occt_g2_seam &seam, bool curvature = true) {
+    return seam.position <= 1e-4 && seam.angle_degrees <= 0.01 && (!curvature || seam.curvature_ratio <= 1);
+}
+
 bool within_tolerance(const occt_g2_seam &seam) {
     // Half the promised tolerances, so the final measurement at other samples still has room.
     return seam.position <= 2e-5 && seam.angle_degrees <= 0.005 && seam.curvature_ratio <= 0.5;
@@ -940,14 +942,20 @@ static occt_shape *fillet_g2_run(const occt_shape *shape, const int *edge_indice
                                     if (kink > 0.01) {
                                         mine.kinked[end] = true;
                                         other.kinked[other_end] = true;
+                                        // Every kink is a counted join: the join edge is the end that chains to the
+                                        // other strip, else (never seen) the spring's own end.
+                                        int join_end = end;
                                         for (int c = 0; c < 2; ++c) {
-                                            bool known = false;
-                                            for (const TopoDS_Edge &join : kinked_joins) {
-                                                known = known || join.IsSame(strips[s].ends[c]);
+                                            if (strips[s].end_chain[c].IsSame(strip_faces[t])) {
+                                                join_end = c;
                                             }
-                                            if (strips[s].end_chain[c].IsSame(strip_faces[t]) && !known) {
-                                                kinked_joins.push_back(strips[s].ends[c]);
-                                            }
+                                        }
+                                        bool known = false;
+                                        for (const TopoDS_Edge &join : kinked_joins) {
+                                            known = known || join.IsSame(strips[s].ends[join_end]);
+                                        }
+                                        if (!known) {
+                                            kinked_joins.push_back(strips[s].ends[join_end]);
                                         }
                                     }
                                     mine.has_tangent[end] = true;
@@ -1983,11 +1991,18 @@ static occt_shape *fillet_g2_run(const occt_shape *shape, const int *edge_indice
                 bool exempt[2] = {false, false};
                 exempt[0] = spring.flipped ? spring.kinked[1] : spring.kinked[0];
                 exempt[1] = spring.flipped ? spring.kinked[0] : spring.kinked[1];
+                // Every promised spring seam is judged here, whatever the report's array can hold.
+                const occt_g2_seam seam = measure_seam(spring.edge, strip, spring.neighbour, exempt);
+                ++report->seams_total;
+                if (!meets_promise(seam)) {
+                    throw user_error(kStripMessage);
+                }
                 if (report->seam_count < OCCT_G2_MAX_SEAMS) {
-                    report->seams[report->seam_count++] = measure_seam(spring.edge, strip, spring.neighbour, exempt);
+                    report->seams[report->seam_count++] = seam;
                 }
             }
         }
+        report->seams_judged = 1;
         // A mitre is a crease between two strips (the circular fillet has the same one): the seam must close to within
         // the position tolerance, and its angle is recorded.
         for (const TopoDS_Edge &edge : mitre_edges) {
@@ -2011,8 +2026,12 @@ static occt_shape *fillet_g2_run(const occt_shape *shape, const int *edge_indice
             if (sides.size() != 2) {
                 throw user_error(kCornerMessage); // a corner's edge must border exactly two faces
             }
+            const occt_g2_seam seam = measure_seam(edge, sides[0], sides[1]);
+            if (!meets_promise(seam)) {
+                throw user_error(kCornerMessage); // a G2 patch that misses the promise on the final solid
+            }
             if (report->corner_seam_count < OCCT_G2_MAX_SEAMS) {
-                report->corner_seams[report->corner_seam_count++] = measure_seam(edge, sides[0], sides[1]);
+                report->corner_seams[report->corner_seam_count++] = seam;
             }
         }
         for (std::size_t ci = 0; ci < corner_indices.size(); ++ci) {
@@ -2031,8 +2050,15 @@ static occt_shape *fillet_g2_run(const occt_shape *shape, const int *edge_indice
                     throw user_error(kCornerMessage); // a corner's edge must border exactly two faces
                 }
                 for (const TopoDS_Face &other : around) {
-                    if (!other.IsSame(corner) && report->corner_seam_count < OCCT_G2_MAX_SEAMS) {
-                        report->corner_seams[report->corner_seam_count++] = measure_seam(e, corner, other);
+                    if (other.IsSame(corner)) {
+                        continue;
+                    }
+                    const occt_g2_seam seam = measure_seam(e, corner, other);
+                    if (seam.angle_degrees > 0.01) {
+                        throw user_error(kCornerMessage); // a G1 refill is tangent to its neighbours or it is refused
+                    }
+                    if (report->corner_seam_count < OCCT_G2_MAX_SEAMS) {
+                        report->corner_seams[report->corner_seam_count++] = seam;
                     }
                 }
             }
@@ -2101,8 +2127,24 @@ static occt_shape *fillet_g2_run(const occt_shape *shape, const int *edge_indice
             records.set_records(std::move(renumbered));
         }
         // Never return a solid OCCT's checker rejects.
-        if (!BRepCheck_Analyzer(result).IsValid()) {
-            throw user_error(report->corners > 0 ? kCornerMessage : kStripMessage);
+        {
+            const BRepCheck_Analyzer analyzer(result);
+            if (!analyzer.IsValid()) {
+                // Name the culprit: a corner's face (a patch, or the refill) that fails on its own is the corner's
+                // fault; otherwise a strip made the solid invalid and the largest-radius search should run.
+                bool corner_invalid = false;
+                for (std::size_t ci = 0; ci < corner_faces.size(); ++ci) {
+                    if (corner_done[ci]) {
+                        for (const TopoDS_Face &patch : corner_patches[ci]) {
+                            corner_invalid = corner_invalid || !analyzer.IsValid(reshape.Apply(patch));
+                        }
+                    } else {
+                        const TopoDS_Shape now = reshape.Apply(faces(corner_indices[ci]));
+                        corner_invalid = corner_invalid || (!now.IsNull() && !analyzer.IsValid(now));
+                    }
+                }
+                throw user_error(corner_invalid ? kCornerMessage : kStripMessage);
+            }
         }
         records.move_into(history);
         return new occt_shape{result};

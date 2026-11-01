@@ -6,8 +6,11 @@ import CreatorKernel
 struct G2SeamCheck: Sendable {
     let passes: @Sendable (occt_g2_report, Double) -> Bool
 
+    /// The report's array holds a sample of at most 64 seams; the shim judges every one itself (`seams_judged`), so a
+    /// report with seams beyond the sample passes only when it says it did.
     static let promised = G2SeamCheck { report, _ in
-        withUnsafeBytes(of: report.seams) { raw in
+        guard report.seam_count >= report.seams_total || report.seams_judged != 0 else { return false }
+        return withUnsafeBytes(of: report.seams) { raw in
             raw.bindMemory(to: occt_g2_seam.self).prefix(Int(report.seam_count)).allSatisfy {
                 $0.position <= 1e-4 && $0.angle_degrees <= 0.01 && $0.curvature_ratio <= 1
             }

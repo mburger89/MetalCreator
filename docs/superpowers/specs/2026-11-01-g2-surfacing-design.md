@@ -106,7 +106,7 @@ today (`−smin(−a, −b)`, `−smin(−a, b)`).
 ### Behaviour
 
 - Fillet node: `continuity` (segmented Tangent / Curvature, default **Tangent**, **call**: matching Fusion's default and
-  needing no migration, since a missing input reads Tangent) and `tangencyWeight` (number, 0.1 to 2.0, default 1.0, shown
+  needing no migration, since a missing input reads Tangent) and `tangency weight` (number, 0.1 to 2.0, default 1.0, shown
   only for Curvature through `NodeDefinition.inspector(for:)`). The radius handle works as today.
 - A G2 fillet has the same faces as the G1 fillet of the same radius and edges: same count, same tags
   (`TopoRole.blend(sourceEdge:)`), same spring edges on the neighbouring faces. Only the blend faces' surfaces differ.
@@ -118,6 +118,11 @@ today (`−smin(−a, −b)`, `−smin(−a, b)`).
   `Kernel.continuity`'s sampler. A strip seam out of tolerance makes the blend fail like an invalid one ("The fillet can't be
   made curvature continuous at this radius."), and `largestValidBlend` searches for the largest radius that passes both the
   validity check and this one. The cost is measured by the benchmark row.
+- **Erratum 2026-11-01 (final review):** the self-check uses the shim's own seam sampler, `measure_seam`, not
+  `Kernel.continuity`'s: it measures the same quantity at the same tolerances, and `Kernel.continuity` lives on the readout
+  branch. The shim judges every promised spring seam itself (the report's `seams` array is a sample of the first 64;
+  `seams_total` counts them all) and fails the build on a miss; the G2 corner seams are judged on the final solid at the
+  same tolerances, a miss rerunning the fillet with the patches off, and the G1 corner seams at the angle tolerance.
 - **Coverage (erratum 2026-11-01, the user's choice "Extend, incl. G2 corners"):** a G2 fillet handles closed strips
   (holes), chains that run into a wall, strips that end slantwise on a face (trimmed by it; the run-out stays a crease) and two
   strips meeting in a mitre (trimmed by each other; the mitre is a crease, as it is between two circular fillets meeting at an

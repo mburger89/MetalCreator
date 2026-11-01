@@ -2328,7 +2328,7 @@ the Output selected so the part is shown.
 ## Group G2F — G2 fillets (Continuity on the Fillet node)
 
 - [ ] **G2F-1 G1 against G2 under zebra.** On a box, fillet one top edge (radius 3) and switch Zebra on (Z). At Tangent (G1) the stripes kink where the fillet meets each face; set Continuity to Curvature (G2): the stripes flow across both seams without a kink. Switching back restores the kink. **Observed:**
-- [ ] **G2F-2 Tangency weight.** At Curvature (G2) the Tangency weight slider shows (hidden at G1). Weight 0.5 gives a tighter, flatter bulge, 1 is close to the circle's, 2 a fuller one; the stripes stay unbroken at each. On a right-angle box edge, weight 2 is refused with "The tangency weight is too large for this fillet.". **Observed:**
+- [ ] **G2F-2 Tangency weight.** At Curvature (G2) the Tangency weight slider shows (hidden at G1). Weight 0.5 gives a tighter, flatter bulge, 1 is close to the circle's, 1.5 a fuller one; the stripes stay unbroken at each of these on a box edge. Weight 2 is refused there with "The tangency weight is too large for this fillet.". **Observed:**
 - [ ] **G2F-3 Box corner.** Fillet all three edges at a box corner at G2: the corner is a smooth patch, stripes flow over it from every side, and the node has no warning. **Observed:**
 - [ ] **G2F-4 Hexagonal prism corner.** Fillet the three edges meeting at a hexagonal prism's top corner at G2: the node warns "1 fillet corner is tangent only (G1)." and the part is valid and smooth to the eye. **Observed:**
 - [ ] **G2F-5 Rounded loft.** Fillet the edges of a rounded loft at G2: the node warns "N fillet joins are tangent only (G1) where the edges kink." and the stripes flow along the chain. **Observed:**

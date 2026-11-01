@@ -207,7 +207,9 @@ typedef struct {
     int g2_corners;            // corners rebuilt as one G2 three-sided patch
     int g1_corners;            // the corners refilled tangent only (G1): the node warns
     int seam_count;            // the strips' spring seams, in strip order, two each
-    occt_g2_seam seams[OCCT_G2_MAX_SEAMS];
+    occt_g2_seam seams[OCCT_G2_MAX_SEAMS];   // a sample of them: the first OCCT_G2_MAX_SEAMS
+    int seams_total;           // every spring seam the shim judged, however many the array holds
+    int seams_judged;          // 1 once the shim has judged all of them at the promised tolerances (else a miss threw)
     int mitres;                // strip pairs that meet in a mitre, cut by one another
     int mitre_seam_count;      // their seams: a mitre is a crease, only its position is promised
     occt_g2_seam mitre_seams[OCCT_G2_MAX_SEAMS];
