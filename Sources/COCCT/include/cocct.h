@@ -200,13 +200,18 @@ typedef struct {
 } occt_g2_seam;
 typedef struct {
     int strips;                // strip faces replaced
-    int sections;              // cross-sections per strip
-    int corners;               // corner patches rebuilt (0 in the spike: corners stay circular)
+    int sections;              // the most cross-sections any strip needed
+    int strip_sections[32];    // cross-sections each strip needed (strips in edge order)
+    int corners;               // corner patches refilled (G0 only: Task 2 replaces the refill with a G2 / G1 one)
     int seam_count;
     occt_g2_seam seams[OCCT_G2_MAX_SEAMS];
 } occt_g2_report;
 /// Fillets like occt_fillet, then replaces each strip's surface with quintic G2 sections whose end tangent lengths are
-/// `weight` times the circle's. A weight <= 0 skips the replacement and only measures (the circular fillet's gaps).
+/// `weight` times the circle's. Sections start at 9 per strip and double until the strip's spring seams measure inside
+/// half the tolerances; past 129 the call fails ("The fillet can't be made curvature continuous at this radius.").
+/// CORNERS ARE ONLY A G0 REFILL here (BRepFill_Filling through the strips' new end curves, not tangent to anything);
+/// Task 2 replaces it with a G2 refill, else a G1 one with a warning, else a failure, never a crease.
+/// SPIKE ONLY: a weight <= 0 skips the replacement and only measures (the circular fillet's gaps); Task 3 removes it.
 occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int count, double radius, double weight,
                            occt_history *history, occt_g2_report *report, occt_status *status);
 /// FOR TESTS ONLY. Evaluates the quintic section through two end conditions {position[3], direction[3], acceleration[3]}

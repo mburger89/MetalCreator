@@ -44,7 +44,9 @@ using namespace cocct;
 
 namespace {
 
-constexpr int kSections = 9;       // cross-sections per strip
+constexpr int kFirstSections = 9;   // cross-sections per strip to start with
+constexpr int kMaxSections = 129;   // the cap: 9, 17, 33, 65, 129
+constexpr int kCheckSamples = 128;  // samples per spring edge when a candidate strip is judged
 constexpr int kMeasureSamples = 64;
 constexpr double kEdgeTolerance = 1e-6;
 
@@ -94,27 +96,16 @@ SurfacePoint surface_point(const TopoDS_Face &face, const TopoDS_Edge &edge, dou
 struct Spring {
     TopoDS_Edge edge;
     TopoDS_Face neighbour;
-    double length = 0;
     bool flipped = false; // sampled from its last parameter to its first
 };
 
-double parameter_at(const BRepAdaptor_Curve &curve, double length, double fraction) {
-    if (fraction <= 0) {
-        return curve.FirstParameter();
-    }
-    if (fraction >= 1) {
-        return curve.LastParameter();
-    }
-    GCPnts_AbscissaPoint at(curve, fraction * length, curve.FirstParameter());
-    if (at.IsDone()) {
-        return at.Parameter();
-    }
-    return curve.FirstParameter() + fraction * (curve.LastParameter() - curve.FirstParameter());
-}
-
+/// The edge parameter of fraction `fraction` of the way along the spring, in the sampling direction. Sections and the
+/// spring's pcurve share this one parametrization (linear in the edge parameter), so any curve works, not only the
+/// lines and circles whose parameter runs with arc length.
 double sample_parameter(const Spring &spring, double fraction) {
     BRepAdaptor_Curve curve(spring.edge);
-    return parameter_at(curve, spring.length, spring.flipped ? 1 - fraction : fraction);
+    const double f = spring.flipped ? 1 - fraction : fraction;
+    return curve.FirstParameter() + f * (curve.LastParameter() - curve.FirstParameter());
 }
 
 /// The neighbour's end condition across `spring`'s edge at fraction `f`: position, the unit direction of travel (into
@@ -145,13 +136,14 @@ g2::EndCondition end_condition(const Spring &spring, double f, const gp_Pnt &oth
 struct BuiltStrip {
     Handle(Geom_BSplineSurface) surface;
     std::array<g2::Vec, 6> first_section{}, last_section{};
-    std::array<std::array<g2::Vec, 6>, kSections> sections{};
+    std::vector<std::array<g2::Vec, 6>> sections;
 };
 
-BuiltStrip build_strip(const Spring &a, const Spring &b, double weight) {
+BuiltStrip build_strip(const Spring &a, const Spring &b, double weight, int sections) {
     BuiltStrip built;
-    for (int j = 0; j < kSections; ++j) {
-        const double f = static_cast<double>(j) / (kSections - 1);
+    built.sections.resize(sections);
+    for (int j = 0; j < sections; ++j) {
+        const double f = static_cast<double>(j) / (sections - 1);
         BRepAdaptor_Curve ca(a.edge), cb(b.edge);
         const gp_Pnt pa = ca.Value(sample_parameter(a, f));
         const gp_Pnt pb = cb.Value(sample_parameter(b, f));
@@ -163,14 +155,14 @@ BuiltStrip build_strip(const Spring &a, const Spring &b, double weight) {
         built.sections[j] = g2::quintic_poles(e0, d, e1, d);
     }
     // Skin: one cubic interpolation along the strip per pole row, all through the same parameters.
-    Handle(TColStd_HArray1OfReal) params = new TColStd_HArray1OfReal(1, kSections);
-    for (int j = 0; j < kSections; ++j) {
-        params->SetValue(j + 1, static_cast<double>(j) / (kSections - 1));
+    Handle(TColStd_HArray1OfReal) params = new TColStd_HArray1OfReal(1, sections);
+    for (int j = 0; j < sections; ++j) {
+        params->SetValue(j + 1, static_cast<double>(j) / (sections - 1));
     }
     std::vector<Handle(Geom_BSplineCurve)> rows;
     for (int i = 0; i < 6; ++i) {
-        Handle(TColgp_HArray1OfPnt) points = new TColgp_HArray1OfPnt(1, kSections);
-        for (int j = 0; j < kSections; ++j) {
+        Handle(TColgp_HArray1OfPnt) points = new TColgp_HArray1OfPnt(1, sections);
+        for (int j = 0; j < sections; ++j) {
             const g2::Vec &q = built.sections[j][i];
             points->SetValue(j + 1, gp_Pnt(q[0], q[1], q[2]));
         }
@@ -284,10 +276,6 @@ StripEdges classify(const TopoDS_Face &strip, const TopTools_IndexedDataMapOfSha
     if (springs != 2 || ends != 2) {
         throw user_error("this fillet strip's edges aren't two springs and two ends");
     }
-    for (Spring &s : out.spring) {
-        BRepAdaptor_Curve c(s.edge);
-        s.length = GCPnts_AbscissaPoint::Length(c);
-    }
     // Sample both springs from the same end.
     BRepAdaptor_Curve ca(out.spring[0].edge), cb(out.spring[1].edge);
     const gp_Pnt a0 = ca.Value(ca.FirstParameter()), a1 = ca.Value(ca.LastParameter());
@@ -296,34 +284,66 @@ StripEdges classify(const TopoDS_Face &strip, const TopTools_IndexedDataMapOfSha
     return out;
 }
 
+/// Folds the gaps at one sample of a seam into `seam`; `a` and `b` are the two faces there, `tangent` the edge's.
+void accumulate(occt_g2_seam &seam, const SurfacePoint &a, const SurfacePoint &b, const gp_Vec &tangent) {
+    gp_Vec across = a.n.Crossed(tangent);
+    across.Normalize();
+    gp_Vec across_b = across - b.n * across.Dot(b.n);
+    across_b.Normalize();
+    const double ka = a.normal_curvature(across), kb = b.normal_curvature(across_b);
+    const double gap = std::abs(ka - kb);
+    const double allowed = std::max(0.01 * std::max(std::abs(ka), std::abs(kb)), 1e-4);
+    seam.position = std::max(seam.position, a.p.Distance(b.p));
+    const double cosine = std::clamp(a.n.Dot(b.n), -1.0, 1.0);
+    seam.angle_degrees = std::max(seam.angle_degrees, std::acos(cosine) * 180 / kPi);
+    seam.curvature = std::max(seam.curvature, gap);
+    if (gap / allowed >= seam.curvature_ratio) {
+        seam.curvature_ratio = gap / allowed;
+        seam.curvature_allowed = allowed;
+    }
+}
+
 /// The worst position, angle and curvature gaps along `edge` between the two faces that share it.
 occt_g2_seam measure_seam(const TopoDS_Edge &edge, const TopoDS_Face &f1, const TopoDS_Face &f2) {
     occt_g2_seam seam{};
     BRepAdaptor_Curve curve(edge);
     for (int k = 0; k <= kMeasureSamples; ++k) {
         const double t = curve.FirstParameter() + (curve.LastParameter() - curve.FirstParameter()) * k / kMeasureSamples;
-        const SurfacePoint a = surface_point(f1, edge, t);
-        const SurfacePoint b = surface_point(f2, edge, t);
         gp_Pnt p;
         gp_Vec tangent;
         curve.D1(t, p, tangent);
-        gp_Vec across = a.n.Crossed(tangent);
-        across.Normalize();
-        gp_Vec across_b = across - b.n * across.Dot(b.n);
-        across_b.Normalize();
-        const double ka = a.normal_curvature(across), kb = b.normal_curvature(across_b);
-        const double gap = std::abs(ka - kb);
-        const double allowed = std::max(0.01 * std::max(std::abs(ka), std::abs(kb)), 1e-4);
-        seam.position = std::max(seam.position, a.p.Distance(b.p));
-        const double cosine = std::clamp(a.n.Dot(b.n), -1.0, 1.0);
-        seam.angle_degrees = std::max(seam.angle_degrees, std::acos(cosine) * 180 / kPi);
-        seam.curvature = std::max(seam.curvature, gap);
-        if (gap / allowed >= seam.curvature_ratio) {
-            seam.curvature_ratio = gap / allowed;
-            seam.curvature_allowed = allowed;
-        }
+        accumulate(seam, surface_point(f1, edge, t), surface_point(f2, edge, t), tangent);
     }
     return seam;
+}
+
+/// The strip's gaps against one spring's neighbour, read off the candidate surface (v = 0 for the first spring, 1 for
+/// the second) before any topology is built. `reversed`: the face is REVERSED, so its outward normal is the raw one's
+/// opposite.
+occt_g2_seam candidate_seam(const Handle(Geom_BSplineSurface) &surface, bool reversed, const Spring &spring, double v) {
+    occt_g2_seam seam{};
+    BRepAdaptor_Curve curve(spring.edge);
+    for (int k = 0; k <= kCheckSamples; ++k) {
+        const double f = static_cast<double>(k) / kCheckSamples;
+        const double t = sample_parameter(spring, f);
+        SurfacePoint strip;
+        surface->D2(f, v, strip.p, strip.su, strip.sv, strip.suu, strip.svv, strip.suv);
+        strip.n = strip.su.Crossed(strip.sv);
+        strip.n.Normalize();
+        if (reversed) {
+            strip.n.Reverse();
+        }
+        gp_Pnt p;
+        gp_Vec tangent;
+        curve.D1(t, p, tangent);
+        accumulate(seam, strip, surface_point(spring.neighbour, spring.edge, t), tangent);
+    }
+    return seam;
+}
+
+bool within_tolerance(const occt_g2_seam &seam) {
+    // Half the promised tolerances, so the final measurement at other samples still has room.
+    return seam.position <= 0.5e-4 && seam.angle_degrees <= 0.005 && seam.curvature_ratio <= 0.5;
 }
 
 } // namespace
@@ -439,34 +459,51 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
         TopoDS_Shape result = work;
         BRep_Builder builder;
         BRepTools_ReShape reshape;
-        report->sections = kSections;
         std::vector<StripEdges> strips;
         for (int index : strip_indices) {
             strips.push_back(classify(TopoDS::Face(faces(index)), edge_faces, blend_faces));
         }
         std::vector<std::pair<TopoDS_Edge, TopoDS_Edge>> replaced_edges;
+        // SPIKE ONLY: a weight <= 0 keeps the circular strips and just measures them (the baseline). Task 3 removes it.
         if (weight > 0) {
             for (std::size_t s = 0; s < strips.size(); ++s) {
                 const TopoDS_Face old_face = TopoDS::Face(faces(strip_indices[s]));
                 StripEdges &edges = strips[s];
                 BuiltStrip built;
                 bool swapped = false;
-                for (int attempt = 0; attempt < 2; ++attempt) {
-                    built = build_strip(edges.spring[swapped ? 1 : 0], edges.spring[swapped ? 0 : 1], weight);
-                    // The raw normal must agree with the old surface's so the face keeps its orientation.
-                    gp_Pnt mid;
-                    gp_Vec du, dv;
-                    built.surface->D1(0.5, 0.5, mid, du, dv);
-                    GeomAPI_ProjectPointOnSurf project(mid, BRep_Tool::Surface(old_face));
-                    double u = 0, v = 0;
-                    project.LowerDistanceParameters(u, v);
-                    gp_Pnt q;
-                    gp_Vec ou, ov;
-                    BRep_Tool::Surface(old_face)->D1(u, v, q, ou, ov);
-                    if (du.Crossed(dv).Dot(ou.Crossed(ov)) > 0) {
+                // Sections are doubled (9, 17, 33, ...) until the candidate's seams pass; the cap fails the blend.
+                int sections = kFirstSections;
+                for (;; sections = 2 * sections - 1) {
+                    swapped = false;
+                    for (int attempt = 0; attempt < 2; ++attempt) {
+                        built = build_strip(edges.spring[swapped ? 1 : 0], edges.spring[swapped ? 0 : 1], weight, sections);
+                        // The raw normal must agree with the old surface's so the face keeps its orientation.
+                        gp_Pnt mid;
+                        gp_Vec du, dv;
+                        built.surface->D1(0.5, 0.5, mid, du, dv);
+                        GeomAPI_ProjectPointOnSurf project(mid, BRep_Tool::Surface(old_face));
+                        double u = 0, v = 0;
+                        project.LowerDistanceParameters(u, v);
+                        gp_Pnt q;
+                        gp_Vec ou, ov;
+                        BRep_Tool::Surface(old_face)->D1(u, v, q, ou, ov);
+                        if (du.Crossed(dv).Dot(ou.Crossed(ov)) > 0) {
+                            break;
+                        }
+                        swapped = !swapped;
+                    }
+                    const bool reversed = old_face.Orientation() == TopAbs_REVERSED;
+                    if (within_tolerance(candidate_seam(built.surface, reversed, edges.spring[swapped ? 1 : 0], 0)) &&
+                        within_tolerance(candidate_seam(built.surface, reversed, edges.spring[swapped ? 0 : 1], 1))) {
                         break;
                     }
-                    swapped = !swapped;
+                    if (sections >= kMaxSections) {
+                        throw user_error("The fillet can't be made curvature continuous at this radius.");
+                    }
+                }
+                report->sections = std::max(report->sections, sections);
+                if (s < 32) {
+                    report->strip_sections[s] = sections;
                 }
                 // Spring edges: a pcurve on the new surface, linear in the edge parameter.
                 const Handle(Geom_Surface) surface = built.surface;
@@ -559,7 +596,8 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 reshape.Replace(old_face, new_face);
                 ++report->strips;
             }
-            // Corner patches stay a patch between the new end curves: filled, tangent to nothing (G0 only).
+            // Corner patches: a G0 refill between the new end curves, tangent to nothing. Task 2 replaces it with a
+            // G2 refill, else a G1 one with a warning, else a failure; never a crease.
             for (int index : corner_indices) {
                 const TopoDS_Face old_corner = TopoDS::Face(faces(index));
                 BRepFill_Filling fill(5, 30, 5, Standard_False, 1e-6, 1e-6, 0.01, 0.1, 12, 20);

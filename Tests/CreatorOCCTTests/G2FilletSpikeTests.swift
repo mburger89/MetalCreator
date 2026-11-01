@@ -92,6 +92,12 @@ struct G2FilletSpikeTests {
         return EdgeID(found.index)
     }
 
+    func sectionCounts(_ report: occt_g2_report) -> [Int] {
+        withUnsafeBytes(of: report.strip_sections) { raw in
+            Array(raw.bindMemory(to: Int32.self).prefix(Int(report.strips)).map { Int($0) })
+        }
+    }
+
     func gaps(_ report: occt_g2_report) -> Gaps {
         var g = Gaps()
         withUnsafeBytes(of: report.seams) { raw in
@@ -106,8 +112,9 @@ struct G2FilletSpikeTests {
         return g
     }
 
-    func run(_ name: String, edgeMidpoints: [[Double]], weight: Double = 1, staysInsideTheBox: Bool = true) throws {
-        let box = try OCCTShape.box(20, 20, 10)
+    func run(_ name: String, shape: OCCTShape? = nil, edgeMidpoints: [[Double]], weight: Double = 1,
+             staysInsideTheBox: Bool = true) throws {
+        let box = try shape ?? OCCTShape.box(20, 20, 10)
         let edges = try OCCTKernel.serialized { try topology(of: box) }
         let ids = try edgeMidpoints.map { try edge(edges, near: $0) }
         let clock = ContinuousClock()
@@ -126,19 +133,23 @@ struct G2FilletSpikeTests {
         let (g2, g2Time) = try build(weight)
         let g1Gaps = gaps(g1.report), g2Gaps = gaps(g2.report)
         let validity = OCCTKernel.serialized { g2.shape.validity }
-        print("G2SPIKE \(name) w=\(weight): seams \(g2.report.seam_count) strips \(g2.report.strips) sections \(g2.report.sections)")
+        print("G2SPIKE \(name) w=\(weight): seams \(g2.report.seam_count) strips \(g2.report.strips)"
+            + " sections \(sectionCounts(g2.report))")
         print("G2SPIKE \(name) w=\(weight): G1 gaps \(g1Gaps) time \(g1Time)")
         print("G2SPIKE \(name) w=\(weight): G2 gaps \(g2Gaps) time \(g2Time) validity \(validity)")
         print("G2SPIKE \(name) w=\(weight): volume \(g2.shape.volume), circular \(g1.shape.volume)")
         #expect(validity == .valid)
         // The quintic strip takes a little less material than the circle's, and never more than the box holds.
-        if staysInsideTheBox {
+        if shape != nil {
+            // Not the box: only the seams and the validity are pinned.
+        } else if staysInsideTheBox {
             #expect(g2.shape.volume < 4000)
             #expect(abs(g2.shape.volume - g1.shape.volume) < 20)
         } else {
             #expect(g2.shape.volume > 4000)
         }
         #expect(g2.report.seam_count == 2 * ids.count)
+        #expect(g2.report.sections <= 129)
         #expect(g2Gaps.position <= 1e-4)
         #expect(g2Gaps.angle <= 0.01)
         #expect(g2Gaps.curvatureRatio <= 1)
@@ -165,5 +176,37 @@ extension G2FilletSpikeTests {
     /// and G2 at the seams; the weight range of the spec (up to 2) needs a cap or a different end rule.
     @Test func aWeightOfTwoOvershootsTheCornerButStaysG2AndValid() throws {
         try run("one edge", edgeMidpoints: [[10, 0, 10]], weight: 2, staysInsideTheBox: false)
+    }
+}
+
+/// The review's probes: the notched plate of `ClockwiseArcConformanceTests`, extruded 10, filleted r 1.
+extension G2FilletSpikeTests {
+    func notchedPlate() throws -> OCCTShape {
+        let segments = ClockwiseArcConformanceTests.notchedPlate()
+        return try OCCTKernel.serialized { try OCCTShape.extrude(Profile2D(plane: .xy, segments: segments), distance: 10).0 }
+    }
+
+    func runNotch(_ name: String, midpoint: [Double]) throws {
+        let plate = try notchedPlate()
+        let edges = try OCCTKernel.serialized { try topology(of: plate) }
+        let id = try edge(edges, near: midpoint)
+        let built = try OCCTKernel.serialized { try plate.blendedCurvatureContinuous(edges: [id], size: 1, weight: 1) }
+        let measured = gaps(built.report)
+        print("G2SPIKE \(name): sections \(sectionCounts(built.report)) gaps \(measured) validity \(built.shape.validity)")
+        #expect(OCCTKernel.serialized { built.shape.validity } == .valid)
+        #expect(built.report.seam_count == 2)
+        #expect(measured.position <= 1e-4)
+        #expect(measured.angle <= 0.01)
+        #expect(measured.curvatureRatio <= 1)
+    }
+
+    /// Curved springs: the semicircular arc edge, between the top face and the notch's cylinder.
+    @Test func theNotchsArcEdgeHasG2Strips() throws {
+        try runNotch("arc edge", midpoint: [10, 6, 10])
+    }
+
+    /// A line edge whose neighbour is the notch's cylinder (normal curvature 0.25).
+    @Test func theLineEdgeNextToTheCylinderHasG2Strips() throws {
+        try runNotch("cylinder neighbour", midpoint: [14, 10, 5])
     }
 }
