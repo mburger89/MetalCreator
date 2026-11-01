@@ -63,9 +63,9 @@ enum ImplicitCombining {
                                                      holdsAtZero: true, kernel: kernel, context: context)
         // One shape, sharp, is that shape; anything else is the combination.
         // A blend of 0 is the plain minimum whatever the order, so it compiles as G1 and shares that kernel.
-        let continuity = setting.grading.constantValue.map { $0 <= 0 } == true ? BlendContinuity.g1 : try continuity(inputs)
         let sharp = setting.grading.constantValue.map { $0 <= 0 } ?? false
-        let result = shapes.count == 1 && sharp ? shapes[0] : kind.combine(shapes, blend: setting.grading, continuity: continuity)
+        let order = sharp ? BlendContinuity.g1 : try Self.continuity(inputs)
+        let result = shapes.count == 1 && sharp ? shapes[0] : kind.combine(shapes, blend: setting.grading, continuity: order)
         return NodeOutputs(["implicit": .implicit(result.reference)], warnings: setting.warnings)
     }
 }
