@@ -1,6 +1,7 @@
 // SPIKE (G-b): curvature-continuous fillet strips. OpenCascade makes the circular fillet; each strip face is then
 // replaced by a B-spline surface skinned from quintic G2 Hermite sections between its two spring edges.
 #include "cocct_g2_corner.hpp"
+#include "cocct_g2_triangle.hpp"
 #include "cocct_g2_section.hpp"
 #include "cocct_internal.hpp"
 
@@ -47,6 +48,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cmath>
+#include <chrono>
 #include <memory>
 
 using namespace cocct;
@@ -56,7 +58,10 @@ using namespace cocct;
 namespace {
 
 // SPIKE (Task 2d): the G2 corner patch is off unless a test switches it on.
-bool g_g2_corner_spike = false;
+// 1: three quadrilaterals; 2: one three-sided patch of degree g_triangle_degree.
+int g_g2_corner_spike = 0;
+int g_triangle_degree = 17;
+double g_corner_metrics[16] = {0};
 
 constexpr int kFirstSections = 9;   // cross-sections per strip to start with
 constexpr int kMaxSections = 129;   // the cap: 9, 17, 33, 65, 129
@@ -748,7 +753,13 @@ bool within_tolerance(const occt_g2_seam &seam) {
 
 extern "C" {
 
-void occt_test_g2_corner_spike(int enable) { g_g2_corner_spike = enable != 0; }
+void occt_test_g2_corner_spike(int enable) { g_g2_corner_spike = enable; }
+void occt_test_g2_corner_degree(int degree) { g_triangle_degree = degree; }
+void occt_test_g2_corner_metrics(double out[16]) {
+    for (int i = 0; i < 16; ++i) {
+        out[i] = g_corner_metrics[i];
+    }
+}
 
 double occt_g2_tangent_length(double chord, double turning_angle) {
     return g2::circular_tangent_length(chord, turning_angle);
@@ -1350,6 +1361,173 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                         const bool first_is_start = close(curve.poles[0], {BRep_Tool::Pnt(v1).X(), BRep_Tool::Pnt(v1).Y(), BRep_Tool::Pnt(v1).Z()});
                         curve.from = first_is_start ? v1 : v2;
                         curve.to = first_is_start ? v2 : v1;
+                    }
+                    if (g_g2_corner_spike == 2) {
+                        // One three-sided patch over the whole hole (cocct_g2_triangle.hpp), no centre and no inner seams.
+                        const auto clock0 = std::chrono::steady_clock::now();
+                        g2::TriangleSide tri_sides[3];
+                        for (int j = 0; j < 3; ++j) {
+                            tri_sides[j].poles = loop[j].poles;
+                            tri_sides[j].cross1 = loop[j].cross1;
+                            tri_sides[j].cross2 = loop[j].cross2;
+                        }
+                        double direction_cosine = 0, block_mismatch = 0, raw_mismatch = 0, largest_freedom = 0;
+                        int solver_iterations = 0;
+                        if (!g2::across_scales(tri_sides, direction_cosine)) {
+                            throw user_error(kStripMessage);
+                        }
+                        const int n = g_triangle_degree;
+                        g2::TriangleNet tri_net;
+                        if (!g2::build_triangle(tri_sides, n, tri_net, block_mismatch, raw_mismatch, true, &solver_iterations, &largest_freedom)) {
+                            throw user_error(kStripMessage);
+                        }
+                        g_corner_metrics[0] = n;
+                        g_corner_metrics[1] = block_mismatch;
+                        g_corner_metrics[11] = raw_mismatch;
+                        g_corner_metrics[12] = solver_iterations;
+                        g_corner_metrics[13] = largest_freedom;
+                        g_corner_metrics[2] = direction_cosine;
+                        g_corner_metrics[8] = tri_sides[0].lambda0;
+                        g_corner_metrics[9] = tri_sides[0].lambda1;
+                        if (block_mismatch > 1e-6 || direction_cosine < 0.999999) {
+                            throw user_error(kStripMessage);
+                        }
+                        const std::vector<g2::Vec> tensor = g2::to_tensor(tri_net);
+                        TColgp_Array2OfPnt tri_poles(1, n + 1, 1, n + 1);
+                        for (int a = 0; a <= n; ++a) {
+                            for (int b = 0; b <= n; ++b) {
+                                const g2::Vec &v = tensor[static_cast<std::size_t>(a) * (n + 1) + b];
+                                tri_poles.SetValue(a + 1, b + 1, gp_Pnt(v[0], v[1], v[2]));
+                            }
+                        }
+                        const Handle(Geom_BezierSurface) tri_surface = new Geom_BezierSurface(tri_poles);
+                        g_corner_metrics[5] = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - clock0).count();
+                        // Regularity: normal and principal curvatures over a dense grid of the triangle and near its corners.
+                        {
+                            double max_curvature = 0, max_near_corner = 0, min_sine = 1e300, max_interior = 0;
+                            long count = 0;
+                            auto sample = [&](double x, double y, bool near_corner, bool interior) {
+                                gp_Pnt p;
+                                gp_Vec su, sv, suu, svv, suv;
+                                tri_surface->D2(std::min(1.0, std::max(0.0, x)), std::min(1.0, std::max(0.0, y)), p, su, sv, suu, svv, suv);
+                                const gp_Vec nv = su.Crossed(sv);
+                                const double area = nv.Magnitude();
+                                const double e = su.Dot(su), f = su.Dot(sv), g = sv.Dot(sv);
+                                const double sine = area / std::sqrt(e * g);
+                                min_sine = std::min(min_sine, sine);
+                                if (area < 1e-14) {
+                                    max_curvature = 1e300;
+                                    return;
+                                }
+                                const gp_Vec nn = nv / area;
+                                const double l = suu.Dot(nn), m = suv.Dot(nn), nq = svv.Dot(nn);
+                                const double det = e * g - f * f;
+                                const double kg = (l * nq - m * m) / det;
+                                const double hm = (e * nq - 2 * f * m + g * l) / (2 * det);
+                                const double disc = std::sqrt(std::max(0.0, hm * hm - kg));
+                                const double k = std::max(std::abs(hm + disc), std::abs(hm - disc));
+                                max_curvature = std::max(max_curvature, k);
+                                if (near_corner) {
+                                    max_near_corner = std::max(max_near_corner, k);
+                                }
+                                if (interior) {
+                                    max_interior = std::max(max_interior, k);
+                                }
+                                ++count;
+                            };
+                            const int grid = 80;
+                            for (int a = 0; a <= grid; ++a) {
+                                for (int b = 0; a + b <= grid; ++b) {
+                                    sample(static_cast<double>(a) / grid, static_cast<double>(b) / grid, false,
+                                           a > 0 && b > 0 && a + b < grid);
+                                }
+                            }
+                            for (double d : {1e-1, 3e-2, 1e-2, 1e-3, 1e-4}) {
+                                sample(d, d, true, true);
+                                sample(1 - 2 * d, d, true, true);
+                                sample(d, 1 - 2 * d, true, true);
+                                sample(d, 0, true, false);
+                                sample(0, d, true, false);
+                                sample(1 - d, d, true, false);
+                                sample(1 - d, 0, true, false);
+                                sample(d, 1 - d, true, false);
+                                sample(0, 1 - d, true, false);
+                            }
+                            g_corner_metrics[3] = max_curvature;
+                            g_corner_metrics[4] = min_sine;
+                            g_corner_metrics[6] = max_near_corner;
+                            g_corner_metrics[7] = max_interior;
+                            g_corner_metrics[10] = static_cast<double>(count);
+                        }
+                        if (!(g_corner_metrics[4] > 0.05) || !(g_corner_metrics[3] < 20.0 / radius)) {
+                            throw user_error(kStripMessage); // the patch is not regular
+                        }
+                        const gp_Pnt2d domain[3] = {gp_Pnt2d(0, 0), gp_Pnt2d(1, 0), gp_Pnt2d(0, 1)};
+                        TopoDS_Edge tri_edges[3];
+                        for (int j = 0; j < 3; ++j) {
+                            TColgp_Array1OfPnt end_poles(1, 6);
+                            for (int i = 0; i < 6; ++i) {
+                                end_poles.SetValue(i + 1, gp_Pnt(loop[j].poles[i][0], loop[j].poles[i][1], loop[j].poles[i][2]));
+                            }
+                            builder.MakeEdge(tri_edges[j], Handle(Geom_BezierCurve)(new Geom_BezierCurve(end_poles)), kEdgeTolerance);
+                            builder.Add(tri_edges[j], loop[j].from.Oriented(TopAbs_FORWARD));
+                            builder.Add(tri_edges[j], loop[j].to.Oriented(TopAbs_REVERSED));
+                            builder.Range(tri_edges[j], 0, 1);
+                            const EndCurve &curve = loop[j];
+                            const double u_end = curve.end == 0 ? 0.0 : 1.0;
+                            const double v_start = curve.reversed ? 1.0 : 0.0, v_end = curve.reversed ? 0.0 : 1.0;
+                            builder.UpdateEdge(tri_edges[j], line2d(gp_Pnt2d(u_end, v_start), gp_Pnt2d(u_end, v_end), 0, 1),
+                                               states[curve.strip].built.surface, TopLoc_Location(), kEdgeTolerance);
+                            builder.UpdateEdge(tri_edges[j], line2d(domain[j], domain[(j + 1) % 3], 0, 1), tri_surface, TopLoc_Location(),
+                                               kEdgeTolerance);
+                        }
+                        TopoDS_Face tri_face;
+                        builder.MakeFace(tri_face, tri_surface, kEdgeTolerance);
+                        TopoDS_Wire tri_wire;
+                        builder.MakeWire(tri_wire);
+                        for (int j = 0; j < 3; ++j) {
+                            builder.Add(tri_wire, tri_edges[j].Oriented(TopAbs_FORWARD));
+                        }
+                        builder.Add(tri_face, tri_wire);
+                        {
+                            gp_Pnt middle;
+                            gp_Vec da, db;
+                            tri_surface->D1(1.0 / 3, 1.0 / 3, middle, da, db);
+                            GeomAPI_ProjectPointOnSurf project(middle, BRep_Tool::Surface(old_corner));
+                            double pu = 0, pv = 0;
+                            project.LowerDistanceParameters(pu, pv);
+                            gp_Pnt on_old;
+                            gp_Vec oa, ob;
+                            BRep_Tool::Surface(old_corner)->D1(pu, pv, on_old, oa, ob);
+                            gp_Vec n_old = oa.Crossed(ob);
+                            if (old_corner.Orientation() == TopAbs_REVERSED) {
+                                n_old.Reverse();
+                            }
+                            if (da.Crossed(db).Dot(n_old) < 0) {
+                                tri_face.Orientation(TopAbs_REVERSED);
+                            }
+                        }
+                        for (int j = 0; j < 3; ++j) {
+                            const EndCurve &curve = loop[j];
+                            StripState &state = states[curve.strip];
+                            TopoDS_Vertex old_first, old_last;
+                            TopExp::Vertices(curve.old_edge, old_first, old_last, Standard_False);
+                            const bool old_runs_with_loop = old_first.IsSame(curve.from);
+                            for (int c = 0; c < 2; ++c) {
+                                if (strips[curve.strip].ends[c].IsSame(curve.old_edge)) {
+                                    state.chain[c] = {{tri_edges[j], !old_runs_with_loop}};
+                                }
+                            }
+                        }
+                        reshape.Remove(old_corner);
+                        g2_new_faces.push_back(tri_face);
+                        for (int j = 0; j < 3; ++j) {
+                            g2_edges.push_back(tri_edges[j]);
+                        }
+                        corner_done[ci] = true;
+                        ++report->g2_corners;
+                        ++report->corners;
+                        continue;
                     }
                     // Midpoints, seam planes and the centre.
                     g2::Vec mids[3], normals[3];

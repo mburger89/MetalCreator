@@ -230,6 +230,10 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
 /// with end derivative lengths len0 and len1: out = position[3], d1[3], d2[3] at t. Returns 1.
 /// FOR TESTS ONLY (Task 2d spike). Switches the G2 corner patch on or off for occt_fillet_g2 (off by default).
 void occt_test_g2_corner_spike(int enable);
+/// FOR TESTS ONLY (Task 2d-2 spike). Mode 2 of the switch above builds one three-sided patch of this degree (>= 9).
+void occt_test_g2_corner_degree(int degree);
+/// FOR TESTS ONLY (Task 2d-2 spike). Diagnostics of the last three-sided patch: see G2CornerTriangleTests.
+void occt_test_g2_corner_metrics(double out[16]);
 int occt_g2_section_test(const double end0[9], double len0, const double end1[9], double len1, double t, double out[9]);
 /// The circle's cubic-equivalent end derivative length for a chord and a turning angle (radians).
 double occt_g2_tangent_length(double chord, double turning_angle);
