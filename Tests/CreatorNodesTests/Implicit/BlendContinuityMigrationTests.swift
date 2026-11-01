@@ -5,8 +5,8 @@ import CreatorKernel
 import Testing
 @testable import CreatorNodes
 
-/// The `continuity` input on Union, Subtract, Intersect and the three lattices (G-a of the G2 surfacing spec): G2 on a new node, G1 on a
-/// node saved before it, and one socket for a Strut Lattice's skin and joints.
+/// The `continuity` input on Union, Subtract, Intersect and the three lattices (G-a of the G2 surfacing spec): G2 on a new Union, Subtract or Intersect, G1 on a new
+/// lattice (its skin join is tuned for printability) and on a node saved before it, and one socket for a Strut Lattice's skin and joints.
 struct BlendContinuityMigrationTests {
     static let combiners: [any NodeDefinition.Type] = [ImplicitUnionNode.self, ImplicitSubtractNode.self, ImplicitIntersectNode.self]
     static let lattices: [any NodeDefinition.Type] = [TPMSNode.self, StrutLatticeNode.self, VoronoiLatticeNode.self]
@@ -19,10 +19,10 @@ struct BlendContinuityMigrationTests {
         #expect(definition.inspector.flatMap(\.controls).contains(.segmented("continuity", options: ["G1", "G2", "G3"])))
     }
 
-    @Test(arguments: lattices.indices) func aNewLatticeIsG2(_ index: Int) throws {
+    @Test(arguments: lattices.indices) func aNewLatticeIsG1(_ index: Int) throws {
         let definition = Self.lattices[index]
         let spec = try #require(definition.inputs.first { $0.name == "continuity" })
-        #expect(spec.defaultValue == .integer(1) && definition.typeVersion == 3)
+        #expect(spec.defaultValue == .integer(0) && definition.typeVersion == 3)
         #expect(definition.inspector.flatMap(\.controls).contains(.segmented("continuity", options: ["G1", "G2", "G3"])))
     }
 

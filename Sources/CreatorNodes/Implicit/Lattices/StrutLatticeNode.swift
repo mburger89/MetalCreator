@@ -16,7 +16,7 @@ public enum StrutLatticeNode: NodeDefinition {
         SocketSpec("region", .implicit, optional: true),
         SocketSpec("skin", .number, defaultValue: .number(0), unit: .millimetres, range: 0...20),
         LatticeSetup.blendSocket,
-        ImplicitCombining.continuitySocket,
+        ImplicitCombining.continuitySocket(default: .g1),
         SocketSpec("cell", .integer, defaultValue: .integer(StrutCell.cubic.rawValue)),
         SocketSpec("cell size", .field, defaultValue: .number(8), unit: .millimetres, range: 1...50),
         SocketSpec("cell stretch", .vector, defaultValue: .vector(Vector3(1, 1, 1))),

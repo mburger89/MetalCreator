@@ -25,7 +25,11 @@ enum ImplicitCombining {
         continuitySocket,
     ]
     /// The order of the smooth minimum, an option index into `BlendContinuity`: G2 on a new node.
-    static let continuitySocket = SocketSpec("continuity", .integer, defaultValue: .integer(BlendContinuity.g2.rawValue), range: 0...2)
+    static let continuitySocket = continuitySocket(default: .g2)
+    /// The same socket with another default: the lattices are G1, the skin join being tuned for printability.
+    static func continuitySocket(default order: BlendContinuity) -> SocketSpec {
+        SocketSpec("continuity", .integer, defaultValue: .integer(order.rawValue), range: 0...2)
+    }
     /// The labels of the segmented control, in `BlendContinuity` order.
     static let continuityOptions = BlendContinuity.allCases.map(\.label)
 

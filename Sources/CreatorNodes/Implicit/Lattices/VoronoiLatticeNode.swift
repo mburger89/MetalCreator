@@ -17,7 +17,7 @@ public enum VoronoiLatticeNode: NodeDefinition {
         SocketSpec("region", .implicit, optional: true),
         SocketSpec("skin", .number, defaultValue: .number(0), unit: .millimetres, range: 0...20),
         LatticeSetup.blendSocket,
-        ImplicitCombining.continuitySocket,
+        ImplicitCombining.continuitySocket(default: .g1),
         SocketSpec("seeds", .plane, access: .list, optional: true),
         SocketSpec("form", .integer, defaultValue: .integer(VoronoiForm.struts.rawValue)),
         SocketSpec("thickness", .field, defaultValue: .number(0.8), unit: .millimetres, range: 0...10),
