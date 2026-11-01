@@ -98,6 +98,9 @@ public final class AppModel {
     @ObservationIgnored var sources: [ObjectIdentifier: Endpoint] = [:]
     /// The scene last sent to the current viewport (`refreshScene()`); emptied when the parts are replaced.
     @ObservationIgnored var requestedScene: [ViewportItem] = []
+    /// The scene the section last followed outside a pick session: during a pick (the scene is ghosted) the section's settings
+    /// still apply to it, so its caps stay those of the real parts.
+    @ObservationIgnored var sectionScene: SectionScene?
     @ObservationIgnored var resizeStart: Double?
     @ObservationIgnored var observationGeneration = 0
     @ObservationIgnored var sceneTask: Task<Void, Never>?
@@ -156,6 +159,7 @@ public final class AppModel {
         fileURL = url
         savedContent = GraphContent(graph: file.graph, definitions: file.definitions)
         requestedScene = []
+        sectionScene = nil
         connectParts()
     }
 

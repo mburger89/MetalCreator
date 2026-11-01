@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorGraph
 import CreatorImplicit
 import CreatorKernel
@@ -79,14 +80,7 @@ extension AppModel {
         measure?.sceneChanged(viewport.items)
         showMeasureOverlay()
         viewport.showSlice(fieldPreview.viewportSlice(colors: themes.current.colors))
-        // A pick session leaves the section and its caps as they were (the scene is ghosted meanwhile).
-        if pick == nil {
-            section.update(document.section, items: viewport.items, bounds: viewport.sceneBounds, hidden: sketch != nil,
-                           isFinalPreview: previewMode == .final, nodeName: { [unowned self] in producingNode($0)?.name })
-            viewport.showClip(section.shown?.clip)
-            sectionCaps.follow(clip: section.shown?.clip, items: viewport.items, tolerance: viewport.displayTolerance)
-            viewport.showSection(sectionCaps.section)
-        }
+        followSection()
         let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
             : []
@@ -95,6 +89,21 @@ extension AppModel {
             + (section.shown?.handle.map { [$0] } ?? [])
         if viewport.handles != shownHandles { viewport.showHandles(shownHandles) }
         refreshDimensions()
+    }
+
+    /// Applies the section to the scene. A pick session ghosts the scene, which must not change the section or its caps: its
+    /// settings still apply, to the scene it last followed.
+    private func followSection() {
+        if pick == nil {
+            sectionScene = SectionScene(items: viewport.items, bounds: viewport.sceneBounds, tolerance: viewport.displayTolerance,
+                                        isFinalPreview: previewMode == .final)
+        }
+        guard let scene = sectionScene else { return }
+        section.update(document.section, items: scene.items, bounds: scene.bounds, hidden: sketch != nil,
+                       isFinalPreview: scene.isFinalPreview, nodeName: { [unowned self] in producingNode($0)?.name })
+        viewport.showClip(section.shown?.clip)
+        sectionCaps.follow(clip: section.shown?.clip, items: scene.items, tolerance: scene.tolerance)
+        viewport.showSection(sectionCaps.section)
     }
 
     /// The scene for the preview mode: Final shows every Output node of the whole part, whichever level the graph
@@ -178,4 +187,12 @@ extension AppModel {
         guard generation == observationGeneration, sceneTask == nil else { return }
         sceneTask = Task { [weak self] in self?.sceneInputsChanged() }
     }
+}
+
+/// What the section follows: the shown parts, their bounds and the viewport's tessellation tolerance.
+struct SectionScene {
+    var items: [ViewportItem]
+    var bounds: BoundingBox?
+    var tolerance: Double
+    var isFinalPreview: Bool
 }

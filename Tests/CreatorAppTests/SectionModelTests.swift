@@ -149,16 +149,22 @@ struct SectionModelTests {
         app.editor.selection = [box.extrude.id]
         app.beginPick(for: rule.id)
         #expect(app.pick != nil)
-        app.setSectionOffset(3)
+        // The ghosted scene changes neither the section nor its caps.
         app.refreshScene()
         await app.settle()
         #expect(app.viewport.clip == clip && app.sectionCaps.revision == revision && app.section.note == note)
-        // Once the pick ends, the section follows the offset set meanwhile.
+        // Its settings still apply, to the parts as they were.
+        app.setSectionOffset(3)
+        app.refreshScene()
+        await app.settle()
+        #expect(app.viewport.clip != clip && app.sectionCaps.section != nil)
+        app.setSection(false)
+        app.refreshScene()
+        await app.settle()
+        #expect(app.viewport.clip == nil && app.sectionCaps.section == nil)
         app.cancelPick()
         await app.settle()
-        #expect(app.pick == nil)
-        #expect(app.viewport.clip != clip)
-        #expect(app.sectionCaps.revision != revision)
+        #expect(app.pick == nil && app.viewport.clip == nil)
     }
 
     @Test func aFaceOutsideTheSelectedPreviewIsNotLost() async throws {
