@@ -28,6 +28,7 @@ public final class AppInput {
         Keymap(ViewportKeyBindings.bindings(context: AppKeyContext.viewport)
             + [KeyBinding("d", ModelDimensionKeyAction(), context: AppKeyContext.viewport),
                KeyBinding("m", MeasureKeyAction(), context: AppKeyContext.viewport),
+               KeyBinding("z", ZebraKeyAction(), context: AppKeyContext.viewport),
             ]
             + GraphPanelInput.keymap.bindings)
     }
@@ -50,6 +51,11 @@ public final class AppInput {
             let starting = model.measure == nil
             model.setMeasure(starting)
             return starting ? model.measure != nil : true
+        }
+        if action is ZebraKeyAction {
+            if model.editor.pointerLocation != nil || model.sketch != nil { return false }
+            model.setZebra(model.document.zebra?.isOn != true)
+            return true
         }
         guard let key = action as? ViewportKeyAction else { return false }
         if model.editor.pointerLocation != nil { return false }

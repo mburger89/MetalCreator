@@ -45,6 +45,10 @@ public enum AppCommands {
                     .disabled(model.document.section?.isOn != true)
                 Button(model.measure == nil ? "Measure" : "Stop Measuring") { model.setMeasure(model.measure == nil) }
                     .disabled(model.sketch != nil || model.pick != nil)
+                Button(model.document.zebra?.isOn == true ? "Hide Zebra Stripes" : "Show Zebra Stripes") {
+                    model.setZebra(model.document.zebra?.isOn != true)
+                }
+                .disabled(model.sketch != nil)
             }
         }
     }

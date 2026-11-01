@@ -15,7 +15,7 @@ import Testing
 struct AppInputTests {
     @Test func theViewportsKeysAreOutOfScopeWhileFocusIsInAPanel() throws {
         let bindings = AppInput.keymap.bindings
-        #expect(bindings.map(\.spelling) == ["f", "=", "shift-+", "+", "-", "d", "m", "up", "down"])
+        #expect(bindings.map(\.spelling) == ["f", "=", "shift-+", "+", "-", "d", "m", "z", "up", "down"])
         #expect(bindings.prefix(5).allSatisfy { $0.action is ViewportKeyAction && $0.context == AppKeyContext.viewport })
         #expect(bindings[5].action is ModelDimensionKeyAction && bindings[5].context == AppKeyContext.viewport)
         #expect(bindings[6].action is MeasureKeyAction && bindings[6].context == AppKeyContext.viewport)

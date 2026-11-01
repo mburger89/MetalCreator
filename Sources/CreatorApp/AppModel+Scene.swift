@@ -72,7 +72,8 @@ extension AppModel {
                              uniquingKeysWith: { first, _ in first })
         fieldPreview.follow(fieldPreviewRequest(for: scene))
         let items = fieldPreview.tinted(scene.map(\.item), colors: themes.current.colors)
-        if !ViewportItem.sameScene(items, requestedScene) {
+        let angleChanged = followZebraAngle()
+        if angleChanged || !ViewportItem.sameScene(items, requestedScene) {
             requestedScene = items
             viewport.show(items)
         }
@@ -81,6 +82,7 @@ extension AppModel {
         showMeasureOverlay()
         viewport.showSlice(fieldPreview.viewportSlice(colors: themes.current.colors))
         followSection()
+        followZebra()
         // Measure resolves its anchors against the items and the section's pieces as they stand after this refresh.
         let measured = measureScene()
         measure?.sceneChanged(measured)
@@ -168,6 +170,7 @@ extension AppModel {
             _ = document.previewNode
             _ = fieldPreview.revision
             _ = document.section
+            _ = document.zebra
             // The section resolves a face against the items once they land, so its bounds matter only while it is on.
             if document.section?.isOn == true { _ = viewport.sceneBounds }
             _ = meshRefinement.revision
