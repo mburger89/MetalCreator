@@ -209,3 +209,12 @@ mesh. It is a view-only value like the rest of Measure: no command, no undo step
   needs a profile that knows its face and our own end-constrained skinning (ThruSections has none). Its own design.
 - G3 fillets (a degree-7 section), conic fillets, setback corners.
 - Mesh import (from the zebra design's Later).
+
+## Erratum (2026-11-01): corners
+
+Step 5 of "Construction" and the "Where G2 can't be reached" bullet above still say corners are "MakeFilling G2, else G1". They are
+not. A right-angle corner of three fillets is rebuilt with our own degree-17 triangular Bezier patch, wherever that patch is accepted
+(position, angle and curvature checks along its three seams, a regular and gentle surface); every other corner, or one whose patch is not
+accepted, gets the G1 refill (`BRepFill_Filling` at G1, one plain attempt: loading the circular corner as the initial surface never
+worked with the new boundary edges and took 25 s on a pyramid's apex) with the "N fillet corners are tangent only (G1)." warning. A corner
+that misses G1 still fails the fillet, and an invalid solid is never returned.

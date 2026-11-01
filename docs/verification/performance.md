@@ -1026,6 +1026,24 @@ Zebra stripes need a finer display mesh (`DisplayAngle.zebra`, 0.05 rad against 
 
 The finer mesh costs about 17 times the time and 9 times the triangles on the bracket. While zebra is on, every edit that replaces a part pays the fine tessellation (about 38 ms against 2.2 ms): it runs off the main actor but under `OCCTKernel.serialized`, so it delays the next evaluation, not frames. Switching zebra on or off tessellates every shown solid once; an orbit re-tessellates nothing. The spec's "orbiting frame" row was not taken: the zebra pipeline adds a few ALU ops per pixel to the plain pipeline, and no warm orbit bench exists to extend cheaply. While zebra shows the field tint is not sampled (it would not be drawn).
 
+## G2 fillets
+
+Row `g2-fillet-1` is the §7.2 bracket's Fillet edited from its radius handle (2.00 to 3.48 mm in 0.02 mm steps, never a cached value) at Tangent (G1) and Curvature (G2), each step timed from the edit to the settled scene and meshes (no drawing). 40 steps, the first 5 dropped. Release, `Tests/CreatorAppTests/Bench/G2FilletBench.swift`, 2026-11-01, Mac18,5, 12 cores. Load averages (1, 5, 15 min) 1.70 / 2.30 / 6.55 before the run and 6.43 / 4.88 / 6.86 after, with other agents running: **saturated, not a verdict**. No budget is set; the spec's 100 ms drag budget applies to G1.
+
+| Row | Median (p95; max) |
+|---|---|
+| `g2-fillet-1` bracket fillets G1, edit to preview | 12.88 ms (13.57; 13.64) |
+| `g2-fillet-1` bracket fillets G2, edit to preview | 354.23 ms (367.14; 369.98) |
+
+A G2 radius edit costs about 27 times a G1 one on the bracket and is far over 100 ms, so a live drag of a G2 fillet is not interactive; the G2 strips are rebuilt (sections, skinning, seam measurement and the validity check) on every value. Recorded for the user's decision; nothing here gates a merge.
+
+```text
+BENCH g2-fillet-1 bracket fillets G1, edit to preview: median 12.88 ms, p95 13.57 ms, max 13.64 ms (n 35)
+BENCH g2-fillet-1 bracket fillets G2, edit to preview: median 354.23 ms, p95 367.14 ms, max 369.98 ms (n 35)
+```
+
+Corner fix (same day): the G1 corner refill no longer tries the circular corner as an initial surface first. A square pyramid's apex (four hip fillets, `aFourFilletCornerIsCountedOrRefused`) took 25.7 s before (the failed first attempt in `Plate_Plate::SolveTI1`) and 0.040 s for the whole test after; the three non-orthogonal corner tests take 0.19 s together.
+
 ## Raw output
 
 The 2026-10-20 idle run (MetalCreator `5e4069e`, MetalUI `711ab9c4`; the machine and load lines are the scripts', copied from their

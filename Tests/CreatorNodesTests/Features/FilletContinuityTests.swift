@@ -103,7 +103,15 @@ struct FilletContinuityTests {
         let curvedSet = try #require(curved.value(rule, "edges")?.edgeSets?.first)
         #expect(curvedSet.edges.count == picked.count)
         #expect(curved.state(rule).map { if case .ok = $0 { true } else { false } } == true, "\(String(describing: curved.state(rule)))")
-        #expect(curved.error(chamfer) == tangent.error(chamfer))
+        #expect(tangent.error(chamfer) == nil)
+        #expect(curved.error(chamfer) == nil)
+
+        h.set(fillet, "continuity", .integer(0))
+        let back = try await h.run([chamfer], kernel: kernel)
+        let backSet = try #require(back.value(rule, "edges")?.edgeSets?.first)
+        #expect(backSet.edges.count == picked.count)
+        #expect(back.state(rule).map { if case .ok = $0 { true } else { false } } == true, "\(String(describing: back.state(rule)))")
+        #expect(back.error(chamfer) == nil)
     }
     #endif
 }
