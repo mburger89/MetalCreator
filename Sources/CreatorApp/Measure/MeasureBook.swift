@@ -1,0 +1,200 @@
+import CreatorGeometry
+import CreatorGraph
+import CreatorKernel
+import CreatorViewport
+import Foundation
+import Observation
+
+/// The measurements the person kept (measure spec, part B). They are the document's view state (`DocumentModel.measurements`);
+/// the book resolves each one's anchors against the shown scene after every evaluation, reads its numbers, and measures the
+/// distance between a pair off the main actor. A measurement whose anchors no longer resolve stays, reading "no longer found",
+/// until a later scene finds them again.
+@MainActor
+@Observable
+final class MeasureBook {
+    struct Entry: Identifiable {
+        let id: UUID
+        /// The anchors resolved in the latest scene; `nil` when some no longer resolve (or no scene has been seen yet).
+        var picks: [MeasurePick]?
+        var readings: [MeasureReading]
+        var distance: ShapeDistance?
+        var isApproximate: Bool
+        var meshResolution: Double?
+        var isMeasuring: Bool
+    }
+
+    private(set) var entries: [Entry] = []
+    /// Bumps on every change the viewport must draw again.
+    private(set) var revision = 0
+    /// The entries changed: the app shows the dimensions again.
+    @ObservationIgnored var changed: (@MainActor () -> Void)?
+
+    @ObservationIgnored private let kernel: any Kernel
+    @ObservationIgnored private let document: DocumentModel
+    @ObservationIgnored private var scene: MeasureScene?
+    /// What each entry's distance was measured (or is being measured) for: its picks and the identity of the solids under them.
+    @ObservationIgnored private var measured: [UUID: Basis] = [:]
+    @ObservationIgnored private var task: Task<Void, Never>?
+    @ObservationIgnored private var generation = 0
+
+    private struct Basis: Equatable {
+        var picks: [MeasurePick]
+        var solids: [ObjectIdentifier]
+    }
+
+    init(kernel: any Kernel, document: DocumentModel) {
+        self.kernel = kernel
+        self.document = document
+        entries = document.measurements.map(Self.unresolved)
+    }
+
+    private static func unresolved(_ kept: KeptMeasurement) -> Entry {
+        Entry(id: kept.id, picks: nil, readings: [], distance: nil, isApproximate: false, meshResolution: nil, isMeasuring: false)
+    }
+
+    // MARK: - Editing (view state: no command, no undo step)
+
+    /// Keeps `measurement`, resolved against the latest scene.
+    func add(_ measurement: KeptMeasurement) {
+        document.measurements.append(measurement)
+        refreshFromLastScene()
+    }
+
+    func remove(_ id: UUID) {
+        document.measurements.removeAll { $0.id == id }
+        refreshFromLastScene()
+    }
+
+    func removeAll() {
+        guard !document.measurements.isEmpty else { return }
+        document.measurements = []
+        refreshFromLastScene()
+    }
+
+    private func refreshFromLastScene() {
+        if let scene { refresh(scene) } else { rebuild() }
+    }
+
+    // MARK: - Following the scene
+
+    /// Resolves every kept measurement in `scene` and makes the distances of the pairs whose picks, or a solid under them,
+    /// changed; a newer refresh drops an older one's results.
+    func refresh(_ scene: MeasureScene) {
+        self.scene = scene
+        var pending: [(UUID, MeasureElement, MeasureElement)] = []
+        let previous = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var next: [Entry] = []
+        var bases: [UUID: Basis] = [:]
+        for kept in document.measurements {
+            let resolved = kept.anchors.compactMap { MeasureResolver.resolve($0, in: scene) }
+            guard !kept.anchors.isEmpty, resolved.count == kept.anchors.count else {
+                next.append(Self.unresolved(kept))
+                continue
+            }
+            let basis = Basis(picks: resolved, solids: resolved.compactMap { identity(of: $0, in: scene) })
+            bases[kept.id] = basis
+            var entry = Entry(id: kept.id, picks: resolved,
+                              readings: MeasureReadings.readings(for: resolved, topologies: topologies(of: resolved, in: scene)),
+                              distance: nil, isApproximate: resolved.contains(where: \.isApproximate),
+                              meshResolution: resolved.compactMap { MeasureResolver.meshResolution(of: $0, in: scene) }.max(),
+                              isMeasuring: false)
+            if resolved.count == 2 {
+                // A distance still being measured is measured again: this refresh cancels the task that was making it.
+                if measured[kept.id] == basis, let old = previous[kept.id], !old.isMeasuring {
+                    entry.distance = old.distance
+                } else if let a = resolved[0].element(in: scene.solids), let b = resolved[1].element(in: scene.solids) {
+                    entry.isMeasuring = true
+                    pending.append((kept.id, a, b))
+                }
+            }
+            next.append(entry)
+        }
+        task?.cancel()
+        task = nil
+        generation += 1
+        measured = bases
+        entries = next
+        startDistances(pending)
+        bump()
+    }
+
+    /// Entries only (no scene yet): every measurement reads "no longer found" until the first evaluation.
+    private func rebuild() {
+        task?.cancel()
+        task = nil
+        generation += 1
+        measured = [:]
+        entries = document.measurements.map(Self.unresolved)
+        bump()
+    }
+
+    private func startDistances(_ jobs: [(UUID, MeasureElement, MeasureElement)]) {
+        guard !jobs.isEmpty else { return }
+        let generation = generation
+        task = Task { [weak self, kernel] in
+            for (id, a, b) in jobs {
+                if Task.isCancelled { return }
+                do {
+                    let found = try await kernel.shortestDistance(between: a, and: b)
+                    self?.landed(found, for: id, generation: generation)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    self?.landed(nil, for: id, generation: generation)
+                }
+            }
+        }
+    }
+
+    /// A distance for an older refresh than the latest is dropped.
+    private func landed(_ found: ShapeDistance?, for id: UUID, generation: Int) {
+        guard generation == self.generation, let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries[index].distance = found
+        entries[index].isMeasuring = false
+        bump()
+    }
+
+    /// Waits until no distance is being computed.
+    func waitForDistances() async {
+        while let running = task {
+            await running.value
+            if task == running { task = nil }
+        }
+    }
+
+    // MARK: - Drawing
+
+    /// The dimensions of every found measurement, as references, ids `kept/<id>/<n>`.
+    func dimensions(style: DimensionStyle, units: DocumentUnits) -> [OverlayDimension] {
+        guard let scene else { return [] }
+        return entries.flatMap { entry -> [OverlayDimension] in
+            guard let picks = entry.picks else { return [] }
+            let drawn = MeasureDimensions.dimensions(for: picks, readings: entry.readings, distance: entry.distance,
+                                                     topologies: topologies(of: picks, in: scene), style: style, units: units)
+            return drawn.enumerated().map { index, dimension in
+                var renamed = dimension
+                renamed.id = OverlayDimensionID("kept/\(entry.id.uuidString)/\(index)")
+                return renamed
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func bump() {
+        revision += 1
+        changed?()
+    }
+
+    private func identity(of pick: MeasurePick, in scene: MeasureScene) -> ObjectIdentifier? {
+        scene.solids.indices.contains(pick.solidIndex) ? ObjectIdentifier(scene.solids[pick.solidIndex]) : nil
+    }
+
+    private func topologies(of picks: [MeasurePick], in scene: MeasureScene) -> [Int: Topology] {
+        var result: [Int: Topology] = [:]
+        for pick in picks where scene.solids.indices.contains(pick.solidIndex) {
+            result[pick.solidIndex] = scene.solids[pick.solidIndex].topology
+        }
+        return result
+    }
+}

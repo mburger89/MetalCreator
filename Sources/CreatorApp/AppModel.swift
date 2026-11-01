@@ -51,6 +51,8 @@ public final class AppModel {
     }
     /// The Measure tool in progress, or `nil`. It is the viewport's tool while it runs.
     var measure: MeasureSession?
+    /// The measurements the person kept (`document.measurements`), followed through every evaluation. Replaced with the document.
+    private(set) var measureBook: MeasureBook
     /// The model dimension tool in progress (dimensions spec §3.5), or `nil`.
     public internal(set) var modelDimension: ModelDimensionSession?
     /// The driving dimension the tool just added, shown (not pinned) while its value box is open (`refreshDimensions()`).
@@ -123,6 +125,7 @@ public final class AppModel {
         graphInput = parts.input
         viewport = parts.viewport
         fieldPreview = Self.makeFieldPreview(kernel: kernel, parts: parts)
+        measureBook = MeasureBook(kernel: kernel, document: parts.document)
         self.fileURL = fileURL
         savedContent = GraphContent(graph: file.graph, definitions: file.definitions)
         connectParts()
@@ -153,6 +156,7 @@ public final class AppModel {
         graphInput = parts.input
         viewport = parts.viewport
         fieldPreview = Self.makeFieldPreview(kernel: kernel, parts: parts)
+        measureBook = MeasureBook(kernel: kernel, document: parts.document)
         fileURL = url
         savedContent = GraphContent(graph: file.graph, definitions: file.definitions)
         requestedScene = []
@@ -164,6 +168,7 @@ public final class AppModel {
         dimensionRouter.app = self
         viewport.dimensionEditor = dimensionRouter
         connectViewportEvents()
+        measureBook.changed = { [weak self] in self?.refreshDimensions() }
         sceneInputsChanged()
     }
 
@@ -175,7 +180,10 @@ public final class AppModel {
             await fieldPreview.waitForSampling()
             await sectionCaps.waitForCaps()
             await measure?.waitForDistance()
+            await measureBook.waitForDistances()
         } while document.isEvaluating || sceneTask != nil || fieldPreview.isSampling || sectionCaps.isComputing
         await viewport.waitForMeshes()
+        // The meshes landing shows the scene again, which measures the kept distances again.
+        await measureBook.waitForDistances()
     }
 }

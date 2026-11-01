@@ -20,6 +20,7 @@ extension AppModel {
             guard let self, let session, self.measure === session else { return }
             self.refreshDimensions()
         }
+        session.keep = { [weak self] in self?.measureBook.add($0) }
         measure = session
         session.sceneChanged(measureScene())
         viewport.tool = session
@@ -56,9 +57,10 @@ extension AppModel {
         if viewport.overlay != overlay { viewport.showOverlay(overlay) }
     }
 
-    /// The measurement's dimensions for the viewport: none while sketching or picking.
+    /// The kept measurements' dimensions, with Measure on or off, then the measurement in progress: none while sketching or picking.
     func measureDimensions() -> [OverlayDimension] {
         guard sketch == nil, pick == nil else { return [] }
-        return measure?.dimensions(style: viewport.dimensionStyle, units: units) ?? []
+        let style = viewport.dimensionStyle
+        return measureBook.dimensions(style: style, units: units) + (measure?.dimensions(style: style, units: units) ?? [])
     }
 }

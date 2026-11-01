@@ -84,7 +84,9 @@ extension AppModel {
         sectionCaps.follow(clip: section.shown?.clip, items: viewport.items, tolerance: viewport.displayTolerance)
         viewport.showSection(sectionCaps.section)
         // Measure resolves its anchors against the items and the section's pieces as they stand after this refresh.
-        measure?.sceneChanged(measureScene())
+        let measured = measureScene()
+        measure?.sceneChanged(measured)
+        measureBook.refresh(measured)
         let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
             : []
@@ -156,7 +158,7 @@ extension AppModel {
             _ = meshRefinement.revision
             _ = sectionCaps.revision
             // Measure compares the solids that landed with the ones its picks name, once they land.
-            if measure != nil { _ = viewport.items }
+            if measure != nil || !document.measurements.isEmpty { _ = viewport.items }
             _ = editor.selection
             _ = editor.dock
             _ = previewMode
