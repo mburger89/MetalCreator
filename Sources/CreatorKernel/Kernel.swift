@@ -61,6 +61,11 @@ public protocol Kernel: Actor {
     /// nearest point on each, in millimetres. An ID a solid doesn't have is `KernelError.invalidInput`. Like every operation
     /// it checks for cancellation on entry. The default refuses.
     func shortestDistance(between first: MeasureElement, and second: MeasureElement) throws -> ShapeDistance
+    /// How smoothly the two faces meet along `edge` of `solid` (G-b, edge continuity): the worst position, normal-angle and
+    /// normal-curvature gaps over 32 samples along the edge, normals oriented outward by the faces' orientation in the solid. A
+    /// seam or an edge with fewer than two distinct faces is `KernelError.unsupported`; an ID the solid doesn't have is
+    /// `KernelError.invalidInput`. Like every operation it checks for cancellation on entry. The default refuses.
+    func continuity(along edge: EdgeID, of solid: Solid) throws -> EdgeContinuity
 }
 
 extension Kernel {
@@ -82,6 +87,10 @@ extension Kernel {
 
     public func shortestDistance(between first: MeasureElement, and second: MeasureElement) throws -> ShapeDistance {
         throw KernelError.unsupported("measuring")
+    }
+
+    public func continuity(along edge: EdgeID, of solid: Solid) throws -> EdgeContinuity {
+        throw KernelError.unsupported("continuity")
     }
 }
 

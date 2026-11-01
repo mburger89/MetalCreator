@@ -21,6 +21,10 @@ final class MeasureBook {
         /// The kernel refused the distance for this basis; it reads "Couldn't measure" and is not asked again until a pick or a
         /// solid under it changes.
         var distanceFailed = false
+        /// A single picked edge's continuity, `nil` for anything else or an edge that joins fewer than two faces.
+        var continuity: EdgeContinuity?
+        /// The kernel failed to measure the continuity for this basis.
+        var continuityFailed = false
         var isApproximate: Bool
         var meshResolution: Double?
         var isMeasuring: Bool
@@ -35,7 +39,8 @@ final class MeasureBook {
     @ObservationIgnored private let kernel: any Kernel
     @ObservationIgnored private let document: DocumentModel
     @ObservationIgnored private var scene: MeasureScene?
-    /// What each entry's distance was measured (or is being measured) for: its picks and the identity of the solids under them.
+    /// What each entry's distance or continuity was measured (or is being measured) for: its picks and the identity of the solids
+    /// under them.
     @ObservationIgnored private var measured: [UUID: Basis] = [:]
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
@@ -43,21 +48,11 @@ final class MeasureBook {
     /// The latest distance that landed for each entry and what it was measured for, kept while the entry is lost, so a scene that
     /// loses a pick for one pass (a sketch closing) and finds it again does not measure it again.
     @ObservationIgnored private var settled: [UUID: (basis: Basis, distance: ShapeDistance)] = [:]
+    /// The same for a single edge's continuity.
+    @ObservationIgnored private var settledContinuity: [UUID: (basis: Basis, continuity: EdgeContinuity)] = [:]
     @ObservationIgnored private var hints: [UUID: [Int]] = [:]
     /// The basis each entry's distance failed for (the kernel threw), so it is not asked again while nothing under it changes.
     @ObservationIgnored private var failed: [UUID: Basis] = [:]
-
-    private struct Job {
-        var id: UUID
-        var basis: Basis
-        var first: MeasureElement
-        var second: MeasureElement
-    }
-
-    private struct Basis: Equatable {
-        var picks: [MeasurePick]
-        var solids: [ObjectIdentifier]
-    }
 
     init(kernel: any Kernel, document: DocumentModel) {
         self.kernel = kernel
@@ -83,6 +78,7 @@ final class MeasureBook {
     func remove(_ id: UUID) {
         document.measurements.removeAll { $0.id == id }
         settled[id] = nil
+        settledContinuity[id] = nil
         failed[id] = nil
         hints[id] = nil
         refreshFromLastScene()
@@ -92,6 +88,7 @@ final class MeasureBook {
         guard !document.measurements.isEmpty else { return }
         document.measurements = []
         settled = [:]
+        settledContinuity = [:]
         failed = [:]
         hints = [:]
         refreshFromLastScene()
@@ -131,19 +128,16 @@ final class MeasureBook {
                               meshResolution: resolved.compactMap { MeasureResolver.meshResolution(of: $0, in: scene) }.max(),
                               isMeasuring: false)
             if resolved.count == 2, entry.distance == nil {
-                let unchanged = measured[kept.id] == basis ? previous[kept.id] : nil
-                if let unchanged, !unchanged.isMeasuring {
-                    entry.distance = unchanged.distance
-                    entry.distanceFailed = unchanged.distanceFailed
-                } else if unchanged == nil, failed[kept.id] == basis {
-                    entry.distanceFailed = true
-                } else if unchanged == nil, let again = settled[kept.id], again.basis == basis {
-                    entry.distance = again.distance
-                } else if let a = resolved[0].element(in: scene.solids), let b = resolved[1].element(in: scene.solids) {
-                    entry.isMeasuring = true
-                    pending.append(Job(id: kept.id, basis: basis, first: a, second: b))
-                    // Measuring the same picks on the same solids already: that work is left to finish.
-                    if unchanged == nil { isNewWork = true }
+                if let job = followDistance(&entry, id: kept.id, basis: basis, previous: previous[kept.id], picks: resolved,
+                                            solids: scene.solids) {
+                    pending.append(job.job)
+                    isNewWork = isNewWork || job.isNew
+                }
+            } else if resolved.count == 1, case let .edge(index, edge) = resolved[0], scene.solids.indices.contains(index) {
+                if let job = followContinuity(&entry, id: kept.id, basis: basis, previous: previous[kept.id],
+                                              work: .continuity(scene.solids[index], edge)) {
+                    pending.append(job.job)
+                    isNewWork = isNewWork || job.isNew
                 }
             }
             next.append(entry)
@@ -159,6 +153,47 @@ final class MeasureBook {
             startDistances(pending)
         }
         bump(notifying: notifying)
+    }
+
+    /// A pair's distance: copied from the entry before when nothing under it changed, marked failed when it failed for this
+    /// basis, taken from the last one that landed, else a job to ask the kernel (and whether it is new work: measuring the same
+    /// picks on the same solids already is left to finish).
+    private func followDistance(_ entry: inout Entry, id: UUID, basis: Basis, previous: Entry?, picks: [MeasurePick],
+                                solids: [Solid]) -> (job: Job, isNew: Bool)? {
+        let unchanged = measured[id] == basis ? previous : nil
+        if let unchanged, !unchanged.isMeasuring {
+            entry.distance = unchanged.distance
+            entry.distanceFailed = unchanged.distanceFailed
+        } else if unchanged == nil, failed[id] == basis {
+            entry.distanceFailed = true
+        } else if unchanged == nil, let again = settled[id], again.basis == basis {
+            entry.distance = again.distance
+        } else if let a = picks[0].element(in: solids), let b = picks[1].element(in: solids) {
+            entry.isMeasuring = true
+            return (Job(id: id, basis: basis, work: .distance(a, b)), unchanged == nil)
+        }
+        return nil
+    }
+
+    /// A single picked edge's continuity: copied from the entry before when nothing under it changed, marked failed when it
+    /// failed for this basis, else a job to ask the kernel (and whether it is new work).
+    private func followContinuity(_ entry: inout Entry, id: UUID, basis: Basis, previous: Entry?,
+                                  work: Work) -> (job: Job, isNew: Bool)? {
+        let unchanged = measured[id] == basis ? previous : nil
+        if let unchanged, !unchanged.isMeasuring {
+            (entry.continuity, entry.continuityFailed) = (unchanged.continuity, unchanged.continuityFailed)
+            return nil
+        }
+        if unchanged == nil, failed[id] == basis {
+            entry.continuityFailed = true
+            return nil
+        }
+        if unchanged == nil, let again = settledContinuity[id], again.basis == basis {
+            entry.continuity = again.continuity
+            return nil
+        }
+        entry.isMeasuring = true
+        return (Job(id: id, basis: basis, work: work), unchanged == nil)
     }
 
     /// Points and outlines are measured here, in Swift, at once: no kernel call and never a failure.
@@ -189,13 +224,24 @@ final class MeasureBook {
             for job in jobs {
                 if Task.isCancelled { return }
                 do {
-                    let found = try await kernel.shortestDistance(between: job.first, and: job.second)
-                    self?.landed(found, for: job, generation: generation)
+                    switch job.work {
+                    case let .distance(first, second):
+                        let found = try await kernel.shortestDistance(between: first, and: second)
+                        self?.landed(found, for: job, generation: generation)
+                    case let .continuity(solid, edge):
+                        let found = try await kernel.continuity(along: edge, of: solid)
+                        self?.continuityLanded(found, failed: false, for: job, generation: generation)
+                    }
                 } catch is CancellationError {
                     return
                 } catch {
-                    // Any other failure reads "Couldn't measure" until a pick or a solid under the pair changes.
-                    self?.landed(nil, for: job, generation: generation)
+                    // Any other failure reads "Couldn't measure" until a pick or a solid under the pair changes; an edge that
+                    // joins fewer than two faces has no continuity, which is no failure.
+                    switch job.work {
+                    case .distance: self?.landed(nil, for: job, generation: generation)
+                    case .continuity:
+                        self?.continuityLanded(nil, failed: !isUnsupported(error), for: job, generation: generation)
+                    }
                 }
             }
         }
@@ -215,6 +261,18 @@ final class MeasureBook {
         } else {
             failed[id] = job.basis
         }
+        entries[index].isMeasuring = false
+        bump()
+    }
+
+    private func continuityLanded(_ found: EdgeContinuity?, failed didFail: Bool, for job: Job, generation: Int) {
+        let id = job.id
+        guard generation == self.generation, measured[id] == job.basis,
+              let index = entries.firstIndex(where: { $0.id == id }) else { return }
+        entries[index].continuity = found
+        entries[index].continuityFailed = didFail
+        if let found { settledContinuity[id] = (job.basis, found) }
+        failed[id] = didFail ? job.basis : nil
         entries[index].isMeasuring = false
         bump()
     }
@@ -262,4 +320,25 @@ final class MeasureBook {
         }
         return result
     }
+}
+
+private func isUnsupported(_ error: any Error) -> Bool {
+    if case KernelError.unsupported = error { return true }
+    return false
+}
+
+private struct Job {
+    var id: UUID
+    var basis: Basis
+    var work: Work
+}
+
+private enum Work {
+    case distance(MeasureElement, MeasureElement)
+    case continuity(Solid, EdgeID)
+}
+
+private struct Basis: Equatable {
+    var picks: [MeasurePick]
+    var solids: [ObjectIdentifier]
 }

@@ -77,6 +77,10 @@ public actor KernelUnavailable: Kernel {
         try refuse()
     }
 
+    public func continuity(along edge: EdgeID, of solid: Solid) throws -> EdgeContinuity {
+        try refuse()
+    }
+
     /// Checks for cancellation on entry, as every kernel does, then refuses.
     private func refuse() throws -> Never {
         try Task.checkCancellation()

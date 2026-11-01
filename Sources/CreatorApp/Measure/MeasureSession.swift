@@ -22,11 +22,15 @@ final class MeasureSession: ViewportTool {
     private(set) var isLost = false
     private(set) var hover: MeasurePick?
     private(set) var readings: [MeasureReading] = []
-    private(set) var distance: ShapeDistance?
+    internal(set) var distance: ShapeDistance?
     /// A distance is being computed.
-    private(set) var isMeasuring = false
+    internal(set) var isMeasuring = false
     /// The kernel's refusal of the last distance, in its words.
-    private(set) var problem: String?
+    internal(set) var problem: String?
+    /// How the two faces of a single picked edge meet; `nil` for anything else, an edge that joins fewer than two faces, or while asking.
+    internal(set) var continuity: EdgeContinuity?
+    /// The kernel failed (other than by saying the edge has no two faces) to measure the picked edge's continuity.
+    internal(set) var continuityFailed = false
     /// The overlay (hover and picks) changed: the app shows it again.
     @ObservationIgnored var overlayChanged: (@MainActor () -> Void)?
     /// The picks, the readings or the distance changed: the app shows the dimensions again.
@@ -35,9 +39,9 @@ final class MeasureSession: ViewportTool {
     @ObservationIgnored var keep: (@MainActor (KeptMeasurement) -> Void)?
 
     @ObservationIgnored private(set) weak var viewport: ViewportModel?
-    @ObservationIgnored private let kernel: any Kernel
-    @ObservationIgnored private var task: Task<Void, Never>?
-    @ObservationIgnored private var generation = 0
+    @ObservationIgnored let kernel: any Kernel
+    @ObservationIgnored var task: Task<Void, Never>?
+    @ObservationIgnored var generation = 0
     /// The element last heard under the pointer; `pointerMoved` snaps it again as the pointer or the camera moves.
     @ObservationIgnored private var lastTarget: PickTarget?
     @ObservationIgnored private var hoverSolid: ObjectIdentifier?
@@ -289,48 +293,19 @@ final class MeasureSession: ViewportTool {
         pickedSolids = new.compactMap(identity(of:))
         distance = nil
         problem = nil
+        continuity = nil
+        continuityFailed = false
         isMeasuring = false
         readings = MeasureReadings.readings(for: new, topologies: topologies())
         if new.count == 2, !isLost { startDistance(new[0], new[1]) }
-        bumpOverlay()
-        dimensionsChanged?()
-    }
-
-    private func startDistance(_ first: MeasurePick, _ second: MeasurePick) {
-        let generation = generation
-        guard let a = first.element(in: solids), let b = second.element(in: solids) else { return }
-        distance = PolylineDistance.shortest(a, b)
-        guard distance == nil else { return }
-        isMeasuring = true
-        task = Task { [weak self, kernel] in
-            do {
-                let found = try await kernel.shortestDistance(between: a, and: b)
-                self?.landed(found, generation: generation)
-            } catch is CancellationError {
-                return
-            } catch {
-                self?.refused((error as? KernelError)?.userMessage ?? error.localizedDescription, generation: generation)
-            }
+        if new.count == 1, !isLost, case let .edge(index, id) = new[0], solids.indices.contains(index) {
+            startContinuity(solids[index], id)
         }
-    }
-
-    /// A distance for an older pair than the picks now are is dropped.
-    private func landed(_ found: ShapeDistance, generation: Int) {
-        guard generation == self.generation else { return }
-        distance = found
-        isMeasuring = false
         bumpOverlay()
         dimensionsChanged?()
     }
 
-    private func refused(_ message: String, generation: Int) {
-        guard generation == self.generation else { return }
-        problem = message
-        isMeasuring = false
-        bumpOverlay()
-    }
-
-    private func bumpOverlay() {
+    func bumpOverlay() {
         overlayChanged?()
     }
 
