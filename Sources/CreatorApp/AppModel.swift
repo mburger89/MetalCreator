@@ -145,6 +145,7 @@ public final class AppModel {
         pick = nil
         endModelDimension()
         endMeasure()
+        measureBook.stop()
         sketch?.stop()
         sketch = nil
         previewMode = .final
@@ -181,9 +182,9 @@ public final class AppModel {
             await sectionCaps.waitForCaps()
             await measure?.waitForDistance()
             await measureBook.waitForDistances()
+            // The meshes landing shows the scene again, which measures the kept distances again: go round once more for that.
+            await viewport.waitForMeshes()
         } while document.isEvaluating || sceneTask != nil || fieldPreview.isSampling || sectionCaps.isComputing
-        await viewport.waitForMeshes()
-        // The meshes landing shows the scene again, which measures the kept distances again.
-        await measureBook.waitForDistances()
+            || measureBook.entries.contains(where: \.isMeasuring)
     }
 }

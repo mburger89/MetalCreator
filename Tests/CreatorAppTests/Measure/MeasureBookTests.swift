@@ -2,6 +2,7 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import Foundation
+import Synchronization
 import Testing
 @testable import CreatorApp
 @testable import CreatorViewport
@@ -100,6 +101,38 @@ struct MeasureBookTests {
         let entry = fixture.book.entries[0]
         #expect(abs(try #require(entry.distance).distance - 30) < 1e-9)
         #expect(!entry.isMeasuring)
+    }
+
+    @Test func anUnchangedRefreshLetsTheRunningDistanceFinish() async throws {
+        let kernel = FakeKernel()
+        let gate = FirstCallGate()
+        let calls = Mutex(0)
+        await kernel.setMeasureHook {
+            calls.withLock { $0 += 1 }
+            gate.enter()
+        }
+        let fixture = try await Fixture.open(kernel: kernel)
+        fixture.book.add(fixture.measurement)
+        fixture.book.refresh(fixture.app.measureScene())
+        fixture.book.refresh(fixture.app.measureScene())
+        gate.release()
+        await fixture.app.settle()
+        #expect(calls.withLock { $0 } == 1, "the running measurement was not asked for again")
+        #expect(abs(try #require(fixture.book.entries[0].distance).distance - 10) < 1e-9)
+        #expect(!fixture.book.entries[0].isMeasuring)
+    }
+
+    @Test func removingAnEntryWhileItMeasuresDropsTheLateResult() async throws {
+        let kernel = FakeKernel()
+        let gate = FirstCallGate()
+        await kernel.setMeasureHook { gate.enter() }
+        let fixture = try await Fixture.open(kernel: kernel)
+        fixture.book.add(fixture.measurement)
+        fixture.book.remove(fixture.measurement.id)
+        gate.release()
+        await fixture.app.settle()
+        #expect(fixture.book.entries.isEmpty)
+        #expect(fixture.app.document.measurements.isEmpty)
     }
 
     @Test func savedMeasurementsResolveAfterOpen() async throws {

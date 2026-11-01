@@ -82,6 +82,7 @@ final class MeasureBook {
     func refresh(_ scene: MeasureScene) {
         self.scene = scene
         var pending: [(UUID, MeasureElement, MeasureElement)] = []
+        var isNewWork = false
         let previous = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var next: [Entry] = []
         var bases: [UUID: Basis] = [:]
@@ -99,33 +100,44 @@ final class MeasureBook {
                               meshResolution: resolved.compactMap { MeasureResolver.meshResolution(of: $0, in: scene) }.max(),
                               isMeasuring: false)
             if resolved.count == 2 {
-                // A distance still being measured is measured again: this refresh cancels the task that was making it.
-                if measured[kept.id] == basis, let old = previous[kept.id], !old.isMeasuring {
-                    entry.distance = old.distance
+                let unchanged = measured[kept.id] == basis ? previous[kept.id] : nil
+                if let unchanged, !unchanged.isMeasuring {
+                    entry.distance = unchanged.distance
                 } else if let a = resolved[0].element(in: scene.solids), let b = resolved[1].element(in: scene.solids) {
                     entry.isMeasuring = true
                     pending.append((kept.id, a, b))
+                    // Measuring the same picks on the same solids already: that work is left to finish.
+                    if unchanged == nil { isNewWork = true }
                 }
             }
             next.append(entry)
         }
-        task?.cancel()
-        task = nil
-        generation += 1
         measured = bases
         entries = next
-        startDistances(pending)
+        // Cancelling a task does not stop a kernel call already running, so a refresh that changed nothing under the running
+        // distances leaves them alone; any change restarts every unfinished one.
+        if isNewWork || pending.isEmpty || task == nil {
+            task?.cancel()
+            task = nil
+            generation += 1
+            startDistances(pending)
+        }
         bump()
     }
 
     /// Entries only (no scene yet): every measurement reads "no longer found" until the first evaluation.
     private func rebuild() {
-        task?.cancel()
-        task = nil
-        generation += 1
+        stop()
         measured = [:]
         entries = document.measurements.map(Self.unresolved)
         bump()
+    }
+
+    /// Drops the distances being measured: the book is going away or has nothing to follow.
+    func stop() {
+        task?.cancel()
+        task = nil
+        generation += 1
     }
 
     private func startDistances(_ jobs: [(UUID, MeasureElement, MeasureElement)]) {
@@ -137,9 +149,8 @@ final class MeasureBook {
                 do {
                     let found = try await kernel.shortestDistance(between: a, and: b)
                     self?.landed(found, for: id, generation: generation)
-                } catch is CancellationError {
-                    return
                 } catch {
+                    // A task we cancelled has an older generation, so its result is dropped; any other failure reads as none.
                     self?.landed(nil, for: id, generation: generation)
                 }
             }
