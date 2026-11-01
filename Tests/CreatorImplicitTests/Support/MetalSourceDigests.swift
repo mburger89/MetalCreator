@@ -1,5 +1,5 @@
 /// The Metal source of every GPU fixture, as `KernelSource.fnv1a` digests, recorded on master `7a010ec`'s generator before plan xp-c gave it a
-/// dialect (`HLSLSourceTests`): the MSL a Mac compiles must not change by a byte. A 7c change that alters the MSL on purpose records the table again.
+/// dialect (`HLSLSourceTests`): the MSL a Mac compiles must not change by a byte. The G2 and G3 fixtures were recorded with the higher smooth minimums (Task 2 of G-a); every other entry is unchanged by them. A 7c change that alters the MSL on purpose records the table again.
 enum MetalSourceDigests {
     static let table: [String: String] = [
         "baked": "5dcf11b6502d3ee1",
@@ -52,6 +52,11 @@ enum MetalSourceDigests {
         "sphere": "4460a493a7d3297e",
         "subtract": "6c88ac3913648f71",
         "union": "0fa51c30aaceb243",
+        "struts G2": "50a935caac7f7669",
+        "subtract G3": "2bd7388ab088bd5a",
+        "three-child union G2": "6ebc2584d839f0d8",
+        "three-child union G3": "b5fd39a13625ff12",
+        "union G2": "8366315befc59bf5",
         "voronoi foam, face outside a cylinder": "b1f583d3f354e1ae",
         "voronoi foam, graded wall": "a351e839d7a7c71a",
         "voronoi foam, spherical beside the region": "10fe0e280847c1e9",

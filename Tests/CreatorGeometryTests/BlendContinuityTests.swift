@@ -25,6 +25,14 @@ struct BlendContinuityTests {
     }
 
     @Test(arguments: BlendContinuity.allCases)
+    func aWidthThatIsNotPositiveHasNoDip(_ continuity: BlendContinuity) {
+        for width in [0.0, -1.5] {
+            #expect(continuity.dip(width: width, gap: 0) == 0)
+            #expect(continuity.dip(width: width, gap: 2) == 0)
+        }
+    }
+
+    @Test(arguments: BlendContinuity.allCases)
     func zeroWidthIsMin(_ continuity: BlendContinuity) {
         #expect(FieldMath.smoothMinimum(1.5, -2, width: 0, continuity: continuity) == -2)
         #expect(FieldMath.smoothMinimum(0.25, 0.25, width: 0, continuity: continuity) == 0.25)

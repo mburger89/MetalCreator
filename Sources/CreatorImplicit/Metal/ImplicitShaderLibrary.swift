@@ -8,7 +8,6 @@
 enum ImplicitShaderLibrary {
     static let source = core + "\n\n" + lattices
 
-    /// Everything but the lattices (`ImplicitShaderLibrary+Lattices`).
     static let core = """
     #include <metal_stdlib>
     using namespace metal;

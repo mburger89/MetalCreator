@@ -62,9 +62,31 @@ struct ImplicitSolidPropertyTests {
         #expect(!g1.description.contains("G1"))
         #expect(ImplicitSolid.union([sphere, sphere], blend: .constant(2), continuity: .g2).description.contains("G2"))
         #expect(ImplicitSolid.subtract([sphere, sphere], blend: .constant(2), continuity: .g3).description.contains("G3"))
+        func struts(_ continuity: BlendContinuity) -> ImplicitSolid {
+            .struts(StrutLattice(cell: .cubic, cells: LatticeFixtures.cells(6), radius: .constant(0.5), blend: 0.5,
+                                 region: LatticeFixtures.region, nodeContinuity: continuity))
+        }
+        #expect(!struts(.g1).description.contains("G1"))
+        #expect(struts(.g3).description.contains("G3"))
     }
 
-    /// The G2 and G3 blends (CPU only until the GPU emits them, Task 2) keep the Lipschitz bound, graded or not.
+    /// A three-child union of each continuity is the left fold of the smooth minimum over the children.
+    @Test(arguments: BlendContinuity.allCases)
+    func aThreeChildBlendIsALeftFold(_ continuity: BlendContinuity) {
+        let solid = GPUFixtures.threeChildUnion(continuity)
+        guard case .union(let children, _, _) = solid else { return }
+        let points = Self.points(in: ImplicitSolid.grown(solid.bounds, by: 3), count: 400, stream: 8)
+        let distances = children.map { $0.signedDistances(at: points) }
+        let got = solid.signedDistances(at: points)
+        for index in points.indices {
+            let folded = distances.dropFirst().reduce(distances[0][index]) {
+                FieldMath.smoothMinimum($0, $1[index], width: 2.5, continuity: continuity)
+            }
+            #expect(abs(got[index] - folded) < 1e-12)
+        }
+    }
+
+    /// The G2 and G3 blends keep the Lipschitz bound, graded or not.
     @Test(arguments: [BlendContinuity.g2, .g3])
     func higherContinuitiesKeepTheLipschitzBound(_ continuity: BlendContinuity) {
         let (sphere, cylinder, box) = (ImplicitFixtures.sphere, ImplicitFixtures.cylinder, ImplicitFixtures.box)

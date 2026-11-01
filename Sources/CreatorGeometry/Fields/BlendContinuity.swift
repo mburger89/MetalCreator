@@ -6,8 +6,9 @@ public enum BlendContinuity: Int, Hashable, Sendable, Codable, CaseIterable {
     case g2 = 1
     case g3 = 2
 
-    /// The dip below the plain minimum for a blend of width `width` and a gap `|a − b|` of `gap`.
+    /// The dip below the plain minimum for a blend of width `width` and a gap `|a − b|` of `gap`; 0 when the width is not positive.
     public func dip(width: Double, gap: Double) -> Double {
+        guard width > 0 else { return 0 }
         let h = max(width - gap, 0) / width
         switch self {
         case .g1: return h * h * width / 4

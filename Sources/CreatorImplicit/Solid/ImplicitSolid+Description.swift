@@ -36,7 +36,8 @@ extension ImplicitSolid: CustomStringConvertible {
             return "\(lattice.type.name.lowercased())(cell \(Self.text(lattice.cells.size)), \(lattice.form.name.lowercased()), "
                 + "t = \(Self.text(lattice.thickness))\(Self.stretchText(lattice.cells))\(Self.mappingText(lattice.mapping)))"
         case .struts(let lattice):
-            let joint = lattice.blend > 0 ? ", blend \(Self.mm(lattice.blend))" : ""
+            let order = lattice.nodeContinuity == .g1 ? "" : ", \(lattice.nodeContinuity.label)"
+            let joint = (lattice.blend > 0 ? ", blend \(Self.mm(lattice.blend))" : "") + order
             return "\(lattice.cell.name.lowercased())(cell \(Self.text(lattice.cells.size)), r = \(Self.text(lattice.radius))"
                 + "\(joint)\(Self.stretchText(lattice.cells))\(Self.mappingText(lattice.mapping)))"
         case .voronoi(let lattice):

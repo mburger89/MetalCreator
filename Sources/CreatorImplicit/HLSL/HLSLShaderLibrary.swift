@@ -49,13 +49,13 @@ enum HLSLShaderLibrary {
 
     """
 
-    /// For a kernel that calls `sdf`: the packed buffers (always slots 0 and 1), the library and the shape's `sdf`.
-    static func withSDF(_ sdf: String) -> String {
+    /// For a kernel that calls `sdf`: the packed buffers (always slots 0 and 1), the library, `extras` and the shape's `sdf`.
+    static func withSDF(_ sdf: String, extras: String = "") -> String {
         """
         StructuredBuffer<float> floats : register(t0, space0);
         StructuredBuffer<int> ints : register(t1, space0);
 
-        """ + math + "\n" + core + "\n" + keepBuffers + "\n" + lattices + "\n" + sdf
+        """ + math + "\n" + core + "\n" + keepBuffers + "\n" + lattices + extras + "\n" + sdf
     }
 
     /// DXC drops a declared buffer nothing reads, and the slots after it shift. A `.sphere` never reads `ints` and an empty union reads
