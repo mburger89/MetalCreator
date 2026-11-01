@@ -5,7 +5,8 @@ import Foundation
 /// follow the real naming scheme, but the geometry is NOT correct. Never run the
 /// kernel conformance suite against it (spec §5.4).
 public actor FakeKernel: Kernel {
-    public private(set) var operationLog: [String] = []
+    /// `internal(set)` so `FakeKernel+Continuity.swift` can log (the actor body is at its lint length).
+    public internal(set) var operationLog: [String] = []
     /// The profile of every fillet asked for, and the tangent-only counts a fillet reports (a test sets them).
     public private(set) var filletProfiles: [FilletProfile] = []
     public private(set) var filletTangentOnly: (corners: Int, joins: Int) = (0, 0)
@@ -13,6 +14,7 @@ public actor FakeKernel: Kernel {
     public private(set) var tessellationAngles: [Double] = []
     var sectionHook: (@Sendable () throws -> Void)?
     var measureHook: (@Sendable () throws -> Void)?
+    var continuityHook: (@Sendable () throws -> Void)?
 
     public init() {}
 
