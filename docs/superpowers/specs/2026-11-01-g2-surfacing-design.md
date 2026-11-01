@@ -23,7 +23,7 @@ continuity as a number, not only by eye.
   representations of the circle), so it is G1 at both seams. `BRepOffsetAPI_MakeFilling` takes G0, G1 or G2 constraints
   along edges but is a least-squares plate fit (default curvature tolerance 0.1) and silently drops constraints it can't
   meet. `BRepOffsetAPI_ThruSections` (our loft) has no end conditions. No OCCT tool makes a curvature-continuous fillet.
-- **Implicit smooth minimum (Quilez):** quadratic is C1 (G1 isosurfaces), cubic C2 (G2), quartic C3 (G3); each is at or
+- **Implicit smooth minimum (Quilez):** quadratic is C1 (G1 isosurfaces), cubic C2 (G2), and a quartic he calls C3 (it is C2 at the blend's edge; see G-a); each is at or
   below `min(a, b)` and 1-Lipschitz when its inputs are.
 
 ## The work, in order **(call)**
@@ -75,9 +75,13 @@ documents when they come up, with the decisions recorded under "Later".
 |---|---|---|
 | G1 (today) | `min(a, b) − h² · k / 4` | `k / 4` |
 | G2 | `min(a, b) − h³ · k / 6` | `k / 6` |
-| G3 | `min(a, b) − h³ (4 − h) · k / 16` | `3k / 16` |
+| G3 | `min(a, b) − h⁴ (h² − 6h + 10) · k / 32` | `5k / 32` |
 
-These are Quilez's polynomial smooth minimums without his rescaling of `k`, so the blend starts at the same `|a − b|`
+G1 and G2 are Quilez's polynomial smooth minimums without his rescaling of `k`. G3 is not his quartic (that one,
+`h³(4 − h)k/16`, starts as `h³` and so is only C2 at the blend's edge): it is the smooth minimum whose second derivative is
+the kernel `(15/16)(1 − s²)²` over `s = |a − b|/k` (the same construction gives the G1 and G2 rows from a constant and a tent
+kernel), so it vanishes to fourth order at the edge and has no odd derivative at `a = b`: C3 (erratum 2026-11-01, found by
+G-a Task 1). All three use the same `k`, so the blend starts at the same `|a − b|`
 for every continuity and the joint is slightly shallower for G2 (**call**: equal reach rather than equal depth, so
 switching continuity never moves where the blend starts on the part). Intersect and subtract use the same function as
 today (`−smin(−a, −b)`, `−smin(−a, b)`).
@@ -86,14 +90,17 @@ today (`−smin(−a, −b)`, `−smin(−a, b)`).
   `g2`, `g3`) beside their `Grading`, so the generated GPU source differs by continuity (a function per continuity in the
   MSL library and its HLSL twin, every float `precise` as D21 requires) and numbers stay in buffers.
 - **Bounds:** the lipschitz term for a graded blend (`blend.slope / 4` today) becomes the continuity's own bound on
-  `∂(dip)/∂k`, derived and pinned by a test that samples it (the cubic's is 1/6; the builder derives the quartic's).
+  `∂(dip)/∂k`, derived and pinned by a test that samples it (the cubic's is 1/6, G3's 5/32 by the same rule; the test confirms each by sampling).
   `exactReach` is unchanged.
 - **The node:** Union, Subtract and Intersect get a `continuity` integer socket (segmented: G1, G2, G3), shown with the
   blend. The lattice nodes get the same beside `blend`; on Strut Lattice the one socket also governs its `node blend` (the
   rounding where struts meet, today a quadratic smooth minimum of its own), so the strut lattice value carries a
   `BlendContinuity` too (**call**: strut joints are where zebra gets read, and one setting per node keeps the inspector
   simple).
-- **Defaults and old files (call):** a new node defaults to **G2** (the reason the user asked); each of these node types
+- **Defaults and old files (call):** a new Union, Subtract or Intersect defaults to **G2** (the reason the user asked); a new TPMS,
+  Strut Lattice or Voronoi Lattice defaults to **G1** (erratum 2026-11-01, found by G-a Task 4: the skin join's 1 mm blend is tuned to
+  make lattices printable, and on the lightweight bracket G1 gives 0 voids and 0 thin places, G2 2 voids, G3 1 void, and G2/G3 widened
+  to G1's depth 2 thin places; G2 and G3 stay selectable); each of these node types
   goes up one `typeVersion`, and its `migrate` stores G1 in a node saved before, so old files keep their shape. TPMS,
   Strut Lattice and Voronoi Lattice go from 2 to 3 (their 2's migration still stores blend 0 first).
 - **Tests:** the CPU formulas against closed forms (value and the first, second and third derivative continuity at
