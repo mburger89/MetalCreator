@@ -203,6 +203,20 @@ struct SectionCapModelTests {
         #expect(model.slicesStarted == 3 && model.preparesDone == 1)
     }
 
+    @Test func aWeldOfAPartThatLeftTheSceneIsDropped() async {
+        let (first, second) = (meshSolid(size: 10), meshSolid(size: 20))
+        let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)
+        let clip = ViewportClip(origin: Vector3(0, 0, 5), normal: .unitZ)
+        model.follow(clip: clip, items: [ViewportItem(solid: first)])
+        await model.waitForCaps()
+        #expect(model.weldsKept == 1)
+        model.follow(clip: clip, items: [ViewportItem(solid: second)])
+        await model.waitForCaps()
+        #expect(model.weldsKept == 1 && model.preparesDone == 2)
+        model.follow(clip: nil, items: [])
+        #expect(model.weldsKept == 0)
+    }
+
     @Test func aBurstOfMovesOnAMeshPartStartsAtMostTwoSlices() async throws {
         let solid = meshSolid(size: 10)
         let model = SectionCapModel(kernel: FakeKernel(), tolerance: 0.05)

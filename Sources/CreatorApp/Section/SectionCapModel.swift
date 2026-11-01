@@ -39,6 +39,8 @@ final class SectionCapModel {
     /// The weld of the last few mesh solids, least recently used first. The solid is kept so its identity cannot be reused.
     @ObservationIgnored private var welds: [(solid: Solid, prepared: MeshSlicer.Prepared)] = []
     private static let weldCacheSize = 8
+    /// How many welds are kept (for tests: a part that left the scene is not).
+    var weldsKept: Int { welds.count }
 
     /// What one computation is asked to cut.
     private struct Request {
@@ -79,6 +81,8 @@ final class SectionCapModel {
             return
         }
         let capped = items.filter { !$0.isGhost && !$0.isGuide }.map(\.solid)
+        // A weld of a part that is no longer shown (a preview pass replaced it) is of no use again.
+        welds.removeAll { weld in !capped.contains { $0 === weld.solid } }
         let key = Key(clip: clip, solids: capped, tolerance: tolerance ?? defaultTolerance)
         guard key != followed else { return }
         followed = key
@@ -184,6 +188,7 @@ final class SectionCapModel {
     }
 
     private func clear() {
+        welds.removeAll()
         guard followed != nil || section != nil || problem != nil || isComputing else { return }
         running?.cancel()
         pending = nil
