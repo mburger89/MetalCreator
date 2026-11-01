@@ -9,6 +9,4 @@ struct MeasureScene {
     var pickable: [Bool]
     var parts: [SectionedPart]
     var plane: Plane?
-    /// The viewport's display mesh of a solid, read on the main actor.
-    var displayMesh: @MainActor (Solid) -> DisplayMesh?
 }

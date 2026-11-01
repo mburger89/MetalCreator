@@ -20,7 +20,7 @@ extension AppModel {
             guard let self, let session, self.measure === session else { return }
             self.refreshDimensions()
         }
-        session.keep = { [weak self] in self?.measureBook.add($0) }
+        session.keep = { [weak self, weak session] in self?.measureBook.add($0, hints: session?.solidHints ?? []) }
         measure = session
         session.sceneChanged(measureScene())
         viewport.tool = session
@@ -31,8 +31,7 @@ extension AppModel {
     func measureScene() -> MeasureScene {
         let items = viewport.items
         return MeasureScene(solids: items.map(\.solid), pickable: items.map { !$0.isGhost && !$0.isGuide },
-                            parts: sectionCaps.parts, plane: sectionCaps.plane,
-                            displayMesh: { [viewport] in viewport.displayMesh(of: $0) })
+                            parts: sectionCaps.parts, plane: sectionCaps.plane)
     }
 
     /// Ends Measure and gives the viewport back; the viewport's tool is cleared only when it is still this one.

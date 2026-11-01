@@ -214,7 +214,7 @@ struct MeasureSceneChangeTests {
     }
 
     static func scene(_ solids: [Solid]) -> MeasureScene {
-        MeasureScene(solids: solids, pickable: solids.map { _ in true }, parts: [], plane: nil, displayMesh: { _ in nil })
+        MeasureScene(solids: solids, pickable: solids.map { _ in true }, parts: [], plane: nil)
     }
 
     @Test func aMeasurementSurvivesChangesToOtherItemsAndGoesLostWhenAPickedPartChanges() async throws {

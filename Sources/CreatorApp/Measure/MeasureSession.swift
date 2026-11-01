@@ -13,6 +13,9 @@ import Observation
 final class MeasureSession: ViewportTool {
     /// The current measurement as it would be stored: one or two anchors that name what was picked without a scene.
     private(set) var anchors: [MeasureAnchor] = []
+    /// The solid index each anchor was picked on, or last resolved on, in step with `anchors`: tags are shared between parts built
+    /// from one feature, so the part stays the one the person clicked.
+    private(set) var solidHints: [Int] = []
     /// The anchors resolved in the latest scene; always `anchors` read again after an edit.
     private(set) var picks: [MeasurePick] = []
     /// Some anchor no longer resolves in the scene (the part it named changed or went, or the section it stood on is off).
@@ -58,7 +61,7 @@ final class MeasureSession: ViewportTool {
         self.viewport = viewport
         let items = viewport.items
         scene = MeasureScene(solids: items.map(\.solid), pickable: items.map { !$0.isGhost && !$0.isGuide }, parts: [],
-                             plane: nil, displayMesh: { [weak viewport] in viewport?.displayMesh(of: $0) })
+                             plane: nil)
         // The viewport tells a tool nothing of a hover that began before it was set; the next pointer move snaps it.
         lastTarget = viewport.hovered
     }
@@ -79,6 +82,7 @@ final class MeasureSession: ViewportTool {
     func clear() {
         guard !anchors.isEmpty || !picks.isEmpty || distance != nil || problem != nil || isMeasuring || isLost else { return }
         anchors = []
+        solidHints = []
         isLost = false
         setPicks([])
     }
@@ -149,14 +153,22 @@ final class MeasureSession: ViewportTool {
         // A ghost, a guide, a click that names nothing, or a pick no anchor can name does nothing.
         guard let pick, let anchor = MeasureResolver.anchor(for: pick, in: scene) else { return true }
         // A click first drops the anchors that no longer resolve, so none is kept, toggled or counted against the pair.
-        if isLost { anchors = anchors.filter { MeasureResolver.resolve($0, in: scene) != nil } }
-        if let index = anchors.firstIndex(of: anchor) {
+        if isLost {
+            let found = anchors.indices.filter { MeasureResolver.resolve(anchors[$0], in: scene, preferring: solidHints[$0]) != nil }
+            anchors = found.map { anchors[$0] }
+            solidHints = found.map { solidHints[$0] }
+        }
+        // The same face on two parts is two picks: an anchor toggles off only on the part it was picked on.
+        if let index = anchors.indices.first(where: { anchors[$0] == anchor && solidHints[$0] == pick.solidIndex }) {
             anchors.remove(at: index)
+            solidHints.remove(at: index)
         } else if anchors.count >= 2 {
             keep?(KeptMeasurement(anchors: anchors))
             anchors = [anchor]
+            solidHints = [pick.solidIndex]
         } else {
             anchors.append(anchor)
+            solidHints.append(pick.solidIndex)
         }
         recompute()
         return true
@@ -227,7 +239,12 @@ final class MeasureSession: ViewportTool {
 
     /// Resolves the anchors in the scene and, when the picks or a solid under them changed, measures again.
     private func recompute() {
-        let resolved = anchors.compactMap { MeasureResolver.resolve($0, in: scene) }
+        var resolved: [MeasurePick] = []
+        for index in anchors.indices {
+            guard let pick = MeasureResolver.resolve(anchors[index], in: scene, preferring: solidHints[index]) else { continue }
+            solidHints[index] = pick.solidIndex
+            resolved.append(pick)
+        }
         let lost = resolved.count < anchors.count
         let involved = resolved.compactMap(identity(of:))
         guard resolved != picks || involved != pickedSolids || lost != isLost else { return }

@@ -65,6 +65,25 @@ struct MeasureSessionPickTests {
         #expect(boxSession.hover != nil)
     }
 
+    @Test func theSameFaceOnTwoPartsMeasuresBetweenThem() async throws {
+        let fixture = await MeasureAppFixture.open()
+        fixture.app.setMeasure(true)
+        let session = try #require(fixture.app.measure)
+        let box = fixture.solid
+        let twin = try await fixture.kernel.extrude(.rectangle(width: 10, height: 10, plane: .xy), distance: 10, mode: .oneSided,
+                                                    tag: NodeTag(node: fixture.box.extrude.id, item: 0))
+        fixture.app.viewport.show([ViewportItem(solid: box), ViewportItem(solid: twin)])
+        await fixture.app.viewport.waitForMeshes()
+        session.sceneChanged(fixture.app.measureScene())
+        let face = try #require(box.topology.faces.first { ($0.normal?.z ?? 0) > 0.5 }).id
+        #expect(session.clickedModel(.face(solid: 1, face), at: ScreenPoint(700, 450), modifiers: [], projector: fixture.projector))
+        #expect(session.clickedModel(.face(solid: 0, face), at: ScreenPoint(700, 450), modifiers: [], projector: fixture.projector))
+        #expect(session.anchors.count == 2)
+        #expect(session.picks.map(\.solidIndex) == [1, 0])
+        await session.waitForDistance()
+        #expect(session.distance != nil || session.isMeasuring || session.problem != nil)
+    }
+
     @Test func aThirdClickKeepsThePairAndStartsAgain() async throws {
         let fixture = await MeasureAppFixture.open()
         fixture.app.setMeasure(true)

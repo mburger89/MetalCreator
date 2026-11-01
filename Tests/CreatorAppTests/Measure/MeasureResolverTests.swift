@@ -15,8 +15,7 @@ struct MeasureResolverTests {
     }
 
     private func scene(_ solids: [Solid], pickable: [Bool]? = nil, parts: [SectionedPart] = [], plane: Plane? = nil) -> MeasureScene {
-        MeasureScene(solids: solids, pickable: pickable ?? solids.map { _ in true }, parts: parts, plane: plane,
-                     displayMesh: { _ in nil })
+        MeasureScene(solids: solids, pickable: pickable ?? solids.map { _ in true }, parts: parts, plane: plane)
     }
 
     private func topFace(_ solid: Solid) throws -> FaceInfo {
@@ -141,6 +140,27 @@ struct MeasureResolverTests {
         let resolved = MeasureResolver.resolve(anchor, in: scene([solid], parts: [part(solid, [piece])], plane: .xy))
         guard case let .sectionEdge(index, found, at)? = resolved else { Issue.record("did not resolve"); return }
         #expect(index == 0 && found == piece && at == Vector3(5, 0, 0))
+    }
+
+    @Test func aMeshSectionEdgeFollowsAMovedPlane() {
+        let solid = mesh()
+        // The cut moved 5 mm along its normal, so its outline lies there; the stored point lay on the old plane.
+        let piece = line(square.map { $0 + Vector3(0, 0, 5) })
+        let anchor = MeasureAnchor.meshSectionEdge(Vector3(5, 0.5, 0))
+        let moved = Plane(origin: Vector3(0, 0, 5), normal: .unitZ, xAxis: .unitX)
+        let resolved = MeasureResolver.resolve(anchor, in: scene([solid], parts: [part(solid, [piece])], plane: moved))
+        guard case let .sectionEdge(_, found, _)? = resolved else { Issue.record("did not resolve"); return }
+        #expect(found == piece)
+    }
+
+    @Test func aSharedTagResolvesOnThePreferredPart() async throws {
+        let first = try await extrusion(distance: 10)
+        let second = try await extrusion(distance: 10)
+        let both = scene([first, second])
+        let anchor = try #require(MeasureResolver.anchor(for: .face(solid: 0, try topFace(first).id), in: both))
+        #expect(MeasureResolver.resolve(anchor, in: both)?.solidIndex == 0)
+        #expect(MeasureResolver.resolve(anchor, in: both, preferring: 1)?.solidIndex == 1)
+        #expect(MeasureResolver.resolve(anchor, in: scene([first, second], pickable: [true, false]), preferring: 1)?.solidIndex == 0)
     }
 
     @Test func aMeshSectionEdgeDoesNotResolveBeyond1mm() {

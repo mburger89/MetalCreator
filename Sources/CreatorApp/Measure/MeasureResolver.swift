@@ -35,10 +35,12 @@ enum MeasureResolver {
 
     // MARK: - Anchor to pick
 
-    static func resolve(_ anchor: MeasureAnchor, in scene: MeasureScene) -> MeasurePick? {
-        let shown = scene.solids.indices.filter { index in
+    /// `solid`, when given, is tried first: two parts built from one feature share tags, and a pick must stay on the part it was made on.
+    static func resolve(_ anchor: MeasureAnchor, in scene: MeasureScene, preferring solid: Int? = nil) -> MeasurePick? {
+        var shown = scene.solids.indices.filter { index in
             scene.pickable.indices.contains(index) && scene.pickable[index]
         }
+        if let solid, let at = shown.firstIndex(of: solid) { shown.insert(shown.remove(at: at), at: 0) }
         switch anchor {
         case let .face(pick):
             return shown.lazy.compactMap { index in
@@ -59,9 +61,10 @@ enum MeasureResolver {
                 sectionPick(target, solid: index, in: scene)
             }.first
         case let .meshSectionEdge(point):
-            guard scene.plane != nil else { return nil }
+            guard let plane = scene.plane else { return nil }
+            let onPlane = point - plane.normal * (point - plane.origin).dot(plane.normal)
             return shown.lazy.compactMap { index in
-                meshSectionPick(near: point, solid: index, in: scene)
+                meshSectionPick(near: onPlane, solid: index, in: scene)
             }.first
         case let .meshPoint(point):
             return shown.first { scene.solids[$0].displayedMesh != nil }.map { .meshPoint(solid: $0, at: point) }

@@ -36,6 +36,11 @@ final class MeasureBook {
     @ObservationIgnored private var measured: [UUID: Basis] = [:]
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
+    /// The solid index each entry's anchors last resolved on, for `MeasureResolver.resolve(_:in:preferring:)`.
+    /// The latest distance that landed for each entry and what it was measured for, kept while the entry is lost, so a scene that
+    /// loses a pick for one pass (a sketch closing) and finds it again does not measure it again.
+    @ObservationIgnored private var settled: [UUID: (basis: Basis, distance: ShapeDistance)] = [:]
+    @ObservationIgnored private var hints: [UUID: [Int]] = [:]
 
     private struct Basis: Equatable {
         var picks: [MeasurePick]
@@ -55,19 +60,23 @@ final class MeasureBook {
     // MARK: - Editing (view state: no command, no undo step)
 
     /// Keeps `measurement`, resolved against the latest scene.
-    func add(_ measurement: KeptMeasurement) {
+    /// `hints` are the solid indices its anchors were picked on, when known.
+    func add(_ measurement: KeptMeasurement, hints: [Int] = []) {
+        if hints.count == measurement.anchors.count { self.hints[measurement.id] = hints }
         document.measurements.append(measurement)
         refreshFromLastScene()
     }
 
     func remove(_ id: UUID) {
         document.measurements.removeAll { $0.id == id }
+        settled[id] = nil
         refreshFromLastScene()
     }
 
     func removeAll() {
         guard !document.measurements.isEmpty else { return }
         document.measurements = []
+        settled = [:]
         refreshFromLastScene()
     }
 
@@ -87,11 +96,15 @@ final class MeasureBook {
         var next: [Entry] = []
         var bases: [UUID: Basis] = [:]
         for kept in document.measurements {
-            let resolved = kept.anchors.compactMap { MeasureResolver.resolve($0, in: scene) }
+            let known = hints[kept.id]
+            let resolved = kept.anchors.enumerated().compactMap { index, anchor in
+                MeasureResolver.resolve(anchor, in: scene, preferring: known?[index])
+            }
             guard !kept.anchors.isEmpty, resolved.count == kept.anchors.count else {
                 next.append(Self.unresolved(kept))
                 continue
             }
+            hints[kept.id] = resolved.map(\.solidIndex)
             let basis = Basis(picks: resolved, solids: resolved.compactMap { identity(of: $0, in: scene) })
             bases[kept.id] = basis
             var entry = Entry(id: kept.id, picks: resolved,
@@ -103,6 +116,8 @@ final class MeasureBook {
                 let unchanged = measured[kept.id] == basis ? previous[kept.id] : nil
                 if let unchanged, !unchanged.isMeasuring {
                     entry.distance = unchanged.distance
+                } else if unchanged == nil, let again = settled[kept.id], again.basis == basis {
+                    entry.distance = again.distance
                 } else if let a = resolved[0].element(in: scene.solids), let b = resolved[1].element(in: scene.solids) {
                     entry.isMeasuring = true
                     pending.append((kept.id, a, b))
@@ -161,6 +176,7 @@ final class MeasureBook {
     private func landed(_ found: ShapeDistance?, for id: UUID, generation: Int) {
         guard generation == self.generation, let index = entries.firstIndex(where: { $0.id == id }) else { return }
         entries[index].distance = found
+        if let found, let basis = measured[id] { settled[id] = (basis, found) }
         entries[index].isMeasuring = false
         bump()
     }

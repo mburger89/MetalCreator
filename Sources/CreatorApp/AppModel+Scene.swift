@@ -86,7 +86,8 @@ extension AppModel {
         // Measure resolves its anchors against the items and the section's pieces as they stand after this refresh.
         let measured = measureScene()
         measure?.sceneChanged(measured)
-        measureBook.refresh(measured)
+        // Kept measurements are not drawn while sketching or picking, so they are not measured again then; leaving refreshes.
+        if sketch == nil, pick == nil { measureBook.refresh(measured) }
         let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
             : []

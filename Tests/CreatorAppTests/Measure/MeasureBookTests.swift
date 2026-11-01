@@ -185,4 +185,29 @@ struct MeasureBookTests {
         #expect(app.sketch != nil)
         #expect(app.measureDimensions().isEmpty)
     }
+
+    @Test func keptDistancesAreNotRemeasuredAcrossASketch() async throws {
+        let kernel = FakeKernel()
+        let calls = Mutex(0)
+        await kernel.setMeasureHook { calls.withLock { $0 += 1 } }
+        var builder = GraphBuilder()
+        let box = builder.sketchedBox(rectangleSketch())
+        let app = await makeApp(builder.graph, kernel: kernel)
+        app.viewport.recordViewSize(ViewportSize(width: 1400, height: 900))
+        await app.viewport.waitForMeshes()
+        app.measureBook.add(try Fixture.heightOf(app.viewport.items[0].solid, in: app))
+        await app.settle()
+        let before = calls.withLock { $0 }
+        #expect(before >= 1)
+        app.editor.selection = [box.sketch.id]
+        app.editor.press(.editSketch, on: box.sketch.id)
+        app.handle(try #require(app.editor.inspectorRequest))
+        await app.settle()
+        try #require(app.sketch != nil)
+        try #require(app.sketch).editor.finish()
+        await app.settle()
+        #expect(app.sketch == nil)
+        #expect(calls.withLock { $0 } == before, "nothing was edited, so nothing is measured again")
+        #expect(app.measureBook.entries[0].picks?.count == 2)
+    }
 }
