@@ -97,7 +97,10 @@ today (`−smin(−a, −b)`, `−smin(−a, b)`).
   rounding where struts meet, today a quadratic smooth minimum of its own), so the strut lattice value carries a
   `BlendContinuity` too (**call**: strut joints are where zebra gets read, and one setting per node keeps the inspector
   simple).
-- **Defaults and old files (call):** a new node defaults to **G2** (the reason the user asked); each of these node types
+- **Defaults and old files (call):** a new Union, Subtract or Intersect defaults to **G2** (the reason the user asked); a new TPMS,
+  Strut Lattice or Voronoi Lattice defaults to **G1** (erratum 2026-11-01, found by G-a Task 4: the skin join's 1 mm blend is tuned to
+  make lattices printable, and on the lightweight bracket G1 gives 0 voids and 0 thin places, G2 2 voids, G3 1 void, and G2/G3 widened
+  to G1's depth 2 thin places; G2 and G3 stay selectable); each of these node types
   goes up one `typeVersion`, and its `migrate` stores G1 in a node saved before, so old files keep their shape. TPMS,
   Strut Lattice and Voronoi Lattice go from 2 to 3 (their 2's migration still stores blend 0 first).
 - **Tests:** the CPU formulas against closed forms (value and the first, second and third derivative continuity at
