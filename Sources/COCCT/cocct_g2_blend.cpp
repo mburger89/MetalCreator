@@ -16,6 +16,9 @@
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
 #include <Extrema_ExtPC.hxx>
+#include <GeomInt_IntSS.hxx>
+#include <GeomAPI_ProjectPointOnCurve.hxx>
+#include <GeomProjLib.hxx>
 #include <Geom2dAPI_Interpolate.hxx>
 #include <TColgp_HArray1OfPnt2d.hxx>
 #include <Geom2d_BSplineCurve.hxx>
@@ -104,13 +107,13 @@ struct Spring {
     TopoDS_Edge edge;
     TopoDS_Face neighbour;
     bool flipped = false; // sampled from its last parameter to its first
+    double t_start = 0;   // the parameters sampling runs between: the edge's own, or extended past a slanted end
+    double t_end = 0;
 };
 
-/// The edge parameter of fraction `fraction` of the way along the spring's parameter range, in the sampling direction.
+/// The edge parameter of fraction `fraction` of the way from the spring's sampling start to its sampling end.
 double sample_parameter(const Spring &spring, double fraction) {
-    BRepAdaptor_Curve curve(spring.edge);
-    const double f = spring.flipped ? 1 - fraction : fraction;
-    return curve.FirstParameter() + f * (curve.LastParameter() - curve.FirstParameter());
+    return spring.t_start + fraction * (spring.t_end - spring.t_start);
 }
 
 /// What a neighbour face gives at a section end.
@@ -163,11 +166,11 @@ Pairing pair_sections(const Spring &a, const Spring &b, int sections) {
         pairing.ta.push_back(sample_parameter(a, f));
         pairing.tb.push_back(sample_parameter(b, f));
     }
-    const double direction = b.flipped ? -1 : 1;
+    const double direction = b.t_end > b.t_start ? 1 : -1;
     std::vector<double> projected = pairing.tb;
     bool usable = true;
     for (int j = 1; j + 1 < sections && usable; ++j) {
-        Extrema_ExtPC ext(ca.Value(pairing.ta[j]), cb, cb.FirstParameter(), cb.LastParameter());
+        Extrema_ExtPC ext(ca.Value(pairing.ta[j]), cb, std::min(b.t_start, b.t_end), std::max(b.t_start, b.t_end));
         usable = ext.IsDone() && ext.NbExt() > 0;
         if (usable) {
             int best = 1;
@@ -235,12 +238,14 @@ struct BuiltStrip {
     Handle(Geom2d_Curve) pcurve[2]; // of the first and second spring
     std::vector<std::array<g2::Vec, 6>> sections;
     std::vector<NeighbourEnd> first_ends, second_ends;
+    std::vector<double> ta; // each section's parameter on the first spring
 };
 
 BuiltStrip build_strip(const Spring &a, const Spring &b, double weight, int sections, bool closed) {
     BuiltStrip built;
     built.sections.resize(sections);
     const Pairing pairing = pair_sections(a, b, sections);
+    built.ta = pairing.ta;
     BRepAdaptor_Curve ca(a.edge), cb(b.edge);
     for (int j = 0; j < sections; ++j) {
         const gp_Pnt pa = ca.Value(pairing.ta[j]);
@@ -343,7 +348,10 @@ void validate_sections(const BuiltStrip &built, const TopoDS_Face &circular_face
     double umin = 0, umax = 0, vmin = 0, vmax = 0;
     BRepTools::UVBounds(circular_face, umin, umax, vmin, vmax);
     const double margin_u = 0.05 * (umax - umin) + 1e-9, margin_v = 0.05 * (vmax - vmin) + 1e-9;
+    const BRepAdaptor_Curve own_range(a.edge);
     for (std::size_t j = 0; j < built.sections.size(); ++j) {
+        // A section past the spring's own end (built to be trimmed by the end face) lies outside the circular face.
+        const bool inside = built.ta[j] >= own_range.FirstParameter() - 1e-9 && built.ta[j] <= own_range.LastParameter() + 1e-9;
         const auto &poles = built.sections[j];
         g2::Vec position, d1, d2;
         g2::evaluate(poles, 0.5, position, d1, d2);
@@ -354,13 +362,13 @@ void validate_sections(const BuiltStrip &built, const TopoDS_Face &circular_face
         }
         double pu = 0, pv = 0;
         project.LowerDistanceParameters(pu, pv);
-        if ((!circular->IsUPeriodic() && (pu < umin - margin_u || pu > umax + margin_u)) ||
-            (!circular->IsVPeriodic() && (pv < vmin - margin_v || pv > vmax + margin_v))) {
+        if (inside && ((!circular->IsUPeriodic() && (pu < umin - margin_u || pu > umax + margin_u)) ||
+            (!circular->IsVPeriodic() && (pv < vmin - margin_v || pv > vmax + margin_v)))) {
             throw user_error(kStripMessage);
         }
         const gp_Pnt q = project.NearestPoint();
         const NeighbourEnd &ea = built.first_ends[j], &eb = built.second_ends[j];
-        if (j == 0 || j + 1 == built.sections.size()) {
+        if (inside && (j == 0 || j + 1 == built.sections.size())) {
             // An end section is the strip's end edge, so the chord must cross the springs squarely; a slanted
             // run-out (a blend ending on a face at an angle) isn't a cross-section and isn't supported.
             const gp_Vec chord(ea.p, eb.p);
@@ -472,7 +480,80 @@ StripEdges classify(const TopoDS_Face &strip, const TopTools_IndexedDataMapOfSha
     const gp_Pnt a0 = ca.Value(ca.FirstParameter()), a1 = ca.Value(ca.LastParameter());
     const gp_Pnt b0 = cb.Value(cb.FirstParameter()), b1 = cb.Value(cb.LastParameter());
     out.spring[1].flipped = a0.Distance(b0) + a1.Distance(b1) > a0.Distance(b1) + a1.Distance(b0);
+    for (Spring &sp : out.spring) {
+        BRepAdaptor_Curve c(sp.edge);
+        sp.t_start = sp.flipped ? c.LastParameter() : c.FirstParameter();
+        sp.t_end = sp.flipped ? c.FirstParameter() : c.LastParameter();
+    }
     return out;
+}
+
+/// A strip end whose chord does not cross the springs squarely (the blend meets its end face at a slant) is built past
+/// the end and trimmed by the end face. `a_end` and `b_end` are the springs' own end points, in sampling order.
+struct Slant {
+    bool slanted = false;
+    gp_Pnt a_end, b_end;
+};
+
+/// Decides each sampling end and, for a slanted one, extends the shorter spring's sampling range past its end (by the
+/// slant plus a margin) and the other's to the projection of that extended point, so the extended end is a square
+/// cross-section again.
+void plan_slants(StripEdges &edges, Slant slants[2]) {
+    if (edges.closed) {
+        return;
+    }
+    Spring *springs[2] = {&edges.spring[0], &edges.spring[1]};
+    for (int e = 0; e < 2; ++e) {
+        BRepAdaptor_Curve curves[2] = {BRepAdaptor_Curve(springs[0]->edge), BRepAdaptor_Curve(springs[1]->edge)};
+        double te[2], outward[2];
+        gp_Pnt point[2];
+        gp_Vec tangent[2];
+        for (int i = 0; i < 2; ++i) {
+            const double direction = springs[i]->t_end > springs[i]->t_start ? 1 : -1;
+            te[i] = e == 0 ? springs[i]->t_start : springs[i]->t_end;
+            outward[i] = e == 0 ? -direction : direction;
+            curves[i].D1(te[i], point[i], tangent[i]);
+        }
+        const gp_Vec chord(point[0], point[1]);
+        gp_Vec out0 = tangent[0] * outward[0];
+        out0.Normalize();
+        const double m = chord.Dot(out0);
+        if (std::abs(m) <= 0.1 * chord.Magnitude()) {
+            continue;
+        }
+        slants[e].slanted = true;
+        slants[e].a_end = point[0];
+        slants[e].b_end = point[1];
+        // The spring that ends first is extended; the other is extended to the projection of the first's new end.
+        const int shorter = m > 0 ? 0 : 1, longer = 1 - shorter;
+        const double length = 1.25 * std::abs(m) + 0.25 * chord.Magnitude();
+        const double speed = std::max(tangent[shorter].Magnitude(), 1e-12);
+        const double extended = te[shorter] + outward[shorter] * length / speed;
+        const gp_Pnt target = curves[shorter].Value(extended);
+        const double lo = std::min(springs[longer]->t_start, springs[longer]->t_end);
+        const double hi = std::max(springs[longer]->t_start, springs[longer]->t_end);
+        const double window = 0.5 * (hi - lo);
+        Extrema_ExtPC ext(target, curves[longer], lo - window, hi + window);
+        if (!ext.IsDone() || ext.NbExt() == 0) {
+            throw user_error(kStripMessage);
+        }
+        int best = 1;
+        for (int i = 2; i <= ext.NbExt(); ++i) {
+            if (ext.SquareDistance(i) < ext.SquareDistance(best)) {
+                best = i;
+            }
+        }
+        double projected = ext.Point(best).Parameter();
+        if (curves[longer].IsPeriodic()) {
+            const double period = curves[longer].Period();
+            projected += period * std::round((te[longer] - projected) / period);
+        }
+        if (outward[longer] * (projected - te[longer]) <= 0) {
+            throw user_error(kStripMessage);
+        }
+        (e == 0 ? springs[shorter]->t_start : springs[shorter]->t_end) = extended;
+        (e == 0 ? springs[longer]->t_start : springs[longer]->t_end) = projected;
+    }
 }
 
 /// Folds the gaps at one sample of a seam into `seam`; `a` and `b` are the two faces there, `tangent` the edge's.
@@ -608,9 +689,9 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
         }
         std::vector<int> strip_indices, corner_indices;
         const TopTools_IndexedMapOfShape g1_faces = map_of(g1, TopAbs_FACE);
-        for (int i = 0; i < count; ++i) {
-            const TopoDS_Edge edge = TopoDS::Edge(input_edges(edge_indices[i]));
-            records.add_all(algo.Generated(edge), OCCT_FROM_EDGE, 0, edge_indices[i]);
+        // OCCT propagates a fillet along the tangent chain of each selected edge, so the strips (and corners) are
+        // those of every edge of every contour, not only of the selected ones. History keeps the selected edges' only.
+        auto add_blend_faces = [&](const TopoDS_Edge &edge) {
             for (TopTools_ListOfShape::Iterator it(algo.Generated(edge)); it.More(); it.Next()) {
                 strip_indices.push_back(g1_faces.FindIndex(it.Value()));
             }
@@ -618,11 +699,26 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
             TopExp::Vertices(edge, first, last);
             for (const TopoDS_Vertex &vertex : {first, last}) {
                 if (!vertex.IsNull()) {
-                    records.add_all(algo.Generated(vertex), OCCT_FROM_EDGE, 0, edge_indices[i]);
                     for (TopTools_ListOfShape::Iterator it(algo.Generated(vertex)); it.More(); it.Next()) {
                         corner_indices.push_back(g1_faces.FindIndex(it.Value()));
                     }
                 }
+            }
+        };
+        for (int i = 0; i < count; ++i) {
+            const TopoDS_Edge edge = TopoDS::Edge(input_edges(edge_indices[i]));
+            records.add_all(algo.Generated(edge), OCCT_FROM_EDGE, 0, edge_indices[i]);
+            TopoDS_Vertex first, last;
+            TopExp::Vertices(edge, first, last);
+            for (const TopoDS_Vertex &vertex : {first, last}) {
+                if (!vertex.IsNull()) {
+                    records.add_all(algo.Generated(vertex), OCCT_FROM_EDGE, 0, edge_indices[i]);
+                }
+            }
+        }
+        for (int contour = 1; contour <= algo.NbContours(); ++contour) {
+            for (int j = 1; j <= algo.NbEdges(contour); ++j) {
+                add_blend_faces(algo.Edge(contour, j));
             }
         }
         records.move_into(history);
@@ -672,6 +768,8 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 const TopoDS_Face old_face = strip_faces[s];
                 const Handle(Geom_Surface) circular = BRep_Tool::Surface(old_face);
                 StripEdges &edges = strips[s];
+                Slant slants[2];
+                plan_slants(edges, slants);
                 BuiltStrip built;
                 bool swapped = false;
                 // Sections are doubled (9, 17, 33, ...) until the candidate's seams pass; the cap fails the blend.
@@ -714,13 +812,88 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 for (int side = 0; side < 2; ++side) {
                     const Spring &spring = edges.spring[(side == 0) != swapped ? 0 : 1];
                     builder.UpdateEdge(spring.edge, built.pcurve[side], surface, TopLoc_Location(), kEdgeTolerance);
+                    double own_first = 0, own_last = 0;
+                    BRep_Tool::Range(spring.edge, own_first, own_last);
+                    builder.Range(spring.edge, surface, TopLoc_Location(), own_first, own_last);
                 }
 
                 // End edges become the first and last sections (shared with the next strip of a tangent chain).
                                 TopoDS_Edge new_ends[2];
+                bool flip_end[2] = {false, false}; // the new end edge runs the other way from the old one
                 TopoDS_Edge seam_edge;       // a closed strip's one seam, both ends
                 bool seam_reversed = false;
                 for (int end = 0; end < (edges.closed ? 1 : 2); ++end) {
+                    if (slants[end].slanted) {
+                        // A slanted end: the strip was built past the end face; its end edge is the surface's
+                        // intersection with that face, between the springs' own end points.
+                        const gp_Pnt a_end = slants[end].a_end, b_end = slants[end].b_end;
+                        const gp_Pnt middle((a_end.XYZ() + b_end.XYZ()) * 0.5);
+                        int chosen = 0;
+                        double best = 1e300;
+                        for (int c = 0; c < 2; ++c) {
+                            BRepAdaptor_Curve oc(edges.ends[c]);
+                            const double d = oc.Value(0.5 * (oc.FirstParameter() + oc.LastParameter())).Distance(middle);
+                            if (d < best) {
+                                best = d;
+                                chosen = c;
+                            }
+                        }
+                        const TopoDS_Edge old_edge = edges.ends[chosen];
+                        const TopoDS_Face end_face = edges.end_face[chosen];
+                        TopLoc_Location face_location;
+                        const Handle(Geom_Surface) face_surface = end_face.IsNull() ? Handle(Geom_Surface)()
+                                                                                    : BRep_Tool::Surface(end_face, face_location);
+                        if (face_surface.IsNull() || !face_location.IsIdentity()) {
+                            throw user_error(kStripMessage);
+                        }
+                        GeomInt_IntSS intersection(surface, face_surface, 1e-7, Standard_True, Standard_True, Standard_True);
+                        int line = 0;
+                        double best_gap = 1e-4, pa = 0, pb = 0;
+                        for (int i = 1; i <= intersection.NbLines(); ++i) {
+                            const Handle(Geom_Curve) candidate = intersection.Line(i);
+                            GeomAPI_ProjectPointOnCurve to_a(a_end, candidate), to_b(b_end, candidate);
+                            if (to_a.NbPoints() == 0 || to_b.NbPoints() == 0) {
+                                continue;
+                            }
+                            const double gap = to_a.LowerDistance() + to_b.LowerDistance();
+                            if (gap < best_gap) {
+                                best_gap = gap;
+                                line = i;
+                                pa = to_a.LowerDistanceParameter();
+                                pb = to_b.LowerDistanceParameter();
+                            }
+                        }
+                        if (line == 0 || std::abs(pa - pb) < 1e-9) {
+                            throw user_error(kStripMessage);
+                        }
+                        const Handle(Geom_Curve) curve = intersection.Line(line);
+                        const double lo = std::min(pa, pb), hi = std::max(pa, pb);
+                        TopoDS_Vertex v1, v2;
+                        TopExp::Vertices(old_edge, v1, v2, Standard_False);
+                        const bool first_is_v1 = BRep_Tool::Pnt(v1).Distance(curve->Value(lo)) <= BRep_Tool::Pnt(v2).Distance(curve->Value(lo));
+                        TopoDS_Edge ne;
+                        builder.MakeEdge(ne, curve, 1e-5);
+                        builder.Add(ne, (first_is_v1 ? v1 : v2).Oriented(TopAbs_FORWARD));
+                        builder.Add(ne, (first_is_v1 ? v2 : v1).Oriented(TopAbs_REVERSED));
+                        builder.Range(ne, lo, hi);
+                        Handle(Geom2d_Curve) on_strip = intersection.HasLineOnS1(line) ? intersection.LineOnS1(line)
+                                                                                         : GeomProjLib::Curve2d(curve, lo, hi, surface);
+                        Handle(Geom2d_Curve) on_face = intersection.HasLineOnS2(line) ? intersection.LineOnS2(line)
+                                                                                       : GeomProjLib::Curve2d(curve, lo, hi, face_surface);
+                        if (on_strip.IsNull() || on_face.IsNull()) {
+                            throw user_error(kStripMessage);
+                        }
+                        builder.UpdateEdge(ne, on_strip, surface, TopLoc_Location(), 1e-5);
+                        builder.Range(ne, surface, TopLoc_Location(), lo, hi);
+                        builder.UpdateEdge(ne, on_face, face_surface, TopLoc_Location(), 1e-5);
+                        builder.Range(ne, face_surface, TopLoc_Location(), lo, hi);
+                        flip_end[chosen] = !first_is_v1;
+                        const TopAbs_Orientation oriented = flip_end[chosen] ? TopAbs::Reverse(old_edge.Orientation()) : old_edge.Orientation();
+                        reshape.Replace(old_edge, ne.Oriented(oriented));
+                        replaced.push_back({old_edge, ne, TopoDS_Face()});
+                        new_ends[chosen] = ne;
+                        continue;
+                    }
                     TColgp_Array1OfPnt poles(1, 6);
                     const auto &section = end == 0 ? built.sections.front() : built.sections.back();
                     for (int i = 0; i < 6; ++i) {
@@ -822,7 +995,7 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                         TopoDS_Shape e = it.Value();
                         for (int c = 0; c < 2; ++c) {
                             if (e.IsSame(edges.ends[c])) {
-                                e = new_ends[c].Oriented(it.Value().Orientation());
+                                e = new_ends[c].Oriented(flip_end[c] ? TopAbs::Reverse(it.Value().Orientation()) : it.Value().Orientation());
                             }
                         }
                         builder.Add(new_wire, e);

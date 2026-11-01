@@ -117,19 +117,6 @@ extension G2FilletTests {
         #expect(helper.sectionCounts(built.report) == [129])
         expectSpringsG2(built, seams: 2)
     }
-
-    /// A blend that ends slantwise on a face (the 300 degree arc meets its closing line at 120 degrees) has no
-    /// cross-section to replace and is refused.
-    @Test func aSlantedRunOutIsRefused() throws {
-        let c = 5 * 0.8660254037844386
-        let segments: [Segment2D] = [
-            .arc(center: Vector2(0, 0), radius: 5, start: .degrees(30), end: .degrees(330)),
-            .line(Vector2(c, -2.5), Vector2(c, 2.5)),
-        ]
-        let shape = try OCCTKernel.serialized { try OCCTShape.extrude(Profile2D(plane: .xy, segments: segments), distance: 10).0 }
-        let error = #expect(throws: OCCTError.self) { try build(shape, midpoints: [[-5, 0, 10]], radius: 0.5) }
-        #expect(error?.message == "The fillet can't be made curvature continuous at this radius.")
-    }
 }
 
 extension G2FilletTests {
