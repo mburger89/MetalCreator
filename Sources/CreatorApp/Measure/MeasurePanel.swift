@@ -12,12 +12,25 @@ enum MeasurePanelText {
     static let clearAll = "Clear All"
     static let lost = "No longer found"
 
+    static let noValue = "No value"
+    static let remove = "Remove Measurement"
+
     /// A kept measurement in one line: its distance, else the first reading in the panel's order; `lost` when its anchors don't resolve.
     static func keptSummary(_ entry: MeasureBook.Entry, units: DocumentUnits) -> String {
         guard entry.picks != nil else { return lost }
-        let rows = rows(readings: entry.readings, distance: entry.distance?.distance, units: units)
-        guard let first = rows.first else { return entry.isMeasuring ? measuring : "" }
-        return entry.isApproximate ? approximate(first.text, meshResolution: entry.meshResolution, units: units) : first.text
+        let rows = valueRows(readings: entry.readings, distance: entry.distance?.distance, isApproximate: entry.isApproximate,
+                             meshResolution: entry.meshResolution, units: units)
+        guard let first = rows.first else { return entry.isMeasuring ? measuring : noValue }
+        return first.text
+    }
+
+    /// `rows`, each value marked "≈" (with the mesh's resolution) when any pick behind it is approximate: the one rule for the
+    /// current measurement and the kept ones.
+    static func valueRows(readings: [MeasureReading], distance: Double?, isApproximate: Bool, meshResolution: Double?,
+                          units: DocumentUnits) -> [(label: String, text: String)] {
+        rows(readings: readings, distance: distance, units: units).map { row in
+            (row.label, isApproximate ? approximate(row.text, meshResolution: meshResolution, units: units) : row.text)
+        }
     }
 
     /// A number that came from a mesh or a polyline: "≈ 12.3 mm", with the mesh's resolution when known.
@@ -98,41 +111,7 @@ struct MeasurePanel: Component {
                         .font(.headline)
                         .foregroundStyle(palette.primaryText.color)
                     if let session = model.measure {
-                    let rows = MeasurePanelText.rows(readings: session.readings, distance: session.distance?.distance, units: model.units)
-                    let isApproximate = session.picks.contains(where: \.isApproximate)
-                    if session.picks.isEmpty {
-                        Text(MeasurePanelText.prompt)
-                            .font(.callout)
-                            .foregroundStyle(palette.secondaryText.color)
-                    }
-                    ForEach(rows.indices, id: \.self) { index in
-                        HStack(spacing: Pixels(6)) {
-                            Text(rows[index].label).font(.callout).foregroundStyle(palette.secondaryText.color)
-                            Spacer()
-                            Text(isApproximate
-                                 ? MeasurePanelText.approximate(rows[index].text, meshResolution: nil, units: model.units)
-                                 : rows[index].text)
-                                .font(.callout).foregroundStyle(palette.primaryText.color)
-                        }
-                    }
-                    if session.isMeasuring {
-                        Text(MeasurePanelText.measuring)
-                            .font(.caption)
-                            .foregroundStyle(palette.secondaryText.color)
-                    }
-                    if let problem = session.problem {
-                        Text(problem)
-                            .font(.caption)
-                            .foregroundStyle(palette.statusWarning.color)
-                    }
-                    HStack(spacing: Pixels(8)) {
-                        Button(MeasurePanelText.keep) { session.keepCurrent() }
-                            .disabled(session.picks.isEmpty || session.isLost)
-                        Button("Clear") { session.clear() }
-                            .disabled(session.picks.isEmpty)
-                        Button("Done") { model.setMeasure(false) }
-                            .keyboardShortcut(.escape, modifiers: [])
-                    }
+                        currentRows(session, palette: palette)
                     }
                     ForEach(model.measureBook.entries) { entry in
                         let isLost = entry.picks == nil
@@ -142,6 +121,8 @@ struct MeasurePanel: Component {
                                 .foregroundStyle((isLost ? palette.secondaryText : palette.primaryText).color)
                             Spacer()
                             Button("×") { model.measureBook.remove(entry.id) }
+                                .accessibilityLabel(MeasurePanelText.remove)
+                                .help(MeasurePanelText.remove)
                         }
                     }
                     if !model.measureBook.entries.isEmpty {
@@ -150,6 +131,46 @@ struct MeasurePanel: Component {
                 }
                 .frame(width: Self.width.px)
             }
+        }
+    }
+}
+
+extension MeasurePanel {
+    /// The current measurement: the prompt, its rows, the measuring and problem lines, and Keep, Clear and Done.
+    @ElementBuilder
+    private func currentRows(_ session: MeasureSession, palette: Palette) -> some ElementGroup {
+        let rows = MeasurePanelText.valueRows(
+            readings: session.readings, distance: session.distance?.distance,
+            isApproximate: session.picks.contains(where: \.isApproximate), meshResolution: session.meshResolution, units: model.units)
+        if session.picks.isEmpty {
+            Text(MeasurePanelText.prompt)
+                .font(.callout)
+                .foregroundStyle(palette.secondaryText.color)
+        }
+        ForEach(rows.indices, id: \.self) { index in
+            HStack(spacing: Pixels(6)) {
+                Text(rows[index].label).font(.callout).foregroundStyle(palette.secondaryText.color)
+                Spacer()
+                Text(rows[index].text).font(.callout).foregroundStyle(palette.primaryText.color)
+            }
+        }
+        if session.isMeasuring {
+            Text(MeasurePanelText.measuring)
+                .font(.caption)
+                .foregroundStyle(palette.secondaryText.color)
+        }
+        if let problem = session.problem {
+            Text(problem)
+                .font(.caption)
+                .foregroundStyle(palette.statusWarning.color)
+        }
+        HStack(spacing: Pixels(8)) {
+            Button(MeasurePanelText.keep) { session.keepCurrent() }
+                .disabled(session.picks.isEmpty || session.isLost)
+            Button("Clear") { session.clear() }
+                .disabled(session.picks.isEmpty)
+            Button("Done") { model.setMeasure(false) }
+                .keyboardShortcut(.escape, modifiers: [])
         }
     }
 }

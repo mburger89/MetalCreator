@@ -48,6 +48,11 @@ final class MeasureSession: ViewportTool {
 
     private var solids: [Solid] { scene.solids }
 
+    /// The mesh resolution behind the picks' approximate numbers in the latest scene, the coarsest of them; `nil` when no mesh made one.
+    var meshResolution: Double? {
+        picks.compactMap { MeasureResolver.meshResolution(of: $0, in: scene) }.max()
+    }
+
     init(kernel: any Kernel, viewport: ViewportModel) {
         self.kernel = kernel
         self.viewport = viewport

@@ -41,7 +41,25 @@ struct MeasurePanelTextTests {
         #expect(MeasurePanelText.approximate("12.3 mm", meshResolution: nil, units: .millimetres) == "≈ 12.3 mm")
     }
 
-    @Test func thePanelShowsWithKeptOnesAndMeasureOff() async throws {
+    @Test func anApproximateKeptValueShowsItsResolution() {
+        let kept = entry(readings: [MeasureReading(quantity: .length, value: 12.3)], approximate: true, resolution: 0.4)
+        #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == "≈ 12.3 mm · mesh 0.4 mm")
+    }
+
+    @Test func aKeptValueUsesTheDocumentUnits() {
+        let kept = entry(readings: [MeasureReading(quantity: .length, value: 25.4)])
+        let inches = DocumentUnits(length: .inches)
+        #expect(MeasurePanelText.keptSummary(kept, units: inches) == inches.fieldText(25.4, quantity: .length))
+        #expect(MeasurePanelText.keptSummary(kept, units: inches).hasSuffix(" in"))
+    }
+
+    @Test func anEmptyKeptEntrySaysNoValue() {
+        #expect(MeasurePanelText.keptSummary(entry(), units: .millimetres) == "No value")
+    }
+
+    // MARK: - The panel
+
+    private func keptApp() async throws -> (AppWindow, MeasureSession) {
         var builder = GraphBuilder()
         _ = builder.box()
         let app = try await AppWindow.open(builder.graph)
@@ -49,18 +67,76 @@ struct MeasurePanelTextTests {
         model.setMeasure(true)
         let session = try #require(model.measure)
         let solid = model.viewport.items[0].solid
-        let edge = try #require(solid.topology.edges.first)
         let projector = model.viewport.projector
-        session.clickedModel(.edge(solid: 0, edge.id), at: projector.screenPoint(of: edge.midpoint) ?? ScreenPoint(700, 450),
-                             modifiers: [], projector: projector)
+        for edge in solid.topology.edges.prefix(2) {
+            session.clickedModel(.edge(solid: 0, edge.id), at: projector.screenPoint(of: edge.midpoint) ?? ScreenPoint(700, 450),
+                                 modifiers: [], projector: projector)
+        }
+        await session.waitForDistance()
+        return (app, session)
+    }
+
+    private func buttons(_ app: AppWindow, _ label: String) throws -> [TestElement] {
+        try app.window.elements { $0.role == .button && $0.label == label }
+    }
+
+    @Test func thePanelShowsWithKeptOnesAndMeasureOff() async throws {
+        let (app, session) = try await keptApp()
         session.keepCurrent()
-        model.setMeasure(false)
+        app.model.setMeasure(false)
         try await app.window.runUntilIdle()
-        #expect(model.measure == nil)
-        #expect(!model.measureBook.entries.isEmpty)
-        let shown = try app.window.elements { $0.label == "Measure" || $0.value == "Measure" }
-        #expect(!shown.isEmpty)
-        let clearAll = try app.window.elements { $0.role == .button && $0.label == MeasurePanelText.clearAll }
-        #expect(clearAll.count == 1)
+        #expect(app.model.measure == nil)
+        #expect(!app.model.measureBook.entries.isEmpty)
+        #expect(try buttons(app, MeasurePanelText.clearAll).count == 1)
+        #expect(try buttons(app, "Done").isEmpty)
+    }
+
+    @Test func thePanelHidesInSketchMode() async throws {
+        var builder = GraphBuilder()
+        let box = builder.sketchedBox(rectangleSketch(on: .xz))
+        let app = try await AppWindow.open(builder.graph)
+        app.model.measureBook.add(KeptMeasurement(id: UUID(), anchors: []))
+        try await app.window.runUntilIdle()
+        #expect(try buttons(app, MeasurePanelText.clearAll).count == 1)
+        app.editor.selection = [box.sketch.id]
+        app.editor.press(.editSketch, on: box.sketch.id)
+        try await app.window.runUntilIdle()
+        #expect(try buttons(app, MeasurePanelText.clearAll).isEmpty)
+    }
+
+    @Test func keepIsDisabledWithNoPicksAndWhileLost() async throws {
+        var builder = GraphBuilder()
+        _ = builder.box()
+        let app = try await AppWindow.open(builder.graph)
+        app.model.setMeasure(true)
+        try await app.window.runUntilIdle()
+        #expect(try #require(try buttons(app, MeasurePanelText.keep).first).isEnabled == false)
+        let (second, session) = try await keptApp()
+        try await second.window.runUntilIdle()
+        #expect(session.isLost == false)
+        #expect(try #require(try buttons(second, MeasurePanelText.keep).first).isEnabled)
+    }
+
+    @Test func theCrossRemovesOneEntry() async throws {
+        let (app, session) = try await keptApp()
+        session.keepCurrent()
+        app.model.measureBook.add(KeptMeasurement(anchors: []))
+        try await app.window.runUntilIdle()
+        let before = app.model.measureBook.entries.count
+        #expect(before == 2)
+        let cross = try #require(try buttons(app, MeasurePanelText.remove).first)
+        try app.window.click(cross)
+        try await app.window.runUntilIdle()
+        #expect(app.model.measureBook.entries.count == before - 1)
+    }
+
+    @Test func clearAllEmptiesTheBook() async throws {
+        let (app, session) = try await keptApp()
+        session.keepCurrent()
+        try await app.window.runUntilIdle()
+        try app.window.click(try #require(try buttons(app, MeasurePanelText.clearAll).first))
+        try await app.window.runUntilIdle()
+        #expect(app.model.measureBook.entries.isEmpty)
+        #expect(try buttons(app, MeasurePanelText.clearAll).isEmpty)
     }
 }
