@@ -1,5 +1,6 @@
 // SPIKE (G-b): curvature-continuous fillet strips. OpenCascade makes the circular fillet; each strip face is then
 // replaced by a B-spline surface skinned from quintic G2 Hermite sections between its two spring edges.
+#include "cocct_g2_corner.hpp"
 #include "cocct_g2_section.hpp"
 #include "cocct_internal.hpp"
 
@@ -25,6 +26,7 @@
 #include <Geom_BSplineCurve.hxx>
 #include <Geom_BSplineSurface.hxx>
 #include <Geom_BezierCurve.hxx>
+#include <Geom_BezierSurface.hxx>
 #include <GeomAPI_Interpolate.hxx>
 #include <GeomAPI_ProjectPointOnSurf.hxx>
 #include <TColGeom2d_Array1OfBSplineCurve.hxx>
@@ -52,6 +54,9 @@ using namespace cocct;
 #include <BRepCheck_Result.hxx>
 
 namespace {
+
+// SPIKE (Task 2d): the G2 corner patch is off unless a test switches it on.
+bool g_g2_corner_spike = false;
 
 constexpr int kFirstSections = 9;   // cross-sections per strip to start with
 constexpr int kMaxSections = 129;   // the cap: 9, 17, 33, 65, 129
@@ -95,11 +100,19 @@ SurfacePoint surface_point(const TopoDS_Face &face, const TopoDS_Edge &edge, dou
     if (pc.IsNull()) {
         throw user_error(kStripMessage);
     }
-    const gp_Pnt2d uv = pc->Value(t);
     BRepAdaptor_Surface surface(face, Standard_False);
     SurfacePoint s;
-    surface.D2(uv.X(), uv.Y(), s.p, s.su, s.sv, s.suu, s.svv, s.suv);
-    s.n = s.su.Crossed(s.sv);
+    // Where the parametrization is singular (a G2 corner patch at its centre, where three patches meet) the normal is
+    // the limit: read it a hair further along the edge, towards its middle.
+    const double towards_middle = (t < 0.5 * (first + last)) ? 1.0 : -1.0;
+    for (int attempt = 0; attempt < 4; ++attempt) {
+        const gp_Pnt2d uv = pc->Value(t + towards_middle * attempt * 1e-3 * (last - first));
+        surface.D2(uv.X(), uv.Y(), s.p, s.su, s.sv, s.suu, s.svv, s.suv);
+        s.n = s.su.Crossed(s.sv);
+        if (s.n.Magnitude() > 1e-6) {
+            break;
+        }
+    }
     if (s.n.Magnitude() < 1e-12) {
         throw user_error(kStripMessage);
     }
@@ -735,6 +748,8 @@ bool within_tolerance(const occt_g2_seam &seam) {
 
 extern "C" {
 
+void occt_test_g2_corner_spike(int enable) { g_g2_corner_spike = enable != 0; }
+
 double occt_g2_tangent_length(double chord, double turning_angle) {
     return g2::circular_tangent_length(chord, turning_angle);
 }
@@ -947,6 +962,9 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
         };
         std::vector<Replaced> replaced;
         std::vector<TopoDS_Edge> mitre_edges;
+        std::vector<bool> corner_done(corner_faces.size(), false);
+        std::vector<TopoDS_Face> g2_new_faces;
+        std::vector<TopoDS_Edge> g2_edges;
         // The edge where a strip, built past its end, meets that end's face (or the partner strip at a mitre): the
         // surfaces' intersection between the two springs' own end points, with pcurves on both and the old vertices.
         auto trim_edge = [&](const TopoDS_Edge &old_edge, const Handle(Geom_Surface) &surface,
@@ -1039,6 +1057,7 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 TopoDS_Edge new_ends[2];
                 bool flip_end[2] = {false, false}; // the new end edge runs the other way from the old one
                 double spring_gap[2] = {0, 0};      // the strip's worst distance from each spring, as measured
+                std::vector<std::pair<TopoDS_Edge, bool>> chain[2]; // an end that borders a G2 corner: its half edges
             };
             std::vector<StripState> states(strips.size());
             for (std::size_t s = 0; s < strips.size(); ++s) {
@@ -1206,6 +1225,393 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 }
             }
 
+            // SPIKE (Task 2d): G2 corner patches. A corner whose three edges are all strip ends is replaced by three
+            // quadrilateral Bezier patches (cocct_g2_corner.hpp) that join the strips and one another G2. Anything
+            // the construction cannot do leaves the corner to the G1 refill below.
+            for (std::size_t ci = 0; ci < corner_faces.size() && g_g2_corner_spike; ++ci) {
+                const TopoDS_Face old_corner = corner_faces[ci];
+                try {
+                    struct EndCurve {
+                        std::size_t strip = 0;
+                        int end = 0;
+                        TopoDS_Edge old_edge;
+                        std::array<g2::Vec, 6> poles{};       // oriented V_j -> V_{j+1}
+                        std::array<g2::Vec, 6> cross1{}, cross2{}; // cross-boundary derivatives, oriented alike
+                        bool reversed = false;                 // against the strip's v
+                        TopoDS_Vertex from, to;
+                    };
+                    std::vector<EndCurve> found;
+                    for (TopExp_Explorer it(old_corner, TopAbs_EDGE); it.More(); it.Next()) {
+                        const TopoDS_Edge e = TopoDS::Edge(it.Current());
+                        if (BRep_Tool::Degenerated(e)) {
+                            continue;
+                        }
+                        bool known = false;
+                        for (const EndCurve &c : found) {
+                            known = known || c.old_edge.IsSame(e);
+                        }
+                        if (known) {
+                            continue;
+                        }
+                        BRepAdaptor_Curve ec(e);
+                        const gp_Pnt mid = ec.Value(0.5 * (ec.FirstParameter() + ec.LastParameter()));
+                        EndCurve curve;
+                        curve.old_edge = e;
+                        double best = 1e300;
+                        for (std::size_t s = 0; s < strips.size(); ++s) {
+                            bool owns = false;
+                            for (int c = 0; c < 2; ++c) {
+                                owns = owns || (strips[s].ends[c].IsSame(e) && strips[s].end_face[c].IsNull() &&
+                                                strips[s].end_strip[c].IsNull() && strips[s].end_chain[c].IsNull());
+                            }
+                            if (!owns || strips[s].closed) {
+                                continue;
+                            }
+                            for (int end = 0; end < 2; ++end) {
+                                if (states[s].slants[end].slanted) {
+                                    continue;
+                                }
+                                const auto &section = end == 0 ? states[s].built.sections.front() : states[s].built.sections.back();
+                                g2::Vec at;
+                                g2::Vec d1, d2;
+                                g2::evaluate(section, 0.5, at, d1, d2);
+                                const double d = gp_Pnt(at[0], at[1], at[2]).Distance(mid);
+                                if (d < best) {
+                                    best = d;
+                                    curve.strip = s;
+                                    curve.end = end;
+                                }
+                            }
+                        }
+                        if (best > 0.5 * radius) {
+                            throw user_error(kStripMessage);
+                        }
+                        found.push_back(curve);
+                    }
+                    if (found.size() != 3) {
+                        throw user_error(kStripMessage);
+                    }
+                    // Cross-boundary data from each strip's surface at its end.
+                    for (EndCurve &curve : found) {
+                        const BuiltStrip &built = states[curve.strip].built;
+                        const auto &section = curve.end == 0 ? built.sections.front() : built.sections.back();
+                        const double u_end = curve.end == 0 ? 0.0 : 1.0;
+                        const double sigma = curve.end == 0 ? -1.0 : 1.0;
+                        std::array<g2::Vec, 6> d1s{}, d2s{};
+                        for (int j = 0; j < 6; ++j) {
+                            gp_Pnt p;
+                            gp_Vec su, sv, suu, svv, suv;
+                            built.surface->D2(u_end, j / 5.0, p, su, sv, suu, svv, suv);
+                            d1s[j] = {sigma * su.X(), sigma * su.Y(), sigma * su.Z()};
+                            d2s[j] = {suu.X(), suu.Y(), suu.Z()};
+                        }
+                        curve.poles = section;
+                        curve.cross1 = g2::bezier_through(d1s);
+                        curve.cross2 = g2::bezier_through(d2s);
+                    }
+                    // Order the three curves into a loop V_0 -> V_1 -> V_2 -> V_0, each oriented along it.
+                    auto close = [](const g2::Vec &a, const g2::Vec &b) { return g2::norm(g2::sub(a, b)) < 1e-6; };
+                    std::vector<EndCurve> loop;
+                    loop.push_back(found[0]);
+                    std::vector<bool> used(3, false);
+                    used[0] = true;
+                    while (loop.size() < 3) {
+                        bool advanced = false;
+                        for (std::size_t k = 1; k < 3 && !advanced; ++k) {
+                            if (used[k]) {
+                                continue;
+                            }
+                            EndCurve next = found[k];
+                            const g2::Vec tail = loop.back().poles[5];
+                            if (close(next.poles[0], tail)) {
+                                next.reversed = false;
+                            } else if (close(next.poles[5], tail)) {
+                                next.reversed = true;
+                                std::reverse(next.poles.begin(), next.poles.end());
+                                std::reverse(next.cross1.begin(), next.cross1.end());
+                                std::reverse(next.cross2.begin(), next.cross2.end());
+                            } else {
+                                continue;
+                            }
+                            loop.push_back(next);
+                            used[k] = true;
+                            advanced = true;
+                        }
+                        if (!advanced) {
+                            throw user_error(kStripMessage);
+                        }
+                    }
+                    if (!close(loop[2].poles[5], loop[0].poles[0])) {
+                        throw user_error(kStripMessage);
+                    }
+                    for (EndCurve &curve : loop) {
+                        TopoDS_Vertex v1, v2;
+                        TopExp::Vertices(curve.old_edge, v1, v2, Standard_False);
+                        const bool first_is_start = close(curve.poles[0], {BRep_Tool::Pnt(v1).X(), BRep_Tool::Pnt(v1).Y(), BRep_Tool::Pnt(v1).Z()});
+                        curve.from = first_is_start ? v1 : v2;
+                        curve.to = first_is_start ? v2 : v1;
+                    }
+                    // Midpoints, seam planes and the centre.
+                    g2::Vec mids[3], normals[3];
+                    for (int j = 0; j < 3; ++j) {
+                        g2::Vec d1, d2;
+                        g2::evaluate(loop[j].poles, 0.5, mids[j], d1, d2);
+                        normals[j] = g2::scale(d1, 1 / g2::norm(d1));
+                    }
+                    const g2::Vec centroid = g2::scale(g2::add(g2::add(mids[0], mids[1]), mids[2]), 1.0 / 3);
+                    GeomAPI_ProjectPointOnSurf to_centre(gp_Pnt(centroid[0], centroid[1], centroid[2]), BRep_Tool::Surface(old_corner));
+                    if (to_centre.NbPoints() == 0) {
+                        throw user_error(kStripMessage);
+                    }
+                    const g2::Vec centre = from_pnt(to_centre.NearestPoint());
+                    for (int j = 0; j < 3; ++j) {
+                        if (std::abs(g2::dot(normals[j], g2::sub(centre, mids[j]))) > 1e-6) {
+                            throw user_error(kStripMessage); // the corner is not symmetric enough for this construction
+                        }
+                    }
+                    // The three quadrilaterals.
+                    g2::Net nets[3], built_nets[3];
+                    double worst_mismatch = 0;
+                    for (int j = 0; j < 3; ++j) {
+                        const EndCurve &x = loop[j];
+                        const EndCurve &y = loop[(j + 2) % 3];
+                        g2::QuadInput input;
+                        // x side: first half of curve j from V_j; y side: second half of curve j-1, reversed, from V_j.
+                        const auto cx = g2::bezier_segment(x.poles, 0, 0.5);
+                        const auto f1x = g2::bezier_segment(x.cross1, 0, 0.5);
+                        const auto f2x = g2::bezier_segment(x.cross2, 0, 0.5);
+                        auto reverse_array = [](std::array<g2::Vec, 6> v) {
+                            std::reverse(v.begin(), v.end());
+                            return v;
+                        };
+                        const auto cy = reverse_array(g2::bezier_segment(y.poles, 0.5, 1));
+                        const auto f1y = reverse_array(g2::bezier_segment(y.cross1, 0.5, 1));
+                        const auto f2y = reverse_array(g2::bezier_segment(y.cross2, 0.5, 1));
+                        const g2::Vec v = cx[0];
+                        const g2::Vec leg_y = g2::sub(cy[1], v), leg_x = g2::sub(cx[1], v);
+                        const double kx = 5 * g2::norm(leg_y) / g2::norm(f1x[0]);
+                        const double ky = 5 * g2::norm(leg_x) / g2::norm(f1y[0]);
+                        if (g2::dot(f1x[0], leg_y) < 0.99 * g2::norm(f1x[0]) * g2::norm(leg_y) ||
+                            g2::dot(f1y[0], leg_x) < 0.99 * g2::norm(f1y[0]) * g2::norm(leg_x)) {
+                            throw user_error(kStripMessage); // the cross-boundary direction is not the other curve's tangent
+                        }
+                        for (int a = 0; a < 6; ++a) {
+                            input.rows_x[0][a] = cx[a];
+                            input.rows_x[1][a] = g2::add(cx[a], g2::scale(f1x[a], kx / 5));
+                            input.rows_x[2][a] = g2::add(g2::sub(g2::scale(input.rows_x[1][a], 2), cx[a]), g2::scale(f2x[a], kx * kx / 20));
+                            input.rows_y[0][a] = cy[a];
+                            input.rows_y[1][a] = g2::add(cy[a], g2::scale(f1y[a], ky / 5));
+                            input.rows_y[2][a] = g2::add(g2::sub(g2::scale(input.rows_y[1][a], 2), cy[a]), g2::scale(f2y[a], ky * ky / 20));
+                        }
+                        input.centre = centre;
+                        input.seam_x_point = mids[j];
+                        input.seam_x_normal = normals[j];
+                        input.seam_y_point = mids[(j + 2) % 3];
+                        input.seam_y_normal = normals[(j + 2) % 3];
+                        double mismatch = 0;
+                        if (!g2::build_quad(input, nets[j], mismatch, 1e-6)) {
+                            throw user_error(kStripMessage);
+                        }
+                        worst_mismatch = std::max(worst_mismatch, mismatch);
+                        built_nets[j] = nets[j];
+                    }
+                    // The corner is three-fold symmetric (each quadrilateral is the mirror image of its neighbour across
+                    // their shared seam), which G2 across the seams needs to hold to rounding: quadrilateral 0 is made
+                    // symmetric about the plane through its corner and the axis, the others are its rotations by 120
+                    // degrees about the axis. Where a strip's own data differ from that, the corner is not symmetric
+                    // enough for this construction.
+                    {
+                        const g2::Vec v0 = loop[0].poles[0], v1 = loop[1].poles[0], v2 = loop[2].poles[0];
+                        const g2::Vec g = g2::scale(g2::add(g2::add(v0, v1), v2), 1.0 / 3);
+                        auto cross = [](const g2::Vec &a, const g2::Vec &b) {
+                            return g2::Vec{a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
+                        };
+                        g2::Vec axis = cross(g2::sub(v1, v0), g2::sub(v2, v0));
+                        axis = g2::scale(axis, 1 / g2::norm(axis));
+                        const g2::Vec off_axis = g2::sub(g2::sub(centre, g), g2::scale(axis, g2::dot(g2::sub(centre, g), axis)));
+                        if (g2::norm(off_axis) > 1e-6) {
+                            throw user_error(kStripMessage); // the centre is not on the axis through the corner's middle
+                        }
+                        // Mirror about the plane through g that contains the axis and v0.
+                        g2::Vec m = cross(axis, g2::sub(v0, g));
+                        m = g2::scale(m, 1 / g2::norm(m));
+                        auto mirror = [&](const g2::Vec &p) { return g2::sub(p, g2::scale(m, 2 * g2::dot(g2::sub(p, g), m))); };
+                        auto rotate = [&](const g2::Vec &p, double angle) {
+                            const g2::Vec r = g2::sub(p, g);
+                            const g2::Vec c = cross(axis, r);
+                            return g2::add(g, g2::add(g2::add(g2::scale(r, std::cos(angle)), g2::scale(c, std::sin(angle))),
+                                                      g2::scale(axis, g2::dot(axis, r) * (1 - std::cos(angle)))));
+                        };
+                        const double sign = g2::norm(g2::sub(rotate(v0, 2 * kPi / 3), v1)) < g2::norm(g2::sub(rotate(v0, -2 * kPi / 3), v1))
+                                                ? 1.0
+                                                : -1.0;
+                        g2::Net symmetric{};
+                        double asymmetry = 0;
+                        for (int a = 0; a < 6; ++a) {
+                            for (int b = 0; b < 6; ++b) {
+                                symmetric[a][b] = g2::scale(g2::add(nets[0][a][b], mirror(nets[0][b][a])), 0.5);
+                                asymmetry = std::max(asymmetry, g2::norm(g2::sub(symmetric[a][b], nets[0][a][b])));
+                            }
+                        }
+                        nets[0] = symmetric;
+                        double disagreement = 0;
+                        for (int j = 1; j < 3; ++j) {
+                            for (int a = 0; a < 6; ++a) {
+                                for (int b = 0; b < 6; ++b) {
+                                    nets[j][a][b] = rotate(nets[0][a][b], sign * 2 * kPi / 3 * j);
+                                }
+                            }
+                            // The strips' own rows for this quadrilateral must be the rotated ones.
+                            for (int a = 0; a < 6; ++a) {
+                                for (int b = 0; b < 3; ++b) {
+                                    disagreement = std::max({disagreement, g2::norm(g2::sub(nets[j][a][b], built_nets[j][a][b])),
+                                                             g2::norm(g2::sub(nets[j][b][a], built_nets[j][b][a]))});
+                                }
+                            }
+                        }
+                        if (disagreement > 1e-6 || asymmetry > 1e-3) {
+                            throw user_error(kStripMessage);
+                        }
+                    }
+                    // Topology: vertices, half edges, seams, faces.
+                    auto to_pnt = [](const g2::Vec &v) { return gp_Pnt(v[0], v[1], v[2]); };
+                    auto bezier_curve = [&](const std::array<g2::Vec, 6> &p) {
+                        TColgp_Array1OfPnt poles(1, 6);
+                        for (int i = 0; i < 6; ++i) {
+                            poles.SetValue(i + 1, to_pnt(p[i]));
+                        }
+                        return Handle(Geom_BezierCurve)(new Geom_BezierCurve(poles));
+                    };
+                    TopoDS_Vertex vertex_mid[3], vertex_centre;
+                    for (int j = 0; j < 3; ++j) {
+                        builder.MakeVertex(vertex_mid[j], to_pnt(mids[j]), 1e-6);
+                    }
+                    builder.MakeVertex(vertex_centre, to_pnt(centre), 1e-6);
+                    TopoDS_Edge half[3][2], seam_edges[3];
+                    for (int j = 0; j < 3; ++j) {
+                        const auto first = g2::bezier_segment(loop[j].poles, 0, 0.5);
+                        const auto second = g2::bezier_segment(loop[j].poles, 0.5, 1);
+                        const TopoDS_Vertex &v_from = loop[j].from, &v_to = loop[j].to;
+                        builder.MakeEdge(half[j][0], bezier_curve(first), kEdgeTolerance);
+                        builder.Add(half[j][0], v_from.Oriented(TopAbs_FORWARD));
+                        builder.Add(half[j][0], vertex_mid[j].Oriented(TopAbs_REVERSED));
+                        builder.Range(half[j][0], 0, 1);
+                        builder.MakeEdge(half[j][1], bezier_curve(second), kEdgeTolerance);
+                        builder.Add(half[j][1], vertex_mid[j].Oriented(TopAbs_FORWARD));
+                        builder.Add(half[j][1], v_to.Oriented(TopAbs_REVERSED));
+                        builder.Range(half[j][1], 0, 1);
+                        // The seam from M_j to the centre: quadrilateral j's side a = 5.
+                        std::array<g2::Vec, 6> seam_points{};
+                        for (int b = 0; b < 6; ++b) {
+                            seam_points[b] = nets[j][5][b];
+                        }
+                        builder.MakeEdge(seam_edges[j], bezier_curve(seam_points), kEdgeTolerance);
+                        builder.Add(seam_edges[j], vertex_mid[j].Oriented(TopAbs_FORWARD));
+                        builder.Add(seam_edges[j], vertex_centre.Oriented(TopAbs_REVERSED));
+                        builder.Range(seam_edges[j], 0, 1);
+                    }
+                    // Seam consistency: quadrilateral j+1's side b = 5 is the same curve.
+                    double seam_gap = 0;
+                    for (int j = 0; j < 3; ++j) {
+                        for (int a = 0; a < 6; ++a) {
+                            seam_gap = std::max(seam_gap, g2::norm(g2::sub(nets[(j + 1) % 3][a][5], nets[j][5][a])));
+                        }
+                    }
+                    if (seam_gap > 1e-6) {
+                        throw user_error(kStripMessage);
+                    }
+                    // Strip side: the half edges get pcurves on the strips' surfaces.
+                    for (int j = 0; j < 3; ++j) {
+                        const EndCurve &curve = loop[j];
+                        const double u_end = curve.end == 0 ? 0.0 : 1.0;
+                        const Handle(Geom_Surface) strip_surface = states[curve.strip].built.surface;
+                        const double v_start = curve.reversed ? 1.0 : 0.0, v_end = curve.reversed ? 0.0 : 1.0;
+                        const double v_mid = 0.5;
+                        builder.UpdateEdge(half[j][0], line2d(gp_Pnt2d(u_end, v_start), gp_Pnt2d(u_end, v_mid), 0, 1), strip_surface,
+                                           TopLoc_Location(), kEdgeTolerance);
+                        builder.UpdateEdge(half[j][1], line2d(gp_Pnt2d(u_end, v_mid), gp_Pnt2d(u_end, v_end), 0, 1), strip_surface,
+                                           TopLoc_Location(), kEdgeTolerance);
+                    }
+                    // Faces.
+                    TopoDS_Face quads[3];
+                    for (int j = 0; j < 3; ++j) {
+                        TColgp_Array2OfPnt net_poles(1, 6, 1, 6);
+                        for (int a = 0; a < 6; ++a) {
+                            for (int b = 0; b < 6; ++b) {
+                                net_poles.SetValue(a + 1, b + 1, to_pnt(nets[j][a][b]));
+                            }
+                        }
+                        const Handle(Geom_Surface) quad_surface = new Geom_BezierSurface(net_poles);
+                        const int prev = (j + 2) % 3;
+                        // Edges of this quadrilateral and their lines in its (a, b) square.
+                        builder.UpdateEdge(half[j][0], line2d(gp_Pnt2d(0, 0), gp_Pnt2d(1, 0), 0, 1), quad_surface, TopLoc_Location(), kEdgeTolerance);
+                        builder.UpdateEdge(seam_edges[j], line2d(gp_Pnt2d(1, 0), gp_Pnt2d(1, 1), 0, 1), quad_surface, TopLoc_Location(), kEdgeTolerance);
+                        builder.UpdateEdge(seam_edges[prev], line2d(gp_Pnt2d(0, 1), gp_Pnt2d(1, 1), 0, 1), quad_surface, TopLoc_Location(), kEdgeTolerance);
+                        builder.UpdateEdge(half[prev][1], line2d(gp_Pnt2d(0, 1), gp_Pnt2d(0, 0), 0, 1), quad_surface, TopLoc_Location(), kEdgeTolerance);
+                        TopoDS_Face quad;
+                        builder.MakeFace(quad, quad_surface, kEdgeTolerance);
+                        TopoDS_Wire wire;
+                        builder.MakeWire(wire);
+                        builder.Add(wire, half[j][0].Oriented(TopAbs_FORWARD));
+                        builder.Add(wire, seam_edges[j].Oriented(TopAbs_FORWARD));
+                        builder.Add(wire, seam_edges[prev].Oriented(TopAbs_REVERSED));
+                        builder.Add(wire, half[prev][1].Oriented(TopAbs_FORWARD));
+                        builder.Add(quad, wire);
+                        // Outward: compare with the circular corner's normal at the nearest point.
+                        gp_Pnt centre_point;
+                        gp_Vec da, db;
+                        quad_surface->D1(0.5, 0.5, centre_point, da, db);
+                        GeomAPI_ProjectPointOnSurf project(centre_point, BRep_Tool::Surface(old_corner));
+                        double pu = 0, pv = 0;
+                        project.LowerDistanceParameters(pu, pv);
+                        gp_Pnt on_old;
+                        gp_Vec oa, ob;
+                        BRep_Tool::Surface(old_corner)->D1(pu, pv, on_old, oa, ob);
+                        gp_Vec n_old = oa.Crossed(ob);
+                        if (old_corner.Orientation() == TopAbs_REVERSED) {
+                            n_old.Reverse();
+                        }
+                        if (da.Crossed(db).Dot(n_old) < 0) {
+                            quad.Orientation(TopAbs_REVERSED);
+                        }
+                        quads[j] = quad;
+                    }
+                    // Commit: the strips' end edges become the two halves, the old corner goes, the quadrilaterals come.
+                    for (int j = 0; j < 3; ++j) {
+                        const EndCurve &curve = loop[j];
+                        StripState &state = states[curve.strip];
+                        // In the old edge's own direction: first vertex to last.
+                        TopoDS_Vertex old_first, old_last;
+                        TopExp::Vertices(curve.old_edge, old_first, old_last, Standard_False);
+                        const bool old_runs_with_loop = old_first.IsSame(curve.from);
+                        std::vector<std::pair<TopoDS_Edge, bool>> sequence;
+                        if (old_runs_with_loop) {
+                            sequence = {{half[j][0], false}, {half[j][1], false}};
+                        } else {
+                            sequence = {{half[j][1], true}, {half[j][0], true}};
+                        }
+                        for (int c = 0; c < 2; ++c) {
+                            if (strips[curve.strip].ends[c].IsSame(curve.old_edge)) {
+                                state.chain[c] = sequence;
+                            }
+                        }
+                    }
+                    reshape.Remove(old_corner);
+                    for (int j = 0; j < 3; ++j) {
+                        g2_new_faces.push_back(quads[j]);
+                        g2_edges.push_back(half[j][0]);
+                        g2_edges.push_back(half[j][1]);
+                        g2_edges.push_back(seam_edges[j]);
+                    }
+                    corner_done[ci] = true;
+                    ++report->g2_corners;
+                    ++report->corners;
+                } catch (const std::exception &) {
+                    // The G1 refill takes this corner.
+                } catch (const Standard_Failure &) {
+                }
+            }
+
             for (std::size_t s = 0; s < strips.size(); ++s) {
                 const TopoDS_Face old_face = strip_faces[s];
                 StripEdges &edges = strips[s];
@@ -1275,6 +1681,9 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                         }
                     }
                     const TopoDS_Edge old_edge = edges.ends[chosen];
+                    if (!state.chain[chosen].empty()) {
+                        continue; // an end on a G2 corner: its two half edges stand in for it
+                    }
                     TopoDS_Edge ne;
                     bool reversed = false;
                     for (const Replaced &r : replaced) {
@@ -1356,6 +1765,25 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                     builder.MakeWire(new_wire);
                     for (TopoDS_Iterator it(wires.Value(), Standard_False); it.More(); it.Next()) {
                         TopoDS_Shape e = it.Value();
+                        bool expanded = false;
+                        for (int c = 0; c < 2 && !expanded; ++c) {
+                            if (e.IsSame(edges.ends[c]) && !state.chain[c].empty()) {
+                                // A G2 corner replaced this end by two half edges, listed in the old edge's own
+                                // direction; the wire takes them in the direction it traverses the old edge.
+                                auto sequence = state.chain[c];
+                                const bool wire_reversed = it.Value().Orientation() == TopAbs_REVERSED;
+                                if (wire_reversed) {
+                                    std::reverse(sequence.begin(), sequence.end());
+                                }
+                                for (const auto &[half_edge, against] : sequence) {
+                                    builder.Add(new_wire, half_edge.Oriented((against != wire_reversed) ? TopAbs_REVERSED : TopAbs_FORWARD));
+                                }
+                                expanded = true;
+                            }
+                        }
+                        if (expanded) {
+                            continue;
+                        }
                         for (int c = 0; c < 2; ++c) {
                             if (e.IsSame(edges.ends[c])) {
                                 e = new_ends[c].Oriented(flip_end[c] ? TopAbs::Reverse(it.Value().Orientation()) : it.Value().Orientation());
@@ -1390,7 +1818,11 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 TopoDS_Edge shared;
                 TopoDS_Face support;
             };
-            for (const TopoDS_Face &old_corner : corner_faces) {
+            for (std::size_t ci = 0; ci < corner_faces.size(); ++ci) {
+                if (corner_done[ci]) {
+                    continue;
+                }
+                const TopoDS_Face old_corner = corner_faces[ci];
                 std::vector<CornerEdge> ces;
                 for (TopExp_Explorer it(old_corner, TopAbs_EDGE); it.More(); it.Next()) {
                     const TopoDS_Edge e = TopoDS::Edge(it.Current());
@@ -1551,6 +1983,18 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 reshape.Replace(old_corner, rebuilt);
                 ++report->corners;
             }
+            if (!g2_new_faces.empty()) {
+                // The new quadrilaterals join the (still free) shell of the working copy before the replacements apply.
+                TopExp_Explorer shells(work, TopAbs_SHELL);
+                if (!shells.More()) {
+                    throw user_error(kStripMessage);
+                }
+                TopoDS_Shell shell = TopoDS::Shell(shells.Current());
+                shell.Free(Standard_True); // a copy's shapes are frozen; this one is ours
+                for (const TopoDS_Face &quad : g2_new_faces) {
+                    builder.Add(shell, quad);
+                }
+            }
             result = reshape.Apply(work);
             BRepLib::SameParameter(result, 1e-4);
             BRepLib::UpdateTolerances(result);
@@ -1560,26 +2004,22 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
         const TopTools_IndexedMapOfShape result_faces = map_of(result, TopAbs_FACE);
         TopTools_IndexedDataMapOfShapeListOfShape result_edge_faces;
         TopExp::MapShapesAndAncestors(result, TopAbs_EDGE, TopAbs_FACE, result_edge_faces);
-        std::vector<TopoDS_Face> result_blend, result_strips;
+        // A face of the circular result, in the new solid (by index, or through the replacements once faces were added).
+        auto result_face = [&](int index) {
+            return g2_new_faces.empty() ? TopoDS::Face(result_faces(index)) : TopoDS::Face(reshape.Apply(faces(index)));
+        };
+        std::vector<TopoDS_Face> result_strips;
         for (int index : strip_indices) {
-            result_blend.push_back(TopoDS::Face(result_faces(index)));
-            result_strips.push_back(TopoDS::Face(result_faces(index)));
-        }
-        for (int index : corner_indices) {
-            result_blend.push_back(TopoDS::Face(result_faces(index)));
+            result_strips.push_back(result_face(index));
         }
         for (std::size_t s = 0; s < result_strips.size(); ++s) {
             const TopoDS_Face &strip = result_strips[s];
-            const StripEdges edges = classify(strip, result_edge_faces, result_blend, result_strips);
-            for (const Spring &spring : edges.spring) {
-                // The springs' junction tangents were set on the strips as first classified (same edges).
+            // The strips were classified before the faces were rebuilt; their spring edges are the same edges now.
+            for (const Spring &spring : strips[s].spring) {
+                // The springs' junction tangents were set on the strips as first classified.
                 bool exempt[2] = {false, false};
-                for (const Spring &known : strips[s].spring) {
-                    if (known.edge.IsSame(spring.edge)) {
-                        exempt[0] = known.flipped ? known.kinked[1] : known.kinked[0];
-                        exempt[1] = known.flipped ? known.kinked[0] : known.kinked[1];
-                    }
-                }
+                exempt[0] = spring.flipped ? spring.kinked[1] : spring.kinked[0];
+                exempt[1] = spring.flipped ? spring.kinked[0] : spring.kinked[1];
                 if (report->seam_count < OCCT_G2_MAX_SEAMS) {
                     report->seams[report->seam_count++] = measure_seam(spring.edge, strip, spring.neighbour, exempt);
                 }
@@ -1603,9 +2043,19 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 report->mitre_seams[report->mitre_seam_count++] = seam;
             }
         }
+        for (const TopoDS_Edge &edge : g2_edges) {
+            const std::vector<TopoDS_Face> sides = distinct_faces(edge, result_edge_faces);
+            if (sides.size() == 2 && report->corner_seam_count < OCCT_G2_MAX_SEAMS) {
+                report->corner_seams[report->corner_seam_count++] = measure_seam(edge, sides[0], sides[1]);
+            }
+        }
         if (weight > 0) {
-            for (int index : corner_indices) {
-                const TopoDS_Face corner = TopoDS::Face(result_faces(index));
+            for (std::size_t ci = 0; ci < corner_indices.size(); ++ci) {
+                if (ci < corner_done.size() && corner_done[ci]) {
+                    continue;
+                }
+                const int index = corner_indices[ci];
+                const TopoDS_Face corner = result_face(index);
                 for (TopExp_Explorer it(corner, TopAbs_EDGE); it.More(); it.Next()) {
                     const TopoDS_Edge e = TopoDS::Edge(it.Current());
                     if (BRep_Tool::Degenerated(e)) {

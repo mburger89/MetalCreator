@@ -204,6 +204,7 @@ typedef struct {
     int strip_sections[32];    // cross-sections each strip needed (strips in edge order)
     int corners;               // corner patches refilled
     int g1_joins;              // chain joins whose springs kink (> 0.01 degrees): tangent only there, the node warns
+    int g2_corners;            // SPIKE (Task 2d): corners rebuilt as G2 quadrilateral patches
     int g1_corners;            // of those, the ones that stayed tangent only (G1): the node warns
     int seam_count;            // the strips' spring seams, in strip order, two each
     occt_g2_seam seams[OCCT_G2_MAX_SEAMS];
@@ -227,6 +228,8 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                            occt_history *history, occt_g2_report *report, occt_status *status);
 /// FOR TESTS ONLY. Evaluates the quintic section through two end conditions {position[3], direction[3], acceleration[3]}
 /// with end derivative lengths len0 and len1: out = position[3], d1[3], d2[3] at t. Returns 1.
+/// FOR TESTS ONLY (Task 2d spike). Switches the G2 corner patch on or off for occt_fillet_g2 (off by default).
+void occt_test_g2_corner_spike(int enable);
 int occt_g2_section_test(const double end0[9], double len0, const double end1[9], double len1, double t, double out[9]);
 /// The circle's cubic-equivalent end derivative length for a chord and a turning angle (radians).
 double occt_g2_tangent_length(double chord, double turning_angle);
