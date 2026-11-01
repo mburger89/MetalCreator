@@ -223,7 +223,7 @@ typedef struct {
 /// that pushes a section past the neighbours' surfaces fails with "The tangency weight is too large for this
 /// fillet."; anything else the construction cannot do fails with "The fillet can't be made curvature continuous at
 /// this radius."
-/// SPIKE ONLY: a weight <= 0 skips the replacement and only measures (the circular fillet's gaps); Task 3 removes it.
+/// The weight must be greater than 0.
 occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int count, double radius, double weight,
                            occt_history *history, occt_g2_report *report, occt_status *status);
 /// FOR TESTS ONLY. Evaluates the quintic section through two end conditions {position[3], direction[3], acceleration[3]}

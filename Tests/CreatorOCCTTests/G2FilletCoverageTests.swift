@@ -35,10 +35,28 @@ struct G2FilletCoverageTests {
     /// The G2 blend removes a little more or less material than the circular one (within a tenth of r squared per mm).
     func expectVolumeNearCircular(_ shape: OCCTShape, midpoints: [[Double]], radius: Double, length: Double, built: G2FilletTests.Built,
                                   sourceLocation: SourceLocation = #_sourceLocation) throws {
-        let circular = try base.build(shape, midpoints: midpoints, radius: radius, weight: 0)
-        let (g2Volume, g1Volume) = OCCTKernel.serialized { (built.shape.volume, circular.shape.volume) }
+        let edges = try OCCTKernel.serialized { try base.helper.topology(of: shape) }
+        let ids = try midpoints.map { try base.helper.edge(edges, near: $0) }
+        let circular = try OCCTKernel.serialized { try shape.blended(edges: ids, size: radius, chamfer: false).0 }
+        let (g2Volume, g1Volume) = OCCTKernel.serialized { (built.shape.volume, circular.volume) }
         print("G2COVER volumes: G2 \(g2Volume) circular \(g1Volume)")
         #expect(abs(g2Volume - g1Volume) < 0.1 * radius * radius * length, sourceLocation: sourceLocation)
+    }
+
+    /// A top edge and the vertical edge at its end, the box corner's third edge left sharp: the two strips meet in a mitre
+    /// whose vertices sit within the position promise (1e-4 mm) of the springs' ends, not within 1e-5.
+    @Test func anEdgeAndItsVerticalEdgeBuild() throws {
+        let box = try OCCTKernel.serialized { try OCCTShape.box(20, 20, 10) }
+        let built = try base.build(box, midpoints: [[10, 0, 10], [0, 0, 5]], radius: 2)
+        print("G2COVER edge and vertical: mitres \(built.report.mitres) sections \(base.helper.sectionCounts(built.report))")
+        #expect(built.report.mitres == 1)
+        base.expectSpringsG2(built, seams: 4)
+        let mitreSeams = withUnsafeBytes(of: built.report.mitre_seams) {
+            Array($0.bindMemory(to: occt_g2_seam.self).prefix(Int(built.report.mitre_seam_count)))
+        }
+        for seam in mitreSeams {
+            #expect(seam.position <= 1e-4)
+        }
     }
 
     /// A drafted prism: a 20 square at the bottom, a 16 square at the top, ruled.

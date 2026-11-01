@@ -33,7 +33,7 @@ public actor KernelUnavailable: Kernel {
         try refuse()
     }
 
-    public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid {
+    public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, profile: FilletProfile, tag: NodeTag) throws -> FilletResult {
         try refuse()
     }
 

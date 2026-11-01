@@ -103,10 +103,12 @@ public actor FakeKernel: Kernel {
         }
     }
 
-    public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid {
+    public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, profile: FilletProfile, tag: NodeTag) throws -> FilletResult {
         try Task.checkCancellation()
         operationLog.append("fillet")
-        return try blend(solid, edges: edges, size: radius, tag: tag)
+        try profile.validate()
+        // No surfaces to bend: both profiles give the same faces and tags.
+        return FilletResult(solid: try blend(solid, edges: edges, size: radius, tag: tag))
     }
 
     public func chamfer(_ solid: Solid, edges: [EdgeID], distance: Double, tag: NodeTag) throws -> Solid {

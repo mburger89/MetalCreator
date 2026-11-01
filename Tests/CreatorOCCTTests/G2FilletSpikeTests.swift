@@ -129,15 +129,16 @@ struct G2FilletSpikeTests {
             } / 20
             return (try #require(built), time)
         }
-        let (g1, g1Time) = try build(0)
+        let g1Time = try clock.measure { _ = try OCCTKernel.serialized { try box.blended(edges: ids, size: 2, chamfer: false) } }
+        let circularShape = try OCCTKernel.serialized { try box.blended(edges: ids, size: 2, chamfer: false).0 }
         let (g2, g2Time) = try build(weight)
-        let g1Gaps = gaps(g1.report), g2Gaps = gaps(g2.report)
+        let g2Gaps = gaps(g2.report)
         let validity = OCCTKernel.serialized { g2.shape.validity }
         print("G2SPIKE \(name) w=\(weight): seams \(g2.report.seam_count) strips \(g2.report.strips)"
             + " sections \(sectionCounts(g2.report))")
-        print("G2SPIKE \(name) w=\(weight): G1 gaps \(g1Gaps) time \(g1Time)")
+        print("G2SPIKE \(name) w=\(weight): circular time \(g1Time)")
         print("G2SPIKE \(name) w=\(weight): G2 gaps \(g2Gaps) time \(g2Time) validity \(validity)")
-        let volume = OCCTKernel.serialized { g2.shape.volume }, circular = OCCTKernel.serialized { g1.shape.volume }
+        let volume = OCCTKernel.serialized { g2.shape.volume }, circular = OCCTKernel.serialized { circularShape.volume }
         print("G2SPIKE \(name) w=\(weight): volume \(volume), circular \(circular)")
         #expect(validity == .valid)
         // The quintic strip takes a little less material than the circle's, and never more than the box holds.

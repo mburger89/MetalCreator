@@ -39,7 +39,7 @@ actor CancellingDistanceKernel: Kernel {
         throw KernelError.unsupported("place")
     }
 
-    func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid {
+    func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, profile: FilletProfile, tag: NodeTag) throws -> FilletResult {
         throw KernelError.unsupported("fillet")
     }
 

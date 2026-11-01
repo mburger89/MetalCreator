@@ -40,8 +40,7 @@ extension OCCTShape {
         }
     }
 
-    /// SPIKE (G-b): fillets like `blended(edges:size:chamfer:)` and replaces each strip with quintic G2 sections.
-    /// A `weight` of 0 or less keeps the circular strips and only measures their spring seams.
+    /// Fillets like `blended(edges:size:chamfer:)` and replaces each strip with quintic G2 sections (`weight` > 0).
     func blendedCurvatureContinuous(edges: [EdgeID], size: Double, weight: Double)
         throws(OCCTError) -> (shape: OCCTShape, history: [OCCTHistoryRecord], report: occt_g2_report) {
         let indices = edges.map { Int32($0.rawValue + 1) }

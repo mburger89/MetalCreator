@@ -116,9 +116,18 @@ public actor OCCTKernel: Kernel {
         return copies
     }
 
-    public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid {
+    public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, profile: FilletProfile, tag: NodeTag) throws -> FilletResult {
+        try filletReporting(solid, edges: edges, radius: radius, profile: profile, tag: tag)
+    }
+
+    /// `fillet` with the seam judgement a test may replace.
+    func filletReporting(_ solid: Solid, edges: [EdgeID], radius: Double, profile: FilletProfile, tag: NodeTag,
+                         seamCheck: G2SeamCheck = .promised) throws -> FilletResult {
         try Task.checkCancellation()
-        return try blend(solid, edges: edges, size: radius, chamfer: false, tag: tag)
+        let made = try blendReporting(solid, edges: edges, size: radius, chamfer: false, profile: profile, tag: tag,
+                                      seamCheck: seamCheck)
+        return FilletResult(solid: made.solid, tangentOnlyCorners: Int(made.report?.g1_corners ?? 0),
+                            tangentOnlyJoins: Int(made.report?.g1_joins ?? 0))
     }
 
     public func chamfer(_ solid: Solid, edges: [EdgeID], distance: Double, tag: NodeTag) throws -> Solid {
