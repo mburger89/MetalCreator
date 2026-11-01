@@ -11,6 +11,7 @@ public actor FakeKernel: Kernel {
     public private(set) var tessellationAngles: [Double] = []
     var sectionHook: (@Sendable () throws -> Void)?
     var measureHook: (@Sendable () throws -> Void)?
+    var continuityHook: (@Sendable () throws -> Void)?
 
     public init() {}
 

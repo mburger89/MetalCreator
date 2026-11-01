@@ -1,5 +1,6 @@
 import CreatorEditor
 import CreatorGeometry
+import CreatorKernel
 import CreatorStyle
 import MetalUI
 
@@ -29,13 +30,31 @@ enum MeasurePanelText {
     /// `rows`, each value marked "≈" (with the mesh's resolution) when any pick behind it is approximate: the one rule for the
     /// current measurement and the kept ones.
     /// A refused distance (`distanceFailed`) is the first row, reading "Couldn't measure".
+    /// A single edge's continuity, when known (or its failure), is the last row, "Continuity".
     static func valueRows(readings: [MeasureReading], distance: Double?, distanceFailed: Bool = false, isApproximate: Bool,
-                          meshResolution: Double?, units: DocumentUnits) -> [(label: String, text: String)] {
+                          meshResolution: Double?, continuity: EdgeContinuity? = nil, continuityFailed: Bool = false,
+                          units: DocumentUnits) -> [(label: String, text: String)] {
         var all = rows(readings: readings, distance: distance, units: units).map { row in
             (row.label, isApproximate ? approximate(row.text, meshResolution: meshResolution, units: units) : row.text)
         }
         if distanceFailed && distance == nil { all.insert((label(of: .distance), Self.distanceFailed), at: 0) }
+        if let continuity {
+            all.append((continuityLabel, Self.continuity(continuity, units: units)))
+        } else if continuityFailed {
+            all.append((continuityLabel, Self.distanceFailed))
+        }
         return all
+    }
+
+    static let continuityLabel = "Continuity"
+
+    /// "G2", "G1 · curvature jump 38 %" or "G0 · 12.0°": the class two faces meet in along an edge, and what keeps them from the next.
+    static func continuity(_ value: EdgeContinuity, units: DocumentUnits) -> String {
+        switch value.grade {
+        case .g2: return "G2"
+        case .g1: return "G1 · curvature jump \(Int((value.curvatureGap * 100).rounded())) %"
+        case .g0: return "G0 · " + units.fieldText(value.angleGap * 180 / Double.pi, quantity: .angle)
+        }
     }
 
     /// A number that came from a mesh or a polyline: "≈ 12.3 mm", with the mesh's resolution when known.
@@ -147,7 +166,8 @@ extension MeasurePanel {
         let rows = MeasurePanelText.valueRows(
             readings: session.readings, distance: session.distance?.distance,
             distanceFailed: session.distanceFailed, isApproximate: session.picks.contains(where: \.isApproximate),
-            meshResolution: session.meshResolution, units: model.units)
+            meshResolution: session.meshResolution, continuity: session.continuity,
+            continuityFailed: session.continuityFailed, units: model.units)
         if session.picks.isEmpty {
             Text(MeasurePanelText.prompt)
                 .font(.callout)

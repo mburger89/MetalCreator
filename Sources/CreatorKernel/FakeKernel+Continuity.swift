@@ -2,7 +2,13 @@ import Foundation
 import CreatorGeometry
 
 extension FakeKernel {
+    /// A test knob: runs at the start of every `continuity`; it may throw to refuse. `nil` (the default) does nothing.
+    public func setContinuityHook(_ hook: (@Sendable () throws -> Void)?) {
+        continuityHook = hook
+    }
+
     public func continuity(along edge: EdgeID, of solid: Solid) throws -> EdgeContinuity {
+        try continuityHook?()
         try Task.checkCancellation()
         operationLog.append("continuity")
         return try Self.continuity(along: edge, of: solid)
