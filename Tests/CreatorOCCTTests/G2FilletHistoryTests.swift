@@ -42,6 +42,16 @@ struct G2FilletHistoryTests {
                 worst = max(worst, nearest ?? 1e9)
             }
             #expect(g2Sources == circularSources, sourceLocation: sourceLocation)
+            // One to one: equal counts, and each G2 record's face is the nearest G2 face to its circular record's centroid.
+            #expect(g2.history.count == circular.1.count, sourceLocation: sourceLocation)
+            for record in circular.1 {
+                let key = Key(kind: record.kind, operand: record.operand, index: record.index)
+                let here = centroid(circularRaw, record.outFace)
+                let nearestG2 = g2Raw.faces.indices.min { (centroid(g2Raw, $0) - here).length < (centroid(g2Raw, $1) - here).length }
+                let named = g2.history.filter { Key(kind: $0.kind, operand: $0.operand, index: $0.index) == key }.map(\.outFace)
+                #expect(named.contains { $0 == nearestG2 }, "\(key) is not on the G2 face nearest the circular one",
+                        sourceLocation: sourceLocation)
+            }
             // Roles: the tags the tagger gives each face, from the same inputs.
             let tag = NodeTag(node: NodeID(), item: 0)
             let source = NodeTag(node: NodeID(), item: 9)

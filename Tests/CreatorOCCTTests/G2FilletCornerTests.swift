@@ -53,8 +53,14 @@ struct G2FilletCornerTests {
         for x in [0.0, 20] { for z in [0.0, 10] { mids.append([x, 10, z]) } }
         for x in [0.0, 20] { for y in [0.0, 20] { mids.append([x, y, 5]) } }
         let clock = ContinuousClock()
-        var built: G2FilletTests.Built?
-        let elapsed = try clock.measure { built = try base.build(box, midpoints: mids, radius: 2) }
+        let edges = try OCCTKernel.serialized { try base.helper.topology(of: box) }
+        let ids = try mids.map { try base.helper.edge(edges, near: $0) }
+        // Timed inside the lock, so waiting for another test's OCCT work is not counted.
+        let (built, elapsed) = try OCCTKernel.serialized {
+            var made: G2FilletTests.Built?
+            let time = try clock.measure { made = try box.blendedCurvatureContinuous(edges: ids, size: 2, weight: 1) }
+            return (made, time)
+        }
         let result = try #require(built)
         report(result, "all 12 edges")
         print("G2CORNER all 12 edges: total \(elapsed), corners \(result.report.corner_milliseconds) ms")

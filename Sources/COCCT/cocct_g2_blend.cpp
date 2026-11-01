@@ -1818,14 +1818,13 @@ static occt_shape *fillet_g2_run(const occt_shape *shape, const int *edge_indice
             };
             auto attempt = [&](GeomAbs_Shape order) -> Candidate {
                 Candidate candidate;
-                for (int init = 1; init >= 0 && !candidate.ok; --init) {
+                // One plain attempt: loading the old circular corner as the initial surface never worked with the new
+                // boundary edges and cost 25 s on a pyramid's apex before the plain fill succeeded in milliseconds.
+                for (int pass_count = 0; pass_count < 1 && !candidate.ok; ++pass_count) {
                     try {
                         BRepFill_Filling fill(5, 30, 5, Standard_False, 1e-6, 1e-6, 1e-4, 1e-3, 12, 20);
                         for (const CornerEdge &ce : ces) {
                             fill.Add(TopoDS::Edge(ce.shared.Oriented(TopAbs_FORWARD)), ce.support, order, Standard_True);
-                        }
-                        if (init != 0) {
-                            fill.LoadInitSurface(old_corner);
                         }
                         fill.Build();
                         if (!fill.IsDone()) {
@@ -2052,12 +2051,17 @@ static occt_shape *fillet_g2_run(const occt_shape *shape, const int *edge_indice
                     // A rebuilt copy of the same face: it keeps its surface.
                     TopLoc_Location location;
                     const Handle(Geom_Surface) surface = BRep_Tool::Surface(TopoDS::Face(face), location);
-                    for (int j = 1; j <= final_faces.Extent() && found == 0; ++j) {
+                    int matches = 0;
+                    for (int j = 1; j <= final_faces.Extent(); ++j) {
                         TopLoc_Location other_location;
                         if (BRep_Tool::Surface(TopoDS::Face(final_faces(j)), other_location) == surface &&
                             other_location == location) {
                             found = j;
+                            ++matches;
                         }
+                    }
+                    if (matches != 1) {
+                        found = 0; // split faces share a handle: guessing would give a record the wrong face
                     }
                 }
                 return found;
@@ -2088,7 +2092,7 @@ static occt_shape *fillet_g2_run(const occt_shape *shape, const int *edge_indice
             for (const occt_history_record &record : records.records()) {
                 const std::vector<int> &now = final_of[record.out_face];
                 if (now.empty()) {
-                    continue; // a face of the circular result that the final solid no longer has (none is expected)
+                    throw user_error(kStripMessage); // a record's face can't be found: its tags must not be dropped
                 }
                 for (int index : now) {
                     renumbered.push_back(occt_history_record{index, record.kind, record.operand, record.index});
