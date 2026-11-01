@@ -126,6 +126,11 @@ today (`−smin(−a, −b)`, `−smin(−a, b)`).
   fillets meet get our own G2 patch, not OpenCascade's filling tool (whose `BRepFill_CurveConstraint` takes orders up to 2 while
   `GeomAbs_G2` is 3, and whose order 2 measured worse than its G1); the patch is spiked behind a gate, and if it can't meet the
   tolerances corners stay at the G1 refill below.
+- **Kinked chain joins (erratum 2026-11-01, found by Task 2c):** where OpenCascade's own spring bends at a join between two strips
+  of a chain (more than 0.01°, e.g. where a loft's draft changes), the two strips share one end section on the bisector, and the
+  spring seam's curvature can't match within 1 % right at the join; the curvature check skips the last 3.3 % of the seam next to such
+  a join (position and angle are checked everywhere), and the node warns "N fillet joins are tangent only (G1) where the edges
+  kink." (singular "1 fillet join is …"). Never silent.
 - **Where G2 can't be reached:** a corner patch where three or more fillets meet at a vertex is refilled to meet the new
   strips (the circular corner can't be kept: the strips' ends no longer match it). If the refill misses G2 there but meets G1
   (angle 0.01°), the node warns "N fillet corners are tangent only (G1)." A corner that misses G1 makes the G2 fillet fail
