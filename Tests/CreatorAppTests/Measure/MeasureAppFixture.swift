@@ -37,9 +37,10 @@ struct MeasureAppFixture {
 
     /// A click on `target` as the viewport delivers it, at the middle of `edge` when it is one (far from its ends).
     @discardableResult
-    func click(_ target: PickTarget, at point: ScreenPoint? = nil) -> Bool {
+    func click(_ target: PickTarget?, at point: ScreenPoint? = nil) -> Bool {
         guard let session = app.measure else { return false }
-        return session.clickedModel(target, at: point ?? middle(of: target), modifiers: [], projector: projector)
+        return session.clickedModel(target, at: point ?? target.map(middle(of:)) ?? ScreenPoint(700, 450), modifiers: [],
+                                    projector: projector)
     }
 
     /// Where the middle of an edge target is on screen; the middle of the view for anything else.

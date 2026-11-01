@@ -21,8 +21,17 @@ extension AppModel {
             self.refreshDimensions()
         }
         measure = session
+        session.sceneChanged(measureScene())
         viewport.tool = session
         showMeasureOverlay()
+    }
+
+    /// What Measure resolves its anchors against: the shown solids, which a pick may land on, and the section's pieces and plane.
+    func measureScene() -> MeasureScene {
+        let items = viewport.items
+        return MeasureScene(solids: items.map(\.solid), pickable: items.map { !$0.isGhost && !$0.isGuide },
+                            parts: sectionCaps.parts, plane: sectionCaps.plane,
+                            displayMesh: { [viewport] in viewport.displayMesh(of: $0) })
     }
 
     /// Ends Measure and gives the viewport back; the viewport's tool is cleared only when it is still this one.

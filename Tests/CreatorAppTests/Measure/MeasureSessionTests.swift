@@ -2,6 +2,7 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import CreatorNodes
+import Synchronization
 import Testing
 @testable import CreatorApp
 @testable import CreatorViewport
@@ -96,7 +97,7 @@ struct MeasureSessionTests {
         #expect(session.distance == nil && !session.isMeasuring)
     }
 
-    @Test func meshItemsAreNotPicked() async throws {
+    @Test func aClickThatMissesAMeshPicksNothing() async throws {
         let fixture = await MeasureAppFixture.open()
         fixture.app.setMeasure(true)
         let mesh = DisplayMesh(positions: [.zero, .unitX, .unitY], normals: [.unitZ, .unitZ, .unitZ], indices: [0, 1, 2],
@@ -162,18 +163,46 @@ struct MeasureSessionTests {
         #expect(fixture.app.measure?.overlay.points.contains { $0.tint == .selected } == true)
     }
 
-    @Test func newSolidsClearTheMeasurement() async throws {
+    @Test func anEditKeepsTheMeasurementAndMeasuresAgain() async throws {
+        let kernel = FakeKernel()
+        let calls = Mutex(0)
+        await kernel.setMeasureHook { calls.withLock { $0 += 1 } }
+        let fixture = await MeasureAppFixture.open(kernel: kernel)
+        fixture.app.setMeasure(true)
+        fixture.click(fixture.target(fixture.verticals[0]))
+        fixture.click(fixture.target(fixture.verticals[1]))
+        await fixture.app.settle()
+        let session = try #require(fixture.app.measure)
+        let before = fixture.solid
+        #expect(calls.withLock { $0 } == 1 && session.distance != nil)
+        try fixture.app.document.perform(.setInput(fixture.box.extrude.id, "distance", .number(25)),
+                                         name: UndoName.changeInput("Distance"))
+        await fixture.app.settle()
+        await fixture.app.settle()
+        await session.waitForDistance()
+        #expect(fixture.solid !== before)
+        #expect(session.picks.count == 2 && !session.isLost)
+        #expect(calls.withLock { $0 } == 2, "measured again on the rebuilt solid")
+        let ids = session.picks.compactMap { pick -> EdgeID? in if case let .edge(_, id) = pick { id } else { nil } }
+        let expected = try await FakeKernel().shortestDistance(between: .edge(fixture.solid, ids[0]), and: .edge(fixture.solid, ids[1]))
+        #expect(session.distance == expected)
+    }
+
+    @Test func anEditThatLosesAPickMarksItLost() async throws {
         let fixture = await MeasureAppFixture.open()
         fixture.app.setMeasure(true)
         fixture.click(fixture.target(fixture.verticals[0]))
         fixture.click(fixture.target(fixture.verticals[1]))
         await fixture.app.settle()
-        try fixture.app.document.perform(.setInput(fixture.box.extrude.id, "distance", .number(25)),
-                                         name: UndoName.changeInput("Distance"))
-        await fixture.app.settle()
-        await fixture.app.settle()
-        #expect(fixture.app.measure != nil)
-        #expect(fixture.app.measure?.picks.isEmpty == true && fixture.app.measure?.distance == nil)
+        let session = try #require(fixture.app.measure)
+        let original = fixture.app.measureScene()
+        let other = try await FakeKernel().extrude(.rectangle(width: 3, height: 3, plane: .xy), distance: 3, mode: .oneSided,
+                                                   tag: NodeTag(node: NodeID(), item: 0))
+        session.sceneChanged(MeasureSceneChangeTests.scene([other]))
+        #expect(session.isLost && session.distance == nil && session.picks.isEmpty && session.anchors.count == 2)
+        session.sceneChanged(original)
+        await session.waitForDistance()
+        #expect(!session.isLost && session.picks.count == 2 && session.distance != nil)
     }
 }
 
@@ -184,22 +213,27 @@ struct MeasureSceneChangeTests {
                                          tag: NodeTag(node: NodeID(), item: 0))
     }
 
-    @Test func aMeasurementSurvivesChangesToOtherItemsAndClearsWhenAPickedPartChanges() async throws {
+    static func scene(_ solids: [Solid]) -> MeasureScene {
+        MeasureScene(solids: solids, pickable: solids.map { _ in true }, parts: [], plane: nil, displayMesh: { _ in nil })
+    }
+
+    @Test func aMeasurementSurvivesChangesToOtherItemsAndGoesLostWhenAPickedPartChanges() async throws {
         let fixture = await MeasureAppFixture.open()
         fixture.app.setMeasure(true)
         fixture.click(fixture.target(fixture.verticals[0]))
         fixture.click(fixture.target(fixture.verticals[1]))
         await fixture.app.settle()
         let session = try #require(fixture.app.measure)
-        let picked = ViewportItem(solid: fixture.solid)
-        session.sceneChanged([picked, ViewportItem(solid: try await other(fixture))])
-        session.sceneChanged([picked, ViewportItem(solid: try await other(fixture))])
+        let picked = fixture.solid
+        let extra = try await other(fixture)
+        session.sceneChanged(Self.scene([picked, extra]))
+        session.sceneChanged(Self.scene([picked, try await other(fixture)]))
         #expect(session.picks.count == 2 && session.distance != nil)
-        session.sceneChanged([picked])
+        session.sceneChanged(Self.scene([picked]))
         #expect(session.picks.count == 2 && session.distance != nil)
         #expect(!session.dimensions(style: fixture.app.viewport.dimensionStyle, units: DocumentUnits()).isEmpty)
-        session.sceneChanged([ViewportItem(solid: try await other(fixture))])
-        #expect(session.picks.isEmpty && session.distance == nil)
+        session.sceneChanged(Self.scene([try await other(fixture)]))
+        #expect(session.picks.isEmpty && session.distance == nil && session.isLost)
     }
 
     @Test func hoverSurvivesASceneChange() async throws {
@@ -208,7 +242,7 @@ struct MeasureSceneChangeTests {
         let session = try #require(fixture.app.measure)
         let target = fixture.target(fixture.verticals[0])
         fixture.app.viewport.hovered = target
-        session.sceneChanged([ViewportItem(solid: fixture.solid)])
+        session.sceneChanged(Self.scene([fixture.solid]))
         session.pointerMoved(to: fixture.middle(of: target), modifiers: [], projector: fixture.projector)
         #expect(session.overlay.lines.contains { $0.tint == .hovered })
     }

@@ -76,7 +76,6 @@ extension AppModel {
             viewport.show(items)
         }
         // The sketch editor draws its own overlay while a sketch is open; otherwise a selected layout node shows its placements.
-        measure?.sceneChanged(viewport.items)
         showMeasureOverlay()
         viewport.showSlice(fieldPreview.viewportSlice(colors: themes.current.colors))
         section.update(document.section, items: viewport.items, bounds: viewport.sceneBounds, hidden: sketch != nil,
@@ -84,6 +83,8 @@ extension AppModel {
         viewport.showClip(section.shown?.clip)
         sectionCaps.follow(clip: section.shown?.clip, items: viewport.items, tolerance: viewport.displayTolerance)
         viewport.showSection(sectionCaps.section)
+        // Measure resolves its anchors against the items and the section's pieces as they stand after this refresh.
+        measure?.sceneChanged(measureScene())
         let handles = pick == nil && sketch == nil
             ? HandleBuilder.handles(for: editor.selection, graph: editor.graph, results: editor.levelResults, registry: registry)
             : []

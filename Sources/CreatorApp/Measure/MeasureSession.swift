@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorGraph
 import CreatorKernel
 import CreatorViewport
 import Observation
@@ -10,7 +11,12 @@ import Observation
 @MainActor
 @Observable
 final class MeasureSession: ViewportTool {
+    /// The current measurement as it would be stored: one or two anchors that name what was picked without a scene.
+    private(set) var anchors: [MeasureAnchor] = []
+    /// The anchors resolved in the latest scene; always `anchors` read again after an edit.
     private(set) var picks: [MeasurePick] = []
+    /// Some anchor no longer resolves in the scene (the part it named changed or went, or the section it stood on is off).
+    private(set) var isLost = false
     private(set) var hover: MeasurePick?
     private(set) var readings: [MeasureReading] = []
     private(set) var distance: ShapeDistance?
@@ -25,6 +31,8 @@ final class MeasureSession: ViewportTool {
     @ObservationIgnored var overlayChanged: (@MainActor () -> Void)?
     /// The picks, the readings or the distance changed: the app shows the dimensions again.
     @ObservationIgnored var dimensionsChanged: (@MainActor () -> Void)?
+    /// Takes a measurement the person leaves behind (a third click, `keepCurrent()`).
+    @ObservationIgnored var keep: (@MainActor (KeptMeasurement) -> Void)?
 
     @ObservationIgnored private weak var viewport: ViewportModel?
     @ObservationIgnored private let kernel: any Kernel
@@ -32,13 +40,20 @@ final class MeasureSession: ViewportTool {
     @ObservationIgnored private var generation = 0
     /// The element last heard under the pointer; `pointerMoved` snaps it again as the pointer or the camera moves.
     @ObservationIgnored private var lastTarget: PickTarget?
-    /// The solids the scene shows now, by position; picks name them by that position, and the measurement ends when a picked one is replaced.
-    @ObservationIgnored private var solids: [Solid] = []
+    @ObservationIgnored private var hoverSolid: ObjectIdentifier?
+    /// The scene as the app last described it: picks name its solids by position, and anchors resolve against it.
+    @ObservationIgnored private var scene: MeasureScene
+    /// The solids the picks stand on, to tell an edit that rebuilt one from a scene change that left it alone.
+    @ObservationIgnored private var pickedSolids: [ObjectIdentifier] = []
+
+    private var solids: [Solid] { scene.solids }
 
     init(kernel: any Kernel, viewport: ViewportModel) {
         self.kernel = kernel
         self.viewport = viewport
-        solids = viewport.items.map(\.solid)
+        let items = viewport.items
+        scene = MeasureScene(solids: items.map(\.solid), pickable: items.map { !$0.isGhost && !$0.isGuide }, parts: [],
+                             plane: nil, displayMesh: { [weak viewport] in viewport?.displayMesh(of: $0) })
         // The viewport tells a tool nothing of a hover that began before it was set; the next pointer move snaps it.
         lastTarget = viewport.hovered
     }
@@ -57,8 +72,17 @@ final class MeasureSession: ViewportTool {
 
     /// Forgets the picks and the distance.
     func clear() {
-        guard !picks.isEmpty || distance != nil || problem != nil || isMeasuring else { return }
+        guard !anchors.isEmpty || !picks.isEmpty || distance != nil || problem != nil || isMeasuring || isLost else { return }
+        anchors = []
+        isLost = false
         setPicks([])
+    }
+
+    /// Hands the current measurement to `keep`, then forgets it.
+    func keepCurrent() {
+        guard !anchors.isEmpty else { return }
+        keep?(KeptMeasurement(anchors: anchors))
+        clear()
     }
 
     /// Waits until no distance is being computed.
@@ -79,25 +103,17 @@ final class MeasureSession: ViewportTool {
                                      style: style, units: units)
     }
 
-    /// The scene changed: the snapshot of solids is refreshed, and the measurement ends only when a picked part's solid is no
-    /// longer the identical one at the index the pick names (part A does not follow edits to the parts it measures). A change to
-    /// another item, or to how many items there are after the picked ones, keeps it.
-    func sceneChanged(_ items: [ViewportItem]) {
-        let now = items.map(\.solid)
-        let before = solids
-        solids = now
+    /// The scene changed (an edit, the section's plane or pieces): the anchors resolve again, and when the picks they give, or a
+    /// solid under them, are not the ones measured, the numbers and the distance are made again. A pick that no longer resolves
+    /// leaves the measurement lost until a later scene finds it.
+    func sceneChanged(_ new: MeasureScene) {
+        scene = new
         lastTarget = viewport?.hovered
-        let keeps = picks.allSatisfy { pick in
-            before.indices.contains(pick.solidIndex) && now.indices.contains(pick.solidIndex)
-                && before[pick.solidIndex] === now[pick.solidIndex]
+        if let hover, !scene.solids.indices.contains(hover.solidIndex) || identity(of: hover) != hoverSolid {
+            self.hover = nil
+            bumpOverlay()
         }
-        if !keeps {
-            if hover != nil {
-                hover = nil
-                bumpOverlay()
-            }
-            clear()
-        }
+        recompute()
     }
 
     // MARK: - ViewportTool
@@ -115,18 +131,29 @@ final class MeasureSession: ViewportTool {
 
     func clickedModel(_ target: PickTarget?, at point: ScreenPoint, modifiers: ViewportModifiers,
                       projector: ViewportProjector) -> Bool {
-        guard let target else {
+        // The section's outline wins over the model behind it.
+        let pick: MeasurePick?
+        if let outline = sectionPick(at: point, projector: projector) {
+            pick = outline
+        } else if let target {
+            pick = clickedPick(target, at: point, projector: projector)
+        } else {
             clear()
             return true
         }
-        // A ghost, a guide or a mesh is no part of the model to measure: the click does nothing.
-        guard isPickable(target), let pick = snapped(target, at: point, projector: projector) else { return true }
-        if let index = picks.firstIndex(of: pick) {
-            var rest = picks
-            rest.remove(at: index)
-            setPicks(rest)
+        // A ghost, a guide, a click that names nothing, or a pick no anchor can name does nothing.
+        guard let pick, let anchor = MeasureResolver.anchor(for: pick, in: scene) else { return true }
+        if let index = anchors.firstIndex(of: anchor) {
+            anchors.remove(at: index)
+            recompute()
+        } else if anchors.count >= 2 {
+            keep?(KeptMeasurement(anchors: anchors))
+            anchors = [anchor]
+            recompute()
         } else {
-            setPicks(picks.count >= 2 ? [pick] : picks + [pick])
+            // A lost anchor is dropped with the next pick: only what resolves stays.
+            anchors = picks.compactMap { MeasureResolver.anchor(for: $0, in: scene) } + [anchor]
+            recompute()
         }
         return true
     }
@@ -137,12 +164,24 @@ final class MeasureSession: ViewportTool {
 
     // MARK: - Picking
 
-    private func isPickable(_ target: PickTarget) -> Bool {
-        // The picks name the session's own solids; the live items only say whether the same solid is a ghost, a guide or a mesh.
+    private func isPickable(_ target: PickTarget, allowingMesh: Bool = false) -> Bool {
+        // The picks name the session's own solids; the live items only say whether the same solid is a ghost or a guide.
         guard let items = viewport?.items, items.indices.contains(target.solidIndex),
               solids.indices.contains(target.solidIndex) else { return false }
         let item = items[target.solidIndex]
-        return item.solid === solids[target.solidIndex] && !item.isGhost && !item.isGuide && item.solid.displayedMesh == nil
+        return item.solid === solids[target.solidIndex] && !item.isGhost && !item.isGuide
+            && (allowingMesh || item.solid.displayedMesh == nil)
+    }
+
+    /// A click on the model: an exact face, edge or corner, or, on a mesh, the point of its surface under the click.
+    private func clickedPick(_ target: PickTarget, at point: ScreenPoint, projector: ViewportProjector) -> MeasurePick? {
+        guard isPickable(target, allowingMesh: true) else { return nil }
+        if solids[target.solidIndex].displayedMesh != nil {
+            return viewport?.surfacePoint(at: point, solidIndex: target.solidIndex).map {
+                .meshPoint(solid: target.solidIndex, at: $0)
+            }
+        }
+        return snapped(target, at: point, projector: projector)
     }
 
     private func snapped(_ target: PickTarget, at point: ScreenPoint, projector: ViewportProjector) -> MeasurePick? {
@@ -152,26 +191,57 @@ final class MeasureSession: ViewportTool {
                                 screenPoint: { projector.screenPoint(of: $0) })
     }
 
+    /// The section's outline piece within a few points of `point`, as a pick on the part it was cut from.
+    private func sectionPick(at point: ScreenPoint, projector: ViewportProjector) -> MeasurePick? {
+        guard scene.plane != nil, !scene.parts.isEmpty,
+              let hit = MeasureSectionPick.nearest(to: point, in: scene.parts, screenPoint: { projector.screenPoint(of: $0) })
+        else { return nil }
+        let part = scene.parts[hit.part]
+        guard let index = scene.solids.indices.first(where: { scene.solids[$0] === part.solid && scene.pickable[$0] })
+        else { return nil }
+        let piece = part.section.pieces[hit.piece]
+        return .sectionEdge(solid: index, piece: piece, at: MeasureResolver.midpoint(of: piece))
+    }
+
     private func updateHover(at point: ScreenPoint?, projector: ViewportProjector) {
         var next: MeasurePick?
-        if let point, let target = lastTarget { next = snapped(target, at: point, projector: projector) }
+        if let point {
+            next = sectionPick(at: point, projector: projector)
+            if next == nil, let target = lastTarget { next = snapped(target, at: point, projector: projector) }
+        }
         guard next != hover else { return }
         hover = next
+        hoverSolid = next.flatMap { identity(of: $0) }
         bumpOverlay()
     }
 
+    private func identity(of pick: MeasurePick) -> ObjectIdentifier? {
+        solids.indices.contains(pick.solidIndex) ? ObjectIdentifier(solids[pick.solidIndex]) : nil
+    }
+
     // MARK: - The measurement
+
+    /// Resolves the anchors in the scene and, when the picks or a solid under them changed, measures again.
+    private func recompute() {
+        let resolved = anchors.compactMap { MeasureResolver.resolve($0, in: scene) }
+        let lost = resolved.count < anchors.count
+        let involved = resolved.compactMap(identity(of:))
+        guard resolved != picks || involved != pickedSolids || lost != isLost else { return }
+        isLost = lost
+        setPicks(resolved)
+    }
 
     private func setPicks(_ new: [MeasurePick]) {
         task?.cancel()
         task = nil
         generation += 1
         picks = new
+        pickedSolids = new.compactMap(identity(of:))
         distance = nil
         problem = nil
         isMeasuring = false
         readings = MeasureReadings.readings(for: new, topologies: topologies())
-        if new.count == 2 { startDistance(new[0], new[1]) }
+        if new.count == 2, !isLost { startDistance(new[0], new[1]) }
         bumpOverlay()
         dimensionsChanged?()
     }
