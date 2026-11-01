@@ -60,5 +60,6 @@ float4 main(In input, bool front : SV_IsFrontFace) : SV_Target0 {
     }
     // A ghost is never striped; the draw uniform is read so the compiler keeps its buffer, which SDL_GPU binds by count from slot 0:
     // dropping an unused b0 would shift the others' slots (the vertex stage reads the face count).
+    // Reads draw.ghost so b0 stays bound (MetalUI XP-G36, our gap XP-G28); ghosts never reach this shader (the MSL always writes 1).
     return float4(saturate(color), draw.ghost != 0u ? 0.4 : 1.0);
 }

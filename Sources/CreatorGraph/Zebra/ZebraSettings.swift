@@ -16,6 +16,11 @@ public struct ZebraFrame: Equatable, Sendable, Codable {
     }
 
     public var isFinite: Bool { right.isFinite && up.isFinite && toEye.isFinite }
+
+    /// Finite, and each axis within 1e-3 of unit length (what a camera frame is).
+    var isUsable: Bool {
+        isFinite && [right, up, toEye].allSatisfy { abs($0.length - 1) <= 1e-3 }
+    }
 }
 
 /// The zebra stripes view's settings, saved with the document's view state (never in its content: changing them is no
@@ -48,7 +53,7 @@ public struct ZebraSettings: Equatable, Sendable, Codable {
                   direction: try container.decodeIfPresent(ZebraDirection.self, forKey: .direction) ?? .horizontal,
                   stripes: try container.decodeIfPresent(Int.self, forKey: .stripes) ?? 12,
                   blackShare: try container.decodeIfPresent(Double.self, forKey: .blackShare) ?? 0.5,
-                  lock: try container.decodeIfPresent(ZebraFrame.self, forKey: .lock))
+                  lock: try container.decodeIfPresent(ZebraFrame.self, forKey: .lock).flatMap { $0.isUsable ? $0 : nil })
     }
 
     public func encode(to encoder: any Encoder) throws {

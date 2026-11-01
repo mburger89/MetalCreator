@@ -22,7 +22,8 @@ final class TessellationCache {
     func load(_ solids: [Solid], tolerance: Double, angle: Double = DisplayAngle.standard, kernel: any Kernel) async throws {
         for solid in solids {
             let key = ObjectIdentifier(solid)
-            if let entry = entries[key], entry.tolerance == tolerance, entry.angle == angle { continue }
+            if let entry = entries[key], entry.tolerance == tolerance,
+               entry.angle == angle || solid.displayedMesh != nil { continue }
             // A solid that is only a mesh on display (a Mesh node's result) is drawn as it is; the kernel tessellates the rest.
             let mesh: DisplayMesh
             if let shown = solid.displayedMesh {

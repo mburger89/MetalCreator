@@ -65,6 +65,15 @@ struct ViewStateZebraTests {
         #expect(document.zebra == settings)
     }
 
+    @Test func aNonUnitLockIsDropped() throws {
+        let json = #"{"zebra":{"isOn":true,"lock":{"right":{"x":2,"y":0,"z":0},"up":{"x":0,"y":1,"z":0},"toEye":{"x":0,"y":0,"z":1}}}}"#
+        let decoded = try #require(try JSONDecoder().decode(ViewState.self, from: Data(json.utf8)).zebra)
+        #expect(decoded.isOn && decoded.lock == nil)
+        let state = ViewState(zebra: ZebraSettings(isOn: true, lock: frame))
+        let good = try JSONDecoder().decode(ViewState.self, from: JSONEncoder().encode(state))
+        #expect(good.zebra?.lock == frame)
+    }
+
     @Test func theDocumentKeepsItsZebraAndItIsNoEdit() throws {
         let document = DocumentModel(file: GraphFile(graph: graph([makeNode(ConstantNode.self)])), registry: testRegistry,
                                      kernel: FakeKernel())

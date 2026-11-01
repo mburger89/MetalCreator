@@ -14,7 +14,8 @@ extension AppModel {
         var seen = Set<ObjectIdentifier>()
         let solids = scene.map(\.item).filter { !$0.isGhost && !$0.isGuide }.map(\.solid)
             .filter { seen.insert(ObjectIdentifier($0)).inserted }
-        return FieldPreviewRequest(node: id, field: field, solids: solids, toEye: viewport.pose.toEye)
+        return FieldPreviewRequest(node: id, field: field, solids: solids, toEye: viewport.pose.toEye,
+                                   drawsTints: !showsZebra)
     }
 
     /// A preview model for a document's parts: it samples through the evaluator's distance cache and reads a solid's vertices

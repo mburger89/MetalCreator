@@ -82,6 +82,23 @@ struct ZebraAppTests {
         #expect(app.viewport.displayAngle == 0.5)
     }
 
+    @Test func theTintIsNotSampledWhileZebraShowsAndReturnsAfter() async throws {
+        var builder = GraphBuilder()
+        _ = builder.box()
+        let radial = builder.add(RadialGradientNode.self, [:], at: Vector2(0, 300))
+        let app = await makeApp(builder.graph)
+        app.setZebra(true)
+        await app.settle()
+        app.editor.selection = [radial.id]
+        await app.settle()
+        #expect(app.fieldPreview.tints.isEmpty && app.viewport.items.allSatisfy { $0.fieldValues == nil })
+        app.setZebra(false)
+        await app.settle()
+        let item = try #require(app.viewport.items.first)
+        let mesh = try #require(app.viewport.displayMesh(of: item.solid))
+        #expect(item.fieldValues?.count == mesh.positions.count)
+    }
+
     @Test func lockCapturesTheCameraAndReopens() async throws {
         let app = await boxApp()
         app.setZebra(true)
