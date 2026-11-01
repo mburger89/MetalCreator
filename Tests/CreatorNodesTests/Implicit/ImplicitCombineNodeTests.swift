@@ -109,7 +109,7 @@ struct ImplicitCombineNodeTests {
         h.wire(spheres(&h), "implicit", to: union, "shapes")
         let report = try await h.run([union], kernel: kernel)
         let solid = try #require(report.implicitSolid(union), "\(String(describing: report.state(union)))")
-        guard case .union(_, let blend) = solid else { Issue.record("not a union"); return }
+        guard case .union(_, let blend, _) = solid else { Issue.record("not a union"); return }
         #expect(blend.baked.count == 1 && blend.range == 0...3)
         #expect(report.isOK(union))
     }

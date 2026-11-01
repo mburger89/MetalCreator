@@ -33,20 +33,20 @@ final class CPUEvaluation {
             return min(max(across, along), 0) + (max(across, 0) * max(across, 0) + max(along, 0) * max(along, 0)).squareRoot()
         case .moved(let child, let move):
             return distance(child, at: move.toLocal(p))
-        case .union(let children, let blend):
+        case .union(let children, let blend, let continuity):
             let width = max(0, value(blend, at: p))
             return children.dropFirst().reduce(children.first.map { distance($0, at: p) } ?? Self.emptySentinel) {
-                Self.smoothMinimum($0, distance($1, at: p), width: width)
+                Self.smoothMinimum($0, distance($1, at: p), width: width, continuity: continuity)
             }
-        case .intersect(let children, let blend):
+        case .intersect(let children, let blend, let continuity):
             let width = max(0, value(blend, at: p))
             return children.dropFirst().reduce(children.first.map { distance($0, at: p) } ?? -Self.emptySentinel) {
-                -Self.smoothMinimum(-$0, -distance($1, at: p), width: width)
+                -Self.smoothMinimum(-$0, -distance($1, at: p), width: width, continuity: continuity)
             }
-        case .subtract(let children, let blend):
+        case .subtract(let children, let blend, let continuity):
             let width = max(0, value(blend, at: p))
             return children.dropFirst().reduce(children.first.map { distance($0, at: p) } ?? Self.emptySentinel) {
-                -Self.smoothMinimum(-$0, distance($1, at: p), width: width)
+                -Self.smoothMinimum(-$0, distance($1, at: p), width: width, continuity: continuity)
             }
         case .offset(let child, let amount):
             return distance(child, at: p) - value(amount, at: p)
@@ -73,8 +73,8 @@ final class CPUEvaluation {
     /// The polynomial smooth minimum of `a` and `b` over `width`; 0 is the plain minimum. It is `FieldMath`'s, the one smooth minimum
     /// the fields use, so a solid's blend and a field's Smooth Blend agree in the GPU agreement tests. A NaN stays NaN on the CPU
     /// only: trees that could yield NaN are rejected before they reach the GPU.
-    static func smoothMinimum(_ a: Double, _ b: Double, width: Double) -> Double {
-        FieldMath.smoothMinimum(a, b, width: width)
+    static func smoothMinimum(_ a: Double, _ b: Double, width: Double, continuity: BlendContinuity = .g1) -> Double {
+        FieldMath.smoothMinimum(a, b, width: width, continuity: continuity)
     }
 
     /// The signed distance to the box: negative inside.

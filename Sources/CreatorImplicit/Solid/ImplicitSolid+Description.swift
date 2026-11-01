@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorKernel
 import Foundation
 
@@ -16,12 +17,12 @@ extension ImplicitSolid: CustomStringConvertible {
             return "cylinder(radius \(Self.mm(radius)), height \(Self.mm(halfHeight * 2)))"
         case .moved(let child, _):
             return "place(\(child.description))"
-        case .union(let children, let blend):
-            return Self.combination("union", children, blend)
-        case .subtract(let children, let blend):
-            return Self.combination("subtract", children, blend)
-        case .intersect(let children, let blend):
-            return Self.combination("intersect", children, blend)
+        case .union(let children, let blend, let continuity):
+            return Self.combination("union", children, blend, continuity)
+        case .subtract(let children, let blend, let continuity):
+            return Self.combination("subtract", children, blend, continuity)
+        case .intersect(let children, let blend, let continuity):
+            return Self.combination("intersect", children, blend, continuity)
         case .offset(let child, let distance):
             return "offset(\(child.description), \(Self.text(distance)))"
         case .shell(let child, let thickness, let side):
@@ -51,10 +52,12 @@ extension ImplicitSolid: CustomStringConvertible {
         return String(text.prefix(max(limit - 1, 0))) + "…"
     }
 
-    private static func combination(_ name: String, _ children: [ImplicitSolid], _ blend: Grading) -> String {
+    private static func combination(_ name: String, _ children: [ImplicitSolid], _ blend: Grading,
+                                    _ continuity: BlendContinuity) -> String {
         let inner = children.map(\.description).joined(separator: ", ")
         if let value = blend.constantValue, value == 0 { return "\(name)(\(inner))" }
-        return "\(name)(\(inner), blend \(text(blend)))"
+        let order = continuity == .g1 ? "" : ", \(continuity.label)"
+        return "\(name)(\(inner), blend \(text(blend))\(order))"
     }
 
     /// A setting: a constant in millimetres, else the field's recipe.

@@ -15,7 +15,7 @@ struct VoronoiLatticeNodeTests {
     }
 
     func lattice(_ solid: ImplicitSolid) -> VoronoiLattice? {
-        if case .intersect(let parts, _) = solid, case .voronoi(let lattice) = parts[1] { lattice } else { nil }
+        if case .intersect(let parts, _, _) = solid, case .voronoi(let lattice) = parts[1] { lattice } else { nil }
     }
 
     /// The Voronoi lattice `node` makes.

@@ -55,4 +55,32 @@ struct ImplicitSolidPropertyTests {
             #expect(worst <= solid.lipschitz + 1e-6, "\(name): measured \(worst) against L = \(solid.lipschitz)")
         }
     }
+
+    @Test func descriptionNamesTheContinuityOnlyWhenNotG1() {
+        let sphere = ImplicitSolid.sphere(radius: 5)
+        let g1 = ImplicitSolid.union([sphere, sphere], blend: .constant(2))
+        #expect(!g1.description.contains("G1"))
+        #expect(ImplicitSolid.union([sphere, sphere], blend: .constant(2), continuity: .g2).description.contains("G2"))
+        #expect(ImplicitSolid.subtract([sphere, sphere], blend: .constant(2), continuity: .g3).description.contains("G3"))
+    }
+
+    /// The G2 and G3 blends (CPU only until the GPU emits them, Task 2) keep the Lipschitz bound, graded or not.
+    @Test(arguments: [BlendContinuity.g2, .g3])
+    func higherContinuitiesKeepTheLipschitzBound(_ continuity: BlendContinuity) {
+        let (sphere, cylinder, box) = (ImplicitFixtures.sphere, ImplicitFixtures.cylinder, ImplicitFixtures.box)
+        let solids: [ImplicitSolid] = [
+            .union([sphere, cylinder], blend: ImplicitFixtures.graded, continuity: continuity),
+            .intersect([sphere, box], blend: .constant(2.5), continuity: continuity),
+            .subtract([sphere, cylinder], blend: .constant(3), continuity: continuity),
+        ]
+        for solid in solids {
+            let region = ImplicitSolid.grown(solid.bounds, by: 3)
+            let first = Self.points(in: region, count: 3000, stream: 5)
+            let nudged = first.map { $0 + Vector3(0.01, -0.02, 0.015) }
+            let (a, b) = (solid.signedDistances(at: first), solid.signedDistances(at: nudged))
+            let gap = Vector3(0.01, -0.02, 0.015).length
+            let worst = zip(a, b).map { abs($0 - $1) / gap }.max() ?? 0
+            #expect(worst <= solid.lipschitz + 1e-6, "\(solid.description): measured \(worst) against L = \(solid.lipschitz)")
+        }
+    }
 }

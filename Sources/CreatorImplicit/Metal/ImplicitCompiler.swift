@@ -123,11 +123,11 @@ public enum ImplicitCompiler {
                 let (origin, x, y, z) = (vector(move.origin), vector(move.xAxis), vector(move.yAxis), vector(move.zAxis))
                 let local = declareVector("float3(dot(\(p) - \(origin), \(x)), dot(\(p) - \(origin), \(y)), dot(\(p) - \(origin), \(z)))")
                 return try self.solid(child, at: local)
-            case .union(let children, let blend):
+            case .union(let children, let blend, _): // Task 2: emit the continuity's smooth minimum; G1 for every one for now
                 return try combine(children, blend, at: p, empty: "1e30", join: { "smoothMin(\($0), \($1), \($2))" })
-            case .intersect(let children, let blend):
+            case .intersect(let children, let blend, _):
                 return try combine(children, blend, at: p, empty: "-1e30", join: { "-smoothMin(-\($0), -\($1), \($2))" })
-            case .subtract(let children, let blend):
+            case .subtract(let children, let blend, _):
                 return try combine(children, blend, at: p, empty: "1e30", join: { "-smoothMin(-\($0), \($1), \($2))" })
             case .offset(let child, let distance):
                 let inner = try self.solid(child, at: p)

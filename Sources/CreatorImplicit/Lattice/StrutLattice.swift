@@ -11,6 +11,8 @@ public struct StrutLattice: Hashable, Sendable {
     public var radius: Grading
     /// The width of the smooth minimum over the struts, 0 for sharp joints.
     public var blend: Double
+    /// The order of that smooth minimum (`BlendContinuity`); G1 for a lattice saved before it existed.
+    public var nodeContinuity: BlendContinuity
     public var region: BoundingBox
     /// How the cells are laid on the region (implicit spec §3.5); Straight evaluates the struts at the point itself.
     public var mapping: LatticeMapping
@@ -20,11 +22,12 @@ public struct StrutLattice: Hashable, Sendable {
     public static let reachInCells = 0.85
 
     public init(cell: StrutCell, cells: LatticeCells, radius: Grading, blend: Double, region: BoundingBox,
-                mapping: LatticeMapping = .straight) {
+                mapping: LatticeMapping = .straight, nodeContinuity: BlendContinuity = .g1) {
         self.cell = cell
         self.cells = cells
         self.radius = radius
         self.blend = blend
+        self.nodeContinuity = nodeContinuity
         self.region = region
         self.mapping = mapping
     }

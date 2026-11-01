@@ -14,16 +14,16 @@ extension ImplicitSolid {
             return Self.box(Vector3(radius, radius, halfHeight))
         case .moved(let child, let move):
             return move.bounds(of: child.bounds)
-        case .union(let children, let blend):
+        case .union(let children, let blend, _):
             let all = children.map(\.bounds)
             let joined = all.dropFirst().reduce(all.first ?? Self.box(.zero)) { $0.union($1) }
             return Self.grown(joined, by: max(0, blend.range.upperBound) / 4)
-        case .intersect(let children, _):
+        case .intersect(let children, _, _):
             let all = children.map(\.bounds)
             guard let first = all.first else { return Self.box(.zero) }
             let overlap = all.dropFirst().reduce(Optional(first)) { box, next in box.flatMap { next.intersection($0) } }
             return overlap ?? BoundingBox(min: first.center, max: first.center)
-        case .subtract(let children, _):
+        case .subtract(let children, _, _):
             return children.first?.bounds ?? Self.box(.zero)
         case .offset(let child, let distance):
             return Self.grown(child.bounds, by: max(0, distance.range.upperBound))

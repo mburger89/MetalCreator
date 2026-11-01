@@ -40,7 +40,9 @@ extension CPUEvaluation {
                         let end = Vector3((base.x + strut.end.x) * edges.x, (base.y + strut.end.y) * edges.y,
                                           (base.z + strut.end.z) * edges.z)
                         let gap = Self.segmentDistance(m, start, end)
-                        nearest = blend > 0 ? Self.smoothMinimum(nearest, gap, width: blend) : min(nearest, gap)
+                        nearest = blend > 0
+                            ? Self.smoothMinimum(nearest, gap, width: blend, continuity: lattice.nodeContinuity)
+                            : min(nearest, gap)
                     }
                 }
             }
