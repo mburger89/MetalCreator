@@ -2317,10 +2317,10 @@ the Output selected so the part is shown.
 ## Group ME-C — Measure, edge continuity (G-b1)
 
 - [ ] **ME-C-1 Box edge.** Measure on, pick an edge of a plain box: the Continuity row reads "G0 · 90°". **Observed:**
-- [ ] **ME-C-2 Fillet spring edge.** Pick the edge where a fillet meets its flat face: the row reads "G1 · curvature jump N %" with a plausible percentage. **Observed:**
+- [ ] **ME-C-2 Fillet spring edge.** Pick the edge where a fillet meets its flat face: the row reads "G1 · curvature jump 100 %" (a fillet against a flat face always reads 100 %). **Observed:**
 - [ ] **ME-C-3 Coplanar.** Pick the seam between two coplanar faces (a union of two boxes sharing a face plane): the row reads "G2". **Observed:**
 - [ ] **ME-C-4 No row.** Pick a face, a corner or a boundary edge that joins one face: no Continuity row. A second pick replaces the single-edge row. **Observed:**
-- [ ] **ME-C-5 Keep.** Keep a one-edge measurement: its summary ends in " · G0" (or its grade). Edit the part so the grade changes: the row follows after the evaluation. **Observed:**
+- [ ] **ME-C-5 Keep.** Keep a one-edge measurement: its summary ends " · G0 · 90°" (or its grade). Edit the part so the grade changes: the row follows after the evaluation. **Observed:**
 - [ ] **ME-C-6 Linux and Windows.** The same on Linux and Windows. **Observed:**
 
 ## Group ZE — Zebra stripes

@@ -146,6 +146,26 @@ struct MeasureContinuityTests {
         #expect(fixture.app.measureBook.entries.first?.continuityFailed == true)
     }
 
+    @Test func aKeptEdgeLostForOnePassIsNotMeasuredAgain() async throws {
+        let kernel = FakeKernel()
+        let calls = Mutex(0)
+        await kernel.setContinuityHook { calls.withLock { $0 += 1 } }
+        let fixture = await MeasureAppFixture.open(kernel: kernel)
+        try keep(fixture)
+        await fixture.app.settle()
+        let book = fixture.app.measureBook
+        #expect(book.entries.first?.continuity != nil)
+        let asked = calls.withLock { $0 }
+        #expect(asked >= 1)
+        book.refresh(MeasureScene(solids: [], pickable: [], parts: [], plane: nil))
+        #expect(book.entries.first?.picks == nil)
+        book.refresh(fixture.app.measureScene())
+        await book.waitForDistances()
+        let entry = try #require(book.entries.first)
+        #expect(entry.continuity?.grade == .g0 && !entry.isMeasuring, "the earlier result is back at once")
+        #expect(calls.withLock { $0 } == asked, "an unchanged basis is not asked again")
+    }
+
     @Test func aStaleContinuityNeverShows() async throws {
         let kernel = FakeKernel()
         let gate = FirstCallGate()

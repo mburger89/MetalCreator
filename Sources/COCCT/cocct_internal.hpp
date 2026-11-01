@@ -12,6 +12,7 @@
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <TopTools_ListOfShape.hxx>
 #include <TopoDS.hxx>
+#include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
 
@@ -112,6 +113,10 @@ inline std::vector<TopoDS_Face> distinct_faces(const TopoDS_Shape &edge,
     }
     return faces;
 }
+
+/// How smoothly `face_a` and `face_b` meet along `edge` over `samples` parameters (see `occt_edge_continuity_of`). Throws
+/// `user_error` when no sample can be compared. Reads only; the caller holds `OCCTKernel.serialized`.
+occt_edge_continuity edge_continuity(const TopoDS_Edge &edge, const TopoDS_Face &face_a, const TopoDS_Face &face_b, int samples);
 
 template <typename T>
 T *copy_out(const std::vector<T> &values) {

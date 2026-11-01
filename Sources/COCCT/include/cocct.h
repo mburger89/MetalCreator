@@ -288,7 +288,7 @@ typedef struct {
 int occt_shortest_distance(const occt_measure_operand *a, const occt_measure_operand *b, occt_shape_distance *out, occt_status *status);
 /// How smoothly the two faces of an edge meet (G-b): the worst position gap (mm), normal angle (radians, outward normals oriented by the
 /// faces' orientation in the shape), and normal-curvature gap across the edge over 32 samples. `edge_index` is 1-based in the shape's
-/// edge map. An edge that is a seam or has fewer than two distinct faces fails with a message starting "seam".
+/// edge map. An edge that is a seam or has fewer than two distinct faces fails with "This edge doesn't join two faces."
 typedef struct {
     double position_gap;
     double angle_gap;

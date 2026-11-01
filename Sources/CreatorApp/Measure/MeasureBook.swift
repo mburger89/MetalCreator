@@ -39,7 +39,8 @@ final class MeasureBook {
     @ObservationIgnored private let kernel: any Kernel
     @ObservationIgnored private let document: DocumentModel
     @ObservationIgnored private var scene: MeasureScene?
-    /// What each entry's distance was measured (or is being measured) for: its picks and the identity of the solids under them.
+    /// What each entry's distance or continuity was measured (or is being measured) for: its picks and the identity of the solids
+    /// under them.
     @ObservationIgnored private var measured: [UUID: Basis] = [:]
     @ObservationIgnored private var task: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
@@ -47,25 +48,11 @@ final class MeasureBook {
     /// The latest distance that landed for each entry and what it was measured for, kept while the entry is lost, so a scene that
     /// loses a pick for one pass (a sketch closing) and finds it again does not measure it again.
     @ObservationIgnored private var settled: [UUID: (basis: Basis, distance: ShapeDistance)] = [:]
+    /// The same for a single edge's continuity.
+    @ObservationIgnored private var settledContinuity: [UUID: (basis: Basis, continuity: EdgeContinuity)] = [:]
     @ObservationIgnored private var hints: [UUID: [Int]] = [:]
     /// The basis each entry's distance failed for (the kernel threw), so it is not asked again while nothing under it changes.
     @ObservationIgnored private var failed: [UUID: Basis] = [:]
-
-    private struct Job {
-        var id: UUID
-        var basis: Basis
-        var work: Work
-    }
-
-    private enum Work {
-        case distance(MeasureElement, MeasureElement)
-        case continuity(Solid, EdgeID)
-    }
-
-    private struct Basis: Equatable {
-        var picks: [MeasurePick]
-        var solids: [ObjectIdentifier]
-    }
 
     init(kernel: any Kernel, document: DocumentModel) {
         self.kernel = kernel
@@ -91,6 +78,7 @@ final class MeasureBook {
     func remove(_ id: UUID) {
         document.measurements.removeAll { $0.id == id }
         settled[id] = nil
+        settledContinuity[id] = nil
         failed[id] = nil
         hints[id] = nil
         refreshFromLastScene()
@@ -100,6 +88,7 @@ final class MeasureBook {
         guard !document.measurements.isEmpty else { return }
         document.measurements = []
         settled = [:]
+        settledContinuity = [:]
         failed = [:]
         hints = [:]
         refreshFromLastScene()
@@ -192,12 +181,15 @@ final class MeasureBook {
                                   work: Work) -> (job: Job, isNew: Bool)? {
         let unchanged = measured[id] == basis ? previous : nil
         if let unchanged, !unchanged.isMeasuring {
-            entry.continuity = unchanged.continuity
-            entry.continuityFailed = unchanged.continuityFailed
+            (entry.continuity, entry.continuityFailed) = (unchanged.continuity, unchanged.continuityFailed)
             return nil
         }
         if unchanged == nil, failed[id] == basis {
             entry.continuityFailed = true
+            return nil
+        }
+        if unchanged == nil, let again = settledContinuity[id], again.basis == basis {
+            entry.continuity = again.continuity
             return nil
         }
         entry.isMeasuring = true
@@ -279,6 +271,7 @@ final class MeasureBook {
               let index = entries.firstIndex(where: { $0.id == id }) else { return }
         entries[index].continuity = found
         entries[index].continuityFailed = didFail
+        if let found { settledContinuity[id] = (job.basis, found) }
         failed[id] = didFail ? job.basis : nil
         entries[index].isMeasuring = false
         bump()
@@ -332,4 +325,20 @@ final class MeasureBook {
 private func isUnsupported(_ error: any Error) -> Bool {
     if case KernelError.unsupported = error { return true }
     return false
+}
+
+private struct Job {
+    var id: UUID
+    var basis: Basis
+    var work: Work
+}
+
+private enum Work {
+    case distance(MeasureElement, MeasureElement)
+    case continuity(Solid, EdgeID)
+}
+
+private struct Basis: Equatable {
+    var picks: [MeasurePick]
+    var solids: [ObjectIdentifier]
 }
