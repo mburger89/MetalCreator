@@ -1015,6 +1015,17 @@ i-8's two voids are the two gyroid channels the skin closes; the phantom void of
 
 A winding number at every cell is 23 to 35 times the pseudonormal's cost, which the 50 mm cube makes minutes, so Check Trapped Volumes fills the grid from the unsigned distance and asks the winding number about five cells of each pocket the flood fill leaves. All three find the same voids on these two meshes (2 and 8); the phantom shows on the 8 mm fixture of `TrappedVolumePhantomTests`, where the pseudonormal sign finds a third. The winding-number clusters (about 80 bytes a BVH node, plus their build time) are built on the first `isInside` and not with the `SignedDistanceMesh`, so To Implicit's bake, which only asks for the pseudonormal sign, never builds them and row i-3 is unaffected.
 
+## Zebra stripes (zebra spec §6)
+
+Zebra stripes need a finer display mesh (`DisplayAngle.zebra`, 0.05 rad against the usual 0.5), made once when they are switched on. Row `zebra-1` is `Kernel.tessellate` of the §7.2 bracket's part at both angles (30 rounds, the first 5 dropped). Release, `Tests/CreatorAppTests/Bench/ZebraBench.swift`, 2026-11-01, Mac18,5, 12 cores. Load averages (1, 5, 15 min) before the run 1.48 / 6.62 / 8.86, after 4.50 / 6.25 / 8.41; the one-minute figure after includes the release build that preceded the run, and the 1-minute load was under 2 when the timing began, so the run is recorded as idle, not saturated.
+
+| Row | 0.5 rad (usual) | 0.05 rad (zebra) |
+|---|---|---|
+| `zebra-1` tessellation, median (p95) | 2.20 ms (2.26) | 37.70 ms (38.01) |
+| `zebra-1` triangles | 676 | 6,152 |
+
+The finer mesh costs about 17 times the time and 9 times the triangles on the bracket: one 38 ms tessellation when stripes go on (off the frame budget's critical path, it runs once per change of part), not per frame.
+
 ## Raw output
 
 The 2026-10-20 idle run (MetalCreator `5e4069e`, MetalUI `711ab9c4`; the machine and load lines are the scripts', copied from their

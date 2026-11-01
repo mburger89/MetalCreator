@@ -2310,3 +2310,14 @@ the Output selected so the part is shown.
 - [ ] **ME-B-11 No edit.** Keeping, removing and clearing add no undo step and do not mark the document edited. **Observed:**
 - [ ] **ME-B-13 Flicker after an edit.** A kept measurement on a section edge may read "No longer found" for a moment after an edit, until the new cap lands (known and accepted). It returns on its own. **Observed:**
 - [ ] **ME-B-12 Linux and Windows.** The same on Linux and Windows. **Observed:**
+
+## Group ZE — Zebra stripes
+
+- [ ] **ZE-1 Toggle, menu and key.** The top bar's Zebra toggle, View ▸ Show/Hide Zebra Stripes and Z each turn the stripes on and off; the three agree. The Zebra panel shows below Measure while it is on. **Observed:**
+- [ ] **ZE-2 Orbit.** With stripes on, orbit the bracket: the stripes slide over the surface as the reflection changes. **Observed:**
+- [ ] **ZE-3 Lock.** Lock pins the stripes to the view they had: orbiting no longer moves them. Save, close and Open: the lock and its pose come back. Unlock frees them. **Observed:**
+- [ ] **ZE-4 Continuity.** On the bracket's fillet and on a loft: a crease breaks the stripes, a plain fillet kinks them, a smooth blend lets them flow straight across. **Observed:**
+- [ ] **ZE-5 Fine mesh.** A fillet shows no faceting in its stripes once the finer mesh has landed (a moment after switching on). Turning stripes off returns the usual mesh. **Observed:**
+- [ ] **ZE-6 Section.** With a Section shown, stripes stay on the cut part and the cap is drawn as usual. **Observed:**
+- [ ] **ZE-7 Other modes.** Ghosts are never striped; a field tint gives way to the stripes; sketch mode hides them and returns them afterwards. **Observed:**
+- [ ] **ZE-8 Linux and Windows.** The same on Linux and Windows: the stripes look alike. **Observed:**
