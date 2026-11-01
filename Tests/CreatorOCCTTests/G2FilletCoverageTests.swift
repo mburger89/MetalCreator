@@ -69,3 +69,33 @@ struct G2FilletCoverageTests {
         try expectVolumeNearCircular(shape, midpoints: [[-5, 0, 10]], radius: 0.5, length: 26, built: built)
     }
 }
+
+extension G2FilletCoverageTests {
+    /// A smooth three-section loft (20 square, 24 square, 20 square): its four sides are B-spline faces.
+    func smoothLoft() throws -> OCCTShape {
+        func square(_ side: Double, _ z: Double) -> Profile2D {
+            Profile2D.rectangle(width: side, height: side, plane: Plane(origin: Vector3(0, 0, z), normal: .unitZ, xAxis: .unitX))
+        }
+        return try OCCTKernel.serialized { try OCCTShape.loft([square(20, 0), square(24, 5), square(20, 10)], ruled: false).0 }
+    }
+
+    /// A top edge of a smooth loft: its B spring is a B-spline curve on a B-spline face.
+    @Test func aLoftNeighbourIsG2() throws {
+        let built = try base.build(try smoothLoft(), midpoints: [[0, -10, 10]], radius: 1)
+        print("G2COVER loft: sections \(base.helper.sectionCounts(built.report)) gaps \(base.helper.gaps(built.report))")
+        base.expectSpringsG2(built, seams: 2)
+    }
+}
+
+extension G2FilletCoverageTests {
+    /// A shape that carries a location (a STEP import can): the weight check and the slanted trim read the faces in
+    /// their own frames.
+    @Test func aLocatedShapeBuilds() throws {
+        let (offset, angle) = (Vector3(5, 3, 2), 0.7)
+        let plain = try draftedPrism()
+        let prism = try OCCTKernel.serialized { try plain.locatedCopy(translation: offset, rotationAboutZ: angle) }
+        let mid = [0 * cos(angle) + 8 * sin(angle) + offset.x, 0 * sin(angle) - 8 * cos(angle) + offset.y, 10 + offset.z]
+        let built = try base.build(prism, midpoints: [mid], radius: 1)
+        base.expectSpringsG2(built, seams: 2)
+    }
+}

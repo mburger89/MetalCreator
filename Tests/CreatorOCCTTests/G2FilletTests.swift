@@ -103,8 +103,8 @@ struct G2FilletTests {
 }
 
 extension G2FilletTests {
-    /// A 270 degree arc (a pac-man's body) filleted r 0.5: the arc needs the cap, 129 sections.
-    @Test func aLongArcNeedsTheMostSections() throws {
+    /// A 270 degree arc (a pac-man's body) filleted r 0.5: the arc needs many sections (69 with local refinement).
+    @Test func aLongArcNeedsManySections() throws {
         let c = 5 * 0.7071067811865476
         let segments: [Segment2D] = [
             .arc(center: Vector2(0, 0), radius: 5, start: .degrees(45), end: .degrees(315)),
@@ -114,7 +114,7 @@ extension G2FilletTests {
         let started = ContinuousClock.now
         let built = try build(shape, midpoints: [[-5, 0, 10]], radius: 0.5)
         print("G2FILLET 270 degree arc: sections \(helper.sectionCounts(built.report)) in \(ContinuousClock.now - started)")
-        #expect(helper.sectionCounts(built.report) == [129])
+        #expect(helper.sectionCounts(built.report).allSatisfy { $0 > 9 && $0 <= 129 })
         expectSpringsG2(built, seams: 2)
     }
 }
