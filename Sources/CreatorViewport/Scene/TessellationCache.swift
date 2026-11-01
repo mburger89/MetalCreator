@@ -7,6 +7,7 @@ final class TessellationCache {
     private struct Entry {
         let solid: Solid
         let tolerance: Double
+        let angle: Double
         let cached: CachedMesh
     }
 
@@ -18,20 +19,21 @@ final class TessellationCache {
     /// Meshes every solid in `solids` at `tolerance`, reusing cached meshes, then drops the entries of solids not
     /// listed. A cancelled load never prunes (it stops before changing anything else), so a superseded
     /// load can't drop the newer scene's meshes.
-    func load(_ solids: [Solid], tolerance: Double, kernel: any Kernel) async throws {
+    func load(_ solids: [Solid], tolerance: Double, angle: Double = DisplayAngle.standard, kernel: any Kernel) async throws {
         for solid in solids {
             let key = ObjectIdentifier(solid)
-            if let entry = entries[key], entry.tolerance == tolerance { continue }
+            if let entry = entries[key], entry.tolerance == tolerance,
+               entry.angle == angle || solid.displayedMesh != nil { continue }
             // A solid that is only a mesh on display (a Mesh node's result) is drawn as it is; the kernel tessellates the rest.
             let mesh: DisplayMesh
             if let shown = solid.displayedMesh {
                 mesh = shown
             } else {
-                mesh = try await kernel.tessellate(solid, tolerance: tolerance)
+                mesh = try await kernel.tessellate(solid, tolerance: tolerance, angle: angle)
                 tessellationCount += 1
             }
             try Task.checkCancellation()
-            entries[key] = Entry(solid: solid, tolerance: tolerance, cached: CachedMesh(serial: nextSerial, mesh: mesh))
+            entries[key] = Entry(solid: solid, tolerance: tolerance, angle: angle, cached: CachedMesh(serial: nextSerial, mesh: mesh))
             nextSerial += 1
         }
         try Task.checkCancellation()

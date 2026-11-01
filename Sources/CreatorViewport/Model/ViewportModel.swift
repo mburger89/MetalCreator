@@ -37,6 +37,9 @@ public final class ViewportModel {
     public internal(set) var modelArea = ViewportInsets()
     /// Display tolerance in mm. Meshes are cached per solid and tolerance. A change applies at the next `show(_:)`.
     public var displayTolerance = 0.05
+    /// Display angular deflection in radians (`DisplayAngle`): the finest turn between neighbouring normals on a curved
+    /// face. A change applies at the next `show(_:)`; until the finer meshes land the shown ones stay up.
+    public var displayAngle = DisplayAngle.standard
     /// The shown scene: what's drawn, picked, framed and offered in the context menu. It changes only when a
     /// requested scene's meshes are ready.
     public private(set) var items: [ViewportItem] = []
@@ -70,6 +73,8 @@ public final class ViewportModel {
     /// The section's cap and outlines (`showSection(_:)`), or `nil`. It is no part of the scene: it never picks, frames or widens
     /// `sceneBounds`.
     public private(set) var section: ViewportSection?
+    /// The zebra stripes view mode (`showZebra(_:)`), or `nil`. View state: it never picks, frames or widens `sceneBounds`.
+    public private(set) var zebra: ViewportZebra?
     public internal(set) var hovered: PickTarget? {
         didSet {
             if hovered != oldValue { tool?.hoverChanged(hovered, at: lastHoverPoint, projector: projector) }
@@ -146,7 +151,7 @@ public final class ViewportModel {
         ViewportRenderKey(pose: pose, isAnimating: isAnimating, shading: shading, hovered: hovered,
                           hoveredCubeRegion: hoveredCubeRegion, sceneGeneration: sceneGeneration, handles: handles,
                           cube: cubeLayout, triad: triadLayout, palette: palette, overlay: overlay,
-                          showsViewCube: showsViewCube, slice: slice, clip: clip, section: section)
+                          showsViewCube: showsViewCube, slice: slice, clip: clip, section: section, zebra: zebra)
     }
 
     /// The union of every shown solid's bounds, ghosts included and guides left out.
@@ -166,12 +171,13 @@ public final class ViewportModel {
         meshTask?.cancel()
         let solids = newItems.map(\.solid)
         let tolerance = displayTolerance
+        let angle = displayAngle
         meshTask = Task { [weak self] in
             guard let self else { return }
             do {
                 // The cache keeps the shown scene's meshes until this load has every new one: it prunes only at
                 // the end of a load that wasn't cancelled.
-                try await cache.load(solids, tolerance: tolerance, kernel: kernel)
+                try await cache.load(solids, tolerance: tolerance, angle: angle, kernel: kernel)
             } catch is CancellationError {
                 return
             } catch {
@@ -217,6 +223,11 @@ public final class ViewportModel {
     /// The section's cap to draw, or `nil` for none. An equal section (the same `generation`) changes nothing.
     public func showSection(_ newSection: ViewportSection?) {
         if section != newSection { section = newSection }
+    }
+
+    /// The zebra stripes to draw on the solids, or `nil` for none. An equal zebra changes nothing.
+    public func showZebra(_ newZebra: ViewportZebra?) {
+        if zebra != newZebra { zebra = newZebra }
     }
 
     /// Returns once the most recent `show(_:)` has finished loading.

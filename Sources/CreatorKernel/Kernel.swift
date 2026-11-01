@@ -28,7 +28,9 @@ public protocol Kernel: Actor {
                tag: NodeTag) throws -> [Solid]
     func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid
     func chamfer(_ solid: Solid, edges: [EdgeID], distance: Double, tag: NodeTag) throws -> Solid
-    func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh
+    /// Triangles for display. `angle` is the largest turn in radians between neighbouring normals on a curved face
+    /// (`DisplayAngle`); a smaller one makes more triangles. Boxes are the same at any angle.
+    func tessellate(_ solid: Solid, tolerance: Double, angle: Double) throws -> DisplayMesh
     func export(_ solids: [Solid], format: ExportFormat, to url: URL) throws
     /// Volume, surface area and centroid. Used by inspectors and the conformance suite.
     func properties(of solid: Solid) throws -> SolidProperties
@@ -80,5 +82,20 @@ extension Kernel {
 
     public func shortestDistance(between first: MeasureElement, and second: MeasureElement) throws -> ShapeDistance {
         throw KernelError.unsupported("measuring")
+    }
+}
+
+/// Angular deflections for display meshes, in radians.
+public enum DisplayAngle {
+    /// The everyday display mesh.
+    public static let standard = 0.5
+    /// Fine enough that zebra stripes, which reflect the normal, don't show the tessellation.
+    public static let zebra = 0.05
+}
+
+extension Kernel {
+    /// Tessellates at `DisplayAngle.standard`.
+    public func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh {
+        try tessellate(solid, tolerance: tolerance, angle: DisplayAngle.standard)
     }
 }

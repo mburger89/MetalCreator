@@ -24,7 +24,7 @@ enum SDLViewportShaders {
     }
 
     /// Every shader the viewport builds a pipeline from; each has a vertex stage and a fragment stage of the same name.
-    static let names = ["background", "fill", "mesh", "field_mesh", "line", "grid", "cube", "slice", "section",
+    static let names = ["background", "fill", "mesh", "field_mesh", "zebra_mesh", "line", "grid", "cube", "slice", "section",
         "id_mesh", "id_line",
     ]
 

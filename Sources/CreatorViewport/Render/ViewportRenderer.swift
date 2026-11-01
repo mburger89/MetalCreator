@@ -161,17 +161,20 @@ final class ViewportRenderer {
             drawMeshes(items, ghost: true, pipeline: pipelines.ghostDepth, clip: clip, encoder)
         }
         encoder.setDepthStencilState(ghosts ? pipelines.depthTest : pipelines.depthWrite)
-        drawMeshes(items, ghost: ghosts, pipeline: ghosts ? pipelines.ghost : pipelines.mesh, clip: clip, encoder)
+        drawMeshes(items, ghost: ghosts, pipeline: ghosts ? pipelines.ghost : pipelines.mesh, clip: clip,
+                   zebra: frame.zebra, encoder)
     }
 
     /// Draws each item with `pipeline`, or with the field pipeline when it is an opaque item with a tint to show (fields spec §6).
     private func drawMeshes(_ items: [FrameItem], ghost: Bool, pipeline: any MTLRenderPipelineState, clip: ClipUniforms,
+                            zebra: ViewportZebra? = nil,
                             _ encoder: any MTLRenderCommandEncoder) {
         for item in items {
             guard let gpu = meshes[item.meshSerial], let vertices = gpu.vertexBuffer else { continue }
             var draw = DrawUniforms(pickBase: 0, ghost: ghost ? 1 : 0, faceCount: UInt32(gpu.faceCount), padding: 0)
-            let isTinted = !ghost && bindFieldTint(of: item, on: gpu, encoder)
-            if !isTinted { encoder.setRenderPipelineState(pipeline) }
+            let isZebra = !ghost && bindZebra(zebra, encoder)
+            let isTinted = !ghost && !isZebra && bindFieldTint(of: item, on: gpu, encoder)
+            if !isTinted && !isZebra { encoder.setRenderPipelineState(pipeline) }
             // The tint's pipeline takes the ramp at buffer 3, so its clip goes to 4.
             var plane = clip
             encoder.setFragmentBytes(&plane, length: MemoryLayout<ClipUniforms>.stride, index: isTinted ? 4 : 3)

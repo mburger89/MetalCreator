@@ -11,6 +11,8 @@ struct SDLFramePlan {
         var flags: SDLGPUBuffer
         var faceCount: Int
         var tint: (values: SDLGPUBuffer, ramp: FieldRampUniforms)?
+        /// The zebra stripes, for an opaque solid when the frame has a zebra (they win over `tint`).
+        var zebra: ZebraUniforms?
     }
 
     /// Line instances to draw in one instanced call, the cut view's plane they are clipped by, and their style.

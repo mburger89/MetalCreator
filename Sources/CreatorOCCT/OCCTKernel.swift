@@ -126,15 +126,18 @@ public actor OCCTKernel: Kernel {
         return try blend(solid, edges: edges, size: distance, chamfer: true, tag: tag)
     }
 
-    public func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh {
+    public func tessellate(_ solid: Solid, tolerance: Double, angle: Double) throws -> DisplayMesh {
         try Task.checkCancellation()
         guard tolerance.isFinite, tolerance > 0 else {
             throw KernelError.invalidInput("The display tolerance must be greater than 0 mm.")
         }
+        guard angle.isFinite, angle > 0 else {
+            throw KernelError.invalidInput("The display angle must be greater than 0 radians.")
+        }
         let source = try shape(of: solid)
         do {
             // Untyped throws on purpose: Swift 6.4 IRGen crashes with typed throws in this closure. Revert once fixed.
-            return try Self.serialized { () throws -> DisplayMesh in try source.mesh(tolerance: tolerance) }
+            return try Self.serialized { () throws -> DisplayMesh in try source.mesh(tolerance: tolerance, angle: angle) }
         } catch let error as OCCTError {
             throw KernelError.occt("tessellate", error)
         }

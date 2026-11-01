@@ -9,4 +9,6 @@ struct FieldPreviewRequest {
     var field: Field
     var solids: [Solid]
     var toEye: Vector3
+    /// False while the zebra shows: it beats the tint, so the tint is not sampled (and is sampled again when this turns true).
+    var drawsTints = true
 }

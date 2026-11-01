@@ -47,7 +47,7 @@ actor CancellingDistanceKernel: Kernel {
         throw KernelError.unsupported("chamfer")
     }
 
-    func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh {
+    func tessellate(_ solid: Solid, tolerance: Double, angle: Double) throws -> DisplayMesh {
         throw KernelError.unsupported("tessellate")
     }
 

@@ -16,7 +16,9 @@ struct SectionCapModelOrderTests {
         init() { (entered, signal) = AsyncStream<Void>.makeStream() }
         func hold() {
             signal.yield()
-            _ = semaphore.wait(timeout: .now() + 60)
+            // Long enough that a loaded runner (Windows CI took 200 s over these tests) never lets the hold lapse before the test has
+            // looked; a test that fails before `release()` waits this long, not forever.
+            _ = semaphore.wait(timeout: .now() + 600)
         }
         func release() { semaphore.signal() }
         func waitUntilEntered() async -> Bool {

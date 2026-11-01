@@ -21,6 +21,15 @@ struct MeshOnDisplayTests {
         #expect(cache.mesh(for: shown)?.mesh.indices == mesh.indices)
     }
 
+    @Test func aMeshOnDisplayKeepsItsEntryAcrossAnAngleChange() async throws {
+        let cache = TessellationCache()
+        let shown = Solid(displaying: mesh)
+        try await cache.load([shown], tolerance: 0.05, kernel: StubMeshKernel())
+        let serial = try #require(cache.mesh(for: shown)?.serial)
+        try await cache.load([shown], tolerance: 0.05, angle: DisplayAngle.zebra, kernel: StubMeshKernel())
+        #expect(cache.mesh(for: shown)?.serial == serial)
+    }
+
     @Test func aSceneWithAMeshAndAPartLoadsBoth() async throws {
         let kernel = StubMeshKernel()
         let model = ViewportModel(kernel: kernel, pose: nil)

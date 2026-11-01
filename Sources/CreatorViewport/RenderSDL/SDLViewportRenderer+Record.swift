@@ -70,7 +70,14 @@ extension SDLViewportRenderer {
                            clip: ClipUniforms, in recorder: SDLPassRecorder) {
         let pass = recorder.pass
         let draw = DrawUniforms(pickBase: 0, ghost: ghosts ? 1 : 0, faceCount: UInt32(solid.faceCount), padding: 0)
-        if let tint = solid.tint {
+        if let zebra = solid.zebra {
+            recorder.bind(pipelines.zebraMesh)
+            pass.pushFragmentUniform(uniformBytes(draw), at: 0)
+            pass.pushFragmentUniform(uniformBytes(shade), at: 1)
+            pass.pushFragmentUniform(uniformBytes(clip), at: 2)
+            pass.pushFragmentUniform(uniformBytes(zebra), at: 3)
+            pass.bindVertexStorageBuffers([solid.vertices, solid.flags])
+        } else if let tint = solid.tint {
             recorder.bind(pipelines.fieldMesh)
             pass.pushFragmentUniform(uniformBytes(shade), at: 0)
             pass.pushFragmentUniform(uniformBytes(tint.ramp), at: 1)

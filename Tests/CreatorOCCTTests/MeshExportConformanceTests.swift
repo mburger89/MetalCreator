@@ -133,6 +133,36 @@ struct MeshExportConformanceTests {
         #expect(again.edgePolylines == first.edgePolylines)
     }
 
+    /// Zebra stripes reflect the normal, so the display mesh must follow it closely (`DisplayAngle.zebra`).
+    @Test(arguments: KernelUnderTest.allCases)
+    func aFinerAngleMakesMoreTrianglesOnACylinder(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let rod = try await kernel.extrude(.circle(radius: 20, center: .zero, plane: .xy), distance: 10, mode: .oneSided, tag: newTag())
+        let coarse = try await kernel.tessellate(rod, tolerance: 1, angle: DisplayAngle.standard)
+        let fine = try await kernel.tessellate(rod, tolerance: 1, angle: DisplayAngle.zebra)
+        print("cylinder r=20 triangles: \(coarse.indices.count / 3) at 0.5 rad, \(fine.indices.count / 3) at 0.05 rad")
+        #expect(fine.indices.count >= 5 * coarse.indices.count)
+        let side = try #require(rod.topology.faces.first { $0.kind == .cylinder }?.id)
+        var widest = 0.0
+        for (triangle, face) in fine.triangleFaces.enumerated() where face == side {
+            let corners = (0..<3).map { Int(fine.indices[triangle * 3 + $0]) }
+            for (a, b) in [(0, 1), (1, 2), (2, 0)] {
+                let (first, second) = (fine.normals[corners[a]], fine.normals[corners[b]])
+                widest = max(widest, acos(min(1, max(-1, first.dot(second)))))
+            }
+        }
+        #expect(widest > 0 && widest <= 0.06, "adjacent side normals differ by \(widest) rad")
+    }
+
+    @Test(arguments: KernelUnderTest.allCases)
+    func anAngleOutOfRangeIsRefused(_ under: KernelUnderTest) async throws {
+        let kernel = under.make()
+        let solid = try await box(kernel, 10, 20, 30)
+        for angle in [0, -0.5, .nan, .infinity] {
+            await #expect(throws: KernelError.self) { try await kernel.tessellate(solid, tolerance: 0.1, angle: angle) }
+        }
+    }
+
     /// Distance from `point` to the segment `a`–`b`.
     func distanceToSegment(_ point: Vector3, _ a: Vector3, _ b: Vector3) -> Double {
         let span = b - a

@@ -4,10 +4,10 @@ import CreatorKernel
 import Foundation
 
 extension OCCTShape {
-    func mesh(tolerance: Double) throws(OCCTError) -> DisplayMesh {
+    func mesh(tolerance: Double, angle: Double) throws(OCCTError) -> DisplayMesh {
         var raw = occt_mesh()
         defer { occt_mesh_free(&raw) }
-        try Self.check { status in occt_tessellate(self.raw, tolerance, &raw, status) }
+        try Self.check { status in occt_tessellate(self.raw, tolerance, angle, &raw, status) }
         let vertexCount = Int(raw.vertex_count)
         let coordinates = UnsafeBufferPointer(start: raw.positions, count: vertexCount * 3)
         let normalCoordinates = UnsafeBufferPointer(start: raw.normals, count: vertexCount * 3)

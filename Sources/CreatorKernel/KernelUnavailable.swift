@@ -41,7 +41,7 @@ public actor KernelUnavailable: Kernel {
         try refuse()
     }
 
-    public func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh {
+    public func tessellate(_ solid: Solid, tolerance: Double, angle: Double) throws -> DisplayMesh {
         try refuse()
     }
 

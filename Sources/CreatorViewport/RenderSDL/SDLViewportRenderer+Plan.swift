@@ -13,7 +13,7 @@ extension SDLViewportRenderer {
         var plan = SDLFramePlan()
         let clip = ClipUniforms(frame.clip)
         for item in frame.items where !item.isGuide {
-            guard let solid = solid(of: item, uploader) else { continue }
+            guard let solid = solid(of: item, zebra: frame.zebra, uploader) else { continue }
             if item.isGhost { plan.ghosts.append(solid) } else { plan.opaque.append(solid) }
         }
         planSection(frame, scale: scale, into: &plan)
@@ -62,7 +62,7 @@ extension SDLViewportRenderer {
 
     /// `item` as a plan entry: its triangles, its face flags and, for an opaque item with a tint to show (fields spec §6), the field's
     /// values and ramp. `nil` when the mesh has no triangles.
-    private func solid(of item: FrameItem, _ uploader: SDLViewportUploader) -> SDLFramePlan.Solid? {
+    private func solid(of item: FrameItem, zebra: ViewportZebra?, _ uploader: SDLViewportUploader) -> SDLFramePlan.Solid? {
         guard let gpu = meshes[item.meshSerial], let vertices = gpu.vertexBuffer,
               let flags = gpu.faceFlags(hovered: item.hoveredFace, selected: item.selectedFaces, warning: item.warningFaces,
                                         uploader: uploader) else { return nil }
@@ -71,7 +71,8 @@ extension SDLViewportRenderer {
            let buffer = gpu.fieldValues(values, mesh: item.mesh, ramp: ramp, uploader: uploader) {
             tint = (buffer, FieldRampUniforms(ramp))
         }
-        return SDLFramePlan.Solid(vertices: vertices, vertexCount: gpu.vertexCount, flags: flags, faceCount: gpu.faceCount, tint: tint)
+        return SDLFramePlan.Solid(vertices: vertices, vertexCount: gpu.vertexCount, flags: flags, faceCount: gpu.faceCount, tint: tint,
+                                    zebra: item.isGhost ? nil : zebra.map(ZebraUniforms.init))
     }
 
     /// The frame's handles in its palette, kept until the handles, the scale or the palette change.

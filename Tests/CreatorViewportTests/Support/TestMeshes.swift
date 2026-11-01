@@ -1,6 +1,7 @@
 // Test fixture file: hand-built display meshes whose face and edge IDs match FakeKernel's prism numbering.
 import CreatorGeometry
 import CreatorKernel
+import Foundation
 
 enum TestMeshes {
     /// A box mesh numbered like `FakeKernel.extrude` of a rectangle:
@@ -41,5 +42,35 @@ enum TestMeshes {
         }
         return DisplayMesh(positions: positions, normals: normals, indices: indices, triangleFaces: triangleFaces,
                            edgePolylines: polylines)
+    }
+
+    /// A sphere about the origin as one face (ID 0), `segments` of longitude by `segments / 2` of latitude, with exact outward
+    /// vertex normals and triangles wound outward.
+    static func sphere(radius: Double, segments: Int) -> DisplayMesh {
+        let rings = max(segments / 2, 2)
+        var positions: [Vector3] = []
+        var normals: [Vector3] = []
+        for ring in 0...rings {
+            let polar = Double.pi * Double(ring) / Double(rings)
+            for step in 0...segments {
+                let azimuth = 2 * Double.pi * Double(step) / Double(segments)
+                let normal = Vector3(sin(polar) * cos(azimuth), sin(polar) * sin(azimuth), cos(polar))
+                normals.append(normal)
+                positions.append(normal * radius)
+            }
+        }
+        var indices: [UInt32] = []
+        let stride = UInt32(segments + 1)
+        for ring in 0..<rings {
+            for step in 0..<segments {
+                let a = UInt32(ring) * stride + UInt32(step)
+                let b = a + 1, c = a + stride, d = c + 1
+                // Ring 0 is the +Z pole; azimuth runs counter-clockwise seen from +Z, so (a, c, b) faces outward.
+                if ring > 0 { indices += [a, c, b] }
+                if ring < rings - 1 { indices += [b, c, d] }
+            }
+        }
+        return DisplayMesh(positions: positions, normals: normals, indices: indices,
+                           triangleFaces: Array(repeating: FaceID(0), count: indices.count / 3), edgePolylines: [:])
     }
 }

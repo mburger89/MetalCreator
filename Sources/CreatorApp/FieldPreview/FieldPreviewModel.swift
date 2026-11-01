@@ -18,6 +18,8 @@ final class FieldPreviewModel {
     private(set) var node: NodeID?
     private(set) var field: Field?
     private(set) var bounds: BoundingBox?
+    /// False while the zebra shows: no tint is sampled then, and the tint of the finer meshes would not fit the restored ones.
+    private(set) var drawsTints = true
     /// The legend's "0…1" toggle.
     private(set) var usesUnitRange = false
     /// Where the slice is, and how far along its normal it has been moved.
@@ -76,10 +78,11 @@ final class FieldPreviewModel {
         }
         let box = Self.bounds(of: request.solids)
         let sameNode = request.node == node
-        if sameNode, request.field == field, box == bounds,
+        if sameNode, request.field == field, box == bounds, request.drawsTints == drawsTints,
            request.solids.map(ObjectIdentifier.init) == solids.map(ObjectIdentifier.init) { return }
         let restartsSlice = !sameNode || (choice == .own && request.field.ownPlane == nil)
         (node, field, solids, bounds) = (request.node, request.field, request.solids, box)
+        drawsTints = request.drawsTints
         if restartsSlice {
             choice = SlicePose.startingChoice(for: request.field, toEye: request.toEye)
             offset = 0
@@ -147,7 +150,7 @@ final class FieldPreviewModel {
         tintGeneration += 1
         let generation = tintGeneration
         tintFailure = nil
-        guard let field, !solids.isEmpty else {
+        guard drawsTints, let field, !solids.isEmpty else {
             tintRunning = false
             tints = [:]
             return

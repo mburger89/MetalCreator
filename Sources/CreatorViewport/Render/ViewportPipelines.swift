@@ -13,6 +13,8 @@ struct ViewportPipelines {
     let mesh: any MTLRenderPipelineState
     /// The surface coloured by a field's values (`field_mesh_*`).
     let fieldMesh: any MTLRenderPipelineState
+    /// The surface in zebra stripes (`zebra_mesh_*`).
+    let zebraMesh: any MTLRenderPipelineState
     /// The field slice's translucent quad: blended.
     let slice: any MTLRenderPipelineState
     let ghost: any MTLRenderPipelineState
@@ -37,6 +39,10 @@ struct ViewportPipelines {
     /// A guide's edges behind the part: pass only where something nearer already wrote depth, without writing.
     let depthBehind: any MTLDepthStencilState
 
+    /// Every Metal shader of the viewport, compiled as one library.
+    private static let shaderSource = ViewportShaders.source + LineShaders.source + FieldShaders.source
+        + SectionShaders.source + ZebraShaders.source
+
     /// The shader function called `name` in `library`.
     private static func function(_ name: String, in library: any MTLLibrary) throws -> any MTLFunction {
         guard let function = library.makeFunction(name: name) else { throw ViewportRenderError.missingShader(name) }
@@ -44,8 +50,7 @@ struct ViewportPipelines {
     }
 
     init(device: any MTLDevice) throws {
-        let library = try device.makeLibrary(source: ViewportShaders.source + LineShaders.source + FieldShaders.source
-            + SectionShaders.source, options: nil)
+        let library = try device.makeLibrary(source: Self.shaderSource, options: nil)
         func pipeline(_ vertex: String, _ fragment: String, color: MTLPixelFormat = Self.colorFormat,
                       samples: Int = Self.sampleCount, blended: Bool,
                       writesColor: Bool = true) throws -> any MTLRenderPipelineState {
@@ -80,6 +85,7 @@ struct ViewportPipelines {
         background = try pipeline("background_vertex", "background_fragment", blended: false)
         mesh = try pipeline("mesh_vertex", "mesh_fragment", blended: false)
         fieldMesh = try pipeline("field_mesh_vertex", "field_mesh_fragment", blended: false)
+        zebraMesh = try pipeline("zebra_mesh_vertex", "zebra_mesh_fragment", blended: false)
         slice = try pipeline("slice_vertex", "slice_fragment", blended: true)
         ghost = try pipeline("mesh_vertex", "mesh_fragment", blended: true)
         ghostDepth = try pipeline("mesh_vertex", "mesh_fragment", blended: false, writesColor: false)

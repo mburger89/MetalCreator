@@ -27,6 +27,7 @@ struct GPUDataTests {
         #expect(MemoryLayout<DrawUniforms>.stride == 16)
         #expect(MemoryLayout<ShadeUniforms>.stride == 80)
         #expect(MemoryLayout<ClipUniforms>.stride == 32)
+        #expect(MemoryLayout<ZebraUniforms>.stride == 64)
         #expect(MemoryLayout<BackgroundUniforms>.stride == 32)
         #expect(MemoryLayout<LineUniforms>.stride == 16)
         #expect(MemoryLayout<SectionVertex>.stride == 16)

@@ -24,6 +24,8 @@ public enum GlassSurface: String, CaseIterable, Sendable {
     case sectionPanel
     /// The Measure panel (measure spec): a small persistent card under the section panel while Measure runs.
     case measurePanel
+    /// The zebra stripes panel: a small persistent card under the Measure panel while the stripes are on.
+    case zebraPanel
     /// The export sheet (implicit spec §5.3): a card with a progress bar and Cancel over the viewport.
     case exportSheet
 
@@ -32,7 +34,7 @@ public enum GlassSurface: String, CaseIterable, Sendable {
         switch self {
         case .palette, .exportSheet: .thin
         case .graphPanel, .inspector, .topBar, .pickBanner, .showButton, .themeEditor, .chip, .fieldLegend, .sectionPanel,
-             .measurePanel: .ultraThin
+             .measurePanel, .zebraPanel: .ultraThin
         }
     }
 }

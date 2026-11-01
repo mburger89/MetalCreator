@@ -25,11 +25,15 @@ using namespace cocct;
 
 extern "C" {
 
-int occt_tessellate(const occt_shape *shape, double tolerance, occt_mesh *out, occt_status *status) {
+int occt_tessellate(const occt_shape *shape, double tolerance, double angle, occt_mesh *out, occt_status *status) {
     return guarded(status, [&]() -> int {
         *out = occt_mesh{};
         if (!std::isfinite(tolerance) || tolerance <= 0) {
             set_error(status, "the tessellation tolerance must be greater than 0");
+            return 0;
+        }
+        if (!std::isfinite(angle) || angle <= 0) {
+            set_error(status, "the tessellation angle must be greater than 0");
             return 0;
         }
         // Drop triangulations left in the (shared) shape by earlier meshing, such as a finer display mesh or an
@@ -38,7 +42,7 @@ int occt_tessellate(const occt_shape *shape, double tolerance, occt_mesh *out, o
         BRepTools::Clean(shape->shape);
         IMeshTools_Parameters parameters;
         parameters.Deflection = tolerance;
-        parameters.Angle = 0.5;
+        parameters.Angle = angle;
         parameters.InParallel = Standard_False;
         BRepMesh_IncrementalMesh mesher(shape->shape, parameters);
         const TopTools_IndexedMapOfShape faces = map_of(shape->shape, TopAbs_FACE);

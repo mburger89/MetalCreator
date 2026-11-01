@@ -10,7 +10,9 @@ struct SectionPanelDock: Component {
     var content: some ElementGroup {
         let insets = AppLayout.sectionPanelInsets(dock: model.editor.dock, panelWidth: model.panelWidth, panelHeight: model.panelHeight,
                                                 themeEditorOpen: themeEditorOpen)
-        let sectionAboveMeasure = model.document.section?.isOn == true && (model.measure != nil || !model.measureBook.entries.isEmpty)
+        let gaps = Self.gaps(sectionOn: model.document.section?.isOn == true,
+                             measureShows: model.measure != nil || !model.measureBook.entries.isEmpty,
+                             zebraShows: model.showsZebra)
         VStack(alignment: .trailing, spacing: Pixels(0)) {
             HStack(spacing: Pixels(0)) {
                 Spacer()
@@ -20,12 +22,22 @@ struct SectionPanelDock: Component {
                 Spacer()
                 MeasurePanel(model: model)
             }
-            .padding(Edges(top: sectionAboveMeasure ? Pixels(8) : Pixels(0),
+            .padding(Edges(top: gaps.measure.px,
                            right: Pixels(0), bottom: Pixels(0), left: Pixels(0)))
+            HStack(spacing: Pixels(0)) {
+                Spacer()
+                ZebraPanel(model: model)
+            }
+            .padding(Edges(top: gaps.zebra.px, right: Pixels(0), bottom: Pixels(0), left: Pixels(0)))
             Spacer()
         }
         .padding(Edges(top: insets.top.px, right: insets.trailing.px, bottom: Pixels(0), left: Pixels(0)))
         // Typing in the Offset field must not reach the viewport's F, + and − keys.
         .keyContext(AppKeyContext.panel)
+    }
+
+    /// The 8-point gap above the Measure and Zebra rows: only when a panel above shows.
+    static func gaps(sectionOn: Bool, measureShows: Bool, zebraShows: Bool) -> (measure: Double, zebra: Double) {
+        (sectionOn && measureShows ? 8 : 0, zebraShows && (sectionOn || measureShows) ? 8 : 0)
     }
 }
