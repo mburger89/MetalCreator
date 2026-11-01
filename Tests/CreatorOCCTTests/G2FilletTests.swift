@@ -75,6 +75,7 @@ struct G2FilletTests {
         let built = try build(shape, midpoints: [[10, 0, 10], [25, 5, 10], [10, 10, 10]], radius: 1)
         print("G2FILLET chain: strips \(built.report.strips) sections \(helper.sectionCounts(built.report))")
         #expect(built.report.strips == 3)
+        #expect(built.report.g1_joins == 0, "a line into a tangent arc has no kink")
         // Strip-to-strip seams are not promised G2 and are not measured: the springs are.
         expectSpringsG2(built, seams: 6)
     }

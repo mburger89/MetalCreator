@@ -203,6 +203,7 @@ typedef struct {
     int sections;              // the most cross-sections any strip needed
     int strip_sections[32];    // cross-sections each strip needed (strips in edge order)
     int corners;               // corner patches refilled
+    int g1_joins;              // chain joins whose springs kink (> 0.01 degrees): tangent only there, the node warns
     int g1_corners;            // of those, the ones that stayed tangent only (G1): the node warns
     int seam_count;            // the strips' spring seams, in strip order, two each
     occt_g2_seam seams[OCCT_G2_MAX_SEAMS];

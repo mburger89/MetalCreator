@@ -160,6 +160,7 @@ extension G2FilletCoverageTests {
         print("G2COVER rounded ruled loft: strips \(built.report.strips) sections \(base.helper.sectionCounts(built.report))")
         #expect(built.report.strips == 8)
         base.expectSpringsG2(built, seams: 16)
+        #expect(built.report.g1_joins > 0, "the springs kink at the chain's joins")
     }
 
     /// The smooth rounded loft sits at the section cap on one strip: it builds (valid, G2) or is refused with the strip

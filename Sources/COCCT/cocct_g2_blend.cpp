@@ -117,6 +117,7 @@ struct Spring {
     double t_start = 0;   // the parameters sampling runs between: the edge's own, or extended past a slanted end
     double t_end = 0;
     bool has_tangent[2] = {false, false}; // a chain junction's agreed spring tangent at the start and end
+    bool kinked[2] = {false, false};      // ... where the two springs' tangents differ by more than 0.01 degrees
     gp_Vec junction_tangent[2];
 };
 
@@ -711,8 +712,8 @@ occt_g2_seam candidate_seam(const Handle(Geom_BSplineSurface) &surface, bool rev
         occt_g2_seam here{};
         // The sampling start/end of the spring in parameter terms, for the junction exemption.
         const double length = std::abs(spring.t_end - spring.t_start);
-        const bool near_start = spring.has_tangent[0] && std::abs(t - spring.t_start) < 0.0335 * length;
-        const bool near_end = spring.has_tangent[1] && std::abs(t - spring.t_end) < 0.0335 * length;
+        const bool near_start = spring.kinked[0] && std::abs(t - spring.t_start) < 0.0335 * length;
+        const bool near_end = spring.kinked[1] && std::abs(t - spring.t_end) < 0.0335 * length;
         const bool compare_curvature = !(near_start || near_end);
         accumulate(here, strip, surface_point(spring.neighbour, spring.edge, t), tangent, compare_curvature);
         accumulate(seam, strip, surface_point(spring.neighbour, spring.edge, t), tangent, compare_curvature);
@@ -869,6 +870,7 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
         for (const TopoDS_Face &face : strip_faces) {
             strips.push_back(classify(face, edge_faces, blend_faces, strip_faces));
         }
+        std::vector<TopoDS_Edge> kinked_joins;
         // Tangent chains: where two strips of a chain meet, the springs on one face may kink (a drafted cone meeting a
         // plane): both strips take the bisector of the two springs' tangents there, so they share one section.
         {
@@ -913,6 +915,20 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                                         continue;
                                     }
                                     bisector.Normalize();
+                                    const double kink = std::acos(std::clamp(-outward.Dot(other_outward), -1.0, 1.0)) * 180 / kPi;
+                                    if (kink > 0.01) {
+                                        mine.kinked[end] = true;
+                                        other.kinked[other_end] = true;
+                                        for (int c = 0; c < 2; ++c) {
+                                            bool known = false;
+                                            for (const TopoDS_Edge &join : kinked_joins) {
+                                                known = known || join.IsSame(strips[s].ends[c]);
+                                            }
+                                            if (strips[s].end_chain[c].IsSame(strip_faces[t]) && !known) {
+                                                kinked_joins.push_back(strips[s].ends[c]);
+                                            }
+                                        }
+                                    }
                                     mine.has_tangent[end] = true;
                                     mine.junction_tangent[end] = bisector;
                                     other.has_tangent[other_end] = true;
@@ -924,6 +940,7 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 }
             }
         }
+        report->g1_joins = static_cast<int>(kinked_joins.size());
         struct Replaced {
             TopoDS_Edge old_edge, new_edge;
             TopoDS_Face strip;
@@ -1559,8 +1576,8 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 bool exempt[2] = {false, false};
                 for (const Spring &known : strips[s].spring) {
                     if (known.edge.IsSame(spring.edge)) {
-                        exempt[0] = known.flipped ? known.has_tangent[1] : known.has_tangent[0];
-                        exempt[1] = known.flipped ? known.has_tangent[0] : known.has_tangent[1];
+                        exempt[0] = known.flipped ? known.kinked[1] : known.kinked[0];
+                        exempt[1] = known.flipped ? known.kinked[0] : known.kinked[1];
                     }
                 }
                 if (report->seam_count < OCCT_G2_MAX_SEAMS) {
