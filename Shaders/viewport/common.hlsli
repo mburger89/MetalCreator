@@ -129,3 +129,12 @@ struct SectionUniforms {
     float4 hatchParams;
     float4 depthParams;
 };
+
+/// The zebra stripes' settings (ZebraUniforms in Swift): the lock frame's right, up and toward-the-eye axes (the view's own when
+/// unlocked) and params = (stripes, black share, vertical 0 or 1, locked 0 or 1).
+struct ZebraUniforms {
+    float4 right;
+    float4 up;
+    float4 toEye;
+    float4 params;
+};

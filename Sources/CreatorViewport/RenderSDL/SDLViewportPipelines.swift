@@ -18,6 +18,8 @@ struct SDLViewportPipelines: Sendable {
     let mesh: SDLGPUGraphicsPipeline
     /// The surface coloured by a field's values (`field_mesh`).
     let fieldMesh: SDLGPUGraphicsPipeline
+    /// The surface striped for the zebra (`zebra_mesh`); it beats the field tint.
+    let zebraMesh: SDLGPUGraphicsPipeline
     /// The ghosts' depth-only prepass (no colour is written), then their blended colour pass, which passes only where its depth equals the
     /// prepass's (less-or-equal, no write): each pixel blends once, at its nearest ghost surface.
     let ghostDepth: SDLGPUGraphicsPipeline
@@ -63,6 +65,7 @@ struct SDLViewportPipelines: Sendable {
         fill = try pipeline("fill", "fill", blend: .premultipliedAlpha, depth: always)
         mesh = try pipeline("mesh", "mesh", depth: writes)
         fieldMesh = try pipeline("field_mesh", "field_mesh", depth: writes)
+        zebraMesh = try pipeline("zebra_mesh", "zebra_mesh", depth: writes)
         ghostDepth = try pipeline("mesh", "mesh", depth: writes, writesColor: false)
         ghost = try pipeline("mesh", "mesh", blend: .premultipliedAlpha, depth: tests)
         lineTest = try pipeline("line", "line", primitive: .triangleStrip, blend: .premultipliedAlpha, depth: tests)
