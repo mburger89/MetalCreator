@@ -210,4 +210,60 @@ struct MeasureBookTests {
         #expect(calls.withLock { $0 } == before, "nothing was edited, so nothing is measured again")
         #expect(app.measureBook.entries[0].picks?.count == 2)
     }
+
+    @Test func aReturningBasisIgnoresTheInFlightResultOfTheOldOne() async throws {
+        let kernel = FakeKernel()
+        let calls = Mutex(0)
+        let held = Mutex<[Int: DispatchSemaphore]>([2: DispatchSemaphore(value: 0), 3: DispatchSemaphore(value: 0)])
+        await kernel.setMeasureHook {
+            let number = calls.withLock { count -> Int in count += 1; return count }
+            if let gate = held.withLock({ $0[number] }) { _ = gate.wait(timeout: .now() + 10) }
+        }
+        let fixture = await MeasureAppFixture.open(kernel: kernel)
+        // The test's own book: the app's refreshes would resolve the anchors against the app's scene.
+        let book = MeasureBook(kernel: kernel, document: fixture.app.document)
+        let profile = Profile2D.rectangle(width: 10, height: 10, plane: .xy)
+        let xNode = NodeID(), yNode = NodeID()
+        func part(_ node: NodeID, _ height: Double) async throws -> Solid {
+            try await kernel.extrude(profile, distance: height, mode: .oneSided, tag: NodeTag(node: node, item: 0))
+        }
+        func scene(_ solids: [Solid]) -> MeasureScene {
+            MeasureScene(solids: solids, pickable: solids.map { _ in true }, parts: [], plane: nil)
+        }
+        func height(of index: Int, in scene: MeasureScene) throws -> KeptMeasurement {
+            let solid = scene.solids[index]
+            let edge = try #require(solid.topology.edges.first { edge in
+                guard case .line? = edge.curve, let direction = edge.direction else { return false }
+                return abs(abs(direction.z) - 1) < 1e-9
+            })
+            let ends = try #require(edge.curve?.ends)
+            let anchors = try [(CornerEnd.start, ends[0]), (.end, ends[1])].map { end, point in
+                try #require(MeasureResolver.anchor(for: .corner(solid: index, edge.id, end, at: point), in: scene))
+            }
+            return KeptMeasurement(anchors: anchors)
+        }
+        let sceneA = scene([try await part(xNode, 10), try await part(yNode, 7)])
+        let sceneB = scene([try await part(xNode, 20), sceneA.solids[1]])
+        let x = try height(of: 0, in: sceneA), y = try height(of: 1, in: sceneA)
+        fixture.app.document.measurements = [x, y]
+        book.refresh(sceneA)
+        // X measures at A (call 1) while Y (call 2) is held.
+        for _ in 0..<2000 where book.entries[0].distance == nil { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(abs(try #require(book.entries[0].distance).distance - 10) < 1e-9)
+        // X moves to B (call 3, held), then back to A while Y keeps the task alive.
+        book.refresh(sceneB)
+        book.refresh(sceneA)
+        #expect(abs(try #require(book.entries[0].distance).distance - 10) < 1e-9)
+        for number in [2, 3] { held.withLock { $0[number] }?.signal() }
+        await book.waitForDistances()
+        #expect(abs(try #require(book.entries[0].distance).distance - 10) < 1e-9, "B's late result did not land")
+        #expect(!book.entries[0].isMeasuring)
+        #expect(abs(try #require(book.entries[1].distance).distance - 7) < 1e-9)
+        // B's result was not stored as A's: measuring at B again asks the kernel.
+        let before = calls.withLock { $0 }
+        book.refresh(sceneB)
+        await book.waitForDistances()
+        #expect(calls.withLock { $0 } > before)
+        #expect(abs(try #require(book.entries[0].distance).distance - 20) < 1e-9)
+    }
 }

@@ -42,6 +42,13 @@ final class MeasureBook {
     @ObservationIgnored private var settled: [UUID: (basis: Basis, distance: ShapeDistance)] = [:]
     @ObservationIgnored private var hints: [UUID: [Int]] = [:]
 
+    private struct Job {
+        var id: UUID
+        var basis: Basis
+        var first: MeasureElement
+        var second: MeasureElement
+    }
+
     private struct Basis: Equatable {
         var picks: [MeasurePick]
         var solids: [ObjectIdentifier]
@@ -70,6 +77,7 @@ final class MeasureBook {
     func remove(_ id: UUID) {
         document.measurements.removeAll { $0.id == id }
         settled[id] = nil
+        hints[id] = nil
         refreshFromLastScene()
     }
 
@@ -77,6 +85,7 @@ final class MeasureBook {
         guard !document.measurements.isEmpty else { return }
         document.measurements = []
         settled = [:]
+        hints = [:]
         refreshFromLastScene()
     }
 
@@ -90,7 +99,7 @@ final class MeasureBook {
     /// changed; a newer refresh drops an older one's results.
     func refresh(_ scene: MeasureScene) {
         self.scene = scene
-        var pending: [(UUID, MeasureElement, MeasureElement)] = []
+        var pending: [Job] = []
         var isNewWork = false
         let previous = Dictionary(entries.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var next: [Entry] = []
@@ -120,7 +129,7 @@ final class MeasureBook {
                     entry.distance = again.distance
                 } else if let a = resolved[0].element(in: scene.solids), let b = resolved[1].element(in: scene.solids) {
                     entry.isMeasuring = true
-                    pending.append((kept.id, a, b))
+                    pending.append(Job(id: kept.id, basis: basis, first: a, second: b))
                     // Measuring the same picks on the same solids already: that work is left to finish.
                     if unchanged == nil { isNewWork = true }
                 }
@@ -155,28 +164,31 @@ final class MeasureBook {
         generation += 1
     }
 
-    private func startDistances(_ jobs: [(UUID, MeasureElement, MeasureElement)]) {
+    private func startDistances(_ jobs: [Job]) {
         guard !jobs.isEmpty else { return }
         let generation = generation
         task = Task { [weak self, kernel] in
-            for (id, a, b) in jobs {
+            for job in jobs {
                 if Task.isCancelled { return }
                 do {
-                    let found = try await kernel.shortestDistance(between: a, and: b)
-                    self?.landed(found, for: id, generation: generation)
+                    let found = try await kernel.shortestDistance(between: job.first, and: job.second)
+                    self?.landed(found, for: job, generation: generation)
                 } catch {
                     // A task we cancelled has an older generation, so its result is dropped; any other failure reads as none.
-                    self?.landed(nil, for: id, generation: generation)
+                    self?.landed(nil, for: job, generation: generation)
                 }
             }
         }
     }
 
-    /// A distance for an older refresh than the latest is dropped.
-    private func landed(_ found: ShapeDistance?, for id: UUID, generation: Int) {
-        guard generation == self.generation, let index = entries.firstIndex(where: { $0.id == id }) else { return }
+    /// A distance for an older refresh than the latest, or for a basis the entry has left, is dropped: a task kept alive for
+    /// another entry may still deliver a job whose picks the entry has since moved off (and back).
+    private func landed(_ found: ShapeDistance?, for job: Job, generation: Int) {
+        let id = job.id
+        guard generation == self.generation, measured[id] == job.basis,
+              let index = entries.firstIndex(where: { $0.id == id }) else { return }
         entries[index].distance = found
-        if let found, let basis = measured[id] { settled[id] = (basis, found) }
+        if let found { settled[id] = (job.basis, found) }
         entries[index].isMeasuring = false
         bump()
     }
