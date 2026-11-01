@@ -2259,7 +2259,7 @@ the Output selected so the part is shown.
   Also drag a refined lattice part for several seconds and confirm the cap settles within about a second of release. The hatch
   re-spaces while you zoom (by design) and may show moire at grazing angles. **Observed:**
 - [ ] **SA-B-5 Lattice.** A TPMS or strut lattice part: the cut cells are capped and hatched (the cap is cut from the preview mesh and
-  follows it as the finer passes land). Dragging stays smooth though the cap trails (`sa-2` is 48 ms on a 100 mm sheet). **Observed:**
+  follows it as the finer passes land). Dragging stays smooth (`sa-2` is about 2 ms and `sa-2b` 5 ms on a 100 mm sheet once the mesh is welded). **Observed:**
 - [ ] **SA-B-6 Clicking the cap.** A click on the cap selects nothing and opens no face menu (it does not pick the face behind it).
   **Observed:**
 - [ ] **SA-B-7 Themes.** Switch to Alucard, then Nord: the cap's fill, hatch and edge follow the theme (and appear in the theme editor's
@@ -2267,6 +2267,8 @@ the Output selected so the part is shown.
 - [ ] **SA-B-8 Linux and Windows.** The same on Linux and Windows (the SDL GPU renderer, XP note): the cap, hatch, outline and the
   click behaviour match macOS. **Observed:**
 - [ ] **SA-B-9 Sketch mode.** Entering a sketch hides the section and its cap; leaving brings both back. **Observed:**
+- [ ] **SA-B-10 No shimmer.** Orbit and zoom a capped part slowly: the hatch has no shimmer or crawling at its edges (it is antialiased). **Observed:**
+- [ ] **SA-B-11 During a pick.** Starting an Edges by Tag pick leaves the section and its cap as they were, and moving the section during the pick still moves it. **Observed:**
 
 ## Group ME-A — Measure, the tool (measure part A)
 
@@ -2289,6 +2291,7 @@ the Output selected so the part is shown.
   step and never marks the document edited. **Observed:**
 - [ ] **ME-A-12 Exclusive.** Measure is refused while sketching and during an Edges by Tag pick; starting a sketch, an Edges by Tag pick,
   D (the model dimension tool), New or Open ends a running Measure. **Observed:**
+- [ ] **ME-A-14 Large hole centre.** Hover a large hole's rim: its centre snaps and picks (Diameter and Radius read as for the edge); seen end-on, the centre is the near rim's, never the far one's through the part. A small hole still picks as its edge. **Observed:**
 - [ ] **ME-A-13 Linux and Windows.** The same on Linux and Windows (hover, snap, picks, drawn dimensions). **Observed:**
 
 ## Group ME-B — Measure, keeping measurements (measure part B)
@@ -2304,4 +2307,5 @@ the Output selected so the part is shown.
 - [ ] **ME-B-9 Save and Open.** Save, close and Open the file: the kept measurements come back after the first evaluation. New clears them. **Observed:**
 - [ ] **ME-B-10 Lost.** Delete the node of a measured part: the row greys and says "No longer found". Undo brings the values back. **Observed:**
 - [ ] **ME-B-11 No edit.** Keeping, removing and clearing add no undo step and do not mark the document edited. **Observed:**
+- [ ] **ME-B-13 Flicker after an edit.** A kept measurement on a section edge may read "No longer found" for a moment after an edit, until the new cap lands (known and accepted). It returns on its own. **Observed:**
 - [ ] **ME-B-12 Linux and Windows.** The same on Linux and Windows. **Observed:**
