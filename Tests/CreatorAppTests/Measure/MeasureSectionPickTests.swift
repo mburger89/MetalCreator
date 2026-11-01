@@ -38,4 +38,22 @@ struct MeasureSectionPickTests {
         let other = MeasureSectionPick.nearest(to: ScreenPoint(12.5, 5), in: parts, screenPoint: project)
         #expect(other?.piece == 1)
     }
+
+    @Test func aFarPieceIsNotProjected() async throws {
+        let parts = try await parts([square(0, 0), square(1000, 0)])
+        var projected = 0
+        let counting: (Vector3) -> ScreenPoint? = { projected += 1; return ScreenPoint($0.x, $0.y) }
+        let hit = MeasureSectionPick.nearest(to: ScreenPoint(5, 5), in: parts, screenPoint: counting)
+        #expect(hit?.piece == 0)
+        // 8 corners each, plus the 5 points of the near piece only (the far one is skipped after its corners).
+        #expect(projected == 8 + 5 + 8)
+    }
+
+    @Test func aPieceBehindTheCameraIsStillTested() async throws {
+        let parts = try await parts([square(0, 0)])
+        let behind: (Vector3) -> ScreenPoint? = { $0.y == 10 ? nil : ScreenPoint($0.x, $0.y) }
+        // The top edge's points have no screen position, so the bottom edge answers; the piece is tested in full.
+        let hit = MeasureSectionPick.nearest(to: ScreenPoint(5, 1), in: parts, screenPoint: behind)
+        #expect(hit?.piece == 0)
+    }
 }

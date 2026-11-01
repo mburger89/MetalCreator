@@ -209,9 +209,9 @@ final class MeasureSession: ViewportTool {
 
     /// The section's outline piece within a few points of `point`, as a pick on the part it was cut from.
     private func sectionPick(at point: ScreenPoint, projector: ViewportProjector) -> MeasurePick? {
-        guard scene.plane != nil, !scene.parts.isEmpty,
-              let hit = MeasureSectionPick.nearest(to: point, in: scene.parts, screenPoint: { projector.screenPoint(of: $0) })
-        else { return nil }
+        guard scene.plane != nil, !scene.parts.isEmpty else { return nil }
+        guard let hit = MeasureSectionPick.nearest(to: point, in: scene.parts, bounds: scene.sectionBounds,
+                                                   screenPoint: { projector.screenPoint(of: $0) }) else { return nil }
         let part = scene.parts[hit.part]
         guard let index = scene.solids.indices.first(where: { scene.solids[$0] === part.solid && scene.pickable[$0] })
         else { return nil }
