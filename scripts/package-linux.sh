@@ -12,7 +12,7 @@
 #   OCCT_PREFIX             OpenCascade's install prefix (default /opt/occt), for its licence files.
 #   SHADERCROSS_PREFIX      SDL_shadercross's install prefix (default /opt/shadercross): the compiler's libraries and licences.
 # Needs MetalUI beside this repository (../MetalUI), patchelf, the libraries `ldd` names for the built executable, and the viewport's
-# shaders compiled by scripts/build-shaders.sh (scripts/linux-test.sh package runs it first).
+# shaders the release build compiled (MetalUI's CompileShadersOnBuild plugin, which needs SDL_shadercross: METALUI_SHADERCROSS or PATH).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -63,9 +63,10 @@ SHADERS="$METALUI/Backends/SDL/Shaders/compiled"
 [ -f "$SHADERS/SOURCE.sha256" ] || fail "MetalUI's compiled shaders are missing: $SHADERS/SOURCE.sha256"
 cp -R "$SHADERS" "$FOLDER/MetalUISDLShaders"
 # The 3D viewport's own shaders (plan xp-3, user decision U7(a)): MetalUIAppShaders beside the executable, where the SDL renderer looks
-# first (MetalUI's SDLGPUShaderLibrary.locate). They are a build product, never in git: scripts/build-shaders.sh makes them.
-APP_SHADERS="$ROOT/Shaders/viewport/compiled"
-[ -f "$APP_SHADERS/SOURCE.sha256" ] || fail "the viewport's compiled shaders are missing ($APP_SHADERS): run scripts/build-shaders.sh first"
+# first (MetalUI's SDLGPUShaderLibrary.locate). They are a build product, never in git: the release build's CompileShadersOnBuild plugin made
+# them, SwiftPM put them in CreatorViewport's resource bundle beside the executable, and the copy keeps just the directory.
+APP_SHADERS="$BIN_DIR/MetalCreator_CreatorViewport.bundle/MetalUIAppShaders"
+[ -f "$APP_SHADERS/SOURCE.sha256" ] || fail "the viewport's compiled shaders are missing ($APP_SHADERS): the build needs SDL_shadercross (METALUI_SHADERCROSS or PATH)"
 cp -R "$APP_SHADERS" "$FOLDER/MetalUIAppShaders"
 
 step "Copying the non-system libraries it links, transitively"
@@ -82,6 +83,9 @@ while read -r name arrow path _; do
     count=$((count + 1))
 done < "$WORK/ldd.txt"
 printf '    %s libraries\n' "$count"
+# The SDL the app ships must be a desktop SDL, not the dummy/offscreen-only one that opened no window on a real machine (XP-G33).
+[ -f "$FOLDER/lib/libSDL3.so.0" ] || fail "libSDL3.so.0 isn't among the linked libraries"
+"$ROOT/scripts/check-bundled-sdl.sh" "$FOLDER/lib/libSDL3.so.0" || fail "the bundled libSDL3.so.0 is not a desktop SDL (the image's SDL needs MetalUI's X11 and Wayland build: rebuild the image)"
 [ -f "$FOLDER/lib/libTKernel.so.7.9" ] || fail "OpenCascade's libTKernel.so.7.9 isn't among the linked libraries"
 
 step "Copying the implicit engine's shader compiler (MetalUI docs/packaging.md 4b; plan xp-c task 12)"

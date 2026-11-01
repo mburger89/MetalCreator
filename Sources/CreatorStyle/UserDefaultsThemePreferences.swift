@@ -14,6 +14,13 @@ public final class UserDefaultsThemePreferences: ThemePreferences {
 
     public var selectedThemeID: ColorTheme.ID? {
         get { defaults.string(forKey: Self.key) }
-        set { defaults.set(newValue, forKey: Self.key) }
+        set {
+            defaults.set(newValue, forKey: Self.key)
+            #if !canImport(Darwin)
+            // Foundation off Apple's platforms has no preferences daemon and writes the plist only here: without it the choice is
+            // gone at the next launch (the Linux VM's Alucard reverting to Dracula). Apple's platforms persist on their own.
+            defaults.synchronize()
+            #endif
+        }
     }
 }

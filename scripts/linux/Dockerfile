@@ -15,7 +15,7 @@
 # the DirectXShaderCompiler fork built from source (MetalUI measured 6 min 45 s at -j8 on Linux aarch64). Like `occt` it starts from the
 # public Swift image and is a stage of its own, so the caches skip it until SHADERCROSS_COMMIT or SHADERCROSS_JOBS change and a new
 # OpenCascade pin never rebuilds it (nor the reverse); CI builds it alone (`--target shadercross`) and hands it in as SHADERCROSS_IMAGE.
-# The final stage copies /opt/shadercross; scripts/build-shaders.sh runs it through MetalUI's MetalUICompileShaders. Its shared libraries are also
+# The final stage copies /opt/shadercross; MetalUI's CompileShadersOnBuild plugin runs it on `swift build` (METALUI_SHADERCROSS, set by scripts/linux-test.sh). Its shared libraries are also
 # the implicit engine's run-time compiler (plan xp-c, MetalUI XP-G25), which the tests load from /opt/shadercross/lib and the tarball ships in lib/.
 ARG BASE=metalui-portable:latest
 ARG OCCT_IMAGE=occt
@@ -68,7 +68,7 @@ RUN git clone -q --depth 1 --branch ${SDL_TAG} https://github.com/libsdl-org/SDL
 # at 'd3d12shader.h' file not found without it.
 # -DSDLSHADERCROSS_INSTALL_RUNTIME stays OFF: it would fetch Vulkan-Loader and the Khronos headers at `main` and build vkd3d, for a
 # Direct3D bytecode path the viewport does not use. The install leaves bin/shadercross with lib/libdxcompiler.so and lib/libdxil.so
-# beside it (MetalUICompileShaders puts that lib first on the loader path); the commit is recorded for build-shaders.sh to check.
+# beside it (MetalUICompileShaders puts that lib first on the loader path); the commit is recorded in COMMIT beside bin/.
 RUN git clone -q https://github.com/libsdl-org/SDL_shadercross.git /tmp/sc \
     && git -C /tmp/sc checkout -q ${SHADERCROSS_COMMIT} && git -C /tmp/sc submodule update --init --depth 1 \
     && git -C /tmp/sc/external/DirectXShaderCompiler submodule update --init --depth 1 external/DirectX-Headers \
@@ -101,7 +101,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends fonts-dejavu-core patchelf desktop-file-utils file \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=occt-source /opt/occt /opt/occt
-# SDL_shadercross for scripts/build-shaders.sh (xp-3); nothing else in the image uses it.
+# SDL_shadercross for the CompileShadersOnBuild plugin (xp-3, BS-D); nothing else in the image uses it.
 COPY --from=shadercross-source /opt/shadercross /opt/shadercross
 # No ld.so.conf entry: the binaries must find /opt/occt/lib through the rpath Package.swift gives them, as a tarball's do.
 ENV OCCT_PREFIX=/opt/occt

@@ -29,11 +29,11 @@
 # device fails SDLGPUAvailabilityTests instead, so a runner that lost its driver cannot pass by running none of them (MetalUI's
 # METALUI_REQUIRE_GPU).
 #
-# The viewport's HLSL shaders are compiled at build time (plan xp-3, user decision U1(b)): before build, test, smoke and package this
-# script runs scripts/build-shaders.sh in the image, which holds the pinned SDL_shadercross (scripts/shadercross.env; the Dockerfile's
-# `shadercross` stage, built once and cached like OpenCascade's) and builds MetalUI's MetalUICompileShaders into the track's volume. The
-# output, Shaders/viewport/compiled in the worktree, is git-ignored; a run with nothing to recompile takes a second. If shadercross is
-# missing or a shader fails, the step stops with a message that names the tool and its pinned commit.
+# The viewport's HLSL shaders (Sources/CreatorViewport/Shaders) are compiled by `swift build` itself (plan xp-3, user decision U1(b); MetalUI's
+# build-tool plugin CompileShadersOnBuild, BS-D): every container sets METALUI_SHADERCROSS to the image's SDL_shadercross
+# (/opt/shadercross, pinned in scripts/shadercross.env; the Dockerfile's `shadercross` stage, built once and cached like OpenCascade's). The
+# output lives in the build volume (CreatorViewport's resource bundle); editing a shader or common.hlsli reruns only the compile. If shadercross
+# is missing or a shader fails, the build stops with MetalUI's message naming the tool and its pinned commit. Nothing compiled is checked in.
 #
 # Environment: XP_TRACK names the track (default xp-1), which names the container and the volume, so a script run kills only
 # its own container. EXPECTED_TEST_RUNS overrides the count (12 today). IMAGE names the image this script builds and runs
@@ -55,7 +55,11 @@ METALUI=$(cd ../MetalUI && pwd -P)
 
 TRACK=${XP_TRACK:-xp-1}
 EXPECTED_TEST_RUNS=${EXPECTED_TEST_RUNS:-12}
-BASE_IMAGE=metalui-portable:latest
+# MetalUI's base image is tagged with a hash of its recipe (the Dockerfile and the context files it COPYs), so a local image built from an
+# older MetalUI (XP-G33: before SDL had its X11 and Wayland drivers) is never reused for a newer pin: a new recipe is a new tag, built once.
+BASE_CONTEXT="$METALUI/Backends/SDL"
+BASE_HASH=$(cat "$BASE_CONTEXT/linux/Dockerfile" "$BASE_CONTEXT/scripts/check-video-drivers.c" "$BASE_CONTEXT/scripts/fetch-accesskit.py" | shasum -a 256 | cut -c1-12)
+BASE_IMAGE=metalui-portable:$BASE_HASH
 IMAGE=${IMAGE:-metalcreator-linux:latest}
 NAME=$TRACK-linux
 VOLUME=$TRACK-linux-build
@@ -70,8 +74,8 @@ if [ "$step" = clean ]; then
 fi
 
 if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
-    echo "Building $BASE_IMAGE from MetalUI's recipe (once; it builds SDL3 from source)..."
-    docker build -t "$BASE_IMAGE" -f "$METALUI/Backends/SDL/linux/Dockerfile" "$METALUI/Backends/SDL"
+    echo "Building $BASE_IMAGE from MetalUI's recipe (once; it builds SDL3 from source, with SDL's X11 and Wayland drivers)..."
+    docker build -t "$BASE_IMAGE" -f "$BASE_CONTEXT/linux/Dockerfile" "$BASE_CONTEXT"
 fi
 if [ "${METALCREATOR_IMAGE_PREBUILT:-}" != 1 ]; then
     docker build -q -t "$IMAGE" --build-arg "BASE=$BASE_IMAGE" ${OCCT_IMAGE:+--build-arg "OCCT_IMAGE=$OCCT_IMAGE"} \
@@ -81,20 +85,13 @@ fi
 
 # Runs `$1` in the image, from the repository, with the build volume (and `$DOCKER_EXTRA`, if set); stops only this track's own
 # container. MetalUI's run-time shader compiler (XP-G25) is the image's SDL_shadercross build; the variable names its directory (MetalUI
-# `docs/packaging.md` 4b). The package checks run in a clean ubuntu:24.04 without it.
+# `docs/packaging.md` 4b); METALUI_SHADERCROSS is the compiler of the build-tool plugin (4a). The package checks run in a clean ubuntu:24.04 without it.
 in_container() {
     docker rm -f "$NAME" >/dev/null 2>&1 || true
     # shellcheck disable=SC2086
     docker run --rm --name "$NAME" \
-        -e XP_REQUIRE_GPU=1 -e METALUI_SHADERCROSS_LIB=/opt/shadercross/lib -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -v "$VOLUME":/build ${DOCKER_EXTRA:-} \
+        -e XP_REQUIRE_GPU=1 -e METALUI_SHADERCROSS=/opt/shadercross/bin/shadercross -e METALUI_SHADERCROSS_LIB=/opt/shadercross/lib -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -v "$VOLUME":/build ${DOCKER_EXTRA:-} \
         "$IMAGE" bash -ec "$1"
-}
-
-# Compiles Shaders/viewport into Shaders/viewport/compiled in the worktree (git-ignored), MetalUI's tool built in the track's volume;
-# a second when nothing changed. Every step that builds the app runs it first (`|| return 1`: `set -e` is off inside a function
-# called from `&&`, as `all` calls them).
-compile_shaders() {
-    in_container 'METALUI_TOOLS_SCRATCH=/build/metalui-tools scripts/build-shaders.sh'
 }
 
 # The implicit engine's generated kernels, compiled offline for the tests (plan xp-c, task 3): export them with the test target, then compile the new ones.
@@ -104,12 +101,10 @@ compile_kernels() {
 }
 
 do_build() {
-    compile_shaders || return 1
     in_container 'swift build --scratch-path /build'
 }
 
 do_smoke() {
-    compile_shaders || return 1
     in_container 'bin=$(swift build --scratch-path /build --show-bin-path)/MetalCreatorApp
         "$bin" --self-test
         "$bin" --smoke-test 20'
@@ -121,7 +116,6 @@ do_package() {
     local arch
     arch=$(uname -m | sed 's/arm64/aarch64/')
     rm -f dist/MetalCreator-*-linux-"$arch".tar.gz dist/MetalCreator-*-linux-"$arch".AppImage
-    compile_shaders || return 1
     DOCKER_EXTRA="-v $VOLUME-package:/build-package" in_container '
         desktop-file-validate packaging/linux/com.metalcreator.MetalCreator.desktop
         METALCREATOR_SCRATCH=/build-package scripts/package-linux.sh
@@ -130,7 +124,7 @@ do_package() {
     tarball=$(ls dist/MetalCreator-*-linux-*.tar.gz | head -n 1)
     echo "Checking $tarball in a clean ubuntu:24.04..."
     docker rm -f "$NAME-clean" >/dev/null 2>&1 || true
-    docker run --rm --name "$NAME-clean" -v "$REPO/dist":/dist:ro ubuntu:24.04 bash -ec '
+    docker run --rm --name "$NAME-clean" -e SDL_VIDEO_DRIVER=offscreen -v "$REPO/dist":/dist:ro ubuntu:24.04 bash -ec '
         set -o pipefail
         test ! -e /opt/occt && test ! -e /work
         mkdir /tmp/unpacked && tar -xzf /dist/'"$(basename "$tarball")"' -C /tmp/unpacked
@@ -162,7 +156,7 @@ do_package() {
     appimage=$(ls dist/MetalCreator-*-linux-*.AppImage | head -n 1)
     echo "Checking $appimage in a clean ubuntu:24.04 (no FUSE: --appimage-extract-and-run)..."
     docker rm -f "$NAME-clean" >/dev/null 2>&1 || true
-    docker run --rm --name "$NAME-clean" -v "$REPO/dist":/dist:ro ubuntu:24.04 bash -ec '
+    docker run --rm --name "$NAME-clean" -e SDL_VIDEO_DRIVER=offscreen -v "$REPO/dist":/dist:ro ubuntu:24.04 bash -ec '
         set -o pipefail
         test ! -e /opt/occt && test ! -e /work && test ! -e /dev/fuse
         cp /dist/'"$(basename "$appimage")"' /tmp/MetalCreator.AppImage && chmod +x /tmp/MetalCreator.AppImage
@@ -194,7 +188,6 @@ do_test() {
     local status=0 quoted=""
     # printf %q keeps a filter like 'A|B' one word through the container's shell.
     if [ "${#TEST_ARGS[@]}" -gt 0 ]; then printf -v quoted ' %q' "${TEST_ARGS[@]}"; fi
-    compile_shaders || { echo "Linux: FAIL (the viewport's shaders did not compile; see above)" >&2; return 1; }
     compile_kernels || { echo "Linux: FAIL (the generated kernels did not compile; see above)" >&2; return 1; }
     in_container "swift test --scratch-path /build$quoted" 2>&1 | tee "$LOG" || status=$?
     local clean runs tests
@@ -218,7 +211,7 @@ case $step in
     build) do_build ;;
     test) do_test ;;
     smoke) do_smoke ;;
-    kernels) compile_shaders && compile_kernels ;;
+    kernels) compile_kernels ;;
     package) do_package ;;
     all) do_build && do_test && do_smoke ;;
     *) echo "usage: scripts/linux-test.sh [build|test|smoke|package|kernels|all|clean]" >&2; exit 64 ;;

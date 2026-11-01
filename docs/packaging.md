@@ -101,8 +101,8 @@ scripts/package-linux.sh           # on a Linux machine with Swift 6.4, SDL 3.4,
 write `dist/MetalCreator-<version>-linux-<arch>.tar.gz`. Unpacked, the folder holds `MetalCreator` (a release build), `lib/` (the Swift
 runtime's libraries, OpenCascade's `libTK*.so.7.9`, `libSDL3.so.0` and whatever else `ldd` names that is not glibc or
 the C++ runtime; linking the Swift runtime statically does not work with Foundation here), `MetalUISDLShaders/` (MetalUI's compiled SDL shaders, which the backend looks for beside the executable first,
-ruling `PX-P`), `MetalUIAppShaders/` (the 3D viewport's shaders, compiled by `scripts/build-shaders.sh` and looked for there first by
-MetalUI's `SDLGPUShaderLibrary.locate`; the script stops if they were not built), `share/applications/com.metalcreator.MetalCreator.desktop`, `share/mime/packages/com.metalcreator.MetalCreator.xml`,
+ruling `PX-P`), `MetalUIAppShaders/` (the 3D viewport's shaders, compiled by MetalUI's `CompileShadersOnBuild` plugin during the release build, copied from `MetalCreator_CreatorViewport.bundle` and looked for there first by
+MetalUI's `SDLGPUShaderLibrary.locate`; the script stops if the build did not make them), `share/applications/com.metalcreator.MetalCreator.desktop`, `share/mime/packages/com.metalcreator.MetalCreator.xml`,
 `share/icons/hicolor/256x256/apps/com.metalcreator.MetalCreator.png` (a placeholder icon), `install.sh` and `share/doc/metalcreator/` (the licences: OpenCascade's LGPL 2.1 and its exception, MetalUI's third-party notices and the
 licence files they name). The executable's RUNPATH is set to `$ORIGIN/lib` and each bundled library's to `$ORIGIN` (`patchelf`; the
 build's `/opt/occt/lib` and the toolchain's `/usr/lib/swift/linux` are left out), so the folder runs from anywhere and finds
@@ -182,7 +182,7 @@ scripts\package-windows.ps1 -BuildFlags @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswif
 It writes `dist\MetalCreator-<version>-windows-x64.zip` with `MetalCreator.exe`, every DLL the executable needs beside it (OpenCascade's
 from `OCCT_PREFIX\bin`, `SDL3.dll`, the Swift runtime's and the Visual C++ runtime's, found by following the `DLL Name:` lines of
 `llvm-objdump -p` (or `dumpbin /dependents` when the toolchain has no objdump); Windows' own DLLs are left out), `MetalUISDLShaders\`,
-`MetalUIAppShaders\` (the viewport's shaders, from `scripts\build-shaders.ps1`), `register-mcgraph.ps1` and `licenses\`. The Swift runtime's folder is looked up (by `swiftCore.dll`, under the `Swift` folder that
+`MetalUIAppShaders\` (the viewport's shaders, from the release build's `MetalCreator_CreatorViewport.bundle`), `register-mcgraph.ps1`, `register-mcgraph.cmd` and `licenses\`. The Swift runtime's folder is looked up (by `swiftCore.dll`, under the `Swift` folder that
 `swift.exe` and `SDKROOT` sit in), not written down. The script then unpacks the zip and runs `--self-test` with only Windows'
 folders on `PATH` and MetalUI's checkout and the viewport's `Shaders\viewport\compiled` moved aside (both renderers fall back to the shaders in their source trees), so a missing DLL
 or shader directory fails the job. It packages a release build: CI makes it in its own step (`swift build -c release --product
@@ -247,8 +247,8 @@ the entry by the window's application id, which is that name: MetalUI sets SDL's
 fixed), so MetalCreator sets nothing itself. The icon is a placeholder (`packaging/linux/com.metalcreator.MetalCreator.png`).
 The AppImage carries the same entry and icon and leaves the file type to a manual step (see its section).
 
-On Windows, `register-mcgraph.ps1` (run from the unpacked folder, no administrator rights) writes the `.mcgraph` association under
-`HKEY_CURRENT_USER\Software\Classes`; `-Remove` deletes it. The Linux files and the Windows script are not verified on a desktop: human checks XP-16, XP-17 and XP-19.
+On Windows, `register-mcgraph.cmd` (double-click it or run it from the unpacked folder; no administrator rights) runs `register-mcgraph.ps1` with `-ExecutionPolicy Bypass`, because a stock Windows 11 blocks the .ps1 itself ("running scripts is disabled"; found on the VM, 2026-10-30), and the script writes the `.mcgraph` association under
+`HKEY_CURRENT_USER\Software\Classes`; `register-mcgraph.cmd -Remove` deletes it (the arguments and the exit code pass through). The Linux files and the Windows script are not verified on a desktop: human checks XP-16, XP-17 and XP-19.
 
 ## Signing
 
