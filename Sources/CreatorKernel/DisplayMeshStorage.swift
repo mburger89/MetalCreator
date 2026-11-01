@@ -5,9 +5,12 @@ import CreatorGeometry
 /// back instead of asking the kernel to tessellate.
 public final class DisplayMeshStorage: SolidStorage {
     public let mesh: DisplayMesh
+    /// The edge length of the mesh's cells in millimetres, when it came from a mesher (`TriangleMesh.resolution`).
+    public let resolution: Double?
 
-    public init(_ mesh: DisplayMesh) {
+    public init(_ mesh: DisplayMesh, resolution: Double? = nil) {
         self.mesh = mesh
+        self.resolution = resolution
     }
 
     public var estimatedBytes: Int { mesh.positions.count * 48 + mesh.indices.count * 4 + mesh.triangleFaces.count * 8 }
@@ -15,11 +18,17 @@ public final class DisplayMeshStorage: SolidStorage {
 
 extension Solid {
     /// A solid that is only `mesh` on display: no topology, bounds around its vertices.
-    public convenience init(displaying mesh: DisplayMesh) {
+    /// `resolution` is the mesh's own, when it has one.
+    public convenience init(displaying mesh: DisplayMesh, resolution: Double? = nil) {
         let bounds = BoundingBox(points: mesh.positions) ?? BoundingBox(min: .zero, max: .zero)
-        self.init(topology: Topology(faces: [], edges: []), bounds: bounds, storage: DisplayMeshStorage(mesh))
+        self.init(topology: Topology(faces: [], edges: []), bounds: bounds, storage: DisplayMeshStorage(mesh, resolution: resolution))
     }
 
     /// The mesh this solid is, when it is only a mesh on display.
     public var displayedMesh: DisplayMesh? { (storage as? DisplayMeshStorage)?.mesh }
+}
+
+extension Solid {
+    /// The resolution of the mesh this solid shows, when it is a mesh on display and the mesh knows it.
+    public var displayedMeshResolution: Double? { (storage as? DisplayMeshStorage)?.resolution }
 }

@@ -24,20 +24,37 @@ struct MeasureFeature {
     var axis: Vector3?
     var isCylinder = false
 
+    private mutating func addFace(_ face: FaceInfo?) {
+        guard let face, let direction = face.normal?.normalized else { return }
+        if face.kind == .plane {
+            normal = direction
+        } else if face.kind == .cylinder, let point = face.axisPoint {
+            line = direction
+            axis = direction
+            centre = point
+            isCylinder = true
+        }
+    }
+
+    /// A section piece's exact line or circle, read as an edge's.
+    private mutating func addCurve(_ curve: EdgeCurve?) {
+        switch curve {
+        case let .circle(center, axis, _, _, _)?:
+            centre = center
+            self.axis = axis.normalized
+        case let .line(start, end)?:
+            line = (end - start).normalized
+        case nil:
+            break
+        }
+    }
+
     static func of(_ pick: MeasurePick, _ topologies: [Int: Topology]) -> MeasureFeature {
         var feature = MeasureFeature()
         guard let topology = topologies[pick.solidIndex] else { return feature }
         switch pick {
         case let .face(_, id):
-            guard let face = topology.face(id), let direction = face.normal?.normalized else { return feature }
-            if face.kind == .plane {
-                feature.normal = direction
-            } else if face.kind == .cylinder, let point = face.axisPoint {
-                feature.line = direction
-                feature.axis = direction
-                feature.centre = point
-                feature.isCylinder = true
-            }
+            feature.addFace(topology.face(id))
         case let .edge(_, id):
             guard let edge = topology.edge(id) else { return feature }
             if case let .circle(center, axis, _, _, _)? = edge.curve {
@@ -46,7 +63,9 @@ struct MeasureFeature {
             } else if edge.kind == .line {
                 feature.line = edge.direction?.normalized
             }
-        case .corner:
+        case let .sectionEdge(_, piece, _):
+            feature.addCurve(piece.curve)
+        case .corner, .meshPoint:
             break
         }
         return feature
@@ -65,8 +84,10 @@ enum MeasureReadings {
 
     private static func single(_ pick: MeasurePick, _ topologies: [Int: Topology]) -> [MeasureReading] {
         switch pick {
-        case let .corner(_, _, _, point):
+        case let .corner(_, _, _, point), let .meshPoint(_, point):
             return [MeasureReading(quantity: .position, value: 0, point: point)]
+        case let .sectionEdge(_, piece, _):
+            return sectionReadings(piece)
         case let .face(solid, id):
             guard let face = topologies[solid]?.face(id) else { return [] }
             if face.kind == .cylinder, let radius = face.radius { return roundReadings(radius) }
@@ -75,6 +96,17 @@ enum MeasureReadings {
             guard let edge = topologies[solid]?.edge(id) else { return [] }
             if case let .circle(_, _, radius, _, _)? = edge.curve { return roundReadings(radius) }
             return [MeasureReading(quantity: .length, value: edge.length)]
+        }
+    }
+
+    /// A section piece's radius and diameter, its length, or (no exact curve) the length of its polyline.
+    private static func sectionReadings(_ piece: SectionPiece) -> [MeasureReading] {
+        switch piece.curve {
+        case let .circle(_, _, radius, _, _)?: return roundReadings(radius)
+        case let .line(start, end)?: return [MeasureReading(quantity: .length, value: (end - start).length)]
+        case nil:
+            let length = zip(piece.polyline, piece.polyline.dropFirst()).reduce(0) { $0 + ($1.1 - $1.0).length }
+            return [MeasureReading(quantity: .length, value: length)]
         }
     }
 

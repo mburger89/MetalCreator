@@ -229,8 +229,10 @@ final class MeasureSession: ViewportTool {
         case let .edge(solid, id):
             let path = edgePath(solid, id)
             for (a, b) in zip(path, path.dropFirst()) { overlay.lines.append(OverlayLine(a, b, tint: tint, width: 3)) }
-        case let .corner(_, _, _, point):
+        case let .corner(_, _, _, point), let .meshPoint(_, point):
             overlay.points.append(OverlayPoint(point, tint: tint, size: 10))
+        case let .sectionEdge(_, piece, _):
+            for (a, b) in zip(piece.polyline, piece.polyline.dropFirst()) { overlay.lines.append(OverlayLine(a, b, tint: tint, width: 3)) }
         }
     }
 

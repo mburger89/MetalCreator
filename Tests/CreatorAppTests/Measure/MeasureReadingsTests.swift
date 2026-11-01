@@ -36,6 +36,30 @@ struct MeasureReadingsTests {
         #expect(readings == [MeasureReading(quantity: .position, value: 0, point: Vector3(1, 2, 3))])
     }
 
+    @Test func aSectionArcReadsRadiusAndDiameter() {
+        let curve = EdgeCurve.circle(center: .zero, axis: .unitZ, radius: 2.5, start: Vector3(2.5, 0, 0), sweep: .pi)
+        let piece = SectionPiece(curve: curve, polyline: [Vector3(2.5, 0, 0), Vector3(-2.5, 0, 0)], sourceFace: nil)
+        let result = values([.sectionEdge(solid: 0, piece: piece, at: .zero)], [:])
+        #expect(result[.radius] == 2.5 && result[.diameter] == 5)
+    }
+
+    @Test func aSectionLineReadsLengthAndAngle() {
+        let piece = SectionPiece(curve: .line(start: .zero, end: Vector3(3, 4, 0)), polyline: [.zero, Vector3(3, 4, 0)], sourceFace: nil)
+        let section = MeasurePick.sectionEdge(solid: 0, piece: piece, at: .zero)
+        let topology = MeasureFixtures.topology(faces: [MeasureFixtures.face(0, normal: .unitZ)])
+        #expect(values([section], topology)[.length] == 5)
+        let angle = values([section, .face(solid: 0, FaceID(0))], topology)[.angle]
+        #expect(abs((angle ?? -1) - 0) < 1e-9)
+        #expect(!section.isApproximate)
+    }
+
+    @Test func aSectionPolylineReadsItsLengthApproximately() {
+        let piece = SectionPiece(curve: nil, polyline: [.zero, Vector3(3, 0, 0), Vector3(3, 4, 0)], sourceFace: nil)
+        let pick = MeasurePick.sectionEdge(solid: 0, piece: piece, at: .zero)
+        #expect(values([pick], [:])[.length] == 7)
+        #expect(pick.isApproximate)
+    }
+
     @Test func facesAngles() {
         let topology = MeasureFixtures.topology(faces: [
             MeasureFixtures.face(0, normal: .unitZ), MeasureFixtures.face(1, normal: .unitX),
