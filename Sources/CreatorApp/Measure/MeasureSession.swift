@@ -78,9 +78,9 @@ final class MeasureSession: ViewportTool {
         setPicks([])
     }
 
-    /// Hands the current measurement to `keep`, then forgets it.
+    /// Hands the current measurement to `keep`, then forgets it. Nothing happens while an anchor is lost.
     func keepCurrent() {
-        guard !anchors.isEmpty else { return }
+        guard !anchors.isEmpty, !isLost else { return }
         keep?(KeptMeasurement(anchors: anchors))
         clear()
     }
@@ -143,18 +143,17 @@ final class MeasureSession: ViewportTool {
         }
         // A ghost, a guide, a click that names nothing, or a pick no anchor can name does nothing.
         guard let pick, let anchor = MeasureResolver.anchor(for: pick, in: scene) else { return true }
+        // A click first drops the anchors that no longer resolve, so none is kept, toggled or counted against the pair.
+        if isLost { anchors = anchors.filter { MeasureResolver.resolve($0, in: scene) != nil } }
         if let index = anchors.firstIndex(of: anchor) {
             anchors.remove(at: index)
-            recompute()
         } else if anchors.count >= 2 {
             keep?(KeptMeasurement(anchors: anchors))
             anchors = [anchor]
-            recompute()
         } else {
-            // A lost anchor is dropped with the next pick: only what resolves stays.
-            anchors = picks.compactMap { MeasureResolver.anchor(for: $0, in: scene) } + [anchor]
-            recompute()
+            anchors.append(anchor)
         }
+        recompute()
         return true
     }
 
