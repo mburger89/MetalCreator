@@ -2,6 +2,7 @@ import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 import Foundation
+import Synchronization
 import Testing
 @testable import CreatorApp
 @testable import CreatorViewport
@@ -108,5 +109,56 @@ struct MeasureContinuityTests {
         await app.settle()
         #expect(app.document.content == before)
         #expect(app.undoTitle == title)
+    }
+
+    private func keep(_ fixture: MeasureAppFixture) throws {
+        let edge = try capEdge(fixture)
+        let anchor = try #require(MeasureResolver.anchor(for: .edge(solid: 0, edge.id), in: fixture.app.measureScene()))
+        fixture.app.measureBook.add(KeptMeasurement(anchors: [anchor]))
+    }
+
+    @Test func aKeptEdgeShowsItsContinuityInItsSummary() async throws {
+        let fixture = await MeasureAppFixture.open()
+        try keep(fixture)
+        await fixture.app.settle()
+        let entry = try #require(fixture.app.measureBook.entries.first)
+        let summary = MeasurePanelText.keptSummary(entry, units: fixture.app.units)
+        #expect(summary.hasSuffix(" · G0 · 90°") && summary.count > " · G0 · 90°".count)
+    }
+
+    @Test func aKeptFailureSaysSoAndIsNotRetried() async throws {
+        let kernel = FakeKernel()
+        let calls = Mutex(0)
+        await kernel.setContinuityHook {
+            calls.withLock { $0 += 1 }
+            throw KernelError.invalidInput("Nope.")
+        }
+        let fixture = await MeasureAppFixture.open(kernel: kernel)
+        try keep(fixture)
+        await fixture.app.settle()
+        let entry = try #require(fixture.app.measureBook.entries.first)
+        #expect(entry.continuityFailed)
+        #expect(MeasurePanelText.keptSummary(entry, units: fixture.app.units).hasSuffix(" · " + MeasurePanelText.distanceFailed))
+        let asked = calls.withLock { $0 }
+        fixture.app.measureBook.refresh(fixture.app.measureScene())
+        await fixture.app.settle()
+        #expect(calls.withLock { $0 } == asked, "an unchanged basis is not asked again")
+        #expect(fixture.app.measureBook.entries.first?.continuityFailed == true)
+    }
+
+    @Test func aStaleContinuityNeverShows() async throws {
+        let kernel = FakeKernel()
+        let gate = FirstCallGate()
+        await kernel.setContinuityHook { gate.enter() }
+        let fixture = await MeasureAppFixture.open(kernel: kernel)
+        fixture.app.setMeasure(true)
+        let target = fixture.target(try capEdge(fixture))
+        fixture.click(target)
+        #expect(await gate.waitUntilEntered())
+        fixture.click(target)
+        gate.release()
+        await fixture.app.settle()
+        let session = try #require(fixture.app.measure)
+        #expect(session.picks.isEmpty && session.continuity == nil && !session.continuityFailed)
     }
 }

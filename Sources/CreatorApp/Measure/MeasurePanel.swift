@@ -24,6 +24,8 @@ enum MeasurePanelText {
                              distanceFailed: entry.distanceFailed, isApproximate: entry.isApproximate,
                              meshResolution: entry.meshResolution, units: units)
         guard let first = rows.first else { return entry.isMeasuring ? measuring : noValue }
+        if let continuity = entry.continuity { return first.text + " · " + Self.continuity(continuity, units: units) }
+        if entry.continuityFailed { return first.text + " · " + distanceFailed }
         return first.text
     }
 
