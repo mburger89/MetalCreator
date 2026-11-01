@@ -120,7 +120,9 @@ today (`−smin(−a, −b)`, `−smin(−a, b)`).
   validity check and this one. The cost is measured by the benchmark row.
 - **Coverage (erratum 2026-11-01, the user's choice "Extend, incl. G2 corners"):** a G2 fillet handles closed strips
   (holes), chains that run into a wall, strips that end slantwise on a face (trimmed by it; the run-out stays a crease) and two
-  strips meeting in a mitre (trimmed by each other; the mitre seam must be G1 and is not promised G2). Corners where three or more
+  strips meeting in a mitre (trimmed by each other; the mitre is a crease, as it is between two circular fillets meeting at an
+  unfilleted corner, and is checked for position only: erratum 2026-11-01, found by Task 2c; filleting the corner's third edge too
+  makes it a corner patch). Corners where three or more
   fillets meet get our own G2 patch, not OpenCascade's filling tool (whose `BRepFill_CurveConstraint` takes orders up to 2 while
   `GeomAbs_G2` is 3, and whose order 2 measured worse than its G1); the patch is spiked behind a gate, and if it can't meet the
   tolerances corners stay at the G1 refill below.
