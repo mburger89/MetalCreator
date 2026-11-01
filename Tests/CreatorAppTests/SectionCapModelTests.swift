@@ -124,17 +124,17 @@ struct SectionCapModelTests {
         await app.settle()
         let old = try #require(app.viewport.section)
         let gate = DispatchSemaphore(value: 0)
+        // The hold never lapses on its own (CI runners have spent over 680 s in such tests); every way out of the test releases it.
+        defer { for _ in 0..<4 { gate.signal() } }
         let (entered, signal) = AsyncStream<Void>.makeStream()
         await kernel.setSectionHook {
             signal.yield()
-            // Long enough that a loaded runner (Windows CI took 200 s over this test) never lets the hold lapse before the test has
-            // looked; a test that fails before `gate.signal()` waits this long, not forever.
-            _ = gate.wait(timeout: .now() + 600)
+            gate.wait()
         }
         app.setSectionOffset(1)
         let reached = await withTaskGroup(of: Bool.self) { group in
             group.addTask { for await _ in entered { return true }; return false }
-            group.addTask { try? await Task.sleep(for: .seconds(60)); return false }
+            group.addTask { try? await Task.sleep(for: .seconds(900)); return false }
             let first = await group.next() ?? false
             group.cancelAll()
             return first
