@@ -36,4 +36,17 @@ struct SurfacePointTests {
         #expect(model.surfacePoint(at: ScreenPoint(2, 2), solidIndex: 0) == nil)
         #expect(model.surfacePoint(at: ScreenPoint(400, 300), solidIndex: 5) == nil)
     }
+
+    @Test func aClippedNearSideIsSkipped() async throws {
+        let box = try await fakeBox()
+        let model = await shown(box)
+        let centre = try #require(CameraMath.project(box.bounds.center, model.pose, size: size, sceneRadius: 20)).point
+        let near = try #require(model.surfacePoint(at: centre, solidIndex: 0))
+        // The clip cuts away the half of the box towards the eye.
+        let toEye = try #require((model.pose.eye - box.bounds.center).normalized)
+        model.showClip(ViewportClip(origin: box.bounds.center, normal: toEye))
+        let hit = try #require(model.surfacePoint(at: centre, solidIndex: 0))
+        #expect((hit - model.pose.eye).length > (near - model.pose.eye).length + 1e-6)
+        #expect((hit - box.bounds.center).dot(toEye) <= 1e-6)
+    }
 }

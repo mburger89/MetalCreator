@@ -2,9 +2,10 @@ import CreatorGeometry
 import CreatorKernel
 
 /// CPU ray casting against display meshes, for the orbit pivot (spec §6.3: "orbit pivots on the point under the
-/// cursor"). The ID pass gives identities, not depths.
+/// cursor"). The ID pass gives identities, not depths. A hit on the side of `clip` that is cut away is skipped.
 enum MeshRaycast {
-    static func nearest(_ ray: Ray, in meshes: [(solidIndex: Int, mesh: DisplayMesh)]) -> RayHit? {
+    static func nearest(_ ray: Ray, in meshes: [(solidIndex: Int, mesh: DisplayMesh)],
+                        skipping clip: ViewportClip? = nil) -> RayHit? {
         var best: RayHit?
         for (solidIndex, mesh) in meshes {
             let triangles = min(mesh.indices.count / 3, mesh.triangleFaces.count)
@@ -15,6 +16,8 @@ enum MeshRaycast {
                 guard a < mesh.positions.count, b < mesh.positions.count, c < mesh.positions.count,
                       let t = intersect(ray, mesh.positions[a], mesh.positions[b], mesh.positions[c]),
                       t >= ray.minimumT, t < (best?.distance ?? .infinity) else { continue }
+                // The ID pass discards the clipped side; a ray cast that kept it would land on the cut-away half.
+                if let clip, clip.removes(ray.point(at: t)) { continue }
                 best = RayHit(point: ray.point(at: t), distance: t, solidIndex: solidIndex, face: mesh.triangleFaces[triangle])
             }
         }
