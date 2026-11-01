@@ -86,6 +86,27 @@ struct EdgeContinuityOCCTTests {
         #expect(found.angleGap < 1e-9 && found.curvatureGap == 0)
     }
 
+    @Test func aConvexArcMeetingAConcaveArcHasACurvatureGapOfTwo() async throws {
+        let kernel = OCCTKernel()
+        // An S: a convex quarter circle running tangent into a concave one (clockwise arc), so the curvatures across the join are +-1/5.
+        let profile = Profile2D(plane: .xy, segments: [
+            .line(Vector2(0, 0), Vector2(10, 0)),
+            .arc(center: Vector2(10, 5), radius: 5, start: Angle(radians: -.pi / 2), end: Angle(radians: 0)),
+            .arc(center: Vector2(20, 5), radius: 5, start: Angle(radians: .pi), end: Angle(radians: .pi / 2)),
+            .line(Vector2(20, 10), Vector2(0, 10)),
+            .line(Vector2(0, 10), Vector2(0, 0)),
+        ])
+        let solid = try await kernel.extrude(profile, distance: 8, mode: .oneSided, tag: newTag())
+        let join = try #require(twoFaceEdges(solid).first { edge in
+            edge.kind == .line && edge.faces.compactMap { solid.topology.face($0)?.kind }.filter { $0 == .cylinder }.count == 2
+        })
+        let found = try await kernel.continuity(along: join.id, of: solid)
+        #expect(found.angleGap < EdgeContinuity.angleTolerance)
+        #expect(abs(found.curvatureGap - 2) < 1e-6)
+        #expect(abs(found.absoluteCurvatureGap - 0.4) < 1e-6)
+        #expect(found.grade == .g1)
+    }
+
     @Test func aSeamIsUnsupported() async throws {
         let kernel = OCCTKernel()
         let solid = try await kernel.extrude(.circle(radius: 5, center: Vector2(0, 0), plane: .xy), distance: 10, mode: .oneSided,

@@ -13,7 +13,8 @@ public struct EdgeContinuity: Equatable, Sendable {
     public var positionGap: Double
     /// Radians, the worst angle between the faces' outward normals.
     public var angleGap: Double
-    /// `|κ1 − κ2| / max(|κ1|, |κ2|)` of the normal curvatures across the edge, or 0 when both are under `curvatureFloor`.
+    /// `|κ1 − κ2| / max(|κ1|, |κ2|)` of the normal curvatures across the edge, the worst over the samples whose absolute gap exceeds
+    /// `curvatureFloor` (0 when none does).
     public var curvatureGap: Double
     /// `|κ1 − κ2|`, per millimetre.
     public var absoluteCurvatureGap: Double

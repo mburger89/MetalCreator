@@ -22,6 +22,28 @@ struct EdgeContinuityTests {
         #expect(ContinuityClass.g0 < .g1 && .g1 < .g2)
     }
 
+    @Test func theGradeIsASampleWisePass() {
+        // The shim reports the relative gap over samples above the floor only, so a large relative gap with an absolute gap under
+        // the floor (flat on both sides) and a small relative gap with a large absolute one both pass; both large do not.
+        #expect(Gap.grade(positionGap: 0, angleGap: 0, curvatureGap: 0, absoluteCurvatureGap: 1) == .g2)
+        #expect(Gap.grade(positionGap: 0, angleGap: 0, curvatureGap: 0.5, absoluteCurvatureGap: 5e-5) == .g2)
+        #expect(Gap.grade(positionGap: 0, angleGap: 0, curvatureGap: 0.5, absoluteCurvatureGap: 1) == .g1)
+    }
+
+    @Test func aSeamAndAOneFaceEdgeAreUnsupported() async throws {
+        let kernel = FakeKernel()
+        let tag = NodeTag(node: NodeID(), item: 0)
+        let cylinder = try await kernel.extrude(.circle(radius: 5, center: Vector2(0, 0), plane: .xy), distance: 10,
+                                                mode: .oneSided, tag: tag)
+        let seam = try #require(cylinder.topology.edges.first { $0.isSeam })
+        await #expect(throws: KernelError.unsupported("continuity of a seam")) { try await kernel.continuity(along: seam.id, of: cylinder) }
+        var topology = cylinder.topology
+        let edge = try #require(topology.edges.first { !$0.isSeam })
+        topology.edges[edge.id.rawValue].faces = [edge.faces[0]]
+        let broken = Solid(topology: topology, bounds: cylinder.bounds, storage: FakeStorage())
+        await #expect(throws: KernelError.unsupported("continuity of a seam")) { try await kernel.continuity(along: edge.id, of: broken) }
+    }
+
     @Test func aBoxEdgeIsG0() async throws {
         let kernel = FakeKernel()
         let tag = NodeTag(node: NodeID(), item: 0)

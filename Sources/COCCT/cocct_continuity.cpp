@@ -102,7 +102,7 @@ int occt_edge_continuity_of(const occt_shape *shape, int edge_index, occt_edge_c
         TopExp::MapShapesAndAncestors(shape->shape, TopAbs_EDGE, TopAbs_FACE, edge_faces);
         const std::vector<TopoDS_Face> faces = distinct_faces(edge, edge_faces);
         if (faces.size() != 2) {
-            throw user_error("seam: this edge has no two faces to compare.");
+            throw user_error("This edge doesn't join two faces.");
         }
         BRepAdaptor_Curve curve(edge);
         const double lo = curve.FirstParameter(), hi = curve.LastParameter();
@@ -129,8 +129,10 @@ int occt_edge_continuity_of(const occt_shape *shape, int edge_index, occt_edge_c
             const double k1 = s1.curvature, k2 = s2.curvature;
             const double diff = std::fabs(k1 - k2);
             const double larger = std::max(std::fabs(k1), std::fabs(k2));
+            // A sample passes when diff <= max(floor, 1% of the larger): the relative gap counts only samples over the floor, so the
+            // two maxima OR the same way the per-sample test does.
             absolute = std::max(absolute, diff);
-            if (larger >= kCurvatureFloor) {
+            if (diff > kCurvatureFloor) {
                 relative = std::max(relative, diff / larger);
             }
         }
