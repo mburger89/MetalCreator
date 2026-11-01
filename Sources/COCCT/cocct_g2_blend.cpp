@@ -9,7 +9,9 @@
 #include <BRepFill_Filling.hxx>
 #include <GeomAbs_Shape.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
+#include <BRepCheck_Analyzer.hxx>
 #include <BRepLib.hxx>
+#include <BRepTools.hxx>
 #include <BRepTools_ReShape.hxx>
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
@@ -81,7 +83,7 @@ SurfacePoint surface_point(const TopoDS_Face &face, const TopoDS_Edge &edge, dou
     double first = 0, last = 0;
     const Handle(Geom2d_Curve) pc = BRep_Tool::CurveOnSurface(edge, face, first, last);
     if (pc.IsNull()) {
-        throw user_error("a fillet strip's edge has no curve on its face");
+        throw user_error(kStripMessage);
     }
     const gp_Pnt2d uv = pc->Value(t);
     BRepAdaptor_Surface surface(face, Standard_False);
@@ -89,7 +91,7 @@ SurfacePoint surface_point(const TopoDS_Face &face, const TopoDS_Edge &edge, dou
     surface.D2(uv.X(), uv.Y(), s.p, s.su, s.sv, s.suu, s.svv, s.suv);
     s.n = s.su.Crossed(s.sv);
     if (s.n.Magnitude() < 1e-12) {
-        throw user_error("a fillet strip's neighbour has no normal at its edge");
+        throw user_error(kStripMessage);
     }
     s.n.Normalize();
     if (face.Orientation() == TopAbs_REVERSED) {
@@ -129,7 +131,7 @@ NeighbourEnd end_condition(const Spring &spring, double t, const gp_Pnt &other, 
     curve.D1(t, p, tangent);
     gp_Vec across = s.n.Crossed(tangent);
     if (across.Magnitude() < 1e-12) {
-        throw user_error("a fillet strip's spring edge is degenerate");
+        throw user_error(kStripMessage);
     }
     across.Normalize();
     if (across.Dot(gp_Vec(s.p, other)) < 0) {
@@ -235,7 +237,7 @@ struct BuiltStrip {
     std::vector<NeighbourEnd> first_ends, second_ends;
 };
 
-BuiltStrip build_strip(const Spring &a, const Spring &b, double weight, int sections) {
+BuiltStrip build_strip(const Spring &a, const Spring &b, double weight, int sections, bool closed) {
     BuiltStrip built;
     built.sections.resize(sections);
     const Pairing pairing = pair_sections(a, b, sections);
@@ -258,22 +260,24 @@ BuiltStrip build_strip(const Spring &a, const Spring &b, double weight, int sect
     }
     built.pcurve[0] = spring_pcurve(pairing.ta, u, 0);
     built.pcurve[1] = spring_pcurve(pairing.tb, u, 1);
-    // Skin: one cubic interpolation along the strip per pole row, all through the same parameters.
+    // Skin: one cubic interpolation along the strip per pole row, all through the same parameters. A closed strip
+    // (a hole edge's) interpolates periodically through all but the last section, which repeats the first.
+    const int points_count = closed ? sections - 1 : sections;
     Handle(TColStd_HArray1OfReal) params = new TColStd_HArray1OfReal(1, sections);
     for (int j = 0; j < sections; ++j) {
         params->SetValue(j + 1, u[j]);
     }
     std::vector<Handle(Geom_BSplineCurve)> rows;
     for (int i = 0; i < 6; ++i) {
-        Handle(TColgp_HArray1OfPnt) points = new TColgp_HArray1OfPnt(1, sections);
-        for (int j = 0; j < sections; ++j) {
+        Handle(TColgp_HArray1OfPnt) points = new TColgp_HArray1OfPnt(1, points_count);
+        for (int j = 0; j < points_count; ++j) {
             const g2::Vec &q = built.sections[j][i];
             points->SetValue(j + 1, gp_Pnt(q[0], q[1], q[2]));
         }
-        GeomAPI_Interpolate interpolate(points, params, Standard_False, 1e-9);
+        GeomAPI_Interpolate interpolate(points, params, closed ? Standard_True : Standard_False, 1e-9);
         interpolate.Perform();
         if (!interpolate.IsDone()) {
-            throw user_error("the strip's sections could not be interpolated");
+            throw user_error(kStripMessage);
         }
         rows.push_back(interpolate.Curve());
     }
@@ -281,7 +285,7 @@ BuiltStrip build_strip(const Spring &a, const Spring &b, double weight, int sect
     TColgp_Array2OfPnt poles(1, count, 1, 6);
     for (int i = 0; i < 6; ++i) {
         if (rows[i]->NbPoles() != count) {
-            throw user_error("the strip's rows disagree");
+            throw user_error(kStripMessage);
         }
         for (int k = 1; k <= count; ++k) {
             poles.SetValue(k, i + 1, rows[i]->Pole(k));
@@ -297,14 +301,48 @@ BuiltStrip build_strip(const Spring &a, const Spring &b, double weight, int sect
     TColStd_Array1OfInteger vmults(1, 2);
     vmults.SetValue(1, 6);
     vmults.SetValue(2, 6);
-    built.surface = new Geom_BSplineSurface(poles, uknots, vknots, umults, vmults, rows[0]->Degree(), 5);
+    built.surface = new Geom_BSplineSurface(poles, uknots, vknots, umults, vmults, rows[0]->Degree(), 5,
+                                            closed ? Standard_True : Standard_False, Standard_False);
     return built;
 }
 
-/// Refuses sections that leave the wedge the neighbours' tangent planes make at their ends (the tangency weight is too
-/// large: material would be pushed past the original corner) and sections whose middle strays from the circular
-/// strip's surface by more than half the fillet radius (a strip that isn't a sane blend).
-void validate_sections(const BuiltStrip &built, const Handle(Geom_Surface) &circular, double radius) {
+/// The signed distance of `p` from a neighbour's surface (positive on the side its outward normal points to), by
+/// projecting onto the surface itself, so a neighbour that curves away from its tangent plane is not mistaken for an
+/// overshoot. Falls back to the tangent plane at `end` when the projection or the face's location isn't usable.
+double offset_from(const Spring &spring, const NeighbourEnd &end, const gp_Pnt &p) {
+    TopLoc_Location location;
+    const Handle(Geom_Surface) surface = BRep_Tool::Surface(spring.neighbour, location);
+    if (!surface.IsNull() && location.IsIdentity()) {
+        GeomAPI_ProjectPointOnSurf project(p, surface);
+        if (project.NbPoints() > 0) {
+            double u = 0, v = 0;
+            project.LowerDistanceParameters(u, v);
+            gp_Pnt on;
+            gp_Vec du, dv;
+            surface->D1(u, v, on, du, dv);
+            gp_Vec n = du.Crossed(dv);
+            if (n.Magnitude() > 1e-12) {
+                n.Normalize();
+                if (spring.neighbour.Orientation() == TopAbs_REVERSED) {
+                    n.Reverse();
+                }
+                return gp_Vec(on, p).Dot(n);
+            }
+        }
+    }
+    return gp_Vec(end.p, p).Dot(end.n);
+}
+
+/// Refuses sections that leave the wedge the neighbours' surfaces make at their ends (the tangency weight is too
+/// large: material would be pushed past the original corner), sections whose middle strays from the circular strip's
+/// own face by more than half the fillet radius or off its parameter range (a strip that isn't a sane blend), and end
+/// sections that don't cross the springs squarely.
+void validate_sections(const BuiltStrip &built, const TopoDS_Face &circular_face, const Spring &a, const Spring &b,
+                       double radius) {
+    const Handle(Geom_Surface) circular = BRep_Tool::Surface(circular_face);
+    double umin = 0, umax = 0, vmin = 0, vmax = 0;
+    BRepTools::UVBounds(circular_face, umin, umax, vmin, vmax);
+    const double margin_u = 0.05 * (umax - umin) + 1e-9, margin_v = 0.05 * (vmax - vmin) + 1e-9;
     for (std::size_t j = 0; j < built.sections.size(); ++j) {
         const auto &poles = built.sections[j];
         g2::Vec position, d1, d2;
@@ -312,6 +350,12 @@ void validate_sections(const BuiltStrip &built, const Handle(Geom_Surface) &circ
         const gp_Pnt mid(position[0], position[1], position[2]);
         GeomAPI_ProjectPointOnSurf project(mid, circular);
         if (project.NbPoints() == 0 || project.LowerDistance() > 0.5 * radius) {
+            throw user_error(kStripMessage);
+        }
+        double pu = 0, pv = 0;
+        project.LowerDistanceParameters(pu, pv);
+        if ((!circular->IsUPeriodic() && (pu < umin - margin_u || pu > umax + margin_u)) ||
+            (!circular->IsVPeriodic() && (pv < vmin - margin_v || pv > vmax + margin_v))) {
             throw user_error(kStripMessage);
         }
         const gp_Pnt q = project.NearestPoint();
@@ -324,13 +368,13 @@ void validate_sections(const BuiltStrip &built, const Handle(Geom_Surface) &circ
                 throw user_error(kStripMessage);
             }
         }
-        const double sa = gp_Vec(ea.p, q).Dot(ea.n) < 0 ? -1 : 1;
-        const double sb = gp_Vec(eb.p, q).Dot(eb.n) < 0 ? -1 : 1;
+        const double sa = offset_from(a, ea, q) < 0 ? -1 : 1;
+        const double sb = offset_from(b, eb, q) < 0 ? -1 : 1;
         const double tolerance = 0.01 * ea.p.Distance(eb.p);
-        for (int k = 0; k <= 16; ++k) {
+        for (int k = 0; k <= 16; k += 2) {
             g2::evaluate(poles, k / 16.0, position, d1, d2);
             const gp_Pnt p(position[0], position[1], position[2]);
-            if (sa * gp_Vec(ea.p, p).Dot(ea.n) < -tolerance || sb * gp_Vec(eb.p, p).Dot(eb.n) < -tolerance) {
+            if (sa * offset_from(a, ea, p) < -tolerance || sb * offset_from(b, eb, p) < -tolerance) {
                 throw user_error(kWeightMessage);
             }
         }
@@ -350,6 +394,7 @@ struct StripEdges {
     Spring spring[2];
     TopoDS_Edge ends[2];
     TopoDS_Face end_face[2]; // null where the end borders a blend face
+    bool closed = false;     // a hole edge's strip: its one seam is both ends
 };
 
 StripEdges classify(const TopoDS_Face &strip, const TopTools_IndexedDataMapOfShapeListOfShape &edge_faces,
@@ -366,10 +411,15 @@ StripEdges classify(const TopoDS_Face &strip, const TopTools_IndexedDataMapOfSha
             duplicate = duplicate || out.ends[i].IsSame(edge);
         }
         if (duplicate) {
+            for (int i = 0; i < ends; ++i) {
+                if (out.ends[i].IsSame(edge) && BRep_Tool::IsClosed(edge, strip)) {
+                    out.closed = true;
+                }
+            }
             continue;
         }
         if (BRep_Tool::Degenerated(edge)) {
-            throw user_error("a fillet strip with a degenerate edge isn't supported yet");
+            throw user_error(kStripMessage);
         }
         TopoDS_Face other;
         for (const TopoDS_Face &face : distinct_faces(edge, edge_faces)) {
@@ -409,6 +459,10 @@ StripEdges classify(const TopoDS_Face &strip, const TopTools_IndexedDataMapOfSha
         } else {
             throw user_error(kStripMessage);
         }
+    }
+    if (out.closed && ends == 1) {
+        out.ends[1] = out.ends[0];
+        ends = 2;
     }
     if (springs != 2 || ends != 2) {
         throw user_error(kStripMessage);
@@ -577,7 +631,7 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
         const TopoDS_Shape work = copy.Shape();
         const TopTools_IndexedMapOfShape faces = map_of(work, TopAbs_FACE);
         if (faces.Extent() != g1_faces.Extent()) {
-            throw user_error("the copy of the fillet has a different face count");
+            throw user_error(kStripMessage);
         }
         std::sort(strip_indices.begin(), strip_indices.end());
         strip_indices.erase(std::unique(strip_indices.begin(), strip_indices.end()), strip_indices.end());
@@ -625,7 +679,7 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 for (;; sections = 2 * sections - 1) {
                     swapped = false;
                     for (int attempt = 0; attempt < 2; ++attempt) {
-                        built = build_strip(edges.spring[swapped ? 1 : 0], edges.spring[swapped ? 0 : 1], weight, sections);
+                        built = build_strip(edges.spring[swapped ? 1 : 0], edges.spring[swapped ? 0 : 1], weight, sections, edges.closed);
                         // The raw normal must agree with the old surface's so the face keeps its orientation.
                         gp_Pnt mid;
                         gp_Vec du, dv;
@@ -641,7 +695,7 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                         }
                         swapped = !swapped;
                     }
-                    validate_sections(built, circular, radius);
+                    validate_sections(built, old_face, edges.spring[swapped ? 1 : 0], edges.spring[swapped ? 0 : 1], radius);
                     const bool reversed = old_face.Orientation() == TopAbs_REVERSED;
                     if (within_tolerance(candidate_seam(built.surface, reversed, edges.spring[swapped ? 1 : 0], built.pcurve[0])) &&
                         within_tolerance(candidate_seam(built.surface, reversed, edges.spring[swapped ? 0 : 1], built.pcurve[1]))) {
@@ -663,12 +717,14 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 }
 
                 // End edges become the first and last sections (shared with the next strip of a tangent chain).
-                const int count_u = built.surface->NbUPoles();
-                TopoDS_Edge new_ends[2];
-                for (int end = 0; end < 2; ++end) {
+                                TopoDS_Edge new_ends[2];
+                TopoDS_Edge seam_edge;       // a closed strip's one seam, both ends
+                bool seam_reversed = false;
+                for (int end = 0; end < (edges.closed ? 1 : 2); ++end) {
                     TColgp_Array1OfPnt poles(1, 6);
+                    const auto &section = end == 0 ? built.sections.front() : built.sections.back();
                     for (int i = 0; i < 6; ++i) {
-                        poles.SetValue(i + 1, built.surface->Pole(end == 0 ? 1 : count_u, i + 1));
+                        poles.SetValue(i + 1, gp_Pnt(section[i][0], section[i][1], section[i][2]));
                     }
                     Handle(Geom_BezierCurve) bezier = new Geom_BezierCurve(poles);
                     // Which old end edge is at this section: the one whose midpoint is nearer.
@@ -696,6 +752,13 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                     if (!ne.IsNull()) {
                         BRepAdaptor_Curve nc(ne);
                         reversed = nc.Value(0).Distance(bezier->Value(0)) > nc.Value(0).Distance(bezier->Value(1));
+                        // The shared section must be this strip's own: both are built from the same neighbours.
+                        for (int k = 0; k <= 8; ++k) {
+                            const double t = k / 8.0;
+                            if (nc.Value(t).Distance(bezier->Value(reversed ? 1 - t : t)) > 1e-6) {
+                                throw user_error(kStripMessage);
+                            }
+                        }
                     } else {
                         TopoDS_Vertex v1, v2;
                         TopExp::Vertices(old_edge, v1, v2, Standard_False);
@@ -711,12 +774,18 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                         builder.Range(ne, 0, 1);
                         if (!edges.end_face[chosen].IsNull()) {
                             if (BRepAdaptor_Surface(edges.end_face[chosen], Standard_False).GetType() != GeomAbs_Plane) {
-                                throw user_error("a curvature-continuous fillet can't end on a curved face yet");
+                                throw user_error(kStripMessage);
                             }
                         }
                         // The replacement carries the old occurrence's orientation: Replace composes the two.
                         reshape.Replace(old_edge, ne.Oriented(old_edge.Orientation()));
                         replaced.push_back({old_edge, ne, TopoDS_Face()});
+                    }
+                    if (edges.closed) {
+                        seam_edge = ne;
+                        seam_reversed = reversed;
+                        new_ends[0] = new_ends[1] = ne;
+                        break;
                     }
                     const double u_iso = end;
                     // Section poles run from the first spring (v = 0) to the second (v = 1).
@@ -727,6 +796,18 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                         BRepLib::BuildPCurveForEdgeOnPlane(ne, edges.end_face[chosen]);
                     }
                     new_ends[chosen] = ne;
+                }
+                // A closed strip's seam lies on the surface twice, at u = 0 and u = 1; which pcurve belongs to which
+                // orientation is settled below by the face's own check.
+                auto seam_pcurves = [&](bool swap) {
+                    auto at = [&](double u) {
+                        return seam_reversed ? line2d(gp_Pnt2d(u, 1), gp_Pnt2d(u, 0), 0, 1)
+                                             : line2d(gp_Pnt2d(u, 0), gp_Pnt2d(u, 1), 0, 1);
+                    };
+                    builder.UpdateEdge(seam_edge, at(swap ? 1 : 0), at(swap ? 0 : 1), surface, TopLoc_Location(), kEdgeTolerance);
+                };
+                if (edges.closed) {
+                    seam_pcurves(false);
                 }
 
                 // The new face: the old wire rebuilt with the new end edges.
@@ -750,6 +831,12 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                     builder.Add(new_face, new_wire);
                 }
                 new_face.Orientation(old_face.Orientation());
+                if (edges.closed && !BRepCheck_Analyzer(new_face).IsValid()) {
+                    seam_pcurves(true);
+                    if (!BRepCheck_Analyzer(new_face).IsValid()) {
+                        throw user_error(kStripMessage);
+                    }
+                }
                 reshape.Replace(old_face, new_face);
                 for (Replaced &r : replaced) {
                     if (r.strip.IsNull()) {
@@ -759,9 +846,10 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                 ++report->strips;
             }
 
-            // Corner patches: refilled with MakeFilling constrained against the strips (and the original faces), the
-            // circular corner as the initial surface. G2 if it measures inside the tolerances, else G1 and counted
-            // (g1_corners), else the fillet fails: a crease is never returned.
+            // Corner patches: refilled with MakeFilling constrained G1 against the strips (and the original faces) and
+            // counted in g1_corners; if that misses the position or angle tolerance the fillet fails. A crease is
+            // never returned. OCCT 7.9's MakeFilling cannot constrain G2 (GeomAbs_G2 is refused, order 2 builds
+            // garbage), so there is no G2 attempt.
             struct CornerEdge {
                 TopoDS_Edge shared;
                 TopoDS_Face support;
@@ -868,8 +956,7 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                                     sc.D1(t, p, tangent);
                                     accumulate(seam, surface_point(ce.support, ce.shared, t), surface_point(filled, fe, t), tangent);
                                 }
-                                pass = pass && seam.position <= 1e-4 && seam.angle_degrees <= 0.01 &&
-                                       (order != GeomAbs_G2 || seam.curvature_ratio <= 1);
+                                pass = pass && seam.position <= 1e-4 && seam.angle_degrees <= 0.01;
                                 if (std::abs(fc.FirstParameter() - sc.FirstParameter()) > 1e-9 ||
                                     std::abs(fc.LastParameter() - sc.LastParameter()) > 1e-9) {
                                     pass = false;
@@ -885,14 +972,11 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
                     }
                     return candidate;
                 };
-                Candidate chosen = attempt(GeomAbs_G2);
+                const Candidate chosen = attempt(GeomAbs_G1);
                 if (!chosen.ok) {
-                    chosen = attempt(GeomAbs_G1);
-                    if (!chosen.ok) {
-                        throw user_error(kCornerMessage);
-                    }
-                    ++report->g1_corners;
+                    throw user_error(kCornerMessage);
                 }
+                ++report->g1_corners;
                 // BRepFill_Filling makes copies of its boundary edges; rebuild the face on the shared edges.
                 TopoDS_Face filled = chosen.face;
                 const Handle(Geom_Surface) fill_surface = BRep_Tool::Surface(filled);

@@ -212,11 +212,12 @@ typedef struct {
 /// Fillets like occt_fillet, then replaces each strip's surface with quintic G2 sections whose end tangent lengths are
 /// `weight` times the circle's. Sections start at 9 per strip and double until the strip's spring seams measure inside
 /// half the tolerances; past 129 the call fails ("The fillet can't be made curvature continuous at this radius.").
-/// Each corner patch is refilled with MakeFilling constrained G2 to the strips and original faces (the circular corner
-/// is the initial surface); if that misses the tolerances it is refilled G1 and counted in g1_corners; if that misses
-/// the angle tolerance the call fails ("The fillet's corners can't be made smooth at this radius."). A crease is
-/// never returned. A tangency weight that pushes a section past the neighbours' tangent planes fails with "The
-/// tangency weight is too large for this fillet."
+/// Each corner patch is refilled with MakeFilling constrained G1 to the strips and original faces and counted in
+/// g1_corners (OCCT 7.9's MakeFilling cannot constrain G2); if that misses the position or angle tolerance the call
+/// fails ("The fillet's corners can't be made smooth at this radius."). A crease is never returned. A tangency weight
+/// that pushes a section past the neighbours' surfaces fails with "The tangency weight is too large for this
+/// fillet."; anything else the construction cannot do fails with "The fillet can't be made curvature continuous at
+/// this radius."
 /// SPIKE ONLY: a weight <= 0 skips the replacement and only measures (the circular fillet's gaps); Task 3 removes it.
 occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int count, double radius, double weight,
                            occt_history *history, occt_g2_report *report, occt_status *status);

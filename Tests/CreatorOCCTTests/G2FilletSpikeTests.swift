@@ -137,16 +137,17 @@ struct G2FilletSpikeTests {
             + " sections \(sectionCounts(g2.report))")
         print("G2SPIKE \(name) w=\(weight): G1 gaps \(g1Gaps) time \(g1Time)")
         print("G2SPIKE \(name) w=\(weight): G2 gaps \(g2Gaps) time \(g2Time) validity \(validity)")
-        print("G2SPIKE \(name) w=\(weight): volume \(g2.shape.volume), circular \(g1.shape.volume)")
+        let volume = OCCTKernel.serialized { g2.shape.volume }, circular = OCCTKernel.serialized { g1.shape.volume }
+        print("G2SPIKE \(name) w=\(weight): volume \(volume), circular \(circular)")
         #expect(validity == .valid)
         // The quintic strip takes a little less material than the circle's, and never more than the box holds.
         if shape != nil {
             // Not the box: only the seams and the validity are pinned.
         } else if staysInsideTheBox {
-            #expect(g2.shape.volume < 4000)
-            #expect(abs(g2.shape.volume - g1.shape.volume) < 20)
+            #expect(volume < 4000)
+            #expect(abs(volume - circular) < 20)
         } else {
-            #expect(g2.shape.volume > 4000)
+            #expect(volume > 4000)
         }
         #expect(g2.report.seam_count == 2 * ids.count)
         #expect(g2.report.sections <= 129)
@@ -173,7 +174,7 @@ extension G2FilletSpikeTests {
 
     /// A weight of two pushes a right-angle corner's sections past the neighbours' tangent planes; the fillet refuses.
     @Test func aWeightOfTwoIsRefusedOnARightAngle() throws {
-        let box = try OCCTShape.box(20, 20, 10)
+        let box = try OCCTKernel.serialized { try OCCTShape.box(20, 20, 10) }
         let edges = try OCCTKernel.serialized { try topology(of: box) }
         let id = try edge(edges, near: [10, 0, 10])
         let error = #expect(throws: OCCTError.self) {

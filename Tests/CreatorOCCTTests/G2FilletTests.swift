@@ -37,7 +37,7 @@ struct G2FilletTests {
     }
 
     @Test func aBoxCornerIsG2OrCounted() throws {
-        let box = try OCCTShape.box(20, 20, 10)
+        let box = try OCCTKernel.serialized { try OCCTShape.box(20, 20, 10) }
         let built = try build(box, midpoints: [[10, 0, 10], [0, 10, 10], [0, 0, 5]], radius: 2)
         expectSpringsG2(built, seams: 6)
         let corner = cornerGaps(built.report)
@@ -52,15 +52,13 @@ struct G2FilletTests {
         for seam in corner {
             #expect(seam.position <= 1e-4)
             #expect(seam.angle_degrees <= 0.01)
-            if built.report.g1_corners == 0 {
-                #expect(seam.curvature_ratio <= 1)
-            }
         }
-        #expect(built.report.g1_corners == 0 || built.report.g1_corners == 1)
+        // OCCT 7.9's MakeFilling can't constrain G2, so a corner is a counted G1 refill.
+        #expect(built.report.g1_corners == 1)
     }
 
     @Test func anOpenChainEnds() throws {
-        let slab = try OCCTShape.box(40, 20, 3)
+        let slab = try OCCTKernel.serialized { try OCCTShape.box(40, 20, 3) }
         let built = try build(slab, midpoints: [[20, 0, 3]], radius: 1)
         expectSpringsG2(built, seams: 2)
         #expect(built.report.corners == 0)
@@ -93,16 +91,14 @@ struct G2FilletTests {
     }
 
     @Test func extremeWeightsStayValid() throws {
-        let box = try OCCTShape.box(20, 20, 10)
+        let box = try OCCTKernel.serialized { try OCCTShape.box(20, 20, 10) }
         let light = try build(box, midpoints: [[10, 0, 10]], radius: 2, weight: 0.1)
         expectSpringsG2(light, seams: 2)
-        // At 2.0 a right angle either builds (valid and G2) or is refused with exactly the weight message.
-        do {
-            let heavy = try build(box, midpoints: [[10, 0, 10]], radius: 2, weight: 2)
-            expectSpringsG2(heavy, seams: 2)
-        } catch let error as OCCTError {
-            #expect(error.message == "The tangency weight is too large for this fillet.")
+        // At 2.0 a right angle's sections pass the neighbours' faces: refused with exactly the weight message.
+        let error = #expect(throws: OCCTError.self) {
+            try build(box, midpoints: [[10, 0, 10]], radius: 2, weight: 2)
         }
+        #expect(error?.message == "The tangency weight is too large for this fillet.")
     }
 }
 
@@ -133,5 +129,49 @@ extension G2FilletTests {
         let shape = try OCCTKernel.serialized { try OCCTShape.extrude(Profile2D(plane: .xy, segments: segments), distance: 10).0 }
         let error = #expect(throws: OCCTError.self) { try build(shape, midpoints: [[-5, 0, 10]], radius: 0.5) }
         #expect(error?.message == "The fillet can't be made curvature continuous at this radius.")
+    }
+}
+
+extension G2FilletTests {
+    /// A 10 x 10 plate, 3 thick, with a diameter 4 through-hole: one closed circular edge on top.
+    func holedPlate() throws -> OCCTShape {
+        let profile = Profile2D(plane: .xy, outer: Profile2D.rectangle(width: 10, height: 10, plane: .xy).segments,
+                                holes: [Profile2D.circle(radius: 2, center: Vector2(1, 1), plane: .xy).segments])
+        return try OCCTKernel.serialized { try OCCTShape.extrude(profile, distance: 3).0 }
+    }
+
+    @Test func aHoleEdgeHasAClosedG2Strip() throws {
+        let plate = try holedPlate()
+        let edges = try OCCTKernel.serialized { try helper.topology(of: plate) }
+        let candidates = edges.filter { abs($0.mid[2] - 3) < 1e-9 && abs(hypot($0.mid[0] - 1, $0.mid[1] - 1) - 2) < 1e-6 }
+        let hole = try #require(candidates.first)
+        let built = try build(plate, midpoints: [hole.mid], radius: 0.5)
+        print("G2FILLET hole edge: sections \(helper.sectionCounts(built.report))")
+        expectSpringsG2(built, seams: 2)
+        #expect(built.report.corners == 0)
+    }
+
+    /// r 1 beside a notch cylinder of R 5 (it curves away from its tangent plane by about 0.018 mm): not refused at w = 1.
+    @Test func aCylinderNeighbourOfR5IsNotRefusedAtWeightOne() throws {
+        let segments: [Segment2D] = [
+            .line(Vector2(0, 0), Vector2(20, 0)), .line(Vector2(20, 0), Vector2(20, 10)),
+            .line(Vector2(20, 10), Vector2(15, 10)),
+            .arc(center: Vector2(10, 10), radius: 5, start: .degrees(0), end: .degrees(-180)),
+            .line(Vector2(5, 10), Vector2(0, 10)), .line(Vector2(0, 10), Vector2(0, 0)),
+        ]
+        let shape = try OCCTKernel.serialized { try OCCTShape.extrude(Profile2D(plane: .xy, segments: segments), distance: 10).0 }
+        let built = try build(shape, midpoints: [[15, 10, 5]], radius: 1)
+        expectSpringsG2(built, seams: 2)
+    }
+
+    /// The same beside the convex cylinder of a half disc.
+    @Test func aConvexCylinderNeighbourOfR5IsNotRefusedAtWeightOne() throws {
+        let segments: [Segment2D] = [
+            .arc(center: Vector2(0, 0), radius: 5, start: .degrees(0), end: .degrees(180)),
+            .line(Vector2(-5, 0), Vector2(5, 0)),
+        ]
+        let shape = try OCCTKernel.serialized { try OCCTShape.extrude(Profile2D(plane: .xy, segments: segments), distance: 10).0 }
+        let built = try build(shape, midpoints: [[5, 0, 5]], radius: 1)
+        expectSpringsG2(built, seams: 2)
     }
 }
