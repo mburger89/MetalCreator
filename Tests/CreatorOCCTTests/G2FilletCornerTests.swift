@@ -79,40 +79,72 @@ struct G2FilletCornerTests {
         try history.expectSameHistory(box, midpoints: mids, radius: 2)
     }
 
-    /// The corners that are not right angles: G1 refills counted, or a patch, but valid and measured, or refused in the corner's words.
-    @Test(arguments: ["hexagon", "triangle", "drafted"]) func aNonOrthogonalCornerIsCountedAndValid(name: String) throws {
-        let shape: OCCTShape
-        let mids: [[Double]]
-        switch name {
-        case "hexagon":
-            let points = validity.hexagon()
-            shape = try validity.polygonPrism(points)
-            mids = validity.topCorner(points, at: 0, height: 10)
-        case "triangle":
-            let points = validity.triangle()
-            shape = try validity.polygonPrism(points)
-            mids = validity.topCorner(points, at: 0, height: 10)
-        default:
-            shape = try validity.coverage.draftedPrism()
-            mids = [[0, -8, 10], [-8, 0, 10], [-9, -9, 5]]
+    /// A corner whose springs meet at an angle other than 90 degrees: the strips' sides are mitred (each leaves the hole's
+    /// corner along the other strip's spring) and the corner is one G2 patch, seams measured on the final solid.
+    func expectNonOrthogonalCornerIsG2(_ shape: OCCTShape, midpoints: [[Double]], name: String,
+                                       sourceLocation: SourceLocation = #_sourceLocation) throws {
+        let built = try base.build(shape, midpoints: midpoints, radius: 1)
+        report(built, name)
+        #expect(OCCTKernel.serialized { built.shape.validity } == .valid, sourceLocation: sourceLocation)
+        #expect(built.report.corners == 1, sourceLocation: sourceLocation)
+        #expect(built.report.g2_corners == 1, sourceLocation: sourceLocation)
+        #expect(built.report.g1_corners == 0, sourceLocation: sourceLocation)
+        let seams = base.cornerGaps(built.report)
+        #expect(seams.count == 3, sourceLocation: sourceLocation)
+        for seam in seams {
+            print("G2CORNER \(name) seam: position \(seam.position) angle \(seam.angle_degrees) ratio \(seam.curvature_ratio)")
+            #expect(seam.position <= 1e-4, sourceLocation: sourceLocation)
+            #expect(seam.angle_degrees <= 0.01, sourceLocation: sourceLocation)
+            #expect(seam.curvature_ratio <= 1, sourceLocation: sourceLocation)
         }
-        switch try validity.attempt(shape, midpoints: mids, radius: 1) {
-        case .built(let built):
-            report(built, name)
-            #expect(OCCTKernel.serialized { built.shape.validity } == .valid)
-            #expect(built.report.corners == 1)
-            #expect(built.report.g1_corners + built.report.g2_corners == 1)
-            for seam in base.cornerGaps(built.report) {
-                #expect(seam.position <= 1e-4)
-                #expect(seam.angle_degrees <= 0.01)
-                if built.report.g2_corners == 1 {
-                    #expect(seam.curvature_ratio <= 1)
-                }
-            }
-        case .refused(let message):
-            print("G2CORNER \(name): refused \(message)")
-            #expect(message == G2FilletCornerValidityTests.cornerMessage)
+        #expect(built.report.corner_max_curvature <= 4.0, sourceLocation: sourceLocation)
+        #expect(built.report.corner_min_lambda > 0, sourceLocation: sourceLocation)
+        #expect(built.report.corner_block_mismatch <= 1e-6, sourceLocation: sourceLocation)
+        #expect(built.report.corner_min_sine > 0.05, sourceLocation: sourceLocation)
+        base.expectSpringsG2(built, seams: 6, sourceLocation: sourceLocation)
+        try history.expectSameHistory(shape, midpoints: midpoints, radius: 1)
+    }
+
+    /// The top corner of a hexagonal prism: the springs on the top meet at 120 degrees (the strips are cut back).
+    @Test func aHexagonalPrismCornerIsG2() throws {
+        let points = validity.hexagon()
+        try expectNonOrthogonalCornerIsG2(try validity.polygonPrism(points), midpoints: validity.topCorner(points, at: 0, height: 10),
+                                          name: "hexagon")
+    }
+
+    /// The top corner of a triangular prism: the springs meet at 60 degrees (the strips are carried on into the hole).
+    @Test func aTriangularPrismCornerIsG2() throws {
+        let points = validity.triangle()
+        try expectNonOrthogonalCornerIsG2(try validity.polygonPrism(points), midpoints: validity.topCorner(points, at: 0, height: 10),
+                                          name: "triangle")
+    }
+
+    /// A drafted prism's top corner: two of the hole's corners lie on drafted walls, 79 degrees apart.
+    @Test func aDraftedPrismCornerIsG2() throws {
+        try expectNonOrthogonalCornerIsG2(try validity.coverage.draftedPrism(), midpoints: [[0, -8, 10], [-8, 0, 10], [-9, -9, 5]],
+                                          name: "drafted")
+    }
+
+    /// Through the kernel: the hexagonal prism's corner is not tangent only, so the Fillet node warns of nothing.
+    @Test func aHexagonalPrismCornerIsNotTangentOnly() async throws {
+        let kernel = OCCTKernel()
+        let points = validity.hexagon()
+        let segments = points.indices.map { Segment2D.line(points[$0], points[($0 + 1) % points.count]) }
+        let solid = try await kernel.extrude(Profile2D(plane: .xy, segments: segments), distance: 10, mode: .oneSided, tag: newTag())
+        let mids = validity.topCorner(points, at: 0, height: 10)
+        let edges = try mids.map { mid in
+            try #require(solid.topology.edges.min { a, b in
+                distance(a.midpoint, mid) < distance(b.midpoint, mid)
+            }).id
         }
+        let made = try await kernel.fillet(solid, edges: edges, radius: 1, profile: .curvatureContinuous(weight: 1), tag: newTag())
+        #expect(made.tangentOnlyCorners == 0)
+        #expect(made.tangentOnlyJoins == 0)
+    }
+
+    func distance(_ point: Vector3, _ mid: [Double]) -> Double {
+        let (dx, dy, dz) = (point.x - mid[0], point.y - mid[1], point.z - mid[2])
+        return (dx * dx + dy * dy + dz * dz).squareRoot()
     }
 
     /// The apex of a square pyramid (the intersection of two crossed gable prisms), all four hip edges filleted.

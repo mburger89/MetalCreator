@@ -230,3 +230,21 @@ not. A right-angle corner of three fillets is rebuilt with our own degree-17 tri
 accepted, gets the G1 refill (`BRepFill_Filling` at G1, one plain attempt: loading the circular corner as the initial surface never
 worked with the new boundary edges and took 25 s on a pyramid's apex) with the "N fillet corners are tangent only (G1)." warning. A corner
 that misses G1 still fails the fillet, and an invalid solid is never returned.
+
+## Erratum (2026-11-01): mitred corners
+
+The corner erratum above limits the patch to right-angle corners. That limit was geometric, not a shortcoming of the solve. Where two
+strips' end curves meet at a corner V of the hole, G2 across each side fixes every third derivative of the patch that has a factor along
+that side, so the two sides (tangents a and b) both fix the patch's cubic form at f3(a, a, b) and f3(a, b, b). A quintic G2 section leaves
+its spring cubically (height 6k v^3 / 6, v across the strip, k != 0), so side A asks for 6k (a.b) and side B for 6k (a.b)^2. These agree
+only when a.b = 0. No polynomial patch, being C3 at V, can be G2 to both strips anywhere else. Measured at r = 1: 1.11 /mm^2 apart at a
+hexagonal prism's top corner (sides 60 degrees apart), 3.34 at a triangular prism's (120 degrees), 0.69 and 0.79 at a drafted prism's two
+79-degree corners.
+
+The only fix within one polynomial patch is to choose the sides differently. Both values vanish exactly when each side leaves V along the
+other strip's spring (v_A(b) = v_B(a) = 0, the unique solution when k != 0); at a right angle the square section already does that. So each
+side is the curve u = u_end + g(t) on its strip, with g a quintic, g = g'' = 0 at both ends, and g' at each end the slope that turns the
+side onto the neighbouring strip's spine. This is also what the across scales ask of the cross derivatives, so the solve is unchanged. The
+strip is cut back (hexagon) or carried on into the hole (triangle) by that curve, through a quintic pcurve. The side is the quintic through
+six points of it: exact on an extrusion, refused when it misses by more than 1e-7 mm. The acceptance checks and tolerances are unchanged,
+and so is the G1 refill for a corner the patch is not accepted for.
