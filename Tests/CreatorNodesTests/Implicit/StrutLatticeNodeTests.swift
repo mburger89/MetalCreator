@@ -83,7 +83,7 @@ struct StrutLatticeNodeTests {
         let radius = h.add(RadialGradientNode.self, ["radius": .number(40)])
         h.wire(radius, "field", to: struts, "strut radius")
         let solid = try #require(try await h.run([struts]).implicitSolid(struts))
-        guard case .intersect(let parts, _) = solid, case .struts(let lattice) = parts[1] else {
+        guard case .intersect(let parts, _, _) = solid, case .struts(let lattice) = parts[1] else {
             Issue.record("not an intersection")
             return
         }

@@ -8,7 +8,7 @@ extension ImplicitSolid {
             []
         case .moved(let child, _), .offset(let child, _), .shell(let child, _, _):
             [child]
-        case .subtract(let children, _), .union(let children, _), .intersect(let children, _):
+        case .subtract(let children, _, _), .union(let children, _, _), .intersect(let children, _, _):
             children
         }
     }
@@ -18,7 +18,7 @@ extension ImplicitSolid {
         switch self {
         case .sphere, .box, .cylinder, .moved, .baked:
             []
-        case .subtract(_, let blend), .union(_, let blend), .intersect(_, let blend):
+        case .subtract(_, let blend, _), .union(_, let blend, _), .intersect(_, let blend, _):
             [blend]
         case .offset(_, let distance):
             [distance]

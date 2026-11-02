@@ -9,7 +9,7 @@ public enum ImplicitCompiler {
     public static func compile(_ solid: ImplicitSolid) throws(ImplicitCompileError) -> CompiledImplicit {
         var generator = Generator()
         let result = try generator.solid(solid, at: "p")
-        let source = ImplicitShaderLibrary.source + """
+        let source = ImplicitShaderLibrary.source + generator.libraryExtras(dialect: .msl) + """
 
 
         inline float sdf(const thread Env& e, float3 p) {
@@ -45,7 +45,7 @@ public enum ImplicitCompiler {
         generator.dialect = .hlsl
         let result = try generator.solid(solid, at: "p")
         let sdf = "precise float sdf(float3 p) {\n\(generator.lines.joined(separator: "\n"))\n    return \(result);\n}\n"
-        let kernels = HLSLKernels.sources(sdf: sdf)
+        let kernels = HLSLKernels.sources(sdf: sdf, extras: generator.libraryExtras(dialect: .hlsl))
         return CompiledImplicit(source: kernels[.evaluate]?.text ?? "", parameters: generator.parameters, integers: generator.integers,
                                 tables: generator.tables, pool: generator.pool, images: generator.images, language: .hlsl, kernels: kernels)
     }
@@ -54,6 +54,9 @@ public enum ImplicitCompiler {
     struct Generator {
         var dialect = ShaderDialect.msl
         var lines: [String] = []
+        /// The higher continuities the tree's blends use, and those of its strut lattices' joints (the library adds what they call).
+        var blendContinuities: Set<BlendContinuity> = []
+        var strutContinuities: Set<BlendContinuity> = []
         var parameters: [Float] = []
         var integers: [Int32] = []
         var tables: [Int32] = []
@@ -123,12 +126,15 @@ public enum ImplicitCompiler {
                 let (origin, x, y, z) = (vector(move.origin), vector(move.xAxis), vector(move.yAxis), vector(move.zAxis))
                 let local = declareVector("float3(dot(\(p) - \(origin), \(x)), dot(\(p) - \(origin), \(y)), dot(\(p) - \(origin), \(z)))")
                 return try self.solid(child, at: local)
-            case .union(let children, let blend):
-                return try combine(children, blend, at: p, empty: "1e30", join: { "smoothMin(\($0), \($1), \($2))" })
-            case .intersect(let children, let blend):
-                return try combine(children, blend, at: p, empty: "-1e30", join: { "-smoothMin(-\($0), -\($1), \($2))" })
-            case .subtract(let children, let blend):
-                return try combine(children, blend, at: p, empty: "1e30", join: { "-smoothMin(-\($0), \($1), \($2))" })
+            case .union(let children, let blend, let continuity):
+                let join = smoothMinName(continuity)
+                return try combine(children, blend, at: p, empty: "1e30", join: { "\(join)(\($0), \($1), \($2))" })
+            case .intersect(let children, let blend, let continuity):
+                let join = smoothMinName(continuity)
+                return try combine(children, blend, at: p, empty: "-1e30", join: { "-\(join)(-\($0), -\($1), \($2))" })
+            case .subtract(let children, let blend, let continuity):
+                let join = smoothMinName(continuity)
+                return try combine(children, blend, at: p, empty: "1e30", join: { "-\(join)(-\($0), \($1), \($2))" })
             case .offset(let child, let distance):
                 let inner = try self.solid(child, at: p)
                 return declare("\(inner) - \(try grading(distance, at: p))")
@@ -179,7 +185,9 @@ public enum ImplicitCompiler {
             }
             let blend = number(lattice.blend)
             let (coordinates, singular) = try mapped(lattice.mapping, at: p)
-            let body = declare("strutBody(\(dialect.environment)\(offset), \(count), \(coordinates), "
+            strutContinuities.insert(lattice.nodeContinuity)
+            let name = ContinuityLibrary.strutName(lattice.nodeContinuity)
+            let body = declare("\(name)(\(dialect.environment)\(offset), \(count), \(coordinates), "
                 + "\(cell), \(stretch), \(radius), \(blend))")
             return cut(body, singular: singular, at: p, region: lattice.region)
         }
@@ -203,6 +211,12 @@ public enum ImplicitCompiler {
             let body = declare("voronoiBody(\(dialect.environment)\(slot.integers), \(slot.parameters), "
                 + "\(coordinates), \(wall), \(form), \(scale))")
             return cut(body, singular: singular, at: p, region: lattice.region)
+        }
+
+        /// The name of the smooth minimum of `continuity`, noting that the library must carry it.
+        mutating func smoothMinName(_ continuity: BlendContinuity) -> String {
+            blendContinuities.insert(continuity)
+            return ContinuityLibrary.smoothMinName(continuity)
         }
 
         /// Union, intersect and subtract: the children folded left to right with `join(result, next, width)`; `empty` is the value

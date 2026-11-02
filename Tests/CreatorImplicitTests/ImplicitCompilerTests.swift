@@ -25,6 +25,37 @@ struct ImplicitCompilerTests {
         #expect(try source(graded(1, 1, 0.5)) == source(graded(77, 4, 3)))
     }
 
+    /// `smoothMin2` and `smoothMin3` are in a shader only when its tree uses them, in either dialect; a G1 tree is the library as it was.
+    @Test func theHigherSmoothMinimumsAreEmittedOnlyWhenATreeUsesThem() throws {
+        let (sphere, box) = (ImplicitSolid.sphere(radius: 5), ImplicitSolid.box(halfSize: Vector3(1, 1, 1), cornerRadius: 0))
+        func texts(_ solid: ImplicitSolid) throws -> [String] { [try source(solid), try ImplicitCompiler.compileHLSL(solid).source] }
+        for text in try texts(.union([sphere, box], blend: .constant(1))) {
+            #expect(!text.contains("smoothMin2") && !text.contains("smoothMin3") && !text.contains("strutBody2"))
+        }
+        for text in try texts(.union([sphere, box], blend: .constant(1), continuity: .g2)) {
+            #expect(text.contains("float smoothMin2(") && text.contains("smoothMin2(v") && !text.contains("smoothMin3"))
+        }
+        for text in try texts(.subtract([sphere, box], blend: .constant(1), continuity: .g3)) {
+            #expect(text.contains("float smoothMin3(") && !text.contains("smoothMin2"))
+        }
+        let struts = ImplicitSolid.struts(StrutLattice(cell: .cubic, cells: LatticeFixtures.cells(6), radius: .constant(0.5), blend: 0.5,
+                                                       region: LatticeFixtures.region, nodeContinuity: .g2))
+        for text in try texts(struts) {
+            #expect(text.contains("float strutBody2(") && text.contains("float smoothMin2(") && !text.contains("smoothMin3"))
+        }
+    }
+
+    @Test func theSameTreeAtAnotherContinuityIsAnotherSource() throws {
+        let (sphere, box) = (ImplicitSolid.sphere(radius: 5), ImplicitSolid.box(halfSize: Vector3(1, 1, 1), cornerRadius: 0))
+        func shape(_ continuity: BlendContinuity) throws -> (metal: ShapeKey, hlsl: String) {
+            let solid = ImplicitSolid.union([sphere, box], blend: .constant(1), continuity: continuity)
+            return (try ImplicitCompiler.compile(solid).shape, try ImplicitCompiler.compileHLSL(solid).source)
+        }
+        let (g1, g2, g3) = (try shape(.g1), try shape(.g2), try shape(.g3))
+        #expect(g1.metal != g2.metal && g2.metal != g3.metal && g1.metal != g3.metal)
+        #expect(g1.hlsl != g2.hlsl && g2.hlsl != g3.hlsl)
+    }
+
     @Test func aDifferentShapeIsADifferentSource() throws {
         let sphere = ImplicitSolid.sphere(radius: 5)
         #expect(try source(sphere) != source(.box(halfSize: Vector3(1, 1, 1), cornerRadius: 0)))

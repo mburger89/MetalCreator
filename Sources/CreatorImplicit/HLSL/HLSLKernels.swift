@@ -2,9 +2,9 @@
 /// `sdf`, then the kernel's own buffers and `main`. SDL_GPU compiles one entry point a shader, so where Metal compiles one library a shape, this is one
 /// source a kernel; the kernels that do not call `sdf` have the same text for every shape and the pipeline cache makes them once.
 enum HLSLKernels {
-    static func sources(sdf: String) -> [ImplicitKernel: KernelSource] {
+    static func sources(sdf: String, extras: String = "") -> [ImplicitKernel: KernelSource] {
         let prelude = HLSLShaderLibrary.prelude
-        let shape = HLSLShaderLibrary.withSDF(sdf)
+        let shape = HLSLShaderLibrary.withSDF(sdf, extras: extras)
         let texts: [ImplicitKernel: String] = [
             .evaluate: prelude + shape + HLSLShaderLibrary.evaluate,
             .sample: prelude + shape + HLSLMeshShaderLibrary.sample,
