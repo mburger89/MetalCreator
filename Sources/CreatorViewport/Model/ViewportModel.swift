@@ -265,8 +265,9 @@ public final class ViewportModel {
         pose = target
         animationTask?.cancel()
         let clock = clock
+        let deadline = clock.deadline(after: CameraAnimation.viewCubeDuration)
         animationTask = Task { [weak self] in
-            await clock.sleep(for: CameraAnimation.viewCubeDuration)
+            await clock.sleep(until: deadline)
             guard !Task.isCancelled, let self else { return }
             animation = nil
             refreshHover()
