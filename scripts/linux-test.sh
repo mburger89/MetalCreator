@@ -86,11 +86,13 @@ fi
 # Runs `$1` in the image, from the repository, with the build volume (and `$DOCKER_EXTRA`, if set); stops only this track's own
 # container. MetalUI's run-time shader compiler (XP-G25) is the image's SDL_shadercross build; the variable names its directory (MetalUI
 # `docs/packaging.md` 4b); METALUI_SHADERCROSS is the compiler of the build-tool plugin (4a). The package checks run in a clean ubuntu:24.04 without it.
+# A crash is backtraced with symbol tables only (`symbolicate=fast`): the full DWARF symbolication crashed the backtracer itself on CI
+# (2026-11-02, CreatorImplicitTests), which left no frames of the real crash.
 in_container() {
     docker rm -f "$NAME" >/dev/null 2>&1 || true
     # shellcheck disable=SC2086
     docker run --rm --name "$NAME" \
-        -e XP_REQUIRE_GPU=1 -e METALUI_SHADERCROSS=/opt/shadercross/bin/shadercross -e METALUI_SHADERCROSS_LIB=/opt/shadercross/lib -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -v "$VOLUME":/build ${DOCKER_EXTRA:-} \
+        -e XP_REQUIRE_GPU=1 -e SWIFT_BACKTRACE=enable=yes,symbolicate=fast -e METALUI_SHADERCROSS=/opt/shadercross/bin/shadercross -e METALUI_SHADERCROSS_LIB=/opt/shadercross/lib -v "$REPO":/work/MetalCreator -v "$METALUI":/work/MetalUI:ro -v "$VOLUME":/build ${DOCKER_EXTRA:-} \
         "$IMAGE" bash -ec "$1"
 }
 
