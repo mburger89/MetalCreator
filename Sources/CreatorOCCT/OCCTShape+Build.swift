@@ -11,13 +11,20 @@ extension OCCTShape {
         return (shape, OCCTHistoryRecord.read(history))
     }
 
+    /// Until the shim builds B-spline edges, a profile with a spline is refused in words.
+    private static func refuseSplines(_ profiles: [Profile2D]) throws(OCCTError) {
+        if profiles.contains(where: \.hasSpline) { throw OCCTError(message: "Splines aren't supported by this kernel yet.") }
+    }
+
     static func extrude(_ profile: Profile2D, distance: Double) throws(OCCTError) -> (OCCTShape, [OCCTHistoryRecord]) {
-        try OCCTProfile.with(profile) { cProfile throws(OCCTError) in
+        try refuseSplines([profile])
+        return try OCCTProfile.with(profile) { cProfile throws(OCCTError) in
             try building { history, status in occt_extrude(cProfile, distance, history, status) }
         }
     }
 
     static func revolve(_ profile: Profile2D, axis: Axis, angle: Angle) throws(OCCTError) -> (OCCTShape, [OCCTHistoryRecord]) {
+        try refuseSplines([profile])
         let origin = [axis.origin.x, axis.origin.y, axis.origin.z]
         let direction = [axis.direction.x, axis.direction.y, axis.direction.z]
         return try OCCTProfile.with(profile) { cProfile throws(OCCTError) in
@@ -26,7 +33,8 @@ extension OCCTShape {
     }
 
     static func loft(_ sections: [Profile2D], ruled: Bool) throws(OCCTError) -> (OCCTShape, [OCCTHistoryRecord]) {
-        try OCCTProfile.withAll(sections) { profiles, count throws(OCCTError) in
+        try refuseSplines(sections)
+        return try OCCTProfile.withAll(sections) { profiles, count throws(OCCTError) in
             try building { history, status in occt_loft(profiles, Int32(count), ruled ? 1 : 0, history, status) }
         }
     }

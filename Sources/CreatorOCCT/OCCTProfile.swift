@@ -18,6 +18,10 @@ enum OCCTProfile {
         case .arc(let center, let radius, let start, let end):
             occt_segment(kind: 1, x0: 0, y0: 0, x1: 0, y1: 0, cx: center.x, cy: center.y, radius: radius,
                          start: start.radians, end: end.radians)
+        case .spline(let curve):
+            // `OCCTShape` refuses a profile with a spline before it gets here; the chord keeps the buffer whole.
+            occt_segment(kind: 0, x0: curve.startPoint.x, y0: curve.startPoint.y, x1: curve.endPoint.x, y1: curve.endPoint.y,
+                         cx: 0, cy: 0, radius: 0, start: 0, end: 0)
         }
     }
 

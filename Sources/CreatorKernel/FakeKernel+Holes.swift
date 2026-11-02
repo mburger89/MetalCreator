@@ -22,7 +22,7 @@ extension FakeKernel {
         }
     }
 
-    /// Points on `segment`: its ends and middle, and eight steps round an arc (a full circle's quadrants included).
+    /// Points on `segment`: its ends and middle, eight steps round an arc (a full circle's quadrants included) and a spline's polyline.
     private static func samples(of segment: Segment2D) -> [Vector2] {
         switch segment {
         case .line(let a, let b):
@@ -32,6 +32,8 @@ extension FakeKernel {
                 let angle = start.radians + (end.radians - start.radians) * Double(step) / 8
                 return center + Vector2(cos(angle), sin(angle)) * radius
             }
+        case .spline(let curve):
+            return curve.polyline()
         }
     }
 }

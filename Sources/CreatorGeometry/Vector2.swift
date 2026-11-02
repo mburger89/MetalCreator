@@ -12,6 +12,9 @@ public struct Vector2: Hashable, Sendable, Codable {
 
     public static func + (a: Vector2, b: Vector2) -> Vector2 { Vector2(a.x + b.x, a.y + b.y) }
     public static func - (a: Vector2, b: Vector2) -> Vector2 { Vector2(a.x - b.x, a.y - b.y) }
+    public static func += (a: inout Vector2, b: Vector2) { a = a + b }
+    public static func -= (a: inout Vector2, b: Vector2) { a = a - b }
+    public static func *= (v: inout Vector2, s: Double) { v = v * s }
     public static func * (v: Vector2, s: Double) -> Vector2 { Vector2(v.x * s, v.y * s) }
 
     public var length: Double { (x * x + y * y).squareRoot() }

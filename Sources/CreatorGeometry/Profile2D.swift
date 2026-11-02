@@ -27,6 +27,9 @@ public struct Profile2D: Hashable, Sendable {
     /// Every loop, outer first: `loops[0] == outer`, `loops[n] == holes[n - 1]`.
     public var loops: [[Segment2D]] { [outer] + holes }
 
+    /// Whether any loop has a spline, which a kernel that only builds lines and arcs refuses.
+    public var hasSpline: Bool { loops.contains { $0.contains(where: \.isSpline) } }
+
     /// Segments in every loop.
     public var segmentCount: Int { loops.reduce(0) { $0 + $1.count } }
 

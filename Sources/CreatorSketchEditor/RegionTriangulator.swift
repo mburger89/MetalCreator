@@ -18,7 +18,7 @@ enum RegionTriangulator {
         PolygonTriangulator.triangles(outer: polyline(region.outer), holes: region.holes.map(polyline))
     }
 
-    /// A loop's points in order: a line's start, an arc's start and the points along it up to (not including) its end,
+    /// A loop's points in order: a line's start, an arc's or a spline's start and the points along it up to (not including) its end,
     /// so the next segment's start is the previous one's end. Consecutive repeats are dropped.
     static func polyline(_ loop: [Segment2D]) -> [Vector2] {
         var points: [Vector2] = []
@@ -33,6 +33,8 @@ enum RegionTriangulator {
                     let angle = start.radians + sweep * Double(step) / Double(steps)
                     points.append(center + Vector2(cos(angle), sin(angle)) * radius)
                 }
+            case .spline(let curve):
+                points.append(contentsOf: curve.polyline().dropLast())
             }
         }
         var distinct: [Vector2] = []

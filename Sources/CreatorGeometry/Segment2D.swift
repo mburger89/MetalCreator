@@ -7,11 +7,14 @@ public enum Segment2D: Hashable, Sendable {
     /// circle), clockwise when `end < start`. A clockwise arc is how a counter-clockwise loop runs
     /// along a notch cut into it (sketcher spec §5 step 5, S4).
     case arc(center: Vector2, radius: Double, start: Angle, end: Angle)
+    /// A degree-5 B-spline through fit points (`SplineDefinition.curve()`), exact; it runs from its first pole to its last.
+    case spline(SplineCurve2D)
 
     public var startPoint: Vector2 {
         switch self {
         case .line(let a, _): a
         case .arc(let c, let r, let start, _): c + Vector2(cos(start.radians), sin(start.radians)) * r
+        case .spline(let curve): curve.startPoint
         }
     }
 
@@ -19,6 +22,7 @@ public enum Segment2D: Hashable, Sendable {
         switch self {
         case .line(_, let b): b
         case .arc(let c, let r, _, let end): c + Vector2(cos(end.radians), sin(end.radians)) * r
+        case .spline(let curve): curve.endPoint
         }
     }
 
@@ -26,6 +30,7 @@ public enum Segment2D: Hashable, Sendable {
         switch self {
         case .line(let a, let b): (b - a).length
         case .arc(_, let r, let start, let end): r * abs(end.radians - start.radians)
+        case .spline(let curve): curve.length
         }
     }
 
@@ -34,6 +39,12 @@ public enum Segment2D: Hashable, Sendable {
         switch self {
         case .line(let a, let b): [a, b]
         case .arc(let c, let r, _, _): [c + Vector2(-r, -r), c + Vector2(r, r)]
+        case .spline(let curve): curve.poles
         }
+    }
+
+    /// Whether this is a spline, which the kernels and tools that only know lines and arcs refuse.
+    public var isSpline: Bool {
+        if case .spline = self { true } else { false }
     }
 }

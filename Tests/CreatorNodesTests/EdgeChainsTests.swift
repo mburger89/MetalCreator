@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorGraph
 import CreatorKernel
 import Foundation
 import Testing
@@ -83,8 +84,14 @@ struct EdgeChainsTests {
     @Test func aProfileGivesItsOutlineThenItsHolesAsChains() throws {
         let outer = Profile2D.rectangle(width: 40, height: 20, plane: .xy).outer
         let hole = Profile2D.circle(radius: 3, center: .zero, plane: .xy).outer
-        let chains = EdgeChains.chains(of: Profile2D(plane: .xy, outer: outer, holes: [hole]))
+        let chains = try EdgeChains.chains(of: Profile2D(plane: .xy, outer: outer, holes: [hole]))
         #expect(chains.count == 2 && chains.allSatisfy(\.isClosed))
         #expect(isClose(chains[0].length, 120) && isClose(chains[1].length, 6 * .pi))
+    }
+
+    @Test func aProfileWithASplineIsRefusedInWords() {
+        let curve = SplineDefinition(points: [Vector2(0, 0), Vector2(5, 3), Vector2(10, 0)]).curve()
+        let profile = Profile2D(plane: .xy, segments: [.spline(curve), .line(Vector2(10, 0), Vector2(0, 0))])
+        #expect(throws: NodeError.invalidValue("Curve Pattern follows lines and arcs.")) { try EdgeChains.chains(of: profile) }
     }
 }
