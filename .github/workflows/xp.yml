@@ -134,7 +134,9 @@ jobs:
     # green check); remove this line once the job has been green once.
     continue-on-error: true
     runs-on: windows-latest
-    timeout-minutes: 180
+    # The debug build's OpenCascade tests alone take 25 to 37 minutes here (the G2 fillets, splines and lofts); a whole run reached
+    # 180 minutes twice (2026-11-02). GitHub-hosted runners allow 360.
+    timeout-minutes: 300
     env:
       SDL_VERSION: 3.4.16
       # sha256 of SDL3-devel-3.4.16-VC.zip (computed by downloading the release asset once); bump it with SDL_VERSION.
