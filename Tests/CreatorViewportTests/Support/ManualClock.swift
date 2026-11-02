@@ -1,7 +1,7 @@
 // Test fixture file: a clock the tests move by hand.
 @testable import CreatorViewport
 
-/// Starts at 100 s. `sleep` jumps time forward by the requested amount and returns at once, so an animation is
+/// Starts at 100 s. `sleep` jumps time forward to the deadline and returns at once, so an animation is
 /// over as soon as its task runs.
 @MainActor
 final class ManualClock: ViewportClock {
@@ -9,7 +9,7 @@ final class ManualClock: ViewportClock {
 
     func now() -> Double { time }
 
-    func sleep(for seconds: Double) async {
-        time += seconds
+    func sleep(until deadline: Double) async {
+        time = max(time, deadline)
     }
 }

@@ -7,7 +7,9 @@ public final class SystemViewportClock: ViewportClock {
 
     public func now() -> Double { ProcessInfo.processInfo.systemUptime }
 
-    public func sleep(for seconds: Double) async {
-        try? await Task.sleep(for: .seconds(seconds))
+    public func sleep(until deadline: Double) async {
+        let remaining = deadline - now()
+        guard remaining > 0 else { return }
+        try? await Task.sleep(for: .seconds(remaining))
     }
 }

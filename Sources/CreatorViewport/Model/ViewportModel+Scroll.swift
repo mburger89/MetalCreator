@@ -69,8 +69,9 @@ extension ViewportModel {
     private func settleWhenScrollingStops() {
         wheelSettleTask?.cancel()
         let clock = clock
+        let deadline = clock.deadline(after: ViewportInputMap.wheelSettleDelay)
         wheelSettleTask = Task { [weak self] in
-            await clock.sleep(for: ViewportInputMap.wheelSettleDelay)
+            await clock.sleep(until: deadline)
             guard !Task.isCancelled, let self else { return }
             scrollEnded()
         }
