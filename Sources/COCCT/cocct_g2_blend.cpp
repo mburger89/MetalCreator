@@ -197,16 +197,27 @@ Pairing pair_sections(const Spring &a, const Spring &b, const std::vector<double
     const double lo = std::min(b.t_start, b.t_end), hi = std::max(b.t_start, b.t_end);
     const double window = 0.25 * (hi - lo);
     // The parameter of the point of B nearest A's point at section j (the ends may fall slightly outside B's range).
+    // The search window runs past B's ends, where the curve is only an extrapolation of its polynomials: that can hold
+    // a spurious minimum (even a nearer one than the true projection) that appears and vanishes with the last bits
+    // of the input, and the extremum search also returns maxima. So only minima count, and of those the one nearest
+    // the parameter the strip's own proportions expect (B's sample_parameter), a choice that moves continuously.
     auto project_onto_b = [&](int j, double &out) {
         Extrema_ExtPC ext(ca.Value(pairing.ta[j]), cb, lo - window, hi + window);
         if (!ext.IsDone() || ext.NbExt() == 0) {
             return false;
         }
-        int best = 1;
-        for (int i = 2; i <= ext.NbExt(); ++i) {
-            if (ext.SquareDistance(i) < ext.SquareDistance(best)) {
+        const double expected = pairing.tb[j];
+        int best = 0;
+        for (int i = 1; i <= ext.NbExt(); ++i) {
+            if (!ext.IsMin(i)) {
+                continue;
+            }
+            if (best == 0 || std::abs(ext.Point(i).Parameter() - expected) < std::abs(ext.Point(best).Parameter() - expected)) {
                 best = i;
             }
+        }
+        if (best == 0) {
+            return false;
         }
         out = ext.Point(best).Parameter();
         return true;
@@ -361,10 +372,34 @@ BuiltStrip build_strip(const Spring &a, const Spring &b, double weight, const st
         for (int side = 0; side < 2; ++side) {
             const Handle(Geom_Curve) boundary = built.surface->VIso(side);
             const int samples = 2 * (sections - 1) + 1;
-            std::vector<double> t(samples), uu(samples);
+            const double first = springs[side]->t_start, span = springs[side]->t_end - springs[side]->t_start;
+            // Samples: evenly along the edge, plus the sections' own parameters and the middles of their spans. Where
+            // the sections crowd together (a strip's ends, where the pairing bends sharply) the map from the edge
+            // parameter to u bends sharply too, and evenly spaced samples cannot follow it with their end conditions.
+            const std::vector<double> &paired = side == 0 ? pairing.ta : pairing.tb;
+            std::vector<double> fraction;
+            for (int k = 0; k < samples; ++k) {
+                fraction.push_back(static_cast<double>(k) / (samples - 1));
+            }
+            for (int j = 0; j < sections; ++j) {
+                fraction.push_back((paired[j] - first) / span);
+                if (j + 1 < sections) {
+                    fraction.push_back((0.5 * (paired[j] + paired[j + 1]) - first) / span);
+                }
+            }
+            std::sort(fraction.begin(), fraction.end());
+            std::vector<double> distinct{0.0};
+            for (const double value : fraction) {
+                if (value > distinct.back() + 1e-6 && value < 1 - 1e-6) {
+                    distinct.push_back(value);
+                }
+            }
+            distinct.push_back(1.0);
+            const int count = static_cast<int>(distinct.size());
+            std::vector<double> t(count), uu(count);
             bool projected = true;
-            for (int k = 0; k < samples && projected; ++k) {
-                t[k] = springs[side]->t_start + (springs[side]->t_end - springs[side]->t_start) * k / (samples - 1);
+            for (int k = 0; k < count && projected; ++k) {
+                t[k] = k == 0 ? first : (k == count - 1 ? springs[side]->t_end : first + span * distinct[k]);
                 GeomAPI_ProjectPointOnCurve project(surface_point(springs[side]->neighbour, springs[side]->edge, t[k]).p, boundary);
                 projected = project.NbPoints() > 0;
                 if (projected) {

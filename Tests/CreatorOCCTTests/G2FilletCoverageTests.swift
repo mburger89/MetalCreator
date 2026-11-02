@@ -181,6 +181,23 @@ extension G2FilletCoverageTests {
         #expect(built.report.g1_joins > 0, "the springs kink at the chain's joins")
     }
 
+    /// The construction is a continuous function of its input: a last-bit change of the radius builds the same strips
+    /// with the same section counts (the ends used to depend on discrete choices that flip on the last bit).
+    @Test func aRoundedLoftChainSurvivesLastBitRadiusChanges() throws {
+        let shape = try loft([20, 17, 16], rounded: true, ruled: true)
+        var all: [[Int]] = []
+        for e in [1e-14, -1e-14, 1e-13, -1e-13, 1e-12, -1e-12, 1e-11, -1e-11, 1e-10, -1e-10, 1e-9, -1e-9, 1e-8, -1e-8] {
+            let built = try base.build(shape, midpoints: [[0, -8, 10]], radius: 1 * (1 + e))
+            let counts = base.helper.sectionCounts(built.report).map { Int($0) }
+            print("G2COVER last-bit e=\(e): sections \(counts)")
+            #expect(built.report.strips == 8)
+            base.expectSpringsG2(built, seams: 16)
+            #expect(built.report.g1_joins > 0)
+            all.append(counts)
+        }
+        #expect(Set(all).count == 1, "section counts differ across last-bit radius changes: \(all)")
+    }
+
     /// The smooth rounded loft sits at the section cap on one strip: it builds (valid, G2) or is refused with the strip
     /// message, depending on the platform's arithmetic (macOS refuses after about 15 s in a debug build, Linux builds).
     @Test func aSmoothRoundedLoftChainBuildsOrIsRefusedAtTheCap() throws {
