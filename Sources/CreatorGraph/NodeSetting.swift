@@ -35,8 +35,13 @@ public enum NodeSetting {
     /// Image Field: its picture, as `.image(ImageReference)` (fields spec §5). Absent until one is chosen.
     public static let image: SocketName = "image"
 
+    /// Loft: the faces of the part its first and last sections come from, as `.facePick(topology.facePick(for:))`.
+    public static let startFace: SocketName = "startFace"
+    public static let endFace: SocketName = "endFace"
+
     public static let all: Set<SocketName> = [
-        parameter, picks, showHandle, sketch, face, group, pathRule, branchPath, itemPath, cullPattern, cullIndices, image
+        startFace, endFace, parameter, picks, showHandle, sketch, face, group, pathRule, branchPath, itemPath, cullPattern,
+        cullIndices, image,
     ]
 
     /// The setting names no group socket and no exposed Sketch dimension may use, because those nodes keep their settings beside
