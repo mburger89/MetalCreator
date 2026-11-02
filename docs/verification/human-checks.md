@@ -2344,6 +2344,7 @@ the Output selected so the part is shown.
 - [ ] **G2F-6 Too large.** A radius the strips can't take reads "The fillet can't be made curvature continuous at this radius." with the largest radius that works; using it succeeds. **Observed:**
 - [ ] **G2F-7 Downstream pick.** Pick the fillet's edges in an Edges by Tag rule feeding a Chamfer, then switch Continuity G1, G2 and G1 again: the pick and the Chamfer survive each switch. **Observed:**
 - [ ] **G2F-8 Continuity row.** On a G2 fillet's spring edge, the edge readout's Continuity row reads G2 (G1 for a circular fillet). This needs the readout PR (the Continuity row), which is not in this branch: skip until it merges. **Observed:**
+- [ ] **G2F-9 Drag preview.** Drag a G2 fillet's radius, with the slider and with the viewport handle: the part follows the pointer as smoothly as a G1 fillet, and on release the fillet becomes the G2 surface (turn on Zebra stripes: they flow across the seams after the release, not during the drag). A G1 fillet drags as before. **Observed:**
 
 ## Group GA — Implicit blend continuity (G-a)
 
