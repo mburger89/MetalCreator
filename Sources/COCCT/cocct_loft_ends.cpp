@@ -723,11 +723,11 @@ void check_column(const std::vector<Section> &sections, const ColumnBasis &basis
         if ((which == 0 ? basis.start : basis.finish) == kFree) {
             continue;
         }
-        const int near = which == 0 ? 0 : n - 1, inner = which == 0 ? 1 : n - 2;
+        const int end_section = which == 0 ? 0 : n - 1, next_section = which == 0 ? 1 : n - 2;
         // The direction of increasing v across that span.
-        const gp_Vec direction = which == 0 ? gp_Vec(sections[near].pieces[k].value(s), sections[inner].pieces[k].value(s))
-                                            : gp_Vec(sections[inner].pieces[k].value(s), sections[near].pieces[k].value(s));
-        const double low = std::min(basis.v[near], basis.v[inner]), high = std::max(basis.v[near], basis.v[inner]);
+        const gp_Vec direction = which == 0 ? gp_Vec(sections[end_section].pieces[k].value(s), sections[next_section].pieces[k].value(s))
+                                            : gp_Vec(sections[next_section].pieces[k].value(s), sections[end_section].pieces[k].value(s));
+        const double low = std::min(basis.v[end_section], basis.v[next_section]), high = std::max(basis.v[end_section], basis.v[next_section]);
         for (int i = 0; i <= 32; ++i) {
             gp_Pnt p;
             gp_Vec d;

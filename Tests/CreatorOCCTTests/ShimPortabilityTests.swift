@@ -29,6 +29,26 @@ struct ShimPortabilityTests {
         Banned(token: "alloca", instead: "std::vector"),
     ]
 
+    /// Names <windows.h> (through <windef.h> and <rpcndr.h>) defines as macros, so a variable called one of them vanishes or
+    /// changes type on Windows: `near` broke `cocct_loft_ends.cpp` there (2026-11-02). Matched as whole words.
+    static let windowsMacroNames = ["near", "far", "small"]
+
+    @Test(arguments: windowsMacroNames)
+    func theShimNamesNothingAfterAWindowsMacro(_ name: String) throws {
+        let word = try Regex("\\b\(name)\\b")
+        var offenders: [String] = []
+        for (file, text) in try Self.sources() {
+            for (number, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                let code = line.drop(while: { $0 == " " || $0 == "\t" })
+                let beforeComment = code.split(separator: "//", maxSplits: 1, omittingEmptySubsequences: false).first ?? ""
+                if !code.hasPrefix("//"), beforeComment.contains(word) {
+                    offenders.append("\(file):\(number + 1)")
+                }
+            }
+        }
+        #expect(offenders.isEmpty, "\(name) at \(offenders.joined(separator: ", ")); <windows.h> defines it as a macro")
+    }
+
     @Test func theScanFindsTheShimsSources() throws {
         #expect(try Self.sources().count >= 9, "Sources/COCCT holds eight .cpp/.hpp files and cocct.h")
     }
