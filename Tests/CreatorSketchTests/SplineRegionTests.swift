@@ -43,6 +43,38 @@ struct SplineRegionTests {
         #expect(Set(region.sources[0]) == [line, curve])
     }
 
+    @Test func splinePiecesRejoinWhenADanglingCurveIsPruned() throws {
+        var sketch = Sketch()
+        let line = sketch.addLine(Vector2(0, 0), Vector2(10, 0))
+        let (start, end) = sketch.ends(line)
+        let curve = sketch.addSpline(through: [end, sketch.addPoint(Vector2(12, 5)), sketch.addPoint(Vector2(5, 8)), start])
+        let before = try #require(SketchRegions.find(in: sketch).regions.first)
+        _ = sketch.addLine(Vector2(5, 3), Vector2(5, 14))
+        let result = SketchRegions.find(in: sketch)
+        let region = try #require(result.regions.first)
+        #expect(result.regions.count == 1)
+        #expect(region.outer.count == 2 && region.outer.filter(\.isSpline).count == 1)
+        #expect(isClose(region.area, before.area, tolerance: 1e-9))
+        let joined = try #require(region.outer.first { $0.isSpline })
+        let original = try #require(before.outer.first { $0.isSpline })
+        #expect(joined == original)
+        let trace = SketchTrace(sketch: sketch, regionSources: [region.sources])
+        for (index, segment) in region.outer.enumerated() {
+            #expect(trace.entity(item: 0, loop: 0, segment: index) == (segment.isSpline ? curve : line))
+        }
+    }
+
+    @Test func aSplineSplitByARealBoundaryStaysSplit() throws {
+        var sketch = Sketch()
+        let line = sketch.addLine(Vector2(0, 0), Vector2(10, 0))
+        let (start, end) = sketch.ends(line)
+        _ = sketch.addSpline(through: [end, sketch.addPoint(Vector2(12, 5)), sketch.addPoint(Vector2(5, 8)), start])
+        _ = sketch.addLine(Vector2(5, -3), Vector2(5, 14))
+        let result = SketchRegions.find(in: sketch)
+        #expect(result.regions.count == 2)
+        for region in result.regions { #expect(region.outer.filter(\.isSpline).count == 1) }
+    }
+
     @Test func twoSplinesCloseARegion() throws {
         var sketch = Sketch()
         let a = sketch.addPoint(Vector2(0, 0))

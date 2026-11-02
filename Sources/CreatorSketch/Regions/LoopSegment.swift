@@ -18,12 +18,23 @@ struct LoopSegment: Hashable, Sendable {
     /// rounding (sin π ≠ 0), which would break the containment test's half-open rule.
     var start: Vector2
     var end: Vector2
+    /// For a spline piece, the parameters of the source curve it runs between, in traversal order
+    /// (`from > to` when it runs against the curve). Lets contiguous pieces rejoin.
+    var sourceSpan: ParameterSpan?
 
-    init(geometry: Geometry, source: Int, start: Vector2, end: Vector2) {
+    /// A run of a source curve's parameter.
+    struct ParameterSpan: Hashable, Sendable {
+        var from: Double
+        var to: Double
+        var reversed: ParameterSpan { ParameterSpan(from: to, to: from) }
+    }
+
+    init(geometry: Geometry, source: Int, start: Vector2, end: Vector2, sourceSpan: ParameterSpan? = nil) {
         self.geometry = geometry
         self.source = source
         self.start = start
         self.end = end
+        self.sourceSpan = sourceSpan
     }
 
     /// A segment whose ends are computed from its geometry.
@@ -61,7 +72,7 @@ struct LoopSegment: Hashable, Sendable {
         case .arc(let c, let r, let from, let to): .arc(center: c, radius: r, from: to, to: from)
         case .spline(let curve): .spline(curve.reversed())
         }
-        return LoopSegment(geometry: flipped, source: source, start: end, end: start)
+        return LoopSegment(geometry: flipped, source: source, start: end, end: start, sourceSpan: sourceSpan?.reversed)
     }
 
     /// `next` continued into this segment, when both come from the same curve in the same sense.
@@ -75,7 +86,7 @@ struct LoopSegment: Hashable, Sendable {
             return LoopSegment(geometry: .arc(center: c, radius: r, from: from, to: to + (nextTo - nextFrom)), source: source,
                                start: start, end: next.end)
         default:
-            // A spline piece never joins another: its pieces stay separate profile segments.
+            // Spline pieces rejoin through `RegionGraph.merged(_:_:)`, which can re-split the source curve.
             return nil
         }
     }

@@ -46,6 +46,13 @@ struct HalfEdge: Hashable, Sendable {
             .spline(isForward ? curve : curve.reversed())
         }
         let (from, to) = isForward ? (edge.from, edge.to) : (edge.to, edge.from)
-        return LoopSegment(geometry: geometry, source: edge.source, start: graph.vertices[from], end: graph.vertices[to])
+        var span: LoopSegment.ParameterSpan?
+        if case .spline(let curve) = edge.shape {
+            let range = curve.parameterRange
+            span = LoopSegment.ParameterSpan(from: range.lowerBound, to: range.upperBound)
+            if !isForward { span = span?.reversed }
+        }
+        return LoopSegment(geometry: geometry, source: edge.source, start: graph.vertices[from], end: graph.vertices[to],
+                           sourceSpan: span)
     }
 }
