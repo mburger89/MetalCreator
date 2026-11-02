@@ -2354,3 +2354,16 @@ the Output selected so the part is shown.
 - [ ] **GA-3 Strut joints.** On a Strut Lattice with `node blend` above 0, set `continuity` to G2: the struts' joints and the skin join follow it. At G2 the stripes flow across a joint, at G1 they kink. Check a TPMS and a Voronoi Lattice's skin join the same way. **Observed:**
 - [ ] **GA-4 Blend 0.** With `blend` 0 the join is the sharp one whatever `continuity` says. **Observed:**
 - [ ] **GA-5 Live.** Switching `continuity` re-previews without a stall, on a lattice too. **Observed:**
+
+## Group SP — Sketch splines (G-c)
+
+- [ ] **SP-1 Draw a spline.** In sketch mode press S, click four or five points and press Return: a smooth spline passes through every point and the tool ends. Esc and a click on the last point finish it the same way. A spline of two points is a gentle curve through them. **Observed:**
+- [ ] **SP-2 Drag fit points.** Drag a fit point: the curve changes locally, near that point, and the other points stay put. **Observed:**
+- [ ] **SP-3 Tangent and curvature handles.** Select the spline: each fit point shows a tangent knob and a curvature knob. Dragging a knob activates it (the curve does not jump when it starts) and reshapes the curve at that point; Release in the inspector returns the handle to automatic and the curve relaxes. Release is refused while a Tangent or Curvature constraint uses the handle. **Observed:**
+- [ ] **SP-4 Curvature join, extrude, Zebra and Measure.** Draw a line and a spline that meet at a point, select both and press Curvature, close the loop with more curves, extrude the sketch and switch Zebra stripes on (Z): the stripes flow across the joint edge without a kink. Measure (M) the joint edge: its Continuity row reads G2. **Observed:**
+- [ ] **SP-5 Tangent only.** Replace Curvature with Tangent on the same pair: the stripes bend at the joint and the edge reads G1. **Observed:**
+- [ ] **SP-6 Crossing itself.** Drag a spline's points so it crosses itself: the sketch warns "Spline N crosses itself, so it isn't part of a region." and the spline is not filled. Undo the drag and the warning goes. **Observed:**
+- [ ] **SP-7 Mirror and pattern.** Mirror a spline about a line and make a linear and a circular pattern of one: each copy is a spline of the same shape (reflected for the mirror), with its handles. **Observed:**
+- [ ] **SP-8 Delete a fit point.** Select an interior fit point of a spline of four or more points and delete it: the spline stays, through the remaining points. Deleting a point of a two-point spline removes the spline. **Observed:**
+- [ ] **SP-9 Save and reopen.** Save a sketch with splines (one with an active tangent and curvature handle and a Curvature constraint), close and Open it: the curves, handles and constraints are unchanged and the solve is identical. **Observed:**
+- [ ] **SP-10 Linux and Windows.** The same on Linux and Windows: the spline draws, edits, extrudes and the stripes flow alike. **Observed:**
