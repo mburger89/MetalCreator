@@ -182,11 +182,13 @@ extension G2FilletCoverageTests {
     }
 
     /// The construction is a continuous function of its input: a last-bit change of the radius builds the same strips
-    /// with the same section counts (the ends used to depend on discrete choices that flip on the last bit).
+    /// with the same section counts (the ends used to depend on discrete choices that flip on the last bit). The changes
+    /// are the three that were refused before that fix (+1e-14, +1e-10, +1e-8) and one that moved a strip's count
+    /// (-1e-12): fourteen took a quarter hour of Windows CI's debug OpenCascade.
     @Test func aRoundedLoftChainSurvivesLastBitRadiusChanges() throws {
         let shape = try loft([20, 17, 16], rounded: true, ruled: true)
         var all: [[Int]] = []
-        for e in [1e-14, -1e-14, 1e-13, -1e-13, 1e-12, -1e-12, 1e-11, -1e-11, 1e-10, -1e-10, 1e-9, -1e-9, 1e-8, -1e-8] {
+        for e in [0, 1e-14, -1e-12, 1e-10, 1e-8] {
             let built = try base.build(shape, midpoints: [[0, -8, 10]], radius: 1 * (1 + e))
             let counts = base.helper.sectionCounts(built.report).map { Int($0) }
             print("G2COVER last-bit e=\(e): sections \(counts)")
