@@ -44,7 +44,12 @@ public extension KernelError {
         "That face no longer exists.",
         "Every loft section needs the same number of segments.",
         "The tangency weight must be greater than 0.",
-        "a loft can't use a profile with holes",
+        "A loft can't use profiles with holes yet.",
+        "The profile has no segments.",
+        "The loft's sections lie on top of each other.",
+        "The loft end condition is not known.",
+        "The loft could not be built.",
+        "A loft needs at least two sections.",
     ]
 }
 

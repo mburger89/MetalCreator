@@ -110,6 +110,6 @@ extension LoftEndConditionTests {
         let noPart = #expect(throws: OCCTError.self) { try loft(nil, start: end(1, 2), end: nil, sections: [square(12, at: 20)]) }
         #expect(noPart?.message == "Pick a face of the part for the loft's start.")
         let alone = #expect(throws: OCCTError.self) { try loft(part, start: end(top, 2), end: nil, sections: []) }
-        #expect(alone?.message == "a loft needs at least two sections")
+        #expect(alone?.message == "A loft needs at least two sections.")
     }
 }

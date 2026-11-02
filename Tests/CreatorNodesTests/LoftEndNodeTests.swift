@@ -1,5 +1,5 @@
 import CreatorGeometry
-import CreatorGraph
+@testable import CreatorGraph
 import CreatorKernel
 @testable import CreatorNodes
 #if canImport(CreatorOCCT)
@@ -44,9 +44,18 @@ struct LoftEndNodeTests {
         #expect(LoftEndSetup.continuityOptions == ["Free", "Tangent (G1)", "Curvature (G2)"])
     }
 
-    @Test func theFaceSettingsAreReservedAndSeededNowhere() {
+    @Test func theFaceSettingsAreSeededNowhereAndLeaveSocketNamesFree() throws {
         #expect(NodeSetting.all.isSuperset(of: [NodeSetting.startFace, NodeSetting.endFace]))
-        #expect(NodeSetting.reservedForSockets.isSuperset(of: [NodeSetting.startFace, NodeSetting.endFace]))
+        // A file from before the end conditions may have a group socket called "startFace"; it must still open.
+        for name in [NodeSetting.startFace, NodeSetting.endFace] {
+            #expect(!NodeSetting.reservedForSockets.contains(name) && !GroupNaming.isReserved(name))
+            let sockets = [SocketSpec(name, .number)]
+            #expect(GroupNaming.problem(with: sockets) == nil)
+            let definition = GroupDefinition(name: "Old", inputs: sockets)
+            let data = try GraphFileIO.encode(GraphFile(definitions: [definition.id: definition]))
+            let reopened = try GraphFileIO.decode(data, registry: NodeRegistry([]))
+            #expect(reopened.definitions[definition.id]?.inputs.map(\.name) == [name])
+        }
         #expect(LoftNode.defaultSettings.isEmpty)
         #expect(BuiltInNodes.registry.makeNode(LoftNode.typeID).inputValues[NodeSetting.startFace] == nil)
     }
@@ -75,6 +84,35 @@ struct LoftEndNodeTests {
         let loft = h.add(LoftNode.self)
         h.wire(square, "profile", to: loft, "sections")
         let built = try onlySolid(try await h.run([loft], kernel: kernel), loft)
+        let sections = [Profile2D.rectangle(width: 20, height: 20, plane: .xy),
+                        Profile2D.rectangle(width: 12, height: 12, plane: Plane.xy.offset(by: 20)),
+        ]
+        let direct = try await kernel.loft(sections, ruled: false, tag: NodeTag(node: NodeID(), item: 0))
+        #expect(isClose(try await volume(built, kernel), try await volume(direct, kernel), relative: 1e-9))
+        #expect(built.topology.faces.count == direct.topology.faces.count)
+    }
+
+    /// Review Focus 1: a Loft saved as version 1 (no faces) opens as version 2 and builds the same solid as before.
+    @Test func aVersionOneLoftFileOpensAndBuildsTheSameSolid() async throws {
+        let kernel = OCCTKernel()
+        var h = Harness()
+        let sizes = h.add(SeriesNode.self, ["start": .number(20), "step": .number(-8), "count": .integer(2)])
+        let heights = h.add(SeriesNode.self, ["start": .number(0), "step": .number(20), "count": .integer(2)])
+        let plane = h.add(PlaneNode.self)
+        h.wire(heights, "values", to: plane, "offset")
+        let square = h.add(RectangleNode.self)
+        h.wire(sizes, "values", to: square, "width")
+        h.wire(sizes, "values", to: square, "height")
+        h.wire(plane, "plane", to: square, "plane")
+        let loft = h.add(LoftNode.self, ["ruled": .bool(false)])
+        h.wire(square, "profile", to: loft, "sections")
+        var saved = h.graph
+        saved.nodes[loft.id]?.typeVersion = 1
+        let data = try GraphFileIO.encode(GraphFile(graph: saved))
+        let loaded = try GraphFileIO.decode(data, registry: BuiltInNodes.registry).graph
+        #expect(loaded.nodes[loft.id]?.typeVersion == 2)
+        let report = try await Evaluator(registry: BuiltInNodes.registry, kernel: kernel).evaluate(loaded, demand: [loft.id])
+        let built = try onlySolid(report, loft)
         let sections = [Profile2D.rectangle(width: 20, height: 20, plane: .xy),
                         Profile2D.rectangle(width: 12, height: 12, plane: Plane.xy.offset(by: 20)),
         ]
@@ -189,6 +227,7 @@ struct LoftEndNodeTests {
         #expect(warning.contains("merged with a face from another part of the model that has since changed"))
         let built = try onlySolid(report, loft)
         #expect(built.topology.faces.count == 6)
+        #expect(abs(built.bounds.min.z - 6) < 1e-6, "the loft starts on a top (z = 6), not on a side")
     }
 
     /// Review Focus 5's other half: the picked face is gone altogether (the box is replaced by a cylinder's wall).

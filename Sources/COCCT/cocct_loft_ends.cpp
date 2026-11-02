@@ -57,7 +57,7 @@ constexpr const char *kCurvatureMessage = "The loft can't meet the part with mat
 constexpr const char *kSegmentsMessage = "Every loft section needs the same number of segments.";
 constexpr const char *kWeightMessage = "The tangency weight is too large for this loft.";
 constexpr const char *kFlatMessage = "The loft's end face must be flat.";
-constexpr const char *kHolesMessage = "a loft can't use a profile with holes";
+constexpr const char *kHolesMessage = "A loft can't use profiles with holes yet.";
 constexpr int kFirstColumns = 9;   // columns per segment to start with
 constexpr int kMaxColumns = 129;   // the cap, columns in all per segment
 constexpr int kCheckSamples = 127; // prime, so the samples never fall on the columns (at multiples of 1/2^k)
@@ -191,7 +191,7 @@ Section face_section(const TopoDS_Shape &part, const occt_loft_end &end, const T
         throw user_error("That face no longer exists.");
     }
     if (end.continuity < kFree || end.continuity > kCurvature) {
-        throw user_error("unknown loft end continuity");
+        throw user_error("The loft end condition is not known.");
     }
     if (end.continuity != kFree && !(end.weight > 0 && std::isfinite(end.weight))) {
         throw user_error("The tangency weight must be greater than 0.");
@@ -257,7 +257,7 @@ Section face_section(const TopoDS_Shape &part, const occt_loft_end &end, const T
         section.pieces.push_back(piece);
     }
     if (section.pieces.empty()) {
-        throw user_error("the profile has no segments");
+        throw user_error("The profile has no segments.");
     }
     if (section.pieces.size() == 1) {
         Piece &only = section.pieces.front();
@@ -446,7 +446,7 @@ std::unique_ptr<ColumnBasis> make_basis(const std::vector<Section> &sections) {
         }
     }
     if (samples == 0) {
-        throw user_error("the loft's sections lie on top of each other");
+        throw user_error("The loft's sections lie on top of each other.");
     }
     for (double &value : basis->v) {
         value /= samples;
@@ -455,7 +455,7 @@ std::unique_ptr<ColumnBasis> make_basis(const std::vector<Section> &sections) {
     basis->v.back() = 1;
     for (int i = 1; i < n; ++i) {
         if (basis->v[i] - basis->v[i - 1] < 1e-6) {
-            throw user_error("the loft's sections lie on top of each other");
+            throw user_error("The loft's sections lie on top of each other.");
         }
     }
     basis->knots = TColStd_Array1OfReal(1, n);
@@ -953,6 +953,12 @@ TopoDS_Shape thru_sections(const std::vector<Section> &sections, occt_history *h
         if (section.is_face) {
             BRep_Builder builder;
             builder.MakeWire(wire);
+            // The loft shares no sub-shapes with the part: the face is copied whole (so the copied edges keep sharing
+            // their vertices) and each piece takes the copy of its edge, found by position in the same exploration.
+            const TopoDS_Shape face_copy = BRepBuilderAPI_Copy(section.face).Shape();
+            TopTools_IndexedMapOfShape original_edges, copied_edges;
+            TopExp::MapShapes(section.face, TopAbs_EDGE, original_edges);
+            TopExp::MapShapes(face_copy, TopAbs_EDGE, copied_edges);
             for (const Piece &piece : section.pieces) {
                 // The edge as the loop runs along it: forward when the loop's parameters increase. A circle that was
                 // started at the point nearest the paired section is a new edge from that point.
@@ -968,7 +974,11 @@ TopoDS_Shape thru_sections(const std::vector<Section> &sections, occt_history *h
                         along.Orientation(TopAbs_REVERSED);
                     }
                 } else {
-                    along = TopoDS::Edge(piece.edge.Oriented(piece.t1 > piece.t0 ? TopAbs_FORWARD : TopAbs_REVERSED));
+                    const int at = original_edges.FindIndex(piece.edge);
+                    if (at < 1 || original_edges.Extent() != copied_edges.Extent()) {
+                        throw std::runtime_error("the loft's face could not be copied");
+                    }
+                    along = TopoDS::Edge(copied_edges(at).Oriented(piece.t1 > piece.t0 ? TopAbs_FORWARD : TopAbs_REVERSED));
                 }
                 builder.Add(wire, along);
                 if (i == 0) {
@@ -985,7 +995,7 @@ TopoDS_Shape thru_sections(const std::vector<Section> &sections, occt_history *h
     }
     loft.Build();
     if (!loft.IsDone()) {
-        throw user_error("the loft could not be built");
+        throw user_error("The loft could not be built.");
     }
     const TopoDS_Shape solid = oriented(loft.Shape());
     history_builder records(solid);
@@ -1017,7 +1027,7 @@ occt_shape *occt_loft_ends(const occt_shape *part, const occt_loft_end *start, c
             throw user_error("Pick a face of the part for the loft's end.");
         }
         if (count < 0 || (count > 0 && !profiles) || count + (start_face ? 1 : 0) + (end_face ? 1 : 0) < 2) {
-            throw user_error("a loft needs at least two sections");
+            throw user_error("A loft needs at least two sections.");
         }
         std::vector<Section> sections;
         TopTools_IndexedMapOfShape faces, edges;
