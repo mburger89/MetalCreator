@@ -12,9 +12,14 @@ struct DegenerateGeometry {
     let sketch: Sketch
     let layout: UnknownLayout
 
+    /// True when two consecutive fit points have met, which would leave a span of no length.
+    static func hasCoincidentNeighbours(_ positions: [Vector2]) -> Bool {
+        zip(positions, positions.dropFirst()).contains { ($1 - $0).length <= radiusTolerance }
+    }
+
     /// A plain sentence for the first degenerate curve the component's `columns` move at `x`
     /// (global unknowns), or `nil` when every curve is sound.
-    func reason(at x: [Double], columns: Set<Int>) -> String? {
+    func reason(at x: [Double], columns: Set<Int>) -> String? { // swiftlint:disable:this cyclomatic_complexity
         func point(_ id: SketchEntityID, _ values: [Double]) -> Vector2? {
             layout.pointColumns[id].map { Vector2(values[$0], values[$0 + 1]) }
         }
@@ -34,6 +39,12 @@ struct DegenerateGeometry {
                 }
                 if (e - s).length <= Self.radiusTolerance {
                     return "\(sketch.label(of: id)) would turn inside out."
+                }
+            case .spline(let points, _):
+                guard moves(points) else { continue }
+                let positions = points.compactMap { point($0, x) }
+                if positions.count == points.count, Self.hasCoincidentNeighbours(positions) {
+                    return "\(sketch.label(of: id)) would put two fit points in the same place."
                 }
             default:
                 continue

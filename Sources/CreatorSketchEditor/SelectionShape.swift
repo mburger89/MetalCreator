@@ -9,6 +9,8 @@ struct SelectionShape {
     var rounds: [SketchEntityID] = []
     /// Projected edges.
     var projected: [SketchEntityID] = []
+    /// Splines (Task 5 builds the constraint and dimension tools that use them).
+    var splines: [SketchEntityID] = []
 
     init(_ selection: Set<SketchEntityID>, in sketch: Sketch) {
         for id in selection.sorted() {
@@ -17,16 +19,17 @@ struct SelectionShape {
             case .line?: lines.append(id)
             case .arc?, .circle?: rounds.append(id)
             case .projected?: projected.append(id)
+            case .spline?: splines.append(id)
             case nil: break
             }
         }
     }
 
-    var count: Int { points.count + lines.count + rounds.count + projected.count }
+    var count: Int { points.count + lines.count + rounds.count + projected.count + splines.count }
 
     /// Exactly `points` points, `lines` lines and `rounds` arcs or circles, and nothing else.
     func `is`(points: Int = 0, lines: Int = 0, rounds: Int = 0) -> Bool {
-        self.points.count == points && self.lines.count == lines && self.rounds.count == rounds && projected.isEmpty
+        self.points.count == points && self.lines.count == lines && self.rounds.count == rounds && projected.isEmpty && splines.isEmpty
     }
 
     // The constraint `kind` makes from this selection, or `nil` when the selection doesn't fit it: one case per

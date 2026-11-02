@@ -3,7 +3,7 @@ import Foundation
 /// A fit point's two handles. `nil` is automatic (filled by the spline's own solve); a value is active and fixes the first
 /// derivative (`tangent`, its direction the tangent and its length the weight) or the second (`curvature`) there, both with
 /// respect to the chord-length parameter of the spline.
-public struct SplineHandle: Hashable, Sendable {
+public struct SplineHandle: Hashable, Sendable, Codable {
     public var tangent: Vector2?
     public var curvature: Vector2?
 

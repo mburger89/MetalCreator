@@ -21,6 +21,7 @@ extension Sketch {
         case .projected(let source):
             return source.isSuspended ? nil : Self.shape(of: source.curve)
         default:
+            // Task 4: a spline has no CurveShape case yet (regions, trim and the intersections come with it), so it is not a curve here.
             return nil
         }
     }

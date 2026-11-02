@@ -38,13 +38,13 @@ struct DocumentUnitsFileTests {
         #expect(written["units"] == nil)
     }
 
-    @Test func theFormatIsTenAndNineStillOpens() throws {
-        #expect(GraphFile.currentFormatVersion == 10, "10: document units")
+    @Test func theFormatIsElevenAndNineStillOpens() throws {
+        #expect(GraphFile.currentFormatVersion == 11, "10: document units")
         let text = #"{"formatVersion": 9, "graph": {"nodes": []}}"#
         let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
         #expect(file.formatVersion == 9)
         let saved = try reopened(GraphFile(graph: file.graph, definitions: file.definitions, viewState: file.viewState))
-        #expect(saved.formatVersion == 10)
+        #expect(saved.formatVersion == GraphFile.currentFormatVersion)
     }
 
     @Test func setUnitsIsOneUndoStepThatChangesNoResult() {

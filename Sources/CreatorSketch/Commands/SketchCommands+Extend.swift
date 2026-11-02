@@ -5,6 +5,7 @@ extension SketchCommands {
     /// end must be free: used by no other curve and not coincident with or fixed to anything.
     /// The moved end is shared with, or held on, the curve it reaches.
     public static func extend(_ sketch: Sketch, curve: SketchEntityID, near pick: Vector2) throws(SketchCommandError) -> SketchEdit {
+        try refuseSpline(curve, in: sketch, tool: "Extend")
         let shape = try editableShape(sketch, curve, verb: "extended")
         guard case let kind? = sketch.entities[curve]?.kind, !shape.isFullCircle,
               case let (start, end) = endpoints(of: kind), start != end else {

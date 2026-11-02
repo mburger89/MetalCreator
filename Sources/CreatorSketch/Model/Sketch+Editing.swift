@@ -54,6 +54,19 @@ extension Sketch {
         addCircle(center: addPoint(center), radius: radius, isConstruction: isConstruction)
     }
 
+    /// Adds a spline through existing fit points, every handle automatic.
+    @discardableResult
+    public mutating func addSpline(through points: [SketchEntityID], isConstruction: Bool = false) -> SketchEntityID {
+        let handles = Array(repeating: SplineHandleState.automatic, count: points.count)
+        return add(SketchEntity(.spline(points: points, handles: handles), isConstruction: isConstruction))
+    }
+
+    /// Adds new fit points and the spline through them.
+    @discardableResult
+    public mutating func addSpline(_ positions: [Vector2], isConstruction: Bool = false) -> SketchEntityID {
+        addSpline(through: positions.map { addPoint($0) }, isConstruction: isConstruction)
+    }
+
     @discardableResult
     public mutating func add(_ constraint: SketchConstraint) -> SketchConstraintID {
         let id = SketchConstraintID(takeNextID())

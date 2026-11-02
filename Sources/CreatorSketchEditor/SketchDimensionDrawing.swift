@@ -201,7 +201,7 @@ enum SketchDimensionDrawing {
             return .arc(center: c, radius: (s - c).length, middle: first + EditorGeometry.sweep(center: c, start: s, end: e) / 2)
         case .projected(let source)?:
             return source.isSuspended ? nil : shape(of: source.curve)
-        case nil:
+        case .spline?, nil:
             return nil
         }
     }

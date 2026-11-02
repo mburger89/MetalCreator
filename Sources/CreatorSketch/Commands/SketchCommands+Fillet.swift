@@ -9,6 +9,7 @@ extension SketchCommands {
     public static func fillet(_ sketch: Sketch, corner: SketchEntityID, radius: Double) throws(SketchCommandError) -> SketchEdit {
         guard radius > 0, radius.isFinite else { throw SketchCommandError("The fillet radius must be greater than 0 mm.") }
         let lines = users(of: corner, in: sketch)
+        if let spline = lines.first(where: { sketch.splineParts(of: $0) != nil }) { try refuseSpline(spline, in: sketch, tool: "Fillet") }
         guard lines.count == 2, let p = sketch.position(of: corner),
               case .line(let s1, let e1)? = sketch.entities[lines[0]]?.kind,
               case .line(let s2, let e2)? = sketch.entities[lines[1]]?.kind,

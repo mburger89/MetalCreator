@@ -8,6 +8,8 @@ public struct SketchSolution: Hashable, Sendable {
     public var points: [SketchEntityID: Vector2]
     /// The radius of every circle entity.
     public var radii: [SketchEntityID: Double]
+    /// The active handle values of every spline that has any, one `SplineHandle` per fit point (`nil` where automatic).
+    public var handles: [SketchEntityID: [SplineHandle]] = [:]
     /// Freedom of every entity.
     public var freedom: [SketchEntityID: EntityFreedom]
     /// One plain-language sentence per conflict set, for example
@@ -22,5 +24,13 @@ public struct SketchSolution: Hashable, Sendable {
     public var degreesOfFreedom: Int {
         if case .underConstrained(let dof) = status { return dof }
         return 0
+    }
+}
+
+extension SketchSolution {
+    func withHandles(_ handles: [SketchEntityID: [SplineHandle]]) -> SketchSolution {
+        var copy = self
+        copy.handles = handles
+        return copy
     }
 }

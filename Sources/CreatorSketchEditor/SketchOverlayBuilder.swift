@@ -71,6 +71,9 @@ enum SketchOverlayBuilder {
             return EditorGeometry.circlePoints(center: c, radius: radius)
         case .projected(let source):
             return polyline(of: source.curve)
+        case .spline:
+            // Task 5 draws the real overlay (handles, selection); a polyline of the exact curve keeps it visible and pickable.
+            return sketch.splineDefinition(of: id, solution: solution)?.curve().polyline() ?? []
         }
     }
 

@@ -11,7 +11,7 @@ struct ImplicitFileTests {
     }
 
     @Test func theFormatIsNine() {
-        #expect(GraphFile.currentFormatVersion == 10, "9: cable ties, after 8's implicit sockets")
+        #expect(GraphFile.currentFormatVersion == 11, "9: cable ties, after 8's implicit sockets")
     }
 
     @Test func aGroupInterfaceMayCarryImplicitAndMeshSockets() throws {
