@@ -11,17 +11,31 @@ enum OCCTProfile {
         )
     }
 
-    static func segment(_ segment: Segment2D) -> occt_segment {
+    /// The side tables kind-2 segments index: pole pairs, distinct knots and multiplicities of every spline, in order.
+    struct SplineTables {
+        var poles: [Double] = []
+        var knots: [Double] = []
+        var multiplicities: [Int32] = []
+    }
+
+    static func segment(_ segment: Segment2D, tables: inout SplineTables) -> occt_segment {
         switch segment {
         case .line(let a, let b):
-            occt_segment(kind: 0, x0: a.x, y0: a.y, x1: b.x, y1: b.y, cx: 0, cy: 0, radius: 0, start: 0, end: 0)
+            return occt_segment(kind: 0, x0: a.x, y0: a.y, x1: b.x, y1: b.y, cx: 0, cy: 0, radius: 0, start: 0, end: 0,
+                                pole_offset: 0, pole_count: 0, knot_offset: 0, knot_count: 0)
         case .arc(let center, let radius, let start, let end):
-            occt_segment(kind: 1, x0: 0, y0: 0, x1: 0, y1: 0, cx: center.x, cy: center.y, radius: radius,
-                         start: start.radians, end: end.radians)
+            return occt_segment(kind: 1, x0: 0, y0: 0, x1: 0, y1: 0, cx: center.x, cy: center.y, radius: radius,
+                                start: start.radians, end: end.radians,
+                                pole_offset: 0, pole_count: 0, knot_offset: 0, knot_count: 0)
         case .spline(let curve):
-            // `OCCTShape` refuses a profile with a spline before it gets here; the chord keeps the buffer whole.
-            occt_segment(kind: 0, x0: curve.startPoint.x, y0: curve.startPoint.y, x1: curve.endPoint.x, y1: curve.endPoint.y,
-                         cx: 0, cy: 0, radius: 0, start: 0, end: 0)
+            let result = occt_segment(kind: 2, x0: curve.startPoint.x, y0: curve.startPoint.y, x1: curve.endPoint.x,
+                                      y1: curve.endPoint.y, cx: 0, cy: 0, radius: 0, start: 0, end: 0,
+                                      pole_offset: Int32(tables.poles.count / 2), pole_count: Int32(curve.poles.count),
+                                      knot_offset: Int32(tables.knots.count), knot_count: Int32(curve.knots.count))
+            for pole in curve.poles { tables.poles += [pole.x, pole.y] }
+            tables.knots += curve.knots
+            tables.multiplicities += curve.multiplicities.map { Int32($0) }
+            return result
         }
     }
 
@@ -35,8 +49,12 @@ enum OCCTProfile {
     static func withAll<T, E: Error>(_ profiles: [Profile2D], _ body: (UnsafePointer<occt_profile>, Int) throws(E) -> T)
         throws(E) -> T {
         let loops = profiles.flatMap(\.loops)
-        let segments = loops.flatMap { $0.map(segment) }
+        var tables = SplineTables()
+        let segments = loops.flatMap { loop in loop.map { segment($0, tables: &tables) } }
         return try segments.withUnsafeBufferPointer { segmentBuffer throws(E) in
+            try tables.poles.withUnsafeBufferPointer { poleBuffer throws(E) in
+            try tables.knots.withUnsafeBufferPointer { knotBuffer throws(E) in
+            try tables.multiplicities.withUnsafeBufferPointer { multBuffer throws(E) in
             var offset = 0
             var loopViews: [occt_loop] = []
             for loop in loops {
@@ -49,7 +67,9 @@ enum OCCTProfile {
                 var views: [occt_profile] = []
                 for profile in profiles {
                     views.append(occt_profile(plane: plane(profile.plane), loops: loopBuffer.baseAddress.map { $0 + first },
-                                              loop_count: Int32(profile.loops.count)))
+                                              loop_count: Int32(profile.loops.count),
+                                              spline_poles: poleBuffer.baseAddress, spline_knots: knotBuffer.baseAddress,
+                                              spline_mults: multBuffer.baseAddress))
                     first += profile.loops.count
                 }
                 return try views.withUnsafeBufferPointer { viewBuffer throws(E) in
@@ -58,5 +78,8 @@ enum OCCTProfile {
                 }
             }
         }
+            }
+            }
+            }
     }
 }

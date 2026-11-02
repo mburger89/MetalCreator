@@ -136,10 +136,14 @@ typedef struct {
 /// One profile segment in plane coordinates. kind 0 = line (x0,y0)→(x1,y1);
 /// kind 1 = arc around (cx,cy) with `radius` from angle `start` to `end` (radians): counter-clockwise when
 /// end > start, clockwise when end < start (a counter-clockwise loop running along a notch).
+/// kind 2 = degree-5 clamped B-spline: `pole_count` poles from `occt_profile.spline_poles` (x,y pairs, starting at pair
+/// `pole_offset`) and `knot_count` distinct knots with multiplicities from `spline_knots` / `spline_mults` (from `knot_offset`);
+/// x0..y1 are the end points.
 typedef struct {
     int kind;
     double x0, y0, x1, y1;
     double cx, cy, radius, start, end;
+    int pole_offset, pole_count, knot_offset, knot_count;
 } occt_segment;
 
 /// One closed loop of segments, in order.
@@ -155,6 +159,10 @@ typedef struct {
     occt_plane plane;
     const occt_loop *loops;
     int loop_count;
+    /// The side tables kind-2 segments index (shared by every profile of one call); may be null without splines.
+    const double *spline_poles;
+    const double *spline_knots;
+    const int *spline_mults;
 } occt_profile;
 
 /// Extrudes the profile along its plane normal by `distance`. History: start/end caps and
