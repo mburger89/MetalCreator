@@ -935,8 +935,8 @@ void build_strips(Run &r) {
             // A spring of more pieces than the cap allows sections is skinned without breaks, as before them.
             breaks = static_cast<int>(merged.size()) + kFirstSections <= kMaxSections ? merged : std::vector<double>{};
             for (const double f : breaks) {
-                const auto near = [&](double g) { return std::abs(g - f) < kBreakMargin; };
-                if (std::none_of(fractions.begin(), fractions.end(), near)) {
+                const auto close_to_section = [&](double g) { return std::abs(g - f) < kBreakMargin; };
+                if (std::none_of(fractions.begin(), fractions.end(), close_to_section)) {
                     fractions.insert(std::upper_bound(fractions.begin(), fractions.end(), f), f);
                 } else {
                     // A section already there moves onto the break.
