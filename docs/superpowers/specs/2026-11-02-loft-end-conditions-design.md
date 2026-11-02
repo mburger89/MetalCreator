@@ -57,9 +57,12 @@ wall), with a **tangency weight**. The cap on the body face disappears when the 
 - **Messages:** "Pick a face of the part for the loft's start." (a face setting with no `solid`); the face pick's own messages
   (vanished, ambiguous, merged) as Face Pattern's; "The loft can't meet the part tangent (G1) here." / "…with matching curvature (G2)
   here." when the kernel can't judge the joint within tolerance; holes and segment counts as today.
-- **Tags:** the loft's side faces keep `.side(loop: 0, segment: k)` from the first section's segment k (today's rule); with a start face
-  the first section is the face loop, so segment k is the loop's k-th edge in the face's wire order (deterministic: the wire explorer's
-  order from the edge with the lowest index in the part's map **(call)**). Caps keep `.startCap` / `.endCap`.
+- **Tags:** the loft's side faces keep `.side(loop: 0, segment: k)`. Side tag k is the face edge paired with profile segment k **(call,
+  ruling after the spike)**: profiles stay fixed, and a face loop is wound like its neighbouring section and started at the rotation that
+  best matches that section's vertices, so the tag follows the profile's segment, not the face's edge numbering. A one-edge closed loop (a
+  circle) starts at the point of the edge nearest the paired section's start, so the loft does not twist. A face end must be flat
+  ("The loft's end face must be flat." otherwise) **(call)**, and a weight that loops a column back is refused ("The tangency weight is
+  too large for this loft."). Caps keep `.startCap` / `.endCap`.
 
 ## Construction (call: the builder may change it if the spike says so)
 

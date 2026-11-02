@@ -2,13 +2,16 @@
 // the part's adjacent faces, tangent (G1) or with matching curvature (G2). With every end Free it is OCCT's
 // ThruSections, as occt_loft; otherwise it is skinned here: per segment of the sections, columns across the sections as
 // quintic B-splines with the face end's derivatives taken from the part, skinned along the segment into one B-spline
-// patch, the columns doubled until the face-end seams and the sections fit, the patches and caps sewn and checked.
+// patch, columns added where a span misses until the face-end seams and the sections fit, the patches and caps sewn and checked.
 // The fillet's surface sampling, seam accumulation and tolerances are shared (cocct_g2_blend_internal.hpp).
 
 #include "cocct_g2_blend_internal.hpp"
 #include "cocct_profile.hpp"
 
 #include <BRepAdaptor_Curve.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <GeomAbs_SurfaceType.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakeSolid.hxx>
@@ -20,6 +23,8 @@
 #include <BSplCLib.hxx>
 #include <GeomAPI_Interpolate.hxx>
 #include <Geom_BSplineCurve.hxx>
+#include <Geom_Curve.hxx>
+#include <TopLoc_Location.hxx>
 #include <Geom_BSplineSurface.hxx>
 #include <Precision.hxx>
 #include <TColStd_Array1OfInteger.hxx>
@@ -48,9 +53,11 @@ namespace {
 constexpr const char *kTangentMessage = "The loft can't meet the part tangent (G1) here.";
 constexpr const char *kCurvatureMessage = "The loft can't meet the part with matching curvature (G2) here.";
 constexpr const char *kSegmentsMessage = "Every loft section needs the same number of segments.";
+constexpr const char *kWeightMessage = "The tangency weight is too large for this loft.";
+constexpr const char *kFlatMessage = "The loft's end face must be flat.";
 constexpr const char *kHolesMessage = "a loft can't use a profile with holes";
 constexpr int kFirstColumns = 9;   // columns per segment to start with
-constexpr int kMaxColumns = 129;   // the cap: 9, 17, 33, 65, 129
+constexpr int kMaxColumns = 129;   // the cap, columns in all per segment
 constexpr int kCheckSamples = 127; // prime, so the samples never fall on the columns (at multiples of 1/2^k)
 constexpr int kOrder = 6;          // the columns are quintic
 constexpr double kSewingTolerance = 1e-4; // the promised position tolerance; the candidates fit within a fifth of it
@@ -70,10 +77,26 @@ struct Piece {
     std::shared_ptr<BRepAdaptor_Curve> curve;
     int edge_index = 0;
     double t0 = 0, t1 = 0;
+    double first = 0, last = 0;     // the edge's own parameter range
+    bool periodic = false;          // a closed, periodic edge that is the whole loop (a circle): parameters wrap
+    bool rephased = false;          // its start was moved to the point nearest the paired section's start
+    bool wall_planar = false;
     bool reversed_in_wall = false; // the edge's orientation within the wall (as explored from the part)
     double phi0 = kPi / 2, phi1 = kPi / 2; // the across direction's angle from the loop's tangent at the two ends
 
-    double parameter(double s) const { return t0 + s * (t1 - t0); }
+    double parameter(double s) const {
+        double t = t0 + s * (t1 - t0);
+        if (periodic) {
+            const double period = last - first;
+            while (t > last + 1e-12) {
+                t -= period;
+            }
+            while (t < first - 1e-12) {
+                t += period;
+            }
+        }
+        return t;
+    }
 
     gp_Pnt value(double s) const {
         if (on_part) {
@@ -174,6 +197,10 @@ Section face_section(const TopoDS_Shape &part, const occt_loft_end &end, const T
     Section section;
     section.is_face = true;
     section.continuity = end.continuity;
+    // A loft's end face is flat (its caps and columns are built from the planar loop); a curved face is refused.
+    if (BRepAdaptor_Surface(TopoDS::Face(faces(end.face_index))).GetType() != GeomAbs_Plane) {
+        throw user_error(kFlatMessage);
+    }
     section.weight = end.weight;
     // The face as it sits in the part, with its orientation.
     for (TopExp_Explorer it(part, TopAbs_FACE); it.More(); it.Next()) {
@@ -203,6 +230,8 @@ Section face_section(const TopoDS_Shape &part, const occt_loft_end &end, const T
         double first = 0, last = 0;
         BRep_Tool::Range(edge, first, last);
         const bool forward = edge.Orientation() != TopAbs_REVERSED;
+        piece.first = first;
+        piece.last = last;
         piece.t0 = forward ? first : last;
         piece.t1 = forward ? last : first;
         for (const TopoDS_Face &face : distinct_faces(edge, edge_faces)) {
@@ -214,6 +243,7 @@ Section face_section(const TopoDS_Shape &part, const occt_loft_end &end, const T
             throw user_error(end.continuity == kCurvature ? kCurvatureMessage : kTangentMessage);
         }
         if (!piece.wall.IsNull()) {
+            piece.wall_planar = BRepAdaptor_Surface(piece.wall).GetType() == GeomAbs_Plane;
             // `wall` came from the edge-to-faces map, which explores the part: its orientation is the part's.
             for (TopExp_Explorer e(piece.wall, TopAbs_EDGE); e.More(); e.Next()) {
                 if (e.Current().IsSame(edge)) {
@@ -226,6 +256,10 @@ Section face_section(const TopoDS_Shape &part, const occt_loft_end &end, const T
     }
     if (section.pieces.empty()) {
         throw user_error("the profile has no segments");
+    }
+    if (section.pieces.size() == 1) {
+        Piece &only = section.pieces.front();
+        only.periodic = only.curve->IsClosed() && only.curve->IsPeriodic();
     }
     const auto lowest = std::min_element(section.pieces.begin(), section.pieces.end(),
                                          [](const Piece &a, const Piece &b) { return a.edge_index < b.edge_index; });
@@ -264,6 +298,44 @@ gp_XYZ vector_area(const Section &section) {
     return area;
 }
 
+/// Starts a closed periodic loop (a circle) at the point of the edge nearest `target`, keeping its direction.
+void rephase(Piece &piece, const gp_Pnt &target) {
+    const double period = piece.last - piece.first;
+    constexpr int kSteps = 720;
+    auto distance = [&](double t) { return piece.curve->Value(t).SquareDistance(target); };
+    int best = 0;
+    double best_distance = 0;
+    for (int i = 0; i < kSteps; ++i) {
+        const double d = distance(piece.first + period * i / kSteps);
+        if (i == 0 || d < best_distance) {
+            best = i;
+            best_distance = d;
+        }
+    }
+    // Golden-section search between the neighbouring samples.
+    double a = piece.first + period * (best - 1) / kSteps, b = piece.first + period * (best + 1) / kSteps;
+    const double ratio = (std::sqrt(5.0) - 1) / 2;
+    for (int i = 0; i < 60; ++i) {
+        const double c = b - ratio * (b - a), d = a + ratio * (b - a);
+        if (distance(c) < distance(d)) {
+            b = d;
+        } else {
+            a = c;
+        }
+    }
+    double start = 0.5 * (a + b);
+    while (start > piece.last) {
+        start -= period;
+    }
+    while (start < piece.first) {
+        start += period;
+    }
+    const bool forward = piece.t1 > piece.t0;
+    piece.t0 = start;
+    piece.t1 = forward ? start + period : start - period;
+    piece.rephased = true;
+}
+
 /// Turns a face section to wind like `reference` and starts it at the rotation whose vertices best match the
 /// reference's, about each loop's centre (the first such rotation on a tie).
 void align(Section &face, const Section &reference) {
@@ -274,6 +346,10 @@ void align(Section &face, const Section &reference) {
         }
     }
     const int count = static_cast<int>(face.pieces.size());
+    if (count == 1 && face.pieces.front().periodic) {
+        rephase(face.pieces.front(), reference.pieces.front().value(0));
+        return;
+    }
     auto centre = [&](const Section &s) {
         gp_XYZ c(0, 0, 0);
         for (const Piece &piece : s.pieces) {
@@ -464,15 +540,16 @@ std::vector<gp_Pnt> column(const std::vector<Section> &sections, const ColumnBas
     return poles;
 }
 
-/// The patch of segment k through `count` columns at even fractions: each row of column poles interpolated by a cubic
+/// The patch of segment k through the columns at the given fractions of the segment (0 to 1): each row of column poles interpolated by a cubic
 /// along the segment (periodically for a closed loop of one segment, whose last column is its first).
-Handle(Geom_BSplineSurface) skin(const std::vector<std::vector<gp_Pnt>> &columns, const ColumnBasis &basis, bool closed) {
+Handle(Geom_BSplineSurface) skin(const std::vector<std::vector<gp_Pnt>> &columns, const std::vector<double> &fractions,
+                                 const ColumnBasis &basis, bool closed) {
     const int count = static_cast<int>(columns.size());
     const int size = basis.poles();
     const int points_count = closed ? count - 1 : count;
     Handle(TColStd_HArray1OfReal) params = new TColStd_HArray1OfReal(1, count);
     for (int j = 0; j < count; ++j) {
-        params->SetValue(j + 1, static_cast<double>(j) / (count - 1));
+        params->SetValue(j + 1, fractions[j]);
     }
     std::vector<Handle(Geom_BSplineCurve)> rows;
     for (int r = 0; r < size; ++r) {
@@ -521,21 +598,34 @@ SurfacePoint patch_point(const Handle(Geom_Surface) &surface, double u, double v
     return s;
 }
 
+/// The face end's seam on the patch of segment k at fraction s of the segment.
+occt_g2_seam face_seam_at(const Handle(Geom_Surface) &surface, const Section &face, int k, double v, int outward, double s) {
+    occt_g2_seam seam{};
+    const Piece &piece = face.pieces[k];
+    const double t = piece.parameter(s);
+    const SurfacePoint wall = g2_blend::surface_point(piece.wall, piece.edge, t);
+    const SurfacePoint patch = patch_point(surface, s, v, outward, wall.n);
+    gp_Pnt p;
+    gp_Vec tangent;
+    piece.curve->D1(t, p, tangent);
+    g2_blend::accumulate(seam, patch, wall, tangent, face.continuity == kCurvature);
+    // The patch's boundary must be on the edge too, not only on the wall's surface.
+    seam.position = std::max(seam.position, patch.p.Distance(p));
+    return seam;
+}
+
 /// The face end's seam on the patch of segment k, against the part's wall, sampled `samples` + 1 times.
 occt_g2_seam face_seam(const Handle(Geom_Surface) &surface, const Section &face, int k, double v, int outward, int samples) {
     occt_g2_seam seam{};
-    const Piece &piece = face.pieces[k];
     for (int i = 0; i <= samples; ++i) {
-        const double s = static_cast<double>(i) / samples;
-        const double t = piece.parameter(s);
-        const SurfacePoint wall = g2_blend::surface_point(piece.wall, piece.edge, t);
-        const SurfacePoint patch = patch_point(surface, s, v, outward, wall.n);
-        gp_Pnt p;
-        gp_Vec tangent;
-        piece.curve->D1(t, p, tangent);
-        g2_blend::accumulate(seam, patch, wall, tangent, face.continuity == kCurvature);
-        // The patch's boundary must be on the edge too, not only on the wall's surface.
-        seam.position = std::max(seam.position, patch.p.Distance(p));
+        const occt_g2_seam at = face_seam_at(surface, face, k, v, outward, static_cast<double>(i) / samples);
+        seam.position = std::max(seam.position, at.position);
+        seam.angle_degrees = std::max(seam.angle_degrees, at.angle_degrees);
+        seam.curvature = std::max(seam.curvature, at.curvature);
+        if (at.curvature_ratio >= seam.curvature_ratio) {
+            seam.curvature_ratio = at.curvature_ratio;
+            seam.curvature_allowed = at.curvature_allowed;
+        }
     }
     return seam;
 }
@@ -554,8 +644,44 @@ struct Patch {
     double section_gap = 0;
 };
 
-/// Segment k's patch, its columns doubled until the face-end seams meet half the tolerances and the patch follows every
-/// section's segment to within a fifth of the position tolerance.
+/// Refuses a weight so large that a column loops back on itself: along the first (or last) span of the sections, the
+/// column's first derivative turns more than 120 degrees from the direction between that span's two points. (Weights up
+/// to the node's 2 turn to about 109 degrees at the far end of the span and build valid solids; at 3 it is 136.)
+void check_column(const std::vector<Section> &sections, const ColumnBasis &basis, int k, double s,
+                 const std::vector<gp_Pnt> &poles) {
+    if (basis.start == kFree && basis.finish == kFree) {
+        return;
+    }
+    const int n = basis.sections;
+    TColgp_Array1OfPnt array(1, basis.poles());
+    for (int j = 0; j < basis.poles(); ++j) {
+        array.SetValue(j + 1, poles[j]);
+    }
+    const Handle(Geom_BSplineCurve) curve = new Geom_BSplineCurve(array, basis.knots, basis.mults, kOrder - 1);
+    for (int which = 0; which < 2; ++which) {
+        if ((which == 0 ? basis.start : basis.finish) == kFree) {
+            continue;
+        }
+        const int near = which == 0 ? 0 : n - 1, inner = which == 0 ? 1 : n - 2;
+        // The direction of increasing v across that span.
+        const gp_Vec direction = which == 0 ? gp_Vec(sections[near].pieces[k].value(s), sections[inner].pieces[k].value(s))
+                                            : gp_Vec(sections[inner].pieces[k].value(s), sections[near].pieces[k].value(s));
+        const double low = std::min(basis.v[near], basis.v[inner]), high = std::max(basis.v[near], basis.v[inner]);
+        for (int i = 0; i <= 32; ++i) {
+            gp_Pnt p;
+            gp_Vec d;
+            curve->D1(low + (high - low) * i / 32, p, d);
+            if (d.Magnitude() > 1e-9 && direction.Magnitude() > 1e-9 && d.Dot(direction) < -0.5 * d.Magnitude() * direction.Magnitude()) {
+                throw user_error(kWeightMessage);
+            }
+        }
+    }
+}
+
+/// Segment k's patch. Columns start at 9 per segment (even fractions); a span whose seam or section fit misses (half the
+/// tolerances for the seams, a fifth of the position tolerance for the sections, sampled inside the span and at its
+/// ends) gets its middle, as the fillet's strips do; a miss at a column itself (more columns in a span cannot fix it)
+/// halves every span. At 129 columns in all the call fails.
 Patch build_patch(const std::vector<Section> &sections, const ColumnBasis &basis, int k) {
     const bool closed = sections.front().pieces.size() == 1;
     const Section *strongest = nullptr;
@@ -564,32 +690,96 @@ Patch build_patch(const std::vector<Section> &sections, const ColumnBasis &basis
             strongest = end;
         }
     }
-    for (int count = kFirstColumns; count <= kMaxColumns; count = 2 * count - 1) {
-        std::vector<std::vector<gp_Pnt>> columns;
-        for (int j = 0; j < count; ++j) {
-            columns.push_back(column(sections, basis, k, static_cast<double>(j) / (count - 1)));
-        }
-        Patch patch;
-        patch.surface = skin(columns, basis, closed);
-        patch.columns = count;
+    std::vector<double> fractions(kFirstColumns);
+    for (int j = 0; j < kFirstColumns; ++j) {
+        fractions[j] = static_cast<double>(j) / (kFirstColumns - 1);
+    }
+    std::vector<std::vector<gp_Pnt>> columns;
+    auto fits_at = [&](const Patch &patch, double s) {
         bool fits = true;
         if (basis.start != kFree) {
-            fits = fits && g2_blend::within_tolerance(face_seam(patch.surface, sections.front(), k, 0, 0, kCheckSamples));
+            fits = fits && g2_blend::within_tolerance(face_seam_at(patch.surface, sections.front(), k, 0, 0, s));
         }
         if (basis.finish != kFree) {
-            fits = fits && g2_blend::within_tolerance(face_seam(patch.surface, sections.back(), k, 1, 0, kCheckSamples));
+            fits = fits && g2_blend::within_tolerance(face_seam_at(patch.surface, sections.back(), k, 1, 0, s));
         }
         for (int i = 0; i < basis.sections; ++i) {
-            for (int j = 0; j <= kCheckSamples; ++j) {
-                const double s = static_cast<double>(j) / kCheckSamples;
-                patch.section_gap = std::max(patch.section_gap,
-                                             patch.surface->Value(s, basis.v[i]).Distance(sections[i].pieces[k].value(s)));
+            const double gap = patch.surface->Value(s, basis.v[i]).Distance(sections[i].pieces[k].value(s));
+            if (gap > 2e-5) {
+                fits = false;
             }
         }
-        fits = fits && patch.section_gap <= 2e-5;
-        if (fits) {
+        return fits;
+    };
+    for (;;) {
+        // Columns are made once, as the fractions that need them appear (the new ones are the middles).
+        while (columns.size() < fractions.size()) {
+            columns.emplace_back();
+        }
+        for (std::size_t j = 0; j < fractions.size(); ++j) {
+            if (columns[j].empty()) {
+                columns[j] = column(sections, basis, k, fractions[j]);
+                check_column(sections, basis, k, fractions[j], columns[j]);
+            }
+        }
+        Patch patch;
+        patch.surface = skin(columns, fractions, basis, closed);
+        patch.columns = static_cast<int>(fractions.size());
+        const std::size_t spans = fractions.size() - 1;
+        std::vector<bool> split(spans, false);
+        bool at_column = false;
+        for (std::size_t j = 0; j <= spans; ++j) {
+            if (!fits_at(patch, fractions[j])) {
+                at_column = true;
+            }
+        }
+        // Inside each span, and across the whole segment at the check's own samples (which never fall on columns).
+        const double inside[] = {0.1, 0.3, 0.5, 0.7, 0.9};
+        for (std::size_t j = 0; j < spans; ++j) {
+            for (const double f : inside) {
+                if (!fits_at(patch, fractions[j] + f * (fractions[j + 1] - fractions[j]))) {
+                    split[j] = true;
+                }
+            }
+        }
+        for (int j = 0; j <= kCheckSamples; ++j) {
+            const double s = static_cast<double>(j) / kCheckSamples;
+            if (!fits_at(patch, s)) {
+                const auto after = std::upper_bound(fractions.begin(), fractions.end(), s);
+                const std::size_t span = std::min<std::size_t>(std::max<std::ptrdiff_t>(after - fractions.begin() - 1, 0), spans - 1);
+                split[span] = true;
+            }
+        }
+        std::size_t failing = static_cast<std::size_t>(std::count(split.begin(), split.end(), true));
+        if (failing == 0 && !at_column) {
+            for (int i = 0; i < basis.sections; ++i) {
+                for (int j = 0; j <= kCheckSamples; ++j) {
+                    const double s = static_cast<double>(j) / kCheckSamples;
+                    patch.section_gap = std::max(patch.section_gap,
+                                                 patch.surface->Value(s, basis.v[i]).Distance(sections[i].pieces[k].value(s)));
+                }
+            }
             return patch;
         }
+        if (at_column) {
+            failing = spans;
+            split.assign(spans, true);
+        }
+        if (fractions.size() + failing > static_cast<std::size_t>(kMaxColumns)) {
+            break;
+        }
+        std::vector<double> refined;
+        std::vector<std::vector<gp_Pnt>> kept;
+        for (std::size_t j = 0; j < fractions.size(); ++j) {
+            refined.push_back(fractions[j]);
+            kept.push_back(columns[j]);
+            if (j < spans && split[j]) {
+                refined.push_back(0.5 * (fractions[j] + fractions[j + 1]));
+                kept.emplace_back();
+            }
+        }
+        fractions = refined;
+        columns = kept;
     }
     throw user_error(strongest ? message_for(*strongest) : kTangentMessage);
 }
@@ -605,10 +795,22 @@ TopoDS_Shape thru_sections(const std::vector<Section> &sections, occt_history *h
             BRep_Builder builder;
             builder.MakeWire(wire);
             for (const Piece &piece : section.pieces) {
-                double a = 0, b = 0;
-                BRep_Tool::Range(piece.edge, a, b);
-                // The edge as the loop runs along it: forward when the loop's parameters increase.
-                const TopoDS_Edge along = TopoDS::Edge(piece.edge.Oriented(piece.t1 > piece.t0 ? TopAbs_FORWARD : TopAbs_REVERSED));
+                // The edge as the loop runs along it: forward when the loop's parameters increase. A circle that was
+                // started at the point nearest the paired section is a new edge from that point.
+                TopoDS_Edge along;
+                if (piece.rephased) {
+                    TopLoc_Location location;
+                    double a = 0, b = 0;
+                    Handle(Geom_Curve) curve = BRep_Tool::Curve(piece.edge, location, a, b);
+                    curve = Handle(Geom_Curve)::DownCast(curve->Transformed(location.Transformation()));
+                    const double low = std::min(piece.t0, piece.t1);
+                    along = BRepBuilderAPI_MakeEdge(curve, low, low + (piece.last - piece.first)).Edge();
+                    if (piece.t1 < piece.t0) {
+                        along.Orientation(TopAbs_REVERSED);
+                    }
+                } else {
+                    along = TopoDS::Edge(piece.edge.Oriented(piece.t1 > piece.t0 ? TopAbs_FORWARD : TopAbs_REVERSED));
+                }
                 builder.Add(wire, along);
                 if (i == 0) {
                     first.push_back(along);

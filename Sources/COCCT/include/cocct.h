@@ -271,12 +271,14 @@ typedef struct {
 /// along them by the fraction of their parameter; a face loop runs in its wire's order from its edge with the lowest
 /// index, then is turned to wind the same way as the section next to it (by vector area) and started at the edge whose
 /// rotation best matches that section's vertices (least squares about the loops' centres; the first such rotation on a
-/// tie). With every end Free it is occt_loft's ThruSections (a face end through the face's own edges). With Tangent or
+/// tie; a one-edge closed loop, a circle, starts at the point nearest the paired section's start). A face that is not flat
+/// is refused ("The loft's end face must be flat."), as is a weight that loops a column back ("The tangency weight is too
+/// large for this loft."). With every end Free it is occt_loft's ThruSections (a face end through the face's own edges). With Tangent or
 /// Curvature at a face end the loft is skinned here: per segment, columns across the sections as quintic C4 B-splines
 /// (one chord-length knot vector for the whole loft), the face end's first derivative = weight x the circular length
 /// along the part's adjacent face's direction away from the part, its second derivative from that face's normal
 /// curvature (G2) or the third derivative zero (G1); Free ends the natural conditions (third and fourth derivatives
-/// zero). Columns start at 9 per segment and double to 129 until the face-end seams (half tolerances) and the sections
+/// zero). Columns start at 9 per segment and a span that misses gets its middle (129 in all at most) until the face-end seams (half tolerances) and the sections
 /// fit; the built solid's face-end seams are then judged at the full tolerances ("The loft can't meet the part tangent
 /// (G1) here." / "The loft can't meet the part with matching curvature (G2) here."). History as occt_loft: caps
 /// (a face end's cap is a copy of the face), sides OCCT_FROM_SEGMENT (operand 0, index = the paired segment).
