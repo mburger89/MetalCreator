@@ -9,9 +9,11 @@
 #include <BRepFill_Filling.hxx>
 #include <GeomAPI_ProjectPointOnSurf.hxx>
 #include <GeomAbs_Shape.hxx>
+#include <Geom2d_BezierCurve.hxx>
 #include <Geom_BezierCurve.hxx>
 #include <Geom_BezierSurface.hxx>
 #include <TColgp_Array1OfPnt.hxx>
+#include <TColgp_Array1OfPnt2d.hxx>
 #include <TColgp_Array2OfPnt.hxx>
 #include <TopoDS_Iterator.hxx>
 #include <TopoDS_Wire.hxx>
@@ -19,8 +21,71 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <vector>
 
 namespace cocct::g2_blend {
+
+namespace {
+
+/// Carries a strip's surface on past its ends in u, exactly and in place: the end span's own polynomial over a longer
+/// interval (its poles re-blossomed over it), so `low` and `high` lie inside the surface's u range. Every point of the old
+/// range keeps its parameters, so the pcurves already on this surface (springs, the other end, another corner's side)
+/// stay right with no remapping, and the surface's handle is unchanged.
+void extend_in_u(const Handle(Geom_BSplineSurface) &surface, double low, double high) {
+    if (surface->IsURational() || surface->IsUPeriodic()) {
+        throw user_error(kStripMessage);
+    }
+    const int p = surface->UDegree();
+    // The pole of the polynomial with Bezier poles `points` over [0, 1] that goes with the blossom (a^(p-k), b^k).
+    auto blossom = [p](std::vector<gp_XYZ> points, double a, double b, int k) {
+        for (int r = 1; r <= p; ++r) {
+            const double t = r <= p - k ? a : b;
+            for (int i = 0; i + r <= p; ++i) {
+                points[static_cast<std::size_t>(i)] = points[static_cast<std::size_t>(i)] * (1 - t) + points[static_cast<std::size_t>(i) + 1] * t;
+            }
+        }
+        return points[0];
+    };
+    for (int side = 0; side < 2; ++side) {
+        const int n = surface->NbUKnots();
+        const double first = surface->UKnot(1), last = surface->UKnot(n);
+        const double target = side == 0 ? low : high;
+        if (side == 0 ? target >= first : target <= last) {
+            continue;
+        }
+        // The end span as one Bezier span: its inner knot raised to multiplicity p (and lowered again below).
+        const int inner = side == 0 ? 2 : n - 1;
+        const int kept = surface->UMultiplicity(inner);
+        const bool raised = n > 2 && kept < p;
+        if (raised) {
+            surface->IncreaseUMultiplicity(inner, p);
+        }
+        const double a0 = side == 0 ? first : surface->UKnot(inner), a1 = side == 0 ? surface->UKnot(inner) : last;
+        const double ta = side == 0 ? (target - a0) / (a1 - a0) : 0.0, tb = side == 0 ? 1.0 : (target - a0) / (a1 - a0);
+        const int start = side == 0 ? 1 : surface->NbUPoles() - p;
+        for (int j = 1; j <= surface->NbVPoles(); ++j) {
+            std::vector<gp_XYZ> points(static_cast<std::size_t>(p) + 1);
+            for (int i = 0; i <= p; ++i) {
+                points[static_cast<std::size_t>(i)] = surface->Pole(start + i, j).XYZ();
+            }
+            std::vector<gp_XYZ> moved(static_cast<std::size_t>(p) + 1);
+            for (int k = 0; k <= p; ++k) {
+                moved[static_cast<std::size_t>(k)] = blossom(points, ta, tb, k);
+            }
+            for (int k = 0; k <= p; ++k) {
+                surface->SetPole(start + k, j, gp_Pnt(moved[static_cast<std::size_t>(k)]));
+            }
+        }
+        surface->SetUKnot(side == 0 ? 1 : n, target);
+        if (raised) {
+            // The two spans still join as smoothly as before: the knot comes off again to within 1e-9 mm, and where it
+            // would not, the raised knot is kept (the same surface either way).
+            surface->RemoveUKnot(inner, kept, 1e-9);
+        }
+    }
+}
+
+} // namespace
 
 void place_corner_patches(Run &r) {
     occt_g2_report *const report = r.report;
@@ -50,6 +115,8 @@ void place_corner_patches(Run &r) {
                 std::array<g2::Vec, 6> cross1{}, cross2{}; // cross-boundary derivatives, oriented alike
                 bool reversed = false;                 // against the strip's v
                 TopoDS_Vertex from, to;
+                g2::Scalar mitre = g2::Scalar(6, 0.0); // the side's offset in u from the strip's end, a quintic in t
+                bool mitred = false;
             };
             std::vector<EndCurve> found;
             for (TopExp_Explorer it(old_corner, TopAbs_EDGE); it.More(); it.Next()) {
@@ -155,10 +222,93 @@ void place_corner_patches(Run &r) {
             if (!close(loop[2].poles[5], loop[0].poles[0])) {
                 throw user_error(kStripMessage);
             }
+            // Mitred sides. G2 to strip j along side j fixes, at a corner V of the hole, every third derivative of
+            // the patch with a factor along that side. The two sides at V (tangents a, b) both fix f3(a, a, b) and
+            // f3(a, b, b), f3 the patch's cubic form there. A strip's profile leaves its spring cubically
+            // (f3 = 6k v^3, v across the strip, k != 0 for the quintic G2 section), so the two values agree only when
+            // v_A(b) = v_B(a) = 0 (a polynomial patch is C3 at V; nothing else solves it): each side leaves V along
+            // the other strip's spring. A section square to the spine does that only where the springs meet at a
+            // right angle; elsewhere the side is moved off the section to the curve u = u_end + g(t) on its strip,
+            // g a quintic with g = g'' = 0 at both ends and g' the slope that turns the side onto the neighbouring
+            // strip's spine there (which is also what `across_scales` asks of the cross derivatives).
+            for (int j = 0; j < 3; ++j) {
+                EndCurve &curve = loop[j];
+                const Handle(Geom_BSplineSurface) &surface = states[curve.strip].built.surface;
+                const double u_end = curve.end == 0 ? 0.0 : 1.0;
+                const double v0 = curve.reversed ? 1.0 : 0.0, dv = curve.reversed ? -1.0 : 1.0;
+                double slope[2] = {0, 0};
+                for (int e = 0; e < 2; ++e) {
+                    // The neighbour's spine at this end of the side, written as alpha S_u + beta S_v of this strip.
+                    const gp_Vec target =
+                        e == 0 ? to_vec(loop[(j + 2) % 3].cross1[5]) : to_vec(loop[(j + 1) % 3].cross1[0]).Reversed();
+                    gp_Pnt p;
+                    gp_Vec su, sv;
+                    surface->D1(u_end, v0 + e * dv, p, su, sv);
+                    const double a = su.Dot(su), b = su.Dot(sv), c = sv.Dot(sv), tu = su.Dot(target), tv = sv.Dot(target);
+                    const double det = a * c - b * b;
+                    const double alpha = (c * tu - b * tv) / det, beta = (a * tv - b * tu) / det;
+                    if (!(beta * dv > 0)) {
+                        throw user_error(kStripMessage); // the neighbouring spine does not lead into this strip
+                    }
+                    slope[e] = alpha * dv / beta;
+                    if (std::abs(slope[e]) < 1e-12) {
+                        slope[e] = 0; // already square to the neighbour there: rounding must not move the side off its end
+                    }
+                }
+                if (slope[0] == 0 && slope[1] == 0) {
+                    continue; // the section is already mitred: a right-angle corner
+                }
+                const double at0[3] = {0, slope[0], 0}, at1[3] = {0, slope[1], 0};
+                curve.mitre = g2::hermite_poles(at0, at1);
+                curve.mitred = true;
+                // Where the side runs on into the hole (an acute corner), the strip is carried on with it, so that the
+                // side's pcurve lies inside the surface's domain.
+                double u_low = 0, u_high = 1;
+                for (int k = 0; k <= 256; ++k) {
+                    const double u = u_end + g2::value_at(curve.mitre, k / 256.0);
+                    u_low = std::min(u_low, u);
+                    u_high = std::max(u_high, u);
+                }
+                if (u_low < 0 || u_high > 1) {
+                    const double margin = 0.1 * std::max(-u_low, u_high - 1);
+                    extend_in_u(surface, u_low < 0 ? u_low - margin : 0.0, u_high > 1 ? u_high + margin : 1.0);
+                }
+                const double sigma = curve.end == 0 ? -1.0 : 1.0;
+                auto sample = [&](double t, g2::Vec &point, g2::Vec &d1, g2::Vec &d2) {
+                    gp_Pnt p;
+                    gp_Vec su, sv, suu, svv, suv;
+                    surface->D2(u_end + g2::value_at(curve.mitre, t), v0 + dv * t, p, su, sv, suu, svv, suv);
+                    point = {p.X(), p.Y(), p.Z()};
+                    d1 = {sigma * su.X(), sigma * su.Y(), sigma * su.Z()};
+                    d2 = {suu.X(), suu.Y(), suu.Z()};
+                };
+                std::array<g2::Vec, 6> points{}, d1s{}, d2s{};
+                for (int k = 0; k < 6; ++k) {
+                    sample(k / 5.0, points[k], d1s[k], d2s[k]);
+                }
+                curve.poles = g2::bezier_through(points);
+                curve.cross1 = g2::bezier_through(d1s);
+                curve.cross2 = g2::bezier_through(d2s);
+                // The side is the quintic through six points of the curve on the strip: exact where the strip is
+                // an extrusion (u affine along a straight spine), and refused where it is not within 1e-7 mm.
+                double fit = 0;
+                for (int k = 0; k < 40; ++k) {
+                    const double t = (k + 0.5) / 40;
+                    g2::Vec point, d1, d2;
+                    sample(t, point, d1, d2);
+                    fit = std::max(fit, g2::norm(g2::sub(point, g2::bezier_value(curve.poles, t))));
+                }
+                if (!(fit <= 1e-7)) {
+                    throw user_error(kStripMessage);
+                }
+            }
             for (EndCurve &curve : loop) {
                 TopoDS_Vertex v1, v2;
                 TopExp::Vertices(curve.old_edge, v1, v2, Standard_False);
-                const bool first_is_start = close(curve.poles[0], {BRep_Tool::Pnt(v1).X(), BRep_Tool::Pnt(v1).Y(), BRep_Tool::Pnt(v1).Z()});
+                // The nearer vertex: a mitred side is read off the strip's surface, which may stand off OCCT's vertex
+                // by about the vertex's tolerance (1.2e-6 mm on a drafted prism).
+                const gp_Pnt first(curve.poles[0][0], curve.poles[0][1], curve.poles[0][2]);
+                const bool first_is_start = first.Distance(BRep_Tool::Pnt(v1)) <= first.Distance(BRep_Tool::Pnt(v2));
                 curve.from = first_is_start ? v1 : v2;
                 curve.to = first_is_start ? v2 : v1;
             }
@@ -287,7 +437,8 @@ void place_corner_patches(Run &r) {
                         if (tangent.Magnitude() < 1e-12) {
                             throw user_error(kStripMessage);
                         }
-                        accumulate(seam, on_surface(states[curve.strip].built.surface, gp_Pnt2d(u_end, v), strip_reversed),
+                        const gp_Pnt2d uv_strip(u_end + g2::value_at(curve.mitre, t), v);
+                        accumulate(seam, on_surface(states[curve.strip].built.surface, uv_strip, strip_reversed),
                                    on_surface(tri_surface, uv_tri, tri_reversed), tangent);
                     }
                     if (!within_tolerance(seam)) {
@@ -308,8 +459,20 @@ void place_corner_patches(Run &r) {
                 const EndCurve &curve = loop[j];
                 const double u_end = curve.end == 0 ? 0.0 : 1.0;
                 const double v_start = curve.reversed ? 1.0 : 0.0, v_end = curve.reversed ? 0.0 : 1.0;
-                builder.UpdateEdge(tri_edges[j], line2d(gp_Pnt2d(u_end, v_start), gp_Pnt2d(u_end, v_end), 0, 1),
-                                   states[curve.strip].built.surface, TopLoc_Location(), kEdgeTolerance);
+                if (curve.mitred) {
+                    // u = u_end + g(t), v linear in t: a quintic Bezier pcurve (it may leave the surface's u range by
+                    // a little where the strip is extended into the hole; the B-spline's end span carries it on).
+                    TColgp_Array1OfPnt2d uv(1, 6);
+                    for (int i = 0; i < 6; ++i) {
+                        uv.SetValue(i + 1, gp_Pnt2d(u_end + curve.mitre[static_cast<std::size_t>(i)],
+                                                    v_start + (v_end - v_start) * i / 5.0));
+                    }
+                    builder.UpdateEdge(tri_edges[j], Handle(Geom2d_BezierCurve)(new Geom2d_BezierCurve(uv)),
+                                       states[curve.strip].built.surface, TopLoc_Location(), kEdgeTolerance);
+                } else {
+                    builder.UpdateEdge(tri_edges[j], line2d(gp_Pnt2d(u_end, v_start), gp_Pnt2d(u_end, v_end), 0, 1),
+                                       states[curve.strip].built.surface, TopLoc_Location(), kEdgeTolerance);
+                }
                 builder.UpdateEdge(tri_edges[j], line2d(domain[j], domain[(j + 1) % 3], 0, 1), tri_surface, TopLoc_Location(),
                                    kEdgeTolerance);
             }
