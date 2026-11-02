@@ -116,7 +116,7 @@ extension OCCTKernel {
         }
     }
 
-    /// The shim's own refusals of a curvature-continuous fillet (`cocct_g2_blend.cpp`).
+    /// The shim's own refusals of a curvature-continuous fillet (`cocct_g2_blend_internal.hpp`).
     private static let weightMessage = "The tangency weight is too large for this fillet."
     private static let cornerMessage = "The fillet's corners can't be made smooth at this radius."
 
