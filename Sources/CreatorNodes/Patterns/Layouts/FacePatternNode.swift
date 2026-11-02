@@ -38,10 +38,8 @@ public enum FacePatternNode: NodeDefinition {
     static let unreadablePick = "This pattern's picked face can't be read. Pick the face again."
     static let noMatch = "The picked face isn't on this solid any more. Pick it again."
     static let notFlat = "Face Pattern works on flat faces for now."
-    static let unnamedPick = "The picked face has no stable name, so the pattern may move to a different face "
-        + "when the model changes. Pick it again after the change."
-    static let mergedPick = "The picked face was merged with a face from another part of the model that has since changed, "
-        + "so it isn't clear which part was picked. The pattern fills the closest one; pick the face again to settle it."
+    static let unnamedPick = FacePickWording.unnamed("pattern")
+    static let mergedPick = FacePickWording.merged("The pattern fills")
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let solid = try inputs.solid("solid")
@@ -126,7 +124,7 @@ public enum FacePatternNode: NodeDefinition {
         if resolution.isAmbiguous {
             warnings.append(mergedPick)
         } else if resolution.faces.count > 1 {
-            warnings.append("The pick matches \(resolution.faces.count.display) faces; the pattern fills the first.")
+            warnings.append(FacePickWording.several(resolution.faces.count, "the pattern fills"))
         }
         if pick.touchesUnnamedFace { warnings.append(unnamedPick) }
         return (face, warnings)

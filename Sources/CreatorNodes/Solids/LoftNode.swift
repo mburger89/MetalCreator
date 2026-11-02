@@ -11,7 +11,7 @@ public enum LoftNode: NodeDefinition {
     public static let displayName = "Loft"
     public static let category = NodeCategory.solid
     public static let inputs = [
-        SocketSpec("sections", .profile, access: .list),
+        SocketSpec("sections", .profile, access: .list, optional: true),
         SocketSpec("ruled", .bool, defaultValue: .bool(false)),
     ] + LoftEndSetup.sockets
     public static let typeVersion = 2
@@ -26,7 +26,7 @@ public enum LoftNode: NodeDefinition {
     public static func migrate(_ node: Node, from version: Int) -> Node { node }
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
-        let sections = try inputs.profiles("sections")
+        let sections = inputs.has("sections") ? try inputs.profiles("sections") : []
         let ends = try LoftEndSetup.read(inputs, context: context)
         guard sections.count + ends.count >= 2 else {
             throw NodeError.invalidValue("A loft needs at least two sections. "

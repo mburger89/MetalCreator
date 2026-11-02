@@ -85,6 +85,9 @@ enum LoftEndSetup {
         return ends
     }
 
+    static let mergedPick = FacePickWording.merged("The loft uses")
+    static let unnamedPick = FacePickWording.unnamed("loft")
+
     static func resolve(_ side: LoftSide, in part: Solid, context: EvalContext) throws -> (FaceInfo, [String]) {
         let pick: FacePick
         switch context.node.inputValues[side.faceSetting] {
@@ -101,15 +104,11 @@ enum LoftEndSetup {
         }
         var warnings: [String] = []
         if resolution.isAmbiguous {
-            warnings.append("The loft's \(side.word) face was merged with a face from another part of the model that has since changed, "
-                + "so it isn't clear which part was picked. The loft uses the closest one; pick the face again to settle it.")
+            warnings.append(mergedPick)
         } else if resolution.faces.count > 1 {
-            warnings.append("The loft's \(side.word) pick matches \(resolution.faces.count.display) faces; the loft uses the first.")
+            warnings.append(FacePickWording.several(resolution.faces.count, "the loft uses"))
         }
-        if pick.touchesUnnamedFace {
-            warnings.append("The loft's \(side.word) face has no stable name, so the loft may move to a different face when the model "
-                + "changes. Pick it again after the change.")
-        }
+        if pick.touchesUnnamedFace { warnings.append(unnamedPick) }
         return (face, warnings)
     }
 }
