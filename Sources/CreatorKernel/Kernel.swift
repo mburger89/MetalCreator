@@ -10,7 +10,13 @@ import Foundation
 public protocol Kernel: Actor {
     func extrude(_ profile: Profile2D, distance: Double, mode: ExtrudeMode, tag: NodeTag) throws -> Solid
     func revolve(_ profile: Profile2D, axis: Axis, angle: Angle, tag: NodeTag) throws -> Solid
-    func loft(_ sections: [Profile2D], ruled: Bool, tag: NodeTag) throws -> Solid
+    /// Lofts through `sections`. A `start` and/or `end` takes that end of the loft from a face of `part` instead of a
+    /// profile (the face's outer loop is the first or last section, so `sections` may even be empty for a bridge between
+    /// two faces); with `.tangent` or `.curvature` the side surface leaves each edge of that loop G1 or G2 with the part's
+    /// face across the edge. The loft's caps keep `.startCap` and `.endCap` and its sides `.side(loop: 0, segment: k)`,
+    /// k being the profile segment (a face loop is paired to the sections next to it); none of the part's faces are in the
+    /// result, so no tag of the part passes through. A ruled loft takes no face end.
+    func loft(_ sections: [Profile2D], ruled: Bool, part: Solid?, start: LoftEnd?, end: LoftEnd?, tag: NodeTag) throws -> Solid
     /// Combines `a` with the tools `b`. The result may be a compound of several disjoint solids
     /// (for example a cut that splits a part in two): multi-body results are deferred (spec §11),
     /// so they pass as one `Solid`. Callers can detect them by topology (faces that form more
@@ -114,5 +120,12 @@ extension Kernel {
     /// Tessellates at `DisplayAngle.standard`.
     public func tessellate(_ solid: Solid, tolerance: Double) throws -> DisplayMesh {
         try tessellate(solid, tolerance: tolerance, angle: DisplayAngle.standard)
+    }
+}
+
+public extension Kernel {
+    /// A loft through profiles alone.
+    func loft(_ sections: [Profile2D], ruled: Bool, tag: NodeTag) throws -> Solid {
+        try loft(sections, ruled: ruled, part: nil, start: nil, end: nil, tag: tag)
     }
 }

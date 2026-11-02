@@ -29,6 +29,10 @@ struct KernelUnavailableTests {
             try await kernel.revolve(profile, axis: Axis(origin: .zero, direction: Vector3(0, 1, 0)), angle: .degrees(90), tag: tag)
         }
         await #expect(throws: KernelError.unavailable) { try await kernel.loft([profile, profile], ruled: true, tag: tag) }
+        await #expect(throws: KernelError.unavailable) {
+            let start = LoftEnd(face: FaceID(0), continuity: .tangent)
+            return try await kernel.loft([profile], ruled: false, part: part, start: start, end: nil, tag: tag)
+        }
         await #expect(throws: KernelError.unavailable) { try await kernel.boolean(.union, part, [part], tag: tag) }
         await #expect(throws: KernelError.unavailable) { try await kernel.transform(part, by: transform, tag: tag) }
         await #expect(throws: KernelError.unavailable) { try await kernel.place([part], at: [transform], qualifying: { $0 }, tag: tag) }

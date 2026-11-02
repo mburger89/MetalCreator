@@ -51,15 +51,6 @@ public actor FakeKernel: Kernel {
         throw KernelError.unsupported("revolve")
     }
 
-    public func loft(_ sections: [Profile2D], ruled: Bool, tag: NodeTag) throws -> Solid {
-        try Task.checkCancellation()
-        operationLog.append("loft")
-        guard sections.allSatisfy(\.holes.isEmpty) else {
-            throw KernelError.loftWithHoles
-        }
-        throw KernelError.unsupported("loft")
-    }
-
     public func boolean(_ op: BooleanOp, _ a: Solid, _ b: [Solid], tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
         operationLog.append("boolean")

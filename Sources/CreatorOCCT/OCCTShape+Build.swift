@@ -1,5 +1,6 @@
 import COCCT
 import CreatorGeometry
+import CreatorKernel
 
 extension OCCTShape {
     /// Runs a shim builder that returns a shape and fills a history; frees the history.
@@ -31,7 +32,18 @@ extension OCCTShape {
         }
     }
 
-    /// SPIKE (G-d): `occt_loft_ends`, a loft from an optional face of `part`, through `sections`, to an optional face of
+    /// `occt_loft_ends` for the kernel's ends (face indexes are the topology table's, one-based in OCCT's map).
+    static func loftEnds(part: OCCTShape?, start: LoftEnd?, end: LoftEnd?, sections: [Profile2D])
+        throws(OCCTError) -> (shape: OCCTShape, history: [OCCTHistoryRecord], report: occt_loft_report) {
+        func raw(_ loftEnd: LoftEnd?) -> occt_loft_end? {
+            loftEnd.map {
+                occt_loft_end(face_index: Int32($0.face.rawValue + 1), continuity: Int32($0.continuity.rawValue), weight: $0.weight)
+            }
+        }
+        return try loftEnds(part: part, start: raw(start), end: raw(end), sections: sections)
+    }
+
+    /// `occt_loft_ends`, a loft from an optional face of `part`, through `sections`, to an optional face of
     /// `part` (each end's `face_index` 1-based; below 1, or nil, no face).
     static func loftEnds(part: OCCTShape?, start: occt_loft_end?, end: occt_loft_end?, sections: [Profile2D])
         throws(OCCTError) -> (shape: OCCTShape, history: [OCCTHistoryRecord], report: occt_loft_report) {

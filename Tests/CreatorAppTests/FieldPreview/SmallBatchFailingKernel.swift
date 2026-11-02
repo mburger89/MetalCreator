@@ -11,7 +11,9 @@ actor SmallBatchFailingKernel: Kernel {
 
     func extrude(_ profile: Profile2D, distance: Double, mode: ExtrudeMode, tag: NodeTag) throws -> Solid { throw unsupported }
     func revolve(_ profile: Profile2D, axis: Axis, angle: Angle, tag: NodeTag) throws -> Solid { throw unsupported }
-    func loft(_ sections: [Profile2D], ruled: Bool, tag: NodeTag) throws -> Solid { throw unsupported }
+    func loft(
+        _ sections: [Profile2D], ruled: Bool, part: Solid?, start: LoftEnd?, end: LoftEnd?, tag: NodeTag
+    ) throws -> Solid { throw unsupported }
     func boolean(_ op: BooleanOp, _ a: Solid, _ b: [Solid], tag: NodeTag) throws -> Solid { throw unsupported }
     func transform(_ solid: Solid, by transform: Transform, tag: NodeTag) throws -> Solid { throw unsupported }
     func place(_ tools: [Solid], at transforms: [Transform], qualifying qualify: @Sendable (NodeID) -> NodeID,

@@ -16,7 +16,7 @@ public actor KernelUnavailable: Kernel {
         try refuse()
     }
 
-    public func loft(_ sections: [Profile2D], ruled: Bool, tag: NodeTag) throws -> Solid {
+    public func loft(_ sections: [Profile2D], ruled: Bool, part: Solid?, start: LoftEnd?, end: LoftEnd?, tag: NodeTag) throws -> Solid {
         try refuse()
     }
 
