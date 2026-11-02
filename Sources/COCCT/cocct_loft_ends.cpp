@@ -29,7 +29,9 @@
 #include <Precision.hxx>
 #include <TColStd_Array1OfInteger.hxx>
 #include <TColStd_Array1OfReal.hxx>
+#include <TColStd_HArray1OfBoolean.hxx>
 #include <TColStd_HArray1OfReal.hxx>
+#include <TColgp_Array1OfVec.hxx>
 #include <TColgp_Array1OfPnt.hxx>
 #include <TColgp_Array2OfPnt.hxx>
 #include <TColgp_HArray1OfPnt.hxx>
@@ -485,6 +487,30 @@ std::unique_ptr<ColumnBasis> make_basis(const std::vector<Section> &sections) {
     return basis;
 }
 
+/// The second derivative (with respect to the columns' parameter) of the column that two walls share at a loop vertex.
+/// A wall's G2 condition constrains only the component of the column's second derivative along that wall's normal:
+/// C'' . n = kappa(d) L^2 (the normal curvature along the column's direction d, with L the first derivative's length). Each
+/// patch used to take its own wall's value, so the two patches' shared column disagreed in the second derivative. The
+/// vertex column is one curve, so its C'' is solved once, in the plane of the two normals, to satisfy both walls.
+/// `before` and `after` are always the walls in loop order, so both patches get the same vector.
+gp_Vec vertex_second_derivative(const WallFrame &before, const WallFrame &after, const gp_Vec &d, double length) {
+    const double scale = length * length;
+    const double ka = before.w.normal_curvature(d) * scale, kb = after.w.normal_curvature(d) * scale;
+    const gp_Vec &na = before.w.n, &nb = after.w.n;
+    const double c = na.Dot(nb);
+    const double det = 1 - c * c;
+    if (det < 1e-8) {
+        // The walls share a tangent plane here, so each constrains the same component of C'': they must agree.
+        if (std::abs(ka - kb) > std::max(1e-4 * scale, 0.01 * std::max(std::abs(ka), std::abs(kb)))) {
+            throw user_error(kCurvatureMessage);
+        }
+        return na * (0.5 * (ka + kb));
+    }
+    // C'' = alpha na + beta nb with C'' . na = ka and C'' . nb = kb.
+    const double alpha = (ka - kb * c) / det, beta = (kb - ka * c) / det;
+    return na * alpha + nb * beta;
+}
+
 /// A face end's two column conditions at fraction s of segment k: the first derivative (with respect to the columns'
 /// parameter) and the second (Curvature) or zero (the third derivative's row, Tangent).
 void face_end_rows(const Section &face, int k, double s, const gp_Pnt &neighbour, double span, bool at_start,
@@ -501,10 +527,21 @@ void face_end_rows(const Section &face, int k, double s, const gp_Pnt &neighbour
     const double angle = c > 1e-12 ? std::min(travel.Angle(towards), kPi / 2) : 0.0;
     const double length = face.weight * g2::circular_tangent_length(c, 2 * angle) / span;
     first = travel * length;
-    if (face.continuity == kCurvature) {
-        second = f.w.n * (f.w.normal_curvature(d) * length * length);
-    } else {
+    if (face.continuity != kCurvature) {
         second = gp_Vec(0, 0, 0);
+        return;
+    }
+    const int count = static_cast<int>(face.pieces.size());
+    const bool at_vertex = count > 1 && (s == 0.0 || s == 1.0);
+    if (!at_vertex) {
+        second = f.w.n * (f.w.normal_curvature(d) * length * length);
+        return;
+    }
+    // At a vertex the column is shared with the neighbouring patch: both build the same second derivative.
+    if (s == 0.0) {
+        second = vertex_second_derivative(wall_frame(face.pieces[(k + count - 1) % count], 1), f, d, length);
+    } else {
+        second = vertex_second_derivative(f, wall_frame(face.pieces[(k + 1) % count], 0), d, length);
     }
 }
 
@@ -542,8 +579,14 @@ std::vector<gp_Pnt> column(const std::vector<Section> &sections, const ColumnBas
 
 /// The patch of segment k through the columns at the given fractions of the segment (0 to 1): each row of column poles interpolated by a cubic
 /// along the segment (periodically for a closed loop of one segment, whose last column is its first).
+/// The row tangents a patch's skin is given where its end is a smooth vertex: per pole row, the derivative with respect to
+/// the patch's fraction (empty: free).
+struct EndTangents {
+    std::vector<gp_Vec> start, finish;
+};
+
 Handle(Geom_BSplineSurface) skin(const std::vector<std::vector<gp_Pnt>> &columns, const std::vector<double> &fractions,
-                                 const ColumnBasis &basis, bool closed) {
+                                 const ColumnBasis &basis, bool closed, const EndTangents &tangents) {
     const int count = static_cast<int>(columns.size());
     const int size = basis.poles();
     const int points_count = closed ? count - 1 : count;
@@ -558,6 +601,24 @@ Handle(Geom_BSplineSurface) skin(const std::vector<std::vector<gp_Pnt>> &columns
             points->SetValue(j + 1, columns[j][r]);
         }
         GeomAPI_Interpolate interpolate(points, params, closed ? Standard_True : Standard_False, 1e-9);
+        const bool has_start = !closed && !tangents.start.empty(), has_finish = !closed && !tangents.finish.empty();
+        if (has_start || has_finish) {
+            TColgp_Array1OfVec given(1, points_count);
+            Handle(TColStd_HArray1OfBoolean) flags = new TColStd_HArray1OfBoolean(1, points_count);
+            for (int j = 1; j <= points_count; ++j) {
+                given.SetValue(j, gp_Vec(0, 0, 0));
+                flags->SetValue(j, Standard_False);
+            }
+            if (has_start) {
+                given.SetValue(1, tangents.start[r]);
+                flags->SetValue(1, Standard_True);
+            }
+            if (has_finish) {
+                given.SetValue(points_count, tangents.finish[r]);
+                flags->SetValue(points_count, Standard_True);
+            }
+            interpolate.Load(given, flags, Standard_False);
+        }
         interpolate.Perform();
         if (!interpolate.IsDone()) {
             throw std::runtime_error("the loft's columns could not be skinned");
@@ -678,11 +739,109 @@ void check_column(const std::vector<Section> &sections, const ColumnBasis &basis
     }
 }
 
+/// The unit tangent of a piece at its start (s = 0) or finish (s = 1), by a one-sided difference.
+gp_Vec end_tangent(const Piece &piece, bool finish) {
+    constexpr double h = 1e-6;
+    const gp_Vec d = finish ? gp_Vec(piece.value(1 - h), piece.value(1)) : gp_Vec(piece.value(0), piece.value(h));
+    return d.Magnitude() > 0 ? d.Normalized() : d;
+}
+
+/// The vertices (between segment k - 1 and k) where every section runs tangent-continuously, and for each the shared
+/// direction of every pole row there. Two patches that leave a shared column with different derivatives along the loop
+/// crease the loft's own side (G0) even where its sections are smooth; a common direction, scaled by each patch's own
+/// speed, makes the two derivatives parallel (G1). True corners keep free ends.
+struct SmoothVertices {
+    std::vector<bool> smooth;
+    // Per vertex, per pole row: the derivative with respect to the segment's fraction on the left (the segment ending
+    // there) and on the right (the segment starting there), each with its own natural length and a shared direction.
+    std::vector<std::vector<gp_Vec>> left, right;
+};
+
+SmoothVertices plan_smooth_vertices(const std::vector<Section> &sections, const ColumnBasis &basis) {
+    const int segments = static_cast<int>(sections.front().pieces.size());
+    SmoothVertices vertices;
+    vertices.smooth.assign(segments, false);
+    vertices.left.resize(segments);
+    vertices.right.resize(segments);
+    if (segments < 2) {
+        return vertices;
+    }
+    constexpr double kAngle = 0.01 * kPi / 180; // the promised angle tolerance
+    constexpr double eps = 1.0 / 64;
+    for (int m = 0; m < segments; ++m) {
+        const int left = (m + segments - 1) % segments;
+        bool smooth = true;
+        for (const Section &section : sections) {
+            const gp_Vec a = end_tangent(section.pieces[left], true), b = end_tangent(section.pieces[m], false);
+            if (a.Magnitude() < 0.5 || b.Magnitude() < 0.5 || a.Angle(b) > kAngle) {
+                smooth = false;
+                break;
+            }
+        }
+        if (!smooth) {
+            continue;
+        }
+        // One-sided second-order derivatives of the column poles, either side of the vertex.
+        const std::vector<gp_Pnt> l0 = column(sections, basis, left, 1), l1 = column(sections, basis, left, 1 - eps),
+                                  l2 = column(sections, basis, left, 1 - 2 * eps);
+        const std::vector<gp_Pnt> r0 = column(sections, basis, m, 0), r1 = column(sections, basis, m, eps),
+                                  r2 = column(sections, basis, m, 2 * eps);
+        // Both sides share each row's direction, and their lengths stand in one ratio across the rows: then the two
+        // patches' derivatives along the loop are parallel at every point of the shared column (G1), whatever the rows'
+        // directions are. The ratio is the one the face ends' own rows have (the strictest rows), else the middle row's.
+        const std::size_t count = l0.size();
+        std::vector<gp_Vec> dl(count), dr(count);
+        for (std::size_t r = 0; r < count; ++r) {
+            dl[r] = (gp_Vec(l0[r].XYZ()) * 3 - gp_Vec(l1[r].XYZ()) * 4 + gp_Vec(l2[r].XYZ())) / (2 * eps);
+            dr[r] = (gp_Vec(r0[r].XYZ()) * -3 + gp_Vec(r1[r].XYZ()) * 4 - gp_Vec(r2[r].XYZ())) / (2 * eps);
+        }
+        std::vector<std::size_t> anchors;
+        if (basis.start != kFree) {
+            anchors.push_back(0);
+        }
+        if (basis.finish != kFree) {
+            anchors.push_back(count - 1);
+        }
+        if (anchors.empty()) {
+            anchors.push_back(count / 2);
+        }
+        double ratio = 0;
+        for (const std::size_t r : anchors) {
+            const double mr = dr[r].Magnitude();
+            ratio += mr > 1e-12 ? dl[r].Magnitude() / mr : 1.0;
+        }
+        ratio /= static_cast<double>(anchors.size());
+        if (!(ratio > 1e-6 && std::isfinite(ratio))) {
+            continue;
+        }
+        for (std::size_t r = 0; r < count; ++r) {
+            const double ml = dl[r].Magnitude(), mr = dr[r].Magnitude();
+            gp_Vec direction = ml > 1e-12 && mr > 1e-12 ? dl[r] / ml + dr[r] / mr : dl[r] + dr[r];
+            direction = direction.Magnitude() > 1e-12 ? direction.Normalized() : direction;
+            vertices.left[m].push_back(direction * ml);
+            vertices.right[m].push_back(direction * (ml / ratio));
+        }
+        vertices.smooth[m] = true;
+    }
+    return vertices;
+}
+
 /// Segment k's patch. Columns start at 9 per segment (even fractions); a span whose seam or section fit misses (half the
 /// tolerances for the seams, a fifth of the position tolerance for the sections, sampled inside the span and at its
 /// ends) gets its middle, as the fillet's strips do; a miss at a column itself (more columns in a span cannot fix it)
 /// halves every span. At 129 columns in all the call fails.
-Patch build_patch(const std::vector<Section> &sections, const ColumnBasis &basis, int k) {
+Patch build_patch(const std::vector<Section> &sections, const ColumnBasis &basis, const SmoothVertices &vertices, int k) {
+    const int segments = static_cast<int>(sections.front().pieces.size());
+    EndTangents tangents;
+    if (vertices.smooth.size() == static_cast<std::size_t>(segments) && segments > 1) {
+        const int next = (k + 1) % segments;
+        if (vertices.smooth[k]) {
+            tangents.start = vertices.right[k];
+        }
+        if (vertices.smooth[next]) {
+            tangents.finish = vertices.left[next];
+        }
+    }
     const bool closed = sections.front().pieces.size() == 1;
     const Section *strongest = nullptr;
     for (const Section *end : {&sections.front(), &sections.back()}) {
@@ -723,7 +882,7 @@ Patch build_patch(const std::vector<Section> &sections, const ColumnBasis &basis
             }
         }
         Patch patch;
-        patch.surface = skin(columns, fractions, basis, closed);
+        patch.surface = skin(columns, fractions, basis, closed, tangents);
         patch.columns = static_cast<int>(fractions.size());
         const std::size_t spans = fractions.size() - 1;
         std::vector<bool> split(spans, false);
@@ -905,9 +1064,10 @@ occt_shape *occt_loft_ends(const occt_shape *part, const occt_loft_end *start, c
             return new occt_shape{solid};
         }
         const std::unique_ptr<ColumnBasis> basis = make_basis(sections);
+        const SmoothVertices vertices = plan_smooth_vertices(sections, *basis);
         std::vector<Patch> patches;
         for (std::size_t k = 0; k < segments; ++k) {
-            patches.push_back(build_patch(sections, *basis, static_cast<int>(k)));
+            patches.push_back(build_patch(sections, *basis, vertices, static_cast<int>(k)));
             report->section_gap = std::max(report->section_gap, patches.back().section_gap);
             if (k < OCCT_LOFT_MAX_SEGMENTS) {
                 report->columns[k] = patches.back().columns;
@@ -924,7 +1084,7 @@ occt_shape *occt_loft_ends(const occt_shape *part, const occt_loft_end *start, c
         }
         // The poles are shared, so the gap is rounding; anything more is a construction error, never a crease to keep.
         if (report->side_gap > 1e-7) {
-            throw std::runtime_error("the loft's side patches do not share their columns");
+            throw user_error(message_for(start_face && start->continuity != kFree ? sections.front() : sections.back()));
         }
         // Faces: the patches, and the caps (a face end's is a copy of the face; a profile's, its planar face).
         std::vector<TopoDS_Face> sides;
