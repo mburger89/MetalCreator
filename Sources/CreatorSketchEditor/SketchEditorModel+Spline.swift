@@ -136,7 +136,7 @@ extension SketchEditorModel {
         let pulled = SketchSolver.solve(sketch, draggingHandles: [target])
         solution = pulled
         sketch = Self.remembering(sketch, pulled)
-        handleMoved = true
+        if pulled.status.isUsable { handleMoved = true }
     }
 
     func endHandleDrag(at p: Vector2?) {

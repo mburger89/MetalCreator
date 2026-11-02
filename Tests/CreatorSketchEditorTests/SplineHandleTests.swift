@@ -166,7 +166,8 @@ struct SplineHandleTests {
     }
 
     @Test func mirrorReflectsHandles() throws {
-        var (sketch, spline) = fixture()
+        let (base, spline) = fixture()
+        var sketch = base
         sketch.activateSplineHandle(spline, at: 1, .tangent)
         sketch.activateSplineHandle(spline, at: 1, .curvature)
         let axis = sketch.addLine(Vector2(0, -20), Vector2(0, 40), isConstruction: true)
@@ -229,6 +230,52 @@ struct SplineHandleTests {
         let (model, _) = makeModel(Sketch())
         model.press(.spline)
         #expect(model.tool == .spline)
+    }
+    @Test func returnDuringAHandleDragRestoresTheSketch() throws {
+        let (sketch, spline) = fixture()
+        let (model, host) = makeModel(sketch)
+        model.selection = [spline]
+        let before = model.sketch
+        let start = try knob(model, spline, 1, .tangent)
+        #expect(model.beginDrag(at: start, tolerance: 0.5))
+        model.drag(to: start + Vector2(0, 5))
+        #expect(model.sketch != before)
+        model.finish()
+        #expect(model.sketch == before && host.commits.isEmpty)
+        #expect(model.solution.status.isUsable)
+    }
+
+    @Test func aHandleDragWithoutAUsableSolveRecordsNothing() throws {
+        let (base, spline) = fixture()
+        var sketch = base
+        // Two contradictory fixes on one point: every solve is over-constrained.
+        let point = try #require(sketch.splineParts(of: spline)?.points[0])
+        sketch.add(.fix(point, at: Vector2(0, 0)))
+        sketch.add(.fix(point, at: Vector2(1, 1)))
+        let (model, host) = makeModel(sketch)
+        model.selection = [spline]
+        let before = model.sketch
+        let start = try knob(model, spline, 1, .tangent)
+        #expect(model.beginDrag(at: start, tolerance: 0.5))
+        let target = start + Vector2(0, 3)
+        model.drag(to: target)
+        model.endDrag(at: target)
+        #expect(host.commits.isEmpty && model.sketch == before)
+    }
+
+    @Test func curvatureOnALineAndAnArcSaysWhy() {
+        var sketch = Sketch()
+        let corner = sketch.addPoint(Vector2(10, 0))
+        let start = sketch.addPoint(Vector2(0, 0))
+        let line = sketch.addLine(from: start, to: corner)
+        let centre = sketch.addPoint(Vector2(10, 5))
+        let end = sketch.addPoint(Vector2(15, 5))
+        let arc = sketch.addArc(center: centre, start: corner, end: end)
+        let (model, host) = makeModel(sketch)
+        model.selection = [line, arc]
+        model.addConstraint(.curvature)
+        #expect(model.refusal == "A line and an arc can't meet with equal curvature.")
+        #expect(host.commits.isEmpty)
     }
 }
 

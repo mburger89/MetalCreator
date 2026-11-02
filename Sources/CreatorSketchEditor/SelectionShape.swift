@@ -44,6 +44,12 @@ struct SelectionShape {
         return nil
     }
 
+    /// A line and an arc that share an end: the one pair Curvature can never join.
+    func isLineAndArcJoint(in sketch: Sketch) -> Bool {
+        guard `is`(lines: 1, rounds: 1), arcs.contains(rounds[0]) else { return false }
+        return sketch.curveEnds(of: lines[0]).contains { sketch.curveEnds(of: rounds[0]).contains($0) }
+    }
+
     // The constraint `kind` makes from this selection, or `nil` when the selection doesn't fit it: one case per
     // constraint kind, each checking its own shape.
     // swiftlint:disable:next cyclomatic_complexity

@@ -21,8 +21,10 @@ extension SketchEditorModel {
 
     /// Adds `kind` on the selection as one step, then clears the selection. A selection that doesn't fit says why.
     public func addConstraint(_ kind: SketchConstraintKind) {
-        guard let constraint = SelectionShape(selection, in: sketch).constraint(kind, at: sketch.position(of:)) else {
-            refusal = kind.hint
+        let shape = SelectionShape(selection, in: sketch)
+        guard let constraint = shape.constraint(kind, at: sketch.position(of:)) else {
+            refusal = kind == .curvature && shape.isLineAndArcJoint(in: sketch)
+                ? "A line and an arc can't meet with equal curvature." : kind.hint
             return
         }
         var edited = sketch

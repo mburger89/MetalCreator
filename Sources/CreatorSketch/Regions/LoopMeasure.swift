@@ -87,17 +87,55 @@ enum LoopMeasure {
                     }
                 }
             case .spline(let curve):
-                // The curve sampled finely (32 per knot interval) with its true ends, so neighbours agree on a vertex's y.
-                var points = [segment.start]
-                for (a, b) in zip(curve.knots, curve.knots.dropFirst()) {
-                    for step in 1...32 { points.append(curve.point(at: a + (b - a) * Double(step) / 32)) }
-                }
-                points[points.count - 1] = segment.end
-                for (a, b) in zip(points, points.dropFirst()) {
-                    count(a, b) { a.x + (p.y - a.y) * (b.x - a.x) / (b.y - a.y) }
-                }
+                crossings += splineCrossings(curve, from: segment.start, to: segment.end, of: p)
             }
         }
         return crossings % 2 == 1
+    }
+
+    /// The crossings of the ray from `p` towards +x with a spline, exactly: each knot interval is cut where y′ changes sign
+    /// into pieces monotone in y, and each piece that straddles `p.y` is bisected for its one crossing. `start` and `end` are
+    /// the true vertices, so neighbouring segments agree on a vertex's y.
+    private static func splineCrossings(_ curve: SplineCurve2D, from start: Vector2, to end: Vector2, of p: Vector2) -> Int {
+        let grid = 128
+        var count = 0
+        let intervals = Array(zip(curve.knots, curve.knots.dropFirst()))
+        for (index, (a, b)) in intervals.enumerated() {
+            func slope(_ t: Double) -> Double { curve.derivative(at: t, order: 1).y }
+            // Where y′ changes sign inside the interval: the turning points of y.
+            var cuts = [a]
+            var previous = slope(a)
+            var lastT = a
+            for step in 1...grid {
+                let t = step == grid ? b : a + (b - a) * Double(step) / Double(grid)
+                let value = slope(t)
+                if (previous < 0) != (value < 0), previous != 0, value != 0 {
+                    var (low, high) = (lastT, t)
+                    for _ in 0..<60 {
+                        let mid = (low + high) / 2
+                        if (slope(mid) < 0) == (previous < 0) { low = mid } else { high = mid }
+                    }
+                    cuts.append((low + high) / 2)
+                }
+                (previous, lastT) = (value, t)
+            }
+            cuts.append(b)
+            func y(_ t: Double) -> Double {
+                if index == 0, t == a { return start.y }
+                if index == intervals.count - 1, t == b { return end.y }
+                return curve.point(at: t).y
+            }
+            for (t0, t1) in zip(cuts, cuts.dropFirst()) {
+                let (y0, y1) = (y(t0), y(t1))
+                guard (y0 > p.y) != (y1 > p.y) else { continue }
+                var (low, high) = (t0, t1)
+                for _ in 0..<80 {
+                    let mid = (low + high) / 2
+                    if (y(mid) > p.y) == (y0 > p.y) { low = mid } else { high = mid }
+                }
+                if curve.point(at: (low + high) / 2).x > p.x { count += 1 }
+            }
+        }
+        return count
     }
 }

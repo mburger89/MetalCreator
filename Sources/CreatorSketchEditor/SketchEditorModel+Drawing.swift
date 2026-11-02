@@ -64,8 +64,10 @@ extension SketchEditorModel {
         drawState = .idle
         dropPending()
         preview = .none
+        let wasDragging = dragged != nil || draggedHandle != nil
         draggedHandle = nil
-        if dragged != nil, let origin = dragOrigin {
+        handleMoved = false
+        if wasDragging, let origin = dragOrigin {
             let solved = SketchSolver.solve(origin)
             solution = solved
             sketch = Self.remembering(origin, solved)
