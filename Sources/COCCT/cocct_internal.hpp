@@ -154,6 +154,12 @@ public:
         }
     }
 
+    /// The records as made, against the output the builder was made for.
+    const std::vector<occt_history_record> &records() const { return records_; }
+
+    /// Replaces the records (a caller that renumbers them against a different output).
+    void set_records(std::vector<occt_history_record> records) { records_ = std::move(records); }
+
     void move_into(occt_history *history) {
         history->records = copy_out(records_);
         history->count = static_cast<int>(records_.size());

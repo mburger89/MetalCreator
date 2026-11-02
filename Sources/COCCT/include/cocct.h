@@ -189,6 +189,60 @@ double occt_test_max_vertex_tolerance(const occt_shape *shape);
 /// OCCT_FROM_FACE for kept/modified faces, OCCT_FROM_EDGE (index = input edge) for blend faces.
 occt_shape *occt_fillet(const occt_shape *shape, const int *edge_indices, int count, double radius,
                         occt_history *history, occt_status *status);
+/// SPIKE (G-b). Per-seam gaps of a curvature-continuous fillet, measured at 65 points along each strip's spring edges.
+#define OCCT_G2_MAX_SEAMS 64
+typedef struct {
+    double position;           // worst distance between the two faces, mm
+    double angle_degrees;      // worst angle between the faces' outward normals
+    double curvature;          // worst difference of the normal curvatures across the seam, 1/mm
+    double curvature_allowed;  // the tolerance at that sample: max(1 % of the larger curvature, 1e-4)
+    double curvature_ratio;    // worst gap / allowed over the samples (<= 1 passes)
+} occt_g2_seam;
+typedef struct {
+    int strips;                // strip faces replaced
+    int sections;              // the most cross-sections any strip needed
+    int strip_sections[32];    // cross-sections each strip needed (strips in edge order)
+    int corners;               // corner patches refilled
+    int g1_joins;              // chain joins whose springs kink (> 0.01 degrees): tangent only there, the node warns
+    int g2_corners;            // corners rebuilt as one G2 three-sided patch
+    int g1_corners;            // the corners refilled tangent only (G1): the node warns
+    int seam_count;            // the strips' spring seams, in strip order, two each
+    occt_g2_seam seams[OCCT_G2_MAX_SEAMS];   // a sample of them: the first OCCT_G2_MAX_SEAMS
+    int seams_total;           // every spring seam the shim judged, however many the array holds
+    int seams_judged;          // 1 once the shim has judged all of them at the promised tolerances (else a miss threw)
+    int mitres;                // strip pairs that meet in a mitre, cut by one another
+    int mitre_seam_count;      // their seams: a mitre is a crease, only its position is promised
+    occt_g2_seam mitre_seams[OCCT_G2_MAX_SEAMS];
+    int corner_seam_count;     // the corner patches' boundaries against their strips / faces, measured apart
+    occt_g2_seam corner_seams[OCCT_G2_MAX_SEAMS];
+    // The corner patches' (worst over the g2_corners), for the tests and the benchmarks.
+    double corner_milliseconds;      // time to build all of them
+    double corner_block_mismatch;    // the shared control blocks' disagreement, mm
+    double corner_min_lambda;        // the least across scale (positive: the reparametrisation is monotone)
+    double corner_max_curvature;     // the largest principal curvature over the patch interior, 1/mm
+    double corner_min_sine;          // the least sine of the angle between the parameter curves (regular: > 0)
+    int corner_attempts;             // corners a patch was tried on, accepted or not
+} occt_g2_report;
+/// Fillets like occt_fillet, then replaces each strip's surface with quintic G2 sections whose end tangent lengths are
+/// `weight` times the circle's. Sections start at 9 per strip and double until the strip's spring seams measure inside
+/// half the tolerances; past 129 the call fails ("The fillet can't be made curvature continuous at this radius.").
+/// A corner where three strips end is one degree-17 three-sided patch, G2 to all three strips (g2_corners), when its
+/// across scales are positive, its shared control blocks agree to 1e-6 mm, its principal curvature stays within 4 / r,
+/// its seams pass and the solid is valid; any other corner is refilled with MakeFilling constrained G1 to the strips and
+/// original faces and counted in g1_corners (OCCT 7.9's MakeFilling cannot constrain G2); if that misses the position or
+/// angle tolerance, or the solid fails BRepCheck, the call fails ("The fillet's corners can't be made smooth at this
+/// radius."). A crease and an invalid solid are never returned. The history names the final solid's faces. A tangency weight
+/// that pushes a section past the neighbours' surfaces fails with "The tangency weight is too large for this
+/// fillet."; anything else the construction cannot do fails with "The fillet can't be made curvature continuous at
+/// this radius."
+/// The weight must be greater than 0.
+occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int count, double radius, double weight,
+                           occt_history *history, occt_g2_report *report, occt_status *status);
+/// FOR TESTS ONLY. Evaluates the quintic section through two end conditions {position[3], direction[3], acceleration[3]}
+/// with end derivative lengths len0 and len1: out = position[3], d1[3], d2[3] at t. Returns 1.
+int occt_g2_section_test(const double end0[9], double len0, const double end1[9], double len1, double t, double out[9]);
+/// The circle's cubic-equivalent end derivative length for a chord and a turning angle (radians).
+double occt_g2_tangent_length(double chord, double turning_angle);
 /// Equal-distance chamfer of the edges; same history contract as occt_fillet.
 occt_shape *occt_chamfer(const occt_shape *shape, const int *edge_indices, int count, double distance,
                          occt_history *history, occt_status *status);

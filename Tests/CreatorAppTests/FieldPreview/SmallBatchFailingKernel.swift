@@ -16,7 +16,8 @@ actor SmallBatchFailingKernel: Kernel {
     func transform(_ solid: Solid, by transform: Transform, tag: NodeTag) throws -> Solid { throw unsupported }
     func place(_ tools: [Solid], at transforms: [Transform], qualifying qualify: @Sendable (NodeID) -> NodeID,
                tag: NodeTag) throws -> [Solid] { throw unsupported }
-    func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid { throw unsupported }
+    func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, profile: FilletProfile,
+                tag: NodeTag) throws -> FilletResult { throw unsupported }
     func chamfer(_ solid: Solid, edges: [EdgeID], distance: Double, tag: NodeTag) throws -> Solid { throw unsupported }
     func tessellate(_ solid: Solid, tolerance: Double, angle: Double) throws -> DisplayMesh { throw unsupported }
     func export(_ solids: [Solid], format: ExportFormat, to url: URL) throws { throw unsupported }

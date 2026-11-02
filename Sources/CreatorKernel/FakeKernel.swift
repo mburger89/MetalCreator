@@ -7,6 +7,9 @@ import Foundation
 public actor FakeKernel: Kernel {
     /// `internal(set)` so `FakeKernel+Continuity.swift` can log (the actor body is at its lint length).
     public internal(set) var operationLog: [String] = []
+    /// The profile of every fillet asked for, and the tangent-only counts a fillet reports (a test sets them).
+    public private(set) var filletProfiles: [FilletProfile] = []
+    public private(set) var filletTangentOnly: (corners: Int, joins: Int) = (0, 0)
     /// The `angle` of each `tessellate` call, in order.
     public private(set) var tessellationAngles: [Double] = []
     var sectionHook: (@Sendable () throws -> Void)?
@@ -103,12 +106,6 @@ public actor FakeKernel: Kernel {
             return Solid(topology: tool.topology.qualified(item: index, qualify), bounds: BoundingBox(points: corners) ?? tool.bounds,
                          storage: FakeStorage())
         }
-    }
-
-    public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid {
-        try Task.checkCancellation()
-        operationLog.append("fillet")
-        return try blend(solid, edges: edges, size: radius, tag: tag)
     }
 
     public func chamfer(_ solid: Solid, edges: [EdgeID], distance: Double, tag: NodeTag) throws -> Solid {
@@ -300,4 +297,19 @@ extension FakeKernel {
         return FaceInfo(id: FaceID(id), kind: .cylinder, normal: plane.normal, area: 0, centroid: .zero, tags: [tag],
                         radius: radius, axisPoint: plane.point(center))
     }
+}
+
+extension FakeKernel {
+    public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, profile: FilletProfile, tag: NodeTag) throws -> FilletResult {
+        try Task.checkCancellation()
+        operationLog.append("fillet")
+        try profile.validate()
+        filletProfiles.append(profile)
+        // No surfaces to bend: both profiles give the same faces and tags.
+        return FilletResult(solid: try blend(solid, edges: edges, size: radius, tag: tag),
+                            tangentOnlyCorners: filletTangentOnly.corners, tangentOnlyJoins: filletTangentOnly.joins)
+    }
+
+    /// Makes later fillets report these tangent-only counts.
+    public func setFilletTangentOnly(corners: Int, joins: Int) { filletTangentOnly = (corners, joins) }
 }

@@ -26,7 +26,8 @@ public protocol Kernel: Actor {
     /// history doesn't explain. The counts must match; none is an empty result.
     func place(_ tools: [Solid], at transforms: [Transform], qualifying qualify: @Sendable (NodeID) -> NodeID,
                tag: NodeTag) throws -> [Solid]
-    func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid
+    /// Rounds `edges` with `radius` in the given cross-section. Faces and tags are the same for every profile.
+    func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, profile: FilletProfile, tag: NodeTag) throws -> FilletResult
     func chamfer(_ solid: Solid, edges: [EdgeID], distance: Double, tag: NodeTag) throws -> Solid
     /// Triangles for display. `angle` is the largest turn in radians between neighbouring normals on a curved face
     /// (`DisplayAngle`); a smaller one makes more triangles. Boxes are the same at any angle.
@@ -100,6 +101,13 @@ public enum DisplayAngle {
     public static let standard = 0.5
     /// Fine enough that zebra stripes, which reflect the normal, don't show the tessellation.
     public static let zebra = 0.05
+}
+
+extension Kernel {
+    /// A circular fillet.
+    public func fillet(_ solid: Solid, edges: [EdgeID], radius: Double, tag: NodeTag) throws -> Solid {
+        try fillet(solid, edges: edges, radius: radius, profile: .circular, tag: tag).solid
+    }
 }
 
 extension Kernel {

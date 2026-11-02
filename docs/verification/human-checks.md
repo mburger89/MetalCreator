@@ -2334,6 +2334,17 @@ the Output selected so the part is shown.
 - [ ] **ZE-7 Other modes.** Ghosts are never striped; a field tint gives way to the stripes; sketch mode hides them and returns them afterwards. **Observed:**
 - [ ] **ZE-8 Linux and Windows.** The same on Linux and Windows: the stripes look alike. **Observed:**
 
+## Group G2F — G2 fillets (Continuity on the Fillet node)
+
+- [ ] **G2F-1 G1 against G2 under zebra.** On a box, fillet one top edge (radius 3) and switch Zebra on (Z). At Tangent (G1) the stripes kink where the fillet meets each face; set Continuity to Curvature (G2): the stripes flow across both seams without a kink. Switching back restores the kink. **Observed:**
+- [ ] **G2F-2 Tangency weight.** At Curvature (G2) the Tangency weight slider shows (hidden at G1). Weight 0.5 gives a tighter, flatter bulge, 1 is close to the circle's, 1.5 a fuller one; the stripes stay unbroken at each of these on a box edge. Weight 2 is refused there with "The tangency weight is too large for this fillet.". **Observed:**
+- [ ] **G2F-3 Box corner.** Fillet all three edges at a box corner at G2: the corner is a smooth patch, stripes flow over it from every side, and the node has no warning. **Observed:**
+- [ ] **G2F-4 Hexagonal prism corner.** Fillet the three edges meeting at a hexagonal prism's top corner at G2: the node warns "1 fillet corner is tangent only (G1)." and the part is valid and smooth to the eye. **Observed:**
+- [ ] **G2F-5 Rounded loft.** Fillet the edges of a rounded loft at G2: the node warns "N fillet joins are tangent only (G1) where the edges kink." and the stripes flow along the chain. **Observed:**
+- [ ] **G2F-6 Too large.** A radius the strips can't take reads "The fillet can't be made curvature continuous at this radius." with the largest radius that works; using it succeeds. **Observed:**
+- [ ] **G2F-7 Downstream pick.** Pick the fillet's edges in an Edges by Tag rule feeding a Chamfer, then switch Continuity G1, G2 and G1 again: the pick and the Chamfer survive each switch. **Observed:**
+- [ ] **G2F-8 Continuity row.** On a G2 fillet's spring edge, the edge readout's Continuity row reads G2 (G1 for a circular fillet). This needs the readout PR (the Continuity row), which is not in this branch: skip until it merges. **Observed:**
+
 ## Group GA — Implicit blend continuity (G-a)
 
 - [ ] **GA-1 G1, G2 and G3 under zebra.** Union a sphere and a box with a 3 mm blend and switch on Zebra stripes (Z). Set `continuity` to G1, G2 and G3 in turn: G1's stripes kink where the blend meets the operands, G2's bend smoothly with no kink, G3 is as smooth and as smooth and a touch shallower. New Union, Subtract and Intersect nodes read G2; new TPMS, Strut Lattice and Voronoi Lattice nodes read G1 (the skin join is tuned for printability, and G2 at 1 mm left voids on the lightweight bracket), with G2 and G3 selectable. **Observed:**

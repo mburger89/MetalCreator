@@ -113,7 +113,7 @@ today (`−smin(−a, −b)`, `−smin(−a, b)`).
 ### Behaviour
 
 - Fillet node: `continuity` (segmented Tangent / Curvature, default **Tangent**, **call**: matching Fusion's default and
-  needing no migration, since a missing input reads Tangent) and `tangencyWeight` (number, 0.1 to 2.0, default 1.0, shown
+  needing no migration, since a missing input reads Tangent) and `tangency weight` (number, 0.1 to 2.0, default 1.0, shown
   only for Curvature through `NodeDefinition.inspector(for:)`). The radius handle works as today.
 - A G2 fillet has the same faces as the G1 fillet of the same radius and edges: same count, same tags
   (`TopoRole.blend(sourceEdge:)`), same spring edges on the neighbouring faces. Only the blend faces' surfaces differ.
@@ -125,6 +125,11 @@ today (`−smin(−a, −b)`, `−smin(−a, b)`).
   `Kernel.continuity`'s sampler. A strip seam out of tolerance makes the blend fail like an invalid one ("The fillet can't be
   made curvature continuous at this radius."), and `largestValidBlend` searches for the largest radius that passes both the
   validity check and this one. The cost is measured by the benchmark row.
+- **Erratum 2026-11-01 (final review):** the self-check uses the shim's own seam sampler, `measure_seam`, not
+  `Kernel.continuity`'s: it measures the same quantity at the same tolerances, and `Kernel.continuity` lives on the readout
+  branch. The shim judges every promised spring seam itself (the report's `seams` array is a sample of the first 64;
+  `seams_total` counts them all) and fails the build on a miss; the G2 corner seams are judged on the final solid at the
+  same tolerances, a miss rerunning the fillet with the patches off, and the G1 corner seams at the angle tolerance.
 - **Coverage (erratum 2026-11-01, the user's choice "Extend, incl. G2 corners"):** a G2 fillet handles closed strips
   (holes), chains that run into a wall, strips that end slantwise on a face (trimmed by it; the run-out stays a crease) and two
   strips meeting in a mitre (trimmed by each other; the mitre is a crease, as it is between two circular fillets meeting at an
@@ -216,3 +221,12 @@ mesh. It is a view-only value like the rest of Measure: no command, no undo step
   needs a profile that knows its face and our own end-constrained skinning (ThruSections has none). Its own design.
 - G3 fillets (a degree-7 section), conic fillets, setback corners.
 - Mesh import (from the zebra design's Later).
+
+## Erratum (2026-11-01): corners
+
+Step 5 of "Construction" and the "Where G2 can't be reached" bullet above still say corners are "MakeFilling G2, else G1". They are
+not. A right-angle corner of three fillets is rebuilt with our own degree-17 triangular Bezier patch, wherever that patch is accepted
+(position, angle and curvature checks along its three seams, a regular and gentle surface); every other corner, or one whose patch is not
+accepted, gets the G1 refill (`BRepFill_Filling` at G1, one plain attempt: loading the circular corner as the initial surface never
+worked with the new boundary edges and took 25 s on a pyramid's apex) with the "N fillet corners are tangent only (G1)." warning. A corner
+that misses G1 still fails the fillet, and an invalid solid is never returned.
