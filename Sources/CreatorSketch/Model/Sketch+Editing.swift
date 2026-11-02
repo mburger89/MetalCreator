@@ -117,10 +117,14 @@ extension Sketch {
     /// every constraint, dimension and warm-start value that refers to anything removed.
     public mutating func removeEntity(_ id: SketchEntityID) {
         var doomed: Set<SketchEntityID> = [id]
+        // A spline loses just that fit point while two or more remain; its other constraints stay.
+        let shortened = removingFitPoint(id)
+        doomed.formUnion(shortened.doomed)
         var changed = true
         while changed {
             changed = false
-            for (other, entity) in entities where !doomed.contains(other) && !doomed.isDisjoint(with: entity.kind.referencedPoints) {
+            for (other, entity) in entities where !doomed.contains(other) && !shortened.shortened.contains(other)
+                && !doomed.isDisjoint(with: entity.kind.referencedPoints) {
                 doomed.insert(other)
                 changed = true
             }
@@ -131,6 +135,44 @@ extension Sketch {
         }
         constraints = constraints.filter { doomed.isDisjoint(with: $0.value.entities) }
         dimensions = dimensions.filter { doomed.isDisjoint(with: $0.value.kind.entities) }
+        for spline in shortened.shortened { dropJointConstraintsWithoutSharedEnd(on: spline) }
+    }
+
+    /// Takes the point `id` out of every spline through it that keeps two or more fit points (its handle state and value go with
+    /// it). `shortened` are those splines; `doomed` the ones left with fewer, which go with the point.
+    private mutating func removingFitPoint(_ id: SketchEntityID) -> (shortened: [SketchEntityID], doomed: Set<SketchEntityID>) {
+        guard case .point? = entities[id]?.kind else { return ([], []) }
+        var shortened: [SketchEntityID] = []
+        var doomed: Set<SketchEntityID> = []
+        for spline in entityIDs {
+            guard case .spline(let points, let states)? = entities[spline]?.kind, points.contains(id) else { continue }
+            let kept = points.indices.filter { points[$0] != id }
+            guard kept.count >= 2 else {
+                doomed.insert(spline)
+                continue
+            }
+            var values = storedSplineHandles(of: spline)
+            while values.count < points.count { values.append(.automatic) }
+            let keptStates = kept.map { $0 < states.count ? states[$0] : SplineHandleState.automatic }
+            entities[spline]?.kind = .spline(points: kept.map { points[$0] }, handles: keptStates)
+            solved[spline] = .splineHandles(kept.map { values[$0] })
+            shortened.append(spline)
+        }
+        return (shortened, doomed)
+    }
+
+    /// A Tangent or Curvature between a spline and a curve that no longer share an end (the spline's end went) goes.
+    private mutating func dropJointConstraintsWithoutSharedEnd(on spline: SketchEntityID) {
+        let ends = Set(curveEnds(of: spline))
+        constraints = constraints.filter { _, constraint in
+            switch constraint {
+            case .tangent(let a, let b), .curvature(let a, let b):
+                guard a == spline || b == spline else { return true }
+                return !ends.isDisjoint(with: curveEnds(of: a == spline ? b : a))
+            default:
+                return true
+            }
+        }
     }
 
     /// Removes point entities that no curve uses and no constraint or dimension mentions.

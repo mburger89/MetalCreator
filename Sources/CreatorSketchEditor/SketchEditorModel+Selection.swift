@@ -26,9 +26,11 @@ extension SketchEditorModel {
             return
         }
         var edited = sketch
+        // A joint with a spline makes the handles it constrains active, at the value they have, so the curve starts unchanged.
+        edited.activateHandles(for: constraint)
         edited.add(constraint)
         selection = []
-        commit(edited, kind.title, named: SketchStepName.addConstraint)
+        commit(edited, kind.title, named: kind == .curvature ? SketchStepName.addCurvatureConstraint : SketchStepName.addConstraint)
     }
 
     /// Delete: removes the selected entities with everything built on them and every constraint and dimension on

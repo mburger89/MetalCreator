@@ -101,7 +101,7 @@ extension Sketch {
     }
 
     /// The point entities a curve ends at: a line's, an arc's and a spline's first and last fit point.
-    func curveEnds(of id: SketchEntityID) -> [SketchEntityID] {
+    public func curveEnds(of id: SketchEntityID) -> [SketchEntityID] {
         switch entities[id]?.kind {
         case .line(let start, let end): [start, end]
         case .arc(_, let start, let end): [start, end]
@@ -145,5 +145,41 @@ extension Sketch {
         let positions = points.compactMap { solution.points[$0] ?? position(of: $0) }
         guard positions.count == points.count else { return nil }
         return SplineDefinition(points: positions, handles: solution.handles[id] ?? storedSplineHandles(of: id))
+    }
+}
+
+/// Where the pointer wants an active spline handle's vector during a drag (`SketchSolver.solve(_:dragging:draggingHandles:)`).
+public struct SplineHandleTarget: Hashable, Sendable {
+    public var spline: SketchEntityID
+    public var index: Int
+    public var kind: SplineHandleKind
+    public var value: Vector2
+
+    public init(spline: SketchEntityID, index: Int, kind: SplineHandleKind, value: Vector2) {
+        self.spline = spline
+        self.index = index
+        self.kind = kind
+        self.value = value
+    }
+}
+
+extension Sketch {
+    /// Makes the handles a Tangent or Curvature constraint uses active, at every end its spline (or splines) share with the
+    /// other curve: the tangent handle for Tangent, both for Curvature. Each keeps its current value, so the curve does not
+    /// change until the solver applies the constraint. Any other constraint does nothing.
+    public mutating func activateHandles(for constraint: SketchConstraint) {
+        let (a, b, kinds): (SketchEntityID, SketchEntityID, [SplineHandleKind])
+        switch constraint {
+        case .tangent(let first, let second): (a, b, kinds) = (first, second, [.tangent])
+        case .curvature(let first, let second): (a, b, kinds) = (first, second, [.tangent, .curvature])
+        default: return
+        }
+        for (spline, other) in [(a, b), (b, a)] {
+            guard let (points, _) = splineParts(of: spline) else { continue }
+            let shared = Set(curveEnds(of: other))
+            for index in [0, points.count - 1] where shared.contains(points[index]) {
+                for kind in kinds { activateSplineHandle(spline, at: index, kind) }
+            }
+        }
     }
 }

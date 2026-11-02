@@ -13,7 +13,8 @@ enum SketchOverlayBuilder {
     static let pointSize = 6.0
 
     static func overlay(sketch: Sketch, solution: SketchSolution, plane: Plane, selection: Set<SketchEntityID>,
-                        hovered: SketchEntityID?, preview: SketchPreview, fills: [OverlayFill] = []) -> ViewportOverlay {
+                        hovered: SketchEntityID?, preview: SketchPreview, fills: [OverlayFill] = [],
+                        handleSplines: [SketchEntityID] = [], hoveredKnob: HandleKnob? = nil) -> ViewportOverlay {
         var lines: [OverlayLine] = []
         var points: [OverlayPoint] = []
         for id in sketch.entityIDs {
@@ -26,6 +27,11 @@ enum SketchOverlayBuilder {
             }
             let polyline = self.polyline(of: entity.kind, sketch: sketch, solution: solution, id: id)
             lines += segments(polyline, on: plane, tint: tint, width: width, dashed: entity.isConstruction)
+        }
+        for spline in handleSplines {
+            let handles = handles(of: spline, sketch: sketch, solution: solution, plane: plane, hoveredKnob: hoveredKnob)
+            lines += handles.lines
+            points += handles.points
         }
         for curve in preview.curves {
             lines += segments(polyline(of: curve), on: plane, tint: .preview, width: curveWidth, dashed: false)
@@ -95,7 +101,37 @@ enum SketchOverlayBuilder {
         case .line(let a, let b): [a, b]
         case .circle(let center, let radius): EditorGeometry.circlePoints(center: center, radius: radius)
         case .arc(let center, let start, let end): EditorGeometry.arcPoints(center: center, start: start, end: end)
+        case .spline(let through): splinePolyline(through: through)
         }
+    }
+
+    /// A spline through `positions` with automatic handles, as a polyline; the points themselves when it has no length.
+    static func splinePolyline(through positions: [Vector2]) -> [Vector2] {
+        var distinct: [Vector2] = []
+        for position in positions where distinct.last.map({ ($0 - position).length > 1e-6 }) ?? true { distinct.append(position) }
+        guard distinct.count >= 2 else { return distinct }
+        return SplineDefinition(points: distinct).curve().polyline()
+    }
+
+    /// A spline's handles: at each fit point a tangent line with a knob at each end and a curvature arc with its knob, the
+    /// automatic ones in the construction colour, the active ones in the under-constrained colour and the hovered knob lit.
+    static func handles(of spline: SketchEntityID, sketch: Sketch, solution: SketchSolution, plane: Plane,
+                        hoveredKnob: HandleKnob?) -> (lines: [OverlayLine], points: [OverlayPoint]) {
+        guard let definition = sketch.splineDefinition(of: spline, solution: solution),
+              let states = sketch.splineParts(of: spline)?.handles else { return ([], []) }
+        var lines: [OverlayLine] = []
+        var points: [OverlayPoint] = []
+        for index in definition.points.indices {
+            let state = index < states.count ? states[index] : .automatic
+            for (knob, at) in SplineHandleGeometry.knobs(of: spline, at: index, definition: definition) {
+                let isActive = knob.kind == .tangent ? state.tangent : state.curvature
+                let tint: OverlayTint = knob == hoveredKnob ? .hovered : isActive ? .underConstrained : .construction
+                lines += segments(SplineHandleGeometry.glyph(of: knob, at: at, point: definition.points[index]), on: plane, tint: tint,
+                                  width: curveWidth, dashed: !isActive)
+                points.append(OverlayPoint(plane.point(at), tint: tint, size: pointSize))
+            }
+        }
+        return (lines, points)
     }
 
     static func segments(_ polyline: [Vector2], on plane: Plane, tint: OverlayTint, width: Double, dashed: Bool) -> [OverlayLine] {

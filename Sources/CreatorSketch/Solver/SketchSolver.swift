@@ -5,8 +5,10 @@ import CreatorGeometry
 /// freedom analysis, and minimal conflict sets. Pure and deterministic.
 public enum SketchSolver {
     /// Solves `sketch`. `dragging` maps point entities to where the pointer wants them; those
-    /// points become soft targets and everything else slides along its remaining freedom.
-    public static func solve(_ sketch: Sketch, dragging: [SketchEntityID: Vector2] = [:]) -> SketchSolution {
+    /// points become soft targets and everything else slides along its remaining freedom. `draggingHandles` does the same for
+    /// active spline handles (a handle that is automatic has no unknowns and is ignored).
+    public static func solve(_ sketch: Sketch, dragging: [SketchEntityID: Vector2] = [:],
+                             draggingHandles: [SplineHandleTarget] = []) -> SketchSolution {
         let layout = UnknownLayout(sketch)
         let x0 = layout.warmStart(sketch)
         let built: TermBuilder.Output
@@ -19,7 +21,11 @@ public enum SketchSolver {
             guard let column = layout.pointColumns[id], let target = dragging[id], target.isFinite else { return nil }
             return SolverTerm(role: .drag, equation: .target(.unknown(column: column), target))
         }
-        let partition = ComponentPartition(terms: built.terms + drags, layout: layout)
+        let handleDrags = draggingHandles.compactMap { target -> SolverTerm? in
+            guard let column = layout.handleColumn(target.spline, target.index, target.kind), target.value.isFinite else { return nil }
+            return SolverTerm(role: .drag, equation: .target(.unknown(column: column), target.value))
+        }
+        let partition = ComponentPartition(terms: built.terms + drags + handleDrags, layout: layout)
         var x = x0
         var conflictSets: [[SketchConstraintRef]] = []
         var freeColumns = Set<Int>()

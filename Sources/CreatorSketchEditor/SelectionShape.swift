@@ -9,15 +9,18 @@ struct SelectionShape {
     var rounds: [SketchEntityID] = []
     /// Projected edges.
     var projected: [SketchEntityID] = []
-    /// Splines (Task 5 builds the constraint and dimension tools that use them).
+    /// Splines, for the Tangent and Curvature joints.
     var splines: [SketchEntityID] = []
+    /// The arcs among `rounds` (a joint is made with an arc, never a circle).
+    var arcs: Set<SketchEntityID> = []
 
     init(_ selection: Set<SketchEntityID>, in sketch: Sketch) {
         for id in selection.sorted() {
             switch sketch.entities[id]?.kind {
             case .point?: points.append(id)
             case .line?: lines.append(id)
-            case .arc?, .circle?: rounds.append(id)
+            case .arc?: rounds.append(id); arcs.insert(id)
+            case .circle?: rounds.append(id)
             case .projected?: projected.append(id)
             case .spline?: splines.append(id)
             case nil: break
@@ -27,9 +30,18 @@ struct SelectionShape {
 
     var count: Int { points.count + lines.count + rounds.count + projected.count + splines.count }
 
-    /// Exactly `points` points, `lines` lines and `rounds` arcs or circles, and nothing else.
-    func `is`(points: Int = 0, lines: Int = 0, rounds: Int = 0) -> Bool {
-        self.points.count == points && self.lines.count == lines && self.rounds.count == rounds && projected.isEmpty && splines.isEmpty
+    /// Exactly `points` points, `lines` lines, `rounds` arcs or circles and `splines` splines, and nothing else.
+    func `is`(points: Int = 0, lines: Int = 0, rounds: Int = 0, splines: Int = 0) -> Bool {
+        self.points.count == points && self.lines.count == lines && self.rounds.count == rounds && projected.isEmpty
+            && self.splines.count == splines
+    }
+
+    /// A spline and the line, arc or second spline it is joined to, when that is the whole selection.
+    private var joint: (SketchEntityID, SketchEntityID)? {
+        if `is`(lines: 1, splines: 1) { return (splines[0], lines[0]) }
+        if `is`(rounds: 1, splines: 1), arcs.contains(rounds[0]) { return (splines[0], rounds[0]) }
+        if `is`(splines: 2) { return (splines[0], splines[1]) }
+        return nil
     }
 
     // The constraint `kind` makes from this selection, or `nil` when the selection doesn't fit it: one case per
@@ -45,7 +57,9 @@ struct SelectionShape {
         case .vertical: return `is`(lines: 1) ? .vertical(lines[0]) : `is`(points: 2) ? .verticalPoints(points[0], points[1]) : nil
         case .parallel: return `is`(lines: 2) ? .parallel(lines[0], lines[1]) : nil
         case .perpendicular: return `is`(lines: 2) ? .perpendicular(lines[0], lines[1]) : nil
+        case .curvature: return joint.map { .curvature($0, $1) }
         case .tangent:
+            if let joint { return .tangent(joint.0, joint.1) }
             if `is`(lines: 1, rounds: 1) { return .tangent(lines[0], rounds[0]) }
             return `is`(rounds: 2) ? .tangent(rounds[0], rounds[1]) : nil
         case .equal:

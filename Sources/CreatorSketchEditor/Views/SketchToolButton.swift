@@ -24,6 +24,7 @@ extension SketchTool {
         case .line: "l"
         case .arc: "a"
         case .circle: "c"
+        case .spline: "s"
         case .dimension: "d"
         case .trim: "t"
         case .project: "p"

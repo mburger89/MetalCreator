@@ -32,6 +32,21 @@ struct SketchPicker {
         return best?.id
     }
 
+    /// The nearest handle knob of `splines` to `p` within `tolerance` mm.
+    func handleKnob(near p: Vector2, tolerance: Double, splines: [SketchEntityID]) -> (knob: HandleKnob, distance: Double)? {
+        var best: (knob: HandleKnob, distance: Double)?
+        for spline in splines {
+            guard let definition = sketch.splineDefinition(of: spline, solution: solution) else { continue }
+            for index in definition.points.indices {
+                for (knob, at) in SplineHandleGeometry.knobs(of: spline, at: index, definition: definition) {
+                    let distance = (at - p).length
+                    if distance <= tolerance, distance < (best?.distance ?? .infinity) { best = (knob, distance) }
+                }
+            }
+        }
+        return best
+    }
+
     /// The entity a click at `p` picks: a point first, else a curve.
     func entity(near p: Vector2, tolerance: Double) -> SketchEntityID? {
         point(near: p, tolerance: tolerance)?.id ?? curve(near: p, tolerance: tolerance)
