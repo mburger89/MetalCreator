@@ -30,6 +30,8 @@ extension Evaluator {
         }
         // A node that meshes works differently for a preview and for an export, so the two don't share a cached result.
         if definition.readsMeshQuality { hasher.combine(setup.meshQuality) }
+        // A node that previews cheaper during a drag makes a different result then, so a drag's result is kept apart.
+        if definition.readsScrubbing(for: node) { hasher.combine(setup.isScrubbing) }
         if definition.readsParameters {
             for (id, value) in setup.parameters.sorted(by: { $0.key < $1.key }) {
                 hasher.combine(id)
@@ -82,7 +84,7 @@ extension Evaluator {
                 let context = EvalContext(node: node, item: item, parameters: setup.parameters, isTreeRun: plan.isTreeRun,
                                           fieldDistances: setup.fieldDistances, images: setup.images,
                                           meshQuality: setup.meshQuality, implicitEngine: setup.implicitEngine,
-                                          meshProgress: setup.meshProgress)
+                                          meshProgress: setup.meshProgress, isScrubbing: setup.isScrubbing)
                 let outputs = try await definition.evaluate(plan.inputs(at: item), kernel: kernel, context: context)
                 try collector.record(outputs, specs: outputSpecs, iterations: plan.iterations)
             }

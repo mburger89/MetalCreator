@@ -17,6 +17,8 @@ struct EvaluationSetup: Sendable {
     var meshQuality: MeshQuality = .preview
     var implicitEngine: ImplicitEngineChoice = .cpu
     var meshProgress: MeshProgress = .none
+    /// A drag is in progress (`EvalContext.isScrubbing`).
+    var isScrubbing = false
 
     /// The nodes of `graph`, the inside of the group node at instance path `path`, that the inspected level asks for:
     /// all of them when `path` is the level, else the one group node on the way down to it.

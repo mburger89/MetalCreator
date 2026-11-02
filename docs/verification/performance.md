@@ -1042,6 +1042,26 @@ BENCH g2-fillet-1 bracket fillets G1, edit to preview: median 12.88 ms, p95 13.5
 BENCH g2-fillet-1 bracket fillets G2, edit to preview: median 354.23 ms, p95 367.14 ms, max 369.98 ms (n 35)
 ```
 
+### G2 drag preview (`g2-fillet-drag`)
+
+While a slider or handle drag is in progress a G2 fillet is built as its circular (G1) fillet (`DocumentModel.isScrubbing`); the release builds G2 once. Row `g2-fillet-drag` is the same bracket and steps as `g2-fillet-1` with the Fillet at Curvature (G2), driven from the radius handle's `.changed` steps, then one `.ended`. `g2-fillet-1` now makes its edits as typed values (not handle drags), so it still measures the G2 build. Release, `Tests/CreatorAppTests/Bench/G2FilletBench.swift`, 2026-11-02, Mac18,5, 12 cores. Load averages (1, 5, 15 min) 3.14 / 9.87 / 10.08 before the run and 12.94 / 12.07 / 10.98 after, with other agents running: **saturated, not a verdict**.
+
+| Row | Median (p95; max) |
+|---|---|
+| `g2-fillet-1` bracket fillets G1, edit to preview | 13.01 ms (13.61; 13.76) |
+| `g2-fillet-1` bracket fillets G2, edit to preview | 361.56 ms (396.96; 397.92) |
+| `g2-fillet-drag` G2 fillet, drag step (G1 preview) | 13.02 ms (13.27; 13.98) |
+| `g2-fillet-drag` G2 fillet, release (G2 built) | 332.21 ms (one sample) |
+
+A drag step on a G2 fillet costs what a G1 edit does (about 13 ms against 360 ms); the release pays the G2 build once.
+
+```text
+BENCH g2-fillet-1 bracket fillets G1, edit to preview: median 13.01 ms, p95 13.61 ms, max 13.76 ms (n 35)
+BENCH g2-fillet-1 bracket fillets G2, edit to preview: median 361.56 ms, p95 396.96 ms, max 397.92 ms (n 35)
+BENCH g2-fillet-drag G2 fillet, drag step (G1 preview), edit to preview: median 13.02 ms, p95 13.27 ms, max 13.98 ms (n 35)
+BENCH g2-fillet-drag G2 fillet, release (G2 built), edit to preview: median 332.21 ms, p95 332.21 ms, max 332.21 ms (n 1)
+```
+
 Corner fix (same day): the G1 corner refill no longer tries the circular corner as an initial surface first. A square pyramid's apex (four hip fillets, `aFourFilletCornerIsCountedOrRefused`) took 25.7 s before (the failed first attempt in `Plate_Plate::SolveTI1`) and 0.040 s for the whole test after; the three non-orthogonal corner tests take 0.19 s together.
 
 ## Raw output

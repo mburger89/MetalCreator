@@ -26,6 +26,12 @@ public protocol NodeDefinition: Sendable {
     /// True if `evaluate` reads `context.meshQuality` (the Mesh node, and the Output node that meshes an implicit wired into it), so a
     /// preview and an export don't share a cached result.
     static var readsMeshQuality: Bool { get }
+    /// True if `evaluate` reads `context.isScrubbing` (a drag in progress), so a preview made during a drag and the result made after
+    /// it don't share a cached result.
+    static var readsScrubbing: Bool { get }
+    /// Whether `node`, as it is set now, depends on `isScrubbing`. A node whose settings make it ignore the flag returns false and
+    /// keeps its cached result across a drag. Defaults to `readsScrubbing`.
+    static func readsScrubbing(for node: Node) -> Bool
     /// True if `evaluate` places copies of a tool (`Kernel.place`), whose faces are named by the node and the tool's
     /// tag nodes (patterns spec §6, `NodeID.instanceScoped`), so a group instance must rename those pairs too.
     static var placesInstances: Bool { get }
@@ -52,6 +58,8 @@ extension NodeDefinition {
     public static var handles: [HandleSpec] { [] }
     public static var readsParameters: Bool { false }
     public static var readsMeshQuality: Bool { false }
+    public static var readsScrubbing: Bool { false }
+    public static func readsScrubbing(for node: Node) -> Bool { readsScrubbing }
     public static var placesInstances: Bool { false }
     public static var singleValuesRefusal: String? { nil }
     public static var defaultSettings: [SocketName: ConstantValue] { [:] }

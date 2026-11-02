@@ -198,14 +198,10 @@ extension G2FilletCoverageTests {
         #expect(Set(all).count == 1, "section counts differ across last-bit radius changes: \(all)")
     }
 
-    /// The smooth rounded loft sits at the section cap on one strip: it builds (valid, G2) or is refused with the strip
-    /// message, depending on the platform's arithmetic (macOS refuses after about 15 s in a debug build, Linux builds).
-    @Test func aSmoothRoundedLoftChainBuildsOrIsRefusedAtTheCap() throws {
-        do {
-            let built = try base.build(try loft([20, 17, 16], rounded: true, ruled: false), midpoints: [[0, -8, 10]], radius: 1)
-            base.expectSpringsG2(built, seams: 2 * Int(built.report.strips))
-        } catch let error as OCCTError {
-            #expect(error.message == "The fillet can't be made curvature continuous at this radius.")
-        }
+    /// The smooth rounded loft builds valid and G2 (it sat at the section cap on one strip until the strip pairing no longer
+    /// depended on last-bit choices, `9a47817`; it builds on macOS and Linux).
+    @Test func aSmoothRoundedLoftChainBuilds() throws {
+        let built = try base.build(try loft([20, 17, 16], rounded: true, ruled: false), midpoints: [[0, -8, 10]], radius: 1)
+        base.expectSpringsG2(built, seams: 2 * Int(built.report.strips))
     }
 }
