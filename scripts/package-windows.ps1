@@ -199,6 +199,10 @@ if ($occtText -notmatch 'GNU LESSER GENERAL PUBLIC LICENSE' -or $occtText -notma
     throw "$occtCopyright doesn't hold the LGPL text and the OCCT exception"
 }
 Copy-Item $occtCopyright (Join-Path $doc 'OpenCascade-LGPL-2.1-with-OCCT-exception.txt')
+# MetalCreator's own licence (MIT requires the notice in distributed copies).
+$ownLicense = Join-Path $root 'LICENSE'
+if (-not (Test-Path $ownLicense)) { throw "MetalCreator's licence is missing: $ownLicense" }
+Copy-Item $ownLicense (Join-Path $doc 'MetalCreator-LICENSE.txt')
 $swiftLicense = Join-Path $root 'packaging\licenses\Swift-LICENSE.txt'
 if (-not (Test-Path $swiftLicense)) { throw "the Swift licence is missing: $swiftLicense" }
 Copy-Item $swiftLicense (Join-Path $doc 'Swift-LICENSE.txt')
@@ -216,6 +220,8 @@ $occtDlls = (Get-ChildItem $folder -Filter 'TK*.dll' | Sort-Object Name | ForEac
 if (-not $occtDlls) { throw 'no TK*.dll in the package folder' }
 @"
 MetalCreator ${version}: third-party software shipped in this package
+
+MetalCreator itself, and MetalUI, are MIT licensed: MetalCreator-LICENSE.txt and MetalUI-LICENSE.txt, in this folder.
 
 OpenCascade Technology (OCCT) 7.9
   Licence:   GNU LGPL version 2.1 with the OCCT exception (OpenCascade-LGPL-2.1-with-OCCT-exception.txt, in this folder).
@@ -249,6 +255,8 @@ MetalUI and the libraries it vendors (stb_image, FreeType, HarfBuzz, libunibreak
 licence files named after each library, in this folder. AccessKit is linked statically into the executable (MIT or Apache-2.0; its
 licence text is not shipped yet: see MetalUI-THIRD-PARTY-NOTICES.md).
 "@ | Set-Content -Path (Join-Path $doc 'NOTICE.txt') -Encoding utf8
+if (-not (Test-Path (Join-Path $metalUI 'LICENSE'))) { throw "MetalUI's licence is missing: $metalUI\LICENSE" }
+Copy-Item (Join-Path $metalUI 'LICENSE') (Join-Path $doc 'MetalUI-LICENSE.txt')
 Copy-Item (Join-Path $metalUI 'THIRD-PARTY-NOTICES.md') (Join-Path $doc 'MetalUI-THIRD-PARTY-NOTICES.md')
 foreach ($f in 'CStbImage/LICENSE', 'CFreeType/FTL.TXT', 'CFreeType/LICENSE.TXT', 'CHarfBuzz/COPYING', 'CUnibreak/LICENCE', 'CSheenBidi/LICENSE') {
     Copy-Item (Join-Path $metalUI "Sources\$f") (Join-Path $doc ((Split-Path $f) + '-' + (Split-Path $f -Leaf)))
