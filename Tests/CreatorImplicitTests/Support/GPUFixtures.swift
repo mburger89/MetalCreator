@@ -61,12 +61,26 @@ enum GPUFixtures {
             } ?? .constant(0), range: 0...1))),
             ("maths", .union([sphere, ImplicitFixtures.cylinder], blend: graded(maths, range: -5...5))),
             ("kernel distance", .shell(sphere, thickness: bakedGrading, side: .centred)),
+            ("union G2", .union([sphere, ImplicitFixtures.cylinder], blend: .constant(3), continuity: .g2)),
+            ("subtract G3", .subtract([sphere, ImplicitFixtures.cylinder], blend: .constant(2.5), continuity: .g3)),
+            ("three-child union G2", threeChildUnion(.g2)),
+            ("three-child union G3", threeChildUnion(.g3)),
+            ("struts G2", .struts(StrutLattice(cell: .bcc, cells: LatticeFixtures.cells(6), radius: .constant(0.5), blend: 0.6,
+                                                region: LatticeFixtures.region, nodeContinuity: .g2))),
+            ("struts G3", .struts(StrutLattice(cell: .bcc, cells: LatticeFixtures.cells(6), radius: .constant(0.5), blend: 0.6,
+                                                region: LatticeFixtures.region, nodeContinuity: .g3))),
+            ("intersect G2", .intersect([sphere, ImplicitFixtures.cylinder], blend: .constant(2), continuity: .g2)),
             ("empty union", .union([], blend: .constant(0))),
             ("empty intersect", .intersect([], blend: .constant(0))),
             ("empty subtract", .subtract([], blend: .constant(0))),
             ("implicit leaf", .offset(sphere, distance: graded(.implicit(ImplicitSolid.sphere(radius: 4).reference), range: -4...30))),
         ]
         return fixtures
+    }
+
+    /// Three overlapping children folded by one smooth union of `continuity` (shared by the CPU fold test and the GPU suites).
+    static func threeChildUnion(_ continuity: BlendContinuity) -> ImplicitSolid {
+        .union([ImplicitFixtures.sphere, ImplicitFixtures.cylinder, ImplicitFixtures.box], blend: .constant(2.5), continuity: continuity)
     }
 
     /// 600 points around the origin, from a fixed seed.

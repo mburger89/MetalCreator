@@ -2344,3 +2344,11 @@ the Output selected so the part is shown.
 - [ ] **G2F-6 Too large.** A radius the strips can't take reads "The fillet can't be made curvature continuous at this radius." with the largest radius that works; using it succeeds. **Observed:**
 - [ ] **G2F-7 Downstream pick.** Pick the fillet's edges in an Edges by Tag rule feeding a Chamfer, then switch Continuity G1, G2 and G1 again: the pick and the Chamfer survive each switch. **Observed:**
 - [ ] **G2F-8 Continuity row.** On a G2 fillet's spring edge, the edge readout's Continuity row reads G2 (G1 for a circular fillet). This needs the readout PR (the Continuity row), which is not in this branch: skip until it merges. **Observed:**
+
+## Group GA — Implicit blend continuity (G-a)
+
+- [ ] **GA-1 G1, G2 and G3 under zebra.** Union a sphere and a box with a 3 mm blend and switch on Zebra stripes (Z). Set `continuity` to G1, G2 and G3 in turn: G1's stripes kink where the blend meets the operands, G2's bend smoothly with no kink, G3 is as smooth and as smooth and a touch shallower. New Union, Subtract and Intersect nodes read G2; new TPMS, Strut Lattice and Voronoi Lattice nodes read G1 (the skin join is tuned for printability, and G2 at 1 mm left voids on the lightweight bracket), with G2 and G3 selectable. **Observed:**
+- [ ] **GA-2 Old file.** Open a graph saved before G-a that has a Union, a Subtract, an Intersect and a lattice with a skin: each reads G1 and the geometry is unchanged. **Observed:**
+- [ ] **GA-3 Strut joints.** On a Strut Lattice with `node blend` above 0, set `continuity` to G2: the struts' joints and the skin join follow it. At G2 the stripes flow across a joint, at G1 they kink. Check a TPMS and a Voronoi Lattice's skin join the same way. **Observed:**
+- [ ] **GA-4 Blend 0.** With `blend` 0 the join is the sharp one whatever `continuity` says. **Observed:**
+- [ ] **GA-5 Live.** Switching `continuity` re-previews without a stall, on a lattice too. **Observed:**

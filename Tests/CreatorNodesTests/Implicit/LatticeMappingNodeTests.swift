@@ -43,7 +43,7 @@ struct LatticeMappingNodeTests {
         #expect(axis.type == .plane && axis.defaultValue == .plane(.xy))
         let centre = try #require(definition.inputs.first { $0.name == "centre" })
         #expect(centre.type == .vector && centre.defaultValue == .vector(.zero))
-        #expect(definition.typeVersion == 2, "no version bump: a file without `mapping` reads the socket's default, Straight")
+        #expect(definition.typeVersion == 3, "no bump for mapping: a file without `mapping` reads the socket's default, Straight")
     }
 
     // MARK: Building
@@ -241,7 +241,7 @@ struct LatticeMappingNodeTests {
         graph.nodes[old.id] = old
         let file = try GraphFileIO.decode(try GraphFileIO.encode(GraphFile(graph: graph)), registry: BuiltInNodes.registry)
         let loaded = try #require(file.graph.nodes[old.id])
-        #expect(loaded.typeVersion == 2 && loaded.inputValues["mapping"] == nil, "nothing is added to the node")
+        #expect(loaded.typeVersion == 3 && loaded.inputValues["mapping"] == nil, "nothing is added to the node")
         let report = try await Evaluator(registry: BuiltInNodes.registry, kernel: FakeKernel()).evaluate(file.graph, demand: [old.id])
         let reopened = try #require(report.implicitSolid(old))
         let current = try await solid(index)

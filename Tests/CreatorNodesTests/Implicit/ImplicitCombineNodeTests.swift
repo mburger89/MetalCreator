@@ -49,7 +49,7 @@ struct ImplicitCombineNodeTests {
         let union = h.add(ImplicitUnionNode.self, ["blend radius": .number(2)])
         h.wire(spheres(&h), "implicit", to: union, "shapes")
         let solid = try #require(try await h.run([union]).implicitSolid(union))
-        #expect(solid.description == "union(sphere(radius 10 mm), sphere(radius 5 mm), blend 2 mm)")
+        #expect(solid.description == "union(sphere(radius 10 mm), sphere(radius 5 mm), blend 2 mm, G2)")
         // The smaller sphere lies wholly inside the bigger one, so it adds no dip at the centre: the union reads −10 there.
         #expect(solid.distance(0, 0, 0) == -10)
         #expect(solid.bounds.max.x == 10.5, "a smooth union may bulge a quarter of the blend radius")
@@ -109,7 +109,7 @@ struct ImplicitCombineNodeTests {
         h.wire(spheres(&h), "implicit", to: union, "shapes")
         let report = try await h.run([union], kernel: kernel)
         let solid = try #require(report.implicitSolid(union), "\(String(describing: report.state(union)))")
-        guard case .union(_, let blend) = solid else { Issue.record("not a union"); return }
+        guard case .union(_, let blend, _) = solid else { Issue.record("not a union"); return }
         #expect(blend.baked.count == 1 && blend.range == 0...3)
         #expect(report.isOK(union))
     }

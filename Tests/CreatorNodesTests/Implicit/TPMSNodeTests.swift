@@ -86,7 +86,9 @@ struct TPMSNodeTests {
         }())
         #expect(solid.lipschitz > plain.lipschitz, "the pattern moves with the size field")
         #expect(solid.description.contains("t = noise("), "the thickness is the field's recipe: \(solid.description)")
-        guard case .intersect(let parts, _) = solid, case .tpms(let lattice) = parts[1] else { Issue.record("not an intersection"); return }
+        guard case .intersect(let parts, _, _) = solid, case .tpms(let lattice) = parts[1] else {
+            Issue.record("not an intersection"); return
+        }
         #expect(lattice.cells.size.constantValue == nil && lattice.thickness.constantValue == nil)
         #expect(report.warning(tpms) == nil || report.warning(tpms)?.contains("“thickness” is below 0") == false)
     }

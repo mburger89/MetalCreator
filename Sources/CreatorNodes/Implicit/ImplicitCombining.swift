@@ -10,11 +10,11 @@ enum ImplicitCombining {
         case union, subtract, intersect
 
         /// The solid the shapes make with `blend`.
-        func combine(_ shapes: [ImplicitSolid], blend: Grading) -> ImplicitSolid {
+        func combine(_ shapes: [ImplicitSolid], blend: Grading, continuity: BlendContinuity = .g1) -> ImplicitSolid {
             switch self {
-            case .union: .union(shapes, blend: blend)
-            case .subtract: .subtract(shapes, blend: blend)
-            case .intersect: .intersect(shapes, blend: blend)
+            case .union: .union(shapes, blend: blend, continuity: continuity)
+            case .subtract: .subtract(shapes, blend: blend, continuity: continuity)
+            case .intersect: .intersect(shapes, blend: blend, continuity: continuity)
             }
         }
     }
@@ -22,11 +22,37 @@ enum ImplicitCombining {
     static let inputs = [
         SocketSpec("shapes", .implicit, access: .list),
         SocketSpec("blend radius", .field, defaultValue: .number(0), unit: .millimetres, range: 0...50),
+        continuitySocket,
     ]
+    /// The order of the smooth minimum, an option index into `BlendContinuity`: G2 on a new node.
+    static let continuitySocket = continuitySocket(default: .g2)
+    /// The same socket with another default: the lattices are G1, the skin join being tuned for printability.
+    static func continuitySocket(default order: BlendContinuity) -> SocketSpec {
+        SocketSpec("continuity", .integer, defaultValue: .integer(order.rawValue), range: 0...2)
+    }
+    /// The labels of the segmented control, in `BlendContinuity` order.
+    static let continuityOptions = BlendContinuity.allCases.map(\.label)
+
+    /// The segmented control that sets it.
+    static let continuityControl = InspectorControl.segmented("continuity", options: continuityOptions)
+
+    /// The migration of a node saved before it had a continuity: it was made with G1, so it keeps it. A node that already stores one
+    /// is left alone.
+    static func continuityMigration(_ node: Node) -> Node {
+        var migrated = node
+        if migrated.inputValues["continuity"] == nil { migrated.inputValues["continuity"] = .integer(BlendContinuity.g1.rawValue) }
+        return migrated
+    }
+
+    /// The `continuity` input.
+    static func continuity(_ inputs: NodeInputs) throws -> BlendContinuity {
+        BlendContinuity(rawValue: try inputs.choice("continuity", options: continuityOptions)) ?? .g1
+    }
+
     static let outputs = [SocketSpec("implicit", .implicit)]
 
     static func inspector(_ title: String) -> [InspectorSection] {
-        [InspectorSection(title: title, controls: [.number("blend radius")])]
+        [InspectorSection(title: title, controls: [.number("blend radius"), continuityControl])]
     }
 
     static func evaluate(_ kind: Kind, _ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
@@ -36,8 +62,10 @@ enum ImplicitCombining {
         let setting = try await ImplicitGrading.make(try inputs.field("blend radius"), named: "blend radius", over: region,
                                                      holdsAtZero: true, kernel: kernel, context: context)
         // One shape, sharp, is that shape; anything else is the combination.
+        // A blend of 0 is the plain minimum whatever the order, so it compiles as G1 and shares that kernel.
         let sharp = setting.grading.constantValue.map { $0 <= 0 } ?? false
-        let result = shapes.count == 1 && sharp ? shapes[0] : kind.combine(shapes, blend: setting.grading)
+        let order = sharp ? BlendContinuity.g1 : try Self.continuity(inputs)
+        let result = shapes.count == 1 && sharp ? shapes[0] : kind.combine(shapes, blend: setting.grading, continuity: order)
         return NodeOutputs(["implicit": .implicit(result.reference)], warnings: setting.warnings)
     }
 }

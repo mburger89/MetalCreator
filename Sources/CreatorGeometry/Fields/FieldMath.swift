@@ -26,11 +26,12 @@ public enum FieldMath {
         minimum(maximum(value, low), high)
     }
 
-    /// Smooth Blend's maths: the polynomial smooth minimum over `width`; width 0 is the plain minimum.
-    public static func smoothMinimum(_ a: Double, _ b: Double, width: Double) -> Double {
+    /// The polynomial smooth minimum over `width` (`BlendContinuity` says which); width 0 is the plain minimum. Smooth Blend keeps
+    /// the default, G1.
+    public static func smoothMinimum(_ a: Double, _ b: Double, width: Double,
+                                     continuity: BlendContinuity = .g1) -> Double {
         guard width > 0 else { return minimum(a, b) }
         guard !a.isNaN, !b.isNaN else { return .nan }
-        let blend = max(width - abs(a - b), 0) / width
-        return min(a, b) - blend * blend * width / 4
+        return min(a, b) - continuity.dip(width: width, gap: abs(a - b))
     }
 }

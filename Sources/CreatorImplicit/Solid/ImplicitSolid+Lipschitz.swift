@@ -1,7 +1,7 @@
 extension ImplicitSolid {
     /// A constant L ≥ 1 with |f(a) − f(b)| ≤ L · |a − b| (implicit spec §2.1, §3.3). Primitives and moves are exact; a baked
-    /// distance has the slope bound of its interpolation (`DistanceBlocks.lipschitz`). A smooth blend takes the largest of its children's plus a quarter of the blend radius's slope (the blend term
-    /// k·h²/4 changes by at most a quarter per unit of k). An offset or a shell takes its child's times one plus the slope of its
+    /// distance has the slope bound of its interpolation (`DistanceBlocks.lipschitz`). A smooth blend takes the largest of its children's plus the blend radius's slope times the continuity's `dipSlope` (the blend term
+    /// changes by at most that per unit of k: a quarter for G1). An offset or a shell takes its child's times one plus the slope of its
     /// distance. An isosurface divides the field's slope by `maxSlope`.
     public var lipschitz: Double {
         switch self {
@@ -11,8 +11,9 @@ extension ImplicitSolid {
             return blocks.lipschitz
         case .moved(let child, _):
             return child.lipschitz
-        case .union(let children, let blend), .intersect(let children, let blend), .subtract(let children, let blend):
-            return max(1, children.map(\.lipschitz).max() ?? 1) + blend.slope / 4
+        case .union(let children, let blend, let continuity), .intersect(let children, let blend, let continuity),
+             .subtract(let children, let blend, let continuity):
+            return max(1, children.map(\.lipschitz).max() ?? 1) + blend.slope * continuity.dipSlope
         case .offset(let child, let distance):
             return child.lipschitz * (1 + distance.slope)
         case .shell(let child, let thickness, _):
@@ -37,7 +38,7 @@ extension ImplicitSolid {
             return .infinity
         case .moved(let child, _):
             return child.exactReach
-        case .union(let children, _), .intersect(let children, _), .subtract(let children, _):
+        case .union(let children, _, _), .intersect(let children, _, _), .subtract(let children, _, _):
             return children.map(\.exactReach).min() ?? .infinity
         case .offset(let child, let distance):
             return max(0, child.exactReach - distance.magnitude)

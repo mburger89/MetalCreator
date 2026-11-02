@@ -28,9 +28,10 @@ public indirect enum ImplicitSolid: Hashable, Sendable {
 
     /// The first child with every other child cut away; with one child, that child. `blend` rounds the joins (the polynomial
     /// smooth minimum); constant 0 is sharp.
-    case subtract([ImplicitSolid], blend: Grading)
-    case union([ImplicitSolid], blend: Grading)
-    case intersect([ImplicitSolid], blend: Grading)
+    /// `continuity` picks the smooth minimum's order (`BlendContinuity`, G1 by default).
+    case subtract([ImplicitSolid], blend: Grading, continuity: BlendContinuity = .g1)
+    case union([ImplicitSolid], blend: Grading, continuity: BlendContinuity = .g1)
+    case intersect([ImplicitSolid], blend: Grading, continuity: BlendContinuity = .g1)
     /// The surface moved outwards by `distance` (inwards when negative).
     case offset(ImplicitSolid, distance: Grading)
     /// A wall of `thickness` on `side` of the surface.
