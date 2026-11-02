@@ -42,6 +42,11 @@ public final class DocumentModel {
         didSet { if let homeCamera, !homeCamera.isFinite { self.homeCamera = oldValue } }
     }
     public var showsLibrary: Bool
+    /// True while a slider or handle drag is in progress. Evaluations during it may be cheaper previews (`EvalContext.isScrubbing`);
+    /// ending it schedules the full evaluation. Session state: not saved, no undo step, no edit.
+    public var isScrubbing = false {
+        didSet { if oldValue && !isScrubbing { scheduleEvaluation() } }
+    }
     /// The section view's settings; view state, so changing them is no edit. Settings with a non-finite offset are refused.
     public var section: SectionSettings? {
         didSet { if let section, !section.offset.isFinite { self.section = oldValue } }
@@ -316,12 +321,13 @@ public final class DocumentModel {
         let level = inspectedLevel
         let evaluator = evaluator
         let resolver = imageResolver
+        let scrubbing = isScrubbing
         isEvaluating = true
         evaluationTask = Task {
             let report: EvaluationReport
             do {
                 report = try await evaluator.evaluate(snapshot.graph, definitions: snapshot.definitions, demand: demand,
-                                                inspecting: level, images: resolver)
+                                                inspecting: level, images: resolver, isScrubbing: scrubbing)
             } catch {
                 return  // Cancelled: a newer generation is already scheduled.
             }

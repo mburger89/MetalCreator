@@ -34,13 +34,14 @@ public actor Evaluator {
     /// hears how far a long meshing has got.
     public func evaluate(_ graph: Graph, definitions: [GroupID: GroupDefinition] = [:], demand: Set<NodeID>,
                          inspecting level: [NodeID] = [], images: ImageResolver = ImageResolver(),
-                         meshQuality: MeshQuality = .preview, progress: MeshProgress = .none) async throws -> EvaluationReport {
+                         meshQuality: MeshQuality = .preview, progress: MeshProgress = .none,
+                         isScrubbing: Bool = false) async throws -> EvaluationReport {
         // Entries of nodes no longer anywhere (deleted, or inside a group node that's gone) leave the cache.
         cache.removeEntries(notIn: graph.scopedNodeIDs(definitions: definitions))
         let parameters = Dictionary(graph.parameters.map { ($0.id, $0.value) }, uniquingKeysWith: { first, _ in first })
         let setup = EvaluationSetup(registry: registry.withGroups(definitions), parameters: parameters, inspected: level,
                                     fieldDistances: fieldDistances, images: images, meshQuality: meshQuality,
-                                    implicitEngine: implicitEngine, meshProgress: progress)
+                                    implicitEngine: implicitEngine, meshProgress: progress, isScrubbing: isScrubbing)
         var trace = EvaluationTrace()
         var demand = demand
         if let first = level.first, graph.nodes[first] != nil { demand.insert(first) }

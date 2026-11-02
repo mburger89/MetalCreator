@@ -21,11 +21,14 @@ public struct EvalContext: Sendable {
     public let implicitEngine: ImplicitEngineChoice
     /// Where a node that takes long reports its progress; a context made by hand ignores it.
     public let meshProgress: MeshProgress
+    /// True while a slider or handle drag is in progress: a node that reads it (`NodeDefinition.readsScrubbing`) may make a cheaper
+    /// preview, and the evaluation after the drag makes the full result. A context made by hand is not scrubbing.
+    public let isScrubbing: Bool
 
     public init(node: Node, item: Int, parameters: [ParameterID: ConstantValue], isTreeRun: Bool = false,
                 fieldDistances: FieldDistanceCache = FieldDistanceCache(), images: ImageResolver = ImageResolver(),
                 meshQuality: MeshQuality = .preview, implicitEngine: ImplicitEngineChoice = .cpu,
-                meshProgress: MeshProgress = .none) {
+                meshProgress: MeshProgress = .none, isScrubbing: Bool = false) {
         self.node = node
         self.item = item
         self.parameters = parameters
@@ -35,6 +38,7 @@ public struct EvalContext: Sendable {
         self.meshQuality = meshQuality
         self.implicitEngine = implicitEngine
         self.meshProgress = meshProgress
+        self.isScrubbing = isScrubbing
     }
 
     /// The tag kernel calls should use, so created faces are named after this node and item.

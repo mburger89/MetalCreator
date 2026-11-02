@@ -39,11 +39,19 @@ public enum FilletNode: NodeDefinition {
         return sections(curvature: false)
     }
     public static let handles = [HandleSpec.radial("radius")]
+    public static let readsScrubbing = true
+
+    /// Only a fillet that is (or may be, when `continuity` is wired) Curvature (G2) previews differently while a drag is in progress.
+    public static func readsScrubbing(for node: Node) -> Bool {
+        if case .integer(0)? = node.inputValues["continuity"] { return false }
+        return true
+    }
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let set = try inputs.edgeSet("edges")
         let radius = try inputs.number("radius")
-        let profile: FilletProfile = try inputs.integer("continuity") == 1
+        // A drag previews the circular fillet (identical tags); the G2 surface is built when it ends.
+        let profile: FilletProfile = try inputs.integer("continuity") == 1 && !context.isScrubbing
             ? .curvatureContinuous(weight: try inputs.number("tangency weight")) : .circular
         let made = try await kernel.fillet(set.solid, edges: set.edges, radius: radius, profile: profile, tag: context.tag)
         var outputs = NodeOutputs(["solid": .solid(made.solid)], warnings: warnings(for: made))
