@@ -5,7 +5,7 @@ import Testing
 @testable import CreatorOCCT
 
 /// The kernel recognises the shim's refusals by their wording (`OCCTKernel.weightMessage`, `cornerMessage`); a drift
-/// between `cocct_g2_blend.cpp` and Swift turns them into a generic failure and fails here.
+/// between `cocct_g2_blend_internal.hpp` and Swift turns them into a generic failure and fails here.
 struct G2FilletRefusalWordingTests {
     func edges(of solid: Solid, where keep: (Vector3) -> Bool) -> [EdgeID] {
         solid.topology.edges.filter { keep($0.midpoint) }.map(\.id)
