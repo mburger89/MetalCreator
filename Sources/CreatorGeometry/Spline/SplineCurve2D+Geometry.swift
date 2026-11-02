@@ -165,3 +165,12 @@ enum GaussLegendre {
         }
     }
 }
+
+extension SplineCurve2D {
+    /// The same curve walked the other way: poles reversed, knots mirrored in the parameter range.
+    public func reversed() -> SplineCurve2D {
+        let range = parameterRange
+        let sum = range.lowerBound + range.upperBound
+        return SplineCurve2D(poles: poles.reversed(), knots: knots.reversed().map { sum - $0 }, multiplicities: multiplicities.reversed())
+    }
+}

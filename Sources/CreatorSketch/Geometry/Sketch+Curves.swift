@@ -1,7 +1,7 @@
 import CreatorGeometry
 
 extension Sketch {
-    /// The current shape of a line, arc, circle or projected edge (from `solved`, else drawn),
+    /// The current shape of a line, arc, circle, spline or projected edge (from `solved`, else drawn),
     /// or `nil` for points, suspended projections and degenerate curves.
     func shape(of id: SketchEntityID) -> CurveShape? {
         switch entities[id]?.kind {
@@ -20,10 +20,17 @@ extension Sketch {
             return .arc(center: c, radius: radius, start: 0, sweep: CurveShape.fullTurn)
         case .projected(let source):
             return source.isSuspended ? nil : Self.shape(of: source.curve)
-        default:
-            // Task 4: a spline has no CurveShape case yet (regions, trim and the intersections come with it), so it is not a curve here.
+        case .spline:
+            return splineShape(of: id)
+        case .point, nil:
             return nil
         }
+    }
+
+    private func splineShape(of id: SketchEntityID) -> CurveShape? {
+        guard let definition = splineDefinition(of: id), definition.points.count >= 2 else { return nil }
+        let curve = definition.curve()
+        return curve.isValid ? .spline(curve) : nil
     }
 
     /// The shape of a projected edge's curve, or `nil` when it is degenerate.

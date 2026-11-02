@@ -7,6 +7,8 @@ struct LoopSegment: Hashable, Sendable {
     enum Geometry: Hashable, Sendable {
         case line(Vector2, Vector2)
         case arc(center: Vector2, radius: Double, from: Double, to: Double)
+        /// A spline piece in traversal direction (its start is where the loop enters it).
+        case spline(SplineCurve2D)
     }
 
     var geometry: Geometry
@@ -30,6 +32,7 @@ struct LoopSegment: Hashable, Sendable {
         case .line(let a, let b): (a, b)
         case .arc(let c, let r, let from, let to):
             (SketchMath.point(on: c, radius: r, at: from), SketchMath.point(on: c, radius: r, at: to))
+        case .spline(let curve): (curve.startPoint, curve.endPoint)
         }
         self.init(geometry: geometry, source: source, start: start, end: end)
     }
@@ -38,6 +41,7 @@ struct LoopSegment: Hashable, Sendable {
         switch geometry {
         case .line(let a, let b): .line(a, b)
         case .arc(let c, let r, let from, let to): .arc(center: c, radius: r, start: Angle(radians: from), end: Angle(radians: to))
+        case .spline(let curve): .spline(curve)
         }
     }
 
@@ -46,6 +50,7 @@ struct LoopSegment: Hashable, Sendable {
         switch geometry {
         case .line(let a, let b): (a + b) * 0.5
         case .arc(let c, let r, let from, let to): SketchMath.point(on: c, radius: r, at: (from + to) / 2)
+        case .spline(let curve): curve.point(at: (curve.parameterRange.lowerBound + curve.parameterRange.upperBound) / 2)
         }
     }
 
@@ -54,6 +59,7 @@ struct LoopSegment: Hashable, Sendable {
         let flipped: Geometry = switch geometry {
         case .line(let a, let b): .line(b, a)
         case .arc(let c, let r, let from, let to): .arc(center: c, radius: r, from: to, to: from)
+        case .spline(let curve): .spline(curve.reversed())
         }
         return LoopSegment(geometry: flipped, source: source, start: end, end: start)
     }
@@ -69,6 +75,7 @@ struct LoopSegment: Hashable, Sendable {
             return LoopSegment(geometry: .arc(center: c, radius: r, from: from, to: to + (nextTo - nextFrom)), source: source,
                                start: start, end: next.end)
         default:
+            // A spline piece never joins another: its pieces stay separate profile segments.
             return nil
         }
     }

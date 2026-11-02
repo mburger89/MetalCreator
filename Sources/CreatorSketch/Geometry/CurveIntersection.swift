@@ -18,6 +18,8 @@ enum CurveIntersection {
             found = lineCircle(p, q, center, radius)
         case (.arc(let c1, let r1, _, _), .arc(let c2, let r2, _, _)):
             found = circleCircle(c1, r1, c2, r2)
+        case (.spline, _), (_, .spline):
+            found = splineCrossings(a, b)
         }
         // Endpoints touching the other curve: T-junctions, overlaps and tangent touches whose
         // computed point drifted by rounding.

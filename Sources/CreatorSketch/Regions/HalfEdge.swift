@@ -22,7 +22,8 @@ struct HalfEdge: Hashable, Sendable {
 
     /// Signed curvature as it leaves its origin (left turns positive).
     func curvature(_ graph: RegionGraph) -> Double {
-        isForward ? graph.edges[edge].shape.curvature : -graph.edges[edge].shape.curvature
+        let shape = graph.edges[edge].shape
+        return isForward ? shape.curvature(at: 0) : -shape.curvature(at: shape.parameterEnd)
     }
 
     /// The step this half-edge makes along a loop.
@@ -41,6 +42,8 @@ struct HalfEdge: Hashable, Sendable {
             } else {
                 .arc(center: center, radius: radius, from: start + sweep, to: start)
             }
+        case .spline(let curve):
+            .spline(isForward ? curve : curve.reversed())
         }
         let (from, to) = isForward ? (edge.from, edge.to) : (edge.to, edge.from)
         return LoopSegment(geometry: geometry, source: edge.source, start: graph.vertices[from], end: graph.vertices[to])

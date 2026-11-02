@@ -86,7 +86,8 @@ extension SketchCommands {
     /// inside it, sorted by parameter, one cut per place (the lowest-ID cutter wins).
     static func cuts(of shape: CurveShape, curve: SketchEntityID, in sketch: Sketch) -> [Cut] {
         var cuts: [Cut] = []
-        for other in sketch.curves(includingConstruction: true) where other.source != curve {
+        // A spline is no cutter yet: Point on doesn't hold a point on one.
+        for other in sketch.curves(includingConstruction: true) where other.source != curve && sketch.splineParts(of: other.source) == nil {
             for position in CurveIntersection.points(shape, other.shape) {
                 let t = shape.isFullCircle ? SketchMath.wrapped(shape.parameter(of: position)) : shape.nearestParameter(to: position)
                 let interior = shape.isFullCircle

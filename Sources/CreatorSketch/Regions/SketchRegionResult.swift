@@ -4,6 +4,10 @@ public struct SketchRegionResult: Hashable, Sendable {
     public var regions: [SketchRegion]
     /// Non-construction curves that bound no region (open or dangling).
     public var openCurves: [SketchEntityID]
+    /// Splines that cross themselves: drawn, but left out of the regions.
+    public var selfCrossingSplines: [SketchEntityID] = []
+    /// One sentence per self-crossing spline, "Spline 4 crosses itself, so it isn't part of a region."
+    public var selfCrossingWarnings: [String] = []
 
     /// "2 curves don't form a closed region." when any curve is open, for the node's warning.
     public var warning: String? {

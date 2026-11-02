@@ -11,6 +11,8 @@ enum LoopMeasure {
                 return total + 0.5 * (p.x * q.y - q.x * p.y)
             case .arc(let c, let r, let a, let b):
                 return total + 0.5 * (r * r * (b - a) + r * (c.x * (sin(b) - sin(a)) - c.y * (cos(b) - cos(a))))
+            case .spline(let curve):
+                return total + 0.5 * integrate(curve) { point, velocity in point.x * velocity.y - point.y * velocity.x }
             }
         }
     }
@@ -34,9 +36,19 @@ enum LoopMeasure {
                 }
                 mx += r / 2 * (fx(b) - fx(a))
                 my += r / 2 * (fy(b) - fy(a))
+            case .spline(let curve):
+                mx += 0.5 * integrate(curve) { point, velocity in point.x * point.x * velocity.y }
+                my -= 0.5 * integrate(curve) { point, velocity in point.y * point.y * velocity.x }
             }
         }
         return Vector2(mx, my)
+    }
+
+    /// ∫ f(C(t), C′(t)) dt over a spline by Gauss–Legendre on each knot interval (the integrands are polynomial, so it is exact).
+    static func integrate(_ curve: SplineCurve2D, _ f: (Vector2, Vector2) -> Double) -> Double {
+        zip(curve.knots, curve.knots.dropFirst()).reduce(0) { total, span in
+            total + GaussLegendre.integrate(from: span.0, to: span.1) { f(curve.point(at: $0), curve.derivative(at: $0, order: 1)) }
+        }
     }
 
     /// Even–odd containment by a ray towards +x. Arcs are split at their top and bottom so each
@@ -73,6 +85,16 @@ enum LoopMeasure {
                         let dx = max(0, r * r - dy * dy).squareRoot()
                         return cos((t0 + t1) / 2) >= 0 ? c.x + dx : c.x - dx
                     }
+                }
+            case .spline(let curve):
+                // The curve sampled finely (32 per knot interval) with its true ends, so neighbours agree on a vertex's y.
+                var points = [segment.start]
+                for (a, b) in zip(curve.knots, curve.knots.dropFirst()) {
+                    for step in 1...32 { points.append(curve.point(at: a + (b - a) * Double(step) / 32)) }
+                }
+                points[points.count - 1] = segment.end
+                for (a, b) in zip(points, points.dropFirst()) {
+                    count(a, b) { a.x + (p.y - a.y) * (b.x - a.x) / (b.y - a.y) }
                 }
             }
         }

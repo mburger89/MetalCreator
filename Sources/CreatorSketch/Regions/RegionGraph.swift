@@ -101,6 +101,15 @@ struct RegionGraph: Sendable {
             let tolerance = CurveIntersection.tolerance
             return (c1 - c2).length <= tolerance && abs(r1 - r2) <= tolerance
                 && (a.shape.point(at: s1 / 2) - b.shape.point(at: s2 / 2)).length <= tolerance * 10
+        case (.spline, .spline):
+            // The same piece: the same fractions along it, walked in the same or the opposite sense.
+            let tolerance = CurveIntersection.tolerance * 10
+            let sameSense = a.from == b.from
+            return [0.25, 0.5, 0.75].allSatisfy { fraction in
+                let other = sameSense ? fraction : 1 - fraction
+                let (pointA, pointB) = (a.shape.point(at: a.shape.parameterEnd * fraction), b.shape.point(at: b.shape.parameterEnd * other))
+                return (pointA - pointB).length <= tolerance
+            }
         default:
             return false
         }

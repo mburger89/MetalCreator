@@ -52,7 +52,8 @@ extension SketchCommands {
     static func nearestHit(along probe: CurveShape, runsBackwards: Bool, from curve: SketchEntityID,
                            in sketch: Sketch) -> (distance: Double, position: Vector2, cutter: SketchEntityID)? {
         var best: (distance: Double, position: Vector2, cutter: SketchEntityID)?
-        for other in sketch.curves(includingConstruction: true) where other.source != curve {
+        // A spline is no cutter yet: Point on doesn't hold a point on one.
+        for other in sketch.curves(includingConstruction: true) where other.source != curve && sketch.splineParts(of: other.source) == nil {
             for position in CurveIntersection.points(probe, other.shape) {
                 let t = probe.nearestParameter(to: position)
                 let distance = probe.length(from: 0, to: runsBackwards ? probe.parameterEnd - t : t)
@@ -82,6 +83,9 @@ extension SketchCommands {
             let rest = CurveShape.fullTurn - sweep - 1e-9
             return atEnd ? .arc(center: center, radius: radius, start: start + sweep, sweep: rest)
                 : .arc(center: center, radius: radius, start: start - rest, sweep: rest)
+        case .spline:
+            // Extend refuses splines before it gets here (`refuseSpline`); the curve itself is a harmless answer.
+            return shape
         }
     }
 
@@ -91,6 +95,7 @@ extension SketchCommands {
             switch curve.shape {
             case .line(let a, let b): [a, b]
             case .arc(let c, let r, _, _): [c + Vector2(-r, -r), c + Vector2(r, r)]
+            case .spline(let spline): spline.poles
             }
         }
         guard let first = points.first else { return 1000 }
