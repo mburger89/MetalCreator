@@ -1472,3 +1472,15 @@ BENCH x-1 CPU: first pass of a 100 mm gyroid sheet at 0.78 mm, warm: median 1,49
 BENCH x-2 CPU: thickness edit, warm: median 1,496.78 ms
 COMPILE-TIME 157 kernels in 94.7 s
 ```
+
+## Loft end conditions
+
+Row `loft-ends-1` is a 20 x 20 x 10 box's top face lofted to a 12 x 12 square 10 mm above it at Curvature (G2), unioned with the box, the square's width edited in 0.02 mm steps (12.00 to 12.78, never a cached value), each step timed from the edit to the settled scene and meshes (no drawing). 40 steps, the first 5 dropped. Release, `Tests/CreatorAppTests/Bench/LoftEndsBench.swift`, 2026-11-02, Mac18,5, 12 cores. Load averages (1, 5, 15 min) 5.81 / 11.84 / 14.16 before the run and 9.82 / 11.37 / 13.55 after, with other agents running: **saturated, not a verdict**. No budget is set.
+
+| Row | Median (p95; max) |
+|---|---|
+| `loft-ends-1` box top face to 12 mm square at G2, edit to preview | 294.71 ms (318.18; 336.58) |
+
+```text
+BENCH loft-ends-1 box top face to 12 mm square at G2, edit to preview: median 294.71 ms, p95 318.18 ms, max 336.58 ms (n 35)
+```

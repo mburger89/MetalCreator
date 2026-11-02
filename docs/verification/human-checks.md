@@ -2354,3 +2354,15 @@ the Output selected so the part is shown.
 - [ ] **GA-3 Strut joints.** On a Strut Lattice with `node blend` above 0, set `continuity` to G2: the struts' joints and the skin join follow it. At G2 the stripes flow across a joint, at G1 they kink. Check a TPMS and a Voronoi Lattice's skin join the same way. **Observed:**
 - [ ] **GA-4 Blend 0.** With `blend` 0 the join is the sharp one whatever `continuity` says. **Observed:**
 - [ ] **GA-5 Live.** Switching `continuity` re-previews without a stall, on a lattice too. **Observed:**
+
+## Group LE — Loft end conditions (G-d)
+
+- [ ] **LE-1 Boss from a box face.** Make a 20 x 20 x 10 box and a Rectangle 12 x 12 on a plane 10 mm above its top. Add a Loft: section the Rectangle, `solid` the box, Pick Start Face in View… and click the box's top, then Union the box and the loft. Turn on Zebra stripes (Z). At Free the stripes kink along the four joint edges; at Tangent (G1) they carry across them without a kink; at Curvature (G2) they flow across with no change of curvature. **Observed:**
+- [ ] **LE-2 Measure on a joint edge.** With the part from LE-1, start Measure (M) and click a joint edge: Free reads a crease (G0), Tangent reads G1, Curvature reads G2, on all four edges. **Observed:**
+- [ ] **LE-3 Weight.** At Tangent and at Curvature, drag the start weight through 0.1, 1 and 2: the sides bulge out from the box more as the weight grows, the preview follows without a stall, and a weight of 2 still builds. **Observed:**
+- [ ] **LE-4 Bridge between two boxes.** Union two boxes 20 mm apart (the second smaller and offset), wire the union into a Loft with no section, pick the first box's top as Start and the second box's bottom as End, both at Curvature. The loft builds a bridge, and a Union with the part reads G2 on all eight joint edges (Measure). **Observed:**
+- [ ] **LE-5 Cylinder top to a circle.** A cylinder with a Circle on a plane above it: pick the top as Start at Curvature. The loft builds with no warning, the seam of the circle sits where the section starts, and the stripes flow across the joint. **Observed:**
+- [ ] **LE-6 Curved face refused.** Pick a cylinder's curved wall as the Start face: the Loft says "The loft's end face must be flat." and nothing else changes. With Straight sides (ruled) on and a face picked, it says "Straight sides can't have end conditions." **Observed:**
+- [ ] **LE-7 Pick and clear undo.** Each pick and each Clear is one undo step named "Pick Loft Face" / "Clear Loft Face"; Undo and Redo restore the face and the Continuity rows appear and disappear with it. Picking inside a group says it can't. **Observed:**
+- [ ] **LE-8 Merged and moved faces.** Pick a face a Union merged, then change the other operand so the face is ambiguous: the Loft warns that the face was merged, in the same words Face Pattern uses. Delete the picked pattern instance: the Loft names the instance that no longer exists. **Observed:**
+- [ ] **LE-9 Linux and Windows.** On Linux and on Windows the same boss, bridge and Measure readings (LE-1, LE-2, LE-4) give the same grades. **Observed:**
