@@ -245,6 +245,8 @@ The only fix within one polynomial patch is to choose the sides differently. Bot
 other strip's spring (v_A(b) = v_B(a) = 0, the unique solution when k != 0); at a right angle the square section already does that. So each
 side is the curve u = u_end + g(t) on its strip, with g a quintic, g = g'' = 0 at both ends, and g' at each end the slope that turns the
 side onto the neighbouring strip's spine. This is also what the across scales ask of the cross derivatives, so the solve is unchanged. The
-strip is cut back (hexagon) or carried on into the hole (triangle) by that curve, through a quintic pcurve. The side is the quintic through
+strip is cut back (hexagon, 0.19 mm at r = 1) or carried on into the hole (triangle, 0.19 mm) by that curve, through a quintic pcurve. A
+strip carried on has its B-spline surface extended exactly and in place first (the end span's polynomial re-blossomed over the longer u
+range, the old range's parameters unchanged), so no pcurve leaves its surface's domain and meshers and STEP readers see an ordinary face. The side is the quintic through
 six points of it: exact on an extrusion, refused when it misses by more than 1e-7 mm. The acceptance checks and tolerances are unchanged,
 and so is the G1 refill for a corner the patch is not accepted for.

@@ -27,6 +27,9 @@ double occt_edge_length(const occt_shape *shape, int index);
 /// 1 when OCCT's checker (BRepCheck_Analyzer, geometry included) accepts the shape as a valid B-rep, 0 when it
 /// rejects it, -1 if the check itself fails.
 int occt_is_valid(const occt_shape *shape);
+/// How far any face's pcurve leaves its surface's parameter range, in parameter units, sampled at 65 points along
+/// each pcurve: 0 when every pcurve lies inside (an unbounded or periodic direction never counts), -1 if the check fails.
+double occt_pcurve_domain_excursion(const occt_shape *shape);
 
 /// Fillets the edge at 1-based `edge_index` with `radius`. Returns NULL on failure.
 occt_shape *occt_fillet_edge(const occt_shape *shape, int edge_index, double radius, occt_status *status);

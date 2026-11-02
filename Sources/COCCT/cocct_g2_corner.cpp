@@ -21,8 +21,71 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <vector>
 
 namespace cocct::g2_blend {
+
+namespace {
+
+/// Carries a strip's surface on past its ends in u, exactly and in place: the end span's own polynomial over a longer
+/// interval (its poles re-blossomed over it), so `low` and `high` lie inside the surface's u range. Every point of the old
+/// range keeps its parameters, so the pcurves already on this surface (springs, the other end, another corner's side)
+/// stay right with no remapping, and the surface's handle is unchanged.
+void extend_in_u(const Handle(Geom_BSplineSurface) &surface, double low, double high) {
+    if (surface->IsURational() || surface->IsUPeriodic()) {
+        throw user_error(kStripMessage);
+    }
+    const int p = surface->UDegree();
+    // The pole of the polynomial with Bezier poles `points` over [0, 1] that goes with the blossom (a^(p-k), b^k).
+    auto blossom = [p](std::vector<gp_XYZ> points, double a, double b, int k) {
+        for (int r = 1; r <= p; ++r) {
+            const double t = r <= p - k ? a : b;
+            for (int i = 0; i + r <= p; ++i) {
+                points[static_cast<std::size_t>(i)] = points[static_cast<std::size_t>(i)] * (1 - t) + points[static_cast<std::size_t>(i) + 1] * t;
+            }
+        }
+        return points[0];
+    };
+    for (int side = 0; side < 2; ++side) {
+        const int n = surface->NbUKnots();
+        const double first = surface->UKnot(1), last = surface->UKnot(n);
+        const double target = side == 0 ? low : high;
+        if (side == 0 ? target >= first : target <= last) {
+            continue;
+        }
+        // The end span as one Bezier span: its inner knot raised to multiplicity p (and lowered again below).
+        const int inner = side == 0 ? 2 : n - 1;
+        const int kept = surface->UMultiplicity(inner);
+        const bool raised = n > 2 && kept < p;
+        if (raised) {
+            surface->IncreaseUMultiplicity(inner, p);
+        }
+        const double a0 = side == 0 ? first : surface->UKnot(inner), a1 = side == 0 ? surface->UKnot(inner) : last;
+        const double ta = side == 0 ? (target - a0) / (a1 - a0) : 0.0, tb = side == 0 ? 1.0 : (target - a0) / (a1 - a0);
+        const int start = side == 0 ? 1 : surface->NbUPoles() - p;
+        for (int j = 1; j <= surface->NbVPoles(); ++j) {
+            std::vector<gp_XYZ> points(static_cast<std::size_t>(p) + 1);
+            for (int i = 0; i <= p; ++i) {
+                points[static_cast<std::size_t>(i)] = surface->Pole(start + i, j).XYZ();
+            }
+            std::vector<gp_XYZ> moved(static_cast<std::size_t>(p) + 1);
+            for (int k = 0; k <= p; ++k) {
+                moved[static_cast<std::size_t>(k)] = blossom(points, ta, tb, k);
+            }
+            for (int k = 0; k <= p; ++k) {
+                surface->SetPole(start + k, j, gp_Pnt(moved[static_cast<std::size_t>(k)]));
+            }
+        }
+        surface->SetUKnot(side == 0 ? 1 : n, target);
+        if (raised) {
+            // The two spans still join as smoothly as before: the knot comes off again to within 1e-9 mm, and where it
+            // would not, the raised knot is kept (the same surface either way).
+            surface->RemoveUKnot(inner, kept, 1e-9);
+        }
+    }
+}
+
+} // namespace
 
 void place_corner_patches(Run &r) {
     occt_g2_report *const report = r.report;
@@ -188,13 +251,28 @@ void place_corner_patches(Run &r) {
                         throw user_error(kStripMessage); // the neighbouring spine does not lead into this strip
                     }
                     slope[e] = alpha * dv / beta;
+                    if (std::abs(slope[e]) < 1e-12) {
+                        slope[e] = 0; // already square to the neighbour there: rounding must not move the side off its end
+                    }
                 }
-                if (std::abs(slope[0]) < 1e-12 && std::abs(slope[1]) < 1e-12) {
+                if (slope[0] == 0 && slope[1] == 0) {
                     continue; // the section is already mitred: a right-angle corner
                 }
                 const double at0[3] = {0, slope[0], 0}, at1[3] = {0, slope[1], 0};
                 curve.mitre = g2::hermite_poles(at0, at1);
                 curve.mitred = true;
+                // Where the side runs on into the hole (an acute corner), the strip is carried on with it, so that the
+                // side's pcurve lies inside the surface's domain.
+                double u_low = 0, u_high = 1;
+                for (int k = 0; k <= 256; ++k) {
+                    const double u = u_end + g2::value_at(curve.mitre, k / 256.0);
+                    u_low = std::min(u_low, u);
+                    u_high = std::max(u_high, u);
+                }
+                if (u_low < 0 || u_high > 1) {
+                    const double margin = 0.1 * std::max(-u_low, u_high - 1);
+                    extend_in_u(surface, u_low < 0 ? u_low - margin : 0.0, u_high > 1 ? u_high + margin : 1.0);
+                }
                 const double sigma = curve.end == 0 ? -1.0 : 1.0;
                 auto sample = [&](double t, g2::Vec &point, g2::Vec &d1, g2::Vec &d2) {
                     gp_Pnt p;

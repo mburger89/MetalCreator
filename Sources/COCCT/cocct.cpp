@@ -5,17 +5,25 @@
 #include <BRepGProp.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
+#include <BRep_Tool.hxx>
+#include <Geom2d_Curve.hxx>
+#include <Geom_Surface.hxx>
 #include <GProp_GProps.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <Interface_Static.hxx>
 #include <STEPControl_Writer.hxx>
 #include <StlAPI_Writer.hxx>
 #include <Standard_Failure.hxx>
+#include <Precision.hxx>
 #include <TopExp.hxx>
+#include <TopExp_Explorer.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <TopoDS.hxx>
+#include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
+#include <gp_Pnt2d.hxx>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <exception>
@@ -67,6 +75,37 @@ double occt_edge_length(const occt_shape *shape, int index) {
 
 int occt_is_valid(const occt_shape *shape) {
     return queried([&]() -> int { return BRepCheck_Analyzer(shape->shape).IsValid() ? 1 : 0; });
+}
+
+double occt_pcurve_domain_excursion(const occt_shape *shape) {
+    return queried([&]() -> double {
+        double worst = 0;
+        for (TopExp_Explorer faces(shape->shape, TopAbs_FACE); faces.More(); faces.Next()) {
+            const TopoDS_Face face = TopoDS::Face(faces.Current());
+            const Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+            double u1 = 0, u2 = 0, v1 = 0, v2 = 0;
+            surface->Bounds(u1, u2, v1, v2);
+            const bool check_u = !surface->IsUPeriodic() && !Precision::IsInfinite(u1) && !Precision::IsInfinite(u2);
+            const bool check_v = !surface->IsVPeriodic() && !Precision::IsInfinite(v1) && !Precision::IsInfinite(v2);
+            for (TopExp_Explorer edges(face, TopAbs_EDGE); edges.More(); edges.Next()) {
+                double first = 0, last = 0;
+                const Handle(Geom2d_Curve) pcurve = BRep_Tool::CurveOnSurface(TopoDS::Edge(edges.Current()), face, first, last);
+                if (pcurve.IsNull()) {
+                    continue;
+                }
+                for (int k = 0; k <= 64; ++k) {
+                    const gp_Pnt2d uv = pcurve->Value(first + (last - first) * k / 64.0);
+                    if (check_u) {
+                        worst = std::max({worst, u1 - uv.X(), uv.X() - u2});
+                    }
+                    if (check_v) {
+                        worst = std::max({worst, v1 - uv.Y(), uv.Y() - v2});
+                    }
+                }
+            }
+        }
+        return worst;
+    });
 }
 
 occt_shape *occt_fillet_edge(const occt_shape *shape, int edge_index, double radius, occt_status *status) {
