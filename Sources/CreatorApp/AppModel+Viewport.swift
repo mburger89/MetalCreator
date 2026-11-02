@@ -50,6 +50,9 @@ extension AppModel {
             return
         }
         guard let target = handleTargets[id] else { return }
+        // A drag previews cheaply (`DocumentModel.isScrubbing`); its end schedules the full evaluation.
+        if phase == .changed { document.isScrubbing = true }
+        defer { if phase == .ended { document.isScrubbing = false } }
         if value != currentNumber(target) {
             do {
                 try document.perform(.setInput(target.node, target.socket, .number(value)), at: editor.graphPath,

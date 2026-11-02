@@ -25,6 +25,7 @@ extension EditorModel {
     /// undo step of their own and two drags with nothing between them are two. The selection changing, a canvas
     /// press and an undo still close the run, as a safety net.
     public func sliderEditingChanged(_ isEditing: Bool) {
+        document.isScrubbing = isEditing
         document.endCoalescing()
     }
 
