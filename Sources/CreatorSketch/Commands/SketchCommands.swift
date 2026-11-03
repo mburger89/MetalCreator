@@ -32,6 +32,11 @@ extension SketchCommands {
         return SketchEdit(sketch: edited, description: description, removed: removed)
     }
 
+    /// Refuses a spline in the tools that don't work on one yet (the spec's copy).
+    static func refuseSpline(_ id: SketchEntityID, in sketch: Sketch, tool: String) throws(SketchCommandError) {
+        if sketch.splineParts(of: id) != nil { throw SketchCommandError("\(tool) doesn't work on splines yet.") }
+    }
+
     /// A curve's current shape, refusing points and projected edges.
     static func editableShape(_ sketch: Sketch, _ id: SketchEntityID, verb: String) throws(SketchCommandError) -> CurveShape {
         guard let entity = sketch.entities[id] else { throw SketchCommandError("That curve no longer exists.") }

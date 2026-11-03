@@ -7,6 +7,7 @@ extension SketchCommands {
     /// intersections is deleted, and a circle becomes an arc. New endpoints are shared with the
     /// cutting curve's endpoint when one is there, else held on the cutter by point-on.
     public static func trim(_ sketch: Sketch, curve: SketchEntityID, near pick: Vector2) throws(SketchCommandError) -> SketchEdit {
+        try refuseSpline(curve, in: sketch, tool: "Trim")
         let shape = try editableShape(sketch, curve, verb: "trimmed")
         let description = "Trim \(sketch.label(of: curve))"
         let cuts = cuts(of: shape, curve: curve, in: sketch)
@@ -85,7 +86,8 @@ extension SketchCommands {
     /// inside it, sorted by parameter, one cut per place (the lowest-ID cutter wins).
     static func cuts(of shape: CurveShape, curve: SketchEntityID, in sketch: Sketch) -> [Cut] {
         var cuts: [Cut] = []
-        for other in sketch.curves(includingConstruction: true) where other.source != curve {
+        // A spline is no cutter yet: Point on doesn't hold a point on one.
+        for other in sketch.curves(includingConstruction: true) where other.source != curve && sketch.splineParts(of: other.source) == nil {
             for position in CurveIntersection.points(shape, other.shape) {
                 let t = shape.isFullCircle ? SketchMath.wrapped(shape.parameter(of: position)) : shape.nearestParameter(to: position)
                 let interior = shape.isFullCircle

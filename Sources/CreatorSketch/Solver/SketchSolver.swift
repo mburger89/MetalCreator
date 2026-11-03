@@ -5,8 +5,10 @@ import CreatorGeometry
 /// freedom analysis, and minimal conflict sets. Pure and deterministic.
 public enum SketchSolver {
     /// Solves `sketch`. `dragging` maps point entities to where the pointer wants them; those
-    /// points become soft targets and everything else slides along its remaining freedom.
-    public static func solve(_ sketch: Sketch, dragging: [SketchEntityID: Vector2] = [:]) -> SketchSolution {
+    /// points become soft targets and everything else slides along its remaining freedom. `draggingHandles` does the same for
+    /// active spline handles (a handle that is automatic has no unknowns and is ignored).
+    public static func solve(_ sketch: Sketch, dragging: [SketchEntityID: Vector2] = [:],
+                             draggingHandles: [SplineHandleTarget] = []) -> SketchSolution {
         let layout = UnknownLayout(sketch)
         let x0 = layout.warmStart(sketch)
         let built: TermBuilder.Output
@@ -19,7 +21,11 @@ public enum SketchSolver {
             guard let column = layout.pointColumns[id], let target = dragging[id], target.isFinite else { return nil }
             return SolverTerm(role: .drag, equation: .target(.unknown(column: column), target))
         }
-        let partition = ComponentPartition(terms: built.terms + drags, layout: layout)
+        let handleDrags = draggingHandles.compactMap { target -> SolverTerm? in
+            guard let column = layout.handleColumn(target.spline, target.index, target.kind), target.value.isFinite else { return nil }
+            return SolverTerm(role: .drag, equation: .target(.unknown(column: column), target.value))
+        }
+        let partition = ComponentPartition(terms: built.terms + drags + handleDrags, layout: layout)
         var x = x0
         var conflictSets: [[SketchConstraintRef]] = []
         var freeColumns = Set<Int>()
@@ -51,6 +57,22 @@ public enum SketchSolver {
         return solution
     }
 
+    /// The active handle values of every spline that has any, in the solved unknowns.
+    static func splineHandles(_ sketch: Sketch, layout: UnknownLayout, x: [Double]) -> [SketchEntityID: [SplineHandle]] {
+        var handles: [SketchEntityID: [SplineHandle]] = [:]
+        for key in layout.handleColumns.keys.sorted() {
+            guard let column = layout.handleColumns[key],
+                  case .spline(let points, _)? = sketch.entities[key.entity]?.kind else { continue }
+            if handles[key.entity] == nil { handles[key.entity] = Array(repeating: .automatic, count: points.count) }
+            let value = Vector2(x[column], x[column + 1])
+            switch key.kind {
+            case .tangent: handles[key.entity]?[key.index].tangent = value
+            case .curvature: handles[key.entity]?[key.index].curvature = value
+            }
+        }
+        return handles
+    }
+
     static func failed(_ sketch: Sketch, layout: UnknownLayout, x: [Double], reason: String) -> SketchSolution {
         assemble(sketch, layout: layout, x: x, status: .failed(reason: reason), freeColumns: [], conflicts: [])
     }
@@ -61,10 +83,12 @@ public enum SketchSolver {
         for (id, column) in layout.pointColumns { points[id] = Vector2(x[column], x[column + 1]) }
         var radii: [SketchEntityID: Double] = [:]
         for (id, column) in layout.radiusColumns { radii[id] = x[column] }
+        let handles = splineHandles(sketch, layout: layout, x: x)
         let freedom = freedom(of: sketch, layout: layout, freeColumns: freeColumns, conflicts: conflicts)
         let measurements = SketchMeasure.referenceValues(sketch, points: points, radii: radii)
         return SketchSolution(status: status, points: points, radii: radii, freedom: freedom, conflictMessages: [],
                               suspended: [], measurements: measurements)
+            .withHandles(handles)
     }
 
     /// Each entity's colour (spec §8): conflicting when a conflict names it, else free when any
@@ -78,6 +102,9 @@ public enum SketchSolver {
             case .dimension(let id): conflicting.formUnion(sketch.dimensions[id]?.kind.entities ?? [])
             }
         }
+        func hasFreeHandle(_ id: SketchEntityID) -> Bool {
+            layout.handleColumns.contains { $0.key.entity == id && (freeColumns.contains($0.value) || freeColumns.contains($0.value + 1)) }
+        }
         func isFree(_ id: SketchEntityID) -> Bool {
             if let column = layout.pointColumns[id] { return freeColumns.contains(column) || freeColumns.contains(column + 1) }
             return false
@@ -90,6 +117,7 @@ public enum SketchSolver {
             case .arc(let center, let start, let end): isFree(center) || isFree(start) || isFree(end)
             case .circle(let center, _): isFree(center) || layout.radiusColumns[id].map(freeColumns.contains) == true
             case .projected: false
+            case .spline(let points, _): points.contains(where: isFree) || hasFreeHandle(id)
             }
             freedom[id] = conflicting.contains(id) ? .conflicting : moves ? .free : .fixed
         }

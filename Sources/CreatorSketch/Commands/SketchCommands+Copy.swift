@@ -31,7 +31,8 @@ extension SketchCommands {
 
     /// Copies the selection, moving every point through `transform` except those `stays` keeps.
     /// `reversesArcs` swaps arc ends so a mirrored arc still runs counter-clockwise.
-    static func copy(_ selection: [SketchEntityID], in sketch: inout Sketch, reversesArcs: Bool,
+    static func copy(_ selection: [SketchEntityID], in sketch: inout Sketch, // swiftlint:disable:this cyclomatic_complexity
+                     reversesArcs: Bool,
                      stays: (Vector2) -> Bool, transform: (Vector2) -> Vector2) -> Copy {
         var copy = Copy()
         for point in points(of: selection, in: sketch) {
@@ -50,13 +51,27 @@ extension SketchCommands {
                     .arc(center: mapped(center), start: mapped(start), end: mapped(end))
                 }
             case .circle(let center, _): .circle(center: mapped(center), radius: sketch.radius(of: id) ?? 1)
+            case .spline(let points, let handles): .spline(points: points.map(mapped), handles: handles)
             case .point, .projected: entity.kind
             }
             let duplicate = sketch.add(SketchEntity(kind, isConstruction: entity.isConstruction))
             if case .circle = kind, let radius = sketch.radius(of: id) { sketch.solved[duplicate] = .radius(radius) }
+            if case .spline = kind { copyHandles(of: id, to: duplicate, in: &sketch, transform: transform) }
             copy.curves.append((id, duplicate))
         }
         return copy
+    }
+
+    /// Gives a copied spline the original's active handle values. They are vectors, so they take the transform's linear part: a
+    /// mirror reflects a tangent and, being orientation-reversing, flips the sign of the curvature the second derivative describes.
+    static func copyHandles(of original: SketchEntityID, to copy: SketchEntityID, in sketch: inout Sketch,
+                            transform: (Vector2) -> Vector2) {
+        let origin = transform(.zero)
+        func linear(_ vector: Vector2?) -> Vector2? { vector.map { transform($0) - origin } }
+        let moved = sketch.storedSplineHandles(of: original).map {
+            SplineHandle(tangent: linear($0.tangent), curvature: linear($0.curvature))
+        }
+        if moved.contains(where: { $0.tangent != nil || $0.curvature != nil }) { sketch.solved[copy] = .splineHandles(moved) }
     }
 
     /// "1 entity", "3 entities".

@@ -9,6 +9,8 @@ enum DrawState: Hashable, Sendable {
     /// A 3-point arc's start, then its start and end.
     case arcThroughFrom(SketchAnchor)
     case arcThrough(start: SketchAnchor, end: SketchAnchor)
+    /// A spline's fit points so far (one or more); nothing is in the sketch until it finishes.
+    case splineThrough([SketchAnchor])
 }
 
 extension DrawState {
@@ -18,7 +20,7 @@ extension DrawState {
     var snapsToCurves: Bool {
         switch self {
         case .circleAround, .arcFrom: false
-        case .idle, .lineFrom, .arcAround, .arcThroughFrom, .arcThrough: true
+        case .idle, .lineFrom, .arcAround, .arcThroughFrom, .arcThrough, .splineThrough: true
         }
     }
 }

@@ -5,6 +5,7 @@ extension Sketch {
     public mutating func remember(_ solution: SketchSolution) {
         for (id, point) in solution.points where entities[id] != nil { solved[id] = .point(point) }
         for (id, radius) in solution.radii where entities[id] != nil { solved[id] = .radius(radius) }
+        for (id, handles) in solution.handles where entities[id] != nil { solved[id] = .splineHandles(handles) }
         for id in dimensionIDs {
             guard let dimension = dimensions[id], dimension.angleSense == nil else { continue }
             let sense = nearestAngleSense(for: dimension.kind, degrees: dimension.value) { solution.points[$0] }

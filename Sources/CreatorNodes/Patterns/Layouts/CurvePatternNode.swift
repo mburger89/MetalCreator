@@ -75,6 +75,6 @@ public enum CurvePatternNode: NodeDefinition {
     }
 
     private static func profileChains(_ inputs: NodeInputs) throws -> [CurveChain] {
-        try inputs.profiles("profile").flatMap { EdgeChains.chains(of: $0) }
+        try inputs.profiles("profile").flatMap { try EdgeChains.chains(of: $0) }
     }
 }

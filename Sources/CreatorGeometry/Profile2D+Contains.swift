@@ -3,7 +3,7 @@ import Foundation
 extension Profile2D {
     /// Whether `point`, in the plane's own coordinates, is on the region: inside the outer loop and outside every hole, or
     /// on a loop's line to `tolerance` (a point on the outline counts as inside). Arcs are walked as chords no more than 2°
-    /// long, so an arc is found to within 0.00015 of its radius.
+    /// long, so an arc is found to within 0.00015 of its radius, and a spline as `SplineCurve2D.polyline()`.
     public func contains(_ point: Vector2, tolerance: Double = 1e-6) -> Bool {
         var crossings = 0
         for loop in loops {
@@ -35,6 +35,8 @@ extension Profile2D {
                     points.append(center + Vector2(cos(angle), sin(angle)) * radius)
                 }
                 points.append(segment.endPoint)
+            case .spline(let curve):
+                points.append(contentsOf: curve.polyline().dropFirst())
             }
         }
         return points

@@ -6,6 +6,7 @@ extension SketchEntityKind {
         case .line(let start, let end): [start, end]
         case .arc(let center, let start, let end): [center, start, end]
         case .circle(let center, _): [center]
+        case .spline(let points, _): points
         }
     }
 

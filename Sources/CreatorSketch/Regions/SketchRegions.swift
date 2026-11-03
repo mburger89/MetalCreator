@@ -6,7 +6,13 @@ public enum SketchRegions {
     /// at their current positions. Faces nest even–odd: a face inside another is its hole, and
     /// a face inside a hole is a region again.
     public static func find(in sketch: Sketch) -> SketchRegionResult {
-        let curves = sketch.curves(includingConstruction: false)
+        // A spline that crosses itself stays drawn and is left out of the regions (it has its own warning).
+        var selfCrossing: [SketchEntityID] = []
+        let curves = sketch.curves(includingConstruction: false).filter { curve in
+            guard case .spline = curve.shape, !CurveIntersection.selfCrossings(of: curve.shape).isEmpty else { return true }
+            selfCrossing.append(curve.source)
+            return false
+        }
         let graph = RegionGraph(curves: curves)
         let labels = graph.componentLabels()
         var faces: [Face] = []
@@ -50,7 +56,12 @@ public enum SketchRegions {
         regions.sort(by: isOrderedBefore)
         let used = graph.usedSources
         let open = curves.indices.filter { !used.contains($0) }.map { curves[$0].source }
-        return SketchRegionResult(regions: regions, openCurves: open)
+        return SketchRegionResult(regions: regions, openCurves: open, selfCrossingSplines: selfCrossing,
+                                  selfCrossingWarnings: selfCrossing.map { warning(for: $0, in: sketch) })
+    }
+
+    private static func warning(for spline: SketchEntityID, in sketch: Sketch) -> String {
+        "\(sketch.label(of: spline)) crosses itself, so it isn't part of a region."
     }
 
     struct Face {

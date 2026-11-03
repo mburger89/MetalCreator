@@ -7,7 +7,8 @@ extension SketchEditorModel {
     public var overlay: ViewportOverlay {
         let picked = dimensionPick.map { selection.union([$0]) } ?? selection
         return SketchOverlayBuilder.overlay(sketch: sketch, solution: solution, plane: plane, selection: picked, hovered: hovered,
-                                            preview: preview, fills: regionFills)
+                                            preview: preview, fills: regionFills, handleSplines: handleSplines,
+                                            hoveredKnob: hoveredKnob)
     }
 
     /// One fill per closed region of the sketch as it is now (spec §8), found again only when the sketch or its plane

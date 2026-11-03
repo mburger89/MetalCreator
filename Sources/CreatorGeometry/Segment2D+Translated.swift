@@ -4,6 +4,7 @@ extension Segment2D {
         switch self {
         case .line(let a, let b): .line(a + offset, b + offset)
         case .arc(let center, let radius, let start, let end): .arc(center: center + offset, radius: radius, start: start, end: end)
+        case .spline(let curve): .spline(curve.translated(by: offset))
         }
     }
 }

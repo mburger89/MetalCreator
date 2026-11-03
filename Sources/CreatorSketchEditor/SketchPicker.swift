@@ -32,14 +32,36 @@ struct SketchPicker {
         return best?.id
     }
 
+    /// The nearest handle knob of `splines` to `p` within `tolerance` mm.
+    func handleKnob(near p: Vector2, tolerance: Double, splines: [SketchEntityID]) -> (knob: HandleKnob, distance: Double)? {
+        var best: (knob: HandleKnob, distance: Double)?
+        for spline in splines {
+            guard let definition = sketch.splineDefinition(of: spline, solution: solution) else { continue }
+            for index in definition.points.indices {
+                for (knob, at) in SplineHandleGeometry.knobs(of: spline, at: index, definition: definition) {
+                    let distance = (at - p).length
+                    if distance <= tolerance, distance < (best?.distance ?? .infinity) { best = (knob, distance) }
+                }
+            }
+        }
+        return best
+    }
+
     /// The entity a click at `p` picks: a point first, else a curve.
     func entity(near p: Vector2, tolerance: Double) -> SketchEntityID? {
         point(near: p, tolerance: tolerance)?.id ?? curve(near: p, tolerance: tolerance)
     }
 
+    /// The place on a spline's drawn curve nearest `p`, found on its polyline.
+    private func nearestPoint(onSpline spline: SketchEntityID, to p: Vector2) -> Vector2? {
+        let polyline = sketch.splineDefinition(of: spline, solution: solution)?.curve().polyline() ?? []
+        return zip(polyline, polyline.dropFirst()).map { EditorGeometry.nearest(to: p, onSegment: $0, $1) }
+            .min { ($0 - p).length < ($1 - p).length }
+    }
+
     /// The place on `curve` nearest `p`, at its solved position: on a line's segment, or on an arc's or a circle's
     /// circle (the curve is picked near its drawn span first, so that place is on what's drawn); `nil` for a point.
-    func nearestPoint(on curve: SketchEntityID, to p: Vector2) -> Vector2? {
+    func nearestPoint(on curve: SketchEntityID, to p: Vector2) -> Vector2? { // swiftlint:disable:this cyclomatic_complexity
         let at = { (point: SketchEntityID) in SketchOverlayBuilder.position(point, sketch, solution) }
         switch sketch.entities[curve]?.kind {
         case .line(let start, let end)?:
@@ -57,6 +79,8 @@ struct SketchPicker {
             case .arc(let c, let radius, _, _), .circle(let c, let radius):
                 return EditorGeometry.nearest(to: p, onCircle: c, radius: radius)
             }
+        case .spline?:
+            return nearestPoint(onSpline: curve, to: p)
         case .point?, nil:
             return nil
         }

@@ -18,6 +18,7 @@ extension Sketch {
                 switch state {
                 case .point(let point): point.isFinite
                 case .radius(let radius): radius.isFinite
+                case .splineHandles(let handles): handles.allSatisfy { ($0.tangent?.isFinite ?? true) && ($0.curvature?.isFinite ?? true) }
                 }
             }
     }

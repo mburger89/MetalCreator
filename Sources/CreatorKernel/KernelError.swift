@@ -13,6 +13,9 @@ public enum KernelError: Error, Equatable, Sendable {
     /// The refusal every kernel gives a loft through profiles with holes, and the Loft node gives it first.
     public static let loftWithHoles = KernelError.invalidInput("A loft can't use profiles with holes yet.")
 
+    /// What a kernel that only builds lines and arcs says to a profile with a spline.
+    public static let splinesUnsupported = KernelError.invalidInput("Splines aren't supported by this kernel yet.")
+
     /// What `KernelUnavailable` answers to every operation: this platform has no geometry kernel yet.
     public static let unavailable = KernelError.invalidInput("Geometry isn't available on this platform yet.")
 

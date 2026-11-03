@@ -115,6 +115,15 @@ extension Equation {
             var row = RowBuilder(value: circle.radiusValue(x) - value)
             circle.addRadiusGradient(1, x, to: &row)
             return [row]
+        case .jointTangent(let first, let second, let scale):
+            return [Self.angleRow(Self.jointAngle(first, second, x), offset: 0, period: .pi, scale: scale)]
+        case .jointCurvature(let first, let second, let branch, let scale):
+            var row = first.curvature(x)
+            let other = second.curvature(x)
+            row.value -= branch * other.value
+            for entry in other.entries { row.add(column: entry.column, -branch * entry.value) }
+            row.scale(by: scale)
+            return [row]
         case .arcRadius(let center, let start, let end):
             var row = Self.distanceRow(end, center, x)
             let other = Self.distanceRow(start, center, x)
@@ -245,6 +254,17 @@ extension Equation {
         let byD = Vector2(-d.y, d.x) * (1 / squared)
         row.add(line.end, byD)
         row.add(line.start, byD * -1)
+        return row
+    }
+
+    /// The signed angle from the first side's outgoing direction to the second's, or `nil` when either has no length.
+    static func jointAngle(_ first: JointSide, _ second: JointSide, _ x: [Double]) -> RowBuilder? {
+        let (d1, d2) = (first.direction(x), second.direction(x))
+        let (s1, s2) = (SketchMath.dot(d1, d1), SketchMath.dot(d2, d2))
+        guard s1 > 0, s2 > 0 else { return nil }
+        var row = RowBuilder(value: atan2(SketchMath.cross(d1, d2), SketchMath.dot(d1, d2)))
+        first.addDirectionGradient(Vector2(d1.y, -d1.x) * (1 / s1), to: &row)
+        second.addDirectionGradient(Vector2(-d2.y, d2.x) * (1 / s2), to: &row)
         return row
     }
 

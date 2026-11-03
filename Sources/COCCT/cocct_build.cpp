@@ -2,6 +2,12 @@
 #include "cocct_profile.hpp"
 
 #include <BRepBuilderAPI_MakeEdge.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <TColStd_Array1OfInteger.hxx>
+#include <TColStd_Array1OfReal.hxx>
+#include <TColgp_Array1OfPnt.hxx>
+#include <TColgp_Array1OfPnt2d.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepCheck_Analyzer.hxx>
@@ -23,6 +29,8 @@
 #include <gp_Ax2.hxx>
 #include <gp_Ax1.hxx>
 #include <gp_Circ.hxx>
+#include <gp_Pnt2d.hxx>
+#include <gp_Vec2d.hxx>
 #include <gp_Vec.hxx>
 
 #include <algorithm>
@@ -53,7 +61,58 @@ gp_Pnt cocct::point_on(const gp_Ax2 &frame, double x, double y) {
 
 namespace {
 
-TopoDS_Edge build_edge(const gp_Ax2 &frame, const occt_segment &segment) {
+void check_spline(const occt_profile &profile, const occt_segment &s) {
+    if (!profile.spline_poles || !profile.spline_knots || !profile.spline_mults || s.pole_count < 6 || s.knot_count < 2
+        || s.pole_offset < 0 || s.knot_offset < 0) {
+        throw user_error("a spline in the profile is malformed");
+    }
+    int total = 0;
+    for (int k = 0; k < s.knot_count; ++k) {
+        total += profile.spline_mults[s.knot_offset + k];
+        if (!std::isfinite(profile.spline_knots[s.knot_offset + k])
+            || (k > 0 && !(profile.spline_knots[s.knot_offset + k] > profile.spline_knots[s.knot_offset + k - 1]))) {
+            throw user_error("a spline in the profile has invalid knots");
+        }
+    }
+    if (total != s.pole_count + 6) {
+        throw user_error("a spline in the profile has inconsistent knots");
+    }
+    for (int k = 0; k < 2 * s.pole_count; ++k) {
+        if (!std::isfinite(profile.spline_poles[2 * s.pole_offset + k])) {
+            throw user_error("a spline in the profile has a non-finite pole");
+        }
+    }
+}
+
+} // namespace
+
+Handle(Geom_BSplineCurve) cocct::spline_curve(const gp_Ax2 &frame, const occt_profile &profile, const occt_segment &segment) {
+    check_spline(profile, segment);
+    TColgp_Array1OfPnt poles(1, segment.pole_count);
+    for (int k = 0; k < segment.pole_count; ++k) {
+        const double *xy = profile.spline_poles + 2 * (segment.pole_offset + k);
+        poles.SetValue(k + 1, point_on(frame, xy[0], xy[1]));
+    }
+    TColStd_Array1OfReal knots(1, segment.knot_count);
+    TColStd_Array1OfInteger mults(1, segment.knot_count);
+    for (int k = 0; k < segment.knot_count; ++k) {
+        knots.SetValue(k + 1, profile.spline_knots[segment.knot_offset + k]);
+        mults.SetValue(k + 1, profile.spline_mults[segment.knot_offset + k]);
+    }
+    return new Geom_BSplineCurve(poles, knots, mults, 5);
+}
+
+namespace {
+
+TopoDS_Edge build_edge(const gp_Ax2 &frame, const occt_profile &profile, const occt_segment &segment) {
+    if (segment.kind == 2) {
+        const Handle(Geom_BSplineCurve) curve = spline_curve(frame, profile, segment);
+        BRepBuilderAPI_MakeEdge make(curve);
+        if (!make.IsDone()) {
+            throw user_error("a spline in the profile could not be built");
+        }
+        return make.Edge();
+    }
     if (segment.kind == 0) {
         const gp_Pnt a = point_on(frame, segment.x0, segment.y0);
         const gp_Pnt b = point_on(frame, segment.x1, segment.y1);
@@ -93,14 +152,14 @@ TopoDS_Edge build_edge(const gp_Ax2 &frame, const occt_segment &segment) {
     return clockwise ? TopoDS::Edge(make.Edge().Reversed()) : make.Edge();
 }
 
-built_loop build_loop(const gp_Ax2 &frame, const occt_loop &loop, bool hole) {
+built_loop build_loop(const gp_Ax2 &frame, const occt_profile &profile, const occt_loop &loop, bool hole) {
     if (!loop.segments || loop.segment_count <= 0) {
         throw user_error(hole ? "a hole in the profile has no segments" : "the profile has no segments");
     }
     BRepBuilderAPI_MakeWire wire;
     built_loop result;
     for (int k = 0; k < loop.segment_count; ++k) {
-        wire.Add(build_edge(frame, loop.segments[k]));
+        wire.Add(build_edge(frame, profile, loop.segments[k]));
         if (!wire.IsDone()) {
             throw user_error(hole ? "the segments of a hole in the profile do not connect" : "the profile segments do not connect");
         }
@@ -110,14 +169,48 @@ built_loop build_loop(const gp_Ax2 &frame, const occt_loop &loop, bool hole) {
     return result;
 }
 
+/// ∫ x dy − y dx along a B-spline: exact per knot span (the integrand is a degree-9 polynomial there; 5-point Gauss–Legendre).
+double spline_twice_area(const occt_profile &profile, const occt_segment &s) {
+    check_spline(profile, s);
+    TColgp_Array1OfPnt2d poles(1, s.pole_count);
+    for (int k = 0; k < s.pole_count; ++k) {
+        const double *xy = profile.spline_poles + 2 * (s.pole_offset + k);
+        poles.SetValue(k + 1, gp_Pnt2d(xy[0], xy[1]));
+    }
+    TColStd_Array1OfReal knots(1, s.knot_count);
+    TColStd_Array1OfInteger mults(1, s.knot_count);
+    for (int k = 0; k < s.knot_count; ++k) {
+        knots.SetValue(k + 1, profile.spline_knots[s.knot_offset + k]);
+        mults.SetValue(k + 1, profile.spline_mults[s.knot_offset + k]);
+    }
+    const Handle(Geom2d_BSplineCurve) curve = new Geom2d_BSplineCurve(poles, knots, mults, 5);
+    static const double nodes[5] = {0.0, -0.5384693101056831, 0.5384693101056831, -0.9061798459386640, 0.9061798459386640};
+    static const double weights[5] = {0.5688888888888889, 0.4786286704993665, 0.4786286704993665, 0.2369268850561891,
+                                      0.2369268850561891};
+    double twice = 0;
+    for (int k = 1; k < s.knot_count; ++k) {
+        const double a = knots.Value(k), b = knots.Value(k + 1);
+        const double half = (b - a) / 2, mid = (a + b) / 2;
+        for (int g = 0; g < 5; ++g) {
+            gp_Pnt2d p;
+            gp_Vec2d d;
+            curve->D1(mid + half * nodes[g], p, d);
+            twice += weights[g] * half * (p.X() * d.Y() - p.Y() * d.X());
+        }
+    }
+    return twice;
+}
+
 /// The loop's signed area in plane coordinates, positive when it winds counter-clockwise.
 /// Exact for lines and arcs (Green's theorem, ½∮ x dy − y dx).
-double signed_area(const occt_loop &loop) {
+double signed_area(const occt_profile &profile, const occt_loop &loop) {
     double twice = 0;
     for (int k = 0; k < loop.segment_count; ++k) {
         const occt_segment &s = loop.segments[k];
         if (s.kind == 0) {
             twice += s.x0 * s.y1 - s.x1 * s.y0;
+        } else if (s.kind == 2) {
+            twice += spline_twice_area(profile, s);
         } else {
             twice += s.radius * s.cx * (std::sin(s.end) - std::sin(s.start))
                 - s.radius * s.cy * (std::cos(s.end) - std::cos(s.start))
@@ -134,7 +227,7 @@ built_profile cocct::build_profile(const occt_profile &profile) {
         throw user_error("the profile has no segments");
     }
     const gp_Ax2 frame = frame_of(profile.plane);
-    const built_loop outer = build_loop(frame, profile.loops[0], false);
+    const built_loop outer = build_loop(frame, profile, profile.loops[0], false);
     built_profile result;
     result.loops.push_back(outer.edges);
     BRepBuilderAPI_MakeFace face(outer.wire, Standard_True);
@@ -145,10 +238,10 @@ built_profile cocct::build_profile(const occt_profile &profile) {
         result.face = face.Face();
         return result;
     }
-    const bool outer_counter_clockwise = signed_area(profile.loops[0]) > 0;
+    const bool outer_counter_clockwise = signed_area(profile, profile.loops[0]) > 0;
     for (int n = 1; n < profile.loop_count; ++n) {
-        const built_loop hole = build_loop(frame, profile.loops[n], true);
-        const double area = signed_area(profile.loops[n]);
+        const built_loop hole = build_loop(frame, profile, profile.loops[n], true);
+        const double area = signed_area(profile, profile.loops[n]);
         if (!(std::abs(area) > 1e-12)) {
             throw user_error("a hole in the profile has no area");
         }

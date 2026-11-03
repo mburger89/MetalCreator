@@ -9,7 +9,7 @@ extension FaceRegion {
     }
 
     /// The points that stand for `segment`, from its start up to but not including its end: just the start for a line, chords
-    /// for an arc (run from its `start` to its `end` angle, clockwise when `end < start`).
+    /// for an arc (run from its `start` to its `end` angle, clockwise when `end < start`) and a spline's polyline.
     private static func points(of segment: Segment2D) -> [Vector2] {
         switch segment {
         case .line(let start, _):
@@ -22,6 +22,8 @@ extension FaceRegion {
                 let angle = start.radians + sweep * Double(index) / Double(chords)
                 return center + Vector2(cos(angle), sin(angle)) * radius
             }
+        case .spline(let curve):
+            return Array(curve.polyline().dropLast())
         }
     }
 }

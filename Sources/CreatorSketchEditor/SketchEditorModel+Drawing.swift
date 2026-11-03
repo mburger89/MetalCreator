@@ -41,6 +41,7 @@ extension SketchEditorModel {
     /// progress; with none, clears the selection; with nothing selected, finishes the sketch.
     public func escape() {
         if events.dismissHostPopup() { return }
+        if case .splineThrough = drawState { return finishSpline() }
         if drawState != .idle || dimensionPick != nil || pending != nil {
             drawState = .idle
             dropPending()
@@ -58,10 +59,15 @@ extension SketchEditorModel {
     /// with the host's popup open, it only closes that.
     public func finish() {
         if events.dismissHostPopup() { return }
+        // Return ends a spline in progress (it keeps two or more points); the sketch is left by the next one.
+        if case .splineThrough = drawState { return finishSpline() }
         drawState = .idle
         dropPending()
         preview = .none
-        if dragged != nil, let origin = dragOrigin {
+        let wasDragging = dragged != nil || draggedHandle != nil
+        draggedHandle = nil
+        handleMoved = false
+        if wasDragging, let origin = dragOrigin {
             let solved = SketchSolver.solve(origin)
             solution = solved
             sketch = Self.remembering(origin, solved)
@@ -83,6 +89,7 @@ extension SketchEditorModel {
         case .line: placeLinePoint(at: p, tolerance: tolerance, suppressed: suppressed)
         case .circle: placeCirclePoint(at: p, tolerance: tolerance, suppressed: suppressed)
         case .arc: placeArcPoint(at: p, tolerance: tolerance, suppressed: suppressed)
+        case .spline: placeSplinePoint(at: p, tolerance: tolerance, suppressed: suppressed)
         case .arcThreePoint: placeThreePointArcPoint(at: p, tolerance: tolerance, suppressed: suppressed)
         case .trim, .extend, .fillet, .mirror, .pattern: modify(at: p, tolerance: tolerance)
         case .project: break   // takes no plane click: the viewport's pick reaches `clickedModel`
@@ -94,6 +101,7 @@ extension SketchEditorModel {
     func hover(at p: Vector2?, tolerance: Double, modifiers: ViewportModifiers) {
         guard let p else {
             hovered = nil
+            hoveredKnob = nil
             preview = .none
             return
         }
@@ -101,6 +109,9 @@ extension SketchEditorModel {
         let picker = SketchPicker(sketch: sketch, solution: solution)
         let under = tool.picksCurves ? picker.curve(near: p, tolerance: tolerance) : picker.entity(near: p, tolerance: tolerance)
         if hovered != under { hovered = under }
+        let knob = tool == .select && draggedHandle == nil
+            ? picker.handleKnob(near: p, tolerance: tolerance, splines: handleSplines)?.knob : nil
+        if hoveredKnob != knob { hoveredKnob = knob }
         // Only a tool that places points has a rubber band, so only it needs an anchor (and its second scan of the curves).
         var next = SketchPreview.none
         if tool.placesPoints {
@@ -118,7 +129,9 @@ extension SketchEditorModel {
     func anchor(at p: Vector2, tolerance: Double, suppressed: Bool) -> SketchAnchor {
         let picker = SketchPicker(sketch: sketch, solution: solution)
         if let hit = picker.point(near: p, tolerance: tolerance) { return .existing(hit.id, at: hit.at) }
-        if !suppressed, let curve = picker.curve(near: p, tolerance: tolerance), let on = picker.nearestPoint(on: curve, to: p) {
+        // Point on doesn't hold a point on a spline yet, so a spline under the click is no anchor.
+        if !suppressed, let curve = picker.curve(near: p, tolerance: tolerance), sketch.splineParts(of: curve) == nil,
+           let on = picker.nearestPoint(on: curve, to: p) {
             return .onCurve(curve, at: on)
         }
         return .free(p)
@@ -232,7 +245,8 @@ extension SketchEditorModel {
     }
 
     /// The rubber band from what's placed to `p`, where a click would land on `target` (`anchor`).
-    private func rubberBand(to p: Vector2, landing target: SketchAnchor, tolerance: Double, suppressed: Bool) -> SketchPreview {
+    private func rubberBand(to p: Vector2, landing target: SketchAnchor, tolerance: Double, // swiftlint:disable:this cyclomatic_complexity
+                            suppressed: Bool) -> SketchPreview {
         switch drawState {
         case .idle:
             return tool.placesPoints ? SketchPreview(points: [target.position]) : .none
@@ -255,6 +269,8 @@ extension SketchEditorModel {
                                  points: [center.position, start.position, end.position])
         case .arcThroughFrom(let start):
             return SketchPreview(curves: [.line(start.position, target.position)], points: [start.position])
+        case .splineThrough(let placed):
+            return splineBand(placed, landing: target)
         case .arcThrough(let start, let end):
             guard let arc = EditorGeometry.threePointArc(from: start.position, to: end.position, through: p) else {
                 return SketchPreview(curves: [.line(start.position, end.position)], points: [start.position, end.position])

@@ -11,7 +11,7 @@ extension SketchEditorModel {
         case .fillet: fillet(at: p, tolerance: tolerance)
         case .mirror: mirror(at: p, tolerance: tolerance)
         case .pattern: pattern(at: p, tolerance: tolerance)
-        case .select, .line, .arc, .arcThreePoint, .circle, .point, .dimension, .project: break   // not commands: `click` routes them
+        case .select, .line, .arc, .arcThreePoint, .spline, .circle, .point, .dimension, .project: break   // `click` routes these
         }
     }
 

@@ -38,6 +38,7 @@ extension Sketch {
         case .concentric: "Concentric"
         case .symmetric: "Symmetric"
         case .fix: "Fix"
+        case .curvature: "Curvature"
         }
         if case .symmetric = constraint, names.count == 3 {
             return "\(title) on \(names[0]) and \(names[1]) about \(names[2])"
@@ -81,6 +82,7 @@ extension Sketch {
         case .arc: "Arc"
         case .circle: "Circle"
         case .projected: "Projected edge"
+        case .spline: "Spline"
         }
     }
 

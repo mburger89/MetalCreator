@@ -148,6 +148,7 @@ struct TermBuilder {
         switch sketch.entities[id]?.kind {
         case .line(let start, let end): [start, end]
         case .arc(_, let start, let end): [start, end]
+        case .spline: sketch.curveEnds(of: id)
         default: []
         }
     }
@@ -180,10 +181,7 @@ struct TermBuilder {
         case .coincident(let a, let b):
             return [.coincident(try point(a, ref: ref, needs: "two points"), try point(b, ref: ref, needs: "two points"))]
         case .pointOn(let p, let curve):
-            let needs = "a point and a curve"
-            let operand = try point(p, ref: ref, needs: needs)
-            if isLine(curve) { return [.pointOnLine(operand, try line(curve, ref: ref, needs: needs))] }
-            return [.pointOnCircle(operand, try circle(curve, ref: ref, needs: needs))]
+            return [try pointOn(p, curve, ref)]
         case .horizontal(let id):
             let l = try line(id, ref: ref, needs: "a line")
             return [.horizontalLine(l, scale: scale(l, l))]
@@ -201,7 +199,10 @@ struct TermBuilder {
             let (first, second) = (try line(a, ref: ref, needs: "two lines"), try line(b, ref: ref, needs: "two lines"))
             return [.perpendicular(first, second, scale: scale(first, second))]
         case .tangent(let a, let b):
+            if isSpline(a) || isSpline(b) { return try splineJoints(a, b, ref, curvature: false) }
             return [try tangent(a, b, ref)]
+        case .curvature(let a, let b):
+            return try splineJoints(a, b, ref, curvature: true)
         case .equal(let a, let b):
             let needs = "two lines or two arcs or circles"
             if isLine(a), isLine(b) {
@@ -223,6 +224,14 @@ struct TermBuilder {
         case .fix(let p, let target):
             return [.fix(try point(p, ref: ref, needs: "a point"), target)]
         }
+    }
+
+    func pointOn(_ p: SketchEntityID, _ curve: SketchEntityID, _ ref: SketchConstraintRef) throws(SolveFailure) -> Equation {
+        let needs = "a point and a curve"
+        if isSpline(curve) { throw SolveFailure(reason: "Point on doesn't work on splines yet.") }
+        let operand = try point(p, ref: ref, needs: needs)
+        if isLine(curve) { return .pointOnLine(operand, try line(curve, ref: ref, needs: needs)) }
+        return .pointOnCircle(operand, try circle(curve, ref: ref, needs: needs))
     }
 
     func tangent(_ a: SketchEntityID, _ b: SketchEntityID, _ ref: SketchConstraintRef) throws(SolveFailure) -> Equation {

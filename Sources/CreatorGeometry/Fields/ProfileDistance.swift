@@ -8,6 +8,7 @@ public struct ProfileDistance: Sendable {
         /// An arc is the part of its circle from `lowest` through `sweep` radians, counter-clockwise (a clockwise arc is the
         /// same points run backwards).
         case arc(center: Vector2, radius: Double, lowest: Double, sweep: Double)
+        case spline(SplineCurve2D)
     }
 
     private let plane: Plane
@@ -21,6 +22,8 @@ public struct ProfileDistance: Sendable {
                 .line(a, b)
             case .arc(let center, let radius, let start, let end):
                 .arc(center: center, radius: radius, lowest: min(start.radians, end.radians), sweep: abs(end.radians - start.radians))
+            case .spline(let curve):
+                .spline(curve)
             }
         }
     }
@@ -52,6 +55,8 @@ public struct ProfileDistance: Sendable {
             let start = center + Vector2(cos(lowest), sin(lowest)) * radius
             let end = center + Vector2(cos(lowest + sweep), sin(lowest + sweep)) * radius
             return min((point - start).length, (point - end).length)
+        case .spline(let curve):
+            return (curve.point(at: curve.nearestParameter(to: point)) - point).length
         }
     }
 }

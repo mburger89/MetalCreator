@@ -179,6 +179,9 @@ extension G2FilletCoverageTests {
         #expect(built.report.strips == 8)
         base.expectSpringsG2(built, seams: 16)
         #expect(built.report.g1_joins > 0, "the springs kink at the chain's joins")
+        // The arc strips' 25 sections were a floor: a junction's agreed tangent applied at the end section alone.
+        let counts = base.helper.sectionCounts(built.report)
+        #expect(counts.allSatisfy { $0 <= 19 }, "a strip chases the jump at a junction again: \(counts)")
     }
 
     /// The construction is a continuous function of its input: a last-bit change of the radius builds the same strips

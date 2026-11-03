@@ -5,6 +5,7 @@
 
 #include "cocct.h"
 
+#include <Geom_BSplineCurve.hxx>
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
@@ -25,6 +26,8 @@ struct built_profile {
 gp_Ax2 frame_of(const occt_plane &plane);
 /// The point at plane coordinates (x, y).
 gp_Pnt point_on(const gp_Ax2 &frame, double x, double y);
+/// The degree-5 curve of a kind-2 (spline) segment, in the plane's frame; throws `user_error` for a malformed spline.
+Handle(Geom_BSplineCurve) spline_curve(const gp_Ax2 &frame, const occt_profile &profile, const occt_segment &segment);
 /// The profile's planar face; throws `user_error` for a profile that isn't a closed, flat region.
 built_profile build_profile(const occt_profile &profile);
 /// Orients every solid in `shape` (a solid, or a compound of solids) so it bounds positive volume. Face identities are

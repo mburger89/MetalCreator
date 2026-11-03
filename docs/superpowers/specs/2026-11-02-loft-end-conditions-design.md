@@ -110,3 +110,10 @@ than a quintic's); a part edge whose first or second derivative jumps at an inte
 Tolerances, the checks, the 129 cap, the shared vertex columns and ThruSections for Free lofts are unchanged. Columns, before and after: the
 box top to a square (G1, G2, weights 0.1 to 2), the bridge, the bridge with a waist and the frustum 9 to 5 per segment; the cylinder top to a
 circle, the circle started a quarter turn round and the dome (G1 and G2) 129 to 17; the rounded rectangle [45, 38] × 4 unchanged.
+
+## Errata
+
+- **2026-11-02 (pick warnings name the end).** The Messages bullet said the pick's warnings read "as Face Pattern's"; with two picks that left no way to tell which
+  end a warning meant. The loft's wording is `FacePickWording`'s with the end in it (`LoftEndSetup.mergedPick(_:)`, `unnamedPick(_:)`, `severalPicks(_:_:)`):
+  unnamed, subject "loft's start face" / "loft's end face"; merged, "The loft starts on" / "The loft ends on"; several, "the loft starts on" / "the loft ends on".
+  Plane from Face's and Face Pattern's text is unchanged.

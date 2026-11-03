@@ -28,6 +28,8 @@ extension Equation {
             Self.columns(line)
         case .radius(let circle, _):
             Self.columns(circle)
+        case .jointTangent(let a, let b, _), .jointCurvature(let a, let b, _, _):
+            a.columns + b.columns
         case .arcRadius(let center, let start, let end):
             Self.columns(center) + Self.columns(start) + Self.columns(end)
         }

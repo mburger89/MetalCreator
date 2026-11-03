@@ -3,7 +3,7 @@ extension SketchEntityKind {
     var isFinite: Bool {
         switch self {
         case .point(let position): position.isFinite
-        case .line, .arc: true
+        case .line, .arc, .spline: true
         case .circle(_, let radius): radius.isFinite
         case .projected(let source):
             switch source.curve {

@@ -43,7 +43,8 @@ enum SketchSolve {
         solved.remember(solution)
         let found = SketchRegions.find(in: solved)
         if let open = found.warning { warnings.append(open) }
-        if found.regions.isEmpty, found.openCurves.isEmpty { warnings.append(nothingDrawn) }
+        warnings += found.selfCrossingWarnings
+        if found.regions.isEmpty, found.openCurves.isEmpty, found.selfCrossingSplines.isEmpty { warnings.append(nothingDrawn) }
         let measured = measurements(sketch, solution)
         return Output(profiles: found.regions.map { $0.profile(on: plane) }, measurements: measured.values,
                       warnings: warnings + measured.warnings, sketch: solved, solution: solution,

@@ -58,6 +58,12 @@ enum Equation: Hashable, Sendable {
     case length(LineOperand, Double)
     /// r − value.
     case radius(CircleOperand, Double)
+    /// scale · the angle between the two curves' directions leaving a shared joint, wrapped into [−90°, 90°]: the tangent
+    /// condition at a spline end (G1).
+    case jointTangent(JointSide, JointSide, scale: Double)
+    /// scale · (κ₁ − branch · κ₂), the outgoing signed curvatures at a joint: branch −1 for curves that continue through it
+    /// (their curvatures add to zero), +1 for curves folded back on each other. Chosen from the warm start (G2).
+    case jointCurvature(JointSide, JointSide, branch: Double, scale: Double)
     /// The implicit arc condition |end − centre| − |start − centre|.
     case arcRadius(center: PointOperand, start: PointOperand, end: PointOperand)
     /// A drag target: p − target (2 rows), used only in drag mode's first phase.

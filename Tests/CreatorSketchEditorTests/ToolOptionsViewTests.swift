@@ -8,7 +8,7 @@ import Testing
 @MainActor
 struct ToolOptionsViewTests {
     @Test func theToolbarHoldsEveryTool() {
-        let drawing: [SketchTool] = [.select, .line, .arc, .arcThreePoint, .circle, .point, .dimension]
+        let drawing: [SketchTool] = [.select, .line, .arc, .arcThreePoint, .spline, .circle, .point, .dimension]
         #expect(SketchTool.allCases == drawing + [.trim, .extend, .fillet, .mirror, .pattern, .project])
         let model = SketchEditorModel(sketch: RectangleSketch().sketch, plane: .xy)
         model.choose(.pattern)

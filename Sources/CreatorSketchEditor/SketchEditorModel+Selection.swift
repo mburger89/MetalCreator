@@ -21,14 +21,18 @@ extension SketchEditorModel {
 
     /// Adds `kind` on the selection as one step, then clears the selection. A selection that doesn't fit says why.
     public func addConstraint(_ kind: SketchConstraintKind) {
-        guard let constraint = SelectionShape(selection, in: sketch).constraint(kind, at: sketch.position(of:)) else {
-            refusal = kind.hint
+        let shape = SelectionShape(selection, in: sketch)
+        guard let constraint = shape.constraint(kind, at: sketch.position(of:)) else {
+            refusal = kind == .curvature && shape.isLineAndArcJoint(in: sketch)
+                ? "A line and an arc can't meet with equal curvature." : kind.hint
             return
         }
         var edited = sketch
+        // A joint with a spline makes the handles it constrains active, at the value they have, so the curve starts unchanged.
+        edited.activateHandles(for: constraint)
         edited.add(constraint)
         selection = []
-        commit(edited, kind.title, named: SketchStepName.addConstraint)
+        commit(edited, kind.title, named: kind == .curvature ? SketchStepName.addCurvatureConstraint : SketchStepName.addConstraint)
     }
 
     /// Delete: removes the selected entities with everything built on them and every constraint and dimension on
