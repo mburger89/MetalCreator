@@ -155,13 +155,19 @@ public struct ZipReader {
             } catch InflateError.cancelled {
                 throw CancellationError()
             } catch {
-                throw ZipError.checksumMismatch(entry.name)
+                throw Self.zipError(for: error, in: entry)
             }
         default:
             throw ZipError.unsupportedMethod(entry.name)
         }
         guard content.count == entry.size, CRC32.checksum(content) == entry.crc else { throw ZipError.checksumMismatch(entry.name) }
         return content
+    }
+
+    /// What a failed inflate is to the zip's reader: an allocation that failed is the computer's, anything else a damaged entry.
+    static func zipError(for error: any Error, in entry: Entry) -> ZipError {
+        if let inflate = error as? InflateError, inflate == .allocationFailed { return .allocationFailed(entry.name) }
+        return .checksumMismatch(entry.name)
     }
 
     /// A deflate stream cannot expand past about 1032:1 (a run of 258 bytes costs a quarter of a bit), so one that declares more than that

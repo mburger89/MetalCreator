@@ -53,14 +53,23 @@ public enum ThreeMFReader {
     private static func content(of entry: ZipReader.Entry, in zip: ZipReader, limit: Int, isCancelled: () -> Bool) throws -> Data {
         do {
             return try zip.content(of: entry, limit: limit, isCancelled: isCancelled)
-        } catch ZipError.encrypted {
-            throw MeshImportProblem.encrypted
-        } catch ZipError.tooLarge {
-            throw MeshImportProblem.modelTooLarge
+        } catch let error as ZipError {
+            throw problem(for: error)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
             throw MeshImportProblem.malformedModel("a part of the file can't be read.")
+        }
+    }
+
+    /// What a zip entry that can't be read is to the person: the file's own fault in words, or the computer's memory, which is no
+    /// verdict on the file (the cache doesn't remember it).
+    static func problem(for error: ZipError) -> MeshImportProblem {
+        switch error {
+        case .encrypted: .encrypted
+        case .tooLarge: .modelTooLarge
+        case .allocationFailed: .notEnoughMemory
+        default: .malformedModel("a part of the file can't be read.")
         }
     }
 
@@ -84,7 +93,12 @@ public enum ThreeMFReader {
     /// key store marks Secure Content, which is encrypted.
     private static func modelEntry(in zip: ZipReader, isCancelled: () -> Bool) throws -> ZipReader.Entry {
         guard let relationships = entry(named: "_rels/.rels", in: zip) else { throw MeshImportProblem.noModelPart }
-        let bytes = try content(of: relationships, in: zip, limit: relationshipsLimit, isCancelled: isCancelled)
+        let bytes: Data
+        do {
+            bytes = try content(of: relationships, in: zip, limit: relationshipsLimit, isCancelled: isCancelled)
+        } catch MeshImportProblem.modelTooLarge {
+            throw MeshImportProblem.malformedModel("its relationships part is larger than any real one.")
+        }
         var target: String?
         try bytes.withUnsafeBytes { raw in
             var scanner = XMLScanner(bytes: raw)

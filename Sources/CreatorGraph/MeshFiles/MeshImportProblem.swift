@@ -40,6 +40,8 @@ public enum MeshImportProblem: Error, Equatable, Sendable {
     case unsupportedExtension(String)
     /// A 3MF whose model part is larger than the 2 GB limit (or declares more than its bytes could inflate to).
     case modelTooLarge
+    /// A 3MF part whose inflated size could not be allocated: a fact about this computer's memory now, not about the file.
+    case notEnoughMemory
     /// More triangles than `MeshImportLimits.maxTriangles`, found without an exact count (a count that saturated, or a stored cap).
     case overTriangleLimit
 
@@ -90,6 +92,8 @@ public enum MeshImportProblem: Error, Equatable, Sendable {
             "This 3MF needs an extension that isn't supported: \(Self.quoted(name))."
         case .modelTooLarge:
             "This 3MF's model is larger than the 2 GB limit."
+        case .notEnoughMemory:
+            "This 3MF is too large to open with the memory available."
         case .overTriangleLimit:
             "This file has more triangles than Import Mesh takes: at most "
                 + "\(MeshImportLimits.maxTriangles.formatted(.number.locale(.messages)))."

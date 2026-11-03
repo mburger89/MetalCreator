@@ -4,7 +4,7 @@ import CreatorImplicit
 import CreatorKernel
 import Foundation
 
-/// A mesh from a file (mesh import spec, the node): an STL or a 3MF (one mesh per object) read as it is, welded by exact position, scaled by the file's units or the
+/// A mesh from a file (mesh import spec, the node): an STL or a 3MF (one mesh per build item) read as it is, welded by exact position, scaled by the file's units or the
 /// ones chosen, and placed on `placement` (the file's origin goes to the plane's origin, its x and y along the plane's, its z up
 /// from it). The file is the node's `NodeSetting.meshFile`, embedded or linked. The parse is kept by `ImportedMeshCache`, so moving
 /// the placement or changing the units never reads the file again. A mesh with problems still imports; the node says what is wrong
@@ -42,9 +42,9 @@ public enum ImportMeshNode: NodeDefinition {
             let made = try placed(file, on: unit, scale: units.millimetres ?? file.unit ?? 1, file: reference.fileName ?? "Embedded",
                                   isCancelled: { Task.isCancelled })
             meshes.append(.mesh(made.mesh))
-            for text in made.warnings where !warnings.contains(text) { warnings.append(text) }
+            warnings += made.warnings  // the evaluator says a warning shared by meshes once
         }
-        // One mesh is a single value, as an STL always was; several (a 3MF's objects) are a list.
+        // One mesh is a single value, as an STL always was; several (a 3MF's build items) are a list.
         return meshes.count == 1 ? NodeOutputs(["mesh": meshes[0]], warnings: warnings)
             : NodeOutputs(lists: ["mesh": meshes], warnings: warnings)
     }

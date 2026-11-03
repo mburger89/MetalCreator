@@ -24,8 +24,34 @@ extension ImportMeshNodeTests {
         #expect(made.count == 2 && made.allSatisfy { $0.triangleCount == 4 })
         #expect(made[1].positions.map(\.x).min() == 30)
         #expect(report.isOK(node))
+        // Several meshes are a list; one is a single value, as an STL's always was.
+        guard case .list(let items)? = report.value(node, "mesh") else {
+            Issue.record("two objects should be a list")
+            return
+        }
+        #expect(items.count == 2)
         let (h1, node1, images1) = embedded(try ThreeMFFixtures.package([Self.tetra]))
-        #expect(try meshes(await h1.run([node1], images: images1), node1).count == 1)
+        let one = try await h1.run([node1], images: images1)
+        #expect(try meshes(one, node1).count == 1)
+        guard case .one? = one.value(node1, "mesh") else {
+            Issue.record("one object should be a single value, not a list")
+            return
+        }
+    }
+
+    @Test func aMaterialsAttributeAndALeftOutSupportReachTheirWarnings() async throws {
+        let (h, node, images) = embedded(try ThreeMFFixtures.package([Self.tetra], extra: "pid=\"1\""))
+        let extras = try #require(try await h.run([node], images: images).warning(node))
+        #expect(extras.contains(ThreeMFReader.ignoredExtrasWarning), "\(extras)")
+        let withSupport = try ThreeMFFixtures.package([Self.tetra, Self.shifted], types: ["model", "support"])
+        let (hs, supported, supportImages) = embedded(withSupport)
+        let report = try await hs.run([supported], images: supportImages)
+        let left = try #require(report.warning(supported))
+        #expect(left.contains(ThreeMFReader.supportsLeftOutWarning), "\(left)")
+        #expect(try meshes(report, supported).count == 1)
+        // Neither warns when there is nothing to say.
+        let (hp, plain, plainImages) = embedded(try ThreeMFFixtures.package([Self.tetra]))
+        #expect(try await hp.run([plain], images: plainImages).warning(plain) == nil)
     }
 
     @Test func fromFileUsesThe3MFsUnit() async throws {
@@ -64,5 +90,39 @@ extension ImportMeshNodeTests {
         let (h, node, images) = embedded(try ThreeMFFixtures.package([open, openShifted]))
         let message = try #require(try await h.run([node], images: images).warning(node))
         #expect(message.components(separatedBy: "This mesh isn't closed: 3 open edges.").count == 2, "\(message)")
+    }
+
+    @Test func aFailedAllocationIsRetriedButAFileThatOverflowsIsRemembered() async throws {
+        let cache = ImportedMeshCache(budgetBytes: 1 << 20)
+        let counter = ReadCounter()
+        let stamp = ImageStamp.embedded(ImageHash(of: Data("memory".utf8)), isPresent: true)
+        let tooBig: @Sendable () throws -> [ImportedMesh] = {
+            counter.increment()
+            throw MeshImportProblem.notEnoughMemory
+        }
+        for _ in 0..<2 { await #expect(throws: MeshImportProblem.notEnoughMemory) { try await cache.meshes(for: stamp, read: tooBig) } }
+        let remembered = await cache.problemCount
+        #expect(counter.value == 2 && remembered == 0)
+        // A 3MF transform that throws a corner out of Float is the bytes' doing (units and placement come after the read).
+        let overflow: @Sendable () throws -> [ImportedMesh] = {
+            counter.increment()
+            throw MeshImportProblem.coordinatesOverflow
+        }
+        let other = ImageStamp.embedded(ImageHash(of: Data("overflow".utf8)), isPresent: true)
+        for _ in 0..<2 {
+            await #expect(throws: MeshImportProblem.coordinatesOverflow) { try await cache.meshes(for: other, read: overflow) }
+        }
+        let afterOverflow = await cache.problemCount
+        #expect(counter.value == 3 && afterOverflow == 1)
+    }
+
+    @Test func theCacheCountsTheBytesOfEveryMeshOfAFile() throws {
+        let meshes = try ThreeMFReader.read(try ThreeMFFixtures.package([Self.tetra, Self.shifted, Self.tetra]), isCancelled: { false })
+        #expect(meshes.count == 3)
+        let each = try #require(meshes.first).mesh.estimatedBytes
+        #expect(each > 0)
+        #expect(ImportedMeshCache.bytes(of: meshes) == meshes.reduce(0) { $0 + $1.mesh.estimatedBytes })
+        #expect(ImportedMeshCache.bytes(of: meshes) > each)
+        #expect(ImportedMeshCache.bytes(of: []) == 0)
     }
 }

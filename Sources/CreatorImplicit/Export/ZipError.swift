@@ -10,6 +10,8 @@ public enum ZipError: Error, Equatable, Sendable {
     case writeFailed(String)
     case tooLarge(String)
     case encrypted(String)
+    /// The entry's content could not be allocated: the computer's memory, not the file.
+    case allocationFailed(String)
     case overlappingEntries
 
     public var userMessage: String {
@@ -30,6 +32,8 @@ public enum ZipError: Error, Equatable, Sendable {
             "“\(name)” in the zip is too large to open."
         case .encrypted(let name):
             "“\(name)” in the zip is password protected, which this app can't open."
+        case .allocationFailed(let name):
+            "“\(name)” in the zip is too large to open with the memory available."
         case .overlappingEntries:
             "The zip is damaged: its entries overlap."
         case .writeFailed(let reason):

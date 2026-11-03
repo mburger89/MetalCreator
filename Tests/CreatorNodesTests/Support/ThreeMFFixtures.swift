@@ -6,7 +6,11 @@ enum ThreeMFFixtures {
     typealias Face = (SIMD3<Float>, SIMD3<Float>, SIMD3<Float>)
 
     /// A package with one object per entry of `objects`, each built as an unwelded list of `faces`, in `unit`.
-    static func package(_ objects: [[Face]], unit: String = "millimeter") throws -> Data {
+    ///
+    /// `types` names each object's `type` (default `model`); `extra` is added to every object's attributes (`pid="1"` marks colour
+    /// data the reader ignores).
+    static func package(_ objects: [[Face]], unit: String = "millimeter", types: [String] = [],
+                        extra: String = "") throws -> Data {
         var resources = "", build = ""
         for (index, faces) in objects.enumerated() {
             var vertices = "", triangles = ""
@@ -14,7 +18,8 @@ enum ThreeMFFixtures {
                 for p in [face.0, face.1, face.2] { vertices += "<vertex x=\"\(p.x)\" y=\"\(p.y)\" z=\"\(p.z)\"/>" }
                 triangles += "<triangle v1=\"\(base)\" v2=\"\(base + 1)\" v3=\"\(base + 2)\"/>"
             }
-            resources += "<object id=\"\(index + 1)\" type=\"model\"><mesh><vertices>\(vertices)</vertices>"
+            let type = index < types.count ? types[index] : "model"
+            resources += "<object id=\"\(index + 1)\" type=\"\(type)\" \(extra)><mesh><vertices>\(vertices)</vertices>"
                 + "<triangles>\(triangles)</triangles></mesh></object>"
             build += "<item objectid=\"\(index + 1)\"/>"
         }
