@@ -1,7 +1,8 @@
 import Foundation
 
-/// Streams made outside Swift (zlib and a hand-written encoder, `scratchpad/inflate-fix/mk.py`), pinned as base64 so every platform
-/// decodes the same bytes. Expected output is zlib's; `nil` is a stream zlib refuses.
+/// Streams made outside Swift (Python's zlib, and a hand-written encoder for the hostile cases the RFC allows and zlib refuses),
+/// pinned as base64 so every platform decodes the same bytes. The generator was a scratch script and is not kept: what binds is the
+/// expected output, which is zlib's (`nil` is a stream zlib refuses), and the hashes beside the fixtures.
 enum InflateFixtures {
     struct Hostile: Sendable, CustomStringConvertible {
         let name: String

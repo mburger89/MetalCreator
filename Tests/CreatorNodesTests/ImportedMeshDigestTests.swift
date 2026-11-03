@@ -43,4 +43,13 @@ struct ImportedMeshDigestTests {
         #expect(Self.digest(threeMF[0].mesh) == "501dabfa685ff366c435c6dd69d693355d42074c9067fad0c5789eb1a1ff200d")
         #expect(Self.digest(threeMF[1].mesh) == "9ce89034336a8335cf85d4426e504c191caeb5d10f8ca77a9e47f38ffb23463d")
     }
+
+    /// The stored fixture above has integer coordinates and no transform; this one is deflated, has fractional coordinates and a
+    /// rotating transform, so the digest also covers `Inflate`, the float parser and the placement's arithmetic. Pinned from macOS and
+    /// Linux alike.
+    @Test func aDeflatedMeshWithFractionsAndARotationDigestIsPinned() throws {
+        let meshes = try ThreeMFReader.read(DeflatedThreeMF.package, isCancelled: { false })
+        #expect(meshes.count == 1 && meshes[0].mesh.triangleCount == 4)
+        #expect(Self.digest(meshes[0].mesh) == "d017f27196b36ce2766caa98986777795fbac052f553584e5045904611c1cc72")
+    }
 }
