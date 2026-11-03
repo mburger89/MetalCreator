@@ -140,8 +140,8 @@ today (`−smin(−a, −b)`, `−smin(−a, b)`).
   tolerances corners stay at the G1 refill below.
 - **Kinked chain joins (erratum 2026-11-01, found by Task 2c):** where OpenCascade's own spring bends at a join between two strips
   of a chain (more than 0.01°, e.g. where a loft's draft changes), the two strips share one end section on the bisector, and the
-  spring seam's curvature can't match within 1 % right at the join; the curvature check skips the last 3.3 % of the seam next to such
-  a join (position and angle are checked everywhere), and the node warns "N fillet joins are tangent only (G1) where the edges
+  join itself is tangent only; the spring seams beside it are held to the whole promise up to the join (erratum 2026-11-03: they once
+  skipped curvature in the last 3.3 %), and the node warns "N fillet joins are tangent only (G1) where the edges
   kink." (singular "1 fillet join is …"). Never silent.
 - **Where G2 can't be reached:** a corner patch where three or more fillets meet at a vertex is refilled to meet the new
   strips (the circular corner can't be kept: the strips' ends no longer match it). If the refill misses G2 there but meets G1
@@ -284,3 +284,18 @@ span from the end, with the across derivative as its whole cause and a planar ne
 the whole strip, as the cube of the distance from the other end, so the across direction is smooth and the skin follows it. Any
 direction in the neighbour's tangent plane is tangent to it, the shared end section is unchanged, and the same fall continues to about
 1e-6 degrees (0.0053, 0.00034, 0.000014, 0.000001 at the same counts).
+
+**Erratum 2026-11-03: no curvature exemption, and every span sampled.** Fading the junction's agreed tangent along the strip took away
+what the exemption was for. Across 416 builds of kinked chains (ruled and smooth rounded lofts, kinks wide and small, radii 0.1 to 2,
+weights 0.5 to 1.8, last-bit radius changes) and every G2 fixture, read at 20,011 points with none skipped, the worst curvature ratio in
+the once-exempt 3.3 % is 0.112 and anywhere on a seam 0.168 (1 passes), and taking the exemption away changes no build's outcome or
+section count. So there is none now: `everyPlaceOfEverySpringSeamKeepsThePromise` reads the seams up to their ends.
+
+The even samples, though, stepped over a real miss. OpenCascade's spring has a sliver of a piece at a strip's end (0.3 to 0.9 % of it),
+the strip breaks there, and a skin piece of two sections is a chord of that curved piece. Its sagitta reached 2.35e-4 mm in the middle
+of the sliver, past the 1e-4 promised (6 of 1,616 seams in the sweep over 1e-4, 141 over the 2e-5 margin, none of it seen by the 61 or 127 even samples),
+and those solids were returned valid. The candidate and the final check now also take three samples inside every span between
+sections that the even samples could step over (`span_samples`), so such a span gets its middle like any other; the worst position
+anywhere is then 2.0e-5 mm. No build that passed is refused and none refused now passes. Sections rise by at most 2 on a strip and 1.8 a
+build on average (the rounded ruled loft [14, 15, 13, 15, 15, 15, 15, 15] to [15, 15, 13, 17, 17, 15, 15, 17]; the smooth one is
+unchanged), the same under last-bit changes of the radius.

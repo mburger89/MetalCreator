@@ -611,6 +611,7 @@ BuiltStrip build_strip(const Spring &a, const Spring &b, double weight, const st
     built.sections.resize(sections);
     const Pairing pairing = pair_sections(a, b, fractions, breaks);
     built.ta = pairing.ta;
+    built.tb = pairing.tb;
     BRepAdaptor_Curve ca(a.edge), cb(b.edge);
     for (int j = 0; j < sections; ++j) {
         const gp_Pnt pa = ca.Value(pairing.ta[j]);
@@ -882,8 +883,6 @@ void agree_chain_tangents(Run &r) {
                                 bisector.Normalize();
                                 const double kink = std::acos(std::clamp(-outward.Dot(other_outward), -1.0, 1.0)) * 180 / kPi;
                                 if (kink > 0.01) {
-                                    mine.kinked[end] = true;
-                                    other.kinked[other_end] = true;
                                     // Every kink is a counted join: the join edge is the end that chains to the
                                     // other strip, else (never seen) the spring's own end.
                                     int join_end = end;
@@ -997,14 +996,16 @@ void build_strips(Run &r) {
             const bool reversed = old_face.Orientation() == TopAbs_REVERSED;
             std::vector<double> first_spans, second_spans;
             const occt_g2_seam first_seam = candidate_seam(
-                built.surface, reversed, edges.spring[swapped ? 1 : 0], built.pcurve[0], fractions, first_spans);
+                built.surface, reversed, edges.spring[swapped ? 1 : 0], built.pcurve[0], fractions, built.ta, first_spans);
             const occt_g2_seam second_seam = candidate_seam(
-                built.surface, reversed, edges.spring[swapped ? 0 : 1], built.pcurve[1], fractions, second_spans);
+                built.surface, reversed, edges.spring[swapped ? 0 : 1], built.pcurve[1], fractions, built.tb, second_spans);
             const bool passes = within_tolerance(first_seam) && within_tolerance(second_seam);
             if (passes) {
                 // The springs keep their own curves: their tolerance covers what the strip's boundary misses.
                 state.spring_gap[0] = first_seam.position;
                 state.spring_gap[1] = second_seam.position;
+                edges.spring[swapped ? 1 : 0].section_t = built.ta;
+                edges.spring[swapped ? 0 : 1].section_t = built.tb;
                 break;
             }
             if (degree < kSkinDegree) {

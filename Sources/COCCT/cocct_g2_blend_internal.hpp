@@ -66,8 +66,8 @@ struct Spring {
     double t_start = 0;   // the parameters sampling runs between: the edge's own, or extended past a slanted end
     double t_end = 0;
     bool has_tangent[2] = {false, false}; // a chain junction's agreed spring tangent at the start and end
-    bool kinked[2] = {false, false};      // ... where the two springs' tangents differ by more than 0.01 degrees
     gp_Vec junction_tangent[2];
+    std::vector<double> section_t;        // the built strip's sections' parameters on this edge, in sampling order
 };
 
 /// What a neighbour face gives at a section end.
@@ -85,7 +85,7 @@ struct BuiltStrip {
     Handle(Geom2d_Curve) pcurve[2]; // of the first and second spring
     std::vector<std::array<g2::Vec, 6>> sections;
     std::vector<NeighbourEnd> first_ends, second_ends;
-    std::vector<double> ta; // each section's parameter on the first spring
+    std::vector<double> ta, tb; // each section's parameter on the first spring and on the second
 };
 
 bool is_blend(const TopoDS_Shape &face, const std::vector<TopoDS_Face> &blend);
@@ -120,12 +120,12 @@ void accumulate(occt_g2_seam &seam, const SurfacePoint &a, const SurfacePoint &b
 
 /// The strip's gaps against one spring's neighbour, read off the candidate surface through the spring's pcurve before
 /// any topology is built (cocct_g2_seam.cpp). `reversed`: the face is REVERSED, so its outward normal is the raw one's
-/// opposite. `fractions` are the sections' places along the strip; `intervals` gets, for each span between two
-/// sections, the worst gap found in it as a multiple of the (halved) tolerances: more than 1 means the span needs a
-/// section.
+/// opposite. `fractions` are the sections' places along the strip and `section_t` their parameters on this edge;
+/// `intervals` gets, for each span between two sections, the worst gap found in it as a multiple of the (halved)
+/// tolerances: more than 1 means the span needs a section. Every span is sampled, however narrow.
 occt_g2_seam candidate_seam(const Handle(Geom_BSplineSurface) &surface, bool reversed, const Spring &spring,
                             const Handle(Geom2d_Curve) &pcurve, const std::vector<double> &fractions,
-                            std::vector<double> &intervals);
+                            const std::vector<double> &section_t, std::vector<double> &intervals);
 
 /// Half the promised tolerances, so the final measurement at other samples still has room (cocct_g2_seam.cpp).
 bool within_tolerance(const occt_g2_seam &seam);
