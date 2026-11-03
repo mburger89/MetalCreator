@@ -123,3 +123,7 @@ Jacobian stay analytic and local, as the solver requires.
 The storage of handle states in `SketchEntityKind.spline`, the solver's handle column layout (`UnknownLayout`), the warm-start state,
 the overlay glyphs' exact look within the theme's sketch roles, and the numeric tolerances inside intersection and nearest-point
 searches (results to 1e-10 mm).
+
+## Erratum (2026-11-03): the rubber band follows the inferred Tangent
+
+While drawing, the band was the spline through the points with automatic handles, so the curve jumped when a Tangent inferred at the start or at the landing point took effect on commit. `splineBand` now builds the band with the commit's own construction (`splineSketch`: add the spline, add the Tangent constraints with their handles activated) and the same solve, and draws the resulting `SplineDefinition` (`PreviewCurve.fitSpline`). With ⌘ held (or no joint curve) it is still `PreviewCurve.spline(through:)`. The band is exact for the points it shows; the commit differs only if the sketch changes between the last hover and the click.
