@@ -197,6 +197,32 @@ These change no behaviour the spec promises.
 
 ---
 
+### Task 11b: Parts in other files of the package (Bambu and Orca)
+
+Added 2026-11-03 at the user's decision ("add support for Bambu files, option 1"). Its own PR, on top of MI-2. It lifts the spec's non-goal on the Production extension's parts within one package; encrypted content stays refused.
+
+**Files:** Modify `Sources/CreatorImplicit/Import/ThreeMFReader.swift`, `ThreeMFModelParser*.swift`, `ThreeMFModel.swift`, `ThreeMFInstancing.swift`, `Sources/CreatorGraph/MeshFiles/MeshImportProblem.swift`, the spec, `CLAUDE.md`, `docs/verification/human-checks.md`. Test `Tests/CreatorImplicitTests/ThreeMFProductionTests.swift`.
+
+**Interfaces, produces:** `ThreeMFReader.read` keeps its signature. Objects are keyed by part and id. `MeshImportProblem.otherFiles` goes away.
+
+**Rules:**
+- A `path` attribute in the Production namespace, found through the xmlns declarations as now, on a `<component>` or an `<item>` of the root model names a part in the same zip, looked up as the start part is: exact, then percent-decoded, then case-folded. A path equal to the root part refers to the root.
+- Only the root model may carry a `path`: one in another part is refused in `malformedModel` words, so parts can't chain and there's no cycle across parts. `p:UUID` is ignored.
+- Each part is inflated and parsed once, however many components name it, and only if something names it. Its buffer is released before the next. A part not named is never read.
+- One budget across the whole file: inflated model bytes total at most 2 GB (`modelTooLarge`); records, vertices and stored triangles shared across parts; at most 4,096 parts, refused with "This 3MF has too many parts." The instanced triangle count stays before anything is instantiated, across parts.
+- Each part's `requiredextensions` and DOCTYPE rules apply as the root's do. Its `unit` must equal the root's: a different one is refused in `malformedModel` words naming neither file text nor a guess at a conversion. An encrypted part stays `encrypted`.
+- A missing part is `malformedModel` with its name cut to 80 characters. An object id missing from the named part is refused as a missing id in the root is. Nothing is ever written to disk by name.
+- Support types and transforms apply as they do in one part.
+
+- [ ] **Step 1: Write the failing tests.** `aBambuShapedFileReads` (root with build items whose components have `p:path="/3D/Objects/object_1.model"`, two parts, `requiredextensions="p"`, plate and paint metadata, with a pinned digest); `aPartNamedTwiceIsReadOnce`; `anUnnamedPartIsNotRead` (it's damaged, and the file still reads); `sameIdInTwoPartsIsTwoObjects`; `aPathOnAnItemReads`; `aPathToTheRootIsTheRoot`; `aPrefixOtherThanPReads`; `aPathInANonRootPartIsRefused`; `aMissingPartIsRefused`; `aMissingObjectInAPartIsRefused`; `aDifferentUnitInAPartIsRefused`; `partsTogetherOverTheByteBudgetAreRefused`, on small inputs with test-only limits; `partsTogetherOverTheTriangleBudgetAreRefused`; `tooManyPartsAreRefused`; `aPercentEncodedPathReads`; `aZipBombPartIsRefusedBeforeAllocating`; `partTransformsCompose`; `aMirrorThroughAPartStaysRightSideOut`; `cancellationBetweenParts`.
+- [ ] **Step 2: Run** `swift test --filter ThreeMFProductionTests`. Expected: FAIL. The existing `aProductionPathIsRefused` test is replaced.
+- [ ] **Step 3: Implement.** Reuse the parser for each part; no second parser.
+- [ ] **Step 4: Records.** A dated erratum in the spec: the non-goal is lifted and these are the rules; the refusal's sentence goes from the spec's list. CLAUDE.md's mesh import paragraph. Human check MI-9: a real Bambu Studio project file and an Orca one read, with the right size and parts, and left-out supports warned about. Nothing here has seen a real file, so this check is what proves it.
+- [ ] **Step 5: Verify:** full `swift test` (12 lines, only the allowed failure), `swiftlint lint --strict` (0), and Linux with `XP_TRACK=mi-2b` (12 lines).
+- [ ] **Step 6: Commit** `feat(mesh): 3MF parts in other files of the package`. Open the PR after MI-2 merges; merge when CI is green.
+
+---
+
 ## MI-3: Measure and record
 
 ### Task 12: Benchmarks and the limit
