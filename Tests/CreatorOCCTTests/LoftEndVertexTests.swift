@@ -20,7 +20,7 @@ extension LoftEndConditionTests {
             let joined = try union(part, built.shape)
             #expect(isValid(joined))
             let found = try continuities(of: joined) { m in abs(m[2] - 20) < 1e-6 }
-            print("LOFTENDS curved walls c=\(continuity): joint \(found.map(\.grade))")
+            print("LOFTENDS curved walls c=\(continuity): columns \(columns(built.report)) joint \(found.map(\.grade))")
             #expect(found.count == 4)
             #expect(found.allSatisfy { $0.grade == grade })
         }
@@ -28,26 +28,29 @@ extension LoftEndConditionTests {
 
     /// A rounded rectangle 20 × 20 r3 extruded, lofted from its top to a rounded rectangle 12 × 12 r2 at z = 20 above:
     /// the loft's own vertical edges (where its patches meet) are tangent-continuous where the sections are.
-    @Test func roundedRectangleLoftKeepsItsOwnSidesSmooth() throws {
-        func rounded(_ side: Double, _ r: Double, at z: Double) -> Profile2D {
-            let h = side / 2, c = h - r
-            let plane = Plane(origin: Vector3(0, 0, z), normal: .unitZ, xAxis: .unitX)
-            func corner(_ cx: Double, _ cy: Double, _ a: Double) -> Segment2D {
-                .arc(center: Vector2(cx, cy), radius: r, start: Angle(radians: a), end: Angle(radians: a + .pi / 2))
-            }
-            return Profile2D(plane: plane, segments: [
-                .line(Vector2(-c, -h), Vector2(c, -h)), corner(c, -c, -.pi / 2),
-                .line(Vector2(h, -c), Vector2(h, c)), corner(c, c, 0),
-                .line(Vector2(c, h), Vector2(-c, h)), corner(-c, c, .pi / 2),
-                .line(Vector2(-h, c), Vector2(-h, -c)), corner(-c, -c, .pi),
-            ])
+    /// A rounded square `side` × `side` with corner radius `r`, centred on the z axis at height `z`: four lines and four
+    /// quarter arcs, each meeting the next tangent.
+    func rounded(_ side: Double, _ r: Double, at z: Double) -> Profile2D {
+        let h = side / 2, c = h - r
+        let plane = Plane(origin: Vector3(0, 0, z), normal: .unitZ, xAxis: .unitX)
+        func corner(_ cx: Double, _ cy: Double, _ a: Double) -> Segment2D {
+            .arc(center: Vector2(cx, cy), radius: r, start: Angle(radians: a), end: Angle(radians: a + .pi / 2))
         }
+        return Profile2D(plane: plane, segments: [
+            .line(Vector2(-c, -h), Vector2(c, -h)), corner(c, -c, -.pi / 2),
+            .line(Vector2(h, -c), Vector2(h, c)), corner(c, c, 0),
+            .line(Vector2(c, h), Vector2(-c, h)), corner(-c, c, .pi / 2),
+            .line(Vector2(-h, c), Vector2(-h, -c)), corner(-c, -c, .pi),
+        ])
+    }
+
+    @Test func roundedRectangleLoftKeepsItsOwnSidesSmooth() throws {
         let part = try OCCTKernel.serialized { try OCCTShape.extrude(rounded(20, 3, at: 0), distance: 10).0 }
         let top = try planarFace(of: part, normal: [0, 0, 1], height: 10)
         let built = try loft(part, start: end(top, 2), end: nil, sections: [rounded(12, 2, at: 20)])
         #expect(isValid(built.shape))
         let own = try continuities(of: built.shape) { m in m[2] > 10.5 && m[2] < 19.5 }
-        print("LOFTENDS rounded own edges: \(own.map(\.grade)) angles \(own.map(\.angleGap))")
+        print("LOFTENDS rounded columns \(columns(built.report)) own edges: \(own.map(\.grade)) angles \(own.map(\.angleGap))")
         #expect(own.count == 8)
         #expect(own.allSatisfy { $0.grade != .g0 })
         let joined = try union(part, built.shape)

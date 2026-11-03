@@ -2,7 +2,9 @@
 // the part's adjacent faces, tangent (G1) or with matching curvature (G2). With every end Free it is OCCT's
 // ThruSections, as occt_loft; otherwise it is skinned here: per segment of the sections, columns across the sections as
 // quintic B-splines with the face end's derivatives taken from the part, skinned along the segment into one B-spline
-// patch, columns added where a span misses until the face-end seams and the sections fit, the patches and caps sewn and checked.
+// patch (every pole row our own cubic or quintic spline through the columns, periodic on a closed loop, broken where a
+// part edge's derivatives jump), columns added where a span misses until the face-end seams and the sections fit, the
+// patches and caps sewn and checked.
 // The fillet's surface sampling, seam accumulation and tolerances are shared (cocct_g2_blend_internal.hpp).
 
 #include "cocct_g2_blend_internal.hpp"
@@ -21,7 +23,6 @@
 #include <BRepTools.hxx>
 #include <BRepTools_WireExplorer.hxx>
 #include <BSplCLib.hxx>
-#include <GeomAPI_Interpolate.hxx>
 #include <Geom_BSplineCurve.hxx>
 #include <Geom_Curve.hxx>
 #include <TopLoc_Location.hxx>
@@ -29,12 +30,8 @@
 #include <Precision.hxx>
 #include <TColStd_Array1OfInteger.hxx>
 #include <TColStd_Array1OfReal.hxx>
-#include <TColStd_HArray1OfBoolean.hxx>
-#include <TColStd_HArray1OfReal.hxx>
-#include <TColgp_Array1OfVec.hxx>
 #include <TColgp_Array1OfPnt.hxx>
 #include <TColgp_Array2OfPnt.hxx>
-#include <TColgp_HArray1OfPnt.hxx>
 #include <TopoDS_Shell.hxx>
 #include <TopoDS_Solid.hxx>
 #include <TopoDS_Wire.hxx>
@@ -58,11 +55,15 @@ constexpr const char *kSegmentsMessage = "Every loft section needs the same numb
 constexpr const char *kWeightMessage = "The tangency weight is too large for this loft.";
 constexpr const char *kFlatMessage = "The loft's end face must be flat.";
 constexpr const char *kHolesMessage = "A loft can't use profiles with holes yet.";
-constexpr int kFirstColumns = 9;   // columns per segment to start with
+constexpr int kFirstColumns = 5;   // columns per segment to start with (both ends included) ...
+constexpr int kFirstClosedColumns = 9; // ... and on a closed loop of one segment, whose periodic quintic needs over 5
 constexpr int kMaxColumns = 129;   // the cap, columns in all per segment
 constexpr int kCheckSamples = 127; // prime, so the samples never fall on the columns (at multiples of 1/2^k)
 constexpr int kOrder = 6;          // the columns are quintic
 constexpr double kSewingTolerance = 1e-4; // the promised position tolerance; the candidates fit within a fifth of it
+constexpr int kFirstDegree = 3;    // the skin along a segment, first: a cubic (cheaper to mesh and check) ...
+constexpr int kSkinDegree = 5;     // ... and, if the cubic misses at the first columns, a quintic from then on
+constexpr double kBreakMargin = 1e-4; // a part edge's knot nearer a segment's end than this share of it is no break
 
 enum Continuity { kFree = 0, kTangent = 1, kCurvature = 2 };
 
@@ -584,69 +585,292 @@ std::vector<gp_Pnt> column(const std::vector<Section> &sections, const ColumnBas
     return poles;
 }
 
-/// The patch of segment k through the columns at the given fractions of the segment (0 to 1): each row of column poles interpolated by a cubic
-/// along the segment (periodically for a closed loop of one segment, whose last column is its first).
+/// A B-spline through given values: its poles (each as many numbers as a value has), knots, multiplicities and degree.
+struct Spline {
+    std::vector<std::vector<double>> poles;
+    std::vector<double> knots;
+    std::vector<int> mults;
+    int degree = 0;
+};
+
+constexpr const char *kSkinFailure = "the loft's columns could not be skinned";
+
+/// The values at `x` of the `degree + 1` B-spline basis functions of the flat knot vector `flat` that are nonzero on
+/// its span `span` (flat[span] <= x < flat[span + 1]): the functions span - degree ... span (The NURBS Book, A2.2).
+std::vector<double> basis_at(const std::vector<double> &flat, std::size_t span, double x, int degree) {
+    const std::size_t p = static_cast<std::size_t>(degree);
+    std::vector<double> n(p + 1, 0.0), left(p + 1, 0.0), right(p + 1, 0.0);
+    n[0] = 1;
+    for (std::size_t j = 1; j <= p; ++j) {
+        left[j] = x - flat[span + 1 - j];
+        right[j] = flat[span + j] - x;
+        double saved = 0;
+        for (std::size_t r = 0; r < j; ++r) {
+            const double temp = n[r] / (right[r + 1] + left[j - r]);
+            n[r] = saved + right[r + 1] * temp;
+            saved = left[j - r] * temp;
+        }
+        n[j] = saved;
+    }
+    return n;
+}
+
+/// Solves `matrix` x = `rhs` (one column per number of a value) in place, by Gaussian elimination with partial
+/// pivoting; the solution replaces `rhs`. False when the matrix is singular.
+bool solve(std::vector<std::vector<double>> &matrix, std::vector<std::vector<double>> &rhs) {
+    const std::size_t n = matrix.size();
+    for (std::size_t c = 0; c < n; ++c) {
+        std::size_t pivot = c;
+        for (std::size_t r = c + 1; r < n; ++r) {
+            if (std::abs(matrix[r][c]) > std::abs(matrix[pivot][c])) {
+                pivot = r;
+            }
+        }
+        if (std::abs(matrix[pivot][c]) < 1e-12) {
+            return false;
+        }
+        std::swap(matrix[c], matrix[pivot]);
+        std::swap(rhs[c], rhs[pivot]);
+        for (std::size_t r = c + 1; r < n; ++r) {
+            const double factor = matrix[r][c] / matrix[c][c];
+            if (factor == 0) {
+                continue;
+            }
+            for (std::size_t k = c; k < n; ++k) {
+                matrix[r][k] -= factor * matrix[c][k];
+            }
+            for (std::size_t k = 0; k < rhs[r].size(); ++k) {
+                rhs[r][k] -= factor * rhs[c][k];
+            }
+        }
+    }
+    for (std::size_t c = n; c-- > 0;) {
+        for (std::size_t k = 0; k < rhs[c].size(); ++k) {
+            double value = rhs[c][k];
+            for (std::size_t r = c + 1; r < n; ++r) {
+                value -= matrix[c][r] * rhs[r][k];
+            }
+            rhs[c][k] = value / matrix[c][c];
+        }
+    }
+    return true;
+}
+
+/// The clamped spline of degree min(`degree`, poles - 1) through `values` at the increasing parameters `x`, with its
+/// first derivative given at the start and the end where `start` and `finish` are not empty. The knots are de Boor's
+/// averages of the parameters (an end with a derivative counted twice), so the spline reproduces every polynomial of
+/// its degree and its error falls as the spacing to the power degree + 1. Raised to `degree` when it had fewer poles
+/// than that needs (it is one polynomial then). `poles` and `flat` (the flat knot vector) are the result; the end poles
+/// are the end values exactly.
+void open_piece(const std::vector<std::vector<double>> &values, const std::vector<double> &x, int degree,
+                const std::vector<double> &start, const std::vector<double> &finish,
+                std::vector<std::vector<double>> &poles, std::vector<double> &flat) {
+    const std::size_t n = values.size();
+    const bool has_start = !start.empty(), has_finish = !finish.empty();
+    const std::size_t m = n + (has_start ? 1 : 0) + (has_finish ? 1 : 0);
+    const int own = std::min(degree, static_cast<int>(m) - 1);
+    const std::size_t p = static_cast<std::size_t>(own);
+    std::vector<double> averaged;
+    if (has_start) {
+        averaged.push_back(x.front());
+    }
+    averaged.insert(averaged.end(), x.begin(), x.end());
+    if (has_finish) {
+        averaged.push_back(x.back());
+    }
+    flat.assign(p + 1, x.front());
+    for (std::size_t j = 1; j + p < m; ++j) {
+        double sum = 0;
+        for (std::size_t k = j; k < j + p; ++k) {
+            sum += averaged[k];
+        }
+        flat.push_back(sum / own);
+    }
+    flat.insert(flat.end(), p + 1, x.back());
+    std::vector<std::vector<double>> matrix(m, std::vector<double>(m, 0.0));
+    poles.clear();
+    std::size_t row = 0;
+    if (has_start) {
+        // C'(x0) = p (P1 - P0) / (u[p + 1] - u[1]).
+        const double k = own / (flat[p + 1] - flat[1]);
+        matrix[row][0] = -k;
+        matrix[row][1] = k;
+        poles.push_back(start);
+        ++row;
+    }
+    for (std::size_t j = 0; j < n; ++j, ++row) {
+        std::size_t span = p;
+        while (span + 1 < m && flat[span + 1] <= x[j]) {
+            ++span;
+        }
+        const std::vector<double> basis = basis_at(flat, span, x[j], own);
+        for (std::size_t r = 0; r <= p; ++r) {
+            matrix[row][span - p + r] = basis[r];
+        }
+        poles.push_back(values[j]);
+    }
+    if (has_finish) {
+        // C'(x1) = p (P[m - 1] - P[m - 2]) / (u[m + p - 1] - u[m - 1]).
+        const double k = own / (flat[m + p - 1] - flat[m - 1]);
+        matrix[row][m - 2] = -k;
+        matrix[row][m - 1] = k;
+        poles.push_back(finish);
+    }
+    if (!solve(matrix, poles)) {
+        throw std::runtime_error(kSkinFailure);
+    }
+    // A clamped spline's end poles are its end points: exactly the values, so neighbouring patches share them.
+    poles.front() = values.front();
+    poles.back() = values.back();
+    // One polynomial of a lower degree (a piece of fewer points than the degree needs): raised one degree at a time.
+    for (int d = own; d < degree; ++d) {
+        std::vector<std::vector<double>> raised(static_cast<std::size_t>(d) + 2, poles.front());
+        raised.back() = poles.back();
+        for (std::size_t i = 1; i <= static_cast<std::size_t>(d); ++i) {
+            const double a = static_cast<double>(i) / (d + 1);
+            for (std::size_t k = 0; k < poles[i].size(); ++k) {
+                raised[i][k] = a * poles[i - 1][k] + (1 - a) * poles[i][k];
+            }
+        }
+        poles = raised;
+        flat.insert(flat.begin(), x.front());
+        flat.push_back(x.back());
+    }
+}
+
+/// The spline of `degree` through `values` at the increasing parameters `x`, made of one open piece (open_piece)
+/// between each pair of consecutive breaks (`breaks`: indices into x, the ends excluded), joined with a knot of
+/// multiplicity `degree` there: the data need not be smooth across a break, and the spline does not smooth them over
+/// it. `start` and `finish` are the first piece's starting and the last piece's finishing derivative (empty: free).
+Spline interpolate_open(const std::vector<std::vector<double>> &values, const std::vector<double> &x,
+                        const std::vector<std::size_t> &breaks, int degree, const std::vector<double> &start,
+                        const std::vector<double> &finish) {
+    std::vector<std::size_t> ends{0};
+    ends.insert(ends.end(), breaks.begin(), breaks.end());
+    ends.push_back(values.size() - 1);
+    Spline spline;
+    spline.degree = degree;
+    for (std::size_t piece = 0; piece + 1 < ends.size(); ++piece) {
+        const std::size_t from = ends[piece], to = ends[piece + 1];
+        const std::vector<std::vector<double>> piece_values(values.begin() + static_cast<std::ptrdiff_t>(from),
+                                                            values.begin() + static_cast<std::ptrdiff_t>(to) + 1);
+        const std::vector<double> piece_x(x.begin() + static_cast<std::ptrdiff_t>(from),
+                                          x.begin() + static_cast<std::ptrdiff_t>(to) + 1);
+        const bool first = piece == 0, last = piece + 2 == ends.size();
+        std::vector<std::vector<double>> poles;
+        std::vector<double> flat;
+        open_piece(piece_values, piece_x, degree, first ? start : std::vector<double>{},
+                   last ? finish : std::vector<double>{}, poles, flat);
+        // A piece's first pole is its first value, which is the previous piece's last pole.
+        spline.poles.insert(spline.poles.end(), poles.begin() + (first ? 0 : 1), poles.end());
+        if (first) {
+            spline.knots.push_back(flat.front());
+            spline.mults.push_back(degree + 1);
+        } else {
+            spline.mults.back() = degree;
+        }
+        for (std::size_t q = static_cast<std::size_t>(degree) + 1; q + 1 < flat.size(); ++q) {
+            if (flat[q] == spline.knots.back()) {
+                ++spline.mults.back();
+            } else {
+                spline.knots.push_back(flat[q]);
+                spline.mults.push_back(1);
+            }
+        }
+        spline.mults.back() = degree + 1;
+    }
+    return spline;
+}
+
+/// The periodic spline of odd `degree` through `values` at `x` (the last value repeats the first, a period later),
+/// with a knot at every value, so it is as smooth across its junction as anywhere. Its poles are in OpenCascade's
+/// order for a periodic B-spline with these knots, all of multiplicity 1.
+Spline interpolate_periodic(const std::vector<std::vector<double>> &values, const std::vector<double> &x, int degree) {
+    const int m = static_cast<int>(values.size()) - 1;
+    if (m <= degree) {
+        throw std::runtime_error(kSkinFailure);
+    }
+    const double period = x.back() - x.front();
+    // The knots at the values, carried on periodically past both ends: flat[q] is the knot of value q - degree - 1.
+    std::vector<double> flat;
+    for (int q = -(degree + 1); q <= m + degree + 1; ++q) {
+        const int wraps = static_cast<int>(std::floor(static_cast<double>(q) / m));
+        flat.push_back(x[static_cast<std::size_t>(q - wraps * m)] + wraps * period);
+    }
+    const std::size_t size = static_cast<std::size_t>(m);
+    std::vector<std::vector<double>> matrix(size, std::vector<double>(size, 0.0));
+    std::vector<std::vector<double>> poles(values.begin(), values.end() - 1);
+    for (int j = 0; j < m; ++j) {
+        const std::size_t span = static_cast<std::size_t>(j + degree + 1);
+        const std::vector<double> basis = basis_at(flat, span, x[static_cast<std::size_t>(j)], degree);
+        for (int r = 0; r <= degree; ++r) {
+            // Basis function span - degree + r of the unrolled knots is the periodic one of index (that - degree - 1).
+            const int column = (((j + r - degree) % m) + m) % m;
+            matrix[static_cast<std::size_t>(j)][static_cast<std::size_t>(column)] += basis[static_cast<std::size_t>(r)];
+        }
+    }
+    if (!solve(matrix, poles)) {
+        throw std::runtime_error(kSkinFailure);
+    }
+    Spline spline;
+    spline.degree = degree;
+    // OpenCascade's first periodic pole is the function that starts `degree` knots before the first knot.
+    std::rotate(poles.begin(), poles.begin() + (m - degree), poles.end());
+    spline.poles = poles;
+    spline.knots = x;
+    spline.mults.assign(x.size(), 1);
+    return spline;
+}
+
 /// The row tangents a patch's skin is given where its end is a smooth vertex: per pole row, the derivative with respect to
 /// the patch's fraction (empty: free).
 struct EndTangents {
     std::vector<gp_Vec> start, finish;
 };
 
+/// The patch of segment k through the columns at the given fractions of the segment (0 to 1): every row of column
+/// poles interpolated along the segment by one spline of `degree`, all rows with the same knots (periodic with a knot
+/// at each column for a closed loop of one segment, whose last column is its first; otherwise broken into pieces at
+/// the columns `breaks`, indices into `fractions`).
 Handle(Geom_BSplineSurface) skin(const std::vector<std::vector<gp_Pnt>> &columns, const std::vector<double> &fractions,
-                                 const ColumnBasis &basis, bool closed, const EndTangents &tangents) {
-    const int count = static_cast<int>(columns.size());
+                                 const ColumnBasis &basis, bool closed, const EndTangents &tangents,
+                                 const std::vector<std::size_t> &breaks, int degree) {
     const int size = basis.poles();
-    const int points_count = closed ? count - 1 : count;
-    Handle(TColStd_HArray1OfReal) params = new TColStd_HArray1OfReal(1, count);
-    for (int j = 0; j < count; ++j) {
-        params->SetValue(j + 1, fractions[j]);
+    auto flatten = [&](const std::vector<gp_Vec> &row) {
+        std::vector<double> out;
+        for (const gp_Vec &q : row) {
+            out.insert(out.end(), {q.X(), q.Y(), q.Z()});
+        }
+        return out;
+    };
+    std::vector<std::vector<double>> values;
+    for (const std::vector<gp_Pnt> &column : columns) {
+        std::vector<double> row;
+        for (const gp_Pnt &q : column) {
+            row.insert(row.end(), {q.X(), q.Y(), q.Z()});
+        }
+        values.push_back(row);
     }
-    std::vector<Handle(Geom_BSplineCurve)> rows;
-    for (int r = 0; r < size; ++r) {
-        Handle(TColgp_HArray1OfPnt) points = new TColgp_HArray1OfPnt(1, points_count);
-        for (int j = 0; j < points_count; ++j) {
-            points->SetValue(j + 1, columns[j][r]);
-        }
-        GeomAPI_Interpolate interpolate(points, params, closed ? Standard_True : Standard_False, 1e-9);
-        const bool has_start = !closed && !tangents.start.empty(), has_finish = !closed && !tangents.finish.empty();
-        if (has_start || has_finish) {
-            TColgp_Array1OfVec given(1, points_count);
-            Handle(TColStd_HArray1OfBoolean) flags = new TColStd_HArray1OfBoolean(1, points_count);
-            for (int j = 1; j <= points_count; ++j) {
-                given.SetValue(j, gp_Vec(0, 0, 0));
-                flags->SetValue(j, Standard_False);
-            }
-            if (has_start) {
-                given.SetValue(1, tangents.start[r]);
-                flags->SetValue(1, Standard_True);
-            }
-            if (has_finish) {
-                given.SetValue(points_count, tangents.finish[r]);
-                flags->SetValue(points_count, Standard_True);
-            }
-            interpolate.Load(given, flags, Standard_False);
-        }
-        interpolate.Perform();
-        if (!interpolate.IsDone()) {
-            throw std::runtime_error("the loft's columns could not be skinned");
-        }
-        rows.push_back(interpolate.Curve());
-    }
-    const int u_poles = rows[0]->NbPoles();
+    const Spline spline = closed ? interpolate_periodic(values, fractions, degree)
+                                 : interpolate_open(values, fractions, breaks, degree, flatten(tangents.start),
+                                                    flatten(tangents.finish));
+    const int u_poles = static_cast<int>(spline.poles.size());
     TColgp_Array2OfPnt poles(1, u_poles, 1, size);
-    for (int r = 0; r < size; ++r) {
-        if (rows[r]->NbPoles() != u_poles) {
-            throw std::runtime_error("the loft's columns could not be skinned");
-        }
-        for (int j = 1; j <= u_poles; ++j) {
-            poles.SetValue(j, r + 1, rows[r]->Pole(j));
+    for (int j = 0; j < u_poles; ++j) {
+        const std::vector<double> &q = spline.poles[static_cast<std::size_t>(j)];
+        for (int r = 0; r < size; ++r) {
+            const std::size_t at = 3 * static_cast<std::size_t>(r);
+            poles.SetValue(j + 1, r + 1, gp_Pnt(q[at], q[at + 1], q[at + 2]));
         }
     }
-    TColStd_Array1OfReal uknots(1, rows[0]->NbKnots());
-    TColStd_Array1OfInteger umults(1, rows[0]->NbKnots());
-    rows[0]->Knots(uknots);
-    rows[0]->Multiplicities(umults);
-    return new Geom_BSplineSurface(poles, uknots, basis.knots, umults, basis.mults, rows[0]->Degree(), kOrder - 1,
+    const int knot_count = static_cast<int>(spline.knots.size());
+    TColStd_Array1OfReal uknots(1, knot_count);
+    TColStd_Array1OfInteger umults(1, knot_count);
+    for (int j = 0; j < knot_count; ++j) {
+        uknots.SetValue(j + 1, spline.knots[static_cast<std::size_t>(j)]);
+        umults.SetValue(j + 1, spline.mults[static_cast<std::size_t>(j)]);
+    }
+    return new Geom_BSplineSurface(poles, uknots, basis.knots, umults, basis.mults, spline.degree, kOrder - 1,
                                    closed ? Standard_True : Standard_False, Standard_False);
 }
 
@@ -833,7 +1057,50 @@ SmoothVertices plan_smooth_vertices(const std::vector<Section> &sections, const 
     return vertices;
 }
 
-/// Segment k's patch. Columns start at 9 per segment (even fractions); a span whose seam or section fit misses (half the
+/// The fractions of segment k at the interior knots of a face section's edge where the edge's first or second
+/// derivative jumps (an edge made of pieces that meet only tangent, or with a jump in speed). The patch's skin breaks
+/// there, with a column on each break, instead of chasing the jump with columns. None on a closed loop of one edge.
+std::vector<double> segment_breaks(const std::vector<Section> &sections, int k) {
+    std::vector<double> found;
+    for (const Section &section : sections) {
+        if (!section.is_face) {
+            continue;
+        }
+        const Piece &piece = section.pieces[static_cast<std::size_t>(k)];
+        if (piece.periodic || section.pieces.size() == 1 || piece.curve->GetType() != GeomAbs_BSplineCurve) {
+            continue;
+        }
+        const Handle(Geom_BSplineCurve) bspline = piece.curve->BSpline();
+        for (int i = 2; i < bspline->NbKnots(); ++i) {
+            const double knot = bspline->Knot(i);
+            const double f = (knot - piece.t0) / (piece.t1 - piece.t0);
+            if (f < kBreakMargin || f > 1 - kBreakMargin) {
+                continue;
+            }
+            gp_Pnt p;
+            gp_Vec d1_before, d2_before, d1_after, d2_after;
+            bspline->LocalD2(knot, i - 1, i, p, d1_before, d2_before);
+            bspline->LocalD2(knot, i, i + 1, p, d1_after, d2_after);
+            const double speed = d1_before.Magnitude();
+            const double bend = d2_before.Magnitude() + d2_after.Magnitude() + speed * speed;
+            if ((d1_after - d1_before).Magnitude() > 1e-9 * speed || (d2_after - d2_before).Magnitude() > 1e-7 * bend) {
+                found.push_back(f);
+            }
+        }
+    }
+    std::sort(found.begin(), found.end());
+    std::vector<double> merged;
+    for (const double f : found) {
+        if (merged.empty() || f > merged.back() + kBreakMargin) {
+            merged.push_back(f);
+        }
+    }
+    // An edge of more pieces than the cap allows columns is skinned without breaks.
+    return static_cast<int>(merged.size()) + kFirstClosedColumns <= kMaxColumns ? merged : std::vector<double>{};
+}
+
+/// Segment k's patch. Columns start at 5 per segment (9 on a closed loop; even fractions, and one on each break),
+/// skinned with a cubic; if that misses, the skin is a quintic from then on. A span whose seam or section fit still misses (half the
 /// tolerances for the seams, a fifth of the position tolerance for the sections, sampled inside the span and at its
 /// ends) gets its middle, as the fillet's strips do; a miss at a column itself (more columns in a span cannot fix it)
 /// halves every span. At 129 columns in all the call fails.
@@ -856,10 +1123,30 @@ Patch build_patch(const std::vector<Section> &sections, const ColumnBasis &basis
             strongest = end;
         }
     }
-    std::vector<double> fractions(kFirstColumns);
-    for (int j = 0; j < kFirstColumns; ++j) {
-        fractions[j] = static_cast<double>(j) / (kFirstColumns - 1);
+    const int first_columns = closed ? kFirstClosedColumns : kFirstColumns;
+    std::vector<double> fractions(first_columns);
+    for (int j = 0; j < first_columns; ++j) {
+        fractions[j] = static_cast<double>(j) / (first_columns - 1);
     }
+    const std::vector<double> breaks = closed ? std::vector<double>{} : segment_breaks(sections, k);
+    for (const double f : breaks) {
+        const auto close_to = [&](double g) { return std::abs(g - f) < kBreakMargin; };
+        if (std::none_of(fractions.begin(), fractions.end(), close_to)) {
+            fractions.insert(std::upper_bound(fractions.begin(), fractions.end(), f), f);
+        } else {
+            // A column already there moves onto the break.
+            for (double &g : fractions) {
+                if (close_to(g)) {
+                    g = f;
+                }
+            }
+        }
+    }
+    // A patch given its row tangents at a smooth vertex stays cubic: the tangents share one length ratio across the rows
+    // (so the two patches meet G1), which the sections' own rows need not have, and the skin misses near that end at
+    // first order until columns crowd there; a cubic's miss dies away within fewer spans than a quintic's.
+    const bool given = !tangents.start.empty() || !tangents.finish.empty();
+    int degree = kFirstDegree;
     std::vector<std::vector<gp_Pnt>> columns;
     auto fits_at = [&](const Patch &patch, double s) {
         bool fits = true;
@@ -888,8 +1175,14 @@ Patch build_patch(const std::vector<Section> &sections, const ColumnBasis &basis
                 check_column(sections, basis, k, fractions[j], columns[j]);
             }
         }
+        std::vector<std::size_t> break_index;
+        for (std::size_t j = 1; j + 1 < fractions.size(); ++j) {
+            if (std::find(breaks.begin(), breaks.end(), fractions[j]) != breaks.end()) {
+                break_index.push_back(j);
+            }
+        }
         Patch patch;
-        patch.surface = skin(columns, fractions, basis, closed, tangents);
+        patch.surface = skin(columns, fractions, basis, closed, tangents, break_index, degree);
         patch.columns = static_cast<int>(fractions.size());
         const std::size_t spans = fractions.size() - 1;
         std::vector<bool> split(spans, false);
@@ -926,6 +1219,10 @@ Patch build_patch(const std::vector<Section> &sections, const ColumnBasis &basis
                 }
             }
             return patch;
+        }
+        if (degree < kSkinDegree && !given) {
+            degree = kSkinDegree; // the same columns again, skinned with the quintic
+            continue;
         }
         if (at_column) {
             failing = spans;

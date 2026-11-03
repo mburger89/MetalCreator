@@ -286,8 +286,10 @@ typedef struct {
 /// (one chord-length knot vector for the whole loft), the face end's first derivative = weight x the circular length
 /// along the part's adjacent face's direction away from the part, its second derivative from that face's normal
 /// curvature (G2) or the third derivative zero (G1); Free ends the natural conditions (third and fourth derivatives
-/// zero). Columns start at 9 per segment and a span that misses gets its middle (129 in all at most) until the face-end seams (half tolerances) and the sections
-/// fit; the built solid's face-end seams are then judged at the full tolerances ("The loft can't meet the part tangent
+/// zero). Each pole row is skinned along the segment by our own spline (cubic, then quintic if the cubic misses; periodic with a knot per
+/// column on a one-edge closed loop; broken at a part edge's knots where its derivatives jump; cubic where a smooth vertex gives its
+/// tangents). Columns start at 5 per segment (9 on a closed loop) and a span that misses gets its middle (129 in all at most) until the
+/// face-end seams (half tolerances) and the sections fit; the built solid's face-end seams are then judged at the full tolerances ("The loft can't meet the part tangent
 /// (G1) here." / "The loft can't meet the part with matching curvature (G2) here."). History as occt_loft: caps
 /// (a face end's cap is a copy of the face), sides OCCT_FROM_SEGMENT (operand 0, index = the paired segment).
 occt_shape *occt_loft_ends(const occt_shape *part, const occt_loft_end *start, const occt_loft_end *end,
