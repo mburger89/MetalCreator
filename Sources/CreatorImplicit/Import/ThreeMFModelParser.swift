@@ -20,6 +20,8 @@ struct ThreeMFModelParser {
     var current = -1
     var highestIndex: UInt32 = 0
     var events = 0
+    /// Attribute bytes walked since the last ask about cancellation: one element may hold megabytes of them.
+    var attributeBytes = 0
     /// Objects, components and build items kept so far, against `limits.records`.
     var records = 0
 
@@ -49,6 +51,16 @@ struct ThreeMFModelParser {
     mutating func keepRecord() throws {
         guard records < limits.records else { throw Self.damaged("it has more objects and parts than this app opens.") }
         records += 1
+    }
+
+    /// Counts an attribute against the walk since cancellation was last asked, and asks again every `cancellationInterval` bytes, so one
+    /// element with megabytes of attributes can still be stopped.
+    mutating func meter(_ attribute: XMLScanner.Attribute) throws {
+        attributeBytes &+= attribute.value.upperBound - attribute.name.lowerBound + 1
+        if attributeBytes >= Self.cancellationInterval {
+            attributeBytes = 0
+            if isCancelled() { throw CancellationError() }
+        }
     }
 
     private mutating func run() throws {
@@ -106,10 +118,16 @@ struct ThreeMFModelParser {
         guard space == .core, scanner.equals(local, "model") else { throw Self.damaged("it isn't a 3MF model.") }
         sawModel = true
         contexts.append(.model)
+        var sawUnit = false, sawRequired = false
         for attribute in scanner.attributes(of: tag) {
+            try meter(attribute)
             if scanner.equals(attribute.name, "unit") {
+                guard !sawUnit else { throw Self.damaged("the model has two units.") }
+                sawUnit = true
                 model.unit = try unit(attribute.value)
             } else if scanner.equals(attribute.name, "requiredextensions") {
+                guard !sawRequired else { throw Self.damaged("the model lists its required extensions twice.") }
+                sawRequired = true
                 try requireExtensions(attribute.value)
             }
         }

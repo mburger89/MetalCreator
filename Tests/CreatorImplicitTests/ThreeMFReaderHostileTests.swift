@@ -36,6 +36,32 @@ extension ThreeMFReaderTests {
         #expect(ThreeMFReader.ignoredExtrasWarning == "This mesh's color and material data was ignored.")
     }
 
+    @Test func aRepeatedRequiredExtensionsIsRefused() {
+        let cube = Package.object(id: 1, mesh: Self.cube)
+        let data = Package.package(resources: cube, build: Package.item(1), attributes: "requiredextensions=\"\" requiredextensions=\"\"")
+        guard case .malformedModel(let reason)? = problem(data) else { Issue.record("not refused"); return }
+        #expect(reason.contains("required extensions twice"), "\(reason)")
+    }
+
+    @Test func aRepeatedUnitIsRefused() {
+        let cube = Package.object(id: 1, mesh: Self.cube)
+        let data = Package.package(resources: cube, build: Package.item(1), attributes: "unit=\"inch\"")
+        guard case .malformedModel(let reason)? = problem(data) else { Issue.record("not refused"); return }
+        #expect(reason.contains("two units"), "\(reason)")
+    }
+
+    @Test func aLongRunOfAttributesOnOneElementAsksAboutCancellation() throws {
+        let attributes = String(repeating: " q0:a=\"\"", count: 20_000)
+        let model = Package.model(resources: Package.object(id: 1, mesh: Self.cube), build: Package.item(1), attributes: attributes)
+        let calls = CallCounter()
+        let bytes = Array(model.utf8)
+        #expect(throws: CancellationError.self) {
+            try bytes.withUnsafeBytes { raw in
+                _ = try ThreeMFModelParser.parse(raw, limits: ThreeMFLimits(), isCancelled: { calls.next() >= 2 })
+            }
+        }
+    }
+
     @Test func aProductionPathIsRefused() {
         let cube = Package.object(id: 1, mesh: Self.cube)
         // The prefix is whatever the file declared; it is the namespace that counts.
@@ -315,4 +341,10 @@ extension ThreeMFReaderTests {
         let meshes = try read(data)
         #expect(meshes[0].mesh.triangleCount == big.triangleCount && meshes[0].mesh.positions.count == big.positions.count)
     }
+}
+
+final class CallCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    func next() -> Int { lock.lock(); defer { lock.unlock() }; count += 1; return count }
 }
