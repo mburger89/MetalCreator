@@ -41,25 +41,35 @@ extension ThreeMFModelParser {
     private mutating func inObject(_ local: Range<Int>) throws -> Context {
         if scanner.equals(local, "mesh") {
             guard !model.objects[current].hasMesh else { throw Self.damaged("an object has two meshes.") }
+            guard !model.objects[current].hasComponents else { throw Self.damaged("an object has both a mesh and components.") }
             model.objects[current].hasMesh = true
             highestIndex = 0
             return .mesh
         }
-        return scanner.equals(local, "components") ? .components : .skipped
+        if scanner.equals(local, "components") {
+            guard !model.objects[current].hasMesh else { throw Self.damaged("an object has both a mesh and components.") }
+            model.objects[current].hasComponents = true
+            return .components
+        }
+        return .skipped
     }
 
     // MARK: Objects and meshes
 
     private mutating func startObject(_ tag: XMLScanner.Tag) throws {
+        try keepRecord()
         var object = ThreeMFModel.Object()
         var sawID = false
         for attribute in scanner.attributes(of: tag) {
             if scanner.equals(attribute.name, "id") {
+                guard !sawID else { throw Self.damaged("an object has two ids.") }
                 guard let id = scanner.integer(attribute.value) else { throw Self.damaged("an object's id isn't a whole number.") }
                 object.id = id
                 sawID = true
             } else if scanner.equals(attribute.name, "pid") || scanner.equals(attribute.name, "pindex") {
                 model.ignoredExtras = true
+            } else if scanner.equals(attribute.name, "type") {
+                object.leftOut = isSupportType(attribute.value)
             } else {
                 try prefixedAttribute(attribute)
             }
@@ -72,6 +82,12 @@ extension ThreeMFModelParser {
         current = model.objects.count
         model.objectIndex[object.id] = current
         model.objects.append(object)
+    }
+
+    /// Support structures are for printing, not part of the part: the types support, solidsupport and other are left out; model and
+    /// surface (and any type this reader doesn't know) are kept.
+    private func isSupportType(_ value: Range<Int>) -> Bool {
+        scanner.equals(value, "support") || scanner.equals(value, "solidsupport") || scanner.equals(value, "other")
     }
 
     mutating func finishMesh() throws {
@@ -107,7 +123,7 @@ extension ThreeMFModelParser {
             seen |= 1 << slot
         }
         guard seen == 0b111 else { throw Self.damaged("a vertex is missing a coordinate.") }
-        guard model.vertices.count < 3 * triangleLimit else { throw Self.damaged("it has more vertices than a mesh this app opens.") }
+        guard model.vertices.count < limits.vertices else { throw MeshImportProblem.overTriangleLimit }
         model.vertices.append(point)
     }
 
@@ -132,7 +148,7 @@ extension ThreeMFModelParser {
         guard seen == 0b1110 else { throw Self.damaged("a triangle is missing a vertex.") }
         highestIndex = max(highestIndex, corners[1], corners[2], corners[3])
         let stored = model.triangles.count / 3
-        guard stored < triangleLimit else { throw MeshImportProblem.tooManyTriangles(stored + 1) }
+        guard stored < limits.triangles else { throw MeshImportProblem.overTriangleLimit }
         model.triangles.append(contentsOf: corners[1...3])
     }
 
@@ -144,13 +160,13 @@ extension ThreeMFModelParser {
     // MARK: Components and build items
 
     private mutating func component(_ tag: XMLScanner.Tag) throws {
-        guard model.components.count < Self.maximumComponents else { throw Self.damaged("it has more components than this app opens.") }
+        try keepRecord()
         let (id, transform) = try reference(tag, "a component")
         model.components.append(ThreeMFModel.Component(object: id, transform: transform))
     }
 
     private mutating func item(_ tag: XMLScanner.Tag) throws {
-        guard model.items.count < Self.maximumComponents else { throw Self.damaged("it has more build items than this app opens.") }
+        try keepRecord()
         let (id, transform) = try reference(tag, "a build item")
         model.items.append(ThreeMFModel.Component(object: id, transform: transform))
     }
@@ -164,6 +180,7 @@ extension ThreeMFModelParser {
                 guard let value = scanner.integer(attribute.value) else { throw Self.damaged("\(what)'s objectid isn't a whole number.") }
                 id = value
             } else if scanner.equals(attribute.name, "transform") {
+                guard transform < 0 else { throw Self.damaged("\(what) has two transforms.") }
                 model.transforms.append(try parseTransform(attribute.value))
                 transform = model.transforms.count - 1
             } else {
@@ -174,10 +191,17 @@ extension ThreeMFModelParser {
         return (id, transform)
     }
 
+    /// Twelve finite numbers, read one at a time: a thirteenth word ends the reading, so a long list costs no more than a short one.
     private func parseTransform(_ value: Range<Int>) throws -> ThreeMFTransform {
-        let words = words(in: value)
-        let numbers = words.compactMap { scanner.double($0) }
-        guard words.count == 12, numbers.count == 12 else { throw Self.damaged("a transform isn't twelve finite numbers.") }
+        var numbers: [Double] = []
+        numbers.reserveCapacity(ThreeMFLimits.transformNumbers)
+        for word in words(in: value) {
+            guard numbers.count < ThreeMFLimits.transformNumbers, let number = scanner.double(word) else {
+                throw Self.damaged("a transform isn't twelve finite numbers.")
+            }
+            numbers.append(number)
+        }
+        guard numbers.count == ThreeMFLimits.transformNumbers else { throw Self.damaged("a transform isn't twelve finite numbers.") }
         let transform = ThreeMFTransform(numbers)
         guard transform.isInvertible else { throw Self.damaged("a transform flattens the part, or isn't a finite number.") }
         return transform

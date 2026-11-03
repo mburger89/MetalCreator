@@ -124,10 +124,9 @@ struct ThreeMFReaderTests {
 
     @Test func aMissingModelPartIsNamed() {
         let model = Package.model(resources: Package.object(id: 1, mesh: Self.cube), build: Package.item(1))
-        // Not at the path the relationship names, differing only in case, no relationship at all, or one of another type.
+        // Not at the path the relationship names, no relationship at all, or one of another type.
         let cases: [Data] = [
             Package.zip(model: model, entry: "3D/other.model"),
-            Package.zip(model: model, entry: "3d/3dmodel.model"),
             Package.zip(model: model, relationships: nil),
             Package.zip(model: model, relationships: Package.relationships(type: "http://example.com/thumbnail")),
             Package.zip(model: model, relationships: "<Relationships/>"),

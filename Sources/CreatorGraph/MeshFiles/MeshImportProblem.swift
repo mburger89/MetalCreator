@@ -30,12 +30,26 @@ public enum MeshImportProblem: Error, Equatable, Sendable {
     case embeddedMissing
     /// A 3MF with no 3D model part (no relationship to one, or none at the path it names).
     case noModelPart
-    /// A 3MF whose model points at parts in other files (the Production extension's `path`).
+    /// A 3MF whose model keeps parts in other files (the Production extension's `path`).
     case otherFiles
     /// A 3MF that is encrypted (a password protected zip entry, or Secure Content).
     case encrypted
     /// A 3MF whose model is not well-formed, or says something the specification forbids; the sentence says what, ending in a stop.
     case malformedModel(String)
+    /// A 3MF that requires an extension this reader does not support (or names one it does not declare); the name is the file's text.
+    case unsupportedExtension(String)
+    /// A 3MF whose model part is larger than the 2 GB limit (or declares more than its bytes could inflate to).
+    case modelTooLarge
+    /// More triangles than `MeshImportLimits.maxTriangles`, found without an exact count (a count that saturated, or a stored cap).
+    case overTriangleLimit
+
+    /// The longest piece of a file's own text a message repeats.
+    public static let longestQuote = 80
+
+    /// `text` cut to `longestQuote` characters, with an ellipsis when it was cut.
+    public static func quoted(_ text: String) -> String {
+        text.count > longestQuote ? String(text.prefix(longestQuote)) + "…" : text
+    }
 
     public var message: String {
         switch self {
@@ -67,11 +81,18 @@ public enum MeshImportProblem: Error, Equatable, Sendable {
         case .noModelPart:
             "This 3MF has no 3D model part."
         case .otherFiles:
-            "This 3MF uses parts in other files, which isn't supported."
+            "This 3MF keeps parts in other files, which isn't supported. Export it as a generic 3MF."
         case .encrypted:
             "This 3MF is encrypted."
         case .malformedModel(let reason):
             "This 3MF is damaged: \(reason)"
+        case .unsupportedExtension(let name):
+            "This 3MF needs an extension that isn't supported: \(Self.quoted(name))."
+        case .modelTooLarge:
+            "This 3MF's model is larger than the 2 GB limit."
+        case .overTriangleLimit:
+            "This file has more triangles than Import Mesh takes: at most "
+                + "\(MeshImportLimits.maxTriangles.formatted(.number.locale(.messages)))."
         }
     }
 }

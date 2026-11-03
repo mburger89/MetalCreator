@@ -9,10 +9,9 @@ import Foundation
 /// `ThreeMFModelParser+Namespaces` and `ThreeMFModelParser+Elements`.
 struct ThreeMFModelParser {
     static let cancellationInterval = 1 << 16
-    static let maximumComponents = 1_000_000
 
     var scanner: XMLScanner
-    let triangleLimit: Int
+    let limits: ThreeMFLimits
     let isCancelled: () -> Bool
     var model = ThreeMFModel()
     var declarations: [Declaration] = []
@@ -21,17 +20,19 @@ struct ThreeMFModelParser {
     var current = -1
     var highestIndex: UInt32 = 0
     var events = 0
+    /// Objects, components and build items kept so far, against `limits.records`.
+    var records = 0
 
-    private init(scanner: XMLScanner, triangleLimit: Int, isCancelled: @escaping () -> Bool) {
+    private init(scanner: XMLScanner, limits: ThreeMFLimits, isCancelled: @escaping () -> Bool) {
         self.scanner = scanner
-        self.triangleLimit = triangleLimit
+        self.limits = limits
         self.isCancelled = isCancelled
     }
 
     /// The model in `bytes`. `isCancelled` is asked every 65,536 elements.
-    static func parse(_ bytes: UnsafeRawBufferPointer, triangleLimit: Int, isCancelled: @escaping () -> Bool) throws -> ThreeMFModel {
+    static func parse(_ bytes: UnsafeRawBufferPointer, limits: ThreeMFLimits, isCancelled: @escaping () -> Bool) throws -> ThreeMFModel {
         if looksLikeUTF16(bytes) { throw MeshImportProblem.malformedModel("it is UTF-16 text, which isn't supported.") }
-        var parser = ThreeMFModelParser(scanner: XMLScanner(bytes: bytes), triangleLimit: triangleLimit, isCancelled: isCancelled)
+        var parser = ThreeMFModelParser(scanner: XMLScanner(bytes: bytes), limits: limits, isCancelled: isCancelled)
         try parser.run()
         try parser.model.resolve()
         return parser.model
@@ -43,6 +44,12 @@ struct ThreeMFModelParser {
     }
 
     static func damaged(_ reason: String) -> MeshImportProblem { .malformedModel(reason) }
+
+    /// Counts one more object, component or build item against the budget.
+    mutating func keepRecord() throws {
+        guard records < limits.records else { throw Self.damaged("it has more objects and parts than this app opens.") }
+        records += 1
+    }
 
     private mutating func run() throws {
         while let event = try scanner.next() {
@@ -65,7 +72,7 @@ struct ThreeMFModelParser {
             contexts.append(.skipped)
             return
         }
-        declare(tag, at: contexts.count + 1)
+        try declare(tag, at: contexts.count + 1)
         let (space, local) = split(tag.name)
         switch space {
         case .core:
@@ -94,7 +101,7 @@ struct ThreeMFModelParser {
 
     private mutating func startModel(_ tag: XMLScanner.Tag) throws {
         guard !sawModel else { throw Self.damaged("it has more than one model.") }
-        declare(tag, at: 1)
+        try declare(tag, at: 1)
         let (space, local) = split(tag.name)
         guard space == .core, scanner.equals(local, "model") else { throw Self.damaged("it isn't a 3MF model.") }
         sawModel = true
@@ -118,31 +125,37 @@ struct ThreeMFModelParser {
 
     /// `requiredextensions` lists prefixes declared on the model; the core specification says a consumer that does not support one
     /// must not open the file. The Production and Materials extensions are supported (the first as far as it can be: a part in
-    /// another file is refused where it is used; the second by ignoring what it adds).
+    /// another file is refused where it is used; the second by ignoring what it adds). The words are read one at a time and there
+    /// are at most `ThreeMFLimits.extensions` of them.
     private func requireExtensions(_ value: Range<Int>) throws {
+        var listed = 0
         for prefix in words(in: value) {
+            listed += 1
+            guard listed <= ThreeMFLimits.extensions else { throw Self.damaged("it requires more extensions than any file lists.") }
             guard let declaration = declarations.last(where: { scanner.equal($0.prefix, prefix) }) else {
-                throw Self.damaged("it requires the extension “\(scanner.text(prefix))”, which it doesn't declare.")
+                throw MeshImportProblem.unsupportedExtension(scanner.quoted(prefix))
             }
             switch declaration.namespace {
             case .core, .production, .materials: continue
             case .secureContent: throw MeshImportProblem.encrypted
-            case .beamLattice, .slice, .unknown:
-                throw Self.damaged("it requires the extension “\(scanner.text(declaration.uri))”, which this app can't read.")
+            case .beamLattice, .slice, .unknown: throw MeshImportProblem.unsupportedExtension(scanner.quoted(declaration.uri))
             }
         }
     }
 
-    /// The ranges of the white-space separated words in `value`.
-    func words(in value: Range<Int>) -> [Range<Int>] {
-        var found: [Range<Int>] = []
-        var index = value.lowerBound
-        while index < value.upperBound {
-            while index < value.upperBound, XMLScanner.separates(scanner.bytes[index]) { index += 1 }
+    /// A lazy sequence of the ranges of the white-space separated words in a range.
+    struct Words: Sequence, IteratorProtocol {
+        let bytes: UnsafeRawBufferPointer
+        var index: Int
+        let end: Int
+
+        mutating func next() -> Range<Int>? {
+            while index < end, XMLScanner.separates(bytes[index]) { index += 1 }
             let start = index
-            while index < value.upperBound, !XMLScanner.separates(scanner.bytes[index]) { index += 1 }
-            if index > start { found.append(start..<index) }
+            while index < end, !XMLScanner.separates(bytes[index]) { index += 1 }
+            return index > start ? start..<index : nil
         }
-        return found
     }
+
+    func words(in value: Range<Int>) -> Words { Words(bytes: scanner.bytes, index: value.lowerBound, end: value.upperBound) }
 }

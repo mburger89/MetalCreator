@@ -12,6 +12,8 @@ import Foundation
 /// and so is text between elements. The five predefined entities and numeric ones are understood in `decoded(_:)`; a leading byte
 /// order mark is skipped.
 struct XMLScanner {
+    /// How much of the XML declaration is read for an encoding.
+    static let declarationBytes = 512
     /// The deepest nesting of elements accepted.
     static let maximumDepth = 256
 
@@ -139,7 +141,9 @@ struct XMLScanner {
     private mutating func skipInstruction() throws {
         guard let close = find("?>", from: position + 2) else { throw Self.damaged("a processing instruction never ends.") }
         if matches("<?xml", at: position), position + 5 < bytes.count, Self.isSpace(bytes[position + 5]) {
-            let declaration = UnsafeRawBufferPointer(rebasing: bytes[position..<close]).map { $0 | 0x20 }  // ASCII lower case
+            // Only the start of the declaration is looked at; it names the encoding first, if at all.
+            let end = Swift.min(close, position + Self.declarationBytes)
+            let declaration = UnsafeRawBufferPointer(rebasing: bytes[position..<end]).map { $0 | 0x20 }  // ASCII lower case
             for banned in ["utf-16", "utf-32", "ucs-2", "ucs-4", "utf16", "utf32"] where Self.contains(declaration, banned) {
                 throw Self.damaged("it is \(banned.uppercased()) text, which isn't supported.")
             }

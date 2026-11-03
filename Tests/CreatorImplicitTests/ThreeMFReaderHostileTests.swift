@@ -45,7 +45,8 @@ extension ThreeMFReaderTests {
             let data = Package.package(resources: cube + text, build: Package.item(2), namespaces: namespaces)
             #expect(problem(data) == .otherFiles, "\(prefix)")
         }
-        #expect(MeshImportProblem.otherFiles.message == "This 3MF uses parts in other files, which isn't supported.")
+        #expect(MeshImportProblem.otherFiles.message
+            == "This 3MF keeps parts in other files, which isn't supported. Export it as a generic 3MF.")
         // A `p:path` whose `p` is some other namespace is not the Production extension's.
         let decoy = "<object id=\"2\"><components><component objectid=\"1\" p:path=\"/x\"/></components></object>"
         let data = Package.package(resources: cube + decoy, build: Package.item(2),
@@ -104,12 +105,12 @@ extension ThreeMFReaderTests {
         for refused in ["b", "m b", "x", "unbound"] {
             let data = Package.package(resources: cube, build: Package.item(1), attributes: "requiredextensions=\"\(refused)\"",
                                        namespaces: namespaces)
-            guard case .malformedModel(let reason)? = problem(data) else {
+            guard case .unsupportedExtension(let name)? = problem(data) else {
                 Issue.record("\(refused) was not refused")
                 continue
             }
             let named = refused.split(separator: " ").last.map(String.init) ?? ""
-            #expect(reason.contains(named == "x" ? "urn:unknown-extension" : named == "b" ? Package.beamLattice : named), "\(reason)")
+            #expect(name == (named == "x" ? "urn:unknown-extension" : named == "b" ? Package.beamLattice : named), "\(name)")
         }
     }
 
@@ -153,7 +154,7 @@ extension ThreeMFReaderTests {
         // Ten levels of ten over one triangle: ten thousand million, found without making one.
         #expect(problem(nesting(levels: 10, fan: 10)) == .tooManyTriangles(10_000_000_000))
         // Thirty-two levels: the count saturates rather than overflows, and the walk is as long as the file, not the product.
-        #expect(problem(nesting(levels: 32, fan: 10)) == .tooManyTriangles(Int.max))
+        #expect(problem(nesting(levels: 32, fan: 10)) == .overTriangleLimit)
         // With the limit as a parameter, a small file crosses it.
         #expect(problem(nesting(levels: 3, fan: 10), limit: 500) == .tooManyTriangles(1000))
         // A subtree with nothing in it costs nothing, however it nests.
@@ -168,7 +169,7 @@ extension ThreeMFReaderTests {
 
     @Test func storedTrianglesAreLimitedToo() {
         #expect(problem(Package.package(resources: Package.object(id: 1, mesh: Self.cube), build: Package.item(1)), limit: 11)
-            == .tooManyTriangles(12))
+            == .overTriangleLimit)
     }
 
     @Test func aCycleIsRefused() {
@@ -278,7 +279,7 @@ extension ThreeMFReaderTests {
         let record = try #require(bytes.range(of: Data([0x50, 0x4B, 0x01, 0x02]), options: .backwards))
         let at = record.lowerBound + 24
         bytes.replaceSubrange(at..<(at + 4), with: [0x00, 0x00, 0x00, 0xF0])
-        #expect(problem(bytes) == .tooLarge)
+        #expect(problem(bytes) == .modelTooLarge)
     }
 
     @Test func anEncryptedModelIsEncrypted() {

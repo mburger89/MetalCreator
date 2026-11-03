@@ -76,7 +76,7 @@ private extension MeshImportProblem {
         switch self {
         case .notChosen, .notAFile, .unreadable, .missing, .embeddedMissing, .coordinatesOverflow: false
         case .notAMeshFile, .endsEarly, .badNumber, .noTriangles, .tooManyTriangles, .tooLarge, .noModelPart, .otherFiles, .encrypted,
-             .malformedModel: true
+             .malformedModel, .unsupportedExtension, .modelTooLarge, .overTriangleLimit: true
         }
     }
 }

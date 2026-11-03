@@ -5,10 +5,13 @@ public struct ImportedMesh: Sendable {
     public var droppedTriangles: Int
     /// Millimetres per file unit; `nil` for STL, which has none.
     public var unit: Double?
-    /// Whether the file held parts the reader does not use (a 3MF's colours, components or extra objects).
+    /// Whether the file held data the reader does not use and says so: a 3MF's colours, materials, textures, slices and beam lattices.
     public var ignoredExtras: Bool
+    /// Whether a 3MF's support structures (objects of type support, solidsupport or other) were left out.
+    public var supportsLeftOut: Bool
 
-    public init(mesh: TriangleMesh, droppedTriangles: Int, unit: Double?, ignoredExtras: Bool) {
+    public init(mesh: TriangleMesh, droppedTriangles: Int, unit: Double?, ignoredExtras: Bool, supportsLeftOut: Bool = false) {
+        self.supportsLeftOut = supportsLeftOut
         self.mesh = mesh
         self.droppedTriangles = droppedTriangles
         self.unit = unit

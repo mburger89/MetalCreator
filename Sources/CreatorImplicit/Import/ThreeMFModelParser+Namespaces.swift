@@ -27,7 +27,8 @@ extension ThreeMFModelParser {
     }
 
     /// Records the `xmlns` and `xmlns:prefix` attributes of `tag` as in force from its level down.
-    mutating func declare(_ tag: XMLScanner.Tag, at level: Int) {
+    /// A prefix declared again at the same level replaces the first; at most `ThreeMFLimits.declarations` are in force at once.
+    mutating func declare(_ tag: XMLScanner.Tag, at level: Int) throws {
         guard scanner.contains(tag.attributes, "xmlns") else { return }
         for attribute in scanner.attributes(of: tag) where scanner.hasPrefix(attribute.name, "xmlns") {
             let name = attribute.name
@@ -39,8 +40,15 @@ extension ThreeMFModelParser {
             } else {
                 continue
             }
-            declarations.append(Declaration(level: level, prefix: prefix, namespace: namespace(of: attribute.value),
-                                            uri: attribute.value))
+            let declaration = Declaration(level: level, prefix: prefix, namespace: namespace(of: attribute.value), uri: attribute.value)
+            if let same = declarations.lastIndex(where: { $0.level == level && scanner.equal($0.prefix, prefix) }) {
+                declarations[same] = declaration
+            } else {
+                guard declarations.count < ThreeMFLimits.declarations else {
+                    throw Self.damaged("it declares more namespaces than any file does.")
+                }
+                declarations.append(declaration)
+            }
         }
     }
 

@@ -96,7 +96,19 @@ extension XMLScanner {
 
     /// The text of `range` as it is written (entities not resolved; bytes that are not UTF-8 become replacement characters).
     func text(_ range: Range<Int>) -> String {
-        String(bytes: bytes[range], encoding: .utf8) ?? ""
+        // The bytes are a buffer slice, not `Data`; the rule's advice (a failable initializer) would lose the text.
+        // swiftlint:disable:next optional_data_string_conversion
+        String(decoding: bytes[range], as: UTF8.self)
+    }
+
+    /// The start of `range` as a piece of the file's text for a message: at most `MeshImportProblem.longestQuote` characters, and the
+    /// rest of a long range is never read.
+    func quoted(_ range: Range<Int>) -> String {
+        let bytesNeeded = 4 * (MeshImportProblem.longestQuote + 1)
+        let cut = range.lowerBound..<Swift.min(range.upperBound, range.lowerBound + bytesNeeded)
+        let piece = text(cut)
+        let limit = MeshImportProblem.longestQuote
+        return cut.count < range.count || piece.count > limit ? String(piece.prefix(limit)) + "…" : piece
     }
 
     /// The text of `range` with the predefined and numeric entities resolved.

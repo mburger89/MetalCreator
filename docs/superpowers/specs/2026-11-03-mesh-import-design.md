@@ -62,7 +62,7 @@ words and say what is wrong with it, not crash and not quietly repair it.
 
 Warnings: "This mesh isn't closed: N open edges." · "This mesh has N edges shared by more than two faces." · "N faces are flipped against their neighbours." · "N degenerate triangles were dropped." · "This mesh's color and material data was ignored." · "This mesh has N triangles, so the view may be slow." above 2,000,000. Singular forms as elsewhere.
 
-Refusals, each a node message: "This file isn't an STL or 3MF." · "The STL ends early." · "The STL has a bad number on line N." · "This 3MF has no 3D model part." · "This 3MF uses parts in other files, which isn't supported." · "This 3MF is encrypted." · "This file holds no triangles." · "This file has N triangles; Import Mesh takes at most 10,000,000." · "This file is larger than the 1 GB limit." · the missing-file sentences, as `ImageProblem`'s.
+Refusals, each a node message: "This file isn't an STL or 3MF." · "The STL ends early." · "The STL has a bad number on line N." · "This 3MF has no 3D model part." · "This 3MF keeps parts in other files, which isn't supported. Export it as a generic 3MF." · "This 3MF is encrypted." · "This file holds no triangles." · "This file has N triangles; Import Mesh takes at most 10,000,000." · "This file is larger than the 1 GB limit." · the missing-file sentences, as `ImageProblem`'s.
 
 ### Limits
 

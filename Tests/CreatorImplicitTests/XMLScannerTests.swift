@@ -111,3 +111,12 @@ struct XMLScannerTests {
         }
     }
 }
+
+extension XMLScannerTests {
+    @Test func aDeclarationIsReadOnlyForItsFirstBytes() throws {
+        let padding = String(repeating: " ", count: 1_000_000)
+        #expect(try Self.events("<?xml version=\"1.0\"\(padding)encoding=\"UTF-16\"?><a/>") == ["<a>", "</a>"])
+        #expect(try Self.events("<?xml version=\"1.0\" encoding=\"UTF-8\"\(padding)?><a/>") == ["<a>", "</a>"])
+        #expect(throws: MeshImportProblem.self) { try Self.events("<?xml version=\"1.0\" encoding=\"UTF-16\"\(padding)?><a/>") }
+    }
+}

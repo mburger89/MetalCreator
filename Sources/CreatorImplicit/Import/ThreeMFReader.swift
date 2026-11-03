@@ -9,6 +9,8 @@ import Foundation
 public enum ThreeMFReader {
     /// What the node says when a 3MF held data this reader does not use.
     public static let ignoredExtrasWarning = "This mesh's color and material data was ignored."
+    /// What the node says when a 3MF's support structures were left out.
+    public static let supportsLeftOutWarning = "This 3MF's support structures were left out."
 
     private static let modelRelationship = "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"
     private static let relationshipsLimit = 1 << 20
@@ -19,19 +21,23 @@ public enum ThreeMFReader {
         try read(data, triangleLimit: MeshImportLimits.maxTriangles, isCancelled: isCancelled)
     }
 
-    /// `read` with the triangle limit as a parameter, so a test can reach the limit without a file of millions of triangles.
-    static func read(_ data: Data, triangleLimit: Int, isCancelled: @escaping () -> Bool) throws -> [ImportedMesh] {
+    /// `read` with the limits as parameters, so a test can reach them without a file of millions of triangles.
+    static func read(_ data: Data, triangleLimit: Int, recordLimit: Int = ThreeMFLimits().records,
+                     isCancelled: @escaping () -> Bool) throws -> [ImportedMesh] {
         guard data.count <= MeshImportLimits.maxFileBytes else { throw MeshImportProblem.tooLarge }
-        let zip = try open(data)
-        let name = try modelPartName(in: zip, isCancelled: isCancelled)
-        guard let entry = zip.entries.first(where: { $0.name == name }) else { throw MeshImportProblem.noModelPart }
-        let bytes = try content(of: entry, in: zip, limit: ZipReader.defaultLimit, isCancelled: isCancelled)
-        let model = try bytes.withUnsafeBytes {
-            try ThreeMFModelParser.parse($0, triangleLimit: triangleLimit, isCancelled: isCancelled)
-        }
-        let meshes = try model.buildMeshes(triangleLimit: triangleLimit, isCancelled: isCancelled)
+        let limits = ThreeMFLimits(triangles: triangleLimit, records: recordLimit)
+        // The inflated XML, which can be 2 GB, is gone before the meshes are made.
+        let model = try parsedModel(in: data, limits: limits, isCancelled: isCancelled)
+        let meshes = try model.buildMeshes(limits: limits, isCancelled: isCancelled)
         guard !meshes.isEmpty else { throw MeshImportProblem.noTriangles }
         return meshes
+    }
+
+    private static func parsedModel(in data: Data, limits: ThreeMFLimits, isCancelled: @escaping () -> Bool) throws -> ThreeMFModel {
+        let zip = try open(data)
+        let entry = try modelEntry(in: zip, isCancelled: isCancelled)
+        let bytes = try content(of: entry, in: zip, limit: ZipReader.defaultLimit, isCancelled: isCancelled)
+        return try bytes.withUnsafeBytes { try ThreeMFModelParser.parse($0, limits: limits, isCancelled: isCancelled) }
     }
 
     private static func open(_ data: Data) throws -> ZipReader {
@@ -50,12 +56,24 @@ public enum ThreeMFReader {
         } catch ZipError.encrypted {
             throw MeshImportProblem.encrypted
         } catch ZipError.tooLarge {
-            throw MeshImportProblem.tooLarge
+            throw MeshImportProblem.modelTooLarge
         } catch is CancellationError {
             throw CancellationError()
         } catch {
             throw MeshImportProblem.malformedModel("a part of the file can't be read.")
         }
+    }
+
+    /// The entry named `name` as an Open Packaging part name: exactly, else percent-decoded, else ignoring case (part names are case
+    /// insensitive), the decoded form first.
+    static func entry(named name: String, in zip: ZipReader) -> ZipReader.Entry? {
+        let decoded = name.removingPercentEncoding
+        let candidates = [name] + (decoded.map { $0 == name ? [] : [$0] } ?? [])
+        for candidate in candidates {
+            if let found = zip.entries.first(where: { $0.name == candidate }) { return found }
+        }
+        let folded = candidates.map { $0.lowercased() }
+        return zip.entries.first { folded.contains($0.name.lowercased()) }
     }
 
     private static func isRelationship(_ name: Range<Int>, in scanner: XMLScanner) -> Bool {
@@ -64,8 +82,8 @@ public enum ThreeMFReader {
 
     /// The zip entry the package's relationships name as the 3D model: its target, without the leading slash. A relationship to a
     /// key store marks Secure Content, which is encrypted.
-    private static func modelPartName(in zip: ZipReader, isCancelled: () -> Bool) throws -> String {
-        guard let relationships = zip.entries.first(where: { $0.name == "_rels/.rels" }) else { throw MeshImportProblem.noModelPart }
+    private static func modelEntry(in zip: ZipReader, isCancelled: () -> Bool) throws -> ZipReader.Entry {
+        guard let relationships = entry(named: "_rels/.rels", in: zip) else { throw MeshImportProblem.noModelPart }
         let bytes = try content(of: relationships, in: zip, limit: relationshipsLimit, isCancelled: isCancelled)
         var target: String?
         try bytes.withUnsafeBytes { raw in
@@ -81,7 +99,9 @@ public enum ThreeMFReader {
                 if type == modelRelationship, target == nil { target = path }
             }
         }
-        guard let target else { throw MeshImportProblem.noModelPart }
-        return target.hasPrefix("/") ? String(target.dropFirst()) : target
+        guard let target, let found = entry(named: target.hasPrefix("/") ? String(target.dropFirst()) : target, in: zip) else {
+            throw MeshImportProblem.noModelPart
+        }
+        return found
     }
 }
