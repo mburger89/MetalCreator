@@ -42,13 +42,20 @@ enum StreamedExport {
         do {
             progress(0)
             for output in outputs {
-                try sink.beginObject(name: output.name)
+                // An Output holding several meshes (an imported 3MF's objects) keeps one object each, named "Part 1", "Part 2" and so on;
+                // its solids, if any, go in the first. One mesh, or none, is the Output's one object.
+                let split = output.meshes.count > 1
+                try sink.beginObject(name: split ? "\(output.name) 1" : output.name)
                 for solid in output.solids {
                     let display = try await kernel.tessellate(solid, tolerance: tessellationTolerance)
                     let positions = display.positions.map { SIMD3(Float($0.x), Float($0.y), Float($0.z)) }
                     try sink.add(MeshWindow(positions: positions, triangles: display.indices, startingAt: sink.vertexCount))
                 }
-                for payload in output.meshes {
+                for (number, payload) in output.meshes.enumerated() {
+                    if split, number > 0 {
+                        try sink.endObject()
+                        try sink.beginObject(name: "\(output.name) \(number + 1)")
+                    }
                     if let mesh = payload as? TriangleMesh {
                         try sink.add(MeshWindow(positions: mesh.positions, triangles: mesh.triangles, startingAt: sink.vertexCount))
                     } else if let stream = payload as? MeshStream {

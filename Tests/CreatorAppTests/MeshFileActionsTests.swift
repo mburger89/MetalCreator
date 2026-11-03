@@ -53,7 +53,7 @@ struct MeshFileActionsTests {
         let file = try folder.write(stl, to: "part.stl")
         let picker = ScriptedPicker([file])
         await app.performMeshFile(.chooseMeshFile, on: node.id, using: picker)
-        #expect(picker.asked.map(\.types) == [[.stl]])
+        #expect(picker.asked.map(\.types) == [[.stl, .threeMF]])
         #expect(setting(app, node)?.fileName == "part.stl" && setting(app, node)?.isEmbedded == false)
         #expect(app.document.images.isEmpty && app.document.undoName == "Choose Mesh File")
         app.document.undo()
@@ -247,7 +247,11 @@ struct MeshFileActionsTests {
     }
 
     @Test func aFileDialogDeclaresItsExtensions() {
-        #expect(AppModel.meshTypes == [.stl])
-        #expect(AppModel.meshTypes.map(\.preferredFilenameExtension) == ["stl"])
+        #expect(AppModel.meshTypes == [.stl, .threeMF])
+        #expect(AppModel.meshTypes.map(\.preferredFilenameExtension) == ["stl", "3mf"])
+    }
+
+    @Test func thePanelOffers3MF() {
+        #expect(AppModel.meshTypes.contains(.threeMF))
     }
 }

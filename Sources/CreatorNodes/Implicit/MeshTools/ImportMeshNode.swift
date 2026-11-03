@@ -4,7 +4,7 @@ import CreatorImplicit
 import CreatorKernel
 import Foundation
 
-/// A mesh from a file (mesh import spec, the node): an STL read as it is, welded by exact position, scaled by the file's units or the
+/// A mesh from a file (mesh import spec, the node): an STL or a 3MF (one mesh per object) read as it is, welded by exact position, scaled by the file's units or the
 /// ones chosen, and placed on `placement` (the file's origin goes to the plane's origin, its x and y along the plane's, its z up
 /// from it). The file is the node's `NodeSetting.meshFile`, embedded or linked. The parse is kept by `ImportedMeshCache`, so moving
 /// the placement or changing the units never reads the file again. A mesh with problems still imports; the node says what is wrong
@@ -33,19 +33,27 @@ public enum ImportMeshNode: NodeDefinition {
               let across = (plane.xAxis - normal * plane.xAxis.dot(normal)).normalized
         else { throw NodeError.invalidValue("“placement” has no direction.") }
         let resolver = context.images
-        let imported = try await ImportedMeshCache.shared.mesh(for: resolver.stamp(of: reference)) {
+        let imported = try await ImportedMeshCache.shared.meshes(for: resolver.stamp(of: reference)) {
             try parse(resolver.meshFileBytes(of: reference))
         }
         let unit = Plane(origin: plane.origin, normal: normal, xAxis: across)
-        let scale = units.millimetres ?? imported.unit ?? 1
-        let made = try placed(imported, on: unit, scale: scale, file: reference.fileName ?? "Embedded",
-                              isCancelled: { Task.isCancelled })
-        return NodeOutputs(["mesh": .mesh(made.mesh)], warnings: made.warnings)
+        var meshes: [Scalar] = [], warnings: [String] = []
+        for file in imported {
+            let made = try placed(file, on: unit, scale: units.millimetres ?? file.unit ?? 1, file: reference.fileName ?? "Embedded",
+                                  isCancelled: { Task.isCancelled })
+            meshes.append(.mesh(made.mesh))
+            for text in made.warnings where !warnings.contains(text) { warnings.append(text) }
+        }
+        // One mesh is a single value, as an STL always was; several (a 3MF's objects) are a list.
+        return meshes.count == 1 ? NodeOutputs(["mesh": meshes[0]], warnings: warnings)
+            : NodeOutputs(lists: ["mesh": meshes], warnings: warnings)
     }
 
-    /// The meshes a file of these bytes holds. Synchronous, so no loop's locals live across an `await`.
-    private static func parse(_ data: Data) throws -> ImportedMesh {
-        try STLReader.read(data, isCancelled: { Task.isCancelled })
+    /// The meshes a file of these bytes holds: a zip (`PK\u{3}\u{4}`, whatever the file is called) is a 3MF, anything else an STL.
+    /// Synchronous, so no loop's locals live across an `await`.
+    static func parse(_ data: Data) throws -> [ImportedMesh] {
+        if data.starts(with: [0x50, 0x4B, 0x03, 0x04]) { return try ThreeMFReader.read(data, isCancelled: { Task.isCancelled }) }
+        return [try STLReader.read(data, isCancelled: { Task.isCancelled })]
     }
 
     /// The imported mesh scaled by `scale` and moved onto `plane`, in `Double` and narrowed to `Float` once; a coordinate that is
@@ -78,9 +86,11 @@ public enum ImportMeshNode: NodeDefinition {
         ]
         let mesh = TriangleMesh(positions: positions, triangles: source.triangles, resolution: 0, quality: .export, source: nil,
                                 extraFacts: facts, creaseAngle: displayCreaseAngle)
-        let warnings = warnings(open: counts.open, overfull: counts.overfull, flipped: counts.flipped,
-                                dropped: imported.droppedTriangles, triangles: source.triangleCount)
-        return (mesh, warnings)
+        var found = warnings(open: counts.open, overfull: counts.overfull, flipped: counts.flipped,
+                             dropped: imported.droppedTriangles, triangles: source.triangleCount)
+        if imported.ignoredExtras { found.append(ThreeMFReader.ignoredExtrasWarning) }
+        if imported.supportsLeftOut { found.append(ThreeMFReader.supportsLeftOutWarning) }
+        return (mesh, found)
     }
 
     /// An edge between faces that turn more than this many degrees draws sharp, so a CAD part's edges look hard (mesh import spec, "The

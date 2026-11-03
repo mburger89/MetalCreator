@@ -7,9 +7,8 @@ import Foundation
 import MetalUI
 
 extension AppModel {
-    /// The file types the open panel offers for a mesh. STL only until 3MF import (MI-2); a zip chosen anyway reads as "This file
-    /// isn't an STL or 3MF." on the node.
-    static let meshTypes: [ContentType] = [.stl]
+    /// The file types the open panel offers for a mesh. The node tells the two apart by the file's bytes, not its name.
+    static let meshTypes: [ContentType] = [.stl, .threeMF]
 
     /// File ▸ Import Mesh… is offered unless a sketch or a pick session is running. This answers those two only: whether another file
     /// panel of this document is open is unobserved state, so the menu item doesn't read it, and `importMesh` guards a second panel itself.

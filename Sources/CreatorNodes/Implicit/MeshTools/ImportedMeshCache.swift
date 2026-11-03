@@ -15,7 +15,7 @@ actor ImportedMeshCache {
     static let shared = ImportedMeshCache(budgetBytes: 1 << 30)
 
     let budgetBytes: Int
-    private var entries: [ImageStamp: (mesh: ImportedMesh, lastUsed: Int)] = [:]
+    private var entries: [ImageStamp: (meshes: [ImportedMesh], lastUsed: Int)] = [:]
     private var problems: [ImageStamp: (problem: MeshImportProblem, lastUsed: Int)] = [:]
     private var clock = 0
 
@@ -23,12 +23,12 @@ actor ImportedMeshCache {
         self.budgetBytes = budgetBytes
     }
 
-    /// The mesh for `stamp`: the kept one, else what `read` makes (and keeps, when the stamp names a definite thing).
-    func mesh(for stamp: ImageStamp, read: @Sendable () throws -> ImportedMesh) throws -> ImportedMesh {
+    /// The meshes for `stamp` (an STL gives one, a 3MF one per object): the kept ones, else what `read` makes (and keeps, when the stamp names a definite thing).
+    func meshes(for stamp: ImageStamp, read: @Sendable () throws -> [ImportedMesh]) throws -> [ImportedMesh] {
         clock += 1
         if let kept = entries[stamp] {
-            entries[stamp] = (kept.mesh, clock)
-            return kept.mesh
+            entries[stamp] = (kept.meshes, clock)
+            return kept.meshes
         }
         if let known = problems[stamp] {
             problems[stamp] = (known.problem, clock)
@@ -44,15 +44,19 @@ actor ImportedMeshCache {
         }
     }
 
-    private func keep(_ made: ImportedMesh, for stamp: ImageStamp) {
-        guard made.mesh.estimatedBytes <= budgetBytes else { return }
+    private func keep(_ made: [ImportedMesh], for stamp: ImageStamp) {
+        guard Self.bytes(of: made) <= budgetBytes else { return }
         clock += 1
         entries[stamp] = (made, clock)
-        var total = entries.values.reduce(0) { $0 + $1.mesh.mesh.estimatedBytes }
+        var total = entries.values.reduce(0) { $0 + Self.bytes(of: $1.meshes) }
         while total > budgetBytes, let oldest = entries.min(by: { $0.value.lastUsed < $1.value.lastUsed }) {
-            total -= oldest.value.mesh.mesh.estimatedBytes
+            total -= Self.bytes(of: oldest.value.meshes)
             entries[oldest.key] = nil
         }
+    }
+
+    private static func bytes(of meshes: [ImportedMesh]) -> Int {
+        meshes.reduce(0) { $0 + $1.mesh.estimatedBytes }
     }
 
     private func keepProblem(_ problem: MeshImportProblem, for stamp: ImageStamp) {
