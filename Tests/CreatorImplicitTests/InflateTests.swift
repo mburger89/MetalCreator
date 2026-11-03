@@ -286,3 +286,20 @@ struct InflateTests {
         }
     }
 }
+
+extension InflateTests {
+    @Test func blockKindsMixInOneStream() throws {
+        let stream = InflateFixtures.mixedBlocks, plain = InflateFixtures.mixedBlocksPlain
+        // The first block is fixed (BTYPE 1) and not final.
+        #expect(stream[0] & 1 == 0)
+        #expect((stream[0] >> 1) & 3 == 1)
+        #expect(try inflate(stream, size: plain.count) == plain)
+        #if canImport(Compression)
+        var out = [UInt8](repeating: 0, count: plain.count + 16)
+        let count = stream.withUnsafeBufferPointer { source in
+            compression_decode_buffer(&out, out.count, source.baseAddress!, source.count, nil, COMPRESSION_ZLIB)
+        }
+        #expect(Data(out[0..<count]) == plain)
+        #endif
+    }
+}

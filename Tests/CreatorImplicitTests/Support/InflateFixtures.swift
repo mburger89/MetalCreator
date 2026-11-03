@@ -31,6 +31,26 @@ enum InflateFixtures {
         ])) }
     static let zlibDynamicHash = "acb95f62162ce54251b7189121a220332b9bada85574b0b38f931981947f4be0"
 
+    /// Four pieces in one stream, written by Python's zlib with a full flush between them: a fixed block, a dynamic block, a fixed block
+    /// and a final stored block (each flush adds an empty stored block). Its data is `mixedBlocksPlain`.
+    static let mixedBlocks = bytes([
+            "SsusSE1RSMrJT85WyM9L1VFIQxVQRBcgSwUAAAD//6xQMbJDQQi6Sq4mIFJk5t+/Cy9t2r+FM4uKgHkDeDS4g9Cf5vrlHrGEDIxyTryi",
+            "sHEWOJrptN0OimI2e56YyGipu6Azyyt+Ikhpwt3h2ZxcH8oiKKwKzLfquKUF0rcotuGoG4s1LUs6KZ7nqBwbD0cbqYCqK98Zl+tRDsPK",
+            "4gzYtVl1p/7GuaLl7lAN9ORIO9WPWJt0sETlKX/jqRZzmeYUivfY6ml3M3NuLGoUtff13Jt4rLZg29nyunHULotrq6NpeHamEStlzb7f",
+            "f6+f+i/wBwAA//8qTk3Oz0tRSMusSE2xUqiorELGegAAAAD//wEcAOP/c3RvcmVkIHRhaWwsIHN0b3JlZCB0YWlsIDEyMw==",
+        ])
+    static var mixedBlocksPlain: Data { Data(bytes([
+            "Zml4ZWQgYmxvY2sgb25lLCBmaXhlZCBibG9jayBvbmUhIGZpeGVkIGJsb2NrIG9uZSwgZml4ZWQgYmxvY2sgb25lISBmaXhlZCBibG9j",
+            "ayBvbmUsIGZpeGVkIGJsb2NrIG9uZSEgZmNnYWJiZmFkYWJnZ2JkYmdhYmRhZ2FkYWNlZ2NiZWNiZGZiYmFkaGdmaGhmZWRjZGJlaGZo",
+            "ZWJiZ2NmY2hnYWJmZmZoaGJiZWhiYWVoZWdmYWhmY2JoYWRlY2RnZ2hiY2hnZWNnZWdmZ2RjYmNjZGRhaGNlZWFjZ2ZmY2FoZ2dnZ2Jo",
+            "Z2FkYmRoY2JmYWJhY2JmYWJkZ2NlZmZoYmJoaGhoZWJjYmZlaGNhZGZjYWViZWZjZmRmZGRkZ2RkaGZhYWVoZWRmaGZmYmRiZGhkZmRo",
+            "YWhmYmJnZGhjZ2ZiZ2hnYmNjY2FjaGNoZmNjYWFiY2dkZGFlZGVkZmVnY2FmaGdjY2FoY2FjY2NoYmFmaGJhZGRlYWJoYWJoZmRlaGhk",
+            "ZWRoY2diZ2hmYmRnYmRlYmNmY2VjaGRiZ2hjZGNnZ2ZnZGZmYmZhZmhoYWdmZWJiZGJiZWVhY2VjZ2VnY2hmYmVhY2diZWFiZWJkYmVi",
+            "aGFmZ2VjYWRiY2VhY2RlZWRlaGNlZmFlYWFhZGhkaGJnaGhlbGxvIGhlbGxvIGhlbGxvIGhlbGxvaGVsbG8gaGVsbG8gaGVsbG8gaGVs",
+            "bG9oZWxsbyBoZWxsbyBoZWxsbyBoZWxsb2hlbGxvIGhlbGxvIGhlbGxvIGhlbGxvc2Vjb25kIGZpeGVkOiB4eXogeHl6IHh5eiB4eXou",
+            "c3RvcmVkIHRhaWwsIHN0b3JlZCB0YWlsIDEyMw==",
+        ])) }
+
     /// A dynamic block written by hand: 33 KB of output from 300 literals, then matches of every length symbol's first and last length
     /// against every distance symbol's first and last distance (all 29 length and 30 distance symbols, distances to 32,768).
     static let everySymbol = bytes([

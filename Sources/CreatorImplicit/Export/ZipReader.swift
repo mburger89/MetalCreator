@@ -1,11 +1,8 @@
 import Foundation
-#if canImport(Compression)
-import Compression
-#endif
 
-/// Reads a zip written by `ZipWriter` (Zip64 included): the central directory, then each entry checked against its CRC. The tests read a
-/// 3MF back with it; the app does not need to read zips. It holds the whole file, so it is for small files; a Zip64 file of gigabytes is
-/// listed by `ZipReader.listing(of:)`, which reads the end of the file alone.
+/// Reads a zip, ours or another tool's (Zip64 included): the central directory, then each entry checked against its CRC. The file is
+/// untrusted: every offset and size is checked, nothing traps, and an entry's declared size is held to a limit before anything is allocated.
+/// It holds the whole file; a Zip64 file of gigabytes is listed by `ZipReader.listing(of:)`, which reads the end of the file alone.
 public struct ZipReader {
     public struct Entry: Sendable {
         public var name: String
@@ -14,14 +11,33 @@ public struct ZipReader {
         public var compressedSize: Int
         public var size: Int
         public var offset: Int
+        /// The general purpose bit flag (bit 0: encrypted).
+        public var flags: UInt16 = 0
     }
 
     public let entries: [Entry]
     private let data: Data
 
+    /// The most an entry may declare when asked for by name alone.
+    public static let defaultLimit = 1 << 31
+
     public init(contentsOf url: URL) throws {
-        data = try Data(contentsOf: url)
-        entries = try Self.directory(of: data)
+        try self.init(data: try Data(contentsOf: url))
+    }
+
+    /// Reads the zip held in `data`. Throws when the directory is damaged or two entries' bytes overlap.
+    public init(data: Data) throws {
+        let data = Data(data)  // indices from zero
+        let found = try Self.directory(of: data)
+        var spans: [(start: Int, end: Int)] = []
+        for entry in found {
+            let start = try Self.dataStart(of: entry, in: data)
+            spans.append((entry.offset, start + entry.compressedSize))
+        }
+        spans.sort { $0.start < $1.start }
+        for (previous, next) in zip(spans, spans.dropFirst()) where next.start < previous.end { throw ZipError.overlappingEntries }
+        self.data = data
+        entries = found
     }
 
     /// The entries of a zip, read from its end alone: the last megabyte holds the central directory of any zip this app writes, so a file
@@ -43,33 +59,41 @@ public struct ZipReader {
         // All ones in a field of the end record say the numbers are in the Zip64 end record, found by the locator just before.
         let wide = count == 0xFFFF || position == 0xFFFF_FFFF || size == 0xFFFF_FFFF
         if wide, end >= 20, u32(data, end - 20) == 0x0706_4B50 {
-            let record = Int(u64(data, end - 20 + 8)) - offsetOfData
-            guard record >= 0, record + 56 <= data.count, u32(data, record) == 0x0606_4B50 else { throw ZipError.notAZip }
-            count = Int(u64(data, record + 32))
-            size = Int(u64(data, record + 40))
-            position = Int(u64(data, record + 48))
+            let located = try int(u64(data, end - 20 + 8))
+            let (record, overflow) = located.subtractingReportingOverflow(offsetOfData)
+            guard !overflow, record >= 0, record <= data.count - 56, u32(data, record) == 0x0606_4B50 else { throw ZipError.notAZip }
+            count = try int(u64(data, record + 32))
+            size = try int(u64(data, record + 40))
+            position = try int(u64(data, record + 48))
         }
-        position -= offsetOfData
-        guard position >= 0, size >= 0 else { throw ZipError.notAZip }
+        let (start, overflow) = position.subtractingReportingOverflow(offsetOfData)
+        guard !overflow, start >= 0, size >= 0, start <= data.count, size <= data.count - start else { throw ZipError.notAZip }
+        // A record is at least 46 bytes, so a count the directory cannot hold is a lie.
+        guard count >= 0, count <= size / 46 else { throw ZipError.notAZip }
+        position = start
+        let limit = start + size
         var found: [Entry] = []
         for _ in 0..<count {
             let (entry, length) = try record(at: position, in: data)
             found.append(entry)
-            position += length
+            let (next, over) = position.addingReportingOverflow(length)
+            guard !over, next <= limit else { throw ZipError.notAZip }
+            position = next
         }
         return found
     }
 
     /// The central directory record at `position`, and its length.
     private static func record(at position: Int, in data: Data) throws -> (Entry, Int) {
-        guard position + 46 <= data.count, u32(data, position) == 0x0201_4B50 else { throw ZipError.notAZip }
+        guard position >= 0, position <= data.count - 46, u32(data, position) == 0x0201_4B50 else { throw ZipError.notAZip }
         let nameLength = Int(u16(data, position + 28)), extraLength = Int(u16(data, position + 30))
         let comment = Int(u16(data, position + 32))
         guard position + 46 + nameLength + extraLength <= data.count else { throw ZipError.notAZip }
-        let name = String(bytes: data[(position + 46)..<(position + 46 + nameLength)], encoding: .utf8) ?? ""
+        let name = String(bytes: data[(data.startIndex + position + 46)..<(data.startIndex + position + 46 + nameLength)],
+                          encoding: .utf8) ?? ""
         var entry = Entry(name: name, method: u16(data, position + 10), crc: u32(data, position + 16),
                           compressedSize: Int(u32(data, position + 20)), size: Int(u32(data, position + 24)),
-                          offset: Int(u32(data, position + 42)))
+                          offset: Int(u32(data, position + 42)), flags: u16(data, position + 8))
         // The Zip64 extra holds, in this order, the fields that were all ones: size, compressed size, offset.
         var field = position + 46 + nameLength
         let extraEnd = field + extraLength
@@ -79,7 +103,7 @@ public struct ZipReader {
                 var at = field + 4
                 for keyPath in [\Entry.size, \Entry.compressedSize, \Entry.offset] where entry[keyPath: keyPath] == 0xFFFF_FFFF {
                     guard at + 8 <= extraEnd else { throw ZipError.notAZip }
-                    entry[keyPath: keyPath] = Int(u64(data, at))
+                    entry[keyPath: keyPath] = try int(u64(data, at))
                     at += 8
                 }
             }
@@ -88,49 +112,63 @@ public struct ZipReader {
         return (entry, 46 + nameLength + extraLength + comment)
     }
 
+    /// Where `entry`'s bytes start, from its local header (whose own sizes are not trusted: a data descriptor leaves them zero), checked to
+    /// lie inside the file.
+    private static func dataStart(of entry: Entry, in data: Data) throws -> Int {
+        guard entry.offset >= 0, entry.offset <= data.count - 30, u32(data, entry.offset) == 0x0403_4B50 else { throw ZipError.notAZip }
+        let header = 30 + Int(u16(data, entry.offset + 26)) + Int(u16(data, entry.offset + 28))
+        let (start, overflow) = entry.offset.addingReportingOverflow(header)
+        guard !overflow, start <= data.count, entry.compressedSize >= 0, entry.compressedSize <= data.count - start else {
+            throw ZipError.notAZip
+        }
+        return start
+    }
+
+    private static func int(_ value: UInt64) throws -> Int {
+        guard let exact = Int(exactly: value) else { throw ZipError.notAZip }
+        return exact
+    }
+
     /// The content of `name`, inflated and checked against its CRC.
     public func contents(of name: String) throws -> Data {
         guard let entry = entries.first(where: { $0.name == name }) else { throw ZipError.missingEntry(name) }
-        let nameLength = Int(Self.u16(data, entry.offset + 26)), extra = Int(Self.u16(data, entry.offset + 28))
-        let start = entry.offset + 30 + nameLength + extra
-        guard start + entry.compressedSize <= data.count else { throw ZipError.notAZip }
-        let stored = data[start..<(start + entry.compressedSize)]
+        return try content(of: entry, limit: Self.defaultLimit, isCancelled: { false })
+    }
+
+    /// The content of `entry`, inflated and checked against its CRC. An entry that declares more than `limit` bytes is refused before
+    /// anything is allocated.
+    /// - Throws: `ZipError`, or `CancellationError` when `isCancelled` answers true.
+    public func content(of entry: Entry, limit: Int, isCancelled: () -> Bool = { false }) throws -> Data {
+        guard entry.flags & 1 == 0 else { throw ZipError.encrypted(entry.name) }
+        guard entry.size >= 0, entry.size <= min(limit, Self.defaultLimit) else { throw ZipError.tooLarge(entry.name) }
+        let start = try Self.dataStart(of: entry, in: data)
+        let stored = data[(data.startIndex + start)..<(data.startIndex + start + entry.compressedSize)]
         let content: Data
         switch entry.method {
         case 0:
+            guard entry.compressedSize == entry.size else { throw ZipError.checksumMismatch(entry.name) }
             content = Data(stored)
         case 8:
-            content = try Self.inflate(stored, size: entry.size, name: name)
+            do {
+                content = try stored.withUnsafeBytes { try Inflate.inflate($0, size: entry.size, isCancelled: isCancelled) }
+            } catch InflateError.cancelled {
+                throw CancellationError()
+            } catch {
+                throw ZipError.checksumMismatch(entry.name)
+            }
         default:
-            throw ZipError.unsupportedMethod(name)
+            throw ZipError.unsupportedMethod(entry.name)
         }
-        guard content.count == entry.size, CRC32.checksum(content) == entry.crc else { throw ZipError.checksumMismatch(name) }
+        guard content.count == entry.size, CRC32.checksum(content) == entry.crc else { throw ZipError.checksumMismatch(entry.name) }
         return content
     }
 
-    private static func inflate(_ compressed: Data.SubSequence, size: Int, name: String) throws -> Data {
-        #if canImport(Compression)
-        guard size > 0 else { return Data() }
-        var output = Data(count: size)
-        let written = output.withUnsafeMutableBytes { destination -> Int in
-            compressed.withUnsafeBytes { source -> Int in
-                guard let to = destination.bindMemory(to: UInt8.self).baseAddress,
-                      let from = source.bindMemory(to: UInt8.self).baseAddress else { return 0 }
-                return compression_decode_buffer(to, size, from, source.count, nil, COMPRESSION_ZLIB)
-            }
-        }
-        guard written == size else { throw ZipError.checksumMismatch(name) }
-        return output
-        #else
-        throw ZipError.unsupportedMethod(name)
-        #endif
-    }
-
+    /// The end record: the last signature whose comment length runs exactly to the end of the file (a signature inside a comment does not).
     private static func endOfDirectory(in data: Data) -> Int? {
         var position = data.count - 22
         let lowest = max(0, data.count - 22 - 65_535)
         while position >= lowest {
-            if u32(data, position) == 0x0605_4B50 { return position }
+            if u32(data, position) == 0x0605_4B50, position + 22 + Int(u16(data, position + 20)) == data.count { return position }
             position -= 1
         }
         return nil
