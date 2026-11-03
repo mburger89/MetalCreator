@@ -17,7 +17,7 @@ public struct FilletResult: Sendable {
     public var solid: Solid
     /// Corners where three or more fillets meet that stayed tangent only (G1) in a curvature-continuous fillet.
     public var tangentOnlyCorners: Int
-    /// Joins between two strips of a chain that kink, where a curvature-continuous fillet is tangent only (G1).
+    /// Joins between two strips of a chain that kink, where a curvature-continuous fillet is only approximately tangent.
     public var tangentOnlyJoins: Int
 
     public init(solid: Solid, tangentOnlyCorners: Int = 0, tangentOnlyJoins: Int = 0) {

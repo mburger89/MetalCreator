@@ -67,9 +67,9 @@ public enum FilletNode: NodeDefinition {
             warnings.append("\(made.tangentOnlyCorners.display) fillet corners are tangent only (G1).")
         }
         if made.tangentOnlyJoins == 1 {
-            warnings.append("1 fillet join is tangent only (G1) where the edges kink.")
+            warnings.append("1 fillet join is only approximately tangent where the edges kink.")
         } else if made.tangentOnlyJoins > 1 {
-            warnings.append("\(made.tangentOnlyJoins.display) fillet joins are tangent only (G1) where the edges kink.")
+            warnings.append("\(made.tangentOnlyJoins.display) fillet joins are only approximately tangent where the edges kink.")
         }
         return warnings
     }

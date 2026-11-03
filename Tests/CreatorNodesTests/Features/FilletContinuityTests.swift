@@ -60,8 +60,8 @@ struct FilletContinuityTests {
         for (corners, joins, expected) in [
             (1, 0, "1 fillet corner is tangent only (G1)."),
             (3, 0, "3 fillet corners are tangent only (G1)."),
-            (0, 1, "1 fillet join is tangent only (G1) where the edges kink."),
-            (0, 3, "3 fillet joins are tangent only (G1) where the edges kink."),
+            (0, 1, "1 fillet join is only approximately tangent where the edges kink."),
+            (0, 3, "3 fillet joins are only approximately tangent where the edges kink."),
         ] {
             let (h, _, fillet) = filletOnABox(["continuity": .integer(1)])
             let kernel = FakeKernel()
