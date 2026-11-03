@@ -15,30 +15,55 @@ namespace {
 // Prime sample counts, so that the samples never fall on the sections (which sit at multiples of 1/2^k) and measure
 // the worst place between them.
 constexpr int kCheckSamples = 127;  // samples per spring edge when a candidate strip is judged
-// Where the springs of two chained strips kink at their junction (the faces under them are only G1 there), the strip's
-// across direction is the bisector's, and the curvature comparison skips this share of the edge next to the junction.
-constexpr int kJunctionSamples = 2;
+constexpr int kSpanSamples = 3;     // samples added inside a span between two sections that the even ones would step over
 
-/// The worst position, angle and curvature gaps along `edge` between the two faces that share it.
+/// Edge parameters inside the spans between sections (at `section_t`, their parameters on this edge) that are too narrow
+/// for `samples` even samples of [first, last] to land in `kSpanSamples` times. A piece of a spring's curve can be a
+/// sliver at a strip's end (a few thousandths of its length) and the skin is only a chord across a piece of two
+/// sections, so the worst gap of a whole strip can sit between two even samples.
+std::vector<double> span_samples(const std::vector<double> &section_t, double first, double last, int samples) {
+    std::vector<double> out;
+    const double step = (last - first) / samples;
+    for (std::size_t j = 0; j + 1 < section_t.size(); ++j) {
+        const double width = section_t[j + 1] - section_t[j];
+        if (std::abs(width) >= (kSpanSamples + 1) * step) {
+            continue;
+        }
+        for (int k = 1; k <= kSpanSamples; ++k) {
+            const double t = section_t[j] + width * k / (kSpanSamples + 1);
+            if (t > first && t < last) {
+                out.push_back(t);
+            }
+        }
+    }
+    return out;
+}
+
+/// The worst position, angle and curvature gaps along `edge` between the two faces that share it. `section_t`: the
+/// parameters of the sections of a strip on this edge, where it is a spring.
 occt_g2_seam measure_seam(const TopoDS_Edge &edge, const TopoDS_Face &f1, const TopoDS_Face &f2,
-                          const bool exempt_ends[2] = nullptr) {
+                          const std::vector<double> &section_t = {}) {
     occt_g2_seam seam{};
     BRepAdaptor_Curve curve(edge);
-    for (int k = 0; k <= kMeasureSamples; ++k) {
-        const double t = curve.FirstParameter() + (curve.LastParameter() - curve.FirstParameter()) * k / kMeasureSamples;
+    const double first = curve.FirstParameter(), last = curve.LastParameter();
+    const auto measure_at = [&](double t) {
         gp_Pnt p;
         gp_Vec tangent;
         curve.D1(t, p, tangent);
-        const bool near_start = exempt_ends && exempt_ends[0] && k <= kJunctionSamples;
-        const bool near_end = exempt_ends && exempt_ends[1] && k >= kMeasureSamples - kJunctionSamples;
-        accumulate(seam, surface_point(f1, edge, t), surface_point(f2, edge, t), tangent, !(near_start || near_end));
+        accumulate(seam, surface_point(f1, edge, t), surface_point(f2, edge, t), tangent);
+    };
+    for (int k = 0; k <= kMeasureSamples; ++k) {
+        measure_at(first + (last - first) * k / kMeasureSamples);
+    }
+    for (const double t : span_samples(section_t, first, last, kMeasureSamples)) {
+        measure_at(t);
     }
     return seam;
 }
 
 /// The promise itself: position 1e-4 mm, angle 0.01 degrees, curvature within its allowance.
-bool meets_promise(const occt_g2_seam &seam, bool curvature = true) {
-    return seam.position <= 1e-4 && seam.angle_degrees <= 0.01 && (!curvature || seam.curvature_ratio <= 1);
+bool meets_promise(const occt_g2_seam &seam) {
+    return seam.position <= 1e-4 && seam.angle_degrees <= 0.01 && seam.curvature_ratio <= 1;
 }
 
 } // namespace
@@ -67,13 +92,13 @@ void accumulate(occt_g2_seam &seam, const SurfacePoint &a, const SurfacePoint &b
 
 occt_g2_seam candidate_seam(const Handle(Geom_BSplineSurface) &surface, bool reversed, const Spring &spring,
                             const Handle(Geom2d_Curve) &pcurve, const std::vector<double> &fractions,
-                            std::vector<double> &intervals) {
+                            const std::vector<double> &section_t, std::vector<double> &intervals) {
     occt_g2_seam seam{};
     BRepAdaptor_Curve curve(spring.edge);
+    const double first = curve.FirstParameter(), last = curve.LastParameter();
     const int samples = std::max(kCheckSamples, 4 * static_cast<int>(fractions.size()) + 3);
     intervals.assign(fractions.size() - 1, 0.0);
-    for (int k = 0; k <= samples; ++k) {
-        const double t = curve.FirstParameter() + (curve.LastParameter() - curve.FirstParameter()) * k / samples;
+    const auto measure_at = [&](double t) {
         const gp_Pnt2d uv = pcurve->Value(t);
         SurfacePoint strip;
         surface->D2(uv.X(), uv.Y(), strip.p, strip.su, strip.sv, strip.suu, strip.svv, strip.suv);
@@ -86,18 +111,20 @@ occt_g2_seam candidate_seam(const Handle(Geom_BSplineSurface) &surface, bool rev
         gp_Vec tangent;
         curve.D1(t, p, tangent);
         occt_g2_seam here{};
-        // The sampling start/end of the spring in parameter terms, for the junction exemption.
-        const double length = std::abs(spring.t_end - spring.t_start);
-        const bool near_start = spring.kinked[0] && std::abs(t - spring.t_start) < 0.0335 * length;
-        const bool near_end = spring.kinked[1] && std::abs(t - spring.t_end) < 0.0335 * length;
-        const bool compare_curvature = !(near_start || near_end);
-        accumulate(here, strip, surface_point(spring.neighbour, spring.edge, t), tangent, compare_curvature);
-        accumulate(seam, strip, surface_point(spring.neighbour, spring.edge, t), tangent, compare_curvature);
+        const SurfacePoint neighbour = surface_point(spring.neighbour, spring.edge, t);
+        accumulate(here, strip, neighbour, tangent);
+        accumulate(seam, strip, neighbour, tangent);
         const auto after = std::upper_bound(fractions.begin(), fractions.end(), uv.X());
         const std::size_t span = std::min<std::size_t>(std::max<std::ptrdiff_t>(after - fractions.begin() - 1, 0),
                                                        intervals.size() - 1);
         intervals[span] = std::max({intervals[span], here.position / 2e-5, here.angle_degrees / 0.005,
                                     here.curvature_ratio / 0.5});
+    };
+    for (int k = 0; k <= samples; ++k) {
+        measure_at(first + (last - first) * k / samples);
+    }
+    for (const double t : span_samples(section_t, first, last, samples)) {
+        measure_at(t);
     }
     return seam;
 }
@@ -135,12 +162,7 @@ void judge_result(Run &r) {
         const TopoDS_Face &strip = result_strips[s];
         // The strips were classified before the faces were rebuilt; their spring edges are the same edges now.
         for (const Spring &spring : strips[s].spring) {
-            // The springs' junction tangents were set on the strips as first classified.
-            bool exempt[2] = {false, false};
-            exempt[0] = spring.flipped ? spring.kinked[1] : spring.kinked[0];
-            exempt[1] = spring.flipped ? spring.kinked[0] : spring.kinked[1];
-            // Every promised spring seam is judged here, whatever the report's array can hold.
-            const occt_g2_seam seam = measure_seam(spring.edge, strip, spring.neighbour, exempt);
+            const occt_g2_seam seam = measure_seam(spring.edge, strip, spring.neighbour, spring.section_t);
             ++report->seams_total;
             if (!meets_promise(seam)) {
                 throw user_error(kStripMessage);
@@ -214,3 +236,31 @@ void judge_result(Run &r) {
 }
 
 } // namespace cocct::g2_blend
+
+extern "C" int occt_edge_seam_dense(const occt_shape *shape, int edge_index, int samples, occt_g2_seam *seam) {
+    using namespace cocct;
+    using namespace cocct::g2_blend;
+    return queried([&]() -> int {
+        const TopTools_IndexedMapOfShape edges = map_of(shape->shape, TopAbs_EDGE);
+        if (edge_index < 1 || edge_index > edges.Extent() || samples < 1) {
+            return 0;
+        }
+        const TopoDS_Edge edge = TopoDS::Edge(edges(edge_index));
+        TopTools_IndexedDataMapOfShapeListOfShape edge_faces;
+        TopExp::MapShapesAndAncestors(shape->shape, TopAbs_EDGE, TopAbs_FACE, edge_faces);
+        const std::vector<TopoDS_Face> sides = distinct_faces(edge, edge_faces);
+        if (sides.size() != 2) {
+            return 0;
+        }
+        *seam = occt_g2_seam{};
+        BRepAdaptor_Curve curve(edge);
+        for (int k = 0; k <= samples; ++k) {
+            const double t = curve.FirstParameter() + (curve.LastParameter() - curve.FirstParameter()) * k / samples;
+            gp_Pnt p;
+            gp_Vec tangent;
+            curve.D1(t, p, tangent);
+            accumulate(*seam, surface_point(sides[0], edge, t), surface_point(sides[1], edge, t), tangent);
+        }
+        return 1;
+    });
+}

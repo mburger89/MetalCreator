@@ -7,6 +7,11 @@ extension TriangleMesh {
     /// vertex), one face for the whole mesh, no B-rep edges. A vertex whose gradient was degenerate when the mesher snapped it keeps a
     /// zero normal there; it is shaded with the faces' average instead of a zero vector (which would draw black).
     var displayMesh: DisplayMesh {
+        if let creaseAngle, normals.isEmpty {
+            let creased = creasedDisplay(angle: creaseAngle)
+            return DisplayMesh(positions: creased.positions, normals: creased.normals, indices: creased.indices,
+                               triangleFaces: displayFaces, edgePolylines: [:])
+        }
         let points = (0..<vertexCount).map { point($0) }
         var shading = averagedNormals(of: points)
         if normals.count == points.count {

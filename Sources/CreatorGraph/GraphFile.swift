@@ -22,14 +22,16 @@ public struct GraphFile: Sendable, Codable, Equatable {
     /// DIM-3 adds `dimensionPins` on any graph, a sorted list of pinned feature dimensions. 11: sketch splines (G-c): the
     /// `spline` sketch entity kind with its handle states, the `splineHandles` warm-start state and the `curvature`
     /// constraint, none of which a version-10 reader can decode. Files 1 to 10 open unchanged and are written as 11.
-    public static let currentFormatVersion = 11
+    /// 12: the Import Mesh node's `meshFile` setting (`ConstantValue.meshFile`), whose embedded bytes share the `images` table;
+    /// a version-11 reader cannot decode the kind. Files 1 to 11 open unchanged and are written as 12.
+    public static let currentFormatVersion = 12
 
     public var formatVersion: Int
     public var graph: Graph
     /// The document's group definitions (groups spec §4). Written as an array sorted by ID; absent in older files.
     public var definitions: [GroupID: GroupDefinition]
     public var viewState: ViewState
-    /// The embedded images, by the hash of their bytes (fields spec §5): the file's own PNG or JPEG bytes, written as base64
+    /// The embedded images and mesh files, by the hash of their bytes (fields spec §5): the file's own PNG or JPEG bytes, or an Import Mesh node's STL or 3MF bytes (format 12), written as base64
     /// under their SHA-256 in a top-level `images` object (sorted by key), only when there are some. A damaged entry is
     /// left out on reading (`ImageTable`).
     public var images: [ImageHash: Data]

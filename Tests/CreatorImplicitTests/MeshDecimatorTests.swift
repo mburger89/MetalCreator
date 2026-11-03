@@ -80,13 +80,11 @@ struct MeshDecimatorTests {
         }
     }
 
-    @Test func threeFacesOnOneEdgeCannotBeSimplified() {
+    @Test func threeFacesOnOneEdgeAreKeptAsTheyAre() throws {
         let positions: [SIMD3<Float>] = [SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0, 1, 0), SIMD3(0, -1, 0), SIMD3(0, 0, 1)]
         let fin: [UInt32] = [0, 1, 2, 0, 3, 1, 0, 1, 4]
-        #expect(throws: MeshDecimator.Failure.nonManifold(edges: 1)) {
-            try MeshDecimator.decimate(positions: positions, triangles: fin, tolerance: 1)
-        }
-        #expect(MeshDecimator.Failure.nonManifold(edges: 1).userMessage.contains("more than two faces"))
+        let output = try MeshDecimator.decimate(positions: positions, triangles: fin, tolerance: 1)
+        #expect(output.triangles.count == 9 && output.collapses == 0, "every vertex is on an edge that is open or has three faces")
     }
 
     @Test func triangleListsWithBadIndicesAreIgnoredNotTrusted() throws {

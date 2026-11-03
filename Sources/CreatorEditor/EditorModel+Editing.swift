@@ -125,7 +125,7 @@ extension EditorModel {
         let comments = items.comments.sorted()
         let definitions = GroupMerge.definitions(used: nodes, in: document.content)
         var hashes = Set(nodes.flatMap { $0.inputValues.values.compactMap { value -> ImageHash? in
-            if case .image(.embedded(let hash)) = value { hash } else { nil }
+            if case .embedded(let hash)? = value.fileReference { hash } else { nil }
         } })
         for definition in definitions.values { hashes.formUnion(definition.graph.embeddedImageHashes) }
         // A tie travels when every wire it holds does, selected or not, as the wires between copied nodes do.

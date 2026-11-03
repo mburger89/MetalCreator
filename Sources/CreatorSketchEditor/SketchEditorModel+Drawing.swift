@@ -270,7 +270,7 @@ extension SketchEditorModel {
         case .arcThroughFrom(let start):
             return SketchPreview(curves: [.line(start.position, target.position)], points: [start.position])
         case .splineThrough(let placed):
-            return splineBand(placed, landing: target)
+            return splineBand(placed, landing: target, suppressed: suppressed)
         case .arcThrough(let start, let end):
             guard let arc = EditorGeometry.threePointArc(from: start.position, to: end.position, through: p) else {
                 return SketchPreview(curves: [.line(start.position, end.position)], points: [start.position, end.position])

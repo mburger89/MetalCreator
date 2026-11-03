@@ -20,7 +20,7 @@ enum StreamedExport {
 
     /// - Parameters:
     ///   - progress: the fraction of the streams done, 0 to 1, from any thread.
-    /// - Throws: `CancellationError`, `ImplicitMeshingError`, `ZipError`, `MeshDecimator.Failure` and the kernel's errors.
+    /// - Throws: `CancellationError`, `ImplicitMeshingError`, `ZipError` and the kernel's errors.
     static func write(_ outputs: [Output], as kind: ExportKind, to url: URL, kernel: any Kernel, engine: ImplicitEngineChoice,
                       progress: @escaping @Sendable (Double) -> Void) async throws {
         switch kind {

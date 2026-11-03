@@ -32,6 +32,12 @@ public enum UndoName {
     public static let embedImage = "Embed Image"
     public static let linkImage = "Link Image"
 
+    // MARK: Mesh files (mesh import spec)
+    public static let importMesh = "Import Mesh"
+    public static let chooseMeshFile = "Choose Mesh File"
+    public static let relinkMeshFile = "Relink Mesh File"
+    public static let embedMeshFile = "Embed Mesh File"
+
     // MARK: Comments (canvas comments spec §7)
     public static let addNote = "Add Note"
     public static let editNote = "Edit Note"

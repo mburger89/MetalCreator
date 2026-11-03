@@ -28,56 +28,35 @@ extension AppModel {
     /// A file is checked when it is chosen (`ImageResolver.bytes(ofFileAt:)`, `GreyImageDecoder.inspect`): over 16 MB, over
     /// 8,192 px on a side, or not a PNG or JPEG, and the setting stays as it was (fields spec D10).
     public func performImage(_ action: InspectorAction, on node: NodeID, using picker: any FilePicker) async {
-        editor.commitPendingEntry()
-        let key = ObjectIdentifier(document)
-        guard editor.graph.nodes[node] != nil, !imageActionDocuments.contains(key) else { return }
-        imageActionDocuments.insert(key)
-        // The target holds the document until the action ends, so its identity cannot be reused meanwhile.
-        let target = ImageTarget(document: document, path: editor.graphPath, levels: editor.levelPath, node: node)
-        defer { imageActionDocuments.remove(key) }
-        do {
+        let failure = await withFileAction(on: node) { target in
             switch action {
             case .chooseImage: try await chooseImage(target, using: picker)
             case .linkImage: try await linkImage(target, using: picker)
             case .relinkImage: try await relinkImage(target, using: picker, named: UndoName.relinkImage)
             case .embedImage: try embedImage(target)
             case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
-                 .editSketch, .editGroup, .makeUnique, .ungroup: break
+                 .editSketch, .editGroup, .makeUnique, .ungroup, .chooseMeshFile, .relinkMeshFile, .embedMeshFile: break
             }
-        } catch let problem as AppProblem {
-            alert = .problem(problem)
-        } catch let problem as ImageProblem {
-            alert = .problem(AppProblem("That image can't be used", problem.message))
-        } catch {
-            report(error, title: "The image couldn't be changed")
         }
-    }
-
-    /// The document, level and node an image action began on. A file panel stays open while the person does other things,
-    /// so the answer is used only if the same node of the same level of the same document is still there.
-    private struct ImageTarget {
-        let document: DocumentModel
-        let path: GraphPath
-        let levels: [NodeID]
-        let node: NodeID
-    }
-
-    /// Whether `target` is still what the window shows.
-    private func isCurrent(_ target: ImageTarget) -> Bool {
-        document === target.document && editor.levelPath == target.levels && editor.graph.nodes[target.node] != nil
+        switch failure {
+        case nil: break
+        case let problem as AppProblem: alert = .problem(problem)
+        case let problem as ImageProblem: alert = .problem(AppProblem("That image can't be used", problem.message))
+        case let error?: report(error, title: "The image couldn't be changed")
+        }
     }
 
     private func currentImage(of node: NodeID) -> ImageReference? {
         if case .image(let reference)? = editor.graph.nodes[node]?.inputValues[NodeSetting.image] { reference } else { nil }
     }
 
-    private func chooseImage(_ target: ImageTarget, using picker: any FilePicker) async throws {
+    private func chooseImage(_ target: FileActionTarget, using picker: any FilePicker) async throws {
         guard let url = try await picker.chooseFileToOpen(Self.imageTypes), isCurrent(target) else { return }
         let bytes = try checkedBytes(of: url)
         try setImage(.embedded(document.addImage(bytes)), on: target, named: UndoName.chooseImage)
     }
 
-    private func linkImage(_ target: ImageTarget, using picker: any FilePicker) async throws {
+    private func linkImage(_ target: FileActionTarget, using picker: any FilePicker) async throws {
         guard case .embedded(let hash)? = currentImage(of: target.node) else {
             return try await relinkImage(target, using: picker, named: UndoName.linkImage)
         }
@@ -93,13 +72,13 @@ extension AppModel {
         try setImage(linkedReference(to: url), on: target, named: UndoName.linkImage)
     }
 
-    private func relinkImage(_ target: ImageTarget, using picker: any FilePicker, named name: String) async throws {
+    private func relinkImage(_ target: FileActionTarget, using picker: any FilePicker, named name: String) async throws {
         guard let url = try await picker.chooseFileToOpen(Self.imageTypes), isCurrent(target) else { return }
         _ = try checkedBytes(of: url)
         try setImage(linkedReference(to: url), on: target, named: name)
     }
 
-    private func embedImage(_ target: ImageTarget) throws {
+    private func embedImage(_ target: FileActionTarget) throws {
         guard let reference = currentImage(of: target.node), !reference.isEmbedded else { return }
         let bytes = try document.imageResolver.bytes(of: reference)
         _ = try GreyImageDecoder.inspect(bytes)
@@ -117,14 +96,7 @@ extension AppModel {
         }
     }
 
-    /// A link to `url`: its absolute path and, once the document has a folder, the path relative to it.
-    private func linkedReference(to url: URL) -> ImageReference {
-        let file = url.standardizedFileURL
-        let relative = document.documentURL.map { ImageResolver.relativePath(from: $0.deletingLastPathComponent(), to: file) }
-        return .linked(relativePath: relative, absolutePath: file.path(percentEncoded: false))
-    }
-
-    private func setImage(_ reference: ImageReference, on target: ImageTarget, named name: String) throws {
+    private func setImage(_ reference: ImageReference, on target: FileActionTarget, named name: String) throws {
         do {
             try document.perform(.setInput(target.node, NodeSetting.image, .image(reference)), at: target.path, name: name)
         } catch {

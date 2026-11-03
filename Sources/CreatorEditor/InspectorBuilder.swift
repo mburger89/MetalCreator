@@ -105,6 +105,7 @@ public enum InspectorBuilder {
                      results: [NodeID: NodeResult]) -> [InspectorRow] {
         if case .image(let setting) = control { return imageRows(setting, node: node) }
         if case .faceStatus(let setting) = control { return [faceRow(setting, node: node)] }
+        if case .meshFile(let setting) = control { return meshFileRows(setting, node: node) }
         return [row(for: control, node: node, inputs: inputs, outputs: outputs, graph: graph, results: results)]
     }
 
@@ -112,6 +113,24 @@ public enum InspectorBuilder {
     static func faceRow(_ setting: SocketName, node: Node) -> InspectorRow {
         if case .facePick? = node.inputValues[setting] { return .readOnly(label: InspectorLabel.text(for: setting), text: "Picked") }
         return .readOnly(label: InspectorLabel.text(for: setting), text: "None")
+    }
+
+    /// A mesh file setting's rows: "No file chosen", "Embedded · a1b2c3d4" or "Linked · part.stl", then the buttons for that state.
+    static func meshFileRows(_ setting: SocketName, node: Node) -> [InspectorRow] {
+        let status: String
+        let buttons: [(title: String, action: InspectorAction)]
+        switch node.inputValues[setting]?.fileReference {
+        case nil:
+            status = "No file chosen"
+            buttons = [("Choose File…", .chooseMeshFile)]
+        case .embedded(let hash)?:
+            status = "Embedded · \(hash.short)"
+            buttons = [("Choose File…", .chooseMeshFile)]
+        case let reference?:
+            status = "Linked · \(reference.fileName ?? "")"
+            buttons = [("Relink…", .relinkMeshFile), ("Embed", .embedMeshFile)]
+        }
+        return [.readOnly(label: "File", text: status)] + buttons.map { .button(title: $0.title, action: $0.action) }
     }
 
     /// An image setting's rows (fields spec §5): "No image chosen", "Embedded · a1b2c3d4" or "Linked · vent-mask.png", then

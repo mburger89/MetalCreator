@@ -31,7 +31,7 @@ public enum MeshToSolidNode: NodeDefinition {
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let (mesh, warnings) = try await MeshInput.collected(try inputs.scalar("mesh"), socket: "mesh", limit: triangleLimit,
-                                                              context: context)
+                                                              tool: displayName, context: context)
         try requireWithinLimit(mesh.triangleCount)
         let welded = MeshWelder.weld(positions: mesh.positions, triangles: mesh.triangles)
         let solid = try await kernel.meshToSolid(positions: welded.positions, triangles: welded.triangles, tag: context.tag)

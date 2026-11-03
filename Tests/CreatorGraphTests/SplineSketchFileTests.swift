@@ -21,12 +21,12 @@ struct SplineSketchFileTests {
     }
 
     @Test func formatElevenRoundTrips() throws {
-        #expect(GraphFile.currentFormatVersion == 11)
+        #expect(GraphFile.currentFormatVersion == 12)
         let node = makeNode(ConstantNode.self, [NodeSetting.sketch: .sketch(splineSketch())])
         let file = GraphFile(graph: graph([node]))
         let data = try GraphFileIO.encode(file)
         let text = try #require(String(bytes: data, encoding: .utf8))
-        #expect(text.contains(#""formatVersion" : 11"#) && text.contains("spline") && text.contains("curvature"))
+        #expect(text.contains(#""formatVersion" : 12"#) && text.contains("spline") && text.contains("curvature"))
         let decoded = try GraphFileIO.decode(data, registry: testRegistry)
         #expect(decoded == file)
         #expect(decoded.graph.nodes[node.id]?.inputValues[NodeSetting.sketch] == .sketch(splineSketch()))
@@ -43,11 +43,11 @@ struct SplineSketchFileTests {
         #expect(file.formatVersion == 10)
         #expect(file.graph.nodes[node.id]?.inputValues[NodeSetting.sketch] == .sketch(SketchSettingFileTests().sampleSketch()))
         let resaved = GraphFile(graph: file.graph, definitions: file.definitions, viewState: file.viewState)
-        #expect(try GraphFileIO.decode(try GraphFileIO.encode(resaved), registry: testRegistry).formatVersion == 11)
+        #expect(try GraphFileIO.decode(try GraphFileIO.encode(resaved), registry: testRegistry).formatVersion == 12)
     }
 
     @Test func aNewerFileThanThisBuildIsRefused() {
-        let text = #"{"formatVersion": 12, "graph": {"nodes": []}}"#
+        let text = #"{"formatVersion": 13, "graph": {"nodes": []}}"#
         #expect(throws: (any Error).self) { try GraphFileIO.decode(Data(text.utf8), registry: testRegistry) }
     }
 }

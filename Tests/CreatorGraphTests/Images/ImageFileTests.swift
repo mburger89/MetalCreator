@@ -32,7 +32,7 @@ struct ImageFileTests {
     // MARK: Format 7
 
     @Test func filesAreWrittenAsTheCurrentFormatAndAnImageFreeFileHasNoImagesKey() throws {
-        #expect(GraphFile.currentFormatVersion == 11)
+        #expect(GraphFile.currentFormatVersion == 12)
         let object = try json(try document([]).fileData())
         #expect(object["formatVersion"] as? Int == GraphFile.currentFormatVersion)
         #expect(object["images"] == nil, "written only when there are images")
@@ -94,8 +94,8 @@ struct ImageFileTests {
         #expect(file.images == [good: first])
     }
 
-    @Test func aPictureOverSixteenMegabytesInATableIsLeftOut() throws {
-        let big = Data(count: ImageLimits.maxBytes + 1)
+    @Test func aFileOverSixtyFourMegabytesInATableIsLeftOut() throws {
+        let big = Data(count: MeshImportLimits.maxEmbeddedBytes + 1)
         var object = try json(try document([]).fileData())
         object["images"] = [ImageHash(of: big).hex: big.base64EncodedString()]
         #expect(try reopened(try JSONSerialization.data(withJSONObject: object)).images.isEmpty)
@@ -214,9 +214,9 @@ struct ImageFileTests {
     }
 
     @Test func aNewerFormatIsRefusedWithTheExistingMessage() throws {
-        let text = Self.formatSix.replacing("\"formatVersion\" : 6", with: "\"formatVersion\" : 12")
-        #expect(throws: GraphFileError.newerFormat(12)) { try reopened(Data(text.utf8)) }
-        #expect(GraphFileError.newerFormat(12).message
-            .hasPrefix("This file was saved by a newer version of MetalCreator (file format 12)."))
+        let text = Self.formatSix.replacing("\"formatVersion\" : 6", with: "\"formatVersion\" : 13")
+        #expect(throws: GraphFileError.newerFormat(13)) { try reopened(Data(text.utf8)) }
+        #expect(GraphFileError.newerFormat(13).message
+            .hasPrefix("This file was saved by a newer version of MetalCreator (file format 13)."))
     }
 }

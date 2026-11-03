@@ -124,7 +124,8 @@ extension AppModel {
     /// Evaluates the graph for export, then writes the file; the warnings of the nodes it came from.
     private func streamToFile(_ kind: ExportKind, to url: URL, _ run: ExportRun) async throws -> [String] {
         try await exportHold?()
-        let collected = try await evaluateForExport()
+        var collected = try await evaluateForExport()
+        if kind == .threeMF { collected.warnings += Self.openMeshWarnings(in: collected.outputs) }
         try Task.checkCancellation()
         // The checks are done: a stream's check copy is not kept while its file is written.
         for output in collected.outputs {
@@ -169,7 +170,6 @@ extension AppModel {
         switch error {
         case let error as ImplicitMeshingError: error.userMessage
         case let error as ZipError: error.userMessage
-        case let error as MeshDecimator.Failure: error.userMessage
         default: Evaluator.message(for: error)
         }
     }
@@ -182,6 +182,15 @@ extension AppModel {
         return nodes.sorted().flatMap { id -> [String] in
             guard let node = graph.nodes[id], case .warning(let message)? = results[id]?.state else { return [] }
             return message.split(separator: "\n").map { "\(node.name): \($0)" }
+        }
+    }
+
+    /// A 3MF asks for closed, manifold meshes, so an Output holding a mesh that isn't (an imported file can be) says so, once, after
+    /// its name. The file is still written. Streams come from the mesher, which makes closed meshes, and are not asked.
+    static func openMeshWarnings(in outputs: [StreamedExport.Output]) -> [String] {
+        outputs.compactMap { output in
+            let isOpen = output.meshes.contains { ($0 as? TriangleMesh).map { !EdgeCounts($0).isClosed } ?? false }
+            return isOpen ? "\(output.name): This mesh isn't closed, so the 3MF may not print." : nil
         }
     }
 
