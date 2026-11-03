@@ -6,6 +6,8 @@ enum InflateError: Error, Equatable {
     case malformed
     /// The stream holds more than the declared size.
     case tooLong
+    /// The declared size could not be allocated.
+    case allocationFailed
     /// The stream ended cleanly with fewer bytes than the declared size.
     case tooShort
     /// `isCancelled` answered true.
@@ -13,7 +15,7 @@ enum InflateError: Error, Equatable {
 }
 
 /// Raw DEFLATE (RFC 1951) in plain Swift, so a 3MF reads the same on every platform. The input is untrusted: output stops at the declared
-/// `size` (the only allocation is that much), every read and copy is bounds-checked, nothing recurses, and no input traps.
+/// `size` (the output is the one allocation that grows with the input's claims: `size` bytes, plus about 13 KB of tables), every read and copy is bounds-checked, nothing recurses, and no input traps. Bytes after the final block are ignored (a zip entry's CRC protects the output).
 enum Inflate {
     /// Cancellation is asked about once per this many bytes of output.
     static let cancellationInterval = 1 << 20
@@ -22,7 +24,7 @@ enum Inflate {
     /// under it, `.malformed` for a bad or truncated stream.
     static func inflate(_ input: UnsafeRawBufferPointer, size: Int, isCancelled: () -> Bool) throws(InflateError) -> Data {
         guard size >= 0 else { throw .malformed }
-        guard let raw = malloc(max(size, 1)) else { throw .tooLong }
+        guard let raw = malloc(max(size, 1)) else { throw .allocationFailed }
         let output = raw.assumingMemoryBound(to: UInt8.self)
         do {
             var state = InflateState(input: input, output: output, size: size)
@@ -73,8 +75,15 @@ private struct HuffmanTable {
 
     /// Canonical codes: each length starts after the previous length's codes, doubled.
     private func assign(_ lengths: UnsafePointer<UInt8>, _ n: Int) {
-        var next = [Int](repeating: 0, count: 16)
-        var position = [Int](repeating: 0, count: 16)
+        withUnsafeTemporaryAllocation(of: Int.self, capacity: 32) { scratch in
+            assignCodes(lengths, n, next: scratch.baseAddress!, position: scratch.baseAddress! + 16)
+        }
+    }
+
+    private func assignCodes(_ lengths: UnsafePointer<UInt8>, _ n: Int, next: UnsafeMutablePointer<Int>,
+                             position: UnsafeMutablePointer<Int>) {
+        next.initialize(repeating: 0, count: 16)
+        position.initialize(repeating: 0, count: 16)
         var code = 0
         var index = 0
         for len in 1...15 {
@@ -185,8 +194,8 @@ private struct InflateState {
     }
 
     mutating func run(isCancelled: () -> Bool) throws(InflateError) {
-        let storage = UnsafeMutablePointer<UInt16>.allocate(capacity: 3 * HuffmanTable.stride)
-        storage.initialize(repeating: 0, count: 3 * HuffmanTable.stride)
+        let storage = UnsafeMutablePointer<UInt16>.allocate(capacity: 5 * HuffmanTable.stride)
+        storage.initialize(repeating: 0, count: 5 * HuffmanTable.stride)
         let lengths = UnsafeMutablePointer<UInt8>.allocate(capacity: 320)
         lengths.initialize(repeating: 0, count: 320)
         defer {
@@ -196,6 +205,10 @@ private struct InflateState {
         let literals = HuffmanTable(storage: storage)
         let distances = HuffmanTable(storage: storage + HuffmanTable.stride)
         let codeLengths = HuffmanTable(storage: storage + 2 * HuffmanTable.stride)
+        // The fixed code is built on first use and kept: a stream of many fixed blocks must not rebuild it each time.
+        let fixedLiterals = HuffmanTable(storage: storage + 3 * HuffmanTable.stride)
+        let fixedDistances = HuffmanTable(storage: storage + 4 * HuffmanTable.stride)
+        var fixedBuilt = false
         var isFinal = false
         while !isFinal {
             if isCancelled() { throw .cancelled }
@@ -205,8 +218,11 @@ private struct InflateState {
             case 0:
                 try stored(isCancelled: isCancelled)
             case 1:
-                try buildFixed(literals, distances, lengths)
-                try codes(literals, distances, isCancelled: isCancelled)
+                if !fixedBuilt {
+                    try buildFixed(fixedLiterals, fixedDistances, lengths)
+                    fixedBuilt = true
+                }
+                try codes(fixedLiterals, fixedDistances, isCancelled: isCancelled)
             case 2:
                 try dynamicTables(literals, distances, codeLengths, lengths)
                 try codes(literals, distances, isCancelled: isCancelled)
@@ -312,6 +328,7 @@ private struct InflateState {
         while true {
             // 15 + 5 + 15 + 13 bits is the most one symbol takes, under the 57 or more a refill leaves.
             refill()
+            try checkCancellation(isCancelled)
             let symbol = try decode(literals)
             if symbol < 256 {
                 if produced >= size { throw .tooLong }
@@ -321,7 +338,6 @@ private struct InflateState {
             }
             if symbol == 256 { return }
             try match(symbol, distances)
-            try checkCancellation(isCancelled)
         }
     }
 

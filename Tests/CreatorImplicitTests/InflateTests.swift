@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CreatorGeometry
 @testable import CreatorGraph
 @testable import CreatorImplicit
 #if canImport(Compression)
@@ -12,27 +13,6 @@ struct InflateTests {
     static let storedStream: [UInt8] = [0x01, 0x07, 0x00, 0xF8, 0xFF, 0x73, 0x74, 0x6F, 0x72, 0x65, 0x64, 0x21]
     static let fixedStream: [UInt8] = [0xCB, 0x48, 0xCD, 0xC9, 0xC9, 0x57, 0xC8, 0x40, 0x27, 0x01]
     static let fixedPlain = Data("hello hello hello hello".utf8)
-    /// zlib level 9 (raw) of `dynamicPlain`: a dynamic block.
-    static let dynamicStream: [UInt8] = [
-        0x2B, 0xC9, 0x48, 0x55, 0x28, 0x2C, 0xCD, 0x4C, 0xCE, 0x56, 0x48, 0x2A, 0xCA, 0x2F, 0xCF, 0x53, 0x48, 0xCB, 0xAF, 0x50,
-        0xC8, 0x2A, 0xCD, 0x2D, 0x28, 0x56, 0xC8, 0x2F, 0x4B, 0x2D, 0x52, 0x28, 0x01, 0x4A, 0xE7, 0x24, 0x56, 0x55, 0x2A, 0xA4,
-        0xE4, 0xA7, 0xEB, 0x81, 0x79, 0xA3, 0x8A, 0x47, 0x15, 0x8F, 0x2A, 0x1E, 0x55, 0x3C, 0xAA, 0x78, 0x54, 0xF1, 0x30, 0x52,
-        0xCC, 0xC0, 0xC8, 0xC4, 0xCC, 0xC2, 0xCA, 0xC6, 0xCE, 0xC1, 0xC9, 0xC5, 0xCD, 0xC3, 0xCB, 0xC7, 0x2F, 0x20, 0x28, 0x24,
-        0x2C, 0x22, 0x2A, 0x26, 0x2E, 0x21, 0x29, 0x25, 0x2D, 0x23, 0x2B, 0x27, 0xAF, 0xA0, 0xA8, 0xA4, 0xAC, 0xA2, 0xAA, 0xA6,
-        0xAE, 0xA1, 0xA9, 0xA5, 0xAD, 0xA3, 0xAB, 0xA7, 0x6F, 0x60, 0x68, 0x64, 0x6C, 0x62, 0x6A, 0x66, 0x6E, 0x61, 0x69, 0x65,
-        0x6D, 0x63, 0x6B, 0x67, 0xEF, 0xE0, 0xE8, 0xE4, 0xEC, 0xE2, 0xEA, 0xE6, 0xEE, 0xE1, 0xE9, 0xE5, 0xED, 0xE3, 0xEB, 0xE7,
-        0x1F, 0x10, 0x18, 0x14, 0x1C, 0x12, 0x1A, 0x16, 0x1E, 0x11, 0x19, 0x15, 0x1D, 0x13, 0x1B, 0x17, 0x9F, 0x90, 0x98, 0x94,
-        0x9C, 0x92, 0x9A, 0x96, 0x9E, 0x91, 0x99, 0x95, 0x9D, 0x93, 0x9B, 0x97, 0x5F, 0x50, 0x58, 0x54, 0x5C, 0x52, 0x5A, 0x56,
-        0x5E, 0x51, 0x59, 0x55, 0x5D, 0x53, 0x5B, 0x57, 0xDF, 0xD0, 0xD8, 0xD4, 0xDC, 0xD2, 0xDA, 0xD6, 0xDE, 0xD1, 0xD9, 0xD5,
-        0xDD, 0xD3, 0xDB, 0xD7, 0x3F, 0x61, 0xE2, 0xA4, 0xC9, 0x53, 0xA6, 0x4E, 0x9B, 0x3E, 0x63, 0xE6, 0xAC, 0xD9, 0x73, 0xE6,
-        0xCE, 0x9B, 0xBF, 0x60, 0xE1, 0xA2, 0xC5, 0x4B, 0x96, 0x2E, 0x5B, 0xBE, 0x62, 0xE5, 0xAA, 0xD5, 0x6B, 0xD6, 0xAE, 0x5B,
-        0xBF, 0x61, 0xE3, 0xA6, 0xCD, 0x5B, 0xB6, 0x6E, 0xDB, 0xBE, 0x63, 0xE7, 0xAE, 0xDD, 0x7B, 0xF6, 0xEE, 0xDB, 0x7F, 0xE0,
-        0xE0, 0xA1, 0xC3, 0x47, 0x8E, 0x1E, 0x3B, 0x0E, 0x00,
-    ]
-    static var dynamicPlain: Data {
-        Data(String(repeating: "the quick brown fox jumps over the lazy dog. ", count: 40).utf8) + Data(0..<200)
-    }
-
     func inflate(_ bytes: [UInt8], size: Int, cancelled: @escaping () -> Bool = { false }) throws -> Data {
         try bytes.withUnsafeBytes { raw in
             try Inflate.inflate(raw, size: size, isCancelled: cancelled)
@@ -64,20 +44,47 @@ struct InflateTests {
         }
     }
 
+    /// Every valid stream the suite pins, with its plain size and SHA-256.
+    static let pinned: [(name: String, stream: [UInt8], size: Int, hash: String)] = [
+        ("fixed", fixedStream, fixedPlain.count, "eac13dc78da3f79858440011e4db4107e9301314511e6d0073320b14c535b824"),
+        ("zlib dynamic", InflateFixtures.zlibDynamic, InflateFixtures.zlibDynamicPlain.count, InflateFixtures.zlibDynamicHash),
+        ("every symbol", InflateFixtures.everySymbol, InflateFixtures.everySymbolSize, InflateFixtures.everySymbolHash),
+    ]
+
     @Test func storedFixedAndDynamicBlocks() throws {
         #expect(try inflate(Self.storedStream, size: 7) == Data("stored!".utf8))
         #expect(try inflate(Self.fixedStream, size: Self.fixedPlain.count) == Self.fixedPlain)
-        #expect(try inflate(Self.dynamicStream, size: Self.dynamicPlain.count) == Self.dynamicPlain)
+        // They really are dynamic blocks: BTYPE is bits 1 and 2 of the first byte.
+        #expect((InflateFixtures.zlibDynamic[0] >> 1) & 3 == 2)
+        #expect((InflateFixtures.everySymbol[0] >> 1) & 3 == 2)
+        #expect(try inflate(InflateFixtures.zlibDynamic, size: InflateFixtures.zlibDynamicPlain.count)
+                == InflateFixtures.zlibDynamicPlain)
         #expect(try inflate([0x03, 0x00], size: 0) == Data())
         #expect(error([0x03, 0x00], size: 1) == .tooShort)
         #expect(error([], size: 0) == .malformed)
     }
 
     @Test func pinnedStreamsAgreeEverywhere() throws {
-        let fixed = try inflate(Self.fixedStream, size: Self.fixedPlain.count)
-        #expect(SHA256.hex(of: fixed) == "eac13dc78da3f79858440011e4db4107e9301314511e6d0073320b14c535b824")
-        let dynamic = try inflate(Self.dynamicStream, size: Self.dynamicPlain.count)
-        #expect(SHA256.hex(of: dynamic) == "10f212ebd1db6153f779aae5d9502af4e1b5275b4bffc119d6c50ae5186ede9a")
+        for item in Self.pinned {
+            let plain = try inflate(item.stream, size: item.size)
+            #expect(SHA256.hex(of: plain) == item.hash, "\(item.name)")
+        }
+    }
+
+    @Test func bytesAfterTheFinalBlockAreIgnored() throws {
+        #expect(try inflate(Self.storedStream + [1, 2, 3], size: 7) == Data("stored!".utf8))
+        #expect(try inflate(Self.fixedStream + [0xFF, 0xFF], size: Self.fixedPlain.count) == Self.fixedPlain)
+        #expect(try inflate(InflateFixtures.everySymbol + [0, 0, 0], size: InflateFixtures.everySymbolSize).count
+                == InflateFixtures.everySymbolSize)
+    }
+
+    @Test(arguments: InflateFixtures.hostile)
+    func streamsZlibRefusesWeRefuseAndTheRestAgree(_ item: InflateFixtures.Hostile) throws {
+        if let expected = item.expected {
+            #expect(try inflate(item.stream, size: expected.count) == expected, "\(item.name)")
+        } else {
+            #expect(error(item.stream, size: 1000) == .malformed, "\(item.name)")
+        }
     }
 
     #if canImport(Compression)
@@ -90,33 +97,95 @@ struct InflateTests {
         return Array(out[0..<count])
     }
 
+    static func randomBytes(_ count: Int, seed: Int) -> [UInt8] {
+        var random = SeededRandom(seed: seed)
+        return (0..<count).map { _ in UInt8(truncatingIfNeeded: random.next() >> 24) }
+    }
+
     @Test(arguments: [1, 100, 5000, 100_000, 3_000_000])
     func agreesWithCompression(_ size: Int) throws {
-        var generator = SystemRandomNumberGenerator()
-        let random = Data((0..<size).map { _ in UInt8.random(in: 0...255, using: &generator) })
+        let random = Data(Self.randomBytes(size, seed: size))
         let repetitive = Data((0..<size).map { UInt8(truncatingIfNeeded: ($0 / 7) % 13 + ($0 % 3)) })
         let text = Data((0..<size).map { UInt8(truncatingIfNeeded: 97 + ($0 * $0 >> 3) % 7) })
         for data in [random, repetitive, text] {
             #expect(try inflate(compressed(data), size: size) == data)
         }
     }
+
+    static let lengthBases = [
+        3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258,
+    ]
+    static let distanceBases = [
+        1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097,
+                                6145, 8193, 12289, 16385, 24577,
+    ]
+
+    /// Matches of every length symbol's first and last length and every distance symbol's first and last distance, then random ones,
+    /// planted in random bytes: Compression finds them (the byte after each copy is random), so far matches of every range are decoded.
+    static func farMatchCorpus() -> (data: Data, pairs: [(length: Int, distance: Int)]) {
+        var random = SeededRandom(seed: 99)
+        var lengths: [Int] = []
+        for (i, base) in lengthBases.enumerated() {
+            let extraBits = i < 8 || i == 28 ? 0 : (i - 4) / 4
+            lengths += i == 28 ? [258] : [base, base + (1 << extraBits) - 1]
+        }
+        var distances: [Int] = []
+        for (i, base) in distanceBases.enumerated() {
+            let extraBits = i < 4 ? 0 : (i - 2) / 2
+            distances += [base, base + (1 << extraBits) - 1]
+        }
+        var pairs: [(length: Int, distance: Int)] = (0..<max(lengths.count, distances.count)).map {
+            (length: lengths[$0 % lengths.count], distance: distances[$0 % distances.count])
+        }
+        for _ in 0..<3000 {
+            let length = 3 + Int(random.next() % 256)
+            pairs.append((length, length + Int(random.next() % UInt64(32768 - length + 1))))
+        }
+        var bytes = Self.randomBytes(40_000, seed: 98)
+        var planted: [(length: Int, distance: Int)] = []
+        for pair in pairs where pair.distance <= bytes.count {
+            for _ in 0..<pair.length { bytes.append(bytes[bytes.count - pair.distance]) }
+            bytes.append(UInt8(truncatingIfNeeded: random.next() >> 24))
+            planted.append(pair)
+        }
+        return (Data(bytes), planted)
+    }
+
+    @Test func farMatchesOfEveryRangeAgreeWithCompression() throws {
+        let corpus = Self.farMatchCorpus()
+        let lengthSymbols = Set(corpus.pairs.map { pair in Self.lengthBases.lastIndex { $0 <= pair.length }! })
+        let distanceSymbols = Set(corpus.pairs.map { pair in Self.distanceBases.lastIndex { $0 <= pair.distance }! })
+        #expect(lengthSymbols.count == 29 && distanceSymbols.count == 30, "the corpus plants every symbol's range")
+        #expect(corpus.pairs.map(\.distance).max()! > 24_577)
+        #expect(try inflate(compressed(corpus.data), size: corpus.data.count) == corpus.data)
+    }
     #endif
 
-    @Test func aBombStopsAtTheDeclaredSize() {
-        // A stored-free run: a fixed block of one literal then a maximal match at distance 1, many times.
+    func fixedBlock(literals: Int, matches: Int) -> [UInt8] {
         var writer = BitWriter()
         writer.put(1, 1)
         writer.put(1, 2)
-        writer.putCode(0x30 + 0x61, 8)
-        for _ in 0..<5000 {
-            writer.putCode(0xC0 + (285 - 280), 8) // 285 is code 11000101, length 258
+        for _ in 0..<literals { writer.putCode(0x30 + 0x61, 8) }
+        for _ in 0..<matches {
+            writer.putCode(0xC5, 8) // symbol 285: length 258
             writer.putCode(0, 5) // distance 1
         }
         writer.putCode(0, 7)
-        #expect(error(writer.bytes, size: 1000) == .tooLong)
-        #expect(error(writer.bytes, size: 258 * 5000 + 1) == nil)
-        #expect(error(writer.bytes, size: 258 * 5000 + 2) == .tooShort)
+        return writer.bytes
+    }
+
+    @Test func aBombStopsAtTheDeclaredSize() {
+        let bomb = fixedBlock(literals: 1, matches: 5000)
+        #expect(error(bomb, size: 1000) == .tooLong)
+        #expect(error(bomb, size: 258 * 5000 + 1) == nil)
+        #expect(error(bomb, size: 258 * 5000 + 2) == .tooShort)
         #expect(error(Self.storedStream, size: 3) == .tooLong)
+        #expect(error(Self.fixedStream, size: 3) == .tooLong, "a literal past the size")
+    }
+
+    @Test func aHugeDeclaredSizeFailsToAllocateWithItsOwnError() {
+        #expect(error(Self.storedStream, size: Int.max) == .allocationFailed)
+        #expect(error(Self.storedStream, size: -1) == .malformed)
     }
 
     @Test func aDistanceBeforeTheStartIsMalformed() {
@@ -129,7 +198,59 @@ struct InflateTests {
         #expect(error(writer.bytes, size: 3) == .malformed)
     }
 
-    @Test func badCodeLengthsAreMalformed() {
+    @Test func manyEmptyFixedBlocksAreFast() throws {
+        var writer = BitWriter()
+        for _ in 0..<200_000 {
+            writer.put(0, 1)
+            writer.put(1, 2)
+            writer.putCode(0, 7)
+        }
+        writer.put(1, 1)
+        writer.put(1, 2)
+        writer.putCode(0, 7)
+        #expect(try inflate(writer.bytes, size: 0) == Data())
+    }
+
+    @Test func stillCancelsInTheMiddleOfAnyBlockKind() {
+        // Literals only: one block, so the checks come from the loop, once per megabyte.
+        let cases = [(fixedBlock(literals: 2_500_000, matches: 0), 2_500_000), (fixedBlock(literals: 1, matches: 9_690), 1 + 258 * 9_690)]
+        for (stream, size) in cases {
+            var asked = 0
+            #expect(error(stream, size: size) == nil)
+            _ = try? inflate(stream, size: size) { asked += 1; return false }
+            #expect(asked == 3, "the block's start, then each megabyte")
+            asked = 0
+            do {
+                _ = try inflate(stream, size: size) { asked += 1; return asked == 2 }
+                Issue.record("expected a cancellation")
+            } catch {
+                #expect(error as? InflateError == .cancelled)
+                #expect(asked == 2)
+            }
+        }
+    }
+
+    @Test func storedBlocksAskAboutCancellationToo() {
+        // Stored blocks of 64 KB, so the output grows past several megabytes.
+        var bytes: [UInt8] = []
+        let blocks = (3 << 20) / 65_535
+        for i in 0..<blocks {
+            bytes += [i == blocks - 1 ? 1 : 0, 0xFF, 0xFF, 0x00, 0x00]
+            bytes += [UInt8](repeating: 7, count: 65_535)
+        }
+        var asked = 0
+        do {
+            _ = try inflate(bytes, size: blocks * 65_535) {
+                asked += 1
+                return asked > 3
+            }
+            Issue.record("expected a cancellation")
+        } catch {
+            #expect(error as? InflateError == .cancelled)
+        }
+    }
+
+    @Test func anOverSubscribedCodeLengthCodeIsMalformed() {
         var writer = BitWriter()
         writer.put(1, 1)
         writer.put(2, 2)
@@ -139,55 +260,29 @@ struct InflateTests {
         for _ in 0..<4 { writer.put(1, 3) } // four codes of length 1: over-subscribed
         writer.put(0, 16)
         #expect(error(writer.bytes, size: 1) == .malformed)
-        // A stored block whose length and complement disagree.
-        #expect(error([0x01, 0x07, 0x00, 0xF8, 0xFE, 0, 0, 0, 0, 0, 0, 0], size: 7) == .malformed)
-        // The reserved block type.
-        #expect(error([0x07, 0x00], size: 0) == .malformed)
     }
 
     @Test func aTruncatedStreamIsMalformedNotATrap() {
-        for stream in [Self.storedStream, Self.fixedStream, Self.dynamicStream] {
-            for cut in 0..<stream.count {
-                let result = error(Array(stream[0..<cut]), size: 10_000)
-                #expect(result != nil)
-                #expect(result != .tooShort || cut > 0)
+        for item in Self.pinned + [("stored", Self.storedStream, 7, "")] {
+            for cut in 0..<item.stream.count {
+                #expect(error(Array(item.stream[0..<cut]), size: item.size + 10) == .malformed, "\(item.name) cut at \(cut)")
             }
         }
-        #expect(error(Array(Self.dynamicStream.dropLast()), size: Self.dynamicPlain.count) == .malformed)
     }
 
-    @Test func everyByteFlippedNeverTraps() {
-        for stream in [Self.fixedStream, Self.dynamicStream] {
-            for index in stream.indices {
+    @Test func everyByteFlippedNeverTraps() throws {
+        for item in Self.pinned {
+            for index in item.stream.indices {
                 for mask: UInt8 in [0x01, 0x80, 0xFF, 0x5A] {
-                    var damaged = stream
+                    var damaged = item.stream
                     damaged[index] ^= mask
-                    for size in [0, 23, Self.dynamicPlain.count, 100_000] {
-                        _ = try? inflate(damaged, size: size)
+                    for size in [0, 23, item.size, 100_000] {
+                        if let data = try? inflate(damaged, size: size) {
+                            #expect(data.count == size)
+                        }
                     }
                 }
             }
-        }
-    }
-
-    @Test func cancellationIsAskedAboutOnceAMegabyte() {
-        let big = Data(count: 3 << 20)
-        var asked = 0
-        // Stored blocks of 64 KB, so the output grows past several megabytes.
-        var bytes: [UInt8] = []
-        let blocks = big.count / 65_535
-        for i in 0..<blocks {
-            bytes += [i == blocks - 1 ? 1 : 0, 0xFF, 0xFF, 0x00, 0x00]
-            bytes += [UInt8](repeating: 7, count: 65_535)
-        }
-        do {
-            _ = try inflate(bytes, size: blocks * 65_535) {
-                asked += 1
-                return asked > 3
-            }
-            Issue.record("expected a cancellation")
-        } catch {
-            #expect(error as? InflateError == .cancelled)
         }
     }
 }
