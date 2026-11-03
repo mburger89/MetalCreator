@@ -85,8 +85,16 @@ enum LoftEndSetup {
         return ends
     }
 
-    static let mergedPick = FacePickWording.merged("The loft uses")
-    static let unnamedPick = FacePickWording.unnamed("loft")
+    /// The pick warnings name the end they belong to, so two picks can be told apart.
+    static func mergedPick(_ side: LoftSide) -> String {
+        FacePickWording.merged(side == .start ? "The loft starts on" : "The loft ends on")
+    }
+
+    static func unnamedPick(_ side: LoftSide) -> String { FacePickWording.unnamed("loft's \(side.word) face") }
+
+    static func severalPicks(_ count: Int, _ side: LoftSide) -> String {
+        FacePickWording.several(count, side == .start ? "the loft starts on" : "the loft ends on")
+    }
 
     static func resolve(_ side: LoftSide, in part: Solid, context: EvalContext) throws -> (FaceInfo, [String]) {
         let pick: FacePick
@@ -104,11 +112,11 @@ enum LoftEndSetup {
         }
         var warnings: [String] = []
         if resolution.isAmbiguous {
-            warnings.append(mergedPick)
+            warnings.append(mergedPick(side))
         } else if resolution.faces.count > 1 {
-            warnings.append(FacePickWording.several(resolution.faces.count, "the loft uses"))
+            warnings.append(severalPicks(resolution.faces.count, side))
         }
-        if pick.touchesUnnamedFace { warnings.append(unnamedPick) }
+        if pick.touchesUnnamedFace { warnings.append(unnamedPick(side)) }
         return (face, warnings)
     }
 }

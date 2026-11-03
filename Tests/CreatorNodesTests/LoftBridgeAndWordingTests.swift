@@ -14,13 +14,31 @@ struct LoftBridgeAndWordingTests {
     }
 
     @Test func theSharedWordingIsTheOtherNodesText() {
-        #expect(LoftEndSetup.unnamedPick == FacePickWording.unnamed("loft"))
-        #expect(LoftEndSetup.mergedPick == FacePickWording.merged("The loft uses"))
         #expect(PlaneFromFaceNode.mergedPick == FacePickWording.merged("The plane sits on"))
         #expect(FacePatternNode.mergedPick == FacePickWording.merged("The pattern fills"))
-        #expect(LoftEndSetup.mergedPick.hasPrefix("The picked face was merged with a face from another part of the model"))
-        #expect(LoftEndSetup.unnamedPick.hasSuffix("when the model changes. Pick it again after the change."))
-        #expect(FacePickWording.several(3, "the loft uses") == "The pick matches 3 faces; the loft uses the first.")
+        #expect(PlaneFromFaceNode.unnamedPick == FacePickWording.unnamed("plane"))
+        #expect(FacePatternNode.unnamedPick == FacePickWording.unnamed("pattern"))
+        #expect(PlaneFromFaceNode.mergedPick.hasSuffix("The plane sits on the closest one; pick the face again to settle it."))
+        #expect(FacePatternNode.mergedPick.hasSuffix("The pattern fills the closest one; pick the face again to settle it."))
+        #expect(FacePickWording.unnamed("plane").hasPrefix("The picked face has no stable name, so the plane may move"))
+    }
+
+    @Test func eachLoftEndNamesItsOwnSideInItsPickWarnings() {
+        let start = LoftEndSetup.unnamedPick(.start)
+        let end = LoftEndSetup.unnamedPick(.end)
+        #expect(start == FacePickWording.unnamed("loft's start face"))
+        #expect(end == FacePickWording.unnamed("loft's end face"))
+        #expect(start != end)
+        #expect(LoftEndSetup.mergedPick(.start) == FacePickWording.merged("The loft starts on"))
+        #expect(LoftEndSetup.mergedPick(.end) == FacePickWording.merged("The loft ends on"))
+        #expect(LoftEndSetup.mergedPick(.start) != LoftEndSetup.mergedPick(.end))
+        #expect(LoftEndSetup.severalPicks(3, .start) == "The pick matches 3 faces; the loft starts on the first.")
+        #expect(LoftEndSetup.severalPicks(2, .end) == "The pick matches 2 faces; the loft ends on the first.")
+        // Both ends warning at once read as two different sentences, one per side.
+        let both = LoftSide.allCases.flatMap { [LoftEndSetup.mergedPick($0), LoftEndSetup.unnamedPick($0)] }
+        #expect(Set(both).count == 4)
+        #expect(both.filter { $0.contains("starts on") || $0.contains("start face") }.count == 2)
+        #expect(both.filter { $0.contains("ends on") || $0.contains("end face") }.count == 2)
     }
 
     #if canImport(CreatorOCCT)
