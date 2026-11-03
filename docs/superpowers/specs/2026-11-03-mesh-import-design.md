@@ -141,3 +141,17 @@ The hash used for welding, the reader's buffering, the zip reader's shape (exten
 5. 10,000,000 triangles and 1 GB as limits, pending the benchmark.
 6. A 3MF's build items stay separate meshes in a list.
 7. A `placement` plane and a `units` control on the node, since nothing else can move a mesh.
+
+## Errata
+
+### 2026-11-03 (MI-1)
+
+1. **One embedded table.** `ConstantValue.meshFile` holds an `ImageReference`, and embedded mesh bytes sit in the document's existing `images` table and pool, which are keyed by hash and don't care what the bytes are. There is no `MeshFileReference` and no `meshFiles` table.
+2. **Mapped files.** A file is read as `Data(contentsOf:options:.alwaysMapped)` under the 1 GB limit, which gives the zip reader random access without holding the file. No `FileHandle` reader is added.
+3. **`EdgeCounts`.** Closed-ness comes from a sort-based count of edges (open, over-full, flipped), not `MeshTopology`'s dictionaries, which are slow at these sizes.
+4. **The flipped warning** reads "N edges join faces flipped against each other." (singular "1 edge joins faces flipped against each other."), because it counts edges, not faces.
+5. **Decimate on an over-full edge** pins the edge's ends like an open edge's, so it keeps the surface rather than refusing.
+6. **The 3MF warning** for an imperfect mesh arrives in the "Exported with N warning(s)" alert after the file is written, naming the Output node, since the export sheet has no place for one.
+7. **No closed-mesh guard on a Mesh node's preview**, because the mesher's output is closed by construction.
+8. **`EdgeCounts` is edge-only.** A bow-tie vertex (two fans of faces sharing only a vertex) passes the guards. Mesh to Solid and Check Trapped Volumes refuse such a mesh on their own, and Check Thin Walls may be less reliable on one.
+9. **Zebra needed nothing new.** A mesh item was always striped like any opaque solid; CLAUDE.md's "later" line is corrected.

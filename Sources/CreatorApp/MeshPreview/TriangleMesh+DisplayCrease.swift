@@ -8,9 +8,9 @@ extension TriangleMesh {
     /// (exactly the angle is smooth), or an edge that isn't shared by exactly two faces wound against each other (open, over-full or
     /// flipped). A vertex's faces are joined across the edges that are not creases, and each joined group gets one display vertex
     /// with the area-weighted average of its faces' normals. The first group of each vertex keeps the vertex's own index, so a vertex
-    /// that never splits is where it was and the extra copies follow the originals. The work is linear in the triangles: the half-edges
-    /// are bucketed by origin vertex (a counting sort), each edge looks for its twin among its end vertices' few half-edges, and the
-    /// groups are a union-find over the corners.
+    /// that never splits is where it was and the extra copies follow the originals. The work is O(n log n) in the triangles: the half-edges
+    /// are matched by sorting their edge keys (`joinSmoothCorners`), so a hub vertex costs no more than any other, and the groups are a
+    /// union-find over the corners.
     func creasedDisplay(angle: Double) -> (positions: [Vector3], normals: [Vector3], indices: [UInt32]) {
         let cornerCount = triangles.count
         let faceNormals = unitFaceNormals()

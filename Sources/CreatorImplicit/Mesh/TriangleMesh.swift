@@ -4,8 +4,8 @@ import Foundation
 
 /// A triangle mesh (implicit spec §2.2): `positions` in millimetres (stored as `Float`), `triangles` three indices per face,
 /// counter-clockwise seen from outside, and a unit `normals` entry per vertex (empty when unknown). Immutable and `Sendable`
-/// (arrays are copy-on-write, so a copy is cheap), never saved. A mesh from the Mesh node is watertight and manifold: every edge has
-/// exactly two faces, consistently oriented.
+/// (arrays are copy-on-write, so a copy is cheap), never saved. Only a mesh from the Mesh node is promised watertight and manifold (every edge
+/// has exactly two faces, consistently oriented); an imported mesh may be open, flipped or over-full, and `EdgeCounts` says which.
 public struct TriangleMesh: MeshPayload, Sendable {
     /// Identifies this mesh, so a refined pass can replace the one it came from. A new mesh gets a new ID.
     public let id: UUID
