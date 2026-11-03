@@ -234,6 +234,9 @@ typedef struct {
     double corner_min_sine;          // the least sine of the angle between the parameter curves (regular: > 0)
     int corner_attempts;             // corners a patch was tried on, accepted or not
 } occt_g2_report;
+/// The gaps between the two faces of edge `edge_index` (1-based, as in the topology), read at `samples` + 1 points evenly
+/// along it, ends included. 0 if the edge does not border exactly two faces. For tests.
+int occt_edge_seam_dense(const occt_shape *shape, int edge_index, int samples, occt_g2_seam *seam);
 /// Fillets like occt_fillet, then replaces each strip's surface with quintic G2 sections whose end tangent lengths are
 /// `weight` times the circle's. Sections start at 9 per strip and double until the strip's spring seams measure inside
 /// half the tolerances; past 129 the call fails ("The fillet can't be made curvature continuous at this radius.").
@@ -286,8 +289,10 @@ typedef struct {
 /// (one chord-length knot vector for the whole loft), the face end's first derivative = weight x the circular length
 /// along the part's adjacent face's direction away from the part, its second derivative from that face's normal
 /// curvature (G2) or the third derivative zero (G1); Free ends the natural conditions (third and fourth derivatives
-/// zero). Columns start at 9 per segment and a span that misses gets its middle (129 in all at most) until the face-end seams (half tolerances) and the sections
-/// fit; the built solid's face-end seams are then judged at the full tolerances ("The loft can't meet the part tangent
+/// zero). Each pole row is skinned along the segment by our own spline (cubic, then quintic if the cubic misses; periodic with a knot per
+/// column on a one-edge closed loop; broken at a part edge's knots where its derivatives jump; cubic where a smooth vertex gives its
+/// tangents). Columns start at 5 per segment (9 on a closed loop) and a span that misses gets its middle (129 in all at most) until the
+/// face-end seams (half tolerances) and the sections fit; the built solid's face-end seams are then judged at the full tolerances ("The loft can't meet the part tangent
 /// (G1) here." / "The loft can't meet the part with matching curvature (G2) here."). History as occt_loft: caps
 /// (a face end's cap is a copy of the face), sides OCCT_FROM_SEGMENT (operand 0, index = the paired segment).
 occt_shape *occt_loft_ends(const occt_shape *part, const occt_loft_end *start, const occt_loft_end *end,

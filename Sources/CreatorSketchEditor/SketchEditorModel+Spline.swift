@@ -29,6 +29,13 @@ extension SketchEditorModel {
         drawState = .idle
         preview = .none
         guard placed.count >= 2 else { return }
+        let (edited, _, _) = splineSketch(placed, endSuppressed: endSuppressed)
+        commit(edited, "Spline", named: SketchStepName.addSpline)
+    }
+
+    /// The sketch with the spline through `placed` added, and a Tangent where it starts or ends on the end of a curve: the one
+    /// construction the commit and the rubber band share. `joined` counts the Tangents added.
+    func splineSketch(_ placed: [SketchAnchor], endSuppressed: Bool) -> (sketch: Sketch, spline: SketchEntityID, joined: Int) {
         var edited = sketch
         let points = placed.map { $0.point(in: &edited, isConstruction: isConstruction) }
         let spline = edited.addSpline(through: points, isConstruction: isConstruction)
@@ -40,7 +47,7 @@ extension SketchEditorModel {
             edited.activateHandles(for: constraint)
             edited.add(constraint)
         }
-        commit(edited, "Spline", named: SketchStepName.addSpline)
+        return (edited, spline, joined.count)
     }
 
     /// The newest line, arc or spline (other than `spline`) with an end at `point`.
@@ -57,11 +64,22 @@ extension SketchEditorModel {
         return Self.inferred(by: target)
     }
 
-    /// The rubber band: the spline through what is placed and where a click would land.
-    func splineBand(_ placed: [SketchAnchor], landing target: SketchAnchor) -> SketchPreview {
-        var positions = placed.map(\.position)
-        if let last = positions.last, (target.position - last).length > 1e-6 { positions.append(target.position) }
-        return SketchPreview(curves: positions.count >= 2 ? [.spline(through: positions)] : [], points: positions)
+    /// The rubber band: the spline through what is placed and where a click would land. Where the commit would add a Tangent
+    /// it is the committed curve, solved the same way (`splineSketch`, then `SketchSolver.solve`); else the automatic spline.
+    func splineBand(_ placed: [SketchAnchor], landing target: SketchAnchor, suppressed: Bool = false) -> SketchPreview {
+        var anchors = placed
+        if let last = anchors.last, (target.position - last.position).length > 1e-6,
+           target.point == nil || !placed.contains(where: { $0.point == target.point }) { anchors.append(target) }
+        let positions = anchors.map(\.position)
+        guard positions.count >= 2 else { return SketchPreview(points: positions) }
+        let built = splineSketch(anchors, endSuppressed: suppressed)
+        if built.joined > 0 {
+            let solved = SketchSolver.solve(built.sketch)
+            if let definition = built.sketch.splineDefinition(of: built.spline, solution: solved) {
+                return SketchPreview(curves: [.fitSpline(definition)], points: positions)
+            }
+        }
+        return SketchPreview(curves: [.spline(through: positions)], points: positions)
     }
 
     // MARK: Handles

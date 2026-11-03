@@ -102,6 +102,7 @@ enum SketchOverlayBuilder {
         case .circle(let center, let radius): EditorGeometry.circlePoints(center: center, radius: radius)
         case .arc(let center, let start, let end): EditorGeometry.arcPoints(center: center, start: start, end: end)
         case .spline(let through): splinePolyline(through: through)
+        case .fitSpline(let definition): definition.curve().polyline()
         }
     }
 

@@ -8,4 +8,6 @@ public enum PreviewCurve: Hashable, Sendable {
     case arc(center: Vector2, start: Vector2, end: Vector2)
     /// A spline through these fit points, with automatic handles.
     case spline(through: [Vector2])
+    /// A spline with its handles as the commit will have them (an inferred Tangent at an end).
+    case fitSpline(SplineDefinition)
 }
