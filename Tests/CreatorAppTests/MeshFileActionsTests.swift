@@ -74,7 +74,8 @@ struct MeshFileActionsTests {
         await app.performMeshFile(.chooseMeshFile, on: node.id, using: ScriptedPicker([zip]))
         #expect(setting(app, node) != nil && app.alert == nil)
         await app.settle()
-        #expect(app.document.results[node.id]?.state.isSuccess == false)
+        guard case .error(let message)? = app.document.results[node.id]?.state else { Issue.record("expected a failure"); return }
+        #expect(message.contains("isn't an STL or 3MF"), "\(message)")
     }
 
     @Test func relinkKeepsPlacement() async throws {
@@ -108,6 +109,7 @@ struct MeshFileActionsTests {
         await app.performMeshFile(.embedMeshFile, on: node.id, using: ScriptedPicker([]))
         #expect(setting(app, node) == link && app.document.images.isEmpty)
         #expect(app.alert?.message == "This file is larger than the 64 MB limit for embedding.")
+        #expect(MeshImportLimits.embeddingRefusal == app.alert?.message)
         #expect(!app.isEdited)
     }
 
@@ -180,6 +182,69 @@ struct MeshFileActionsTests {
         let picker = ScriptedPicker([try folder.write(stl, to: "part.stl")])
         await app.importMesh(using: picker)
         #expect(picker.asked.isEmpty && !app.document.graph.nodes.values.contains { $0.typeID == ImportMeshNode.typeID })
+    }
+
+    // MARK: Late answers
+
+    @Test func importMeshIgnoresAPanelAnsweredAfterTheDocumentChanged() async throws {
+        let app = await makeApp()
+        let file = try folder.write(stl, to: "part.stl")
+        await app.importMesh(using: InterruptedPicker(answer: file) { app.newDocument() })
+        #expect(app.alert == nil && app.document.graph.nodes.isEmpty && !app.isEdited)
+    }
+
+    @Test func importMeshIgnoresAPanelAnsweredAfterTheLevelChanged() async throws {
+        var builder = GraphBuilder()
+        let box = builder.solid()
+        let app = await makeApp(builder.graph)
+        app.editor.selection = [box.rectangle.id, box.extrude.id]
+        app.editor.groupSelection()
+        let group = try #require(app.editor.selection.first)
+        app.editor.enterGroup(group)
+        let file = try folder.write(stl, to: "part.stl")
+        await app.importMesh(using: InterruptedPicker(answer: file) { app.editor.goToLevel(0) })
+        #expect(!app.document.graph.nodes.values.contains { $0.typeID == ImportMeshNode.typeID } && app.alert == nil)
+    }
+
+    @Test func aSecondImportMeshWhileAPanelIsOpenDoesNothing() async throws {
+        let app = await makeApp()
+        let file = try folder.write(stl, to: "part.stl")
+        let second = ScriptedPicker([try folder.write(stl, to: "other.stl")])
+        let picker = InterruptedPicker(answer: file) {
+            #expect(!app.canImportMesh)
+            await app.importMesh(using: second)
+        }
+        await app.importMesh(using: picker)
+        #expect(second.asked.isEmpty)
+        #expect(app.document.graph.nodes.values.filter { $0.typeID == ImportMeshNode.typeID }.count == 1)
+        #expect(app.canImportMesh)
+    }
+
+    @Test(arguments: [InspectorAction.chooseMeshFile, .relinkMeshFile])
+    func aMeshFilePanelAnsweredAfterTheNodeWentChangesNothing(_ action: InspectorAction) async throws {
+        let (app, node) = await meshApp()
+        let file = try folder.write(stl, to: "part.stl")
+        let picker = InterruptedPicker(answer: file) { try? app.document.perform(.removeNode(node.id)) }
+        await app.performMeshFile(action, on: node.id, using: picker)
+        #expect(app.document.graph.nodes[node.id] == nil && app.alert == nil)
+        #expect(app.document.undoName != "Choose Mesh File" && app.document.undoName != "Relink Mesh File")
+    }
+
+    @Test func aMeshFilePanelAnsweredAfterANewDocumentChangesNothing() async throws {
+        let (app, node) = await meshApp()
+        let file = try folder.write(stl, to: "part.stl")
+        await app.performMeshFile(.chooseMeshFile, on: node.id, using: InterruptedPicker(answer: file) { app.newDocument() })
+        #expect(app.alert == nil && !app.isEdited)
+    }
+
+    @Test func aLinkBeforeTheFirstSaveGainsARelativePath() async throws {
+        let (app, node) = await meshApp()
+        let file = try folder.write(stl, to: "meshes/part.stl")
+        await app.performMeshFile(.chooseMeshFile, on: node.id, using: ScriptedPicker([file]))
+        let absolute = file.standardizedFileURL.path(percentEncoded: false)
+        #expect(setting(app, node) == .linked(relativePath: nil, absolutePath: absolute))
+        try app.save(to: folder.url.appending(path: "Plate.mcgraph"))
+        #expect(setting(app, node) == .linked(relativePath: "meshes/part.stl", absolutePath: absolute))
     }
 
     @Test func aFileDialogDeclaresItsExtensions() {

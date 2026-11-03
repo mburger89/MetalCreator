@@ -9,4 +9,6 @@ public enum MeshImportLimits {
     public static let maxEmbeddedBytes = 64 * 1024 * 1024
     /// Above this many triangles the node warns that the mesh will be slow.
     public static let warnTriangles = 2_000_000
+    /// What the app says when a file is too large to embed.
+    public static let embeddingRefusal = "This file is larger than the 64 MB limit for embedding."
 }

@@ -11,8 +11,10 @@ extension AppModel {
     /// isn't an STL or 3MF." on the node.
     static let meshTypes: [ContentType] = [.stl]
 
-    /// File ▸ Import Mesh… is offered unless a sketch or a pick session is running.
-    public var canImportMesh: Bool { sketch == nil && pick == nil }
+    /// File ▸ Import Mesh… is offered unless a sketch, a pick session or another file panel of this document is running.
+    public var canImportMesh: Bool {
+        sketch == nil && pick == nil && !imageActionDocuments.contains(ObjectIdentifier(document))
+    }
 
     /// A mesh file button of the inspector (`EditorModel.inspectorRequest`): nothing happens before the window has given the app its
     /// panels (`nil`); otherwise the task doing it is returned, so a test can wait for exactly that.
@@ -49,10 +51,14 @@ extension AppModel {
         guard canImportMesh else { return }
         editor.commitPendingEntry()
         let (document, levels, path) = (self.document, editor.levelPath, editor.graphPath)
+        // One file panel at a time per document, shared with the inspector's file buttons.
+        let key = ObjectIdentifier(document)
+        imageActionDocuments.insert(key)
+        defer { imageActionDocuments.remove(key) }
         let failure: (any Error)?
         do {
             guard let url = try await picker.chooseFileToOpen(Self.meshTypes),
-                  self.document === document, editor.levelPath == levels, canImportMesh else { return }
+                  self.document === document, editor.levelPath == levels, sketch == nil, pick == nil else { return }
             let reference = linkedReference(to: url)
             try checkRegularFile(reference)
             insertImportMesh(reference, at: path)
@@ -97,11 +103,11 @@ extension AppModel {
               !reference.isEmbedded else { return }
         // The size is read from the file's attributes, so a file over the limit is refused without being read.
         if case .file(_, _, let size) = document.imageResolver.stamp(of: reference), size > MeshImportLimits.maxEmbeddedBytes {
-            throw AppProblem("That mesh file can't be used", "This file is larger than the 64 MB limit for embedding.")
+            throw AppProblem("That mesh file can't be used", MeshImportLimits.embeddingRefusal)
         }
         let mapped = try document.imageResolver.mappedBytes(of: reference)
         guard mapped.count <= MeshImportLimits.maxEmbeddedBytes else {
-            throw AppProblem("That mesh file can't be used", "This file is larger than the 64 MB limit for embedding.")
+            throw AppProblem("That mesh file can't be used", MeshImportLimits.embeddingRefusal)
         }
         // A copy, so the document does not hold the file mapped.
         let bytes = mapped.withUnsafeBytes { Data($0) }
