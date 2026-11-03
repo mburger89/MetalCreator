@@ -134,7 +134,9 @@ struct SDLPickerTests {
                 "an older view can be asked for again")
     }
 
-    @Test(.timeLimit(.minutes(1)))
+    // The limit only catches a pass that never starts. On Windows CI, WARP renders on the CPU and the suite's other GPU tests hold the
+    // main actor, so the 40 ms quiet took 39 s on main (run 41525478195) and over 60 s twice (runs 41530548366, 41541167481).
+    @Test(.timeLimit(.minutes(5)))
     func theQuietBeforeAPassIsShortAndStartsItWithoutAnyoneAsking() async throws {
         let rig = try Rig()
         let frame = RenderFixtures.boxFrame()
