@@ -171,6 +171,21 @@ double sample_parameter(const Spring &spring, double fraction) {
     return spring.t_start + fraction * (spring.t_end - spring.t_start);
 }
 
+/// What turns `spring`'s own unit tangent at its end `end` into the junction's agreed one, faded by `closeness` (1 at
+/// that end, 0 at the other, with its first two derivatives): nothing where the end is no junction.
+gp_Vec junction_correction(const Spring &spring, int end, double closeness) {
+    if (!spring.has_tangent[end]) {
+        return gp_Vec(0, 0, 0);
+    }
+    gp_Pnt p;
+    gp_Vec own;
+    BRepAdaptor_Curve(spring.edge).D1(end == 0 ? spring.t_start : spring.t_end, p, own);
+    own.Normalize();
+    // The agreed tangent points along one of the two strips, not necessarily along this spring's parameter.
+    const gp_Vec agreed = spring.junction_tangent[end].Dot(own) < 0 ? spring.junction_tangent[end].Reversed() : spring.junction_tangent[end];
+    return (agreed - own) * (closeness * closeness * closeness);
+}
+
 /// The neighbour's end condition across `spring`'s edge at edge parameter `t`: position, the unit direction of travel
 /// (into the blend when `entering`, else out of it) and the acceleration, the normal curvature times the normal.
 NeighbourEnd end_condition(const Spring &spring, double t, const gp_Pnt &other, bool entering) {
@@ -179,11 +194,20 @@ NeighbourEnd end_condition(const Spring &spring, double t, const gp_Pnt &other, 
     gp_Pnt p;
     gp_Vec tangent;
     curve.D1(t, p, tangent);
-    // At a chain junction both strips use the bisector of the two springs' tangents, so they share one section.
+    // At a chain junction both strips use the bisector of the two springs' tangents, so they share one section. Away
+    // from it the difference between the bisector and the spring's own tangent there fades out along the whole strip,
+    // so across is a smooth function of the parameter that the skin can follow: any direction in the neighbour's
+    // tangent plane makes the section tangent to it. Bisector at the end section alone, a jump between the first two
+    // sections, keeps the skin's across off the tangent plane of a neighbour that curves along the spring, by an angle
+    // that falls only with the first power of the sections' spacing.
     if (spring.has_tangent[0] && std::abs(t - spring.t_start) < 1e-9) {
         tangent = spring.junction_tangent[0];
     } else if (spring.has_tangent[1] && std::abs(t - spring.t_end) < 1e-9) {
         tangent = spring.junction_tangent[1];
+    } else if (spring.has_tangent[0] || spring.has_tangent[1]) {
+        const double f = std::clamp((t - spring.t_start) / (spring.t_end - spring.t_start), 0.0, 1.0);
+        tangent.Normalize();
+        tangent += junction_correction(spring, 0, 1 - f) + junction_correction(spring, 1, f);
     }
     gp_Vec across = s.n.Crossed(tangent);
     if (across.Magnitude() < 1e-12) {
