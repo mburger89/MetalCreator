@@ -38,8 +38,11 @@ public enum STLReader {
             guard count <= MeshImportLimits.maxTriangles else { throw MeshImportProblem.tooManyTriangles(count) }
             return .binary(count: count)
         }
-        let looksBinary = bytes.count >= headerSize && bytes.contains { $0 == 0 || $0 >= 0x80 }
-        if !looksBinary, startsWithSolid(bytes) { return .ascii }
+        // Text never holds a zero byte; a name or a byte order mark may hold bytes of 0x80 and up, so only a zero rules ASCII out
+        // for a file that starts with "solid". Any other file needs a zero or such a byte before it is taken for a binary one.
+        let hasZero = bytes.contains(0)
+        if !hasZero, startsWithSolid(bytes) { return .ascii }
+        let looksBinary = bytes.count >= headerSize && (hasZero || bytes.contains { $0 >= 0x80 })
         if looksBinary, let count {
             // A binary header whose count the size does not hold.
             guard count <= MeshImportLimits.maxTriangles else { throw MeshImportProblem.tooManyTriangles(count) }

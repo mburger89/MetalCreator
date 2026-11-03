@@ -56,6 +56,28 @@ import Testing
         #expect(Set(mesh.positions) == [[0, 0, 0], [15, 0, 0], [0, -0.25, 0]])
     }
 
+    private static let asciiBody = "facet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid\n"
+
+    @Test func anAsciiWithAUTF8NameReads() throws {
+        let data = Data(("solid Bräcket – Ø\n" + Self.asciiBody).utf8)
+        #expect(data.count < 84 || data.contains { $0 >= 0x80 })
+        #expect(try Self.read(data).mesh.triangleCount == 1)
+    }
+
+    @Test func anAsciiWithABOMReads() throws {
+        var data = Data([0xEF, 0xBB, 0xBF])
+        data.append(Data(("solid x\n" + Self.asciiBody).utf8))
+        #expect(data.count >= 84)
+        #expect(try Self.read(data).mesh.triangleCount == 1)
+    }
+
+    @Test func aTruncatedBinaryWithASolidHeaderEndsEarly() {
+        var data = Self.binary([Self.one, Self.one], header: "solid exported by something")
+        data.removeLast(10)
+        #expect(Self.problem(data) == .endsEarly)
+        #expect(Self.problem(Self.binary([], header: "solid x", declaredCount: 10_000_001)) == .tooManyTriangles(10_000_001))
+    }
+
     @Test func aTruncatedBinaryEndsEarly() {
         var data = Self.binary([Self.one, Self.one], header: "")
         data.removeLast(10)

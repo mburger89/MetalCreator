@@ -36,7 +36,9 @@ public enum ExactWeld {
                 if triple.0 == triple.1 || triple.1 == triple.2 || triple.0 == triple.2 {
                     dropped += 1
                 } else {
-                    triangles.append(contentsOf: [triple.0, triple.1, triple.2])
+                    triangles.append(triple.0)
+                    triangles.append(triple.1)
+                    triangles.append(triple.2)
                 }
             }
         }
