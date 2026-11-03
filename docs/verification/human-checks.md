@@ -2390,3 +2390,9 @@ the Output selected so the part is shown.
 - [ ] **MI-6 Section and Measure.** Section cuts the imported mesh and fills the cap; Measure picks its points and section outline and reads values marked approximate. **Observed:**
 - [ ] **MI-7 Link, relink, embed.** Edit the linked file on disk, then make any edit in the document (there is no file watcher; an evaluation notices the changed file): the node re-runs once. Delete it: the node says it can't find the file. Relink it, then Embed, then save, close and reopen: the mesh is unchanged, the embedded copy needs no file, and undo returns to the linked state. **Observed:**
 - [ ] **MI-8 Linux and Windows.** On Linux and on Windows the same files read alike: the same triangle counts, size and warnings. **Observed:**
+
+## Group CU — Convert Units node
+
+- [ ] **CU-1 Add and wire.** Add a Convert Units node from the library (Values): with its defaults (Length, in to mm) and a value of 1 it reads 25.4. Wire its output into a Box's width: the box is 25.4 mm wide, whatever the document's display units are. **Observed:**
+- [ ] **CU-2 Switch quantity.** Set Quantity to Angle: the inspector swaps the two length controls for deg and rad (default deg to rad) and 180 reads 3.14159. Switch back to Length: the length controls return with the choices you left. The help line about millimetres shows under both. **Observed:**
+- [ ] **CU-3 A list broadcasts.** Wire a Series (1, 2, 3) into Convert Units' value: the output is the list 25.4, 50.8, 76.2, and a Box fed from it makes three boxes. **Observed:**
