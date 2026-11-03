@@ -4,8 +4,9 @@ import Foundation
 /// Reads a `.model` part into a `ThreeMFModel` with `XMLScanner` (mesh import spec, Reading). Namespaces are resolved here, by the
 /// declarations in force at each element: the prefix is whatever the file chose, and an element or attribute is the core's, the
 /// Production extension's and so on by its namespace URI alone. Elements of a namespace this reader does not know are skipped with
-/// their children; colours, materials, slices and beam lattices set `ignoredExtras`; a Production `path` (a part in another file) is
-/// refused. Vertices and triangles, which are most of the file, are read without allocating. The pieces are in
+/// their children; colours, materials, slices and beam lattices set `ignoredExtras`; a Production `path` on the root's component or
+/// build item names a part in another file (`ThreeMFModel.paths`), and in any other model is refused. Vertices and triangles, which are
+/// most of the file, are read without allocating. The pieces are in
 /// `ThreeMFModelParser+Namespaces` and `ThreeMFModelParser+Elements`.
 struct ThreeMFModelParser {
     static let cancellationInterval = 1 << 16
@@ -26,19 +27,30 @@ struct ThreeMFModelParser {
     var attributeBytes = 0
     /// Objects, components and build items kept so far, against `limits.records`.
     var records = 0
+    /// Whether this is the root model, the only one whose components and build items may name parts in other files.
+    let isRoot: Bool
+    /// The longest part name, in bytes.
+    static let pathLimit = 1_024
+    /// `model.paths` by name.
+    var pathIndex: [String: Int] = [:]
 
-    private init(scanner: XMLScanner, limits: ThreeMFLimits, isCancelled: @escaping () -> Bool) {
+    private init(scanner: XMLScanner, limits: ThreeMFLimits, isRoot: Bool, isCancelled: @escaping () -> Bool) {
         self.scanner = scanner
+        self.isRoot = isRoot
         self.limits = limits
         self.isCancelled = isCancelled
     }
 
-    /// The model in `bytes`. `isCancelled` is asked every 65,536 elements and every 1 MiB of attributes.
-    static func parse(_ bytes: UnsafeRawBufferPointer, limits: ThreeMFLimits, isCancelled: @escaping () -> Bool) throws -> ThreeMFModel {
+    /// The model in `bytes`; `limits` is what is left of the file's budget. A root model leaves the references that name parts for the
+    /// reader to resolve (`resolvePaths`); a part's build items are ignored. `isCancelled` is asked every 65,536 elements and every
+    /// 1 MiB of attributes.
+    static func parse(_ bytes: UnsafeRawBufferPointer, limits: ThreeMFLimits, isRoot: Bool = true,
+                      isCancelled: @escaping () -> Bool) throws -> ThreeMFModel {
         if looksLikeUTF16(bytes) { throw MeshImportProblem.malformedModel("it is UTF-16 text, which isn't supported.") }
-        var parser = ThreeMFModelParser(scanner: XMLScanner(bytes: bytes), limits: limits, isCancelled: isCancelled)
+        var parser = ThreeMFModelParser(scanner: XMLScanner(bytes: bytes), limits: limits, isRoot: isRoot, isCancelled: isCancelled)
         try parser.run()
-        try parser.model.resolve()
+        try parser.model.resolve(items: isRoot)
+        parser.model.recordCount = parser.records
         return parser.model
     }
 
@@ -144,8 +156,8 @@ struct ThreeMFModelParser {
     }
 
     /// `requiredextensions` lists prefixes declared on the model; the core specification says a consumer that does not support one
-    /// must not open the file. The Production and Materials extensions are supported (the first as far as it can be: a part in
-    /// another file is refused where it is used; the second by ignoring what it adds). The words are read one at a time and there
+    /// must not open the file. The Production and Materials extensions are supported (the first by reading the parts the root names; the
+    /// second by ignoring what it adds). The words are read one at a time and there
     /// are at most `ThreeMFLimits.extensions` of them.
     private func requireExtensions(_ value: Range<Int>) throws {
         var listed = 0

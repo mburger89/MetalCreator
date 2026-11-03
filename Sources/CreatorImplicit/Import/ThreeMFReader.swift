@@ -3,7 +3,8 @@ import Foundation
 
 /// Reads a 3MF (mesh import spec, Reading, Limits and Construction): a zip, located through `_rels/.rels`, read as the core
 /// specification: objects, components with transforms, build items with transforms and the `unit` attribute. Colours, materials,
-/// slices and beam lattices are dropped (`ImportedMesh.ignoredExtras`); parts in other files and encrypted parts are refused. The
+/// slices and beam lattices are dropped (`ImportedMesh.ignoredExtras`); the Production extension's parts in other files of the package
+/// (Bambu Studio and Orca projects) are read, one at a time, against one budget; encrypted parts are refused. The
 /// file is untrusted: the size, the triangles after instancing and the depth of components are checked before anything is built, the
 /// XML is read by `XMLScanner` (no DOCTYPE, so no expansion), and every way to be wrong is a `MeshImportProblem`.
 public enum ThreeMFReader {
@@ -22,10 +23,10 @@ public enum ThreeMFReader {
     }
 
     /// `read` with the limits as parameters, so a test can reach them without a file of millions of triangles.
-    static func read(_ data: Data, triangleLimit: Int, recordLimit: Int = ThreeMFLimits().records,
-                     isCancelled: @escaping () -> Bool) throws -> [ImportedMesh] {
+    static func read(_ data: Data, triangleLimit: Int, recordLimit: Int = ThreeMFLimits().records, partLimit: Int = ThreeMFLimits().parts,
+                     byteLimit: Int = ThreeMFLimits().modelBytes, isCancelled: @escaping () -> Bool) throws -> [ImportedMesh] {
         guard data.count <= MeshImportLimits.maxFileBytes else { throw MeshImportProblem.tooLarge }
-        let limits = ThreeMFLimits(triangles: triangleLimit, records: recordLimit)
+        let limits = ThreeMFLimits(triangles: triangleLimit, records: recordLimit, parts: partLimit, modelBytes: byteLimit)
         // The inflated XML, which can be 2 GB, is gone before the meshes are made.
         let model = try parsedModel(in: data, limits: limits, isCancelled: isCancelled)
         let meshes = try model.buildMeshes(limits: limits, isCancelled: isCancelled)
@@ -33,11 +34,62 @@ public enum ThreeMFReader {
         return meshes
     }
 
+    /// The root model with the parts its components and build items name merged in. At no point is more than one model part inflated:
+    /// each part's bytes are gone before the next is read, and the bytes of all of them together count against one budget.
     private static func parsedModel(in data: Data, limits: ThreeMFLimits, isCancelled: @escaping () -> Bool) throws -> ThreeMFModel {
         let zip = try open(data)
-        let entry = try modelEntry(in: zip, isCancelled: isCancelled)
-        let bytes = try content(of: entry, in: zip, limit: ZipReader.defaultLimit, isCancelled: isCancelled)
-        return try bytes.withUnsafeBytes { try ThreeMFModelParser.parse($0, limits: limits, isCancelled: isCancelled) }
+        let rootEntry = try modelEntry(in: zip, isCancelled: isCancelled)
+        var (model, bytesUsed) = try parsed(rootEntry, in: zip, limits: limits, byteLimit: limits.modelBytes, isRoot: true,
+                                            isCancelled: isCancelled)
+        guard !model.paths.isEmpty else { return model }
+        let targets = try appendParts(to: &model, root: rootEntry, in: zip, limits: limits, bytesUsed: &bytesUsed, isCancelled: isCancelled)
+        try model.resolvePaths(targets)
+        return model
+    }
+
+    /// One model part inflated and parsed; its buffer is released on return. Returns the bytes it inflated to.
+    private static func parsed(_ entry: ZipReader.Entry, in zip: ZipReader, limits: ThreeMFLimits, byteLimit: Int, isRoot: Bool,
+                               isCancelled: @escaping () -> Bool) throws -> (ThreeMFModel, Int) {
+        let bytes = try content(of: entry, in: zip, limit: byteLimit, isCancelled: isCancelled)
+        let model = try bytes.withUnsafeBytes {
+            try ThreeMFModelParser.parse($0, limits: limits, isRoot: isRoot, isCancelled: isCancelled)
+        }
+        return (model, bytes.count)
+    }
+
+    /// Reads each part the root names, once, in the order the root first names them, and appends it to `model`. Returns, for each name
+    /// in `model.paths`, the object IDs of the part it names mapped to their indices in `model`. Every name is looked up before any
+    /// part is inflated, so a missing one is refused at once.
+    private static func appendParts(to model: inout ThreeMFModel, root: ZipReader.Entry, in zip: ZipReader, limits: ThreeMFLimits,
+                                    bytesUsed: inout Int, isCancelled: @escaping () -> Bool) throws -> [[Int: Int]] {
+        let rootIndex = model.objectIndex
+        var entries: [ZipReader.Entry] = []
+        for path in model.paths {
+            let name = path.hasPrefix("/") ? String(path.dropFirst()) : path
+            guard let found = entry(named: name, in: zip) else {
+                throw MeshImportProblem.malformedModel("it names the part \(MeshImportProblem.quoted(name)), which the file doesn't have.")
+            }
+            entries.append(found)
+        }
+        var read: [String: [Int: Int]] = [root.name: rootIndex]
+        var targets: [[Int: Int]] = []
+        for entry in entries {
+            if let known = read[entry.name] {
+                targets.append(known)
+                continue
+            }
+            if isCancelled() { throw CancellationError() }
+            let (part, size) = try parsed(entry, in: zip, limits: limits.remaining(after: model), byteLimit: limits.modelBytes - bytesUsed,
+                                          isRoot: false, isCancelled: isCancelled)
+            guard part.unit == model.unit else {
+                throw MeshImportProblem.malformedModel("a part of the file uses a different unit from the model.")
+            }
+            bytesUsed += size
+            let indices = model.append(part: part)
+            read[entry.name] = indices
+            targets.append(indices)
+        }
+        return targets
     }
 
     private static func open(_ data: Data) throws -> ZipReader {

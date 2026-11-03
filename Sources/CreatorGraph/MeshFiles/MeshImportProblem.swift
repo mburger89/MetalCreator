@@ -30,8 +30,8 @@ public enum MeshImportProblem: Error, Equatable, Sendable {
     case embeddedMissing
     /// A 3MF with no 3D model part (no relationship to one, or none at the path it names).
     case noModelPart
-    /// A 3MF whose model keeps parts in other files (the Production extension's `path`).
-    case otherFiles
+    /// A 3MF whose root model names more parts in other files (the Production extension's `path`) than this app opens.
+    case tooManyParts
     /// A 3MF that is encrypted (a password protected zip entry, or Secure Content).
     case encrypted
     /// A 3MF whose model is not well-formed, or says something the specification forbids; the sentence says what, ending in a stop.
@@ -82,8 +82,8 @@ public enum MeshImportProblem: Error, Equatable, Sendable {
             "This embedded file's data is missing from the document, or damaged. Choose the file again in the inspector."
         case .noModelPart:
             "This 3MF has no 3D model part."
-        case .otherFiles:
-            "This 3MF keeps parts in other files, which isn't supported. Export it as a generic 3MF."
+        case .tooManyParts:
+            "This 3MF has too many parts."
         case .encrypted:
             "This 3MF is encrypted."
         case .malformedModel(let reason):

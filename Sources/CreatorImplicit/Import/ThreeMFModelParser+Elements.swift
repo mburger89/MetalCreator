@@ -162,22 +162,26 @@ extension ThreeMFModelParser {
 
     private mutating func component(_ tag: XMLScanner.Tag) throws {
         try keepRecord()
-        let (id, transform) = try reference(tag, "a component")
-        model.components.append(ThreeMFModel.Component(object: id, transform: transform))
+        let (id, transform, path) = try reference(tag, "a component")
+        model.components.append(ThreeMFModel.Component(object: id, transform: transform, path: path))
     }
 
     private mutating func item(_ tag: XMLScanner.Tag) throws {
         try keepRecord()
-        let (id, transform) = try reference(tag, "a build item")
-        model.items.append(ThreeMFModel.Component(object: id, transform: transform))
+        let (id, transform, path) = try reference(tag, "a build item")
+        model.items.append(ThreeMFModel.Component(object: id, transform: transform, path: path))
     }
 
-    /// The `objectid` and `transform` of a component or build item.
-    private mutating func reference(_ tag: XMLScanner.Tag, _ what: String) throws -> (id: Int, transform: Int) {
+    /// The `objectid`, `transform` and part (an index into `model.paths`, -1 for none) of a component or build item.
+    private mutating func reference(_ tag: XMLScanner.Tag, _ what: String) throws -> (id: Int, transform: Int, path: Int) {
         var id: Int?
         var transform = -1
+        var path = -1
         for attribute in scanner.attributes(of: tag) {
-            if scanner.equals(attribute.name, "objectid") {
+            if let value = productionPath(attribute) {
+                guard path < 0 else { throw Self.damaged("\(what) has two paths.") }
+                path = try partIndex(value)
+            } else if scanner.equals(attribute.name, "objectid") {
                 guard let value = scanner.integer(attribute.value) else { throw Self.damaged("\(what)'s objectid isn't a whole number.") }
                 id = value
             } else if scanner.equals(attribute.name, "transform") {
@@ -189,7 +193,20 @@ extension ThreeMFModelParser {
             }
         }
         guard let id else { throw Self.damaged("\(what) names no object.") }
-        return (id, transform)
+        return (id, transform, path)
+    }
+
+    /// The index in `model.paths` of the part a `path` names, added when new. Only the root model names parts (Production extension:
+    /// a part's own `path` is an error, so parts can't chain), at most `limits.parts` distinct ones, each at most `pathLimit` bytes.
+    private mutating func partIndex(_ value: Range<Int>) throws -> Int {
+        guard isRoot else { throw Self.damaged("a part of the file names another part.") }
+        guard value.count <= Self.pathLimit else { throw Self.damaged("a part's name is longer than any file's.") }
+        let name = try scanner.decoded(value)
+        if let known = pathIndex[name] { return known }
+        guard model.paths.count < limits.parts else { throw MeshImportProblem.tooManyParts }
+        model.paths.append(name)
+        pathIndex[name] = model.paths.count - 1
+        return model.paths.count - 1
     }
 
     /// Twelve finite numbers, read one at a time: a thirteenth word ends the reading, so a long list costs no more than a short one.

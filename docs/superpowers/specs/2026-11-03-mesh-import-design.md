@@ -26,7 +26,7 @@ words and say what is wrong with it, not crash and not quietly repair it.
 - Other formats: OBJ, PLY, STEP as a mesh. **(call: STL and 3MF are what was asked; OBJ and PLY are small later additions)**
 - Repair: hole filling, reorienting, removing self-intersections. Later, as its own node. **(call)**
 - Colour, materials, textures, beam lattices and slices in a 3MF: ignored, with one warning naming them.
-- 3MF's Production extension (parts in other files of the package) and encrypted content: refused in words.
+- Encrypted 3MF content: refused in words. (The Production extension's parts in other files of the package were a non-goal until erratum 2026-11-03 (3MF parts), below.)
 - To Implicit on a mesh, so a scan can take a lattice: `SignedDistanceMesh` could carry it, but it needs a closed mesh and its own design. Later.
 - Fitting NURBS to a mesh; drag and drop onto the window; opening an `.stl` directly as a document.
 - `Kernel.continuity` on a mesh: Measure already shows no Continuity row for one.
@@ -62,7 +62,7 @@ words and say what is wrong with it, not crash and not quietly repair it.
 
 Warnings: "This mesh isn't closed: N open edges." · "This mesh has N edges shared by more than two faces." · "N faces are flipped against their neighbours." · "N degenerate triangles were dropped." · "This mesh's color and material data was ignored." · "This mesh has N triangles, so the view may be slow." above 2,000,000. Singular forms as elsewhere.
 
-Refusals, each a node message: "This file isn't an STL or 3MF." · "The STL ends early." · "The STL has a bad number on line N." · "This 3MF has no 3D model part." · "This 3MF keeps parts in other files, which isn't supported. Export it as a generic 3MF." · "This 3MF is encrypted." · "This file holds no triangles." · "This file has N triangles; Import Mesh takes at most 10,000,000." · "This file is larger than the 1 GB limit." · the missing-file sentences, as `ImageProblem`'s.
+Refusals, each a node message: "This file isn't an STL or 3MF." · "The STL ends early." · "The STL has a bad number on line N." · "This 3MF has no 3D model part." · "This 3MF has too many parts." · "This 3MF is encrypted." · "This file holds no triangles." · "This file has N triangles; Import Mesh takes at most 10,000,000." · "This file is larger than the 1 GB limit." · the missing-file sentences, as `ImageProblem`'s.
 
 ### Limits
 
@@ -168,3 +168,13 @@ The hash used for welding, the reader's buffering, the zip reader's shape (exten
 7. **Detection is by bytes.** `PK\x03\x04` at the start means 3MF wherever the file came from, whatever its name, in `ImportMeshNode.parse`; `STLReader` still refuses a zip for its direct callers. The parse cache holds `[ImportedMesh]`. `units` "From file" reads each mesh's own unit (an STL's reads as 1); an explicit unit replaces the file's, so `in` on a 3MF in millimetres reads its numbers as inches.
 8. **A list of meshes exports as one object each.** Any list of meshes wired to one Output (an Import Mesh node's, or another node's) are written as one 3MF object per mesh, named "<Output> 1", "<Output> 2" and so on (solids, if any, in the first); one mesh stays the Output's one object. Warnings for the meshes are said once per sentence.
 
+### 2026-11-03 (3MF parts, MI-2b)
+
+The user decided to lift the non-goal on the Production extension's parts within one package, so Bambu Studio and Orca project files open. Erratum 6 above (the Production sentence) is withdrawn; "This 3MF keeps parts in other files..." is gone from the refusal list and `MeshImportProblem.otherFiles` with it. Encrypted content stays refused. The rules:
+
+1. A `path` attribute in the Production namespace (found through the xmlns declarations, whatever the prefix) on a `<component>` or `<item>` of the root model names a part of the same zip, looked up as the start part is (exact, percent-decoded, case-folded). A path equal to the root part is the root. On any other element, or without the namespace, it names nothing.
+2. Only the root model may carry a path. One in another part is refused as damaged, so parts cannot chain and no cycle crosses parts (the Production specification: consumers MUST error on it). A part's build items are ignored (the specification: only the root's build section is valid). `p:UUID` is ignored.
+3. Parts are found from the root's references, then read in the order the root first names them, each inflated and parsed once however many components name it, its buffer released before the next; a part nothing names is never read. Every name is looked up before any part is inflated, so a missing part is refused at once, "it names the part <name cut to 80 characters>, which the file doesn't have."
+4. One budget across the file: inflated model bytes at most 2 GB in total (`modelTooLarge`); records, vertices and stored triangles shared; at most 4,096 distinct part names ("This 3MF has too many parts.", checked while the root is read, before anything is inflated); the instanced triangle count is checked across parts before anything is instantiated. A part's size is checked against what is left of the byte budget before it is inflated.
+5. A part's `requiredextensions` and DOCTYPE rules are the root's. Its unit must equal the root's (the specification is silent on units across parts): a different one is "a part of the file uses a different unit from the model." An encrypted part is `encrypted`. An object id missing from the named part is refused like a missing id in the root. Objects are keyed by part and id, so the same id in two parts is two objects. Support types, transforms and mirrors apply as in one part.
+6. Nothing is ever written to disk by name; the order of reading, and so the output, is the same on every platform. Nothing here has seen a real Bambu or Orca file (check MI-9 proves it).

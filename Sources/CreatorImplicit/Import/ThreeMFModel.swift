@@ -7,14 +7,30 @@ struct ThreeMFLimits {
     var triangles = MeshImportLimits.maxTriangles
     /// Objects, components and build items together (each keeps a record, and each component or item may keep a transform).
     var records = 250_000
+    /// Parts in other files of the package that the root model may name.
+    var parts = 4_096
+    /// Inflated model bytes over the root and every part together.
+    var modelBytes = ZipReader.defaultLimit
+    /// Vertices stored: a mesh may share its vertices, but not by more than this many to a triangle.
+    var vertices: Int
 
-    init(triangles: Int = MeshImportLimits.maxTriangles, records: Int = 250_000) {
+    init(triangles: Int = MeshImportLimits.maxTriangles, records: Int = 250_000, parts: Int = 4_096,
+         modelBytes: Int = ZipReader.defaultLimit) {
         self.triangles = triangles
         self.records = records
+        self.parts = parts
+        self.modelBytes = modelBytes
+        vertices = 3 * triangles
     }
 
-    /// Vertices stored: a mesh may share its vertices, but not by more than this many to a triangle.
-    var vertices: Int { 3 * triangles }
+    /// What is left of the budget once `model` is kept: the limits for the next part.
+    func remaining(after model: ThreeMFModel) -> ThreeMFLimits {
+        var left = self
+        left.triangles = max(0, triangles - model.triangles.count / 3)
+        left.vertices = max(0, vertices - model.vertices.count)
+        left.records = max(0, records - model.recordCount)
+        return left
+    }
 
     /// The `xmlns` declarations in force at once (the lookup for every element scans them).
     static let declarations = 256
@@ -48,6 +64,8 @@ struct ThreeMFModel {
         var object: Int
         /// An index into `transforms`, or -1 for none.
         var transform: Int
+        /// An index into `paths` when the root model names a part in another file, else -1 (this model's own object).
+        var path = -1
     }
 
     /// Millimetres per file unit.
@@ -62,14 +80,58 @@ struct ThreeMFModel {
     /// Whether the file held colours, materials, textures, slices or beam lattices, all of which are dropped.
     var ignoredExtras = false
     var objectIndex: [Int: Int] = [:]
+    /// The distinct part names the root's components and build items give in `path`, in first-seen order.
+    var paths: [String] = []
+    /// Objects, components and build items kept, against `ThreeMFLimits.records`.
+    var recordCount = 0
 
-    /// Replaces the IDs in components and build items with indices, refusing one that names no object.
-    mutating func resolve() throws {
-        for index in components.indices { components[index].object = try lookup(components[index].object) }
-        for index in items.indices { items[index].object = try lookup(items[index].object) }
+    /// Replaces the IDs in components and build items with indices, refusing one that names no object. Those that name a part in
+    /// another file wait for `resolvePaths(_:)`; a part's build items are not valid (Production extension) and are left alone.
+    mutating func resolve(items resolvesItems: Bool = true) throws {
+        for index in components.indices where components[index].path < 0 {
+            components[index].object = try Self.lookup(components[index].object, in: objectIndex)
+        }
+        guard resolvesItems else { return }
+        for index in items.indices where items[index].path < 0 {
+            items[index].object = try Self.lookup(items[index].object, in: objectIndex)
+        }
     }
 
-    private func lookup(_ id: Int) throws -> Int {
+    /// Resolves the references that name a part: `targets[i]` maps an object ID to its index for the part `paths[i]` names.
+    mutating func resolvePaths(_ targets: [[Int: Int]]) throws {
+        for index in components.indices where components[index].path >= 0 {
+            components[index].object = try Self.lookup(components[index].object, in: targets[components[index].path])
+        }
+        for index in items.indices where items[index].path >= 0 {
+            items[index].object = try Self.lookup(items[index].object, in: targets[items[index].path])
+        }
+    }
+
+    /// Appends a part's objects, vertices, triangles and components after this model's, as they were in the part. Returns the part's
+    /// object IDs mapped to their indices here. Its build items and path list are not kept.
+    mutating func append(part: ThreeMFModel) -> [Int: Int] {
+        let objectBase = objects.count, vertexBase = vertices.count, triangleBase = triangles.count / 3
+        let componentBase = components.count, transformBase = transforms.count
+        for var object in part.objects {
+            object.vertexStart += vertexBase
+            object.triangleStart += triangleBase
+            object.componentStart += componentBase
+            objects.append(object)
+        }
+        vertices.append(contentsOf: part.vertices)
+        triangles.append(contentsOf: part.triangles)
+        for var component in part.components {
+            component.object += objectBase
+            if component.transform >= 0 { component.transform += transformBase }
+            components.append(component)
+        }
+        transforms.append(contentsOf: part.transforms)
+        ignoredExtras = ignoredExtras || part.ignoredExtras
+        recordCount += part.recordCount
+        return part.objectIndex.mapValues { $0 + objectBase }
+    }
+
+    private static func lookup(_ id: Int, in objectIndex: [Int: Int]) throws -> Int {
         guard let index = objectIndex[id] else {
             throw MeshImportProblem.malformedModel("it refers to object \(id), which it doesn't have.")
         }
