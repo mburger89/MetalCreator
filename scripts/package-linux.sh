@@ -120,6 +120,9 @@ for f in LICENSE_LGPL_21.txt OCCT_LGPL_EXCEPTION.txt; do
     [ -s "$OCCT/share/licenses/$f" ] || fail "OpenCascade's $f is missing from $OCCT/share/licenses"
     cp "$OCCT/share/licenses/$f" "$DOC/"
 done
+# MetalCreator's own licence (MIT requires the notice in distributed copies). The AppImage is packed from this tree, so it carries it too.
+[ -s "$ROOT/LICENSE" ] || fail "MetalCreator's LICENSE is missing from $ROOT"
+cp "$ROOT/LICENSE" "$DOC/MetalCreator-LICENSE.txt"
 # SDL3 (zlib) and the Swift runtime (Apache-2.0 with the Runtime Library Exception) are bundled in lib/: their licences ship too.
 SDL_LICENSE="${SDL_LICENSE_FILE:-/usr/share/licenses/SDL3/LICENSE.txt}"
 [ -s "$SDL_LICENSE" ] || fail "SDL3's licence is missing: $SDL_LICENSE"
@@ -133,6 +136,8 @@ for pair in SDL3_shadercross/LICENSE.txt:SDL3_shadercross-LICENSE.txt DirectXSha
     [ -s "$SC/share/licenses/${pair%%:*}" ] || fail "the shader compiler's licence ${pair%%:*} is missing from $SC/share/licenses"
     cp "$SC/share/licenses/${pair%%:*}" "$DOC/${pair##*:}"
 done
+[ -s "$METALUI/LICENSE" ] || fail "MetalUI's LICENSE is missing from $METALUI"
+cp "$METALUI/LICENSE" "$DOC/MetalUI-LICENSE.txt"
 cp "$METALUI/THIRD-PARTY-NOTICES.md" "$DOC/MetalUI-THIRD-PARTY-NOTICES.md"
 for f in CStbImage/LICENSE CFreeType/FTL.TXT CFreeType/LICENSE.TXT CHarfBuzz/COPYING CUnibreak/LICENCE CSheenBidi/LICENSE; do
     cp "$METALUI/Sources/$f" "$DOC/$(dirname "$f")-$(basename "$f")"
@@ -148,6 +153,8 @@ OCCT_LIBS="$(cd "$FOLDER/lib" && ls libTK*.so.7.9 | sed 's/^/                lib
 [ -n "$OCCT_LIBS" ] || fail "no libTK*.so.7.9 in lib/"
 cat > "$DOC/NOTICE.txt" <<NOTICE
 MetalCreator $VERSION: third-party software shipped in this package
+
+MetalCreator itself, and MetalUI, are MIT licensed: MetalCreator-LICENSE.txt and MetalUI-LICENSE.txt, in this folder.
 
 OpenCascade Technology (OCCT) 7.9
   Licence:   GNU LGPL version 2.1 with the OCCT exception (LICENSE_LGPL_21.txt and OCCT_LGPL_EXCEPTION.txt, in this folder).

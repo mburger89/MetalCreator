@@ -103,7 +103,7 @@ runtime's libraries, OpenCascade's `libTK*.so.7.9`, `libSDL3.so.0` and whatever 
 the C++ runtime; linking the Swift runtime statically does not work with Foundation here), `MetalUISDLShaders/` (MetalUI's compiled SDL shaders, which the backend looks for beside the executable first,
 ruling `PX-P`), `MetalUIAppShaders/` (the 3D viewport's shaders, compiled by MetalUI's `CompileShadersOnBuild` plugin during the release build, copied from `MetalCreator_CreatorViewport.bundle` and looked for there first by
 MetalUI's `SDLGPUShaderLibrary.locate`; the script stops if the build did not make them), `share/applications/com.metalcreator.MetalCreator.desktop`, `share/mime/packages/com.metalcreator.MetalCreator.xml`,
-`share/icons/hicolor/256x256/apps/com.metalcreator.MetalCreator.png` (a placeholder icon), `install.sh` and `share/doc/metalcreator/` (the licences: OpenCascade's LGPL 2.1 and its exception, MetalUI's third-party notices and the
+`share/icons/hicolor/256x256/apps/com.metalcreator.MetalCreator.png` (a placeholder icon), `install.sh` and `share/doc/metalcreator/` (the licences: MetalCreator's own MIT `MetalCreator-LICENSE.txt`, MetalUI's MIT `MetalUI-LICENSE.txt`, OpenCascade's LGPL 2.1 and its exception, MetalUI's third-party notices and the
 licence files they name). The executable's RUNPATH is set to `$ORIGIN/lib` and each bundled library's to `$ORIGIN` (`patchelf`; the
 build's `/opt/occt/lib` and the toolchain's `/usr/lib/swift/linux` are left out), so the folder runs from anywhere and finds
 only its own libraries. It still needs the machine's glibc (the build image is Ubuntu 24.04, glibc 2.39), libstdc++ and, to draw, a
@@ -124,7 +124,10 @@ Dockerfile changes. Accepted for now.
 
 ## Licences in the packages
 
-Every package carries `NOTICE.txt` (Linux `share/doc/metalcreator/`, Windows `licenses\`) next to the licence texts. It says that
+Every package carries MetalCreator's own MIT licence, copied from the repository's root `LICENSE` as `MetalCreator-LICENSE.txt`
+(macOS: `Contents/Resources/Licenses/MetalCreator/`; Linux `share/doc/metalcreator/`, so the AppImage too; Windows `licenses\`), and
+`NOTICE.txt` opens by naming it. MetalUI's own MIT `LICENSE` ships beside its notices as `MetalUI-LICENSE.txt` (macOS: `Licenses/MetalUI/`). All three package scripts fail if either `LICENSE` is missing, and `verify-app.sh` checks the
+macOS copy. Every package carries `NOTICE.txt` (Linux `share/doc/metalcreator/`, Windows `licenses\`) next to the licence texts. It says that
 OpenCascade 7.9 is LGPL-2.1 with the OCCT exception, where its source is (Linux: tag `V7_9_3`, the Dockerfile's `OCCT_COMMIT`, read
 by the script; Windows: vcpkg's `opencascade` 7.9.3 port-version 1 at the manifest's `builtin-baseline`), names the shared libraries
 (`libTK*.so.7.9`, `TK*.dll`) and says they may be replaced by a modified build. The Linux packages also carry SDL3's zlib licence
