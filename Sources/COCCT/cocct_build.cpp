@@ -84,21 +84,29 @@ void check_spline(const occt_profile &profile, const occt_segment &s) {
     }
 }
 
+} // namespace
+
+Handle(Geom_BSplineCurve) cocct::spline_curve(const gp_Ax2 &frame, const occt_profile &profile, const occt_segment &segment) {
+    check_spline(profile, segment);
+    TColgp_Array1OfPnt poles(1, segment.pole_count);
+    for (int k = 0; k < segment.pole_count; ++k) {
+        const double *xy = profile.spline_poles + 2 * (segment.pole_offset + k);
+        poles.SetValue(k + 1, point_on(frame, xy[0], xy[1]));
+    }
+    TColStd_Array1OfReal knots(1, segment.knot_count);
+    TColStd_Array1OfInteger mults(1, segment.knot_count);
+    for (int k = 0; k < segment.knot_count; ++k) {
+        knots.SetValue(k + 1, profile.spline_knots[segment.knot_offset + k]);
+        mults.SetValue(k + 1, profile.spline_mults[segment.knot_offset + k]);
+    }
+    return new Geom_BSplineCurve(poles, knots, mults, 5);
+}
+
+namespace {
+
 TopoDS_Edge build_edge(const gp_Ax2 &frame, const occt_profile &profile, const occt_segment &segment) {
     if (segment.kind == 2) {
-        check_spline(profile, segment);
-        TColgp_Array1OfPnt poles(1, segment.pole_count);
-        for (int k = 0; k < segment.pole_count; ++k) {
-            const double *xy = profile.spline_poles + 2 * (segment.pole_offset + k);
-            poles.SetValue(k + 1, point_on(frame, xy[0], xy[1]));
-        }
-        TColStd_Array1OfReal knots(1, segment.knot_count);
-        TColStd_Array1OfInteger mults(1, segment.knot_count);
-        for (int k = 0; k < segment.knot_count; ++k) {
-            knots.SetValue(k + 1, profile.spline_knots[segment.knot_offset + k]);
-            mults.SetValue(k + 1, profile.spline_mults[segment.knot_offset + k]);
-        }
-        const Handle(Geom_BSplineCurve) curve = new Geom_BSplineCurve(poles, knots, mults, 5);
+        const Handle(Geom_BSplineCurve) curve = spline_curve(frame, profile, segment);
         BRepBuilderAPI_MakeEdge make(curve);
         if (!make.IsDone()) {
             throw user_error("a spline in the profile could not be built");

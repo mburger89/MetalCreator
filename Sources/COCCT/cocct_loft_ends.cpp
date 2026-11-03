@@ -72,6 +72,7 @@ struct Piece {
     // A profile segment, in its plane's frame.
     occt_segment segment{};
     gp_Ax2 frame;
+    Handle(Geom_BSplineCurve) spline; // the segment's curve when it is a spline (kind 2), at its own knot range
     // An edge of the part, sampled from t0 to t1 (decreasing where the loop runs against the edge), and the part's face
     // on the far side of it from the picked face.
     TopoDS_Edge edge;
@@ -103,6 +104,9 @@ struct Piece {
     gp_Pnt value(double s) const {
         if (on_part) {
             return curve->Value(parameter(s));
+        }
+        if (segment.kind == 2) {
+            return spline->Value(spline->FirstParameter() + s * (spline->LastParameter() - spline->FirstParameter()));
         }
         if (segment.kind == 0) {
             return point_on(frame, segment.x0 + s * (segment.x1 - segment.x0), segment.y0 + s * (segment.y1 - segment.y0));
@@ -280,6 +284,9 @@ Section profile_section(const occt_profile &profile) {
         Piece piece;
         piece.segment = profile.loops[0].segments[k];
         piece.frame = frame;
+        if (piece.segment.kind == 2) {
+            piece.spline = spline_curve(frame, profile, piece.segment);
+        }
         section.pieces.push_back(piece);
     }
     return section;
