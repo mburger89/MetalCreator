@@ -70,7 +70,7 @@ struct MeshFileActionsTests {
 
     @Test func aBadMeshFileIsChosenAndTheNodeSaysWhatIsWrong() async throws {
         let (app, node) = await meshApp()
-        let zip = try folder.write(Data("PK\u{3}\u{4}....".utf8), to: "model.stl")
+        let zip = try folder.write(Data(("PK\u{3}\u{4}" + String(repeating: "x", count: 120)).utf8), to: "model.stl")
         await app.performMeshFile(.chooseMeshFile, on: node.id, using: ScriptedPicker([zip]))
         #expect(setting(app, node) != nil && app.alert == nil)
         await app.settle()
