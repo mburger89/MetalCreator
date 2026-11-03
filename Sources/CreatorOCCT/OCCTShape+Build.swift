@@ -13,7 +13,7 @@ extension OCCTShape {
     }
 
     static func extrude(_ profile: Profile2D, distance: Double) throws(OCCTError) -> (OCCTShape, [OCCTHistoryRecord]) {
-        try OCCTProfile.with(profile) { cProfile throws(OCCTError) in
+        return try OCCTProfile.with(profile) { cProfile throws(OCCTError) in
             try building { history, status in occt_extrude(cProfile, distance, history, status) }
         }
     }
@@ -27,7 +27,7 @@ extension OCCTShape {
     }
 
     static func loft(_ sections: [Profile2D], ruled: Bool) throws(OCCTError) -> (OCCTShape, [OCCTHistoryRecord]) {
-        try OCCTProfile.withAll(sections) { profiles, count throws(OCCTError) in
+        return try OCCTProfile.withAll(sections) { profiles, count throws(OCCTError) in
             try building { history, status in occt_loft(profiles, Int32(count), ruled ? 1 : 0, history, status) }
         }
     }

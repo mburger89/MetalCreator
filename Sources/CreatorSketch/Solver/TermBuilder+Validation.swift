@@ -29,6 +29,19 @@ extension TermBuilder {
             }
         case .projected:
             break
+        case .spline(let points, let handles):
+            try validateSpline(points, handles, of: id)
+        }
+    }
+
+    func validateSpline(_ points: [SketchEntityID], _ handles: [SplineHandleState], of id: SketchEntityID) throws(SolveFailure) {
+        try requirePoints(points, of: id)
+        if points.count < 2 { throw SolveFailure(reason: "\(sketch.label(of: id)) needs at least two fit points.") }
+        if handles.count != points.count {
+            throw SolveFailure(reason: "\(sketch.label(of: id)) has a handle state missing for a fit point.")
+        }
+        if zip(points, points.dropFirst()).contains(where: { $0 == $1 }) {
+            throw SolveFailure(reason: "\(sketch.label(of: id)) has the same fit point twice in a row.")
         }
     }
 

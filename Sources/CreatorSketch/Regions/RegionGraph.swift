@@ -101,9 +101,28 @@ struct RegionGraph: Sendable {
             let tolerance = CurveIntersection.tolerance
             return (c1 - c2).length <= tolerance && abs(r1 - r2) <= tolerance
                 && (a.shape.point(at: s1 / 2) - b.shape.point(at: s2 / 2)).length <= tolerance * 10
+        case (.spline, .spline):
+            // The same piece: the same fractions along it, walked in the same or the opposite sense.
+            let tolerance = CurveIntersection.tolerance * 10
+            let sameSense = a.from == b.from
+            return [0.25, 0.5, 0.75].allSatisfy { fraction in
+                let other = sameSense ? fraction : 1 - fraction
+                let (pointA, pointB) = (a.shape.point(at: a.shape.parameterEnd * fraction), b.shape.point(at: b.shape.parameterEnd * other))
+                return (pointA - pointB).length <= tolerance
+            }
+        case (.spline, .line), (.spline, .arc):
+            return lies(a.shape, on: b.shape)
+        case (.line, .spline), (.arc, .spline):
+            return lies(b.shape, on: a.shape)
         default:
             return false
         }
+    }
+
+    /// True when a spline piece lies along `other` (a line or an arc): sampled at several parameters, all within tolerance.
+    private static func lies(_ spline: CurveShape, on other: CurveShape) -> Bool {
+        let end = spline.parameterEnd
+        return [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9].allSatisfy { other.contains(spline.point(at: end * $0), tolerance: 1e-7) }
     }
 
     /// Repeatedly drops dangling edges (an end of degree 1) and bridges (edges whose removal

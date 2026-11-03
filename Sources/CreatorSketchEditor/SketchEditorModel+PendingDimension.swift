@@ -57,7 +57,7 @@ extension SketchEditorModel {
         case .line?:
             guard let centre = centrePoint(of: round) else { return refusal = Self.notMeasurable }
             beginPending(.distance(centre, picked), at: p, phase: .entering)
-        case nil:
+        case .spline?, nil:
             refusal = Self.notMeasurable
         }
     }

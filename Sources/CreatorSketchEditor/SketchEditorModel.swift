@@ -43,6 +43,14 @@ public final class SketchEditorModel {
     /// The point being dragged, between a drag's press and its release. Observed: the pointer readout shows while it
     /// is set, so the readout's views hear the release even when the drag moved nothing.
     var dragged: SketchEntityID?
+    /// The spline handle knob being dragged, between a drag's press and its release.
+    @ObservationIgnored var draggedHandle: HandleDrag?
+    /// Whether the handle drag solved at least once (a press that never moved records no step).
+    @ObservationIgnored var handleMoved = false
+    /// Whether ⌘ was held at the Spline tool's first click, which suppressed the Tangent its start would infer.
+    @ObservationIgnored var splineStartSuppressed = false
+    /// The spline handle knob under the pointer.
+    var hoveredKnob: HandleKnob?
     /// The sketch when the drag began, so a drag that moved nothing records no step.
     @ObservationIgnored var dragOrigin: Sketch?
     /// The dimension whose label is being dragged, between the press on its text and the release.
@@ -105,6 +113,7 @@ public final class SketchEditorModel {
         pending = nil
         pendingOrigin = nil
         dragged = nil
+        draggedHandle = nil
         dragOrigin = nil
         draggedLabel = nil
         labelPress = nil

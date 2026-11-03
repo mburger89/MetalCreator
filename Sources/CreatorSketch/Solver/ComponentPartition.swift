@@ -28,6 +28,7 @@ struct ComponentPartition: Sendable {
             if ra != rb { parent[max(ra, rb)] = min(ra, rb) }
         }
         for column in layout.pointColumns.values { union(column, column + 1) }
+        for column in layout.handleColumns.values { union(column, column + 1) }
         for term in terms {
             let columns = term.equation.columns
             for column in columns.dropFirst() { union(columns[0], column) }

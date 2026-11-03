@@ -9,6 +9,9 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
     case arc
     /// Start, end, then a point the arc passes through (A again, from Arc).
     case arcThreePoint
+    /// Fit points, one click each (S): a smooth curve through them. Return, a double click, a click on the last point or Esc
+    /// finishes it.
+    case spline
     /// Centre, then a point on the circle (C).
     case circle
     /// A lone point.
@@ -37,6 +40,7 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
         case .line: "Line"
         case .arc: "Arc"
         case .arcThreePoint: "3-Point Arc"
+        case .spline: "Spline"
         case .circle: "Circle"
         case .point: "Point"
         case .dimension: "Dimension"
@@ -59,14 +63,14 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
         case .pattern: "Select the geometry, then click a point to copy it around, or a line to copy it along."
         case .arcThreePoint: "Click the start, the end, then a point the arc passes through."
         case .project: "Click an edge of the model, or a face for all its edges, to project it onto the sketch."
-        case .select, .line, .arc, .circle, .point, .dimension: nil
+        case .select, .line, .arc, .spline, .circle, .point, .dimension: nil
         }
     }
 
     /// Whether a click places a point (the rubber band then marks where it would land).
     var placesPoints: Bool {
         switch self {
-        case .line, .arc, .arcThreePoint, .circle, .point: true
+        case .line, .arc, .arcThreePoint, .spline, .circle, .point: true
         case .select, .dimension, .trim, .extend, .fillet, .mirror, .pattern, .project: false
         }
     }
@@ -75,7 +79,7 @@ public enum SketchTool: Hashable, Sendable, CaseIterable {
     var picksCurves: Bool {
         switch self {
         case .trim, .extend, .mirror: true
-        case .select, .line, .arc, .arcThreePoint, .circle, .point, .dimension, .fillet, .pattern, .project: false
+        case .select, .line, .arc, .arcThreePoint, .spline, .circle, .point, .dimension, .fillet, .pattern, .project: false
         }
     }
 }

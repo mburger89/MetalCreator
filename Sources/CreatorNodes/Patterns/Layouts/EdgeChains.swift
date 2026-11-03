@@ -1,4 +1,5 @@
 import CreatorGeometry
+import CreatorGraph
 import CreatorKernel
 import Foundation
 
@@ -49,8 +50,9 @@ enum EdgeChains {
 
     /// The chains of a profile's loops, outline first and then each hole: a loop is a chain already, closed when its last
     /// segment ends where its first begins.
-    static func chains(of profile: Profile2D) -> [CurveChain] {
-        profile.loops.filter { !$0.isEmpty }.map { loop in
+    static func chains(of profile: Profile2D) throws -> [CurveChain] {
+        guard !profile.hasSpline else { throw NodeError.invalidValue("Curve Pattern follows lines and arcs.") }
+        return profile.loops.filter { !$0.isEmpty }.map { loop in
             let pieces = loop.map { segment -> EdgeCurve in
                 switch segment {
                 case .line(let a, let b):
@@ -59,6 +61,8 @@ enum EdgeChains {
                     let startPoint = center + Vector2(cos(start.radians), sin(start.radians)) * radius
                     return .circle(center: profile.plane.point(center), axis: profile.plane.normal, radius: radius,
                                    start: profile.plane.point(startPoint), sweep: end.radians - start.radians)
+                case .spline:
+                    preconditionFailure("splines were refused above")
                 }
             }
             let closes = pieces.first.map { meets($0.startPoint, pieces[pieces.count - 1].endPoint) } == true

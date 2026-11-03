@@ -7,6 +7,7 @@ extension SketchEntityKind {
         case .line(let start, let end): .line(start: swap(start), end: swap(end))
         case .arc(let center, let start, let end): .arc(center: swap(center), start: swap(start), end: swap(end))
         case .circle(let center, let radius): .circle(center: swap(center), radius: radius)
+        case .spline(let points, let handles): .spline(points: points.map(swap), handles: handles)
         }
     }
 }

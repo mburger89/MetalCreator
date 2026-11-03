@@ -66,21 +66,37 @@ extension RegionGraph {
         let joints = cycle.map { $0.origin(self) }
         func joins(_ i: Int) -> Bool {
             let previous = (i - 1 + segments.count) % segments.count
-            return degree[joints[i]] == 2 && segments[previous].merged(with: segments[i]) != nil
+            return degree[joints[i]] == 2 && merged(segments[previous], segments[i]) != nil
         }
         guard let breakIndex = segments.indices.first(where: { !joins($0) }) else {
             // Every joint merges: one curve closing on itself (a circle).
-            return [segments.dropFirst().reduce(segments[0]) { $0.merged(with: $1) ?? $0 }]
+            return [segments.dropFirst().reduce(segments[0]) { merged($0, $1) ?? $0 }]
         }
         var result: [LoopSegment] = []
         for offset in 0..<segments.count {
             let i = (breakIndex + offset) % segments.count
-            if offset > 0, joins(i), let last = result.last, let merged = last.merged(with: segments[i]) {
-                result[result.count - 1] = merged
+            if offset > 0, joins(i), let last = result.last, let joined = merged(last, segments[i]) {
+                result[result.count - 1] = joined
             } else {
                 result.append(segments[i])
             }
         }
         return result
+    }
+
+    /// `next` continued into `segment` along the same curve, or `nil`. Spline pieces rejoin when one's end parameter is the
+    /// next's start in the same sense: the union is cut again from the source curve, not glued from the pieces.
+    func merged(_ segment: LoopSegment, _ next: LoopSegment) -> LoopSegment? {
+        guard case .spline = segment.geometry, case .spline = next.geometry else { return segment.merged(with: next) }
+        guard segment.source == next.source, let first = segment.sourceSpan, let second = next.sourceSpan,
+              (first.to - first.from) * (second.to - second.from) > 0, abs(first.to - second.from) <= 1e-9,
+              case .spline(let whole) = curves[segment.source].shape else { return nil }
+        let base = whole.parameterRange.lowerBound
+        let span = LoopSegment.ParameterSpan(from: first.from, to: second.to)
+        let low = min(span.from, span.to) - base
+        let high = max(span.from, span.to) - base
+        guard case .spline(let piece) = CurveShape.spline(whole).piece(from: low, to: high) else { return nil }
+        let geometry: LoopSegment.Geometry = .spline(span.to > span.from ? piece : piece.reversed())
+        return LoopSegment(geometry: geometry, source: segment.source, start: segment.start, end: next.end, sourceSpan: span)
     }
 }

@@ -29,6 +29,9 @@ public enum SketchConstraint: Hashable, Sendable, Codable {
     case concentric(SketchEntityID, SketchEntityID)
     /// Two points mirrored about a line.
     case symmetric(SketchEntityID, SketchEntityID, about: SketchEntityID)
+    /// Curvature continuity (G2) at the end a spline shares with a line, an arc or another spline: the tangent directions
+    /// agree and so do the signed curvatures (0 for a line, 1/r for an arc). At least one side is a spline.
+    case curvature(SketchEntityID, SketchEntityID)
     /// A point held at `at`.
     case fix(SketchEntityID, at: Vector2)
 
@@ -37,7 +40,7 @@ public enum SketchConstraint: Hashable, Sendable, Codable {
         switch self {
         case .coincident(let a, let b), .horizontalPoints(let a, let b), .verticalPoints(let a, let b),
              .parallel(let a, let b), .perpendicular(let a, let b), .tangent(let a, let b),
-             .equal(let a, let b), .concentric(let a, let b):
+             .equal(let a, let b), .concentric(let a, let b), .curvature(let a, let b):
             [a, b]
         case .pointOn(let point, let curve): [point, curve]
         case .midpoint(let point, let line): [point, line]

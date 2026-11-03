@@ -26,6 +26,7 @@ extension SketchEditorModel {
     func inferredConstraints(landing target: SketchAnchor, tolerance: Double, suppressed: Bool) -> [SketchConstraintKind] {
         switch drawState {
         case .idle:
+            if tool == .spline { return splineInferred(landing: target, suppressed: suppressed) }
             return tool.placesPoints ? Self.inferred(by: target) : []
         case .lineFrom(let start):
             guard case .free(let at) = target else { return Self.inferred(by: target) }
@@ -34,6 +35,8 @@ extension SketchEditorModel {
             return Self.inferred(by: target)
         case .arcFrom:
             return target.point == nil ? [] : [.coincident]
+        case .splineThrough:
+            return splineInferred(landing: target, suppressed: suppressed)
         case .circleAround, .arcThrough:
             return []
         }

@@ -132,7 +132,7 @@ public enum SketchDimensionGeometry {
             return .arc(center: c, radius: (s - c).length, middle: first + sweep / 2)
         case .projected(let source)?:
             return source.isSuspended ? nil : shape(of: source.curve)
-        case nil:
+        case .spline?, nil:
             return nil
         }
     }

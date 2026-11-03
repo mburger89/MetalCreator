@@ -4,7 +4,7 @@ import CreatorSketch
 /// from the selection when the selection has the right shape.
 public enum SketchConstraintKind: Hashable, Sendable, CaseIterable {
     case coincident, pointOn, horizontal, vertical, parallel, perpendicular, tangent, equal, midpoint, concentric,
-         symmetric, fix
+         symmetric, fix, curvature
 
     public var title: String {
         switch self {
@@ -20,6 +20,7 @@ public enum SketchConstraintKind: Hashable, Sendable, CaseIterable {
         case .concentric: "Concentric"
         case .symmetric: "Symmetric"
         case .fix: "Fix"
+        case .curvature: "Curvature"
         }
     }
 
@@ -30,12 +31,13 @@ public enum SketchConstraintKind: Hashable, Sendable, CaseIterable {
         case .pointOn: "Select a point and a curve."
         case .horizontal, .vertical: "Select a line, or two points."
         case .parallel, .perpendicular: "Select two lines."
-        case .tangent: "Select a line and an arc or circle, or two arcs or circles."
+        case .tangent: "Select a line and an arc or circle, two arcs or circles, or a spline and what meets its end."
         case .equal: "Select two lines, or two arcs or circles."
         case .midpoint: "Select a point and a line."
         case .concentric: "Select two arcs or circles."
         case .symmetric: "Select two points and a line."
         case .fix: "Select a point."
+        case .curvature: "Select a spline and a line, arc or spline that meet at its end."
         }
     }
 }

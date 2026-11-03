@@ -42,6 +42,7 @@ public enum ModelDimensionKind {
         case .circle(let centre, _)?, .arc(let centre, _, _)?: .round(centre: centre)
         case .projected(let source)?:
             if case .line = source.curve { .line } else { .round(centre: nil) }
+        case .spline?: nil
         case nil: nil
         }
     }

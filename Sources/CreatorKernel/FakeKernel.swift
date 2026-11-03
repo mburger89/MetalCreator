@@ -28,6 +28,7 @@ public actor FakeKernel: Kernel {
         guard distance.isFinite, distance > 0 else {
             throw KernelError.invalidInput("Extrude distance must be greater than 0 mm.")
         }
+        guard !profile.hasSpline else { throw KernelError.splinesUnsupported }
         guard profile.isClosed, let flat = profile.bounds else {
             throw KernelError.invalidInput("The profile is not a closed loop.")
         }
@@ -258,6 +259,9 @@ public actor FakeKernel: Kernel {
             let first = center + Vector2(cos(from), sin(from)) * radius
             return .circle(center: plane.point(center) + lift, axis: plane.normal, radius: radius,
                            start: plane.point(first) + lift, sweep: abs(end.radians - start.radians))
+        case .spline(let curve):
+            // Unreachable while `extrude` refuses splines; the chord keeps the table whole.
+            return .line(start: plane.point(curve.startPoint) + lift, end: plane.point(curve.endPoint) + lift)
         }
     }
 

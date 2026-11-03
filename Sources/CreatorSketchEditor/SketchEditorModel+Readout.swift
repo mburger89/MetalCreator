@@ -29,6 +29,10 @@ extension SketchEditorModel {
                 return ReadoutText.radius((start.position - center.position).length, units: units)
             }
             return ReadoutText.arc(center: center.position, start: start.position, end: end, units: units)
+        case .splineThrough:
+            guard preview.points.count >= 2 else { return nil }
+            let (from, to) = (preview.points[preview.points.count - 2], preview.points[preview.points.count - 1])
+            return ReadoutText.line(from: from, to: to, units: units)
         case .arcThroughFrom:
             // A 3-point arc reads its chord after the start, then its radius and sweep after the end.
             guard case .line(let start, let end)? = preview.curves.first else { return nil }

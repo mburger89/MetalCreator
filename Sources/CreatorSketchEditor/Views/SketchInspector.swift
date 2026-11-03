@@ -21,6 +21,18 @@ public struct SketchInspector: Component {
                 Text(refusal).font(.caption).foregroundStyle(colors.warning)
             }
             ToolOptionsView(model: model)
+            if !model.handleRows.isEmpty {
+                Text("HANDLES").font(.caption2).foregroundStyle(colors.secondary)
+                ForEach(model.handleRows, id: \.id) { row in
+                    HStack(spacing: Pixels(6)) {
+                        Text(row.label).font(.callout).foregroundStyle(colors.primary)
+                        Spacer()
+                        if row.isActive {
+                            Button("Release") { model.releaseHandle(of: row.spline, at: row.index, row.kind) }
+                        }
+                    }
+                }
+            }
             Text("CONSTRAIN").font(.caption2).foregroundStyle(colors.secondary)
             ConstraintButtons(model: model)
             Text("DIMENSIONS").font(.caption2).foregroundStyle(colors.secondary)

@@ -2355,6 +2355,19 @@ the Output selected so the part is shown.
 - [ ] **GA-4 Blend 0.** With `blend` 0 the join is the sharp one whatever `continuity` says. **Observed:**
 - [ ] **GA-5 Live.** Switching `continuity` re-previews without a stall, on a lattice too. **Observed:**
 
+## Group SP — Sketch splines (G-c)
+
+- [ ] **SP-1 Draw a spline.** In sketch mode press S, click four or five points and press Return: a smooth spline passes through every point and the tool ends. Esc and a click on the last point finish it the same way. A spline of two points is a gentle curve through them. **Observed:**
+- [ ] **SP-2 Drag fit points.** Drag a fit point: the curve changes locally, near that point, and the other points stay put. **Observed:**
+- [ ] **SP-3 Tangent and curvature handles.** Select the spline: each fit point shows a tangent knob and a curvature knob. Dragging a knob activates it (the curve does not jump when it starts) and reshapes the curve at that point; Release in the inspector returns the handle to automatic and the curve relaxes. Release is refused while a Tangent or Curvature constraint uses the handle. **Observed:**
+- [ ] **SP-4 Curvature join, extrude, Zebra and Measure.** Draw a line and a spline that meet at a point, select both and press Curvature, close the loop with more curves, extrude the sketch and switch Zebra stripes on (Z): the stripes flow across the joint edge without a kink. Measure (M) the joint edge: its Continuity row reads G2. **Observed:**
+- [ ] **SP-5 Tangent only.** Replace Curvature with Tangent on the same pair: the stripes bend at the joint and the edge reads G1. **Observed:**
+- [ ] **SP-6 Crossing itself.** Drag a spline's points so it crosses itself: the sketch warns "Spline N crosses itself, so it isn't part of a region." and the spline is not filled. Undo the drag and the warning goes. **Observed:**
+- [ ] **SP-7 Mirror and pattern.** Mirror a spline about a line and make a linear and a circular pattern of one: each copy is a spline of the same shape (reflected for the mirror), with its handles. **Observed:**
+- [ ] **SP-8 Delete a fit point.** Select an interior fit point of a spline of four or more points and delete it: the spline stays, through the remaining points. Deleting a point of a two-point spline removes the spline. **Observed:**
+- [ ] **SP-9 Save and reopen.** Save a sketch with splines (one with an active tangent and curvature handle and a Curvature constraint), close and Open it: the curves, handles and constraints are unchanged and the solve is identical. **Observed:**
+- [ ] **SP-10 Linux and Windows.** The same on Linux and Windows: the spline draws, edits, extrudes and the stripes flow alike. **Observed:**
+
 ## Group LE — Loft end conditions (G-d)
 
 - [ ] **LE-1 Boss from a box face.** Make a 20 x 20 x 10 box and a Rectangle 12 x 12 on a plane 10 mm above its top. Add a Loft: section the Rectangle, `solid` the box, Pick Start Face in View… and click the box's top, then Union the box and the loft. Turn on Zebra stripes (Z). At Free the stripes kink along the four joint edges; at Tangent (G1) they carry across them without a kink; at Curvature (G2) they flow across with no change of curvature. **Observed:**
