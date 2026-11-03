@@ -105,6 +105,7 @@ public enum InspectorBuilder {
                      results: [NodeID: NodeResult]) -> [InspectorRow] {
         if case .image(let setting) = control { return imageRows(setting, node: node) }
         if case .faceStatus(let setting) = control { return [faceRow(setting, node: node)] }
+        if case .meshFile(let setting) = control { return [meshFileRow(setting, node: node)] }
         return [row(for: control, node: node, inputs: inputs, outputs: outputs, graph: graph, results: results)]
     }
 
@@ -112,6 +113,16 @@ public enum InspectorBuilder {
     static func faceRow(_ setting: SocketName, node: Node) -> InspectorRow {
         if case .facePick? = node.inputValues[setting] { return .readOnly(label: InspectorLabel.text(for: setting), text: "Picked") }
         return .readOnly(label: InspectorLabel.text(for: setting), text: "None")
+    }
+
+    /// A mesh file setting's row: "No file chosen", "Embedded · a1b2c3d4" or "Linked · part.stl". The buttons are the file actions'.
+    static func meshFileRow(_ setting: SocketName, node: Node) -> InspectorRow {
+        let text: String = switch node.inputValues[setting]?.fileReference {
+        case nil: "No file chosen"
+        case .embedded(let hash)?: "Embedded · \(hash.short)"
+        case let reference?: "Linked · \(reference.fileName ?? "")"
+        }
+        return .readOnly(label: "File", text: text)
     }
 
     /// An image setting's rows (fields spec §5): "No image chosen", "Embedded · a1b2c3d4" or "Linked · vent-mask.png", then

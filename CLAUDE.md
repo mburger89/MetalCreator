@@ -353,11 +353,11 @@ Module boundaries (dependency order):
   descriptors, dates fixed, Zip64 where a size, offset or count reaches 4 GB, and deflates through `RawDeflater` where
   `canImport(Compression)`, else stores. `MeshStream` is what a Mesh node returns while `EvalContext.meshQuality` is
   `.streamedExport`: the implicit, the resolution and the stages.
-- `CreatorNodes`: the 85 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
-the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the five Mesh nodes (`Implicit/`, categories `NodeCategory.implicit` and
+- `CreatorNodes`: the 86 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
+the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the six Mesh nodes (`Implicit/`, categories `NodeCategory.implicit` and
 `.mesh`: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit, Isosurface, Drain Holes, TPMS, Strut Lattice, Voronoi Lattice
 (`Implicit/Lattices/`: they share `LatticeSetup` and `LatticeFill`, which joins the skin and the lattice by a smooth union of the `blend` input, 0 on a graph saved before 7c-3f; the built-in Voronoi seeds are `VoronoiSeedSource`, drawn with
-`SeededRandom.Purpose.voronoi`); Mesh, Decimate, Check Thin Walls, Check Trapped Volumes, Mesh to Solid in `Implicit/MeshTools`), the seventeen
+`SeededRandom.Purpose.voronoi`); Mesh, Decimate, Check Thin Walls, Check Trapped Volumes, Mesh to Solid, Import Mesh in `Implicit/MeshTools`), the seventeen
   `Patterns` nodes below, and the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
   Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
   parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, cullPattern, cullIndices, image, and `projection(reference)` per projected edge) live in
