@@ -24,9 +24,9 @@ extension Evaluator {
         for (name, value) in node.inputValues.sorted(by: { $0.key < $1.key }) {
             hasher.combine(name)
             hasher.combine(value)
-            // An image is part of the key by what it points at now (fields spec D11): the file's modification date and size
+            // An image or mesh file is part of the key by what it points at now (fields spec D11): the file's modification date and size
             // are read at every evaluation, so a file edited on disk runs the node again and an untouched one does not.
-            if case .image(let reference) = value { hasher.combine(setup.images.stamp(of: reference)) }
+            if let reference = value.fileReference { hasher.combine(setup.images.stamp(of: reference)) }
         }
         // A node that meshes works differently for a preview and for an export, so the two don't share a cached result.
         if definition.readsMeshQuality { hasher.combine(setup.meshQuality) }
@@ -108,6 +108,7 @@ extension Evaluator {
         case let error as KernelError: error.userMessage
         case let error as NodeError: error.message
         case let error as ImageProblem: error.message
+        case let error as MeshImportProblem: error.message
         default: String(describing: error)
         }
     }

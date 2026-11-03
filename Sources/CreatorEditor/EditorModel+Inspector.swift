@@ -113,7 +113,7 @@ extension EditorModel {
         case .ungroup:
             ungroup(node)
         case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
-             .editSketch, .chooseImage, .linkImage, .relinkImage, .embedImage:
+             .editSketch, .chooseImage, .linkImage, .relinkImage, .embedImage, .chooseMeshFile, .relinkMeshFile, .embedMeshFile:
             requestSerial += 1
             setInspectorRequest(InspectorRequest(node: node, action: action, serial: requestSerial))
         }

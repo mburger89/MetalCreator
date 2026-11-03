@@ -21,7 +21,7 @@ public enum CheckTrappedVolumesNode: NodeDefinition {
     ]
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
-        let work = try await MeshInput.checkable(try inputs.scalar("mesh"), socket: "mesh", context: context)
+        let work = try await MeshInput.checkable(try inputs.scalar("mesh"), socket: "mesh", tool: "Check Trapped Volumes", context: context)
         let result: TrappedVolumeCheck.Result
         do {
             result = try await TrappedVolumeCheck.runConcurrently(work.mesh)

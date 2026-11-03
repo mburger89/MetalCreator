@@ -15,6 +15,8 @@ public enum AppCommands {
                     .keyboardShortcut("n")
                 Button("Open…") { model.withFilePicker { await model.openDocument(using: $0) } }
                     .keyboardShortcut("o")
+                Button("Import Mesh…") { model.withFilePicker { await model.importMesh(using: $0) } }
+                    .disabled(!model.canImportMesh)
                 Button("Save") { model.withFilePicker { await model.saveDocument(using: $0) } }
                     .keyboardShortcut("s")
                 Button("Save As…") { model.withFilePicker { await model.saveDocumentAs(using: $0) } }

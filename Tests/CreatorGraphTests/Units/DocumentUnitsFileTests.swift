@@ -39,7 +39,7 @@ struct DocumentUnitsFileTests {
     }
 
     @Test func theFormatIsElevenAndNineStillOpens() throws {
-        #expect(GraphFile.currentFormatVersion == 11, "10: document units")
+        #expect(GraphFile.currentFormatVersion == 12, "10: document units")
         let text = #"{"formatVersion": 9, "graph": {"nodes": []}}"#
         let file = try GraphFileIO.decode(Data(text.utf8), registry: testRegistry)
         #expect(file.formatVersion == 9)

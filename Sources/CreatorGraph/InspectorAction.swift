@@ -13,4 +13,7 @@ public enum InspectorAction: String, Sendable, Codable {
     /// (a file, embedded), "Link Image…" (an embedded picture is saved to a file and linked; with none, an existing file is
     /// linked), "Relink…" (another file for a link) and "Embed Image" (a link's file is read into the document).
     case chooseImage, linkImage, relinkImage, embedImage
+    /// Import Mesh's file (mesh import spec), carried out by the app shell too: "Choose File…" (a file, linked), "Relink…"
+    /// (another file for a link) and "Embed" (a link's file is read into the document).
+    case chooseMeshFile, relinkMeshFile, embedMeshFile
 }

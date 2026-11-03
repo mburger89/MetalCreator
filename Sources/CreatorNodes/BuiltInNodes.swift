@@ -33,6 +33,7 @@ public enum BuiltInNodes {
         DrainHolesNode.self,
         TPMSNode.self, StrutLatticeNode.self, VoronoiLatticeNode.self,
         MeshNode.self, DecimateNode.self, CheckThinWallsNode.self, CheckTrappedVolumesNode.self, MeshToSolidNode.self,
+        ImportMeshNode.self,
         OutputNode.self,
     ]
 

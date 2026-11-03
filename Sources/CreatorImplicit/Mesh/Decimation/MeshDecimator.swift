@@ -6,7 +6,7 @@ import Foundation
 /// tolerance. The cost is the quadric error at the new vertex, a sum of squared distances to the planes of every triangle the vertex
 /// has absorbed, so its square root bounds the distance from the new vertex to each of those planes and the surface never moves
 /// further than `tolerance` from where it was (a flat patch of k triangles costs √k times its noise, so the bound is a little
-/// conservative on noisy flat areas). Vertices on an open edge are pinned: a mesh that is only a piece of a surface (one window of a
+/// conservative on noisy flat areas). Vertices on an open edge, or on an edge shared by more than two faces (an imported mesh can have one), are pinned: a mesh that is only a piece of a surface (one window of a
 /// streamed export) keeps its edge exactly, and the piece beside it fits. A closed mesh stops at a tetrahedron.
 public enum MeshDecimator {
     public struct Output: Sendable {
@@ -17,23 +17,11 @@ public enum MeshDecimator {
         public var collapses: Int
     }
 
-    public enum Failure: Error, Equatable, Sendable {
-        /// An edge has more than two faces.
-        case nonManifold(edges: Int)
-
-        public var userMessage: String {
-            switch self {
-            case .nonManifold(let edges):
-                "The mesh has \(edges.formatted(.number.locale(.messages))) edges with more than two faces, so it can't be simplified."
-            }
-        }
-    }
-
     /// - Parameters:
     ///   - tolerance: the most a collapse may move the surface, in the mesh's units; 0 collapses only what is exactly flat.
-    /// - Throws: `Failure.nonManifold` and `CancellationError`.
+    /// - Throws: `CancellationError`.
     public static func decimate(positions: [SIMD3<Float>], triangles: [UInt32], tolerance: Double) throws -> Output {
-        var state = try MeshDecimationState(positions: positions, triangles: triangles)
+        var state = MeshDecimationState(positions: positions, triangles: triangles)
         try state.run(tolerance: max(tolerance, 0))
         return state.output()
     }

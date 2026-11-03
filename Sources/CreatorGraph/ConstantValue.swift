@@ -19,6 +19,22 @@ public enum ConstantValue: Hashable, Sendable {
     case facePick(FacePick)
     /// An Image Field's picture, embedded or linked (fields spec §5). A setting, never a socket value.
     case image(ImageReference)
+    /// An Import Mesh node's file, embedded or linked (mesh import spec, File setting): the same reference as an image, its
+    /// embedded bytes in the document's `images` table. A setting, never a socket value.
+    case meshFile(ImageReference)
+
+    /// The reference of an `image` or `meshFile` setting: what paths, stamps, hashes and the clipboard read, because both
+    /// kinds are held, resolved and embedded the same way.
+    public var fileReference: ImageReference? {
+        switch self {
+        case .image(let reference), .meshFile(let reference): reference
+        default: nil
+        }
+    }
+
+    private var isMeshFile: Bool {
+        if case .meshFile = self { true } else { false }
+    }
 
     /// False for NaN or ±∞ anywhere. JSON can't store those, so commands reject them.
     public var isFinite: Bool {
@@ -27,18 +43,19 @@ public enum ConstantValue: Hashable, Sendable {
         case .vector(let vector): vector.isFinite
         case .plane(let plane): plane.origin.isFinite && plane.normal.isFinite && plane.xAxis.isFinite
         case .sketch(let sketch): sketch.isFinite
-        case .integer, .bool, .text, .edgePicks, .facePick, .image: true
+        case .integer, .bool, .text, .edgePicks, .facePick, .image, .meshFile: true
         }
     }
 }
 
 extension ConstantValue: Codable {
     private enum CodingKeys: String, CodingKey { case type, value }
-    private enum Kind: String, Codable { case number, integer, bool, vector, plane, text, edgePicks, sketch, facePick, image }
+    private enum Kind: String, Codable { case number, integer, bool, vector, plane, text, edgePicks, sketch, facePick, image, meshFile }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(Kind.self, forKey: .type) {
+        let kind = try container.decode(Kind.self, forKey: .type)
+        switch kind {
         case .number: self = .number(try container.decode(Double.self, forKey: .value))
         case .integer: self = .integer(try container.decode(Int.self, forKey: .value))
         case .bool: self = .bool(try container.decode(Bool.self, forKey: .value))
@@ -48,7 +65,9 @@ extension ConstantValue: Codable {
         case .edgePicks: self = .edgePicks(try container.decode([EdgePick].self, forKey: .value))
         case .sketch: self = .sketch(try container.decode(Sketch.self, forKey: .value))
         case .facePick: self = .facePick(try container.decode(FacePick.self, forKey: .value))
-        case .image: self = .image(try container.decode(ImageReference.self, forKey: .value))
+        case .image, .meshFile:
+            let reference = try container.decode(ImageReference.self, forKey: .value)
+            self = kind == .image ? .image(reference) : .meshFile(reference)
         }
     }
 
@@ -64,7 +83,9 @@ extension ConstantValue: Codable {
         case .edgePicks(let value): try container.encode(Kind.edgePicks, forKey: .type); try container.encode(value, forKey: .value)
         case .sketch(let value): try container.encode(Kind.sketch, forKey: .type); try container.encode(value, forKey: .value)
         case .facePick(let value): try container.encode(Kind.facePick, forKey: .type); try container.encode(value, forKey: .value)
-        case .image(let value): try container.encode(Kind.image, forKey: .type); try container.encode(value, forKey: .value)
+        case .image(let value), .meshFile(let value):
+            try container.encode(isMeshFile ? Kind.meshFile : Kind.image, forKey: .type)
+            try container.encode(value, forKey: .value)
         }
     }
 }

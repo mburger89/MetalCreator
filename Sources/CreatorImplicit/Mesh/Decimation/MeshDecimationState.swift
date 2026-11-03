@@ -15,8 +15,7 @@ struct MeshDecimationState {
     var heap = EdgeHeap()
     var collapses = 0
 
-    /// - Throws: `MeshDecimator.Failure.nonManifold` when an edge has more than two faces.
-    init(positions: [SIMD3<Float>], triangles: [UInt32]) throws {
+    init(positions: [SIMD3<Float>], triangles: [UInt32]) {
         position = positions.map { SIMD3<Double>($0) }
         let count = positions.count
         corners = []
@@ -44,13 +43,13 @@ struct MeshDecimationState {
             incident[b].append(Int32(index))
             incident[c].append(Int32(index))
         }
-        let edges = try pinOpenEdges()
+        let edges = pinOpenEdges()
         heap.reserve(edges.count)
         for (u, v) in edges { if let entry = candidate(u, v, limit: .infinity) { heap.push(entry) } }
     }
 
-    /// Pins the ends of every edge with a single face and returns every distinct edge as (low, high).
-    private mutating func pinOpenEdges() throws -> [(Int, Int)] {
+    /// Pins the ends of every edge that has one face or more than two, and returns every distinct edge as (low, high).
+    private mutating func pinOpenEdges() -> [(Int, Int)] {
         var keys: [UInt64] = []
         keys.reserveCapacity(corners.count * 3)
         for triangle in corners {
@@ -61,22 +60,19 @@ struct MeshDecimationState {
         }
         keys.sort()
         var edges: [(Int, Int)] = []
-        var overfull = 0
         var start = 0
         while start < keys.count {
             var end = start + 1
             while end < keys.count, keys[end] == keys[start] { end += 1 }
             let (low, high) = (Int(keys[start] >> 32), Int(keys[start] & 0xFFFF_FFFF))
             edges.append((low, high))
-            if end - start == 1 {
+            // An edge with one face or with more than two is not a plain surface edge: its ends stay where they are.
+            if end - start != 2 {
                 isPinned[low] = true
                 isPinned[high] = true
-            } else if end - start > 2 {
-                overfull += 1
             }
             start = end
         }
-        if overfull > 0 { throw MeshDecimator.Failure.nonManifold(edges: overfull) }
         return edges
     }
 

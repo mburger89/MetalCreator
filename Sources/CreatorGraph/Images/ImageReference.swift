@@ -1,4 +1,5 @@
-/// Where an Image Field's picture lives (fields spec §5), stored as the node's `NodeSetting.image`.
+/// Where an Image Field's picture lives (fields spec §5), stored as the node's `NodeSetting.image`. An Import Mesh node's file
+/// uses the same reference as `NodeSetting.meshFile` (`ConstantValue.meshFile`), its embedded bytes in the same table.
 public enum ImageReference: Hashable, Sendable {
     /// The file's own PNG or JPEG bytes, stored in the document's `images` table under their hash.
     case embedded(ImageHash)
