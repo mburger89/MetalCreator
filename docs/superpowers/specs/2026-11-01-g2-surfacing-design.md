@@ -299,3 +299,12 @@ sections that the even samples could step over (`span_samples`), so such a span 
 anywhere is then 2.0e-5 mm. No build that passed is refused and none refused now passes. Sections rise by at most 2 on a strip and 1.8 a
 build on average (the rounded ruled loft [14, 15, 13, 15, 15, 15, 15, 15] to [15, 15, 13, 17, 17, 15, 15, 17]; the smooth one is
 unchanged), the same under last-bit changes of the radius.
+
+## Erratum (2026-11-03): kinked joins are only approximately tangent
+
+The kinked-joins erratum called such a join "tangent only", and the node warned "tangent only (G1)". Measured on the ruled rounded loft (sides 20, 17, 16; radius 3; fillet
+radius 1), it isn't, by our own tolerance: the 8 short cross edges where two strips share an end section have an angle gap of 0.19 to 0.22 degrees (the limit is 0.01) and a position gap of
+about 9.3e-5 mm, so `Kernel.continuity` grades them G0. The 16 spring seams beside them read G2. The kink is in OpenCascade's side-face springs (1.68 to 1.84 degrees at z = 9.1) while the loft's own
+faces are G1 across those rulings: both strips share the section, but their along directions at it differ by the kink, and the normals differ by about an eighth of it. A circular fillet of the same edges
+reads G1 there, so a G2 fillet trades 0.2 degrees at the join for G2 along the seams. Making the strips agree would mean moving a spring across a real kink, which isn't worth it for this
+gap, so the warning now says what is true: "N fillet joins are only approximately tangent where the edges kink." (singular "1 fillet join is …"). The promise at these cross edges stays what it was: none is measured.
