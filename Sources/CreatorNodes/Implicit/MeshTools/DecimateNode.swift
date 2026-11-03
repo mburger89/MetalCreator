@@ -37,12 +37,7 @@ public enum DecimateNode: NodeDefinition {
         case .stream(let stream):
             return NodeOutputs(["mesh": .mesh(stream.appending(.decimate(tolerance: tolerance)))], warnings: warnings)
         case .mesh(let input):
-            let output: MeshDecimator.Output
-            do {
-                output = try MeshDecimator.decimate(positions: input.positions, triangles: input.triangles, tolerance: tolerance)
-            } catch let failure as MeshDecimator.Failure {
-                throw NodeError.invalidValue(failure.userMessage)
-            }
+            let output = try MeshDecimator.decimate(positions: input.positions, triangles: input.triangles, tolerance: tolerance)
             let (before, after) = (input.triangleCount, output.triangles.count / 3)
             let note = "\(before.formatted(.number.locale(.messages))) → \(after.formatted(.number.locale(.messages))) triangles"
             let made = input.derived(positions: output.positions, triangles: output.triangles, facts: [PayloadFact("Decimated", note)])

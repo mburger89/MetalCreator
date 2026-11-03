@@ -41,6 +41,12 @@ enum MeshInput {
         }
     }
 
+    /// Refuses a mesh that is not closed, manifold and consistently wound, for a tool that is only defined on a solid. The mesher
+    /// promises such meshes; an imported file does not (mesh import spec, "Downstream: a mesh that isn't closed").
+    static func requireClosed(_ mesh: TriangleMesh, for tool: String) throws {
+        guard EdgeCounts(mesh).isClosed else { throw NodeError.invalidValue("\(tool) needs a closed mesh.") }
+    }
+
     /// What a check works on.
     struct Checkable {
         /// The surface to check, in memory.
@@ -53,11 +59,12 @@ enum MeshInput {
     }
 
     /// A scalar as a mesh in memory for a node that needs the whole surface. A stream is meshed again as a copy
-    /// (`MeshStream.checkCopy`).
-    static func checkable(_ scalar: Scalar, socket: SocketName, context: EvalContext) async throws -> Checkable {
+    /// (`MeshStream.checkCopy`); a mesh that is not closed is refused in `tool`'s name (a stream comes from the mesher, so it is not asked).
+    static func checkable(_ scalar: Scalar, socket: SocketName, tool: String, context: EvalContext) async throws -> Checkable {
         let (value, warnings) = try await Self.value(scalar, socket: socket, context: context)
         switch value {
         case .mesh(let mesh):
+            try requireClosed(mesh, for: tool)
             return Checkable(mesh: mesh, label: CheckWording.label(for: mesh), stream: nil, warnings: warnings)
         case .stream(let stream):
             let selection = await ImplicitEvaluators.make(for: stream.solid, choice: context.implicitEngine)
@@ -73,11 +80,13 @@ enum MeshInput {
 
     /// A scalar as a mesh in memory, at most `limit` triangles, for Mesh to Solid. A stream is meshed into memory with its stages
     /// applied; past the limit it says how many triangles it has.
-    static func collected(_ scalar: Scalar, socket: SocketName, limit: Int,
+    static func collected(_ scalar: Scalar, socket: SocketName, limit: Int, tool: String,
                           context: EvalContext) async throws -> (mesh: TriangleMesh, warnings: [String]) {
         let (value, warnings) = try await Self.value(scalar, socket: socket, context: context)
         switch value {
         case .mesh(let mesh):
+            try MeshToSolidNode.requireWithinLimit(mesh.triangleCount)
+            try requireClosed(mesh, for: tool)
             return (mesh, warnings)
         case .stream(let stream):
             let selection = await ImplicitEvaluators.make(for: stream.solid, choice: context.implicitEngine)
