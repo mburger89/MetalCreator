@@ -119,13 +119,18 @@ while IFS= read -r keg; do
 done < "$WORK/kegs"
 [ "$(awk '{ print $2 }' "$WORK/seen" | grep -vc '/Cellar/' || true)" -eq 0 ] \
     || fail "a bundled library isn't from a Homebrew keg, so its licence is unknown: $(awk '{ print $2 }' "$WORK/seen" | grep -v '/Cellar/' | head -n 1)"
+# MetalCreator's own licence (MIT requires the notice in distributed copies).
+[ -s "$ROOT/LICENSE" ] || fail "MetalCreator's LICENSE is missing from $ROOT"
+mkdir -p "$CONTENTS/Resources/Licenses/MetalCreator"
+cp "$ROOT/LICENSE" "$CONTENTS/Resources/Licenses/MetalCreator/MetalCreator-LICENSE.txt"
 # The code MetalUI compiles into the binary: on macOS with its default (CoreText) text system that is stb_image only
 # (MetalUI's THIRD-PARTY-NOTICES.md, gap P-a).
 METALUI="$ROOT/../MetalUI"
 mkdir -p "$CONTENTS/Resources/Licenses/MetalUI"
-for notice in THIRD-PARTY-NOTICES.md Sources/CStbImage/LICENSE; do
+for notice in LICENSE THIRD-PARTY-NOTICES.md Sources/CStbImage/LICENSE; do
     [ -f "$METALUI/$notice" ] || fail "MetalUI's $notice is missing from $METALUI"
 done
+cp "$METALUI/LICENSE" "$CONTENTS/Resources/Licenses/MetalUI/MetalUI-LICENSE.txt"
 cp "$METALUI/THIRD-PARTY-NOTICES.md" "$CONTENTS/Resources/Licenses/MetalUI/"
 cp "$METALUI/Sources/CStbImage/LICENSE" "$CONTENTS/Resources/Licenses/MetalUI/stb_image-LICENSE"
 printf '    MetalUI: %s\n' "$(ls "$CONTENTS/Resources/Licenses/MetalUI" | tr '\n' ' ')"

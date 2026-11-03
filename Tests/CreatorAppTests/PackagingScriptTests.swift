@@ -21,6 +21,19 @@ struct PackagingScriptTests {
         #expect(bash.terminationStatus == 0, "bash -n \(name)")
     }
 
+    /// MIT requires the notice in distributed copies: each package script copies the root `LICENSE` into the package as
+    /// `MetalCreator-LICENSE.txt`, and the macOS verifier requires it. The AppImage is packed from the Linux tarball's tree.
+    @Test(arguments: ["scripts/package-app.sh", "scripts/package-linux.sh", "scripts/package-windows.ps1"])
+    func thePackageShipsMetalCreatorsLicense(_ name: String) throws {
+        let text = try String(contentsOf: Self.repository.appending(path: name), encoding: .utf8)
+        #expect(text.contains("MetalCreator-LICENSE.txt"), "\(name) must ship MetalCreator-LICENSE.txt")
+        #expect(text.contains("\"$ROOT/LICENSE\"") || text.contains("Join-Path $root 'LICENSE'"), "\(name) must copy the root LICENSE")
+        let verifier = try String(contentsOf: Self.repository.appending(path: "scripts/verify-app.sh"), encoding: .utf8)
+        #expect(verifier.contains("MetalCreator/MetalCreator-LICENSE.txt"))
+        #expect(text.contains("MetalUI-LICENSE.txt"), "\(name) must ship MetalUI-LICENSE.txt")
+        #expect(verifier.contains("MetalUI/MetalUI-LICENSE.txt"))
+    }
+
     /// `<repo>`, found from this file (`Tests/CreatorAppTests/PackagingScriptTests.swift`).
     private static let repository = URL(filePath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
