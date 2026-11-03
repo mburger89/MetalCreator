@@ -165,17 +165,31 @@ struct ImperfectMeshTests {
 
     // MARK: Section
 
-    @Test(arguments: Imperfection.allCases) func sectionDrawsOpenOutlines(_ imperfection: Imperfection) {
-        let corners = imperfection.faces.flatMap { [$0.0, $0.1, $0.2] }
-        var positions: [Vector3] = []
-        var indices: [UInt32] = []
-        for point in corners {
-            indices.append(UInt32(positions.count))
-            positions.append(Vector3(Double(point.x), Double(point.y), Double(point.z)))
-        }
-        let plane = Plane(origin: Vector3(0, 0, 3), normal: .unitZ, xAxis: .unitX)
-        let section = MeshSlicer.slice(positions: positions, triangles: indices, plane: plane)
-        // Whatever the imperfection, the cut answers with something to draw and does not trap or crash.
-        #expect(!section.regions.isEmpty || !section.openOutlines.isEmpty, "\(imperfection)")
+    /// The section of `imperfection`'s welded mesh by the horizontal plane at `z`.
+    func section(_ imperfection: Imperfection, z: Double) -> PlaneSection {
+        let welded = ExactWeld.weld(corners: imperfection.faces.flatMap { [$0.0, $0.1, $0.2] })
+        let positions = welded.positions.map { Vector3(Double($0.x), Double($0.y), Double($0.z)) }
+        let plane = Plane(origin: Vector3(0, 0, z), normal: .unitZ, xAxis: .unitX)
+        return MeshSlicer.slice(positions: positions, triangles: welded.triangles, plane: plane)
+    }
+
+    @Test func sectionDrawsOpenOutlines() {
+        // Closed tetrahedron: one cap, no open outline (the reference for the others).
+        let closed = MeshSlicer.slice(positions: ExactWeld.weld(corners: Self.tetra.flatMap { [$0.0, $0.1, $0.2] }).positions
+            .map { Vector3(Double($0.x), Double($0.y), Double($0.z)) },
+                                      triangles: ExactWeld.weld(corners: Self.tetra.flatMap { [$0.0, $0.1, $0.2] }).triangles,
+                                      plane: Plane(origin: Vector3(0, 0, 3), normal: .unitZ, xAxis: .unitX))
+        #expect(closed.regions.count == 1 && closed.openOutlines.isEmpty)
+        // Open (the slanted face is missing): the hole crosses the plane, so the cut is one open outline of the two faces left.
+        let open = section(.open, z: 3)
+        #expect(open.regions.isEmpty && open.openOutlines.count == 1, "\(open)")
+        // Over-full: the fin lies below the base, so a cut at z = 3 is the tetrahedron's, and a cut at z = -2 goes through the fin alone.
+        let throughTetra = section(.overfull, z: 3)
+        #expect(throughTetra.regions.count == 1 && throughTetra.openOutlines.isEmpty, "\(throughTetra)")
+        let throughFin = section(.overfull, z: -2)
+        #expect(throughFin.regions.isEmpty && throughFin.openOutlines.count == 1, "\(throughFin)")
+        // Flipped: one face is wound the wrong way; the cut still closes and does not trap or lose an outline.
+        let flipped = section(.flipped, z: 3)
+        #expect(flipped.regions.count + flipped.openOutlines.count == 1, "\(flipped)")
     }
 }
