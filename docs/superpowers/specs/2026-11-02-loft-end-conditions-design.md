@@ -95,3 +95,10 @@ sections' corners as creases, as today's loft does.
 
 The column count and pairing details, the B-spline approximation tolerance of the skin, the pick session's target plumbing, and the
 inspector layout within the existing controls.
+
+## Errata
+
+- **2026-11-02 (pick warnings name the end).** The Messages bullet said the pick's warnings read "as Face Pattern's"; with two picks that left no way to tell which
+  end a warning meant. The loft's wording is `FacePickWording`'s with the end in it (`LoftEndSetup.mergedPick(_:)`, `unnamedPick(_:)`, `severalPicks(_:_:)`):
+  unnamed, subject "loft's start face" / "loft's end face"; merged, "The loft starts on" / "The loft ends on"; several, "the loft starts on" / "the loft ends on".
+  Plane from Face's and Face Pattern's text is unchanged.
