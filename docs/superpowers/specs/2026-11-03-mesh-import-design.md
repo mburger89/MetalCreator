@@ -1,6 +1,6 @@
 # Mesh import — design
 
-Status: draft, written 2026-11-03 without a question round, while the user was away. It follows "Later" in `2026-11-01-zebra-design.md` and
+Status: approved by the user 2026-11-03; written that day without a question round, while the user was away. It follows "Later" in `2026-11-01-zebra-design.md` and
 `2026-11-01-g2-surfacing-design.md` ("Mesh import (STL, 3MF), so imported meshes can be checked with zebra too"). The implicit spec's non-goal
 "Importing STL or 3MF as inputs" is lifted by this document; its other non-goals stand. The only thing the user has stated is that request.
 Everything else is marked **(call)** and is open to change.
