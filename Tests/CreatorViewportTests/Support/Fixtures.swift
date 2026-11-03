@@ -37,7 +37,7 @@ actor StubMeshKernel: Kernel {
         throw KernelError.unsupported("revolve")
     }
 
-    func loft(_ sections: [Profile2D], ruled: Bool, tag: NodeTag) throws -> Solid {
+    func loft(_ sections: [Profile2D], ruled: Bool, part: Solid?, start: LoftEnd?, end: LoftEnd?, tag: NodeTag) throws -> Solid {
         throw KernelError.unsupported("loft")
     }
 

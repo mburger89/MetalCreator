@@ -35,14 +35,21 @@ public enum NodeSetting {
     /// Image Field: its picture, as `.image(ImageReference)` (fields spec §5). Absent until one is chosen.
     public static let image: SocketName = "image"
 
+    /// Loft: the faces of the part its first and last sections come from, as `.facePick(topology.facePick(for:))`.
+    public static let startFace: SocketName = "startFace"
+    public static let endFace: SocketName = "endFace"
+
     public static let all: Set<SocketName> = [
-        parameter, picks, showHandle, sketch, face, group, pathRule, branchPath, itemPath, cullPattern, cullIndices, image
+        startFace, endFace, parameter, picks, showHandle, sketch, face, group, pathRule, branchPath, itemPath, cullPattern,
+        cullIndices, image,
     ]
 
     /// The setting names no group socket and no exposed Sketch dimension may use, because those nodes keep their settings beside
     /// their inputs' values. `image` is left out on purpose: only Image Field has it, and a Sketch node or a group whose socket
-    /// is called "image" (a file made before 7b-2 may have one) keeps working exactly as it did.
-    public static let reservedForSockets: Set<SocketName> = all.subtracting([image])
+    /// is called "image" (a file made before 7b-2 may have one) keeps working exactly as it did. `startFace` and `endFace` are left
+    /// out for the same reason: only Loft has them, and a file made before the loft's end conditions may name a group socket or an
+    /// exposed Sketch dimension "startFace".
+    public static let reservedForSockets: Set<SocketName> = all.subtracting([image, startFace, endFace])
 
     /// The start of every projection setting's name, which no exposed dimension may use.
     public static let projectionPrefix = "projection."

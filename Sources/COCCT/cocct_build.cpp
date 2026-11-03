@@ -1,4 +1,5 @@
 #include "cocct_internal.hpp"
+#include "cocct_profile.hpp"
 
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
@@ -32,27 +33,25 @@ using namespace cocct;
 
 namespace {
 
-/// A profile turned into a planar face, with each loop's edges in segment order (loop 0 = outer).
-struct built_profile {
-    TopoDS_Face face;
-    std::vector<std::vector<TopoDS_Edge>> loops;
-};
-
 /// One loop turned into a wire, with its edges in segment order.
 struct built_loop {
     TopoDS_Wire wire;
     std::vector<TopoDS_Edge> edges;
 };
 
-gp_Ax2 frame_of(const occt_plane &plane) {
+} // namespace
+
+gp_Ax2 cocct::frame_of(const occt_plane &plane) {
     return gp_Ax2(gp_Pnt(plane.origin[0], plane.origin[1], plane.origin[2]),
                   gp_Dir(plane.normal[0], plane.normal[1], plane.normal[2]),
                   gp_Dir(plane.x_axis[0], plane.x_axis[1], plane.x_axis[2]));
 }
 
-gp_Pnt point_on(const gp_Ax2 &frame, double x, double y) {
+gp_Pnt cocct::point_on(const gp_Ax2 &frame, double x, double y) {
     return gp_Pnt(frame.Location().XYZ() + frame.XDirection().XYZ() * x + frame.YDirection().XYZ() * y);
 }
+
+namespace {
 
 TopoDS_Edge build_edge(const gp_Ax2 &frame, const occt_segment &segment) {
     if (segment.kind == 0) {
@@ -128,7 +127,9 @@ double signed_area(const occt_loop &loop) {
     return twice / 2;
 }
 
-built_profile build_profile(const occt_profile &profile) {
+} // namespace
+
+built_profile cocct::build_profile(const occt_profile &profile) {
     if (!profile.loops || profile.loop_count <= 0) {
         throw user_error("the profile has no segments");
     }
@@ -167,6 +168,8 @@ built_profile build_profile(const occt_profile &profile) {
     return result;
 }
 
+namespace {
+
 double volume_of(const TopoDS_Shape &shape) {
     GProp_GProps properties;
     BRepGProp::VolumeProperties(shape, properties);
@@ -183,9 +186,9 @@ TopoDS_Solid oriented_solid(TopoDS_Solid solid) {
     return solid;
 }
 
-/// Orients every solid in `shape` (a solid, or a compound of solids). Face identities are kept,
-/// so history recorded against the builder still matches the result.
-TopoDS_Shape oriented(const TopoDS_Shape &shape) {
+} // namespace
+
+TopoDS_Shape cocct::oriented(const TopoDS_Shape &shape) {
     if (shape.ShapeType() == TopAbs_SOLID) {
         return oriented_solid(TopoDS::Solid(shape));
     }
@@ -199,8 +202,6 @@ TopoDS_Shape oriented(const TopoDS_Shape &shape) {
     }
     return any ? TopoDS_Shape(compound) : shape;
 }
-
-} // namespace
 
 extern "C" {
 

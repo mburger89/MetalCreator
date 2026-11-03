@@ -21,9 +21,25 @@ public struct PickSession {
     public var level: [NodeID]
     /// The lattice node a face is being picked for, or `nil` when this picks edges.
     public var lattice: NodeID?
+    /// The Loft node and end a face is being picked for, or `nil`.
+    public var loftEnd: LoftEndTarget?
+
+    /// The Loft end a face pick sets: the loft's `startFace` or `endFace`.
+    public struct LoftEndTarget: Equatable {
+        public var loft: NodeID
+        public var isStart: Bool
+
+        public init(loft: NodeID, isStart: Bool) {
+            self.loft = loft
+            self.isStart = isStart
+        }
+    }
+
+    /// Whether this picks one face for a node (a lattice's or a loft's end) rather than edges.
+    public var picksFace: Bool { lattice != nil || loftEnd != nil }
 
     public init(solid: Solid, source: Endpoint, rule: NodeID?, consumer: Endpoint?, picked: [EdgeID], level: [NodeID] = [],
-                lattice: NodeID? = nil) {
+                lattice: NodeID? = nil, loftEnd: LoftEndTarget? = nil) {
         self.solid = solid
         self.source = source
         self.rule = rule
@@ -31,6 +47,7 @@ public struct PickSession {
         self.picked = picked
         self.level = level
         self.lattice = lattice
+        self.loftEnd = loftEnd
     }
 
     /// Adds `edge`, or removes it if it's already picked.

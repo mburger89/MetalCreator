@@ -112,7 +112,8 @@ extension EditorModel {
             makeUnique(node)
         case .ungroup:
             ungroup(node)
-        case .pickEdgesInView, .pickFacesInView, .editSketch, .chooseImage, .linkImage, .relinkImage, .embedImage:
+        case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
+             .editSketch, .chooseImage, .linkImage, .relinkImage, .embedImage:
             requestSerial += 1
             setInspectorRequest(InspectorRequest(node: node, action: action, serial: requestSerial))
         }
