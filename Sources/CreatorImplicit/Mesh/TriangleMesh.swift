@@ -22,10 +22,13 @@ public struct TriangleMesh: MeshPayload, Sendable {
     public var meshingSeconds: Double
     /// Lines a mesh tool added for the inspector (implicit spec §5.2): "Decimated: 5,678 → 1,234 triangles", "Thinnest wall: 0.52 mm".
     public var extraFacts: [PayloadFact]
+    /// The angle in degrees above which the edge between two faces is drawn sharp (mesh import spec, "The display: hard edges"); `nil`
+    /// shades every vertex smooth, as the mesher's output is. Display only: no tool reads it, and geometry never changes with it.
+    public var creaseAngle: Double?
 
     public init(positions: [SIMD3<Float>], normals: [SIMD3<Float>] = [], triangles: [UInt32], resolution: Double = 0,
                 quality: MeshQuality = .preview, highlights: [MeshHighlight] = [], source: MeshSource? = nil, meshingSeconds: Double = 0,
-                extraFacts: [PayloadFact] = [], id: UUID = UUID()) {
+                extraFacts: [PayloadFact] = [], creaseAngle: Double? = nil, id: UUID = UUID()) {
         self.id = id
         self.positions = positions
         self.normals = normals
@@ -36,6 +39,7 @@ public struct TriangleMesh: MeshPayload, Sendable {
         self.source = source
         self.meshingSeconds = meshingSeconds
         self.extraFacts = extraFacts
+        self.creaseAngle = creaseAngle
     }
 
     public var vertexCount: Int { positions.count }
@@ -102,17 +106,19 @@ public struct TriangleMesh: MeshPayload, Sendable {
 
     /// A mesh a tool made from this one (Decimate): the new geometry, a new ID, the resolution and quality of this mesh, and no
     /// `source` (the progressive preview refines what a Mesh node made, never what a tool changed). The tool's own lines for the
-    /// inspector replace this mesh's.
+    /// inspector replace this mesh's. It keeps the `creaseAngle`: a decimated CAD part still draws its edges sharp.
     public func derived(positions: [SIMD3<Float>], normals: [SIMD3<Float>] = [], triangles: [UInt32],
                         facts: [PayloadFact] = []) -> TriangleMesh {
         TriangleMesh(positions: positions, normals: normals, triangles: triangles, resolution: resolution, quality: quality,
-                     highlights: [], source: nil, meshingSeconds: meshingSeconds, extraFacts: facts)
+                     highlights: [], source: nil, meshingSeconds: meshingSeconds, extraFacts: facts,
+                     creaseAngle: creaseAngle)
     }
 
     /// The same geometry after a check (Check Thin Walls, Check Trapped Volumes): a new ID, so the viewport shows the flagged mesh
     /// and not the one it came from, with the flagged triangles, and no `source`.
     public func checked(highlights: [MeshHighlight], facts: [PayloadFact]) -> TriangleMesh {
         TriangleMesh(positions: positions, normals: normals, triangles: triangles, resolution: resolution, quality: quality,
-                     highlights: highlights, source: nil, meshingSeconds: meshingSeconds, extraFacts: extraFacts + facts)
+                     highlights: highlights, source: nil, meshingSeconds: meshingSeconds, extraFacts: extraFacts + facts,
+                     creaseAngle: creaseAngle)
     }
 }

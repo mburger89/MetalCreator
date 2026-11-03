@@ -77,11 +77,15 @@ public enum ImportMeshNode: NodeDefinition {
             PayloadFact("File", file),
         ]
         let mesh = TriangleMesh(positions: positions, triangles: source.triangles, resolution: 0, quality: .export, source: nil,
-                                extraFacts: facts)
+                                extraFacts: facts, creaseAngle: displayCreaseAngle)
         let warnings = warnings(open: counts.open, overfull: counts.overfull, flipped: counts.flipped,
                                 dropped: imported.droppedTriangles, triangles: source.triangleCount)
         return (mesh, warnings)
     }
+
+    /// An edge between faces that turn more than this many degrees draws sharp, so a CAD part's edges look hard (mesh import spec, "The
+    /// display: hard edges"); a scan or a sphere has no such edge and stays smooth.
+    static let displayCreaseAngle = 30.0
 
     /// What is wrong with the mesh, in the words of the spec, each with its singular.
     static func warnings(open: Int, overfull: Int, flipped: Int, dropped: Int, triangles: Int) -> [String] {

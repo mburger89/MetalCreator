@@ -49,6 +49,14 @@ struct ImportMeshNodeTests {
         #expect(report.isOK(node))
     }
 
+    @Test func theMeshDrawsItsSharpEdgesHard() async throws {
+        let (h, node, images) = embedded(Self.stl(Self.tetra))
+        let made = try mesh(await h.run([node], images: images), node)
+        #expect(made.creaseAngle == 30)
+        let kept = made.checked(highlights: [], facts: [])
+        #expect(kept.creaseAngle == 30)
+    }
+
     @Test func noFileChosenSaysSo() async throws {
         var h = Harness()
         let node = h.add(ImportMeshNode.self)
