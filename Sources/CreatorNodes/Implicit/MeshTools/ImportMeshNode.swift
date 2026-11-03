@@ -29,15 +29,17 @@ public enum ImportMeshNode: NodeDefinition {
             throw NodeError.invalidValue("“units” must be From file, mm, cm, m or in.")
         }
         let plane = try inputs.plane("placement")
-        guard plane.origin.isFinite, let normal = plane.normal.normalized, let across = plane.xAxis.normalized,
-              normal.cross(across).normalized != nil else { throw NodeError.invalidValue("“placement” has no direction.") }
+        guard plane.origin.isFinite, let normal = plane.normal.normalized,
+              let across = (plane.xAxis - normal * plane.xAxis.dot(normal)).normalized
+        else { throw NodeError.invalidValue("“placement” has no direction.") }
         let resolver = context.images
         let imported = try await ImportedMeshCache.shared.mesh(for: resolver.stamp(of: reference)) {
             try parse(resolver.mappedBytes(of: reference))
         }
         let unit = Plane(origin: plane.origin, normal: normal, xAxis: across)
         let scale = units.millimetres ?? imported.unit ?? 1
-        let made = try placed(imported, on: unit, scale: scale, file: reference.fileName ?? "Embedded")
+        let made = try placed(imported, on: unit, scale: scale, file: reference.fileName ?? "Embedded",
+                              isCancelled: { Task.isCancelled })
         return NodeOutputs(["mesh": .mesh(made.mesh)], warnings: made.warnings)
     }
 
@@ -49,13 +51,14 @@ public enum ImportMeshNode: NodeDefinition {
     /// The imported mesh scaled by `scale` and moved onto `plane`, in `Double` and narrowed to `Float` once; a coordinate that is
     /// not finite then is `coordinatesOverflow`.
     private static func placed(_ imported: ImportedMesh, on plane: Plane, scale: Double,
-                               file: String) throws -> (mesh: TriangleMesh, warnings: [String]) {
+                               file: String, isCancelled: () -> Bool) throws -> (mesh: TriangleMesh, warnings: [String]) {
         let source = imported.mesh
         let (across, up, normal) = (plane.xAxis, plane.yAxis, plane.normal)
         var positions: [SIMD3<Float>] = []
         positions.reserveCapacity(source.positions.count)
         var low = SIMD3<Double>(repeating: .infinity), high = SIMD3<Double>(repeating: -.infinity)
-        for p in source.positions {
+        for (index, p) in source.positions.enumerated() {
+            if index % 64_000 == 0, isCancelled() { throw CancellationError() }
             let local = SIMD3<Double>(Double(p.x), Double(p.y), Double(p.z)) * scale
             low = pointwiseMin(low, local)
             high = pointwiseMax(high, local)
@@ -90,7 +93,7 @@ public enum ImportMeshNode: NodeDefinition {
         }
         if flipped > 0 {
             let one = flipped == 1
-            found.append("\(flipped.display) \(one ? "face is" : "faces are") flipped against \(one ? "its" : "their") neighbours.")
+            found.append("\(flipped.display) \(one ? "edge joins" : "edges join") faces flipped against each other.")
         }
         if dropped > 0 {
             found.append("\(dropped.display) degenerate \(dropped == 1 ? "triangle was" : "triangles were") dropped.")

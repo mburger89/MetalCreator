@@ -88,7 +88,7 @@ struct ImportMeshNodeTests {
         let cases: [(Data, String)] = [
             (Self.stl(open), "This mesh isn't closed: 3 open edges."),
             (Self.stl(overfull), "This mesh has 1 edge shared by more than two faces."),
-            (Self.stl(flippedFaces), "3 faces are flipped against their neighbours."),
+            (Self.stl(flippedFaces), "3 edges join faces flipped against each other."),
             (Self.stl(degenerate), "1 degenerate triangle was dropped."),
         ]
         for (data, text) in cases {
@@ -102,7 +102,7 @@ struct ImportMeshNodeTests {
         #expect(ImportMeshNode.warnings(open: 1, overfull: 0, flipped: 0, dropped: 0, triangles: 4)
                 == ["This mesh isn't closed: 1 open edge."])
         #expect(ImportMeshNode.warnings(open: 0, overfull: 2, flipped: 1, dropped: 2, triangles: 4)
-                == ["This mesh has 2 edges shared by more than two faces.", "1 face is flipped against its neighbours.",
+                == ["This mesh has 2 edges shared by more than two faces.", "1 edge joins faces flipped against each other.",
                     "2 degenerate triangles were dropped.",
                 ])
         #expect(ImportMeshNode.warnings(open: 0, overfull: 0, flipped: 0, dropped: 0, triangles: 2_000_000).isEmpty)
@@ -130,6 +130,25 @@ struct ImportMeshNodeTests {
             // x becomes the plane's x axis (world y), y becomes world -x, z stays up.
             #expect(q == SIMD3<Float>(1 - p.y, 2 + p.x, 5 + p.z), "\(p)")
         }
+    }
+
+    private func distance(_ a: SIMD3<Float>, _ b: SIMD3<Float>) -> Float {
+        let d = a - b
+        return (d.x * d.x + d.y * d.y + d.z * d.z).squareRoot()
+    }
+
+    @Test func aSkewedPlacementStaysRigid() async throws {
+        let skewed = Plane(origin: Vector3(1, 2, 3), normal: .unitZ, xAxis: Vector3(1, 0, 1))
+        let (h, node, images) = embedded(Self.stl(Self.tetra), ["placement": .plane(skewed)])
+        let (plain, plainNode, plainImages) = embedded(Self.stl(Self.tetra))
+        let before = try mesh(await plain.run([plainNode], images: plainImages), plainNode)
+        let after = try mesh(await h.run([node], images: images), node)
+        for (i, j) in [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)] {
+            let was = distance(before.positions[i], before.positions[j])
+            let now = distance(after.positions[i], after.positions[j])
+            #expect(abs(was - now) < 1e-4)
+        }
+        #expect(abs(after.signedVolume - before.signedVolume) < 1e-3)
     }
 
     @Test func movingPlacementDoesNotReadTheFileAgain() async throws {
