@@ -204,6 +204,24 @@ extension G2FilletCoverageTests {
     /// depended on last-bit choices, `9a47817`; it builds on macOS and Linux).
     @Test func aSmoothRoundedLoftChainBuilds() throws {
         let built = try base.build(try loft([20, 17, 16], rounded: true, ruled: false), midpoints: [[0, -8, 10]], radius: 1)
+        print("G2COVER smooth rounded loft: strips \(built.report.strips) sections \(base.helper.sectionCounts(built.report))")
         base.expectSpringsG2(built, seams: 2 * Int(built.report.strips))
+    }
+
+    /// The smooth rounded loft's section counts don't move with a last-bit change of the radius either: its springs'
+    /// pieces meet with a jump in curvature next to each strip's end, where the skin now breaks instead of chasing the
+    /// jump with sections, and its strips pair their springs by their shared parameter, not by a projection that could
+    /// find another extremum by the last bit (the first strip took 14 or 16 sections on Linux).
+    @Test func aSmoothRoundedLoftChainSurvivesLastBitRadiusChanges() throws {
+        let shape = try loft([20, 17, 16], rounded: true, ruled: false)
+        var all: [[Int]] = []
+        for e in [0, 1e-14, -1e-12, 1e-10, 1e-8] {
+            let built = try base.build(shape, midpoints: [[0, -8, 10]], radius: 1 * (1 + e))
+            let counts = base.helper.sectionCounts(built.report).map { Int($0) }
+            print("G2COVER smooth last-bit e=\(e): sections \(counts)")
+            base.expectSpringsG2(built, seams: 2 * Int(built.report.strips))
+            all.append(counts)
+        }
+        #expect(Set(all).count == 1, "section counts differ across last-bit radius changes: \(all)")
     }
 }
