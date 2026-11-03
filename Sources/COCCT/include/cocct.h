@@ -234,6 +234,9 @@ typedef struct {
     double corner_min_sine;          // the least sine of the angle between the parameter curves (regular: > 0)
     int corner_attempts;             // corners a patch was tried on, accepted or not
 } occt_g2_report;
+/// The gaps between the two faces of edge `edge_index` (1-based, as in the topology), read at `samples` + 1 points evenly
+/// along it, ends included. 0 if the edge does not border exactly two faces. For tests.
+int occt_edge_seam_dense(const occt_shape *shape, int edge_index, int samples, occt_g2_seam *seam);
 /// Fillets like occt_fillet, then replaces each strip's surface with quintic G2 sections whose end tangent lengths are
 /// `weight` times the circle's. Sections start at 9 per strip and double until the strip's spring seams measure inside
 /// half the tolerances; past 129 the call fails ("The fillet can't be made curvature continuous at this radius.").
