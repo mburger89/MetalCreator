@@ -34,7 +34,7 @@ public enum ImportMeshNode: NodeDefinition {
         else { throw NodeError.invalidValue("“placement” has no direction.") }
         let resolver = context.images
         let imported = try await ImportedMeshCache.shared.mesh(for: resolver.stamp(of: reference)) {
-            try parse(resolver.mappedBytes(of: reference))
+            try parse(resolver.meshFileBytes(of: reference))
         }
         let unit = Plane(origin: plane.origin, normal: normal, xAxis: across)
         let scale = units.millimetres ?? imported.unit ?? 1

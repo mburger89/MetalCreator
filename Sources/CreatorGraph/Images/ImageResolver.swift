@@ -93,7 +93,7 @@ public struct ImageResolver: Sendable {
     /// Opens `url` for reading and checks what was opened: the path was checked a moment ago by `stamp(of:)`, but a path can
     /// be swapped for something else between that check and this open, so the file is opened without blocking (a named pipe
     /// would otherwise hold the caller until someone wrote to it) and its descriptor must be a regular file, whatever the path
-    /// was, of at most `limit` bytes. Shared by image reads and mesh file reads (`mappedBytes`); the caller closes the handle.
+    /// was, of at most `limit` bytes. Shared by image reads and mesh file reads (`meshFileBytes`); the caller closes the handle.
     static func openedRegularFile(_ url: URL, name: String, limit: Int) throws(ImageProblem) -> (handle: FileHandle, size: Int) {
         let handle: FileHandle
         #if os(Windows)
@@ -151,12 +151,13 @@ public struct ImageResolver: Sendable {
 
     // MARK: Mesh files
 
-    /// The bytes behind a mesh file's `reference` (mesh import spec, Reading and Limits): the embedded bytes, or a linked file
-    /// mapped into memory (`Data.alwaysMapped`, so a file of up to `MeshImportLimits.maxFileBytes` costs address space, not
-    /// memory, until it is read). A path that names anything but a regular file is refused before it is mapped, by the checks
-    /// `read` makes on the opened descriptor, and a file over the limit is refused without being read. An embedded file shares
-    /// the document's `images` table with the pictures.
-    public func mappedBytes(of reference: ImageReference) throws(MeshImportProblem) -> Data {
+    /// The bytes behind a mesh file's `reference` (mesh import spec, Reading and Limits): the embedded bytes, or a linked file read
+    /// whole through the one descriptor that was opened and checked (a regular file of at most `MeshImportLimits.maxFileBytes`; a
+    /// folder, a device or a pipe is refused, and a file over the limit is refused without being read). The file is read, not
+    /// mapped: a mapped file that another program truncates while it is parsed ends the process with SIGBUS, and a file is
+    /// untrusted. A file that shrinks after its size was taken gives the bytes that were there, which the reader then judges.
+    /// An embedded file shares the document's `images` table with the pictures.
+    public func meshFileBytes(of reference: ImageReference) throws(MeshImportProblem) -> Data {
         switch reference {
         case .embedded(let hash):
             guard let data = embedded[hash] else { throw .embeddedMissing }
@@ -169,27 +170,34 @@ public struct ImageResolver: Sendable {
             case .notAFile:
                 throw .notAFile(name: name)
             case .file(let path, _, _):
-                return try Self.mapped(URL(filePath: path).resolvingSymlinksInPath(), name: name)
+                return try Self.readMeshFile(URL(filePath: path).resolvingSymlinksInPath(), name: name)
             case .embedded:
                 throw .embeddedMissing
             }
         }
     }
 
-    /// The bytes of the file at `url` as a mesh file to choose or embed, with the same bounds as `mappedBytes(of:)`.
-    public static func mappedBytes(ofFileAt url: URL) throws(MeshImportProblem) -> Data {
-        try ImageResolver().mappedBytes(of: .linked(relativePath: nil, absolutePath: url.path(percentEncoded: false)))
+    /// The bytes of the file at `url` as a mesh file to choose or embed, with the same bounds as `meshFileBytes(of:)`.
+    public static func meshFileBytes(ofFileAt url: URL) throws(MeshImportProblem) -> Data {
+        try ImageResolver().meshFileBytes(of: .linked(relativePath: nil, absolutePath: url.path(percentEncoded: false)))
     }
 
-    private static func mapped(_ url: URL, name: String) throws(MeshImportProblem) -> Data {
+    private static func readMeshFile(_ url: URL, name: String) throws(MeshImportProblem) -> Data {
+        let handle: FileHandle
+        let size: Int
         do throws(ImageProblem) {
-            let (handle, _) = try openedRegularFile(url, name: name, limit: MeshImportLimits.maxFileBytes)
-            try? handle.close()
+            (handle, size) = try openedRegularFile(url, name: name, limit: MeshImportLimits.maxFileBytes)
         } catch {
             throw Self.meshProblem(error)
         }
+        defer { try? handle.close() }
+        return try meshFileBytes(from: handle, size: size, name: name)
+    }
+
+    /// Up to `size` bytes from `handle`, which `openedRegularFile` opened and measured: no second open by path, so no swap race.
+    static func meshFileBytes(from handle: FileHandle, size: Int, name: String) throws(MeshImportProblem) -> Data {
         do {
-            return try Data(contentsOf: url, options: .alwaysMapped)
+            return try handle.read(upToCount: size) ?? Data()
         } catch {
             throw .unreadable(name: name, reason: error.localizedDescription)
         }

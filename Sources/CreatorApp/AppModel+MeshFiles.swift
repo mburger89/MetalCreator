@@ -103,12 +103,10 @@ extension AppModel {
         if case .file(_, _, let size) = document.imageResolver.stamp(of: reference), size > MeshImportLimits.maxEmbeddedBytes {
             throw AppProblem("That mesh file can't be used", MeshImportLimits.embeddingRefusal)
         }
-        let mapped = try document.imageResolver.mappedBytes(of: reference)
-        guard mapped.count <= MeshImportLimits.maxEmbeddedBytes else {
+        let bytes = try document.imageResolver.meshFileBytes(of: reference)
+        guard bytes.count <= MeshImportLimits.maxEmbeddedBytes else {
             throw AppProblem("That mesh file can't be used", MeshImportLimits.embeddingRefusal)
         }
-        // A copy, so the document does not hold the file mapped.
-        let bytes = mapped.withUnsafeBytes { Data($0) }
         try setMeshFile(.embedded(document.addImage(bytes)), on: target, named: UndoName.embedMeshFile)
     }
 

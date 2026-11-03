@@ -13,7 +13,7 @@ enum MeshProbeNode: NodeDefinition {
 
     static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         guard case .meshFile(let reference)? = context.node.inputValues[NodeSetting.meshFile] else { throw MeshImportProblem.notChosen }
-        return NodeOutputs(["size": .integer(try context.images.mappedBytes(of: reference).count)])
+        return NodeOutputs(["size": .integer(try context.images.meshFileBytes(of: reference).count)])
     }
 }
 
@@ -128,10 +128,12 @@ struct MeshFileSettingTests {
 
     @Test func aPathToAFolderOrDeviceIsRefused() throws {
         let name = folder.url.lastPathComponent
-        #expect(throws: MeshImportProblem.notAFile(name: name)) { try ImageResolver.mappedBytes(ofFileAt: folder.url) }
+        #expect(throws: MeshImportProblem.notAFile(name: name)) { try ImageResolver.meshFileBytes(ofFileAt: folder.url) }
+        #if !os(Windows)
         #expect(throws: MeshImportProblem.notAFile(name: "zero")) {
-            try ImageResolver.mappedBytes(ofFileAt: URL(filePath: "/dev/zero"))
+            try ImageResolver.meshFileBytes(ofFileAt: URL(filePath: "/dev/zero"))
         }
+        #endif
     }
 
     @Test func aFileOverOneGigabyteIsRefusedWithoutReading() throws {
@@ -141,20 +143,33 @@ struct MeshFileSettingTests {
         try handle.close()
         let attributes = try FileManager.default.attributesOfItem(atPath: file.path(percentEncoded: false))
         try #require((attributes[.size] as? NSNumber)?.intValue == MeshImportLimits.maxFileBytes + 1, "sparse files aren't supported here")
-        #expect(throws: MeshImportProblem.tooLarge) { try ImageResolver.mappedBytes(ofFileAt: file) }
+        #expect(throws: MeshImportProblem.tooLarge) { try ImageResolver.meshFileBytes(ofFileAt: file) }
     }
 
     @Test func aMissingFileSaysSoWithoutTheWordImage() throws {
         let path = folder.url.appending(path: "meshes/part.stl")
-        let problem = try #require(throws: MeshImportProblem.self) { try ImageResolver.mappedBytes(ofFileAt: path) }
+        let problem = try #require(throws: MeshImportProblem.self) { try ImageResolver.meshFileBytes(ofFileAt: path) }
         #expect(problem.message.hasPrefix("File 'part.stl' wasn't found at "))
         #expect(problem.message.hasSuffix("/meshes/. Relink it in the inspector."))
         #expect(!problem.message.replacing(folder.url.path(percentEncoded: false), with: "").lowercased().contains("image"))
-        #expect(throws: MeshImportProblem.embeddedMissing) { try ImageResolver().mappedBytes(of: .embedded(ImageHash(of: bytes))) }
+        #expect(throws: MeshImportProblem.embeddedMissing) { try ImageResolver().meshFileBytes(of: .embedded(ImageHash(of: bytes))) }
     }
 
-    @Test func aMappedFileHasItsBytes() throws {
+    /// A mapped file truncated while it is parsed is a SIGBUS; a read file is whatever was read. The file is cut after the
+    /// descriptor was opened and its size taken, with no timing involved.
+    @Test func aFileTruncatedAfterItsSizeWasReadDoesNotCrash() throws {
+        let file = try folder.write(Data(repeating: 0x61, count: 4_096), to: "cut.stl")
+        let (handle, size) = try ImageResolver.openedRegularFile(file, name: "cut.stl", limit: MeshImportLimits.maxFileBytes)
+        defer { try? handle.close() }
+        let cutter = try FileHandle(forWritingTo: file)
+        try cutter.truncate(atOffset: 100)
+        try cutter.close()
+        let data = try ImageResolver.meshFileBytes(from: handle, size: size, name: "cut.stl")
+        #expect(size == 4_096 && data.count == 100)
+    }
+
+    @Test func aFileHasItsBytes() throws {
         let file = try folder.write(bytes, to: "part.stl")
-        #expect(try ImageResolver.mappedBytes(ofFileAt: file) == bytes)
+        #expect(try ImageResolver.meshFileBytes(ofFileAt: file) == bytes)
     }
 }
