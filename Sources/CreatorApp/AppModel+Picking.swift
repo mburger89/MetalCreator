@@ -28,6 +28,8 @@ extension AppModel {
             beginSketch(for: request.node)
         case .chooseImage, .linkImage, .relinkImage, .embedImage:
             handleImage(request)
+        case .chooseMeshFile, .relinkMeshFile, .embedMeshFile:
+            handleMeshFile(request)
         case .editGroup, .makeUnique, .ungroup:
             break  // The graph panel carries these out itself (`EditorModel.press`); they are never recorded.
         }

@@ -231,7 +231,7 @@ public struct ImageResolver: Sendable {
     }
 
     /// The folder part of a path, written with a closing slash ("/Users/me/textures/").
-    static func folder(ofPath path: String) -> String {
+    public static func folder(ofPath path: String) -> String {
         URL(filePath: path).deletingLastPathComponent().path(percentEncoded: false)
     }
 }
