@@ -58,7 +58,7 @@ public final class DocumentModel {
         didSet { if let lock = zebra?.lock, !lock.isFinite { self.zebra = oldValue } }
     }
 
-    /// The document's embedded images by hash (fields spec §5): everything embedded or pasted this session plus what the file
+    /// The document's embedded images by hash (fields spec §5; an Import Mesh node's embedded file is held here too): everything embedded or pasted this session plus what the file
     /// held. An image stays here while the session lasts, so undo can bring back a node that uses it; a save writes only the
     /// ones nodes use now (`fileData`).
     public private(set) var images: [ImageHash: Data]
