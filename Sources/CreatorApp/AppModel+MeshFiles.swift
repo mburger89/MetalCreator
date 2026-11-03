@@ -11,7 +11,8 @@ extension AppModel {
     /// isn't an STL or 3MF." on the node.
     static let meshTypes: [ContentType] = [.stl]
 
-    /// File ▸ Import Mesh… is offered unless a sketch or a pick session is running, or another file panel of this document is open (that state is unobserved, so the menu item doesn't read it).
+    /// File ▸ Import Mesh… is offered unless a sketch or a pick session is running. This answers those two only: whether another file
+    /// panel of this document is open is unobserved state, so the menu item doesn't read it, and `importMesh` guards a second panel itself.
     public var canImportMesh: Bool { sketch == nil && pick == nil }
 
     /// A mesh file button of the inspector (`EditorModel.inspectorRequest`): nothing happens before the window has given the app its

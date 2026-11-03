@@ -48,11 +48,11 @@ public enum NodeSetting {
     ]
 
     /// The setting names no group socket and no exposed Sketch dimension may use, because those nodes keep their settings beside
-    /// their inputs' values. `image` is left out on purpose: only Image Field has it, and a Sketch node or a group whose socket
+    /// their inputs' values. `image` is left out on purpose: only Image Field has it (`meshFile`, only Import Mesh's, likewise), and a Sketch node or a group whose socket
     /// is called "image" (a file made before 7b-2 may have one) keeps working exactly as it did. `startFace` and `endFace` are left
     /// out for the same reason: only Loft has them, and a file made before the loft's end conditions may name a group socket or an
     /// exposed Sketch dimension "startFace".
-    public static let reservedForSockets: Set<SocketName> = all.subtracting([image, startFace, endFace])
+    public static let reservedForSockets: Set<SocketName> = all.subtracting([image, meshFile, startFace, endFace])
 
     /// The start of every projection setting's name, which no exposed dimension may use.
     public static let projectionPrefix = "projection."

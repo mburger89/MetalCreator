@@ -52,17 +52,44 @@ struct MeshFileSettingTests {
         #expect(file.images == [hash: bytes])
     }
 
-    @Test func formatsOneToElevenOpenUnchanged() throws {
-        let hash = ImageHash(of: bytes)
-        let data = try document([probe(.embedded(hash))], images: [hash: bytes]).fileData()
-        for version in 1...11 {
-            var object = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    /// A file as format 11 wrote it: no `meshFile` anywhere, and a node that is not the probe's own.
+    private static let formatEleven = """
+    {
+      "definitions" : [],
+      "formatVersion" : 11,
+      "graph" : {
+        "links" : [],
+        "nodes" : [
+          {
+            "id" : "3F2504E0-4F89-41D3-9A0C-0305E82C3301", "inputValues" : {}, "isOutput" : false, "name" : "Mesh Probe",
+            "position" : { "x" : 40, "y" : 20 }, "typeID" : "test.meshProbe", "typeVersion" : 1
+          },
+          {
+            "id" : "6BA7B810-9DAD-11D1-80B4-00C04FD430C8", "inputValues" : {}, "isOutput" : true, "name" : "Mesh Probe",
+            "position" : { "x" : 240, "y" : 60 }, "typeID" : "test.meshProbe", "typeVersion" : 1
+          }
+        ],
+        "parameters" : []
+      },
+      "viewState" : { "canvasOffset" : { "x" : 0, "y" : 0 }, "canvasZoom" : 1, "dock" : "left", "showsLibrary" : true }
+    }
+    """
+
+    @Test func aFormat11FileOpensUnchangedAndIsWrittenAs12() throws {
+        let old = try reopened(Data(Self.formatEleven.utf8))
+        #expect(old.formatVersion == 11)
+        #expect(old.graph.nodes.count == 2 && old.images.isEmpty)
+        #expect(old.graph.nodes.values.allSatisfy { $0.inputValues[NodeSetting.meshFile] == nil })
+        // The same graph, written and read today, is the same graph.
+        let today = try reopened(try document(Array(old.graph.nodes.values)).fileData())
+        #expect(today.formatVersion == 12)
+        #expect(today.graph == old.graph)
+        // And the earlier versions' numbers open too.
+        var object = try #require(try JSONSerialization.jsonObject(with: Data(Self.formatEleven.utf8)) as? [String: Any])
+        for version in 1...10 {
             object["formatVersion"] = version
-            let old = try JSONSerialization.data(withJSONObject: object)
-            #expect(try reopened(old).formatVersion == version)
+            #expect(try reopened(try JSONSerialization.data(withJSONObject: object)).graph == old.graph)
         }
-        let plain = try JSONSerialization.data(withJSONObject: ["formatVersion": 11, "graph": ["nodes": [], "links": []]])
-        #expect(try reopened(plain).formatVersion == 11)
     }
 
     @Test func anEmbeddedMeshFileIsWrittenOnlyWhenUsedAndSurvivesAnEmbeddedSizeOverAPicturesLimit() throws {

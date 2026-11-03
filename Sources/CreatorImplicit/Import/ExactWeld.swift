@@ -11,7 +11,8 @@ public enum ExactWeld {
     /// `corners` are three per triangle. A triangle with a repeated vertex has no area and is dropped, and counted.
     public static func weld(corners: [SIMD3<Float>]) -> (positions: [SIMD3<Float>], triangles: [UInt32], dropped: Int) {
         var indexOf: [Key: UInt32] = [:]
-        indexOf.reserveCapacity(corners.count / 2)
+        // A closed mesh has about one vertex per six corners; the table grows if a file has more.
+        indexOf.reserveCapacity(corners.count / 6)
         var positions: [SIMD3<Float>] = []
         var triangles: [UInt32] = []
         triangles.reserveCapacity(corners.count)

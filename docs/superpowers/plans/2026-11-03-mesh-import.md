@@ -17,7 +17,7 @@
 These change no behaviour the spec promises.
 
 1. **One embedded table.** `ConstantValue.meshFile` holds an `ImageReference`, and embedded mesh bytes sit in the document's existing `images` table and pool, which are keyed by hash and don't care what the bytes are. There is no `MeshFileReference` and no `meshFiles` table. This replaces a parallel copy of the reference, resolver, table, pool, clipboard and evaluator plumbing.
-2. **Mapped files.** A file is read as `Data(contentsOf:options:.alwaysMapped)` under the 1 GB limit, which gives the zip reader random access without holding the file. The zip reader is extended, and no `FileHandle` reader is added.
+2. **Files are read, not mapped** (final review, spec erratum 2). A file is read whole into `Data` through the descriptor `openedRegularFile` opened and checked, under the 1 GB limit; a mapped file truncated during a parse is a SIGBUS. The zip reader is extended and works over that `Data`.
 3. **`EdgeCounts`.** Closed-ness comes from a sort-based count of edges (below), since the checks call it on every run and `MeshTopology`'s dictionaries are slow at these sizes.
 
 ## Global Constraints
@@ -68,7 +68,7 @@ These change no behaviour the spec promises.
 **Interfaces, produces:**
 - `ConstantValue.meshFile(ImageReference)`, and `ConstantValue.fileReference: ImageReference?`, which answers for both `.image` and `.meshFile`. Every site that matched `.image(let reference)` for paths, stamps, hashes or the clipboard now reads `fileReference`.
 - `NodeSetting.meshFile`, name `"meshFile"`, added to `reservedForSockets`.
-- `ImageResolver.mappedBytes(of: ImageReference) throws(MeshImportProblem) -> Data`: embedded bytes, or a mapped regular file up to `maxFileBytes`, with the regular-file and descriptor checks `read` has. `ImageResolver.mappedBytes(ofFileAt: URL)` likewise.
+- `ImageResolver.mappedBytes(of: ImageReference) throws(MeshImportProblem) -> Data`: embedded bytes, or a regular file read whole up to `maxFileBytes` through the descriptor the regular-file checks opened. `ImageResolver.meshFileBytes(ofFileAt: URL)` likewise. (Named `mappedBytes` before the final review.)
 
 - [ ] **Step 1: Write the failing tests.** `aMeshFileSettingRoundTripsAtFormat12` (linked and embedded); `formatsOneToElevenOpenUnchanged`; `anEmbeddedMeshFileIsWrittenOnlyWhenUsed`; `aLinkedMeshFileEditedOnDiskRunsItsNodeOnce` (nothing else runs); `savingElsewhereRewritesARelativePath`; `theClipboardCarriesAnEmbeddedMeshFile`; `aPathToAFolderOrDeviceIsRefused`; `aFileOverOneGigabyteIsRefusedWithoutReading` (a sparse temp file, skipped where sparse files aren't); `aMissingFileSaysSoWithoutTheWordImage`.
 - [ ] **Step 2: Run** `swift test --filter MeshFileSettingTests`. Expected: FAIL.
@@ -80,7 +80,7 @@ These change no behaviour the spec promises.
 
 **Files:** Create `Sources/CreatorNodes/Implicit/MeshTools/ImportMeshNode.swift`, `ImportedMeshCache.swift`, `ImportUnits.swift`. Modify `Sources/CreatorNodes/BuiltInNodes.swift`, `Sources/CreatorGraph/InspectorControl.swift` (`.meshFile(SocketName)`). Test `Tests/CreatorNodesTests/ImportMeshNodeTests.swift`.
 
-**Interfaces, consumes:** `STLReader`, `ImageResolver.mappedBytes`. **Produces:**
+**Interfaces, consumes:** `STLReader`, `ImageResolver.meshFileBytes`. **Produces:**
 - `ImportMeshNode`, typeID `creator.importMesh`, display name "Import Mesh", category `.mesh`. Inputs `placement` (`.plane`, default `.xy`), `units` (`.integer`, default 0, `.segmented` over `ImportUnits.options`: "From file", "mm", "cm", "m", "in"). Output `mesh`, list. Inspector sections "File" (`.meshFile(NodeSetting.meshFile)`) and "Placement" (`.planePicker("placement")`, `.segmented("units")`). `readsMeshQuality` stays false.
 - `actor ImportedMeshCache { static let shared; func mesh(for stamp: ImageStamp, read: @Sendable () throws -> ImportedMesh) async throws -> ImportedMesh }`: 1 GB LRU on `estimatedBytes`, at most 256 remembered failures, a read error not remembered, the shape of `GreyImageCache`.
 - Output meshes: `quality: .export`, `resolution: 0`, `source: nil`, `creaseAngle: 30` once Task 5 lands, and `extraFacts` Triangles, Vertices, Size ("x × y × z mm"), Closed ("Yes" or "No"), File.
@@ -161,7 +161,7 @@ These change no behaviour the spec promises.
 
 **Files:** Modify `Sources/CreatorImplicit/Export/ZipReader.swift`. Test `Tests/CreatorImplicitTests/ZipReaderForeignTests.swift`.
 
-**Interfaces, produces:** `ZipReader(data: Data)` over mapped bytes; `content(of: Entry, limit: Int) throws -> Data`, which refuses a declared size above `limit` before allocating and uses `Inflate`, on every platform; the CRC is still checked. Entries with data descriptors, as other tools write, read from the central directory. Keep the existing API for the tests that use it.
+**Interfaces, produces:** `ZipReader(data: Data)` over the file's bytes; `content(of: Entry, limit: Int) throws -> Data`, which refuses a declared size above `limit` before allocating and uses `Inflate`, on every platform; the CRC is still checked. Entries with data descriptors, as other tools write, read from the central directory. Keep the existing API for the tests that use it.
 
 - [ ] **Step 1: Write the failing tests.** `aForeignZipReads` (deflated, with a data descriptor, carried as bytes); `aDeclaredSizeOverTheLimitIsRefusedBeforeAllocating`; `aZip64EntryReads`; `aBadCRCIsRefused`; `aCentralDirectoryPointingOutsideTheFileIsRefused`; `overlappingEntriesAreRefused`; `encryptedEntriesAreRefused` (flag bit 0).
 - [ ] **Step 2: Run** `swift test --filter ZipReaderForeignTests`. Expected: FAIL.

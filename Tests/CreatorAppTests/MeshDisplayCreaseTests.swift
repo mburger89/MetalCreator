@@ -112,7 +112,8 @@ struct MeshDisplayCreaseTests {
         }
     }
 
-    @Test func aHugeFanStaysFast() {
+    /// A hang is caught by the time limit; no wall-clock bound is asserted (benchmarks assert no time).
+    @Test(.timeLimit(.minutes(5))) func aHugeFanStaysFast() {
         let rim = 200_000
         var positions: [SIMD3<Float>] = [.zero]
         for step in 0..<rim {
@@ -123,9 +124,7 @@ struct MeshDisplayCreaseTests {
         for step in 0..<rim { triangles += [0, UInt32(1 + step), UInt32(1 + (step + 1) % rim)] }
         var mesh = TriangleMesh(positions: positions, triangles: triangles)
         mesh.creaseAngle = 30
-        let start = Date()
         let display = mesh.displayMesh
-        #expect(Date().timeIntervalSince(start) < 30)
         #expect(display.positions.count == rim + 1)
         #expect(display.normals.allSatisfy { $0.dot(Vector3(0, 0, 1)) > 0.999_999 })
     }

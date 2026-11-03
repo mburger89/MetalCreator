@@ -340,7 +340,7 @@ Module boundaries (dependency order):
   `swift test --filter CreatorImplicitTests`.
   The mesh tools (7c-3, `Mesh/`): `MeshDecimator` is quadric error edge collapse (`Quadric`, `EdgeHeap`, `MeshDecimationState`): a
   collapse is refused when it breaks the link condition, flips a face or costs more than the tolerance (the cost is the quadric error
-  at the new vertex, so its square root bounds the distance to every triangle plane absorbed), vertices on an open edge are pinned, and
+  at the new vertex, so its square root bounds the distance to every triangle plane absorbed), vertices on an open or over-full edge are pinned, and
   a closed mesh stops at a tetrahedron. `ThinWallCheck` (a ray inwards from each vertex against `TriangleBVH`, the far side must
   face back; the two sides of a wall are one place; a hit under 0.05 mm on a face that touches the vertex's one-ring is the mesh folding on itself and is skipped, Errata D18), `TrappedVolumeCheck` over `OccupancyGrid` (0.5 mm cells within a 32-million-cell
   budget, Errata D16; solid within half a cell of the surface, the cells near the surface from `unsignedDistance`) and `EnclosedVoids` (flood fill from the padded corner; with `isInside` it asks the winding number about five cells of each pocket, judged once the pocket has 4,096 cells listed, and drops a pocket that is inside the material, once per pocket and never per cell: per cell it is 23 to 35 times slower, Errata D18), and `DrainHoles`
@@ -356,13 +356,13 @@ Module boundaries (dependency order):
   descriptors, dates fixed, Zip64 where a size, offset or count reaches 4 GB, and deflates through `RawDeflater` where
   `canImport(Compression)`, else stores. `MeshStream` is what a Mesh node returns while `EvalContext.meshQuality` is
   `.streamedExport`: the implicit, the resolution and the stages.
-  Mesh import (`Import/`, mesh import spec): `STLReader` reads binary and ASCII STL (the file mapped, not held; limits checked from the header),
-  `ExactWeld` welds by exact position and drops degenerate triangles, and `ImportedMesh` carries the result with its facts. `ImportMeshNode`
+  Mesh import (`Import/`, mesh import spec): `STLReader` reads binary and ASCII STL (the file is read whole through the one descriptor that was opened and checked, never mapped, since a mapped file truncated mid-parse is a SIGBUS; ASCII is scanned by token, keywords in any case; limits are checked from the header and the size, and a count above the limit that the size cannot hold is `notAMeshFile`),
+  `ExactWeld` welds by exact position and drops degenerate triangles, and `ImportedMesh` carries the mesh (the node makes the facts). `ImportMeshNode`
   (`CreatorNodes/Implicit/MeshTools`) holds the file as `ConstantValue.meshFile`, an `ImageReference` whose embedded bytes live in the document's
   `images` table (no table of its own), and warns about open, over-full and flipped edges. `EdgeCounts` (`Mesh/`) counts open, over-full and flipped
   edges by sorting edge keys, and is edge-only: a bow-tie vertex passes it, so Mesh to Solid and Check Trapped Volumes refuse such a mesh on their own.
-  `TriangleMesh`'s watertight and manifold promise is the Mesh node's alone now; an imported mesh may be open, flipped or over-full, and every consumer
-  checks `EdgeCounts` itself.
+  `TriangleMesh`'s watertight and manifold promise is the Mesh node's alone now; an imported mesh may be open, flipped or over-full; the tools that need a closed mesh refuse through `MeshInput.requireClosed`
+  (`EdgeCounts`), and Section, Measure, Decimate and STL export deliberately don't.
 - `CreatorNodes`: the 86 built-in node definitions (`BuiltInNodes.registry`: the slice's 26, Plane from Face and Sketch,
 the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the six Mesh nodes (`Implicit/`, categories `NodeCategory.implicit` and
 `.mesh`: Sphere, Box, Cylinder, Union, Subtract, Intersect, Shell, Offset, To Implicit, Isosurface, Drain Holes, TPMS, Strut Lattice, Voronoi Lattice
@@ -370,7 +370,7 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the six Mes
 `SeededRandom.Purpose.voronoi`); Mesh, Decimate, Check Thin Walls, Check Trapped Volumes, Mesh to Solid, Import Mesh in `Implicit/MeshTools`), the seventeen
   `Patterns` nodes below, and the seven Lists & Trees nodes in `Lists/`: Flatten, Graft, Partition, Tree Statistics, List Item, Branch by Path and Path
   Mapper, whose rule syntax is `Lists/PathMapper/PathRule`), UI-free: inspector sections and handles are data. Non-socket settings (`NodeSetting` in CreatorGraph:
-  parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, cullPattern, cullIndices, image, and `projection(reference)` per projected edge) live in
+  parameter, picks, showHandle, sketch, face, groupID, pathRule, branchPath, itemPath, cullPattern, cullIndices, image, meshFile, and `projection(reference)` per projected edge) live in
   `Node.inputValues`; `NodeRegistry.makeNode` seeds `defaultSettings` and sets `isOutput` for `.output`-category nodes.
   - Patterns (`Sources/CreatorNodes/Patterns`, category `NodeCategory.patterns`, library section "Patterns"; patterns spec §3, §5–§7):
     The layouts (`Patterns/Layouts`): Linear Pattern (a flat list), Grid Pattern (a tree, a branch per row), Circular

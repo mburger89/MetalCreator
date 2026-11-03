@@ -24,7 +24,7 @@ actor ImportedMeshCache {
     }
 
     /// The mesh for `stamp`: the kept one, else what `read` makes (and keeps, when the stamp names a definite thing).
-    func mesh(for stamp: ImageStamp, read: @Sendable () throws -> ImportedMesh) async throws -> ImportedMesh {
+    func mesh(for stamp: ImageStamp, read: @Sendable () throws -> ImportedMesh) throws -> ImportedMesh {
         clock += 1
         if let kept = entries[stamp] {
             entries[stamp] = (kept.mesh, clock)

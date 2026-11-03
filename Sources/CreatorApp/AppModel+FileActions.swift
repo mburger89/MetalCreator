@@ -16,6 +16,7 @@ extension AppModel {
     /// Runs `body` as the file action of `node` on the level shown, unless the node isn't there or an action of this document is
     /// already running (one at a time per document, so a second press while a panel is open does nothing). A typed value is
     /// committed first. Returns what `body` threw, for the caller to say in its own words.
+    @_optimize(none) // Windows Swift 6.4 release: keeps the closure-specialised coroutine clones (compiler crash) from being made.
     func withFileAction(on node: NodeID, _ body: (FileActionTarget) async throws -> Void) async -> (any Error)? {
         editor.commitPendingEntry()
         let key = ObjectIdentifier(document)
