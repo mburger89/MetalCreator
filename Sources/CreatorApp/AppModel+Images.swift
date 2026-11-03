@@ -41,7 +41,8 @@ extension AppModel {
             case .linkImage: try await linkImage(target, using: picker)
             case .relinkImage: try await relinkImage(target, using: picker, named: UndoName.relinkImage)
             case .embedImage: try embedImage(target)
-            case .pickEdgesInView, .pickFacesInView, .editSketch, .editGroup, .makeUnique, .ungroup: break
+            case .pickEdgesInView, .pickFacesInView, .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace,
+                 .editSketch, .editGroup, .makeUnique, .ungroup: break
             }
         } catch let problem as AppProblem {
             alert = .problem(problem)

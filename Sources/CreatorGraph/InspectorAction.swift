@@ -1,6 +1,9 @@
 /// An inspector button's effect, carried out by the editor or viewport.
 public enum InspectorAction: String, Sendable, Codable {
     case pickEdgesInView, pickFacesInView
+    /// A Loft's face ends: "Pick Start Face in View…" and "Pick End Face in View…" (the app shell picks on the wired part) and the
+    /// buttons that clear them.
+    case pickLoftStartFace, pickLoftEndFace, clearLoftStartFace, clearLoftEndFace
     /// "Edit sketch" (sketcher spec §8): the app shell opens the node's sketch in the viewport.
     case editSketch
     /// "Edit Group", "Make Unique" and "Ungroup" on a group node (groups spec §6): the graph panel carries them out

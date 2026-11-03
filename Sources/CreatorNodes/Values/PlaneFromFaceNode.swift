@@ -19,11 +19,9 @@ public enum PlaneFromFaceNode: NodeDefinition {
     static let unreadablePick = "This plane's picked face can't be read. Pick the face again."
     static let noMatch = "The picked face isn't on this solid any more. Pick it again."
     static let notFlat = "The picked face isn't flat, so it has no plane."
-    static let unnamedPick = "The picked face has no stable name, so the plane may move to a different face "
-        + "when the model changes. Pick it again after the change."
+    static let unnamedPick = FacePickWording.unnamed("plane")
 
-    static let mergedPick = "The picked face was merged with a face from another part of the model that has since changed, "
-        + "so it isn't clear which part was picked. The plane sits on the closest one; pick the face again to settle it."
+    static let mergedPick = FacePickWording.merged("The plane sits on")
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
         let solid = try inputs.solid("solid")
@@ -46,7 +44,7 @@ public enum PlaneFromFaceNode: NodeDefinition {
         if resolution.isAmbiguous {
             warnings.append(mergedPick)
         } else if matches.count > 1 {
-            warnings.append("The pick matches \(matches.count.display) faces; the plane is on the first.")
+            warnings.append(FacePickWording.several(matches.count, "the plane is on"))
         }
         if pick.touchesUnnamedFace { warnings.append(unnamedPick) }
         return NodeOutputs(["plane": .plane(FacePlane.plane(origin: face.centroid, normal: normal))], warnings: warnings)

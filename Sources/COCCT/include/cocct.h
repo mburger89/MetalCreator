@@ -254,6 +254,46 @@ occt_shape *occt_fillet_g2(const occt_shape *shape, const int *edge_indices, int
 int occt_g2_section_test(const double end0[9], double len0, const double end1[9], double len1, double t, double out[9]);
 /// The circle's cubic-equivalent end derivative length for a chord and a turning angle (radians).
 double occt_g2_tangent_length(double chord, double turning_angle);
+/// SPIKE (G-d). One end of an end-constrained loft: `face_index` is a 1-based face of the part (OCCT's indexed face map);
+/// below 1 the end has no face. `continuity` 0 Free, 1 Tangent (G1), 2 Curvature (G2); `weight` (> 0) scales the
+/// across-tangent length, the fillet's circular-arc convention (occt_g2_tangent_length).
+typedef struct {
+    int face_index;
+    int continuity;
+    double weight;
+} occt_loft_end;
+#define OCCT_LOFT_MAX_SEGMENTS 32
+typedef struct {
+    int segments;                          // side patches (the loop's edges)
+    int columns[OCCT_LOFT_MAX_SEGMENTS];   // columns each patch needed (0 for a ThruSections loft)
+    int max_columns;                       // the most any patch needed
+    int seams_total;                       // face-end seams judged on the built solid (one per loop edge per face end)
+    int seams_judged;                      // 1 once every promised seam met its tolerance (else the call failed)
+    occt_g2_seam worst_seam;               // the worst face-end seam on the built solid
+    double side_gap;                       // the worst distance between neighbouring side patches along their shared column
+    double section_gap;                    // the worst distance between a patch and its sections' curves
+    int used_thru_sections;                // 1 when every end was Free and OCCT's ThruSections built the loft
+} occt_loft_report;
+/// Lofts from an optional face of `part` (start), through `count` profiles, to an optional face of `part` (end); at
+/// least two sections in all; a face's outer loop is its section. Sections are paired segment by segment and points
+/// along them by the fraction of their parameter; a face loop runs in its wire's order from its edge with the lowest
+/// index, then is turned to wind the same way as the section next to it (by vector area) and started at the edge whose
+/// rotation best matches that section's vertices (least squares about the loops' centres; the first such rotation on a
+/// tie; a one-edge closed loop, a circle, starts at the point nearest the paired section's start). A face that is not flat
+/// is refused ("The loft's end face must be flat."), as is a weight that loops a column back ("The tangency weight is too
+/// large for this loft."). With every end Free it is occt_loft's ThruSections (a face end through the face's own edges). With Tangent or
+/// Curvature at a face end the loft is skinned here: per segment, columns across the sections as quintic C4 B-splines
+/// (one chord-length knot vector for the whole loft), the face end's first derivative = weight x the circular length
+/// along the part's adjacent face's direction away from the part, its second derivative from that face's normal
+/// curvature (G2) or the third derivative zero (G1); Free ends the natural conditions (third and fourth derivatives
+/// zero). Columns start at 9 per segment and a span that misses gets its middle (129 in all at most) until the face-end seams (half tolerances) and the sections
+/// fit; the built solid's face-end seams are then judged at the full tolerances ("The loft can't meet the part tangent
+/// (G1) here." / "The loft can't meet the part with matching curvature (G2) here."). History as occt_loft: caps
+/// (a face end's cap is a copy of the face), sides OCCT_FROM_SEGMENT (operand 0, index = the paired segment).
+occt_shape *occt_loft_ends(const occt_shape *part, const occt_loft_end *start, const occt_loft_end *end,
+                           const occt_profile *sections, int count, occt_history *history, occt_loft_report *report,
+                           occt_status *status);
+
 /// Equal-distance chamfer of the edges; same history contract as occt_fillet.
 occt_shape *occt_chamfer(const occt_shape *shape, const int *edge_indices, int count, double distance,
                          occt_history *history, occt_status *status);

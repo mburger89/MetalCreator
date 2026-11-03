@@ -58,20 +58,6 @@ public actor OCCTKernel: Kernel {
         return try build("revolve", inputs: [], tag: tag) { try OCCTShape.revolve(profile, axis: axis, angle: angle) }
     }
 
-    public func loft(_ sections: [Profile2D], ruled: Bool, tag: NodeTag) throws -> Solid {
-        try Task.checkCancellation()
-        guard sections.count >= 2 else { throw KernelError.invalidInput("A loft needs at least two sections.") }
-        guard sections.allSatisfy(\.holes.isEmpty) else {
-            throw KernelError.loftWithHoles
-        }
-        guard Set(sections.map(\.segments.count)).count == 1 else {
-            throw KernelError.invalidInput("Every loft section needs the same number of segments.")
-        }
-        for section in sections { try Self.validate(section.plane) }
-        guard sections.allSatisfy(\.isClosed) else { throw KernelError.invalidInput("The profile is not a closed loop.") }
-        return try build("loft", inputs: [], tag: tag) { try OCCTShape.loft(sections, ruled: ruled) }
-    }
-
     public func boolean(_ op: BooleanOp, _ a: Solid, _ b: [Solid], tag: NodeTag) throws -> Solid {
         try Task.checkCancellation()
         guard !b.isEmpty else { throw KernelError.invalidInput("Connect at least one tool solid.") }

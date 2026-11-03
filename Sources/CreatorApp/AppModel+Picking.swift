@@ -13,6 +13,8 @@ extension AppModel {
             beginPick(for: request.node)
         case .pickFacesInView:
             beginFacePick(for: request.node)
+        case .pickLoftStartFace, .pickLoftEndFace, .clearLoftStartFace, .clearLoftEndFace:
+            handleLoftEnd(request)
         case .editSketch:
             // Only a double click on the graph canvas can ask while a sketch is open (the inspector shows the
             // sketch's lists then): it changes nothing, so the stroke, selection and camera stay (Errata (S5b)).
@@ -71,7 +73,7 @@ extension AppModel {
         // The level changed and `refreshScene` hasn't cancelled the pick yet: its nodes belong to another graph.
         guard session.level == editor.levelPath else { return }
         // A face pick (for a lattice's region) never writes an Edges by Tag rule.
-        guard session.lattice == nil else { return }
+        guard !session.picksFace else { return }
         let picks = ConstantValue.edgePicks(session.solid.topology.picks(for: session.picked))
         do {
             if let rule = session.rule {
@@ -112,6 +114,10 @@ extension AppModel {
             finishFacePick(for: lattice, session, target)
             return
         }
+        if let end = session.loftEnd {
+            finishLoftFacePick(end, session, target)
+            return
+        }
         guard case .edge(let index, let edge)? = target, viewport.items.indices.contains(index),
               viewport.items[index].solid === session.solid else { return }
         session.toggle(edge)
@@ -124,7 +130,7 @@ extension AppModel {
         guard viewport.items.indices.contains(face.solidIndex) else { return }
         let solid = viewport.items[face.solidIndex].solid
         if var session = pick {
-            guard session.lattice == nil, solid === session.solid else { return }
+            guard !session.picksFace, solid === session.solid else { return }
             session.add(edges)
             pick = session
             return

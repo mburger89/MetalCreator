@@ -250,3 +250,27 @@ strip carried on has its B-spline surface extended exactly and in place first (t
 range, the old range's parameters unchanged), so no pcurve leaves its surface's domain and meshers and STEP readers see an ordinary face. The side is the quintic through
 six points of it: exact on an extrusion, refused when it misses by more than 1e-7 mm. The acceptance checks and tolerances are unchanged,
 and so is the G1 refill for a corner the patch is not accepted for.
+
+## Erratum (2026-11-02): the skin along a strip
+
+Construction step 4 left the skin's degree along the strip open ("cubic or higher"). It was OpenCascade's cubic interpolation
+(`GeomAPI_Interpolate`), and three things around it, not the sections, set how many sections a strip needed. A closed strip's periodic
+interpolation estimates the tangent at its junction from a few neighbouring points, so a hole edge's angle gap sat at that one section
+and fell only eightfold per doubling: it needed all 129 sections. OpenCascade's own fillet makes a spring of pieces that meet with a
+jump in speed and curvature a hair from the strip's ends (where the edges it rounds change from a line to an arc, 0.3 to 0.9 % of the
+strip in); a smooth skin chases that kink with sections it can never resolve, and the projected pcurve that hides the jump in speed
+needed them too. And pairing the second spring by projection let a section near a strip's end find the wrong extremum by the last bit
+of the radius (the smooth rounded loft's first strip took 14 or 16 sections on Linux).
+
+Now every pole row is our own spline (de Boor's averaged knots; periodic with a knot at each section on a closed strip): a cubic at the
+first sections and, if that misses, a quintic from then on, so between sections the error falls with the sixth power of the spacing
+(the cubic first because a strip that passes with it is cheaper to mesh and check: the bracket's G2 edit to preview is about 339 ms
+against 361 before, where quintics throughout took 423). A strip has a section at every interior knot of either spring where the
+curve's first or second derivative jumps (a "break"), with the skin and both pcurves in separate pieces joined there; a strip whose
+springs have more breaks than the cap allows sections is skinned without them. Two springs sampled over one parameter range are the two
+sides of OpenCascade's strip, parametrized by its spine, and are paired by that parameter; the projection pairs the others, pinned to
+B's own parameter at the breaks as at the ends. Tolerances, the 129 cap, the seams judged on the final solid, history and the corner
+patches are unchanged. Sections, before and after: hole edge 129 to 17, notch arc edge 34 to 15, 270-degree arc 37 to 19, slanted arc 63
+to 21, tangent chain [9, 9, 35] to [9, 9, 15], chain into the wall [9, 19, 19, 9, 9] to 9 each, the rounded ruled loft [27, 23 × 7] to
+[14, 25, 25, 15, 15, 25, 25, 15] (its arc strips' angle gap levels off near the tolerance from about 17 sections with either skin, a
+floor not traced to its source), the smooth rounded loft [22, 27, 23, 21, 21, 27, 27, 21] to [14, 19, 19, 17, 17, 19, 19, 17].
