@@ -38,7 +38,7 @@ codesign --verify --deep --strict "$APP" || fail "codesign --verify --deep --str
 codesign -dv "$APP" 2>&1 | grep -E '^(Identifier|Signature|Authority|TeamIdentifier)=' | sed 's/^/    /'
 
 step "notices"
-for notice in MetalUI/THIRD-PARTY-NOTICES.md MetalUI/stb_image-LICENSE; do
+for notice in MetalCreator/MetalCreator-LICENSE.txt MetalUI/MetalUI-LICENSE.txt MetalUI/THIRD-PARTY-NOTICES.md MetalUI/stb_image-LICENSE; do
     [ -f "$CONTENTS/Resources/Licenses/$notice" ] || fail "Contents/Resources/Licenses/$notice is missing"
 done
 

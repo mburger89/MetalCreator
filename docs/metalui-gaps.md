@@ -94,6 +94,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | XP-G33 | The Linux image's SDL had only the dummy, evdev and offscreen drivers, so the bundled `libSDL3.so.0` opened no window on a desktop | MetalUI (`Backends/SDL/linux/Dockerfile`, PR #150) | ✅ adopted 2026-10-30 (MetalUI `5b5ae68a`, PR #150): SDL 3.4.16 with X11 and Wayland (dlopen'd, libdecor); `scripts/check-bundled-sdl.sh` fails a package without them. `METALUI_COMMIT` `5b5ae68a`, then `65e300a0` (XP-G35) |
 | XP-G34 | An SDL file dialog's filter was named by the raw identifier ("com.metalcreator.mcgraph") | MetalUI (`ContentType.localizedDescription`, PR #150) | ✅ adopted 2026-10-30 (MetalUI `5b5ae68a`, PR #150): every `ContentType` MetalCreator declares has a description; the filter reads "MetalCreator graph (*.mcgraph)" |
 | XP-G35 | On Windows, `swift build`'s plugin step ran `MetalUICompileShaders` without `SystemRoot`, so Foundation's `Process` trapped in Winsock ("Could not create wakeup socket pair for CFSocket", "Illegal instruction"; CI 41035477343) | MetalUI (`CompileShadersOnBuild`, `MetalUICompileShaders`, PR #151, rulings BT-V to BT-X) | ✅ adopted 2026-10-30 (MetalUI `65e300a0`, PR #151): the plugin passes an explicit environment (Windows system variables included) and the tool restores `SystemRoot`/`WINDIR` from `GetWindowsDirectoryW`; pin bump only. `METALUI_COMMIT` now `65e300a0` |
+| XP-G37 | Intermittent SIGSEGV in SDL's `VULKAN_Submit` (lavapipe, x86_64) while `GPUMeshAgreementTests` meshes on the HLSL engines | MetalUI (`MetalUISDLGPU`, ruling GA-S) | 🔄 root cause found (SDL's submit defragmenter races a buffer release); fix on MetalUI `fix/sdl-gpu-submit-lock` |
 | XP-G21 | Windows release build crashes swift-frontend (exception 0xC000001D) in `PaintPass.withRenderEffects` | MetalUI `5f03ab7b` | ✅ fixed by MetalUI `5f03ab7b`, adopted (branch `xp-2`, CI pin `5f03ab7b`): the CI release build for the zip no longer crashes the compiler |
 | DIM-a | No click count on a tap's value (double-click on a dimension's text in the viewport) | MetalUI session (sent 2026-10-27) | ✅ fixed by MetalUI `cf1b4968` (PR #144, divergence 235, ruling IF-O); adopted in DIM-1 Task 11 (2026-10-27) |
 | DIM-b | Runtime SIGSEGV (`initializeWithCopy` of a `ZStack`) when a `for` over a model array sits inline in a large `ZStack` builder | MetalUI session (sent 2026-10-27) | ✅ closed 2026-10-27: not reproducible on MetalUI cf1b4968 (likely a stale incremental build) |
@@ -1403,6 +1404,23 @@ while the app runs, pipelines cached by source.
   `TMP`, `USERPROFILE`, `LOCALAPPDATA`, `ProgramData`, `ComSpec` and `PATHEXT`; BT-W, the tool sets `SystemRoot`/`WINDIR` from `GetWindowsDirectoryW` when missing; BT-X, MetalUI's CI builds
   a plugin consumer with `swift build` on Windows and Linux. No API change; adopted as a pin bump. Caveat from MetalUI: changing only `METALUI_SHADERCROSS_LIB` or a Windows system
   variable does not rerun the compile step; changing `METALUI_SHADERCROSS` or `PATH` does.
+
+## Hit by CI's Linux x86_64 job (XP-G37), 2026-11-03
+
+- **XP-G37. SIGSEGV in SDL's `VULKAN_Submit` while meshing on lavapipe. Fix in progress.** Intermittent: CI's Linux x86_64 job after #8 (no frames: the backtracer
+  crashed in its DWARF reader) and run 41559476527 (job 125666332271, MetalCreator PR #12, which enables `SWIFT_BACKTRACE=enable=yes,symbolicate=fast`);
+  never in 18 aarch64 runs or any Mac run. `CreatorImplicitTests`' last test, `GPUMeshAgreementTests.theGPUMeshAgreesWithTheCPUMesh`, runs the HLSL engines
+  in parallel. "Bad pointer dereference at 0x0000000000000008" on a DispatchWorker thread at `VULKAN_Submit + 2248` in `libSDL3.so.0.4.16` (the frames
+  under it don't unwind), while another thread waits in `VULKAN_WaitForFences` from `SDLGPUFence.blockingWait()` (`SDLGPUFence.swift:95`, through
+  `startWaiting(gate:)` on an `SDLGPUWorker`), two more `SDLGPUWorker`s idle in `run()` (`SDLGPUWorker.swift:45`), and lavapipe threads are busy. The only
+  MetalCreator frame is a thread decoding an earlier batch's downloaded bytes (`HLSLMeshRun.mesh(from:triangles:)`). Nothing in MetalCreator calls SDL
+  directly. Asked: whether a submit can race a fence wait or a release on the same device (or on another device in the same process) under SDL 3.4.16's
+  Vulkan backend, and a fix in MetalUISDLGPU or a pin of SDL. Until then CI's x86_64 job is re-run when it hits this crash.
+  MetalUI's answer (2026-11-03): an SDL bug. On a headless device `VULKAN_Submit` defragments memory and re-points every live buffer's container while
+  `SDL_ReleaseGPUBuffer` on another thread sets a container to NULL under `disposeLock` only; offset 2248 is `newBuffer->container->buffers[...]` in a
+  3.4.16 rebuild (NULL+8). Fences are not involved, and SDL's `main` still has the race, so no pin helps. The fix is MetalUI's (branch
+  `fix/sdl-gpu-submit-lock`, ruling GA-S amending GA-E): every submit and every transfer-buffer map and unmap takes `SDLGPUDevice`'s lock, which already
+  serialises create and release; fence waits stay outside it. Adopted as a pin bump once merged.
 
 ## Hit by the Linux VM human checks (XP-G33, XP-G34), 2026-10-30
 
