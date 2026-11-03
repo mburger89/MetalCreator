@@ -9,6 +9,8 @@ import Foundation
 /// `ThreeMFModelParser+Namespaces` and `ThreeMFModelParser+Elements`.
 struct ThreeMFModelParser {
     static let cancellationInterval = 1 << 16
+    /// Attribute bytes between asks about cancellation (about 5 ms of walking), however they are spread over elements.
+    static let attributeInterval = 1 << 20
 
     var scanner: XMLScanner
     let limits: ThreeMFLimits
@@ -31,7 +33,7 @@ struct ThreeMFModelParser {
         self.isCancelled = isCancelled
     }
 
-    /// The model in `bytes`. `isCancelled` is asked every 65,536 elements.
+    /// The model in `bytes`. `isCancelled` is asked every 65,536 elements and every 1 MiB of attributes.
     static func parse(_ bytes: UnsafeRawBufferPointer, limits: ThreeMFLimits, isCancelled: @escaping () -> Bool) throws -> ThreeMFModel {
         if looksLikeUTF16(bytes) { throw MeshImportProblem.malformedModel("it is UTF-16 text, which isn't supported.") }
         var parser = ThreeMFModelParser(scanner: XMLScanner(bytes: bytes), limits: limits, isCancelled: isCancelled)
@@ -53,11 +55,11 @@ struct ThreeMFModelParser {
         records += 1
     }
 
-    /// Counts an attribute against the walk since cancellation was last asked, and asks again every `cancellationInterval` bytes, so one
-    /// element with megabytes of attributes can still be stopped.
-    mutating func meter(_ attribute: XMLScanner.Attribute) throws {
-        attributeBytes &+= attribute.value.upperBound - attribute.name.lowerBound + 1
-        if attributeBytes >= Self.cancellationInterval {
+    /// Counts the attribute bytes of an element against the walk since cancellation was last asked, once per element, and asks again every
+    /// `attributeInterval` bytes. Thousands of elements each just under any per-element threshold add up to the same ask as one big one.
+    mutating func meter(_ tag: XMLScanner.Tag) throws {
+        attributeBytes &+= tag.attributes.count + 1
+        if attributeBytes >= Self.attributeInterval {
             attributeBytes = 0
             if isCancelled() { throw CancellationError() }
         }
@@ -76,6 +78,7 @@ struct ThreeMFModelParser {
     }
 
     private mutating func start(_ tag: XMLScanner.Tag) throws {
+        try meter(tag)
         guard let parent = contexts.last else {
             try startModel(tag)
             return
@@ -120,7 +123,6 @@ struct ThreeMFModelParser {
         contexts.append(.model)
         var sawUnit = false, sawRequired = false
         for attribute in scanner.attributes(of: tag) {
-            try meter(attribute)
             if scanner.equals(attribute.name, "unit") {
                 guard !sawUnit else { throw Self.damaged("the model has two units.") }
                 sawUnit = true

@@ -51,7 +51,8 @@ extension ThreeMFReaderTests {
     }
 
     @Test func aLongRunOfAttributesOnOneElementAsksAboutCancellation() throws {
-        let attributes = String(repeating: " q0:a=\"\"", count: 20_000)
+        // 1.6 MB of attributes on one element passes the 1 MiB between asks: the element's bytes are counted once, as it starts.
+        let attributes = String(repeating: " q0:a=\"\"", count: 200_000)
         let model = Package.model(resources: Package.object(id: 1, mesh: Self.cube), build: Package.item(1), attributes: attributes)
         let calls = CallCounter()
         let bytes = Array(model.utf8)

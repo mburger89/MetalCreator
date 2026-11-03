@@ -127,8 +127,37 @@ extension ThreeMFReaderTests {
         let data = Package.package(resources: resources, build: Package.item(2))
         let meshes = try ThreeMFReader.read(data, isCancelled: { _ = calls.next(); return false })
         #expect(meshes[0].mesh.triangleCount == 400 && meshes[0].mesh.positions.count == 3)
-        // Every 65,536 units of work asks once, and the first unit asks too: two parse asks and a few placement asks at most.
-        #expect(calls.count <= 6)
+        // The parse asks as it asks (by events and by attribute bytes: this model has about 1 MiB of them); the placement's own work, 400
+        // triangles, asks once for its first unit and once more for the build item at most.
+        let parseAsks = Calls()
+        _ = try parse(data, isCancelled: { _ = parseAsks.next(); return false })
+        #expect(calls.count - parseAsks.count <= 3, "placement asked \(calls.count - parseAsks.count) times")
+    }
+
+    /// The model part of a package, parsed alone (the zip and the placement left out).
+    func parse(_ package: Data, isCancelled: @escaping () -> Bool) throws -> ThreeMFModel {
+        let zip = try ZipReader(data: package)
+        let bytes = try zip.contents(of: "3D/3dmodel.model")
+        return try bytes.withUnsafeBytes { try ThreeMFModelParser.parse($0, limits: ThreeMFLimits(), isCancelled: isCancelled) }
+    }
+
+    @Test func manyElementsEachUnderAnyThresholdAreMeteredTogether() throws {
+        // 100 triangles of 20 KB of attributes each: none is long, together they are 2 MB of walking. The parse asks about
+        // cancellation by the bytes it has walked, not by the length of any one element (measured: 3,331 elements of 60 KB made a 463 KB
+        // file inflate to 200 MB and parse for 15 s between two asks).
+        let pad = String(repeating: "a", count: 20_000)
+        let triangles = (0..<100).map { _ in "<triangle v1=\"0\" v2=\"1\" v3=\"2\" note=\"\(pad)\"/>" }.joined()
+        let mesh = "<mesh><vertices><vertex x=\"0\" y=\"0\" z=\"0\"/><vertex x=\"1\" y=\"0\" z=\"0\"/><vertex x=\"0\" y=\"1\" z=\"0\"/>"
+            + "</vertices><triangles>\(triangles)</triangles></mesh>"
+        let data = Package.package(resources: "<object id=\"1\">\(mesh)</object>", build: Package.item(1))
+        let calls = Calls()
+        let model = try parse(data, isCancelled: { _ = calls.next(); return false })
+        #expect(model.triangles.count == 300)
+        // The first event, then once per MiB: 100 × 20 KB is 1.9 MiB.
+        #expect(calls.count >= 2, "asked \(calls.count) times")
+        let cancelled = Calls()
+        #expect(throws: CancellationError.self) { try parse(data, isCancelled: { cancelled.next() >= 2 }) }
+        #expect(cancelled.count == 2)
     }
 
     @Test func emptyPartsAreNeverVisited() throws {
@@ -229,7 +258,8 @@ extension ThreeMFReaderTests {
             .init(name: "_rels/.rels", body: rels),
             .init(name: "3D/3dmodel.model", body: Data(Package.model(resources: "", build: "").utf8)),
         ], zip64: false)
-        #expect(problem(big) == .modelTooLarge)
+        // A relationships part is not the model: over its limit it is damaged, not "larger than the 2 GB limit".
+        #expect(problem(big) == .malformedModel("its relationships part is larger than any real one."))
     }
 
     // MARK: Part names
@@ -260,5 +290,30 @@ extension ThreeMFReaderTests {
         ], zip64: false)
         #expect(try read(both).first?.mesh.triangleCount == 12)
         #expect(problem(Package.zip(model: model, entry: "3D/other.model")) == .noModelPart)
+    }
+
+    // MARK: What a failed read says
+
+    @Test func anAllocationThatFailsIsTheComputersNotTheFiles() throws {
+        let package = Package.package(resources: Package.object(id: 1, mesh: Self.cube), build: Package.item(1))
+        let entry = try #require(try ZipReader(data: package).entries.first)
+        #expect(ZipReader.zipError(for: InflateError.allocationFailed, in: entry) == .allocationFailed(entry.name))
+        #expect(ZipReader.zipError(for: InflateError.malformed, in: entry) == .checksumMismatch(entry.name))
+        #expect(ThreeMFReader.problem(for: .allocationFailed("x")) == .notEnoughMemory)
+        #expect(ThreeMFReader.problem(for: .checksumMismatch("x")) == .malformedModel("a part of the file can't be read."))
+        #expect(MeshImportProblem.notEnoughMemory.message == "This 3MF is too large to open with the memory available.")
+    }
+
+    @Test func aRelationshipsPartOverAMegabyteIsDamagedNotTooLarge() {
+        let padding = String(repeating: " ", count: (1 << 20) + 1)
+        let relationships = Package.relationships() + "<!--\(padding)-->"
+        let model = Package.model(resources: Package.object(id: 1, mesh: Self.cube), build: Package.item(1))
+        let problem = problem(Package.zip(model: model, relationships: relationships))
+        guard case .malformedModel(let reason)? = problem else {
+            Issue.record("\(String(describing: problem))")
+            return
+        }
+        #expect(reason == "its relationships part is larger than any real one.")
+        #expect(problem?.message.contains("2 GB") == false)
     }
 }

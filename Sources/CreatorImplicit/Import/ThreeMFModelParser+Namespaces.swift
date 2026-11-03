@@ -31,7 +31,6 @@ extension ThreeMFModelParser {
     mutating func declare(_ tag: XMLScanner.Tag, at level: Int) throws {
         guard scanner.contains(tag.attributes, "xmlns") else { return }
         for attribute in scanner.attributes(of: tag) {
-            try meter(attribute)
             guard scanner.hasPrefix(attribute.name, "xmlns") else { continue }
             let name = attribute.name
             let prefix: Range<Int>

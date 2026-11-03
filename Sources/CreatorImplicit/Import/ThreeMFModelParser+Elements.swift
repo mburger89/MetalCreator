@@ -61,7 +61,6 @@ extension ThreeMFModelParser {
         var object = ThreeMFModel.Object()
         var sawID = false
         for attribute in scanner.attributes(of: tag) {
-            try meter(attribute)
             if scanner.equals(attribute.name, "id") {
                 guard !sawID else { throw Self.damaged("an object has two ids.") }
                 guard let id = scanner.integer(attribute.value) else { throw Self.damaged("an object's id isn't a whole number.") }
@@ -109,9 +108,7 @@ extension ThreeMFModelParser {
     private mutating func vertex(_ tag: XMLScanner.Tag) throws {
         var point = SIMD3<Float>.zero
         var seen = 0
-        let long = tag.attributes.count >= Self.cancellationInterval  // only an element this long needs the ask
         for attribute in scanner.attributes(of: tag) {
-            if long { try meter(attribute) }
             guard attribute.name.count == 1 else { continue }
             let slot: Int
             switch scanner.bytes[attribute.name.lowerBound] {
@@ -134,9 +131,7 @@ extension ThreeMFModelParser {
     private mutating func triangle(_ tag: XMLScanner.Tag) throws {
         var corners: [UInt32] = [0, 0, 0, 0]
         var seen = 0
-        let long = tag.attributes.count >= Self.cancellationInterval
         for attribute in scanner.attributes(of: tag) {
-            if long { try meter(attribute) }
             let name = attribute.name
             let first = scanner.bytes[name.lowerBound]
             if name.count == 2, first == UInt8(ascii: "v"), let which = vertexSlot(scanner.bytes[name.lowerBound + 1]) {
@@ -182,7 +177,6 @@ extension ThreeMFModelParser {
         var id: Int?
         var transform = -1
         for attribute in scanner.attributes(of: tag) {
-            try meter(attribute)
             if scanner.equals(attribute.name, "objectid") {
                 guard let value = scanner.integer(attribute.value) else { throw Self.damaged("\(what)'s objectid isn't a whole number.") }
                 id = value
