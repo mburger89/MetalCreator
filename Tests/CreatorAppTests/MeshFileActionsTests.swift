@@ -211,13 +211,12 @@ struct MeshFileActionsTests {
         let file = try folder.write(stl, to: "part.stl")
         let second = ScriptedPicker([try folder.write(stl, to: "other.stl")])
         let picker = InterruptedPicker(answer: file) {
-            #expect(!app.canImportMesh)
             await app.importMesh(using: second)
         }
         await app.importMesh(using: picker)
         #expect(second.asked.isEmpty)
         #expect(app.document.graph.nodes.values.filter { $0.typeID == ImportMeshNode.typeID }.count == 1)
-        #expect(app.canImportMesh)
+        #expect(app.canImportMesh, "the menu item reads sketch and pick only")
     }
 
     @Test(arguments: [InspectorAction.chooseMeshFile, .relinkMeshFile])

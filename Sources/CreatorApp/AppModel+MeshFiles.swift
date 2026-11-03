@@ -11,10 +11,8 @@ extension AppModel {
     /// isn't an STL or 3MF." on the node.
     static let meshTypes: [ContentType] = [.stl]
 
-    /// File ▸ Import Mesh… is offered unless a sketch, a pick session or another file panel of this document is running.
-    public var canImportMesh: Bool {
-        sketch == nil && pick == nil && !imageActionDocuments.contains(ObjectIdentifier(document))
-    }
+    /// File ▸ Import Mesh… is offered unless a sketch or a pick session is running, or another file panel of this document is open (that state is unobserved, so the menu item doesn't read it).
+    public var canImportMesh: Bool { sketch == nil && pick == nil }
 
     /// A mesh file button of the inspector (`EditorModel.inspectorRequest`): nothing happens before the window has given the app its
     /// panels (`nil`); otherwise the task doing it is returned, so a test can wait for exactly that.
@@ -48,7 +46,7 @@ extension AppModel {
     /// wired to it, as one undo step. Inside a group the node goes in alone (an Output node can't live in a group). Does nothing
     /// while a sketch or a pick is running.
     public func importMesh(using picker: any FilePicker) async {
-        guard canImportMesh else { return }
+        guard canImportMesh, !imageActionDocuments.contains(ObjectIdentifier(document)) else { return }
         editor.commitPendingEntry()
         let (document, levels, path) = (self.document, editor.levelPath, editor.graphPath)
         // One file panel at a time per document, shared with the inspector's file buttons.
