@@ -272,5 +272,15 @@ sides of OpenCascade's strip, parametrized by its spine, and are paired by that 
 B's own parameter at the breaks as at the ends. Tolerances, the 129 cap, the seams judged on the final solid, history and the corner
 patches are unchanged. Sections, before and after: hole edge 129 to 17, notch arc edge 34 to 15, 270-degree arc 37 to 19, slanted arc 63
 to 21, tangent chain [9, 9, 35] to [9, 9, 15], chain into the wall [9, 19, 19, 9, 9] to 9 each, the rounded ruled loft [27, 23 × 7] to
-[14, 25, 25, 15, 15, 25, 25, 15] (its arc strips' angle gap levels off near the tolerance from about 17 sections with either skin, a
-floor not traced to its source), the smooth rounded loft [22, 27, 23, 21, 21, 27, 27, 21] to [14, 19, 19, 17, 17, 19, 19, 17].
+[14, 15, 13, 15, 15, 15, 15, 15], the smooth rounded loft [22, 27, 23, 21, 21, 27, 27, 21] to [14, 15, 11, 17, 17, 15, 15, 17].
+
+Those two counts also rest on a change to the sections at a chain's kinked junctions. Both strips take the bisector of the springs'
+tangents at their shared end section. When only that section did, the across direction jumped between it and the next section, by the
+half kink (0.84 degrees on the ruled loft). Each section's across lies in the neighbour's tangent plane, but on a neighbour that curves
+along the spring the skin's blend between the two left that plane by about half kink × the normal's turn across the span, so the angle
+gap fell only with the first power of the spacing: 0.0112, 0.0056, 0.0028, 0.0014 degrees at 17, 33, 65 and 129 sections, a third of a
+span from the end, with the across derivative as its whole cause and a planar neighbour showing none of it. That gave the arc strips
+25 sections (with this fixed skin; 23 before it). Now the difference between the bisector and the spring's own tangent fades out along
+the whole strip, as the cube of the distance from the other end, so the across direction is smooth and the skin follows it. Any
+direction in the neighbour's tangent plane is tangent to it, the shared end section is unchanged, and the same fall continues to about
+1e-6 degrees (0.0053, 0.00034, 0.000014, 0.000001 at the same counts).
