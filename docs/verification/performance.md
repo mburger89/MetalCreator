@@ -1484,3 +1484,16 @@ Row `loft-ends-1` is a 20 x 20 x 10 box's top face lofted to a 12 x 12 square 10
 ```text
 BENCH loft-ends-1 box top face to 12 mm square at G2, edit to preview: median 294.71 ms, p95 318.18 ms, max 336.58 ms (n 35)
 ```
+
+Re-measured 2026-11-02 for the skin along a segment (loft spec erratum of that date: every pole row our own cubic or quintic spline, an
+open segment starting at 5 columns), same machine and run as above, before and after on the same afternoon. Before, at `a39a7f6`: load
+8.48 / 8.40 / 5.68 before and 7.25 / 8.59 / 6.31 after. After: load 6.18 / 13.88 / 13.69 before and 11.85 / 12.18 / 12.94 after, with
+other agents running: **saturated, not a verdict**. The box's four patches take 5 columns each instead of 9.
+
+| Row | Before (median, p95; max) | After (median, p95; max) |
+|---|---|---|
+| `loft-ends-1` box top face to 12 mm square at G2, edit to preview | 281.78 ms (290.63; 295.25) | 139.99 ms (167.02; 168.90) |
+
+```text
+BENCH loft-ends-1 box top face to 12 mm square at G2, edit to preview: median 139.99 ms, p95 167.02 ms, max 168.90 ms (n 35)
+```

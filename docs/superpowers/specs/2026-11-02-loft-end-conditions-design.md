@@ -95,3 +95,18 @@ sections' corners as creases, as today's loft does.
 
 The column count and pairing details, the B-spline approximation tolerance of the skin, the pick session's target plumbing, and the
 inspector layout within the existing controls.
+
+## Erratum (2026-11-02): the skin along a segment
+
+Construction step 3 skinned each segment's columns with OpenCascade's cubic interpolation (`GeomAPI_Interpolate`). Its periodic form
+estimates the tangent at a closed loop's junction from a few neighbouring points, so a one-edge closed loop (a circle) missed the angle
+tolerance at that one column and needed the cap, 129 columns. Every pole row is now our own spline through the columns, as the G2 fillet's
+strips are (g2 surfacing spec, erratum "the skin along a strip"): de Boor's averaged knots, periodic with a knot at every column on a closed
+loop, a cubic at the first columns and a quintic from then on if the cubic misses. Three exceptions: a patch given its row tangents at a
+smooth vertex stays cubic (those tangents share one length ratio across all the rows so the two patches meet G1, the sections' own rows need
+not have that ratio, and the skin misses near that end at first order until columns crowd there, which a cubic's miss confines to fewer spans
+than a quintic's); a part edge whose first or second derivative jumps at an interior knot breaks the skin there, with a column on the break
+(a knot of full multiplicity less one); and an open segment starts at 5 columns, a closed loop at 9 (its periodic quintic needs more than 5).
+Tolerances, the checks, the 129 cap, the shared vertex columns and ThruSections for Free lofts are unchanged. Columns, before and after: the
+box top to a square (G1, G2, weights 0.1 to 2), the bridge, the bridge with a waist and the frustum 9 to 5 per segment; the cylinder top to a
+circle, the circle started a quarter turn round and the dome (G1 and G2) 129 to 17; the rounded rectangle [45, 38] × 4 unchanged.

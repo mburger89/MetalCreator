@@ -66,8 +66,8 @@ extension LoftEndConditionTests {
         let boxTop = try planarFace(of: box, normal: [0, 0, 1], height: 10)
         let boxLoft = try loft(box, start: end(boxTop, 2), end: nil, sections: [square(12, at: 20)])
         print("LOFTENDS columns: cylinder \(columns(cylinderLoft.report)) box \(columns(boxLoft.report))")
-        #expect(columns(boxLoft.report).allSatisfy { $0 <= 17 })
-        #expect(columns(cylinderLoft.report).allSatisfy { $0 <= 129 })
+        #expect(columns(boxLoft.report).allSatisfy { $0 <= 5 })
+        #expect(columns(cylinderLoft.report).allSatisfy { $0 <= 17 })
     }
 
     /// A weight that makes a column loop back (or leave through the wall's plane) is refused in words.
