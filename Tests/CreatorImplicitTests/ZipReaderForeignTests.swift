@@ -148,3 +148,19 @@ struct ZipReaderForeignTests {
         Data((0..<width).map { UInt8(truncatingIfNeeded: value >> (8 * UInt64($0))) })
     }
 }
+
+extension ZipReaderForeignTests {
+    /// A deflate stream cannot expand past about 1032:1, so a few bytes that claim a gigabyte are refused before anything is allocated.
+    @Test func aDeflatedSizeBeyondWhatItsBytesCouldMakeIsRefused() throws {
+        var bytes = Self.foreign
+        // The central directory record is at 68; its uncompressed size is at 24 within it. 22 bytes cannot make a gigabyte.
+        bytes[68 + 24 + 3] = 0x40
+        let zip = try ZipReader(data: Data(bytes))
+        let entry = try #require(zip.entries.first)
+        #expect(entry.size > 1 << 29 && entry.compressedSize == 17)
+        #expect(throws: ZipError.tooLarge("a.txt")) { try zip.content(of: entry, limit: .max, isCancelled: { false }) }
+        // The honest size is still allowed.
+        let honest = try ZipReader(data: Data(Self.foreign))
+        #expect(try honest.contents(of: "a.txt") == Self.text)
+    }
+}

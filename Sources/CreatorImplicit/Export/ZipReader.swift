@@ -142,6 +142,7 @@ public struct ZipReader {
         guard entry.flags & 1 == 0 else { throw ZipError.encrypted(entry.name) }
         guard entry.size >= 0, entry.size <= min(limit, Self.defaultLimit) else { throw ZipError.tooLarge(entry.name) }
         let start = try Self.dataStart(of: entry, in: data)
+        try Self.checkRatio(of: entry)
         let stored = data[(data.startIndex + start)..<(data.startIndex + start + entry.compressedSize)]
         let content: Data
         switch entry.method {
@@ -161,6 +162,14 @@ public struct ZipReader {
         }
         guard content.count == entry.size, CRC32.checksum(content) == entry.crc else { throw ZipError.checksumMismatch(entry.name) }
         return content
+    }
+
+    /// A deflate stream cannot expand past about 1032:1 (a run of 258 bytes costs a quarter of a bit), so one that declares more than that
+    /// from the bytes it holds is lying. Refused before the declared size is allocated.
+    private static func checkRatio(of entry: Entry) throws {
+        guard entry.method == 8 else { return }
+        let (product, overflow) = entry.compressedSize.multipliedReportingOverflow(by: 1032)
+        guard !overflow, entry.size <= product + 1024 else { throw ZipError.tooLarge(entry.name) }
     }
 
     /// The end record: the last signature whose comment length runs exactly to the end of the file (a signature inside a comment does not).

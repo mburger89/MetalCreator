@@ -75,7 +75,8 @@ private extension MeshImportProblem {
     var isAboutTheBytes: Bool {
         switch self {
         case .notChosen, .notAFile, .unreadable, .missing, .embeddedMissing, .coordinatesOverflow: false
-        case .notAMeshFile, .endsEarly, .badNumber, .noTriangles, .tooManyTriangles, .tooLarge: true
+        case .notAMeshFile, .endsEarly, .badNumber, .noTriangles, .tooManyTriangles, .tooLarge, .noModelPart, .otherFiles, .encrypted,
+             .malformedModel: true
         }
     }
 }

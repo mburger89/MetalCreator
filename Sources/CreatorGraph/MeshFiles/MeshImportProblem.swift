@@ -28,6 +28,14 @@ public enum MeshImportProblem: Error, Equatable, Sendable {
     case missing(name: String, folder: String)
     /// An embedded file whose bytes the document does not hold (a damaged file).
     case embeddedMissing
+    /// A 3MF with no 3D model part (no relationship to one, or none at the path it names).
+    case noModelPart
+    /// A 3MF whose model points at parts in other files (the Production extension's `path`).
+    case otherFiles
+    /// A 3MF that is encrypted (a password protected zip entry, or Secure Content).
+    case encrypted
+    /// A 3MF whose model is not well-formed, or says something the specification forbids; the sentence says what, ending in a stop.
+    case malformedModel(String)
 
     public var message: String {
         switch self {
@@ -56,6 +64,14 @@ public enum MeshImportProblem: Error, Equatable, Sendable {
             "File '\(name)' wasn't found at \(folder). Relink it in the inspector."
         case .embeddedMissing:
             "This embedded file's data is missing from the document, or damaged. Choose the file again in the inspector."
+        case .noModelPart:
+            "This 3MF has no 3D model part."
+        case .otherFiles:
+            "This 3MF uses parts in other files, which isn't supported."
+        case .encrypted:
+            "This 3MF is encrypted."
+        case .malformedModel(let reason):
+            "This 3MF is damaged: \(reason)"
         }
     }
 }
