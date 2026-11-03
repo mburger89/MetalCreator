@@ -55,48 +55,39 @@ extension TriangleMesh {
     }
 
     /// Unites the corners (a triangle's vertex slot, `3 * triangle + k`) that meet at a vertex across an edge that isn't a crease.
+    /// Half-edges are matched by sorting their edge keys, so the cost is O(n log n) whatever the valence of a vertex (a hub with
+    /// 100,000 triangles is no worse than any other).
     private func joinSmoothCorners(_ parent: inout [Int32], faceNormals: [SIMD3<Float>], cosine: Double) {
         let cornerCount = triangles.count
-        // The half-edges leaving each vertex: a half-edge is the corner it starts at.
-        var start = [Int32](repeating: 0, count: vertexCount + 1)
-        for vertex in triangles { start[Int(vertex) + 1] += 1 }
-        for index in 0..<vertexCount { start[index + 1] += start[index] }
-        var fill = start
-        var leaving = [Int32](repeating: 0, count: cornerCount)
+        var edges: [EdgeEntry] = []
+        edges.reserveCapacity(cornerCount)
         for corner in 0..<cornerCount {
-            let vertex = Int(triangles[corner])
-            leaving[Int(fill[vertex])] = Int32(corner)
-            fill[vertex] += 1
+            let from = triangles[corner], to = triangles[Self.nextCorner(corner)]
+            guard from != to else { continue }
+            edges.append(EdgeEntry(key: UInt64(min(from, to)) << 32 | UInt64(max(from, to)), corner: Int32(corner)))
         }
+        edges.sort { $0.key != $1.key ? $0.key < $1.key : $0.corner < $1.corner }
         let limit = Float(cosine - 1e-6)
-        for corner in 0..<cornerCount {
-            guard let twin = smoothTwin(of: corner, start: start, leaving: leaving, faceNormals: faceNormals, limit: limit) else {
-                continue
-            }
-            Self.union(&parent, Int32(corner), Int32(Self.nextCorner(twin)))
-            Self.union(&parent, Int32(Self.nextCorner(corner)), Int32(twin))
+        var index = 0
+        while index < edges.count {
+            var end = index + 1
+            while end < edges.count, edges[end].key == edges[index].key { end += 1 }
+            defer { index = end }
+            // Exactly two half-edges, running opposite ways: two faces wound against each other. Anything else is a crease.
+            guard end - index == 2 else { continue }
+            let first = Int(edges[index].corner), second = Int(edges[index + 1].corner)
+            guard triangles[first] != triangles[second] else { continue }
+            let here = faceNormals[first / 3], there = faceNormals[second / 3]
+            guard here == .zero || there == .zero || (here * there).sum() >= limit else { continue }
+            Self.union(&parent, Int32(first), Int32(Self.nextCorner(second)))
+            Self.union(&parent, Int32(Self.nextCorner(first)), Int32(second))
         }
     }
 
-    /// The half-edge that runs the other way along `corner`'s edge when the edge is shared by exactly those two faces and turns no more
-    /// than the angle (`limit` is its cosine). `nil` for a crease, and for the twin's own visit (each edge is joined once, from its
-    /// lower half-edge).
-    private func smoothTwin(of corner: Int, start: [Int32], leaving: [Int32], faceNormals: [SIMD3<Float>], limit: Float) -> Int? {
-        let from = Int(triangles[corner]), to = Int(triangles[Self.nextCorner(corner)])
-        guard from != to else { return nil }
-        // Exactly one half-edge runs the other way and none the same way: two faces wound against each other.
-        var twin = -1, twins = 0
-        for slot in Int(start[to])..<Int(start[to + 1]) {
-            let other = Int(leaving[slot])
-            if Int(triangles[Self.nextCorner(other)]) == from { twins += 1; twin = other }
-        }
-        guard twins == 1, twin > corner else { return nil }
-        for slot in Int(start[from])..<Int(start[from + 1]) {
-            let other = Int(leaving[slot])
-            if other != corner, Int(triangles[Self.nextCorner(other)]) == to { return nil }
-        }
-        let here = faceNormals[corner / 3], there = faceNormals[twin / 3]
-        return here == .zero || there == .zero || (here * there).sum() >= limit ? twin : nil
+    /// A half-edge and the unordered pair of vertices it joins.
+    private struct EdgeEntry {
+        var key: UInt64
+        var corner: Int32
     }
 
     /// The corner after `corner` in its triangle.

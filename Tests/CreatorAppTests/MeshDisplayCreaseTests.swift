@@ -112,6 +112,67 @@ struct MeshDisplayCreaseTests {
         }
     }
 
+    @Test func aHugeFanStaysFast() {
+        let rim = 200_000
+        var positions: [SIMD3<Float>] = [.zero]
+        for step in 0..<rim {
+            let azimuth = 2 * Double.pi * Double(step) / Double(rim)
+            positions.append(SIMD3(Float(10 * cos(azimuth)), Float(10 * sin(azimuth)), 0))
+        }
+        var triangles: [UInt32] = []
+        for step in 0..<rim { triangles += [0, UInt32(1 + step), UInt32(1 + (step + 1) % rim)] }
+        var mesh = TriangleMesh(positions: positions, triangles: triangles)
+        mesh.creaseAngle = 30
+        let start = Date()
+        let display = mesh.displayMesh
+        #expect(Date().timeIntervalSince(start) < 30)
+        #expect(display.positions.count == rim + 1)
+        #expect(display.normals.allSatisfy { $0.dot(Vector3(0, 0, 1)) > 0.999_999 })
+    }
+
+    @Test func aDegenerateFaceGivesFiniteNormals() {
+        // A collinear triangle on the edge of a real one.
+        var mesh = TriangleMesh(positions: [SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0.5, 1, 0), SIMD3(2, 0, 0)],
+                                triangles: [0, 1, 2, 0, 1, 3, 0, 3, 3])
+        mesh.creaseAngle = 30
+        let display = mesh.displayMesh
+        #expect(display.normals.allSatisfy { $0.x.isFinite && $0.y.isFinite && $0.z.isFinite && abs($0.length - 1) < 1e-9 })
+        #expect(display.normals[Int(display.indices[0])].dot(Vector3(0, 0, 1)) > 0.999_999)
+    }
+
+    @Test func aFlippedNeighbourIsACrease() {
+        // Both faces run 0 to 1: wound against the convention, so the edge is not joined even though the faces are coplanar.
+        var mesh = TriangleMesh(positions: [SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0.5, 1, 0), SIMD3(0.5, -1, 0)],
+                                triangles: [0, 1, 2, 0, 1, 3])
+        mesh.creaseAngle = 30
+        #expect(mesh.displayMesh.positions.count == 6)
+    }
+
+    @Test func anOpenEdgeIsACrease() {
+        // Two coplanar triangles that were never welded: their edge is open on both sides and nothing joins them.
+        let corners: [SIMD3<Float>] = [SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0.5, 1, 0), SIMD3(1, 0, 0), SIMD3(0, 0, 0), SIMD3(0.5, -1, 0)]
+        var mesh = TriangleMesh(positions: corners, triangles: [0, 1, 2, 3, 4, 5])
+        mesh.creaseAngle = 30
+        #expect(mesh.displayMesh.positions.count == 6)
+        // Welded, the same pair is one smooth surface.
+        var welded = TriangleMesh(positions: [SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0.5, 1, 0), SIMD3(0.5, -1, 0)],
+                                  triangles: [0, 1, 2, 1, 0, 3])
+        welded.creaseAngle = 30
+        #expect(welded.displayMesh.positions.count == 4)
+    }
+
+    @Test func anOverfullEdgeIsACrease() {
+        // Three coplanar faces on the edge 0-1: none is joined to another, so each corner there is its own vertex.
+        var mesh = TriangleMesh(positions: [SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0.5, 1, 0), SIMD3(0.5, -1, 0), SIMD3(0.5, 2, 0)],
+                                triangles: [0, 1, 2, 1, 0, 3, 0, 1, 4])
+        mesh.creaseAngle = 30
+        #expect(mesh.displayMesh.positions.count == 9)
+    }
+
+    @Test func exactlyThirtyDegreesIsNotACrease() {
+        #expect(Self.hinge(degrees: 30, creaseAngle: 30).displayMesh.positions.count == 4)
+    }
+
     @Test func aFlatSharedVertexKeepsItsOriginalIndexOrder() {
         // The first group of each vertex keeps the vertex's own index, so vertices that never split keep theirs.
         let display = Self.hinge(degrees: 90, creaseAngle: 30).displayMesh
