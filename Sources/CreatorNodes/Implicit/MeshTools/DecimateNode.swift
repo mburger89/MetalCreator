@@ -37,7 +37,11 @@ public enum DecimateNode: NodeDefinition {
         case .stream(let stream):
             return NodeOutputs(["mesh": .mesh(stream.appending(.decimate(tolerance: tolerance)))], warnings: warnings)
         case .mesh(let input):
-            let output = try MeshDecimator.decimate(positions: input.positions, triangles: input.triangles, tolerance: tolerance)
+            // The mesher's snap leaves vertices within a micron of each other, joined by slivers. Decimation would pinch such a sliver
+            // into two vertices at one place, a mesh that is closed by index but touches itself, and the checks (which weld at 1e-6)
+            // then see an edge with four faces. Welding first, at a little over the checks' distance, removes the slivers instead.
+            let welded = MeshWelder.weld(positions: input.positions, triangles: input.triangles, tolerance: 2e-6)
+            let output = try MeshDecimator.decimate(positions: welded.positions, triangles: welded.triangles, tolerance: tolerance)
             let (before, after) = (input.triangleCount, output.triangles.count / 3)
             let note = "\(before.formatted(.number.locale(.messages))) → \(after.formatted(.number.locale(.messages))) triangles"
             let made = input.derived(positions: output.positions, triangles: output.triangles, facts: [PayloadFact("Decimated", note)])
