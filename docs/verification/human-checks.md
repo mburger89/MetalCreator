@@ -2302,7 +2302,7 @@ the Output selected so the part is shown.
 - [ ] **ME-B-1 Section edges.** With a Section shown and Measure on, hover the cap's outline: the edge under the pointer is drawn in the hover colour; a click picks it. **Observed:**
 - [ ] **ME-B-2 Section arc.** Pick an arc of the cap's outline (a hole cut across): Radius and Diameter show and the view draws the diameter. **Observed:**
 - [ ] **ME-B-3 Wall thickness.** Pick a section edge, then a face of the same part: the distance reads the wall thickness. Change the wall's input in the inspector: the picks follow and the value updates. **Observed:**
-- [ ] **ME-B-4 Mesh points.** On a lattice or other mesh item, click the surface: a point is picked and every value reads "≈ … · mesh …". The same holds for any measurement with one approximate pick. **Observed:**
+- [ ] **ME-B-4 Mesh points.** On a lattice or other mesh item, click the surface: a point is picked and every value reads "≈ … · mesh …" (the mesh's cell size). A mesh with no cell size, such as an imported STL or 3MF, reads "≈ …" alone. The same holds for any measurement with one approximate pick. **Observed:**
 - [ ] **ME-B-5 Keep.** The third click keeps the pair and starts a new measurement holding only that pick. The panel lists the kept measurement and the view draws it. **Observed:**
 - [ ] **ME-B-6 Keep button.** Keep is disabled with no picks and while a pick is lost; otherwise it keeps the current measurement. Keep a hole's diameter: it is listed and drawn. **Observed:**
 - [ ] **ME-B-7 Remove.** The row's × removes one kept measurement; Clear All removes every one. **Observed:**
@@ -2357,7 +2357,7 @@ the Output selected so the part is shown.
 
 ## Group SP — Sketch splines (G-c)
 
-- [ ] **SP-1 Draw a spline.** In sketch mode press S, click four or five points and press Return: a smooth spline passes through every point and the tool ends. Esc and a click on the last point finish it the same way. A spline of two points is a gentle curve through them. **Observed:**
+- [ ] **SP-1 Draw a spline.** In sketch mode press S, click four or five points and press Return: a smooth spline passes through every point and the stroke ends (one undo step, "Add Spline"); the Spline tool stays chosen, as the Line tool does, so the next click starts another curve (press Esc with nothing in progress, or choose another tool, to leave it). Esc and a click on the last point finish it the same way. A spline of two points is a gentle curve through them. **Observed:**
 - [ ] **SP-2 Drag fit points.** Drag a fit point: the curve changes locally, near that point, and the other points stay put. **Observed:**
 - [ ] **SP-3 Tangent and curvature handles.** Select the spline: each fit point shows a tangent knob and a curvature knob. Dragging a knob activates it (the curve does not jump when it starts) and reshapes the curve at that point; Release in the inspector returns the handle to automatic and the curve relaxes. Release is refused while a Tangent or Curvature constraint uses the handle. **Observed:**
 - [ ] **SP-4 Curvature join, extrude, Zebra and Measure.** Draw a line and a spline that meet at a point, select both and press Curvature, close the loop with more curves, extrude the sketch and switch Zebra stripes on (Z): the stripes flow across the joint edge without a kink. Measure (M) the joint edge: its Continuity row reads G2. **Observed:**

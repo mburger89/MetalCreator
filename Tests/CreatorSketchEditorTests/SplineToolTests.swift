@@ -40,6 +40,26 @@ struct SplineToolTests {
         #expect(model.sketch.splineDefinition(of: spline)?.points.last == Vector2(30, 6))
     }
 
+    /// Return, Esc and a click on the last point each end the spline, not the tool: like a line, the Spline tool stays chosen
+    /// (the toolbar keeps its check mark) so the next click starts another curve (spec "Behaviour": drawing; check SP-1).
+    @Test(arguments: ["return", "escape", "last point"])
+    func finishingASplineKeepsTheSplineToolChosen(_ how: String) {
+        let (model, host) = makeModel()
+        click(model, 0, 0)
+        click(model, 10, 8)
+        click(model, 20, 0)
+        switch how {
+        case "return": model.finish()
+        case "escape": model.escape()
+        default: click(model, 20, 0)
+        }
+        #expect(host.commits.count == 1 && model.drawState == .idle)
+        #expect(model.tool == .spline)
+        click(model, 0, 30)
+        guard case .splineThrough(let placed) = model.drawState else { Issue.record("the next click starts a spline"); return }
+        #expect(placed.count == 1)
+    }
+
     @Test func aDoubleClickFinishesAtTheLastPoint() {
         let (model, host) = makeModel()
         click(model, 0, 0)
