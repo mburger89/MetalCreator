@@ -1,3 +1,4 @@
+#if canImport(Darwin)
 import CreatorGraph
 import CreatorImplicit
 import CreatorKernel
@@ -115,3 +116,4 @@ struct MeshImportBench {
         return Int(usage.ru_maxrss) / 1_000_000
     }
 }
+#endif
