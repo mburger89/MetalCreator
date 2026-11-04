@@ -66,7 +66,7 @@ Refusals, each a node message: "This file isn't an STL or 3MF." · "The STL ends
 
 ### Limits
 
-Untrusted input, as `ImageLimits` is. `MeshImportLimits`: a file of at most 1 GB; at most 10,000,000 triangles **(call: to be confirmed by the benchmark)**; an embedded file of at most 64 MB. The limits are checked as follows.
+Untrusted input, as `ImageLimits` is. `MeshImportLimits`: a file of at most 1 GB; at most 10,000,000 triangles **(call, confirmed by the benchmark: Errata 11)**; an embedded file of at most 64 MB. The limits are checked as follows.
 
 - STL: binary from the count in its header; ASCII as it reads, stopping at the limit.
 - Zip: an entry's declared size before inflating, at most 2 GB, inflating stops at the declared size, and the CRC is checked.
@@ -181,3 +181,7 @@ The user decided to lift the non-goal on the Production extension's parts within
 7. Part names are found through two dictionaries built once from the zip's entries (exact and case-folded; first entry in zip order wins a shared key; an entry whose name is not UTF-8 reads as "" in `ZipReader` and is never found, so a part under such a name is "missing"), and the lookups ask about cancellation every 256 names. An empty `path`, or one that is only "/", is refused in words.
 8. **Left-out parts are more than supports (revises erratum 3).** Bambu Studio and Orca write negative parts, modifiers and support enforcers and blockers as `type="other"` (objects of type `support`, `solidsupport` and `other` are still left out). A mesh reader cannot cut, so a negative part would come in uncut if kept; it is left out instead, with: "This 3MF's support, modifier and negative parts were left out, so the shape may differ." (`ThreeMFReader.partsLeftOutWarning`, `ImportedMesh.partsLeftOut`.) Generated tree or normal supports are not objects, so a plain project says nothing.
 9. **Painting is dropped like a colour.** `paint_color`, `paint_seam` and `paint_supports` on a triangle set `ignoredExtras`, so the colour warning appears (the flag is the file's, so it is on every mesh of it).
+
+### 2026-11-03 (the limit, MI-3)
+
+**The 10,000,000-triangle limit stands (MI-3 benchmark).** `docs/verification/performance.md`, "Mesh import", on a loaded Mac: a binary STL of 10,000,000 triangles as a height field (5 million vertices) reads, welds, counts edges, places and builds the crease-split display mesh in 1.9 s with a peak resident size of 2.4 GB; an all-distinct soup (30 million vertices, the worst a file can do) takes 4.4 s and peaks at 5.9 GB, within an 8 GB machine's memory though not with the viewport's GPU buffers (not measured: no window may open). Neither is unusable, so the limit and its copy stay. What could not be measured here is drawing and orbiting such a mesh (no window may open): human check MI-10. If orbiting it is not smooth, lower `MeshImportLimits.maxTriangles` and its message together. Also: `EdgeCounts` is now counted once at parse and kept in `ImportedMesh.edgeCounts`, so a placement or units edit does not sort the edges again (0.5 s at the limit).
