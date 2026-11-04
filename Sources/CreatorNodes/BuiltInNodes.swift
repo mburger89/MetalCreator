@@ -17,7 +17,7 @@ public enum BuiltInNodes {
         PlaceNode.self, PointsToPlacementsNode.self,
         HolePatternNode.self, BossPatternNode.self, SlotPatternNode.self, PatternFeatureNode.self,
         FlattenNode.self, GraftNode.self, PartitionNode.self, TreeStatisticsNode.self, ListItemNode.self, BranchByPathNode.self,
-        PathMapperNode.self,
+        PathMapperNode.self, MergeNode.self,
         CullPatternNode.self,
         CullIndexNode.self,
         CullByRegionNode.self,
