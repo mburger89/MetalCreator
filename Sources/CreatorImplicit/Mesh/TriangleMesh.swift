@@ -94,7 +94,8 @@ public struct TriangleMesh: MeshPayload, Sendable {
             let seconds = meshingSeconds.formatted(.number.precision(.fractionLength(2)).locale(.messages))
             facts.append(PayloadFact("Meshing time", "\(seconds) s"))
         }
-        facts += extraFacts
+        // A fact the mesh already states (Import Mesh also lists its triangles) is shown once, as the mesh's own.
+        facts += extraFacts.filter { extra in !facts.contains { $0.label == extra.label } }
         facts.append(PayloadFact("Memory", Int64(estimatedBytes).formatted(.byteCount(style: .memory).locale(.messages))))
         return facts
     }

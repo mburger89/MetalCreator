@@ -71,6 +71,9 @@ struct ImportMeshNodeTests {
         #expect(facts["Size"] == "100 × 100 × 100 mm")
         #expect(facts["Closed"] == "Yes")
         #expect(facts["File"] == "Embedded")
+        let shown = made.inspectorFacts.map(\.label)
+        #expect(shown.filter { $0 == "Triangles" }.count == 1, "the inspector lists Triangles once: \(shown)")
+        #expect(Set(shown).count == shown.count, "no fact is listed twice: \(shown)")
         let open = Array(Self.tetra.dropLast())
         let (h2, node2, images2) = embedded(Self.stl(open))
         let facts2 = try mesh(await h2.run([node2], images: images2), node2).extraFacts
