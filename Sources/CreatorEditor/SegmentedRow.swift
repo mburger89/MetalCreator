@@ -9,7 +9,7 @@ import MetalUI
 /// choose a form that fits, and measures the text to do it (never a character count):
 /// 1. everything fits in one line: the label, then the segments (as before);
 /// 2. the segments fit alone: the label on its own line above them;
-/// 3. they don't (Loft's "Free / Tangent (G1) / Curvature (G2)", Import Mesh's six units): a pop-up showing the selected
+/// 3. they don't (Loft's "Free / Tangent (G1) / Curvature (G2)", Import Mesh's five units): a pop-up showing the selected
 ///    option, which lists every option whatever its width, beside the label when that fits, else under it.
 struct SegmentedRow: Component {
     let label: String
