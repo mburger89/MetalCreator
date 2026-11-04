@@ -5,6 +5,7 @@
 #include <string>
 #include "cocct.h"
 
+#include <Bnd_Box.hxx>
 #include <Standard_Failure.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
@@ -28,6 +29,12 @@ struct occt_shape {
 };
 
 namespace cocct {
+
+/// The shape's bounding box, tight to the part. `BRepBndLib::AddOptimal` without a triangulation bounds a high-degree
+/// Bezier face (a G2 corner patch, degree 17) by its poles, which stand thousands of mm off the surface; such a face is
+/// bounded by a dense sample of its surface and its edges instead. Every other shape costs `AddOptimal` plus one pass over
+/// its faces.
+void shape_bounds(const TopoDS_Shape &shape, Bnd_Box &box);
 
 /// pi. Not `M_PI`: MSVC's <cmath> defines it only under _USE_MATH_DEFINES, and C++17 has no std::numbers.
 inline constexpr double kPi = 3.14159265358979323846;
