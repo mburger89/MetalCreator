@@ -6,7 +6,10 @@ extension ThreeMFModelParser {
     /// The context a core element opens inside `parent`, after reading what it holds.
     mutating func childContext(_ local: Range<Int>, tag: XMLScanner.Tag, in parent: Context) throws -> Context {
         switch parent {
-        case .model: return scanner.equals(local, "resources") ? .resources : scanner.equals(local, "build") ? .build : .skipped
+        case .model:
+            // Only the root model's build section is valid (Production extension); a part's is never read.
+            if scanner.equals(local, "resources") { return .resources }
+            return scanner.equals(local, "build") && isRoot ? .build : .skipped
         case .resources: return try inResources(local, tag)
         case .object: return try inObject(local)
         case .mesh: return scanner.equals(local, "vertices") ? .vertices : scanner.equals(local, "triangles") ? .triangles : .skipped
@@ -143,6 +146,7 @@ extension ThreeMFModelParser {
             } else if (name.count == 2 && first == UInt8(ascii: "p")) || scanner.equals(name, "pid") {
                 model.ignoredExtras = true
             } else {
+                if isPaint(name) { model.ignoredExtras = true }
                 try prefixedAttribute(attribute)
             }
         }
@@ -151,6 +155,13 @@ extension ThreeMFModelParser {
         let stored = model.triangles.count / 3
         guard stored < limits.triangles else { throw MeshImportProblem.overTriangleLimit }
         model.triangles.append(contentsOf: corners[1...3])
+    }
+
+    /// Bambu Studio's and Orca's per-triangle painting (`paint_color`, `paint_seam`, `paint_supports`), which is dropped like a colour.
+    /// Looked at only for an attribute that is none of the expected ones.
+    private func isPaint(_ name: Range<Int>) -> Bool {
+        scanner.bytes[name.lowerBound] == UInt8(ascii: "p")
+            && (scanner.equals(name, "paint_color") || scanner.equals(name, "paint_seam") || scanner.equals(name, "paint_supports"))
     }
 
     /// 1, 2 or 3 for the digit of `v1`, `v2` and `v3`.
@@ -200,6 +211,7 @@ extension ThreeMFModelParser {
     /// a part's own `path` is an error, so parts can't chain), at most `limits.parts` distinct ones, each at most `pathLimit` bytes.
     private mutating func partIndex(_ value: Range<Int>) throws -> Int {
         guard isRoot else { throw Self.damaged("a part of the file names another part.") }
+        guard !value.isEmpty else { throw Self.damaged("a component or build item names a part with an empty path.") }
         guard value.count <= Self.pathLimit else { throw Self.damaged("a part's name is longer than any file's.") }
         let name = try scanner.decoded(value)
         if let known = pathIndex[name] { return known }

@@ -49,7 +49,7 @@ struct ThreeMFModelParser {
         if looksLikeUTF16(bytes) { throw MeshImportProblem.malformedModel("it is UTF-16 text, which isn't supported.") }
         var parser = ThreeMFModelParser(scanner: XMLScanner(bytes: bytes), limits: limits, isRoot: isRoot, isCancelled: isCancelled)
         try parser.run()
-        try parser.model.resolve(items: isRoot)
+        try parser.model.resolve()
         parser.model.recordCount = parser.records
         return parser.model
     }

@@ -60,7 +60,7 @@ struct ThreeMFModel {
     }
 
     struct Component {
-        /// An index into `objects` once `resolve()` has run; the file's ID before.
+        /// An index into `objects` once `resolve()` has run (or `resolvePaths(_:)`, for one that names a part); the file's ID before.
         var object: Int
         /// An index into `transforms`, or -1 for none.
         var transform: Int
@@ -86,12 +86,11 @@ struct ThreeMFModel {
     var recordCount = 0
 
     /// Replaces the IDs in components and build items with indices, refusing one that names no object. Those that name a part in
-    /// another file wait for `resolvePaths(_:)`; a part's build items are not valid (Production extension) and are left alone.
-    mutating func resolve(items resolvesItems: Bool = true) throws {
+    /// another file wait for `resolvePaths(_:)`.
+    mutating func resolve() throws {
         for index in components.indices where components[index].path < 0 {
             components[index].object = try Self.lookup(components[index].object, in: objectIndex)
         }
-        guard resolvesItems else { return }
         for index in items.indices where items[index].path < 0 {
             items[index].object = try Self.lookup(items[index].object, in: objectIndex)
         }
@@ -100,15 +99,16 @@ struct ThreeMFModel {
     /// Resolves the references that name a part: `targets[i]` maps an object ID to its index for the part `paths[i]` names.
     mutating func resolvePaths(_ targets: [[Int: Int]]) throws {
         for index in components.indices where components[index].path >= 0 {
-            components[index].object = try Self.lookup(components[index].object, in: targets[components[index].path])
+            components[index].object = try Self.lookup(components[index].object, in: targets[components[index].path],
+                                                       part: paths[components[index].path])
         }
         for index in items.indices where items[index].path >= 0 {
-            items[index].object = try Self.lookup(items[index].object, in: targets[items[index].path])
+            items[index].object = try Self.lookup(items[index].object, in: targets[items[index].path], part: paths[items[index].path])
         }
     }
 
     /// Appends a part's objects, vertices, triangles and components after this model's, as they were in the part. Returns the part's
-    /// object IDs mapped to their indices here. Its build items and path list are not kept.
+    /// object IDs mapped to their indices here. Its path list is empty and it has no build items (a part's build section is skipped).
     mutating func append(part: ThreeMFModel) -> [Int: Int] {
         let objectBase = objects.count, vertexBase = vertices.count, triangleBase = triangles.count / 3
         let componentBase = components.count, transformBase = transforms.count
@@ -131,8 +131,12 @@ struct ThreeMFModel {
         return part.objectIndex.mapValues { $0 + objectBase }
     }
 
-    private static func lookup(_ id: Int, in objectIndex: [Int: Int]) throws -> Int {
+    private static func lookup(_ id: Int, in objectIndex: [Int: Int], part: String? = nil) throws -> Int {
         guard let index = objectIndex[id] else {
+            if let part {
+                let name = MeshImportProblem.quoted(part)
+                throw MeshImportProblem.malformedModel("it refers to object \(id) in the part \(name), which doesn't have it.")
+            }
             throw MeshImportProblem.malformedModel("it refers to object \(id), which it doesn't have.")
         }
         return index

@@ -100,7 +100,8 @@ struct ThreeMFProductionTests {
         #expect(meshes.count == 2)
         #expect(meshes[0].mesh.triangleCount == 12 && meshes[0].mesh.positions.count == 8)
         #expect(positions(of: meshes[1]) == [[1, 0, 0], [0, 2, 0], [0, 0, 3]])
-        #expect(!meshes[0].ignoredExtras && meshes[0].unit == 1)
+        // Painting is dropped like a colour, and says so (the flag is the file's, so it is on every mesh).
+        #expect(meshes.allSatisfy(\.ignoredExtras) && meshes[0].unit == 1)
         let digests = meshes.map { ThreeMFProductionTests.digest($0.mesh) }
         #expect(digests == [
             "fe90e8c4ddc81c48a22c079e27f56af065126762cfbd4ebba05447a342448f35",
@@ -215,7 +216,7 @@ struct ThreeMFProductionTests {
         let wrappers = Self.wrapper(5, Self.component(1, path: "/3D/Objects/a.model") + Self.component(2, path: "/3D/Objects/a.model"))
         let data = Self.package(root: Self.root(wrappers, Package.item(5)), parts: [("3D/Objects/a.model", Self.part(part))])
         let meshes = try read(data)
-        #expect(meshes[0].mesh.triangleCount == 12 && meshes[0].supportsLeftOut)
+        #expect(meshes[0].mesh.triangleCount == 12 && meshes[0].partsLeftOut)
     }
 
     static func digest(_ mesh: TriangleMesh) -> String {

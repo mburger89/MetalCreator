@@ -10,8 +10,9 @@ import Foundation
 public enum ThreeMFReader {
     /// What the node says when a 3MF held data this reader does not use.
     public static let ignoredExtrasWarning = "This mesh's color and material data was ignored."
-    /// What the node says when a 3MF's support structures were left out.
-    public static let supportsLeftOutWarning = "This 3MF's support structures were left out."
+    /// What the node says when a 3MF's support, modifier or negative parts were left out (Bambu Studio and Orca write all of them as
+    /// `type="other"`; a mesh reader cannot cut a negative part out of the model, so the shape may differ).
+    public static let partsLeftOutWarning = "This 3MF's support, modifier and negative parts were left out, so the shape may differ."
 
     private static let modelRelationship = "http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"
     private static let relationshipsLimit = 1 << 20
@@ -39,22 +40,26 @@ public enum ThreeMFReader {
     private static func parsedModel(in data: Data, limits: ThreeMFLimits, isCancelled: @escaping () -> Bool) throws -> ThreeMFModel {
         let zip = try open(data)
         let rootEntry = try modelEntry(in: zip, isCancelled: isCancelled)
-        var (model, bytesUsed) = try parsed(rootEntry, in: zip, limits: limits, byteLimit: limits.modelBytes, isRoot: true,
-                                            isCancelled: isCancelled)
+        var (model, bytesUsed) = try parsed(rootEntry, in: zip, limits: limits, byteLimit: limits.modelBytes, isCancelled: isCancelled)
         guard !model.paths.isEmpty else { return model }
         let targets = try appendParts(to: &model, root: rootEntry, in: zip, limits: limits, bytesUsed: &bytesUsed, isCancelled: isCancelled)
         try model.resolvePaths(targets)
         return model
     }
 
-    /// One model part inflated and parsed; its buffer is released on return. Returns the bytes it inflated to.
-    private static func parsed(_ entry: ZipReader.Entry, in zip: ZipReader, limits: ThreeMFLimits, byteLimit: Int, isRoot: Bool,
+    /// One model part inflated and parsed; its buffer is released on return. Returns the bytes it inflated to. A damaged part (not the
+    /// root, which has no `part` name) is refused naming the part.
+    private static func parsed(_ entry: ZipReader.Entry, in zip: ZipReader, limits: ThreeMFLimits, byteLimit: Int, part: String? = nil,
                                isCancelled: @escaping () -> Bool) throws -> (ThreeMFModel, Int) {
-        let bytes = try content(of: entry, in: zip, limit: byteLimit, isCancelled: isCancelled)
-        let model = try bytes.withUnsafeBytes {
-            try ThreeMFModelParser.parse($0, limits: limits, isRoot: isRoot, isCancelled: isCancelled)
+        do {
+            let bytes = try content(of: entry, in: zip, limit: byteLimit, isCancelled: isCancelled)
+            let model = try bytes.withUnsafeBytes {
+                try ThreeMFModelParser.parse($0, limits: limits, isRoot: part == nil, isCancelled: isCancelled)
+            }
+            return (model, bytes.count)
+        } catch MeshImportProblem.malformedModel(let reason) where part != nil {
+            throw MeshImportProblem.malformedModel("in the part \(MeshImportProblem.quoted(part ?? "")), \(reason)")
         }
-        return (model, bytes.count)
     }
 
     /// Reads each part the root names, once, in the order the root first names them, and appends it to `model`. Returns, for each name
@@ -63,26 +68,29 @@ public enum ThreeMFReader {
     private static func appendParts(to model: inout ThreeMFModel, root: ZipReader.Entry, in zip: ZipReader, limits: ThreeMFLimits,
                                     bytesUsed: inout Int, isCancelled: @escaping () -> Bool) throws -> [[Int: Int]] {
         let rootIndex = model.objectIndex
-        var entries: [ZipReader.Entry] = []
-        for path in model.paths {
+        let names = try PartNames(zip, isCancelled: isCancelled)
+        var entries: [(entry: ZipReader.Entry, name: String)] = []
+        for (position, path) in model.paths.enumerated() {
+            if position % PartNames.lookupInterval == 0, isCancelled() { throw CancellationError() }
             let name = path.hasPrefix("/") ? String(path.dropFirst()) : path
-            guard let found = entry(named: name, in: zip) else {
+            guard !name.isEmpty else { throw MeshImportProblem.malformedModel("it names a part with no name.") }
+            guard let found = names.entry(named: name) else {
                 throw MeshImportProblem.malformedModel("it names the part \(MeshImportProblem.quoted(name)), which the file doesn't have.")
             }
-            entries.append(found)
+            entries.append((found, name))
         }
         var read: [String: [Int: Int]] = [root.name: rootIndex]
         var targets: [[Int: Int]] = []
-        for entry in entries {
+        for (entry, name) in entries {
             if let known = read[entry.name] {
                 targets.append(known)
                 continue
             }
             if isCancelled() { throw CancellationError() }
             let (part, size) = try parsed(entry, in: zip, limits: limits.remaining(after: model), byteLimit: limits.modelBytes - bytesUsed,
-                                          isRoot: false, isCancelled: isCancelled)
+                                          part: name, isCancelled: isCancelled)
             guard part.unit == model.unit else {
-                throw MeshImportProblem.malformedModel("a part of the file uses a different unit from the model.")
+                throw MeshImportProblem.malformedModel("the part \(MeshImportProblem.quoted(name)) uses a different unit from the model.")
             }
             bytesUsed += size
             let indices = model.append(part: part)

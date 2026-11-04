@@ -47,7 +47,7 @@ extension ImportMeshNodeTests {
         let (hs, supported, supportImages) = embedded(withSupport)
         let report = try await hs.run([supported], images: supportImages)
         let left = try #require(report.warning(supported))
-        #expect(left.contains(ThreeMFReader.supportsLeftOutWarning), "\(left)")
+        #expect(left.contains(ThreeMFReader.partsLeftOutWarning), "\(left)")
         #expect(try meshes(report, supported).count == 1)
         // Neither warns when there is nothing to say.
         let (hp, plain, plainImages) = embedded(try ThreeMFFixtures.package([Self.tetra]))

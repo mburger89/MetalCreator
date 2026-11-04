@@ -43,7 +43,7 @@ extension ThreeMFProductionTests {
     @Test func aMissingObjectInAPartIsRefused() {
         let root = Self.root(Self.wrapper(2, Self.component(9, path: "/3D/Objects/a.model")), Package.item(2))
         let data = Self.package(root: root, parts: [("3D/Objects/a.model", Self.part(Package.object(id: 1, mesh: Self.cube)))])
-        #expect(problem(data) == .malformedModel("it refers to object 9, which it doesn't have."))
+        #expect(problem(data) == .malformedModel("it refers to object 9 in the part /3D/Objects/a.model, which doesn't have it."))
     }
 
     @Test func aDifferentUnitInAPartIsRefused() {
@@ -55,7 +55,7 @@ extension ThreeMFProductionTests {
                 Issue.record("a part in \(unit ?? "nil")")
                 continue
             }
-            #expect(reason == "a part of the file uses a different unit from the model.")
+            #expect(reason == "the part 3D/Objects/a.model uses a different unit from the model.")
         }
         // No unit at all is millimetres, which a millimetre root matches.
         let bare = Self.package(root: root, parts: [("3D/Objects/a.model", Self.part(Package.object(id: 1, mesh: Self.cube), unit: nil))])
@@ -144,7 +144,7 @@ extension ThreeMFProductionTests {
         #expect(problem == .modelTooLarge)
     }
 
-    // MARK: Cancellation
+    // MARK: Cancellation, lookup and the rest
 
     @Test func cancellationBetweenParts() {
         let names = (0..<4).map { "3D/Objects/\($0).model" }
@@ -161,4 +161,143 @@ extension ThreeMFProductionTests {
             #expect(throws: CancellationError.self) { try read(data, isCancelled: { calls.next() >= stop }) }
         }
     }
+
+    @Test func theReaderAsksBeforeInflatingEachPart() throws {
+        // The second part cannot be parsed (it starts with a NUL, which the parser refuses before it asks anything), so only the
+        // reader's own ask before it can answer a cancellation that comes right after the first part has been read: the ask after
+        // the last one a file of the first part alone makes.
+        func package(parts names: [String]) -> Data {
+            let wrappers = names.indices.map { Self.wrapper(10 + $0, Self.component(1, path: "/" + names[$0])) }.joined()
+            // No build items, so nothing is placed after the parts are read (placing asks too): the read ends in `noTriangles`.
+            let root = Self.root(wrappers, "")
+            let texts = [Self.part(Package.object(id: 1, mesh: Self.cube)), "\u{0}<model/>"]
+            return Self.package(root: root, parts: Array(zip(names, texts)))
+        }
+        let calls = ThreeMFReaderTests.Calls()
+        #expect(throws: MeshImportProblem.noTriangles) {
+            try read(package(parts: ["3D/Objects/0.model"]), isCancelled: { _ = calls.next(); return false })
+        }
+        let stop = calls.count + 1
+        let both = package(parts: ["3D/Objects/0.model", "3D/Objects/1.model"])
+        #expect(problem(both) != nil)
+        let cancelling = ThreeMFReaderTests.Calls()
+        #expect(throws: CancellationError.self) { try read(both, isCancelled: { cancelling.next() >= stop }) }
+    }
+
+    @Test func lookingUpNamesAsksAboutCancellation() throws {
+        // One part spelled 1,000 ways (by case): the lookups are a loop of their own, which asks every 256 names.
+        let letters = Array("3d/objects/a.model")
+        func spelling(_ bits: Int) -> String {
+            var flips = 0
+            return String(letters.map { character -> Character in
+                guard character.isLetter else { return character }
+                defer { flips += 1 }
+                return bits >> flips & 1 == 1 ? Character(character.uppercased()) : character
+            })
+        }
+        func package(spellings: Int) -> Data {
+            let wrappers = (0..<spellings).map { Self.wrapper(10 + $0, Self.component(1, path: "/" + spelling($0))) }.joined()
+            let build = (0..<spellings).map { Package.item(10 + $0) }.joined()
+            let part = Self.part(Package.object(id: 1, mesh: Self.cube))
+            return Self.package(root: Self.root(wrappers, build), parts: [("3D/Objects/a.model", part)])
+        }
+        func asks(_ data: Data) throws -> Int {
+            let calls = ThreeMFReaderTests.Calls()
+            let meshes = try read(data, isCancelled: { _ = calls.next(); return false })
+            #expect(!meshes.isEmpty)
+            return calls.count
+        }
+        let one = try asks(package(spellings: 1))
+        let many = try asks(package(spellings: 1_000))
+        #expect(many - one >= 3, "\(many) asks against \(one)")
+    }
+
+    @Test func aPartsBuildSectionIsNotRead() throws {
+        // The Production specification: only the root's build section counts; a part's items, even bad ones, are ignored.
+        let part = Package.model(resources: Package.object(id: 1, mesh: Self.cube), build: "<item objectid=\"99\"/><item/>")
+        let root = Self.root(Self.wrapper(2, Self.component(1, path: "/3D/Objects/a.model")), Package.item(2))
+        let meshes = try read(Self.package(root: root, parts: [("3D/Objects/a.model", part)]))
+        #expect(meshes.count == 1 && meshes[0].mesh.triangleCount == 12)
+    }
+
+    @Test func aDamagedPartIsNamed() {
+        let root = Self.root(Self.wrapper(2, Self.component(1, path: "/3D/Objects/a.model")), Package.item(2))
+        let vertex = "<object id=\"1\"><mesh><vertices><vertex x=\"1\" y=\"1\"/></vertices></mesh></object>"
+        let broken = Self.package(root: root, parts: [("3D/Objects/a.model", Self.part(vertex))])
+        #expect(problem(broken) == .malformedModel("in the part 3D/Objects/a.model, a vertex is missing a coordinate."))
+        let notXML = Self.package(root: root, parts: [("3D/Objects/a.model", "<html/>")])
+        #expect(problem(notXML) == .malformedModel("in the part 3D/Objects/a.model, it isn't a 3MF model."))
+        // A part cut to 80 characters.
+        let long = "3D/" + String(repeating: "n", count: 120) + ".model"
+        let named = Self.package(root: Self.root(Self.wrapper(2, Self.component(1, path: "/" + long)), Package.item(2)),
+                                 parts: [(long, "<html/>")])
+        guard case .malformedModel(let reason)? = problem(named) else {
+            Issue.record("a long part name")
+            return
+        }
+        #expect(reason.hasPrefix("in the part 3D/" + String(repeating: "n", count: 77) + "…, "))
+    }
+
+    @Test func anEncryptedPartIsRefused() {
+        let root = Self.root(Self.wrapper(2, Self.component(1, path: "/3D/Objects/a.model")), Package.item(2))
+        let items: [ZipReaderForeignTests.Item] = [
+            .init(name: "_rels/.rels", body: Data(Package.relationships().utf8)),
+            .init(name: "3D/3dmodel.model", body: Data(root.utf8)),
+            .init(name: "3D/Objects/a.model", body: Data(Self.part(Package.object(id: 1, mesh: Self.cube)).utf8), flags: 1),
+        ]
+        #expect(problem(ZipReaderForeignTests.build(items, zip64: false)) == .encrypted)
+    }
+
+    @Test func anEmptyPathIsRefusedInPlainWords() {
+        for path in ["", "/"] {
+            let data = Self.package(root: Self.root(Self.wrapper(2, Self.component(1, path: path)), Package.item(2)), parts: [])
+            guard case .malformedModel(let reason)? = problem(data) else {
+                Issue.record("path '\(path)'")
+                continue
+            }
+            #expect(reason.contains("empty path") || reason.contains("no name"), "\(reason)")
+        }
+    }
+
+    // MARK: Same id in two files, and cycles
+
+    @Test func theSameIdInTheRootAndAPartIsTwoObjects() throws {
+        let part = Self.part(Package.object(id: 1, mesh: Self.triangle))
+        let root = Self.root(Package.object(id: 1, mesh: Self.cube), Package.item(1)
+            + "<item p:path=\"/3D/Objects/a.model\" objectid=\"1\"/>")
+        let meshes = try read(Self.package(root: root, parts: [("3D/Objects/a.model", part)]))
+        // Through a path it is the part's object; without one, the root's.
+        #expect(meshes.map(\.mesh.triangleCount) == [12, 1])
+        // The same through a component, in either order.
+        let wrapped = Self.root(Package.object(id: 1, mesh: Self.cube)
+            + Self.wrapper(2, Self.component(1, path: "/3D/Objects/a.model") + "<component objectid=\"1\"/>"), Package.item(2))
+        let both = try read(Self.package(root: wrapped, parts: [("3D/Objects/a.model", part)]))
+        #expect(both.map(\.mesh.triangleCount) == [13])
+    }
+
+    @Test func aPartsOwnComponentsStayInThePart() throws {
+        // The part's object 7 places its own object 1 (a triangle); the root has an object 1 (a cube) that must not be taken.
+        let part = Self.part(Package.object(id: 1, mesh: Self.triangle) + Package.assembly(id: 7, [(1, nil)]))
+        let root = Self.root(Package.object(id: 1, mesh: Self.cube)
+            + Self.wrapper(8, Self.component(7, path: "/3D/Objects/a.model")), Package.item(8))
+        let meshes = try read(Self.package(root: root, parts: [("3D/Objects/a.model", part)]))
+        #expect(meshes.map(\.mesh.triangleCount) == [1])
+    }
+
+    @Test func aCycleThroughARootPathIsRefused() {
+        let cycles = [
+            Self.wrapper(2, Self.component(2, path: "/3D/3dmodel.model")),
+            Self.wrapper(2, Self.component(3, path: "/3D/3dmodel.model")) + Self.wrapper(3, Self.component(2, path: "/3d/3DMODEL.MODEL")),
+        ]
+        for resources in cycles {
+            let data = Self.package(root: Self.root(resources, Package.item(2)), parts: [])
+            #expect(problem(data) == .malformedModel("a component contains itself."))
+        }
+        // A part that contains itself, by its own component.
+        let part = Self.part("<object id=\"1\"><components><component objectid=\"1\"/></components></object>")
+        let looped = Self.package(root: Self.root(Self.wrapper(9, Self.component(1, path: "/a.model")), Package.item(9)),
+                                  parts: [("a.model", part)])
+        #expect(problem(looped) == .malformedModel("a component contains itself."))
+    }
+
 }
