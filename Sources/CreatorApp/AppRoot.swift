@@ -53,7 +53,7 @@ public struct AppRoot: Component {
             if let pick = model.pick {
                 HStack {
                     Spacer()
-                    PickBanner(model: model, picked: pick.picked.count, isFace: pick.picksFace)
+                    PickBanner(model: model, picked: pick.picked.count, prompt: pick.prompt)
                     Spacer()
                 }
                 .padding(Edges(top: (AppLayout.margin * 2 + AppLayout.topBarHeight).px, right: Pixels(0),

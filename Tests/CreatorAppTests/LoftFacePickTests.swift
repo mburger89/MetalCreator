@@ -29,6 +29,14 @@ struct LoftFacePickTests {
         return Setup(app: app, loft: loft, extrude: extrude)
     }
 
+    /// The banner says what is being picked, never the lattice's sentence for a loft.
+    @Test func theBannerNamesTheLoftEnd() {
+        let texts = [PickSession.Prompt.loftStartFace, .loftEndFace, .latticeFace, .edges].map { $0.text(picked: 2) }
+        #expect(Set(texts).count == 4)
+        #expect(texts[0].contains("start") && texts[1].contains("end") && !texts[0].contains("lattice") && !texts[1].contains("lattice"))
+        #expect(texts[2].contains("lattice") && texts[3].contains("2 picked"))
+    }
+
     @Test func theButtonsBeginAPickOnTheWiredPart() async throws {
         let setup = await open()
         for start in [true, false] {
@@ -37,6 +45,7 @@ struct LoftFacePickTests {
             await setup.app.settle()
             let session = try #require(setup.app.pick)
             #expect(session.loftEnd == PickSession.LoftEndTarget(loft: setup.loft.id, isStart: start))
+            #expect(session.prompt == (start ? .loftStartFace : .loftEndFace))
             #expect(session.picksFace && session.lattice == nil && session.picked.isEmpty)
             let part = try #require(setup.app.solid(at: Endpoint(node: setup.extrude.id, socket: "solid")))
             #expect(session.solid === part)

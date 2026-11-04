@@ -49,6 +49,7 @@ struct MapLatticeToFaceTests {
         let setup = await open()
         let app = setup.app
         app.beginFacePick(for: setup.lattice.id)
+        #expect(app.pick?.prompt == .latticeFace)
         await app.settle()
         app.viewportClicked(.edge(solid: 0, EdgeID(1)))
         app.viewportClicked(nil)
