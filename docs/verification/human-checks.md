@@ -2401,3 +2401,4 @@ the Output selected so the part is shown.
 ## Group HU — Inspector and panel fixes (from driving the packaged app)
 
 - [ ] **HU-1 Wide choices fit the inspector.** Select a Loft with a picked start face, an Import Mesh and a Fillet: "Start continuity", "Units" and "Continuity" show their label on one line, and the options are a pop-up when the segments would not fit the 280-point panel (a short choice such as Add / Cut keeps its segments in the row). Every option can be chosen, and nothing runs past the panel's right edge. **Observed:**
+- [ ] **HU-2 Panels take their clicks.** With a measurement shown, click the Measure panel's title, an empty part of it and a row: the picks stay. Click the Section panel, the Zebra panel, the inspector (a label, its padding, "Document Parameters") with a tool active: nothing happens in the viewport (no selection cleared, no point picked). A drag on the top bar's padding beside its controls still orbits, as before. **Observed:**

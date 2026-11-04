@@ -23,7 +23,7 @@ struct TopBar: Component {
         if let sketch = model.sketch {
             SketchChrome(.topBar) { ZStack(alignment: .topLeading) { SketchToolbar(model: sketch.editor) }.padding(clearButtons) }
         } else {
-            GlassPanel(.topBar) {
+            GlassPanel(.topBar, takesPointer: false) {
                 HStack(spacing: Pixels(10)) {
                     Text(model.isEdited ? "\(model.displayName) — Edited" : model.displayName)
                         .font(.headline)
