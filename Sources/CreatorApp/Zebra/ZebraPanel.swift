@@ -32,6 +32,7 @@ struct ZebraPanel: Component {
                         Text("Vertical").tag(1)
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                     HStack(spacing: Pixels(6)) {
                         Text("Stripes").font(.callout).foregroundStyle(palette.primaryText.color)
                         Spacer()
