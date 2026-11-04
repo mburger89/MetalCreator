@@ -19,6 +19,8 @@ public enum ConvertUnitsNode: NodeDefinition {
     static let note = "Length inputs elsewhere read millimetres, so convert to mm before wiring into one."
 
     private static let head: [InspectorControl] = [.number("value"), .segmented("quantity", options: ConversionQuantity.options)]
+    /// The converted number, so the node says what it makes (25.4 for 1 in to mm).
+    private static let result: [InspectorControl] = [.result("value")]
     private static let lengthControls: [InspectorControl] = [
         .segmented("fromLength", options: ConversionLength.options), .segmented("toLength", options: ConversionLength.options),
     ]
@@ -27,12 +29,12 @@ public enum ConvertUnitsNode: NodeDefinition {
     ]
 
     /// Every control, for the catalogue; the editor asks `inspector(for:)`.
-    public static let inspector = [InspectorSection(title: "Convert", controls: head + lengthControls + angleControls + [.note(note)])]
+    public static let inspector = [InspectorSection(title: "Convert", controls: head + lengthControls + angleControls + result + [.note(note)])]
 
     /// Only the active quantity's two controls.
     public static func inspector(for node: Node) -> [InspectorSection] {
         let angle = node.inputValues["quantity"] == .integer(ConversionQuantity.angle.rawValue)
-        return [InspectorSection(title: "Convert", controls: head + (angle ? angleControls : lengthControls) + [.note(note)])]
+        return [InspectorSection(title: "Convert", controls: head + (angle ? angleControls : lengthControls) + result + [.note(note)])]
     }
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {
