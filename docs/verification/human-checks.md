@@ -2234,42 +2234,42 @@ the Output selected so the part is shown.
 
 ## Group SA-A — Section, placement (section part A)
 
-- [ ] **SA-A-1 Toggle.** The top bar's "Section" toggle (macOS, Linux and Windows) cuts the near half of the part away with a handle on the
+- [x] **SA-A-1 Toggle.** The top bar's "Section" toggle (macOS, Linux and Windows) cuts the near half of the part away with a handle on the
   plane; switching it off restores the part. View ▸ Show Section / Hide Section does the same. In part A the cut face is still the far wall
   darkened (part B replaces it with a cap), which is what XP-24 looks at. **Pinned:** `SectionGeometryTests`,
-  `SectionModelTests`. **Observed:**
-- [ ] **SA-A-2 Drag.** Dragging the handle slides the plane through the part; the range spans the part. **Observed:**
-- [ ] **SA-A-3 Typed offset.** In the Section panel, type an offset in mm and, with the document in inches, in inches: the plane moves
-  there, also beyond the part's range (the handle stretches). **Observed:**
-- [ ] **SA-A-4 Flip.** Flip (the panel and View ▸ Flip Section) keeps the plane and cuts the other side. **Observed:**
-- [ ] **SA-A-5 Section from Face.** Right-click a flat face > Section from Face: the plane lies on the face, the cut removes the outside
-  and a positive offset goes into the material. Edit the part (move or resize it): the plane follows the face. **Observed:**
+  `SectionModelTests`. **Observed:** macOS, packaged app, first pass: as described.
+- [x] **SA-A-2 Drag.** Dragging the handle slides the plane through the part; the range spans the part. **Observed:** macOS, packaged app, first pass: as described.
+- [x] **SA-A-3 Typed offset.** In the Section panel, type an offset in mm and, with the document in inches, in inches: the plane moves
+  there, also beyond the part's range (the handle stretches). **Observed:** macOS, packaged app, first pass: as described.
+- [x] **SA-A-4 Flip.** Flip (the panel and View ▸ Flip Section) keeps the plane and cuts the other side. **Observed:** macOS, packaged app, first pass: as described.
+- [x] **SA-A-5 Section from Face.** Right-click a flat face > Section from Face: the plane lies on the face, the cut removes the outside
+  and a positive offset goes into the material. Edit the part (move or resize it): the plane follows the face. **Observed:** macOS, packaged app: Plate top: plane on the face, offset 3 goes into the material, Wall 6 to 12 and the plane follows.
 - [ ] **SA-A-6 A deleted face.** Delete the face's feature: the panel says the face is gone and the section keeps its last plane. **Observed:**
-- [ ] **SA-A-7 Save and reopen.** Save with a section on, reopen: the plane, offset and side are back. An older file opens with no section. **Observed:**
-- [ ] **SA-A-8 Sketch mode.** Entering a sketch hides the section; leaving brings it back. **Observed:**
+- [x] **SA-A-7 Save and reopen.** Save with a section on, reopen: the plane, offset and side are back. An older file opens with no section. **Observed:** macOS, packaged app: Face plane, offset 3 and side came back; a file without one opens with none.
+- [x] **SA-A-8 Sketch mode.** Entering a sketch hides the section; leaving brings it back. **Observed:** macOS, packaged app: Hidden in the sketch, back after Finish.
 - [ ] **SA-A-9 Panel placement.** The Section panel sits left of the theme editor when both are open and never covers it. **Observed:**
 
 ## Group SA-B — Section, the cap (section part B)
 
-- [ ] **SA-B-1 Bracket cap.** Open the §7.2 bracket, switch the Section on and put the plane on XY through the plate: the cut face is
+- [x] **SA-B-1 Bracket cap.** Open the §7.2 bracket, switch the Section on and put the plane on XY through the plate: the cut face is
   filled with the theme's section colour and hatched with 45-degree stripes (plane-space, so they stay on the part when you orbit and
-  pan), the outline crisp in the edge colour. **Pinned:** `SectionCapModelTests`, `SDLSectionTests`. **Observed:**
+  pan), the outline crisp in the edge colour. **Pinned:** `SectionCapModelTests`, `SDLSectionTests`. **Observed:** macOS, packaged app, first pass: as described.
 - [ ] **SA-B-2 Two bodies.** With two touching bodies (a Union is one body; use two Output nodes), the section hatches them at different
   angles (45 and 135 degrees). **Observed:**
 - [ ] **SA-B-3 Section from Face.** Right-click a flat face > Section from Face with the offset at 0: the face shows as a cap, no
-  coplanar flicker. **Observed:**
+  coplanar flicker. **Observed:** macOS, packaged app: The face shows as a cap at offset 0, in a still view; flicker while orbiting not checked.
 - [ ] **SA-B-4 Fast drag.** Drag the handle quickly through the part: the view never stutters; the cap may lag and catches up when you stop.
   Also drag a refined lattice part for several seconds and confirm the cap settles within about a second of release. The hatch
   re-spaces while you zoom (by design) and may show moire at grazing angles. **Observed:**
 - [ ] **SA-B-5 Lattice.** A TPMS or strut lattice part: the cut cells are capped and hatched (the cap is cut from the preview mesh and
   follows it as the finer passes land). Dragging stays smooth (`sa-2` is about 2 ms and `sa-2b` 5 ms on a 100 mm sheet once the mesh is welded). **Observed:**
-- [ ] **SA-B-6 Clicking the cap.** A click on the cap selects nothing and opens no face menu (it does not pick the face behind it).
-  **Observed:**
-- [ ] **SA-B-7 Themes.** Switch to Alucard, then Nord: the cap's fill, hatch and edge follow the theme (and appear in the theme editor's
-  Section group). **Observed:**
+- [x] **SA-B-6 Clicking the cap.** A click on the cap selects nothing and opens no face menu (it does not pick the face behind it).
+  **Observed:** macOS, packaged app, first pass: as described.
+- [x] **SA-B-7 Themes.** Switch to Alucard, then Nord: the cap's fill, hatch and edge follow the theme (and appear in the theme editor's
+  Section group). **Observed:** macOS, packaged app, first pass: as described.
 - [ ] **SA-B-8 Linux and Windows.** The same on Linux and Windows (the SDL GPU renderer, XP note): the cap, hatch, outline and the
   click behaviour match macOS. **Observed:**
-- [ ] **SA-B-9 Sketch mode.** Entering a sketch hides the section and its cap; leaving brings both back. **Observed:**
+- [x] **SA-B-9 Sketch mode.** Entering a sketch hides the section and its cap; leaving brings both back. **Observed:** macOS, packaged app: Hidden in the sketch, back after Finish.
 - [ ] **SA-B-10 No shimmer.** Orbit and zoom a capped part slowly: the hatch has no shimmer or crawling at its edges (it is antialiased). **Observed:**
 - [ ] **SA-B-11 During a pick.** Starting an Edges by Tag pick leaves the section and its cap as they were, and moving the section during the pick still moves it. **Observed:**
 
@@ -2279,8 +2279,8 @@ the Output selected so the part is shown.
   its panel appears under the Section panel. Esc, the panel's Done, the toggle or M again ends it and the panel goes. **Observed:**
 - [ ] **ME-A-2 Hover.** Hover an edge: it is drawn over the model in the hover colour. Move within 10 points of one of its ends: the corner
   shows as a point and snaps. A full circle offers its centre instead of an end. Faces keep the viewport's own face hover. **Observed:**
-- [ ] **ME-A-3 A hole.** Click a hole's edge or wall: Radius and Diameter show in the panel and the view draws the diameter (the reference
-  dimension colour), "Ø" for a full circle. **Observed:**
+- [x] **ME-A-3 A hole.** Click a hole's edge or wall: Radius and Diameter show in the panel and the view draws the diameter (the reference
+  dimension colour), "Ø" for a full circle. **Observed:** macOS, packaged app, first pass: as described.
 - [ ] **ME-A-4 Wall thickness.** Click the two opposite faces of a box: the distance is exact (a 5 mm plate reads 5 mm) and is drawn between
   the witness points. **Observed:**
 - [ ] **ME-A-5 Corner to face.** Pick a corner, then a face: the shortest distance to the face is shown and drawn. **Observed:**
@@ -2299,80 +2299,80 @@ the Output selected so the part is shown.
 
 ## Group ME-B — Measure, keeping measurements (measure part B)
 
-- [ ] **ME-B-1 Section edges.** With a Section shown and Measure on, hover the cap's outline: the edge under the pointer is drawn in the hover colour; a click picks it. **Observed:**
-- [ ] **ME-B-2 Section arc.** Pick an arc of the cap's outline (a hole cut across): Radius and Diameter show and the view draws the diameter. **Observed:**
+- [x] **ME-B-1 Section edges.** With a Section shown and Measure on, hover the cap's outline: the edge under the pointer is drawn in the hover colour; a click picks it. **Observed:** macOS, packaged app: The cap's hole outline hovers in the hover colour and picks.
+- [x] **ME-B-2 Section arc.** Pick an arc of the cap's outline (a hole cut across): Radius and Diameter show and the view draws the diameter. **Observed:** macOS, packaged app: A hole on the cap: Radius 2.5, Diameter 5, and the diameter drawn.
 - [ ] **ME-B-3 Wall thickness.** Pick a section edge, then a face of the same part: the distance reads the wall thickness. Change the wall's input in the inspector: the picks follow and the value updates. **Observed:**
 - [ ] **ME-B-4 Mesh points.** On a lattice or other mesh item, click the surface: a point is picked and every value reads "≈ … · mesh …" (the mesh's cell size). A mesh with no cell size, such as an imported STL or 3MF, reads "≈ …" alone. The same holds for any measurement with one approximate pick. **Observed:**
 - [ ] **ME-B-5 Keep.** The third click keeps the pair and starts a new measurement holding only that pick. The panel lists the kept measurement and the view draws it. **Observed:**
-- [ ] **ME-B-6 Keep button.** Keep is disabled with no picks and while a pick is lost; otherwise it keeps the current measurement. Keep a hole's diameter: it is listed and drawn. **Observed:**
-- [ ] **ME-B-7 Remove.** The row's × removes one kept measurement; Clear All removes every one. **Observed:**
-- [ ] **ME-B-8 Measure off.** Turn Measure off: kept measurements are still drawn and the panel still shows them. In sketch mode and during an Edges by Tag pick they are neither drawn nor listed; they return afterwards. **Observed:**
-- [ ] **ME-B-9 Save and Open.** Save, close and Open the file: the kept measurements come back after the first evaluation. New clears them. **Observed:**
+- [x] **ME-B-6 Keep button.** Keep is disabled with no picks and while a pick is lost; otherwise it keeps the current measurement. Keep a hole's diameter: it is listed and drawn. **Observed:** macOS, packaged app, first pass: as described.
+- [ ] **ME-B-7 Remove.** The row's × removes one kept measurement; Clear All removes every one. **Observed:** macOS, packaged app, first pass: Clear All removes them; the row's × not recorded.
+- [ ] **ME-B-8 Measure off.** Turn Measure off: kept measurements are still drawn and the panel still shows them. In sketch mode and during an Edges by Tag pick they are neither drawn nor listed; they return afterwards. **Observed:** macOS, packaged app: Measure off keeps kept ones drawn and listed; hidden in sketch mode and back after. Pick session not checked.
+- [x] **ME-B-9 Save and Open.** Save, close and Open the file: the kept measurements come back after the first evaluation. New clears them. **Observed:** macOS, packaged app: Kept measurement back after reopening; New clears it.
 - [ ] **ME-B-10 Couldn't measure.** A distance OpenCascade can't make reads "Couldn't measure" instead of a number (try two picks on an awkward shape, such as a lattice's surface against a curved face, or a part that has just failed to evaluate); it stays so, without the view stalling, until you change a pick or the solid under it. **Observed:**
 - [ ] **ME-B-10 Lost.** Delete the node of a measured part: the row greys and says "No longer found". Undo brings the values back. **Observed:**
-- [ ] **ME-B-11 No edit.** Keeping, removing and clearing add no undo step and do not mark the document edited. **Observed:**
+- [ ] **ME-B-11 No edit.** Keeping, removing and clearing add no undo step and do not mark the document edited. **Observed:** macOS, packaged app, first pass: No undo step from keeping and clearing; the edited mark not recorded.
 - [ ] **ME-B-13 Flicker after an edit.** A kept measurement on a section edge may read "No longer found" for a moment after an edit, until the new cap lands (known and accepted). It returns on its own. **Observed:**
 - [ ] **ME-B-12 Linux and Windows.** The same on Linux and Windows. **Observed:**
 
 ## Group ME-C — Measure, edge continuity (G-b1)
 
-- [ ] **ME-C-1 Box edge.** Measure on, pick an edge of a plain box: the Continuity row reads "G0 · 90°". **Observed:**
-- [ ] **ME-C-2 Fillet spring edge.** Pick the edge where a fillet meets its flat face: the row reads "G1 · curvature jump 100 %" (a fillet against a flat face always reads 100 %). **Observed:**
+- [x] **ME-C-1 Box edge.** Measure on, pick an edge of a plain box: the Continuity row reads "G0 · 90°". **Observed:** macOS, packaged app, first pass: as described.
+- [x] **ME-C-2 Fillet spring edge.** Pick the edge where a fillet meets its flat face: the row reads "G1 · curvature jump 100 %" (a fillet against a flat face always reads 100 %). **Observed:** macOS, packaged app, first pass: as described.
 - [ ] **ME-C-3 Coplanar.** Pick the seam between two coplanar faces (a union of two boxes sharing a face plane): the row reads "G2". **Observed:**
 - [ ] **ME-C-4 No row.** Pick a face, a corner or a boundary edge that joins one face: no Continuity row. A second pick replaces the single-edge row. **Observed:**
-- [ ] **ME-C-5 Keep.** Keep a one-edge measurement: its summary ends " · G0 · 90°" (or its grade). Edit the part so the grade changes: the row follows after the evaluation. **Observed:**
+- [ ] **ME-C-5 Keep.** Keep a one-edge measurement: its summary ends " · G0 · 90°" (or its grade). Edit the part so the grade changes: the row follows after the evaluation. **Observed:** macOS, packaged app: Keep reads "10 mm · G2". Following a grade change while kept not checked.
 - [ ] **ME-C-6 Linux and Windows.** The same on Linux and Windows. **Observed:**
 
 ## Group ZE — Zebra stripes
 
-- [ ] **ZE-1 Toggle, menu and key.** The top bar's Zebra toggle, View ▸ Show/Hide Zebra Stripes and Z each turn the stripes on and off; the three agree. The Zebra panel shows below Measure while it is on. **Observed:**
-- [ ] **ZE-2 Orbit.** With stripes on, orbit the bracket: the stripes slide over the surface as the reflection changes. **Observed:**
-- [ ] **ZE-3 Lock.** Lock pins the stripes to the view they had: orbiting no longer moves them. Save, close and Open: the lock and its pose come back. Unlock frees them. **Observed:**
+- [x] **ZE-1 Toggle, menu and key.** The top bar's Zebra toggle, View ▸ Show/Hide Zebra Stripes and Z each turn the stripes on and off; the three agree. The Zebra panel shows below Measure while it is on. **Observed:** macOS, packaged app, first pass: as described.
+- [x] **ZE-2 Orbit.** With stripes on, orbit the bracket: the stripes slide over the surface as the reflection changes. **Observed:** macOS, packaged app, first pass: as described.
+- [x] **ZE-3 Lock.** Lock pins the stripes to the view they had: orbiting no longer moves them. Save, close and Open: the lock and its pose come back. Unlock frees them. **Observed:** macOS, packaged app: Lock keeps the stripes through a reopen, and the lock and pose are in the file.
 - [ ] **ZE-4 Continuity.** On the bracket's fillet and on a loft: a crease breaks the stripes, a plain fillet kinks them, a smooth blend lets them flow straight across. **Observed:**
 - [ ] **ZE-5 Fine mesh.** A fillet shows no faceting in its stripes once the finer mesh has landed (a moment after switching on). Turning stripes off returns the usual mesh. **Observed:**
-- [ ] **ZE-6 Section.** With a Section shown, stripes stay on the cut part and the cap is drawn as usual. **Observed:**
-- [ ] **ZE-7 Other modes.** Ghosts are never striped; a field tint gives way to the stripes; sketch mode hides them and returns them afterwards. **Observed:**
+- [x] **ZE-6 Section.** With a Section shown, stripes stay on the cut part and the cap is drawn as usual. **Observed:** macOS, packaged app, first pass: as described.
+- [ ] **ZE-7 Other modes.** Ghosts are never striped; a field tint gives way to the stripes; sketch mode hides them and returns them afterwards. **Observed:** macOS, packaged app: Sketch mode hides the stripes and returns them. Ghosts and a field tint not checked.
 - [ ] **ZE-8 Linux and Windows.** The same on Linux and Windows: the stripes look alike. **Observed:**
 
 ## Group G2F — G2 fillets (Continuity on the Fillet node)
 
-- [ ] **G2F-1 G1 against G2 under zebra.** On a box, fillet one top edge (radius 3) and switch Zebra on (Z). At Tangent (G1) the stripes kink where the fillet meets each face; set Continuity to Curvature (G2): the stripes flow across both seams without a kink. Switching back restores the kink. **Observed:**
-- [ ] **G2F-2 Tangency weight.** At Curvature (G2) the Tangency weight slider shows (hidden at G1). Weight 0.5 gives a tighter, flatter bulge, 1 is close to the circle's, 1.5 a fuller one; the stripes stay unbroken at each of these on a box edge. Weight 2 is refused there with "The tangency weight is too large for this fillet.". **Observed:**
-- [ ] **G2F-3 Box corner.** Fillet all three edges at a box corner at G2: the corner is a smooth patch, stripes flow over it from every side, and the node has no warning. **Observed:**
+- [x] **G2F-1 G1 against G2 under zebra.** On a box, fillet one top edge (radius 3) and switch Zebra on (Z). At Tangent (G1) the stripes kink where the fillet meets each face; set Continuity to Curvature (G2): the stripes flow across both seams without a kink. Switching back restores the kink. **Observed:** macOS, packaged app, first pass: as described.
+- [x] **G2F-2 Tangency weight.** At Curvature (G2) the Tangency weight slider shows (hidden at G1). Weight 0.5 gives a tighter, flatter bulge, 1 is close to the circle's, 1.5 a fuller one; the stripes stay unbroken at each of these on a box edge. Weight 2 is refused there with "The tangency weight is too large for this fillet.". **Observed:** macOS, packaged app, first pass: as described.
+- [x] **G2F-3 Box corner.** Fillet all three edges at a box corner at G2: the corner is a smooth patch, stripes flow over it from every side, and the node has no warning. **Observed:** macOS, packaged app, first pass: as described.
 - [ ] **G2F-4 Hexagonal prism corner.** Fillet the three edges meeting at a hexagonal prism's top corner at G2: the corner is one smooth patch (its sides are mitred, so the strips end slightly cut back on the top), the stripes flow over it from every side, the node has no warning and the part is valid. **Observed:**
 - [ ] **G2F-5 Rounded loft.** Fillet the edges of a rounded loft at G2: the node warns "N fillet joins are only approximately tangent where the edges kink." and the stripes flow along the chain. **Observed:**
-- [ ] **G2F-6 Too large.** A radius the strips can't take reads "The fillet can't be made curvature continuous at this radius." with the largest radius that works; using it succeeds. **Observed:**
+- [ ] **G2F-6 Too large.** A radius the strips can't take reads "The fillet can't be made curvature continuous at this radius." with the largest radius that works; using it succeeds. **Observed:** macOS, packaged app: Radius 11 on a 20 mm box: "Radius 11 mm is too large for the selected edges (max ≈ 9.9 mm).", the general refusal, not this check's sentence; 9.9 builds at G2.
 - [ ] **G2F-7 Downstream pick.** Pick the fillet's edges in an Edges by Tag rule feeding a Chamfer, then switch Continuity G1, G2 and G1 again: the pick and the Chamfer survive each switch. **Observed:**
-- [ ] **G2F-8 Continuity row.** On a G2 fillet's spring edge, the edge readout's Continuity row reads G2 (G1 for a circular fillet). This needs the readout PR (the Continuity row), which is not in this branch: skip until it merges. **Observed:**
+- [x] **G2F-8 Continuity row.** On a G2 fillet's spring edge, the edge readout's Continuity row reads G2 (G1 for a circular fillet). This needs the readout PR (the Continuity row), which is not in this branch: skip until it merges. **Observed:** macOS, packaged app, first pass: as described.
 - [ ] **G2F-9 Drag preview.** Drag a G2 fillet's radius, with the slider and with the viewport handle: the part follows the pointer as smoothly as a G1 fillet, and on release the fillet becomes the G2 surface (turn on Zebra stripes: they flow across the seams after the release, not during the drag). A G1 fillet drags as before. **Observed:**
-- [ ] **G2F-10 Triangular prism corner.** On an equilateral triangular prism (60 degree corners), fillet the three edges at a top corner at G2: the corner is one smooth patch (the strips run a little past their ends into it), the stripes flow over it from every side without a kink, and the node has no warning. Export it as STEP and open the file: the part reads back valid. **Observed:**
+- [ ] **G2F-10 Triangular prism corner.** On an equilateral triangular prism (60 degree corners), fillet the three edges at a top corner at G2: the corner is one smooth patch (the strips run a little past their ends into it), the stripes flow over it from every side without a kink, and the node has no warning. Export it as STEP and open the file: the part reads back valid. **Observed:** macOS, packaged app: All nine edges at G2, no warning, 8.95 s, stripes flow over a top corner. STEP export not checked.
 
 ## Group GA — Implicit blend continuity (G-a)
 
-- [ ] **GA-1 G1, G2 and G3 under zebra.** Wire a sphere and a box through a Merge node into a Union with a 3 mm blend and switch on Zebra stripes (Z). Set `continuity` to G1, G2 and G3 in turn: G1's stripes kink where the blend meets the operands, G2's bend smoothly with no kink, G3 is as smooth and as smooth and a touch shallower. New Union, Subtract and Intersect nodes read G2; new TPMS, Strut Lattice and Voronoi Lattice nodes read G1 (the skin join is tuned for printability, and G2 at 1 mm left voids on the lightweight bracket), with G2 and G3 selectable. **Observed:**
+- [ ] **GA-1 G1, G2 and G3 under zebra.** Wire a sphere and a box through a Merge node into a Union with a 3 mm blend and switch on Zebra stripes (Z). Set `continuity` to G1, G2 and G3 in turn: G1's stripes kink where the blend meets the operands, G2's bend smoothly with no kink, G3 is as smooth and as smooth and a touch shallower. New Union, Subtract and Intersect nodes read G2; new TPMS, Strut Lattice and Voronoi Lattice nodes read G1 (the skin join is tuned for printability, and G2 at 1 mm left voids on the lightweight bracket), with G2 and G3 selectable. **Observed:** macOS, packaged app: Only on two overlapping spheres from Place, since a sphere and a box could not reach a Union before Merge: G1 turns a corner at the neck, G2 and G3 bend smoothly, new Union reads G2. Redo with Merge.
 - [ ] **GA-2 Old file.** Open a graph saved before G-a that has a Union, a Subtract, an Intersect and a lattice with a skin: each reads G1 and the geometry is unchanged. **Observed:**
 - [ ] **GA-3 Strut joints.** On a Strut Lattice with `node blend` above 0, set `continuity` to G2: the struts' joints and the skin join follow it. At G2 the stripes flow across a joint, at G1 they kink. Check a TPMS and a Voronoi Lattice's skin join the same way. **Observed:**
-- [ ] **GA-4 Blend 0.** With `blend` 0 the join is the sharp one whatever `continuity` says. **Observed:**
+- [x] **GA-4 Blend 0.** With `blend` 0 the join is the sharp one whatever `continuity` says. **Observed:** macOS, packaged app: Two placed spheres at blend 0, continuity G3: sharp join, recipe has no blend.
 - [ ] **GA-5 Live.** Switching `continuity` re-previews without a stall, on a lattice too. **Observed:**
 
 ## Group SP — Sketch splines (G-c)
 
-- [ ] **SP-1 Draw a spline.** In sketch mode press S, click four or five points and press Return: a smooth spline passes through every point and the stroke ends (one undo step, "Add Spline"); the Spline tool stays chosen, as the Line tool does, so the next click starts another curve (press Esc with nothing in progress, or choose another tool, to leave it). Esc and a click on the last point finish it the same way. A spline of two points is a gentle curve through them. **Observed:**
-- [ ] **SP-2 Drag fit points.** Drag a fit point: the curve changes locally, near that point, and the other points stay put. **Observed:**
-- [ ] **SP-3 Tangent and curvature handles.** Select the spline: each fit point shows a tangent knob and a curvature knob. Dragging a knob activates it (the curve does not jump when it starts) and reshapes the curve at that point; Release in the inspector returns the handle to automatic and the curve relaxes. Release is refused while a Tangent or Curvature constraint uses the handle. **Observed:**
-- [ ] **SP-4 Curvature join, extrude, Zebra and Measure.** Draw a line and a spline that meet at a point, select both and press Curvature, close the loop with more curves, extrude the sketch and switch Zebra stripes on (Z): the stripes flow across the joint edge without a kink. Measure (M) the joint edge: its Continuity row reads G2. **Observed:**
-- [ ] **SP-5 Tangent only.** Replace Curvature with Tangent on the same pair: the stripes bend at the joint and the edge reads G1. **Observed:**
-- [ ] **SP-6 Crossing itself.** Drag a spline's points so it crosses itself: the sketch inspector shows "Spline N crosses itself, so it isn't part of a region." under the degrees-of-freedom line (and the Sketch node's badge shows it once the node is wired to something evaluated), and the spline is not filled. Undo the drag and the warning goes. **Observed:**
+- [x] **SP-1 Draw a spline.** In sketch mode press S, click four or five points and press Return: a smooth spline passes through every point and the stroke ends (one undo step, "Add Spline"); the Spline tool stays chosen, as the Line tool does, so the next click starts another curve (press Esc with nothing in progress, or choose another tool, to leave it). Esc and a click on the last point finish it the same way. A spline of two points is a gentle curve through them. **Observed:** macOS, packaged app, first pass: as described.
+- [x] **SP-2 Drag fit points.** Drag a fit point: the curve changes locally, near that point, and the other points stay put. **Observed:** macOS, packaged app: The curve changes most near the dragged point and the other fit points stay.
+- [ ] **SP-3 Tangent and curvature handles.** Select the spline: each fit point shows a tangent knob and a curvature knob. Dragging a knob activates it (the curve does not jump when it starts) and reshapes the curve at that point; Release in the inspector returns the handle to automatic and the curve relaxes. Release is refused while a Tangent or Curvature constraint uses the handle. **Observed:** macOS, packaged app: Knobs show; dragging a tangent knob activates it with no jump (DOF 10 to 12); Release returns it. Curvature knob and the refused Release not checked.
+- [x] **SP-4 Curvature join, extrude, Zebra and Measure.** Draw a line and a spline that meet at a point, select both and press Curvature, close the loop with more curves, extrude the sketch and switch Zebra stripes on (Z): the stripes flow across the joint edge without a kink. Measure (M) the joint edge: its Continuity row reads G2. **Observed:** macOS, packaged app: Line and spline loop with Curvature, extruded: stripes carry across the joint and it reads G2.
+- [x] **SP-5 Tangent only.** Replace Curvature with Tangent on the same pair: the stripes bend at the joint and the edge reads G1. **Observed:** macOS, packaged app: Same loop with Tangent (inferred when the spline closes on the line): joint reads "G1 · curvature jump 100 %".
+- [ ] **SP-6 Crossing itself.** Drag a spline's points so it crosses itself: the sketch inspector shows "Spline N crosses itself, so it isn't part of a region." under the degrees-of-freedom line (and the Sketch node's badge shows it once the node is wired to something evaluated), and the spline is not filled. Undo the drag and the warning goes. **Observed:** macOS, packaged app: Failed on a build before #33: a crossing open spline gave "1 curve doesn't form a closed region.", not the crossing warning, and the sketch inspector showed no warning. #33 fixes both, by tests only; re-run in the app.
 - [ ] **SP-7 Mirror and pattern.** Mirror a spline about a line and make a linear and a circular pattern of one: each copy is a spline of the same shape (reflected for the mirror), with its handles. **Observed:**
-- [ ] **SP-8 Delete a fit point.** Select an interior fit point of a spline of four or more points and delete it: the spline stays, through the remaining points. Deleting a point of a two-point spline removes the spline. **Observed:**
-- [ ] **SP-9 Save and reopen.** Save a sketch with splines (one with an active tangent and curvature handle and a Curvature constraint), close and Open it: the curves, handles and constraints are unchanged and the solve is identical. **Observed:**
+- [ ] **SP-8 Delete a fit point.** Select an interior fit point of a spline of four or more points and delete it: the spline stays, through the remaining points. Deleting a point of a two-point spline removes the spline. **Observed:** macOS, packaged app: Interior point: the spline stays. Note: a plain click on a fit point of an already selected spline keeps the spline selected, and Delete then removes the whole curve. Two-point case not checked.
+- [ ] **SP-9 Save and reopen.** Save a sketch with splines (one with an active tangent and curvature handle and a Curvature constraint), close and Open it: the curves, handles and constraints are unchanged and the solve is identical. **Observed:** macOS, packaged app: Line and spline with a Curvature constraint: geometry and stripes unchanged after a reopen. Active handles not checked.
 - [ ] **SP-10 Linux and Windows.** The same on Linux and Windows: the spline draws, edits, extrudes and the stripes flow alike. **Observed:**
 
 ## Group LE — Loft end conditions (G-d)
 
-- [ ] **LE-1 Boss from a box face.** Make a 20 x 20 x 10 box and a Rectangle 12 x 12 on a plane 10 mm above its top. Add a Loft: section the Rectangle, `solid` the box, Pick Start Face in View… and click the box's top, then Union the box and the loft. Turn on Zebra stripes (Z). At Free the stripes kink along the four joint edges; at Tangent (G1) they carry across them without a kink; at Curvature (G2) they flow across with no change of curvature. **Observed:**
-- [ ] **LE-2 Measure on a joint edge.** With the part from LE-1, start Measure (M) and click a joint edge: Free reads a crease (G0), Tangent reads G1, Curvature reads G2, on all four edges. **Observed:**
-- [ ] **LE-3 Weight.** At Tangent and at Curvature, drag the start weight through 0.1, 1 and 2: the sides bulge out from the box more as the weight grows, the preview follows without a stall, and a weight of 2 still builds. **Observed:**
+- [x] **LE-1 Boss from a box face.** Make a 20 x 20 x 10 box and a Rectangle 12 x 12 on a plane 10 mm above its top. Add a Loft: section the Rectangle, `solid` the box, Pick Start Face in View… and click the box's top, then Union the box and the loft. Turn on Zebra stripes (Z). At Free the stripes kink along the four joint edges; at Tangent (G1) they carry across them without a kink; at Curvature (G2) they flow across with no change of curvature. **Observed:** macOS, packaged app, first pass: as described.
+- [ ] **LE-2 Measure on a joint edge.** With the part from LE-1, start Measure (M) and click a joint edge: Free reads a crease (G0), Tangent reads G1, Curvature reads G2, on all four edges. **Observed:** macOS, packaged app: Curvature on one joint edge reads G2; the other edges and Free and Tangent not checked in this pass.
+- [ ] **LE-3 Weight.** At Tangent and at Curvature, drag the start weight through 0.1, 1 and 2: the sides bulge out from the box more as the weight grows, the preview follows without a stall, and a weight of 2 still builds. **Observed:** macOS, packaged app, first pass: A weight of 2 builds on one edge; the sweep not recorded.
 - [ ] **LE-4 Bridge between two boxes.** Union two boxes 20 mm apart (the second smaller and offset), wire the union into a Loft with no section, pick the first box's top as Start and the second box's bottom as End, both at Curvature. The loft builds a bridge, and a Union with the part reads G2 on all eight joint edges (Measure). **Observed:**
 - [ ] **LE-5 Cylinder top to a circle.** A cylinder with a Circle on a plane above it: pick the top as Start at Curvature. The loft builds with no warning, the seam of the circle sits where the section starts, and the stripes flow across the joint. **Observed:**
 - [ ] **LE-6 Curved face refused.** Pick a cylinder's curved wall as the Start face: the Loft says "The loft's end face must be flat." and nothing else changes. With Straight sides (ruled) on and a face picked, it says "Straight sides can't have end conditions." **Observed:**
@@ -2382,31 +2382,31 @@ the Output selected so the part is shown.
 
 ## Group MI — Mesh import (STL and 3MF)
 
-- [ ] **MI-1 Import a file.** File ▸ Import Mesh… and choose a downloaded STL: an Import Mesh node appears wired to an Output and the mesh shows in the viewport. Repeat with a slicer's 3MF. **Observed:**
-- [ ] **MI-2 Facts and units.** The node's inspector gives the triangle count, the size in millimetres; they match the file. The Size fact makes a file in the wrong unit obvious, and changing the units control rescales it. The 3MF's build items arrive as a list. **Observed:**
-- [ ] **MI-3 Hard and smooth.** A CAD part's edges look hard (a box keeps six flat faces) and a sphere is smooth. (The crease angle is fixed at 30 degrees; there is no control for it.) **Observed:**
-- [ ] **MI-4 Imperfect meshes.** A file with holes warns "This mesh isn't closed: N open edges." (and the flipped and over-full warnings on files that have them). Check Thin Walls, Check Trapped Volumes and Mesh to Solid each refuse in their words ("… needs a closed mesh."); Section, Measure and STL export still work on it, and a 3MF export warns after writing, naming the Output node. **Observed:**
-- [ ] **MI-5 Zebra.** Switch Zebra stripes on (Z) for a fine STL and for a coarse one: the fine mesh's stripes flow, the coarse one's show its facets. **Observed:**
-- [ ] **MI-6 Section and Measure.** Section cuts the imported mesh and fills the cap; Measure picks its points and section outline and reads values marked approximate. **Observed:**
-- [ ] **MI-7 Link, relink, embed.** Edit the linked file on disk, then make any edit in the document (there is no file watcher; an evaluation notices the changed file): the node re-runs once. Delete it: the node says it can't find the file. Relink it, then Embed, then save, close and reopen: the mesh is unchanged, the embedded copy needs no file, and undo returns to the linked state. **Observed:**
+- [ ] **MI-1 Import a file.** File ▸ Import Mesh… and choose a downloaded STL: an Import Mesh node appears wired to an Output and the mesh shows in the viewport. Repeat with a slicer's 3MF. **Observed:** macOS, packaged app, first pass: STL imports; a slicer's 3MF not recorded (MI-9 is the real-file check).
+- [ ] **MI-2 Facts and units.** The node's inspector gives the triangle count, the size in millimetres; they match the file. The Size fact makes a file in the wrong unit obvious, and changing the units control rescales it. The 3MF's build items arrive as a list. **Observed:** macOS, packaged app, first pass: Facts and units right on an STL; a 3MF's list not recorded.
+- [x] **MI-3 Hard and smooth.** A CAD part's edges look hard (a box keeps six flat faces) and a sphere is smooth. (The crease angle is fixed at 30 degrees; there is no control for it.) **Observed:** macOS, packaged app, first pass: as described.
+- [ ] **MI-4 Imperfect meshes.** A file with holes warns "This mesh isn't closed: N open edges." (and the flipped and over-full warnings on files that have them). Check Thin Walls, Check Trapped Volumes and Mesh to Solid each refuse in their words ("… needs a closed mesh."); Section, Measure and STL export still work on it, and a 3MF export warns after writing, naming the Output node. **Observed:** macOS, packaged app, first pass: The open-edges warning shows; the refusals and exports not recorded.
+- [x] **MI-5 Zebra.** Switch Zebra stripes on (Z) for a fine STL and for a coarse one: the fine mesh's stripes flow, the coarse one's show its facets. **Observed:** macOS, packaged app: Coarse sphere (120 triangles) shows facets, fine sphere (16,128) flows.
+- [x] **MI-6 Section and Measure.** Section cuts the imported mesh and fills the cap; Measure picks its points and section outline and reads values marked approximate. **Observed:** macOS, packaged app, first pass: as described.
+- [x] **MI-7 Link, relink, embed.** Edit the linked file on disk, then make any edit in the document (there is no file watcher; an evaluation notices the changed file): the node re-runs once. Delete it: the node says it can't find the file. Relink it, then Embed, then save, close and reopen: the mesh is unchanged, the embedded copy needs no file, and undo returns to the linked state. **Observed:** macOS, packaged app: Replaced file re-read on the next edit (120 to 12 triangles); deleted file: "File 'mi7.stl' wasn't found … Relink it in the inspector."; relink, Embed, undo back to Linked, redo; saved, reopened with the source deleted: same mesh.
 - [ ] **MI-8 Linux and Windows.** On Linux and on Windows the same files read alike: the same triangle counts, size and warnings. **Observed:**
 - [ ] **MI-9 3MF from slicers.** Import a Bambu Studio project file (a `.3mf` saved as a project): it reads, with the right size and one mesh per build item, and a project with only generated (tree or normal) supports says nothing about parts, since those are not objects. Add a negative part to a project: it says "This 3MF's support, modifier and negative parts were left out, so the shape may differ." and the part shows uncut. A painted project says "This mesh's color and material data was ignored." Do the same with an Orca Slicer project file. (Nothing in 3MF parts, MI-2b, has seen a real file; this check proves it.) Import a PrusaSlicer 3MF: it reads, one mesh per build item (an object with two instances gives two meshes), the Size fact in millimetres and the meshes in the list, with summary facts (Meshes, Triangles, Size, Closed) for the list. Exporting an Output holding the list as 3MF writes one object per mesh. Then export a generic 3MF from Bambu Studio (not the project file): it imports. **Observed:**
 - [ ] **MI-10 A 10,000,000-triangle mesh.** Import a binary STL of about 10,000,000 triangles (a scanned or generated height field; the benchmark's `Fixture.field` makes one). The first display takes a few seconds and the node warns the view may be slow. Orbit, pan and zoom: is it usable (a few frames a second or better)? Switch Zebra on and cut it with Section. Activity Monitor shows the app's memory: note the peak (the benchmark's 2.4 GB excludes the GPU buffers). If orbiting is not smooth, lower `MeshImportLimits.maxTriangles` and its message together (spec Errata 11). **Observed:**
 
 ## Group CU — Convert Units node
 
-- [ ] **CU-1 Add and wire.** Add a Convert Units node from the library (Values): with its defaults (Length, in to mm) and a value of 1 it reads 25.4. Wire its output into a Box's width: the box is 25.4 mm wide, whatever the document's display units are. **Observed:**
-- [ ] **CU-2 Switch quantity.** Set Quantity to Angle: the inspector swaps the two length controls for deg and rad (default deg to rad) and 180 reads 3.14159. Switch back to Length: the length controls return with the choices you left. The help line about millimetres shows under both. **Observed:**
-- [ ] **CU-3 A list broadcasts.** Wire a Series (1, 2, 3) into Convert Units' value: the output is the list 25.4, 50.8, 76.2, and a Box fed from it makes three boxes. **Observed:**
+- [x] **CU-1 Add and wire.** Add a Convert Units node from the library (Values): with its defaults (Length, in to mm) and a value of 1 it reads 25.4. Wire its output into a Box's width: the box is 25.4 mm wide, whatever the document's display units are. **Observed:** macOS, packaged app, first pass: as described.
+- [x] **CU-2 Switch quantity.** Set Quantity to Angle: the inspector swaps the two length controls for deg and rad (default deg to rad) and 180 reads 3.14159. Switch back to Length: the length controls return with the choices you left. The help line about millimetres shows under both. **Observed:** macOS, packaged app, first pass: as described.
+- [x] **CU-3 A list broadcasts.** Wire a Series (1, 2, 3) into Convert Units' value: the output is the list 25.4, 50.8, 76.2, and a Box fed from it makes three boxes. **Observed:** macOS, packaged app, first pass: as described.
 
 ## Group HU — Inspector and panel fixes (from driving the packaged app)
 
-- [ ] **HU-1 Wide choices fit the inspector.** Select a Loft with a picked start face, an Import Mesh and a Fillet: "Start continuity", "Units" and "Continuity" show their label on one line, and the options are a pop-up when the segments would not fit the 280-point panel (a short choice such as Add / Cut keeps its segments in the row). Every option can be chosen, and nothing runs past the panel's right edge. **Observed:**
-- [ ] **HU-2 Panels take their clicks.** With a measurement shown, click the Measure panel's title, an empty part of it and a row: the picks stay. Click the Section panel, the Zebra panel, the inspector (a label, its padding, "Document Parameters") with a tool active: nothing happens in the viewport (no selection cleared, no point picked). A drag on the top bar's padding beside its controls still orbits, as before. **Observed:**
-- [ ] **HU-3 Import Mesh lists Triangles once.** Select an Import Mesh node: its Mesh section lists Triangles one time, then Vertices, Size, Closed, File and Memory. A Mesh, Decimate and a check node list no fact twice either. **Observed:**
-- [ ] **HU-4 No negative zero.** Section on, plane XZ, default offset on the example bracket: the handle reads "0 mm", not "-0 mm", and the Section panel's Offset field reads 0, whatever the system language (Swedish, Persian and Arabic regions write their own minus and digits). **Observed:**
-- [ ] **HU-5 Convert Units shows its result.** Select a Convert Units node: below its controls a Result row reads 25.4 for the defaults (1 in to mm), 3.14159 for 180 deg to rad, and "25.4, 50.8, 76.2" for a Series of 1, 2, 3 wired in (a list over eight values is cut with its count; a result under 0.000005 reads in scientific notation, "1E-6", never "0" or "-0"). The row fills in without an Output node and without anything else changing in the viewport. It reads "No result yet" before the node has run. This is where CU-1 and CU-2 read their numbers. **Observed:**
-- [ ] **HU-6 Alucard's selected segment.** In the Alucard theme the selected segment of a segmented control (the inspector's Plane: XY, a Section panel's plane) stands out as the lightest of the control, a raised pill on a darker track; the unselected segments look recessed. Dracula and Nord look as before. **Observed:**
+- [x] **HU-1 Wide choices fit the inspector.** Select a Loft with a picked start face, an Import Mesh and a Fillet: "Start continuity", "Units" and "Continuity" show their label on one line, and the options are a pop-up when the segments would not fit the 280-point panel (a short choice such as Add / Cut keeps its segments in the row). Every option can be chosen, and nothing runs past the panel's right edge. **Observed:** macOS, packaged app: Loft "Start continuity" and Import Mesh "Units" are one line with a pop-up, all options there; Placement keeps its segments; Fillet's Continuity shows its segments under the label inside the panel.
+- [ ] **HU-2 Panels take their clicks.** With a measurement shown, click the Measure panel's title, an empty part of it and a row: the picks stay. Click the Section panel, the Zebra panel, the inspector (a label, its padding, "Document Parameters") with a tool active: nothing happens in the viewport (no selection cleared, no point picked). A drag on the top bar's padding beside its controls still orbits, as before. **Observed:** macOS, packaged app: Measure, Section, Zebra and inspector clicks keep the picks. Not checked: the drag on the top bar's padding.
+- [x] **HU-3 Import Mesh lists Triangles once.** Select an Import Mesh node: its Mesh section lists Triangles one time, then Vertices, Size, Closed, File and Memory. A Mesh, Decimate and a check node list no fact twice either. **Observed:** macOS, packaged app: Triangles once, then Vertices, Size, Closed, File, Memory.
+- [ ] **HU-4 No negative zero.** Section on, plane XZ, default offset on the example bracket: the handle reads "0 mm", not "-0 mm", and the Section panel's Offset field reads 0, whatever the system language (Swedish, Persian and Arabic regions write their own minus and digits). **Observed:** macOS, packaged app: English: handle "0 mm", Offset 0. Other languages only by `HandleLabelTests`.
+- [x] **HU-5 Convert Units shows its result.** Select a Convert Units node: below its controls a Result row reads 25.4 for the defaults (1 in to mm), 3.14159 for 180 deg to rad, and "25.4, 50.8, 76.2" for a Series of 1, 2, 3 wired in (a list over eight values is cut with its count; a result under 0.000005 reads in scientific notation, "1E-6", never "0" or "-0"). The row fills in without an Output node and without anything else changing in the viewport. It reads "No result yet" before the node has run. This is where CU-1 and CU-2 read their numbers. **Observed:** macOS, packaged app: 25.4; 3.14159 for 180 deg to rad; "25.4, 50.8, 76.2" from a Series; in Final preview with the viewport unchanged.
+- [x] **HU-6 Alucard's selected segment.** In the Alucard theme the selected segment of a segmented control (the inspector's Plane: XY, a Section panel's plane) stands out as the lightest of the control, a raised pill on a darker track; the unselected segments look recessed. Dracula and Nord look as before. **Observed:** macOS, packaged app: Alucard: the selected XZ is the lightest segment on a darker track. Nord and Dracula as before.
 
 ## Group MG — Merge node
 
