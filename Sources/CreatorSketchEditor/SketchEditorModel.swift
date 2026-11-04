@@ -78,7 +78,7 @@ public final class SketchEditorModel {
     @ObservationIgnored var stored: Sketch
     /// The region fills of `sketch` on `plane`, kept until either changes: the overlay is rebuilt on every hover, and
     /// finding regions is more work than a hover (`regionFills`).
-    @ObservationIgnored var fillCache: (sketch: Sketch, plane: Plane, fills: [OverlayFill])?
+    @ObservationIgnored var fillCache: (sketch: Sketch, plane: Plane, fills: [OverlayFill], warnings: [String])?
 
     @ObservationIgnored public var events = SketchEditorEvents()
 

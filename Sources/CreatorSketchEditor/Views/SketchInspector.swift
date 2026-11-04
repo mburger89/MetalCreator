@@ -17,6 +17,9 @@ public struct SketchInspector: Component {
         let colors = SketchColors(themes)
         return VStack(alignment: .leading, spacing: Pixels(8)) {
             Text(model.statusText).font(.callout).foregroundStyle(model.statusIsProblem ? colors.problem : colors.primary)
+            ForEach(model.regionWarnings, id: \.self) { warning in
+                Text(warning).font(.caption).foregroundStyle(colors.warning)
+            }
             if let refusal = model.refusal {
                 Text(refusal).font(.caption).foregroundStyle(colors.warning)
             }

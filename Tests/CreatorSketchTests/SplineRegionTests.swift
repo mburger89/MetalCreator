@@ -200,4 +200,60 @@ struct SplineRegionTests {
         // The centroid of a lens symmetric about y = 0 and x = 5.
         #expect(abs(region.centroid.x - 5) < 1e-6 && abs(region.centroid.y) < 1e-6)
     }
+
+    // MARK: Self-crossings at any size
+
+    private static let largeLoop = [
+        Vector2(-53.56122813955231, 40.29844783832984), Vector2(94.07178815691188, 52.944960597830736),
+        Vector2(50.75563999890913, 87.48333929460213), Vector2(43.88830047385922, -24.531301088285673),
+    ]
+    private static let sixPoints = [
+        Vector2(0, 0), Vector2(40, 0), Vector2(70, 30), Vector2(40, 60), Vector2(10, 30), Vector2(20, -30)]
+
+    /// Brute force: whether a dense polyline of the spline through `positions` has two non-neighbouring chords that cross.
+    func polylineCrosses(_ positions: [Vector2]) -> Bool {
+        var sketch = Sketch()
+        let (id, _) = spline(&sketch, positions)
+        guard let shape = sketch.shape(of: id) else { return false }
+        let dense = (0..<1500).map { shape.point(at: shape.parameterEnd * Double($0) / 1499) }
+        func crosses(_ i: Int, _ j: Int) -> Bool {
+            let (p, r) = (dense[i], dense[j])
+            let (d1, d2) = (dense[i + 1] - p, dense[j + 1] - r)
+            let denominator = SketchMath.cross(d1, d2)
+            guard abs(denominator) > 1e-12 else { return false }
+            let (t, u) = (SketchMath.cross(r - p, d2) / denominator, SketchMath.cross(r - p, d1) / denominator)
+            return (0...1).contains(t) && (0...1).contains(u)
+        }
+        return (0..<1490).contains { i in ((i + 5)..<1498).contains { crosses(i, $0) } }
+    }
+
+    func warns(_ positions: [Vector2]) -> Bool {
+        var sketch = Sketch()
+        _ = spline(&sketch, positions)
+        let result = SketchRegions.find(in: sketch)
+        return !result.selfCrossingWarnings.isEmpty && result.openCurves.isEmpty
+    }
+
+    @Test(arguments: [0.1, 1.0, 100.0])
+    func aLargeSplineCrossingBetweenItsFirstAndLastSpansWarns(scale: Double) {
+        let points = Self.largeLoop.map { $0 * scale }
+        #expect(polylineCrosses(points), "the fixture crosses")
+        #expect(warns(points))
+    }
+
+    @Test(arguments: [0.1, 1.0, 100.0])
+    func aSixPointSplineCrossingBetweenItsFirstAndLastSpansWarns(scale: Double) {
+        let points = Self.sixPoints.map { $0 * scale }
+        #expect(polylineCrosses(points), "the fixture crosses")
+        #expect(warns(points))
+    }
+
+    @Test(arguments: [0.1, 1.0, 100.0])
+    func aLargeOpenSplineDoesNotWarn(scale: Double) {
+        let points = [Vector2(-50, 40), Vector2(90, 50), Vector2(50, 90), Vector2(-40, 70), Vector2(-60, 120)].map { $0 * scale }
+        #expect(!polylineCrosses(points), "the fixture is open")
+        var sketch = Sketch()
+        _ = spline(&sketch, points)
+        #expect(SketchRegions.find(in: sketch).selfCrossingWarnings.isEmpty)
+    }
 }

@@ -13,11 +13,17 @@ extension SketchEditorModel {
 
     /// One fill per closed region of the sketch as it is now (spec §8), found again only when the sketch or its plane
     /// changed (a drag changes it every step; a hover never does).
-    var regionFills: [OverlayFill] {
-        if let cache = fillCache, cache.sketch == sketch, cache.plane == plane { return cache.fills }
-        let fills = SketchRegionFills.fills(of: sketch, on: plane)
-        fillCache = (sketch, plane, fills)
-        return fills
+    var regionFills: [OverlayFill] { regionsFound.fills }
+
+    /// "Spline N crosses itself, so it isn't part of a region." for each spline that does, as the sketch is now (the inspector
+    /// shows them). Found with the fills, so only when the sketch changes.
+    public var regionWarnings: [String] { regionsFound.warnings }
+
+    private var regionsFound: (fills: [OverlayFill], warnings: [String]) {
+        if let cache = fillCache, cache.sketch == sketch, cache.plane == plane { return (cache.fills, cache.warnings) }
+        let found = SketchRegionFills.found(in: sketch, on: plane)
+        fillCache = (sketch, plane, found.fills, found.warnings)
+        return found
     }
 
     /// The sketch's dimensions as the viewport draws them (`ViewportModel.showDimensions(_:)`): one for each whose geometry
