@@ -328,7 +328,7 @@ A new `ImplicitBench` suite (release, idle Mac, `BENCH` lines into `docs/verific
 
 ## 9. Out of scope (later)
 
-Importing STL or 3MF as inputs; colour and multi-material 3MF; fitting smooth NURBS to meshes; feature-preserving
+~~Importing STL or 3MF as inputs~~ (**done** 2026-11-03: `2026-11-03-mesh-import-design.md`, the Import Mesh node; measured in `docs/verification/performance.md`, "Mesh import"); colour and multi-material 3MF; fitting smooth NURBS to meshes; feature-preserving
 meshing (dual contouring); mesh booleans; surface textures and displacement (7d, which will reuse this engine).
 
 ## Errata (2026-10-13: portability, user decision)

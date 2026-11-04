@@ -52,8 +52,15 @@ public enum ImportMeshNode: NodeDefinition {
     /// The meshes a file of these bytes holds: a zip (`PK\u{3}\u{4}`, whatever the file is called) is a 3MF, anything else an STL.
     /// Synchronous, so no loop's locals live across an `await`.
     static func parse(_ data: Data) throws -> [ImportedMesh] {
-        if data.starts(with: [0x50, 0x4B, 0x03, 0x04]) { return try ThreeMFReader.read(data, isCancelled: { Task.isCancelled }) }
-        return [try STLReader.read(data, isCancelled: { Task.isCancelled })]
+        let read = data.starts(with: [0x50, 0x4B, 0x03, 0x04])
+            ? try ThreeMFReader.read(data, isCancelled: { Task.isCancelled })
+            : [try STLReader.read(data, isCancelled: { Task.isCancelled })]
+        // Counted here, so the cache keeps the counts with the parse and an edit to the placement or units never sorts the edges again.
+        return read.map { file in
+            var counted = file
+            counted.edgeCounts = EdgeCounts(file.mesh)
+            return counted
+        }
     }
 
     /// The imported mesh scaled by `scale` and moved onto `plane`, in `Double` and narrowed to `Float` once; a coordinate that is
@@ -75,7 +82,7 @@ public enum ImportMeshNode: NodeDefinition {
             guard narrowed.x.isFinite, narrowed.y.isFinite, narrowed.z.isFinite else { throw MeshImportProblem.coordinatesOverflow }
             positions.append(narrowed)
         }
-        let counts = EdgeCounts(source)
+        let counts = imported.edgeCounts ?? EdgeCounts(source)
         let size = high - low
         let facts = [
             PayloadFact("Triangles", source.triangleCount.display),

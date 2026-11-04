@@ -1497,3 +1497,32 @@ other agents running: **saturated, not a verdict**. The box's four patches take 
 ```text
 BENCH loft-ends-1 box top face to 12 mm square at G2, edit to preview: median 139.99 ms, p95 167.02 ms, max 168.90 ms (n 35)
 ```
+
+## Mesh import
+
+Rows `mesh-import-1` to `-8` (mesh import spec, Errata 11). `Tests/CreatorAppTests/Bench/MeshImportBench.swift`, release, 2026-11-03, Mac18,5, 12 cores, macOS 27.2. The file is linked and the node runs in an `AppModel` over `FakeKernel`, settled: read, weld by exact position, `EdgeCounts`, placement, the crease split of the display mesh (`TriangleMesh.displayMesh`, `Solid(displaying:)`) and the scene. **No window and no GPU**, so the frame the viewport draws, its GPU buffers and orbiting are not measured (human check MI-10). Each row ran in its own process, so the peak (`ru_maxrss`, the process's high-water mark) is that row's; it includes the fixture being written (small for the STLs; the 3MF row's 308 MB before the read is the 3MF writer's index, so its 493 MB peak is an upper bound). Load averages (1, 5, 15 min) 7.17 / 5.43 / 6.12 before the run and 4.39 / 5.86 / 6.23 after, with other agents running: **saturated, not a verdict**. Targets on an idle Mac (binary STL under 1 s, 3MF under 3 s at a million triangles) are met even so.
+
+| Row | Time | Peak |
+|---|---|---|
+| `mesh-import-1` binary STL, 1,000,000 triangles (49 MB) | 163 ms | 288 MB |
+| `mesh-import-2` ASCII STL, 1,000,000 triangles (142 MB) | 328 ms | 427 MB |
+| `mesh-import-3` 3MF, 1,000,000 triangles (9 MB) | 562 ms | 493 MB |
+| `mesh-import-4` binary STL height field, 10,000,000 triangles (5.0 M vertices, 499 MB) | 1.89 s | 2.4 GB |
+| `mesh-import-5` binary STL all-distinct soup, 10,000,000 triangles (30 M vertices, 500 MB) | 4.41 s | 5.9 GB |
+| `mesh-import-4c` / `-5c` the reader and weld alone, then `EdgeCounts`, on those two files | 0.70 s + 0.47 s / 3.16 s + 0.33 s | 1.7 GB / 4.3 GB |
+| `mesh-import-7` units edit after the first read, 1,000,000 triangles | 64 ms | |
+| `mesh-import-8` units edit after the first read, 10,000,000 triangles | 0.67 s (0.80 to 1.37 s before `EdgeCounts` was cached) | |
+
+`EdgeCounts` is re-run on every evaluation of the node unless kept: at 10,000,000 triangles it is 0.33 to 0.47 s of an edit that otherwise takes about 0.2 s, so it is now computed once when the file is parsed and kept in `ImportedMesh.edgeCounts` (a 1,000,000-triangle edit shows no difference, 64 ms either way). The limit of 10,000,000 triangles stays: the height field is a typical large scan or CAD export, and even the worst file (a soup, 30 million vertices, the maximum) peaks at 5.9 GB; an 8 GB machine adds the viewport's GPU buffers on top of that, which this run could not measure.
+
+```text
+BENCH mesh-import-1 binary STL, 1,000,000 triangles: 162.5 ms to the first display, peak 288 MB (65 MB before the read; file 49 MB)
+BENCH mesh-import-2 ASCII STL, 1,000,000 triangles: 328.2 ms to the first display, peak 427 MB (86 MB before the read; file 142 MB)
+BENCH mesh-import-3 3MF, 1,000,000 triangles: 562.1 ms to the first display, peak 493 MB (308 MB before the read; file 9 MB)
+BENCH mesh-import-4c height field, 10,000,000 triangles: read and weld 698.3 ms, EdgeCounts 474.4 ms, peak 1693 MB
+BENCH mesh-import-5c soup, 10,000,000 triangles: read and weld 3155.0 ms, EdgeCounts 332.4 ms, peak 4309 MB
+BENCH mesh-import-4 binary STL height field, 10,000,000 triangles: 1889.0 ms to the first display, peak 2416 MB
+BENCH mesh-import-5 binary STL soup, 10,000,000 triangles: 4406.1 ms to the first display, peak 5875 MB
+BENCH mesh-import-7 units edit after the first read, 1000000 triangles: median 64.9 ms (n 5)
+BENCH mesh-import-8 units edit after the first read, 10000000 triangles: median 663.5 ms (n 5)
+```
