@@ -167,7 +167,7 @@ int run_distances(const occt_shape *shape, int kind, const int *indices, int ind
         const bool signed_solid = signed_distance != 0 && kind == 0;
         DistanceBlocks job{target, shape->shape, points, out, point_count, signed_solid, Bnd_Box()};
         if (signed_solid) {
-            BRepBndLib::AddOptimal(shape->shape, job.bounds, Standard_False, Standard_False);
+            shape_bounds(shape->shape, job.bounds);
             job.bounds.Enlarge(1e-6);
         }
         OSD_Parallel::For(0, job.blocks(), job, job.blocks() < 2);

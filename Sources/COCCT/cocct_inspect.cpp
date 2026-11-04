@@ -4,6 +4,13 @@
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepBndLib.hxx>
+#include <BRepClass_FaceClassifier.hxx>
+#include <gp_Pnt2d.hxx>
+#include <gp_Pnt.hxx>
+#include <TopLoc_Location.hxx>
+#include <Geom_Surface.hxx>
+#include <BRepTools.hxx>
+#include <Geom_BezierSurface.hxx>
 #include <BRepGProp.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
@@ -20,7 +27,88 @@
 #include <gp_Circ.hxx>
 #include <gp_Cylinder.hxx>
 
+#include <algorithm>
 #include <mutex>
+
+namespace cocct {
+
+namespace {
+
+bool is_bezier_face(const TopoDS_Face &face) {
+    TopLoc_Location location;
+    const Handle(Geom_Surface) surface = BRep_Tool::Surface(face, location);
+    return !surface.IsNull() && !Handle(Geom_BezierSurface)::DownCast(surface).IsNull();
+}
+
+/// A Bezier face: its edges, and a 65 x 65 sample of its surface over the face's parameter box, padded by 1e-3 mm.
+void bezier_face_bounds(const TopoDS_Face &face, Bnd_Box &out) {
+    Bnd_Box hull;
+    BRepBndLib::AddOptimal(face, hull, Standard_False, Standard_False);
+    Bnd_Box sampled;
+    for (TopExp_Explorer edges(face, TopAbs_EDGE); edges.More(); edges.Next()) {
+        BRepBndLib::AddOptimal(edges.Current(), sampled, Standard_False, Standard_False);
+    }
+    TopLoc_Location location;
+    const Handle(Geom_Surface) surface = BRep_Tool::Surface(face, location);
+    double u0 = 0, u1 = 0, v0 = 0, v1 = 0;
+    BRepTools::UVBounds(face, u0, u1, v0, v1);
+    constexpr int kGrid = 64;
+    BRepClass_FaceClassifier classifier;
+    for (int a = 0; a <= kGrid; ++a) {
+        for (int b = 0; b <= kGrid; ++b) {
+            // A degree-17 triangle patch is a tensor surface collapsed onto its triangle: outside the trim it runs far away.
+            const gp_Pnt2d uv(u0 + (u1 - u0) * a / kGrid, v0 + (v1 - v0) * b / kGrid);
+            classifier.Perform(face, uv, 1e-9);
+            if (classifier.State() != TopAbs_IN) {
+                continue;
+            }
+            gp_Pnt point = surface->Value(uv.X(), uv.Y());
+            point.Transform(location.Transformation());
+            sampled.Add(point);
+        }
+    }
+    sampled.Enlarge(1e-3);
+    if (hull.IsVoid()) {
+        out.Add(sampled);
+        return;
+    }
+    // The pole hull is a true bound: never report more than it does.
+    double lo[3], hi[3], slo[3], shi[3];
+    hull.Get(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
+    sampled.Get(slo[0], slo[1], slo[2], shi[0], shi[1], shi[2]);
+    for (int k = 0; k < 3; ++k) {
+        slo[k] = std::max(slo[k], lo[k]);
+        shi[k] = std::min(shi[k], hi[k]);
+    }
+    out.Add(gp_Pnt(slo[0], slo[1], slo[2]));
+    out.Add(gp_Pnt(shi[0], shi[1], shi[2]));
+}
+
+} // namespace
+
+void shape_bounds(const TopoDS_Shape &shape, Bnd_Box &box) {
+    bool has_bezier = false;
+    for (TopExp_Explorer faces(shape, TopAbs_FACE); faces.More(); faces.Next()) {
+        if (is_bezier_face(TopoDS::Face(faces.Current()))) {
+            has_bezier = true;
+            break;
+        }
+    }
+    if (!has_bezier) {
+        BRepBndLib::AddOptimal(shape, box, Standard_False, Standard_False);
+        return;
+    }
+    for (TopExp_Explorer faces(shape, TopAbs_FACE); faces.More(); faces.Next()) {
+        const TopoDS_Face face = TopoDS::Face(faces.Current());
+        if (is_bezier_face(face)) {
+            bezier_face_bounds(face, box);
+        } else {
+            BRepBndLib::AddOptimal(face, box, Standard_False, Standard_False);
+        }
+    }
+}
+
+} // namespace cocct
 
 using namespace cocct;
 
@@ -178,7 +266,7 @@ int occt_read_properties(const occt_shape *shape, occt_properties *out, occt_sta
         GProp_GProps surface;
         BRepGProp::SurfaceProperties(shape->shape, surface);
         Bnd_Box box;
-        BRepBndLib::AddOptimal(shape->shape, box, Standard_False, Standard_False);
+        shape_bounds(shape->shape, box);
         if (box.IsVoid()) {
             set_error(status, "the shape is empty");
             return 0;
@@ -201,7 +289,7 @@ int occt_read_bounds(const occt_shape *shape, double min[3], double max[3], occt
             return 0;
         }
         Bnd_Box box;
-        BRepBndLib::AddOptimal(shape->shape, box, Standard_False, Standard_False);
+        shape_bounds(shape->shape, box);
         if (box.IsVoid()) {
             set_error(status, "the shape is empty");
             return 0;
