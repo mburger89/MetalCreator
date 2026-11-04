@@ -1459,3 +1459,14 @@ while the app runs, pipelines cached by source.
   clean (Swift 6.4.2), and the MetalUI session cannot reproduce it either. Likely cause, not proven: a stale incremental build. MetalUI master moved ~10
   commits under Task 8, and a value-witness SIGSEGV that compiles clean is the symptom of objects built against an old layout of a public generic type.
   If `initializeWithCopy` or a field-offset crash appears after MetalUI moves, run `swift package clean` and rebuild before filing. The helper stays as structure.
+
+- **AL-a. The macOS alert's destructive button is red text on a red fill (found driving the packaged app, 2026-11-03; cause not yet confirmed, evidence below).**
+  `AppRoot` shows New or Open with unsaved changes as `.alert(…)` with `Button("Discard Changes", role: .destructive)` and `Button("Cancel", role: .cancel)`.
+  On macOS the sheet is an `NSAlert` that MetalUI builds, not anything of ours: `MetalUIAppKit/AppKitPresentations.swift`, `presentAlert`, adds each button
+  and sets `hasDestructiveAction = button.isDestructive`, then, after the sheet has begun, overwrites every button's `keyEquivalent` (`"\r"` on the default
+  one, `"\u{1b}"` on the cancel one, `""` on the rest). With a destructive button declared `AlertButtons.resolve` gives no default, so nothing is `"\r"`.
+  The drawn result is the destructive button in red text on a red fill, hard to read in both light and dark themes. Our side passes nothing about colour
+  (the `role` is the whole call), so we cannot change the look, and we do not work around it (no custom alert). Wanted: MetalUI checks what
+  `hasDestructiveAction` produces on this macOS when the button is not the default (the red fill is usually the default-button treatment: the
+  first button added to an `NSAlert` is its default until `keyEquivalent` is cleared, and the order of the clear may leave AppKit's default look on a
+  button that no longer has Return), and draws a readable destructive button. Repro: edit a document, then File ▸ New. Not verified by a screenshot here.
