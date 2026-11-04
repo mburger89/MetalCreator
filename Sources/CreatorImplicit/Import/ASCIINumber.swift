@@ -3,6 +3,13 @@ enum ASCIINumber {
     /// A finite number with an optional sign, fraction and exponent, as a `Float`. `nil` for anything else, including "nan", "inf" and
     /// an empty token. Up to 19 significant digits are kept; the rest only move the decimal point.
     static func parse(_ bytes: UnsafeBufferPointer<UInt8>, _ range: Range<Int>) -> Float? {
+        guard let value = parseDouble(bytes, range) else { return nil }
+        let narrowed = Float(value)
+        return narrowed.isFinite ? narrowed : nil
+    }
+
+    /// `parse` as a `Double`, for values that are computed with before they are narrowed (a 3MF's transforms).
+    static func parseDouble(_ bytes: UnsafeBufferPointer<UInt8>, _ range: Range<Int>) -> Double? {
         var index = range.lowerBound
         let end = range.upperBound
         let negative = readSign(bytes, &index, end)
@@ -15,7 +22,7 @@ enum ASCIINumber {
             exponent += exponentNegative ? -written : written
         }
         guard index == end else { return nil }
-        let value = Float(scaled(Double(mantissa.value), exponent: exponent) * (negative ? -1 : 1))
+        let value = scaled(Double(mantissa.value), exponent: exponent) * (negative ? -1 : 1)
         return value.isFinite ? value : nil
     }
 

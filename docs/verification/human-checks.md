@@ -2380,16 +2380,17 @@ the Output selected so the part is shown.
 - [ ] **LE-8 Merged and moved faces.** Pick a face a Union merged, then change the other operand so the face is ambiguous: the Loft warns that the face was merged, in Face Pattern's words except that it says which end it means (\"The loft starts on the closest one…\" for the start face, \"The loft ends on…\" for the end face); with both faces picked and both warning, you get two different warnings. Delete the picked pattern instance: the Loft names the instance that no longer exists. **Observed:**
 - [ ] **LE-9 Linux and Windows.** On Linux and on Windows the same boss, bridge and Measure readings (LE-1, LE-2, LE-4) give the same grades. **Observed:**
 
-## Group MI — Mesh import (STL; 3MF parts need MI-2)
+## Group MI — Mesh import (STL and 3MF)
 
-- [ ] **MI-1 Import a file.** File ▸ Import Mesh… and choose a downloaded STL: an Import Mesh node appears wired to an Output and the mesh shows in the viewport. Repeat with a slicer's 3MF (needs MI-2). **Observed:**
-- [ ] **MI-2 Facts and units.** The node's inspector gives the triangle count, the size in millimetres; they match the file. The Size fact makes a file in the wrong unit obvious, and changing the units control rescales it. The 3MF's build items arrive as a list (needs MI-2). **Observed:**
+- [ ] **MI-1 Import a file.** File ▸ Import Mesh… and choose a downloaded STL: an Import Mesh node appears wired to an Output and the mesh shows in the viewport. Repeat with a slicer's 3MF. **Observed:**
+- [ ] **MI-2 Facts and units.** The node's inspector gives the triangle count, the size in millimetres; they match the file. The Size fact makes a file in the wrong unit obvious, and changing the units control rescales it. The 3MF's build items arrive as a list. **Observed:**
 - [ ] **MI-3 Hard and smooth.** A CAD part's edges look hard (a box keeps six flat faces) and a sphere is smooth. (The crease angle is fixed at 30 degrees; there is no control for it.) **Observed:**
-- [ ] **MI-4 Imperfect meshes.** A file with holes warns "This mesh isn't closed: N open edges." (and the flipped and over-full warnings on files that have them). Check Thin Walls, Check Trapped Volumes and Mesh to Solid each refuse in their words ("… needs a closed mesh."); Section, Measure and STL export still work on it, and a 3MF export warns after writing, naming the Output node (needs MI-2). **Observed:**
+- [ ] **MI-4 Imperfect meshes.** A file with holes warns "This mesh isn't closed: N open edges." (and the flipped and over-full warnings on files that have them). Check Thin Walls, Check Trapped Volumes and Mesh to Solid each refuse in their words ("… needs a closed mesh."); Section, Measure and STL export still work on it, and a 3MF export warns after writing, naming the Output node. **Observed:**
 - [ ] **MI-5 Zebra.** Switch Zebra stripes on (Z) for a fine STL and for a coarse one: the fine mesh's stripes flow, the coarse one's show its facets. **Observed:**
 - [ ] **MI-6 Section and Measure.** Section cuts the imported mesh and fills the cap; Measure picks its points and section outline and reads values marked approximate. **Observed:**
 - [ ] **MI-7 Link, relink, embed.** Edit the linked file on disk, then make any edit in the document (there is no file watcher; an evaluation notices the changed file): the node re-runs once. Delete it: the node says it can't find the file. Relink it, then Embed, then save, close and reopen: the mesh is unchanged, the embedded copy needs no file, and undo returns to the linked state. **Observed:**
 - [ ] **MI-8 Linux and Windows.** On Linux and on Windows the same files read alike: the same triangle counts, size and warnings. **Observed:**
+- [ ] **MI-9 3MF from slicers.** Import a Bambu Studio project file (a `.3mf` saved as a project): the node says "This 3MF keeps parts in other files, which isn't supported. Export it as a generic 3MF." Import a PrusaSlicer 3MF: it reads, one mesh per build item (an object with two instances gives two meshes), the Size fact in millimetres and the meshes in the list, with summary facts (Meshes, Triangles, Size, Closed) for the list. Exporting an Output holding the list as 3MF writes one object per mesh. Then export a generic 3MF from Bambu Studio (not the project file): it imports. **Observed:**
 
 ## Group CU — Convert Units node
 

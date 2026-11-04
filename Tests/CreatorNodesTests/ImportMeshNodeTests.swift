@@ -219,14 +219,14 @@ struct ImportMeshNodeTests {
         let cache = ImportedMeshCache(budgetBytes: 1 << 20)
         let counter = ReadCounter()
         let stamp = ImageStamp.embedded(ImageHash(of: Data("same".utf8)), isPresent: true)
-        let read: @Sendable () throws -> ImportedMesh = {
+        let read: @Sendable () throws -> [ImportedMesh] = {
             counter.increment()
-            return try STLReader.read(Self.stl(Self.tetra), isCancelled: { false })
+            return [try STLReader.read(Self.stl(Self.tetra), isCancelled: { false })]
         }
-        let one = try await cache.mesh(for: stamp, read: read)
-        let two = try await cache.mesh(for: stamp, read: read)
+        let one = try await cache.meshes(for: stamp, read: read)
+        let two = try await cache.meshes(for: stamp, read: read)
         #expect(counter.value == 1)
-        #expect(one.mesh.positions == two.mesh.positions)
+        #expect(one.map(\.mesh.positions) == two.map(\.mesh.positions))
         #expect(await cache.count == 1)
     }
 
@@ -234,24 +234,25 @@ struct ImportMeshNodeTests {
         let cache = ImportedMeshCache(budgetBytes: 100)
         let stamp = ImageStamp.embedded(ImageHash(of: Data("bad".utf8)), isPresent: true)
         let counter = ReadCounter()
-        let failing: @Sendable () throws -> ImportedMesh = {
+        let failing: @Sendable () throws -> [ImportedMesh] = {
             counter.increment()
             throw MeshImportProblem.endsEarly
         }
-        for _ in 0..<2 { await #expect(throws: MeshImportProblem.endsEarly) { try await cache.mesh(for: stamp, read: failing) } }
+        for _ in 0..<2 { await #expect(throws: MeshImportProblem.endsEarly) { try await cache.meshes(for: stamp, read: failing) } }
         #expect(counter.value == 1)
-        let unreadable: @Sendable () throws -> ImportedMesh = {
+        let unreadable: @Sendable () throws -> [ImportedMesh] = {
             counter.increment()
             throw MeshImportProblem.unreadable(name: "x", reason: "busy")
         }
         let other = ImageStamp.embedded(ImageHash(of: Data("busy".utf8)), isPresent: true)
-        for _ in 0..<2 { await #expect(throws: MeshImportProblem.self) { try await cache.mesh(for: other, read: unreadable) } }
+        for _ in 0..<2 { await #expect(throws: MeshImportProblem.self) { try await cache.meshes(for: other, read: unreadable) } }
         #expect(counter.value == 3)
         #expect(await cache.problemCount == 1)
         // A mesh bigger than the whole budget is read but not kept.
         let big = ImageStamp.embedded(ImageHash(of: Data("big".utf8)), isPresent: true)
-        _ = try await cache.mesh(for: big) { try STLReader.read(Self.stl(Self.tetra + Self.tetra.map { ($0.0 + 20, $0.1 + 20, $0.2 + 20) }),
-                                                                 isCancelled: { false }) }
+        _ = try await cache.meshes(for: big) {
+            [try STLReader.read(Self.stl(Self.tetra + Self.tetra.map { ($0.0 + 20, $0.1 + 20, $0.2 + 20) }), isCancelled: { false })]
+        }
         #expect(await cache.count == 0)
     }
 
