@@ -109,5 +109,5 @@ re-tessellation too slow (measure it; a benchmark row records it), and how the f
 
 ## Later
 
-- Mesh import (STL, 3MF), so imported meshes can be checked with zebra too. The user asked for it to be added later
-  (2026-11-01); not part of this work.
+- ~~Mesh import (STL, 3MF), so imported meshes can be checked with zebra too.~~ **Done** (2026-11-03): `2026-11-03-mesh-import-design.md`;
+  an imported mesh is striped like any opaque solid, and the numbers are in `docs/verification/performance.md` ("Mesh import").

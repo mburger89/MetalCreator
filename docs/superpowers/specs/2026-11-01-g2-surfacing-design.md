@@ -220,7 +220,7 @@ mesh. It is a view-only value like the rest of Measure: no command, no undo step
 - **G-d, loft end conditions:** Tangent (G1) and Curvature (G2) at a loft's ends against a face, with a weight, as Fusion;
   needs a profile that knows its face and our own end-constrained skinning (ThruSections has none). Its own design.
 - G3 fillets (a degree-7 section), conic fillets, setback corners.
-- Mesh import (from the zebra design's Later).
+- ~~Mesh import (from the zebra design's Later).~~ **Done** (2026-11-03): `2026-11-03-mesh-import-design.md`, measured in `docs/verification/performance.md` ("Mesh import").
 
 ## Erratum (2026-11-01): corners
 

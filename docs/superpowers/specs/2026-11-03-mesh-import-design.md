@@ -66,7 +66,7 @@ Refusals, each a node message: "This file isn't an STL or 3MF." · "The STL ends
 
 ### Limits
 
-Untrusted input, as `ImageLimits` is. `MeshImportLimits`: a file of at most 1 GB; at most 10,000,000 triangles **(call: to be confirmed by the benchmark)**; an embedded file of at most 64 MB. The limits are checked as follows.
+Untrusted input, as `ImageLimits` is. `MeshImportLimits`: a file of at most 1 GB; at most 10,000,000 triangles **(call, confirmed by the benchmark: Errata 11)**; an embedded file of at most 64 MB. The limits are checked as follows.
 
 - STL: binary from the count in its header; ASCII as it reads, stopping at the limit.
 - Zip: an entry's declared size before inflating, at most 2 GB, inflating stops at the declared size, and the CRC is checked.
@@ -167,4 +167,4 @@ The hash used for welding, the reader's buffering, the zip reader's shape (exten
 6. **The Production sentence.** A part kept in another file of the package (the Production extension's `path`, as Bambu Studio's project files do) is refused with "This 3MF keeps parts in other files, which isn't supported. Export it as a generic 3MF."
 7. **Detection is by bytes.** `PK\x03\x04` at the start means 3MF wherever the file came from, whatever its name, in `ImportMeshNode.parse`; `STLReader` still refuses a zip for its direct callers. The parse cache holds `[ImportedMesh]`. `units` "From file" reads each mesh's own unit (an STL's reads as 1); an explicit unit replaces the file's, so `in` on a 3MF in millimetres reads its numbers as inches.
 8. **A list of meshes exports as one object each.** Any list of meshes wired to one Output (an Import Mesh node's, or another node's) are written as one 3MF object per mesh, named "<Output> 1", "<Output> 2" and so on (solids, if any, in the first); one mesh stays the Output's one object. Warnings for the meshes are said once per sentence.
-
+11. **The 10,000,000-triangle limit stands (MI-3 benchmark).** `docs/verification/performance.md`, "Mesh import", on a loaded Mac: a binary STL of 10,000,000 triangles as a height field (5 million vertices) reads, welds, counts edges, places and builds the crease-split display mesh in 1.9 s with a peak resident size of 2.4 GB; an all-distinct soup (30 million vertices, the worst a file can do) takes 4.4 s and peaks at 5.9 GB, within an 8 GB machine's memory though not with the viewport's GPU buffers (not measured: no window may open). Neither is unusable, so the limit and its copy stay. What could not be measured here is drawing and orbiting such a mesh (no window may open): human check MI-10. If orbiting it is not smooth, lower `MeshImportLimits.maxTriangles` and its message together. Also: `EdgeCounts` is now counted once at parse and kept in `ImportedMesh.edgeCounts`, so a placement or units edit does not sort the edges again (0.5 s at the limit).
