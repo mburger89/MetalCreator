@@ -61,6 +61,8 @@ public struct TriangleMesh: MeshPayload, Sendable {
     /// The box around the vertices, or `nil` for an empty mesh.
     public var bounds: BoundingBox? { BoundingBox(points: positions.map { Vector3(Double($0.x), Double($0.y), Double($0.z)) }) }
 
+    public var meshBounds: BoundingBox? { bounds }
+
     /// The enclosed volume in cubic millimetres: positive for a closed mesh wound counter-clockwise seen from outside.
     public var signedVolume: Double {
         var sum = 0.0
