@@ -82,7 +82,7 @@ private extension MeshImportProblem {
         // Only the cache's `read` is asked here, and the one overflow it can throw is a 3MF's own transform moving a corner out of
         // `Float` in the file's coordinates, before any unit or placement; the node's overflow (units, placement) is thrown after.
         case .coordinatesOverflow, .notAMeshFile, .endsEarly, .badNumber, .noTriangles, .tooManyTriangles, .tooLarge, .noModelPart,
-             .otherFiles, .encrypted, .malformedModel, .unsupportedExtension, .modelTooLarge, .overTriangleLimit: true
+             .tooManyParts, .encrypted, .malformedModel, .unsupportedExtension, .modelTooLarge, .overTriangleLimit: true
         }
     }
 }

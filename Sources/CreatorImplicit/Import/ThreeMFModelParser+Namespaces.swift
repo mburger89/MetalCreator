@@ -69,14 +69,22 @@ extension ThreeMFModelParser {
         name.first { scanner.bytes[$0] == UInt8(ascii: ":") }
     }
 
-    /// An attribute with a prefix: the Production extension's `path` points at another file; the other extensions' are dropped.
+    /// The value of a Production extension `path` attribute, `nil` for any other attribute.
+    func productionPath(_ attribute: XMLScanner.Attribute) -> Range<Int>? {
+        guard let colon = colon(in: attribute.name) else { return nil }
+        let prefix = attribute.name.lowerBound..<colon
+        guard !scanner.equals(prefix, "xmlns"), !scanner.equals(prefix, "xml"), namespace(prefix: prefix) == .production,
+              scanner.equals((colon + 1)..<attribute.name.upperBound, "path") else { return nil }
+        return attribute.value
+    }
+
+    /// An attribute with a prefix: the other extensions' mark the model as having ignored extras; the rest, the Production
+    /// extension's among them (`path` is read where it counts, in `reference`), are dropped.
     mutating func prefixedAttribute(_ attribute: XMLScanner.Attribute) throws {
         guard let colon = colon(in: attribute.name) else { return }
         let prefix = attribute.name.lowerBound..<colon
         if scanner.equals(prefix, "xmlns") || scanner.equals(prefix, "xml") { return }
-        let local = (colon + 1)..<attribute.name.upperBound
         switch namespace(prefix: prefix) {
-        case .production: if scanner.equals(local, "path") { throw MeshImportProblem.otherFiles }
         case .materials, .beamLattice, .slice: model.ignoredExtras = true
         default: break
         }

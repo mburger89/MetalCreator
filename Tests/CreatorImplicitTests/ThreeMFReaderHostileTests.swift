@@ -63,27 +63,6 @@ extension ThreeMFReaderTests {
         }
     }
 
-    @Test func aProductionPathIsRefused() {
-        let cube = Package.object(id: 1, mesh: Self.cube)
-        // The prefix is whatever the file declared; it is the namespace that counts.
-        for prefix in ["p", "q", "prod"] {
-            let text = "<object id=\"2\"><components><component objectid=\"1\" \(prefix):path=\"/3D/other.model\"/></components></object>"
-            let namespaces = "xmlns=\"\(Package.core)\" xmlns:\(prefix)=\"\(Package.production)\""
-            let data = Package.package(resources: cube + text, build: Package.item(2), namespaces: namespaces)
-            #expect(problem(data) == .otherFiles, "\(prefix)")
-        }
-        #expect(MeshImportProblem.otherFiles.message
-            == "This 3MF keeps parts in other files, which isn't supported. Export it as a generic 3MF.")
-        // A `p:path` whose `p` is some other namespace is not the Production extension's.
-        let decoy = "<object id=\"2\"><components><component objectid=\"1\" p:path=\"/x\"/></components></object>"
-        let data = Package.package(resources: cube + decoy, build: Package.item(2),
-                                   namespaces: "xmlns=\"\(Package.core)\" xmlns:p=\"urn:something-else\"")
-        #expect(problem(data) == nil)
-        // An unprefixed `path` is not either.
-        let bare = "<object id=\"2\"><components><component objectid=\"1\" path=\"/x\"/></components></object>"
-        #expect(problem(resources: cube + bare, build: Package.item(2)) == nil)
-    }
-
     @Test func prefixesAndDeclarationsCanBeAnywhere() throws {
         // Core elements under a prefix, with a default namespace declared on a lower element, an unknown namespace skipped whole.
         let cube = Package.object(id: 1, mesh: Self.cube)

@@ -96,7 +96,7 @@ public enum ImportMeshNode: NodeDefinition {
         var found = warnings(open: counts.open, overfull: counts.overfull, flipped: counts.flipped,
                              dropped: imported.droppedTriangles, triangles: source.triangleCount)
         if imported.ignoredExtras { found.append(ThreeMFReader.ignoredExtrasWarning) }
-        if imported.supportsLeftOut { found.append(ThreeMFReader.supportsLeftOutWarning) }
+        if imported.partsLeftOut { found.append(ThreeMFReader.partsLeftOutWarning) }
         return (mesh, found)
     }
 
