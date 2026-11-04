@@ -107,7 +107,7 @@ extension ThreeMFModel {
             guard !welded.triangles.isEmpty else { continue }
             meshes.append(ImportedMesh(mesh: TriangleMesh(positions: welded.positions, triangles: welded.triangles),
                                        droppedTriangles: welded.dropped, unit: unit, ignoredExtras: ignoredExtras,
-                                       supportsLeftOut: leftOutSupports))
+                                       partsLeftOut: leftOutSupports))
         }
         return meshes
     }

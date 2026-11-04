@@ -185,13 +185,13 @@ extension ThreeMFReaderTests {
         let supported = Package.object(id: 2, mesh: Self.cube, attributes: "type=\"\(type)\"")
         // As a build item: the other item remains.
         let item = try #require(try read(resources: cube + supported, build: Package.item(1) + Package.item(2)).first)
-        #expect(item.supportsLeftOut && item.mesh.triangleCount == 12)
+        #expect(item.partsLeftOut && item.mesh.triangleCount == 12)
         let meshes = try read(resources: cube + supported, build: Package.item(1) + Package.item(2))
         #expect(meshes.count == 1)
         // As a component: the assembly keeps the model part only.
         let assembly = Package.assembly(id: 3, [(1, nil), (2, "1 0 0 0 1 0 0 0 1 5 0 0")])
         let part = try #require(try read(resources: cube + supported + assembly, build: Package.item(3)).first)
-        #expect(part.mesh.triangleCount == 12 && part.supportsLeftOut)
+        #expect(part.mesh.triangleCount == 12 && part.partsLeftOut)
         // With nothing else there is nothing.
         #expect(problem(resources: supported, build: Package.item(2)) == .noTriangles)
         #expect(problem(resources: cube + supported + Package.assembly(id: 3, [(2, nil)]), build: Package.item(3)) == .noTriangles)
@@ -204,8 +204,9 @@ extension ThreeMFReaderTests {
     func otherTypesAreKept(_ type: String) throws {
         let part = Package.object(id: 1, mesh: Self.cube, attributes: "type=\"\(type)\"")
         let mesh = try #require(try read(resources: part, build: Package.item(1)).first)
-        #expect(mesh.mesh.triangleCount == 12 && !mesh.supportsLeftOut)
-        #expect(ThreeMFReader.supportsLeftOutWarning == "This 3MF's support structures were left out.")
+        #expect(mesh.mesh.triangleCount == 12 && !mesh.partsLeftOut)
+        #expect(ThreeMFReader.partsLeftOutWarning
+            == "This 3MF's support, modifier and negative parts were left out, so the shape may differ.")
     }
 
     @Test func anObjectWithAMeshAndComponentsIsRefused() {
