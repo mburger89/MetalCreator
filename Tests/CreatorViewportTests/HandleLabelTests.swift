@@ -44,6 +44,12 @@ struct HandleLabelTests {
                 "\(identifier): \(text)")
     }
 
+    /// Scaling for the rounding overflows here: the value must come back as itself, not as infinity.
+    @Test func aValueTooLargeToScaleIsLeftAlone() {
+        #expect(1e308.roundedForDisplay(decimals: 2) == 1e308)
+        #expect((-1e308).roundedForDisplay(decimals: 5) == -1e308)
+    }
+
     @Test func aRealNegativeValueKeepsItsSign() throws {
         #expect(try #require(makeModel(value: -2.5, style: .linear).handleLabels(measuring: .fake).first).text == "-2.5 mm")
         #expect(try #require(makeModel(value: -0.01, style: .linear).handleLabels(measuring: .fake).first).text == "-0.01 mm")
