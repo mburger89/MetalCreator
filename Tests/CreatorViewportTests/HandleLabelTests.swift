@@ -34,6 +34,16 @@ struct HandleLabelTests {
         #expect(label.text == "0 mm")
     }
 
+    /// Decided from the value, not the text: these locales write their own minus and digits, so a text test would miss them.
+    @Test(arguments: ["en_US", "sv_SE", "fa_IR", "ar_EG", "de_DE", "he_IL"], [-0.0, -0.001, -0.004, 0.0])
+    func noLocaleShowsANegativeZero(_ identifier: String, _ value: Double) {
+        let text = ViewportModel.handleAmount(value, locale: Locale(identifier: identifier))
+        let zero = ViewportModel.handleAmount(0, locale: Locale(identifier: identifier))
+        #expect(text == zero, "\(identifier): \(text)")
+        #expect(!text.contains("-") && !text.contains("\u{2212}") && !text.contains("\u{200E}") && !text.contains("\u{061C}"),
+                "\(identifier): \(text)")
+    }
+
     @Test func aRealNegativeValueKeepsItsSign() throws {
         #expect(try #require(makeModel(value: -2.5, style: .linear).handleLabels(measuring: .fake).first).text == "-2.5 mm")
         #expect(try #require(makeModel(value: -0.01, style: .linear).handleLabels(measuring: .fake).first).text == "-0.01 mm")

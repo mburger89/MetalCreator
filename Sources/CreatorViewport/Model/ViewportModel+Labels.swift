@@ -27,11 +27,9 @@ extension ViewportModel {
     }
 
     /// A handle's value as its label shows it, to two decimals and never "-0": a value that rounds to zero (a section plane
-    /// left a hair behind the origin) reads "0".
-    static func handleAmount(_ value: Double) -> String {
-        let text = value.formatted(.number.precision(.fractionLength(0...2)))
-        guard text.hasPrefix("-"), text.allSatisfy({ !$0.isNumber || $0 == "0" }) else { return text }
-        return String(text.dropFirst())
+    /// left a hair behind the origin) reads "0" in every locale, decided from the number (`roundedForDisplay`).
+    static func handleAmount(_ value: Double, locale: Locale = .current) -> String {
+        value.roundedForDisplay(decimals: 2).formatted(.number.precision(.fractionLength(0...2)).locale(locale))
     }
 
     /// The unit and grid label (spec §6.3), such as "mm · grid 10 mm".
