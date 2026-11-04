@@ -164,6 +164,30 @@ extension CurveIntersection {
         return abs(SketchMath.cross(tangent, tangentOther)) <= 1e-3
     }
 
+    /// True when `q` starts where `p` ends or the other way round (the same parameter of the same curve).
+    private static func isNeighbours(_ p: Piece, _ q: Piece) -> Bool {
+        abs(p.to - q.from) <= 1e-12 || abs(q.to - p.from) <= 1e-12
+    }
+
+    /// True when every edge of the pieces' control polygons points within 90 degrees of one direction (the chord from the
+    /// first start to the last end). A B-spline's derivative is a positive combination of those edges, so the pieces
+    /// together then move steadily along that direction and never meet themselves.
+    private static func isMonotone(_ pieces: Piece...) -> Bool {
+        let ordered = pieces.count == 2 && pieces[1].to <= pieces[0].from + 1e-12 ? pieces.reversed() : pieces
+        guard let first = ordered.first, let last = ordered.last,
+              let direction = SketchMath.normalized(last.shape.endPoint - first.shape.startPoint) else { return false }
+        let floor = 1e-12 * max(first.box.diagonal, last.box.diagonal)
+        for piece in ordered {
+            let poles = Piece.hull(of: piece.shape)
+            for (a, b) in zip(poles, poles.dropFirst()) {
+                let edge = b - a
+                if edge.length <= floor { continue }
+                if SketchMath.dot(edge, direction) <= 1e-9 * edge.length { return false }
+            }
+        }
+        return true
+    }
+
     /// The self-crossings of a spline: points where two parameters that are not neighbours give the same point.
     static func selfCrossings(of shape: CurveShape) -> [Vector2] {
         let spans = initialPieces(shape)
@@ -171,6 +195,9 @@ extension CurveIntersection {
         var leaves = 0
         func descend(_ p: Piece, _ q: Piece, _ depth: Int = 0) {
             guard leaves < maximumLeaves, depth <= 60, p.box.overlaps(q.box, slack: 1e-9) else { return }
+            // Neighbours meet at their joint, and their boxes overlap around it however finely they are cut: when the two
+            // pieces together run one way (see `isMonotone`) they cannot cross, so they are not searched.
+            if isNeighbours(p, q), isMonotone(p, q) { return }
             let small = p.box.diagonal <= leafSize && q.box.diagonal <= leafSize
             if small {
                 leaves += 1
@@ -188,7 +215,7 @@ extension CurveIntersection {
         // Every piece's halves meet each other, down to leaf size, so a small loop inside one half is found too; later spans are
         // paired whole.
         func searchWithin(_ p: Piece, _ depth: Int = 0) {
-            guard leaves < maximumLeaves, depth <= 40, p.box.diagonal > leafSize else { return }
+            guard leaves < maximumLeaves, depth <= 40, p.box.diagonal > leafSize, !isMonotone(p) else { return }
             let (left, right) = p.halves()
             descend(left, right)
             searchWithin(left, depth + 1)

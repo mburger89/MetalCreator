@@ -66,4 +66,19 @@ struct RegionFillTests {
         model.hover(at: Vector2(50, 50), tolerance: 0.5, modifiers: [])
         #expect(model.overlay.fills == first, "a hover doesn't change it")
     }
+
+    @Test func theInspectorWarnsOfASplineThatCrossesItself() {
+        var crossing = Sketch()
+        _ = crossing.addSpline([Vector2(-53.56122813955231, 40.29844783832984), Vector2(94.07178815691188, 52.944960597830736),
+                                Vector2(50.75563999890913, 87.48333929460213), Vector2(43.88830047385922, -24.531301088285673),
+        ])
+        let model = SketchEditorModel(sketch: crossing, plane: .xy)
+        #expect(model.regionWarnings == ["Spline 1 crosses itself, so it isn't part of a region."])
+        _ = model.overlay
+        #expect(model.regionWarnings.count == 1, "read again from the cache")
+        var open = Sketch()
+        _ = open.addSpline([Vector2(0, 0), Vector2(15, 12), Vector2(30, 0)])
+        model.reload(open, plane: .xy)
+        #expect(model.regionWarnings.isEmpty, "the warning goes with the crossing")
+    }
 }
