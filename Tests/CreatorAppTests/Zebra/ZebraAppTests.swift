@@ -153,7 +153,8 @@ struct ZebraAppTests {
         try await window.window.runUntilIdle()
         let stripes = window.model.document.zebra?.stripes ?? 0
         let copy = ["Zebra", "Direction", "Horizontal", "Vertical", "Stripes", "\(stripes)", "Black share", "50%",
-                    "Lock stripes to the part", "Done"]
+                    "Lock stripes to the part", "Done",
+        ]
         let letters = copy.joined().filter { !$0.isWhitespace }.count
         let panel = renderFrame({ ZStack { ZebraPanel(model: window.model) } }, size: Size(width: Pixels(900), height: Pixels(600)),
                                 scaleFactor: 2, textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))

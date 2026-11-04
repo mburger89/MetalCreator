@@ -13,11 +13,12 @@ struct SegmentedRowTests {
         SegmentedCase(label: "Start continuity", options: ["Free", "Tangent (G1)", "Curvature (G2)"]),
         SegmentedCase(label: "Units", options: ["From file", "mm", "cm", "m", "in"]),
         SegmentedCase(label: "Continuity", options: ["Tangent (G1)", "Curvature (G2)"]),
-        SegmentedCase(label: "Mode", options: ["Add", "Cut"])
+        SegmentedCase(label: "Mode", options: ["Add", "Cut"]),
     ]
 
     /// The horizontal and vertical spread of everything a row drew, in points.
-    private func extent(_ label: String, _ options: [String], width: Double = SegmentedRow.inspectorWidth) -> (width: Double, height: Double, glyphs: Int) {
+    private func extent(_ label: String, _ options: [String],
+                        width: Double = SegmentedRow.inspectorWidth) -> (width: Double, height: Double, glyphs: Int) {
         let scene = renderHeadless {
             SegmentedRow(label: label, options: options, selected: 0, width: width) { _ in }
                 .frame(width: width.px, alignment: .topLeading)

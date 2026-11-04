@@ -29,7 +29,9 @@ public enum ConvertUnitsNode: NodeDefinition {
     ]
 
     /// Every control, for the catalogue; the editor asks `inspector(for:)`.
-    public static let inspector = [InspectorSection(title: "Convert", controls: head + lengthControls + angleControls + result + [.note(note)])]
+    public static let inspector = [
+        InspectorSection(title: "Convert", controls: head + lengthControls + angleControls + result + [.note(note)]),
+    ]
 
     /// Only the active quantity's two controls.
     public static func inspector(for node: Node) -> [InspectorSection] {
