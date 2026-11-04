@@ -26,7 +26,8 @@ extension AppModel {
     /// "Selected node" previews the one selected node of the level shown; Final, or anything but one selected node, previews none,
     /// except that a selected layout node is always evaluated (Final preview shows its placements as an overlay,
     /// `layoutOverlay`, even before anything is wired to it), and so is a selected Fields node (its field tints the part and
-    /// lights the slice, `fieldPreview`).
+    /// lights the slice, `fieldPreview`), and so is a selected node whose inspector has a `.result` row (Convert Units: it reads its own output,
+    /// which nothing else demands unless an Output downstream does).
     func applyPreview() {
         // Inside a group the document evaluates the whole level (`DocumentModel.inspectedLevel`), so the selected node
         // needs no demand of its own there.
@@ -34,7 +35,12 @@ extension AppModel {
         if editor.selection.count == 1, !editor.isInsideGroup, let selected = editor.selection.first {
             let isLayout = editor.graph.nodes[selected].map { LayoutPreview.layoutTypes.contains($0.typeID) } ?? false
             let isField = editor.graph.nodes[selected].map { FieldPreviewSelection.previews($0, registry: registry) } ?? false
-            wanted = previewMode == .selectedNode || isLayout || isField ? selected : nil
+            let readsResult = editor.graph.nodes[selected].map { node in
+                registry[node.typeID]?.inspector(for: node).contains { section in
+                    section.controls.contains { if case .result = $0 { true } else { false } }
+                } ?? false
+            } ?? false
+            wanted = previewMode == .selectedNode || isLayout || isField || readsResult ? selected : nil
         }
         if document.previewNode != wanted { document.previewNode = wanted }
     }
