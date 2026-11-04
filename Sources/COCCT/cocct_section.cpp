@@ -63,7 +63,7 @@ int occt_section(const occt_shape *shape, const double origin[3], const double n
         const gp_Pln plane(gp_Ax3(centre, direction, gp_Dir(x_vector)));
 
         Bnd_Box bounds;
-        BRepBndLib::Add(shape->shape, bounds);
+        shape_bounds(shape->shape, bounds);
         if (bounds.IsVoid()) {
             return 1;
         }
