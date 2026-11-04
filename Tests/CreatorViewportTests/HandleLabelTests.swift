@@ -27,6 +27,22 @@ struct HandleLabelTests {
         #expect(label.origin == ScreenPoint(label.position.x, label.position.y - HandleLabel.height / 2))
     }
 
+    /// The section plane's handle on the default offset can sit a hair behind the origin: it reads "0 mm", never "-0 mm".
+    @Test(arguments: [0.0, -0.0, -0.001, -0.004, 1e-9])
+    func aValueThatRoundsToZeroHasNoSign(_ value: Double) throws {
+        let label = try #require(makeModel(value: value, style: .linear).handleLabels(measuring: .fake).first)
+        #expect(label.text == "0 mm")
+    }
+
+    @Test func aRealNegativeValueKeepsItsSign() throws {
+        #expect(try #require(makeModel(value: -2.5, style: .linear).handleLabels(measuring: .fake).first).text == "-2.5 mm")
+        #expect(try #require(makeModel(value: -0.01, style: .linear).handleLabels(measuring: .fake).first).text == "-0.01 mm")
+        // The Section panel's Offset field and the readouts share the never-"-0" rule.
+        #expect(DocumentUnits.millimetres.editText(-0.0, quantity: .length) == "0")
+        #expect(DocumentUnits.millimetres.editText(-0.00001, quantity: .length) == "0")
+        #expect(DocumentUnits.millimetres.fieldText(-0.001, quantity: .length) == "0 mm")
+    }
+
     @Test func aLongValueGetsAWiderBoxThanAShortOne() throws {
         let short = try #require(makeModel(value: 3, style: .linear).handleLabels(measuring: .fake).first)
         let long = try #require(makeModel(value: 123_456_789.12, style: .linear).handleLabels(measuring: .fake).first)

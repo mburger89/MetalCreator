@@ -19,11 +19,19 @@ extension ViewportModel {
         guard !size.isEmpty, !isAnimating else { return [] }
         return handles.compactMap { handle in
             guard let knob = CameraMath.project(handle.knob, pose, size: size)?.point else { return nil }
-            let amount = handle.value.formatted(.number.precision(.fractionLength(0...2)))
+            let amount = Self.handleAmount(handle.value)
             let text = handle.style == .radial ? "R \(amount) mm" : "\(amount) mm"
             let box = ViewportSize(width: measure(text).width.rounded(.up), height: HandleLabel.height)
             return HandleLabel(text: text, position: ScreenPoint(knob.x + 14, knob.y - 14), size: box)
         }
+    }
+
+    /// A handle's value as its label shows it, to two decimals and never "-0": a value that rounds to zero (a section plane
+    /// left a hair behind the origin) reads "0".
+    static func handleAmount(_ value: Double) -> String {
+        let text = value.formatted(.number.precision(.fractionLength(0...2)))
+        guard text.hasPrefix("-"), text.allSatisfy({ !$0.isNumber || $0 == "0" }) else { return text }
+        return String(text.dropFirst())
     }
 
     /// The unit and grid label (spec §6.3), such as "mm · grid 10 mm".
