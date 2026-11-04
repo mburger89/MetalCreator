@@ -2397,3 +2397,7 @@ the Output selected so the part is shown.
 - [ ] **CU-1 Add and wire.** Add a Convert Units node from the library (Values): with its defaults (Length, in to mm) and a value of 1 it reads 25.4. Wire its output into a Box's width: the box is 25.4 mm wide, whatever the document's display units are. **Observed:**
 - [ ] **CU-2 Switch quantity.** Set Quantity to Angle: the inspector swaps the two length controls for deg and rad (default deg to rad) and 180 reads 3.14159. Switch back to Length: the length controls return with the choices you left. The help line about millimetres shows under both. **Observed:**
 - [ ] **CU-3 A list broadcasts.** Wire a Series (1, 2, 3) into Convert Units' value: the output is the list 25.4, 50.8, 76.2, and a Box fed from it makes three boxes. **Observed:**
+
+## Group HU — Inspector and panel fixes (from driving the packaged app)
+
+- [ ] **HU-1 Wide choices fit the inspector.** Select a Loft with a picked start face, an Import Mesh and a Fillet: "Start continuity", "Units" and "Continuity" show their label on one line, and the options are a pop-up when the segments would not fit the 280-point panel (a short choice such as Add / Cut keeps its segments in the row). Every option can be chosen, and nothing runs past the panel's right edge. **Observed:**
