@@ -37,16 +37,11 @@ struct InspectorRowView: Component {
             Toggle(label, isOn: Binding(get: { if case .bool(true)? = field.value { true } else { false } },
                                         set: { model.setInput(field, to: .bool($0)) }))
         case .segmented(let field, let options, let selected):
-            Picker(field.label, selection: Binding(get: { selected ?? -1 }, set: { index in
+            SegmentedRow(label: field.label, options: options, selected: selected) { index in
                 if let value = InspectorBuilder.segmentValue(index, options: options, type: field.type) {
                     model.setInput(field, to: value)
                 }
-            })) {
-                ForEach(options.indices, id: \.self) { index in
-                    Text(options[index]).tag(index)
-                }
             }
-            .pickerStyle(.segmented)
         case .planePicker(let field, let selected):
             Picker(field.label, selection: Binding(get: { selected }, set: { choice in
                 guard let choice else { return }

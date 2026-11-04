@@ -35,6 +35,30 @@ public struct PickSession {
         }
     }
 
+    /// What the pick banner asks for.
+    public enum Prompt: Equatable {
+        case edges
+        case latticeFace
+        case loftStartFace
+        case loftEndFace
+
+        /// The banner's sentence; `picked` is the number of edges chosen so far.
+        public func text(picked: Int) -> String {
+            switch self {
+            case .edges: "Click edges to pick them · \(picked) picked"
+            case .latticeFace: "Click a face of the part to map the lattice to it"
+            case .loftStartFace: "Click a flat face of the part for the loft's start"
+            case .loftEndFace: "Click a flat face of the part for the loft's end"
+            }
+        }
+    }
+
+    /// What this pick asks the person to click.
+    public var prompt: Prompt {
+        if let loftEnd { return loftEnd.isStart ? .loftStartFace : .loftEndFace }
+        return lattice != nil ? .latticeFace : .edges
+    }
+
     /// Whether this picks one face for a node (a lattice's or a loft's end) rather than edges.
     public var picksFace: Bool { lattice != nil || loftEnd != nil }
 

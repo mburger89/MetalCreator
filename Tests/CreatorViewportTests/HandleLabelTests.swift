@@ -27,6 +27,38 @@ struct HandleLabelTests {
         #expect(label.origin == ScreenPoint(label.position.x, label.position.y - HandleLabel.height / 2))
     }
 
+    /// The section plane's handle on the default offset can sit a hair behind the origin: it reads "0 mm", never "-0 mm".
+    @Test(arguments: [0.0, -0.0, -0.001, -0.004, 1e-9])
+    func aValueThatRoundsToZeroHasNoSign(_ value: Double) throws {
+        let label = try #require(makeModel(value: value, style: .linear).handleLabels(measuring: .fake).first)
+        #expect(label.text == "0 mm")
+    }
+
+    /// Decided from the value, not the text: these locales write their own minus and digits, so a text test would miss them.
+    @Test(arguments: ["en_US", "sv_SE", "fa_IR", "ar_EG", "de_DE", "he_IL"], [-0.0, -0.001, -0.004, 0.0])
+    func noLocaleShowsANegativeZero(_ identifier: String, _ value: Double) {
+        let text = ViewportModel.handleAmount(value, locale: Locale(identifier: identifier))
+        let zero = ViewportModel.handleAmount(0, locale: Locale(identifier: identifier))
+        #expect(text == zero, "\(identifier): \(text)")
+        #expect(!text.contains("-") && !text.contains("\u{2212}") && !text.contains("\u{200E}") && !text.contains("\u{061C}"),
+                "\(identifier): \(text)")
+    }
+
+    /// Scaling for the rounding overflows here: the value must come back as itself, not as infinity.
+    @Test func aValueTooLargeToScaleIsLeftAlone() {
+        #expect(1e308.roundedForDisplay(decimals: 2) == 1e308)
+        #expect((-1e308).roundedForDisplay(decimals: 5) == -1e308)
+    }
+
+    @Test func aRealNegativeValueKeepsItsSign() throws {
+        #expect(try #require(makeModel(value: -2.5, style: .linear).handleLabels(measuring: .fake).first).text == "-2.5 mm")
+        #expect(try #require(makeModel(value: -0.01, style: .linear).handleLabels(measuring: .fake).first).text == "-0.01 mm")
+        // The Section panel's Offset field and the readouts share the never-"-0" rule.
+        #expect(DocumentUnits.millimetres.editText(-0.0, quantity: .length) == "0")
+        #expect(DocumentUnits.millimetres.editText(-0.00001, quantity: .length) == "0")
+        #expect(DocumentUnits.millimetres.fieldText(-0.001, quantity: .length) == "0 mm")
+    }
+
     @Test func aLongValueGetsAWiderBoxThanAShortOne() throws {
         let short = try #require(makeModel(value: 3, style: .linear).handleLabels(measuring: .fake).first)
         let long = try #require(makeModel(value: 123_456_789.12, style: .linear).handleLabels(measuring: .fake).first)

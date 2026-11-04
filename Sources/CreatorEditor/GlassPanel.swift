@@ -9,14 +9,23 @@ import MetalUI
 /// is light. Which material, and what the tint is, are `GlassStyle`'s (CreatorStyle); this only draws it. The blur
 /// sees what MetalUI drew beneath the panel in the same window, and nothing of the desktop (MetalUI divergence 245).
 /// Public so the app shell's top bar and pick banner (M6) share the chrome.
+///
+/// The glass is opaque to the pointer. A material only paints and MetalUI gives a painted view no hitbox (its divergence 141,
+/// and the blurring material's too), so without a backdrop a click on a panel's title, its padding or a label would fall
+/// through to whatever lies beneath: the viewport, whose Measure tool reads a click on nothing as "clear my picks". The
+/// backdrop is the graph panel's (a content shape with an empty drag, claiming every scroll), sized to the glass by
+/// `.background`; the panel's buttons and fields are drawn above it and take their own input. The top bar alone opts out
+/// (`takesPointer: false`): by user decision its padding beside the controls stays part of the viewport (a drag there orbits).
 public struct GlassPanel<Body: ElementGroup>: Component {
     let surface: GlassSurface
     let body: Body
+    let takesPointer: Bool
     @Environment(ThemeStore.self) var themes: ThemeStore?
     @Environment(\.accessibilityReduceTransparency) var reducesTransparency
 
-    public init(_ surface: GlassSurface, @ElementBuilder _ body: () -> Body) {
+    public init(_ surface: GlassSurface, takesPointer: Bool = true, @ElementBuilder _ body: () -> Body) {
         self.surface = surface
+        self.takesPointer = takesPointer
         self.body = body()
     }
 
@@ -28,5 +37,14 @@ public struct GlassPanel<Body: ElementGroup>: Component {
             .padding(Edges(all: GraphPanelLayout.glassPadding.px))
             .glassBackground(style, in: shape)
             .overlay { shape.strokeBorder(palette.hairline.color, lineWidth: Pixels(1)) }
+            .background {
+                if takesPointer {
+                    Color.clear
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(DragGesture(minimumDistance: Pixels(0)))
+                        .onScrollWheel { _ in true }
+                }
+            }
     }
 }

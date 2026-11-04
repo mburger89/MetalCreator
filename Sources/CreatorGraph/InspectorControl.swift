@@ -23,6 +23,9 @@ public enum InspectorControl: Sendable, Equatable {
     /// A mesh file setting (Import Mesh's `NodeSetting.meshFile`): what the file is, embedded or linked. Its buttons come with the
     /// file actions; until then it is a read-only row.
     case meshFile(SocketName)
+    /// A read-only line showing what the named output socket holds now (Convert Units' converted number): "No result yet" before
+    /// the node has run, a list as its values separated by commas, cut when long. It edits nothing.
+    case result(SocketName)
     case button(title: String, action: InspectorAction)
     /// A line of help under the node's controls, shown read-only (Field Scatter's note on renumbering). It edits nothing.
     case note(String)

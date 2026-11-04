@@ -155,6 +155,7 @@ public enum InspectorBuilder {
 
     static func row(for control: InspectorControl, node: Node, inputs: [SocketSpec], outputs: [SocketSpec], graph: Graph,
                     results: [NodeID: NodeResult]) -> InspectorRow {
+        if case .result(let socket) = control { return resultRow(socket, node: node, results: results) }
         guard let socket = control.socket else {
             if case .button(let title, let action) = control { return .button(title: title, action: action) }
             if case .note(let text) = control { return .recipe(label: "Note", text: text) }

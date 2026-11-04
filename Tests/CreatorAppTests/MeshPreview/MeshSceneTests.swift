@@ -53,6 +53,18 @@ struct MeshSceneTests {
         #expect(solids.count == 0)
     }
 
+    /// A mesh from a mesher has a resolution Measure quotes ("≈ 12.3 mm · mesh 0.4 mm"); an imported file has none (its
+    /// `resolution` is 0), so its approximate values read "≈ 12.3 mm" alone (human check ME-B-4).
+    @Test func onlyAMesherMadeMeshHasAResolutionForMeasure() {
+        let solids = MeshSolids()
+        var made = tetrahedron()
+        made.resolution = 0.4
+        var imported = tetrahedron()
+        imported.resolution = 0
+        #expect(solids.solid(for: made).displayedMeshResolution == 0.4)
+        #expect(solids.solid(for: imported).displayedMeshResolution == nil)
+    }
+
     @Test func aMeshResultMakesAnItemWithTheNodeAsItsSource() {
         let node = BuiltInNodes.registry.makeNode(MeshNode.typeID)
         let mesh = tetrahedron()
