@@ -1,6 +1,5 @@
 import CreatorKernel
 import Foundation
-import CoreGraphics
 import CreatorGraph
 import CreatorNodes
 import MetalUI
@@ -47,12 +46,6 @@ struct SlowEvaluationAppTests {
         #expect(app.model.slowEvaluation.running.isEmpty && app.model.slowEvaluation.text == nil)
     }
 
-    func rect(_ element: TestElement) -> CGRect {
-        let frame = element.frame
-        return CGRect(x: Double(frame.origin.x.value), y: Double(frame.origin.y.value),
-                      width: Double(frame.size.width.value), height: Double(frame.size.height.value))
-    }
-
     @Test func theChipIsDrawnAndDoesNotOverlapTheMeshBadge() async throws {
         var builder = GraphBuilder()
         let sphere = builder.add(ImplicitSphereNode.self, ["radius": .number(6)])
@@ -74,8 +67,9 @@ struct SlowEvaluationAppTests {
         let badges = try app.window.elements { $0.label == "Preview 1 mm" || $0.value == "Preview 1 mm" }
         let chip = try #require(chips.first)
         let badge = try #require(badges.first)
-        #expect(!rect(chip).intersects(rect(badge)), "chip \(rect(chip)) badge \(rect(badge))")
-        #expect(rect(chip).maxY <= rect(badge).minY, "the chip stands above the badge")
+        // Wholly above the badge, so the two can't overlap.
+        let chipBottom = chip.frame.origin.y.value + chip.frame.size.height.value
+        #expect(chipBottom <= badge.frame.origin.y.value, "chip \(chip.frame) badge \(badge.frame)")
 
         app.model.slowEvaluation.follow(running: false, names: [])
         try await app.window.runUntilIdle()
