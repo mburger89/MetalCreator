@@ -89,13 +89,21 @@ struct PreviewSweepFixturesTests {
     }
 
     #if canImport(Darwin)
-    @Test func theFootprintIsReadableAndGrowsWithAnAllocation() {
+    /// How far the footprint moves over touching `count` fresh bytes. The pages come from `mmap`, never `malloc`: malloc keeps a
+    /// freed large block resident and hands it back, so a 64 MB array after any test's freed 64 MB grows the footprint by nothing.
+    private func footprintGrowth(touching count: Int) throws -> Int {
+        let pages = try #require(mmap(nil, count, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0))
+        try #require(pages != MAP_FAILED)
+        defer { munmap(pages, count) }
         let before = PreviewSweepFixtures.footprint
-        #expect(before > 1_000_000)
-        var block = [UInt8](repeating: 1, count: 64_000_000)
-        block[block.count - 1] = 2  // touch the pages so they are resident
-        let after = PreviewSweepFixtures.footprint
-        #expect(after - before > 32_000_000 && block.last == 2, "\(before) → \(after)")
+        memset(pages, 1, count)
+        return PreviewSweepFixtures.footprint - before
+    }
+
+    @Test func theFootprintIsReadableAndGrowsWithAnAllocation() throws {
+        #expect(PreviewSweepFixtures.footprint > 1_000_000)
+        let growth = try footprintGrowth(touching: 64_000_000)
+        #expect(growth > 32_000_000, "grew by \(growth) bytes")
     }
     #endif
 }
