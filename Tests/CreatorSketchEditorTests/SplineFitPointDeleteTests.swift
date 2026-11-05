@@ -8,14 +8,22 @@ import Testing
 @MainActor
 struct SplineFitPointDeleteTests {
     /// A spline through three points, and a separate line far from it.
-    func fixture() -> (model: SketchEditorModel, host: RecordingHost, spline: SketchEntityID, middle: SketchEntityID, line: SketchEntityID) {
+    struct Fixture {
+        let model: SketchEditorModel
+        let host: RecordingHost
+        let spline: SketchEntityID
+        let middle: SketchEntityID
+        let line: SketchEntityID
+    }
+
+    func fixture() -> Fixture {
         var sketch = Sketch()
         let spline = sketch.addSpline([Vector2(0, 0), Vector2(15, 12), Vector2(30, 0)])
         let line = sketch.addLine(Vector2(0, -40), Vector2(30, -40))
         let model = SketchEditorModel(sketch: sketch, plane: .xy)
         model.choose(.select)
         let middle = sketch.splineParts(of: spline)!.points[1]
-        return (model, RecordingHost(model), spline, middle, line)
+        return Fixture(model: model, host: RecordingHost(model), spline: spline, middle: middle, line: line)
     }
 
     /// A place on the drawn curve between its fit points.

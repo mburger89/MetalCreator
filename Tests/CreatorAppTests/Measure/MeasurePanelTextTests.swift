@@ -30,7 +30,8 @@ struct MeasurePanelTextTests {
 
     @Test func everyKeptKindNamesItsNumber() {
         let words: [(MeasureQuantity, String)] = [(.radius, "Radius"), (.diameter, "Diameter"), (.length, "Length"), (.area, "Area"),
-                                                  (.angle, "Angle"), (.centreDistance, "Centre distance")]
+                                                  (.angle, "Angle"), (.centreDistance, "Centre distance"),
+        ]
         for (quantity, word) in words {
             let kept = entry(readings: [MeasureReading(quantity: quantity, value: 2.5)])
             let panel = MeasurePanelText.rows(readings: kept.readings, distance: nil, units: .millimetres)
