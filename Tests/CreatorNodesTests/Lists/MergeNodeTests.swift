@@ -197,7 +197,7 @@ struct MergeNodeTests {
         let union = h.add(ImplicitUnionNode.self)
         h.wire(merge, "list", to: union, "shapes")
         let report = try await h.run([union])
-        #expect(report.error(union) == "“shapes” needs an implicit solid.")
+        #expect(report.error(union) == "“shapes” needs an implicit solid. To Implicit makes one from a solid.")
     }
 
     @Test func aNumberAndAnImplicitInUnionSaySo() async throws {
@@ -210,6 +210,6 @@ struct MergeNodeTests {
         let union = h.add(ImplicitUnionNode.self)
         h.wire(merge, "list", to: union, "shapes")
         let report = try await h.run([union])
-        #expect(report.error(union) == "“shapes” needs an implicit solid.")
+        #expect(report.error(union) == "“shapes” needs an implicit solid. To Implicit makes one from a solid.")
     }
 }

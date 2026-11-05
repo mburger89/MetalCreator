@@ -17,16 +17,18 @@ enum MeasurePanelText {
     static let noValue = "No value"
     static let remove = "Remove Measurement"
 
-    /// A kept measurement in one line: its distance, else the first reading in the panel's order; `lost` when its anchors don't resolve.
+    /// A kept measurement in one line, its quantity named as the panel names it: its distance, else the first reading in the panel's order; `lost` when its anchors don't resolve.
     static func keptSummary(_ entry: MeasureBook.Entry, units: DocumentUnits) -> String {
         guard entry.picks != nil else { return lost }
         let rows = valueRows(readings: entry.readings, distance: entry.distance?.distance,
                              distanceFailed: entry.distanceFailed, isApproximate: entry.isApproximate,
                              meshResolution: entry.meshResolution, units: units)
         guard let first = rows.first else { return entry.isMeasuring ? measuring : noValue }
-        if let continuity = entry.continuity { return first.text + " · " + Self.continuity(continuity, units: units) }
-        if entry.continuityFailed { return first.text + " · " + distanceFailed }
-        return first.text
+        // The number says what it is, in the live panel's words ("Radius 2.5 mm"); a failure has no number to name.
+        let head = first.text == distanceFailed ? first.text : first.label + " " + first.text
+        if let continuity = entry.continuity { return head + " · " + Self.continuity(continuity, units: units) }
+        if entry.continuityFailed { return head + " · " + distanceFailed }
+        return head
     }
 
     /// `rows`, each value marked "≈" (with the mesh's resolution) when any pick behind it is approximate: the one rule for the

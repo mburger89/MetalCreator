@@ -49,7 +49,8 @@ extension Evaluator {
                         + "which that node doesn't have, or doesn't produce with its current settings.")
                 }
                 guard let converted = value.converted(to: spec.type) else {
-                    return .failed("“\(spec.name)” needs \(spec.type.indefiniteName).")
+                    let hint = spec.mismatchHint.map { " \($0)" } ?? ""
+                    return .failed("“\(spec.name)” needs \(spec.type.indefiniteName).\(hint)")
                 }
                 inputs[spec.name] = converted
                 hasher.combine(spec.name)

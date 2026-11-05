@@ -20,6 +20,7 @@ extension AppModel {
         viewport.events.scatterOnFace = { face, pick in events()?.scatterOnFace(face, pick) }
         viewport.events.sectionFromFace = { face, pick in events()?.sectionFromFace(face, pick) }
         viewport.events.handleChanged = { id, value, phase in events()?.handleChanged(id, value, phase) }
+        viewport.events.producer = { id in events()?.producingNode(id)?.id ?? id }
         viewport.events.nodeName = { id in events()?.producingNode(id)?.name }
         // The camera reaches the file only when it comes to rest, never per frame: writing the camera invalidates
         // only readers of the camera (`DocumentModel` holds each piece of the view state separately) (M4 carry-over, spec §7.3).
