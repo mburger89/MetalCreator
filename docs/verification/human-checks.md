@@ -2413,3 +2413,13 @@ the Output selected so the part is shown.
 - [ ] **MG-1 Different shapes into Union and Subtract.** Add a Sphere and a Box, wire both into a Merge node (sockets `a` and `b`), wire the Merge into a Union with a 3 mm blend, and the Union into Mesh into Output. The blended part shows. Wire the same Merge into a Subtract instead: the result is the sphere minus the box. **Observed:**
 - [ ] **MG-2 A solid and an implicit.** Merge a Solid (for instance an Extrude) and an implicit Sphere and wire the Merge into a Union's `shapes`. The Union fails with “shapes” needs an implicit solid., in plain words, on the Union node, and nothing crashes or silently drops a shape. **Observed:**
 - [ ] **MG-3 Library and palette.** Merge sits under Lists & Trees in the node library and in the add-node palette (search "merge"), with four inputs a to d and one output. **Observed:**
+
+## Group SE — Slow evaluation chip
+
+- [ ] **SE-1 A slow fillet shows the chip.** Build a box with a G2 fillet on a large radius (or any node that takes seconds), scroll the fillet out of view in the graph panel (or hide the panel), then change the radius. After about half a second a chip at the viewport's lower right reads "Building Fillet…" with a spinner; it goes the moment the preview updates. **Observed:**
+- [ ] **SE-2 Quick edits never flash it.** Change a Box's width a few times and drag a slider on a simple part: the chip never appears. **Observed:**
+- [ ] **SE-3 Several nodes.** Make two or three slow nodes run at once (edit an upstream node of several fillets): the chip names one and counts the rest ("Building Fillet and 2 more…"). **Observed:**
+- [ ] **SE-4 Failure and cancel.** Make the slow node fail (a radius too large), and edit again while it is still building: the chip goes when the node shows its error, and a second edit mid-build does not make it vanish and reappear. **Observed:**
+- [ ] **SE-5 Scrubbing.** Drag the fillet's radius slider: while dragging, the fillet builds as a plain (G1) one, so the chip rarely shows; after release, the G2 build shows it. **Observed:**
+- [ ] **SE-6 Beside the mesh badge.** With a Mesh preview showing "Preview … mm" and a slow node running, the chip stands above the badge and they do not overlap, with the panel docked left, at the bottom and hidden. A click on the chip does not orbit or select behind it (as with the badge); in sketch mode it still shows. **Observed:**
+- [ ] **SE-7 Themes.** The chip reads clearly in Dracula, Alucard and Nord, and with Reduce Transparency on. **Observed:**

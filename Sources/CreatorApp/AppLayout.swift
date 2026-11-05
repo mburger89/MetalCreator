@@ -90,6 +90,16 @@ public enum AppLayout {
         return ViewportInsets(top: 0, leading: 0, bottom: area.bottom + 16, trailing: area.trailing + 16)
     }
 
+    /// The slow-evaluation chip's room: the mesh badge's column, one row higher (`chipRowHeight` plus a gap above the badge's bottom
+    /// inset), so the two never overlap when both show. The top and leading insets are 0.
+    static func slowEvaluationInsets(dock: DockSide, panelWidth: Double, panelHeight: Double) -> ViewportInsets {
+        let badge = badgeInsets(dock: dock, panelWidth: panelWidth, panelHeight: panelHeight)
+        return ViewportInsets(top: 0, leading: 0, bottom: badge.bottom + chipRowHeight + 8, trailing: badge.trailing)
+    }
+
+    /// The height reserved for one chip (padding and a line of caption text, with room to spare).
+    static let chipRowHeight = 40.0
+
     /// The part of the viewport the panels leave uncovered, for `ViewportModel.setModelArea(_:)`.
     public static func modelArea(dock: DockSide, panelWidth: Double, panelHeight: Double) -> ViewportInsets {
         let top = margin + topBarHeight
