@@ -35,7 +35,7 @@ struct SlowEvaluationModelTests {
 
     @Test func nothingShowsBeforeTheDelay() async {
         let (model, _) = make()
-        model.follow(["Fillet"])
+        model.follow(running: true, names: ["Fillet"])
         await yield()
         #expect(model.text == nil && !model.isDue)
         #expect(model.running == ["Fillet"])
@@ -43,7 +43,7 @@ struct SlowEvaluationModelTests {
 
     @Test func itShowsOnceTheDelayHasPassed() async {
         let (model, gate) = make()
-        model.follow(["Fillet"])
+        model.follow(running: true, names: ["Fillet"])
         gate.open()
         await model.waitForTimer()
         #expect(model.text == "Building Fillet…")
@@ -51,8 +51,8 @@ struct SlowEvaluationModelTests {
 
     @Test func aFastEvaluationNeverShowsIt() async {
         let (model, gate) = make()
-        model.follow(["Fillet"])
-        model.follow([])
+        model.follow(running: true, names: ["Fillet"])
+        model.follow(running: false, names: [])
         gate.open()
         await model.waitForTimer()
         await yield()
@@ -62,44 +62,44 @@ struct SlowEvaluationModelTests {
     @Test func itGoesWhenTheEvaluationEnds() async {
         // Finished, failed and cancelled all leave no node evaluating: the list is empty.
         let (model, gate) = make()
-        model.follow(["Fillet"])
+        model.follow(running: true, names: ["Fillet"])
         gate.open()
         await model.waitForTimer()
-        model.follow([])
+        model.follow(running: false, names: [])
         #expect(model.text == nil && !model.isDue && model.running.isEmpty)
     }
 
     @Test func aRunAfterAnEndedOneWaitsAgain() async {
         let (model, gate) = make()
-        model.follow(["Fillet"])
+        model.follow(running: true, names: ["Fillet"])
         gate.open()
         await model.waitForTimer()
-        model.follow([])
+        model.follow(running: false, names: [])
         let closed = WaitGate()
         model.wait = { try await closed.wait($0) }
-        model.follow(["Fillet"])
+        model.follow(running: true, names: ["Fillet"])
         await yield()
         #expect(model.text == nil, "the second run has not lasted 0.5 s yet")
     }
 
     @Test func aReplacingEvaluationKeepsTheWaitAndNeverFlickers() async {
         let (model, gate) = make()
-        model.follow(["Fillet"])
+        model.follow(running: true, names: ["Fillet"])
         let first = model.timer
-        model.follow(["Fillet"])  // a newer evaluation replaced a cancelled one: the nodes stayed marked
-        model.follow(["Box", "Fillet"])
+        model.follow(running: true, names: ["Fillet"])  // a newer evaluation replaced a cancelled one: the nodes stayed marked
+        model.follow(running: true, names: ["Box", "Fillet"])
         #expect(model.timer == first && gate.waits <= 1)
         gate.open()
         await model.waitForTimer()
         #expect(model.text == "Building Box and 1 more…")
-        model.follow(["Fillet"])
+        model.follow(running: true, names: ["Fillet"])
         #expect(model.text == "Building Fillet…", "shown once the wait ended, still shown through the replacement")
     }
 
     @Test func oneNodeIsNamedAlone() async {
         let (model, gate) = make()
         gate.open()
-        model.follow(["Fillet"])
+        model.follow(running: true, names: ["Fillet"])
         await model.waitForTimer()
         #expect(model.text == "Building Fillet…")
     }
@@ -107,19 +107,44 @@ struct SlowEvaluationModelTests {
     @Test func severalNameTheFirstAndCountTheRest() async {
         let (model, gate) = make()
         gate.open()
-        model.follow(["Fillet", "Loft"])
+        model.follow(running: true, names: ["Fillet", "Loft"])
         await model.waitForTimer()
         #expect(model.text == "Building Fillet and 1 more…")
-        model.follow(["Fillet", "Loft", "Box"])
+        model.follow(running: true, names: ["Fillet", "Loft", "Box"])
         #expect(model.text == "Building Fillet and 2 more…")
     }
 
     @Test func resetForgetsTheRun() async {
         let (model, gate) = make()
         gate.open()
-        model.follow(["Fillet"])
+        model.follow(running: true, names: ["Fillet"])
         await model.waitForTimer()
         model.reset()
         #expect(model.text == nil && model.running.isEmpty)
+    }
+
+    @Test func aRunWithNoNamedNodesReadsBuilding() async {
+        let (model, gate) = make()
+        model.follow(running: true, names: [])
+        await yield()
+        #expect(model.text == nil, "not before the delay")
+        gate.open()
+        await model.waitForTimer()
+        #expect(model.text == "Building…")
+        model.follow(running: false, names: [])
+        #expect(model.text == nil)
+    }
+
+    @Test func namesAppearingMidRunChangeTheWordingWithoutRestartingTheWait() async {
+        let (model, gate) = make()
+        model.follow(running: true, names: [])
+        let first = model.timer
+        model.follow(running: true, names: ["Fillet"])
+        #expect(model.timer == first)
+        gate.open()
+        await model.waitForTimer()
+        #expect(model.text == "Building Fillet…")
+        model.follow(running: true, names: [])
+        #expect(model.text == "Building…", "names gone, the run is still on, so the chip stays")
     }
 }

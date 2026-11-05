@@ -1,13 +1,15 @@
 import Foundation
 import Observation
 
-/// The "Building Fillet…" chip over the viewport: it shows once evaluation has been running for `delay` (0.5 s) and goes as soon
-/// as nothing is evaluating. The running nodes' names come from the app (`AppModel.followEvaluation()`, which reads the nodes whose
-/// `NodeState` is `.evaluating`, the same state the graph panel's badge spinner draws); this only keeps the wait.
+/// The "Building Fillet…" chip over the viewport: it shows once an evaluation has been running for `delay` (0.5 s) and goes as
+/// soon as none is. Whether one is running is `DocumentModel.isEvaluating` (true from `scheduleEvaluation`, across a replacing
+/// evaluation, until `apply`, which a held result set also reaches), fed in by `AppModel.followEvaluation()`; so a run is a run
+/// whether or not any node is named, and the wait starts when the flag goes true and is never restarted while it stays true.
 ///
-/// The wait starts when the first node starts running and is kept while some node is running: a newer evaluation that replaces a
-/// cancelled one leaves the nodes marked, so the chip neither flickers nor starts its wait again. It is empty again the moment the
-/// list is empty (finished, failed, cancelled), and the next run waits afresh. Nothing is polled and no progress is claimed.
+/// The names only decide the wording, and they are approximate: they are the nodes whose `NodeState` is `.evaluating`, which an
+/// edit sets on every stale downstream node at once, so a name may be a node that is already done (the evaluator reports no
+/// per-node progress). A node new to the graph, or any node while a file opens, has no result yet and is not named: the chip then
+/// reads "Building…". Nothing is polled and no progress is claimed.
 @MainActor
 @Observable
 final class SlowEvaluationModel {
@@ -15,6 +17,8 @@ final class SlowEvaluationModel {
 
     /// The nodes running now, in the stable order the app gave them; empty when nothing runs.
     private(set) var running: [String] = []
+    /// True while an evaluation is running (`DocumentModel.isEvaluating`).
+    private(set) var isRunning = false
     /// True once the current run has lasted `delay`.
     private(set) var isDue = false
 
@@ -25,15 +29,19 @@ final class SlowEvaluationModel {
 
     /// What the chip says, or `nil` while it is hidden: "Building Fillet…", or "Building Fillet and 2 more…".
     var text: String? {
-        guard isDue, let first = running.first else { return nil }
+        guard isDue, isRunning else { return nil }
+        guard let first = running.first else { return "Building…" }
         let others = running.count - 1
         return others == 0 ? "Building \(first)…" : "Building \(first) and \(others) more…"
     }
 
-    /// The nodes that are running now, in a stable order. An empty list ends the run; a non-empty one starts it if none was running.
-    func follow(_ names: [String]) {
+    /// Whether an evaluation is running, and the nodes marked evaluating (in a stable order; they only word the chip). A run that
+    /// ends clears the chip; one that starts waits `delay`, once.
+    func follow(running isRunning: Bool, names: [String]) {
+        let names = isRunning ? names : []
         if names != running { running = names }
-        guard !names.isEmpty else {
+        if self.isRunning != isRunning { self.isRunning = isRunning }
+        guard isRunning else {
             timer?.cancel()
             timer = nil
             if isDue { isDue = false }
@@ -49,7 +57,7 @@ final class SlowEvaluationModel {
     }
 
     /// Stops and forgets everything (a new document).
-    func reset() { follow([]) }
+    func reset() { follow(running: false, names: []) }
 
     /// Returns once the current wait has ended (it has, or the run did).
     func waitForTimer() async {
@@ -57,7 +65,7 @@ final class SlowEvaluationModel {
     }
 
     private func becameDue() {
-        guard !running.isEmpty else { return }
+        guard isRunning else { return }
         isDue = true
     }
 }

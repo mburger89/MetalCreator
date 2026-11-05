@@ -4,8 +4,9 @@ import Observation
 
 extension AppModel {
     /// The nodes the document is evaluating now, by the name the graph panel shows, in a stable order (name, then ID). This is the
-    /// state the graph panel's badge spinner reads (`NodeState.evaluating` in `DocumentModel.results`); a node new to the graph, or
-    /// every node while a file opens, has no result yet and so is not named.
+    /// state the graph panel's badge spinner reads (`NodeState.evaluating` in `DocumentModel.results`). They only word the chip: a node
+    /// new to the graph, or any node while a file opens, has no result yet and is not named, and a stale downstream node counts
+    /// as running until the evaluation ends.
     func evaluatingNodeNames() -> [String] {
         let graph = document.graph
         let registry = document.registry
@@ -24,13 +25,13 @@ extension AppModel {
         evaluationObservationGeneration += 1
         let generation = evaluationObservationGeneration
         evaluationUpdatePending = false
-        let names = withObservationTracking {
-            evaluatingNodeNames()
+        let (isRunning, names) = withObservationTracking {
+            (document.isEvaluating, evaluatingNodeNames())
         } onChange: { [weak self] in
             // Called as the property is about to change, on the actor that changes it; the update runs after the change.
             MainActor.assumeIsolated { self?.scheduleEvaluationFollow(generation) }
         }
-        slowEvaluation.follow(names)
+        slowEvaluation.follow(running: isRunning, names: names)
     }
 
     private func scheduleEvaluationFollow(_ generation: Int) {
