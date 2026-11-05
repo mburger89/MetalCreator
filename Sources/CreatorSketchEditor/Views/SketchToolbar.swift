@@ -15,7 +15,7 @@ public struct SketchToolbar: Component {
     }
 
     public var content: some ElementGroup {
-        HStack(spacing: Pixels(6)) {
+        HStack(spacing: Pixels(3)) {
             Text("Sketch").font(.headline).foregroundStyle(SketchColors(themes).primary)
                 .background { WindowDragHandle() }
             ForEach(SketchTool.allCases, id: \.self) { tool in
