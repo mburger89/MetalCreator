@@ -20,12 +20,23 @@ struct MeasurePanelTextTests {
     @Test func aKeptDistanceSummarisesAsItsDistance() {
         let kept = entry(readings: [MeasureReading(quantity: .angle, value: 90)],
                          distance: ShapeDistance(distance: 7, from: Vector3(0, 0, 0), to: Vector3(7, 0, 0)))
-        #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == "7 mm")
+        #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == "Distance 7 mm")
     }
 
     @Test func aKeptRadiusSummarisesAsItsRadius() {
         let kept = entry(readings: [MeasureReading(quantity: .radius, value: 5)])
-        #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == "5 mm")
+        #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == "Radius 5 mm")
+    }
+
+    @Test func everyKeptKindNamesItsNumber() {
+        let words: [(MeasureQuantity, String)] = [(.radius, "Radius"), (.diameter, "Diameter"), (.length, "Length"), (.area, "Area"),
+                                                  (.angle, "Angle"), (.centreDistance, "Centre distance")]
+        for (quantity, word) in words {
+            let kept = entry(readings: [MeasureReading(quantity: quantity, value: 2.5)])
+            let panel = MeasurePanelText.rows(readings: kept.readings, distance: nil, units: .millimetres)
+            #expect(panel.first?.label == word)
+            #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == word + " " + panel[0].text, "\(word)")
+        }
     }
 
     @Test func aLostOneSaysNoLongerFound() {
@@ -43,13 +54,13 @@ struct MeasurePanelTextTests {
 
     @Test func anApproximateKeptValueShowsItsResolution() {
         let kept = entry(readings: [MeasureReading(quantity: .length, value: 12.3)], approximate: true, resolution: 0.4)
-        #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == "≈ 12.3 mm · mesh 0.4 mm")
+        #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == "Length ≈ 12.3 mm · mesh 0.4 mm")
     }
 
     @Test func aKeptValueUsesTheDocumentUnits() {
         let kept = entry(readings: [MeasureReading(quantity: .length, value: 25.4)])
         let inches = DocumentUnits(length: .inches)
-        #expect(MeasurePanelText.keptSummary(kept, units: inches) == inches.fieldText(25.4, quantity: .length))
+        #expect(MeasurePanelText.keptSummary(kept, units: inches) == "Length " + inches.fieldText(25.4, quantity: .length))
         #expect(MeasurePanelText.keptSummary(kept, units: inches).hasSuffix(" in"))
     }
 
