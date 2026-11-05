@@ -33,6 +33,8 @@ struct GroupProducingNodeTests {
         }
         #expect(solid.topology.faces.allSatisfy { face in face.tags.allSatisfy { $0.node == scoped } })
         #expect(app.viewport.events.nodeName(scoped) == "Rib")
+        #expect(app.viewport.events.producer(scoped) == node.id)
+        #expect(app.viewport.events.producer(node.id) == node.id)
         app.showProducingNode(scoped)
         #expect(app.editor.selection == [node.id])
         #expect(app.editor.isPanelVisible)

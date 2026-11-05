@@ -26,6 +26,9 @@ public struct ViewportEvents {
     public var showProducingNode: @MainActor (NodeID) -> Void = { _ in }
     /// A handle drag: the handle's id and its new value.
     public var handleChanged: @MainActor (String, Double, HandleDragPhase) -> Void = { _, _, _ in }
+    /// The node a face tag stands for in the graph panel: a tag made inside a group names a scoped ID, and the panel
+    /// shows the group node. Tags that stand for one node make one menu entry. The default is the tag's own node.
+    public var producer: @MainActor (NodeID) -> NodeID = { $0 }
     /// A node's display name for menu titles, or `nil` to show its short ID.
     public var nodeName: @MainActor (NodeID) -> String? = { _ in nil }
     /// The camera came to rest at this pose: a drag that moved it was released, an animation (view cube,

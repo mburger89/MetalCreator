@@ -38,11 +38,24 @@ extension ViewportModel {
             menu += [.newSketchOnFace(ref), .patternOnFace(ref), .scatterOnFace(ref)]
             if !items[ref.solidIndex].isGhost { menu.append(.sectionFromFace(ref)) }
         }
-        let nodes = MeshQueries.producingNodes(of: face)
-        for node in nodes {
-            let title = nodes.count == 1
-                ? "Show Producing Node"
-                : "Show Producing Node (\(events.nodeName(node) ?? node.description))"
+        // One entry per node the panel can show: tags made inside one group, or by one instance, are the same node.
+        var nodes: [NodeID] = []
+        for tagged in MeshQueries.producingNodes(of: face) {
+            let shown = events.producer(tagged)
+            if !nodes.contains(shown) { nodes.append(shown) }
+        }
+        let names = nodes.map { events.nodeName($0) ?? $0.description }
+        for (index, node) in nodes.enumerated() {
+            let title: String
+            if nodes.count == 1 {
+                title = "Show Producing Node"
+            } else if names.filter({ $0 == names[index] }).count > 1 {
+                // Two different nodes with one name (two Extrudes): the order of their IDs tells them apart.
+                let rank = names[..<index].filter { $0 == names[index] }.count + 1
+                title = "Show Producing Node (\(names[index]) \(rank) of \(names.filter { $0 == names[index] }.count))"
+            } else {
+                title = "Show Producing Node (\(names[index]))"
+            }
             menu.append(.showProducingNode(node, title: title))
         }
         return menu
