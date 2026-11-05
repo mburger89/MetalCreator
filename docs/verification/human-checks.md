@@ -2414,6 +2414,17 @@ the Output selected so the part is shown.
 - [ ] **MG-2 A solid and an implicit.** Merge a Solid (for instance an Extrude) and an implicit Sphere and wire the Merge into a Union's `shapes`. The Union fails with “shapes” needs an implicit solid. To Implicit makes one from a solid., in plain words, on the Union node, and nothing crashes or silently drops a shape. **Observed:**
 - [ ] **MG-3 Library and palette.** Merge sits under Lists & Trees in the node library and in the add-node palette (search "merge"), with four inputs a to d and one output. **Observed:**
 
+## Group SE — Slow evaluation chip
+
+- [ ] **SE-1 A slow fillet shows the chip.** Build a box with a G2 fillet on a large radius (or any node that takes seconds), scroll the fillet out of view in the graph panel (or hide the panel), then change the radius. After about half a second a chip at the viewport's lower right reads "Building Fillet…" with a spinner; it goes the moment the preview updates. **Observed:**
+- [ ] **SE-2 Quick edits never flash it.** Change a Box's width a few times and drag a slider on a simple part: the chip never appears. **Observed:**
+- [ ] **SE-3 Several nodes.** Make two or three slow nodes run at once (edit an upstream node of several fillets): the chip names one and counts the rest ("Building Fillet and 2 more…"). **Observed:**
+- [ ] **SE-4 Failure and cancel.** Make the slow node fail (a radius too large), and edit again while it is still building: the chip goes when the node shows its error, and a second edit mid-build does not make it vanish and reappear. **Observed:**
+- [ ] **SE-5 Scrubbing.** Drag the fillet's radius slider: while dragging, the fillet builds as a plain (G1) one, so the chip rarely shows; after release, the G2 build shows it. **Observed:**
+- [ ] **SE-6 Beside the mesh badge.** With a Mesh preview showing "Preview … mm" and a slow node running, the chip stands above the badge and they do not overlap, with the panel docked left, at the bottom and hidden. A click or drag where the chip stands reaches the viewport (it takes no pointer); in sketch mode it still shows. **Observed:**
+- [ ] **SE-7 Opening a heavy file.** Open a file with a slow G2 fillet: after about half a second the chip reads "Building…" (no node is named yet), and goes when the first preview lands. **Observed:**
+- [ ] **SE-8 Themes.** The chip reads clearly in Dracula, Alucard and Nord, and with Reduce Transparency on. **Observed:**
+
 ## Group UP — UI polish (from the human checks of the sketch editor, top bar, face menu and Measure)
 
 - [ ] **UP-1 Deleting a fit point.** Draw a spline through four points, select the Select tool, click the curve between two points (the spline is selected, its fit points and knobs show), then click one fit point: only that point is highlighted, the knobs stay shown, and Delete removes that point and keeps the curve (now through three). Click the curve and press Delete: the whole curve goes. Shift-click the curve, then Shift-click a fit point: both stay selected, as before. **Observed:**

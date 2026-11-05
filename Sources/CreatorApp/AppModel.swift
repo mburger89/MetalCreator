@@ -30,6 +30,8 @@ public final class AppModel {
     private(set) var fieldPreview: FieldPreviewModel
     /// The progressive preview of meshes (implicit spec §4.3): finer passes for the meshes on screen, and the "Preview 0.4 mm" badge.
     let meshRefinement: MeshRefinementModel
+    /// The "Building Fillet…" chip's state (`SlowEvaluationModel`), fed by `followEvaluation()`.
+    let slowEvaluation = SlowEvaluationModel()
     /// The section view (section spec §3): a plane that cuts the scene open.
     /// Its settings are `document.section`, saved in the file's view state; this holds what is shown.
     let section = SectionModel()
@@ -108,6 +110,8 @@ public final class AppModel {
     @ObservationIgnored var layoutOverlayCache = ViewportOverlay()
     @ObservationIgnored var resizeStart: Double?
     @ObservationIgnored var observationGeneration = 0
+    @ObservationIgnored var evaluationObservationGeneration = 0
+    @ObservationIgnored var evaluationUpdatePending = false
     @ObservationIgnored var sceneTask: Task<Void, Never>?
     /// The documents (by identity) with an image button waiting on a file panel (`performImage`); another press on the same
     /// document meanwhile is ignored, but a different document's buttons work.
@@ -148,6 +152,7 @@ public final class AppModel {
     func load(_ file: GraphFile, from url: URL?) {
         let parts = DocumentParts(file, registry: registry, kernel: kernel, documentURL: url, implicitEngine: implicitEngine)
         meshRefinement.reset()
+        slowEvaluation.reset()
         pick = nil
         endModelDimension()
         endMeasure()
@@ -178,6 +183,7 @@ public final class AppModel {
         connectViewportEvents()
         measureBook.changed = { [weak self] in self?.refreshDimensions() }
         sceneInputsChanged()
+        followEvaluation()
     }
 
     /// Waits until the document has evaluated and the viewport shows the result.
