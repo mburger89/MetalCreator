@@ -20,7 +20,8 @@ struct MeasureBookFailureTests {
         await fixture.app.settle()
         let entry = fixture.book.entries[0]
         #expect(entry.distance == nil && entry.distanceFailed && !entry.isMeasuring)
-        #expect(MeasurePanelText.keptSummary(entry, units: fixture.app.units) == MeasurePanelText.distanceFailed)
+        #expect(MeasurePanelText.keptSummary(entry, units: fixture.app.units) == MeasurePanelText.distanceFailed + " · Angle 0°",
+                "the failed distance stays unlabelled, the angle keeps its row")
         #expect(fixture.book.dimensions(style: DimensionStyle.ansi, units: fixture.app.units).isEmpty)
         fixture.book.remove(fixture.measurement.id)
         #expect(fixture.book.entries.isEmpty)

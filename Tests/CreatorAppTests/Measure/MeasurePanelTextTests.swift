@@ -17,10 +17,29 @@ struct MeasurePanelTextTests {
                           meshResolution: resolution, isMeasuring: false)
     }
 
-    @Test func aKeptDistanceSummarisesAsItsDistance() {
+    private let seven = ShapeDistance(distance: 7, from: Vector3(0, 0, 0), to: Vector3(7, 0, 0))
+
+    @Test func aKeptDistanceAndAngleKeepBothRows() {
+        let kept = entry(readings: [MeasureReading(quantity: .angle, value: 90)], distance: seven)
+        #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == "Distance 7 mm · Angle 90°")
+    }
+
+    @Test func aKeptDistanceAndCentreDistanceKeepBothRows() {
+        let kept = entry(readings: [MeasureReading(quantity: .centreDistance, value: 20)],
+                         distance: ShapeDistance(distance: 15, from: Vector3(0, 0, 0), to: Vector3(15, 0, 0)))
+        #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == "Distance 15 mm · Centre distance 20 mm")
+    }
+
+    @Test func aKeptRadiusAndDiameterKeepBothRows() {
+        let kept = entry(readings: [MeasureReading(quantity: .radius, value: 2.5), MeasureReading(quantity: .diameter, value: 5)])
+        #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == "Radius 2.5 mm · Diameter 5 mm")
+    }
+
+    @Test func severalApproximateRowsSayTheMeshOnce() {
         let kept = entry(readings: [MeasureReading(quantity: .angle, value: 90)],
-                         distance: ShapeDistance(distance: 7, from: Vector3(0, 0, 0), to: Vector3(7, 0, 0)))
-        #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == "Distance 7 mm")
+                         distance: ShapeDistance(distance: 15.9, from: Vector3(0, 0, 0), to: Vector3(15.9, 0, 0)),
+                         approximate: true, resolution: 0.1)
+        #expect(MeasurePanelText.keptSummary(kept, units: .millimetres) == "Distance ≈ 15.9 mm · Angle ≈ 90° · mesh 0.1 mm")
     }
 
     @Test func aKeptRadiusSummarisesAsItsRadius() {
