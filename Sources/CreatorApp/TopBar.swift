@@ -28,6 +28,7 @@ struct TopBar: Component {
                     Text(model.isEdited ? "\(model.displayName) — Edited" : model.displayName)
                         .font(.headline)
                         .foregroundStyle(Palette(themes).primaryText.color)
+                        .lineLimit(1)
                         .background { WindowDragHandle() }
                     WindowDragHandle()
                     Picker("Preview", selection: Binding(get: { model.previewMode }, set: { model.previewMode = $0 })) {
@@ -36,13 +37,17 @@ struct TopBar: Component {
                         }
                     }
                     .pickerStyle(.menu)
+                    .layoutPriority(2)
                     Toggle("Section", isOn: Binding(get: { model.document.section?.isOn == true }, set: { model.setSection($0) }))
                     Toggle("Measure", isOn: Binding(get: { model.measure != nil }, set: { model.setMeasure($0) }))
                         .disabled(model.pick != nil)
                     Toggle("Zebra", isOn: Binding(get: { model.document.zebra?.isOn == true }, set: { model.setZebra($0) }))
+                    // The step titles give way first: one line each, cut short before any control loses its width.
                     Button(model.undoTitle) { model.undo() }
+                        .lineLimit(1)
                         .disabled(!model.document.canUndo)
                     Button(model.redoTitle) { model.redo() }
+                        .lineLimit(1)
                         .disabled(!model.document.canRedo)
                     Menu("Export") {
                         Button("STEP…") { model.withFilePicker { await model.exportDocument(.step, using: $0) } }
