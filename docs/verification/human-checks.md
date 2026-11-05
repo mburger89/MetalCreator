@@ -2411,5 +2411,5 @@ the Output selected so the part is shown.
 ## Group MG — Merge node
 
 - [ ] **MG-1 Different shapes into Union and Subtract.** Add a Sphere and a Box, wire both into a Merge node (sockets `a` and `b`), wire the Merge into a Union with a 3 mm blend, and the Union into Mesh into Output. The blended part shows. Wire the same Merge into a Subtract instead: the result is the sphere minus the box. **Observed:**
-- [ ] **MG-2 A solid and an implicit.** Merge a Solid (for instance an Extrude) and an implicit Sphere and wire the Merge into a Union's `shapes`. The Union fails with “shapes” needs an implicit solid., in plain words, on the Union node, and nothing crashes or silently drops a shape. **Observed:**
+- [ ] **MG-2 A solid and an implicit.** Merge a Solid (for instance an Extrude) and an implicit Sphere and wire the Merge into a Union's `shapes`. The Union fails with “shapes” needs an implicit solid. To Implicit makes one from a solid., in plain words, on the Union node, and nothing crashes or silently drops a shape. **Observed:**
 - [ ] **MG-3 Library and palette.** Merge sits under Lists & Trees in the node library and in the add-node palette (search "merge"), with four inputs a to d and one output. **Observed:**

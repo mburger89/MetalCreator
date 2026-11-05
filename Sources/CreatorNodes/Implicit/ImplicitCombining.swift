@@ -20,7 +20,7 @@ enum ImplicitCombining {
     }
 
     static let inputs = [
-        SocketSpec("shapes", .implicit, access: .list),
+        SocketSpec("shapes", .implicit, access: .list, mismatchHint: "To Implicit makes one from a solid."),
         SocketSpec("blend radius", .field, defaultValue: .number(0), unit: .millimetres, range: 0...50),
         continuitySocket,
     ]

@@ -14,9 +14,12 @@ public struct SocketSpec: Sendable, Equatable {
     /// On an input: it may be left unwired and unset. On an output: the node may leave it out,
     /// and a wire from it then reports that the output isn't produced.
     public var isOptional: Bool
+    /// A sentence added to the "needs …" refusal when a wire's value can't become this socket's type: the way out.
+    public var mismatchHint: String?
 
     public init(_ name: SocketName, _ type: SocketType, access: Access = .item, defaultValue: ConstantValue? = nil,
-                unit: ValueUnit = .none, range: ClosedRange<Double>? = nil, optional: Bool = false) {
+                unit: ValueUnit = .none, range: ClosedRange<Double>? = nil, optional: Bool = false,
+                mismatchHint: String? = nil) {
         self.name = name
         self.type = type
         self.access = access
@@ -24,5 +27,6 @@ public struct SocketSpec: Sendable, Equatable {
         self.unit = unit
         self.range = range
         self.isOptional = optional
+        self.mismatchHint = mismatchHint
     }
 }
