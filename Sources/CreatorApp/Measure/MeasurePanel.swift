@@ -17,18 +17,27 @@ enum MeasurePanelText {
     static let noValue = "No value"
     static let remove = "Remove Measurement"
 
-    /// A kept measurement in one line, its quantity named as the panel names it: its distance, else the first reading in the panel's order; `lost` when its anchors don't resolve.
+    /// A kept measurement in one line: every value row in the live panel's words and order ("Distance 5.7 mm · Angle 90°"), then its
+    /// continuity; `lost` when its anchors don't resolve. An approximate measurement marks each value "≈" and says the mesh's
+    /// resolution once, after the last value.
     static func keptSummary(_ entry: MeasureBook.Entry, units: DocumentUnits) -> String {
         guard entry.picks != nil else { return lost }
+        // Approximate rows get their "≈" here and the mesh once below, so `valueRows` is asked for the plain text.
         let rows = valueRows(readings: entry.readings, distance: entry.distance?.distance,
-                             distanceFailed: entry.distanceFailed, isApproximate: entry.isApproximate,
-                             meshResolution: entry.meshResolution, units: units)
-        guard let first = rows.first else { return entry.isMeasuring ? measuring : noValue }
+                             distanceFailed: entry.distanceFailed, isApproximate: false,
+                             meshResolution: nil, units: units)
+        guard !rows.isEmpty else { return entry.isMeasuring ? measuring : noValue }
         // The number says what it is, in the live panel's words ("Radius 2.5 mm"); a failure has no number to name.
-        let head = first.text == distanceFailed ? first.text : first.label + " " + first.text
-        if let continuity = entry.continuity { return head + " · " + Self.continuity(continuity, units: units) }
-        if entry.continuityFailed { return head + " · " + distanceFailed }
-        return head
+        var parts = rows.map { row -> String in
+            if row.text == distanceFailed { return row.text }
+            return row.label + " " + (entry.isApproximate ? "≈ " + row.text : row.text)
+        }
+        if entry.isApproximate, let resolution = entry.meshResolution {
+            parts.append("mesh " + units.fieldText(resolution, quantity: .length))
+        }
+        if let continuity = entry.continuity { parts.append(Self.continuity(continuity, units: units)) }
+        if entry.continuityFailed && entry.continuity == nil { parts.append(distanceFailed) }
+        return parts.joined(separator: " · ")
     }
 
     /// `rows`, each value marked "≈" (with the mesh's resolution) when any pick behind it is approximate: the one rule for the

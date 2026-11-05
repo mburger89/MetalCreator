@@ -99,6 +99,10 @@ public final class DocumentModel {
     @ObservationIgnored private let evaluator: Evaluator
     @ObservationIgnored private var evaluationTask: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
+    /// How long each top-level node took the last time it ran to success without warnings (`NodeState.ok`; a warning carries no
+    /// duration), kept because `results` loses it the moment a node is marked evaluating. Not observed. Belongs to this document,
+    /// so a new or opened one starts empty. It only informs the slow-evaluation chip's ordering.
+    @ObservationIgnored public private(set) var lastDurations: [NodeID: Duration] = [:]
     /// The report of the latest finished evaluation, kept back while results are held.
     @ObservationIgnored var heldReport: EvaluationReport?
     /// The last `perform`'s step, until an undo, a redo, a withdrawal or a coalesced edit forgets it.
@@ -345,6 +349,10 @@ public final class DocumentModel {
         // Replace, not merge: a node that left the demand must not keep a stale `.evaluating` state.
         results = report.results
         innerResults = report.innerResults
+        for (id, result) in report.results {
+            if case .ok(let duration) = result.state { lastDurations[id] = duration }
+        }
+        lastDurations = lastDurations.filter { graph.nodes[$0.key] != nil }
         for (id, result) in report.results {
             if result.state.isSuccess, let outputs = result.outputs {
                 lastGoodOutputs[id] = outputs
