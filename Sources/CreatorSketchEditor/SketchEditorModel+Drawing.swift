@@ -83,7 +83,7 @@ extension SketchEditorModel {
         refusal = nil
         let suppressed = modifiers.contains(.command)
         switch tool {
-        case .select: select(at: p, tolerance: tolerance)
+        case .select: select(at: p, tolerance: tolerance, modifiers: modifiers)
         case .dimension: dimension(at: p, tolerance: tolerance)
         case .point: placePoint(at: p, tolerance: tolerance, suppressed: suppressed)
         case .line: placeLinePoint(at: p, tolerance: tolerance, suppressed: suppressed)
