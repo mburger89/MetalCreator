@@ -20,13 +20,16 @@ struct CanvasSurface: Component, Equatable {
 
     var content: some ElementGroup {
         let transform = model.transform
-        return ZStack(alignment: .topLeading) {
-            Color.clear
-            ZStack(alignment: .topLeading) { CanvasLayers(model: model) }
-                .scaleEffect(transform.zoom, anchor: .topLeading)
-                .offset(x: transform.offset.x.px, y: transform.offset.y.px)
-                .allowsHitTesting(false)
-        }
+        // The layers are an overlay, not a sibling: a ZStack is as big as its biggest child, and a wire's frame, which spans
+        // its route, is taller than the panel when it runs far off the bottom. The overlay takes no part in the surface's
+        // size, so the panel and the viewport beside it stay the window's.
+        return Color.clear
+            .overlay(alignment: .topLeading) {
+                ZStack(alignment: .topLeading) { CanvasLayers(model: model) }
+                    .scaleEffect(transform.zoom, anchor: .topLeading)
+                    .offset(x: transform.offset.x.px, y: transform.offset.y.px)
+                    .allowsHitTesting(false)
+            }
         .clipped()
         .gesture(input.canvasGesture())
         .gesture(input.middlePanGesture())
