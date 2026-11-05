@@ -5,12 +5,20 @@ import CreatorViewport
 extension SketchEditorModel {
     /// A Select-tool click: toggles the entity under it in the selection (additive, so two-entity constraints need no
     /// modifier key, though MetalUI's taps report them since C16: docs/metalui-gaps.md S5-a); a click on nothing clears it.
-    func select(at p: Vector2, tolerance: Double) {
+    ///
+    /// A plain click on a fit point of a selected spline swaps the spline for the point: Delete then takes only that point (the
+    /// spline stays while two remain), and the spline's fit points and knobs stay shown through the selected point
+    /// (`handleSplines`). ⇧ keeps the additive selection, so a spline and its point can be selected on purpose.
+    func select(at p: Vector2, tolerance: Double, modifiers: ViewportModifiers = []) {
         guard let picked = SketchPicker(sketch: sketch, solution: solution).entity(near: p, tolerance: tolerance) else {
             if !selection.isEmpty { selection = [] }
             return
         }
-        if selection.contains(picked) { selection.remove(picked) } else { selection.insert(picked) }
+        if selection.contains(picked) { selection.remove(picked); return }
+        if !modifiers.contains(.shift) {
+            for spline in selection where sketch.splineParts(of: spline)?.points.contains(picked) == true { selection.remove(spline) }
+        }
+        selection.insert(picked)
     }
 
     /// The constraint buttons that fit the selection.
