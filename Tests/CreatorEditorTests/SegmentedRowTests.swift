@@ -5,8 +5,8 @@ import Testing
 struct SegmentedCase: Sendable { let label: String; let options: [String] }
 
 /// A labelled choice among options stays inside the inspector's 280-point content width, with every option reachable and the
-/// label on a line of its own when the segments leave it no room (MetalUI's segmented `Picker` never narrows: its title
-/// wraps a letter at a time and its segments run off the panel).
+/// label on a line of its own when the segments leave it no room (before MetalUI #206 its segmented `Picker` never narrowed:
+/// its title wrapped a letter at a time and its segments ran off the panel).
 @MainActor
 struct SegmentedRowTests {
     nonisolated static let cases: [SegmentedCase] = [
@@ -49,8 +49,9 @@ struct SegmentedRowTests {
         #expect(wide.count == 3)
     }
 
-    /// The control the rows replace: MetalUI's own picker, title and all, overflows the same panel (so the test above can fail).
-    @Test func theBarePickerOverflows() {
+    /// MetalUI #206: its segmented picker now takes the offered width down to a floor, so the bare picker no longer
+    /// overflows the panel (it did before; the rows still choose a form that keeps the label readable).
+    @Test func theBarePickerNoLongerOverflows() {
         let scene = renderHeadless {
             Picker("Start continuity", selection: .constant(0)) {
                 Text("Free").tag(0)
@@ -62,7 +63,7 @@ struct SegmentedRowTests {
         }
         let rights = scene.glyphs.map { Double($0.bounds.origin.x + $0.bounds.size.width) / 2 }
         let lefts = scene.glyphs.map { Double($0.bounds.origin.x) / 2 }
-        #expect((rights.max() ?? 0) - (lefts.min() ?? 0) > SegmentedRow.inspectorWidth)
+        #expect((rights.max() ?? 0) - (lefts.min() ?? 0) <= SegmentedRow.inspectorWidth)
     }
 
     @Test func aRowTheSegmentsFillKeepsItsOptionsSideBySide() {
