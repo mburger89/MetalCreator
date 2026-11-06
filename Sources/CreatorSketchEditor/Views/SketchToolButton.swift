@@ -1,15 +1,15 @@
 import MetalUI
 
-/// One tool in the toolbar, marked while it's the active one, with its key (sketcher spec §8).
+/// One tool in the toolbar, marked while it's the active one; its key is in `SketchToolbarKeys` (sketcher spec §8).
 struct SketchToolButton: Component {
     let model: SketchEditorModel
     let tool: SketchTool
 
     var content: some ElementGroup {
         let title = model.tool == tool ? "\(tool.title) ✓" : tool.title
+        // No shortcut here: the key is an invisible button in `SketchToolbarKeys`, which fires whichever row is chosen.
         if let key = tool.key {
             Button(title) { model.press(tool) }
-                .keyboardShortcut(key, modifiers: [])
                 .help("\(tool.title) (\(String(key.character).uppercased()))")
         } else {
             Button(title) { model.press(tool) }
