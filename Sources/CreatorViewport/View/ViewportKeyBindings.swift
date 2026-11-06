@@ -3,8 +3,8 @@ import MetalUI
 /// The viewport's keys (spec §9 stopgaps) as MetalUI keymap bindings. The host adds them to its window's
 /// `keymap` and routes `onAction` through `handle(_:model:)`.
 ///
-/// MetalUI doesn't focus a `.focusable()` element on click (divergence 94). Until the viewport can take focus, the
-/// bindings are window-wide. Pass a `context` once the app shell contributes one (gap M4-a in docs/metalui-gaps.md),
+/// Since MetalUI #210 a primary press focuses a `.focusable()` element, but the viewport isn't one, so its keys are
+/// not scoped to it: the bindings are window-wide. Pass a `context` once the app shell contributes one (gap M4-a in docs/metalui-gaps.md),
 /// so F, + and − still type into text fields.
 public enum ViewportKeyBindings {
     public static func bindings(context: String? = nil) -> [KeyBinding] {
