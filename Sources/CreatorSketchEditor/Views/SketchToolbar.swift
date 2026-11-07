@@ -13,7 +13,7 @@ import MetalUI
 /// registers no shortcut, and a closed `Menu` item's is display only (MetalUI ruling MN-D), so every key is an invisible
 /// button in `SketchToolbarKeys`, outside the `ViewThatFits`, always present; the visible buttons and menu items register
 /// none. The label and the gap before Finish are window drag handles (gap M6-c): the window is dragged by the empty parts
-/// of the bar.
+/// of the bar. The gap has the lowest layout priority, so the buttons are sized first and it takes what is left.
 public struct SketchToolbar: Component {
     let model: SketchEditorModel
     @Environment(ThemeStore.self) var themes: ThemeStore?
@@ -65,7 +65,8 @@ struct SketchToolbarRow: Component {
             Button(model.isConstruction ? "Construction ✓" : "Construction") { model.toggleConstruction() }
                 .help("Construction geometry (X): new geometry, or the selection")
             Button("Delete") { model.deleteSelection() }
-            WindowDragHandle()
+            // A greedy handle in a stack is offered a share before the buttons are sized, which would cut their labels.
+            WindowDragHandle().layoutPriority(-1)
             Button("Finish") { model.finish() }
         }
     }

@@ -138,6 +138,41 @@ struct SketchToolbarFitTests {
         #expect(sawMore, "no width of the sweep needed a More menu")
     }
 
+    /// The frame widths of the bar's buttons by label.
+    private func buttonWidths(_ app: AppWindow) throws -> [String: Float] {
+        let found = try app.window.elements(where: { $0.role == .button || $0.role == .menuButton })
+            .filter { $0.frame.origin.y < Pixels(60) }
+        return Dictionary(found.compactMap { element in element.label.map { ($0, element.frame.size.width.value) } },
+                          uniquingKeysWith: max)
+    }
+
+    /// The flexible drag gap is no share-taker: every button keeps at least the width it has with all the room there is,
+    /// so a label is never cut while the gap still has slack (the stack offers a greedy child a share before it sizes
+    /// the buttons).
+    private func expectButtonsKeepTheirIdealWidth(construction: Bool, tool: SketchTool) async throws {
+        let (app, editor) = try await openWindow(width: 3000)
+        editor.press(tool)
+        if construction { editor.toggleConstruction() }
+        try await resize(app, to: 3000)
+        let ideal = try buttonWidths(app)
+        #expect(ideal["Finish"] != nil && ideal["Delete"] != nil)
+        for width: Float in [1440, 1250, 1100, 1000] {
+            try await resize(app, to: width)
+            for (label, actual) in try buttonWidths(app) {
+                guard let wanted = ideal[label] else { continue }
+                #expect(actual >= wanted - 1.5, "\(label) is \(actual) pt wide, not \(wanted), at \(width) pt")
+            }
+        }
+    }
+
+    @Test func buttonsKeepTheirLabelsWidthBesideTheDragGapWidest() async throws {
+        try await expectButtonsKeepTheirIdealWidth(construction: true, tool: .arcThreePoint)
+    }
+
+    @Test func buttonsKeepTheirLabelsWidthBesideTheDragGapPlain() async throws {
+        try await expectButtonsKeepTheirIdealWidth(construction: false, tool: .line)
+    }
+
     // MARK: Keys
 
     private let keys: [(SketchTool, KeyEquivalent)] = SketchTool.allCases.compactMap { tool in tool.key.map { (tool, $0) } }
