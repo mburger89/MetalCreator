@@ -675,7 +675,7 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the six Mes
   button shortcuts (L, A (again: 3-point arc), C, D, T, P, S (Spline), X, ⌫, ⌦, ⏎, Esc; ⌦ and Esc are hidden buttons; Fillet has no
   key because F frames the sketch), which run before the graph panel's
   `onInput` keys; the Delete button and the hidden ⌦ one are never disabled, so ⌫ and ⌦ never fall through to deleting
-  nodes (the graph's selection is the Sketch node being edited). Tests: `swift test --filter CreatorSketchEditorTests`.
+  nodes (the graph's selection is the Sketch node being edited). The toolbar is a `ViewThatFits` over rows that move tools into a "More" menu from the end (`SketchToolbarRow`), and every key is an invisible button outside it (`SketchToolbarKeys`), since an unchosen row registers no shortcut and a closed menu item's is display only; the visible buttons carry none. Tests: `swift test --filter CreatorSketchEditorTests`.
 - `CreatorApp` + `MetalCreatorApp`: the app shell, the only target joining Graph, Nodes, Viewport and the editors.
   The model dimension tool (spec `2026-10-27-driving-dimensions-design.md` §3.5): `ModelDimensionSession` (`AppModel.modelDimension`) takes two picks, the
   trace rule (`ModelDimensionTrace`) finds the sketch entity each face or edge came from through the Sketch node's `sketchTrace`, and picks from different
