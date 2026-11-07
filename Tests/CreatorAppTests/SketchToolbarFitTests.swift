@@ -244,16 +244,17 @@ struct SketchToolbarFitTests {
         try app.window.dismissMenu()
     }
 
-    /// A tool key with the More menu open never fires twice (A twice would toggle Arc to 3-Point Arc). Whether it fires at
-    /// all is not pinned: headless MetalUI delivers it, while AppKit's native pull-down tracks modally and probably keeps
-    /// it from the window (the MetalUI session's probe of SwiftUI is pending), so human check UP-2 looks at it on screen.
-    @Test func aKeyWithTheMoreMenuOpenNeverFiresTwice() async throws {
+    /// A tool key with the More menu open does nothing: the headless window swallows typed keys while a natively
+    /// presented menu is open (MetalUI #217), as AppKit's modal pull-down does, and Escape dismisses the menu. So A, which
+    /// would toggle Arc to 3-Point Arc if it fired, leaves the tool alone and never fires twice.
+    @Test func aKeyWithTheMoreMenuOpenDoesNotChangeTheTool() async throws {
         let (app, editor) = try await openWindow(width: 1000)
         editor.press(.select)
         try app.window.click(app.window.element(label: "More"))
         #expect(app.window.presentedMenu != nil)
         app.window.typeKey("a")
-        #expect(editor.tool == .select || editor.tool == .arc, "A with the menu open: \(editor.tool)")
+        #expect(editor.tool == .select, "A with the menu open: \(editor.tool)")
+        #expect(app.window.presentedMenu != nil, "the menu is still open")
         if app.window.presentedMenu != nil { try app.window.dismissMenu() }
     }
 }
