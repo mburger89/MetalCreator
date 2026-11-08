@@ -15,6 +15,21 @@ public enum NodeCategory: String, Sendable, Codable, CaseIterable {
     case mesh
     case output
 
+    /// The node library's sub-groups of this category, in the order it shows them (a node's `librarySubgroup` names one).
+    /// Empty for a category the library lists as one run. Lives here, beside the category, so the editor (which does not
+    /// depend on the node definitions) can order the headings.
+    public var librarySubgroups: [String] {
+        switch self {
+        case .value: ["Numbers", "Geometry"]
+        case .patterns: ["Layouts", "Placing", "Shortcuts", "Variation"]
+        case .lists: ["Reshape", "Pick", "Inspect"]
+        case .fields: ["Sources", "Maths", "Using"]
+        case .implicit: ["Shapes", "Combine", "Modify", "Lattices"]
+        case .mesh: ["Make", "Check", "Tools"]
+        default: []
+        }
+    }
+
     /// The name the node library shows: "Value", "Lists & Trees".
     public var title: String {
         switch self {

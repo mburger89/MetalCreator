@@ -88,7 +88,7 @@ struct CanvasCancelWindowTests {
         app.editor.toggleLibrary()
         app.redraw()
         let table = try #require(app.window.elements(role: .table).first, "the library lists the node types")
-        let row = Point(x: Pixels(table.frame.origin.x.value + 30), y: Pixels(table.frame.origin.y.value + 40))
+        let row = Point(x: Pixels(table.frame.origin.x.value + 30), y: Pixels(table.frame.origin.y.value + 55))
         app.window.hover(at: row)
         _ = app.window.send(.mouseDown(MouseEvent(position: row)))
         app.window.tick()

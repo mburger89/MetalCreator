@@ -6,6 +6,7 @@ import CreatorKernel
 public enum PartitionNode: NodeDefinition {
     public static let typeID = "creator.partition"
     public static let displayName = "Partition"
+    public static let librarySubgroup: String? = "Reshape"
     public static let category = NodeCategory.lists
     public static let inputs = [
         SocketSpec("tree", .any, access: .tree),

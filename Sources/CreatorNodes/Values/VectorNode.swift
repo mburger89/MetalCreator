@@ -7,6 +7,7 @@ import CreatorKernel
 public enum VectorNode: NodeDefinition {
     public static let typeID = "creator.vector"
     public static let displayName = "Vector"
+    public static let librarySubgroup: String? = "Geometry"
     public static let category = NodeCategory.value
     public static let inputs = [
         SocketSpec("x", .number, defaultValue: .number(0), unit: .millimetres),

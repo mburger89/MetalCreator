@@ -7,6 +7,7 @@ import CreatorKernel
 public enum ImplicitBoxNode: NodeDefinition {
     public static let typeID = "creator.implicitBox"
     public static let displayName = "Box"
+    public static let librarySubgroup: String? = "Shapes"
     public static let category = NodeCategory.implicit
     public static let inputs = [
         SocketSpec("size", .vector, defaultValue: .vector(Vector3(20, 20, 20)), unit: .millimetres),

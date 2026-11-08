@@ -10,6 +10,7 @@ import Foundation
 public enum CheckTrappedVolumesNode: NodeDefinition {
     public static let typeID = "creator.checkTrappedVolumes"
     public static let displayName = "Check Trapped Volumes"
+    public static let librarySubgroup: String? = "Check"
     public static let category = NodeCategory.mesh
     public static let readsMeshQuality = true
     public static let inputs = [SocketSpec("mesh", .mesh)]

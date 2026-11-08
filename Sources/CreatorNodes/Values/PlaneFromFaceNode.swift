@@ -11,6 +11,7 @@ import CreatorKernel
 public enum PlaneFromFaceNode: NodeDefinition {
     public static let typeID = "creator.planeFromFace"
     public static let displayName = "Plane from Face"
+    public static let librarySubgroup: String? = "Geometry"
     public static let category = NodeCategory.value
     public static let inputs = [SocketSpec("solid", .solid)]
     public static let outputs = [SocketSpec("plane", .plane)]

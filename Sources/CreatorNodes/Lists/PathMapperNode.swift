@@ -10,6 +10,7 @@ import CreatorKernel
 public enum PathMapperNode: NodeDefinition {
     public static let typeID = "creator.pathMapper"
     public static let displayName = "Path Mapper"
+    public static let librarySubgroup: String? = "Reshape"
     public static let category = NodeCategory.lists
     public static let inputs = [SocketSpec("tree", .any, access: .tree)]
     public static let outputs = [SocketSpec("tree", .any)]

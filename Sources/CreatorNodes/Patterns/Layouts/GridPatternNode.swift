@@ -12,6 +12,7 @@ import CreatorKernel
 public enum GridPatternNode: NodeDefinition {
     public static let typeID = "creator.gridPattern"
     public static let displayName = "Grid Pattern"
+    public static let librarySubgroup: String? = "Layouts"
     public static let category = NodeCategory.patterns
     public static let inputs = [
         SocketSpec("plane", .plane, defaultValue: .plane(.xy)),

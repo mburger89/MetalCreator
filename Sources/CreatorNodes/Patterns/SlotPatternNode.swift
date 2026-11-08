@@ -13,6 +13,7 @@ import CreatorKernel
 public enum SlotPatternNode: NodeDefinition {
     public static let typeID = "creator.slotPattern"
     public static let displayName = "Slot Pattern"
+    public static let librarySubgroup: String? = "Shortcuts"
     public static let category = NodeCategory.patterns
     public static let placesInstances = true
     public static let inputs = [

@@ -23,6 +23,8 @@ struct NodeLibraryView: Component, Equatable {
                 .font(.system(.caption, weight: .semibold))
                 .foregroundStyle(palette.secondaryText.color)
                 .frame(height: PaletteLayout.captionHeight.px)
+            LibrarySortPicker(model: model)
+                .frame(height: PaletteLayout.fieldHeight.px)
             TextField("Search nodes", text: model.libraryQuery, onChange: { model.setLibraryQuery($0) })
                 .frame(height: PaletteLayout.fieldHeight.px)
             if rows.isEmpty {

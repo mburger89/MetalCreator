@@ -9,6 +9,7 @@ import CreatorKernel
 public enum ListItemNode: NodeDefinition {
     public static let typeID = "creator.listItem"
     public static let displayName = "List Item"
+    public static let librarySubgroup: String? = "Pick"
     public static let category = NodeCategory.lists
     public static let inputs = [
         SocketSpec("tree", .any, access: .tree),

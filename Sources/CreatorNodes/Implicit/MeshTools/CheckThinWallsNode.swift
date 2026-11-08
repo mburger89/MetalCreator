@@ -10,6 +10,7 @@ import Foundation
 public enum CheckThinWallsNode: NodeDefinition {
     public static let typeID = "creator.checkThinWalls"
     public static let displayName = "Check Thin Walls"
+    public static let librarySubgroup: String? = "Check"
     public static let category = NodeCategory.mesh
     public static let readsMeshQuality = true
     public static let defaultMinimum = 0.4

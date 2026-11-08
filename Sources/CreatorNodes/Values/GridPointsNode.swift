@@ -11,6 +11,7 @@ import CreatorKernel
 public enum GridPointsNode: NodeDefinition {
     public static let typeID = "creator.gridPoints"
     public static let displayName = "Grid Points"
+    public static let librarySubgroup: String? = "Geometry"
     public static let category = NodeCategory.value
     public static let inputs = [
         SocketSpec("countX", .integer, defaultValue: .integer(2), unit: .count),

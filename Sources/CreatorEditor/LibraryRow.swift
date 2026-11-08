@@ -28,6 +28,8 @@ struct LibraryRow: Component {
             }
         } else if item.isGroupsHeader {
             LibrarySectionHeader(category: .feature, title: "Groups", accent: .purple)
+        } else if let title = item.subgroupTitle {
+            LibrarySubgroupHeader(title: title)
         } else if let entry = item.entry {
             ZStack(alignment: .topLeading) {
                 PaletteEntryLabel(entry: entry, isHighlighted: false)

@@ -13,6 +13,7 @@ import Foundation
 public enum MeshNode: NodeDefinition {
     public static let typeID = "creator.mesh"
     public static let displayName = "Mesh"
+    public static let librarySubgroup: String? = "Make"
     public static let category = NodeCategory.mesh
     public static let readsMeshQuality = true
     /// The default settings an implicit wired into a mesh socket is meshed with (implicit spec §2.3).

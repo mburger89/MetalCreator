@@ -11,6 +11,7 @@ import CreatorKernel
 public enum RandomReduceNode: NodeDefinition {
     public static let typeID = "creator.randomReduce"
     public static let displayName = "Random Reduce"
+    public static let librarySubgroup: String? = "Variation"
     public static let category = NodeCategory.patterns
     public static let amounts = ["Count", "Fraction"]
     public static let scopes = ["Per branch", "Overall"]

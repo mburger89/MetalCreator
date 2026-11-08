@@ -12,6 +12,7 @@ public enum VoronoiLatticeNode: NodeDefinition {
     /// 3: `continuity`. A node saved before it reads G1.
     public static let typeVersion = 3
     public static let displayName = "Voronoi Lattice"
+    public static let librarySubgroup: String? = "Lattices"
     public static let category = NodeCategory.implicit
     public static let inputs = [
         SocketSpec("region", .implicit, optional: true),

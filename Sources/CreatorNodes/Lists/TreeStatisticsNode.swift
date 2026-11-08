@@ -7,6 +7,7 @@ import CreatorKernel
 public enum TreeStatisticsNode: NodeDefinition {
     public static let typeID = "creator.treeStatistics"
     public static let displayName = "Tree Statistics"
+    public static let librarySubgroup: String? = "Inspect"
     public static let category = NodeCategory.lists
     public static let inputs = [SocketSpec("tree", .any, access: .tree)]
     public static let outputs = [

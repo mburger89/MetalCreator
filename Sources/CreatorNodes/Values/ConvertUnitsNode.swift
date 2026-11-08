@@ -6,6 +6,7 @@ import CreatorKernel
 public enum ConvertUnitsNode: NodeDefinition {
     public static let typeID = "creator.convertUnits"
     public static let displayName = "Convert Units"
+    public static let librarySubgroup: String? = "Numbers"
     public static let category = NodeCategory.value
     public static let inputs = [
         SocketSpec("value", .number, defaultValue: .number(1)),

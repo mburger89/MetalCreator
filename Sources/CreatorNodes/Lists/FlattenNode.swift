@@ -7,6 +7,7 @@ import CreatorKernel
 public enum FlattenNode: NodeDefinition {
     public static let typeID = "creator.flatten"
     public static let displayName = "Flatten"
+    public static let librarySubgroup: String? = "Reshape"
     public static let category = NodeCategory.lists
     public static let inputs = [
         SocketSpec("tree", .any, access: .tree),

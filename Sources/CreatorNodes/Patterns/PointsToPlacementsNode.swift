@@ -12,6 +12,7 @@ import CreatorKernel
 public enum PointsToPlacementsNode: NodeDefinition {
     public static let typeID = "creator.pointsToPlacements"
     public static let displayName = "Points to Placements"
+    public static let librarySubgroup: String? = "Placing"
     public static let category = NodeCategory.patterns
     public static let inputs = [
         SocketSpec("points", .vector, access: .tree),

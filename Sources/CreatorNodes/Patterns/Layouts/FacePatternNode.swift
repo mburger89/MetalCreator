@@ -16,6 +16,7 @@ import CreatorKernel
 public enum FacePatternNode: NodeDefinition {
     public static let typeID = "creator.facePattern"
     public static let displayName = "Face Pattern"
+    public static let librarySubgroup: String? = "Layouts"
     public static let category = NodeCategory.patterns
     public static let inputs = [
         SocketSpec("solid", .solid),

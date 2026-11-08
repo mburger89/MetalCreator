@@ -7,6 +7,7 @@ import CreatorKernel
 public enum FieldRemapNode: NodeDefinition {
     public static let typeID = "creator.fieldRemap"
     public static let displayName = "Remap"
+    public static let librarySubgroup: String? = "Maths"
     public static let category = NodeCategory.fields
     public static let inputs = [
         SocketSpec("field", .field, defaultValue: .number(0)),

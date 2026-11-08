@@ -6,6 +6,7 @@ import CreatorKernel
 public enum RadialGradientNode: NodeDefinition {
     public static let typeID = "creator.radialGradient"
     public static let displayName = "Radial Gradient"
+    public static let librarySubgroup: String? = "Sources"
     public static let category = NodeCategory.fields
     public static let inputs = [
         SocketSpec("center", .vector, defaultValue: .vector(.zero), unit: .millimetres),

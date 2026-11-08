@@ -5,6 +5,7 @@ import CreatorKernel
 public enum FieldMinMaxNode: NodeDefinition {
     public static let typeID = "creator.fieldMinMax"
     public static let displayName = "Min / Max"
+    public static let librarySubgroup: String? = "Maths"
     public static let category = NodeCategory.fields
     public static let modes = ["Min", "Max"]
     public static let inputs = [

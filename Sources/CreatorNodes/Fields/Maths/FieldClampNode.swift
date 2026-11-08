@@ -5,6 +5,7 @@ import CreatorKernel
 public enum FieldClampNode: NodeDefinition {
     public static let typeID = "creator.fieldClamp"
     public static let displayName = "Clamp"
+    public static let librarySubgroup: String? = "Maths"
     public static let category = NodeCategory.fields
     public static let inputs = [
         SocketSpec("field", .field, defaultValue: .number(0)),

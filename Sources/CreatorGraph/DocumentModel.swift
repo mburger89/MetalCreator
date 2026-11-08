@@ -42,6 +42,8 @@ public final class DocumentModel {
         didSet { if let homeCamera, !homeCamera.isFinite { self.homeCamera = oldValue } }
     }
     public var showsLibrary: Bool
+    /// How the node library orders its categories; view state, so changing it is no edit and no undo step.
+    public var librarySort: LibrarySort
     /// True while a slider or handle drag is in progress. Evaluations during it may be cheaper previews (`EvalContext.isScrubbing`);
     /// ending it schedules the full evaluation. Session state: not saved, no undo step, no edit.
     public var isScrubbing = false {
@@ -127,6 +129,7 @@ public final class DocumentModel {
         camera = file.viewState.camera
         homeCamera = file.viewState.homeCamera
         showsLibrary = file.viewState.showsLibrary
+        librarySort = file.viewState.librarySort
         section = file.viewState.section
         measurements = file.viewState.measurements
         zebra = file.viewState.zebra
@@ -373,7 +376,7 @@ extension DocumentModel {
     public var viewState: ViewState {
         get {
             ViewState(dock: dock, canvasOffset: canvasOffset, canvasZoom: canvasZoom, camera: camera, homeCamera: homeCamera,
-                      showsLibrary: showsLibrary, section: section, measurements: measurements, zebra: zebra)
+                      showsLibrary: showsLibrary, librarySort: librarySort, section: section, measurements: measurements, zebra: zebra)
         }
         set {
             if dock != newValue.dock { dock = newValue.dock }
@@ -382,6 +385,7 @@ extension DocumentModel {
             if camera != newValue.camera { camera = newValue.camera }
             if homeCamera != newValue.homeCamera { homeCamera = newValue.homeCamera }
             if showsLibrary != newValue.showsLibrary { showsLibrary = newValue.showsLibrary }
+            if librarySort != newValue.librarySort { librarySort = newValue.librarySort }
             if section != newValue.section { section = newValue.section }
             if measurements != newValue.measurements { measurements = newValue.measurements }
             if zebra != newValue.zebra { zebra = newValue.zebra }

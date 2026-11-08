@@ -11,6 +11,7 @@ import CreatorKernel
 public enum CullPatternNode: NodeDefinition {
     public static let typeID = "creator.cullPattern"
     public static let displayName = "Cull Pattern"
+    public static let librarySubgroup: String? = "Variation"
     public static let category = NodeCategory.patterns
     public static let scopes = ["Per branch", "Overall"]
     public static let inputs = [

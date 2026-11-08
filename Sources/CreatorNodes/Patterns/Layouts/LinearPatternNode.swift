@@ -10,6 +10,7 @@ import CreatorKernel
 public enum LinearPatternNode: NodeDefinition {
     public static let typeID = "creator.linearPattern"
     public static let displayName = "Linear Pattern"
+    public static let librarySubgroup: String? = "Layouts"
     public static let category = NodeCategory.patterns
     public static let inputs = [
         SocketSpec("start", .vector, defaultValue: .vector(.zero)),

@@ -10,6 +10,7 @@ import Foundation
 public enum DecimateNode: NodeDefinition {
     public static let typeID = "creator.decimate"
     public static let displayName = "Decimate"
+    public static let librarySubgroup: String? = "Tools"
     public static let category = NodeCategory.mesh
     public static let readsMeshQuality = true
     public static let defaultTolerance = 0.01

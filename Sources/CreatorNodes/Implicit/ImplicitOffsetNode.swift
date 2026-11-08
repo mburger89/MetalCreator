@@ -8,6 +8,7 @@ import CreatorKernel
 public enum ImplicitOffsetNode: NodeDefinition {
     public static let typeID = "creator.implicitOffset"
     public static let displayName = "Offset"
+    public static let librarySubgroup: String? = "Modify"
     public static let category = NodeCategory.implicit
     public static let inputs = [
         SocketSpec("implicit", .implicit),

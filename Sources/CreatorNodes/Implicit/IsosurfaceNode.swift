@@ -9,6 +9,7 @@ import CreatorKernel
 public enum IsosurfaceNode: NodeDefinition {
     public static let typeID = "creator.isosurface"
     public static let displayName = "Isosurface"
+    public static let librarySubgroup: String? = "Modify"
     public static let category = NodeCategory.implicit
     public static let inputs = [
         SocketSpec("field", .field),

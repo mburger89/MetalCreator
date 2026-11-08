@@ -7,6 +7,7 @@ import CreatorKernel
 public enum ImplicitCylinderNode: NodeDefinition {
     public static let typeID = "creator.implicitCylinder"
     public static let displayName = "Cylinder"
+    public static let librarySubgroup: String? = "Shapes"
     public static let category = NodeCategory.implicit
     public static let inputs = [
         SocketSpec("radius", .number, defaultValue: .number(5), unit: .millimetres, range: 0.1...1000),

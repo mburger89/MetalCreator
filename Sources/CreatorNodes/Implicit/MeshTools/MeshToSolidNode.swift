@@ -10,6 +10,7 @@ import Foundation
 public enum MeshToSolidNode: NodeDefinition {
     public static let typeID = "creator.meshToSolid"
     public static let displayName = "Mesh to Solid"
+    public static let librarySubgroup: String? = "Tools"
     public static let category = NodeCategory.mesh
     public static let readsMeshQuality = true
     public static let triangleLimit = 100_000

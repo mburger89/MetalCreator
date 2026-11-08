@@ -10,6 +10,7 @@ import CreatorKernel
 public enum ToImplicitNode: NodeDefinition {
     public static let typeID = "creator.toImplicit"
     public static let displayName = "To Implicit"
+    public static let librarySubgroup: String? = "Shapes"
     public static let category = NodeCategory.implicit
     public static let minimumTolerance = 0.001
     public static let inputs = [

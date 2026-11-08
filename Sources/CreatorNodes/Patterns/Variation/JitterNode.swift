@@ -11,6 +11,7 @@ import CreatorKernel
 public enum JitterNode: NodeDefinition {
     public static let typeID = "creator.jitter"
     public static let displayName = "Jitter"
+    public static let librarySubgroup: String? = "Variation"
     public static let category = NodeCategory.patterns
     public static let inputs = [
         SocketSpec("placements", .plane, access: .tree),

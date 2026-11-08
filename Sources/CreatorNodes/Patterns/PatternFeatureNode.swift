@@ -11,6 +11,7 @@ import CreatorKernel
 public enum PatternFeatureNode: NodeDefinition {
     public static let typeID = "creator.patternFeature"
     public static let displayName = "Pattern Feature"
+    public static let librarySubgroup: String? = "Shortcuts"
     public static let category = NodeCategory.patterns
     public static let placesInstances = true
     public static let operations = ["Union", "Subtract"]

@@ -6,7 +6,9 @@ import Foundation
 public enum PaletteSearch {
     public static func entries(in registry: NodeRegistry, matching query: String) -> [PaletteEntry] {
         let needle = query.trimmingCharacters(in: .whitespaces)
-        let all = registry.all.map { PaletteEntry(typeID: $0.typeID, displayName: $0.displayName, category: $0.category) }
+        let all = registry.all.map {
+            PaletteEntry(typeID: $0.typeID, displayName: $0.displayName, category: $0.category, subgroup: $0.librarySubgroup)
+        }
         let matches = needle.isEmpty ? all : all.filter { $0.displayName.localizedStandardContains(needle) }
         return matches.sorted { a, b in
             let aPrefix = isPrefix(needle, of: a.displayName), bPrefix = isPrefix(needle, of: b.displayName)
