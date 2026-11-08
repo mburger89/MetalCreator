@@ -79,11 +79,7 @@ public final class DocumentModel {
 
     /// A node the app needs evaluated besides the Outputs and the preview (the source of an open sketch's wired plane in
     /// Final preview). View state: setting it makes no command and no undo step, and the preview mode never touches it.
-    public var extraDemand: NodeID? {
-        didSet {
-            if oldValue != extraDemand { scheduleEvaluation() }
-        }
-    }
+    public var extraDemand: NodeID? { didSet { if oldValue != extraDemand { scheduleEvaluation() } } }
 
     /// The node shown in "Selected node" preview mode. It joins the evaluation demand.
     public var previewNode: NodeID? {
