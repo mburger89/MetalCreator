@@ -252,7 +252,7 @@ struct CanvasContentSkipWindowTests {
     @Test func theSelectionBoxIsSkippedWhileItsRectAndTheThemeAreUnchanged() async throws {
         let fixture = try await open()
         let app = fixture.app
-        let start = app.point(inCanvas: Vector2(500, 60))
+        let start = app.point(inCanvas: Vector2(600, 60))  // clear of the 224-point nodes and the note at x = 800
         app.window.hover(at: start)
         _ = app.window.send(.mouseDown(MouseEvent(position: start)))
         app.window.tick()
@@ -290,7 +290,7 @@ struct CanvasContentSkipWindowTests {
         let alucard = ThemeStore()
         alucard.select("alucard")
         let reference = try await open(themes: alucard)
-        let from = reference.app.point(inCanvas: Vector2(500, 60))
+        let from = reference.app.point(inCanvas: Vector2(600, 60))  // clear of the 224-point nodes and the note at x = 800
         reference.app.window.hover(at: from)
         _ = reference.app.window.send(.mouseDown(MouseEvent(position: from)))
         reference.app.window.tick()

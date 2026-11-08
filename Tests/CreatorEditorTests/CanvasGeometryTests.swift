@@ -45,10 +45,10 @@ struct CanvasGeometryTests {
         let shape = NodeShape(title: "Add", category: .value,
                               inputs: [.init(name: "a", type: .number), .init(name: "b", type: .number)],
                               outputs: [.init(name: "sum", type: .number)])
-        #expect(NodeLayout.size(shape) == Vector2(168, 24 + 12 + 60))
+        #expect(NodeLayout.size(shape) == Vector2(NodeLayout.width, 24 + 12 + 60))
         #expect(NodeLayout.socketOffset("a", isInput: true, in: shape, flow: .horizontal) == Vector2(0, 40))
         #expect(NodeLayout.socketOffset("b", isInput: true, in: shape, flow: .horizontal) == Vector2(0, 60))
-        #expect(NodeLayout.socketOffset("sum", isInput: false, in: shape, flow: .horizontal) == Vector2(168, 80))
+        #expect(NodeLayout.socketOffset("sum", isInput: false, in: shape, flow: .horizontal) == Vector2(NodeLayout.width, 80))
         #expect(NodeLayout.socketOffset("sum", isInput: true, in: shape, flow: .horizontal) == nil)
     }
 
@@ -56,9 +56,9 @@ struct CanvasGeometryTests {
         let shape = NodeShape(title: "Add", category: .value,
                               inputs: [.init(name: "a", type: .number), .init(name: "b", type: .number)],
                               outputs: [.init(name: "sum", type: .number)])
-        #expect(NodeLayout.socketOffset("a", isInput: true, in: shape, flow: .vertical) == Vector2(56, 0))
-        #expect(NodeLayout.socketOffset("b", isInput: true, in: shape, flow: .vertical) == Vector2(112, 0))
-        #expect(NodeLayout.socketOffset("sum", isInput: false, in: shape, flow: .vertical) == Vector2(84, 96))
+        #expect(NodeLayout.socketOffset("a", isInput: true, in: shape, flow: .vertical) == Vector2(NodeLayout.width / 3, 0))
+        #expect(NodeLayout.socketOffset("b", isInput: true, in: shape, flow: .vertical) == Vector2(NodeLayout.width * 2 / 3, 0))
+        #expect(NodeLayout.socketOffset("sum", isInput: false, in: shape, flow: .vertical) == Vector2(NodeLayout.width / 2, 96))
     }
 
     @Test func rectsFromCornersInAnyOrder() {

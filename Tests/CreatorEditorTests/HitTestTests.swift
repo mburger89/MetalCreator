@@ -44,7 +44,7 @@ struct HitTestTests {
         #expect(editor.hitTest(Vector2(310, 10)) == .empty)
         // In the vertical flow the output sits on the bottom edge.
         let output = editor.screenPoint(of: number.id, "value", input: false)
-        #expect(output == Vector2(84, 300 + NodeLayout.size(editor.shape(of: number)).y))
+        #expect(output == Vector2(NodeLayout.width / 2, 300 + NodeLayout.size(editor.shape(of: number)).y))
     }
 
     @Test func boxSelectionFindsIntersectingFrames() {

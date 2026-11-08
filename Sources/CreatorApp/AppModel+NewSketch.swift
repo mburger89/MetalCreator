@@ -7,9 +7,9 @@ import CreatorViewport
 
 extension AppModel {
     /// "New Sketch on Face" (sketcher spec §8): a Plane from Face on the face's solid and a Sketch drawn on its plane, as one
-    /// undo step, placed beside the node that made the solid; then the sketch opens on the plane computed from the face now (the
-    /// new Plane from Face hasn't evaluated; `refreshSketch` takes the node's own plane once it has). A face that isn't flat is
-    /// said in words, a face of a solid that is gone does nothing, and nothing starts while a sketch is open. Inside a
+    /// undo step, placed on free canvas beside the node that made the solid (`EditorModel.freePosition`); then the sketch opens
+    /// on the plane computed from the face now (the new Plane from Face hasn't evaluated; `refreshSketch` takes the node's own
+    /// plane once it has). A face that isn't flat is said in words, a face of a solid that is gone does nothing, and nothing starts while a sketch is open. Inside a
     /// group it is refused, as "Edit sketch" is there: sketch mode works on the top level's graph (groups Errata (C2)).
     func newSketchOnFace(_ ref: ViewportFaceRef, _ pick: FacePick) {
         guard sketch == nil, viewport.items.indices.contains(ref.solidIndex) else { return }
@@ -30,7 +30,11 @@ extension AppModel {
         let from = document.graph.nodes[source.node]?.position ?? .zero
         var planeNode = registry.makeNode(PlaneFromFaceNode.typeID, at: from + Vector2(240, 140))
         planeNode.inputValues[NodeSetting.face] = .facePick(pick)
-        var sketchNode = registry.makeNode(SketchNode.typeID, at: from + Vector2(480, 140))
+        planeNode.position = editor.freePosition(for: editor.shape(of: planeNode), near: planeNode.position)
+        var sketchNode = registry.makeNode(SketchNode.typeID, at: planeNode.position + Vector2(240, 0))
+        sketchNode.position = editor.freePosition(
+            for: editor.shape(of: sketchNode), near: sketchNode.position,
+            taken: [editor.placedFrame(of: editor.shape(of: planeNode), at: planeNode.position)])
         sketchNode.inputValues[NodeSetting.sketch] = .sketch(Sketch(plane: .wired))
         let commands: [GraphCommand] = [
             .addNode(planeNode), .addNode(sketchNode),

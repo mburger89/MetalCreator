@@ -5,18 +5,24 @@ import Foundation
 @testable import CreatorEditor
 
 /// Three Number nodes on the left wired across to three on the right, each pair level, so at zoom 1 with no pan each wire's
-/// taut route is a straight horizontal line: `upper` from (168, 60) to (600, 60), `lower` from (168, 260) to (600, 260) and
-/// `third` from (168, 460) to (600, 460). `upperMiddle`, `lowerMiddle` and `thirdMiddle` are halfway along them, clear of
+/// taut route is a straight horizontal line: `upper` from (NodeLayout.width, 60) to (right, 60), `lower` from (NodeLayout.width, 260) to (right, 260) and
+/// `third` from (NodeLayout.width, 460) to (right, 460). `upperMiddle`, `lowerMiddle` and `thirdMiddle` are halfway along them, clear of
 /// every node. `tie()` holds `upper` and `lower` at (384, 160): its lanes are (384, 158) and (384, 162), and its band runs
 /// from (381, 155) to (387, 165).
 @MainActor
 struct TieScene {
+    /// The right-hand nodes' x: the wires' midpoints stay at x = 384 whatever `NodeLayout.width` is.
+    static let right = 2 * 384 - NodeLayout.width
+    /// In the left dock (vertical flow) the upper wire's midpoint as drawn: between the output on a1's bottom edge and the input on
+    /// b1's top edge; and the drawn centre of the upper and lower midpoints, where a tie of both goes.
+    static let upperMidLeftDock = Vector2(NodeLayout.width / 2 + 10, (76 + right) / 2)
+    static let tieCentreLeftDock = Vector2(NodeLayout.width / 2 + 110, (76 + right) / 2)
     let a1 = testNode(NumberTestNode.self, id: 1, at: Vector2(0, 0))
     let a2 = testNode(NumberTestNode.self, id: 2, at: Vector2(0, 200))
-    let b1 = testNode(NumberTestNode.self, id: 3, at: Vector2(600, 20))
-    let b2 = testNode(NumberTestNode.self, id: 4, at: Vector2(600, 220))
+    let b1 = testNode(NumberTestNode.self, id: 3, at: Vector2(TieScene.right, 20))
+    let b2 = testNode(NumberTestNode.self, id: 4, at: Vector2(TieScene.right, 220))
     let a3 = testNode(NumberTestNode.self, id: 5, at: Vector2(0, 400))
-    let b3 = testNode(NumberTestNode.self, id: 6, at: Vector2(600, 420))
+    let b3 = testNode(NumberTestNode.self, id: 6, at: Vector2(TieScene.right, 420))
     let upperMiddle = Vector2(384, 60)
     let lowerMiddle = Vector2(384, 260)
     let thirdMiddle = Vector2(384, 460)
@@ -43,4 +49,9 @@ func tieID(_ n: Int) -> TieID {
     let digits = String(n)
     let suffix = String(repeating: "0", count: max(0, 12 - digits.count)) + digits
     return TieID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-" + suffix) ?? UUID())
+}
+
+extension Vector2 {
+    /// x and y swapped: a point as stored for the left dock's drawn one, and back.
+    var transposed: Vector2 { Vector2(y, x) }
 }

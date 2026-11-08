@@ -37,7 +37,7 @@ struct TieRenderTests {
         let editor = scene.editor(ties: [scene.tie()])
         let wire = try #require(CanvasLayers.wires(editor).first { $0.route.wire == scene.upper })
         #expect(wire.id == "\(scene.b1.id.rawValue.uuidString).value")
-        #expect(wire.route.pinned == [Vector2(168, 60), Vector2(384, 158), Vector2(600, 60)])
+        #expect(wire.route.pinned == [Vector2(NodeLayout.width, 60), Vector2(384, 158), Vector2(TieScene.right, 60)])
         #expect(wire.color == Palette.dracula.socket(.number) && wire.lineWidth == WireView.defaultLineWidth)
     }
 
