@@ -100,6 +100,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | DIM-b | Runtime SIGSEGV (`initializeWithCopy` of a `ZStack`) when a `for` over a model array sits inline in a large `ZStack` builder | MetalUI session (sent 2026-10-27) | ✅ closed 2026-10-27: not reproducible on MetalUI cf1b4968 (likely a stale incremental build) |
 | TB-a | No `ViewThatFits` for the sketch toolbar's overflow (a "More" menu) | MetalUI #213 (`3c7eadb9`, record 217) | ✅ fixed and adopted (branch `sketch-toolbar-more`): `SketchToolbar` is a `ViewThatFits` over fifteen rows, tools leave the row from the end into a "More" menu; human check UP-2 reworded, pending |
 | CV-a | A `.help` tooltip never shows on an element that does not hit-test (the graph canvas's socket dots, drawn under `.allowsHitTesting(false)`) | MetalUI #237 (`9ffd70e8`, record 239, `MN-AJ`) | ✅ fixed by MetalUI #237 and adopted: `CanvasSurface` has `.help { location in … }` over `EditorModel.socketTip(at:)`; the layers' own `.help` is gone. Human checks TR-2, VA-3, FI-core-3 and IM-2 can be run again |
+| AS-a | The traffic lights straddle the top bar's glass edge: a hidden title bar's band height (and so the buttons' vertical centre) is AppKit's, not the app's | asked 2026-11-08 | ⏳ open: nothing done here meanwhile |
 
 ## Reported 2026-10-07 (C7)
 
@@ -1494,3 +1495,16 @@ while the app runs, pipelines cached by source.
   `onContinuousHover` with a string and a window point, which we would drive from `EditorModel` (it already knows the hovered socket, `pointerLocation`).
   Meanwhile: nothing. We do not make the dots hit-test (the canvas's pointer model would have to give up the press), and we do not draw a tooltip of our own.
   Status: fixed by MetalUI #237 (option b: `.help { (location: Point<Pixels>) -> String? in … }`, the location in the surface's local points, nil for no tip). `CanvasSurface` maps the location through `EditorModel.socketTip(at:)` (the model's `hitTest`, so the pan and zoom are the model's) and `SocketLayer`'s dead `.help` is removed. Known MetalUI limit (HL5): leaving the window does not hide a shown tooltip.
+
+## Found by the user on screen (AS-a), 2026-11-08
+
+- **AS-a. Under `.hiddenTitleBar` the close, minimise and zoom buttons sit on the top bar's glass edge. Asked of MetalUI 2026-11-08.**
+  The top bar is a `GlassPanel` from y = `AppLayout.margin` (12) to 56 (`topBarHeight` 44), so its centre is y = 34. AppKit centres the standard window buttons in the
+  hidden title bar's band (`titleBarInsets.top`, about 28 to 32 points), which puts their centre near y = 14 to 16: the lower half of each button overlaps the glass's
+  rounded top edge (the user's screenshot, 2026-11-08). `TopBar` already clears them horizontally (`topBarClearance`, `titleBarInsets.left`); vertically it can't, because
+  the band's height is AppKit's.
+  Wanted: a way for the app to set the hidden title bar band's height (AppKit centres the buttons in it, as a unified `NSToolbar` does: Finder's and Xcode's buttons are
+  centred on their toolbars), for example `windowStyle(.hiddenTitleBar(height:))` or a `windowTitleBarHeight` scene modifier, with `titleBarInsets.top` reporting the new band.
+  We would ask for `2 × margin + topBarHeight` = 68 points, so the buttons' centre is the bar's centre (y = 34); or, equivalently, a vertical offset for the buttons.
+  Meanwhile: nothing. We don't move the bar below the buttons (it would waste a strip and the drag strip already covers the band) and don't reposition AppKit's buttons ourselves.
+
