@@ -99,6 +99,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | DIM-a | No click count on a tap's value (double-click on a dimension's text in the viewport) | MetalUI session (sent 2026-10-27) | ✅ fixed by MetalUI `cf1b4968` (PR #144, divergence 235, ruling IF-O); adopted in DIM-1 Task 11 (2026-10-27) |
 | DIM-b | Runtime SIGSEGV (`initializeWithCopy` of a `ZStack`) when a `for` over a model array sits inline in a large `ZStack` builder | MetalUI session (sent 2026-10-27) | ✅ closed 2026-10-27: not reproducible on MetalUI cf1b4968 (likely a stale incremental build) |
 | TB-a | No `ViewThatFits` for the sketch toolbar's overflow (a "More" menu) | MetalUI #213 (`3c7eadb9`, record 217) | ✅ fixed and adopted (branch `sketch-toolbar-more`): `SketchToolbar` is a `ViewThatFits` over fifteen rows, tools leave the row from the end into a "More" menu; human check UP-2 reworded, pending |
+| CV-a | A `.help` tooltip never shows on an element that does not hit-test (the graph canvas's socket dots, drawn under `.allowsHitTesting(false)`) | MetalUI (ruling `MN-U`; asked 2026-11-07) | ⏳ asked of MetalUI 2026-11-07; no stopgap. Socket tooltips (a tree's "Tree 3 × 8", a field's recipe, a mesh's summary) never appear; human checks TR-2, VA-3, FI-core-3 and IM-2 cannot pass |
 
 ## Reported 2026-10-07 (C7)
 
@@ -1478,3 +1479,18 @@ while the app runs, pipelines cached by source.
   In the meantime: nothing; labels stay cut short where the row doesn't fit. An item of a closed `Menu` only displays its `.keyboardShortcut` (`MenuContent.swift:119`, ruling `MN-D` item 3), so a tool in More keeps its key through an invisible button, as `EscapeKey` does. The MetalUI session read that from the code for pull-down `Menu` (its pin test covers `.contextMenu`) and did not test a key press while the menu is open, so the toolbar's tests must.
   **Adopted.** `SketchToolbar` is one `ViewThatFits(in: .horizontal)` beside the "Sketch" label: candidate k shows the first 14 - k tools as buttons and puts the last k in a "More" `Menu` (titled "More", or "More ✓" when the active tool is in it; its items are the tools' own labels with the same ✓), and Construction, Delete, the drag gap and Finish are in every row. The first row that fits is chosen, the last is the fallback. Every key is an invisible, accessibility-hidden button in `SketchToolbarKeys`, in a `.background` of the toolbar's stack (so it takes no slot and the `ViewThatFits` gets all the width but the label's), outside the `ViewThatFits`: an unchosen row registers no shortcut and a closed `Menu` item's is display only (ruling MN-D), so the visible buttons and menu items register none and each key fires once at every width. `SketchToolbarFitTests` pins the fit at 1440 to 1000 pt (the 1440 pt candidate 0 on Macs only, since the portable fonts are wider), the More contents, every key, and the menu.
   Found while testing: a key pressed with the More menu open reaches the invisible button (the tool is selected once) and the menu stays open (headless platform, `TestWindow.presentedMenu`; the native pull-down on a real Mac is human check UP-2). A pull-down `Menu` draws one extra glyph, its arrow.
+
+## Found by the human checks (CV-a), 2026-11-07
+
+- **CV-a. A `.help` tooltip never shows on the graph canvas's socket dots, because they do not hit-test (ruling `MN-U`). Asked of MetalUI 2026-11-07.**
+  `CanvasSurface` draws its layers (nodes, wires, `SocketLayer`) under `.allowsHitTesting(false)`: the model hit-tests (`EditorModel.hitTest`) because a press
+  must be able to become a box, a wire or a move over any of them (M5, GI-a). `SocketLayer` attaches `.help(text)` to a socket's dot when `EditorModel.socketHelp(of:)`
+  has a sentence for it (a data tree's "Tree 3 × 8", a field's recipe cut to 80 characters, an implicit's or mesh's summary). MetalUI's `.help` publishes its tooltip
+  only for an element the pointer hit-tests (ruling `MN-U`, `swiftui-menus-popovers.swift`), so over these dots the window finds nothing under the pointer to ask and
+  shows no tooltip: the sentences are built, pinned by the model tests and never seen. Hovering a socket carrying a tree, a field, an implicit solid or a mesh shows
+  nothing in the running app. Affects human checks TR-2, VA-3, FI-core-3 and IM-2.
+  Wanted, either: (a) a tooltip lookup that ignores hit-testing, so `.help` on an element under `.allowsHitTesting(false)` still shows after the usual delay while the pointer
+  is inside its frame; or (b) a model-driven tooltip API, such as `.helpOverlay(isPresented:at:text:)` or an `anchoredOverlay`-like presentation that the host opens from
+  `onContinuousHover` with a string and a window point, which we would drive from `EditorModel` (it already knows the hovered socket, `pointerLocation`).
+  Meanwhile: nothing. We do not make the dots hit-test (the canvas's pointer model would have to give up the press), and we do not draw a tooltip of our own.
+  Status: asked of MetalUI 2026-11-07.
