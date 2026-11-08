@@ -59,6 +59,16 @@ struct FieldLegendWindowTests {
         #expect(try controls("Plane", in: app) == 0, "a radial gradient has no plane of its own")
         #expect(try control("XY", in: app).isSelected, "the slice starts on the axis plane nearest the camera")
     }
+
+    @Test func theSliceCaptionIsOneLineAboveTheSegments() async throws {
+        let (app, radial) = try await open()
+        try await select(radial, in: app)
+        let captions = try app.window.elements { ($0.label == "Slice" || $0.value == "Slice") && $0.role == .staticText }
+        let caption = try #require(captions.first, "a Slice caption")
+        let segments = try control("XY", in: app).frame
+        #expect(caption.frame.size.width.value > 18 && caption.frame.size.height.value < 20, "one line, not a letter per line")
+        #expect(caption.frame.origin.y.value + caption.frame.size.height.value <= segments.origin.y.value + 1, "above the segments")
+    }
     #endif
 
     @Test func thePicksReachTheModel() async throws {
