@@ -20,7 +20,9 @@ public struct InspectorPanel: Component, Equatable {
     /// Compares the model by identity: it is a final `@Observable` class, so MetalUI re-evaluates the panel when a property
     /// its content read (the selection, the results, the parameters) changes; the theme comes from the environment, which
     /// MetalUI's environment epoch covers.
-    public nonisolated static func == (lhs: InspectorPanel, rhs: InspectorPanel) -> Bool { lhs.model === rhs.model && lhs.reservedHeight == rhs.reservedHeight }
+    public nonisolated static func == (lhs: InspectorPanel, rhs: InspectorPanel) -> Bool {
+        lhs.model === rhs.model && lhs.reservedHeight == rhs.reservedHeight
+    }
 
     /// The page, in a `ScrollView` when the window may not hold it (display finding 1). A scroll view fills the height it is offered,
     /// so a short page stays a plain column (a `ViewThatFits` would pick the fit exactly but is ineligible for MetalUI's retained

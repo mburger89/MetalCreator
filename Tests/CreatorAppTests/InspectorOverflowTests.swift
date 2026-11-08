@@ -41,7 +41,10 @@ struct InspectorOverflowTests {
         let short = try #require(inspectorGlass(render(app)))
         app.editor.toggleShapeList(TreeShapeRow.key(node: partition.id, isInput: false, socket: "tree"))
         await app.settle()
-        #expect(app.editor.inspectorPage.sections.contains { $0.rows.contains { if case .treeShape(let row) = $0 { row.isExpanded } else { false } } })
+        let isOpen = app.editor.inspectorPage.sections.contains { section in
+            section.rows.contains { if case .treeShape(let row) = $0 { row.isExpanded } else { false } }
+        }
+        #expect(isOpen)
         let long = try #require(inspectorGlass(render(app)))
         let below = AppLayout.margin * 2 + AppLayout.topBarHeight
         #expect(long.top >= below - 0.5, "the inspector stays below the top bar: \(long.top)")

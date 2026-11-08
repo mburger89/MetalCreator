@@ -41,7 +41,8 @@ struct NodeFitTests {
     /// A row's text is drawn whole at the node's width: one glyph per visible character, no ellipsis in place of some.
     @Test func aWideRowDrawsEveryCharacter() {
         let row = NodeRowModel(socket: "x", isInput: true, label: "Countersink diameter", value: "10 mm")
-        let drawn = glyphs(NodeRowView(row: row, palette: palette).frame(width: Pixels(Float(NodeLayout.width - 20))), width: NodeLayout.width)
+        let view = NodeRowView(row: row, palette: palette).frame(width: Pixels(Float(NodeLayout.width - 20)))
+        let drawn = glyphs(view, width: NodeLayout.width)
         #expect(drawn.count == "Countersink diameter10 mm".filter { !$0.isWhitespace }.count)
     }
 
@@ -49,17 +50,19 @@ struct NodeFitTests {
     /// ellipsis instead of wrapping to a second line (which the header's height clips).
     @Test func aLongTitleStaysOnOneLine() {
         let title = "A node title far too long to share the header with its badge"
-        let header = NodeHeaderView(title: title, accent: palette.header(for: .solid), state: .ok(duration: .milliseconds(123)), palette: palette)
+        let header = NodeHeaderView(title: title, accent: palette.header(for: .solid), state: .ok(duration: .milliseconds(123)),
+                                    palette: palette)
         let drawn = glyphs(header, width: NodeLayout.width)
         let top = drawn.map { Double($0.bounds.origin.y) / 2 }.min() ?? 0
         let bottom = drawn.map { Double($0.bounds.origin.y + $0.bounds.size.height) / 2 }.max() ?? 0
-        #expect(!drawn.isEmpty && bottom - top < 20, "title and badge share one line (a second would stand 14 points lower): \(bottom - top)")
+        #expect(!drawn.isEmpty && bottom - top < 20, "one line, a second would stand 14 points lower: \(bottom - top)")
     }
 
     /// Every built-in title is drawn whole beside the typical badge ("123 ms").
     @Test func everyBuiltInTitleFitsBesideItsBadge() {
         for (type, _, _, shape) in shapes() {
-            let header = NodeHeaderView(title: shape.title, accent: palette.header(for: .solid), state: .ok(duration: .milliseconds(123)), palette: palette)
+            let header = NodeHeaderView(title: shape.title, accent: palette.header(for: .solid),
+                                        state: .ok(duration: .milliseconds(123)), palette: palette)
             let drawn = glyphs(header, width: NodeLayout.width).count
             #expect(drawn == (shape.title + "123 ms").filter { !$0.isWhitespace }.count, "\(type.displayName) is cut")
         }
