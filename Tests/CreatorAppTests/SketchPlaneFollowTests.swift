@@ -91,3 +91,26 @@ struct SketchPlaneFollowTests {
         #expect(app.alert == .problem(AppProblem("The plane lost its result", AppModel.planeUnwired)), "then the loss is said")
     }
 }
+
+/// Final preview evaluates only what an Output needs, so a wired plane that feeds no Output has no result until it is asked for.
+@MainActor
+struct SketchUnevaluatedPlaneTests {
+    @Test func editSketchOpensOnAWiredPlaneThatFeedsNoOutput() async throws {
+        var sketch = rectangleSketch()
+        sketch.plane = .wired
+        var builder = GraphBuilder()
+        let plane = builder.add(PlaneNode.self, ["offset": .number(5)])
+        let sketchNode = builder.add(SketchNode.self, [NodeSetting.sketch: .sketch(sketch)])
+        builder.wire(plane, "plane", to: sketchNode, "plane")
+        let app = await makeApp(builder.graph)
+        app.previewMode = .final
+        app.viewport.recordViewSize(ViewportSize(width: 1400, height: 900))
+        await app.settle()
+        try #require(app.document.results[plane.id] == nil, "nothing demands the plane in Final preview")
+        app.beginSketch(for: sketchNode.id)
+        await app.settle()
+        #expect(app.alert == nil)
+        let open = try #require(app.sketch)
+        #expect(open.editor.plane == .xy.offset(by: 5))
+    }
+}

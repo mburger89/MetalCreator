@@ -11,7 +11,7 @@ struct SectionPanelDock: Component {
         let insets = AppLayout.sectionPanelInsets(dock: model.editor.dock, panelWidth: model.panelWidth, panelHeight: model.panelHeight,
                                                 themeEditorOpen: themeEditorOpen)
         let gaps = Self.gaps(sectionOn: model.document.section?.isOn == true,
-                             measureShows: model.measure != nil || !model.measureBook.entries.isEmpty,
+                             measureShows: model.showsMeasurePanel,
                              zebraShows: model.showsZebra)
         VStack(alignment: .trailing, spacing: Pixels(0)) {
             HStack(spacing: Pixels(0)) {
@@ -39,5 +39,12 @@ struct SectionPanelDock: Component {
     /// The 8-point gap above the Measure and Zebra rows: only when a panel above shows.
     static func gaps(sectionOn: Bool, measureShows: Bool, zebraShows: Bool) -> (measure: Double, zebra: Double) {
         (sectionOn && measureShows ? 8 : 0, zebraShows && (sectionOn || measureShows) ? 8 : 0)
+    }
+}
+
+extension AppModel {
+    /// Whether any card of the section dock (Section, Measure, Zebra) shows now.
+    var showsSectionCards: Bool {
+        (document.section?.isOn == true && sketch == nil) || showsMeasurePanel || showsZebra
     }
 }

@@ -66,6 +66,8 @@ public final class AppModel {
     public internal(set) var sketch: SketchSession? {
         didSet { editor.isLevelLocked = sketch != nil }
     }
+    /// Counts requests to open a sketch, so one that waited for its plane's evaluation can tell it was superseded.
+    var sketchRequest = 0
     public var alert: AppAlert?
     /// The export in progress, shown in the export sheet, or `nil` (implicit spec §5.3).
     public internal(set) var exportRun: ExportRun?

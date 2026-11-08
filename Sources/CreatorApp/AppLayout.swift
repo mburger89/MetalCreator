@@ -83,6 +83,23 @@ public enum AppLayout {
         return ViewportInsets(top: area.top + 16, leading: 0, bottom: 0, trailing: themeEditorOpen ? max(own, clearOfEditor) : own)
     }
 
+    /// The width of the section dock's card column: the cards' inner width plus the glass padding on both sides.
+    @MainActor static var sectionCardColumnWidth: Double { SectionPanel.width + 2 * GraphPanelLayout.glassPadding }
+
+    /// The gap between a banner and the section dock's cards.
+    static let bannerCardGap = 12.0
+
+    /// The room the pick and model dimension banners centre in: the model area, narrowed at the right so the banner's trailing
+    /// edge stays `bannerCardGap` points left of the section dock's cards while any shows (`cardsShown`), whatever their height.
+    /// The top inset is the row under the top bar; the bottom is 0.
+    @MainActor static func bannerInsets(dock: DockSide, panelWidth: Double, panelHeight: Double, cardsShown: Bool) -> ViewportInsets {
+        let area = modelArea(dock: dock, panelWidth: panelWidth, panelHeight: panelHeight)
+        let cards = sectionPanelInsets(dock: dock, panelWidth: panelWidth, panelHeight: panelHeight)
+        let clear = cards.trailing + sectionCardColumnWidth + bannerCardGap
+        return ViewportInsets(top: margin * 2 + topBarHeight, leading: area.leading, bottom: 0,
+                              trailing: cardsShown ? max(area.trailing, clear) : area.trailing)
+    }
+
     /// The mesh preview badge's room (implicit spec §5.1): it stands at the model area's lower right, 16 points in from its edges. The
     /// top and leading insets are 0.
     public static func badgeInsets(dock: DockSide, panelWidth: Double, panelHeight: Double) -> ViewportInsets {

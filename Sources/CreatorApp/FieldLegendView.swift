@@ -34,6 +34,10 @@ struct FieldLegendView: Component {
                             .foregroundStyle((legend.failure == nil ? Palette(themes).statusWarning : Palette(themes).statusError).color)
                     }
                     Toggle("0…1", isOn: Binding(get: { legend.usesUnitRange }, set: { model.fieldPreview.setUnitRange($0) }))
+                    // The label would take a few points beside the segments and wrap a letter per line: caption above, label hidden.
+                    Text("Slice")
+                        .font(.caption)
+                        .foregroundStyle(Palette(themes).secondaryText.color)
                     Picker("Slice", selection: Binding(get: { legend.selectedOption ?? -1 }, set: { index in
                         if legend.sliceOptions.indices.contains(index) { model.fieldPreview.chooseSlice(legend.sliceOptions[index].choice) }
                     })) {
@@ -42,6 +46,7 @@ struct FieldLegendView: Component {
                         }
                     }
                     .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
                 .frame(width: Self.width.px)
             }

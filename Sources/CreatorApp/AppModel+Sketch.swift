@@ -24,9 +24,49 @@ extension AppModel {
               case .sketch(let stored)? = node.inputValues[NodeSetting.sketch] else { return }
         // `known`: the plane of a sketch whose wired source hasn't evaluated yet (New Sketch on Face).
         guard let plane = known ?? sketchPlane(of: node, stored) else {
+            // A wired plane whose source has no result at all (Final preview evaluates only the Outputs' upstream): ask for it, then
+            // open. A source that evaluated and failed has a result, and is refused below as before.
+            if let source = unevaluatedPlaneSource(of: node, stored) {
+                openSketchOnceEvaluated(id, source: source)
+                return
+            }
             alert = .problem(AppProblem("The sketch can't be opened yet", Self.noWiredPlane))
             return
         }
+        openSketch(for: id, node: node, stored: stored, plane: plane)
+    }
+
+    /// The node wired into a sketch's `plane` when it has no result yet, else `nil`.
+    private func unevaluatedPlaneSource(of node: Node, _ sketch: Sketch) -> NodeID? {
+        guard case .wired = sketch.plane,
+              let link = document.graph.incomingLink(to: Endpoint(node: node.id, socket: "plane")),
+              document.results[link.from.node] == nil else { return nil }
+        return link.from.node
+    }
+
+    /// Demands `source`, waits for the evaluation and opens the sketch if the plane has a result then, else says why not. Nothing
+    /// opens if the document was replaced, the node went, or a sketch, pick or another request began meanwhile.
+    private func openSketchOnceEvaluated(_ id: NodeID, source: NodeID) {
+        let document = document
+        sketchRequest += 1
+        let request = sketchRequest
+        document.extraDemand = source
+        Task { [weak self] in
+            await document.waitForEvaluation()
+            guard let self, self.document === document, self.sketchRequest == request, self.sketch == nil, self.pick == nil,
+                  let node = document.graph.nodes[id], node.typeID == SketchNode.typeID,
+                  case .sketch(let stored)? = node.inputValues[NodeSetting.sketch] else { return }
+            guard let plane = self.sketchPlane(of: node, stored) else {
+                document.extraDemand = nil
+                self.alert = .problem(AppProblem("The sketch can't be opened yet", Self.noWiredPlane))
+                return
+            }
+            self.openSketch(for: id, node: node, stored: stored, plane: plane)
+        }
+    }
+
+    private func openSketch(for id: NodeID, node: Node, stored: Sketch, plane: Plane) {
+        sketchRequest += 1
         pick = nil
         endModelDimension()
         endMeasure()
@@ -54,6 +94,7 @@ extension AppModel {
     public func finishSketch() {
         sketch?.stop()
         sketch = nil
+        document.extraDemand = nil
     }
 
     /// Closes the add-node palette if it's open over the sketch; true when it was (Review Focus 1).

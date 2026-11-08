@@ -132,3 +132,24 @@ struct SectionPanelLayoutTests {
         #expect(open.top == closed.top)
     }
 }
+
+/// Where the pick and model dimension banners stand: centred in the model area, and clear of the section dock's cards.
+@MainActor
+struct BannerLayoutTests {
+    @Test(arguments: [DockSide.left, .bottom, .hidden])
+    func withoutCardsTheBannerCentresInTheModelArea(dock: DockSide) {
+        let area = AppLayout.modelArea(dock: dock, panelWidth: 480, panelHeight: 300)
+        let banner = AppLayout.bannerInsets(dock: dock, panelWidth: 480, panelHeight: 300, cardsShown: false)
+        #expect(banner.leading == area.leading && banner.trailing == area.trailing)
+        #expect(banner.top == AppLayout.margin * 2 + AppLayout.topBarHeight && banner.bottom == 0)
+    }
+
+    @Test(arguments: [DockSide.left, .bottom, .hidden])
+    func withCardsTheBannerEndsTwelvePointsLeftOfTheColumn(dock: DockSide) {
+        let cards = AppLayout.sectionPanelInsets(dock: dock, panelWidth: 480, panelHeight: 300)
+        let banner = AppLayout.bannerInsets(dock: dock, panelWidth: 480, panelHeight: 300, cardsShown: true)
+        let columnLeft = cards.trailing + SectionPanel.width + 2 * GraphPanelLayout.glassPadding
+        #expect(banner.trailing >= columnLeft + 12)
+        #expect(banner.leading == AppLayout.modelArea(dock: dock, panelWidth: 480, panelHeight: 300).leading)
+    }
+}
