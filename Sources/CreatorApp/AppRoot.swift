@@ -44,20 +44,18 @@ public struct AppRoot: Component {
             if let session = model.modelDimension {
                 HStack {
                     Spacer()
-                    ModelDimensionBanner(model: model, session: session)
+                    ModelDimensionBanner(model: model, session: session).fixedSize()
                     Spacer()
                 }
-                .padding(Edges(top: (AppLayout.margin * 2 + AppLayout.topBarHeight).px, right: Pixels(0),
-                               bottom: Pixels(0), left: Pixels(0)))
+                .padding(bannerPadding)
             }
             if let pick = model.pick {
                 HStack {
                     Spacer()
-                    PickBanner(model: model, picked: pick.picked.count, prompt: pick.prompt)
+                    PickBanner(model: model, picked: pick.picked.count, prompt: pick.prompt).fixedSize()
                     Spacer()
                 }
-                .padding(Edges(top: (AppLayout.margin * 2 + AppLayout.topBarHeight).px, right: Pixels(0),
-                               bottom: Pixels(0), left: Pixels(0)))
+                .padding(bannerPadding)
             }
             if let session = model.sketch { PointerReadoutView(model: session.editor) }
             FieldLegendDock(model: model)
@@ -86,5 +84,12 @@ public struct AppRoot: Component {
         }
         .environment(model.themes)
         .preferredColorScheme(model.themes.current.isDark ? .dark : .light)
+    }
+
+    /// The padding that centres a banner in the model area, clear of the section dock's cards (`AppLayout.bannerInsets`).
+    private var bannerPadding: Edges<Pixels> {
+        let insets = AppLayout.bannerInsets(dock: model.editor.dock, panelWidth: model.panelWidth, panelHeight: model.panelHeight,
+                                            cardsShown: model.showsSectionCards)
+        return Edges(top: insets.top.px, right: insets.trailing.px, bottom: Pixels(0), left: insets.leading.px)
     }
 }

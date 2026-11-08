@@ -41,3 +41,10 @@ struct SectionPanelDock: Component {
         (sectionOn && measureShows ? 8 : 0, zebraShows && (sectionOn || measureShows) ? 8 : 0)
     }
 }
+
+extension AppModel {
+    /// Whether any card of the section dock (Section, Measure, Zebra) shows now.
+    var showsSectionCards: Bool {
+        (document.section?.isOn == true && sketch == nil) || showsMeasurePanel || showsZebra
+    }
+}
