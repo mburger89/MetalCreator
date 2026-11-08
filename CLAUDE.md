@@ -602,7 +602,7 @@ the fourteen `Fields` nodes below, the fourteen `Implicit` nodes and the six Mes
   is the inspector's definition part; the library's "Groups" section carries a group by the key `GroupLibraryEntry.key`
   through the library's one gesture. `NodeClipboard.definitions` carries the definitions copied group nodes use.
   Data trees show in two places (`EditorModel+TreeDisplay`): a socket carrying a tree has a tooltip, "Tree 3 × 8"
-  (`socketHelp(of:)`, drawn by `SocketLayer`), and the inspector gets a "Data" section (`TreeShapeRow`: the shape, and a
+  (`socketHelp(of:)`, shown by `CanvasSurface`'s model-driven `.help` through `socketTip(at:)`, MetalUI #237), and the inspector gets a "Data" section (`TreeShapeRow`: the shape, and a
   list of branch paths with item counts that `toggleShapeList(_:)` opens, cut after 50) only when the node has a tree on
   an input or output. A `.text` setting (the Path Mapper's rule, Branch by Path's and List Item's paths) is an `InspectorControl.text`.
   Fields show the same way: a socket carrying a field has a tooltip with its recipe cut to 80 characters (`Value.fieldSummary(limit:)`,

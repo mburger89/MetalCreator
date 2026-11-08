@@ -15,9 +15,9 @@ struct NodeViewEqualityTests {
     @Test func aNodeViewIsEqualOnlyWhenEveryInputIs() {
         func node(shape: NodeShape? = nil, rows: [NodeRowModel] = [], origin: Vector2 = .zero, flow: CanvasFlow = .horizontal,
                   isSelected: Bool = false, state: NodeState? = nil, shakes: Int = 0, palette: Palette = .dracula,
-                  isGhost: Bool = false, socketHelp: [String: String] = [:]) -> NodeView {
+                  isGhost: Bool = false) -> NodeView {
             NodeView(shape: shape ?? self.shape, rows: rows, origin: origin, flow: flow, isSelected: isSelected, state: state,
-                     shakes: shakes, palette: palette, isGhost: isGhost, socketHelp: socketHelp)
+                     shakes: shakes, palette: palette, isGhost: isGhost)
         }
         expectEqualityCovers(node(), equalTo: node(), [
             "shape": node(shape: NodeShape(title: "Rib", category: .solid, inputs: [], outputs: [])),
@@ -29,7 +29,6 @@ struct NodeViewEqualityTests {
             "shakes": node(shakes: 1),
             "palette": node(palette: Palette(.alucard)),
             "isGhost": node(isGhost: true),
-            "socketHelp": node(socketHelp: ["in.tree": "3 items"]),
         ])
     }
 
@@ -90,15 +89,13 @@ struct NodeViewEqualityTests {
     }
 
     @Test func aSocketLayerIsEqualOnlyWhenEveryInputIs() {
-        func layer(shape: NodeShape? = nil, flow: CanvasFlow = .horizontal, palette: Palette = .dracula,
-                   help: [String: String] = [:]) -> SocketLayer {
-            SocketLayer(shape: shape ?? self.shape, flow: flow, palette: palette, help: help)
+        func layer(shape: NodeShape? = nil, flow: CanvasFlow = .horizontal, palette: Palette = .dracula) -> SocketLayer {
+            SocketLayer(shape: shape ?? self.shape, flow: flow, palette: palette)
         }
         expectEqualityCovers(layer(), equalTo: layer(), [
             "shape": layer(shape: NodeShape(title: "Rib", category: .solid, inputs: [], outputs: [])),
             "flow": layer(flow: .vertical),
             "palette": layer(palette: Palette(.alucard)),
-            "help": layer(help: ["out.solid": "1 solid"]),
         ])
     }
 }

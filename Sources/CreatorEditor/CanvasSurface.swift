@@ -46,5 +46,8 @@ struct CanvasSurface: Component, Equatable {
             }
         }
         .pointerStyle(model.canvasCursor?.pointerStyle)
+        // The layers do not hit-test, so their sockets cannot carry a `.help` of their own: the surface asks the model
+        // which socket is under the pointer (MetalUI #237; the location is in the surface's local points, as `hitTest` takes).
+        .help { (location: Point<Pixels>) -> String? in model.socketTip(at: GraphPanelInput.vector(location)) }
     }
 }

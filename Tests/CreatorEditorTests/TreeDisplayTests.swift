@@ -57,33 +57,29 @@ struct TreeDisplayTests {
         #expect(!renderHeadless { CanvasLayers(model: editor) }.glyphs.isEmpty)
     }
 
-    /// MetalUI shows a bubble for any `.help` text, an empty one too (`Tooltip`: it tests `help != nil`), so a dot with no
-    /// tree must declare no help at all.
-    @Test func onlyADotThatCarriesATreeDeclaresATooltip() async throws {
+    /// The canvas's layers do not hit-test, so `CanvasSurface`'s `.help` asks the model for the socket under the pointer
+    /// (canvas-local screen points, the same as `hitTest(_:)`), through the pan and zoom.
+    @Test func aPointOverATreeSocketGivesItsTooltip() async throws {
         let editor = await editor()
-        func dots(_ node: Node) throws -> [SocketLayer.Dot] {
-            let node = try #require(editor.graph.nodes[node.id])
-            return SocketLayer.dots(shape: editor.shape(of: node), flow: editor.flow, palette: Palette(nil),
-                                    help: editor.socketHelp(of: node.id))
-        }
-        let made = try dots(maker)
-        #expect(made.count == 3)
-        #expect(made.map(\.help) == [nil, nil, "Tree 3 × 8"])
-        let lone = try dots(plain)
-        #expect(!lone.isEmpty)
-        #expect(lone.allSatisfy { $0.help == nil })
-    }
-
-    @Test func aTooltipDoesNotChangeHowTheDotsDraw() async throws {
-        let editor = await editor()
+        editor.transform = CanvasTransform(offset: Vector2(40, 25), zoom: 1.5)
         let node = try #require(editor.graph.nodes[maker.id])
         let shape = editor.shape(of: node)
-        let help = editor.socketHelp(of: node.id)
-        #expect(!help.isEmpty)
-        let with = renderHeadless { SocketLayer(shape: shape, flow: editor.flow, palette: .dracula, help: help) }
-        let without = renderHeadless { SocketLayer(shape: shape, flow: editor.flow, palette: .dracula) }
-        #expect(!with.rects.isEmpty)
-        #expect(with.rects.count == without.rects.count)
+        let socket = try #require(NodeLayout.socketOffset("values", isInput: false, in: shape, flow: editor.flow))
+        let screen = editor.transform.toScreen(editor.displayOrigin(of: node) + socket)
+        #expect(editor.socketTip(at: screen) == "Tree 3 × 8")
+        let input = try #require(editor.graph.nodes[consumer.id])
+        let inSocket = try #require(NodeLayout.socketOffset("tree", isInput: true, in: editor.shape(of: input), flow: editor.flow))
+        #expect(editor.socketTip(at: editor.transform.toScreen(editor.displayOrigin(of: input) + inSocket)) == "Tree 3 × 8")
+    }
+
+    @Test func emptyCanvasAndASocketWithNoTipGiveNone() async throws {
+        let editor = await editor()
+        #expect(editor.socketTip(at: Vector2(-500, -500)) == nil)
+        let node = try #require(editor.graph.nodes[plain.id])
+        let shape = editor.shape(of: node)
+        let socket = try #require(shape.outputs.first)
+        let offset = try #require(NodeLayout.socketOffset(socket.name, isInput: false, in: shape, flow: editor.flow))
+        #expect(editor.socketTip(at: editor.transform.toScreen(editor.displayOrigin(of: node) + offset)) == nil)
     }
 
     // MARK: the inspector

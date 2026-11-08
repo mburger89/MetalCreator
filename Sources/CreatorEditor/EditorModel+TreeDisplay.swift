@@ -1,3 +1,4 @@
+import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
 
@@ -33,6 +34,15 @@ extension EditorModel {
             }
         }
         return help
+    }
+
+    /// The tooltip for the socket under `screen` (canvas-local screen points, as `hitTest(_:)` takes them), or `nil`
+    /// when the point is over no socket or the socket carries nothing worth a sentence. The canvas's layers do not
+    /// hit-test, so `CanvasSurface` asks this through MetalUI's model-driven `.help` (MetalUI #237, gap CV-a).
+    public func socketTip(at screen: Vector2) -> String? {
+        guard case .socket(let socket) = hitTest(screen) else { return nil }
+        let key = (socket.isInput ? "in." : "out.") + socket.endpoint.socket.rawValue
+        return socketHelp(of: socket.endpoint.node)[key]
     }
 
     /// The longest field recipe a tooltip shows (fields spec §2.1).

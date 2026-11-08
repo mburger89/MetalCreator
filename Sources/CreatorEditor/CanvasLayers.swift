@@ -48,8 +48,7 @@ struct CanvasLayers: Component {
                          origin: model.displayOrigin(of: node), flow: flow,
                          isSelected: model.selection.contains(node.id),
                          state: StatusBadge.displayed(model.result(of: node.id)?.state),
-                         shakes: model.shakeCount(of: node.id), palette: palette,
-                         socketHelp: model.socketHelp(of: node.id))
+                         shakes: model.shakeCount(of: node.id), palette: palette)
                     .equatable()
             }
             ForEach(Self.ghosts(model), id: \.id.rawValue) { node in
