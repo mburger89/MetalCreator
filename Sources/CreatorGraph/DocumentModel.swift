@@ -210,20 +210,6 @@ public final class DocumentModel {
         replay(entry.forward)
     }
 
-    /// Keeps `data`, the bytes of a PNG or JPEG, for nodes to embed, and returns the hash that names it (fields spec §5). Two
-    /// pictures with the same bytes are one entry. Nothing is checked here: choosing a file checks it
-    /// (`GreyImageDecoder.inspect`), and a node that cannot decode what it points at says so. A node already pointing at a
-    /// hash that was absent runs again.
-    @discardableResult
-    public func addImage(_ data: Data) -> ImageHash {
-        let hash = ImageHash(of: data)
-        if images[hash] == nil {
-            images[hash] = data
-            scheduleEvaluation()
-        }
-        return hash
-    }
-
     /// The content with every linked image's paths as they will be found from `folder`, resolving each file from where the
     /// document is now: a file that can be found gets its absolute path and a path relative to `folder`, so a first save gains
     /// the relative path and Save As elsewhere makes it again; one that cannot be found keeps the paths it had.
@@ -390,5 +376,23 @@ extension DocumentModel {
             if measurements != newValue.measurements { measurements = newValue.measurements }
             if zebra != newValue.zebra { zebra = newValue.zebra }
         }
+    }
+}
+
+// MARK: - Embedded images
+
+extension DocumentModel {
+    /// Keeps `data`, the bytes of a PNG or JPEG, for nodes to embed, and returns the hash that names it (fields spec §5). Two
+    /// pictures with the same bytes are one entry. Nothing is checked here: choosing a file checks it
+    /// (`GreyImageDecoder.inspect`), and a node that cannot decode what it points at says so. A node already pointing at a
+    /// hash that was absent runs again.
+    @discardableResult
+    public func addImage(_ data: Data) -> ImageHash {
+        let hash = ImageHash(of: data)
+        if images[hash] == nil {
+            images[hash] = data
+            scheduleEvaluation()
+        }
+        return hash
     }
 }
