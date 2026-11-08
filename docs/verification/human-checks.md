@@ -1187,39 +1187,39 @@ renderer's buffers; these check what a real window shows.
 
 ## Group PA — patterns: Place, the shortcut nodes and the Patterns library (7a-2)
 
-**Status: NOT RUN.** Plan `2026-10-10-7a-place.md`. Run `swift run MetalCreatorApp`. The tests pin the nodes, the kernel and the
+**Status: IN PROGRESS** (2026-11-07: 6 of 10 pass; PA-1 and PA-9 fail). Plan `2026-10-10-7a-place.md`. Run `swift run MetalCreatorApp`. The tests pin the nodes, the kernel and the
 naming; these check what a real window shows. Build a plate (Rectangle on a plane at z = −6, Extrude 6) and a Grid Points
 (4 × 3, 15 mm) wired into Points to Placements for the checks below.
 
 - [ ] **PA-1 The library.** Open the node library: a "Patterns" section sits between Feature and Output, holding Place,
   Points to Placements, Hole Pattern, Boss / Pin Pattern, Slot Pattern and Pattern Feature, with the Feature colour on
-  their headers. Typing "hole" in the add-node palette finds Hole Pattern. **Observed:**
-- [ ] **PA-2 Holes.** (Spec §5 wants each shortcut documented as Place + Boolean underneath in its inspector help; until User decision 9 (b) is chosen this check is where it is stated: Hole Pattern gives the same part as a Place and a Boolean wired by hand.) Wire the plate and the placements into a Hole Pattern and an Output: twelve Ø5 holes cut from the top
+  their headers. Typing "hole" in the add-node palette finds Hole Pattern. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails as written:** the Patterns section is alphabetical in this build (Boss / Pin Pattern, Circular Pattern, Cull by Region, …): `PaletteSearch.entries` sorted every category by name. PR #50 groups it by operation (Layouts, Placing, Shortcuts, Variation) with an A–Z switch; re-check against that. The palette's "hole" finds Hole Pattern (and Drain Holes); the headers are the Feature orange.
+- [x] **PA-2 Holes.** (Spec §5 wants each shortcut documented as Place + Boolean underneath in its inspector help; until User decision 9 (b) is chosen this check is where it is stated: Hole Pattern gives the same part as a Place and a Boolean wired by hand.) Wire the plate and the placements into a Hole Pattern and an Output: twelve Ø5 holes cut from the top
   face down. In the inspector switch Mouth to Counterbore, then Countersink: the holes gain the step, then the cone; Through
-  all cuts right through whatever the depth. Wire a Series (start 3, step 1, count 3) into `diameter`: the first three holes are 3, 4 and 5 mm and the rest repeat 5 mm. **Observed:**
-- [ ] **PA-3 Bosses and slots.** The same plate with a Boss / Pin Pattern (draft 5°, tip fillet 1): twelve pins standing up from
+  all cuts right through whatever the depth. Wire a Series (start 3, step 1, count 3) into `diameter`: the first three holes are 3, 4 and 5 mm and the rest repeat 5 mm. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: Twelve Ø5 holes (depth 4) cut from the top; Counterbore gives the step, Countersink the cone, Through all cuts through (seen from below). A Series (3, 1, 3) into `diameter`: holes 0, 1 and 2 are 3, 4 and 5 mm, the rest 5 mm.
+- [x] **PA-3 Bosses and slots.** The same plate with a Boss / Pin Pattern (draft 5°, tip fillet 1): twelve pins standing up from
   the face, leaning in, with rounded tips. Slot Pattern: twelve slots with rounded ends running along X; turn the placements
   with Points to Placements' direction (1, 0, 0) and the tools turn with them (on a side face, cutting or growing along X).
-  **Observed:**
-- [ ] **PA-4 Misses.** Raise Grid Points' spacing until holes fall off the plate: the Hole Pattern shows a warning badge
+  **Observed (2026-11-07):** macOS, packaged app from main `d821472`: Boss / Pin (Ø5, 8 high, draft 5°, tip fillet 1): twelve tapered pins with rounded tips. Slot (10 × 4, depth 3): twelve round-ended slots along X; with direction (1, 0, 0) the slots turn and cut along X.
+- [x] **PA-4 Misses.** Raise Grid Points' spacing until holes fall off the plate: the Hole Pattern shows a warning badge
   reading "N of 12 holes miss the part." and the rest of the holes stay cut; the same for bosses ("bosses") and slots.
-  **Observed:**
-- [ ] **PA-5 A pick follows its instance.** Pick the rim of one hole (the Fillet's "Pick edges in view…") and fillet it. Change
+  **Observed (2026-11-07):** macOS, packaged app from main `d821472`: Spacing x 25: "6 of 12 holes miss the part." and the rest stay cut; bosses: "6 of 12 bosses miss the part. The result is 7 separate pieces. They stay together as one solid, because parts with several bodies aren't supported yet." (the missed pins stand off the plate); slots: "6 of 12 slots miss the part."
+- [x] **PA-5 A pick follows its instance.** Pick the rim of one hole (the Fillet's "Pick edges in view…") and fillet it. Change
   the spacing, the diameter, the depth and the row count: the fillet stays on the same hole. Add a column: the fillet stays on the
   same *position in the list* ({4}), which is now another hole, with no warning (User decision 7). Lower
   the count so that hole is gone: Edges by Tag shows "Instance {n} no longer exists, so the edge picked on it isn't selected."
-  and nothing else is filleted. **Observed:**
-- [ ] **PA-6 Too many.** Set Grid Points to 50 × 50 into a Hole Pattern: the Points to Placements node reads "Patterns are
-  limited to 2,000 instances." and nothing hangs. **Observed:**
-- [ ] **PA-7 The old bracket.** Open a bracket saved before this track (Grid Points → Transform → Boolean holes): it opens and
-  evaluates exactly as before, no warnings. **Observed:**
+  and nothing else is filleted. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: The fillet on hole {4} stays through spacing 13, diameter 6, depth 3 and 2 rows; with 5 columns it moves to the new {4} with no warning; with 2 columns: "Instance {4} no longer exists, so the edge picked on it isn't selected."
+- [x] **PA-6 Too many.** Set Grid Points to 50 × 50 into a Hole Pattern: the Points to Placements node reads "Patterns are
+  limited to 2,000 instances." and nothing hangs. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: 50 × 50: Points to Placements reads "Patterns are limited to 2,000 instances." and nothing hangs.
+- [x] **PA-7 The old bracket.** Open a bracket saved before this track (Grid Points → Transform → Boolean holes): it opens and
+  evaluates exactly as before, no warnings. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: `docs/examples/bracket-7.2.mcgraph` (format 10, Grid Points → Boolean holes) opens and evaluates with no warnings.
 - [ ] **PA-8 A pick inside a group.** Select the plate, the grid, Points to Placements and a Hole Pattern and Group them; enter the group, add an Edges
   by Tag and a Fillet inside it, and pick a hole's rim in the viewport (the pick is written relative to the level). Change the
   grid's count so that hole is gone: the warning names the instance, then raise it again and the fillet returns on the same
   position. Leave the group: the result is unchanged. **Observed:**
 - [ ] **PA-9 The Hole Pattern node on the canvas.** The node has about ten sockets: it reads clearly at normal zoom, its labels
   ("Counterbore diameter", "Countersink angle") are not clipped, the Patterns header (the Feature colour, User decision 2) reads as
-  a Feature-family node, and the inspector's sections are in a sensible order. **Observed:**
+  a Feature-family node, and the inspector's sections are in a sensible order. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails:** zoomed in, the rows read "Counterbore diame…" and "Countersink diam…", and Style shows `0`, not "Plain"; "Boss / Pin Pattern" wraps and its first line is cut. The header is the Feature orange and the inspector's order (Hole, Mouth, Counterbore, Countersink) reads well. PR #51 widens nodes to 208 points, names choice rows and keeps titles on one line; re-check against that.
 - [ ] **PA-10 A projected rim.** In a Sketch wired to the Hole Pattern's result, Project (P) the rim of one hole: the circle
   appears and a dimension on it holds. Lower the grid's count so that hole is gone: the sketch warns "Projected edge 1 was
   picked on instance {n}, which no longer exists. Its constraints are ignored." and projects no other hole's rim. **Observed:**
@@ -1227,27 +1227,27 @@ naming; these check what a real window shows. Build a plate (Rectangle on a plan
 
 ## Group TR — data trees (7a-1)
 
-**Status: NOT RUN.** Plan `2026-10-10-7a-trees.md`, spec `2026-10-10-patterns-trees-design.md` §2 and §4's tree nodes. Run
+**Status: IN PROGRESS** (2026-11-07: 6 of 9 pass; TR-2 and TR-3 fail). Plan `2026-10-10-7a-trees.md`, spec `2026-10-10-patterns-trees-design.md` §2 and §4's tree nodes. Run
 `swift run MetalCreatorApp`. The tests pin the models, the messages and that the views draw; these check what a real window
 shows. Build the graph first: Series (count 24) into Partition (size 8) into Number-in nodes such as Rectangle `width`.
 
-- [ ] **TR-1 Library.** Open the node library: a "Lists & Trees" section sits between Feature and Output, in the Value
+- [x] **TR-1 Library.** Open the node library: a "Lists & Trees" section sits between Feature and Output, in the Value
   colour, listing Branch by Path, Flatten, Graft, List Item, Partition, Path Mapper and Tree Statistics. Search "path": both
   Path nodes show. Pinned: `theLibraryTitlesTheCategory`, `theBuiltInsAreTheSliceTheSketcherAndTheTreeNodesInSevenCategories`.
-  **Observed:**
+  **Observed (2026-11-07):** macOS, packaged app from main `d821472`: Lists & Trees now follows Patterns (Output is last), in the Value colour: Branch by Path, Flatten, Graft, List Item, Merge (added since), Partition, Path Mapper, Tree Statistics. "path" finds Path Mapper and Branch by Path.
 - [ ] **TR-2 Socket tooltips.** With the graph above evaluated, rest the pointer on Partition's output dot for a second: the
   tooltip reads "Tree 3 × 8". The dot of the wired input on the node after it says the same. A dot carrying one item or a plain
   list shows nothing at all when you rest on it: no bubble, not even an empty padded one (MetalUI shows a bubble for any help
   text, so such a dot declares none). **Record whether the tooltip appears over a dot this small.** Look at the colour too: the
   dots of the tree nodes (`any` sockets) and the wires leaving them are drawn in the Value colour; **record whether a wire from
   a tree node is hard to tell from a number wire** (if it is, that is a product question, not a bug). Pinned:
-  `theSocketsOfATreeShowItsShape`, `onlyADotThatCarriesATreeDeclaresATooltip`. **Observed:**
+  `theSocketsOfATreeShowItsShape`, `onlyADotThatCarriesATreeDeclaresATooltip`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails: no socket tooltip appears on the canvas** (see VA-3; MetalUI gap CV-a, model-driven `.help` being built in MetalUI). The colour part was not judged.
 - [ ] **TR-3 The Data section.** Select Partition: the inspector ends with a "Data" section, "Tree out  3 × 8" and a "Show
   paths" button. Press it: three rows, `{0}`, `{1}`, `{2}`, each "8 items"; it reads "Hide paths" now, and the list stays open
   while you select another node and come back. Undo is not enabled by it. Change the size to 5: "5 branches: 5, 5, 5, 5, 4" and
   the list follows. Select Series: no Data section. Make 60 branches (Series count 120, Partition size 2): the list stops after 50
-  rows and ends with "and 10 more". Pinned: `thePathListOpensAndClosesAndIsNotAnEdit`, `aLongPathListIsCutShort`. **Observed:**
-- [ ] **TR-4 Path Mapper.** Add a Path Mapper after Partition: its Rule row shows `{A} → {A}` in a text field. Type
+  rows and ends with "and 10 more". Pinned: `thePathListOpensAndClosesAndIsNotAnEdit`, `aLongPathListIsCutShort`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: "Tree out 3 × 8"; Show paths lists `{0}` to `{2}`, 8 items each, and reads Hide paths; the list stays open across a selection change; Undo stays disabled; size 5 reads "5 branches: 5, 5, 5, 5, 4"; Series shows no Data section. **Fails at 60 branches:** the list runs past the window's bottom and the inspector doesn't scroll, so "and 10 more" can't be seen; the graph panel extends past the window, the Series and Partition nodes draw as blank boxes and dark smudges appear (Hide paths restores it). PR #51 makes the inspector scroll; re-check against that.
+- [x] **TR-4 Path Mapper.** Add a Path Mapper after Partition: its Rule row shows `{A} → {A}` in a text field. Type
   `{A} → {(i)}` and press Return: the table is transposed (the tooltip says "Tree 8 × 3"); the Edit menu says "Undo Change Path
   rule". Click away instead of pressing Return: the rule is kept. Type `{A;B} → {B;A}`: the table is
   transposed again, as 8 × 3 (a source with one letter more than the tree has levels of branches names items; User decision 2).
@@ -1255,77 +1255,77 @@ shows. Build the graph first: Series (count 24) into Partition (size 8) into Num
   this tree (3 × 8) has 1 level of branches. Write the source with 1 level, like {A}, or with 2, like {A;B}, to name items too." Type
   `{A} → {C}`, then `{A`, then `{A} → {A/0}`: each names its failing part. The rule's text field should fit the inspector at
   its default width: no clipped text at either end, a long rule scrolls inside the field instead of widening the panel.
-  Pinned: `PathRuleTests`, `PathMapperNodeTests`, `typingARuleStoresItAsOneNamedUndoStep`. **Observed:**
-- [ ] **TR-5 A rule that matches some branches.** On a 2 × 3 × 2 tree (Partition twice), `{A;A} → {A;A}` gives a ⚠ badge, "The
+  Pinned: `PathRuleTests`, `PathMapperNodeTests`, `typingARuleStoresItAsOneNamedUndoStep`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: `{A} → {(i)}` gives 8 × 3 and "Undo Change Path rule"; `{A;B} → {B;A}` committed by clicking away gives 8 × 3; `{A;B;C} → {A}` gives the sentence word for word; `{A} → {C}`: "The target uses “C”, but the source {A} only names A."; `{A`: "The source path is missing its closing }."; `{A} → {A/0}`: "“A/0” divides by zero." The field fits unclipped.
+- [x] **TR-5 A rule that matches some branches.** On a 2 × 3 × 2 tree (Partition twice), `{A;A} → {A;A}` gives a ⚠ badge, "The
   rule matched 2 of 6 branches; the other 4 stay where they were." and the data is unchanged. Type `{0;B} → {B;0}`: the badge
   adds "1 of them shares a branch with the results, so their items are mixed in." Pinned:
-  `aRuleMatchingSomeBranchesWarnsAndKeepsTheRest`, `aLeftBranchThatSharesAPathWithAResultSaysSo`. **Observed:**
-- [ ] **TR-6 Broadcasting.** Wire Partition's tree into a Rectangle's `width` (Series from 1), the Rectangle into an
+  `aRuleMatchingSomeBranchesWarnsAndKeepsTheRest`, `aLeftBranchThatSharesAPathWithAResultSaysSo`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: On 2 × 3 × 2 (Partition 6, then 2): the first sentence word for word; `{0;B} → {B;0}`: "The rule matched 3 of 6 branches; the other 3 stay where they were. 1 of them shares a branch with the results, so their items are mixed in."
+- [x] **TR-6 Broadcasting.** Wire Partition's tree into a Rectangle's `width` (Series from 1), the Rectangle into an
   Extrude and that into Output: 24 boxes appear, and the Extrude's output tooltip reads "Tree 3 × 8". Wire a plain Series of 8
   into `height`: each row pairs with it item by item. Wire a tree of another depth (Partition twice) into `height`: a ⚠ badge
-  names both shapes, once. Pinned: `aFlatListAppliesToEveryBranch`, `differentDepthsWarnWithBothShapes`. **Observed:**
-- [ ] **TR-7 Boolean and branches.** Subtract an Extrude of a 3-row hole tree from a plate: three plates appear, one per row,
-  each with its own row of holes. Pinned: `eachRowOfHolesCutsItsOwnCopyOfThePlate`. **Observed:**
+  names both shapes, once. Pinned: `aFlatListAppliesToEveryBranch`, `differentDepthsWarnWithBothShapes`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: 24 boxes (stacked), the Extrude's Data "Solid out 3 × 8" (the tooltip fails, TR-2); a Series of 8 into `height` pairs each row item by item; a 6 × 1 × 2 tree into `height`: "“width” (3 × 8) and “height” (6 × 1 × 2) nest differently, so they were matched from the outermost level."
+- [x] **TR-7 Boolean and branches.** Subtract an Extrude of a 3-row hole tree from a plate: three plates appear, one per row,
+  each with its own row of holes. Pinned: `eachRowOfHolesCutsItsOwnCopyOfThePlate`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: A plate minus an Extrude of a 3 × 8 circle tree: three coincident plates, each row's holes drawn (the other plates fill them).
 - [ ] **TR-8 Old files.** Open a bracket saved before this change (format 5): it opens with every pick holding and no warning;
   save it, and the file says `"formatVersion" : 6` (7 since 7b-2: group FI-img). An older build refuses the new file. Pinned: `TreeFileTests`. **Observed:**
-- [ ] **TR-9 List Item and Branch by Path.** Add a List Item after Partition (3 × 8): with the "Item path" field empty and
+- [x] **TR-9 List Item and Branch by Path.** Add a List Item after Partition (3 × 8): with the "Item path" field empty and
   index 1 it gives one item per row. Type `{1;2}` into Item path and press Return: it gives that one item and the index no
   longer matters. Type `{1}`: the node's badge says the path has 1 index but an item of this tree (3 × 8) needs 2. Type
   `{1;99}`: "No item {1;99}: {1} has 8 items." Clear the field: the index is used again. Add a Branch by Path with `{2}`: the
   third row. Pinned: `anItemPathTakesTheOneItemAtThatPath`, `anItemPathOverridesTheIndex`, `aBlankItemPathMeansUseTheIndex`,
-  `aMissingBranchOrItemInAPathSaysHowManyThereAre`, `aMissingBranchSaysHowManyThereAre`. **Observed:**
+  `aMissingBranchOrItemInAPathSaysHowManyThereAre`, `aMissingBranchSaysHowManyThereAre`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: Index 1: "Item out 3 × 1"; `{1;2}`: one item; `{1}`: "{1} has 1 index, but an item of this tree (3 × 8) needs 2. Write it like {0;0}."; `{1;99}`: "No item {1;99}: {1} has 8 items."; cleared: 3 × 1 again. Branch by Path `{2}` evaluates (a plain list, so no Data section).
 
 ## Group PL — patterns: the layouts, trees of placements and previews (7a-3)
 
-**Status: NOT RUN.** Plan `2026-10-12-7a-layouts.md`, spec `2026-10-10-patterns-trees-design.md` §3, §6, §8 and its Errata (7a-3). Run
+**Status: IN PROGRESS** (2026-11-07: 4 of 12 pass; PL-1 fails, the rest partly run). Plan `2026-10-12-7a-layouts.md`, spec `2026-10-10-patterns-trees-design.md` §3, §6, §8 and its Errata (7a-3). Run
 `swift run MetalCreatorApp`. The tests pin the nodes, the naming, the overlay's lines and the file; these check what a real window
 shows. Build a plate (Rectangle 120 × 80 on a plane at z = −8, Extrude 8) and an Output for the checks below.
 
 - [ ] **PL-1 The library.** Open the node library: the "Patterns" section opens with Linear Pattern, Grid Pattern, Circular Pattern,
   Curve Pattern and Face Pattern, then Place, Points to Placements and the shortcuts. Typing "ring" in the add-node palette finds
-  Circular Pattern. **Observed:**
+  Circular Pattern. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails as written:** the Patterns section is alphabetical in this build (Boss / Pin Pattern, Circular Pattern, Cull by Region, …): `PaletteSearch.entries` sorted every category by name. PR #50 groups it by operation (Layouts, Placing, Shortcuts, Variation) with an A–Z switch; re-check against that.
 - [ ] **PL-2 Triads.** Add a Grid Pattern (4 × 3, 10 mm) and select it with nothing wired to it: a small x (red), y (green) and z (cyan)
   triad appears at each of the 12 placements, each axis a little under half the distance to the next. Change the counts and the
   spacing in the inspector: the triads follow at once. Select another node, or two nodes: they go. Right-click on a triad, click on
-  it, press F and drag the view: it never picks, opens a face menu or changes what F frames. **Observed:**
+  it, press F and drag the view: it never picks, opens a face menu or changes what F frames. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: A red/green/cyan triad at each of the 12 placements with the 10, 4X and 3X handles; 8 columns at 14 mm follow at once; deselecting removes them. The pick, menu and F immunity were not tried.
 - [ ] **PL-3 How they read.** Do the triads read at the default zoom, on a dark and a light theme (View ▸ Theme ▸ Alucard)? Set a Grid
   Pattern to 40 × 50 (2,000 placements): the view stays smooth. **Record whether the axes are too small or too big** (the 40% rule is
   a guess). Then select a Hole Pattern's Circular Pattern so that its triads sit on the plate's top face and look from below and from
   inside the plate: they are drawn through the solid, never faded (User decision 13). **Record whether that reads or clutters**, and
-  so whether depth-aware guides are wanted. **Observed:**
-- [ ] **PL-4 Rings and per-ring sizes.** Circular Pattern (radius 15, count 4, rings 2, radius step 10, count step 4) into a Hole Pattern
+  so whether depth-aware guides are wanted. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: 40 × 50 (2,000 placements) draws and the orbit drag responds; smoothness and the themes and from-below looks were not judged.
+- [x] **PL-4 Rings and per-ring sizes.** Circular Pattern (radius 15, count 4, rings 2, radius step 10, count step 4) into a Hole Pattern
   on the plate (through all), with a Series (6, step −2, 2 values) into a Graft into `diameter`: the inner ring has four Ø6 holes and
   the outer eight Ø4. Pick the rim of one outer hole (Fillet ▸ Pick edges in view…) and fillet it. Set rings to 3: the fillet stays
   on the same hole. Set rings to 1: the Edges by Tag rule warns "Instance {1;3} no longer exists, so the edge picked on it isn't
   selected." (use the path of the hole you picked) and nothing else is filleted. Turn the start angle: the holes and the fillet turn
-  together. **Observed:**
+  together. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: Inner four Ø6, outer eight Ø4 ("2 branches: 4, 8"); the fillet on an outer rim stays at 3 rings; 1 ring: "Instance {1;5} no longer exists, so the edge picked on it isn't selected."; start angle 30: holes and fillet turn together.
 - [ ] **PL-5 Pattern on Face.** Right-click the plate's top face: the menu offers Look At, Select Edges of Face, New Sketch on Face,
   **Pattern on Face**. Choose it: a Face Pattern appears beside the Extrude, wired from it and selected, its triads fill the face and
   a dashed outline runs round it, 3 mm inside the edge. Switch Stagger on: every second row moves half a pitch. Raise the margin to
   12: the outer columns and rows go. Undo: both the node and the wire go in one step ("Undo Pattern on Face"). Right-click a side
-  face of a cylinder: no Pattern on Face. **Observed:**
-- [ ] **PL-6 Holes in the face.** Drill the plate first (a Hole Pattern, Ø20, through) and use Pattern on Face on its top: no placement
+  face of a cylinder: no Pattern on Face. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: The menu lists Look At, Select Edges of Face, Dimension, New Sketch on Face, Pattern on Face, Scatter on Face, Section from Face and Show Producing Node. The Face Pattern is wired from the face's producer (the Fillet) and selected; triads fill the face inside a dashed outline 3 mm in; Stagger and margin 12 behave; one Undo removes node and wire ("Undo Pattern on Face"). **The new node landed on top of the Output node** (PR #51 places it on free canvas). The cylinder part was not run.
+- [x] **PL-6 Holes in the face.** Drill the plate first (a Hole Pattern, Ø20, through) and use Pattern on Face on its top: no placement
   stands within the margin of the hole, and the dashed outline circles the hole. **Record how the outline looks at the hole** (it is
-  a mitred guide; the placements are exact). **Observed:**
+  a mitred guide; the placements are exact). **Observed (2026-11-07):** macOS, packaged app from main `d821472`: On the drilled plate the dashed guide circles every hole and no triad stands inside it; at margin 12 the circles overlap into a cluster of arcs.
 - [ ] **PL-7 Vents.** Face Pattern (spacing 14 × 12, stagger, margin 6) into a Slot Pattern (8 × 3, through all): staggered vents run
   across the plate, clear of the edge and of the bolt holes. Pick the rim of one vent (Fillet ▸ Pick edges in view…) and fillet it,
   then raise the margin by a few millimetres so some vents drop: the fillet stays on the same vent, or, if that vent has gone, the
   Edges by Tag rule warns naming its path (`{row;column;0}`) and nothing else is filleted. Make a bolt hole bigger: the same.
   **Record which of the two happens to the vents beside the dropped ones** (it must be neither a different vent nor a neighbour).
   **Observed:**
-- [ ] **PL-8 Curve and Linear.** Edges by Direction (X) on the plate into a Curve Pattern (count 5): five triads along each of four
+- [x] **PL-8 Curve and Linear.** Edges by Direction (X) on the plate into a Curve Pattern (count 5): five triads along each of four
   edges, facing along the edge. A Rectangle into a Curve Pattern's `profile`: placements round the outline. A Linear Pattern
-  (count 6, spacing 8) into a Hole Pattern: a row of holes. **Observed:**
-- [ ] **PL-9 A Boolean over a tree.** Wire a Grid Pattern into Place and Place into a Boolean's `tools` (subtract from the plate): one
+  (count 6, spacing 8) into a Hole Pattern: a row of holes. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: Edges by Direction X → Curve Pattern (5): "4 × 5", five triads along each X edge, facing along it; a Rectangle's profile: triads round the outline; a Linear Pattern (6, 8 mm) into a Hole Pattern: a row of six holes.
+- [x] **PL-9 A Boolean over a tree.** Wire a Grid Pattern into Place and Place into a Boolean's `tools` (subtract from the plate): one
   plate per row, each with its row of copies cut, as for any tree (spec §2). Flatten between Place and the Boolean: one plate with every
-  copy cut. **Record whether this is the surprise it may be** (a Hole Pattern over the same grid cuts every hole at once). **Observed:**
+  copy cut. **Record whether this is the surprise it may be** (a Hole Pattern over the same grid cuts every hole at once). **Observed (2026-11-07):** macOS, packaged app from main `d821472`: Without Flatten: three coincident plates, each with its row cut. **It is a surprise:** the holes read as outlines, so it looks like one plate whose holes didn't cut. With Flatten: one plate with every hole cut.
 - [ ] **PL-10 Tree display.** A Grid Pattern's output dot reads "Tree 3 × 4" on rest; the inspector's Data section lists `{0}` to `{2}`
   with 4 items each. A Linear Pattern's reads as a plain list. **Observed:**
 - [ ] **PL-11 Old files and groups.** Open a bracket saved before this track: it opens with every pick holding and no warning. Group a
   Hole Pattern fed by a Grid Pattern and enter the group: Pattern on Face says it can't be made inside a group yet. **Observed:**
 - [ ] **PL-12 A list on a layout.** Wire a Series into a Grid Pattern's `spacingX`: the node refuses with "Grid Pattern takes single
   values, not lists: wire one value into each input, or pick one out of the list first with List Item." and shakes. Put a List Item
-  between the Series and the socket: it works. The same for Circular Pattern's `radius`. **Observed:**
+  between the Series and the socket: it works. The same for Circular Pattern's `radius`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: A Series into `spacingX`: "Grid Pattern takes single values, not lists: wire one value into each input, or pick one out of the list first with List Item." The shake, the List Item fix and Circular Pattern were not run.
 
 ## Group VA — variation and culling (7a-3 part B)
 
