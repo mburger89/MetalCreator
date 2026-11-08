@@ -20,8 +20,6 @@ struct NodeView: Component, Equatable {
     let palette: Palette
     /// Drawn at reduced opacity: an ⌥-drag ghost.
     var isGhost = false
-    /// Tooltips of the sockets that carry a data tree (`EditorModel.socketHelp(of:)`), by "in.<name>"/"out.<name>".
-    var socketHelp: [String: String] = [:]
 
     var content: some ElementGroup {
         let size = NodeLayout.size(shape)
@@ -57,7 +55,7 @@ struct NodeView: Component, Equatable {
             // A Component is legacy content; inside a ZStack it is adopted, so the result stays
             // proposal content and takes the modifiers below.
             ZStack(alignment: .topLeading) {
-                SocketLayer(shape: shape, flow: flow, palette: palette, help: socketHelp).equatable()
+                SocketLayer(shape: shape, flow: flow, palette: palette).equatable()
             }
         }
         .opacity(isGhost ? 0.4 : 1)

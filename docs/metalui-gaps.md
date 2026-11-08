@@ -99,7 +99,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | DIM-a | No click count on a tap's value (double-click on a dimension's text in the viewport) | MetalUI session (sent 2026-10-27) | ✅ fixed by MetalUI `cf1b4968` (PR #144, divergence 235, ruling IF-O); adopted in DIM-1 Task 11 (2026-10-27) |
 | DIM-b | Runtime SIGSEGV (`initializeWithCopy` of a `ZStack`) when a `for` over a model array sits inline in a large `ZStack` builder | MetalUI session (sent 2026-10-27) | ✅ closed 2026-10-27: not reproducible on MetalUI cf1b4968 (likely a stale incremental build) |
 | TB-a | No `ViewThatFits` for the sketch toolbar's overflow (a "More" menu) | MetalUI #213 (`3c7eadb9`, record 217) | ✅ fixed and adopted (branch `sketch-toolbar-more`): `SketchToolbar` is a `ViewThatFits` over fifteen rows, tools leave the row from the end into a "More" menu; human check UP-2 reworded, pending |
-| CV-a | A `.help` tooltip never shows on an element that does not hit-test (the graph canvas's socket dots, drawn under `.allowsHitTesting(false)`) | MetalUI (ruling `MN-U`; asked 2026-11-07) | ⏳ asked of MetalUI 2026-11-07; no stopgap. Socket tooltips (a tree's "Tree 3 × 8", a field's recipe, a mesh's summary) never appear; human checks TR-2, VA-3, FI-core-3 and IM-2 cannot pass |
+| CV-a | A `.help` tooltip never shows on an element that does not hit-test (the graph canvas's socket dots, drawn under `.allowsHitTesting(false)`) | MetalUI #237 (`9ffd70e8`, record 239, `MN-AJ`) | ✅ fixed by MetalUI #237 and adopted: `CanvasSurface` has `.help { location in … }` over `EditorModel.socketTip(at:)`; the layers' own `.help` is gone. Human checks TR-2, VA-3, FI-core-3 and IM-2 can be run again |
 
 ## Reported 2026-10-07 (C7)
 
@@ -1493,4 +1493,4 @@ while the app runs, pipelines cached by source.
   is inside its frame; or (b) a model-driven tooltip API, such as `.helpOverlay(isPresented:at:text:)` or an `anchoredOverlay`-like presentation that the host opens from
   `onContinuousHover` with a string and a window point, which we would drive from `EditorModel` (it already knows the hovered socket, `pointerLocation`).
   Meanwhile: nothing. We do not make the dots hit-test (the canvas's pointer model would have to give up the press), and we do not draw a tooltip of our own.
-  Status: asked of MetalUI 2026-11-07.
+  Status: fixed by MetalUI #237 (option b: `.help { (location: Point<Pixels>) -> String? in … }`, the location in the surface's local points, nil for no tip). `CanvasSurface` maps the location through `EditorModel.socketTip(at:)` (the model's `hitTest`, so the pan and zoom are the model's) and `SocketLayer`'s dead `.help` is removed. Known MetalUI limit (HL5): leaving the window does not hide a shown tooltip.
