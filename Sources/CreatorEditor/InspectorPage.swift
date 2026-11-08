@@ -11,6 +11,18 @@ public struct InspectorPage: Equatable, Sendable {
 }
 
 extension InspectorPage {
+    /// The sections with a key each, unique on the page: the title, and for a title that repeats "title#2", "title#3". Two sections
+    /// may share a title (the Mesh node's own "Mesh" settings and its "Mesh" facts), and a `ForEach` keyed by title alone drops
+    /// every one after the first.
+    var identifiedSections: [(id: String, section: InspectorSectionRows)] {
+        var seen: [String: Int] = [:]
+        return sections.map { section in
+            let count = (seen[section.title] ?? 0) + 1
+            seen[section.title] = count
+            return (count == 1 ? section.title : "\(section.title)#\(count)", section)
+        }
+    }
+
     /// About how tall the page draws, in points: enough to tell a page the window may not hold from one it surely does (the
     /// inspector scrolls only the first; `InspectorPanel`). Rows are one line each except an opened path list, which adds a line per
     /// branch, a note under a label and a comment's or group's page, which are counted by their parts; it is an estimate, never a layout.
