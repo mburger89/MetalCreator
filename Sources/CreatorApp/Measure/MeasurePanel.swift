@@ -140,7 +140,7 @@ struct MeasurePanel: Component {
     static let width = SectionPanel.width
 
     var content: some ElementGroup {
-        if model.sketch == nil, model.measure != nil || !model.measureBook.entries.isEmpty {
+        if model.showsMeasurePanel {
             let palette = Palette(themes)
             GlassPanel(.measurePanel) {
                 VStack(alignment: .leading, spacing: Pixels(8)) {

@@ -57,6 +57,12 @@ extension AppModel {
         if viewport.overlay != overlay { viewport.showOverlay(overlay) }
     }
 
+    /// Whether the Measure panel (and its card in the section dock) shows: never in sketch mode or a pick session, otherwise while Measure
+    /// runs or kept measurements are listed. The model dimension tool does not hide it, as it does not hide the drawn dimensions.
+    var showsMeasurePanel: Bool {
+        sketch == nil && pick == nil && (measure != nil || !measureBook.entries.isEmpty)
+    }
+
     /// The kept measurements' dimensions, with Measure on or off, then the measurement in progress: none while sketching or picking.
     func measureDimensions() -> [OverlayDimension] {
         guard sketch == nil, pick == nil else { return [] }

@@ -1,6 +1,7 @@
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
+import CreatorNodes
 import Foundation
 import Synchronization
 import Testing
@@ -261,5 +262,26 @@ struct MeasureBookTests {
         await book.waitForDistances()
         #expect(calls.withLock { $0 } > before)
         #expect(abs(try #require(book.entries[0].distance).distance - 20) < 1e-9)
+    }
+}
+
+/// The panel's list of kept measurements hides during a pick session, as their drawn dimensions do.
+@MainActor
+struct MeasurePanelPickTests {
+    @Test func keptListHidesDuringAPickAndReturns() async throws {
+        var builder = GraphBuilder()
+        let box = builder.box()
+        let rule = builder.add(EdgesByTagNode.self)
+        builder.wire(box.extrude, "solid", to: rule, "solid")
+        let app = await makeApp(builder.graph)
+        app.measureBook.add(KeptMeasurement(anchors: []))
+        #expect(app.measure == nil)
+        #expect(app.showsMeasurePanel)
+        app.beginPick(for: rule.id)
+        await app.settle()
+        try #require(app.pick != nil)
+        #expect(!app.showsMeasurePanel)
+        app.cancelPick()
+        #expect(app.showsMeasurePanel)
     }
 }

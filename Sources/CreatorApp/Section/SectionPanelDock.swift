@@ -11,7 +11,7 @@ struct SectionPanelDock: Component {
         let insets = AppLayout.sectionPanelInsets(dock: model.editor.dock, panelWidth: model.panelWidth, panelHeight: model.panelHeight,
                                                 themeEditorOpen: themeEditorOpen)
         let gaps = Self.gaps(sectionOn: model.document.section?.isOn == true,
-                             measureShows: model.measure != nil || !model.measureBook.entries.isEmpty,
+                             measureShows: model.showsMeasurePanel,
                              zebraShows: model.showsZebra)
         VStack(alignment: .trailing, spacing: Pixels(0)) {
             HStack(spacing: Pixels(0)) {
