@@ -10,6 +10,7 @@ import Foundation
 public enum GraphParameterNode: NodeDefinition {
     public static let typeID = "creator.graphParameter"
     public static let displayName = "Graph Parameter"
+    public static let librarySubgroup: String? = "Numbers"
     public static let category = NodeCategory.value
     public static let readsParameters = true
     public static let inputs: [SocketSpec] = []

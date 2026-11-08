@@ -7,6 +7,7 @@ public enum ImplicitIntersectNode: NodeDefinition {
     /// 2: `continuity`. A node saved as version 1 reads G1, the smooth minimum it was made with.
     public static let typeVersion = 2
     public static let displayName = "Intersect"
+    public static let librarySubgroup: String? = "Combine"
     public static let category = NodeCategory.implicit
     public static let inputs = ImplicitCombining.inputs
     public static let outputs = ImplicitCombining.outputs

@@ -7,6 +7,9 @@ public protocol NodeDefinition: Sendable {
     static var typeVersion: Int { get }
     static var displayName: String { get }
     static var category: NodeCategory { get }
+    /// The sub-group the node library lists the type under within its category (one of `category.librarySubgroups`), or `nil`
+    /// for none. Library display only.
+    static var librarySubgroup: String? { get }
     static var inputs: [SocketSpec] { get }
     static var outputs: [SocketSpec] { get }
     /// The input sockets of one node. Most types have the fixed `inputs`; a type whose sockets depend on
@@ -51,6 +54,7 @@ public protocol NodeDefinition: Sendable {
 
 extension NodeDefinition {
     public static var typeVersion: Int { 1 }
+    public static var librarySubgroup: String? { nil }
     public static func inputs(for node: Node) -> [SocketSpec] { inputs }
     public static func outputs(for node: Node) -> [SocketSpec] { outputs }
     public static var inspector: [InspectorSection] { [] }

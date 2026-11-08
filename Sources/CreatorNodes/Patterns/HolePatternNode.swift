@@ -15,6 +15,7 @@ import CreatorKernel
 public enum HolePatternNode: NodeDefinition {
     public static let typeID = "creator.holePattern"
     public static let displayName = "Hole Pattern"
+    public static let librarySubgroup: String? = "Shortcuts"
     public static let category = NodeCategory.patterns
     public static let placesInstances = true
     public static let inputs = [

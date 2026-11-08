@@ -26,3 +26,14 @@ struct ViewStateLibraryTests {
                 "S4, groups, trees, images, implicit sockets and cable ties bumped it; the library's key did not")
     }
 }
+
+struct ViewStateLibrarySortTests {
+    @Test func theLibraryIsGroupedUnlessAlphabetical() throws {
+        #expect(ViewState().librarySort == .grouped)
+        #expect(try JSONDecoder().decode(ViewState.self, from: Data(#"{"dock":"bottom"}"#.utf8)).librarySort == .grouped)
+        let state = ViewState(librarySort: .alphabetical)
+        #expect(try JSONDecoder().decode(ViewState.self, from: JSONEncoder().encode(state)) == state)
+        let grouped = try JSONEncoder().encode(ViewState())
+        #expect(!(String(bytes: grouped, encoding: .utf8) ?? "").contains("librarySort"))
+    }
+}

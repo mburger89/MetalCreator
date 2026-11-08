@@ -6,6 +6,7 @@ import CreatorKernel
 public enum RangeNode: NodeDefinition {
     public static let typeID = "creator.range"
     public static let displayName = "Range"
+    public static let librarySubgroup: String? = "Numbers"
     public static let category = NodeCategory.value
     public static let inputs = [
         SocketSpec("start", .number, defaultValue: .number(0)),

@@ -12,6 +12,7 @@ import Foundation
 public enum CullIndexNode: NodeDefinition {
     public static let typeID = "creator.cullIndex"
     public static let displayName = "Cull Index"
+    public static let librarySubgroup: String? = "Variation"
     public static let category = NodeCategory.patterns
     public static let inputs = [
         SocketSpec("tree", .any, access: .tree),

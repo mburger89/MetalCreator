@@ -11,6 +11,7 @@ import CreatorKernel
 public enum CullByRegionNode: NodeDefinition {
     public static let typeID = "creator.cullByRegion"
     public static let displayName = "Cull by Region"
+    public static let librarySubgroup: String? = "Variation"
     public static let category = NodeCategory.patterns
     public static let references = ["Profile", "Point", "Edges", "Face"]
     public static let sides = ["Inside or within", "Outside or beyond"]

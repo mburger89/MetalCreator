@@ -12,6 +12,7 @@ import Foundation
 public enum ImportMeshNode: NodeDefinition {
     public static let typeID = "creator.importMesh"
     public static let displayName = "Import Mesh"
+    public static let librarySubgroup: String? = "Make"
     public static let category = NodeCategory.mesh
     public static let inputs = [
         SocketSpec("placement", .plane, defaultValue: .plane(.xy)),

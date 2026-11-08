@@ -9,6 +9,7 @@ import CreatorKernel
 public enum DistanceFieldNode: NodeDefinition {
     public static let typeID = "creator.distanceField"
     public static let displayName = "Distance Field"
+    public static let librarySubgroup: String? = "Sources"
     public static let category = NodeCategory.fields
     public static let modes = ["Unsigned", "Signed"]
     public static let inputs = [

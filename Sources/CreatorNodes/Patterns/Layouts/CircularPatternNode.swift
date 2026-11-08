@@ -17,6 +17,7 @@ import Foundation
 public enum CircularPatternNode: NodeDefinition {
     public static let typeID = "creator.circularPattern"
     public static let displayName = "Circular Pattern"
+    public static let librarySubgroup: String? = "Layouts"
     public static let category = NodeCategory.patterns
     public static let inputs = [
         SocketSpec("centre", .vector, defaultValue: .vector(.zero)),

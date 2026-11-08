@@ -5,6 +5,7 @@ import CreatorKernel
 public enum SeriesNode: NodeDefinition {
     public static let typeID = "creator.series"
     public static let displayName = "Series"
+    public static let librarySubgroup: String? = "Numbers"
     public static let category = NodeCategory.value
     public static let inputs = [
         SocketSpec("start", .number, defaultValue: .number(0)),

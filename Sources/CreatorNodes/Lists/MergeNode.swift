@@ -8,6 +8,7 @@ import CreatorKernel
 public enum MergeNode: NodeDefinition {
     public static let typeID = "creator.merge"
     public static let displayName = "Merge"
+    public static let librarySubgroup: String? = "Reshape"
     public static let category = NodeCategory.lists
     private static let names: [SocketName] = ["a", "b", "c", "d"]
     public static let inputs = names.map { SocketSpec($0, .any, access: .tree, optional: true) }

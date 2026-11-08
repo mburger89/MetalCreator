@@ -7,6 +7,7 @@ import CreatorKernel
 public enum PlaneNode: NodeDefinition {
     public static let typeID = "creator.plane"
     public static let displayName = "Plane"
+    public static let librarySubgroup: String? = "Geometry"
     public static let category = NodeCategory.value
     public static let orientations = ["XY", "XZ", "YZ"]
     public static let inputs = [

@@ -7,6 +7,7 @@ import CreatorKernel
 public enum BranchByPathNode: NodeDefinition {
     public static let typeID = "creator.branchByPath"
     public static let displayName = "Branch by Path"
+    public static let librarySubgroup: String? = "Pick"
     public static let category = NodeCategory.lists
     public static let inputs = [SocketSpec("tree", .any, access: .tree)]
     public static let outputs = [SocketSpec("branch", .any)]

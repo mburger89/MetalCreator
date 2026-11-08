@@ -9,6 +9,7 @@ import CreatorKernel
 public enum ImageFieldNode: NodeDefinition {
     public static let typeID = "creator.imageField"
     public static let displayName = "Image Field"
+    public static let librarySubgroup: String? = "Sources"
     public static let category = NodeCategory.fields
     public static let inputs = [
         SocketSpec("plane", .plane, defaultValue: .plane(.xy)),

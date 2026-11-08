@@ -8,6 +8,7 @@ import CreatorKernel
 public enum NoiseFieldNode: NodeDefinition {
     public static let typeID = "creator.noiseField"
     public static let displayName = "Noise Field"
+    public static let librarySubgroup: String? = "Sources"
     public static let category = NodeCategory.fields
     public static let inputs = [
         SocketSpec("seed", .integer, defaultValue: .integer(0)),

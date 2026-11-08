@@ -6,6 +6,7 @@ import CreatorKernel
 public enum GraftNode: NodeDefinition {
     public static let typeID = "creator.graft"
     public static let displayName = "Graft"
+    public static let librarySubgroup: String? = "Reshape"
     public static let category = NodeCategory.lists
     public static let inputs = [SocketSpec("tree", .any, access: .tree)]
     public static let outputs = [SocketSpec("tree", .any)]

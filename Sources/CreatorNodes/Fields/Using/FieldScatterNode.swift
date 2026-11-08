@@ -16,6 +16,7 @@ import CreatorKernel
 public enum FieldScatterNode: NodeDefinition {
     public static let typeID = "creator.fieldScatter"
     public static let displayName = "Field Scatter"
+    public static let librarySubgroup: String? = "Using"
     public static let category = NodeCategory.fields
     public static let inputs = [
         SocketSpec("solid", .solid, optional: true),

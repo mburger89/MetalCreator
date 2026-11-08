@@ -7,6 +7,7 @@ import CreatorKernel
 public enum LinearGradientNode: NodeDefinition {
     public static let typeID = "creator.linearGradient"
     public static let displayName = "Linear Gradient"
+    public static let librarySubgroup: String? = "Sources"
     public static let category = NodeCategory.fields
     public static let inputs = [
         SocketSpec("plane", .plane, defaultValue: .plane(.xy)),

@@ -8,6 +8,7 @@ import CreatorKernel
 public enum ImplicitShellNode: NodeDefinition {
     public static let typeID = "creator.implicitShell"
     public static let displayName = "Shell"
+    public static let librarySubgroup: String? = "Modify"
     public static let category = NodeCategory.implicit
     public static let inputs = [
         SocketSpec("implicit", .implicit),

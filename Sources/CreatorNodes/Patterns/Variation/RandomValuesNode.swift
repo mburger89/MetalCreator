@@ -16,6 +16,7 @@ import Foundation
 public enum RandomValuesNode: NodeDefinition {
     public static let typeID = "creator.randomValues"
     public static let displayName = "Random Values"
+    public static let librarySubgroup: String? = "Variation"
     public static let category = NodeCategory.patterns
     /// The most numbers made from a count, so a typo gives a message instead of a hang.
     public static let maximumCount = 100_000

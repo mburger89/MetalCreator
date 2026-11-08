@@ -7,6 +7,7 @@ import CreatorKernel
 public enum ImplicitSphereNode: NodeDefinition {
     public static let typeID = "creator.implicitSphere"
     public static let displayName = "Sphere"
+    public static let librarySubgroup: String? = "Shapes"
     public static let category = NodeCategory.implicit
     public static let inputs = [SocketSpec("radius", .number, defaultValue: .number(10), unit: .millimetres, range: 0.1...1000)]
     public static let outputs = [SocketSpec("implicit", .implicit)]

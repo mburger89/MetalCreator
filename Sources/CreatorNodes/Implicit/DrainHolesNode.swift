@@ -9,6 +9,7 @@ import CreatorKernel
 public enum DrainHolesNode: NodeDefinition {
     public static let typeID = "creator.drainHoles"
     public static let displayName = "Drain Holes"
+    public static let librarySubgroup: String? = "Modify"
     public static let category = NodeCategory.implicit
     public static let inputs = [
         SocketSpec("implicit", .implicit),

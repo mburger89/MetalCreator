@@ -15,6 +15,7 @@ import CreatorKernel
 public enum CurvePatternNode: NodeDefinition {
     public static let typeID = "creator.curvePattern"
     public static let displayName = "Curve Pattern"
+    public static let librarySubgroup: String? = "Layouts"
     public static let category = NodeCategory.patterns
     public static let modes = ["By count", "By spacing"]
     public static let inputs = [

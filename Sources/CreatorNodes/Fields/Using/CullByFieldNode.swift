@@ -11,6 +11,7 @@ import CreatorKernel
 public enum CullByFieldNode: NodeDefinition {
     public static let typeID = "creator.cullByField"
     public static let displayName = "Cull by Field"
+    public static let librarySubgroup: String? = "Using"
     public static let category = NodeCategory.fields
     public static let modes = ["Threshold", "Probability"]
     public static let sides = ["Above", "Below"]

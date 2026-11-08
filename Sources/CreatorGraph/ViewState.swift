@@ -3,6 +3,11 @@ import CreatorKernel
 
 /// Editor state saved with a document. Every key is optional when decoding, so files stay
 /// readable as later milestones add fields. Older readers ignore keys they don't know.
+/// How the node library orders a category: under sub-group headings, or as one alphabetical run.
+public enum LibrarySort: String, Sendable, Codable, CaseIterable {
+    case grouped, alphabetical
+}
+
 public struct ViewState: Sendable, Codable, Equatable {
     public var dock: DockSide
     public var canvasOffset: Vector2
@@ -15,6 +20,9 @@ public struct ViewState: Sendable, Codable, Equatable {
     /// Whether the graph panel shows its node library ("Nodes"). Shown unless the user hid it; files from before
     /// the editor-polish milestone have no key and show it. Not a format change: older readers ignore the key.
     public var showsLibrary: Bool
+    /// How the node library orders its categories. Grouped unless the user chose A–Z; an optional key (written only for A–Z), so
+    /// no format bump.
+    public var librarySort: LibrarySort
     /// The section view's settings (section spec §3.5). `nil` in older files and while never used; a damaged entry reads as `nil`.
     public var section: SectionSettings?
     /// The measurements the person kept. Empty in older files; a damaged entry is dropped alone.
@@ -24,20 +32,22 @@ public struct ViewState: Sendable, Codable, Equatable {
 
     public init(dock: DockSide = .left, canvasOffset: Vector2 = .zero, canvasZoom: Double = 1,
                 camera: CameraPose? = nil, homeCamera: CameraPose? = nil, showsLibrary: Bool = true,
-                section: SectionSettings? = nil, measurements: [KeptMeasurement] = [], zebra: ZebraSettings? = nil) {
+                librarySort: LibrarySort = .grouped, section: SectionSettings? = nil, measurements: [KeptMeasurement] = [],
+                zebra: ZebraSettings? = nil) {
         self.dock = dock
         self.canvasOffset = canvasOffset
         self.canvasZoom = canvasZoom
         self.camera = camera
         self.homeCamera = homeCamera
         self.showsLibrary = showsLibrary
+        self.librarySort = librarySort
         self.section = section
         self.measurements = measurements
         self.zebra = zebra
     }
 
     private enum CodingKeys: String, CodingKey {
-        case dock, canvasOffset, canvasZoom, camera, homeCamera, showsLibrary, section, measurements, zebra
+        case dock, canvasOffset, canvasZoom, camera, homeCamera, showsLibrary, librarySort, section, measurements, zebra
     }
 
     public init(from decoder: any Decoder) throws {
@@ -48,6 +58,7 @@ public struct ViewState: Sendable, Codable, Equatable {
         camera = try container.decodeIfPresent(CameraPose.self, forKey: .camera)
         homeCamera = try container.decodeIfPresent(CameraPose.self, forKey: .homeCamera)
         showsLibrary = try container.decodeIfPresent(Bool.self, forKey: .showsLibrary) ?? true
+        librarySort = (try? container.decodeIfPresent(LibrarySort.self, forKey: .librarySort)) ?? .grouped
         section = (try? container.decodeIfPresent(SectionSettings.self, forKey: .section)) ?? nil
         measurements = ((try? container.decodeIfPresent([LossyElement<KeptMeasurement>].self, forKey: .measurements)) ?? nil)?
             .compactMap(\.value) ?? []
@@ -62,6 +73,7 @@ public struct ViewState: Sendable, Codable, Equatable {
         try container.encodeIfPresent(camera, forKey: .camera)
         try container.encodeIfPresent(homeCamera, forKey: .homeCamera)
         try container.encode(showsLibrary, forKey: .showsLibrary)
+        if librarySort != .grouped { try container.encode(librarySort, forKey: .librarySort) }
         try container.encodeIfPresent(section, forKey: .section)
         if !measurements.isEmpty { try container.encode(measurements, forKey: .measurements) }
         try container.encodeIfPresent(zebra, forKey: .zebra)

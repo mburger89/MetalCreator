@@ -7,6 +7,7 @@ import CreatorKernel
 public enum FieldSmoothBlendNode: NodeDefinition {
     public static let typeID = "creator.fieldSmoothBlend"
     public static let displayName = "Smooth Blend"
+    public static let librarySubgroup: String? = "Maths"
     public static let category = NodeCategory.fields
     public static let inputs = [
         SocketSpec("a", .field, defaultValue: .number(0)),

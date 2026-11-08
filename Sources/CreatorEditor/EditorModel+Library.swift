@@ -15,13 +15,21 @@ extension EditorModel {
         document.showsLibrary.toggle()
     }
 
+    /// How the library orders each category: under sub-group headings or as one A–Z run. Saved with the view state; not an edit.
+    public var librarySort: LibrarySort { document.librarySort }
+
+    /// The library header's "Grouped" / "A–Z" choice: view state, no undo step.
+    public func setLibrarySort(_ sort: LibrarySort) {
+        document.librarySort = sort
+    }
+
     public func setLibraryQuery(_ query: String) {
         libraryQuery = query
     }
 
     /// The library's types matching its search (the palette's search, `PaletteSearch`), by category.
     public var librarySections: [LibrarySection] {
-        LibrarySection.grouping(PaletteSearch.entries(in: registry, matching: libraryQuery))
+        LibrarySection.grouping(PaletteSearch.entries(in: registry, matching: libraryQuery), sort: librarySort)
     }
 
     /// The document's group definitions the library's search matches (the same search as the node types), by name,
