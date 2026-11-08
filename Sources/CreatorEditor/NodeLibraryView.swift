@@ -19,12 +19,14 @@ struct NodeLibraryView: Component, Equatable {
         let palette = Palette(themes)
         let rows = model.libraryItems
         return VStack(alignment: .leading, spacing: PaletteLayout.spacing.px) {
-            Text("Nodes")
-                .font(.system(.caption, weight: .semibold))
-                .foregroundStyle(palette.secondaryText.color)
-                .frame(height: PaletteLayout.captionHeight.px)
-            LibrarySortPicker(model: model)
-                .frame(height: PaletteLayout.fieldHeight.px)
+            HStack(spacing: PaletteLayout.spacing.px) {
+                Text("Nodes")
+                    .font(.system(.caption, weight: .semibold))
+                    .foregroundStyle(palette.secondaryText.color)
+                Spacer(minLength: Pixels(0))
+                LibrarySortPicker(model: model)
+            }
+            .frame(height: PaletteLayout.captionHeight.px)
             TextField("Search nodes", text: model.libraryQuery, onChange: { model.setLibraryQuery($0) })
                 .frame(height: PaletteLayout.fieldHeight.px)
             if rows.isEmpty {

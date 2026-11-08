@@ -48,7 +48,8 @@ public struct InspectorPanel: Component, Equatable {
             if let group = page.group {
                 GroupPanelView(panel: group, model: model)
             }
-            ForEach(page.sections, id: \.title) { section in
+            ForEach(page.identifiedSections, id: \.id) { identified in
+                let section = identified.section
                 InspectorSectionView(title: section.title) {
                     ForEach(section.rows.indices, id: \.self) { index in
                         InspectorRowView(row: section.rows[index], model: model, node: page.header?.node)
