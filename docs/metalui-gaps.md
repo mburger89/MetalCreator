@@ -1506,5 +1506,8 @@ while the app runs, pipelines cached by source.
   Wanted: a way for the app to set the hidden title bar band's height (AppKit centres the buttons in it, as a unified `NSToolbar` does: Finder's and Xcode's buttons are
   centred on their toolbars), for example `windowStyle(.hiddenTitleBar(height:))` or a `windowTitleBarHeight` scene modifier, with `titleBarInsets.top` reporting the new band.
   We would ask for `2 × margin + topBarHeight` = 68 points, so the buttons' centre is the bar's centre (y = 34); or, equivalently, a vertical offset for the buttons.
+  Design (the user, 2026-11-08): the buttons stay left-aligned but sit inside the bar's glass as part of it. Centred at y = 34 they have about 15 pt of glass above and
+  below, so they get the same 15 pt to their left: the close button's left edge at x = 27 (AppKit puts it near 20). Also asked: a leading inset for the buttons, with
+  `titleBarInsets.left` still the zoom button's (moved) right edge, so `topBarClearance` keeps clearing them.
   Meanwhile: nothing. We don't move the bar below the buttons (it would waste a strip and the drag strip already covers the band) and don't reposition AppKit's buttons ourselves.
 
