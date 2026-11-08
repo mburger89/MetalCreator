@@ -13,6 +13,9 @@ public enum AppLayout {
     public static let topBarHeight = 44.0
     /// The inspector's 280-point column plus its glass padding.
     public static let inspectorWidth = 300.0
+    /// What the window's height loses round the inspector: the margin above the top bar, the bar, the gap under it and the margin
+    /// below the panels. A page taller than the rest scrolls (`InspectorPanel`).
+    public static let inspectorReservedHeight = margin * 3 + topBarHeight
     /// The "Show graph" button while the panel is hidden.
     public static let showButtonHeight = 44.0
     /// The graph panel's inner-edge resize handle.

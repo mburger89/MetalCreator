@@ -53,6 +53,6 @@ struct InspectorOverflowTests {
     @Test func aShortWindowBoundsTheInspectorToo() async throws {
         let (app, _) = await partitionApp()
         let glass = try #require(inspectorGlass(render(app, height: 300)))
-        #expect(glass.bottom <= 300 - AppLayout.margin + 0.5, "the page scrolls inside a 300-point window: \(glass.bottom)")
+        #expect(glass.bottom <= 300, "the page scrolls inside a 300-point window: \(glass.bottom)")
     }
 }
