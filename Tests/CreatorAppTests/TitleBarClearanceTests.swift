@@ -29,6 +29,25 @@ struct TitleBarClearanceTests {
         #expect(AppLayout.topBarClearance(titleBarInsets: insets(left: 4)) == 0, "buttons narrower than the margin")
     }
 
+    // MARK: The title-bar metrics (MetalUI .windowTitleBarMetrics, gap AS-a)
+
+    @Test func theTitleBarMetricsCentreTheLightsOnTheBar() {
+        #expect(AppLayout.titleBarHeight == 68)
+        #expect(AppLayout.titleBarControlsLeading == 27)
+        // The glass is y 12...56, so its centre is half the band.
+        #expect(AppLayout.margin + AppLayout.topBarHeight / 2 == AppLayout.titleBarHeight / 2)
+        // The lights are 15 points from the glass above and below, so the close button starts 15 points inside it too.
+        #expect(AppLayout.titleBarControlsLeading - AppLayout.margin == 15)
+    }
+
+    @Test func theBarClearsTheMovedLightsAndFollowsTheInsets() {
+        let moved = Edges(top: Pixels(68), right: Pixels(0), bottom: Pixels(0), left: Pixels(87))
+        let clearance = AppLayout.topBarClearance(titleBarInsets: moved)
+        #expect(AppLayout.margin + GraphPanelLayout.glassPadding + clearance == 87 + AppLayout.titleBarGap)
+        #expect(AppLayout.topBarClearance(titleBarInsets: Edges(top: Pixels(0), right: Pixels(0), bottom: Pixels(0), left: Pixels(0))) == 0,
+                "full screen keeps the system layout: zero insets, no clearance")
+    }
+
     // MARK: The two platform shapes (MetalUI S1, gap XP-G3)
 
     /// macOS: the traffic lights at the left, AppKit's 32-point band.

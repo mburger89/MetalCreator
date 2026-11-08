@@ -100,7 +100,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | DIM-b | Runtime SIGSEGV (`initializeWithCopy` of a `ZStack`) when a `for` over a model array sits inline in a large `ZStack` builder | MetalUI session (sent 2026-10-27) | ✅ closed 2026-10-27: not reproducible on MetalUI cf1b4968 (likely a stale incremental build) |
 | TB-a | No `ViewThatFits` for the sketch toolbar's overflow (a "More" menu) | MetalUI #213 (`3c7eadb9`, record 217) | ✅ fixed and adopted (branch `sketch-toolbar-more`): `SketchToolbar` is a `ViewThatFits` over fifteen rows, tools leave the row from the end into a "More" menu; human check UP-2 reworded, pending |
 | CV-a | A `.help` tooltip never shows on an element that does not hit-test (the graph canvas's socket dots, drawn under `.allowsHitTesting(false)`) | MetalUI #237 (`9ffd70e8`, record 239, `MN-AJ`) | ✅ fixed by MetalUI #237 and adopted: `CanvasSurface` has `.help { location in … }` over `EditorModel.socketTip(at:)`; the layers' own `.help` is gone. Human checks TR-2, VA-3, FI-core-3 and IM-2 can be run again |
-| AS-a | The traffic lights straddle the top bar's glass edge: a hidden title bar's band height (and so the buttons' vertical centre) is AppKit's, not the app's | asked 2026-11-08 | ⏳ open: nothing done here meanwhile |
+| AS-a | The traffic lights straddle the top bar's glass edge: a hidden title bar's band height (and so the buttons' vertical centre) is AppKit's, not the app's | asked 2026-11-08 | fixed by MetalUI PR #248 (4a7a898f), adopted |
 
 ## Reported 2026-10-07 (C7)
 
@@ -1509,5 +1509,8 @@ while the app runs, pipelines cached by source.
   Design (the user, 2026-11-08): the buttons stay left-aligned but sit inside the bar's glass as part of it. Centred at y = 34 they have about 15 pt of glass above and
   below, so they get the same 15 pt to their left: the close button's left edge at x = 27 (AppKit puts it near 20). Also asked: a leading inset for the buttons, with
   `titleBarInsets.left` still the zoom button's (moved) right edge, so `topBarClearance` keeps clearing them.
-  Meanwhile: nothing. We don't move the bar below the buttons (it would waste a strip and the drag strip already covers the band) and don't reposition AppKit's buttons ourselves.
+  Status: fixed by MetalUI PR #248 (4a7a898f): `.windowTitleBarMetrics(height:controlsLeading:)`, applied on `AppWindowRoot` with `AppLayout.titleBarHeight` (68) and
+  `AppLayout.titleBarControlsLeading` (27); `titleBarInsets.top` then reads 68 and `.left` 87 (the zoom button's right edge), so `topBarClearance` still clears the lights and the bar
+  stays at the 12-point margin with the lights inside its glass. Only macOS changes; SDL keeps its drawn controls. Accepted caveats: full screen keeps the system layout (insets
+  zero), and the metrics depend on AppKit's private title-bar view nesting. Human check AS-a on screen.
 

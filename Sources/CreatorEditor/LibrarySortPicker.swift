@@ -1,21 +1,20 @@
 import CreatorGraph
 import MetalUI
 
-/// The library's "Grouped" / "A–Z" switch: two compact buttons side by side, on the caption's row, the current order's disabled, as the panel header's dock
-/// buttons are. (MetalUI's segmented `Picker` here made a skipped library draw differently from a rebuilt one,
-/// `PanelContentSkipWindowTests`.)
+/// The library's "Grouped" / "A–Z" switch: a compact segmented `Picker` on the caption's row. (Until MetalUI #240 and #242 a
+/// skipped library drew a segmented `Picker` differently from a rebuilt one, so this was two buttons;
+/// `PanelContentSkipWindowTests` holds it to the same drawing now.)
 struct LibrarySortPicker: Component {
     let model: EditorModel
 
     var content: some ElementGroup {
-        HStack(spacing: Pixels(4)) {
-            Button("Grouped") { model.setLibrarySort(.grouped) }
-                .help("List each category's nodes under sub-group headings")
-                .disabled(model.librarySort == .grouped)
-            Button("A–Z") { model.setLibrarySort(.alphabetical) }
-                .help("List each category's nodes alphabetically")
-                .disabled(model.librarySort == .alphabetical)
+        Picker("Sort", selection: Binding(get: { model.librarySort }, set: { model.setLibrarySort($0) })) {
+            Text("Grouped").tag(LibrarySort.grouped)
+            Text("A–Z").tag(LibrarySort.alphabetical)
         }
+        .pickerStyle(.segmented)
+        .labelsHidden()
         .controlSize(.mini)
+        .help("Order the library's nodes: grouped under sub-group headings, or alphabetically")
     }
 }

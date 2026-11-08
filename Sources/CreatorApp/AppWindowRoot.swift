@@ -32,6 +32,9 @@ public struct AppWindowRoot: Component {
                 // A primary press on anything inside that is not a text field or a click-focusable control resigns the focus
                 // (MetalUI C24, gap CT-a), so typing ends on "a press elsewhere" (spec 2026-10-09 section 8). It routes no keys.
                 .resignsFocusOnPress()
+                // The traffic lights sit inside the top bar's glass (gap AS-a); full screen keeps the system layout.
+                .windowTitleBarMetrics(height: Pixels(Float(AppLayout.titleBarHeight)),
+                                       controlsLeading: Pixels(Float(AppLayout.titleBarControlsLeading)))
                 .environment(model.themes)
                 .theme(model.themes.current.controlTheme)
             }
