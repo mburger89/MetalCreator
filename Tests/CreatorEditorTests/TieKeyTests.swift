@@ -44,7 +44,7 @@ struct TieKeyTests {
         editor.perform(.tieWires)
         let tie = try #require(editor.graph.ties.values.first)
         #expect(tie.position == editor.flow.stored((upper + lower) * 0.5))
-        #expect(tie.position == Vector2(318, 214), "the transpose of the drawn centre (214, 318)")
+        #expect(tie.position == TieScene.tieCentreLeftDock.transposed, "the transpose of the drawn centre")
     }
 
     @Test func aTieAndAnotherWireAddTheWireToTheTie() throws {

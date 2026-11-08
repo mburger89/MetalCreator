@@ -61,7 +61,7 @@ struct WireHitTests {
     @Test func theLeftDockHitsTheTransposedRoute() throws {
         let editor = scene.editor(dock: .left)
         let onUpper = try #require(editor.wireRouting.routes[scene.upper]?.pieces.first?.point(at: 0.5))
-        #expect(onUpper == Vector2(114, 318), "set up: the vertical flow's route")
+        #expect(onUpper == TieScene.upperMidLeftDock, "set up: the vertical flow's route")
         #expect(editor.hitTest(onUpper) == .wire(scene.upper))
     }
 

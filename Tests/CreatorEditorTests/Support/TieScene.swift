@@ -13,6 +13,10 @@ import Foundation
 struct TieScene {
     /// The right-hand nodes' x: the wires' midpoints stay at x = 384 whatever `NodeLayout.width` is.
     static let right = 2 * 384 - NodeLayout.width
+    /// In the left dock (vertical flow) the upper wire's midpoint as drawn: between the output on a1's bottom edge and the input on
+    /// b1's top edge; and the drawn centre of the upper and lower midpoints, where a tie of both goes.
+    static let upperMidLeftDock = Vector2(NodeLayout.width / 2 + 10, (76 + right) / 2)
+    static let tieCentreLeftDock = Vector2(NodeLayout.width / 2 + 110, (76 + right) / 2)
     let a1 = testNode(NumberTestNode.self, id: 1, at: Vector2(0, 0))
     let a2 = testNode(NumberTestNode.self, id: 2, at: Vector2(0, 200))
     let b1 = testNode(NumberTestNode.self, id: 3, at: Vector2(TieScene.right, 20))
@@ -45,4 +49,9 @@ func tieID(_ n: Int) -> TieID {
     let digits = String(n)
     let suffix = String(repeating: "0", count: max(0, 12 - digits.count)) + digits
     return TieID(rawValue: UUID(uuidString: "00000000-0000-0000-0000-" + suffix) ?? UUID())
+}
+
+extension Vector2 {
+    /// x and y swapped: a point as stored for the left dock's drawn one, and back.
+    var transposed: Vector2 { Vector2(y, x) }
 }

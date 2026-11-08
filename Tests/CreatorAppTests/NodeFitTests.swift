@@ -58,13 +58,24 @@ struct NodeFitTests {
         #expect(!drawn.isEmpty && bottom - top < 20, "one line, a second would stand 14 points lower: \(bottom - top)")
     }
 
-    /// Every built-in title is drawn whole beside the typical badge ("123 ms").
+    /// The width the glyphs of `content` span, in points, as the platform's own text system draws them (a glyph count would
+    /// mistake a ligature, "ff", for a missing character).
+    func drawnWidth<Content: ElementGroup>(_ content: Content) -> Double {
+        let drawn = glyphs(content, width: NodeLayout.width)
+        let left = drawn.map { Double($0.bounds.origin.x) / 2 }.min() ?? 0
+        let right = drawn.map { Double($0.bounds.origin.x + $0.bounds.size.width) / 2 }.max() ?? 0
+        return right - left
+    }
+
+    /// Every built-in title, at its natural width in the header's font, fits the header beside the typical badge ("123 ms"): the
+    /// header less its 8-point margins, the 6-point gap and the badge (its text and 5-point padding each side).
     @Test func everyBuiltInTitleFitsBesideItsBadge() {
+        let state = NodeState.ok(duration: .milliseconds(123))
+        let badge = drawnWidth(StatusBadgeView(state: state, palette: palette)) + 10
+        let room = NodeLayout.width - 16 - 6 - badge
         for (type, _, _, shape) in shapes() {
-            let header = NodeHeaderView(title: shape.title, accent: palette.header(for: .solid),
-                                        state: .ok(duration: .milliseconds(123)), palette: palette)
-            let drawn = glyphs(header, width: NodeLayout.width).count
-            #expect(drawn == (shape.title + "123 ms").filter { !$0.isWhitespace }.count, "\(type.displayName) is cut")
+            let title = drawnWidth(Text(shape.title).font(.system(.caption, weight: .semibold)))
+            #expect(title <= room - 2, "\(type.displayName) is cut: \(title) of \(room)")
         }
     }
 }
