@@ -4,7 +4,10 @@ import CreatorGraph
 /// Node geometry computed, not measured, so drawing, socket anchors and hit testing agree
 /// (ported from MetalNodes' `NodeGeometry`). All values are canvas points at zoom 1.
 public enum NodeLayout {
-    public static let width = 168.0
+    /// Wide enough that no built-in node clips (`NodeFitTests` draws them all): a row is its label, a spring and its value, with the
+    /// row's two 6-point gaps, in the width less the body's 10-point margins; a title shares the header's width less its 8-point
+    /// margins with the badge. A title that still doesn't fit (a renamed node's) stays on one line and is cut with an ellipsis.
+    public static let width = 208.0
     public static let headerHeight = 24.0
     public static let rowHeight = 20.0
     public static let bodyPadding = 6.0

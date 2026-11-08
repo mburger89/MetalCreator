@@ -50,7 +50,7 @@ struct WireSelectionTests {
         editor.click(scene.upperMiddle + Vector2(10, 2))
         #expect(editor.wirePickPoints[scene.upper] == Vector2(394, 62))
         let left = scene.editor(dock: .left)
-        left.click(Vector2(94, 338))
-        #expect(left.wirePickPoints[scene.upper] == Vector2(338, 94), "stored, so the transpose of the drawn point")
+        left.click(Vector2(114, 318))
+        #expect(left.wirePickPoints[scene.upper] == Vector2(318, 114), "stored, so the transpose of the drawn point")
     }
 }

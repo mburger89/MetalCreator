@@ -91,7 +91,7 @@ struct TieEditingTests {
 
     @Test func draggingAWiredInputOffUntiesItsWire() {
         let editor = scene.editor(ties: [scene.tie()])
-        editor.drag(Vector2(600, 60), Vector2(900, 600))
+        editor.drag(Vector2(TieScene.right, 60), Vector2(900, 600))
         #expect(editor.graph.incomingLink(to: scene.upper) == nil)
         #expect(editor.graph.ties.isEmpty)
         editor.perform(.undo)

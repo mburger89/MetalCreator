@@ -129,8 +129,8 @@ struct WireRouteTests {
     @Test func theEditorRoutesTheLevelItShows() throws {
         let scene = TieScene()
         let editor = scene.editor(ties: [scene.tie()])
-        #expect(editor.wireRouting.routes[scene.upper]?.pinned == [Vector2(168, 60), Vector2(384, 158), Vector2(600, 60)])
-        #expect(editor.wireRouting.routes[scene.third]?.pinned == [Vector2(168, 460), Vector2(600, 460)])
+        #expect(editor.wireRouting.routes[scene.upper]?.pinned == [Vector2(NodeLayout.width, 60), Vector2(384, 158), Vector2(TieScene.right, 60)])
+        #expect(editor.wireRouting.routes[scene.third]?.pinned == [Vector2(NodeLayout.width, 460), Vector2(TieScene.right, 460)])
         #expect(editor.wireRouting.ties[tieID(1)]?.band == CanvasRect(origin: Vector2(381, 155), size: Vector2(6, 10)))
     }
 }

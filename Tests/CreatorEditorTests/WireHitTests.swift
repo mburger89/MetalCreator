@@ -42,10 +42,10 @@ struct WireHitTests {
     }
 
     @Test func aSocketBeatsATieAndATieBeatsANode() {
-        let onSocket = scene.editor(ties: [scene.tie(at: Vector2(600, 60))])
-        #expect(onSocket.hitTest(Vector2(600, 60)) == .socket(SocketRef(scene.upper, isInput: true)))
-        let onNode = scene.editor(ties: [scene.tie(at: Vector2(84, 30))])
-        #expect(onNode.hitTest(Vector2(84, 30)) == .tie(tieID(1)), "a tie dropped on a node can still be grabbed")
+        let onSocket = scene.editor(ties: [scene.tie(at: Vector2(TieScene.right, 60))])
+        #expect(onSocket.hitTest(Vector2(TieScene.right, 60)) == .socket(SocketRef(scene.upper, isInput: true)))
+        let onNode = scene.editor(ties: [scene.tie(at: Vector2(NodeLayout.width / 2, 30))])
+        #expect(onNode.hitTest(Vector2(NodeLayout.width / 2, 30)) == .tie(tieID(1)), "a tie dropped on a node can still be grabbed")
         #expect(onNode.hitTest(Vector2(20, 40)) == .node(scene.a1.id), "the rest of the node is the node's")
     }
 
@@ -61,7 +61,7 @@ struct WireHitTests {
     @Test func theLeftDockHitsTheTransposedRoute() throws {
         let editor = scene.editor(dock: .left)
         let onUpper = try #require(editor.wireRouting.routes[scene.upper]?.pieces.first?.point(at: 0.5))
-        #expect(onUpper == Vector2(94, 338), "set up: the vertical flow's route")
+        #expect(onUpper == Vector2(114, 318), "set up: the vertical flow's route")
         #expect(editor.hitTest(onUpper) == .wire(scene.upper))
     }
 

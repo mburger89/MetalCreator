@@ -15,6 +15,7 @@ struct NodeHeaderView: Component, Equatable {
             Text(title)
                 .font(.system(.caption, weight: .semibold))
                 .foregroundStyle(palette.textOnAccent.color)
+                .lineLimit(1)
             Spacer()
             StatusBadgeView(state: state, palette: palette).equatable()
         }

@@ -11,9 +11,9 @@ import Testing
 struct GroupedEditor {
     let editor: EditorModel
     let number = testNode(NumberTestNode.self, id: 1, at: Vector2(0, 0), registry: editorTestRegistry)
-    let rectangle = testNode(RectangleTestNode.self, id: 2, at: Vector2(200, 0), registry: editorTestRegistry)
-    let extrude = testNode(ExtrudeTestNode.self, id: 3, at: Vector2(400, 0), registry: editorTestRegistry)
-    let output = testNode(OutputTestNode.self, id: 4, at: Vector2(600, 0), registry: editorTestRegistry)
+    let rectangle = testNode(RectangleTestNode.self, id: 2, at: Vector2(240, 0), registry: editorTestRegistry)
+    let extrude = testNode(ExtrudeTestNode.self, id: 3, at: Vector2(480, 0), registry: editorTestRegistry)
+    let output = testNode(OutputTestNode.self, id: 4, at: Vector2(720, 0), registry: editorTestRegistry)
     let group: NodeID
     let definition: GroupDefinition
 
