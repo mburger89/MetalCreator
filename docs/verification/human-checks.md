@@ -1187,13 +1187,13 @@ renderer's buffers; these check what a real window shows.
 
 ## Group PA — patterns: Place, the shortcut nodes and the Patterns library (7a-2)
 
-**Status: IN PROGRESS** (2026-11-07: 6 of 10 pass; PA-1 and PA-9 fail). Plan `2026-10-10-7a-place.md`. Run `swift run MetalCreatorApp`. The tests pin the nodes, the kernel and the
+**Status: IN PROGRESS** (2026-11-08: 8 of 10 pass; PA-1 and PA-9 pass on re-check). Plan `2026-10-10-7a-place.md`. Run `swift run MetalCreatorApp`. The tests pin the nodes, the kernel and the
 naming; these check what a real window shows. Build a plate (Rectangle on a plane at z = −6, Extrude 6) and a Grid Points
 (4 × 3, 15 mm) wired into Points to Placements for the checks below.
 
-- [ ] **PA-1 The library.** Open the node library: a "Patterns" section sits between Feature and Output, holding Place,
+- [x] **PA-1 The library.** Open the node library: a "Patterns" section sits between Feature and Output, holding Place,
   Points to Placements, Hole Pattern, Boss / Pin Pattern, Slot Pattern and Pattern Feature, with the Feature colour on
-  their headers. Typing "hole" in the add-node palette finds Hole Pattern. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails as written:** the Patterns section is alphabetical in this build (Boss / Pin Pattern, Circular Pattern, Cull by Region, …): `PaletteSearch.entries` sorted every category by name. PR #50 groups it by operation (Layouts, Placing, Shortcuts, Variation) with an A–Z switch; re-check against that. The palette's "hole" finds Hole Pattern (and Drain Holes); the headers are the Feature orange.
+  their headers. Typing "hole" in the add-node palette finds Hole Pattern. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails as written:** the Patterns section is alphabetical in this build (Boss / Pin Pattern, Circular Pattern, Cull by Region, …): `PaletteSearch.entries` sorted every category by name. PR #50 groups it by operation (Layouts, Placing, Shortcuts, Variation) with an A–Z switch; re-check against that. The palette's "hole" finds Hole Pattern (and Drain Holes); the headers are the Feature orange. **Re-checked (2026-11-08):** macOS, packaged app from main `63e14402`: **Passes against the grouped library:** Patterns follows Feature (Lists & Trees, Fields, Implicit and Mesh now come before Output) and holds Place and Points to Placements under Placing, Boss / Pin Pattern, Hole Pattern, Pattern Feature and Slot Pattern under Shortcuts, in the Feature orange. "hole" finds Hole Pattern and Drain Holes.
 - [x] **PA-2 Holes.** (Spec §5 wants each shortcut documented as Place + Boolean underneath in its inspector help; until User decision 9 (b) is chosen this check is where it is stated: Hole Pattern gives the same part as a Place and a Boolean wired by hand.) Wire the plate and the placements into a Hole Pattern and an Output: twelve Ø5 holes cut from the top
   face down. In the inspector switch Mouth to Counterbore, then Countersink: the holes gain the step, then the cone; Through
   all cuts right through whatever the depth. Wire a Series (start 3, step 1, count 3) into `diameter`: the first three holes are 3, 4 and 5 mm and the rest repeat 5 mm. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: Twelve Ø5 holes (depth 4) cut from the top; Counterbore gives the step, Countersink the cone, Through all cuts through (seen from below). A Series (3, 1, 3) into `diameter`: holes 0, 1 and 2 are 3, 4 and 5 mm, the rest 5 mm.
@@ -1217,9 +1217,9 @@ naming; these check what a real window shows. Build a plate (Rectangle on a plan
   by Tag and a Fillet inside it, and pick a hole's rim in the viewport (the pick is written relative to the level). Change the
   grid's count so that hole is gone: the warning names the instance, then raise it again and the fillet returns on the same
   position. Leave the group: the result is unchanged. **Observed:**
-- [ ] **PA-9 The Hole Pattern node on the canvas.** The node has about ten sockets: it reads clearly at normal zoom, its labels
+- [x] **PA-9 The Hole Pattern node on the canvas.** The node has about ten sockets: it reads clearly at normal zoom, its labels
   ("Counterbore diameter", "Countersink angle") are not clipped, the Patterns header (the Feature colour, User decision 2) reads as
-  a Feature-family node, and the inspector's sections are in a sensible order. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails:** zoomed in, the rows read "Counterbore diame…" and "Countersink diam…", and Style shows `0`, not "Plain"; "Boss / Pin Pattern" wraps and its first line is cut. The header is the Feature orange and the inspector's order (Hole, Mouth, Counterbore, Countersink) reads well. PR #51 widens nodes to 208 points, names choice rows and keeps titles on one line; re-check against that.
+  a Feature-family node, and the inspector's sections are in a sensible order. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails:** zoomed in, the rows read "Counterbore diame…" and "Countersink diam…", and Style shows `0`, not "Plain"; "Boss / Pin Pattern" wraps and its first line is cut. The header is the Feature orange and the inspector's order (Hole, Mouth, Counterbore, Countersink) reads well. PR #51 widens nodes to 208 points, names choice rows and keeps titles on one line; re-check against that. **Re-checked (2026-11-08):** macOS, packaged app from main `63e14402`: **Passes (PR #51):** at 224 points the rows read "Counterbore diameter", "Counterbore depth", "Countersink diameter" and "Countersink angle" in full, Style reads "Plain", and "Boss / Pin Pattern" fits on one line.
 - [ ] **PA-10 A projected rim.** In a Sketch wired to the Hole Pattern's result, Project (P) the rim of one hole: the circle
   appears and a dimension on it holds. Lower the grid's count so that hole is gone: the sketch warns "Projected edge 1 was
   picked on instance {n}, which no longer exists. Its constraints are ignored." and projects no other hole's rim. **Observed:**
@@ -1227,7 +1227,7 @@ naming; these check what a real window shows. Build a plate (Rectangle on a plan
 
 ## Group TR — data trees (7a-1)
 
-**Status: IN PROGRESS** (2026-11-07: 6 of 9 pass; TR-2 and TR-3 fail). Plan `2026-10-10-7a-trees.md`, spec `2026-10-10-patterns-trees-design.md` §2 and §4's tree nodes. Run
+**Status: IN PROGRESS** (2026-11-08: 8 of 9 pass; TR-2 and TR-3 pass on re-check). Plan `2026-10-10-7a-trees.md`, spec `2026-10-10-patterns-trees-design.md` §2 and §4's tree nodes. Run
 `swift run MetalCreatorApp`. The tests pin the models, the messages and that the views draw; these check what a real window
 shows. Build the graph first: Series (count 24) into Partition (size 8) into Number-in nodes such as Rectangle `width`.
 
@@ -1235,18 +1235,18 @@ shows. Build the graph first: Series (count 24) into Partition (size 8) into Num
   colour, listing Branch by Path, Flatten, Graft, List Item, Partition, Path Mapper and Tree Statistics. Search "path": both
   Path nodes show. Pinned: `theLibraryTitlesTheCategory`, `theBuiltInsAreTheSliceTheSketcherAndTheTreeNodesInSevenCategories`.
   **Observed (2026-11-07):** macOS, packaged app from main `d821472`: Lists & Trees now follows Patterns (Output is last), in the Value colour: Branch by Path, Flatten, Graft, List Item, Merge (added since), Partition, Path Mapper, Tree Statistics. "path" finds Path Mapper and Branch by Path.
-- [ ] **TR-2 Socket tooltips.** With the graph above evaluated, rest the pointer on Partition's output dot for a second: the
+- [x] **TR-2 Socket tooltips.** With the graph above evaluated, rest the pointer on Partition's output dot for a second: the
   tooltip reads "Tree 3 × 8". The dot of the wired input on the node after it says the same. A dot carrying one item or a plain
   list shows nothing at all when you rest on it: no bubble, not even an empty padded one (MetalUI shows a bubble for any help
   text, so such a dot declares none). **Record whether the tooltip appears over a dot this small.** Look at the colour too: the
   dots of the tree nodes (`any` sockets) and the wires leaving them are drawn in the Value colour; **record whether a wire from
   a tree node is hard to tell from a number wire** (if it is, that is a product question, not a bug). Pinned:
-  `theSocketsOfATreeShowItsShape`, `onlyADotThatCarriesATreeDeclaresATooltip`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails: no socket tooltip appears on the canvas** (see VA-3; MetalUI gap CV-a, model-driven `.help` being built in MetalUI). The colour part was not judged.
-- [ ] **TR-3 The Data section.** Select Partition: the inspector ends with a "Data" section, "Tree out  3 × 8" and a "Show
+  `theSocketsOfATreeShowItsShape`, `onlyADotThatCarriesATreeDeclaresATooltip`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails: no socket tooltip appears on the canvas** (see VA-3; MetalUI gap CV-a, model-driven `.help` being built in MetalUI). The colour part was not judged. **Re-checked (2026-11-08):** macOS, packaged app from main `63e14402`: **Passes (PR #53, MetalUI #237's model-driven `.help` on `CanvasSurface`):** resting on Partition's output dot shows "Tree 3 × 8" after about a second, and Path Mapper's wired input dot says the same; Series' plain-list output dot shows nothing. The tooltip appears reliably over the dot at this zoom. A tree wire is drawn in the same Value blue-grey as the number wire into Partition, so the two can't be told apart by colour (a product question, not a bug).
+- [x] **TR-3 The Data section.** Select Partition: the inspector ends with a "Data" section, "Tree out  3 × 8" and a "Show
   paths" button. Press it: three rows, `{0}`, `{1}`, `{2}`, each "8 items"; it reads "Hide paths" now, and the list stays open
   while you select another node and come back. Undo is not enabled by it. Change the size to 5: "5 branches: 5, 5, 5, 5, 4" and
   the list follows. Select Series: no Data section. Make 60 branches (Series count 120, Partition size 2): the list stops after 50
-  rows and ends with "and 10 more". Pinned: `thePathListOpensAndClosesAndIsNotAnEdit`, `aLongPathListIsCutShort`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: "Tree out 3 × 8"; Show paths lists `{0}` to `{2}`, 8 items each, and reads Hide paths; the list stays open across a selection change; Undo stays disabled; size 5 reads "5 branches: 5, 5, 5, 5, 4"; Series shows no Data section. **Fails at 60 branches:** the list runs past the window's bottom and the inspector doesn't scroll, so "and 10 more" can't be seen; the graph panel extends past the window, the Series and Partition nodes draw as blank boxes and dark smudges appear (Hide paths restores it). PR #51 makes the inspector scroll; re-check against that.
+  rows and ends with "and 10 more". Pinned: `thePathListOpensAndClosesAndIsNotAnEdit`, `aLongPathListIsCutShort`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: "Tree out 3 × 8"; Show paths lists `{0}` to `{2}`, 8 items each, and reads Hide paths; the list stays open across a selection change; Undo stays disabled; size 5 reads "5 branches: 5, 5, 5, 5, 4"; Series shows no Data section. **Fails at 60 branches:** the list runs past the window's bottom and the inspector doesn't scroll, so "and 10 more" can't be seen; the graph panel extends past the window, the Series and Partition nodes draw as blank boxes and dark smudges appear (Hide paths restores it). PR #51 makes the inspector scroll; re-check against that. **Re-checked (2026-11-08):** macOS, packaged app from main `63e14402`: **Passes (PR #51):** at 60 branches the path list shows 50 rows and "and 10 more"; in a window too short for it the inspector scrolls to the end. The graph panel draws normally (no blank nodes or smudges).
 - [x] **TR-4 Path Mapper.** Add a Path Mapper after Partition: its Rule row shows `{A} → {A}` in a text field. Type
   `{A} → {(i)}` and press Return: the table is transposed (the tooltip says "Tree 8 × 3"); the Edit menu says "Undo Change Path
   rule". Click away instead of pressing Return: the rule is kept. Type `{A;B} → {B;A}`: the table is
@@ -1277,13 +1277,13 @@ shows. Build the graph first: Series (count 24) into Partition (size 8) into Num
 
 ## Group PL — patterns: the layouts, trees of placements and previews (7a-3)
 
-**Status: IN PROGRESS** (2026-11-07: 4 of 12 pass; PL-1 fails, the rest partly run). Plan `2026-10-12-7a-layouts.md`, spec `2026-10-10-patterns-trees-design.md` §3, §6, §8 and its Errata (7a-3). Run
+**Status: IN PROGRESS** (2026-11-08: 4 of 12 pass; PL-1 fails on "ring" only, the rest partly run). Plan `2026-10-12-7a-layouts.md`, spec `2026-10-10-patterns-trees-design.md` §3, §6, §8 and its Errata (7a-3). Run
 `swift run MetalCreatorApp`. The tests pin the nodes, the naming, the overlay's lines and the file; these check what a real window
 shows. Build a plate (Rectangle 120 × 80 on a plane at z = −8, Extrude 8) and an Output for the checks below.
 
 - [ ] **PL-1 The library.** Open the node library: the "Patterns" section opens with Linear Pattern, Grid Pattern, Circular Pattern,
   Curve Pattern and Face Pattern, then Place, Points to Placements and the shortcuts. Typing "ring" in the add-node palette finds
-  Circular Pattern. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails as written:** the Patterns section is alphabetical in this build (Boss / Pin Pattern, Circular Pattern, Cull by Region, …): `PaletteSearch.entries` sorted every category by name. PR #50 groups it by operation (Layouts, Placing, Shortcuts, Variation) with an A–Z switch; re-check against that.
+  Circular Pattern. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails as written:** the Patterns section is alphabetical in this build (Boss / Pin Pattern, Circular Pattern, Cull by Region, …): `PaletteSearch.entries` sorted every category by name. PR #50 groups it by operation (Layouts, Placing, Shortcuts, Variation) with an A–Z switch; re-check against that. **Re-checked (2026-11-08):** macOS, packaged app from main `63e14402`: The grouped Patterns section opens with Layouts (Circular, Curve, Face, Grid and Linear Pattern), then Placing (Place, Points to Placements) and Shortcuts: passes. **Fails: "ring" finds nothing.** The palette matches node names only; no node has search keywords, so Circular Pattern can't be found by "ring". Whether to add keywords is a product question.
 - [ ] **PL-2 Triads.** Add a Grid Pattern (4 × 3, 10 mm) and select it with nothing wired to it: a small x (red), y (green) and z (cyan)
   triad appears at each of the 12 placements, each axis a little under half the distance to the next. Change the counts and the
   spacing in the inspector: the triads follow at once. Select another node, or two nodes: they go. Right-click on a triad, click on
@@ -1329,23 +1329,23 @@ shows. Build a plate (Rectangle 120 × 80 on a plane at z = −8, Extrude 8) and
 
 ## Group VA — variation and culling (7a-3 part B)
 
-**Status: IN PROGRESS** (2026-11-07: 14 of 18 pass; VA-1 and VA-3 fail, VA-16 and VA-18 are partly run). Plan `2026-10-12-7a-variation.md`, spec `2026-10-10-patterns-trees-design.md` §4 and §6. Run
+**Status: IN PROGRESS** (2026-11-08: 16 of 18 pass; VA-1 and VA-3 pass on re-check, VA-16 and VA-18 are partly run). Plan `2026-10-12-7a-variation.md`, spec `2026-10-10-patterns-trees-design.md` §4 and §6. Run
 `swift run MetalCreatorApp`. The tests pin the nodes, the generator and the naming; these check what a real window shows. Build a
 plate (Rectangle 60 × 40 on a plane at z = −6, Extrude 6) and a Grid Points (4 × 3, 15 mm) into Points to Placements into a Hole
 Pattern (Ø5, depth 6) into an Output; then put the nodes below between Points to Placements and the Hole Pattern.
 
-- [ ] **VA-1 The library.** The "Patterns" section ends with Cull Pattern, Cull Index, Cull by Region, Random Reduce, Random Values and
+- [x] **VA-1 The library.** The "Patterns" section ends with Cull Pattern, Cull Index, Cull by Region, Random Reduce, Random Values and
   Jitter after Pattern Feature (the layouts come first in the section). Typing "cull" in the add-node palette finds three (four
   once Cull by Field exists, 7b-1: it comes last, under Fields).
-  Pinned: `thePatternsSectionHoldsThePatternNodes`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails as written (the library's order):** the add-node palette's "cull" finds Cull by Region, Cull Index, Cull Pattern and Cull by Field (four, Cull by Field last). The library's Patterns section is alphabetical (Boss / Pin Pattern, Circular Pattern, Cull by Region, Cull Index, Cull Pattern, Curve Pattern, Face Pattern, Grid Pattern, Hole Pattern, Jitter, Linear Pattern, Pattern Feature, …): `PaletteSearch.entries` sorts each category by name, and `thePatternsSectionHoldsThePatternNodes` groups `BuiltInNodes.all` directly, so it never sees that sort. Which order is meant is open.
+  Pinned: `thePatternsSectionHoldsThePatternNodes`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: **Fails as written (the library's order):** the add-node palette's "cull" finds Cull by Region, Cull Index, Cull Pattern and Cull by Field (four, Cull by Field last). The library's Patterns section is alphabetical (Boss / Pin Pattern, Circular Pattern, Cull by Region, Cull Index, Cull Pattern, Curve Pattern, Face Pattern, Grid Pattern, Hole Pattern, Jitter, Linear Pattern, Pattern Feature, …): `PaletteSearch.entries` sorts each category by name, and `thePatternsSectionHoldsThePatternNodes` groups `BuiltInNodes.all` directly, so it never sees that sort. Which order is meant is open. **Re-checked (2026-11-08):** macOS, packaged app from main `63e14402`: **Passes against the grouped library (PR #50, the user's choice):** in Grouped order (the default) the Patterns section runs Layouts, Placing, Shortcuts (ending with Pattern Feature and Slot Pattern) and then Variation: Cull by Region, Cull Index, Cull Pattern, Jitter, Random Reduce, Random Values (alphabetical within the heading, not the order written above). "cull" finds Cull by Region, Cull Index, Cull Pattern and Cull by Field (last).
 - [x] **VA-2 Cull Pattern.** The Pattern row shows `1 0` in a text field: every other hole is gone. Type `1 1 0` and press Return: every
   third is gone. Type `1 2`: the badge reads "“1 2” isn't a pattern. Use 1 to keep an item and 0 to cull it, like 1 0 1." The
   Edit menu names each change ("Change Cull pattern"). A long pattern scrolls inside the field. Set Scope to Overall with the
   placements in rows (Partition by 4): the mask runs on from one row into the next. Pinned: `CullPatternNodeTests`,
   `VariationSettingTests`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: `1 0` keeps 6 of 12; `1 1 0` keeps 8 and the top bar reads "Undo Change Cull pattern"; `1 2` gives the badge's sentence word for word and ghosts the part; a 26-entry pattern scrolls inside the field (its end after Return, its start after Home). With a Partition of 4 and `1 1 0`: Per branch "3 × 3, culled"; Overall "3 branches: 3, 3, 2, culled" (the mask runs on).
-- [ ] **VA-3 Culled tooltips and the Data section.** With Cull Pattern selected, rest on its output dot: the tooltip reads "Tree 6, culled".
+- [x] **VA-3 Culled tooltips and the Data section.** With Cull Pattern selected, rest on its output dot: the tooltip reads "Tree 6, culled".
   The inspector's Data section lists `{}` with 6 items. **Record that the section shows no gaps (a culled branch's missing
-  indices are not listed).** Pinned: `theShapeSaysCulled`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: The Data section reads "Tree out 6, culled" and Show paths lists `{}` with 6 items: no gaps are listed. **Fails: no socket tooltip appears** on the canvas (Cull Pattern's output dot, Hole Pattern's Placements dot, at two zooms, rested 3 to 4 s), while a library row's tooltip appears after about a second. `CanvasSurface` draws the canvas layers under `.allowsHitTesting(false)`, and MetalUI's `.help` shows no tooltip there (ruling MN-U), so no socket dot can show one (TR-2, FI-core-3 and IM-2 too).
+  indices are not listed).** Pinned: `theShapeSaysCulled`. **Observed (2026-11-07):** macOS, packaged app from main `d821472`: The Data section reads "Tree out 6, culled" and Show paths lists `{}` with 6 items: no gaps are listed. **Fails: no socket tooltip appears** on the canvas (Cull Pattern's output dot, Hole Pattern's Placements dot, at two zooms, rested 3 to 4 s), while a library row's tooltip appears after about a second. `CanvasSurface` draws the canvas layers under `.allowsHitTesting(false)`, and MetalUI's `.help` shows no tooltip there (ruling MN-U), so no socket dot can show one (TR-2, FI-core-3 and IM-2 too). **Re-checked (2026-11-08):** macOS, packaged app from main `63e14402`: **The tooltip passes (PR #53):** resting on the Hole Pattern's Placements dot, wired from Cull Pattern, shows "Tree 8, culled", matching Cull Pattern's Data section ("Tree out 8, culled"; this document's mask is `1 1 0` over 12 points, so 8, not 6).
 - [x] **VA-4 Cull Index.** Type `1, 4` into Cull Index's field: holes 1 and 4 are gone and the others have not moved. Type `{2}`: the
   same as `2`. Type `{0;3}`: the badge reads "{0;3} has 2 indices, but an item of this tree (12) needs 1. Write it like {0}." Type `{}`: the badge
   reads "“{}” names the whole tree. To cull everything, use Cull Pattern with 0." Type `{9}`: the badge reads
@@ -1563,7 +1563,7 @@ cannot show is the OS really taking the button away.
 
 ## Group FI-core — the fields core (7b-1)
 
-**Status: NOT RUN.** Plan `2026-10-12-7b-core.md`, spec `2026-10-12-fields-design.md` §2.1 and §3. Run `swift run MetalCreatorApp`. The
+**Status: IN PROGRESS** (2026-11-08: FI-core-3 passes; the rest not run). Plan `2026-10-12-7b-core.md`, spec `2026-10-12-fields-design.md` §2.1 and §3. Run `swift run MetalCreatorApp`. The
 tests pin the value, the maths, the sampling, the kernel distances and the nodes; these check only what a real window shows.
 Build: a Rectangle (60 × 40) into an Extrude (6) into a Distance Field's `target`, that into a Remap (from 0…20, to 1…0), and a
 Noise Field into a Multiply's `b`; wire the Remap into the Multiply's `a`.
@@ -1579,9 +1579,9 @@ Noise Field into a Multiply's `b`; wire the Remap into the Multiply's `a`.
   follows (`noise(seed 0, scale 10, octaves 1)`; no section for the Extrude). Change the Noise Field's seed: the row follows within
   the evaluation. **If the recipe does not wrap, that is a MetalUI gap: log it in `docs/metalui-gaps.md` (entry and summary row) and
   send it to the MetalUI session; do not work around it here.** Pinned: `FieldDisplayTests`. **Observed:**
-- [ ] **FI-core-3 The tooltip.** Rest the pointer on the Multiply's output dot: the tooltip is the recipe above. Rest on its `a` input
+- [x] **FI-core-3 The tooltip.** Rest the pointer on the Multiply's output dot: the tooltip is the recipe above. Rest on its `a` input
   dot: the Remap's recipe. A chain of eight Adds ends in a tooltip cut at 80 characters with "…". An unwired `b` with a typed number
-  has no tooltip. Pinned: `anOutputAndTheInputItIsWiredIntoShowTheRecipe`, `aLongRecipeIsCutToEightyCharacters`. **Observed:**
+  has no tooltip. Pinned: `anOutputAndTheInputItIsWiredIntoShowTheRecipe`, `aLongRecipeIsCutToEightyCharacters`. **Observed:** **Re-checked (2026-11-08):** macOS, packaged app from main `63e14402`: **Passes (PR #53):** Multiply's output dot shows the recipe, wrapped onto two lines over the viewport, and its `a` dot the Remap's recipe; an Add's unwired `b` with a typed 1 shows none. Down the chain of Adds, Add 3's output is cut at 80 characters with "…" ("… + 1 + 2…") while the inspector shows it whole. A node that hasn't been evaluated (a dangling Add that isn't selected) has no result and so no tooltip; select it first.
 - [ ] **FI-core-4 The library and the palette.** The node library has a "Fields" section after "Lists & Trees" and before "Output",
   with Distance Field, Linear Gradient, Radial Gradient, Noise Field, Add, Multiply, Min / Max, Remap, Clamp, Smooth Blend, Sample
   Field and Cull by Field; its header colour is the Feature orange. Typing "cull" in the add-node palette lists Cull by Field last,
@@ -1873,7 +1873,7 @@ warning step when red. macOS needs no check here: its test count and its look ar
 
 ## Group IM — implicit geometry: sockets, nodes, meshes, the progressive preview and export (7c-1)
 
-**Status: NOT RUN.** Plan `2026-10-13-7c-core.md`, spec `2026-10-13-implicit-lattices-design.md` §2 to §6. Run `swift run MetalCreatorApp` on a
+**Status: IN PROGRESS** (2026-11-08: IM-2 partly fails, no Mesh section; the rest not run). Plan `2026-10-13-7c-core.md`, spec `2026-10-13-implicit-lattices-design.md` §2 to §6. Run `swift run MetalCreatorApp` on a
 Mac with a GPU. The tests pin the values, the maths, the Metal-against-CPU agreement, the octree, the mesher's invariants, the bakes,
 the nodes, the export and the file; these check only what a real window, a real GPU and a real slicer show. Build: a Sphere (radius 20)
 into a Union's `shapes` beside a Box (30 × 30 × 30, corner radius 3) placed 15 mm along X by a Place (`implicit`), the Union (blend
@@ -1889,7 +1889,7 @@ radius 4) into a Shell (inward, 2), the Shell into a Mesh, the Mesh into an Outp
   `shell(union(sphere(radius 20 mm), place(box(30 × 30 × 30 mm, corner radius 3 mm)), blend 4 mm), inward 2 mm)`, wrapped inside the
   panel and not clipped. Rest the pointer on the Shell's output dot: the same, cut to 80 characters with "…". Select the Mesh: its
   "Mesh" section lists the triangle count, "Preview … mm", the meshing time and the memory. Pinned: `ImplicitDisplayTests`,
-  `MeshNodeTests`. **Observed:**
+  `MeshNodeTests`. **Observed:** **Re-checked (2026-11-08):** macOS, packaged app from main `63e14402`: The Shell's Implicit section reads `shell(union(sphere(radius 20 mm), place(box(30 × 30 × 30 mm, corner radius 3 mm)), blend 4 mm, G2), inward 2 mm)` (the ", G2" is the continuity added since), wrapped inside the panel; its output dot's tooltip is the same, cut at 80 characters with "…" (PR #53). **Fails: selecting the Mesh shows no "Mesh" section**, only Export resolution, Preview resolution and the note, though the node shows 126 ms and the preview chip reads "Preview 0.203 mm", even after waiting.
 - [ ] **IM-3 The first pass and the refinement.** Wire the Output and look at the viewport: a rounded, smooth-shaded shell appears at
   once (no faceting, no black patches), a "Preview 0.78 mm"-style badge sits at the lower right with a spinner, and over the next second
   or two the surface gets finer, the badge number falling, until the spinner goes and the badge keeps its last number. Orbit while it
