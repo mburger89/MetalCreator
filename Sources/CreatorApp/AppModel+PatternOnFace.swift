@@ -11,7 +11,7 @@ extension AppModel {
     }
 
     /// A layout node of type `layout` holding the face's remembered pick, wired from the node that made the face's solid and
-    /// placed beside it, as one undo step, and selected so its placements show (`LayoutPreview`). A face that isn't flat is said
+    /// placed beside it on free canvas (`EditorModel.freePosition`), as one undo step, and selected so its placements show (`LayoutPreview`). A face that isn't flat is said
     /// in words, a face of a solid that is gone does nothing. Inside a group it is refused, as New Sketch on Face is: the pick
     /// would have to be written relative to the group (groups Errata (C2)).
     func layoutOnFace(_ ref: ViewportFaceRef, _ pick: FacePick, as layout: FaceLayout) {
@@ -31,6 +31,7 @@ extension AppModel {
         }
         let from = document.graph.nodes[source.node]?.position ?? .zero
         var node = registry.makeNode(layout.typeID, at: from + Vector2(240, 140))
+        node.position = editor.freePosition(for: editor.shape(of: node), near: node.position)
         node.inputValues[NodeSetting.face] = .facePick(pick)
         let commands: [GraphCommand] = [
             .addNode(node), .connect(Link(from: source, to: Endpoint(node: node.id, socket: "solid"))),
