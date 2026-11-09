@@ -42,6 +42,21 @@ import Foundation
         } catch {
             return .refused(message(error))
         }
+        return await report(session: session, name: name, before: before, commands: commands)
+    }
+
+    /// Takes back or re-applies a step (`change` does it, returning the step's name or a refusal) and reports what it changed.
+    public static func observe(session: any DocumentSession, change: () async -> SessionOutcome) async -> MCPToolResult {
+        let before = snapshot(session)
+        switch await change() {
+        case .refused(let sentence): return .refused(sentence)
+        case .done(let name): return await report(session: session, name: name ?? UndoName.edit, before: before, commands: [])
+        }
+    }
+
+    private static func report(
+        session: any DocumentSession, name: String, before: [NodeID: Snapshot], commands: [GraphCommand]
+    ) async -> MCPToolResult {
         let settled = await session.settle(within: .seconds(60))
         let after = snapshot(session)
         let graph = session.content.graph

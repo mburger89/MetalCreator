@@ -157,10 +157,12 @@ public final class DocumentModel {
 
     public var canUndo: Bool { undoStack.canUndo }
     public var canRedo: Bool { undoStack.canRedo }
-    /// The name of the step Undo would take back ("Add Note"), or `nil` with nothing to undo.
+    /// The names of the steps Undo would take back ("Add Note") and Redo re-apply, or `nil` with none.
     public var undoName: String? { undoStack.undoName }
-    /// The name of the step Redo would re-apply, or `nil` with nothing to redo.
     public var redoName: String? { undoStack.redoName }
+    /// The steps Undo and Redo would take, or `nil` with none.
+    public var topUndoEntry: UndoStack.Entry? { undoStack.undoEntries.last }
+    public var topRedoEntry: UndoStack.Entry? { undoStack.redoEntries.last }
 
     /// Applies an edit. Pass the same `coalescingKey` for every step of a slider or handle
     /// drag, then call `endCoalescing()` when the drag ends, so the drag is one undo step. `name` is the step's name in

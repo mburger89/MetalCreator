@@ -14,6 +14,9 @@ import Foundation
 
     public let document: DocumentModel
     private let initialContent: GraphContent
+    /// The undo steps this client made and the ones it took back, so it never touches the person's.
+    private var clientUndo: [UndoStack.Entry] = []
+    private var clientRedo: [UndoStack.Entry] = []
 
     public init(document: DocumentModel) {
         self.document = document
@@ -38,6 +41,8 @@ import Foundation
     public func perform(_ command: GraphCommand, name: String) throws(GraphError) {
         try document.perform(command, coalescingKey: nil, name: name)
         document.endCoalescing()
+        if let top = document.topUndoEntry { clientUndo.append(top) }
+        clientRedo.removeAll()
     }
 
     public func freePosition(for node: Node, in graph: Graph) -> Vector2 {
@@ -63,8 +68,26 @@ import Foundation
         return settled
     }
 
-    public func undoClientStep() -> SessionOutcome { .refused(Self.unavailable) }
-    public func redoClientStep() -> SessionOutcome { .refused(Self.unavailable) }
+    public func undoClientStep() -> SessionOutcome {
+        if let refusal = editRefusal() { return .refused(refusal) }
+        guard let top = document.topUndoEntry, let name = document.undoName else { return .refused("There's nothing to undo.") }
+        guard top == clientUndo.last else { return .refused("The last step is yours, not mine: Undo \(name).") }
+        document.undo()
+        clientUndo.removeLast()
+        clientRedo.append(top)
+        return .done(name)
+    }
+
+    public func redoClientStep() -> SessionOutcome {
+        if let refusal = editRefusal() { return .refused(refusal) }
+        guard let top = document.topRedoEntry, let name = document.redoName else { return .refused("There's nothing to redo.") }
+        guard top == clientRedo.last else { return .refused("The next step to redo is yours: Redo \(name).") }
+        document.redo()
+        clientRedo.removeLast()
+        clientUndo.append(top)
+        return .done(name)
+    }
+
     public func newDocument(discardUnsaved: Bool) -> SessionOutcome { .refused(Self.unavailable) }
     public func open(_ url: URL, discardUnsaved: Bool) -> SessionOutcome { .refused(Self.unavailable) }
     public func save(to url: URL?, overwrite: Bool) -> SessionOutcome { .refused(Self.unavailable) }
