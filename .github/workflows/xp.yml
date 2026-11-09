@@ -51,7 +51,7 @@ concurrency:
 
 env:
   METALUI_REPOSITORY: mburger89/MetalUI
-  METALUI_COMMIT: 4a7a898fa4741fe916fceb9f96c0283891256df9
+  METALUI_COMMIT: 4a7815baa79b6cd05b3c3bdff9d16f1d5dabc742
   # microsoft/vcpkg at the commit whose ports/opencascade is 7.9.3 (port-version 1). packaging/windows/vcpkg.json names the same
   # commit as its builtin-baseline; CIPinTests checks they agree.
   VCPKG_COMMIT: 256310531c1e57ee83f8ac01f7bea7c1e56630f5
