@@ -121,3 +121,26 @@ struct UndoNameTests {
         #expect(names.allSatisfy { !$0.contains(where: \.isNumber) })
     }
 }
+
+@Suite struct UndoSerialTests {
+    private func record(_ stack: inout UndoStack, key: String?) {
+        let id = NodeID()
+        stack.record(forward: .setInput(id, "v", .number(1)), inverse: .setInput(id, "v", nil), coalescingKey: key)
+    }
+
+    @Test func serialsAreDistinctAndSurviveCoalescingUndoAndRedo() {
+        var stack = UndoStack()
+        record(&stack, key: nil)
+        record(&stack, key: nil)
+        let first = stack.undoEntries[0].serial
+        let second = stack.undoEntries[1].serial
+        #expect(first != second)
+        record(&stack, key: "k")
+        let drag = stack.undoEntries[2].serial
+        record(&stack, key: "k")
+        #expect(stack.undoEntries.count == 3 && stack.undoEntries[2].serial == drag)
+        #expect(stack.takeUndo()?.serial == drag)
+        #expect(stack.redoEntries.last?.serial == drag)
+        #expect(stack.takeRedo()?.serial == drag)
+    }
+}

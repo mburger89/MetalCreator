@@ -1,5 +1,14 @@
+import Synchronization
+
 /// Undo history of applied commands, with slider-drag coalescing (spec §4.5).
 public struct UndoStack: Sendable {
+    /// Serials come from one process-wide counter, so a history put back to an earlier copy never hands out a number again.
+    private static let lastSerial = Mutex<UInt64>(0)
+
+    private static func nextSerial() -> UInt64 {
+        lastSerial.withLock { $0 += 1; return $0 }
+    }
+
     public struct Entry: Sendable, Equatable {
         /// What redo re-applies: the latest command of a coalesced run.
         public var forward: GraphCommand
@@ -8,6 +17,13 @@ public struct UndoStack: Sendable {
         public var coalescingKey: String?
         /// What the Edit menu calls the step ("Add Note"): the first record's, for a coalesced run.
         public var name: String
+        /// Which step this is, in memory only (never saved): a new entry gets a fresh one, a coalesced record keeps its entry's,
+        /// and undo and redo move the entry with it. Not part of `==`.
+        public internal(set) var serial: UInt64 = 0
+
+        public static func == (lhs: Entry, rhs: Entry) -> Bool {
+            lhs.forward == rhs.forward && lhs.inverse == rhs.inverse && lhs.coalescingKey == rhs.coalescingKey && lhs.name == rhs.name
+        }
     }
 
     public private(set) var undoEntries: [Entry] = []
@@ -32,7 +48,8 @@ public struct UndoStack: Sendable {
         if let key = coalescingKey, isCoalescingOpen, let last = undoEntries.last, last.coalescingKey == key {
             undoEntries[undoEntries.count - 1].forward = forward
         } else {
-            undoEntries.append(Entry(forward: forward, inverse: inverse, coalescingKey: coalescingKey, name: name))
+            undoEntries.append(Entry(forward: forward, inverse: inverse, coalescingKey: coalescingKey, name: name,
+                                     serial: Self.nextSerial()))
         }
         isCoalescingOpen = coalescingKey != nil
     }

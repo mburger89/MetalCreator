@@ -14,9 +14,9 @@ import Foundation
 
     public let document: DocumentModel
     private let initialContent: GraphContent
-    /// The undo steps this client made and the ones it took back, so it never touches the person's.
-    private var clientUndo: [UndoStack.Entry] = []
-    private var clientRedo: [UndoStack.Entry] = []
+    /// The serials of the undo steps this client made, so it never takes back or re-applies the person's.
+    private var clientSteps: Set<UInt64> = []
+    private var clientUndone: Set<UInt64> = []
 
     public init(document: DocumentModel) {
         self.document = document
@@ -41,8 +41,7 @@ import Foundation
     public func perform(_ command: GraphCommand, name: String) throws(GraphError) {
         try document.perform(command, coalescingKey: nil, name: name)
         document.endCoalescing()
-        if let top = document.topUndoEntry { clientUndo.append(top) }
-        clientRedo.removeAll()
+        if let top = document.topUndoEntry { clientSteps.insert(top.serial) }
     }
 
     public func freePosition(for node: Node, in graph: Graph) -> Vector2 {
@@ -71,20 +70,18 @@ import Foundation
     public func undoClientStep() -> SessionOutcome {
         if let refusal = editRefusal() { return .refused(refusal) }
         guard let top = document.topUndoEntry, let name = document.undoName else { return .refused("There's nothing to undo.") }
-        guard top == clientUndo.last else { return .refused("The last step is yours, not mine: Undo \(name).") }
+        guard clientSteps.contains(top.serial) else { return .refused("The last step is yours, not mine: Undo \(name).") }
         document.undo()
-        clientUndo.removeLast()
-        clientRedo.append(top)
+        clientUndone.insert(top.serial)
         return .done(name)
     }
 
     public func redoClientStep() -> SessionOutcome {
         if let refusal = editRefusal() { return .refused(refusal) }
         guard let top = document.topRedoEntry, let name = document.redoName else { return .refused("There's nothing to redo.") }
-        guard top == clientRedo.last else { return .refused("The next step to redo is yours: Redo \(name).") }
+        guard clientUndone.contains(top.serial) else { return .refused("The next step to redo is yours: Redo \(name).") }
         document.redo()
-        clientRedo.removeLast()
-        clientUndo.append(top)
+        clientUndone.remove(top.serial)
         return .done(name)
     }
 

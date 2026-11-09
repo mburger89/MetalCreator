@@ -56,15 +56,32 @@ import Testing
         #expect(isError && text.string == "The next step to redo is yours: Redo Add Box.")
     }
 
-    @Test func textSettingsSetThroughSetInputs() async throws {
+    @Test func undoRefusesAPersonsIdenticalRepeat() async throws {
         let fixture = try await SessionFixture()
-        _ = try await fixture.call("add_node", .object(["type": .string("creator.pathMapper"), "name": .string("Mapper")]))
-        let (_, isError) = try await fixture.call("set_inputs", .object([
-            "node": .string("Mapper"), "values": .object(["pathRule": .string("{a;b}->{b;a}")]),
-        ]))
-        #expect(!isError)
-        let mapper = try #require(fixture.document.graph.nodes.values.first { $0.name == "Mapper" })
-        #expect(mapper.inputValues["pathRule"] == .text("{a;b}->{b;a}"))
+        _ = try await fixture.call("set_inputs", .object(["node": .string("Extrude"), "values": .object(["distance": .int(5)])]))
+        fixture.document.undo()
+        try fixture.document.perform(.setInput(fixture.extrude, "distance", .number(5)), name: "Change Distance")
+        let (text, isError) = try await fixture.call("undo")
+        #expect(isError && text.string == "The last step is yours, not mine: Undo Change Distance.")
+    }
+
+    @Test func redoRefusesAPersonsIdenticalStep() async throws {
+        let fixture = try await SessionFixture()
+        _ = try await fixture.call("set_inputs", .object(["node": .string("Extrude"), "values": .object(["distance": .int(5)])]))
+        _ = try await fixture.call("undo")
+        try fixture.document.perform(.setInput(fixture.extrude, "distance", .number(5)), name: "Change Distance")
+        fixture.document.undo()
+        let (text, isError) = try await fixture.call("redo")
+        #expect(isError && text.string == "The next step to redo is yours: Redo Change Distance.")
+    }
+
+    @Test func redoWithNothingToRedoAfterANewStep() async throws {
+        let fixture = try await SessionFixture()
+        _ = try await addBox(fixture)
+        _ = try await fixture.call("undo")
+        try fixture.document.perform(.move(fixture.rectangle, to: Vector2(9, 9)), name: UndoName.move)
+        let (text, isError) = try await fixture.call("redo")
+        #expect(isError && text.string == "There's nothing to redo.")
     }
 
     @Test func relativePathIsRefused() async throws {
