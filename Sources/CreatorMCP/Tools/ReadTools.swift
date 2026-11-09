@@ -143,7 +143,7 @@ import Foundation
         return summaries
     }
 
-    private static func stateText(_ state: NodeState?) -> (String, String?) {
+    static func stateText(_ state: NodeState?) -> (String, String?) {
         switch state {
         case .none: ("idle", nil)
         case .idle(let reason): ("idle", reason)

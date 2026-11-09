@@ -114,4 +114,10 @@ struct UndoNameTests {
         instance.name = "My own name"
         #expect(UndoName.addNode(instance) == "Add Group", "a group node's name is the person's, so it is not used")
     }
+
+    @Test func newUndoNamesHaveNoNumbers() {
+        let names = [UndoName.changeInputs, UndoName.renameNode, UndoName.setOutput]
+        #expect(names == ["Change Inputs", "Rename Node", "Set Output"])
+        #expect(names.allSatisfy { !$0.contains(where: \.isNumber) })
+    }
 }
