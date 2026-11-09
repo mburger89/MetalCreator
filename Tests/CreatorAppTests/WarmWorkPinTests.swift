@@ -65,7 +65,9 @@ struct WarmWorkPinTests {
     /// The measured element requests of a warm zoom of the 50-node graph are a median 192 and a max 962 (scripts/bench.sh,
     /// the 2026-10-21 C14-i run, identical across two runs; 1,857 / 2,879 before MetalUI C14-i, which stopped refusing an
     /// affine change of the render effect above an `.equatable()` occurrence). The bound is the median plus 15%.
-    static let zoomElementRequestBound = 220
+    /// Raised from 220 to 235 (2026-11-08): the top bar's Undo, Redo and Measure carry a pointer backdrop (`absorbsPointer`), about
+    /// 3 requests each, which took the median from 217 to 226.
+    static let zoomElementRequestBound = 235
 
     @Test func aSteadyWarmZoomOfFiftyNodesGraftsAndNeverRedoes() async throws {
         let app = await makeApp(FiftyNodeGraph.make())
