@@ -86,7 +86,7 @@ extension AppModel {
     }
 
     /// The bytes of the file at `url` once they pass the image limits, else a sentence naming the file.
-    private func checkedBytes(of url: URL) throws -> Data {
+    func checkedBytes(of url: URL) throws -> Data {
         do {
             let bytes = try ImageResolver.bytes(ofFileAt: url)
             _ = try GreyImageDecoder.inspect(bytes)
@@ -96,7 +96,7 @@ extension AppModel {
         }
     }
 
-    private func setImage(_ reference: ImageReference, on target: FileActionTarget, named name: String) throws {
+    func setImage(_ reference: ImageReference, on target: FileActionTarget, named name: String) throws {
         do {
             try document.perform(.setInput(target.node, NodeSetting.image, .image(reference)), at: target.path, name: name)
         } catch {

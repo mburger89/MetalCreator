@@ -125,6 +125,12 @@ public enum AppLayout {
         return ViewportInsets(top: 0, leading: 0, bottom: badge.bottom + chipRowHeight + 8, trailing: badge.trailing)
     }
 
+    /// The "AI connected" chip's room: one chip row above the slow-evaluation chip's, so the three never overlap.
+    static func aiConnectedInsets(dock: DockSide, panelWidth: Double, panelHeight: Double) -> ViewportInsets {
+        let slow = slowEvaluationInsets(dock: dock, panelWidth: panelWidth, panelHeight: panelHeight)
+        return ViewportInsets(top: 0, leading: 0, bottom: slow.bottom + chipRowHeight + 8, trailing: slow.trailing)
+    }
+
     /// The height reserved for one chip (padding and a line of caption text, with room to spare).
     static let chipRowHeight = 40.0
 

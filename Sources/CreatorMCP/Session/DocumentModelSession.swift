@@ -18,6 +18,12 @@ import Foundation
     private var clientSteps: Set<UInt64> = []
     private var clientUndone: Set<UInt64> = []
 
+    /// Hooks for a session that wraps this one (the app's): the rule about when an edit may run, and what to do around a step
+    /// so the serial tracking stays here.
+    public var refusal: (@MainActor () -> String?)?
+    public var willPerform: (@MainActor () -> Void)?
+    public var didChange: (@MainActor () -> Void)?
+
     public init(document: DocumentModel) {
         self.document = document
         initialContent = document.content
@@ -36,12 +42,24 @@ import Foundation
         return value.fieldSummary(limit: 80) ?? value.implicitSummary(limit: 80) ?? ValueSummary.describe(value)
     }
 
-    public func editRefusal() -> String? { nil }
+    public func editRefusal() -> String? { refusal?() }
 
     public func perform(_ command: GraphCommand, name: String) throws(GraphError) {
+        willPerform?()
+        defer { didChange?() }
         try document.perform(command, coalescingKey: nil, name: name)
         document.endCoalescing()
         if let top = document.topUndoEntry { clientSteps.insert(top.serial) }
+    }
+
+    /// Runs `body`, which makes one undo step of its own (the app's file settings), and counts that step as this client's.
+    public func performExternal<E: Error>(_ body: () throws(E) -> Void) throws(E) {
+        willPerform?()
+        defer { didChange?() }
+        let before = document.topUndoEntry?.serial
+        try body()
+        document.endCoalescing()
+        if let top = document.topUndoEntry, top.serial != before { clientSteps.insert(top.serial) }
     }
 
     public func freePosition(for node: Node, in graph: Graph) -> Vector2 {
@@ -69,18 +87,22 @@ import Foundation
 
     public func undoClientStep() -> SessionOutcome {
         if let refusal = editRefusal() { return .refused(refusal) }
+        willPerform?()
         guard let top = document.topUndoEntry, let name = document.undoName else { return .refused("There's nothing to undo.") }
         guard clientSteps.contains(top.serial) else { return .refused("The last step is yours, not mine: Undo \(name).") }
         document.undo()
+        didChange?()
         clientUndone.insert(top.serial)
         return .done(name)
     }
 
     public func redoClientStep() -> SessionOutcome {
         if let refusal = editRefusal() { return .refused(refusal) }
+        willPerform?()
         guard let top = document.topRedoEntry, let name = document.redoName else { return .refused("There's nothing to redo.") }
         guard clientUndone.contains(top.serial) else { return .refused("The next step to redo is yours: Redo \(name).") }
         document.redo()
+        didChange?()
         clientUndone.remove(top.serial)
         return .done(name)
     }

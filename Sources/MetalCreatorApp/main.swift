@@ -51,7 +51,7 @@ func makeKernel() -> any Kernel {
 /// exits when the smoke's time is up, with the verdict.
 /// `app.run()` is called from synchronous top-level code, as MetalUI requires.
 @MainActor
-func runApp(opening paths: [String], smoke: LaunchSmoke? = nil) throws {
+func runApp(opening paths: [String], mcp: Bool = false, smoke: LaunchSmoke? = nil) throws {
     let app = try makeApp(offscreen: smoke != nil,
                           forwarding: LaunchCommand.forwardedDocuments(paths: paths) { FileManager.default.fileExists(atPath: $0) })
     app.preferredColorScheme = .dark
@@ -61,6 +61,9 @@ func runApp(opening paths: [String], smoke: LaunchSmoke? = nil) throws {
     smoke?.viewport = { LaunchSmoke.ViewportReport(frames: model.viewport.drawnFrames, failure: model.viewport.gpuFailureMessage) }
     let themeEditor = ThemeEditorModel(themes: model.themes)
     let input = AppInput(model: model)
+    // AI connections (MCP-1): only a normal launch. The smoke test and the headless commands never get here with a service.
+    let mcpService = smoke == nil ? MCPService(model: model, preference: UserDefaultsMCPPreference(), launchFlag: mcp) : nil
+    model.mcp = mcpService
     AppCommands.install(on: app, model: model, themeEditor: themeEditor)
     let window = try app.openWindow(title: "MetalCreator", size: Size(width: Pixels(1440), height: Pixels(900)),
                                     minSize: Size(width: Pixels(1000), height: Pixels(640)),
@@ -97,6 +100,8 @@ func runApp(opening paths: [String], smoke: LaunchSmoke? = nil) throws {
             exit(smoke.passed ? 0 : 1)
         }
     }
+    // Started once the window is open: a listener that fails or finds the socket taken says so in the menu, not at launch.
+    mcpService?.start()
     app.run()
 }
 
@@ -127,9 +132,9 @@ func fail(_ action: String, _ error: any Error) -> Never {
 }
 
 switch LaunchCommand(arguments: Array(CommandLine.arguments.dropFirst())) {
-case .run(let paths):
+case .run(let paths, let mcp):
     do {
-        try runApp(opening: paths)
+        try runApp(opening: paths, mcp: mcp)
     } catch {
         fail("MetalCreator couldn't start", error)
     }

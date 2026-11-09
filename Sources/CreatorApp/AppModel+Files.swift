@@ -20,7 +20,7 @@ extension AppModel {
 
     /// Replaces the document with an empty one in the last unit chosen. The unit is part of what the new document is
     /// saved as (`savedContent` is taken from the file), so a new document is not an edit.
-    private func startNewDocument() {
+    func startNewDocument() {
         load(Self.emptyFile(in: unitPreference.lastLength), from: nil)
     }
 

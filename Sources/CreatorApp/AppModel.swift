@@ -52,6 +52,8 @@ public final class AppModel {
         didSet { if pick != nil { endMeasure() } }
     }
     /// The Measure tool in progress, or `nil`. It is the viewport's tool while it runs.
+    /// The AI connection service the shell started, if any: the chip reads it.
+    public var mcp: MCPService?
     var measure: MeasureSession?
     /// The measurements the person kept (`document.measurements`), followed through every evaluation. Replaced with the document.
     private(set) var measureBook: MeasureBook
