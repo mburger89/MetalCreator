@@ -1,8 +1,5 @@
 import Foundation
 
-/// The document the server drives. Grown by later tasks; the protocol core needs nothing from it.
-@MainActor public protocol DocumentSession: AnyObject {}
-
 public enum MCPProtocol {
     /// Newest first: a client that offers none of these is answered with the first.
     public static let supportedVersions = ["2025-06-18", "2025-03-26"]

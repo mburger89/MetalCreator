@@ -1,9 +1,13 @@
 import Foundation
 import Synchronization
+import CreatorGraph
+import CreatorKernel
 import Testing
 @testable import CreatorMCP
 
-@MainActor final class StubSession: DocumentSession {}
+@MainActor func stubSession() -> DocumentModelSession {
+    DocumentModelSession(document: DocumentModel(registry: NodeRegistry([]), kernel: FakeKernel()))
+}
 
 final class Sent: Sendable {
     private let lines = Mutex<[Data]>([])
@@ -28,7 +32,7 @@ final class Sent: Sendable {
     }
 
     func call(_ request: String) async throws -> [JSONValue] {
-        let core = MCPServerCore(session: StubSession(), tools: tools(), resources: resources(), serverVersion: "1.2.3")
+        let core = MCPServerCore(session: stubSession(), tools: tools(), resources: resources(), serverVersion: "1.2.3")
         let sent = Sent()
         await core.handle(line: Data(request.utf8)) { sent.add($0) }
         return try sent.all.map { line in
@@ -38,7 +42,7 @@ final class Sent: Sendable {
     }
 
     func callBytes(_ bytes: [UInt8]) async throws -> [JSONValue] {
-        let core = MCPServerCore(session: StubSession(), tools: tools(), resources: resources(), serverVersion: "1.2.3")
+        let core = MCPServerCore(session: stubSession(), tools: tools(), resources: resources(), serverVersion: "1.2.3")
         let sent = Sent()
         await core.handle(line: Data(bytes)) { sent.add($0) }
         return try sent.all.map { try JSONValue.parse($0) }
@@ -137,7 +141,7 @@ final class Sent: Sendable {
             context.progress?(1, 2, "half")
             return .ok(.null)
         }
-        let core = MCPServerCore(session: StubSession(), tools: [progressTool], resources: [], serverVersion: "1")
+        let core = MCPServerCore(session: stubSession(), tools: [progressTool], resources: [], serverVersion: "1")
         let sent = Sent()
         let request = #"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"slow","_meta":{"progressToken":"t"}}}"#
         await core.handle(line: Data(request.utf8)) { sent.add($0) }
