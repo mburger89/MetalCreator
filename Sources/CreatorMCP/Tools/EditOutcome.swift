@@ -36,6 +36,7 @@ import Foundation
         if let refusal = session.editRefusal() { return .refused(refusal) }
         guard !commands.isEmpty else { return .refused("There is nothing to change.") }
         let before = snapshot(session)
+        // The planners already applied these to a scratch graph and caught every refusal, so a failure here has no "Operation N" prefix.
         do {
             try session.perform(commands.count == 1 ? commands[0] : .batch(commands), name: name)
         } catch {
@@ -46,16 +47,18 @@ import Foundation
         let graph = session.content.graph
         let order = graph.nodes.values.sorted { $0.id.rawValue.uuidString < $1.id.rawValue.uuidString }
         var changed: [JSONValue] = []
-        var added: [JSONValue] = []
         for node in order {
             let isNew = before[node.id] == nil
-            if isNew { added.append(.string(node.id.rawValue.uuidString)) }
             guard let now = after[node.id], isNew || before[node.id] != now else { continue }
             var fields: [String: JSONValue] = [
                 "id": .string(node.id.rawValue.uuidString), "name": .string(node.name), "state": .string(now.state),
             ]
             if let text = now.message { fields["message"] = .string(text) }
             changed.append(.object(fields))
+        }
+        let added = commands.compactMap { command -> JSONValue? in
+            guard case .addNode(let node) = command, graph.nodes[node.id] != nil else { return nil }
+            return .string(node.id.rawValue.uuidString)
         }
         var result: [String: JSONValue] = [
             "step": .string(name), "changed": .array(changed), "still_evaluating": .bool(!settled),

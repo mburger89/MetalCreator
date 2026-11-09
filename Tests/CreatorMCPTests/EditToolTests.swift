@@ -43,6 +43,7 @@ import Testing
         #expect(!isError)
         let pad = try #require(fixture.document.graph.nodes.values.first { $0.name == "Pad" })
         #expect(pad.inputValues["distance"] == .number(30) && pad.position == Vector2(5, 6))
+        #expect(fixture.document.undoName == "Add Extrude")
         fixture.document.undo()
         #expect(!fixture.document.graph.nodes.values.contains { $0.name == "Pad" })
     }
@@ -163,6 +164,18 @@ import Testing
             "operations": .array([.object(["tool": .string("get_document")])]),
         ]))
         #expect(notAllowed && (other.string ?? "").hasPrefix("Operation 1:"))
+    }
+
+    @Test func positionlessAddsInABatchDoNotOverlap() async throws {
+        let fixture = try await SessionFixture()
+        let add = operation("add_node", ["type": .string("creator.rectangle")])
+        let (result, isError) = try await fixture.call("batch", .object(["operations": .array([add, add])]))
+        #expect(!isError)
+        let ids = try #require(result["added"]?.array).compactMap(\.string)
+        let positions = fixture.document.graph.nodes.values.filter { ids.contains($0.id.rawValue.uuidString) }.map(\.position)
+        #expect(positions.count == 2)
+        let first = positions[0], second = positions[1]
+        #expect(abs(first.x - second.x) >= 224 || abs(first.y - second.y) >= 1)
     }
 
     @Test func clientEditsNeverCoalesce() async throws {

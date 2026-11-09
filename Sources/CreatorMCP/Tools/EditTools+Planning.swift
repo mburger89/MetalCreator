@@ -89,7 +89,7 @@ extension EditTools {
                   x.isFinite, y.isFinite else { return .failure(Refusal("The position needs two numbers, like [0, 0].")) }
             node.position = Vector2(x, y)
         } else {
-            node.position = session.freePosition(for: node)
+            node.position = session.freePosition(for: node, in: graph)
         }
         let undo = UndoName.addNode(node)
         var commands: [GraphCommand] = [.addNode(node)]

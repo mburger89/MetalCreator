@@ -27,7 +27,8 @@ public enum SessionOutcome: Sendable, Equatable {
     /// Applies the step a client made: one undo step, named `name`, never coalesced.
     func perform(_ command: GraphCommand, name: String) throws(GraphError)
     /// Where a new node goes on the canvas.
-    func freePosition(for node: Node) -> Vector2
+    /// `graph` is the graph to keep clear of (a batch passes its scratch copy, which holds the nodes it has added so far).
+    func freePosition(for node: Node, in graph: Graph) -> Vector2
     /// Waits for the evaluation; false when `limit` passed first.
     func settle(within limit: Duration) async -> Bool
     func undoClientStep() -> SessionOutcome

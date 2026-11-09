@@ -40,8 +40,8 @@ import Foundation
         document.endCoalescing()
     }
 
-    public func freePosition(for node: Node) -> Vector2 {
-        let nodes = document.graph.nodes.values
+    public func freePosition(for node: Node, in graph: Graph) -> Vector2 {
+        let nodes = graph.nodes.values
         guard let rightmost = nodes.map(\.position.x).max(), let top = nodes.map(\.position.y).min() else { return .zero }
         return Vector2(rightmost + Self.nodeWidth + Self.nodeGap, top)
     }
