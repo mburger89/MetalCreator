@@ -85,6 +85,8 @@ var targets: [Target] = [
     .target(name: "CreatorStyle", dependencies: [metalUI]),
     // The MCP server's portable core (spec 2026-11-08): JSON, JSON-RPC and the tools an AI client drives the app with.
     .target(name: "CreatorMCP", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
+    // The stdio bridge an AI client launches (MCP-1): small, and `CreatorMCP` is all it needs.
+    .executableTarget(name: "MetalCreatorMCPBridge", dependencies: ["CreatorMCP"], path: "Sources/metalcreator-mcp"),
     // The viewport's model, camera and tools are portable; its Metal renderer is gated with `#if canImport(Metal)`.
     // MetalUIPortableText and MetalUISystemFonts only for the view cube's face names off macOS (`CubeLabelFonts`), named on every
     // platform for the reason above (SG-D).
@@ -223,6 +225,7 @@ targets += [
 let package = Package(
     name: "MetalCreator",
     platforms: [.macOS(.v26)],
+    products: [.executable(name: "metalcreator-mcp", targets: ["MetalCreatorMCPBridge"])],
     dependencies: [
         .package(path: "../MetalUI", traits: metalUITraits),
     ],
