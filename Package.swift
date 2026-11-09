@@ -83,6 +83,8 @@ var targets: [Target] = [
     // Colour themes (spec §6.6, Dracula by default): the roles, the built-in themes and the `ThemeStore` that
     // the editor's views and the viewport's GPU colours read.
     .target(name: "CreatorStyle", dependencies: [metalUI]),
+    // The MCP server's portable core (spec 2026-11-08): JSON, JSON-RPC and the tools an AI client drives the app with.
+    .target(name: "CreatorMCP", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
     // The viewport's model, camera and tools are portable; its Metal renderer is gated with `#if canImport(Metal)`.
     // MetalUIPortableText and MetalUISystemFonts only for the view cube's face names off macOS (`CubeLabelFonts`), named on every
     // platform for the reason above (SG-D).
@@ -134,6 +136,7 @@ var targets: [Target] = [
         ]
     ),
     .testTarget(name: "CreatorStyleTests", dependencies: ["CreatorStyle", metalUI]),
+    .testTarget(name: "CreatorMCPTests", dependencies: ["CreatorMCP", "CreatorNodes", "CreatorKernel"]),
     .testTarget(
         name: "CreatorSketchEditorTests",
         dependencies: [

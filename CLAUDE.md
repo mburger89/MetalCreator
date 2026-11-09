@@ -178,7 +178,7 @@ count, never from macOS's; render tests take their text system from `testTextSys
 `Support/TestTextSystem.swift`; picture fixtures come from `TestImages` (ImageIO on macOS, `PNGWriter` elsewhere; JPEG, GIF and
 TIFF fixtures need ImageIO, so those tests are `#if canImport(CoreGraphics)`, and `GreyImageDecoderPinnedTests` carries JPEGs as
 bytes for every platform) and `AppTestImages` (plain Swift). Pass
-rules: macOS, Linux and Windows, exit 0 and 12 "Test run with" lines (`CreatorOCCTTests` joined Linux and Windows in xp-2;
+rules: macOS, Linux and Windows, exit 0 and 13 "Test run with" lines (`CreatorOCCTTests` joined Linux and Windows in xp-2;
 `CreatorImplicitTests` joined in 7c; a shim, kernel or test that needs OpenCascade is no longer gated by `canImport(CreatorOCCT)`
 alone: one that also needs Metal says `canImport(Metal) && canImport(CreatorOCCT)`), and none may print "recorded an issue" or "failed after".
 
@@ -836,7 +836,7 @@ camera reaches `ViewState` only through `cameraSettled`/`homeChanged`, never per
 ```sh
 swift build                                  # build the library
 swift build -c release
-swift test                                   # run all tests (twelve test targets: twelve "Test run with" lines)
+swift test                                   # run all tests (thirteen test targets: thirteen "Test run with" lines)
 swift test --filter CreatorGraphTests        # one test target (also CreatorOCCTTests, CreatorGeometryTests, CreatorKernelTests, CreatorViewportTests)
 swift test --filter CreatorOCCTTests         # kernel conformance + naming stability (needs OCCT)
 swift test --filter 'CreatorGraphTests.EvaluatorTests/wiredValuesFlowDownstream'   # one test
@@ -857,7 +857,7 @@ scripts/verify-app.sh [path.app]           # re-check a packaged app: signature,
 swift run MetalCreatorApp --self-test      # the same headless checks, unpackaged
 scripts/bench.sh [suite]                   # spec §7.3 benchmarks, release build; numbers go in docs/verification/performance.md
 scripts/bench.sh PatternBench              # patterns spec §7: 200 holes in a plate, edit-to-preview (idle Mac only)
-scripts/linux-test.sh [build|test|smoke|package|all|clean]   # the suite on Linux in Docker (OrbStack): swift build, swift test (12 "Test run with" lines), --self-test, --smoke-test 20
+scripts/linux-test.sh [build|test|smoke|package|all|clean]   # the suite on Linux in Docker (OrbStack): swift build, swift test (13 "Test run with" lines), --self-test, --smoke-test 20
 scripts/linux-test.sh test --filter CreatorOCCTTests   # one target on Linux (no count rule); XP_TRACK=xp-2 IMAGE=metalcreator-linux:xp-2 keep a track's volume and image apart
 scripts/linux-test.sh kernels              # Linux: compile the generated implicit kernels offline into .build/generated-kernels (xp-c)
 scripts/linux-test.sh package              # the tarball and the AppImage in dist/, each run in a clean ubuntu:24.04 (docs/packaging.md)

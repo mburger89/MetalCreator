@@ -141,7 +141,7 @@ jobs:
       SDL_VERSION: 3.4.16
       # sha256 of SDL3-devel-3.4.16-VC.zip (computed by downloading the release asset once); bump it with SDL_VERSION.
       SDL_SHA256: 1a784cb2a5c64d56fe7a62090fe9d242d9865f235e4ea9678f1a6ba4e693e7de
-      EXPECTED_TEST_RUNS: 12
+      EXPECTED_TEST_RUNS: 13
       # The viewport's SDL_GPU suites run on Direct3D 12's WARP (a CPU adapter) here; a runner without a device fails instead of
       # skipping (SDLGPUAvailabilityTests, xp-3).
       XP_REQUIRE_GPU: 1
