@@ -1513,4 +1513,5 @@ while the app runs, pipelines cached by source.
   `AppLayout.titleBarControlsLeading` (27); `titleBarInsets.top` then reads 68 and `.left` 87 (the zoom button's right edge), so `topBarClearance` still clears the lights and the bar
   stays at the 12-point margin with the lights inside its glass. Only macOS changes; SDL keeps its drawn controls. Accepted caveats: full screen keeps the system layout (insets
   zero), and the metrics depend on AppKit's private title-bar view nesting. Human check AS-a on screen.
+  MetalUI PR #250 (c4cbbc08, ruling AS-S): a disabled control in the title band no longer drags the window, matching macOS (the user's decision, 2026-11-08).
 
