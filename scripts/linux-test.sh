@@ -21,7 +21,7 @@
 # rerun is incremental.
 #
 # Pass rule for `test` (spec 2.5): exit 0, no "recorded an issue" or "failed after" line, and EXPECTED_TEST_RUNS lines
-# "Test run with" (one per test target that has tests: twelve on Linux, Windows and macOS since xp-2 put CreatorOCCTTests on
+# "Test run with" (one per test target that has tests: thirteen on Linux, Windows and macOS since xp-2 put CreatorOCCTTests on
 # every platform).
 #
 # The image draws on Mesa's lavapipe, a CPU Vulkan driver, so the SDL_GPU viewport renders here with no GPU in the machine. Every
