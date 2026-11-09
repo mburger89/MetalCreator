@@ -34,6 +34,13 @@ struct PackagingScriptTests {
         #expect(verifier.contains("MetalUI/MetalUI-LICENSE.txt"))
     }
 
+    /// The MCP bridge (`metalcreator-mcp`) ships beside the app's executable in every package, and the macOS verifier runs it.
+    @Test(arguments: ["scripts/package-app.sh", "scripts/package-linux.sh", "scripts/package-windows.ps1", "scripts/verify-app.sh"])
+    func thePackageShipsTheMCPBridge(_ name: String) throws {
+        let text = try String(contentsOf: Self.repository.appending(path: name), encoding: .utf8)
+        #expect(text.contains("metalcreator-mcp"), "\(name) must name metalcreator-mcp")
+    }
+
     /// `<repo>`, found from this file (`Tests/CreatorAppTests/PackagingScriptTests.swift`).
     private static let repository = URL(filePath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
