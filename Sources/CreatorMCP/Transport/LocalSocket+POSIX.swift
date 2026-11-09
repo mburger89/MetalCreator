@@ -31,13 +31,13 @@ public final class LocalSocket: Sendable {
     /// Refuses a path that doesn't fit `sun_path`, before any descriptor exists to leak.
     private static func checkLength(of url: URL) throws(SocketProblem) {
         let capacity = MemoryLayout.size(ofValue: sockaddr_un().sun_path)
-        guard url.path.utf8.count < capacity else { throw SocketProblem.pathTooLong }
+        guard LocalSocket.fileSystemPath(url).utf8.count < capacity else { throw SocketProblem.pathTooLong }
     }
 
     /// Calls `body` with the address of `url`'s path, refusing a path that doesn't fit `sun_path`.
     private static func withAddress<T>(_ url: URL, _ body: (UnsafePointer<sockaddr>, socklen_t) -> T) throws(SocketProblem) -> T {
         var address = sockaddr_un()
-        let path = Array(url.path.utf8)
+        let path = Array(LocalSocket.fileSystemPath(url).utf8)
         let capacity = MemoryLayout.size(ofValue: address.sun_path)
         guard path.count < capacity else { throw SocketProblem.pathTooLong }
         address.sun_family = sa_family_t(AF_UNIX)
@@ -58,24 +58,24 @@ public final class LocalSocket: Sendable {
     public static func listen(at url: URL) throws(SocketProblem) -> LocalSocket {
         try checkLength(of: url)
         let fd = try makeSocket()
-        let previousMask = umask(0o177)
+        // No umask change: it is process-wide. The folder is 0700 (`SocketPath.prepareFolder`), so the file is out of reach
+        // until the `chmod` below makes it private as well.
         let bound = try withAddress(url) { bind(fd, $0, $1) }
         let bindError = errno
-        umask(previousMask)
         guard bound == 0 else {
             systemClose(fd)
             throw SocketProblem.failed("listen at \(url.path)", bindError)
         }
-        guard chmod(url.path, 0o600) == 0 else {
+        guard chmod(fileSystemPath(url), 0o600) == 0 else {
             let code = errno
             systemClose(fd)
-            unlink(url.path)
+            unlink(fileSystemPath(url))
             throw SocketProblem.failed("make the socket private", code)
         }
         guard systemListen(fd, 8) == 0 else {
             let code = errno
             systemClose(fd)
-            unlink(url.path)
+            unlink(fileSystemPath(url))
             throw SocketProblem.failed("listen", code)
         }
         return LocalSocket(fd)
@@ -91,6 +91,52 @@ public final class LocalSocket: Sendable {
             throw SocketProblem.failed("connect", code)
         }
         return LocalSocket(fd)
+    }
+
+    /// Like `connect(to:)`, but never blocks longer than `timeoutMilliseconds`: a full listen queue (Linux answers a
+    /// non-blocking connect to one with EAGAIN) or a connect that doesn't finish throws a problem with `isBusy` set.
+    public static func connect(to url: URL, timeoutMilliseconds: Int32) throws(SocketProblem) -> LocalSocket {
+        try checkLength(of: url)
+        let fd = try makeSocket()
+        let flags = fcntl(fd, F_GETFL)
+        _ = fcntl(fd, F_SETFL, flags | O_NONBLOCK)
+        let connected = try withAddress(url) { systemConnect(fd, $0, $1) }
+        if connected != 0 {
+            var code = errno
+            if code == EINPROGRESS {
+                var item = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+                let ready = poll(&item, 1, timeoutMilliseconds)
+                if ready == 0 {
+                    code = ETIMEDOUT
+                } else if ready < 0 {
+                    code = errno
+                } else {
+                    var pending: Int32 = 0
+                    var size = socklen_t(MemoryLayout<Int32>.size)
+                    _ = getsockopt(fd, SOL_SOCKET, SO_ERROR, &pending, &size)
+                    code = pending
+                }
+            }
+            if code != 0 {
+                systemClose(fd)
+                throw SocketProblem.failed("connect", code)
+            }
+        }
+        _ = fcntl(fd, F_SETFL, flags)
+        return LocalSocket(fd)
+    }
+
+    /// Removes a file (a stale socket); a missing one is fine, any other failure is thrown, so it is never swallowed.
+    public static func removeFile(at url: URL) throws(SocketProblem) {
+        let path = fileSystemPath(url)
+        guard unlink(path) != 0, errno != ENOENT else { return }
+        throw SocketProblem.failed("remove the old socket file", errno)
+    }
+
+    /// Makes a write give up when the other end stops reading for `milliseconds` (the write then fails with EAGAIN).
+    public func setSendTimeout(milliseconds: Int) {
+        var value = timeval(tv_sec: milliseconds / 1_000, tv_usec: Int32((milliseconds % 1_000) * 1_000))
+        _ = setsockopt(descriptor, SOL_SOCKET, SO_SNDTIMEO, &value, socklen_t(MemoryLayout<timeval>.size))
     }
 
     /// Whether a read (or, for a listening socket, an accept) would not block, waiting up to `milliseconds`.

@@ -120,6 +120,58 @@ struct TransportTests {
         #expect(next.line() == "again")
     }
 
+    @Test func aClientThatNeverReadsIsDroppedAndTheHandlerIsNeverBlocked() throws {
+        let url = tempSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let flags = Flags()
+        let returned = Flags()
+        let big = Data(repeating: 0x61, count: 8 << 20) + Data("\n".utf8)
+        let listener = MCPListener(
+            path: url,
+            handle: { _, send in
+                send(big)  // only queues: it must return at once although nobody reads
+                returned.add(true)
+            },
+            connectionChanged: { flags.add($0) }, writeTimeoutMilliseconds: 300)
+        #expect(try listener.start() == .listening)
+        defer { listener.stop() }
+        let client = try Client(url)
+        #expect(client.send("go\n"))
+        #expect(returned.waitFor(true))
+        #expect(flags.waitFor(false), "the stalled connection is dropped")
+        var next = try Client(url)
+        #expect(next.send("x\n"))
+        #expect(next.line(timeout: 5) != nil, "the next client is served")
+    }
+
+    @Test func aBoundedConnectFindsALiveListenerAndRefusesAStaleFile() throws {
+        let url = tempSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        try SocketPath.prepareFolder(url)
+        let live = try LocalSocket.listen(at: url)
+        let probe = try LocalSocket.connect(to: url, timeoutMilliseconds: 200)
+        probe.close()
+        live.close()
+        do {
+            _ = try LocalSocket.connect(to: url, timeoutMilliseconds: 200)
+            Issue.record("a stale file accepted a connection")
+        } catch {
+            #expect(error.isRefused)
+        }
+    }
+
+    @Test func removingAStaleFileIsCheckedNotSwallowed() throws {
+        let url = tempSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        try SocketPath.prepareFolder(url)
+        try LocalSocket.removeFile(at: url)  // missing: fine
+        let dead = try LocalSocket.listen(at: url)
+        dead.close()
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        try LocalSocket.removeFile(at: url)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
+
     @Test func staleSocketIsReplaced() throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }

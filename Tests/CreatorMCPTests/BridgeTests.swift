@@ -15,13 +15,16 @@ private final class Lines: Sendable {
     private let items = Mutex<[String]>([])
     func add(_ line: String) { items.withLock { $0.append(line) } }
     var all: [String] { items.withLock { $0 } }
+    /// Polls by recursion, not a loop: a loop that keeps locals across an `await` crashes the Windows compiler.
     func wait(count: Int, timeout: TimeInterval = 5) async -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if all.count >= count { return true }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        return false
+        await wait(count: count, until: Date().addingTimeInterval(timeout))
+    }
+
+    private func wait(count: Int, until deadline: Date) async -> Bool {
+        if all.count >= count { return true }
+        guard Date() < deadline else { return false }
+        try? await Task.sleep(for: .milliseconds(10))
+        return await wait(count: count, until: deadline)
     }
 }
 
@@ -59,12 +62,14 @@ private final class Harness: Sendable {
 
     func finish() async -> Int32? {
         try? stdin.fileHandleForWriting.close()
-        let deadline = Date().addingTimeInterval(5)
-        while Date() < deadline {
-            if let code = exitCode.code { return code }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        return nil
+        return await waitForExit(until: Date().addingTimeInterval(5))
+    }
+
+    private func waitForExit(until deadline: Date) async -> Int32? {
+        if let code = exitCode.code { return code }
+        guard Date() < deadline else { return nil }
+        try? await Task.sleep(for: .milliseconds(10))
+        return await waitForExit(until: deadline)
     }
 
     func json(_ index: Int) throws -> JSONValue { try JSONValue.parse(Data(received.all[index].utf8)) }

@@ -41,7 +41,7 @@ public final class LocalSocket: Sendable {
 
     private static func withAddress<T>(_ url: URL, _ body: (UnsafePointer<sockaddr>, Int32) -> T) throws(SocketProblem) -> T {
         var address = UnixAddress()
-        let path = Array(url.path.utf8)
+        let path = Array(LocalSocket.fileSystemPath(url).utf8)
         let capacity = MemoryLayout.size(ofValue: address.path)
         guard path.count < capacity else { throw SocketProblem.pathTooLong }
         withUnsafeMutableBytes(of: &address.path) { bytes in
@@ -56,7 +56,7 @@ public final class LocalSocket: Sendable {
     /// Refuses a path that doesn't fit `sun_path`, before any handle exists to leak.
     private static func checkLength(of url: URL) throws(SocketProblem) {
         let capacity = MemoryLayout.size(ofValue: UnixAddress().path)
-        guard url.path.utf8.count < capacity else { throw SocketProblem.pathTooLong }
+        guard LocalSocket.fileSystemPath(url).utf8.count < capacity else { throw SocketProblem.pathTooLong }
     }
 
     public static func listen(at url: URL) throws(SocketProblem) -> LocalSocket {
@@ -85,6 +85,30 @@ public final class LocalSocket: Sendable {
             throw SocketProblem.failed("connect", code)
         }
         return LocalSocket(handle)
+    }
+
+    /// Windows has no non-blocking probe here: the plain connect (AF_UNIX connects don't wait on a full queue).
+    public static func connect(to url: URL, timeoutMilliseconds: Int32) throws(SocketProblem) -> LocalSocket {
+        try connect(to: url)
+    }
+
+    /// Removes a file (a stale socket) with `DeleteFileW`; a missing one is fine, any other failure is thrown.
+    public static func removeFile(at url: URL) throws(SocketProblem) {
+        let deleted = fileSystemPath(url).withCString(encodedAs: UTF16.self) { DeleteFileW($0) }
+        guard !deleted.boolValue else { return }
+        let code = Int32(GetLastError())
+        guard code != 2 && code != 3 else { return }  // ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND
+        throw SocketProblem.failed("remove the old socket file", code)
+    }
+
+    /// Makes a send give up when the other end stops reading for `milliseconds`.
+    public func setSendTimeout(milliseconds: Int) {
+        var value = DWORD(milliseconds)
+        _ = withUnsafePointer(to: &value) {
+            $0.withMemoryRebound(to: CChar.self, capacity: MemoryLayout<DWORD>.size) {
+                setsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, $0, Int32(MemoryLayout<DWORD>.size))
+            }
+        }
     }
 
     public func waitReadable(milliseconds: Int32) -> Bool {

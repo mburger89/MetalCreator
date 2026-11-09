@@ -1,3 +1,4 @@
+import CreatorNodes
 import Foundation
 import Synchronization
 import Testing
@@ -12,13 +13,23 @@ struct MCPServiceTests {
         URL(fileURLWithPath: "/tmp/mcpa-\(UInt32.random(in: 0...9_999_999))").appendingPathComponent("s.sock")
     }
 
-    private func waitUntil(_ condition: @MainActor () -> Bool) async -> Bool {
-        let deadline = Date().addingTimeInterval(30)
-        while Date() < deadline {
-            if condition() { return true }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        return condition()
+    /// Polls by recursion, not a loop: a loop that keeps locals across an `await` crashes the Windows compiler.
+    private func waitUntil(_ condition: @MainActor () -> Bool, until deadline: Date = Date().addingTimeInterval(30)) async -> Bool {
+        if condition() { return true }
+        guard Date() < deadline else { return false }
+        try? await Task.sleep(for: .milliseconds(10))
+        return await waitUntil(condition, until: deadline)
+    }
+
+    /// The fastest time the main actor took to answer a hop over the window (by recursion, as above). A blocked main actor
+    /// answers none until the stall ends; a busy test run can delay some hops, so it is the best one that counts.
+    private func fastestMainActorHop(until deadline: ContinuousClock.Instant, fastest: Duration = .seconds(3_600)) async -> Duration {
+        guard ContinuousClock.now < deadline else { return fastest }
+        let before = ContinuousClock.now
+        await Task { @MainActor in }.value
+        let took = ContinuousClock.now - before
+        try? await Task.sleep(for: .milliseconds(50))
+        return await fastestMainActorHop(until: deadline, fastest: min(fastest, took))
     }
 
     @Test func preferenceTurnsTheServerOn() async {
@@ -93,18 +104,74 @@ struct MCPServiceTests {
         let client = try LocalSocket.connect(to: url)
         defer { client.close() }
         #expect(client.write(Data("{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"ping\"}\n".utf8)))
+        // The read loop is one synchronous body: a loop that keeps locals across an `await` crashes the Windows compiler.
+        let reply = await Task.detached { MCPServiceTests.readLine(from: client, timeout: 30) }.value
+        #expect(reply?.contains("\"id\":7") == true)
+    }
+
+    /// The next line from `client`, `nil` after `timeout` seconds or at the end of the stream.
+    private nonisolated static func readLine(from client: LocalSocket, timeout: TimeInterval) -> String? {
         var reader = LineReader()
         var buffer = [UInt8](repeating: 0, count: 4096)
-        var reply: String?
-        let deadline = Date().addingTimeInterval(30)
-        while reply == nil, Date() < deadline {
-            if case .line(let data)? = reader.nextLine() { reply = String(bytes: data, encoding: .utf8); break }
-            guard await Task.detached(operation: { client.waitReadable(milliseconds: 20) }).value else { continue }
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if case .line(let data)? = reader.nextLine() { return String(bytes: data, encoding: .utf8) }
+            guard client.waitReadable(milliseconds: 20) else { continue }
             let count = client.read(into: &buffer)
-            if count <= 0 { break }
+            if count <= 0 { return nil }
             reader.append(buffer[0..<count])
         }
-        #expect(reply?.contains("\"id\":7") == true)
+        return nil
+    }
+
+    /// A client that asks for a large document and never reads must neither freeze the window nor hold the connection for ever.
+    @Test func aClientThatNeverReadsDoesNotFreezeTheMainActor() async throws {
+        var builder = GraphBuilder()
+        for _ in 0..<400 { builder.add(RectangleNode.self) }
+        let url = socketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let service = MCPService(model: await makeApp(builder.graph), preference: MemoryMCPPreference(allowsAIConnections: true),
+                                 path: url, writeTimeoutMilliseconds: 500)
+        service.start()
+        defer { service.stop() }
+        let client = try LocalSocket.connect(to: url)
+        defer { client.close() }
+        let request = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\","
+            + "\"params\":{\"name\":\"get_document\",\"arguments\":{}}}\n"
+        #expect(client.write(Data(request.utf8)))
+        #expect(await waitUntil { service.isClientConnected })
+        let fastest = await fastestMainActorHop(until: .now + .seconds(2))
+        #expect(fastest < .seconds(1), "the main actor answered within \(fastest)")
+        #expect(await waitUntil { !service.isClientConnected }, "the stalled connection is dropped")
+    }
+
+    @Test func aSecondWindowShowsInUseAndRetriesWhenChosen() async {
+        let url = socketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let first = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: url)
+        first.start()
+        let second = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: url)
+        defer { second.stop() }
+        #expect(second.menuTitle == "Allow AI Connections")
+        second.start()
+        #expect(second.state == .inUse && second.retries)
+        #expect(second.menuTitle == "AI Connections: in use by another window")
+        second.menuChosen(true)
+        #expect(second.state == .inUse, "still taken")
+        first.stop()
+        second.menuChosen(true)
+        #expect(second.state == .listening && !second.retries && second.menuTitle == "Allow AI Connections")
+    }
+
+    @Test func aListenerThatCouldNotStartSaysWhyAndRetries() async {
+        let long = URL(fileURLWithPath: "/tmp/mcpa-" + String(repeating: "a", count: 200)).appendingPathComponent("s.sock")
+        let service = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: long)
+        service.start()
+        #expect(service.state == .failed("The path for AI connections is too long."))
+        #expect(service.retries)
+        #expect(service.menuTitle == "AI Connections: couldn't start (The path for AI connections is too long.)")
+        service.menuChosen(true)
+        #expect(service.state == .failed("The path for AI connections is too long."), "the retry ran and failed again")
     }
 
     @Test func thePreferenceKeyAndDefaults() {

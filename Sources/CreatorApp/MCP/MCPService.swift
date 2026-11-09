@@ -24,13 +24,16 @@ public final class MCPService {
     @ObservationIgnored private let preference: any MCPPreference
     @ObservationIgnored private let launchFlag: Bool
     @ObservationIgnored private let path: URL
+    @ObservationIgnored private let writeTimeoutMilliseconds: Int
     @ObservationIgnored private var listener: MCPListener?
     /// Bumped by every start and stop, so a late callback of an older listener changes nothing.
     @ObservationIgnored private var generation = 0
     /// The number of the newest connection event applied for this listener.
     @ObservationIgnored private var lastEvent = 0
 
-    public init(model: AppModel, preference: any MCPPreference, launchFlag: Bool = false, path: URL = SocketPath.default()) {
+    public init(model: AppModel, preference: any MCPPreference, launchFlag: Bool = false, path: URL = SocketPath.default(),
+                writeTimeoutMilliseconds: Int = 10_000) {
+        self.writeTimeoutMilliseconds = writeTimeoutMilliseconds
         self.model = model
         self.preference = preference
         self.launchFlag = launchFlag
@@ -61,8 +64,13 @@ public final class MCPService {
         let made = MCPListener(
             path: path,
             handle: { line, send in
-                // `send` is valid until this returns, so the main actor's work is awaited inside it.
-                await Task { @MainActor in await core.handle(line: line, send: send) }.value
+                // The line is parsed here, on the listener's task, never on the main actor. `send` only queues bytes and is valid
+                // until this returns, so the main actor's work is awaited inside it.
+                switch MCPServerCore.parse(line: line) {
+                case .invalid(let response): send(response)
+                case .message(let message):
+                    await Task { @MainActor in await core.handle(message: message, send: send) }.value
+                }
             },
             connectionChanged: { [weak self] connected in
                 let number = events.next()
@@ -70,7 +78,8 @@ public final class MCPService {
             },
             failed: { [weak self] message in
                 Task { @MainActor in self?.listenerFailed(message, generation: mine) }
-            })
+            },
+            writeTimeoutMilliseconds: writeTimeoutMilliseconds)
         do {
             switch try made.start() {
             case .listening:
@@ -82,6 +91,32 @@ public final class MCPService {
             }
         } catch {
             state = .failed(error.message)
+        }
+    }
+
+    /// The menu item's title for the state: the switch itself, or why it can't be used right now (choosing it then asks again).
+    public var menuTitle: String {
+        switch state {
+        case .inUse: "AI Connections: in use by another window"
+        case .failed(let reason): "AI Connections: couldn't start (\(reason))"
+        case .off, .listening: "Allow AI Connections"
+        }
+    }
+
+    /// Whether choosing the menu item does something other than flip the switch: it probes again.
+    public var retries: Bool {
+        switch state {
+        case .inUse, .failed: true
+        case .off, .listening: false
+        }
+    }
+
+    /// The menu's choice: a retry after `.inUse` or `.failed`, else the switch.
+    public func menuChosen(_ on: Bool) {
+        if retries {
+            start()
+        } else {
+            setOn(on)
         }
     }
 

@@ -10,7 +10,8 @@ public final class MCPListener: Sendable {
         case inUse
     }
 
-    /// Answers one request line. The `send` closure writes a response line and is valid only until the handler returns.
+    /// Answers one request line. The `send` closure only queues a response line (the listener's thread writes it, so a client that
+    /// stops reading never blocks the caller) and is valid only until the handler returns.
     public typealias Handler = @Sendable (Data, @escaping @Sendable (Data) -> Void) async -> Void
 
     /// One run of the accept loop: `stop()` marks its token, and only that run's thread watches it, so a later `start()`
@@ -25,14 +26,17 @@ public final class MCPListener: Sendable {
     private let handle: Handler
     private let connectionChanged: @Sendable (Bool) -> Void
     private let failed: @Sendable (String) -> Void
+    private let writeTimeoutMilliseconds: Int
     private let current = Mutex<Run?>(nil)
     private let loops = Mutex(0)
 
     /// - Parameter failed: told, with a sentence, when the accept loop dies on an error it can't retry.
+    /// - Parameter writeTimeoutMilliseconds: a write that makes no progress for this long drops the connection.
     public init(
         path: URL, handle: @escaping Handler, connectionChanged: @escaping @Sendable (Bool) -> Void,
-        failed: @escaping @Sendable (String) -> Void = { _ in }
+        failed: @escaping @Sendable (String) -> Void = { _ in }, writeTimeoutMilliseconds: Int = 10_000
     ) {
+        self.writeTimeoutMilliseconds = writeTimeoutMilliseconds
         self.path = path
         self.handle = handle
         self.connectionChanged = connectionChanged
@@ -46,7 +50,7 @@ public final class MCPListener: Sendable {
         if current.withLock({ $0 }) != nil { return .listening }
         try SocketPath.prepareFolder(path)
         if try probeFindsLiveListener() { return .inUse }
-        try? FileManager.default.removeItem(at: path)
+        try LocalSocket.removeFile(at: path)
         let socket = try LocalSocket.listen(at: path)
         let run = Run()
         current.withLock { $0 = run }
@@ -58,15 +62,17 @@ public final class MCPListener: Sendable {
     }
 
     /// True when a live listener answers on the path. A missing file is no listener; a refusal (asked a few times, since a
-    /// live listener with a full queue refuses too) is a stale file; any other failure throws and deletes nothing.
+    /// live listener with a full queue refuses too) is a stale file; a connect that is still waiting after 200 ms, or is told the
+    /// queue is full, is a busy listener (nothing is deleted); any other failure throws and deletes nothing.
     private func probeFindsLiveListener() throws(SocketProblem) -> Bool {
         for attempt in 0..<3 {
             guard FileManager.default.fileExists(atPath: path.path) else { return false }
             do {
-                let live = try LocalSocket.connect(to: path)
+                let live = try LocalSocket.connect(to: path, timeoutMilliseconds: 200)
                 live.close()
                 return true
             } catch {
+                if error.isBusy { return true }
                 guard error.isRefused else { throw error }
                 if attempt < 2 { Thread.sleep(forTimeInterval: 0.05) }
             }
@@ -116,6 +122,7 @@ public final class MCPListener: Sendable {
     }
 
     private func serve(_ connection: LocalSocket, _ run: Run) {
+        connection.setSendTimeout(milliseconds: writeTimeoutMilliseconds)
         let alive = Alive()
         var reader = LineReader()
         var buffer = [UInt8](repeating: 0, count: 65_536)
@@ -146,16 +153,51 @@ public final class MCPListener: Sendable {
         return alive.isOn
     }
 
+    /// Runs the handler and writes what it sends from this thread: the handler only queues bytes (`Outbox`), so a client that
+    /// stops reading stalls this thread alone, and a write that stalls past the timeout drops the connection.
     private func respond(to line: Data, over connection: LocalSocket, _ alive: Alive) {
         let handle = self.handle
-        let done = DispatchSemaphore(value: 0)
+        let outbox = Outbox()
         Task {
-            await handle(line) { data in
-                if !connection.write(data) { alive.fail() }
-            }
-            done.signal()
+            await handle(line) { data in outbox.push(data) }
+            outbox.finish()
         }
-        done.wait()
+        while true {
+            let (chunks, finished) = outbox.take()
+            for chunk in chunks where alive.isOn && !connection.write(chunk) { alive.fail() }
+            if finished { return }
+        }
+    }
+}
+
+/// The lines a handler has produced and not yet written, and whether the handler has returned.
+private final class Outbox: Sendable {
+    private struct State {
+        var chunks: [Data] = []
+        var finished = false
+    }
+
+    private let state = Mutex(State())
+    private let wake = DispatchSemaphore(value: 0)
+
+    func push(_ data: Data) {
+        state.withLock { $0.chunks.append(data) }
+        wake.signal()
+    }
+
+    func finish() {
+        state.withLock { $0.finished = true }
+        wake.signal()
+    }
+
+    /// Waits for something to write or for the end, then hands over everything queued.
+    func take() -> (chunks: [Data], finished: Bool) {
+        wake.wait()
+        return state.withLock { held in
+            let chunks = held.chunks
+            held.chunks = []
+            return (chunks, held.finished)
+        }
     }
 }
 

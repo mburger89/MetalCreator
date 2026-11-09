@@ -29,6 +29,15 @@ public struct SocketProblem: Error, Equatable, Sendable {
         #endif
     }
 
+    /// Whether a bounded connect gave up (the listen queue is full, or the connect didn't finish): a listener is there, busy.
+    var isBusy: Bool {
+        #if os(Windows)
+        code == 10035 || code == 10060
+        #else
+        code == EAGAIN || code == ETIMEDOUT || code == EINPROGRESS
+        #endif
+    }
+
     static let pathTooLong = SocketProblem("The path for AI connections is too long.")
 
     static func notPrivate(_ path: String) -> SocketProblem {
@@ -43,3 +52,10 @@ public struct SocketProblem: Error, Equatable, Sendable {
 // `LocalSocket` itself is one small file per OS family: `LocalSocket+POSIX.swift` and `LocalSocket+Windows.swift`.
 // Both give: `listen(at:)` (bind, owner-only, backlog 8), `connect(to:)`, `accept(timeoutMilliseconds:)`, `accept()`,
 // `waitReadable(milliseconds:)`, `read(into:)` (bytes read, 0 at the end, -1 on an error), `write(_:)` and `close()`.
+
+extension LocalSocket {
+    /// The path as the file system spells it (`sun_path` takes this, never a percent-encoded or `/C:/` form).
+    static func fileSystemPath(_ url: URL) -> String {
+        url.withUnsafeFileSystemRepresentation { pointer in pointer.map { String(cString: $0) } } ?? url.path
+    }
+}

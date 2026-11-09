@@ -61,15 +61,13 @@ public enum AppCommands {
         }
     }
 
-    /// The AI connections switch (MCP-1): a checkmark while on; while another window serves the socket it says so and is disabled.
+    /// The AI connections switch (MCP-1): a checkmark while on. When another window serves the socket, or the listener couldn't
+    /// start, the title says so and choosing the item asks again (`MCPService.menuChosen`).
     @MainActor
     @MenuContentBuilder
     static func aiConnectionsItem(_ model: AppModel) -> MenuItems {
         if let service = model.mcp {
-            let inUse = service.state == .inUse
-            Toggle(inUse ? "AI Connections: in use by another window" : "Allow AI Connections",
-                   isOn: Binding(get: { service.isOn }, set: { service.setOn($0) }))
-                .disabled(inUse)
+            Toggle(service.menuTitle, isOn: Binding(get: { service.isOn && !service.retries }, set: { service.menuChosen($0) }))
         }
     }
 }

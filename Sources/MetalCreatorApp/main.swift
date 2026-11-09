@@ -100,7 +100,8 @@ func runApp(opening paths: [String], mcp: Bool = false, smoke: LaunchSmoke? = ni
             exit(smoke.passed ? 0 : 1)
         }
     }
-    // Started once the window is open: a listener that fails or finds the socket taken says so in the menu, not at launch.
+    // Started once the window is open: a listener that fails or finds the socket taken says so in the menu item's title, which
+    // then retries when chosen, not at launch.
     mcpService?.start()
     app.run()
 }

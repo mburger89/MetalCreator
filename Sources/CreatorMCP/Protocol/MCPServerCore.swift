@@ -15,15 +15,32 @@ import Foundation
         self.serverVersion = serverVersion
     }
 
+    /// A line parsed off the main actor: the message, or the JSON-RPC error to send back for text that isn't JSON.
+    public enum Parsed: Sendable {
+        case message(JSONValue)
+        case invalid(Data)
+    }
+
+    /// Parses one request line (up to 16 MiB of JSON). It touches no state, so the transport calls it on its own thread and hands
+    /// only the result to the main actor.
+    public nonisolated static func parse(line: Data) -> Parsed {
+        do {
+            return .message(try JSONValue.parse(line))
+        } catch {
+            return .invalid(JSONRPC.error(id: .null, code: JSONRPC.parseError, "The message isn't valid JSON."))
+        }
+    }
+
     /// Writes nothing for a notification, else one response line (plus progress notifications before it).
     public func handle(line: Data, send: @escaping @Sendable (Data) -> Void) async {
-        let message: JSONValue
-        do {
-            message = try JSONValue.parse(line)
-        } catch {
-            send(JSONRPC.error(id: .null, code: JSONRPC.parseError, "The message isn't valid JSON."))
-            return
+        switch Self.parse(line: line) {
+        case .message(let message): await handle(message: message, send: send)
+        case .invalid(let response): send(response)
         }
+    }
+
+    /// The same for a message the transport has already parsed.
+    public func handle(message: JSONValue, send: @escaping @Sendable (Data) -> Void) async {
         guard message.object != nil, let method = message["method"]?.string else {
             send(JSONRPC.error(id: message["id"] ?? .null, code: JSONRPC.invalidRequest, "That isn't a JSON-RPC request."))
             return
