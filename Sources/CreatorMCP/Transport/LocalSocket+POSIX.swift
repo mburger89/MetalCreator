@@ -28,6 +28,12 @@ public final class LocalSocket: Sendable {
         return fd
     }
 
+    /// Refuses a path that doesn't fit `sun_path`, before any descriptor exists to leak.
+    private static func checkLength(of url: URL) throws(SocketProblem) {
+        let capacity = MemoryLayout.size(ofValue: sockaddr_un().sun_path)
+        guard url.path.utf8.count < capacity else { throw SocketProblem.pathTooLong }
+    }
+
     /// Calls `body` with the address of `url`'s path, refusing a path that doesn't fit `sun_path`.
     private static func withAddress<T>(_ url: URL, _ body: (UnsafePointer<sockaddr>, socklen_t) -> T) throws(SocketProblem) -> T {
         var address = sockaddr_un()
@@ -50,14 +56,22 @@ public final class LocalSocket: Sendable {
 
     /// Binds `url`, makes the file owner-only and listens. The backlog is 8, not 1: a probe that finds the queue full would read a live listener as stale.
     public static func listen(at url: URL) throws(SocketProblem) -> LocalSocket {
+        try checkLength(of: url)
         let fd = try makeSocket()
+        let previousMask = umask(0o177)
         let bound = try withAddress(url) { bind(fd, $0, $1) }
+        let bindError = errno
+        umask(previousMask)
         guard bound == 0 else {
+            systemClose(fd)
+            throw SocketProblem.failed("listen at \(url.path)", bindError)
+        }
+        guard chmod(url.path, 0o600) == 0 else {
             let code = errno
             systemClose(fd)
-            throw SocketProblem.failed("listen at \(url.path)", code)
+            unlink(url.path)
+            throw SocketProblem.failed("make the socket private", code)
         }
-        _ = chmod(url.path, 0o600)
         guard systemListen(fd, 8) == 0 else {
             let code = errno
             systemClose(fd)
@@ -68,6 +82,7 @@ public final class LocalSocket: Sendable {
     }
 
     public static func connect(to url: URL) throws(SocketProblem) -> LocalSocket {
+        try checkLength(of: url)
         let fd = try makeSocket()
         let connected = try withAddress(url) { systemConnect(fd, $0, $1) }
         guard connected == 0 else {

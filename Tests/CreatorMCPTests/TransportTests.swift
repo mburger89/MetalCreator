@@ -7,6 +7,7 @@ private final class Flags: Sendable {
     private let states = Mutex<[Bool]>([])
     func add(_ value: Bool) { states.withLock { $0.append(value) } }
     var all: [Bool] { states.withLock { $0 } }
+    func settle() { Thread.sleep(forTimeInterval: 0.3) }
     func waitFor(_ value: Bool, count: Int = 1) -> Bool {
         let deadline = Date().addingTimeInterval(5)
         while Date() < deadline {
@@ -179,6 +180,75 @@ struct TransportTests {
         #expect(folder == 0o700)
     }
     #endif
+
+    @Test func probeConnectionFiresNoConnectionChange() throws {
+        let url = tempSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let flags = Flags()
+        let listener = makeListener(at: url, flags: flags)
+        #expect(try listener.start() == .listening)
+        defer { listener.stop() }
+        let probe = try LocalSocket.connect(to: url)
+        probe.close()
+        let second = makeListener(at: url)
+        #expect(try second.start() == .inUse)
+        flags.settle()
+        #expect(flags.all.isEmpty)
+        var client = try Client(url)
+        #expect(client.send("x\n"))
+        #expect(client.line() == "x")
+        #expect(flags.all == [true])
+    }
+
+    @Test func stopThenStartServesANewClientAndLeavesNoOldThread() throws {
+        let url = tempSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let listener = makeListener(at: url)
+        #expect(try listener.start() == .listening)
+        listener.stop()
+        #expect(try listener.start() == .listening)
+        defer { listener.stop() }
+        var client = try Client(url)
+        #expect(client.send("again\n"))
+        #expect(client.line() == "again")
+        let deadline = Date().addingTimeInterval(5)
+        while listener.runningLoops > 1, Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
+        #expect(listener.runningLoops == 1)
+        listener.stop()
+        while listener.runningLoops > 0, Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
+        #expect(listener.runningLoops == 0)
+    }
+
+    @Test func startingTwiceReturnsTheSameState() throws {
+        let url = tempSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let listener = makeListener(at: url)
+        #expect(try listener.start() == .listening)
+        defer { listener.stop() }
+        #expect(try listener.start() == .listening)
+        #expect(listener.runningLoops == 1)
+    }
+
+    @Test func probeLeavesABusyListenersFileAlone() throws {
+        let url = tempSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let listener = makeListener(at: url) { line, send in
+            if line == Data("slow".utf8) { try? await Task.sleep(for: .milliseconds(600)) }
+            send(line + Data("\n".utf8))
+        }
+        #expect(try listener.start() == .listening)
+        defer { listener.stop() }
+        var busy = try Client(url)
+        #expect(busy.send("slow\n"))
+        var queued = try Client(url)
+        #expect(queued.send("queued\n"))
+        let second = makeListener(at: url)
+        #expect(try second.start() == .inUse)
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        #expect(busy.line() == "slow")
+        busy.socket.close()
+        #expect(queued.line() == "queued")
+    }
 
     @Test func onlyOneClientAtATime() throws {
         let url = tempSocketURL()

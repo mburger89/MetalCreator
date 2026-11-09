@@ -53,7 +53,14 @@ public final class LocalSocket: Sendable {
         }
     }
 
+    /// Refuses a path that doesn't fit `sun_path`, before any handle exists to leak.
+    private static func checkLength(of url: URL) throws(SocketProblem) {
+        let capacity = MemoryLayout.size(ofValue: UnixAddress().path)
+        guard url.path.utf8.count < capacity else { throw SocketProblem.pathTooLong }
+    }
+
     public static func listen(at url: URL) throws(SocketProblem) -> LocalSocket {
+        try checkLength(of: url)
         let handle = try makeSocket()
         guard try withAddress(url, { bind(handle, $0, $1) }) == 0 else {
             let code = WSAGetLastError()
@@ -63,12 +70,14 @@ public final class LocalSocket: Sendable {
         guard WinSDK.listen(handle, 8) == 0 else {
             let code = WSAGetLastError()
             closesocket(handle)
+            try? FileManager.default.removeItem(at: url)
             throw SocketProblem.failed("listen", code)
         }
         return LocalSocket(handle)
     }
 
     public static func connect(to url: URL) throws(SocketProblem) -> LocalSocket {
+        try checkLength(of: url)
         let handle = try makeSocket()
         guard try withAddress(url, { WinSDK.connect(handle, $0, $1) }) == 0 else {
             let code = WSAGetLastError()
