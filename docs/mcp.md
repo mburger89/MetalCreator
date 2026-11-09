@@ -15,15 +15,25 @@ over stdin and stdout and forwards to the app. When the app is not running or th
 ("MetalCreator isn't running, or AI connections are off"); it tries again before each request and announces the tools once the
 app is reachable, so you can start the client first.
 
+The menu item tells you when the connection can't be made. "AI Connections: in use by another window" means another
+MetalCreator window already serves the socket; "AI Connections: couldn't start (reason)" means the listener failed (the reason
+says why, for instance a folder that isn't private). Choose the item again to try again, for instance after closing the other
+window.
+
 ## Claude Code
 
 macOS:
 
     claude mcp add metalcreator -- /Applications/MetalCreator.app/Contents/MacOS/metalcreator-mcp
 
-Linux (tarball or AppImage tree; the helper sits beside `MetalCreator`):
+Linux (the tarball; the helper sits beside `MetalCreator`):
 
     claude mcp add metalcreator -- /path/to/MetalCreator/metalcreator-mcp
+
+The AppImage mounts itself at a new path on every run, so a path inside the running AppImage does not last. Use the tarball's
+helper, or extract the AppImage once (`./MetalCreator.AppImage --appimage-extract`) and point at the extracted copy:
+
+    claude mcp add metalcreator -- /path/to/squashfs-root/usr/metalcreator/metalcreator-mcp
 
 Windows:
 
@@ -49,8 +59,9 @@ uses another. A request in flight when the app quits is answered "MetalCreator c
 ## Tools
 
 Reading (works in every mode):
-- `get_document`: the open document's nodes with their states, links, parameters and groups, 200 nodes at a time.
-- `get_node`: one node's inputs (value or wire), output summaries, state and settings.
+- `get_document`: the open document's nodes (each with its state, whether it is an Output (`is_output`) and a one-line summary of
+  each output socket under `outputs`), links, parameters and groups, 200 nodes at a time.
+- `get_node`: one node's inputs (value or wire), output summaries (`outputs`), `is_output`, state and settings.
 - `list_node_types`: the node types you can add, optionally of a category or matching a search.
 - `describe_node_type`: a type's inputs with defaults, units, ranges and options, its outputs and settings.
 
@@ -69,7 +80,7 @@ History:
 Files:
 - `new_document`, `open_document`: refused while the open document has unsaved changes unless `discard_unsaved` is true.
 - `save_document`: to the document's own file or an absolute path; will not overwrite a file unless `overwrite` is true.
-- `export`: the Output nodes' results as step, stl or 3mf.
+- `export`: the Output nodes' results as step, stl or 3mf. The nodes' warnings come back in the result's message; no alert is raised in the window.
 
 Resources: `metalcreator://document` and `metalcreator://node-types`.
 

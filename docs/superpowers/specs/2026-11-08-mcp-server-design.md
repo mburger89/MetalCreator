@@ -60,7 +60,7 @@ Three parts **(our call)**:
    clear error ("MetalCreator isn't running, or MCP is off: turn it on in MetalCreator ▸ Allow AI Connections").
 
 Transport **(our call)**: a Unix domain socket on all three platforms (Windows 10 and later support `AF_UNIX`). The socket
-file is in the app's per-user support folder (macOS `~/Library/Application Support/MetalCreator/mcp.sock`, Linux
+file is in the app's per-user support folder (macOS `~/Library/Application Support/MetalCreator/Connection/mcp.sock`, a 0700 folder the app owns and tightens; Linux
 `$XDG_RUNTIME_DIR/metalcreator/mcp.sock`, Windows `%LOCALAPPDATA%\MetalCreator\mcp.sock`), created with permissions
 0600 where the platform has them. No TCP port, so nothing is reachable from another machine. A stale socket file from a
 crashed run is removed at start. A second app instance doesn't start a second server; MetalUI's single-instance forwarding
@@ -184,3 +184,10 @@ ImageIO under `#if canImport(ImageIO)`). It merges on its own after MCP-1.
 ## 8. Order of work
 
 MCP-1 (protocol, server, bridge, the tools of §4, the switch and the chip, docs) merges on its own. MCP-2 (pictures) follows.
+
+## Errata
+
+- 2026-11-09 (R9, socket paths): the macOS socket is `~/Library/Application Support/MetalCreator/Connection/mcp.sock`, in a
+  folder of its own that the app creates 0700 and tightens to 0700 if it finds it wider (a folder another user owns, a symlink or
+  a file is refused); §3 above is amended to match. The socket file itself is `chmod`ed 0600 after `bind`; the process-wide
+  `umask` is not touched.
