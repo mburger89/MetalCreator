@@ -126,6 +126,12 @@ public final class LocalSocket: Sendable {
         return LocalSocket(fd)
     }
 
+    /// Whether a file exists at `url`, a socket file included (the file itself, not what it points to).
+    public static func fileExists(at url: URL) -> Bool {
+        var info = stat()
+        return lstat(fileSystemPath(url), &info) == 0
+    }
+
     /// Removes a file (a stale socket); a missing one is fine, any other failure is thrown, so it is never swallowed.
     public static func removeFile(at url: URL) throws(SocketProblem) {
         let path = fileSystemPath(url)

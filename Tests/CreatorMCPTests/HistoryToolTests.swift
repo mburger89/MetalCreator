@@ -92,7 +92,9 @@ import Testing
 
     @Test func absolutePathReachesTheSession() async throws {
         let fixture = try await SessionFixture()
-        let (text, isError) = try await fixture.call("set_file", .object(["node": .string("Extrude"), "path": .string("/tmp/pic.png")]))
+        let (text, isError) = try await fixture.call(
+            "set_file", .object(["node": .string("Extrude"), "path": .string(absoluteTestPath("pic.png"))])
+        )
         #expect(isError && text.string == "That isn't available here.")
     }
 }

@@ -165,7 +165,7 @@ private enum SocketExitCleanup {
         }
         guard install else { return }
         atexit {
-            if let path = SocketExitCleanup.state.withLock({ $0.path }) { try? FileManager.default.removeItem(atPath: path) }
+            if let path = SocketExitCleanup.state.withLock({ $0.path }) { try? LocalSocket.removeFile(at: URL(fileURLWithPath: path)) }
         }
     }
 

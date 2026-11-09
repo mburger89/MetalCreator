@@ -29,12 +29,12 @@ import Testing
     @Test func openPassesDiscardFlag() async throws {
         let (_, fake, core) = try await make()
         let (_, result, isError) = try await call(core, "open_document", .object([
-            "path": .string("/tmp/a.mcgraph"), "discard_unsaved": .bool(true),
+            "path": .string(absoluteTestPath("a.mcgraph")), "discard_unsaved": .bool(true),
         ]))
         #expect(!isError && result["done"]?.bool == true)
-        #expect(fake.calls == [.open(URL(fileURLWithPath: "/tmp/a.mcgraph"), discard: true)])
-        _ = try await call(core, "open_document", .object(["path": .string("/tmp/b.mcgraph")]))
-        #expect(fake.calls.last == .open(URL(fileURLWithPath: "/tmp/b.mcgraph"), discard: false))
+        #expect(fake.calls == [.open(URL(fileURLWithPath: absoluteTestPath("a.mcgraph")), discard: true)])
+        _ = try await call(core, "open_document", .object(["path": .string(absoluteTestPath("b.mcgraph"))]))
+        #expect(fake.calls.last == .open(URL(fileURLWithPath: absoluteTestPath("b.mcgraph")), discard: false))
     }
 
     @Test func newAndSavePassTheirFlags() async throws {
@@ -42,10 +42,10 @@ import Testing
         fake.outcome = .done("Saved.")
         let (_, result, _) = try await call(core, "save_document", .object(["overwrite": .bool(true)]))
         #expect(result["message"]?.string == "Saved.")
-        _ = try await call(core, "save_document", .object(["path": .string("/tmp/x.mcgraph")]))
+        _ = try await call(core, "save_document", .object(["path": .string(absoluteTestPath("x.mcgraph"))]))
         _ = try await call(core, "new_document", .object([:]))
         #expect(fake.calls == [
-            .save(nil, overwrite: true), .save(URL(fileURLWithPath: "/tmp/x.mcgraph"), overwrite: false), .new(discard: false),
+            .save(nil, overwrite: true), .save(URL(fileURLWithPath: absoluteTestPath("x.mcgraph")), overwrite: false), .new(discard: false),
         ])
     }
 
@@ -71,27 +71,29 @@ import Testing
 
     @Test func exportKindIsChecked() async throws {
         let (_, fake, core) = try await make()
-        let (_, result, isError) = try await call(core, "export", .object(["kind": .string("obj"), "path": .string("/tmp/o.obj")]))
+        let (_, result, isError) = try await call(
+            core, "export", .object(["kind": .string("obj"), "path": .string(absoluteTestPath("o.obj"))])
+        )
         #expect(isError && result.string == "Export kinds are step, stl and 3mf.")
         #expect(fake.calls.isEmpty)
         let (_, ok, okError) = try await call(core, "export", .object([
-            "kind": .string("3mf"), "path": .string("/tmp/o.3mf"), "overwrite": .bool(true),
+            "kind": .string("3mf"), "path": .string(absoluteTestPath("o.3mf")), "overwrite": .bool(true),
         ]))
         #expect(!okError && ok["done"]?.bool == true)
-        #expect(fake.calls == [.export("3mf", URL(fileURLWithPath: "/tmp/o.3mf"), overwrite: true)])
+        #expect(fake.calls == [.export("3mf", URL(fileURLWithPath: absoluteTestPath("o.3mf")), overwrite: true)])
     }
 
     @Test func exportForwardsProgressWhenATokenIsSent() async throws {
         let (_, fake, core) = try await make()
         fake.exportProgress = [0.5]
         let (lines, _, _) = try await call(
-            core, "export", .object(["kind": .string("stl"), "path": .string("/tmp/o.stl")]), token: true
+            core, "export", .object(["kind": .string("stl"), "path": .string(absoluteTestPath("o.stl"))]), token: true
         )
-        #expect(lines.count == 2)
+        try #require(lines.count == 2, "lines: \(lines)")
         #expect(lines[0]["method"]?.string == "notifications/progress")
         #expect(lines[0]["params"]?["progressToken"]?.string == "t1")
         #expect(lines[1]["result"] != nil)
-        let (quiet, _, _) = try await call(core, "export", .object(["kind": .string("stl"), "path": .string("/tmp/o.stl")]))
+        let (quiet, _, _) = try await call(core, "export", .object(["kind": .string("stl"), "path": .string(absoluteTestPath("o.stl"))]))
         #expect(quiet.count == 1)
     }
 }

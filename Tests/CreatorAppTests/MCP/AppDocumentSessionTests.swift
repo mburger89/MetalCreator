@@ -163,8 +163,8 @@ struct AppDocumentSessionTests {
             ("set_inputs", .object(["node": id, "values": .object(["distance": .number(5)])])),
             ("connect", .object(["from": .string("\(rectangle).profile"), "to": .string("\(extrude).profile")])),
             ("undo", .object([:])),
-            ("set_file", .object(["node": id, "path": .string("/tmp/none.png")])),
-            ("save_document", .object(["path": .string("/tmp/mcp-refused.mcgraph")])),
+            ("set_file", .object(["node": id, "path": .string(absoluteTestPath("none.png"))])),
+            ("save_document", .object(["path": .string(absoluteTestPath("mcp-refused.mcgraph"))])),
         ]
     }
 
@@ -173,9 +173,9 @@ struct AppDocumentSessionTests {
     ) async throws {
         for (tool, arguments) in samples(parts) {
             let outcome = try await call(core, tool, arguments)
-            #expect(outcome.isError && outcome.result.string == sentence, "\(tool)")
+            #expect(outcome.isError && outcome.result.string == sentence, "\(tool): isError \(outcome.isError), result \(outcome.result)")
         }
-        #expect(!FileManager.default.fileExists(atPath: "/tmp/mcp-refused.mcgraph"))
+        #expect(!FileManager.default.fileExists(atPath: absoluteTestPath("mcp-refused.mcgraph")))
     }
 
     @Test func sketchModeRefusesEveryEditFamily() async throws {

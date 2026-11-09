@@ -81,7 +81,7 @@ struct MCPServiceTests {
         #expect(second.state == .inUse)
         second.stop()
         #expect(first.state == .listening, "the other window's file is left alone")
-        #expect(FileManager.default.fileExists(atPath: url.path))
+        #expect(LocalSocket.fileExists(at: url))
     }
 
     @Test func aClientIsServedAnswers() async throws {

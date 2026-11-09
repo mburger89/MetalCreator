@@ -1,10 +1,13 @@
 #if os(Windows)
 import Foundation
+import Synchronization
 import WinSDK
 
 /// One end of an `AF_UNIX` socket (Windows 10 and later). It holds only its handle, so it can be shared between threads.
 public final class LocalSocket: Sendable {
     private let handle: SOCKET
+    /// The write timeout in milliseconds, 0 for none (a plain blocking send).
+    private let sendTimeout = Mutex(0)
 
     private init(_ handle: SOCKET) { self.handle = handle }
 
@@ -54,7 +57,7 @@ public final class LocalSocket: Sendable {
         guard WinSDK.listen(handle, 8) == 0 else {
             let code = WSAGetLastError()
             closesocket(handle)
-            try? FileManager.default.removeItem(at: url)
+            try? removeFile(at: url)
             throw SocketProblem.failed("listen", code)
         }
         return LocalSocket(handle)
@@ -76,6 +79,12 @@ public final class LocalSocket: Sendable {
         try connect(to: url)
     }
 
+    /// Whether a file exists at `url`, socket files included. `FileManager.fileExists` says no to an `AF_UNIX` socket on Windows
+    /// (it is a reparse point), so the listener's probe would take a live socket for a missing one.
+    public static func fileExists(at url: URL) -> Bool {
+        fileSystemPath(url).withCString(encodedAs: UTF16.self) { GetFileAttributesW($0) != INVALID_FILE_ATTRIBUTES }
+    }
+
     /// Removes a file (a stale socket) with `DeleteFileW`; a missing one is fine, any other failure is thrown.
     public static func removeFile(at url: URL) throws(SocketProblem) {
         let deleted = fileSystemPath(url).withCString(encodedAs: UTF16.self) { DeleteFileW($0) }
@@ -85,14 +94,12 @@ public final class LocalSocket: Sendable {
         throw SocketProblem.failed("remove the old socket file", code)
     }
 
-    /// Makes a send give up when the other end stops reading for `milliseconds`.
+    /// Makes a send give up when the other end stops reading for `milliseconds`. Winsock's `SO_SNDTIMEO` isn't honoured by
+    /// `AF_UNIX` sockets, so the socket goes non-blocking and `write(_:)` waits for room itself.
     public func setSendTimeout(milliseconds: Int) {
-        var value = DWORD(milliseconds)
-        _ = withUnsafePointer(to: &value) {
-            $0.withMemoryRebound(to: CChar.self, capacity: MemoryLayout<DWORD>.size) {
-                setsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, $0, Int32(MemoryLayout<DWORD>.size))
-            }
-        }
+        sendTimeout.withLock { $0 = milliseconds }
+        var nonBlocking: u_long = milliseconds > 0 ? 1 : 0
+        _ = ioctlsocket(handle, Int32(bitPattern: 0x8004_667E), &nonBlocking)  // FIONBIO
     }
 
     public func waitReadable(milliseconds: Int32) -> Bool {
@@ -121,12 +128,19 @@ public final class LocalSocket: Sendable {
     }
 
     public func write(_ data: Data) -> Bool {
-        data.withUnsafeBytes { bytes in
+        let timeout = Int32(clamping: sendTimeout.withLock { $0 })
+        return data.withUnsafeBytes { bytes in
             var offset = 0
             while offset < bytes.count {
                 let sent = send(handle, bytes.baseAddress!.assumingMemoryBound(to: CChar.self) + offset, Int32(bytes.count - offset), 0)
-                if sent <= 0 { return false }
-                offset += Int(sent)
+                if sent > 0 {
+                    offset += Int(sent)
+                } else if sent < 0, timeout > 0, WSAGetLastError() == 10035 {  // WSAEWOULDBLOCK: wait for room, up to the timeout
+                    var item = WSAPOLLFD(fd: handle, events: Int16(POLLWRNORM), revents: 0)
+                    if WSAPoll(&item, 1, timeout) <= 0 { return false }
+                } else {
+                    return false
+                }
             }
             return true
         }

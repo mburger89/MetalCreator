@@ -66,7 +66,7 @@ public final class MCPListener: Sendable {
     /// queue is full, is a busy listener (nothing is deleted); any other failure throws and deletes nothing.
     private func probeFindsLiveListener() throws(SocketProblem) -> Bool {
         for attempt in 0..<3 {
-            guard FileManager.default.fileExists(atPath: path.path) else { return false }
+            guard LocalSocket.fileExists(at: path) else { return false }
             do {
                 let live = try LocalSocket.connect(to: path, timeoutMilliseconds: 200)
                 live.close()
@@ -86,7 +86,7 @@ public final class MCPListener: Sendable {
     public func stop() {
         guard let run = current.withLock({ let run = $0; $0 = nil; return run }) else { return }
         run.stop()
-        try? FileManager.default.removeItem(at: path)
+        try? LocalSocket.removeFile(at: path)
     }
 
     private func acceptLoop(_ listening: LocalSocket, _ run: Run) {
@@ -116,7 +116,7 @@ public final class MCPListener: Sendable {
             return true
         }
         if wasCurrent {
-            try? FileManager.default.removeItem(at: path)
+            try? LocalSocket.removeFile(at: path)
             failed(error.message)
         }
     }

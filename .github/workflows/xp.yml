@@ -326,6 +326,9 @@ jobs:
           $flags = @("-Xcc", "-I$env:SDL3_INCLUDE", "-Xswiftc", "-L$env:SDL3_LIB") +
                    @(Get-Content "$env:RUNNER_TEMP\accesskit-flags.txt")
           swift build -c release --product MetalCreatorApp @flags
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          # The MCP bridge ships in the zip beside the app (package-windows.ps1 -NoBuild expects it built).
+          swift build -c release --product metalcreator-mcp @flags
           exit $LASTEXITCODE
       - name: Package (zip), checked on its own
         id: package
