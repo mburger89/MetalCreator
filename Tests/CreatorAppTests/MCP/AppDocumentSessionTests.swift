@@ -1,4 +1,3 @@
-import CreatorEditor
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
@@ -7,6 +6,7 @@ import Foundation
 import Synchronization
 import Testing
 @testable import CreatorApp
+@testable import CreatorEditor
 @testable import CreatorMCP
 
 /// The AI server's view of the open document: the rules about when an edit may run, and the files.
@@ -149,6 +149,120 @@ struct AppDocumentSessionTests {
         #expect(app.document.undoName == "Link Image")
         let undone = try await call(core, "undo")
         #expect(!undone.isError, "a file setting is the client's own step")
+    }
+
+    // MARK: Refusals
+
+    /// A sample of every family of client edit: adding, setting, wiring, undoing, a file setting and a file save.
+    private func samples(_ parts: (rectangle: Node, extrude: Node, output: Node)) -> [(String, JSONValue)] {
+        let id = JSONValue.string(parts.extrude.id.rawValue.uuidString)
+        let rectangle = parts.rectangle.id.rawValue.uuidString
+        let extrude = parts.extrude.id.rawValue.uuidString
+        return [
+            ("add_node", .object(["type": .string("creator.rectangle")])),
+            ("set_inputs", .object(["node": id, "values": .object(["distance": .number(5)])])),
+            ("connect", .object(["from": .string("\(rectangle).profile"), "to": .string("\(extrude).profile")])),
+            ("undo", .object([:])),
+            ("set_file", .object(["node": id, "path": .string("/tmp/none.png")])),
+            ("save_document", .object(["path": .string("/tmp/mcp-refused.mcgraph")])),
+        ]
+    }
+
+    private func expectRefused(
+        _ core: MCPServerCore, _ sentence: String, parts: (rectangle: Node, extrude: Node, output: Node)
+    ) async throws {
+        for (tool, arguments) in samples(parts) {
+            let outcome = try await call(core, tool, arguments)
+            #expect(outcome.isError && outcome.result.string == sentence, "\(tool)")
+        }
+        #expect(!FileManager.default.fileExists(atPath: "/tmp/mcp-refused.mcgraph"))
+    }
+
+    @Test func sketchModeRefusesEveryEditFamily() async throws {
+        let (sketch, _) = AppUnitsTests().lineSketch()
+        var builder = GraphBuilder()
+        let box = builder.sketchedBox(sketch)
+        let extra = builder.box()
+        let (app, _, core) = await rig(builder.graph)
+        app.beginSketch(for: box.sketch.id)
+        await app.settle()
+        try await expectRefused(core, "MetalCreator is editing a sketch. Finish it with Done, then try again.", parts: extra)
+    }
+
+    @Test func aPickInProgressRefuses() async throws {
+        var builder = GraphBuilder()
+        let box = builder.box()
+        let (app, _, core) = await rig(builder.graph)
+        app.editor.selection = [box.extrude.id]
+        await app.settle()
+        let solid = try #require(app.viewport.items.first?.solid)
+        let source = try #require(app.producer(of: solid))
+        app.pick = PickSession(solid: solid, source: source, rule: nil, consumer: nil, picked: [])
+        try await expectRefused(core, "MetalCreator is waiting for a pick in the view. Finish or cancel it, then try again.",
+                                parts: box)
+    }
+
+    @Test func aModelDimensionInProgressRefuses() async throws {
+        var builder = GraphBuilder()
+        let box = builder.box()
+        let (app, _, core) = await rig(builder.graph)
+        #expect(app.beginModelDimension())
+        try await expectRefused(core, "MetalCreator is adding a dimension. Finish or cancel it, then try again.", parts: box)
+    }
+
+    @Test func scrubbingRefuses() async throws {
+        var builder = GraphBuilder()
+        let box = builder.box()
+        let (app, _, core) = await rig(builder.graph)
+        app.document.isScrubbing = true
+        try await expectRefused(core, "The person is changing a value; try again in a moment.", parts: box)
+        app.document.isScrubbing = false
+    }
+
+    @Test func aCanvasDragRefuses() async throws {
+        var builder = GraphBuilder()
+        let box = builder.box()
+        let (app, _, core) = await rig(builder.graph)
+        app.editor.setInteraction(.moving(start: SelectionPositions(), key: "drag"))
+        try await expectRefused(core, "The person is moving something on the canvas; try again in a moment.", parts: box)
+        app.editor.setInteraction(nil)
+        let after = try await addBox(core)
+        #expect(!after.isError)
+    }
+
+    @Test func aTypedValueNotYetCommittedCountsAsUnsavedWork() async throws {
+        var builder = GraphBuilder()
+        let box = builder.box().rectangle
+        let (app, _, core) = await rig(builder.graph)
+        app.editor.notePendingEntry(PendingEntry(text: "typed", textCommit: { [app] _ in
+            try? app.document.perform(.move(box.id, to: Vector2(7, 7)), name: UndoName.move)
+        }))
+        let refused = try await call(core, "new_document")
+        #expect(refused.isError)
+        #expect(refused.result.string == "The document has unsaved changes. Save it first, or pass discard_unsaved.")
+        #expect(app.document.graph.nodes[box.id]?.position == Vector2(7, 7))
+    }
+
+    @Test func setFileAddressesTheTopLevelFromInsideAGroup() async throws {
+        var builder = GraphBuilder()
+        let box = builder.solid()
+        let field = builder.add(ImageFieldNode.self)
+        let (app, _, core) = await rig(builder.graph)
+        app.editor.selection = [box.rectangle.id, box.extrude.id]
+        app.editor.groupSelection()
+        let group = try #require(app.editor.selection.first)
+        app.editor.enterGroup(group)
+        #expect(app.editor.isInsideGroup)
+        let url = temporaryURL("mcp-group-image.png")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try AppTestImages.png().write(to: url)
+        let result = try await call(core, "set_file", .object(["node": .string(field.id.rawValue.uuidString), "path": .string(url.path)]))
+        #expect(!result.isError)
+        guard case .image(let reference)? = app.document.graph.nodes[field.id]?.inputValues[NodeSetting.image] else {
+            Issue.record("no image setting on the top-level node")
+            return
+        }
+        #expect(!reference.isEmbedded)
     }
 }
 

@@ -27,6 +27,8 @@ public final class MCPService {
     @ObservationIgnored private var listener: MCPListener?
     /// Bumped by every start and stop, so a late callback of an older listener changes nothing.
     @ObservationIgnored private var generation = 0
+    /// The number of the newest connection event applied for this listener.
+    @ObservationIgnored private var lastEvent = 0
 
     public init(model: AppModel, preference: any MCPPreference, launchFlag: Bool = false, path: URL = SocketPath.default()) {
         self.model = model
@@ -52,7 +54,10 @@ public final class MCPService {
         let core = MCPServerCore(session: session, tools: MCPCatalogue.tools, resources: MCPCatalogue.resources,
                                  serverVersion: AppBundleInfo.version)
         generation += 1
+        lastEvent = 0
         let mine = generation
+        // Events are numbered where they happen (the listener's thread), so the main-actor hops can't reorder them.
+        let events = EventCounter()
         let made = MCPListener(
             path: path,
             handle: { line, send in
@@ -60,7 +65,8 @@ public final class MCPService {
                 await Task { @MainActor in await core.handle(line: line, send: send) }.value
             },
             connectionChanged: { [weak self] connected in
-                Task { @MainActor in self?.connectionChanged(connected, generation: mine) }
+                let number = events.next()
+                Task { @MainActor in self?.connectionChanged(connected, number: number, generation: mine) }
             },
             failed: { [weak self] message in
                 Task { @MainActor in self?.listenerFailed(message, generation: mine) }
@@ -89,8 +95,9 @@ public final class MCPService {
         state = .off
     }
 
-    private func connectionChanged(_ connected: Bool, generation: Int) {
-        guard generation == self.generation else { return }
+    private func connectionChanged(_ connected: Bool, number: Int, generation: Int) {
+        guard generation == self.generation, number > lastEvent else { return }
+        lastEvent = number
         isClientConnected = connected
     }
 
@@ -129,5 +136,17 @@ private enum SocketExitCleanup {
     /// The process no longer owns the file (stopped), so a later listener of another window is never touched.
     static func forget() {
         state.withLock { $0.path = nil }
+    }
+}
+
+/// Numbers the listener's connection events in the order they happen.
+private final class EventCounter: Sendable {
+    private let count = Mutex(0)
+
+    func next() -> Int {
+        count.withLock { value in
+            value += 1
+            return value
+        }
     }
 }

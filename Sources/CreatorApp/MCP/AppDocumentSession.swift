@@ -57,6 +57,11 @@ final class AppDocumentSession: DocumentSession {
         if model.sketch != nil { return "MetalCreator is editing a sketch. Finish it with Done, then try again." }
         if model.pick != nil { return "MetalCreator is waiting for a pick in the view. Finish or cancel it, then try again." }
         if model.modelDimension != nil { return "MetalCreator is adding a dimension. Finish or cancel it, then try again." }
+        switch model.editor.interaction {
+        case .moving?, .resizing?, .duplicating?, .connecting?:
+            return "The person is moving something on the canvas; try again in a moment."
+        default: break
+        }
         if model.document.isScrubbing { return "The person is changing a value; try again in a moment." }
         return nil
     }
@@ -92,6 +97,7 @@ final class AppDocumentSession: DocumentSession {
 
     func newDocument(discardUnsaved: Bool) -> SessionOutcome {
         if let refusal = askRefusal() { return .refused(refusal) }
+        model.editor.commitPendingEntry()  // a typed value not yet committed is unsaved work too
         if model.isEdited, !discardUnsaved { return .refused(Self.unsaved) }
         model.startNewDocument()
         return .done(nil)
@@ -99,6 +105,7 @@ final class AppDocumentSession: DocumentSession {
 
     func open(_ url: URL, discardUnsaved: Bool) -> SessionOutcome {
         if let refusal = askRefusal() { return .refused(refusal) }
+        model.editor.commitPendingEntry()  // a typed value not yet committed is unsaved work too
         if model.isEdited, !discardUnsaved { return .refused(Self.unsaved) }
         do {
             try model.open(url)
@@ -156,7 +163,7 @@ final class AppDocumentSession: DocumentSession {
 
     func setFile(_ url: URL, on node: NodeID, embed: Bool) async -> SessionOutcome {
         if let refusal = askRefusal() { return .refused(refusal) }
-        guard let found = model.editor.graph.nodes[node] else { return .refused("That node no longer exists.") }
+        guard let found = model.document.graph.nodes[node] else { return .refused("That node no longer exists.") }
         let model = model
         do {
             switch found.typeID {

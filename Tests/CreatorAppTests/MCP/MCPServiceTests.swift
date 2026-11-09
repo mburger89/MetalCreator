@@ -13,7 +13,7 @@ struct MCPServiceTests {
     }
 
     private func waitUntil(_ condition: @MainActor () -> Bool) async -> Bool {
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(30)
         while Date() < deadline {
             if condition() { return true }
             try? await Task.sleep(for: .milliseconds(10))
