@@ -16,7 +16,7 @@ private final class Lines: Sendable {
     func add(_ line: String) { items.withLock { $0.append(line) } }
     var all: [String] { items.withLock { $0 } }
     /// Polls by recursion, not a loop: a loop that keeps locals across an `await` crashes the Windows compiler.
-    func wait(count: Int, timeout: TimeInterval = 5) async -> Bool {
+    func wait(count: Int, timeout: TimeInterval = 30) async -> Bool {
         await wait(count: count, until: Date().addingTimeInterval(timeout))
     }
 
@@ -62,7 +62,7 @@ private final class Harness: Sendable {
 
     func finish() async -> Int32? {
         try? stdin.fileHandleForWriting.close()
-        return await waitForExit(until: Date().addingTimeInterval(5))
+        return await waitForExit(until: Date().addingTimeInterval(30))
     }
 
     private func waitForExit(until deadline: Date) async -> Int32? {
@@ -72,7 +72,11 @@ private final class Harness: Sendable {
         return await waitForExit(until: deadline)
     }
 
-    func json(_ index: Int) throws -> JSONValue { try JSONValue.parse(Data(received.all[index].utf8)) }
+    func json(_ index: Int) throws -> JSONValue {
+        let lines = received.all
+        try #require(lines.indices.contains(index), "only \(lines.count) lines arrived, wanted index \(index)")
+        return try JSONValue.parse(Data(lines[index].utf8))
+    }
 }
 
 private func tempSocketURL() -> URL {
@@ -89,7 +93,7 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
     }, connectionChanged: { _ in })
 }
 
-struct BridgeTests {
+@Suite(.serialized) struct BridgeTests {
     @Test func bridgeCopiesBothWays() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }

@@ -8,24 +8,10 @@ public final class LocalSocket: Sendable {
 
     private init(_ handle: SOCKET) { self.handle = handle }
 
-    /// `afunix.h`'s address, declared here because WinSDK doesn't always expose it.
-    private struct UnixAddress {
-        var family: UInt16 = UInt16(AF_UNIX)
-        // swiftlint:disable:next large_tuple - sun_path is a fixed 108-byte C array, which Swift imports as a tuple.
-        var path: (
-            CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar,
-            CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar,
-            CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar,
-            CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar,
-            CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar,
-            CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar,
-            CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar, CChar
-        ) = (
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        )
-    }
+    /// `afunix.h`'s `sockaddr_un` (WinSDK doesn't always expose it): a `UInt16` family then a 108-byte `sun_path`, built as raw bytes
+    /// so no element count can be miscounted.
+    static let addressSize = 2 + 108
+    private static let pathCapacity = 108
 
     private static let started: Bool = {
         var data = WSADATA()
@@ -40,23 +26,21 @@ public final class LocalSocket: Sendable {
     }
 
     private static func withAddress<T>(_ url: URL, _ body: (UnsafePointer<sockaddr>, Int32) -> T) throws(SocketProblem) -> T {
-        var address = UnixAddress()
         let path = Array(LocalSocket.fileSystemPath(url).utf8)
-        let capacity = MemoryLayout.size(ofValue: address.path)
-        guard path.count < capacity else { throw SocketProblem.pathTooLong }
-        withUnsafeMutableBytes(of: &address.path) { bytes in
-            for (index, byte) in path.enumerated() { bytes[index] = byte }
-        }
-        let size = Int32(MemoryLayout<UnixAddress>.size)
-        return withUnsafePointer(to: &address) { pointer in
-            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) { body($0, size) }
+        guard path.count < pathCapacity else { throw SocketProblem.pathTooLong }
+        var bytes = [UInt8](repeating: 0, count: addressSize)
+        let family = UInt16(AF_UNIX)
+        bytes[0] = UInt8(family & 0xff)
+        bytes[1] = UInt8(family >> 8)
+        for (index, byte) in path.enumerated() { bytes[2 + index] = byte }
+        return bytes.withUnsafeBytes { raw in
+            body(raw.baseAddress!.assumingMemoryBound(to: sockaddr.self), Int32(addressSize))
         }
     }
 
     /// Refuses a path that doesn't fit `sun_path`, before any handle exists to leak.
     private static func checkLength(of url: URL) throws(SocketProblem) {
-        let capacity = MemoryLayout.size(ofValue: UnixAddress().path)
-        guard LocalSocket.fileSystemPath(url).utf8.count < capacity else { throw SocketProblem.pathTooLong }
+        guard LocalSocket.fileSystemPath(url).utf8.count < pathCapacity else { throw SocketProblem.pathTooLong }
     }
 
     public static func listen(at url: URL) throws(SocketProblem) -> LocalSocket {
@@ -95,7 +79,7 @@ public final class LocalSocket: Sendable {
     /// Removes a file (a stale socket) with `DeleteFileW`; a missing one is fine, any other failure is thrown.
     public static func removeFile(at url: URL) throws(SocketProblem) {
         let deleted = fileSystemPath(url).withCString(encodedAs: UTF16.self) { DeleteFileW($0) }
-        guard !deleted.boolValue else { return }
+        guard !deleted else { return }
         let code = Int32(GetLastError())
         guard code != 2 && code != 3 else { return }  // ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND
         throw SocketProblem.failed("remove the old socket file", code)

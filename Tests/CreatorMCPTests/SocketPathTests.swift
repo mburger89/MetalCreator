@@ -68,4 +68,11 @@ struct SocketPathTests {
         #expect(throws: SocketProblem.self) { try SocketPath.prepareFolder(link.appendingPathComponent("mcp.sock")) }
     }
     #endif
+
+    #if os(Windows)
+    /// `afunix.h`'s `sockaddr_un`: a 2-byte family and a 108-byte `sun_path`.
+    @Test func windowsAddressIsTheSizeOfSockaddrUn() {
+        #expect(LocalSocket.addressSize == 2 + 108)
+    }
+    #endif
 }

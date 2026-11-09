@@ -7,14 +7,19 @@ private final class Flags: Sendable {
     private let states = Mutex<[Bool]>([])
     func add(_ value: Bool) { states.withLock { $0.append(value) } }
     var all: [Bool] { states.withLock { $0 } }
-    func settle() { Thread.sleep(forTimeInterval: 0.3) }
-    func waitFor(_ value: Bool, count: Int = 1) -> Bool {
-        let deadline = Date().addingTimeInterval(5)
-        while Date() < deadline {
-            if all.filter({ $0 == value }).count >= count { return true }
-            Thread.sleep(forTimeInterval: 0.01)
-        }
-        return false
+    func settle() async { try? await Task.sleep(for: .milliseconds(300)) }
+
+    /// Polls by recursion (a loop holding locals across an `await` crashes the Windows compiler) and sleeps with `Task.sleep`, so the
+    /// cooperative thread that runs the test is free for the listener's handler tasks. The wait only matters on failure, so it is long.
+    func waitFor(_ value: Bool, count: Int = 1, timeout: TimeInterval = 30) async -> Bool {
+        await waitFor(value, count: count, until: Date().addingTimeInterval(timeout))
+    }
+
+    private func waitFor(_ value: Bool, count: Int, until deadline: Date) async -> Bool {
+        if all.filter({ $0 == value }).count >= count { return true }
+        guard Date() < deadline else { return false }
+        try? await Task.sleep(for: .milliseconds(10))
+        return await waitFor(value, count: count, until: deadline)
     }
 }
 
@@ -27,18 +32,25 @@ private struct Client {
 
     func send(_ text: String) -> Bool { socket.write(Data(text.utf8)) }
 
-    /// The next line, `nil` on a timeout, `""` on a closed connection.
-    mutating func line(timeout: TimeInterval = 5) -> String? {
-        let deadline = Date().addingTimeInterval(timeout)
-        var buffer = [UInt8](repeating: 0, count: 4096)
-        while Date() < deadline {
-            if case .line(let data)? = reader.nextLine() { return String(bytes: data, encoding: .utf8) ?? "" }
-            guard socket.waitReadable(milliseconds: 20) else { continue }
+    /// The next line, `nil` on a timeout, `""` on a closed connection. It never blocks a cooperative thread: it polls without waiting
+    /// and sleeps with `Task.sleep` between polls, because the server's handlers are tasks on that same pool (a test that blocked
+    /// the pool starved them on a CI runner with two cores). The default timeout is long: it matters only when a test fails.
+    mutating func line(timeout: TimeInterval = 30) async -> String? {
+        await line(until: Date().addingTimeInterval(timeout))
+    }
+
+    private mutating func line(until deadline: Date) async -> String? {
+        if case .line(let data)? = reader.nextLine() { return String(bytes: data, encoding: .utf8) ?? "" }
+        if socket.waitReadable(milliseconds: 0) {
+            var buffer = [UInt8](repeating: 0, count: 4096)
             let count = socket.read(into: &buffer)
             if count <= 0 { return "" }
             reader.append(buffer[0..<count])
+            return await line(until: deadline)
         }
-        return nil
+        guard Date() < deadline else { return nil }
+        try? await Task.sleep(for: .milliseconds(5))
+        return await line(until: deadline)
     }
 }
 
@@ -56,8 +68,16 @@ private func makeListener(
     MCPListener(path: url, handle: handler, connectionChanged: { flags.add($0) })
 }
 
-struct TransportTests {
-    @Test func roundTripOverARealSocket() throws {
+/// Waits (without blocking the pool) until the listener's accept loops are down to `count`.
+private func loops(of listener: MCPListener, atMost count: Int, until deadline: Date = Date().addingTimeInterval(30)) async -> Bool {
+    if listener.runningLoops <= count { return true }
+    guard Date() < deadline else { return false }
+    try? await Task.sleep(for: .milliseconds(10))
+    return await loops(of: listener, atMost: count, until: deadline)
+}
+
+@Suite(.serialized) struct TransportTests {
+    @Test func roundTripOverARealSocket() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let listener = makeListener(at: url)
@@ -65,10 +85,10 @@ struct TransportTests {
         defer { listener.stop() }
         var client = try Client(url)
         #expect(client.send("ping\r\n"))
-        #expect(client.line() == "ping")
+        #expect(await client.line() == "ping")
     }
 
-    @Test func pipelinedRequestsAnswerInOrder() throws {
+    @Test func pipelinedRequestsAnswerInOrder() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let listener = makeListener(at: url) { line, send in
@@ -79,11 +99,11 @@ struct TransportTests {
         defer { listener.stop() }
         var client = try Client(url)
         #expect(client.send("first\nsecond\n"))
-        #expect(client.line() == "first")
-        #expect(client.line() == "second")
+        #expect(await client.line() == "first")
+        #expect(await client.line() == "second")
     }
 
-    @Test func clientVanishingMidRequestFreesTheServer() throws {
+    @Test func clientVanishingMidRequestFreesTheServer() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let flags = Flags()
@@ -95,15 +115,15 @@ struct TransportTests {
         defer { listener.stop() }
         let first = try Client(url)
         #expect(first.send("slow\n"))
-        #expect(flags.waitFor(true))
+        #expect(await flags.waitFor(true))
         first.socket.close()
-        #expect(flags.waitFor(false))
+        #expect(await flags.waitFor(false))
         var second = try Client(url)
         #expect(second.send("hello\n"))
-        #expect(second.line() == "hello")
+        #expect(await second.line() == "hello")
     }
 
-    @Test func oversizedLineClosesTheConnection() throws {
+    @Test func oversizedLineClosesTheConnection() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let listener = makeListener(at: url)
@@ -113,14 +133,14 @@ struct TransportTests {
         let chunk = Data(repeating: 0x61, count: 1 << 20)
         var sent = 0
         while sent < 17, client.socket.write(chunk) { sent += 1 }
-        #expect(client.line() == "")
+        #expect(await client.line() == "")
         client.socket.close()
         var next = try Client(url)
         #expect(next.send("again\n"))
-        #expect(next.line() == "again")
+        #expect(await next.line() == "again")
     }
 
-    @Test func aClientThatNeverReadsIsDroppedAndTheHandlerIsNeverBlocked() throws {
+    @Test func aClientThatNeverReadsIsDroppedAndTheHandlerIsNeverBlocked() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let flags = Flags()
@@ -137,14 +157,14 @@ struct TransportTests {
         defer { listener.stop() }
         let client = try Client(url)
         #expect(client.send("go\n"))
-        #expect(returned.waitFor(true))
-        #expect(flags.waitFor(false), "the stalled connection is dropped")
+        #expect(await returned.waitFor(true))
+        #expect(await flags.waitFor(false), "the stalled connection is dropped")
         var next = try Client(url)
         #expect(next.send("x\n"))
-        #expect(next.line(timeout: 5) != nil, "the next client is served")
+        #expect(await next.line(timeout: 5) != nil, "the next client is served")
     }
 
-    @Test func aBoundedConnectFindsALiveListenerAndRefusesAStaleFile() throws {
+    @Test func aBoundedConnectFindsALiveListenerAndRefusesAStaleFile() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         try SocketPath.prepareFolder(url)
@@ -160,7 +180,7 @@ struct TransportTests {
         }
     }
 
-    @Test func removingAStaleFileIsCheckedNotSwallowed() throws {
+    @Test func removingAStaleFileIsCheckedNotSwallowed() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         try SocketPath.prepareFolder(url)
@@ -172,7 +192,7 @@ struct TransportTests {
         #expect(!FileManager.default.fileExists(atPath: url.path))
     }
 
-    @Test func staleSocketIsReplaced() throws {
+    @Test func staleSocketIsReplaced() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         try SocketPath.prepareFolder(url)
@@ -184,10 +204,10 @@ struct TransportTests {
         defer { listener.stop() }
         var client = try Client(url)
         #expect(client.send("x\n"))
-        #expect(client.line() == "x")
+        #expect(await client.line() == "x")
     }
 
-    @Test func liveSocketIsLeftAlone() throws {
+    @Test func liveSocketIsLeftAlone() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let first = makeListener(at: url)
@@ -198,10 +218,10 @@ struct TransportTests {
         second.stop()
         var client = try Client(url)
         #expect(client.send("still\n"))
-        #expect(client.line() == "still")
+        #expect(await client.line() == "still")
     }
 
-    @Test func stopRemovesTheFile() throws {
+    @Test func stopRemovesTheFile() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let listener = makeListener(at: url)
@@ -219,7 +239,7 @@ struct TransportTests {
     }
 
     #if !os(Windows)
-    @Test func socketIsPrivate() throws {
+    @Test func socketIsPrivate() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let listener = makeListener(at: url)
@@ -233,7 +253,7 @@ struct TransportTests {
     }
     #endif
 
-    @Test func probeConnectionFiresNoConnectionChange() throws {
+    @Test func probeConnectionFiresNoConnectionChange() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let flags = Flags()
@@ -244,15 +264,15 @@ struct TransportTests {
         probe.close()
         let second = makeListener(at: url)
         #expect(try second.start() == .inUse)
-        flags.settle()
+        await flags.settle()
         #expect(flags.all.isEmpty)
         var client = try Client(url)
         #expect(client.send("x\n"))
-        #expect(client.line() == "x")
+        #expect(await client.line() == "x")
         #expect(flags.all == [true])
     }
 
-    @Test func stopThenStartServesANewClientAndLeavesNoOldThread() throws {
+    @Test func stopThenStartServesANewClientAndLeavesNoOldThread() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let listener = makeListener(at: url)
@@ -262,16 +282,15 @@ struct TransportTests {
         defer { listener.stop() }
         var client = try Client(url)
         #expect(client.send("again\n"))
-        #expect(client.line() == "again")
-        let deadline = Date().addingTimeInterval(5)
-        while listener.runningLoops > 1, Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
+        #expect(await client.line() == "again")
+        #expect(await loops(of: listener, atMost: 1))
         #expect(listener.runningLoops == 1)
         listener.stop()
-        while listener.runningLoops > 0, Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
+        #expect(await loops(of: listener, atMost: 0))
         #expect(listener.runningLoops == 0)
     }
 
-    @Test func startingTwiceReturnsTheSameState() throws {
+    @Test func startingTwiceReturnsTheSameState() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let listener = makeListener(at: url)
@@ -281,7 +300,7 @@ struct TransportTests {
         #expect(listener.runningLoops == 1)
     }
 
-    @Test func probeLeavesABusyListenersFileAlone() throws {
+    @Test func probeLeavesABusyListenersFileAlone() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let listener = makeListener(at: url) { line, send in
@@ -297,12 +316,12 @@ struct TransportTests {
         let second = makeListener(at: url)
         #expect(try second.start() == .inUse)
         #expect(FileManager.default.fileExists(atPath: url.path))
-        #expect(busy.line() == "slow")
+        #expect(await busy.line() == "slow")
         busy.socket.close()
-        #expect(queued.line() == "queued")
+        #expect(await queued.line() == "queued")
     }
 
-    @Test func onlyOneClientAtATime() throws {
+    @Test func onlyOneClientAtATime() async throws {
         let url = tempSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let listener = makeListener(at: url)
@@ -310,12 +329,12 @@ struct TransportTests {
         defer { listener.stop() }
         var first = try Client(url)
         #expect(first.send("one\n"))
-        #expect(first.line() == "one")
+        #expect(await first.line() == "one")
         var second = try Client(url)
         #expect(second.send("two\n"))
-        #expect(second.line(timeout: 0.4) == nil)
+        #expect(await second.line(timeout: 0.4) == nil)
         first.socket.close()
-        #expect(second.line() == "two")
+        #expect(await second.line() == "two")
     }
 }
 
