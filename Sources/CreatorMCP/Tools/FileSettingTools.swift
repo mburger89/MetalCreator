@@ -26,14 +26,21 @@ import Foundation
                 case .success(let id): node = id
                 }
                 guard let path = arguments["path"]?.string, !path.isEmpty else { return .refused("Say which file, by its absolute path.") }
-                guard path.hasPrefix("/") || (path.count > 2 && path.dropFirst().hasPrefix(":")) else {
-                    return .refused("Paths must be absolute.")
-                }
+                guard AbsolutePath.isAbsolute(path) else { return .refused(AbsolutePath.refusal) }
                 let embed = arguments["embed"]?.bool ?? false
                 return await EditOutcome.observe(session: session) {
                     await session.setFile(URL(fileURLWithPath: path), on: node, embed: embed)
                 }
             },
         ]
+    }
+}
+
+/// The one rule about paths a client sends: a POSIX root or a Windows drive letter.
+enum AbsolutePath {
+    static let refusal = "Paths must be absolute."
+
+    static func isAbsolute(_ path: String) -> Bool {
+        path.hasPrefix("/") || (path.count > 2 && path.dropFirst().hasPrefix(":"))
     }
 }
