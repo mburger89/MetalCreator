@@ -266,7 +266,7 @@ struct AppDocumentSessionTests {
     }
 }
 
-private final class Sent: Sendable {
+final class Sent: Sendable {
     private let lines = Mutex<[Data]>([])
     func add(_ data: Data) { lines.withLock { $0.append(data) } }
     var all: [Data] { lines.withLock { $0 } }

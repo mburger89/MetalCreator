@@ -1,6 +1,6 @@
-import CreatorMCP
 import Foundation
 import Testing
+@testable import CreatorMCP
 
 @MainActor struct FileToolTests {
     private func make() async throws -> (SessionFixture, FakeFileSession, MCPServerCore) {
@@ -94,4 +94,38 @@ import Testing
         let (quiet, _, _) = try await call(core, "export", .object(["kind": .string("stl"), "path": .string("/tmp/o.stl")]))
         #expect(quiet.count == 1)
     }
+}
+
+struct AbsolutePathTests {
+    @Test func posixRootsAreAbsoluteEverywhereButWindows() {
+        #if !os(Windows)
+        #expect(AbsolutePath.isAbsolute("/tmp/a.mcgraph"))
+        #expect(!AbsolutePath.isAbsolute("a.mcgraph"))
+        #expect(!AbsolutePath.isAbsolute("a:b/x"), "a colon is not a drive off Windows")
+        #expect(!AbsolutePath.isAbsolute("C:\\x"))
+        #expect(!AbsolutePath.isAbsolute(""))
+        #endif
+    }
+
+    @Test func windowsRulesHoldOnEveryPlatform() {
+        #expect(AbsolutePath.isWindowsAbsolute("C:\\Users\\a.mcgraph"))
+        #expect(AbsolutePath.isWindowsAbsolute("d:/a.mcgraph"))
+        #expect(AbsolutePath.isWindowsAbsolute("\\\\server\\share\\a.mcgraph"))
+        #expect(!AbsolutePath.isWindowsAbsolute("C:foo"))
+        #expect(!AbsolutePath.isWindowsAbsolute("C:"))
+        #expect(!AbsolutePath.isWindowsAbsolute("a:b/x"))
+        #expect(!AbsolutePath.isWindowsAbsolute("\\\\server"))
+        #expect(!AbsolutePath.isWindowsAbsolute("\\\\\\share"))
+        #expect(!AbsolutePath.isWindowsAbsolute("foo\\bar"))
+    }
+
+    #if os(Windows)
+    @Test func windowsAcceptsDrivesAndSharesAndRefusesDriveRelative() {
+        #expect(AbsolutePath.isAbsolute("C:\\x"))
+        #expect(AbsolutePath.isAbsolute("C:/x"))
+        #expect(AbsolutePath.isAbsolute("\\\\server\\share\\x"))
+        #expect(!AbsolutePath.isAbsolute("C:foo"))
+        #expect(!AbsolutePath.isAbsolute("/x"))
+    }
+    #endif
 }

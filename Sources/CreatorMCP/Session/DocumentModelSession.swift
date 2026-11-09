@@ -165,18 +165,20 @@ enum ValueSummary {
 }
 
 /// Whichever of the evaluation and the timer finishes first decides `settle`.
-@MainActor private final class SettleGate {
+@MainActor public final class SettleGate {
     private var result: Bool?
     private var waiting: CheckedContinuation<Bool, Never>?
 
-    func finish(_ value: Bool) {
+    public init() {}
+
+    public func finish(_ value: Bool) {
         guard result == nil else { return }
         result = value
         waiting?.resume(returning: value)
         waiting = nil
     }
 
-    func outcome() async -> Bool {
+    public func outcome() async -> Bool {
         if let result { return result }
         return await withCheckedContinuation { waiting = $0 }
     }

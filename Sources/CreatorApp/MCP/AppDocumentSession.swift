@@ -83,8 +83,22 @@ final class AppDocumentSession: DocumentSession {
     }
 
     func settle(within limit: Duration) async -> Bool {
-        let settled = await inner.settle(within: limit)
-        await model.settle()
+        // One race for the whole wait (the inner settle and the model's own), so the cap holds for both.
+        let gate = SettleGate()
+        let inner = inner
+        let model = model
+        let waiter = Task { @MainActor in
+            let settled = await inner.settle(within: limit)
+            if settled { await model.settle() }
+            gate.finish(settled)
+        }
+        let timer = Task { @MainActor in
+            try? await Task.sleep(for: limit)
+            gate.finish(false)
+        }
+        let settled = await gate.outcome()
+        waiter.cancel()
+        timer.cancel()
         return settled
     }
 
@@ -148,8 +162,11 @@ final class AppDocumentSession: DocumentSession {
         }
         defer { watcher.cancel() }
         do {
-            try await model.export(exportKind, to: url)
-            return .done("Exported \(url.lastPathComponent).")
+            let warnings = try await model.exportReturningWarnings(exportKind, to: url)
+            guard !warnings.isEmpty else { return .done("Exported \(url.lastPathComponent).") }
+            let count = warnings.count.formatted(.number.locale(.messages))
+            let heading = "Exported \(url.lastPathComponent) with \(count) \(warnings.count == 1 ? "warning" : "warnings")"
+            return .done(([heading + ":"] + warnings).joined(separator: "\n"))
         } catch {
             return .refused(error.message)
         }

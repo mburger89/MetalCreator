@@ -129,7 +129,7 @@ import Foundation
         var fields: [String: JSONValue] = [
             "id": .string(node.id.rawValue.uuidString), "name": .string(node.name), "type": .string(node.typeID),
             "position": .array([number(node.position.x), number(node.position.y)]), "state": .string(state),
-            "output": .object(outputSummaries(of: node, session)),
+            "is_output": .bool(node.isOutput), "outputs": .object(outputSummaries(of: node, session)),
         ]
         if let message { fields["message"] = .string(message) }
         return .object(fields)
@@ -211,7 +211,8 @@ import Foundation
         let (state, message) = stateText(session.results[id]?.state)
         var fields: [String: JSONValue] = [
             "id": .string(id.rawValue.uuidString), "name": .string(node.name), "type": .string(node.typeID),
-            "inputs": .array(inputs), "outputs": .array(outputs), "state": .string(state), "settings": .object(settings),
+            "is_output": .bool(node.isOutput), "inputs": .array(inputs), "outputs": .array(outputs), "state": .string(state),
+            "settings": .object(settings),
         ]
         if let message { fields["message"] = .string(message) }
         return .object(fields)

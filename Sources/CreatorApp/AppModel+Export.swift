@@ -54,6 +54,12 @@ extension AppModel {
     /// into the file, in a sheet with a progress bar and Cancel (`exportRun`); a cancelled export leaves no file. Afterwards a summary
     /// lists the warnings of the nodes the export came from.
     public func export(_ kind: ExportKind, to url: URL) async throws(AppProblem) {
+        summarize(try await exportReturningWarnings(kind, to: url))
+    }
+
+    /// `export`, but the warnings come back instead of raising the summary alert: an AI client's export is not the person's, and
+    /// a modal alert would block the window (and every later call) until someone answered it. A cancelled export has none.
+    public func exportReturningWarnings(_ kind: ExportKind, to url: URL) async throws(AppProblem) -> [String] {
         editor.commitPendingEntry()
         await document.waitForEvaluation()
         let plan = try exportPlan()
@@ -64,10 +70,9 @@ extension AppModel {
             } catch {
                 throw AppProblem("The \(kind.title) file couldn't be written", Evaluator.message(for: error))
             }
-            summarize(Self.warnings(in: document.results, graph: document.graph, outputs: outputNodes))
-            return
+            return Self.warnings(in: document.results, graph: document.graph, outputs: outputNodes)
         }
-        try await exportStreamed(kind, to: url)
+        return try await exportStreamed(kind, to: url)
     }
 
     /// Export STEP…, STL… or 3MF…: says what's wrong before asking where, then the save panel, then the file.
@@ -102,7 +107,7 @@ extension AppModel {
         var warnings: [String] = []
     }
 
-    private func exportStreamed(_ kind: ExportKind, to url: URL) async throws(AppProblem) {
+    private func exportStreamed(_ kind: ExportKind, to url: URL) async throws(AppProblem) -> [String] {
         let run = ExportRun(title: "Exporting “\(exportName)”")
         exportRun = run
         defer { exportRun = nil }
@@ -112,13 +117,13 @@ extension AppModel {
         do {
             warnings = try await work.value
         } catch is CancellationError {
-            return
+            return []
         } catch let problem as AppProblem {
             throw problem
         } catch {
             throw AppProblem("The \(kind.title) file couldn't be written", Self.exportMessage(for: error))
         }
-        summarize(warnings)
+        return warnings
     }
 
     /// Evaluates the graph for export, then writes the file; the warnings of the nodes it came from.

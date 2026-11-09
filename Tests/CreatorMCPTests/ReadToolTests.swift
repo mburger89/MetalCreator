@@ -20,6 +20,23 @@ import Testing
         #expect(document["next_cursor"] == nil)
     }
 
+    @Test func nodesReportTheirOutputFlag() async throws {
+        let fixture = try await SessionFixture()
+        let (document, _) = try await fixture.call("get_document")
+        let nodes = try #require(document["nodes"]?.array)
+        let flags = Dictionary(uniqueKeysWithValues: nodes.compactMap { node in
+            node["name"]?.string.map { ($0, node["is_output"]?.bool) }
+        })
+        #expect(flags == ["Rectangle": false, "Extrude": false, "Output": true])
+        let rectangle = try #require(nodes.first { $0["name"]?.string == "Rectangle" })
+        #expect(rectangle["output"] == nil)
+        #expect(rectangle["outputs"]?.object?["profile"]?.string != nil)
+        let (output, _) = try await fixture.call("get_node", .object(["node": .string("Output")]))
+        #expect(output["is_output"]?.bool == true)
+        let (extrude, _) = try await fixture.call("get_node", .object(["node": .string("Extrude")]))
+        #expect(extrude["is_output"]?.bool == false)
+    }
+
     @Test func documentPagesAt200() async throws {
         let fixture = try await SessionFixture()
         let numbers = (0..<450).map { index in
