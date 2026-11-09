@@ -41,14 +41,19 @@ struct TopBar: Component {
                     Toggle("Section", isOn: Binding(get: { model.document.section?.isOn == true }, set: { model.setSection($0) }))
                     Toggle("Measure", isOn: Binding(get: { model.measure != nil }, set: { model.setMeasure($0) }))
                         .disabled(model.pick != nil)
+                        .absorbsPointer()
                     Toggle("Zebra", isOn: Binding(get: { model.document.zebra?.isOn == true }, set: { model.setZebra($0) }))
+                    // Only a control that can be disabled needs the backdrop: an enabled one registers its own hitbox, a disabled
+                    // one none, so a press on it would orbit the viewport under the bar's padding.
                     // The step titles give way first: one line each, cut short before any control loses its width.
                     Button(model.undoTitle) { model.undo() }
                         .lineLimit(1)
                         .disabled(!model.document.canUndo)
+                        .absorbsPointer()
                     Button(model.redoTitle) { model.redo() }
                         .lineLimit(1)
                         .disabled(!model.document.canRedo)
+                        .absorbsPointer()
                     Menu("Export") {
                         Button("STEP…") { model.withFilePicker { await model.exportDocument(.step, using: $0) } }
                         Button("STL…") { model.withFilePicker { await model.exportDocument(.stl, using: $0) } }

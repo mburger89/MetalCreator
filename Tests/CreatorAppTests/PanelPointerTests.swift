@@ -34,6 +34,22 @@ struct PanelPointerTests {
         return probe.clicks.count
     }
 
+    /// A press-drag on the disabled Undo does nothing: no orbit and no window drag. One in the bar's padding between two
+    /// controls still orbits (user decision: the bar's padding stays part of the viewport).
+    @Test func aDisabledTopBarControlTakesItsPressButTheBarsPaddingOrbits() async throws {
+        let app = try await open()
+        try await app.window.runUntilIdle()
+        let undo = try app.window.element(label: "Undo")
+        #expect(!undo.isEnabled)
+        let before = app.model.viewport.pose
+        #expect(app.windowDragRequests(draggingFrom: app.centre(of: undo)) == 0)
+        #expect(app.model.viewport.pose == before, "a press on a disabled control never reaches the viewport")
+        let redo = try app.window.element(label: "Redo")
+        let gap = (undo.frame.origin.x.value + undo.frame.size.width.value + redo.frame.origin.x.value) / 2
+        _ = app.windowDragRequests(draggingFrom: app.point(gap, app.centre(of: undo).y.value))
+        #expect(app.model.viewport.pose != before, "the padding between controls orbits")
+    }
+
     @Test func theMeasurePanelTakesItsClicks() async throws {
         let app = try await open()
         app.model.setMeasure(true)

@@ -38,13 +38,27 @@ public struct GlassPanel<Body: ElementGroup>: Component {
             .glassBackground(style, in: shape)
             .overlay { shape.strokeBorder(palette.hairline.color, lineWidth: Pixels(1)) }
             .background {
-                if takesPointer {
-                    Color.clear
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .contentShape(Rectangle())
-                        .gesture(DragGesture(minimumDistance: Pixels(0)))
-                        .onScrollWheel { _ in true }
-                }
+                if takesPointer { PointerBackdrop() }
             }
+    }
+}
+
+/// The pointer backdrop: a content shape with an empty drag, claiming every scroll. A painted view has no hitbox, and a
+/// disabled control registers none, so a press on either falls through to what lies beneath; this stops it.
+struct PointerBackdrop: Component {
+    var content: some ElementGroup {
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: Pixels(0)))
+            .onScrollWheel { _ in true }
+    }
+}
+
+extension Element {
+    /// Puts the glass's pointer backdrop behind this element, sized to its frame, so a press on it, enabled or not, never
+    /// reaches the viewport (macOS: a press on a disabled button does nothing).
+    public func absorbsPointer() -> some Element {
+        background { PointerBackdrop() }
     }
 }

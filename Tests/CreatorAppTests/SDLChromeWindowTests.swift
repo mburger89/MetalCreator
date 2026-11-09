@@ -136,13 +136,22 @@ struct SDLChromeWindowTests {
         #expect(covered(app.point(600, 5)), "the strip above the bar")
         #expect(covered(app.point(30, 34)), "and the document's name")
         // Since MetalUI's .windowTitleBarMetrics (PR #248, gap AS-a) the 68-point band is itself a drag region, carved by what takes
-        // a press; a disabled control takes none, so a press on it drags the window, which is harmless. Enabled ones are carved.
-        for control in try barControls(app) where control.isEnabled {
+        // a press. Since MetalUI PR #250 (ruling AS-S) a disabled control carves it too, so a press on it no longer drags the window.
+        for control in try barControls(app) {
             #expect(!covered(app.centre(of: control)), "\(control.label ?? "a control") takes its own press (divergence 426)")
         }
         for label in drawnLabels {
             #expect(!covered(app.centre(of: try app.window.element(label: label))), "\(label) is a button")
         }
+    }
+
+    @Test func aPressOnTheDisabledUndoDoesNotDragTheWindowButTheBandBesideItDoes() async throws {
+        let app = try await AppWindow.open(options: .sdlChrome)
+        app.window.tick()
+        let undo = try app.window.element(label: "Undo")
+        #expect(!undo.isEnabled, "a fresh document has nothing to undo")
+        #expect(app.windowDragRequests(draggingFrom: app.centre(of: undo)) == 0, "a disabled control is not a handle (MetalUI PR #250)")
+        #expect(app.windowDragRequests(draggingFrom: app.point(600, 34)) > 0, "the empty band beside it still drags")
     }
 
     @Test func aHandleHoldingControlsDragsAroundThemInTheSketchBarToo() async throws {
