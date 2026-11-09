@@ -46,7 +46,9 @@ import Foundation
         let version = offered.flatMap { MCPProtocol.supportedVersions.contains($0) ? $0 : nil } ?? MCPProtocol.supportedVersions[0]
         return .object([
             "protocolVersion": .string(version),
-            "capabilities": .object(["tools": .object([:]), "resources": .object([:])]),
+            "capabilities": .object([
+                "tools": .object(["listChanged": .bool(true)]), "resources": .object(["listChanged": .bool(true)]),
+            ]),
             "serverInfo": .object(["name": .string("MetalCreator"), "version": .string(serverVersion)]),
         ])
     }

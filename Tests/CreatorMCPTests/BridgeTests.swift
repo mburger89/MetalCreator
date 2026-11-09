@@ -142,15 +142,74 @@ struct BridgeTests {
         #expect(try app.start() == .listening)
         defer { app.stop() }
         harness.send(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
-        #expect(await harness.received.wait(count: 2))
-        #expect(try harness.json(1)["id"]?.int == 2)
-        #expect(try harness.json(1)["result"]?["from"]?.string == "app")
+        #expect(await harness.received.wait(count: 4))
+        #expect(try harness.json(1)["method"]?.string == "notifications/tools/list_changed")
+        #expect(try harness.json(2)["method"]?.string == "notifications/resources/list_changed")
+        #expect(try harness.json(3)["id"]?.int == 2)
+        #expect(try harness.json(3)["result"]?["from"]?.string == "app")
+        #expect(try harness.json(0)["result"]?["capabilities"]?["tools"]?["listChanged"]?.bool == true)
         // The app was brought up to date first, and its answer to that never reached the client.
         #expect(await seen.wait(count: 3))
         let methods = try seen.all.map { try JSONValue.parse(Data($0.utf8))["method"]?.string }
         #expect(methods == ["initialize", "notifications/initialized", "tools/list"])
         #expect(try JSONValue.parse(Data(seen.all[0].utf8))["params"]?["clientInfo"]?["name"]?.string == "t")
-        #expect(harness.received.all.count == 2)
+        #expect(harness.received.all.count == 4)
+        #expect(await harness.finish() == 0)
+    }
+
+    @Test func appClosingMidRequestAnswersEachPendingRequest() async throws {
+        for (method, isTool) in [("tools/call", true), ("ping", false)] {
+            let url = tempSocketURL()
+            defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+            try SocketPath.prepareFolder(url)
+            let stub = try LocalSocket.listen(at: url)
+            let thread = Thread {
+                guard let connection = try? stub.accept(timeoutMilliseconds: 5_000) else { return stub.close() }
+                var buffer = [UInt8](repeating: 0, count: 4096)
+                _ = connection.waitReadable(milliseconds: 5_000)
+                _ = connection.read(into: &buffer)
+                connection.close()
+                stub.close()
+            }
+            thread.start()
+            let harness = Harness(socket: url)
+            harness.send(#"{"jsonrpc":"2.0","id":9,"method":"\#(method)","params":{"name":"x"}}"#)
+            #expect(await harness.received.wait(count: 1))
+            let reply = try harness.json(0)
+            #expect(reply["id"]?.int == 9)
+            if isTool {
+                #expect(reply["result"]?["isError"]?.bool == true)
+                #expect(reply["result"]?["content"]?.array?.first?["text"]?.string == MCPBridge.closedSentence)
+            } else {
+                #expect(reply["error"]?["code"]?.int == -32603)
+                #expect(reply["error"]?["message"]?.string == MCPBridge.closedSentence)
+            }
+            #expect(await harness.finish() == 0)
+        }
+    }
+
+    @Test func endOfInputWaitsForAPendingReply() async throws {
+        let url = tempSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let app = MCPListener(path: url, handle: { _, send in
+            try? await Task.sleep(for: .milliseconds(300))
+            send(JSONRPC.result(id: .int(1), .object(["late": .bool(true)])))
+        }, connectionChanged: { _ in })
+        #expect(try app.start() == .listening)
+        defer { app.stop() }
+        let harness = Harness(socket: url)
+        harness.send(#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#)
+        #expect(await harness.finish() == 0)
+        #expect(await harness.received.wait(count: 1, timeout: 1))
+        #expect(try harness.json(0)["result"]?["late"]?.bool == true)
+    }
+
+    @Test func aTopLevelArrayIsAnInvalidRequest() async throws {
+        let harness = Harness(socket: tempSocketURL())
+        harness.send(#"[{"jsonrpc":"2.0","id":1,"method":"ping"}]"#)
+        #expect(await harness.received.wait(count: 1))
+        #expect(try harness.json(0)["error"]?["code"]?.int == -32600)
+        #expect(try harness.json(0)["id"] == .null)
         #expect(await harness.finish() == 0)
     }
 }
