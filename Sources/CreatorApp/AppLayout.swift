@@ -27,6 +27,14 @@ public enum AppLayout {
     /// The space between the window buttons' right edge and the top bar's first control.
     public static let titleBarGap = 8.0
 
+    /// The hidden title bar's band height (MetalUI `.windowTitleBarMetrics`, gap AS-a): the top bar's glass is y 12...56
+    /// (`margin` 12, `topBarHeight` 44), so its centre is y 34, and AppKit centres the traffic lights in the band, so a
+    /// 68-point band puts them on the bar's centre. `titleBarInsets.top` then reads 68.
+    public static let titleBarHeight = 2 * margin + topBarHeight
+    /// The close button's left edge in the window (gap AS-a): 27 points, which is 15 inside the glass (it starts at
+    /// `margin` 12), the same 15 points of glass the lights have above and below them. With it `titleBarInsets.left` reads 87, the zoom button's right edge.
+    public static let titleBarControlsLeading = 27.0
+
     /// The window's title-bar style (gap M6-c, MetalUI C8): hidden, so the glass top bar is drawn under the window
     /// buttons (spec §6.1). `MetalCreatorApp` and the tests' window both open with it.
     public static let windowStyle = WindowStyle.hiddenTitleBar

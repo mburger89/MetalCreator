@@ -51,7 +51,8 @@ struct SDLChromeWindowTests {
         let promised = try #require(AppLayout.buttonCluster(titleBarInsets: app.window.platformWindow.titleBarInsets,
                                                             windowWidth: Double(width)))
         #expect(cluster == promised)
-        #expect(promised.size.x == 138 && promised.size.y == 32)
+        // The band is the app's .windowTitleBarMetrics height (gap AS-a).
+        #expect(promised.size.x == 138 && promised.size.y == AppLayout.titleBarHeight)
     }
 
     @Test func theBarsControlsEndLeftOfTheButtons() async throws {
@@ -134,7 +135,9 @@ struct SDLChromeWindowTests {
         #expect(covered(app.point(600, 34)), "the bar's empty space")
         #expect(covered(app.point(600, 5)), "the strip above the bar")
         #expect(covered(app.point(30, 34)), "and the document's name")
-        for control in try barControls(app) {
+        // Since MetalUI's .windowTitleBarMetrics (PR #248, gap AS-a) the 68-point band is itself a drag region, carved by what takes
+        // a press; a disabled control takes none, so a press on it drags the window, which is harmless. Enabled ones are carved.
+        for control in try barControls(app) where control.isEnabled {
             #expect(!covered(app.centre(of: control)), "\(control.label ?? "a control") takes its own press (divergence 426)")
         }
         for label in drawnLabels {
