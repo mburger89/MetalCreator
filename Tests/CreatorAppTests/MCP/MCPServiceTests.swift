@@ -21,17 +21,6 @@ struct MCPServiceTests {
         return await waitUntil(condition, until: deadline)
     }
 
-    /// The fastest time the main actor took to answer a hop over the window (by recursion, as above). A blocked main actor
-    /// answers none until the stall ends; a busy test run can delay some hops, so it is the best one that counts.
-    private func fastestMainActorHop(until deadline: ContinuousClock.Instant, fastest: Duration = .seconds(3_600)) async -> Duration {
-        guard ContinuousClock.now < deadline else { return fastest }
-        let before = ContinuousClock.now
-        await Task { @MainActor in }.value
-        let took = ContinuousClock.now - before
-        try? await Task.sleep(for: .milliseconds(50))
-        return await fastestMainActorHop(until: deadline, fastest: min(fastest, took))
-    }
-
     @Test func preferenceTurnsTheServerOn() async {
         let url = socketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
@@ -124,8 +113,10 @@ struct MCPServiceTests {
         return nil
     }
 
-    /// A client that asks for a large document and never reads must neither freeze the window nor hold the connection for ever.
-    @Test func aClientThatNeverReadsDoesNotFreezeTheMainActor() async throws {
+    /// A client that asks for a large document and never reads does not hold the connection for ever. (That the main actor stays
+    /// free meanwhile is `StalledClientTests`, in the lightly loaded CreatorMCPTests: this process's main actor is shared with
+    /// the whole app suite, so no timing can be asserted here.)
+    @Test func aClientThatNeverReadsIsDropped() async throws {
         var builder = GraphBuilder()
         for _ in 0..<400 { builder.add(RectangleNode.self) }
         let url = socketURL()
@@ -140,8 +131,6 @@ struct MCPServiceTests {
             + "\"params\":{\"name\":\"get_document\",\"arguments\":{}}}\n"
         #expect(client.write(Data(request.utf8)))
         #expect(await waitUntil { service.isClientConnected })
-        let fastest = await fastestMainActorHop(until: .now + .seconds(2))
-        #expect(fastest < .seconds(1), "the main actor answered within \(fastest)")
         #expect(await waitUntil { !service.isClientConnected }, "the stalled connection is dropped")
     }
 
