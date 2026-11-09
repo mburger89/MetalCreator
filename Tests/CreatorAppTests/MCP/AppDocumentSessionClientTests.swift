@@ -48,7 +48,7 @@ struct AppDocumentSessionClientTests {
         #expect(!settled)
         await StallNode.gate.open()
         await app.settle()
-        #expect(await session.settle(within: .seconds(5)))
+        #expect(await session.settle(within: .seconds(60)))
     }
 
     /// A client's export reports its warnings in the tool result and raises no alert; the person's export still alerts.

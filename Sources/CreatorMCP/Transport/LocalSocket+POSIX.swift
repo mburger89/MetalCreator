@@ -135,7 +135,7 @@ public final class LocalSocket: Sendable {
 
     /// Makes a write give up when the other end stops reading for `milliseconds` (the write then fails with EAGAIN).
     public func setSendTimeout(milliseconds: Int) {
-        var value = timeval(tv_sec: milliseconds / 1_000, tv_usec: Int32((milliseconds % 1_000) * 1_000))
+        var value = timeval(tv_sec: time_t(milliseconds / 1_000), tv_usec: suseconds_t((milliseconds % 1_000) * 1_000))
         _ = setsockopt(descriptor, SOL_SOCKET, SO_SNDTIMEO, &value, socklen_t(MemoryLayout<timeval>.size))
     }
 

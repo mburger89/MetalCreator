@@ -1,5 +1,6 @@
 import CreatorMCP
 import Foundation
+import Observation
 import Synchronization
 
 /// The AI connection: the on/off switch (the person's preference, or `--mcp` for one session), the listener on the local socket

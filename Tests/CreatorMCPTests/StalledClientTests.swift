@@ -28,7 +28,12 @@ import Testing
 
     @Test func aClientThatNeverReadsLeavesTheMainActorFreeAndIsDropped() async throws {
         let fixture = try await SessionFixture()
-        let numbers = (0..<450).map { _ in GraphCommand.addNode(fixture.document.registry.makeNode("creator.number")) }
+        // Long names make the first page well over a megabyte: bigger than any socket buffer (Linux's is about 200 KB).
+        let numbers = (0..<450).map { index in
+            var node = fixture.document.registry.makeNode("creator.number")
+            node.name = "Number \(index) " + String(repeating: "x", count: 8_000)
+            return GraphCommand.addNode(node)
+        }
         try fixture.document.perform(.batch(numbers), name: "Add Node")
         let core = fixture.core
         let connected = Mutex<[Bool]>([])

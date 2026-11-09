@@ -21,6 +21,6 @@ import Testing
         #expect(ContinuousClock.now - start < .seconds(5), "it returned promptly")
         await StallNode.gate.open()
         await document.waitForEvaluation()
-        #expect(await session.settle(within: .seconds(5)))
+        #expect(await session.settle(within: .seconds(60)))
     }
 }

@@ -118,7 +118,12 @@ struct MCPServiceTests {
     /// the whole app suite, so no timing can be asserted here.)
     @Test func aClientThatNeverReadsIsDropped() async throws {
         var builder = GraphBuilder()
-        for _ in 0..<400 { builder.add(RectangleNode.self) }
+        // Long names make the first page bigger than any socket buffer (Linux's is about 200 KB).
+        for index in 0..<400 {
+            var node = builder.add(RectangleNode.self)
+            node.name = "Rectangle \(index) " + String(repeating: "x", count: 8_000)
+            builder.replace(node)
+        }
         let url = socketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let service = MCPService(model: await makeApp(builder.graph), preference: MemoryMCPPreference(allowsAIConnections: true),
