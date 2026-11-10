@@ -21,7 +21,7 @@
 # rerun is incremental.
 #
 # Pass rule for `test` (spec 2.5): exit 0, no "recorded an issue" or "failed after" line, and EXPECTED_TEST_RUNS lines
-# "Test run with" (one per test target that has tests: twelve on Linux, Windows and macOS since xp-2 put CreatorOCCTTests on
+# "Test run with" (one per test target that has tests: thirteen on Linux, Windows and macOS since xp-2 put CreatorOCCTTests on
 # every platform).
 #
 # The image draws on Mesa's lavapipe, a CPU Vulkan driver, so the SDL_GPU viewport renders here with no GPU in the machine. Every
@@ -36,7 +36,7 @@
 # is missing or a shader fails, the build stops with MetalUI's message naming the tool and its pinned commit. Nothing compiled is checked in.
 #
 # Environment: XP_TRACK names the track (default xp-1), which names the container and the volume, so a script run kills only
-# its own container. EXPECTED_TEST_RUNS overrides the count (12 today). IMAGE names the image this script builds and runs
+# its own container. EXPECTED_TEST_RUNS overrides the count (13 today). IMAGE names the image this script builds and runs
 # (default metalcreator-linux:latest; a track that must not replace another's image sets its own). OpenCascade is built from
 # source in an image stage, which is the slow part: OCCT_IMAGE names an image that already holds /opt/occt (CI builds the
 # stage alone with buildx and its layer cache and passes the result), else the stage is built here and Docker's layer cache
@@ -54,7 +54,7 @@ fi
 METALUI=$(cd ../MetalUI && pwd -P)
 
 TRACK=${XP_TRACK:-xp-1}
-EXPECTED_TEST_RUNS=${EXPECTED_TEST_RUNS:-12}
+EXPECTED_TEST_RUNS=${EXPECTED_TEST_RUNS:-13}
 # MetalUI's base image is tagged with a hash of its recipe (the Dockerfile and the context files it COPYs), so a local image built from an
 # older MetalUI (XP-G33: before SDL had its X11 and Wayland drivers) is never reused for a newer pin: a new recipe is a new tag, built once.
 BASE_CONTEXT="$METALUI/Backends/SDL"

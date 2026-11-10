@@ -25,6 +25,10 @@ public enum UndoName {
     public static func changeInput(_ label: String) -> String { label.isEmpty ? "Change Input" : "Change \(label)" }
     public static func clearInput(_ label: String) -> String { label.isEmpty ? "Clear Input" : "Clear \(label)" }
     public static let changeParameter = "Change Parameter"
+    /// An AI client set several inputs of a node in one call; one input is named by `changeInput`.
+    public static let changeInputs = "Change Inputs"
+    public static let renameNode = "Rename Node"
+    public static let setOutput = "Set Output"
 
     // MARK: Images (fields spec §4)
     public static let chooseImage = "Choose Image"

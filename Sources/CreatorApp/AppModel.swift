@@ -51,6 +51,8 @@ public final class AppModel {
         // A pick session takes the viewport's clicks, so Measure ends as it starts.
         didSet { if pick != nil { endMeasure() } }
     }
+    /// The AI connection service the shell started, if any: the chip reads it.
+    public var mcp: MCPService?
     /// The Measure tool in progress, or `nil`. It is the viewport's tool while it runs.
     var measure: MeasureSession?
     /// The measurements the person kept (`document.measurements`), followed through every evaluation. Replaced with the document.

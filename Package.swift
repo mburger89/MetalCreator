@@ -83,6 +83,10 @@ var targets: [Target] = [
     // Colour themes (spec §6.6, Dracula by default): the roles, the built-in themes and the `ThemeStore` that
     // the editor's views and the viewport's GPU colours read.
     .target(name: "CreatorStyle", dependencies: [metalUI]),
+    // The MCP server's portable core (spec 2026-11-08): JSON, JSON-RPC and the tools an AI client drives the app with.
+    .target(name: "CreatorMCP", dependencies: ["CreatorGraph", "CreatorKernel", "CreatorGeometry"]),
+    // The stdio bridge an AI client launches (MCP-1): small, and `CreatorMCP` is all it needs.
+    .executableTarget(name: "MetalCreatorMCPBridge", dependencies: ["CreatorMCP"], path: "Sources/metalcreator-mcp"),
     // The viewport's model, camera and tools are portable; its Metal renderer is gated with `#if canImport(Metal)`.
     // MetalUIPortableText and MetalUISystemFonts only for the view cube's face names off macOS (`CubeLabelFonts`), named on every
     // platform for the reason above (SG-D).
@@ -106,7 +110,7 @@ var targets: [Target] = [
         name: "CreatorApp",
         dependencies: [
             "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorImplicit", "CreatorKernel", "CreatorGeometry",
-            "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", metalUI, metalUISDL,
+            "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", "CreatorMCP", metalUI, metalUISDL,
         ],
         // The window icon (`AppIcon`); packaging/linux/install.sh and the Linux package ship the same file for the desktop entry.
         resources: [.copy("Icon")]
@@ -120,7 +124,7 @@ var targets: [Target] = [
         name: "CreatorAppTests",
         dependencies: [
             "CreatorApp", "CreatorEditor", "CreatorViewport", "CreatorNodes", "CreatorGraph", "CreatorImplicit", "CreatorKernel",
-            "CreatorGeometry", "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", metalUI, metalUITesting,
+            "CreatorGeometry", "CreatorStyle", "CreatorSketch", "CreatorSketchEditor", "CreatorMCP", metalUI, metalUITesting,
             metalUIPortableText, metalUISystemFonts,
         ] + occt
     ),
@@ -134,6 +138,7 @@ var targets: [Target] = [
         ]
     ),
     .testTarget(name: "CreatorStyleTests", dependencies: ["CreatorStyle", metalUI]),
+    .testTarget(name: "CreatorMCPTests", dependencies: ["CreatorMCP", "CreatorNodes", "CreatorKernel"]),
     .testTarget(
         name: "CreatorSketchEditorTests",
         dependencies: [
@@ -220,6 +225,7 @@ targets += [
 let package = Package(
     name: "MetalCreator",
     platforms: [.macOS(.v26)],
+    products: [.executable(name: "metalcreator-mcp", targets: ["MetalCreatorMCPBridge"])],
     dependencies: [
         .package(path: "../MetalUI", traits: metalUITraits),
     ],

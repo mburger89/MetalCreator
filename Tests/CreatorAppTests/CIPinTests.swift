@@ -6,7 +6,7 @@ import Testing
 struct CIPinTests {
     /// The "Test run with" lines a full `swift test` prints on every platform since xp-2 put `CreatorOCCTTests` on Linux and
     /// Windows. A new test target raises it everywhere below.
-    static let testRuns = 12
+    static let testRuns = 13
 
     @Test func theWindowsJobExpectsTheCount() throws {
         let workflow = try Self.text(".github/workflows/xp.yml")

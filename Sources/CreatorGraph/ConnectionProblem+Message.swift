@@ -1,5 +1,3 @@
-import CreatorGraph
-
 extension ConnectionProblem {
     /// Plain-language text for a refused wire, shown under the canvas.
     public var message: String {

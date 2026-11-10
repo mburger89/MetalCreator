@@ -10,6 +10,9 @@ public enum AppCommands {
     @MainActor
     public static func install(on app: App, model: AppModel, themeEditor: ThemeEditorModel) {
         app.commands {
+            #if os(macOS)
+            CommandGroup(after: .appInfo) { aiConnectionsItem(model) }
+            #endif
             CommandGroup(replacing: .newItem) {
                 Button("New") { model.newDocument() }
                     .keyboardShortcut("n")
@@ -26,6 +29,9 @@ public enum AppCommands {
                 Button("Export STL…") { model.withFilePicker { await model.exportDocument(.stl, using: $0) } }
                     .keyboardShortcut("e", modifiers: [.primary, .shift])
                 Button("Export 3MF…") { model.withFilePicker { await model.exportDocument(.threeMF, using: $0) } }
+                #if !os(macOS)
+                aiConnectionsItem(model)
+                #endif
             }
             CommandGroup(replacing: .undoRedo) {
                 Button(model.undoTitle) { model.undo() }
@@ -52,6 +58,16 @@ public enum AppCommands {
                 }
                 .disabled(model.sketch != nil)
             }
+        }
+    }
+
+    /// The AI connections switch (MCP-1): a checkmark while on. When another window serves the socket, or the listener couldn't
+    /// start, the title says so and choosing the item asks again (`MCPService.menuChosen`).
+    @MainActor
+    @MenuContentBuilder
+    static func aiConnectionsItem(_ model: AppModel) -> MenuItems {
+        if let service = model.mcp {
+            Toggle(service.menuTitle, isOn: Binding(get: { service.isOn && !service.retries }, set: { service.menuChosen($0) }))
         }
     }
 }

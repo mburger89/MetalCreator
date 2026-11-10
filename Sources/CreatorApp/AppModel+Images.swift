@@ -52,8 +52,7 @@ extension AppModel {
 
     private func chooseImage(_ target: FileActionTarget, using picker: any FilePicker) async throws {
         guard let url = try await picker.chooseFileToOpen(Self.imageTypes), isCurrent(target) else { return }
-        let bytes = try checkedBytes(of: url)
-        try setImage(.embedded(document.addImage(bytes)), on: target, named: UndoName.chooseImage)
+        try attachImage(url, embed: true, to: target, embedName: UndoName.chooseImage)
     }
 
     private func linkImage(_ target: FileActionTarget, using picker: any FilePicker) async throws {
@@ -74,8 +73,7 @@ extension AppModel {
 
     private func relinkImage(_ target: FileActionTarget, using picker: any FilePicker, named name: String) async throws {
         guard let url = try await picker.chooseFileToOpen(Self.imageTypes), isCurrent(target) else { return }
-        _ = try checkedBytes(of: url)
-        try setImage(linkedReference(to: url), on: target, named: name)
+        try attachImage(url, embed: false, to: target, linkName: name)
     }
 
     private func embedImage(_ target: FileActionTarget) throws {
@@ -86,7 +84,7 @@ extension AppModel {
     }
 
     /// The bytes of the file at `url` once they pass the image limits, else a sentence naming the file.
-    private func checkedBytes(of url: URL) throws -> Data {
+    func checkedBytes(of url: URL) throws -> Data {
         do {
             let bytes = try ImageResolver.bytes(ofFileAt: url)
             _ = try GreyImageDecoder.inspect(bytes)
@@ -96,7 +94,7 @@ extension AppModel {
         }
     }
 
-    private func setImage(_ reference: ImageReference, on target: FileActionTarget, named name: String) throws {
+    func setImage(_ reference: ImageReference, on target: FileActionTarget, named name: String) throws {
         do {
             try document.perform(.setInput(target.node, NodeSetting.image, .image(reference)), at: target.path, name: name)
         } catch {

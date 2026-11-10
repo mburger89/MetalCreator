@@ -49,11 +49,17 @@ try {
         swift build -c release --product MetalCreatorApp @BuildFlags
         if ($LASTEXITCODE) { throw "swift build failed ($LASTEXITCODE)" }
     }
+    if (-not $NoBuild) {
+        swift build -c release --product metalcreator-mcp @BuildFlags
+        if ($LASTEXITCODE) { throw "swift build (metalcreator-mcp) failed ($LASTEXITCODE)" }
+    }
     $bin = (swift build -c release --product MetalCreatorApp @BuildFlags --show-bin-path).Trim()
 } finally { Pop-Location }
 
 $exe = Join-Path $bin 'MetalCreatorApp.exe'
 if (-not (Test-Path $exe)) { throw "no release build at $exe (run swift build -c release --product MetalCreatorApp first)" }
+$bridge = Join-Path $bin 'metalcreator-mcp.exe'
+if (-not (Test-Path $bridge)) { throw "no metalcreator-mcp.exe at $bridge" }
 # The folder is named after the version, which is read below from the assembled executable (not from the build tree, where the
 # job's PATH holds vcpkg's debug\bin and the release exe could load debug OpenCascade DLLs); so it is staged under a plain name.
 $folder = Join-Path $work 'stage'
@@ -61,6 +67,8 @@ New-Item -ItemType Directory -Path $folder | Out-Null
 
 Step 'Assembling'
 Copy-Item $exe (Join-Path $folder 'MetalCreator.exe')
+# The MCP bridge (docs/mcp.md), beside the executable.
+Copy-Item $bridge (Join-Path $folder 'metalcreator-mcp.exe')
 Copy-Item (Join-Path $root 'packaging\windows\register-mcgraph.ps1') $folder
 # The .cmd runs the .ps1 with -ExecutionPolicy Bypass: a stock Windows 11 refuses to run a downloaded .ps1 ("running scripts is disabled").
 Copy-Item (Join-Path $root 'packaging\windows\register-mcgraph.cmd') $folder
@@ -148,6 +156,7 @@ $redistributable = '^(vcruntime140.*|msvcp140.*|concrt140|vcomp140)\.dll$'
 
 $queue = [System.Collections.Generic.Queue[string]]::new()
 $queue.Enqueue((Join-Path $folder 'MetalCreator.exe'))
+$queue.Enqueue((Join-Path $folder 'metalcreator-mcp.exe'))
 $bundled = @{}
 # Already beside the executable (copied above), so a DLL that imports one (SDL3_shadercross.dll imports spirv-cross-c-shared.dll) finds it bundled.
 foreach ($dll in $compilerDlls) { $queue.Enqueue((Join-Path $folder $dll)); $bundled[$dll.ToLowerInvariant()] = $true }

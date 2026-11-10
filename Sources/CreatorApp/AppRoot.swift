@@ -61,6 +61,7 @@ public struct AppRoot: Component {
             FieldLegendDock(model: model)
             MeshBadgeDock(model: model)
             SlowEvaluationDock(model: model)
+            AIConnectedDock(model: model)
             ExportSheetDock(model: model)
             PaletteDock(model: model)
             LibraryDragOverlay(model: model.editor)

@@ -4,8 +4,16 @@ import Testing
 /// The executable's command line (packaging): a file to open, or a headless flag the packaging script uses.
 struct LaunchCommandTests {
     @Test func noArgumentsOpensAnEmptyWindowAndAPathOpensThatFile() {
-        #expect(LaunchCommand(arguments: []) == .run(paths: []))
-        #expect(LaunchCommand(arguments: ["bracket.mcgraph"]) == .run(paths: ["bracket.mcgraph"]))
+        #expect(LaunchCommand(arguments: []) == .run(paths: [], mcp: false))
+        #expect(LaunchCommand(arguments: ["bracket.mcgraph"]) == .run(paths: ["bracket.mcgraph"], mcp: false))
+    }
+
+    @Test func launchFlagParsesAnywhere() {
+        #expect(LaunchCommand(arguments: ["a.mcgraph", "--mcp"]) == .run(paths: ["a.mcgraph"], mcp: true))
+        #expect(LaunchCommand(arguments: ["--mcp", "a.mcgraph"]) == .run(paths: ["a.mcgraph"], mcp: true))
+        #expect(LaunchCommand(arguments: ["--mcp"]) == .run(paths: [], mcp: true))
+        #expect(LaunchCommand(arguments: ["--version", "--mcp"]) == .version)
+        #expect(LaunchCommand.usage.contains("  --mcp           allow AI connections for this session"))
     }
 
     @Test func theHeadlessFlags() {
@@ -49,7 +57,7 @@ struct LaunchCommandTests {
     /// app opens its window rather than refusing them or opening one as a file.
     @Test(arguments: [["-psn_0_1234567"], ["-NSDocumentRevisionsDebugMode", "YES"], ["-AppleLanguages", "(de)"]])
     func theSystemsOwnArgumentsOpenAnEmptyWindow(_ arguments: [String]) {
-        #expect(LaunchCommand(arguments: arguments) == .run(paths: []))
+        #expect(LaunchCommand(arguments: arguments) == .run(paths: [], mcp: false))
     }
 
     /// `\d` matches any script's digits; a macOS version is ASCII ("٢٦" is Arabic-Indic 26, "２６" fullwidth).
@@ -68,14 +76,14 @@ struct LaunchCommandTests {
     /// (xp-2, gap XP-G5). The app opens each in turn and the last stays open. Arguments from the first flag on (Xcode appends
     /// its own after the file) are not files.
     @Test func everyLeadingArgumentIsADocumentAndTheFirstFlagEndsThem() {
-        #expect(LaunchCommand(arguments: ["a.mcgraph", "b.mcgraph"]) == .run(paths: ["a.mcgraph", "b.mcgraph"]))
-        #expect(LaunchCommand(arguments: ["a.mcgraph", "-NSDocumentRevisionsDebugMode", "YES"]) == .run(paths: ["a.mcgraph"]))
+        #expect(LaunchCommand(arguments: ["a.mcgraph", "b.mcgraph"]) == .run(paths: ["a.mcgraph", "b.mcgraph"], mcp: false))
+        #expect(LaunchCommand(arguments: ["a.mcgraph", "-NSDocumentRevisionsDebugMode", "YES"]) == .run(paths: ["a.mcgraph"], mcp: false))
     }
 
     /// Review focus: a path with spaces or non-ASCII letters arrives as one argument and stays one document.
     @Test func aPathWithSpacesAndAccentsIsOneDocument() {
         let path = "/home/zoë/My Parts/Halterung Größe 2.mcgraph"
-        #expect(LaunchCommand(arguments: [path]) == .run(paths: [path]))
+        #expect(LaunchCommand(arguments: [path]) == .run(paths: [path], mcp: false))
     }
 
     @Test func onlyExistingDocumentsAreForwardedToTheRunningInstance() {

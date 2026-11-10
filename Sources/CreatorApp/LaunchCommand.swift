@@ -1,12 +1,13 @@
 /// What the `MetalCreator` executable was asked to do by its command line (arguments after the program's name).
-/// Everything but ``run(paths:)`` prints and exits without opening a window, so the packaging script and a terminal
+/// Everything but ``run(paths:mcp:)`` prints and exits without opening a window, so the packaging script and a terminal
 /// can use the packaged binary headlessly.
 public enum LaunchCommand: Equatable, Sendable {
     /// Open the window, and the `.mcgraph` files at `paths`: every argument up to the first one that starts with "-" (a Linux
     /// file manager runs `MetalCreator %F` with all the selected files, Explorer `MetalCreator.exe "%1"`; Xcode appends its own
     /// flags after the file). Each file is handed to the app as Finder would (`App.open`, then `AppModel.openRequested(_:)`), so
     /// it gets the same unsaved-changes check, and the last one stays open.
-    case run(paths: [String])
+    /// `--mcp`, anywhere among the arguments, allows AI connections for this session (``AppCommands`` has the standing switch).
+    case run(paths: [String], mcp: Bool)
     /// `--version`: print ``AppBundleInfo/versionLine``.
     case version
     /// `--help`: print ``usage`` and exit 0.
@@ -15,7 +16,7 @@ public enum LaunchCommand: Equatable, Sendable {
     case selfTest
     /// `--info-plist <minimum macOS>`: print the bundle's `Info.plist` (``AppBundleInfo``).
     case infoPlist(minimumSystemVersion: String)
-    /// The documents a second launch hands to the running instance (Linux and Windows): the paths `run(paths:)` names that
+    /// The documents a second launch hands to the running instance (Linux and Windows): the paths `run(paths:mcp:)` names that
     /// `exists` says are files, in order.
     public static func forwardedDocuments(paths: [String], exists: (String) -> Bool) -> [String] {
         paths.filter(exists)
@@ -35,11 +36,16 @@ public enum LaunchCommand: Equatable, Sendable {
                MetalCreator --self-test
                MetalCreator --info-plist <minimum macOS, e.g. 26.0>
                MetalCreator --smoke-test [seconds]   (Linux and Windows builds; default 5 seconds)
+
+          --mcp           allow AI connections for this session
         """
 
     public init(arguments: [String]) {
+        var arguments = arguments
+        let mcp = arguments.contains("--mcp")
+        arguments.removeAll { $0 == "--mcp" }
         guard let first = arguments.first else {
-            self = .run(paths: [])
+            self = .run(paths: [], mcp: mcp)
             return
         }
         switch first {
@@ -63,7 +69,7 @@ public enum LaunchCommand: Equatable, Sendable {
             } else {
                 // Anything else starting with "-" is the system's (a `-psn_…` process serial number, or an
                 // `-NSSomeDefault value` pair), not a file; so is everything after it.
-                self = .run(paths: Array(arguments.prefix { !$0.hasPrefix("-") }))
+                self = .run(paths: Array(arguments.prefix { !$0.hasPrefix("-") }), mcp: mcp)
             }
         }
     }

@@ -91,27 +91,17 @@ extension AppModel {
 
     private func chooseMeshFile(_ target: FileActionTarget, using picker: any FilePicker, named name: String) async throws {
         guard let url = try await picker.chooseFileToOpen(Self.meshTypes), isCurrent(target) else { return }
-        let reference = linkedReference(to: url)
-        try checkRegularFile(reference)
-        try setMeshFile(reference, on: target, named: name)
+        try attachMeshFile(url, embed: false, to: target, linkName: name)
     }
 
     private func embedMeshFile(_ target: FileActionTarget) throws {
         guard case let reference? = editor.graph.nodes[target.node]?.inputValues[NodeSetting.meshFile]?.fileReference,
               !reference.isEmbedded else { return }
-        // The size is read from the file's attributes, so a file over the limit is refused without being read.
-        if case .file(_, _, let size) = document.imageResolver.stamp(of: reference), size > MeshImportLimits.maxEmbeddedBytes {
-            throw AppProblem("That mesh file can't be used", MeshImportLimits.embeddingRefusal)
-        }
-        let bytes = try document.imageResolver.meshFileBytes(of: reference)
-        guard bytes.count <= MeshImportLimits.maxEmbeddedBytes else {
-            throw AppProblem("That mesh file can't be used", MeshImportLimits.embeddingRefusal)
-        }
-        try setMeshFile(.embedded(document.addImage(bytes)), on: target, named: UndoName.embedMeshFile)
+        try embedMesh(reference, to: target)
     }
 
     /// Refuses a link that names a folder, a device or a pipe, or nothing. What the file holds is the node's to say.
-    private func checkRegularFile(_ reference: ImageReference) throws {
+    func checkRegularFile(_ reference: ImageReference) throws {
         let name = reference.fileName ?? "file"
         switch document.imageResolver.stamp(of: reference) {
         case .notAFile: throw MeshImportProblem.notAFile(name: name)
@@ -120,7 +110,7 @@ extension AppModel {
         }
     }
 
-    private func setMeshFile(_ reference: ImageReference, on target: FileActionTarget, named name: String) throws {
+    func setMeshFile(_ reference: ImageReference, on target: FileActionTarget, named name: String) throws {
         do {
             try document.perform(.setInput(target.node, NodeSetting.meshFile, .meshFile(reference)), at: target.path, name: name)
         } catch {
@@ -128,7 +118,7 @@ extension AppModel {
         }
     }
 
-    private func reportMeshFile(_ failure: (any Error)?, title: String) {
+    func reportMeshFile(_ failure: (any Error)?, title: String) {
         switch failure {
         case nil: break
         case let problem as AppProblem: alert = .problem(problem)

@@ -5,7 +5,8 @@
 #   3. no Mach-O file in the bundle links or searches Homebrew (/opt/homebrew, /usr/local), and every @rpath library
 #      it links (and every @loader_path and @executable_path one) is in the bundle;
 #   4. LSMinimumSystemVersion is no older than any bundled binary's minimum macOS;
-#   5. `MetalCreator --self-test` passes with the environment emptied (no DYLD_* variables) and Homebrew's directories
+#   5. `metalcreator-mcp` (the MCP bridge) is in Contents/MacOS and answers an `initialize` line without the app;
+#   6. `MetalCreator --self-test` passes with the environment emptied (no DYLD_* variables) and Homebrew's directories
 #      unreadable (sandbox-exec), and dyld loads nothing from outside the bundle and the system.
 # usage: scripts/verify-app.sh [path/to/MetalCreator.app]   (default: <repo>/dist/MetalCreator.app)
 set -euo pipefail
@@ -91,4 +92,13 @@ if [ "$loaded" -eq 0 ]; then
 else
     printf '    dyld loaded %s images, all from the bundle or the system\n' "$loaded"
 fi
+step "MCP bridge"
+bridge="$CONTENTS/MacOS/metalcreator-mcp"
+[ -x "$bridge" ] || fail "Contents/MacOS/metalcreator-mcp is missing"
+reply="$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"verify","version":"1"}}}' \
+    | env -i HOME="$HOME" PATH=/usr/bin:/bin "$bridge" --socket /nonexistent/x.sock | head -n 1)"
+case "$reply" in
+    *"isn't running"*) printf '    metalcreator-mcp answers initialize without the app\n' ;;
+    *) fail "metalcreator-mcp --socket /nonexistent/x.sock did not answer initialize with the isn't-running instructions: $reply" ;;
+esac
 step "passed: $APP"

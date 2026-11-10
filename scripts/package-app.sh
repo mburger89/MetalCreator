@@ -69,10 +69,16 @@ step "Building MetalCreatorApp (release)"
 swift build --package-path "$ROOT" -c release --product MetalCreatorApp
 BIN_DIR="$(swift build --package-path "$ROOT" -c release --product MetalCreatorApp --show-bin-path)"
 BINARY="$BIN_DIR/MetalCreatorApp"
+# The MCP bridge (docs/mcp.md): the program an AI client starts; it talks to the running app over a local socket.
+step "Building metalcreator-mcp (release)"
+swift build --package-path "$ROOT" -c release --product metalcreator-mcp
+BRIDGE="$BIN_DIR/metalcreator-mcp"
+[ -x "$BRIDGE" ] || fail "no metalcreator-mcp at $BRIDGE"
 
 step "Assembling MetalCreator.app"
 mkdir -p "$CONTENTS/MacOS" "$FRAMEWORKS" "$CONTENTS/Resources"
 cp "$BINARY" "$CONTENTS/MacOS/MetalCreator"
+cp "$BRIDGE" "$CONTENTS/MacOS/metalcreator-mcp"
 for bundle in "$BIN_DIR"/*.bundle; do
     if [ -d "$bundle" ]; then cp -R "$bundle" "$CONTENTS/Resources/"; fi
 done
@@ -167,6 +173,8 @@ sign_options=(--force --sign "$IDENTITY")
 for library in "$FRAMEWORKS"/*.dylib; do
     codesign "${sign_options[@]}" "$library"
 done
+# The bridge is signed on its own first, as the libraries are; the bundle's signature then seals it with the rest.
+codesign "${sign_options[@]}" "$CONTENTS/MacOS/metalcreator-mcp"
 codesign "${sign_options[@]}" "$APP"
 
 mkdir -p "$DIST"
