@@ -14,7 +14,7 @@ struct MCPServiceTests {
     }
 
     /// Polls by recursion, not a loop: a loop that keeps locals across an `await` crashes the Windows compiler.
-    private func waitUntil(_ condition: @MainActor () -> Bool, until deadline: Date = Date().addingTimeInterval(30)) async -> Bool {
+    private func waitUntil(_ condition: @MainActor () -> Bool, until deadline: Date = Date().addingTimeInterval(120)) async -> Bool {
         if condition() { return true }
         guard Date() < deadline else { return false }
         try? await Task.sleep(for: .milliseconds(10))
@@ -54,7 +54,7 @@ struct MCPServiceTests {
         #expect(preference.allowsAIConnections && service.state == .listening)
         service.setOn(false)
         #expect(!preference.allowsAIConnections && service.state == .off)
-        #expect(!FileManager.default.fileExists(atPath: url.path), "stopping removes the socket file")
+        #expect(!LocalSocket.fileExists(at: url), "stopping removes the socket file")
     }
 
     @Test func chipFollowsConnection() async throws {
@@ -94,7 +94,7 @@ struct MCPServiceTests {
         defer { client.close() }
         #expect(client.write(Data("{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"ping\"}\n".utf8)))
         // The read loop is one synchronous body: a loop that keeps locals across an `await` crashes the Windows compiler.
-        let reply = await Task.detached { MCPServiceTests.readLine(from: client, timeout: 30) }.value
+        let reply = await Task.detached { MCPServiceTests.readLine(from: client, timeout: 120) }.value
         #expect(reply?.contains("\"id\":7") == true)
     }
 

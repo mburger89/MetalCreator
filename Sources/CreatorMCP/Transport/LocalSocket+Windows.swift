@@ -8,6 +8,8 @@ public final class LocalSocket: Sendable {
     private let handle: SOCKET
     /// The write timeout in milliseconds, 0 for none (a plain blocking send).
     private let sendTimeout = Mutex(0)
+    /// Whether `setSendTimeout` managed to make the socket non-blocking.
+    private let isNonBlocking = Mutex(false)
 
     private init(_ handle: SOCKET) { self.handle = handle }
 
@@ -94,12 +96,20 @@ public final class LocalSocket: Sendable {
         throw SocketProblem.failed("remove the old socket file", code)
     }
 
-    /// Makes a send give up when the other end stops reading for `milliseconds`. Winsock's `SO_SNDTIMEO` isn't honoured by
-    /// `AF_UNIX` sockets, so the socket goes non-blocking and `write(_:)` waits for room itself.
+    /// Makes a send give up when the other end stops reading for `milliseconds`. Winsock's `SO_SNDTIMEO` isn't reliably honoured by
+    /// `AF_UNIX` sockets, so the socket goes non-blocking and `write(_:)` enforces the deadline itself with a monotonic clock. If
+    /// the switch to non-blocking fails, `SO_SNDTIMEO` (a `DWORD` of milliseconds) is the best bound left.
     public func setSendTimeout(milliseconds: Int) {
         sendTimeout.withLock { $0 = milliseconds }
         var nonBlocking: u_long = milliseconds > 0 ? 1 : 0
-        _ = ioctlsocket(handle, Int32(bitPattern: 0x8004_667E), &nonBlocking)  // FIONBIO
+        let switched = ioctlsocket(handle, Int32(bitPattern: 0x8004_667E), &nonBlocking) == 0  // FIONBIO
+        isNonBlocking.withLock { $0 = switched && milliseconds > 0 }
+        if !switched, milliseconds > 0 {
+            var value = DWORD(clamping: milliseconds)
+            _ = withUnsafeBytes(of: &value) { raw in
+                setsockopt(handle, SOL_SOCKET, SO_SNDTIMEO, raw.baseAddress?.assumingMemoryBound(to: CChar.self), Int32(raw.count))
+            }
+        }
     }
 
     public func waitReadable(milliseconds: Int32) -> Bool {
@@ -127,25 +137,43 @@ public final class LocalSocket: Sendable {
         return Int(count)
     }
 
+    /// Sends all of `data`. With a send timeout it gives up (false) once no byte has gone out for that long, judged by a monotonic
+    /// clock in this loop rather than by `WSAPoll`'s return (`WSAPoll` is not trusted to wait or to report a full buffer on
+    /// `AF_UNIX`). Sends go out in 64 KB pieces so a full buffer is noticed early.
     public func write(_ data: Data) -> Bool {
-        let timeout = Int32(clamping: sendTimeout.withLock { $0 })
+        let timeout = sendTimeout.withLock { $0 }
+        let nonBlocking = isNonBlocking.withLock { $0 }
+        let clock = ContinuousClock()
         return data.withUnsafeBytes { bytes in
             var offset = 0
+            var lastProgress = clock.now
             while offset < bytes.count {
-                let sent = send(handle, bytes.baseAddress!.assumingMemoryBound(to: CChar.self) + offset, Int32(bytes.count - offset), 0)
+                let piece = nonBlocking ? min(bytes.count - offset, 65_536) : bytes.count - offset
+                let sent = send(handle, bytes.baseAddress!.assumingMemoryBound(to: CChar.self) + offset, Int32(piece), 0)
                 if sent > 0 {
                     offset += Int(sent)
-                } else if sent < 0, timeout > 0, WSAGetLastError() == 10035 {  // WSAEWOULDBLOCK: wait for room, up to the timeout
-                    var item = WSAPOLLFD(fd: handle, events: Int16(POLLWRNORM), revents: 0)
-                    if WSAPoll(&item, 1, timeout) <= 0 { return false }
-                } else {
-                    return false
+                    lastProgress = clock.now
+                    continue
                 }
+                guard sent < 0, nonBlocking, WSAGetLastError() == 10035 else { return false }  // WSAEWOULDBLOCK: wait for room
+                let remaining = timeout - lastProgress.duration(to: clock.now).milliseconds
+                if remaining <= 0 { return false }
+                var item = WSAPOLLFD(fd: handle, events: Int16(POLLWRNORM), revents: 0)
+                if WSAPoll(&item, 1, Int32(min(remaining, 50))) < 0 { return false }
+                if item.revents & (Int16(POLLERR) | Int16(POLLHUP) | Int16(POLLNVAL)) != 0 { return false }
+                Thread.sleep(forTimeInterval: 0.002)  // a poll that says "writable" at once must not make this loop spin
             }
             return true
         }
     }
 
     public func close() { closesocket(handle) }
+}
+
+private extension Duration {
+    var milliseconds: Int {
+        let parts = components
+        return Int(parts.seconds) * 1_000 + Int(parts.attoseconds / 1_000_000_000_000_000)
+    }
 }
 #endif

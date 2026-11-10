@@ -187,9 +187,9 @@ private func loops(of listener: MCPListener, atMost count: Int, until deadline: 
         try LocalSocket.removeFile(at: url)  // missing: fine
         let dead = try LocalSocket.listen(at: url)
         dead.close()
-        #expect(FileManager.default.fileExists(atPath: url.path))
+        #expect(LocalSocket.fileExists(at: url))
         try LocalSocket.removeFile(at: url)
-        #expect(!FileManager.default.fileExists(atPath: url.path))
+        #expect(!LocalSocket.fileExists(at: url))
     }
 
     @Test func staleSocketIsReplaced() async throws {
@@ -198,7 +198,7 @@ private func loops(of listener: MCPListener, atMost count: Int, until deadline: 
         try SocketPath.prepareFolder(url)
         let dead = try LocalSocket.listen(at: url)
         dead.close()
-        #expect(FileManager.default.fileExists(atPath: url.path))
+        #expect(LocalSocket.fileExists(at: url))
         let listener = makeListener(at: url)
         #expect(try listener.start() == .listening)
         defer { listener.stop() }
@@ -227,7 +227,7 @@ private func loops(of listener: MCPListener, atMost count: Int, until deadline: 
         let listener = makeListener(at: url)
         #expect(try listener.start() == .listening)
         listener.stop()
-        #expect(!FileManager.default.fileExists(atPath: url.path))
+        #expect(!LocalSocket.fileExists(at: url))
     }
 
     @Test func tooLongPathIsRefused() {
@@ -315,7 +315,7 @@ private func loops(of listener: MCPListener, atMost count: Int, until deadline: 
         #expect(queued.send("queued\n"))
         let second = makeListener(at: url)
         #expect(try second.start() == .inUse)
-        #expect(FileManager.default.fileExists(atPath: url.path))
+        #expect(LocalSocket.fileExists(at: url))
         #expect(await busy.line() == "slow")
         busy.socket.close()
         #expect(await queued.line() == "queued")
