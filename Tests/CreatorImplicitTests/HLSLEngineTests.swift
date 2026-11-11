@@ -100,20 +100,21 @@ struct HLSLEngineTests {
         let engine = try #require(GPUEnginesUnderTest.hlsl)
         let metal = try #require(MetalImplicitEngine.shared)
         let solid = try #require(LatticeFixtures.mappedAll.first { $0.name == name }?.solid)
-        let points = Self.cutAndAxisPoints(offset: 0)
+        var points = Self.cutAndAxisPoints(offset: 0)
+        // The Neovius fixture has a noisy wall (`ImplicitFixtures.noisy`, 2 octaves), and the point (10, 4, -3) puts the second octave (size 3)
+        // exactly on a simplex boundary: x/3 and y/3 are both 1/3 after skewing, a tie that Float breaks by one ulp, and which side it
+        // breaks to decides the simplex. The kernel's radius is the standard 0.6 (Gustavson), not the 0.5 that makes the noise continuous
+        // across a boundary, so the two simplexes differ by a fixed 1.95e-4 mm of wall (9.7e-5 mm in the distance, for every z on the
+        // line). The HLSL engine's tie falls as the CPU's Double does, the Metal engine's the other way, and the engines then differ
+        // by 9.66e-5 mm (measured). That is the noise's seam, not a disagreement, so this case is sampled 1e-3 mm off it in x and 3.7e-3 in z (y stays
+        // on the cut; a move of 1e-4 already gives 0 to 2e-6, and z keeps the other points off x0 = z0 and y0 = z0 ties) and, like every
+        // other case, held to 5e-6 (measured worst there: 4.6e-6, the mapped coordinates' own Float rounding).
+        if name.hasPrefix("neovius") { points = points.map { SIMD3($0.x + 1e-3, $0.y, $0.z + 3.7e-3) } }
         let hlsl = try await GPUBatchEvaluator(engine: engine, program: try await engine.compile(solid)).evaluate(points)
         let reference = try await GPUBatchEvaluator(engine: metal, program: try await metal.compile(solid)).evaluate(points)
         var worst: Float = 0
         for index in hlsl.indices { worst = max(worst, abs(hlsl[index] - reference[index])) }
-        // The Neovius fixture has a noisy wall (`ImplicitFixtures.noisy`, 2 octaves), and the point (10, 4, -3) of `cutAndAxisPoints` puts the
-        // second octave (size 3) exactly on a simplex boundary: x/3 and y/3 are both 10/3 - 3 = 4/3 - 1 = 1/3, a tie that Float breaks by
-        // one ulp, and which side it breaks to decides the simplex. The kernel's radius is the standard 0.6 (Gustavson), not the 0.5 that
-        // makes the noise continuous across a boundary, so the two simplexes give values that differ by a fixed amount: 1.95e-4 mm of wall
-        // thickness, half of it (9.7e-5 mm) in the lattice's distance, the same for every z along the line, and gone (0 to 2e-6) once x or y moves by 1e-4. The HLSL engine's tie falls as the CPU's
-        // Double does (it is 7e-7 from the CPU there), the Metal engine's the other way (1.9e-4 from it); measured worst 9.66e-5 mm
-        // from the Metal engine on the whole case (the line's other points agree to 1e-6). Every other case, noise-free walls included, keeps 5e-6.
-        let tolerance: Float = name.hasPrefix("neovius") ? 1.5e-4 : 5e-6
-        #expect(worst < tolerance, "\(name): the largest difference from the Metal engine is \(worst) mm")
+        #expect(worst < 5e-6, "\(name): the largest difference from the Metal engine is \(worst) mm")
     }
     #endif
 }
