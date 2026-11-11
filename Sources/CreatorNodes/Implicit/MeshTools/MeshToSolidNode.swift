@@ -26,8 +26,10 @@ public enum MeshToSolidNode: NodeDefinition {
     static func requireWithinLimit(_ triangles: Int) throws {
         guard triangles > triangleLimit else { return }
         let count = triangles.formatted(.number.locale(.messages)), limit = triangleLimit.formatted(.number.locale(.messages))
+        // In the viewport the mesh is the Mesh node's first preview pass (128 cells across), so only a coarser preview resolution lowers
+        // the count; the export resolution matters to an export alone.
         throw NodeError.invalidValue("Mesh has \(count) triangles; Mesh to Solid takes at most \(limit). "
-            + "Decimate it first or coarsen the resolution.")
+            + "Decimate it first, or raise the Mesh node's preview resolution (its export resolution when exporting).")
     }
 
     public static func evaluate(_ inputs: NodeInputs, kernel: any Kernel, context: EvalContext) async throws -> NodeOutputs {

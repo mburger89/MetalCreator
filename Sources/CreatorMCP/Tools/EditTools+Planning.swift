@@ -115,7 +115,7 @@ extension EditTools {
         case .failure(let refusal): return .failure(refusal)
         case .success(let target):
             guard let values = arguments["values"]?.object, !values.isEmpty else {
-                return .failure(Refusal("Say which inputs to set, as an object of socket names and values."))
+                return .failure(Refusal("Say which inputs to set as `values`, an object of socket names and values."))
             }
             switch inputCommands(values, on: target, session) {
             case .failure(let refusal): return .failure(refusal)

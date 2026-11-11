@@ -442,3 +442,7 @@ meshing (dual contouring); mesh booleans; surface textures and displacement (7d,
 ### Errata (2026-11-04: Merge)
 
 `shapes` gets different shapes through the Merge node (`CreatorNodes/Lists/MergeNode`): an input takes one wire, and no node combined lists before, so only copies of one shape from a Series or Place reached Union, Subtract or Intersect. Merge joins up to four inputs into one flat list in socket order; Union, Subtract and Intersect are unchanged. A solid or a number among the shapes is refused by the combiner as before (“shapes” needs an implicit solid. To Implicit makes one from a solid.).
+
+### Errata (2026-11-10: Mesh to Solid's refusal)
+
+In the viewport Mesh to Solid is handed the Mesh node's first preview pass (128 cells across the largest dimension, or the preview resolution if coarser), so its triangle count is the same for a ball of any size and ignores the export resolution; only a coarser preview resolution lowers it (an export uses the export resolution). The refusal now says so: "... Decimate it first, or raise the Mesh node's preview resolution (its export resolution when exporting)."

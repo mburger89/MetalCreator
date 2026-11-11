@@ -47,7 +47,7 @@ struct AppDocumentSessionTests {
         await app.settle()
         let (result, isError) = try await addBox(core)
         #expect(isError)
-        #expect(result.string == "MetalCreator is editing a sketch. Finish it with Done, then try again.")
+        #expect(result.string == "MetalCreator is editing a sketch. Click Finish in the sketch toolbar, then try again.")
         #expect(session.editRefusal() != nil)
         let read = try await call(core, "get_document")
         #expect(!read.isError)
@@ -186,7 +186,7 @@ struct AppDocumentSessionTests {
         let (app, _, core) = await rig(builder.graph)
         app.beginSketch(for: box.sketch.id)
         await app.settle()
-        try await expectRefused(core, "MetalCreator is editing a sketch. Finish it with Done, then try again.", parts: extra)
+        try await expectRefused(core, "MetalCreator is editing a sketch. Click Finish in the sketch toolbar, then try again.", parts: extra)
     }
 
     @Test func aPickInProgressRefuses() async throws {

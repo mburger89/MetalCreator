@@ -21,11 +21,40 @@ struct MeshToSolidNodeTests {
     }
 
     @Test func aMeshAboveTheLimitIsRefusedInTheSpecsWords() {
+        let advice = "Decimate it first, or raise the Mesh node's preview resolution (its export resolution when exporting)."
         #expect(throws: Never.self) { try MeshToSolidNode.requireWithinLimit(100_000) }
         #expect(throws: NodeError.invalidValue("Mesh has 100,001 triangles; Mesh to Solid takes at most 100,000. "
-            + "Decimate it first or coarsen the resolution.")) { try MeshToSolidNode.requireWithinLimit(100_001) }
+            + advice)) { try MeshToSolidNode.requireWithinLimit(100_001) }
         #expect(throws: NodeError.invalidValue("Mesh has 2,000,000 triangles; Mesh to Solid takes at most 100,000. "
-            + "Decimate it first or coarsen the resolution.")) { try MeshToSolidNode.requireWithinLimit(2_000_000) }
+            + advice)) { try MeshToSolidNode.requireWithinLimit(2_000_000) }
+    }
+
+    /// Triangles Mesh to Solid is handed in a preview run, and its message when that is over the limit.
+    func previewTriangles(radius: Double, export: Double = 0.1, preview: Double = 0) async throws -> (count: Int, message: String?) {
+        var h = Harness()
+        let sphere = h.add(ImplicitSphereNode.self, ["radius": .number(radius)])
+        let mesh = h.add(MeshNode.self, ["export resolution": .number(export), "preview resolution": .number(preview)])
+        let solid = h.add(MeshToSolidNode.self)
+        h.wire(sphere, "implicit", to: mesh, "implicit")
+        h.wire(mesh, "mesh", to: solid, "mesh")
+        let report = try await h.run([solid])
+        return (try #require(report.triangleMesh(mesh)).triangleCount, report.error(solid))
+    }
+
+    /// Finding (MCP checks 2026-11-10): in a preview run the Mesh node makes the first pass, 128 cells across the largest dimension,
+    /// so the count does not depend on the part's size or on the export resolution, and a preview resolution finer than that pass is
+    /// not honoured by the graph (the viewport refines the display afterwards, Mesh to Solid never sees that).
+    @Test func inAPreviewRunTheMeshToSolidGetsTheFirstPassWhoseCountIgnoresSizeAndExportResolution() async throws {
+        let big = try await previewTriangles(radius: 30)
+        let small = try await previewTriangles(radius: 10)
+        #expect(big.count > 100_000 && big.count == small.count)
+        #expect(try await previewTriangles(radius: 30, export: 0.33).count == big.count)
+        #expect(try await previewTriangles(radius: 30, preview: 0.33).count == big.count)
+        let said = "\(String(describing: big.message))"
+        #expect(big.message?.contains("Mesh has") == true && big.message?.contains("preview resolution") == true, "\(said)")
+        // A preview resolution coarser than the first pass is what lowers it.
+        let coarse = try await previewTriangles(radius: 30, preview: 1.5)
+        #expect(coarse.count < big.count / 2 && coarse.message?.contains("Mesh has") != true, "\(coarse)")
     }
 
     @Test func aKernelWithNoBrepSaysSo() async throws {
