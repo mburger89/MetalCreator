@@ -119,8 +119,8 @@ Rules every tool follows (settled after the builder check, all **(our call)**):
   degrees (`ValueUnit`), counts as integers. `get_document` reports the display units for information, and
   `describe_node_type` and `get_node` name each input's unit. Nothing a client writes is converted.
 - **Modes.** An edit or file tool is refused with a sentence while sketch mode, a pick session, the model dimension tool
-  or an app alert (Save / Don't Save, an error) is up: "MetalCreator is editing a sketch. Finish it with Done, then try
-  again." A pending text entry in the inspector or on the canvas is committed first, as save and undo commit it, and an
+  or an app alert (Save / Don't Save, an error) is up: "MetalCreator is editing a sketch. Click Finish in the sketch toolbar, then
+  try again." A pending text entry in the inspector or on the canvas is committed first, as save and undo commit it, and an
   open add-node palette is closed. Measure, the section and zebra are view state and stay as they are. Reading tools work
   in every mode.
 - **Settings beyond sockets.** In MCP-1 a client sets socket values and the text settings (Path Mapper's rule, Branch by
@@ -191,3 +191,5 @@ MCP-1 (protocol, server, bridge, the tools of §4, the switch and the chip, docs
   folder of its own that the app creates 0700 and tightens to 0700 if it finds it wider (a folder another user owns, a symlink or
   a file is refused); §3 above is amended to match. The socket file itself is `chmod`ed 0600 after `bind`; the process-wide
   `umask` is not touched.
+
+- 2026-11-10 (sketch refusal wording): the sketch toolbar's button is labelled Finish, not Done, so the refusal in §Modes now reads "MetalCreator is editing a sketch. Click Finish in the sketch toolbar, then try again." (the line above is amended to match).

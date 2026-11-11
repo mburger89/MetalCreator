@@ -54,7 +54,7 @@ final class AppDocumentSession: DocumentSession {
         if model.alert != nil || model.closeRequest != .idle {
             return "MetalCreator is asking you something. Answer it, then try again."
         }
-        if model.sketch != nil { return "MetalCreator is editing a sketch. Finish it with Done, then try again." }
+        if model.sketch != nil { return "MetalCreator is editing a sketch. Click Finish in the sketch toolbar, then try again." }
         if model.pick != nil { return "MetalCreator is waiting for a pick in the view. Finish or cancel it, then try again." }
         if model.modelDimension != nil { return "MetalCreator is adding a dimension. Finish or cancel it, then try again." }
         switch model.editor.interaction {

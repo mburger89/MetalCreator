@@ -56,7 +56,7 @@ import Foundation
             schema: schema([
                 "type": property("string", "The type ID, such as creator.extrude."), "name": property("string", "A name for the node."),
                 "position": property("array", "[x, y] on the canvas; omit to place it in free space."),
-                "inputs": property("object", "Input values by socket name, as for set_inputs."),
+                "inputs": property("object", "Input values by socket name, in the form set_inputs takes under `values`."),
             ], required: ["type"]), plan: planAdd),
         Entry(
             name: "set_inputs", description: "Sets the constant values of a node's inputs; null clears one. "

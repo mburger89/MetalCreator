@@ -62,6 +62,15 @@ import Testing
         #expect(fixture.document.undoName == "Change Inputs")
     }
 
+    @Test func setInputsRefusalNamesTheValuesKey() async throws {
+        let fixture = try await SessionFixture()
+        let (text, isError) = try await fixture.call("set_inputs", .object([
+            "node": .string("Extrude"), "inputs": .object(["distance": .int(25)]),
+        ]))
+        #expect(isError)
+        #expect(text.string == "Say which inputs to set as `values`, an object of socket names and values.")
+    }
+
     @Test func segmentedTakesNameOrIndex() async throws {
         let fixture = try await SessionFixture()
         _ = try await fixture.call("set_inputs", .object(["node": .string("Extrude"), "values": .object(["mode": .string("symmetric")])]))
