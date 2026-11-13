@@ -93,7 +93,7 @@ Resources: `metalcreator://document` and `metalcreator://node-types`.
 
 - **Units.** Numbers are the stored units whatever the document displays: lengths in millimetres, angles in degrees, counts as integers. Nothing a client writes is converted.
 - **Which graph.** A client works on the top-level graph, whatever level you have entered. A group node is an ordinary node to it; editing inside a group definition, Group, Ungroup and Make Unique are not offered.
-- **Modes.** Edits and file tools are refused with a sentence while you are sketching, picking, using the model dimension tool, an alert is up, a slider or handle is being dragged, or something is being moved on the canvas. A pending typed value is committed first and counts as unsaved work. Reading tools always work.
+- **Modes.** Edits and file tools are refused with a sentence while you are sketching, picking, using the model dimension tool, an alert is up, the export window is open, a file open/save panel is up, the app is checking a change, a slider or handle is being dragged, or something is being moved on the canvas. A pending typed value is committed first and counts as unsaved work. Reading tools always work.
 - **Undo is the client's own.** `undo` and `redo` only take back steps the client made (remembered in memory, not in the file); when the step on top is yours the client is told, naming it. Your own Undo takes back anything. A client's edits never merge into one another.
 - **Paths** must be absolute. No unsaved document is discarded and no file overwritten unless the call says so.
 - **No picks yet.** Edge and face picks are not settable; a client chooses edges with the selection-rule nodes (Edges by Direction, Edges by Tag). Drawing a sketch's entities is not offered.

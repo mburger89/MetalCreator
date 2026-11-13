@@ -54,6 +54,13 @@ final class AppDocumentSession: DocumentSession {
         if model.alert != nil || model.closeRequest != .idle {
             return "MetalCreator is asking you something. Answer it, then try again."
         }
+        if model.exportRun != nil {
+            return "MetalCreator is exporting a file. Wait for it to finish, or cancel it in the export window, then try again."
+        }
+        if model.filePanels.isOpen {
+            return "MetalCreator is showing a file panel. Choose a file or cancel the panel, then try again."
+        }
+        if model.document.isHoldingResults { return "MetalCreator is checking a change in the window. Try again in a moment." }
         if model.sketch != nil { return "MetalCreator is editing a sketch. Click Finish in the sketch toolbar, then try again." }
         if model.pick != nil { return "MetalCreator is waiting for a pick in the view. Finish or cancel it, then try again." }
         if model.modelDimension != nil { return "MetalCreator is adding a dimension. Finish or cancel it, then try again." }

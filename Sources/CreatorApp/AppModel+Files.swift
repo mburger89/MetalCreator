@@ -40,6 +40,7 @@ extension AppModel {
 
     /// Open…: the open panel, then the chosen file. With unsaved changes it asks first.
     public func openDocument(using picker: any FilePicker) async {
+        let picker = tracked(picker)
         guard closeRequest == .idle else { return }
         guard !isEdited else {
             pendingDiscard = .openDocument(picker)
@@ -105,6 +106,7 @@ extension AppModel {
     /// Save: to the document's file, or Save As… for a new document. Returns whether it was saved.
     @discardableResult
     public func saveDocument(using picker: any FilePicker) async -> Bool {
+        let picker = tracked(picker)
         guard let fileURL else { return await saveDocumentAs(using: picker) }
         do {
             try save(to: fileURL)
@@ -118,6 +120,7 @@ extension AppModel {
     /// Save As…: the save panel, then the chosen file. Returns whether it was saved.
     @discardableResult
     public func saveDocumentAs(using picker: any FilePicker) async -> Bool {
+        let picker = tracked(picker)
         do {
             guard let url = try await picker.chooseDestination([.mcgraph], defaultName: fileURL?.lastPathComponent ?? "Untitled.mcgraph")
             else { return false }
@@ -130,6 +133,7 @@ extension AppModel {
     }
 
     func chooseAndOpen(using picker: any FilePicker) async {
+        let picker = tracked(picker)
         do {
             guard let url = try await picker.chooseFileToOpen([.mcgraph]) else { return }
             try open(url)
