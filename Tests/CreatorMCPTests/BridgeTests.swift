@@ -185,25 +185,6 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
         #expect(await harness.finish() == 0)
     }
 
-    @Test func theAppSeesExactlyOneInitializeWhenTheClientSendsFirst() async throws {
-        let url = bridgeSocketURL()
-        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
-        let seen = Lines()
-        let app = makeApp(at: url, seen: seen)
-        #expect(try app.start() == .listening)
-        defer { app.stop() }
-        let harness = Harness(socket: url)
-        harness.send(Self.initializeLine)
-        harness.send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
-        harness.send(#"{"jsonrpc":"2.0","id":2,"method":"ping"}"#)
-        #expect(await harness.received.wait(count: 2))
-        #expect(await seen.wait(count: 3))
-        let methods = try seen.all.map { try JSONValue.parse(Data($0.utf8))["method"]?.string }
-        #expect(methods == ["initialize", "notifications/initialized", "ping"])
-        #expect(try harness.json(0)["id"]?.int == 1, "the app's own answer to the client's initialize")
-        #expect(await harness.finish() == 0)
-    }
-
     @Test func appRestartIsAnnouncedAgain() async throws {
         let url = bridgeSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
@@ -358,6 +339,27 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
         #expect(await harness.received.wait(count: 1))
         #expect(try harness.json(0)["error"]?["code"]?.int == -32600)
         #expect(try harness.json(0)["id"] == .null)
+        #expect(await harness.finish() == 0)
+    }
+}
+
+extension BridgeTests {
+    @Test func theAppSeesExactlyOneInitializeWhenTheClientSendsFirst() async throws {
+        let url = bridgeSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let seen = Lines()
+        let app = makeApp(at: url, seen: seen)
+        #expect(try app.start() == .listening)
+        defer { app.stop() }
+        let harness = Harness(socket: url)
+        harness.send(Self.initializeLine)
+        harness.send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
+        harness.send(#"{"jsonrpc":"2.0","id":2,"method":"ping"}"#)
+        #expect(await harness.received.wait(count: 2))
+        #expect(await seen.wait(count: 3))
+        let methods = try seen.all.map { try JSONValue.parse(Data($0.utf8))["method"]?.string }
+        #expect(methods == ["initialize", "notifications/initialized", "ping"])
+        #expect(try harness.json(0)["id"]?.int == 1, "the app's own answer to the client's initialize")
         #expect(await harness.finish() == 0)
     }
 }
