@@ -183,6 +183,62 @@ struct MCPServiceTests {
         #expect(service.state == .failed("The path for AI connections is too long."), "the retry ran and failed again")
     }
 
+    @Test func turnOffFromInUseStopsAndForgetsTheChoice() async {
+        let url = socketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let first = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: url)
+        first.start()
+        defer { first.stop() }
+        let preference = MemoryMCPPreference(allowsAIConnections: true)
+        let second = MCPService(model: await makeApp(), preference: preference, path: url)
+        second.start()
+        #expect(second.state == .inUse)
+        second.turnOff()
+        #expect(second.state == .off && !second.isOn && !preference.allowsAIConnections)
+        #expect(first.state == .listening && LocalSocket.fileExists(at: url), "the first window's listener is untouched")
+    }
+
+    @Test func turnOffFromFailed() async {
+        let long = URL(fileURLWithPath: "/tmp/mcpa-" + String(repeating: "a", count: 200)).appendingPathComponent("s.sock")
+        let service = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: long)
+        service.start()
+        #expect(service.retries)
+        service.turnOff()
+        #expect(service.state == .off)
+        #expect(service.menuTitle == "Allow AI Connections")
+    }
+
+    @Test func turnOffWinsOverTheLaunchFlag() async {
+        let long = URL(fileURLWithPath: "/tmp/mcpa-" + String(repeating: "a", count: 200)).appendingPathComponent("s.sock")
+        let service = MCPService(model: await makeApp(), preference: MemoryMCPPreference(), launchFlag: true, path: long)
+        service.start()
+        #expect(service.state != .off)
+        service.turnOff()
+        #expect(!service.isOn && service.state == .off)
+        service.start()
+        #expect(service.state == .off, "a start while switched off does nothing")
+        service.menuChosen(true)
+        #expect(service.isOn)
+    }
+
+    @Test func offersTurnOffOnlyWhenRetrying() async {
+        let url = socketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let first = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: url)
+        #expect(first.offersTurnOff == first.retries && !first.offersTurnOff)
+        first.start()
+        defer { first.stop() }
+        #expect(first.offersTurnOff == first.retries && !first.offersTurnOff)
+        let second = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: url)
+        second.start()
+        defer { second.stop() }
+        #expect(second.state == .inUse && second.offersTurnOff)
+        let long = URL(fileURLWithPath: "/tmp/mcpa-" + String(repeating: "a", count: 200)).appendingPathComponent("s.sock")
+        let failed = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: long)
+        failed.start()
+        #expect(failed.offersTurnOff)
+    }
+
     @Test func thePreferenceKeyAndDefaults() {
         let suite = "MCPPreferenceTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

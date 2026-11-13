@@ -35,8 +35,8 @@ private final class Harness: Sendable {
     let received = Lines()
     let exitCode = Exit()
 
-    init(socket: URL) {
-        let bridge = MCPBridge(socketPath: socket)
+    init(socket: URL, retryInterval: Duration = .milliseconds(50)) {
+        let bridge = MCPBridge(socketPath: socket, retryInterval: retryInterval)
         let input = stdin.fileHandleForReading, output = stdout.fileHandleForWriting
         let readEnd = stdout.fileHandleForReading
         let received = received
@@ -79,7 +79,7 @@ private final class Harness: Sendable {
     }
 }
 
-private func tempSocketURL() -> URL {
+private func bridgeSocketURL() -> URL {
     URL(fileURLWithPath: "/tmp/mcpb-\(UInt32.random(in: 0...9_999_999))").appendingPathComponent("s.sock")
 }
 
@@ -95,7 +95,7 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
 
 @Suite(.serialized) struct BridgeTests {
     @Test func bridgeCopiesBothWays() async throws {
-        let url = tempSocketURL()
+        let url = bridgeSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let seen = Lines()
         let app = makeApp(at: url, seen: seen)
@@ -112,7 +112,7 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
     }
 
     @Test func noAppAnswersInitializeWithTheSentence() async throws {
-        let harness = Harness(socket: tempSocketURL())
+        let harness = Harness(socket: bridgeSocketURL())
         harness.send(#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26"}}"#)
         harness.send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
         harness.send(#"{"jsonrpc":"2.0","id":2,"method":"ping"}"#)
@@ -127,7 +127,7 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
     }
 
     @Test func noAppToolCallIsAToolError() async throws {
-        let harness = Harness(socket: tempSocketURL())
+        let harness = Harness(socket: bridgeSocketURL())
         harness.send(#"{"jsonrpc":"2.0","id":"a","method":"tools/call","params":{"name":"list_nodes"}}"#)
         #expect(await harness.received.wait(count: 1))
         let result = try harness.json(0)["result"]
@@ -137,38 +137,161 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
         #expect(await harness.finish() == 0)
     }
 
-    @Test func appStartingLaterIsPickedUp() async throws {
-        let url = tempSocketURL()
+    private static let initializeLine =
+        #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"t"}}}"#
+
+    @Test func appStartingLaterIsAnnouncedWithoutAnotherRequest() async throws {
+        let url = bridgeSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let harness = Harness(socket: url)
-        harness.send(#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"t"}}}"#)
+        harness.send(Self.initializeLine)
         harness.send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
         #expect(await harness.received.wait(count: 1))
         #expect(try harness.json(0)["result"]?["instructions"]?.string == sentence)
+        #expect(try harness.json(0)["result"]?["capabilities"]?["tools"]?["listChanged"]?.bool == true)
 
         let seen = Lines()
         let app = makeApp(at: url, seen: seen)
         #expect(try app.start() == .listening)
         defer { app.stop() }
-        harness.send(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
-        #expect(await harness.received.wait(count: 4))
+        #expect(await harness.received.wait(count: 3, timeout: 10))
         #expect(try harness.json(1)["method"]?.string == "notifications/tools/list_changed")
         #expect(try harness.json(2)["method"]?.string == "notifications/resources/list_changed")
+        // The replay reached the app; its answer never reached the client.
+        #expect(await seen.wait(count: 2))
+        let methods = try seen.all.map { try JSONValue.parse(Data($0.utf8))["method"]?.string }
+        #expect(methods == ["initialize", "notifications/initialized"])
+        #expect(try JSONValue.parse(Data(seen.all[0].utf8))["params"]?["clientInfo"]?["name"]?.string == "t")
+        #expect(harness.received.all.count == 3)
+        #expect(await harness.finish() == 0)
+    }
+
+    @Test func appStartingLaterThenARequestGetsTheAppsAnswer() async throws {
+        let url = bridgeSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let harness = Harness(socket: url)
+        harness.send(Self.initializeLine)
+        harness.send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
+        #expect(await harness.received.wait(count: 1))
+        let seen = Lines()
+        let app = makeApp(at: url, seen: seen)
+        #expect(try app.start() == .listening)
+        defer { app.stop() }
+        #expect(await harness.received.wait(count: 3, timeout: 10))
+        harness.send(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
+        #expect(await harness.received.wait(count: 4))
         #expect(try harness.json(3)["id"]?.int == 2)
         #expect(try harness.json(3)["result"]?["from"]?.string == "app")
-        #expect(try harness.json(0)["result"]?["capabilities"]?["tools"]?["listChanged"]?.bool == true)
-        // The app was brought up to date first, and its answer to that never reached the client.
         #expect(await seen.wait(count: 3))
         let methods = try seen.all.map { try JSONValue.parse(Data($0.utf8))["method"]?.string }
         #expect(methods == ["initialize", "notifications/initialized", "tools/list"])
-        #expect(try JSONValue.parse(Data(seen.all[0].utf8))["params"]?["clientInfo"]?["name"]?.string == "t")
-        #expect(harness.received.all.count == 4)
+        #expect(await harness.finish() == 0)
+    }
+
+    @Test func appRestartIsAnnouncedAgain() async throws {
+        let url = bridgeSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let seen = Lines()
+        let app = makeApp(at: url, seen: seen)
+        #expect(try app.start() == .listening)
+        let harness = Harness(socket: url)
+        harness.send(Self.initializeLine)
+        #expect(await harness.received.wait(count: 1))
+        #expect(await seen.wait(count: 3), "the replay and the client's own initialize")
+        app.stop()
+        let reborn = makeApp(at: url, seen: seen)
+        #expect(try reborn.start() == .listening)
+        defer { reborn.stop() }
+        #expect(await harness.received.wait(count: 3, timeout: 10))
+        #expect(try harness.json(1)["method"]?.string == "notifications/tools/list_changed")
+        #expect(try harness.json(2)["method"]?.string == "notifications/resources/list_changed")
+        harness.send(#"{"jsonrpc":"2.0","id":5,"method":"tools/list"}"#)
+        #expect(await harness.received.wait(count: 4))
+        #expect(try harness.json(3)["result"]?["from"]?.string == "app")
+        #expect(await harness.finish() == 0)
+    }
+
+    @Test func anIdleBridgeDoesNotHoldTheApp() async throws {
+        let url = bridgeSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let states = Flags()
+        let app = MCPListener(path: url, handle: { line, send in send(line + Data("\n".utf8)) }, connectionChanged: { states.add($0) })
+        #expect(try app.start() == .listening)
+        defer { app.stop() }
+        let harness = Harness(socket: url)
+        try? await Task.sleep(for: .milliseconds(500))
+        let raw = try LocalSocket.connect(to: url)
+        defer { raw.close() }
+        #expect(raw.write(Data("hello\n".utf8)))
+        var reader = LineReader()
+        var buffer = [UInt8](repeating: 0, count: 64)
+        #expect(raw.waitReadable(milliseconds: 5_000))
+        let count = raw.read(into: &buffer)
+        reader.append(buffer[0..<max(count, 0)])
+        #expect(reader.nextLine() == .line(Data("hello".utf8)))
+        #expect(states.all == [true], "only the raw client was ever connected")
+        #expect(await harness.finish() == 0)
+    }
+
+    @Test func aSecondClientIsToldTheAppIsBusy() async throws {
+        let url = bridgeSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let seen = Lines()
+        let app = MCPListener(path: url, handle: { line, send in
+            seen.add(String(bytes: line, encoding: .utf8) ?? "")
+            guard let message = try? JSONValue.parse(line), let id = message["id"] else { return }
+            send(JSONRPC.result(id: id, .object(["from": .string("app")])))
+        }, connectionChanged: { _ in }, busyGraceMilliseconds: 50)
+        #expect(try app.start() == .listening)
+        defer { app.stop() }
+        let raw = try LocalSocket.connect(to: url)
+        #expect(raw.write(Data("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n".utf8)))
+        #expect(raw.waitReadable(milliseconds: 5_000))
+        var buffer = [UInt8](repeating: 0, count: 256)
+        _ = raw.read(into: &buffer)
+        let harness = Harness(socket: url)
+        harness.send(Self.initializeLine)
+        #expect(await harness.received.wait(count: 1))
+        #expect(try harness.json(0)["result"]?["instructions"]?.string == MCPListener.busySentence)
+        harness.send(#"{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"x"}}"#)
+        harness.send(#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#)
+        #expect(await harness.received.wait(count: 3))
+        #expect(try harness.json(1)["result"]?["isError"]?.bool == true)
+        #expect(try harness.json(1)["result"]?["content"]?.array?.first?["text"]?.string == MCPListener.busySentence)
+        #expect(try harness.json(2)["result"]?["tools"]?.array?.isEmpty == true)
+        raw.close()
+        #expect(await harness.received.wait(count: 5, timeout: 10))
+        #expect(try harness.json(3)["method"]?.string == "notifications/tools/list_changed")
+        harness.send(#"{"jsonrpc":"2.0","id":4,"method":"tools/list"}"#)
+        #expect(await harness.received.wait(count: 6))
+        #expect(try harness.json(5)["result"]?["from"]?.string == "app")
+        #expect(await harness.finish() == 0)
+    }
+
+    @Test func noWatcherWorkBeforeInitialize() async throws {
+        let url = bridgeSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let seen = Lines()
+        let app = makeApp(at: url, seen: seen)
+        #expect(try app.start() == .listening)
+        defer { app.stop() }
+        let harness = Harness(socket: url)
+        try? await Task.sleep(for: .milliseconds(300))
+        #expect(harness.received.all.isEmpty)
+        #expect(seen.all.isEmpty)
+        #expect(await harness.finish() == 0)
+    }
+
+    @Test func endOfInputStopsTheWatcher() async throws {
+        let harness = Harness(socket: bridgeSocketURL(), retryInterval: .seconds(1))
+        harness.send(Self.initializeLine)
+        #expect(await harness.received.wait(count: 1))
         #expect(await harness.finish() == 0)
     }
 
     @Test func appClosingMidRequestAnswersEachPendingRequest() async throws {
         for (method, isTool) in [("tools/call", true), ("ping", false)] {
-            let url = tempSocketURL()
+            let url = bridgeSocketURL()
             defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
             try SocketPath.prepareFolder(url)
             let stub = try LocalSocket.listen(at: url)
@@ -198,7 +321,7 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
     }
 
     @Test func endOfInputWaitsForAPendingReply() async throws {
-        let url = tempSocketURL()
+        let url = bridgeSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let app = MCPListener(path: url, handle: { _, send in
             try? await Task.sleep(for: .milliseconds(300))
@@ -214,7 +337,7 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
     }
 
     @Test func aTopLevelArrayIsAnInvalidRequest() async throws {
-        let harness = Harness(socket: tempSocketURL())
+        let harness = Harness(socket: bridgeSocketURL())
         harness.send(#"[{"jsonrpc":"2.0","id":1,"method":"ping"}]"#)
         #expect(await harness.received.wait(count: 1))
         #expect(try harness.json(0)["error"]?["code"]?.int == -32600)

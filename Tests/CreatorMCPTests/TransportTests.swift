@@ -3,7 +3,7 @@ import Synchronization
 import Testing
 @testable import CreatorMCP
 
-private final class Flags: Sendable {
+final class Flags: Sendable {
     private let states = Mutex<[Bool]>([])
     func add(_ value: Bool) { states.withLock { $0.append(value) } }
     var all: [Bool] { states.withLock { $0 } }
@@ -24,7 +24,7 @@ private final class Flags: Sendable {
 }
 
 /// A test client over the real socket; every wait has a timeout.
-private struct Client {
+struct Client {
     let socket: LocalSocket
     var reader = LineReader()
 
@@ -54,22 +54,23 @@ private struct Client {
     }
 }
 
-private func tempSocketURL() -> URL {
+func tempSocketURL() -> URL {
     let folder = URL(fileURLWithPath: "/tmp/mcp-\(UInt32.random(in: 0...9_999_999))")
     return folder.appendingPathComponent("s.sock")
 }
 
-private func makeListener(
+func makeListener(
     at url: URL, flags: Flags = Flags(),
+    graceMilliseconds: Int = 1_000,
     handler: @escaping @Sendable (Data, @escaping @Sendable (Data) -> Void) async -> Void = { line, send in
         send(line + Data("\n".utf8))
     }
 ) -> MCPListener {
-    MCPListener(path: url, handle: handler, connectionChanged: { flags.add($0) })
+    MCPListener(path: url, handle: handler, connectionChanged: { flags.add($0) }, busyGraceMilliseconds: graceMilliseconds)
 }
 
 /// Waits (without blocking the pool) until the listener's accept loops are down to `count`.
-private func loops(of listener: MCPListener, atMost count: Int, until deadline: Date = Date().addingTimeInterval(30)) async -> Bool {
+func loops(of listener: MCPListener, atMost count: Int, until deadline: Date = Date().addingTimeInterval(30)) async -> Bool {
     if listener.runningLoops <= count { return true }
     guard Date() < deadline else { return false }
     try? await Task.sleep(for: .milliseconds(10))
@@ -319,22 +320,6 @@ private func loops(of listener: MCPListener, atMost count: Int, until deadline: 
         #expect(await busy.line() == "slow")
         busy.socket.close()
         #expect(await queued.line() == "queued")
-    }
-
-    @Test func onlyOneClientAtATime() async throws {
-        let url = tempSocketURL()
-        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
-        let listener = makeListener(at: url)
-        #expect(try listener.start() == .listening)
-        defer { listener.stop() }
-        var first = try Client(url)
-        #expect(first.send("one\n"))
-        #expect(await first.line() == "one")
-        var second = try Client(url)
-        #expect(second.send("two\n"))
-        #expect(await second.line(timeout: 0.4) == nil)
-        first.socket.close()
-        #expect(await second.line() == "two")
     }
 }
 

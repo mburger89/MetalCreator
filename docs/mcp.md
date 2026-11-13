@@ -12,13 +12,18 @@ is remembered. Or launch with `--mcp` (`MetalCreator --mcp`) to turn it on for t
 
 The client does not talk to the app directly. It starts the small program `metalcreator-mcp` (the bridge), which speaks MCP
 over stdin and stdout and forwards to the app. When the app is not running or the switch is off, the bridge says so itself
-("MetalCreator isn't running, or AI connections are off"); it tries again before each request and announces the tools once the
-app is reachable, so you can start the client first.
+("MetalCreator isn't running, or AI connections are off"). It connects to the app when the client first asks something, then keeps
+trying in the background (every second) and announces the tools when the app appears or comes back, so you can start the client
+first and quit or relaunch the app without reconnecting.
+
+The app serves one client at a time. If another is connected, a second one is told "MetalCreator is already connected to another
+AI client. Disconnect that one, then try again." within a couple of seconds, and connects by itself when the first leaves.
 
 The menu item tells you when the connection can't be made. "AI Connections: in use by another window" means another
 MetalCreator window already serves the socket; "AI Connections: couldn't start (reason)" means the listener failed (the reason
 says why, for instance a folder that isn't private). Choose the item again to try again, for instance after closing the other
-window.
+window, or choose **Turn Off AI Connections**, which appears under it in these two states, to switch the connection off (even
+under `--mcp`).
 
 ## Claude Code
 

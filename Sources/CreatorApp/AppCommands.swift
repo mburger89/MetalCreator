@@ -68,6 +68,7 @@ public enum AppCommands {
     static func aiConnectionsItem(_ model: AppModel) -> MenuItems {
         if let service = model.mcp {
             Toggle(service.menuTitle, isOn: Binding(get: { service.isOn && !service.retries }, set: { service.menuChosen($0) }))
+            if service.offersTurnOff { Button(MCPService.turnOffTitle) { service.turnOff() } }
         }
     }
 }
