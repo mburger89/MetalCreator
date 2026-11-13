@@ -4,18 +4,6 @@ import Foundation
 
 /// Runs the commands of one client step and reports what it changed.
 @MainActor public enum EditOutcome {
-    /// Plain-language text for a refused edit (the editor's `GraphError.message`, which this portable module can't import).
-    static func message(_ error: GraphError) -> String {
-        switch error {
-        case .invalidConnection(let problem): problem.message
-        case .nodeNotFound: "That node no longer exists."
-        case .duplicateNode: "That node already exists."
-        case .linkNotFound: "That wire no longer exists."
-        case .parameterNotFound: "That parameter no longer exists."
-        case .invalidValue(let message): message
-        }
-    }
-
     private struct Snapshot: Equatable {
         var state: String
         var message: String?
@@ -43,7 +31,7 @@ import Foundation
         do {
             try session.perform(commands.count == 1 ? commands[0] : .batch(commands), name: name)
         } catch {
-            return .refused(message(error))
+            return .refused(error.message)
         }
         return await report(session: session, name: name, before: before, commands: commands)
     }

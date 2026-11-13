@@ -5,26 +5,10 @@ import Foundation
 
 /// Turns a client's JSON into the `ConstantValue` an input stores, or says in a sentence why it can't.
 public enum ValueCoercion {
-    /// The label the inspector shows for a socket ("Distance", "Start angle").
-    public static func label(for socket: SocketName) -> String {
-        var words: [String] = []
-        var current = ""
-        for character in socket.rawValue {
-            if character.isUppercase, !current.isEmpty {
-                words.append(current)
-                current = ""
-            }
-            current.append(character)
-        }
-        if !current.isEmpty { words.append(current) }
-        let sentence = words.map { $0.lowercased() }.joined(separator: " ")
-        return sentence.prefix(1).uppercased() + sentence.dropFirst()
-    }
-
     /// `nil` in the success case clears the input. `options` are a segmented control's names, in index order.
     public static func value(_ json: JSONValue, for spec: SocketSpec, options: [String]?) -> Result<ConstantValue?, Refusal> {
         if json == .null { return .success(nil) }
-        let label = label(for: spec.name)
+        let label = SocketLabel.text(for: spec.name)
         switch spec.type {
         case .number: return number(json, label: label, range: spec.range)
         case .integer: return integer(json, label: label, options: options)

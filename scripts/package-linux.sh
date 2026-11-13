@@ -82,19 +82,24 @@ APP_SHADERS="$BIN_DIR/MetalCreator_CreatorViewport.bundle/MetalUIAppShaders"
 cp -R "$APP_SHADERS" "$FOLDER/MetalUIAppShaders"
 
 step "Copying the non-system libraries it links, transitively"
-ldd "$BINARY" > "$WORK/ldd.txt"
-grep -q "not found" "$WORK/ldd.txt" && fail "ldd can't find a library: $(grep 'not found' "$WORK/ldd.txt" | head -n 1)"
-count=0
-while read -r name arrow path _; do
-    [ "$arrow" = "=>" ] || continue
-    is_system "$name" && continue
-    cp -L "$path" "$FOLDER/lib/$name"
-    chmod u+w "$FOLDER/lib/$name"
-    # RUNPATH is not inherited, so each bundled library names its own folder for the ones it loads in turn.
-    patchelf --set-rpath '$ORIGIN' "$FOLDER/lib/$name"
-    count=$((count + 1))
-done < "$WORK/ldd.txt"
+for EXE in "$BINARY" "$BRIDGE"; do
+    ldd "$EXE" > "$WORK/ldd-$(basename "$EXE").txt"
+    grep -q "not found" "$WORK/ldd-$(basename "$EXE").txt" && fail "ldd can't find a library for $(basename "$EXE"): $(grep 'not found' "$WORK/ldd-$(basename "$EXE").txt" | head -n 1)"
+done
+# Both executables are scanned; cp -L is idempotent, so a library they both link is copied once and counted once.
+for EXE in "$BINARY" "$BRIDGE"; do
+    while read -r name arrow path _; do
+        [ "$arrow" = "=>" ] || continue
+        is_system "$name" && continue
+        cp -L "$path" "$FOLDER/lib/$name"
+        chmod u+w "$FOLDER/lib/$name"
+        # RUNPATH is not inherited, so each bundled library names its own folder for the ones it loads in turn.
+        patchelf --set-rpath '$ORIGIN' "$FOLDER/lib/$name"
+    done < "$WORK/ldd-$(basename "$EXE").txt"
+done
+count=$(ls "$FOLDER/lib" | wc -l | tr -d ' ')
 printf '    %s libraries\n' "$count"
+if ldd "$FOLDER/metalcreator-mcp" | grep -q "not found"; then fail "the packaged metalcreator-mcp can't find a library"; fi
 # The SDL the app ships must be a desktop SDL, not the dummy/offscreen-only one that opened no window on a real machine (XP-G33).
 [ -f "$FOLDER/lib/libSDL3.so.0" ] || fail "libSDL3.so.0 isn't among the linked libraries"
 "$ROOT/scripts/check-bundled-sdl.sh" "$FOLDER/lib/libSDL3.so.0" || fail "the bundled libSDL3.so.0 is not a desktop SDL (the image's SDL needs MetalUI's X11 and Wayland build: rebuild the image)"

@@ -14,7 +14,7 @@ extension EditTools {
             do {
                 _ = try graph.apply(command, registry: session.registry)
             } catch {
-                return .failure(Refusal(EditOutcome.message(error)))
+                return .failure(Refusal(error.message))
             }
         }
         return .success(plan)
@@ -54,10 +54,10 @@ extension EditTools {
             let shown: String
             if let spec = specs.first(where: { $0.name == socket }) {
                 coerced = ValueCoercion.value(json, for: spec, options: options(for: socket, of: node, session))
-                shown = ValueCoercion.label(for: socket)
+                shown = SocketLabel.text(for: socket)
             } else if textSettings.contains(socket),
                       node.inputValues[socket] != nil || session.registry[node.typeID]?.defaultSettings[socket] != nil {
-                shown = ValueCoercion.label(for: socket)
+                shown = SocketLabel.text(for: socket)
                 coerced = ValueCoercion.text(json, label: shown)
             } else {
                 return .failure(Refusal("\(node.name) has no input called “\(key)”."))

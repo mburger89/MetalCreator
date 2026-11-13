@@ -59,7 +59,7 @@ Add to `claude_desktop_config.json` (Settings ▸ Developer ▸ Edit Config), wi
 The app listens on `mcp.sock`: macOS `~/Library/Application Support/MetalCreator/Connection/mcp.sock` (a 0700 folder the app
 owns); Linux `$XDG_RUNTIME_DIR/metalcreator/mcp.sock`, else `/tmp/metalcreator-<uid>/mcp.sock`; Windows
 `%LOCALAPPDATA%\MetalCreator\mcp.sock`. The file is 0600 where the platform has permissions. `metalcreator-mcp --socket <path>`
-uses another. A request in flight when the app quits is answered "MetalCreator closed the connection before answering."
+uses another. The bridge holds no connection to the app until its client's first request. A request in flight when the app quits is answered "MetalCreator closed the connection before answering."
 
 ## Tools
 
