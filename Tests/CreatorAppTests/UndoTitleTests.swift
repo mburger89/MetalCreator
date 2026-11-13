@@ -52,10 +52,9 @@ struct UndoTitleTests {
         #expect(app.undoTitle == "Undo" && app.redoTitle == "Redo")
     }
 
-    /// The top bar draws the title: two apps with one edit each, named differently, differ by the glyphs of the names.
-    /// This counts glyphs (spaces draw none), so it is a smoke test that the name reaches the bar, not a text check; a
-    /// font or shaping change may need its arithmetic revisited. Human check NU-2 is the real one.
-    @Test func theTopBarDrawsTheTitle() async throws {
+    /// Undo and Redo are icons now (toolbar-icons): the step's name is their tooltip and accessibility label
+    /// (`ToolbarIconsWindowTests`), not drawn text, so two apps with differently named steps draw the same glyphs.
+    @Test func theTopBarDrawsNoTitleTextForTheSteps() async throws {
         func glyphs(_ app: AppModel) -> Int {
             let scene = renderFrame({ ZStack { TopBar(model: app) } }, size: Size(width: Pixels(1400), height: Pixels(100)),
                                     scaleFactor: 2, textSystem: testTextSystem(), atlas: GlyphAtlas(width: 1024, height: 1024))
@@ -67,10 +66,10 @@ struct UndoTitleTests {
             return app
         }
         let long = try await edited(named: "Add Note"), short = try await edited(named: "Move")
-        #expect(glyphs(long) - glyphs(short) == "AddNote".count - "Move".count, "the step's name joins the Undo button")
-        let undone = try await edited(named: "Add Note"), other = try await edited(named: "Move")
+        #expect(glyphs(long) == glyphs(short), "the step's name is not drawn in the bar")
+        #expect(long.undoTitle == "Undo Add Note" && short.undoTitle == "Undo Move")
+        let undone = try await edited(named: "Add Note")
         undone.undo()
-        other.undo()
-        #expect(glyphs(undone) - glyphs(other) == "AddNote".count - "Move".count, "and then the Redo button")
+        #expect(undone.redoTitle == "Redo Add Note")
     }
 }

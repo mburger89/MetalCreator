@@ -191,14 +191,14 @@ struct SDLChromeWindowTests {
     // MARK: macOS
 
     /// The frames the bar had before S1, read from master (8a943eb) with the traffic lights' insets (left 69, top 32):
-    /// the name, then Preview, Analysis, Undo, Redo and Export, as x, y, width, height. Nothing moves on macOS but Preview, which the Analysis menu
-    /// (the Section, Measure and Zebra toggles before it) pushes left.
+    /// the name, then Preview, Analysis, Undo, Redo and Export, as x, y, width, height. Since the icon buttons (toolbar-icons) Undo, Redo and
+    /// Export are glyphs (16 x 14, 16 x 14 and 27 x 18, the Export menu keeping its chrome), so Preview and Analysis move right.
     @Test func macLayoutIsWhatItWas() async throws {
         let app = try await AppWindow.open()
         app.setTitleBarInsets(AppWindow.standardButtonInsets)
         #if canImport(Metal)
         let expected: [[Float]] = [
-            [77, 26, 52, 16], [983, 22, 123, 24], [1116, 22, 85, 24], [1211, 22, 57, 24], [1278, 22, 55, 24], [1343, 22, 75, 24]
+            [77, 26, 52, 16], [1110, 22, 123, 24], [1243, 22, 86, 24], [1339, 27, 16, 14], [1365, 27, 16, 14], [1391, 25, 27, 18]
         ]
         let found = try [app.topBarLabel()] + app.topBarControls().sorted { $0.frame.origin.x.value < $1.frame.origin.x.value }
         #expect(found.map { [$0.frame.origin.x.value, $0.frame.origin.y.value, $0.frame.size.width.value, $0.frame.size.height.value] }

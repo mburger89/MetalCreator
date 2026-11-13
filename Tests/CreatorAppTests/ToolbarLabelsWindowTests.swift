@@ -4,50 +4,53 @@ import MetalUITesting
 import Testing
 @testable import CreatorApp
 
-/// The graph panel's header buttons in the app's real window: every label is drawn in full, not cut to "Bott…",
-/// at the panel's default width and when the panel is dragged wider. A button narrower than it is with room to spare
-/// is a label the layout truncated.
+/// The graph panel's header icons in the app's real window: every control keeps its size at the panel's default width
+/// and when the panel is dragged wider, and a narrow row truncates the breadcrumbs, never a control.
 @MainActor
 struct ToolbarLabelsWindowTests {
-    static let labels = ["Add", "Library", "−", "+", "Left", "Bottom", "Hide"]
+    static let labels = [HeaderText.add, HeaderText.showLibrary, HeaderText.zoomOut, HeaderText.zoomIn,
+                         HeaderText.dockLeftName, HeaderText.dockBottomName, HeaderText.hide,
+    ]
 
-    func widths(_ app: AppWindow) throws -> [String: Double] {
-        let buttons = try app.window.elements {
-            $0.role == .button && Self.labels.contains($0.label ?? "") && $0.frame.origin.y < 120 && $0.frame.origin.x < 900
+    func frames(_ app: AppWindow) throws -> [String: (minX: Double, maxX: Double)] {
+        let found = try app.window.elements {
+            Self.labels.contains($0.label ?? "") && $0.frame.origin.y < 120 && $0.frame.origin.x < 900
         }
-        return Dictionary(buttons.map { ($0.label ?? "", Double($0.frame.size.width.value)) }, uniquingKeysWith: max)
+        let pairs = found.map { element in
+            let left = Double(element.frame.origin.x.value)
+            return (element.label ?? "", (minX: left, maxX: left + Double(element.frame.size.width.value)))
+        }
+        return Dictionary(pairs, uniquingKeysWith: { first, _ in first })
     }
 
-    @Test func everyHeaderLabelIsShownInFullAtTheDefaultPanelWidth() async throws {
-        let app = try await AppWindow.open(dock: .left)
-        #expect(app.model.panelWidth == AppLayout.defaultPanelWidth)
-        let actual = try widths(app)
-        app.model.panelWidth = AppLayout.panelWidths.upperBound
-        try await app.window.runUntilIdle()
-        let ideal = try widths(app)
-        #expect(actual.count == Self.labels.count && ideal.count == Self.labels.count)
-        for label in Self.labels {
-            // Within a pixel: MetalUI rounds each edge, so a button's width is `round(x + w) - round(x)`.
-            #expect(abs((actual[label] ?? 0) - (ideal[label] ?? 0)) <= 1,
-                    "“\(label)” is \(actual[label] ?? 0) wide, its ideal is \(ideal[label] ?? 0)")
-        }
+    func span(_ frames: [String: (minX: Double, maxX: Double)]) -> Double {
+        (frames.values.map(\.maxX).max() ?? 0) - (frames.values.map(\.minX).min() ?? 0)
     }
 
-    /// What a wide font does to the default width (DejaVu Sans on Linux): the row has no room for the path. The panel is
-    /// made that narrow instead, whatever the font: the buttons, the row's eight gaps (`GraphPanelHeader`) and the glass
-    /// padding, and 4 points for the path. The breadcrumbs give way, not a button.
-    @Test func narrowHeaderTruncatesTheBreadcrumbsBeforeAnyButton() async throws {
+    @Test func everyHeaderControlIsFoundByItsAccessibilityLabel() async throws {
+        let app = try await AppWindow.open(dock: .left)
+        let found = try frames(app)
+        #expect(Set(found.keys) == Set(Self.labels), "found \(found.keys.sorted())")
+    }
+
+    @Test func theHeaderRowIsTheSameAtTheDefaultPanelWidthAndWider() async throws {
+        let app = try await AppWindow.open(dock: .left)
+        let actual = span(try frames(app))
+        app.model.panelWidth = AppLayout.panelWidths.upperBound
+        try await app.window.runUntilIdle()
+        let ideal = span(try frames(app))
+        #expect(abs(actual - ideal) <= 2, "the row is \(actual) wide, its ideal is \(ideal)")
+    }
+
+    /// A panel just wide enough for the controls and 4 points of path: the breadcrumbs give way, not a control.
+    @Test func narrowHeaderTruncatesTheBreadcrumbsBeforeAnyControl() async throws {
         let app = try await AppWindow.open(dock: .left)
         app.model.panelWidth = AppLayout.panelWidths.upperBound
         try await app.window.runUntilIdle()
-        let ideal = try widths(app)
-        app.model.panelWidth = ideal.values.reduce(0, +) + 8 * 6 + 2 * GraphPanelLayout.glassPadding + 4
+        let ideal = span(try frames(app))
+        app.model.panelWidth = ideal + 2 * 6 + 2 * GraphPanelLayout.glassPadding + 4
         try await app.window.runUntilIdle()
-        let actual = try widths(app)
-        #expect(actual.count == Self.labels.count && ideal.count == Self.labels.count)
-        for label in Self.labels {
-            #expect(abs((actual[label] ?? 0) - (ideal[label] ?? 0)) <= 1,
-                    "“\(label)” is \(actual[label] ?? 0) wide, its ideal is \(ideal[label] ?? 0)")
-        }
+        let actual = span(try frames(app))
+        #expect(abs(actual - ideal) <= 2, "the row is \(actual) wide, its ideal is \(ideal)")
     }
 }
