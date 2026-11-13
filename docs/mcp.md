@@ -79,7 +79,7 @@ Editing (each call is one named undo step):
 - `set_file`: set the file of an Image Field (a picture) or an Import Mesh node (STL or 3MF), linked or embedded.
 - `batch`: several edit operations as one undo step, or none if any is refused. The step is named "Build" (it adds a node), "Delete", "Rewire", "Rearrange" or "Edit Graph", or after its one operation; an optional `step_name` picks one of Build, Rewire, Rearrange, Clean Up, Delete or Edit Graph (no other text).
 
-Edit results list each `changed` node (state or outputs changed) with its `outputs` summaries.
+Edit results list each `changed` node (state or outputs changed, so downstream nodes whose geometry changed are listed too, not only the node edited) with its `outputs` summaries.
 
 History:
 - `undo` / `redo`: take back or re-apply the client's own last step.

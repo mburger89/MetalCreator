@@ -195,9 +195,10 @@ import Testing
         let changed = try #require(result["changed"]?.array)
         let entry = try #require(changed.first { $0["name"]?.string == "Extrude" })
         #expect(entry["outputs"]?["solid"]?.string == "solid: 6 faces, 12 edges, bounds (-10, -5, 0) to (10, 5, 20) mm")
-        let (moved, _) = try await fixture.call("add_node", .object(["type": .string("creator.number")]))
-        let numberEntry = try #require(moved["changed"]?.array?.first)
-        #expect(numberEntry["outputs"]?.object?["solid"] == nil)
+        let (added, _) = try await fixture.call("add_node", .object(["type": .string("creator.number")]))
+        let numberName = try #require(fixture.document.graph.nodes.values.first { $0.typeID == "creator.number" }?.name)
+        let numberEntry = try #require(added["changed"]?.array?.first { $0["name"]?.string == numberName })
+        #expect(numberEntry["outputs"] == nil, "a node with no geometry has no outputs key at all")
     }
 
     @Test func clientEditsNeverCoalesce() async throws {
