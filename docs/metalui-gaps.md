@@ -101,7 +101,7 @@ stopgap as they were. The sections below keep each gap's full use case.
 | TB-a | No `ViewThatFits` for the sketch toolbar's overflow (a "More" menu) | MetalUI #213 (`3c7eadb9`, record 217) | ✅ fixed and adopted (branch `sketch-toolbar-more`): `SketchToolbar` is a `ViewThatFits` over fifteen rows, tools leave the row from the end into a "More" menu; human check UP-2 reworded, pending |
 | CV-a | A `.help` tooltip never shows on an element that does not hit-test (the graph canvas's socket dots, drawn under `.allowsHitTesting(false)`) | MetalUI #237 (`9ffd70e8`, record 239, `MN-AJ`) | ✅ fixed by MetalUI #237 and adopted: `CanvasSurface` has `.help { location in … }` over `EditorModel.socketTip(at:)`; the layers' own `.help` is gone. Human checks TR-2, VA-3, FI-core-3 and IM-2 can be run again |
 | AS-a | The traffic lights straddle the top bar's glass edge: a hidden title bar's band height (and so the buttons' vertical centre) is AppKit's, not the app's | asked 2026-11-08 | fixed by MetalUI PRs #248 (4a7a898f) and #249 (4a7815ba, the inset after a live resize), adopted |
-| ICON-a | Icon buttons on Linux and Windows need bundled symbols MetalUI's `BundledSymbols` table lacks: `arrow.uturn.forward`, `square.and.arrow.up`, `plus`, `minus`, `plus.magnifyingglass`, `minus.magnifyingglass`, `sidebar.left`, `rectangle.lefthalf.inset.filled`, `rectangle.bottomhalf.inset.filled`, `house`, `camera` | MetalUI #277 (`0b5b6a87`, record 279, ruling SYM-Q) | fixed in MetalUI; adoption (the icons, and the CI pin bump from `c4cbbc08`) is the next branch, `toolbar-icons` |
+| ICON-a | Icon buttons on Linux and Windows need bundled symbols MetalUI's `BundledSymbols` table lacks: `arrow.uturn.forward`, `square.and.arrow.up`, `plus`, `minus`, `plus.magnifyingglass`, `minus.magnifyingglass`, `sidebar.left`, `rectangle.lefthalf.inset.filled`, `rectangle.bottomhalf.inset.filled`, `house`, `camera` | MetalUI #277 (`0b5b6a87`) and #290 | fixed in MetalUI #290 (`ad09c33a`, record 288, ruling SYM-R); adopted on `toolbar-icons` |
 
 ## Reported 2026-10-07 (C7)
 
@@ -1523,6 +1523,5 @@ while the app runs, pipelines cached by source.
   `minus.magnifyingglass` (zoom in and out), `sidebar.left` (the node library), `rectangle.lefthalf.inset.filled` and `rectangle.bottomhalf.inset.filled` (the dock, Left and Bottom), `house` (Home view)
   and `camera` (the view options menu). `eye.slash` (Hide the graph) was named in the header brief too.
   Meanwhile: the top bar's Undo, Redo and Export, the graph panel header (`GraphPanelHeader`) and the view cube's Home button and View menu stay text. We do not draw icons by hand.
-  Status: fixed by MetalUI #277 (`0b5b6a87`, record 279, ruling SYM-Q), which bundles all eleven (`plus` and `minus` were already there); the half-inset
-  rectangles are an outline over a filled strip. The bundled glyphs carry no accessibility label, so each icon button passes its own. Adoption is the
-  `toolbar-icons` branch, with the CI pin bump.
+  Status: fixed. MetalUI #277 (`0b5b6a87`, record 279, ruling SYM-Q) bundled the glyphs but not `plus` and `minus`; MetalUI #290 (`ad09c33a`, record 288, ruling SYM-R) bundles them. Adopted on the
+  `toolbar-icons` branch with the CI pin bump (`ad09c33a`): the graph header's Add is `Image(systemName: "plus")`. The bundled glyphs carry no accessibility label, so each icon button passes its own.

@@ -21,7 +21,7 @@ struct GraphPanelHeader: Component {
                 .layoutPriority(-1)
             Spacer(minLength: Pixels(0))
             HStack(spacing: Self.groupSpacing) {
-                Button { model.openPalette() } label: { Text("Add") }
+                Button { model.openPalette() } label: { Image(systemName: "plus") }
                     .buttonStyle(.borderless)
                     .accessibilityLabel(HeaderText.add)
                     .help(HeaderText.add)
