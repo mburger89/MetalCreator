@@ -24,9 +24,17 @@ final class BridgeLink: Sendable {
     }
 
     let socket: LocalSocket
-    /// The app's answer to the replayed `initialize`, once it comes.
-    let handshake = Mutex<Handshake?>(nil)
+    private struct HandshakeState {
+        /// The app's answer to the replayed `initialize`, once it comes.
+        var answer: Handshake?
+        /// The id of the client's own `initialize` whose answer this link owes (it is the handshake), once the bridge stopped
+        /// waiting for it.
+        var owed: JSONValue?
+    }
+
+    private let handshakeState = Mutex(HandshakeState())
     let handshakeSignal = DispatchSemaphore(value: 0)
+    var currentHandshake: Handshake? { handshakeState.withLock { $0.answer } }
     private let stopped = Mutex(false)
     private let ended = Mutex(false)
     private let finished = DispatchSemaphore(value: 0)
@@ -39,6 +47,26 @@ final class BridgeLink: Sendable {
     /// True once the app's side closed or failed.
     var hasEnded: Bool { ended.withLock { $0 } }
     var pendingCount: Int { pending.withLock { $0.count } }
+
+    /// Called when the bridge stops waiting for the handshake on a live link: the app's answer, when it comes, is the client's
+    /// answer to its own request `id`, which the reader hands over under that id. Returns the answer when it has already come
+    /// (the caller deals with it, and nothing is owed).
+    func owe(initializeAnswerTo id: JSONValue) -> Handshake? {
+        let arrived = handshakeState.withLock { held -> Handshake? in
+            if let answer = held.answer { return answer }
+            held.owed = id
+            return nil
+        }
+        if arrived == nil { expectReply(to: id, isToolCall: false) }
+        return arrived
+    }
+
+    /// The reply `line` (the app's answer to the handshake) under the client's request id `id`.
+    static func reply(_ line: Data, id: JSONValue) -> Data? {
+        guard var fields = (try? JSONValue.parse(line))?.object else { return nil }
+        fields["id"] = id
+        return JSONRPC.line(.object(fields))
+    }
 
     func markEnded() { ended.withLock { $0 = true } }
 
@@ -79,8 +107,7 @@ final class BridgeLink: Sendable {
                     guard case .line(let line) = next else { break loop }
                     if line.isEmpty { continue }
                     if Self.isReplayAnswer(line, replay) {
-                        handshake.withLock { $0 = Self.handshake(of: line) }
-                        handshakeSignal.signal()
+                        receiveHandshake(line, into: output)
                         continue
                     }
                     if pendingCount > 0, let reply = try? JSONValue.parse(line), reply["method"] == nil, let id = reply["id"] {
@@ -95,6 +122,23 @@ final class BridgeLink: Sendable {
         }
         thread.name = "MCP bridge reader"
         thread.start()
+    }
+
+    /// Records the app's answer to the replayed `initialize`. An accepted one for a request the bridge stopped waiting for goes to
+    /// the client under that request's id.
+    private func receiveHandshake(_ line: Data, into output: OutputLock) {
+        let answer = Self.handshake(of: line)
+        let owed = handshakeState.withLock { held -> JSONValue? in
+            held.answer = answer
+            let id = held.owed
+            held.owed = nil
+            return id
+        }
+        if let id = owed {
+            forgetReply(to: id)
+            if case .accepted = answer, let reply = Self.reply(line, id: id) { output.write(reply) }
+        }
+        handshakeSignal.signal()
     }
 
     /// A refusal carries the busy code and the sentence; anything else is the app accepting.

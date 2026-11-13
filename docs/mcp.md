@@ -17,7 +17,7 @@ trying in the background (every second) and announces the tools when the app app
 first and quit or relaunch the app without reconnecting.
 
 The app serves one client at a time. If another is connected, a second one is told "MetalCreator is already connected to another
-AI client. Disconnect that one, then try again." within a couple of seconds, and connects by itself when the first leaves.
+AI client. Disconnect that one, then try again." within a couple of seconds, and connects by itself when the first leaves. While another client holds the app, a refused client's requests can wait 1 to 2 seconds each, behind the bridge's reconnect attempts.
 
 The menu item tells you when the connection can't be made. "AI Connections: in use by another window" means another
 MetalCreator window already serves the socket; "AI Connections: couldn't start (reason)" means the listener failed (the reason

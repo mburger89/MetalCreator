@@ -3,15 +3,15 @@ import Synchronization
 import Testing
 @testable import CreatorMCP
 
-private let sentence = "MetalCreator isn't running, or AI connections are off: turn them on in MetalCreator ▸ Allow AI Connections."
+let sentence = "MetalCreator isn't running, or AI connections are off: turn them on in MetalCreator ▸ Allow AI Connections."
 
-private final class Exit: Sendable {
+final class Exit: Sendable {
     private let value = Mutex<Int32?>(nil)
     var code: Int32? { value.withLock { $0 } }
     func set(_ code: Int32) { value.withLock { $0 = code } }
 }
 
-private final class Lines: Sendable {
+final class Lines: Sendable {
     private let items = Mutex<[String]>([])
     func add(_ line: String) { items.withLock { $0.append(line) } }
     var all: [String] { items.withLock { $0 } }
@@ -26,14 +26,14 @@ private final class Lines: Sendable {
 }
 
 /// The bridge on pipes; every wait has a timeout.
-private final class Harness: Sendable {
+final class Harness: Sendable {
     let stdin = Pipe()
     let stdout = Pipe()
     let received = Lines()
     let exitCode = Exit()
 
-    init(socket: URL, retryInterval: Duration = .milliseconds(50)) {
-        let bridge = MCPBridge(socketPath: socket, retryInterval: retryInterval)
+    init(socket: URL, retryInterval: Duration = .milliseconds(50), handshakeTimeout: Duration = .seconds(5)) {
+        let bridge = MCPBridge(socketPath: socket, retryInterval: retryInterval, handshakeTimeout: handshakeTimeout)
         let input = stdin.fileHandleForReading, output = stdout.fileHandleForWriting
         let readEnd = stdout.fileHandleForReading
         let received = received
@@ -76,12 +76,12 @@ private final class Harness: Sendable {
     }
 }
 
-private func bridgeSocketURL() -> URL {
+func bridgeSocketURL() -> URL {
     URL(fileURLWithPath: "/tmp/mcpb-\(UInt32.random(in: 0...9_999_999))").appendingPathComponent("s.sock")
 }
 
 /// A stand-in app: answers every request with `{"from":"app"}` and records the lines it gets.
-private func makeApp(at url: URL, seen: Lines) -> MCPListener {
+func makeApp(at url: URL, seen: Lines) -> MCPListener {
     MCPListener(path: url, handle: { line, send in
         let text = String(bytes: line, encoding: .utf8) ?? ""
         seen.add(text)
@@ -134,7 +134,7 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
         #expect(await harness.finish() == 0)
     }
 
-    private static let initializeLine =
+    static let initializeLine =
         #"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","clientInfo":{"name":"t"}}}"#
 
     @Test func appStartingLaterIsAnnouncedWithoutAnotherRequest() async throws {
@@ -339,27 +339,6 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
         #expect(await harness.received.wait(count: 1))
         #expect(try harness.json(0)["error"]?["code"]?.int == -32600)
         #expect(try harness.json(0)["id"] == .null)
-        #expect(await harness.finish() == 0)
-    }
-}
-
-extension BridgeTests {
-    @Test func theAppSeesExactlyOneInitializeWhenTheClientSendsFirst() async throws {
-        let url = bridgeSocketURL()
-        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
-        let seen = Lines()
-        let app = makeApp(at: url, seen: seen)
-        #expect(try app.start() == .listening)
-        defer { app.stop() }
-        let harness = Harness(socket: url)
-        harness.send(Self.initializeLine)
-        harness.send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
-        harness.send(#"{"jsonrpc":"2.0","id":2,"method":"ping"}"#)
-        #expect(await harness.received.wait(count: 2))
-        #expect(await seen.wait(count: 3))
-        let methods = try seen.all.map { try JSONValue.parse(Data($0.utf8))["method"]?.string }
-        #expect(methods == ["initialize", "notifications/initialized", "ping"])
-        #expect(try harness.json(0)["id"]?.int == 1, "the app's own answer to the client's initialize")
         #expect(await harness.finish() == 0)
     }
 }

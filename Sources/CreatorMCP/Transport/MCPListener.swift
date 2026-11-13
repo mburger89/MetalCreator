@@ -31,8 +31,9 @@ public final class MCPListener: Sendable {
     private let failed: @Sendable (String) -> Void
     private let writeTimeoutMilliseconds: Int
     private let busyGraceMilliseconds: Int
-    /// How many connections may wait for the slot at once (the one being served is not counted). A connection beyond it is closed
-    /// at once, so a client that keeps connecting cannot pile up threads each waiting out the grace.
+    /// How many connections may wait for the slot while one is served (counting the served one the cap is `maximumWaiting + 1`
+    /// threads; with no one served the check admits one more, so up to `maximumWaiting + 1` can be waiting). A connection beyond
+    /// the cap is closed at once, so a client that keeps connecting cannot pile up threads each waiting out the grace.
     static let maximumWaiting = 8
     /// Held by the connection being served.
     private let slot = Mutex(false)
@@ -109,6 +110,8 @@ public final class MCPListener: Sendable {
         while !run.isStopped {
             do {
                 guard let connection = try listening.accept(timeoutMilliseconds: 100) else { continue }
+                // Admitted while `count <= maximumWaiting`: one served plus `maximumWaiting` waiting, or `maximumWaiting + 1` waiting
+                // when no one is served. Anything beyond that is closed at once.
                 let admitted = admitting.withLock { count -> Bool in
                     guard count <= Self.maximumWaiting else { return false }
                     count += 1
@@ -188,8 +191,21 @@ public final class MCPListener: Sendable {
                 if line.isEmpty { continue }
                 let id = (try? JSONValue.parse(line))?["id"] ?? .null
                 _ = connection.write(JSONRPC.error(id: id, code: JSONRPC.alreadyConnected, Self.busySentence))
+                finishRefusal(connection, run)
                 return
             }
+        }
+    }
+
+    /// After the refusal: stop sending, then read what the client still has queued (the watcher sends `initialize` and
+    /// `notifications/initialized` as two writes) until it closes, for up to a second. Closing with unread data can reset the
+    /// connection on Winsock and drop the reply that was just queued.
+    private func finishRefusal(_ connection: LocalSocket, _ run: Run) {
+        connection.shutdownWrite()
+        var buffer = [UInt8](repeating: 0, count: 4096)
+        for _ in 0..<10 where !run.isStopped {
+            guard connection.waitReadable(milliseconds: 100) else { continue }
+            if connection.read(into: &buffer) <= 0 { return }
         }
     }
 

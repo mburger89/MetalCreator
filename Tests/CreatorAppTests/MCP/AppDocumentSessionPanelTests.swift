@@ -58,6 +58,26 @@ extension AppDocumentSessionTests {
     private static let heldSentence = "MetalCreator is checking a change in the window. Try again in a moment."
     private static let alertSentence = "MetalCreator is asking you something. Answer it, then try again."
 
+    /// The loop body lives here so no loop local is held across an `await` (the Windows toolchain's coroutine splitting asserts on it).
+    private func expectExportRefusal(_ core: MCPServerCore, _ tool: String, _ arguments: JSONValue = .object([:])) async throws {
+        let outcome = try await call(core, tool, arguments)
+        #expect(outcome.isError && outcome.result.string == Self.exportSentence, "\(tool)")
+    }
+
+    /// One picker entry point: its panel opens (tracked), and is released once the picker is.
+    private func expectPickerTracked(
+        _ app: AppModel, _ name: String, _ start: @escaping @MainActor (GatedFilePicker) async -> Void
+    ) async throws {
+        let picker = GatedFilePicker()
+        let task = Task { await start(picker) }
+        try await waitUntil { picker.asked > 0 }
+        #expect(app.filePanels.isOpen, "\(name)")
+        picker.release()
+        await task.value
+        app.alert = nil
+        #expect(!app.filePanels.isOpen, "\(name) releases")
+    }
+
     @Test func exportSheetRefusesEdits() async throws {
         let (app, session, core) = await rig(meshGraph())
         app.exportHold = { try await Task.sleep(for: .seconds(3600)) }
@@ -67,17 +87,13 @@ extension AppDocumentSessionTests {
         try await waitUntil { app.exportRun != nil }
         let added = try await call(core, "add_node", .object(["type": .string("creator.rectangle")]))
         #expect(added.isError && added.result.string == Self.exportSentence)
-        for tool in ["undo", "redo", "new_document"] {
-            let outcome = try await call(core, tool)
-            #expect(outcome.isError && outcome.result.string == Self.exportSentence, "\(tool)")
-        }
+        for tool in ["undo", "redo", "new_document"] { try await expectExportRefusal(core, tool) }
         let other = temporaryURL("mcp-sheet.mcgraph")
         for (tool, arguments) in [("open_document", JSONValue.object(["path": .string(other.path)])),
                                   ("save_document", .object(["path": .string(other.path)])),
                                   ("set_file", .object(["node": .string(UUID().uuidString), "path": .string(other.path)])),
         ] {
-            let outcome = try await call(core, tool, arguments)
-            #expect(outcome.isError && outcome.result.string == Self.exportSentence, "\(tool)")
+            try await expectExportRefusal(core, tool, arguments)
         }
         #expect(session.editRefusal() == Self.exportSentence)
         app.exportRun?.cancel()
@@ -131,16 +147,7 @@ extension AppDocumentSessionTests {
             ("import mesh", { await app.importMesh(using: $0) }),
             ("export destination", { await app.exportDocument(.threeMF, using: $0) }),
         ]
-        for (name, start) in entries {
-            let picker = GatedFilePicker()
-            let task = Task { await start(picker) }
-            try await waitUntil { picker.asked > 0 }
-            #expect(app.filePanels.isOpen, "\(name)")
-            picker.release()
-            await task.value
-            app.alert = nil
-            #expect(!app.filePanels.isOpen, "\(name) releases")
-        }
+        for (name, start) in entries { try await expectPickerTracked(app, name, start) }
     }
 
     @Test func heldResultsRefuseEdits() async throws {

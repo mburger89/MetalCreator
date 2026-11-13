@@ -50,8 +50,8 @@ public struct MCPBridge: Sendable {
                 if !line.isEmpty { session.handle(line) }
             }
         }
-        session.waitForReplies(upTo: 1)
         session.beginClosing()
+        session.waitForReplies(upTo: 1)
         watcher.stopAndJoin()
         session.close()
         return 0
@@ -167,8 +167,9 @@ private final class BridgeSession: Sendable {
     /// Connects when nothing is connected (called inside `state`). A client that already initialized gets the app brought up to
     /// date first, and the app's answer to that says whether it will take this client.
     /// `answering` is the id of the client's own `initialize` that triggered this connect: that request is the handshake itself (the
-    /// app sees exactly one `initialize`), so the app's answer is handed to the client under that id and the request is not
-    /// forwarded again, and no `notifications/initialized` is sent (the client sends its own). Returns true once it was answered.
+    /// app sees exactly one `initialize`, also when its answer is late), so the app's answer is handed to the client under that id
+    /// by the link's reader and the request is not forwarded again, and no `notifications/initialized` is sent (the client sends
+    /// its own). Returns true when the link owes that answer.
     @discardableResult
     private func connectIfPossible(_ held: inout SessionState, replayingInitialize: Bool, answering: JSONValue? = nil) -> Bool {
         if let link = held.link, link.hasEnded { dropLink(&held) }
@@ -186,29 +187,36 @@ private final class BridgeSession: Sendable {
         fresh.startReading(into: output)
         var answer: Data?
         if replay != nil {
-            switch awaitHandshake(of: fresh) {
-            case .refused(let message)?:
+            switch settleHandshake(of: fresh, answering: answering) {
+            case .refused(let message):
                 fresh.shutDown()
                 held.refusal = message
                 return false
-            case .accepted(let line)?: answer = line
-            case nil: break
+            case .lost:
+                fresh.shutDown()
+                return false
+            case .accepted(let line): answer = line
+            case .late: break
             }
         }
+        let answered = replay != nil && answering != nil
         held.refusal = nil
         held.link = fresh
         // The answer to the client's `initialize` goes first: nothing may precede it.
-        let answered = answer.map { answerClient(id: answering, with: $0) } ?? false
-        if held.needsAnnounce {
-            held.needsAnnounce = false
-            output.write(JSONRPC.line(.object([
-                "jsonrpc": .string("2.0"), "method": .string("notifications/tools/list_changed"),
-            ])))
-            output.write(JSONRPC.line(.object([
-                "jsonrpc": .string("2.0"), "method": .string("notifications/resources/list_changed"),
-            ])))
-        }
+        if let id = answering, let line = answer, let reply = BridgeLink.reply(line, id: id) { output.write(reply) }
+        announceIfNeeded(&held)
         return answered
+    }
+
+    private func announceIfNeeded(_ held: inout SessionState) {
+        guard held.needsAnnounce else { return }
+        held.needsAnnounce = false
+        output.write(JSONRPC.line(.object([
+            "jsonrpc": .string("2.0"), "method": .string("notifications/tools/list_changed"),
+        ])))
+        output.write(JSONRPC.line(.object([
+            "jsonrpc": .string("2.0"), "method": .string("notifications/resources/list_changed"),
+        ])))
     }
 
     private func sendHandshake(_ params: JSONValue, over socket: LocalSocket, sendingInitialized: Bool) -> Bool {
@@ -219,19 +227,31 @@ private final class BridgeSession: Sendable {
         return !sendingInitialized || socket.write(JSONRPC.notification("notifications/initialized", .object([:])))
     }
 
-    /// Hands the client the app's answer to the handshake under the id of its own `initialize`; false when it had none.
-    private func answerClient(id: JSONValue?, with line: Data) -> Bool {
-        guard let id, let reply = try? JSONValue.parse(line), var fields = reply.object else { return false }
-        fields["id"] = id
-        output.write(JSONRPC.line(.object(fields)))
-        return true
+    private enum Settled {
+        case accepted(Data)
+        case refused(String)
+        /// The link ended, or the bridge is closing: nothing is stored or announced.
+        case lost
+        /// Still no answer on a live link: it is kept, and the app's late answer reaches the client through the link, so the
+        /// client's request is not forwarded a second time.
+        case late
+    }
+
+    private func settleHandshake(of link: BridgeLink, answering: JSONValue?) -> Settled {
+        var result = awaitHandshake(of: link)
+        if result == nil, !link.hasEnded, !closing.withLock({ $0 }), let id = answering { result = link.owe(initializeAnswerTo: id) }
+        switch result {
+        case .accepted(let line)?: return .accepted(line)
+        case .refused(let message)?: return .refused(message)
+        case nil: return link.hasEnded || closing.withLock { $0 } ? .lost : .late
+        }
     }
 
     /// Waits for the app's answer to the replayed `initialize`; `nil` on a timeout, a lost link or a closing bridge.
     private func awaitHandshake(of link: BridgeLink) -> BridgeLink.Handshake? {
         let deadline = Date().addingTimeInterval(handshakeSeconds)
         while true {
-            if let answer = link.handshake.withLock({ $0 }) { return answer }
+            if let answer = link.currentHandshake { return answer }
             if link.hasEnded || closing.withLock({ $0 }) || Date() >= deadline { return nil }
             _ = link.handshakeSignal.wait(timeout: .now() + .milliseconds(50))
         }
