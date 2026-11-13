@@ -106,7 +106,8 @@ private final class Link: Sendable {
     static let replayID = "metalcreator-bridge-initialize"
 
     enum Handshake: Sendable {
-        case accepted
+        /// The app took the client; its whole answer, which the bridge hands the client when the replay was the client's own request.
+        case accepted(Data)
         case refused(String)
     }
 
@@ -187,7 +188,7 @@ private final class Link: Sendable {
     /// A refusal carries the busy code and the sentence; anything else is the app accepting.
     private static func handshake(of line: Data) -> Handshake {
         let error = (try? JSONValue.parse(line))?["error"]
-        guard error?["code"]?.int == JSONRPC.alreadyConnected else { return .accepted }
+        guard error?["code"]?.int == JSONRPC.alreadyConnected else { return .accepted(line) }
         return .refused(error?["message"]?.string ?? MCPListener.busySentence)
     }
 
@@ -280,12 +281,16 @@ private final class BridgeSession: Sendable {
 
     /// Connects when nothing is connected (called inside `state`). A client that already initialized gets the app brought up to
     /// date first, and the app's answer to that says whether it will take this client.
-    private func connectIfPossible(_ held: inout SessionState, replayingInitialize: Bool) {
+    /// `answering` is the id of the client's own `initialize` that triggered this connect: that request is the handshake itself (the
+    /// app sees exactly one `initialize`), so the app's answer is handed to the client under that id and the request is not
+    /// forwarded again, and no `notifications/initialized` is sent (the client sends its own). Returns true once it was answered.
+    @discardableResult
+    private func connectIfPossible(_ held: inout SessionState, replayingInitialize: Bool, answering: JSONValue? = nil) -> Bool {
         if let link = held.link, link.hasEnded { dropLink(&held) }
-        guard held.link == nil else { return }
+        guard held.link == nil else { return false }
         guard let socket = try? LocalSocket.connect(to: socketPath) else {
             held.refusal = nil
-            return
+            return false
         }
         let fresh = Link(socket)
         let replay = replayingInitialize ? held.initializeParams : nil
@@ -294,19 +299,32 @@ private final class BridgeSession: Sendable {
                 "jsonrpc": .string("2.0"), "id": .string(Link.replayID), "method": .string("initialize"), "params": params,
             ]))
             let ready = JSONRPC.notification("notifications/initialized", .object([:]))
-            guard socket.write(hello), socket.write(ready) else {
+            guard socket.write(hello), answering != nil || socket.write(ready) else {
                 socket.close()
-                return
+                return false
             }
         }
         fresh.startReading(into: output)
-        if replay != nil, case .refused(let message)? = awaitHandshake(of: fresh) {
-            fresh.shutDown()
-            held.refusal = message
-            return
+        var answer: Data?
+        if replay != nil {
+            switch awaitHandshake(of: fresh) {
+            case .refused(let message)?:
+                fresh.shutDown()
+                held.refusal = message
+                return false
+            case .accepted(let line)?: answer = line
+            case nil: break
+            }
         }
         held.refusal = nil
         held.link = fresh
+        // The answer to the client's `initialize` goes first: nothing may precede it.
+        var answered = false
+        if let id = answering, let line = answer, let reply = try? JSONValue.parse(line), var fields = reply.object {
+            fields["id"] = id
+            output.write(JSONRPC.line(.object(fields)))
+            answered = true
+        }
         if held.needsAnnounce {
             held.needsAnnounce = false
             output.write(JSONRPC.line(.object([
@@ -316,6 +334,7 @@ private final class BridgeSession: Sendable {
                 "jsonrpc": .string("2.0"), "method": .string("notifications/resources/list_changed"),
             ])))
         }
+        return answered
     }
 
     /// Waits for the app's answer to the replayed `initialize`; `nil` on a timeout, a lost link or a closing bridge.
@@ -334,13 +353,22 @@ private final class BridgeSession: Sendable {
 
     private func handle(_ line: Data, _ state: inout SessionState) {
         let message = try? JSONValue.parse(line)
-        if message?["method"]?.string == "initialize" { state.initializeParams = message?["params"] ?? .object([:]) }
+        let isInitialize = message?["method"]?.string == "initialize"
+        if isInitialize { state.initializeParams = message?["params"] ?? .object([:]) }
         if let message, message.object == nil {
             reply(JSONRPC.error(id: .null, code: JSONRPC.invalidRequest, "That isn't a JSON-RPC request."))
             return
         }
         let isRequest = message.map { $0["method"]?.string != nil && ($0["id"] ?? .null) != .null } ?? true
-        if isRequest { connectIfPossible(&state, replayingInitialize: true) }
+        // The client's own `initialize` is the handshake (see `connectIfPossible`): a synthetic one beside it would show the app two.
+        // The connect and its handshake wait stay inside `state` on purpose: the stdin thread and the watcher both decide from
+        // `link`, `refusal` and `needsAnnounce` and a connect that ran outside the lock could race them (two links, or an announcement
+        // twice) in ways no test here can pin down; the cost is that stdin waits (up to the handshake timeout, 5 s, plus the app's
+        // 1 s grace) only while another client holds the app.
+        if isRequest {
+            let answered = connectIfPossible(&state, replayingInitialize: true, answering: isInitialize ? message?["id"] : nil)
+            if answered { return }
+        }
         if let held = state.link, !held.hasEnded {
             let id = isRequest ? message?["id"] : nil
             if let id { held.expectReply(to: id, isToolCall: message?["method"]?.string == "tools/call") }

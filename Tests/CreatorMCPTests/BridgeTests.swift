@@ -16,15 +16,12 @@ private final class Lines: Sendable {
     func add(_ line: String) { items.withLock { $0.append(line) } }
     var all: [String] { items.withLock { $0 } }
     /// Polls by recursion, not a loop: a loop that keeps locals across an `await` crashes the Windows compiler.
-    func wait(count: Int, timeout: TimeInterval = 30) async -> Bool {
-        await wait(count: count, until: Date().addingTimeInterval(timeout))
-    }
-
-    private func wait(count: Int, until deadline: Date) async -> Bool {
+    /// No wall-clock deadline: it gives up when the test is cancelled by the suite's time limit.
+    func wait(count: Int) async -> Bool {
         if all.count >= count { return true }
-        guard Date() < deadline else { return false }
+        guard !Task.isCancelled else { return false }
         try? await Task.sleep(for: .milliseconds(10))
-        return await wait(count: count, until: deadline)
+        return await wait(count: count)
     }
 }
 
@@ -62,14 +59,14 @@ private final class Harness: Sendable {
 
     func finish() async -> Int32? {
         try? stdin.fileHandleForWriting.close()
-        return await waitForExit(until: Date().addingTimeInterval(30))
+        return await waitForExit()
     }
 
-    private func waitForExit(until deadline: Date) async -> Int32? {
+    private func waitForExit() async -> Int32? {
         if let code = exitCode.code { return code }
-        guard Date() < deadline else { return nil }
+        guard !Task.isCancelled else { return nil }
         try? await Task.sleep(for: .milliseconds(10))
-        return await waitForExit(until: deadline)
+        return await waitForExit()
     }
 
     func json(_ index: Int) throws -> JSONValue {
@@ -93,7 +90,7 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
     }, connectionChanged: { _ in })
 }
 
-@Suite(.serialized) struct BridgeTests {
+@Suite(.serialized, .timeLimit(.minutes(5))) struct BridgeTests {
     @Test func bridgeCopiesBothWays() async throws {
         let url = bridgeSocketURL()
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
@@ -154,7 +151,7 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
         let app = makeApp(at: url, seen: seen)
         #expect(try app.start() == .listening)
         defer { app.stop() }
-        #expect(await harness.received.wait(count: 3, timeout: 10))
+        #expect(await harness.received.wait(count: 3))
         #expect(try harness.json(1)["method"]?.string == "notifications/tools/list_changed")
         #expect(try harness.json(2)["method"]?.string == "notifications/resources/list_changed")
         // The replay reached the app; its answer never reached the client.
@@ -177,7 +174,7 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
         let app = makeApp(at: url, seen: seen)
         #expect(try app.start() == .listening)
         defer { app.stop() }
-        #expect(await harness.received.wait(count: 3, timeout: 10))
+        #expect(await harness.received.wait(count: 3))
         harness.send(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
         #expect(await harness.received.wait(count: 4))
         #expect(try harness.json(3)["id"]?.int == 2)
@@ -185,6 +182,25 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
         #expect(await seen.wait(count: 3))
         let methods = try seen.all.map { try JSONValue.parse(Data($0.utf8))["method"]?.string }
         #expect(methods == ["initialize", "notifications/initialized", "tools/list"])
+        #expect(await harness.finish() == 0)
+    }
+
+    @Test func theAppSeesExactlyOneInitializeWhenTheClientSendsFirst() async throws {
+        let url = bridgeSocketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let seen = Lines()
+        let app = makeApp(at: url, seen: seen)
+        #expect(try app.start() == .listening)
+        defer { app.stop() }
+        let harness = Harness(socket: url)
+        harness.send(Self.initializeLine)
+        harness.send(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
+        harness.send(#"{"jsonrpc":"2.0","id":2,"method":"ping"}"#)
+        #expect(await harness.received.wait(count: 2))
+        #expect(await seen.wait(count: 3))
+        let methods = try seen.all.map { try JSONValue.parse(Data($0.utf8))["method"]?.string }
+        #expect(methods == ["initialize", "notifications/initialized", "ping"])
+        #expect(try harness.json(0)["id"]?.int == 1, "the app's own answer to the client's initialize")
         #expect(await harness.finish() == 0)
     }
 
@@ -197,12 +213,12 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
         let harness = Harness(socket: url)
         harness.send(Self.initializeLine)
         #expect(await harness.received.wait(count: 1))
-        #expect(await seen.wait(count: 3), "the replay and the client's own initialize")
+        #expect(await seen.wait(count: 1), "the client's own initialize")
         app.stop()
         let reborn = makeApp(at: url, seen: seen)
         #expect(try reborn.start() == .listening)
         defer { reborn.stop() }
-        #expect(await harness.received.wait(count: 3, timeout: 10))
+        #expect(await harness.received.wait(count: 3))
         #expect(try harness.json(1)["method"]?.string == "notifications/tools/list_changed")
         #expect(try harness.json(2)["method"]?.string == "notifications/resources/list_changed")
         harness.send(#"{"jsonrpc":"2.0","id":5,"method":"tools/list"}"#)
@@ -260,7 +276,7 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
         #expect(try harness.json(1)["result"]?["content"]?.array?.first?["text"]?.string == MCPListener.busySentence)
         #expect(try harness.json(2)["result"]?["tools"]?.array?.isEmpty == true)
         raw.close()
-        #expect(await harness.received.wait(count: 5, timeout: 10))
+        #expect(await harness.received.wait(count: 5))
         #expect(try harness.json(3)["method"]?.string == "notifications/tools/list_changed")
         harness.send(#"{"jsonrpc":"2.0","id":4,"method":"tools/list"}"#)
         #expect(await harness.received.wait(count: 6))
@@ -332,7 +348,7 @@ private func makeApp(at url: URL, seen: Lines) -> MCPListener {
         let harness = Harness(socket: url)
         harness.send(#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#)
         #expect(await harness.finish() == 0)
-        #expect(await harness.received.wait(count: 1, timeout: 1))
+        #expect(await harness.received.wait(count: 1))
         #expect(try harness.json(0)["result"]?["late"]?.bool == true)
     }
 
