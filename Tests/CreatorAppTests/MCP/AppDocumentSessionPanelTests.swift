@@ -48,7 +48,7 @@ extension AppDocumentSessionTests {
     }
 
     private func waitUntil(_ condition: @MainActor () -> Bool) async throws {
-        // No wall-clock deadline: it ends when the suite's time limit cancels the test (a sleep then throws).
+        // No wall-clock deadline: a condition that never holds is caught by the CI job's timeout.
         while !condition() { try await Task.sleep(for: .milliseconds(5)) }
     }
 

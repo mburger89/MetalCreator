@@ -9,9 +9,10 @@ import Testing
 @testable import CreatorEditor
 @testable import CreatorMCP
 
-/// The AI server's view of the open document: the rules about when an edit may run, and the files.
+/// The AI server's view of the open document: the rules about when an edit may run, and the files. No time limit: one counts from
+/// the moment the test starts, which on Windows comes over 20 minutes before the shared main actor gets to it (`MCPServiceTests`).
 @MainActor
-@Suite(.timeLimit(.minutes(20)))
+@Suite
 struct AppDocumentSessionTests {
     func rig(_ graph: Graph = Graph()) async -> (AppModel, AppDocumentSession, MCPServerCore) {
         let app = await makeApp(graph)

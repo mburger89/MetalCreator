@@ -7,16 +7,17 @@ import Testing
 
 /// The switch, the server it starts and the chip's state. Each test listens on a short socket path of its own (macOS caps a path at
 /// 104 bytes). Every answer is made on this process's main actor, which the whole app suite shares, so under load (CI's Linux
-/// runners) an answer can take minutes: the waits below have no deadline of their own, and the suite's time limit is what catches
-/// a server that never answers.
+/// runners) an answer can take minutes: the waits below have no deadline of their own. Nor does the suite: a time limit counts from
+/// the moment the test starts, which on Windows comes over 20 minutes before the shared main actor gets to it, so a server that
+/// never answers is caught by the CI job's own timeout.
 @MainActor
-@Suite(.timeLimit(.minutes(20)))
+@Suite
 struct MCPServiceTests {
     private func socketURL() -> URL {
         URL(fileURLWithPath: "/tmp/mcpa-\(UInt32.random(in: 0...9_999_999))").appendingPathComponent("s.sock")
     }
 
-    /// Waits until `condition` holds, or the test is cancelled by the suite's time limit.
+    /// Waits until `condition` holds or the test is cancelled.
     /// Polls by recursion, not a loop: a loop that keeps locals across an `await` crashes the Windows compiler.
     private func waitUntil(_ condition: @MainActor () -> Bool) async -> Bool {
         if condition() { return true }
