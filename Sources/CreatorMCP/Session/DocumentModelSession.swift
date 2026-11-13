@@ -6,9 +6,7 @@ import Foundation
 /// A session over a bare `DocumentModel`: what the tests and the protocol need. The app's session adds files, export and
 /// the rules about when an edit may run (Task 8).
 @MainActor public final class DocumentModelSession: DocumentSession {
-    /// A node's drawn width in points (the editor's `NodeLayout.width`, which this portable module can't import) and the gap
-    /// left between it and the next.
-    private static let nodeWidth = 224.0
+    /// The gap left between a node and the next: the MCP's own spacing choice (the node's width is `CanvasMetrics.nodeWidth`).
     private static let nodeGap = 40.0
     private static let unavailable = "That isn't available here."
 
@@ -65,7 +63,7 @@ import Foundation
     public func freePosition(for node: Node, in graph: Graph) -> Vector2 {
         let nodes = graph.nodes.values
         guard let rightmost = nodes.map(\.position.x).max(), let top = nodes.map(\.position.y).min() else { return .zero }
-        return Vector2(rightmost + Self.nodeWidth + Self.nodeGap, top)
+        return Vector2(rightmost + CanvasMetrics.nodeWidth + Self.nodeGap, top)
     }
 
     public func settle(within limit: Duration) async -> Bool {
@@ -140,6 +138,7 @@ enum ValueSummary {
         case .number(let number): "number \(format(number))"
         case .integer(let integer): "integer \(integer)"
         case .bool(let flag): "bool \(flag)"
+        case .solid(let solid): SolidFacts(solid).text
         default: name(scalar.type)
         }
     }

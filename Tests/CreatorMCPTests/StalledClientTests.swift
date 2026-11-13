@@ -6,7 +6,7 @@ import Testing
 @testable import CreatorMCP
 
 /// A client that asks for a large document and never reads must not freeze the window (the main actor) and is eventually dropped.
-@MainActor struct StalledClientTests {
+@MainActor @Suite(.timeLimit(.minutes(5))) struct StalledClientTests {
     /// The fastest time the main actor took to answer a hop over the window. Recursion, not a loop: a loop that keeps locals
     /// across an `await` crashes the Windows compiler. A blocked main actor answers none until the stall ends; a busy test run
     /// can delay some hops, so it is the best one that counts.
@@ -19,11 +19,12 @@ import Testing
         return await fastestMainActorHop(until: deadline, fastest: min(fastest, took))
     }
 
-    private func waitUntil(_ condition: @MainActor () -> Bool, until deadline: Date = Date().addingTimeInterval(30)) async -> Bool {
+    /// No wall-clock deadline: it gives up when the suite's time limit cancels the test.
+    private func waitUntil(_ condition: @MainActor () -> Bool) async -> Bool {
         if condition() { return true }
-        guard Date() < deadline else { return false }
+        guard !Task.isCancelled else { return false }
         try? await Task.sleep(for: .milliseconds(10))
-        return await waitUntil(condition, until: deadline)
+        return await waitUntil(condition)
     }
 
     @Test func aClientThatNeverReadsLeavesTheMainActorFreeAndIsDropped() async throws {

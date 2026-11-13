@@ -4,28 +4,19 @@ import Foundation
 
 /// Runs the commands of one client step and reports what it changed.
 @MainActor public enum EditOutcome {
-    /// Plain-language text for a refused edit (the editor's `GraphError.message`, which this portable module can't import).
-    static func message(_ error: GraphError) -> String {
-        switch error {
-        case .invalidConnection(let problem): problem.message
-        case .nodeNotFound: "That node no longer exists."
-        case .duplicateNode: "That node already exists."
-        case .linkNotFound: "That wire no longer exists."
-        case .parameterNotFound: "That parameter no longer exists."
-        case .invalidValue(let message): message
-        }
-    }
-
     private struct Snapshot: Equatable {
         var state: String
         var message: String?
+        /// The output summaries, so a node whose geometry changed is reported though its state stayed "ok".
+        var outputs: [String: JSONValue]
     }
 
     private static func snapshot(_ session: any DocumentSession) -> [NodeID: Snapshot] {
         var taken: [NodeID: Snapshot] = [:]
         for id in session.content.graph.nodes.keys {
             let (state, message) = ReadTools.stateText(session.results[id]?.state)
-            taken[id] = Snapshot(state: state, message: message)
+            let outputs = session.content.graph.nodes[id].map { ReadTools.outputSummaries(of: $0, session) } ?? [:]
+            taken[id] = Snapshot(state: state, message: message, outputs: outputs)
         }
         return taken
     }
@@ -40,7 +31,7 @@ import Foundation
         do {
             try session.perform(commands.count == 1 ? commands[0] : .batch(commands), name: name)
         } catch {
-            return .refused(message(error))
+            return .refused(error.message)
         }
         return await report(session: session, name: name, before: before, commands: commands)
     }
@@ -69,6 +60,7 @@ import Foundation
                 "id": .string(node.id.rawValue.uuidString), "name": .string(node.name), "state": .string(now.state),
             ]
             if let text = now.message { fields["message"] = .string(text) }
+            if !now.outputs.isEmpty { fields["outputs"] = .object(now.outputs) }
             changed.append(.object(fields))
         }
         let added = commands.compactMap { command -> JSONValue? in

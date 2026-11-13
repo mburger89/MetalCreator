@@ -9,17 +9,19 @@ import Testing
 @testable import CreatorEditor
 @testable import CreatorMCP
 
-/// The AI server's view of the open document: the rules about when an edit may run, and the files.
+/// The AI server's view of the open document: the rules about when an edit may run, and the files. No time limit: one counts from
+/// the moment the test starts, which on Windows comes over 20 minutes before the shared main actor gets to it (`MCPServiceTests`).
 @MainActor
+@Suite
 struct AppDocumentSessionTests {
-    private func rig(_ graph: Graph = Graph()) async -> (AppModel, AppDocumentSession, MCPServerCore) {
+    func rig(_ graph: Graph = Graph()) async -> (AppModel, AppDocumentSession, MCPServerCore) {
         let app = await makeApp(graph)
         let session = AppDocumentSession(model: app)
         let core = MCPServerCore(session: session, tools: MCPCatalogue.tools, resources: MCPCatalogue.resources, serverVersion: "test")
         return (app, session, core)
     }
 
-    private func call(_ core: MCPServerCore, _ tool: String, _ arguments: JSONValue = .object([:])) async throws
+    func call(_ core: MCPServerCore, _ tool: String, _ arguments: JSONValue = .object([:])) async throws
         -> (result: JSONValue, isError: Bool) {
         let request = JSONValue.object([
             "jsonrpc": .string("2.0"), "id": .int(1), "method": .string("tools/call"),

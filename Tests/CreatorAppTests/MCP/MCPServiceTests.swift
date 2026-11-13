@@ -7,16 +7,17 @@ import Testing
 
 /// The switch, the server it starts and the chip's state. Each test listens on a short socket path of its own (macOS caps a path at
 /// 104 bytes). Every answer is made on this process's main actor, which the whole app suite shares, so under load (CI's Linux
-/// runners) an answer can take minutes: the waits below have no deadline of their own, and the suite's time limit is what catches
-/// a server that never answers.
+/// runners) an answer can take minutes: the waits below have no deadline of their own. Nor does the suite: a time limit counts from
+/// the moment the test starts, which on Windows comes over 20 minutes before the shared main actor gets to it, so a server that
+/// never answers is caught by the CI job's own timeout.
 @MainActor
-@Suite(.timeLimit(.minutes(20)))
+@Suite
 struct MCPServiceTests {
     private func socketURL() -> URL {
         URL(fileURLWithPath: "/tmp/mcpa-\(UInt32.random(in: 0...9_999_999))").appendingPathComponent("s.sock")
     }
 
-    /// Waits until `condition` holds, or the test is cancelled by the suite's time limit.
+    /// Waits until `condition` holds or the test is cancelled.
     /// Polls by recursion, not a loop: a loop that keeps locals across an `await` crashes the Windows compiler.
     private func waitUntil(_ condition: @MainActor () -> Bool) async -> Bool {
         if condition() { return true }
@@ -150,8 +151,10 @@ struct MCPServiceTests {
         let request = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\","
             + "\"params\":{\"name\":\"get_document\",\"arguments\":{}}}\n"
         #expect(client.write(Data(request.utf8)))
-        #expect(await waitUntil { service.isClientConnected })
-        #expect(await waitUntil { !service.isClientConnected }, "the stalled connection is dropped")
+        // Waits for the second connection event (the drop), not for `isClientConnected` to be seen true and then false: the connected
+        // window lasts only the write timeout and can pass between two polls on a main actor the whole suite shares.
+        #expect(await waitUntil { service.lastEvent >= 2 }, "the stalled connection is dropped")
+        #expect(!service.isClientConnected)
     }
 
     @Test func aSecondWindowShowsInUseAndRetriesWhenChosen() async {
@@ -181,6 +184,62 @@ struct MCPServiceTests {
         #expect(service.menuTitle == "AI Connections: couldn't start (The path for AI connections is too long.)")
         service.menuChosen(true)
         #expect(service.state == .failed("The path for AI connections is too long."), "the retry ran and failed again")
+    }
+
+    @Test func turnOffFromInUseStopsAndForgetsTheChoice() async {
+        let url = socketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let first = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: url)
+        first.start()
+        defer { first.stop() }
+        let preference = MemoryMCPPreference(allowsAIConnections: true)
+        let second = MCPService(model: await makeApp(), preference: preference, path: url)
+        second.start()
+        #expect(second.state == .inUse)
+        second.turnOff()
+        #expect(second.state == .off && !second.isOn && !preference.allowsAIConnections)
+        #expect(first.state == .listening && LocalSocket.fileExists(at: url), "the first window's listener is untouched")
+    }
+
+    @Test func turnOffFromFailed() async {
+        let long = URL(fileURLWithPath: "/tmp/mcpa-" + String(repeating: "a", count: 200)).appendingPathComponent("s.sock")
+        let service = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: long)
+        service.start()
+        #expect(service.retries)
+        service.turnOff()
+        #expect(service.state == .off)
+        #expect(service.menuTitle == "Allow AI Connections")
+    }
+
+    @Test func turnOffWinsOverTheLaunchFlag() async {
+        let long = URL(fileURLWithPath: "/tmp/mcpa-" + String(repeating: "a", count: 200)).appendingPathComponent("s.sock")
+        let service = MCPService(model: await makeApp(), preference: MemoryMCPPreference(), launchFlag: true, path: long)
+        service.start()
+        #expect(service.state != .off)
+        service.turnOff()
+        #expect(!service.isOn && service.state == .off)
+        service.start()
+        #expect(service.state == .off, "a start while switched off does nothing")
+        service.menuChosen(true)
+        #expect(service.isOn)
+    }
+
+    @Test func offersTurnOffOnlyWhenRetrying() async {
+        let url = socketURL()
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let first = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: url)
+        #expect(first.offersTurnOff == first.retries && !first.offersTurnOff)
+        first.start()
+        defer { first.stop() }
+        #expect(first.offersTurnOff == first.retries && !first.offersTurnOff)
+        let second = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: url)
+        second.start()
+        defer { second.stop() }
+        #expect(second.state == .inUse && second.offersTurnOff)
+        let long = URL(fileURLWithPath: "/tmp/mcpa-" + String(repeating: "a", count: 200)).appendingPathComponent("s.sock")
+        let failed = MCPService(model: await makeApp(), preference: MemoryMCPPreference(allowsAIConnections: true), path: long)
+        failed.start()
+        #expect(failed.offersTurnOff)
     }
 
     @Test func thePreferenceKeyAndDefaults() {

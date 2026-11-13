@@ -135,7 +135,7 @@ import Foundation
         return .object(fields)
     }
 
-    private static func outputSummaries(of node: Node, _ session: any DocumentSession) -> [String: JSONValue] {
+    static func outputSummaries(of node: Node, _ session: any DocumentSession) -> [String: JSONValue] {
         var summaries: [String: JSONValue] = [:]
         for socket in session.registry.outputs(for: node) {
             if let line = session.outputSummary(of: node.id, socket: socket.name) { summaries[socket.name.rawValue] = .string(line) }
@@ -191,18 +191,20 @@ import Foundation
             ]
             if let link = graph.links.first(where: { $0.to == Endpoint(node: id, socket: spec.name) }) {
                 fields["wired_from"] = .string(label(link.from, graph, names))
-            } else if let value = node.inputValues[spec.name] ?? spec.defaultValue {
+                fields["source"] = .string("wired")
+            } else if let stored = node.inputValues[spec.name] {
+                fields["value"] = constantJSON(stored)
+                fields["source"] = .string("set")
+            } else if let value = spec.defaultValue {
                 fields["value"] = constantJSON(value)
+                fields["source"] = .string("default")
+            } else {
+                fields["source"] = .string("unset")
             }
             if let value = spec.defaultValue { fields["default"] = constantJSON(value) }
             return .object(fields)
         }
-        let outputs: [JSONValue] = registry.outputs(for: node).map { spec in
-            .object([
-                "name": .string(spec.name.rawValue), "type": .string(spec.type.rawValue),
-                "summary": .string(session.outputSummary(of: id, socket: spec.name) ?? "No result yet"),
-            ])
-        }
+        let outputs = outputsJSON(of: node, session)
         let socketNames = Set(inputSpecs.map(\.name))
         var settings: [String: JSONValue] = [:]
         for (name, value) in node.inputValues where !socketNames.contains(name) {

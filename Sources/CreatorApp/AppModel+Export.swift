@@ -77,6 +77,7 @@ extension AppModel {
 
     /// Export STEP…, STL… or 3MF…: says what's wrong before asking where, then the save panel, then the file.
     public func exportDocument(_ kind: ExportKind, using picker: any FilePicker) async {
+        let picker = tracked(picker)
         editor.commitPendingEntry()
         await document.waitForEvaluation()
         do {

@@ -40,6 +40,11 @@ struct ValueCoercionTests {
     }
 
     @Test func labelsReadAsTheInspectorDoes() {
-        #expect(ValueCoercion.label(for: "startAngle") == "Start angle")
+        #expect(SocketLabel.text(for: "startAngle") == "Start angle")
+    }
+
+    @Test func refusalsUseTheInspectorLabels() {
+        let spec = SocketSpec("startAngle", .number, range: 0...90)
+        #expect(value(.int(200), spec) == .failure(Refusal("\(SocketLabel.text(for: "startAngle")) must be between 0 and 90.")))
     }
 }

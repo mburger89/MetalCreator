@@ -70,8 +70,64 @@ import Testing
         let profile = try #require(inputs.first { $0["name"]?.string == "profile" })
         #expect(profile["wired_from"]?.string == "Rectangle.profile")
         let outputs = try #require(node["outputs"]?.array)
-        #expect(outputs.first?["summary"]?.string == "solid")
+        let facts = "solid: 6 faces, 12 edges, bounds (-10, -5, 0) to (10, 5, 10) mm"
+        #expect(outputs.first?["summary"]?.string == facts)
+        let solids = try #require(outputs.first?["solids"]?.array)
+        #expect(solids.count == 1)
+        #expect(solids.first?["faces"]?.int == 6 && solids.first?["edges"]?.int == 12)
+        #expect(solids.first?["bounds_min"]?.array?.compactMap(\.int) == [-10, -5, 0])
+        #expect(solids.first?["bounds_max"]?.array?.compactMap(\.int) == [10, 5, 10])
+        #expect(outputs.first?["solids_total"] == nil)
         #expect(node["state"]?.string == "ok")
+    }
+
+    @Test func documentOutputsCarryFacts() async throws {
+        let fixture = try await SessionFixture()
+        let (page, _) = try await fixture.call("get_document")
+        let nodes = try #require(page["nodes"]?.array)
+        let extrude = try #require(nodes.first { $0["name"]?.string == "Extrude" })
+        #expect(extrude["outputs"]?["solid"]?.string == "solid: 6 faces, 12 edges, bounds (-10, -5, 0) to (10, 5, 10) mm")
+    }
+
+    @Test func listOfSolidsKeepsTheCountAndCapsFacts() async throws {
+        let fixture = try await SessionFixture()
+        let (_, addFailed) = try await fixture.call("add_node", .object([
+            "type": .string("creator.series"), "name": .string("Heights"),
+            "inputs": .object(["start": .int(1), "count": .int(25)]),
+        ]))
+        let (_, wireFailed) = try await fixture.call("connect", .object([
+            "from": .string("Heights.values"), "to": .string("Extrude.distance"),
+        ]))
+        #expect(!addFailed && !wireFailed)
+        let (node, _) = try await fixture.call("get_node", .object(["node": .string("Extrude")]))
+        let output = try #require(node["outputs"]?.array?.first)
+        #expect(output["summary"]?.string == "25 solids")
+        #expect(output["solids"]?.array?.count == 20)
+        #expect(output["solids_total"]?.int == 25)
+    }
+
+    @Test func getNodeSourceDistinguishesSetFromDefault() async throws {
+        let fixture = try await SessionFixture()
+        func distance() async throws -> JSONValue {
+            let (node, _) = try await fixture.call("get_node", .object(["node": .string("Extrude")]))
+            return try #require(node["inputs"]?.array?.first { $0["name"]?.string == "distance" })
+        }
+        func set(_ value: JSONValue) async throws {
+            _ = try await fixture.call("set_inputs", .object(["node": .string("Extrude"), "values": .object(["distance": value])]))
+        }
+        var input = try await distance()
+        #expect(input["source"]?.string == "default" && input["value"]?.int == 10)
+        try await set(.int(10))
+        input = try await distance()
+        #expect(input["source"]?.string == "set" && input["value"]?.int == 10)
+        try await set(.null)
+        input = try await distance()
+        #expect(input["source"]?.string == "default")
+        let (node, _) = try await fixture.call("get_node", .object(["node": .string("Extrude")]))
+        let profile = try #require(node["inputs"]?.array?.first { $0["name"]?.string == "profile" })
+        #expect(profile["source"]?.string == "wired")
+        let sources = node["inputs"]?.array?.compactMap { $0["source"]?.string } ?? []
+        #expect(sources.count == node["inputs"]?.array?.count)
     }
 
     @Test func typesFilterByCategoryAndSearch() async throws {

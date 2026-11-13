@@ -41,6 +41,24 @@ struct PackagingScriptTests {
         #expect(text.contains("metalcreator-mcp"), "\(name) must name metalcreator-mcp")
     }
 
+    private func text(_ name: String) throws -> String {
+        try String(contentsOf: Self.repository.appending(path: name), encoding: .utf8)
+    }
+
+    @Test func linuxPackageScansTheBridge() throws {
+        let script = try text("scripts/package-linux.sh")
+        #expect(script.contains("for EXE in \"$BINARY\" \"$BRIDGE\"; do"))
+        #expect(script.contains("ldd \"$FOLDER/metalcreator-mcp\""))
+    }
+
+    @Test func linuxCleanCheckRunsTheBridge() throws {
+        #expect(try text("scripts/linux-test.sh").contains("metalcreator-mcp --socket /nonexistent/x.sock"))
+    }
+
+    @Test func windowsPackageScansTheBridge() throws {
+        #expect(try text("scripts/package-windows.ps1").contains("$queue.Enqueue((Join-Path $folder 'metalcreator-mcp.exe'))"))
+    }
+
     /// `<repo>`, found from this file (`Tests/CreatorAppTests/PackagingScriptTests.swift`).
     private static let repository = URL(filePath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

@@ -3,7 +3,8 @@ import Synchronization
 
 /// The stdio side of the AI connection: an MCP client launches `metalcreator-mcp`, which copies its lines to the app's local
 /// socket and the app's lines back. While the app can't be reached it serves the client itself, so a client that started first
-/// still gets a working (empty) server with the reason, and connects to the app at the next request once it runs.
+/// still gets a working (empty) server with the reason. The bridge connects to the app only once its client has spoken, and from
+/// then on keeps trying in the background, announcing the tools when the app appears (or another client lets go of it).
 public struct MCPBridge: Sendable {
     static let closedSentence = "MetalCreator closed the connection before answering."
 
@@ -18,14 +19,22 @@ public struct MCPBridge: Sendable {
         "MetalCreator isn't running, or AI connections are off: turn them on in MetalCreator ▸ Allow AI Connections."
 
     private let socketPath: URL
+    private let retryInterval: Duration
+    private let handshakeTimeout: Duration
 
-    public init(socketPath: URL) { self.socketPath = socketPath }
+    public init(socketPath: URL, retryInterval: Duration = .seconds(1), handshakeTimeout: Duration = .seconds(5)) {
+        self.socketPath = socketPath
+        self.retryInterval = retryInterval
+        self.handshakeTimeout = handshakeTimeout
+    }
 
     /// Runs until stdin closes; 0 is a normal end.
     public func run(input: FileHandle, output: FileHandle) -> Int32 {
-        let session = BridgeSession(socketPath: socketPath, output: output)
+        let session = BridgeSession(socketPath: socketPath, output: output, handshakeTimeout: handshakeTimeout)
+        let watcher = Watcher(session: session, interval: retryInterval)
+        watcher.start()
+        defer { watcher.stopAndJoin() }
         var reader = LineReader()
-        session.connectIfPossible(replayingInitialize: false)
         while true {
             let data = input.availableData
             if data.isEmpty { break }
@@ -33,185 +42,244 @@ public struct MCPBridge: Sendable {
             while let next = reader.nextLine() {
                 guard case .line(let line) = next else {
                     session.reply(JSONRPC.error(id: .null, code: JSONRPC.invalidRequest, "That message is too long."))
+                    session.beginClosing()
+                    watcher.stopAndJoin()
                     session.close()
                     return 1
                 }
                 if !line.isEmpty { session.handle(line) }
             }
         }
+        session.beginClosing()
         session.waitForReplies(upTo: 1)
+        watcher.stopAndJoin()
         session.close()
         return 0
     }
 }
 
-/// One live connection to the app. Its reader thread owns reading; the stdin thread owns writing and closing.
-private final class Link: Sendable {
-    /// The id of the `initialize` the bridge sends on the client's behalf; the app's answer to it goes nowhere.
-    static let replayID = "metalcreator-bridge-initialize"
-
-    let socket: LocalSocket
+/// Retries the connection in the background while a client has initialized and no link is live.
+private final class Watcher: Sendable {
+    private let session: BridgeSession
+    private let interval: Duration
     private let stopped = Mutex(false)
-    private let ended = Mutex(false)
     private let finished = DispatchSemaphore(value: 0)
-    /// Requests forwarded and not yet answered: the id as encoded JSON, and whether it was a `tools/call`.
-    private let pending = Mutex<[String: Bool]>([:])
+    private let started = Mutex(false)
 
-    init(_ socket: LocalSocket) { self.socket = socket }
-
-    var isStopped: Bool { stopped.withLock { $0 } }
-    /// True once the app's side closed or failed.
-    var hasEnded: Bool { ended.withLock { $0 } }
-    var pendingCount: Int { pending.withLock { $0.count } }
-
-    func markEnded() { ended.withLock { $0 = true } }
-
-    static func key(_ id: JSONValue) -> String { String(bytes: id.encoded(), encoding: .utf8) ?? "" }
-
-    func expectReply(to id: JSONValue, isToolCall: Bool) { pending.withLock { $0[Self.key(id)] = isToolCall } }
-    func forgetReply(to id: JSONValue) { pending.withLock { _ = $0.removeValue(forKey: Self.key(id)) } }
-
-    /// Answers every request still waiting, once: the app went away before replying.
-    func failPending(into output: OutputLock) {
-        let waiting = pending.withLock { held -> [String: Bool] in
-            let all = held
-            held = [:]
-            return all
-        }
-        for (key, isToolCall) in waiting.sorted(by: { $0.key < $1.key }) {
-            guard let id = try? JSONValue.parse(Data(key.utf8)) else { continue }
-            let sentence = MCPBridge.closedSentence
-            if isToolCall {
-                output.write(JSONRPC.result(id: id, MCPBridge.toolError(sentence)))
-            } else {
-                output.write(JSONRPC.error(id: id, code: -32603, sentence))
-            }
-        }
+    init(session: BridgeSession, interval: Duration) {
+        self.session = session
+        self.interval = interval
     }
 
-    func startReading(into output: OutputLock) {
+    private var isStopped: Bool { stopped.withLock { $0 } }
+
+    func start() {
+        started.withLock { $0 = true }
         let thread = Thread { [self] in
-            var reader = LineReader()
-            var buffer = [UInt8](repeating: 0, count: 65_536)
-            let replay = Data(Self.replayID.utf8)
-            loop: while !isStopped {
-                guard socket.waitReadable(milliseconds: 100) else { continue }
-                let count = socket.read(into: &buffer)
-                if count <= 0 { break }
-                reader.append(buffer[0..<count])
-                while let next = reader.nextLine() {
-                    guard case .line(let line) = next else { break loop }
-                    if line.isEmpty || Self.isReplayAnswer(line, replay) { continue }
-                    if pendingCount > 0, let reply = try? JSONValue.parse(line), reply["method"] == nil, let id = reply["id"] {
-                        forgetReply(to: id)
-                    }
-                    output.write(line + Data("\n".utf8))
-                }
+            while !isStopped {
+                session.poll()
+                sleepInterval()
             }
-            markEnded()
-            if !isStopped { failPending(into: output) }
             finished.signal()
         }
-        thread.name = "MCP bridge reader"
+        thread.name = "MCP bridge watcher"
         thread.start()
     }
 
-    private static func isReplayAnswer(_ line: Data, _ needle: Data) -> Bool {
-        line.range(of: needle) != nil && (try? JSONValue.parse(line))?["id"]?.string == replayID
+    /// Sleeps in 50 ms slices so a stop is noticed promptly.
+    private func sleepInterval() {
+        let seconds = Double(interval.components.seconds) + Double(interval.components.attoseconds) / 1e18
+        let deadline = Date().addingTimeInterval(seconds)
+        while !isStopped, Date() < deadline { Thread.sleep(forTimeInterval: min(0.05, max(0.001, seconds))) }
     }
 
-    /// Stops the reader, waits for it, then closes the socket.
-    func shutDown() {
+    func stopAndJoin() {
         stopped.withLock { $0 = true }
+        guard started.withLock({ let was = $0; $0 = false; return was }) else { return }
         finished.wait()
-        socket.close()
     }
 }
 
-private final class OutputLock: Sendable {
-    private let lock = NSLock()
-    private let handle: FileHandle
-    init(_ handle: FileHandle) { self.handle = handle }
-    func write(_ data: Data) {
-        lock.lock()
-        defer { lock.unlock() }
-        try? handle.write(contentsOf: data)
-    }
+/// The bridge's state, shared by the stdin thread and the watcher: every change happens inside `state`. The reader threads never take it.
+private struct SessionState {
+    var link: BridgeLink?
+    var initializeParams: JSONValue?
+    /// Whether the client may hold an empty tool list: set when the bridge answers alone or a link is lost, cleared by the announcement.
+    var needsAnnounce = false
+    /// Why the app wouldn't take this client (another client holds it), as the app worded it.
+    var refusal: String?
 }
 
-/// The stdin thread's state: the link (if any) and what the client said at `initialize`.
-private final class BridgeSession {
+private final class BridgeSession: Sendable {
     private let socketPath: URL
     private let output: OutputLock
-    private var link: Link?
-    private var initializeParams: JSONValue?
-    /// Whether the bridge has answered anything itself, so a client may hold an empty tool list.
-    private var answeredAlone = false
+    private let handshakeSeconds: Double
+    private let state = Mutex(SessionState())
+    private let closing = Mutex(false)
 
-    init(socketPath: URL, output: FileHandle) {
+    init(socketPath: URL, output: FileHandle, handshakeTimeout: Duration) {
         self.socketPath = socketPath
         self.output = OutputLock(output)
+        handshakeSeconds = Double(handshakeTimeout.components.seconds) + Double(handshakeTimeout.components.attoseconds) / 1e18
     }
 
     func reply(_ data: Data) { output.write(data) }
 
+    /// Tells a handshake in progress to give up: stdin has closed.
+    func beginClosing() { closing.withLock { $0 = true } }
+
     /// After stdin closes: gives requests in flight up to `seconds` to be answered.
     func waitForReplies(upTo seconds: TimeInterval) {
         let deadline = Date().addingTimeInterval(seconds)
-        while let held = link, !held.hasEnded, held.pendingCount > 0, Date() < deadline {
+        while Date() < deadline {
+            let waiting = state.withLock { held -> Bool in
+                guard let link = held.link else { return false }
+                return !link.hasEnded && link.pendingCount > 0
+            }
+            guard waiting else { return }
             Thread.sleep(forTimeInterval: 0.01)
         }
     }
 
-    private func dropLink() {
-        link?.shutDown()
-        link?.failPending(into: output)
-        link = nil
+    /// The watcher's step: once the client has initialized, notices a lost link and connects again when there is none.
+    func poll() {
+        state.withLock { held in
+            guard held.initializeParams != nil else { return }
+            if let link = held.link, link.hasEnded { dropLink(&held) }
+            if held.link == nil { connectIfPossible(&held, replayingInitialize: true) }
+        }
+    }
+
+    private func dropLink(_ held: inout SessionState) {
+        held.link?.shutDown()
+        held.link?.failPending(into: output)
+        held.link = nil
+        held.needsAnnounce = true
     }
 
     func close() {
-        link?.shutDown()
-        link = nil
+        state.withLock { held in
+            held.link?.shutDown()
+            held.link = nil
+        }
     }
 
-    /// Connects when nothing is connected. A client that already initialized with the bridge gets the app brought up to date first.
-    func connectIfPossible(replayingInitialize: Bool) {
-        if let held = link, held.hasEnded { dropLink() }
-        guard link == nil, let socket = try? LocalSocket.connect(to: socketPath) else { return }
-        let fresh = Link(socket)
-        if replayingInitialize, let params = initializeParams {
-            let hello = JSONRPC.line(.object([
-                "jsonrpc": .string("2.0"), "id": .string(Link.replayID), "method": .string("initialize"), "params": params,
-            ]))
-            let ready = JSONRPC.notification("notifications/initialized", .object([:]))
-            guard socket.write(hello), socket.write(ready) else {
-                socket.close()
-                return
-            }
+    /// Connects when nothing is connected (called inside `state`). A client that already initialized gets the app brought up to
+    /// date first, and the app's answer to that says whether it will take this client.
+    /// `answering` is the id of the client's own `initialize` that triggered this connect: that request is the handshake itself (the
+    /// app sees exactly one `initialize`, also when its answer is late), so the app's answer is handed to the client under that id
+    /// by the link's reader and the request is not forwarded again, and no `notifications/initialized` is sent (the client sends
+    /// its own). Returns true when the link owes that answer.
+    @discardableResult
+    private func connectIfPossible(_ held: inout SessionState, replayingInitialize: Bool, answering: JSONValue? = nil) -> Bool {
+        if let link = held.link, link.hasEnded { dropLink(&held) }
+        guard held.link == nil else { return false }
+        guard let socket = try? LocalSocket.connect(to: socketPath) else {
+            held.refusal = nil
+            return false
+        }
+        let fresh = BridgeLink(socket)
+        let replay = replayingInitialize ? held.initializeParams : nil
+        if let params = replay, !sendHandshake(params, over: socket, sendingInitialized: answering == nil) {
+            socket.close()
+            return false
         }
         fresh.startReading(into: output)
-        link = fresh
-        if answeredAlone {
-            answeredAlone = false
-            output.write(JSONRPC.line(.object([
-                "jsonrpc": .string("2.0"), "method": .string("notifications/tools/list_changed"),
-            ])))
-            output.write(JSONRPC.line(.object([
-                "jsonrpc": .string("2.0"), "method": .string("notifications/resources/list_changed"),
-            ])))
+        var answer: Data?
+        if replay != nil {
+            switch settleHandshake(of: fresh, answering: answering) {
+            case .refused(let message):
+                fresh.shutDown()
+                held.refusal = message
+                return false
+            case .lost:
+                fresh.shutDown()
+                return false
+            case .accepted(let line): answer = line
+            case .late: break
+            }
+        }
+        let answered = replay != nil && answering != nil
+        held.refusal = nil
+        held.link = fresh
+        // The answer to the client's `initialize` goes first: nothing may precede it.
+        if let id = answering, let line = answer, let reply = BridgeLink.reply(line, id: id) { output.write(reply) }
+        announceIfNeeded(&held)
+        return answered
+    }
+
+    private func announceIfNeeded(_ held: inout SessionState) {
+        guard held.needsAnnounce else { return }
+        held.needsAnnounce = false
+        output.write(JSONRPC.line(.object([
+            "jsonrpc": .string("2.0"), "method": .string("notifications/tools/list_changed"),
+        ])))
+        output.write(JSONRPC.line(.object([
+            "jsonrpc": .string("2.0"), "method": .string("notifications/resources/list_changed"),
+        ])))
+    }
+
+    private func sendHandshake(_ params: JSONValue, over socket: LocalSocket, sendingInitialized: Bool) -> Bool {
+        let hello = JSONRPC.line(.object([
+            "jsonrpc": .string("2.0"), "id": .string(BridgeLink.replayID), "method": .string("initialize"), "params": params,
+        ]))
+        guard socket.write(hello) else { return false }
+        return !sendingInitialized || socket.write(JSONRPC.notification("notifications/initialized", .object([:])))
+    }
+
+    private enum Settled {
+        case accepted(Data)
+        case refused(String)
+        /// The link ended, or the bridge is closing: nothing is stored or announced.
+        case lost
+        /// Still no answer on a live link: it is kept, and the app's late answer reaches the client through the link, so the
+        /// client's request is not forwarded a second time.
+        case late
+    }
+
+    private func settleHandshake(of link: BridgeLink, answering: JSONValue?) -> Settled {
+        var result = awaitHandshake(of: link)
+        if result == nil, !link.hasEnded, !closing.withLock({ $0 }), let id = answering { result = link.owe(initializeAnswerTo: id) }
+        switch result {
+        case .accepted(let line)?: return .accepted(line)
+        case .refused(let message)?: return .refused(message)
+        case nil: return link.hasEnded || closing.withLock { $0 } ? .lost : .late
+        }
+    }
+
+    /// Waits for the app's answer to the replayed `initialize`; `nil` on a timeout, a lost link or a closing bridge.
+    private func awaitHandshake(of link: BridgeLink) -> BridgeLink.Handshake? {
+        let deadline = Date().addingTimeInterval(handshakeSeconds)
+        while true {
+            if let answer = link.currentHandshake { return answer }
+            if link.hasEnded || closing.withLock({ $0 }) || Date() >= deadline { return nil }
+            _ = link.handshakeSignal.wait(timeout: .now() + .milliseconds(50))
         }
     }
 
     func handle(_ line: Data) {
+        state.withLock { handle(line, &$0) }
+    }
+
+    private func handle(_ line: Data, _ state: inout SessionState) {
         let message = try? JSONValue.parse(line)
-        if message?["method"]?.string == "initialize" { initializeParams = message?["params"] ?? .object([:]) }
+        let isInitialize = message?["method"]?.string == "initialize"
+        if isInitialize { state.initializeParams = message?["params"] ?? .object([:]) }
         if let message, message.object == nil {
             reply(JSONRPC.error(id: .null, code: JSONRPC.invalidRequest, "That isn't a JSON-RPC request."))
             return
         }
         let isRequest = message.map { $0["method"]?.string != nil && ($0["id"] ?? .null) != .null } ?? true
-        if isRequest { connectIfPossible(replayingInitialize: true) }
-        if let held = link, !held.hasEnded {
+        // The client's own `initialize` is the handshake (see `connectIfPossible`): a synthetic one beside it would show the app two.
+        // The connect and its handshake wait stay inside `state` on purpose: the stdin thread and the watcher both decide from
+        // `link`, `refusal` and `needsAnnounce` and a connect that ran outside the lock could race them (two links, or an announcement
+        // twice) in ways no test here can pin down; the cost is that stdin waits (up to the handshake timeout, 5 s, plus the app's
+        // 1 s grace) only while another client holds the app.
+        if isRequest {
+            let answered = connectIfPossible(&state, replayingInitialize: true, answering: isInitialize ? message?["id"] : nil)
+            if answered { return }
+        }
+        if let held = state.link, !held.hasEnded {
             let id = isRequest ? message?["id"] : nil
             if let id { held.expectReply(to: id, isToolCall: message?["method"]?.string == "tools/call") }
             if held.socket.write(line + Data("\n".utf8)) {
@@ -222,19 +290,19 @@ private final class BridgeSession {
             held.markEnded()
         }
         guard isRequest else { return }
-        answerAlone(message)
+        answerAlone(message, &state)
     }
 
-    /// The reply for a request while no app is there.
-    private func answerAlone(_ message: JSONValue?) {
+    /// The reply for a request while no app is there (or it is serving another client).
+    private func answerAlone(_ message: JSONValue?, _ state: inout SessionState) {
         guard let message, message.object != nil, let method = message["method"]?.string else {
             reply(JSONRPC.error(id: message?["id"] ?? .null, code: message == nil ? JSONRPC.parseError : JSONRPC.invalidRequest,
                                 message == nil ? "The message isn't valid JSON." : "That isn't a JSON-RPC request."))
             return
         }
         let id = message["id"] ?? .null
-        let sentence = MCPBridge.noAppSentence
-        answeredAlone = true
+        let sentence = state.refusal ?? MCPBridge.noAppSentence
+        state.needsAnnounce = true
         switch method {
         case "initialize":
             let offered = message["params"]?["protocolVersion"]?.string

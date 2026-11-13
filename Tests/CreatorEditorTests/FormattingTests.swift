@@ -1,6 +1,7 @@
 import CreatorGeometry
 import CreatorGraph
 import CreatorKernel
+import CreatorNodes
 import Testing
 @testable import CreatorEditor
 
@@ -63,6 +64,21 @@ struct FormattingTests {
         #expect(InspectorLabel.text(for: "cornerRadius") == "Corner radius")
         #expect(InspectorLabel.text(for: "width") == "Width")
         #expect(InspectorLabel.text(for: "holeCountX") == "Hole count x")
+    }
+
+    @Test func inspectorLabelEqualsSocketLabel() {
+        let registry = BuiltInNodes.registry
+        for definition in registry.all {
+            let node = registry.makeNode(definition.typeID)
+            for spec in registry.inputs(for: node) {
+                #expect(InspectorLabel.text(for: spec.name) == SocketLabel.text(for: spec.name))
+            }
+        }
+    }
+
+    @Test func widthIsTheSharedMetric() {
+        #expect(NodeLayout.width == CanvasMetrics.nodeWidth)
+        #expect(CanvasMetrics.nodeWidth == 224)
     }
 
     @Test func planeChoicesMatchOrientationNotOrigin() {
